@@ -85,5 +85,5 @@ jobs:
       - name: Deploy to Cloudflare Pages
         run: |
           bunx wrangler pages deploy apps/web/dist \
-            --project-name "my-better-t-app-web" \
+            --project-name "sapphire2-web" \
             --branch main

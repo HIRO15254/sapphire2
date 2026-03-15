@@ -24,11 +24,11 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 	head: () => ({
 		meta: [
 			{
-				title: "my-better-t-app",
+				title: "sapphire2",
 			},
 			{
 				name: "description",
-				content: "my-better-t-app is a web application",
+				content: "sapphire2 is a web application",
 			},
 		],
 		links: [

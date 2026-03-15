@@ -35,8 +35,8 @@ Reference pattern from `packages/api/src/routers/todo.ts`:
 ```typescript
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "../index";
-import { db } from "@my-better-t-app/db";
-import { todoTable } from "@my-better-t-app/db/schema";
+import { db } from "@sapphire2/db";
+import { todoTable } from "@sapphire2/db/schema";
 import { eq } from "drizzle-orm";
 
 export const todoRouter = router({
@@ -95,11 +95,11 @@ throw new TRPCError({
 ```typescript
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@my-better-t-app/db", () => ({
+vi.mock("@sapphire2/db", () => ({
 	db: {},
 }));
 
-vi.mock("@my-better-t-app/env/server", () => ({
+vi.mock("@sapphire2/env/server", () => ({
 	env: {
 		DATABASE_URL: "postgres://test:test@localhost:5432/test",
 		BETTER_AUTH_SECRET: "test-secret",
@@ -141,4 +141,4 @@ describe("todoRouter", () => {
 - Always validate inputs with Zod
 - Use `async/await` instead of promise chains
 - Handle errors with `TRPCError` (not generic `Error`)
-- Package boundary: import from `@my-better-t-app/db`, not relative paths to db package
+- Package boundary: import from `@sapphire2/db`, not relative paths to db package

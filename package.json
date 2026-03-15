@@ -1,5 +1,5 @@
 {
-  "name": "my-better-t-app",
+  "name": "sapphire2",
   "private": true,
   "workspaces": {
     "packages": [
@@ -26,10 +26,10 @@
     "check-types": "bun run --filter '*' check-types",
     "dev:web": "bun run --filter web dev",
     "dev:server": "bun run --filter server dev",
-    "db:push": "bun run --filter @my-better-t-app/db db:push",
-    "db:studio": "bun run --filter @my-better-t-app/db db:studio",
-    "db:generate": "bun run --filter @my-better-t-app/db db:generate",
-    "db:migrate": "bun run --filter @my-better-t-app/db db:migrate",
+    "db:push": "bun run --filter @sapphire2/db db:push",
+    "db:studio": "bun run --filter @sapphire2/db db:studio",
+    "db:generate": "bun run --filter @sapphire2/db db:generate",
+    "db:migrate": "bun run --filter @sapphire2/db db:migrate",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=verbose",
@@ -38,19 +38,20 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@my-better-t-app/env": "workspace:*",
+    "@sapphire2/env": "workspace:*",
     "dotenv": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.0",
-    "@my-better-t-app/config": "workspace:*",
+    "@sapphire2/config": "workspace:*",
     "@types/bun": "catalog:",
     "husky": "latest",
     "lint-staged": "latest",
     "typescript": "catalog:",
     "ultracite": "7.2.4",
-    "vitest": "^3.1.0"
+    "vitest": "^3.1.0",
+    "wrangler": "^4.73.0"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,jsonc,css,scss,md,mdx}": [

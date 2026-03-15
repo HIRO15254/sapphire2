@@ -1,5 +1,5 @@
 {
-  "name": "@my-better-t-app/db",
+  "name": "@sapphire2/db",
   "type": "module",
   "exports": {
     ".": {
@@ -21,7 +21,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@my-better-t-app/config": "workspace:*",
+    "@sapphire2/config": "workspace:*",
     "drizzle-kit": "^0.31.8",
     "typescript": "catalog:",
     "vitest": "^3.1.0"

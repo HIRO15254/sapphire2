@@ -1,4 +1,4 @@
-import { todo } from "@my-better-t-app/db/schema/todo";
+import { todo } from "@sapphire2/db/schema/todo";
 import { eq } from "drizzle-orm";
 import z from "zod";
 

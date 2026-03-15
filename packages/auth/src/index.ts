@@ -6,7 +6,7 @@ import {
 	user,
 	userRelations,
 	verification,
-} from "@my-better-t-app/db/schema/auth";
+} from "@sapphire2/db/schema/auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 

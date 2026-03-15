@@ -1,5 +1,5 @@
 {
-  "name": "@my-better-t-app/auth",
+  "name": "@sapphire2/auth",
   "type": "module",
   "exports": {
     ".": {
@@ -11,12 +11,12 @@
   },
   "scripts": {},
   "dependencies": {
-    "@my-better-t-app/db": "workspace:*",
+    "@sapphire2/db": "workspace:*",
     "better-auth": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@my-better-t-app/config": "workspace:*",
+    "@sapphire2/config": "workspace:*",
     "typescript": "catalog:"
   }
 }

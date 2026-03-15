@@ -194,7 +194,7 @@ gh issue edit {ISSUE_NUMBER} --remove-label "wf:implementing" --add-label "wf:bl
 - constitutionの全原則に準拠（型安全、パッケージ境界、テスト必須等）
 - `bun x ultracite fix` を実装完了後に実行
 - テストファースト: テストを書いてから実装
-- パッケージ境界: `@my-better-t-app/*` 経由でimport、内部ファイル直接参照禁止
+- パッケージ境界: `@sapphire2/*` 経由でimport、内部ファイル直接参照禁止
 - Git操作は常にfeature branch上、**masterを直接変更しない**
 - commit メッセージ: `Implement #N: title`（新規）/ `Fix #N: title`（修正）
 - PRコメントは必ず折りたたみ方式（`<details>` タグ）を使用

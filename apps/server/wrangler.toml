@@ -1,4 +1,4 @@
-name = "my-better-t-app-api"
+name = "sapphire2-api"
 main = "src/worker.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]

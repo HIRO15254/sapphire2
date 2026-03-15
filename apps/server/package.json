@@ -9,16 +9,16 @@
   },
   "dependencies": {
     "@hono/trpc-server": "^0.4.0",
-    "@my-better-t-app/api": "workspace:*",
-    "@my-better-t-app/auth": "workspace:*",
-    "@my-better-t-app/db": "workspace:*",
+    "@sapphire2/api": "workspace:*",
+    "@sapphire2/auth": "workspace:*",
+    "@sapphire2/db": "workspace:*",
     "@trpc/server": "catalog:",
     "better-auth": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@my-better-t-app/config": "workspace:*",
+    "@sapphire2/config": "workspace:*",
     "@types/bun": "catalog:",
     "typescript": "catalog:",
     "vitest": "^3.1.0",

@@ -97,7 +97,7 @@ Cloudflare Dashboard → "Workers & Pages" overview page → right sidebar
 ### 5.3 Create Pages Project
 
 ```bash
-npx wrangler pages project create my-better-t-app-web
+npx wrangler pages project create sapphire2-web
 ```
 
 ## 6. GitHub Secrets Configuration
@@ -124,8 +124,8 @@ Add via **Settings > Secrets and variables > Actions > New repository secret**.
 | Secret Name | Source | Description |
 |---|---|---|
 | `PRODUCTION_DATABASE_URL` | Neon Console | Main branch connection string |
-| `PRODUCTION_API_URL` | Cloudflare | Production Worker URL (e.g., `https://my-better-t-app-api.<subdomain>.workers.dev`) |
-| `PRODUCTION_WEB_URL` | Cloudflare | Production Pages URL (e.g., `https://my-better-t-app-web.pages.dev`) |
+| `PRODUCTION_API_URL` | Cloudflare | Production Worker URL (e.g., `https://sapphire2-api.<subdomain>.workers.dev`) |
+| `PRODUCTION_WEB_URL` | Cloudflare | Production Pages URL (e.g., `https://sapphire2-web.pages.dev`) |
 
 > Set `PRODUCTION_API_URL` / `PRODUCTION_WEB_URL` after the first deployment using the actual URLs. Use custom domains if available.
 
@@ -206,7 +206,7 @@ postgresql://user:password@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require
 Error: A project with this name does not exist
 ```
 
-Create the project first: `npx wrangler pages project create my-better-t-app-web`
+Create the project first: `npx wrangler pages project create sapphire2-web`
 
 ## 10. Architecture
 
@@ -219,7 +219,7 @@ PR open/synchronize
   |     |
   |     +-> Run migrations
   |           |
-  |           +-> Deploy Worker (my-better-t-app-api-pr-<number>)
+  |           +-> Deploy Worker (sapphire2-api-pr-<number>)
   |                 |
   |                 +-> Deploy Pages (pr-<number> branch)
   |                       |

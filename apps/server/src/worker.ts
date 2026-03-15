@@ -1,8 +1,8 @@
 import { trpcServer } from "@hono/trpc-server";
-import { createContextFactory } from "@my-better-t-app/api/context";
-import { appRouter } from "@my-better-t-app/api/routers/index";
-import { createAuth } from "@my-better-t-app/auth";
-import { createDb } from "@my-better-t-app/db";
+import { createContextFactory } from "@sapphire2/api/context";
+import { appRouter } from "@sapphire2/api/routers/index";
+import { createAuth } from "@sapphire2/auth";
+import { createDb } from "@sapphire2/db";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 

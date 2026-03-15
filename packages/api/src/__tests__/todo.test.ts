@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@my-better-t-app/db", () => ({
+vi.mock("@sapphire2/db", () => ({
 	createDb: vi.fn(),
 }));
 

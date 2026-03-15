@@ -25,8 +25,8 @@ jobs:
         id: vars
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
-          WORKER_NAME="my-better-t-app-api-pr-${PR_NUMBER}"
-          PAGES_PROJECT="my-better-t-app-web"
+          WORKER_NAME="sapphire2-api-pr-${PR_NUMBER}"
+          PAGES_PROJECT="sapphire2-web"
           echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "worker_name=${WORKER_NAME}" >> "$GITHUB_OUTPUT"
           echo "pages_project=${PAGES_PROJECT}" >> "$GITHUB_OUTPUT"

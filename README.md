@@ -1,4 +1,4 @@
-# my-better-t-app
+# sapphire2
 
 > **[日本語版はこちら](README.ja.md)**
 
@@ -20,7 +20,7 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 ## Project Structure
 
 ```
-my-better-t-app/
+sapphire2/
 ├── apps/
 │   ├── web/            # Frontend (React 19 + Vite + TanStack Router)
 │   └── server/         # API (Hono + tRPC on Cloudflare Workers)

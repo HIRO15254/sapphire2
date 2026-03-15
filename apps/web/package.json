@@ -15,9 +15,9 @@
     "@base-ui/react": "^1.0.0",
     "@fontsource-variable/geist-mono": "^5.2.7",
     "@hookform/resolvers": "^5.1.1",
-    "@my-better-t-app/api": "workspace:*",
-    "@my-better-t-app/auth": "workspace:*",
-    "@my-better-t-app/env": "workspace:*",
+    "@sapphire2/api": "workspace:*",
+    "@sapphire2/auth": "workspace:*",
+    "@sapphire2/env": "workspace:*",
     "@tabler/icons-react": "^3.39.0",
     "@tailwindcss/vite": "^4.0.15",
     "@tanstack/react-form": "^1.28.0",
@@ -43,7 +43,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@my-better-t-app/config": "workspace:*",
+    "@sapphire2/config": "workspace:*",
     "@tanstack/react-query-devtools": "^5.91.1",
     "@tanstack/react-router-devtools": "^1.141.1",
     "@tanstack/router-plugin": "^1.141.1",

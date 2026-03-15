@@ -97,7 +97,7 @@ Cloudflare ダッシュボード →「Workers & Pages」概要ページ → 右
 ### 5.3 Pages プロジェクト作成
 
 ```bash
-npx wrangler pages project create my-better-t-app-web
+npx wrangler pages project create sapphire2-web
 ```
 
 ## 6. GitHub Secrets 設定
@@ -124,8 +124,8 @@ npx wrangler pages project create my-better-t-app-web
 | Secret 名 | 取得元 | 説明 |
 |---|---|---|
 | `PRODUCTION_DATABASE_URL` | Neon コンソール | メインブランチの接続文字列 |
-| `PRODUCTION_API_URL` | Cloudflare | 本番 Worker URL（例: `https://my-better-t-app-api.<subdomain>.workers.dev`） |
-| `PRODUCTION_WEB_URL` | Cloudflare | 本番 Pages URL（例: `https://my-better-t-app-web.pages.dev`） |
+| `PRODUCTION_API_URL` | Cloudflare | 本番 Worker URL（例: `https://sapphire2-api.<subdomain>.workers.dev`） |
+| `PRODUCTION_WEB_URL` | Cloudflare | 本番 Pages URL（例: `https://sapphire2-web.pages.dev`） |
 
 > `PRODUCTION_API_URL` / `PRODUCTION_WEB_URL` は初回デプロイ後に実際の URL を確認して設定。カスタムドメインがあればそちらを指定。
 
@@ -206,7 +206,7 @@ postgresql://user:password@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require
 Error: A project with this name does not exist
 ```
 
-`npx wrangler pages project create my-better-t-app-web` で事前にプロジェクト作成が必要。
+`npx wrangler pages project create sapphire2-web` で事前にプロジェクト作成が必要。
 
 ## 10. アーキテクチャ
 
@@ -219,7 +219,7 @@ PR open/synchronize
   |     |
   |     +-> マイグレーション実行
   |           |
-  |           +-> Worker デプロイ (my-better-t-app-api-pr-<番号>)
+  |           +-> Worker デプロイ (sapphire2-api-pr-<番号>)
   |                 |
   |                 +-> Pages デプロイ (pr-<番号> ブランチ)
   |                       |

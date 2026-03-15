@@ -20,7 +20,7 @@ jobs:
       - name: Delete Cloudflare Worker
         run: |
           bunx wrangler delete \
-            --name "my-better-t-app-api-pr-${{ github.event.pull_request.number }}" \
+            --name "sapphire2-api-pr-${{ github.event.pull_request.number }}" \
             --force
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

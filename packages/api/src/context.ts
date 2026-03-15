@@ -1,5 +1,5 @@
-import type { createAuth } from "@my-better-t-app/auth";
-import type { Database } from "@my-better-t-app/db";
+import type { createAuth } from "@sapphire2/auth";
+import type { Database } from "@sapphire2/db";
 import type { Context as HonoContext } from "hono";
 
 export interface CreateContextOptions {

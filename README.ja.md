@@ -1,4 +1,4 @@
-# my-better-t-app
+# sapphire2
 
 > **[English version](README.md)**
 
@@ -20,7 +20,7 @@
 ## プロジェクト構成
 
 ```
-my-better-t-app/
+sapphire2/
 ├── apps/
 │   ├── web/            # フロントエンド (React 19 + Vite + TanStack Router)
 │   └── server/         # API (Hono + tRPC on Cloudflare Workers)
