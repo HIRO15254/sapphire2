@@ -30,7 +30,7 @@ jobs:
           echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "worker_name=${WORKER_NAME}" >> "$GITHUB_OUTPUT"
           echo "pages_project=${PAGES_PROJECT}" >> "$GITHUB_OUTPUT"
-          echo "preview_api_url=https://${WORKER_NAME}.${CLOUDFLARE_ACCOUNT_ID}.workers.dev" >> "$GITHUB_OUTPUT"
+          echo "preview_api_url=https://${WORKER_NAME}.${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}.workers.dev" >> "$GITHUB_OUTPUT"
           echo "preview_web_url=https://pr-${PR_NUMBER}.${PAGES_PROJECT}.pages.dev" >> "$GITHUB_OUTPUT"
 
   neon-branch:
