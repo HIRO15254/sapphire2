@@ -110,6 +110,7 @@ npx wrangler pages project create sapphire2-web
 |---|---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | Workers & Pages 概要ページ |
 | `CLOUDFLARE_WORKERS_SUBDOMAIN` | Cloudflare | Workers サブドメイン（例: `*.hiro15254.workers.dev` の `hiro15254` 部分）— Workers & Pages 概要ページで確認 |
+| `CLOUDFLARE_PAGES_SUBDOMAIN` | Cloudflare | Pages サブドメイン（例: `*.sapphire-28c.pages.dev` の `sapphire-28c` 部分）— Pages プロジェクト設定で確認 |
 
 ### リポジトリシークレット（Secrets）
 

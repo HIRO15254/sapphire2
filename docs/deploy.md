@@ -110,6 +110,7 @@ Add via **Settings > Secrets and variables > Actions > Variables tab > New repos
 |---|---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | Workers & Pages overview page |
 | `CLOUDFLARE_WORKERS_SUBDOMAIN` | Cloudflare | Workers subdomain (e.g., `hiro15254` from `*.hiro15254.workers.dev`) — found in Workers & Pages overview |
+| `CLOUDFLARE_PAGES_SUBDOMAIN` | Cloudflare | Pages subdomain (e.g., `sapphire-28c` from `*.sapphire-28c.pages.dev`) — found in the Pages project settings |
 
 ### Repository Secrets
 
