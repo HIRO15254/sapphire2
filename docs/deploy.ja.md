@@ -102,14 +102,23 @@ npx wrangler pages project create sapphire2-web
 
 ## 6. GitHub Secrets 設定
 
-**Settings > Secrets and variables > Actions > New repository secret** から追加。
+### リポジトリ変数（Variables）
 
-### 共通
+**Settings > Secrets and variables > Actions > Variables タブ > New repository variable** から追加。
+
+| 変数名 | 取得元 | 説明 |
+|---|---|---|
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | Workers & Pages 概要ページ（シークレットではない — プレビュー URL の構築に使用） |
+
+### リポジトリシークレット（Secrets）
+
+**Settings > Secrets and variables > Actions > Secrets タブ > New repository secret** から追加。
+
+#### 共通
 
 | Secret 名 | 取得元 | 説明 |
 |---|---|---|
 | `CLOUDFLARE_API_TOKEN` | Cloudflare | Workers/Pages 編集権限付きトークン |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | Workers & Pages 概要ページ |
 | `BETTER_AUTH_SECRET` | 自分で生成 | `openssl rand -base64 32` で32文字以上 |
 
 ### プレビュー環境用

@@ -102,14 +102,23 @@ npx wrangler pages project create sapphire2-web
 
 ## 6. GitHub Secrets Configuration
 
-Add via **Settings > Secrets and variables > Actions > New repository secret**.
+### Repository Variables
 
-### Shared
+Add via **Settings > Secrets and variables > Actions > Variables tab > New repository variable**.
+
+| Variable Name | Source | Description |
+|---|---|---|
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | Workers & Pages overview page (not a secret — used in preview URLs) |
+
+### Repository Secrets
+
+Add via **Settings > Secrets and variables > Actions > Secrets tab > New repository secret**.
+
+#### Shared
 
 | Secret Name | Source | Description |
 |---|---|---|
 | `CLOUDFLARE_API_TOKEN` | Cloudflare | Token with Workers/Pages edit permissions |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | Workers & Pages overview page |
 | `BETTER_AUTH_SECRET` | Self-generated | `openssl rand -base64 32` (32+ characters) |
 
 ### Preview Environment
