@@ -36,34 +36,30 @@ jobs:
   neon-branch:
     needs: setup
     runs-on: ubuntu-latest
-    outputs:
-      database_url: ${{ steps.create.outputs.database_url }}
     steps:
       - name: Install neonctl
         run: npm install -g neonctl
 
       - name: Create Neon branch
-        id: create
         run: |
+          if [ -z "$NEON_API_KEY" ]; then
+            echo "::error::NEON_API_KEY secret is not set"
+            exit 1
+          fi
+
+          BRANCH_NAME="pr-${{ needs.setup.outputs.pr_number }}"
+
           # Check if branch exists
-          EXISTING=$(neonctl branches list --project-id "$NEON_PROJECT_ID" --output json | jq -r ".[] | select(.name == \"pr-${{ needs.setup.outputs.pr_number }}\") | .id")
+          EXISTING=$(neonctl branches list --project-id "$NEON_PROJECT_ID" --api-key "$NEON_API_KEY" --output json | jq -r ".[] | select(.name == \"${BRANCH_NAME}\") | .id")
 
           if [ -n "$EXISTING" ]; then
             echo "Branch already exists: $EXISTING"
-            BRANCH_ID="$EXISTING"
           else
-            BRANCH_ID=$(neonctl branches create \
+            neonctl branches create \
               --project-id "$NEON_PROJECT_ID" \
-              --name "pr-${{ needs.setup.outputs.pr_number }}" \
-              --output json | jq -r '.id')
+              --api-key "$NEON_API_KEY" \
+              --name "$BRANCH_NAME"
           fi
-
-          # Get connection string
-          DATABASE_URL=$(neonctl connection-string \
-            --project-id "$NEON_PROJECT_ID" \
-            --branch "pr-${{ needs.setup.outputs.pr_number }}")
-
-          echo "database_url=${DATABASE_URL}" >> "$GITHUB_OUTPUT"
 
   db-migrate:
     needs: [setup, neon-branch]
@@ -74,13 +70,18 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+      - name: Install neonctl
+        run: npm install -g neonctl
       - name: Run migrations
-        run: bun run db:migrate
-        env:
-          DATABASE_URL: ${{ needs.neon-branch.outputs.database_url }}
+        run: |
+          DATABASE_URL=$(neonctl connection-string \
+            --project-id "$NEON_PROJECT_ID" \
+            --api-key "$NEON_API_KEY" \
+            --branch "pr-${{ needs.setup.outputs.pr_number }}")
+          DATABASE_URL="${DATABASE_URL}" bun run db:migrate
 
   deploy-api:
-    needs: [setup, neon-branch, db-migrate]
+    needs: [setup, db-migrate]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -88,6 +89,8 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+      - name: Install neonctl
+        run: npm install -g neonctl
 
       - name: Deploy Worker
         working-directory: apps/server
@@ -104,7 +107,11 @@ jobs:
       - name: Set Worker secrets
         working-directory: apps/server
         run: |
-          echo "${{ needs.neon-branch.outputs.database_url }}" | bunx wrangler secret put DATABASE_URL --name "${{ needs.setup.outputs.worker_name }}"
+          DATABASE_URL=$(neonctl connection-string \
+            --project-id "$NEON_PROJECT_ID" \
+            --api-key "$NEON_API_KEY" \
+            --branch "pr-${{ needs.setup.outputs.pr_number }}")
+          echo "${DATABASE_URL}" | bunx wrangler secret put DATABASE_URL --name "${{ needs.setup.outputs.worker_name }}"
           echo "${{ secrets.BETTER_AUTH_SECRET }}" | bunx wrangler secret put BETTER_AUTH_SECRET --name "${{ needs.setup.outputs.worker_name }}"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

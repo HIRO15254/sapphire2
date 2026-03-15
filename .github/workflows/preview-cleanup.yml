@@ -33,6 +33,7 @@ jobs:
           neonctl branches delete \
             "pr-${{ github.event.pull_request.number }}" \
             --project-id "$NEON_PROJECT_ID" \
+            --api-key "$NEON_API_KEY" \
             --force
         continue-on-error: true
 
