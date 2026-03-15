@@ -1,0 +1,42 @@
+[
+  {
+    "name": "wf:needs-spec",
+    "color": "d73a4a",
+    "description": "AI: 仕様書作成待ち"
+  },
+  {
+    "name": "wf:spec-review",
+    "color": "0075ca",
+    "description": "人間: PR上でspecレビュー待ち"
+  },
+  {
+    "name": "wf:needs-plan",
+    "color": "d73a4a",
+    "description": "AI: 実装計画作成待ち"
+  },
+  {
+    "name": "wf:plan-review",
+    "color": "0075ca",
+    "description": "人間: PR上でplanレビュー待ち"
+  },
+  {
+    "name": "wf:implementing",
+    "color": "d73a4a",
+    "description": "AI: 実装中"
+  },
+  {
+    "name": "wf:impl-review",
+    "color": "0075ca",
+    "description": "人間: PR上で最終レビュー待ち"
+  },
+  {
+    "name": "wf:done",
+    "color": "0e8a16",
+    "description": "完了"
+  },
+  {
+    "name": "wf:blocked",
+    "color": "e4e669",
+    "description": "ブロック中"
+  }
+]

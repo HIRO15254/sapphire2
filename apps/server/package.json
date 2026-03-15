@@ -1,0 +1,27 @@
+{
+  "name": "server",
+  "type": "module",
+  "main": "src/worker.ts",
+  "scripts": {
+    "build": "wrangler deploy --dry-run",
+    "check-types": "tsc -b",
+    "dev": "wrangler dev"
+  },
+  "dependencies": {
+    "@hono/trpc-server": "^0.4.0",
+    "@my-better-t-app/api": "workspace:*",
+    "@my-better-t-app/auth": "workspace:*",
+    "@my-better-t-app/db": "workspace:*",
+    "@trpc/server": "catalog:",
+    "better-auth": "catalog:",
+    "hono": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@my-better-t-app/config": "workspace:*",
+    "@types/bun": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "^3.1.0",
+    "wrangler": "^4.0.0"
+  }
+}

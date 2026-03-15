@@ -1,0 +1,123 @@
+name: Sync Labels to GitHub Project
+
+on:
+  issues:
+    types: [labeled]
+
+env:
+  # TODO: GitHub Project作成後に設定してください
+  PROJECT_NUMBER: ""
+
+permissions:
+  issues: read
+  repository-projects: write
+
+jobs:
+  sync-to-project:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.label.name, 'wf:')
+    steps:
+      - name: Sync label to project status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const projectNumber = parseInt(process.env.PROJECT_NUMBER);
+            if (!projectNumber) {
+              core.warning('PROJECT_NUMBER is not set. Skipping project sync.');
+              return;
+            }
+
+            const label = context.payload.label.name;
+            const issue = context.payload.issue;
+            const owner = context.repo.owner;
+
+            const statusMap = {
+              'wf:needs-spec': 'Spec',
+              'wf:spec-review': 'Spec Review',
+              'wf:needs-plan': 'Plan',
+              'wf:plan-review': 'Plan Review',
+              'wf:implementing': 'Implementing',
+              'wf:impl-review': 'Final Review',
+              'wf:done': 'Done',
+              'wf:blocked': 'Blocked',
+            };
+
+            const targetStatus = statusMap[label];
+            if (!targetStatus) return;
+
+            // Get the project
+            const projectQuery = `
+              query($owner: String!, $number: Int!) {
+                user(login: $owner) {
+                  projectV2(number: $number) {
+                    id
+                    field(name: "Status") {
+                      ... on ProjectV2SingleSelectField {
+                        id
+                        options { id name }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            let project;
+            try {
+              // Try as user first
+              const userResult = await github.graphql(projectQuery, { owner, number: projectNumber });
+              project = userResult.user?.projectV2;
+            } catch {
+              // Try as organization
+              const orgQuery = projectQuery.replace('user(login:', 'organization(login:');
+              const orgResult = await github.graphql(orgQuery.replace('user(login:', 'organization(login:'), { owner, number: projectNumber });
+              project = orgResult.organization?.projectV2;
+            }
+
+            if (!project) {
+              core.warning(`Project #${projectNumber} not found for ${owner}`);
+              return;
+            }
+
+            const statusField = project.field;
+            const targetOption = statusField.options.find(o => o.name === targetStatus);
+            if (!targetOption) {
+              core.warning(`Status option "${targetStatus}" not found in project`);
+              return;
+            }
+
+            // Add issue to project (or get existing item)
+            const addMutation = `
+              mutation($projectId: ID!, $contentId: ID!) {
+                addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                  item { id }
+                }
+              }
+            `;
+            const addResult = await github.graphql(addMutation, {
+              projectId: project.id,
+              contentId: issue.node_id,
+            });
+            const itemId = addResult.addProjectV2ItemById.item.id;
+
+            // Update status
+            const updateMutation = `
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $projectId
+                  itemId: $itemId
+                  fieldId: $fieldId
+                  value: { singleSelectOptionId: $optionId }
+                }) {
+                  projectV2Item { id }
+                }
+              }
+            `;
+            await github.graphql(updateMutation, {
+              projectId: project.id,
+              itemId,
+              fieldId: statusField.id,
+              optionId: targetOption.id,
+            });
+
+            core.info(`Synced issue #${issue.number} to project status: ${targetStatus}`);

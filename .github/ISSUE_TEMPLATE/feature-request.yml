@@ -1,0 +1,30 @@
+name: Feature Request (AI Workflow)
+description: AIワークフローで処理される機能要求を作成します
+labels: ["wf:needs-spec"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: 実現したい機能を自然言語で記述してください
+      placeholder: "例: ユーザーがダッシュボードから直接タスクを作成・編集・削除できるようにしたい"
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: 制約、参考資料、優先度に関する補足情報があれば記載してください
+    validations:
+      required: false
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P1 - Critical
+        - P2 - High
+        - P3 - Medium
+        - P4 - Low
+    validations:
+      required: true
