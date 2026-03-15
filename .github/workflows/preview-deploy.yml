@@ -27,11 +27,22 @@ jobs:
           PR_NUMBER=${{ github.event.pull_request.number }}
           WORKER_NAME="sapphire2-api-pr-${PR_NUMBER}"
           PAGES_PROJECT="sapphire2-web"
+
+          # Fetch Workers subdomain from Cloudflare API
+          WORKERS_SUBDOMAIN=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result.subdomain')
+
+          # Fetch Pages subdomain from Cloudflare API
+          PAGES_SUBDOMAIN=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PAGES_PROJECT}" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result.subdomain')
+
           echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "worker_name=${WORKER_NAME}" >> "$GITHUB_OUTPUT"
           echo "pages_project=${PAGES_PROJECT}" >> "$GITHUB_OUTPUT"
-          echo "preview_api_url=https://${WORKER_NAME}.${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}.workers.dev" >> "$GITHUB_OUTPUT"
-          echo "preview_web_url=https://pr-${PR_NUMBER}.${PAGES_PROJECT}.pages.dev" >> "$GITHUB_OUTPUT"
+          echo "preview_api_url=https://${WORKER_NAME}.${WORKERS_SUBDOMAIN}.workers.dev" >> "$GITHUB_OUTPUT"
+          echo "preview_web_url=https://pr-${PR_NUMBER}.${PAGES_SUBDOMAIN}.pages.dev" >> "$GITHUB_OUTPUT"
 
   neon-branch:
     needs: setup

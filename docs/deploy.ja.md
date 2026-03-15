@@ -109,7 +109,6 @@ npx wrangler pages project create sapphire2-web
 | 変数名 | 取得元 | 説明 |
 |---|---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | Workers & Pages 概要ページ |
-| `CLOUDFLARE_WORKERS_SUBDOMAIN` | Cloudflare | Workers サブドメイン（例: `*.hiro15254.workers.dev` の `hiro15254` 部分）— Workers & Pages 概要ページで確認 |
 
 ### リポジトリシークレット（Secrets）
 

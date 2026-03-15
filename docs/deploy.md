@@ -109,7 +109,6 @@ Add via **Settings > Secrets and variables > Actions > Variables tab > New repos
 | Variable Name | Source | Description |
 |---|---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | Workers & Pages overview page |
-| `CLOUDFLARE_WORKERS_SUBDOMAIN` | Cloudflare | Workers subdomain (e.g., `hiro15254` from `*.hiro15254.workers.dev`) — found in Workers & Pages overview |
 
 ### Repository Secrets
 
