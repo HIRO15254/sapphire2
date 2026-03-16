@@ -206,7 +206,7 @@ Issue本文の自然言語要件から、spec-writer エージェントを起動
    ```bash
    gh issue view {NUMBER} --json number,title,body,labels,comments
    ```
-   - PRからBRANCH_NAME、PR_NUMBERを特定
+   - PRからBRANCH_NAMEを特定
    - 差し戻しの場合: PRの最新 CHANGES_REQUESTED レビューから修正理由を抽出
 
 2. **MODE判定**
@@ -225,7 +225,6 @@ Issue本文の自然言語要件から、spec-writer エージェントを起動
    ISSUE_NUMBER: {NUMBER}
    ISSUE_TITLE: {TITLE}
    BRANCH_NAME: {BRANCH_NAME}
-   PR_NUMBER: {PR_NUMBER}
    MODE: {MODE}
    {MODE == revision ? 'REJECTION_REASON:\n{修正理由}' : ''}
    ```
@@ -253,7 +252,7 @@ Issue本文の自然言語要件から、spec-writer エージェントを起動
    ```bash
    gh issue view {NUMBER} --json number,title,body,labels,comments
    ```
-   - PRからBRANCH_NAME、PR_NUMBERを特定
+   - PRからBRANCH_NAMEを特定
    - 差し戻しの場合: PRの最新 CHANGES_REQUESTED レビューから修正理由を抽出
 
 2. **MODE判定**
@@ -272,7 +271,6 @@ Issue本文の自然言語要件から、spec-writer エージェントを起動
    ISSUE_NUMBER: {NUMBER}
    ISSUE_TITLE: {TITLE}
    BRANCH_NAME: {BRANCH_NAME}
-   PR_NUMBER: {PR_NUMBER}
    MODE: {MODE}
    {MODE == revision ? 'REJECTION_REASON:\n{修正理由}' : ''}
    ```

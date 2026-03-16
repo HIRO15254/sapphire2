@@ -13,9 +13,12 @@ model: sonnet
 ## Technology Stack
 
 - **Git**: feature branch管理、commit、push
-- **gh CLI**: PRステータス変更、PRコメント投稿、ラベル遷移
+- **`.github/.pr-meta.json`**: PR Ready変更・ラベル遷移のメタデータ（push時にワークフローが実行）
+- **`.github/.pr-comment.md`**: PRコメント本文（push時にワークフローが投稿）
 - **Bun**: パッケージマネージャ、テストランナー
 - **Agent Teams**: ドメイン別並列実装
+
+> **Note**: GitHub API操作（コメント、ラベル遷移、Ready変更）は全て `auto-pr.yml` ワークフロー経由で Bot 名義で実行される。エージェントが直接 `gh pr` / `gh issue` コマンドを呼び出すことはない。
 
 ## Key File Locations
 
@@ -39,7 +42,6 @@ model: sonnet
 | `ISSUE_NUMBER` | 必須 | GitHub Issue番号 |
 | `ISSUE_TITLE` | 必須 | Issueタイトル |
 | `BRANCH_NAME` | 必須 | feature branch名 |
-| `PR_NUMBER` | 必須 | Draft PR番号 |
 | `MODE` | 必須 | `new`（新規）または `revision`（差し戻し修正） |
 | `REJECTION_REASON` | revision時のみ | PRレビューのCHANGES_REQUESTEDコメントの修正理由 |
 
@@ -119,26 +121,13 @@ bun run check
   - 再テスト
 - **3回修正しても失敗**: `wf:blocked` に遷移してエラー報告
 
-### Step 5: Commit & Push
+### Step 5: Commit & Push（コメント・ラベル遷移・Ready変更を含む）
 
-```bash
-git add -A
-git commit -m "{MODE == new ? 'Implement' : 'Fix'} #{ISSUE_NUMBER}: {ISSUE_TITLE}"
-git push origin {BRANCH_NAME}
-```
+実装コードに加え、以下のメタデータファイルも更新してまとめてcommit & push:
 
-### Step 6: Draft PR を Ready for Review に変更
+1. **`.github/.pr-comment.md`** にコメント本文を書き込み:
 
-```bash
-gh pr ready {PR_NUMBER}
-```
-
-### Step 7: PRコメント投稿
-
-変更内容のサマリーを折りたたみ方式でPRにコメント:
-
-```bash
-gh pr comment {PR_NUMBER} --body "$(cat <<'COMMENT_EOF'
+```markdown
 ## 🚀 実装が完了しました
 
 **テスト**: 全パス ✅
@@ -160,15 +149,28 @@ gh pr comment {PR_NUMBER} --body "$(cat <<'COMMENT_EOF'
 
 ---
 PRをレビューしてください。Approve → 完了 | Request Changes → 修正
-COMMENT_EOF
-)"
 ```
 
-### Step 8: ラベル遷移
+2. **`.github/.pr-meta.json`** を更新（Ready変更 + ラベル遷移）:
+
+```json
+{
+  "ready_for_review": true,
+  "issue_number": {ISSUE_NUMBER},
+  "labels_add": ["wf:impl-review"],
+  "labels_remove": ["wf:implementing"]
+}
+```
+
+3. commit & push:
 
 ```bash
-gh issue edit {ISSUE_NUMBER} --remove-label "wf:implementing" --add-label "wf:impl-review"
+git add -A
+git commit -m "{MODE == new ? 'Implement' : 'Fix'} #{ISSUE_NUMBER}: {ISSUE_TITLE}"
+git push origin {BRANCH_NAME}
 ```
+
+pushにより `auto-pr.yml` が起動し、Bot名義で Draft→Ready 変更・コメント投稿・ラベル遷移を実行する。
 
 ## Error Handling
 
@@ -179,15 +181,26 @@ gh issue edit {ISSUE_NUMBER} --remove-label "wf:implementing" --add-label "wf:im
 | Git競合 | Issueコメントで報告、`wf:blocked` に遷移 |
 | Teammate失敗 | Lead がフォールバック実行を試行 |
 
-エラー時のラベル遷移:
-```bash
-gh issue comment {ISSUE_NUMBER} --body "## ⚠️ エラーが発生しました
+エラー時はメタデータファイル経由でBot名義で通知:
+
+1. `.github/.pr-comment.md` にエラー内容を書き込み:
+```markdown
+## ⚠️ エラーが発生しました
 
 {エラー詳細}
 
-手動での対応が必要です。"
-gh issue edit {ISSUE_NUMBER} --remove-label "wf:implementing" --add-label "wf:blocked"
+手動での対応が必要です。
 ```
+
+2. `.github/.pr-meta.json` を更新:
+```json
+{
+  "labels_add": ["wf:blocked"],
+  "labels_remove": ["wf:implementing"]
+}
+```
+
+3. commit & push（`auto-pr.yml` が Bot 名義で実行）
 
 ## Code Quality Rules
 

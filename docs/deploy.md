@@ -100,7 +100,30 @@ Cloudflare Dashboard → "Workers & Pages" overview page → right sidebar
 npx wrangler pages project create sapphire2-web
 ```
 
-## 6. GitHub Secrets Configuration
+## 6. GitHub App Setup (for Bot-authored PRs)
+
+The speckit workflow agents (spec-writer, plan-writer, implementer) create PRs via a GitHub App so that the PR author is a bot, allowing the developer to self-review.
+
+### 6.1 Create GitHub App
+
+1. GitHub > **Settings** > **Developer settings** > **GitHub Apps** > **New GitHub App**
+2. Configure:
+   - **Name**: `sapphire2-bot` (or any name)
+   - **Homepage URL**: Your repository URL
+   - **Webhook**: Uncheck **Active** (not needed)
+   - **Permissions**:
+     - Repository > **Contents**: Read & write
+     - Repository > **Pull requests**: Read & write
+     - Repository > **Issues**: Read & write
+   - **Where can this GitHub App be installed?**: Only on this account
+3. After creation, note the **App ID**
+4. Generate and download a **Private key**
+
+### 6.2 Install the App
+
+GitHub App settings > **Install App** > Select the repository
+
+## 7. GitHub Secrets Configuration
 
 ### Repository Variables
 
@@ -109,6 +132,7 @@ Add via **Settings > Secrets and variables > Actions > Variables tab > New repos
 | Variable Name | Source | Description |
 |---|---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | Workers & Pages overview page |
+| `BOT_APP_ID` | GitHub App | App ID from the GitHub App settings page |
 
 ### Repository Secrets
 
@@ -120,6 +144,7 @@ Add via **Settings > Secrets and variables > Actions > Secrets tab > New reposit
 |---|---|---|
 | `CLOUDFLARE_API_TOKEN` | Cloudflare | Token with Workers/Pages edit permissions |
 | `BETTER_AUTH_SECRET` | Self-generated | `openssl rand -base64 32` (32+ characters) |
+| `BOT_PRIVATE_KEY` | GitHub App | Private key (PEM format) downloaded from App settings |
 
 ### Preview Environment
 
@@ -138,7 +163,7 @@ Add via **Settings > Secrets and variables > Actions > Secrets tab > New reposit
 
 > Set `PRODUCTION_API_URL` / `PRODUCTION_WEB_URL` after the first deployment using the actual URLs. Use custom domains if available.
 
-## 7. Customization
+## 8. Customization
 
 ### Changing the Worker Name
 
@@ -157,7 +182,7 @@ Automated via `.github/workflows/production-deploy.yml`. On master push: CI → 
 
 Uses `concurrency` for sequential execution. Deployment is skipped if CI fails.
 
-## 8. Verification
+## 9. Verification
 
 ### Preview
 
@@ -172,7 +197,7 @@ Uses `concurrency` for sequential execution. Deployment is skipped if CI fails.
 2. Check "Production Deploy" in the Actions tab
 3. Access the Worker URL and Pages URL
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 ### `CLOUDFLARE_API_TOKEN` Permission Error
 
@@ -217,7 +242,7 @@ Error: A project with this name does not exist
 
 Create the project first: `npx wrangler pages project create sapphire2-web`
 
-## 10. Architecture
+## 11. Architecture
 
 ### Preview Deploy (on PR open)
 

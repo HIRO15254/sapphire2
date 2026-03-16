@@ -100,7 +100,30 @@ Cloudflare ダッシュボード →「Workers & Pages」概要ページ → 右
 npx wrangler pages project create sapphire2-web
 ```
 
-## 6. GitHub Secrets 設定
+## 6. GitHub App セットアップ（Bot名義PR用）
+
+speckit ワークフローのエージェント（spec-writer, plan-writer, implementer）は GitHub App 経由で PR を作成する。PR の作成者が Bot になるため、開発者自身がセルフレビュー可能。
+
+### 6.1 GitHub App 作成
+
+1. GitHub > **Settings** > **Developer settings** > **GitHub Apps** > **New GitHub App**
+2. 設定:
+   - **Name**: `sapphire2-bot`（任意）
+   - **Homepage URL**: リポジトリ URL
+   - **Webhook**: **Active** のチェックを外す（不要）
+   - **Permissions**:
+     - Repository > **Contents**: Read & write
+     - Repository > **Pull requests**: Read & write
+     - Repository > **Issues**: Read & write
+   - **Where can this GitHub App be installed?**: Only on this account
+3. 作成後、**App ID** を控える
+4. **Private key** を生成してダウンロード
+
+### 6.2 App をリポジトリにインストール
+
+GitHub App 設定 > **Install App** > リポジトリを選択
+
+## 7. GitHub Secrets 設定
 
 ### リポジトリ変数（Variables）
 
@@ -109,6 +132,7 @@ npx wrangler pages project create sapphire2-web
 | 変数名 | 取得元 | 説明 |
 |---|---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | Workers & Pages 概要ページ |
+| `BOT_APP_ID` | GitHub App | App 設定ページの App ID |
 
 ### リポジトリシークレット（Secrets）
 
@@ -120,6 +144,7 @@ npx wrangler pages project create sapphire2-web
 |---|---|---|
 | `CLOUDFLARE_API_TOKEN` | Cloudflare | Workers/Pages 編集権限付きトークン |
 | `BETTER_AUTH_SECRET` | 自分で生成 | `openssl rand -base64 32` で32文字以上 |
+| `BOT_PRIVATE_KEY` | GitHub App | App 設定からダウンロードした Private key（PEM形式） |
 
 ### プレビュー環境用
 
@@ -138,7 +163,7 @@ npx wrangler pages project create sapphire2-web
 
 > `PRODUCTION_API_URL` / `PRODUCTION_WEB_URL` は初回デプロイ後に実際の URL を確認して設定。カスタムドメインがあればそちらを指定。
 
-## 7. カスタマイズ
+## 8. カスタマイズ
 
 ### Worker 名の変更
 
@@ -157,7 +182,7 @@ npx wrangler pages project create sapphire2-web
 
 `concurrency` 設定により直列実行。CI 失敗時はデプロイをスキップ。
 
-## 8. 動作確認
+## 9. 動作確認
 
 ### プレビュー
 
@@ -172,7 +197,7 @@ npx wrangler pages project create sapphire2-web
 2. Actions タブで「Production Deploy」を確認
 3. Worker URL と Pages URL にアクセス
 
-## 9. トラブルシューティング
+## 10. トラブルシューティング
 
 ### `CLOUDFLARE_API_TOKEN` 権限不足
 
@@ -217,7 +242,7 @@ Error: A project with this name does not exist
 
 `npx wrangler pages project create sapphire2-web` で事前にプロジェクト作成が必要。
 
-## 10. アーキテクチャ
+## 11. アーキテクチャ
 
 ### プレビューデプロイ（PR オープン時）
 
