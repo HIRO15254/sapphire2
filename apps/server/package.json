@@ -18,6 +18,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260317.1",
     "@sapphire2/config": "workspace:*",
     "@types/bun": "catalog:",
     "typescript": "catalog:",

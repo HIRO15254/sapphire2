@@ -5,3 +5,9 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 NODE_ENV = "production"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sapphire2-db"
+database_id = "6f229350-2678-4603-9178-4d94a97d51f4"
+migrations_dir = "../../packages/db/src/migrations"

@@ -38,10 +38,8 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - name: Run migrations
-        run: bun run db:migrate
-        env:
-          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      - name: Run D1 migrations
+        run: bun run db:migrate:remote
 
   deploy-api:
     needs: [ci, db-migrate]
@@ -64,7 +62,6 @@ jobs:
       - name: Set Worker secrets
         working-directory: apps/server
         run: |
-          echo "${{ secrets.PRODUCTION_DATABASE_URL }}" | bunx wrangler secret put DATABASE_URL
           echo "${{ secrets.BETTER_AUTH_SECRET }}" | bunx wrangler secret put BETTER_AUTH_SECRET
 
   deploy-web:

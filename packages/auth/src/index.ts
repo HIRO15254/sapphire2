@@ -93,7 +93,7 @@ export function createAuth(
 		secret: options.secret,
 		baseURL: options.baseURL,
 		database: drizzleAdapter(dbInstance, {
-			provider: "pg",
+			provider: "sqlite",
 			schema: authSchema,
 		}),
 		trustedOrigins: [options.corsOrigin],

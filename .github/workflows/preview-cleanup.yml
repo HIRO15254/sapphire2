@@ -6,8 +6,6 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
-  NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
 
@@ -22,19 +20,24 @@ jobs:
           bunx wrangler delete \
             --name "sapphire2-api-pr-${{ github.event.pull_request.number }}" \
             --force
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         continue-on-error: true
 
-      - name: Delete Neon branch
+      - name: Delete D1 database
         run: |
-          npm install -g neonctl
-          neonctl branches delete \
-            "pr-${{ github.event.pull_request.number }}" \
-            --project-id "$NEON_PROJECT_ID" \
-            --api-key "$NEON_API_KEY" \
-            --force
+          DB_NAME="sapphire2-db-pr-${{ github.event.pull_request.number }}"
+          DB_ID=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r ".result[] | select(.name == \"${DB_NAME}\") | .uuid")
+
+          if [ -n "$DB_ID" ]; then
+            curl -sf -X DELETE \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database/${DB_ID}" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+            echo "Deleted D1 database: ${DB_ID}"
+          else
+            echo "No D1 database found for PR"
+          fi
         continue-on-error: true
 
       - name: Update PR comment

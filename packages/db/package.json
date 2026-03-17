@@ -10,17 +10,15 @@
     }
   },
   "scripts": {
-    "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "db:studio": "drizzle-kit studio",
-    "db:migrate": "drizzle-kit migrate"
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.0",
     "drizzle-orm": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260317.1",
     "@sapphire2/config": "workspace:*",
     "drizzle-kit": "^0.31.8",
     "typescript": "catalog:",

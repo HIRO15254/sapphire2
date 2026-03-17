@@ -10,7 +10,7 @@ interface Env {
 	BETTER_AUTH_SECRET: string;
 	BETTER_AUTH_URL: string;
 	CORS_ORIGIN: string;
-	DATABASE_URL: string;
+	DB: D1Database;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -26,7 +26,7 @@ app.use("/*", (c, next) => {
 });
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => {
-	const db = createDb(c.env.DATABASE_URL);
+	const db = createDb(c.env.DB);
 	const auth = createAuth(db, {
 		corsOrigin: c.env.CORS_ORIGIN,
 		secret: c.env.BETTER_AUTH_SECRET,
@@ -36,7 +36,7 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => {
 });
 
 app.use("/trpc/*", (c, next) => {
-	const db = createDb(c.env.DATABASE_URL);
+	const db = createDb(c.env.DB);
 	const auth = createAuth(db, {
 		corsOrigin: c.env.CORS_ORIGIN,
 		secret: c.env.BETTER_AUTH_SECRET,

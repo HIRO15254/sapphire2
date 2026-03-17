@@ -6,8 +6,6 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
-  NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
 
@@ -20,6 +18,7 @@ jobs:
       pages_project: ${{ steps.vars.outputs.pages_project }}
       preview_api_url: ${{ steps.vars.outputs.preview_api_url }}
       preview_web_url: ${{ steps.vars.outputs.preview_web_url }}
+      d1_db_name: ${{ steps.vars.outputs.d1_db_name }}
     steps:
       - name: Set variables
         id: vars
@@ -27,6 +26,7 @@ jobs:
           PR_NUMBER=${{ github.event.pull_request.number }}
           WORKER_NAME="sapphire2-api-pr-${PR_NUMBER}"
           PAGES_PROJECT="sapphire2-web"
+          D1_DB_NAME="sapphire2-db-pr-${PR_NUMBER}"
 
           # Fetch Workers subdomain from Cloudflare API
           WORKERS_SUBDOMAIN=$(curl -sf \
@@ -41,39 +41,43 @@ jobs:
           echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "worker_name=${WORKER_NAME}" >> "$GITHUB_OUTPUT"
           echo "pages_project=${PAGES_PROJECT}" >> "$GITHUB_OUTPUT"
+          echo "d1_db_name=${D1_DB_NAME}" >> "$GITHUB_OUTPUT"
           echo "preview_api_url=https://${WORKER_NAME}.${WORKERS_SUBDOMAIN}.workers.dev" >> "$GITHUB_OUTPUT"
           echo "preview_web_url=https://pr-${PR_NUMBER}.${PAGES_DOMAIN}" >> "$GITHUB_OUTPUT"
 
-  neon-branch:
+  d1-setup:
     needs: setup
     runs-on: ubuntu-latest
+    outputs:
+      d1_database_id: ${{ steps.create.outputs.d1_database_id }}
     steps:
-      - name: Install neonctl
-        run: npm install -g neonctl
-
-      - name: Create Neon branch
+      - name: Create or get D1 database for PR
+        id: create
         run: |
-          if [ -z "$NEON_API_KEY" ]; then
-            echo "::error::NEON_API_KEY secret is not set"
-            exit 1
-          fi
+          DB_NAME="${{ needs.setup.outputs.d1_db_name }}"
 
-          BRANCH_NAME="pr-${{ needs.setup.outputs.pr_number }}"
+          # Check if database already exists
+          EXISTING_ID=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r ".result[] | select(.name == \"${DB_NAME}\") | .uuid")
 
-          # Check if branch exists
-          EXISTING=$(neonctl branches list --project-id "$NEON_PROJECT_ID" --api-key "$NEON_API_KEY" --output json | jq -r ".[] | select(.name == \"${BRANCH_NAME}\") | .id")
-
-          if [ -n "$EXISTING" ]; then
-            echo "Branch already exists: $EXISTING"
+          if [ -n "$EXISTING_ID" ]; then
+            echo "D1 database already exists: $EXISTING_ID"
+            echo "d1_database_id=${EXISTING_ID}" >> "$GITHUB_OUTPUT"
           else
-            neonctl branches create \
-              --project-id "$NEON_PROJECT_ID" \
-              --api-key "$NEON_API_KEY" \
-              --name "$BRANCH_NAME"
+            NEW_ID=$(curl -sf -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\": \"${DB_NAME}\"}" \
+              | jq -r '.result.uuid')
+            echo "Created D1 database: $NEW_ID"
+            echo "d1_database_id=${NEW_ID}" >> "$GITHUB_OUTPUT"
           fi
 
-  db-migrate:
-    needs: [setup, neon-branch]
+  db-clone:
+    needs: [setup, d1-setup]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -81,18 +85,23 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - name: Install neonctl
-        run: npm install -g neonctl
-      - name: Run migrations
+
+      - name: Export production D1 data
+        working-directory: apps/server
         run: |
-          DATABASE_URL=$(neonctl connection-string \
-            --project-id "$NEON_PROJECT_ID" \
-            --api-key "$NEON_API_KEY" \
-            --branch "pr-${{ needs.setup.outputs.pr_number }}")
-          DATABASE_URL="${DATABASE_URL}" bun run db:migrate
+          bunx wrangler d1 export sapphire2-db --remote --output=dump.sql
+
+      - name: Import data into PR database
+        working-directory: apps/server
+        run: |
+          bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql
+
+      - name: Apply new migrations
+        run: |
+          wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote -c apps/server/wrangler.toml
 
   deploy-api:
-    needs: [setup, db-migrate]
+    needs: [setup, d1-setup, db-clone]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -100,8 +109,6 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - name: Install neonctl
-        run: npm install -g neonctl
 
       - name: Deploy Worker
         working-directory: apps/server
@@ -110,23 +117,13 @@ jobs:
             --name "${{ needs.setup.outputs.worker_name }}" \
             --var BETTER_AUTH_URL:"${{ needs.setup.outputs.preview_api_url }}" \
             --var CORS_ORIGIN:"${{ needs.setup.outputs.preview_web_url }}" \
-            --var NODE_ENV:production
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+            --var NODE_ENV:production \
+            --d1 "DB=${{ needs.d1-setup.outputs.d1_database_id }}"
 
       - name: Set Worker secrets
         working-directory: apps/server
         run: |
-          DATABASE_URL=$(neonctl connection-string \
-            --project-id "$NEON_PROJECT_ID" \
-            --api-key "$NEON_API_KEY" \
-            --branch "pr-${{ needs.setup.outputs.pr_number }}")
-          echo "${DATABASE_URL}" | bunx wrangler secret put DATABASE_URL --name "${{ needs.setup.outputs.worker_name }}"
           echo "${{ secrets.BETTER_AUTH_SECRET }}" | bunx wrangler secret put BETTER_AUTH_SECRET --name "${{ needs.setup.outputs.worker_name }}"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
 
   deploy-web:
     needs: [setup, deploy-api]
@@ -148,9 +145,6 @@ jobs:
           bunx wrangler pages deploy apps/web/dist \
             --project-name "${{ needs.setup.outputs.pages_project }}" \
             --branch "pr-${{ needs.setup.outputs.pr_number }}"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
 
   comment:
     needs: [setup, deploy-api, deploy-web]
@@ -180,6 +174,6 @@ jobs:
             | Frontend | ${{ needs.setup.outputs.preview_web_url }} |
             | API | ${{ needs.setup.outputs.preview_api_url }} |
 
-            **Database:** Neon branch `pr-${{ needs.setup.outputs.pr_number }}`
+            **Database:** D1 database `${{ needs.setup.outputs.d1_db_name }}` (本番データコピー)
 
             _Last deployed: ${{ github.sha }}_
