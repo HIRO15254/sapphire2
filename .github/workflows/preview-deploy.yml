@@ -89,20 +89,12 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
 
-      - name: Export production D1 data
+      - name: Export production D1 (schema + data)
         working-directory: apps/server
         run: |
-          bunx wrangler d1 export sapphire2-db --remote --output=dump-raw.sql --no-schema
-          grep -v "^INSERT INTO d1_migrations" dump-raw.sql > dump.sql || true
+          bunx wrangler d1 export sapphire2-db --remote --output=dump.sql
 
-      - name: Apply migrations to PR database
-        run: |
-          for f in packages/db/src/migrations/*.sql; do
-            echo "Applying $f..."
-            bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file="$f"
-          done
-
-      - name: Import production data into PR database
+      - name: Import into PR database
         working-directory: apps/server
         run: |
           bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql
