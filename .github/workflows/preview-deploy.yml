@@ -112,12 +112,13 @@ jobs:
       - name: Deploy Worker
         working-directory: apps/server
         run: |
+          sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
+          sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
           bunx wrangler deploy \
             --name "${{ needs.setup.outputs.worker_name }}" \
             --var BETTER_AUTH_URL:"${{ needs.setup.outputs.preview_api_url }}" \
             --var CORS_ORIGIN:"${{ needs.setup.outputs.preview_web_url }}" \
-            --var NODE_ENV:production \
-            --d1 "DB=${{ needs.d1-setup.outputs.d1_database_id }}"
+            --var NODE_ENV:production
 
       - name: Set Worker secrets
         working-directory: apps/server
