@@ -89,16 +89,16 @@ jobs:
       - name: Export production D1 data
         working-directory: apps/server
         run: |
-          bunx wrangler d1 export sapphire2-db --remote --output=dump.sql
+          bunx wrangler d1 export sapphire2-db --remote --output=dump.sql --no-schema
 
-      - name: Import data into PR database
+      - name: Apply migrations to PR database
+        run: |
+          bunx wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote -c apps/server/wrangler.toml
+
+      - name: Import production data into PR database
         working-directory: apps/server
         run: |
           bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql
-
-      - name: Apply new migrations
-        run: |
-          bunx wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote -c apps/server/wrangler.toml
 
   deploy-api:
     needs: [setup, d1-setup, db-clone]
