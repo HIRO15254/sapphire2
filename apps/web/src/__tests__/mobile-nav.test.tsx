@@ -71,18 +71,18 @@ describe("MobileNav", () => {
 		const router = createTestRouter("/");
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("ホーム");
-		expect(screen.getByText("ダッシュボード")).toBeInTheDocument();
-		expect(screen.getByText("Todo")).toBeInTheDocument();
-		expect(screen.getByText("検索")).toBeInTheDocument();
-		expect(screen.getByText("設定")).toBeInTheDocument();
+		await screen.findByText("Home");
+		expect(screen.getByText("Dashboard")).toBeInTheDocument();
+		expect(screen.getByText("Todos")).toBeInTheDocument();
+		expect(screen.getByText("Search")).toBeInTheDocument();
+		expect(screen.getByText("Settings")).toBeInTheDocument();
 	});
 
 	it("highlights the active navigation item for home", async () => {
 		const router = createTestRouter("/");
 		render(<RouterProvider router={router} />);
 
-		const homeLink = await screen.findByText("ホーム");
+		const homeLink = await screen.findByText("Home");
 		const link = homeLink.closest("a");
 		expect(link?.className).toContain("text-sidebar-primary");
 	});
@@ -91,11 +91,11 @@ describe("MobileNav", () => {
 		const router = createTestRouter("/dashboard");
 		render(<RouterProvider router={router} />);
 
-		const dashboardLink = await screen.findByText("ダッシュボード");
+		const dashboardLink = await screen.findByText("Dashboard");
 		const link = dashboardLink.closest("a");
 		expect(link?.className).toContain("text-sidebar-primary");
 
-		const homeLink = screen.getByText("ホーム");
+		const homeLink = screen.getByText("Home");
 		const homeAnchor = homeLink.closest("a");
 		expect(homeAnchor?.className).toContain("text-sidebar-foreground");
 	});

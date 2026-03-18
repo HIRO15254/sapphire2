@@ -15,11 +15,11 @@ export interface NavigationItem {
 }
 
 export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
-	{ to: "/", label: "ホーム", icon: IconHome },
-	{ to: "/dashboard", label: "ダッシュボード", icon: IconLayoutDashboard },
-	{ to: "/todos", label: "Todo", icon: IconChecklist },
-	{ to: "/search", label: "検索", icon: IconSearch },
-	{ to: "/settings", label: "設定", icon: IconSettings },
+	{ to: "/", label: "Home", icon: IconHome },
+	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
+	{ to: "/todos", label: "Todos", icon: IconChecklist },
+	{ to: "/search", label: "Search", icon: IconSearch },
+	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
 export function isActive(currentPath: string, itemPath: string): boolean {
