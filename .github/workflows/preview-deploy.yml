@@ -124,6 +124,10 @@ jobs:
         working-directory: apps/server
         run: |
           echo "${{ secrets.BETTER_AUTH_SECRET }}" | bunx wrangler secret put BETTER_AUTH_SECRET --name "${{ needs.setup.outputs.worker_name }}"
+          echo "${{ secrets.GOOGLE_CLIENT_ID }}" | bunx wrangler secret put GOOGLE_CLIENT_ID --name "${{ needs.setup.outputs.worker_name }}"
+          echo "${{ secrets.GOOGLE_CLIENT_SECRET }}" | bunx wrangler secret put GOOGLE_CLIENT_SECRET --name "${{ needs.setup.outputs.worker_name }}"
+          echo "${{ secrets.DISCORD_CLIENT_ID }}" | bunx wrangler secret put DISCORD_CLIENT_ID --name "${{ needs.setup.outputs.worker_name }}"
+          echo "${{ secrets.DISCORD_CLIENT_SECRET }}" | bunx wrangler secret put DISCORD_CLIENT_SECRET --name "${{ needs.setup.outputs.worker_name }}"
 
   deploy-web:
     needs: [setup, deploy-api]
@@ -139,6 +143,9 @@ jobs:
         run: bun run --filter web build
         env:
           VITE_SERVER_URL: ${{ needs.setup.outputs.preview_api_url }}
+          VITE_PREVIEW_AUTO_LOGIN: "true"
+          VITE_PREVIEW_LOGIN_EMAIL: ${{ secrets.PREVIEW_LOGIN_EMAIL }}
+          VITE_PREVIEW_LOGIN_PASSWORD: ${{ secrets.PREVIEW_LOGIN_PASSWORD }}
 
       - name: Deploy to Cloudflare Pages
         run: |

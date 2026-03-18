@@ -11,6 +11,10 @@ interface Env {
 	BETTER_AUTH_URL: string;
 	CORS_ORIGIN: string;
 	DB: D1Database;
+	DISCORD_CLIENT_ID?: string;
+	DISCORD_CLIENT_SECRET?: string;
+	GOOGLE_CLIENT_ID?: string;
+	GOOGLE_CLIENT_SECRET?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -31,6 +35,10 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => {
 		corsOrigin: c.env.CORS_ORIGIN,
 		secret: c.env.BETTER_AUTH_SECRET,
 		baseURL: c.env.BETTER_AUTH_URL,
+		googleClientId: c.env.GOOGLE_CLIENT_ID,
+		googleClientSecret: c.env.GOOGLE_CLIENT_SECRET,
+		discordClientId: c.env.DISCORD_CLIENT_ID,
+		discordClientSecret: c.env.DISCORD_CLIENT_SECRET,
 	});
 	return auth.handler(c.req.raw);
 });
@@ -41,6 +49,10 @@ app.use("/trpc/*", (c, next) => {
 		corsOrigin: c.env.CORS_ORIGIN,
 		secret: c.env.BETTER_AUTH_SECRET,
 		baseURL: c.env.BETTER_AUTH_URL,
+		googleClientId: c.env.GOOGLE_CLIENT_ID,
+		googleClientSecret: c.env.GOOGLE_CLIENT_SECRET,
+		discordClientId: c.env.DISCORD_CLIENT_ID,
+		discordClientSecret: c.env.DISCORD_CLIENT_SECRET,
 	});
 	const contextFactory = createContextFactory(auth, db);
 	const middleware = trpcServer({

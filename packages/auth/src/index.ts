@@ -82,6 +82,10 @@ const authSchema = {
 interface AuthOptions {
 	baseURL?: string;
 	corsOrigin: string;
+	discordClientId?: string;
+	discordClientSecret?: string;
+	googleClientId?: string;
+	googleClientSecret?: string;
 	secret: string;
 }
 
@@ -109,6 +113,28 @@ export function createAuth(
 				sameSite: "none",
 				secure: true,
 				httpOnly: true,
+			},
+		},
+		socialProviders: {
+			...(options.googleClientId &&
+				options.googleClientSecret && {
+					google: {
+						clientId: options.googleClientId,
+						clientSecret: options.googleClientSecret,
+					},
+				}),
+			...(options.discordClientId &&
+				options.discordClientSecret && {
+					discord: {
+						clientId: options.discordClientId,
+						clientSecret: options.discordClientSecret,
+					},
+				}),
+		},
+		account: {
+			accountLinking: {
+				enabled: true,
+				trustedProviders: ["google", "discord"],
 			},
 		},
 		plugins: [],

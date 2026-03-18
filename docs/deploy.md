@@ -4,37 +4,31 @@
 
 ## 1. Overview
 
-This repository is built on Cloudflare Workers + Neon architecture.
+This repository is built on Cloudflare Workers + D1 architecture.
 
 - **API Server**: Cloudflare Workers (Hono)
 - **Frontend**: Cloudflare Pages (Vite SPA)
-- **Database**: Neon PostgreSQL (`@neondatabase/serverless`)
+- **Database**: Cloudflare D1 (SQLite via Drizzle ORM)
 
 ### Deployment Environments
 
 | Environment | Trigger | Description |
 |-------------|---------|-------------|
 | **Local** | `bun run dev` | `wrangler dev` (local Workers simulation) |
-| **Preview** | PR opened | Isolated Worker + Pages + Neon branch per PR |
+| **Preview** | PR opened | Isolated Worker + Pages + D1 database per PR |
 | **Production** | master push | Deploy Worker + Pages after CI passes |
 
 ## 2. Prerequisites
 
 - [Cloudflare](https://dash.cloudflare.com/sign-up) account (Free plan OK)
-- [Neon](https://console.neon.tech/signup) account (Free plan OK)
 - GitHub repository admin access (required for Secrets configuration)
 - [Bun](https://bun.sh/) installed locally
 
+> D1 databases are created automatically by Wrangler — no separate database account is needed.
+
 ## 3. Local Development
 
-### 3.1 Create Neon Database
-
-Neon is used for local development as well (`@neondatabase/serverless` connects via HTTP, so a local PostgreSQL instance cannot be used).
-
-1. Create a project in the [Neon Console](https://console.neon.tech/)
-2. Copy the connection string from "Connection Details"
-
-### 3.2 Configure Environment Variables
+### 3.1 Configure Environment Variables
 
 Copy `apps/server/.dev.vars.example` to create `.dev.vars`.
 
@@ -45,19 +39,22 @@ cp apps/server/.dev.vars.example apps/server/.dev.vars
 Edit `.dev.vars`:
 
 ```
-DATABASE_URL=postgresql://user:password@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require
 BETTER_AUTH_SECRET=your-secret-at-least-32-characters-long
 BETTER_AUTH_URL=http://localhost:8787
 CORS_ORIGIN=http://localhost:3001
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+DISCORD_CLIENT_ID=your-discord-client-id
+DISCORD_CLIENT_SECRET=your-discord-client-secret
 ```
 
-### 3.3 Run Migrations
+### 3.2 Run Migrations
 
 ```bash
-DATABASE_URL="your-neon-connection-string" bun run db:migrate
+bun run db:migrate:local
 ```
 
-### 3.4 Start Development Server
+### 3.3 Start Development Server
 
 ```bash
 bun run dev
@@ -66,39 +63,46 @@ bun run dev
 - API: `http://localhost:8787` (`wrangler dev`)
 - Web: `http://localhost:3001` (Vite)
 
-## 4. Neon Setup (for CI)
+## 4. Cloudflare Setup
 
-### 4.1 Get API Key
-
-1. Neon Console → "Account Settings" (bottom-left) → "API Keys"
-2. "Generate new API key" → copy the key
-
-### 4.2 Find Project ID
-
-```
-https://console.neon.tech/app/projects/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                                        This is your Project ID
-```
-
-## 5. Cloudflare Setup
-
-### 5.1 Create API Token
+### 4.1 Create API Token
 
 1. [API Tokens page](https://dash.cloudflare.com/profile/api-tokens) → "Create Token"
 2. Choose "Custom token" with the following permissions:
    - **Account** > **Cloudflare Pages** > **Edit**
    - **Account** > **Workers Scripts** > **Edit**
+   - **Account** > **D1** > **Edit**
 
-### 5.2 Find Account ID
+### 4.2 Find Account ID
 
 Cloudflare Dashboard → "Workers & Pages" overview page → right sidebar
 
-### 5.3 Create Pages Project
+### 4.3 Create Pages Project
 
 ```bash
 npx wrangler pages project create sapphire2-web
 ```
+
+## 5. OAuth Provider Setup
+
+### Google OAuth
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create or select a project
+3. Navigate to "APIs & Services" > "Credentials"
+4. Create "OAuth 2.0 Client ID" (Web application type)
+5. Add authorized redirect URIs:
+   - Local: `http://localhost:8787/api/auth/callback/google`
+   - Production: `https://<your-worker>.workers.dev/api/auth/callback/google`
+
+### Discord OAuth
+
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Create a new application
+3. Go to "OAuth2" settings
+4. Add redirects:
+   - Local: `http://localhost:8787/api/auth/callback/discord`
+   - Production: `https://<your-worker>.workers.dev/api/auth/callback/discord`
 
 ## 6. GitHub App Setup (for Bot-authored PRs)
 
@@ -142,22 +146,30 @@ Add via **Settings > Secrets and variables > Actions > Secrets tab > New reposit
 
 | Secret Name | Source | Description |
 |---|---|---|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare | Token with Workers/Pages edit permissions |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare | Token with Workers/Pages/D1 edit permissions |
 | `BETTER_AUTH_SECRET` | Self-generated | `openssl rand -base64 32` (32+ characters) |
 | `BOT_PRIVATE_KEY` | GitHub App | Private key (PEM format) downloaded from App settings |
 
-### Preview Environment
+#### OAuth (Google/Discord)
 
 | Secret Name | Source | Description |
 |---|---|---|
-| `NEON_PROJECT_ID` | Neon Console | From project dashboard URL |
-| `NEON_API_KEY` | Neon Account Settings | Generated on API Keys page |
+| `GOOGLE_CLIENT_ID` | Google Cloud Console | OAuth 2.0 Client ID |
+| `GOOGLE_CLIENT_SECRET` | Google Cloud Console | OAuth 2.0 Client Secret |
+| `DISCORD_CLIENT_ID` | Discord Developer Portal | OAuth2 Application Client ID |
+| `DISCORD_CLIENT_SECRET` | Discord Developer Portal | OAuth2 Application Client Secret |
+
+#### Preview Auto-Login
+
+| Secret Name | Source | Description |
+|---|---|---|
+| `PREVIEW_LOGIN_EMAIL` | Self-created | Test account email for auto-login in preview |
+| `PREVIEW_LOGIN_PASSWORD` | Self-created | Test account password for auto-login in preview |
 
 ### Production Environment
 
 | Secret Name | Source | Description |
 |---|---|---|
-| `PRODUCTION_DATABASE_URL` | Neon Console | Main branch connection string |
 | `PRODUCTION_API_URL` | Cloudflare | Production Worker URL (e.g., `https://sapphire2-api.<subdomain>.workers.dev`) |
 | `PRODUCTION_WEB_URL` | Cloudflare | Production Pages URL (e.g., `https://sapphire2-web.pages.dev`) |
 
@@ -205,15 +217,15 @@ Uses `concurrency` for sequential execution. Deployment is skipped if CI fails.
 Error: Authentication error
 ```
 
-Verify the API token has Workers Scripts **Edit** + Cloudflare Pages **Edit** permissions.
+Verify the API token has Workers Scripts **Edit** + Cloudflare Pages **Edit** + D1 **Edit** permissions.
 
-### Neon Branch Creation Failure
+### D1 Migration Failure
 
 ```
-Error: Could not find project
+Error: D1_ERROR
 ```
 
-Check `NEON_API_KEY` validity and `NEON_PROJECT_ID` correctness.
+Check the `d1_databases` configuration in `apps/server/wrangler.toml`.
 
 ### Worker Deployment Failure
 
@@ -222,17 +234,6 @@ Error: compatibility_date is too old
 ```
 
 Update `compatibility_date` in `apps/server/wrangler.toml`.
-
-### Migration Failure
-
-```
-Error: connection refused
-```
-
-Verify `DATABASE_URL` format:
-```
-postgresql://user:password@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require
-```
 
 ### Pages Deployment Failure
 
@@ -249,7 +250,7 @@ Create the project first: `npx wrangler pages project create sapphire2-web`
 ```
 PR open/synchronize
   |
-  +-> Create Neon branch (pr-<number>)
+  +-> Create D1 database (pr-<number>)
   |     |
   |     +-> Run migrations
   |           |
@@ -265,7 +266,7 @@ PR open/synchronize
 ```
 PR close/merge
   |
-  +-> Delete Worker → Delete Neon branch → Update PR comment
+  +-> Delete Worker -> Delete D1 database -> Update PR comment
 ```
 
 ### Production Deploy (on master push)
@@ -275,7 +276,7 @@ push to master
   |
   +-> CI (type check, lint, test)
         |
-        +-> Migration → Worker deploy → Pages deploy
+        +-> Migration -> Worker deploy -> Pages deploy
 ```
 
 ### Tech Stack
@@ -291,7 +292,7 @@ push to master
         └───────────────┘         └───────┬───────┘
                                           │
                                   ┌───────┴───────┐
-                                  │   Neon        │
-                                  │   (PostgreSQL)│
+                                  │   D1          │
+                                  │   (SQLite)    │
                                   └───────────────┘
 ```
