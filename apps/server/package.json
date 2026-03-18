@@ -5,7 +5,7 @@
   "scripts": {
     "build": "wrangler deploy --dry-run",
     "check-types": "tsc -b",
-    "dev": "wrangler dev"
+    "dev": "kill-port 8787 && wrangler dev"
   },
   "dependencies": {
     "@hono/trpc-server": "^0.4.0",
@@ -21,6 +21,7 @@
     "@cloudflare/workers-types": "^4.20260317.1",
     "@sapphire2/config": "workspace:*",
     "@types/bun": "catalog:",
+    "kill-port": "^2.0.1",
     "typescript": "catalog:",
     "vitest": "^3.1.0",
     "wrangler": "^4.0.0"
