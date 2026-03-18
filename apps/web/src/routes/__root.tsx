@@ -4,12 +4,14 @@ import {
 	createRootRouteWithContext,
 	HeadContent,
 	Outlet,
+	redirect,
 } from "@tanstack/react-router";
 import { DevtoolsToggle } from "@/components/devtools-toggle";
 import { MobileNav } from "@/components/mobile-nav";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { authClient } from "@/lib/auth-client";
 import type { trpc } from "@/utils/trpc";
 
 import "../index.css";
@@ -20,6 +22,15 @@ export interface RouterAppContext {
 }
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
+	beforeLoad: async ({ location }) => {
+		if (location.pathname === "/login") {
+			return;
+		}
+		const session = await authClient.getSession();
+		if (!session.data) {
+			throw redirect({ to: "/login" });
+		}
+	},
 	component: RootComponent,
 	head: () => ({
 		meta: [
@@ -57,7 +68,7 @@ function RootComponent() {
 					</div>
 				</div>
 				<MobileNav />
-				<Toaster richColors />
+				<Toaster position="top-right" richColors />
 			</ThemeProvider>
 			<DevtoolsToggle />
 		</>

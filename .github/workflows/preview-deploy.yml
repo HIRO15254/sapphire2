@@ -51,30 +51,33 @@ jobs:
     outputs:
       d1_database_id: ${{ steps.create.outputs.d1_database_id }}
     steps:
-      - name: Create or get D1 database for PR
+      - name: Recreate D1 database for PR
         id: create
         run: |
           DB_NAME="${{ needs.setup.outputs.d1_db_name }}"
 
-          # Check if database already exists
+          # Delete existing database if it exists
           EXISTING_ID=$(curl -sf \
             "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             | jq -r ".result[] | select(.name == \"${DB_NAME}\") | .uuid")
 
           if [ -n "$EXISTING_ID" ]; then
-            echo "D1 database already exists: $EXISTING_ID"
-            echo "d1_database_id=${EXISTING_ID}" >> "$GITHUB_OUTPUT"
-          else
-            NEW_ID=$(curl -sf -X POST \
-              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
-              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "{\"name\": \"${DB_NAME}\"}" \
-              | jq -r '.result.uuid')
-            echo "Created D1 database: $NEW_ID"
-            echo "d1_database_id=${NEW_ID}" >> "$GITHUB_OUTPUT"
+            echo "Deleting existing D1 database: $EXISTING_ID"
+            curl -sf -X DELETE \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database/${EXISTING_ID}" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
           fi
+
+          # Create fresh database
+          NEW_ID=$(curl -sf -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"${DB_NAME}\"}" \
+            | jq -r '.result.uuid')
+          echo "Created D1 database: $NEW_ID"
+          echo "d1_database_id=${NEW_ID}" >> "$GITHUB_OUTPUT"
 
   db-clone:
     needs: [setup, d1-setup]
@@ -86,19 +89,15 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
 
-      - name: Export production D1 data
+      - name: Export production D1 (schema + data)
         working-directory: apps/server
         run: |
           bunx wrangler d1 export sapphire2-db --remote --output=dump.sql
 
-      - name: Import data into PR database
+      - name: Import into PR database
         working-directory: apps/server
         run: |
           bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql
-
-      - name: Apply new migrations
-        run: |
-          wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote -c apps/server/wrangler.toml
 
   deploy-api:
     needs: [setup, d1-setup, db-clone]
@@ -113,17 +112,22 @@ jobs:
       - name: Deploy Worker
         working-directory: apps/server
         run: |
+          sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
+          sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
           bunx wrangler deploy \
             --name "${{ needs.setup.outputs.worker_name }}" \
             --var BETTER_AUTH_URL:"${{ needs.setup.outputs.preview_api_url }}" \
             --var CORS_ORIGIN:"${{ needs.setup.outputs.preview_web_url }}" \
-            --var NODE_ENV:production \
-            --d1 "DB=${{ needs.d1-setup.outputs.d1_database_id }}"
+            --var NODE_ENV:production
 
       - name: Set Worker secrets
         working-directory: apps/server
         run: |
           echo "${{ secrets.BETTER_AUTH_SECRET }}" | bunx wrangler secret put BETTER_AUTH_SECRET --name "${{ needs.setup.outputs.worker_name }}"
+          echo "${{ secrets.GOOGLE_CLIENT_ID }}" | bunx wrangler secret put GOOGLE_CLIENT_ID --name "${{ needs.setup.outputs.worker_name }}"
+          echo "${{ secrets.GOOGLE_CLIENT_SECRET }}" | bunx wrangler secret put GOOGLE_CLIENT_SECRET --name "${{ needs.setup.outputs.worker_name }}"
+          echo "${{ secrets.DISCORD_CLIENT_ID }}" | bunx wrangler secret put DISCORD_CLIENT_ID --name "${{ needs.setup.outputs.worker_name }}"
+          echo "${{ secrets.DISCORD_CLIENT_SECRET }}" | bunx wrangler secret put DISCORD_CLIENT_SECRET --name "${{ needs.setup.outputs.worker_name }}"
 
   deploy-web:
     needs: [setup, deploy-api]
@@ -139,6 +143,9 @@ jobs:
         run: bun run --filter web build
         env:
           VITE_SERVER_URL: ${{ needs.setup.outputs.preview_api_url }}
+          VITE_PREVIEW_AUTO_LOGIN: "true"
+          VITE_PREVIEW_LOGIN_EMAIL: ${{ secrets.PREVIEW_LOGIN_EMAIL }}
+          VITE_PREVIEW_LOGIN_PASSWORD: ${{ secrets.PREVIEW_LOGIN_PASSWORD }}
 
       - name: Deploy to Cloudflare Pages
         run: |

@@ -10,8 +10,8 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **TailwindCSS** + **shadcn/ui** - Styling and UI components
 - **Hono** - Lightweight server framework on Cloudflare Workers
 - **tRPC v11** - End-to-end type-safe APIs
-- **Drizzle ORM** + **Neon PostgreSQL** - Database (serverless HTTP driver)
-- **Better Auth** - Authentication (email/password with PBKDF2)
+- **Drizzle ORM** + **Cloudflare D1** - Database (SQLite)
+- **Better Auth** - Authentication (email/password, Google, Discord OAuth)
 - **Bun** - Package manager and runtime
 - **Biome** (Ultracite) - Linting and formatting
 - **Husky** - Git hooks
@@ -45,7 +45,6 @@ sapphire2/
 ### Prerequisites
 
 - [Bun](https://bun.sh/) installed
-- [Neon](https://neon.tech/) PostgreSQL database
 
 ### Setup
 
@@ -62,16 +61,19 @@ cp apps/server/.dev.vars.example apps/server/.dev.vars
 ```
 
 ```env
-DATABASE_URL=postgresql://user:password@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require
 BETTER_AUTH_SECRET=your-secret-at-least-32-characters-long
 BETTER_AUTH_URL=http://localhost:8787
 CORS_ORIGIN=http://localhost:3001
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+DISCORD_CLIENT_ID=your-discord-client-id
+DISCORD_CLIENT_SECRET=your-discord-client-secret
 ```
 
-3. Push the schema to your database:
+3. Run database migrations:
 
 ```bash
-bun run db:push
+bun run db:migrate:local
 ```
 
 4. Start development:
@@ -103,9 +105,9 @@ bun run dev
 
 ## Deployment
 
-The project deploys to **Cloudflare Workers** (API) + **Cloudflare Pages** (Web) + **Neon PostgreSQL** (DB).
+The project deploys to **Cloudflare Workers** (API) + **Cloudflare Pages** (Web) + **Cloudflare D1** (DB).
 
-- **Preview**: Automatically created per PR (Worker + Pages + Neon branch)
+- **Preview**: Automatically created per PR (Worker + Pages + D1 database)
 - **Production**: Automatically deployed on push to `master`
 
 See [docs/deploy.md](docs/deploy.md) for detailed setup instructions.

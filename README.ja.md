@@ -10,8 +10,8 @@
 - **TailwindCSS** + **shadcn/ui** - スタイリングと UI コンポーネント
 - **Hono** - Cloudflare Workers 上の軽量サーバーフレームワーク
 - **tRPC v11** - エンドツーエンド型安全 API
-- **Drizzle ORM** + **Neon PostgreSQL** - データベース（サーバーレス HTTP ドライバ）
-- **Better Auth** - 認証（メール/パスワード、PBKDF2）
+- **Drizzle ORM** + **Cloudflare D1** - データベース（SQLite）
+- **Better Auth** - 認証（メール/パスワード、Google/Discord OAuth）
 - **Bun** - パッケージマネージャー兼ランタイム
 - **Biome** (Ultracite) - リンティングとフォーマット
 - **Husky** - Git フック
@@ -45,7 +45,6 @@ sapphire2/
 ### 前提条件
 
 - [Bun](https://bun.sh/) がインストール済み
-- [Neon](https://neon.tech/) PostgreSQL データベース
 
 ### セットアップ
 
@@ -62,16 +61,19 @@ cp apps/server/.dev.vars.example apps/server/.dev.vars
 ```
 
 ```env
-DATABASE_URL=postgresql://user:password@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require
 BETTER_AUTH_SECRET=your-secret-at-least-32-characters-long
 BETTER_AUTH_URL=http://localhost:8787
 CORS_ORIGIN=http://localhost:3001
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+DISCORD_CLIENT_ID=your-discord-client-id
+DISCORD_CLIENT_SECRET=your-discord-client-secret
 ```
 
-3. データベースにスキーマを反映:
+3. データベースマイグレーションを実行:
 
 ```bash
-bun run db:push
+bun run db:migrate:local
 ```
 
 4. 開発サーバーを起動:
@@ -103,9 +105,9 @@ bun run dev
 
 ## デプロイ
 
-**Cloudflare Workers**（API）+ **Cloudflare Pages**（Web）+ **Neon PostgreSQL**（DB）にデプロイします。
+**Cloudflare Workers**（API）+ **Cloudflare Pages**（Web）+ **Cloudflare D1**（DB）にデプロイします。
 
-- **プレビュー**: PR ごとに自動作成（Worker + Pages + Neon ブランチ）
+- **プレビュー**: PR ごとに自動作成（Worker + Pages + D1 データベース）
 - **本番**: `master` への push で自動デプロイ
 
 詳細なセットアップ手順は [docs/deploy.ja.md](docs/deploy.ja.md) を参照してください。

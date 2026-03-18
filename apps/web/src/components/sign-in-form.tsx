@@ -4,7 +4,8 @@ import { toast } from "sonner";
 import z from "zod";
 
 import { authClient } from "@/lib/auth-client";
-
+import { DiscordIcon } from "./icons/discord";
+import { GoogleIcon } from "./icons/google";
 import Loader from "./loader";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -59,6 +60,54 @@ export default function SignInForm({
 	return (
 		<div className="mx-auto mt-10 w-full max-w-md p-6">
 			<h1 className="mb-6 text-center font-bold text-3xl">Welcome Back</h1>
+
+			<div className="space-y-2">
+				<Button
+					className="w-full"
+					onClick={async () => {
+						const result = await authClient.signIn.social({
+							provider: "google",
+							callbackURL: `${window.location.origin}/dashboard`,
+						});
+						if (result.error) {
+							toast.error(result.error.message || "Google sign in unavailable");
+						}
+					}}
+					type="button"
+					variant="outline"
+				>
+					<GoogleIcon className="mr-2 h-4 w-4" />
+					Sign in with Google
+				</Button>
+				<Button
+					className="w-full"
+					onClick={async () => {
+						const result = await authClient.signIn.social({
+							provider: "discord",
+							callbackURL: `${window.location.origin}/dashboard`,
+						});
+						if (result.error) {
+							toast.error(
+								result.error.message || "Discord sign in unavailable"
+							);
+						}
+					}}
+					type="button"
+					variant="outline"
+				>
+					<DiscordIcon className="mr-2 h-4 w-4" />
+					Sign in with Discord
+				</Button>
+			</div>
+
+			<div className="relative my-4">
+				<div className="absolute inset-0 flex items-center">
+					<span className="w-full border-t" />
+				</div>
+				<div className="relative flex justify-center text-xs uppercase">
+					<span className="bg-background px-2 text-muted-foreground">or</span>
+				</div>
+			</div>
 
 			<form
 				className="space-y-4"
