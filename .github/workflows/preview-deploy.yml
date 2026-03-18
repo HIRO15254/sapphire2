@@ -92,7 +92,8 @@ jobs:
       - name: Export production D1 data
         working-directory: apps/server
         run: |
-          bunx wrangler d1 export sapphire2-db --remote --output=dump.sql --no-schema
+          bunx wrangler d1 export sapphire2-db --remote --output=dump-raw.sql --no-schema
+          grep -v "^INSERT INTO d1_migrations" dump-raw.sql > dump.sql || true
 
       - name: Apply migrations to PR database
         run: |
