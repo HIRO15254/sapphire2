@@ -5,6 +5,7 @@ import {
 	HeadContent,
 	Outlet,
 	redirect,
+	useLocation,
 } from "@tanstack/react-router";
 import { DevtoolsToggle } from "@/components/devtools-toggle";
 import { MobileNav } from "@/components/mobile-nav";
@@ -52,6 +53,9 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootComponent() {
+	const { pathname } = useLocation();
+	const isLoginPage = pathname === "/login";
+
 	return (
 		<>
 			<HeadContent />
@@ -61,13 +65,19 @@ function RootComponent() {
 				disableTransitionOnChange
 				storageKey="vite-ui-theme"
 			>
-				<SidebarNav />
-				<div className="flex h-svh flex-col md:ml-56">
-					<div className="flex-1 overflow-auto pb-16 md:pb-0">
-						<Outlet />
-					</div>
-				</div>
-				<MobileNav />
+				{isLoginPage ? (
+					<Outlet />
+				) : (
+					<>
+						<SidebarNav />
+						<div className="flex h-svh flex-col md:ml-56">
+							<div className="flex-1 overflow-auto pb-16 md:pb-0">
+								<Outlet />
+							</div>
+						</div>
+						<MobileNav />
+					</>
+				)}
 				<Toaster position="top-right" richColors />
 			</ThemeProvider>
 			<DevtoolsToggle />
