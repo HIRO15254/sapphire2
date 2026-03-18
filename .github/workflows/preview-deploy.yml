@@ -98,7 +98,7 @@ jobs:
 
       - name: Apply new migrations
         run: |
-          wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote -c apps/server/wrangler.toml
+          bunx wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote -c apps/server/wrangler.toml
 
   deploy-api:
     needs: [setup, d1-setup, db-clone]
