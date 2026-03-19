@@ -32,6 +32,12 @@ function createTestRouter(initialPath: string) {
 		component: () => <div>Search</div>,
 	});
 
+	const storesRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/stores",
+		component: () => <div>Stores</div>,
+	});
+
 	const settingsRoute = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/settings",
@@ -41,6 +47,7 @@ function createTestRouter(initialPath: string) {
 	const routeTree = rootRoute.addChildren([
 		indexRoute,
 		dashboardRoute,
+		storesRoute,
 		searchRoute,
 		settingsRoute,
 	]);
@@ -52,12 +59,12 @@ function createTestRouter(initialPath: string) {
 }
 
 describe("MobileNav", () => {
-	it("renders 4 navigation items", async () => {
+	it("renders 5 navigation items", async () => {
 		const router = createTestRouter("/");
 		render(<RouterProvider router={router} />);
 
 		const links = await screen.findAllByRole("link");
-		expect(links).toHaveLength(4);
+		expect(links).toHaveLength(5);
 	});
 
 	it("displays labels for all navigation items", async () => {
@@ -66,6 +73,7 @@ describe("MobileNav", () => {
 
 		await screen.findByText("Home");
 		expect(screen.getByText("Dashboard")).toBeInTheDocument();
+		expect(screen.getByText("Stores")).toBeInTheDocument();
 		expect(screen.getByText("Search")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
 	});
