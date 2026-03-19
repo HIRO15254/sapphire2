@@ -19,7 +19,13 @@ Tests MUST pass before code is committed (enforced by pre-commit hook).
 ### IV. Code Quality Automation
 Biome (via Ultracite) is the single source of truth for formatting and linting. Tabs for indentation. The PostToolUse hook auto-formats on every write. lint-staged runs on commit. No manual formatting debates. Run `bun x ultracite fix` before committing.
 
-### V. API Contract Discipline
+### V. English-Only UI
+All user-facing text in the application MUST be written in English. This includes labels, buttons, placeholders, error messages, navigation items, and toast notifications. Code comments and documentation may be in Japanese, but rendered UI text MUST be English only.
+
+### VI. Mobile-First UI Design
+All UI components and layouts MUST be designed mobile-first. Start with the smallest viewport and progressively enhance for larger screens. Use responsive breakpoints (Tailwind's `md:`, `lg:` etc.) to adapt layouts. Touch-friendly tap targets (minimum 44x44px), adequate spacing, and single-column layouts should be the default. Desktop enhancements are secondary.
+
+### VII. API Contract Discipline
 tRPC routers define the contract between frontend and backend. Input validation uses Zod schemas. Protected routes use `protectedProcedure`; public routes use `publicProcedure`. Every router procedure MUST validate its inputs. Error responses use TRPCError with descriptive messages and appropriate error codes.
 
 ## Technology Standards
@@ -30,7 +36,7 @@ tRPC routers define the contract between frontend and backend. Input validation 
 | Language | TypeScript (strict mode) |
 | Frontend | React 19, Vite, TanStack Router (file-based), TanStack Query, shadcn/ui, Tailwind v4 |
 | Backend | Hono, tRPC v11 |
-| Database | PostgreSQL, Drizzle ORM |
+| Database | Cloudflare D1 (SQLite), Drizzle ORM |
 | Auth | better-auth |
 | Testing | Vitest, Testing Library |
 | Code Quality | Biome + Ultracite |
@@ -54,4 +60,4 @@ This constitution supersedes ad-hoc practices. Amendments require:
 
 Complexity MUST be justified. Default to the simplest approach that meets requirements (YAGNI). Prefer editing existing files over creating new ones. Do not add features beyond what was requested.
 
-**Version**: 1.0.0 | **Ratified**: 2026-03-01 | **Last Amended**: 2026-03-01
+**Version**: 1.1.0 | **Ratified**: 2026-03-01 | **Last Amended**: 2026-03-19
