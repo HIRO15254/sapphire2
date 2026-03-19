@@ -5,6 +5,7 @@ import {
 	IconSettings,
 } from "@tabler/icons-react";
 import { Link, useRouterState } from "@tanstack/react-router";
+import { Building2 } from "lucide-react";
 import type { ComponentType } from "react";
 
 export interface NavigationItem {
@@ -13,9 +14,22 @@ export interface NavigationItem {
 	to: string;
 }
 
+function StoresIcon({
+	size,
+	stroke,
+	className,
+}: {
+	size?: number;
+	stroke?: number;
+	className?: string;
+}) {
+	return <Building2 className={className} size={size} strokeWidth={stroke} />;
+}
+
 export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
 	{ to: "/", label: "Home", icon: IconHome },
 	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
+	{ to: "/stores", label: "Stores", icon: StoresIcon },
 	{ to: "/search", label: "Search", icon: IconSearch },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
