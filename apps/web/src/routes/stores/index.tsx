@@ -5,12 +5,7 @@ import { useState } from "react";
 import { StoreCard } from "@/components/stores/store-card";
 import { StoreForm } from "@/components/stores/store-form";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export const Route = createFileRoute("/stores/")({
@@ -99,39 +94,34 @@ function StoresPage() {
 				</div>
 			)}
 
-			<Dialog onOpenChange={setIsCreateOpen} open={isCreateOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>New Store</DialogTitle>
-					</DialogHeader>
-					<StoreForm isLoading={isSubmitting} onSubmit={handleCreate} />
-				</DialogContent>
-			</Dialog>
+			<ResponsiveDialog
+				onOpenChange={setIsCreateOpen}
+				open={isCreateOpen}
+				title="New Store"
+			>
+				<StoreForm isLoading={isSubmitting} onSubmit={handleCreate} />
+			</ResponsiveDialog>
 
-			<Dialog
+			<ResponsiveDialog
 				onOpenChange={(open) => {
 					if (!open) {
 						setEditingStore(null);
 					}
 				}}
 				open={editingStore !== null}
+				title="Edit Store"
 			>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Edit Store</DialogTitle>
-					</DialogHeader>
-					{editingStore && (
-						<StoreForm
-							defaultValues={{
-								name: editingStore.name,
-								memo: editingStore.memo ?? undefined,
-							}}
-							isLoading={isSubmitting}
-							onSubmit={handleUpdate}
-						/>
-					)}
-				</DialogContent>
-			</Dialog>
+				{editingStore && (
+					<StoreForm
+						defaultValues={{
+							name: editingStore.name,
+							memo: editingStore.memo ?? undefined,
+						}}
+						isLoading={isSubmitting}
+						onSubmit={handleUpdate}
+					/>
+				)}
+			</ResponsiveDialog>
 		</div>
 	);
 }
