@@ -1,5 +1,4 @@
 import {
-	IconChecklist,
 	IconHome,
 	IconLayoutDashboard,
 	IconSearch,
@@ -17,7 +16,6 @@ export interface NavigationItem {
 export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
 	{ to: "/", label: "Home", icon: IconHome },
 	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
-	{ to: "/todos", label: "Todos", icon: IconChecklist },
 	{ to: "/search", label: "Search", icon: IconSearch },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;

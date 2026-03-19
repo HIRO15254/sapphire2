@@ -89,14 +89,26 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
 
-      - name: Export production D1 (schema + data)
+      - name: Apply migrations to PR database
         working-directory: apps/server
         run: |
-          bunx wrangler d1 export sapphire2-db --remote --output=dump.sql
+          sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
+          sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
+          bunx wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote
 
-      - name: Import into PR database
+      - name: Export production data
         working-directory: apps/server
+        continue-on-error: true
         run: |
+          git checkout wrangler.toml
+          bunx wrangler d1 export sapphire2-db --remote --no-schema --output=dump.sql
+
+      - name: Import data into PR database
+        working-directory: apps/server
+        continue-on-error: true
+        run: |
+          sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
+          sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
           bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql
 
   deploy-api:
