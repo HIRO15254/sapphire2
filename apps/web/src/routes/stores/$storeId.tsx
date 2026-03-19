@@ -1,0 +1,74 @@
+import { IconArrowLeft } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { trpc } from "@/utils/trpc";
+
+export const Route = createFileRoute("/stores/$storeId")({
+	component: StoreDetailPage,
+});
+
+function StoreDetailPage() {
+	const { storeId } = Route.useParams();
+	const storeQuery = useQuery(trpc.store.getById.queryOptions({ id: storeId }));
+
+	const store = storeQuery.data;
+
+	if (storeQuery.isLoading) {
+		return (
+			<div className="flex items-center justify-center p-16">
+				<p className="text-muted-foreground">Loading...</p>
+			</div>
+		);
+	}
+
+	if (!store) {
+		return (
+			<div className="flex items-center justify-center p-16">
+				<p className="text-muted-foreground">Store not found.</p>
+			</div>
+		);
+	}
+
+	return (
+		<div className="p-4 md:p-6">
+			<div className="mb-6 flex items-center gap-4">
+				<Button asChild size="sm" variant="ghost">
+					<Link to="/stores">
+						<IconArrowLeft size={16} />
+						Back
+					</Link>
+				</Button>
+				<h1 className="font-bold text-2xl">{store.name}</h1>
+			</div>
+
+			{store.memo && (
+				<p className="mb-6 text-muted-foreground text-sm">{store.memo}</p>
+			)}
+
+			<Tabs defaultValue="currency">
+				<TabsList>
+					<TabsTrigger value="currency">Currency</TabsTrigger>
+					<TabsTrigger value="ring-games">Ring Games</TabsTrigger>
+					<TabsTrigger value="tournaments">Tournaments</TabsTrigger>
+				</TabsList>
+				<TabsContent value="currency">
+					<div className="py-8 text-center text-muted-foreground">
+						<p>Currency management coming soon.</p>
+					</div>
+				</TabsContent>
+				<TabsContent value="ring-games">
+					<div className="py-8 text-center text-muted-foreground">
+						<p>Ring game management coming soon.</p>
+					</div>
+				</TabsContent>
+				<TabsContent value="tournaments">
+					<div className="py-8 text-center text-muted-foreground">
+						<p>Tournament management coming soon.</p>
+					</div>
+				</TabsContent>
+			</Tabs>
+		</div>
+	);
+}
