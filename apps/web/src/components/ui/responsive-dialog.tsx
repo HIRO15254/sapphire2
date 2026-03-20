@@ -42,12 +42,14 @@ export function ResponsiveDialog({
 	}
 
 	return (
-		<Drawer onOpenChange={onOpenChange} open={open}>
+		<Drawer handleOnly onOpenChange={onOpenChange} open={open}>
 			<DrawerContent>
 				<DrawerHeader>
 					<DrawerTitle>{title}</DrawerTitle>
 				</DrawerHeader>
-				<div className="px-4 pb-4">{children}</div>
+				<div className="max-h-[70dvh] overflow-y-auto overscroll-contain px-4 pb-4">
+					{children}
+				</div>
 			</DrawerContent>
 		</Drawer>
 	);
