@@ -22,9 +22,6 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
-      - name: Generate route tree
-        run: bunx --bun tsr generate
-        working-directory: apps/web
       - name: Type check
         run: bun run check-types
       - name: Lint

@@ -43,9 +43,6 @@ lerna-debug.log*
 coverage
 .nyc_output
 
-# Generated files
-apps/web/src/routeTree.gen.ts
-
 # Misc
 *.tgz
 .cache
