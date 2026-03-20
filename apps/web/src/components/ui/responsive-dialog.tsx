@@ -1,4 +1,6 @@
+import { IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -7,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import {
 	Drawer,
+	DrawerClose,
 	DrawerContent,
 	DrawerHeader,
 	DrawerTitle,
@@ -20,6 +23,10 @@ interface ResponsiveDialogProps {
 	title: string;
 }
 
+function preventInteraction(e: Event) {
+	e.preventDefault();
+}
+
 export function ResponsiveDialog({
 	children,
 	onOpenChange,
@@ -31,7 +38,11 @@ export function ResponsiveDialog({
 	if (isDesktop) {
 		return (
 			<Dialog onOpenChange={onOpenChange} open={open}>
-				<DialogContent>
+				<DialogContent
+					onEscapeKeyDown={preventInteraction}
+					onInteractOutside={preventInteraction}
+					onPointerDownOutside={preventInteraction}
+				>
 					<DialogHeader>
 						<DialogTitle>{title}</DialogTitle>
 					</DialogHeader>
@@ -42,10 +53,20 @@ export function ResponsiveDialog({
 	}
 
 	return (
-		<Drawer onOpenChange={onOpenChange} open={open}>
+		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
 			<DrawerContent>
-				<DrawerHeader>
+				<DrawerHeader className="relative">
 					<DrawerTitle>{title}</DrawerTitle>
+					<DrawerClose asChild>
+						<Button
+							className="absolute top-2 right-2"
+							size="sm"
+							variant="ghost"
+						>
+							<IconX size={16} />
+							<span className="sr-only">Close</span>
+						</Button>
+					</DrawerClose>
 				</DrawerHeader>
 				<div className="px-4 pb-4">{children}</div>
 			</DrawerContent>
