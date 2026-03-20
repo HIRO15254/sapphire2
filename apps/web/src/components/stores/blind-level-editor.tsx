@@ -537,7 +537,7 @@ export function BlindLevelEditor({
 	}
 
 	return (
-		<Drawer onOpenChange={onOpenChange} open={open}>
+		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
 			<DrawerContent className="h-[calc(100dvh-4rem)]">
 				<DrawerHeader className="sr-only">
 					<DrawerTitle>Blind Structure</DrawerTitle>

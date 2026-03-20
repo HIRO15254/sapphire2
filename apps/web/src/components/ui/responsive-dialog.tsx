@@ -1,4 +1,6 @@
+import { IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
@@ -42,10 +44,19 @@ export function ResponsiveDialog({
 	}
 
 	return (
-		<Drawer handleOnly onOpenChange={onOpenChange} open={open}>
+		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
 			<DrawerContent>
-				<DrawerHeader>
+				<DrawerHeader className="relative">
 					<DrawerTitle>{title}</DrawerTitle>
+					<Button
+						className="absolute top-2 right-2"
+						onClick={() => onOpenChange(false)}
+						size="sm"
+						variant="ghost"
+					>
+						<IconX size={16} />
+						<span className="sr-only">Close</span>
+					</Button>
 				</DrawerHeader>
 				<div className="max-h-[70dvh] overflow-y-auto overscroll-contain px-4 pb-4">
 					{children}
