@@ -16,28 +16,14 @@ import { CSS } from "@dnd-kit/utilities";
 import {
 	IconCoffee,
 	IconGripVertical,
-	IconList,
 	IconPlus,
 	IconTrash,
-	IconX,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
-import {
-	Drawer,
-	DrawerContent,
-	DrawerHeader,
-	DrawerTitle,
-} from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
-import { useMediaQuery } from "@/hooks/use-media-query";
+import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 const GAME_VARIANTS = {
@@ -69,6 +55,7 @@ interface BlindLevelRow {
 interface SortableLevelCardProps {
 	blindLabels: { blind1: string; blind2: string; blind3: string };
 	editingId: string | null;
+	onAutoFill: (id: string, updates: Record<string, number | null>) => void;
 	onDelete: (id: string) => void;
 	onSetEditing: (id: string | null) => void;
 	onUpdate: (id: string, field: string, value: number | null) => void;
@@ -125,6 +112,7 @@ function SortableLevelCard({
 	onSetEditing,
 	onDelete,
 	onUpdate,
+	onAutoFill,
 }: SortableLevelCardProps) {
 	const {
 		attributes,
@@ -206,6 +194,29 @@ function SortableLevelCard({
 		);
 	}
 
+	const handleBlind1Save = (v: number | null) => {
+		onUpdate(row.id, "blind1", v);
+		if (v !== null) {
+			const autoFills: Record<string, number | null> = {};
+			if (row.blind2 === null) {
+				autoFills.blind2 = v * 2;
+			}
+			if (row.ante === null) {
+				autoFills.ante = v;
+			}
+			if (Object.keys(autoFills).length > 0) {
+				onAutoFill(row.id, autoFills);
+			}
+		}
+	};
+
+	const handleBlind2Save = (v: number | null) => {
+		onUpdate(row.id, "blind2", v);
+		if (v !== null && row.ante === null) {
+			onAutoFill(row.id, { ante: v });
+		}
+	};
+
 	return (
 		<div ref={setNodeRef} style={style}>
 			<div
@@ -276,13 +287,13 @@ function SortableLevelCard({
 					<FieldInput
 						fieldId={`${row.id}-blind1`}
 						label={blindLabels.blind1}
-						onSave={(v) => onUpdate(row.id, "blind1", v)}
+						onSave={handleBlind1Save}
 						value={row.blind1}
 					/>
 					<FieldInput
 						fieldId={`${row.id}-blind2`}
 						label={blindLabels.blind2}
-						onSave={(v) => onUpdate(row.id, "blind2", v)}
+						onSave={handleBlind2Save}
 						value={row.blind2}
 					/>
 					<FieldInput
@@ -304,7 +315,6 @@ function SortableLevelCard({
 }
 
 interface BlindStructureContentProps {
-	onClose: () => void;
 	tournamentId: string;
 	variant: string;
 }
@@ -317,6 +327,7 @@ function renderLevelList(
 	setEditingId: (id: string | null) => void,
 	handleDelete: (id: string) => void,
 	handleUpdate: (id: string, field: string, value: number | null) => void,
+	handleAutoFill: (id: string, updates: Record<string, number | null>) => void,
 	sensors: ReturnType<typeof useSensors>,
 	handleDragEnd: (event: DragEndEvent) => void
 ) {
@@ -352,6 +363,7 @@ function renderLevelList(
 							blindLabels={blindLabels}
 							editingId={editingId}
 							key={row.id}
+							onAutoFill={handleAutoFill}
 							onDelete={handleDelete}
 							onSetEditing={setEditingId}
 							onUpdate={handleUpdate}
@@ -367,15 +379,30 @@ function renderLevelList(
 function BlindStructureContent({
 	tournamentId,
 	variant,
-	onClose,
 }: BlindStructureContentProps) {
 	const [isAdding, setIsAdding] = useState(false);
 	const [editingId, setEditingId] = useState<string | null>(null);
+	const [lastMinutes, setLastMinutes] = useState<number | null>(null);
 
 	const levelsQuery = useQuery(
 		trpc.blindLevel.listByTournament.queryOptions({ tournamentId })
 	);
 	const levels = levelsQuery.data ?? [];
+
+	const initialLastMinutes = (() => {
+		const data = levelsQuery.data;
+		if (!data || data.length === 0) {
+			return null;
+		}
+		for (let i = data.length - 1; i >= 0; i--) {
+			if (data[i].minutes != null) {
+				return data[i].minutes;
+			}
+		}
+		return null;
+	})();
+
+	const effectiveLastMinutes = lastMinutes ?? initialLastMinutes;
 
 	const variantKey = (
 		variant in GAME_VARIANTS ? variant : "nlh"
@@ -417,6 +444,9 @@ function BlindStructureContent({
 				tournamentId,
 				level: nextLevel,
 				isBreak: false,
+				...(effectiveLastMinutes != null
+					? { minutes: effectiveLastMinutes }
+					: {}),
 			});
 			await levelsQuery.refetch();
 		} finally {
@@ -432,6 +462,9 @@ function BlindStructureContent({
 				tournamentId,
 				level: nextLevel,
 				isBreak: true,
+				...(effectiveLastMinutes != null
+					? { minutes: effectiveLastMinutes }
+					: {}),
 			});
 			await levelsQuery.refetch();
 		} finally {
@@ -453,27 +486,25 @@ function BlindStructureContent({
 		value: number | null
 	) => {
 		await trpcClient.blindLevel.update.mutate({ id, [field]: value });
+		if (field === "minutes" && value !== null) {
+			setLastMinutes(value);
+		}
+		await levelsQuery.refetch();
+	};
+
+	const handleAutoFill = async (
+		id: string,
+		updates: Record<string, number | null>
+	) => {
+		for (const [field, value] of Object.entries(updates)) {
+			await trpcClient.blindLevel.update.mutate({ id, [field]: value });
+		}
 		await levelsQuery.refetch();
 	};
 
 	return (
-		<div className="flex flex-col" style={{ height: "calc(100dvh - 6rem)" }}>
-			<div className="flex items-center justify-between border-b px-4 pt-1 pb-3">
-				<div className="flex items-center gap-2">
-					<IconList className="text-muted-foreground" size={18} />
-					<span className="font-semibold text-base">Blind Structure</span>
-				</div>
-				<button
-					aria-label="Close"
-					className="text-muted-foreground transition-colors hover:text-foreground"
-					onClick={onClose}
-					type="button"
-				>
-					<IconX size={20} />
-				</button>
-			</div>
-
-			<div className="flex-1 overflow-y-auto px-4 py-3">
+		<div className="flex flex-col gap-3">
+			<div className="flex flex-col gap-2">
 				{renderLevelList(
 					levelsQuery,
 					levels,
@@ -482,12 +513,13 @@ function BlindStructureContent({
 					setEditingId,
 					handleDelete,
 					handleUpdate,
+					handleAutoFill,
 					sensors,
 					handleDragEnd
 				)}
 			</div>
 
-			<div className="flex gap-2 border-t bg-background px-4 py-3">
+			<div className="flex gap-2 border-t bg-background pt-3">
 				<Button
 					className="flex-1"
 					disabled={isAdding}
@@ -512,42 +544,13 @@ export function BlindLevelEditor({
 	open,
 	onOpenChange,
 }: BlindLevelEditorProps) {
-	const isDesktop = useMediaQuery("(min-width: 768px)");
-
-	const handleClose = () => onOpenChange(false);
-
-	if (isDesktop) {
-		return (
-			<Dialog onOpenChange={onOpenChange} open={open}>
-				<DialogContent
-					className="max-w-lg overflow-hidden p-0"
-					showCloseButton={false}
-				>
-					<DialogHeader className="sr-only">
-						<DialogTitle>Blind Structure</DialogTitle>
-					</DialogHeader>
-					<BlindStructureContent
-						onClose={handleClose}
-						tournamentId={tournamentId}
-						variant={variant}
-					/>
-				</DialogContent>
-			</Dialog>
-		);
-	}
-
 	return (
-		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
-			<DrawerContent className="h-[calc(100dvh-4rem)]">
-				<DrawerHeader className="sr-only">
-					<DrawerTitle>Blind Structure</DrawerTitle>
-				</DrawerHeader>
-				<BlindStructureContent
-					onClose={handleClose}
-					tournamentId={tournamentId}
-					variant={variant}
-				/>
-			</DrawerContent>
-		</Drawer>
+		<ResponsiveDialog
+			onOpenChange={onOpenChange}
+			open={open}
+			title="Blind Structure"
+		>
+			<BlindStructureContent tournamentId={tournamentId} variant={variant} />
+		</ResponsiveDialog>
 	);
 }
