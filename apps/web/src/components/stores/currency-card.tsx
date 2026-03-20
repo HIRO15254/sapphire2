@@ -26,6 +26,8 @@ interface CurrencyCardProps {
 		unit?: string | null;
 	};
 	expanded: boolean;
+	hasMore?: boolean;
+	isLoadingMore?: boolean;
 	onAddTransaction: () => void;
 	onDelete: (id: string) => void;
 	onDeleteTransaction: (id: string) => void;
@@ -34,6 +36,7 @@ interface CurrencyCardProps {
 		name: string;
 		unit?: string | null;
 	}) => void;
+	onLoadMore?: () => void;
 	onToggleExpand: () => void;
 	transactions: Transaction[];
 }
@@ -41,10 +44,13 @@ interface CurrencyCardProps {
 export function CurrencyCard({
 	currency: c,
 	expanded,
+	hasMore,
+	isLoadingMore,
 	onAddTransaction,
 	onDelete,
 	onDeleteTransaction,
 	onEdit,
+	onLoadMore,
 	onToggleExpand,
 	transactions,
 }: CurrencyCardProps) {
@@ -133,7 +139,10 @@ export function CurrencyCard({
 						</Button>
 					</div>
 					<TransactionList
+						hasMore={hasMore}
+						isLoadingMore={isLoadingMore}
 						onDelete={onDeleteTransaction}
+						onLoadMore={onLoadMore}
 						transactions={transactions}
 					/>
 				</div>

@@ -10,13 +10,19 @@ interface Transaction {
 }
 
 interface TransactionListProps {
+	hasMore?: boolean;
+	isLoadingMore?: boolean;
 	onDelete: (id: string) => void;
+	onLoadMore?: () => void;
 	transactions: Transaction[];
 }
 
 export function TransactionList({
 	transactions,
 	onDelete,
+	hasMore,
+	isLoadingMore,
+	onLoadMore,
 }: TransactionListProps) {
 	if (transactions.length === 0) {
 		return (
@@ -70,6 +76,19 @@ export function TransactionList({
 					</div>
 				);
 			})}
+			{hasMore && (
+				<div className="pt-2">
+					<Button
+						className="w-full"
+						disabled={isLoadingMore}
+						onClick={onLoadMore}
+						size="sm"
+						variant="outline"
+					>
+						{isLoadingMore ? "Loading..." : "Load more"}
+					</Button>
+				</div>
+			)}
 		</div>
 	);
 }

@@ -4,13 +4,15 @@ import {
 	transactionType,
 } from "@sapphire2/db/schema/store";
 import { TRPCError } from "@trpc/server";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
+const PAGE_SIZE = 20;
+
 export const currencyTransactionRouter = router({
 	listByCurrency: protectedProcedure
-		.input(z.object({ currencyId: z.string() }))
+		.input(z.object({ currencyId: z.string(), cursor: z.string().optional() }))
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
@@ -32,7 +34,12 @@ export const currencyTransactionRouter = router({
 				});
 			}
 
-			return ctx.db
+			const conditions = [eq(currencyTransaction.currencyId, input.currencyId)];
+			if (input.cursor) {
+				conditions.push(lt(currencyTransaction.id, input.cursor));
+			}
+
+			const data = await ctx.db
 				.select({
 					id: currencyTransaction.id,
 					currencyId: currencyTransaction.currencyId,
@@ -48,8 +55,15 @@ export const currencyTransactionRouter = router({
 					transactionType,
 					eq(transactionType.id, currencyTransaction.transactionTypeId)
 				)
-				.where(eq(currencyTransaction.currencyId, input.currencyId))
-				.orderBy(desc(currencyTransaction.transactedAt));
+				.where(and(...conditions))
+				.orderBy(desc(currencyTransaction.transactedAt))
+				.limit(PAGE_SIZE + 1);
+
+			const hasMore = data.length > PAGE_SIZE;
+			const items = hasMore ? data.slice(0, PAGE_SIZE) : data;
+			const nextCursor = hasMore ? items.at(-1)?.id : undefined;
+
+			return { items, nextCursor };
 		}),
 
 	create: protectedProcedure

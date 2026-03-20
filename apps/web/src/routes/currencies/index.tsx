@@ -1,7 +1,7 @@
 import { IconCoins, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CurrencyCard } from "@/components/stores/currency-card";
 import { CurrencyForm } from "@/components/stores/currency-form";
 import { TransactionForm } from "@/components/stores/transaction-form";
@@ -31,6 +31,17 @@ interface CurrencyItem {
 	unit?: string | null;
 }
 
+interface Transaction {
+	amount: number;
+	createdAt?: Date | string;
+	currencyId?: string;
+	id: string;
+	memo?: string | null;
+	transactedAt: Date | string;
+	transactionTypeId?: string;
+	transactionTypeName: string;
+}
+
 function CurrenciesPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingCurrency, setEditingCurrency] = useState<CurrencyItem | null>(
@@ -44,6 +55,11 @@ function CurrenciesPage() {
 	>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
+	const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+	const [txCursor, setTxCursor] = useState<string | undefined>(undefined);
+	const [txHasMore, setTxHasMore] = useState(false);
+	const [isLoadingMore, setIsLoadingMore] = useState(false);
+
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
 
@@ -53,7 +69,21 @@ function CurrenciesPage() {
 			{ enabled: expandedCurrencyId !== null }
 		)
 	);
-	const transactions = transactionsQuery.data ?? [];
+
+	useEffect(() => {
+		if (transactionsQuery.data) {
+			setAllTransactions(transactionsQuery.data.items);
+			setTxCursor(transactionsQuery.data.nextCursor);
+			setTxHasMore(transactionsQuery.data.nextCursor !== undefined);
+		}
+	}, [transactionsQuery.data]);
+
+	const resetTransactionState = () => {
+		setAllTransactions([]);
+		setTxCursor(undefined);
+		setTxHasMore(false);
+		setIsLoadingMore(false);
+	};
 
 	const handleCreate = async (values: CurrencyValues) => {
 		setIsSubmitting(true);
@@ -88,6 +118,7 @@ function CurrenciesPage() {
 		await currenciesQuery.refetch();
 		if (expandedCurrencyId === id) {
 			setExpandedCurrencyId(null);
+			resetTransactionState();
 		}
 	};
 
@@ -102,6 +133,7 @@ function CurrenciesPage() {
 				...values,
 			});
 			await currenciesQuery.refetch();
+			resetTransactionState();
 			await transactionsQuery.refetch();
 			setAddTransactionCurrencyId(null);
 		} finally {
@@ -112,11 +144,37 @@ function CurrenciesPage() {
 	const handleDeleteTransaction = async (id: string) => {
 		await trpcClient.currencyTransaction.delete.mutate({ id });
 		await currenciesQuery.refetch();
+		resetTransactionState();
 		await transactionsQuery.refetch();
 	};
 
+	const handleLoadMore = async () => {
+		if (!(expandedCurrencyId && txCursor) || isLoadingMore) {
+			return;
+		}
+		setIsLoadingMore(true);
+		try {
+			const result = await trpcClient.currencyTransaction.listByCurrency.query({
+				currencyId: expandedCurrencyId,
+				cursor: txCursor,
+			});
+			setAllTransactions((prev) => [...prev, ...result.items]);
+			setTxCursor(result.nextCursor);
+			setTxHasMore(result.nextCursor !== undefined);
+		} finally {
+			setIsLoadingMore(false);
+		}
+	};
+
 	const toggleExpand = (id: string) => {
-		setExpandedCurrencyId((prev) => (prev === id ? null : id));
+		setExpandedCurrencyId((prev) => {
+			if (prev === id) {
+				resetTransactionState();
+				return null;
+			}
+			resetTransactionState();
+			return id;
+		});
 	};
 
 	return (
@@ -147,13 +205,18 @@ function CurrenciesPage() {
 						<CurrencyCard
 							currency={c}
 							expanded={expandedCurrencyId === c.id}
+							hasMore={expandedCurrencyId === c.id ? txHasMore : false}
+							isLoadingMore={
+								expandedCurrencyId === c.id ? isLoadingMore : false
+							}
 							key={c.id}
 							onAddTransaction={() => setAddTransactionCurrencyId(c.id)}
 							onDelete={handleDelete}
 							onDeleteTransaction={handleDeleteTransaction}
 							onEdit={setEditingCurrency}
+							onLoadMore={handleLoadMore}
 							onToggleExpand={() => toggleExpand(c.id)}
-							transactions={expandedCurrencyId === c.id ? transactions : []}
+							transactions={expandedCurrencyId === c.id ? allTransactions : []}
 						/>
 					))}
 				</div>
