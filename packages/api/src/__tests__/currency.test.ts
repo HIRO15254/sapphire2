@@ -6,8 +6,8 @@ describe("currency router", () => {
 		expect(appRouter.currency).toBeDefined();
 	});
 
-	it("has listByStore procedure", () => {
-		expect(appRouter.currency.listByStore).toBeDefined();
+	it("has list procedure", () => {
+		expect(appRouter.currency.list).toBeDefined();
 	});
 
 	it("has create procedure", () => {

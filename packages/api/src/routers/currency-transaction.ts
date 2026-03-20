@@ -1,7 +1,6 @@
 import {
 	currency,
 	currencyTransaction,
-	store,
 	transactionType,
 } from "@sapphire2/db/schema/store";
 import { TRPCError } from "@trpc/server";
@@ -15,9 +14,8 @@ export const currencyTransactionRouter = router({
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
-				.select({ currency, store })
+				.select()
 				.from(currency)
-				.innerJoin(store, eq(store.id, currency.storeId))
 				.where(eq(currency.id, input.currencyId));
 
 			if (!found) {
@@ -27,7 +25,7 @@ export const currencyTransactionRouter = router({
 				});
 			}
 
-			if (found.store.userId !== userId) {
+			if (found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this currency",
@@ -67,9 +65,8 @@ export const currencyTransactionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
-				.select({ currency, store })
+				.select()
 				.from(currency)
-				.innerJoin(store, eq(store.id, currency.storeId))
 				.where(eq(currency.id, input.currencyId));
 
 			if (!found) {
@@ -79,7 +76,7 @@ export const currencyTransactionRouter = router({
 				});
 			}
 
-			if (found.store.userId !== userId) {
+			if (found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this currency",
@@ -108,10 +105,9 @@ export const currencyTransactionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const [found] = await ctx.db
-				.select({ currencyTransaction, currency, store })
+				.select({ currencyTransaction, currency })
 				.from(currencyTransaction)
 				.innerJoin(currency, eq(currency.id, currencyTransaction.currencyId))
-				.innerJoin(store, eq(store.id, currency.storeId))
 				.where(eq(currencyTransaction.id, input.id));
 
 			if (!found) {
@@ -121,7 +117,7 @@ export const currencyTransactionRouter = router({
 				});
 			}
 
-			if (found.store.userId !== userId) {
+			if (found.currency.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this transaction",

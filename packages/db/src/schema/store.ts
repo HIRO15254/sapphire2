@@ -25,9 +25,9 @@ export const currency = sqliteTable(
 	"currency",
 	{
 		id: text("id").primaryKey(),
-		storeId: text("store_id")
+		userId: text("user_id")
 			.notNull()
-			.references(() => store.id, { onDelete: "cascade" }),
+			.references(() => user.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		unit: text("unit"),
 		createdAt: integer("created_at", { mode: "timestamp" })
@@ -37,7 +37,7 @@ export const currency = sqliteTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [index("currency_storeId_idx").on(table.storeId)]
+	(table) => [index("currency_userId_idx").on(table.userId)]
 );
 
 export const transactionType = sqliteTable(
@@ -78,18 +78,17 @@ export const currencyTransaction = sqliteTable(
 	(table) => [index("currencyTransaction_currencyId_idx").on(table.currencyId)]
 );
 
-export const storeRelations = relations(store, ({ one, many }) => ({
+export const storeRelations = relations(store, ({ one }) => ({
 	user: one(user, {
 		fields: [store.userId],
 		references: [user.id],
 	}),
-	currencies: many(currency),
 }));
 
 export const currencyRelations = relations(currency, ({ one, many }) => ({
-	store: one(store, {
-		fields: [currency.storeId],
-		references: [store.id],
+	user: one(user, {
+		fields: [currency.userId],
+		references: [user.id],
 	}),
 	transactions: many(currencyTransaction),
 }));
