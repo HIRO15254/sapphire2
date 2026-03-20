@@ -68,7 +68,7 @@ packages/api/src/
 │   ├── index.ts             # UPDATE: add new sub-routers, remove todo
 │   ├── todo.ts              # (to delete)
 │   ├── store.ts             # NEW: store CRUD
-│   ├── currency.ts              # NEW: currency CRUD
+│   ├── currency.ts              # NEW: currency CRUD (user-level, not store-level)
 │   ├── currency-transaction.ts  # NEW: currency transaction CRD
 │   ├── transaction-type.ts      # NEW: transaction type CRUD + default seeding
 │   ├── ring-game.ts             # NEW: ring game CRUD + archive

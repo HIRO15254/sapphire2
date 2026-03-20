@@ -17,8 +17,8 @@ All mutations validate ownership (userId match) before modifying data.
 
 | Procedure              | Type     | Input                                          | Output                    |
 |------------------------|----------|-------------------------------------------------|---------------------------|
-| currency.listByStore   | query    | `{ storeId: string }`                           | Currency[] with balance   |
-| currency.create        | mutation | `{ storeId, name, unit? }`                      | Currency                  |
+| currency.list          | query    | (none)                                          | Currency[] with balance   |
+| currency.create        | mutation | `{ name: string, unit?: string }`               | Currency                  |
 | currency.update        | mutation | `{ id, name?, unit? }`                          | Currency                  |
 | currency.delete        | mutation | `{ id: string }`                                | void (cascade txns)       |
 

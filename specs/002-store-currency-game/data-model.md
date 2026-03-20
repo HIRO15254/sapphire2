@@ -5,11 +5,11 @@
 ```
 User (auth.user)
 ├── 1:N → Store
-│        ├── 1:N → Currency
-│        │        └── 1:N → CurrencyTransaction → N:1 TransactionType
-│        ├── 1:N → RingGame
-│        └── 1:N → Tournament
+│        ├── 1:N → RingGame ──→ N:1 Currency (optional)
+│        └── 1:N → Tournament ─→ N:1 Currency (optional)
 │                 └── 1:N → BlindLevel
+├── 1:N → Currency
+│        └── 1:N → CurrencyTransaction → N:1 TransactionType
 └── 1:N → TransactionType
 ```
 
@@ -36,15 +36,15 @@ User (auth.user)
 | Field     | Type              | Constraints              | Notes                    |
 |-----------|-------------------|--------------------------|--------------------------|
 | id        | text              | PK                       | crypto.randomUUID()      |
-| storeId   | text              | FK → store.id, NOT NULL  | cascade delete           |
+| userId    | text              | FK → user.id, NOT NULL   | cascade delete           |
 | name      | text              | NOT NULL                 |                          |
 | unit      | text              | nullable                 | 表示用単位 (例: "chips") |
 | createdAt | integer(timestamp) | NOT NULL, default now    |                          |
 | updatedAt | integer(timestamp) | NOT NULL, auto-update    |                          |
 
-**Indexes**: `currency_storeId_idx` on storeId
-**Relations**: store (many-to-one), transactions (one-to-many)
-**Note**: 残高はCurrencyTransactionのSUM集計で算出（保存しない）
+**Indexes**: `currency_userId_idx` on userId
+**Relations**: user (many-to-one), transactions (one-to-many)
+**Note**: 残高はCurrencyTransactionのSUM集計で算出（保存しない）。店舗に依存せず、ユーザー直属。リングゲーム・トーナメントから店舗をまたいで参照可能。
 
 ---
 

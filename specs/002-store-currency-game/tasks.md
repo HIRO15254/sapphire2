@@ -87,13 +87,13 @@
 
 - [ ] T028a [US2] Implement default TransactionType seeding logic: on first access (or user registration hook), create 3 default types (Purchase, Bonus, Other) if none exist for the user, in `packages/api/src/routers/transaction-type.ts`
 - [ ] T028 [US2] Implement transactionType tRPC router (list, create, update, delete with in-use check) in `packages/api/src/routers/transaction-type.ts`
-- [ ] T029 [US2] Implement currency tRPC router (listByStore with balance, create, update, delete) in `packages/api/src/routers/currency.ts`
+- [ ] T029 [US2] Implement currency tRPC router (list with balance for current user, create, update, delete) in `packages/api/src/routers/currency.ts`
 - [ ] T030 [US2] Implement currencyTransaction tRPC router (listByCurrency, create, delete) in `packages/api/src/routers/currency-transaction.ts`
 - [ ] T031 [US2] Register transactionType, currency, currencyTransaction routers in `packages/api/src/routers/index.ts`
 - [ ] T032 [P] [US2] Create currency form component (name + unit fields, create/edit mode) in `apps/web/src/components/stores/currency-form.tsx`
 - [ ] T033 [P] [US2] Create transaction form component (amount, type select, date, memo) in `apps/web/src/components/stores/transaction-form.tsx`
 - [ ] T034 [US2] Create transaction list component (history with running balance) in `apps/web/src/components/stores/transaction-list.tsx`
-- [ ] T035 [US2] Create currency tab component (currency list with balances, add/edit/delete, expand to transaction history) in `apps/web/src/components/stores/currency-tab.tsx`
+- [ ] T035 [US2] Create currency page (currency list with balances, add/edit/delete, expand to transaction history) in `apps/web/src/routes/currencies/index.tsx` and add "Currencies" nav item
 
 **Checkpoint**: Currency management fully functional. Users can track store chip balances.
 
