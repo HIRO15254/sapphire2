@@ -10,7 +10,7 @@ describe("Currency schema", () => {
 	it("has required columns", () => {
 		const columns = getTableColumns(currency);
 		expect(columns.id).toBeDefined();
-		expect(columns.storeId).toBeDefined();
+		expect(columns.userId).toBeDefined();
 		expect(columns.name).toBeDefined();
 		expect(columns.unit).toBeDefined();
 		expect(columns.createdAt).toBeDefined();
@@ -22,9 +22,9 @@ describe("Currency schema", () => {
 		expect(columns.id.primary).toBe(true);
 	});
 
-	it("storeId is not null", () => {
+	it("userId is not null", () => {
 		const columns = getTableColumns(currency);
-		expect(columns.storeId.notNull).toBe(true);
+		expect(columns.userId.notNull).toBe(true);
 	});
 
 	it("name is not null", () => {
