@@ -1,5 +1,6 @@
 import { IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -9,7 +10,6 @@ import {
 } from "@/components/ui/dialog";
 import {
 	Drawer,
-	DrawerClose,
 	DrawerContent,
 	DrawerHeader,
 	DrawerTitle,
@@ -34,6 +34,23 @@ export function ResponsiveDialog({
 	title,
 }: ResponsiveDialogProps) {
 	const isDesktop = useMediaQuery("(min-width: 768px)");
+	const intentionalClose = useRef(false);
+
+	const handleDrawerOpenChange = useCallback(
+		(newOpen: boolean) => {
+			if (!(newOpen || intentionalClose.current)) {
+				return;
+			}
+			intentionalClose.current = false;
+			onOpenChange(newOpen);
+		},
+		[onOpenChange]
+	);
+
+	const handleClose = useCallback(() => {
+		intentionalClose.current = true;
+		onOpenChange(false);
+	}, [onOpenChange]);
 
 	if (isDesktop) {
 		return (
@@ -53,20 +70,19 @@ export function ResponsiveDialog({
 	}
 
 	return (
-		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
+		<Drawer onOpenChange={handleDrawerOpenChange} open={open}>
 			<DrawerContent>
 				<DrawerHeader className="relative">
 					<DrawerTitle>{title}</DrawerTitle>
-					<DrawerClose asChild>
-						<Button
-							className="absolute top-2 right-2"
-							size="sm"
-							variant="ghost"
-						>
-							<IconX size={16} />
-							<span className="sr-only">Close</span>
-						</Button>
-					</DrawerClose>
+					<Button
+						className="absolute top-2 right-2"
+						onClick={handleClose}
+						size="sm"
+						variant="ghost"
+					>
+						<IconX size={16} />
+						<span className="sr-only">Close</span>
+					</Button>
 				</DrawerHeader>
 				<div className="px-4 pb-4">{children}</div>
 			</DrawerContent>
