@@ -1,6 +1,7 @@
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { RingGameTab } from "@/components/stores/ring-game-tab";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/utils/trpc";
@@ -53,9 +54,7 @@ function StoreDetailPage() {
 					<TabsTrigger value="tournaments">Tournaments</TabsTrigger>
 				</TabsList>
 				<TabsContent value="ring-games">
-					<div className="py-8 text-center text-muted-foreground">
-						<p>Ring game management coming soon.</p>
-					</div>
+					<RingGameTab storeId={storeId} />
 				</TabsContent>
 				<TabsContent value="tournaments">
 					<div className="py-8 text-center text-muted-foreground">
