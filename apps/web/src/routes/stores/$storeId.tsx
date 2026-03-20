@@ -47,17 +47,11 @@ function StoreDetailPage() {
 				<p className="mb-6 text-muted-foreground text-sm">{store.memo}</p>
 			)}
 
-			<Tabs defaultValue="currency">
+			<Tabs defaultValue="ring-games">
 				<TabsList>
-					<TabsTrigger value="currency">Currency</TabsTrigger>
 					<TabsTrigger value="ring-games">Ring Games</TabsTrigger>
 					<TabsTrigger value="tournaments">Tournaments</TabsTrigger>
 				</TabsList>
-				<TabsContent value="currency">
-					<div className="py-8 text-center text-muted-foreground">
-						<p>Currency management coming soon.</p>
-					</div>
-				</TabsContent>
 				<TabsContent value="ring-games">
 					<div className="py-8 text-center text-muted-foreground">
 						<p>Ring game management coming soon.</p>
