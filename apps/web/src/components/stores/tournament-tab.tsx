@@ -1,9 +1,8 @@
 import {
 	IconArchive,
 	IconArchiveOff,
-	IconChevronDown,
-	IconChevronUp,
 	IconEdit,
+	IconList,
 	IconPlus,
 	IconTrash,
 	IconX,
@@ -100,31 +99,14 @@ function TournamentCard({
 	onRestore,
 }: TournamentCardProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const [expanded, setExpanded] = useState(false);
+	const [blindEditorOpen, setBlindEditorOpen] = useState(false);
 	const buyInInfo = formatBuyIn(tournament);
 
 	return (
 		<div className="rounded-lg border bg-card">
 			<div className="flex items-start justify-between gap-2 p-3">
-				<button
-					className="min-w-0 flex-1 text-left"
-					onClick={() => setExpanded((v) => !v)}
-					type="button"
-				>
-					<div className="flex items-center gap-1.5">
-						<p className="truncate font-medium">{tournament.name}</p>
-						{expanded ? (
-							<IconChevronUp
-								className="shrink-0 text-muted-foreground"
-								size={14}
-							/>
-						) : (
-							<IconChevronDown
-								className="shrink-0 text-muted-foreground"
-								size={14}
-							/>
-						)}
-					</div>
+				<div className="min-w-0 flex-1">
+					<p className="truncate font-medium">{tournament.name}</p>
 					<div className="mt-0.5 flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
 						{buyInInfo && <span>{buyInInfo}</span>}
 						{tournament.tableSize != null && (
@@ -139,7 +121,16 @@ function TournamentCard({
 							{tournament.memo}
 						</p>
 					)}
-				</button>
+					<Button
+						className="mt-2 gap-1.5 text-xs"
+						onClick={() => setBlindEditorOpen(true)}
+						size="sm"
+						variant="outline"
+					>
+						<IconList size={13} />
+						Edit Structure
+					</Button>
+				</div>
 
 				<div className="flex shrink-0 items-center gap-1">
 					{confirmingDelete ? (
@@ -208,14 +199,12 @@ function TournamentCard({
 				</div>
 			</div>
 
-			{expanded && (
-				<div className="border-t px-3 pb-3">
-					<BlindLevelEditor
-						tournamentId={tournament.id}
-						variant={tournament.variant}
-					/>
-				</div>
-			)}
+			<BlindLevelEditor
+				onOpenChange={setBlindEditorOpen}
+				open={blindEditorOpen}
+				tournamentId={tournament.id}
+				variant={tournament.variant}
+			/>
 		</div>
 	);
 }
