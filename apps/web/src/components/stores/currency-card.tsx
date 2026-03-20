@@ -36,6 +36,7 @@ interface CurrencyCardProps {
 		name: string;
 		unit?: string | null;
 	}) => void;
+	onEditTransaction?: (transaction: Transaction) => void;
 	onLoadMore?: () => void;
 	onToggleExpand: () => void;
 	transactions: Transaction[];
@@ -50,6 +51,7 @@ export function CurrencyCard({
 	onDelete,
 	onDeleteTransaction,
 	onEdit,
+	onEditTransaction,
 	onLoadMore,
 	onToggleExpand,
 	transactions,
@@ -142,6 +144,7 @@ export function CurrencyCard({
 						hasMore={hasMore}
 						isLoadingMore={isLoadingMore}
 						onDelete={onDeleteTransaction}
+						onEdit={onEditTransaction}
 						onLoadMore={onLoadMore}
 						transactions={transactions}
 					/>

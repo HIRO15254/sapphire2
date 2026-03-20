@@ -84,6 +84,7 @@ export const ringGameRouter = router({
 				blind2: z.number().int().optional(),
 				blind3: z.number().int().optional(),
 				ante: z.number().int().optional(),
+				anteType: z.enum(["all", "bb"]).optional(),
 				minBuyIn: z.number().int().optional(),
 				maxBuyIn: z.number().int().optional(),
 				tableSize: z.number().int().optional(),
@@ -105,6 +106,7 @@ export const ringGameRouter = router({
 				blind2: input.blind2 ?? null,
 				blind3: input.blind3 ?? null,
 				ante: input.ante ?? null,
+				anteType: input.anteType ?? null,
 				minBuyIn: input.minBuyIn ?? null,
 				maxBuyIn: input.maxBuyIn ?? null,
 				tableSize: input.tableSize ?? null,
@@ -130,6 +132,7 @@ export const ringGameRouter = router({
 				blind2: z.number().int().nullable().optional(),
 				blind3: z.number().int().nullable().optional(),
 				ante: z.number().int().nullable().optional(),
+				anteType: z.enum(["all", "bb"]).nullable().optional(),
 				minBuyIn: z.number().int().nullable().optional(),
 				maxBuyIn: z.number().int().nullable().optional(),
 				tableSize: z.number().int().nullable().optional(),
@@ -159,6 +162,9 @@ export const ringGameRouter = router({
 			}
 			if (input.ante !== undefined) {
 				updateData.ante = input.ante;
+			}
+			if (input.anteType !== undefined) {
+				updateData.anteType = input.anteType;
 			}
 			if (input.minBuyIn !== undefined) {
 				updateData.minBuyIn = input.minBuyIn;

@@ -29,7 +29,9 @@ export function CurrencyForm({
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="name">Currency Name</Label>
+				<Label htmlFor="name">
+					Currency Name <span className="text-destructive">*</span>
+				</Label>
 				<Input
 					defaultValue={defaultValues?.name}
 					id="name"
@@ -39,7 +41,7 @@ export function CurrencyForm({
 				/>
 			</div>
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="unit">Unit (optional)</Label>
+				<Label htmlFor="unit">Unit</Label>
 				<Input
 					defaultValue={defaultValues?.unit}
 					id="unit"

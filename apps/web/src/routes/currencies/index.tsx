@@ -53,6 +53,8 @@ function CurrenciesPage() {
 	const [addTransactionCurrencyId, setAddTransactionCurrencyId] = useState<
 		string | null
 	>(null);
+	const [editingTransaction, setEditingTransaction] =
+		useState<Transaction | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
@@ -141,6 +143,28 @@ function CurrenciesPage() {
 		}
 	};
 
+	const handleEditTransaction = async (values: TransactionValues) => {
+		if (!editingTransaction) {
+			return;
+		}
+		setIsSubmitting(true);
+		try {
+			await trpcClient.currencyTransaction.update.mutate({
+				id: editingTransaction.id,
+				transactionTypeId: values.transactionTypeId,
+				amount: values.amount,
+				transactedAt: values.transactedAt,
+				memo: values.memo ?? null,
+			});
+			await currenciesQuery.refetch();
+			resetTransactionState();
+			await transactionsQuery.refetch();
+			setEditingTransaction(null);
+		} finally {
+			setIsSubmitting(false);
+		}
+	};
+
 	const handleDeleteTransaction = async (id: string) => {
 		await trpcClient.currencyTransaction.delete.mutate({ id });
 		await currenciesQuery.refetch();
@@ -214,6 +238,7 @@ function CurrenciesPage() {
 							onDelete={handleDelete}
 							onDeleteTransaction={handleDeleteTransaction}
 							onEdit={setEditingCurrency}
+							onEditTransaction={setEditingTransaction}
 							onLoadMore={handleLoadMore}
 							onToggleExpand={() => toggleExpand(c.id)}
 							transactions={expandedCurrencyId === c.id ? allTransactions : []}
@@ -264,6 +289,32 @@ function CurrenciesPage() {
 					isLoading={isSubmitting}
 					onSubmit={handleAddTransaction}
 				/>
+			</ResponsiveDialog>
+
+			<ResponsiveDialog
+				onOpenChange={(open) => {
+					if (!open) {
+						setEditingTransaction(null);
+					}
+				}}
+				open={editingTransaction !== null}
+				title="Edit Transaction"
+			>
+				{editingTransaction && (
+					<TransactionForm
+						defaultValues={{
+							amount: editingTransaction.amount,
+							transactionTypeId: editingTransaction.transactionTypeId ?? "",
+							transactedAt:
+								typeof editingTransaction.transactedAt === "string"
+									? editingTransaction.transactedAt
+									: editingTransaction.transactedAt.toISOString(),
+							memo: editingTransaction.memo ?? undefined,
+						}}
+						isLoading={isSubmitting}
+						onSubmit={handleEditTransaction}
+					/>
+				)}
 			</ResponsiveDialog>
 		</div>
 	);

@@ -15,6 +15,7 @@ export const ringGame = sqliteTable(
 		blind2: integer("blind2"),
 		blind3: integer("blind3"),
 		ante: integer("ante"),
+		anteType: text("ante_type"),
 		minBuyIn: integer("min_buy_in"),
 		maxBuyIn: integer("max_buy_in"),
 		tableSize: integer("table_size"),

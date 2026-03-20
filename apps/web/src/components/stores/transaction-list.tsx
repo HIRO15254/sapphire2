@@ -1,4 +1,5 @@
-import { IconTrash } from "@tabler/icons-react";
+import { IconEdit, IconTrash } from "@tabler/icons-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 interface Transaction {
@@ -13,6 +14,7 @@ interface TransactionListProps {
 	hasMore?: boolean;
 	isLoadingMore?: boolean;
 	onDelete: (id: string) => void;
+	onEdit?: (transaction: Transaction) => void;
 	onLoadMore?: () => void;
 	transactions: Transaction[];
 }
@@ -20,6 +22,7 @@ interface TransactionListProps {
 export function TransactionList({
 	transactions,
 	onDelete,
+	onEdit,
 	hasMore,
 	isLoadingMore,
 	onLoadMore,
@@ -55,24 +58,34 @@ export function TransactionList({
 								<span className={`font-semibold ${amountClass}`}>
 									{amountDisplay}
 								</span>
-								<span className="text-muted-foreground text-xs">
-									{tx.transactionTypeName}
-								</span>
+								<Badge variant="outline">{tx.transactionTypeName}</Badge>
 							</div>
 							<div className="flex items-center gap-2 text-muted-foreground text-xs">
 								<span>{dateDisplay}</span>
 								{tx.memo && <span>· {tx.memo}</span>}
 							</div>
 						</div>
-						<Button
-							aria-label="Delete transaction"
-							className="text-destructive hover:text-destructive"
-							onClick={() => onDelete(tx.id)}
-							size="sm"
-							variant="ghost"
-						>
-							<IconTrash size={14} />
-						</Button>
+						<div className="flex items-center gap-1">
+							{onEdit && (
+								<Button
+									aria-label="Edit transaction"
+									onClick={() => onEdit(tx)}
+									size="sm"
+									variant="ghost"
+								>
+									<IconEdit size={14} />
+								</Button>
+							)}
+							<Button
+								aria-label="Delete transaction"
+								className="text-destructive hover:text-destructive"
+								onClick={() => onDelete(tx.id)}
+								size="sm"
+								variant="ghost"
+							>
+								<IconTrash size={14} />
+							</Button>
+						</div>
 					</div>
 				);
 			})}

@@ -16,7 +16,7 @@ const GAME_VARIANTS = {
 	nlh: { label: "NL Hold'em" },
 } as const;
 
-const TABLE_SIZES = [2, 6, 8, 9, 10] as const;
+const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 interface TournamentFormValues {
 	addonAllowed: boolean;
@@ -101,7 +101,9 @@ export function TournamentForm({
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="name">Tournament Name</Label>
+				<Label htmlFor="name">
+					Tournament Name <span className="text-destructive">*</span>
+				</Label>
 				<Input
 					defaultValue={defaultValues?.name}
 					id="name"
@@ -112,7 +114,9 @@ export function TournamentForm({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="variant">Variant</Label>
+				<Label htmlFor="variant">
+					Variant <span className="text-destructive">*</span>
+				</Label>
 				<Select defaultValue={defaultValues?.variant ?? "nlh"} name="variant">
 					<SelectTrigger className="w-full" id="variant">
 						<SelectValue placeholder="Select variant" />
@@ -129,7 +133,7 @@ export function TournamentForm({
 
 			<div className="grid grid-cols-2 gap-3">
 				<div className="flex flex-col gap-2">
-					<Label htmlFor="buyIn">Buy-In (optional)</Label>
+					<Label htmlFor="buyIn">Buy-In</Label>
 					<Input
 						defaultValue={defaultValues?.buyIn}
 						id="buyIn"
@@ -141,7 +145,7 @@ export function TournamentForm({
 					/>
 				</div>
 				<div className="flex flex-col gap-2">
-					<Label htmlFor="entryFee">Entry Fee (optional)</Label>
+					<Label htmlFor="entryFee">Entry Fee</Label>
 					<Input
 						defaultValue={defaultValues?.entryFee}
 						id="entryFee"
@@ -155,7 +159,7 @@ export function TournamentForm({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="startingStack">Starting Stack (optional)</Label>
+				<Label htmlFor="startingStack">Starting Stack</Label>
 				<Input
 					defaultValue={defaultValues?.startingStack}
 					id="startingStack"
@@ -260,7 +264,7 @@ export function TournamentForm({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="bountyAmount">Bounty Amount (optional)</Label>
+				<Label htmlFor="bountyAmount">Bounty Amount</Label>
 				<Input
 					defaultValue={defaultValues?.bountyAmount}
 					id="bountyAmount"
@@ -273,7 +277,7 @@ export function TournamentForm({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="tableSize">Table Size (optional)</Label>
+				<Label htmlFor="tableSize">Table Size</Label>
 				<Select
 					defaultValue={defaultValues?.tableSize?.toString()}
 					name="tableSize"
@@ -292,7 +296,7 @@ export function TournamentForm({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="currencyId">Currency (optional)</Label>
+				<Label htmlFor="currencyId">Currency</Label>
 				<Select defaultValue={defaultValues?.currencyId} name="currencyId">
 					<SelectTrigger className="w-full" id="currencyId">
 						<SelectValue placeholder="Select currency" />
@@ -309,7 +313,7 @@ export function TournamentForm({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="memo">Memo (optional)</Label>
+				<Label htmlFor="memo">Memo</Label>
 				<Input
 					defaultValue={defaultValues?.memo}
 					id="memo"

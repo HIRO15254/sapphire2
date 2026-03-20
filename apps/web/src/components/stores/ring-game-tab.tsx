@@ -9,12 +9,14 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { RingGameForm } from "@/components/stores/ring-game-form";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 interface RingGame {
 	ante: number | null;
+	anteType?: string | null;
 	archivedAt: Date | string | null;
 	blind1: number | null;
 	blind2: number | null;
@@ -32,6 +34,7 @@ interface RingGame {
 
 interface RingGameFormValues {
 	ante?: number;
+	anteType?: "all" | "bb";
 	blind1?: number;
 	blind2?: number;
 	blind3?: number;
@@ -49,6 +52,7 @@ interface RingGameTabProps {
 }
 
 interface RingGameCardProps {
+	currencies: { id: string; name: string; unit?: string | null }[];
 	game: RingGame;
 	isArchived: boolean;
 	onArchive: (id: string) => void;
@@ -57,22 +61,49 @@ interface RingGameCardProps {
 	onRestore: (id: string) => void;
 }
 
-function formatBlinds(game: RingGame): string {
+const VARIANT_LABELS: Record<string, string> = {
+	nlh: "NLH",
+};
+
+function formatBlindsLine(
+	game: RingGame,
+	currencyUnit: string | null | undefined
+): string {
 	const parts: string[] = [];
 	if (game.blind1 != null) {
-		parts.push(`SB ${game.blind1}`);
+		parts.push(String(game.blind1));
 	}
 	if (game.blind2 != null) {
-		parts.push(`BB ${game.blind2}`);
+		parts.push(String(game.blind2));
+	} else if (parts.length > 0) {
+		parts.push("—");
 	}
-	if (parts.length === 0) {
-		return "";
+	if (game.blind3 != null) {
+		parts.push(String(game.blind3));
 	}
-	return parts.join(" / ");
+
+	const blindStr = parts.length > 0 ? parts.join("/") : "";
+
+	let anteStr = "";
+	if (game.ante != null) {
+		if (game.anteType === "bb") {
+			anteStr = `(BB Ante: ${game.ante})`;
+		} else if (game.anteType === "all") {
+			anteStr = `(Ante: ${game.ante} All)`;
+		} else {
+			anteStr = `(Ante: ${game.ante})`;
+		}
+	}
+
+	const unitStr = currencyUnit ?? "";
+
+	const segments = [blindStr, anteStr, unitStr].filter(Boolean);
+	return segments.join(" ");
 }
 
 function RingGameCard({
 	game,
+	currencies,
 	isArchived,
 	onArchive,
 	onDelete,
@@ -80,17 +111,25 @@ function RingGameCard({
 	onRestore,
 }: RingGameCardProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const blindInfo = formatBlinds(game);
+	const currency = currencies.find((c) => c.id === game.currencyId);
+	const blindLine = formatBlindsLine(game, currency?.unit);
+	const variantLabel =
+		VARIANT_LABELS[game.variant] ?? game.variant.toUpperCase();
 
 	return (
 		<div className="rounded-lg border bg-card p-3">
 			<div className="flex items-start justify-between gap-2">
 				<div className="min-w-0 flex-1">
 					<p className="truncate font-medium">{game.name}</p>
-					<div className="mt-0.5 flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
-						{blindInfo && <span>{blindInfo}</span>}
-						{game.tableSize != null && <span>{game.tableSize}-max</span>}
+					<div className="mt-1 flex flex-wrap items-center gap-1.5">
+						<Badge variant="secondary">{variantLabel}</Badge>
+						{game.tableSize != null && (
+							<Badge variant="outline">{game.tableSize}-max</Badge>
+						)}
 					</div>
+					{blindLine && (
+						<p className="mt-1 text-muted-foreground text-sm">{blindLine}</p>
+					)}
 					{game.memo && (
 						<p className="mt-1 line-clamp-1 text-muted-foreground text-xs">
 							{game.memo}
@@ -169,6 +208,7 @@ function RingGameCard({
 }
 
 interface RingGameListProps {
+	currencies: { id: string; name: string; unit?: string | null }[];
 	games: RingGame[];
 	isArchived: boolean;
 	isLoading: boolean;
@@ -181,6 +221,7 @@ interface RingGameListProps {
 
 function RingGameList({
 	games,
+	currencies,
 	isLoading,
 	isArchived,
 	onAddGame,
@@ -222,6 +263,7 @@ function RingGameList({
 		<div className="flex flex-col gap-2">
 			{games.map((game) => (
 				<RingGameCard
+					currencies={currencies}
 					game={game}
 					isArchived={isArchived}
 					key={game.id}
@@ -248,6 +290,9 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 		})
 	);
 	const games = gamesQuery.data ?? [];
+
+	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
+	const currencies = currenciesQuery.data ?? [];
 
 	const handleCreate = async (values: RingGameFormValues) => {
 		setIsSubmitting(true);
@@ -320,6 +365,7 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 			</div>
 
 			<RingGameList
+				currencies={currencies}
 				games={games}
 				isArchived={showArchived}
 				isLoading={gamesQuery.isLoading}
@@ -356,6 +402,10 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 							blind2: editingGame.blind2 ?? undefined,
 							blind3: editingGame.blind3 ?? undefined,
 							ante: editingGame.ante ?? undefined,
+							anteType: (editingGame.anteType ?? undefined) as
+								| "all"
+								| "bb"
+								| undefined,
 							minBuyIn: editingGame.minBuyIn ?? undefined,
 							maxBuyIn: editingGame.maxBuyIn ?? undefined,
 							tableSize: editingGame.tableSize ?? undefined,

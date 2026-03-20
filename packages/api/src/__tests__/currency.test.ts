@@ -36,6 +36,10 @@ describe("currencyTransaction router", () => {
 		expect(appRouter.currencyTransaction.create).toBeDefined();
 	});
 
+	it("has update procedure", () => {
+		expect(appRouter.currencyTransaction.update).toBeDefined();
+	});
+
 	it("has delete procedure", () => {
 		expect(appRouter.currencyTransaction.delete).toBeDefined();
 	});

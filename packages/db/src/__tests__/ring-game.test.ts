@@ -13,6 +13,7 @@ describe("RingGame schema", () => {
 		expect(columns.blind2).toBeDefined();
 		expect(columns.blind3).toBeDefined();
 		expect(columns.ante).toBeDefined();
+		expect(columns.anteType).toBeDefined();
 		expect(columns.minBuyIn).toBeDefined();
 		expect(columns.maxBuyIn).toBeDefined();
 		expect(columns.tableSize).toBeDefined();
@@ -21,6 +22,11 @@ describe("RingGame schema", () => {
 		expect(columns.archivedAt).toBeDefined();
 		expect(columns.createdAt).toBeDefined();
 		expect(columns.updatedAt).toBeDefined();
+	});
+
+	it("anteType is nullable", () => {
+		const columns = getTableColumns(ringGame);
+		expect(columns.anteType.notNull).toBe(false);
 	});
 
 	it("id is primary key", () => {

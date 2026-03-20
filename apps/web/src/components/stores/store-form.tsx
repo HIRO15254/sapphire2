@@ -29,7 +29,9 @@ export function StoreForm({
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="name">Store Name</Label>
+				<Label htmlFor="name">
+					Store Name <span className="text-destructive">*</span>
+				</Label>
 				<Input
 					defaultValue={defaultValues?.name}
 					id="name"

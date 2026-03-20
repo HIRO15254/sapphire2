@@ -3,6 +3,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 const NEW_TYPE_VALUE = "__new__";
@@ -15,6 +22,7 @@ interface TransactionFormValues {
 }
 
 interface TransactionFormProps {
+	defaultValues?: TransactionFormValues;
 	isLoading?: boolean;
 	onSubmit: (values: TransactionFormValues) => void;
 }
@@ -30,16 +38,19 @@ function getButtonLabel(isCreatingType: boolean, isLoading: boolean) {
 	if (isLoading) {
 		return "Saving...";
 	}
-	return "Add Transaction";
+	return "Save";
 }
 
 export function TransactionForm({
 	onSubmit,
+	defaultValues,
 	isLoading = false,
 }: TransactionFormProps) {
 	const typesQuery = useQuery(trpc.transactionType.list.queryOptions());
 	const types = typesQuery.data ?? [];
-	const [selectedType, setSelectedType] = useState("");
+	const [selectedType, setSelectedType] = useState(
+		defaultValues?.transactionTypeId ?? ""
+	);
 	const [newTypeName, setNewTypeName] = useState("");
 	const [isCreatingType, setIsCreatingType] = useState(false);
 
@@ -76,8 +87,11 @@ export function TransactionForm({
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="amount">Amount</Label>
+				<Label htmlFor="amount">
+					Amount <span className="text-destructive">*</span>
+				</Label>
 				<Input
+					defaultValue={defaultValues?.amount}
 					id="amount"
 					name="amount"
 					placeholder="Enter amount (negative for withdrawal)"
@@ -86,22 +100,22 @@ export function TransactionForm({
 				/>
 			</div>
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="transactionTypeId">Type</Label>
-				<select
-					className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-					id="transactionTypeId"
-					onChange={(e) => setSelectedType(e.target.value)}
-					required
-					value={selectedType}
-				>
-					<option value="">Select type...</option>
-					{types.map((t) => (
-						<option key={t.id} value={t.id}>
-							{t.name}
-						</option>
-					))}
-					<option value={NEW_TYPE_VALUE}>+ New type...</option>
-				</select>
+				<Label htmlFor="transactionTypeId">
+					Type <span className="text-destructive">*</span>
+				</Label>
+				<Select onValueChange={setSelectedType} required value={selectedType}>
+					<SelectTrigger className="w-full" id="transactionTypeId">
+						<SelectValue placeholder="Select type..." />
+					</SelectTrigger>
+					<SelectContent>
+						{types.map((t) => (
+							<SelectItem key={t.id} value={t.id}>
+								{t.name}
+							</SelectItem>
+						))}
+						<SelectItem value={NEW_TYPE_VALUE}>+ New type...</SelectItem>
+					</SelectContent>
+				</Select>
 			</div>
 			{isNewType && (
 				<div className="flex flex-col gap-2">
@@ -116,9 +130,15 @@ export function TransactionForm({
 				</div>
 			)}
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="transactedAt">Date</Label>
+				<Label htmlFor="transactedAt">
+					Date <span className="text-destructive">*</span>
+				</Label>
 				<Input
-					defaultValue={todayISODate()}
+					defaultValue={
+						defaultValues?.transactedAt
+							? new Date(defaultValues.transactedAt).toISOString().slice(0, 10)
+							: todayISODate()
+					}
 					id="transactedAt"
 					name="transactedAt"
 					required
@@ -126,8 +146,13 @@ export function TransactionForm({
 				/>
 			</div>
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="memo">Memo (optional)</Label>
-				<Input id="memo" name="memo" placeholder="Optional note" />
+				<Label htmlFor="memo">Memo</Label>
+				<Input
+					defaultValue={defaultValues?.memo}
+					id="memo"
+					name="memo"
+					placeholder="Optional note"
+				/>
 			</div>
 			<Button disabled={isLoading || isCreatingType} type="submit">
 				{getButtonLabel(isCreatingType, isLoading)}

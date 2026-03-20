@@ -114,6 +114,64 @@ export const currencyTransactionRouter = router({
 			return created;
 		}),
 
+	update: protectedProcedure
+		.input(
+			z.object({
+				id: z.string(),
+				transactionTypeId: z.string().optional(),
+				amount: z.number().int().optional(),
+				transactedAt: z.string().optional(),
+				memo: z.string().nullable().optional(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const [found] = await ctx.db
+				.select({ currencyTransaction, currency })
+				.from(currencyTransaction)
+				.innerJoin(currency, eq(currency.id, currencyTransaction.currencyId))
+				.where(eq(currencyTransaction.id, input.id));
+
+			if (!found) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Transaction not found",
+				});
+			}
+
+			if (found.currency.userId !== userId) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "You do not own this transaction",
+				});
+			}
+
+			const updateData: Partial<typeof found.currencyTransaction> = {};
+			if (input.transactionTypeId !== undefined) {
+				updateData.transactionTypeId = input.transactionTypeId;
+			}
+			if (input.amount !== undefined) {
+				updateData.amount = input.amount;
+			}
+			if (input.transactedAt !== undefined) {
+				updateData.transactedAt = new Date(input.transactedAt);
+			}
+			if (input.memo !== undefined) {
+				updateData.memo = input.memo;
+			}
+
+			await ctx.db
+				.update(currencyTransaction)
+				.set(updateData)
+				.where(eq(currencyTransaction.id, input.id));
+
+			const [updated] = await ctx.db
+				.select()
+				.from(currencyTransaction)
+				.where(eq(currencyTransaction.id, input.id));
+			return updated;
+		}),
+
 	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {

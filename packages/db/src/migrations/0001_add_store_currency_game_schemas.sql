@@ -52,6 +52,7 @@ CREATE TABLE `ring_game` (
 	`blind2` integer,
 	`blind3` integer,
 	`ante` integer,
+	`ante_type` text,
 	`min_buy_in` integer,
 	`max_buy_in` integer,
 	`table_size` integer,

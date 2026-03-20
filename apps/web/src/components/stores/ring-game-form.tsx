@@ -20,6 +20,7 @@ const GAME_VARIANTS = {
 
 interface RingGameFormValues {
 	ante?: number;
+	anteType?: "all" | "bb";
 	blind1?: number;
 	blind2?: number;
 	blind3?: number;
@@ -38,7 +39,12 @@ interface RingGameFormProps {
 	onSubmit: (values: RingGameFormValues) => void;
 }
 
-const TABLE_SIZES = [2, 6, 8, 9, 10] as const;
+const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+
+const ANTE_TYPES = [
+	{ value: "all", label: "All Ante" },
+	{ value: "bb", label: "BB Ante" },
+] as const;
 
 function parseOptionalInt(value: string): number | undefined {
 	if (!value) {
@@ -75,6 +81,10 @@ export function RingGameForm({
 			blind2: parseOptionalInt(formData.get("blind2") as string),
 			blind3: parseOptionalInt(formData.get("blind3") as string),
 			ante: parseOptionalInt(formData.get("ante") as string),
+			anteType: ((formData.get("anteType") as string) || undefined) as
+				| "all"
+				| "bb"
+				| undefined,
 			minBuyIn: parseOptionalInt(formData.get("minBuyIn") as string),
 			maxBuyIn: parseOptionalInt(formData.get("maxBuyIn") as string),
 			tableSize: parseOptionalInt(formData.get("tableSize") as string),
@@ -88,7 +98,9 @@ export function RingGameForm({
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="name">Game Name</Label>
+				<Label htmlFor="name">
+					Game Name <span className="text-destructive">*</span>
+				</Label>
 				<Input
 					defaultValue={defaultValues?.name}
 					id="name"
@@ -99,7 +111,9 @@ export function RingGameForm({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="variant">Variant</Label>
+				<Label htmlFor="variant">
+					Variant <span className="text-destructive">*</span>
+				</Label>
 				<Select defaultValue={defaultValues?.variant ?? "nlh"} name="variant">
 					<SelectTrigger className="w-full" id="variant">
 						<SelectValue placeholder="Select variant" />
@@ -154,7 +168,7 @@ export function RingGameForm({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="ante">Ante (optional)</Label>
+				<Label htmlFor="ante">Ante</Label>
 				<Input
 					defaultValue={defaultValues?.ante}
 					id="ante"
@@ -166,9 +180,25 @@ export function RingGameForm({
 				/>
 			</div>
 
+			<div className="flex flex-col gap-2">
+				<Label htmlFor="anteType">Ante Type</Label>
+				<Select defaultValue={defaultValues?.anteType} name="anteType">
+					<SelectTrigger className="w-full" id="anteType">
+						<SelectValue placeholder="Select ante type" />
+					</SelectTrigger>
+					<SelectContent>
+						{ANTE_TYPES.map((at) => (
+							<SelectItem key={at.value} value={at.value}>
+								{at.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+
 			<div className="grid grid-cols-2 gap-3">
 				<div className="flex flex-col gap-2">
-					<Label htmlFor="minBuyIn">Min Buy-In (optional)</Label>
+					<Label htmlFor="minBuyIn">Min Buy-In</Label>
 					<Input
 						defaultValue={defaultValues?.minBuyIn}
 						id="minBuyIn"
@@ -180,7 +210,7 @@ export function RingGameForm({
 					/>
 				</div>
 				<div className="flex flex-col gap-2">
-					<Label htmlFor="maxBuyIn">Max Buy-In (optional)</Label>
+					<Label htmlFor="maxBuyIn">Max Buy-In</Label>
 					<Input
 						defaultValue={defaultValues?.maxBuyIn}
 						id="maxBuyIn"
@@ -194,7 +224,7 @@ export function RingGameForm({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="tableSize">Table Size (optional)</Label>
+				<Label htmlFor="tableSize">Table Size</Label>
 				<Select
 					defaultValue={defaultValues?.tableSize?.toString()}
 					name="tableSize"
@@ -213,7 +243,7 @@ export function RingGameForm({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="currencyId">Currency (optional)</Label>
+				<Label htmlFor="currencyId">Currency</Label>
 				<Select defaultValue={defaultValues?.currencyId} name="currencyId">
 					<SelectTrigger className="w-full" id="currencyId">
 						<SelectValue placeholder="Select currency" />
@@ -230,7 +260,7 @@ export function RingGameForm({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="memo">Memo (optional)</Label>
+				<Label htmlFor="memo">Memo</Label>
 				<Input
 					defaultValue={defaultValues?.memo}
 					id="memo"
