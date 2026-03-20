@@ -11,15 +11,15 @@ CREATE TABLE `store` (
 CREATE INDEX `store_userId_idx` ON `store` (`user_id`);--> statement-breakpoint
 CREATE TABLE `currency` (
 	`id` text PRIMARY KEY NOT NULL,
-	`store_id` text NOT NULL,
+	`user_id` text NOT NULL,
 	`name` text NOT NULL,
 	`unit` text,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
 	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`store_id`) REFERENCES `store`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `currency_storeId_idx` ON `currency` (`store_id`);--> statement-breakpoint
+CREATE INDEX `currency_userId_idx` ON `currency` (`user_id`);--> statement-breakpoint
 CREATE TABLE `transaction_type` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
