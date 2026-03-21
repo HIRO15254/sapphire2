@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { currency, store } from "./store";
+import { tournamentTag } from "./tournament-tag";
 
 export const tournament = sqliteTable(
 	"tournament",
@@ -29,7 +30,6 @@ export const tournament = sqliteTable(
 		currencyId: text("currency_id").references(() => currency.id, {
 			onDelete: "set null",
 		}),
-		tags: text("tags"),
 		memo: text("memo"),
 		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
@@ -70,6 +70,7 @@ export const tournamentRelations = relations(tournament, ({ one, many }) => ({
 		references: [currency.id],
 	}),
 	blindLevels: many(blindLevel),
+	tags: many(tournamentTag),
 }));
 
 export const blindLevelRelations = relations(blindLevel, ({ one }) => ({

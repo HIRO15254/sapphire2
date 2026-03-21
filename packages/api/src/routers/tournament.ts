@@ -1,5 +1,6 @@
 import { store } from "@sapphire2/db/schema/store";
 import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
+import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
@@ -75,11 +76,21 @@ export const tournamentRouter = router({
 
 			const results = await Promise.all(
 				tournaments.map(async (t) => {
-					const levels = await ctx.db
-						.select()
-						.from(blindLevel)
-						.where(eq(blindLevel.tournamentId, t.id));
-					return { ...t, blindLevelCount: levels.length };
+					const [levels, tagRows] = await Promise.all([
+						ctx.db
+							.select()
+							.from(blindLevel)
+							.where(eq(blindLevel.tournamentId, t.id)),
+						ctx.db
+							.select()
+							.from(tournamentTag)
+							.where(eq(tournamentTag.tournamentId, t.id)),
+					]);
+					return {
+						...t,
+						blindLevelCount: levels.length,
+						tags: tagRows.map((r) => ({ id: r.id, name: r.name })),
+					};
 				})
 			);
 
@@ -92,13 +103,23 @@ export const tournamentRouter = router({
 			const userId = ctx.session.user.id;
 			const found = await validateTournamentOwnership(ctx.db, input.id, userId);
 
-			const levels = await ctx.db
-				.select()
-				.from(blindLevel)
-				.where(eq(blindLevel.tournamentId, input.id))
-				.orderBy(asc(blindLevel.level));
+			const [levels, tagRows] = await Promise.all([
+				ctx.db
+					.select()
+					.from(blindLevel)
+					.where(eq(blindLevel.tournamentId, input.id))
+					.orderBy(asc(blindLevel.level)),
+				ctx.db
+					.select()
+					.from(tournamentTag)
+					.where(eq(tournamentTag.tournamentId, input.id)),
+			]);
 
-			return { ...found, blindLevels: levels };
+			return {
+				...found,
+				blindLevels: levels,
+				tags: tagRows.map((r) => ({ id: r.id, name: r.name })),
+			};
 		}),
 
 	create: protectedProcedure
@@ -119,7 +140,6 @@ export const tournamentRouter = router({
 				bountyAmount: z.number().int().optional(),
 				tableSize: z.number().int().optional(),
 				currencyId: z.string().optional(),
-				tags: z.string().optional(),
 				memo: z.string().optional(),
 			})
 		)
@@ -145,7 +165,6 @@ export const tournamentRouter = router({
 				bountyAmount: input.bountyAmount ?? null,
 				tableSize: input.tableSize ?? null,
 				currencyId: input.currencyId ?? null,
-				tags: input.tags ?? null,
 				memo: input.memo ?? null,
 				updatedAt: new Date(),
 			});
@@ -175,7 +194,6 @@ export const tournamentRouter = router({
 				bountyAmount: z.number().int().nullable().optional(),
 				tableSize: z.number().int().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
-				tags: z.string().nullable().optional(),
 				memo: z.string().nullable().optional(),
 			})
 		)
@@ -225,9 +243,6 @@ export const tournamentRouter = router({
 			}
 			if (input.currencyId !== undefined) {
 				updateData.currencyId = input.currencyId;
-			}
-			if (input.tags !== undefined) {
-				updateData.tags = input.tags;
 			}
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;
@@ -288,6 +303,46 @@ export const tournamentRouter = router({
 			await validateTournamentOwnership(ctx.db, input.id, userId);
 
 			await ctx.db.delete(tournament).where(eq(tournament.id, input.id));
+			return { success: true };
+		}),
+
+	addTag: protectedProcedure
+		.input(z.object({ tournamentId: z.string(), name: z.string().min(1) }))
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateTournamentOwnership(ctx.db, input.tournamentId, userId);
+
+			const id = crypto.randomUUID();
+			await ctx.db.insert(tournamentTag).values({
+				id,
+				tournamentId: input.tournamentId,
+				name: input.name,
+			});
+
+			const [created] = await ctx.db
+				.select()
+				.from(tournamentTag)
+				.where(eq(tournamentTag.id, id));
+			return created;
+		}),
+
+	removeTag: protectedProcedure
+		.input(z.object({ id: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+
+			const [tag] = await ctx.db
+				.select()
+				.from(tournamentTag)
+				.where(eq(tournamentTag.id, input.id));
+
+			if (!tag) {
+				throw new TRPCError({ code: "NOT_FOUND", message: "Tag not found" });
+			}
+
+			await validateTournamentOwnership(ctx.db, tag.tournamentId, userId);
+
+			await ctx.db.delete(tournamentTag).where(eq(tournamentTag.id, input.id));
 			return { success: true };
 		}),
 });

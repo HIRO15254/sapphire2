@@ -24,6 +24,7 @@ import {
 	tournament,
 	tournamentRelations,
 } from "./schema/tournament";
+import { tournamentTag, tournamentTagRelations } from "./schema/tournament-tag";
 
 export const schema = {
 	account,
@@ -47,4 +48,6 @@ export const schema = {
 	tournamentRelations,
 	blindLevel,
 	blindLevelRelations,
+	tournamentTag,
+	tournamentTagRelations,
 };

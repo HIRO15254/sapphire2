@@ -33,7 +33,6 @@ interface TournamentFormValues {
 	rebuyCost?: number;
 	startingStack?: number;
 	tableSize?: number;
-	tags?: string;
 	variant: string;
 }
 
@@ -93,7 +92,6 @@ export function TournamentForm({
 			bountyAmount: parseOptionalInt(formData.get("bountyAmount") as string),
 			tableSize: parseOptionalInt(formData.get("tableSize") as string),
 			currencyId: (formData.get("currencyId") as string) || undefined,
-			tags: (formData.get("tags") as string) || undefined,
 			memo: (formData.get("memo") as string) || undefined,
 		};
 
@@ -312,19 +310,6 @@ export function TournamentForm({
 						))}
 					</SelectContent>
 				</Select>
-			</div>
-
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="tags">Tags</Label>
-				<Input
-					defaultValue={defaultValues?.tags}
-					id="tags"
-					name="tags"
-					placeholder="e.g. KO, PKO, Satellite"
-				/>
-				<p className="text-muted-foreground text-xs">
-					Separate with commas (e.g. KO, PKO, Satellite)
-				</p>
 			</div>
 
 			<div className="flex flex-col gap-2">

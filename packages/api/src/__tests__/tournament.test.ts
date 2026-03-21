@@ -33,4 +33,12 @@ describe("tournament router", () => {
 	it("has delete procedure", () => {
 		expect(appRouter.tournament.delete).toBeDefined();
 	});
+
+	it("has addTag procedure", () => {
+		expect(appRouter.tournament.addTag).toBeDefined();
+	});
+
+	it("has removeTag procedure", () => {
+		expect(appRouter.tournament.removeTag).toBeDefined();
+	});
 });

@@ -178,38 +178,40 @@ export function RingGameForm({
 				</div>
 			</div>
 
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="anteType">Ante Type</Label>
-				<Select
-					defaultValue={defaultValues?.anteType ?? "none"}
-					name="anteType"
-					onValueChange={setAnteType}
-				>
-					<SelectTrigger className="w-full" id="anteType">
-						<SelectValue placeholder="Select ante type" />
-					</SelectTrigger>
-					<SelectContent>
-						{ANTE_TYPES.map((at) => (
-							<SelectItem key={at.value} value={at.value}>
-								{at.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
+			<div className="flex gap-3">
+				<div className="flex flex-1 flex-col gap-2">
+					<Label htmlFor="anteType">Ante Type</Label>
+					<Select
+						defaultValue={defaultValues?.anteType ?? "none"}
+						name="anteType"
+						onValueChange={setAnteType}
+					>
+						<SelectTrigger className="w-full" id="anteType">
+							<SelectValue placeholder="Select ante type" />
+						</SelectTrigger>
+						<SelectContent>
+							{ANTE_TYPES.map((at) => (
+								<SelectItem key={at.value} value={at.value}>
+									{at.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
 
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="ante">Ante</Label>
-				<Input
-					defaultValue={defaultValues?.ante}
-					disabled={isAnteDisabled}
-					id="ante"
-					inputMode="numeric"
-					min={0}
-					name="ante"
-					placeholder="0"
-					type="number"
-				/>
+				<div className="flex flex-1 flex-col gap-2">
+					<Label htmlFor="ante">Ante</Label>
+					<Input
+						defaultValue={defaultValues?.ante}
+						disabled={isAnteDisabled}
+						id="ante"
+						inputMode="numeric"
+						min={0}
+						name="ante"
+						placeholder="0"
+						type="number"
+					/>
+				</div>
 			</div>
 
 			<div className="grid grid-cols-2 gap-3">

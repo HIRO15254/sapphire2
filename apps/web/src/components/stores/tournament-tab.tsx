@@ -8,11 +8,12 @@ import {
 	IconX,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { BlindLevelEditor } from "@/components/stores/blind-level-editor";
 import { TournamentForm } from "@/components/stores/tournament-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -35,7 +36,7 @@ interface Tournament {
 	startingStack: number | null;
 	storeId: string;
 	tableSize: number | null;
-	tags: string | null;
+	tags: { id: string; name: string }[];
 	variant: string;
 }
 
@@ -54,7 +55,6 @@ interface TournamentFormValues {
 	rebuyCost?: number;
 	startingStack?: number;
 	tableSize?: number;
-	tags?: string;
 	variant: string;
 }
 
@@ -67,6 +67,7 @@ interface TournamentCardProps {
 	onArchive: (id: string) => void;
 	onDelete: (id: string) => void;
 	onEdit: (tournament: Tournament) => void;
+	onRefetch: () => void;
 	onRestore: (id: string) => void;
 	tournament: Tournament;
 }
@@ -78,6 +79,7 @@ interface TournamentListProps {
 	onArchive: (id: string) => void;
 	onDelete: (id: string) => void;
 	onEdit: (tournament: Tournament) => void;
+	onRefetch: () => void;
 	onRestore: (id: string) => void;
 	tournaments: Tournament[];
 }
@@ -93,12 +95,89 @@ function formatBuyIn(t: Tournament): string {
 	return parts.join("");
 }
 
+interface TagListProps {
+	onRefetch: () => void;
+	tags: { id: string; name: string }[];
+	tournamentId: string;
+}
+
+function TagList({ tournamentId, tags, onRefetch }: TagListProps) {
+	const [adding, setAdding] = useState(false);
+	const [newTagValue, setNewTagValue] = useState("");
+	const inputRef = useRef<HTMLInputElement>(null);
+
+	const handleAddClick = () => {
+		setAdding(true);
+		setTimeout(() => inputRef.current?.focus(), 0);
+	};
+
+	const handleAddKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+		if (e.key === "Enter") {
+			e.preventDefault();
+			const name = newTagValue.trim();
+			if (name) {
+				await trpcClient.tournament.addTag.mutate({ tournamentId, name });
+				await onRefetch();
+			}
+			setNewTagValue("");
+			setAdding(false);
+		}
+		if (e.key === "Escape") {
+			setNewTagValue("");
+			setAdding(false);
+		}
+	};
+
+	const handleRemoveTag = async (tagId: string) => {
+		await trpcClient.tournament.removeTag.mutate({ id: tagId });
+		await onRefetch();
+	};
+
+	return (
+		<div className="mt-1 flex flex-wrap items-center gap-1">
+			{tags.map((tag) => (
+				<Badge
+					className="cursor-pointer gap-1 pr-1"
+					key={tag.id}
+					onClick={() => handleRemoveTag(tag.id)}
+					variant="outline"
+				>
+					{tag.name}
+					<IconX size={10} />
+				</Badge>
+			))}
+			{adding ? (
+				<Input
+					className="h-6 w-24 px-1.5 py-0 text-xs"
+					onBlur={() => {
+						setNewTagValue("");
+						setAdding(false);
+					}}
+					onChange={(e) => setNewTagValue(e.target.value)}
+					onKeyDown={handleAddKeyDown}
+					ref={inputRef}
+					value={newTagValue}
+				/>
+			) : (
+				<button
+					className="flex h-5 w-5 items-center justify-center rounded-sm border border-dashed text-muted-foreground hover:text-foreground"
+					onClick={handleAddClick}
+					type="button"
+				>
+					<IconPlus size={10} />
+				</button>
+			)}
+		</div>
+	);
+}
+
 function TournamentCard({
 	tournament,
 	isArchived,
 	onArchive,
 	onDelete,
 	onEdit,
+	onRefetch,
 	onRestore,
 }: TournamentCardProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -124,19 +203,11 @@ function TournamentCard({
 							{tournament.memo}
 						</p>
 					)}
-					{tournament.tags && (
-						<div className="mt-1 flex flex-wrap gap-1">
-							{tournament.tags
-								.split(",")
-								.map((tag) => tag.trim())
-								.filter(Boolean)
-								.map((tag) => (
-									<Badge key={tag} variant="outline">
-										{tag}
-									</Badge>
-								))}
-						</div>
-					)}
+					<TagList
+						onRefetch={onRefetch}
+						tags={tournament.tags}
+						tournamentId={tournament.id}
+					/>
 					<Button
 						className="mt-2 gap-1.5 text-xs"
 						onClick={() => setBlindEditorOpen(true)}
@@ -233,6 +304,7 @@ function TournamentList({
 	onArchive,
 	onDelete,
 	onEdit,
+	onRefetch,
 	onRestore,
 }: TournamentListProps) {
 	if (isLoading) {
@@ -273,6 +345,7 @@ function TournamentList({
 					onArchive={onArchive}
 					onDelete={onDelete}
 					onEdit={onEdit}
+					onRefetch={onRefetch}
 					onRestore={onRestore}
 					tournament={t}
 				/>
@@ -295,7 +368,7 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 			includeArchived: showArchived,
 		})
 	);
-	const tournaments = tournamentsQuery.data ?? [];
+	const tournaments = (tournamentsQuery.data ?? []) as Tournament[];
 
 	const handleCreate = async (values: TournamentFormValues) => {
 		setIsSubmitting(true);
@@ -374,6 +447,7 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 				onArchive={handleArchive}
 				onDelete={handleDelete}
 				onEdit={setEditingTournament}
+				onRefetch={() => tournamentsQuery.refetch()}
 				onRestore={handleRestore}
 				tournaments={tournaments}
 			/>
@@ -412,7 +486,6 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 							bountyAmount: editingTournament.bountyAmount ?? undefined,
 							tableSize: editingTournament.tableSize ?? undefined,
 							currencyId: editingTournament.currencyId ?? undefined,
-							tags: editingTournament.tags ?? undefined,
 							memo: editingTournament.memo ?? undefined,
 						}}
 						isLoading={isSubmitting}

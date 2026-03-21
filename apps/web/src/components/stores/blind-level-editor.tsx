@@ -8,6 +8,7 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import {
+	arrayMove,
 	SortableContext,
 	useSortable,
 	verticalListSortingStrategy,
@@ -55,10 +56,9 @@ interface BlindLevelRow {
 interface SortableLevelCardProps {
 	blindLabels: { blind1: string; blind2: string; blind3: string };
 	editingId: string | null;
-	onAutoFill: (id: string, updates: Record<string, number | null>) => void;
 	onDelete: (id: string) => void;
 	onSetEditing: (id: string | null) => void;
-	onUpdate: (id: string, field: string, value: number | null) => void;
+	onUpdate: (id: string, updates: Record<string, number | null>) => void;
 	row: BlindLevelRow;
 }
 
@@ -70,40 +70,186 @@ function parseIntOrNull(value: string): number | null {
 	return Number.isNaN(parsed) ? null : parsed;
 }
 
-interface FieldInputProps {
-	fieldId: string;
-	label: string;
-	onSave: (value: number | null) => void;
-	placeholder?: string;
-	value: number | null;
+// ---- Local edit state hook ----
+
+interface LocalEditState {
+	ante: string;
+	blind1: string;
+	blind2: string;
+	minutes: string;
 }
 
-function FieldInput({
-	fieldId,
-	label,
-	value,
-	onSave,
-	placeholder = "0",
-}: FieldInputProps) {
+// ---- Level edit form (non-break) ----
+
+interface LevelEditFormProps {
+	blindLabels: { blind1: string; blind2: string; blind3: string };
+	onBlur: (state: LocalEditState) => void;
+	rowId: string;
+}
+
+function LevelEditForm({ rowId, blindLabels, onBlur }: LevelEditFormProps) {
+	const [state, setState] = useState<LocalEditState>({
+		blind1: "",
+		blind2: "",
+		ante: "",
+		minutes: "",
+	});
+
+	const handleBlind1Change = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const val = e.target.value;
+		const parsed = parseIntOrNull(val);
+		setState((prev) => ({
+			...prev,
+			blind1: val,
+			blind2:
+				prev.blind2 || (parsed != null ? String(parsed * 2) : prev.blind2),
+			ante: prev.ante || (parsed != null ? String(parsed) : prev.ante),
+		}));
+	};
+
+	const handleBlind2Change = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const val = e.target.value;
+		const parsed = parseIntOrNull(val);
+		setState((prev) => ({
+			...prev,
+			blind2: val,
+			ante: prev.ante || (parsed != null ? String(parsed) : prev.ante),
+		}));
+	};
+
+	const handleBlur = () => onBlur(state);
+
 	return (
-		<div className="flex flex-col gap-1.5">
-			<label
-				className="font-medium text-muted-foreground text-xs"
-				htmlFor={fieldId}
-			>
-				{label}
-			</label>
-			<Input
-				className="h-9"
-				defaultValue={value ?? ""}
-				id={fieldId}
-				onBlur={(e) => onSave(parseIntOrNull(e.target.value))}
-				placeholder={placeholder}
-				type="number"
-			/>
+		<div className="mt-1 flex flex-col gap-3 rounded-lg border bg-card p-3">
+			<div className="flex flex-col gap-1.5">
+				<label
+					className="font-medium text-muted-foreground text-xs"
+					htmlFor={`${rowId}-blind1`}
+				>
+					{blindLabels.blind1}
+				</label>
+				<Input
+					className="h-9"
+					id={`${rowId}-blind1`}
+					onBlur={handleBlur}
+					onChange={handleBlind1Change}
+					placeholder="0"
+					type="number"
+					value={state.blind1}
+				/>
+			</div>
+			<div className="flex flex-col gap-1.5">
+				<label
+					className="font-medium text-muted-foreground text-xs"
+					htmlFor={`${rowId}-blind2`}
+				>
+					{blindLabels.blind2}
+				</label>
+				<Input
+					className="h-9"
+					id={`${rowId}-blind2`}
+					onBlur={handleBlur}
+					onChange={handleBlind2Change}
+					placeholder="0"
+					type="number"
+					value={state.blind2}
+				/>
+			</div>
+			<div className="flex flex-col gap-1.5">
+				<label
+					className="font-medium text-muted-foreground text-xs"
+					htmlFor={`${rowId}-ante`}
+				>
+					Ante
+				</label>
+				<Input
+					className="h-9"
+					id={`${rowId}-ante`}
+					onBlur={handleBlur}
+					onChange={(e) =>
+						setState((prev) => ({ ...prev, ante: e.target.value }))
+					}
+					placeholder="0"
+					type="number"
+					value={state.ante}
+				/>
+			</div>
+			<div className="flex flex-col gap-1.5">
+				<label
+					className="font-medium text-muted-foreground text-xs"
+					htmlFor={`${rowId}-minutes`}
+				>
+					Time (min)
+				</label>
+				<Input
+					className="h-9"
+					id={`${rowId}-minutes`}
+					onBlur={handleBlur}
+					onChange={(e) =>
+						setState((prev) => ({ ...prev, minutes: e.target.value }))
+					}
+					placeholder="0"
+					type="number"
+					value={state.minutes}
+				/>
+			</div>
 		</div>
 	);
 }
+
+// ---- Break edit form ----
+
+interface BreakEditFormProps {
+	onSave: (minutes: number | null) => void;
+	rowId: string;
+	value: number | null;
+}
+
+function BreakEditForm({ rowId, value, onSave }: BreakEditFormProps) {
+	return (
+		<div className="mt-1 rounded-lg border bg-card p-3">
+			<div className="flex flex-col gap-1.5">
+				<label
+					className="font-medium text-muted-foreground text-xs"
+					htmlFor={`${rowId}-minutes`}
+				>
+					Time (min)
+				</label>
+				<Input
+					className="h-9"
+					defaultValue={value ?? ""}
+					id={`${rowId}-minutes`}
+					onBlur={(e) => onSave(parseIntOrNull(e.target.value))}
+					placeholder="0"
+					type="number"
+				/>
+			</div>
+		</div>
+	);
+}
+
+// ---- Drag handle button ----
+
+interface DragHandleProps {
+	attributes: ReturnType<typeof useSortable>["attributes"];
+	listeners: ReturnType<typeof useSortable>["listeners"];
+}
+
+function DragHandle({ attributes, listeners }: DragHandleProps) {
+	return (
+		<button
+			aria-label="Drag to reorder"
+			className="mt-0.5 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+			type="button"
+			{...attributes}
+			{...listeners}
+		>
+			<IconGripVertical size={18} />
+		</button>
+	);
+}
+
+// ---- Main sortable card ----
 
 function SortableLevelCard({
 	row,
@@ -112,7 +258,6 @@ function SortableLevelCard({
 	onSetEditing,
 	onDelete,
 	onUpdate,
-	onAutoFill,
 }: SortableLevelCardProps) {
 	const {
 		attributes,
@@ -137,22 +282,22 @@ function SortableLevelCard({
 		}
 	};
 
+	const handleLevelBlur = (state: LocalEditState) => {
+		onUpdate(row.id, {
+			blind1: parseIntOrNull(state.blind1),
+			blind2: parseIntOrNull(state.blind2),
+			ante: parseIntOrNull(state.ante),
+			minutes: parseIntOrNull(state.minutes),
+		});
+	};
+
 	if (row.isBreak) {
 		return (
 			<div ref={setNodeRef} style={style}>
 				<div
 					className={`flex items-start gap-3 rounded-lg border bg-muted/40 p-3 ${isEditing ? "ring-2 ring-ring" : ""}`}
 				>
-					<button
-						aria-label="Drag to reorder"
-						className="mt-0.5 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
-						type="button"
-						{...attributes}
-						{...listeners}
-					>
-						<IconGripVertical size={18} />
-					</button>
-
+					<DragHandle attributes={attributes} listeners={listeners} />
 					<button
 						className="flex flex-1 items-center gap-2 text-left"
 						onClick={handleCardClick}
@@ -169,7 +314,6 @@ function SortableLevelCard({
 							</span>
 						)}
 					</button>
-
 					<button
 						aria-label="Delete level"
 						className="mt-0.5 text-muted-foreground transition-colors hover:text-destructive"
@@ -179,59 +323,23 @@ function SortableLevelCard({
 						<IconTrash size={16} />
 					</button>
 				</div>
-
 				{isEditing && (
-					<div className="mt-1 rounded-lg border bg-card p-3">
-						<FieldInput
-							fieldId={`${row.id}-minutes`}
-							label="Time (min)"
-							onSave={(v) => onUpdate(row.id, "minutes", v)}
-							value={row.minutes}
-						/>
-					</div>
+					<BreakEditForm
+						onSave={(v) => onUpdate(row.id, { minutes: v })}
+						rowId={row.id}
+						value={row.minutes}
+					/>
 				)}
 			</div>
 		);
 	}
-
-	const handleBlind1Save = (v: number | null) => {
-		onUpdate(row.id, "blind1", v);
-		if (v !== null) {
-			const autoFills: Record<string, number | null> = {};
-			if (row.blind2 === null) {
-				autoFills.blind2 = v * 2;
-			}
-			if (row.ante === null) {
-				autoFills.ante = v;
-			}
-			if (Object.keys(autoFills).length > 0) {
-				onAutoFill(row.id, autoFills);
-			}
-		}
-	};
-
-	const handleBlind2Save = (v: number | null) => {
-		onUpdate(row.id, "blind2", v);
-		if (v !== null && row.ante === null) {
-			onAutoFill(row.id, { ante: v });
-		}
-	};
 
 	return (
 		<div ref={setNodeRef} style={style}>
 			<div
 				className={`flex items-start gap-3 rounded-lg border bg-card p-3 ${isEditing ? "ring-2 ring-ring" : ""}`}
 			>
-				<button
-					aria-label="Drag to reorder"
-					className="mt-0.5 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
-					type="button"
-					{...attributes}
-					{...listeners}
-				>
-					<IconGripVertical size={18} />
-				</button>
-
+				<DragHandle attributes={attributes} listeners={listeners} />
 				<button
 					className="flex flex-1 flex-col gap-1 text-left"
 					onClick={handleCardClick}
@@ -271,7 +379,6 @@ function SortableLevelCard({
 						</div>
 					)}
 				</button>
-
 				<button
 					aria-label="Delete level"
 					className="mt-0.5 text-muted-foreground transition-colors hover:text-destructive"
@@ -281,34 +388,12 @@ function SortableLevelCard({
 					<IconTrash size={16} />
 				</button>
 			</div>
-
 			{isEditing && (
-				<div className="mt-1 flex flex-col gap-3 rounded-lg border bg-card p-3">
-					<FieldInput
-						fieldId={`${row.id}-blind1`}
-						label={blindLabels.blind1}
-						onSave={handleBlind1Save}
-						value={row.blind1}
-					/>
-					<FieldInput
-						fieldId={`${row.id}-blind2`}
-						label={blindLabels.blind2}
-						onSave={handleBlind2Save}
-						value={row.blind2}
-					/>
-					<FieldInput
-						fieldId={`${row.id}-ante`}
-						label="Ante"
-						onSave={(v) => onUpdate(row.id, "ante", v)}
-						value={row.ante}
-					/>
-					<FieldInput
-						fieldId={`${row.id}-minutes`}
-						label="Time (min)"
-						onSave={(v) => onUpdate(row.id, "minutes", v)}
-						value={row.minutes}
-					/>
-				</div>
+				<LevelEditForm
+					blindLabels={blindLabels}
+					onBlur={handleLevelBlur}
+					rowId={row.id}
+				/>
 			)}
 		</div>
 	);
@@ -319,63 +404,6 @@ interface BlindStructureContentProps {
 	variant: string;
 }
 
-function renderLevelList(
-	levelsQuery: { isLoading: boolean },
-	levels: BlindLevelRow[],
-	blindLabels: { blind1: string; blind2: string; blind3: string },
-	editingId: string | null,
-	setEditingId: (id: string | null) => void,
-	handleDelete: (id: string) => void,
-	handleUpdate: (id: string, field: string, value: number | null) => void,
-	handleAutoFill: (id: string, updates: Record<string, number | null>) => void,
-	sensors: ReturnType<typeof useSensors>,
-	handleDragEnd: (event: DragEndEvent) => void
-) {
-	if (levelsQuery.isLoading) {
-		return (
-			<p className="py-8 text-center text-muted-foreground text-sm">
-				Loading levels...
-			</p>
-		);
-	}
-
-	if (levels.length === 0) {
-		return (
-			<p className="py-8 text-center text-muted-foreground text-sm">
-				No blind levels yet. Add a level to get started.
-			</p>
-		);
-	}
-
-	return (
-		<DndContext
-			collisionDetection={closestCenter}
-			onDragEnd={handleDragEnd}
-			sensors={sensors}
-		>
-			<SortableContext
-				items={levels.map((l) => l.id)}
-				strategy={verticalListSortingStrategy}
-			>
-				<div className="flex flex-col gap-2">
-					{levels.map((row) => (
-						<SortableLevelCard
-							blindLabels={blindLabels}
-							editingId={editingId}
-							key={row.id}
-							onAutoFill={handleAutoFill}
-							onDelete={handleDelete}
-							onSetEditing={setEditingId}
-							onUpdate={handleUpdate}
-							row={row}
-						/>
-					))}
-				</div>
-			</SortableContext>
-		</DndContext>
-	);
-}
-
 function BlindStructureContent({
 	tournamentId,
 	variant,
@@ -383,11 +411,15 @@ function BlindStructureContent({
 	const [isAdding, setIsAdding] = useState(false);
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [lastMinutes, setLastMinutes] = useState<number | null>(null);
+	const [optimisticLevels, setOptimisticLevels] = useState<
+		BlindLevelRow[] | null
+	>(null);
 
 	const levelsQuery = useQuery(
 		trpc.blindLevel.listByTournament.queryOptions({ tournamentId })
 	);
 	const levels = levelsQuery.data ?? [];
+	const displayLevels = optimisticLevels ?? levels;
 
 	const initialLastMinutes = (() => {
 		const data = levelsQuery.data;
@@ -421,25 +453,40 @@ function BlindStructureContent({
 		if (!over || active.id === over.id) {
 			return;
 		}
-		const oldIndex = levels.findIndex((l) => l.id === active.id);
-		const newIndex = levels.findIndex((l) => l.id === over.id);
+		const currentLevels = optimisticLevels ?? levels;
+		const oldIndex = currentLevels.findIndex((l) => l.id === active.id);
+		const newIndex = currentLevels.findIndex((l) => l.id === over.id);
 		if (oldIndex === -1 || newIndex === -1) {
 			return;
 		}
-		const newIds = levels.map((l) => l.id);
-		const [moved] = newIds.splice(oldIndex, 1);
-		newIds.splice(newIndex, 0, moved);
+		const reordered = arrayMove(currentLevels, oldIndex, newIndex);
+		setOptimisticLevels(reordered);
 		await trpcClient.blindLevel.reorder.mutate({
 			tournamentId,
-			levelIds: newIds,
+			levelIds: reordered.map((l) => l.id),
 		});
 		await levelsQuery.refetch();
+		setOptimisticLevels(null);
 	};
 
 	const handleAddLevel = async () => {
 		setIsAdding(true);
 		try {
-			const nextLevel = levels.length + 1;
+			const currentLevels = optimisticLevels ?? levels;
+			const nextLevel = currentLevels.length + 1;
+			const tempId = `temp-${Date.now()}`;
+			const tempRow: BlindLevelRow = {
+				id: tempId,
+				tournamentId,
+				level: nextLevel,
+				isBreak: false,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				ante: null,
+				minutes: effectiveLastMinutes,
+			};
+			setOptimisticLevels([...currentLevels, tempRow]);
 			await trpcClient.blindLevel.create.mutate({
 				tournamentId,
 				level: nextLevel,
@@ -449,6 +496,7 @@ function BlindStructureContent({
 					: {}),
 			});
 			await levelsQuery.refetch();
+			setOptimisticLevels(null);
 		} finally {
 			setIsAdding(false);
 		}
@@ -457,7 +505,21 @@ function BlindStructureContent({
 	const handleAddBreak = async () => {
 		setIsAdding(true);
 		try {
-			const nextLevel = levels.length + 1;
+			const currentLevels = optimisticLevels ?? levels;
+			const nextLevel = currentLevels.length + 1;
+			const tempId = `temp-${Date.now()}`;
+			const tempRow: BlindLevelRow = {
+				id: tempId,
+				tournamentId,
+				level: nextLevel,
+				isBreak: true,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				ante: null,
+				minutes: effectiveLastMinutes,
+			};
+			setOptimisticLevels([...currentLevels, tempRow]);
 			await trpcClient.blindLevel.create.mutate({
 				tournamentId,
 				level: nextLevel,
@@ -467,6 +529,7 @@ function BlindStructureContent({
 					: {}),
 			});
 			await levelsQuery.refetch();
+			setOptimisticLevels(null);
 		} finally {
 			setIsAdding(false);
 		}
@@ -476,46 +539,71 @@ function BlindStructureContent({
 		if (editingId === id) {
 			setEditingId(null);
 		}
+		const currentLevels = optimisticLevels ?? levels;
+		setOptimisticLevels(currentLevels.filter((l) => l.id !== id));
 		await trpcClient.blindLevel.delete.mutate({ id });
 		await levelsQuery.refetch();
+		setOptimisticLevels(null);
 	};
 
 	const handleUpdate = async (
 		id: string,
-		field: string,
-		value: number | null
-	) => {
-		await trpcClient.blindLevel.update.mutate({ id, [field]: value });
-		if (field === "minutes" && value !== null) {
-			setLastMinutes(value);
-		}
-		await levelsQuery.refetch();
-	};
-
-	const handleAutoFill = async (
-		id: string,
 		updates: Record<string, number | null>
 	) => {
+		const currentLevels = optimisticLevels ?? levels;
+		setOptimisticLevels(
+			currentLevels.map((l) => (l.id === id ? { ...l, ...updates } : l))
+		);
 		for (const [field, value] of Object.entries(updates)) {
 			await trpcClient.blindLevel.update.mutate({ id, [field]: value });
 		}
+		if (updates.minutes != null) {
+			setLastMinutes(updates.minutes);
+		}
 		await levelsQuery.refetch();
+		setOptimisticLevels(null);
 	};
+
+	if (levelsQuery.isLoading) {
+		return (
+			<p className="py-8 text-center text-muted-foreground text-sm">
+				Loading levels...
+			</p>
+		);
+	}
 
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex flex-col gap-2">
-				{renderLevelList(
-					levelsQuery,
-					levels,
-					blindLabels,
-					editingId,
-					setEditingId,
-					handleDelete,
-					handleUpdate,
-					handleAutoFill,
-					sensors,
-					handleDragEnd
+				{displayLevels.length === 0 ? (
+					<p className="py-8 text-center text-muted-foreground text-sm">
+						No blind levels yet. Add a level to get started.
+					</p>
+				) : (
+					<DndContext
+						collisionDetection={closestCenter}
+						onDragEnd={handleDragEnd}
+						sensors={sensors}
+					>
+						<SortableContext
+							items={displayLevels.map((l) => l.id)}
+							strategy={verticalListSortingStrategy}
+						>
+							<div className="flex flex-col gap-2">
+								{displayLevels.map((row) => (
+									<SortableLevelCard
+										blindLabels={blindLabels}
+										editingId={editingId}
+										key={row.id}
+										onDelete={handleDelete}
+										onSetEditing={setEditingId}
+										onUpdate={handleUpdate}
+										row={row}
+									/>
+								))}
+							</div>
+						</SortableContext>
+					</DndContext>
 				)}
 			</div>
 

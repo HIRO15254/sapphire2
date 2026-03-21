@@ -1,6 +1,7 @@
 import { getTableColumns } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { blindLevel, tournament } from "../schema/tournament";
+import { tournamentTag } from "../schema/tournament-tag";
 
 describe("Tournament schema", () => {
 	it("has required columns", () => {
@@ -77,14 +78,39 @@ describe("Tournament schema", () => {
 		expect(columns.memo.notNull).toBe(false);
 	});
 
-	it("has tags column", () => {
+	it("does not have a tags column", () => {
 		const columns = getTableColumns(tournament);
-		expect(columns.tags).toBeDefined();
+		expect((columns as Record<string, unknown>).tags).toBeUndefined();
+	});
+});
+
+describe("TournamentTag schema", () => {
+	it("has required columns", () => {
+		const columns = getTableColumns(tournamentTag);
+		expect(columns.id).toBeDefined();
+		expect(columns.tournamentId).toBeDefined();
+		expect(columns.name).toBeDefined();
+		expect(columns.createdAt).toBeDefined();
 	});
 
-	it("tags is nullable", () => {
-		const columns = getTableColumns(tournament);
-		expect(columns.tags.notNull).toBe(false);
+	it("id is primary key", () => {
+		const columns = getTableColumns(tournamentTag);
+		expect(columns.id.primary).toBe(true);
+	});
+
+	it("tournamentId is not null", () => {
+		const columns = getTableColumns(tournamentTag);
+		expect(columns.tournamentId.notNull).toBe(true);
+	});
+
+	it("name is not null", () => {
+		const columns = getTableColumns(tournamentTag);
+		expect(columns.name.notNull).toBe(true);
+	});
+
+	it("createdAt is not null", () => {
+		const columns = getTableColumns(tournamentTag);
+		expect(columns.createdAt.notNull).toBe(true);
 	});
 });
 

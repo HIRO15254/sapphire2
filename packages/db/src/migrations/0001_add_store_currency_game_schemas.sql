@@ -83,7 +83,6 @@ CREATE TABLE `tournament` (
 	`bounty_amount` integer,
 	`table_size` integer,
 	`currency_id` text,
-	`tags` text,
 	`memo` text,
 	`archived_at` integer,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
@@ -93,6 +92,14 @@ CREATE TABLE `tournament` (
 );
 --> statement-breakpoint
 CREATE INDEX `tournament_storeId_idx` ON `tournament` (`store_id`);--> statement-breakpoint
+CREATE TABLE `tournament_tag` (
+	`id` text PRIMARY KEY NOT NULL,
+	`tournament_id` text NOT NULL,
+	`name` text NOT NULL,
+	`created_at` integer DEFAULT (unixepoch()) NOT NULL,
+	FOREIGN KEY (`tournament_id`) REFERENCES `tournament`(`id`) ON UPDATE no action ON DELETE cascade
+);--> statement-breakpoint
+CREATE INDEX `tournamentTag_tournamentId_idx` ON `tournament_tag` (`tournament_id`);--> statement-breakpoint
 CREATE TABLE `blind_level` (
 	`id` text PRIMARY KEY NOT NULL,
 	`tournament_id` text NOT NULL,
