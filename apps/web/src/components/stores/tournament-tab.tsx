@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { BlindLevelEditor } from "@/components/stores/blind-level-editor";
 import { TournamentForm } from "@/components/stores/tournament-form";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
@@ -34,6 +35,7 @@ interface Tournament {
 	startingStack: number | null;
 	storeId: string;
 	tableSize: number | null;
+	tags: string | null;
 	variant: string;
 }
 
@@ -52,6 +54,7 @@ interface TournamentFormValues {
 	rebuyCost?: number;
 	startingStack?: number;
 	tableSize?: number;
+	tags?: string;
 	variant: string;
 }
 
@@ -120,6 +123,19 @@ function TournamentCard({
 						<p className="mt-1 line-clamp-1 text-muted-foreground text-xs">
 							{tournament.memo}
 						</p>
+					)}
+					{tournament.tags && (
+						<div className="mt-1 flex flex-wrap gap-1">
+							{tournament.tags
+								.split(",")
+								.map((tag) => tag.trim())
+								.filter(Boolean)
+								.map((tag) => (
+									<Badge key={tag} variant="outline">
+										{tag}
+									</Badge>
+								))}
+						</div>
 					)}
 					<Button
 						className="mt-2 gap-1.5 text-xs"
@@ -396,6 +412,7 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 							bountyAmount: editingTournament.bountyAmount ?? undefined,
 							tableSize: editingTournament.tableSize ?? undefined,
 							currencyId: editingTournament.currencyId ?? undefined,
+							tags: editingTournament.tags ?? undefined,
 							memo: editingTournament.memo ?? undefined,
 						}}
 						isLoading={isSubmitting}

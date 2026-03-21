@@ -897,6 +897,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "tags": {
+          "name": "tags",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "memo": {
           "name": "memo",
           "type": "text",

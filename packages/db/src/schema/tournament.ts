@@ -29,6 +29,7 @@ export const tournament = sqliteTable(
 		currencyId: text("currency_id").references(() => currency.id, {
 			onDelete: "set null",
 		}),
+		tags: text("tags"),
 		memo: text("memo"),
 		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })

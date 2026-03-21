@@ -76,6 +76,16 @@ describe("Tournament schema", () => {
 		const columns = getTableColumns(tournament);
 		expect(columns.memo.notNull).toBe(false);
 	});
+
+	it("has tags column", () => {
+		const columns = getTableColumns(tournament);
+		expect(columns.tags).toBeDefined();
+	});
+
+	it("tags is nullable", () => {
+		const columns = getTableColumns(tournament);
+		expect(columns.tags.notNull).toBe(false);
+	});
 });
 
 describe("BlindLevel schema", () => {

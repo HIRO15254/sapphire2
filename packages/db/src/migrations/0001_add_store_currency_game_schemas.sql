@@ -83,6 +83,7 @@ CREATE TABLE `tournament` (
 	`bounty_amount` integer,
 	`table_size` integer,
 	`currency_id` text,
+	`tags` text,
 	`memo` text,
 	`archived_at` integer,
 	`created_at` integer DEFAULT (unixepoch()) NOT NULL,

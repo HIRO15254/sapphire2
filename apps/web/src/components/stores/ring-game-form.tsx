@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +21,7 @@ const GAME_VARIANTS = {
 
 interface RingGameFormValues {
 	ante?: number;
-	anteType?: "all" | "bb";
+	anteType?: "all" | "bb" | "none";
 	blind1?: number;
 	blind2?: number;
 	blind3?: number;
@@ -42,8 +43,9 @@ interface RingGameFormProps {
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 const ANTE_TYPES = [
-	{ value: "all", label: "All Ante" },
+	{ value: "none", label: "No Ante" },
 	{ value: "bb", label: "BB Ante" },
+	{ value: "all", label: "All Ante" },
 ] as const;
 
 function parseOptionalInt(value: string): number | undefined {
@@ -59,6 +61,10 @@ export function RingGameForm({
 	defaultValues,
 	isLoading = false,
 }: RingGameFormProps) {
+	const [anteType, setAnteType] = useState<string>(
+		defaultValues?.anteType ?? "none"
+	);
+
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
 
@@ -70,6 +76,8 @@ export function RingGameForm({
 		blind3: "Straddle",
 	};
 
+	const isAnteDisabled = anteType === "none";
+
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		const formData = new FormData(e.currentTarget);
@@ -80,10 +88,13 @@ export function RingGameForm({
 			blind1: parseOptionalInt(formData.get("blind1") as string),
 			blind2: parseOptionalInt(formData.get("blind2") as string),
 			blind3: parseOptionalInt(formData.get("blind3") as string),
-			ante: parseOptionalInt(formData.get("ante") as string),
+			ante: isAnteDisabled
+				? undefined
+				: parseOptionalInt(formData.get("ante") as string),
 			anteType: ((formData.get("anteType") as string) || undefined) as
 				| "all"
 				| "bb"
+				| "none"
 				| undefined,
 			minBuyIn: parseOptionalInt(formData.get("minBuyIn") as string),
 			maxBuyIn: parseOptionalInt(formData.get("maxBuyIn") as string),
@@ -168,21 +179,12 @@ export function RingGameForm({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="ante">Ante</Label>
-				<Input
-					defaultValue={defaultValues?.ante}
-					id="ante"
-					inputMode="numeric"
-					min={0}
-					name="ante"
-					placeholder="0"
-					type="number"
-				/>
-			</div>
-
-			<div className="flex flex-col gap-2">
 				<Label htmlFor="anteType">Ante Type</Label>
-				<Select defaultValue={defaultValues?.anteType} name="anteType">
+				<Select
+					defaultValue={defaultValues?.anteType ?? "none"}
+					name="anteType"
+					onValueChange={setAnteType}
+				>
 					<SelectTrigger className="w-full" id="anteType">
 						<SelectValue placeholder="Select ante type" />
 					</SelectTrigger>
@@ -194,6 +196,20 @@ export function RingGameForm({
 						))}
 					</SelectContent>
 				</Select>
+			</div>
+
+			<div className="flex flex-col gap-2">
+				<Label htmlFor="ante">Ante</Label>
+				<Input
+					defaultValue={defaultValues?.ante}
+					disabled={isAnteDisabled}
+					id="ante"
+					inputMode="numeric"
+					min={0}
+					name="ante"
+					placeholder="0"
+					type="number"
+				/>
 			</div>
 
 			<div className="grid grid-cols-2 gap-3">

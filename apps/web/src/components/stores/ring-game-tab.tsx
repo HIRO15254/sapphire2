@@ -34,7 +34,7 @@ interface RingGame {
 
 interface RingGameFormValues {
 	ante?: number;
-	anteType?: "all" | "bb";
+	anteType?: "all" | "bb" | "none";
 	blind1?: number;
 	blind2?: number;
 	blind3?: number;
@@ -85,13 +85,11 @@ function formatBlindsLine(
 	const blindStr = parts.length > 0 ? parts.join("/") : "";
 
 	let anteStr = "";
-	if (game.ante != null) {
+	if (game.ante != null && game.anteType !== "none" && game.anteType != null) {
 		if (game.anteType === "bb") {
-			anteStr = `(BB Ante: ${game.ante})`;
+			anteStr = `(BBA:${game.ante})`;
 		} else if (game.anteType === "all") {
-			anteStr = `(Ante: ${game.ante} All)`;
-		} else {
-			anteStr = `(Ante: ${game.ante})`;
+			anteStr = `(Ante:${game.ante})`;
 		}
 	}
 
@@ -165,7 +163,7 @@ function RingGameCard({
 					) : (
 						<>
 							<Button
-								aria-label="Edit ring game"
+								aria-label="Edit cash game"
 								onClick={() => onEdit(game)}
 								size="sm"
 								variant="ghost"
@@ -174,7 +172,7 @@ function RingGameCard({
 							</Button>
 							{isArchived ? (
 								<Button
-									aria-label="Restore ring game"
+									aria-label="Restore cash game"
 									onClick={() => onRestore(game.id)}
 									size="sm"
 									variant="ghost"
@@ -183,7 +181,7 @@ function RingGameCard({
 								</Button>
 							) : (
 								<Button
-									aria-label="Archive ring game"
+									aria-label="Archive cash game"
 									onClick={() => onArchive(game.id)}
 									size="sm"
 									variant="ghost"
@@ -192,7 +190,7 @@ function RingGameCard({
 								</Button>
 							)}
 							<Button
-								aria-label="Delete ring game"
+								aria-label="Delete cash game"
 								onClick={() => setConfirmingDelete(true)}
 								size="sm"
 								variant="ghost"
@@ -242,7 +240,7 @@ function RingGameList({
 		return (
 			<div className="py-8 text-center text-muted-foreground">
 				<p className="text-sm">
-					{isArchived ? "No archived ring games." : "No ring games yet."}
+					{isArchived ? "No archived cash games." : "No cash games yet."}
 				</p>
 				{!isArchived && (
 					<Button
@@ -379,7 +377,7 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 			<ResponsiveDialog
 				onOpenChange={setIsCreateOpen}
 				open={isCreateOpen}
-				title="Add Ring Game"
+				title="Add Cash Game"
 			>
 				<RingGameForm isLoading={isSubmitting} onSubmit={handleCreate} />
 			</ResponsiveDialog>
@@ -391,7 +389,7 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 					}
 				}}
 				open={editingGame !== null}
-				title="Edit Ring Game"
+				title="Edit Cash Game"
 			>
 				{editingGame && (
 					<RingGameForm
@@ -405,6 +403,7 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 							anteType: (editingGame.anteType ?? undefined) as
 								| "all"
 								| "bb"
+								| "none"
 								| undefined,
 							minBuyIn: editingGame.minBuyIn ?? undefined,
 							maxBuyIn: editingGame.maxBuyIn ?? undefined,

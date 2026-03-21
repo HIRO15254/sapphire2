@@ -51,7 +51,7 @@ function StoreDetailPage() {
 
 			<Tabs defaultValue="ring-games">
 				<TabsList>
-					<TabsTrigger value="ring-games">Ring Games</TabsTrigger>
+					<TabsTrigger value="ring-games">Cash Games</TabsTrigger>
 					<TabsTrigger value="tournaments">Tournaments</TabsTrigger>
 				</TabsList>
 				<TabsContent value="ring-games">

@@ -119,6 +119,7 @@ export const tournamentRouter = router({
 				bountyAmount: z.number().int().optional(),
 				tableSize: z.number().int().optional(),
 				currencyId: z.string().optional(),
+				tags: z.string().optional(),
 				memo: z.string().optional(),
 			})
 		)
@@ -144,6 +145,7 @@ export const tournamentRouter = router({
 				bountyAmount: input.bountyAmount ?? null,
 				tableSize: input.tableSize ?? null,
 				currencyId: input.currencyId ?? null,
+				tags: input.tags ?? null,
 				memo: input.memo ?? null,
 				updatedAt: new Date(),
 			});
@@ -173,6 +175,7 @@ export const tournamentRouter = router({
 				bountyAmount: z.number().int().nullable().optional(),
 				tableSize: z.number().int().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
+				tags: z.string().nullable().optional(),
 				memo: z.string().nullable().optional(),
 			})
 		)
@@ -222,6 +225,9 @@ export const tournamentRouter = router({
 			}
 			if (input.currencyId !== undefined) {
 				updateData.currencyId = input.currencyId;
+			}
+			if (input.tags !== undefined) {
+				updateData.tags = input.tags;
 			}
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;
