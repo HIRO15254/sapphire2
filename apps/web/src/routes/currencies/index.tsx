@@ -1,5 +1,5 @@
 import { IconCoins, IconPlus } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { CurrencyCard } from "@/components/stores/currency-card";
@@ -55,22 +55,25 @@ function CurrenciesPage() {
 	>(null);
 	const [editingTransaction, setEditingTransaction] =
 		useState<Transaction | null>(null);
-	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
 	const [txCursor, setTxCursor] = useState<string | undefined>(undefined);
 	const [txHasMore, setTxHasMore] = useState(false);
 	const [isLoadingMore, setIsLoadingMore] = useState(false);
 
+	const queryClient = useQueryClient();
+	const currencyListKey = trpc.currency.list.queryOptions().queryKey;
+
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
 
-	const transactionsQuery = useQuery(
+	const transactionsQueryOptions =
 		trpc.currencyTransaction.listByCurrency.queryOptions(
 			{ currencyId: expandedCurrencyId ?? "" },
 			{ enabled: expandedCurrencyId !== null }
-		)
-	);
+		);
+
+	const transactionsQuery = useQuery(transactionsQueryOptions);
 
 	useEffect(() => {
 		if (transactionsQuery.data) {
@@ -87,89 +90,199 @@ function CurrenciesPage() {
 		setIsLoadingMore(false);
 	};
 
-	const handleCreate = async (values: CurrencyValues) => {
-		setIsSubmitting(true);
-		try {
-			await trpcClient.currency.create.mutate(values);
-			await currenciesQuery.refetch();
+	const createMutation = useMutation({
+		mutationFn: (values: CurrencyValues) =>
+			trpcClient.currency.create.mutate(values),
+		onMutate: async (newCurrency) => {
+			await queryClient.cancelQueries({ queryKey: currencyListKey });
+			const previous = queryClient.getQueryData(currencyListKey);
+			queryClient.setQueryData(currencyListKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				const base = old[0];
+				return [
+					...old,
+					{
+						...base,
+						id: `temp-${Date.now()}`,
+						name: newCurrency.name,
+						unit: newCurrency.unit ?? null,
+						balance: 0,
+					},
+				];
+			});
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(currencyListKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: currencyListKey });
+		},
+		onSuccess: () => {
 			setIsCreateOpen(false);
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
+		},
+	});
 
-	const handleUpdate = async (values: CurrencyValues) => {
-		if (!editingCurrency) {
-			return;
-		}
-		setIsSubmitting(true);
-		try {
-			await trpcClient.currency.update.mutate({
-				id: editingCurrency.id,
-				...values,
-			});
-			await currenciesQuery.refetch();
+	const updateMutation = useMutation({
+		mutationFn: (values: CurrencyValues & { id: string }) =>
+			trpcClient.currency.update.mutate(values),
+		onMutate: async (updated) => {
+			await queryClient.cancelQueries({ queryKey: currencyListKey });
+			const previous = queryClient.getQueryData(currencyListKey);
+			queryClient.setQueryData(currencyListKey, (old) =>
+				old?.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(currencyListKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: currencyListKey });
+		},
+		onSuccess: () => {
 			setEditingCurrency(null);
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
+		},
+	});
 
-	const handleDelete = async (id: string) => {
-		await trpcClient.currency.delete.mutate({ id });
-		await currenciesQuery.refetch();
-		if (expandedCurrencyId === id) {
-			setExpandedCurrencyId(null);
-			resetTransactionState();
-		}
-	};
+	const deleteMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.currency.delete.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({ queryKey: currencyListKey });
+			const previous = queryClient.getQueryData(currencyListKey);
+			queryClient.setQueryData(currencyListKey, (old) =>
+				old?.filter((c) => c.id !== id)
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(currencyListKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: currencyListKey });
+		},
+		onSuccess: (_data, id) => {
+			if (expandedCurrencyId === id) {
+				setExpandedCurrencyId(null);
+				resetTransactionState();
+			}
+		},
+	});
 
-	const handleAddTransaction = async (values: TransactionValues) => {
-		if (!addTransactionCurrencyId) {
-			return;
-		}
-		setIsSubmitting(true);
-		try {
-			await trpcClient.currencyTransaction.create.mutate({
-				currencyId: addTransactionCurrencyId,
-				...values,
+	const addTransactionMutation = useMutation({
+		mutationFn: (values: TransactionValues & { currencyId: string }) =>
+			trpcClient.currencyTransaction.create.mutate(values),
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: currencyListKey });
+			queryClient.invalidateQueries({
+				queryKey: transactionsQueryOptions.queryKey,
 			});
-			await currenciesQuery.refetch();
+		},
+		onSuccess: () => {
 			resetTransactionState();
-			await transactionsQuery.refetch();
 			setAddTransactionCurrencyId(null);
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
+		},
+	});
 
-	const handleEditTransaction = async (values: TransactionValues) => {
-		if (!editingTransaction) {
-			return;
-		}
-		setIsSubmitting(true);
-		try {
-			await trpcClient.currencyTransaction.update.mutate({
-				id: editingTransaction.id,
+	const editTransactionMutation = useMutation({
+		mutationFn: (values: {
+			amount: number;
+			id: string;
+			memo: string | null;
+			transactedAt: string;
+			transactionTypeId: string;
+		}) =>
+			trpcClient.currencyTransaction.update.mutate({
+				id: values.id,
 				transactionTypeId: values.transactionTypeId,
 				amount: values.amount,
 				transactedAt: values.transactedAt,
-				memo: values.memo ?? null,
+				memo: values.memo,
+			}),
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: currencyListKey });
+			queryClient.invalidateQueries({
+				queryKey: transactionsQueryOptions.queryKey,
 			});
-			await currenciesQuery.refetch();
+		},
+		onSuccess: () => {
 			resetTransactionState();
-			await transactionsQuery.refetch();
 			setEditingTransaction(null);
-		} finally {
-			setIsSubmitting(false);
-		}
+		},
+	});
+
+	const deleteTransactionMutation = useMutation({
+		mutationFn: (id: string) =>
+			trpcClient.currencyTransaction.delete.mutate({ id }),
+		onMutate: (id) => {
+			const previous = allTransactions;
+			setAllTransactions((prev) => prev.filter((t) => t.id !== id));
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				setAllTransactions(context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: currencyListKey });
+			queryClient.invalidateQueries({
+				queryKey: transactionsQueryOptions.queryKey,
+			});
+		},
+		onSuccess: () => {
+			resetTransactionState();
+		},
+	});
+
+	const handleCreate = (values: CurrencyValues) => {
+		createMutation.mutate(values);
 	};
 
-	const handleDeleteTransaction = async (id: string) => {
-		await trpcClient.currencyTransaction.delete.mutate({ id });
-		await currenciesQuery.refetch();
-		resetTransactionState();
-		await transactionsQuery.refetch();
+	const handleUpdate = (values: CurrencyValues) => {
+		if (!editingCurrency) {
+			return;
+		}
+		updateMutation.mutate({ id: editingCurrency.id, ...values });
+	};
+
+	const handleDelete = (id: string) => {
+		deleteMutation.mutate(id);
+	};
+
+	const handleAddTransaction = (values: TransactionValues) => {
+		if (!addTransactionCurrencyId) {
+			return;
+		}
+		addTransactionMutation.mutate({
+			currencyId: addTransactionCurrencyId,
+			...values,
+		});
+	};
+
+	const handleEditTransaction = (values: TransactionValues) => {
+		if (!editingTransaction) {
+			return;
+		}
+		editTransactionMutation.mutate({
+			id: editingTransaction.id,
+			transactionTypeId: values.transactionTypeId,
+			amount: values.amount,
+			transactedAt: values.transactedAt,
+			memo: values.memo ?? null,
+		});
+	};
+
+	const handleDeleteTransaction = (id: string) => {
+		deleteTransactionMutation.mutate(id);
 	};
 
 	const handleLoadMore = async () => {
@@ -200,6 +313,11 @@ function CurrenciesPage() {
 			return id;
 		});
 	};
+
+	const isSubmittingCreate = createMutation.isPending;
+	const isSubmittingUpdate = updateMutation.isPending;
+	const isSubmittingAddTransaction = addTransactionMutation.isPending;
+	const isSubmittingEditTransaction = editTransactionMutation.isPending;
 
 	return (
 		<div className="p-4 md:p-6">
@@ -252,7 +370,7 @@ function CurrenciesPage() {
 				open={isCreateOpen}
 				title="New Currency"
 			>
-				<CurrencyForm isLoading={isSubmitting} onSubmit={handleCreate} />
+				<CurrencyForm isLoading={isSubmittingCreate} onSubmit={handleCreate} />
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
@@ -270,7 +388,7 @@ function CurrenciesPage() {
 							name: editingCurrency.name,
 							unit: editingCurrency.unit ?? undefined,
 						}}
-						isLoading={isSubmitting}
+						isLoading={isSubmittingUpdate}
 						onSubmit={handleUpdate}
 					/>
 				)}
@@ -286,7 +404,7 @@ function CurrenciesPage() {
 				title="Add Transaction"
 			>
 				<TransactionForm
-					isLoading={isSubmitting}
+					isLoading={isSubmittingAddTransaction}
 					onSubmit={handleAddTransaction}
 				/>
 			</ResponsiveDialog>
@@ -311,7 +429,7 @@ function CurrenciesPage() {
 									: editingTransaction.transactedAt.toISOString(),
 							memo: editingTransaction.memo ?? undefined,
 						}}
-						isLoading={isSubmitting}
+						isLoading={isSubmittingEditTransaction}
 						onSubmit={handleEditTransaction}
 					/>
 				)}

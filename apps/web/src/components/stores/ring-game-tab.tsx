@@ -6,7 +6,7 @@ import {
 	IconTrash,
 	IconX,
 } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { RingGameForm } from "@/components/stores/ring-game-form";
 import { Badge } from "@/components/ui/badge";
@@ -279,60 +279,114 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 	const [showArchived, setShowArchived] = useState(false);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingGame, setEditingGame] = useState<RingGame | null>(null);
-	const [isSubmitting, setIsSubmitting] = useState(false);
 
-	const gamesQuery = useQuery(
-		trpc.ringGame.listByStore.queryOptions({
-			storeId,
-			includeArchived: showArchived,
-		})
-	);
+	const queryClient = useQueryClient();
+
+	const gamesQueryOptions = trpc.ringGame.listByStore.queryOptions({
+		storeId,
+		includeArchived: showArchived,
+	});
+
+	const gamesQuery = useQuery(gamesQueryOptions);
 	const games = gamesQuery.data ?? [];
 
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
 
-	const handleCreate = async (values: RingGameFormValues) => {
-		setIsSubmitting(true);
-		try {
-			await trpcClient.ringGame.create.mutate({ storeId, ...values });
-			await gamesQuery.refetch();
+	const createMutation = useMutation({
+		mutationFn: (values: RingGameFormValues) =>
+			trpcClient.ringGame.create.mutate({ storeId, ...values }),
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: gamesQueryOptions.queryKey });
+		},
+		onSuccess: () => {
 			setIsCreateOpen(false);
-		} finally {
-			setIsSubmitting(false);
-		}
+		},
+	});
+
+	const updateMutation = useMutation({
+		mutationFn: (values: RingGameFormValues & { id: string }) =>
+			trpcClient.ringGame.update.mutate(values),
+		onMutate: async (updated) => {
+			await queryClient.cancelQueries({
+				queryKey: gamesQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(gamesQueryOptions.queryKey);
+			queryClient.setQueryData(gamesQueryOptions.queryKey, (old) =>
+				old?.map((g) => (g.id === updated.id ? { ...g, ...updated } : g))
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(gamesQueryOptions.queryKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: gamesQueryOptions.queryKey });
+		},
+		onSuccess: () => {
+			setEditingGame(null);
+		},
+	});
+
+	const archiveMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.ringGame.archive.mutate({ id }),
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: gamesQueryOptions.queryKey });
+		},
+	});
+
+	const restoreMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.ringGame.restore.mutate({ id }),
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: gamesQueryOptions.queryKey });
+		},
+	});
+
+	const deleteMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.ringGame.delete.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({
+				queryKey: gamesQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(gamesQueryOptions.queryKey);
+			queryClient.setQueryData(gamesQueryOptions.queryKey, (old) =>
+				old?.filter((g) => g.id !== id)
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(gamesQueryOptions.queryKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: gamesQueryOptions.queryKey });
+		},
+	});
+
+	const handleCreate = (values: RingGameFormValues) => {
+		createMutation.mutate(values);
 	};
 
-	const handleUpdate = async (values: RingGameFormValues) => {
+	const handleUpdate = (values: RingGameFormValues) => {
 		if (!editingGame) {
 			return;
 		}
-		setIsSubmitting(true);
-		try {
-			await trpcClient.ringGame.update.mutate({
-				id: editingGame.id,
-				...values,
-			});
-			await gamesQuery.refetch();
-			setEditingGame(null);
-		} finally {
-			setIsSubmitting(false);
-		}
+		updateMutation.mutate({ id: editingGame.id, ...values });
 	};
 
-	const handleArchive = async (id: string) => {
-		await trpcClient.ringGame.archive.mutate({ id });
-		await gamesQuery.refetch();
+	const handleArchive = (id: string) => {
+		archiveMutation.mutate(id);
 	};
 
-	const handleRestore = async (id: string) => {
-		await trpcClient.ringGame.restore.mutate({ id });
-		await gamesQuery.refetch();
+	const handleRestore = (id: string) => {
+		restoreMutation.mutate(id);
 	};
 
-	const handleDelete = async (id: string) => {
-		await trpcClient.ringGame.delete.mutate({ id });
-		await gamesQuery.refetch();
+	const handleDelete = (id: string) => {
+		deleteMutation.mutate(id);
 	};
 
 	return (
@@ -379,7 +433,10 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 				open={isCreateOpen}
 				title="Add Cash Game"
 			>
-				<RingGameForm isLoading={isSubmitting} onSubmit={handleCreate} />
+				<RingGameForm
+					isLoading={createMutation.isPending}
+					onSubmit={handleCreate}
+				/>
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
@@ -411,7 +468,7 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 							currencyId: editingGame.currencyId ?? undefined,
 							memo: editingGame.memo ?? undefined,
 						}}
-						isLoading={isSubmitting}
+						isLoading={updateMutation.isPending}
 						onSubmit={handleUpdate}
 					/>
 				)}

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,15 +46,25 @@ export function TransactionForm({
 	defaultValues,
 	isLoading = false,
 }: TransactionFormProps) {
+	const queryClient = useQueryClient();
+	const typeListKey = trpc.transactionType.list.queryOptions().queryKey;
+
 	const typesQuery = useQuery(trpc.transactionType.list.queryOptions());
 	const types = typesQuery.data ?? [];
 	const [selectedType, setSelectedType] = useState(
 		defaultValues?.transactionTypeId ?? ""
 	);
 	const [newTypeName, setNewTypeName] = useState("");
-	const [isCreatingType, setIsCreatingType] = useState(false);
 
 	const isNewType = selectedType === NEW_TYPE_VALUE;
+
+	const createTypeMutation = useMutation({
+		mutationFn: (name: string) =>
+			trpcClient.transactionType.create.mutate({ name }),
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: typeListKey });
+		},
+	});
 
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -69,20 +79,14 @@ export function TransactionForm({
 			if (!newTypeName.trim()) {
 				return;
 			}
-			setIsCreatingType(true);
-			try {
-				const created = await trpcClient.transactionType.create.mutate({
-					name: newTypeName.trim(),
-				});
-				transactionTypeId = created.id;
-				await typesQuery.refetch();
-			} finally {
-				setIsCreatingType(false);
-			}
+			const created = await createTypeMutation.mutateAsync(newTypeName.trim());
+			transactionTypeId = created.id;
 		}
 
 		onSubmit({ amount, transactionTypeId, transactedAt, memo });
 	};
+
+	const isCreatingType = createTypeMutation.isPending;
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>

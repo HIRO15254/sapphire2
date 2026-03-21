@@ -1,5 +1,5 @@
 import { IconBuildingStore, IconPlus } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { StoreCard } from "@/components/stores/store-card";
@@ -26,39 +26,105 @@ interface StoreItem {
 function StoresPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingStore, setEditingStore] = useState<StoreItem | null>(null);
-	const [isSubmitting, setIsSubmitting] = useState(false);
+
+	const queryClient = useQueryClient();
+	const storeListKey = trpc.store.list.queryOptions().queryKey;
 
 	const storesQuery = useQuery(trpc.store.list.queryOptions());
 	const stores = storesQuery.data ?? [];
 
-	const handleCreate = async (values: StoreValues) => {
-		setIsSubmitting(true);
-		try {
-			await trpcClient.store.create.mutate(values);
-			await storesQuery.refetch();
+	const createMutation = useMutation({
+		mutationFn: (values: StoreValues) => trpcClient.store.create.mutate(values),
+		onMutate: async (newStore) => {
+			await queryClient.cancelQueries({ queryKey: storeListKey });
+			const previous = queryClient.getQueryData(storeListKey);
+			queryClient.setQueryData(storeListKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				const base = old[0];
+				return [
+					...old,
+					{
+						...base,
+						id: `temp-${Date.now()}`,
+						name: newStore.name,
+						memo: newStore.memo ?? null,
+					},
+				];
+			});
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(storeListKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: storeListKey });
+		},
+		onSuccess: () => {
 			setIsCreateOpen(false);
-		} finally {
-			setIsSubmitting(false);
-		}
+		},
+	});
+
+	const updateMutation = useMutation({
+		mutationFn: (values: StoreValues & { id: string }) =>
+			trpcClient.store.update.mutate(values),
+		onMutate: async (updated) => {
+			await queryClient.cancelQueries({ queryKey: storeListKey });
+			const previous = queryClient.getQueryData(storeListKey);
+			queryClient.setQueryData(storeListKey, (old) =>
+				old?.map((s) => (s.id === updated.id ? { ...s, ...updated } : s))
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(storeListKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: storeListKey });
+		},
+		onSuccess: () => {
+			setEditingStore(null);
+		},
+	});
+
+	const deleteMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.store.delete.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({ queryKey: storeListKey });
+			const previous = queryClient.getQueryData(storeListKey);
+			queryClient.setQueryData(storeListKey, (old) =>
+				old?.filter((s) => s.id !== id)
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(storeListKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: storeListKey });
+		},
+	});
+
+	const handleCreate = (values: StoreValues) => {
+		createMutation.mutate(values);
 	};
 
-	const handleUpdate = async (values: StoreValues) => {
+	const handleUpdate = (values: StoreValues) => {
 		if (!editingStore) {
 			return;
 		}
-		setIsSubmitting(true);
-		try {
-			await trpcClient.store.update.mutate({ id: editingStore.id, ...values });
-			await storesQuery.refetch();
-			setEditingStore(null);
-		} finally {
-			setIsSubmitting(false);
-		}
+		updateMutation.mutate({ id: editingStore.id, ...values });
 	};
 
-	const handleDelete = async (id: string) => {
-		await trpcClient.store.delete.mutate({ id });
-		await storesQuery.refetch();
+	const handleDelete = (id: string) => {
+		deleteMutation.mutate(id);
 	};
 
 	return (
@@ -99,7 +165,10 @@ function StoresPage() {
 				open={isCreateOpen}
 				title="New Store"
 			>
-				<StoreForm isLoading={isSubmitting} onSubmit={handleCreate} />
+				<StoreForm
+					isLoading={createMutation.isPending}
+					onSubmit={handleCreate}
+				/>
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
@@ -117,7 +186,7 @@ function StoresPage() {
 							name: editingStore.name,
 							memo: editingStore.memo ?? undefined,
 						}}
-						isLoading={isSubmitting}
+						isLoading={updateMutation.isPending}
 						onSubmit={handleUpdate}
 					/>
 				)}

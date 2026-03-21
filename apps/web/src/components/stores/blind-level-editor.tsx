@@ -20,7 +20,7 @@ import {
 	IconPlus,
 	IconTrash,
 } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -408,18 +408,16 @@ function BlindStructureContent({
 	tournamentId,
 	variant,
 }: BlindStructureContentProps) {
-	const [isAdding, setIsAdding] = useState(false);
+	const queryClient = useQueryClient();
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [lastMinutes, setLastMinutes] = useState<number | null>(null);
-	const [optimisticLevels, setOptimisticLevels] = useState<
-		BlindLevelRow[] | null
-	>(null);
 
-	const levelsQuery = useQuery(
-		trpc.blindLevel.listByTournament.queryOptions({ tournamentId })
-	);
+	const levelsQueryOptions = trpc.blindLevel.listByTournament.queryOptions({
+		tournamentId,
+	});
+
+	const levelsQuery = useQuery(levelsQueryOptions);
 	const levels = levelsQuery.data ?? [];
-	const displayLevels = optimisticLevels ?? levels;
 
 	const initialLastMinutes = (() => {
 		const data = levelsQuery.data;
@@ -448,121 +446,173 @@ function BlindStructureContent({
 		})
 	);
 
-	const handleDragEnd = async (event: DragEndEvent) => {
+	const addLevelMutation = useMutation({
+		mutationFn: (newLevel: {
+			isBreak: boolean;
+			level: number;
+			minutes?: number;
+		}) => trpcClient.blindLevel.create.mutate({ tournamentId, ...newLevel }),
+		onMutate: async (newLevel) => {
+			await queryClient.cancelQueries({
+				queryKey: levelsQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(levelsQueryOptions.queryKey);
+			const tempRow: BlindLevelRow = {
+				id: `temp-${Date.now()}`,
+				tournamentId,
+				level: newLevel.level,
+				isBreak: newLevel.isBreak,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				ante: null,
+				minutes: newLevel.minutes ?? null,
+			};
+			queryClient.setQueryData(
+				levelsQueryOptions.queryKey,
+				(old: BlindLevelRow[] | undefined) => [...(old ?? []), tempRow]
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(levelsQueryOptions.queryKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: levelsQueryOptions.queryKey });
+		},
+	});
+
+	const deleteMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.blindLevel.delete.mutate({ id }),
+		onMutate: async (id) => {
+			if (editingId === id) {
+				setEditingId(null);
+			}
+			await queryClient.cancelQueries({
+				queryKey: levelsQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(levelsQueryOptions.queryKey);
+			queryClient.setQueryData(
+				levelsQueryOptions.queryKey,
+				(old: BlindLevelRow[] | undefined) =>
+					(old ?? []).filter((l) => l.id !== id)
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(levelsQueryOptions.queryKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: levelsQueryOptions.queryKey });
+		},
+	});
+
+	const updateMutation = useMutation({
+		mutationFn: ({
+			id,
+			field,
+			value,
+		}: {
+			field: string;
+			id: string;
+			value: number | null;
+		}) => trpcClient.blindLevel.update.mutate({ id, [field]: value }),
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: levelsQueryOptions.queryKey });
+		},
+	});
+
+	const reorderMutation = useMutation({
+		mutationFn: (levelIds: string[]) =>
+			trpcClient.blindLevel.reorder.mutate({ tournamentId, levelIds }),
+		onMutate: async (levelIds) => {
+			await queryClient.cancelQueries({
+				queryKey: levelsQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(levelsQueryOptions.queryKey);
+			queryClient.setQueryData(
+				levelsQueryOptions.queryKey,
+				(old: BlindLevelRow[] | undefined) => {
+					if (!old) {
+						return old;
+					}
+					return levelIds
+						.map((id) => old.find((l) => l.id === id))
+						.filter((l): l is BlindLevelRow => l !== undefined);
+				}
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(levelsQueryOptions.queryKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: levelsQueryOptions.queryKey });
+		},
+	});
+
+	const handleDragEnd = (event: DragEndEvent) => {
 		const { active, over } = event;
 		if (!over || active.id === over.id) {
 			return;
 		}
-		const currentLevels = optimisticLevels ?? levels;
-		const oldIndex = currentLevels.findIndex((l) => l.id === active.id);
-		const newIndex = currentLevels.findIndex((l) => l.id === over.id);
+		const oldIndex = levels.findIndex((l) => l.id === active.id);
+		const newIndex = levels.findIndex((l) => l.id === over.id);
 		if (oldIndex === -1 || newIndex === -1) {
 			return;
 		}
-		const reordered = arrayMove(currentLevels, oldIndex, newIndex);
-		setOptimisticLevels(reordered);
-		await trpcClient.blindLevel.reorder.mutate({
-			tournamentId,
-			levelIds: reordered.map((l) => l.id),
+		const reordered = arrayMove(levels, oldIndex, newIndex);
+		reorderMutation.mutate(reordered.map((l) => l.id));
+	};
+
+	const handleAddLevel = () => {
+		const nextLevel = levels.length + 1;
+		addLevelMutation.mutate({
+			level: nextLevel,
+			isBreak: false,
+			...(effectiveLastMinutes != null
+				? { minutes: effectiveLastMinutes }
+				: {}),
 		});
-		await levelsQuery.refetch();
-		setOptimisticLevels(null);
 	};
 
-	const handleAddLevel = async () => {
-		setIsAdding(true);
-		try {
-			const currentLevels = optimisticLevels ?? levels;
-			const nextLevel = currentLevels.length + 1;
-			const tempId = `temp-${Date.now()}`;
-			const tempRow: BlindLevelRow = {
-				id: tempId,
-				tournamentId,
-				level: nextLevel,
-				isBreak: false,
-				blind1: null,
-				blind2: null,
-				blind3: null,
-				ante: null,
-				minutes: effectiveLastMinutes,
-			};
-			setOptimisticLevels([...currentLevels, tempRow]);
-			await trpcClient.blindLevel.create.mutate({
-				tournamentId,
-				level: nextLevel,
-				isBreak: false,
-				...(effectiveLastMinutes != null
-					? { minutes: effectiveLastMinutes }
-					: {}),
-			});
-			await levelsQuery.refetch();
-			setOptimisticLevels(null);
-		} finally {
-			setIsAdding(false);
-		}
+	const handleAddBreak = () => {
+		const nextLevel = levels.length + 1;
+		addLevelMutation.mutate({
+			level: nextLevel,
+			isBreak: true,
+			...(effectiveLastMinutes != null
+				? { minutes: effectiveLastMinutes }
+				: {}),
+		});
 	};
 
-	const handleAddBreak = async () => {
-		setIsAdding(true);
-		try {
-			const currentLevels = optimisticLevels ?? levels;
-			const nextLevel = currentLevels.length + 1;
-			const tempId = `temp-${Date.now()}`;
-			const tempRow: BlindLevelRow = {
-				id: tempId,
-				tournamentId,
-				level: nextLevel,
-				isBreak: true,
-				blind1: null,
-				blind2: null,
-				blind3: null,
-				ante: null,
-				minutes: effectiveLastMinutes,
-			};
-			setOptimisticLevels([...currentLevels, tempRow]);
-			await trpcClient.blindLevel.create.mutate({
-				tournamentId,
-				level: nextLevel,
-				isBreak: true,
-				...(effectiveLastMinutes != null
-					? { minutes: effectiveLastMinutes }
-					: {}),
-			});
-			await levelsQuery.refetch();
-			setOptimisticLevels(null);
-		} finally {
-			setIsAdding(false);
-		}
+	const handleDelete = (id: string) => {
+		deleteMutation.mutate(id);
 	};
 
-	const handleDelete = async (id: string) => {
-		if (editingId === id) {
-			setEditingId(null);
-		}
-		const currentLevels = optimisticLevels ?? levels;
-		setOptimisticLevels(currentLevels.filter((l) => l.id !== id));
-		await trpcClient.blindLevel.delete.mutate({ id });
-		await levelsQuery.refetch();
-		setOptimisticLevels(null);
-	};
-
-	const handleUpdate = async (
-		id: string,
-		updates: Record<string, number | null>
-	) => {
-		const currentLevels = optimisticLevels ?? levels;
-		setOptimisticLevels(
-			currentLevels.map((l) => (l.id === id ? { ...l, ...updates } : l))
+	const handleUpdate = (id: string, updates: Record<string, number | null>) => {
+		// Optimistically update the cache for all fields at once
+		queryClient.setQueryData(
+			levelsQueryOptions.queryKey,
+			(old: BlindLevelRow[] | undefined) =>
+				(old ?? []).map((l) => (l.id === id ? { ...l, ...updates } : l))
 		);
 		for (const [field, value] of Object.entries(updates)) {
-			await trpcClient.blindLevel.update.mutate({ id, [field]: value });
+			updateMutation.mutate({ id, field, value });
 		}
 		if (updates.minutes != null) {
 			setLastMinutes(updates.minutes);
 		}
-		await levelsQuery.refetch();
-		setOptimisticLevels(null);
 	};
+
+	const isAdding = addLevelMutation.isPending;
 
 	if (levelsQuery.isLoading) {
 		return (
@@ -575,7 +625,7 @@ function BlindStructureContent({
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex flex-col gap-2">
-				{displayLevels.length === 0 ? (
+				{levels.length === 0 ? (
 					<p className="py-8 text-center text-muted-foreground text-sm">
 						No blind levels yet. Add a level to get started.
 					</p>
@@ -586,11 +636,11 @@ function BlindStructureContent({
 						sensors={sensors}
 					>
 						<SortableContext
-							items={displayLevels.map((l) => l.id)}
+							items={levels.map((l) => l.id)}
 							strategy={verticalListSortingStrategy}
 						>
 							<div className="flex flex-col gap-2">
-								{displayLevels.map((row) => (
+								{levels.map((row) => (
 									<SortableLevelCard
 										blindLabels={blindLabels}
 										editingId={editingId}

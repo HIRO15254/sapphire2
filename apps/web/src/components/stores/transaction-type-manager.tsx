@@ -1,11 +1,14 @@
 import { IconEdit, IconTrash, IconX } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export function TransactionTypeManager() {
+	const queryClient = useQueryClient();
+	const typeListKey = trpc.transactionType.list.queryOptions().queryKey;
+
 	const typesQuery = useQuery(trpc.transactionType.list.queryOptions());
 	const types = typesQuery.data ?? [];
 	const [editingId, setEditingId] = useState<string | null>(null);
@@ -15,31 +18,35 @@ export function TransactionTypeManager() {
 	);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 
-	const startEdit = (id: string, name: string) => {
-		setEditingId(id);
-		setEditingName(name);
-	};
+	const updateMutation = useMutation({
+		mutationFn: ({ id, name }: { id: string; name: string }) =>
+			trpcClient.transactionType.update.mutate({ id, name }),
+		onMutate: async ({ id, name }) => {
+			await queryClient.cancelQueries({ queryKey: typeListKey });
+			const previous = queryClient.getQueryData(typeListKey);
+			queryClient.setQueryData(typeListKey, (old) =>
+				old?.map((t) => (t.id === id ? { ...t, name } : t))
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(typeListKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: typeListKey });
+		},
+		onSuccess: () => {
+			setEditingId(null);
+			setEditingName("");
+		},
+	});
 
-	const handleUpdate = async () => {
-		if (!(editingId && editingName.trim())) {
-			return;
-		}
-		await trpcClient.transactionType.update.mutate({
-			id: editingId,
-			name: editingName.trim(),
-		});
-		await typesQuery.refetch();
-		setEditingId(null);
-		setEditingName("");
-	};
-
-	const handleDelete = async (id: string) => {
-		setDeleteError(null);
-		try {
-			await trpcClient.transactionType.delete.mutate({ id });
-			await typesQuery.refetch();
-			setConfirmingDeleteId(null);
-		} catch (err: unknown) {
+	const deleteMutation = useMutation({
+		mutationFn: (id: string) =>
+			trpcClient.transactionType.delete.mutate({ id }),
+		onError: (err: unknown) => {
 			if (
 				err &&
 				typeof err === "object" &&
@@ -50,7 +57,30 @@ export function TransactionTypeManager() {
 			} else {
 				setDeleteError("Failed to delete");
 			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: typeListKey });
+		},
+		onSuccess: () => {
+			setConfirmingDeleteId(null);
+		},
+	});
+
+	const startEdit = (id: string, name: string) => {
+		setEditingId(id);
+		setEditingName(name);
+	};
+
+	const handleUpdate = () => {
+		if (!(editingId && editingName.trim())) {
+			return;
 		}
+		updateMutation.mutate({ id: editingId, name: editingName.trim() });
+	};
+
+	const handleDelete = (id: string) => {
+		setDeleteError(null);
+		deleteMutation.mutate(id);
 	};
 
 	return (

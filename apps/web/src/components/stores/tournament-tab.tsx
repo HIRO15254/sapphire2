@@ -7,7 +7,7 @@ import {
 	IconTrash,
 	IconX,
 } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { BlindLevelEditor } from "@/components/stores/blind-level-editor";
 import { TournamentForm } from "@/components/stores/tournament-form";
@@ -67,9 +67,9 @@ interface TournamentCardProps {
 	onArchive: (id: string) => void;
 	onDelete: (id: string) => void;
 	onEdit: (tournament: Tournament) => void;
-	onRefetch: () => void;
 	onRestore: (id: string) => void;
 	tournament: Tournament;
+	tournamentQueryKey: readonly unknown[];
 }
 
 interface TournamentListProps {
@@ -79,8 +79,8 @@ interface TournamentListProps {
 	onArchive: (id: string) => void;
 	onDelete: (id: string) => void;
 	onEdit: (tournament: Tournament) => void;
-	onRefetch: () => void;
 	onRestore: (id: string) => void;
+	tournamentQueryKey: readonly unknown[];
 	tournaments: Tournament[];
 }
 
@@ -96,28 +96,87 @@ function formatBuyIn(t: Tournament): string {
 }
 
 interface TagListProps {
-	onRefetch: () => void;
 	tags: { id: string; name: string }[];
 	tournamentId: string;
+	tournamentQueryKey: readonly unknown[];
 }
 
-function TagList({ tournamentId, tags, onRefetch }: TagListProps) {
+function TagList({ tournamentId, tags, tournamentQueryKey }: TagListProps) {
+	const queryClient = useQueryClient();
 	const [adding, setAdding] = useState(false);
 	const [newTagValue, setNewTagValue] = useState("");
 	const inputRef = useRef<HTMLInputElement>(null);
+
+	const addTagMutation = useMutation({
+		mutationFn: ({ name }: { name: string }) =>
+			trpcClient.tournament.addTag.mutate({ tournamentId, name }),
+		onMutate: async ({ name }) => {
+			await queryClient.cancelQueries({ queryKey: tournamentQueryKey });
+			const previous = queryClient.getQueryData(tournamentQueryKey) as
+				| Tournament[]
+				| undefined;
+			queryClient.setQueryData(
+				tournamentQueryKey,
+				previous?.map((t) =>
+					t.id === tournamentId
+						? {
+								...t,
+								tags: [...t.tags, { id: `temp-${Date.now()}`, name }],
+							}
+						: t
+				)
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(tournamentQueryKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: tournamentQueryKey });
+		},
+	});
+
+	const removeTagMutation = useMutation({
+		mutationFn: (tagId: string) =>
+			trpcClient.tournament.removeTag.mutate({ id: tagId }),
+		onMutate: async (tagId) => {
+			await queryClient.cancelQueries({ queryKey: tournamentQueryKey });
+			const previous = queryClient.getQueryData(tournamentQueryKey) as
+				| Tournament[]
+				| undefined;
+			queryClient.setQueryData(
+				tournamentQueryKey,
+				previous?.map((t) =>
+					t.id === tournamentId
+						? { ...t, tags: t.tags.filter((tag) => tag.id !== tagId) }
+						: t
+				)
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(tournamentQueryKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: tournamentQueryKey });
+		},
+	});
 
 	const handleAddClick = () => {
 		setAdding(true);
 		setTimeout(() => inputRef.current?.focus(), 0);
 	};
 
-	const handleAddKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+	const handleAddKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
 		if (e.key === "Enter") {
 			e.preventDefault();
 			const name = newTagValue.trim();
 			if (name) {
-				await trpcClient.tournament.addTag.mutate({ tournamentId, name });
-				await onRefetch();
+				addTagMutation.mutate({ name });
 			}
 			setNewTagValue("");
 			setAdding(false);
@@ -128,9 +187,8 @@ function TagList({ tournamentId, tags, onRefetch }: TagListProps) {
 		}
 	};
 
-	const handleRemoveTag = async (tagId: string) => {
-		await trpcClient.tournament.removeTag.mutate({ id: tagId });
-		await onRefetch();
+	const handleRemoveTag = (tagId: string) => {
+		removeTagMutation.mutate(tagId);
 	};
 
 	return (
@@ -177,8 +235,8 @@ function TournamentCard({
 	onArchive,
 	onDelete,
 	onEdit,
-	onRefetch,
 	onRestore,
+	tournamentQueryKey,
 }: TournamentCardProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [blindEditorOpen, setBlindEditorOpen] = useState(false);
@@ -204,9 +262,9 @@ function TournamentCard({
 						</p>
 					)}
 					<TagList
-						onRefetch={onRefetch}
 						tags={tournament.tags}
 						tournamentId={tournament.id}
+						tournamentQueryKey={tournamentQueryKey}
 					/>
 					<Button
 						className="mt-2 gap-1.5 text-xs"
@@ -304,8 +362,8 @@ function TournamentList({
 	onArchive,
 	onDelete,
 	onEdit,
-	onRefetch,
 	onRestore,
+	tournamentQueryKey,
 }: TournamentListProps) {
 	if (isLoading) {
 		return (
@@ -345,9 +403,9 @@ function TournamentList({
 					onArchive={onArchive}
 					onDelete={onDelete}
 					onEdit={onEdit}
-					onRefetch={onRefetch}
 					onRestore={onRestore}
 					tournament={t}
+					tournamentQueryKey={tournamentQueryKey}
 				/>
 			))}
 		</div>
@@ -360,57 +418,131 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 	const [editingTournament, setEditingTournament] = useState<Tournament | null>(
 		null
 	);
-	const [isSubmitting, setIsSubmitting] = useState(false);
 
-	const tournamentsQuery = useQuery(
-		trpc.tournament.listByStore.queryOptions({
-			storeId,
-			includeArchived: showArchived,
-		})
-	);
+	const queryClient = useQueryClient();
+
+	const tournamentsQueryOptions = trpc.tournament.listByStore.queryOptions({
+		storeId,
+		includeArchived: showArchived,
+	});
+
+	const tournamentsQuery = useQuery(tournamentsQueryOptions);
 	const tournaments = (tournamentsQuery.data ?? []) as Tournament[];
 
-	const handleCreate = async (values: TournamentFormValues) => {
-		setIsSubmitting(true);
-		try {
-			await trpcClient.tournament.create.mutate({ storeId, ...values });
-			await tournamentsQuery.refetch();
+	const createMutation = useMutation({
+		mutationFn: (values: TournamentFormValues) =>
+			trpcClient.tournament.create.mutate({ storeId, ...values }),
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				queryKey: tournamentsQueryOptions.queryKey,
+			});
+		},
+		onSuccess: () => {
 			setIsCreateOpen(false);
-		} finally {
-			setIsSubmitting(false);
-		}
+		},
+	});
+
+	const updateMutation = useMutation({
+		mutationFn: (values: TournamentFormValues & { id: string }) =>
+			trpcClient.tournament.update.mutate(values),
+		onMutate: async (updated) => {
+			await queryClient.cancelQueries({
+				queryKey: tournamentsQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(
+				tournamentsQueryOptions.queryKey
+			);
+			queryClient.setQueryData(tournamentsQueryOptions.queryKey, (old) =>
+				old?.map((t) => (t.id === updated.id ? { ...t, ...updated } : t))
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(
+					tournamentsQueryOptions.queryKey,
+					context.previous
+				);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				queryKey: tournamentsQueryOptions.queryKey,
+			});
+		},
+		onSuccess: () => {
+			setEditingTournament(null);
+		},
+	});
+
+	const archiveMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.tournament.archive.mutate({ id }),
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				queryKey: tournamentsQueryOptions.queryKey,
+			});
+		},
+	});
+
+	const restoreMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.tournament.restore.mutate({ id }),
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				queryKey: tournamentsQueryOptions.queryKey,
+			});
+		},
+	});
+
+	const deleteMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.tournament.delete.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({
+				queryKey: tournamentsQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(
+				tournamentsQueryOptions.queryKey
+			);
+			queryClient.setQueryData(tournamentsQueryOptions.queryKey, (old) =>
+				old?.filter((t) => t.id !== id)
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(
+					tournamentsQueryOptions.queryKey,
+					context.previous
+				);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				queryKey: tournamentsQueryOptions.queryKey,
+			});
+		},
+	});
+
+	const handleCreate = (values: TournamentFormValues) => {
+		createMutation.mutate(values);
 	};
 
-	const handleUpdate = async (values: TournamentFormValues) => {
+	const handleUpdate = (values: TournamentFormValues) => {
 		if (!editingTournament) {
 			return;
 		}
-		setIsSubmitting(true);
-		try {
-			await trpcClient.tournament.update.mutate({
-				id: editingTournament.id,
-				...values,
-			});
-			await tournamentsQuery.refetch();
-			setEditingTournament(null);
-		} finally {
-			setIsSubmitting(false);
-		}
+		updateMutation.mutate({ id: editingTournament.id, ...values });
 	};
 
-	const handleArchive = async (id: string) => {
-		await trpcClient.tournament.archive.mutate({ id });
-		await tournamentsQuery.refetch();
+	const handleArchive = (id: string) => {
+		archiveMutation.mutate(id);
 	};
 
-	const handleRestore = async (id: string) => {
-		await trpcClient.tournament.restore.mutate({ id });
-		await tournamentsQuery.refetch();
+	const handleRestore = (id: string) => {
+		restoreMutation.mutate(id);
 	};
 
-	const handleDelete = async (id: string) => {
-		await trpcClient.tournament.delete.mutate({ id });
-		await tournamentsQuery.refetch();
+	const handleDelete = (id: string) => {
+		deleteMutation.mutate(id);
 	};
 
 	return (
@@ -447,8 +579,8 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 				onArchive={handleArchive}
 				onDelete={handleDelete}
 				onEdit={setEditingTournament}
-				onRefetch={() => tournamentsQuery.refetch()}
 				onRestore={handleRestore}
+				tournamentQueryKey={tournamentsQueryOptions.queryKey}
 				tournaments={tournaments}
 			/>
 
@@ -457,7 +589,10 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 				open={isCreateOpen}
 				title="Add Tournament"
 			>
-				<TournamentForm isLoading={isSubmitting} onSubmit={handleCreate} />
+				<TournamentForm
+					isLoading={createMutation.isPending}
+					onSubmit={handleCreate}
+				/>
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
@@ -488,7 +623,7 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 							currencyId: editingTournament.currencyId ?? undefined,
 							memo: editingTournament.memo ?? undefined,
 						}}
-						isLoading={isSubmitting}
+						isLoading={updateMutation.isPending}
 						onSubmit={handleUpdate}
 					/>
 				)}
