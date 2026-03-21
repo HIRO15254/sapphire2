@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { DevtoolsToggle } from "@/components/devtools-toggle";
 import { MobileNav } from "@/components/mobile-nav";
+import { OnlineStatusBar } from "@/components/online-status-bar";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -71,6 +72,7 @@ function RootComponent() {
 					<>
 						<SidebarNav />
 						<div className="flex h-svh flex-col md:ml-56">
+							<OnlineStatusBar />
 							<div className="flex-1 overflow-auto pb-16 md:pb-0">
 								<Outlet />
 							</div>

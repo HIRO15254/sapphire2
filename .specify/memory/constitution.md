@@ -28,6 +28,9 @@ All UI components and layouts MUST be designed mobile-first. Start with the smal
 ### VII. API Contract Discipline
 tRPC routers define the contract between frontend and backend. Input validation uses Zod schemas. Protected routes use `protectedProcedure`; public routes use `publicProcedure`. Every router procedure MUST validate its inputs. Error responses use TRPCError with descriptive messages and appropriate error codes.
 
+### VIII. Offline-First Data Layer
+All data fetching uses TanStack Query via tRPC's `queryOptions()`. Mutations MUST use `useMutation` with tRPC's `mutationOptions()` and include optimistic `onMutate`/`onError`/`onSettled` callbacks. Direct `trpcClient.*.mutate()` calls are prohibited in React components. Query cache is persisted to IndexedDB via `@tanstack/react-query-persist-client`. `networkMode: 'offlineFirst'` is the default for both queries and mutations.
+
 ## Technology Standards
 
 | Category | Technology |
@@ -60,4 +63,4 @@ This constitution supersedes ad-hoc practices. Amendments require:
 
 Complexity MUST be justified. Default to the simplest approach that meets requirements (YAGNI). Prefer editing existing files over creating new ones. Do not add features beyond what was requested.
 
-**Version**: 1.1.0 | **Ratified**: 2026-03-01 | **Last Amended**: 2026-03-19
+**Version**: 1.2.0 | **Ratified**: 2026-03-01 | **Last Amended**: 2026-03-22
