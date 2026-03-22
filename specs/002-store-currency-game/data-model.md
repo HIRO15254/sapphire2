@@ -7,7 +7,8 @@ User (auth.user)
 ├── 1:N → Store
 │        ├── 1:N → RingGame ──→ N:1 Currency (optional)
 │        └── 1:N → Tournament ─→ N:1 Currency (optional)
-│                 └── 1:N → BlindLevel
+│                 ├── 1:N → BlindLevel
+│                 └── 1:N → TournamentTag
 ├── 1:N → Currency
 │        └── 1:N → CurrencyTransaction → N:1 TransactionType
 └── 1:N → TransactionType
@@ -79,32 +80,35 @@ User (auth.user)
 
 **Indexes**: `currencyTransaction_currencyId_idx` on currencyId
 **Relations**: currency (many-to-one), transactionType (many-to-one)
+**Note**: 履歴取得はカーソルベースページネーション（`nextCursor`）を使用。編集（update）操作をサポート。
 
 ---
 
 ### RingGame
 
-| Field     | Type              | Constraints              | Notes                    |
-|-----------|-------------------|--------------------------|--------------------------|
-| id        | text              | PK                       | crypto.randomUUID()      |
-| storeId   | text              | FK → store.id, NOT NULL  | cascade delete           |
-| name      | text              | NOT NULL                 | ユーザー定義ラベル       |
-| variant   | text              | NOT NULL                 | "nlh" (初期はNLHのみ)   |
-| blind1    | integer           | nullable                 | NLH: SB                 |
-| blind2    | integer           | nullable                 | NLH: BB                 |
-| blind3    | integer           | nullable                 | NLH: Straddle            |
-| ante      | integer           | nullable                 |                          |
-| minBuyIn  | integer           | nullable                 |                          |
-| maxBuyIn  | integer           | nullable                 |                          |
-| tableSize | integer           | nullable                 | 最大着席人数             |
-| currencyId | text             | FK → currency.id, nullable | set null on delete      |
-| memo      | text              | nullable                 |                          |
-| archivedAt | integer(timestamp) | nullable                | null=アクティブ          |
-| createdAt | integer(timestamp) | NOT NULL, default now    |                          |
-| updatedAt | integer(timestamp) | NOT NULL, auto-update    |                          |
+| Field     | Type              | Constraints              | Notes                        |
+|-----------|-------------------|--------------------------|------------------------------|
+| id        | text              | PK                       | crypto.randomUUID()          |
+| storeId   | text              | FK → store.id, NOT NULL  | cascade delete               |
+| name      | text              | NOT NULL                 | ユーザー定義ラベル           |
+| variant   | text              | NOT NULL                 | "nlh" (初期はNLHのみ)       |
+| blind1    | integer           | nullable                 | NLH: SB                     |
+| blind2    | integer           | nullable                 | NLH: BB                     |
+| blind3    | integer           | nullable                 | NLH: Straddle                |
+| anteType  | text              | nullable                 | "none" / "bb" / "all"       |
+| ante      | integer           | nullable                 |                              |
+| minBuyIn  | integer           | nullable                 |                              |
+| maxBuyIn  | integer           | nullable                 |                              |
+| tableSize | integer           | nullable                 | 最大着席人数。バッジ表示     |
+| currencyId | text             | FK → currency.id, nullable | set null on delete          |
+| memo      | text              | nullable                 |                              |
+| archivedAt | integer(timestamp) | nullable                | null=アクティブ              |
+| createdAt | integer(timestamp) | NOT NULL, default now    |                              |
+| updatedAt | integer(timestamp) | NOT NULL, auto-update    |                              |
 
 **Indexes**: `ringGame_storeId_idx` on storeId
 **Relations**: store (many-to-one), currency (many-to-one, nullable)
+**Note**: UIでは "Cash Game" と表示する。
 
 ---
 
@@ -134,7 +138,21 @@ User (auth.user)
 | updatedAt      | integer(timestamp) | NOT NULL, auto-update    |                          |
 
 **Indexes**: `tournament_storeId_idx` on storeId
-**Relations**: store (many-to-one), currency (many-to-one, nullable), blindLevels (one-to-many)
+**Relations**: store (many-to-one), currency (many-to-one, nullable), blindLevels (one-to-many), tags (one-to-many)
+
+---
+
+### TournamentTag
+
+| Field        | Type              | Constraints                   | Notes               |
+|--------------|-------------------|-------------------------------|---------------------|
+| id           | text              | PK                            | crypto.randomUUID() |
+| tournamentId | text              | FK → tournament.id, NOT NULL  | cascade delete      |
+| name         | text              | NOT NULL                      |                     |
+| createdAt    | integer(timestamp) | NOT NULL, default now         |                     |
+
+**Indexes**: `tournamentTag_tournamentId_idx` on tournamentId
+**Relations**: tournament (many-to-one)
 
 ---
 
@@ -168,6 +186,16 @@ export const GAME_VARIANTS = {
   },
   // 将来追加:
   // plo: { label: "PLO", blindLabels: { blind1: "SB", blind2: "BB", blind3: "3rd Blind" } },
+} as const;
+```
+
+### Ante Types
+
+```typescript
+export const ANTE_TYPES = {
+  none: { label: "No Ante" },
+  bb: { label: "BB Ante" },
+  all: { label: "All Ante" },
 } as const;
 ```
 

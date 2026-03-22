@@ -33,34 +33,37 @@ All mutations validate ownership (userId match) before modifying data.
 
 ## currencyTransaction router
 
-| Procedure                        | Type     | Input                                                    | Output                    |
-|----------------------------------|----------|----------------------------------------------------------|---------------------------|
-| currencyTransaction.listByCurrency | query  | `{ currencyId: string }`                                 | CurrencyTransaction[]     |
-| currencyTransaction.create       | mutation | `{ currencyId, transactionTypeId, amount, transactedAt, memo? }` | CurrencyTransaction |
-| currencyTransaction.delete       | mutation | `{ id: string }`                                         | void                      |
+| Procedure                          | Type     | Input                                                                   | Output                                          |
+|------------------------------------|----------|-------------------------------------------------------------------------|-------------------------------------------------|
+| currencyTransaction.listByCurrency | query    | `{ currencyId: string, cursor?: string }`                               | `{ items: CurrencyTransaction[], nextCursor?: string }` |
+| currencyTransaction.create         | mutation | `{ currencyId, transactionTypeId, amount, transactedAt, memo? }`        | CurrencyTransaction                             |
+| currencyTransaction.update         | mutation | `{ id, transactionTypeId?, amount?, transactedAt?, memo? }`             | CurrencyTransaction                             |
+| currencyTransaction.delete         | mutation | `{ id: string }`                                                        | void                                            |
 
 ## ringGame router
 
-| Procedure            | Type     | Input                                                       | Output                    |
-|----------------------|----------|-------------------------------------------------------------|---------------------------|
-| ringGame.listByStore | query    | `{ storeId: string, includeArchived?: boolean }`            | RingGame[]                |
-| ringGame.create      | mutation | `{ storeId, name, variant, blind1?, blind2?, blind3?, ante?, minBuyIn?, maxBuyIn?, tableSize?, currencyId?, memo? }` | RingGame |
-| ringGame.update      | mutation | `{ id, ...partial fields }`                                 | RingGame                  |
-| ringGame.archive     | mutation | `{ id: string }`                                            | RingGame                  |
-| ringGame.restore     | mutation | `{ id: string }`                                            | RingGame                  |
-| ringGame.delete      | mutation | `{ id: string }`                                            | void                      |
+| Procedure            | Type     | Input                                                                                                   | Output                    |
+|----------------------|----------|---------------------------------------------------------------------------------------------------------|---------------------------|
+| ringGame.listByStore | query    | `{ storeId: string, includeArchived?: boolean }`                                                        | RingGame[]                |
+| ringGame.create      | mutation | `{ storeId, name, variant, blind1?, blind2?, blind3?, anteType?, ante?, minBuyIn?, maxBuyIn?, tableSize?, currencyId?, memo? }` | RingGame |
+| ringGame.update      | mutation | `{ id, ...partial fields }`                                                                             | RingGame                  |
+| ringGame.archive     | mutation | `{ id: string }`                                                                                        | RingGame                  |
+| ringGame.restore     | mutation | `{ id: string }`                                                                                        | RingGame                  |
+| ringGame.delete      | mutation | `{ id: string }`                                                                                        | void                      |
 
 ## tournament router
 
-| Procedure                | Type     | Input                                                       | Output                    |
-|--------------------------|----------|-------------------------------------------------------------|---------------------------|
-| tournament.listByStore   | query    | `{ storeId: string, includeArchived?: boolean }`            | Tournament[] with levels  |
-| tournament.getById       | query    | `{ id: string }`                                            | Tournament with levels    |
+| Procedure                | Type     | Input                                                                                                                                                               | Output                            |
+|--------------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|
+| tournament.listByStore   | query    | `{ storeId: string, includeArchived?: boolean }`                                                                                                                    | Tournament[] with levels and tags |
+| tournament.getById       | query    | `{ id: string }`                                                                                                                                                    | Tournament with levels and tags   |
 | tournament.create        | mutation | `{ storeId, name, variant, buyIn?, entryFee?, startingStack?, rebuyAllowed, rebuyCost?, rebuyChips?, addonAllowed, addonCost?, addonChips?, bountyAmount?, tableSize?, currencyId?, memo? }` | Tournament |
-| tournament.update        | mutation | `{ id, ...partial fields }`                                 | Tournament                |
-| tournament.archive       | mutation | `{ id: string }`                                            | Tournament                |
-| tournament.restore       | mutation | `{ id: string }`                                            | Tournament                |
-| tournament.delete        | mutation | `{ id: string }`                                            | void (cascade levels)     |
+| tournament.update        | mutation | `{ id, ...partial fields }`                                                                                                                                         | Tournament                        |
+| tournament.archive       | mutation | `{ id: string }`                                                                                                                                                    | Tournament                        |
+| tournament.restore       | mutation | `{ id: string }`                                                                                                                                                    | Tournament                        |
+| tournament.delete        | mutation | `{ id: string }`                                                                                                                                                    | void (cascade levels and tags)    |
+| tournament.addTag        | mutation | `{ tournamentId: string, name: string }`                                                                                                                            | TournamentTag                     |
+| tournament.removeTag     | mutation | `{ id: string }`                                                                                                                                                    | void                              |
 
 ## blindLevel router (nested under tournament)
 
