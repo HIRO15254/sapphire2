@@ -58,7 +58,7 @@ export function ResponsiveDialog({
 						<span className="sr-only">Close</span>
 					</Button>
 				</DrawerHeader>
-				<div className="max-h-[70svh] overflow-y-auto overscroll-contain px-4 pb-4">
+				<div className="overflow-y-auto overscroll-contain px-4 pb-4">
 					{children}
 				</div>
 			</DrawerContent>
