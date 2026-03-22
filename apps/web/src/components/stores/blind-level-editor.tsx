@@ -752,6 +752,7 @@ export function BlindLevelEditor({
 }: BlindLevelEditorProps) {
 	return (
 		<ResponsiveDialog
+			fullHeight
 			onOpenChange={onOpenChange}
 			open={open}
 			title="Blind Structure"

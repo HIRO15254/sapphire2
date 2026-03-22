@@ -17,6 +17,11 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 
 interface ResponsiveDialogProps {
 	children: ReactNode;
+	/**
+	 * When true, the mobile Drawer always uses maximum height.
+	 * Use for content with dynamic height (e.g., editable tables).
+	 */
+	fullHeight?: boolean;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	title: string;
@@ -24,6 +29,7 @@ interface ResponsiveDialogProps {
 
 export function ResponsiveDialog({
 	children,
+	fullHeight = false,
 	onOpenChange,
 	open,
 	title,
@@ -45,8 +51,10 @@ export function ResponsiveDialog({
 
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
-			<DrawerContent>
-				<DrawerHeader className="relative">
+			<DrawerContent
+				className={fullHeight ? "h-[calc(100svh-2rem)]" : undefined}
+			>
+				<DrawerHeader className="relative shrink-0">
 					<DrawerTitle>{title}</DrawerTitle>
 					<Button
 						className="absolute top-2 right-2"
@@ -58,7 +66,7 @@ export function ResponsiveDialog({
 						<span className="sr-only">Close</span>
 					</Button>
 				</DrawerHeader>
-				<div className="overflow-y-auto overscroll-contain px-4 pb-4">
+				<div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
 					{children}
 				</div>
 			</DrawerContent>
