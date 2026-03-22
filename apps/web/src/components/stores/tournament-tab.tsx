@@ -1,6 +1,9 @@
 import {
 	IconArchive,
 	IconArchiveOff,
+	IconChevronDown,
+	IconChevronUp,
+	IconCoffee,
 	IconEdit,
 	IconList,
 	IconPlus,
@@ -15,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { formatCompactNumber } from "@/utils/format-number";
+import { getTableSizeClassName } from "@/utils/table-size-colors";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 interface Tournament {
@@ -64,11 +68,13 @@ interface TournamentTabProps {
 }
 
 interface TournamentCardProps {
+	expandedId: string | null;
 	isArchived: boolean;
 	onArchive: (id: string) => void;
 	onDelete: (id: string) => void;
 	onEdit: (tournament: Tournament) => void;
 	onRestore: (id: string) => void;
+	onToggleExpand: (id: string) => void;
 	tournament: Tournament;
 }
 
@@ -83,6 +89,18 @@ interface TournamentListProps {
 	tournaments: Tournament[];
 }
 
+interface BlindLevelRow {
+	ante: number | null;
+	blind1: number | null;
+	blind2: number | null;
+	blind3: number | null;
+	id: string;
+	isBreak: boolean;
+	level: number;
+	minutes: number | null;
+	tournamentId: string;
+}
+
 function formatBuyIn(t: Tournament): string {
 	if (t.buyIn == null) {
 		return "";
@@ -94,60 +112,140 @@ function formatBuyIn(t: Tournament): string {
 	return parts.join("");
 }
 
+interface BlindStructureSummaryProps {
+	tournamentId: string;
+}
+
+function BlindStructureSummary({ tournamentId }: BlindStructureSummaryProps) {
+	const levelsQuery = useQuery(
+		trpc.blindLevel.listByTournament.queryOptions({ tournamentId })
+	);
+	const levels = (levelsQuery.data ?? []) as BlindLevelRow[];
+
+	if (levelsQuery.isLoading) {
+		return (
+			<p className="py-2 text-center text-muted-foreground text-xs">
+				Loading levels...
+			</p>
+		);
+	}
+
+	if (levels.length === 0) {
+		return (
+			<p className="py-2 text-center text-muted-foreground text-xs">
+				No blind levels yet.
+			</p>
+		);
+	}
+
+	return (
+		<div className="w-full overflow-x-auto">
+			<table className="w-full table-fixed border-collapse text-xs">
+				<thead>
+					<tr>
+						<th className="w-8 pb-1 text-center font-medium text-muted-foreground">
+							#
+						</th>
+						<th className="pb-1 text-center font-medium text-muted-foreground">
+							SB
+						</th>
+						<th className="pb-1 text-center font-medium text-muted-foreground">
+							BB
+						</th>
+						<th className="pb-1 text-center font-medium text-muted-foreground">
+							Ante
+						</th>
+						<th className="w-10 pb-1 text-center font-medium text-muted-foreground">
+							Min
+						</th>
+					</tr>
+				</thead>
+				<tbody>
+					{levels.map((row) =>
+						row.isBreak ? (
+							<tr className="bg-muted/30" key={row.id}>
+								<td className="py-0.5 text-center text-muted-foreground">
+									{row.level}
+								</td>
+								<td className="py-0.5" colSpan={3}>
+									<div className="flex items-center gap-1 text-muted-foreground">
+										<IconCoffee size={12} />
+										<span>Break</span>
+									</div>
+								</td>
+								<td className="py-0.5 text-center text-muted-foreground">
+									{row.minutes ?? "—"}
+								</td>
+							</tr>
+						) : (
+							<tr key={row.id}>
+								<td className="py-0.5 text-center text-muted-foreground">
+									{row.level}
+								</td>
+								<td className="py-0.5 text-center">
+									{row.blind1 != null ? formatCompactNumber(row.blind1) : "—"}
+								</td>
+								<td className="py-0.5 text-center">
+									{row.blind2 != null ? formatCompactNumber(row.blind2) : "—"}
+								</td>
+								<td className="py-0.5 text-center">
+									{row.ante != null ? formatCompactNumber(row.ante) : "—"}
+								</td>
+								<td className="py-0.5 text-center text-muted-foreground">
+									{row.minutes ?? "—"}
+								</td>
+							</tr>
+						)
+					)}
+				</tbody>
+			</table>
+		</div>
+	);
+}
+
 function TournamentCard({
 	tournament,
+	expandedId,
 	isArchived,
 	onArchive,
 	onDelete,
 	onEdit,
 	onRestore,
+	onToggleExpand,
 }: TournamentCardProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [blindEditorOpen, setBlindEditorOpen] = useState(false);
 	const buyInInfo = formatBuyIn(tournament);
-	const startingStackInfo =
-		tournament.startingStack != null
-			? `Stack: ${formatCompactNumber(tournament.startingStack)}`
-			: null;
+	const isExpanded = expandedId === tournament.id;
 
 	return (
 		<div className="rounded-lg border bg-card">
 			<div className="flex items-start justify-between gap-2 p-3">
 				<div className="min-w-0 flex-1">
 					<p className="truncate font-medium">{tournament.name}</p>
-					<div className="mt-0.5 flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
-						{buyInInfo && <span>{buyInInfo}</span>}
-						{startingStackInfo && <span>{startingStackInfo}</span>}
+					{buyInInfo && (
+						<p className="mt-0.5 text-muted-foreground text-sm">{buyInInfo}</p>
+					)}
+					<div className="mt-1 flex flex-wrap items-center gap-1.5">
+						<Badge variant="secondary">
+							{tournament.variant.toUpperCase()}
+						</Badge>
 						{tournament.tableSize != null && (
-							<span>{tournament.tableSize}-max</span>
+							<Badge className={getTableSizeClassName(tournament.tableSize)}>
+								{tournament.tableSize}-max
+							</Badge>
 						)}
-						{tournament.blindLevelCount > 0 && (
-							<span>{tournament.blindLevelCount} levels</span>
-						)}
+						{tournament.tags.map((tag) => (
+							<Badge key={tag.id} variant="outline">
+								{tag.name}
+							</Badge>
+						))}
 					</div>
 					{tournament.memo && (
 						<p className="mt-1 line-clamp-1 text-muted-foreground text-xs">
 							{tournament.memo}
 						</p>
 					)}
-					{tournament.tags.length > 0 && (
-						<div className="mt-1 flex flex-wrap gap-1">
-							{tournament.tags.map((tag) => (
-								<Badge key={tag.id} variant="outline">
-									{tag.name}
-								</Badge>
-							))}
-						</div>
-					)}
-					<Button
-						className="mt-2 gap-1.5 text-xs"
-						onClick={() => setBlindEditorOpen(true)}
-						size="sm"
-						variant="outline"
-					>
-						<IconList size={13} />
-						Edit Structure
-					</Button>
 				</div>
 
 				<div className="flex shrink-0 items-center gap-1">
@@ -212,10 +310,57 @@ function TournamentCard({
 							>
 								<IconTrash size={14} />
 							</Button>
+							<Button
+								aria-label={isExpanded ? "Collapse details" : "Expand details"}
+								onClick={() => onToggleExpand(tournament.id)}
+								size="sm"
+								variant="ghost"
+							>
+								{isExpanded ? (
+									<IconChevronUp size={14} />
+								) : (
+									<IconChevronDown size={14} />
+								)}
+							</Button>
 						</>
 					)}
 				</div>
 			</div>
+
+			{isExpanded && (
+				<div className="border-t px-3 pt-2 pb-3">
+					<div className="mb-2 flex flex-wrap items-center gap-3 text-sm">
+						{tournament.startingStack != null && (
+							<span className="text-muted-foreground">
+								Stack:{" "}
+								<span className="font-medium text-foreground">
+									{formatCompactNumber(tournament.startingStack)}
+								</span>
+							</span>
+						)}
+						{tournament.blindLevelCount > 0 && (
+							<span className="text-muted-foreground">
+								Levels:{" "}
+								<span className="font-medium text-foreground">
+									{tournament.blindLevelCount}
+								</span>
+							</span>
+						)}
+					</div>
+					<BlindStructureSummary tournamentId={tournament.id} />
+					<div className="mt-2">
+						<Button
+							className="gap-1 text-xs"
+							onClick={() => setBlindEditorOpen(true)}
+							size="sm"
+							variant="outline"
+						>
+							<IconList size={14} />
+							Edit Structure
+						</Button>
+					</div>
+				</div>
+			)}
 
 			<BlindLevelEditor
 				onOpenChange={setBlindEditorOpen}
@@ -237,6 +382,12 @@ function TournamentList({
 	onEdit,
 	onRestore,
 }: TournamentListProps) {
+	const [expandedId, setExpandedId] = useState<string | null>(null);
+
+	const handleToggleExpand = (id: string) => {
+		setExpandedId((prev) => (prev === id ? null : id));
+	};
+
 	if (isLoading) {
 		return (
 			<p className="py-8 text-center text-muted-foreground text-sm">
@@ -270,12 +421,14 @@ function TournamentList({
 		<div className="flex flex-col gap-2">
 			{tournaments.map((t) => (
 				<TournamentCard
+					expandedId={expandedId}
 					isArchived={isArchived}
 					key={t.id}
 					onArchive={onArchive}
 					onDelete={onDelete}
 					onEdit={onEdit}
 					onRestore={onRestore}
+					onToggleExpand={handleToggleExpand}
 					tournament={t}
 				/>
 			))}

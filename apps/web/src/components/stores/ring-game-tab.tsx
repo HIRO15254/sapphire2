@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { formatCompactNumber } from "@/utils/format-number";
+import { getTableSizeClassName } from "@/utils/table-size-colors";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 interface RingGame {
@@ -123,7 +124,9 @@ function RingGameCard({
 					<div className="mt-1 flex flex-wrap items-center gap-1.5">
 						<Badge variant="secondary">{variantLabel}</Badge>
 						{game.tableSize != null && (
-							<Badge variant="outline">{game.tableSize}-max</Badge>
+							<Badge className={getTableSizeClassName(game.tableSize)}>
+								{game.tableSize}-max
+							</Badge>
 						)}
 					</div>
 					{blindLine && (
