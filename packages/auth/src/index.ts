@@ -134,7 +134,7 @@ export function createAuth(
 		account: {
 			accountLinking: {
 				enabled: true,
-				trustedProviders: ["google", "discord"],
+				trustedProviders: ["google", "discord", "credential"],
 			},
 		},
 		plugins: [],
