@@ -21,9 +21,8 @@ import {
 	IconTrash,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -53,15 +52,6 @@ interface BlindLevelRow {
 	tournamentId: string;
 }
 
-interface SortableLevelCardProps {
-	blindLabels: { blind1: string; blind2: string; blind3: string };
-	editingId: string | null;
-	onDelete: (id: string) => void;
-	onSetEditing: (id: string | null) => void;
-	onUpdate: (id: string, updates: Record<string, number | null>) => void;
-	row: BlindLevelRow;
-}
-
 function parseIntOrNull(value: string): number | null {
 	if (!value) {
 		return null;
@@ -70,165 +60,7 @@ function parseIntOrNull(value: string): number | null {
 	return Number.isNaN(parsed) ? null : parsed;
 }
 
-// ---- Local edit state hook ----
-
-interface LocalEditState {
-	ante: string;
-	blind1: string;
-	blind2: string;
-	minutes: string;
-}
-
-// ---- Level edit form (non-break) ----
-
-interface LevelEditFormProps {
-	blindLabels: { blind1: string; blind2: string; blind3: string };
-	onBlur: (state: LocalEditState) => void;
-	rowId: string;
-}
-
-function LevelEditForm({ rowId, blindLabels, onBlur }: LevelEditFormProps) {
-	const [state, setState] = useState<LocalEditState>({
-		blind1: "",
-		blind2: "",
-		ante: "",
-		minutes: "",
-	});
-
-	const handleBlind1Change = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const val = e.target.value;
-		const parsed = parseIntOrNull(val);
-		setState((prev) => ({
-			...prev,
-			blind1: val,
-			blind2:
-				prev.blind2 || (parsed != null ? String(parsed * 2) : prev.blind2),
-			ante: prev.ante || (parsed != null ? String(parsed) : prev.ante),
-		}));
-	};
-
-	const handleBlind2Change = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const val = e.target.value;
-		const parsed = parseIntOrNull(val);
-		setState((prev) => ({
-			...prev,
-			blind2: val,
-			ante: prev.ante || (parsed != null ? String(parsed) : prev.ante),
-		}));
-	};
-
-	const handleBlur = () => onBlur(state);
-
-	return (
-		<div className="mt-1 flex flex-col gap-3 rounded-lg border bg-card p-3">
-			<div className="flex flex-col gap-1.5">
-				<label
-					className="font-medium text-muted-foreground text-xs"
-					htmlFor={`${rowId}-blind1`}
-				>
-					{blindLabels.blind1}
-				</label>
-				<Input
-					className="h-9"
-					id={`${rowId}-blind1`}
-					onBlur={handleBlur}
-					onChange={handleBlind1Change}
-					placeholder="0"
-					type="number"
-					value={state.blind1}
-				/>
-			</div>
-			<div className="flex flex-col gap-1.5">
-				<label
-					className="font-medium text-muted-foreground text-xs"
-					htmlFor={`${rowId}-blind2`}
-				>
-					{blindLabels.blind2}
-				</label>
-				<Input
-					className="h-9"
-					id={`${rowId}-blind2`}
-					onBlur={handleBlur}
-					onChange={handleBlind2Change}
-					placeholder="0"
-					type="number"
-					value={state.blind2}
-				/>
-			</div>
-			<div className="flex flex-col gap-1.5">
-				<label
-					className="font-medium text-muted-foreground text-xs"
-					htmlFor={`${rowId}-ante`}
-				>
-					Ante
-				</label>
-				<Input
-					className="h-9"
-					id={`${rowId}-ante`}
-					onBlur={handleBlur}
-					onChange={(e) =>
-						setState((prev) => ({ ...prev, ante: e.target.value }))
-					}
-					placeholder="0"
-					type="number"
-					value={state.ante}
-				/>
-			</div>
-			<div className="flex flex-col gap-1.5">
-				<label
-					className="font-medium text-muted-foreground text-xs"
-					htmlFor={`${rowId}-minutes`}
-				>
-					Time (min)
-				</label>
-				<Input
-					className="h-9"
-					id={`${rowId}-minutes`}
-					onBlur={handleBlur}
-					onChange={(e) =>
-						setState((prev) => ({ ...prev, minutes: e.target.value }))
-					}
-					placeholder="0"
-					type="number"
-					value={state.minutes}
-				/>
-			</div>
-		</div>
-	);
-}
-
-// ---- Break edit form ----
-
-interface BreakEditFormProps {
-	onSave: (minutes: number | null) => void;
-	rowId: string;
-	value: number | null;
-}
-
-function BreakEditForm({ rowId, value, onSave }: BreakEditFormProps) {
-	return (
-		<div className="mt-1 rounded-lg border bg-card p-3">
-			<div className="flex flex-col gap-1.5">
-				<label
-					className="font-medium text-muted-foreground text-xs"
-					htmlFor={`${rowId}-minutes`}
-				>
-					Time (min)
-				</label>
-				<Input
-					className="h-9"
-					defaultValue={value ?? ""}
-					id={`${rowId}-minutes`}
-					onBlur={(e) => onSave(parseIntOrNull(e.target.value))}
-					placeholder="0"
-					type="number"
-				/>
-			</div>
-		</div>
-	);
-}
-
-// ---- Drag handle button ----
+// ---- Drag handle ----
 
 interface DragHandleProps {
 	attributes: ReturnType<typeof useSortable>["attributes"];
@@ -239,26 +71,165 @@ function DragHandle({ attributes, listeners }: DragHandleProps) {
 	return (
 		<button
 			aria-label="Drag to reorder"
-			className="mt-0.5 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+			className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
 			type="button"
 			{...attributes}
 			{...listeners}
 		>
-			<IconGripVertical size={18} />
+			<IconGripVertical size={14} />
 		</button>
 	);
 }
 
-// ---- Main sortable card ----
+// ---- Sortable level row (non-break) ----
 
-function SortableLevelCard({
-	row,
-	blindLabels,
-	editingId,
-	onSetEditing,
-	onDelete,
-	onUpdate,
-}: SortableLevelCardProps) {
+interface SortableLevelRowProps {
+	onDelete: (id: string) => void;
+	onUpdate: (id: string, updates: Record<string, number | null>) => void;
+	row: BlindLevelRow;
+}
+
+function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: row.id });
+
+	// Track current input values for auto-fill logic on blur
+	const currentBlind2Ref = useRef(row.blind2 != null ? String(row.blind2) : "");
+	const currentAnteRef = useRef(row.ante != null ? String(row.ante) : "");
+
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+		opacity: isDragging ? 0.5 : 1,
+	};
+
+	const handleBlind1Blur = (e: React.FocusEvent<HTMLInputElement>) => {
+		const val = e.target.value;
+		const parsed = parseIntOrNull(val);
+		const updates: Record<string, number | null> = { blind1: parsed };
+		if (parsed != null) {
+			if (!currentBlind2Ref.current) {
+				const bb = parsed * 2;
+				currentBlind2Ref.current = String(bb);
+				updates.blind2 = bb;
+				if (!currentAnteRef.current) {
+					currentAnteRef.current = String(bb);
+					updates.ante = bb;
+				}
+			} else if (!currentAnteRef.current) {
+				currentAnteRef.current = String(parsed);
+				updates.ante = parsed;
+			}
+		}
+		onUpdate(row.id, updates);
+	};
+
+	const handleBlind2Blur = (e: React.FocusEvent<HTMLInputElement>) => {
+		const val = e.target.value;
+		currentBlind2Ref.current = val;
+		const parsed = parseIntOrNull(val);
+		const updates: Record<string, number | null> = { blind2: parsed };
+		if (parsed != null && !currentAnteRef.current) {
+			currentAnteRef.current = val;
+			updates.ante = parsed;
+		}
+		onUpdate(row.id, updates);
+	};
+
+	const handleAnteBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+		currentAnteRef.current = e.target.value;
+		onUpdate(row.id, { ante: parseIntOrNull(e.target.value) });
+	};
+
+	const handleMinutesBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+		onUpdate(row.id, { minutes: parseIntOrNull(e.target.value) });
+	};
+
+	return (
+		<tr
+			className={isDragging ? "opacity-50" : ""}
+			ref={setNodeRef}
+			style={style}
+		>
+			<td className="w-10 px-0.5 text-center">
+				<div className="flex items-center justify-center gap-0.5">
+					<DragHandle attributes={attributes} listeners={listeners} />
+					<span className="text-muted-foreground text-xs">{row.level}</span>
+				</div>
+			</td>
+			<td className="px-0.5">
+				<input
+					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none focus:bg-accent focus:ring-1 focus:ring-ring"
+					defaultValue={row.blind1 ?? ""}
+					inputMode="numeric"
+					key={`${row.id}-blind1`}
+					onBlur={handleBlind1Blur}
+					placeholder="—"
+					type="number"
+				/>
+			</td>
+			<td className="px-0.5">
+				<input
+					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none focus:bg-accent focus:ring-1 focus:ring-ring"
+					defaultValue={row.blind2 ?? ""}
+					inputMode="numeric"
+					key={`${row.id}-blind2-${row.blind2}`}
+					onBlur={handleBlind2Blur}
+					placeholder="—"
+					type="number"
+				/>
+			</td>
+			<td className="px-0.5">
+				<input
+					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none focus:bg-accent focus:ring-1 focus:ring-ring"
+					defaultValue={row.ante ?? ""}
+					inputMode="numeric"
+					key={`${row.id}-ante-${row.ante}`}
+					onBlur={handleAnteBlur}
+					placeholder="—"
+					type="number"
+				/>
+			</td>
+			<td className="w-12 px-0.5">
+				<input
+					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none focus:bg-accent focus:ring-1 focus:ring-ring"
+					defaultValue={row.minutes ?? ""}
+					inputMode="numeric"
+					key={`${row.id}-minutes`}
+					onBlur={handleMinutesBlur}
+					placeholder="—"
+					type="number"
+				/>
+			</td>
+			<td className="w-8 px-0.5 text-center">
+				<button
+					aria-label="Delete level"
+					className="text-muted-foreground transition-colors hover:text-destructive"
+					onClick={() => onDelete(row.id)}
+					type="button"
+				>
+					<IconTrash size={14} />
+				</button>
+			</td>
+		</tr>
+	);
+}
+
+// ---- Sortable break row ----
+
+interface SortableBreakRowProps {
+	onDelete: (id: string) => void;
+	onUpdate: (id: string, updates: Record<string, number | null>) => void;
+	row: BlindLevelRow;
+}
+
+function SortableBreakRow({ row, onDelete, onUpdate }: SortableBreakRowProps) {
 	const {
 		attributes,
 		listeners,
@@ -274,130 +245,179 @@ function SortableLevelCard({
 		opacity: isDragging ? 0.5 : 1,
 	};
 
-	const isEditing = editingId === row.id;
-
-	const handleCardClick = () => {
-		if (!isDragging) {
-			onSetEditing(isEditing ? null : row.id);
-		}
-	};
-
-	const handleLevelBlur = (state: LocalEditState) => {
-		onUpdate(row.id, {
-			blind1: parseIntOrNull(state.blind1),
-			blind2: parseIntOrNull(state.blind2),
-			ante: parseIntOrNull(state.ante),
-			minutes: parseIntOrNull(state.minutes),
-		});
-	};
-
-	if (row.isBreak) {
-		return (
-			<div ref={setNodeRef} style={style}>
-				<div
-					className={`flex items-start gap-3 rounded-lg border bg-muted/40 p-3 ${isEditing ? "ring-2 ring-ring" : ""}`}
-				>
-					<DragHandle attributes={attributes} listeners={listeners} />
-					<button
-						className="flex flex-1 items-center gap-2 text-left"
-						onClick={handleCardClick}
-						type="button"
-					>
-						<span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted font-medium text-muted-foreground text-xs">
-							{row.level}
-						</span>
-						<IconCoffee className="shrink-0 text-muted-foreground" size={16} />
-						<span className="font-medium text-sm">Break</span>
-						{!isEditing && row.minutes != null && (
-							<span className="text-muted-foreground text-sm">
-								{row.minutes} min
-							</span>
-						)}
-					</button>
-					<button
-						aria-label="Delete level"
-						className="mt-0.5 text-muted-foreground transition-colors hover:text-destructive"
-						onClick={() => onDelete(row.id)}
-						type="button"
-					>
-						<IconTrash size={16} />
-					</button>
-				</div>
-				{isEditing && (
-					<BreakEditForm
-						onSave={(v) => onUpdate(row.id, { minutes: v })}
-						rowId={row.id}
-						value={row.minutes}
-					/>
-				)}
-			</div>
-		);
-	}
-
 	return (
-		<div ref={setNodeRef} style={style}>
-			<div
-				className={`flex items-start gap-3 rounded-lg border bg-card p-3 ${isEditing ? "ring-2 ring-ring" : ""}`}
-			>
-				<DragHandle attributes={attributes} listeners={listeners} />
+		<tr className="bg-muted/30" ref={setNodeRef} style={style}>
+			<td className="w-10 px-0.5 text-center">
+				<div className="flex items-center justify-center gap-0.5">
+					<DragHandle attributes={attributes} listeners={listeners} />
+					<span className="text-muted-foreground text-xs">{row.level}</span>
+				</div>
+			</td>
+			<td className="px-1.5 py-1" colSpan={3}>
+				<div className="flex items-center gap-1 text-muted-foreground text-sm">
+					<IconCoffee size={14} />
+					<span>Break</span>
+				</div>
+			</td>
+			<td className="w-12 px-0.5">
+				<input
+					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none focus:bg-accent focus:ring-1 focus:ring-ring"
+					defaultValue={row.minutes ?? ""}
+					inputMode="numeric"
+					key={`${row.id}-minutes`}
+					onBlur={(e) =>
+						onUpdate(row.id, { minutes: parseIntOrNull(e.target.value) })
+					}
+					placeholder="—"
+					type="number"
+				/>
+			</td>
+			<td className="w-8 px-0.5 text-center">
 				<button
-					className="flex flex-1 flex-col gap-1 text-left"
-					onClick={handleCardClick}
-					type="button"
-				>
-					<div className="flex items-center gap-2">
-						<span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-medium text-primary text-xs">
-							{row.level}
-						</span>
-					</div>
-					{!isEditing && (
-						<div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-sm">
-							<span className="text-muted-foreground">
-								{blindLabels.blind1}:{" "}
-								<span className="font-medium text-foreground">
-									{row.blind1 ?? "—"}
-								</span>
-							</span>
-							<span className="text-muted-foreground">
-								{blindLabels.blind2}:{" "}
-								<span className="font-medium text-foreground">
-									{row.blind2 ?? "—"}
-								</span>
-							</span>
-							<span className="text-muted-foreground">
-								Ante:{" "}
-								<span className="font-medium text-foreground">
-									{row.ante ?? "—"}
-								</span>
-							</span>
-							<span className="text-muted-foreground">
-								Time:{" "}
-								<span className="font-medium text-foreground">
-									{row.minutes != null ? `${row.minutes} min` : "—"}
-								</span>
-							</span>
-						</div>
-					)}
-				</button>
-				<button
-					aria-label="Delete level"
-					className="mt-0.5 text-muted-foreground transition-colors hover:text-destructive"
+					aria-label="Delete break"
+					className="text-muted-foreground transition-colors hover:text-destructive"
 					onClick={() => onDelete(row.id)}
 					type="button"
 				>
-					<IconTrash size={16} />
+					<IconTrash size={14} />
 				</button>
-			</div>
-			{isEditing && (
-				<LevelEditForm
-					blindLabels={blindLabels}
-					onBlur={handleLevelBlur}
-					rowId={row.id}
-				/>
-			)}
-		</div>
+			</td>
+		</tr>
 	);
 }
+
+// ---- Empty bottom row for adding a new level ----
+
+interface NewLevelValues {
+	ante: number | null;
+	blind1: number | null;
+	blind2: number | null;
+	minutes: number | null;
+}
+
+interface EmptyRowProps {
+	onCreateLevel: (values: NewLevelValues) => void;
+}
+
+function EmptyRow({ onCreateLevel }: EmptyRowProps) {
+	const blind1Ref = useRef<HTMLInputElement>(null);
+	const blind2Ref = useRef<HTMLInputElement>(null);
+	const anteRef = useRef<HTMLInputElement>(null);
+	const minutesRef = useRef<HTMLInputElement>(null);
+
+	const resetRow = () => {
+		for (const ref of [blind1Ref, blind2Ref, anteRef, minutesRef]) {
+			if (ref.current) {
+				ref.current.value = "";
+			}
+		}
+	};
+
+	const tryCreate = (relatedTarget: EventTarget | null) => {
+		const cells = [
+			blind1Ref.current,
+			blind2Ref.current,
+			anteRef.current,
+			minutesRef.current,
+		];
+		if (cells.includes(relatedTarget as HTMLInputElement)) {
+			return;
+		}
+		const blind1Val = parseIntOrNull(blind1Ref.current?.value ?? "");
+		if (blind1Val == null) {
+			return;
+		}
+		onCreateLevel({
+			blind1: blind1Val,
+			blind2: parseIntOrNull(blind2Ref.current?.value ?? ""),
+			ante: parseIntOrNull(anteRef.current?.value ?? ""),
+			minutes: parseIntOrNull(minutesRef.current?.value ?? ""),
+		});
+		resetRow();
+	};
+
+	const handleBlind1Blur = (e: React.FocusEvent<HTMLInputElement>) => {
+		const val = e.target.value;
+		const parsed = parseIntOrNull(val);
+		if (parsed != null) {
+			if (blind2Ref.current && !blind2Ref.current.value) {
+				blind2Ref.current.value = String(parsed * 2);
+			}
+			if (anteRef.current && !anteRef.current.value) {
+				anteRef.current.value = blind2Ref.current?.value ?? val;
+			}
+		}
+		tryCreate(e.relatedTarget);
+	};
+
+	const handleBlind2Blur = (e: React.FocusEvent<HTMLInputElement>) => {
+		const val = e.target.value;
+		const parsed = parseIntOrNull(val);
+		if (parsed != null && anteRef.current && !anteRef.current.value) {
+			anteRef.current.value = val;
+		}
+		tryCreate(e.relatedTarget);
+	};
+
+	const handleAnteBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+		tryCreate(e.relatedTarget);
+	};
+
+	const handleMinutesBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+		tryCreate(e.relatedTarget);
+	};
+
+	return (
+		<tr className="border-t border-dashed">
+			<td className="w-10 px-0.5 text-center">
+				<span className="text-muted-foreground text-xs">+</span>
+			</td>
+			<td className="px-0.5">
+				<input
+					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/40 focus:bg-accent focus:ring-1 focus:ring-ring"
+					inputMode="numeric"
+					onBlur={handleBlind1Blur}
+					placeholder="SB"
+					ref={blind1Ref}
+					type="number"
+				/>
+			</td>
+			<td className="px-0.5">
+				<input
+					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/40 focus:bg-accent focus:ring-1 focus:ring-ring"
+					inputMode="numeric"
+					onBlur={handleBlind2Blur}
+					placeholder="BB"
+					ref={blind2Ref}
+					type="number"
+				/>
+			</td>
+			<td className="px-0.5">
+				<input
+					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/40 focus:bg-accent focus:ring-1 focus:ring-ring"
+					inputMode="numeric"
+					onBlur={handleAnteBlur}
+					placeholder="Ante"
+					ref={anteRef}
+					type="number"
+				/>
+			</td>
+			<td className="w-12 px-0.5">
+				<input
+					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/40 focus:bg-accent focus:ring-1 focus:ring-ring"
+					inputMode="numeric"
+					onBlur={handleMinutesBlur}
+					placeholder="Min"
+					ref={minutesRef}
+					type="number"
+				/>
+			</td>
+			<td className="w-8" />
+		</tr>
+	);
+}
+
+// ---- Main content ----
 
 interface BlindStructureContentProps {
 	tournamentId: string;
@@ -409,7 +429,6 @@ function BlindStructureContent({
 	variant,
 }: BlindStructureContentProps) {
 	const queryClient = useQueryClient();
-	const [editingId, setEditingId] = useState<string | null>(null);
 	const [lastMinutes, setLastMinutes] = useState<number | null>(null);
 
 	const levelsQueryOptions = trpc.blindLevel.listByTournament.queryOptions({
@@ -448,10 +467,22 @@ function BlindStructureContent({
 
 	const addLevelMutation = useMutation({
 		mutationFn: (newLevel: {
+			ante?: number | null;
+			blind1?: number | null;
+			blind2?: number | null;
 			isBreak: boolean;
 			level: number;
-			minutes?: number;
-		}) => trpcClient.blindLevel.create.mutate({ tournamentId, ...newLevel }),
+			minutes?: number | null;
+		}) =>
+			trpcClient.blindLevel.create.mutate({
+				tournamentId,
+				level: newLevel.level,
+				isBreak: newLevel.isBreak,
+				...(newLevel.blind1 != null ? { blind1: newLevel.blind1 } : {}),
+				...(newLevel.blind2 != null ? { blind2: newLevel.blind2 } : {}),
+				...(newLevel.ante != null ? { ante: newLevel.ante } : {}),
+				...(newLevel.minutes != null ? { minutes: newLevel.minutes } : {}),
+			}),
 		onMutate: async (newLevel) => {
 			await queryClient.cancelQueries({
 				queryKey: levelsQueryOptions.queryKey,
@@ -462,10 +493,10 @@ function BlindStructureContent({
 				tournamentId,
 				level: newLevel.level,
 				isBreak: newLevel.isBreak,
-				blind1: null,
-				blind2: null,
+				blind1: newLevel.blind1 ?? null,
+				blind2: newLevel.blind2 ?? null,
 				blind3: null,
-				ante: null,
+				ante: newLevel.ante ?? null,
 				minutes: newLevel.minutes ?? null,
 			};
 			queryClient.setQueryData(
@@ -487,9 +518,6 @@ function BlindStructureContent({
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.blindLevel.delete.mutate({ id }),
 		onMutate: async (id) => {
-			if (editingId === id) {
-				setEditingId(null);
-			}
 			await queryClient.cancelQueries({
 				queryKey: levelsQueryOptions.queryKey,
 			});
@@ -598,7 +626,6 @@ function BlindStructureContent({
 	};
 
 	const handleUpdate = (id: string, updates: Record<string, number | null>) => {
-		// Optimistically update the cache for all fields at once
 		queryClient.setQueryData(
 			levelsQueryOptions.queryKey,
 			(old: BlindLevelRow[] | undefined) =>
@@ -612,7 +639,21 @@ function BlindStructureContent({
 		}
 	};
 
-	const isAdding = addLevelMutation.isPending;
+	const handleCreateLevel = (values: NewLevelValues) => {
+		const nextLevel = levels.length + 1;
+		const minutes = values.minutes ?? effectiveLastMinutes;
+		addLevelMutation.mutate({
+			level: nextLevel,
+			isBreak: false,
+			blind1: values.blind1,
+			blind2: values.blind2,
+			ante: values.ante,
+			...(minutes != null ? { minutes } : {}),
+		});
+		if (minutes != null) {
+			setLastMinutes(minutes);
+		}
+	};
 
 	if (levelsQuery.isLoading) {
 		return (
@@ -622,55 +663,82 @@ function BlindStructureContent({
 		);
 	}
 
+	const isAdding = addLevelMutation.isPending;
+
 	return (
 		<div className="flex flex-col gap-3">
-			<div className="flex flex-col gap-2">
-				{levels.length === 0 ? (
-					<p className="py-8 text-center text-muted-foreground text-sm">
-						No blind levels yet. Add a level to get started.
-					</p>
-				) : (
-					<DndContext
-						collisionDetection={closestCenter}
-						onDragEnd={handleDragEnd}
-						sensors={sensors}
-					>
-						<SortableContext
-							items={levels.map((l) => l.id)}
-							strategy={verticalListSortingStrategy}
-						>
-							<div className="flex flex-col gap-2">
-								{levels.map((row) => (
-									<SortableLevelCard
-										blindLabels={blindLabels}
-										editingId={editingId}
-										key={row.id}
-										onDelete={handleDelete}
-										onSetEditing={setEditingId}
-										onUpdate={handleUpdate}
-										row={row}
-									/>
-								))}
-							</div>
-						</SortableContext>
-					</DndContext>
-				)}
-			</div>
-
-			<div className="flex gap-2 border-t bg-background pt-3">
+			<div className="flex justify-end gap-2">
 				<Button
-					className="flex-1"
 					disabled={isAdding}
 					onClick={handleAddBreak}
+					size="sm"
 					variant="outline"
 				>
-					<IconCoffee size={15} />
-					Add Break
+					<IconCoffee size={14} />
+					Break
 				</Button>
-				<Button className="flex-1" disabled={isAdding} onClick={handleAddLevel}>
-					<IconPlus size={15} />
-					Add Level
+				<Button disabled={isAdding} onClick={handleAddLevel} size="sm">
+					<IconPlus size={14} />
+					Level
 				</Button>
+			</div>
+
+			<div className="w-full overflow-x-auto">
+				<table className="w-full table-fixed border-collapse">
+					<thead>
+						<tr>
+							<th className="w-10 pb-1 text-center font-medium text-muted-foreground text-xs">
+								#
+							</th>
+							<th className="pb-1 text-center font-medium text-muted-foreground text-xs">
+								{blindLabels.blind1}
+							</th>
+							<th className="pb-1 text-center font-medium text-muted-foreground text-xs">
+								{blindLabels.blind2}
+							</th>
+							<th className="pb-1 text-center font-medium text-muted-foreground text-xs">
+								Ante
+							</th>
+							<th className="w-12 pb-1 text-center font-medium text-muted-foreground text-xs">
+								Min
+							</th>
+							<th className="w-8 pb-1" />
+						</tr>
+					</thead>
+					<tbody>
+						{levels.length > 0 && (
+							<DndContext
+								collisionDetection={closestCenter}
+								onDragEnd={handleDragEnd}
+								sensors={sensors}
+							>
+								<SortableContext
+									items={levels.map((l) => l.id)}
+									strategy={verticalListSortingStrategy}
+								>
+									{levels.map((row) =>
+										row.isBreak ? (
+											<SortableBreakRow
+												key={row.id}
+												onDelete={handleDelete}
+												onUpdate={handleUpdate}
+												row={row}
+											/>
+										) : (
+											<SortableLevelRow
+												key={row.id}
+												onDelete={handleDelete}
+												onUpdate={handleUpdate}
+												row={row}
+											/>
+										)
+									)}
+								</SortableContext>
+							</DndContext>
+						)}
+						<EmptyRow onCreateLevel={handleCreateLevel} />
+					</tbody>
+				</table>
 			</div>
 		</div>
 	);

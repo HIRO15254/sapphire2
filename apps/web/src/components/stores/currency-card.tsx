@@ -9,6 +9,7 @@ import {
 import { useState } from "react";
 import { TransactionList } from "@/components/stores/transaction-list";
 import { Button } from "@/components/ui/button";
+import { formatCompactNumber } from "@/utils/format-number";
 
 interface Transaction {
 	amount: number;
@@ -71,7 +72,7 @@ export function CurrencyCard({
 						<p className="text-muted-foreground text-sm">
 							Balance:{" "}
 							<span className="font-semibold text-foreground">
-								{c.balance.toLocaleString()}
+								{formatCompactNumber(c.balance)}
 								{c.unit ? ` ${c.unit}` : ""}
 							</span>
 						</p>

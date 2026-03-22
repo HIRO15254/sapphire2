@@ -12,6 +12,7 @@ import { RingGameForm } from "@/components/stores/ring-game-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
+import { formatCompactNumber } from "@/utils/format-number";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 interface RingGame {
@@ -71,15 +72,15 @@ function formatBlindsLine(
 ): string {
 	const parts: string[] = [];
 	if (game.blind1 != null) {
-		parts.push(String(game.blind1));
+		parts.push(formatCompactNumber(game.blind1));
 	}
 	if (game.blind2 != null) {
-		parts.push(String(game.blind2));
+		parts.push(formatCompactNumber(game.blind2));
 	} else if (parts.length > 0) {
 		parts.push("—");
 	}
 	if (game.blind3 != null) {
-		parts.push(String(game.blind3));
+		parts.push(formatCompactNumber(game.blind3));
 	}
 
 	const blindStr = parts.length > 0 ? parts.join("/") : "";
@@ -87,9 +88,9 @@ function formatBlindsLine(
 	let anteStr = "";
 	if (game.ante != null && game.anteType !== "none" && game.anteType != null) {
 		if (game.anteType === "bb") {
-			anteStr = `(BBA:${game.ante})`;
+			anteStr = `(BBA:${formatCompactNumber(game.ante)})`;
 		} else if (game.anteType === "all") {
-			anteStr = `(Ante:${game.ante})`;
+			anteStr = `(Ante:${formatCompactNumber(game.ante)})`;
 		}
 	}
 

@@ -1,5 +1,7 @@
+import { IconPlus, IconX } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,11 +35,14 @@ interface TournamentFormValues {
 	rebuyCost?: number;
 	startingStack?: number;
 	tableSize?: number;
+	tags?: string[];
 	variant: string;
 }
 
 interface TournamentFormProps {
-	defaultValues?: TournamentFormValues;
+	defaultValues?: Omit<TournamentFormValues, "tags"> & {
+		tags?: string[];
+	};
 	isLoading?: boolean;
 	onSubmit: (values: TournamentFormValues) => void;
 }
@@ -61,9 +66,35 @@ export function TournamentForm({
 	const [addonAllowed, setAddonAllowed] = useState(
 		defaultValues?.addonAllowed ?? false
 	);
+	const [tags, setTags] = useState<string[]>(defaultValues?.tags ?? []);
+	const [tagInput, setTagInput] = useState("");
+	const tagInputRef = useRef<HTMLInputElement>(null);
 
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
+
+	const addTag = () => {
+		const name = tagInput.trim();
+		if (name && !tags.includes(name)) {
+			setTags((prev) => [...prev, name]);
+		}
+		setTagInput("");
+	};
+
+	const removeTag = (tag: string) => {
+		setTags((prev) => prev.filter((t) => t !== tag));
+	};
+
+	const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+		if (e.key === "Enter") {
+			e.preventDefault();
+			addTag();
+		}
+		if (e.key === "Escape") {
+			setTagInput("");
+			tagInputRef.current?.blur();
+		}
+	};
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -93,6 +124,7 @@ export function TournamentForm({
 			tableSize: parseOptionalInt(formData.get("tableSize") as string),
 			currencyId: (formData.get("currencyId") as string) || undefined,
 			memo: (formData.get("memo") as string) || undefined,
+			tags,
 		};
 
 		onSubmit(values);
@@ -320,6 +352,45 @@ export function TournamentForm({
 					name="memo"
 					placeholder="Notes about this tournament"
 				/>
+			</div>
+
+			<div className="flex flex-col gap-2">
+				<Label>Tags</Label>
+				<div className="flex flex-wrap items-center gap-1">
+					{tags.map((tag) => (
+						<Badge className="gap-1 pr-1" key={tag} variant="outline">
+							{tag}
+							<button
+								aria-label={`Remove tag ${tag}`}
+								className="text-muted-foreground hover:text-foreground"
+								onClick={() => removeTag(tag)}
+								type="button"
+							>
+								<IconX size={10} />
+							</button>
+						</Badge>
+					))}
+				</div>
+				<div className="flex gap-2">
+					<Input
+						id="tagInput"
+						onChange={(e) => setTagInput(e.target.value)}
+						onKeyDown={handleTagKeyDown}
+						placeholder="Add a tag"
+						ref={tagInputRef}
+						value={tagInput}
+					/>
+					<Button
+						disabled={!tagInput.trim()}
+						onClick={addTag}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						<IconPlus size={14} />
+						Add
+					</Button>
+				</div>
 			</div>
 
 			<Button disabled={isLoading} type="submit">
