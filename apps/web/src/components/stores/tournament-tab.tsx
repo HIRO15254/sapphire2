@@ -142,9 +142,6 @@ function BlindStructureSummary({ tournamentId }: BlindStructureSummaryProps) {
 		);
 	}
 
-	const allValues = levels.flatMap((l) => [l.blind1, l.blind2, l.ante]);
-	const fmt = createGroupFormatter(allValues);
-
 	return (
 		<div className="w-full overflow-x-auto">
 			<table className="w-full table-fixed border-collapse text-xs">
@@ -168,23 +165,31 @@ function BlindStructureSummary({ tournamentId }: BlindStructureSummaryProps) {
 					</tr>
 				</thead>
 				<tbody>
-					{levels.map((row) =>
-						row.isBreak ? (
-							<tr className="bg-muted/30" key={row.id}>
-								<td className="py-0.5 text-center text-muted-foreground">
-									{row.level}
-								</td>
-								<td className="py-0.5" colSpan={3}>
-									<div className="flex items-center gap-1 text-muted-foreground">
-										<IconCoffee size={12} />
-										<span>Break</span>
-									</div>
-								</td>
-								<td className="py-0.5 text-center text-muted-foreground">
-									{row.minutes ?? "—"}
-								</td>
-							</tr>
-						) : (
+					{levels.map((row) => {
+						if (row.isBreak) {
+							return (
+								<tr className="bg-muted/30" key={row.id}>
+									<td className="py-0.5 text-center text-muted-foreground">
+										{row.level}
+									</td>
+									<td className="py-0.5" colSpan={3}>
+										<div className="flex items-center gap-1 text-muted-foreground">
+											<IconCoffee size={12} />
+											<span>Break</span>
+										</div>
+									</td>
+									<td className="py-0.5 text-center text-muted-foreground">
+										{row.minutes ?? "—"}
+									</td>
+								</tr>
+							);
+						}
+						const fmt = createGroupFormatter([
+							row.blind1,
+							row.blind2,
+							row.ante,
+						]);
+						return (
 							<tr key={row.id}>
 								<td className="py-0.5 text-center text-muted-foreground">
 									{row.level}
@@ -202,8 +207,8 @@ function BlindStructureSummary({ tournamentId }: BlindStructureSummaryProps) {
 									{row.minutes ?? "—"}
 								</td>
 							</tr>
-						)
-					)}
+						);
+					})}
 				</tbody>
 			</table>
 		</div>
