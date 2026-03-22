@@ -12,7 +12,7 @@ import { RingGameForm } from "@/components/stores/ring-game-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
-import { formatCompactNumber } from "@/utils/format-number";
+import { createGroupFormatter } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -71,17 +71,24 @@ function formatBlindsLine(
 	game: RingGame,
 	currencyUnit: string | null | undefined
 ): string {
+	const fmt = createGroupFormatter([
+		game.blind1,
+		game.blind2,
+		game.blind3,
+		game.ante,
+	]);
+
 	const parts: string[] = [];
 	if (game.blind1 != null) {
-		parts.push(formatCompactNumber(game.blind1));
+		parts.push(fmt(game.blind1));
 	}
 	if (game.blind2 != null) {
-		parts.push(formatCompactNumber(game.blind2));
+		parts.push(fmt(game.blind2));
 	} else if (parts.length > 0) {
 		parts.push("—");
 	}
 	if (game.blind3 != null) {
-		parts.push(formatCompactNumber(game.blind3));
+		parts.push(fmt(game.blind3));
 	}
 
 	const blindStr = parts.length > 0 ? parts.join("/") : "";
@@ -89,9 +96,9 @@ function formatBlindsLine(
 	let anteStr = "";
 	if (game.ante != null && game.anteType !== "none" && game.anteType != null) {
 		if (game.anteType === "bb") {
-			anteStr = `(BBA:${formatCompactNumber(game.ante)})`;
+			anteStr = `(BBA:${fmt(game.ante)})`;
 		} else if (game.anteType === "all") {
-			anteStr = `(Ante:${formatCompactNumber(game.ante)})`;
+			anteStr = `(Ante:${fmt(game.ante)})`;
 		}
 	}
 

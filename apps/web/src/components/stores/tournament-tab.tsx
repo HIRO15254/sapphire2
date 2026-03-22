@@ -17,7 +17,10 @@ import { TournamentForm } from "@/components/stores/tournament-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
-import { formatCompactNumber } from "@/utils/format-number";
+import {
+	createGroupFormatter,
+	formatCompactNumber,
+} from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -105,9 +108,10 @@ function formatBuyIn(t: Tournament): string {
 	if (t.buyIn == null) {
 		return "";
 	}
-	const parts = [`Buy-in: ${formatCompactNumber(t.buyIn)}`];
+	const fmt = createGroupFormatter([t.buyIn, t.entryFee]);
+	const parts = [`Buy-in: ${fmt(t.buyIn)}`];
 	if (t.entryFee != null) {
-		parts.push(`+${formatCompactNumber(t.entryFee)}`);
+		parts.push(`+${fmt(t.entryFee)}`);
 	}
 	return parts.join("");
 }
@@ -137,6 +141,9 @@ function BlindStructureSummary({ tournamentId }: BlindStructureSummaryProps) {
 			</p>
 		);
 	}
+
+	const allValues = levels.flatMap((l) => [l.blind1, l.blind2, l.ante]);
+	const fmt = createGroupFormatter(allValues);
 
 	return (
 		<div className="w-full overflow-x-auto">
@@ -183,13 +190,13 @@ function BlindStructureSummary({ tournamentId }: BlindStructureSummaryProps) {
 									{row.level}
 								</td>
 								<td className="py-0.5 text-center">
-									{row.blind1 != null ? formatCompactNumber(row.blind1) : "—"}
+									{row.blind1 != null ? fmt(row.blind1) : "—"}
 								</td>
 								<td className="py-0.5 text-center">
-									{row.blind2 != null ? formatCompactNumber(row.blind2) : "—"}
+									{row.blind2 != null ? fmt(row.blind2) : "—"}
 								</td>
 								<td className="py-0.5 text-center">
-									{row.ante != null ? formatCompactNumber(row.ante) : "—"}
+									{row.ante != null ? fmt(row.ante) : "—"}
 								</td>
 								<td className="py-0.5 text-center text-muted-foreground">
 									{row.minutes ?? "—"}

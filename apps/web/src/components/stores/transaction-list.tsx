@@ -1,7 +1,7 @@
 import { IconEdit, IconTrash } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatCompactNumber } from "@/utils/format-number";
+import { createGroupFormatter } from "@/utils/format-number";
 
 interface Transaction {
 	amount: number;
@@ -36,14 +36,16 @@ export function TransactionList({
 		);
 	}
 
+	const fmt = createGroupFormatter(transactions.map((tx) => tx.amount));
+
 	return (
 		<div className="flex flex-col divide-y">
 			{transactions.map((tx) => {
 				const isPositive = tx.amount >= 0;
 				const amountClass = isPositive ? "text-green-600" : "text-red-600";
 				const amountDisplay = isPositive
-					? `+${formatCompactNumber(tx.amount)}`
-					: formatCompactNumber(tx.amount);
+					? `+${fmt(tx.amount)}`
+					: fmt(tx.amount);
 				const dateDisplay = new Date(tx.transactedAt).toLocaleDateString(
 					"en-US",
 					{ year: "numeric", month: "short", day: "numeric" }

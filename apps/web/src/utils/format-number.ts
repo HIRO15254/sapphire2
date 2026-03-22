@@ -1,5 +1,9 @@
 const TRAILING_ZERO = /\.0$/;
 
+/**
+ * Format a single number with compact notation (k, M, B).
+ * Threshold: 1,000+
+ */
 export function formatCompactNumber(value: number): string {
 	if (Math.abs(value) >= 1_000_000_000) {
 		return `${(value / 1_000_000_000).toFixed(1).replace(TRAILING_ZERO, "")}B`;
@@ -11,4 +15,44 @@ export function formatCompactNumber(value: number): string {
 		return `${(value / 1000).toFixed(1).replace(TRAILING_ZERO, "")}k`;
 	}
 	return value.toLocaleString();
+}
+
+interface UnitTier {
+	divisor: number;
+	suffix: string;
+	threshold: number;
+}
+
+const TIERS: UnitTier[] = [
+	{ threshold: 1_000_000_000, divisor: 1_000_000_000, suffix: "B" },
+	{ threshold: 1_000_000, divisor: 1_000_000, suffix: "M" },
+	{ threshold: 1000, divisor: 1000, suffix: "k" },
+];
+
+function formatWithTier(value: number, tier: UnitTier | undefined): string {
+	if (!tier) {
+		return value.toLocaleString();
+	}
+	return `${(value / tier.divisor).toFixed(1).replace(TRAILING_ZERO, "")}${tier.suffix}`;
+}
+
+/**
+ * Create a formatter that applies a consistent unit tier across a group of numbers.
+ * The tier is determined by the maximum absolute value in the group.
+ *
+ * Usage:
+ *   const fmt = createGroupFormatter([100, 200, 1000]);
+ *   fmt(100)  // "0.1k"  — because max is 1000 (k tier)
+ *   fmt(200)  // "0.2k"
+ *   fmt(1000) // "1k"
+ *
+ * If max < 1000, all values are shown as plain numbers.
+ */
+export function createGroupFormatter(
+	values: (number | null | undefined)[]
+): (value: number) => string {
+	const nums = values.filter((v): v is number => v != null && v !== 0);
+	const maxAbs = nums.length > 0 ? Math.max(...nums.map(Math.abs)) : 0;
+	const tier = TIERS.find((t) => maxAbs >= t.threshold);
+	return (value: number) => formatWithTier(value, tier);
 }
