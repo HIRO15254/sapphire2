@@ -4,28 +4,9 @@ import type {
 	ElementRef,
 	HTMLAttributes,
 } from "react";
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef } from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 import { cn } from "@/lib/utils";
-
-function useKeyboardHeight() {
-	const [keyboardHeight, setKeyboardHeight] = useState(0);
-
-	useEffect(() => {
-		const vv = window.visualViewport;
-		if (!vv) {
-			return;
-		}
-		const handleResize = () => {
-			const diff = window.innerHeight - vv.height;
-			setKeyboardHeight(diff > 50 ? diff : 0);
-		};
-		vv.addEventListener("resize", handleResize);
-		return () => vv.removeEventListener("resize", handleResize);
-	}, []);
-
-	return keyboardHeight;
-}
 
 const Drawer = ({
 	shouldScaleBackground = true,
@@ -59,32 +40,21 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 const DrawerContent = forwardRef<
 	ElementRef<typeof DrawerPrimitive.Content>,
 	ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
->(({ className, children, ...props }, ref) => {
-	const keyboardHeight = useKeyboardHeight();
-
-	return (
-		<DrawerPortal>
-			<DrawerOverlay />
-			<DrawerPrimitive.Content
-				className={cn(
-					"fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-[10px] border bg-background transition-[bottom,max-height] duration-150",
-					className
-				)}
-				ref={ref}
-				style={{
-					bottom: keyboardHeight > 0 ? `${keyboardHeight}px` : undefined,
-					maxHeight:
-						keyboardHeight > 0
-							? `calc(100svh - ${keyboardHeight}px - 2rem)`
-							: "calc(100svh - 2rem)",
-				}}
-				{...props}
-			>
-				{children}
-			</DrawerPrimitive.Content>
-		</DrawerPortal>
-	);
-});
+>(({ className, children, ...props }, ref) => (
+	<DrawerPortal>
+		<DrawerOverlay />
+		<DrawerPrimitive.Content
+			className={cn(
+				"fixed inset-x-0 bottom-0 z-50 flex max-h-[calc(100svh-2rem)] flex-col rounded-t-[10px] border bg-background",
+				className
+			)}
+			ref={ref}
+			{...props}
+		>
+			{children}
+		</DrawerPrimitive.Content>
+	</DrawerPortal>
+));
 DrawerContent.displayName = "DrawerContent";
 
 const DrawerHeader = ({
