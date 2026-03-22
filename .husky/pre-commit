@@ -1,2 +1,9 @@
 bun run test
+
+# Auto-stage routeTree.gen.ts if it has unstaged changes
+# (prevents lint-staged stash conflicts with this auto-generated file)
+if git diff --name-only | grep -q 'routeTree.gen.ts'; then
+  git add apps/web/src/routeTree.gen.ts
+fi
+
 bun x lint-staged

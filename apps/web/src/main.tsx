@@ -1,10 +1,10 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
 import Loader from "./components/loader";
 import { routeTree } from "./routeTree.gen";
-import { queryClient, trpc } from "./utils/trpc";
+import { persister, queryClient, trpc } from "./utils/trpc";
 
 const router = createRouter({
 	routeTree,
@@ -13,7 +13,12 @@ const router = createRouter({
 	context: { trpc, queryClient },
 	Wrap({ children }: { children: React.ReactNode }) {
 		return (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+			<PersistQueryClientProvider
+				client={queryClient}
+				persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}
+			>
+				{children}
+			</PersistQueryClientProvider>
 		);
 	},
 });

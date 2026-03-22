@@ -1,5 +1,6 @@
 import {
-	IconChecklist,
+	IconBuildingStore,
+	IconCoins,
 	IconHome,
 	IconLayoutDashboard,
 	IconSearch,
@@ -17,7 +18,8 @@ export interface NavigationItem {
 export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
 	{ to: "/", label: "Home", icon: IconHome },
 	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
-	{ to: "/todos", label: "Todos", icon: IconChecklist },
+	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
+	{ to: "/currencies", label: "Currencies", icon: IconCoins },
 	{ to: "/search", label: "Search", icon: IconSearch },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;

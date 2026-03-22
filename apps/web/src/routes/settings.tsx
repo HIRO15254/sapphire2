@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LinkedAccounts } from "@/components/linked-accounts";
+import { TransactionTypeManager } from "@/components/stores/transaction-type-manager";
 
 export const Route = createFileRoute("/settings")({
 	component: SettingsComponent,
@@ -13,6 +14,20 @@ function SettingsComponent() {
 			<section className="mt-6">
 				<h2 className="mb-3 font-semibold text-lg">Linked Accounts</h2>
 				<LinkedAccounts />
+			</section>
+
+			<section className="mt-6">
+				<h2 className="mb-3 font-semibold text-lg">Data Management</h2>
+				<div className="flex flex-col gap-4">
+					<div>
+						<h3 className="mb-2 font-medium text-sm">Transaction Types</h3>
+						<p className="mb-3 text-muted-foreground text-xs">
+							Manage transaction type labels used for currency transactions.
+							Types in use by existing transactions cannot be deleted.
+						</p>
+						<TransactionTypeManager />
+					</div>
+				</div>
 			</section>
 		</div>
 	);
