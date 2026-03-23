@@ -49,14 +49,14 @@
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Implement `session.create` mutation for cash game type with Zod input validation (type=cash_game, buyIn ≥ 0, cashOut ≥ 0, sessionDate required), UUID generation, and DB insert in `packages/api/src/routers/session.ts`
-- [ ] T009 [US1] Implement `session.list` query with cursor-based pagination (PAGE_SIZE=20), ordered by sessionDate DESC then id DESC, filtered by userId, with computed profitLoss field (cashOut - buyIn for cash_game) in `packages/api/src/routers/session.ts`
-- [ ] T010 [US1] Implement `session.getById` query with ownership validation in `packages/api/src/routers/session.ts`
-- [ ] T011 [US1] Implement `session.update` mutation with ownership check, selective field updates (excluding type), and `session.delete` mutation with ownership check in `packages/api/src/routers/session.ts`
-- [ ] T012 [P] [US1] Create session card component displaying session type badge, session date, profit/loss with color coding (green positive, red negative), and edit/delete actions in `apps/web/src/components/sessions/session-card.tsx`
-- [ ] T013 [P] [US1] Create session form component with type selector (cash_game/tournament), conditional cash game fields (buyIn, cashOut, sessionDate as required), FormData-based submit handler, and loading state in `apps/web/src/components/sessions/session-form.tsx`
-- [ ] T014 [US1] Create sessions page route with query hook for session.list, paginated session card list, create button with ResponsiveDialog wrapping session-form, edit/delete handlers with optimistic mutations (must include onMutate/onError/onSettled callbacks per Constitution VIII) in `apps/web/src/routes/sessions/index.tsx`
-- [ ] T015 [US1] Add "Sessions" navigation item to top-level nav in `apps/web/src/routes/__root.tsx`
+- [x] T008 [US1] Implement `session.create` mutation for cash game type with Zod input validation (type=cash_game, buyIn ≥ 0, cashOut ≥ 0, sessionDate required), UUID generation, and DB insert in `packages/api/src/routers/session.ts`
+- [x] T009 [US1] Implement `session.list` query with cursor-based pagination (PAGE_SIZE=20), ordered by sessionDate DESC then id DESC, filtered by userId, with computed profitLoss field (cashOut - buyIn for cash_game) in `packages/api/src/routers/session.ts`
+- [x] T010 [US1] Implement `session.getById` query with ownership validation in `packages/api/src/routers/session.ts`
+- [x] T011 [US1] Implement `session.update` mutation with ownership check, selective field updates (excluding type), and `session.delete` mutation with ownership check in `packages/api/src/routers/session.ts`
+- [x] T012 [P] [US1] Create session card component displaying session type badge, session date, profit/loss with color coding (green positive, red negative), and edit/delete actions in `apps/web/src/components/sessions/session-card.tsx`
+- [x] T013 [P] [US1] Create session form component with type selector (cash_game/tournament), conditional cash game fields (buyIn, cashOut, sessionDate as required), FormData-based submit handler, and loading state in `apps/web/src/components/sessions/session-form.tsx`
+- [x] T014 [US1] Create sessions page route with query hook for session.list, paginated session card list, create button with ResponsiveDialog wrapping session-form, edit/delete handlers with optimistic mutations (must include onMutate/onError/onSettled callbacks per Constitution VIII) in `apps/web/src/routes/sessions/index.tsx`
+- [x] T015 [US1] Add "Sessions" navigation item to top-level nav in `apps/web/src/components/mobile-nav.tsx`
 
 **Checkpoint**: Cash game session CRUD fully functional. Users can record, view, edit, and delete cash game sessions with P&L display.
 
