@@ -98,17 +98,16 @@ jobs:
 
       - name: Export production data
         working-directory: apps/server
-        continue-on-error: true
         run: |
           git checkout wrangler.toml
           bunx wrangler d1 export sapphire2-db --remote --no-schema --output=dump.sql
           # Remove d1_migrations data to avoid UNIQUE constraint conflict
           # (migrations were already applied in the previous step)
-          sed -i '/INSERT INTO d1_migrations/d' dump.sql
+          # Handles quoted and unquoted table names: d1_migrations, "d1_migrations", `d1_migrations`
+          sed -i '/INSERT INTO.*d1_migrations/d' dump.sql
 
       - name: Import data into PR database
         working-directory: apps/server
-        continue-on-error: true
         run: |
           sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
           sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
