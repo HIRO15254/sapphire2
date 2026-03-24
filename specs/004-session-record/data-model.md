@@ -79,6 +79,27 @@ session → currencyTransaction (one-to-many, via currencyTransaction.sessionId)
 
 ---
 
+## Modification: `ringGame` (existing table)
+
+Make `storeId` nullable to support standalone ring game configurations created from session recording.
+
+| Column | Type | Nullable (before) | Nullable (after) | Description |
+|--------|------|-------------------|-------------------|-------------|
+| storeId | TEXT | NO | YES | FK → store.id (CASCADE). Now nullable for standalone game configs |
+
+### Behavior
+
+- When `storeId` is NOT NULL, the ring game belongs to a store (existing behavior).
+- When `storeId` is NULL, the ring game is a standalone configuration auto-created from a session recording.
+- CASCADE delete: if the linked store is deleted, the ring game is also deleted (unchanged).
+- Standalone ring games (storeId=NULL) are not affected by store deletions.
+
+### Auto-creation from Session
+
+When creating a cash game session, if no existing `ringGameId` is provided, the system auto-creates a standalone ring game with the game configuration fields (variant, blinds, table size, ante, buy-in limits) entered in the session form. The session is then linked to this auto-created ring game via `ringGameId`.
+
+---
+
 ## Modification: `currencyTransaction` (existing table)
 
 Add one nullable column:

@@ -47,7 +47,9 @@ async function validateRingGameOwnership(
 		});
 	}
 
-	await validateStoreOwnership(db, found.storeId, userId);
+	if (found.storeId) {
+		await validateStoreOwnership(db, found.storeId, userId);
+	}
 
 	return found;
 }

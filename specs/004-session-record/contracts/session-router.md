@@ -81,13 +81,23 @@
   sessionDate: number                // unix timestamp
   // Links (all optional)
   storeId?: string
-  ringGameId?: string               // only when type = cash_game
+  ringGameId?: string               // only when type = cash_game; if omitted, auto-creates standalone ringGame from game config fields
   tournamentId?: string             // only when type = tournament
   currencyId?: string
   // Cash game fields (required when type = cash_game)
   buyIn?: number
   cashOut?: number
   evCashOut?: number
+  // Ring game config fields (used to auto-create standalone ringGame when ringGameId not provided)
+  variant?: string                   // defaults to "nlh"
+  blind1?: number                    // SB
+  blind2?: number                    // BB
+  blind3?: number                    // Straddle
+  ante?: number
+  anteType?: "none" | "all" | "bb"
+  tableSize?: number
+  minBuyIn?: number
+  maxBuyIn?: number
   // Tournament fields (buyIn + entryFee required when type = tournament)
   tournamentBuyIn?: number
   entryFee?: number
@@ -108,6 +118,7 @@
 **Output**: Created session record.
 
 **Side effects**:
+- If `ringGameId` is not provided and type is `cash_game`, creates a standalone `ringGame` (storeId=null) using the game config fields, and links it to the session.
 - If `currencyId` is provided, creates a single `currencyTransaction` with the session's net P&L amount, linked via `sessionId`.
 
 ---
@@ -129,6 +140,16 @@
   buyIn?: number
   cashOut?: number
   evCashOut?: number | null
+  // Ring game config fields (updates the linked ringGame)
+  variant?: string
+  blind1?: number | null
+  blind2?: number | null
+  blind3?: number | null
+  ante?: number | null
+  anteType?: "none" | "all" | "bb" | null
+  tableSize?: number | null
+  minBuyIn?: number | null
+  maxBuyIn?: number | null
   tournamentBuyIn?: number
   entryFee?: number
   placement?: number | null

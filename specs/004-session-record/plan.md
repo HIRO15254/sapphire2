@@ -5,7 +5,7 @@
 
 ## Summary
 
-Implement session post-recording for poker P&L tracking. Users can record cash game sessions (buy-in/cash-out with optional EV tracking) and tournament sessions (buy-in/entry fee/placement/prize with rebuy/addon/bounty support). Sessions optionally link to stores, game configurations, and currencies. When linked to a currency, the system auto-generates a read-only currency transaction with the net P&L. The sessions page displays summary statistics (total P&L, win rate, EV metrics) with filters, followed by a paginated session list.
+Implement session post-recording for poker P&L tracking. Users can record cash game sessions with full game configuration (variant, SB/BB, table size, ante), buy-in/cash-out, start/end times, memo, and optional EV tracking. Tournament sessions support buy-in/entry fee/placement/prize with rebuy/addon/bounty. When no existing ring game is selected, a standalone ring game (storeId=null) is auto-created from the entered game config. Sessions optionally link to stores, game configurations, and currencies. When linked to a currency, the system auto-generates a read-only currency transaction with the net P&L. The sessions page displays summary statistics (total P&L, win rate, EV metrics) with filters, followed by a paginated session list.
 
 ## Technical Context
 
@@ -17,7 +17,7 @@ Implement session post-recording for poker P&L tracking. Users can record cash g
 **Project Type**: Full-stack web application (monorepo)
 **Performance Goals**: Session list first page in < 2 seconds with 500+ sessions
 **Constraints**: Offline-capable, mobile-first (360px+), English-only UI
-**Scale/Scope**: Hundreds of sessions per user, single new DB table + one column addition
+**Scale/Scope**: Hundreds of sessions per user, single new DB table + one column addition + ringGame.storeId made nullable
 
 ## Constitution Check
 
@@ -54,6 +54,7 @@ specs/004-session-record/
 ```text
 packages/db/src/schema/
 ├── store.ts             # MODIFY: add sessionId to currencyTransaction
+├── ring-game.ts         # MODIFY: make storeId nullable for standalone game configs
 └── session.ts           # NEW: session table + relations
 
 packages/api/src/
@@ -67,7 +68,7 @@ packages/api/src/
 
 apps/web/src/
 ├── routes/
-│   ├── __root.tsx       # MODIFY: add Sessions nav item
+│   ├── __root.tsx       # MODIFY: add Sessions nav item (via mobile-nav.tsx NAVIGATION_ITEMS)
 │   └── sessions/
 │       └── index.tsx    # NEW: sessions page (summary + filters + list)
 └── components/

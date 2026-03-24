@@ -13,6 +13,10 @@ interface SessionCardProps {
 		buyIn: number | null;
 		cashOut: number | null;
 		profitLoss: number;
+		startedAt: Date | string | null;
+		endedAt: Date | string | null;
+		memo: string | null;
+		ringGameName: string | null;
 		createdAt: Date | string;
 	};
 }
@@ -24,6 +28,24 @@ function formatSessionDate(date: Date | string): string {
 		month: "short",
 		day: "numeric",
 	});
+}
+
+function formatDuration(
+	startedAt: Date | string,
+	endedAt: Date | string
+): string {
+	const start = typeof startedAt === "string" ? new Date(startedAt) : startedAt;
+	const end = typeof endedAt === "string" ? new Date(endedAt) : endedAt;
+	const diffMs = end.getTime() - start.getTime();
+	const hours = Math.floor(diffMs / (1000 * 60 * 60));
+	const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+	if (hours > 0 && minutes > 0) {
+		return `${hours}h ${minutes}m`;
+	}
+	if (hours > 0) {
+		return `${hours}h`;
+	}
+	return `${minutes}m`;
 }
 
 export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
@@ -55,6 +77,21 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 							{formatCompactNumber(session.profitLoss)}
 						</span>
 					</div>
+					{session.ringGameName && (
+						<p className="text-muted-foreground text-xs">
+							{session.ringGameName}
+						</p>
+					)}
+					{session.startedAt && session.endedAt && (
+						<p className="text-muted-foreground text-xs">
+							{formatDuration(session.startedAt, session.endedAt)}
+						</p>
+					)}
+					{session.memo && (
+						<p className="max-w-[200px] truncate text-muted-foreground text-xs">
+							{session.memo}
+						</p>
+					)}
 				</div>
 
 				<div className="flex items-center gap-1">
