@@ -13,6 +13,15 @@ interface SessionCardProps {
 		sessionDate: string;
 		buyIn: number | null;
 		cashOut: number | null;
+		tournamentBuyIn: number | null;
+		entryFee: number | null;
+		placement: number | null;
+		totalEntries: number | null;
+		prizeMoney: number | null;
+		rebuyCount: number | null;
+		rebuyCost: number | null;
+		addonCost: number | null;
+		bountyPrizes: number | null;
 		profitLoss: number | null;
 		startedAt: string | null;
 		endedAt: string | null;
@@ -48,12 +57,22 @@ function formatDuration(startedAt: string, endedAt: string): string {
 	return `${minutes}m`;
 }
 
+function formatTournamentCost(session: SessionCardProps["session"]): string {
+	const buyIn = session.tournamentBuyIn ?? 0;
+	const entryFee = session.entryFee ?? 0;
+	const rebuys = (session.rebuyCount ?? 0) * (session.rebuyCost ?? 0);
+	const addon = session.addonCost ?? 0;
+	const total = buyIn + entryFee + rebuys + addon;
+	return formatCompactNumber(total);
+}
+
 export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const profitLoss = session.profitLoss ?? 0;
 	const isProfitPositive = profitLoss > 0;
 	const isProfitNegative = profitLoss < 0;
+	const isTournament = session.type === "tournament";
 
 	let profitColorClass = "text-foreground";
 	if (isProfitPositive) {
@@ -71,14 +90,27 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 					</p>
 					<div className="mt-0.5 flex items-center gap-2">
 						<span className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
-							Cash Game
+							{isTournament ? "Tournament" : "Cash Game"}
 						</span>
 						<span className={`font-semibold text-sm ${profitColorClass}`}>
 							{isProfitPositive ? "+" : ""}
 							{formatCompactNumber(profitLoss)}
 						</span>
 					</div>
-					{session.ringGameName && (
+					{isTournament && (
+						<div className="mt-0.5 flex items-center gap-2 text-muted-foreground text-xs">
+							{session.placement !== null && (
+								<span>
+									{session.placement}
+									{session.totalEntries !== null
+										? `/${session.totalEntries}`
+										: ""}
+								</span>
+							)}
+							<span>Cost: {formatTournamentCost(session)}</span>
+						</div>
+					)}
+					{!isTournament && session.ringGameName && (
 						<p className="text-muted-foreground text-xs">
 							{session.ringGameName}
 						</p>

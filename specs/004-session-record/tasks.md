@@ -76,10 +76,10 @@
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Extend `session.create` mutation to handle tournament type with Zod validation (tournamentBuyIn ≥ 0, entryFee ≥ 0, placement > 0, placement ≤ totalEntries when both provided, all monetary amounts ≥ 0) in `packages/api/src/routers/session.ts`
-- [ ] T017 [US2] Extend `session.list` query to compute tournament profitLoss ((prizeMoney + bountyPrizes) - (tournamentBuyIn + entryFee + rebuyCount * rebuyCost + addonCost)) using CASE expression on session type in `packages/api/src/routers/session.ts`
-- [ ] T018 [US2] Extend session form with conditional tournament fields (tournamentBuyIn, entryFee, placement, totalEntries, prizeMoney, rebuyCount, rebuyCost, addonCost, bountyPrizes) shown when type=tournament in `apps/web/src/components/sessions/session-form.tsx`
-- [ ] T019 [US2] Extend session card to display tournament-specific info (placement/entries, total cost breakdown) when session type is tournament in `apps/web/src/components/sessions/session-card.tsx`
+- [x] T016 [US2] Extend `session.create` mutation to handle tournament type with Zod validation (tournamentBuyIn ≥ 0, entryFee ≥ 0, placement > 0, placement ≤ totalEntries when both provided, all monetary amounts ≥ 0) in `packages/api/src/routers/session.ts`
+- [x] T017 [US2] Extend `session.list` query to compute tournament profitLoss ((prizeMoney + bountyPrizes) - (tournamentBuyIn + entryFee + rebuyCount * rebuyCost + addonCost)) using CASE expression on session type in `packages/api/src/routers/session.ts`
+- [x] T018 [US2] Extend session form with conditional tournament fields (tournamentBuyIn, entryFee, placement, totalEntries, prizeMoney, rebuyCount, rebuyCost, addonCost, bountyPrizes) shown when type=tournament in `apps/web/src/components/sessions/session-form.tsx`
+- [x] T019 [US2] Extend session card to display tournament-specific info (placement/entries, total cost breakdown) when session type is tournament in `apps/web/src/components/sessions/session-card.tsx`
 
 **Checkpoint**: Both cash game and tournament sessions can be created, viewed, and managed. Mixed-type session list displays correctly.
 
