@@ -1,6 +1,7 @@
 import {
 	IconCalendar,
-	IconDotsVertical,
+	IconChevronDown,
+	IconChevronUp,
 	IconEdit,
 	IconMapPin,
 	IconTrash,
@@ -78,8 +79,124 @@ function formatProfitLoss(
 	return `${sign}${value}`;
 }
 
+function formatDuration(startedAt: string, endedAt: string): string {
+	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+	const hours = Math.floor(diffMs / (1000 * 60 * 60));
+	const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+	if (hours > 0 && minutes > 0) {
+		return `${hours}h ${minutes}m`;
+	}
+	if (hours > 0) {
+		return `${hours}h`;
+	}
+	return `${minutes}m`;
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="flex justify-between gap-2">
+			<span className="text-muted-foreground">{label}</span>
+			<span className="text-right">{value}</span>
+		</div>
+	);
+}
+
+function CashGameDetails({
+	session,
+}: {
+	session: SessionCardProps["session"];
+}) {
+	const rows: Array<{ label: string; value: string }> = [];
+	if (session.buyIn !== null) {
+		rows.push({ label: "Buy-in", value: formatCompactNumber(session.buyIn) });
+	}
+	if (session.cashOut !== null) {
+		rows.push({
+			label: "Cash-out",
+			value: formatCompactNumber(session.cashOut),
+		});
+	}
+	if (session.currencyName) {
+		rows.push({ label: "Currency", value: session.currencyName });
+	}
+	if (session.startedAt && session.endedAt) {
+		rows.push({
+			label: "Duration",
+			value: formatDuration(session.startedAt, session.endedAt),
+		});
+	}
+	return (
+		<>
+			{rows.map((r) => (
+				<DetailRow key={r.label} label={r.label} value={r.value} />
+			))}
+		</>
+	);
+}
+
+function TournamentDetails({
+	session,
+}: {
+	session: SessionCardProps["session"];
+}) {
+	const rows: Array<{ label: string; value: string }> = [];
+	if (session.tournamentBuyIn !== null) {
+		rows.push({
+			label: "Buy-in",
+			value: formatCompactNumber(session.tournamentBuyIn),
+		});
+	}
+	if (session.entryFee !== null && session.entryFee > 0) {
+		rows.push({
+			label: "Entry Fee",
+			value: formatCompactNumber(session.entryFee),
+		});
+	}
+	if (session.prizeMoney !== null && session.prizeMoney > 0) {
+		rows.push({
+			label: "Prize",
+			value: formatCompactNumber(session.prizeMoney),
+		});
+	}
+	if (session.bountyPrizes !== null && session.bountyPrizes > 0) {
+		rows.push({
+			label: "Bounty",
+			value: formatCompactNumber(session.bountyPrizes),
+		});
+	}
+	if (session.rebuyCount !== null && session.rebuyCount > 0) {
+		const cost = session.rebuyCost ?? 0;
+		rows.push({
+			label: "Rebuy",
+			value: `${session.rebuyCount} × ${formatCompactNumber(cost)}`,
+		});
+	}
+	if (session.addonCost !== null && session.addonCost > 0) {
+		rows.push({
+			label: "Addon",
+			value: formatCompactNumber(session.addonCost),
+		});
+	}
+	if (session.currencyName) {
+		rows.push({ label: "Currency", value: session.currencyName });
+	}
+	if (session.startedAt && session.endedAt) {
+		rows.push({
+			label: "Duration",
+			value: formatDuration(session.startedAt, session.endedAt),
+		});
+	}
+	return (
+		<>
+			{rows.map((r) => (
+				<DetailRow key={r.label} label={r.label} value={r.value} />
+			))}
+		</>
+	);
+}
+
 export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
-	const [showActions, setShowActions] = useState(false);
+	const [expanded, setExpanded] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const profitLoss = session.profitLoss ?? 0;
@@ -94,15 +211,8 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 
 	const gameName = getGameName(session);
 
-	const handleCardTap = () => {
-		if (confirmingDelete) {
-			return;
-		}
-		setShowActions((prev) => !prev);
-	};
-
 	return (
-		<div className="group rounded-lg border bg-card">
+		<div className="rounded-lg border bg-card">
 			<div className="flex items-start gap-2 p-3">
 				<div className="min-w-0 flex-1">
 					{/* Row 1: Game name + badges ... P&L */}
@@ -123,7 +233,7 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 						</span>
 					</div>
 
-					{/* Row 2: Tournament placement or memo */}
+					{/* Row 2: Tournament placement or memo excerpt */}
 					{isTournament && session.placement !== null && (
 						<p className="mt-0.5 text-muted-foreground text-xs">
 							{session.placement}
@@ -131,7 +241,7 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 							{" place"}
 						</p>
 					)}
-					{!isTournament && session.memo && (
+					{!isTournament && session.memo && !expanded && (
 						<p className="mt-0.5 truncate text-muted-foreground text-xs">
 							{session.memo}
 						</p>
@@ -152,109 +262,90 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 					</div>
 				</div>
 
-				{/* Desktop: hover-reveal action buttons */}
-				<div className="hidden shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 md:flex">
-					<Button
-						aria-label="Edit session"
-						onClick={(e) => {
-							e.stopPropagation();
-							onEdit(session);
-						}}
-						size="icon-xs"
-						variant="ghost"
-					>
-						<IconEdit size={14} />
-					</Button>
-					<Button
-						aria-label="Delete session"
-						onClick={(e) => {
-							e.stopPropagation();
-							setConfirmingDelete(true);
-							setShowActions(false);
-						}}
-						size="icon-xs"
-						variant="ghost"
-					>
-						<IconTrash size={14} />
-					</Button>
-				</div>
-
-				{/* Mobile: three-dot menu toggle */}
+				{/* Chevron toggle */}
 				<Button
-					aria-label="Session actions"
-					className="shrink-0 text-muted-foreground md:hidden"
-					onClick={(e) => {
-						e.stopPropagation();
-						handleCardTap();
+					aria-label={expanded ? "Collapse details" : "Expand details"}
+					className="shrink-0 text-muted-foreground"
+					onClick={() => {
+						setExpanded((prev) => !prev);
+						setConfirmingDelete(false);
 					}}
 					size="icon-xs"
 					variant="ghost"
 				>
-					<IconDotsVertical size={14} />
+					{expanded ? (
+						<IconChevronUp size={16} />
+					) : (
+						<IconChevronDown size={16} />
+					)}
 				</Button>
 			</div>
 
-			{/* Mobile action bar (shown on tap) */}
-			{showActions && !confirmingDelete && (
-				<div className="flex items-center justify-end gap-1 border-t px-3 py-1.5 md:hidden">
-					<Button
-						onClick={(e) => {
-							e.stopPropagation();
-							onEdit(session);
-							setShowActions(false);
-						}}
-						size="xs"
-						variant="ghost"
-					>
-						<IconEdit size={14} />
-						Edit
-					</Button>
-					<Button
-						className="text-destructive hover:text-destructive"
-						onClick={(e) => {
-							e.stopPropagation();
-							setConfirmingDelete(true);
-							setShowActions(false);
-						}}
-						size="xs"
-						variant="ghost"
-					>
-						<IconTrash size={14} />
-						Delete
-					</Button>
-				</div>
-			)}
+			{/* Expanded detail panel */}
+			{expanded && (
+				<div className="border-t px-3 py-2">
+					<div className="flex flex-col gap-1 text-xs">
+						{isTournament ? (
+							<TournamentDetails session={session} />
+						) : (
+							<CashGameDetails session={session} />
+						)}
+						{session.memo && (
+							<div className="mt-1 border-t pt-1">
+								<p className="whitespace-pre-wrap text-muted-foreground">
+									{session.memo}
+								</p>
+							</div>
+						)}
+					</div>
 
-			{/* Delete confirmation bar */}
-			{confirmingDelete && (
-				<div className="flex items-center justify-end gap-1 border-t px-3 py-1.5">
-					<span className="text-destructive text-xs">Delete this session?</span>
-					<Button
-						aria-label="Confirm delete"
-						className="text-destructive hover:text-destructive"
-						onClick={(e) => {
-							e.stopPropagation();
-							onDelete(session.id);
-							setConfirmingDelete(false);
-						}}
-						size="xs"
-						variant="ghost"
-					>
-						<IconTrash size={14} />
-						Delete
-					</Button>
-					<Button
-						aria-label="Cancel delete"
-						onClick={(e) => {
-							e.stopPropagation();
-							setConfirmingDelete(false);
-						}}
-						size="xs"
-						variant="ghost"
-					>
-						<IconX size={14} />
-						Cancel
-					</Button>
+					{/* Action buttons */}
+					{confirmingDelete ? (
+						<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
+							<span className="text-destructive text-xs">
+								Delete this session?
+							</span>
+							<Button
+								aria-label="Confirm delete"
+								className="text-destructive hover:text-destructive"
+								onClick={() => {
+									onDelete(session.id);
+									setConfirmingDelete(false);
+									setExpanded(false);
+								}}
+								size="xs"
+								variant="ghost"
+							>
+								<IconTrash size={14} />
+								Delete
+							</Button>
+							<Button
+								aria-label="Cancel delete"
+								onClick={() => setConfirmingDelete(false)}
+								size="xs"
+								variant="ghost"
+							>
+								<IconX size={14} />
+								Cancel
+							</Button>
+						</div>
+					) : (
+						<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
+							<Button onClick={() => onEdit(session)} size="xs" variant="ghost">
+								<IconEdit size={14} />
+								Edit
+							</Button>
+							<Button
+								className="text-destructive hover:text-destructive"
+								onClick={() => setConfirmingDelete(true)}
+								size="xs"
+								variant="ghost"
+							>
+								<IconTrash size={14} />
+								Delete
+							</Button>
+						</div>
+					)}
 				</div>
 			)}
 		</div>
