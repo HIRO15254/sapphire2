@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { TagInput } from "@/components/ui/tag-input";
 import { CashGameFields } from "./cash-game-fields";
 import { FormSection } from "./form-section";
-import { LinkSelectors } from "./link-selectors";
+import { StoreGameSelectors } from "./link-selectors";
 import { TournamentFields } from "./tournament-fields";
 
 interface CashGameFormValues {
@@ -301,6 +301,8 @@ export function SessionForm({
 		}
 	};
 
+	const gameLabel = isCashGame ? "Cash Game" : "Tournament";
+
 	return (
 		<form className="flex flex-col gap-2" onSubmit={handleSubmit}>
 			{/* === Section: Basic Info (always visible, not collapsible) === */}
@@ -371,39 +373,66 @@ export function SessionForm({
 						/>
 					</div>
 				</div>
-			</div>
 
-			<Separator />
-
-			{/* === Section: Store / Game / Currency === */}
-			<FormSection
-				defaultOpen={!!defaultValues?.storeId}
-				title="Link to Store / Game / Currency"
-			>
-				<LinkSelectors
-					currencies={currencies}
-					gameLabel={isCashGame ? "Cash Game" : "Tournament"}
+				{/* Store / Game Selectors */}
+				<StoreGameSelectors
+					gameLabel={gameLabel}
 					gameOptions={gameOptions}
-					onCurrencyChange={setSelectedCurrencyId}
 					onGameChange={handleGameChange}
 					onStoreChange={handleStoreChange}
-					selectedCurrencyId={selectedCurrencyId}
 					selectedGameId={selectedGameId}
 					selectedStoreId={selectedStoreId}
 					stores={stores}
 				/>
-			</FormSection>
+
+				{/* Buy-in / Cash-out (cash game only, always visible) */}
+				{isCashGame && (
+					<div className="grid grid-cols-2 gap-3">
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="buyIn">
+								Buy-in <span className="text-destructive">*</span>
+							</Label>
+							<Input
+								defaultValue={defaultValues?.buyIn}
+								id="buyIn"
+								inputMode="numeric"
+								min={0}
+								name="buyIn"
+								placeholder="0"
+								required
+								type="number"
+							/>
+						</div>
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="cashOut">
+								Cash-out <span className="text-destructive">*</span>
+							</Label>
+							<Input
+								defaultValue={defaultValues?.cashOut}
+								id="cashOut"
+								inputMode="numeric"
+								min={0}
+								name="cashOut"
+								placeholder="0"
+								required
+								type="number"
+							/>
+						</div>
+					</div>
+				)}
+			</div>
 
 			<Separator />
 
-			{/* === Section: Session Details (type-specific) === */}
-			<FormSection
-				title={isCashGame ? "Cash Game Details" : "Tournament Details"}
-			>
+			{/* === Section: Session Details (type-specific, collapsible) === */}
+			<FormSection title={isCashGame ? "Detail" : "Tournament Details"}>
 				{isCashGame ? (
 					<CashGameFields
+						currencies={currencies}
 						defaultValues={effectiveDefaults}
 						key={`cash-${selectedGameId ?? "none"}`}
+						onCurrencyChange={setSelectedCurrencyId}
+						selectedCurrencyId={selectedCurrencyId}
 					/>
 				) : (
 					<TournamentFields
