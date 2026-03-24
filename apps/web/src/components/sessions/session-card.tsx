@@ -1,5 +1,6 @@
 import {
 	IconCalendar,
+	IconDotsVertical,
 	IconEdit,
 	IconMapPin,
 	IconTrash,
@@ -21,6 +22,7 @@ interface SessionCardProps {
 		createdAt: string;
 		currencyId: string | null;
 		currencyName: string | null;
+		currencyUnit: string | null;
 		endedAt: string | null;
 		entryFee: number | null;
 		evCashOut: number | null;
@@ -48,11 +50,10 @@ interface SessionCardProps {
 
 function formatSessionDate(date: string): string {
 	const d = new Date(date);
-	return d.toLocaleDateString("en-US", {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
-	});
+	const y = d.getFullYear();
+	const m = String(d.getMonth() + 1).padStart(2, "0");
+	const day = String(d.getDate()).padStart(2, "0");
+	return `${y}/${m}/${day}`;
 }
 
 function getGameName(session: SessionCardProps["session"]): string {
@@ -67,17 +68,18 @@ function getGameName(session: SessionCardProps["session"]): string {
 
 function formatProfitLoss(
 	profitLoss: number,
-	currencyName: string | null
+	currencyUnit: string | null
 ): string {
 	const sign = profitLoss >= 0 ? "+" : "";
 	const value = formatCompactNumber(profitLoss);
-	if (currencyName) {
-		return `${sign}${value} ${currencyName}`;
+	if (currencyUnit) {
+		return `${sign}${value} ${currencyUnit}`;
 	}
 	return `${sign}${value}`;
 }
 
 export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
+	const [showActions, setShowActions] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const profitLoss = session.profitLoss ?? 0;
@@ -92,14 +94,21 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 
 	const gameName = getGameName(session);
 
+	const handleCardTap = () => {
+		if (confirmingDelete) {
+			return;
+		}
+		setShowActions((prev) => !prev);
+	};
+
 	return (
-		<div className="rounded-lg border bg-card">
+		<div className="group rounded-lg border bg-card">
 			<div className="flex items-start gap-2 p-3">
 				<div className="min-w-0 flex-1">
 					{/* Row 1: Game name + badges ... P&L */}
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-1.5">
 						<span className="truncate font-medium text-sm">{gameName}</span>
-						<span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+						<span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
 							{isTournament ? "T" : "CG"}
 						</span>
 						{session.tags.map((tag) => (
@@ -110,7 +119,7 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 						<span
 							className={`ml-auto shrink-0 font-semibold text-sm ${profitColorClass}`}
 						>
-							{formatProfitLoss(profitLoss, session.currencyName)}
+							{formatProfitLoss(profitLoss, session.currencyUnit)}
 						</span>
 					</div>
 
@@ -123,7 +132,7 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 						</p>
 					)}
 					{!isTournament && session.memo && (
-						<p className="mt-0.5 max-w-[250px] truncate text-muted-foreground text-xs">
+						<p className="mt-0.5 truncate text-muted-foreground text-xs">
 							{session.memo}
 						</p>
 					)}
@@ -131,66 +140,123 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 					{/* Row 3: Store + Date with icons */}
 					<div className="mt-1 flex items-center gap-3 text-muted-foreground text-xs">
 						{session.storeName && (
-							<span className="flex items-center gap-0.5">
-								<IconMapPin size={12} />
-								{session.storeName}
+							<span className="flex max-w-[120px] items-center gap-0.5">
+								<IconMapPin className="shrink-0" size={12} />
+								<span className="truncate">{session.storeName}</span>
 							</span>
 						)}
 						<span className="flex items-center gap-0.5">
-							<IconCalendar size={12} />
+							<IconCalendar className="shrink-0" size={12} />
 							{formatSessionDate(session.sessionDate)}
 						</span>
 					</div>
 				</div>
 
-				{/* Action buttons */}
-				<div className="flex shrink-0 items-center gap-1">
-					{confirmingDelete ? (
-						<>
-							<span className="text-destructive text-xs">Delete?</span>
-							<Button
-								aria-label="Confirm delete session"
-								className="text-destructive hover:text-destructive"
-								onClick={() => {
-									onDelete(session.id);
-									setConfirmingDelete(false);
-								}}
-								size="sm"
-								variant="ghost"
-							>
-								<IconTrash size={14} />
-							</Button>
-							<Button
-								aria-label="Cancel delete"
-								onClick={() => setConfirmingDelete(false)}
-								size="sm"
-								variant="ghost"
-							>
-								<IconX size={14} />
-							</Button>
-						</>
-					) : (
-						<>
-							<Button
-								aria-label="Edit session"
-								onClick={() => onEdit(session)}
-								size="sm"
-								variant="ghost"
-							>
-								<IconEdit size={14} />
-							</Button>
-							<Button
-								aria-label="Delete session"
-								onClick={() => setConfirmingDelete(true)}
-								size="sm"
-								variant="ghost"
-							>
-								<IconTrash size={14} />
-							</Button>
-						</>
-					)}
+				{/* Desktop: hover-reveal action buttons */}
+				<div className="hidden shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 md:flex">
+					<Button
+						aria-label="Edit session"
+						onClick={(e) => {
+							e.stopPropagation();
+							onEdit(session);
+						}}
+						size="icon-xs"
+						variant="ghost"
+					>
+						<IconEdit size={14} />
+					</Button>
+					<Button
+						aria-label="Delete session"
+						onClick={(e) => {
+							e.stopPropagation();
+							setConfirmingDelete(true);
+							setShowActions(false);
+						}}
+						size="icon-xs"
+						variant="ghost"
+					>
+						<IconTrash size={14} />
+					</Button>
 				</div>
+
+				{/* Mobile: three-dot menu toggle */}
+				<Button
+					aria-label="Session actions"
+					className="shrink-0 text-muted-foreground md:hidden"
+					onClick={(e) => {
+						e.stopPropagation();
+						handleCardTap();
+					}}
+					size="icon-xs"
+					variant="ghost"
+				>
+					<IconDotsVertical size={14} />
+				</Button>
 			</div>
+
+			{/* Mobile action bar (shown on tap) */}
+			{showActions && !confirmingDelete && (
+				<div className="flex items-center justify-end gap-1 border-t px-3 py-1.5 md:hidden">
+					<Button
+						onClick={(e) => {
+							e.stopPropagation();
+							onEdit(session);
+							setShowActions(false);
+						}}
+						size="xs"
+						variant="ghost"
+					>
+						<IconEdit size={14} />
+						Edit
+					</Button>
+					<Button
+						className="text-destructive hover:text-destructive"
+						onClick={(e) => {
+							e.stopPropagation();
+							setConfirmingDelete(true);
+							setShowActions(false);
+						}}
+						size="xs"
+						variant="ghost"
+					>
+						<IconTrash size={14} />
+						Delete
+					</Button>
+				</div>
+			)}
+
+			{/* Delete confirmation bar */}
+			{confirmingDelete && (
+				<div className="flex items-center justify-end gap-1 border-t px-3 py-1.5">
+					<span className="text-destructive text-xs">Delete this session?</span>
+					<Button
+						aria-label="Confirm delete"
+						className="text-destructive hover:text-destructive"
+						onClick={(e) => {
+							e.stopPropagation();
+							onDelete(session.id);
+							setConfirmingDelete(false);
+						}}
+						size="xs"
+						variant="ghost"
+					>
+						<IconTrash size={14} />
+						Delete
+					</Button>
+					<Button
+						aria-label="Cancel delete"
+						onClick={(e) => {
+							e.stopPropagation();
+							setConfirmingDelete(false);
+						}}
+						size="xs"
+						variant="ghost"
+					>
+						<IconX size={14} />
+						Cancel
+					</Button>
+				</div>
+			)}
 		</div>
 	);
 }

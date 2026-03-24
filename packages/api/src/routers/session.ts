@@ -843,6 +843,7 @@ export const sessionRouter = router({
 					tournamentName: tournament.name,
 					currencyId: pokerSession.currencyId,
 					currencyName: currency.name,
+					currencyUnit: currency.unit,
 					createdAt: pokerSession.createdAt,
 				})
 				.from(pokerSession)

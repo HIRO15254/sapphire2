@@ -68,6 +68,7 @@ interface SessionItem {
 	createdAt: string;
 	currencyId: string | null;
 	currencyName: string | null;
+	currencyUnit: string | null;
 	endedAt: string | null;
 	entryFee: number | null;
 	evCashOut: number | null;
@@ -278,6 +279,7 @@ function buildOptimisticItem(newSession: SessionFormValues): SessionItem {
 		tournamentName: null,
 		currencyId: newSession.currencyId ?? null,
 		currencyName: null,
+		currencyUnit: null,
 		createdAt: new Date().toISOString(),
 		tags: [],
 	};
