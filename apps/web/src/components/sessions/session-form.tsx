@@ -6,7 +6,10 @@ import { TagInput } from "@/components/ui/tag-input";
 import { CashGameFields } from "./cash-game-fields";
 import { FormAccordion } from "./form-section";
 import { StoreGameSelectors } from "./link-selectors";
-import { TournamentFields } from "./tournament-fields";
+import {
+	TournamentDetailFields,
+	TournamentPrimaryFields,
+} from "./tournament-fields";
 
 interface CashGameFormValues {
 	ante?: number;
@@ -255,9 +258,9 @@ function SessionFormFields({
 			selectedCurrencyId={selectedCurrencyId}
 		/>
 	) : (
-		<TournamentFields
+		<TournamentDetailFields
 			defaultValues={effectiveDefaults}
-			key={`tourney-${selectedGameId ?? "none"}`}
+			key={`tourney-detail-${selectedGameId ?? "none"}`}
 		/>
 	);
 
@@ -375,6 +378,14 @@ function SessionFormFields({
 							/>
 						</div>
 					</div>
+				)}
+
+				{/* Tournament primary fields (outside accordion) */}
+				{!isCashGame && (
+					<TournamentPrimaryFields
+						defaultValues={effectiveDefaults}
+						key={`tourney-primary-${selectedGameId ?? "none"}`}
+					/>
 				)}
 			</div>
 

@@ -1,21 +1,25 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-interface TournamentFieldsProps {
-	defaultValues?: {
-		addonCost?: number;
-		bountyPrizes?: number;
-		entryFee?: number;
-		placement?: number;
-		prizeMoney?: number;
-		rebuyCost?: number;
-		rebuyCount?: number;
-		totalEntries?: number;
-		tournamentBuyIn?: number;
-	};
+interface TournamentFieldsDefaultValues {
+	addonCost?: number;
+	bountyPrizes?: number;
+	entryFee?: number;
+	placement?: number;
+	prizeMoney?: number;
+	rebuyCost?: number;
+	rebuyCount?: number;
+	totalEntries?: number;
+	tournamentBuyIn?: number;
 }
 
-export function TournamentFields({ defaultValues }: TournamentFieldsProps) {
+interface TournamentFieldsProps {
+	defaultValues?: TournamentFieldsDefaultValues;
+}
+
+export function TournamentPrimaryFields({
+	defaultValues,
+}: TournamentFieldsProps) {
 	return (
 		<>
 			{/* Tournament Buy-in / Entry Fee */}
@@ -49,6 +53,20 @@ export function TournamentFields({ defaultValues }: TournamentFieldsProps) {
 				</div>
 			</div>
 
+			{/* Prize Money */}
+			<div className="flex flex-col gap-2">
+				<Label htmlFor="prizeMoney">Prize Money</Label>
+				<Input
+					defaultValue={defaultValues?.prizeMoney}
+					id="prizeMoney"
+					inputMode="numeric"
+					min={0}
+					name="prizeMoney"
+					placeholder="0"
+					type="number"
+				/>
+			</div>
+
 			{/* Placement / Total Entries */}
 			<div className="grid grid-cols-2 gap-3">
 				<div className="flex flex-col gap-2">
@@ -76,21 +94,15 @@ export function TournamentFields({ defaultValues }: TournamentFieldsProps) {
 					/>
 				</div>
 			</div>
+		</>
+	);
+}
 
-			{/* Prize Money */}
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="prizeMoney">Prize Money</Label>
-				<Input
-					defaultValue={defaultValues?.prizeMoney}
-					id="prizeMoney"
-					inputMode="numeric"
-					min={0}
-					name="prizeMoney"
-					placeholder="0"
-					type="number"
-				/>
-			</div>
-
+export function TournamentDetailFields({
+	defaultValues,
+}: TournamentFieldsProps) {
+	return (
+		<>
 			{/* Rebuy Count / Rebuy Cost */}
 			<div className="grid grid-cols-2 gap-3">
 				<div className="flex flex-col gap-2">
@@ -146,6 +158,15 @@ export function TournamentFields({ defaultValues }: TournamentFieldsProps) {
 					/>
 				</div>
 			</div>
+		</>
+	);
+}
+
+export function TournamentFields({ defaultValues }: TournamentFieldsProps) {
+	return (
+		<>
+			<TournamentPrimaryFields defaultValues={defaultValues} />
+			<TournamentDetailFields defaultValues={defaultValues} />
 		</>
 	);
 }
