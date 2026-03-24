@@ -290,23 +290,14 @@ export function SessionForm({
 				<Label>Session Tags</Label>
 				<TagInput
 					availableTags={tags}
-					onAdd={(tag) =>
-						setSelectedTagIds((prev) => [...prev, tag.id])
-					}
+					onAdd={(tag) => setSelectedTagIds((prev) => [...prev, tag.id])}
 					onCreateTag={onCreateTag}
 					onRemove={(tag) =>
-						setSelectedTagIds((prev) =>
-							prev.filter((id) => id !== tag.id)
-						)
+						setSelectedTagIds((prev) => prev.filter((id) => id !== tag.id))
 					}
-					selectedTags={
-						selectedTagIds
-							.map((id) => tags?.find((t) => t.id === id))
-							.filter(
-								(t): t is { id: string; name: string } =>
-									t !== undefined
-							)
-					}
+					selectedTags={selectedTagIds
+						.map((id) => tags?.find((t) => t.id === id))
+						.filter((t): t is { id: string; name: string } => t !== undefined)}
 				/>
 			</div>
 

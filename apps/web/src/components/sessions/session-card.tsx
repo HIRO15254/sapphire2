@@ -9,22 +9,23 @@ interface SessionCardProps {
 	onEdit: (session: SessionCardProps["session"]) => void;
 	session: {
 		id: string;
-		type: "cash_game" | "tournament";
-		sessionDate: Date | string;
+		type: string;
+		sessionDate: string;
 		buyIn: number | null;
 		cashOut: number | null;
-		profitLoss: number;
-		startedAt: Date | string | null;
-		endedAt: Date | string | null;
+		profitLoss: number | null;
+		startedAt: string | null;
+		endedAt: string | null;
 		memo: string | null;
+		ringGameId: string | null;
 		ringGameName: string | null;
-		createdAt: Date | string;
+		createdAt: string;
 		tags: Array<{ id: string; name: string }>;
 	};
 }
 
-function formatSessionDate(date: Date | string): string {
-	const d = typeof date === "string" ? new Date(date) : date;
+function formatSessionDate(date: string): string {
+	const d = new Date(date);
 	return d.toLocaleDateString("en-US", {
 		year: "numeric",
 		month: "short",
@@ -32,12 +33,9 @@ function formatSessionDate(date: Date | string): string {
 	});
 }
 
-function formatDuration(
-	startedAt: Date | string,
-	endedAt: Date | string
-): string {
-	const start = typeof startedAt === "string" ? new Date(startedAt) : startedAt;
-	const end = typeof endedAt === "string" ? new Date(endedAt) : endedAt;
+function formatDuration(startedAt: string, endedAt: string): string {
+	const start = new Date(startedAt);
+	const end = new Date(endedAt);
 	const diffMs = end.getTime() - start.getTime();
 	const hours = Math.floor(diffMs / (1000 * 60 * 60));
 	const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -53,8 +51,9 @@ function formatDuration(
 export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-	const isProfitPositive = session.profitLoss > 0;
-	const isProfitNegative = session.profitLoss < 0;
+	const profitLoss = session.profitLoss ?? 0;
+	const isProfitPositive = profitLoss > 0;
+	const isProfitNegative = profitLoss < 0;
 
 	let profitColorClass = "text-foreground";
 	if (isProfitPositive) {
@@ -76,7 +75,7 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 						</span>
 						<span className={`font-semibold text-sm ${profitColorClass}`}>
 							{isProfitPositive ? "+" : ""}
-							{formatCompactNumber(session.profitLoss)}
+							{formatCompactNumber(profitLoss)}
 						</span>
 					</div>
 					{session.ringGameName && (

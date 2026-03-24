@@ -91,8 +91,7 @@ export function TagInput({
 
 		const existing = availableTags?.find(
 			(t) =>
-				t.name.toLowerCase() === trimmed.toLowerCase() &&
-				!selectedIds.has(t.id)
+				t.name.toLowerCase() === trimmed.toLowerCase() && !selectedIds.has(t.id)
 		);
 
 		if (existing) {

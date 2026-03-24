@@ -33,17 +33,17 @@ interface SessionFormValues {
 interface SessionItem {
 	buyIn: number | null;
 	cashOut: number | null;
-	createdAt: Date | string;
-	endedAt: Date | string | null;
+	createdAt: string;
+	endedAt: string | null;
 	id: string;
 	memo: string | null;
-	profitLoss: number;
+	profitLoss: number | null;
 	ringGameId: string | null;
 	ringGameName: string | null;
-	sessionDate: Date | string;
-	startedAt: Date | string | null;
+	sessionDate: string;
+	startedAt: string | null;
 	tags: Array<{ id: string; name: string }>;
-	type: "cash_game" | "tournament";
+	type: string;
 }
 
 function timeToUnix(
@@ -116,8 +116,8 @@ function SessionsPage() {
 					items: [
 						{
 							id: `temp-${Date.now()}`,
-							type: newSession.type as "cash_game" | "tournament",
-							sessionDate: new Date(newSession.sessionDate),
+							type: newSession.type,
+							sessionDate: newSession.sessionDate,
 							buyIn: newSession.buyIn,
 							cashOut: newSession.cashOut,
 							profitLoss: newSession.cashOut - newSession.buyIn,
@@ -126,7 +126,7 @@ function SessionsPage() {
 							memo: newSession.memo ?? null,
 							ringGameId: null,
 							ringGameName: null,
-							createdAt: new Date(),
+							createdAt: new Date().toISOString(),
 							tags: [],
 						},
 						...old.items,
@@ -180,7 +180,7 @@ function SessionsPage() {
 						s.id === updated.id
 							? {
 									...s,
-									sessionDate: new Date(updated.sessionDate),
+									sessionDate: updated.sessionDate,
 									buyIn: updated.buyIn,
 									cashOut: updated.cashOut,
 									profitLoss: updated.cashOut - updated.buyIn,
@@ -246,21 +246,19 @@ function SessionsPage() {
 		deleteMutation.mutate(id);
 	};
 
-	const formatDateForInput = (date: Date | string): string => {
-		const d = typeof date === "string" ? new Date(date) : date;
+	const formatDateForInput = (date: string): string => {
+		const d = new Date(date);
 		const year = d.getFullYear();
 		const month = String(d.getMonth() + 1).padStart(2, "0");
 		const day = String(d.getDate()).padStart(2, "0");
 		return `${year}-${month}-${day}`;
 	};
 
-	const formatTimeFromDate = (
-		date: Date | string | null
-	): string | undefined => {
+	const formatTimeFromDate = (date: string | null): string | undefined => {
 		if (!date) {
 			return undefined;
 		}
-		const d = typeof date === "string" ? new Date(date) : date;
+		const d = new Date(date);
 		const hours = String(d.getHours()).padStart(2, "0");
 		const minutes = String(d.getMinutes()).padStart(2, "0");
 		return `${hours}:${minutes}`;
