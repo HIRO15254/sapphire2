@@ -18,23 +18,22 @@ interface SessionFormValues {
 	blind3?: number;
 	buyIn: number;
 	cashOut: number;
-	endedAt?: string;
-	maxBuyIn?: number;
+	endTime?: string;
 	memo?: string;
-	minBuyIn?: number;
 	sessionDate: string;
-	// Time + memo
-	startedAt?: string;
+	startTime?: string;
 	tableSize?: number;
+	tagIds?: string[];
 	type: "cash_game";
-	// Ring game config
 	variant: string;
 }
 
 interface SessionFormProps {
 	defaultValues?: Partial<SessionFormValues>;
 	isLoading?: boolean;
+	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
 	onSubmit: (values: SessionFormValues) => void;
+	tags?: Array<{ id: string; name: string }>;
 }
 
 const ANTE_TYPES = [
@@ -64,11 +63,17 @@ function parseOptionalInt(value: string): number | undefined {
 export function SessionForm({
 	defaultValues,
 	isLoading = false,
+	onCreateTag,
 	onSubmit,
+	tags,
 }: SessionFormProps) {
 	const [anteType, setAnteType] = useState<string>(
 		defaultValues?.anteType ?? "none"
 	);
+	const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
+		defaultValues?.tagIds ?? []
+	);
+	const [newTagName, setNewTagName] = useState("");
 
 	const isAnteDisabled = anteType === "none";
 
@@ -79,6 +84,8 @@ export function SessionForm({
 		const values: SessionFormValues = {
 			type: "cash_game",
 			sessionDate: formData.get("sessionDate") as string,
+			startTime: (formData.get("startTime") as string) || undefined,
+			endTime: (formData.get("endTime") as string) || undefined,
 			buyIn: Number(formData.get("buyIn")),
 			cashOut: Number(formData.get("cashOut")),
 			variant: (formData.get("variant") as string) || "nlh",
@@ -90,10 +97,7 @@ export function SessionForm({
 				: parseOptionalInt(formData.get("ante") as string),
 			anteType: (formData.get("anteType") as string) || undefined,
 			tableSize: parseOptionalInt(formData.get("tableSize") as string),
-			minBuyIn: parseOptionalInt(formData.get("minBuyIn") as string),
-			maxBuyIn: parseOptionalInt(formData.get("maxBuyIn") as string),
-			startedAt: (formData.get("startedAt") as string) || undefined,
-			endedAt: (formData.get("endedAt") as string) || undefined,
+			tagIds: selectedTagIds,
 			memo: (formData.get("memo") as string) || undefined,
 		};
 
@@ -114,6 +118,28 @@ export function SessionForm({
 					required
 					type="date"
 				/>
+			</div>
+
+			{/* Start Time / End Time */}
+			<div className="grid grid-cols-2 gap-3">
+				<div className="flex flex-col gap-2">
+					<Label htmlFor="startTime">Start Time</Label>
+					<Input
+						defaultValue={defaultValues?.startTime}
+						id="startTime"
+						name="startTime"
+						type="time"
+					/>
+				</div>
+				<div className="flex flex-col gap-2">
+					<Label htmlFor="endTime">End Time</Label>
+					<Input
+						defaultValue={defaultValues?.endTime}
+						id="endTime"
+						name="endTime"
+						type="time"
+					/>
+				</div>
 			</div>
 
 			{/* Buy-in / Cash-out */}
@@ -259,53 +285,57 @@ export function SessionForm({
 				</Select>
 			</div>
 
-			{/* Min Buy-In / Max Buy-In */}
-			<div className="grid grid-cols-2 gap-3">
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="minBuyIn">Min Buy-In</Label>
+			{/* Session Tags */}
+			<div className="flex flex-col gap-2">
+				<Label>Session Tags</Label>
+				{tags && tags.length > 0 && (
+					<div className="flex flex-wrap gap-2">
+						{tags.map((tag) => (
+							<label
+								className="flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-sm has-[:checked]:bg-primary has-[:checked]:text-primary-foreground"
+								key={tag.id}
+							>
+								<input
+									checked={selectedTagIds.includes(tag.id)}
+									className="sr-only"
+									onChange={(e) => {
+										if (e.target.checked) {
+											setSelectedTagIds((prev) => [...prev, tag.id]);
+										} else {
+											setSelectedTagIds((prev) =>
+												prev.filter((id) => id !== tag.id)
+											);
+										}
+									}}
+									type="checkbox"
+								/>
+								{tag.name}
+							</label>
+						))}
+					</div>
+				)}
+				<div className="flex gap-2">
 					<Input
-						defaultValue={defaultValues?.minBuyIn}
-						id="minBuyIn"
-						inputMode="numeric"
-						min={0}
-						name="minBuyIn"
-						placeholder="0"
-						type="number"
+						className="flex-1"
+						onChange={(e) => setNewTagName(e.target.value)}
+						placeholder="New tag name"
+						value={newTagName}
 					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="maxBuyIn">Max Buy-In</Label>
-					<Input
-						defaultValue={defaultValues?.maxBuyIn}
-						id="maxBuyIn"
-						inputMode="numeric"
-						min={0}
-						name="maxBuyIn"
-						placeholder="0"
-						type="number"
-					/>
-				</div>
-			</div>
-
-			{/* Start Time / End Time */}
-			<div className="grid grid-cols-2 gap-3">
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="startedAt">Start Time</Label>
-					<Input
-						defaultValue={defaultValues?.startedAt}
-						id="startedAt"
-						name="startedAt"
-						type="datetime-local"
-					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="endedAt">End Time</Label>
-					<Input
-						defaultValue={defaultValues?.endedAt}
-						id="endedAt"
-						name="endedAt"
-						type="datetime-local"
-					/>
+					<Button
+						disabled={!(newTagName.trim() && onCreateTag)}
+						onClick={async () => {
+							if (onCreateTag && newTagName.trim()) {
+								const created = await onCreateTag(newTagName.trim());
+								setSelectedTagIds((prev) => [...prev, created.id]);
+								setNewTagName("");
+							}
+						}}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						Add
+					</Button>
 				</div>
 			</div>
 

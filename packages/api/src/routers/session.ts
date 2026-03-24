@@ -1,7 +1,11 @@
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { pokerSession } from "@sapphire2/db/schema/session";
+import {
+	sessionTag,
+	sessionToSessionTag,
+} from "@sapphire2/db/schema/session-tag";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -64,8 +68,6 @@ interface RingGameConfigInput {
 	blind1?: number | null;
 	blind2?: number | null;
 	blind3?: number | null;
-	maxBuyIn?: number | null;
-	minBuyIn?: number | null;
 	tableSize?: number | null;
 	variant?: string;
 }
@@ -81,8 +83,6 @@ function buildRingGameUpdateData(
 		"ante",
 		"anteType",
 		"tableSize",
-		"minBuyIn",
-		"maxBuyIn",
 	] as const;
 	const hasUpdate = keys.some((k) => input[k] !== undefined);
 	if (!hasUpdate) {
@@ -121,12 +121,12 @@ export const sessionRouter = router({
 				ante: z.number().int().optional(),
 				anteType: z.enum(["none", "all", "bb"]).optional(),
 				tableSize: z.number().int().optional(),
-				minBuyIn: z.number().int().optional(),
-				maxBuyIn: z.number().int().optional(),
 				// Time + memo
 				startedAt: z.number().optional(),
 				endedAt: z.number().optional(),
 				memo: z.string().optional(),
+				// Tags
+				tagIds: z.array(z.string()).optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -146,8 +146,8 @@ export const sessionRouter = router({
 				blind3: input.blind3 ?? null,
 				ante: input.ante ?? null,
 				anteType: input.anteType ?? null,
-				minBuyIn: input.minBuyIn ?? null,
-				maxBuyIn: input.maxBuyIn ?? null,
+				minBuyIn: null,
+				maxBuyIn: null,
 				tableSize: input.tableSize ?? null,
 				updatedAt: now,
 			});
@@ -169,6 +169,15 @@ export const sessionRouter = router({
 				memo: input.memo ?? null,
 				updatedAt: now,
 			});
+
+			if (input.tagIds && input.tagIds.length > 0) {
+				await ctx.db.insert(sessionToSessionTag).values(
+					input.tagIds.map((tagId) => ({
+						sessionId: id,
+						sessionTagId: tagId,
+					}))
+				);
+			}
 
 			const [created] = await ctx.db
 				.select()
@@ -220,7 +229,31 @@ export const sessionRouter = router({
 						: null,
 			}));
 
-			return { items: itemsWithPL, nextCursor };
+			const sessionIds = itemsWithPL.map((item) => item.id);
+			const tagLinks =
+				sessionIds.length > 0
+					? await ctx.db
+							.select({
+								sessionId: sessionToSessionTag.sessionId,
+								tagId: sessionTag.id,
+								tagName: sessionTag.name,
+							})
+							.from(sessionToSessionTag)
+							.innerJoin(
+								sessionTag,
+								eq(sessionTag.id, sessionToSessionTag.sessionTagId)
+							)
+							.where(inArray(sessionToSessionTag.sessionId, sessionIds))
+					: [];
+
+			const itemsWithTags = itemsWithPL.map((item) => ({
+				...item,
+				tags: tagLinks
+					.filter((tl) => tl.sessionId === item.id)
+					.map((tl) => ({ id: tl.tagId, name: tl.tagName })),
+			}));
+
+			return { items: itemsWithTags, nextCursor };
 		}),
 
 	getById: protectedProcedure
@@ -249,8 +282,8 @@ export const sessionRouter = router({
 				ante: z.number().int().nullable().optional(),
 				anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
 				tableSize: z.number().int().nullable().optional(),
-				minBuyIn: z.number().int().nullable().optional(),
-				maxBuyIn: z.number().int().nullable().optional(),
+				// Tags
+				tagIds: z.array(z.string()).optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -293,6 +326,20 @@ export const sessionRouter = router({
 					.update(ringGame)
 					.set(rgUpdateData)
 					.where(eq(ringGame.id, session.ringGameId));
+			}
+
+			if (input.tagIds !== undefined) {
+				await ctx.db
+					.delete(sessionToSessionTag)
+					.where(eq(sessionToSessionTag.sessionId, input.id));
+				if (input.tagIds.length > 0) {
+					await ctx.db.insert(sessionToSessionTag).values(
+						input.tagIds.map((tagId) => ({
+							sessionId: input.id,
+							sessionTagId: tagId,
+						}))
+					);
+				}
 			}
 
 			const [updated] = await ctx.db

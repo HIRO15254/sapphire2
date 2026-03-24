@@ -55,12 +55,14 @@ specs/004-session-record/
 packages/db/src/schema/
 ├── store.ts             # MODIFY: add sessionId to currencyTransaction
 ├── ring-game.ts         # MODIFY: make storeId nullable for standalone game configs
-└── session.ts           # NEW: session table + relations
+├── session.ts           # NEW: session table + relations
+└── session-tag.ts       # NEW: sessionTag table + sessionToSessionTag junction + relations
 
 packages/api/src/
 ├── routers/
 │   ├── index.ts         # MODIFY: register sessionRouter
 │   ├── session.ts       # NEW: session CRUD + summary + currency sync
+│   ├── session-tag.ts   # NEW: session tag CRUD
 │   ├── currency-transaction.ts  # MODIFY: read-only check for session transactions
 │   └── transaction-type.ts      # MODIFY: seed "Session Result" type
 └── __tests__/

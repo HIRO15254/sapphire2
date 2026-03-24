@@ -18,6 +18,7 @@ interface SessionCardProps {
 		memo: string | null;
 		ringGameName: string | null;
 		createdAt: Date | string;
+		tags: Array<{ id: string; name: string }>;
 	};
 }
 
@@ -91,6 +92,18 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 						<p className="max-w-[200px] truncate text-muted-foreground text-xs">
 							{session.memo}
 						</p>
+					)}
+					{session.tags.length > 0 && (
+						<div className="mt-1 flex flex-wrap gap-1">
+							{session.tags.map((tag) => (
+								<span
+									className="rounded bg-primary/10 px-1.5 py-0.5 text-primary text-xs"
+									key={tag.id}
+								>
+									{tag.name}
+								</span>
+							))}
+						</div>
 					)}
 				</div>
 

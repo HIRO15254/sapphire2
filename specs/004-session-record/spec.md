@@ -148,7 +148,8 @@ A user wants to record how long a session lasted and add free-text notes about t
 - **FR-003**: System MUST allow users to view all their sessions in a paginated list, sorted by session date (newest first). Each session MUST display its type, profit/loss, and linked entities.
 - **FR-004**: System MUST allow users to edit any field of an existing session (except session type).
 - **FR-005**: System MUST allow users to delete a session.
-- **FR-006**: System MUST allow users to optionally record start time, end time, and a free-text memo for each session.
+- **FR-006**: System MUST allow users to optionally record start time and end time (time-of-day only, combined with session date for storage) and a free-text memo for each session.
+- **FR-006a**: System MUST allow users to assign multiple session tags to a session. Tags are user-created, persisted in the database, and scoped to the authenticated user. Users can create new tags inline in the session form and manage (rename/delete) existing tags in the settings page.
 - **FR-007**: System MUST automatically calculate session duration when both start and end times are provided.
 - **FR-008**: System MUST ensure sessions remain accessible even when linked entities (store, game, currency) are deleted or archived.
 - **FR-009**: System MUST scope all session data to the authenticated user (no cross-user data access).
@@ -156,7 +157,7 @@ A user wants to record how long a session lasted and add free-text notes about t
 
 #### Cash Game Session
 
-- **FR-011**: System MUST allow users to create a cash game session with at minimum a total buy-in amount, cash-out amount, and session date. The form MUST also accept game configuration fields (variant, SB/BB, straddle, ante type/amount, table size, min/max buy-in), start/end times, and a memo.
+- **FR-011**: System MUST allow users to create a cash game session with at minimum a total buy-in amount, cash-out amount, and session date. The form MUST also accept game configuration fields (variant, SB/BB, straddle, ante type/amount, table size), start/end times (time-of-day only), session tags, and a memo. The form field order MUST be: Session Date, Start/End Time, Buy-in/Cash-out, Variant, SB/BB/Straddle, Ante Type/Ante, Table Size, Session Tags, Memo.
 - **FR-011a**: When creating a cash game session without selecting an existing ring game configuration, the system MUST auto-create a standalone ring game (not linked to any store) using the game config fields entered in the session form, and link the session to it.
 - **FR-012**: System MUST calculate and display cash game profit/loss as: cash-out minus total buy-in.
 - **FR-013**: System MUST enforce that cash game buy-in and cash-out amounts are non-negative numbers.
@@ -186,7 +187,8 @@ A user wants to record how long a session lasted and add free-text notes about t
 
 ### Key Entities
 
-- **Session (common fields)**: A single poker playing occasion. Has a type (cash game or tournament, immutable). Contains session date and optionally links to a store, game configuration, and currency. May include start time, end time, and a free-text memo.
+- **Session (common fields)**: A single poker playing occasion. Has a type (cash game or tournament, immutable). Contains session date and optionally links to a store, game configuration, and currency. May include start time (time-of-day), end time (time-of-day), multiple session tags, and a free-text memo.
+- **Session Tag**: A user-defined label that can be assigned to sessions. Scoped to the authenticated user. Tags are created inline in the session form and managed (rename/delete) in settings. A session can have multiple tags (many-to-many via junction table).
 - **Cash Game Session (type-specific fields)**: Total buy-in amount, cash-out amount, EV-adjusted cash-out (optional). Profit/loss = cash-out minus total buy-in. EV P&L = EV cash-out minus total buy-in. EV diff = EV P&L minus actual P&L.
 - **Tournament Session (type-specific fields)**: Buy-in amount, entry fee, placement, total entries, prize money, rebuy count, rebuy cost per rebuy, addon cost, bounty prizes. Total cost = buy-in + entry fee + (rebuy count × rebuy cost) + addon cost. Profit/loss = (prize + bounty prizes) minus total cost. EV tracking is not applicable to tournament sessions.
 - **Session-Store relationship**: Optional many-to-one. A session may be associated with one store. Deletion of a store sets the reference to null (session preserved).

@@ -20,13 +20,12 @@ interface SessionFormValues {
 	blind3?: number;
 	buyIn: number;
 	cashOut: number;
-	endedAt?: string;
-	maxBuyIn?: number;
+	endTime?: string;
 	memo?: string;
-	minBuyIn?: number;
 	sessionDate: string;
-	startedAt?: string;
+	startTime?: string;
 	tableSize?: number;
+	tagIds?: string[];
 	type: "cash_game";
 	variant: string;
 }
@@ -43,16 +42,18 @@ interface SessionItem {
 	ringGameName: string | null;
 	sessionDate: Date | string;
 	startedAt: Date | string | null;
+	tags: Array<{ id: string; name: string }>;
 	type: "cash_game" | "tournament";
 }
 
-function toUnixOrUndefined(
-	datetimeLocal: string | undefined
+function timeToUnix(
+	sessionDate: string,
+	time: string | undefined
 ): number | undefined {
-	if (!datetimeLocal) {
+	if (!time) {
 		return undefined;
 	}
-	return Math.floor(new Date(datetimeLocal).getTime() / 1000);
+	return Math.floor(new Date(`${sessionDate}T${time}`).getTime() / 1000);
 }
 
 function SessionsPage() {
@@ -66,6 +67,23 @@ function SessionsPage() {
 
 	const sessionsQuery = useQuery(trpc.session.list.queryOptions({}));
 	const sessions = sessionsQuery.data?.items ?? [];
+
+	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions());
+	const availableTags = tagsQuery.data ?? [];
+
+	const createTagMutation = useMutation({
+		mutationFn: (name: string) => trpcClient.sessionTag.create.mutate({ name }),
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				queryKey: trpc.sessionTag.list.queryOptions().queryKey,
+			});
+		},
+	});
+
+	const handleCreateTag = async (name: string) => {
+		const result = await createTagMutation.mutateAsync(name);
+		return { id: result.id, name: result.name };
+	};
 
 	const createMutation = useMutation({
 		mutationFn: (values: SessionFormValues) =>
@@ -81,11 +99,10 @@ function SessionsPage() {
 				ante: values.ante,
 				anteType: values.anteType as "none" | "all" | "bb" | undefined,
 				tableSize: values.tableSize,
-				minBuyIn: values.minBuyIn,
-				maxBuyIn: values.maxBuyIn,
-				startedAt: toUnixOrUndefined(values.startedAt),
-				endedAt: toUnixOrUndefined(values.endedAt),
+				startedAt: timeToUnix(values.sessionDate, values.startTime),
+				endedAt: timeToUnix(values.sessionDate, values.endTime),
 				memo: values.memo,
+				tagIds: values.tagIds,
 			}),
 		onMutate: async (newSession) => {
 			await queryClient.cancelQueries({ queryKey: sessionListKey });
@@ -110,6 +127,7 @@ function SessionsPage() {
 							ringGameId: null,
 							ringGameName: null,
 							createdAt: new Date(),
+							tags: [],
 						},
 						...old.items,
 					],
@@ -144,11 +162,10 @@ function SessionsPage() {
 				ante: values.ante,
 				anteType: values.anteType as "none" | "all" | "bb" | undefined,
 				tableSize: values.tableSize,
-				minBuyIn: values.minBuyIn,
-				maxBuyIn: values.maxBuyIn,
-				startedAt: toUnixOrUndefined(values.startedAt),
-				endedAt: toUnixOrUndefined(values.endedAt),
+				startedAt: timeToUnix(values.sessionDate, values.startTime) ?? null,
+				endedAt: timeToUnix(values.sessionDate, values.endTime) ?? null,
 				memo: values.memo,
+				tagIds: values.tagIds,
 			}),
 		onMutate: async (updated) => {
 			await queryClient.cancelQueries({ queryKey: sessionListKey });
@@ -237,19 +254,16 @@ function SessionsPage() {
 		return `${year}-${month}-${day}`;
 	};
 
-	const formatDatetimeForInput = (
+	const formatTimeFromDate = (
 		date: Date | string | null
 	): string | undefined => {
 		if (!date) {
 			return undefined;
 		}
 		const d = typeof date === "string" ? new Date(date) : date;
-		const year = d.getFullYear();
-		const month = String(d.getMonth() + 1).padStart(2, "0");
-		const day = String(d.getDate()).padStart(2, "0");
 		const hours = String(d.getHours()).padStart(2, "0");
 		const minutes = String(d.getMinutes()).padStart(2, "0");
-		return `${year}-${month}-${day}T${hours}:${minutes}`;
+		return `${hours}:${minutes}`;
 	};
 
 	return (
@@ -294,7 +308,9 @@ function SessionsPage() {
 			>
 				<SessionForm
 					isLoading={createMutation.isPending}
+					onCreateTag={handleCreateTag}
 					onSubmit={handleCreate}
+					tags={availableTags}
 				/>
 			</ResponsiveDialog>
 
@@ -313,12 +329,15 @@ function SessionsPage() {
 							sessionDate: formatDateForInput(editingSession.sessionDate),
 							buyIn: editingSession.buyIn ?? 0,
 							cashOut: editingSession.cashOut ?? 0,
-							startedAt: formatDatetimeForInput(editingSession.startedAt),
-							endedAt: formatDatetimeForInput(editingSession.endedAt),
+							startTime: formatTimeFromDate(editingSession.startedAt),
+							endTime: formatTimeFromDate(editingSession.endedAt),
 							memo: editingSession.memo ?? undefined,
+							tagIds: editingSession.tags.map((t) => t.id),
 						}}
 						isLoading={updateMutation.isPending}
+						onCreateTag={handleCreateTag}
 						onSubmit={handleUpdate}
+						tags={availableTags}
 					/>
 				)}
 			</ResponsiveDialog>

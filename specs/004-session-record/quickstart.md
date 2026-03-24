@@ -13,7 +13,9 @@
 | File | Purpose |
 |------|---------|
 | `packages/db/src/schema/session.ts` | Session table + relations |
+| `packages/db/src/schema/session-tag.ts` | Session tag + junction table + relations |
 | `packages/api/src/routers/session.ts` | Session CRUD + summary + currency transaction sync |
+| `packages/api/src/routers/session-tag.ts` | Session tag CRUD |
 | `apps/web/src/routes/sessions/index.tsx` | Sessions page (summary + list + filters) |
 | `apps/web/src/components/sessions/session-form.tsx` | Create/edit form (type-conditional) |
 | `apps/web/src/components/sessions/session-card.tsx` | Session list item card |

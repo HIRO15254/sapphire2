@@ -36,6 +36,7 @@
     startedAt: Date | null
     endedAt: Date | null
     memo: string | null
+    tags: Array<{ id: string; name: string }>  // resolved via junction table
     createdAt: Date
   }>
   nextCursor: string | undefined
@@ -66,7 +67,7 @@
 { id: string }
 ```
 
-**Output**: Full session record with all fields + resolved entity names.
+**Output**: Full session record with all fields + resolved entity names + tags.
 
 ---
 
@@ -96,8 +97,6 @@
   ante?: number
   anteType?: "none" | "all" | "bb"
   tableSize?: number
-  minBuyIn?: number
-  maxBuyIn?: number
   // Tournament fields (buyIn + entryFee required when type = tournament)
   tournamentBuyIn?: number
   entryFee?: number
@@ -109,17 +108,19 @@
   addonCost?: number
   bountyPrizes?: number
   // Common optional
-  startedAt?: number
-  endedAt?: number
+  startedAt?: number                 // unix timestamp (sessionDate + time-of-day)
+  endedAt?: number                   // unix timestamp (sessionDate + time-of-day)
   memo?: string
+  tagIds?: string[]                  // existing session tag IDs to link
 }
 ```
 
-**Output**: Created session record.
+**Output**: Created session record with tags.
 
 **Side effects**:
 - If `ringGameId` is not provided and type is `cash_game`, creates a standalone `ringGame` (storeId=null) using the game config fields, and links it to the session.
 - If `currencyId` is provided, creates a single `currencyTransaction` with the session's net P&L amount, linked via `sessionId`.
+- If `tagIds` is provided, creates junction records in `sessionToSessionTag`.
 
 ---
 
@@ -148,8 +149,6 @@
   ante?: number | null
   anteType?: "none" | "all" | "bb" | null
   tableSize?: number | null
-  minBuyIn?: number | null
-  maxBuyIn?: number | null
   tournamentBuyIn?: number
   entryFee?: number
   placement?: number | null
@@ -162,16 +161,18 @@
   startedAt?: number | null
   endedAt?: number | null
   memo?: string | null
+  tagIds?: string[]                  // replaces all tag associations (delete + re-insert)
 }
 ```
 
-**Output**: Updated session record.
+**Output**: Updated session record with tags.
 
 **Side effects**:
 - If currency changed: delete old transaction, create new one under new currency.
 - If currency removed: delete auto-generated transaction.
 - If currency unchanged but P&L amounts changed: update existing transaction amount.
 - If currency added: create new transaction.
+- If `tagIds` is provided: delete all existing tag associations, re-insert with new tagIds.
 
 ---
 
@@ -188,3 +189,66 @@
 
 **Side effects**:
 - Auto-generated currency transaction is cascade-deleted via `sessionId` FK.
+- Tag associations are cascade-deleted via `sessionToSessionTag.sessionId` FK.
+
+---
+
+## `sessionTag.list`
+
+**Type**: Query (protectedProcedure)
+
+**Input**: None
+
+**Output**:
+```typescript
+Array<{
+  id: string
+  name: string
+  createdAt: Date
+}>
+```
+
+---
+
+## `sessionTag.create`
+
+**Type**: Mutation (protectedProcedure)
+
+**Input**:
+```typescript
+{ name: string }
+```
+
+**Output**: Created session tag record.
+
+---
+
+## `sessionTag.update`
+
+**Type**: Mutation (protectedProcedure)
+
+**Input**:
+```typescript
+{
+  id: string
+  name: string
+}
+```
+
+**Output**: Updated session tag record.
+
+---
+
+## `sessionTag.delete`
+
+**Type**: Mutation (protectedProcedure)
+
+**Input**:
+```typescript
+{ id: string }
+```
+
+**Output**: `{ success: true }`
+
+**Side effects**:
+- All associations in `sessionToSessionTag` for this tag are cascade-deleted.
