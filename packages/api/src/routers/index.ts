@@ -4,6 +4,7 @@ import { currencyRouter } from "./currency";
 import { currencyTransactionRouter } from "./currency-transaction";
 import { ringGameRouter } from "./ring-game";
 import { sessionRouter } from "./session";
+import { sessionTagRouter } from "./session-tag";
 import { storeRouter } from "./store";
 import { tournamentRouter } from "./tournament";
 import { transactionTypeRouter } from "./transaction-type";
@@ -26,5 +27,6 @@ export const appRouter = router({
 	tournament: tournamentRouter,
 	blindLevel: blindLevelRouter,
 	session: sessionRouter,
+	sessionTag: sessionTagRouter,
 });
 export type AppRouter = typeof appRouter;

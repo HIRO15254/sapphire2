@@ -9,11 +9,11 @@
 
 ### User Story 1 - Record a Cash Game Session (Priority: P1)
 
-A user finishes a cash game session and wants to log the result. Cash games are characterized by flexible buy-ins: the user may buy in multiple times during a single session. The key data points are total buy-in amount (sum of all buy-ins during the session), cash-out amount (chips taken off the table), and session date. Optionally, the user can link the session to a store, a specific cash game configuration, and a currency.
+A user finishes a cash game session and wants to log the result. Cash games are characterized by flexible buy-ins: the user may buy in multiple times during a single session. The key data points are total buy-in amount (sum of all buy-ins during the session), cash-out amount (chips taken off the table), and session date. The user can also record game configuration details (variant, SB/BB, table size, ante settings, buy-in limits), session start/end times, and a free-text memo. If no existing ring game configuration is selected, a standalone ring game is auto-created from the entered game config fields. Optionally, the user can link the session to a store, a specific cash game configuration, and a currency.
 
 **Why this priority**: Cash games are the most common format in amusement poker venues. Recording buy-in/cash-out is the simplest and most frequent use case.
 
-**Independent Test**: Can be fully tested by creating a cash game session with total buy-in, cash-out, and date. Delivers basic P&L tracking without any other setup.
+**Independent Test**: Can be fully tested by creating a cash game session with total buy-in, cash-out, date, game config (SB/BB, table size), start/end time, and memo. Delivers full P&L tracking with game context.
 
 **Acceptance Scenarios**:
 
@@ -99,7 +99,9 @@ For a cash game session, the user enters an EV-adjusted cash-out amount (what th
 
 ---
 
-### User Story 6 - Record Session Duration and Memo (Priority: P3)
+### User Story 6 - Record Session Duration and Memo (Priority: P3) — Merged into US1
+
+**Note**: Duration (start/end time) and memo fields have been merged into US1 (Phase 3) as they are essential for practical session recording. This user story is retained for traceability but its implementation is handled in Phase 3.
 
 A user wants to record how long a session lasted and add free-text notes about the session (table dynamics, mental state, notable events). This additional context enriches the session record for future review.
 
@@ -146,7 +148,8 @@ A user wants to record how long a session lasted and add free-text notes about t
 - **FR-003**: System MUST allow users to view all their sessions in a paginated list, sorted by session date (newest first). Each session MUST display its type, profit/loss, and linked entities.
 - **FR-004**: System MUST allow users to edit any field of an existing session (except session type).
 - **FR-005**: System MUST allow users to delete a session.
-- **FR-006**: System MUST allow users to optionally record start time, end time, and a free-text memo for each session.
+- **FR-006**: System MUST allow users to optionally record start time and end time (time-of-day only, combined with session date for storage) and a free-text memo for each session.
+- **FR-006a**: System MUST allow users to assign multiple session tags to a session. Tags are user-created, persisted in the database, and scoped to the authenticated user. Users can create new tags inline in the session form and manage (rename/delete) existing tags in the settings page.
 - **FR-007**: System MUST automatically calculate session duration when both start and end times are provided.
 - **FR-008**: System MUST ensure sessions remain accessible even when linked entities (store, game, currency) are deleted or archived.
 - **FR-009**: System MUST scope all session data to the authenticated user (no cross-user data access).
@@ -154,7 +157,8 @@ A user wants to record how long a session lasted and add free-text notes about t
 
 #### Cash Game Session
 
-- **FR-011**: System MUST allow users to create a cash game session with at minimum a total buy-in amount, cash-out amount, and session date.
+- **FR-011**: System MUST allow users to create a cash game session with at minimum a total buy-in amount, cash-out amount, and session date. The form MUST also accept game configuration fields (variant, SB/BB, straddle, ante type/amount, table size), start/end times (time-of-day only), session tags, and a memo. The form field order MUST be: Session Date, Start/End Time, Buy-in/Cash-out, Variant, SB/BB/Straddle, Ante Type/Ante, Table Size, Session Tags, Memo.
+- **FR-011a**: When creating a cash game session without selecting an existing ring game configuration, the system MUST auto-create a standalone ring game (not linked to any store) using the game config fields entered in the session form, and link the session to it.
 - **FR-012**: System MUST calculate and display cash game profit/loss as: cash-out minus total buy-in.
 - **FR-013**: System MUST enforce that cash game buy-in and cash-out amounts are non-negative numbers.
 - **FR-013a**: System MUST allow users to optionally record an EV-adjusted cash-out amount for a cash game session.
@@ -183,7 +187,8 @@ A user wants to record how long a session lasted and add free-text notes about t
 
 ### Key Entities
 
-- **Session (common fields)**: A single poker playing occasion. Has a type (cash game or tournament, immutable). Contains session date and optionally links to a store, game configuration, and currency. May include start time, end time, and a free-text memo.
+- **Session (common fields)**: A single poker playing occasion. Has a type (cash game or tournament, immutable). Contains session date and optionally links to a store, game configuration, and currency. May include start time (time-of-day), end time (time-of-day), multiple session tags, and a free-text memo.
+- **Session Tag**: A user-defined label that can be assigned to sessions. Scoped to the authenticated user. Tags are created inline in the session form and managed (rename/delete) in settings. A session can have multiple tags (many-to-many via junction table).
 - **Cash Game Session (type-specific fields)**: Total buy-in amount, cash-out amount, EV-adjusted cash-out (optional). Profit/loss = cash-out minus total buy-in. EV P&L = EV cash-out minus total buy-in. EV diff = EV P&L minus actual P&L.
 - **Tournament Session (type-specific fields)**: Buy-in amount, entry fee, placement, total entries, prize money, rebuy count, rebuy cost per rebuy, addon cost, bounty prizes. Total cost = buy-in + entry fee + (rebuy count × rebuy cost) + addon cost. Profit/loss = (prize + bounty prizes) minus total cost. EV tracking is not applicable to tournament sessions.
 - **Session-Store relationship**: Optional many-to-one. A session may be associated with one store. Deletion of a store sets the reference to null (session preserved).
@@ -222,3 +227,5 @@ A user wants to record how long a session lasted and add free-text notes about t
 - The session feature adds a new top-level navigation item ("Sessions") alongside existing "Stores" and "Currencies" entries.
 - Tournament entry fee is separated from buy-in because in Japanese amusement poker, the entry fee (参加費) is paid to the venue while the buy-in (バイイン) contributes to the prize pool. Both are required for accurate cost tracking.
 - When a tournament session is linked to an existing tournament configuration, the buy-in, entry fee, rebuy, and addon values from the configuration are used as defaults but can be overridden per session (actual costs may differ from the template).
+- The `ringGame.storeId` column is made nullable to support standalone ring game configurations auto-created from session recording. Existing store-linked ring games are unaffected.
+- Cash game session forms include all ring game configuration fields (variant, SB/BB, straddle, ante, table size, buy-in limits) inline. When no existing ring game is selected, a standalone ring game is auto-created and linked to the session.

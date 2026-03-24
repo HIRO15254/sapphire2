@@ -43,22 +43,28 @@
 
 ## Phase 3: User Story 1 — Record a Cash Game Session (Priority: P1) 🎯 MVP
 
-**Goal**: Users can create, view, edit, and delete cash game sessions with buy-in, cash-out, and date. P&L calculated as cash-out minus buy-in.
+**Goal**: Users can create, view, edit, and delete cash game sessions with full game configuration (SB/BB, table size, variant, ante), buy-in, cash-out, start/end time (time-of-day only), session tags, and memo. P&L calculated as cash-out minus buy-in. When no existing ring game is selected, a standalone ring game is auto-created. Session tags are user-created, persisted, and manageable from settings.
 
-**Independent Test**: Create a cash game session with buy-in=10000, cash-out=15000, date=today. Verify P&L shows +5000. Edit cash-out to 8000, verify P&L shows -2000. Delete session, verify it's gone.
+**Independent Test**: Create a cash game session with buy-in=10000, cash-out=15000, SB=100, BB=200, tableSize=9, date=today, start/end time, tag="Live", memo. Verify P&L shows +5000 and game config + tags are displayed. Edit cash-out to 8000, verify P&L shows -2000. Delete session, verify it's gone. Manage tags in settings (rename/delete).
+
+**Form field order**: Session Date → Start/End Time → Buy-in/Cash-out → Variant → SB/BB/Straddle → Ante Type/Ante → Table Size → Session Tags → Memo
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Implement `session.create` mutation for cash game type with Zod input validation (type=cash_game, buyIn ≥ 0, cashOut ≥ 0, sessionDate required), UUID generation, and DB insert in `packages/api/src/routers/session.ts`
-- [ ] T009 [US1] Implement `session.list` query with cursor-based pagination (PAGE_SIZE=20), ordered by sessionDate DESC then id DESC, filtered by userId, with computed profitLoss field (cashOut - buyIn for cash_game) in `packages/api/src/routers/session.ts`
-- [ ] T010 [US1] Implement `session.getById` query with ownership validation in `packages/api/src/routers/session.ts`
-- [ ] T011 [US1] Implement `session.update` mutation with ownership check, selective field updates (excluding type), and `session.delete` mutation with ownership check in `packages/api/src/routers/session.ts`
-- [ ] T012 [P] [US1] Create session card component displaying session type badge, session date, profit/loss with color coding (green positive, red negative), and edit/delete actions in `apps/web/src/components/sessions/session-card.tsx`
-- [ ] T013 [P] [US1] Create session form component with type selector (cash_game/tournament), conditional cash game fields (buyIn, cashOut, sessionDate as required), FormData-based submit handler, and loading state in `apps/web/src/components/sessions/session-form.tsx`
-- [ ] T014 [US1] Create sessions page route with query hook for session.list, paginated session card list, create button with ResponsiveDialog wrapping session-form, edit/delete handlers with optimistic mutations (must include onMutate/onError/onSettled callbacks per Constitution VIII) in `apps/web/src/routes/sessions/index.tsx`
-- [ ] T015 [US1] Add "Sessions" navigation item to top-level nav in `apps/web/src/routes/__root.tsx`
+- [x] T007c [US1] Make `ringGame.storeId` nullable in `packages/db/src/schema/ring-game.ts` and update `validateRingGameOwnership` in `packages/api/src/routers/ring-game.ts` to handle null storeId. Generate and apply migration.
+- [ ] T007d [US1] Create `sessionTag` table (id, userId, name, createdAt) and `sessionToSessionTag` junction table (sessionId, sessionTagId) with relations in `packages/db/src/schema/session-tag.ts`. Export from `packages/db/src/schema/index.ts`. Generate migration.
+- [ ] T007e [US1] Create `sessionTagRouter` with CRUD (list, create, update, delete) in `packages/api/src/routers/session-tag.ts`. Register in `packages/api/src/routers/index.ts`.
+- [x] T008 [US1] Implement `session.create` mutation for cash game type with Zod input validation (type=cash_game, buyIn ≥ 0, cashOut ≥ 0, sessionDate required), ring game config fields (variant, blind1-3, ante, anteType, tableSize), startedAt/endedAt (time-of-day combined with sessionDate), memo, tagIds, UUID generation, auto-create standalone ringGame, insert junction records for tags in `packages/api/src/routers/session.ts`
+- [x] T009 [US1] Implement `session.list` query with cursor-based pagination (PAGE_SIZE=20), ordered by sessionDate DESC then id DESC, filtered by userId, with computed profitLoss, LEFT JOIN to ringGame, include startedAt/endedAt/memo, resolve tags via junction table in `packages/api/src/routers/session.ts`
+- [x] T010 [US1] Implement `session.getById` query with ownership validation in `packages/api/src/routers/session.ts`
+- [x] T011 [US1] Implement `session.update` mutation with ownership check, selective field updates, ring game config updates, tag replacement (delete all + re-insert), and `session.delete` mutation in `packages/api/src/routers/session.ts`
+- [x] T012 [P] [US1] Create session card component displaying session type badge, session date, profit/loss with color coding, game config summary (SB/BB, table size), duration (from startedAt/endedAt), session tags as badges, memo excerpt, and edit/delete actions in `apps/web/src/components/sessions/session-card.tsx`
+- [x] T013 [P] [US1] Create session form with field order: Session Date, Start/End Time (type=time), Buy-in/Cash-out, Variant, SB/BB/Straddle, Ante Type/Ante, Table Size, Session Tags (multi-select with inline create), Memo (textarea) in `apps/web/src/components/sessions/session-form.tsx`
+- [x] T014 [US1] Create sessions page route with query hook for session.list, paginated session card list, create button with ResponsiveDialog, edit/delete handlers with optimistic mutations in `apps/web/src/routes/sessions/index.tsx`
+- [x] T015 [US1] Add "Sessions" navigation item to top-level nav in `apps/web/src/components/mobile-nav.tsx`
+- [ ] T015b [US1] Add session tag management (list, rename, delete) to settings page in `apps/web/src/routes/settings.tsx`
 
-**Checkpoint**: Cash game session CRUD fully functional. Users can record, view, edit, and delete cash game sessions with P&L display.
+**Checkpoint**: Cash game session CRUD fully functional with full game configuration, time-of-day tracking, session tags, and memo. Tag management available in settings.
 
 ---
 
@@ -135,19 +141,15 @@
 
 ---
 
-## Phase 8: User Story 6 — Record Session Duration and Memo (Priority: P3)
+## Phase 8: User Story 6 — Record Session Duration and Memo (Priority: P3) — MERGED INTO PHASE 3
 
-**Goal**: Users can record start/end times (auto-calculated duration) and free-text memo for any session type.
+**Note**: Duration (startedAt/endedAt) and memo have been merged into Phase 3 (US1) as they are essential for practical session recording. The tasks below are superseded by T008, T012, T013 in Phase 3.
 
-**Independent Test**: Create session with startedAt=14:00, endedAt=18:30. Verify duration displays "4h 30m". Add memo text, verify it persists and displays.
+- [x] T037 [US6] ~~Add startedAt, endedAt, and memo to session create/update Zod schemas~~ → Handled in T008/T011 (Phase 3)
+- [x] T038 [US6] ~~Add start time, end time, and memo fields to session form~~ → Handled in T013 (Phase 3)
+- [x] T039 [US6] ~~Display duration and memo on session card~~ → Handled in T012 (Phase 3)
 
-### Implementation for User Story 6
-
-- [ ] T037 [US6] Add startedAt, endedAt, and memo to session create/update Zod schemas. Validate startedAt ≤ endedAt when both provided in `packages/api/src/routers/session.ts`
-- [ ] T038 [US6] Add start time, end time (datetime-local inputs), and memo (textarea) fields to session form for both session types in `apps/web/src/components/sessions/session-form.tsx`
-- [ ] T039 [US6] Display duration (computed from startedAt/endedAt as formatted string e.g. "4h 30m") and memo excerpt on session card in `apps/web/src/components/sessions/session-card.tsx`
-
-**Checkpoint**: All session data fields are fully supported. Duration and memo work for both cash game and tournament sessions.
+**Checkpoint**: Superseded by Phase 3 checkpoint.
 
 ---
 
@@ -176,21 +178,21 @@
 - **US3 (Phase 5)**: Depends on US1+US2 (needs both session types to exist for linking)
 - **US4 (Phase 6)**: Depends on US1+US2 (summary needs sessions to aggregate)
 - **US5 (Phase 7)**: Depends on US1 (EV is cash game only, extends existing fields)
-- **US6 (Phase 8)**: Depends on US1 (adds optional fields to existing form/card)
+- **US6 (Phase 8)**: MERGED into US1 (Phase 3) — duration and memo now included in Phase 3
 - **Polish (Phase 9)**: Depends on all user stories being complete
 
 ### User Story Dependencies
 
 ```
-Phase 1 → Phase 2 → US1 (P1) → US2 (P1) ─┬─→ US3 (P2)
-                        │                   └─→ US4 (P2)
-                        ├─→ US5 (P2)
-                        └─→ US6 (P3)
+Phase 1 → Phase 2 → US1 (P1, includes US6) → US2 (P1) ─┬─→ US3 (P2)
+                        │                                 └─→ US4 (P2)
+                        └─→ US5 (P2)
 ```
 
 - **US1 + US2**: Sequential (US2 extends US1 files)
 - **US3, US4**: Can run in parallel after US1+US2
-- **US5, US6**: Can run in parallel after US1, independent of US3/US4
+- **US5**: Can run in parallel after US1, independent of US3/US4
+- **US6**: Merged into US1 (Phase 3)
 
 ### Within Each User Story
 

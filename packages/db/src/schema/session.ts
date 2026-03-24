@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 import { ringGame } from "./ring-game";
+import { sessionToSessionTag } from "./session-tag";
 import { currency, currencyTransaction, store } from "./store";
 import { tournament } from "./tournament";
 
@@ -80,5 +81,6 @@ export const pokerSessionRelations = relations(
 			references: [currency.id],
 		}),
 		transactions: many(currencyTransaction),
+		tagLinks: many(sessionToSessionTag),
 	})
 );

@@ -63,6 +63,7 @@ session.ringGameId → ringGame.id (many-to-one, optional)
 session.tournamentId → tournament.id (many-to-one, optional)
 session.currencyId → currency.id (many-to-one, optional)
 session → currencyTransaction (one-to-many, via currencyTransaction.sessionId)
+session → sessionToSessionTag → sessionTag (many-to-many)
 ```
 
 ### Validation Rules
@@ -76,6 +77,73 @@ session → currencyTransaction (one-to-many, via currencyTransaction.sessionId)
 - `tournamentId` only set when type = `tournament`
 - `evCashOut` only set when type = `cash_game`
 - `startedAt` ≤ `endedAt` (when both provided)
+
+---
+
+## Entity: `sessionTag`
+
+User-defined tags for categorizing sessions. Scoped per user.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| id | TEXT | NO | — | Primary key (UUID) |
+| userId | TEXT | NO | — | FK → user.id (CASCADE) |
+| name | TEXT | NO | — | Tag display name |
+| createdAt | INTEGER | NO | unixepoch() | Record creation |
+
+### Indexes
+
+- `sessionTag_userId_idx` on (userId)
+
+### Relations
+
+```
+sessionTag.userId → user.id (many-to-one)
+sessionTag → sessionToSessionTag → session (many-to-many)
+```
+
+---
+
+## Junction: `sessionToSessionTag`
+
+Many-to-many relationship between sessions and tags.
+
+| Column | Type | Nullable | Default | Description |
+|--------|------|----------|---------|-------------|
+| sessionId | TEXT | NO | — | FK → session.id (CASCADE) |
+| sessionTagId | TEXT | NO | — | FK → sessionTag.id (CASCADE) |
+
+### Primary Key
+
+Composite: (sessionId, sessionTagId)
+
+### Relations
+
+```
+sessionToSessionTag.sessionId → session.id
+sessionToSessionTag.sessionTagId → sessionTag.id
+```
+
+---
+
+## Modification: `ringGame` (existing table)
+
+Make `storeId` nullable to support standalone ring game configurations created from session recording.
+
+| Column | Type | Nullable (before) | Nullable (after) | Description |
+|--------|------|-------------------|-------------------|-------------|
+| storeId | TEXT | NO | YES | FK → store.id (CASCADE). Now nullable for standalone game configs |
+
+### Behavior
+
+- When `storeId` is NOT NULL, the ring game belongs to a store (existing behavior).
+- When `storeId` is NULL, the ring game is a standalone configuration auto-created from a session recording.
+- CASCADE delete: if the linked store is deleted, the ring game is also deleted (unchanged).
+- Standalone ring games (storeId=NULL) are not affected by store deletions.
+
+### Auto-creation from Session
+
+When creating a cash game session, if no existing `ringGameId` is provided, the system auto-creates a standalone ring game with the game configuration fields (variant, blinds, table size, ante, buy-in limits) entered in the session form. The session is then linked to this auto-created ring game via `ringGameId`.
 
 ---
 

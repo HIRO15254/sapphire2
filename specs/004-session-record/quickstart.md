@@ -13,7 +13,9 @@
 | File | Purpose |
 |------|---------|
 | `packages/db/src/schema/session.ts` | Session table + relations |
+| `packages/db/src/schema/session-tag.ts` | Session tag + junction table + relations |
 | `packages/api/src/routers/session.ts` | Session CRUD + summary + currency transaction sync |
+| `packages/api/src/routers/session-tag.ts` | Session tag CRUD |
 | `apps/web/src/routes/sessions/index.tsx` | Sessions page (summary + list + filters) |
 | `apps/web/src/components/sessions/session-form.tsx` | Create/edit form (type-conditional) |
 | `apps/web/src/components/sessions/session-card.tsx` | Session list item card |
@@ -26,11 +28,13 @@
 | File | Change |
 |------|--------|
 | `packages/db/src/schema/store.ts` | Add `sessionId` column to `currencyTransaction` table |
+| `packages/db/src/schema/ring-game.ts` | Make `storeId` nullable for standalone game configs |
 | `packages/api/src/routers/index.ts` | Register `sessionRouter` |
+| `packages/api/src/routers/ring-game.ts` | Update ownership validation for nullable storeId |
 | `packages/api/src/routers/currency-transaction.ts` | Mark session-generated transactions as read-only |
 | `packages/api/src/routers/transaction-type.ts` | Seed "Session Result" default type |
 | `apps/web/src/components/stores/transaction-list.tsx` | Show read-only indicator for session transactions |
-| `apps/web/src/routes/__root.tsx` | Add "Sessions" nav item |
+| `apps/web/src/components/mobile-nav.tsx` | Add "Sessions" nav item |
 
 ### Database Migration
 
@@ -42,7 +46,7 @@ bun run migrate   # Apply migration
 
 ## Development Order
 
-1. **Schema** → Add `session` table, modify `currencyTransaction`
+1. **Schema** → Add `session` table, modify `currencyTransaction`, make `ringGame.storeId` nullable
 2. **Migration** → Generate and apply
 3. **Router** → Session CRUD with currency transaction sync
 4. **Tests** → Router smoke tests
