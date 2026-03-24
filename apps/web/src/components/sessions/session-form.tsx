@@ -1,16 +1,12 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { TagInput } from "@/components/ui/tag-input";
 import { CashGameFields } from "./cash-game-fields";
+import { FormSection } from "./form-section";
+import { LinkSelectors } from "./link-selectors";
 import { TournamentFields } from "./tournament-fields";
 
 interface CashGameFormValues {
@@ -57,6 +53,27 @@ interface TournamentFormValues {
 
 type SessionFormValues = CashGameFormValues | TournamentFormValues;
 
+interface RingGameOption {
+	ante?: number | null;
+	anteType?: string | null;
+	blind1?: number | null;
+	blind2?: number | null;
+	blind3?: number | null;
+	id: string;
+	name: string;
+	tableSize?: number | null;
+	variant?: string | null;
+}
+
+interface TournamentOption {
+	addonCost?: number | null;
+	buyIn?: number | null;
+	entryFee?: number | null;
+	id: string;
+	name: string;
+	rebuyCost?: number | null;
+}
+
 interface SessionFormDefaults {
 	addonCost?: number;
 	ante?: number;
@@ -95,10 +112,10 @@ interface SessionFormProps {
 	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
 	onStoreChange?: (storeId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
-	ringGames?: Array<{ id: string; name: string }>;
+	ringGames?: RingGameOption[];
 	stores?: Array<{ id: string; name: string }>;
 	tags?: Array<{ id: string; name: string }>;
-	tournaments?: Array<{ id: string; name: string }>;
+	tournaments?: TournamentOption[];
 }
 
 function getTodayDateString(): string {
@@ -161,6 +178,13 @@ function parseTournamentFields(
 	};
 }
 
+function setInputValue(form: HTMLFormElement, name: string, value: unknown) {
+	const input = form.elements.namedItem(name);
+	if (input instanceof HTMLInputElement && value != null) {
+		input.value = String(value);
+	}
+}
+
 const NONE_VALUE = "__none__";
 
 export function SessionForm({
@@ -175,6 +199,7 @@ export function SessionForm({
 	tags,
 	tournaments,
 }: SessionFormProps) {
+	const formRef = useRef<HTMLFormElement>(null);
 	const [sessionType, setSessionType] = useState<"cash_game" | "tournament">(
 		defaultValues?.type ?? "cash_game"
 	);
@@ -200,6 +225,40 @@ export function SessionForm({
 		setSelectedGameId(undefined);
 		onStoreChange?.(storeId);
 	};
+
+	const handleGameChange = (value: string) => {
+		const gameId = value === NONE_VALUE ? undefined : value;
+		setSelectedGameId(gameId);
+	};
+
+	// Prefill form fields when game is selected
+	useEffect(() => {
+		const form = formRef.current;
+		if (!(form && selectedGameId)) {
+			return;
+		}
+
+		if (isCashGame && ringGames) {
+			const game = ringGames.find((g) => g.id === selectedGameId);
+			if (!game) {
+				return;
+			}
+			setInputValue(form, "blind1", game.blind1);
+			setInputValue(form, "blind2", game.blind2);
+			setInputValue(form, "blind3", game.blind3);
+			setInputValue(form, "ante", game.ante);
+			setInputValue(form, "tableSize", game.tableSize);
+		} else if (!isCashGame && tournaments) {
+			const game = tournaments.find((t) => t.id === selectedGameId);
+			if (!game) {
+				return;
+			}
+			setInputValue(form, "tournamentBuyIn", game.buyIn);
+			setInputValue(form, "entryFee", game.entryFee);
+			setInputValue(form, "rebuyCost", game.rebuyCost);
+			setInputValue(form, "addonCost", game.addonCost);
+		}
+	}, [selectedGameId, isCashGame, ringGames, tournaments]);
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -231,189 +290,152 @@ export function SessionForm({
 	};
 
 	return (
-		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			{/* Session Type */}
-			<div className="flex flex-col gap-2">
-				<Label>Session Type</Label>
-				<div className="grid grid-cols-2 gap-2">
-					<Button
-						className={
-							isCashGame
-								? ""
-								: "border-transparent bg-transparent text-muted-foreground"
-						}
-						onClick={() => setSessionType("cash_game")}
-						type="button"
-						variant={isCashGame ? "default" : "outline"}
-					>
-						Cash Game
-					</Button>
-					<Button
-						className={
-							isCashGame
-								? "border-transparent bg-transparent text-muted-foreground"
-								: ""
-						}
-						onClick={() => setSessionType("tournament")}
-						type="button"
-						variant={isCashGame ? "outline" : "default"}
-					>
-						Tournament
-					</Button>
-				</div>
-			</div>
-
-			{/* Session Date */}
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="sessionDate">
-					Session Date <span className="text-destructive">*</span>
-				</Label>
-				<Input
-					defaultValue={defaultValues?.sessionDate ?? getTodayDateString()}
-					id="sessionDate"
-					name="sessionDate"
-					required
-					type="date"
-				/>
-			</div>
-
-			{/* Start Time / End Time */}
-			<div className="grid grid-cols-2 gap-3">
+		<form className="flex flex-col gap-2" onSubmit={handleSubmit} ref={formRef}>
+			{/* === Section: Basic Info (always visible, not collapsible) === */}
+			<div className="flex flex-col gap-4">
+				{/* Session Type */}
 				<div className="flex flex-col gap-2">
-					<Label htmlFor="startTime">Start Time</Label>
+					<Label>Session Type</Label>
+					<div className="grid grid-cols-2 gap-2">
+						<Button
+							className={
+								isCashGame
+									? ""
+									: "border-transparent bg-transparent text-muted-foreground"
+							}
+							onClick={() => setSessionType("cash_game")}
+							type="button"
+							variant={isCashGame ? "default" : "outline"}
+						>
+							Cash Game
+						</Button>
+						<Button
+							className={
+								isCashGame
+									? "border-transparent bg-transparent text-muted-foreground"
+									: ""
+							}
+							onClick={() => setSessionType("tournament")}
+							type="button"
+							variant={isCashGame ? "outline" : "default"}
+						>
+							Tournament
+						</Button>
+					</div>
+				</div>
+
+				{/* Session Date */}
+				<div className="flex flex-col gap-2">
+					<Label htmlFor="sessionDate">
+						Session Date <span className="text-destructive">*</span>
+					</Label>
 					<Input
-						defaultValue={defaultValues?.startTime}
-						id="startTime"
-						name="startTime"
-						type="time"
+						defaultValue={defaultValues?.sessionDate ?? getTodayDateString()}
+						id="sessionDate"
+						name="sessionDate"
+						required
+						type="date"
 					/>
 				</div>
+
+				{/* Start Time / End Time */}
+				<div className="grid grid-cols-2 gap-3">
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="startTime">Start Time</Label>
+						<Input
+							defaultValue={defaultValues?.startTime}
+							id="startTime"
+							name="startTime"
+							type="time"
+						/>
+					</div>
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="endTime">End Time</Label>
+						<Input
+							defaultValue={defaultValues?.endTime}
+							id="endTime"
+							name="endTime"
+							type="time"
+						/>
+					</div>
+				</div>
+			</div>
+
+			<Separator />
+
+			{/* === Section: Store / Game / Currency === */}
+			<FormSection
+				defaultOpen={!!defaultValues?.storeId}
+				title="Link to Store / Game / Currency"
+			>
+				<LinkSelectors
+					currencies={currencies}
+					gameLabel={isCashGame ? "Cash Game" : "Tournament"}
+					gameOptions={gameOptions}
+					onCurrencyChange={setSelectedCurrencyId}
+					onGameChange={handleGameChange}
+					onStoreChange={handleStoreChange}
+					selectedCurrencyId={selectedCurrencyId}
+					selectedGameId={selectedGameId}
+					selectedStoreId={selectedStoreId}
+					stores={stores}
+				/>
+			</FormSection>
+
+			<Separator />
+
+			{/* === Section: Session Details (type-specific) === */}
+			<FormSection
+				title={isCashGame ? "Cash Game Details" : "Tournament Details"}
+			>
+				{isCashGame ? (
+					<CashGameFields defaultValues={defaultValues} />
+				) : (
+					<TournamentFields defaultValues={defaultValues} />
+				)}
+			</FormSection>
+
+			<Separator />
+
+			{/* === Section: Tags & Memo === */}
+			<FormSection
+				defaultOpen={
+					(defaultValues?.tagIds ?? []).length > 0 || !!defaultValues?.memo
+				}
+				title="Tags & Memo"
+			>
+				{/* Session Tags */}
 				<div className="flex flex-col gap-2">
-					<Label htmlFor="endTime">End Time</Label>
-					<Input
-						defaultValue={defaultValues?.endTime}
-						id="endTime"
-						name="endTime"
-						type="time"
+					<Label>Session Tags</Label>
+					<TagInput
+						availableTags={tags}
+						onAdd={(tag) => setSelectedTagIds((prev) => [...prev, tag.id])}
+						onCreateTag={onCreateTag}
+						onRemove={(tag) =>
+							setSelectedTagIds((prev) => prev.filter((id) => id !== tag.id))
+						}
+						selectedTags={selectedTagIds
+							.map((id) => tags?.find((t) => t.id === id))
+							.filter(
+								(t): t is { id: string; name: string } => t !== undefined
+							)}
 					/>
 				</div>
-			</div>
 
-			{/* Type-specific fields */}
-			{isCashGame ? (
-				<CashGameFields defaultValues={defaultValues} />
-			) : (
-				<TournamentFields defaultValues={defaultValues} />
-			)}
-
-			{/* Store Selector */}
-			{stores && stores.length > 0 && (
+				{/* Memo */}
 				<div className="flex flex-col gap-2">
-					<Label>Store</Label>
-					<Select
-						onValueChange={handleStoreChange}
-						value={selectedStoreId ?? NONE_VALUE}
-					>
-						<SelectTrigger>
-							<SelectValue placeholder="Select a store" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value={NONE_VALUE}>None</SelectItem>
-							{stores.map((s) => (
-								<SelectItem key={s.id} value={s.id}>
-									{s.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+					<Label htmlFor="memo">Memo</Label>
+					<textarea
+						className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+						defaultValue={defaultValues?.memo}
+						id="memo"
+						name="memo"
+						placeholder="Notes about this session"
+					/>
 				</div>
-			)}
+			</FormSection>
 
-			{/* Game Selector (shown when store is selected) */}
-			{selectedStoreId && gameOptions && gameOptions.length > 0 && (
-				<div className="flex flex-col gap-2">
-					<Label>{isCashGame ? "Cash Game" : "Tournament"}</Label>
-					<Select
-						onValueChange={(v) =>
-							setSelectedGameId(v === NONE_VALUE ? undefined : v)
-						}
-						value={selectedGameId ?? NONE_VALUE}
-					>
-						<SelectTrigger>
-							<SelectValue
-								placeholder={`Select a ${isCashGame ? "cash game" : "tournament"}`}
-							/>
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value={NONE_VALUE}>None</SelectItem>
-							{gameOptions.map((g) => (
-								<SelectItem key={g.id} value={g.id}>
-									{g.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
-			)}
-
-			{/* Currency Selector */}
-			{currencies && currencies.length > 0 && (
-				<div className="flex flex-col gap-2">
-					<Label>Currency</Label>
-					<Select
-						onValueChange={(v) =>
-							setSelectedCurrencyId(v === NONE_VALUE ? undefined : v)
-						}
-						value={selectedCurrencyId ?? NONE_VALUE}
-					>
-						<SelectTrigger>
-							<SelectValue placeholder="Select a currency" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value={NONE_VALUE}>None</SelectItem>
-							{currencies.map((c) => (
-								<SelectItem key={c.id} value={c.id}>
-									{c.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					<p className="text-muted-foreground text-xs">
-						Linking a currency will auto-generate a transaction with the
-						session&apos;s P&L.
-					</p>
-				</div>
-			)}
-
-			{/* Session Tags */}
-			<div className="flex flex-col gap-2">
-				<Label>Session Tags</Label>
-				<TagInput
-					availableTags={tags}
-					onAdd={(tag) => setSelectedTagIds((prev) => [...prev, tag.id])}
-					onCreateTag={onCreateTag}
-					onRemove={(tag) =>
-						setSelectedTagIds((prev) => prev.filter((id) => id !== tag.id))
-					}
-					selectedTags={selectedTagIds
-						.map((id) => tags?.find((t) => t.id === id))
-						.filter((t): t is { id: string; name: string } => t !== undefined)}
-				/>
-			</div>
-
-			{/* Memo */}
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="memo">Memo</Label>
-				<textarea
-					className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-					defaultValue={defaultValues?.memo}
-					id="memo"
-					name="memo"
-					placeholder="Notes about this session"
-				/>
-			</div>
-
-			<Button disabled={isLoading} type="submit">
+			<Button className="mt-2" disabled={isLoading} type="submit">
 				{isLoading ? "Saving..." : "Save"}
 			</Button>
 		</form>

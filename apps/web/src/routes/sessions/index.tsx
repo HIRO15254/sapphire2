@@ -110,10 +110,21 @@ function useStoreGames(storeId: string | undefined) {
 		ringGames: (ringGamesQuery.data ?? []).map((g) => ({
 			id: g.id,
 			name: g.name,
+			variant: g.variant,
+			blind1: g.blind1,
+			blind2: g.blind2,
+			blind3: g.blind3,
+			ante: g.ante,
+			anteType: g.anteType,
+			tableSize: g.tableSize,
 		})),
 		tournaments: (tournamentsQuery.data ?? []).map((t) => ({
 			id: t.id,
 			name: t.name,
+			buyIn: t.buyIn,
+			entryFee: t.entryFee,
+			rebuyCost: t.rebuyCost,
+			addonCost: t.addonCost,
 		})),
 	};
 }
