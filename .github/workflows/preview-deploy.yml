@@ -102,6 +102,9 @@ jobs:
         run: |
           git checkout wrangler.toml
           bunx wrangler d1 export sapphire2-db --remote --no-schema --output=dump.sql
+          # Remove d1_migrations data to avoid UNIQUE constraint conflict
+          # (migrations were already applied in the previous step)
+          sed -i '/INSERT INTO d1_migrations/d' dump.sql
 
       - name: Import data into PR database
         working-directory: apps/server
