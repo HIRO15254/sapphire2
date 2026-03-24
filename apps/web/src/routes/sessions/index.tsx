@@ -8,7 +8,6 @@ import {
 	type SessionFilterValues,
 } from "@/components/sessions/session-filters";
 import { SessionForm } from "@/components/sessions/session-form";
-import { SessionSummary } from "@/components/sessions/session-summary";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
@@ -323,6 +322,7 @@ function filtersToListInput(filters: SessionFilterValues) {
 	return {
 		type: filters.type,
 		storeId: filters.storeId,
+		currencyId: filters.currencyId,
 		dateFrom: filters.dateFrom
 			? Math.floor(new Date(filters.dateFrom).getTime() / 1000)
 			: undefined,
@@ -348,7 +348,6 @@ function SessionsPage() {
 
 	const sessionsQuery = useQuery(trpc.session.list.queryOptions(listInput));
 	const sessions = sessionsQuery.data?.items ?? [];
-	const summary = sessionsQuery.data?.summary;
 
 	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions());
 	const availableTags = tagsQuery.data ?? [];
@@ -483,6 +482,7 @@ function SessionsPage() {
 				<h1 className="font-bold text-2xl">Sessions</h1>
 				<div className="flex items-center gap-2">
 					<SessionFilters
+						currencies={currencies}
 						filters={filters}
 						onFiltersChange={setFilters}
 						stores={stores}
@@ -493,8 +493,6 @@ function SessionsPage() {
 					</Button>
 				</div>
 			</div>
-
-			{summary && <SessionSummary summary={summary} />}
 
 			{sessions.length === 0 ? (
 				<div className="flex flex-col items-center justify-center gap-4 py-16 text-muted-foreground">

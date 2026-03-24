@@ -511,6 +511,7 @@ async function buildCreateValues(
 function buildFilterConditions(
 	userId: string,
 	filters: {
+		currencyId?: string;
 		dateFrom?: number;
 		dateTo?: number;
 		storeId?: string;
@@ -523,6 +524,9 @@ function buildFilterConditions(
 	}
 	if (filters.storeId) {
 		conditions.push(eq(pokerSession.storeId, filters.storeId));
+	}
+	if (filters.currencyId) {
+		conditions.push(eq(pokerSession.currencyId, filters.currencyId));
 	}
 	if (filters.dateFrom !== undefined) {
 		conditions.push(
@@ -797,6 +801,7 @@ export const sessionRouter = router({
 				cursor: z.string().optional(),
 				type: z.enum(["cash_game", "tournament"]).optional(),
 				storeId: z.string().optional(),
+				currencyId: z.string().optional(),
 				dateFrom: z.number().optional(),
 				dateTo: z.number().optional(),
 			})

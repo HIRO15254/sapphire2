@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 
 export interface SessionFilterValues {
+	currencyId?: string;
 	dateFrom?: string;
 	dateTo?: string;
 	storeId?: string;
@@ -20,6 +21,7 @@ export interface SessionFilterValues {
 }
 
 interface SessionFiltersProps {
+	currencies: Array<{ id: string; name: string }>;
 	filters: SessionFilterValues;
 	onFiltersChange: (filters: SessionFilterValues) => void;
 	stores: Array<{ id: string; name: string }>;
@@ -33,6 +35,9 @@ function countActiveFilters(filters: SessionFilterValues): number {
 	if (filters.storeId) {
 		count++;
 	}
+	if (filters.currencyId) {
+		count++;
+	}
 	if (filters.dateFrom) {
 		count++;
 	}
@@ -43,6 +48,7 @@ function countActiveFilters(filters: SessionFilterValues): number {
 }
 
 export function SessionFilters({
+	currencies,
 	filters,
 	onFiltersChange,
 	stores,
@@ -146,8 +152,33 @@ export function SessionFilters({
 					</div>
 
 					<div className="flex flex-col gap-1.5">
+						<span className="font-medium text-sm">Currency</span>
+						<Select
+							onValueChange={(value) =>
+								setDraft({
+									...draft,
+									currencyId: value === "all" ? undefined : value,
+								})
+							}
+							value={draft.currencyId ?? "all"}
+						>
+							<SelectTrigger aria-label="Currency" className="w-full">
+								<SelectValue placeholder="All Currencies" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All Currencies</SelectItem>
+								{currencies.map((c) => (
+									<SelectItem key={c.id} value={c.id}>
+										{c.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+
+					<div className="flex flex-col gap-1.5">
 						<span className="font-medium text-sm">Date Range</span>
-						<div className="flex gap-2">
+						<div className="flex items-center gap-2">
 							<Input
 								className="flex-1"
 								onChange={(e) =>
@@ -160,6 +191,7 @@ export function SessionFilters({
 								type="date"
 								value={draft.dateFrom ?? ""}
 							/>
+							<span className="text-muted-foreground text-sm">~</span>
 							<Input
 								className="flex-1"
 								onChange={(e) =>
