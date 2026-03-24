@@ -549,87 +549,65 @@ interface SessionSummary {
 	winRate: number;
 }
 
-async function computeSummary(
-	db: DbInstance,
-	filterConditions: ReturnType<typeof buildFilterConditions>,
-	typeFilter?: "cash_game" | "tournament"
-): Promise<SessionSummary> {
-	const allSessions = await db
-		.select({
-			type: pokerSession.type,
-			buyIn: pokerSession.buyIn,
-			cashOut: pokerSession.cashOut,
-			evCashOut: pokerSession.evCashOut,
-			tournamentBuyIn: pokerSession.tournamentBuyIn,
-			entryFee: pokerSession.entryFee,
-			rebuyCount: pokerSession.rebuyCount,
-			rebuyCost: pokerSession.rebuyCost,
-			addonCost: pokerSession.addonCost,
-			prizeMoney: pokerSession.prizeMoney,
-			bountyPrizes: pokerSession.bountyPrizes,
-			placement: pokerSession.placement,
-			totalEntries: pokerSession.totalEntries,
-		})
-		.from(pokerSession)
-		.where(and(...filterConditions));
+interface SummarySessionRow {
+	addonCost: number | null;
+	bountyPrizes: number | null;
+	buyIn: number | null;
+	cashOut: number | null;
+	entryFee: number | null;
+	evCashOut: number | null;
+	placement: number | null;
+	prizeMoney: number | null;
+	rebuyCost: number | null;
+	rebuyCount: number | null;
+	totalEntries: number | null;
+	type: string;
+}
 
-	const totalSessions = allSessions.length;
-	if (totalSessions === 0) {
-		return {
-			totalSessions: 0,
-			totalProfitLoss: 0,
-			winRate: 0,
-			avgProfitLoss: null,
-			avgPlacement: null,
-			totalPrizeMoney: null,
-			itmRate: null,
-			totalEvProfitLoss: null,
-			totalEvDiff: null,
-		};
+function computeSessionPLFromRow(s: SummarySessionRow): number {
+	if (s.type === "cash_game" && s.buyIn !== null && s.cashOut !== null) {
+		return computeCashGamePL(s.buyIn, s.cashOut);
 	}
+	return computeTournamentPL(
+		s.buyIn,
+		s.entryFee,
+		s.rebuyCount,
+		s.rebuyCost,
+		s.addonCost,
+		s.prizeMoney,
+		s.bountyPrizes
+	);
+}
 
+function aggregateSessions(allSessions: SummarySessionRow[]) {
 	let totalProfitLoss = 0;
 	let winCount = 0;
-
-	// Tournament-specific
 	let tournamentCount = 0;
 	let totalPlacement = 0;
 	let placementCount = 0;
 	let totalPrize = 0;
 	let itmCount = 0;
-
-	// EV-specific (cash game only)
 	let totalEvProfitLoss = 0;
 	let totalEvDiff = 0;
 	let evSessionCount = 0;
 
 	for (const s of allSessions) {
-		let pl: number;
-		if (s.type === "cash_game" && s.buyIn !== null && s.cashOut !== null) {
-			pl = computeCashGamePL(s.buyIn, s.cashOut);
-
-			if (s.evCashOut !== null) {
-				const evPl = s.evCashOut - s.buyIn;
-				totalEvProfitLoss += evPl;
-				totalEvDiff += evPl - pl;
-				evSessionCount++;
-			}
-		} else {
-			pl = computeTournamentPL(
-				s.tournamentBuyIn,
-				s.entryFee,
-				s.rebuyCount,
-				s.rebuyCost,
-				s.addonCost,
-				s.prizeMoney,
-				s.bountyPrizes
-			);
-		}
-
+		const pl = computeSessionPLFromRow(s);
 		totalProfitLoss += pl;
 		if (pl > 0) {
 			winCount++;
 		}
+
+		accumulateEvMetrics(
+			s,
+			pl,
+			{ totalEvProfitLoss, totalEvDiff, evSessionCount },
+			(ev) => {
+				totalEvProfitLoss = ev.totalEvProfitLoss;
+				totalEvDiff = ev.totalEvDiff;
+				evSessionCount = ev.evSessionCount;
+			}
+		);
 
 		if (s.type === "tournament") {
 			tournamentCount++;
@@ -645,27 +623,104 @@ async function computeSummary(
 		}
 	}
 
-	const winRate = (winCount / totalSessions) * 100;
-	const avgProfitLoss = totalProfitLoss / totalSessions;
+	return {
+		totalProfitLoss,
+		winCount,
+		tournamentCount,
+		totalPlacement,
+		placementCount,
+		totalPrize,
+		itmCount,
+		totalEvProfitLoss,
+		totalEvDiff,
+		evSessionCount,
+	};
+}
 
-	const isTournamentFilter = typeFilter === "tournament";
+function accumulateEvMetrics(
+	s: SummarySessionRow,
+	pl: number,
+	current: {
+		totalEvProfitLoss: number;
+		totalEvDiff: number;
+		evSessionCount: number;
+	},
+	update: (ev: {
+		totalEvProfitLoss: number;
+		totalEvDiff: number;
+		evSessionCount: number;
+	}) => void
+) {
+	if (s.type !== "cash_game" || s.evCashOut === null || s.buyIn === null) {
+		return;
+	}
+	const evPl = s.evCashOut - s.buyIn;
+	update({
+		totalEvProfitLoss: current.totalEvProfitLoss + evPl,
+		totalEvDiff: current.totalEvDiff + (evPl - pl),
+		evSessionCount: current.evSessionCount + 1,
+	});
+}
+
+const EMPTY_SUMMARY: SessionSummary = {
+	totalSessions: 0,
+	totalProfitLoss: 0,
+	winRate: 0,
+	avgProfitLoss: null,
+	avgPlacement: null,
+	totalPrizeMoney: null,
+	itmRate: null,
+	totalEvProfitLoss: null,
+	totalEvDiff: null,
+};
+
+async function computeSummary(
+	db: DbInstance,
+	filterConditions: ReturnType<typeof buildFilterConditions>,
+	typeFilter?: "cash_game" | "tournament"
+): Promise<SessionSummary> {
+	const allSessions = await db
+		.select({
+			type: pokerSession.type,
+			buyIn: pokerSession.buyIn,
+			cashOut: pokerSession.cashOut,
+			evCashOut: pokerSession.evCashOut,
+			entryFee: pokerSession.entryFee,
+			rebuyCount: pokerSession.rebuyCount,
+			rebuyCost: pokerSession.rebuyCost,
+			addonCost: pokerSession.addonCost,
+			prizeMoney: pokerSession.prizeMoney,
+			bountyPrizes: pokerSession.bountyPrizes,
+			placement: pokerSession.placement,
+			totalEntries: pokerSession.totalEntries,
+		})
+		.from(pokerSession)
+		.where(and(...filterConditions));
+
+	const totalSessions = allSessions.length;
+	if (totalSessions === 0) {
+		return EMPTY_SUMMARY;
+	}
+
+	const agg = aggregateSessions(allSessions);
+	const isTournament = typeFilter === "tournament";
 
 	return {
 		totalSessions,
-		totalProfitLoss,
-		winRate,
-		avgProfitLoss,
+		totalProfitLoss: agg.totalProfitLoss,
+		winRate: (agg.winCount / totalSessions) * 100,
+		avgProfitLoss: agg.totalProfitLoss / totalSessions,
 		avgPlacement:
-			isTournamentFilter && placementCount > 0
-				? totalPlacement / placementCount
+			isTournament && agg.placementCount > 0
+				? agg.totalPlacement / agg.placementCount
 				: null,
-		totalPrizeMoney: isTournamentFilter ? totalPrize : null,
+		totalPrizeMoney: isTournament ? agg.totalPrize : null,
 		itmRate:
-			isTournamentFilter && tournamentCount > 0
-				? (itmCount / tournamentCount) * 100
+			isTournament && agg.tournamentCount > 0
+				? (agg.itmCount / agg.tournamentCount) * 100
 				: null,
-		totalEvProfitLoss: evSessionCount > 0 ? totalEvProfitLoss : null,
-		totalEvDiff: evSessionCount > 0 ? totalEvDiff : null,
+		totalEvProfitLoss: agg.evSessionCount > 0 ? agg.totalEvProfitLoss : null,
+		totalEvDiff: agg.evSessionCount > 0 ? agg.totalEvDiff : null,
 	};
 }
 
@@ -712,6 +767,12 @@ export const sessionRouter = router({
 					.select()
 					.from(pokerSession)
 					.where(eq(pokerSession.id, id));
+				if (!session) {
+					throw new TRPCError({
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Session not found after creation",
+					});
+				}
 				const pl = computeSessionPL(session);
 				await createCurrencyTransactionForSession(
 					ctx.db,
@@ -977,6 +1038,13 @@ export const sessionRouter = router({
 				.select()
 				.from(pokerSession)
 				.where(eq(pokerSession.id, input.id));
+
+			if (!updated) {
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Session not found after update",
+				});
+			}
 
 			const pl = computeSessionPL(updated);
 			await syncCurrencyTransaction(

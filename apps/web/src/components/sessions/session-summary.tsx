@@ -34,8 +34,12 @@ function StatCard({
 }
 
 function plColorClass(value: number): string {
-	if (value > 0) return "text-green-600";
-	if (value < 0) return "text-red-600";
+	if (value > 0) {
+		return "text-green-600";
+	}
+	if (value < 0) {
+		return "text-red-600";
+	}
 	return "";
 }
 
@@ -55,10 +59,7 @@ export function SessionSummary({ summary }: SessionSummaryProps) {
 				label="Total P&L"
 				value={`${summary.totalProfitLoss >= 0 ? "+" : ""}${formatCompactNumber(summary.totalProfitLoss)}`}
 			/>
-			<StatCard
-				label="Win Rate"
-				value={`${summary.winRate.toFixed(1)}%`}
-			/>
+			<StatCard label="Win Rate" value={`${summary.winRate.toFixed(1)}%`} />
 			{summary.avgProfitLoss !== null && (
 				<StatCard
 					colorClass={plColorClass(summary.avgProfitLoss)}

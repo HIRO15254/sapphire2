@@ -13,6 +13,7 @@ interface SessionCardProps {
 		sessionDate: string;
 		buyIn: number | null;
 		cashOut: number | null;
+		evCashOut: number | null;
 		tournamentBuyIn: number | null;
 		entryFee: number | null;
 		placement: number | null;
