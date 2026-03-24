@@ -290,9 +290,6 @@ function SessionFormFields({
 		</>
 	);
 
-	const hasTagsOrMemo =
-		(defaultValues?.tagIds ?? []).length > 0 || !!defaultValues?.memo;
-
 	return (
 		<>
 			{/* === Top section (always visible) === */}
@@ -383,7 +380,6 @@ function SessionFormFields({
 
 			{/* === Accordion sections === */}
 			<FormAccordion
-				defaultValue={hasTagsOrMemo ? "tags" : "detail"}
 				items={[
 					{
 						value: "detail",

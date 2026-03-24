@@ -37,7 +37,7 @@ export function StoreGameSelectors({
 
 	return (
 		<>
-			<div className="flex flex-col gap-2">
+			<div className="flex max-w-xs flex-col gap-2">
 				<Label>Store</Label>
 				<Select
 					onValueChange={onStoreChange}
@@ -58,7 +58,7 @@ export function StoreGameSelectors({
 			</div>
 
 			{selectedStoreId && (
-				<div className="flex flex-col gap-2">
+				<div className="flex max-w-xs flex-col gap-2">
 					<Label>{gameLabel}</Label>
 					{hasGameOptions ? (
 						<Select
