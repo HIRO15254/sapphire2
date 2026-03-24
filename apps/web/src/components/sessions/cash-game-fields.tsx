@@ -10,18 +10,21 @@ import {
 } from "@/components/ui/select";
 
 interface CashGameFieldsProps {
+	currencies?: Array<{ id: string; name: string }>;
 	defaultValues?: {
 		ante?: number;
 		anteType?: string;
 		blind1?: number;
 		blind2?: number;
 		blind3?: number;
-		buyIn?: number;
-		cashOut?: number;
 		tableSize?: number;
 		variant?: string;
 	};
+	onCurrencyChange?: (id: string | undefined) => void;
+	selectedCurrencyId?: string;
 }
+
+const NONE_VALUE = "__none__";
 
 const ANTE_TYPES = [
 	{ value: "none", label: "No Ante" },
@@ -31,7 +34,12 @@ const ANTE_TYPES = [
 
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
-export function CashGameFields({ defaultValues }: CashGameFieldsProps) {
+export function CashGameFields({
+	currencies,
+	defaultValues,
+	onCurrencyChange,
+	selectedCurrencyId,
+}: CashGameFieldsProps) {
 	const [anteType, setAnteType] = useState<string>(
 		defaultValues?.anteType ?? "none"
 	);
@@ -40,39 +48,33 @@ export function CashGameFields({ defaultValues }: CashGameFieldsProps) {
 
 	return (
 		<>
-			{/* Buy-in / Cash-out */}
-			<div className="grid grid-cols-2 gap-3">
+			{/* Currency Selector */}
+			{currencies && currencies.length > 0 && (
 				<div className="flex flex-col gap-2">
-					<Label htmlFor="buyIn">
-						Buy-in <span className="text-destructive">*</span>
-					</Label>
-					<Input
-						defaultValue={defaultValues?.buyIn}
-						id="buyIn"
-						inputMode="numeric"
-						min={0}
-						name="buyIn"
-						placeholder="0"
-						required
-						type="number"
-					/>
+					<Label>Currency</Label>
+					<Select
+						onValueChange={(v) =>
+							onCurrencyChange?.(v === NONE_VALUE ? undefined : v)
+						}
+						value={selectedCurrencyId ?? NONE_VALUE}
+					>
+						<SelectTrigger>
+							<SelectValue placeholder="Select a currency" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value={NONE_VALUE}>None</SelectItem>
+							{currencies.map((c) => (
+								<SelectItem key={c.id} value={c.id}>
+									{c.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<p className="text-muted-foreground text-xs">
+						Auto-generates a transaction with the session&apos;s P&L.
+					</p>
 				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="cashOut">
-						Cash-out <span className="text-destructive">*</span>
-					</Label>
-					<Input
-						defaultValue={defaultValues?.cashOut}
-						id="cashOut"
-						inputMode="numeric"
-						min={0}
-						name="cashOut"
-						placeholder="0"
-						required
-						type="number"
-					/>
-				</div>
-			</div>
+			)}
 
 			{/* Variant */}
 			<div className="flex flex-col gap-2">

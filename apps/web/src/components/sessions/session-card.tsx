@@ -26,8 +26,14 @@ interface SessionCardProps {
 		startedAt: string | null;
 		endedAt: string | null;
 		memo: string | null;
+		storeId: string | null;
+		storeName: string | null;
 		ringGameId: string | null;
 		ringGameName: string | null;
+		tournamentId: string | null;
+		tournamentName: string | null;
+		currencyId: string | null;
+		currencyName: string | null;
 		createdAt: string;
 		tags: Array<{ id: string; name: string }>;
 	};
@@ -114,6 +120,18 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 						<p className="text-muted-foreground text-xs">
 							{session.ringGameName}
 						</p>
+					)}
+					{isTournament && session.tournamentName && (
+						<p className="text-muted-foreground text-xs">
+							{session.tournamentName}
+						</p>
+					)}
+					{(session.storeName || session.currencyName) && (
+						<div className="flex items-center gap-2 text-muted-foreground text-xs">
+							{session.storeName && <span>{session.storeName}</span>}
+							{session.storeName && session.currencyName && <span>·</span>}
+							{session.currencyName && <span>{session.currencyName}</span>}
+						</div>
 					)}
 					{session.startedAt && session.endedAt && (
 						<p className="text-muted-foreground text-xs">

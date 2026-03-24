@@ -72,8 +72,8 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
-  '/sessions/': typeof SessionsIndexRoute
   '/currencies/': typeof CurrenciesIndexRoute
+  '/sessions/': typeof SessionsIndexRoute
   '/stores/': typeof StoresIndexRoute
 }
 export interface FileRoutesByTo {
@@ -83,8 +83,8 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
-  '/sessions': typeof SessionsIndexRoute
   '/currencies': typeof CurrenciesIndexRoute
+  '/sessions': typeof SessionsIndexRoute
   '/stores': typeof StoresIndexRoute
 }
 export interface FileRoutesById {
@@ -95,8 +95,8 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
-  '/sessions/': typeof SessionsIndexRoute
   '/currencies/': typeof CurrenciesIndexRoute
+  '/sessions/': typeof SessionsIndexRoute
   '/stores/': typeof StoresIndexRoute
 }
 export interface FileRouteTypes {
@@ -108,8 +108,8 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/stores/$storeId'
-    | '/sessions/'
     | '/currencies/'
+    | '/sessions/'
     | '/stores/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -119,8 +119,8 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/stores/$storeId'
-    | '/sessions'
     | '/currencies'
+    | '/sessions'
     | '/stores'
   id:
     | '__root__'
@@ -130,8 +130,8 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/stores/$storeId'
-    | '/sessions/'
     | '/currencies/'
+    | '/sessions/'
     | '/stores/'
   fileRoutesById: FileRoutesById
 }
@@ -142,8 +142,8 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   StoresStoreIdRoute: typeof StoresStoreIdRoute
-  SessionsIndexRoute: typeof SessionsIndexRoute
   CurrenciesIndexRoute: typeof CurrenciesIndexRoute
+  SessionsIndexRoute: typeof SessionsIndexRoute
   StoresIndexRoute: typeof StoresIndexRoute
 }
 
@@ -222,8 +222,8 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   StoresStoreIdRoute: StoresStoreIdRoute,
-  SessionsIndexRoute: SessionsIndexRoute,
   CurrenciesIndexRoute: CurrenciesIndexRoute,
+  SessionsIndexRoute: SessionsIndexRoute,
   StoresIndexRoute: StoresIndexRoute,
 }
 export const routeTree = rootRouteImport

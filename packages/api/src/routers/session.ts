@@ -4,6 +4,13 @@ import {
 	sessionTag,
 	sessionToSessionTag,
 } from "@sapphire2/db/schema/session-tag";
+import {
+	currency,
+	currencyTransaction,
+	store,
+	transactionType,
+} from "@sapphire2/db/schema/store";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import { z } from "zod";
@@ -98,6 +105,188 @@ function buildRingGameUpdateData(
 	return data;
 }
 
+type DbInstance = Parameters<
+	Parameters<typeof protectedProcedure.query>[0]
+>[0]["ctx"]["db"];
+
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "currency" | "ringGame" | "store" | "tournament",
+	entityId: string,
+	userId: string
+) {
+	if (entityType === "store") {
+		const [found] = await db.select().from(store).where(eq(store.id, entityId));
+		if (!found) {
+			throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+		}
+		if (found.userId !== userId) {
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "You do not own this store",
+			});
+		}
+	} else if (entityType === "ringGame") {
+		const [found] = await db
+			.select()
+			.from(ringGame)
+			.where(eq(ringGame.id, entityId));
+		if (!found) {
+			throw new TRPCError({
+				code: "NOT_FOUND",
+				message: "Ring game not found",
+			});
+		}
+	} else if (entityType === "tournament") {
+		const [found] = await db
+			.select()
+			.from(tournament)
+			.where(eq(tournament.id, entityId));
+		if (!found) {
+			throw new TRPCError({
+				code: "NOT_FOUND",
+				message: "Tournament not found",
+			});
+		}
+	} else if (entityType === "currency") {
+		const [found] = await db
+			.select()
+			.from(currency)
+			.where(eq(currency.id, entityId));
+		if (!found) {
+			throw new TRPCError({
+				code: "NOT_FOUND",
+				message: "Currency not found",
+			});
+		}
+		if (found.userId !== userId) {
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "You do not own this currency",
+			});
+		}
+	}
+}
+
+async function getSessionResultTypeId(
+	db: DbInstance,
+	userId: string
+): Promise<string> {
+	const [found] = await db
+		.select()
+		.from(transactionType)
+		.where(
+			and(
+				eq(transactionType.userId, userId),
+				eq(transactionType.name, "Session Result")
+			)
+		);
+	if (found) {
+		return found.id;
+	}
+	// Seed if not found
+	const id = crypto.randomUUID();
+	await db.insert(transactionType).values({
+		id,
+		userId,
+		name: "Session Result",
+		updatedAt: new Date(),
+	});
+	return id;
+}
+
+function computeSessionPL(session: typeof pokerSession.$inferSelect): number {
+	if (
+		session.type === "cash_game" &&
+		session.buyIn !== null &&
+		session.cashOut !== null
+	) {
+		return computeCashGamePL(session.buyIn, session.cashOut);
+	}
+	return computeTournamentPL(
+		session.tournamentBuyIn,
+		session.entryFee,
+		session.rebuyCount,
+		session.rebuyCost,
+		session.addonCost,
+		session.prizeMoney,
+		session.bountyPrizes
+	);
+}
+
+async function createCurrencyTransactionForSession(
+	db: DbInstance,
+	sessionId: string,
+	currencyId: string,
+	amount: number,
+	sessionDate: Date,
+	userId: string
+) {
+	const typeId = await getSessionResultTypeId(db, userId);
+	await db.insert(currencyTransaction).values({
+		id: crypto.randomUUID(),
+		currencyId,
+		transactionTypeId: typeId,
+		sessionId,
+		amount,
+		transactedAt: sessionDate,
+	});
+}
+
+async function syncCurrencyTransaction(
+	db: DbInstance,
+	sessionId: string,
+	oldCurrencyId: string | null,
+	newCurrencyId: string | null | undefined,
+	amount: number,
+	sessionDate: Date,
+	userId: string
+) {
+	// undefined means no change requested
+	const effectiveNewCurrencyId =
+		newCurrencyId === undefined ? oldCurrencyId : newCurrencyId;
+
+	if (oldCurrencyId && !effectiveNewCurrencyId) {
+		// Currency removed — delete transaction
+		await db
+			.delete(currencyTransaction)
+			.where(eq(currencyTransaction.sessionId, sessionId));
+	} else if (!oldCurrencyId && effectiveNewCurrencyId) {
+		// Currency added — create transaction
+		await createCurrencyTransactionForSession(
+			db,
+			sessionId,
+			effectiveNewCurrencyId,
+			amount,
+			sessionDate,
+			userId
+		);
+	} else if (
+		oldCurrencyId &&
+		effectiveNewCurrencyId &&
+		oldCurrencyId !== effectiveNewCurrencyId
+	) {
+		// Currency changed — delete old, create new
+		await db
+			.delete(currencyTransaction)
+			.where(eq(currencyTransaction.sessionId, sessionId));
+		await createCurrencyTransactionForSession(
+			db,
+			sessionId,
+			effectiveNewCurrencyId,
+			amount,
+			sessionDate,
+			userId
+		);
+	} else if (effectiveNewCurrencyId) {
+		// Same currency — update amount
+		await db
+			.update(currencyTransaction)
+			.set({ amount, transactedAt: sessionDate })
+			.where(eq(currencyTransaction.sessionId, sessionId));
+	}
+}
+
 export {
 	validateSessionOwnership,
 	computeCashGamePL,
@@ -110,6 +299,10 @@ const cashGameCreateSchema = z.object({
 	sessionDate: z.number(),
 	buyIn: z.number().int().min(0),
 	cashOut: z.number().int().min(0),
+	// Links (all optional)
+	storeId: z.string().optional(),
+	ringGameId: z.string().optional(),
+	currencyId: z.string().optional(),
 	// Ring game config (all optional)
 	variant: z.string().default("nlh"),
 	blind1: z.number().int().optional(),
@@ -139,6 +332,10 @@ const tournamentCreateSchema = z
 		rebuyCost: z.number().int().min(0).optional(),
 		addonCost: z.number().int().min(0).optional(),
 		bountyPrizes: z.number().int().min(0).optional(),
+		// Links (all optional)
+		storeId: z.string().optional(),
+		tournamentId: z.string().optional(),
+		currencyId: z.string().optional(),
 		// Time + memo
 		startedAt: z.number().optional(),
 		endedAt: z.number().optional(),
@@ -247,6 +444,70 @@ function buildSessionUpdateData(
 	return data;
 }
 
+async function validateCreateLinks(
+	db: DbInstance,
+	input: CreateInput,
+	userId: string
+) {
+	if (input.storeId) {
+		await validateEntityOwnership(db, "store", input.storeId, userId);
+	}
+	if (input.currencyId) {
+		await validateEntityOwnership(db, "currency", input.currencyId, userId);
+	}
+	if (input.type === "cash_game" && input.ringGameId) {
+		await validateEntityOwnership(db, "ringGame", input.ringGameId, userId);
+	}
+	if (input.type === "tournament" && input.tournamentId) {
+		await validateEntityOwnership(db, "tournament", input.tournamentId, userId);
+	}
+}
+
+async function buildCreateValues(
+	db: DbInstance,
+	input: CreateInput,
+	now: Date
+) {
+	const linkValues: Partial<typeof pokerSession.$inferInsert> = {
+		storeId: input.storeId ?? null,
+		currencyId: input.currencyId ?? null,
+	};
+
+	if (input.type === "cash_game") {
+		if (input.ringGameId) {
+			return {
+				linkValues,
+				typeValues: buildCashGameSessionValues(input, input.ringGameId),
+			};
+		}
+		const ringGameId = crypto.randomUUID();
+		await db.insert(ringGame).values({
+			id: ringGameId,
+			storeId: null,
+			name: `${input.variant ?? "nlh"} ${input.blind1 ?? 0}/${input.blind2 ?? 0}`,
+			variant: input.variant ?? "nlh",
+			blind1: input.blind1 ?? null,
+			blind2: input.blind2 ?? null,
+			blind3: input.blind3 ?? null,
+			ante: input.ante ?? null,
+			anteType: input.anteType ?? null,
+			minBuyIn: null,
+			maxBuyIn: null,
+			tableSize: input.tableSize ?? null,
+			updatedAt: now,
+		});
+		return {
+			linkValues,
+			typeValues: buildCashGameSessionValues(input, ringGameId),
+		};
+	}
+
+	if (input.tournamentId) {
+		linkValues.tournamentId = input.tournamentId;
+	}
+	return { linkValues, typeValues: buildTournamentSessionValues(input) };
+}
+
 export const sessionRouter = router({
 	create: protectedProcedure
 		.input(createInputSchema)
@@ -254,41 +515,26 @@ export const sessionRouter = router({
 			const userId = ctx.session.user.id;
 			const id = crypto.randomUUID();
 			const now = new Date();
+			const sessionDate = new Date(input.sessionDate * 1000);
 
-			let typeSpecificValues: Partial<typeof pokerSession.$inferInsert> = {};
-
-			if (input.type === "cash_game") {
-				const ringGameId = crypto.randomUUID();
-				await ctx.db.insert(ringGame).values({
-					id: ringGameId,
-					storeId: null,
-					name: `${input.variant ?? "nlh"} ${input.blind1 ?? 0}/${input.blind2 ?? 0}`,
-					variant: input.variant ?? "nlh",
-					blind1: input.blind1 ?? null,
-					blind2: input.blind2 ?? null,
-					blind3: input.blind3 ?? null,
-					ante: input.ante ?? null,
-					anteType: input.anteType ?? null,
-					minBuyIn: null,
-					maxBuyIn: null,
-					tableSize: input.tableSize ?? null,
-					updatedAt: now,
-				});
-				typeSpecificValues = buildCashGameSessionValues(input, ringGameId);
-			} else {
-				typeSpecificValues = buildTournamentSessionValues(input);
-			}
+			await validateCreateLinks(ctx.db, input, userId);
+			const { linkValues, typeValues } = await buildCreateValues(
+				ctx.db,
+				input,
+				now
+			);
 
 			await ctx.db.insert(pokerSession).values({
 				id,
 				userId,
 				type: input.type,
-				sessionDate: new Date(input.sessionDate * 1000),
+				sessionDate,
 				startedAt: timestampToDate(input.startedAt),
 				endedAt: timestampToDate(input.endedAt),
 				memo: input.memo ?? null,
 				updatedAt: now,
-				...typeSpecificValues,
+				...linkValues,
+				...typeValues,
 			});
 
 			if (input.tagIds && input.tagIds.length > 0) {
@@ -297,6 +543,22 @@ export const sessionRouter = router({
 						sessionId: id,
 						sessionTagId: tagId,
 					}))
+				);
+			}
+
+			if (input.currencyId) {
+				const [session] = await ctx.db
+					.select()
+					.from(pokerSession)
+					.where(eq(pokerSession.id, id));
+				const pl = computeSessionPL(session);
+				await createCurrencyTransactionForSession(
+					ctx.db,
+					id,
+					input.currencyId,
+					pl,
+					sessionDate,
+					userId
 				);
 			}
 
@@ -335,12 +597,21 @@ export const sessionRouter = router({
 					startedAt: pokerSession.startedAt,
 					endedAt: pokerSession.endedAt,
 					memo: pokerSession.memo,
+					storeId: pokerSession.storeId,
+					storeName: store.name,
 					ringGameId: pokerSession.ringGameId,
 					ringGameName: ringGame.name,
+					tournamentId: pokerSession.tournamentId,
+					tournamentName: tournament.name,
+					currencyId: pokerSession.currencyId,
+					currencyName: currency.name,
 					createdAt: pokerSession.createdAt,
 				})
 				.from(pokerSession)
+				.leftJoin(store, eq(store.id, pokerSession.storeId))
 				.leftJoin(ringGame, eq(ringGame.id, pokerSession.ringGameId))
+				.leftJoin(tournament, eq(tournament.id, pokerSession.tournamentId))
+				.leftJoin(currency, eq(currency.id, pokerSession.currencyId))
 				.where(and(...conditions))
 				.orderBy(desc(pokerSession.sessionDate), desc(pokerSession.id))
 				.limit(PAGE_SIZE + 1);
@@ -411,6 +682,11 @@ export const sessionRouter = router({
 			z.object({
 				id: z.string(),
 				sessionDate: z.number().optional(),
+				// Links
+				storeId: z.string().nullable().optional(),
+				ringGameId: z.string().nullable().optional(),
+				tournamentId: z.string().nullable().optional(),
+				currencyId: z.string().nullable().optional(),
 				// Cash game fields
 				buyIn: z.number().int().min(0).optional(),
 				cashOut: z.number().int().min(0).optional(),
@@ -444,7 +720,50 @@ export const sessionRouter = router({
 			const userId = ctx.session.user.id;
 			const session = await validateSessionOwnership(ctx.db, input.id, userId);
 
+			// Validate linked entity ownership
+			if (input.storeId) {
+				await validateEntityOwnership(ctx.db, "store", input.storeId, userId);
+			}
+			if (input.currencyId) {
+				await validateEntityOwnership(
+					ctx.db,
+					"currency",
+					input.currencyId,
+					userId
+				);
+			}
+			if (input.ringGameId) {
+				await validateEntityOwnership(
+					ctx.db,
+					"ringGame",
+					input.ringGameId,
+					userId
+				);
+			}
+			if (input.tournamentId) {
+				await validateEntityOwnership(
+					ctx.db,
+					"tournament",
+					input.tournamentId,
+					userId
+				);
+			}
+
 			const updateData = buildSessionUpdateData(input);
+
+			// Handle link field updates
+			if (input.storeId !== undefined) {
+				updateData.storeId = input.storeId;
+			}
+			if (input.ringGameId !== undefined) {
+				updateData.ringGameId = input.ringGameId;
+			}
+			if (input.tournamentId !== undefined) {
+				updateData.tournamentId = input.tournamentId;
+			}
+			if (input.currencyId !== undefined) {
+				updateData.currencyId = input.currencyId;
+			}
 
 			await ctx.db
 				.update(pokerSession)
@@ -474,10 +793,23 @@ export const sessionRouter = router({
 				}
 			}
 
+			// Sync currency transaction
 			const [updated] = await ctx.db
 				.select()
 				.from(pokerSession)
 				.where(eq(pokerSession.id, input.id));
+
+			const pl = computeSessionPL(updated);
+			await syncCurrencyTransaction(
+				ctx.db,
+				input.id,
+				session.currencyId,
+				input.currencyId,
+				pl,
+				updated.sessionDate,
+				userId
+			);
+
 			return updated;
 		}),
 

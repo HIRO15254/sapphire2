@@ -93,13 +93,13 @@
 
 ### Implementation for User Story 3
 
-- [ ] T020 [US3] Extend `session.create` and `session.update` mutations to accept optional storeId, ringGameId/tournamentId (matching session type), and currencyId with ownership validation of linked entities in `packages/api/src/routers/session.ts`
-- [ ] T021 [US3] Implement currency transaction auto-generation: on create with currencyId, look up "Session Result" transactionType, insert currencyTransaction with net P&L amount and sessionId FK. On update, sync transaction amount or create/delete as currency link changes. On delete, cascade handles cleanup in `packages/api/src/routers/session.ts`
-- [ ] T022 [US3] Extend `session.list` query with LEFT JOINs to store, ringGame, tournament, and currency tables to resolve entity names (storeName, ringGameName, tournamentName, currencyName) in `packages/api/src/routers/session.ts`
-- [ ] T023 [US3] Add store-filtered game selector to session form: when storeId selected, fetch games of matching type (ringGame.listByStore for cash_game, tournament.listByStore for tournament) and populate game dropdown. When a game config is selected, pre-fill the form's buy-in/entry fee/rebuy/addon fields with values from the config (overridable by user). Add currency selector using currency.list in `apps/web/src/components/sessions/session-form.tsx`
-- [ ] T024 [US3] Display linked entity names (store, game, currency) on session card with fallback text for deleted entities in `apps/web/src/components/sessions/session-card.tsx`
-- [ ] T025 [US3] Add read-only indicator for session-generated transactions (where sessionId is not null) in currency transaction list: disable edit/delete buttons, show "Session" badge with link in `apps/web/src/components/stores/transaction-list.tsx`
-- [ ] T026 [US3] Modify currencyTransaction update and delete mutations to reject operations on transactions where sessionId is not null (return FORBIDDEN error) in `packages/api/src/routers/currency-transaction.ts`
+- [x] T020 [US3] Extend `session.create` and `session.update` mutations to accept optional storeId, ringGameId/tournamentId (matching session type), and currencyId with ownership validation of linked entities in `packages/api/src/routers/session.ts`
+- [x] T021 [US3] Implement currency transaction auto-generation: on create with currencyId, look up "Session Result" transactionType, insert currencyTransaction with net P&L amount and sessionId FK. On update, sync transaction amount or create/delete as currency link changes. On delete, cascade handles cleanup in `packages/api/src/routers/session.ts`
+- [x] T022 [US3] Extend `session.list` query with LEFT JOINs to store, ringGame, tournament, and currency tables to resolve entity names (storeName, ringGameName, tournamentName, currencyName) in `packages/api/src/routers/session.ts`
+- [x] T023 [US3] Add store-filtered game selector to session form: when storeId selected, fetch games of matching type (ringGame.listByStore for cash_game, tournament.listByStore for tournament) and populate game dropdown. When a game config is selected, pre-fill the form's buy-in/entry fee/rebuy/addon fields with values from the config (overridable by user). Add currency selector using currency.list in `apps/web/src/components/sessions/session-form.tsx`
+- [x] T024 [US3] Display linked entity names (store, game, currency) on session card with fallback text for deleted entities in `apps/web/src/components/sessions/session-card.tsx`
+- [x] T025 [US3] Add read-only indicator for session-generated transactions (where sessionId is not null) in currency transaction list: disable edit/delete buttons, show "Session" badge with link in `apps/web/src/components/stores/transaction-list.tsx`
+- [x] T026 [US3] Modify currencyTransaction update and delete mutations to reject operations on transactions where sessionId is not null (return FORBIDDEN error) in `packages/api/src/routers/currency-transaction.ts`
 
 **Checkpoint**: Sessions can be linked to stores, games, and currencies. Currency transactions auto-sync. Read-only enforcement on currency page works.
 
