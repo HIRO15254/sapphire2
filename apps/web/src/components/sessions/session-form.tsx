@@ -2,14 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { TagInput } from "@/components/ui/tag-input";
+import { CashGameFields } from "./cash-game-fields";
+import { TournamentFields } from "./tournament-fields";
 
 interface CashGameFormValues {
 	ante?: number;
@@ -84,14 +79,6 @@ interface SessionFormProps {
 	tags?: Array<{ id: string; name: string }>;
 }
 
-const ANTE_TYPES = [
-	{ value: "none", label: "No Ante" },
-	{ value: "bb", label: "BB Ante" },
-	{ value: "all", label: "All Ante" },
-] as const;
-
-const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
-
 function getTodayDateString(): string {
 	const today = new Date();
 	const year = today.getFullYear();
@@ -108,6 +95,50 @@ function parseOptionalInt(value: string): number | undefined {
 	return Number.isNaN(parsed) ? undefined : parsed;
 }
 
+function parseCashGameFields(
+	formData: FormData
+): Omit<
+	CashGameFormValues,
+	"endTime" | "memo" | "sessionDate" | "startTime" | "tagIds"
+> {
+	const anteType = (formData.get("anteType") as string) || "none";
+	return {
+		type: "cash_game",
+		buyIn: Number(formData.get("buyIn")),
+		cashOut: Number(formData.get("cashOut")),
+		variant: (formData.get("variant") as string) || "nlh",
+		blind1: parseOptionalInt(formData.get("blind1") as string),
+		blind2: parseOptionalInt(formData.get("blind2") as string),
+		blind3: parseOptionalInt(formData.get("blind3") as string),
+		ante:
+			anteType === "none"
+				? undefined
+				: parseOptionalInt(formData.get("ante") as string),
+		anteType: anteType || undefined,
+		tableSize: parseOptionalInt(formData.get("tableSize") as string),
+	};
+}
+
+function parseTournamentFields(
+	formData: FormData
+): Omit<
+	TournamentFormValues,
+	"endTime" | "memo" | "sessionDate" | "startTime" | "tagIds"
+> {
+	return {
+		type: "tournament",
+		tournamentBuyIn: Number(formData.get("tournamentBuyIn")),
+		entryFee: parseOptionalInt(formData.get("entryFee") as string),
+		placement: parseOptionalInt(formData.get("placement") as string),
+		totalEntries: parseOptionalInt(formData.get("totalEntries") as string),
+		prizeMoney: parseOptionalInt(formData.get("prizeMoney") as string),
+		rebuyCount: parseOptionalInt(formData.get("rebuyCount") as string),
+		rebuyCost: parseOptionalInt(formData.get("rebuyCost") as string),
+		addonCost: parseOptionalInt(formData.get("addonCost") as string),
+		bountyPrizes: parseOptionalInt(formData.get("bountyPrizes") as string),
+	};
+}
+
 export function SessionForm({
 	defaultValues,
 	isLoading = false,
@@ -118,14 +149,10 @@ export function SessionForm({
 	const [sessionType, setSessionType] = useState<"cash_game" | "tournament">(
 		defaultValues?.type ?? "cash_game"
 	);
-	const [anteType, setAnteType] = useState<string>(
-		defaultValues?.anteType ?? "none"
-	);
 	const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
 		defaultValues?.tagIds ?? []
 	);
 
-	const isAnteDisabled = anteType === "none";
 	const isCashGame = sessionType === "cash_game";
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -141,37 +168,9 @@ export function SessionForm({
 		};
 
 		if (isCashGame) {
-			const values: CashGameFormValues = {
-				...common,
-				type: "cash_game",
-				buyIn: Number(formData.get("buyIn")),
-				cashOut: Number(formData.get("cashOut")),
-				variant: (formData.get("variant") as string) || "nlh",
-				blind1: parseOptionalInt(formData.get("blind1") as string),
-				blind2: parseOptionalInt(formData.get("blind2") as string),
-				blind3: parseOptionalInt(formData.get("blind3") as string),
-				ante: isAnteDisabled
-					? undefined
-					: parseOptionalInt(formData.get("ante") as string),
-				anteType: (formData.get("anteType") as string) || undefined,
-				tableSize: parseOptionalInt(formData.get("tableSize") as string),
-			};
-			onSubmit(values);
+			onSubmit({ ...common, ...parseCashGameFields(formData) });
 		} else {
-			const values: TournamentFormValues = {
-				...common,
-				type: "tournament",
-				tournamentBuyIn: Number(formData.get("tournamentBuyIn")),
-				entryFee: parseOptionalInt(formData.get("entryFee") as string),
-				placement: parseOptionalInt(formData.get("placement") as string),
-				totalEntries: parseOptionalInt(formData.get("totalEntries") as string),
-				prizeMoney: parseOptionalInt(formData.get("prizeMoney") as string),
-				rebuyCount: parseOptionalInt(formData.get("rebuyCount") as string),
-				rebuyCost: parseOptionalInt(formData.get("rebuyCost") as string),
-				addonCost: parseOptionalInt(formData.get("addonCost") as string),
-				bountyPrizes: parseOptionalInt(formData.get("bountyPrizes") as string),
-			};
-			onSubmit(values);
+			onSubmit({ ...common, ...parseTournamentFields(formData) });
 		}
 	};
 
@@ -244,285 +243,11 @@ export function SessionForm({
 				</div>
 			</div>
 
+			{/* Type-specific fields */}
 			{isCashGame ? (
-				<>
-					{/* Buy-in / Cash-out */}
-					<div className="grid grid-cols-2 gap-3">
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="buyIn">
-								Buy-in <span className="text-destructive">*</span>
-							</Label>
-							<Input
-								defaultValue={defaultValues?.buyIn}
-								id="buyIn"
-								inputMode="numeric"
-								min={0}
-								name="buyIn"
-								placeholder="0"
-								required
-								type="number"
-							/>
-						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="cashOut">
-								Cash-out <span className="text-destructive">*</span>
-							</Label>
-							<Input
-								defaultValue={defaultValues?.cashOut}
-								id="cashOut"
-								inputMode="numeric"
-								min={0}
-								name="cashOut"
-								placeholder="0"
-								required
-								type="number"
-							/>
-						</div>
-					</div>
-
-					{/* Variant */}
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="variant">Variant</Label>
-						<Select
-							defaultValue={defaultValues?.variant ?? "nlh"}
-							name="variant"
-						>
-							<SelectTrigger className="w-full" id="variant">
-								<SelectValue placeholder="Select variant" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="nlh">NL Hold&apos;em</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-
-					{/* SB / BB / Straddle */}
-					<div className="grid grid-cols-3 gap-3">
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="blind1">SB</Label>
-							<Input
-								defaultValue={defaultValues?.blind1}
-								id="blind1"
-								inputMode="numeric"
-								min={0}
-								name="blind1"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="blind2">BB</Label>
-							<Input
-								defaultValue={defaultValues?.blind2}
-								id="blind2"
-								inputMode="numeric"
-								min={0}
-								name="blind2"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="blind3">Straddle</Label>
-							<Input
-								defaultValue={defaultValues?.blind3}
-								id="blind3"
-								inputMode="numeric"
-								min={0}
-								name="blind3"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
-					</div>
-
-					{/* Ante Type / Ante */}
-					<div className="flex gap-3">
-						<div className="flex flex-1 flex-col gap-2">
-							<Label htmlFor="anteType">Ante Type</Label>
-							<Select
-								defaultValue={defaultValues?.anteType ?? "none"}
-								name="anteType"
-								onValueChange={setAnteType}
-							>
-								<SelectTrigger className="w-full" id="anteType">
-									<SelectValue placeholder="Select ante type" />
-								</SelectTrigger>
-								<SelectContent>
-									{ANTE_TYPES.map((at) => (
-										<SelectItem key={at.value} value={at.value}>
-											{at.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-						<div className="flex flex-1 flex-col gap-2">
-							<Label htmlFor="ante">Ante</Label>
-							<Input
-								defaultValue={defaultValues?.ante}
-								disabled={isAnteDisabled}
-								id="ante"
-								inputMode="numeric"
-								min={0}
-								name="ante"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
-					</div>
-
-					{/* Table Size */}
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="tableSize">Table Size</Label>
-						<Select
-							defaultValue={defaultValues?.tableSize?.toString()}
-							name="tableSize"
-						>
-							<SelectTrigger className="w-full" id="tableSize">
-								<SelectValue placeholder="Select table size" />
-							</SelectTrigger>
-							<SelectContent>
-								{TABLE_SIZES.map((size) => (
-									<SelectItem key={size} value={size.toString()}>
-										{size}-max
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-				</>
+				<CashGameFields defaultValues={defaultValues} />
 			) : (
-				<>
-					{/* Tournament Buy-in / Entry Fee */}
-					<div className="grid grid-cols-2 gap-3">
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="tournamentBuyIn">
-								Buy-in <span className="text-destructive">*</span>
-							</Label>
-							<Input
-								defaultValue={defaultValues?.tournamentBuyIn}
-								id="tournamentBuyIn"
-								inputMode="numeric"
-								min={0}
-								name="tournamentBuyIn"
-								placeholder="0"
-								required
-								type="number"
-							/>
-						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="entryFee">Entry Fee</Label>
-							<Input
-								defaultValue={defaultValues?.entryFee}
-								id="entryFee"
-								inputMode="numeric"
-								min={0}
-								name="entryFee"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
-					</div>
-
-					{/* Placement / Total Entries */}
-					<div className="grid grid-cols-2 gap-3">
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="placement">Placement</Label>
-							<Input
-								defaultValue={defaultValues?.placement}
-								id="placement"
-								inputMode="numeric"
-								min={1}
-								name="placement"
-								placeholder="e.g. 3"
-								type="number"
-							/>
-						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="totalEntries">Total Entries</Label>
-							<Input
-								defaultValue={defaultValues?.totalEntries}
-								id="totalEntries"
-								inputMode="numeric"
-								min={1}
-								name="totalEntries"
-								placeholder="e.g. 50"
-								type="number"
-							/>
-						</div>
-					</div>
-
-					{/* Prize Money */}
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="prizeMoney">Prize Money</Label>
-						<Input
-							defaultValue={defaultValues?.prizeMoney}
-							id="prizeMoney"
-							inputMode="numeric"
-							min={0}
-							name="prizeMoney"
-							placeholder="0"
-							type="number"
-						/>
-					</div>
-
-					{/* Rebuy Count / Rebuy Cost */}
-					<div className="grid grid-cols-2 gap-3">
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="rebuyCount">Rebuy Count</Label>
-							<Input
-								defaultValue={defaultValues?.rebuyCount}
-								id="rebuyCount"
-								inputMode="numeric"
-								min={0}
-								name="rebuyCount"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="rebuyCost">Rebuy Cost</Label>
-							<Input
-								defaultValue={defaultValues?.rebuyCost}
-								id="rebuyCost"
-								inputMode="numeric"
-								min={0}
-								name="rebuyCost"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
-					</div>
-
-					{/* Addon Cost / Bounty Prizes */}
-					<div className="grid grid-cols-2 gap-3">
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="addonCost">Addon Cost</Label>
-							<Input
-								defaultValue={defaultValues?.addonCost}
-								id="addonCost"
-								inputMode="numeric"
-								min={0}
-								name="addonCost"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="bountyPrizes">Bounty Prizes</Label>
-							<Input
-								defaultValue={defaultValues?.bountyPrizes}
-								id="bountyPrizes"
-								inputMode="numeric"
-								min={0}
-								name="bountyPrizes"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
-					</div>
-				</>
+				<TournamentFields defaultValues={defaultValues} />
 			)}
 
 			{/* Session Tags */}
