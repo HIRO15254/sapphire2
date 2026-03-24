@@ -20,10 +20,13 @@ interface CashGameFormValues {
 	blind3?: number;
 	buyIn: number;
 	cashOut: number;
+	currencyId?: string;
 	endTime?: string;
 	memo?: string;
+	ringGameId?: string;
 	sessionDate: string;
 	startTime?: string;
+	storeId?: string;
 	tableSize?: number;
 	tagIds?: string[];
 	type: "cash_game";
@@ -33,6 +36,7 @@ interface CashGameFormValues {
 interface TournamentFormValues {
 	addonCost?: number;
 	bountyPrizes?: number;
+	currencyId?: string;
 	endTime?: string;
 	entryFee?: number;
 	memo?: string;
@@ -42,9 +46,11 @@ interface TournamentFormValues {
 	rebuyCount?: number;
 	sessionDate: string;
 	startTime?: string;
+	storeId?: string;
 	tagIds?: string[];
 	totalEntries?: number;
 	tournamentBuyIn: number;
+	tournamentId?: string;
 	type: "tournament";
 }
 
@@ -56,6 +62,8 @@ interface SessionItem {
 	buyIn: number | null;
 	cashOut: number | null;
 	createdAt: string;
+	currencyId: string | null;
+	currencyName: string | null;
 	endedAt: string | null;
 	entryFee: number | null;
 	id: string;
@@ -69,9 +77,13 @@ interface SessionItem {
 	ringGameName: string | null;
 	sessionDate: string;
 	startedAt: string | null;
+	storeId: string | null;
+	storeName: string | null;
 	tags: Array<{ id: string; name: string }>;
 	totalEntries: number | null;
 	tournamentBuyIn: number | null;
+	tournamentId: string | null;
+	tournamentName: string | null;
 	type: string;
 }
 
@@ -85,11 +97,64 @@ function timeToUnix(
 	return Math.floor(new Date(`${sessionDate}T${time}`).getTime() / 1000);
 }
 
+function useStoreGames(storeId: string | undefined) {
+	const ringGamesQuery = useQuery({
+		...trpc.ringGame.listByStore.queryOptions({ storeId: storeId ?? "" }),
+		enabled: !!storeId,
+	});
+	const tournamentsQuery = useQuery({
+		...trpc.tournament.listByStore.queryOptions({ storeId: storeId ?? "" }),
+		enabled: !!storeId,
+	});
+	return {
+		ringGames: (ringGamesQuery.data ?? []).map((g) => ({
+			id: g.id,
+			name: g.name,
+		})),
+		tournaments: (tournamentsQuery.data ?? []).map((t) => ({
+			id: t.id,
+			name: t.name,
+		})),
+	};
+}
+
+function useEntityLists() {
+	const storesQuery = useQuery(trpc.store.list.queryOptions());
+	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
+	return {
+		stores: (storesQuery.data ?? []).map((s) => ({ id: s.id, name: s.name })),
+		currencies: (currenciesQuery.data ?? []).map((c) => ({
+			id: c.id,
+			name: c.name,
+		})),
+	};
+}
+
+function formatDateForInput(date: string): string {
+	const d = new Date(date);
+	const year = d.getFullYear();
+	const month = String(d.getMonth() + 1).padStart(2, "0");
+	const day = String(d.getDate()).padStart(2, "0");
+	return `${year}-${month}-${day}`;
+}
+
+function formatTimeFromDate(date: string | null): string | undefined {
+	if (!date) {
+		return undefined;
+	}
+	const d = new Date(date);
+	const hours = String(d.getHours()).padStart(2, "0");
+	const minutes = String(d.getMinutes()).padStart(2, "0");
+	return `${hours}:${minutes}`;
+}
+
 function SessionsPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingSession, setEditingSession] = useState<SessionItem | null>(
 		null
 	);
+	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>();
+	const [editStoreId, setEditStoreId] = useState<string | undefined>();
 
 	const queryClient = useQueryClient();
 	const sessionListKey = trpc.session.list.queryOptions({}).queryKey;
@@ -99,6 +164,10 @@ function SessionsPage() {
 
 	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions());
 	const availableTags = tagsQuery.data ?? [];
+
+	const { stores, currencies } = useEntityLists();
+	const createGames = useStoreGames(selectedStoreId);
+	const editGames = useStoreGames(editStoreId);
 
 	const createTagMutation = useMutation({
 		mutationFn: (name: string) => trpcClient.sessionTag.create.mutate({ name }),
@@ -125,6 +194,8 @@ function SessionsPage() {
 				endedAt: timeToUnix(values.sessionDate, values.endTime),
 				memo: values.memo,
 				tagIds: values.tagIds,
+				storeId: values.storeId,
+				currencyId: values.currencyId,
 			};
 			if (values.type === "cash_game") {
 				return trpcClient.session.create.mutate({
@@ -139,6 +210,7 @@ function SessionsPage() {
 					ante: values.ante,
 					anteType: values.anteType as "none" | "all" | "bb" | undefined,
 					tableSize: values.tableSize,
+					ringGameId: values.ringGameId,
 				});
 			}
 			return trpcClient.session.create.mutate({
@@ -153,6 +225,7 @@ function SessionsPage() {
 				rebuyCost: values.rebuyCost,
 				addonCost: values.addonCost,
 				bountyPrizes: values.bountyPrizes,
+				tournamentId: values.tournamentId,
 			});
 		},
 		onMutate: async (newSession) => {
@@ -181,8 +254,14 @@ function SessionsPage() {
 					startedAt: null,
 					endedAt: null,
 					memo: newSession.memo ?? null,
+					storeId: newSession.storeId ?? null,
+					storeName: null,
 					ringGameId: null,
 					ringGameName: null,
+					tournamentId: null,
+					tournamentName: null,
+					currencyId: newSession.currencyId ?? null,
+					currencyName: null,
 					createdAt: new Date().toISOString(),
 					tags: [],
 				};
@@ -223,6 +302,8 @@ function SessionsPage() {
 				endedAt: timeToUnix(values.sessionDate, values.endTime) ?? null,
 				memo: values.memo,
 				tagIds: values.tagIds,
+				storeId: values.storeId ?? null,
+				currencyId: values.currencyId ?? null,
 			};
 			if (values.type === "cash_game") {
 				return trpcClient.session.update.mutate({
@@ -236,6 +317,7 @@ function SessionsPage() {
 					ante: values.ante,
 					anteType: values.anteType as "none" | "all" | "bb" | undefined,
 					tableSize: values.tableSize,
+					ringGameId: values.ringGameId ?? null,
 				});
 			}
 			return trpcClient.session.update.mutate({
@@ -249,6 +331,7 @@ function SessionsPage() {
 				rebuyCost: values.rebuyCost,
 				addonCost: values.addonCost,
 				bountyPrizes: values.bountyPrizes,
+				tournamentId: values.tournamentId ?? null,
 			});
 		},
 		onMutate: async (updated) => {
@@ -327,24 +410,6 @@ function SessionsPage() {
 		deleteMutation.mutate(id);
 	};
 
-	const formatDateForInput = (date: string): string => {
-		const d = new Date(date);
-		const year = d.getFullYear();
-		const month = String(d.getMonth() + 1).padStart(2, "0");
-		const day = String(d.getDate()).padStart(2, "0");
-		return `${year}-${month}-${day}`;
-	};
-
-	const formatTimeFromDate = (date: string | null): string | undefined => {
-		if (!date) {
-			return undefined;
-		}
-		const d = new Date(date);
-		const hours = String(d.getHours()).padStart(2, "0");
-		const minutes = String(d.getMinutes()).padStart(2, "0");
-		return `${hours}:${minutes}`;
-	};
-
 	return (
 		<div className="p-4 md:p-6">
 			<div className="mb-6 flex items-center justify-between">
@@ -373,7 +438,10 @@ function SessionsPage() {
 						<SessionCard
 							key={s.id}
 							onDelete={handleDelete}
-							onEdit={setEditingSession}
+							onEdit={(session) => {
+								setEditingSession(session);
+								setEditStoreId(session.storeId ?? undefined);
+							}}
 							session={s}
 						/>
 					))}
@@ -381,15 +449,25 @@ function SessionsPage() {
 			)}
 
 			<ResponsiveDialog
-				onOpenChange={setIsCreateOpen}
+				onOpenChange={(open) => {
+					setIsCreateOpen(open);
+					if (!open) {
+						setSelectedStoreId(undefined);
+					}
+				}}
 				open={isCreateOpen}
 				title="New Session"
 			>
 				<SessionForm
+					currencies={currencies}
 					isLoading={createMutation.isPending}
 					onCreateTag={handleCreateTag}
+					onStoreChange={setSelectedStoreId}
 					onSubmit={handleCreate}
+					ringGames={createGames.ringGames}
+					stores={stores}
 					tags={availableTags}
+					tournaments={createGames.tournaments}
 				/>
 			</ResponsiveDialog>
 
@@ -397,6 +475,7 @@ function SessionsPage() {
 				onOpenChange={(open) => {
 					if (!open) {
 						setEditingSession(null);
+						setEditStoreId(undefined);
 					}
 				}}
 				open={editingSession !== null}
@@ -404,6 +483,7 @@ function SessionsPage() {
 			>
 				{editingSession && (
 					<SessionForm
+						currencies={currencies}
 						defaultValues={{
 							type: editingSession.type as "cash_game" | "tournament",
 							sessionDate: formatDateForInput(editingSession.sessionDate),
@@ -422,11 +502,19 @@ function SessionsPage() {
 							endTime: formatTimeFromDate(editingSession.endedAt),
 							memo: editingSession.memo ?? undefined,
 							tagIds: editingSession.tags.map((t) => t.id),
+							storeId: editingSession.storeId ?? undefined,
+							ringGameId: editingSession.ringGameId ?? undefined,
+							tournamentId: editingSession.tournamentId ?? undefined,
+							currencyId: editingSession.currencyId ?? undefined,
 						}}
 						isLoading={updateMutation.isPending}
 						onCreateTag={handleCreateTag}
+						onStoreChange={setEditStoreId}
 						onSubmit={handleUpdate}
+						ringGames={editGames.ringGames}
+						stores={stores}
 						tags={availableTags}
+						tournaments={editGames.tournaments}
 					/>
 				)}
 			</ResponsiveDialog>

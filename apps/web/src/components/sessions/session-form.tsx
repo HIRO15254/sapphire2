@@ -2,6 +2,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { TagInput } from "@/components/ui/tag-input";
 import { CashGameFields } from "./cash-game-fields";
 import { TournamentFields } from "./tournament-fields";
@@ -14,10 +21,13 @@ interface CashGameFormValues {
 	blind3?: number;
 	buyIn: number;
 	cashOut: number;
+	currencyId?: string;
 	endTime?: string;
 	memo?: string;
+	ringGameId?: string;
 	sessionDate: string;
 	startTime?: string;
+	storeId?: string;
 	tableSize?: number;
 	tagIds?: string[];
 	type: "cash_game";
@@ -27,6 +37,7 @@ interface CashGameFormValues {
 interface TournamentFormValues {
 	addonCost?: number;
 	bountyPrizes?: number;
+	currencyId?: string;
 	endTime?: string;
 	entryFee?: number;
 	memo?: string;
@@ -36,9 +47,11 @@ interface TournamentFormValues {
 	rebuyCount?: number;
 	sessionDate: string;
 	startTime?: string;
+	storeId?: string;
 	tagIds?: string[];
 	totalEntries?: number;
 	tournamentBuyIn: number;
+	tournamentId?: string;
 	type: "tournament";
 }
 
@@ -54,6 +67,7 @@ interface SessionFormDefaults {
 	bountyPrizes?: number;
 	buyIn?: number;
 	cashOut?: number;
+	currencyId?: string;
 	endTime?: string;
 	entryFee?: number;
 	memo?: string;
@@ -61,22 +75,30 @@ interface SessionFormDefaults {
 	prizeMoney?: number;
 	rebuyCost?: number;
 	rebuyCount?: number;
+	ringGameId?: string;
 	sessionDate?: string;
 	startTime?: string;
+	storeId?: string;
 	tableSize?: number;
 	tagIds?: string[];
 	totalEntries?: number;
 	tournamentBuyIn?: number;
+	tournamentId?: string;
 	type?: "cash_game" | "tournament";
 	variant?: string;
 }
 
 interface SessionFormProps {
+	currencies?: Array<{ id: string; name: string }>;
 	defaultValues?: SessionFormDefaults;
 	isLoading?: boolean;
 	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
+	onStoreChange?: (storeId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
+	ringGames?: Array<{ id: string; name: string }>;
+	stores?: Array<{ id: string; name: string }>;
 	tags?: Array<{ id: string; name: string }>;
+	tournaments?: Array<{ id: string; name: string }>;
 }
 
 function getTodayDateString(): string {
@@ -139,12 +161,19 @@ function parseTournamentFields(
 	};
 }
 
+const NONE_VALUE = "__none__";
+
 export function SessionForm({
+	currencies,
 	defaultValues,
 	isLoading = false,
 	onCreateTag,
+	onStoreChange,
 	onSubmit,
+	ringGames,
+	stores,
 	tags,
+	tournaments,
 }: SessionFormProps) {
 	const [sessionType, setSessionType] = useState<"cash_game" | "tournament">(
 		defaultValues?.type ?? "cash_game"
@@ -152,8 +181,25 @@ export function SessionForm({
 	const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
 		defaultValues?.tagIds ?? []
 	);
+	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>(
+		defaultValues?.storeId
+	);
+	const [selectedGameId, setSelectedGameId] = useState<string | undefined>(
+		defaultValues?.ringGameId ?? defaultValues?.tournamentId
+	);
+	const [selectedCurrencyId, setSelectedCurrencyId] = useState<
+		string | undefined
+	>(defaultValues?.currencyId);
 
 	const isCashGame = sessionType === "cash_game";
+	const gameOptions = isCashGame ? ringGames : tournaments;
+
+	const handleStoreChange = (value: string) => {
+		const storeId = value === NONE_VALUE ? undefined : value;
+		setSelectedStoreId(storeId);
+		setSelectedGameId(undefined);
+		onStoreChange?.(storeId);
+	};
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -165,12 +211,22 @@ export function SessionForm({
 			endTime: (formData.get("endTime") as string) || undefined,
 			tagIds: selectedTagIds,
 			memo: (formData.get("memo") as string) || undefined,
+			storeId: selectedStoreId,
+			currencyId: selectedCurrencyId,
 		};
 
 		if (isCashGame) {
-			onSubmit({ ...common, ...parseCashGameFields(formData) });
+			onSubmit({
+				...common,
+				...parseCashGameFields(formData),
+				ringGameId: selectedGameId,
+			});
 		} else {
-			onSubmit({ ...common, ...parseTournamentFields(formData) });
+			onSubmit({
+				...common,
+				...parseTournamentFields(formData),
+				tournamentId: selectedGameId,
+			});
 		}
 	};
 
@@ -248,6 +304,85 @@ export function SessionForm({
 				<CashGameFields defaultValues={defaultValues} />
 			) : (
 				<TournamentFields defaultValues={defaultValues} />
+			)}
+
+			{/* Store Selector */}
+			{stores && stores.length > 0 && (
+				<div className="flex flex-col gap-2">
+					<Label>Store</Label>
+					<Select
+						onValueChange={handleStoreChange}
+						value={selectedStoreId ?? NONE_VALUE}
+					>
+						<SelectTrigger>
+							<SelectValue placeholder="Select a store" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value={NONE_VALUE}>None</SelectItem>
+							{stores.map((s) => (
+								<SelectItem key={s.id} value={s.id}>
+									{s.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+			)}
+
+			{/* Game Selector (shown when store is selected) */}
+			{selectedStoreId && gameOptions && gameOptions.length > 0 && (
+				<div className="flex flex-col gap-2">
+					<Label>{isCashGame ? "Cash Game" : "Tournament"}</Label>
+					<Select
+						onValueChange={(v) =>
+							setSelectedGameId(v === NONE_VALUE ? undefined : v)
+						}
+						value={selectedGameId ?? NONE_VALUE}
+					>
+						<SelectTrigger>
+							<SelectValue
+								placeholder={`Select a ${isCashGame ? "cash game" : "tournament"}`}
+							/>
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value={NONE_VALUE}>None</SelectItem>
+							{gameOptions.map((g) => (
+								<SelectItem key={g.id} value={g.id}>
+									{g.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+			)}
+
+			{/* Currency Selector */}
+			{currencies && currencies.length > 0 && (
+				<div className="flex flex-col gap-2">
+					<Label>Currency</Label>
+					<Select
+						onValueChange={(v) =>
+							setSelectedCurrencyId(v === NONE_VALUE ? undefined : v)
+						}
+						value={selectedCurrencyId ?? NONE_VALUE}
+					>
+						<SelectTrigger>
+							<SelectValue placeholder="Select a currency" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value={NONE_VALUE}>None</SelectItem>
+							{currencies.map((c) => (
+								<SelectItem key={c.id} value={c.id}>
+									{c.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<p className="text-muted-foreground text-xs">
+						Linking a currency will auto-generate a transaction with the
+						session&apos;s P&L.
+					</p>
+				</div>
 			)}
 
 			{/* Session Tags */}
