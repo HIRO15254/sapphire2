@@ -259,8 +259,11 @@ function SessionFormFields({
 		/>
 	) : (
 		<TournamentDetailFields
+			currencies={currencies}
 			defaultValues={effectiveDefaults}
 			key={`tourney-detail-${selectedGameId ?? "none"}`}
+			onCurrencyChange={setSelectedCurrencyId}
+			selectedCurrencyId={selectedCurrencyId}
 		/>
 	);
 

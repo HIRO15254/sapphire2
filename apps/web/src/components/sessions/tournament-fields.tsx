@@ -1,5 +1,12 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 
 interface TournamentFieldsDefaultValues {
 	addonCost?: number;
@@ -16,6 +23,14 @@ interface TournamentFieldsDefaultValues {
 interface TournamentFieldsProps {
 	defaultValues?: TournamentFieldsDefaultValues;
 }
+
+interface TournamentDetailFieldsProps extends TournamentFieldsProps {
+	currencies?: Array<{ id: string; name: string }>;
+	onCurrencyChange?: (id: string | undefined) => void;
+	selectedCurrencyId?: string;
+}
+
+const NONE_VALUE = "__none__";
 
 export function TournamentPrimaryFields({
 	defaultValues,
@@ -99,10 +114,41 @@ export function TournamentPrimaryFields({
 }
 
 export function TournamentDetailFields({
+	currencies,
 	defaultValues,
-}: TournamentFieldsProps) {
+	onCurrencyChange,
+	selectedCurrencyId,
+}: TournamentDetailFieldsProps) {
 	return (
 		<>
+			{/* Currency Selector */}
+			{currencies && currencies.length > 0 && (
+				<div className="flex flex-col gap-2">
+					<Label>Currency</Label>
+					<Select
+						onValueChange={(v) =>
+							onCurrencyChange?.(v === NONE_VALUE ? undefined : v)
+						}
+						value={selectedCurrencyId ?? NONE_VALUE}
+					>
+						<SelectTrigger>
+							<SelectValue placeholder="Select a currency" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value={NONE_VALUE}>None</SelectItem>
+							{currencies.map((c) => (
+								<SelectItem key={c.id} value={c.id}>
+									{c.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<p className="text-muted-foreground text-xs">
+						Auto-generates a transaction with the session&apos;s P&L.
+					</p>
+				</div>
+			)}
+
 			{/* Rebuy Count / Rebuy Cost */}
 			<div className="grid grid-cols-2 gap-3">
 				<div className="flex flex-col gap-2">
