@@ -12,7 +12,7 @@ export const Route = createFileRoute("/sessions/")({
 	component: SessionsPage,
 });
 
-interface SessionFormValues {
+interface CashGameFormValues {
 	ante?: number;
 	anteType?: string;
 	blind1?: number;
@@ -30,19 +30,48 @@ interface SessionFormValues {
 	variant: string;
 }
 
+interface TournamentFormValues {
+	addonCost?: number;
+	bountyPrizes?: number;
+	endTime?: string;
+	entryFee?: number;
+	memo?: string;
+	placement?: number;
+	prizeMoney?: number;
+	rebuyCost?: number;
+	rebuyCount?: number;
+	sessionDate: string;
+	startTime?: string;
+	tagIds?: string[];
+	totalEntries?: number;
+	tournamentBuyIn: number;
+	type: "tournament";
+}
+
+type SessionFormValues = CashGameFormValues | TournamentFormValues;
+
 interface SessionItem {
+	addonCost: number | null;
+	bountyPrizes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
 	createdAt: string;
 	endedAt: string | null;
+	entryFee: number | null;
 	id: string;
 	memo: string | null;
+	placement: number | null;
+	prizeMoney: number | null;
 	profitLoss: number | null;
+	rebuyCost: number | null;
+	rebuyCount: number | null;
 	ringGameId: string | null;
 	ringGameName: string | null;
 	sessionDate: string;
 	startedAt: string | null;
 	tags: Array<{ id: string; name: string }>;
+	totalEntries: number | null;
+	tournamentBuyIn: number | null;
 	type: string;
 }
 
@@ -86,24 +115,46 @@ function SessionsPage() {
 	};
 
 	const createMutation = useMutation({
-		mutationFn: (values: SessionFormValues) =>
-			trpcClient.session.create.mutate({
-				type: values.type,
-				sessionDate: Math.floor(new Date(values.sessionDate).getTime() / 1000),
-				buyIn: values.buyIn,
-				cashOut: values.cashOut,
-				variant: values.variant,
-				blind1: values.blind1,
-				blind2: values.blind2,
-				blind3: values.blind3,
-				ante: values.ante,
-				anteType: values.anteType as "none" | "all" | "bb" | undefined,
-				tableSize: values.tableSize,
+		mutationFn: (values: SessionFormValues) => {
+			const sessionDate = Math.floor(
+				new Date(values.sessionDate).getTime() / 1000
+			);
+			const common = {
+				sessionDate,
 				startedAt: timeToUnix(values.sessionDate, values.startTime),
 				endedAt: timeToUnix(values.sessionDate, values.endTime),
 				memo: values.memo,
 				tagIds: values.tagIds,
-			}),
+			};
+			if (values.type === "cash_game") {
+				return trpcClient.session.create.mutate({
+					...common,
+					type: "cash_game",
+					buyIn: values.buyIn,
+					cashOut: values.cashOut,
+					variant: values.variant,
+					blind1: values.blind1,
+					blind2: values.blind2,
+					blind3: values.blind3,
+					ante: values.ante,
+					anteType: values.anteType as "none" | "all" | "bb" | undefined,
+					tableSize: values.tableSize,
+				});
+			}
+			return trpcClient.session.create.mutate({
+				...common,
+				type: "tournament",
+				tournamentBuyIn: values.tournamentBuyIn,
+				entryFee: values.entryFee,
+				placement: values.placement,
+				totalEntries: values.totalEntries,
+				prizeMoney: values.prizeMoney,
+				rebuyCount: values.rebuyCount,
+				rebuyCost: values.rebuyCost,
+				addonCost: values.addonCost,
+				bountyPrizes: values.bountyPrizes,
+			});
+		},
 		onMutate: async (newSession) => {
 			await queryClient.cancelQueries({ queryKey: sessionListKey });
 			const previous = queryClient.getQueryData(sessionListKey);
@@ -111,26 +162,41 @@ function SessionsPage() {
 				if (!old) {
 					return old;
 				}
+				const optimisticItem: SessionItem = {
+					id: `temp-${Date.now()}`,
+					type: newSession.type,
+					sessionDate: newSession.sessionDate,
+					buyIn: null,
+					cashOut: null,
+					tournamentBuyIn: null,
+					entryFee: null,
+					placement: null,
+					totalEntries: null,
+					prizeMoney: null,
+					rebuyCount: null,
+					rebuyCost: null,
+					addonCost: null,
+					bountyPrizes: null,
+					profitLoss: 0,
+					startedAt: null,
+					endedAt: null,
+					memo: newSession.memo ?? null,
+					ringGameId: null,
+					ringGameName: null,
+					createdAt: new Date().toISOString(),
+					tags: [],
+				};
+				if (newSession.type === "cash_game") {
+					optimisticItem.buyIn = newSession.buyIn;
+					optimisticItem.cashOut = newSession.cashOut;
+					optimisticItem.profitLoss = newSession.cashOut - newSession.buyIn;
+				} else {
+					optimisticItem.tournamentBuyIn = newSession.tournamentBuyIn;
+					optimisticItem.entryFee = newSession.entryFee ?? null;
+				}
 				return {
 					...old,
-					items: [
-						{
-							id: `temp-${Date.now()}`,
-							type: newSession.type,
-							sessionDate: newSession.sessionDate,
-							buyIn: newSession.buyIn,
-							cashOut: newSession.cashOut,
-							profitLoss: newSession.cashOut - newSession.buyIn,
-							startedAt: null,
-							endedAt: null,
-							memo: newSession.memo ?? null,
-							ringGameId: null,
-							ringGameName: null,
-							createdAt: new Date().toISOString(),
-							tags: [],
-						},
-						...old.items,
-					],
+					items: [optimisticItem, ...old.items],
 				};
 			});
 			return { previous };
@@ -149,24 +215,42 @@ function SessionsPage() {
 	});
 
 	const updateMutation = useMutation({
-		mutationFn: (values: SessionFormValues & { id: string }) =>
-			trpcClient.session.update.mutate({
+		mutationFn: (values: SessionFormValues & { id: string }) => {
+			const common = {
 				id: values.id,
 				sessionDate: Math.floor(new Date(values.sessionDate).getTime() / 1000),
-				buyIn: values.buyIn,
-				cashOut: values.cashOut,
-				variant: values.variant,
-				blind1: values.blind1,
-				blind2: values.blind2,
-				blind3: values.blind3,
-				ante: values.ante,
-				anteType: values.anteType as "none" | "all" | "bb" | undefined,
-				tableSize: values.tableSize,
 				startedAt: timeToUnix(values.sessionDate, values.startTime) ?? null,
 				endedAt: timeToUnix(values.sessionDate, values.endTime) ?? null,
 				memo: values.memo,
 				tagIds: values.tagIds,
-			}),
+			};
+			if (values.type === "cash_game") {
+				return trpcClient.session.update.mutate({
+					...common,
+					buyIn: values.buyIn,
+					cashOut: values.cashOut,
+					variant: values.variant,
+					blind1: values.blind1,
+					blind2: values.blind2,
+					blind3: values.blind3,
+					ante: values.ante,
+					anteType: values.anteType as "none" | "all" | "bb" | undefined,
+					tableSize: values.tableSize,
+				});
+			}
+			return trpcClient.session.update.mutate({
+				...common,
+				tournamentBuyIn: values.tournamentBuyIn,
+				entryFee: values.entryFee,
+				placement: values.placement,
+				totalEntries: values.totalEntries,
+				prizeMoney: values.prizeMoney,
+				rebuyCount: values.rebuyCount,
+				rebuyCost: values.rebuyCost,
+				addonCost: values.addonCost,
+				bountyPrizes: values.bountyPrizes,
+			});
+		},
 		onMutate: async (updated) => {
 			await queryClient.cancelQueries({ queryKey: sessionListKey });
 			const previous = queryClient.getQueryData(sessionListKey);
@@ -181,9 +265,6 @@ function SessionsPage() {
 							? {
 									...s,
 									sessionDate: updated.sessionDate,
-									buyIn: updated.buyIn,
-									cashOut: updated.cashOut,
-									profitLoss: updated.cashOut - updated.buyIn,
 									memo: updated.memo ?? null,
 								}
 							: s
@@ -324,9 +405,19 @@ function SessionsPage() {
 				{editingSession && (
 					<SessionForm
 						defaultValues={{
+							type: editingSession.type as "cash_game" | "tournament",
 							sessionDate: formatDateForInput(editingSession.sessionDate),
 							buyIn: editingSession.buyIn ?? 0,
 							cashOut: editingSession.cashOut ?? 0,
+							tournamentBuyIn: editingSession.tournamentBuyIn ?? 0,
+							entryFee: editingSession.entryFee ?? undefined,
+							placement: editingSession.placement ?? undefined,
+							totalEntries: editingSession.totalEntries ?? undefined,
+							prizeMoney: editingSession.prizeMoney ?? undefined,
+							rebuyCount: editingSession.rebuyCount ?? undefined,
+							rebuyCost: editingSession.rebuyCost ?? undefined,
+							addonCost: editingSession.addonCost ?? undefined,
+							bountyPrizes: editingSession.bountyPrizes ?? undefined,
 							startTime: formatTimeFromDate(editingSession.startedAt),
 							endTime: formatTimeFromDate(editingSession.endedAt),
 							memo: editingSession.memo ?? undefined,
