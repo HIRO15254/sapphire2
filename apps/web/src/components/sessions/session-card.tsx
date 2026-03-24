@@ -1,5 +1,6 @@
 import { IconEdit, IconTrash, IconX } from "@tabler/icons-react";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCompactNumber } from "@/utils/format-number";
 
@@ -96,12 +97,9 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 					{session.tags.length > 0 && (
 						<div className="mt-1 flex flex-wrap gap-1">
 							{session.tags.map((tag) => (
-								<span
-									className="rounded bg-primary/10 px-1.5 py-0.5 text-primary text-xs"
-									key={tag.id}
-								>
+								<Badge key={tag.id} variant="outline">
 									{tag.name}
-								</span>
+								</Badge>
 							))}
 						</div>
 					)}
