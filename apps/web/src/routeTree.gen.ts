@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as StoresIndexRouteImport } from './routes/stores/index'
+import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
 import { Route as CurrenciesIndexRouteImport } from './routes/currencies/index'
 import { Route as StoresStoreIdRouteImport } from './routes/stores/$storeId'
 
@@ -48,6 +49,11 @@ const StoresIndexRoute = StoresIndexRouteImport.update({
   path: '/stores/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SessionsIndexRoute = SessionsIndexRouteImport.update({
+  id: '/sessions/',
+  path: '/sessions/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CurrenciesIndexRoute = CurrenciesIndexRouteImport.update({
   id: '/currencies/',
   path: '/currencies/',
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
+  '/sessions/': typeof SessionsIndexRoute
   '/currencies/': typeof CurrenciesIndexRoute
   '/stores/': typeof StoresIndexRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
+  '/sessions': typeof SessionsIndexRoute
   '/currencies': typeof CurrenciesIndexRoute
   '/stores': typeof StoresIndexRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
+  '/sessions/': typeof SessionsIndexRoute
   '/currencies/': typeof CurrenciesIndexRoute
   '/stores/': typeof StoresIndexRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/stores/$storeId'
+    | '/sessions/'
     | '/currencies/'
     | '/stores/'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/stores/$storeId'
+    | '/sessions'
     | '/currencies'
     | '/stores'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/stores/$storeId'
+    | '/sessions/'
     | '/currencies/'
     | '/stores/'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   StoresStoreIdRoute: typeof StoresStoreIdRoute
+  SessionsIndexRoute: typeof SessionsIndexRoute
   CurrenciesIndexRoute: typeof CurrenciesIndexRoute
   StoresIndexRoute: typeof StoresIndexRoute
 }
@@ -178,6 +191,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StoresIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sessions/': {
+      id: '/sessions/'
+      path: '/sessions'
+      fullPath: '/sessions/'
+      preLoaderRoute: typeof SessionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/currencies/': {
       id: '/currencies/'
       path: '/currencies'
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   StoresStoreIdRoute: StoresStoreIdRoute,
+  SessionsIndexRoute: SessionsIndexRoute,
   CurrenciesIndexRoute: CurrenciesIndexRoute,
   StoresIndexRoute: StoresIndexRoute,
 }
