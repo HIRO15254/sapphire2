@@ -18,12 +18,12 @@ export function FormSection({
 
 	return (
 		<Collapsible.Root onOpenChange={setOpen} open={open}>
-			<Collapsible.Trigger className="flex w-full items-center justify-between rounded-md px-1 py-2 text-left font-medium text-sm hover:bg-muted/50">
+			<Collapsible.Trigger className="flex w-full items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-left font-medium text-sm hover:bg-muted/50">
 				{title}
 				<IconChevronDown
 					className={cn(
 						"text-muted-foreground transition-transform",
-						open && "rotate-180"
+						open && "rotate-180 text-foreground"
 					)}
 					size={16}
 				/>

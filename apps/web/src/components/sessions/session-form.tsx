@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -178,11 +178,33 @@ function parseTournamentFields(
 	};
 }
 
-function setInputValue(form: HTMLFormElement, name: string, value: unknown) {
-	const input = form.elements.namedItem(name);
-	if (input instanceof HTMLInputElement && value != null) {
-		input.value = String(value);
-	}
+function nullToUndefined(value: unknown): unknown {
+	return value === null ? undefined : value;
+}
+
+function buildCashGameOverrides(
+	game: RingGameOption
+): Partial<SessionFormDefaults> {
+	return {
+		variant: (nullToUndefined(game.variant) as string) ?? undefined,
+		blind1: (nullToUndefined(game.blind1) as number) ?? undefined,
+		blind2: (nullToUndefined(game.blind2) as number) ?? undefined,
+		blind3: (nullToUndefined(game.blind3) as number) ?? undefined,
+		ante: (nullToUndefined(game.ante) as number) ?? undefined,
+		anteType: (nullToUndefined(game.anteType) as string) ?? undefined,
+		tableSize: (nullToUndefined(game.tableSize) as number) ?? undefined,
+	};
+}
+
+function buildTournamentOverrides(
+	game: TournamentOption
+): Partial<SessionFormDefaults> {
+	return {
+		tournamentBuyIn: (nullToUndefined(game.buyIn) as number) ?? undefined,
+		entryFee: (nullToUndefined(game.entryFee) as number) ?? undefined,
+		rebuyCost: (nullToUndefined(game.rebuyCost) as number) ?? undefined,
+		addonCost: (nullToUndefined(game.addonCost) as number) ?? undefined,
+	};
 }
 
 const NONE_VALUE = "__none__";
@@ -199,7 +221,6 @@ export function SessionForm({
 	tags,
 	tournaments,
 }: SessionFormProps) {
-	const formRef = useRef<HTMLFormElement>(null);
 	const [sessionType, setSessionType] = useState<"cash_game" | "tournament">(
 		defaultValues?.type ?? "cash_game"
 	);
@@ -219,6 +240,26 @@ export function SessionForm({
 	const isCashGame = sessionType === "cash_game";
 	const gameOptions = isCashGame ? ringGames : tournaments;
 
+	// Compute effective defaults by merging original defaults with selected game's config
+	const effectiveDefaults = (() => {
+		if (!selectedGameId) {
+			return defaultValues;
+		}
+		if (isCashGame && ringGames) {
+			const game = ringGames.find((g) => g.id === selectedGameId);
+			if (game) {
+				return { ...defaultValues, ...buildCashGameOverrides(game) };
+			}
+		}
+		if (!isCashGame && tournaments) {
+			const game = tournaments.find((t) => t.id === selectedGameId);
+			if (game) {
+				return { ...defaultValues, ...buildTournamentOverrides(game) };
+			}
+		}
+		return defaultValues;
+	})();
+
 	const handleStoreChange = (value: string) => {
 		const storeId = value === NONE_VALUE ? undefined : value;
 		setSelectedStoreId(storeId);
@@ -230,35 +271,6 @@ export function SessionForm({
 		const gameId = value === NONE_VALUE ? undefined : value;
 		setSelectedGameId(gameId);
 	};
-
-	// Prefill form fields when game is selected
-	useEffect(() => {
-		const form = formRef.current;
-		if (!(form && selectedGameId)) {
-			return;
-		}
-
-		if (isCashGame && ringGames) {
-			const game = ringGames.find((g) => g.id === selectedGameId);
-			if (!game) {
-				return;
-			}
-			setInputValue(form, "blind1", game.blind1);
-			setInputValue(form, "blind2", game.blind2);
-			setInputValue(form, "blind3", game.blind3);
-			setInputValue(form, "ante", game.ante);
-			setInputValue(form, "tableSize", game.tableSize);
-		} else if (!isCashGame && tournaments) {
-			const game = tournaments.find((t) => t.id === selectedGameId);
-			if (!game) {
-				return;
-			}
-			setInputValue(form, "tournamentBuyIn", game.buyIn);
-			setInputValue(form, "entryFee", game.entryFee);
-			setInputValue(form, "rebuyCost", game.rebuyCost);
-			setInputValue(form, "addonCost", game.addonCost);
-		}
-	}, [selectedGameId, isCashGame, ringGames, tournaments]);
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -290,7 +302,7 @@ export function SessionForm({
 	};
 
 	return (
-		<form className="flex flex-col gap-2" onSubmit={handleSubmit} ref={formRef}>
+		<form className="flex flex-col gap-2" onSubmit={handleSubmit}>
 			{/* === Section: Basic Info (always visible, not collapsible) === */}
 			<div className="flex flex-col gap-4">
 				{/* Session Type */}
@@ -389,9 +401,15 @@ export function SessionForm({
 				title={isCashGame ? "Cash Game Details" : "Tournament Details"}
 			>
 				{isCashGame ? (
-					<CashGameFields defaultValues={defaultValues} />
+					<CashGameFields
+						defaultValues={effectiveDefaults}
+						key={`cash-${selectedGameId ?? "none"}`}
+					/>
 				) : (
-					<TournamentFields defaultValues={defaultValues} />
+					<TournamentFields
+						defaultValues={effectiveDefaults}
+						key={`tourney-${selectedGameId ?? "none"}`}
+					/>
 				)}
 			</FormSection>
 
