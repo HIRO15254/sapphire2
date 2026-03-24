@@ -481,18 +481,20 @@ function SessionsPage() {
 		<div className="p-4 md:p-6">
 			<div className="mb-6 flex items-center justify-between">
 				<h1 className="font-bold text-2xl">Sessions</h1>
-				<Button onClick={() => setIsCreateOpen(true)}>
-					<IconPlus size={16} />
-					New Session
-				</Button>
+				<div className="flex items-center gap-2">
+					<SessionFilters
+						filters={filters}
+						onFiltersChange={setFilters}
+						stores={stores}
+					/>
+					<Button onClick={() => setIsCreateOpen(true)}>
+						<IconPlus size={16} />
+						New Session
+					</Button>
+				</div>
 			</div>
 
 			{summary && <SessionSummary summary={summary} />}
-			<SessionFilters
-				filters={filters}
-				onFiltersChange={setFilters}
-				stores={stores}
-			/>
 
 			{sessions.length === 0 ? (
 				<div className="flex flex-col items-center justify-center gap-4 py-16 text-muted-foreground">
