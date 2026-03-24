@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { IconX } from "@tabler/icons-react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,6 +61,59 @@ function parseOptionalInt(value: string): number | undefined {
 	return Number.isNaN(parsed) ? undefined : parsed;
 }
 
+function TagSuggestions({
+	tags,
+	selectedTagIds,
+	input,
+	onSelect,
+	onCreateTag,
+}: {
+	input: string;
+	onCreateTag: (name: string) => void;
+	onSelect: (tagId: string) => void;
+	selectedTagIds: string[];
+	tags: Array<{ id: string; name: string }>;
+}) {
+	const filtered = tags.filter(
+		(t) =>
+			!selectedTagIds.includes(t.id) &&
+			t.name.toLowerCase().includes(input.toLowerCase())
+	);
+	const exactMatch = tags.some(
+		(t) => t.name.toLowerCase() === input.trim().toLowerCase()
+	);
+
+	if (filtered.length === 0 && exactMatch) {
+		return null;
+	}
+
+	return (
+		<div className="absolute top-full right-0 left-0 z-10 mt-1 max-h-40 overflow-y-auto rounded-md border bg-popover shadow-md">
+			{filtered.map((tag) => (
+				<button
+					className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent"
+					key={tag.id}
+					onClick={() => onSelect(tag.id)}
+					onMouseDown={(e) => e.preventDefault()}
+					type="button"
+				>
+					{tag.name}
+				</button>
+			))}
+			{!exactMatch && input.trim() && (
+				<button
+					className="w-full px-3 py-1.5 text-left text-muted-foreground text-sm hover:bg-accent"
+					onClick={() => onCreateTag(input.trim())}
+					onMouseDown={(e) => e.preventDefault()}
+					type="button"
+				>
+					Create &quot;{input.trim()}&quot;
+				</button>
+			)}
+		</div>
+	);
+}
+
 export function SessionForm({
 	defaultValues,
 	isLoading = false,
@@ -73,7 +127,9 @@ export function SessionForm({
 	const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
 		defaultValues?.tagIds ?? []
 	);
-	const [newTagName, setNewTagName] = useState("");
+	const [tagInput, setTagInput] = useState("");
+	const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+	const tagInputRef = useRef<HTMLInputElement>(null);
 
 	const isAnteDisabled = anteType === "none";
 
@@ -288,54 +344,96 @@ export function SessionForm({
 			{/* Session Tags */}
 			<div className="flex flex-col gap-2">
 				<Label>Session Tags</Label>
-				{tags && tags.length > 0 && (
-					<div className="flex flex-wrap gap-2">
-						{tags.map((tag) => (
-							<label
-								className="flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-sm has-[:checked]:bg-primary has-[:checked]:text-primary-foreground"
-								key={tag.id}
-							>
-								<input
-									checked={selectedTagIds.includes(tag.id)}
-									className="sr-only"
-									onChange={(e) => {
-										if (e.target.checked) {
-											setSelectedTagIds((prev) => [...prev, tag.id]);
-										} else {
+				{selectedTagIds.length > 0 && (
+					<div className="flex flex-wrap gap-1.5">
+						{selectedTagIds.map((tagId) => {
+							const tag = tags?.find((t) => t.id === tagId);
+							if (!tag) {
+								return null;
+							}
+							return (
+								<span
+									className="flex items-center gap-1 rounded-md bg-primary px-2 py-0.5 text-primary-foreground text-sm"
+									key={tag.id}
+								>
+									{tag.name}
+									<button
+										aria-label={`Remove tag ${tag.name}`}
+										className="rounded-full hover:bg-primary-foreground/20"
+										onClick={() =>
 											setSelectedTagIds((prev) =>
-												prev.filter((id) => id !== tag.id)
-											);
+												prev.filter((id) => id !== tagId)
+											)
 										}
-									}}
-									type="checkbox"
-								/>
-								{tag.name}
-							</label>
-						))}
+										type="button"
+									>
+										<IconX size={12} />
+									</button>
+								</span>
+							);
+						})}
 					</div>
 				)}
-				<div className="flex gap-2">
+				<div className="relative">
 					<Input
-						className="flex-1"
-						onChange={(e) => setNewTagName(e.target.value)}
-						placeholder="New tag name"
-						value={newTagName}
-					/>
-					<Button
-						disabled={!(newTagName.trim() && onCreateTag)}
-						onClick={async () => {
-							if (onCreateTag && newTagName.trim()) {
-								const created = await onCreateTag(newTagName.trim());
-								setSelectedTagIds((prev) => [...prev, created.id]);
-								setNewTagName("");
+						autoComplete="off"
+						onChange={(e) => {
+							setTagInput(e.target.value);
+							setShowTagSuggestions(true);
+						}}
+						onFocus={() => setShowTagSuggestions(true)}
+						onKeyDown={async (e) => {
+							if (e.key === "Enter") {
+								e.preventDefault();
+								const trimmed = tagInput.trim();
+								if (!trimmed) {
+									return;
+								}
+								const existing = tags?.find(
+									(t) =>
+										t.name.toLowerCase() === trimmed.toLowerCase() &&
+										!selectedTagIds.includes(t.id)
+								);
+								if (existing) {
+									setSelectedTagIds((prev) => [...prev, existing.id]);
+									setTagInput("");
+									setShowTagSuggestions(false);
+								} else if (onCreateTag) {
+									const created = await onCreateTag(trimmed);
+									setSelectedTagIds((prev) => [...prev, created.id]);
+									setTagInput("");
+									setShowTagSuggestions(false);
+								}
+							}
+							if (e.key === "Escape") {
+								setShowTagSuggestions(false);
 							}
 						}}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						Add
-					</Button>
+						placeholder="Type to search or create tags..."
+						ref={tagInputRef}
+						value={tagInput}
+					/>
+					{showTagSuggestions && tagInput.trim() && (
+						<TagSuggestions
+							input={tagInput}
+							onCreateTag={async (name) => {
+								if (onCreateTag) {
+									const created = await onCreateTag(name);
+									setSelectedTagIds((prev) => [...prev, created.id]);
+									setTagInput("");
+									setShowTagSuggestions(false);
+								}
+							}}
+							onSelect={(tagId) => {
+								setSelectedTagIds((prev) => [...prev, tagId]);
+								setTagInput("");
+								setShowTagSuggestions(false);
+								tagInputRef.current?.focus();
+							}}
+							selectedTagIds={selectedTagIds}
+							tags={tags ?? []}
+						/>
+					)}
 				</div>
 			</div>
 
