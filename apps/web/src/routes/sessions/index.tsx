@@ -3,7 +3,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { SessionCard } from "@/components/sessions/session-card";
+import {
+	SessionFilters,
+	type SessionFilterValues,
+} from "@/components/sessions/session-filters";
 import { SessionForm } from "@/components/sessions/session-form";
+import { SessionSummary } from "@/components/sessions/session-summary";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
@@ -167,12 +172,25 @@ function SessionsPage() {
 	);
 	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>();
 	const [editStoreId, setEditStoreId] = useState<string | undefined>();
+	const [filters, setFilters] = useState<SessionFilterValues>({});
 
 	const queryClient = useQueryClient();
-	const sessionListKey = trpc.session.list.queryOptions({}).queryKey;
 
-	const sessionsQuery = useQuery(trpc.session.list.queryOptions({}));
+	const listInput = {
+		type: filters.type,
+		storeId: filters.storeId,
+		dateFrom: filters.dateFrom
+			? Math.floor(new Date(filters.dateFrom).getTime() / 1000)
+			: undefined,
+		dateTo: filters.dateTo
+			? Math.floor(new Date(`${filters.dateTo}T23:59:59`).getTime() / 1000)
+			: undefined,
+	};
+	const sessionListKey = trpc.session.list.queryOptions(listInput).queryKey;
+
+	const sessionsQuery = useQuery(trpc.session.list.queryOptions(listInput));
 	const sessions = sessionsQuery.data?.items ?? [];
+	const summary = sessionsQuery.data?.summary;
 
 	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions());
 	const availableTags = tagsQuery.data ?? [];
@@ -431,6 +449,13 @@ function SessionsPage() {
 					New Session
 				</Button>
 			</div>
+
+			{summary && <SessionSummary summary={summary} />}
+			<SessionFilters
+				filters={filters}
+				onFiltersChange={setFilters}
+				stores={stores}
+			/>
 
 			{sessions.length === 0 ? (
 				<div className="flex flex-col items-center justify-center gap-4 py-16 text-muted-foreground">

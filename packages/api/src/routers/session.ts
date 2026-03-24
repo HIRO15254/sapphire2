@@ -12,7 +12,7 @@ import {
 } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -508,6 +508,167 @@ async function buildCreateValues(
 	return { linkValues, typeValues: buildTournamentSessionValues(input) };
 }
 
+function buildFilterConditions(
+	userId: string,
+	filters: {
+		dateFrom?: number;
+		dateTo?: number;
+		storeId?: string;
+		type?: "cash_game" | "tournament";
+	}
+) {
+	const conditions = [eq(pokerSession.userId, userId)];
+	if (filters.type) {
+		conditions.push(eq(pokerSession.type, filters.type));
+	}
+	if (filters.storeId) {
+		conditions.push(eq(pokerSession.storeId, filters.storeId));
+	}
+	if (filters.dateFrom !== undefined) {
+		conditions.push(
+			gte(pokerSession.sessionDate, new Date(filters.dateFrom * 1000))
+		);
+	}
+	if (filters.dateTo !== undefined) {
+		conditions.push(
+			lte(pokerSession.sessionDate, new Date(filters.dateTo * 1000))
+		);
+	}
+	return conditions;
+}
+
+interface SessionSummary {
+	avgPlacement: number | null;
+	avgProfitLoss: number | null;
+	itmRate: number | null;
+	totalEvDiff: number | null;
+	totalEvProfitLoss: number | null;
+	totalPrizeMoney: number | null;
+	totalProfitLoss: number;
+	totalSessions: number;
+	winRate: number;
+}
+
+async function computeSummary(
+	db: DbInstance,
+	filterConditions: ReturnType<typeof buildFilterConditions>,
+	typeFilter?: "cash_game" | "tournament"
+): Promise<SessionSummary> {
+	const allSessions = await db
+		.select({
+			type: pokerSession.type,
+			buyIn: pokerSession.buyIn,
+			cashOut: pokerSession.cashOut,
+			evCashOut: pokerSession.evCashOut,
+			tournamentBuyIn: pokerSession.tournamentBuyIn,
+			entryFee: pokerSession.entryFee,
+			rebuyCount: pokerSession.rebuyCount,
+			rebuyCost: pokerSession.rebuyCost,
+			addonCost: pokerSession.addonCost,
+			prizeMoney: pokerSession.prizeMoney,
+			bountyPrizes: pokerSession.bountyPrizes,
+			placement: pokerSession.placement,
+			totalEntries: pokerSession.totalEntries,
+		})
+		.from(pokerSession)
+		.where(and(...filterConditions));
+
+	const totalSessions = allSessions.length;
+	if (totalSessions === 0) {
+		return {
+			totalSessions: 0,
+			totalProfitLoss: 0,
+			winRate: 0,
+			avgProfitLoss: null,
+			avgPlacement: null,
+			totalPrizeMoney: null,
+			itmRate: null,
+			totalEvProfitLoss: null,
+			totalEvDiff: null,
+		};
+	}
+
+	let totalProfitLoss = 0;
+	let winCount = 0;
+
+	// Tournament-specific
+	let tournamentCount = 0;
+	let totalPlacement = 0;
+	let placementCount = 0;
+	let totalPrize = 0;
+	let itmCount = 0;
+
+	// EV-specific (cash game only)
+	let totalEvProfitLoss = 0;
+	let totalEvDiff = 0;
+	let evSessionCount = 0;
+
+	for (const s of allSessions) {
+		let pl: number;
+		if (s.type === "cash_game" && s.buyIn !== null && s.cashOut !== null) {
+			pl = computeCashGamePL(s.buyIn, s.cashOut);
+
+			if (s.evCashOut !== null) {
+				const evPl = s.evCashOut - s.buyIn;
+				totalEvProfitLoss += evPl;
+				totalEvDiff += evPl - pl;
+				evSessionCount++;
+			}
+		} else {
+			pl = computeTournamentPL(
+				s.tournamentBuyIn,
+				s.entryFee,
+				s.rebuyCount,
+				s.rebuyCost,
+				s.addonCost,
+				s.prizeMoney,
+				s.bountyPrizes
+			);
+		}
+
+		totalProfitLoss += pl;
+		if (pl > 0) {
+			winCount++;
+		}
+
+		if (s.type === "tournament") {
+			tournamentCount++;
+			if (s.placement !== null) {
+				totalPlacement += s.placement;
+				placementCount++;
+			}
+			const prize = (s.prizeMoney ?? 0) + (s.bountyPrizes ?? 0);
+			totalPrize += prize;
+			if (prize > 0) {
+				itmCount++;
+			}
+		}
+	}
+
+	const winRate = (winCount / totalSessions) * 100;
+	const avgProfitLoss = totalProfitLoss / totalSessions;
+
+	const isTournamentFilter = typeFilter === "tournament";
+
+	return {
+		totalSessions,
+		totalProfitLoss,
+		winRate,
+		avgProfitLoss,
+		avgPlacement:
+			isTournamentFilter && placementCount > 0
+				? totalPlacement / placementCount
+				: null,
+		totalPrizeMoney: isTournamentFilter ? totalPrize : null,
+		itmRate:
+			isTournamentFilter && tournamentCount > 0
+				? (itmCount / tournamentCount) * 100
+				: null,
+		totalEvProfitLoss: evSessionCount > 0 ? totalEvProfitLoss : null,
+		totalEvDiff: evSessionCount > 0 ? totalEvDiff : null,
+	};
+}
+
 export const sessionRouter = router({
 	create: protectedProcedure
 		.input(createInputSchema)
@@ -570,12 +731,22 @@ export const sessionRouter = router({
 		}),
 
 	list: protectedProcedure
-		.input(z.object({ cursor: z.string().optional() }))
+		.input(
+			z.object({
+				cursor: z.string().optional(),
+				type: z.enum(["cash_game", "tournament"]).optional(),
+				storeId: z.string().optional(),
+				dateFrom: z.number().optional(),
+				dateTo: z.number().optional(),
+			})
+		)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const conditions = [eq(pokerSession.userId, userId)];
+
+			const filterConditions = buildFilterConditions(userId, input);
+			const paginationConditions = [...filterConditions];
 			if (input.cursor) {
-				conditions.push(lt(pokerSession.id, input.cursor));
+				paginationConditions.push(lt(pokerSession.id, input.cursor));
 			}
 
 			const data = await ctx.db
@@ -585,6 +756,7 @@ export const sessionRouter = router({
 					sessionDate: pokerSession.sessionDate,
 					buyIn: pokerSession.buyIn,
 					cashOut: pokerSession.cashOut,
+					evCashOut: pokerSession.evCashOut,
 					tournamentBuyIn: pokerSession.tournamentBuyIn,
 					entryFee: pokerSession.entryFee,
 					placement: pokerSession.placement,
@@ -612,7 +784,7 @@ export const sessionRouter = router({
 				.leftJoin(ringGame, eq(ringGame.id, pokerSession.ringGameId))
 				.leftJoin(tournament, eq(tournament.id, pokerSession.tournamentId))
 				.leftJoin(currency, eq(currency.id, pokerSession.currencyId))
-				.where(and(...conditions))
+				.where(and(...paginationConditions))
 				.orderBy(desc(pokerSession.sessionDate), desc(pokerSession.id))
 				.limit(PAGE_SIZE + 1);
 
@@ -666,7 +838,14 @@ export const sessionRouter = router({
 					.map((tl) => ({ id: tl.tagId, name: tl.tagName })),
 			}));
 
-			return { items: itemsWithTags, nextCursor };
+			// Summary aggregation
+			const summary = await computeSummary(
+				ctx.db,
+				filterConditions,
+				input.type
+			);
+
+			return { items: itemsWithTags, nextCursor, summary };
 		}),
 
 	getById: protectedProcedure
