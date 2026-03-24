@@ -1,36 +1,39 @@
 import { IconChevronDown } from "@tabler/icons-react";
-import { Collapsible } from "radix-ui";
-import { useState } from "react";
+import { Accordion } from "radix-ui";
 import { cn } from "@/lib/utils";
 
-interface FormSectionProps {
+interface FormAccordionProps {
 	children: React.ReactNode;
-	defaultOpen?: boolean;
-	title: string;
+	defaultValue?: string;
+	items: Array<{
+		children: React.ReactNode;
+		title: string;
+		value: string;
+	}>;
 }
 
-export function FormSection({
-	children,
-	defaultOpen = true,
-	title,
-}: FormSectionProps) {
-	const [open, setOpen] = useState(defaultOpen);
-
+export function FormAccordion({ defaultValue, items }: FormAccordionProps) {
 	return (
-		<Collapsible.Root onOpenChange={setOpen} open={open}>
-			<Collapsible.Trigger className="flex w-full items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-left font-medium text-sm hover:bg-muted/50">
-				{title}
-				<IconChevronDown
-					className={cn(
-						"text-muted-foreground transition-transform",
-						open && "rotate-180 text-foreground"
-					)}
-					size={16}
-				/>
-			</Collapsible.Trigger>
-			<Collapsible.Content className="flex flex-col gap-4 pt-2">
-				{children}
-			</Collapsible.Content>
-		</Collapsible.Root>
+		<Accordion.Root collapsible defaultValue={defaultValue} type="single">
+			{items.map((item) => (
+				<Accordion.Item key={item.value} value={item.value}>
+					<Accordion.Header>
+						<Accordion.Trigger className="group flex w-full items-center justify-between border-border border-b py-3 text-left font-medium text-sm [&[data-state=open]>svg]:rotate-180">
+							{item.title}
+							<IconChevronDown
+								className={cn(
+									"text-muted-foreground transition-transform duration-200",
+									"group-data-[state=open]:text-foreground"
+								)}
+								size={16}
+							/>
+						</Accordion.Trigger>
+					</Accordion.Header>
+					<Accordion.Content className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+						<div className="flex flex-col gap-4 py-4">{item.children}</div>
+					</Accordion.Content>
+				</Accordion.Item>
+			))}
+		</Accordion.Root>
 	);
 }

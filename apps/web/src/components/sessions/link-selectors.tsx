@@ -19,40 +19,6 @@ interface StoreGameSelectorProps {
 	stores?: Array<{ id: string; name: string }>;
 }
 
-function GameSelector({
-	gameLabel,
-	gameOptions,
-	onGameChange,
-	selectedGameId,
-	selectedStoreId,
-}: Omit<StoreGameSelectorProps, "onStoreChange" | "stores">) {
-	if (selectedStoreId && gameOptions && gameOptions.length > 0) {
-		return (
-			<Select onValueChange={onGameChange} value={selectedGameId ?? NONE_VALUE}>
-				<SelectTrigger>
-					<SelectValue placeholder={`Select a ${gameLabel.toLowerCase()}`} />
-				</SelectTrigger>
-				<SelectContent>
-					<SelectItem value={NONE_VALUE}>None</SelectItem>
-					{gameOptions.map((g) => (
-						<SelectItem key={g.id} value={g.id}>
-							{g.name}
-						</SelectItem>
-					))}
-				</SelectContent>
-			</Select>
-		);
-	}
-
-	return (
-		<Select disabled>
-			<SelectTrigger>
-				<SelectValue placeholder="Select a store first" />
-			</SelectTrigger>
-		</Select>
-	);
-}
-
 export function StoreGameSelectors({
 	gameLabel,
 	gameOptions,
@@ -66,8 +32,11 @@ export function StoreGameSelectors({
 		return null;
 	}
 
+	const hasGameOptions =
+		selectedStoreId && gameOptions && gameOptions.length > 0;
+
 	return (
-		<div className="grid grid-cols-2 gap-3">
+		<>
 			<div className="flex flex-col gap-2">
 				<Label>Store</Label>
 				<Select
@@ -87,16 +56,38 @@ export function StoreGameSelectors({
 					</SelectContent>
 				</Select>
 			</div>
-			<div className="flex flex-col gap-2">
-				<Label>{gameLabel}</Label>
-				<GameSelector
-					gameLabel={gameLabel}
-					gameOptions={gameOptions}
-					onGameChange={onGameChange}
-					selectedGameId={selectedGameId}
-					selectedStoreId={selectedStoreId}
-				/>
-			</div>
-		</div>
+
+			{selectedStoreId && (
+				<div className="flex flex-col gap-2">
+					<Label>{gameLabel}</Label>
+					{hasGameOptions ? (
+						<Select
+							onValueChange={onGameChange}
+							value={selectedGameId ?? NONE_VALUE}
+						>
+							<SelectTrigger>
+								<SelectValue
+									placeholder={`Select a ${gameLabel.toLowerCase()}`}
+								/>
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value={NONE_VALUE}>None</SelectItem>
+								{gameOptions.map((g) => (
+									<SelectItem key={g.id} value={g.id}>
+										{g.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					) : (
+						<Select disabled>
+							<SelectTrigger>
+								<SelectValue placeholder="No games available" />
+							</SelectTrigger>
+						</Select>
+					)}
+				</div>
+			)}
+		</>
 	);
 }

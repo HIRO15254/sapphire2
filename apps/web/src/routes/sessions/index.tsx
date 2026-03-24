@@ -117,6 +117,7 @@ function useStoreGames(storeId: string | undefined) {
 			ante: g.ante,
 			anteType: g.anteType,
 			tableSize: g.tableSize,
+			currencyId: g.currencyId,
 		})),
 		tournaments: (tournamentsQuery.data ?? []).map((t) => ({
 			id: t.id,
