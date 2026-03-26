@@ -311,6 +311,7 @@ const cashGameCreateSchema = z.object({
 	ante: z.number().int().optional(),
 	anteType: z.enum(["none", "all", "bb"]).optional(),
 	tableSize: z.number().int().optional(),
+	evCashOut: z.number().int().min(0).optional(),
 	// Time + memo
 	startedAt: z.number().optional(),
 	endedAt: z.number().optional(),
@@ -367,6 +368,7 @@ function buildCashGameSessionValues(
 	return {
 		buyIn: input.buyIn,
 		cashOut: input.cashOut,
+		evCashOut: input.evCashOut ?? null,
 		ringGameId,
 	};
 }
@@ -403,6 +405,7 @@ function nullableTimestampToDate(
 const SESSION_UPDATE_FIELDS = [
 	"buyIn",
 	"cashOut",
+	"evCashOut",
 	"tournamentBuyIn",
 	"entryFee",
 	"placement",
@@ -585,6 +588,7 @@ export const sessionRouter = router({
 					sessionDate: pokerSession.sessionDate,
 					buyIn: pokerSession.buyIn,
 					cashOut: pokerSession.cashOut,
+					evCashOut: pokerSession.evCashOut,
 					tournamentBuyIn: pokerSession.tournamentBuyIn,
 					entryFee: pokerSession.entryFee,
 					placement: pokerSession.placement,
@@ -622,12 +626,18 @@ export const sessionRouter = router({
 
 			const itemsWithPL = items.map((item) => {
 				let profitLoss: number | null = null;
+				let evProfitLoss: number | null = null;
+				let evDiff: number | null = null;
 				if (
 					item.type === "cash_game" &&
 					item.buyIn !== null &&
 					item.cashOut !== null
 				) {
 					profitLoss = computeCashGamePL(item.buyIn, item.cashOut);
+					if (item.evCashOut !== null) {
+						evProfitLoss = item.evCashOut - item.buyIn;
+						evDiff = evProfitLoss - profitLoss;
+					}
 				} else if (item.type === "tournament") {
 					profitLoss = computeTournamentPL(
 						item.tournamentBuyIn,
@@ -639,7 +649,7 @@ export const sessionRouter = router({
 						item.bountyPrizes
 					);
 				}
-				return { ...item, profitLoss };
+				return { ...item, profitLoss, evProfitLoss, evDiff };
 			});
 
 			const sessionIds = itemsWithPL.map((item) => item.id);
@@ -690,6 +700,7 @@ export const sessionRouter = router({
 				// Cash game fields
 				buyIn: z.number().int().min(0).optional(),
 				cashOut: z.number().int().min(0).optional(),
+				evCashOut: z.number().int().min(0).nullable().optional(),
 				// Tournament fields
 				tournamentBuyIn: z.number().int().min(0).optional(),
 				entryFee: z.number().int().min(0).optional(),

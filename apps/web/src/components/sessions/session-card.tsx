@@ -13,6 +13,7 @@ interface SessionCardProps {
 		sessionDate: string;
 		buyIn: number | null;
 		cashOut: number | null;
+		evCashOut: number | null;
 		tournamentBuyIn: number | null;
 		entryFee: number | null;
 		placement: number | null;
@@ -23,6 +24,8 @@ interface SessionCardProps {
 		addonCost: number | null;
 		bountyPrizes: number | null;
 		profitLoss: number | null;
+		evProfitLoss: number | null;
+		evDiff: number | null;
 		startedAt: string | null;
 		endedAt: string | null;
 		memo: string | null;
@@ -72,20 +75,97 @@ function formatTournamentCost(session: SessionCardProps["session"]): string {
 	return formatCompactNumber(total);
 }
 
+function plColorClass(value: number): string {
+	if (value > 0) {
+		return "text-green-500";
+	}
+	if (value < 0) {
+		return "text-red-500";
+	}
+	return "";
+}
+
+function EvDisplay({
+	evDiff,
+	evProfitLoss,
+}: {
+	evDiff: number;
+	evProfitLoss: number;
+}) {
+	return (
+		<div className="mt-0.5 flex items-center gap-2 text-xs">
+			<span className="text-muted-foreground">
+				EV{" "}
+				<span className={plColorClass(evProfitLoss)}>
+					{evProfitLoss > 0 ? "+" : ""}
+					{formatCompactNumber(evProfitLoss)}
+				</span>
+			</span>
+			<span className="text-muted-foreground">
+				Diff{" "}
+				<span className={plColorClass(evDiff)}>
+					{evDiff > 0 ? "+" : ""}
+					{formatCompactNumber(evDiff)}
+				</span>
+			</span>
+		</div>
+	);
+}
+
+function SessionInfo({ session }: { session: SessionCardProps["session"] }) {
+	const isTournament = session.type === "tournament";
+	const gameName = isTournament ? session.tournamentName : session.ringGameName;
+
+	return (
+		<>
+			{isTournament && (
+				<div className="mt-0.5 flex items-center gap-2 text-muted-foreground text-xs">
+					{session.placement !== null && (
+						<span>
+							{session.placement}
+							{session.totalEntries !== null ? `/${session.totalEntries}` : ""}
+						</span>
+					)}
+					<span>Cost: {formatTournamentCost(session)}</span>
+				</div>
+			)}
+			{gameName && <p className="text-muted-foreground text-xs">{gameName}</p>}
+			{(session.storeName || session.currencyName) && (
+				<div className="flex items-center gap-2 text-muted-foreground text-xs">
+					{session.storeName && <span>{session.storeName}</span>}
+					{session.storeName && session.currencyName && <span>·</span>}
+					{session.currencyName && <span>{session.currencyName}</span>}
+				</div>
+			)}
+			{session.startedAt && session.endedAt && (
+				<p className="text-muted-foreground text-xs">
+					{formatDuration(session.startedAt, session.endedAt)}
+				</p>
+			)}
+			{session.memo && (
+				<p className="max-w-[200px] truncate text-muted-foreground text-xs">
+					{session.memo}
+				</p>
+			)}
+			{session.tags.length > 0 && (
+				<div className="mt-1 flex flex-wrap gap-1">
+					{session.tags.map((tag) => (
+						<Badge key={tag.id} variant="outline">
+							{tag.name}
+						</Badge>
+					))}
+				</div>
+			)}
+		</>
+	);
+}
+
 export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const profitLoss = session.profitLoss ?? 0;
-	const isProfitPositive = profitLoss > 0;
-	const isProfitNegative = profitLoss < 0;
 	const isTournament = session.type === "tournament";
-
-	let profitColorClass = "text-foreground";
-	if (isProfitPositive) {
-		profitColorClass = "text-green-500";
-	} else if (isProfitNegative) {
-		profitColorClass = "text-red-500";
-	}
+	const profitColorClass = plColorClass(profitLoss) || "text-foreground";
 
 	return (
 		<div className="rounded-lg border bg-card">
@@ -99,59 +179,17 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 							{isTournament ? "Tournament" : "Cash Game"}
 						</span>
 						<span className={`font-semibold text-sm ${profitColorClass}`}>
-							{isProfitPositive ? "+" : ""}
+							{profitLoss > 0 ? "+" : ""}
 							{formatCompactNumber(profitLoss)}
 						</span>
 					</div>
-					{isTournament && (
-						<div className="mt-0.5 flex items-center gap-2 text-muted-foreground text-xs">
-							{session.placement !== null && (
-								<span>
-									{session.placement}
-									{session.totalEntries !== null
-										? `/${session.totalEntries}`
-										: ""}
-								</span>
-							)}
-							<span>Cost: {formatTournamentCost(session)}</span>
-						</div>
+					{session.evProfitLoss !== null && session.evDiff !== null && (
+						<EvDisplay
+							evDiff={session.evDiff}
+							evProfitLoss={session.evProfitLoss}
+						/>
 					)}
-					{!isTournament && session.ringGameName && (
-						<p className="text-muted-foreground text-xs">
-							{session.ringGameName}
-						</p>
-					)}
-					{isTournament && session.tournamentName && (
-						<p className="text-muted-foreground text-xs">
-							{session.tournamentName}
-						</p>
-					)}
-					{(session.storeName || session.currencyName) && (
-						<div className="flex items-center gap-2 text-muted-foreground text-xs">
-							{session.storeName && <span>{session.storeName}</span>}
-							{session.storeName && session.currencyName && <span>·</span>}
-							{session.currencyName && <span>{session.currencyName}</span>}
-						</div>
-					)}
-					{session.startedAt && session.endedAt && (
-						<p className="text-muted-foreground text-xs">
-							{formatDuration(session.startedAt, session.endedAt)}
-						</p>
-					)}
-					{session.memo && (
-						<p className="max-w-[200px] truncate text-muted-foreground text-xs">
-							{session.memo}
-						</p>
-					)}
-					{session.tags.length > 0 && (
-						<div className="mt-1 flex flex-wrap gap-1">
-							{session.tags.map((tag) => (
-								<Badge key={tag.id} variant="outline">
-									{tag.name}
-								</Badge>
-							))}
-						</div>
-					)}
+					<SessionInfo session={session} />
 				</div>
 
 				<div className="flex items-center gap-1">

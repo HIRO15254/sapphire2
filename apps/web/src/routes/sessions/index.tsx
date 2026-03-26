@@ -22,6 +22,7 @@ interface CashGameFormValues {
 	cashOut: number;
 	currencyId?: string;
 	endTime?: string;
+	evCashOut?: number;
 	memo?: string;
 	ringGameId?: string;
 	sessionDate: string;
@@ -66,6 +67,9 @@ interface SessionItem {
 	currencyName: string | null;
 	endedAt: string | null;
 	entryFee: number | null;
+	evCashOut: number | null;
+	evDiff: number | null;
+	evProfitLoss: number | null;
 	id: string;
 	memo: string | null;
 	placement: number | null;
@@ -160,6 +164,33 @@ function formatTimeFromDate(date: string | null): string | undefined {
 	return `${hours}:${minutes}`;
 }
 
+function buildEditDefaults(session: SessionItem) {
+	return {
+		type: session.type as "cash_game" | "tournament",
+		sessionDate: formatDateForInput(session.sessionDate),
+		buyIn: session.buyIn ?? 0,
+		cashOut: session.cashOut ?? 0,
+		evCashOut: session.evCashOut ?? undefined,
+		tournamentBuyIn: session.tournamentBuyIn ?? 0,
+		entryFee: session.entryFee ?? undefined,
+		placement: session.placement ?? undefined,
+		totalEntries: session.totalEntries ?? undefined,
+		prizeMoney: session.prizeMoney ?? undefined,
+		rebuyCount: session.rebuyCount ?? undefined,
+		rebuyCost: session.rebuyCost ?? undefined,
+		addonCost: session.addonCost ?? undefined,
+		bountyPrizes: session.bountyPrizes ?? undefined,
+		startTime: formatTimeFromDate(session.startedAt),
+		endTime: formatTimeFromDate(session.endedAt),
+		memo: session.memo ?? undefined,
+		tagIds: session.tags.map((t) => t.id),
+		storeId: session.storeId ?? undefined,
+		ringGameId: session.ringGameId ?? undefined,
+		tournamentId: session.tournamentId ?? undefined,
+		currencyId: session.currencyId ?? undefined,
+	};
+}
+
 function SessionsPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingSession, setEditingSession] = useState<SessionItem | null>(
@@ -215,6 +246,7 @@ function SessionsPage() {
 					type: "cash_game",
 					buyIn: values.buyIn,
 					cashOut: values.cashOut,
+					evCashOut: values.evCashOut,
 					variant: values.variant,
 					blind1: values.blind1,
 					blind2: values.blind2,
@@ -253,6 +285,9 @@ function SessionsPage() {
 					sessionDate: newSession.sessionDate,
 					buyIn: null,
 					cashOut: null,
+					evCashOut: null,
+					evProfitLoss: null,
+					evDiff: null,
 					tournamentBuyIn: null,
 					entryFee: null,
 					placement: null,
@@ -322,6 +357,7 @@ function SessionsPage() {
 					...common,
 					buyIn: values.buyIn,
 					cashOut: values.cashOut,
+					evCashOut: values.evCashOut ?? null,
 					variant: values.variant,
 					blind1: values.blind1,
 					blind2: values.blind2,
@@ -496,29 +532,7 @@ function SessionsPage() {
 				{editingSession && (
 					<SessionForm
 						currencies={currencies}
-						defaultValues={{
-							type: editingSession.type as "cash_game" | "tournament",
-							sessionDate: formatDateForInput(editingSession.sessionDate),
-							buyIn: editingSession.buyIn ?? 0,
-							cashOut: editingSession.cashOut ?? 0,
-							tournamentBuyIn: editingSession.tournamentBuyIn ?? 0,
-							entryFee: editingSession.entryFee ?? undefined,
-							placement: editingSession.placement ?? undefined,
-							totalEntries: editingSession.totalEntries ?? undefined,
-							prizeMoney: editingSession.prizeMoney ?? undefined,
-							rebuyCount: editingSession.rebuyCount ?? undefined,
-							rebuyCost: editingSession.rebuyCost ?? undefined,
-							addonCost: editingSession.addonCost ?? undefined,
-							bountyPrizes: editingSession.bountyPrizes ?? undefined,
-							startTime: formatTimeFromDate(editingSession.startedAt),
-							endTime: formatTimeFromDate(editingSession.endedAt),
-							memo: editingSession.memo ?? undefined,
-							tagIds: editingSession.tags.map((t) => t.id),
-							storeId: editingSession.storeId ?? undefined,
-							ringGameId: editingSession.ringGameId ?? undefined,
-							tournamentId: editingSession.tournamentId ?? undefined,
-							currencyId: editingSession.currencyId ?? undefined,
-						}}
+						defaultValues={buildEditDefaults(editingSession)}
 						isLoading={updateMutation.isPending}
 						onCreateTag={handleCreateTag}
 						onStoreChange={setEditStoreId}
