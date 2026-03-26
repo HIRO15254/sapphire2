@@ -45,6 +45,7 @@ export const currencyTransactionRouter = router({
 					currencyId: currencyTransaction.currencyId,
 					transactionTypeId: currencyTransaction.transactionTypeId,
 					transactionTypeName: transactionType.name,
+					sessionId: currencyTransaction.sessionId,
 					amount: currencyTransaction.amount,
 					transactedAt: currencyTransaction.transactedAt,
 					memo: currencyTransaction.memo,
@@ -146,6 +147,14 @@ export const currencyTransactionRouter = router({
 				});
 			}
 
+			if (found.currencyTransaction.sessionId !== null) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message:
+						"Session-generated transactions cannot be edited. Edit the session instead.",
+				});
+			}
+
 			const updateData: Partial<typeof found.currencyTransaction> = {};
 			if (input.transactionTypeId !== undefined) {
 				updateData.transactionTypeId = input.transactionTypeId;
@@ -193,6 +202,14 @@ export const currencyTransactionRouter = router({
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this transaction",
+				});
+			}
+
+			if (found.currencyTransaction.sessionId !== null) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message:
+						"Session-generated transactions cannot be deleted. Delete the session instead.",
 				});
 			}
 

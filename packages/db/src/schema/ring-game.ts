@@ -6,9 +6,9 @@ export const ringGame = sqliteTable(
 	"ring_game",
 	{
 		id: text("id").primaryKey(),
-		storeId: text("store_id")
-			.notNull()
-			.references(() => store.id, { onDelete: "cascade" }),
+		storeId: text("store_id").references(() => store.id, {
+			onDelete: "cascade",
+		}),
 		name: text("name").notNull(),
 		variant: text("variant").notNull().default("nlh"),
 		blind1: integer("blind1"),
