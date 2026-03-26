@@ -29,7 +29,7 @@ interface RingGame {
 	memo: string | null;
 	minBuyIn: number | null;
 	name: string;
-	storeId: string;
+	storeId: string | null;
 	tableSize: number | null;
 	variant: string;
 }

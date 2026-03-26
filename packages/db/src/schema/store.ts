@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
+import { pokerSession } from "./session";
 
 export const store = sqliteTable(
 	"store",
@@ -68,6 +69,9 @@ export const currencyTransaction = sqliteTable(
 		transactionTypeId: text("transaction_type_id")
 			.notNull()
 			.references(() => transactionType.id),
+		sessionId: text("session_id").references(() => pokerSession.id, {
+			onDelete: "cascade",
+		}),
 		amount: integer("amount").notNull(),
 		transactedAt: integer("transacted_at", { mode: "timestamp" }).notNull(),
 		memo: text("memo"),
@@ -75,7 +79,10 @@ export const currencyTransaction = sqliteTable(
 			.default(sql`(unixepoch())`)
 			.notNull(),
 	},
-	(table) => [index("currencyTransaction_currencyId_idx").on(table.currencyId)]
+	(table) => [
+		index("currencyTransaction_currencyId_idx").on(table.currencyId),
+		index("currencyTransaction_sessionId_idx").on(table.sessionId),
+	]
 );
 
 export const storeRelations = relations(store, ({ one }) => ({
@@ -114,6 +121,10 @@ export const currencyTransactionRelations = relations(
 		transactionType: one(transactionType, {
 			fields: [currencyTransaction.transactionTypeId],
 			references: [transactionType.id],
+		}),
+		session: one(pokerSession, {
+			fields: [currencyTransaction.sessionId],
+			references: [pokerSession.id],
 		}),
 	})
 );
