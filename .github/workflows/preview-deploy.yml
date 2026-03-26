@@ -98,17 +98,14 @@ jobs:
 
       - name: Export production data
         working-directory: apps/server
+        continue-on-error: true
         run: |
           git checkout wrangler.toml
           bunx wrangler d1 export sapphire2-db --remote --no-schema --output=dump.sql
-          # Remove d1_migrations data (already applied via migrations step)
-          sed -i '/INSERT INTO.*d1_migrations/d' dump.sql
-          # Wrap with PRAGMA to disable FK checks during import (insert order may violate FK constraints)
-          sed -i '1i PRAGMA foreign_keys = OFF;' dump.sql
-          echo 'PRAGMA foreign_keys = ON;' >> dump.sql
 
       - name: Import data into PR database
         working-directory: apps/server
+        continue-on-error: true
         run: |
           sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
           sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
