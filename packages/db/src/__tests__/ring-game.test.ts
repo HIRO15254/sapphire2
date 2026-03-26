@@ -34,9 +34,9 @@ describe("RingGame schema", () => {
 		expect(columns.id.primary).toBe(true);
 	});
 
-	it("storeId is nullable", () => {
+	it("storeId is not null", () => {
 		const columns = getTableColumns(ringGame);
-		expect(columns.storeId.notNull).toBe(false);
+		expect(columns.storeId.notNull).toBe(true);
 	});
 
 	it("name is not null", () => {

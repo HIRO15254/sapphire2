@@ -8,13 +8,6 @@ import {
 	verification,
 } from "./schema/auth";
 import { ringGame, ringGameRelations } from "./schema/ring-game";
-import { pokerSession, pokerSessionRelations } from "./schema/session";
-import {
-	sessionTag,
-	sessionTagRelations,
-	sessionToSessionTag,
-	sessionToSessionTagRelations,
-} from "./schema/session-tag";
 import {
 	currency,
 	currencyRelations,
@@ -49,8 +42,6 @@ export const schema = {
 	transactionTypeRelations,
 	currencyTransaction,
 	currencyTransactionRelations,
-	pokerSession,
-	pokerSessionRelations,
 	ringGame,
 	ringGameRelations,
 	tournament,
@@ -59,8 +50,4 @@ export const schema = {
 	blindLevelRelations,
 	tournamentTag,
 	tournamentTagRelations,
-	sessionTag,
-	sessionTagRelations,
-	sessionToSessionTag,
-	sessionToSessionTagRelations,
 };

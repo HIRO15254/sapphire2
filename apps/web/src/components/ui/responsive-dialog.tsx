@@ -39,7 +39,7 @@ export function ResponsiveDialog({
 	if (isDesktop) {
 		return (
 			<Dialog onOpenChange={onOpenChange} open={open}>
-				<DialogContent className="max-h-[85vh] overflow-y-auto">
+				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>{title}</DialogTitle>
 					</DialogHeader>
