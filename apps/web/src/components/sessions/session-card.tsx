@@ -1,10 +1,10 @@
 import {
 	IconCalendar,
-	IconCards,
 	IconChevronDown,
 	IconChevronUp,
 	IconEdit,
 	IconMapPin,
+	IconPokerChip,
 	IconTrash,
 	IconTrophy,
 	IconX,
@@ -236,13 +236,13 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 						<div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
 							<span className="truncate font-medium text-sm">{gameName}</span>
 							<Badge
-								className={`shrink-0 gap-0.5 ${isTournament ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}
+								className={`shrink-0 gap-0.5 ${isTournament ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400" : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400"}`}
 								variant="outline"
 							>
 								{isTournament ? (
 									<IconTrophy size={10} />
 								) : (
-									<IconCards size={10} />
+									<IconPokerChip size={10} />
 								)}
 								{isTournament ? "Tourney" : "Cash"}
 							</Badge>
