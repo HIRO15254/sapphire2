@@ -49,37 +49,38 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     outputs:
-      d1_database_id: ${{ steps.create.outputs.d1_database_id }}
+      d1_database_id: ${{ steps.resolve.outputs.d1_database_id }}
+      is_new_db: ${{ steps.resolve.outputs.is_new_db }}
     steps:
-      - name: Recreate D1 database for PR
-        id: create
+      - name: Resolve or create D1 database for PR
+        id: resolve
         run: |
           DB_NAME="${{ needs.setup.outputs.d1_db_name }}"
 
-          # Delete existing database if it exists
+          # Check if database already exists
           EXISTING_ID=$(curl -sf \
             "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             | jq -r ".result[] | select(.name == \"${DB_NAME}\") | .uuid")
 
           if [ -n "$EXISTING_ID" ]; then
-            echo "Deleting existing D1 database: $EXISTING_ID"
-            curl -sf -X DELETE \
-              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database/${EXISTING_ID}" \
-              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}"
+            echo "Reusing existing D1 database: $EXISTING_ID"
+            echo "d1_database_id=${EXISTING_ID}" >> "$GITHUB_OUTPUT"
+            echo "is_new_db=false" >> "$GITHUB_OUTPUT"
+          else
+            # Create new database
+            NEW_ID=$(curl -sf -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\": \"${DB_NAME}\"}" \
+              | jq -r '.result.uuid')
+            echo "Created D1 database: $NEW_ID"
+            echo "d1_database_id=${NEW_ID}" >> "$GITHUB_OUTPUT"
+            echo "is_new_db=true" >> "$GITHUB_OUTPUT"
           fi
 
-          # Create fresh database
-          NEW_ID=$(curl -sf -X POST \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{\"name\": \"${DB_NAME}\"}" \
-            | jq -r '.result.uuid')
-          echo "Created D1 database: $NEW_ID"
-          echo "d1_database_id=${NEW_ID}" >> "$GITHUB_OUTPUT"
-
-  db-clone:
+  db-migrate:
     needs: [setup, d1-setup]
     runs-on: ubuntu-latest
     steps:
@@ -96,23 +97,58 @@ jobs:
           sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
           bunx wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote
 
-      - name: Export production data
+      - name: Seed data from parent branch DB (first deploy only)
+        if: needs.d1-setup.outputs.is_new_db == 'true'
         working-directory: apps/server
-        continue-on-error: true
         run: |
-          git checkout wrangler.toml
-          bunx wrangler d1 export sapphire2-db --remote --no-schema --output=dump.sql
+          # Determine source database: parent branch PR DB or production
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          SOURCE_DB="sapphire2-db"
 
-      - name: Import data into PR database
-        working-directory: apps/server
-        continue-on-error: true
-        run: |
+          if [ "$BASE_REF" != "master" ] && [ "$BASE_REF" != "main" ]; then
+            # Find parent branch's PR number to use its DB
+            PARENT_PR=$(curl -sf \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              | jq -r ".result[] | select(.name | startswith(\"sapphire2-db-pr-\")) | select(.name != \"${{ needs.setup.outputs.d1_db_name }}\") | .name" \
+              | head -1)
+
+            # Search for a PR DB matching the base branch
+            BASE_DB_NAME=""
+            OPEN_PRS=$(curl -sf \
+              "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${BASE_REF}" \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              | jq -r '.[0].number // empty')
+
+            if [ -n "$OPEN_PRS" ]; then
+              CANDIDATE="sapphire2-db-pr-${OPEN_PRS}"
+              EXISTS=$(curl -sf \
+                "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+                | jq -r ".result[] | select(.name == \"${CANDIDATE}\") | .uuid")
+              if [ -n "$EXISTS" ]; then
+                SOURCE_DB="$CANDIDATE"
+                echo "Using parent branch DB: $SOURCE_DB"
+              fi
+            fi
+          fi
+
+          echo "Exporting data from: $SOURCE_DB"
+          git checkout wrangler.toml
+          bunx wrangler d1 export "$SOURCE_DB" --remote --no-schema --output=dump.sql
+
+          # Remove d1_migrations data (already applied via migrations step)
+          sed -i '/INSERT INTO.*d1_migrations/d' dump.sql
+          # Wrap with PRAGMA to disable FK checks during import
+          sed -i '1i PRAGMA foreign_keys = OFF;' dump.sql
+          echo 'PRAGMA foreign_keys = ON;' >> dump.sql
+
           sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
           sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
           bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql
 
   deploy-api:
-    needs: [setup, d1-setup, db-clone]
+    needs: [setup, d1-setup, db-migrate]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -193,6 +229,6 @@ jobs:
             | Frontend | ${{ needs.setup.outputs.preview_web_url }} |
             | API | ${{ needs.setup.outputs.preview_api_url }} |
 
-            **Database:** D1 database `${{ needs.setup.outputs.d1_db_name }}` (本番データコピー)
+            **Database:** D1 database `${{ needs.setup.outputs.d1_db_name }}` (初回: 親ブランチDBコピー / 2回目以降: データ持ち越し+マイグレーション適用)
 
             _Last deployed: ${{ github.sha }}_

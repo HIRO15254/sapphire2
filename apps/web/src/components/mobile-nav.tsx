@@ -1,5 +1,6 @@
 import {
 	IconBuildingStore,
+	IconCards,
 	IconCoins,
 	IconHome,
 	IconLayoutDashboard,
@@ -20,6 +21,7 @@ export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
 	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
 	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
+	{ to: "/sessions", label: "Sessions", icon: IconCards },
 	{ to: "/search", label: "Search", icon: IconSearch },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
