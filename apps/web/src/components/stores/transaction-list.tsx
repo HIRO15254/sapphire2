@@ -7,6 +7,7 @@ interface Transaction {
 	amount: number;
 	id: string;
 	memo?: string | null;
+	sessionId?: string | null;
 	transactedAt: Date | string;
 	transactionTypeName: string;
 }
@@ -46,10 +47,9 @@ export function TransactionList({
 				const amountDisplay = isPositive
 					? `+${fmt(tx.amount)}`
 					: fmt(tx.amount);
-				const dateDisplay = new Date(tx.transactedAt).toLocaleDateString(
-					"en-US",
-					{ year: "numeric", month: "short", day: "numeric" }
-				);
+				const txDate = new Date(tx.transactedAt);
+				const dateDisplay = `${txDate.getFullYear()}/${String(txDate.getMonth() + 1).padStart(2, "0")}/${String(txDate.getDate()).padStart(2, "0")}`;
+				const isSessionGenerated = !!tx.sessionId;
 
 				return (
 					<div
@@ -62,6 +62,9 @@ export function TransactionList({
 									{amountDisplay}
 								</span>
 								<Badge variant="outline">{tx.transactionTypeName}</Badge>
+								{isSessionGenerated && (
+									<Badge variant="secondary">Session</Badge>
+								)}
 							</div>
 							<div className="flex items-center gap-2 text-muted-foreground text-xs">
 								<span>{dateDisplay}</span>
@@ -69,7 +72,7 @@ export function TransactionList({
 							</div>
 						</div>
 						<div className="flex items-center gap-1">
-							{onEdit && (
+							{onEdit && !isSessionGenerated && (
 								<Button
 									aria-label="Edit transaction"
 									onClick={() => onEdit(tx)}
@@ -79,15 +82,17 @@ export function TransactionList({
 									<IconEdit size={14} />
 								</Button>
 							)}
-							<Button
-								aria-label="Delete transaction"
-								className="text-destructive hover:text-destructive"
-								onClick={() => onDelete(tx.id)}
-								size="sm"
-								variant="ghost"
-							>
-								<IconTrash size={14} />
-							</Button>
+							{!isSessionGenerated && (
+								<Button
+									aria-label="Delete transaction"
+									className="text-destructive hover:text-destructive"
+									onClick={() => onDelete(tx.id)}
+									size="sm"
+									variant="ghost"
+								>
+									<IconTrash size={14} />
+								</Button>
+							)}
 						</div>
 					</div>
 				);

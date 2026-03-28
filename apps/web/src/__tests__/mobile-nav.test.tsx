@@ -71,7 +71,7 @@ describe("MobileNav", () => {
 		render(<RouterProvider router={router} />);
 
 		const links = await screen.findAllByRole("link");
-		expect(links).toHaveLength(6);
+		expect(links).toHaveLength(7);
 	});
 
 	it("displays labels for all navigation items", async () => {
