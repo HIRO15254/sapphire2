@@ -3,6 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { SessionCard } from "@/components/sessions/session-card";
+import {
+	SessionFilters,
+	type SessionFilterValues,
+} from "@/components/sessions/session-filters";
 import { SessionForm } from "@/components/sessions/session-form";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
@@ -22,6 +26,7 @@ interface CashGameFormValues {
 	cashOut: number;
 	currencyId?: string;
 	endTime?: string;
+	evCashOut?: number;
 	memo?: string;
 	ringGameId?: string;
 	sessionDate: string;
@@ -64,8 +69,12 @@ interface SessionItem {
 	createdAt: string;
 	currencyId: string | null;
 	currencyName: string | null;
+	currencyUnit: string | null;
 	endedAt: string | null;
 	entryFee: number | null;
+	evCashOut: number | null;
+	evDiff: number | null;
+	evProfitLoss: number | null;
 	id: string;
 	memo: string | null;
 	placement: number | null;
@@ -160,6 +169,184 @@ function formatTimeFromDate(date: string | null): string | undefined {
 	return `${hours}:${minutes}`;
 }
 
+function buildCreatePayload(values: SessionFormValues) {
+	const sessionDate = Math.floor(new Date(values.sessionDate).getTime() / 1000);
+	const common = {
+		sessionDate,
+		startedAt: timeToUnix(values.sessionDate, values.startTime),
+		endedAt: timeToUnix(values.sessionDate, values.endTime),
+		memo: values.memo,
+		tagIds: values.tagIds,
+		storeId: values.storeId,
+		currencyId: values.currencyId,
+	};
+	if (values.type === "cash_game") {
+		return {
+			...common,
+			type: "cash_game" as const,
+			buyIn: values.buyIn,
+			cashOut: values.cashOut,
+			evCashOut: values.evCashOut,
+			variant: values.variant,
+			blind1: values.blind1,
+			blind2: values.blind2,
+			blind3: values.blind3,
+			ante: values.ante,
+			anteType: values.anteType as "none" | "all" | "bb" | undefined,
+			tableSize: values.tableSize,
+			ringGameId: values.ringGameId,
+		};
+	}
+	return {
+		...common,
+		type: "tournament" as const,
+		tournamentBuyIn: values.tournamentBuyIn,
+		entryFee: values.entryFee,
+		placement: values.placement,
+		totalEntries: values.totalEntries,
+		prizeMoney: values.prizeMoney,
+		rebuyCount: values.rebuyCount,
+		rebuyCost: values.rebuyCost,
+		addonCost: values.addonCost,
+		bountyPrizes: values.bountyPrizes,
+		tournamentId: values.tournamentId,
+	};
+}
+
+function buildUpdatePayload(values: SessionFormValues & { id: string }) {
+	const common = {
+		id: values.id,
+		sessionDate: Math.floor(new Date(values.sessionDate).getTime() / 1000),
+		startedAt: timeToUnix(values.sessionDate, values.startTime) ?? null,
+		endedAt: timeToUnix(values.sessionDate, values.endTime) ?? null,
+		memo: values.memo,
+		tagIds: values.tagIds,
+		storeId: values.storeId ?? null,
+		currencyId: values.currencyId ?? null,
+	};
+	if (values.type === "cash_game") {
+		return {
+			...common,
+			buyIn: values.buyIn,
+			cashOut: values.cashOut,
+			evCashOut: values.evCashOut ?? null,
+			variant: values.variant,
+			blind1: values.blind1,
+			blind2: values.blind2,
+			blind3: values.blind3,
+			ante: values.ante,
+			anteType: values.anteType as "none" | "all" | "bb" | undefined,
+			tableSize: values.tableSize,
+			ringGameId: values.ringGameId ?? null,
+		};
+	}
+	return {
+		...common,
+		tournamentBuyIn: values.tournamentBuyIn,
+		entryFee: values.entryFee,
+		placement: values.placement,
+		totalEntries: values.totalEntries,
+		prizeMoney: values.prizeMoney,
+		rebuyCount: values.rebuyCount,
+		rebuyCost: values.rebuyCost,
+		addonCost: values.addonCost,
+		bountyPrizes: values.bountyPrizes,
+		tournamentId: values.tournamentId ?? null,
+	};
+}
+
+function buildOptimisticItem(newSession: SessionFormValues): SessionItem {
+	const item: SessionItem = {
+		id: `temp-${Date.now()}`,
+		type: newSession.type,
+		sessionDate: newSession.sessionDate,
+		buyIn: null,
+		cashOut: null,
+		evCashOut: null,
+		evProfitLoss: null,
+		evDiff: null,
+		tournamentBuyIn: null,
+		entryFee: null,
+		placement: null,
+		totalEntries: null,
+		prizeMoney: null,
+		rebuyCount: null,
+		rebuyCost: null,
+		addonCost: null,
+		bountyPrizes: null,
+		profitLoss: 0,
+		startedAt: null,
+		endedAt: null,
+		memo: newSession.memo ?? null,
+		storeId: newSession.storeId ?? null,
+		storeName: null,
+		ringGameId: null,
+		ringGameName: null,
+		tournamentId: null,
+		tournamentName: null,
+		currencyId: newSession.currencyId ?? null,
+		currencyName: null,
+		currencyUnit: null,
+		createdAt: new Date().toISOString(),
+		tags: [],
+	};
+	if (newSession.type === "cash_game") {
+		item.buyIn = newSession.buyIn;
+		item.cashOut = newSession.cashOut;
+		item.evCashOut = newSession.evCashOut ?? null;
+		item.profitLoss = newSession.cashOut - newSession.buyIn;
+		if (newSession.evCashOut !== undefined) {
+			item.evProfitLoss = newSession.evCashOut - newSession.buyIn;
+			item.evDiff = item.evProfitLoss - item.profitLoss;
+		}
+	} else {
+		item.tournamentBuyIn = newSession.tournamentBuyIn;
+		item.entryFee = newSession.entryFee ?? null;
+	}
+	return item;
+}
+
+function buildEditDefaults(session: SessionItem) {
+	return {
+		type: session.type as "cash_game" | "tournament",
+		sessionDate: formatDateForInput(session.sessionDate),
+		buyIn: session.buyIn ?? 0,
+		cashOut: session.cashOut ?? 0,
+		evCashOut: session.evCashOut ?? undefined,
+		tournamentBuyIn: session.tournamentBuyIn ?? 0,
+		entryFee: session.entryFee ?? undefined,
+		placement: session.placement ?? undefined,
+		totalEntries: session.totalEntries ?? undefined,
+		prizeMoney: session.prizeMoney ?? undefined,
+		rebuyCount: session.rebuyCount ?? undefined,
+		rebuyCost: session.rebuyCost ?? undefined,
+		addonCost: session.addonCost ?? undefined,
+		bountyPrizes: session.bountyPrizes ?? undefined,
+		startTime: formatTimeFromDate(session.startedAt),
+		endTime: formatTimeFromDate(session.endedAt),
+		memo: session.memo ?? undefined,
+		tagIds: session.tags.map((t) => t.id),
+		storeId: session.storeId ?? undefined,
+		ringGameId: session.ringGameId ?? undefined,
+		tournamentId: session.tournamentId ?? undefined,
+		currencyId: session.currencyId ?? undefined,
+	};
+}
+
+function filtersToListInput(filters: SessionFilterValues) {
+	return {
+		type: filters.type,
+		storeId: filters.storeId,
+		currencyId: filters.currencyId,
+		dateFrom: filters.dateFrom
+			? Math.floor(new Date(filters.dateFrom).getTime() / 1000)
+			: undefined,
+		dateTo: filters.dateTo
+			? Math.floor(new Date(`${filters.dateTo}T23:59:59`).getTime() / 1000)
+			: undefined,
+	};
+}
+
 function SessionsPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingSession, setEditingSession] = useState<SessionItem | null>(
@@ -167,11 +354,14 @@ function SessionsPage() {
 	);
 	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>();
 	const [editStoreId, setEditStoreId] = useState<string | undefined>();
+	const [filters, setFilters] = useState<SessionFilterValues>({});
 
 	const queryClient = useQueryClient();
-	const sessionListKey = trpc.session.list.queryOptions({}).queryKey;
 
-	const sessionsQuery = useQuery(trpc.session.list.queryOptions({}));
+	const listInput = filtersToListInput(filters);
+	const sessionListKey = trpc.session.list.queryOptions(listInput).queryKey;
+
+	const sessionsQuery = useQuery(trpc.session.list.queryOptions(listInput));
 	const sessions = sessionsQuery.data?.items ?? [];
 
 	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions());
@@ -196,50 +386,8 @@ function SessionsPage() {
 	};
 
 	const createMutation = useMutation({
-		mutationFn: (values: SessionFormValues) => {
-			const sessionDate = Math.floor(
-				new Date(values.sessionDate).getTime() / 1000
-			);
-			const common = {
-				sessionDate,
-				startedAt: timeToUnix(values.sessionDate, values.startTime),
-				endedAt: timeToUnix(values.sessionDate, values.endTime),
-				memo: values.memo,
-				tagIds: values.tagIds,
-				storeId: values.storeId,
-				currencyId: values.currencyId,
-			};
-			if (values.type === "cash_game") {
-				return trpcClient.session.create.mutate({
-					...common,
-					type: "cash_game",
-					buyIn: values.buyIn,
-					cashOut: values.cashOut,
-					variant: values.variant,
-					blind1: values.blind1,
-					blind2: values.blind2,
-					blind3: values.blind3,
-					ante: values.ante,
-					anteType: values.anteType as "none" | "all" | "bb" | undefined,
-					tableSize: values.tableSize,
-					ringGameId: values.ringGameId,
-				});
-			}
-			return trpcClient.session.create.mutate({
-				...common,
-				type: "tournament",
-				tournamentBuyIn: values.tournamentBuyIn,
-				entryFee: values.entryFee,
-				placement: values.placement,
-				totalEntries: values.totalEntries,
-				prizeMoney: values.prizeMoney,
-				rebuyCount: values.rebuyCount,
-				rebuyCost: values.rebuyCost,
-				addonCost: values.addonCost,
-				bountyPrizes: values.bountyPrizes,
-				tournamentId: values.tournamentId,
-			});
-		},
+		mutationFn: (values: SessionFormValues) =>
+			trpcClient.session.create.mutate(buildCreatePayload(values)),
 		onMutate: async (newSession) => {
 			await queryClient.cancelQueries({ queryKey: sessionListKey });
 			const previous = queryClient.getQueryData(sessionListKey);
@@ -247,47 +395,9 @@ function SessionsPage() {
 				if (!old) {
 					return old;
 				}
-				const optimisticItem: SessionItem = {
-					id: `temp-${Date.now()}`,
-					type: newSession.type,
-					sessionDate: newSession.sessionDate,
-					buyIn: null,
-					cashOut: null,
-					tournamentBuyIn: null,
-					entryFee: null,
-					placement: null,
-					totalEntries: null,
-					prizeMoney: null,
-					rebuyCount: null,
-					rebuyCost: null,
-					addonCost: null,
-					bountyPrizes: null,
-					profitLoss: 0,
-					startedAt: null,
-					endedAt: null,
-					memo: newSession.memo ?? null,
-					storeId: newSession.storeId ?? null,
-					storeName: null,
-					ringGameId: null,
-					ringGameName: null,
-					tournamentId: null,
-					tournamentName: null,
-					currencyId: newSession.currencyId ?? null,
-					currencyName: null,
-					createdAt: new Date().toISOString(),
-					tags: [],
-				};
-				if (newSession.type === "cash_game") {
-					optimisticItem.buyIn = newSession.buyIn;
-					optimisticItem.cashOut = newSession.cashOut;
-					optimisticItem.profitLoss = newSession.cashOut - newSession.buyIn;
-				} else {
-					optimisticItem.tournamentBuyIn = newSession.tournamentBuyIn;
-					optimisticItem.entryFee = newSession.entryFee ?? null;
-				}
 				return {
 					...old,
-					items: [optimisticItem, ...old.items],
+					items: [buildOptimisticItem(newSession), ...old.items],
 				};
 			});
 			return { previous };
@@ -306,46 +416,8 @@ function SessionsPage() {
 	});
 
 	const updateMutation = useMutation({
-		mutationFn: (values: SessionFormValues & { id: string }) => {
-			const common = {
-				id: values.id,
-				sessionDate: Math.floor(new Date(values.sessionDate).getTime() / 1000),
-				startedAt: timeToUnix(values.sessionDate, values.startTime) ?? null,
-				endedAt: timeToUnix(values.sessionDate, values.endTime) ?? null,
-				memo: values.memo,
-				tagIds: values.tagIds,
-				storeId: values.storeId ?? null,
-				currencyId: values.currencyId ?? null,
-			};
-			if (values.type === "cash_game") {
-				return trpcClient.session.update.mutate({
-					...common,
-					buyIn: values.buyIn,
-					cashOut: values.cashOut,
-					variant: values.variant,
-					blind1: values.blind1,
-					blind2: values.blind2,
-					blind3: values.blind3,
-					ante: values.ante,
-					anteType: values.anteType as "none" | "all" | "bb" | undefined,
-					tableSize: values.tableSize,
-					ringGameId: values.ringGameId ?? null,
-				});
-			}
-			return trpcClient.session.update.mutate({
-				...common,
-				tournamentBuyIn: values.tournamentBuyIn,
-				entryFee: values.entryFee,
-				placement: values.placement,
-				totalEntries: values.totalEntries,
-				prizeMoney: values.prizeMoney,
-				rebuyCount: values.rebuyCount,
-				rebuyCost: values.rebuyCost,
-				addonCost: values.addonCost,
-				bountyPrizes: values.bountyPrizes,
-				tournamentId: values.tournamentId ?? null,
-			});
-		},
+		mutationFn: (values: SessionFormValues & { id: string }) =>
+			trpcClient.session.update.mutate(buildUpdatePayload(values)),
 		onMutate: async (updated) => {
 			await queryClient.cancelQueries({ queryKey: sessionListKey });
 			const previous = queryClient.getQueryData(sessionListKey);
@@ -390,10 +462,7 @@ function SessionsPage() {
 				if (!old) {
 					return old;
 				}
-				return {
-					...old,
-					items: old.items.filter((s) => s.id !== id),
-				};
+				return { ...old, items: old.items.filter((s) => s.id !== id) };
 			});
 			return { previous };
 		},
@@ -426,10 +495,18 @@ function SessionsPage() {
 		<div className="p-4 md:p-6">
 			<div className="mb-6 flex items-center justify-between">
 				<h1 className="font-bold text-2xl">Sessions</h1>
-				<Button onClick={() => setIsCreateOpen(true)}>
-					<IconPlus size={16} />
-					New Session
-				</Button>
+				<div className="flex items-center gap-2">
+					<SessionFilters
+						currencies={currencies}
+						filters={filters}
+						onFiltersChange={setFilters}
+						stores={stores}
+					/>
+					<Button onClick={() => setIsCreateOpen(true)}>
+						<IconPlus size={16} />
+						New Session
+					</Button>
+				</div>
 			</div>
 
 			{sessions.length === 0 ? (
@@ -496,29 +573,7 @@ function SessionsPage() {
 				{editingSession && (
 					<SessionForm
 						currencies={currencies}
-						defaultValues={{
-							type: editingSession.type as "cash_game" | "tournament",
-							sessionDate: formatDateForInput(editingSession.sessionDate),
-							buyIn: editingSession.buyIn ?? 0,
-							cashOut: editingSession.cashOut ?? 0,
-							tournamentBuyIn: editingSession.tournamentBuyIn ?? 0,
-							entryFee: editingSession.entryFee ?? undefined,
-							placement: editingSession.placement ?? undefined,
-							totalEntries: editingSession.totalEntries ?? undefined,
-							prizeMoney: editingSession.prizeMoney ?? undefined,
-							rebuyCount: editingSession.rebuyCount ?? undefined,
-							rebuyCost: editingSession.rebuyCost ?? undefined,
-							addonCost: editingSession.addonCost ?? undefined,
-							bountyPrizes: editingSession.bountyPrizes ?? undefined,
-							startTime: formatTimeFromDate(editingSession.startedAt),
-							endTime: formatTimeFromDate(editingSession.endedAt),
-							memo: editingSession.memo ?? undefined,
-							tagIds: editingSession.tags.map((t) => t.id),
-							storeId: editingSession.storeId ?? undefined,
-							ringGameId: editingSession.ringGameId ?? undefined,
-							tournamentId: editingSession.tournamentId ?? undefined,
-							currencyId: editingSession.currencyId ?? undefined,
-						}}
+						defaultValues={buildEditDefaults(editingSession)}
 						isLoading={updateMutation.isPending}
 						onCreateTag={handleCreateTag}
 						onStoreChange={setEditStoreId}

@@ -52,8 +52,8 @@
 ### Implementation for User Story 1
 
 - [x] T007c [US1] Make `ringGame.storeId` nullable in `packages/db/src/schema/ring-game.ts` and update `validateRingGameOwnership` in `packages/api/src/routers/ring-game.ts` to handle null storeId. Generate and apply migration.
-- [ ] T007d [US1] Create `sessionTag` table (id, userId, name, createdAt) and `sessionToSessionTag` junction table (sessionId, sessionTagId) with relations in `packages/db/src/schema/session-tag.ts`. Export from `packages/db/src/schema/index.ts`. Generate migration.
-- [ ] T007e [US1] Create `sessionTagRouter` with CRUD (list, create, update, delete) in `packages/api/src/routers/session-tag.ts`. Register in `packages/api/src/routers/index.ts`.
+- [x] T007d [US1] Create `sessionTag` table (id, userId, name, createdAt) and `sessionToSessionTag` junction table (sessionId, sessionTagId) with relations in `packages/db/src/schema/session-tag.ts`. Export from `packages/db/src/schema/index.ts`. Generate migration.
+- [x] T007e [US1] Create `sessionTagRouter` with CRUD (list, create, update, delete) in `packages/api/src/routers/session-tag.ts`. Register in `packages/api/src/routers/index.ts`.
 - [x] T008 [US1] Implement `session.create` mutation for cash game type with Zod input validation (type=cash_game, buyIn ≥ 0, cashOut ≥ 0, sessionDate required), ring game config fields (variant, blind1-3, ante, anteType, tableSize), startedAt/endedAt (time-of-day combined with sessionDate), memo, tagIds, UUID generation, auto-create standalone ringGame, insert junction records for tags in `packages/api/src/routers/session.ts`
 - [x] T009 [US1] Implement `session.list` query with cursor-based pagination (PAGE_SIZE=20), ordered by sessionDate DESC then id DESC, filtered by userId, with computed profitLoss, LEFT JOIN to ringGame, include startedAt/endedAt/memo, resolve tags via junction table in `packages/api/src/routers/session.ts`
 - [x] T010 [US1] Implement `session.getById` query with ownership validation in `packages/api/src/routers/session.ts`
@@ -62,7 +62,7 @@
 - [x] T013 [P] [US1] Create session form with field order: Session Date, Start/End Time (type=time), Buy-in/Cash-out, Variant, SB/BB/Straddle, Ante Type/Ante, Table Size, Session Tags (multi-select with inline create), Memo (textarea) in `apps/web/src/components/sessions/session-form.tsx`
 - [x] T014 [US1] Create sessions page route with query hook for session.list, paginated session card list, create button with ResponsiveDialog, edit/delete handlers with optimistic mutations in `apps/web/src/routes/sessions/index.tsx`
 - [x] T015 [US1] Add "Sessions" navigation item to top-level nav in `apps/web/src/components/mobile-nav.tsx`
-- [ ] T015b [US1] Add session tag management (list, rename, delete) to settings page in `apps/web/src/routes/settings.tsx`
+- [x] T015b [US1] Add session tag management (list, rename, delete) to settings page in `apps/web/src/routes/settings.tsx`
 
 **Checkpoint**: Cash game session CRUD fully functional with full game configuration, time-of-day tracking, session tags, and memo. Tag management available in settings.
 
@@ -113,11 +113,11 @@
 
 ### Implementation for User Story 4
 
-- [ ] T027 [US4] Extend `session.list` query to return summary object alongside paginated items: compute totalSessions, totalProfitLoss, winRate, avgProfitLoss via SQL aggregation. When type filter = "tournament", include avgPlacement, totalPrizeMoney, itmRate in `packages/api/src/routers/session.ts`
-- [ ] T028 [US4] Add filter input parameters to `session.list`: type (cash_game/tournament), storeId, dateFrom, dateTo as optional Zod-validated inputs. Apply as WHERE conditions on the list and summary queries in `packages/api/src/routers/session.ts`
-- [ ] T029 [P] [US4] Create session summary component displaying total sessions, total P&L, win rate, average P&L in a card grid. Conditionally show tournament metrics and EV metrics when available in `apps/web/src/components/sessions/session-summary.tsx`
-- [ ] T030 [P] [US4] Create session filters component with game type toggle (All/Cash Game/Tournament), store selector dropdown, and date range picker (from/to) in `apps/web/src/components/sessions/session-filters.tsx`
-- [ ] T031 [US4] Integrate summary and filters into sessions page: render SessionSummary above SessionFilters above session list. Pass filter state to session.list query params. Re-fetch on filter change in `apps/web/src/routes/sessions/index.tsx`
+- [x] T027 [US4] Extend `session.list` query to return summary object alongside paginated items: compute totalSessions, totalProfitLoss, winRate, avgProfitLoss via SQL aggregation. When type filter = "tournament", include avgPlacement, totalPrizeMoney, itmRate in `packages/api/src/routers/session.ts`
+- [x] T028 [US4] Add filter input parameters to `session.list`: type (cash_game/tournament), storeId, dateFrom, dateTo as optional Zod-validated inputs. Apply as WHERE conditions on the list and summary queries in `packages/api/src/routers/session.ts`
+- [x] T029 [P] [US4] Create session summary component displaying total sessions, total P&L, win rate, average P&L in a card grid. Conditionally show tournament metrics and EV metrics when available in `apps/web/src/components/sessions/session-summary.tsx`
+- [x] T030 [P] [US4] Create session filters component with game type toggle (All/Cash Game/Tournament), store selector dropdown, and date range picker (from/to) in `apps/web/src/components/sessions/session-filters.tsx`
+- [x] T031 [US4] Integrate summary and filters into sessions page: render SessionSummary above SessionFilters above session list. Pass filter state to session.list query params. Re-fetch on filter change in `apps/web/src/routes/sessions/index.tsx`
 
 **Checkpoint**: Sessions page shows live summary statistics with working filters. All metrics update correctly when filters are applied.
 
@@ -131,11 +131,11 @@
 
 ### Implementation for User Story 5
 
-- [ ] T032 [US5] Add evCashOut to cash game Zod validation schema (optional, ≥ 0). Extend list query to compute evProfitLoss (evCashOut - buyIn) and evDiff (evProfitLoss - profitLoss) when evCashOut is not null in `packages/api/src/routers/session.ts`
-- [ ] T033 [US5] Extend summary aggregation to include totalEvProfitLoss and totalEvDiff computed from cash game sessions where evCashOut IS NOT NULL in `packages/api/src/routers/session.ts`
-- [ ] T034 [US5] Add optional evCashOut field to session form, shown only when type=cash_game, with label "EV Cash-out" and helper text explaining the concept in `apps/web/src/components/sessions/session-form.tsx`
-- [ ] T035 [US5] Display EV P&L and EV diff on session card when evCashOut is set: show as secondary line below actual P&L with distinct styling in `apps/web/src/components/sessions/session-card.tsx`
-- [ ] T036 [US5] Display EV summary metrics (total EV P&L, total EV diff) in session summary component when available in `apps/web/src/components/sessions/session-summary.tsx`
+- [x] T032 [US5] Add evCashOut to cash game Zod validation schema (optional, ≥ 0). Extend list query to compute evProfitLoss (evCashOut - buyIn) and evDiff (evProfitLoss - profitLoss) when evCashOut is not null in `packages/api/src/routers/session.ts`
+- [x] T033 [US5] Extend summary aggregation to include totalEvProfitLoss and totalEvDiff computed from cash game sessions where evCashOut IS NOT NULL in `packages/api/src/routers/session.ts`
+- [x] T034 [US5] Add optional evCashOut field to session form, shown only when type=cash_game, with label "EV Cash-out" and helper text explaining the concept in `apps/web/src/components/sessions/session-form.tsx`
+- [x] T035 [US5] Display EV P&L and EV diff on session card when evCashOut is set: show as secondary line below actual P&L with distinct styling in `apps/web/src/components/sessions/session-card.tsx`
+- [x] T036 [US5] Display EV summary metrics (total EV P&L, total EV diff) in session summary component when available in `apps/web/src/components/sessions/session-summary.tsx`
 
 **Checkpoint**: EV tracking works end-to-end for cash game sessions. Summary EV metrics display correctly.
 
@@ -157,13 +157,13 @@
 
 **Purpose**: Quality, tests, and integration polish
 
-- [ ] T040 [P] Write component tests for session-form (cash game mode, tournament mode, type switching, validation) in `apps/web/src/components/sessions/__tests__/session-form.test.tsx`
-- [ ] T041 [P] Write component tests for session-card (cash game display, tournament display, EV display, linked entity display) in `apps/web/src/components/sessions/__tests__/session-card.test.tsx`
-- [ ] T042 [P] Write component tests for session-summary (all metrics, tournament-specific metrics, EV metrics, empty state with guidance message) in `apps/web/src/components/sessions/__tests__/session-summary.test.tsx`
-- [ ] T043 [P] Write component tests for session-filters (type toggle, store selector, date range picker, filter state changes) in `apps/web/src/components/sessions/__tests__/session-filters.test.tsx`
-- [ ] T044 [P] Update transaction-list component tests to cover read-only behavior for session-generated transactions (disabled edit/delete, session badge display) in `apps/web/src/components/stores/__tests__/transaction-list.test.tsx`
-- [ ] T045 Run `bun x ultracite fix` and `bun run check-types` to ensure code quality and type safety pass
-- [ ] T046 Run full test suite `bun run test` and verify all tests pass including new session tests
+- [x] T040 [P] Write component tests for session-form (cash game mode, tournament mode, type switching, validation) in `apps/web/src/components/sessions/__tests__/session-form.test.tsx`
+- [x] T041 [P] Write component tests for session-card (cash game display, tournament display, EV display, linked entity display) in `apps/web/src/components/sessions/__tests__/session-card.test.tsx`
+- [x] T042 [P] Write component tests for session-summary (all metrics, tournament-specific metrics, EV metrics, empty state with guidance message) in `apps/web/src/components/sessions/__tests__/session-summary.test.tsx`
+- [x] T043 [P] Write component tests for session-filters (type toggle, store selector, date range picker, filter state changes) in `apps/web/src/components/sessions/__tests__/session-filters.test.tsx`
+- [x] T044 [P] Update transaction-list component tests to cover read-only behavior for session-generated transactions (disabled edit/delete, session badge display) in `apps/web/src/components/stores/__tests__/transaction-list.test.tsx`
+- [x] T045 Run `bun x ultracite fix` and `bun run check-types` to ensure code quality and type safety pass
+- [x] T046 Run full test suite `bun run test` and verify all tests pass including new session tests
 
 ---
 

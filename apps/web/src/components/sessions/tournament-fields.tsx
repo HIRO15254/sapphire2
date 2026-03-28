@@ -1,21 +1,40 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 
-interface TournamentFieldsProps {
-	defaultValues?: {
-		addonCost?: number;
-		bountyPrizes?: number;
-		entryFee?: number;
-		placement?: number;
-		prizeMoney?: number;
-		rebuyCost?: number;
-		rebuyCount?: number;
-		totalEntries?: number;
-		tournamentBuyIn?: number;
-	};
+interface TournamentFieldsDefaultValues {
+	addonCost?: number;
+	bountyPrizes?: number;
+	entryFee?: number;
+	placement?: number;
+	prizeMoney?: number;
+	rebuyCost?: number;
+	rebuyCount?: number;
+	totalEntries?: number;
+	tournamentBuyIn?: number;
 }
 
-export function TournamentFields({ defaultValues }: TournamentFieldsProps) {
+interface TournamentFieldsProps {
+	defaultValues?: TournamentFieldsDefaultValues;
+}
+
+interface TournamentDetailFieldsProps extends TournamentFieldsProps {
+	currencies?: Array<{ id: string; name: string }>;
+	onCurrencyChange?: (id: string | undefined) => void;
+	selectedCurrencyId?: string;
+}
+
+const NONE_VALUE = "__none__";
+
+export function TournamentPrimaryFields({
+	defaultValues,
+}: TournamentFieldsProps) {
 	return (
 		<>
 			{/* Tournament Buy-in / Entry Fee */}
@@ -49,6 +68,20 @@ export function TournamentFields({ defaultValues }: TournamentFieldsProps) {
 				</div>
 			</div>
 
+			{/* Prize Money */}
+			<div className="flex flex-col gap-2">
+				<Label htmlFor="prizeMoney">Prize Money</Label>
+				<Input
+					defaultValue={defaultValues?.prizeMoney}
+					id="prizeMoney"
+					inputMode="numeric"
+					min={0}
+					name="prizeMoney"
+					placeholder="0"
+					type="number"
+				/>
+			</div>
+
 			{/* Placement / Total Entries */}
 			<div className="grid grid-cols-2 gap-3">
 				<div className="flex flex-col gap-2">
@@ -76,20 +109,45 @@ export function TournamentFields({ defaultValues }: TournamentFieldsProps) {
 					/>
 				</div>
 			</div>
+		</>
+	);
+}
 
-			{/* Prize Money */}
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="prizeMoney">Prize Money</Label>
-				<Input
-					defaultValue={defaultValues?.prizeMoney}
-					id="prizeMoney"
-					inputMode="numeric"
-					min={0}
-					name="prizeMoney"
-					placeholder="0"
-					type="number"
-				/>
-			</div>
+export function TournamentDetailFields({
+	currencies,
+	defaultValues,
+	onCurrencyChange,
+	selectedCurrencyId,
+}: TournamentDetailFieldsProps) {
+	return (
+		<>
+			{/* Currency Selector */}
+			{currencies && currencies.length > 0 && (
+				<div className="flex flex-col gap-2">
+					<Label>Currency</Label>
+					<Select
+						onValueChange={(v) =>
+							onCurrencyChange?.(v === NONE_VALUE ? undefined : v)
+						}
+						value={selectedCurrencyId ?? NONE_VALUE}
+					>
+						<SelectTrigger>
+							<SelectValue placeholder="Select a currency" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value={NONE_VALUE}>None</SelectItem>
+							{currencies.map((c) => (
+								<SelectItem key={c.id} value={c.id}>
+									{c.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<p className="text-muted-foreground text-xs">
+						Auto-generates a transaction with the session&apos;s P&L.
+					</p>
+				</div>
+			)}
 
 			{/* Rebuy Count / Rebuy Cost */}
 			<div className="grid grid-cols-2 gap-3">
@@ -146,6 +204,15 @@ export function TournamentFields({ defaultValues }: TournamentFieldsProps) {
 					/>
 				</div>
 			</div>
+		</>
+	);
+}
+
+export function TournamentFields({ defaultValues }: TournamentFieldsProps) {
+	return (
+		<>
+			<TournamentPrimaryFields defaultValues={defaultValues} />
+			<TournamentDetailFields defaultValues={defaultValues} />
 		</>
 	);
 }

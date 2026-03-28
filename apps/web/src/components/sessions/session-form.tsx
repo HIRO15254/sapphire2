@@ -6,7 +6,10 @@ import { TagInput } from "@/components/ui/tag-input";
 import { CashGameFields } from "./cash-game-fields";
 import { FormAccordion } from "./form-section";
 import { StoreGameSelectors } from "./link-selectors";
-import { TournamentFields } from "./tournament-fields";
+import {
+	TournamentDetailFields,
+	TournamentPrimaryFields,
+} from "./tournament-fields";
 
 interface CashGameFormValues {
 	ante?: number;
@@ -18,6 +21,7 @@ interface CashGameFormValues {
 	cashOut: number;
 	currencyId?: string;
 	endTime?: string;
+	evCashOut?: number;
 	memo?: string;
 	ringGameId?: string;
 	sessionDate: string;
@@ -87,6 +91,7 @@ interface SessionFormDefaults {
 	currencyId?: string;
 	endTime?: string;
 	entryFee?: number;
+	evCashOut?: number;
 	memo?: string;
 	placement?: number;
 	prizeMoney?: number;
@@ -145,6 +150,7 @@ function parseCashGameFields(
 		type: "cash_game",
 		buyIn: Number(formData.get("buyIn")),
 		cashOut: Number(formData.get("cashOut")),
+		evCashOut: parseOptionalInt(formData.get("evCashOut") as string),
 		variant: (formData.get("variant") as string) || "nlh",
 		blind1: parseOptionalInt(formData.get("blind1") as string),
 		blind2: parseOptionalInt(formData.get("blind2") as string),
@@ -255,9 +261,12 @@ function SessionFormFields({
 			selectedCurrencyId={selectedCurrencyId}
 		/>
 	) : (
-		<TournamentFields
+		<TournamentDetailFields
+			currencies={currencies}
 			defaultValues={effectiveDefaults}
-			key={`tourney-${selectedGameId ?? "none"}`}
+			key={`tourney-detail-${selectedGameId ?? "none"}`}
+			onCurrencyChange={setSelectedCurrencyId}
+			selectedCurrencyId={selectedCurrencyId}
 		/>
 	);
 
@@ -343,38 +352,64 @@ function SessionFormFields({
 
 				{/* Buy-in / Cash-out (cash game only) */}
 				{isCashGame && (
-					<div className="grid grid-cols-2 gap-3">
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="buyIn">
-								Buy-in <span className="text-destructive">*</span>
-							</Label>
-							<Input
-								defaultValue={defaultValues?.buyIn}
-								id="buyIn"
-								inputMode="numeric"
-								min={0}
-								name="buyIn"
-								placeholder="0"
-								required
-								type="number"
-							/>
+					<>
+						<div className="grid grid-cols-2 gap-3">
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="buyIn">
+									Buy-in <span className="text-destructive">*</span>
+								</Label>
+								<Input
+									defaultValue={defaultValues?.buyIn}
+									id="buyIn"
+									inputMode="numeric"
+									min={0}
+									name="buyIn"
+									placeholder="0"
+									required
+									type="number"
+								/>
+							</div>
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="cashOut">
+									Cash-out <span className="text-destructive">*</span>
+								</Label>
+								<Input
+									defaultValue={defaultValues?.cashOut}
+									id="cashOut"
+									inputMode="numeric"
+									min={0}
+									name="cashOut"
+									placeholder="0"
+									required
+									type="number"
+								/>
+							</div>
 						</div>
 						<div className="flex flex-col gap-2">
-							<Label htmlFor="cashOut">
-								Cash-out <span className="text-destructive">*</span>
-							</Label>
+							<Label htmlFor="evCashOut">EV Cash-out</Label>
 							<Input
-								defaultValue={defaultValues?.cashOut}
-								id="cashOut"
+								defaultValue={defaultValues?.evCashOut}
+								id="evCashOut"
 								inputMode="numeric"
 								min={0}
-								name="cashOut"
+								name="evCashOut"
 								placeholder="0"
-								required
 								type="number"
 							/>
+							<p className="text-muted-foreground text-xs">
+								Expected value cash-out based on all-in equity. Leave empty if
+								not tracking EV.
+							</p>
 						</div>
-					</div>
+					</>
+				)}
+
+				{/* Tournament primary fields (outside accordion) */}
+				{!isCashGame && (
+					<TournamentPrimaryFields
+						defaultValues={effectiveDefaults}
+						key={`tourney-primary-${selectedGameId ?? "none"}`}
+					/>
 				)}
 			</div>
 

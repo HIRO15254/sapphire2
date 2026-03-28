@@ -12,7 +12,7 @@ import {
 } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -299,6 +299,7 @@ const cashGameCreateSchema = z.object({
 	sessionDate: z.number(),
 	buyIn: z.number().int().min(0),
 	cashOut: z.number().int().min(0),
+	evCashOut: z.number().int().min(0).optional(),
 	// Links (all optional)
 	storeId: z.string().optional(),
 	ringGameId: z.string().optional(),
@@ -367,6 +368,7 @@ function buildCashGameSessionValues(
 	return {
 		buyIn: input.buyIn,
 		cashOut: input.cashOut,
+		evCashOut: input.evCashOut ?? null,
 		ringGameId,
 	};
 }
@@ -412,6 +414,7 @@ const SESSION_UPDATE_FIELDS = [
 	"rebuyCost",
 	"addonCost",
 	"bountyPrizes",
+	"evCashOut",
 	"memo",
 ] as const;
 
@@ -508,6 +511,226 @@ async function buildCreateValues(
 	return { linkValues, typeValues: buildTournamentSessionValues(input) };
 }
 
+function buildFilterConditions(
+	userId: string,
+	filters: {
+		currencyId?: string;
+		dateFrom?: number;
+		dateTo?: number;
+		storeId?: string;
+		type?: "cash_game" | "tournament";
+	}
+) {
+	const conditions = [eq(pokerSession.userId, userId)];
+	if (filters.type) {
+		conditions.push(eq(pokerSession.type, filters.type));
+	}
+	if (filters.storeId) {
+		conditions.push(eq(pokerSession.storeId, filters.storeId));
+	}
+	if (filters.currencyId) {
+		conditions.push(eq(pokerSession.currencyId, filters.currencyId));
+	}
+	if (filters.dateFrom !== undefined) {
+		conditions.push(
+			gte(pokerSession.sessionDate, new Date(filters.dateFrom * 1000))
+		);
+	}
+	if (filters.dateTo !== undefined) {
+		conditions.push(
+			lte(pokerSession.sessionDate, new Date(filters.dateTo * 1000))
+		);
+	}
+	return conditions;
+}
+
+interface SessionSummary {
+	avgPlacement: number | null;
+	avgProfitLoss: number | null;
+	itmRate: number | null;
+	totalEvDiff: number | null;
+	totalEvProfitLoss: number | null;
+	totalPrizeMoney: number | null;
+	totalProfitLoss: number;
+	totalSessions: number;
+	winRate: number;
+}
+
+interface SummarySessionRow {
+	addonCost: number | null;
+	bountyPrizes: number | null;
+	buyIn: number | null;
+	cashOut: number | null;
+	entryFee: number | null;
+	evCashOut: number | null;
+	placement: number | null;
+	prizeMoney: number | null;
+	rebuyCost: number | null;
+	rebuyCount: number | null;
+	totalEntries: number | null;
+	type: string;
+}
+
+function computeSessionPLFromRow(s: SummarySessionRow): number {
+	if (s.type === "cash_game" && s.buyIn !== null && s.cashOut !== null) {
+		return computeCashGamePL(s.buyIn, s.cashOut);
+	}
+	return computeTournamentPL(
+		s.buyIn,
+		s.entryFee,
+		s.rebuyCount,
+		s.rebuyCost,
+		s.addonCost,
+		s.prizeMoney,
+		s.bountyPrizes
+	);
+}
+
+function aggregateSessions(allSessions: SummarySessionRow[]) {
+	let totalProfitLoss = 0;
+	let winCount = 0;
+	let tournamentCount = 0;
+	let totalPlacement = 0;
+	let placementCount = 0;
+	let totalPrize = 0;
+	let itmCount = 0;
+	let totalEvProfitLoss = 0;
+	let totalEvDiff = 0;
+	let evSessionCount = 0;
+
+	for (const s of allSessions) {
+		const pl = computeSessionPLFromRow(s);
+		totalProfitLoss += pl;
+		if (pl > 0) {
+			winCount++;
+		}
+
+		accumulateEvMetrics(
+			s,
+			pl,
+			{ totalEvProfitLoss, totalEvDiff, evSessionCount },
+			(ev) => {
+				totalEvProfitLoss = ev.totalEvProfitLoss;
+				totalEvDiff = ev.totalEvDiff;
+				evSessionCount = ev.evSessionCount;
+			}
+		);
+
+		if (s.type === "tournament") {
+			tournamentCount++;
+			if (s.placement !== null) {
+				totalPlacement += s.placement;
+				placementCount++;
+			}
+			const prize = (s.prizeMoney ?? 0) + (s.bountyPrizes ?? 0);
+			totalPrize += prize;
+			if (prize > 0) {
+				itmCount++;
+			}
+		}
+	}
+
+	return {
+		totalProfitLoss,
+		winCount,
+		tournamentCount,
+		totalPlacement,
+		placementCount,
+		totalPrize,
+		itmCount,
+		totalEvProfitLoss,
+		totalEvDiff,
+		evSessionCount,
+	};
+}
+
+function accumulateEvMetrics(
+	s: SummarySessionRow,
+	pl: number,
+	current: {
+		totalEvProfitLoss: number;
+		totalEvDiff: number;
+		evSessionCount: number;
+	},
+	update: (ev: {
+		totalEvProfitLoss: number;
+		totalEvDiff: number;
+		evSessionCount: number;
+	}) => void
+) {
+	if (s.type !== "cash_game" || s.evCashOut === null || s.buyIn === null) {
+		return;
+	}
+	const evPl = s.evCashOut - s.buyIn;
+	update({
+		totalEvProfitLoss: current.totalEvProfitLoss + evPl,
+		totalEvDiff: current.totalEvDiff + (evPl - pl),
+		evSessionCount: current.evSessionCount + 1,
+	});
+}
+
+const EMPTY_SUMMARY: SessionSummary = {
+	totalSessions: 0,
+	totalProfitLoss: 0,
+	winRate: 0,
+	avgProfitLoss: null,
+	avgPlacement: null,
+	totalPrizeMoney: null,
+	itmRate: null,
+	totalEvProfitLoss: null,
+	totalEvDiff: null,
+};
+
+async function computeSummary(
+	db: DbInstance,
+	filterConditions: ReturnType<typeof buildFilterConditions>,
+	typeFilter?: "cash_game" | "tournament"
+): Promise<SessionSummary> {
+	const allSessions = await db
+		.select({
+			type: pokerSession.type,
+			buyIn: pokerSession.buyIn,
+			cashOut: pokerSession.cashOut,
+			evCashOut: pokerSession.evCashOut,
+			entryFee: pokerSession.entryFee,
+			rebuyCount: pokerSession.rebuyCount,
+			rebuyCost: pokerSession.rebuyCost,
+			addonCost: pokerSession.addonCost,
+			prizeMoney: pokerSession.prizeMoney,
+			bountyPrizes: pokerSession.bountyPrizes,
+			placement: pokerSession.placement,
+			totalEntries: pokerSession.totalEntries,
+		})
+		.from(pokerSession)
+		.where(and(...filterConditions));
+
+	const totalSessions = allSessions.length;
+	if (totalSessions === 0) {
+		return EMPTY_SUMMARY;
+	}
+
+	const agg = aggregateSessions(allSessions);
+	const isTournament = typeFilter === "tournament";
+
+	return {
+		totalSessions,
+		totalProfitLoss: agg.totalProfitLoss,
+		winRate: (agg.winCount / totalSessions) * 100,
+		avgProfitLoss: agg.totalProfitLoss / totalSessions,
+		avgPlacement:
+			isTournament && agg.placementCount > 0
+				? agg.totalPlacement / agg.placementCount
+				: null,
+		totalPrizeMoney: isTournament ? agg.totalPrize : null,
+		itmRate:
+			isTournament && agg.tournamentCount > 0
+				? (agg.itmCount / agg.tournamentCount) * 100
+				: null,
+		totalEvProfitLoss: agg.evSessionCount > 0 ? agg.totalEvProfitLoss : null,
+		totalEvDiff: agg.evSessionCount > 0 ? agg.totalEvDiff : null,
+	};
+}
+
 export const sessionRouter = router({
 	create: protectedProcedure
 		.input(createInputSchema)
@@ -551,6 +774,12 @@ export const sessionRouter = router({
 					.select()
 					.from(pokerSession)
 					.where(eq(pokerSession.id, id));
+				if (!session) {
+					throw new TRPCError({
+						code: "INTERNAL_SERVER_ERROR",
+						message: "Session not found after creation",
+					});
+				}
 				const pl = computeSessionPL(session);
 				await createCurrencyTransactionForSession(
 					ctx.db,
@@ -570,12 +799,23 @@ export const sessionRouter = router({
 		}),
 
 	list: protectedProcedure
-		.input(z.object({ cursor: z.string().optional() }))
+		.input(
+			z.object({
+				cursor: z.string().optional(),
+				type: z.enum(["cash_game", "tournament"]).optional(),
+				storeId: z.string().optional(),
+				currencyId: z.string().optional(),
+				dateFrom: z.number().optional(),
+				dateTo: z.number().optional(),
+			})
+		)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const conditions = [eq(pokerSession.userId, userId)];
+
+			const filterConditions = buildFilterConditions(userId, input);
+			const paginationConditions = [...filterConditions];
 			if (input.cursor) {
-				conditions.push(lt(pokerSession.id, input.cursor));
+				paginationConditions.push(lt(pokerSession.id, input.cursor));
 			}
 
 			const data = await ctx.db
@@ -585,6 +825,7 @@ export const sessionRouter = router({
 					sessionDate: pokerSession.sessionDate,
 					buyIn: pokerSession.buyIn,
 					cashOut: pokerSession.cashOut,
+					evCashOut: pokerSession.evCashOut,
 					tournamentBuyIn: pokerSession.tournamentBuyIn,
 					entryFee: pokerSession.entryFee,
 					placement: pokerSession.placement,
@@ -605,6 +846,7 @@ export const sessionRouter = router({
 					tournamentName: tournament.name,
 					currencyId: pokerSession.currencyId,
 					currencyName: currency.name,
+					currencyUnit: currency.unit,
 					createdAt: pokerSession.createdAt,
 				})
 				.from(pokerSession)
@@ -612,7 +854,7 @@ export const sessionRouter = router({
 				.leftJoin(ringGame, eq(ringGame.id, pokerSession.ringGameId))
 				.leftJoin(tournament, eq(tournament.id, pokerSession.tournamentId))
 				.leftJoin(currency, eq(currency.id, pokerSession.currencyId))
-				.where(and(...conditions))
+				.where(and(...paginationConditions))
 				.orderBy(desc(pokerSession.sessionDate), desc(pokerSession.id))
 				.limit(PAGE_SIZE + 1);
 
@@ -622,12 +864,18 @@ export const sessionRouter = router({
 
 			const itemsWithPL = items.map((item) => {
 				let profitLoss: number | null = null;
+				let evProfitLoss: number | null = null;
+				let evDiff: number | null = null;
 				if (
 					item.type === "cash_game" &&
 					item.buyIn !== null &&
 					item.cashOut !== null
 				) {
 					profitLoss = computeCashGamePL(item.buyIn, item.cashOut);
+					if (item.evCashOut !== null) {
+						evProfitLoss = item.evCashOut - item.buyIn;
+						evDiff = evProfitLoss - profitLoss;
+					}
 				} else if (item.type === "tournament") {
 					profitLoss = computeTournamentPL(
 						item.tournamentBuyIn,
@@ -639,7 +887,7 @@ export const sessionRouter = router({
 						item.bountyPrizes
 					);
 				}
-				return { ...item, profitLoss };
+				return { ...item, profitLoss, evProfitLoss, evDiff };
 			});
 
 			const sessionIds = itemsWithPL.map((item) => item.id);
@@ -666,7 +914,14 @@ export const sessionRouter = router({
 					.map((tl) => ({ id: tl.tagId, name: tl.tagName })),
 			}));
 
-			return { items: itemsWithTags, nextCursor };
+			// Summary aggregation
+			const summary = await computeSummary(
+				ctx.db,
+				filterConditions,
+				input.type
+			);
+
+			return { items: itemsWithTags, nextCursor, summary };
 		}),
 
 	getById: protectedProcedure
@@ -690,6 +945,7 @@ export const sessionRouter = router({
 				// Cash game fields
 				buyIn: z.number().int().min(0).optional(),
 				cashOut: z.number().int().min(0).optional(),
+				evCashOut: z.number().int().min(0).nullable().optional(),
 				// Tournament fields
 				tournamentBuyIn: z.number().int().min(0).optional(),
 				entryFee: z.number().int().min(0).optional(),
@@ -798,6 +1054,13 @@ export const sessionRouter = router({
 				.select()
 				.from(pokerSession)
 				.where(eq(pokerSession.id, input.id));
+
+			if (!updated) {
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Session not found after update",
+				});
+			}
 
 			const pl = computeSessionPL(updated);
 			await syncCurrencyTransaction(

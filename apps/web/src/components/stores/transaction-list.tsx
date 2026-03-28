@@ -47,10 +47,8 @@ export function TransactionList({
 				const amountDisplay = isPositive
 					? `+${fmt(tx.amount)}`
 					: fmt(tx.amount);
-				const dateDisplay = new Date(tx.transactedAt).toLocaleDateString(
-					"en-US",
-					{ year: "numeric", month: "short", day: "numeric" }
-				);
+				const txDate = new Date(tx.transactedAt);
+				const dateDisplay = `${txDate.getFullYear()}/${String(txDate.getMonth() + 1).padStart(2, "0")}/${String(txDate.getDate()).padStart(2, "0")}`;
 				const isSessionGenerated = !!tx.sessionId;
 
 				return (
