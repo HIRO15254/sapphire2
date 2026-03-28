@@ -120,7 +120,7 @@ describe("SessionCard", () => {
 		expect(plElement.className).toContain("text-red-600");
 	});
 
-	it("displays EV P&L and EV diff when evCashOut is set", () => {
+	it("displays EV P&L when evCashOut is set", () => {
 		const session = makeCashGameSession({
 			evCashOut: 12_000,
 			evProfitLoss: 2000,
@@ -131,7 +131,6 @@ describe("SessionCard", () => {
 		);
 
 		expect(screen.getByText("+2k")).toBeInTheDocument();
-		expect(screen.getByText("-3k")).toBeInTheDocument();
 	});
 
 	it("does not display EV metrics when evCashOut is null", () => {
@@ -184,7 +183,6 @@ describe("SessionCard", () => {
 
 		expect(screen.getByText("EV Cash-out")).toBeInTheDocument();
 		expect(screen.getByText("EV P&L")).toBeInTheDocument();
-		expect(screen.getByText("EV Diff")).toBeInTheDocument();
 	});
 
 	it("displays session tags as badges", () => {

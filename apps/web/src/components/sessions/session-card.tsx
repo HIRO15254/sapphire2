@@ -130,12 +130,6 @@ function CashGameDetails({
 			value: `${session.evProfitLoss >= 0 ? "+" : ""}${formatCompactNumber(session.evProfitLoss)}`,
 		});
 	}
-	if (session.evDiff !== null) {
-		rows.push({
-			label: "EV Diff",
-			value: `${session.evDiff >= 0 ? "+" : ""}${formatCompactNumber(session.evDiff)}`,
-		});
-	}
 	if (session.currencyName) {
 		rows.push({ label: "Currency", value: session.currencyName });
 	}
@@ -253,34 +247,18 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 						</span>
 					</div>
 
-					{/* Row 2: EV diff (cash game with EV data) or tournament placement or memo */}
+					{/* Row 2: EV P&L (cash game with EV data) or tournament placement or memo */}
 					{!isTournament && session.evProfitLoss !== null && (
-						<div className="mt-0.5 flex items-center gap-2 text-xs">
-							<span className="text-muted-foreground">
-								EV{" "}
-								<span
-									className={
-										session.evProfitLoss >= 0
-											? "text-green-600"
-											: "text-red-600"
-									}
-								>
-									{formatProfitLoss(session.evProfitLoss, session.currencyUnit)}
-								</span>
+						<p className="mt-0.5 text-muted-foreground text-xs">
+							EV{" "}
+							<span
+								className={
+									session.evProfitLoss >= 0 ? "text-green-600" : "text-red-600"
+								}
+							>
+								{formatProfitLoss(session.evProfitLoss, session.currencyUnit)}
 							</span>
-							{session.evDiff !== null && (
-								<span className="text-muted-foreground">
-									Diff{" "}
-									<span
-										className={
-											session.evDiff >= 0 ? "text-green-600" : "text-red-600"
-										}
-									>
-										{formatProfitLoss(session.evDiff, session.currencyUnit)}
-									</span>
-								</span>
-							)}
-						</div>
+						</p>
 					)}
 					{isTournament && session.placement !== null && (
 						<p className="mt-0.5 text-muted-foreground text-xs">
