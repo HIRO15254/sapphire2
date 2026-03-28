@@ -91,7 +91,7 @@ describe("SessionCard", () => {
 		);
 
 		expect(screen.getByText("NLH 1/2")).toBeInTheDocument();
-		expect(screen.getByText("CG")).toBeInTheDocument();
+		expect(screen.getByText("Cash")).toBeInTheDocument();
 		expect(screen.getByText("+5k")).toBeInTheDocument();
 	});
 
@@ -102,7 +102,7 @@ describe("SessionCard", () => {
 		);
 
 		expect(screen.getByText("Sunday Major")).toBeInTheDocument();
-		expect(screen.getByText("T")).toBeInTheDocument();
+		expect(screen.getByText("Tourney")).toBeInTheDocument();
 		expect(screen.getByText("+14k")).toBeInTheDocument();
 		expect(screen.getByText("3/50 place")).toBeInTheDocument();
 	});

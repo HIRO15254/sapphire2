@@ -1,10 +1,12 @@
 import {
 	IconCalendar,
+	IconCards,
 	IconChevronDown,
 	IconChevronUp,
 	IconEdit,
 	IconMapPin,
 	IconTrash,
+	IconTrophy,
 	IconX,
 } from "@tabler/icons-react";
 import { useState } from "react";
@@ -230,36 +232,51 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 			<div className="flex items-start gap-2 p-3">
 				<div className="min-w-0 flex-1">
 					{/* Row 1: Game name + badges ... P&L */}
-					<div className="flex items-center gap-1.5">
-						<span className="truncate font-medium text-sm">{gameName}</span>
-						<span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-							{isTournament ? "T" : "CG"}
-						</span>
-						{session.tags.map((tag) => (
-							<Badge className="shrink-0" key={tag.id} variant="outline">
-								{tag.name}
+					<div className="flex items-start gap-1.5">
+						<div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+							<span className="truncate font-medium text-sm">{gameName}</span>
+							<Badge
+								className={`shrink-0 gap-0.5 ${isTournament ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}
+								variant="outline"
+							>
+								{isTournament ? (
+									<IconTrophy size={10} />
+								) : (
+									<IconCards size={10} />
+								)}
+								{isTournament ? "Tourney" : "Cash"}
 							</Badge>
-						))}
-						<span
-							className={`ml-auto shrink-0 font-semibold text-sm ${profitColorClass}`}
-						>
-							{formatProfitLoss(profitLoss, session.currencyUnit)}
-						</span>
+							{session.tags.map((tag) => (
+								<Badge className="shrink-0" key={tag.id} variant="outline">
+									{tag.name}
+								</Badge>
+							))}
+						</div>
+						<div className="flex shrink-0 flex-col items-end">
+							<span className={`font-semibold text-sm ${profitColorClass}`}>
+								{formatProfitLoss(profitLoss, session.currencyUnit)}
+							</span>
+							{!isTournament && session.evProfitLoss !== null && (
+								<span className="text-[10px] text-muted-foreground">
+									EV{" "}
+									<span
+										className={
+											session.evProfitLoss >= 0
+												? "text-green-600"
+												: "text-red-600"
+										}
+									>
+										{formatProfitLoss(
+											session.evProfitLoss,
+											session.currencyUnit
+										)}
+									</span>
+								</span>
+							)}
+						</div>
 					</div>
 
-					{/* Row 2: EV P&L (cash game with EV data) or tournament placement or memo */}
-					{!isTournament && session.evProfitLoss !== null && (
-						<p className="mt-0.5 text-muted-foreground text-xs">
-							EV{" "}
-							<span
-								className={
-									session.evProfitLoss >= 0 ? "text-green-600" : "text-red-600"
-								}
-							>
-								{formatProfitLoss(session.evProfitLoss, session.currencyUnit)}
-							</span>
-						</p>
-					)}
+					{/* Row 2: Tournament placement or memo */}
 					{isTournament && session.placement !== null && (
 						<p className="mt-0.5 text-muted-foreground text-xs">
 							{session.placement}
@@ -267,14 +284,11 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 							{" place"}
 						</p>
 					)}
-					{!isTournament &&
-						session.evProfitLoss === null &&
-						session.memo &&
-						!expanded && (
-							<p className="mt-0.5 truncate text-muted-foreground text-xs">
-								{session.memo}
-							</p>
-						)}
+					{!isTournament && session.memo && !expanded && (
+						<p className="mt-0.5 truncate text-muted-foreground text-xs">
+							{session.memo}
+						</p>
+					)}
 
 					{/* Row 3: Store + Date with icons */}
 					<div className="mt-1 flex items-center gap-3 text-muted-foreground text-xs">
