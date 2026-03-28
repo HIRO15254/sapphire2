@@ -231,7 +231,7 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 		<div className="rounded-lg border bg-card">
 			<div className="flex items-start gap-2 p-3">
 				<div className="min-w-0 flex-1">
-					{/* Row 1: Game name + badges ... P&L */}
+					{/* Row 1: Game name + badges ... P&L (+ EV) */}
 					<div className="flex items-start gap-1.5">
 						<div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
 							<span className="truncate font-medium text-sm">{gameName}</span>
@@ -253,11 +253,13 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 							))}
 						</div>
 						<div className="flex shrink-0 flex-col items-end">
-							<span className={`font-semibold text-sm ${profitColorClass}`}>
+							<span
+								className={`font-semibold text-sm leading-5 ${profitColorClass}`}
+							>
 								{formatProfitLoss(profitLoss, session.currencyUnit)}
 							</span>
 							{!isTournament && session.evProfitLoss !== null && (
-								<span className="text-[10px] text-muted-foreground">
+								<span className="text-[10px] text-muted-foreground leading-3">
 									EV{" "}
 									<span
 										className={
@@ -276,17 +278,12 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 						</div>
 					</div>
 
-					{/* Row 2: Tournament placement or memo */}
+					{/* Row 2: Tournament placement */}
 					{isTournament && session.placement !== null && (
 						<p className="mt-0.5 text-muted-foreground text-xs">
 							{session.placement}
 							{session.totalEntries !== null ? `/${session.totalEntries}` : ""}
 							{" place"}
-						</p>
-					)}
-					{!isTournament && session.memo && !expanded && (
-						<p className="mt-0.5 truncate text-muted-foreground text-xs">
-							{session.memo}
 						</p>
 					)}
 
@@ -303,6 +300,13 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 							{formatSessionDate(session.sessionDate)}
 						</span>
 					</div>
+
+					{/* Row 4: Memo (below store/date) */}
+					{session.memo && !expanded && (
+						<p className="mt-0.5 truncate text-muted-foreground text-xs">
+							{session.memo}
+						</p>
+					)}
 				</div>
 
 				{/* Chevron toggle */}
