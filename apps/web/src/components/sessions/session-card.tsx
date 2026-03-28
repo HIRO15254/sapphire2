@@ -251,13 +251,6 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 							</Badge>
 						))}
 					</div>
-					{isTournament && session.placement !== null && (
-						<p className="mt-0.5 text-muted-foreground text-xs">
-							{session.placement}
-							{session.totalEntries !== null ? `/${session.totalEntries}` : ""}
-							{" place"}
-						</p>
-					)}
 					<div className="mt-1 flex items-center gap-3 text-muted-foreground text-xs">
 						{session.storeName && (
 							<span className="flex max-w-[120px] items-center gap-0.5">
@@ -277,11 +270,18 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 					)}
 				</div>
 
-				{/* Right column: P&L */}
+				{/* Right column: P&L + sub info */}
 				<div className="flex shrink-0 flex-col items-end">
 					<span className={`font-semibold text-sm ${profitColorClass}`}>
 						{formatProfitLoss(profitLoss, session.currencyUnit)}
 					</span>
+					{isTournament && session.placement !== null && (
+						<span className="text-[10px] text-muted-foreground">
+							{session.placement}
+							{session.totalEntries !== null ? `/${session.totalEntries}` : ""}
+							{" place"}
+						</span>
+					)}
 					{!isTournament && session.evProfitLoss !== null && (
 						<span className="text-[10px] text-muted-foreground">
 							EV{" "}
@@ -325,7 +325,7 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 							<CashGameDetails session={session} />
 						)}
 						{session.memo && (
-							<div className="mt-1 border-t pt-1">
+							<div className="mt-2 border-t pt-2">
 								<p className="whitespace-pre-wrap text-muted-foreground">
 									{session.memo}
 								</p>
