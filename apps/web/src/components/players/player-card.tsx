@@ -1,5 +1,6 @@
 import { IconEdit, IconTrash, IconX } from "@tabler/icons-react";
 import { useState } from "react";
+import { ColorBadge } from "@/components/players/color-badge";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -77,7 +78,17 @@ export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
 					)}
 				</CardAction>
 			</CardHeader>
-			<CardContent />
+			<CardContent>
+				{player.tags.length > 0 && (
+					<div className="flex flex-wrap gap-1">
+						{player.tags.map((tag) => (
+							<ColorBadge color={tag.color} key={tag.id}>
+								{tag.name}
+							</ColorBadge>
+						))}
+					</div>
+				)}
+			</CardContent>
 		</Card>
 	);
 }
