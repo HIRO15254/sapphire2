@@ -55,6 +55,7 @@ export const playerToPlayerTag = sqliteTable(
 		playerTagId: text("player_tag_id")
 			.notNull()
 			.references(() => playerTag.id, { onDelete: "cascade" }),
+		position: integer("position").notNull().default(0),
 	},
 	(table) => [primaryKey({ columns: [table.playerId, table.playerTagId] })]
 );

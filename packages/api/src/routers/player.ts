@@ -4,7 +4,7 @@ import {
 	playerToPlayerTag,
 } from "@sapphire2/db/schema/player";
 import { TRPCError } from "@trpc/server";
-import { and, eq, inArray, like } from "drizzle-orm";
+import { and, asc, eq, inArray, like } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -61,7 +61,8 @@ export const playerRouter = router({
 				})
 				.from(playerToPlayerTag)
 				.innerJoin(playerTag, eq(playerToPlayerTag.playerTagId, playerTag.id))
-				.where(inArray(playerToPlayerTag.playerId, allPlayerIds));
+				.where(inArray(playerToPlayerTag.playerId, allPlayerIds))
+				.orderBy(asc(playerToPlayerTag.position));
 
 			const tagsByPlayer = new Map<
 				string,
@@ -114,7 +115,8 @@ export const playerRouter = router({
 				})
 				.from(playerToPlayerTag)
 				.innerJoin(playerTag, eq(playerToPlayerTag.playerTagId, playerTag.id))
-				.where(eq(playerToPlayerTag.playerId, found.id));
+				.where(eq(playerToPlayerTag.playerId, found.id))
+				.orderBy(asc(playerToPlayerTag.position));
 
 			return {
 				...found,
@@ -148,9 +150,10 @@ export const playerRouter = router({
 
 			if (input.tagIds && input.tagIds.length > 0) {
 				await ctx.db.insert(playerToPlayerTag).values(
-					input.tagIds.map((tagId) => ({
+					input.tagIds.map((tagId, index) => ({
 						playerId: id,
 						playerTagId: tagId,
+						position: index,
 					}))
 				);
 			}
@@ -168,7 +171,8 @@ export const playerRouter = router({
 				})
 				.from(playerToPlayerTag)
 				.innerJoin(playerTag, eq(playerToPlayerTag.playerTagId, playerTag.id))
-				.where(eq(playerToPlayerTag.playerId, id));
+				.where(eq(playerToPlayerTag.playerId, id))
+				.orderBy(asc(playerToPlayerTag.position));
 
 			return {
 				...created,
@@ -224,9 +228,10 @@ export const playerRouter = router({
 					.where(eq(playerToPlayerTag.playerId, input.id));
 				if (input.tagIds.length > 0) {
 					await ctx.db.insert(playerToPlayerTag).values(
-						input.tagIds.map((tagId) => ({
+						input.tagIds.map((tagId, index) => ({
 							playerId: input.id,
 							playerTagId: tagId,
+							position: index,
 						}))
 					);
 				}
@@ -245,7 +250,8 @@ export const playerRouter = router({
 				})
 				.from(playerToPlayerTag)
 				.innerJoin(playerTag, eq(playerToPlayerTag.playerTagId, playerTag.id))
-				.where(eq(playerToPlayerTag.playerId, input.id));
+				.where(eq(playerToPlayerTag.playerId, input.id))
+				.orderBy(asc(playerToPlayerTag.position));
 
 			return {
 				...updated,
