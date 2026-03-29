@@ -58,7 +58,10 @@ function PlayersPage() {
 
 	const createMutation = useMutation({
 		mutationFn: (values: PlayerFormValues) =>
-			trpcClient.player.create.mutate(values),
+			trpcClient.player.create.mutate({
+				...values,
+				memo: values.memo ?? undefined,
+			}),
 		onMutate: async (newPlayer) => {
 			await queryClient.cancelQueries({ queryKey: playerListKey });
 			const previous = queryClient.getQueryData(playerListKey);
@@ -76,7 +79,7 @@ function PlayersPage() {
 						{
 							id: `temp-${Date.now()}`,
 							name: newPlayer.name,
-							memo: null,
+							memo: newPlayer.memo ?? null,
 							tags: newTags,
 							createdAt: new Date().toISOString(),
 							updatedAt: new Date().toISOString(),
@@ -122,6 +125,7 @@ function PlayersPage() {
 						return {
 							...p,
 							name: updated.name,
+							memo: updated.memo ?? p.memo,
 							tags: newTags,
 						};
 					});
@@ -265,6 +269,7 @@ function PlayersPage() {
 				{editingPlayer && (
 					<PlayerForm
 						availableTags={availableTags}
+						defaultMemo={editingPlayer.memo}
 						defaultTags={editingPlayer.tags}
 						defaultValues={{ name: editingPlayer.name }}
 						isLoading={updateMutation.isPending}
