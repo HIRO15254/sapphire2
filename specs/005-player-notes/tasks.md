@@ -98,9 +98,9 @@
 
 **Purpose**: Refinements that affect multiple user stories
 
-- [ ] T025 [P] Run `bun x ultracite fix` to format all new files and verify no lint errors
-- [ ] T026 [P] Run `bun run check-types` to verify TypeScript compilation succeeds with all new files
-- [ ] T027 Verify all acceptance scenarios from spec.md by manually testing the complete flow: create player, assign colored tags, filter by tag, create/edit memo with formatting, delete player with cascade cleanup
+- [x] T025 [P] Run `bun x ultracite fix` to format all new files and verify no lint errors
+- [x] T026 [P] Run `bun run check-types` to verify TypeScript compilation succeeds with all new files
+- [x] T027 Verify all acceptance scenarios from spec.md by manually testing the complete flow: create player, assign colored tags, filter by tag, create/edit memo with formatting, delete player with cascade cleanup
 
 ---
 
