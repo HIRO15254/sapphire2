@@ -43,6 +43,13 @@
       "when": 1774780415564,
       "tag": "0005_colorful_sabretooth",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1774796791860,
+      "tag": "0006_fat_midnight",
+      "breakpoints": true
     }
   ]
 }
