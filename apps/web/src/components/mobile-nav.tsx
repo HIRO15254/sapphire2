@@ -2,9 +2,7 @@ import {
 	IconBuildingStore,
 	IconCards,
 	IconCoins,
-	IconHome,
 	IconLayoutDashboard,
-	IconSearch,
 	IconSettings,
 	IconUsers,
 } from "@tabler/icons-react";
@@ -18,13 +16,11 @@ export interface NavigationItem {
 }
 
 export const NAVIGATION_ITEMS: readonly NavigationItem[] = [
-	{ to: "/", label: "Home", icon: IconHome },
 	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
 	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
 	{ to: "/players", label: "Players", icon: IconUsers },
-	{ to: "/search", label: "Search", icon: IconSearch },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
