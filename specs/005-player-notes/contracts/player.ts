@@ -7,50 +7,50 @@
 
 // === Inputs ===
 
-interface PlayerCreateInput {
-  name: string; // min(1), max(100)
-  memo?: string; // HTML content, max(50000)
-  tagIds?: string[]; // optional initial tag assignments
+export interface PlayerCreateInput {
+	memo?: string; // HTML content, max(50000)
+	name: string; // min(1), max(100)
+	tagIds?: string[]; // optional initial tag assignments
 }
 
-interface PlayerUpdateInput {
-  id: string;
-  name?: string; // min(1), max(100)
-  memo?: string; // HTML content, max(50000)
-  tagIds?: string[]; // full replacement of tag assignments
+export interface PlayerUpdateInput {
+	id: string;
+	memo?: string; // HTML content, max(50000)
+	name?: string; // min(1), max(100)
+	tagIds?: string[]; // full replacement of tag assignments
 }
 
-interface PlayerDeleteInput {
-  id: string;
+export interface PlayerDeleteInput {
+	id: string;
 }
 
-interface PlayerGetByIdInput {
-  id: string;
+export interface PlayerGetByIdInput {
+	id: string;
 }
 
-interface PlayerListInput {
-  tagIds?: string[]; // filter by tags (AND logic)
-  search?: string; // search by name (partial match)
+export interface PlayerListInput {
+	search?: string; // search by name (partial match)
+	tagIds?: string[]; // filter by tags (AND logic)
 }
 
 // === Outputs ===
 
-interface PlayerListItem {
-  id: string;
-  name: string;
-  memo: string | null;
-  tags: Array<{ id: string; name: string; color: string }>;
-  createdAt: Date;
-  updatedAt: Date;
+export interface PlayerListItem {
+	createdAt: Date;
+	id: string;
+	memo: string | null;
+	name: string;
+	tags: Array<{ id: string; name: string; color: string }>;
+	updatedAt: Date;
 }
 
-interface PlayerDetail {
-  id: string;
-  name: string;
-  memo: string | null;
-  tags: Array<{ id: string; name: string; color: string }>;
-  createdAt: Date;
-  updatedAt: Date;
+export interface PlayerDetail {
+	createdAt: Date;
+	id: string;
+	memo: string | null;
+	name: string;
+	tags: Array<{ id: string; name: string; color: string }>;
+	updatedAt: Date;
 }
 
 // === Procedures ===

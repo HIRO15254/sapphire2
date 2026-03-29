@@ -17,8 +17,8 @@
 
 **Purpose**: Install dependencies and configure project for player notes feature
 
-- [ ] T001 Install Tiptap dependencies in apps/web: `bun add @tiptap/react @tiptap/starter-kit @tiptap/extension-link @tiptap/pm`
-- [ ] T002 Define TAG_COLORS preset constant (color names and Tailwind class mappings) in packages/db/src/constants/player-tag-colors.ts
+- [x] T001 Install Tiptap dependencies in apps/web: `bun add @tiptap/react @tiptap/starter-kit @tiptap/extension-link @tiptap/pm`
+- [x] T002 Define TAG_COLORS preset constant (color names and Tailwind class mappings) in packages/db/src/constants/player-tag-colors.ts
 
 ---
 
