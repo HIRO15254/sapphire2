@@ -2,6 +2,8 @@ import { protectedProcedure, publicProcedure, router } from "../index";
 import { blindLevelRouter } from "./blind-level";
 import { currencyRouter } from "./currency";
 import { currencyTransactionRouter } from "./currency-transaction";
+import { playerRouter } from "./player";
+import { playerTagRouter } from "./player-tag";
 import { ringGameRouter } from "./ring-game";
 import { sessionRouter } from "./session";
 import { sessionTagRouter } from "./session-tag";
@@ -28,5 +30,7 @@ export const appRouter = router({
 	blindLevel: blindLevelRouter,
 	session: sessionRouter,
 	sessionTag: sessionTagRouter,
+	player: playerRouter,
+	playerTag: playerTagRouter,
 });
 export type AppRouter = typeof appRouter;
