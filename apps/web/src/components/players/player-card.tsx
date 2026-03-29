@@ -70,7 +70,6 @@ function SafeHtml({ className, html }: { className?: string; html: string }) {
 interface PlayerCardProps {
 	onDelete: (id: string) => void;
 	onEdit: (player: PlayerCardProps["player"]) => void;
-	onMemo: (player: PlayerCardProps["player"]) => void;
 	player: {
 		createdAt: string;
 		id: string;
@@ -82,12 +81,7 @@ interface PlayerCardProps {
 	};
 }
 
-export function PlayerCard({
-	player,
-	onEdit,
-	onDelete,
-	onMemo,
-}: PlayerCardProps) {
+export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
 	const [expanded, setExpanded] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -174,10 +168,6 @@ export function PlayerCard({
 						</div>
 					) : (
 						<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
-							<Button onClick={() => onMemo(player)} size="xs" variant="ghost">
-								<IconNote size={14} />
-								Memo
-							</Button>
 							<Button onClick={() => onEdit(player)} size="xs" variant="ghost">
 								<IconEdit size={14} />
 								Edit

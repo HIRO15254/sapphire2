@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { PlayerMemoEditor } from "@/components/players/player-memo-editor";
 import { PlayerTagInput } from "@/components/players/player-tag-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,12 +12,14 @@ interface TagWithColor {
 }
 
 export interface PlayerFormValues {
+	memo?: string | null;
 	name: string;
 	tagIds?: string[];
 }
 
 interface PlayerFormProps {
 	availableTags?: TagWithColor[];
+	defaultMemo?: string | null;
 	defaultTags?: TagWithColor[];
 	defaultValues?: { name: string };
 	isLoading?: boolean;
@@ -26,6 +29,7 @@ interface PlayerFormProps {
 
 export function PlayerForm({
 	availableTags,
+	defaultMemo,
 	defaultTags,
 	defaultValues,
 	isLoading = false,
@@ -35,6 +39,7 @@ export function PlayerForm({
 	const [selectedTags, setSelectedTags] = useState<TagWithColor[]>(
 		defaultTags ?? []
 	);
+	const memoRef = useRef<string | null>(defaultMemo ?? null);
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -42,9 +47,14 @@ export function PlayerForm({
 		const name = formData.get("name") as string;
 		onSubmit({
 			name,
+			memo: memoRef.current,
 			tagIds:
 				selectedTags.length > 0 ? selectedTags.map((t) => t.id) : undefined,
 		});
+	};
+
+	const handleMemoChange = (html: string) => {
+		memoRef.current = html || null;
 	};
 
 	return (
@@ -76,6 +86,13 @@ export function PlayerForm({
 					/>
 				</div>
 			)}
+			<div className="flex flex-col gap-2">
+				<Label>Memo</Label>
+				<PlayerMemoEditor
+					initialContent={defaultMemo}
+					onChange={handleMemoChange}
+				/>
+			</div>
 			<Button disabled={isLoading} type="submit">
 				{isLoading ? "Saving..." : "Save"}
 			</Button>

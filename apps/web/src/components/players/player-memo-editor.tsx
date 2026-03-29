@@ -13,27 +13,21 @@ import {
 import Link from "@tiptap/extension-link";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 interface PlayerMemoEditorProps {
 	initialContent?: string | null;
-	isLoading?: boolean;
-	onDirtyChange?: (dirty: boolean) => void;
-	onSave: (html: string) => void;
+	onChange: (html: string) => void;
 }
 
 export function PlayerMemoEditor({
 	initialContent,
-	isLoading = false,
-	onDirtyChange,
-	onSave,
+	onChange,
 }: PlayerMemoEditorProps) {
-	const [isDirty, setIsDirty] = useState(false);
 	const [showLinkInput, setShowLinkInput] = useState(false);
 	const [linkUrl, setLinkUrl] = useState("");
-	const initialContentRef = useRef(initialContent ?? "");
 
 	const editor = useEditor({
 		extensions: [
@@ -47,41 +41,11 @@ export function PlayerMemoEditor({
 		],
 		content: initialContent ?? "",
 		onUpdate: ({ editor: ed }) => {
-			const currentHtml = ed.getHTML();
+			const html = ed.getHTML();
 			const emptyContent = "<p></p>";
-			const currentNormalized = currentHtml === emptyContent ? "" : currentHtml;
-			const initialNormalized =
-				initialContentRef.current === emptyContent
-					? ""
-					: initialContentRef.current;
-			const dirty = currentNormalized !== initialNormalized;
-			setIsDirty(dirty);
-			onDirtyChange?.(dirty);
+			onChange(html === emptyContent ? "" : html);
 		},
 	});
-
-	const handleSave = useCallback(() => {
-		if (!editor) {
-			return;
-		}
-		const html = editor.getHTML();
-		const emptyContent = "<p></p>";
-		onSave(html === emptyContent ? "" : html);
-		initialContentRef.current = html;
-		setIsDirty(false);
-		onDirtyChange?.(false);
-	}, [editor, onSave, onDirtyChange]);
-
-	useEffect(() => {
-		if (!isDirty) {
-			return;
-		}
-		const handler = (e: BeforeUnloadEvent) => {
-			e.preventDefault();
-		};
-		window.addEventListener("beforeunload", handler);
-		return () => window.removeEventListener("beforeunload", handler);
-	}, [isDirty]);
 
 	const openLinkInput = useCallback(() => {
 		if (!editor) {
@@ -126,7 +90,7 @@ export function PlayerMemoEditor({
 	}
 
 	return (
-		<div className="flex flex-col gap-3">
+		<div className="flex flex-col gap-2">
 			<div className="flex flex-wrap gap-1 rounded-md border p-1">
 				<ToolbarButton
 					active={editor.isActive("bold")}
@@ -207,6 +171,7 @@ export function PlayerMemoEditor({
 						aria-label="Apply link"
 						onClick={applyLink}
 						size="sm"
+						type="button"
 						variant="ghost"
 					>
 						<IconCheck size={16} />
@@ -216,6 +181,7 @@ export function PlayerMemoEditor({
 							aria-label="Remove link"
 							onClick={removeLink}
 							size="sm"
+							type="button"
 							variant="ghost"
 						>
 							<IconLinkOff size={16} />
@@ -228,6 +194,7 @@ export function PlayerMemoEditor({
 							setLinkUrl("");
 						}}
 						size="sm"
+						type="button"
 						variant="ghost"
 					>
 						<IconX size={16} />
@@ -235,24 +202,11 @@ export function PlayerMemoEditor({
 				</div>
 			)}
 
-			<div className="min-h-[200px] rounded-md border p-3 focus-within:ring-2 focus-within:ring-ring">
+			<div className="min-h-[120px] rounded-md border p-3 focus-within:ring-2 focus-within:ring-ring">
 				<EditorContent
 					className="prose prose-sm dark:prose-invert max-w-none [&_.tiptap]:outline-none [&_.tiptap_*:first-child]:mt-0 [&_.tiptap_blockquote]:my-1 [&_.tiptap_h2]:mt-4 [&_.tiptap_h2]:mb-1 [&_.tiptap_h2]:font-semibold [&_.tiptap_h2]:text-lg [&_.tiptap_h3]:mt-3 [&_.tiptap_h3]:mb-1 [&_.tiptap_h3]:font-semibold [&_.tiptap_h3]:text-base [&_.tiptap_li]:my-0 [&_.tiptap_li_p]:my-0 [&_.tiptap_ol]:my-1 [&_.tiptap_ol]:pl-5 [&_.tiptap_p]:my-1 [&_.tiptap_ul]:my-1 [&_.tiptap_ul]:pl-5"
 					editor={editor}
 				/>
-			</div>
-
-			<div className="flex items-center justify-between">
-				<div>
-					{isDirty && (
-						<span className="text-muted-foreground text-sm">
-							Unsaved changes
-						</span>
-					)}
-				</div>
-				<Button disabled={isLoading || !isDirty} onClick={handleSave}>
-					{isLoading ? "Saving..." : "Save Memo"}
-				</Button>
 			</div>
 		</div>
 	);
@@ -275,6 +229,7 @@ function ToolbarButton({
 			aria-pressed={active}
 			onClick={onClick}
 			size="sm"
+			type="button"
 			variant={active ? "secondary" : "ghost"}
 		>
 			{children}
