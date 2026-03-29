@@ -44,6 +44,18 @@ function createTestRouter(initialPath: string) {
 		component: () => <div>Currencies</div>,
 	});
 
+	const sessionsRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/sessions",
+		component: () => <div>Sessions</div>,
+	});
+
+	const playersRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/players",
+		component: () => <div>Players</div>,
+	});
+
 	const settingsRoute = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/settings",
@@ -55,6 +67,8 @@ function createTestRouter(initialPath: string) {
 		dashboardRoute,
 		storesRoute,
 		currenciesRoute,
+		sessionsRoute,
+		playersRoute,
 		searchRoute,
 		settingsRoute,
 	]);
@@ -66,12 +80,12 @@ function createTestRouter(initialPath: string) {
 }
 
 describe("MobileNav", () => {
-	it("renders 6 navigation items", async () => {
+	it("renders 8 navigation items", async () => {
 		const router = createTestRouter("/");
 		render(<RouterProvider router={router} />);
 
 		const links = await screen.findAllByRole("link");
-		expect(links).toHaveLength(7);
+		expect(links).toHaveLength(8);
 	});
 
 	it("displays labels for all navigation items", async () => {

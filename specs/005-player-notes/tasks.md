@@ -28,14 +28,14 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Create Player, PlayerTag, and PlayerToPlayerTag tables with relations and indexes in packages/db/src/schema/player.ts following the patterns in packages/db/src/schema/store.ts and packages/db/src/schema/session-tag.ts. Player has: id, userId, name, memo (nullable text), createdAt, updatedAt. PlayerTag has: id, userId, name, color (default "gray"), createdAt, updatedAt. PlayerToPlayerTag is a junction table with composite PK (playerId, playerTagId), both FK cascade delete.
-- [ ] T004 Export new tables and relations from packages/db/src/schema.ts by adding player, playerRelations, playerTag, playerTagRelations, playerToPlayerTag, playerToPlayerTagRelations to the schema object
-- [ ] T005 Generate database migration by running `bun run drizzle-kit generate` in packages/db
-- [ ] T006 [P] Create playerTag tRPC router in packages/api/src/routers/player-tag.ts with list, create (name + color with Zod enum validation), update (name and/or color), delete (cascade cleanup of playerToPlayerTag) procedures. Follow the pattern in packages/api/src/routers/session-tag.ts.
-- [ ] T007 [P] Create player tRPC router in packages/api/src/routers/player.ts with list (search + tagIds filter), getById (with tags), create (name + optional memo + optional tagIds), update (name, memo, tagIds replacement), delete procedures. Follow the pattern in packages/api/src/routers/store.ts. Player list must JOIN playerToPlayerTag and playerTag to return tags with color.
-- [ ] T008 Register player and playerTag routers in packages/api/src/routers/index.ts by importing and adding them to the appRouter object
-- [ ] T009 [P] Add "Players" navigation item to apps/web/src/components/sidebar-nav.tsx in the NAVIGATION_ITEMS array with path "/players" and IconUsers icon from @tabler/icons-react
-- [ ] T010 [P] Add "Players" navigation item to apps/web/src/components/mobile-nav.tsx (uses same NAVIGATION_ITEMS from sidebar-nav.tsx, so this may already be covered if shared)
+- [x] T003 Create Player, PlayerTag, and PlayerToPlayerTag tables with relations and indexes in packages/db/src/schema/player.ts following the patterns in packages/db/src/schema/store.ts and packages/db/src/schema/session-tag.ts. Player has: id, userId, name, memo (nullable text), createdAt, updatedAt. PlayerTag has: id, userId, name, color (default "gray"), createdAt, updatedAt. PlayerToPlayerTag is a junction table with composite PK (playerId, playerTagId), both FK cascade delete.
+- [x] T004 Export new tables and relations from packages/db/src/schema.ts by adding player, playerRelations, playerTag, playerTagRelations, playerToPlayerTag, playerToPlayerTagRelations to the schema object
+- [x] T005 Generate database migration by running `bun run drizzle-kit generate` in packages/db
+- [x] T006 [P] Create playerTag tRPC router in packages/api/src/routers/player-tag.ts with list, create (name + color with Zod enum validation), update (name and/or color), delete (cascade cleanup of playerToPlayerTag) procedures. Follow the pattern in packages/api/src/routers/session-tag.ts.
+- [x] T007 [P] Create player tRPC router in packages/api/src/routers/player.ts with list (search + tagIds filter), getById (with tags), create (name + optional memo + optional tagIds), update (name, memo, tagIds replacement), delete procedures. Follow the pattern in packages/api/src/routers/store.ts. Player list must JOIN playerToPlayerTag and playerTag to return tags with color.
+- [x] T008 Register player and playerTag routers in packages/api/src/routers/index.ts by importing and adding them to the appRouter object
+- [x] T009 [P] Add "Players" navigation item to apps/web/src/components/sidebar-nav.tsx in the NAVIGATION_ITEMS array with path "/players" and IconUsers icon from @tabler/icons-react
+- [x] T010 [P] Add "Players" navigation item to apps/web/src/components/mobile-nav.tsx (uses same NAVIGATION_ITEMS from sidebar-nav.tsx, so this may already be covered if shared)
 
 **Checkpoint**: Database schema, API routers, and navigation ready. User story implementation can begin.
 
