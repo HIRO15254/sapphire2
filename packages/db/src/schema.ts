@@ -7,6 +7,14 @@ import {
 	userRelations,
 	verification,
 } from "./schema/auth";
+import {
+	player,
+	playerRelations,
+	playerTag,
+	playerTagRelations,
+	playerToPlayerTag,
+	playerToPlayerTagRelations,
+} from "./schema/player";
 import { ringGame, ringGameRelations } from "./schema/ring-game";
 import { pokerSession, pokerSessionRelations } from "./schema/session";
 import {
@@ -63,4 +71,10 @@ export const schema = {
 	sessionTagRelations,
 	sessionToSessionTag,
 	sessionToSessionTagRelations,
+	player,
+	playerRelations,
+	playerTag,
+	playerTagRelations,
+	playerToPlayerTag,
+	playerToPlayerTagRelations,
 };
