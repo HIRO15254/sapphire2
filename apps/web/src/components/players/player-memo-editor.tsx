@@ -237,7 +237,7 @@ export function PlayerMemoEditor({
 
 			<div className="min-h-[200px] rounded-md border p-3 focus-within:ring-2 focus-within:ring-ring">
 				<EditorContent
-					className="prose prose-sm dark:prose-invert max-w-none [&_.tiptap]:outline-none"
+					className="prose prose-sm dark:prose-invert max-w-none [&_.tiptap]:outline-none [&_.tiptap_*:first-child]:mt-0 [&_.tiptap_blockquote]:my-1 [&_.tiptap_h2]:mt-4 [&_.tiptap_h2]:mb-1 [&_.tiptap_h2]:font-semibold [&_.tiptap_h2]:text-lg [&_.tiptap_h3]:mt-3 [&_.tiptap_h3]:mb-1 [&_.tiptap_h3]:font-semibold [&_.tiptap_h3]:text-base [&_.tiptap_li]:my-0 [&_.tiptap_li_p]:my-0 [&_.tiptap_ol]:my-1 [&_.tiptap_ol]:pl-5 [&_.tiptap_p]:my-1 [&_.tiptap_ul]:my-1 [&_.tiptap_ul]:pl-5"
 					editor={editor}
 				/>
 			</div>
