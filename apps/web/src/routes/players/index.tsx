@@ -1,9 +1,12 @@
-import { IconPlus, IconUsers } from "@tabler/icons-react";
+import { IconPlus, IconTags, IconUsers } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { PlayerCard } from "@/components/players/player-card";
+import { PlayerFilters } from "@/components/players/player-filters";
+import type { PlayerFormValues } from "@/components/players/player-form";
 import { PlayerForm } from "@/components/players/player-form";
+import { PlayerTagManager } from "@/components/players/player-tag-manager";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
@@ -11,10 +14,6 @@ import { trpc, trpcClient } from "@/utils/trpc";
 export const Route = createFileRoute("/players/")({
 	component: PlayersPage,
 });
-
-interface PlayerFormValues {
-	name: string;
-}
 
 interface PlayerItem {
 	createdAt: string;
@@ -29,12 +28,33 @@ interface PlayerItem {
 function PlayersPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingPlayer, setEditingPlayer] = useState<PlayerItem | null>(null);
+	const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
+	const [filterTagIds, setFilterTagIds] = useState<string[]>([]);
 
 	const queryClient = useQueryClient();
-	const playerListKey = trpc.player.list.queryOptions().queryKey;
 
-	const playersQuery = useQuery(trpc.player.list.queryOptions());
+	const playerListOptions = trpc.player.list.queryOptions(
+		filterTagIds.length > 0 ? { tagIds: filterTagIds } : undefined
+	);
+	const playerListKey = playerListOptions.queryKey;
+
+	const playersQuery = useQuery(playerListOptions);
 	const players = playersQuery.data ?? [];
+
+	const tagsQuery = useQuery(trpc.playerTag.list.queryOptions());
+	const availableTags = (tagsQuery.data ?? []) as Array<{
+		color: string;
+		id: string;
+		name: string;
+	}>;
+
+	const handleCreateTag = async (name: string) => {
+		const created = await trpcClient.playerTag.create.mutate({ name });
+		queryClient.invalidateQueries({
+			queryKey: trpc.playerTag.list.queryOptions().queryKey,
+		});
+		return { id: created.id, name: created.name, color: created.color };
+	};
 
 	const createMutation = useMutation({
 		mutationFn: (values: PlayerFormValues) =>
@@ -48,13 +68,16 @@ function PlayersPage() {
 					if (!old) {
 						return old;
 					}
+					const newTags = newPlayer.tagIds
+						? availableTags.filter((t) => newPlayer.tagIds?.includes(t.id))
+						: [];
 					return [
 						...old,
 						{
 							id: `temp-${Date.now()}`,
 							name: newPlayer.name,
 							memo: null,
-							tags: [],
+							tags: newTags,
 							createdAt: new Date().toISOString(),
 							updatedAt: new Date().toISOString(),
 							userId: "",
@@ -83,10 +106,26 @@ function PlayersPage() {
 		onMutate: async (updated) => {
 			await queryClient.cancelQueries({ queryKey: playerListKey });
 			const previous = queryClient.getQueryData(playerListKey);
-			queryClient.setQueryData(playerListKey, (old: PlayerItem[] | undefined) =>
-				old?.map((p) =>
-					p.id === updated.id ? { ...p, name: updated.name } : p
-				)
+			queryClient.setQueryData(
+				playerListKey,
+				(old: PlayerItem[] | undefined) => {
+					if (!old) {
+						return old;
+					}
+					return old.map((p) => {
+						if (p.id !== updated.id) {
+							return p;
+						}
+						const newTags = updated.tagIds
+							? availableTags.filter((t) => updated.tagIds?.includes(t.id))
+							: p.tags;
+						return {
+							...p,
+							name: updated.name,
+							tags: newTags,
+						};
+					});
+				}
 			);
 			return { previous };
 		},
@@ -142,23 +181,51 @@ function PlayersPage() {
 		<div className="p-4 md:p-6">
 			<div className="mb-6 flex items-center justify-between">
 				<h1 className="font-bold text-2xl">Players</h1>
-				<Button onClick={() => setIsCreateOpen(true)}>
-					<IconPlus size={16} />
-					New Player
-				</Button>
+				<div className="flex gap-2">
+					<Button
+						onClick={() => setIsTagManagerOpen(true)}
+						size="sm"
+						variant="outline"
+					>
+						<IconTags size={16} />
+						Manage Tags
+					</Button>
+					<Button onClick={() => setIsCreateOpen(true)}>
+						<IconPlus size={16} />
+						New Player
+					</Button>
+				</div>
 			</div>
+
+			{availableTags.length > 0 && (
+				<div className="mb-4">
+					<PlayerFilters
+						availableTags={availableTags}
+						onTagIdsChange={setFilterTagIds}
+						selectedTagIds={filterTagIds}
+					/>
+				</div>
+			)}
 
 			{players.length === 0 ? (
 				<div className="flex flex-col items-center justify-center gap-4 py-16 text-muted-foreground">
 					<IconUsers size={48} />
-					<p className="text-lg">No players yet</p>
-					<p className="text-sm">
-						Create your first player to start tracking opponents.
+					<p className="text-lg">
+						{filterTagIds.length > 0
+							? "No players match the selected filters"
+							: "No players yet"}
 					</p>
-					<Button onClick={() => setIsCreateOpen(true)} variant="outline">
-						<IconPlus size={16} />
-						New Player
-					</Button>
+					{filterTagIds.length === 0 && (
+						<>
+							<p className="text-sm">
+								Create your first player to start tracking opponents.
+							</p>
+							<Button onClick={() => setIsCreateOpen(true)} variant="outline">
+								<IconPlus size={16} />
+								New Player
+							</Button>
+						</>
+					)}
 				</div>
 			) : (
 				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -179,7 +246,9 @@ function PlayersPage() {
 				title="New Player"
 			>
 				<PlayerForm
+					availableTags={availableTags}
 					isLoading={createMutation.isPending}
+					onCreateTag={handleCreateTag}
 					onSubmit={handleCreate}
 				/>
 			</ResponsiveDialog>
@@ -195,11 +264,22 @@ function PlayersPage() {
 			>
 				{editingPlayer && (
 					<PlayerForm
+						availableTags={availableTags}
+						defaultTags={editingPlayer.tags}
 						defaultValues={{ name: editingPlayer.name }}
 						isLoading={updateMutation.isPending}
+						onCreateTag={handleCreateTag}
 						onSubmit={handleUpdate}
 					/>
 				)}
+			</ResponsiveDialog>
+
+			<ResponsiveDialog
+				onOpenChange={setIsTagManagerOpen}
+				open={isTagManagerOpen}
+				title="Manage Tags"
+			>
+				<PlayerTagManager />
 			</ResponsiveDialog>
 		</div>
 	);

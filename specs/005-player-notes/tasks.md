@@ -65,13 +65,13 @@
 
 ### Implementation for User Story 2
 
-- [ ] T014 [P] [US2] Create a ColorBadge utility component in apps/web/src/components/players/color-badge.tsx that renders a Badge with background/text colors based on the TAG_COLORS preset. Accept color name and children as props.
-- [ ] T015 [P] [US2] Create player-tag-manager.tsx in apps/web/src/components/players/player-tag-manager.tsx as a standalone tag management UI. Display all user tags in a list with color badges. Support: create new tag (name + color picker from preset palette), edit tag name/color inline, delete tag with confirmation dialog showing cascade warning. Use ResponsiveDialog for create/edit forms. Follow CRUD patterns from stores page.
-- [ ] T016 [US2] Extend tag-input.tsx (or create a new player-tag-input.tsx in apps/web/src/components/players/player-tag-input.tsx) to support color display. Show ColorBadge for each selected tag and in the suggestion dropdown. Accept tag objects with {id, name, color} instead of {id, name}.
-- [ ] T017 [US2] Create player-filters.tsx in apps/web/src/components/players/player-filters.tsx with tag-based multi-select filter. Display available tags as color badges that can be toggled on/off. Pass selected tagIds to the player.list query. Follow the filter pattern in apps/web/src/components/sessions/session-filters.tsx.
-- [ ] T018 [US2] Update PlayerForm in apps/web/src/components/players/player-form.tsx to include the player tag input component for assigning tags during create/edit. Pass tagIds in the form submission payload.
-- [ ] T019 [US2] Update PlayerCard in apps/web/src/components/players/player-card.tsx to display assigned tags as ColorBadges below the player name.
-- [ ] T020 [US2] Update the Players page in apps/web/src/routes/players/index.tsx to: add PlayerFilters with tag filtering state, add a "Manage Tags" button that opens PlayerTagManager in a ResponsiveDialog, pass tag filter state to the player.list query, wire up inline tag creation from PlayerForm.
+- [x] T014 [P] [US2] Create a ColorBadge utility component in apps/web/src/components/players/color-badge.tsx that renders a Badge with background/text colors based on the TAG_COLORS preset. Accept color name and children as props.
+- [x] T015 [P] [US2] Create player-tag-manager.tsx in apps/web/src/components/players/player-tag-manager.tsx as a standalone tag management UI. Display all user tags in a list with color badges. Support: create new tag (name + color picker from preset palette), edit tag name/color inline, delete tag with confirmation dialog showing cascade warning. Use ResponsiveDialog for create/edit forms. Follow CRUD patterns from stores page.
+- [x] T016 [US2] Extend tag-input.tsx (or create a new player-tag-input.tsx in apps/web/src/components/players/player-tag-input.tsx) to support color display. Show ColorBadge for each selected tag and in the suggestion dropdown. Accept tag objects with {id, name, color} instead of {id, name}.
+- [x] T017 [US2] Create player-filters.tsx in apps/web/src/components/players/player-filters.tsx with tag-based multi-select filter. Display available tags as color badges that can be toggled on/off. Pass selected tagIds to the player.list query. Follow the filter pattern in apps/web/src/components/sessions/session-filters.tsx.
+- [x] T018 [US2] Update PlayerForm in apps/web/src/components/players/player-form.tsx to include the player tag input component for assigning tags during create/edit. Pass tagIds in the form submission payload.
+- [x] T019 [US2] Update PlayerCard in apps/web/src/components/players/player-card.tsx to display assigned tags as ColorBadges below the player name.
+- [x] T020 [US2] Update the Players page in apps/web/src/routes/players/index.tsx to: add PlayerFilters with tag filtering state, add a "Manage Tags" button that opens PlayerTagManager in a ResponsiveDialog, pass tag filter state to the player.list query, wire up inline tag creation from PlayerForm.
 
 **Checkpoint**: Tag management and player-tag assignment are fully functional. Players can be categorized and filtered.
 
