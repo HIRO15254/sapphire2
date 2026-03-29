@@ -6,41 +6,41 @@
  */
 
 // === Preset Colors ===
-type TagColor =
-  | "gray"
-  | "red"
-  | "orange"
-  | "yellow"
-  | "green"
-  | "blue"
-  | "purple"
-  | "pink";
+export type TagColor =
+	| "gray"
+	| "red"
+	| "orange"
+	| "yellow"
+	| "green"
+	| "blue"
+	| "purple"
+	| "pink";
 
 // === Inputs ===
 
-interface PlayerTagCreateInput {
-  name: string; // min(1), max(50)
-  color?: TagColor; // defaults to "gray"
+export interface PlayerTagCreateInput {
+	color?: TagColor; // defaults to "gray"
+	name: string; // min(1), max(50)
 }
 
-interface PlayerTagUpdateInput {
-  id: string;
-  name?: string; // min(1), max(50)
-  color?: TagColor;
+export interface PlayerTagUpdateInput {
+	color?: TagColor;
+	id: string;
+	name?: string; // min(1), max(50)
 }
 
-interface PlayerTagDeleteInput {
-  id: string;
+export interface PlayerTagDeleteInput {
+	id: string;
 }
 
 // === Outputs ===
 
-interface PlayerTagItem {
-  id: string;
-  name: string;
-  color: string;
-  createdAt: Date;
-  updatedAt: Date;
+export interface PlayerTagItem {
+	color: string;
+	createdAt: Date;
+	id: string;
+	name: string;
+	updatedAt: Date;
 }
 
 // === Procedures ===
