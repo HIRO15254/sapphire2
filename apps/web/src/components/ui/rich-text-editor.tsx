@@ -17,15 +17,15 @@ import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-interface PlayerMemoEditorProps {
+interface RichTextEditorProps {
 	initialContent?: string | null;
 	onChange: (html: string) => void;
 }
 
-export function PlayerMemoEditor({
+export function RichTextEditor({
 	initialContent,
 	onChange,
-}: PlayerMemoEditorProps) {
+}: RichTextEditorProps) {
 	const [showLinkInput, setShowLinkInput] = useState(false);
 	const [linkUrl, setLinkUrl] = useState("");
 
@@ -40,6 +40,7 @@ export function PlayerMemoEditor({
 			}),
 		],
 		content: initialContent ?? "",
+		shouldRerenderOnTransaction: true,
 		onUpdate: ({ editor: ed }) => {
 			const html = ed.getHTML();
 			const emptyContent = "<p></p>";

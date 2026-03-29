@@ -1,9 +1,9 @@
 import { useRef, useState } from "react";
-import { PlayerMemoEditor } from "@/components/players/player-memo-editor";
 import { PlayerTagInput } from "@/components/players/player-tag-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 
 interface TagWithColor {
 	color: string;
@@ -88,7 +88,7 @@ export function PlayerForm({
 			)}
 			<div className="flex flex-col gap-2">
 				<Label>Memo</Label>
-				<PlayerMemoEditor
+				<RichTextEditor
 					initialContent={defaultMemo}
 					onChange={handleMemoChange}
 				/>
