@@ -49,9 +49,9 @@
 
 ### Implementation for User Story 1
 
-- [ ] T011 [P] [US1] Create player-card.tsx in apps/web/src/components/players/player-card.tsx displaying player name, edit/delete action buttons, and createdAt date. Follow the card pattern in apps/web/src/components/sessions/session-card.tsx. Include a delete confirmation via alert dialog.
-- [ ] T012 [P] [US1] Create player-form.tsx in apps/web/src/components/players/player-form.tsx with a name input field (required, min 1 char) and a Save button. Support defaultValues for edit mode. Follow the form pattern in apps/web/src/components/stores/store-form.tsx using native FormData.
-- [ ] T013 [US1] Create the Players list page in apps/web/src/routes/players/index.tsx with: useQuery for player.list, create/edit via ResponsiveDialog + PlayerForm, delete via PlayerCard, optimistic updates for create/update/delete mutations, empty state with "No players yet" message and a "New Player" button. Follow the page pattern in apps/web/src/routes/stores/index.tsx.
+- [x] T011 [P] [US1] Create player-card.tsx in apps/web/src/components/players/player-card.tsx displaying player name, edit/delete action buttons, and createdAt date. Follow the card pattern in apps/web/src/components/sessions/session-card.tsx. Include a delete confirmation via alert dialog.
+- [x] T012 [P] [US1] Create player-form.tsx in apps/web/src/components/players/player-form.tsx with a name input field (required, min 1 char) and a Save button. Support defaultValues for edit mode. Follow the form pattern in apps/web/src/components/stores/store-form.tsx using native FormData.
+- [x] T013 [US1] Create the Players list page in apps/web/src/routes/players/index.tsx with: useQuery for player.list, create/edit via ResponsiveDialog + PlayerForm, delete via PlayerCard, optimistic updates for create/update/delete mutations, empty state with "No players yet" message and a "New Player" button. Follow the page pattern in apps/web/src/routes/stores/index.tsx.
 
 **Checkpoint**: Player CRUD is fully functional. Users can manage an opponent roster.
 
