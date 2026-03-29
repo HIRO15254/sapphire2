@@ -126,65 +126,73 @@ export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
 				</Button>
 			</div>
 
-			{expanded && (
-				<div className="border-t px-3 py-2">
-					{player.memo ? (
-						<SafeHtml
-							className="prose prose-sm dark:prose-invert max-w-none text-xs [&_*:first-child]:mt-0 [&_h2]:mt-4 [&_h2]:mb-1 [&_h2]:font-semibold [&_h2]:text-lg [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:font-semibold [&_h3]:text-base [&_li]:my-0 [&_li_p]:my-0 [&_ol]:my-1 [&_ol]:pl-5 [&_p]:my-1 [&_ul]:my-1 [&_ul]:pl-5"
-							html={player.memo}
-						/>
-					) : (
-						<p className="text-muted-foreground text-xs">No memo yet.</p>
-					)}
+			<div
+				className={`grid transition-[grid-template-rows] duration-200 ease-out ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+			>
+				<div className="overflow-hidden">
+					<div className="border-t px-3 py-2">
+						{player.memo ? (
+							<SafeHtml
+								className="prose prose-sm dark:prose-invert max-w-none text-xs [&_*:first-child]:mt-0 [&_h2]:mt-4 [&_h2]:mb-1 [&_h2]:font-semibold [&_h2]:text-lg [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:font-semibold [&_h3]:text-base [&_li]:my-0 [&_li_p]:my-0 [&_ol]:my-1 [&_ol]:pl-5 [&_p]:my-1 [&_ul]:my-1 [&_ul]:pl-5"
+								html={player.memo}
+							/>
+						) : (
+							<p className="text-muted-foreground text-xs">No memo yet.</p>
+						)}
 
-					{confirmingDelete ? (
-						<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
-							<span className="text-destructive text-xs">
-								Delete this player?
-							</span>
-							<Button
-								aria-label="Confirm delete"
-								className="text-destructive hover:text-destructive"
-								onClick={() => {
-									onDelete(player.id);
-									setConfirmingDelete(false);
-									setExpanded(false);
-								}}
-								size="xs"
-								variant="ghost"
-							>
-								<IconTrash size={14} />
-								Delete
-							</Button>
-							<Button
-								aria-label="Cancel delete"
-								onClick={() => setConfirmingDelete(false)}
-								size="xs"
-								variant="ghost"
-							>
-								<IconX size={14} />
-								Cancel
-							</Button>
-						</div>
-					) : (
-						<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
-							<Button onClick={() => onEdit(player)} size="xs" variant="ghost">
-								<IconEdit size={14} />
-								Edit
-							</Button>
-							<Button
-								className="text-destructive hover:text-destructive"
-								onClick={() => setConfirmingDelete(true)}
-								size="xs"
-								variant="ghost"
-							>
-								<IconTrash size={14} />
-								Delete
-							</Button>
-						</div>
-					)}
+						{confirmingDelete ? (
+							<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
+								<span className="text-destructive text-xs">
+									Delete this player?
+								</span>
+								<Button
+									aria-label="Confirm delete"
+									className="text-destructive hover:text-destructive"
+									onClick={() => {
+										onDelete(player.id);
+										setConfirmingDelete(false);
+										setExpanded(false);
+									}}
+									size="xs"
+									variant="ghost"
+								>
+									<IconTrash size={14} />
+									Delete
+								</Button>
+								<Button
+									aria-label="Cancel delete"
+									onClick={() => setConfirmingDelete(false)}
+									size="xs"
+									variant="ghost"
+								>
+									<IconX size={14} />
+									Cancel
+								</Button>
+							</div>
+						) : (
+							<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
+								<Button
+									onClick={() => onEdit(player)}
+									size="xs"
+									variant="ghost"
+								>
+									<IconEdit size={14} />
+									Edit
+								</Button>
+								<Button
+									className="text-destructive hover:text-destructive"
+									onClick={() => setConfirmingDelete(true)}
+									size="xs"
+									variant="ghost"
+								>
+									<IconTrash size={14} />
+									Delete
+								</Button>
+							</div>
+						)}
+					</div>
 				</div>
-			)}
+			</div>
 		</div>
 	);
 }
