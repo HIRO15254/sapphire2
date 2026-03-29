@@ -5,7 +5,6 @@ import {
 	Card,
 	CardAction,
 	CardContent,
-	CardDescription,
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
@@ -24,14 +23,6 @@ interface PlayerCardProps {
 	};
 }
 
-function formatDate(date: string): string {
-	const d = new Date(date);
-	const y = d.getFullYear();
-	const m = String(d.getMonth() + 1).padStart(2, "0");
-	const day = String(d.getDate()).padStart(2, "0");
-	return `${y}/${m}/${day}`;
-}
-
 export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -39,7 +30,6 @@ export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
 		<Card>
 			<CardHeader>
 				<CardTitle>{player.name}</CardTitle>
-				<CardDescription>Added {formatDate(player.createdAt)}</CardDescription>
 				<CardAction>
 					{confirmingDelete ? (
 						<div className="flex items-center gap-1">
