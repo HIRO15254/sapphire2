@@ -1,4 +1,4 @@
-import { IconEdit, IconTrash, IconX } from "@tabler/icons-react";
+import { IconEdit, IconNote, IconTrash, IconX } from "@tabler/icons-react";
 import { useState } from "react";
 import { ColorBadge } from "@/components/players/color-badge";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,15 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 
+function stripHtml(html: string): string {
+	const doc = new DOMParser().parseFromString(html, "text/html");
+	return doc.body.textContent ?? "";
+}
+
 interface PlayerCardProps {
 	onDelete: (id: string) => void;
 	onEdit: (player: PlayerCardProps["player"]) => void;
+	onMemo: (player: PlayerCardProps["player"]) => void;
 	player: {
 		createdAt: string;
 		id: string;
@@ -24,13 +30,27 @@ interface PlayerCardProps {
 	};
 }
 
-export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
+export function PlayerCard({
+	player,
+	onEdit,
+	onDelete,
+	onMemo,
+}: PlayerCardProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+	const memoExcerpt = player.memo ? stripHtml(player.memo) : null;
 
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>{player.name}</CardTitle>
+				<CardTitle>
+					<span className="flex items-center gap-1.5">
+						{player.name}
+						{player.memo && (
+							<IconNote className="shrink-0 text-muted-foreground" size={14} />
+						)}
+					</span>
+				</CardTitle>
 				<CardAction>
 					{confirmingDelete ? (
 						<div className="flex items-center gap-1">
@@ -58,6 +78,14 @@ export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
 						</div>
 					) : (
 						<div className="flex gap-1">
+							<Button
+								aria-label="Edit memo"
+								onClick={() => onMemo(player)}
+								size="sm"
+								variant="ghost"
+							>
+								<IconNote size={16} />
+							</Button>
 							<Button
 								aria-label="Edit player"
 								onClick={() => onEdit(player)}
@@ -87,6 +115,13 @@ export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
 							</ColorBadge>
 						))}
 					</div>
+				)}
+				{memoExcerpt && (
+					<p className="mt-2 line-clamp-2 text-muted-foreground text-sm">
+						{memoExcerpt.length > 100
+							? `${memoExcerpt.slice(0, 100)}...`
+							: memoExcerpt}
+					</p>
 				)}
 			</CardContent>
 		</Card>

@@ -1,11 +1,13 @@
 import { IconPlus, IconTags, IconUsers } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
 import { PlayerCard } from "@/components/players/player-card";
 import { PlayerFilters } from "@/components/players/player-filters";
 import type { PlayerFormValues } from "@/components/players/player-form";
 import { PlayerForm } from "@/components/players/player-form";
+import { PlayerMemoEditor } from "@/components/players/player-memo-editor";
 import { PlayerTagManager } from "@/components/players/player-tag-manager";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
@@ -28,6 +30,9 @@ interface PlayerItem {
 function PlayersPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingPlayer, setEditingPlayer] = useState<PlayerItem | null>(null);
+	const [memoPlayer, setMemoPlayer] = useState<PlayerItem | null>(null);
+	const [isMemoDirty, setIsMemoDirty] = useState(false);
+	const [showMemoCloseWarning, setShowMemoCloseWarning] = useState(false);
 	const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
 	const [filterTagIds, setFilterTagIds] = useState<string[]>([]);
 
@@ -142,6 +147,41 @@ function PlayersPage() {
 		},
 	});
 
+	const memoMutation = useMutation({
+		mutationFn: (values: { id: string; memo: string | null }) =>
+			trpcClient.player.update.mutate({
+				id: values.id,
+				memo: values.memo,
+			}),
+		onMutate: async (updated) => {
+			await queryClient.cancelQueries({ queryKey: playerListKey });
+			const previous = queryClient.getQueryData(playerListKey);
+			queryClient.setQueryData(
+				playerListKey,
+				(old: PlayerItem[] | undefined) => {
+					if (!old) {
+						return old;
+					}
+					return old.map((p) =>
+						p.id === updated.id ? { ...p, memo: updated.memo } : p
+					);
+				}
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(playerListKey, context.previous);
+			}
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: playerListKey });
+		},
+		onSuccess: () => {
+			toast.success("Memo saved");
+		},
+	});
+
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.player.delete.mutate({ id }),
 		onMutate: async (id) => {
@@ -176,6 +216,40 @@ function PlayersPage() {
 	const handleDelete = (id: string) => {
 		deleteMutation.mutate(id);
 	};
+
+	const handleMemoSave = useCallback(
+		(html: string) => {
+			if (!memoPlayer) {
+				return;
+			}
+			memoMutation.mutate({
+				id: memoPlayer.id,
+				memo: html || null,
+			});
+		},
+		[memoPlayer, memoMutation]
+	);
+
+	const handleMemoDialogClose = useCallback(
+		(open: boolean) => {
+			if (!open && isMemoDirty) {
+				setShowMemoCloseWarning(true);
+				return;
+			}
+			if (!open) {
+				setMemoPlayer(null);
+				setIsMemoDirty(false);
+				setShowMemoCloseWarning(false);
+			}
+		},
+		[isMemoDirty]
+	);
+
+	const handleMemoForceClose = useCallback(() => {
+		setMemoPlayer(null);
+		setIsMemoDirty(false);
+		setShowMemoCloseWarning(false);
+	}, []);
 
 	return (
 		<div className="p-4 md:p-6">
@@ -234,6 +308,7 @@ function PlayersPage() {
 							key={player.id}
 							onDelete={handleDelete}
 							onEdit={setEditingPlayer}
+							onMemo={setMemoPlayer}
 							player={player}
 						/>
 					))}
@@ -271,6 +346,47 @@ function PlayersPage() {
 						onCreateTag={handleCreateTag}
 						onSubmit={handleUpdate}
 					/>
+				)}
+			</ResponsiveDialog>
+
+			<ResponsiveDialog
+				fullHeight
+				onOpenChange={handleMemoDialogClose}
+				open={memoPlayer !== null}
+				title={memoPlayer ? `Memo: ${memoPlayer.name}` : "Memo"}
+			>
+				{memoPlayer && (
+					<div className="flex flex-1 flex-col gap-3">
+						{showMemoCloseWarning && (
+							<div className="flex items-center justify-between rounded-md border border-destructive bg-destructive/10 p-3">
+								<span className="text-destructive text-sm">
+									You have unsaved changes.
+								</span>
+								<div className="flex gap-2">
+									<Button
+										onClick={() => setShowMemoCloseWarning(false)}
+										size="sm"
+										variant="outline"
+									>
+										Keep Editing
+									</Button>
+									<Button
+										onClick={handleMemoForceClose}
+										size="sm"
+										variant="destructive"
+									>
+										Discard
+									</Button>
+								</div>
+							</div>
+						)}
+						<PlayerMemoEditor
+							initialContent={memoPlayer.memo}
+							isLoading={memoMutation.isPending}
+							onDirtyChange={setIsMemoDirty}
+							onSave={handleMemoSave}
+						/>
+					</div>
 				)}
 			</ResponsiveDialog>
 
