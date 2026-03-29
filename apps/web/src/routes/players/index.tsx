@@ -350,13 +350,12 @@ function PlayersPage() {
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
-				fullHeight
 				onOpenChange={handleMemoDialogClose}
 				open={memoPlayer !== null}
 				title={memoPlayer ? `Memo: ${memoPlayer.name}` : "Memo"}
 			>
 				{memoPlayer && (
-					<div className="flex flex-1 flex-col gap-3">
+					<div className="flex flex-col gap-3">
 						{showMemoCloseWarning && (
 							<div className="flex items-center justify-between rounded-md border border-destructive bg-destructive/10 p-3">
 								<span className="text-destructive text-sm">

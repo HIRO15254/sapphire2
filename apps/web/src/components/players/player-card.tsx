@@ -1,18 +1,70 @@
-import { IconEdit, IconNote, IconTrash, IconX } from "@tabler/icons-react";
-import { useState } from "react";
+import {
+	IconChevronDown,
+	IconChevronUp,
+	IconEdit,
+	IconNote,
+	IconTrash,
+	IconX,
+} from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
 import { ColorBadge } from "@/components/players/color-badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardAction,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
 
-function stripHtml(html: string): string {
+const ALLOWED_TAGS = new Set([
+	"P",
+	"H2",
+	"H3",
+	"UL",
+	"OL",
+	"LI",
+	"STRONG",
+	"EM",
+	"A",
+	"BR",
+	"BLOCKQUOTE",
+]);
+
+function sanitizeHtml(html: string): string {
 	const doc = new DOMParser().parseFromString(html, "text/html");
-	return doc.body.textContent ?? "";
+	const clean = (node: Node): void => {
+		const children = Array.from(node.childNodes);
+		for (const child of children) {
+			if (child.nodeType === Node.ELEMENT_NODE) {
+				const el = child as Element;
+				if (!ALLOWED_TAGS.has(el.tagName)) {
+					el.replaceWith(...Array.from(el.childNodes));
+					continue;
+				}
+				const attrs = Array.from(el.attributes);
+				for (const attr of attrs) {
+					if (
+						el.tagName === "A" &&
+						(attr.name === "href" ||
+							attr.name === "rel" ||
+							attr.name === "target")
+					) {
+						continue;
+					}
+					el.removeAttribute(attr.name);
+				}
+				clean(el);
+			}
+		}
+	};
+	clean(doc.body);
+	return doc.body.innerHTML;
+}
+
+function SafeHtml({ className, html }: { className?: string; html: string }) {
+	const ref = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		if (ref.current) {
+			ref.current.innerHTML = sanitizeHtml(html);
+		}
+	}, [html]);
+
+	return <div className={className} ref={ref} />;
 }
 
 interface PlayerCardProps {
@@ -36,94 +88,113 @@ export function PlayerCard({
 	onDelete,
 	onMemo,
 }: PlayerCardProps) {
+	const [expanded, setExpanded] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-	const memoExcerpt = player.memo ? stripHtml(player.memo) : null;
-
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<span className="flex items-center gap-1.5">
-						{player.name}
-						{player.memo && (
-							<IconNote className="shrink-0 text-muted-foreground" size={14} />
-						)}
-					</span>
-				</CardTitle>
-				<CardAction>
+		<div className="rounded-lg border bg-card">
+			<div className="flex items-start gap-2 p-3">
+				<div className="min-w-0 flex-1">
+					<span className="font-medium text-sm">{player.name}</span>
+					{player.tags.length > 0 && (
+						<div className="mt-1 flex flex-wrap gap-1">
+							{player.tags.map((tag) => (
+								<ColorBadge color={tag.color} key={tag.id}>
+									{tag.name}
+								</ColorBadge>
+							))}
+						</div>
+					)}
+				</div>
+
+				{player.memo && (
+					<IconNote
+						className="mt-0.5 shrink-0 text-muted-foreground"
+						size={14}
+					/>
+				)}
+
+				<Button
+					aria-label={expanded ? "Collapse details" : "Expand details"}
+					className="shrink-0 text-muted-foreground"
+					onClick={() => {
+						setExpanded((prev) => !prev);
+						setConfirmingDelete(false);
+					}}
+					size="icon-xs"
+					variant="ghost"
+				>
+					{expanded ? (
+						<IconChevronUp size={16} />
+					) : (
+						<IconChevronDown size={16} />
+					)}
+				</Button>
+			</div>
+
+			{expanded && (
+				<div className="border-t px-3 py-2">
+					{player.memo ? (
+						<SafeHtml
+							className="prose prose-sm dark:prose-invert max-w-none text-xs [&_*:first-child]:mt-0 [&_h2]:mt-4 [&_h2]:mb-1 [&_h2]:font-semibold [&_h2]:text-lg [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:font-semibold [&_h3]:text-base [&_li]:my-0 [&_li_p]:my-0 [&_ol]:my-1 [&_ol]:pl-5 [&_p]:my-1 [&_ul]:my-1 [&_ul]:pl-5"
+							html={player.memo}
+						/>
+					) : (
+						<p className="text-muted-foreground text-xs">No memo yet.</p>
+					)}
+
 					{confirmingDelete ? (
-						<div className="flex items-center gap-1">
-							<span className="text-destructive text-xs">Delete?</span>
+						<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
+							<span className="text-destructive text-xs">
+								Delete this player?
+							</span>
 							<Button
 								aria-label="Confirm delete"
 								className="text-destructive hover:text-destructive"
 								onClick={() => {
 									onDelete(player.id);
 									setConfirmingDelete(false);
+									setExpanded(false);
 								}}
-								size="sm"
+								size="xs"
 								variant="ghost"
 							>
-								<IconTrash size={16} />
+								<IconTrash size={14} />
+								Delete
 							</Button>
 							<Button
 								aria-label="Cancel delete"
 								onClick={() => setConfirmingDelete(false)}
-								size="sm"
+								size="xs"
 								variant="ghost"
 							>
-								<IconX size={16} />
+								<IconX size={14} />
+								Cancel
 							</Button>
 						</div>
 					) : (
-						<div className="flex gap-1">
-							<Button
-								aria-label="Edit memo"
-								onClick={() => onMemo(player)}
-								size="sm"
-								variant="ghost"
-							>
-								<IconNote size={16} />
+						<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
+							<Button onClick={() => onMemo(player)} size="xs" variant="ghost">
+								<IconNote size={14} />
+								Memo
+							</Button>
+							<Button onClick={() => onEdit(player)} size="xs" variant="ghost">
+								<IconEdit size={14} />
+								Edit
 							</Button>
 							<Button
-								aria-label="Edit player"
-								onClick={() => onEdit(player)}
-								size="sm"
-								variant="ghost"
-							>
-								<IconEdit size={16} />
-							</Button>
-							<Button
-								aria-label="Delete player"
+								className="text-destructive hover:text-destructive"
 								onClick={() => setConfirmingDelete(true)}
-								size="sm"
+								size="xs"
 								variant="ghost"
 							>
-								<IconTrash size={16} />
+								<IconTrash size={14} />
+								Delete
 							</Button>
 						</div>
 					)}
-				</CardAction>
-			</CardHeader>
-			<CardContent>
-				{player.tags.length > 0 && (
-					<div className="flex flex-wrap gap-1">
-						{player.tags.map((tag) => (
-							<ColorBadge color={tag.color} key={tag.id}>
-								{tag.name}
-							</ColorBadge>
-						))}
-					</div>
-				)}
-				{memoExcerpt && (
-					<p className="mt-2 line-clamp-2 text-muted-foreground text-sm">
-						{memoExcerpt.length > 100
-							? `${memoExcerpt.slice(0, 100)}...`
-							: memoExcerpt}
-					</p>
-				)}
-			</CardContent>
-		</Card>
+				</div>
+			)}
+		</div>
 	);
 }
