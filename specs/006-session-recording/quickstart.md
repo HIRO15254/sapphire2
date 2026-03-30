@@ -68,7 +68,7 @@ import { z } from "zod";
 
 export const liveSessionRouter = router({
   list: protectedProcedure
-    .input(z.object({ status: z.enum(["active", "paused", "completed"]).optional() }))
+    .input(z.object({ status: z.enum(["active", "completed"]).optional() }))
     .query(async ({ ctx, input }) => {
       // ctx.session.user.id でユーザースコープ
       // ctx.db で Drizzle DB アクセス
@@ -93,6 +93,34 @@ function LiveSessionsPage() {
   }));
 }
 ```
+
+## UXデザイン制約
+
+### セッション状態
+- `active` / `completed` の2状態のみ（`paused` は廃止）
+- 同時にactiveにできるセッションは1つのみ
+- 完了済みセッションは `reopen` で再始動可能
+
+### セッション開始時
+- 初回バイイン額は必須入力（`initialBuyIn`）
+- ゲーム選択時に `maxBuyIn` を自動入力、`currencyId` を自動紐づけ
+- 2回目以降のチップ追加はスタック記録の `addon` として記録
+
+### オールイン記録形式
+```typescript
+{ potSize: number, trials: number, equity: number, wins: number }
+// potSize: ポット合計額
+// trials: 試行回数（Run it multi times、通常1）
+// equity: 勝率（%、0-100）
+// wins: 実際の勝利数（小数許容、chop対応）
+// EV計算: evAmount = potSize × (equity / 100) × trials
+// 実際: actualAmount = potSize × wins
+```
+
+### UIパターン
+- オールイン・アドオン入力: ボトムシート（Drawer）で入力、追加済みはバッジ表示、タップで編集・削除
+- ライブセッション中の全画面は1画面完結（スクロールなし）
+- ボトムナビ: セッション進行中は中央強調ボタン→セッション画面、それ以外は新規開始/再始動
 
 ## マイグレーション
 
