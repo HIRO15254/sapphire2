@@ -1,4 +1,4 @@
-import { IconAntenna, IconPlus } from "@tabler/icons-react";
+import { IconBolt, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
@@ -102,7 +102,7 @@ function LiveSessionsPage() {
 
 			{sessions.length === 0 ? (
 				<div className="flex flex-col items-center justify-center gap-4 py-16 text-muted-foreground">
-					<IconAntenna size={48} />
+					<IconBolt size={48} />
 					<p className="text-lg">No live sessions yet</p>
 					<p className="text-sm">
 						Start a live session to track your play in real time.

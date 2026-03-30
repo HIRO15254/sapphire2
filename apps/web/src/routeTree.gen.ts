@@ -21,6 +21,7 @@ import { Route as LiveSessionsIndexRouteImport } from './routes/live-sessions/in
 import { Route as CurrenciesIndexRouteImport } from './routes/currencies/index'
 import { Route as StoresStoreIdRouteImport } from './routes/stores/$storeId'
 import { Route as LiveSessionsCashGameSessionIdRouteImport } from './routes/live-sessions/cash-game/$sessionId'
+import { Route as LiveSessionsCashGameSessionIdIndexRouteImport } from './routes/live-sessions/cash-game/$sessionId/index'
 import { Route as LiveSessionsCashGameSessionIdEventsRouteImport } from './routes/live-sessions/cash-game/$sessionId/events'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -84,6 +85,12 @@ const LiveSessionsCashGameSessionIdRoute =
     path: '/live-sessions/cash-game/$sessionId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const LiveSessionsCashGameSessionIdIndexRoute =
+  LiveSessionsCashGameSessionIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => LiveSessionsCashGameSessionIdRoute,
+  } as any)
 const LiveSessionsCashGameSessionIdEventsRoute =
   LiveSessionsCashGameSessionIdEventsRouteImport.update({
     id: '/events',
@@ -105,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/stores/': typeof StoresIndexRoute
   '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdRouteWithChildren
   '/live-sessions/cash-game/$sessionId/events': typeof LiveSessionsCashGameSessionIdEventsRoute
+  '/live-sessions/cash-game/$sessionId/': typeof LiveSessionsCashGameSessionIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -118,8 +126,8 @@ export interface FileRoutesByTo {
   '/players': typeof PlayersIndexRoute
   '/sessions': typeof SessionsIndexRoute
   '/stores': typeof StoresIndexRoute
-  '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdRouteWithChildren
   '/live-sessions/cash-game/$sessionId/events': typeof LiveSessionsCashGameSessionIdEventsRoute
+  '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -136,6 +144,7 @@ export interface FileRoutesById {
   '/stores/': typeof StoresIndexRoute
   '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdRouteWithChildren
   '/live-sessions/cash-game/$sessionId/events': typeof LiveSessionsCashGameSessionIdEventsRoute
+  '/live-sessions/cash-game/$sessionId/': typeof LiveSessionsCashGameSessionIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/stores/'
     | '/live-sessions/cash-game/$sessionId'
     | '/live-sessions/cash-game/$sessionId/events'
+    | '/live-sessions/cash-game/$sessionId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,8 +176,8 @@ export interface FileRouteTypes {
     | '/players'
     | '/sessions'
     | '/stores'
-    | '/live-sessions/cash-game/$sessionId'
     | '/live-sessions/cash-game/$sessionId/events'
+    | '/live-sessions/cash-game/$sessionId'
   id:
     | '__root__'
     | '/'
@@ -183,6 +193,7 @@ export interface FileRouteTypes {
     | '/stores/'
     | '/live-sessions/cash-game/$sessionId'
     | '/live-sessions/cash-game/$sessionId/events'
+    | '/live-sessions/cash-game/$sessionId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -286,6 +297,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LiveSessionsCashGameSessionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/live-sessions/cash-game/$sessionId/': {
+      id: '/live-sessions/cash-game/$sessionId/'
+      path: '/'
+      fullPath: '/live-sessions/cash-game/$sessionId/'
+      preLoaderRoute: typeof LiveSessionsCashGameSessionIdIndexRouteImport
+      parentRoute: typeof LiveSessionsCashGameSessionIdRoute
+    }
     '/live-sessions/cash-game/$sessionId/events': {
       id: '/live-sessions/cash-game/$sessionId/events'
       path: '/events'
@@ -298,12 +316,15 @@ declare module '@tanstack/react-router' {
 
 interface LiveSessionsCashGameSessionIdRouteChildren {
   LiveSessionsCashGameSessionIdEventsRoute: typeof LiveSessionsCashGameSessionIdEventsRoute
+  LiveSessionsCashGameSessionIdIndexRoute: typeof LiveSessionsCashGameSessionIdIndexRoute
 }
 
 const LiveSessionsCashGameSessionIdRouteChildren: LiveSessionsCashGameSessionIdRouteChildren =
   {
     LiveSessionsCashGameSessionIdEventsRoute:
       LiveSessionsCashGameSessionIdEventsRoute,
+    LiveSessionsCashGameSessionIdIndexRoute:
+      LiveSessionsCashGameSessionIdIndexRoute,
   }
 
 const LiveSessionsCashGameSessionIdRouteWithChildren =

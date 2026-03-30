@@ -4,7 +4,6 @@ import { AllInBottomSheet } from "@/components/live-sessions/all-in-bottom-sheet
 import { EventBadge } from "@/components/live-sessions/event-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface AllIn {
 	equity: number;
@@ -16,6 +15,7 @@ interface AllIn {
 
 interface CashGameStackFormProps {
 	isLoading: boolean;
+	onComplete: () => void;
 	onSubmit: (values: {
 		addon: { amount: number } | null;
 		allIns: Array<{
@@ -32,6 +32,7 @@ let nextId = 0;
 
 export function CashGameStackForm({
 	isLoading,
+	onComplete,
 	onSubmit,
 }: CashGameStackFormProps) {
 	const [stackAmount, setStackAmount] = useState<string>("");
@@ -118,73 +119,29 @@ export function CashGameStackForm({
 	};
 
 	return (
-		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="stackAmount">
-					Stack Amount <span className="text-destructive">*</span>
-				</Label>
-				<Input
-					id="stackAmount"
-					inputMode="numeric"
-					min={0}
-					onChange={(e) => setStackAmount(e.target.value)}
-					placeholder="0"
-					required
-					type="number"
-					value={stackAmount}
-				/>
-			</div>
-
-			<div className="flex flex-col gap-3">
-				<div className="flex items-center justify-between">
-					<Label>All-ins</Label>
-					<Button
-						onClick={handleAddAllInClick}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						Add All-in
-					</Button>
-				</div>
-
-				{allIns.length > 0 && (
-					<div className="flex flex-wrap gap-2">
-						{allIns.map((allIn) => (
-							<EventBadge
-								data={{
-									potSize: allIn.potSize,
-									trials: allIn.trials,
-									equity: allIn.equity,
-									wins: allIn.wins,
-								}}
-								key={allIn.id}
-								onDelete={() => {
-									setAllIns((prev) =>
-										prev.filter((item) => item.id !== allIn.id)
-									);
-								}}
-								onEdit={() => handleAllInBadgeClick(allIn)}
-								type="all-in"
-							/>
-						))}
-					</div>
-				)}
-			</div>
-
-			<div className="flex flex-col gap-3">
-				<div className="flex items-center justify-between">
-					<Label>Addon</Label>
-					{addon === null ? (
-						<Button
-							onClick={handleAddAddonClick}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							Add Addon
-						</Button>
-					) : (
+		<div className="flex flex-col gap-2">
+			{/* Row 1: Event badges */}
+			{(allIns.length > 0 || addon !== null) && (
+				<div className="flex gap-1.5 overflow-x-auto pb-1">
+					{allIns.map((allIn) => (
+						<EventBadge
+							data={{
+								potSize: allIn.potSize,
+								trials: allIn.trials,
+								equity: allIn.equity,
+								wins: allIn.wins,
+							}}
+							key={allIn.id}
+							onDelete={() => {
+								setAllIns((prev) =>
+									prev.filter((item) => item.id !== allIn.id)
+								);
+							}}
+							onEdit={() => handleAllInBadgeClick(allIn)}
+							type="all-in"
+						/>
+					))}
+					{addon && (
 						<EventBadge
 							data={{ amount: addon.amount }}
 							onDelete={handleAddonDelete}
@@ -193,12 +150,49 @@ export function CashGameStackForm({
 						/>
 					)}
 				</div>
+			)}
+
+			{/* Row 2: Stack input + Update + End */}
+			<form className="flex items-center gap-2" onSubmit={handleSubmit}>
+				<Input
+					className="flex-1"
+					inputMode="numeric"
+					min={0}
+					onChange={(e) => setStackAmount(e.target.value)}
+					placeholder="Stack"
+					required
+					type="number"
+					value={stackAmount}
+				/>
+				<Button disabled={isLoading} size="sm" type="submit">
+					{isLoading ? "..." : "Update"}
+				</Button>
+				<Button onClick={onComplete} size="sm" type="button" variant="outline">
+					End
+				</Button>
+			</form>
+
+			{/* Row 3: +All-in +Addon buttons */}
+			<div className="flex gap-2">
+				<Button
+					onClick={handleAddAllInClick}
+					size="xs"
+					type="button"
+					variant="ghost"
+				>
+					+ All-in
+				</Button>
+				<Button
+					onClick={handleAddAddonClick}
+					size="xs"
+					type="button"
+					variant="ghost"
+				>
+					+ Addon
+				</Button>
 			</div>
 
-			<Button className="mt-2" disabled={isLoading} type="submit">
-				{isLoading ? "Saving..." : "Save Stack"}
-			</Button>
-
+			{/* Bottom sheets */}
 			<AllInBottomSheet
 				initialValues={editingAllIn ?? undefined}
 				onDelete={editingAllIn !== null ? handleAllInDelete : undefined}
@@ -214,6 +208,6 @@ export function CashGameStackForm({
 				onSubmit={handleAddonSubmit}
 				open={addonBottomSheetOpen}
 			/>
-		</form>
+		</div>
 	);
 }
