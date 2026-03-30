@@ -37,6 +37,8 @@
 - tablePlayers (one-to-many)
 - pokerSession (one-to-one, via pokerSession.liveCashGameSessionId)
 
+**Create時の注意**: `initialBuyIn`を作成時に指定し、`cash_game_buy_in`イベントが自動作成される。
+
 ### liveTournamentSession
 
 トーナメントのライブセッション管理エンティティ。
@@ -200,28 +202,15 @@
 { "playerId": string }
 ```
 
-#### session_pause
-```json
-{}
-```
-
-#### session_resume
-```json
-{}
-```
-
 ## State Transitions
 
 キャッシュゲーム・トーナメント共通:
 
 ```
 [新規作成] → active
-active → paused (中断)
 active → completed (完了)
-paused → active (再開)
-paused → completed (中断から直接完了)
+completed → active (再始動/reopen)
 active → [破棄] (削除)
-paused → [破棄] (削除)
 ```
 
 ## P&L Calculation (イベント集約)
@@ -230,7 +219,8 @@ paused → [破棄] (削除)
 - **totalBuyIn** = Σ(cash_game_buy_in.amount) + Σ(cash_game_stack_record.addon.amount)
 - **cashOut** = cash_out.amount
 - **P&L** = cashOut - totalBuyIn
-- **evCashOut** = cashOut + Σ(allIn.evResult - allIn.actualResult) across all cash_game_stack_records
+- **evCashOut** = cashOut + Σ(evAmount - actualAmount) for all all-ins across all cash_game_stack_records
+  - Where: evAmount = potSize × (equity / 100) × trials, actualAmount = potSize × wins
 
 ### トーナメント
 - **buyIn** = tournament.buyIn (設定値)

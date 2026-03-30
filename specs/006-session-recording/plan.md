@@ -126,7 +126,23 @@ apps/web/src/
 │       └── session-card.tsx             # MODIFIED: イベント履歴リンク追加
 ```
 
-**Structure Decision**: キャッシュゲームとトーナメントは別テーブル・別ルーター・別UIコンポーネントで管理。共有部分（イベント、同卓者、一覧表示）は共通化。既存のringGame/tournamentの分離パターンと一致。
+**Structure Decision**: キャッシュゲームとトーナメントは別テーブル・別ルーター・別UIコンポーネントで管理。共有部分（イベント、同卓者、一覧表示）は共通化。既存のringGame/tournamentの分離パターンと一致。初期バイインはセッション作成の一部として処理（独立イベントではない）。session-pause/session-resumeイベントタイプは廃止。
+
+## UX Design Decisions
+
+### ボトムナビゲーション動的切り替え
+- セッション進行中: 中央強調ボタン→現在セッション画面、他ナビ→イベント履歴・同卓者等
+- セッションなし: 中央ボタン→新規開始/再始動、他ナビ→通常のまま
+
+### オールイン・アドオン入力パターン
+- 追加ボタン→ボトムシート（Drawer）で入力
+- 追加済み記録→バッジ表示
+- バッジタップ→編集・削除
+
+### セッションライフサイクル
+- 状態: active / completed のみ（paused廃止）
+- 同時進行: 1セッションのみ
+- reopen: completed → active への遷移が可能
 
 ## Complexity Tracking
 

@@ -113,12 +113,20 @@
 - pokerSessionレコードを作成（イベント集約からP&L計算）
 - 通貨トランザクションを自動作成（currencyId設定時）
 
+### liveCashGameSession.reopen
+
+**Type**: mutation (protected)
+**Input**: `{ id: string }`
+**Output**: `{ id: string }`
+**Validation**: status === "completed", no other active session exists
+**Side effects**: status を "active" に変更
+
 ### liveCashGameSession.discard
 
 **Type**: mutation (protected)
 **Input**: `{ id: string }`
 **Output**: `{ id: string }`
-**Validation**: status !== "completed"
+**Validation**: status === "active"
 **Side effects**: セッション + 全イベント + 全SessionTablePlayerをカスケード削除
 
 ## Error Codes
@@ -126,5 +134,6 @@
 | Code | Condition |
 |------|-----------|
 | NOT_FOUND | セッションが存在しないまたは他ユーザーのセッション |
-| BAD_REQUEST | 無効な状態遷移（例: completed → pause） |
-| BAD_REQUEST | 完了済みセッションの破棄 |
+| BAD_REQUEST | 無効な状態遷移 |
+| BAD_REQUEST | アクティブでないセッションの破棄 |
+| BAD_REQUEST | reopen時に他のアクティブセッションが存在する |
