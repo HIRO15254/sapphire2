@@ -45,7 +45,7 @@
 ```typescript
 {
   id: string
-  status: "active" | "paused" | "completed"
+  status: "active" | "completed"
   store: { id: string, name: string } | null
   tournament: { ... } | null
   currency: { ... } | null
@@ -142,5 +142,6 @@
 | Code | Condition |
 |------|-----------|
 | NOT_FOUND | セッションが存在しないまたは他ユーザーのセッション |
-| BAD_REQUEST | 無効な状態遷移（例: completed → pause） |
-| BAD_REQUEST | 完了済みセッションの破棄 |
+| BAD_REQUEST | 無効な状態遷移 |
+| BAD_REQUEST | アクティブでないセッションの破棄 |
+| BAD_REQUEST | reopen時に他のアクティブセッションが存在する |

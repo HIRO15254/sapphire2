@@ -50,6 +50,8 @@
 - セッションが存在し、ユーザーが所有者であること
 - eventTypeがセッション種別に対して有効な値であること（キャッシュゲーム専用イベントをトーナメントセッションに記録不可）
 - payloadがeventTypeに対応するZodスキーマに適合すること
+- cash_game_buy_in は手動作成不可（セッション開始時に自動作成のみ）
+- session_pause, session_resume は廃止済み（無効なeventType）
 **Output**: `{ id: string }`
 **Side effects**:
 - player_join: SessionTablePlayerのisActiveをtrueに

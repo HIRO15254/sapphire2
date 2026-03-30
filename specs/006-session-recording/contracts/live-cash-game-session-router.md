@@ -43,7 +43,7 @@
 ```typescript
 {
   id: string
-  status: "active" | "paused" | "completed"
+  status: "active" | "completed"
   store: { id: string, name: string } | null
   ringGame: { ... } | null
   currency: { ... } | null
