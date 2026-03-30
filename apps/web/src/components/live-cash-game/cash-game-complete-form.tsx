@@ -3,11 +3,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 interface CashGameCompleteFormProps {
+	defaultCashOut?: number;
 	isLoading: boolean;
 	onSubmit: (values: { cashOut: number }) => void;
 }
 
 export function CashGameCompleteForm({
+	defaultCashOut,
 	isLoading,
 	onSubmit,
 }: CashGameCompleteFormProps) {
@@ -26,6 +28,7 @@ export function CashGameCompleteForm({
 					Cash Out Amount <span className="text-destructive">*</span>
 				</Label>
 				<Input
+					defaultValue={defaultCashOut ?? ""}
 					id="cashOut"
 					inputMode="numeric"
 					min={0}

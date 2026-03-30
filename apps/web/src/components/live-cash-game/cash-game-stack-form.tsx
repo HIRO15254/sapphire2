@@ -4,18 +4,11 @@ import { AllInBottomSheet } from "@/components/live-sessions/all-in-bottom-sheet
 import { EventBadge } from "@/components/live-sessions/event-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-interface AllIn {
-	equity: number;
-	id: number;
-	potSize: number;
-	trials: number;
-	wins: number;
-}
+import { useStackFormContext } from "@/routes/live-sessions/cash-game/$sessionId";
 
 interface CashGameStackFormProps {
 	isLoading: boolean;
-	onComplete: () => void;
+	onComplete: (currentStack: number) => void;
 	onSubmit: (values: {
 		addon: { amount: number } | null;
 		allIns: Array<{
@@ -28,27 +21,29 @@ interface CashGameStackFormProps {
 	}) => void;
 }
 
-let nextId = 0;
-
 export function CashGameStackForm({
 	isLoading,
 	onComplete,
 	onSubmit,
 }: CashGameStackFormProps) {
-	const [stackAmount, setStackAmount] = useState<string>("");
-	const [allIns, setAllIns] = useState<AllIn[]>([]);
-	const [addon, setAddon] = useState<{ amount: number } | null>(null);
+	const { state, setStackAmount, setAllIns, setAddon } = useStackFormContext();
+	const { stackAmount, allIns, addon } = state;
+
 	const [allInBottomSheetOpen, setAllInBottomSheetOpen] = useState(false);
-	const [editingAllIn, setEditingAllIn] = useState<AllIn | null>(null);
+	const [editingAllIn, setEditingAllIn] = useState<
+		(typeof allIns)[number] | null
+	>(null);
 	const [addonBottomSheetOpen, setAddonBottomSheetOpen] = useState(false);
 	const [editingAddon, setEditingAddon] = useState(false);
+
+	let nextId = allIns.length > 0 ? Math.max(...allIns.map((a) => a.id)) : 0;
 
 	const handleAddAllInClick = () => {
 		setEditingAllIn(null);
 		setAllInBottomSheetOpen(true);
 	};
 
-	const handleAllInBadgeClick = (allIn: AllIn) => {
+	const handleAllInBadgeClick = (allIn: (typeof allIns)[number]) => {
 		setEditingAllIn(allIn);
 		setAllInBottomSheetOpen(true);
 	};
@@ -116,6 +111,14 @@ export function CashGameStackForm({
 			})),
 			addon,
 		});
+
+		// Reset allIns and addon after submit, but keep stackAmount
+		setAllIns([]);
+		setAddon(null);
+	};
+
+	const handleComplete = () => {
+		onComplete(Number(stackAmount) || 0);
 	};
 
 	return (
@@ -167,7 +170,12 @@ export function CashGameStackForm({
 				<Button disabled={isLoading} size="sm" type="submit">
 					{isLoading ? "..." : "Update"}
 				</Button>
-				<Button onClick={onComplete} size="sm" type="button" variant="outline">
+				<Button
+					onClick={handleComplete}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
 					End
 				</Button>
 			</form>

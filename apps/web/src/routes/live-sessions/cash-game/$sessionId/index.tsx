@@ -1,6 +1,6 @@
-import { IconAlertTriangle, IconList } from "@tabler/icons-react";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { CashGameCompleteForm } from "@/components/live-cash-game/cash-game-complete-form";
 import { CashGameStackForm } from "@/components/live-cash-game/cash-game-stack-form";
@@ -104,6 +104,9 @@ function CashGameSessionPage() {
 
 	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
 	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
+	const [defaultCashOut, setDefaultCashOut] = useState<number | undefined>(
+		undefined
+	);
 
 	const sessionQuery = useQuery(
 		trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
@@ -184,7 +187,6 @@ function CashGameSessionPage() {
 
 	const isActive = session.status === "active";
 	const isCompleted = session.status === "completed";
-	const eventCount = session.events?.length ?? 0;
 
 	return (
 		<div className="flex h-[calc(100dvh-4rem)] flex-col px-4 pt-2 pb-0 md:px-6 md:pt-4">
@@ -205,27 +207,15 @@ function CashGameSessionPage() {
 					</Badge>
 				</div>
 
-				<div className="flex items-center gap-3">
-					{isActive && (
-						<button
-							className="text-destructive/60 text-xs hover:text-destructive"
-							onClick={() => setIsDiscardOpen(true)}
-							type="button"
-						>
-							Discard
-						</button>
-					)}
-					<Link
-						className="flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground"
-						params={{ sessionId }}
-						to="/live-sessions/cash-game/$sessionId/events"
+				{isActive && (
+					<button
+						className="text-destructive/60 text-xs hover:text-destructive"
+						onClick={() => setIsDiscardOpen(true)}
+						type="button"
 					>
-						<IconList size={14} />
-						<span>
-							{eventCount} {eventCount === 1 ? "event" : "events"}
-						</span>
-					</Link>
-				</div>
+						Discard
+					</button>
+				)}
 			</div>
 
 			{/* Summary - fills main area */}
@@ -259,7 +249,10 @@ function CashGameSessionPage() {
 				<div className="border-border border-t pt-2 pb-1">
 					<CashGameStackForm
 						isLoading={stackMutation.isPending}
-						onComplete={() => setIsCompleteOpen(true)}
+						onComplete={(currentStack) => {
+							setDefaultCashOut(currentStack);
+							setIsCompleteOpen(true);
+						}}
 						onSubmit={(values) => stackMutation.mutate(values)}
 					/>
 				</div>
@@ -272,6 +265,7 @@ function CashGameSessionPage() {
 				title="Complete Session"
 			>
 				<CashGameCompleteForm
+					defaultCashOut={defaultCashOut}
 					isLoading={completeMutation.isPending}
 					onSubmit={(values) => completeMutation.mutate(values)}
 				/>
