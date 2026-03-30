@@ -1,11 +1,12 @@
-# Tasks: リアルタイムセッション記録
+# Tasks: リアルタイムセッション記録 (UX Feedback Delta)
 
 **Input**: Design documents from `/specs/006-session-recording/`
-**Prerequisites**: plan.md (required), spec.md (required), research.md, data-model.md, contracts/
+**Prerequisites**: plan.md (required), spec.md (required), data-model.md, contracts/, quickstart.md
+**Date**: 2026-03-30
 
 **Tests**: Included per Constitution III (Test Coverage Required).
 
-**Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
+**Scope**: These tasks cover the DELTA from the current implementation to match the updated spec (UX Feedback 2026-03-30). Phases 1-3 of the original implementation are already complete. All DB schemas, migrations, basic routers, P&L service, and frontend components exist but need modification.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -17,291 +18,231 @@
 
 - **Database schemas**: `packages/db/src/schema/`
 - **API routers**: `packages/api/src/routers/`
+- **API services**: `packages/api/src/services/`
 - **Frontend routes**: `apps/web/src/routes/`
 - **Frontend components**: `apps/web/src/components/`
+- **DB constants**: `packages/db/src/constants/`
 - **DB tests**: `packages/db/src/__tests__/`
 - **API tests**: `packages/api/src/__tests__/`
-- **Component tests**: `apps/web/src/components/*/__tests__/`
+
+## Already Implemented (DO NOT recreate)
+
+- DB schemas: `live-cash-game-session`, `live-tournament-session`, `session-event`, `session-table-player`
+- Migration 0007 applied
+- Schema tests for all 4 tables
+- `liveCashGameSessionRouter` at `packages/api/src/routers/live-cash-game-session.ts`
+- `sessionEventRouter` at `packages/api/src/routers/session-event.ts`
+- P&L service at `packages/api/src/services/live-session-pl.ts`
+- Event type constants at `packages/db/src/constants/session-event-types.ts`
+- Frontend components in `apps/web/src/components/live-cash-game/` and `live-sessions/`
+- Live sessions pages at `apps/web/src/routes/live-sessions/`
 
 ---
 
-## Phase 1: Setup
+## Phase 1: Setup (Refactor Existing Constants & Types)
 
-**Purpose**: Shared Zod schemas and event payload type definitions used across all user stories
+- [ ] T001 [P] Update session-event-types.ts: remove `paused` from `SESSION_STATUSES`, keep only `["active", "completed"]`. Remove `session_pause` and `session_resume` from `COMMON_EVENT_TYPES`. Remove `sessionPausePayload` and `sessionResumePayload` schemas. Remove corresponding entries from `EVENT_PAYLOAD_SCHEMAS` map. File: `packages/db/src/constants/session-event-types.ts`
 
-- [x] T001 Define shared event payload Zod schemas (cash_game_buy_in, cash_game_stack_record, cash_out, tournament_stack_record, tournament_result, player_join, player_leave, session_pause, session_resume) and session status/event type constants in packages/db/src/constants/session-event-types.ts
+- [ ] T002 [P] Update session-event-types.ts: change `allInSchema` from `{ actualResult: number, evResult: number }` to `{ potSize: number, trials: number, equity: number, wins: number }`. `potSize` is `z.number().min(0)`, `trials` is `z.number().int().min(1)`, `equity` is `z.number().min(0).max(100)`, `wins` is `z.number().min(0)` (decimal allowed for chop). Update `cashGameStackRecordPayload` to use the new `allInSchema`. File: `packages/db/src/constants/session-event-types.ts`
 
----
+- [ ] T003 [P] Update session-event-types.ts: add a `MANUAL_CREATE_BLOCKED_EVENT_TYPES` constant containing `["cash_game_buy_in"]` to mark event types that cannot be manually created via `sessionEvent.create` (auto-created by session lifecycle only). File: `packages/db/src/constants/session-event-types.ts`
 
-## Phase 2: Foundational (Blocking Prerequisites)
-
-**Purpose**: Database schemas and shared infrastructure that MUST be complete before ANY user story can be implemented
-
-**CRITICAL**: No user story work can begin until this phase is complete
-
-- [x] T003 [P] Create liveCashGameSession schema (table, relations, indexes) in packages/db/src/schema/live-cash-game-session.ts
-- [x] T004 [P] Create liveTournamentSession schema (table, relations, indexes) in packages/db/src/schema/live-tournament-session.ts
-- [x] T005 [P] Create sessionEvent schema (table with nullable FKs to both session tables, relations, indexes) in packages/db/src/schema/session-event.ts
-- [x] T006 [P] Create sessionTablePlayer schema (table with nullable FKs to both session tables, relations, indexes) in packages/db/src/schema/session-table-player.ts
-- [x] T007 Add liveCashGameSessionId and liveTournamentSessionId nullable FK columns to pokerSession in packages/db/src/schema/session.ts
-- [x] T008 Export all new schemas and relations from packages/db/src/schema.ts
-- [x] T009 [P] Create schema tests for liveCashGameSession in packages/db/src/__tests__/live-cash-game-session.test.ts
-- [x] T010 [P] Create schema tests for liveTournamentSession in packages/db/src/__tests__/live-tournament-session.test.ts
-- [x] T011 [P] Create schema tests for sessionEvent in packages/db/src/__tests__/session-event.test.ts
-- [x] T012 [P] Create schema tests for sessionTablePlayer in packages/db/src/__tests__/session-table-player.test.ts
-- [x] T013 Generate and apply Drizzle migration for all new tables and pokerSession modifications
-- [x] T014 Create P&L recalculation service function (aggregate events → compute cash game P&L and tournament P&L, update pokerSession and currencyTransaction) in packages/api/src/services/live-session-pl.ts
-
-**Checkpoint**: Foundation ready - all schemas exist, migration applied, shared services available. User story implementation can now begin.
+- [ ] T004 Test: update schema tests to verify new `SESSION_STATUSES` (no "paused"), new `allInSchema` fields (potSize/trials/equity/wins), removal of session_pause/session_resume from event types, and `MANUAL_CREATE_BLOCKED_EVENT_TYPES`. File: `packages/db/src/__tests__/session-event-types.test.ts`
 
 ---
 
-## Phase 3: User Story 1 - キャッシュゲームのリアルタイム記録 (Priority: P1) MVP
+## Phase 2: Foundational (Backend Modifications)
 
-**Goal**: Users can start a cash game session, record buy-ins, stack changes (with optional all-in EV and addon info), cash out, and auto-generate pokerSession with P&L
+### Cash Game Router Updates
 
-**Independent Test**: Start a cash game session, record buy-in + stack records + cash out, verify event history and P&L on session detail page
+- [ ] T005 Update `liveCashGameSessionRouter.create`: add `initialBuyIn` (required, `z.number().min(0)`) to input schema. After inserting session, auto-create a `cash_game_buy_in` event with `{ amount: initialBuyIn }`. Add single-session guard: before creating, check no other session with `status = "active"` exists for the user; throw `BAD_REQUEST` if one does. File: `packages/api/src/routers/live-cash-game-session.ts`
 
-### Tests for User Story 1
+- [ ] T006 Update `liveCashGameSessionRouter.list`: change status enum from `["active", "paused", "completed"]` to `["active", "completed"]`. File: `packages/api/src/routers/live-cash-game-session.ts`
 
-- [x] T015 [P] [US1] Create router tests for liveCashGameSession (list, getById, create, complete, discard) in packages/api/src/__tests__/live-cash-game-session.test.ts
-- [x] T016 [P] [US1] Create router tests for sessionEvent (create/update/delete cash game events, P&L recalculation on completed session edit) in packages/api/src/__tests__/session-event.test.ts
+- [ ] T007 Add `liveCashGameSessionRouter.reopen` procedure: input `{ id: string }`, validate session is `status === "completed"` and no other active session exists for user (check both `liveCashGameSession` and `liveTournamentSession` tables). Set `status = "active"`, clear `endedAt`. Delete linked `pokerSession` and its `currencyTransaction` (will be recreated on next complete). Return `{ id }`. File: `packages/api/src/routers/live-cash-game-session.ts`
 
-### Implementation for User Story 1
+- [ ] T008 Update `liveCashGameSessionRouter.complete`: on reopen+re-complete scenario, check if a `pokerSession` already exists for this `liveCashGameSessionId` and update it instead of creating a duplicate. Also update or recreate the `currencyTransaction`. File: `packages/api/src/routers/live-cash-game-session.ts`
 
-- [x] T017 [US1] Implement liveCashGameSessionRouter (list, getById, create, update, complete, discard) with Zod validation and protectedProcedure in packages/api/src/routers/live-cash-game-session.ts
-- [x] T018 [US1] Implement sessionEventRouter (list, create, update, delete) with event-type-specific Zod payload validation and P&L recalculation triggers in packages/api/src/routers/session-event.ts
-- [x] T019 [US1] Register liveCashGameSession and sessionEvent routers in appRouter in packages/api/src/routers/index.ts
-- [x] T020 [US1] Implement complete procedure: aggregate events to compute P&L, create pokerSession with liveCashGameSessionId, create currencyTransaction if currencyId set, in packages/api/src/routers/live-cash-game-session.ts
-- [x] T021 [P] [US1] Create cash game session start form component (store, ringGame, currency selection) in apps/web/src/components/live-cash-game/create-cash-game-session-form.tsx
-- [x] T022 [P] [US1] Create buy-in form component in apps/web/src/components/live-cash-game/buy-in-form.tsx
-- [x] T023 [P] [US1] Create cash game stack record form (stack amount, optional all-ins array with actual/EV, optional addon) in apps/web/src/components/live-cash-game/cash-game-stack-form.tsx
-- [x] T024 [P] [US1] Create cash game complete form (cash out amount) in apps/web/src/components/live-cash-game/cash-game-complete-form.tsx
-- [x] T025 [US1] Create live sessions list page showing active/paused/completed sessions in apps/web/src/routes/live-sessions/index.tsx
-- [x] T026 [US1] Create cash game session detail/recording page (event recording, event list, session actions) in apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx
-- [x] T027 [P] [US1] Create live session card component for list display in apps/web/src/components/live-sessions/live-session-card.tsx
-- [x] T028 [P] [US1] Create session summary component (total buy-in, cash out, P&L, EV) in apps/web/src/components/live-sessions/session-summary.tsx
+- [ ] T009 Update `liveCashGameSessionRouter.discard`: ensure validation checks `status !== "completed"` (currently checks `status === "completed"`, which is correct, but verify "active" is the only non-completed status now). File: `packages/api/src/routers/live-cash-game-session.ts`
 
-**Checkpoint**: Cash game live session recording fully functional. Users can start, record events, complete, and view P&L.
+### Session Event Router Updates
 
----
+- [ ] T010 Update `sessionEventRouter.create`: block manual creation of `cash_game_buy_in` events. When `eventType` is in `MANUAL_CREATE_BLOCKED_EVENT_TYPES`, throw `BAD_REQUEST` with message "This event type is auto-created and cannot be manually added". Remove handling of `session_pause`/`session_resume` (already invalid since they are removed from `ALL_EVENT_TYPES`). File: `packages/api/src/routers/session-event.ts`
 
-## Phase 4: User Story 2 - トーナメントのリアルタイム記録 (Priority: P1)
+### P&L Service Updates
 
-**Goal**: Users can start a tournament session, record stack/remaining players/average stack (with optional rebuy/addon), and complete with placement/prizes
+- [ ] T011 Update `computeCashGamePLFromEvents` in P&L service: change EV calculation from `allIn.evResult - allIn.actualResult` to new formula. For each allIn: `evAmount = potSize * (equity / 100) * trials`, `actualAmount = potSize * wins`, `evDiff = evAmount - actualAmount`. Sum all evDiffs. `evCashOut = cashOut + totalEvDiff`. File: `packages/api/src/services/live-session-pl.ts`
 
-**Independent Test**: Start a tournament session, record stack records with rebuy/addon, complete with placement/prize, verify event history and P&L
+### Tournament Router (New)
 
-### Tests for User Story 2
+- [ ] T012 Create `liveTournamentSessionRouter` with procedures: `list`, `getById`, `create`, `update`, `complete`, `reopen`, `discard`. Follow the contract in `specs/006-session-recording/contracts/live-tournament-session-router.md`. `create` must enforce single-session guard (no active session across both cash game and tournament tables). `complete` must create `tournament_result` event, `pokerSession`, and `currencyTransaction`. `reopen` must validate no other active session and delete linked `pokerSession`/`currencyTransaction`. Register in `packages/api/src/routers/index.ts`. File: `packages/api/src/routers/live-tournament-session.ts`
 
-- [ ] T029 [P] [US2] Create router tests for liveTournamentSession (list, getById, create, complete, discard) in packages/api/src/__tests__/live-tournament-session.test.ts
-- [ ] T029b [P] [US2] Create router tests for sessionEvent with tournament-specific events (tournament_stack_record, tournament_result payload validation, P&L recalculation) in packages/api/src/__tests__/session-event.test.ts
+### Session Table Player Router (New)
 
-### Implementation for User Story 2
+- [ ] T013 Create `sessionTablePlayerRouter` with procedures: `list`, `add`, `addNew`, `remove`. Follow the contract in `specs/006-session-recording/contracts/session-table-player-router.md`. Register in `packages/api/src/routers/index.ts`. File: `packages/api/src/routers/session-table-player.ts`
 
-- [ ] T030 [US2] Implement liveTournamentSessionRouter (list, getById, create, update, complete, discard) with Zod validation and protectedProcedure in packages/api/src/routers/live-tournament-session.ts
-- [ ] T031 [US2] Register liveTournamentSession router in appRouter in packages/api/src/routers/index.ts
-- [ ] T032 [US2] Implement complete procedure: aggregate events to compute tournament P&L, create pokerSession with liveTournamentSessionId, create currencyTransaction if currencyId set, in packages/api/src/routers/live-tournament-session.ts
-- [ ] T033 [P] [US2] Create tournament session start form component (store, tournament, currency selection) in apps/web/src/components/live-tournament/create-tournament-session-form.tsx
-- [ ] T034 [P] [US2] Create tournament stack record form (stack amount, remaining players, average stack, optional rebuy, optional addon) in apps/web/src/components/live-tournament/tournament-stack-form.tsx
-- [ ] T035 [P] [US2] Create tournament complete form (placement, total entries, prize money, bounty prizes) in apps/web/src/components/live-tournament/tournament-complete-form.tsx
-- [ ] T036 [US2] Create tournament session detail/recording page in apps/web/src/routes/live-sessions/tournament/$sessionId.tsx
-- [ ] T037 [US2] Update live sessions list page to show tournament sessions alongside cash game sessions in apps/web/src/routes/live-sessions/index.tsx
+### Router Tests
 
-**Checkpoint**: Tournament live session recording fully functional alongside cash game sessions.
+- [ ] T014 Test: write router tests for `liveCashGameSessionRouter` changes: test `create` with `initialBuyIn` auto-creates buy-in event, test single-session guard on create, test `reopen` procedure, test `reopen` blocks when another active session exists, test `complete` after reopen updates existing pokerSession. File: `packages/api/src/__tests__/live-cash-game-session.test.ts`
+
+- [ ] T015 Test: write router tests for `liveTournamentSessionRouter`: test `create`, `list`, `getById`, `complete` (creates pokerSession), `reopen`, `discard`, single-session guard. File: `packages/api/src/__tests__/live-tournament-session.test.ts`
+
+- [ ] T016 Test: write router tests for `sessionEventRouter` changes: test `cash_game_buy_in` manual create is blocked, test event creation with new allIn format (potSize/trials/equity/wins), test recalculation on completed session event edit/delete. File: `packages/api/src/__tests__/session-event.test.ts`
+
+- [ ] T017 Test: write router tests for `sessionTablePlayerRouter`: test `add`, `addNew`, `remove`, test player_join/player_leave events auto-created. File: `packages/api/src/__tests__/session-table-player.test.ts`
+
+- [ ] T018 Test: write unit tests for P&L service with new allIn format: verify `computeCashGamePLFromEvents` with potSize/trials/equity/wins calculates correct evCashOut. Test `computeTournamentPLFromEvents`. File: `packages/api/src/__tests__/live-session-pl.test.ts`
 
 ---
 
-## Phase 5: User Story 3 - セッションの中断と再開 (Priority: P2)
+## Phase 3: US1 - Cash Game UX Overhaul (P1) MVP
 
-**Goal**: Users can pause and resume sessions, manage multiple concurrent active/paused sessions
+### Create Form Updates
 
-**Independent Test**: Start session A, pause it, start session B, complete B, resume A, complete A - verify both sessions have correct independent data
+- [ ] T019 Update `CreateCashGameSessionForm`: add `initialBuyIn` number input field (required). Add `ringGames` prop to include `maxBuyIn` and `currencyId` per ring game. When a ring game is selected, auto-fill `initialBuyIn` input with `ringGame.maxBuyIn` and auto-set `currencyId` from `ringGame.currencyId` (frontend only). Include `initialBuyIn` in `onSubmit` values. File: `apps/web/src/components/live-cash-game/create-cash-game-session-form.tsx`
 
-### Tests for User Story 3
+- [ ] T020 Update live sessions list page: pass `initialBuyIn` to `createMutation`. Update `ringGames` data to include `maxBuyIn` and `currencyId` fields from the API. Pass enriched ring game data to `CreateCashGameSessionForm`. File: `apps/web/src/routes/live-sessions/index.tsx`
 
-- [ ] T037b [P] [US3] Create router tests for pause/resume procedures (state transitions, auto session_pause/session_resume events, invalid transitions) in packages/api/src/__tests__/live-cash-game-session.test.ts and packages/api/src/__tests__/live-tournament-session.test.ts
+### Stack Form Redesign (Bottom Sheet + Badge Pattern)
 
-### Implementation for User Story 3
+- [ ] T021 Create `AllInBottomSheet` component: a Drawer (bottom sheet) with inputs for `potSize`, `trials` (default 1), `equity` (0-100%), `wins`. Support both "add" and "edit" modes. On submit, return the allIn object. File: `apps/web/src/components/live-sessions/all-in-bottom-sheet.tsx`
 
-- [ ] T038 [US3] Implement pause and resume procedures (with auto session_pause/session_resume events) in liveCashGameSessionRouter in packages/api/src/routers/live-cash-game-session.ts
-- [ ] T039 [US3] Implement pause and resume procedures in liveTournamentSessionRouter in packages/api/src/routers/live-tournament-session.ts
-- [ ] T040 [US3] Add pause/resume action buttons to cash game session detail page in apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx
-- [ ] T041 [US3] Add pause/resume action buttons to tournament session detail page in apps/web/src/routes/live-sessions/tournament/$sessionId.tsx
-- [ ] T042 [US3] Add status filtering (active/paused/completed) and status badges to live sessions list page in apps/web/src/routes/live-sessions/index.tsx
+- [ ] T022 Create `AddonBottomSheet` component: a Drawer with input for addon `amount`. Support both "add" and "edit" modes. On submit, return the addon object. File: `apps/web/src/components/live-sessions/addon-bottom-sheet.tsx`
 
-**Checkpoint**: Pause/resume works for both session types. Multiple sessions can be active/paused simultaneously.
+- [ ] T023 Create `EventBadge` component: displays a compact badge for an allIn or addon record. Shows summary text (e.g., "All-in: 500 pot, 65%"). On tap, opens a popover or action sheet with "Edit" and "Delete" options. File: `apps/web/src/components/live-sessions/event-badge.tsx`
 
----
+- [ ] T024 Redesign `CashGameStackForm`: replace inline allIn fields (actualResult/evResult) with "Add All-in" button that opens `AllInBottomSheet`. Replace checkbox addon with "Add Addon" button that opens `AddonBottomSheet`. Display added allIns and addon as `EventBadge` components. Badge tap opens edit bottom sheet or delete confirmation. Update `onSubmit` to pass new allIn format `{ potSize, trials, equity, wins }`. Ensure form fits in viewport (1-screen design). File: `apps/web/src/components/live-cash-game/cash-game-stack-form.tsx`
 
-## Phase 6: User Story 4 - 同卓者の記録 (Priority: P2)
+### Cash Game Detail Page Redesign
 
-**Goal**: Users can add/remove table players during a session, with player history tracked
+- [ ] T025 Update cash game detail page: remove "Record Buy-in" section entirely (buy-in is handled at session creation and via addon). Remove `BuyInForm` import and usage. Remove "paused" references from `STATUS_BADGE_CLASS` and `STATUS_LABEL`. Add "Reopen" button for completed sessions. Update `isActive` check to only check `status === "active"` (no paused). Redesign layout for 1-screen viewport fit. File: `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx`
 
-**Independent Test**: During a session, add existing player, add new player, remove a player - verify table player list updates and events are recorded
+- [ ] T026 Update cash game detail page: add reopen mutation calling `liveCashGameSession.reopen`. On success, invalidate queries and stay on same page. Show reopen button only when session is completed and no other active session exists. File: `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx`
 
-### Tests for User Story 4
+- [ ] T027 Update cash game detail page: update `formatPayloadSummary` for new allIn format. For `cash_game_stack_record` with allIns, show potSize/equity instead of actualResult/evResult. File: `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx`
 
-- [ ] T043 [P] [US4] Create router tests for sessionTablePlayer (list, add, addNew, remove) in packages/api/src/__tests__/session-table-player.test.ts
+### Session Summary Update
 
-### Implementation for User Story 4
+- [ ] T028 Update `SessionSummary` component: add EV P&L display (evCashOut - totalBuyIn) alongside regular P&L. The new allIn EV format means evCashOut is calculated differently (equity-based). No schema change needed, just display logic. File: `apps/web/src/components/live-sessions/session-summary.tsx`
 
-- [ ] T044 [US4] Implement sessionTablePlayerRouter (list, add, addNew, remove) with auto player_join/player_leave events in packages/api/src/routers/session-table-player.ts
-- [ ] T045 [US4] Register sessionTablePlayer router in appRouter in packages/api/src/routers/index.ts
-- [ ] T046 [P] [US4] Create table player list component (current players with add/remove actions, player search) in apps/web/src/components/live-sessions/table-player-list.tsx
-- [ ] T047 [P] [US4] Create add-new-player inline form component in apps/web/src/components/live-sessions/add-table-player-form.tsx
-- [ ] T048 [US4] Integrate table player list into cash game session detail page in apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx
-- [ ] T049 [US4] Integrate table player list into tournament session detail page in apps/web/src/routes/live-sessions/tournament/$sessionId.tsx
+### Delete BuyInForm
 
-**Checkpoint**: Table player management works in both session types.
+- [ ] T029 Delete `BuyInForm` component (no longer needed - initial buy-in is part of session creation, subsequent buy-ins are addons). File: `apps/web/src/components/live-cash-game/buy-in-form.tsx`
 
----
+### Remove "paused" from Session Card
 
-## Phase 7: User Story 5 - セッションイベント履歴の閲覧 (Priority: P3)
+- [ ] T030 Update `LiveSessionCard`: remove "paused" from `StatusBadge` type and class map. Update session prop type to `"active" | "completed"`. File: `apps/web/src/components/live-sessions/live-session-card.tsx`
 
-**Goal**: Users can view chronological event history with stack summary for any session
+### Component Tests
 
-**Independent Test**: Open a session with multiple events, verify all events displayed in chronological order with stack summary (max/min/current)
+- [ ] T031 Test: write component tests for `AllInBottomSheet`: test renders with empty state, test submitting potSize/trials/equity/wins, test edit mode pre-fills values. File: `apps/web/src/components/live-sessions/__tests__/all-in-bottom-sheet.test.tsx`
 
-### Tests for User Story 5
+- [ ] T032 Test: write component tests for `AddonBottomSheet`: test renders, test submit returns amount, test edit mode. File: `apps/web/src/components/live-sessions/__tests__/addon-bottom-sheet.test.tsx`
 
-- [ ] T049b [P] [US5] Create router tests for sessionEvent update/delete (edit payload, delete event, P&L recalculation on completed session) in packages/api/src/__tests__/session-event.test.ts
+- [ ] T033 Test: write component tests for `EventBadge`: test renders badge text, test tap opens edit/delete actions. File: `apps/web/src/components/live-sessions/__tests__/event-badge.test.tsx`
 
-### Implementation for User Story 5
-
-- [ ] T050 [P] [US5] Create event timeline component (chronological event list with type-specific rendering) in apps/web/src/components/live-sessions/event-timeline.tsx
-- [ ] T051 [P] [US5] Create event edit/delete actions (inline edit form, delete confirmation) in apps/web/src/components/live-sessions/event-actions.tsx
-- [ ] T052 [US5] Integrate event timeline and edit/delete actions into cash game session detail page in apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx
-- [ ] T053 [US5] Integrate event timeline and edit/delete actions into tournament session detail page in apps/web/src/routes/live-sessions/tournament/$sessionId.tsx
-- [ ] T054 [US5] Add event history link to existing session card for sessions with liveSessionId in apps/web/src/components/sessions/session-card.tsx
-
-**Checkpoint**: Full event history viewing and editing works for both session types.
+- [ ] T034 Test: write component tests for updated `CashGameStackForm`: test allIn add via bottom sheet, test addon add via bottom sheet, test badge display, test submit with new allIn format. File: `apps/web/src/components/live-cash-game/__tests__/cash-game-stack-form.test.tsx`
 
 ---
 
-## Phase 8: Polish & Cross-Cutting Concerns
+## Phase 4: US2 - Tournament Recording (P1)
 
-**Purpose**: Improvements that affect multiple user stories
+### Tournament UI Components
 
-- [ ] T055 [P] Add discard (delete) action with confirmation dialog to cash game session detail page in apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx
-- [ ] T055b [P] Add discard (delete) action with confirmation dialog to tournament session detail page in apps/web/src/routes/live-sessions/tournament/$sessionId.tsx
-- [ ] T056 [P] Add navigation link to live sessions from main navigation in apps/web/src/routes/__root.tsx
-- [ ] T057 [P] Create component tests for key UI components (cash-game-stack-form, tournament-stack-form, event-timeline, session-summary) in apps/web/src/components/live-cash-game/__tests__/, apps/web/src/components/live-tournament/__tests__/, apps/web/src/components/live-sessions/__tests__/
-- [ ] T058 Run type check (bun run check-types), tests (bun test), and lint (bun x ultracite check) - fix any issues
-- [ ] T059 Run quickstart.md validation - verify all listed files exist and patterns are correct
+- [ ] T035 Create `CreateTournamentSessionForm` component: tournament selection, store, currency, memo inputs. No initialBuyIn (tournament buy-in comes from tournament settings). File: `apps/web/src/components/live-tournament/create-tournament-session-form.tsx`
 
----
+- [ ] T036 Create `TournamentStackForm` component: inputs for `stackAmount`, `remainingPlayers`, `averageStack`. "Add Rebuy" and "Add Addon" buttons open bottom sheets. Rebuy bottom sheet: `cost` and `chips` inputs. Addon bottom sheet: `cost` and `chips` inputs. Added rebuys/addons displayed as `EventBadge`. File: `apps/web/src/components/live-tournament/tournament-stack-form.tsx`
 
-## Dependencies & Execution Order
+- [ ] T037 Create `TournamentCompleteForm` component: inputs for `placement`, `totalEntries`, `prizeMoney`, `bountyPrizes` (optional). File: `apps/web/src/components/live-tournament/tournament-complete-form.tsx`
 
-### Phase Dependencies
+- [ ] T038 Create `TournamentSummary` component: displays tournament-specific summary (rebuyCount, rebuyCost, addonCount, addonCost, placement, totalEntries, prizeMoney, bountyPrizes, P&L). File: `apps/web/src/components/live-tournament/tournament-summary.tsx`
 
-- **Setup (Phase 1)**: No dependencies - can start immediately
-- **Foundational (Phase 2)**: Depends on Setup completion - BLOCKS all user stories
-- **US1 (Phase 3)**: Depends on Foundational - creates shared UI infrastructure (list page, session card)
-- **US2 (Phase 4)**: Depends on Foundational + US1 list page (extends it)
-- **US3 (Phase 5)**: Depends on US1 and US2 (adds pause/resume to existing pages)
-- **US4 (Phase 6)**: Depends on Foundational (can start after Phase 2, integrates with US1/US2 pages)
-- **US5 (Phase 7)**: Depends on US1 and US2 (adds timeline to existing pages)
-- **Polish (Phase 8)**: Depends on all user stories being complete
+### Tournament Pages
 
-### User Story Dependencies
+- [ ] T039 Create tournament detail page: session header, status badge, TournamentSummary, TournamentStackForm (active only), event list, complete/discard/reopen actions. 1-screen design. File: `apps/web/src/routes/live-sessions/tournament/$sessionId.tsx`
 
-- **User Story 1 (P1)**: Depends only on Foundational - first MVP deliverable
-- **User Story 2 (P1)**: Depends on Foundational + US1 (reuses list page, session card) - second deliverable
-- **User Story 3 (P2)**: Depends on US1 + US2 (adds to their pages) - but pause/resume backend is independent
-- **User Story 4 (P2)**: Depends on Foundational (backend independent), integrates into US1/US2 pages
-- **User Story 5 (P3)**: Depends on US1 + US2 (adds to their pages)
+- [ ] T040 Update live sessions list page: add "New Tournament" button alongside "New Cash Game". Show tournament sessions in the list alongside cash game sessions (query both routers). Route tournament card clicks to tournament detail page. File: `apps/web/src/routes/live-sessions/index.tsx`
 
-### Within Each User Story
+### Tournament Component Tests
 
-- Tests before implementation (TDD per Constitution III)
-- Schema/DB before routers
-- Routers before frontend
-- Shared components before page integration
+- [ ] T041 Test: write component tests for `TournamentStackForm`: test stack input, test rebuy/addon bottom sheet add, test badge display, test submit payload. File: `apps/web/src/components/live-tournament/__tests__/tournament-stack-form.test.tsx`
 
-### Parallel Opportunities
-
-- T003, T004, T005, T006 (all schema files) can run in parallel
-- T009, T010, T011, T012 (all schema tests) can run in parallel
-- T015, T016 (US1 router tests) can run in parallel
-- T021, T022, T023, T024, T027, T028 (US1 components) can run in parallel
-- T033, T034, T035 (US2 components) can run in parallel
-- T046, T047 (US4 components) can run in parallel
-- T050, T051 (US5 components) can run in parallel
+- [ ] T042 Test: write component tests for `CreateTournamentSessionForm`: test renders, test submit. File: `apps/web/src/components/live-tournament/__tests__/create-tournament-session-form.test.tsx`
 
 ---
 
-## Parallel Example: Foundational Phase
+## Phase 5: US3 - Session Reopen (P2)
 
-```bash
-# Launch all schema files together:
-Task: "Create liveCashGameSession schema in packages/db/src/schema/live-cash-game-session.ts"
-Task: "Create liveTournamentSession schema in packages/db/src/schema/live-tournament-session.ts"
-Task: "Create sessionEvent schema in packages/db/src/schema/session-event.ts"
-Task: "Create sessionTablePlayer schema in packages/db/src/schema/session-table-player.ts"
+### Reopen UI
 
-# Then launch all schema tests together:
-Task: "Create schema tests for liveCashGameSession in packages/db/src/__tests__/live-cash-game-session.test.ts"
-Task: "Create schema tests for liveTournamentSession in packages/db/src/__tests__/live-tournament-session.test.ts"
-Task: "Create schema tests for sessionEvent in packages/db/src/__tests__/session-event.test.ts"
-Task: "Create schema tests for sessionTablePlayer in packages/db/src/__tests__/session-table-player.test.ts"
-```
+- [ ] T043 Update live sessions list page: add "Reopen" action to completed session cards. Before reopen, check if an active session exists and show warning if so. On successful reopen, navigate to the session detail page. File: `apps/web/src/routes/live-sessions/index.tsx`
 
-## Parallel Example: User Story 1 Components
+- [ ] T044 Add `useActiveSession` hook: queries both `liveCashGameSession.list({ status: "active" })` and `liveTournamentSession.list({ status: "active" })` to determine if any active session exists. Returns `{ hasActive: boolean, activeSession: { id, type } | null }`. Used by create forms and reopen buttons to enforce single-session guard in UI. File: `apps/web/src/hooks/use-active-session.ts`
 
-```bash
-# Launch all US1 UI components together:
-Task: "Create cash game session start form in apps/web/src/components/live-cash-game/create-cash-game-session-form.tsx"
-Task: "Create buy-in form in apps/web/src/components/live-cash-game/buy-in-form.tsx"
-Task: "Create cash game stack record form in apps/web/src/components/live-cash-game/cash-game-stack-form.tsx"
-Task: "Create cash game complete form in apps/web/src/components/live-cash-game/cash-game-complete-form.tsx"
-Task: "Create live session card in apps/web/src/components/live-sessions/live-session-card.tsx"
-Task: "Create session summary in apps/web/src/components/live-sessions/session-summary.tsx"
-```
+- [ ] T045 Update create session UI: use `useActiveSession` to disable "New Cash Game" and "New Tournament" buttons when an active session exists. Show inline message directing user to the active session or to complete it first. File: `apps/web/src/routes/live-sessions/index.tsx`
+
+### Reopen Tests
+
+- [ ] T046 Test: write component tests for reopen flow in list page: test reopen button visibility for completed sessions, test reopen button disabled when active session exists, test successful reopen navigates to detail. File: `apps/web/src/routes/live-sessions/__tests__/reopen-flow.test.tsx`
 
 ---
 
-## Implementation Strategy
+## Phase 6: US4 - Table Players (P2)
 
-### MVP First (User Story 1 Only)
+### Table Player UI
 
-1. Complete Phase 1: Setup (event types, constants)
-2. Complete Phase 2: Foundational (schemas, migration, P&L service)
-3. Complete Phase 3: User Story 1 (cash game recording)
-4. **STOP and VALIDATE**: Test cash game session flow end-to-end
-5. Deploy/demo if ready
+- [ ] T047 Create `TablePlayerList` component: displays current table players (active/inactive). Shows player name, joined time, left time. "Add Player" button opens player selection. "Remove" button marks player as left. File: `apps/web/src/components/live-sessions/table-player-list.tsx`
 
-### Incremental Delivery
+- [ ] T048 Create `AddPlayerSheet` component: bottom sheet for adding a table player. Two modes: select existing player from list, or create new player inline (name + optional memo). Calls `sessionTablePlayer.add` or `sessionTablePlayer.addNew`. File: `apps/web/src/components/live-sessions/add-player-sheet.tsx`
 
-1. Setup + Foundational → Foundation ready
-2. Add User Story 1 → Cash game recording works (MVP!)
-3. Add User Story 2 → Tournament recording works
-4. Add User Story 3 → Pause/resume works for both types
-5. Add User Story 4 → Table player management works
-6. Add User Story 5 → Event history viewing and editing works
-7. Polish → Navigation, cleanup, final validation
+- [ ] T049 Integrate `TablePlayerList` into cash game detail page: add table players section for active sessions. Query `sessionTablePlayer.list` for current players. File: `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx`
 
-### Parallel Team Strategy
+- [ ] T050 Integrate `TablePlayerList` into tournament detail page: add table players section for active sessions. File: `apps/web/src/routes/live-sessions/tournament/$sessionId.tsx`
 
-With multiple developers:
+### Table Player Tests
 
-1. Team completes Setup + Foundational together
-2. Once Foundational is done:
-   - Developer A: User Story 1 (cash game)
-   - Developer B: User Story 2 (tournament) - after US1 list page exists
-   - Developer C: User Story 4 (table players) - backend independent
-3. After US1 + US2 pages exist:
-   - User Story 3 (pause/resume) and User Story 5 (event history) can proceed
+- [ ] T051 Test: write component tests for `TablePlayerList`: test renders player list, test add player triggers mutation, test remove player triggers mutation. File: `apps/web/src/components/live-sessions/__tests__/table-player-list.test.tsx`
+
+- [ ] T052 Test: write component tests for `AddPlayerSheet`: test existing player selection, test new player creation. File: `apps/web/src/components/live-sessions/__tests__/add-player-sheet.test.tsx`
 
 ---
 
-## Notes
+## Phase 7: US5 - Event History (P3)
 
-- [P] tasks = different files, no dependencies
-- [Story] label maps task to specific user story for traceability
-- Each user story should be independently completable and testable
-- Constitution III requires tests - included for all router/schema work
-- Commit after each task or logical group
-- Stop at any checkpoint to validate story independently
-- Run `bun x ultracite fix` before committing (Constitution IV)
+### Event Timeline
+
+- [ ] T053 Create `EventTimeline` component: displays all session events in chronological order. Each event shows type label, timestamp, payload summary. For `cash_game_stack_record`: show stack amount, allIn badges (potSize/equity), addon badge. For completed sessions, allow edit/delete of events via tap. File: `apps/web/src/components/live-sessions/event-timeline.tsx`
+
+- [ ] T054 Create `EditEventSheet` component: bottom sheet for editing an existing event's payload. Dynamically renders the correct form based on `eventType`. Calls `sessionEvent.update`. File: `apps/web/src/components/live-sessions/edit-event-sheet.tsx`
+
+- [ ] T055 Add event delete functionality: confirmation dialog before deleting an event via `sessionEvent.delete`. After delete, invalidate session queries to trigger P&L recalculation display. Integrate into `EventTimeline` component. File: `apps/web/src/components/live-sessions/event-timeline.tsx`
+
+- [ ] T056 Integrate `EventTimeline` into cash game detail page: replace simple event list with `EventTimeline`. File: `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx`
+
+- [ ] T057 Integrate `EventTimeline` into tournament detail page: add event timeline section. File: `apps/web/src/routes/live-sessions/tournament/$sessionId.tsx`
+
+### Event History Tests
+
+- [ ] T058 Test: write component tests for `EventTimeline`: test renders events in order, test edit opens sheet, test delete shows confirmation. File: `apps/web/src/components/live-sessions/__tests__/event-timeline.test.tsx`
+
+---
+
+## Phase 8: Bottom Nav + Polish
+
+### Dynamic Bottom Navigation
+
+- [ ] T059 Update bottom navigation (sidebar-nav or root layout): add `useActiveSession` hook to check for active sessions. When active session exists, change center/primary nav button to navigate to the active session detail page. When no active session, center button navigates to `/live-sessions/` for new session creation. File: `apps/web/src/routes/__root.tsx` (or the component containing bottom nav)
+
+- [ ] T060 Update bottom navigation: when active session exists, add secondary nav items for event history and table players views of the current session. When no active session, show normal navigation items. File: `apps/web/src/routes/__root.tsx` (or the component containing bottom nav)
+
+### 1-Screen Design Validation
+
+- [ ] T061 Audit all live session screens for 1-screen viewport fit: cash game detail (active), cash game detail (completed), tournament detail (active), tournament detail (completed), session list, create forms. Adjust layouts as needed using compact spacing, collapsible sections, or removal of non-essential elements. Ensure no vertical scroll is required on standard mobile viewport (375x667). Files: `apps/web/src/routes/live-sessions/**`, `apps/web/src/components/live-cash-game/**`, `apps/web/src/components/live-tournament/**`
+
+### Final Integration Tests
+
+- [ ] T062 Test: write integration test for full cash game lifecycle: create session with initialBuyIn -> record stack with allIn (new format) and addon -> complete -> verify P&L -> reopen -> add more events -> re-complete -> verify updated P&L. File: `apps/web/src/__tests__/cash-game-lifecycle.test.tsx`
+
+- [ ] T063 Test: write integration test for single-session guard: create cash game session -> attempt to create another -> verify blocked. Create tournament -> verify blocked. Complete first -> create second -> verify allowed. File: `apps/web/src/__tests__/single-session-guard.test.tsx`
+
+- [ ] T064 Test: write navigation test for dynamic bottom nav: verify nav changes when active session exists vs. not. File: `apps/web/src/__tests__/dynamic-nav.test.tsx`
