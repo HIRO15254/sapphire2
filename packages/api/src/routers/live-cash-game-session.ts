@@ -1,5 +1,6 @@
 import { cashGameStackRecordPayload } from "@sapphire2/db/constants/session-event-types";
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
+import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { pokerSession } from "@sapphire2/db/schema/session";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
@@ -100,7 +101,7 @@ export const liveCashGameSessionRouter = router({
 	list: protectedProcedure
 		.input(
 			z.object({
-				status: z.enum(["active", "paused", "completed"]).optional(),
+				status: z.enum(["active", "completed"]).optional(),
 				cursor: z.string().optional(),
 				limit: z.number().int().min(1).max(100).default(DEFAULT_LIMIT),
 			})
@@ -265,12 +266,44 @@ export const liveCashGameSessionRouter = router({
 				ringGameId: z.string().optional(),
 				currencyId: z.string().optional(),
 				memo: z.string().optional(),
+				initialBuyIn: z.number().min(0),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const id = crypto.randomUUID();
 			const now = new Date();
+
+			// Check no other active session exists across both cash game and tournament tables
+			const anyActiveCash = await ctx.db
+				.select({ id: liveCashGameSession.id })
+				.from(liveCashGameSession)
+				.where(
+					and(
+						eq(liveCashGameSession.userId, userId),
+						eq(liveCashGameSession.status, "active")
+					)
+				)
+				.limit(1);
+
+			const anyActiveTournament = await ctx.db
+				.select({ id: liveTournamentSession.id })
+				.from(liveTournamentSession)
+				.where(
+					and(
+						eq(liveTournamentSession.userId, userId),
+						eq(liveTournamentSession.status, "active")
+					)
+				)
+				.limit(1);
+
+			if (anyActiveCash.length > 0 || anyActiveTournament.length > 0) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Another session is already active",
+				});
+			}
+
+			const id = crypto.randomUUID();
 
 			await ctx.db.insert(liveCashGameSession).values({
 				id,
@@ -281,6 +314,17 @@ export const liveCashGameSessionRouter = router({
 				currencyId: input.currencyId ?? null,
 				startedAt: now,
 				memo: input.memo ?? null,
+				updatedAt: now,
+			});
+
+			// Auto-create initial buy-in event
+			await ctx.db.insert(sessionEvent).values({
+				id: crypto.randomUUID(),
+				liveCashGameSessionId: id,
+				eventType: "cash_game_buy_in",
+				occurredAt: now,
+				sortOrder: 0,
+				payload: JSON.stringify({ amount: input.initialBuyIn }),
 				updatedAt: now,
 			});
 
@@ -388,39 +432,156 @@ export const liveCashGameSessionRouter = router({
 
 			const pl = computeCashGamePLFromEvents(allEvents);
 
-			// Create pokerSession
-			const pokerSessionId = crypto.randomUUID();
-			await ctx.db.insert(pokerSession).values({
-				id: pokerSessionId,
-				userId,
-				type: "cash_game",
-				sessionDate: session.startedAt,
-				storeId: session.storeId ?? null,
-				ringGameId: session.ringGameId ?? null,
-				currencyId: session.currencyId ?? null,
-				liveCashGameSessionId: input.id,
-				buyIn: pl.totalBuyIn,
-				cashOut: pl.cashOut,
-				evCashOut: pl.evCashOut,
-				startedAt: session.startedAt,
-				endedAt: now,
-				memo: session.memo ?? null,
-				updatedAt: now,
-			});
+			// Check if a pokerSession already exists for this live session
+			const [existingPokerSession] = await ctx.db
+				.select({ id: pokerSession.id })
+				.from(pokerSession)
+				.where(eq(pokerSession.liveCashGameSessionId, input.id));
 
-			// Create currency transaction if currencyId is set and P&L is available
-			if (session.currencyId && pl.profitLoss !== null) {
-				await createCurrencyTransactionForSession(
-					ctx.db,
-					pokerSessionId,
-					session.currencyId,
-					pl.profitLoss,
-					session.startedAt,
-					userId
-				);
+			let pokerSessionId: string;
+
+			if (existingPokerSession) {
+				pokerSessionId = existingPokerSession.id;
+				await ctx.db
+					.update(pokerSession)
+					.set({
+						buyIn: pl.totalBuyIn,
+						cashOut: pl.cashOut,
+						evCashOut: pl.evCashOut,
+						endedAt: now,
+						updatedAt: now,
+					})
+					.where(eq(pokerSession.id, pokerSessionId));
+
+				// Update or create currency transaction
+				if (session.currencyId && pl.profitLoss !== null) {
+					const [existingTx] = await ctx.db
+						.select({ id: currencyTransaction.id })
+						.from(currencyTransaction)
+						.where(eq(currencyTransaction.sessionId, pokerSessionId));
+
+					if (existingTx) {
+						await ctx.db
+							.update(currencyTransaction)
+							.set({ amount: pl.profitLoss })
+							.where(eq(currencyTransaction.id, existingTx.id));
+					} else {
+						await createCurrencyTransactionForSession(
+							ctx.db,
+							pokerSessionId,
+							session.currencyId,
+							pl.profitLoss,
+							session.startedAt,
+							userId
+						);
+					}
+				}
+			} else {
+				pokerSessionId = crypto.randomUUID();
+				await ctx.db.insert(pokerSession).values({
+					id: pokerSessionId,
+					userId,
+					type: "cash_game",
+					sessionDate: session.startedAt,
+					storeId: session.storeId ?? null,
+					ringGameId: session.ringGameId ?? null,
+					currencyId: session.currencyId ?? null,
+					liveCashGameSessionId: input.id,
+					buyIn: pl.totalBuyIn,
+					cashOut: pl.cashOut,
+					evCashOut: pl.evCashOut,
+					startedAt: session.startedAt,
+					endedAt: now,
+					memo: session.memo ?? null,
+					updatedAt: now,
+				});
+
+				// Create currency transaction if currencyId is set and P&L is available
+				if (session.currencyId && pl.profitLoss !== null) {
+					await createCurrencyTransactionForSession(
+						ctx.db,
+						pokerSessionId,
+						session.currencyId,
+						pl.profitLoss,
+						session.startedAt,
+						userId
+					);
+				}
 			}
 
 			return { id: input.id, pokerSessionId };
+		}),
+
+	reopen: protectedProcedure
+		.input(z.object({ id: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const session = await findLiveCashGameSession(ctx.db, input.id, userId);
+
+			if (session.status !== "completed") {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Session is not completed",
+				});
+			}
+
+			// Check no other active session exists across both cash game and tournament tables
+			const anyActiveCash = await ctx.db
+				.select({ id: liveCashGameSession.id })
+				.from(liveCashGameSession)
+				.where(
+					and(
+						eq(liveCashGameSession.userId, userId),
+						eq(liveCashGameSession.status, "active")
+					)
+				)
+				.limit(1);
+
+			const anyActiveTournament = await ctx.db
+				.select({ id: liveTournamentSession.id })
+				.from(liveTournamentSession)
+				.where(
+					and(
+						eq(liveTournamentSession.userId, userId),
+						eq(liveTournamentSession.status, "active")
+					)
+				)
+				.limit(1);
+
+			if (anyActiveCash.length > 0 || anyActiveTournament.length > 0) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Another session is already active",
+				});
+			}
+
+			// Find linked pokerSession and clean up derived data
+			const [linkedPokerSession] = await ctx.db
+				.select({ id: pokerSession.id })
+				.from(pokerSession)
+				.where(eq(pokerSession.liveCashGameSessionId, input.id));
+
+			if (linkedPokerSession) {
+				// Delete currency transactions linked to this poker session
+				await ctx.db
+					.delete(currencyTransaction)
+					.where(eq(currencyTransaction.sessionId, linkedPokerSession.id));
+
+				// Delete the poker session
+				await ctx.db
+					.delete(pokerSession)
+					.where(eq(pokerSession.id, linkedPokerSession.id));
+			}
+
+			const now = new Date();
+
+			// Reopen the session
+			await ctx.db
+				.update(liveCashGameSession)
+				.set({ status: "active", endedAt: null, updatedAt: now })
+				.where(eq(liveCashGameSession.id, input.id));
+
+			return { id: input.id };
 		}),
 
 	discard: protectedProcedure

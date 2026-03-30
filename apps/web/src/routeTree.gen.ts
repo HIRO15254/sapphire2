@@ -17,8 +17,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as StoresIndexRouteImport } from './routes/stores/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
 import { Route as PlayersIndexRouteImport } from './routes/players/index'
+import { Route as LiveSessionsIndexRouteImport } from './routes/live-sessions/index'
 import { Route as CurrenciesIndexRouteImport } from './routes/currencies/index'
 import { Route as StoresStoreIdRouteImport } from './routes/stores/$storeId'
+import { Route as LiveSessionsCashGameSessionIdRouteImport } from './routes/live-sessions/cash-game/$sessionId'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -60,6 +62,11 @@ const PlayersIndexRoute = PlayersIndexRouteImport.update({
   path: '/players/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LiveSessionsIndexRoute = LiveSessionsIndexRouteImport.update({
+  id: '/live-sessions/',
+  path: '/live-sessions/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CurrenciesIndexRoute = CurrenciesIndexRouteImport.update({
   id: '/currencies/',
   path: '/currencies/',
@@ -70,6 +77,12 @@ const StoresStoreIdRoute = StoresStoreIdRouteImport.update({
   path: '/stores/$storeId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LiveSessionsCashGameSessionIdRoute =
+  LiveSessionsCashGameSessionIdRouteImport.update({
+    id: '/live-sessions/cash-game/$sessionId',
+    path: '/live-sessions/cash-game/$sessionId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -79,9 +92,11 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
   '/currencies/': typeof CurrenciesIndexRoute
+  '/live-sessions/': typeof LiveSessionsIndexRoute
   '/players/': typeof PlayersIndexRoute
   '/sessions/': typeof SessionsIndexRoute
   '/stores/': typeof StoresIndexRoute
+  '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -91,9 +106,11 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
   '/currencies': typeof CurrenciesIndexRoute
+  '/live-sessions': typeof LiveSessionsIndexRoute
   '/players': typeof PlayersIndexRoute
   '/sessions': typeof SessionsIndexRoute
   '/stores': typeof StoresIndexRoute
+  '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -104,9 +121,11 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
   '/currencies/': typeof CurrenciesIndexRoute
+  '/live-sessions/': typeof LiveSessionsIndexRoute
   '/players/': typeof PlayersIndexRoute
   '/sessions/': typeof SessionsIndexRoute
   '/stores/': typeof StoresIndexRoute
+  '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -118,9 +137,11 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stores/$storeId'
     | '/currencies/'
+    | '/live-sessions/'
     | '/players/'
     | '/sessions/'
     | '/stores/'
+    | '/live-sessions/cash-game/$sessionId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -130,9 +151,11 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stores/$storeId'
     | '/currencies'
+    | '/live-sessions'
     | '/players'
     | '/sessions'
     | '/stores'
+    | '/live-sessions/cash-game/$sessionId'
   id:
     | '__root__'
     | '/'
@@ -142,9 +165,11 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stores/$storeId'
     | '/currencies/'
+    | '/live-sessions/'
     | '/players/'
     | '/sessions/'
     | '/stores/'
+    | '/live-sessions/cash-game/$sessionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -155,9 +180,11 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   StoresStoreIdRoute: typeof StoresStoreIdRoute
   CurrenciesIndexRoute: typeof CurrenciesIndexRoute
+  LiveSessionsIndexRoute: typeof LiveSessionsIndexRoute
   PlayersIndexRoute: typeof PlayersIndexRoute
   SessionsIndexRoute: typeof SessionsIndexRoute
   StoresIndexRoute: typeof StoresIndexRoute
+  LiveSessionsCashGameSessionIdRoute: typeof LiveSessionsCashGameSessionIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -218,6 +245,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlayersIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/live-sessions/': {
+      id: '/live-sessions/'
+      path: '/live-sessions'
+      fullPath: '/live-sessions/'
+      preLoaderRoute: typeof LiveSessionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/currencies/': {
       id: '/currencies/'
       path: '/currencies'
@@ -232,6 +266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StoresStoreIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/live-sessions/cash-game/$sessionId': {
+      id: '/live-sessions/cash-game/$sessionId'
+      path: '/live-sessions/cash-game/$sessionId'
+      fullPath: '/live-sessions/cash-game/$sessionId'
+      preLoaderRoute: typeof LiveSessionsCashGameSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -243,9 +284,11 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   StoresStoreIdRoute: StoresStoreIdRoute,
   CurrenciesIndexRoute: CurrenciesIndexRoute,
+  LiveSessionsIndexRoute: LiveSessionsIndexRoute,
   PlayersIndexRoute: PlayersIndexRoute,
   SessionsIndexRoute: SessionsIndexRoute,
   StoresIndexRoute: StoresIndexRoute,
+  LiveSessionsCashGameSessionIdRoute: LiveSessionsCashGameSessionIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

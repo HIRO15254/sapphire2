@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Session statuses
-export const SESSION_STATUSES = ["active", "paused", "completed"] as const;
+export const SESSION_STATUSES = ["active", "completed"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
 // Event types
@@ -16,12 +16,7 @@ export const TOURNAMENT_EVENT_TYPES = [
 	"tournament_result",
 ] as const;
 
-export const COMMON_EVENT_TYPES = [
-	"player_join",
-	"player_leave",
-	"session_pause",
-	"session_resume",
-] as const;
+export const COMMON_EVENT_TYPES = ["player_join", "player_leave"] as const;
 
 export const ALL_EVENT_TYPES = [
 	...CASH_GAME_EVENT_TYPES,
@@ -31,14 +26,21 @@ export const ALL_EVENT_TYPES = [
 
 export type SessionEventType = (typeof ALL_EVENT_TYPES)[number];
 
+// Event types that cannot be manually created (auto-created by session lifecycle only)
+export const MANUAL_CREATE_BLOCKED_EVENT_TYPES: readonly string[] = [
+	"cash_game_buy_in",
+] as const;
+
 // Payload Zod schemas
 export const cashGameBuyInPayload = z.object({
 	amount: z.number().int().min(0),
 });
 
 export const allInSchema = z.object({
-	actualResult: z.number(),
-	evResult: z.number(),
+	potSize: z.number().min(0),
+	trials: z.number().int().min(1),
+	equity: z.number().min(0).max(100),
+	wins: z.number().min(0),
 });
 
 export const addonSchema = z.object({
@@ -88,10 +90,6 @@ export const playerLeavePayload = z.object({
 	playerId: z.string().min(1),
 });
 
-export const sessionPausePayload = z.object({});
-
-export const sessionResumePayload = z.object({});
-
 // Payload schema map for dispatch
 export const EVENT_PAYLOAD_SCHEMAS: Record<SessionEventType, z.ZodTypeAny> = {
 	cash_game_buy_in: cashGameBuyInPayload,
@@ -101,8 +99,6 @@ export const EVENT_PAYLOAD_SCHEMAS: Record<SessionEventType, z.ZodTypeAny> = {
 	tournament_result: tournamentResultPayload,
 	player_join: playerJoinPayload,
 	player_leave: playerLeavePayload,
-	session_pause: sessionPausePayload,
-	session_resume: sessionResumePayload,
 };
 
 // Helper to validate payload for a given event type

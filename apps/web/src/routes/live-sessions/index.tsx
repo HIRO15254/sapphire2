@@ -20,6 +20,8 @@ function useStoreRingGames(storeId: string | undefined) {
 	return (ringGamesQuery.data ?? []).map((g) => ({
 		id: g.id,
 		name: g.name,
+		maxBuyIn: g.maxBuyIn,
+		currencyId: g.currencyId,
 	}));
 }
 
@@ -56,6 +58,7 @@ function LiveSessionsPage() {
 	const createMutation = useMutation({
 		mutationFn: (values: {
 			currencyId?: string;
+			initialBuyIn: number;
 			memo?: string;
 			ringGameId?: string;
 			storeId?: string;
@@ -72,6 +75,7 @@ function LiveSessionsPage() {
 
 	const handleCreate = (values: {
 		currencyId?: string;
+		initialBuyIn: number;
 		memo?: string;
 		ringGameId?: string;
 		storeId?: string;
@@ -117,7 +121,7 @@ function LiveSessionsPage() {
 							session={{
 								id: session.id,
 								type: "cash_game",
-								status: session.status as "active" | "paused" | "completed",
+								status: session.status as "active" | "completed",
 								storeName: session.storeName ?? null,
 								gameName: session.ringGameName ?? null,
 								currencyName: session.currencyName ?? null,

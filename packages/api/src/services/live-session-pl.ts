@@ -59,7 +59,9 @@ export function computeCashGamePLFromEvents(
 				addonTotal += data.addon.amount;
 			}
 			for (const allIn of data.allIns) {
-				totalEvDiff += allIn.evResult - allIn.actualResult;
+				const evAmount = allIn.potSize * (allIn.equity / 100) * allIn.trials;
+				const actualAmount = allIn.potSize * allIn.wins;
+				totalEvDiff += evAmount - actualAmount;
 			}
 		} else if (event.eventType === "cash_out") {
 			const data = cashOutPayload.parse(parsed);

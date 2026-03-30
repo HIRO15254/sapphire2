@@ -1,6 +1,7 @@
 import {
 	ALL_EVENT_TYPES,
 	isValidEventTypeForSessionType,
+	MANUAL_CREATE_BLOCKED_EVENT_TYPES,
 	playerJoinPayload,
 	type SessionEventType,
 	validateEventPayload,
@@ -265,6 +266,14 @@ export const sessionEventRouter = router({
 				userId
 			);
 
+			if (MANUAL_CREATE_BLOCKED_EVENT_TYPES.includes(eventType)) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message:
+						"This event type is auto-created and cannot be manually added",
+				});
+			}
+
 			if (!isValidEventTypeForSessionType(eventType, sessionType)) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
@@ -324,6 +333,9 @@ export const sessionEventRouter = router({
 				.select()
 				.from(sessionEvent)
 				.where(eq(sessionEvent.id, id));
+			if (!created) {
+				throw new TRPCError({ code: "NOT_FOUND", message: "Event not found" });
+			}
 			return { ...created, payload: parseEventPayload(created) };
 		}),
 
@@ -381,6 +393,9 @@ export const sessionEventRouter = router({
 				.select()
 				.from(sessionEvent)
 				.where(eq(sessionEvent.id, input.id));
+			if (!updated) {
+				throw new TRPCError({ code: "NOT_FOUND", message: "Event not found" });
+			}
 			return { ...updated, payload: parseEventPayload(updated) };
 		}),
 

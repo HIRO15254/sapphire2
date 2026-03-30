@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -17,11 +18,17 @@ interface CreateCashGameSessionFormProps {
 	onStoreChange?: (storeId?: string) => void;
 	onSubmit: (values: {
 		currencyId?: string;
+		initialBuyIn: number;
 		memo?: string;
 		ringGameId?: string;
 		storeId?: string;
 	}) => void;
-	ringGames: Array<{ id: string; name: string }>;
+	ringGames: Array<{
+		id: string;
+		name: string;
+		maxBuyIn: number | null;
+		currencyId: string | null;
+	}>;
 	stores: Array<{ id: string; name: string }>;
 }
 
@@ -42,6 +49,7 @@ export function CreateCashGameSessionForm({
 	const [selectedCurrencyId, setSelectedCurrencyId] = useState<
 		string | undefined
 	>(undefined);
+	const [initialBuyIn, setInitialBuyIn] = useState<string>("");
 
 	const handleStoreChange = (value: string) => {
 		const storeId = value === NONE_VALUE ? undefined : value;
@@ -51,7 +59,16 @@ export function CreateCashGameSessionForm({
 	};
 
 	const handleRingGameChange = (value: string) => {
-		setSelectedRingGameId(value === NONE_VALUE ? undefined : value);
+		const ringGameId = value === NONE_VALUE ? undefined : value;
+		setSelectedRingGameId(ringGameId);
+
+		if (ringGameId) {
+			const ringGame = ringGames.find((g) => g.id === ringGameId);
+			if (ringGame) {
+				setInitialBuyIn(ringGame.maxBuyIn?.toString() ?? "");
+				setSelectedCurrencyId(ringGame.currencyId ?? undefined);
+			}
+		}
 	};
 
 	const handleCurrencyChange = (value: string) => {
@@ -67,6 +84,7 @@ export function CreateCashGameSessionForm({
 			storeId: selectedStoreId,
 			ringGameId: selectedRingGameId,
 			currencyId: selectedCurrencyId,
+			initialBuyIn: Number(initialBuyIn),
 			memo,
 		});
 	};
@@ -148,6 +166,18 @@ export function CreateCashGameSessionForm({
 					</Select>
 				</div>
 			)}
+
+			<div className="flex flex-col gap-2">
+				<Label htmlFor="initialBuyIn">Initial Buy-in</Label>
+				<Input
+					id="initialBuyIn"
+					min={0}
+					onChange={(e) => setInitialBuyIn(e.target.value)}
+					required
+					type="number"
+					value={initialBuyIn}
+				/>
+			</div>
 
 			<div className="flex flex-col gap-2">
 				<Label htmlFor="memo">Memo</Label>

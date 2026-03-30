@@ -7,7 +7,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { BuyInForm } from "@/components/live-cash-game/buy-in-form";
 import { CashGameCompleteForm } from "@/components/live-cash-game/cash-game-complete-form";
 import { CashGameStackForm } from "@/components/live-cash-game/cash-game-stack-form";
 import { SessionSummary } from "@/components/live-sessions/session-summary";
@@ -65,6 +64,9 @@ function formatPayloadSummary(
 				parts.push(`Addon: ${addon.amount.toLocaleString()}`);
 			}
 		}
+		if (Array.isArray(p.allIns) && p.allIns.length > 0) {
+			parts.push(`${p.allIns.length} all-in(s)`);
+		}
 		return parts.join(" · ");
 	}
 	if (eventType === "cash_out" && typeof p.amount === "number") {
@@ -76,14 +78,11 @@ function formatPayloadSummary(
 const STATUS_BADGE_CLASS: Record<string, string> = {
 	active:
 		"border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400",
-	paused:
-		"border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-400",
 	completed: "border-border bg-muted text-muted-foreground",
 };
 
 const STATUS_LABEL: Record<string, string> = {
 	active: "Active",
-	paused: "Paused",
 	completed: "Completed",
 };
 
@@ -120,20 +119,15 @@ function CashGameSessionPage() {
 		]);
 	};
 
-	const buyInMutation = useMutation({
-		mutationFn: (values: { amount: number }) =>
-			trpcClient.sessionEvent.create.mutate({
-				liveCashGameSessionId: sessionId,
-				eventType: "cash_game_buy_in",
-				payload: { amount: values.amount },
-			}),
-		onSuccess: invalidateSession,
-	});
-
 	const stackMutation = useMutation({
 		mutationFn: (values: {
 			addon: { amount: number } | null;
-			allIns: Array<{ actualResult: number; evResult: number }>;
+			allIns: Array<{
+				potSize: number;
+				trials: number;
+				equity: number;
+				wins: number;
+			}>;
 			stackAmount: number;
 		}) =>
 			trpcClient.sessionEvent.create.mutate({
@@ -144,6 +138,15 @@ function CashGameSessionPage() {
 		onSuccess: invalidateSession,
 	});
 
+	const reopenMutation = useMutation({
+		mutationFn: () =>
+			trpcClient.liveCashGameSession.reopen.mutate({ id: sessionId }),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: sessionKey });
+			await queryClient.invalidateQueries({ queryKey: listKey });
+		},
+	});
+
 	const completeMutation = useMutation({
 		mutationFn: (values: { cashOut: number }) =>
 			trpcClient.liveCashGameSession.complete.mutate({
@@ -152,7 +155,7 @@ function CashGameSessionPage() {
 			}),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: listKey });
-			await navigate({ to: "/live-sessions/" });
+			await navigate({ to: "/live-sessions" });
 		},
 	});
 
@@ -161,17 +164,18 @@ function CashGameSessionPage() {
 			trpcClient.liveCashGameSession.discard.mutate({ id: sessionId }),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: listKey });
-			await navigate({ to: "/live-sessions/" });
+			await navigate({ to: "/live-sessions" });
 		},
 	});
 
-	const handleBuyIn = (values: { amount: number }) => {
-		buyInMutation.mutate(values);
-	};
-
 	const handleStack = (values: {
 		addon: { amount: number } | null;
-		allIns: Array<{ actualResult: number; evResult: number }>;
+		allIns: Array<{
+			potSize: number;
+			trials: number;
+			equity: number;
+			wins: number;
+		}>;
 		stackAmount: number;
 	}) => {
 		stackMutation.mutate(values);
@@ -193,7 +197,7 @@ function CashGameSessionPage() {
 		);
 	}
 
-	const isActive = session.status === "active" || session.status === "paused";
+	const isActive = session.status === "active";
 	const isCompleted = session.status === "completed";
 
 	return (
@@ -201,7 +205,7 @@ function CashGameSessionPage() {
 			{/* Header */}
 			<div className="mb-4 flex items-center gap-3">
 				<Button
-					onClick={() => navigate({ to: "/live-sessions/" })}
+					onClick={() => navigate({ to: "/live-sessions" })}
 					size="sm"
 					variant="ghost"
 				>
@@ -221,9 +225,6 @@ function CashGameSessionPage() {
 					</Badge>
 				</div>
 
-				{session.storeName && (
-					<p className="text-muted-foreground text-sm">{session.storeName}</p>
-				)}
 				{session.memo && (
 					<p className="text-muted-foreground text-sm">{session.memo}</p>
 				)}
@@ -254,31 +255,17 @@ function CashGameSessionPage() {
 
 			{/* Recording forms – only for active sessions */}
 			{isActive && (
-				<>
-					<section className="mb-6">
-						<h2 className="mb-3 font-semibold text-lg">Record Buy-in</h2>
-						<Card>
-							<CardContent className="pt-4">
-								<BuyInForm
-									isLoading={buyInMutation.isPending}
-									onSubmit={handleBuyIn}
-								/>
-							</CardContent>
-						</Card>
-					</section>
-
-					<section className="mb-6">
-						<h2 className="mb-3 font-semibold text-lg">Record Stack</h2>
-						<Card>
-							<CardContent className="pt-4">
-								<CashGameStackForm
-									isLoading={stackMutation.isPending}
-									onSubmit={handleStack}
-								/>
-							</CardContent>
-						</Card>
-					</section>
-				</>
+				<section className="mb-6">
+					<h2 className="mb-3 font-semibold text-lg">Record Stack</h2>
+					<Card>
+						<CardContent className="pt-4">
+							<CashGameStackForm
+								isLoading={stackMutation.isPending}
+								onSubmit={handleStack}
+							/>
+						</CardContent>
+					</Card>
+				</section>
 			)}
 
 			{/* Event list */}
@@ -371,6 +358,15 @@ function CashGameSessionPage() {
 					<p className="text-muted-foreground text-sm">
 						This session has been completed and saved to your session history.
 					</p>
+					<div className="mt-3">
+						<Button
+							disabled={reopenMutation.isPending}
+							onClick={() => reopenMutation.mutate()}
+							variant="outline"
+						>
+							{reopenMutation.isPending ? "Reopening..." : "Reopen Session"}
+						</Button>
+					</div>
 				</div>
 			)}
 		</div>
