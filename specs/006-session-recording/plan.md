@@ -7,6 +7,15 @@
 
 既存のポーカーセッション記録機能に、リアルタイムのイベントベース記録機能を追加する。キャッシュゲームとトーナメントは構造が大きく異なるため、`liveCashGameSession`と`liveTournamentSession`の別テーブルで管理する。`sessionEvent`と`sessionTablePlayer`は共有テーブルとし、両セッションテーブルへのnullable FKで参照する。完了時に既存のpokerSessionレコードを生成して分析機能との互換性を維持する。イベントの直接編集・削除に対応し、完了済みセッションの編集時はP&L・通貨トランザクションを自動再計算する。
 
+**UXフィードバック変更点:**
+- セッション開始時にmaxBuyIn自動入力による初期バイイン（セッション作成の一部）
+- オールイン記録形式: potSize/trials/equity/wins（エクイティベースEV計算）
+- paused状態を廃止（active/completedのみ）
+- 同時進行1セッション制限 + completed→activeのreopen機能
+- ボトムナビゲーション動的切り替え（セッション有無で中央ボタンの役割が変化）
+- 1画面完結設計（ライブセッション中はスクロールなし）
+- オールイン・アドオン入力にボトムシート＋バッジパターンを採用
+
 ## Technical Context
 
 **Language/Version**: TypeScript (strict mode)
@@ -18,6 +27,7 @@
 **Performance Goals**: イベント記録30秒以内（SC-001）、100件以上のイベントで表示支障なし（SC-006）
 **Constraints**: Cloudflare D1のSQLite制限（JSON関数限定）、オフラインファースト（TanStack Query + IndexedDB永続化）
 **Scale/Scope**: 個人利用、1セッションあたり最大100〜数百イベント
+**Design Constraint**: 1画面完結設計（ライブセッション中の全画面はスクロールなし）
 
 ## Constitution Check
 
@@ -96,18 +106,22 @@ apps/web/src/
 ├── components/
 │   ├── live-sessions/
 │   │   ├── live-session-card.tsx        # NEW: セッションカード（共通）
-│   │   ├── create-session-form.tsx      # NEW: セッション種別選択フォーム（共通）
+│   │   ├── create-session-form.tsx      # NEW: セッション種別選択フォーム（初期バイイン含む）
 │   │   ├── event-timeline.tsx           # NEW: イベント履歴表示（共通）
 │   │   ├── table-player-list.tsx        # NEW: 同卓者リスト（共通）
 │   │   ├── session-summary.tsx          # NEW: セッションサマリー（共通）
+│   │   ├── all-in-bottom-sheet.tsx      # NEW: オールイン入力ボトムシート
+│   │   ├── addon-bottom-sheet.tsx       # NEW: アドオン入力ボトムシート
+│   │   ├── event-badge.tsx             # NEW: イベントバッジ（タップで編集・削除）
 │   │   └── __tests__/                   # NEW: コンポーネントテスト
 │   ├── live-cash-game/
 │   │   ├── cash-game-stack-form.tsx     # NEW: キャッシュゲーム用スタック記録
-│   │   ├── cash-game-complete-form.tsx  # NEW: キャッシュアウトフォーム
-│   │   └── buy-in-form.tsx             # NEW: バイインフォーム
+│   │   └── cash-game-complete-form.tsx  # NEW: キャッシュアウトフォーム
 │   ├── live-tournament/
 │   │   ├── tournament-stack-form.tsx    # NEW: トーナメント用スタック記録
 │   │   └── tournament-complete-form.tsx # NEW: トーナメント結果フォーム
+│   ├── navigation/
+│   │   └── mobile-nav.tsx              # MODIFIED: セッション有無による動的切り替え
 │   └── sessions/
 │       └── session-card.tsx             # MODIFIED: イベント履歴リンク追加
 ```

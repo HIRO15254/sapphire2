@@ -16,7 +16,7 @@
 |--------|------|-------------|-------------|
 | id | text | PK | UUID |
 | userId | text | NOT NULL, FK → user.id (cascade) | セッション所有者 |
-| status | text | NOT NULL | "active" \| "paused" \| "completed" |
+| status | text | NOT NULL | "active" \| "completed" |
 | storeId | text | FK → store.id (set null) | 店舗 |
 | ringGameId | text | FK → ringGame.id (set null) | キャッシュゲーム設定 |
 | currencyId | text | FK → currency.id (set null) | 通貨 |
@@ -45,7 +45,7 @@
 |--------|------|-------------|-------------|
 | id | text | PK | UUID |
 | userId | text | NOT NULL, FK → user.id (cascade) | セッション所有者 |
-| status | text | NOT NULL | "active" \| "paused" \| "completed" |
+| status | text | NOT NULL | "active" \| "completed" |
 | storeId | text | FK → store.id (set null) | 店舗 |
 | tournamentId | text | FK → tournament.id (set null) | トーナメント設定 |
 | currencyId | text | FK → currency.id (set null) | 通貨 |
@@ -139,16 +139,26 @@
 { "amount": number }
 ```
 
+> **Note**: セッション開始時に自動作成。スタンドアロンでの追加は不可。2回目以降のチップ追加はcash_game_stack_recordのaddonとして記録。
+
 #### cash_game_stack_record
 ```json
 {
   "stackAmount": number,
   "allIns": [
-    { "actualResult": number, "evResult": number }
+    { "potSize": number, "trials": number, "equity": number, "wins": number }
   ],
   "addon": { "amount": number } | null
 }
 ```
+
+**allInsフィールド説明**:
+- `potSize`: ポット合計額
+- `trials`: 試行回数 (Run it multi times, 通常1)
+- `equity`: 勝率(%, 0-100)
+- `wins`: 実際の勝利数 (小数許容, chop対応. 例: 2回中1勝1chop → 1.5)
+- EV計算: `evAmount = potSize × (equity / 100) × trials`
+- 実際の獲得額: `actualAmount = potSize × wins`
 
 #### cash_out
 ```json

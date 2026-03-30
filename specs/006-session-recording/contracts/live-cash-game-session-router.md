@@ -11,7 +11,7 @@
 **Input**:
 ```typescript
 {
-  status?: "active" | "paused" | "completed"
+  status?: "active" | "completed"
   cursor?: string
   limit?: number                               // デフォルト20
 }
@@ -21,7 +21,7 @@
 {
   items: {
     id: string
-    status: "active" | "paused" | "completed"
+    status: "active" | "completed"
     store: { id: string, name: string } | null
     ringGame: { id: string, name: string } | null
     currency: { id: string, name: string, unit: string } | null
@@ -76,9 +76,12 @@
   ringGameId?: string
   currencyId?: string
   memo?: string
+  initialBuyIn: number                          // required, min 0
 }
 ```
 **Output**: `{ id: string }`
+**Side effects**:
+- cash_game_buy_in イベントを自動記録 (amount = initialBuyIn)
 
 ### liveCashGameSession.update
 
@@ -93,20 +96,6 @@
 }
 ```
 **Output**: `{ id: string }`
-
-### liveCashGameSession.pause
-
-**Type**: mutation (protected)
-**Input**: `{ id: string }`
-**Output**: `{ id: string }`
-**Side effects**: session_pauseイベントを自動記録
-
-### liveCashGameSession.resume
-
-**Type**: mutation (protected)
-**Input**: `{ id: string }`
-**Output**: `{ id: string }`
-**Side effects**: session_resumeイベントを自動記録
 
 ### liveCashGameSession.complete
 
