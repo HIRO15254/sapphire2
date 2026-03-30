@@ -29,8 +29,7 @@
 
 **Purpose**: Shared Zod schemas and event payload type definitions used across all user stories
 
-- [ ] T001 Define shared event payload Zod schemas (cash_game_buy_in, cash_game_stack_record, cash_out, tournament_stack_record, tournament_result, player_join, player_leave, session_pause, session_resume) in packages/db/src/constants/session-event-types.ts
-- [ ] T002 Define shared session status constants ("active", "paused", "completed") and session event type constants in packages/db/src/constants/session-event-types.ts
+- [ ] T001 Define shared event payload Zod schemas (cash_game_buy_in, cash_game_stack_record, cash_out, tournament_stack_record, tournament_result, player_join, player_leave, session_pause, session_resume) and session status/event type constants in packages/db/src/constants/session-event-types.ts
 
 ---
 
@@ -96,6 +95,7 @@
 ### Tests for User Story 2
 
 - [ ] T029 [P] [US2] Create router tests for liveTournamentSession (list, getById, create, complete, discard) in packages/api/src/__tests__/live-tournament-session.test.ts
+- [ ] T029b [P] [US2] Create router tests for sessionEvent with tournament-specific events (tournament_stack_record, tournament_result payload validation, P&L recalculation) in packages/api/src/__tests__/session-event.test.ts
 
 ### Implementation for User Story 2
 
@@ -117,6 +117,10 @@
 **Goal**: Users can pause and resume sessions, manage multiple concurrent active/paused sessions
 
 **Independent Test**: Start session A, pause it, start session B, complete B, resume A, complete A - verify both sessions have correct independent data
+
+### Tests for User Story 3
+
+- [ ] T037b [P] [US3] Create router tests for pause/resume procedures (state transitions, auto session_pause/session_resume events, invalid transitions) in packages/api/src/__tests__/live-cash-game-session.test.ts and packages/api/src/__tests__/live-tournament-session.test.ts
 
 ### Implementation for User Story 3
 
@@ -159,6 +163,10 @@
 
 **Independent Test**: Open a session with multiple events, verify all events displayed in chronological order with stack summary (max/min/current)
 
+### Tests for User Story 5
+
+- [ ] T049b [P] [US5] Create router tests for sessionEvent update/delete (edit payload, delete event, P&L recalculation on completed session) in packages/api/src/__tests__/session-event.test.ts
+
 ### Implementation for User Story 5
 
 - [ ] T050 [P] [US5] Create event timeline component (chronological event list with type-specific rendering) in apps/web/src/components/live-sessions/event-timeline.tsx
@@ -175,10 +183,12 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T055 [P] Add discard (delete) action to both session detail pages with confirmation dialog in apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx and apps/web/src/routes/live-sessions/tournament/$sessionId.tsx
+- [ ] T055 [P] Add discard (delete) action with confirmation dialog to cash game session detail page in apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx
+- [ ] T055b [P] Add discard (delete) action with confirmation dialog to tournament session detail page in apps/web/src/routes/live-sessions/tournament/$sessionId.tsx
 - [ ] T056 [P] Add navigation link to live sessions from main navigation in apps/web/src/routes/__root.tsx
-- [ ] T057 Run type check (bun run check-types), tests (bun test), and lint (bun x ultracite check) - fix any issues
-- [ ] T058 Run quickstart.md validation - verify all listed files exist and patterns are correct
+- [ ] T057 [P] Create component tests for key UI components (cash-game-stack-form, tournament-stack-form, event-timeline, session-summary) in apps/web/src/components/live-cash-game/__tests__/, apps/web/src/components/live-tournament/__tests__/, apps/web/src/components/live-sessions/__tests__/
+- [ ] T058 Run type check (bun run check-types), tests (bun test), and lint (bun x ultracite check) - fix any issues
+- [ ] T059 Run quickstart.md validation - verify all listed files exist and patterns are correct
 
 ---
 

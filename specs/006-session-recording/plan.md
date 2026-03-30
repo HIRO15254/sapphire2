@@ -78,7 +78,7 @@ packages/api/src/
 │   ├── session-event.ts             # NEW: SessionEventルーター
 │   ├── session-table-player.ts      # NEW: SessionTablePlayerルーター
 │   ├── index.ts                     # MODIFIED: 新ルーター登録
-│   └── session.ts                   # MODIFIED: liveSessionId対応
+│   └── session.ts                   # MODIFIED: liveCashGameSessionId, liveTournamentSessionId追加
 └── __tests__/
     ├── live-cash-game-session.test.ts   # NEW
     ├── live-tournament-session.test.ts  # NEW
@@ -96,7 +96,7 @@ apps/web/src/
 ├── components/
 │   ├── live-sessions/
 │   │   ├── live-session-card.tsx        # NEW: セッションカード（共通）
-│   │   ├── create-session-form.tsx      # NEW: セッション開始フォーム
+│   │   ├── create-session-form.tsx      # NEW: セッション種別選択フォーム（共通）
 │   │   ├── event-timeline.tsx           # NEW: イベント履歴表示（共通）
 │   │   ├── table-player-list.tsx        # NEW: 同卓者リスト（共通）
 │   │   ├── session-summary.tsx          # NEW: セッションサマリー（共通）
