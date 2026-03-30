@@ -1,8 +1,6 @@
 import {
 	IconArchive,
 	IconArchiveOff,
-	IconChevronDown,
-	IconChevronUp,
 	IconEdit,
 	IconList,
 	IconPlus,
@@ -66,6 +64,8 @@ interface TournamentFormValues {
 }
 
 interface TournamentTabProps {
+	expandedGameId: string | null;
+	onToggleGame: (id: string) => void;
 	storeId: string;
 }
 
@@ -74,26 +74,20 @@ interface TournamentActionHandlers {
 	onDelete: (id: string) => void;
 	onEdit: (tournament: Tournament) => void;
 	onRestore: (id: string) => void;
-	onToggleExpand: (id: string) => void;
-	onView: (tournament: Tournament) => void;
+	onToggle: (id: string) => void;
 }
 
 interface TournamentListProps extends TournamentActionHandlers {
-	expandedId: string | null;
+	expandedGameId: string | null;
 	isArchived: boolean;
 	tournaments: Tournament[];
 }
 
 function TournamentList({
 	tournaments,
-	expandedId,
+	expandedGameId,
 	isArchived,
-	onArchive,
-	onDelete,
-	onEdit,
-	onRestore,
-	onToggleExpand,
-	onView,
+	...handlers
 }: TournamentListProps) {
 	if (tournaments.length === 0) {
 		return null;
@@ -103,16 +97,11 @@ function TournamentList({
 		<div className="divide-y">
 			{tournaments.map((t) => (
 				<TournamentRow
-					expandedId={expandedId}
+					expanded={expandedGameId === t.id}
 					isArchived={isArchived}
 					key={t.id}
-					onArchive={onArchive}
-					onDelete={onDelete}
-					onEdit={onEdit}
-					onRestore={onRestore}
-					onToggleExpand={onToggleExpand}
-					onView={onView}
 					tournament={t}
+					{...handlers}
 				/>
 			))}
 		</div>
@@ -120,14 +109,14 @@ function TournamentList({
 }
 
 interface ArchivedTournamentSectionProps extends TournamentActionHandlers {
-	expandedId: string | null;
+	expandedGameId: string | null;
 	isLoading: boolean;
 	tournaments: Tournament[];
 }
 
 function ArchivedTournamentSection({
 	tournaments,
-	expandedId,
+	expandedGameId,
 	isLoading,
 	...handlers
 }: ArchivedTournamentSectionProps) {
@@ -150,7 +139,7 @@ function ArchivedTournamentSection({
 	return (
 		<div className="mt-1 border-t border-dashed pt-1">
 			<TournamentList
-				expandedId={expandedId}
+				expandedGameId={expandedGameId}
 				isArchived
 				tournaments={tournaments}
 				{...handlers}
@@ -163,7 +152,7 @@ interface TournamentContentProps extends TournamentActionHandlers {
 	activeTournaments: Tournament[];
 	archivedLoading: boolean;
 	archivedTournaments: Tournament[];
-	expandedId: string | null;
+	expandedGameId: string | null;
 	isLoading: boolean;
 	showArchived: boolean;
 }
@@ -172,7 +161,7 @@ function TournamentContent({
 	activeTournaments,
 	archivedLoading,
 	archivedTournaments,
-	expandedId,
+	expandedGameId,
 	isLoading,
 	showArchived,
 	...handlers
@@ -193,14 +182,14 @@ function TournamentContent({
 				</p>
 			)}
 			<TournamentList
-				expandedId={expandedId}
+				expandedGameId={expandedGameId}
 				isArchived={false}
 				tournaments={activeTournaments}
 				{...handlers}
 			/>
 			{showArchived && (
 				<ArchivedTournamentSection
-					expandedId={expandedId}
+					expandedGameId={expandedGameId}
 					isLoading={archivedLoading}
 					tournaments={archivedTournaments}
 					{...handlers}
@@ -234,32 +223,29 @@ function formatBuyInShort(t: Tournament): string {
 }
 
 interface TournamentRowProps {
-	expandedId: string | null;
+	expanded: boolean;
 	isArchived: boolean;
 	onArchive: (id: string) => void;
 	onDelete: (id: string) => void;
 	onEdit: (tournament: Tournament) => void;
 	onRestore: (id: string) => void;
-	onToggleExpand: (id: string) => void;
-	onView: (tournament: Tournament) => void;
+	onToggle: (id: string) => void;
 	tournament: Tournament;
 }
 
 function TournamentRow({
 	tournament,
-	expandedId,
+	expanded,
 	isArchived,
 	onArchive,
 	onDelete,
 	onEdit,
 	onRestore,
-	onToggleExpand,
-	onView,
+	onToggle,
 }: TournamentRowProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [blindEditorOpen, setBlindEditorOpen] = useState(false);
 	const buyInStr = formatBuyInShort(tournament);
-	const isExpanded = expandedId === tournament.id;
 
 	return (
 		<div>
@@ -268,7 +254,10 @@ function TournamentRow({
 					<div className="flex flex-wrap items-center gap-1">
 						<button
 							className="truncate font-medium text-xs hover:underline"
-							onClick={() => onView(tournament)}
+							onClick={() => {
+								onToggle(tournament.id);
+								setConfirmingDelete(false);
+							}}
 							type="button"
 						>
 							{tournament.name}
@@ -299,96 +288,109 @@ function TournamentRow({
 						)}
 					</div>
 				</div>
+			</div>
 
-				<div className="flex shrink-0 items-center">
-					{confirmingDelete ? (
-						<>
-							<span className="text-[10px] text-destructive">Delete?</span>
-							<Button
-								aria-label="Confirm delete"
-								className="text-destructive hover:text-destructive"
-								onClick={() => {
-									onDelete(tournament.id);
-									setConfirmingDelete(false);
-								}}
-								size="icon-xs"
-								variant="ghost"
-							>
-								<IconTrash size={12} />
-							</Button>
-							<Button
-								aria-label="Cancel delete"
-								onClick={() => setConfirmingDelete(false)}
-								size="icon-xs"
-								variant="ghost"
-							>
-								<IconX size={12} />
-							</Button>
-						</>
-					) : (
-						<>
-							<Button
-								aria-label="Edit tournament"
-								onClick={() => onEdit(tournament)}
-								size="icon-xs"
-								variant="ghost"
-							>
-								<IconEdit size={12} />
-							</Button>
-							{isArchived ? (
-								<Button
-									aria-label="Restore tournament"
-									onClick={() => onRestore(tournament.id)}
-									size="icon-xs"
-									variant="ghost"
-								>
-									<IconArchiveOff size={12} />
-								</Button>
-							) : (
-								<Button
-									aria-label="Archive tournament"
-									onClick={() => onArchive(tournament.id)}
-									size="icon-xs"
-									variant="ghost"
-								>
-									<IconArchive size={12} />
-								</Button>
-							)}
-							<Button
-								aria-label="Delete tournament"
-								onClick={() => setConfirmingDelete(true)}
-								size="icon-xs"
-								variant="ghost"
-							>
-								<IconTrash size={12} />
-							</Button>
-							{tournament.blindLevelCount > 0 && (
-								<Button
-									aria-label={
-										isExpanded ? "Collapse details" : "Expand details"
-									}
-									onClick={() => onToggleExpand(tournament.id)}
-									size="icon-xs"
-									variant="ghost"
-								>
-									{isExpanded ? (
-										<IconChevronUp size={12} />
-									) : (
-										<IconChevronDown size={12} />
-									)}
-								</Button>
-							)}
-						</>
-					)}
+			<div
+				className={`grid transition-[grid-template-rows] duration-200 ease-out ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+			>
+				<div className="overflow-hidden">
+					<TournamentDetail
+						confirmingDelete={confirmingDelete}
+						isArchived={isArchived}
+						onArchive={onArchive}
+						onBlindEdit={() => setBlindEditorOpen(true)}
+						onDelete={onDelete}
+						onEdit={onEdit}
+						onRestore={onRestore}
+						setConfirmingDelete={setConfirmingDelete}
+						tournament={tournament}
+					/>
 				</div>
 			</div>
 
-			{isExpanded && (
-				<div className="pb-2 pl-2">
+			<BlindLevelEditor
+				onOpenChange={setBlindEditorOpen}
+				open={blindEditorOpen}
+				tournamentId={tournament.id}
+				variant={tournament.variant}
+			/>
+		</div>
+	);
+}
+
+interface TournamentDetailProps {
+	confirmingDelete: boolean;
+	isArchived: boolean;
+	onArchive: (id: string) => void;
+	onBlindEdit: () => void;
+	onDelete: (id: string) => void;
+	onEdit: (tournament: Tournament) => void;
+	onRestore: (id: string) => void;
+	setConfirmingDelete: (v: boolean) => void;
+	tournament: Tournament;
+}
+
+function TournamentDetail({
+	tournament,
+	isArchived,
+	confirmingDelete,
+	setConfirmingDelete,
+	onArchive,
+	onBlindEdit,
+	onDelete,
+	onEdit,
+	onRestore,
+}: TournamentDetailProps) {
+	const fmt = createGroupFormatter([
+		tournament.rebuyCost,
+		tournament.rebuyChips,
+		tournament.addonCost,
+		tournament.addonChips,
+		tournament.bountyAmount,
+	]);
+
+	const details: string[] = [];
+	if (tournament.startingStack != null) {
+		details.push(`Stack: ${formatCompactNumber(tournament.startingStack)}`);
+	}
+	if (tournament.rebuyAllowed) {
+		const rebuyStr =
+			tournament.rebuyCost != null
+				? `Rebuy: ${fmt(tournament.rebuyCost)}`
+				: "Rebuy: Yes";
+		details.push(rebuyStr);
+	}
+	if (tournament.addonAllowed) {
+		const addonStr =
+			tournament.addonCost != null
+				? `Add-on: ${fmt(tournament.addonCost)}`
+				: "Add-on: Yes";
+		details.push(addonStr);
+	}
+	if (tournament.bountyAmount != null) {
+		details.push(`Bounty: ${fmt(tournament.bountyAmount)}`);
+	}
+
+	return (
+		<div className="pb-2 pl-2">
+			{details.length > 0 && (
+				<p className="text-[11px] text-muted-foreground">
+					{details.join(" / ")}
+				</p>
+			)}
+
+			{tournament.memo && (
+				<p className="whitespace-pre-wrap text-[11px] text-muted-foreground">
+					{tournament.memo}
+				</p>
+			)}
+
+			{tournament.blindLevelCount > 0 && (
+				<div className="mt-1">
 					<BlindStructureSummary tournamentId={tournament.id} />
 					<Button
 						className="mt-1 gap-1 text-[10px]"
-						onClick={() => setBlindEditorOpen(true)}
+						onClick={onBlindEdit}
 						size="xs"
 						variant="outline"
 					>
@@ -398,12 +400,106 @@ function TournamentRow({
 				</div>
 			)}
 
-			<BlindLevelEditor
-				onOpenChange={setBlindEditorOpen}
-				open={blindEditorOpen}
-				tournamentId={tournament.id}
-				variant={tournament.variant}
+			<TournamentActions
+				confirmingDelete={confirmingDelete}
+				isArchived={isArchived}
+				onArchive={onArchive}
+				onDelete={onDelete}
+				onEdit={onEdit}
+				onRestore={onRestore}
+				setConfirmingDelete={setConfirmingDelete}
+				tournament={tournament}
 			/>
+		</div>
+	);
+}
+
+interface TournamentActionsProps {
+	confirmingDelete: boolean;
+	isArchived: boolean;
+	onArchive: (id: string) => void;
+	onDelete: (id: string) => void;
+	onEdit: (tournament: Tournament) => void;
+	onRestore: (id: string) => void;
+	setConfirmingDelete: (v: boolean) => void;
+	tournament: Tournament;
+}
+
+function TournamentActions({
+	tournament,
+	isArchived,
+	confirmingDelete,
+	setConfirmingDelete,
+	onArchive,
+	onDelete,
+	onEdit,
+	onRestore,
+}: TournamentActionsProps) {
+	if (confirmingDelete) {
+		return (
+			<div className="mt-1 flex items-center justify-end gap-1">
+				<span className="text-[10px] text-destructive">Delete?</span>
+				<Button
+					aria-label="Confirm delete"
+					className="text-destructive hover:text-destructive"
+					onClick={() => {
+						onDelete(tournament.id);
+						setConfirmingDelete(false);
+					}}
+					size="icon-xs"
+					variant="ghost"
+				>
+					<IconTrash size={12} />
+				</Button>
+				<Button
+					aria-label="Cancel delete"
+					onClick={() => setConfirmingDelete(false)}
+					size="icon-xs"
+					variant="ghost"
+				>
+					<IconX size={12} />
+				</Button>
+			</div>
+		);
+	}
+
+	return (
+		<div className="mt-1 flex items-center justify-end gap-1">
+			<Button
+				aria-label="Edit tournament"
+				onClick={() => onEdit(tournament)}
+				size="icon-xs"
+				variant="ghost"
+			>
+				<IconEdit size={12} />
+			</Button>
+			{isArchived ? (
+				<Button
+					aria-label="Restore tournament"
+					onClick={() => onRestore(tournament.id)}
+					size="icon-xs"
+					variant="ghost"
+				>
+					<IconArchiveOff size={12} />
+				</Button>
+			) : (
+				<Button
+					aria-label="Archive tournament"
+					onClick={() => onArchive(tournament.id)}
+					size="icon-xs"
+					variant="ghost"
+				>
+					<IconArchive size={12} />
+				</Button>
+			)}
+			<Button
+				aria-label="Delete tournament"
+				onClick={() => setConfirmingDelete(true)}
+				size="icon-xs"
+				variant="ghost"
+			>
+				<IconTrash size={12} />
+			</Button>
 		</div>
 	);
 }
@@ -503,104 +599,16 @@ function BlindStructureSummary({ tournamentId }: { tournamentId: string }) {
 	);
 }
 
-function TournamentDetail({ tournament }: { tournament: Tournament }) {
-	const buyInStr = formatBuyInShort(tournament);
-	const fmt = createGroupFormatter([
-		tournament.rebuyCost,
-		tournament.rebuyChips,
-		tournament.addonCost,
-		tournament.addonChips,
-		tournament.bountyAmount,
-	]);
-
-	return (
-		<div className="space-y-3 text-sm">
-			<div className="flex flex-wrap gap-1.5">
-				<Badge variant="secondary">{tournament.variant.toUpperCase()}</Badge>
-				{tournament.tableSize != null && (
-					<Badge className={getTableSizeClassName(tournament.tableSize)}>
-						{tournament.tableSize}-max
-					</Badge>
-				)}
-				{tournament.tags.map((tag) => (
-					<Badge key={tag.id} variant="outline">
-						{tag.name}
-					</Badge>
-				))}
-			</div>
-
-			{buyInStr && (
-				<div>
-					<p className="text-muted-foreground text-xs">Buy-in</p>
-					<p>{buyInStr}</p>
-				</div>
-			)}
-
-			{tournament.startingStack != null && (
-				<div>
-					<p className="text-muted-foreground text-xs">Starting Stack</p>
-					<p>{formatCompactNumber(tournament.startingStack)}</p>
-				</div>
-			)}
-
-			{tournament.rebuyAllowed && (
-				<div>
-					<p className="text-muted-foreground text-xs">Rebuy</p>
-					<p>
-						{tournament.rebuyCost != null
-							? `${fmt(tournament.rebuyCost)} → ${tournament.rebuyChips != null ? fmt(tournament.rebuyChips) : "—"} chips`
-							: "Allowed"}
-					</p>
-				</div>
-			)}
-
-			{tournament.addonAllowed && (
-				<div>
-					<p className="text-muted-foreground text-xs">Add-on</p>
-					<p>
-						{tournament.addonCost != null
-							? `${fmt(tournament.addonCost)} → ${tournament.addonChips != null ? fmt(tournament.addonChips) : "—"} chips`
-							: "Allowed"}
-					</p>
-				</div>
-			)}
-
-			{tournament.bountyAmount != null && (
-				<div>
-					<p className="text-muted-foreground text-xs">Bounty</p>
-					<p>{fmt(tournament.bountyAmount)}</p>
-				</div>
-			)}
-
-			{tournament.blindLevelCount > 0 && (
-				<div>
-					<p className="mb-1 text-muted-foreground text-xs">
-						Blind Structure ({tournament.blindLevelCount} levels)
-					</p>
-					<BlindStructureSummary tournamentId={tournament.id} />
-				</div>
-			)}
-
-			{tournament.memo && (
-				<div>
-					<p className="text-muted-foreground text-xs">Memo</p>
-					<p className="whitespace-pre-wrap">{tournament.memo}</p>
-				</div>
-			)}
-		</div>
-	);
-}
-
-export function TournamentTab({ storeId }: TournamentTabProps) {
+export function TournamentTab({
+	storeId,
+	expandedGameId,
+	onToggleGame,
+}: TournamentTabProps) {
 	const [showArchived, setShowArchived] = useState(false);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingTournament, setEditingTournament] = useState<Tournament | null>(
 		null
 	);
-	const [viewingTournament, setViewingTournament] = useState<Tournament | null>(
-		null
-	);
-	const [expandedId, setExpandedId] = useState<string | null>(null);
 
 	const queryClient = useQueryClient();
 
@@ -715,10 +723,6 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 		});
 	};
 
-	const handleToggleExpand = (id: string) => {
-		setExpandedId((prev) => (prev === id ? null : id));
-	};
-
 	return (
 		<div>
 			<div className="flex items-center justify-between">
@@ -756,14 +760,13 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 				activeTournaments={activeTournaments}
 				archivedLoading={archivedQuery.isLoading}
 				archivedTournaments={archivedTournaments}
-				expandedId={expandedId}
+				expandedGameId={expandedGameId}
 				isLoading={activeQuery.isLoading}
 				onArchive={(id) => archiveMutation.mutate(id)}
 				onDelete={(id) => deleteMutation.mutate(id)}
 				onEdit={setEditingTournament}
 				onRestore={(id) => restoreMutation.mutate(id)}
-				onToggleExpand={handleToggleExpand}
-				onView={setViewingTournament}
+				onToggle={onToggleGame}
 				showArchived={showArchived}
 			/>
 
@@ -810,20 +813,6 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 						isLoading={updateMutation.isPending}
 						onSubmit={handleUpdate}
 					/>
-				)}
-			</ResponsiveDialog>
-
-			<ResponsiveDialog
-				onOpenChange={(open) => {
-					if (!open) {
-						setViewingTournament(null);
-					}
-				}}
-				open={viewingTournament !== null}
-				title={viewingTournament?.name ?? "Tournament"}
-			>
-				{viewingTournament && (
-					<TournamentDetail tournament={viewingTournament} />
 				)}
 			</ResponsiveDialog>
 		</div>

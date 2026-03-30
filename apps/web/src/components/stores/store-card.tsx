@@ -23,6 +23,11 @@ interface StoreCardProps {
 export function StoreCard({ store, onEdit, onDelete }: StoreCardProps) {
 	const [expanded, setExpanded] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
+	const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
+
+	const handleToggleGame = (id: string) => {
+		setExpandedGameId((prev) => (prev === id ? null : id));
+	};
 
 	return (
 		<div className="rounded-lg border bg-card">
@@ -60,8 +65,16 @@ export function StoreCard({ store, onEdit, onDelete }: StoreCardProps) {
 				<div className="overflow-hidden">
 					<div className="border-t px-3 py-2">
 						<div className="space-y-3">
-							<RingGameTab storeId={store.id} />
-							<TournamentTab storeId={store.id} />
+							<RingGameTab
+								expandedGameId={expandedGameId}
+								onToggleGame={handleToggleGame}
+								storeId={store.id}
+							/>
+							<TournamentTab
+								expandedGameId={expandedGameId}
+								onToggleGame={handleToggleGame}
+								storeId={store.id}
+							/>
 						</div>
 
 						{confirmingDelete ? (
