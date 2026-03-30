@@ -9,7 +9,6 @@ import { useState } from "react";
 import { RingGameTab } from "@/components/stores/ring-game-tab";
 import { TournamentTab } from "@/components/stores/tournament-tab";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface StoreCardProps {
 	onDelete: (id: string) => void;
@@ -37,68 +36,22 @@ export function StoreCard({ store, onEdit, onDelete }: StoreCardProps) {
 					)}
 				</div>
 
-				<div className="flex shrink-0 items-center gap-1">
-					{confirmingDelete ? (
-						<>
-							<span className="text-destructive text-xs">Delete?</span>
-							<Button
-								aria-label="Confirm delete"
-								className="text-destructive hover:text-destructive"
-								onClick={() => {
-									onDelete(store.id);
-									setConfirmingDelete(false);
-								}}
-								size="icon-xs"
-								variant="ghost"
-							>
-								<IconTrash size={16} />
-							</Button>
-							<Button
-								aria-label="Cancel delete"
-								onClick={() => setConfirmingDelete(false)}
-								size="icon-xs"
-								variant="ghost"
-							>
-								<IconX size={16} />
-							</Button>
-						</>
+				<Button
+					aria-label={expanded ? "Collapse details" : "Expand details"}
+					className="shrink-0 text-muted-foreground"
+					onClick={() => {
+						setExpanded((prev) => !prev);
+						setConfirmingDelete(false);
+					}}
+					size="icon-xs"
+					variant="ghost"
+				>
+					{expanded ? (
+						<IconChevronUp size={16} />
 					) : (
-						<>
-							<Button
-								aria-label="Edit store"
-								onClick={() => onEdit(store)}
-								size="icon-xs"
-								variant="ghost"
-							>
-								<IconEdit size={16} />
-							</Button>
-							<Button
-								aria-label="Delete store"
-								onClick={() => setConfirmingDelete(true)}
-								size="icon-xs"
-								variant="ghost"
-							>
-								<IconTrash size={16} />
-							</Button>
-						</>
+						<IconChevronDown size={16} />
 					)}
-					<Button
-						aria-label={expanded ? "Collapse details" : "Expand details"}
-						className="shrink-0 text-muted-foreground"
-						onClick={() => {
-							setExpanded((prev) => !prev);
-							setConfirmingDelete(false);
-						}}
-						size="icon-xs"
-						variant="ghost"
-					>
-						{expanded ? (
-							<IconChevronUp size={16} />
-						) : (
-							<IconChevronDown size={16} />
-						)}
-					</Button>
-				</div>
+				</Button>
 			</div>
 
 			<div
@@ -106,18 +59,57 @@ export function StoreCard({ store, onEdit, onDelete }: StoreCardProps) {
 			>
 				<div className="overflow-hidden">
 					<div className="border-t px-3 py-2">
-						<Tabs defaultValue="ring-games">
-							<TabsList>
-								<TabsTrigger value="ring-games">Cash Games</TabsTrigger>
-								<TabsTrigger value="tournaments">Tournaments</TabsTrigger>
-							</TabsList>
-							<TabsContent value="ring-games">
-								<RingGameTab storeId={store.id} />
-							</TabsContent>
-							<TabsContent value="tournaments">
-								<TournamentTab storeId={store.id} />
-							</TabsContent>
-						</Tabs>
+						<div className="space-y-3">
+							<RingGameTab storeId={store.id} />
+							<TournamentTab storeId={store.id} />
+						</div>
+
+						{confirmingDelete ? (
+							<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
+								<span className="text-destructive text-xs">
+									Delete this store?
+								</span>
+								<Button
+									aria-label="Confirm delete"
+									className="text-destructive hover:text-destructive"
+									onClick={() => {
+										onDelete(store.id);
+										setConfirmingDelete(false);
+										setExpanded(false);
+									}}
+									size="xs"
+									variant="ghost"
+								>
+									<IconTrash size={14} />
+									Delete
+								</Button>
+								<Button
+									aria-label="Cancel delete"
+									onClick={() => setConfirmingDelete(false)}
+									size="xs"
+									variant="ghost"
+								>
+									<IconX size={14} />
+									Cancel
+								</Button>
+							</div>
+						) : (
+							<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
+								<Button onClick={() => onEdit(store)} size="xs" variant="ghost">
+									<IconEdit size={14} />
+									Edit
+								</Button>
+								<Button
+									className="text-destructive hover:text-destructive"
+									onClick={() => setConfirmingDelete(true)}
+									size="xs"
+									variant="ghost"
+								>
+									<IconTrash size={14} />
+									Delete
+								</Button>
+							</div>
+						)}
 					</div>
 				</div>
 			</div>

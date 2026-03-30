@@ -2,6 +2,8 @@ import {
 	IconArchive,
 	IconArchiveOff,
 	IconEdit,
+	IconEye,
+	IconEyeOff,
 	IconPlus,
 	IconTrash,
 	IconX,
@@ -53,14 +55,59 @@ interface RingGameTabProps {
 	storeId: string;
 }
 
-interface RingGameCardProps {
+interface RingGameListProps {
 	currencies: { id: string; name: string; unit?: string | null }[];
-	game: RingGame;
+	games: RingGame[];
 	isArchived: boolean;
+	isLoading: boolean;
 	onArchive: (id: string) => void;
 	onDelete: (id: string) => void;
 	onEdit: (game: RingGame) => void;
 	onRestore: (id: string) => void;
+}
+
+function RingGameList({
+	games,
+	currencies,
+	isLoading,
+	isArchived,
+	onArchive,
+	onDelete,
+	onEdit,
+	onRestore,
+}: RingGameListProps) {
+	if (isLoading) {
+		return (
+			<p className="py-2 text-center text-muted-foreground text-xs">
+				Loading...
+			</p>
+		);
+	}
+
+	if (games.length === 0) {
+		return (
+			<p className="py-1 text-center text-[11px] text-muted-foreground">
+				{isArchived ? "No archived cash games." : "No cash games yet."}
+			</p>
+		);
+	}
+
+	return (
+		<div className="divide-y">
+			{games.map((game) => (
+				<RingGameRow
+					currencies={currencies}
+					game={game}
+					isArchived={isArchived}
+					key={game.id}
+					onArchive={onArchive}
+					onDelete={onDelete}
+					onEdit={onEdit}
+					onRestore={onRestore}
+				/>
+			))}
+		</div>
+	);
 }
 
 const VARIANT_LABELS: Record<string, string> = {
@@ -108,7 +155,17 @@ function formatBlindsLine(
 	return segments.join(" ");
 }
 
-function RingGameCard({
+interface RingGameRowProps {
+	currencies: { id: string; name: string; unit?: string | null }[];
+	game: RingGame;
+	isArchived: boolean;
+	onArchive: (id: string) => void;
+	onDelete: (id: string) => void;
+	onEdit: (game: RingGame) => void;
+	onRestore: (id: string) => void;
+}
+
+function RingGameRow({
 	game,
 	currencies,
 	isArchived,
@@ -116,7 +173,7 @@ function RingGameCard({
 	onDelete,
 	onEdit,
 	onRestore,
-}: RingGameCardProps) {
+}: RingGameRowProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const currency = currencies.find((c) => c.id === game.currencyId);
 	const blindLine = formatBlindsLine(game, currency?.unit);
@@ -124,164 +181,93 @@ function RingGameCard({
 		VARIANT_LABELS[game.variant] ?? game.variant.toUpperCase();
 
 	return (
-		<div className="rounded-lg border bg-card p-3">
-			<div className="flex items-start justify-between gap-2">
-				<div className="min-w-0 flex-1">
-					<p className="truncate font-medium">{game.name}</p>
-					<div className="mt-1 flex flex-wrap items-center gap-1.5">
-						<Badge variant="secondary">{variantLabel}</Badge>
-						{game.tableSize != null && (
-							<Badge className={getTableSizeClassName(game.tableSize)}>
-								{game.tableSize}-max
-							</Badge>
-						)}
-					</div>
+		<div className="flex items-center gap-1.5 py-1">
+			<div className="min-w-0 flex-1">
+				<div className="flex flex-wrap items-center gap-1">
+					<span className="truncate font-medium text-xs">{game.name}</span>
+					<Badge className="px-1 py-0 text-[10px]" variant="secondary">
+						{variantLabel}
+					</Badge>
+					{game.tableSize != null && (
+						<Badge
+							className={`px-1 py-0 text-[10px] ${getTableSizeClassName(game.tableSize)}`}
+						>
+							{game.tableSize}-max
+						</Badge>
+					)}
 					{blindLine && (
-						<p className="mt-1 text-muted-foreground text-sm">{blindLine}</p>
-					)}
-					{game.memo && (
-						<p className="mt-1 line-clamp-1 text-muted-foreground text-xs">
-							{game.memo}
-						</p>
-					)}
-				</div>
-
-				<div className="flex shrink-0 items-center gap-1">
-					{confirmingDelete ? (
-						<>
-							<span className="text-destructive text-xs">Delete?</span>
-							<Button
-								aria-label="Confirm delete"
-								className="text-destructive hover:text-destructive"
-								onClick={() => {
-									onDelete(game.id);
-									setConfirmingDelete(false);
-								}}
-								size="sm"
-								variant="ghost"
-							>
-								<IconTrash size={14} />
-							</Button>
-							<Button
-								aria-label="Cancel delete"
-								onClick={() => setConfirmingDelete(false)}
-								size="sm"
-								variant="ghost"
-							>
-								<IconX size={14} />
-							</Button>
-						</>
-					) : (
-						<>
-							<Button
-								aria-label="Edit cash game"
-								onClick={() => onEdit(game)}
-								size="sm"
-								variant="ghost"
-							>
-								<IconEdit size={14} />
-							</Button>
-							{isArchived ? (
-								<Button
-									aria-label="Restore cash game"
-									onClick={() => onRestore(game.id)}
-									size="sm"
-									variant="ghost"
-								>
-									<IconArchiveOff size={14} />
-								</Button>
-							) : (
-								<Button
-									aria-label="Archive cash game"
-									onClick={() => onArchive(game.id)}
-									size="sm"
-									variant="ghost"
-								>
-									<IconArchive size={14} />
-								</Button>
-							)}
-							<Button
-								aria-label="Delete cash game"
-								onClick={() => setConfirmingDelete(true)}
-								size="sm"
-								variant="ghost"
-							>
-								<IconTrash size={14} />
-							</Button>
-						</>
+						<span className="text-[11px] text-muted-foreground">
+							{blindLine}
+						</span>
 					)}
 				</div>
 			</div>
-		</div>
-	);
-}
 
-interface RingGameListProps {
-	currencies: { id: string; name: string; unit?: string | null }[];
-	games: RingGame[];
-	isArchived: boolean;
-	isLoading: boolean;
-	onAddGame: () => void;
-	onArchive: (id: string) => void;
-	onDelete: (id: string) => void;
-	onEdit: (game: RingGame) => void;
-	onRestore: (id: string) => void;
-}
-
-function RingGameList({
-	games,
-	currencies,
-	isLoading,
-	isArchived,
-	onAddGame,
-	onArchive,
-	onDelete,
-	onEdit,
-	onRestore,
-}: RingGameListProps) {
-	if (isLoading) {
-		return (
-			<p className="py-8 text-center text-muted-foreground text-sm">
-				Loading...
-			</p>
-		);
-	}
-
-	if (games.length === 0) {
-		return (
-			<div className="py-8 text-center text-muted-foreground">
-				<p className="text-sm">
-					{isArchived ? "No archived cash games." : "No cash games yet."}
-				</p>
-				{!isArchived && (
-					<Button
-						className="mt-3"
-						onClick={onAddGame}
-						size="sm"
-						variant="outline"
-					>
-						<IconPlus size={14} />
-						Add Game
-					</Button>
+			<div className="flex shrink-0 items-center">
+				{confirmingDelete ? (
+					<>
+						<span className="text-[10px] text-destructive">Delete?</span>
+						<Button
+							aria-label="Confirm delete"
+							className="text-destructive hover:text-destructive"
+							onClick={() => {
+								onDelete(game.id);
+								setConfirmingDelete(false);
+							}}
+							size="icon-xs"
+							variant="ghost"
+						>
+							<IconTrash size={12} />
+						</Button>
+						<Button
+							aria-label="Cancel delete"
+							onClick={() => setConfirmingDelete(false)}
+							size="icon-xs"
+							variant="ghost"
+						>
+							<IconX size={12} />
+						</Button>
+					</>
+				) : (
+					<>
+						<Button
+							aria-label="Edit cash game"
+							onClick={() => onEdit(game)}
+							size="icon-xs"
+							variant="ghost"
+						>
+							<IconEdit size={12} />
+						</Button>
+						{isArchived ? (
+							<Button
+								aria-label="Restore cash game"
+								onClick={() => onRestore(game.id)}
+								size="icon-xs"
+								variant="ghost"
+							>
+								<IconArchiveOff size={12} />
+							</Button>
+						) : (
+							<Button
+								aria-label="Archive cash game"
+								onClick={() => onArchive(game.id)}
+								size="icon-xs"
+								variant="ghost"
+							>
+								<IconArchive size={12} />
+							</Button>
+						)}
+						<Button
+							aria-label="Delete cash game"
+							onClick={() => setConfirmingDelete(true)}
+							size="icon-xs"
+							variant="ghost"
+						>
+							<IconTrash size={12} />
+						</Button>
+					</>
 				)}
 			</div>
-		);
-	}
-
-	return (
-		<div className="flex flex-col gap-2">
-			{games.map((game) => (
-				<RingGameCard
-					currencies={currencies}
-					game={game}
-					isArchived={isArchived}
-					key={game.id}
-					onArchive={onArchive}
-					onDelete={onDelete}
-					onEdit={onEdit}
-					onRestore={onRestore}
-				/>
-			))}
 		</div>
 	);
 }
@@ -401,28 +387,32 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 	};
 
 	return (
-		<div className="py-4">
-			<div className="mb-4 flex items-center justify-between">
-				<div className="flex gap-2">
+		<div>
+			<div className="flex items-center justify-between">
+				<div className="flex items-center gap-1">
+					<span className="font-medium text-muted-foreground text-xs">
+						Cash Games
+					</span>
 					<Button
-						onClick={() => setShowArchived(false)}
-						size="sm"
-						variant={showArchived ? "ghost" : "secondary"}
+						aria-label={showArchived ? "Show active" : "Show archived"}
+						onClick={() => setShowArchived((prev) => !prev)}
+						size="icon-xs"
+						variant="ghost"
 					>
-						Active
-					</Button>
-					<Button
-						onClick={() => setShowArchived(true)}
-						size="sm"
-						variant={showArchived ? "secondary" : "ghost"}
-					>
-						Archived
+						{showArchived ? (
+							<IconEyeOff className="text-muted-foreground" size={12} />
+						) : (
+							<IconEye className="text-muted-foreground" size={12} />
+						)}
 					</Button>
 				</div>
 				{!showArchived && (
-					<Button onClick={() => setIsCreateOpen(true)} size="sm">
-						<IconPlus size={14} />
-						Add Game
+					<Button
+						onClick={() => setIsCreateOpen(true)}
+						size="icon-xs"
+						variant="ghost"
+					>
+						<IconPlus size={12} />
 					</Button>
 				)}
 			</div>
@@ -432,7 +422,6 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 				games={games}
 				isArchived={showArchived}
 				isLoading={gamesQuery.isLoading}
-				onAddGame={() => setIsCreateOpen(true)}
 				onArchive={handleArchive}
 				onDelete={handleDelete}
 				onEdit={setEditingGame}
