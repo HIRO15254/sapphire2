@@ -61,96 +61,107 @@ export function CurrencyCard({
 
 	return (
 		<div className="rounded-lg border bg-card">
-			<div className="flex items-center gap-2 p-3">
-				<button
-					className="flex flex-1 items-center gap-2 text-left"
-					onClick={onToggleExpand}
-					type="button"
-				>
-					<div className="flex-1">
-						<p className="font-medium">{c.name}</p>
-						<p className="text-muted-foreground text-sm">
-							Balance:{" "}
-							<span className="font-semibold text-foreground">
-								{formatCompactNumber(c.balance)}
-								{c.unit ? ` ${c.unit}` : ""}
-							</span>
-						</p>
-					</div>
-					{expanded ? (
-						<IconChevronUp className="text-muted-foreground" size={16} />
-					) : (
-						<IconChevronDown className="text-muted-foreground" size={16} />
-					)}
-				</button>
-
-				<div className="flex items-center gap-1">
-					{confirmingDelete ? (
-						<>
-							<span className="text-destructive text-xs">Delete?</span>
-							<Button
-								aria-label="Confirm delete currency"
-								className="text-destructive hover:text-destructive"
-								onClick={() => {
-									onDelete(c.id);
-									setConfirmingDelete(false);
-								}}
-								size="sm"
-								variant="ghost"
-							>
-								<IconTrash size={14} />
-							</Button>
-							<Button
-								aria-label="Cancel delete"
-								onClick={() => setConfirmingDelete(false)}
-								size="sm"
-								variant="ghost"
-							>
-								<IconX size={14} />
-							</Button>
-						</>
-					) : (
-						<>
-							<Button
-								aria-label="Edit currency"
-								onClick={() => onEdit(c)}
-								size="sm"
-								variant="ghost"
-							>
-								<IconEdit size={14} />
-							</Button>
-							<Button
-								aria-label="Delete currency"
-								onClick={() => setConfirmingDelete(true)}
-								size="sm"
-								variant="ghost"
-							>
-								<IconTrash size={14} />
-							</Button>
-						</>
-					)}
+			<div className="flex items-start gap-2 p-3">
+				<div className="min-w-0 flex-1">
+					<span className="font-medium text-sm">{c.name}</span>
+					<p className="text-muted-foreground text-sm">
+						Balance:{" "}
+						<span className="font-semibold text-foreground">
+							{formatCompactNumber(c.balance)}
+							{c.unit ? ` ${c.unit}` : ""}
+						</span>
+					</p>
 				</div>
+
+				<Button
+					aria-label={expanded ? "Collapse details" : "Expand details"}
+					className="shrink-0 text-muted-foreground"
+					onClick={() => {
+						onToggleExpand();
+						setConfirmingDelete(false);
+					}}
+					size="icon-xs"
+					variant="ghost"
+				>
+					{expanded ? (
+						<IconChevronUp size={16} />
+					) : (
+						<IconChevronDown size={16} />
+					)}
+				</Button>
 			</div>
 
-			{expanded && (
-				<div className="border-t px-3 pb-3">
-					<div className="mt-3 mb-2 flex items-center justify-between">
-						<span className="font-medium text-sm">Transaction History</span>
-						<Button onClick={onAddTransaction} size="sm" variant="outline">
-							<IconPlus size={14} />
-							Add
-						</Button>
+			<div
+				className={`grid transition-[grid-template-rows] duration-200 ease-out ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+			>
+				<div className="overflow-hidden">
+					<div className="border-t px-3 pb-3">
+						<div className="mt-2 mb-1 flex items-center justify-between">
+							<span className="font-medium text-sm">Transaction History</span>
+							<Button onClick={onAddTransaction} size="sm" variant="outline">
+								<IconPlus size={14} />
+								Add
+							</Button>
+						</div>
+						<div className="max-h-80 overflow-y-auto">
+							<TransactionList
+								hasMore={hasMore}
+								isLoadingMore={isLoadingMore}
+								onDelete={onDeleteTransaction}
+								onEdit={onEditTransaction}
+								onLoadMore={onLoadMore}
+								transactions={transactions}
+							/>
+						</div>
+
+						{confirmingDelete ? (
+							<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
+								<span className="text-destructive text-xs">
+									Delete this currency?
+								</span>
+								<Button
+									aria-label="Confirm delete"
+									className="text-destructive hover:text-destructive"
+									onClick={() => {
+										onDelete(c.id);
+										setConfirmingDelete(false);
+									}}
+									size="xs"
+									variant="ghost"
+								>
+									<IconTrash size={14} />
+									Delete
+								</Button>
+								<Button
+									aria-label="Cancel delete"
+									onClick={() => setConfirmingDelete(false)}
+									size="xs"
+									variant="ghost"
+								>
+									<IconX size={14} />
+									Cancel
+								</Button>
+							</div>
+						) : (
+							<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
+								<Button onClick={() => onEdit(c)} size="xs" variant="ghost">
+									<IconEdit size={14} />
+									Edit
+								</Button>
+								<Button
+									className="text-destructive hover:text-destructive"
+									onClick={() => setConfirmingDelete(true)}
+									size="xs"
+									variant="ghost"
+								>
+									<IconTrash size={14} />
+									Delete
+								</Button>
+							</div>
+						)}
 					</div>
-					<TransactionList
-						hasMore={hasMore}
-						isLoadingMore={isLoadingMore}
-						onDelete={onDeleteTransaction}
-						onEdit={onEditTransaction}
-						onLoadMore={onLoadMore}
-						transactions={transactions}
-					/>
 				</div>
-			)}
+			</div>
 		</div>
 	);
 }

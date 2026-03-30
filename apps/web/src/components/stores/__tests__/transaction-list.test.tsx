@@ -21,6 +21,13 @@ const sessionTransaction = {
 	memo: null,
 };
 
+const DATE_PATTERN = /2026/;
+
+const expandRow = async (user: ReturnType<typeof userEvent.setup>) => {
+	const rows = screen.getAllByRole("button", { name: DATE_PATTERN });
+	await user.click(rows[0]);
+};
+
 describe("TransactionList", () => {
 	it("renders empty state when no transactions", () => {
 		render(<TransactionList onDelete={vi.fn()} transactions={[]} />);
@@ -28,13 +35,23 @@ describe("TransactionList", () => {
 		expect(screen.getByText("No transactions yet.")).toBeInTheDocument();
 	});
 
-	it("renders transaction with amount and type", () => {
+	it("renders transaction with type badge and date", () => {
 		render(
 			<TransactionList onDelete={vi.fn()} transactions={[regularTransaction]} />
 		);
 
 		expect(screen.getByText("Purchase")).toBeInTheDocument();
-		expect(screen.getByText("· Regular transaction")).toBeInTheDocument();
+		expect(screen.getByText("2026/03/20")).toBeInTheDocument();
+	});
+
+	it("shows memo in expanded detail", async () => {
+		const user = userEvent.setup();
+		render(
+			<TransactionList onDelete={vi.fn()} transactions={[regularTransaction]} />
+		);
+
+		await expandRow(user);
+		expect(screen.getByText("Regular transaction")).toBeInTheDocument();
 	});
 
 	it("shows Session badge for session-generated transactions", () => {
@@ -54,54 +71,40 @@ describe("TransactionList", () => {
 		expect(screen.queryByText("Session")).not.toBeInTheDocument();
 	});
 
-	it("shows edit and delete buttons for regular transactions", () => {
-		const onEdit = vi.fn();
+	it("shows edit and delete buttons when row is expanded", async () => {
+		const user = userEvent.setup();
 		render(
 			<TransactionList
 				onDelete={vi.fn()}
-				onEdit={onEdit}
+				onEdit={vi.fn()}
 				transactions={[regularTransaction]}
 			/>
 		);
 
+		await expandRow(user);
 		expect(screen.getByLabelText("Edit transaction")).toBeInTheDocument();
 		expect(screen.getByLabelText("Delete transaction")).toBeInTheDocument();
 	});
 
-	it("hides edit and delete buttons for session-generated transactions", () => {
-		const onEdit = vi.fn();
+	it("hides edit and delete buttons for session-generated transactions", async () => {
+		const user = userEvent.setup();
 		render(
 			<TransactionList
 				onDelete={vi.fn()}
-				onEdit={onEdit}
+				onEdit={vi.fn()}
 				transactions={[sessionTransaction]}
 			/>
 		);
 
+		const row = screen.getByRole("button", { name: DATE_PATTERN });
+		await user.click(row);
 		expect(screen.queryByLabelText("Edit transaction")).not.toBeInTheDocument();
 		expect(
 			screen.queryByLabelText("Delete transaction")
 		).not.toBeInTheDocument();
 	});
 
-	it("shows edit for regular but hides for session in mixed list", () => {
-		const onEdit = vi.fn();
-		render(
-			<TransactionList
-				onDelete={vi.fn()}
-				onEdit={onEdit}
-				transactions={[regularTransaction, sessionTransaction]}
-			/>
-		);
-
-		const editButtons = screen.getAllByLabelText("Edit transaction");
-		expect(editButtons).toHaveLength(1);
-
-		const deleteButtons = screen.getAllByLabelText("Delete transaction");
-		expect(deleteButtons).toHaveLength(1);
-	});
-
-	it("calls onDelete when delete button is clicked", async () => {
+	it("calls onDelete after confirmation when delete is clicked", async () => {
 		const user = userEvent.setup();
 		const onDelete = vi.fn();
 		render(
@@ -111,7 +114,11 @@ describe("TransactionList", () => {
 			/>
 		);
 
+		await expandRow(user);
 		await user.click(screen.getByLabelText("Delete transaction"));
+		expect(screen.getByText("Delete?")).toBeInTheDocument();
+
+		await user.click(screen.getByLabelText("Confirm delete"));
 		expect(onDelete).toHaveBeenCalledWith("tx1");
 	});
 
@@ -126,6 +133,7 @@ describe("TransactionList", () => {
 			/>
 		);
 
+		await expandRow(user);
 		await user.click(screen.getByLabelText("Edit transaction"));
 		expect(onEdit).toHaveBeenCalledWith(regularTransaction);
 	});
