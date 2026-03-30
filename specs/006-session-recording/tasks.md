@@ -29,7 +29,7 @@
 
 **Purpose**: Shared Zod schemas and event payload type definitions used across all user stories
 
-- [ ] T001 Define shared event payload Zod schemas (cash_game_buy_in, cash_game_stack_record, cash_out, tournament_stack_record, tournament_result, player_join, player_leave, session_pause, session_resume) and session status/event type constants in packages/db/src/constants/session-event-types.ts
+- [x] T001 Define shared event payload Zod schemas (cash_game_buy_in, cash_game_stack_record, cash_out, tournament_stack_record, tournament_result, player_join, player_leave, session_pause, session_resume) and session status/event type constants in packages/db/src/constants/session-event-types.ts
 
 ---
 
@@ -39,18 +39,18 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 [P] Create liveCashGameSession schema (table, relations, indexes) in packages/db/src/schema/live-cash-game-session.ts
-- [ ] T004 [P] Create liveTournamentSession schema (table, relations, indexes) in packages/db/src/schema/live-tournament-session.ts
-- [ ] T005 [P] Create sessionEvent schema (table with nullable FKs to both session tables, relations, indexes) in packages/db/src/schema/session-event.ts
-- [ ] T006 [P] Create sessionTablePlayer schema (table with nullable FKs to both session tables, relations, indexes) in packages/db/src/schema/session-table-player.ts
-- [ ] T007 Add liveCashGameSessionId and liveTournamentSessionId nullable FK columns to pokerSession in packages/db/src/schema/session.ts
-- [ ] T008 Export all new schemas and relations from packages/db/src/schema.ts
-- [ ] T009 [P] Create schema tests for liveCashGameSession in packages/db/src/__tests__/live-cash-game-session.test.ts
-- [ ] T010 [P] Create schema tests for liveTournamentSession in packages/db/src/__tests__/live-tournament-session.test.ts
-- [ ] T011 [P] Create schema tests for sessionEvent in packages/db/src/__tests__/session-event.test.ts
-- [ ] T012 [P] Create schema tests for sessionTablePlayer in packages/db/src/__tests__/session-table-player.test.ts
-- [ ] T013 Generate and apply Drizzle migration for all new tables and pokerSession modifications
-- [ ] T014 Create P&L recalculation service function (aggregate events → compute cash game P&L and tournament P&L, update pokerSession and currencyTransaction) in packages/api/src/services/live-session-pl.ts
+- [x] T003 [P] Create liveCashGameSession schema (table, relations, indexes) in packages/db/src/schema/live-cash-game-session.ts
+- [x] T004 [P] Create liveTournamentSession schema (table, relations, indexes) in packages/db/src/schema/live-tournament-session.ts
+- [x] T005 [P] Create sessionEvent schema (table with nullable FKs to both session tables, relations, indexes) in packages/db/src/schema/session-event.ts
+- [x] T006 [P] Create sessionTablePlayer schema (table with nullable FKs to both session tables, relations, indexes) in packages/db/src/schema/session-table-player.ts
+- [x] T007 Add liveCashGameSessionId and liveTournamentSessionId nullable FK columns to pokerSession in packages/db/src/schema/session.ts
+- [x] T008 Export all new schemas and relations from packages/db/src/schema.ts
+- [x] T009 [P] Create schema tests for liveCashGameSession in packages/db/src/__tests__/live-cash-game-session.test.ts
+- [x] T010 [P] Create schema tests for liveTournamentSession in packages/db/src/__tests__/live-tournament-session.test.ts
+- [x] T011 [P] Create schema tests for sessionEvent in packages/db/src/__tests__/session-event.test.ts
+- [x] T012 [P] Create schema tests for sessionTablePlayer in packages/db/src/__tests__/session-table-player.test.ts
+- [x] T013 Generate and apply Drizzle migration for all new tables and pokerSession modifications
+- [x] T014 Create P&L recalculation service function (aggregate events → compute cash game P&L and tournament P&L, update pokerSession and currencyTransaction) in packages/api/src/services/live-session-pl.ts
 
 **Checkpoint**: Foundation ready - all schemas exist, migration applied, shared services available. User story implementation can now begin.
 
@@ -64,23 +64,23 @@
 
 ### Tests for User Story 1
 
-- [ ] T015 [P] [US1] Create router tests for liveCashGameSession (list, getById, create, complete, discard) in packages/api/src/__tests__/live-cash-game-session.test.ts
-- [ ] T016 [P] [US1] Create router tests for sessionEvent (create/update/delete cash game events, P&L recalculation on completed session edit) in packages/api/src/__tests__/session-event.test.ts
+- [x] T015 [P] [US1] Create router tests for liveCashGameSession (list, getById, create, complete, discard) in packages/api/src/__tests__/live-cash-game-session.test.ts
+- [x] T016 [P] [US1] Create router tests for sessionEvent (create/update/delete cash game events, P&L recalculation on completed session edit) in packages/api/src/__tests__/session-event.test.ts
 
 ### Implementation for User Story 1
 
-- [ ] T017 [US1] Implement liveCashGameSessionRouter (list, getById, create, update, complete, discard) with Zod validation and protectedProcedure in packages/api/src/routers/live-cash-game-session.ts
-- [ ] T018 [US1] Implement sessionEventRouter (list, create, update, delete) with event-type-specific Zod payload validation and P&L recalculation triggers in packages/api/src/routers/session-event.ts
-- [ ] T019 [US1] Register liveCashGameSession and sessionEvent routers in appRouter in packages/api/src/routers/index.ts
-- [ ] T020 [US1] Implement complete procedure: aggregate events to compute P&L, create pokerSession with liveCashGameSessionId, create currencyTransaction if currencyId set, in packages/api/src/routers/live-cash-game-session.ts
-- [ ] T021 [P] [US1] Create cash game session start form component (store, ringGame, currency selection) in apps/web/src/components/live-cash-game/create-cash-game-session-form.tsx
-- [ ] T022 [P] [US1] Create buy-in form component in apps/web/src/components/live-cash-game/buy-in-form.tsx
-- [ ] T023 [P] [US1] Create cash game stack record form (stack amount, optional all-ins array with actual/EV, optional addon) in apps/web/src/components/live-cash-game/cash-game-stack-form.tsx
-- [ ] T024 [P] [US1] Create cash game complete form (cash out amount) in apps/web/src/components/live-cash-game/cash-game-complete-form.tsx
-- [ ] T025 [US1] Create live sessions list page showing active/paused/completed sessions in apps/web/src/routes/live-sessions/index.tsx
-- [ ] T026 [US1] Create cash game session detail/recording page (event recording, event list, session actions) in apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx
-- [ ] T027 [P] [US1] Create live session card component for list display in apps/web/src/components/live-sessions/live-session-card.tsx
-- [ ] T028 [P] [US1] Create session summary component (total buy-in, cash out, P&L, EV) in apps/web/src/components/live-sessions/session-summary.tsx
+- [x] T017 [US1] Implement liveCashGameSessionRouter (list, getById, create, update, complete, discard) with Zod validation and protectedProcedure in packages/api/src/routers/live-cash-game-session.ts
+- [x] T018 [US1] Implement sessionEventRouter (list, create, update, delete) with event-type-specific Zod payload validation and P&L recalculation triggers in packages/api/src/routers/session-event.ts
+- [x] T019 [US1] Register liveCashGameSession and sessionEvent routers in appRouter in packages/api/src/routers/index.ts
+- [x] T020 [US1] Implement complete procedure: aggregate events to compute P&L, create pokerSession with liveCashGameSessionId, create currencyTransaction if currencyId set, in packages/api/src/routers/live-cash-game-session.ts
+- [x] T021 [P] [US1] Create cash game session start form component (store, ringGame, currency selection) in apps/web/src/components/live-cash-game/create-cash-game-session-form.tsx
+- [x] T022 [P] [US1] Create buy-in form component in apps/web/src/components/live-cash-game/buy-in-form.tsx
+- [x] T023 [P] [US1] Create cash game stack record form (stack amount, optional all-ins array with actual/EV, optional addon) in apps/web/src/components/live-cash-game/cash-game-stack-form.tsx
+- [x] T024 [P] [US1] Create cash game complete form (cash out amount) in apps/web/src/components/live-cash-game/cash-game-complete-form.tsx
+- [x] T025 [US1] Create live sessions list page showing active/paused/completed sessions in apps/web/src/routes/live-sessions/index.tsx
+- [x] T026 [US1] Create cash game session detail/recording page (event recording, event list, session actions) in apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx
+- [x] T027 [P] [US1] Create live session card component for list display in apps/web/src/components/live-sessions/live-session-card.tsx
+- [x] T028 [P] [US1] Create session summary component (total buy-in, cash out, P&L, EV) in apps/web/src/components/live-sessions/session-summary.tsx
 
 **Checkpoint**: Cash game live session recording fully functional. Users can start, record events, complete, and view P&L.
 
