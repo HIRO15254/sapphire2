@@ -2,14 +2,15 @@
 
 **Branch**: `006-session-recording` | **Date**: 2026-03-30
 
-## R-001: LiveSessionとpokerSessionの共存パターン
+## R-001: キャッシュゲーム/トーナメントの分離とpokerSessionとの共存
 
-**Decision**: LiveSessionを新規テーブルとして作成し、pokerSessionに`liveSessionId`カラムを追加して参照する。LiveSession完了時にpokerSessionレコードを生成し、既存の分析・フィルタ機能はpokerSession経由で動作を維持。
+**Decision**: キャッシュゲームとトーナメントのライブセッションを別テーブル（`liveCashGameSession`, `liveTournamentSession`）で管理する。pokerSessionに`liveCashGameSessionId`と`liveTournamentSessionId`（両方nullable）を追加して参照する。完了時にpokerSessionレコードを生成し、既存の分析・フィルタ機能はpokerSession経由で動作を維持。
 
-**Rationale**: 既存のpokerSessionテーブルとそのクエリロジック（P&L計算、フィルタリング、ページネーション）は成熟しており、変更リスクが高い。LiveSessionを独立テーブルとして追加し、pokerSessionからオプショナル参照を持つことで、既存機能への影響を最小化できる。
+**Rationale**: キャッシュゲームとトーナメントのセッション記録は構造が大きく異なる（キャッシュゲーム: バイイン/キャッシュアウト/オールインEV、トーナメント: 残り人数/アベレージスタック/リバイ/アドオン/順位）。既存のringGame/tournamentが別テーブルであるパターンとも一致する。単一テーブルにすると多数のnullableカラムが発生し、型安全性が低下する。
 
 **Alternatives considered**:
-- pokerSessionテーブル自体に状態カラムを追加する → 既存のクエリロジックへの影響が大きく、完了済みセッションの分析ロジックに副作用が発生するリスク
+- 単一のliveSessionテーブルにtype discriminatorで管理 → nullable カラムが多数発生、バリデーションが複雑化
+- pokerSessionテーブル自体に状態カラムを追加する → 既存のクエリロジックへの影響が大きい
 - LiveSessionテーブルのみで管理し、pokerSessionを廃止 → 既存機能の大規模リファクタリングが必要
 
 ## R-002: イベントデータ構造（多種のイベントタイプ）

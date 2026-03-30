@@ -1,19 +1,18 @@
-# tRPC Router Contract: liveSession
+# tRPC Router Contract: liveTournamentSession
 
 **Package**: `@sapphire2/api`
-**Router**: `liveSessionRouter`
+**Router**: `liveTournamentSessionRouter`
 
 ## Procedures
 
-### liveSession.list
+### liveTournamentSession.list
 
 **Type**: query (protected)
 **Input**:
 ```typescript
 {
-  status?: "active" | "paused" | "completed"  // フィルタ（省略時は全件）
-  type?: "cash_game" | "tournament"           // フィルタ
-  cursor?: string                              // ページネーションカーソル
+  status?: "active" | "paused" | "completed"
+  cursor?: string
   limit?: number                               // デフォルト20
 }
 ```
@@ -22,23 +21,23 @@
 {
   items: {
     id: string
-    type: "cash_game" | "tournament"
     status: "active" | "paused" | "completed"
     store: { id: string, name: string } | null
-    ringGame: { id: string, name: string } | null
     tournament: { id: string, name: string } | null
     currency: { id: string, name: string, unit: string } | null
     startedAt: Date
     endedAt: Date | null
     memo: string | null
-    latestStackAmount: number | null    // 最新スタック（イベント集約）
-    eventCount: number                   // イベント数
+    latestStackAmount: number | null
+    remainingPlayers: number | null
+    averageStack: number | null
+    eventCount: number
   }[]
   nextCursor: string | null
 }
 ```
 
-### liveSession.getById
+### liveTournamentSession.getById
 
 **Type**: query (protected)
 **Input**: `{ id: string }`
@@ -46,49 +45,50 @@
 ```typescript
 {
   id: string
-  type: "cash_game" | "tournament"
   status: "active" | "paused" | "completed"
   store: { id: string, name: string } | null
-  ringGame: { ... } | null
   tournament: { ... } | null
   currency: { ... } | null
   startedAt: Date
   endedAt: Date | null
   memo: string | null
-  pokerSessionId: string | null         // 完了済みの場合
-  events: SessionEvent[]                 // 全イベント（時系列順）
-  tablePlayers: SessionTablePlayer[]     // 同卓プレイヤー
-  summary: {                             // イベント集約サマリー
-    totalBuyIn: number
-    cashOut: number | null
-    profitLoss: number | null
-    evCashOut: number | null
+  pokerSessionId: string | null
+  events: SessionEvent[]
+  tablePlayers: SessionTablePlayer[]
+  summary: {
     rebuyCount: number
+    rebuyCost: number
     addonCount: number
+    addonCost: number
+    placement: number | null
+    totalEntries: number | null
+    prizeMoney: number | null
+    bountyPrizes: number | null
+    profitLoss: number | null
     maxStack: number | null
     minStack: number | null
     currentStack: number | null
+    remainingPlayers: number | null
+    averageStack: number | null
   }
 }
 ```
 
-### liveSession.create
+### liveTournamentSession.create
 
 **Type**: mutation (protected)
 **Input**:
 ```typescript
 {
-  type: "cash_game" | "tournament"
   storeId?: string
-  ringGameId?: string          // type=cash_gameの場合
-  tournamentId?: string        // type=tournamentの場合
+  tournamentId?: string
   currencyId?: string
   memo?: string
 }
 ```
 **Output**: `{ id: string }`
 
-### liveSession.update
+### liveTournamentSession.update
 
 **Type**: mutation (protected)
 **Input**:
@@ -102,49 +102,46 @@
 ```
 **Output**: `{ id: string }`
 
-### liveSession.pause
+### liveTournamentSession.pause
 
 **Type**: mutation (protected)
 **Input**: `{ id: string }`
 **Output**: `{ id: string }`
 **Side effects**: session_pauseイベントを自動記録
 
-### liveSession.resume
+### liveTournamentSession.resume
 
 **Type**: mutation (protected)
 **Input**: `{ id: string }`
 **Output**: `{ id: string }`
 **Side effects**: session_resumeイベントを自動記録
 
-### liveSession.complete
+### liveTournamentSession.complete
 
 **Type**: mutation (protected)
 **Input**:
 ```typescript
 {
   id: string
-  // キャッシュゲーム
-  cashOut?: number
-  // トーナメント
-  placement?: number
-  totalEntries?: number
-  prizeMoney?: number
+  placement: number
+  totalEntries: number
+  prizeMoney: number
   bountyPrizes?: number
 }
 ```
 **Output**: `{ id: string, pokerSessionId: string }`
 **Side effects**:
-- cash_outまたはtournament_resultイベントを自動記録
+- tournament_resultイベントを自動記録
 - pokerSessionレコードを作成（イベント集約からP&L計算）
 - 通貨トランザクションを自動作成（currencyId設定時）
 
-### liveSession.discard
+### liveTournamentSession.discard
 
 **Type**: mutation (protected)
 **Input**: `{ id: string }`
 **Output**: `{ id: string }`
 **Validation**: status !== "completed"
-**Side effects**: LiveSession + 全イベント + 全SessionTablePlayerを削除
+**Side effects**: セッション + 全イベント + 全SessionTablePlayerをカスケード削除
 
 ## Error Codes
 
@@ -152,5 +149,4 @@
 |------|-----------|
 | NOT_FOUND | セッションが存在しないまたは他ユーザーのセッション |
 | BAD_REQUEST | 無効な状態遷移（例: completed → pause） |
-| BAD_REQUEST | キャッシュゲームなのにtournamentIdを指定 |
 | BAD_REQUEST | 完了済みセッションの破棄 |

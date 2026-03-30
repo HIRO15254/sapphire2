@@ -15,21 +15,28 @@ apps/web/src/components/    # Reactコンポーネント
 
 ### 新規ファイル（作成順序）
 
-1. `packages/db/src/schema/live-session.ts` - LiveSession, SessionEvent, SessionTablePlayerスキーマ
-2. `packages/db/src/schema.ts` - エクスポート追加
-3. `packages/db/src/__tests__/live-session.test.ts` - スキーマテスト
-4. `packages/api/src/routers/live-session.ts` - LiveSessionルーター
-5. `packages/api/src/routers/session-event.ts` - SessionEventルーター
-6. `packages/api/src/routers/session-table-player.ts` - SessionTablePlayerルーター
-7. `packages/api/src/routers/index.ts` - ルーター登録
-8. `packages/api/src/__tests__/live-session.test.ts` - ルーターテスト
-9. `apps/web/src/routes/live-sessions/index.tsx` - セッション一覧ページ
-10. `apps/web/src/routes/live-sessions/$liveSessionId.tsx` - セッション詳細ページ
-11. `apps/web/src/components/live-sessions/` - UIコンポーネント群
+1. `packages/db/src/schema/live-cash-game-session.ts` - liveCashGameSessionスキーマ
+2. `packages/db/src/schema/live-tournament-session.ts` - liveTournamentSessionスキーマ
+3. `packages/db/src/schema/session-event.ts` - sessionEventスキーマ（共有）
+4. `packages/db/src/schema/session-table-player.ts` - sessionTablePlayerスキーマ（共有）
+5. `packages/db/src/schema.ts` - エクスポート追加
+6. `packages/db/src/__tests__/live-cash-game-session.test.ts` - スキーマテスト
+7. `packages/db/src/__tests__/live-tournament-session.test.ts` - スキーマテスト
+8. `packages/api/src/routers/live-cash-game-session.ts` - キャッシュゲームルーター
+9. `packages/api/src/routers/live-tournament-session.ts` - トーナメントルーター
+10. `packages/api/src/routers/session-event.ts` - SessionEventルーター
+11. `packages/api/src/routers/session-table-player.ts` - SessionTablePlayerルーター
+12. `packages/api/src/routers/index.ts` - ルーター登録
+13. `apps/web/src/routes/live-sessions/index.tsx` - セッション一覧ページ
+14. `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx` - キャッシュゲーム詳細
+15. `apps/web/src/routes/live-sessions/tournament/$sessionId.tsx` - トーナメント詳細
+16. `apps/web/src/components/live-sessions/` - 共通UIコンポーネント
+17. `apps/web/src/components/live-cash-game/` - キャッシュゲーム専用コンポーネント
+18. `apps/web/src/components/live-tournament/` - トーナメント専用コンポーネント
 
 ### 既存ファイル（変更）
 
-1. `packages/db/src/schema/session.ts` - pokerSessionにliveSessionIdカラム追加
+1. `packages/db/src/schema/session.ts` - pokerSessionにliveCashGameSessionId, liveTournamentSessionIdカラム追加
 2. `packages/api/src/routers/session.ts` - pokerSession作成ロジックにliveSessionId対応追加
 3. `apps/web/src/routes/sessions/index.tsx` - セッション一覧にイベント履歴リンク追加
 4. `apps/web/src/components/sessions/session-card.tsx` - イベント履歴リンク表示

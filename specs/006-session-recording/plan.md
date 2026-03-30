@@ -5,7 +5,7 @@
 
 ## Summary
 
-既存のポーカーセッション記録機能に、リアルタイムのイベントベース記録機能を追加する。LiveSession + SessionEvent + SessionTablePlayerの3テーブルを新設し、スタック履歴・同卓者・トーナメント状況をイベントとして記録。完了時に既存のpokerSessionレコードを生成して分析機能との互換性を維持する。イベントの直接編集・削除に対応し、完了済みセッションの編集時はP&L・通貨トランザクションを自動再計算する。
+既存のポーカーセッション記録機能に、リアルタイムのイベントベース記録機能を追加する。キャッシュゲームとトーナメントは構造が大きく異なるため、`liveCashGameSession`と`liveTournamentSession`の別テーブルで管理する。`sessionEvent`と`sessionTablePlayer`は共有テーブルとし、両セッションテーブルへのnullable FKで参照する。完了時に既存のpokerSessionレコードを生成して分析機能との互換性を維持する。イベントの直接編集・削除に対応し、完了済みセッションの編集時はP&L・通貨トランザクションを自動再計算する。
 
 ## Technical Context
 
@@ -47,7 +47,8 @@ specs/006-session-recording/
 ├── data-model.md        # Phase 1 output
 ├── quickstart.md        # Phase 1 output
 ├── contracts/           # Phase 1 output
-│   ├── live-session-router.md
+│   ├── live-cash-game-session-router.md
+│   ├── live-tournament-session-router.md
 │   ├── session-event-router.md
 │   └── session-table-player-router.md
 └── tasks.md             # Phase 2 output (/speckit.tasks)
@@ -58,45 +59,60 @@ specs/006-session-recording/
 ```text
 packages/db/src/
 ├── schema/
-│   ├── live-session.ts          # NEW: LiveSession, SessionEvent, SessionTablePlayer
-│   └── session.ts               # MODIFIED: liveSessionId追加
-├── schema.ts                    # MODIFIED: 新テーブルexport追加
+│   ├── live-cash-game-session.ts    # NEW: liveCashGameSession
+│   ├── live-tournament-session.ts   # NEW: liveTournamentSession
+│   ├── session-event.ts            # NEW: sessionEvent (共有)
+│   ├── session-table-player.ts     # NEW: sessionTablePlayer (共有)
+│   └── session.ts                  # MODIFIED: liveCashGameSessionId, liveTournamentSessionId追加
+├── schema.ts                       # MODIFIED: 新テーブルexport追加
 └── __tests__/
-    └── live-session.test.ts     # NEW: スキーマテスト
+    ├── live-cash-game-session.test.ts   # NEW: スキーマテスト
+    ├── live-tournament-session.test.ts  # NEW: スキーマテスト
+    ├── session-event.test.ts            # NEW: スキーマテスト
+    └── session-table-player.test.ts     # NEW: スキーマテスト
 
 packages/api/src/
 ├── routers/
-│   ├── live-session.ts          # NEW: LiveSessionルーター
-│   ├── session-event.ts         # NEW: SessionEventルーター
-│   ├── session-table-player.ts  # NEW: SessionTablePlayerルーター
-│   ├── index.ts                 # MODIFIED: 新ルーター登録
-│   └── session.ts               # MODIFIED: liveSessionId対応
+│   ├── live-cash-game-session.ts    # NEW: キャッシュゲームセッションルーター
+│   ├── live-tournament-session.ts   # NEW: トーナメントセッションルーター
+│   ├── session-event.ts             # NEW: SessionEventルーター
+│   ├── session-table-player.ts      # NEW: SessionTablePlayerルーター
+│   ├── index.ts                     # MODIFIED: 新ルーター登録
+│   └── session.ts                   # MODIFIED: liveSessionId対応
 └── __tests__/
-    ├── live-session.test.ts     # NEW: ルーターテスト
-    ├── session-event.test.ts    # NEW: ルーターテスト
-    └── session-table-player.test.ts # NEW: ルーターテスト
+    ├── live-cash-game-session.test.ts   # NEW
+    ├── live-tournament-session.test.ts  # NEW
+    ├── session-event.test.ts            # NEW
+    └── session-table-player.test.ts     # NEW
 
 apps/web/src/
 ├── routes/
 │   └── live-sessions/
-│       ├── index.tsx            # NEW: セッション一覧
-│       └── $liveSessionId.tsx   # NEW: セッション詳細・記録
+│       ├── index.tsx                    # NEW: セッション一覧（両タイプ統合表示）
+│       ├── cash-game/
+│       │   └── $sessionId.tsx           # NEW: キャッシュゲーム詳細・記録
+│       └── tournament/
+│           └── $sessionId.tsx           # NEW: トーナメント詳細・記録
 ├── components/
 │   ├── live-sessions/
-│   │   ├── live-session-card.tsx       # NEW: セッションカード
-│   │   ├── live-session-form.tsx       # NEW: セッション開始フォーム
-│   │   ├── event-timeline.tsx          # NEW: イベント履歴表示
-│   │   ├── event-form.tsx             # NEW: イベント記録フォーム
-│   │   ├── stack-record-form.tsx      # NEW: スタック記録フォーム
-│   │   ├── complete-session-form.tsx  # NEW: セッション完了フォーム
-│   │   ├── table-player-list.tsx      # NEW: 同卓者リスト
-│   │   ├── session-summary.tsx        # NEW: セッションサマリー
-│   │   └── __tests__/                 # NEW: コンポーネントテスト
+│   │   ├── live-session-card.tsx        # NEW: セッションカード（共通）
+│   │   ├── create-session-form.tsx      # NEW: セッション開始フォーム
+│   │   ├── event-timeline.tsx           # NEW: イベント履歴表示（共通）
+│   │   ├── table-player-list.tsx        # NEW: 同卓者リスト（共通）
+│   │   ├── session-summary.tsx          # NEW: セッションサマリー（共通）
+│   │   └── __tests__/                   # NEW: コンポーネントテスト
+│   ├── live-cash-game/
+│   │   ├── cash-game-stack-form.tsx     # NEW: キャッシュゲーム用スタック記録
+│   │   ├── cash-game-complete-form.tsx  # NEW: キャッシュアウトフォーム
+│   │   └── buy-in-form.tsx             # NEW: バイインフォーム
+│   ├── live-tournament/
+│   │   ├── tournament-stack-form.tsx    # NEW: トーナメント用スタック記録
+│   │   └── tournament-complete-form.tsx # NEW: トーナメント結果フォーム
 │   └── sessions/
-│       └── session-card.tsx           # MODIFIED: イベント履歴リンク追加
+│       └── session-card.tsx             # MODIFIED: イベント履歴リンク追加
 ```
 
-**Structure Decision**: 既存のmonorepo構造（packages/db, packages/api, apps/web）に従い、新テーブル・ルーター・ページを追加。既存のpokerSession機能への変更は最小限（liveSessionIdカラム追加とリンク表示のみ）。
+**Structure Decision**: キャッシュゲームとトーナメントは別テーブル・別ルーター・別UIコンポーネントで管理。共有部分（イベント、同卓者、一覧表示）は共通化。既存のringGame/tournamentの分離パターンと一致。
 
 ## Complexity Tracking
 
