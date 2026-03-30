@@ -1,4 +1,5 @@
-import { IconEdit, IconTrash } from "@tabler/icons-react";
+import { IconEdit, IconTrash, IconX } from "@tabler/icons-react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createGroupFormatter } from "@/utils/format-number";
@@ -29,6 +30,11 @@ export function TransactionList({
 	isLoadingMore,
 	onLoadMore,
 }: TransactionListProps) {
+	const [expandedId, setExpandedId] = useState<string | null>(null);
+	const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
+		null
+	);
+
 	if (transactions.length === 0) {
 		return (
 			<p className="py-4 text-center text-muted-foreground text-sm">
@@ -38,6 +44,11 @@ export function TransactionList({
 	}
 
 	const fmt = createGroupFormatter(transactions.map((tx) => tx.amount));
+
+	const toggleExpand = (id: string) => {
+		setExpandedId((prev) => (prev === id ? null : id));
+		setConfirmingDeleteId(null);
+	};
 
 	return (
 		<div className="flex flex-col divide-y">
@@ -50,16 +61,19 @@ export function TransactionList({
 				const txDate = new Date(tx.transactedAt);
 				const dateDisplay = `${txDate.getFullYear()}/${String(txDate.getMonth() + 1).padStart(2, "0")}/${String(txDate.getDate()).padStart(2, "0")}`;
 				const isSessionGenerated = !!tx.sessionId;
+				const isExpanded = expandedId === tx.id;
+				const isConfirmingDelete = confirmingDeleteId === tx.id;
 
 				return (
-					<div
-						className="flex items-center justify-between gap-1.5 py-1"
-						key={tx.id}
-					>
-						<div className="flex flex-1 flex-col">
+					<div key={tx.id}>
+						<button
+							className="flex w-full items-center justify-between gap-2 py-1.5 text-left"
+							onClick={() => toggleExpand(tx.id)}
+							type="button"
+						>
 							<div className="flex items-center gap-1.5">
-								<span className={`font-semibold text-sm ${amountClass}`}>
-									{amountDisplay}
+								<span className="text-muted-foreground text-xs">
+									{dateDisplay}
 								</span>
 								<Badge className="text-[10px]" variant="outline">
 									{tx.transactionTypeName}
@@ -70,33 +84,85 @@ export function TransactionList({
 									</Badge>
 								)}
 							</div>
-							<div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-								<span>{dateDisplay}</span>
-								{tx.memo && <span>· {tx.memo}</span>}
+							<span className={`shrink-0 font-semibold text-sm ${amountClass}`}>
+								{amountDisplay}
+							</span>
+						</button>
+
+						<div
+							className={`grid transition-[grid-template-rows] duration-150 ease-out ${isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+						>
+							<div className="overflow-hidden">
+								<div className="pb-1.5">
+									{tx.memo && (
+										<p className="mb-1 text-muted-foreground text-xs">
+											{tx.memo}
+										</p>
+									)}
+									{isConfirmingDelete ? (
+										<div className="flex items-center justify-end gap-1">
+											<span className="text-destructive text-xs">Delete?</span>
+											<Button
+												aria-label="Confirm delete"
+												className="text-destructive hover:text-destructive"
+												onClick={(e) => {
+													e.stopPropagation();
+													onDelete(tx.id);
+													setConfirmingDeleteId(null);
+													setExpandedId(null);
+												}}
+												size="xs"
+												variant="ghost"
+											>
+												<IconTrash size={13} />
+												Delete
+											</Button>
+											<Button
+												aria-label="Cancel delete"
+												onClick={(e) => {
+													e.stopPropagation();
+													setConfirmingDeleteId(null);
+												}}
+												size="xs"
+												variant="ghost"
+											>
+												<IconX size={13} />
+												Cancel
+											</Button>
+										</div>
+									) : (
+										<div className="flex items-center justify-end gap-1">
+											{onEdit && !isSessionGenerated && (
+												<Button
+													onClick={(e) => {
+														e.stopPropagation();
+														onEdit(tx);
+													}}
+													size="xs"
+													variant="ghost"
+												>
+													<IconEdit size={13} />
+													Edit
+												</Button>
+											)}
+											{!isSessionGenerated && (
+												<Button
+													className="text-destructive hover:text-destructive"
+													onClick={(e) => {
+														e.stopPropagation();
+														setConfirmingDeleteId(tx.id);
+													}}
+													size="xs"
+													variant="ghost"
+												>
+													<IconTrash size={13} />
+													Delete
+												</Button>
+											)}
+										</div>
+									)}
+								</div>
 							</div>
-						</div>
-						<div className="flex items-center">
-							{onEdit && !isSessionGenerated && (
-								<Button
-									aria-label="Edit transaction"
-									onClick={() => onEdit(tx)}
-									size="icon-xs"
-									variant="ghost"
-								>
-									<IconEdit size={13} />
-								</Button>
-							)}
-							{!isSessionGenerated && (
-								<Button
-									aria-label="Delete transaction"
-									className="text-destructive hover:text-destructive"
-									onClick={() => onDelete(tx.id)}
-									size="icon-xs"
-									variant="ghost"
-								>
-									<IconTrash size={13} />
-								</Button>
-							)}
 						</div>
 					</div>
 				);
