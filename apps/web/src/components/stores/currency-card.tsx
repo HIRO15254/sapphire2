@@ -96,21 +96,23 @@ export function CurrencyCard({
 			>
 				<div className="overflow-hidden">
 					<div className="border-t px-3 pb-3">
-						<div className="mt-3 mb-2 flex items-center justify-between">
+						<div className="mt-2 mb-1 flex items-center justify-between">
 							<span className="font-medium text-sm">Transaction History</span>
 							<Button onClick={onAddTransaction} size="sm" variant="outline">
 								<IconPlus size={14} />
 								Add
 							</Button>
 						</div>
-						<TransactionList
-							hasMore={hasMore}
-							isLoadingMore={isLoadingMore}
-							onDelete={onDeleteTransaction}
-							onEdit={onEditTransaction}
-							onLoadMore={onLoadMore}
-							transactions={transactions}
-						/>
+						<div className="max-h-80 overflow-y-auto">
+							<TransactionList
+								hasMore={hasMore}
+								isLoadingMore={isLoadingMore}
+								onDelete={onDeleteTransaction}
+								onEdit={onEditTransaction}
+								onLoadMore={onLoadMore}
+								transactions={transactions}
+							/>
+						</div>
 
 						{confirmingDelete ? (
 							<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">

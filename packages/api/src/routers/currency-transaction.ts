@@ -8,7 +8,7 @@ import { and, desc, eq, lt } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 export const currencyTransactionRouter = router({
 	listByCurrency: protectedProcedure
