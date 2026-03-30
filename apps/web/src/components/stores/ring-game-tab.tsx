@@ -2,8 +2,6 @@ import {
 	IconArchive,
 	IconArchiveOff,
 	IconEdit,
-	IconEye,
-	IconEyeOff,
 	IconPlus,
 	IconTrash,
 	IconX,
@@ -55,41 +53,32 @@ interface RingGameTabProps {
 	storeId: string;
 }
 
-interface RingGameListProps {
-	currencies: { id: string; name: string; unit?: string | null }[];
-	games: RingGame[];
-	isArchived: boolean;
-	isLoading: boolean;
+interface GameActionHandlers {
 	onArchive: (id: string) => void;
 	onDelete: (id: string) => void;
 	onEdit: (game: RingGame) => void;
 	onRestore: (id: string) => void;
+	onView: (game: RingGame) => void;
+}
+
+interface RingGameListProps extends GameActionHandlers {
+	currencies: { id: string; name: string; unit?: string | null }[];
+	games: RingGame[];
+	isArchived: boolean;
 }
 
 function RingGameList({
 	games,
 	currencies,
-	isLoading,
 	isArchived,
 	onArchive,
 	onDelete,
 	onEdit,
 	onRestore,
+	onView,
 }: RingGameListProps) {
-	if (isLoading) {
-		return (
-			<p className="py-2 text-center text-muted-foreground text-xs">
-				Loading...
-			</p>
-		);
-	}
-
 	if (games.length === 0) {
-		return (
-			<p className="py-1 text-center text-[11px] text-muted-foreground">
-				{isArchived ? "No archived cash games." : "No cash games yet."}
-			</p>
-		);
+		return null;
 	}
 
 	return (
@@ -104,9 +93,101 @@ function RingGameList({
 					onDelete={onDelete}
 					onEdit={onEdit}
 					onRestore={onRestore}
+					onView={onView}
 				/>
 			))}
 		</div>
+	);
+}
+
+interface ArchivedRingGameSectionProps extends GameActionHandlers {
+	currencies: { id: string; name: string; unit?: string | null }[];
+	games: RingGame[];
+	isLoading: boolean;
+}
+
+function ArchivedRingGameSection({
+	games,
+	currencies,
+	isLoading,
+	...handlers
+}: ArchivedRingGameSectionProps) {
+	if (isLoading) {
+		return (
+			<p className="py-1 text-center text-[11px] text-muted-foreground">
+				Loading archived...
+			</p>
+		);
+	}
+
+	if (games.length === 0) {
+		return (
+			<p className="py-1 text-center text-[11px] text-muted-foreground">
+				No archived cash games.
+			</p>
+		);
+	}
+
+	return (
+		<div className="mt-1 border-t border-dashed pt-1">
+			<RingGameList
+				currencies={currencies}
+				games={games}
+				isArchived
+				{...handlers}
+			/>
+		</div>
+	);
+}
+
+interface RingGameContentProps extends GameActionHandlers {
+	activeGames: RingGame[];
+	archivedGames: RingGame[];
+	archivedLoading: boolean;
+	currencies: { id: string; name: string; unit?: string | null }[];
+	isLoading: boolean;
+	showArchived: boolean;
+}
+
+function RingGameContent({
+	activeGames,
+	archivedGames,
+	archivedLoading,
+	currencies,
+	isLoading,
+	showArchived,
+	...handlers
+}: RingGameContentProps) {
+	if (isLoading) {
+		return (
+			<p className="py-2 text-center text-muted-foreground text-xs">
+				Loading...
+			</p>
+		);
+	}
+
+	return (
+		<>
+			{activeGames.length === 0 && !showArchived && (
+				<p className="py-1 text-center text-[11px] text-muted-foreground">
+					No cash games yet.
+				</p>
+			)}
+			<RingGameList
+				currencies={currencies}
+				games={activeGames}
+				isArchived={false}
+				{...handlers}
+			/>
+			{showArchived && (
+				<ArchivedRingGameSection
+					currencies={currencies}
+					games={archivedGames}
+					isLoading={archivedLoading}
+					{...handlers}
+				/>
+			)}
+		</>
 	);
 }
 
@@ -163,6 +244,7 @@ interface RingGameRowProps {
 	onDelete: (id: string) => void;
 	onEdit: (game: RingGame) => void;
 	onRestore: (id: string) => void;
+	onView: (game: RingGame) => void;
 }
 
 function RingGameRow({
@@ -173,6 +255,7 @@ function RingGameRow({
 	onDelete,
 	onEdit,
 	onRestore,
+	onView,
 }: RingGameRowProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const currency = currencies.find((c) => c.id === game.currencyId);
@@ -184,7 +267,13 @@ function RingGameRow({
 		<div className="flex items-center gap-1.5 py-1">
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-center gap-1">
-					<span className="truncate font-medium text-xs">{game.name}</span>
+					<button
+						className="truncate font-medium text-xs hover:underline"
+						onClick={() => onView(game)}
+						type="button"
+					>
+						{game.name}
+					</button>
 					<Badge className="px-1 py-0 text-[10px]" variant="secondary">
 						{variantLabel}
 					</Badge>
@@ -272,20 +361,83 @@ function RingGameRow({
 	);
 }
 
+interface RingGameDetailProps {
+	currencies: { id: string; name: string; unit?: string | null }[];
+	game: RingGame;
+}
+
+function RingGameDetail({ game, currencies }: RingGameDetailProps) {
+	const currency = currencies.find((c) => c.id === game.currencyId);
+	const blindLine = formatBlindsLine(game, currency?.unit);
+	const variantLabel =
+		VARIANT_LABELS[game.variant] ?? game.variant.toUpperCase();
+	const fmt = createGroupFormatter([game.minBuyIn, game.maxBuyIn]);
+
+	return (
+		<div className="space-y-3 text-sm">
+			<div className="flex flex-wrap gap-1.5">
+				<Badge variant="secondary">{variantLabel}</Badge>
+				{game.tableSize != null && (
+					<Badge className={getTableSizeClassName(game.tableSize)}>
+						{game.tableSize}-max
+					</Badge>
+				)}
+				{currency && <Badge variant="outline">{currency.name}</Badge>}
+			</div>
+
+			{blindLine && (
+				<div>
+					<p className="text-muted-foreground text-xs">Blinds</p>
+					<p>{blindLine}</p>
+				</div>
+			)}
+
+			{(game.minBuyIn != null || game.maxBuyIn != null) && (
+				<div>
+					<p className="text-muted-foreground text-xs">Buy-in</p>
+					<p>
+						{game.minBuyIn != null ? fmt(game.minBuyIn) : "—"}
+						{" - "}
+						{game.maxBuyIn != null ? fmt(game.maxBuyIn) : "—"}
+					</p>
+				</div>
+			)}
+
+			{game.memo && (
+				<div>
+					<p className="text-muted-foreground text-xs">Memo</p>
+					<p className="whitespace-pre-wrap">{game.memo}</p>
+				</div>
+			)}
+		</div>
+	);
+}
+
 export function RingGameTab({ storeId }: RingGameTabProps) {
 	const [showArchived, setShowArchived] = useState(false);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingGame, setEditingGame] = useState<RingGame | null>(null);
+	const [viewingGame, setViewingGame] = useState<RingGame | null>(null);
 
 	const queryClient = useQueryClient();
 
-	const gamesQueryOptions = trpc.ringGame.listByStore.queryOptions({
+	const activeQueryOptions = trpc.ringGame.listByStore.queryOptions({
 		storeId,
-		includeArchived: showArchived,
+		includeArchived: false,
+	});
+	const archivedQueryOptions = trpc.ringGame.listByStore.queryOptions({
+		storeId,
+		includeArchived: true,
 	});
 
-	const gamesQuery = useQuery(gamesQueryOptions);
-	const games = gamesQuery.data ?? [];
+	const activeQuery = useQuery(activeQueryOptions);
+	const activeGames = activeQuery.data ?? [];
+
+	const archivedQuery = useQuery({
+		...archivedQueryOptions,
+		enabled: showArchived,
+	});
+	const archivedGames = archivedQuery.data ?? [];
 
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
@@ -294,7 +446,7 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 		mutationFn: (values: RingGameFormValues) =>
 			trpcClient.ringGame.create.mutate({ storeId, ...values }),
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: gamesQueryOptions.queryKey });
+			queryClient.invalidateQueries({ queryKey: activeQueryOptions.queryKey });
 		},
 		onSuccess: () => {
 			setIsCreateOpen(false);
@@ -304,23 +456,11 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 	const updateMutation = useMutation({
 		mutationFn: (values: RingGameFormValues & { id: string }) =>
 			trpcClient.ringGame.update.mutate(values),
-		onMutate: async (updated) => {
-			await queryClient.cancelQueries({
-				queryKey: gamesQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(gamesQueryOptions.queryKey);
-			queryClient.setQueryData(gamesQueryOptions.queryKey, (old) =>
-				old?.map((g) => (g.id === updated.id ? { ...g, ...updated } : g))
-			);
-			return { previous };
-		},
-		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(gamesQueryOptions.queryKey, context.previous);
-			}
-		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: gamesQueryOptions.queryKey });
+			queryClient.invalidateQueries({ queryKey: activeQueryOptions.queryKey });
+			queryClient.invalidateQueries({
+				queryKey: archivedQueryOptions.queryKey,
+			});
 		},
 		onSuccess: () => {
 			setEditingGame(null);
@@ -330,36 +470,30 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 	const archiveMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.ringGame.archive.mutate({ id }),
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: gamesQueryOptions.queryKey });
+			queryClient.invalidateQueries({ queryKey: activeQueryOptions.queryKey });
+			queryClient.invalidateQueries({
+				queryKey: archivedQueryOptions.queryKey,
+			});
 		},
 	});
 
 	const restoreMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.ringGame.restore.mutate({ id }),
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: gamesQueryOptions.queryKey });
+			queryClient.invalidateQueries({ queryKey: activeQueryOptions.queryKey });
+			queryClient.invalidateQueries({
+				queryKey: archivedQueryOptions.queryKey,
+			});
 		},
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.ringGame.delete.mutate({ id }),
-		onMutate: async (id) => {
-			await queryClient.cancelQueries({
-				queryKey: gamesQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(gamesQueryOptions.queryKey);
-			queryClient.setQueryData(gamesQueryOptions.queryKey, (old) =>
-				old?.filter((g) => g.id !== id)
-			);
-			return { previous };
-		},
-		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(gamesQueryOptions.queryKey, context.previous);
-			}
-		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: gamesQueryOptions.queryKey });
+			queryClient.invalidateQueries({ queryKey: activeQueryOptions.queryKey });
+			queryClient.invalidateQueries({
+				queryKey: archivedQueryOptions.queryKey,
+			});
 		},
 	});
 
@@ -374,18 +508,6 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 		updateMutation.mutate({ id: editingGame.id, ...values });
 	};
 
-	const handleArchive = (id: string) => {
-		archiveMutation.mutate(id);
-	};
-
-	const handleRestore = (id: string) => {
-		restoreMutation.mutate(id);
-	};
-
-	const handleDelete = (id: string) => {
-		deleteMutation.mutate(id);
-	};
-
 	return (
 		<div>
 			<div className="flex items-center justify-between">
@@ -394,38 +516,41 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 						Cash Games
 					</span>
 					<Button
-						aria-label={showArchived ? "Show active" : "Show archived"}
+						aria-label={
+							showArchived ? "Hide archived games" : "Show archived games"
+						}
 						onClick={() => setShowArchived((prev) => !prev)}
 						size="icon-xs"
 						variant="ghost"
 					>
 						{showArchived ? (
-							<IconEyeOff className="text-muted-foreground" size={12} />
+							<IconArchiveOff className="text-muted-foreground" size={12} />
 						) : (
-							<IconEye className="text-muted-foreground" size={12} />
+							<IconArchive className="text-muted-foreground" size={12} />
 						)}
 					</Button>
 				</div>
-				{!showArchived && (
-					<Button
-						onClick={() => setIsCreateOpen(true)}
-						size="icon-xs"
-						variant="ghost"
-					>
-						<IconPlus size={12} />
-					</Button>
-				)}
+				<Button
+					onClick={() => setIsCreateOpen(true)}
+					size="icon-xs"
+					variant="ghost"
+				>
+					<IconPlus size={12} />
+				</Button>
 			</div>
 
-			<RingGameList
+			<RingGameContent
+				activeGames={activeGames}
+				archivedGames={archivedGames}
+				archivedLoading={archivedQuery.isLoading}
 				currencies={currencies}
-				games={games}
-				isArchived={showArchived}
-				isLoading={gamesQuery.isLoading}
-				onArchive={handleArchive}
-				onDelete={handleDelete}
+				isLoading={activeQuery.isLoading}
+				onArchive={(id) => archiveMutation.mutate(id)}
+				onDelete={(id) => deleteMutation.mutate(id)}
 				onEdit={setEditingGame}
-				onRestore={handleRestore}
+				onRestore={(id) => restoreMutation.mutate(id)}
+				onView={setViewingGame}
+				showArchived={showArchived}
 			/>
 
 			<ResponsiveDialog
@@ -471,6 +596,20 @@ export function RingGameTab({ storeId }: RingGameTabProps) {
 						isLoading={updateMutation.isPending}
 						onSubmit={handleUpdate}
 					/>
+				)}
+			</ResponsiveDialog>
+
+			<ResponsiveDialog
+				onOpenChange={(open) => {
+					if (!open) {
+						setViewingGame(null);
+					}
+				}}
+				open={viewingGame !== null}
+				title={viewingGame?.name ?? "Cash Game"}
+			>
+				{viewingGame && (
+					<RingGameDetail currencies={currencies} game={viewingGame} />
 				)}
 			</ResponsiveDialog>
 		</div>

@@ -4,8 +4,6 @@ import {
 	IconChevronDown,
 	IconChevronUp,
 	IconEdit,
-	IconEye,
-	IconEyeOff,
 	IconList,
 	IconPlus,
 	IconTrash,
@@ -18,7 +16,10 @@ import { TournamentForm } from "@/components/stores/tournament-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
-import { createGroupFormatter } from "@/utils/format-number";
+import {
+	createGroupFormatter,
+	formatCompactNumber,
+} from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -68,43 +69,34 @@ interface TournamentTabProps {
 	storeId: string;
 }
 
-interface TournamentListProps {
-	expandedId: string | null;
-	isArchived: boolean;
-	isLoading: boolean;
+interface TournamentActionHandlers {
 	onArchive: (id: string) => void;
 	onDelete: (id: string) => void;
 	onEdit: (tournament: Tournament) => void;
 	onRestore: (id: string) => void;
 	onToggleExpand: (id: string) => void;
+	onView: (tournament: Tournament) => void;
+}
+
+interface TournamentListProps extends TournamentActionHandlers {
+	expandedId: string | null;
+	isArchived: boolean;
 	tournaments: Tournament[];
 }
 
 function TournamentList({
 	tournaments,
 	expandedId,
-	isLoading,
 	isArchived,
 	onArchive,
 	onDelete,
 	onEdit,
 	onRestore,
 	onToggleExpand,
+	onView,
 }: TournamentListProps) {
-	if (isLoading) {
-		return (
-			<p className="py-2 text-center text-muted-foreground text-xs">
-				Loading...
-			</p>
-		);
-	}
-
 	if (tournaments.length === 0) {
-		return (
-			<p className="py-1 text-center text-[11px] text-muted-foreground">
-				{isArchived ? "No archived tournaments." : "No tournaments yet."}
-			</p>
-		);
+		return null;
 	}
 
 	return (
@@ -119,10 +111,102 @@ function TournamentList({
 					onEdit={onEdit}
 					onRestore={onRestore}
 					onToggleExpand={onToggleExpand}
+					onView={onView}
 					tournament={t}
 				/>
 			))}
 		</div>
+	);
+}
+
+interface ArchivedTournamentSectionProps extends TournamentActionHandlers {
+	expandedId: string | null;
+	isLoading: boolean;
+	tournaments: Tournament[];
+}
+
+function ArchivedTournamentSection({
+	tournaments,
+	expandedId,
+	isLoading,
+	...handlers
+}: ArchivedTournamentSectionProps) {
+	if (isLoading) {
+		return (
+			<p className="py-1 text-center text-[11px] text-muted-foreground">
+				Loading archived...
+			</p>
+		);
+	}
+
+	if (tournaments.length === 0) {
+		return (
+			<p className="py-1 text-center text-[11px] text-muted-foreground">
+				No archived tournaments.
+			</p>
+		);
+	}
+
+	return (
+		<div className="mt-1 border-t border-dashed pt-1">
+			<TournamentList
+				expandedId={expandedId}
+				isArchived
+				tournaments={tournaments}
+				{...handlers}
+			/>
+		</div>
+	);
+}
+
+interface TournamentContentProps extends TournamentActionHandlers {
+	activeTournaments: Tournament[];
+	archivedLoading: boolean;
+	archivedTournaments: Tournament[];
+	expandedId: string | null;
+	isLoading: boolean;
+	showArchived: boolean;
+}
+
+function TournamentContent({
+	activeTournaments,
+	archivedLoading,
+	archivedTournaments,
+	expandedId,
+	isLoading,
+	showArchived,
+	...handlers
+}: TournamentContentProps) {
+	if (isLoading) {
+		return (
+			<p className="py-2 text-center text-muted-foreground text-xs">
+				Loading...
+			</p>
+		);
+	}
+
+	return (
+		<>
+			{activeTournaments.length === 0 && !showArchived && (
+				<p className="py-1 text-center text-[11px] text-muted-foreground">
+					No tournaments yet.
+				</p>
+			)}
+			<TournamentList
+				expandedId={expandedId}
+				isArchived={false}
+				tournaments={activeTournaments}
+				{...handlers}
+			/>
+			{showArchived && (
+				<ArchivedTournamentSection
+					expandedId={expandedId}
+					isLoading={archivedLoading}
+					tournaments={archivedTournaments}
+					{...handlers}
+				/>
+			)}
+		</>
 	);
 }
 
@@ -157,6 +241,7 @@ interface TournamentRowProps {
 	onEdit: (tournament: Tournament) => void;
 	onRestore: (id: string) => void;
 	onToggleExpand: (id: string) => void;
+	onView: (tournament: Tournament) => void;
 	tournament: Tournament;
 }
 
@@ -169,6 +254,7 @@ function TournamentRow({
 	onEdit,
 	onRestore,
 	onToggleExpand,
+	onView,
 }: TournamentRowProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [blindEditorOpen, setBlindEditorOpen] = useState(false);
@@ -180,9 +266,13 @@ function TournamentRow({
 			<div className="flex items-center gap-1.5 py-1">
 				<div className="min-w-0 flex-1">
 					<div className="flex flex-wrap items-center gap-1">
-						<span className="truncate font-medium text-xs">
+						<button
+							className="truncate font-medium text-xs hover:underline"
+							onClick={() => onView(tournament)}
+							type="button"
+						>
 							{tournament.name}
-						</span>
+						</button>
 						<Badge className="px-1 py-0 text-[10px]" variant="secondary">
 							{tournament.variant.toUpperCase()}
 						</Badge>
@@ -413,23 +503,124 @@ function BlindStructureSummary({ tournamentId }: { tournamentId: string }) {
 	);
 }
 
+function TournamentDetail({ tournament }: { tournament: Tournament }) {
+	const buyInStr = formatBuyInShort(tournament);
+	const fmt = createGroupFormatter([
+		tournament.rebuyCost,
+		tournament.rebuyChips,
+		tournament.addonCost,
+		tournament.addonChips,
+		tournament.bountyAmount,
+	]);
+
+	return (
+		<div className="space-y-3 text-sm">
+			<div className="flex flex-wrap gap-1.5">
+				<Badge variant="secondary">{tournament.variant.toUpperCase()}</Badge>
+				{tournament.tableSize != null && (
+					<Badge className={getTableSizeClassName(tournament.tableSize)}>
+						{tournament.tableSize}-max
+					</Badge>
+				)}
+				{tournament.tags.map((tag) => (
+					<Badge key={tag.id} variant="outline">
+						{tag.name}
+					</Badge>
+				))}
+			</div>
+
+			{buyInStr && (
+				<div>
+					<p className="text-muted-foreground text-xs">Buy-in</p>
+					<p>{buyInStr}</p>
+				</div>
+			)}
+
+			{tournament.startingStack != null && (
+				<div>
+					<p className="text-muted-foreground text-xs">Starting Stack</p>
+					<p>{formatCompactNumber(tournament.startingStack)}</p>
+				</div>
+			)}
+
+			{tournament.rebuyAllowed && (
+				<div>
+					<p className="text-muted-foreground text-xs">Rebuy</p>
+					<p>
+						{tournament.rebuyCost != null
+							? `${fmt(tournament.rebuyCost)} → ${tournament.rebuyChips != null ? fmt(tournament.rebuyChips) : "—"} chips`
+							: "Allowed"}
+					</p>
+				</div>
+			)}
+
+			{tournament.addonAllowed && (
+				<div>
+					<p className="text-muted-foreground text-xs">Add-on</p>
+					<p>
+						{tournament.addonCost != null
+							? `${fmt(tournament.addonCost)} → ${tournament.addonChips != null ? fmt(tournament.addonChips) : "—"} chips`
+							: "Allowed"}
+					</p>
+				</div>
+			)}
+
+			{tournament.bountyAmount != null && (
+				<div>
+					<p className="text-muted-foreground text-xs">Bounty</p>
+					<p>{fmt(tournament.bountyAmount)}</p>
+				</div>
+			)}
+
+			{tournament.blindLevelCount > 0 && (
+				<div>
+					<p className="mb-1 text-muted-foreground text-xs">
+						Blind Structure ({tournament.blindLevelCount} levels)
+					</p>
+					<BlindStructureSummary tournamentId={tournament.id} />
+				</div>
+			)}
+
+			{tournament.memo && (
+				<div>
+					<p className="text-muted-foreground text-xs">Memo</p>
+					<p className="whitespace-pre-wrap">{tournament.memo}</p>
+				</div>
+			)}
+		</div>
+	);
+}
+
 export function TournamentTab({ storeId }: TournamentTabProps) {
 	const [showArchived, setShowArchived] = useState(false);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingTournament, setEditingTournament] = useState<Tournament | null>(
 		null
 	);
+	const [viewingTournament, setViewingTournament] = useState<Tournament | null>(
+		null
+	);
 	const [expandedId, setExpandedId] = useState<string | null>(null);
 
 	const queryClient = useQueryClient();
 
-	const tournamentsQueryOptions = trpc.tournament.listByStore.queryOptions({
+	const activeQueryOptions = trpc.tournament.listByStore.queryOptions({
 		storeId,
-		includeArchived: showArchived,
+		includeArchived: false,
+	});
+	const archivedQueryOptions = trpc.tournament.listByStore.queryOptions({
+		storeId,
+		includeArchived: true,
 	});
 
-	const tournamentsQuery = useQuery(tournamentsQueryOptions);
-	const tournaments = (tournamentsQuery.data ?? []) as Tournament[];
+	const activeQuery = useQuery(activeQueryOptions);
+	const activeTournaments = (activeQuery.data ?? []) as Tournament[];
+
+	const archivedQuery = useQuery({
+		...archivedQueryOptions,
+		enabled: showArchived,
+	});
+	const archivedTournaments = (archivedQuery.data ?? []) as Tournament[];
 
 	const syncTags = async (
 		tournamentId: string,
@@ -449,6 +640,13 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 		]);
 	};
 
+	const invalidateBoth = () => {
+		queryClient.invalidateQueries({ queryKey: activeQueryOptions.queryKey });
+		queryClient.invalidateQueries({
+			queryKey: archivedQueryOptions.queryKey,
+		});
+	};
+
 	const createMutation = useMutation({
 		mutationFn: async (values: TournamentFormValues) => {
 			const { tags, ...rest } = values;
@@ -461,11 +659,7 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 			}
 			return created;
 		},
-		onSettled: () => {
-			queryClient.invalidateQueries({
-				queryKey: tournamentsQueryOptions.queryKey,
-			});
-		},
+		onSettled: invalidateBoth,
 		onSuccess: () => {
 			setIsCreateOpen(false);
 		},
@@ -485,36 +679,7 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 			}
 			return updated;
 		},
-		onMutate: async (updated) => {
-			await queryClient.cancelQueries({
-				queryKey: tournamentsQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(
-				tournamentsQueryOptions.queryKey
-			);
-			const {
-				tags: _tags,
-				existingTags: _existingTags,
-				...cacheUpdate
-			} = updated;
-			queryClient.setQueryData(tournamentsQueryOptions.queryKey, (old) =>
-				old?.map((t) => (t.id === updated.id ? { ...t, ...cacheUpdate } : t))
-			);
-			return { previous };
-		},
-		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(
-					tournamentsQueryOptions.queryKey,
-					context.previous
-				);
-			}
-		},
-		onSettled: () => {
-			queryClient.invalidateQueries({
-				queryKey: tournamentsQueryOptions.queryKey,
-			});
-		},
+		onSettled: invalidateBoth,
 		onSuccess: () => {
 			setEditingTournament(null);
 		},
@@ -522,49 +687,17 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 
 	const archiveMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.archive.mutate({ id }),
-		onSettled: () => {
-			queryClient.invalidateQueries({
-				queryKey: tournamentsQueryOptions.queryKey,
-			});
-		},
+		onSettled: invalidateBoth,
 	});
 
 	const restoreMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.restore.mutate({ id }),
-		onSettled: () => {
-			queryClient.invalidateQueries({
-				queryKey: tournamentsQueryOptions.queryKey,
-			});
-		},
+		onSettled: invalidateBoth,
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.delete.mutate({ id }),
-		onMutate: async (id) => {
-			await queryClient.cancelQueries({
-				queryKey: tournamentsQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(
-				tournamentsQueryOptions.queryKey
-			);
-			queryClient.setQueryData(tournamentsQueryOptions.queryKey, (old) =>
-				old?.filter((t) => t.id !== id)
-			);
-			return { previous };
-		},
-		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(
-					tournamentsQueryOptions.queryKey,
-					context.previous
-				);
-			}
-		},
-		onSettled: () => {
-			queryClient.invalidateQueries({
-				queryKey: tournamentsQueryOptions.queryKey,
-			});
-		},
+		onSettled: invalidateBoth,
 	});
 
 	const handleCreate = (values: TournamentFormValues) => {
@@ -582,18 +715,6 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 		});
 	};
 
-	const handleArchive = (id: string) => {
-		archiveMutation.mutate(id);
-	};
-
-	const handleRestore = (id: string) => {
-		restoreMutation.mutate(id);
-	};
-
-	const handleDelete = (id: string) => {
-		deleteMutation.mutate(id);
-	};
-
 	const handleToggleExpand = (id: string) => {
 		setExpandedId((prev) => (prev === id ? null : id));
 	};
@@ -606,39 +727,44 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 						Tournaments
 					</span>
 					<Button
-						aria-label={showArchived ? "Show active" : "Show archived"}
+						aria-label={
+							showArchived
+								? "Hide archived tournaments"
+								: "Show archived tournaments"
+						}
 						onClick={() => setShowArchived((prev) => !prev)}
 						size="icon-xs"
 						variant="ghost"
 					>
 						{showArchived ? (
-							<IconEyeOff className="text-muted-foreground" size={12} />
+							<IconArchiveOff className="text-muted-foreground" size={12} />
 						) : (
-							<IconEye className="text-muted-foreground" size={12} />
+							<IconArchive className="text-muted-foreground" size={12} />
 						)}
 					</Button>
 				</div>
-				{!showArchived && (
-					<Button
-						onClick={() => setIsCreateOpen(true)}
-						size="icon-xs"
-						variant="ghost"
-					>
-						<IconPlus size={12} />
-					</Button>
-				)}
+				<Button
+					onClick={() => setIsCreateOpen(true)}
+					size="icon-xs"
+					variant="ghost"
+				>
+					<IconPlus size={12} />
+				</Button>
 			</div>
 
-			<TournamentList
+			<TournamentContent
+				activeTournaments={activeTournaments}
+				archivedLoading={archivedQuery.isLoading}
+				archivedTournaments={archivedTournaments}
 				expandedId={expandedId}
-				isArchived={showArchived}
-				isLoading={tournamentsQuery.isLoading}
-				onArchive={handleArchive}
-				onDelete={handleDelete}
+				isLoading={activeQuery.isLoading}
+				onArchive={(id) => archiveMutation.mutate(id)}
+				onDelete={(id) => deleteMutation.mutate(id)}
 				onEdit={setEditingTournament}
-				onRestore={handleRestore}
+				onRestore={(id) => restoreMutation.mutate(id)}
 				onToggleExpand={handleToggleExpand}
-				tournaments={tournaments}
+				onView={setViewingTournament}
+				showArchived={showArchived}
 			/>
 
 			<ResponsiveDialog
@@ -684,6 +810,20 @@ export function TournamentTab({ storeId }: TournamentTabProps) {
 						isLoading={updateMutation.isPending}
 						onSubmit={handleUpdate}
 					/>
+				)}
+			</ResponsiveDialog>
+
+			<ResponsiveDialog
+				onOpenChange={(open) => {
+					if (!open) {
+						setViewingTournament(null);
+					}
+				}}
+				open={viewingTournament !== null}
+				title={viewingTournament?.name ?? "Tournament"}
+			>
+				{viewingTournament && (
+					<TournamentDetail tournament={viewingTournament} />
 				)}
 			</ResponsiveDialog>
 		</div>
