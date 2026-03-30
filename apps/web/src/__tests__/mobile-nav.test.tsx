@@ -44,6 +44,12 @@ function createTestRouter(initialPath: string) {
 		component: () => <div>Sessions</div>,
 	});
 
+	const liveSessionsRoute = createRoute({
+		getParentRoute: () => rootRoute,
+		path: "/live-sessions",
+		component: () => <div>Live</div>,
+	});
+
 	const playersRoute = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/players",
@@ -62,6 +68,7 @@ function createTestRouter(initialPath: string) {
 		storesRoute,
 		currenciesRoute,
 		sessionsRoute,
+		liveSessionsRoute,
 		playersRoute,
 		settingsRoute,
 	]);
@@ -73,12 +80,12 @@ function createTestRouter(initialPath: string) {
 }
 
 describe("MobileNav", () => {
-	it("renders 6 navigation items", async () => {
+	it("renders 7 navigation items", async () => {
 		const router = createTestRouter("/");
 		render(<RouterProvider router={router} />);
 
 		const links = await screen.findAllByRole("link");
-		expect(links).toHaveLength(6);
+		expect(links).toHaveLength(7);
 	});
 
 	it("displays labels for all navigation items", async () => {
@@ -89,6 +96,7 @@ describe("MobileNav", () => {
 		expect(screen.getByText("Stores")).toBeInTheDocument();
 		expect(screen.getByText("Currencies")).toBeInTheDocument();
 		expect(screen.getByText("Sessions")).toBeInTheDocument();
+		expect(screen.getByText("Live")).toBeInTheDocument();
 		expect(screen.getByText("Players")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
 	});
