@@ -82,8 +82,8 @@ describe("TransactionList", () => {
 		);
 
 		await expandRow(user);
-		expect(screen.getByText("Edit")).toBeInTheDocument();
-		expect(screen.getByText("Delete")).toBeInTheDocument();
+		expect(screen.getByLabelText("Edit transaction")).toBeInTheDocument();
+		expect(screen.getByLabelText("Delete transaction")).toBeInTheDocument();
 	});
 
 	it("hides edit and delete buttons for session-generated transactions", async () => {
@@ -98,8 +98,10 @@ describe("TransactionList", () => {
 
 		const row = screen.getByRole("button", { name: DATE_PATTERN });
 		await user.click(row);
-		expect(screen.queryByText("Edit")).not.toBeInTheDocument();
-		expect(screen.queryByText("Delete")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Edit transaction")).not.toBeInTheDocument();
+		expect(
+			screen.queryByLabelText("Delete transaction")
+		).not.toBeInTheDocument();
 	});
 
 	it("calls onDelete after confirmation when delete is clicked", async () => {
@@ -113,7 +115,7 @@ describe("TransactionList", () => {
 		);
 
 		await expandRow(user);
-		await user.click(screen.getByText("Delete"));
+		await user.click(screen.getByLabelText("Delete transaction"));
 		expect(screen.getByText("Delete?")).toBeInTheDocument();
 
 		await user.click(screen.getByLabelText("Confirm delete"));
@@ -132,7 +134,7 @@ describe("TransactionList", () => {
 		);
 
 		await expandRow(user);
-		await user.click(screen.getByText("Edit"));
+		await user.click(screen.getByLabelText("Edit transaction"));
 		expect(onEdit).toHaveBeenCalledWith(regularTransaction);
 	});
 

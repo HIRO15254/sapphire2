@@ -111,11 +111,10 @@ export function TransactionList({
 													setConfirmingDeleteId(null);
 													setExpandedId(null);
 												}}
-												size="xs"
+												size="icon-xs"
 												variant="ghost"
 											>
 												<IconTrash size={13} />
-												Delete
 											</Button>
 											<Button
 												aria-label="Cancel delete"
@@ -123,40 +122,39 @@ export function TransactionList({
 													e.stopPropagation();
 													setConfirmingDeleteId(null);
 												}}
-												size="xs"
+												size="icon-xs"
 												variant="ghost"
 											>
 												<IconX size={13} />
-												Cancel
 											</Button>
 										</div>
 									) : (
-										<div className="flex items-center justify-end gap-1">
+										<div className="flex items-center justify-end gap-0.5">
 											{onEdit && !isSessionGenerated && (
 												<Button
+													aria-label="Edit transaction"
 													onClick={(e) => {
 														e.stopPropagation();
 														onEdit(tx);
 													}}
-													size="xs"
+													size="icon-xs"
 													variant="ghost"
 												>
 													<IconEdit size={13} />
-													Edit
 												</Button>
 											)}
 											{!isSessionGenerated && (
 												<Button
+													aria-label="Delete transaction"
 													className="text-destructive hover:text-destructive"
 													onClick={(e) => {
 														e.stopPropagation();
 														setConfirmingDeleteId(tx.id);
 													}}
-													size="xs"
+													size="icon-xs"
 													variant="ghost"
 												>
 													<IconTrash size={13} />
-													Delete
 												</Button>
 											)}
 										</div>
