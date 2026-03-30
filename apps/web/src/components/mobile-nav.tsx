@@ -8,7 +8,8 @@ import {
 	IconUsers,
 } from "@tabler/icons-react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import type { ComponentType } from "react";
+import { type ComponentType, useState } from "react";
+import { CreateSessionDialog } from "@/components/live-sessions/create-session-dialog";
 import { useActiveSession } from "@/hooks/use-active-session";
 import { cn } from "@/lib/utils";
 
@@ -72,11 +73,11 @@ function NavItem({ item, active }: { item: NavigationItem; active: boolean }) {
 function CenterButton({
 	hasActiveSession,
 	activeSessionPath,
-	label,
+	onNewClick,
 }: {
 	hasActiveSession: boolean;
 	activeSessionPath: string | null;
-	label: string;
+	onNewClick: () => void;
 }) {
 	const navigate = useNavigate();
 
@@ -84,7 +85,7 @@ function CenterButton({
 		if (hasActiveSession && activeSessionPath) {
 			navigate({ to: activeSessionPath });
 		} else {
-			navigate({ to: "/sessions" });
+			onNewClick();
 		}
 	};
 
@@ -117,7 +118,7 @@ function CenterButton({
 							: "bg-primary text-primary-foreground"
 					)}
 				>
-					{label}
+					{hasActiveSession ? "Live" : "New"}
 				</span>
 			</button>
 		</li>
@@ -129,6 +130,7 @@ export function MobileNav() {
 		select: (s) => s.location.pathname,
 	});
 	const { activeSession, hasActive } = useActiveSession();
+	const [isCreateOpen, setIsCreateOpen] = useState(false);
 
 	let activeSessionPath: string | null = null;
 	let eventsPath: string | null = null;
@@ -157,30 +159,39 @@ export function MobileNav() {
 	const rightItems = hasActive ? liveRightItems : NORMAL_RIGHT_ITEMS;
 
 	return (
-		<nav className="fixed inset-x-0 bottom-0 z-40 border-sidebar-border border-t bg-sidebar md:hidden">
-			<ul className="flex h-16 items-center">
-				{leftItems.map((item) => (
-					<NavItem
-						active={isActive(pathname, item.to)}
-						item={item}
-						key={item.to}
-					/>
-				))}
+		<>
+			<nav className="fixed inset-x-0 bottom-0 z-40 border-sidebar-border border-t bg-sidebar md:hidden">
+				<ul className="flex h-16 items-center">
+					{leftItems.map((item) => (
+						<NavItem
+							active={isActive(pathname, item.to)}
+							item={item}
+							key={item.to}
+						/>
+					))}
 
-				<CenterButton
-					activeSessionPath={activeSessionPath}
-					hasActiveSession={hasActive}
-					label={hasActive ? "Live" : "New"}
+					<CenterButton
+						activeSessionPath={activeSessionPath}
+						hasActiveSession={hasActive}
+						onNewClick={() => setIsCreateOpen(true)}
+					/>
+
+					{rightItems.map((item) => (
+						<NavItem
+							active={isActive(pathname, item.to)}
+							item={item}
+							key={item.to}
+						/>
+					))}
+				</ul>
+			</nav>
+
+			{!hasActive && (
+				<CreateSessionDialog
+					onOpenChange={setIsCreateOpen}
+					open={isCreateOpen}
 				/>
-
-				{rightItems.map((item) => (
-					<NavItem
-						active={isActive(pathname, item.to)}
-						item={item}
-						key={item.to}
-					/>
-				))}
-			</ul>
-		</nav>
+			)}
+		</>
 	);
 }

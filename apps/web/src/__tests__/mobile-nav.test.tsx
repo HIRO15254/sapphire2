@@ -15,6 +15,11 @@ vi.mock("@/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
+// Mock CreateSessionDialog to avoid trpc/env imports
+vi.mock("@/components/live-sessions/create-session-dialog", () => ({
+	CreateSessionDialog: () => null,
+}));
+
 function createTestRouter(initialPath: string) {
 	const rootRoute = createRootRoute({
 		component: () => <MobileNav />,
