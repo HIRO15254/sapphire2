@@ -6,72 +6,38 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MobileNav } from "../components/mobile-nav";
+
+// Mock useActiveSession to control nav mode
+const mockUseActiveSession = vi.fn();
+vi.mock("@/hooks/use-active-session", () => ({
+	useActiveSession: () => mockUseActiveSession(),
+}));
 
 function createTestRouter(initialPath: string) {
 	const rootRoute = createRootRoute({
 		component: () => <MobileNav />,
 	});
 
-	const indexRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/",
-		component: () => <div>Home</div>,
-	});
+	const routes = [
+		"/",
+		"/dashboard",
+		"/stores",
+		"/currencies",
+		"/sessions",
+		"/live-sessions",
+		"/players",
+		"/settings",
+	].map((path) =>
+		createRoute({
+			getParentRoute: () => rootRoute,
+			path,
+			component: () => <div>{path}</div>,
+		})
+	);
 
-	const dashboardRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/dashboard",
-		component: () => <div>Dashboard</div>,
-	});
-
-	const storesRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/stores",
-		component: () => <div>Stores</div>,
-	});
-
-	const currenciesRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/currencies",
-		component: () => <div>Currencies</div>,
-	});
-
-	const sessionsRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/sessions",
-		component: () => <div>Sessions</div>,
-	});
-
-	const liveSessionsRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/live-sessions",
-		component: () => <div>Live</div>,
-	});
-
-	const playersRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/players",
-		component: () => <div>Players</div>,
-	});
-
-	const settingsRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/settings",
-		component: () => <div>Settings</div>,
-	});
-
-	const routeTree = rootRoute.addChildren([
-		indexRoute,
-		dashboardRoute,
-		storesRoute,
-		currenciesRoute,
-		sessionsRoute,
-		liveSessionsRoute,
-		playersRoute,
-		settingsRoute,
-	]);
+	const routeTree = rootRoute.addChildren(routes);
 
 	return createRouter({
 		routeTree,
@@ -79,44 +45,94 @@ function createTestRouter(initialPath: string) {
 	});
 }
 
-describe("MobileNav", () => {
-	it("renders 7 navigation items", async () => {
-		const router = createTestRouter("/");
+describe("MobileNav - Normal Mode (no active session)", () => {
+	beforeEach(() => {
+		mockUseActiveSession.mockReturnValue({
+			activeSession: null,
+			hasActive: false,
+			isLoading: false,
+		});
+	});
+
+	it("renders 4 nav links and 1 center button", async () => {
+		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
 
 		const links = await screen.findAllByRole("link");
-		expect(links).toHaveLength(7);
+		expect(links).toHaveLength(4);
+
+		const centerButton = screen.getByRole("button");
+		expect(centerButton).toBeInTheDocument();
 	});
 
-	it("displays labels for all navigation items", async () => {
-		const router = createTestRouter("/dashboard");
+	it("displays normal mode labels", async () => {
+		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("Dashboard");
+		await screen.findByText("Sessions");
 		expect(screen.getByText("Stores")).toBeInTheDocument();
-		expect(screen.getByText("Currencies")).toBeInTheDocument();
-		expect(screen.getByText("Sessions")).toBeInTheDocument();
-		expect(screen.getByText("Live")).toBeInTheDocument();
 		expect(screen.getByText("Players")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
+		expect(screen.getByText("New")).toBeInTheDocument();
 	});
 
-	it("highlights the active navigation item for dashboard", async () => {
-		const router = createTestRouter("/dashboard");
+	it("highlights the active navigation item", async () => {
+		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
 
-		const dashboardLink = await screen.findByText("Dashboard");
-		const link = dashboardLink.closest("a");
-		expect(link?.className).toContain("text-sidebar-primary");
+		const sessionsLink = await screen.findByText("Sessions");
+		const anchor = sessionsLink.closest("a");
+		expect(anchor?.className).toContain("text-sidebar-primary");
 	});
 
 	it("does not highlight inactive navigation items", async () => {
-		const router = createTestRouter("/dashboard");
+		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("Dashboard");
+		await screen.findByText("Sessions");
 		const storesLink = screen.getByText("Stores");
-		const storesAnchor = storesLink.closest("a");
-		expect(storesAnchor?.className).toContain("text-sidebar-foreground");
+		const anchor = storesLink.closest("a");
+		expect(anchor?.className).toContain("text-sidebar-foreground");
+	});
+});
+
+describe("MobileNav - Live Session Mode (active session)", () => {
+	beforeEach(() => {
+		mockUseActiveSession.mockReturnValue({
+			activeSession: { id: "session-123", type: "cash_game" },
+			hasActive: true,
+			isLoading: false,
+		});
+	});
+
+	it("renders 4 nav links and 1 center button", async () => {
+		const router = createTestRouter("/live-sessions");
+		render(<RouterProvider router={router} />);
+
+		const links = await screen.findAllByRole("link");
+		expect(links).toHaveLength(4);
+
+		const centerButton = screen.getByRole("button");
+		expect(centerButton).toBeInTheDocument();
+	});
+
+	it("displays live mode labels", async () => {
+		const router = createTestRouter("/live-sessions");
+		render(<RouterProvider router={router} />);
+
+		await screen.findByText("Events");
+		expect(screen.getByText("Players")).toBeInTheDocument();
+		expect(screen.getByText("Stores")).toBeInTheDocument();
+		expect(screen.getByText("Settings")).toBeInTheDocument();
+		expect(screen.getByText("Live")).toBeInTheDocument();
+	});
+
+	it("center button has green styling in live mode", async () => {
+		const router = createTestRouter("/live-sessions");
+		render(<RouterProvider router={router} />);
+
+		await screen.findByText("Live");
+		const centerButton = screen.getByRole("button");
+		expect(centerButton.className).toContain("bg-green");
 	});
 });
