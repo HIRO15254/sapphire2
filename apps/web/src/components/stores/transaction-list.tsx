@@ -53,33 +53,37 @@ export function TransactionList({
 
 				return (
 					<div
-						className="flex items-center justify-between gap-2 py-2"
+						className="flex items-center justify-between gap-1.5 py-1"
 						key={tx.id}
 					>
-						<div className="flex flex-1 flex-col gap-0.5">
-							<div className="flex items-center gap-2">
-								<span className={`font-semibold ${amountClass}`}>
+						<div className="flex flex-1 flex-col">
+							<div className="flex items-center gap-1.5">
+								<span className={`font-semibold text-sm ${amountClass}`}>
 									{amountDisplay}
 								</span>
-								<Badge variant="outline">{tx.transactionTypeName}</Badge>
+								<Badge className="text-[10px]" variant="outline">
+									{tx.transactionTypeName}
+								</Badge>
 								{isSessionGenerated && (
-									<Badge variant="secondary">Session</Badge>
+									<Badge className="text-[10px]" variant="secondary">
+										Session
+									</Badge>
 								)}
 							</div>
-							<div className="flex items-center gap-2 text-muted-foreground text-xs">
+							<div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
 								<span>{dateDisplay}</span>
 								{tx.memo && <span>· {tx.memo}</span>}
 							</div>
 						</div>
-						<div className="flex items-center gap-1">
+						<div className="flex items-center">
 							{onEdit && !isSessionGenerated && (
 								<Button
 									aria-label="Edit transaction"
 									onClick={() => onEdit(tx)}
-									size="sm"
+									size="icon-xs"
 									variant="ghost"
 								>
-									<IconEdit size={14} />
+									<IconEdit size={13} />
 								</Button>
 							)}
 							{!isSessionGenerated && (
@@ -87,10 +91,10 @@ export function TransactionList({
 									aria-label="Delete transaction"
 									className="text-destructive hover:text-destructive"
 									onClick={() => onDelete(tx.id)}
-									size="sm"
+									size="icon-xs"
 									variant="ghost"
 								>
-									<IconTrash size={14} />
+									<IconTrash size={13} />
 								</Button>
 							)}
 						</div>
