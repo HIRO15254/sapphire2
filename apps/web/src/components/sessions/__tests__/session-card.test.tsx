@@ -130,7 +130,7 @@ describe("SessionCard", () => {
 			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
 		);
 
-		expect(screen.getByText("+2k")).toBeInTheDocument();
+		expect(screen.getAllByText("+2k").length).toBeGreaterThan(0);
 	});
 
 	it("does not display EV metrics when evCashOut is null", () => {
@@ -161,8 +161,8 @@ describe("SessionCard", () => {
 			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
 		);
 
-		const expandButton = screen.getByLabelText("Expand details");
-		await user.click(expandButton);
+		const header = screen.getByRole("button", { expanded: false });
+		await user.click(header);
 
 		expect(screen.getByText("Buy-in")).toBeInTheDocument();
 		expect(screen.getByText("Cash-out")).toBeInTheDocument();
@@ -179,7 +179,7 @@ describe("SessionCard", () => {
 			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
 		);
 
-		await user.click(screen.getByLabelText("Expand details"));
+		await user.click(screen.getByRole("button", { expanded: false }));
 
 		expect(screen.getByText("EV Cash-out")).toBeInTheDocument();
 		expect(screen.getByText("EV P&L")).toBeInTheDocument();
@@ -208,7 +208,7 @@ describe("SessionCard", () => {
 			<SessionCard onDelete={vi.fn()} onEdit={onEdit} session={session} />
 		);
 
-		await user.click(screen.getByLabelText("Expand details"));
+		await user.click(screen.getByRole("button", { expanded: false }));
 		await user.click(screen.getByText("Edit"));
 
 		expect(onEdit).toHaveBeenCalledWith(session);
@@ -222,7 +222,7 @@ describe("SessionCard", () => {
 			<SessionCard onDelete={onDelete} onEdit={vi.fn()} session={session} />
 		);
 
-		await user.click(screen.getByLabelText("Expand details"));
+		await user.click(screen.getByRole("button", { expanded: false }));
 		await user.click(screen.getByText("Delete"));
 		await user.click(screen.getByLabelText("Confirm delete"));
 

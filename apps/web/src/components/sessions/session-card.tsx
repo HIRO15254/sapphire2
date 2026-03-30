@@ -1,17 +1,11 @@
 import {
 	IconCalendar,
-	IconChevronDown,
-	IconChevronUp,
-	IconEdit,
 	IconMapPin,
 	IconPokerChip,
-	IconTrash,
 	IconTrophy,
-	IconX,
 } from "@tabler/icons-react";
-import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { ExpandableCard } from "@/components/ui/expandable-card";
 import { formatCompactNumber } from "@/utils/format-number";
 
 interface SessionCardProps {
@@ -211,10 +205,7 @@ function TournamentDetails({
 	);
 }
 
-export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
-	const [expanded, setExpanded] = useState(false);
-	const [confirmingDelete, setConfirmingDelete] = useState(false);
-
+function SessionHeader({ session }: { session: SessionCardProps["session"] }) {
 	const profitLoss = session.profitLoss ?? 0;
 	const isTournament = session.type === "tournament";
 
@@ -228,160 +219,95 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 	const gameName = getGameName(session);
 
 	return (
-		<div className="rounded-lg border bg-card">
-			<div className="flex items-start gap-2 p-3">
-				{/* Left column: game info */}
-				<div className="min-w-0 flex-1">
-					<div className="flex flex-wrap items-center gap-1.5">
-						<span className="truncate font-medium text-sm">{gameName}</span>
-						<Badge
-							className={`shrink-0 gap-0.5 ${isTournament ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400" : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400"}`}
-							variant="outline"
-						>
-							{isTournament ? (
-								<IconTrophy size={10} />
-							) : (
-								<IconPokerChip size={10} />
-							)}
-							{isTournament ? "Tourney" : "Cash"}
-						</Badge>
-						{session.tags.map((tag) => (
-							<Badge className="shrink-0" key={tag.id} variant="outline">
-								{tag.name}
-							</Badge>
-						))}
-					</div>
-					<div className="mt-1 flex items-center gap-3 text-muted-foreground text-xs">
-						{session.storeName && (
-							<span className="flex max-w-[120px] items-center gap-0.5">
-								<IconMapPin className="shrink-0" size={12} />
-								<span className="truncate">{session.storeName}</span>
-							</span>
+		<>
+			{/* Left column: game info */}
+			<div className="min-w-0 flex-1">
+				<div className="flex flex-wrap items-center gap-1.5">
+					<span className="truncate font-medium text-sm">{gameName}</span>
+					<Badge
+						className={`shrink-0 gap-0.5 ${isTournament ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400" : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400"}`}
+						variant="outline"
+					>
+						{isTournament ? (
+							<IconTrophy size={10} />
+						) : (
+							<IconPokerChip size={10} />
 						)}
-						<span className="flex items-center gap-0.5">
-							<IconCalendar className="shrink-0" size={12} />
-							{formatSessionDate(session.sessionDate)}
-						</span>
-					</div>
-					{session.memo && !expanded && (
-						<p className="mt-0.5 truncate text-muted-foreground text-xs">
-							{session.memo}
-						</p>
-					)}
+						{isTournament ? "Tourney" : "Cash"}
+					</Badge>
+					{session.tags.map((tag) => (
+						<Badge className="shrink-0" key={tag.id} variant="outline">
+							{tag.name}
+						</Badge>
+					))}
 				</div>
-
-				{/* Right column: P&L + sub info */}
-				<div className="flex shrink-0 flex-col items-end">
-					<span className={`font-semibold text-sm ${profitColorClass}`}>
-						{formatProfitLoss(profitLoss, session.currencyUnit)}
+				<div className="mt-1 flex items-center gap-3 text-muted-foreground text-xs">
+					{session.storeName && (
+						<span className="flex max-w-[120px] items-center gap-0.5">
+							<IconMapPin className="shrink-0" size={12} />
+							<span className="truncate">{session.storeName}</span>
+						</span>
+					)}
+					<span className="flex items-center gap-0.5">
+						<IconCalendar className="shrink-0" size={12} />
+						{formatSessionDate(session.sessionDate)}
 					</span>
-					{isTournament && session.placement !== null && (
-						<span className="text-[10px] text-muted-foreground">
-							{session.placement}
-							{session.totalEntries !== null ? `/${session.totalEntries}` : ""}
-							{" place"}
-						</span>
-					)}
-					{!isTournament && session.evProfitLoss !== null && (
-						<span className="text-[10px] text-muted-foreground">
-							EV{" "}
-							<span
-								className={
-									session.evProfitLoss >= 0 ? "text-green-600" : "text-red-600"
-								}
-							>
-								{formatProfitLoss(session.evProfitLoss, session.currencyUnit)}
-							</span>
-						</span>
-					)}
 				</div>
-
-				{/* Chevron toggle */}
-				<Button
-					aria-label={expanded ? "Collapse details" : "Expand details"}
-					className="shrink-0 text-muted-foreground"
-					onClick={() => {
-						setExpanded((prev) => !prev);
-						setConfirmingDelete(false);
-					}}
-					size="icon-xs"
-					variant="ghost"
-				>
-					{expanded ? (
-						<IconChevronUp size={16} />
-					) : (
-						<IconChevronDown size={16} />
-					)}
-				</Button>
 			</div>
 
-			{/* Expanded detail panel */}
-			{expanded && (
-				<div className="border-t px-3 py-2">
-					<div className="flex flex-col gap-1 text-xs">
-						{isTournament ? (
-							<TournamentDetails session={session} />
-						) : (
-							<CashGameDetails session={session} />
-						)}
-						{session.memo && (
-							<div className="mt-2 border-t pt-2">
-								<p className="whitespace-pre-wrap text-muted-foreground">
-									{session.memo}
-								</p>
-							</div>
-						)}
-					</div>
+			{/* Right column: P&L + sub info */}
+			<div className="flex shrink-0 flex-col items-end">
+				<span className={`font-semibold text-sm ${profitColorClass}`}>
+					{formatProfitLoss(profitLoss, session.currencyUnit)}
+				</span>
+				{isTournament && session.placement !== null && (
+					<span className="text-[10px] text-muted-foreground">
+						{session.placement}
+						{session.totalEntries !== null ? `/${session.totalEntries}` : ""}
+						{" place"}
+					</span>
+				)}
+				{!isTournament && session.evProfitLoss !== null && (
+					<span className="text-[10px] text-muted-foreground">
+						EV{" "}
+						<span
+							className={
+								session.evProfitLoss >= 0 ? "text-green-600" : "text-red-600"
+							}
+						>
+							{formatProfitLoss(session.evProfitLoss, session.currencyUnit)}
+						</span>
+					</span>
+				)}
+			</div>
+		</>
+	);
+}
 
-					{/* Action buttons */}
-					{confirmingDelete ? (
-						<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
-							<span className="text-destructive text-xs">
-								Delete this session?
-							</span>
-							<Button
-								aria-label="Confirm delete"
-								className="text-destructive hover:text-destructive"
-								onClick={() => {
-									onDelete(session.id);
-									setConfirmingDelete(false);
-									setExpanded(false);
-								}}
-								size="xs"
-								variant="ghost"
-							>
-								<IconTrash size={14} />
-								Delete
-							</Button>
-							<Button
-								aria-label="Cancel delete"
-								onClick={() => setConfirmingDelete(false)}
-								size="xs"
-								variant="ghost"
-							>
-								<IconX size={14} />
-								Cancel
-							</Button>
-						</div>
-					) : (
-						<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
-							<Button onClick={() => onEdit(session)} size="xs" variant="ghost">
-								<IconEdit size={14} />
-								Edit
-							</Button>
-							<Button
-								className="text-destructive hover:text-destructive"
-								onClick={() => setConfirmingDelete(true)}
-								size="xs"
-								variant="ghost"
-							>
-								<IconTrash size={14} />
-								Delete
-							</Button>
-						</div>
-					)}
-				</div>
-			)}
-		</div>
+export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
+	const isTournament = session.type === "tournament";
+
+	return (
+		<ExpandableCard
+			deleteLabel="session"
+			header={<SessionHeader session={session} />}
+			onDelete={() => onDelete(session.id)}
+			onEdit={() => onEdit(session)}
+		>
+			<div className="flex flex-col gap-1 text-xs">
+				{isTournament ? (
+					<TournamentDetails session={session} />
+				) : (
+					<CashGameDetails session={session} />
+				)}
+				{session.memo && (
+					<div className="mt-2 border-t pt-2">
+						<p className="whitespace-pre-wrap text-muted-foreground">
+							{session.memo}
+						</p>
+					</div>
+				)}
+			</div>
+		</ExpandableCard>
 	);
 }
