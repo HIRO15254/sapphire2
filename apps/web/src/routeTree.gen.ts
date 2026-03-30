@@ -17,7 +17,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as StoresIndexRouteImport } from './routes/stores/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
 import { Route as PlayersIndexRouteImport } from './routes/players/index'
-import { Route as LiveSessionsIndexRouteImport } from './routes/live-sessions/index'
 import { Route as CurrenciesIndexRouteImport } from './routes/currencies/index'
 import { Route as StoresStoreIdRouteImport } from './routes/stores/$storeId'
 import { Route as LiveSessionsCashGameSessionIdRouteImport } from './routes/live-sessions/cash-game/$sessionId'
@@ -64,11 +63,6 @@ const PlayersIndexRoute = PlayersIndexRouteImport.update({
   path: '/players/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LiveSessionsIndexRoute = LiveSessionsIndexRouteImport.update({
-  id: '/live-sessions/',
-  path: '/live-sessions/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CurrenciesIndexRoute = CurrenciesIndexRouteImport.update({
   id: '/currencies/',
   path: '/currencies/',
@@ -106,7 +100,6 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
   '/currencies/': typeof CurrenciesIndexRoute
-  '/live-sessions/': typeof LiveSessionsIndexRoute
   '/players/': typeof PlayersIndexRoute
   '/sessions/': typeof SessionsIndexRoute
   '/stores/': typeof StoresIndexRoute
@@ -122,7 +115,6 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
   '/currencies': typeof CurrenciesIndexRoute
-  '/live-sessions': typeof LiveSessionsIndexRoute
   '/players': typeof PlayersIndexRoute
   '/sessions': typeof SessionsIndexRoute
   '/stores': typeof StoresIndexRoute
@@ -138,7 +130,6 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
   '/currencies/': typeof CurrenciesIndexRoute
-  '/live-sessions/': typeof LiveSessionsIndexRoute
   '/players/': typeof PlayersIndexRoute
   '/sessions/': typeof SessionsIndexRoute
   '/stores/': typeof StoresIndexRoute
@@ -156,7 +147,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stores/$storeId'
     | '/currencies/'
-    | '/live-sessions/'
     | '/players/'
     | '/sessions/'
     | '/stores/'
@@ -172,7 +162,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stores/$storeId'
     | '/currencies'
-    | '/live-sessions'
     | '/players'
     | '/sessions'
     | '/stores'
@@ -187,7 +176,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stores/$storeId'
     | '/currencies/'
-    | '/live-sessions/'
     | '/players/'
     | '/sessions/'
     | '/stores/'
@@ -204,7 +192,6 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   StoresStoreIdRoute: typeof StoresStoreIdRoute
   CurrenciesIndexRoute: typeof CurrenciesIndexRoute
-  LiveSessionsIndexRoute: typeof LiveSessionsIndexRoute
   PlayersIndexRoute: typeof PlayersIndexRoute
   SessionsIndexRoute: typeof SessionsIndexRoute
   StoresIndexRoute: typeof StoresIndexRoute
@@ -267,13 +254,6 @@ declare module '@tanstack/react-router' {
       path: '/players'
       fullPath: '/players/'
       preLoaderRoute: typeof PlayersIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/live-sessions/': {
-      id: '/live-sessions/'
-      path: '/live-sessions'
-      fullPath: '/live-sessions/'
-      preLoaderRoute: typeof LiveSessionsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/currencies/': {
@@ -340,7 +320,6 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   StoresStoreIdRoute: StoresStoreIdRoute,
   CurrenciesIndexRoute: CurrenciesIndexRoute,
-  LiveSessionsIndexRoute: LiveSessionsIndexRoute,
   PlayersIndexRoute: PlayersIndexRoute,
   SessionsIndexRoute: SessionsIndexRoute,
   StoresIndexRoute: StoresIndexRoute,

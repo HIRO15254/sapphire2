@@ -164,7 +164,7 @@ function CashGameSessionPage() {
 			}),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: listKey });
-			await navigate({ to: "/live-sessions" });
+			await navigate({ to: "/sessions" });
 		},
 	});
 
@@ -173,7 +173,7 @@ function CashGameSessionPage() {
 			trpcClient.liveCashGameSession.discard.mutate({ id: sessionId }),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: listKey });
-			await navigate({ to: "/live-sessions" });
+			await navigate({ to: "/sessions" });
 		},
 	});
 
