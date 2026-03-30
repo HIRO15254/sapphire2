@@ -21,6 +21,7 @@ import { Route as LiveSessionsIndexRouteImport } from './routes/live-sessions/in
 import { Route as CurrenciesIndexRouteImport } from './routes/currencies/index'
 import { Route as StoresStoreIdRouteImport } from './routes/stores/$storeId'
 import { Route as LiveSessionsCashGameSessionIdRouteImport } from './routes/live-sessions/cash-game/$sessionId'
+import { Route as LiveSessionsCashGameSessionIdEventsRouteImport } from './routes/live-sessions/cash-game/$sessionId/events'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -83,6 +84,12 @@ const LiveSessionsCashGameSessionIdRoute =
     path: '/live-sessions/cash-game/$sessionId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const LiveSessionsCashGameSessionIdEventsRoute =
+  LiveSessionsCashGameSessionIdEventsRouteImport.update({
+    id: '/events',
+    path: '/events',
+    getParentRoute: () => LiveSessionsCashGameSessionIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -96,7 +103,8 @@ export interface FileRoutesByFullPath {
   '/players/': typeof PlayersIndexRoute
   '/sessions/': typeof SessionsIndexRoute
   '/stores/': typeof StoresIndexRoute
-  '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdRoute
+  '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdRouteWithChildren
+  '/live-sessions/cash-game/$sessionId/events': typeof LiveSessionsCashGameSessionIdEventsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -110,7 +118,8 @@ export interface FileRoutesByTo {
   '/players': typeof PlayersIndexRoute
   '/sessions': typeof SessionsIndexRoute
   '/stores': typeof StoresIndexRoute
-  '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdRoute
+  '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdRouteWithChildren
+  '/live-sessions/cash-game/$sessionId/events': typeof LiveSessionsCashGameSessionIdEventsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -125,7 +134,8 @@ export interface FileRoutesById {
   '/players/': typeof PlayersIndexRoute
   '/sessions/': typeof SessionsIndexRoute
   '/stores/': typeof StoresIndexRoute
-  '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdRoute
+  '/live-sessions/cash-game/$sessionId': typeof LiveSessionsCashGameSessionIdRouteWithChildren
+  '/live-sessions/cash-game/$sessionId/events': typeof LiveSessionsCashGameSessionIdEventsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -142,6 +152,7 @@ export interface FileRouteTypes {
     | '/sessions/'
     | '/stores/'
     | '/live-sessions/cash-game/$sessionId'
+    | '/live-sessions/cash-game/$sessionId/events'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -156,6 +167,7 @@ export interface FileRouteTypes {
     | '/sessions'
     | '/stores'
     | '/live-sessions/cash-game/$sessionId'
+    | '/live-sessions/cash-game/$sessionId/events'
   id:
     | '__root__'
     | '/'
@@ -170,6 +182,7 @@ export interface FileRouteTypes {
     | '/sessions/'
     | '/stores/'
     | '/live-sessions/cash-game/$sessionId'
+    | '/live-sessions/cash-game/$sessionId/events'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -184,7 +197,7 @@ export interface RootRouteChildren {
   PlayersIndexRoute: typeof PlayersIndexRoute
   SessionsIndexRoute: typeof SessionsIndexRoute
   StoresIndexRoute: typeof StoresIndexRoute
-  LiveSessionsCashGameSessionIdRoute: typeof LiveSessionsCashGameSessionIdRoute
+  LiveSessionsCashGameSessionIdRoute: typeof LiveSessionsCashGameSessionIdRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -273,8 +286,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LiveSessionsCashGameSessionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/live-sessions/cash-game/$sessionId/events': {
+      id: '/live-sessions/cash-game/$sessionId/events'
+      path: '/events'
+      fullPath: '/live-sessions/cash-game/$sessionId/events'
+      preLoaderRoute: typeof LiveSessionsCashGameSessionIdEventsRouteImport
+      parentRoute: typeof LiveSessionsCashGameSessionIdRoute
+    }
   }
 }
+
+interface LiveSessionsCashGameSessionIdRouteChildren {
+  LiveSessionsCashGameSessionIdEventsRoute: typeof LiveSessionsCashGameSessionIdEventsRoute
+}
+
+const LiveSessionsCashGameSessionIdRouteChildren: LiveSessionsCashGameSessionIdRouteChildren =
+  {
+    LiveSessionsCashGameSessionIdEventsRoute:
+      LiveSessionsCashGameSessionIdEventsRoute,
+  }
+
+const LiveSessionsCashGameSessionIdRouteWithChildren =
+  LiveSessionsCashGameSessionIdRoute._addFileChildren(
+    LiveSessionsCashGameSessionIdRouteChildren,
+  )
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -288,7 +323,8 @@ const rootRouteChildren: RootRouteChildren = {
   PlayersIndexRoute: PlayersIndexRoute,
   SessionsIndexRoute: SessionsIndexRoute,
   StoresIndexRoute: StoresIndexRoute,
-  LiveSessionsCashGameSessionIdRoute: LiveSessionsCashGameSessionIdRoute,
+  LiveSessionsCashGameSessionIdRoute:
+    LiveSessionsCashGameSessionIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

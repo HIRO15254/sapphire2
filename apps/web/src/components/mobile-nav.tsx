@@ -1,8 +1,8 @@
 import {
+	IconAntenna,
 	IconBuildingStore,
 	IconCards,
 	IconList,
-	IconPlayerRecord,
 	IconPlus,
 	IconSettings,
 	IconUsers,
@@ -21,7 +21,7 @@ export interface NavigationItem {
 // Sidebar (desktop) items - all items always visible
 export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
-	{ to: "/live-sessions", label: "Live", icon: IconPlayerRecord },
+	{ to: "/live-sessions", label: "Live", icon: IconAntenna },
 	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
@@ -116,7 +116,7 @@ function CenterButton({
 				type="button"
 			>
 				{hasActiveSession ? (
-					<IconPlayerRecord size={28} stroke={2} />
+					<IconAntenna size={28} stroke={2} />
 				) : (
 					<IconPlus size={28} stroke={2} />
 				)}
