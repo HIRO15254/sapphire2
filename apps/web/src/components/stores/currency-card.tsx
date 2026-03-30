@@ -142,11 +142,7 @@ export function CurrencyCard({
 							</div>
 						) : (
 							<div className="mt-2 flex items-center justify-end gap-1 border-t pt-2">
-								<Button
-									onClick={() => onEdit(c)}
-									size="xs"
-									variant="ghost"
-								>
+								<Button onClick={() => onEdit(c)} size="xs" variant="ghost">
 									<IconEdit size={14} />
 									Edit
 								</Button>
