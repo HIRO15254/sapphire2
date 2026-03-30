@@ -1,6 +1,7 @@
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { RingGameTab } from "@/components/stores/ring-game-tab";
 import { TournamentTab } from "@/components/stores/tournament-tab";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,11 @@ export const Route = createFileRoute("/stores/$storeId")({
 function StoreDetailPage() {
 	const { storeId } = Route.useParams();
 	const storeQuery = useQuery(trpc.store.getById.queryOptions({ id: storeId }));
+	const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
+
+	const handleToggleGame = (id: string) => {
+		setExpandedGameId((prev) => (prev === id ? null : id));
+	};
 
 	const store = storeQuery.data;
 
@@ -55,10 +61,18 @@ function StoreDetailPage() {
 					<TabsTrigger value="tournaments">Tournaments</TabsTrigger>
 				</TabsList>
 				<TabsContent value="ring-games">
-					<RingGameTab storeId={storeId} />
+					<RingGameTab
+						expandedGameId={expandedGameId}
+						onToggleGame={handleToggleGame}
+						storeId={storeId}
+					/>
 				</TabsContent>
 				<TabsContent value="tournaments">
-					<TournamentTab storeId={storeId} />
+					<TournamentTab
+						expandedGameId={expandedGameId}
+						onToggleGame={handleToggleGame}
+						storeId={storeId}
+					/>
 				</TabsContent>
 			</Tabs>
 		</div>
