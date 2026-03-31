@@ -121,8 +121,48 @@ function EventDetail({
 	return null;
 }
 
-// Simple editor for non-stack events (buy-in, cash-out, etc.)
-function SimpleEventEditor({
+function AmountEditor({
+	initialAmount,
+	isLoading,
+	onDelete: handleDelete,
+	onSubmit,
+}: {
+	initialAmount: number;
+	isLoading: boolean;
+	onDelete: () => void;
+	onSubmit: (payload: unknown) => void;
+}) {
+	const [amount, setAmount] = useState(String(initialAmount));
+	return (
+		<div className="flex flex-col gap-4">
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor="edit-amount">Amount</Label>
+				<Input
+					id="edit-amount"
+					inputMode="numeric"
+					min={0}
+					onChange={(e) => setAmount(e.target.value)}
+					type="number"
+					value={amount}
+				/>
+			</div>
+			<div className="flex flex-col gap-2">
+				<Button
+					disabled={isLoading}
+					onClick={() => onSubmit({ amount: Number(amount) })}
+					type="button"
+				>
+					{isLoading ? "Saving..." : "Save"}
+				</Button>
+				<Button onClick={handleDelete} type="button" variant="destructive">
+					Delete
+				</Button>
+			</div>
+		</div>
+	);
+}
+
+function JsonEditor({
 	event,
 	isLoading,
 	onDelete: handleDelete,
@@ -133,41 +173,6 @@ function SimpleEventEditor({
 	onDelete: () => void;
 	onSubmit: (payload: unknown) => void;
 }) {
-	const p = (event.payload ?? {}) as Record<string, unknown>;
-
-	// chip_add: just amount
-	if (event.eventType === "chip_add" && typeof p.amount === "number") {
-		const [amount, setAmount] = useState(String(p.amount));
-		return (
-			<div className="flex flex-col gap-4">
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="edit-amount">Amount</Label>
-					<Input
-						id="edit-amount"
-						inputMode="numeric"
-						min={0}
-						onChange={(e) => setAmount(e.target.value)}
-						type="number"
-						value={amount}
-					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Button
-						disabled={isLoading}
-						onClick={() => onSubmit({ amount: Number(amount) })}
-						type="button"
-					>
-						{isLoading ? "Saving..." : "Save"}
-					</Button>
-					<Button onClick={handleDelete} type="button" variant="destructive">
-						Delete
-					</Button>
-				</div>
-			</div>
-		);
-	}
-
-	// Fallback: JSON editor
 	const [value, setValue] = useState(JSON.stringify(event.payload, null, 2));
 	const [parseError, setParseError] = useState<string | null>(null);
 
@@ -202,6 +207,42 @@ function SimpleEventEditor({
 				</Button>
 			</div>
 		</div>
+	);
+}
+
+// Simple editor for non-stack events (chip_add, etc.)
+function SimpleEventEditor({
+	event,
+	isLoading,
+	onDelete,
+	onSubmit,
+}: {
+	event: SessionEvent;
+	isLoading: boolean;
+	onDelete: () => void;
+	onSubmit: (payload: unknown) => void;
+}) {
+	const p = (event.payload ?? {}) as Record<string, unknown>;
+
+	// chip_add: just amount
+	if (event.eventType === "chip_add" && typeof p.amount === "number") {
+		return (
+			<AmountEditor
+				initialAmount={p.amount}
+				isLoading={isLoading}
+				onDelete={onDelete}
+				onSubmit={onSubmit}
+			/>
+		);
+	}
+
+	return (
+		<JsonEditor
+			event={event}
+			isLoading={isLoading}
+			onDelete={onDelete}
+			onSubmit={onSubmit}
+		/>
 	);
 }
 
