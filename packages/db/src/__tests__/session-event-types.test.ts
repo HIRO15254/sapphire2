@@ -33,7 +33,7 @@ describe("COMMON_EVENT_TYPES", () => {
 });
 
 describe("ALL_EVENT_TYPES", () => {
-	it("includes all cash game, tournament, and common types", () => {
+	it("includes all cash game, tournament, common, and lifecycle types", () => {
 		for (const t of CASH_GAME_EVENT_TYPES) {
 			expect(ALL_EVENT_TYPES).toContain(t);
 		}
@@ -43,6 +43,8 @@ describe("ALL_EVENT_TYPES", () => {
 		for (const t of COMMON_EVENT_TYPES) {
 			expect(ALL_EVENT_TYPES).toContain(t);
 		}
+		expect(ALL_EVENT_TYPES).toContain("session_start");
+		expect(ALL_EVENT_TYPES).toContain("session_end");
 	});
 
 	it("does not include session_pause or session_resume", () => {
@@ -53,8 +55,10 @@ describe("ALL_EVENT_TYPES", () => {
 });
 
 describe("MANUAL_CREATE_BLOCKED_EVENT_TYPES", () => {
-	it("contains cash_game_buy_in", () => {
+	it("contains cash_game_buy_in, session_start, and session_end", () => {
 		expect(MANUAL_CREATE_BLOCKED_EVENT_TYPES).toContain("cash_game_buy_in");
+		expect(MANUAL_CREATE_BLOCKED_EVENT_TYPES).toContain("session_start");
+		expect(MANUAL_CREATE_BLOCKED_EVENT_TYPES).toContain("session_end");
 	});
 });
 

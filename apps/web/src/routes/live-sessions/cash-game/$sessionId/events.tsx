@@ -22,6 +22,8 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 	cash_out: "Cash Out",
 	player_join: "Player Join",
 	player_leave: "Player Leave",
+	session_start: "Session Start",
+	session_end: "Session End",
 };
 
 function formatEventLabel(eventType: string): string {

@@ -18,10 +18,13 @@ export const TOURNAMENT_EVENT_TYPES = [
 
 export const COMMON_EVENT_TYPES = ["player_join", "player_leave"] as const;
 
+export const LIFECYCLE_EVENT_TYPES = ["session_start", "session_end"] as const;
+
 export const ALL_EVENT_TYPES = [
 	...CASH_GAME_EVENT_TYPES,
 	...TOURNAMENT_EVENT_TYPES,
 	...COMMON_EVENT_TYPES,
+	...LIFECYCLE_EVENT_TYPES,
 ] as const;
 
 export type SessionEventType = (typeof ALL_EVENT_TYPES)[number];
@@ -29,6 +32,8 @@ export type SessionEventType = (typeof ALL_EVENT_TYPES)[number];
 // Event types that cannot be manually created (auto-created by session lifecycle only)
 export const MANUAL_CREATE_BLOCKED_EVENT_TYPES: readonly string[] = [
 	"cash_game_buy_in",
+	"session_start",
+	"session_end",
 ] as const;
 
 // Payload Zod schemas
@@ -90,6 +95,10 @@ export const playerLeavePayload = z.object({
 	playerId: z.string().min(1),
 });
 
+export const sessionStartPayload = z.object({});
+
+export const sessionEndPayload = z.object({});
+
 // Payload schema map for dispatch
 export const EVENT_PAYLOAD_SCHEMAS: Record<SessionEventType, z.ZodTypeAny> = {
 	cash_game_buy_in: cashGameBuyInPayload,
@@ -99,6 +108,8 @@ export const EVENT_PAYLOAD_SCHEMAS: Record<SessionEventType, z.ZodTypeAny> = {
 	tournament_result: tournamentResultPayload,
 	player_join: playerJoinPayload,
 	player_leave: playerLeavePayload,
+	session_start: sessionStartPayload,
+	session_end: sessionEndPayload,
 };
 
 // Helper to validate payload for a given event type
@@ -117,6 +128,11 @@ export function isValidEventTypeForSessionType(
 ): boolean {
 	const commonTypes: readonly string[] = COMMON_EVENT_TYPES;
 	if (commonTypes.includes(eventType)) {
+		return true;
+	}
+
+	const lifecycleTypes: readonly string[] = LIFECYCLE_EVENT_TYPES;
+	if (lifecycleTypes.includes(eventType)) {
 		return true;
 	}
 

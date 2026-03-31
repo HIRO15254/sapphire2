@@ -317,13 +317,24 @@ export const liveCashGameSessionRouter = router({
 				updatedAt: now,
 			});
 
+			// Auto-create session_start event
+			await ctx.db.insert(sessionEvent).values({
+				id: crypto.randomUUID(),
+				liveCashGameSessionId: id,
+				eventType: "session_start",
+				occurredAt: now,
+				sortOrder: 0,
+				payload: JSON.stringify({}),
+				updatedAt: now,
+			});
+
 			// Auto-create initial buy-in event
 			await ctx.db.insert(sessionEvent).values({
 				id: crypto.randomUUID(),
 				liveCashGameSessionId: id,
 				eventType: "cash_game_buy_in",
 				occurredAt: now,
-				sortOrder: 0,
+				sortOrder: 1,
 				payload: JSON.stringify({ amount: input.initialBuyIn }),
 				updatedAt: now,
 			});
@@ -403,14 +414,24 @@ export const liveCashGameSessionRouter = router({
 				existingEvents.length > 0 ? (existingEvents[0]?.sortOrder ?? 0) + 1 : 0;
 
 			// Insert cash_out event
-			const cashOutEventId = crypto.randomUUID();
 			await ctx.db.insert(sessionEvent).values({
-				id: cashOutEventId,
+				id: crypto.randomUUID(),
 				liveCashGameSessionId: input.id,
 				eventType: "cash_out",
 				occurredAt: now,
 				sortOrder: nextSortOrder,
 				payload: JSON.stringify({ amount: input.cashOut }),
+				updatedAt: now,
+			});
+
+			// Insert session_end event
+			await ctx.db.insert(sessionEvent).values({
+				id: crypto.randomUUID(),
+				liveCashGameSessionId: input.id,
+				eventType: "session_end",
+				occurredAt: now,
+				sortOrder: nextSortOrder + 1,
+				payload: JSON.stringify({}),
 				updatedAt: now,
 			});
 
@@ -555,6 +576,24 @@ export const liveCashGameSessionRouter = router({
 				});
 			}
 
+			// Delete session_end and cash_out events
+			await ctx.db
+				.delete(sessionEvent)
+				.where(
+					and(
+						eq(sessionEvent.liveCashGameSessionId, input.id),
+						eq(sessionEvent.eventType, "session_end")
+					)
+				);
+			await ctx.db
+				.delete(sessionEvent)
+				.where(
+					and(
+						eq(sessionEvent.liveCashGameSessionId, input.id),
+						eq(sessionEvent.eventType, "cash_out")
+					)
+				);
+
 			// Find linked pokerSession and clean up derived data
 			const [linkedPokerSession] = await ctx.db
 				.select({ id: pokerSession.id })
@@ -562,12 +601,9 @@ export const liveCashGameSessionRouter = router({
 				.where(eq(pokerSession.liveCashGameSessionId, input.id));
 
 			if (linkedPokerSession) {
-				// Delete currency transactions linked to this poker session
 				await ctx.db
 					.delete(currencyTransaction)
 					.where(eq(currencyTransaction.sessionId, linkedPokerSession.id));
-
-				// Delete the poker session
 				await ctx.db
 					.delete(pokerSession)
 					.where(eq(pokerSession.id, linkedPokerSession.id));

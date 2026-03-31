@@ -453,6 +453,17 @@ export const liveTournamentSessionRouter = router({
 				updatedAt: now,
 			});
 
+			// Auto-create session_start event
+			await ctx.db.insert(sessionEvent).values({
+				id: crypto.randomUUID(),
+				liveTournamentSessionId: id,
+				eventType: "session_start",
+				occurredAt: now,
+				sortOrder: 0,
+				payload: JSON.stringify({}),
+				updatedAt: now,
+			});
+
 			return { id };
 		}),
 
@@ -546,6 +557,17 @@ export const liveTournamentSessionRouter = router({
 				updatedAt: now,
 			});
 
+			// Insert session_end event
+			await ctx.db.insert(sessionEvent).values({
+				id: crypto.randomUUID(),
+				liveTournamentSessionId: input.id,
+				eventType: "session_end",
+				occurredAt: now,
+				sortOrder: nextSortOrder + 1,
+				payload: JSON.stringify({}),
+				updatedAt: now,
+			});
+
 			await ctx.db
 				.update(liveTournamentSession)
 				.set({ status: "completed", endedAt: now, updatedAt: now })
@@ -626,6 +648,15 @@ export const liveTournamentSessionRouter = router({
 					.where(eq(pokerSession.id, linkedPokerSession.id));
 			}
 
+			// Delete session_end, tournament_result events
+			await ctx.db
+				.delete(sessionEvent)
+				.where(
+					and(
+						eq(sessionEvent.liveTournamentSessionId, input.id),
+						eq(sessionEvent.eventType, "session_end")
+					)
+				);
 			await ctx.db
 				.delete(sessionEvent)
 				.where(
