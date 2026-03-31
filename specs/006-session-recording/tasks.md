@@ -41,13 +41,13 @@
 
 ## Phase 1: Setup (Refactor Existing Constants & Types)
 
-- [ ] T001 [P] Update session-event-types.ts: remove `paused` from `SESSION_STATUSES`, keep only `["active", "completed"]`. Remove `session_pause` and `session_resume` from `COMMON_EVENT_TYPES`. Remove `sessionPausePayload` and `sessionResumePayload` schemas. Remove corresponding entries from `EVENT_PAYLOAD_SCHEMAS` map. File: `packages/db/src/constants/session-event-types.ts`
+- [x] T001 [P] Update session-event-types.ts: remove `paused` from `SESSION_STATUSES`, keep only `["active", "completed"]`. Remove `session_pause` and `session_resume` from event types. Remove `sessionPausePayload` and `sessionResumePayload` schemas. Remove corresponding entries from `EVENT_PAYLOAD_SCHEMAS` map. File: `packages/db/src/constants/session-event-types.ts`
 
-- [ ] T002 [P] Update session-event-types.ts: change `allInSchema` from `{ actualResult: number, evResult: number }` to `{ potSize: number, trials: number, equity: number, wins: number }`. `potSize` is `z.number().min(0)`, `trials` is `z.number().int().min(1)`, `equity` is `z.number().min(0).max(100)`, `wins` is `z.number().min(0)` (decimal allowed for chop). Update `cashGameStackRecordPayload` to use the new `allInSchema`. File: `packages/db/src/constants/session-event-types.ts`
+- [x] T002 [P] Update session-event-types.ts: rename event type constants to use `GENERIC_EVENT_TYPES` (`chip_add`, `stack_record`) and `LIFECYCLE_EVENT_TYPES` (`session_start`, `session_end`). Update `allInSchema` from `{ actualResult: number, evResult: number }` to `{ potSize: number, trials: number, equity: number, wins: number }`. `potSize` is `z.number().min(0)`, `trials` is `z.number().int().min(1)`, `equity` is `z.number().min(0).max(100)`, `wins` is `z.number().min(0)` (decimal allowed for chop). Update `stackRecordPayload` (formerly `cashGameStackRecordPayload`) to use new `allInSchema` with no addon field. Update `chip_add` payload to `{ amount: number }`. File: `packages/db/src/constants/session-event-types.ts`
 
-- [ ] T003 [P] Update session-event-types.ts: add a `MANUAL_CREATE_BLOCKED_EVENT_TYPES` constant containing `["cash_game_buy_in"]` to mark event types that cannot be manually created via `sessionEvent.create` (auto-created by session lifecycle only). File: `packages/db/src/constants/session-event-types.ts`
+- [x] T003 [P] Update session-event-types.ts: add `MANUAL_CREATE_BLOCKED` constant containing `["session_start", "session_end"]` to mark lifecycle event types that cannot be manually created via `sessionEvent.create` (auto-created by session lifecycle only). File: `packages/db/src/constants/session-event-types.ts`
 
-- [ ] T004 Test: update schema tests to verify new `SESSION_STATUSES` (no "paused"), new `allInSchema` fields (potSize/trials/equity/wins), removal of session_pause/session_resume from event types, and `MANUAL_CREATE_BLOCKED_EVENT_TYPES`. File: `packages/db/src/__tests__/session-event-types.test.ts`
+- [ ] T004 Test: update schema tests to verify new `SESSION_STATUSES` (no "paused"), `GENERIC_EVENT_TYPES` (`chip_add`, `stack_record`), `LIFECYCLE_EVENT_TYPES` (`session_start`, `session_end`), new `allInSchema` fields (potSize/trials/equity/wins), no addon in `stackRecordPayload`, and `MANUAL_CREATE_BLOCKED` containing `session_start`/`session_end`. File: `packages/db/src/__tests__/session-event-types.test.ts`
 
 ---
 
@@ -55,23 +55,23 @@
 
 ### Cash Game Router Updates
 
-- [ ] T005 Update `liveCashGameSessionRouter.create`: add `initialBuyIn` (required, `z.number().min(0)`) to input schema. After inserting session, auto-create a `cash_game_buy_in` event with `{ amount: initialBuyIn }`. Add single-session guard: before creating, check no other session with `status = "active"` exists for the user; throw `BAD_REQUEST` if one does. File: `packages/api/src/routers/live-cash-game-session.ts`
+- [x] T005 Update `liveCashGameSessionRouter.create`: add `initialBuyIn` (required, `z.number().min(0)`) to input schema. After inserting session, auto-create a `session_start` event with `{}` and a `chip_add` event with `{ amount: initialBuyIn }`. Add single-session guard: before creating, check no other session with `status = "active"` exists for the user across both `liveCashGameSession` and `liveTournamentSession` tables; throw `BAD_REQUEST` if one does. File: `packages/api/src/routers/live-cash-game-session.ts`
 
-- [ ] T006 Update `liveCashGameSessionRouter.list`: change status enum from `["active", "paused", "completed"]` to `["active", "completed"]`. File: `packages/api/src/routers/live-cash-game-session.ts`
+- [x] T006 Update `liveCashGameSessionRouter.list`: change status enum from `["active", "paused", "completed"]` to `["active", "completed"]`. File: `packages/api/src/routers/live-cash-game-session.ts`
 
-- [ ] T007 Add `liveCashGameSessionRouter.reopen` procedure: input `{ id: string }`, validate session is `status === "completed"` and no other active session exists for user (check both `liveCashGameSession` and `liveTournamentSession` tables). Set `status = "active"`, clear `endedAt`. Delete linked `pokerSession` and its `currencyTransaction` (will be recreated on next complete). Return `{ id }`. File: `packages/api/src/routers/live-cash-game-session.ts`
+- [x] T007 Add `liveCashGameSessionRouter.reopen` procedure: input `{ id: string }`, validate session is `status === "completed"` and no other active session exists for user (check both `liveCashGameSession` and `liveTournamentSession` tables). Set `status = "active"`, clear `endedAt`. Append new `session_start` event (keep all previous events). Delete linked `pokerSession` and its `currencyTransaction` (will be recreated on next complete). Return `{ id }`. File: `packages/api/src/routers/live-cash-game-session.ts`
 
-- [ ] T008 Update `liveCashGameSessionRouter.complete`: on reopen+re-complete scenario, check if a `pokerSession` already exists for this `liveCashGameSessionId` and update it instead of creating a duplicate. Also update or recreate the `currencyTransaction`. File: `packages/api/src/routers/live-cash-game-session.ts`
+- [x] T008 Update `liveCashGameSessionRouter.complete`: input is `{ id, finalStack }` (not `cashOut`). Auto-create `stack_record` event with `{ stackAmount: finalStack, allIns: [] }` and `session_end` event with `{}`. P&L: totalBuyIn = Σ chip_add.amount, cashOut = last stack_record.stackAmount. On reopen+re-complete scenario, update existing `pokerSession` instead of creating a duplicate. Also update or recreate the `currencyTransaction`. File: `packages/api/src/routers/live-cash-game-session.ts`
 
-- [ ] T009 Update `liveCashGameSessionRouter.discard`: ensure validation checks `status !== "completed"` (currently checks `status === "completed"`, which is correct, but verify "active" is the only non-completed status now). File: `packages/api/src/routers/live-cash-game-session.ts`
+- [x] T009 Update `liveCashGameSessionRouter.discard`: ensure validation checks `status === "active"` (the only non-completed status now that paused is removed). File: `packages/api/src/routers/live-cash-game-session.ts`
 
 ### Session Event Router Updates
 
-- [ ] T010 Update `sessionEventRouter.create`: block manual creation of `cash_game_buy_in` events. When `eventType` is in `MANUAL_CREATE_BLOCKED_EVENT_TYPES`, throw `BAD_REQUEST` with message "This event type is auto-created and cannot be manually added". Remove handling of `session_pause`/`session_resume` (already invalid since they are removed from `ALL_EVENT_TYPES`). File: `packages/api/src/routers/session-event.ts`
+- [x] T010 Update `sessionEventRouter.create`: block manual creation of `session_start` and `session_end` events. When `eventType` is in `MANUAL_CREATE_BLOCKED` (`["session_start", "session_end"]`), throw `BAD_REQUEST` with message "This event type is auto-created and cannot be manually added". Remove handling of `session_pause`/`session_resume` (already invalid since they are removed from event types). File: `packages/api/src/routers/session-event.ts`
 
 ### P&L Service Updates
 
-- [ ] T011 Update `computeCashGamePLFromEvents` in P&L service: change EV calculation from `allIn.evResult - allIn.actualResult` to new formula. For each allIn: `evAmount = potSize * (equity / 100) * trials`, `actualAmount = potSize * wins`, `evDiff = evAmount - actualAmount`. Sum all evDiffs. `evCashOut = cashOut + totalEvDiff`. File: `packages/api/src/services/live-session-pl.ts`
+- [x] T011 Update `computeCashGamePLFromEvents` in P&L service: use `chip_add` events for totalBuyIn (Σ chip_add.amount) and last `stack_record.stackAmount` for cashOut. EV calculation: for each allIn in stack_record events: `evAmount = potSize * (equity / 100) * trials`, `actualAmount = potSize * wins`, `evDiff = evAmount - actualAmount`. Sum all evDiffs. `evCashOut = cashOut + totalEvDiff`. File: `packages/api/src/services/live-session-pl.ts`
 
 ### Tournament Router (New)
 
@@ -83,15 +83,15 @@
 
 ### Router Tests
 
-- [ ] T014 Test: write router tests for `liveCashGameSessionRouter` changes: test `create` with `initialBuyIn` auto-creates buy-in event, test single-session guard on create, test `reopen` procedure, test `reopen` blocks when another active session exists, test `complete` after reopen updates existing pokerSession. File: `packages/api/src/__tests__/live-cash-game-session.test.ts`
+- [ ] T014 Test: write router tests for `liveCashGameSessionRouter` changes: test `create` with `initialBuyIn` auto-creates `session_start` + `chip_add` events, test single-session guard on create (across both tables), test `reopen` appends new `session_start` (keeps previous events), test `reopen` blocks when another active session exists, test `complete` with `finalStack` creates `stack_record` + `session_end` events and correct P&L, test `complete` after reopen updates existing pokerSession. File: `packages/api/src/__tests__/live-cash-game-session.test.ts`
 
 - [ ] T015 Test: write router tests for `liveTournamentSessionRouter`: test `create`, `list`, `getById`, `complete` (creates pokerSession), `reopen`, `discard`, single-session guard. File: `packages/api/src/__tests__/live-tournament-session.test.ts`
 
-- [ ] T016 Test: write router tests for `sessionEventRouter` changes: test `cash_game_buy_in` manual create is blocked, test event creation with new allIn format (potSize/trials/equity/wins), test recalculation on completed session event edit/delete. File: `packages/api/src/__tests__/session-event.test.ts`
+- [ ] T016 Test: write router tests for `sessionEventRouter` changes: test `session_start` and `session_end` manual create is blocked, test `chip_add` event creation with `{ amount }` payload, test `stack_record` event creation with new allIn format (potSize/trials/equity/wins, no addon), test recalculation on completed session event edit/delete. File: `packages/api/src/__tests__/session-event.test.ts`
 
 - [ ] T017 Test: write router tests for `sessionTablePlayerRouter`: test `add`, `addNew`, `remove`, test player_join/player_leave events auto-created. File: `packages/api/src/__tests__/session-table-player.test.ts`
 
-- [ ] T018 Test: write unit tests for P&L service with new allIn format: verify `computeCashGamePLFromEvents` with potSize/trials/equity/wins calculates correct evCashOut. Test `computeTournamentPLFromEvents`. File: `packages/api/src/__tests__/live-session-pl.test.ts`
+- [ ] T018 Test: write unit tests for P&L service with new event types: verify `computeCashGamePLFromEvents` sums `chip_add` events for totalBuyIn, uses last `stack_record.stackAmount` for cashOut, and calculates evCashOut with potSize/trials/equity/wins formula. Test `computeTournamentPLFromEvents`. File: `packages/api/src/__tests__/live-session-pl.test.ts`
 
 ---
 
@@ -101,21 +101,21 @@
 
 - [ ] T019 Update `CreateCashGameSessionForm`: add `initialBuyIn` number input field (required). Add `ringGames` prop to include `maxBuyIn` and `currencyId` per ring game. When a ring game is selected, auto-fill `initialBuyIn` input with `ringGame.maxBuyIn` and auto-set `currencyId` from `ringGame.currencyId` (frontend only). Include `initialBuyIn` in `onSubmit` values. File: `apps/web/src/components/live-cash-game/create-cash-game-session-form.tsx`
 
-- [ ] T020 Update live sessions list page: pass `initialBuyIn` to `createMutation`. Update `ringGames` data to include `maxBuyIn` and `currencyId` fields from the API. Pass enriched ring game data to `CreateCashGameSessionForm`. File: `apps/web/src/routes/live-sessions/index.tsx`
+- [ ] T020 Update active session page: pass `initialBuyIn` to `createMutation`. Update `ringGames` data to include `maxBuyIn` and `currencyId` fields from the API. Pass enriched ring game data to `CreateCashGameSessionForm`. File: `apps/web/src/routes/active-session/index.tsx`
 
 ### Stack Form Redesign (Bottom Sheet + Badge Pattern)
 
 - [ ] T021 Create `AllInBottomSheet` component: a Drawer (bottom sheet) with inputs for `potSize`, `trials` (default 1), `equity` (0-100%), `wins`. Support both "add" and "edit" modes. On submit, return the allIn object. File: `apps/web/src/components/live-sessions/all-in-bottom-sheet.tsx`
 
-- [ ] T022 Create `AddonBottomSheet` component: a Drawer with input for addon `amount`. Support both "add" and "edit" modes. On submit, return the addon object. File: `apps/web/src/components/live-sessions/addon-bottom-sheet.tsx`
+- [ ] T022 Create `AddonBottomSheet` component: a Drawer with input for addon `amount`. Support both "add" and "edit" modes. On submit, calls `sessionEvent.create` with `eventType: "chip_add"` and `{ amount }` payload (addon is a separate chip_add event, not embedded in stack_record). File: `apps/web/src/components/live-sessions/addon-bottom-sheet.tsx`
 
 - [ ] T023 Create `EventBadge` component: displays a compact badge for an allIn or addon record. Shows summary text (e.g., "All-in: 500 pot, 65%"). On tap, opens a popover or action sheet with "Edit" and "Delete" options. File: `apps/web/src/components/live-sessions/event-badge.tsx`
 
-- [ ] T024 Redesign `CashGameStackForm`: replace inline allIn fields (actualResult/evResult) with "Add All-in" button that opens `AllInBottomSheet`. Replace checkbox addon with "Add Addon" button that opens `AddonBottomSheet`. Display added allIns and addon as `EventBadge` components. Badge tap opens edit bottom sheet or delete confirmation. Update `onSubmit` to pass new allIn format `{ potSize, trials, equity, wins }`. Ensure form fits in viewport (1-screen design). File: `apps/web/src/components/live-cash-game/cash-game-stack-form.tsx`
+- [ ] T024 Redesign `CashGameStackForm`: replace inline allIn fields (actualResult/evResult) with "Add All-in" button that opens `AllInBottomSheet`. Replace checkbox addon with "Add Addon" button that opens `AddonBottomSheet` (addon submits as a separate `chip_add` event, not embedded in `stack_record`). Display added allIns as `EventBadge` components within the stack record form. Badge tap opens edit bottom sheet or delete confirmation. Update `onSubmit` to pass `stack_record` event with allIns format `{ potSize, trials, equity, wins }` (no addon field in payload). Ensure form fits in viewport (1-screen design). File: `apps/web/src/components/live-cash-game/cash-game-stack-form.tsx`
 
 ### Cash Game Detail Page Redesign
 
-- [ ] T025 Update cash game detail page: remove "Record Buy-in" section entirely (buy-in is handled at session creation and via addon). Remove `BuyInForm` import and usage. Remove "paused" references from `STATUS_BADGE_CLASS` and `STATUS_LABEL`. Add "Reopen" button for completed sessions. Update `isActive` check to only check `status === "active"` (no paused). Redesign layout for 1-screen viewport fit. File: `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx`
+- [x] T025 Update cash game detail page: remove "Record Buy-in" section entirely (buy-in is handled at session creation via `chip_add` event; subsequent buy-ins are separate `chip_add` addon events). Remove `BuyInForm` import and usage. Remove "paused" references from `STATUS_BADGE_CLASS` and `STATUS_LABEL`. Add "Reopen" button for completed sessions. Update `isActive` check to only check `status === "active"` (no paused). Redesign layout for 1-screen viewport fit. File: `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx`
 
 - [ ] T026 Update cash game detail page: add reopen mutation calling `liveCashGameSession.reopen`. On success, invalidate queries and stay on same page. Show reopen button only when session is completed and no other active session exists. File: `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx`
 
