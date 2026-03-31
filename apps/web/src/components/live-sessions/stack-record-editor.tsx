@@ -24,13 +24,27 @@ interface StackRecordPayload {
 }
 
 interface StackRecordEditorProps {
+	initialOccurredAt?: string | Date;
 	initialPayload: StackRecordPayload;
 	isLoading: boolean;
 	onDelete: () => void;
-	onSubmit: (payload: StackRecordPayload) => void;
+	onSubmit: (payload: StackRecordPayload, occurredAt?: number) => void;
+}
+
+function toTimeInputValue(value: string | Date): string {
+	const date = typeof value === "string" ? new Date(value) : value;
+	return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function applyTimeToDate(original: string | Date, timeStr: string): Date {
+	const date = new Date(typeof original === "string" ? original : original);
+	const [h, m] = timeStr.split(":").map(Number);
+	date.setHours(h ?? 0, m ?? 0);
+	return date;
 }
 
 export function StackRecordEditor({
+	initialOccurredAt,
 	initialPayload,
 	isLoading,
 	onDelete,
@@ -40,7 +54,10 @@ export function StackRecordEditor({
 		String(initialPayload.stackAmount)
 	);
 	const [allIns, setAllIns] = useState<AllIn[]>(() =>
-		initialPayload.allIns.map((ai, i) => ({ ...ai, id: i + 1 }))
+		(initialPayload.allIns ?? []).map((ai, i) => ({ ...ai, id: i + 1 }))
+	);
+	const [time, setTime] = useState(
+		initialOccurredAt ? toTimeInputValue(initialOccurredAt) : ""
 	);
 
 	const [allInSheetOpen, setAllInSheetOpen] = useState(false);
@@ -77,7 +94,7 @@ export function StackRecordEditor({
 	};
 
 	const handleSave = () => {
-		onSubmit({
+		const payload: StackRecordPayload = {
 			stackAmount: Number(stackAmount),
 			allIns: allIns.map(({ potSize, trials, equity, wins }) => ({
 				potSize,
@@ -85,11 +102,29 @@ export function StackRecordEditor({
 				equity,
 				wins,
 			})),
-		});
+		};
+		let occurredAt: number | undefined;
+		if (initialOccurredAt && time) {
+			const newDate = applyTimeToDate(initialOccurredAt, time);
+			occurredAt = Math.floor(newDate.getTime() / 1000);
+		}
+		onSubmit(payload, occurredAt);
 	};
 
 	return (
 		<div className="flex flex-col gap-4">
+			{initialOccurredAt && (
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor="edit-time">Time</Label>
+					<Input
+						id="edit-time"
+						onChange={(e) => setTime(e.target.value)}
+						type="time"
+						value={time}
+					/>
+				</div>
+			)}
+
 			<div className="flex flex-col gap-1.5">
 				<Label htmlFor="edit-stackAmount">Stack Amount</Label>
 				<Input
