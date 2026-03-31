@@ -37,41 +37,6 @@ interface TournamentPLResult {
 	totalEntries: number | null;
 }
 
-export function isChipAddEvent(eventType: string): boolean {
-	return eventType === "chip_add" || eventType === "cash_game_buy_in";
-}
-
-export function isStackRecordEvent(eventType: string): boolean {
-	return eventType === "stack_record" || eventType === "cash_game_stack_record";
-}
-
-function computeEvDiffFromAllIns(
-	allIns: Array<{
-		potSize: number;
-		trials: number;
-		equity: number;
-		wins: number;
-	}>
-): number {
-	let total = 0;
-	for (const allIn of allIns) {
-		total +=
-			allIn.potSize * (allIn.equity / 100) * allIn.trials -
-			allIn.potSize * allIn.wins;
-	}
-	return total;
-}
-
-export function extractLegacyAddon(parsed: unknown): number {
-	if (parsed && typeof parsed === "object" && "addon" in parsed) {
-		const rec = parsed as { addon?: { amount?: number } };
-		if (rec.addon && typeof rec.addon.amount === "number") {
-			return rec.addon.amount;
-		}
-	}
-	return 0;
-}
-
 export function computeCashGamePLFromEvents(
 	events: { eventType: string; payload: string }[]
 ): CashGamePLResult {
@@ -84,7 +49,7 @@ export function computeCashGamePLFromEvents(
 	for (const event of events) {
 		const parsed = JSON.parse(event.payload);
 
-		if (isChipAddEvent(event.eventType)) {
+		if (event.eventType === "chip_add") {
 			const data = chipAddPayload.parse(parsed);
 			totalBuyIn += data.amount;
 			if (isFirstChipAdd) {
@@ -92,17 +57,13 @@ export function computeCashGamePLFromEvents(
 			} else {
 				addonTotal += data.amount;
 			}
-		} else if (isStackRecordEvent(event.eventType)) {
+		} else if (event.eventType === "stack_record") {
 			const data = stackRecordPayload.parse(parsed);
 			cashOut = data.stackAmount;
-			totalEvDiff += computeEvDiffFromAllIns(data.allIns);
-			const legacyAddon = extractLegacyAddon(parsed);
-			totalBuyIn += legacyAddon;
-			addonTotal += legacyAddon;
-		} else if (event.eventType === "cash_out") {
-			const amount = (parsed as { amount?: number }).amount;
-			if (typeof amount === "number") {
-				cashOut = amount;
+			for (const allIn of data.allIns) {
+				totalEvDiff +=
+					allIn.potSize * (allIn.equity / 100) * allIn.trials -
+					allIn.potSize * allIn.wins;
 			}
 		}
 	}

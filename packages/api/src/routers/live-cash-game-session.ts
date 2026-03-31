@@ -18,12 +18,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
-import {
-	computeCashGamePLFromEvents,
-	extractLegacyAddon,
-	isChipAddEvent,
-	isStackRecordEvent,
-} from "../services/live-session-pl";
+import { computeCashGamePLFromEvents } from "../services/live-session-pl";
 
 const DEFAULT_LIMIT = 20;
 
@@ -114,49 +109,30 @@ interface EventSummary {
 	totalBuyIn: number;
 }
 
-function processStackEvent(
-	parsed: unknown,
-	state: { maxStack: number | null; minStack: number | null }
-): { stack: number; legacyAddon: number } {
-	const data = stackRecordPayload.parse(parsed);
-	const stack = data.stackAmount;
-	if (state.maxStack === null || stack > state.maxStack) {
-		state.maxStack = stack;
-	}
-	if (state.minStack === null || stack < state.minStack) {
-		state.minStack = stack;
-	}
-	return { stack, legacyAddon: extractLegacyAddon(parsed) };
-}
-
 function computeSummaryFromEvents(
 	events: { eventType: string; payload: string }[]
 ): EventSummary {
 	let totalBuyIn = 0;
+	let maxStack: number | null = null;
+	let minStack: number | null = null;
 	let currentStack: number | null = null;
 	let chipAddCount = 0;
-	const stackRange = {
-		maxStack: null as number | null,
-		minStack: null as number | null,
-	};
 
 	for (const event of events) {
 		const parsed = JSON.parse(event.payload);
-		if (isChipAddEvent(event.eventType)) {
+		if (event.eventType === "chip_add") {
 			totalBuyIn += chipAddPayload.parse(parsed).amount;
 			chipAddCount++;
-		} else if (isStackRecordEvent(event.eventType)) {
-			const result = processStackEvent(parsed, stackRange);
-			currentStack = result.stack;
-			totalBuyIn += result.legacyAddon;
-			if (result.legacyAddon > 0) {
-				chipAddCount++;
+		} else if (event.eventType === "stack_record") {
+			const data = stackRecordPayload.parse(parsed);
+			const stack = data.stackAmount;
+			if (maxStack === null || stack > maxStack) {
+				maxStack = stack;
 			}
-		} else if (event.eventType === "cash_out") {
-			const amount = (parsed as { amount?: number }).amount;
-			if (typeof amount === "number") {
-				currentStack = amount;
+			if (minStack === null || stack < minStack) {
+				minStack = stack;
 			}
+			currentStack = stack;
 		}
 	}
 
@@ -164,8 +140,8 @@ function computeSummaryFromEvents(
 		totalBuyIn,
 		cashOut: currentStack,
 		currentStack,
-		maxStack: stackRange.maxStack,
-		minStack: stackRange.minStack,
+		maxStack,
+		minStack,
 		addonCount: chipAddCount > 0 ? chipAddCount - 1 : 0,
 	};
 }
@@ -244,21 +220,12 @@ export const liveCashGameSessionRouter = router({
 					let latestStackAmount: number | null = null;
 
 					for (const event of [...events].reverse()) {
-						if (
-							event.eventType === "stack_record" ||
-							event.eventType === "cash_game_stack_record"
-						) {
+						if (event.eventType === "stack_record") {
 							const parsed = stackRecordPayload.safeParse(
 								JSON.parse(event.payload)
 							);
 							if (parsed.success) {
 								latestStackAmount = parsed.data.stackAmount;
-								break;
-							}
-						} else if (event.eventType === "cash_out") {
-							const p = JSON.parse(event.payload) as { amount?: number };
-							if (typeof p.amount === "number") {
-								latestStackAmount = p.amount;
 								break;
 							}
 						}
