@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { AddonBottomSheet } from "@/components/live-sessions/addon-bottom-sheet";
 import { AllInBottomSheet } from "@/components/live-sessions/all-in-bottom-sheet";
 import { EventBadge } from "@/components/live-sessions/event-badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,6 @@ interface AllIn {
 }
 
 interface StackRecordPayload {
-	addon: { amount: number } | null;
 	allIns: Array<{
 		equity: number;
 		potSize: number;
@@ -44,14 +42,9 @@ export function StackRecordEditor({
 	const [allIns, setAllIns] = useState<AllIn[]>(() =>
 		initialPayload.allIns.map((ai, i) => ({ ...ai, id: i + 1 }))
 	);
-	const [addon, setAddon] = useState<{ amount: number } | null>(
-		initialPayload.addon
-	);
 
 	const [allInSheetOpen, setAllInSheetOpen] = useState(false);
 	const [editingAllIn, setEditingAllIn] = useState<AllIn | null>(null);
-	const [addonSheetOpen, setAddonSheetOpen] = useState(false);
-	const [editingAddon, setEditingAddon] = useState(false);
 
 	let nextId = allIns.length > 0 ? Math.max(...allIns.map((a) => a.id)) : 0;
 
@@ -83,18 +76,6 @@ export function StackRecordEditor({
 		setEditingAllIn(null);
 	};
 
-	const handleAddonSubmit = (values: { amount: number }) => {
-		setAddon(values);
-		setAddonSheetOpen(false);
-		setEditingAddon(false);
-	};
-
-	const handleAddonDelete = () => {
-		setAddon(null);
-		setAddonSheetOpen(false);
-		setEditingAddon(false);
-	};
-
 	const handleSave = () => {
 		onSubmit({
 			stackAmount: Number(stackAmount),
@@ -104,7 +85,6 @@ export function StackRecordEditor({
 				equity,
 				wins,
 			})),
-			addon,
 		});
 	};
 
@@ -161,35 +141,6 @@ export function StackRecordEditor({
 				)}
 			</div>
 
-			{/* Addon */}
-			<div className="flex flex-col gap-2">
-				<div className="flex items-center justify-between">
-					<Label>Addon</Label>
-					{addon === null ? (
-						<Button
-							onClick={() => {
-								setEditingAddon(false);
-								setAddonSheetOpen(true);
-							}}
-							size="xs"
-							type="button"
-							variant="ghost"
-						>
-							+ Addon
-						</Button>
-					) : (
-						<EventBadge
-							data={{ amount: addon.amount }}
-							onEdit={() => {
-								setEditingAddon(true);
-								setAddonSheetOpen(true);
-							}}
-							type="addon"
-						/>
-					)}
-				</div>
-			</div>
-
 			{/* Actions */}
 			<div className="flex flex-col gap-2">
 				<Button disabled={isLoading} onClick={handleSave} type="button">
@@ -206,14 +157,6 @@ export function StackRecordEditor({
 				onOpenChange={setAllInSheetOpen}
 				onSubmit={handleAllInSubmit}
 				open={allInSheetOpen}
-			/>
-
-			<AddonBottomSheet
-				initialAmount={editingAddon && addon ? addon.amount : undefined}
-				onDelete={editingAddon ? handleAddonDelete : undefined}
-				onOpenChange={setAddonSheetOpen}
-				onSubmit={handleAddonSubmit}
-				open={addonSheetOpen}
 			/>
 		</div>
 	);

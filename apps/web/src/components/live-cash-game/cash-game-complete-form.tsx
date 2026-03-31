@@ -3,36 +3,36 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 interface CashGameCompleteFormProps {
-	defaultCashOut?: number;
+	defaultFinalStack?: number;
 	isLoading: boolean;
-	onSubmit: (values: { cashOut: number }) => void;
+	onSubmit: (values: { finalStack: number }) => void;
 }
 
 export function CashGameCompleteForm({
-	defaultCashOut,
+	defaultFinalStack,
 	isLoading,
 	onSubmit,
 }: CashGameCompleteFormProps) {
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
 		const formData = new FormData(e.currentTarget);
-		const cashOut = Number(formData.get("cashOut"));
+		const finalStack = Number(formData.get("finalStack"));
 
-		onSubmit({ cashOut });
+		onSubmit({ finalStack });
 	};
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="cashOut">
-					Cash Out Amount <span className="text-destructive">*</span>
+				<Label htmlFor="finalStack">
+					Final Stack <span className="text-destructive">*</span>
 				</Label>
 				<Input
-					defaultValue={defaultCashOut ?? ""}
-					id="cashOut"
+					defaultValue={defaultFinalStack ?? ""}
+					id="finalStack"
 					inputMode="numeric"
 					min={0}
-					name="cashOut"
+					name="finalStack"
 					placeholder="0"
 					required
 					type="number"

@@ -17,9 +17,8 @@ export const Route = createFileRoute(
 });
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
-	cash_game_buy_in: "Buy-in",
-	cash_game_stack_record: "Stack Record",
-	cash_out: "Cash Out",
+	chip_add: "Chip Add",
+	stack_record: "Stack Record",
 	player_join: "Player Join",
 	player_leave: "Player Leave",
 	session_start: "Session Start",
@@ -44,27 +43,15 @@ function formatPayloadSummary(
 	}
 	const p = payload as Record<string, unknown>;
 
-	if (eventType === "cash_game_buy_in" && typeof p.amount === "number") {
+	if (eventType === "chip_add" && typeof p.amount === "number") {
 		return `Amount: ${p.amount.toLocaleString()}`;
 	}
-	if (
-		eventType === "cash_game_stack_record" &&
-		typeof p.stackAmount === "number"
-	) {
+	if (eventType === "stack_record" && typeof p.stackAmount === "number") {
 		const parts = [`Stack: ${p.stackAmount.toLocaleString()}`];
-		if (p.addon && typeof p.addon === "object") {
-			const addon = p.addon as Record<string, unknown>;
-			if (typeof addon.amount === "number") {
-				parts.push(`Addon: ${addon.amount.toLocaleString()}`);
-			}
-		}
 		if (Array.isArray(p.allIns) && p.allIns.length > 0) {
 			parts.push(`${p.allIns.length} all-in(s)`);
 		}
 		return parts.join(" · ");
-	}
-	if (eventType === "cash_out" && typeof p.amount === "number") {
-		return `Amount: ${p.amount.toLocaleString()}`;
 	}
 	return null;
 }
@@ -117,27 +104,15 @@ function EventDetail({
 	}
 	const p = payload as Record<string, unknown>;
 
-	if (eventType === "cash_game_stack_record") {
-		const hasAddon: boolean =
-			!!p.addon &&
-			typeof p.addon === "object" &&
-			typeof (p.addon as Record<string, unknown>).amount === "number";
+	if (eventType === "stack_record") {
 		const hasAllIns: boolean = Array.isArray(p.allIns) && p.allIns.length > 0;
 
-		if (!(hasAddon || hasAllIns)) {
+		if (!hasAllIns) {
 			return null;
 		}
 
 		return (
 			<div className="mt-1">
-				{hasAddon && (
-					<p className="text-muted-foreground text-xs">
-						Addon:{" "}
-						{(
-							(p.addon as Record<string, unknown>).amount as number
-						).toLocaleString()}
-					</p>
-				)}
 				{hasAllIns && <AllInsDetail allIns={p.allIns as unknown[]} />}
 			</div>
 		);
@@ -160,12 +135,8 @@ function SimpleEventEditor({
 }) {
 	const p = (event.payload ?? {}) as Record<string, unknown>;
 
-	// cash_game_buy_in / cash_out: just amount
-	if (
-		(event.eventType === "cash_game_buy_in" ||
-			event.eventType === "cash_out") &&
-		typeof p.amount === "number"
-	) {
+	// chip_add: just amount
+	if (event.eventType === "chip_add" && typeof p.amount === "number") {
 		const [amount, setAmount] = useState(String(p.amount));
 		return (
 			<div className="flex flex-col gap-4">
@@ -367,11 +338,10 @@ function CashGameEventsPage() {
 				title={`Edit ${editEvent ? formatEventLabel(editEvent.eventType) : ""}`}
 			>
 				{editEvent &&
-					(editEvent.eventType === "cash_game_stack_record" ? (
+					(editEvent.eventType === "stack_record" ? (
 						<StackRecordEditor
 							initialPayload={
 								editEvent.payload as {
-									addon: { amount: number } | null;
 									allIns: Array<{
 										equity: number;
 										potSize: number;

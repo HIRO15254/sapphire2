@@ -10,13 +10,11 @@ interface AllIn {
 }
 
 interface StackFormState {
-	addon: { amount: number } | null;
 	allIns: AllIn[];
 	stackAmount: string;
 }
 
 interface StackFormContextValue {
-	setAddon: (addon: { amount: number } | null) => void;
 	setAllIns: React.Dispatch<React.SetStateAction<AllIn[]>>;
 	setStackAmount: (value: string) => void;
 	state: StackFormState;
@@ -41,15 +39,13 @@ export const Route = createFileRoute("/live-sessions/cash-game/$sessionId")({
 function CashGameSessionLayout() {
 	const [stackAmount, setStackAmount] = useState("");
 	const [allIns, setAllIns] = useState<AllIn[]>([]);
-	const [addon, setAddon] = useState<{ amount: number } | null>(null);
 
 	return (
 		<StackFormContext.Provider
 			value={{
-				state: { stackAmount, allIns, addon },
+				state: { stackAmount, allIns },
 				setStackAmount,
 				setAllIns,
-				setAddon,
 			}}
 		>
 			<Outlet />

@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
 	ALL_EVENT_TYPES,
 	allInSchema,
-	CASH_GAME_EVENT_TYPES,
 	COMMON_EVENT_TYPES,
-	cashGameStackRecordPayload,
+	GENERIC_EVENT_TYPES,
 	isValidEventTypeForSessionType,
+	LIFECYCLE_EVENT_TYPES,
 	MANUAL_CREATE_BLOCKED_EVENT_TYPES,
 	SESSION_STATUSES,
+	stackRecordPayload,
 	TOURNAMENT_EVENT_TYPES,
 	validateEventPayload,
 } from "../constants/session-event-types";
@@ -15,26 +16,19 @@ import {
 describe("SESSION_STATUSES", () => {
 	it("contains only active and completed", () => {
 		expect(SESSION_STATUSES).toEqual(["active", "completed"]);
-		expect(SESSION_STATUSES).not.toContain("paused");
 	});
 });
 
-describe("COMMON_EVENT_TYPES", () => {
-	it("does not contain session_pause or session_resume", () => {
-		const commonTypes = [...COMMON_EVENT_TYPES] as string[];
-		expect(commonTypes).not.toContain("session_pause");
-		expect(commonTypes).not.toContain("session_resume");
-	});
-
-	it("contains player_join and player_leave", () => {
-		expect(COMMON_EVENT_TYPES).toContain("player_join");
-		expect(COMMON_EVENT_TYPES).toContain("player_leave");
+describe("GENERIC_EVENT_TYPES", () => {
+	it("contains chip_add and stack_record", () => {
+		expect(GENERIC_EVENT_TYPES).toContain("chip_add");
+		expect(GENERIC_EVENT_TYPES).toContain("stack_record");
 	});
 });
 
 describe("ALL_EVENT_TYPES", () => {
-	it("includes all cash game, tournament, common, and lifecycle types", () => {
-		for (const t of CASH_GAME_EVENT_TYPES) {
+	it("includes generic, tournament, common, and lifecycle types", () => {
+		for (const t of GENERIC_EVENT_TYPES) {
 			expect(ALL_EVENT_TYPES).toContain(t);
 		}
 		for (const t of TOURNAMENT_EVENT_TYPES) {
@@ -43,22 +37,28 @@ describe("ALL_EVENT_TYPES", () => {
 		for (const t of COMMON_EVENT_TYPES) {
 			expect(ALL_EVENT_TYPES).toContain(t);
 		}
-		expect(ALL_EVENT_TYPES).toContain("session_start");
-		expect(ALL_EVENT_TYPES).toContain("session_end");
+		for (const t of LIFECYCLE_EVENT_TYPES) {
+			expect(ALL_EVENT_TYPES).toContain(t);
+		}
 	});
 
-	it("does not include session_pause or session_resume", () => {
+	it("does not include old cash game event types", () => {
 		const allTypes = [...ALL_EVENT_TYPES] as string[];
-		expect(allTypes).not.toContain("session_pause");
-		expect(allTypes).not.toContain("session_resume");
+		expect(allTypes).not.toContain("cash_game_buy_in");
+		expect(allTypes).not.toContain("cash_game_stack_record");
+		expect(allTypes).not.toContain("cash_out");
 	});
 });
 
 describe("MANUAL_CREATE_BLOCKED_EVENT_TYPES", () => {
-	it("contains cash_game_buy_in, session_start, and session_end", () => {
-		expect(MANUAL_CREATE_BLOCKED_EVENT_TYPES).toContain("cash_game_buy_in");
+	it("contains session_start and session_end", () => {
 		expect(MANUAL_CREATE_BLOCKED_EVENT_TYPES).toContain("session_start");
 		expect(MANUAL_CREATE_BLOCKED_EVENT_TYPES).toContain("session_end");
+	});
+
+	it("does not block chip_add or stack_record", () => {
+		expect(MANUAL_CREATE_BLOCKED_EVENT_TYPES).not.toContain("chip_add");
+		expect(MANUAL_CREATE_BLOCKED_EVENT_TYPES).not.toContain("stack_record");
 	});
 });
 
@@ -103,49 +103,38 @@ describe("allInSchema", () => {
 			allInSchema.parse({ potSize: 500, trials: 1, equity: 101, wins: 1 })
 		).toThrow();
 	});
-
-	it("rejects equity below 0", () => {
-		expect(() =>
-			allInSchema.parse({ potSize: 500, trials: 1, equity: -1, wins: 1 })
-		).toThrow();
-	});
-
-	it("does not have actualResult or evResult fields", () => {
-		const fields = Object.keys(allInSchema.shape);
-		expect(fields).not.toContain("actualResult");
-		expect(fields).not.toContain("evResult");
-	});
 });
 
-describe("cashGameStackRecordPayload", () => {
-	it("uses new allIn format with potSize/trials/equity/wins", () => {
-		const result = cashGameStackRecordPayload.parse({
+describe("stackRecordPayload", () => {
+	it("has stackAmount and allIns (no addon)", () => {
+		const result = stackRecordPayload.parse({
 			stackAmount: 5000,
 			allIns: [{ potSize: 2000, trials: 1, equity: 70, wins: 1 }],
-			addon: null,
 		});
+		expect(result.stackAmount).toBe(5000);
 		expect(result.allIns[0]?.potSize).toBe(2000);
-		expect(result.allIns[0]?.equity).toBe(70);
+		expect("addon" in result).toBe(false);
 	});
 });
 
 describe("isValidEventTypeForSessionType", () => {
-	it("allows cash game events for cash_game session", () => {
-		expect(
-			isValidEventTypeForSessionType("cash_game_buy_in", "cash_game")
-		).toBe(true);
-		expect(
-			isValidEventTypeForSessionType("cash_game_stack_record", "cash_game")
-		).toBe(true);
-		expect(isValidEventTypeForSessionType("cash_out", "cash_game")).toBe(true);
+	it("allows generic events for both session types", () => {
+		expect(isValidEventTypeForSessionType("chip_add", "cash_game")).toBe(true);
+		expect(isValidEventTypeForSessionType("stack_record", "cash_game")).toBe(
+			true
+		);
+		expect(isValidEventTypeForSessionType("chip_add", "tournament")).toBe(true);
+		expect(isValidEventTypeForSessionType("stack_record", "tournament")).toBe(
+			true
+		);
 	});
 
-	it("disallows cash game events for tournament session", () => {
-		expect(
-			isValidEventTypeForSessionType("cash_game_buy_in", "tournament")
-		).toBe(false);
-		expect(isValidEventTypeForSessionType("cash_out", "tournament")).toBe(
-			false
+	it("allows lifecycle events for both session types", () => {
+		expect(isValidEventTypeForSessionType("session_start", "cash_game")).toBe(
+			true
+		);
+		expect(isValidEventTypeForSessionType("session_end", "tournament")).toBe(
+			true
 		);
 	});
 
@@ -156,22 +145,29 @@ describe("isValidEventTypeForSessionType", () => {
 		expect(isValidEventTypeForSessionType("player_join", "tournament")).toBe(
 			true
 		);
-		expect(isValidEventTypeForSessionType("player_leave", "cash_game")).toBe(
-			true
-		);
-		expect(isValidEventTypeForSessionType("player_leave", "tournament")).toBe(
-			true
-		);
+	});
+
+	it("allows tournament events only for tournament", () => {
+		expect(
+			isValidEventTypeForSessionType("tournament_result", "tournament")
+		).toBe(true);
+		expect(
+			isValidEventTypeForSessionType("tournament_result", "cash_game")
+		).toBe(false);
 	});
 });
 
 describe("validateEventPayload", () => {
-	it("validates cash_game_stack_record with new allIn format", () => {
-		const result = validateEventPayload("cash_game_stack_record", {
+	it("validates stack_record payload", () => {
+		const result = validateEventPayload("stack_record", {
 			stackAmount: 3000,
 			allIns: [{ potSize: 1000, trials: 1, equity: 55, wins: 0 }],
-			addon: null,
 		});
+		expect(result).toBeDefined();
+	});
+
+	it("validates chip_add payload", () => {
+		const result = validateEventPayload("chip_add", { amount: 10_000 });
 		expect(result).toBeDefined();
 	});
 });

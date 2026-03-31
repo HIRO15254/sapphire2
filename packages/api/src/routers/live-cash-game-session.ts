@@ -1,4 +1,7 @@
-import { cashGameStackRecordPayload } from "@sapphire2/db/constants/session-event-types";
+import {
+	chipAddPayload,
+	stackRecordPayload,
+} from "@sapphire2/db/constants/session-event-types";
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
 import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
@@ -171,8 +174,8 @@ export const liveCashGameSessionRouter = router({
 					let latestStackAmount: number | null = null;
 
 					for (const event of [...events].reverse()) {
-						if (event.eventType === "cash_game_stack_record") {
-							const parsed = cashGameStackRecordPayload.safeParse(
+						if (event.eventType === "stack_record") {
+							const parsed = stackRecordPayload.safeParse(
 								JSON.parse(event.payload)
 							);
 							if (parsed.success) {
@@ -208,20 +211,20 @@ export const liveCashGameSessionRouter = router({
 
 			// Compute summary from events
 			let totalBuyIn = 0;
-			let cashOut: number | null = null;
 			let maxStack: number | null = null;
 			let minStack: number | null = null;
 			let currentStack: number | null = null;
-			let addonCount = 0;
+			let chipAddCount = 0;
 
 			for (const event of events) {
 				const parsed = JSON.parse(event.payload);
 
-				if (event.eventType === "cash_game_buy_in") {
-					const data = parsed as { amount: number };
+				if (event.eventType === "chip_add") {
+					const data = chipAddPayload.parse(parsed);
 					totalBuyIn += data.amount;
-				} else if (event.eventType === "cash_game_stack_record") {
-					const data = cashGameStackRecordPayload.parse(parsed);
+					chipAddCount++;
+				} else if (event.eventType === "stack_record") {
+					const data = stackRecordPayload.parse(parsed);
 					const stack = data.stackAmount;
 					if (maxStack === null || stack > maxStack) {
 						maxStack = stack;
@@ -230,15 +233,13 @@ export const liveCashGameSessionRouter = router({
 						minStack = stack;
 					}
 					currentStack = stack;
-					if (data.addon) {
-						totalBuyIn += data.addon.amount;
-						addonCount++;
-					}
-				} else if (event.eventType === "cash_out") {
-					const data = parsed as { amount: number };
-					cashOut = data.amount;
 				}
 			}
+
+			// First chip_add is the initial buy-in; the rest are addons
+			const addonCount = chipAddCount > 0 ? chipAddCount - 1 : 0;
+			// Last stack_record's stackAmount is the cash-out
+			const cashOut = currentStack;
 
 			const profitLoss = cashOut !== null ? cashOut - totalBuyIn : null;
 			const evCashOut = computeCashGamePLFromEvents(
@@ -332,7 +333,7 @@ export const liveCashGameSessionRouter = router({
 			await ctx.db.insert(sessionEvent).values({
 				id: crypto.randomUUID(),
 				liveCashGameSessionId: id,
-				eventType: "cash_game_buy_in",
+				eventType: "chip_add",
 				occurredAt: now,
 				sortOrder: 1,
 				payload: JSON.stringify({ amount: input.initialBuyIn }),
@@ -386,7 +387,7 @@ export const liveCashGameSessionRouter = router({
 		.input(
 			z.object({
 				id: z.string(),
-				cashOut: z.number().int().min(0),
+				finalStack: z.number().int().min(0),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -413,14 +414,14 @@ export const liveCashGameSessionRouter = router({
 			const nextSortOrder =
 				existingEvents.length > 0 ? (existingEvents[0]?.sortOrder ?? 0) + 1 : 0;
 
-			// Insert cash_out event
+			// Insert stack_record event as the final stack (cash-out)
 			await ctx.db.insert(sessionEvent).values({
 				id: crypto.randomUUID(),
 				liveCashGameSessionId: input.id,
-				eventType: "cash_out",
+				eventType: "stack_record",
 				occurredAt: now,
 				sortOrder: nextSortOrder,
-				payload: JSON.stringify({ amount: input.cashOut }),
+				payload: JSON.stringify({ stackAmount: input.finalStack }),
 				updatedAt: now,
 			});
 
@@ -593,7 +594,7 @@ export const liveCashGameSessionRouter = router({
 
 			const now = new Date();
 
-			// Add new session_start event (keeps previous session_end + cash_out in history)
+			// Add new session_start event (keeps previous events in history)
 			const [lastEvent] = await ctx.db
 				.select({ sortOrder: sessionEvent.sortOrder })
 				.from(sessionEvent)

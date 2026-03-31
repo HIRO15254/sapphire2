@@ -104,9 +104,9 @@ function CashGameSessionPage() {
 
 	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
 	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
-	const [defaultCashOut, setDefaultCashOut] = useState<number | undefined>(
-		undefined
-	);
+	const [defaultFinalStack, setDefaultFinalStack] = useState<
+		number | undefined
+	>(undefined);
 
 	const sessionQuery = useQuery(
 		trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
@@ -130,7 +130,6 @@ function CashGameSessionPage() {
 
 	const stackMutation = useMutation({
 		mutationFn: (values: {
-			addon: { amount: number } | null;
 			allIns: Array<{
 				potSize: number;
 				trials: number;
@@ -141,8 +140,18 @@ function CashGameSessionPage() {
 		}) =>
 			trpcClient.sessionEvent.create.mutate({
 				liveCashGameSessionId: sessionId,
-				eventType: "cash_game_stack_record",
-				payload: values,
+				eventType: "stack_record",
+				payload: { stackAmount: values.stackAmount, allIns: values.allIns },
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const chipAddMutation = useMutation({
+		mutationFn: (amount: number) =>
+			trpcClient.sessionEvent.create.mutate({
+				liveCashGameSessionId: sessionId,
+				eventType: "chip_add",
+				payload: { amount },
 			}),
 		onSuccess: invalidateSession,
 	});
@@ -157,10 +166,10 @@ function CashGameSessionPage() {
 	});
 
 	const completeMutation = useMutation({
-		mutationFn: (values: { cashOut: number }) =>
+		mutationFn: (values: { finalStack: number }) =>
 			trpcClient.liveCashGameSession.complete.mutate({
 				id: sessionId,
-				cashOut: values.cashOut,
+				finalStack: values.finalStack,
 			}),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: listKey });
@@ -249,8 +258,9 @@ function CashGameSessionPage() {
 				<div className="border-border border-t pt-2 pb-1">
 					<CashGameStackForm
 						isLoading={stackMutation.isPending}
+						onChipAdd={(amount) => chipAddMutation.mutate(amount)}
 						onComplete={(currentStack) => {
-							setDefaultCashOut(currentStack);
+							setDefaultFinalStack(currentStack);
 							setIsCompleteOpen(true);
 						}}
 						onSubmit={(values) => stackMutation.mutate(values)}
@@ -265,7 +275,7 @@ function CashGameSessionPage() {
 				title="Complete Session"
 			>
 				<CashGameCompleteForm
-					defaultCashOut={defaultCashOut}
+					defaultFinalStack={defaultFinalStack}
 					isLoading={completeMutation.isPending}
 					onSubmit={(values) => completeMutation.mutate(values)}
 				/>

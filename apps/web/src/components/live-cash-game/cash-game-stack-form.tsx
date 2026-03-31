@@ -8,9 +8,9 @@ import { useStackFormContext } from "@/routes/live-sessions/cash-game/$sessionId
 
 interface CashGameStackFormProps {
 	isLoading: boolean;
+	onChipAdd: (amount: number) => void;
 	onComplete: (currentStack: number) => void;
 	onSubmit: (values: {
-		addon: { amount: number } | null;
 		allIns: Array<{
 			potSize: number;
 			trials: number;
@@ -23,18 +23,18 @@ interface CashGameStackFormProps {
 
 export function CashGameStackForm({
 	isLoading,
+	onChipAdd,
 	onComplete,
 	onSubmit,
 }: CashGameStackFormProps) {
-	const { state, setStackAmount, setAllIns, setAddon } = useStackFormContext();
-	const { stackAmount, allIns, addon } = state;
+	const { state, setStackAmount, setAllIns } = useStackFormContext();
+	const { stackAmount, allIns } = state;
 
 	const [allInBottomSheetOpen, setAllInBottomSheetOpen] = useState(false);
 	const [editingAllIn, setEditingAllIn] = useState<
 		(typeof allIns)[number] | null
 	>(null);
 	const [addonBottomSheetOpen, setAddonBottomSheetOpen] = useState(false);
-	const [editingAddon, setEditingAddon] = useState(false);
 
 	let nextId = allIns.length > 0 ? Math.max(...allIns.map((a) => a.id)) : 0;
 
@@ -76,26 +76,9 @@ export function CashGameStackForm({
 		setEditingAllIn(null);
 	};
 
-	const handleAddAddonClick = () => {
-		setEditingAddon(false);
-		setAddonBottomSheetOpen(true);
-	};
-
-	const handleAddonBadgeClick = () => {
-		setEditingAddon(true);
-		setAddonBottomSheetOpen(true);
-	};
-
 	const handleAddonSubmit = (values: { amount: number }) => {
-		setAddon(values);
+		onChipAdd(values.amount);
 		setAddonBottomSheetOpen(false);
-		setEditingAddon(false);
-	};
-
-	const handleAddonDelete = () => {
-		setAddon(null);
-		setAddonBottomSheetOpen(false);
-		setEditingAddon(false);
 	};
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -109,12 +92,10 @@ export function CashGameStackForm({
 				equity,
 				wins,
 			})),
-			addon,
 		});
 
-		// Reset allIns and addon after submit, but keep stackAmount
+		// Reset allIns after submit, but keep stackAmount
 		setAllIns([]);
-		setAddon(null);
 	};
 
 	const handleComplete = () => {
@@ -124,7 +105,7 @@ export function CashGameStackForm({
 	return (
 		<div className="flex flex-col gap-2">
 			{/* Row 1: Event badges */}
-			{(allIns.length > 0 || addon !== null) && (
+			{allIns.length > 0 && (
 				<div className="flex gap-1.5 overflow-x-auto pb-1">
 					{allIns.map((allIn) => (
 						<EventBadge
@@ -139,13 +120,6 @@ export function CashGameStackForm({
 							type="all-in"
 						/>
 					))}
-					{addon && (
-						<EventBadge
-							data={{ amount: addon.amount }}
-							onEdit={handleAddonBadgeClick}
-							type="addon"
-						/>
-					)}
 				</div>
 			)}
 
@@ -185,7 +159,7 @@ export function CashGameStackForm({
 					+ All-in
 				</Button>
 				<Button
-					onClick={handleAddAddonClick}
+					onClick={() => setAddonBottomSheetOpen(true)}
 					size="xs"
 					type="button"
 					variant="ghost"
@@ -204,8 +178,6 @@ export function CashGameStackForm({
 			/>
 
 			<AddonBottomSheet
-				initialAmount={editingAddon && addon ? addon.amount : undefined}
-				onDelete={editingAddon ? handleAddonDelete : undefined}
 				onOpenChange={setAddonBottomSheetOpen}
 				onSubmit={handleAddonSubmit}
 				open={addonBottomSheetOpen}

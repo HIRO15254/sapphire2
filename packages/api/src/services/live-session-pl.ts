@@ -1,7 +1,6 @@
 import {
-	cashGameBuyInPayload,
-	cashGameStackRecordPayload,
-	cashOutPayload,
+	chipAddPayload,
+	stackRecordPayload,
 	tournamentResultPayload,
 	tournamentStackRecordPayload,
 } from "@sapphire2/db/constants/session-event-types";
@@ -42,30 +41,30 @@ export function computeCashGamePLFromEvents(
 	events: { eventType: string; payload: string }[]
 ): CashGamePLResult {
 	let totalBuyIn = 0;
+	let addonTotal = 0;
 	let cashOut: number | null = null;
 	let totalEvDiff = 0;
-	let addonTotal = 0;
+	let firstBuyIn: number | null = null;
 
 	for (const event of events) {
 		const parsed = JSON.parse(event.payload);
 
-		if (event.eventType === "cash_game_buy_in") {
-			const data = cashGameBuyInPayload.parse(parsed);
+		if (event.eventType === "chip_add") {
+			const data = chipAddPayload.parse(parsed);
 			totalBuyIn += data.amount;
-		} else if (event.eventType === "cash_game_stack_record") {
-			const data = cashGameStackRecordPayload.parse(parsed);
-			if (data.addon) {
-				totalBuyIn += data.addon.amount;
-				addonTotal += data.addon.amount;
+			if (firstBuyIn === null) {
+				firstBuyIn = data.amount;
+			} else {
+				addonTotal += data.amount;
 			}
+		} else if (event.eventType === "stack_record") {
+			const data = stackRecordPayload.parse(parsed);
+			cashOut = data.stackAmount;
 			for (const allIn of data.allIns) {
 				const evAmount = allIn.potSize * (allIn.equity / 100) * allIn.trials;
 				const actualAmount = allIn.potSize * allIn.wins;
 				totalEvDiff += evAmount - actualAmount;
 			}
-		} else if (event.eventType === "cash_out") {
-			const data = cashOutPayload.parse(parsed);
-			cashOut = data.amount;
 		}
 	}
 

@@ -4,12 +4,8 @@ import { z } from "zod";
 export const SESSION_STATUSES = ["active", "completed"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
-// Event types
-export const CASH_GAME_EVENT_TYPES = [
-	"cash_game_buy_in",
-	"cash_game_stack_record",
-	"cash_out",
-] as const;
+// Event types - generic (shared across cash game / tournament)
+export const GENERIC_EVENT_TYPES = ["chip_add", "stack_record"] as const;
 
 export const TOURNAMENT_EVENT_TYPES = [
 	"tournament_stack_record",
@@ -21,7 +17,7 @@ export const COMMON_EVENT_TYPES = ["player_join", "player_leave"] as const;
 export const LIFECYCLE_EVENT_TYPES = ["session_start", "session_end"] as const;
 
 export const ALL_EVENT_TYPES = [
-	...CASH_GAME_EVENT_TYPES,
+	...GENERIC_EVENT_TYPES,
 	...TOURNAMENT_EVENT_TYPES,
 	...COMMON_EVENT_TYPES,
 	...LIFECYCLE_EVENT_TYPES,
@@ -31,13 +27,12 @@ export type SessionEventType = (typeof ALL_EVENT_TYPES)[number];
 
 // Event types that cannot be manually created (auto-created by session lifecycle only)
 export const MANUAL_CREATE_BLOCKED_EVENT_TYPES: readonly string[] = [
-	"cash_game_buy_in",
 	"session_start",
 	"session_end",
 ] as const;
 
 // Payload Zod schemas
-export const cashGameBuyInPayload = z.object({
+export const chipAddPayload = z.object({
 	amount: z.number().int().min(0),
 });
 
@@ -48,18 +43,9 @@ export const allInSchema = z.object({
 	wins: z.number().min(0),
 });
 
-export const addonSchema = z.object({
-	amount: z.number().int().min(0),
-});
-
-export const cashGameStackRecordPayload = z.object({
+export const stackRecordPayload = z.object({
 	stackAmount: z.number().int().min(0),
 	allIns: z.array(allInSchema).default([]),
-	addon: addonSchema.nullable().default(null),
-});
-
-export const cashOutPayload = z.object({
-	amount: z.number().int().min(0),
 });
 
 export const tournamentRebuySchema = z.object({
@@ -101,9 +87,8 @@ export const sessionEndPayload = z.object({});
 
 // Payload schema map for dispatch
 export const EVENT_PAYLOAD_SCHEMAS: Record<SessionEventType, z.ZodTypeAny> = {
-	cash_game_buy_in: cashGameBuyInPayload,
-	cash_game_stack_record: cashGameStackRecordPayload,
-	cash_out: cashOutPayload,
+	chip_add: chipAddPayload,
+	stack_record: stackRecordPayload,
 	tournament_stack_record: tournamentStackRecordPayload,
 	tournament_result: tournamentResultPayload,
 	player_join: playerJoinPayload,
@@ -136,10 +121,15 @@ export function isValidEventTypeForSessionType(
 		return true;
 	}
 
-	if (sessionType === "cash_game") {
-		const cashTypes: readonly string[] = CASH_GAME_EVENT_TYPES;
-		return cashTypes.includes(eventType);
+	const genericTypes: readonly string[] = GENERIC_EVENT_TYPES;
+	if (genericTypes.includes(eventType)) {
+		return true;
 	}
-	const tournamentTypes: readonly string[] = TOURNAMENT_EVENT_TYPES;
-	return tournamentTypes.includes(eventType);
+
+	if (sessionType === "tournament") {
+		const tournamentTypes: readonly string[] = TOURNAMENT_EVENT_TYPES;
+		return tournamentTypes.includes(eventType);
+	}
+
+	return false;
 }
