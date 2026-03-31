@@ -2,8 +2,11 @@ import { IconChevronLeft, IconPencil, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { StackRecordEditor } from "@/components/live-sessions/stack-record-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -141,51 +144,74 @@ function EventDetail({
 	return null;
 }
 
-function EditDialog({
+// Simple editor for non-stack events (buy-in, cash-out, etc.)
+function SimpleEventEditor({
 	event,
-	onClose,
-	onSuccess,
+	isLoading,
+	onDelete: handleDelete,
+	onSubmit,
 }: {
 	event: SessionEvent;
-	onClose: () => void;
-	onSuccess: () => void;
+	isLoading: boolean;
+	onDelete: () => void;
+	onSubmit: (payload: unknown) => void;
 }) {
+	const p = (event.payload ?? {}) as Record<string, unknown>;
+
+	// cash_game_buy_in / cash_out: just amount
+	if (
+		(event.eventType === "cash_game_buy_in" ||
+			event.eventType === "cash_out") &&
+		typeof p.amount === "number"
+	) {
+		const [amount, setAmount] = useState(String(p.amount));
+		return (
+			<div className="flex flex-col gap-4">
+				<div className="flex flex-col gap-1.5">
+					<Label htmlFor="edit-amount">Amount</Label>
+					<Input
+						id="edit-amount"
+						inputMode="numeric"
+						min={0}
+						onChange={(e) => setAmount(e.target.value)}
+						type="number"
+						value={amount}
+					/>
+				</div>
+				<div className="flex flex-col gap-2">
+					<Button
+						disabled={isLoading}
+						onClick={() => onSubmit({ amount: Number(amount) })}
+						type="button"
+					>
+						{isLoading ? "Saving..." : "Save"}
+					</Button>
+					<Button onClick={handleDelete} type="button" variant="destructive">
+						Delete
+					</Button>
+				</div>
+			</div>
+		);
+	}
+
+	// Fallback: JSON editor
 	const [value, setValue] = useState(JSON.stringify(event.payload, null, 2));
 	const [parseError, setParseError] = useState<string | null>(null);
 
-	const mutation = useMutation({
-		mutationFn: (parsed: unknown) =>
-			trpcClient.sessionEvent.update.mutate({ id: event.id, payload: parsed }),
-		onSuccess: () => {
-			onSuccess();
-			onClose();
-		},
-	});
-
 	const handleSave = () => {
 		setParseError(null);
-		let parsed: unknown;
 		try {
-			parsed = JSON.parse(value);
+			const parsed = JSON.parse(value);
+			onSubmit(parsed);
 		} catch (err) {
 			setParseError(err instanceof Error ? err.message : "Invalid JSON");
-			return;
 		}
-		mutation.mutate(parsed);
 	};
 
 	return (
 		<div className="flex flex-col gap-4">
-			<div className="flex flex-col gap-1">
-				<span className="font-medium text-sm">Event type</span>
-				<span className="text-muted-foreground text-sm">
-					{formatEventLabel(event.eventType)}
-				</span>
-			</div>
 			<div className="flex flex-col gap-1.5">
-				<label className="font-medium text-sm" htmlFor="event-payload">
-					Payload (JSON)
-				</label>
+				<Label htmlFor="event-payload">Payload (JSON)</Label>
 				<textarea
 					className="h-48 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 					id="event-payload"
@@ -194,55 +220,12 @@ function EditDialog({
 				/>
 				{parseError && <p className="text-destructive text-xs">{parseError}</p>}
 			</div>
-			<div className="flex justify-end gap-2">
-				<Button onClick={onClose} type="button" variant="outline">
-					Cancel
+			<div className="flex flex-col gap-2">
+				<Button disabled={isLoading} onClick={handleSave} type="button">
+					{isLoading ? "Saving..." : "Save"}
 				</Button>
-				<Button
-					disabled={mutation.isPending}
-					onClick={handleSave}
-					type="button"
-				>
-					{mutation.isPending ? "Saving..." : "Save"}
-				</Button>
-			</div>
-		</div>
-	);
-}
-
-function DeleteDialog({
-	event,
-	onClose,
-	onSuccess,
-}: {
-	event: SessionEvent;
-	onClose: () => void;
-	onSuccess: () => void;
-}) {
-	const mutation = useMutation({
-		mutationFn: () => trpcClient.sessionEvent.delete.mutate({ id: event.id }),
-		onSuccess: () => {
-			onSuccess();
-			onClose();
-		},
-	});
-
-	return (
-		<div className="flex flex-col gap-4">
-			<p className="text-sm">
-				Delete this event? This action cannot be undone.
-			</p>
-			<div className="flex justify-end gap-2">
-				<Button onClick={onClose} type="button" variant="outline">
-					Cancel
-				</Button>
-				<Button
-					disabled={mutation.isPending}
-					onClick={() => mutation.mutate()}
-					type="button"
-					variant="destructive"
-				>
-					{mutation.isPending ? "Deleting..." : "Delete"}
+				<Button onClick={handleDelete} type="button" variant="destructive">
+					Delete
 				</Button>
 			</div>
 		</div>
@@ -254,7 +237,6 @@ function CashGameEventsPage() {
 	const queryClient = useQueryClient();
 
 	const [editEvent, setEditEvent] = useState<SessionEvent | null>(null);
-	const [deleteEvent, setDeleteEvent] = useState<SessionEvent | null>(null);
 
 	const eventsQuery = useQuery(
 		trpc.sessionEvent.list.queryOptions({ liveCashGameSessionId: sessionId })
@@ -274,6 +256,23 @@ function CashGameEventsPage() {
 			queryClient.invalidateQueries({ queryKey: sessionKey }),
 		]);
 	};
+
+	const updateMutation = useMutation({
+		mutationFn: ({ id, payload }: { id: string; payload: unknown }) =>
+			trpcClient.sessionEvent.update.mutate({ id, payload }),
+		onSuccess: async () => {
+			await invalidateAll();
+			setEditEvent(null);
+		},
+	});
+
+	const deleteMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.sessionEvent.delete.mutate({ id }),
+		onSuccess: async () => {
+			await invalidateAll();
+			setEditEvent(null);
+		},
+	});
 
 	return (
 		<div className="p-4 md:p-6">
@@ -340,7 +339,7 @@ function CashGameEventsPage() {
 												<IconPencil size={14} />
 											</Button>
 											<Button
-												onClick={() => setDeleteEvent(event)}
+												onClick={() => deleteMutation.mutate(event.id)}
 												size="icon-xs"
 												variant="ghost"
 											>
@@ -363,34 +362,39 @@ function CashGameEventsPage() {
 					}
 				}}
 				open={editEvent !== null}
-				title="Edit Event"
+				title={`Edit ${editEvent ? formatEventLabel(editEvent.eventType) : ""}`}
 			>
-				{editEvent && (
-					<EditDialog
-						event={editEvent}
-						onClose={() => setEditEvent(null)}
-						onSuccess={invalidateAll}
-					/>
-				)}
-			</ResponsiveDialog>
-
-			{/* Delete dialog */}
-			<ResponsiveDialog
-				onOpenChange={(open) => {
-					if (!open) {
-						setDeleteEvent(null);
-					}
-				}}
-				open={deleteEvent !== null}
-				title="Delete Event"
-			>
-				{deleteEvent && (
-					<DeleteDialog
-						event={deleteEvent}
-						onClose={() => setDeleteEvent(null)}
-						onSuccess={invalidateAll}
-					/>
-				)}
+				{editEvent &&
+					(editEvent.eventType === "cash_game_stack_record" ? (
+						<StackRecordEditor
+							initialPayload={
+								editEvent.payload as {
+									addon: { amount: number } | null;
+									allIns: Array<{
+										equity: number;
+										potSize: number;
+										trials: number;
+										wins: number;
+									}>;
+									stackAmount: number;
+								}
+							}
+							isLoading={updateMutation.isPending}
+							onDelete={() => deleteMutation.mutate(editEvent.id)}
+							onSubmit={(payload) =>
+								updateMutation.mutate({ id: editEvent.id, payload })
+							}
+						/>
+					) : (
+						<SimpleEventEditor
+							event={editEvent}
+							isLoading={updateMutation.isPending}
+							onDelete={() => deleteMutation.mutate(editEvent.id)}
+							onSubmit={(payload) =>
+								updateMutation.mutate({ id: editEvent.id, payload })
+							}
+						/>
+					))}
 			</ResponsiveDialog>
 		</div>
 	);

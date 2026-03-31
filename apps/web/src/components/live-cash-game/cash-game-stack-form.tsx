@@ -135,11 +135,6 @@ export function CashGameStackForm({
 								wins: allIn.wins,
 							}}
 							key={allIn.id}
-							onDelete={() => {
-								setAllIns((prev) =>
-									prev.filter((item) => item.id !== allIn.id)
-								);
-							}}
 							onEdit={() => handleAllInBadgeClick(allIn)}
 							type="all-in"
 						/>
@@ -147,7 +142,6 @@ export function CashGameStackForm({
 					{addon && (
 						<EventBadge
 							data={{ amount: addon.amount }}
-							onDelete={handleAddonDelete}
 							onEdit={handleAddonBadgeClick}
 							type="addon"
 						/>
