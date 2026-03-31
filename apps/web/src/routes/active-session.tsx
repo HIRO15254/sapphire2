@@ -26,17 +26,17 @@ export function useStackFormContext() {
 	const ctx = useContext(StackFormContext);
 	if (!ctx) {
 		throw new Error(
-			"useStackFormContext must be used within CashGameSessionLayout"
+			"useStackFormContext must be used within ActiveSessionLayout"
 		);
 	}
 	return ctx;
 }
 
-export const Route = createFileRoute("/live-sessions/cash-game/$sessionId")({
-	component: CashGameSessionLayout,
+export const Route = createFileRoute("/active-session")({
+	component: ActiveSessionLayout,
 });
 
-function CashGameSessionLayout() {
+function ActiveSessionLayout() {
 	const [stackAmount, setStackAmount] = useState("");
 	const [allIns, setAllIns] = useState<AllIn[]>([]);
 

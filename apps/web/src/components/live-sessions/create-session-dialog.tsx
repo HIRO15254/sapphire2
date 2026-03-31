@@ -57,13 +57,10 @@ export function CreateSessionDialog({
 			ringGameId?: string;
 			storeId?: string;
 		}) => trpcClient.liveCashGameSession.create.mutate(values),
-		onSuccess: async (data) => {
+		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: sessionListKey });
 			onOpenChange(false);
-			await navigate({
-				to: "/live-sessions/cash-game/$sessionId",
-				params: { sessionId: data.id },
-			});
+			await navigate({ to: "/active-session" });
 		},
 	});
 

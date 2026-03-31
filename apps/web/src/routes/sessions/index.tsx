@@ -501,12 +501,9 @@ function SessionsPage() {
 			trpcClient.liveCashGameSession.reopen.mutate({
 				id: liveCashGameSessionId,
 			}),
-		onSuccess: async (data) => {
+		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: sessionListKey });
-			await navigate({
-				to: "/live-sessions/cash-game/$sessionId",
-				params: { sessionId: data.id },
-			});
+			await navigate({ to: "/active-session" });
 		},
 	});
 

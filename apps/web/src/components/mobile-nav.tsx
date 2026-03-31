@@ -129,23 +129,18 @@ export function MobileNav() {
 	const pathname = useRouterState({
 		select: (s) => s.location.pathname,
 	});
-	const { activeSession, hasActive } = useActiveSession();
+	const { hasActive } = useActiveSession();
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 
 	let activeSessionPath: string | null = null;
-	let eventsPath: string | null = null;
-	if (activeSession) {
-		activeSessionPath =
-			activeSession.type === "cash_game"
-				? `/live-sessions/cash-game/${activeSession.id}`
-				: `/live-sessions/tournament/${activeSession.id}`;
-		eventsPath = `${activeSessionPath}/events`;
+	if (hasActive) {
+		activeSessionPath = "/active-session";
 	}
 
 	// In live mode, build dynamic nav items
-	const liveLeftItems: NavigationItem[] = eventsPath
+	const liveLeftItems: NavigationItem[] = hasActive
 		? [
-				{ to: eventsPath, label: "Events", icon: IconList },
+				{ to: "/active-session/events", label: "Events", icon: IconList },
 				{ to: "/players", label: "Players", icon: IconUsers },
 			]
 		: [];

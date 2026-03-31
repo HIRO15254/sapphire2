@@ -7,12 +7,13 @@ import { CashGameStackForm } from "@/components/live-cash-game/cash-game-stack-f
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
+import { useActiveSession } from "@/hooks/use-active-session";
 import { cn } from "@/lib/utils";
 import { formatCompactNumber } from "@/utils/format-number";
 import { trpc, trpcClient } from "@/utils/trpc";
 
-export const Route = createFileRoute("/live-sessions/cash-game/$sessionId/")({
-	component: CashGameSessionPage,
+export const Route = createFileRoute("/active-session/")({
+	component: ActiveSessionPage,
 });
 
 function plColorClass(value: number): string {
@@ -85,22 +86,16 @@ function CompactSummary({
 					<p className="font-semibold">{summary.addonCount}</p>
 				</div>
 			)}
-			{summary.cashOut !== null && (
-				<div>
-					<span className="text-muted-foreground text-xs">Cash Out</span>
-					<p className="font-semibold">
-						{formatCompactNumber(summary.cashOut)}
-					</p>
-				</div>
-			)}
 		</div>
 	);
 }
 
-function CashGameSessionPage() {
-	const { sessionId } = Route.useParams();
+function ActiveSessionPage() {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
+	const { activeSession, isLoading: isSessionLoading } = useActiveSession();
+
+	const sessionId = activeSession?.id ?? "";
 
 	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
 	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
@@ -108,9 +103,11 @@ function CashGameSessionPage() {
 		number | undefined
 	>(undefined);
 
-	const sessionQuery = useQuery(
-		trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
-	);
+	const sessionQuery = useQuery({
+		...trpc.liveCashGameSession.getById.queryOptions({ id: sessionId }),
+		enabled: !!sessionId,
+		refetchInterval: 5000,
+	});
 	const session = sessionQuery.data;
 
 	const sessionKey = trpc.liveCashGameSession.getById.queryOptions({
@@ -156,15 +153,6 @@ function CashGameSessionPage() {
 		onSuccess: invalidateSession,
 	});
 
-	const reopenMutation = useMutation({
-		mutationFn: () =>
-			trpcClient.liveCashGameSession.reopen.mutate({ id: sessionId }),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: sessionKey });
-			await queryClient.invalidateQueries({ queryKey: listKey });
-		},
-	});
-
 	const completeMutation = useMutation({
 		mutationFn: (values: { finalStack: number }) =>
 			trpcClient.liveCashGameSession.complete.mutate({
@@ -186,7 +174,7 @@ function CashGameSessionPage() {
 		},
 	});
 
-	if (!session) {
+	if (isSessionLoading) {
 		return (
 			<div className="flex h-[100dvh] items-center justify-center pb-16">
 				<p className="text-muted-foreground">Loading...</p>
@@ -194,8 +182,13 @@ function CashGameSessionPage() {
 		);
 	}
 
-	const isActive = session.status === "active";
-	const isCompleted = session.status === "completed";
+	if (!(activeSession && session)) {
+		return (
+			<div className="flex h-[100dvh] items-center justify-center pb-16">
+				<p className="text-muted-foreground">No active session</p>
+			</div>
+		);
+	}
 
 	return (
 		<div className="flex h-[calc(100dvh-4rem)] flex-col px-4 pt-2 pb-0 md:px-6 md:pt-4">
@@ -204,27 +197,20 @@ function CashGameSessionPage() {
 				<div className="flex items-center gap-2">
 					<h1 className="font-bold text-lg">Cash Game</h1>
 					<Badge
-						className={cn(
-							"text-[10px]",
-							isActive
-								? "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400"
-								: "border-border bg-muted text-muted-foreground"
-						)}
+						className="border-green-200 bg-green-50 text-[10px] text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400"
 						variant="outline"
 					>
-						{isActive ? "Active" : "Completed"}
+						Active
 					</Badge>
 				</div>
 
-				{isActive && (
-					<button
-						className="text-destructive/60 text-xs hover:text-destructive"
-						onClick={() => setIsDiscardOpen(true)}
-						type="button"
-					>
-						Discard
-					</button>
-				)}
+				<button
+					className="text-destructive/60 text-xs hover:text-destructive"
+					onClick={() => setIsDiscardOpen(true)}
+					type="button"
+				>
+					Discard
+				</button>
 			</div>
 
 			{/* Summary - fills main area */}
@@ -236,37 +222,20 @@ function CashGameSessionPage() {
 				{session.memo && (
 					<p className="mt-2 text-muted-foreground text-xs">{session.memo}</p>
 				)}
-
-				{isCompleted && (
-					<div className="mt-6 flex flex-col items-center gap-3">
-						<p className="text-muted-foreground text-sm">
-							Session completed and saved to history.
-						</p>
-						<Button
-							disabled={reopenMutation.isPending}
-							onClick={() => reopenMutation.mutate()}
-							variant="outline"
-						>
-							{reopenMutation.isPending ? "Reopening..." : "Reopen Session"}
-						</Button>
-					</div>
-				)}
 			</div>
 
 			{/* Stack form - fixed at bottom */}
-			{isActive && (
-				<div className="border-border border-t pt-2 pb-1">
-					<CashGameStackForm
-						isLoading={stackMutation.isPending}
-						onChipAdd={(amount) => chipAddMutation.mutate(amount)}
-						onComplete={(currentStack) => {
-							setDefaultFinalStack(currentStack);
-							setIsCompleteOpen(true);
-						}}
-						onSubmit={(values) => stackMutation.mutate(values)}
-					/>
-				</div>
-			)}
+			<div className="border-border border-t pt-2 pb-1">
+				<CashGameStackForm
+					isLoading={stackMutation.isPending}
+					onChipAdd={(amount) => chipAddMutation.mutate(amount)}
+					onComplete={(currentStack) => {
+						setDefaultFinalStack(currentStack);
+						setIsCompleteOpen(true);
+					}}
+					onSubmit={(values) => stackMutation.mutate(values)}
+				/>
+			</div>
 
 			{/* Complete dialog */}
 			<ResponsiveDialog

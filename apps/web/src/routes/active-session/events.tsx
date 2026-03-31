@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
+import { useActiveSession } from "@/hooks/use-active-session";
 import { trpc, trpcClient } from "@/utils/trpc";
 
-export const Route = createFileRoute(
-	"/live-sessions/cash-game/$sessionId/events"
-)({
-	component: CashGameEventsPage,
+export const Route = createFileRoute("/active-session/events")({
+	component: ActiveSessionEventsPage,
 });
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -106,14 +105,12 @@ function EventDetail({
 
 	if (eventType === "stack_record") {
 		const hasAllIns: boolean = Array.isArray(p.allIns) && p.allIns.length > 0;
-
 		if (!hasAllIns) {
 			return null;
 		}
-
 		return (
 			<div className="mt-1">
-				{hasAllIns && <AllInsDetail allIns={p.allIns as unknown[]} />}
+				<AllInsDetail allIns={p.allIns as unknown[]} />
 			</div>
 		);
 	}
@@ -179,8 +176,7 @@ function JsonEditor({
 	const handleSave = () => {
 		setParseError(null);
 		try {
-			const parsed = JSON.parse(value);
-			onSubmit(parsed);
+			onSubmit(JSON.parse(value));
 		} catch (err) {
 			setParseError(err instanceof Error ? err.message : "Invalid JSON");
 		}
@@ -210,7 +206,6 @@ function JsonEditor({
 	);
 }
 
-// Simple editor for non-stack events (chip_add, etc.)
 function SimpleEventEditor({
 	event,
 	isLoading,
@@ -224,7 +219,6 @@ function SimpleEventEditor({
 }) {
 	const p = (event.payload ?? {}) as Record<string, unknown>;
 
-	// chip_add: amount editor
 	if (event.eventType === "chip_add" && typeof p.amount === "number") {
 		return (
 			<AmountEditor
@@ -246,15 +240,21 @@ function SimpleEventEditor({
 	);
 }
 
-function CashGameEventsPage() {
-	const { sessionId } = Route.useParams();
+function ActiveSessionEventsPage() {
 	const queryClient = useQueryClient();
+	const { activeSession, isLoading: isSessionLoading } = useActiveSession();
+
+	const sessionId = activeSession?.id ?? "";
 
 	const [editEvent, setEditEvent] = useState<SessionEvent | null>(null);
 
-	const eventsQuery = useQuery(
-		trpc.sessionEvent.list.queryOptions({ liveCashGameSessionId: sessionId })
-	);
+	const eventsQuery = useQuery({
+		...trpc.sessionEvent.list.queryOptions({
+			liveCashGameSessionId: sessionId,
+		}),
+		enabled: !!sessionId,
+		refetchInterval: 3000,
+	});
 	const events = (eventsQuery.data ?? []) as SessionEvent[];
 
 	const eventsKey = trpc.sessionEvent.list.queryOptions({
@@ -287,6 +287,22 @@ function CashGameEventsPage() {
 			setEditEvent(null);
 		},
 	});
+
+	if (isSessionLoading) {
+		return (
+			<div className="flex h-[100dvh] items-center justify-center pb-16">
+				<p className="text-muted-foreground">Loading...</p>
+			</div>
+		);
+	}
+
+	if (!activeSession) {
+		return (
+			<div className="flex h-[100dvh] items-center justify-center pb-16">
+				<p className="text-muted-foreground">No active session</p>
+			</div>
+		);
+	}
 
 	return (
 		<div className="p-4 md:p-6">
