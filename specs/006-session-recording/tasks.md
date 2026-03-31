@@ -119,7 +119,7 @@
 
 - [ ] T026 Update cash game detail page: add reopen mutation calling `liveCashGameSession.reopen`. On success, invalidate queries and stay on same page. Show reopen button only when session is completed and no other active session exists. File: `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx`
 
-- [ ] T027 Update cash game detail page: update `formatPayloadSummary` for new allIn format. For `cash_game_stack_record` with allIns, show potSize/equity instead of actualResult/evResult. File: `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx`
+- [ ] T027 Update cash game detail page: update `formatPayloadSummary` for new event types. For `stack_record` events with allIns, show potSize/equity instead of actualResult/evResult. For `chip_add` events, show amount (covers both initialBuyIn and addon). File: `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx`
 
 ### Session Summary Update
 
@@ -141,7 +141,7 @@
 
 - [ ] T033 Test: write component tests for `EventBadge`: test renders badge text, test tap opens edit/delete actions. File: `apps/web/src/components/live-sessions/__tests__/event-badge.test.tsx`
 
-- [ ] T034 Test: write component tests for updated `CashGameStackForm`: test allIn add via bottom sheet, test addon add via bottom sheet, test badge display, test submit with new allIn format. File: `apps/web/src/components/live-cash-game/__tests__/cash-game-stack-form.test.tsx`
+- [ ] T034 Test: write component tests for updated `CashGameStackForm`: test allIn add via bottom sheet, test addon triggers separate `chip_add` event (not embedded in stack_record), test badge display for allIns, test submit `stack_record` payload with new allIn format (no addon field). File: `apps/web/src/components/live-cash-game/__tests__/cash-game-stack-form.test.tsx`
 
 ---
 
@@ -161,7 +161,7 @@
 
 - [ ] T039 Create tournament detail page: session header, status badge, TournamentSummary, TournamentStackForm (active only), event list, complete/discard/reopen actions. 1-screen design. File: `apps/web/src/routes/live-sessions/tournament/$sessionId.tsx`
 
-- [ ] T040 Update live sessions list page: add "New Tournament" button alongside "New Cash Game". Show tournament sessions in the list alongside cash game sessions (query both routers). Route tournament card clicks to tournament detail page. File: `apps/web/src/routes/live-sessions/index.tsx`
+- [ ] T040 Update active session page: add "New Tournament" button alongside "New Cash Game". Show tournament sessions alongside cash game sessions in the completed/recent list (query both routers). Route tournament card clicks to tournament detail page. File: `apps/web/src/routes/active-session/index.tsx`
 
 ### Tournament Component Tests
 
@@ -175,15 +175,15 @@
 
 ### Reopen UI
 
-- [ ] T043 Update live sessions list page: add "Reopen" action to completed session cards. Before reopen, check if an active session exists and show warning if so. On successful reopen, navigate to the session detail page. File: `apps/web/src/routes/live-sessions/index.tsx`
+- [ ] T043 Update active session page: add "Reopen" action to completed session cards. Before reopen, check if an active session exists and show warning if so. On successful reopen, navigate to the session detail page. File: `apps/web/src/routes/active-session/index.tsx`
 
 - [ ] T044 Add `useActiveSession` hook: queries both `liveCashGameSession.list({ status: "active" })` and `liveTournamentSession.list({ status: "active" })` to determine if any active session exists. Returns `{ hasActive: boolean, activeSession: { id, type } | null }`. Used by create forms and reopen buttons to enforce single-session guard in UI. File: `apps/web/src/hooks/use-active-session.ts`
 
-- [ ] T045 Update create session UI: use `useActiveSession` to disable "New Cash Game" and "New Tournament" buttons when an active session exists. Show inline message directing user to the active session or to complete it first. File: `apps/web/src/routes/live-sessions/index.tsx`
+- [ ] T045 Update active session page: use `useActiveSession` to disable "New Cash Game" and "New Tournament" buttons when an active session exists. Show inline message directing user to the active session or to complete it first. File: `apps/web/src/routes/active-session/index.tsx`
 
 ### Reopen Tests
 
-- [ ] T046 Test: write component tests for reopen flow in list page: test reopen button visibility for completed sessions, test reopen button disabled when active session exists, test successful reopen navigates to detail. File: `apps/web/src/routes/live-sessions/__tests__/reopen-flow.test.tsx`
+- [ ] T046 Test: write component tests for reopen flow in active session page: test reopen button visibility for completed sessions, test reopen button disabled when active session exists, test successful reopen navigates to detail. File: `apps/web/src/routes/active-session/__tests__/reopen-flow.test.tsx`
 
 ---
 
@@ -211,7 +211,7 @@
 
 ### Event Timeline
 
-- [ ] T053 Create `EventTimeline` component: displays all session events in chronological order. Each event shows type label, timestamp, payload summary. For `cash_game_stack_record`: show stack amount, allIn badges (potSize/equity), addon badge. For completed sessions, allow edit/delete of events via tap. File: `apps/web/src/components/live-sessions/event-timeline.tsx`
+- [ ] T053 Create `EventTimeline` component: displays all session events in chronological order. Each event shows type label, timestamp, payload summary. For `stack_record`: show stackAmount, allIn badges (potSize/equity). For `chip_add`: show amount (label as "Buy-in" for first event, "Add-on" for subsequent ones). For `session_start`/`session_end`: show lifecycle marker. For completed sessions, allow edit/delete of events via tap. File: `apps/web/src/components/live-sessions/event-timeline.tsx`
 
 - [ ] T054 Create `EditEventSheet` component: bottom sheet for editing an existing event's payload. Dynamically renders the correct form based on `eventType`. Calls `sessionEvent.update`. File: `apps/web/src/components/live-sessions/edit-event-sheet.tsx`
 
