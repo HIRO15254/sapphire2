@@ -80,8 +80,11 @@
 }
 ```
 **Output**: `{ id: string }`
+**Validation**:
+- No other active session exists for the user (checked across both `liveCashGameSession` and `liveTournamentSession` tables); throws `BAD_REQUEST` if one does
 **Side effects**:
-- cash_game_buy_in イベントを自動記録 (amount = initialBuyIn)
+- `session_start` イベントを自動記録 (payload: `{}`)
+- `chip_add` イベントを自動記録 (payload: `{ amount: initialBuyIn }`)
 
 ### liveCashGameSession.update
 
@@ -104,29 +107,37 @@
 ```typescript
 {
   id: string
-  cashOut: number
+  finalStack: number
 }
 ```
 **Output**: `{ id: string, pokerSessionId: string }`
 **Side effects**:
-- cash_outイベントを自動記録
-- pokerSessionレコードを作成（イベント集約からP&L計算）
-- 通貨トランザクションを自動作成（currencyId設定時）
+- `stack_record` イベントを自動記録 (payload: `{ stackAmount: finalStack, allIns: [] }`)
+- `session_end` イベントを自動記録 (payload: `{}`)
+- pokerSessionレコードを作成または更新（イベント集約からP&L計算）
+  - totalBuyIn = Σ chip_add.amount
+  - cashOut = last stack_record.stackAmount
+- 通貨トランザクションを自動作成または更新（currencyId設定時）
 
 ### liveCashGameSession.reopen
 
 **Type**: mutation (protected)
 **Input**: `{ id: string }`
 **Output**: `{ id: string }`
-**Validation**: status === "completed", no other active session exists
-**Side effects**: status を "active" に変更
+**Validation**:
+- `status === "completed"`
+- No other active session exists for the user (checked across both `liveCashGameSession` and `liveTournamentSession` tables)
+**Side effects**:
+- `status` を `"active"` に変更、`endedAt` をクリア
+- 新しい `session_start` イベントを末尾に追加（既存イベントは保持）
+- リンクされた `pokerSession` と `currencyTransaction` を削除（次回 `complete` 時に再作成）
 
 ### liveCashGameSession.discard
 
 **Type**: mutation (protected)
 **Input**: `{ id: string }`
 **Output**: `{ id: string }`
-**Validation**: status === "active"
+**Validation**: `status === "active"`
 **Side effects**: セッション + 全イベント + 全SessionTablePlayerをカスケード削除
 
 ## Error Codes
@@ -136,4 +147,4 @@
 | NOT_FOUND | セッションが存在しないまたは他ユーザーのセッション |
 | BAD_REQUEST | 無効な状態遷移 |
 | BAD_REQUEST | アクティブでないセッションの破棄 |
-| BAD_REQUEST | reopen時に他のアクティブセッションが存在する |
+| BAD_REQUEST | create/reopen時に他のアクティブセッションが存在する（キャッシュゲーム・トーナメント両テーブルをチェック） |
