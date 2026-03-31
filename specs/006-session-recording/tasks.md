@@ -223,7 +223,7 @@
 
 ### Event History Tests
 
-- [ ] T058 Test: write component tests for `EventTimeline`: test renders events in order, test edit opens sheet, test delete shows confirmation. File: `apps/web/src/components/live-sessions/__tests__/event-timeline.test.tsx`
+- [ ] T058 Test: write component tests for `EventTimeline`: test renders events in order, test `chip_add` labeled as "Buy-in" for first and "Add-on" for subsequent, test `stack_record` shows allIn badges, test `session_start`/`session_end` rendered as lifecycle markers, test edit opens sheet, test delete shows confirmation. File: `apps/web/src/components/live-sessions/__tests__/event-timeline.test.tsx`
 
 ---
 
@@ -231,9 +231,9 @@
 
 ### Dynamic Bottom Navigation
 
-- [ ] T059 Update bottom navigation (sidebar-nav or root layout): add `useActiveSession` hook to check for active sessions. When active session exists, change center/primary nav button to navigate to the active session detail page. When no active session, center button navigates to `/live-sessions/` for new session creation. File: `apps/web/src/routes/__root.tsx` (or the component containing bottom nav)
+- [ ] T059 Update bottom navigation (sidebar-nav or root layout): add `useActiveSession` hook to check for active sessions. When active session exists, change center/primary nav button to navigate to the active session detail page (`/live-sessions/cash-game/$sessionId` or `/live-sessions/tournament/$sessionId`). When no active session, center button navigates to `/active-session` for new session creation/reopen. File: `apps/web/src/routes/__root.tsx` (or the component containing bottom nav)
 
-- [ ] T060 Update bottom navigation: when active session exists, add secondary nav items for event history and table players views of the current session. When no active session, show normal navigation items. File: `apps/web/src/routes/__root.tsx` (or the component containing bottom nav)
+- [ ] T060 Update bottom navigation: when active session exists, add secondary nav item for `/active-session/events` (event history of current session). When no active session, show normal navigation items. File: `apps/web/src/routes/__root.tsx` (or the component containing bottom nav)
 
 ### 1-Screen Design Validation
 
@@ -241,7 +241,7 @@
 
 ### Final Integration Tests
 
-- [ ] T062 Test: write integration test for full cash game lifecycle: create session with initialBuyIn -> record stack with allIn (new format) and addon -> complete -> verify P&L -> reopen -> add more events -> re-complete -> verify updated P&L. File: `apps/web/src/__tests__/cash-game-lifecycle.test.tsx`
+- [ ] T062 Test: write integration test for full cash game lifecycle: create session with initialBuyIn (auto-creates `session_start` + `chip_add`) -> record stack (`stack_record` with allIn in potSize/trials/equity/wins format) -> add addon (separate `chip_add` event) -> complete with `finalStack` (auto-creates `stack_record` + `session_end`) -> verify P&L (totalBuyIn = Σ chip_add, cashOut = last stack_record.stackAmount) -> reopen (appends new `session_start`) -> add more events -> re-complete -> verify updated P&L. File: `apps/web/src/__tests__/cash-game-lifecycle.test.tsx`
 
 - [ ] T063 Test: write integration test for single-session guard: create cash game session -> attempt to create another -> verify blocked. Create tournament -> verify blocked. Complete first -> create second -> verify allowed. File: `apps/web/src/__tests__/single-session-guard.test.tsx`
 
