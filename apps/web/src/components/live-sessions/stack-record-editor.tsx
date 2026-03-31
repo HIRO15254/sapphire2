@@ -27,6 +27,8 @@ interface StackRecordEditorProps {
 	initialOccurredAt?: string | Date;
 	initialPayload: StackRecordPayload;
 	isLoading: boolean;
+	maxTime?: Date | null;
+	minTime?: Date | null;
 	onDelete: () => void;
 	onSubmit: (payload: StackRecordPayload, occurredAt?: number) => void;
 }
@@ -43,10 +45,30 @@ function applyTimeToDate(original: string | Date, timeStr: string): Date {
 	return date;
 }
 
+function validateTime(
+	timeStr: string,
+	original: string | Date,
+	minTime: Date | null | undefined,
+	maxTime: Date | null | undefined
+): string | null {
+	const newDate = applyTimeToDate(original, timeStr);
+	if (minTime && newDate.getTime() < minTime.getTime()) {
+		const fmt = `${String(minTime.getHours()).padStart(2, "0")}:${String(minTime.getMinutes()).padStart(2, "0")}`;
+		return `Must be after ${fmt}`;
+	}
+	if (maxTime && newDate.getTime() > maxTime.getTime()) {
+		const fmt = `${String(maxTime.getHours()).padStart(2, "0")}:${String(maxTime.getMinutes()).padStart(2, "0")}`;
+		return `Must be before ${fmt}`;
+	}
+	return null;
+}
+
 export function StackRecordEditor({
 	initialOccurredAt,
 	initialPayload,
 	isLoading,
+	maxTime,
+	minTime,
 	onDelete,
 	onSubmit,
 }: StackRecordEditorProps) {
@@ -111,6 +133,11 @@ export function StackRecordEditor({
 		onSubmit(payload, occurredAt);
 	};
 
+	const timeError =
+		initialOccurredAt && time
+			? validateTime(time, initialOccurredAt, minTime, maxTime)
+			: null;
+
 	return (
 		<div className="flex flex-col gap-4">
 			{initialOccurredAt && (
@@ -122,6 +149,7 @@ export function StackRecordEditor({
 						type="time"
 						value={time}
 					/>
+					{timeError && <p className="text-destructive text-xs">{timeError}</p>}
 				</div>
 			)}
 
@@ -178,7 +206,11 @@ export function StackRecordEditor({
 
 			{/* Actions */}
 			<div className="flex flex-col gap-2">
-				<Button disabled={isLoading} onClick={handleSave} type="button">
+				<Button
+					disabled={isLoading || timeError !== null}
+					onClick={handleSave}
+					type="button"
+				>
 					{isLoading ? "Saving..." : "Save"}
 				</Button>
 				<Button onClick={onDelete} type="button" variant="destructive">

@@ -25,7 +25,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 	session_end: "Session End",
 };
 
-const NON_EDITABLE_EVENTS = new Set(["session_start", "session_end"]);
+const LIFECYCLE_EVENTS = new Set(["session_start", "session_end"]);
 
 function formatEventLabel(eventType: string): string {
 	return EVENT_TYPE_LABELS[eventType] ?? eventType;
@@ -37,14 +37,13 @@ function formatTime(value: string | Date): string {
 }
 
 function toTimeInputValue(value: string | Date): string {
-	const date = typeof value === "string" ? new Date(value) : value;
-	return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+	return formatTime(value);
 }
 
 function applyTimeToDate(original: string | Date, timeStr: string): Date {
 	const date = new Date(typeof original === "string" ? original : original);
 	const [h, m] = timeStr.split(":").map(Number);
-	date.setHours(h ?? 0, m ?? 0);
+	date.setHours(h ?? 0, m ?? 0, 0, 0);
 	return date;
 }
 
@@ -130,20 +129,37 @@ function EventDetail({
 	return null;
 }
 
-function AmountEditor({
+function validateTime(
+	timeStr: string,
+	original: string | Date,
+	minTime: Date | null,
+	maxTime: Date | null
+): string | null {
+	const newDate = applyTimeToDate(original, timeStr);
+	if (minTime && newDate.getTime() < minTime.getTime()) {
+		return `Must be after ${formatTime(minTime)}`;
+	}
+	if (maxTime && newDate.getTime() > maxTime.getTime()) {
+		return `Must be before ${formatTime(maxTime)}`;
+	}
+	return null;
+}
+
+function TimeOnlyEditor({
 	event,
 	isLoading,
-	onDelete: handleDelete,
+	maxTime,
+	minTime,
 	onSubmit,
 }: {
 	event: SessionEvent;
 	isLoading: boolean;
-	onDelete: () => void;
-	onSubmit: (payload: unknown, occurredAt?: number) => void;
+	maxTime: Date | null;
+	minTime: Date | null;
+	onSubmit: (occurredAt: number) => void;
 }) {
-	const p = (event.payload ?? {}) as Record<string, unknown>;
-	const [amount, setAmount] = useState(String(p.amount ?? 0));
 	const [time, setTime] = useState(toTimeInputValue(event.occurredAt));
+	const error = validateTime(time, event.occurredAt, minTime, maxTime);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -155,6 +171,53 @@ function AmountEditor({
 					type="time"
 					value={time}
 				/>
+				{error && <p className="text-destructive text-xs">{error}</p>}
+			</div>
+			<Button
+				disabled={isLoading || error !== null}
+				onClick={() => {
+					const newDate = applyTimeToDate(event.occurredAt, time);
+					onSubmit(Math.floor(newDate.getTime() / 1000));
+				}}
+				type="button"
+			>
+				{isLoading ? "Saving..." : "Save"}
+			</Button>
+		</div>
+	);
+}
+
+function AmountEditor({
+	event,
+	isLoading,
+	maxTime,
+	minTime,
+	onDelete: handleDelete,
+	onSubmit,
+}: {
+	event: SessionEvent;
+	isLoading: boolean;
+	maxTime: Date | null;
+	minTime: Date | null;
+	onDelete: () => void;
+	onSubmit: (payload: unknown, occurredAt?: number) => void;
+}) {
+	const p = (event.payload ?? {}) as Record<string, unknown>;
+	const [amount, setAmount] = useState(String(p.amount ?? 0));
+	const [time, setTime] = useState(toTimeInputValue(event.occurredAt));
+	const timeError = validateTime(time, event.occurredAt, minTime, maxTime);
+
+	return (
+		<div className="flex flex-col gap-4">
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor="edit-time">Time</Label>
+				<Input
+					id="edit-time"
+					onChange={(e) => setTime(e.target.value)}
+					type="time"
+					value={time}
+				/>
+				{timeError && <p className="text-destructive text-xs">{timeError}</p>}
 			</div>
 			<div className="flex flex-col gap-1.5">
 				<Label htmlFor="edit-amount">Amount</Label>
@@ -169,7 +232,7 @@ function AmountEditor({
 			</div>
 			<div className="flex flex-col gap-2">
 				<Button
-					disabled={isLoading}
+					disabled={isLoading || timeError !== null}
 					onClick={() => {
 						const newDate = applyTimeToDate(event.occurredAt, time);
 						onSubmit(
@@ -187,6 +250,19 @@ function AmountEditor({
 			</div>
 		</div>
 	);
+}
+
+function getTimeBounds(
+	events: SessionEvent[],
+	targetId: string
+): { minTime: Date | null; maxTime: Date | null } {
+	const idx = events.findIndex((e) => e.id === targetId);
+	const prev = idx > 0 ? events[idx - 1] : null;
+	const next = idx < events.length - 1 ? events[idx + 1] : null;
+	return {
+		minTime: prev ? new Date(prev.occurredAt as string) : null,
+		maxTime: next ? new Date(next.occurredAt as string) : null,
+	};
 }
 
 function CashGameEventsPage() {
@@ -234,12 +310,9 @@ function CashGameEventsPage() {
 		},
 	});
 
-	const handleUpdate = (payload: unknown, occurredAt?: number) => {
-		if (!editEvent) {
-			return;
-		}
-		updateMutation.mutate({ id: editEvent.id, payload, occurredAt });
-	};
+	const timeBounds = editEvent
+		? getTimeBounds(events, editEvent.id)
+		: { minTime: null, maxTime: null };
 
 	return (
 		<div className="p-4 md:p-6">
@@ -258,7 +331,7 @@ function CashGameEventsPage() {
 							event.eventType,
 							event.payload
 						);
-						const isEditable = !NON_EDITABLE_EVENTS.has(event.eventType);
+						const isLifecycle = LIFECYCLE_EVENTS.has(event.eventType);
 						return (
 							<div className="relative flex gap-3 pb-4" key={event.id}>
 								<div className="w-[44px] shrink-0 pt-0.5 text-right text-muted-foreground text-xs">
@@ -281,15 +354,15 @@ function CashGameEventsPage() {
 												payload={event.payload}
 											/>
 										</div>
-										{isEditable && (
-											<div className="flex shrink-0 gap-1">
-												<Button
-													onClick={() => setEditEvent(event)}
-													size="icon-xs"
-													variant="ghost"
-												>
-													<IconPencil size={14} />
-												</Button>
+										<div className="flex shrink-0 gap-1">
+											<Button
+												onClick={() => setEditEvent(event)}
+												size="icon-xs"
+												variant="ghost"
+											>
+												<IconPencil size={14} />
+											</Button>
+											{!isLifecycle && (
 												<Button
 													onClick={() => deleteMutation.mutate(event.id)}
 													size="icon-xs"
@@ -297,8 +370,8 @@ function CashGameEventsPage() {
 												>
 													<IconTrash size={14} />
 												</Button>
-											</div>
-										)}
+											)}
+										</div>
 									</div>
 								</div>
 							</div>
@@ -317,7 +390,17 @@ function CashGameEventsPage() {
 				title={`Edit ${editEvent ? formatEventLabel(editEvent.eventType) : ""}`}
 			>
 				{editEvent &&
-					(editEvent.eventType === "stack_record" ? (
+					(LIFECYCLE_EVENTS.has(editEvent.eventType) ? (
+						<TimeOnlyEditor
+							event={editEvent}
+							isLoading={updateMutation.isPending}
+							maxTime={timeBounds.maxTime}
+							minTime={timeBounds.minTime}
+							onSubmit={(occurredAt) =>
+								updateMutation.mutate({ id: editEvent.id, occurredAt })
+							}
+						/>
+					) : editEvent.eventType === "stack_record" ? (
 						<StackRecordEditor
 							initialOccurredAt={editEvent.occurredAt}
 							initialPayload={{
@@ -337,6 +420,8 @@ function CashGameEventsPage() {
 									: [],
 							}}
 							isLoading={updateMutation.isPending}
+							maxTime={timeBounds.maxTime}
+							minTime={timeBounds.minTime}
 							onDelete={() => deleteMutation.mutate(editEvent.id)}
 							onSubmit={(payload, occurredAt) =>
 								updateMutation.mutate({
@@ -350,8 +435,19 @@ function CashGameEventsPage() {
 						<AmountEditor
 							event={editEvent}
 							isLoading={updateMutation.isPending}
+							maxTime={timeBounds.maxTime}
+							minTime={timeBounds.minTime}
 							onDelete={() => deleteMutation.mutate(editEvent.id)}
-							onSubmit={handleUpdate}
+							onSubmit={(payload, occurredAt) => {
+								if (!editEvent) {
+									return;
+								}
+								updateMutation.mutate({
+									id: editEvent.id,
+									payload,
+									occurredAt,
+								});
+							}}
 						/>
 					))}
 			</ResponsiveDialog>

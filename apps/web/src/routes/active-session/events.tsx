@@ -24,7 +24,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 	session_end: "Session End",
 };
 
-const NON_EDITABLE_EVENTS = new Set(["session_start", "session_end"]);
+const LIFECYCLE_EVENTS = new Set(["session_start", "session_end"]);
 
 function formatEventLabel(eventType: string): string {
 	return EVENT_TYPE_LABELS[eventType] ?? eventType;
@@ -36,14 +36,13 @@ function formatTime(value: string | Date): string {
 }
 
 function toTimeInputValue(value: string | Date): string {
-	const date = typeof value === "string" ? new Date(value) : value;
-	return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+	return formatTime(value);
 }
 
 function applyTimeToDate(original: string | Date, timeStr: string): Date {
 	const date = new Date(typeof original === "string" ? original : original);
 	const [h, m] = timeStr.split(":").map(Number);
-	date.setHours(h ?? 0, m ?? 0);
+	date.setHours(h ?? 0, m ?? 0, 0, 0);
 	return date;
 }
 
@@ -132,22 +131,60 @@ function EventDetail({
 	return null;
 }
 
-function TimeEditor({
-	onChange,
-	value,
+function validateTime(
+	timeStr: string,
+	original: string | Date,
+	minTime: Date | null,
+	maxTime: Date | null
+): string | null {
+	const newDate = applyTimeToDate(original, timeStr);
+	if (minTime && newDate.getTime() < minTime.getTime()) {
+		return `Must be after ${formatTime(minTime)}`;
+	}
+	if (maxTime && newDate.getTime() > maxTime.getTime()) {
+		return `Must be before ${formatTime(maxTime)}`;
+	}
+	return null;
+}
+
+function TimeOnlyEditor({
+	event,
+	isLoading,
+	maxTime,
+	minTime,
+	onSubmit,
 }: {
-	onChange: (v: string) => void;
-	value: string;
+	event: SessionEvent;
+	isLoading: boolean;
+	maxTime: Date | null;
+	minTime: Date | null;
+	onSubmit: (occurredAt: number) => void;
 }) {
+	const [time, setTime] = useState(toTimeInputValue(event.occurredAt));
+	const error = validateTime(time, event.occurredAt, minTime, maxTime);
+
 	return (
-		<div className="flex flex-col gap-1.5">
-			<Label htmlFor="edit-time">Time</Label>
-			<Input
-				id="edit-time"
-				onChange={(e) => onChange(e.target.value)}
-				type="time"
-				value={value}
-			/>
+		<div className="flex flex-col gap-4">
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor="edit-time">Time</Label>
+				<Input
+					id="edit-time"
+					onChange={(e) => setTime(e.target.value)}
+					type="time"
+					value={time}
+				/>
+				{error && <p className="text-destructive text-xs">{error}</p>}
+			</div>
+			<Button
+				disabled={isLoading || error !== null}
+				onClick={() => {
+					const newDate = applyTimeToDate(event.occurredAt, time);
+					onSubmit(Math.floor(newDate.getTime() / 1000));
+				}}
+				type="button"
+			>
+				{isLoading ? "Saving..." : "Save"}
+			</Button>
 		</div>
 	);
 }
@@ -155,21 +192,35 @@ function TimeEditor({
 function AmountEditor({
 	event,
 	isLoading,
+	maxTime,
+	minTime,
 	onDelete: handleDelete,
 	onSubmit,
 }: {
 	event: SessionEvent;
 	isLoading: boolean;
+	maxTime: Date | null;
+	minTime: Date | null;
 	onDelete: () => void;
 	onSubmit: (payload: unknown, occurredAt?: number) => void;
 }) {
 	const p = (event.payload ?? {}) as Record<string, unknown>;
 	const [amount, setAmount] = useState(String(p.amount ?? 0));
 	const [time, setTime] = useState(toTimeInputValue(event.occurredAt));
+	const timeError = validateTime(time, event.occurredAt, minTime, maxTime);
 
 	return (
 		<div className="flex flex-col gap-4">
-			<TimeEditor onChange={setTime} value={time} />
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor="edit-time">Time</Label>
+				<Input
+					id="edit-time"
+					onChange={(e) => setTime(e.target.value)}
+					type="time"
+					value={time}
+				/>
+				{timeError && <p className="text-destructive text-xs">{timeError}</p>}
+			</div>
 			<div className="flex flex-col gap-1.5">
 				<Label htmlFor="edit-amount">Amount</Label>
 				<Input
@@ -183,7 +234,7 @@ function AmountEditor({
 			</div>
 			<div className="flex flex-col gap-2">
 				<Button
-					disabled={isLoading}
+					disabled={isLoading || timeError !== null}
 					onClick={() => {
 						const newDate = applyTimeToDate(event.occurredAt, time);
 						onSubmit(
@@ -200,6 +251,97 @@ function AmountEditor({
 				</Button>
 			</div>
 		</div>
+	);
+}
+
+function getTimeBounds(
+	events: SessionEvent[],
+	targetId: string
+): { minTime: Date | null; maxTime: Date | null } {
+	const idx = events.findIndex((e) => e.id === targetId);
+	const prev = idx > 0 ? events[idx - 1] : null;
+	const next = idx < events.length - 1 ? events[idx + 1] : null;
+	return {
+		minTime: prev
+			? new Date(
+					typeof prev.occurredAt === "string"
+						? prev.occurredAt
+						: prev.occurredAt
+				)
+			: null,
+		maxTime: next
+			? new Date(
+					typeof next.occurredAt === "string"
+						? next.occurredAt
+						: next.occurredAt
+				)
+			: null,
+	};
+}
+
+function EventEditor({
+	event,
+	isLoading,
+	maxTime,
+	minTime,
+	onDelete,
+	onTimeUpdate,
+	onUpdate,
+}: {
+	event: SessionEvent;
+	isLoading: boolean;
+	maxTime: Date | null;
+	minTime: Date | null;
+	onDelete: () => void;
+	onTimeUpdate: (occurredAt: number) => void;
+	onUpdate: (payload: unknown, occurredAt?: number) => void;
+}) {
+	if (LIFECYCLE_EVENTS.has(event.eventType)) {
+		return (
+			<TimeOnlyEditor
+				event={event}
+				isLoading={isLoading}
+				maxTime={maxTime}
+				minTime={minTime}
+				onSubmit={onTimeUpdate}
+			/>
+		);
+	}
+
+	if (event.eventType === "stack_record") {
+		return (
+			<StackRecordEditor
+				initialOccurredAt={event.occurredAt}
+				initialPayload={{
+					stackAmount:
+						(event.payload as { stackAmount?: number })?.stackAmount ?? 0,
+					allIns: Array.isArray((event.payload as { allIns?: unknown })?.allIns)
+						? ((event.payload as { allIns: unknown[] }).allIns as Array<{
+								equity: number;
+								potSize: number;
+								trials: number;
+								wins: number;
+							}>)
+						: [],
+				}}
+				isLoading={isLoading}
+				maxTime={maxTime}
+				minTime={minTime}
+				onDelete={onDelete}
+				onSubmit={(payload, occurredAt) => onUpdate(payload, occurredAt)}
+			/>
+		);
+	}
+
+	return (
+		<AmountEditor
+			event={event}
+			isLoading={isLoading}
+			maxTime={maxTime}
+			minTime={minTime}
+			onDelete={onDelete}
+			onSubmit={onUpdate}
+		/>
 	);
 }
 
@@ -270,16 +412,9 @@ function ActiveSessionEventsPage() {
 		);
 	}
 
-	const handleUpdate = (payload: unknown, occurredAt?: number) => {
-		if (!editEvent) {
-			return;
-		}
-		updateMutation.mutate({
-			id: editEvent.id,
-			payload,
-			occurredAt,
-		});
-	};
+	const timeBounds = editEvent
+		? getTimeBounds(events, editEvent.id)
+		: { minTime: null, maxTime: null };
 
 	return (
 		<div className="p-4 md:p-6">
@@ -292,7 +427,6 @@ function ActiveSessionEventsPage() {
 				<p className="text-muted-foreground text-sm">No events recorded yet.</p>
 			) : (
 				<div className="relative">
-					{/* Vertical line */}
 					<div className="absolute top-0 bottom-0 left-[52px] w-px bg-border" />
 
 					{events.map((event) => {
@@ -300,19 +434,14 @@ function ActiveSessionEventsPage() {
 							event.eventType,
 							event.payload
 						);
-						const isEditable = !NON_EDITABLE_EVENTS.has(event.eventType);
+						const isLifecycle = LIFECYCLE_EVENTS.has(event.eventType);
 
 						return (
 							<div className="relative flex gap-3 pb-4" key={event.id}>
-								{/* Time column */}
 								<div className="w-[44px] shrink-0 pt-0.5 text-right text-muted-foreground text-xs">
 									{formatTime(event.occurredAt)}
 								</div>
-
-								{/* Dot */}
 								<div className="relative z-10 mt-1.5 size-2.5 shrink-0 rounded-full bg-primary" />
-
-								{/* Content */}
 								<div className="min-w-0 flex-1">
 									<div className="flex items-start justify-between gap-2">
 										<div>
@@ -329,15 +458,15 @@ function ActiveSessionEventsPage() {
 												payload={event.payload}
 											/>
 										</div>
-										{isEditable && (
-											<div className="flex shrink-0 gap-1">
-												<Button
-													onClick={() => setEditEvent(event)}
-													size="icon-xs"
-													variant="ghost"
-												>
-													<IconPencil size={14} />
-												</Button>
+										<div className="flex shrink-0 gap-1">
+											<Button
+												onClick={() => setEditEvent(event)}
+												size="icon-xs"
+												variant="ghost"
+											>
+												<IconPencil size={14} />
+											</Button>
+											{!isLifecycle && (
 												<Button
 													onClick={() => deleteMutation.mutate(event.id)}
 													size="icon-xs"
@@ -345,8 +474,8 @@ function ActiveSessionEventsPage() {
 												>
 													<IconTrash size={14} />
 												</Button>
-											</div>
-										)}
+											)}
+										</div>
 									</div>
 								</div>
 							</div>
@@ -355,7 +484,6 @@ function ActiveSessionEventsPage() {
 				</div>
 			)}
 
-			{/* Edit dialog */}
 			<ResponsiveDialog
 				onOpenChange={(open) => {
 					if (!open) {
@@ -365,44 +493,25 @@ function ActiveSessionEventsPage() {
 				open={editEvent !== null}
 				title={`Edit ${editEvent ? formatEventLabel(editEvent.eventType) : ""}`}
 			>
-				{editEvent &&
-					(editEvent.eventType === "stack_record" ? (
-						<StackRecordEditor
-							initialOccurredAt={editEvent.occurredAt}
-							initialPayload={{
-								stackAmount:
-									(editEvent.payload as { stackAmount?: number })
-										?.stackAmount ?? 0,
-								allIns: Array.isArray(
-									(editEvent.payload as { allIns?: unknown })?.allIns
-								)
-									? ((editEvent.payload as { allIns: unknown[] })
-											.allIns as Array<{
-											equity: number;
-											potSize: number;
-											trials: number;
-											wins: number;
-										}>)
-									: [],
-							}}
-							isLoading={updateMutation.isPending}
-							onDelete={() => deleteMutation.mutate(editEvent.id)}
-							onSubmit={(payload, occurredAt) =>
-								updateMutation.mutate({
-									id: editEvent.id,
-									payload,
-									occurredAt,
-								})
-							}
-						/>
-					) : (
-						<AmountEditor
-							event={editEvent}
-							isLoading={updateMutation.isPending}
-							onDelete={() => deleteMutation.mutate(editEvent.id)}
-							onSubmit={handleUpdate}
-						/>
-					))}
+				{editEvent && (
+					<EventEditor
+						event={editEvent}
+						isLoading={updateMutation.isPending}
+						maxTime={timeBounds.maxTime}
+						minTime={timeBounds.minTime}
+						onDelete={() => deleteMutation.mutate(editEvent.id)}
+						onTimeUpdate={(occurredAt) =>
+							updateMutation.mutate({ id: editEvent.id, occurredAt })
+						}
+						onUpdate={(payload, occurredAt) =>
+							updateMutation.mutate({
+								id: editEvent.id,
+								payload,
+								occurredAt,
+							})
+						}
+					/>
+				)}
 			</ResponsiveDialog>
 		</div>
 	);
