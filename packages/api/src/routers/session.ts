@@ -848,6 +848,8 @@ export const sessionRouter = router({
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
 					createdAt: pokerSession.createdAt,
+					liveCashGameSessionId: pokerSession.liveCashGameSessionId,
+					liveTournamentSessionId: pokerSession.liveTournamentSessionId,
 				})
 				.from(pokerSession)
 				.leftJoin(store, eq(store.id, pokerSession.storeId))
