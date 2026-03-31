@@ -648,27 +648,30 @@ export const liveTournamentSessionRouter = router({
 					.where(eq(pokerSession.id, linkedPokerSession.id));
 			}
 
-			// Delete session_end, tournament_result events
-			await ctx.db
-				.delete(sessionEvent)
-				.where(
-					and(
-						eq(sessionEvent.liveTournamentSessionId, input.id),
-						eq(sessionEvent.eventType, "session_end")
-					)
-				);
-			await ctx.db
-				.delete(sessionEvent)
-				.where(
-					and(
-						eq(sessionEvent.liveTournamentSessionId, input.id),
-						eq(sessionEvent.eventType, "tournament_result")
-					)
-				);
+			const now = new Date();
+
+			// Add new session_start event (keeps previous session_end + tournament_result in history)
+			const [lastEvent] = await ctx.db
+				.select({ sortOrder: sessionEvent.sortOrder })
+				.from(sessionEvent)
+				.where(eq(sessionEvent.liveTournamentSessionId, input.id))
+				.orderBy(desc(sessionEvent.sortOrder))
+				.limit(1);
+			const nextSortOrder = lastEvent ? (lastEvent.sortOrder ?? 0) + 1 : 0;
+
+			await ctx.db.insert(sessionEvent).values({
+				id: crypto.randomUUID(),
+				liveTournamentSessionId: input.id,
+				eventType: "session_start",
+				occurredAt: now,
+				sortOrder: nextSortOrder,
+				payload: JSON.stringify({}),
+				updatedAt: now,
+			});
 
 			await ctx.db
 				.update(liveTournamentSession)
-				.set({ status: "active", endedAt: null, updatedAt: new Date() })
+				.set({ status: "active", endedAt: null, updatedAt: now })
 				.where(eq(liveTournamentSession.id, input.id));
 
 			return { id: input.id };

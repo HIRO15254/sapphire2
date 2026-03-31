@@ -576,24 +576,6 @@ export const liveCashGameSessionRouter = router({
 				});
 			}
 
-			// Delete session_end and cash_out events
-			await ctx.db
-				.delete(sessionEvent)
-				.where(
-					and(
-						eq(sessionEvent.liveCashGameSessionId, input.id),
-						eq(sessionEvent.eventType, "session_end")
-					)
-				);
-			await ctx.db
-				.delete(sessionEvent)
-				.where(
-					and(
-						eq(sessionEvent.liveCashGameSessionId, input.id),
-						eq(sessionEvent.eventType, "cash_out")
-					)
-				);
-
 			// Find linked pokerSession and clean up derived data
 			const [linkedPokerSession] = await ctx.db
 				.select({ id: pokerSession.id })
@@ -610,6 +592,25 @@ export const liveCashGameSessionRouter = router({
 			}
 
 			const now = new Date();
+
+			// Add new session_start event (keeps previous session_end + cash_out in history)
+			const [lastEvent] = await ctx.db
+				.select({ sortOrder: sessionEvent.sortOrder })
+				.from(sessionEvent)
+				.where(eq(sessionEvent.liveCashGameSessionId, input.id))
+				.orderBy(desc(sessionEvent.sortOrder))
+				.limit(1);
+			const nextSortOrder = lastEvent ? (lastEvent.sortOrder ?? 0) + 1 : 0;
+
+			await ctx.db.insert(sessionEvent).values({
+				id: crypto.randomUUID(),
+				liveCashGameSessionId: input.id,
+				eventType: "session_start",
+				occurredAt: now,
+				sortOrder: nextSortOrder,
+				payload: JSON.stringify({}),
+				updatedAt: now,
+			});
 
 			// Reopen the session
 			await ctx.db
