@@ -18,7 +18,12 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
-import { computeCashGamePLFromEvents } from "../services/live-session-pl";
+import {
+	computeCashGamePLFromEvents,
+	extractLegacyAddon,
+	isChipAddEvent,
+	isStackRecordEvent,
+} from "../services/live-session-pl";
 
 const DEFAULT_LIMIT = 20;
 
@@ -100,6 +105,71 @@ async function createCurrencyTransactionForSession(
 	});
 }
 
+interface EventSummary {
+	addonCount: number;
+	cashOut: number | null;
+	currentStack: number | null;
+	maxStack: number | null;
+	minStack: number | null;
+	totalBuyIn: number;
+}
+
+function processStackEvent(
+	parsed: unknown,
+	state: { maxStack: number | null; minStack: number | null }
+): { stack: number; legacyAddon: number } {
+	const data = stackRecordPayload.parse(parsed);
+	const stack = data.stackAmount;
+	if (state.maxStack === null || stack > state.maxStack) {
+		state.maxStack = stack;
+	}
+	if (state.minStack === null || stack < state.minStack) {
+		state.minStack = stack;
+	}
+	return { stack, legacyAddon: extractLegacyAddon(parsed) };
+}
+
+function computeSummaryFromEvents(
+	events: { eventType: string; payload: string }[]
+): EventSummary {
+	let totalBuyIn = 0;
+	let currentStack: number | null = null;
+	let chipAddCount = 0;
+	const stackRange = {
+		maxStack: null as number | null,
+		minStack: null as number | null,
+	};
+
+	for (const event of events) {
+		const parsed = JSON.parse(event.payload);
+		if (isChipAddEvent(event.eventType)) {
+			totalBuyIn += chipAddPayload.parse(parsed).amount;
+			chipAddCount++;
+		} else if (isStackRecordEvent(event.eventType)) {
+			const result = processStackEvent(parsed, stackRange);
+			currentStack = result.stack;
+			totalBuyIn += result.legacyAddon;
+			if (result.legacyAddon > 0) {
+				chipAddCount++;
+			}
+		} else if (event.eventType === "cash_out") {
+			const amount = (parsed as { amount?: number }).amount;
+			if (typeof amount === "number") {
+				currentStack = amount;
+			}
+		}
+	}
+
+	return {
+		totalBuyIn,
+		cashOut: currentStack,
+		currentStack,
+		maxStack: stackRange.maxStack,
+		minStack: stackRange.minStack,
+		addonCount: chipAddCount > 0 ? chipAddCount - 1 : 0,
+	};
+}
+
 export const liveCashGameSessionRouter = router({
 	list: protectedProcedure
 		.input(
@@ -174,12 +244,21 @@ export const liveCashGameSessionRouter = router({
 					let latestStackAmount: number | null = null;
 
 					for (const event of [...events].reverse()) {
-						if (event.eventType === "stack_record") {
+						if (
+							event.eventType === "stack_record" ||
+							event.eventType === "cash_game_stack_record"
+						) {
 							const parsed = stackRecordPayload.safeParse(
 								JSON.parse(event.payload)
 							);
 							if (parsed.success) {
 								latestStackAmount = parsed.data.stackAmount;
+								break;
+							}
+						} else if (event.eventType === "cash_out") {
+							const p = JSON.parse(event.payload) as { amount?: number };
+							if (typeof p.amount === "number") {
+								latestStackAmount = p.amount;
 								break;
 							}
 						}
@@ -209,52 +288,23 @@ export const liveCashGameSessionRouter = router({
 				.from(sessionTablePlayer)
 				.where(eq(sessionTablePlayer.liveCashGameSessionId, input.id));
 
-			// Compute summary from events
-			let totalBuyIn = 0;
-			let maxStack: number | null = null;
-			let minStack: number | null = null;
-			let currentStack: number | null = null;
-			let chipAddCount = 0;
-
-			for (const event of events) {
-				const parsed = JSON.parse(event.payload);
-
-				if (event.eventType === "chip_add") {
-					const data = chipAddPayload.parse(parsed);
-					totalBuyIn += data.amount;
-					chipAddCount++;
-				} else if (event.eventType === "stack_record") {
-					const data = stackRecordPayload.parse(parsed);
-					const stack = data.stackAmount;
-					if (maxStack === null || stack > maxStack) {
-						maxStack = stack;
-					}
-					if (minStack === null || stack < minStack) {
-						minStack = stack;
-					}
-					currentStack = stack;
-				}
-			}
-
-			// First chip_add is the initial buy-in; the rest are addons
-			const addonCount = chipAddCount > 0 ? chipAddCount - 1 : 0;
-			// Last stack_record's stackAmount is the cash-out
-			const cashOut = currentStack;
-
-			const profitLoss = cashOut !== null ? cashOut - totalBuyIn : null;
+			const s = computeSummaryFromEvents(
+				events.map((e) => ({ eventType: e.eventType, payload: e.payload }))
+			);
+			const profitLoss = s.cashOut !== null ? s.cashOut - s.totalBuyIn : null;
 			const evCashOut = computeCashGamePLFromEvents(
 				events.map((e) => ({ eventType: e.eventType, payload: e.payload }))
 			).evCashOut;
 
 			const summary = {
-				totalBuyIn,
-				cashOut,
+				totalBuyIn: s.totalBuyIn,
+				cashOut: s.cashOut,
 				profitLoss,
 				evCashOut,
-				addonCount,
-				maxStack,
-				minStack,
-				currentStack,
+				addonCount: s.addonCount,
+				maxStack: s.maxStack,
+				minStack: s.minStack,
+				currentStack: s.currentStack,
 			};
 
 			return { ...session, events, tablePlayers, summary };

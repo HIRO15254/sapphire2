@@ -37,6 +37,41 @@ interface TournamentPLResult {
 	totalEntries: number | null;
 }
 
+export function isChipAddEvent(eventType: string): boolean {
+	return eventType === "chip_add" || eventType === "cash_game_buy_in";
+}
+
+export function isStackRecordEvent(eventType: string): boolean {
+	return eventType === "stack_record" || eventType === "cash_game_stack_record";
+}
+
+function computeEvDiffFromAllIns(
+	allIns: Array<{
+		potSize: number;
+		trials: number;
+		equity: number;
+		wins: number;
+	}>
+): number {
+	let total = 0;
+	for (const allIn of allIns) {
+		total +=
+			allIn.potSize * (allIn.equity / 100) * allIn.trials -
+			allIn.potSize * allIn.wins;
+	}
+	return total;
+}
+
+export function extractLegacyAddon(parsed: unknown): number {
+	if (parsed && typeof parsed === "object" && "addon" in parsed) {
+		const rec = parsed as { addon?: { amount?: number } };
+		if (rec.addon && typeof rec.addon.amount === "number") {
+			return rec.addon.amount;
+		}
+	}
+	return 0;
+}
+
 export function computeCashGamePLFromEvents(
 	events: { eventType: string; payload: string }[]
 ): CashGamePLResult {
@@ -44,26 +79,30 @@ export function computeCashGamePLFromEvents(
 	let addonTotal = 0;
 	let cashOut: number | null = null;
 	let totalEvDiff = 0;
-	let firstBuyIn: number | null = null;
+	let isFirstChipAdd = true;
 
 	for (const event of events) {
 		const parsed = JSON.parse(event.payload);
 
-		if (event.eventType === "chip_add") {
+		if (isChipAddEvent(event.eventType)) {
 			const data = chipAddPayload.parse(parsed);
 			totalBuyIn += data.amount;
-			if (firstBuyIn === null) {
-				firstBuyIn = data.amount;
+			if (isFirstChipAdd) {
+				isFirstChipAdd = false;
 			} else {
 				addonTotal += data.amount;
 			}
-		} else if (event.eventType === "stack_record") {
+		} else if (isStackRecordEvent(event.eventType)) {
 			const data = stackRecordPayload.parse(parsed);
 			cashOut = data.stackAmount;
-			for (const allIn of data.allIns) {
-				const evAmount = allIn.potSize * (allIn.equity / 100) * allIn.trials;
-				const actualAmount = allIn.potSize * allIn.wins;
-				totalEvDiff += evAmount - actualAmount;
+			totalEvDiff += computeEvDiffFromAllIns(data.allIns);
+			const legacyAddon = extractLegacyAddon(parsed);
+			totalBuyIn += legacyAddon;
+			addonTotal += legacyAddon;
+		} else if (event.eventType === "cash_out") {
+			const amount = (parsed as { amount?: number }).amount;
+			if (typeof amount === "number") {
+				cashOut = amount;
 			}
 		}
 	}
