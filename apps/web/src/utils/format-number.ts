@@ -12,7 +12,7 @@ export function formatCompactNumber(value: number): string {
 		return `${(value / 1_000_000).toFixed(1).replace(TRAILING_ZERO, "")}M`;
 	}
 	if (Math.abs(value) >= 10_000) {
-		return `${(value / 1_000).toFixed(1).replace(TRAILING_ZERO, "")}k`;
+		return `${(value / 1000).toFixed(1).replace(TRAILING_ZERO, "")}k`;
 	}
 	return value.toLocaleString();
 }
@@ -26,7 +26,7 @@ interface UnitTier {
 const TIERS: UnitTier[] = [
 	{ threshold: 10_000_000_000, divisor: 1_000_000_000, suffix: "B" },
 	{ threshold: 10_000_000, divisor: 1_000_000, suffix: "M" },
-	{ threshold: 10_000, divisor: 1_000, suffix: "k" },
+	{ threshold: 10_000, divisor: 1000, suffix: "k" },
 ];
 
 function formatWithTier(value: number, tier: UnitTier | undefined): string {
