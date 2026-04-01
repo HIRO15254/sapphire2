@@ -1,6 +1,8 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
+import { liveCashGameSession } from "./live-cash-game-session";
+import { liveTournamentSession } from "./live-tournament-session";
 import { ringGame } from "./ring-game";
 import { sessionToSessionTag } from "./session-tag";
 import { currency, currencyTransaction, store } from "./store";
@@ -27,6 +29,14 @@ export const pokerSession = sqliteTable(
 		currencyId: text("currency_id").references(() => currency.id, {
 			onDelete: "set null",
 		}),
+		liveCashGameSessionId: text("live_cash_game_session_id").references(
+			() => liveCashGameSession.id,
+			{ onDelete: "set null" }
+		),
+		liveTournamentSessionId: text("live_tournament_session_id").references(
+			() => liveTournamentSession.id,
+			{ onDelete: "set null" }
+		),
 		buyIn: integer("buy_in"),
 		cashOut: integer("cash_out"),
 		evCashOut: integer("ev_cash_out"),
@@ -79,6 +89,14 @@ export const pokerSessionRelations = relations(
 		currency: one(currency, {
 			fields: [pokerSession.currencyId],
 			references: [currency.id],
+		}),
+		liveCashGameSession: one(liveCashGameSession, {
+			fields: [pokerSession.liveCashGameSessionId],
+			references: [liveCashGameSession.id],
+		}),
+		liveTournamentSession: one(liveTournamentSession, {
+			fields: [pokerSession.liveTournamentSessionId],
+			references: [liveTournamentSession.id],
 		}),
 		transactions: many(currencyTransaction),
 		tagLinks: many(sessionToSessionTag),

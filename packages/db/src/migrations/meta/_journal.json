@@ -50,6 +50,13 @@
       "when": 1774796791860,
       "tag": "0006_fat_midnight",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1774845275865,
+      "tag": "0007_smiling_dreadnoughts",
+      "breakpoints": true
     }
   ]
 }

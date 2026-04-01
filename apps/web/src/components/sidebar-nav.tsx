@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { isActive, NAVIGATION_ITEMS } from "./mobile-nav";
+import { isActive, SIDEBAR_ITEMS } from "./mobile-nav";
 import { ModeToggle } from "./mode-toggle";
 import UserMenu from "./user-menu";
 
@@ -12,7 +12,7 @@ export function SidebarNav() {
 		<nav className="fixed inset-y-0 left-0 z-40 hidden w-56 flex-col border-sidebar-border border-r bg-sidebar md:flex">
 			<div className="flex-1 overflow-y-auto px-3 py-4">
 				<ul className="flex flex-col gap-1">
-					{NAVIGATION_ITEMS.map((item) => {
+					{SIDEBAR_ITEMS.map((item) => {
 						const active = isActive(pathname, item.to);
 						return (
 							<li key={item.to}>

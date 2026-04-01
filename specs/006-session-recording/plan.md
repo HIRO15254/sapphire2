@@ -7,6 +7,15 @@
 
 既存のポーカーセッション記録機能に、リアルタイムのイベントベース記録機能を追加する。キャッシュゲームとトーナメントは構造が大きく異なるため、`liveCashGameSession`と`liveTournamentSession`の別テーブルで管理する。`sessionEvent`と`sessionTablePlayer`は共有テーブルとし、両セッションテーブルへのnullable FKで参照する。完了時に既存のpokerSessionレコードを生成して分析機能との互換性を維持する。イベントの直接編集・削除に対応し、完了済みセッションの編集時はP&L・通貨トランザクションを自動再計算する。
 
+**UXフィードバック変更点:**
+- セッション開始時にmaxBuyIn自動入力による初期バイイン（セッション作成の一部）
+- オールイン記録形式: potSize/trials/equity/wins（エクイティベースEV計算）
+- paused状態を廃止（active/completedのみ）
+- 同時進行1セッション制限（キャッシュゲーム・トーナメント両テーブルを横断チェック）+ completed→activeのreopen機能
+- ボトムナビゲーション動的切り替え（アクティブセッション有無で中央ボタンの役割が変化: セッション中→セッション詳細画面、それ以外→`/active-session`でセッション開始/再始動）
+- 1画面完結設計（ライブセッション中はスクロールなし）
+- オールイン・アドオン入力にボトムシート＋バッジパターンを採用
+
 ## Technical Context
 
 **Language/Version**: TypeScript (strict mode)
@@ -18,6 +27,7 @@
 **Performance Goals**: イベント記録30秒以内（SC-001）、100件以上のイベントで表示支障なし（SC-006）
 **Constraints**: Cloudflare D1のSQLite制限（JSON関数限定）、オフラインファースト（TanStack Query + IndexedDB永続化）
 **Scale/Scope**: 個人利用、1セッションあたり最大100〜数百イベント
+**Design Constraint**: 1画面完結設計（ライブセッション中の全画面はスクロールなし）
 
 ## Constitution Check
 
@@ -87,32 +97,57 @@ packages/api/src/
 
 apps/web/src/
 ├── routes/
-│   └── live-sessions/
-│       ├── index.tsx                    # NEW: セッション一覧（両タイプ統合表示）
-│       ├── cash-game/
-│       │   └── $sessionId.tsx           # NEW: キャッシュゲーム詳細・記録
-│       └── tournament/
-│           └── $sessionId.tsx           # NEW: トーナメント詳細・記録
+│   ├── active-session/
+│   │   ├── index.tsx                    # NEW: アクティブセッション開始/再始動ページ
+│   │   └── events.tsx                   # NEW: アクティブセッションのイベント履歴
+│   ├── live-sessions/
+│   │   ├── cash-game/
+│   │   │   └── $sessionId.tsx           # NEW: キャッシュゲーム詳細・記録
+│   │   └── tournament/
+│   │       └── $sessionId.tsx           # NEW: トーナメント詳細・記録
 ├── components/
 │   ├── live-sessions/
 │   │   ├── live-session-card.tsx        # NEW: セッションカード（共通）
-│   │   ├── create-session-form.tsx      # NEW: セッション種別選択フォーム（共通）
+│   │   ├── create-session-form.tsx      # NEW: セッション種別選択フォーム（初期バイイン含む）
 │   │   ├── event-timeline.tsx           # NEW: イベント履歴表示（共通）
 │   │   ├── table-player-list.tsx        # NEW: 同卓者リスト（共通）
 │   │   ├── session-summary.tsx          # NEW: セッションサマリー（共通）
+│   │   ├── all-in-bottom-sheet.tsx      # NEW: オールイン入力ボトムシート
+│   │   ├── addon-bottom-sheet.tsx       # NEW: アドオン入力ボトムシート
+│   │   ├── event-badge.tsx             # NEW: イベントバッジ（タップで編集・削除）
 │   │   └── __tests__/                   # NEW: コンポーネントテスト
 │   ├── live-cash-game/
 │   │   ├── cash-game-stack-form.tsx     # NEW: キャッシュゲーム用スタック記録
-│   │   ├── cash-game-complete-form.tsx  # NEW: キャッシュアウトフォーム
-│   │   └── buy-in-form.tsx             # NEW: バイインフォーム
+│   │   └── cash-game-complete-form.tsx  # NEW: キャッシュアウトフォーム
 │   ├── live-tournament/
 │   │   ├── tournament-stack-form.tsx    # NEW: トーナメント用スタック記録
 │   │   └── tournament-complete-form.tsx # NEW: トーナメント結果フォーム
+│   ├── navigation/
+│   │   └── mobile-nav.tsx              # MODIFIED: セッション有無による動的切り替え
 │   └── sessions/
 │       └── session-card.tsx             # MODIFIED: イベント履歴リンク追加
 ```
 
-**Structure Decision**: キャッシュゲームとトーナメントは別テーブル・別ルーター・別UIコンポーネントで管理。共有部分（イベント、同卓者、一覧表示）は共通化。既存のringGame/tournamentの分離パターンと一致。
+**Structure Decision**: キャッシュゲームとトーナメントは別テーブル・別ルーター・別UIコンポーネントで管理。共有部分（イベント、同卓者）は共通化。既存のringGame/tournamentの分離パターンと一致。初期バイインはセッション作成の一部として処理（`session_start` + `chip_add` イベントを自動生成）。アドオンは独立した `chip_add` イベントとして記録（`stack_record` には埋め込まない）。session-pause/session-resumeイベントタイプは廃止。`/live-sessions/` インデックスページは存在しない（エントリーポイントは `/active-session`）。
+
+## UX Design Decisions
+
+### ボトムナビゲーション動的切り替え
+- セッション進行中: 中央強調ボタン→現在セッション詳細画面（`/live-sessions/cash-game/$sessionId` 等）、サブナビ→`/active-session/events`（イベント履歴）
+- セッションなし: 中央ボタン→`/active-session`（新規開始/再始動）、他ナビ→通常のまま
+
+### オールイン・アドオン入力パターン
+- 追加ボタン→ボトムシート（Drawer）で入力
+- 追加済み記録→バッジ表示
+- バッジタップ→編集・削除
+
+### セッションライフサイクル
+- 状態: `active` / `completed` のみ（`paused` 廃止）
+- 同時進行: 1セッションのみ（キャッシュゲーム・トーナメント両テーブルを横断チェック）
+- create: `session_start` + `chip_add` (initialBuyIn) イベントを自動記録
+- complete: `stack_record` (finalStack) + `session_end` イベントを自動記録。P&L: totalBuyIn = Σ chip_add.amount、cashOut = last stack_record.stackAmount
+- reopen: `completed → active` への遷移。新しい `session_start` イベントを末尾に追加（既存イベントは保持）
+- addon: 独立した `chip_add` イベントとして手動記録（stack_record には埋め込まない）
 
 ## Complexity Tracking
 

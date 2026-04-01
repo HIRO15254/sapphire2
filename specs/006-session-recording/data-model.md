@@ -1,6 +1,6 @@
 # Data Model: リアルタイムセッション記録
 
-**Branch**: `006-session-recording` | **Date**: 2026-03-30
+**Branch**: `006-session-recording` | **Date**: 2026-03-31
 
 ## Design Decision
 
@@ -16,7 +16,7 @@
 |--------|------|-------------|-------------|
 | id | text | PK | UUID |
 | userId | text | NOT NULL, FK → user.id (cascade) | セッション所有者 |
-| status | text | NOT NULL | "active" \| "paused" \| "completed" |
+| status | text | NOT NULL | "active" \| "completed" |
 | storeId | text | FK → store.id (set null) | 店舗 |
 | ringGameId | text | FK → ringGame.id (set null) | キャッシュゲーム設定 |
 | currencyId | text | FK → currency.id (set null) | 通貨 |
@@ -37,6 +37,8 @@
 - tablePlayers (one-to-many)
 - pokerSession (one-to-one, via pokerSession.liveCashGameSessionId)
 
+**Create時の注意**: `initialBuyIn`を作成時に指定し、`session_start`イベントと`chip_add`（initialBuyIn）イベントが自動作成される。
+
 ### liveTournamentSession
 
 トーナメントのライブセッション管理エンティティ。
@@ -45,7 +47,7 @@
 |--------|------|-------------|-------------|
 | id | text | PK | UUID |
 | userId | text | NOT NULL, FK → user.id (cascade) | セッション所有者 |
-| status | text | NOT NULL | "active" \| "paused" \| "completed" |
+| status | text | NOT NULL | "active" \| "completed" |
 | storeId | text | FK → store.id (set null) | 店舗 |
 | tournamentId | text | FK → tournament.id (set null) | トーナメント設定 |
 | currencyId | text | FK → currency.id (set null) | 通貨 |
@@ -128,34 +130,65 @@
 
 ## Event Types & Payload Schemas
 
-### 共通
+### 概要
 
-全イベントは`eventType`でディスパッチし、`payload`のJSON構造をZodスキーマでバリデーションする。
+全イベントは`eventType`でディスパッチし、`payload`のJSON構造をZodスキーマでバリデーションする。イベントタイプは4グループに分類される。
 
-### キャッシュゲーム専用イベント
+```
+GENERIC_EVENT_TYPES:    chip_add, stack_record
+LIFECYCLE_EVENT_TYPES:  session_start, session_end
+TOURNAMENT_EVENT_TYPES: tournament_stack_record, tournament_result
+COMMON_EVENT_TYPES:     player_join, player_leave
+```
 
-#### cash_game_buy_in
+**MANUAL_CREATE_BLOCKED**: `session_start`, `session_end` はシステムが自動生成する。ユーザーがAPIから手動作成することはできない。
+
+### 汎用イベント (GENERIC_EVENT_TYPES)
+
+#### chip_add
 ```json
 { "amount": number }
 ```
 
-#### cash_game_stack_record
+初回バイイン（セッション開始時に自動作成）とアドオン（ユーザーが任意タイミングで追加）の両方に使用する。アドオンはスタック記録とは独立した別イベントとして記録する。
+
+#### stack_record
 ```json
 {
   "stackAmount": number,
   "allIns": [
-    { "actualResult": number, "evResult": number }
-  ],
-  "addon": { "amount": number } | null
+    { "potSize": number, "trials": number, "equity": number, "wins": number }
+  ]
 }
 ```
 
-#### cash_out
+**allInsフィールド説明**:
+- `potSize`: ポット合計額
+- `trials`: 試行回数 (Run it multi times, 通常1)
+- `equity`: 勝率(%, 0-100)
+- `wins`: 実際の勝利数 (小数許容, chop対応. 例: 2回中1勝1chop → 1.5)
+- EV計算: `evAmount = potSize × (equity / 100) × trials`
+- 実際の獲得額: `actualAmount = potSize × wins`
+
+> **Note**: `addon`フィールドは存在しない。アドオンは独立した `chip_add` イベントとして記録する。
+
+### ライフサイクルイベント (LIFECYCLE_EVENT_TYPES)
+
+#### session_start
 ```json
-{ "amount": number }
+{}
 ```
 
-### トーナメント専用イベント
+セッション開始時（初回・再始動）にシステムが自動生成する。ユーザーによる手動作成は不可。再始動（reopen）時は既存のイベント列末尾に新しい `session_start` を追記する（以前の `session_end` を含む全イベントを保持）。
+
+#### session_end
+```json
+{}
+```
+
+セッション完了時にシステムが自動生成する。ユーザーによる手動作成は不可。
+
+### トーナメント専用イベント (TOURNAMENT_EVENT_TYPES)
 
 #### tournament_stack_record
 ```json
@@ -178,7 +211,7 @@
 }
 ```
 
-### 共通イベント
+### 共通イベント (COMMON_EVENT_TYPES)
 
 #### player_join
 ```json
@@ -190,37 +223,26 @@
 { "playerId": string }
 ```
 
-#### session_pause
-```json
-{}
-```
-
-#### session_resume
-```json
-{}
-```
-
 ## State Transitions
 
 キャッシュゲーム・トーナメント共通:
 
 ```
 [新規作成] → active
-active → paused (中断)
 active → completed (完了)
-paused → active (再開)
-paused → completed (中断から直接完了)
+completed → active (再始動/reopen)
 active → [破棄] (削除)
-paused → [破棄] (削除)
 ```
 
 ## P&L Calculation (イベント集約)
 
 ### キャッシュゲーム
-- **totalBuyIn** = Σ(cash_game_buy_in.amount) + Σ(cash_game_stack_record.addon.amount)
-- **cashOut** = cash_out.amount
+- **totalBuyIn** = Σ(chip_add.amount) — 全 `chip_add` イベントの合計（初回バイイン＋全アドオン）
+- **cashOut** = 最後の `stack_record.stackAmount`
+- **addonTotal** = Σ(chip_add.amount) - 最初の chip_add.amount — 初回バイインを除いたアドオン合計
 - **P&L** = cashOut - totalBuyIn
-- **evCashOut** = cashOut + Σ(allIn.evResult - allIn.actualResult) across all cash_game_stack_records
+- **evDiff** = Σ(potSize × equity/100 × trials - potSize × wins) — 全 `stack_record` の allIns にわたる EV 差分合計
+- **evCashOut** = cashOut + evDiff
 
 ### トーナメント
 - **buyIn** = tournament.buyIn (設定値)

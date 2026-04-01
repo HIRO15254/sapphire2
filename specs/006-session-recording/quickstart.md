@@ -27,12 +27,13 @@ apps/web/src/components/    # Reactコンポーネント
 10. `packages/api/src/routers/session-event.ts` - SessionEventルーター
 11. `packages/api/src/routers/session-table-player.ts` - SessionTablePlayerルーター
 12. `packages/api/src/routers/index.ts` - ルーター登録
-13. `apps/web/src/routes/live-sessions/index.tsx` - セッション一覧ページ
-14. `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx` - キャッシュゲーム詳細
-15. `apps/web/src/routes/live-sessions/tournament/$sessionId.tsx` - トーナメント詳細
-16. `apps/web/src/components/live-sessions/` - 共通UIコンポーネント
-17. `apps/web/src/components/live-cash-game/` - キャッシュゲーム専用コンポーネント
-18. `apps/web/src/components/live-tournament/` - トーナメント専用コンポーネント
+13. `apps/web/src/routes/active-session/index.tsx` - アクティブセッション開始/再始動ページ
+14. `apps/web/src/routes/active-session/events.tsx` - アクティブセッションのイベント履歴
+15. `apps/web/src/routes/live-sessions/cash-game/$sessionId.tsx` - キャッシュゲーム詳細
+16. `apps/web/src/routes/live-sessions/tournament/$sessionId.tsx` - トーナメント詳細
+17. `apps/web/src/components/live-sessions/` - 共通UIコンポーネント
+18. `apps/web/src/components/live-cash-game/` - キャッシュゲーム専用コンポーネント
+19. `apps/web/src/components/live-tournament/` - トーナメント専用コンポーネント
 
 ### 既存ファイル（変更）
 
@@ -68,7 +69,7 @@ import { z } from "zod";
 
 export const liveSessionRouter = router({
   list: protectedProcedure
-    .input(z.object({ status: z.enum(["active", "paused", "completed"]).optional() }))
+    .input(z.object({ status: z.enum(["active", "completed"]).optional() }))
     .query(async ({ ctx, input }) => {
       // ctx.session.user.id でユーザースコープ
       // ctx.db で Drizzle DB アクセス
@@ -79,20 +80,57 @@ export const liveSessionRouter = router({
 ### フロントエンドページパターン
 
 ```typescript
-// apps/web/src/routes/live-sessions/index.tsx
+// apps/web/src/routes/active-session/index.tsx
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/live-sessions/")({
-  component: LiveSessionsPage,
+export const Route = createFileRoute("/active-session/")({
+  component: ActiveSessionPage,
 });
 
-function LiveSessionsPage() {
-  const { data } = useQuery(trpc.liveSession.list.queryOptions({}));
-  const createMutation = useMutation(trpcClient.liveSession.create.mutationOptions({
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: trpc.liveSession.list.queryKey() }),
+function ActiveSessionPage() {
+  const { data } = useQuery(trpc.liveCashGameSession.list.queryOptions({ status: "active" }));
+  const createMutation = useMutation(trpcClient.liveCashGameSession.create.mutationOptions({
+    onSuccess: ({ id }) => navigate({ to: "/live-sessions/cash-game/$sessionId", params: { sessionId: id } }),
   }));
 }
 ```
+
+## UXデザイン制約
+
+### セッション状態
+- `active` / `completed` の2状態のみ（`paused` は廃止）
+- 同時にactiveにできるセッションは1つのみ（キャッシュゲーム・トーナメント両テーブルを横断チェック）
+- 完了済みセッションは `reopen` で再始動可能
+
+### セッションライフサイクル
+- **create**: `session_start` イベント + `chip_add` イベント (amount = initialBuyIn) を自動記録
+- **complete**: 入力は `finalStack`。`stack_record` イベント (stackAmount = finalStack, allIns = []) + `session_end` イベントを自動記録
+- **reopen**: 新しい `session_start` イベントを末尾に追加（既存イベントは保持）
+- **addon**: 独立した `chip_add` イベントとして手動記録（stack_record には埋め込まない）
+
+### P&L 計算
+- `totalBuyIn` = Σ `chip_add.amount`
+- `cashOut` = last `stack_record.stackAmount`
+
+### セッション開始時
+- 初回バイイン額は必須入力（`initialBuyIn`）
+- ゲーム選択時に `maxBuyIn` を自動入力、`currencyId` を自動紐づけ
+
+### オールイン記録形式
+```typescript
+{ potSize: number, trials: number, equity: number, wins: number }
+// potSize: ポット合計額
+// trials: 試行回数（Run it multi times、通常1）
+// equity: 勝率（%、0-100）
+// wins: 実際の勝利数（小数許容、chop対応）
+// EV計算: evAmount = potSize × (equity / 100) × trials
+// 実際: actualAmount = potSize × wins
+```
+
+### UIパターン
+- オールイン・アドオン入力: ボトムシート（Drawer）で入力、追加済みはバッジ表示、タップで編集・削除
+- ライブセッション中の全画面は1画面完結（スクロールなし）
+- ボトムナビ: セッション進行中は中央強調ボタン→セッション詳細画面 (`/live-sessions/cash-game/$sessionId` 等)、サブナビ→`/active-session/events`；セッションなし時は中央ボタン→`/active-session`（新規開始/再始動）
 
 ## マイグレーション
 

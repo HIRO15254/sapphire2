@@ -11,7 +11,7 @@
 **Input**:
 ```typescript
 {
-  status?: "active" | "paused" | "completed"
+  status?: "active" | "completed"
   cursor?: string
   limit?: number                               // デフォルト20
 }
@@ -21,7 +21,7 @@
 {
   items: {
     id: string
-    status: "active" | "paused" | "completed"
+    status: "active" | "completed"
     store: { id: string, name: string } | null
     tournament: { id: string, name: string } | null
     currency: { id: string, name: string, unit: string } | null
@@ -45,7 +45,7 @@
 ```typescript
 {
   id: string
-  status: "active" | "paused" | "completed"
+  status: "active" | "completed"
   store: { id: string, name: string } | null
   tournament: { ... } | null
   currency: { ... } | null
@@ -102,20 +102,6 @@
 ```
 **Output**: `{ id: string }`
 
-### liveTournamentSession.pause
-
-**Type**: mutation (protected)
-**Input**: `{ id: string }`
-**Output**: `{ id: string }`
-**Side effects**: session_pauseイベントを自動記録
-
-### liveTournamentSession.resume
-
-**Type**: mutation (protected)
-**Input**: `{ id: string }`
-**Output**: `{ id: string }`
-**Side effects**: session_resumeイベントを自動記録
-
 ### liveTournamentSession.complete
 
 **Type**: mutation (protected)
@@ -135,12 +121,20 @@
 - pokerSessionレコードを作成（イベント集約からP&L計算）
 - 通貨トランザクションを自動作成（currencyId設定時）
 
+### liveTournamentSession.reopen
+
+**Type**: mutation (protected)
+**Input**: `{ id: string }`
+**Output**: `{ id: string }`
+**Validation**: status === "completed", no other active session exists
+**Side effects**: status を "active" に変更
+
 ### liveTournamentSession.discard
 
 **Type**: mutation (protected)
 **Input**: `{ id: string }`
 **Output**: `{ id: string }`
-**Validation**: status !== "completed"
+**Validation**: status === "active"
 **Side effects**: セッション + 全イベント + 全SessionTablePlayerをカスケード削除
 
 ## Error Codes
@@ -148,5 +142,6 @@
 | Code | Condition |
 |------|-----------|
 | NOT_FOUND | セッションが存在しないまたは他ユーザーのセッション |
-| BAD_REQUEST | 無効な状態遷移（例: completed → pause） |
-| BAD_REQUEST | 完了済みセッションの破棄 |
+| BAD_REQUEST | 無効な状態遷移 |
+| BAD_REQUEST | アクティブでないセッションの破棄 |
+| BAD_REQUEST | reopen時に他のアクティブセッションが存在する |

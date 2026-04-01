@@ -1,9 +1,12 @@
 import {
 	IconCalendar,
+	IconList,
 	IconMapPin,
+	IconPlayerPlay,
 	IconPokerChip,
 	IconTrophy,
 } from "@tabler/icons-react";
+import { Link } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { ExpandableCard } from "@/components/ui/expandable-card";
 import { formatCompactNumber } from "@/utils/format-number";
@@ -11,6 +14,7 @@ import { formatCompactNumber } from "@/utils/format-number";
 interface SessionCardProps {
 	onDelete: (id: string) => void;
 	onEdit: (session: SessionCardProps["session"]) => void;
+	onReopen?: (liveCashGameSessionId: string) => void;
 	session: {
 		addonCost: number | null;
 		bountyPrizes: number | null;
@@ -26,6 +30,8 @@ interface SessionCardProps {
 		evDiff: number | null;
 		evProfitLoss: number | null;
 		id: string;
+		liveCashGameSessionId: string | null;
+		liveTournamentSessionId: string | null;
 		memo: string | null;
 		placement: number | null;
 		prizeMoney: number | null;
@@ -284,8 +290,15 @@ function SessionHeader({ session }: { session: SessionCardProps["session"] }) {
 	);
 }
 
-export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
+export function SessionCard({
+	session,
+	onEdit,
+	onDelete,
+	onReopen,
+}: SessionCardProps) {
 	const isTournament = session.type === "tournament";
+	const liveSessionId =
+		session.liveCashGameSessionId ?? session.liveTournamentSessionId;
 
 	return (
 		<ExpandableCard
@@ -305,6 +318,28 @@ export function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
 						<p className="whitespace-pre-wrap text-muted-foreground">
 							{session.memo}
 						</p>
+					</div>
+				)}
+				{liveSessionId && (
+					<div className="mt-2 flex items-center gap-2 border-t pt-2">
+						<Link
+							className="inline-flex items-center gap-1 text-primary text-xs hover:underline"
+							params={{ sessionId: liveSessionId }}
+							to="/live-sessions/cash-game/$sessionId/events"
+						>
+							<IconList size={12} />
+							Events
+						</Link>
+						{onReopen && (
+							<button
+								className="inline-flex items-center gap-1 text-primary text-xs hover:underline"
+								onClick={() => onReopen(liveSessionId)}
+								type="button"
+							>
+								<IconPlayerPlay size={12} />
+								Reopen
+							</button>
+						)}
 					</div>
 				)}
 			</div>
