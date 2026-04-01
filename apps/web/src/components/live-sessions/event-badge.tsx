@@ -13,22 +13,51 @@ interface AddonBadgeProps {
 	type: "addon";
 }
 
-type EventBadgeProps = AllInBadgeProps | AddonBadgeProps;
+interface RebuyBadgeProps {
+	data: { cost: number; chips: number };
+	onEdit: () => void;
+	type: "rebuy";
+}
 
-export function EventBadge({ type, data, onEdit }: EventBadgeProps) {
-	const label =
-		type === "all-in"
-			? `All-in: ${data.potSize} pot, ${data.equity}%`
-			: `Addon: ${data.amount}`;
+interface TournamentAddonBadgeProps {
+	data: { cost: number; chips: number };
+	onEdit: () => void;
+	type: "tournament-addon";
+}
+
+type EventBadgeProps =
+	| AllInBadgeProps
+	| AddonBadgeProps
+	| RebuyBadgeProps
+	| TournamentAddonBadgeProps;
+
+function getLabel(props: EventBadgeProps): string {
+	switch (props.type) {
+		case "all-in":
+			return `All-in: ${props.data.potSize} pot, ${props.data.equity}%`;
+		case "addon":
+			return `Addon: ${props.data.amount}`;
+		case "rebuy":
+			return `Rebuy: ${props.data.cost}`;
+		case "tournament-addon":
+			return `Addon: ${props.data.cost}`;
+		default:
+			return props.type;
+	}
+}
+
+export function EventBadge(props: EventBadgeProps) {
+	const label = getLabel(props);
+	const isSecondary = props.type !== "all-in";
 
 	return (
 		<Badge
 			className={cn(
 				"cursor-pointer select-none",
-				type === "addon" ? "bg-secondary text-secondary-foreground" : undefined
+				isSecondary ? "bg-secondary text-secondary-foreground" : undefined
 			)}
-			onClick={onEdit}
-			variant={type === "all-in" ? "default" : "secondary"}
+			onClick={props.onEdit}
+			variant={isSecondary ? "secondary" : "default"}
 		>
 			{label}
 		</Badge>
