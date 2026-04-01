@@ -1,10 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { CreateTournamentSessionForm } from "../create-tournament-session-form";
-
-const STARTING_STACK_RE = /Starting Stack/;
-const BUY_IN_RE = /Buy-in/;
 
 const STORES = [
 	{ id: "s1", name: "Store A" },
@@ -36,7 +32,7 @@ const TOURNAMENTS = [
 ];
 
 describe("CreateTournamentSessionForm", () => {
-	it("renders store selector when stores available", () => {
+	it("renders store selector as required", () => {
 		render(
 			<CreateTournamentSessionForm
 				currencies={CURRENCIES}
@@ -48,10 +44,11 @@ describe("CreateTournamentSessionForm", () => {
 		);
 
 		expect(screen.getByText("Store")).toBeInTheDocument();
-		expect(screen.getByText("Start Tournament")).toBeInTheDocument();
+		// Submit button should be disabled until store and tournament selected
+		expect(screen.getByText("Start Tournament")).toBeDisabled();
 	});
 
-	it("hides store selector when no stores", () => {
+	it("shows message when no stores available", () => {
 		render(
 			<CreateTournamentSessionForm
 				currencies={CURRENCIES}
@@ -62,104 +59,26 @@ describe("CreateTournamentSessionForm", () => {
 			/>
 		);
 
-		expect(screen.queryByText("Store")).not.toBeInTheDocument();
+		expect(
+			screen.getByText("No stores available. Create a store first.")
+		).toBeInTheDocument();
 	});
 
-	it("renders store selector with store options", () => {
+	it("hides buy-in and starting stack until tournament selected", () => {
 		render(
 			<CreateTournamentSessionForm
 				currencies={CURRENCIES}
 				isLoading={false}
-				onStoreChange={vi.fn()}
 				onSubmit={vi.fn()}
 				stores={STORES}
 				tournaments={TOURNAMENTS}
 			/>
 		);
 
-		expect(screen.getByText("Store")).toBeInTheDocument();
-		const comboboxes = screen.getAllByRole("combobox");
-		expect(comboboxes.length).toBeGreaterThanOrEqual(1);
-	});
-
-	it("renders currency selector", () => {
-		render(
-			<CreateTournamentSessionForm
-				currencies={CURRENCIES}
-				isLoading={false}
-				onSubmit={vi.fn()}
-				stores={[]}
-				tournaments={[]}
-			/>
-		);
-
-		expect(screen.getByText("Currency")).toBeInTheDocument();
-	});
-
-	it("renders buy-in and starting stack fields as required", () => {
-		render(
-			<CreateTournamentSessionForm
-				currencies={[]}
-				isLoading={false}
-				onSubmit={vi.fn()}
-				stores={[]}
-				tournaments={[]}
-			/>
-		);
-
-		expect(screen.getByText("Starting Stack")).toBeInTheDocument();
-		const stackInput = screen.getByLabelText(STARTING_STACK_RE);
-		expect(stackInput).toBeRequired();
-
-		expect(screen.getByText("Buy-in")).toBeInTheDocument();
-		const buyInInput = screen.getByLabelText(BUY_IN_RE);
-		expect(buyInInput).toBeRequired();
-	});
-
-	it("renders memo textarea", () => {
-		render(
-			<CreateTournamentSessionForm
-				currencies={[]}
-				isLoading={false}
-				onSubmit={vi.fn()}
-				stores={[]}
-				tournaments={[]}
-			/>
-		);
-
-		expect(screen.getByText("Memo")).toBeInTheDocument();
-		expect(
-			screen.getByPlaceholderText("Notes about this tournament")
-		).toBeInTheDocument();
-	});
-
-	it("submits form with buy-in and starting stack", async () => {
-		const user = userEvent.setup();
-		const onSubmit = vi.fn();
-
-		render(
-			<CreateTournamentSessionForm
-				currencies={[]}
-				isLoading={false}
-				onSubmit={onSubmit}
-				stores={[]}
-				tournaments={[]}
-			/>
-		);
-
-		await user.type(screen.getByLabelText(BUY_IN_RE), "10000");
-		await user.type(screen.getByLabelText(STARTING_STACK_RE), "15000");
-		await user.click(screen.getByText("Start Tournament"));
-
-		expect(onSubmit).toHaveBeenCalledWith({
-			storeId: undefined,
-			tournamentId: undefined,
-			currencyId: undefined,
-			buyIn: 10_000,
-			entryFee: undefined,
-			startingStack: 15_000,
-			memo: undefined,
-		});
+		// Fields should not be visible before selection
+		expect(screen.queryByText("Buy-in")).not.toBeInTheDocument();
+		expect(screen.queryByText("Starting Stack")).not.toBeInTheDocument();
+		expect(screen.queryByText("Memo")).not.toBeInTheDocument();
 	});
 
 	it("shows loading state when isLoading", () => {
@@ -175,5 +94,19 @@ describe("CreateTournamentSessionForm", () => {
 
 		expect(screen.getByText("Starting...")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Starting..." })).toBeDisabled();
+	});
+
+	it("submit button is disabled when no store/tournament selected", () => {
+		render(
+			<CreateTournamentSessionForm
+				currencies={[]}
+				isLoading={false}
+				onSubmit={vi.fn()}
+				stores={STORES}
+				tournaments={[]}
+			/>
+		);
+
+		expect(screen.getByText("Start Tournament")).toBeDisabled();
 	});
 });

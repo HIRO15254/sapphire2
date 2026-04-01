@@ -10,8 +10,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 
-const NONE_VALUE = "__none__";
-
 interface CreateCashGameSessionFormProps {
 	currencies: Array<{ id: string; name: string }>;
 	isLoading: boolean;
@@ -20,8 +18,8 @@ interface CreateCashGameSessionFormProps {
 		currencyId?: string;
 		initialBuyIn: number;
 		memo?: string;
-		ringGameId?: string;
-		storeId?: string;
+		ringGameId: string;
+		storeId: string;
 	}) => void;
 	ringGames: Array<{
 		id: string;
@@ -52,31 +50,29 @@ export function CreateCashGameSessionForm({
 	const [initialBuyIn, setInitialBuyIn] = useState<string>("");
 
 	const handleStoreChange = (value: string) => {
-		const storeId = value === NONE_VALUE ? undefined : value;
-		setSelectedStoreId(storeId);
+		setSelectedStoreId(value);
 		setSelectedRingGameId(undefined);
-		onStoreChange?.(storeId);
+		onStoreChange?.(value);
 	};
 
 	const handleRingGameChange = (value: string) => {
-		const ringGameId = value === NONE_VALUE ? undefined : value;
-		setSelectedRingGameId(ringGameId);
-
-		if (ringGameId) {
-			const ringGame = ringGames.find((g) => g.id === ringGameId);
-			if (ringGame) {
-				setInitialBuyIn(ringGame.maxBuyIn?.toString() ?? "");
-				setSelectedCurrencyId(ringGame.currencyId ?? undefined);
-			}
+		setSelectedRingGameId(value);
+		const ringGame = ringGames.find((g) => g.id === value);
+		if (ringGame) {
+			setInitialBuyIn(ringGame.maxBuyIn?.toString() ?? "");
+			setSelectedCurrencyId(ringGame.currencyId ?? undefined);
 		}
 	};
 
 	const handleCurrencyChange = (value: string) => {
-		setSelectedCurrencyId(value === NONE_VALUE ? undefined : value);
+		setSelectedCurrencyId(value);
 	};
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
+		if (!(selectedStoreId && selectedRingGameId)) {
+			return;
+		}
 		const formData = new FormData(e.currentTarget);
 		const memo = (formData.get("memo") as string) || undefined;
 
@@ -102,20 +98,20 @@ export function CreateCashGameSessionForm({
 		selectedRingGame?.currencyId !== null &&
 		selectedRingGame?.currencyId !== undefined;
 
+	const canSubmit = !!selectedStoreId && !!selectedRingGameId;
+
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			{stores.length > 0 && (
-				<div className="flex flex-col gap-2">
-					<Label>Store</Label>
-					<Select
-						onValueChange={handleStoreChange}
-						value={selectedStoreId ?? NONE_VALUE}
-					>
+			<div className="flex flex-col gap-2">
+				<Label>
+					Store <span className="text-destructive">*</span>
+				</Label>
+				{stores.length > 0 ? (
+					<Select onValueChange={handleStoreChange} value={selectedStoreId}>
 						<SelectTrigger>
 							<SelectValue placeholder="Select a store" />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value={NONE_VALUE}>None</SelectItem>
 							{stores.map((store) => (
 								<SelectItem key={store.id} value={store.id}>
 									{store.name}
@@ -123,22 +119,27 @@ export function CreateCashGameSessionForm({
 							))}
 						</SelectContent>
 					</Select>
-				</div>
-			)}
+				) : (
+					<p className="text-muted-foreground text-sm">
+						No stores available. Create a store first.
+					</p>
+				)}
+			</div>
 
 			{selectedStoreId && (
 				<div className="flex flex-col gap-2">
-					<Label>Ring Game</Label>
+					<Label>
+						Ring Game <span className="text-destructive">*</span>
+					</Label>
 					{hasRingGames ? (
 						<Select
 							onValueChange={handleRingGameChange}
-							value={selectedRingGameId ?? NONE_VALUE}
+							value={selectedRingGameId}
 						>
 							<SelectTrigger>
 								<SelectValue placeholder="Select a ring game" />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value={NONE_VALUE}>None</SelectItem>
 								{ringGames.map((game) => (
 									<SelectItem key={game.id} value={game.id}>
 										{game.name}
@@ -147,62 +148,63 @@ export function CreateCashGameSessionForm({
 							</SelectContent>
 						</Select>
 					) : (
-						<Select disabled>
-							<SelectTrigger>
-								<SelectValue placeholder="No ring games available" />
-							</SelectTrigger>
-						</Select>
+						<p className="text-muted-foreground text-sm">
+							No ring games available. Create one in store settings.
+						</p>
 					)}
 				</div>
 			)}
 
-			{currencies.length > 0 && (
-				<div className="flex flex-col gap-2">
-					<Label>Currency</Label>
-					<Select
-						disabled={isCurrencyLocked}
-						onValueChange={handleCurrencyChange}
-						value={selectedCurrencyId ?? NONE_VALUE}
-					>
-						<SelectTrigger>
-							<SelectValue placeholder="Select a currency" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value={NONE_VALUE}>None</SelectItem>
-							{currencies.map((currency) => (
-								<SelectItem key={currency.id} value={currency.id}>
-									{currency.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
+			{selectedRingGameId && (
+				<>
+					{currencies.length > 0 && (
+						<div className="flex flex-col gap-2">
+							<Label>Currency</Label>
+							<Select
+								disabled={isCurrencyLocked}
+								onValueChange={handleCurrencyChange}
+								value={selectedCurrencyId}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder="Select a currency" />
+								</SelectTrigger>
+								<SelectContent>
+									{currencies.map((currency) => (
+										<SelectItem key={currency.id} value={currency.id}>
+											{currency.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					)}
+
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="initialBuyIn">Initial Buy-in</Label>
+						<Input
+							disabled={isBuyInLocked}
+							id="initialBuyIn"
+							min={0}
+							onChange={(e) => setInitialBuyIn(e.target.value)}
+							required
+							type="number"
+							value={initialBuyIn}
+						/>
+					</div>
+
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="memo">Memo</Label>
+						<textarea
+							className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+							id="memo"
+							name="memo"
+							placeholder="Notes about this session"
+						/>
+					</div>
+				</>
 			)}
 
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="initialBuyIn">Initial Buy-in</Label>
-				<Input
-					disabled={isBuyInLocked}
-					id="initialBuyIn"
-					min={0}
-					onChange={(e) => setInitialBuyIn(e.target.value)}
-					required
-					type="number"
-					value={initialBuyIn}
-				/>
-			</div>
-
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="memo">Memo</Label>
-				<textarea
-					className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-					id="memo"
-					name="memo"
-					placeholder="Notes about this session"
-				/>
-			</div>
-
-			<Button className="mt-2" disabled={isLoading} type="submit">
+			<Button className="mt-2" disabled={isLoading || !canSubmit} type="submit">
 				{isLoading ? "Starting..." : "Start Session"}
 			</Button>
 		</form>
