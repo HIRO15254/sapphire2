@@ -2,17 +2,17 @@ const TRAILING_ZERO = /\.0$/;
 
 /**
  * Format a single number with compact notation (k, M, B).
- * Threshold: 1,000+
+ * Threshold: 10,000+
  */
 export function formatCompactNumber(value: number): string {
-	if (Math.abs(value) >= 1_000_000_000) {
+	if (Math.abs(value) >= 10_000_000_000) {
 		return `${(value / 1_000_000_000).toFixed(1).replace(TRAILING_ZERO, "")}B`;
 	}
-	if (Math.abs(value) >= 1_000_000) {
+	if (Math.abs(value) >= 10_000_000) {
 		return `${(value / 1_000_000).toFixed(1).replace(TRAILING_ZERO, "")}M`;
 	}
-	if (Math.abs(value) >= 1000) {
-		return `${(value / 1000).toFixed(1).replace(TRAILING_ZERO, "")}k`;
+	if (Math.abs(value) >= 10_000) {
+		return `${(value / 1_000).toFixed(1).replace(TRAILING_ZERO, "")}k`;
 	}
 	return value.toLocaleString();
 }
@@ -24,9 +24,9 @@ interface UnitTier {
 }
 
 const TIERS: UnitTier[] = [
-	{ threshold: 1_000_000_000, divisor: 1_000_000_000, suffix: "B" },
-	{ threshold: 1_000_000, divisor: 1_000_000, suffix: "M" },
-	{ threshold: 1000, divisor: 1000, suffix: "k" },
+	{ threshold: 10_000_000_000, divisor: 1_000_000_000, suffix: "B" },
+	{ threshold: 10_000_000, divisor: 1_000_000, suffix: "M" },
+	{ threshold: 10_000, divisor: 1_000, suffix: "k" },
 ];
 
 function formatWithTier(value: number, tier: UnitTier | undefined): string {
@@ -41,12 +41,12 @@ function formatWithTier(value: number, tier: UnitTier | undefined): string {
  * The tier is determined by the maximum absolute value in the group.
  *
  * Usage:
- *   const fmt = createGroupFormatter([100, 200, 1000]);
- *   fmt(100)  // "0.1k"  — because max is 1000 (k tier)
- *   fmt(200)  // "0.2k"
- *   fmt(1000) // "1k"
+ *   const fmt = createGroupFormatter([100, 200, 10000]);
+ *   fmt(100)   // "0.01k"  — because max is 10000 (k tier)
+ *   fmt(200)   // "0.02k"
+ *   fmt(10000) // "10k"
  *
- * If max < 1000, all values are shown as plain numbers.
+ * If max < 10,000, all values are shown as plain numbers.
  */
 export function createGroupFormatter(
 	values: (number | null | undefined)[]
