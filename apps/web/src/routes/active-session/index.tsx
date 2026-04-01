@@ -96,6 +96,8 @@ function TournamentCompactSummary({
 	summary,
 }: {
 	summary: {
+		buyIn: number | null;
+		entryFee: number | null;
 		currentStack: number | null;
 		remainingPlayers: number | null;
 		averageStack: number | null;
@@ -104,8 +106,16 @@ function TournamentCompactSummary({
 		profitLoss: number | null;
 	};
 }) {
+	const totalCost = (summary.buyIn ?? 0) + (summary.entryFee ?? 0);
+
 	return (
 		<div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
+			{totalCost > 0 && (
+				<div>
+					<span className="text-muted-foreground text-xs">Buy-in</span>
+					<p className="font-semibold">{formatCompactNumber(totalCost)}</p>
+				</div>
+			)}
 			<div>
 				<span className="text-muted-foreground text-xs">Stack</span>
 				<p className="font-semibold">

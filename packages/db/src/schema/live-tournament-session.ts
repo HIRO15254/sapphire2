@@ -21,6 +21,8 @@ export const liveTournamentSession = sqliteTable(
 		currencyId: text("currency_id").references(() => currency.id, {
 			onDelete: "set null",
 		}),
+		buyIn: integer("buy_in"),
+		entryFee: integer("entry_fee"),
 		startedAt: integer("started_at", { mode: "timestamp" }).notNull(),
 		endedAt: integer("ended_at", { mode: "timestamp" }),
 		memo: text("memo"),

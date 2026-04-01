@@ -378,10 +378,14 @@ export const liveTournamentSessionRouter = router({
 			const userId = ctx.session.user.id;
 			const session = await findLiveTournamentSession(ctx.db, input.id, userId);
 
-			const { tournamentBuyIn, entryFee } = await fetchTournamentBuyInInfo(
+			const masterData = await fetchTournamentBuyInInfo(
 				ctx.db,
 				session.tournamentId
 			);
+
+			// Session-level buyIn/entryFee take precedence over tournament master data
+			const tournamentBuyIn = session.buyIn ?? masterData.tournamentBuyIn;
+			const entryFee = session.entryFee ?? masterData.entryFee;
 
 			const events = await ctx.db
 				.select()
@@ -405,6 +409,8 @@ export const liveTournamentSessionRouter = router({
 			);
 
 			const summary = {
+				buyIn: tournamentBuyIn ?? null,
+				entryFee: entryFee ?? null,
 				rebuyCount: pl.rebuyCount,
 				rebuyCost: pl.rebuyCost,
 				addonCount: pl.addonCount,
@@ -430,6 +436,8 @@ export const liveTournamentSessionRouter = router({
 				storeId: z.string().optional(),
 				tournamentId: z.string().optional(),
 				currencyId: z.string().optional(),
+				buyIn: z.number().int().min(0).optional(),
+				entryFee: z.number().int().min(0).optional(),
 				memo: z.string().optional(),
 			})
 		)
@@ -448,6 +456,8 @@ export const liveTournamentSessionRouter = router({
 				storeId: input.storeId ?? null,
 				tournamentId: input.tournamentId ?? null,
 				currencyId: input.currencyId ?? null,
+				buyIn: input.buyIn ?? null,
+				entryFee: input.entryFee ?? null,
 				startedAt: now,
 				memo: input.memo ?? null,
 				updatedAt: now,
@@ -582,10 +592,14 @@ export const liveTournamentSessionRouter = router({
 				.where(eq(sessionEvent.liveTournamentSessionId, input.id))
 				.orderBy(asc(sessionEvent.sortOrder));
 
-			const { tournamentBuyIn, entryFee } = await fetchTournamentBuyInInfo(
+			const masterData = await fetchTournamentBuyInInfo(
 				ctx.db,
 				session.tournamentId
 			);
+
+			// Session-level buyIn/entryFee take precedence over tournament master data
+			const tournamentBuyIn = session.buyIn ?? masterData.tournamentBuyIn;
+			const entryFee = session.entryFee ?? masterData.entryFee;
 
 			const pl = computeTournamentPLFromEvents(
 				allEvents,

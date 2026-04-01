@@ -34,6 +34,8 @@ describe("LiveTournamentSession schema", () => {
 		expect(columns.storeId.notNull).toBe(false);
 		expect(columns.tournamentId.notNull).toBe(false);
 		expect(columns.currencyId.notNull).toBe(false);
+		expect(columns.buyIn.notNull).toBe(false);
+		expect(columns.entryFee.notNull).toBe(false);
 		expect(columns.endedAt.notNull).toBe(false);
 		expect(columns.memo.notNull).toBe(false);
 	});

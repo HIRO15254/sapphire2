@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CreateTournamentSessionForm } from "../create-tournament-session-form";
 
 const STARTING_STACK_RE = /Starting Stack/;
+const BUY_IN_RE = /Buy-in/;
 
 const STORES = [
 	{ id: "s1", name: "Store A" },
@@ -95,7 +96,7 @@ describe("CreateTournamentSessionForm", () => {
 		expect(screen.getByText("Currency")).toBeInTheDocument();
 	});
 
-	it("renders starting stack field as required", () => {
+	it("renders buy-in and starting stack fields as required", () => {
 		render(
 			<CreateTournamentSessionForm
 				currencies={[]}
@@ -107,8 +108,12 @@ describe("CreateTournamentSessionForm", () => {
 		);
 
 		expect(screen.getByText("Starting Stack")).toBeInTheDocument();
-		const input = screen.getByLabelText(STARTING_STACK_RE);
-		expect(input).toBeRequired();
+		const stackInput = screen.getByLabelText(STARTING_STACK_RE);
+		expect(stackInput).toBeRequired();
+
+		expect(screen.getByText("Buy-in")).toBeInTheDocument();
+		const buyInInput = screen.getByLabelText(BUY_IN_RE);
+		expect(buyInInput).toBeRequired();
 	});
 
 	it("renders memo textarea", () => {
@@ -128,7 +133,7 @@ describe("CreateTournamentSessionForm", () => {
 		).toBeInTheDocument();
 	});
 
-	it("submits form with starting stack", async () => {
+	it("submits form with buy-in and starting stack", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
@@ -142,6 +147,7 @@ describe("CreateTournamentSessionForm", () => {
 			/>
 		);
 
+		await user.type(screen.getByLabelText(BUY_IN_RE), "10000");
 		await user.type(screen.getByLabelText(STARTING_STACK_RE), "15000");
 		await user.click(screen.getByText("Start Tournament"));
 
@@ -149,6 +155,8 @@ describe("CreateTournamentSessionForm", () => {
 			storeId: undefined,
 			tournamentId: undefined,
 			currencyId: undefined,
+			buyIn: 10_000,
+			entryFee: undefined,
 			startingStack: 15_000,
 			memo: undefined,
 		});

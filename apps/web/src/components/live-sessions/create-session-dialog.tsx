@@ -91,7 +91,9 @@ export function CreateSessionDialog({
 
 	const createTournamentMutation = useMutation({
 		mutationFn: async (values: {
+			buyIn: number;
 			currencyId?: string;
+			entryFee?: number;
 			memo?: string;
 			startingStack: number;
 			storeId?: string;

@@ -17,7 +17,9 @@ interface CreateTournamentSessionFormProps {
 	isLoading: boolean;
 	onStoreChange?: (storeId?: string) => void;
 	onSubmit: (values: {
+		buyIn: number;
 		currencyId?: string;
+		entryFee?: number;
 		memo?: string;
 		startingStack: number;
 		storeId?: string;
@@ -51,6 +53,8 @@ export function CreateTournamentSessionForm({
 	const [selectedCurrencyId, setSelectedCurrencyId] = useState<
 		string | undefined
 	>(undefined);
+	const [buyIn, setBuyIn] = useState<string>("");
+	const [entryFee, setEntryFee] = useState<string>("");
 	const [startingStack, setStartingStack] = useState<string>("");
 
 	const handleStoreChange = (value: string) => {
@@ -60,6 +64,21 @@ export function CreateTournamentSessionForm({
 		onStoreChange?.(storeId);
 	};
 
+	const applyTournamentDefaults = (t: (typeof tournaments)[number]) => {
+		if (t.currencyId) {
+			setSelectedCurrencyId(t.currencyId);
+		}
+		if (t.buyIn !== null) {
+			setBuyIn(String(t.buyIn));
+		}
+		if (t.entryFee !== null) {
+			setEntryFee(String(t.entryFee));
+		}
+		if (t.startingStack !== null) {
+			setStartingStack(String(t.startingStack));
+		}
+	};
+
 	const handleTournamentChange = (value: string) => {
 		const tournamentId = value === NONE_VALUE ? undefined : value;
 		setSelectedTournamentId(tournamentId);
@@ -67,12 +86,7 @@ export function CreateTournamentSessionForm({
 		if (tournamentId) {
 			const t = tournaments.find((t) => t.id === tournamentId);
 			if (t) {
-				if (t.currencyId) {
-					setSelectedCurrencyId(t.currencyId);
-				}
-				if (t.startingStack !== null) {
-					setStartingStack(String(t.startingStack));
-				}
+				applyTournamentDefaults(t);
 			}
 		}
 	};
@@ -85,28 +99,20 @@ export function CreateTournamentSessionForm({
 		e.preventDefault();
 		const formData = new FormData(e.currentTarget);
 		const memo = (formData.get("memo") as string) || undefined;
+		const entryFeeNum = entryFee ? Number(entryFee) : undefined;
 
 		onSubmit({
 			storeId: selectedStoreId,
 			tournamentId: selectedTournamentId,
 			currencyId: selectedCurrencyId,
+			buyIn: Number(buyIn),
+			entryFee: entryFeeNum,
 			startingStack: Number(startingStack),
 			memo,
 		});
 	};
 
 	const hasTournaments = tournaments.length > 0;
-
-	// Show buy-in info from selected tournament (read-only display)
-	const selectedTournament = selectedTournamentId
-		? tournaments.find((t) => t.id === selectedTournamentId)
-		: null;
-	const buyInDisplay =
-		selectedTournament?.buyIn !== null &&
-		selectedTournament?.buyIn !== undefined
-			? selectedTournament.buyIn +
-				(selectedTournament.entryFee ? selectedTournament.entryFee : 0)
-			: null;
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
@@ -184,17 +190,33 @@ export function CreateTournamentSessionForm({
 				</div>
 			)}
 
-			{buyInDisplay !== null && (
-				<div className="flex flex-col gap-2">
-					<Label>Buy-in</Label>
-					<p className="text-muted-foreground text-sm">
-						{buyInDisplay.toLocaleString()}
-						{selectedTournament?.entryFee
-							? ` (incl. ${selectedTournament.entryFee.toLocaleString()} entry fee)`
-							: ""}
-					</p>
+			<div className="flex gap-3">
+				<div className="flex flex-1 flex-col gap-2">
+					<Label htmlFor="buyIn">
+						Buy-in <span className="text-destructive">*</span>
+					</Label>
+					<Input
+						id="buyIn"
+						inputMode="numeric"
+						min={0}
+						onChange={(e) => setBuyIn(e.target.value)}
+						required
+						type="number"
+						value={buyIn}
+					/>
 				</div>
-			)}
+				<div className="flex flex-1 flex-col gap-2">
+					<Label htmlFor="entryFee">Entry Fee</Label>
+					<Input
+						id="entryFee"
+						inputMode="numeric"
+						min={0}
+						onChange={(e) => setEntryFee(e.target.value)}
+						type="number"
+						value={entryFee}
+					/>
+				</div>
+			</div>
 
 			<div className="flex flex-col gap-2">
 				<Label htmlFor="startingStack">
