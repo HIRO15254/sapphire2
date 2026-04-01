@@ -41,8 +41,10 @@ function getLabel(props: EventBadgeProps): string {
 			return `Rebuy: ${props.data.cost}`;
 		case "tournament-addon":
 			return `Addon: ${props.data.cost}`;
-		default:
-			return props.type;
+		default: {
+			const _exhaustive: never = props;
+			return String((_exhaustive as EventBadgeProps).type);
+		}
 	}
 }
 

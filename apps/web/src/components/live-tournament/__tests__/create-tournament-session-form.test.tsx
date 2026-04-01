@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { CreateTournamentSessionForm } from "../create-tournament-session-form";
 
+const STARTING_STACK_RE = /Starting Stack/;
+
 const STORES = [
 	{ id: "s1", name: "Store A" },
 	{ id: "s2", name: "Store B" },
@@ -14,8 +16,22 @@ const CURRENCIES = [
 ];
 
 const TOURNAMENTS = [
-	{ id: "t1", name: "Friday MTT", currencyId: "c2" },
-	{ id: "t2", name: "Sunday Special", currencyId: null },
+	{
+		id: "t1",
+		name: "Friday MTT",
+		buyIn: 10_000,
+		entryFee: 1000,
+		startingStack: 20_000,
+		currencyId: "c2",
+	},
+	{
+		id: "t2",
+		name: "Sunday Special",
+		buyIn: null,
+		entryFee: null,
+		startingStack: null,
+		currencyId: null,
+	},
 ];
 
 describe("CreateTournamentSessionForm", () => {
@@ -60,9 +76,7 @@ describe("CreateTournamentSessionForm", () => {
 			/>
 		);
 
-		// Store label should be visible
 		expect(screen.getByText("Store")).toBeInTheDocument();
-		// Combobox trigger (at least one for store) should be rendered
 		const comboboxes = screen.getAllByRole("combobox");
 		expect(comboboxes.length).toBeGreaterThanOrEqual(1);
 	});
@@ -79,6 +93,22 @@ describe("CreateTournamentSessionForm", () => {
 		);
 
 		expect(screen.getByText("Currency")).toBeInTheDocument();
+	});
+
+	it("renders starting stack field as required", () => {
+		render(
+			<CreateTournamentSessionForm
+				currencies={[]}
+				isLoading={false}
+				onSubmit={vi.fn()}
+				stores={[]}
+				tournaments={[]}
+			/>
+		);
+
+		expect(screen.getByText("Starting Stack")).toBeInTheDocument();
+		const input = screen.getByLabelText(STARTING_STACK_RE);
+		expect(input).toBeRequired();
 	});
 
 	it("renders memo textarea", () => {
@@ -98,7 +128,7 @@ describe("CreateTournamentSessionForm", () => {
 		).toBeInTheDocument();
 	});
 
-	it("submits form with selected values", async () => {
+	it("submits form with starting stack", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
@@ -112,12 +142,14 @@ describe("CreateTournamentSessionForm", () => {
 			/>
 		);
 
+		await user.type(screen.getByLabelText(STARTING_STACK_RE), "15000");
 		await user.click(screen.getByText("Start Tournament"));
 
 		expect(onSubmit).toHaveBeenCalledWith({
 			storeId: undefined,
 			tournamentId: undefined,
 			currencyId: undefined,
+			startingStack: 15_000,
 			memo: undefined,
 		});
 	});

@@ -33,6 +33,9 @@ function useStoreTournaments(storeId: string | undefined) {
 	return (tournamentsQuery.data ?? []).map((t) => ({
 		id: t.id,
 		name: t.name,
+		buyIn: t.buyIn,
+		entryFee: t.entryFee,
+		startingStack: t.startingStack,
 		currencyId: t.currencyId,
 	}));
 }
@@ -87,12 +90,30 @@ export function CreateSessionDialog({
 	});
 
 	const createTournamentMutation = useMutation({
-		mutationFn: (values: {
+		mutationFn: async (values: {
 			currencyId?: string;
 			memo?: string;
+			startingStack: number;
 			storeId?: string;
 			tournamentId?: string;
-		}) => trpcClient.liveTournamentSession.create.mutate(values),
+		}) => {
+			const { startingStack, ...createValues } = values;
+			const result =
+				await trpcClient.liveTournamentSession.create.mutate(createValues);
+			// Create initial tournament_stack_record with starting stack
+			await trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: result.id,
+				eventType: "tournament_stack_record",
+				payload: {
+					stackAmount: startingStack,
+					remainingPlayers: null,
+					averageStack: null,
+					rebuy: null,
+					addon: null,
+				},
+			});
+			return result;
+		},
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: tournamentListKey });
 			onOpenChange(false);
