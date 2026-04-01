@@ -92,7 +92,7 @@ describe("SessionCard", () => {
 
 		expect(screen.getByText("NLH 1/2")).toBeInTheDocument();
 		expect(screen.getByText("Cash")).toBeInTheDocument();
-		expect(screen.getByText("+5k")).toBeInTheDocument();
+		expect(screen.getByText("+5,000")).toBeInTheDocument();
 	});
 
 	it("renders tournament session with placement", () => {
@@ -116,7 +116,7 @@ describe("SessionCard", () => {
 			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
 		);
 
-		const plElement = screen.getByText("-5k");
+		const plElement = screen.getByText("-5,000");
 		expect(plElement.className).toContain("text-red-600");
 	});
 
@@ -130,7 +130,7 @@ describe("SessionCard", () => {
 			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
 		);
 
-		expect(screen.getAllByText("+2k").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("+2,000").length).toBeGreaterThan(0);
 	});
 
 	it("does not display EV metrics when evCashOut is null", () => {

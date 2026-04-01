@@ -25,7 +25,7 @@ describe("SessionSummary", () => {
 		expect(screen.getByText("Win Rate")).toBeInTheDocument();
 		expect(screen.getByText("60.0%")).toBeInTheDocument();
 		expect(screen.getByText("Avg P&L")).toBeInTheDocument();
-		expect(screen.getByText("+2.5k")).toBeInTheDocument();
+		expect(screen.getByText("+2,500")).toBeInTheDocument();
 	});
 
 	it("renders nothing when totalSessions is 0", () => {
@@ -93,7 +93,7 @@ describe("SessionSummary", () => {
 			<SessionSummary summary={{ ...baseSummary, totalProfitLoss: -5000 }} />
 		);
 
-		const plValue = screen.getByText("-5k");
+		const plValue = screen.getByText("-5,000");
 		expect(plValue.className).toContain("text-red-600");
 	});
 });
