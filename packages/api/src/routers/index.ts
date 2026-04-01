@@ -13,6 +13,7 @@ import { sessionTablePlayerRouter } from "./session-table-player";
 import { sessionTagRouter } from "./session-tag";
 import { storeRouter } from "./store";
 import { tournamentRouter } from "./tournament";
+import { tournamentChipPurchaseRouter } from "./tournament-chip-purchase";
 import { transactionTypeRouter } from "./transaction-type";
 
 export const appRouter = router({
@@ -32,6 +33,7 @@ export const appRouter = router({
 	ringGame: ringGameRouter,
 	tournament: tournamentRouter,
 	blindLevel: blindLevelRouter,
+	tournamentChipPurchase: tournamentChipPurchaseRouter,
 	session: sessionRouter,
 	sessionEvent: sessionEventRouter,
 	sessionTag: sessionTagRouter,

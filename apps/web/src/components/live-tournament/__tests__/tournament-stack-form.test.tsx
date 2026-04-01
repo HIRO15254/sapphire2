@@ -4,26 +4,21 @@ import { describe, expect, it, vi } from "vitest";
 import { TournamentStackForm } from "../tournament-stack-form";
 
 // Mock the tournament form context
-const mockSetStackAmount = vi.fn();
-const mockSetRemainingPlayers = vi.fn();
-const mockSetAverageStack = vi.fn();
-const mockSetRebuy = vi.fn();
-const mockSetAddon = vi.fn();
-
 vi.mock("@/routes/active-session", () => ({
 	useTournamentFormContext: () => ({
 		state: {
 			stackAmount: "",
 			remainingPlayers: "",
-			averageStack: "",
-			rebuy: null,
-			addon: null,
+			totalEntries: "",
+			chipPurchases: [],
+			chipPurchaseCounts: [],
 		},
-		setStackAmount: mockSetStackAmount,
-		setRemainingPlayers: mockSetRemainingPlayers,
-		setAverageStack: mockSetAverageStack,
-		setRebuy: mockSetRebuy,
-		setAddon: mockSetAddon,
+		setStackAmount: vi.fn(),
+		setRemainingPlayers: vi.fn(),
+		setTotalEntries: vi.fn(),
+		setChipPurchaseCounts: vi.fn(),
+		addChipPurchase: vi.fn(),
+		removeChipPurchase: vi.fn(),
 	}),
 }));
 
@@ -38,6 +33,11 @@ vi.mock("@/components/ui/responsive-dialog", () => ({
 	}) => (open ? <div>{children}</div> : null),
 }));
 
+const CHIP_PURCHASE_TYPES = [
+	{ name: "Rebuy", cost: 5000, chips: 10_000 },
+	{ name: "Addon", cost: 3000, chips: 8000 },
+];
+
 describe("TournamentStackForm", () => {
 	it("renders stack input and buttons", () => {
 		render(
@@ -50,11 +50,39 @@ describe("TournamentStackForm", () => {
 
 		expect(screen.getByPlaceholderText("Stack")).toBeInTheDocument();
 		expect(screen.getByPlaceholderText("Remaining")).toBeInTheDocument();
-		expect(screen.getByPlaceholderText("Avg Stack")).toBeInTheDocument();
+		expect(screen.getByPlaceholderText("Total Entries")).toBeInTheDocument();
 		expect(screen.getByText("Update")).toBeInTheDocument();
 		expect(screen.getByText("End")).toBeInTheDocument();
+		expect(screen.getByText("+ Chip Purchase")).toBeInTheDocument();
+	});
+
+	it("shows dynamic buttons when chipPurchaseTypes provided", () => {
+		render(
+			<TournamentStackForm
+				chipPurchaseTypes={CHIP_PURCHASE_TYPES}
+				isLoading={false}
+				onComplete={vi.fn()}
+				onSubmit={vi.fn()}
+			/>
+		);
+
 		expect(screen.getByText("+ Rebuy")).toBeInTheDocument();
 		expect(screen.getByText("+ Addon")).toBeInTheDocument();
+		expect(screen.queryByText("+ Chip Purchase")).not.toBeInTheDocument();
+	});
+
+	it("shows count inputs when chipPurchaseTypes provided", () => {
+		render(
+			<TournamentStackForm
+				chipPurchaseTypes={CHIP_PURCHASE_TYPES}
+				isLoading={false}
+				onComplete={vi.fn()}
+				onSubmit={vi.fn()}
+			/>
+		);
+
+		expect(screen.getByText("Rebuy count")).toBeInTheDocument();
+		expect(screen.getByText("Addon count")).toBeInTheDocument();
 	});
 
 	it("shows loading state on Update button", () => {
@@ -79,37 +107,5 @@ describe("TournamentStackForm", () => {
 
 		await user.click(screen.getByText("End"));
 		expect(onComplete).toHaveBeenCalled();
-	});
-
-	it("opens rebuy sheet when +Rebuy clicked", async () => {
-		const user = userEvent.setup();
-
-		render(
-			<TournamentStackForm
-				isLoading={false}
-				onComplete={vi.fn()}
-				onSubmit={vi.fn()}
-			/>
-		);
-
-		await user.click(screen.getByText("+ Rebuy"));
-		// Sheet should open with "Add Rebuy" title
-		expect(screen.getByText("Rebuy Cost")).toBeInTheDocument();
-		expect(screen.getByText("Chips Received")).toBeInTheDocument();
-	});
-
-	it("opens addon sheet when +Addon clicked", async () => {
-		const user = userEvent.setup();
-
-		render(
-			<TournamentStackForm
-				isLoading={false}
-				onComplete={vi.fn()}
-				onSubmit={vi.fn()}
-			/>
-		);
-
-		await user.click(screen.getByText("+ Addon"));
-		expect(screen.getByText("Addon Cost")).toBeInTheDocument();
 	});
 });

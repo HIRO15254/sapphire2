@@ -59,11 +59,23 @@ function formatTournamentStackSummary(
 	if (typeof p.remainingPlayers === "number") {
 		parts.push(`${p.remainingPlayers} left`);
 	}
-	if (p.rebuy && typeof p.rebuy === "object") {
-		parts.push("Rebuy");
+	if (typeof p.totalEntries === "number") {
+		parts.push(`${p.totalEntries} entries`);
 	}
-	if (p.addon && typeof p.addon === "object") {
-		parts.push("Addon");
+	// New model: chipPurchases array
+	if (Array.isArray(p.chipPurchases) && p.chipPurchases.length > 0) {
+		const names = (p.chipPurchases as Array<{ name?: unknown }>)
+			.map((cp) => (typeof cp.name === "string" ? cp.name : "Purchase"))
+			.join(", ");
+		parts.push(names);
+	} else {
+		// Legacy fields
+		if (p.rebuy && typeof p.rebuy === "object") {
+			parts.push("Rebuy");
+		}
+		if (p.addon && typeof p.addon === "object") {
+			parts.push("Addon");
+		}
 	}
 	return parts.join(" · ");
 }
@@ -154,14 +166,29 @@ function TournamentStackDetail({
 	payload: Record<string, unknown>;
 }) {
 	const parts: string[] = [];
-	if (payload.rebuy && typeof payload.rebuy === "object") {
-		const r = payload.rebuy as Record<string, unknown>;
-		parts.push(`Rebuy: cost ${r.cost}, chips ${r.chips}`);
+
+	// New model: chipPurchases array
+	if (
+		Array.isArray(payload.chipPurchases) &&
+		payload.chipPurchases.length > 0
+	) {
+		for (const cp of payload.chipPurchases as Record<string, unknown>[]) {
+			if (typeof cp.name === "string") {
+				parts.push(`${cp.name}: cost ${cp.cost}, chips ${cp.chips}`);
+			}
+		}
+	} else {
+		// Legacy fields
+		if (payload.rebuy && typeof payload.rebuy === "object") {
+			const r = payload.rebuy as Record<string, unknown>;
+			parts.push(`Rebuy: cost ${r.cost}, chips ${r.chips}`);
+		}
+		if (payload.addon && typeof payload.addon === "object") {
+			const a = payload.addon as Record<string, unknown>;
+			parts.push(`Addon: cost ${a.cost}, chips ${a.chips}`);
+		}
 	}
-	if (payload.addon && typeof payload.addon === "object") {
-		const a = payload.addon as Record<string, unknown>;
-		parts.push(`Addon: cost ${a.cost}, chips ${a.chips}`);
-	}
+
 	if (parts.length === 0) {
 		return null;
 	}
@@ -447,6 +474,64 @@ function TournamentResultEditor({
 	);
 }
 
+interface NormalizedStackPayload {
+	chipPurchaseCounts: Array<{
+		name: string;
+		count: number;
+		chipsPerUnit: number;
+	}>;
+	chipPurchases: Array<{ name: string; cost: number; chips: number }>;
+	remainingPlayers: number | null;
+	stackAmount: number;
+	totalEntries: number | null;
+}
+
+function normalizeTournamentStackPayload(
+	p: Record<string, unknown>
+): NormalizedStackPayload {
+	const hasNewPurchases = Array.isArray(p.chipPurchases);
+
+	const legacyPurchases: Array<{ name: string; cost: number; chips: number }> =
+		[];
+	if (!hasNewPurchases && p.rebuy && typeof p.rebuy === "object") {
+		const r = p.rebuy as Record<string, unknown>;
+		legacyPurchases.push({
+			name: "Rebuy",
+			cost: typeof r.cost === "number" ? r.cost : 0,
+			chips: typeof r.chips === "number" ? r.chips : 0,
+		});
+	}
+	if (!hasNewPurchases && p.addon && typeof p.addon === "object") {
+		const a = p.addon as Record<string, unknown>;
+		legacyPurchases.push({
+			name: "Addon",
+			cost: typeof a.cost === "number" ? a.cost : 0,
+			chips: typeof a.chips === "number" ? a.chips : 0,
+		});
+	}
+
+	return {
+		stackAmount: typeof p.stackAmount === "number" ? p.stackAmount : 0,
+		remainingPlayers:
+			typeof p.remainingPlayers === "number" ? p.remainingPlayers : null,
+		totalEntries: typeof p.totalEntries === "number" ? p.totalEntries : null,
+		chipPurchases: hasNewPurchases
+			? (p.chipPurchases as Array<{
+					name: string;
+					cost: number;
+					chips: number;
+				}>)
+			: legacyPurchases,
+		chipPurchaseCounts: Array.isArray(p.chipPurchaseCounts)
+			? (p.chipPurchaseCounts as Array<{
+					name: string;
+					count: number;
+					chipsPerUnit: number;
+				}>)
+			: [],
+	};
+}
+
 function getTimeBounds(
 	events: SessionEvent[],
 	targetId: string
@@ -531,21 +616,7 @@ function EventEditor({
 		return (
 			<TournamentStackRecordEditor
 				initialOccurredAt={event.occurredAt}
-				initialPayload={{
-					stackAmount: typeof p.stackAmount === "number" ? p.stackAmount : 0,
-					remainingPlayers:
-						typeof p.remainingPlayers === "number" ? p.remainingPlayers : null,
-					averageStack:
-						typeof p.averageStack === "number" ? p.averageStack : null,
-					rebuy:
-						p.rebuy && typeof p.rebuy === "object"
-							? (p.rebuy as { cost: number; chips: number })
-							: null,
-					addon:
-						p.addon && typeof p.addon === "object"
-							? (p.addon as { cost: number; chips: number })
-							: null,
-				}}
+				initialPayload={normalizeTournamentStackPayload(p)}
 				isLoading={isLoading}
 				maxTime={maxTime}
 				minTime={minTime}

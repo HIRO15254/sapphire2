@@ -1,24 +1,79 @@
 import { useState } from "react";
 import { EventBadge } from "@/components/live-sessions/event-badge";
-import { TournamentAddonSheet } from "@/components/live-tournament/tournament-addon-sheet";
-import { TournamentRebuySheet } from "@/components/live-tournament/tournament-rebuy-sheet";
+import { ChipPurchaseSheet } from "@/components/live-tournament/chip-purchase-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useTournamentFormContext } from "@/routes/active-session";
 
+interface ChipPurchaseType {
+	chips: number;
+	cost: number;
+	name: string;
+}
+
 interface TournamentStackFormProps {
+	chipPurchaseTypes?: ChipPurchaseType[];
 	isLoading: boolean;
 	onComplete: () => void;
 	onSubmit: (values: {
-		addon: { cost: number; chips: number } | null;
-		averageStack: number | null;
-		rebuy: { cost: number; chips: number } | null;
+		chipPurchaseCounts: Array<{
+			name: string;
+			count: number;
+			chipsPerUnit: number;
+		}>;
+		chipPurchases: Array<{ name: string; cost: number; chips: number }>;
 		remainingPlayers: number | null;
 		stackAmount: number;
+		totalEntries: number | null;
 	}) => void;
 }
 
+interface SheetState {
+	defaultChips?: number;
+	defaultCost?: number;
+	defaultName?: string;
+	editId?: number;
+	open: boolean;
+}
+
+function buildChipPurchaseButtons(
+	chipPurchaseTypes: ChipPurchaseType[],
+	onOpen: (state: Omit<SheetState, "open">) => void
+) {
+	if (chipPurchaseTypes.length === 0) {
+		return (
+			<Button
+				onClick={() => onOpen({})}
+				size="xs"
+				type="button"
+				variant="ghost"
+			>
+				+ Chip Purchase
+			</Button>
+		);
+	}
+	return chipPurchaseTypes.map((t) => (
+		<Button
+			key={t.name}
+			onClick={() =>
+				onOpen({
+					defaultName: t.name,
+					defaultCost: t.cost,
+					defaultChips: t.chips,
+				})
+			}
+			size="xs"
+			type="button"
+			variant="ghost"
+		>
+			+ {t.name}
+		</Button>
+	));
+}
+
 export function TournamentStackForm({
+	chipPurchaseTypes = [],
 	isLoading,
 	onComplete,
 	onSubmit,
@@ -27,33 +82,47 @@ export function TournamentStackForm({
 		state,
 		setStackAmount,
 		setRemainingPlayers,
-		setAverageStack,
-		setRebuy,
-		setAddon,
+		setTotalEntries,
+		setChipPurchaseCounts,
+		addChipPurchase,
+		removeChipPurchase,
 	} = useTournamentFormContext();
-	const { stackAmount, remainingPlayers, averageStack, rebuy, addon } = state;
 
-	const [rebuySheetOpen, setRebuySheetOpen] = useState(false);
-	const [addonSheetOpen, setAddonSheetOpen] = useState(false);
+	const {
+		stackAmount,
+		remainingPlayers,
+		totalEntries,
+		chipPurchases,
+		chipPurchaseCounts,
+	} = state;
 
-	const handleRebuySubmit = (values: { cost: number; chips: number }) => {
-		setRebuy(values);
-		setRebuySheetOpen(false);
+	const [sheetState, setSheetState] = useState<SheetState>({ open: false });
+
+	const openSheet = (overrides: Omit<SheetState, "open">) => {
+		setSheetState({ open: true, ...overrides });
 	};
 
-	const handleRebuyDelete = () => {
-		setRebuy(null);
-		setRebuySheetOpen(false);
+	const closeSheet = () => {
+		setSheetState({ open: false });
 	};
 
-	const handleAddonSubmit = (values: { cost: number; chips: number }) => {
-		setAddon(values);
-		setAddonSheetOpen(false);
+	const handleSheetSubmit = (purchase: {
+		name: string;
+		cost: number;
+		chips: number;
+	}) => {
+		if (sheetState.editId !== undefined) {
+			removeChipPurchase(sheetState.editId);
+		}
+		addChipPurchase(purchase);
+		closeSheet();
 	};
 
-	const handleAddonDelete = () => {
-		setAddon(null);
-		setAddonSheetOpen(false);
+	const handleSheetDelete = () => {
+		if (sheetState.editId !== undefined) {
+			removeChipPurchase(sheetState.editId);
+		}
+		closeSheet();
 	};
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -62,35 +131,50 @@ export function TournamentStackForm({
 		onSubmit({
 			stackAmount: Number(stackAmount),
 			remainingPlayers: remainingPlayers ? Number(remainingPlayers) : null,
-			averageStack: averageStack ? Number(averageStack) : null,
-			rebuy,
-			addon,
+			totalEntries: totalEntries ? Number(totalEntries) : null,
+			chipPurchases: chipPurchases.map(({ name, cost, chips }) => ({
+				name,
+				cost,
+				chips,
+			})),
+			chipPurchaseCounts,
 		});
 
-		// Reset rebuy/addon after submit, but keep stack fields
-		setRebuy(null);
-		setAddon(null);
+		// Reset chip purchases after submit, but keep stack fields
+		for (const p of chipPurchases) {
+			removeChipPurchase(p.id);
+		}
 	};
+
+	const editingPurchase =
+		sheetState.editId !== undefined
+			? chipPurchases.find((p) => p.id === sheetState.editId)
+			: undefined;
 
 	return (
 		<div className="flex flex-col gap-2">
 			{/* Row 1: Event badges */}
-			{(rebuy || addon) && (
+			{chipPurchases.length > 0 && (
 				<div className="flex gap-1.5 overflow-x-auto pb-1">
-					{rebuy && (
+					{chipPurchases.map((purchase) => (
 						<EventBadge
-							data={{ cost: rebuy.cost, chips: rebuy.chips }}
-							onEdit={() => setRebuySheetOpen(true)}
-							type="rebuy"
+							data={{
+								name: purchase.name,
+								cost: purchase.cost,
+								chips: purchase.chips,
+							}}
+							key={purchase.id}
+							onEdit={() =>
+								openSheet({
+									editId: purchase.id,
+									defaultName: purchase.name,
+									defaultCost: purchase.cost,
+									defaultChips: purchase.chips,
+								})
+							}
+							type="chip-purchase"
 						/>
-					)}
-					{addon && (
-						<EventBadge
-							data={{ cost: addon.cost, chips: addon.chips }}
-							onEdit={() => setAddonSheetOpen(true)}
-							type="tournament-addon"
-						/>
-					)}
+					))}
 				</div>
 			)}
 
@@ -133,50 +217,87 @@ export function TournamentStackForm({
 					<Input
 						className="flex-1"
 						inputMode="numeric"
-						min={0}
-						onChange={(e) => setAverageStack(e.target.value)}
-						placeholder="Avg Stack"
+						min={1}
+						onChange={(e) => setTotalEntries(e.target.value)}
+						placeholder="Total Entries"
 						type="number"
-						value={averageStack}
+						value={totalEntries}
 					/>
 				</div>
+
+				{/* Chip purchase counts per type */}
+				{chipPurchaseTypes.length > 0 && (
+					<div className="flex flex-col gap-1.5">
+						{chipPurchaseTypes.map((t) => {
+							const countEntry = chipPurchaseCounts.find(
+								(c) => c.name === t.name
+							);
+							const countValue = countEntry?.count ?? 0;
+							return (
+								<div className="flex items-center gap-2" key={t.name}>
+									<Label className="w-24 shrink-0 text-xs">
+										{t.name} count
+									</Label>
+									<Input
+										className="flex-1"
+										inputMode="numeric"
+										min={0}
+										onChange={(e) => {
+											const newCount = Number(e.target.value);
+											setChipPurchaseCounts((prev) => {
+												const without = prev.filter((c) => c.name !== t.name);
+												if (newCount === 0) {
+													return without;
+												}
+												return [
+													...without,
+													{
+														name: t.name,
+														count: newCount,
+														chipsPerUnit: t.chips,
+													},
+												];
+											});
+										}}
+										type="number"
+										value={countValue === 0 ? "" : String(countValue)}
+									/>
+								</div>
+							);
+						})}
+					</div>
+				)}
 			</form>
 
-			{/* Row 3: +Rebuy +Addon buttons */}
+			{/* Row 3: + Chip Purchase buttons */}
 			<div className="flex gap-2">
-				<Button
-					onClick={() => setRebuySheetOpen(true)}
-					size="xs"
-					type="button"
-					variant="ghost"
-				>
-					+ Rebuy
-				</Button>
-				<Button
-					onClick={() => setAddonSheetOpen(true)}
-					size="xs"
-					type="button"
-					variant="ghost"
-				>
-					+ Addon
-				</Button>
+				{buildChipPurchaseButtons(chipPurchaseTypes, openSheet)}
 			</div>
 
-			{/* Bottom sheets */}
-			<TournamentRebuySheet
-				initialValues={rebuy ?? undefined}
-				onDelete={rebuy ? handleRebuyDelete : undefined}
-				onOpenChange={setRebuySheetOpen}
-				onSubmit={handleRebuySubmit}
-				open={rebuySheetOpen}
-			/>
-
-			<TournamentAddonSheet
-				initialValues={addon ?? undefined}
-				onDelete={addon ? handleAddonDelete : undefined}
-				onOpenChange={setAddonSheetOpen}
-				onSubmit={handleAddonSubmit}
-				open={addonSheetOpen}
+			{/* Bottom sheet */}
+			<ChipPurchaseSheet
+				defaultChips={sheetState.defaultChips}
+				defaultCost={sheetState.defaultCost}
+				defaultName={sheetState.defaultName}
+				initialValues={
+					editingPurchase
+						? {
+								name: editingPurchase.name,
+								cost: editingPurchase.cost,
+								chips: editingPurchase.chips,
+							}
+						: undefined
+				}
+				onDelete={
+					sheetState.editId !== undefined ? handleSheetDelete : undefined
+				}
+				onOpenChange={(open) => {
+					if (!open) {
+						closeSheet();
+					}
+				}}
+				onSubmit={handleSheetSubmit}
+				open={sheetState.open}
 			/>
 		</div>
 	);

@@ -100,9 +100,8 @@ function TournamentCompactSummary({
 		entryFee: number | null;
 		currentStack: number | null;
 		remainingPlayers: number | null;
-		averageStack: number | null;
-		rebuyCount: number;
-		addonCount: number;
+		totalEntries: number | null;
+		totalChipPurchases: number;
 		profitLoss: number | null;
 	};
 }) {
@@ -130,24 +129,16 @@ function TournamentCompactSummary({
 					{summary.remainingPlayers !== null ? summary.remainingPlayers : "-"}
 				</p>
 			</div>
-			<div>
-				<span className="text-muted-foreground text-xs">Avg Stack</span>
-				<p className="font-semibold">
-					{summary.averageStack !== null
-						? formatCompactNumber(summary.averageStack)
-						: "-"}
-				</p>
-			</div>
-			{summary.rebuyCount > 0 && (
+			{summary.totalEntries !== null && (
 				<div>
-					<span className="text-muted-foreground text-xs">Rebuys</span>
-					<p className="font-semibold">{summary.rebuyCount}</p>
+					<span className="text-muted-foreground text-xs">Entries</span>
+					<p className="font-semibold">{summary.totalEntries}</p>
 				</div>
 			)}
-			{summary.addonCount > 0 && (
+			{summary.totalChipPurchases > 0 && (
 				<div>
-					<span className="text-muted-foreground text-xs">Addons</span>
-					<p className="font-semibold">{summary.addonCount}</p>
+					<span className="text-muted-foreground text-xs">Chip Purchases</span>
+					<p className="font-semibold">{summary.totalChipPurchases}</p>
 				</div>
 			)}
 			{summary.profitLoss !== null && (
@@ -160,6 +151,31 @@ function TournamentCompactSummary({
 			)}
 		</div>
 	);
+}
+
+function buildTournamentSummary(session: {
+	summary: Record<string, unknown>;
+}): {
+	buyIn: number | null;
+	entryFee: number | null;
+	currentStack: number | null;
+	remainingPlayers: number | null;
+	totalEntries: number | null;
+	totalChipPurchases: number;
+	profitLoss: number | null;
+} {
+	const s = session.summary as Record<string, unknown>;
+	return {
+		buyIn: typeof s.buyIn === "number" ? s.buyIn : null,
+		entryFee: typeof s.entryFee === "number" ? s.entryFee : null,
+		currentStack: typeof s.currentStack === "number" ? s.currentStack : null,
+		remainingPlayers:
+			typeof s.remainingPlayers === "number" ? s.remainingPlayers : null,
+		totalEntries: typeof s.totalEntries === "number" ? s.totalEntries : null,
+		totalChipPurchases:
+			typeof s.totalChipPurchases === "number" ? s.totalChipPurchases : 0,
+		profitLoss: typeof s.profitLoss === "number" ? s.profitLoss : null,
+	};
 }
 
 function CashGameSession({ sessionId }: { sessionId: string }) {
@@ -332,6 +348,20 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 	});
 	const session = sessionQuery.data;
 
+	const tournamentId = session?.tournamentId ?? null;
+
+	const chipPurchaseTypesQuery = useQuery({
+		...trpc.tournamentChipPurchase.listByTournament.queryOptions({
+			tournamentId: tournamentId ?? "",
+		}),
+		enabled: !!tournamentId,
+	});
+	const chipPurchaseTypes = (chipPurchaseTypesQuery.data ?? []).map((t) => ({
+		name: t.name,
+		cost: t.cost,
+		chips: t.chips,
+	}));
+
 	const sessionKey = trpc.liveTournamentSession.getById.queryOptions({
 		id: sessionId,
 	}).queryKey;
@@ -349,11 +379,15 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 
 	const stackMutation = useMutation({
 		mutationFn: (values: {
-			addon: { cost: number; chips: number } | null;
-			averageStack: number | null;
-			rebuy: { cost: number; chips: number } | null;
+			chipPurchaseCounts: Array<{
+				name: string;
+				count: number;
+				chipsPerUnit: number;
+			}>;
+			chipPurchases: Array<{ name: string; cost: number; chips: number }>;
 			remainingPlayers: number | null;
 			stackAmount: number;
+			totalEntries: number | null;
 		}) =>
 			trpcClient.sessionEvent.create.mutate({
 				liveTournamentSessionId: sessionId,
@@ -361,9 +395,9 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 				payload: {
 					stackAmount: values.stackAmount,
 					remainingPlayers: values.remainingPlayers,
-					averageStack: values.averageStack,
-					rebuy: values.rebuy,
-					addon: values.addon,
+					totalEntries: values.totalEntries,
+					chipPurchases: values.chipPurchases,
+					chipPurchaseCounts: values.chipPurchaseCounts,
 				},
 			}),
 		onSuccess: invalidateSession,
@@ -402,6 +436,10 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 		return null;
 	}
 
+	const tournamentSummary = buildTournamentSummary(
+		session as { summary: Record<string, unknown> }
+	);
+
 	return (
 		<>
 			{/* Compact header */}
@@ -428,7 +466,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			{/* Summary - fills main area */}
 			<div className="min-h-0 flex-1">
 				<div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-					<TournamentCompactSummary summary={session.summary} />
+					<TournamentCompactSummary summary={tournamentSummary} />
 				</div>
 
 				{session.memo && (
@@ -439,6 +477,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			{/* Stack form - fixed at bottom */}
 			<div className="border-border border-t pt-2 pb-1">
 				<TournamentStackForm
+					chipPurchaseTypes={chipPurchaseTypes}
 					isLoading={stackMutation.isPending}
 					onComplete={() => setIsCompleteOpen(true)}
 					onSubmit={(values) => stackMutation.mutate(values)}

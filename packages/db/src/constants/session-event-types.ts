@@ -58,12 +58,28 @@ export const tournamentAddonSchema = z.object({
 	chips: z.number().int().min(0),
 });
 
+export const chipPurchaseSchema = z.object({
+	name: z.string().min(1),
+	cost: z.number().int().min(0),
+	chips: z.number().int().min(0),
+});
+
+export const chipPurchaseCountSchema = z.object({
+	name: z.string().min(1),
+	count: z.number().int().min(0),
+	chipsPerUnit: z.number().int().min(0),
+});
+
 export const tournamentStackRecordPayload = z.object({
 	stackAmount: z.number().int().min(0),
 	remainingPlayers: z.number().int().min(1).nullable().default(null),
-	averageStack: z.number().int().min(0).nullable().default(null),
-	rebuy: tournamentRebuySchema.nullable().default(null),
-	addon: tournamentAddonSchema.nullable().default(null),
+	totalEntries: z.number().int().min(1).nullable().default(null),
+	chipPurchases: z.array(chipPurchaseSchema).default([]),
+	chipPurchaseCounts: z.array(chipPurchaseCountSchema).default([]),
+	// Legacy fields kept for backward compatibility with existing events
+	averageStack: z.number().int().min(0).nullable().default(null).optional(),
+	rebuy: tournamentRebuySchema.nullable().default(null).optional(),
+	addon: tournamentAddonSchema.nullable().default(null).optional(),
 });
 
 export const tournamentResultPayload = z.object({

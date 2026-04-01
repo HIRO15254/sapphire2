@@ -135,8 +135,6 @@ function useStoreGames(storeId: string | undefined) {
 			name: t.name,
 			buyIn: t.buyIn,
 			entryFee: t.entryFee,
-			rebuyCost: t.rebuyCost,
-			addonCost: t.addonCost,
 		})),
 	};
 }

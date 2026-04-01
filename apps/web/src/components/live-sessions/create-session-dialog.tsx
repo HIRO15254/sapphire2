@@ -109,9 +109,9 @@ export function CreateSessionDialog({
 				payload: {
 					stackAmount: startingStack,
 					remainingPlayers: null,
-					averageStack: null,
-					rebuy: null,
-					addon: null,
+					totalEntries: null,
+					chipPurchases: [],
+					chipPurchaseCounts: [],
 				},
 			});
 			return result;

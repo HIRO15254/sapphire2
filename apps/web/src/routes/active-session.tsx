@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 
 // Cash game form context
 interface AllIn {
@@ -35,19 +35,37 @@ export function useStackFormContext() {
 
 // Tournament form context
 interface TournamentFormState {
-	addon: { cost: number; chips: number } | null;
-	averageStack: string;
-	rebuy: { cost: number; chips: number } | null;
+	chipPurchaseCounts: Array<{
+		name: string;
+		count: number;
+		chipsPerUnit: number;
+	}>;
+	chipPurchases: Array<{
+		id: number;
+		name: string;
+		cost: number;
+		chips: number;
+	}>;
 	remainingPlayers: string;
 	stackAmount: string;
+	totalEntries: string;
 }
 
 interface TournamentFormContextValue {
-	setAddon: (addon: { cost: number; chips: number } | null) => void;
-	setAverageStack: (value: string) => void;
-	setRebuy: (rebuy: { cost: number; chips: number } | null) => void;
+	addChipPurchase: (purchase: {
+		name: string;
+		cost: number;
+		chips: number;
+	}) => void;
+	removeChipPurchase: (id: number) => void;
+	setChipPurchaseCounts: React.Dispatch<
+		React.SetStateAction<
+			Array<{ name: string; count: number; chipsPerUnit: number }>
+		>
+	>;
 	setRemainingPlayers: (value: string) => void;
 	setStackAmount: (value: string) => void;
+	setTotalEntries: (value: string) => void;
 	state: TournamentFormState;
 }
 
@@ -77,13 +95,28 @@ function ActiveSessionLayout() {
 	// Tournament state
 	const [tStackAmount, setTStackAmount] = useState("");
 	const [remainingPlayers, setRemainingPlayers] = useState("");
-	const [averageStack, setAverageStack] = useState("");
-	const [rebuy, setRebuy] = useState<{ cost: number; chips: number } | null>(
-		null
-	);
-	const [addon, setAddon] = useState<{ cost: number; chips: number } | null>(
-		null
-	);
+	const [totalEntries, setTotalEntries] = useState("");
+	const [chipPurchases, setChipPurchases] = useState<
+		Array<{ id: number; name: string; cost: number; chips: number }>
+	>([]);
+	const [chipPurchaseCounts, setChipPurchaseCounts] = useState<
+		Array<{ name: string; count: number; chipsPerUnit: number }>
+	>([]);
+	const nextChipPurchaseId = useRef(1);
+
+	const addChipPurchase = (purchase: {
+		name: string;
+		cost: number;
+		chips: number;
+	}) => {
+		const id = nextChipPurchaseId.current;
+		nextChipPurchaseId.current += 1;
+		setChipPurchases((prev) => [...prev, { ...purchase, id }]);
+	};
+
+	const removeChipPurchase = (id: number) => {
+		setChipPurchases((prev) => prev.filter((p) => p.id !== id));
+	};
 
 	return (
 		<StackFormContext.Provider
@@ -98,15 +131,16 @@ function ActiveSessionLayout() {
 					state: {
 						stackAmount: tStackAmount,
 						remainingPlayers,
-						averageStack,
-						rebuy,
-						addon,
+						totalEntries,
+						chipPurchases,
+						chipPurchaseCounts,
 					},
 					setStackAmount: setTStackAmount,
 					setRemainingPlayers,
-					setAverageStack,
-					setRebuy,
-					setAddon,
+					setTotalEntries,
+					setChipPurchaseCounts,
+					addChipPurchase,
+					removeChipPurchase,
 				}}
 			>
 				<Outlet />

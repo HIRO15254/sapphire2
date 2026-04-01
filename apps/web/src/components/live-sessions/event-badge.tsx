@@ -13,23 +13,16 @@ interface AddonBadgeProps {
 	type: "addon";
 }
 
-interface RebuyBadgeProps {
-	data: { cost: number; chips: number };
+interface ChipPurchaseBadgeProps {
+	data: { name: string; cost: number; chips: number };
 	onEdit: () => void;
-	type: "rebuy";
-}
-
-interface TournamentAddonBadgeProps {
-	data: { cost: number; chips: number };
-	onEdit: () => void;
-	type: "tournament-addon";
+	type: "chip-purchase";
 }
 
 type EventBadgeProps =
 	| AllInBadgeProps
 	| AddonBadgeProps
-	| RebuyBadgeProps
-	| TournamentAddonBadgeProps;
+	| ChipPurchaseBadgeProps;
 
 function getLabel(props: EventBadgeProps): string {
 	switch (props.type) {
@@ -37,10 +30,8 @@ function getLabel(props: EventBadgeProps): string {
 			return `All-in: ${props.data.potSize} pot, ${props.data.equity}%`;
 		case "addon":
 			return `Addon: ${props.data.amount}`;
-		case "rebuy":
-			return `Rebuy: ${props.data.cost}`;
-		case "tournament-addon":
-			return `Addon: ${props.data.cost}`;
+		case "chip-purchase":
+			return `${props.data.name}: ${props.data.cost}`;
 		default: {
 			const _exhaustive: never = props;
 			return String((_exhaustive as EventBadgeProps).type);

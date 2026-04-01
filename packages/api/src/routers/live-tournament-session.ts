@@ -147,37 +147,52 @@ async function upsertCurrencyTransaction(
 	});
 }
 
-async function fetchTournamentBuyInInfo(
+async function fetchTournamentMasterData(
 	db: DbInstance,
 	tournamentId: string | null
 ): Promise<{
 	tournamentBuyIn: number | undefined;
 	entryFee: number | undefined;
+	startingStack: number | null;
 }> {
 	if (!tournamentId) {
-		return { tournamentBuyIn: undefined, entryFee: undefined };
+		return {
+			tournamentBuyIn: undefined,
+			entryFee: undefined,
+			startingStack: null,
+		};
 	}
 	const [t] = await db
-		.select({ buyIn: tournament.buyIn, entryFee: tournament.entryFee })
+		.select({
+			buyIn: tournament.buyIn,
+			entryFee: tournament.entryFee,
+			startingStack: tournament.startingStack,
+		})
 		.from(tournament)
 		.where(eq(tournament.id, tournamentId));
 	return {
 		tournamentBuyIn: t?.buyIn ?? undefined,
 		entryFee: t?.entryFee ?? undefined,
+		startingStack: t?.startingStack ?? null,
 	};
 }
 
-function computeStackStats(events: { eventType: string; payload: string }[]): {
+function computeStackStats(
+	events: { eventType: string; payload: string }[],
+	startingStack: number | null
+): {
 	maxStack: number | null;
 	minStack: number | null;
 	currentStack: number | null;
 	remainingPlayers: number | null;
+	totalEntries: number | null;
 	averageStack: number | null;
 } {
 	let maxStack: number | null = null;
 	let minStack: number | null = null;
 	let currentStack: number | null = null;
 	let remainingPlayers: number | null = null;
+	let totalEntries: number | null = null;
 	let averageStack: number | null = null;
 
 	for (const event of events) {
@@ -198,11 +213,55 @@ function computeStackStats(events: { eventType: string; payload: string }[]): {
 			minStack = stack;
 		}
 		currentStack = stack;
-		remainingPlayers = parsed.data.remainingPlayers;
-		averageStack = parsed.data.averageStack;
+		if (parsed.data.remainingPlayers !== null) {
+			remainingPlayers = parsed.data.remainingPlayers;
+		}
+		if (parsed.data.totalEntries !== null) {
+			totalEntries = parsed.data.totalEntries;
+		}
+
+		// Auto-calculate averageStack from chipPurchaseCounts
+		averageStack = computeAverageStack(
+			totalEntries,
+			startingStack,
+			remainingPlayers,
+			parsed.data.chipPurchaseCounts
+		);
+
+		// Legacy fallback
+		if (averageStack === null && parsed.data.averageStack !== undefined) {
+			averageStack = parsed.data.averageStack ?? null;
+		}
 	}
 
-	return { maxStack, minStack, currentStack, remainingPlayers, averageStack };
+	return {
+		maxStack,
+		minStack,
+		currentStack,
+		remainingPlayers,
+		totalEntries,
+		averageStack,
+	};
+}
+
+function computeAverageStack(
+	totalEntries: number | null,
+	startingStack: number | null,
+	remainingPlayers: number | null,
+	chipPurchaseCounts: Array<{
+		name: string;
+		count: number;
+		chipsPerUnit: number;
+	}>
+): number | null {
+	if (!(totalEntries && startingStack && remainingPlayers)) {
+		return null;
+	}
+	let totalChips = totalEntries * startingStack;
+	for (const cp of chipPurchaseCounts) {
+		totalChips += cp.count * cp.chipsPerUnit;
+	}
+	return Math.round(totalChips / remainingPlayers);
 }
 
 type TournamentPL = ReturnType<typeof computeTournamentPLFromEvents>;
@@ -341,30 +400,20 @@ export const liveTournamentSessionRouter = router({
 						.orderBy(asc(sessionEvent.sortOrder));
 
 					const eventCount = events.length;
-					let latestStackAmount: number | null = null;
-					let remainingPlayers: number | null = null;
-					let averageStack: number | null = null;
-
-					for (const event of [...events].reverse()) {
-						if (event.eventType === "tournament_stack_record") {
-							const parsed = tournamentStackRecordPayload.safeParse(
-								JSON.parse(event.payload)
-							);
-							if (parsed.success) {
-								latestStackAmount = parsed.data.stackAmount;
-								remainingPlayers = parsed.data.remainingPlayers;
-								averageStack = parsed.data.averageStack;
-								break;
-							}
-						}
-					}
+					const statsForList = computeStackStats(
+						events.map((e) => ({
+							eventType: e.eventType,
+							payload: e.payload,
+						})),
+						null // startingStack not available in list view
+					);
 
 					return {
 						...item,
 						eventCount,
-						latestStackAmount,
-						remainingPlayers,
-						averageStack,
+						latestStackAmount: statsForList.currentStack,
+						remainingPlayers: statsForList.remainingPlayers,
+						averageStack: statsForList.averageStack,
 					};
 				})
 			);
@@ -378,7 +427,7 @@ export const liveTournamentSessionRouter = router({
 			const userId = ctx.session.user.id;
 			const session = await findLiveTournamentSession(ctx.db, input.id, userId);
 
-			const masterData = await fetchTournamentBuyInInfo(
+			const masterData = await fetchTournamentMasterData(
 				ctx.db,
 				session.tournamentId
 			);
@@ -405,7 +454,8 @@ export const liveTournamentSessionRouter = router({
 			);
 
 			const stackStats = computeStackStats(
-				events.map((e) => ({ eventType: e.eventType, payload: e.payload }))
+				events.map((e) => ({ eventType: e.eventType, payload: e.payload })),
+				masterData.startingStack
 			);
 
 			const summary = {
@@ -416,7 +466,7 @@ export const liveTournamentSessionRouter = router({
 				addonCount: pl.addonCount,
 				addonCost: pl.addonCost,
 				placement: pl.placement,
-				totalEntries: pl.totalEntries,
+				totalEntries: stackStats.totalEntries ?? pl.totalEntries,
 				prizeMoney: pl.prizeMoney,
 				bountyPrizes: pl.bountyPrizes,
 				profitLoss: pl.profitLoss,
@@ -592,7 +642,7 @@ export const liveTournamentSessionRouter = router({
 				.where(eq(sessionEvent.liveTournamentSessionId, input.id))
 				.orderBy(asc(sessionEvent.sortOrder));
 
-			const masterData = await fetchTournamentBuyInInfo(
+			const masterData = await fetchTournamentMasterData(
 				ctx.db,
 				session.tournamentId
 			);
