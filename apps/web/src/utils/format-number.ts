@@ -44,7 +44,7 @@ function formatWithTier(value: number, tier: UnitTier | undefined): string {
  *   const fmt = createGroupFormatter([100, 200, 10000]);
  *   fmt(100)   // "0.01k"  — because max is 10000 (k tier)
  *   fmt(200)   // "0.02k"
- *   fmt(10000) // "1k"
+ *   fmt(10000) // "10k"
  *
  * If max < 10,000, all values are shown as plain numbers.
  */
