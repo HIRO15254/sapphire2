@@ -91,6 +91,17 @@ export function CreateCashGameSessionForm({
 
 	const hasRingGames = ringGames.length > 0;
 
+	// Determine which fields are locked by the selected ring game
+	const selectedRingGame = selectedRingGameId
+		? ringGames.find((g) => g.id === selectedRingGameId)
+		: null;
+	const isBuyInLocked =
+		selectedRingGame?.maxBuyIn !== null &&
+		selectedRingGame?.maxBuyIn !== undefined;
+	const isCurrencyLocked =
+		selectedRingGame?.currencyId !== null &&
+		selectedRingGame?.currencyId !== undefined;
+
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
 			{stores.length > 0 && (
@@ -149,6 +160,7 @@ export function CreateCashGameSessionForm({
 				<div className="flex flex-col gap-2">
 					<Label>Currency</Label>
 					<Select
+						disabled={isCurrencyLocked}
 						onValueChange={handleCurrencyChange}
 						value={selectedCurrencyId ?? NONE_VALUE}
 					>
@@ -170,6 +182,7 @@ export function CreateCashGameSessionForm({
 			<div className="flex flex-col gap-2">
 				<Label htmlFor="initialBuyIn">Initial Buy-in</Label>
 				<Input
+					disabled={isBuyInLocked}
 					id="initialBuyIn"
 					min={0}
 					onChange={(e) => setInitialBuyIn(e.target.value)}

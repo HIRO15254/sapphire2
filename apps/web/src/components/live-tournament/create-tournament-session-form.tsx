@@ -114,6 +114,23 @@ export function CreateTournamentSessionForm({
 
 	const hasTournaments = tournaments.length > 0;
 
+	// Determine which fields are locked by the selected tournament
+	const selectedTournament = selectedTournamentId
+		? tournaments.find((t) => t.id === selectedTournamentId)
+		: null;
+	const isBuyInLocked =
+		selectedTournament?.buyIn !== null &&
+		selectedTournament?.buyIn !== undefined;
+	const isEntryFeeLocked =
+		selectedTournament?.entryFee !== null &&
+		selectedTournament?.entryFee !== undefined;
+	const isStartingStackLocked =
+		selectedTournament?.startingStack !== null &&
+		selectedTournament?.startingStack !== undefined;
+	const isCurrencyLocked =
+		selectedTournament?.currencyId !== null &&
+		selectedTournament?.currencyId !== undefined;
+
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
 			{stores.length > 0 && (
@@ -172,6 +189,7 @@ export function CreateTournamentSessionForm({
 				<div className="flex flex-col gap-2">
 					<Label>Currency</Label>
 					<Select
+						disabled={isCurrencyLocked}
 						onValueChange={handleCurrencyChange}
 						value={selectedCurrencyId ?? NONE_VALUE}
 					>
@@ -196,6 +214,7 @@ export function CreateTournamentSessionForm({
 						Buy-in <span className="text-destructive">*</span>
 					</Label>
 					<Input
+						disabled={isBuyInLocked}
 						id="buyIn"
 						inputMode="numeric"
 						min={0}
@@ -208,6 +227,7 @@ export function CreateTournamentSessionForm({
 				<div className="flex flex-1 flex-col gap-2">
 					<Label htmlFor="entryFee">Entry Fee</Label>
 					<Input
+						disabled={isEntryFeeLocked}
 						id="entryFee"
 						inputMode="numeric"
 						min={0}
@@ -223,6 +243,7 @@ export function CreateTournamentSessionForm({
 					Starting Stack <span className="text-destructive">*</span>
 				</Label>
 				<Input
+					disabled={isStartingStackLocked}
 					id="startingStack"
 					inputMode="numeric"
 					min={0}
