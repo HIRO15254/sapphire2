@@ -78,6 +78,9 @@ export function CashGameStackForm({
 
 	const handleAddonSubmit = (values: { amount: number }) => {
 		onChipAdd(values.amount);
+		// Auto-increment stack by addon amount
+		const currentStack = Number(stackAmount) || 0;
+		setStackAmount(String(currentStack + values.amount));
 		setAddonBottomSheetOpen(false);
 	};
 

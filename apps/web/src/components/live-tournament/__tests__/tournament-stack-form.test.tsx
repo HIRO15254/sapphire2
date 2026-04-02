@@ -42,6 +42,7 @@ describe("TournamentStackForm", () => {
 	it("renders stack input and buttons", () => {
 		render(
 			<TournamentStackForm
+				chipPurchaseTypes={CHIP_PURCHASE_TYPES}
 				isLoading={false}
 				onComplete={vi.fn()}
 				onSubmit={vi.fn()}
@@ -53,22 +54,21 @@ describe("TournamentStackForm", () => {
 		expect(screen.getByPlaceholderText("Total Entries")).toBeInTheDocument();
 		expect(screen.getByText("Update")).toBeInTheDocument();
 		expect(screen.getByText("End")).toBeInTheDocument();
-		expect(screen.getByText("+ Chip Purchase")).toBeInTheDocument();
+		expect(screen.getByText("+ Rebuy")).toBeInTheDocument();
+		expect(screen.getByText("+ Addon")).toBeInTheDocument();
 	});
 
-	it("shows dynamic buttons when chipPurchaseTypes provided", () => {
+	it("shows no chip purchase buttons when no types provided", () => {
 		render(
 			<TournamentStackForm
-				chipPurchaseTypes={CHIP_PURCHASE_TYPES}
 				isLoading={false}
 				onComplete={vi.fn()}
 				onSubmit={vi.fn()}
 			/>
 		);
 
-		expect(screen.getByText("+ Rebuy")).toBeInTheDocument();
-		expect(screen.getByText("+ Addon")).toBeInTheDocument();
 		expect(screen.queryByText("+ Chip Purchase")).not.toBeInTheDocument();
+		expect(screen.queryByText("+ Rebuy")).not.toBeInTheDocument();
 	});
 
 	it("shows count inputs when chipPurchaseTypes provided", () => {

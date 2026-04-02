@@ -29,40 +29,17 @@ interface TournamentStackFormProps {
 	}) => void;
 }
 
-interface SheetState {
-	defaultChips?: number;
-	defaultCost?: number;
-	defaultName?: string;
-	editId?: number;
-	open: boolean;
-}
-
 function buildChipPurchaseButtons(
 	chipPurchaseTypes: ChipPurchaseType[],
-	onOpen: (state: Omit<SheetState, "open">) => void
+	onAdd: (type: ChipPurchaseType) => void
 ) {
 	if (chipPurchaseTypes.length === 0) {
-		return (
-			<Button
-				onClick={() => onOpen({})}
-				size="xs"
-				type="button"
-				variant="ghost"
-			>
-				+ Chip Purchase
-			</Button>
-		);
+		return null;
 	}
 	return chipPurchaseTypes.map((t) => (
 		<Button
 			key={t.name}
-			onClick={() =>
-				onOpen({
-					defaultName: t.name,
-					defaultCost: t.cost,
-					defaultChips: t.chips,
-				})
-			}
+			onClick={() => onAdd(t)}
 			size="xs"
 			type="button"
 			variant="ghost"
@@ -96,33 +73,29 @@ export function TournamentStackForm({
 		chipPurchaseCounts,
 	} = state;
 
-	const [sheetState, setSheetState] = useState<SheetState>({ open: false });
-
-	const openSheet = (overrides: Omit<SheetState, "open">) => {
-		setSheetState({ open: true, ...overrides });
-	};
-
-	const closeSheet = () => {
-		setSheetState({ open: false });
-	};
-
-	const handleSheetSubmit = (purchase: {
+	// View-only sheet for badge tap (delete only, no edit)
+	const [viewingPurchase, setViewingPurchase] = useState<{
+		id: number;
 		name: string;
 		cost: number;
 		chips: number;
-	}) => {
-		if (sheetState.editId !== undefined) {
-			removeChipPurchase(sheetState.editId);
-		}
-		addChipPurchase(purchase);
-		closeSheet();
+	} | null>(null);
+
+	const handleInstantAdd = (type: ChipPurchaseType) => {
+		addChipPurchase({ name: type.name, cost: type.cost, chips: type.chips });
+		// Auto-increment stack by chips received
+		const currentStack = Number(stackAmount) || 0;
+		setStackAmount(String(currentStack + type.chips));
 	};
 
-	const handleSheetDelete = () => {
-		if (sheetState.editId !== undefined) {
-			removeChipPurchase(sheetState.editId);
+	const handleDeleteViewing = () => {
+		if (viewingPurchase) {
+			// Decrement stack by chips removed
+			const currentStack = Number(stackAmount) || 0;
+			setStackAmount(String(Math.max(0, currentStack - viewingPurchase.chips)));
+			removeChipPurchase(viewingPurchase.id);
+			setViewingPurchase(null);
 		}
-		closeSheet();
 	};
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -146,11 +119,6 @@ export function TournamentStackForm({
 		}
 	};
 
-	const editingPurchase =
-		sheetState.editId !== undefined
-			? chipPurchases.find((p) => p.id === sheetState.editId)
-			: undefined;
-
 	return (
 		<div className="flex flex-col gap-2">
 			{/* Row 1: Event badges */}
@@ -164,14 +132,7 @@ export function TournamentStackForm({
 								chips: purchase.chips,
 							}}
 							key={purchase.id}
-							onEdit={() =>
-								openSheet({
-									editId: purchase.id,
-									defaultName: purchase.name,
-									defaultCost: purchase.cost,
-									defaultChips: purchase.chips,
-								})
-							}
+							onEdit={() => setViewingPurchase(purchase)}
 							type="chip-purchase"
 						/>
 					))}
@@ -271,33 +232,29 @@ export function TournamentStackForm({
 
 			{/* Row 3: + Chip Purchase buttons */}
 			<div className="flex gap-2">
-				{buildChipPurchaseButtons(chipPurchaseTypes, openSheet)}
+				{buildChipPurchaseButtons(chipPurchaseTypes, handleInstantAdd)}
 			</div>
 
-			{/* Bottom sheet */}
+			{/* View-only sheet for badge tap (delete only) */}
 			<ChipPurchaseSheet
-				defaultChips={sheetState.defaultChips}
-				defaultCost={sheetState.defaultCost}
-				defaultName={sheetState.defaultName}
 				initialValues={
-					editingPurchase
+					viewingPurchase
 						? {
-								name: editingPurchase.name,
-								cost: editingPurchase.cost,
-								chips: editingPurchase.chips,
+								name: viewingPurchase.name,
+								cost: viewingPurchase.cost,
+								chips: viewingPurchase.chips,
 							}
 						: undefined
 				}
-				onDelete={
-					sheetState.editId !== undefined ? handleSheetDelete : undefined
-				}
+				onDelete={viewingPurchase ? handleDeleteViewing : undefined}
 				onOpenChange={(open) => {
 					if (!open) {
-						closeSheet();
+						setViewingPurchase(null);
 					}
 				}}
-				onSubmit={handleSheetSubmit}
-				open={sheetState.open}
+				onSubmit={() => setViewingPurchase(null)}
+				open={viewingPurchase !== null}
+				readOnly
 			/>
 		</div>
 	);
