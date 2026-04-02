@@ -5,8 +5,10 @@ import { useState } from "react";
 import { CashGameCompleteForm } from "@/components/live-cash-game/cash-game-complete-form";
 import { CashGameStackForm } from "@/components/live-cash-game/cash-game-stack-form";
 import { AddPlayerSheet } from "@/components/live-sessions/add-player-sheet";
+import { PlayerDetailSheet } from "@/components/live-sessions/player-detail-sheet";
 import {
 	PokerTable,
+	type TableGameInfo,
 	type TablePlayer,
 } from "@/components/live-sessions/poker-table";
 import { TournamentCompleteForm } from "@/components/live-tournament/tournament-complete-form";
@@ -184,43 +186,107 @@ function buildTournamentSummary(session: {
 	};
 }
 
-function useHeroSeat(
+// --- Shared table player interaction logic ---
+
+interface SelectedPlayer {
+	playerId: string;
+	seatPosition: number;
+}
+
+function usePokerTableInteraction(
 	sessionType: "cash_game" | "tournament",
 	sessionId: string,
-	currentHeroSeat: number
+	heroSeatPosition: number | null
 ) {
 	const queryClient = useQueryClient();
+	const [addPlayerSeat, setAddPlayerSeat] = useState<number | null>(null);
+	const [selectedPlayer, setSelectedPlayer] = useState<SelectedPlayer | null>(
+		null
+	);
 
-	const cashSessionKey = trpc.liveCashGameSession.getById.queryOptions({
-		id: sessionId,
-	}).queryKey;
-	const tournamentSessionKey = trpc.liveTournamentSession.getById.queryOptions({
-		id: sessionId,
-	}).queryKey;
+	const sessionKey =
+		sessionType === "cash_game"
+			? trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
+					.queryKey
+			: trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
+					.queryKey;
 
 	const heroMutation = useMutation({
-		mutationFn: (heroSeatPosition: number) =>
+		mutationFn: (pos: number) =>
 			sessionType === "cash_game"
 				? trpcClient.liveCashGameSession.updateHeroSeat.mutate({
 						id: sessionId,
-						heroSeatPosition,
+						heroSeatPosition: pos,
 					})
 				: trpcClient.liveTournamentSession.updateHeroSeat.mutate({
 						id: sessionId,
-						heroSeatPosition,
+						heroSeatPosition: pos,
 					}),
-		onSuccess: () => {
-			const key =
-				sessionType === "cash_game" ? cashSessionKey : tournamentSessionKey;
-			queryClient.invalidateQueries({ queryKey: key });
-		},
+		onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKey }),
+	});
+
+	const handleEmptySeatTap = (seatPosition: number) => {
+		if (heroSeatPosition === null) {
+			heroMutation.mutate(seatPosition);
+		} else {
+			setAddPlayerSeat(seatPosition);
+		}
+	};
+
+	const handlePlayerSeatTap = (player: TablePlayer, seatPosition: number) => {
+		setSelectedPlayer({ playerId: player.player.id, seatPosition });
+	};
+
+	return {
+		heroSeatPosition,
+		addPlayerSeat,
+		setAddPlayerSeat,
+		selectedPlayer,
+		setSelectedPlayer,
+		handleEmptySeatTap,
+		handlePlayerSeatTap,
+	};
+}
+
+function usePlayerDetail(playerId: string | null) {
+	const playerQuery = useQuery({
+		...trpc.player.getById.queryOptions({ id: playerId ?? "" }),
+		enabled: !!playerId,
+	});
+
+	const tagsQuery = useQuery({
+		...trpc.playerTag.list.queryOptions(),
+	});
+
+	const updateMutation = useMutation({
+		mutationFn: (values: {
+			id: string;
+			memo?: string | null;
+			tagIds?: string[];
+		}) => trpcClient.player.update.mutate(values),
+	});
+
+	const createTagMutation = useMutation({
+		mutationFn: (name: string) => trpcClient.playerTag.create.mutate({ name }),
 	});
 
 	return {
-		heroSeatPosition: currentHeroSeat,
-		setHeroSeat: (pos: number) => heroMutation.mutate(pos),
+		player: playerQuery.data ?? null,
+		availableTags: (tagsQuery.data ?? []) as Array<{
+			id: string;
+			name: string;
+			color: string;
+		}>,
+		updatePlayer: updateMutation.mutate,
+		isSaving: updateMutation.isPending,
+		createTag: async (name: string) => {
+			const result = await createTagMutation.mutateAsync(name);
+			return result as { id: string; name: string; color: string };
+		},
 	};
 }
+
+// --- Session components ---
 
 function CashGameSession({ sessionId }: { sessionId: string }) {
 	const navigate = useNavigate();
@@ -238,6 +304,13 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 		refetchInterval: 5000,
 	});
 	const session = sessionQuery.data;
+
+	const ringGameQuery = useQuery({
+		...trpc.ringGame.listByStore.queryOptions({
+			storeId: session?.storeId ?? "",
+		}),
+		enabled: !!session?.storeId,
+	});
 
 	const sessionKey = trpc.liveCashGameSession.getById.queryOptions({
 		id: sessionId,
@@ -303,19 +376,44 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 		},
 	});
 
+	const rawHero = session?.heroSeatPosition;
+	const heroSeat = typeof rawHero === "number" && rawHero > 0 ? rawHero : null;
+
 	const tablePlayers = useTablePlayers({
 		liveCashGameSessionId: sessionId,
 	});
 
-	const heroSeat = useHeroSeat(
+	const tableInteraction = usePokerTableInteraction(
 		"cash_game",
 		sessionId,
-		session?.heroSeatPosition ?? 0
+		heroSeat
+	);
+
+	const playerDetail = usePlayerDetail(
+		tableInteraction.selectedPlayer?.playerId ?? null
 	);
 
 	if (!session) {
 		return null;
 	}
+
+	const ringGames = ringGameQuery.data ?? [];
+	const ringGame = session.ringGameId
+		? ringGames.find((rg) => rg.id === session.ringGameId)
+		: undefined;
+	const gameInfo: TableGameInfo = ringGame
+		? {
+				name: ringGame.name,
+				blinds:
+					ringGame.blind1 && ringGame.blind2
+						? `${formatCompactNumber(ringGame.blind1)}-${formatCompactNumber(ringGame.blind2)}`
+						: null,
+				buyInRange:
+					ringGame.minBuyIn && ringGame.maxBuyIn
+						? `MIN ${formatCompactNumber(ringGame.minBuyIn)} - MAX ${formatCompactNumber(ringGame.maxBuyIn)}`
+						: null,
+			}
+		: {};
 
 	return (
 		<>
@@ -330,7 +428,6 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 						Active
 					</Badge>
 				</div>
-
 				<button
 					className="text-destructive/60 text-xs hover:text-destructive"
 					onClick={() => setIsDiscardOpen(true)}
@@ -349,18 +446,18 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 				<p className="mt-1 text-muted-foreground text-xs">{session.memo}</p>
 			)}
 
-			{/* Poker table - center area */}
+			{/* Poker table */}
 			<div className="min-h-0 flex-1 py-2">
 				<PokerTable
-					heroSeatPosition={heroSeat.heroSeatPosition}
-					onAddPlayer={tablePlayers.handleAddPlayer}
-					onHeroSeatChange={heroSeat.setHeroSeat}
-					onRemovePlayer={tablePlayers.handleRemovePlayer}
+					gameInfo={gameInfo}
+					heroSeatPosition={tableInteraction.heroSeatPosition}
+					onEmptySeatTap={tableInteraction.handleEmptySeatTap}
+					onPlayerSeatTap={tableInteraction.handlePlayerSeatTap}
 					players={tablePlayers.players as TablePlayer[]}
 				/>
 			</div>
 
-			{/* Stack form - fixed at bottom */}
+			{/* Stack form */}
 			<div className="border-border border-t pt-2 pb-1">
 				<CashGameStackForm
 					isLoading={stackMutation.isPending}
@@ -389,13 +486,62 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 			{/* Add player sheet */}
 			<AddPlayerSheet
 				excludePlayerIds={tablePlayers.excludePlayerIds}
-				onAddExisting={tablePlayers.handleAddExisting}
-				onAddNew={tablePlayers.handleAddNew}
-				onOpenChange={tablePlayers.setAddPlayerSheetOpen}
-				open={tablePlayers.addPlayerSheetOpen}
+				onAddExisting={(playerId) => {
+					tablePlayers.handleAddExisting(playerId);
+					tableInteraction.setAddPlayerSeat(null);
+				}}
+				onAddNew={(name, memo) => {
+					tablePlayers.handleAddNew(name, memo);
+					tableInteraction.setAddPlayerSeat(null);
+				}}
+				onOpenChange={(open) => {
+					if (!open) {
+						tableInteraction.setAddPlayerSeat(null);
+					}
+				}}
+				open={tableInteraction.addPlayerSeat !== null}
 			/>
 
-			{/* Discard confirm dialog */}
+			{/* Player detail sheet */}
+			<PlayerDetailSheet
+				availableTags={playerDetail.availableTags}
+				isSaving={playerDetail.isSaving}
+				onCreateTag={playerDetail.createTag}
+				onOpenChange={(open) => {
+					if (!open) {
+						tableInteraction.setSelectedPlayer(null);
+					}
+				}}
+				onRemove={() => {
+					if (tableInteraction.selectedPlayer) {
+						tablePlayers.handleRemovePlayer(
+							tableInteraction.selectedPlayer.playerId
+						);
+						tableInteraction.setSelectedPlayer(null);
+					}
+				}}
+				onSave={(values) => {
+					if (tableInteraction.selectedPlayer) {
+						playerDetail.updatePlayer({
+							id: tableInteraction.selectedPlayer.playerId,
+							...values,
+						});
+					}
+				}}
+				open={tableInteraction.selectedPlayer !== null}
+				player={
+					playerDetail.player
+						? {
+								id: playerDetail.player.id,
+								name: playerDetail.player.name,
+								memo: playerDetail.player.memo,
+								tags: playerDetail.player.tags ?? [],
+							}
+						: null
+				}
+			/>
+
+			{/* Discard dialog */}
 			<DiscardDialog
 				isOpen={isDiscardOpen}
 				isPending={discardMutation.isPending}
@@ -504,14 +650,21 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 		},
 	});
 
+	const rawHero = session?.heroSeatPosition;
+	const heroSeat = typeof rawHero === "number" && rawHero > 0 ? rawHero : null;
+
 	const tablePlayers = useTablePlayers({
 		liveTournamentSessionId: sessionId,
 	});
 
-	const heroSeat = useHeroSeat(
+	const tableInteraction = usePokerTableInteraction(
 		"tournament",
 		sessionId,
-		session?.heroSeatPosition ?? 0
+		heroSeat
+	);
+
+	const playerDetail = usePlayerDetail(
+		tableInteraction.selectedPlayer?.playerId ?? null
 	);
 
 	if (!session) {
@@ -521,6 +674,10 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 	const tournamentSummary = buildTournamentSummary(
 		session as { summary: Record<string, unknown> }
 	);
+
+	const gameInfo: TableGameInfo = {
+		name: session.tournamentId ? "Tournament" : null,
+	};
 
 	return (
 		<>
@@ -535,7 +692,6 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 						Active
 					</Badge>
 				</div>
-
 				<button
 					className="text-destructive/60 text-xs hover:text-destructive"
 					onClick={() => setIsDiscardOpen(true)}
@@ -554,18 +710,18 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 				<p className="mt-1 text-muted-foreground text-xs">{session.memo}</p>
 			)}
 
-			{/* Poker table - center area */}
+			{/* Poker table */}
 			<div className="min-h-0 flex-1 py-2">
 				<PokerTable
-					heroSeatPosition={heroSeat.heroSeatPosition}
-					onAddPlayer={tablePlayers.handleAddPlayer}
-					onHeroSeatChange={heroSeat.setHeroSeat}
-					onRemovePlayer={tablePlayers.handleRemovePlayer}
+					gameInfo={gameInfo}
+					heroSeatPosition={tableInteraction.heroSeatPosition}
+					onEmptySeatTap={tableInteraction.handleEmptySeatTap}
+					onPlayerSeatTap={tableInteraction.handlePlayerSeatTap}
 					players={tablePlayers.players as TablePlayer[]}
 				/>
 			</div>
 
-			{/* Stack form - fixed at bottom */}
+			{/* Stack form */}
 			<div className="border-border border-t pt-2 pb-1">
 				<TournamentStackForm
 					chipPurchaseTypes={chipPurchaseTypes}
@@ -590,13 +746,62 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			{/* Add player sheet */}
 			<AddPlayerSheet
 				excludePlayerIds={tablePlayers.excludePlayerIds}
-				onAddExisting={tablePlayers.handleAddExisting}
-				onAddNew={tablePlayers.handleAddNew}
-				onOpenChange={tablePlayers.setAddPlayerSheetOpen}
-				open={tablePlayers.addPlayerSheetOpen}
+				onAddExisting={(playerId) => {
+					tablePlayers.handleAddExisting(playerId);
+					tableInteraction.setAddPlayerSeat(null);
+				}}
+				onAddNew={(name, memo) => {
+					tablePlayers.handleAddNew(name, memo);
+					tableInteraction.setAddPlayerSeat(null);
+				}}
+				onOpenChange={(open) => {
+					if (!open) {
+						tableInteraction.setAddPlayerSeat(null);
+					}
+				}}
+				open={tableInteraction.addPlayerSeat !== null}
 			/>
 
-			{/* Discard confirm dialog */}
+			{/* Player detail sheet */}
+			<PlayerDetailSheet
+				availableTags={playerDetail.availableTags}
+				isSaving={playerDetail.isSaving}
+				onCreateTag={playerDetail.createTag}
+				onOpenChange={(open) => {
+					if (!open) {
+						tableInteraction.setSelectedPlayer(null);
+					}
+				}}
+				onRemove={() => {
+					if (tableInteraction.selectedPlayer) {
+						tablePlayers.handleRemovePlayer(
+							tableInteraction.selectedPlayer.playerId
+						);
+						tableInteraction.setSelectedPlayer(null);
+					}
+				}}
+				onSave={(values) => {
+					if (tableInteraction.selectedPlayer) {
+						playerDetail.updatePlayer({
+							id: tableInteraction.selectedPlayer.playerId,
+							...values,
+						});
+					}
+				}}
+				open={tableInteraction.selectedPlayer !== null}
+				player={
+					playerDetail.player
+						? {
+								id: playerDetail.player.id,
+								name: playerDetail.player.name,
+								memo: playerDetail.player.memo,
+								tags: playerDetail.player.tags ?? [],
+							}
+						: null
+				}
+			/>
+
+			{/* Discard dialog */}
 			<DiscardDialog
 				isOpen={isDiscardOpen}
 				isPending={discardMutation.isPending}

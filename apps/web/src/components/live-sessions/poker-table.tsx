@@ -1,30 +1,41 @@
-import { IconPlus, IconStar, IconStarFilled, IconX } from "@tabler/icons-react";
+import { IconPlus, IconUser } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 
 const MAX_SEATS = 9;
 
+/** Avatar background colors for non-hero players, cycled by seat index. */
+const AVATAR_COLORS = [
+	"bg-blue-500",
+	"bg-rose-500",
+	"bg-amber-500",
+	"bg-teal-500",
+	"bg-purple-500",
+	"bg-orange-500",
+	"bg-cyan-500",
+	"bg-pink-500",
+	"bg-lime-500",
+] as const;
+
 /**
  * Seat positions around an oval poker table (0-8).
- * Positions are arranged clockwise starting from bottom-center.
- * Each entry: [left%, top%] relative to the table container.
+ * [left%, top%] relative to the container.
  *
- * Layout (portrait-oriented oval):
- *   Seat 7  Seat 8  Seat 1  Seat 2
- *   Seat 6                  Seat 3
- *   Seat 5    Seat 0    Seat 4
- *
- * Seat 0 = bottom center (default hero position)
+ *        8    top    1
+ *    7                   2
+ *    6                   3
+ *        5   bottom  4
+ *              0
  */
 const SEAT_POSITIONS: [number, number][] = [
-	[50, 92], // 0: bottom center
-	[84, 18], // 1: top right
-	[96, 42], // 2: right upper
-	[96, 68], // 3: right lower
-	[84, 88], // 4: bottom right
-	[16, 88], // 5: bottom left
-	[4, 68], // 6: left lower
-	[4, 42], // 7: left upper
-	[16, 18], // 8: top left
+	[50, 95], // 0: bottom center (default hero)
+	[82, 12], // 1: top right
+	[97, 40], // 2: right upper
+	[97, 68], // 3: right lower
+	[82, 92], // 4: bottom right
+	[18, 92], // 5: bottom left
+	[3, 68], // 6: left lower
+	[3, 40], // 7: left upper
+	[18, 12], // 8: top left
 ];
 
 export interface TablePlayer {
@@ -37,11 +48,17 @@ export interface TablePlayer {
 	seatPosition: number | null;
 }
 
+export interface TableGameInfo {
+	blinds?: string | null;
+	buyInRange?: string | null;
+	name?: string | null;
+}
+
 interface PokerTableProps {
-	heroSeatPosition: number;
-	onAddPlayer: (seatPosition: number) => void;
-	onHeroSeatChange: (seatPosition: number) => void;
-	onRemovePlayer: (playerId: string) => void;
+	gameInfo?: TableGameInfo;
+	heroSeatPosition: number | null;
+	onEmptySeatTap: (seatPosition: number) => void;
+	onPlayerSeatTap: (player: TablePlayer, seatPosition: number) => void;
 	players: TablePlayer[];
 }
 
@@ -54,127 +71,103 @@ function getPlayerAtSeat(
 
 function SeatSlot({
 	isHero,
-	onAdd,
-	onHeroMark,
-	onRemove,
+	onTap,
 	player,
 	seatIndex,
 }: {
 	isHero: boolean;
-	onAdd: () => void;
-	onHeroMark: () => void;
-	onRemove: () => void;
+	onTap: () => void;
 	player: TablePlayer | undefined;
 	seatIndex: number;
 }) {
 	const [left, top] = SEAT_POSITIONS[seatIndex];
-	const isEmpty = !(player || isHero);
 	const isOccupied = !!player;
-	const isHeroEmpty = isHero && !player;
+	const colorClass = AVATAR_COLORS[seatIndex % AVATAR_COLORS.length];
 
 	return (
-		<div
-			className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+		<button
+			className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5"
+			onClick={onTap}
 			style={{ left: `${left}%`, top: `${top}%` }}
+			type="button"
 		>
-			{/* Seat circle */}
-			{isEmpty && (
-				<button
-					className="flex size-10 items-center justify-center rounded-full border-2 border-muted-foreground/30 border-dashed bg-background text-muted-foreground/50 transition-colors hover:border-primary/50 hover:text-primary/70"
-					onClick={onAdd}
-					title="Add player"
-					type="button"
-				>
-					<IconPlus size={16} />
-				</button>
+			{/* Avatar circle */}
+			{!(isOccupied || isHero) && (
+				<div className="flex size-10 items-center justify-center rounded-full border-2 border-white/20 border-dashed bg-white/5 text-white/30 transition-colors active:bg-white/10">
+					<IconPlus size={14} />
+				</div>
 			)}
 
-			{isHeroEmpty && (
-				<div className="flex size-10 items-center justify-center rounded-full border-2 border-amber-400 bg-amber-50 dark:bg-amber-950/50">
-					<IconStarFilled className="text-amber-500" size={16} />
+			{isHero && !isOccupied && (
+				<div className="flex size-10 items-center justify-center rounded-full border-2 border-amber-400 bg-amber-500/80 text-white shadow-md">
+					<IconUser size={16} />
 				</div>
 			)}
 
 			{isOccupied && (
-				<div className="group relative">
-					<div
-						className={cn(
-							"flex size-10 items-center justify-center rounded-full border-2 font-bold text-xs",
-							isHero
-								? "border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"
-								: "border-primary/40 bg-primary/10 text-primary"
-						)}
-					>
-						{player.player.name.slice(0, 2).toUpperCase()}
-					</div>
-					{/* Remove button */}
-					<button
-						className="absolute -top-1 -right-1 hidden size-4 items-center justify-center rounded-full bg-destructive text-destructive-foreground group-hover:flex"
-						onClick={onRemove}
-						title="Remove player"
-						type="button"
-					>
-						<IconX size={10} />
-					</button>
+				<div
+					className={cn(
+						"flex size-10 items-center justify-center rounded-full border-2 font-bold text-white text-xs shadow-md",
+						isHero
+							? "border-amber-400 bg-amber-500/80"
+							: `border-white/30 ${colorClass}`
+					)}
+				>
+					{player.player.name.slice(0, 2).toUpperCase()}
 				</div>
 			)}
 
-			{/* Player name label */}
+			{/* Name label */}
 			<span
 				className={cn(
-					"mt-0.5 max-w-[56px] truncate text-center text-[10px] leading-tight",
-					isHero &&
-						!isOccupied &&
-						"font-semibold text-amber-600 dark:text-amber-400",
-					isOccupied && !isHero && "text-foreground/80",
-					isOccupied &&
-						isHero &&
-						"font-semibold text-amber-600 dark:text-amber-400",
-					!(isOccupied || isHero) && "text-muted-foreground/40"
+					"max-w-[60px] truncate text-center text-[10px] leading-tight",
+					isHero && "font-bold text-amber-300",
+					isOccupied && !isHero && "font-medium text-white/90",
+					!(isOccupied || isHero) && "text-white/30"
 				)}
 			>
-				{isHeroEmpty && "Hero"}
+				{isHero && !isOccupied && "You"}
 				{isOccupied && player.player.name}
 			</span>
-
-			{/* Hero mark button (long press / right-click area) */}
-			{!isHero && (
-				<button
-					className="absolute -bottom-3 opacity-0 transition-opacity hover:opacity-100 group-hover:opacity-100"
-					onClick={(e) => {
-						e.stopPropagation();
-						onHeroMark();
-					}}
-					title="Set as my seat"
-					type="button"
-				>
-					<IconStar
-						className="text-muted-foreground/40 hover:text-amber-500"
-						size={12}
-					/>
-				</button>
-			)}
-		</div>
+		</button>
 	);
 }
 
 export function PokerTable({
+	gameInfo,
 	heroSeatPosition,
-	onAddPlayer,
-	onHeroSeatChange,
-	onRemovePlayer,
+	onEmptySeatTap,
+	onPlayerSeatTap,
 	players,
 }: PokerTableProps) {
 	return (
-		<div className="relative mx-auto aspect-[4/3] w-full max-w-xs">
-			{/* Table surface - oval shape */}
-			<div className="absolute inset-[12%] rounded-[50%] border-4 border-emerald-700/60 bg-emerald-800/20 shadow-inner dark:border-emerald-600/40 dark:bg-emerald-900/30" />
+		<div className="relative mx-auto aspect-[4/3] w-full max-w-sm">
+			{/* Table rim */}
+			<div className="absolute inset-[8%] rounded-[50%] bg-emerald-900 shadow-lg dark:bg-emerald-950" />
 
-			{/* Table felt center text */}
-			<div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-				<span className="select-none text-emerald-700/20 text-xs dark:text-emerald-500/20">
-					TABLE
-				</span>
+			{/* Table felt */}
+			<div className="absolute inset-[11%] rounded-[50%] border-2 border-emerald-600/50 bg-emerald-700 shadow-inner dark:border-emerald-500/30 dark:bg-emerald-800" />
+
+			{/* Center game info */}
+			<div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+				{gameInfo?.name && (
+					<span className="font-bold text-white/60 text-xs">
+						{gameInfo.name}
+					</span>
+				)}
+				{gameInfo?.blinds && (
+					<span className="font-black text-lg text-white/70">
+						{gameInfo.blinds}
+					</span>
+				)}
+				{gameInfo?.buyInRange && (
+					<span className="text-[10px] text-white/40">
+						{gameInfo.buyInRange}
+					</span>
+				)}
+				{!(gameInfo?.name || gameInfo?.blinds) && (
+					<span className="select-none text-white/20 text-xs">TABLE</span>
+				)}
 			</div>
 
 			{/* Seats */}
@@ -186,11 +179,11 @@ export function PokerTable({
 					<SeatSlot
 						isHero={isHero}
 						key={`seat-${String(i)}`}
-						onAdd={() => onAddPlayer(i)}
-						onHeroMark={() => onHeroSeatChange(i)}
-						onRemove={() => {
+						onTap={() => {
 							if (playerAtSeat) {
-								onRemovePlayer(playerAtSeat.player.id);
+								onPlayerSeatTap(playerAtSeat, i);
+							} else {
+								onEmptySeatTap(i);
 							}
 						}}
 						player={playerAtSeat}
