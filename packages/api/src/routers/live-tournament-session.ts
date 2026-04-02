@@ -765,7 +765,7 @@ export const liveTournamentSessionRouter = router({
 		.input(
 			z.object({
 				id: z.string(),
-				heroSeatPosition: z.number().int().min(0).max(8),
+				heroSeatPosition: z.number().int().min(0).max(8).nullable(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

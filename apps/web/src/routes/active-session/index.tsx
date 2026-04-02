@@ -212,7 +212,7 @@ function usePokerTableInteraction(
 					.queryKey;
 
 	const heroMutation = useMutation({
-		mutationFn: (pos: number) =>
+		mutationFn: (pos: number | null) =>
 			sessionType === "cash_game"
 				? trpcClient.liveCashGameSession.updateHeroSeat.mutate({
 						id: sessionId,
@@ -237,14 +237,20 @@ function usePokerTableInteraction(
 		setSelectedPlayer({ playerId: player.player.id, seatPosition });
 	};
 
+	const handleHeroSeatTap = () => {
+		heroMutation.mutate(null);
+	};
+
 	return {
 		heroSeatPosition,
+		waitingForHero: heroSeatPosition === null,
 		addPlayerSeat,
 		setAddPlayerSeat,
 		selectedPlayer,
 		setSelectedPlayer,
 		handleEmptySeatTap,
 		handlePlayerSeatTap,
+		handleHeroSeatTap,
 	};
 }
 
@@ -377,7 +383,7 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 	});
 
 	const rawHero = session?.heroSeatPosition;
-	const heroSeat = typeof rawHero === "number" && rawHero > 0 ? rawHero : null;
+	const heroSeat = typeof rawHero === "number" && rawHero >= 0 ? rawHero : null;
 
 	const tablePlayers = useTablePlayers({
 		liveCashGameSessionId: sessionId,
@@ -452,8 +458,10 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 					gameInfo={gameInfo}
 					heroSeatPosition={tableInteraction.heroSeatPosition}
 					onEmptySeatTap={tableInteraction.handleEmptySeatTap}
+					onHeroSeatTap={tableInteraction.handleHeroSeatTap}
 					onPlayerSeatTap={tableInteraction.handlePlayerSeatTap}
 					players={tablePlayers.players as TablePlayer[]}
+					waitingForHero={tableInteraction.waitingForHero}
 				/>
 			</div>
 
@@ -651,7 +659,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 	});
 
 	const rawHero = session?.heroSeatPosition;
-	const heroSeat = typeof rawHero === "number" && rawHero > 0 ? rawHero : null;
+	const heroSeat = typeof rawHero === "number" && rawHero >= 0 ? rawHero : null;
 
 	const tablePlayers = useTablePlayers({
 		liveTournamentSessionId: sessionId,
@@ -716,8 +724,10 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 					gameInfo={gameInfo}
 					heroSeatPosition={tableInteraction.heroSeatPosition}
 					onEmptySeatTap={tableInteraction.handleEmptySeatTap}
+					onHeroSeatTap={tableInteraction.handleHeroSeatTap}
 					onPlayerSeatTap={tableInteraction.handlePlayerSeatTap}
 					players={tablePlayers.players as TablePlayer[]}
+					waitingForHero={tableInteraction.waitingForHero}
 				/>
 			</div>
 
