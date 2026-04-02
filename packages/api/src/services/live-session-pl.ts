@@ -74,6 +74,46 @@ export function computeCashGamePLFromEvents(
 	return { totalBuyIn, cashOut, profitLoss, evCashOut, addonTotal };
 }
 
+function processStackRecordPurchases(data: {
+	chipPurchases: Array<{ name: string; cost: number; chips: number }>;
+	rebuy?: { cost: number; chips: number } | null;
+	addon?: { cost: number; chips: number } | null;
+}): {
+	rebuyCount: number;
+	rebuyCost: number;
+	addonCount: number;
+	addonCost: number;
+} {
+	let rebuyCount = 0;
+	let rebuyCost = 0;
+	let addonCount = 0;
+	let addonCost = 0;
+
+	if (data.chipPurchases.length > 0) {
+		for (const cp of data.chipPurchases) {
+			if (cp.name.toLowerCase().includes("rebuy")) {
+				rebuyCount++;
+				rebuyCost += cp.cost;
+			} else {
+				addonCount++;
+				addonCost += cp.cost;
+			}
+		}
+	} else {
+		// Legacy fallback: process old rebuy/addon fields
+		if (data.rebuy) {
+			rebuyCount++;
+			rebuyCost += data.rebuy.cost;
+		}
+		if (data.addon) {
+			addonCount++;
+			addonCost += data.addon.cost;
+		}
+	}
+
+	return { rebuyCount, rebuyCost, addonCount, addonCost };
+}
+
 export function computeTournamentPLFromEvents(
 	events: { eventType: string; payload: string }[],
 	tournamentBuyIn?: number,
@@ -93,14 +133,11 @@ export function computeTournamentPLFromEvents(
 
 		if (event.eventType === "tournament_stack_record") {
 			const data = tournamentStackRecordPayload.parse(parsed);
-			if (data.rebuy) {
-				rebuyCount++;
-				rebuyCost += data.rebuy.cost;
-			}
-			if (data.addon) {
-				addonCount++;
-				addonCost += data.addon.cost;
-			}
+			const counts = processStackRecordPurchases(data);
+			rebuyCount += counts.rebuyCount;
+			rebuyCost += counts.rebuyCost;
+			addonCount += counts.addonCount;
+			addonCost += counts.addonCost;
 		} else if (event.eventType === "tournament_result") {
 			const data = tournamentResultPayload.parse(parsed);
 			placement = data.placement;

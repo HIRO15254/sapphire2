@@ -56,39 +56,39 @@
 
 ### Tournament Components
 
-- [ ] T001 [P] [US2] Create `CreateTournamentSessionForm` component: tournament selection (from existing tournaments), store, currency, memo inputs. On tournament selection, auto-fill buy-in info. Submit calls `liveTournamentSession.create`. File: `apps/web/src/components/live-tournament/create-tournament-session-form.tsx`
+- [X] T001 [P] [US2] Create `CreateTournamentSessionForm` component: tournament selection (from existing tournaments), store, currency, memo inputs. On tournament selection, auto-fill buy-in info. Submit calls `liveTournamentSession.create`. File: `apps/web/src/components/live-tournament/create-tournament-session-form.tsx`
 
-- [ ] T002 [P] [US2] Create `TournamentStackForm` component: compact bottom-fixed layout matching cash game pattern. Inputs: stackAmount, remainingPlayers (optional), averageStack (optional). "Add Rebuy" button opens bottom sheet (cost + chips). "Add Addon" button opens bottom sheet (cost + chips). Added rebuys/addons displayed as `EventBadge`. Submit creates `tournament_stack_record` event. "End" button triggers complete dialog. File: `apps/web/src/components/live-tournament/tournament-stack-form.tsx`
+- [X] T002 [P] [US2] Create `TournamentStackForm` component: compact bottom-fixed layout matching cash game pattern. Inputs: stackAmount, remainingPlayers (optional), averageStack (optional). "Add Rebuy" button opens bottom sheet (cost + chips). "Add Addon" button opens bottom sheet (cost + chips). Added rebuys/addons displayed as `EventBadge`. Submit creates `tournament_stack_record` event. "End" button triggers complete dialog. File: `apps/web/src/components/live-tournament/tournament-stack-form.tsx`
 
-- [ ] T003 [P] [US2] Create `TournamentCompleteForm` component: inputs for placement, totalEntries, prizeMoney, bountyPrizes (optional). Calls `liveTournamentSession.complete`. File: `apps/web/src/components/live-tournament/tournament-complete-form.tsx`
+- [X] T003 [P] [US2] Create `TournamentCompleteForm` component: inputs for placement, totalEntries, prizeMoney, bountyPrizes (optional). Calls `liveTournamentSession.complete`. File: `apps/web/src/components/live-tournament/tournament-complete-form.tsx`
 
-- [ ] T004 [P] [US2] Create `TournamentRebuySheet` component: ResponsiveDialog with inputs for rebuy cost and chips. Add/edit/delete modes. File: `apps/web/src/components/live-tournament/tournament-rebuy-sheet.tsx`
+- [X] T004 [P] [US2] Create `TournamentRebuySheet` component: ResponsiveDialog with inputs for rebuy cost and chips. Add/edit/delete modes. File: `apps/web/src/components/live-tournament/tournament-rebuy-sheet.tsx`
 
-- [ ] T005 [P] [US2] Create `TournamentAddonSheet` component: ResponsiveDialog with inputs for addon cost and chips. Add/edit/delete modes. File: `apps/web/src/components/live-tournament/tournament-addon-sheet.tsx`
+- [X] T005 [P] [US2] Create `TournamentAddonSheet` component: ResponsiveDialog with inputs for addon cost and chips. Add/edit/delete modes. File: `apps/web/src/components/live-tournament/tournament-addon-sheet.tsx`
 
 ### Active Session Tournament Support
 
-- [ ] T006 [US2] Update `CreateSessionDialog` to support tournament creation: add session type selector (Cash Game / Tournament). When Tournament selected, show `CreateTournamentSessionForm` instead of `CreateCashGameSessionForm`. File: `apps/web/src/components/live-sessions/create-session-dialog.tsx`
+- [X] T006 [US2] Update `CreateSessionDialog` to support tournament creation: add session type selector (Cash Game / Tournament). When Tournament selected, show `CreateTournamentSessionForm` instead of `CreateCashGameSessionForm`. File: `apps/web/src/components/live-sessions/create-session-dialog.tsx`
 
-- [ ] T007 [US2] Update `/active-session/index.tsx` to handle tournament sessions: use `useActiveSession` to detect session type (cash_game/tournament). When tournament, render tournament-specific UI (TournamentStackForm, TournamentCompleteForm, tournament summary). Reuse CompactSummary with tournament fields (placement, rebuyCount, etc.). File: `apps/web/src/routes/active-session/index.tsx`
+- [X] T007 [US2] Update `/active-session/index.tsx` to handle tournament sessions: use `useActiveSession` to detect session type (cash_game/tournament). When tournament, render tournament-specific UI (TournamentStackForm, TournamentCompleteForm, tournament summary). Reuse CompactSummary with tournament fields (placement, rebuyCount, etc.). File: `apps/web/src/routes/active-session/index.tsx`
 
-- [ ] T008 [US2] Update `/active-session/events.tsx` to handle tournament events: add EVENT_TYPE_LABELS for `tournament_stack_record` and `tournament_result`. Add formatPayloadSummary for tournament events. Add EventDetail for tournament stack records (rebuy/addon details). File: `apps/web/src/routes/active-session/events.tsx`
+- [X] T008 [US2] Update `/active-session/events.tsx` to handle tournament events: add EVENT_TYPE_LABELS for `tournament_stack_record` and `tournament_result`. Add formatPayloadSummary for tournament events. Add EventDetail for tournament stack records (rebuy/addon details). File: `apps/web/src/routes/active-session/events.tsx`
 
-- [ ] T009 [US2] Update `useActiveSession` hook to return tournament session info: currently queries both tables but only returns cash game details. Ensure tournament sessions are also returned with correct type and ID. File: `apps/web/src/hooks/use-active-session.ts`
+- [X] T009 [US2] Update `useActiveSession` hook to return tournament session info: currently queries both tables but only returns cash game details. Ensure tournament sessions are also returned with correct type and ID. File: `apps/web/src/hooks/use-active-session.ts`
 
-- [ ] T010 [US2] Update `active-session.tsx` layout to provide StackFormContext for tournament sessions: tournament stack form state (stackAmount, remainingPlayers, averageStack, rebuys, addons) should persist across page navigation like cash game state. File: `apps/web/src/routes/active-session.tsx`
+- [X] T010 [US2] Update `active-session.tsx` layout to provide StackFormContext for tournament sessions: tournament stack form state (stackAmount, remainingPlayers, averageStack, rebuys, addons) should persist across page navigation like cash game state. File: `apps/web/src/routes/active-session.tsx`
 
 ### Tournament Event Editing
 
-- [ ] T011 [P] [US2] Create `TournamentStackRecordEditor` component: for editing tournament_stack_record events in the events page. Inputs for stackAmount, remainingPlayers, averageStack, rebuy (cost + chips), addon (cost + chips). Time editing with validation. File: `apps/web/src/components/live-tournament/tournament-stack-record-editor.tsx`
+- [X] T011 [P] [US2] Create `TournamentStackRecordEditor` component: for editing tournament_stack_record events in the events page. Inputs for stackAmount, remainingPlayers, averageStack, rebuy (cost + chips), addon (cost + chips). Time editing with validation. File: `apps/web/src/components/live-tournament/tournament-stack-record-editor.tsx`
 
-- [ ] T012 [US2] Update event editing in both events pages to handle tournament events: dispatch `tournament_stack_record` to `TournamentStackRecordEditor`, `tournament_result` to a result editor (placement/totalEntries/prizeMoney/bountyPrizes). Files: `apps/web/src/routes/active-session/events.tsx`, `apps/web/src/routes/live-sessions/cash-game/$sessionId/events.tsx`
+- [X] T012 [US2] Update event editing in both events pages to handle tournament events: dispatch `tournament_stack_record` to `TournamentStackRecordEditor`, `tournament_result` to a result editor (placement/totalEntries/prizeMoney/bountyPrizes). Files: `apps/web/src/routes/active-session/events.tsx`, `apps/web/src/routes/live-sessions/cash-game/$sessionId/events.tsx`
 
 ### Tournament Tests
 
-- [ ] T013 [P] [US2] Test: component tests for `CreateTournamentSessionForm`. File: `apps/web/src/components/live-tournament/__tests__/create-tournament-session-form.test.tsx`
+- [X] T013 [P] [US2] Test: component tests for `CreateTournamentSessionForm`. File: `apps/web/src/components/live-tournament/__tests__/create-tournament-session-form.test.tsx`
 
-- [ ] T014 [P] [US2] Test: component tests for `TournamentStackForm`. File: `apps/web/src/components/live-tournament/__tests__/tournament-stack-form.test.tsx`
+- [X] T014 [P] [US2] Test: component tests for `TournamentStackForm`. File: `apps/web/src/components/live-tournament/__tests__/tournament-stack-form.test.tsx`
 
 **Checkpoint**: トーナメントセッションを開始・記録・完了できる。イベント編集も動作する。
 

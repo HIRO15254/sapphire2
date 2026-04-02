@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { StackRecordEditor } from "@/components/live-sessions/stack-record-editor";
+import { TournamentStackRecordEditor } from "@/components/live-tournament/tournament-stack-record-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,8 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 	player_leave: "Player Leave",
 	session_start: "Session Start",
 	session_end: "Session End",
+	tournament_stack_record: "Stack Record",
+	tournament_result: "Tournament Result",
 };
 
 const LIFECYCLE_EVENTS = new Set(["session_start", "session_end"]);
@@ -46,6 +49,53 @@ function applyTimeToDate(original: string | Date, timeStr: string): Date {
 	return date;
 }
 
+function formatTournamentStackSummary(
+	p: Record<string, unknown>
+): string | null {
+	if (typeof p.stackAmount !== "number") {
+		return null;
+	}
+	const parts = [`Stack: ${p.stackAmount.toLocaleString()}`];
+	if (typeof p.remainingPlayers === "number") {
+		parts.push(`${p.remainingPlayers} left`);
+	}
+	if (typeof p.totalEntries === "number") {
+		parts.push(`${p.totalEntries} entries`);
+	}
+	// New model: chipPurchases array
+	if (Array.isArray(p.chipPurchases) && p.chipPurchases.length > 0) {
+		const names = (p.chipPurchases as Array<{ name?: unknown }>)
+			.map((cp) => (typeof cp.name === "string" ? cp.name : "Purchase"))
+			.join(", ");
+		parts.push(names);
+	} else {
+		// Legacy fields
+		if (p.rebuy && typeof p.rebuy === "object") {
+			parts.push("Rebuy");
+		}
+		if (p.addon && typeof p.addon === "object") {
+			parts.push("Addon");
+		}
+	}
+	return parts.join(" · ");
+}
+
+function formatTournamentResultSummary(
+	p: Record<string, unknown>
+): string | null {
+	const parts: string[] = [];
+	if (typeof p.placement === "number") {
+		parts.push(`#${p.placement}`);
+	}
+	if (typeof p.totalEntries === "number") {
+		parts.push(`/${p.totalEntries}`);
+	}
+	if (typeof p.prizeMoney === "number" && p.prizeMoney > 0) {
+		parts.push(`Prize: ${p.prizeMoney.toLocaleString()}`);
+	}
+	return parts.join(" ") || null;
+}
+
 function formatPayloadSummary(
 	eventType: string,
 	payload: unknown
@@ -64,6 +114,12 @@ function formatPayloadSummary(
 			parts.push(`${p.allIns.length} all-in(s)`);
 		}
 		return parts.join(" · ");
+	}
+	if (eventType === "tournament_stack_record") {
+		return formatTournamentStackSummary(p);
+	}
+	if (eventType === "tournament_result") {
+		return formatTournamentResultSummary(p);
 	}
 	return null;
 }
@@ -104,6 +160,49 @@ function AllInsDetail({ allIns }: { allIns: unknown[] }) {
 	);
 }
 
+function TournamentStackDetail({
+	payload,
+}: {
+	payload: Record<string, unknown>;
+}) {
+	const parts: string[] = [];
+
+	// New model: chipPurchases array
+	if (
+		Array.isArray(payload.chipPurchases) &&
+		payload.chipPurchases.length > 0
+	) {
+		for (const cp of payload.chipPurchases as Record<string, unknown>[]) {
+			if (typeof cp.name === "string") {
+				parts.push(`${cp.name}: cost ${cp.cost}, chips ${cp.chips}`);
+			}
+		}
+	} else {
+		// Legacy fields
+		if (payload.rebuy && typeof payload.rebuy === "object") {
+			const r = payload.rebuy as Record<string, unknown>;
+			parts.push(`Rebuy: cost ${r.cost}, chips ${r.chips}`);
+		}
+		if (payload.addon && typeof payload.addon === "object") {
+			const a = payload.addon as Record<string, unknown>;
+			parts.push(`Addon: cost ${a.cost}, chips ${a.chips}`);
+		}
+	}
+
+	if (parts.length === 0) {
+		return null;
+	}
+	return (
+		<ul className="mt-1 flex flex-col gap-0.5">
+			{parts.map((part) => (
+				<li className="text-muted-foreground text-xs" key={part}>
+					{part}
+				</li>
+			))}
+		</ul>
+	);
+}
+
 function EventDetail({
 	eventType,
 	payload,
@@ -124,6 +223,14 @@ function EventDetail({
 		return (
 			<div className="mt-1">
 				<AllInsDetail allIns={p.allIns as unknown[]} />
+			</div>
+		);
+	}
+
+	if (eventType === "tournament_stack_record") {
+		return (
+			<div className="mt-1">
+				<TournamentStackDetail payload={p} />
 			</div>
 		);
 	}
@@ -254,6 +361,177 @@ function AmountEditor({
 	);
 }
 
+function TournamentResultEditor({
+	event,
+	isLoading,
+	maxTime,
+	minTime,
+	onDelete: handleDelete,
+	onSubmit,
+}: {
+	event: SessionEvent;
+	isLoading: boolean;
+	maxTime: Date | null;
+	minTime: Date | null;
+	onDelete: () => void;
+	onSubmit: (payload: unknown, occurredAt?: number) => void;
+}) {
+	const p = (event.payload ?? {}) as Record<string, unknown>;
+	const [placement, setPlacement] = useState(String(p.placement ?? 1));
+	const [totalEntries, setTotalEntries] = useState(String(p.totalEntries ?? 1));
+	const [prizeMoney, setPrizeMoney] = useState(String(p.prizeMoney ?? 0));
+	const [bountyPrizes, setBountyPrizes] = useState(
+		p.bountyPrizes !== null && p.bountyPrizes !== undefined
+			? String(p.bountyPrizes)
+			: ""
+	);
+	const [time, setTime] = useState(toTimeInputValue(event.occurredAt));
+	const timeError = validateTime(time, event.occurredAt, minTime, maxTime);
+
+	return (
+		<div className="flex flex-col gap-4">
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor="edit-time">Time</Label>
+				<Input
+					id="edit-time"
+					onChange={(e) => setTime(e.target.value)}
+					type="time"
+					value={time}
+				/>
+				{timeError && <p className="text-destructive text-xs">{timeError}</p>}
+			</div>
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor="edit-placement">Placement</Label>
+				<Input
+					id="edit-placement"
+					inputMode="numeric"
+					min={1}
+					onChange={(e) => setPlacement(e.target.value)}
+					required
+					type="number"
+					value={placement}
+				/>
+			</div>
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor="edit-totalEntries">Total Entries</Label>
+				<Input
+					id="edit-totalEntries"
+					inputMode="numeric"
+					min={1}
+					onChange={(e) => setTotalEntries(e.target.value)}
+					required
+					type="number"
+					value={totalEntries}
+				/>
+			</div>
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor="edit-prizeMoney">Prize Money</Label>
+				<Input
+					id="edit-prizeMoney"
+					inputMode="numeric"
+					min={0}
+					onChange={(e) => setPrizeMoney(e.target.value)}
+					required
+					type="number"
+					value={prizeMoney}
+				/>
+			</div>
+			<div className="flex flex-col gap-1.5">
+				<Label htmlFor="edit-bountyPrizes">Bounty Prizes</Label>
+				<Input
+					id="edit-bountyPrizes"
+					inputMode="numeric"
+					min={0}
+					onChange={(e) => setBountyPrizes(e.target.value)}
+					type="number"
+					value={bountyPrizes}
+				/>
+			</div>
+			<div className="flex flex-col gap-2">
+				<Button
+					disabled={isLoading || timeError !== null}
+					onClick={() => {
+						const newDate = applyTimeToDate(event.occurredAt, time);
+						onSubmit(
+							{
+								placement: Number(placement),
+								totalEntries: Number(totalEntries),
+								prizeMoney: Number(prizeMoney),
+								bountyPrizes: bountyPrizes ? Number(bountyPrizes) : null,
+							},
+							Math.floor(newDate.getTime() / 1000)
+						);
+					}}
+					type="button"
+				>
+					{isLoading ? "Saving..." : "Save"}
+				</Button>
+				<Button onClick={handleDelete} type="button" variant="destructive">
+					Delete
+				</Button>
+			</div>
+		</div>
+	);
+}
+
+interface NormalizedStackPayload {
+	chipPurchaseCounts: Array<{
+		name: string;
+		count: number;
+		chipsPerUnit: number;
+	}>;
+	chipPurchases: Array<{ name: string; cost: number; chips: number }>;
+	remainingPlayers: number | null;
+	stackAmount: number;
+	totalEntries: number | null;
+}
+
+function normalizeTournamentStackPayload(
+	p: Record<string, unknown>
+): NormalizedStackPayload {
+	const hasNewPurchases = Array.isArray(p.chipPurchases);
+
+	const legacyPurchases: Array<{ name: string; cost: number; chips: number }> =
+		[];
+	if (!hasNewPurchases && p.rebuy && typeof p.rebuy === "object") {
+		const r = p.rebuy as Record<string, unknown>;
+		legacyPurchases.push({
+			name: "Rebuy",
+			cost: typeof r.cost === "number" ? r.cost : 0,
+			chips: typeof r.chips === "number" ? r.chips : 0,
+		});
+	}
+	if (!hasNewPurchases && p.addon && typeof p.addon === "object") {
+		const a = p.addon as Record<string, unknown>;
+		legacyPurchases.push({
+			name: "Addon",
+			cost: typeof a.cost === "number" ? a.cost : 0,
+			chips: typeof a.chips === "number" ? a.chips : 0,
+		});
+	}
+
+	return {
+		stackAmount: typeof p.stackAmount === "number" ? p.stackAmount : 0,
+		remainingPlayers:
+			typeof p.remainingPlayers === "number" ? p.remainingPlayers : null,
+		totalEntries: typeof p.totalEntries === "number" ? p.totalEntries : null,
+		chipPurchases: hasNewPurchases
+			? (p.chipPurchases as Array<{
+					name: string;
+					cost: number;
+					chips: number;
+				}>)
+			: legacyPurchases,
+		chipPurchaseCounts: Array.isArray(p.chipPurchaseCounts)
+			? (p.chipPurchaseCounts as Array<{
+					name: string;
+					count: number;
+					chipsPerUnit: number;
+				}>)
+			: [],
+	};
+}
+
 function getTimeBounds(
 	events: SessionEvent[],
 	targetId: string
@@ -333,6 +611,34 @@ function EventEditor({
 		);
 	}
 
+	if (event.eventType === "tournament_stack_record") {
+		const p = (event.payload ?? {}) as Record<string, unknown>;
+		return (
+			<TournamentStackRecordEditor
+				initialOccurredAt={event.occurredAt}
+				initialPayload={normalizeTournamentStackPayload(p)}
+				isLoading={isLoading}
+				maxTime={maxTime}
+				minTime={minTime}
+				onDelete={onDelete}
+				onSubmit={(payload, occurredAt) => onUpdate(payload, occurredAt)}
+			/>
+		);
+	}
+
+	if (event.eventType === "tournament_result") {
+		return (
+			<TournamentResultEditor
+				event={event}
+				isLoading={isLoading}
+				maxTime={maxTime}
+				minTime={minTime}
+				onDelete={onDelete}
+				onSubmit={onUpdate}
+			/>
+		);
+	}
+
 	return (
 		<AmountEditor
 			event={event}
@@ -350,24 +656,29 @@ function ActiveSessionEventsPage() {
 	const { activeSession, isLoading: isSessionLoading } = useActiveSession();
 
 	const sessionId = activeSession?.id ?? "";
+	const sessionType = activeSession?.type ?? "cash_game";
 
 	const [editEvent, setEditEvent] = useState<SessionEvent | null>(null);
 
+	const eventQueryKey =
+		sessionType === "tournament"
+			? { liveTournamentSessionId: sessionId }
+			: { liveCashGameSessionId: sessionId };
+
 	const eventsQuery = useQuery({
-		...trpc.sessionEvent.list.queryOptions({
-			liveCashGameSessionId: sessionId,
-		}),
+		...trpc.sessionEvent.list.queryOptions(eventQueryKey),
 		enabled: !!sessionId,
 		refetchInterval: 3000,
 	});
 	const events = (eventsQuery.data ?? []) as SessionEvent[];
 
-	const eventsKey = trpc.sessionEvent.list.queryOptions({
-		liveCashGameSessionId: sessionId,
-	}).queryKey;
-	const sessionKey = trpc.liveCashGameSession.getById.queryOptions({
-		id: sessionId,
-	}).queryKey;
+	const eventsKey = trpc.sessionEvent.list.queryOptions(eventQueryKey).queryKey;
+	const sessionKey =
+		sessionType === "tournament"
+			? trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
+					.queryKey
+			: trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
+					.queryKey;
 
 	const invalidateAll = async () => {
 		await Promise.all([

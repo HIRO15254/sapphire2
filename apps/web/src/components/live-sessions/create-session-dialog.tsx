@@ -2,8 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { CreateCashGameSessionForm } from "@/components/live-cash-game/create-cash-game-session-form";
+import { CreateTournamentSessionForm } from "@/components/live-tournament/create-tournament-session-form";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
+import { cn } from "@/lib/utils";
 import { trpc, trpcClient } from "@/utils/trpc";
+
+type SessionType = "cash_game" | "tournament";
 
 function useStoreRingGames(storeId: string | undefined) {
 	const ringGamesQuery = useQuery({
@@ -18,6 +22,24 @@ function useStoreRingGames(storeId: string | undefined) {
 	}));
 }
 
+function useStoreTournaments(storeId: string | undefined) {
+	const tournamentsQuery = useQuery({
+		...trpc.tournament.listByStore.queryOptions({
+			storeId: storeId ?? "",
+			includeArchived: false,
+		}),
+		enabled: !!storeId,
+	});
+	return (tournamentsQuery.data ?? []).map((t) => ({
+		id: t.id,
+		name: t.name,
+		buyIn: t.buyIn,
+		entryFee: t.entryFee,
+		startingStack: t.startingStack,
+		currencyId: t.currencyId,
+	}));
+}
+
 interface CreateSessionDialogProps {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
@@ -27,6 +49,7 @@ export function CreateSessionDialog({
 	open,
 	onOpenChange,
 }: CreateSessionDialogProps) {
+	const [sessionType, setSessionType] = useState<SessionType>("cash_game");
 	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -44,12 +67,14 @@ export function CreateSessionDialog({
 	}));
 
 	const ringGames = useStoreRingGames(selectedStoreId);
+	const tournaments = useStoreTournaments(selectedStoreId);
 
-	const sessionListKey = trpc.liveCashGameSession.list.queryOptions(
+	const cashListKey = trpc.liveCashGameSession.list.queryOptions({}).queryKey;
+	const tournamentListKey = trpc.liveTournamentSession.list.queryOptions(
 		{}
 	).queryKey;
 
-	const createMutation = useMutation({
+	const createCashMutation = useMutation({
 		mutationFn: (values: {
 			currencyId?: string;
 			initialBuyIn: number;
@@ -58,31 +83,112 @@ export function CreateSessionDialog({
 			storeId?: string;
 		}) => trpcClient.liveCashGameSession.create.mutate(values),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: sessionListKey });
+			await queryClient.invalidateQueries({ queryKey: cashListKey });
 			onOpenChange(false);
 			await navigate({ to: "/active-session" });
 		},
 	});
+
+	const createTournamentMutation = useMutation({
+		mutationFn: async (values: {
+			buyIn: number;
+			currencyId?: string;
+			entryFee?: number;
+			memo?: string;
+			startingStack: number;
+			storeId?: string;
+			tournamentId?: string;
+		}) => {
+			const { startingStack, ...createValues } = values;
+			const result =
+				await trpcClient.liveTournamentSession.create.mutate(createValues);
+			// Create initial tournament_stack_record with starting stack
+			await trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: result.id,
+				eventType: "tournament_stack_record",
+				payload: {
+					stackAmount: startingStack,
+					remainingPlayers: null,
+					totalEntries: null,
+					chipPurchases: [],
+					chipPurchaseCounts: [],
+				},
+			});
+			return result;
+		},
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: tournamentListKey });
+			onOpenChange(false);
+			await navigate({ to: "/active-session" });
+		},
+	});
+
+	const handleReset = () => {
+		setSelectedStoreId(undefined);
+		setSessionType("cash_game");
+	};
+
+	const isLoading =
+		createCashMutation.isPending || createTournamentMutation.isPending;
 
 	return (
 		<ResponsiveDialog
 			onOpenChange={(o) => {
 				onOpenChange(o);
 				if (!o) {
-					setSelectedStoreId(undefined);
+					handleReset();
 				}
 			}}
 			open={open}
-			title="New Cash Game"
+			title="New Session"
 		>
-			<CreateCashGameSessionForm
-				currencies={currencies}
-				isLoading={createMutation.isPending}
-				onStoreChange={setSelectedStoreId}
-				onSubmit={(values) => createMutation.mutate(values)}
-				ringGames={ringGames}
-				stores={stores}
-			/>
+			{/* Session type selector */}
+			<div className="mb-4 flex rounded-lg border border-border p-1">
+				<button
+					className={cn(
+						"flex-1 rounded-md px-3 py-1.5 text-center font-medium text-sm transition-colors",
+						sessionType === "cash_game"
+							? "bg-primary text-primary-foreground"
+							: "text-muted-foreground hover:text-foreground"
+					)}
+					onClick={() => setSessionType("cash_game")}
+					type="button"
+				>
+					Cash Game
+				</button>
+				<button
+					className={cn(
+						"flex-1 rounded-md px-3 py-1.5 text-center font-medium text-sm transition-colors",
+						sessionType === "tournament"
+							? "bg-primary text-primary-foreground"
+							: "text-muted-foreground hover:text-foreground"
+					)}
+					onClick={() => setSessionType("tournament")}
+					type="button"
+				>
+					Tournament
+				</button>
+			</div>
+
+			{sessionType === "cash_game" ? (
+				<CreateCashGameSessionForm
+					currencies={currencies}
+					isLoading={isLoading}
+					onStoreChange={setSelectedStoreId}
+					onSubmit={(values) => createCashMutation.mutate(values)}
+					ringGames={ringGames}
+					stores={stores}
+				/>
+			) : (
+				<CreateTournamentSessionForm
+					currencies={currencies}
+					isLoading={isLoading}
+					onStoreChange={setSelectedStoreId}
+					onSubmit={(values) => createTournamentMutation.mutate(values)}
+					stores={stores}
+					tournaments={tournaments}
+				/>
+			)}
 		</ResponsiveDialog>
 	);
 }

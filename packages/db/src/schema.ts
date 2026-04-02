@@ -50,6 +50,8 @@ import {
 	blindLevel,
 	blindLevelRelations,
 	tournament,
+	tournamentChipPurchase,
+	tournamentChipPurchaseRelations,
 	tournamentRelations,
 } from "./schema/tournament";
 import { tournamentTag, tournamentTagRelations } from "./schema/tournament-tag";
@@ -78,6 +80,8 @@ export const schema = {
 	tournamentRelations,
 	blindLevel,
 	blindLevelRelations,
+	tournamentChipPurchase,
+	tournamentChipPurchaseRelations,
 	tournamentTag,
 	tournamentTagRelations,
 	sessionTag,

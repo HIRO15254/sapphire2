@@ -1,6 +1,10 @@
 import { getTableColumns } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { blindLevel, tournament } from "../schema/tournament";
+import {
+	blindLevel,
+	tournament,
+	tournamentChipPurchase,
+} from "../schema/tournament";
 import { tournamentTag } from "../schema/tournament-tag";
 
 describe("Tournament schema", () => {
@@ -13,12 +17,6 @@ describe("Tournament schema", () => {
 		expect(columns.buyIn).toBeDefined();
 		expect(columns.entryFee).toBeDefined();
 		expect(columns.startingStack).toBeDefined();
-		expect(columns.rebuyAllowed).toBeDefined();
-		expect(columns.rebuyCost).toBeDefined();
-		expect(columns.rebuyChips).toBeDefined();
-		expect(columns.addonAllowed).toBeDefined();
-		expect(columns.addonCost).toBeDefined();
-		expect(columns.addonChips).toBeDefined();
 		expect(columns.bountyAmount).toBeDefined();
 		expect(columns.tableSize).toBeDefined();
 		expect(columns.currencyId).toBeDefined();
@@ -26,6 +24,16 @@ describe("Tournament schema", () => {
 		expect(columns.archivedAt).toBeDefined();
 		expect(columns.createdAt).toBeDefined();
 		expect(columns.updatedAt).toBeDefined();
+	});
+
+	it("no longer has rebuy/addon columns", () => {
+		const columns = getTableColumns(tournament) as Record<string, unknown>;
+		expect(columns.rebuyAllowed).toBeUndefined();
+		expect(columns.rebuyCost).toBeUndefined();
+		expect(columns.rebuyChips).toBeUndefined();
+		expect(columns.addonAllowed).toBeUndefined();
+		expect(columns.addonCost).toBeUndefined();
+		expect(columns.addonChips).toBeUndefined();
 	});
 
 	it("id is primary key", () => {
@@ -46,16 +54,6 @@ describe("Tournament schema", () => {
 	it("variant is not null", () => {
 		const columns = getTableColumns(tournament);
 		expect(columns.variant.notNull).toBe(true);
-	});
-
-	it("rebuyAllowed is not null", () => {
-		const columns = getTableColumns(tournament);
-		expect(columns.rebuyAllowed.notNull).toBe(true);
-	});
-
-	it("addonAllowed is not null", () => {
-		const columns = getTableColumns(tournament);
-		expect(columns.addonAllowed.notNull).toBe(true);
 	});
 
 	it("buyIn is nullable", () => {
@@ -161,5 +159,34 @@ describe("BlindLevel schema", () => {
 	it("minutes is nullable", () => {
 		const columns = getTableColumns(blindLevel);
 		expect(columns.minutes.notNull).toBe(false);
+	});
+});
+
+describe("TournamentChipPurchase schema", () => {
+	it("has required columns", () => {
+		const columns = getTableColumns(tournamentChipPurchase);
+		expect(columns.id).toBeDefined();
+		expect(columns.tournamentId).toBeDefined();
+		expect(columns.name).toBeDefined();
+		expect(columns.cost).toBeDefined();
+		expect(columns.chips).toBeDefined();
+		expect(columns.sortOrder).toBeDefined();
+	});
+
+	it("id is primary key", () => {
+		const columns = getTableColumns(tournamentChipPurchase);
+		expect(columns.id.primary).toBe(true);
+	});
+
+	it("tournamentId is not null", () => {
+		const columns = getTableColumns(tournamentChipPurchase);
+		expect(columns.tournamentId.notNull).toBe(true);
+	});
+
+	it("name, cost, chips are not null", () => {
+		const columns = getTableColumns(tournamentChipPurchase);
+		expect(columns.name.notNull).toBe(true);
+		expect(columns.cost.notNull).toBe(true);
+		expect(columns.chips.notNull).toBe(true);
 	});
 });

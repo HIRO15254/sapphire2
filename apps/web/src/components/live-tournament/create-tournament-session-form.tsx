@@ -10,57 +10,77 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 
-interface CreateCashGameSessionFormProps {
+interface CreateTournamentSessionFormProps {
 	currencies: Array<{ id: string; name: string }>;
 	isLoading: boolean;
 	onStoreChange?: (storeId?: string) => void;
 	onSubmit: (values: {
+		buyIn: number;
 		currencyId?: string;
-		initialBuyIn: number;
+		entryFee?: number;
 		memo?: string;
-		ringGameId: string;
+		startingStack: number;
 		storeId: string;
+		tournamentId: string;
 	}) => void;
-	ringGames: Array<{
+	stores: Array<{ id: string; name: string }>;
+	tournaments: Array<{
 		id: string;
 		name: string;
-		maxBuyIn: number | null;
+		buyIn: number | null;
+		entryFee: number | null;
+		startingStack: number | null;
 		currencyId: string | null;
 	}>;
-	stores: Array<{ id: string; name: string }>;
 }
 
-export function CreateCashGameSessionForm({
+export function CreateTournamentSessionForm({
 	currencies,
 	isLoading,
 	onStoreChange,
 	onSubmit,
-	ringGames,
 	stores,
-}: CreateCashGameSessionFormProps) {
+	tournaments,
+}: CreateTournamentSessionFormProps) {
 	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>(
 		undefined
 	);
-	const [selectedRingGameId, setSelectedRingGameId] = useState<
+	const [selectedTournamentId, setSelectedTournamentId] = useState<
 		string | undefined
 	>(undefined);
 	const [selectedCurrencyId, setSelectedCurrencyId] = useState<
 		string | undefined
 	>(undefined);
-	const [initialBuyIn, setInitialBuyIn] = useState<string>("");
+	const [buyIn, setBuyIn] = useState<string>("");
+	const [entryFee, setEntryFee] = useState<string>("");
+	const [startingStack, setStartingStack] = useState<string>("");
 
 	const handleStoreChange = (value: string) => {
 		setSelectedStoreId(value);
-		setSelectedRingGameId(undefined);
+		setSelectedTournamentId(undefined);
 		onStoreChange?.(value);
 	};
 
-	const handleRingGameChange = (value: string) => {
-		setSelectedRingGameId(value);
-		const ringGame = ringGames.find((g) => g.id === value);
-		if (ringGame) {
-			setInitialBuyIn(ringGame.maxBuyIn?.toString() ?? "");
-			setSelectedCurrencyId(ringGame.currencyId ?? undefined);
+	const applyTournamentDefaults = (t: (typeof tournaments)[number]) => {
+		if (t.currencyId) {
+			setSelectedCurrencyId(t.currencyId);
+		}
+		if (t.buyIn !== null) {
+			setBuyIn(String(t.buyIn));
+		}
+		if (t.entryFee !== null) {
+			setEntryFee(String(t.entryFee));
+		}
+		if (t.startingStack !== null) {
+			setStartingStack(String(t.startingStack));
+		}
+	};
+
+	const handleTournamentChange = (value: string) => {
+		setSelectedTournamentId(value);
+		const t = tournaments.find((t) => t.id === value);
+		if (t) {
+			applyTournamentDefaults(t);
 		}
 	};
 
@@ -70,35 +90,44 @@ export function CreateCashGameSessionForm({
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
-		if (!(selectedStoreId && selectedRingGameId)) {
+		if (!(selectedStoreId && selectedTournamentId)) {
 			return;
 		}
 		const formData = new FormData(e.currentTarget);
 		const memo = (formData.get("memo") as string) || undefined;
+		const entryFeeNum = entryFee ? Number(entryFee) : undefined;
 
 		onSubmit({
 			storeId: selectedStoreId,
-			ringGameId: selectedRingGameId,
+			tournamentId: selectedTournamentId,
 			currencyId: selectedCurrencyId,
-			initialBuyIn: Number(initialBuyIn),
+			buyIn: Number(buyIn),
+			entryFee: entryFeeNum,
+			startingStack: Number(startingStack),
 			memo,
 		});
 	};
 
-	const hasRingGames = ringGames.length > 0;
+	const hasTournaments = tournaments.length > 0;
 
-	// Determine which fields are locked by the selected ring game
-	const selectedRingGame = selectedRingGameId
-		? ringGames.find((g) => g.id === selectedRingGameId)
+	// Determine which fields are locked by the selected tournament
+	const selectedTournament = selectedTournamentId
+		? tournaments.find((t) => t.id === selectedTournamentId)
 		: null;
 	const isBuyInLocked =
-		selectedRingGame?.maxBuyIn !== null &&
-		selectedRingGame?.maxBuyIn !== undefined;
+		selectedTournament?.buyIn !== null &&
+		selectedTournament?.buyIn !== undefined;
+	const isEntryFeeLocked =
+		selectedTournament?.entryFee !== null &&
+		selectedTournament?.entryFee !== undefined;
+	const isStartingStackLocked =
+		selectedTournament?.startingStack !== null &&
+		selectedTournament?.startingStack !== undefined;
 	const isCurrencyLocked =
-		selectedRingGame?.currencyId !== null &&
-		selectedRingGame?.currencyId !== undefined;
+		selectedTournament?.currencyId !== null &&
+		selectedTournament?.currencyId !== undefined;
 
-	const canSubmit = !!selectedStoreId && !!selectedRingGameId;
+	const canSubmit = !!selectedStoreId && !!selectedTournamentId;
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
@@ -129,33 +158,33 @@ export function CreateCashGameSessionForm({
 			{selectedStoreId && (
 				<div className="flex flex-col gap-2">
 					<Label>
-						Ring Game <span className="text-destructive">*</span>
+						Tournament <span className="text-destructive">*</span>
 					</Label>
-					{hasRingGames ? (
+					{hasTournaments ? (
 						<Select
-							onValueChange={handleRingGameChange}
-							value={selectedRingGameId}
+							onValueChange={handleTournamentChange}
+							value={selectedTournamentId}
 						>
 							<SelectTrigger>
-								<SelectValue placeholder="Select a ring game" />
+								<SelectValue placeholder="Select a tournament" />
 							</SelectTrigger>
 							<SelectContent>
-								{ringGames.map((game) => (
-									<SelectItem key={game.id} value={game.id}>
-										{game.name}
+								{tournaments.map((t) => (
+									<SelectItem key={t.id} value={t.id}>
+										{t.name}
 									</SelectItem>
 								))}
 							</SelectContent>
 						</Select>
 					) : (
 						<p className="text-muted-foreground text-sm">
-							No ring games available. Create one in store settings.
+							No tournaments available. Create one in store settings.
 						</p>
 					)}
 				</div>
 			)}
 
-			{selectedRingGameId && (
+			{selectedTournamentId && (
 				<>
 					{currencies.length > 0 && (
 						<div className="flex flex-col gap-2">
@@ -179,16 +208,49 @@ export function CreateCashGameSessionForm({
 						</div>
 					)}
 
+					<div className="flex gap-3">
+						<div className="flex flex-1 flex-col gap-2">
+							<Label htmlFor="buyIn">
+								Buy-in <span className="text-destructive">*</span>
+							</Label>
+							<Input
+								disabled={isBuyInLocked}
+								id="buyIn"
+								inputMode="numeric"
+								min={0}
+								onChange={(e) => setBuyIn(e.target.value)}
+								required
+								type="number"
+								value={buyIn}
+							/>
+						</div>
+						<div className="flex flex-1 flex-col gap-2">
+							<Label htmlFor="entryFee">Entry Fee</Label>
+							<Input
+								disabled={isEntryFeeLocked}
+								id="entryFee"
+								inputMode="numeric"
+								min={0}
+								onChange={(e) => setEntryFee(e.target.value)}
+								type="number"
+								value={entryFee}
+							/>
+						</div>
+					</div>
+
 					<div className="flex flex-col gap-2">
-						<Label htmlFor="initialBuyIn">Initial Buy-in</Label>
+						<Label htmlFor="startingStack">
+							Starting Stack <span className="text-destructive">*</span>
+						</Label>
 						<Input
-							disabled={isBuyInLocked}
-							id="initialBuyIn"
+							disabled={isStartingStackLocked}
+							id="startingStack"
+							inputMode="numeric"
 							min={0}
-							onChange={(e) => setInitialBuyIn(e.target.value)}
+							onChange={(e) => setStartingStack(e.target.value)}
 							required
 							type="number"
-							value={initialBuyIn}
+							value={startingStack}
 						/>
 					</div>
 
@@ -198,14 +260,14 @@ export function CreateCashGameSessionForm({
 							className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 							id="memo"
 							name="memo"
-							placeholder="Notes about this session"
+							placeholder="Notes about this tournament"
 						/>
 					</div>
 				</>
 			)}
 
 			<Button className="mt-2" disabled={isLoading || !canSubmit} type="submit">
-				{isLoading ? "Starting..." : "Start Session"}
+				{isLoading ? "Starting..." : "Start Tournament"}
 			</Button>
 		</form>
 	);
