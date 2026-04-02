@@ -46,7 +46,18 @@ export function TransactionTypeManager() {
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) =>
 			trpcClient.transactionType.delete.mutate({ id }),
-		onError: (err: unknown) => {
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({ queryKey: typeListKey });
+			const previous = queryClient.getQueryData(typeListKey);
+			queryClient.setQueryData(typeListKey, (old) =>
+				old?.filter((t) => t.id !== id)
+			);
+			return { previous };
+		},
+		onError: (err: unknown, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(typeListKey, context.previous);
+			}
 			if (
 				err &&
 				typeof err === "object" &&

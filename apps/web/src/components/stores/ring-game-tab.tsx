@@ -471,6 +471,45 @@ export function RingGameTab({
 	const createMutation = useMutation({
 		mutationFn: (values: RingGameFormValues) =>
 			trpcClient.ringGame.create.mutate({ storeId, ...values }),
+		onMutate: async (newGame) => {
+			await queryClient.cancelQueries({
+				queryKey: activeQueryOptions.queryKey,
+			});
+			const previous = queryClient.getQueryData(activeQueryOptions.queryKey);
+			queryClient.setQueryData(activeQueryOptions.queryKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				return [
+					...old,
+					{
+						id: `temp-${Date.now()}`,
+						name: newGame.name,
+						variant: newGame.variant,
+						blind1: newGame.blind1 ?? null,
+						blind2: newGame.blind2 ?? null,
+						blind3: newGame.blind3 ?? null,
+						ante: newGame.ante ?? null,
+						anteType: newGame.anteType ?? null,
+						tableSize: newGame.tableSize ?? null,
+						minBuyIn: newGame.minBuyIn ?? null,
+						maxBuyIn: newGame.maxBuyIn ?? null,
+						currencyId: newGame.currencyId ?? null,
+						memo: newGame.memo ?? null,
+						storeId,
+						archivedAt: null,
+						createdAt: new Date().toISOString(),
+						updatedAt: new Date().toISOString(),
+					},
+				];
+			});
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(activeQueryOptions.queryKey, context.previous);
+			}
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: activeQueryOptions.queryKey });
 		},
@@ -482,6 +521,59 @@ export function RingGameTab({
 	const updateMutation = useMutation({
 		mutationFn: (values: RingGameFormValues & { id: string }) =>
 			trpcClient.ringGame.update.mutate(values),
+		onMutate: async (updated) => {
+			await queryClient.cancelQueries({
+				queryKey: activeQueryOptions.queryKey,
+			});
+			await queryClient.cancelQueries({
+				queryKey: archivedQueryOptions.queryKey,
+			});
+			const previousActive = queryClient.getQueryData(
+				activeQueryOptions.queryKey
+			);
+			const previousArchived = queryClient.getQueryData(
+				archivedQueryOptions.queryKey
+			);
+			const mapGame = <T extends { id: string }>(g: T) =>
+				g.id === updated.id
+					? {
+							...g,
+							name: updated.name,
+							variant: updated.variant,
+							blind1: updated.blind1 ?? null,
+							blind2: updated.blind2 ?? null,
+							blind3: updated.blind3 ?? null,
+							ante: updated.ante ?? null,
+							anteType: updated.anteType ?? null,
+							tableSize: updated.tableSize ?? null,
+							minBuyIn: updated.minBuyIn ?? null,
+							maxBuyIn: updated.maxBuyIn ?? null,
+							currencyId: updated.currencyId ?? null,
+							memo: updated.memo ?? null,
+						}
+					: g;
+			queryClient.setQueryData(activeQueryOptions.queryKey, (old) =>
+				old?.map(mapGame)
+			);
+			queryClient.setQueryData(archivedQueryOptions.queryKey, (old) =>
+				old?.map(mapGame)
+			);
+			return { previousActive, previousArchived };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previousActive) {
+				queryClient.setQueryData(
+					activeQueryOptions.queryKey,
+					context.previousActive
+				);
+			}
+			if (context?.previousArchived) {
+				queryClient.setQueryData(
+					archivedQueryOptions.queryKey,
+					context.previousArchived
+				);
+			}
+		},
 		onSettled: invalidateBoth,
 		onSuccess: () => {
 			setEditingGame(null);
@@ -490,16 +582,91 @@ export function RingGameTab({
 
 	const archiveMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.ringGame.archive.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({
+				queryKey: activeQueryOptions.queryKey,
+			});
+			const previousActive = queryClient.getQueryData(
+				activeQueryOptions.queryKey
+			);
+			queryClient.setQueryData(activeQueryOptions.queryKey, (old) =>
+				old?.filter((g) => g.id !== id)
+			);
+			return { previousActive };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previousActive) {
+				queryClient.setQueryData(
+					activeQueryOptions.queryKey,
+					context.previousActive
+				);
+			}
+		},
 		onSettled: invalidateBoth,
 	});
 
 	const restoreMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.ringGame.restore.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({
+				queryKey: archivedQueryOptions.queryKey,
+			});
+			const previousArchived = queryClient.getQueryData(
+				archivedQueryOptions.queryKey
+			);
+			queryClient.setQueryData(archivedQueryOptions.queryKey, (old) =>
+				old?.filter((g) => g.id !== id)
+			);
+			return { previousArchived };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previousArchived) {
+				queryClient.setQueryData(
+					archivedQueryOptions.queryKey,
+					context.previousArchived
+				);
+			}
+		},
 		onSettled: invalidateBoth,
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.ringGame.delete.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({
+				queryKey: activeQueryOptions.queryKey,
+			});
+			await queryClient.cancelQueries({
+				queryKey: archivedQueryOptions.queryKey,
+			});
+			const previousActive = queryClient.getQueryData(
+				activeQueryOptions.queryKey
+			);
+			const previousArchived = queryClient.getQueryData(
+				archivedQueryOptions.queryKey
+			);
+			queryClient.setQueryData(activeQueryOptions.queryKey, (old) =>
+				old?.filter((g) => g.id !== id)
+			);
+			queryClient.setQueryData(archivedQueryOptions.queryKey, (old) =>
+				old?.filter((g) => g.id !== id)
+			);
+			return { previousActive, previousArchived };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previousActive) {
+				queryClient.setQueryData(
+					activeQueryOptions.queryKey,
+					context.previousActive
+				);
+			}
+			if (context?.previousArchived) {
+				queryClient.setQueryData(
+					archivedQueryOptions.queryKey,
+					context.previousArchived
+				);
+			}
+		},
 		onSettled: invalidateBoth,
 	});
 

@@ -100,15 +100,17 @@ function CurrenciesPage() {
 				if (!old) {
 					return old;
 				}
-				const base = old[0];
+				const now = new Date().toISOString();
 				return [
 					...old,
 					{
-						...base,
 						id: `temp-${Date.now()}`,
 						name: newCurrency.name,
 						unit: newCurrency.unit ?? null,
 						balance: 0,
+						createdAt: now,
+						updatedAt: now,
+						userId: "",
 					},
 				];
 			});

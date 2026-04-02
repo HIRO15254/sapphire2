@@ -94,6 +94,33 @@ export function PlayerTagManager() {
 	const createMutation = useMutation({
 		mutationFn: (values: TagFormValues) =>
 			trpcClient.playerTag.create.mutate(values),
+		onMutate: async (newTag) => {
+			await queryClient.cancelQueries({ queryKey: tagListKey });
+			const previous = queryClient.getQueryData(tagListKey);
+			queryClient.setQueryData(tagListKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				const now = new Date().toISOString();
+				return [
+					...old,
+					{
+						id: `temp-${Date.now()}`,
+						name: newTag.name,
+						color: newTag.color,
+						createdAt: now,
+						updatedAt: now,
+						userId: "",
+					},
+				];
+			});
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(tagListKey, context.previous);
+			}
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: tagListKey });
 		},
@@ -105,6 +132,23 @@ export function PlayerTagManager() {
 	const updateMutation = useMutation({
 		mutationFn: (values: TagFormValues & { id: string }) =>
 			trpcClient.playerTag.update.mutate(values),
+		onMutate: async (updated) => {
+			await queryClient.cancelQueries({ queryKey: tagListKey });
+			const previous = queryClient.getQueryData(tagListKey);
+			queryClient.setQueryData(tagListKey, (old) =>
+				old?.map((t) =>
+					t.id === updated.id
+						? { ...t, name: updated.name, color: updated.color }
+						: t
+				)
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(tagListKey, context.previous);
+			}
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: tagListKey });
 			queryClient.invalidateQueries({
@@ -118,6 +162,19 @@ export function PlayerTagManager() {
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.playerTag.delete.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({ queryKey: tagListKey });
+			const previous = queryClient.getQueryData(tagListKey);
+			queryClient.setQueryData(tagListKey, (old) =>
+				old?.filter((t) => t.id !== id)
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(tagListKey, context.previous);
+			}
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: tagListKey });
 			queryClient.invalidateQueries({

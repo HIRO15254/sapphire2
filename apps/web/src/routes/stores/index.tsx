@@ -42,14 +42,16 @@ function StoresPage() {
 				if (!old) {
 					return old;
 				}
-				const base = old[0];
+				const now = new Date().toISOString();
 				return [
 					...old,
 					{
-						...base,
 						id: `temp-${Date.now()}`,
 						name: newStore.name,
 						memo: newStore.memo ?? null,
+						createdAt: now,
+						updatedAt: now,
+						userId: "",
 					},
 				];
 			});

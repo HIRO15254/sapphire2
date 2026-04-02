@@ -719,16 +719,91 @@ export function TournamentTab({
 
 	const archiveMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.archive.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({
+				queryKey: activeQueryOptions.queryKey,
+			});
+			const previousActive = queryClient.getQueryData(
+				activeQueryOptions.queryKey
+			);
+			queryClient.setQueryData(activeQueryOptions.queryKey, (old) =>
+				old?.filter((t) => t.id !== id)
+			);
+			return { previousActive };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previousActive) {
+				queryClient.setQueryData(
+					activeQueryOptions.queryKey,
+					context.previousActive
+				);
+			}
+		},
 		onSettled: invalidateBoth,
 	});
 
 	const restoreMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.restore.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({
+				queryKey: archivedQueryOptions.queryKey,
+			});
+			const previousArchived = queryClient.getQueryData(
+				archivedQueryOptions.queryKey
+			);
+			queryClient.setQueryData(archivedQueryOptions.queryKey, (old) =>
+				old?.filter((t) => t.id !== id)
+			);
+			return { previousArchived };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previousArchived) {
+				queryClient.setQueryData(
+					archivedQueryOptions.queryKey,
+					context.previousArchived
+				);
+			}
+		},
 		onSettled: invalidateBoth,
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.delete.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({
+				queryKey: activeQueryOptions.queryKey,
+			});
+			await queryClient.cancelQueries({
+				queryKey: archivedQueryOptions.queryKey,
+			});
+			const previousActive = queryClient.getQueryData(
+				activeQueryOptions.queryKey
+			);
+			const previousArchived = queryClient.getQueryData(
+				archivedQueryOptions.queryKey
+			);
+			queryClient.setQueryData(activeQueryOptions.queryKey, (old) =>
+				old?.filter((t) => t.id !== id)
+			);
+			queryClient.setQueryData(archivedQueryOptions.queryKey, (old) =>
+				old?.filter((t) => t.id !== id)
+			);
+			return { previousActive, previousArchived };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previousActive) {
+				queryClient.setQueryData(
+					activeQueryOptions.queryKey,
+					context.previousActive
+				);
+			}
+			if (context?.previousArchived) {
+				queryClient.setQueryData(
+					archivedQueryOptions.queryKey,
+					context.previousArchived
+				);
+			}
+		},
 		onSettled: invalidateBoth,
 	});
 
