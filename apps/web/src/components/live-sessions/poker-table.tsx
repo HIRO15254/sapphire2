@@ -17,25 +17,28 @@ const AVATAR_COLORS = [
 ] as const;
 
 /**
- * Seat positions around a wide oval poker table (0-8).
- * [left%, top%] — landscape-oriented ellipse for compact vertical space.
+ * Seat positions around a stadium-shaped (racetrack) poker table (0-8).
+ * [left%, top%] relative to the container.
  *
- *        8    top    1
- *    7                   2
- *    6                   3
- *        5   bottom  4
- *              0
+ * Stadium shape = rectangle with semicircle caps on left/right.
+ * Seats distributed: 1 bottom-center, 3 on each long side, 1 on each cap.
+ *
+ *          8         1
+ *    7                    2
+ *    6                    3
+ *          5         4
+ *               0
  */
 const SEAT_POSITIONS: [number, number][] = [
-	[50, 97], // 0: bottom center (default hero)
-	[80, 8], // 1: top right
-	[98, 38], // 2: right upper
-	[98, 70], // 3: right lower
-	[80, 95], // 4: bottom right
-	[20, 95], // 5: bottom left
-	[2, 70], // 6: left lower
-	[2, 38], // 7: left upper
-	[20, 8], // 8: top left
+	[50, 98], // 0: bottom center
+	[72, 6], // 1: top right
+	[96, 35], // 2: right upper
+	[96, 70], // 3: right lower
+	[72, 96], // 4: bottom right
+	[28, 96], // 5: bottom left
+	[4, 70], // 6: left lower
+	[4, 35], // 7: left upper
+	[28, 6], // 8: top left
 ];
 
 export interface TablePlayer {
@@ -61,7 +64,7 @@ interface PokerTableProps {
 	onHeroSeatTap: () => void;
 	onPlayerSeatTap: (player: TablePlayer, seatPosition: number) => void;
 	players: TablePlayer[];
-	/** True when no hero is seated yet — empty seats show "Sit here" hint */
+	/** True when no hero is seated yet — empty seats show "Sit" hint */
 	waitingForHero: boolean;
 }
 
@@ -159,12 +162,12 @@ export function PokerTable({
 	waitingForHero,
 }: PokerTableProps) {
 	return (
-		<div className="relative mx-auto aspect-[5/3] w-full max-w-sm">
-			{/* Table rim */}
-			<div className="absolute inset-x-[6%] inset-y-[8%] rounded-[50%] bg-emerald-900 shadow-lg dark:bg-emerald-950" />
+		<div className="relative mx-auto aspect-[2/1] w-full max-w-sm">
+			{/* Table rim — stadium shape (rounded-full = semicircle caps) */}
+			<div className="absolute inset-x-[4%] inset-y-[10%] rounded-full bg-emerald-900 shadow-lg dark:bg-emerald-950" />
 
 			{/* Table felt */}
-			<div className="absolute inset-x-[9%] inset-y-[12%] rounded-[50%] border-2 border-emerald-600/50 bg-emerald-700 shadow-inner dark:border-emerald-500/30 dark:bg-emerald-800" />
+			<div className="absolute inset-x-[7%] inset-y-[15%] rounded-full border-2 border-emerald-600/50 bg-emerald-700 shadow-inner dark:border-emerald-500/30 dark:bg-emerald-800" />
 
 			{/* Center game info */}
 			<div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
