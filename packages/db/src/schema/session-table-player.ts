@@ -19,6 +19,7 @@ export const sessionTablePlayer = sqliteTable(
 		playerId: text("player_id")
 			.notNull()
 			.references(() => player.id, { onDelete: "cascade" }),
+		seatPosition: integer("seat_position"),
 		isActive: integer("is_active").notNull().default(1),
 		joinedAt: integer("joined_at", { mode: "timestamp" }).notNull(),
 		leftAt: integer("left_at", { mode: "timestamp" }),

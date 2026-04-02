@@ -659,4 +659,23 @@ export const liveCashGameSessionRouter = router({
 
 			return { id: input.id };
 		}),
+
+	updateHeroSeat: protectedProcedure
+		.input(
+			z.object({
+				id: z.string(),
+				heroSeatPosition: z.number().int().min(0).max(8),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await findLiveCashGameSession(ctx.db, input.id, userId);
+
+			await ctx.db
+				.update(liveCashGameSession)
+				.set({ heroSeatPosition: input.heroSeatPosition })
+				.where(eq(liveCashGameSession.id, input.id));
+
+			return { id: input.id };
+		}),
 });

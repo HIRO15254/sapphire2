@@ -4,12 +4,18 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { CashGameCompleteForm } from "@/components/live-cash-game/cash-game-complete-form";
 import { CashGameStackForm } from "@/components/live-cash-game/cash-game-stack-form";
+import { AddPlayerSheet } from "@/components/live-sessions/add-player-sheet";
+import {
+	PokerTable,
+	type TablePlayer,
+} from "@/components/live-sessions/poker-table";
 import { TournamentCompleteForm } from "@/components/live-tournament/tournament-complete-form";
 import { TournamentStackForm } from "@/components/live-tournament/tournament-stack-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { useActiveSession } from "@/hooks/use-active-session";
+import { useTablePlayers } from "@/hooks/use-table-players";
 import { cn } from "@/lib/utils";
 import { formatCompactNumber } from "@/utils/format-number";
 import { trpc, trpcClient } from "@/utils/trpc";
@@ -178,6 +184,44 @@ function buildTournamentSummary(session: {
 	};
 }
 
+function useHeroSeat(
+	sessionType: "cash_game" | "tournament",
+	sessionId: string,
+	currentHeroSeat: number
+) {
+	const queryClient = useQueryClient();
+
+	const cashSessionKey = trpc.liveCashGameSession.getById.queryOptions({
+		id: sessionId,
+	}).queryKey;
+	const tournamentSessionKey = trpc.liveTournamentSession.getById.queryOptions({
+		id: sessionId,
+	}).queryKey;
+
+	const heroMutation = useMutation({
+		mutationFn: (heroSeatPosition: number) =>
+			sessionType === "cash_game"
+				? trpcClient.liveCashGameSession.updateHeroSeat.mutate({
+						id: sessionId,
+						heroSeatPosition,
+					})
+				: trpcClient.liveTournamentSession.updateHeroSeat.mutate({
+						id: sessionId,
+						heroSeatPosition,
+					}),
+		onSuccess: () => {
+			const key =
+				sessionType === "cash_game" ? cashSessionKey : tournamentSessionKey;
+			queryClient.invalidateQueries({ queryKey: key });
+		},
+	});
+
+	return {
+		heroSeatPosition: currentHeroSeat,
+		setHeroSeat: (pos: number) => heroMutation.mutate(pos),
+	};
+}
+
 function CashGameSession({ sessionId }: { sessionId: string }) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -259,6 +303,16 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 		},
 	});
 
+	const tablePlayers = useTablePlayers({
+		liveCashGameSessionId: sessionId,
+	});
+
+	const heroSeat = useHeroSeat(
+		"cash_game",
+		sessionId,
+		session?.heroSeatPosition ?? 0
+	);
+
 	if (!session) {
 		return null;
 	}
@@ -286,15 +340,24 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 				</button>
 			</div>
 
-			{/* Summary - fills main area */}
-			<div className="min-h-0 flex-1">
-				<div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-					<CashGameCompactSummary summary={session.summary} />
-				</div>
+			{/* Summary */}
+			<div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+				<CashGameCompactSummary summary={session.summary} />
+			</div>
 
-				{session.memo && (
-					<p className="mt-2 text-muted-foreground text-xs">{session.memo}</p>
-				)}
+			{session.memo && (
+				<p className="mt-1 text-muted-foreground text-xs">{session.memo}</p>
+			)}
+
+			{/* Poker table - center area */}
+			<div className="min-h-0 flex-1 py-2">
+				<PokerTable
+					heroSeatPosition={heroSeat.heroSeatPosition}
+					onAddPlayer={tablePlayers.handleAddPlayer}
+					onHeroSeatChange={heroSeat.setHeroSeat}
+					onRemovePlayer={tablePlayers.handleRemovePlayer}
+					players={tablePlayers.players as TablePlayer[]}
+				/>
 			</div>
 
 			{/* Stack form - fixed at bottom */}
@@ -322,6 +385,15 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 					onSubmit={(values) => completeMutation.mutate(values)}
 				/>
 			</ResponsiveDialog>
+
+			{/* Add player sheet */}
+			<AddPlayerSheet
+				excludePlayerIds={tablePlayers.excludePlayerIds}
+				onAddExisting={tablePlayers.handleAddExisting}
+				onAddNew={tablePlayers.handleAddNew}
+				onOpenChange={tablePlayers.setAddPlayerSheetOpen}
+				open={tablePlayers.addPlayerSheetOpen}
+			/>
 
 			{/* Discard confirm dialog */}
 			<DiscardDialog
@@ -432,6 +504,16 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 		},
 	});
 
+	const tablePlayers = useTablePlayers({
+		liveTournamentSessionId: sessionId,
+	});
+
+	const heroSeat = useHeroSeat(
+		"tournament",
+		sessionId,
+		session?.heroSeatPosition ?? 0
+	);
+
 	if (!session) {
 		return null;
 	}
@@ -463,15 +545,24 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 				</button>
 			</div>
 
-			{/* Summary - fills main area */}
-			<div className="min-h-0 flex-1">
-				<div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-					<TournamentCompactSummary summary={tournamentSummary} />
-				</div>
+			{/* Summary */}
+			<div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+				<TournamentCompactSummary summary={tournamentSummary} />
+			</div>
 
-				{session.memo && (
-					<p className="mt-2 text-muted-foreground text-xs">{session.memo}</p>
-				)}
+			{session.memo && (
+				<p className="mt-1 text-muted-foreground text-xs">{session.memo}</p>
+			)}
+
+			{/* Poker table - center area */}
+			<div className="min-h-0 flex-1 py-2">
+				<PokerTable
+					heroSeatPosition={heroSeat.heroSeatPosition}
+					onAddPlayer={tablePlayers.handleAddPlayer}
+					onHeroSeatChange={heroSeat.setHeroSeat}
+					onRemovePlayer={tablePlayers.handleRemovePlayer}
+					players={tablePlayers.players as TablePlayer[]}
+				/>
 			</div>
 
 			{/* Stack form - fixed at bottom */}
@@ -495,6 +586,15 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 					onSubmit={(values) => completeMutation.mutate(values)}
 				/>
 			</ResponsiveDialog>
+
+			{/* Add player sheet */}
+			<AddPlayerSheet
+				excludePlayerIds={tablePlayers.excludePlayerIds}
+				onAddExisting={tablePlayers.handleAddExisting}
+				onAddNew={tablePlayers.handleAddNew}
+				onOpenChange={tablePlayers.setAddPlayerSheetOpen}
+				open={tablePlayers.addPlayerSheetOpen}
+			/>
 
 			{/* Discard confirm dialog */}
 			<DiscardDialog
