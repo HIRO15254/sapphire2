@@ -211,6 +211,11 @@ function usePokerTableInteraction(
 			: trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
 					.queryKey;
 
+	const [localHero, setLocalHero] = useState<number | null | undefined>(
+		undefined
+	);
+	const effectiveHero = localHero !== undefined ? localHero : heroSeatPosition;
+
 	const heroMutation = useMutation({
 		mutationFn: (pos: number | null) =>
 			sessionType === "cash_game"
@@ -222,11 +227,17 @@ function usePokerTableInteraction(
 						id: sessionId,
 						heroSeatPosition: pos,
 					}),
-		onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionKey }),
+		onMutate: (pos) => {
+			setLocalHero(pos);
+		},
+		onSettled: () => {
+			setLocalHero(undefined);
+			queryClient.invalidateQueries({ queryKey: sessionKey });
+		},
 	});
 
 	const handleEmptySeatTap = (seatPosition: number) => {
-		if (heroSeatPosition === null) {
+		if (effectiveHero === null) {
 			heroMutation.mutate(seatPosition);
 		} else {
 			setAddPlayerSeat(seatPosition);
@@ -242,8 +253,8 @@ function usePokerTableInteraction(
 	};
 
 	return {
-		heroSeatPosition,
-		waitingForHero: heroSeatPosition === null,
+		heroSeatPosition: effectiveHero,
+		waitingForHero: effectiveHero === null,
 		addPlayerSeat,
 		setAddPlayerSeat,
 		selectedPlayer,
@@ -453,7 +464,7 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 			)}
 
 			{/* Poker table */}
-			<div className="min-h-0 flex-1 py-2">
+			<div className="min-h-0 flex-1 overflow-hidden py-3">
 				<PokerTable
 					gameInfo={gameInfo}
 					heroSeatPosition={tableInteraction.heroSeatPosition}
@@ -494,8 +505,8 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 			{/* Add player sheet */}
 			<AddPlayerSheet
 				excludePlayerIds={tablePlayers.excludePlayerIds}
-				onAddExisting={(playerId) => {
-					tablePlayers.handleAddExisting(playerId);
+				onAddExisting={(playerId, playerName) => {
+					tablePlayers.handleAddExisting(playerId, playerName);
 					tableInteraction.setAddPlayerSeat(null);
 				}}
 				onAddNew={(name, memo) => {
@@ -719,7 +730,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			)}
 
 			{/* Poker table */}
-			<div className="min-h-0 flex-1 py-2">
+			<div className="min-h-0 flex-1 overflow-hidden py-3">
 				<PokerTable
 					gameInfo={gameInfo}
 					heroSeatPosition={tableInteraction.heroSeatPosition}
@@ -756,8 +767,8 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			{/* Add player sheet */}
 			<AddPlayerSheet
 				excludePlayerIds={tablePlayers.excludePlayerIds}
-				onAddExisting={(playerId) => {
-					tablePlayers.handleAddExisting(playerId);
+				onAddExisting={(playerId, playerName) => {
+					tablePlayers.handleAddExisting(playerId, playerName);
 					tableInteraction.setAddPlayerSeat(null);
 				}}
 				onAddNew={(name, memo) => {

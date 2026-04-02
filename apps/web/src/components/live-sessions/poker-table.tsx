@@ -162,59 +162,61 @@ export function PokerTable({
 	waitingForHero,
 }: PokerTableProps) {
 	return (
-		<div className="relative mx-auto aspect-[2/1] w-full max-w-sm">
-			{/* Table rim — stadium shape (rounded-full = semicircle caps) */}
-			<div className="absolute inset-x-[4%] inset-y-[10%] rounded-full bg-emerald-900 shadow-lg dark:bg-emerald-950" />
+		<div className="relative mx-auto w-full max-w-sm pt-5 pb-6">
+			<div className="relative aspect-[2/1]">
+				{/* Table rim — stadium shape (rounded-full = semicircle caps) */}
+				<div className="absolute inset-x-[4%] inset-y-[10%] rounded-full bg-emerald-900 shadow-lg dark:bg-emerald-950" />
 
-			{/* Table felt */}
-			<div className="absolute inset-x-[7%] inset-y-[15%] rounded-full border-2 border-emerald-600/50 bg-emerald-700 shadow-inner dark:border-emerald-500/30 dark:bg-emerald-800" />
+				{/* Table felt */}
+				<div className="absolute inset-x-[7%] inset-y-[15%] rounded-full border-2 border-emerald-600/50 bg-emerald-700 shadow-inner dark:border-emerald-500/30 dark:bg-emerald-800" />
 
-			{/* Center game info */}
-			<div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-				{gameInfo?.name && (
-					<span className="font-bold text-[11px] text-white/60">
-						{gameInfo.name}
-					</span>
-				)}
-				{gameInfo?.blinds && (
-					<span className="font-black text-base text-white/70">
-						{gameInfo.blinds}
-					</span>
-				)}
-				{gameInfo?.buyInRange && (
-					<span className="text-[9px] text-white/40">
-						{gameInfo.buyInRange}
-					</span>
-				)}
-				{!(gameInfo?.name || gameInfo?.blinds) && (
-					<span className="select-none text-white/20 text-xs">TABLE</span>
-				)}
+				{/* Center game info */}
+				<div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+					{gameInfo?.name && (
+						<span className="font-bold text-[11px] text-white/60">
+							{gameInfo.name}
+						</span>
+					)}
+					{gameInfo?.blinds && (
+						<span className="font-black text-base text-white/70">
+							{gameInfo.blinds}
+						</span>
+					)}
+					{gameInfo?.buyInRange && (
+						<span className="text-[9px] text-white/40">
+							{gameInfo.buyInRange}
+						</span>
+					)}
+					{!(gameInfo?.name || gameInfo?.blinds) && (
+						<span className="select-none text-white/20 text-xs">TABLE</span>
+					)}
+				</div>
+
+				{/* Seats */}
+				{Array.from({ length: MAX_SEATS }, (_, i) => {
+					const playerAtSeat = getPlayerAtSeat(players, i);
+					const isHero = heroSeatPosition === i;
+
+					return (
+						<SeatSlot
+							isHero={isHero}
+							key={`seat-${String(i)}`}
+							onTap={() => {
+								if (isHero && !playerAtSeat) {
+									onHeroSeatTap();
+								} else if (playerAtSeat) {
+									onPlayerSeatTap(playerAtSeat, i);
+								} else {
+									onEmptySeatTap(i);
+								}
+							}}
+							player={playerAtSeat}
+							seatIndex={i}
+							waitingForHero={waitingForHero}
+						/>
+					);
+				})}
 			</div>
-
-			{/* Seats */}
-			{Array.from({ length: MAX_SEATS }, (_, i) => {
-				const playerAtSeat = getPlayerAtSeat(players, i);
-				const isHero = heroSeatPosition === i;
-
-				return (
-					<SeatSlot
-						isHero={isHero}
-						key={`seat-${String(i)}`}
-						onTap={() => {
-							if (isHero && !playerAtSeat) {
-								onHeroSeatTap();
-							} else if (playerAtSeat) {
-								onPlayerSeatTap(playerAtSeat, i);
-							} else {
-								onEmptySeatTap(i);
-							}
-						}}
-						player={playerAtSeat}
-						seatIndex={i}
-						waitingForHero={waitingForHero}
-					/>
-				);
-			})}
 		</div>
 	);
 }

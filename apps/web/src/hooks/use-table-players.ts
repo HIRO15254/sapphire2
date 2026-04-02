@@ -7,6 +7,19 @@ interface UseTablePlayersOptions {
 	liveTournamentSessionId?: string;
 }
 
+interface TablePlayerItem {
+	id: string;
+	isActive: boolean;
+	joinedAt: string;
+	leftAt: string | null;
+	player: { id: string; memo: string | null; name: string };
+	seatPosition: number | null;
+}
+
+interface TablePlayerData {
+	items: TablePlayerItem[];
+}
+
 export function useTablePlayers({
 	liveCashGameSessionId,
 	liveTournamentSessionId,
@@ -31,13 +44,46 @@ export function useTablePlayers({
 		queryClient.invalidateQueries({ queryKey: playersKey });
 
 	const addMutation = useMutation({
-		mutationFn: (params: { playerId: string; seatPosition?: number }) =>
+		mutationFn: (params: {
+			playerId: string;
+			playerName: string;
+			seatPosition?: number;
+		}) =>
 			trpcClient.sessionTablePlayer.add.mutate({
 				...sessionParam,
 				playerId: params.playerId,
 				seatPosition: params.seatPosition,
 			}),
-		onSuccess: invalidatePlayers,
+		onMutate: async (params) => {
+			await queryClient.cancelQueries({ queryKey: playersKey });
+			const prev = queryClient.getQueryData<TablePlayerData>(playersKey);
+			if (prev) {
+				queryClient.setQueryData<TablePlayerData>(playersKey, {
+					items: [
+						...prev.items,
+						{
+							id: `optimistic-${Date.now()}`,
+							player: {
+								id: params.playerId,
+								name: params.playerName,
+								memo: null,
+							},
+							isActive: true,
+							joinedAt: new Date().toISOString(),
+							leftAt: null,
+							seatPosition: params.seatPosition ?? null,
+						},
+					],
+				});
+			}
+			return { prev };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.prev) {
+				queryClient.setQueryData(playersKey, ctx.prev);
+			}
+		},
+		onSettled: invalidatePlayers,
 	});
 
 	const addNewMutation = useMutation({
@@ -52,7 +98,36 @@ export function useTablePlayers({
 				playerMemo: params.playerMemo,
 				seatPosition: params.seatPosition,
 			}),
-		onSuccess: invalidatePlayers,
+		onMutate: async (params) => {
+			await queryClient.cancelQueries({ queryKey: playersKey });
+			const prev = queryClient.getQueryData<TablePlayerData>(playersKey);
+			if (prev) {
+				queryClient.setQueryData<TablePlayerData>(playersKey, {
+					items: [
+						...prev.items,
+						{
+							id: `optimistic-${Date.now()}`,
+							player: {
+								id: `new-${Date.now()}`,
+								name: params.playerName,
+								memo: params.playerMemo ?? null,
+							},
+							isActive: true,
+							joinedAt: new Date().toISOString(),
+							leftAt: null,
+							seatPosition: params.seatPosition ?? null,
+						},
+					],
+				});
+			}
+			return { prev };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.prev) {
+				queryClient.setQueryData(playersKey, ctx.prev);
+			}
+		},
+		onSettled: invalidatePlayers,
 	});
 
 	const removeMutation = useMutation({
@@ -61,7 +136,26 @@ export function useTablePlayers({
 				...sessionParam,
 				playerId,
 			}),
-		onSuccess: invalidatePlayers,
+		onMutate: async (playerId) => {
+			await queryClient.cancelQueries({ queryKey: playersKey });
+			const prev = queryClient.getQueryData<TablePlayerData>(playersKey);
+			if (prev) {
+				queryClient.setQueryData<TablePlayerData>(playersKey, {
+					items: prev.items.map((item) =>
+						item.player.id === playerId
+							? { ...item, isActive: false, leftAt: new Date().toISOString() }
+							: item
+					),
+				});
+			}
+			return { prev };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.prev) {
+				queryClient.setQueryData(playersKey, ctx.prev);
+			}
+		},
+		onSettled: invalidatePlayers,
 	});
 
 	const updateSeatMutation = useMutation({
@@ -71,7 +165,26 @@ export function useTablePlayers({
 				playerId: params.playerId,
 				seatPosition: params.seatPosition,
 			}),
-		onSuccess: invalidatePlayers,
+		onMutate: async (params) => {
+			await queryClient.cancelQueries({ queryKey: playersKey });
+			const prev = queryClient.getQueryData<TablePlayerData>(playersKey);
+			if (prev) {
+				queryClient.setQueryData<TablePlayerData>(playersKey, {
+					items: prev.items.map((item) =>
+						item.player.id === params.playerId
+							? { ...item, seatPosition: params.seatPosition }
+							: item
+					),
+				});
+			}
+			return { prev };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.prev) {
+				queryClient.setQueryData(playersKey, ctx.prev);
+			}
+		},
+		onSettled: invalidatePlayers,
 	});
 
 	const players = (playersQuery.data?.items ?? []).map((item) => ({
@@ -89,9 +202,10 @@ export function useTablePlayers({
 		setAddPlayerSeat(seatPosition);
 	};
 
-	const handleAddExisting = (playerId: string) => {
+	const handleAddExisting = (playerId: string, playerName: string) => {
 		addMutation.mutate({
 			playerId,
+			playerName,
 			seatPosition: addPlayerSeat ?? undefined,
 		});
 	};

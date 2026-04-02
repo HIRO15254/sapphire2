@@ -10,7 +10,7 @@ import { trpc } from "@/utils/trpc";
 
 interface AddPlayerSheetProps {
 	excludePlayerIds: string[];
-	onAddExisting: (playerId: string) => void;
+	onAddExisting: (playerId: string, playerName: string) => void;
 	onAddNew: (name: string, memo?: string) => void;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
@@ -51,8 +51,8 @@ export function AddPlayerSheet({
 			)
 		: availablePlayers;
 
-	const handleAddExisting = (playerId: string) => {
-		onAddExisting(playerId);
+	const handleAddExisting = (playerId: string, playerName: string) => {
+		onAddExisting(playerId, playerName);
 		onOpenChange(false);
 	};
 
@@ -128,7 +128,7 @@ export function AddPlayerSheet({
 								<button
 									className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted"
 									key={p.id}
-									onClick={() => handleAddExisting(p.id)}
+									onClick={() => handleAddExisting(p.id, p.name)}
 									type="button"
 								>
 									<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary text-xs">
