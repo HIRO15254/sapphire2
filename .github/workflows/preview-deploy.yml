@@ -139,6 +139,13 @@ jobs:
 
           # Remove d1_migrations data (already applied via migrations step)
           sed -i '/INSERT INTO.*d1_migrations/d' dump.sql
+
+          # Remove INSERT statements for tables whose schema changed across migrations.
+          # The source DB may have columns that no longer exist in the target DB
+          # (e.g. tournament.rebuy_allowed removed in migration 0009).
+          # We drop these rows and let the target DB start fresh for affected tables.
+          sed -i '/INSERT INTO.*tournament[^_]/d' dump.sql
+
           # Wrap with PRAGMA to disable FK checks during import
           sed -i '1i PRAGMA foreign_keys = OFF;' dump.sql
           echo 'PRAGMA foreign_keys = ON;' >> dump.sql
