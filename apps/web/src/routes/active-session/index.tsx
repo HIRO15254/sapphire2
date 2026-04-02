@@ -228,7 +228,12 @@ function usePokerTableInteraction(
 						heroSeatPosition: pos,
 					}),
 		onMutate: (pos) => {
+			const prev = localHero !== undefined ? localHero : heroSeatPosition;
 			setLocalHero(pos);
+			return { prev };
+		},
+		onError: (_err, _vars, ctx) => {
+			setLocalHero(ctx?.prev ?? undefined);
 		},
 		onSettled: () => {
 			setLocalHero(undefined);
@@ -266,6 +271,8 @@ function usePokerTableInteraction(
 }
 
 function usePlayerDetail(playerId: string | null) {
+	const queryClient = useQueryClient();
+
 	const playerQuery = useQuery({
 		...trpc.player.getById.queryOptions({ id: playerId ?? "" }),
 		enabled: !!playerId,
@@ -275,16 +282,27 @@ function usePlayerDetail(playerId: string | null) {
 		...trpc.playerTag.list.queryOptions(),
 	});
 
+	const playerKey = trpc.player.getById.queryOptions({
+		id: playerId ?? "",
+	}).queryKey;
+	const tagsKey = trpc.playerTag.list.queryOptions().queryKey;
+
 	const updateMutation = useMutation({
 		mutationFn: (values: {
 			id: string;
 			memo?: string | null;
 			tagIds?: string[];
 		}) => trpcClient.player.update.mutate(values),
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: playerKey });
+		},
 	});
 
 	const createTagMutation = useMutation({
 		mutationFn: (name: string) => trpcClient.playerTag.create.mutate({ name }),
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: tagsKey });
+		},
 	});
 
 	return {
