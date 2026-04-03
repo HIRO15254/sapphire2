@@ -13,6 +13,7 @@ import { OnlineStatusBar } from "@/components/online-status-bar";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { StackSheetProvider } from "@/hooks/use-stack-sheet";
 import { authClient } from "@/lib/auth-client";
 import type { trpc } from "@/utils/trpc";
 
@@ -69,7 +70,7 @@ function RootComponent() {
 				{isLoginPage ? (
 					<Outlet />
 				) : (
-					<>
+					<StackSheetProvider>
 						<SidebarNav />
 						<div className="flex h-svh flex-col md:ml-56">
 							<OnlineStatusBar />
@@ -78,7 +79,7 @@ function RootComponent() {
 							</div>
 						</div>
 						<MobileNav />
-					</>
+					</StackSheetProvider>
 				)}
 				<Toaster position="top-right" richColors />
 			</ThemeProvider>
