@@ -44,6 +44,7 @@ function createTestRouter(initialPath: string) {
 		"/live-sessions",
 		"/live-sessions/cash-game/$sessionId",
 		"/live-sessions/cash-game/$sessionId/events",
+		"/live-sessions/$sessionType/$sessionId/events",
 		"/players",
 		"/settings",
 	].map((path) =>

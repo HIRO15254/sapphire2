@@ -23,6 +23,7 @@ import { Route as ActiveSessionIndexRouteImport } from './routes/active-session/
 import { Route as StoresStoreIdRouteImport } from './routes/stores/$storeId'
 import { Route as ActiveSessionEventsRouteImport } from './routes/active-session/events'
 import { Route as LiveSessionsCashGameSessionIdEventsRouteImport } from './routes/live-sessions/cash-game/$sessionId/events'
+import { Route as LiveSessionsSessionTypeSessionIdEventsRouteImport } from './routes/live-sessions/$sessionType/$sessionId/events'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -95,6 +96,12 @@ const LiveSessionsCashGameSessionIdEventsRoute =
     path: '/live-sessions/cash-game/$sessionId/events',
     getParentRoute: () => rootRouteImport,
   } as any)
+const LiveSessionsSessionTypeSessionIdEventsRoute =
+  LiveSessionsSessionTypeSessionIdEventsRouteImport.update({
+    id: '/live-sessions/$sessionType/$sessionId/events',
+    path: '/live-sessions/$sessionType/$sessionId/events',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/players/': typeof PlayersIndexRoute
   '/sessions/': typeof SessionsIndexRoute
   '/stores/': typeof StoresIndexRoute
+  '/live-sessions/$sessionType/$sessionId/events': typeof LiveSessionsSessionTypeSessionIdEventsRoute
   '/live-sessions/cash-game/$sessionId/events': typeof LiveSessionsCashGameSessionIdEventsRoute
 }
 export interface FileRoutesByTo {
@@ -125,6 +133,7 @@ export interface FileRoutesByTo {
   '/players': typeof PlayersIndexRoute
   '/sessions': typeof SessionsIndexRoute
   '/stores': typeof StoresIndexRoute
+  '/live-sessions/$sessionType/$sessionId/events': typeof LiveSessionsSessionTypeSessionIdEventsRoute
   '/live-sessions/cash-game/$sessionId/events': typeof LiveSessionsCashGameSessionIdEventsRoute
 }
 export interface FileRoutesById {
@@ -142,6 +151,7 @@ export interface FileRoutesById {
   '/players/': typeof PlayersIndexRoute
   '/sessions/': typeof SessionsIndexRoute
   '/stores/': typeof StoresIndexRoute
+  '/live-sessions/$sessionType/$sessionId/events': typeof LiveSessionsSessionTypeSessionIdEventsRoute
   '/live-sessions/cash-game/$sessionId/events': typeof LiveSessionsCashGameSessionIdEventsRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +170,7 @@ export interface FileRouteTypes {
     | '/players/'
     | '/sessions/'
     | '/stores/'
+    | '/live-sessions/$sessionType/$sessionId/events'
     | '/live-sessions/cash-game/$sessionId/events'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -175,6 +186,7 @@ export interface FileRouteTypes {
     | '/players'
     | '/sessions'
     | '/stores'
+    | '/live-sessions/$sessionType/$sessionId/events'
     | '/live-sessions/cash-game/$sessionId/events'
   id:
     | '__root__'
@@ -191,6 +203,7 @@ export interface FileRouteTypes {
     | '/players/'
     | '/sessions/'
     | '/stores/'
+    | '/live-sessions/$sessionType/$sessionId/events'
     | '/live-sessions/cash-game/$sessionId/events'
   fileRoutesById: FileRoutesById
 }
@@ -206,6 +219,7 @@ export interface RootRouteChildren {
   PlayersIndexRoute: typeof PlayersIndexRoute
   SessionsIndexRoute: typeof SessionsIndexRoute
   StoresIndexRoute: typeof StoresIndexRoute
+  LiveSessionsSessionTypeSessionIdEventsRoute: typeof LiveSessionsSessionTypeSessionIdEventsRoute
   LiveSessionsCashGameSessionIdEventsRoute: typeof LiveSessionsCashGameSessionIdEventsRoute
 }
 
@@ -309,6 +323,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LiveSessionsCashGameSessionIdEventsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/live-sessions/$sessionType/$sessionId/events': {
+      id: '/live-sessions/$sessionType/$sessionId/events'
+      path: '/live-sessions/$sessionType/$sessionId/events'
+      fullPath: '/live-sessions/$sessionType/$sessionId/events'
+      preLoaderRoute: typeof LiveSessionsSessionTypeSessionIdEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -338,6 +359,8 @@ const rootRouteChildren: RootRouteChildren = {
   PlayersIndexRoute: PlayersIndexRoute,
   SessionsIndexRoute: SessionsIndexRoute,
   StoresIndexRoute: StoresIndexRoute,
+  LiveSessionsSessionTypeSessionIdEventsRoute:
+    LiveSessionsSessionTypeSessionIdEventsRoute,
   LiveSessionsCashGameSessionIdEventsRoute:
     LiveSessionsCashGameSessionIdEventsRoute,
 }

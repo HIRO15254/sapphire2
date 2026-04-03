@@ -324,8 +324,11 @@ export function SessionCard({
 					<div className="mt-2 flex items-center gap-2 border-t pt-2">
 						<Link
 							className="inline-flex items-center gap-1 text-primary text-xs hover:underline"
-							params={{ sessionId: liveSessionId }}
-							to="/live-sessions/cash-game/$sessionId/events"
+							params={{
+								sessionType: isTournament ? "tournament" : "cash-game",
+								sessionId: liveSessionId,
+							}}
+							to="/live-sessions/$sessionType/$sessionId/events"
 						>
 							<IconList size={12} />
 							Events
