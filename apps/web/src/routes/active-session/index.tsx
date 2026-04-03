@@ -327,6 +327,7 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 
+	const [isStackFormOpen, setIsStackFormOpen] = useState(false);
 	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
 	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
 	const [defaultFinalStack, setDefaultFinalStack] = useState<
@@ -494,18 +495,37 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 				/>
 			</div>
 
-			{/* Stack form */}
+			{/* Stack form trigger */}
 			<div className="border-border border-t pt-2 pb-1">
+				<Button
+					className="w-full"
+					onClick={() => setIsStackFormOpen(true)}
+					variant="outline"
+				>
+					Record Stack
+				</Button>
+			</div>
+
+			{/* Stack form sheet */}
+			<ResponsiveDialog
+				onOpenChange={setIsStackFormOpen}
+				open={isStackFormOpen}
+				title="Record Stack"
+			>
 				<CashGameStackForm
 					isLoading={stackMutation.isPending}
 					onChipAdd={(amount) => chipAddMutation.mutate(amount)}
 					onComplete={(currentStack) => {
+						setIsStackFormOpen(false);
 						setDefaultFinalStack(currentStack);
 						setIsCompleteOpen(true);
 					}}
-					onSubmit={(values) => stackMutation.mutate(values)}
+					onSubmit={(values) => {
+						stackMutation.mutate(values);
+						setIsStackFormOpen(false);
+					}}
 				/>
-			</div>
+			</ResponsiveDialog>
 
 			{/* Complete dialog */}
 			<ResponsiveDialog
@@ -599,6 +619,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 
+	const [isStackFormOpen, setIsStackFormOpen] = useState(false);
 	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
 	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
 
@@ -766,15 +787,36 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 				/>
 			</div>
 
-			{/* Stack form */}
+			{/* Stack form trigger */}
 			<div className="border-border border-t pt-2 pb-1">
+				<Button
+					className="w-full"
+					onClick={() => setIsStackFormOpen(true)}
+					variant="outline"
+				>
+					Record Stack
+				</Button>
+			</div>
+
+			{/* Stack form sheet */}
+			<ResponsiveDialog
+				onOpenChange={setIsStackFormOpen}
+				open={isStackFormOpen}
+				title="Record Stack"
+			>
 				<TournamentStackForm
 					chipPurchaseTypes={chipPurchaseTypes}
 					isLoading={stackMutation.isPending}
-					onComplete={() => setIsCompleteOpen(true)}
-					onSubmit={(values) => stackMutation.mutate(values)}
+					onComplete={() => {
+						setIsStackFormOpen(false);
+						setIsCompleteOpen(true);
+					}}
+					onSubmit={(values) => {
+						stackMutation.mutate(values);
+						setIsStackFormOpen(false);
+					}}
 				/>
-			</div>
+			</ResponsiveDialog>
 
 			{/* Complete dialog */}
 			<ResponsiveDialog
@@ -929,7 +971,7 @@ function ActiveSessionPage() {
 	}
 
 	return (
-		<div className="flex h-[calc(100svh-4rem)] flex-col px-4 pt-2 md:h-svh md:px-6 md:pt-4">
+		<div className="flex h-[calc(100dvh-4rem)] flex-col px-4 pt-2 pb-0 md:px-6 md:pt-4">
 			{activeSession.type === "cash_game" ? (
 				<CashGameSession sessionId={activeSession.id} />
 			) : (
