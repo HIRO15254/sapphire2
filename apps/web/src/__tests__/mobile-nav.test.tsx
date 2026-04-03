@@ -20,6 +20,16 @@ vi.mock("@/components/live-sessions/create-session-dialog", () => ({
 	CreateSessionDialog: () => null,
 }));
 
+// Mock useStackSheet to avoid provider requirement
+vi.mock("@/hooks/use-stack-sheet", () => ({
+	useStackSheet: () => ({
+		isOpen: false,
+		open: vi.fn(),
+		close: vi.fn(),
+		setIsOpen: vi.fn(),
+	}),
+}));
+
 function createTestRouter(initialPath: string) {
 	const rootRoute = createRootRoute({
 		component: () => <MobileNav />,
@@ -129,16 +139,16 @@ describe("MobileNav - Live Session Mode (active session)", () => {
 
 		await screen.findByText("Events");
 		expect(screen.getByText("Players")).toBeInTheDocument();
-		expect(screen.getByText("Stores")).toBeInTheDocument();
+		expect(screen.getByText("Overview")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
-		expect(screen.getByText("Live")).toBeInTheDocument();
+		expect(screen.getByText("Stack")).toBeInTheDocument();
 	});
 
 	it("center button has green styling in live mode", async () => {
 		const router = createTestRouter("/live-sessions/cash-game/session-123");
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("Live");
+		await screen.findByText("Stack");
 		const centerButton = screen.getByRole("button");
 		const greenDiv = centerButton.querySelector("div");
 		expect(greenDiv?.className).toContain("bg-green");

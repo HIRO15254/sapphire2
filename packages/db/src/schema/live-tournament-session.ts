@@ -25,6 +25,7 @@ export const liveTournamentSession = sqliteTable(
 		entryFee: integer("entry_fee"),
 		startedAt: integer("started_at", { mode: "timestamp" }).notNull(),
 		endedAt: integer("ended_at", { mode: "timestamp" }),
+		heroSeatPosition: integer("hero_seat_position"),
 		memo: text("memo"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)

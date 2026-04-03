@@ -184,6 +184,7 @@ export const sessionTablePlayerRouter = router({
 					isActive: sessionTablePlayer.isActive,
 					joinedAt: sessionTablePlayer.joinedAt,
 					leftAt: sessionTablePlayer.leftAt,
+					seatPosition: sessionTablePlayer.seatPosition,
 					playerId: player.id,
 					playerName: player.name,
 					playerMemo: player.memo,
@@ -204,6 +205,7 @@ export const sessionTablePlayerRouter = router({
 					isActive: row.isActive === 1,
 					joinedAt: row.joinedAt,
 					leftAt: row.leftAt ?? null,
+					seatPosition: row.seatPosition ?? null,
 				})),
 			};
 		}),
@@ -214,11 +216,16 @@ export const sessionTablePlayerRouter = router({
 				liveCashGameSessionId: z.string().optional(),
 				liveTournamentSessionId: z.string().optional(),
 				playerId: z.string().min(1),
+				seatPosition: z.number().int().min(0).max(8).optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
-			const { liveCashGameSessionId, liveTournamentSessionId, playerId } =
-				input;
+			const {
+				liveCashGameSessionId,
+				liveTournamentSessionId,
+				playerId,
+				seatPosition,
+			} = input;
 			validateExactlyOneSessionId(
 				liveCashGameSessionId,
 				liveTournamentSessionId
@@ -268,7 +275,13 @@ export const sessionTablePlayerRouter = router({
 				tablePlayerId = existing.id;
 				await ctx.db
 					.update(sessionTablePlayer)
-					.set({ isActive: 1, joinedAt: now, leftAt: null, updatedAt: now })
+					.set({
+						isActive: 1,
+						joinedAt: now,
+						leftAt: null,
+						updatedAt: now,
+						...(seatPosition !== undefined && { seatPosition }),
+					})
 					.where(eq(sessionTablePlayer.id, existing.id));
 			} else {
 				tablePlayerId = crypto.randomUUID();
@@ -280,6 +293,7 @@ export const sessionTablePlayerRouter = router({
 					isActive: 1,
 					joinedAt: now,
 					updatedAt: now,
+					...(seatPosition !== undefined && { seatPosition }),
 				});
 			}
 
@@ -300,10 +314,12 @@ export const sessionTablePlayerRouter = router({
 				liveTournamentSessionId: z.string().optional(),
 				playerName: z.string().min(1),
 				playerMemo: z.string().optional(),
+				seatPosition: z.number().int().min(0).max(8).optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
-			const { liveCashGameSessionId, liveTournamentSessionId } = input;
+			const { liveCashGameSessionId, liveTournamentSessionId, seatPosition } =
+				input;
 			validateExactlyOneSessionId(
 				liveCashGameSessionId,
 				liveTournamentSessionId
@@ -336,6 +352,7 @@ export const sessionTablePlayerRouter = router({
 				isActive: 1,
 				joinedAt: now,
 				updatedAt: now,
+				...(seatPosition !== undefined && { seatPosition }),
 			});
 
 			await insertPlayerJoinEvent(
@@ -346,6 +363,59 @@ export const sessionTablePlayerRouter = router({
 			);
 
 			return { id: tablePlayerId, playerId };
+		}),
+
+	updateSeat: protectedProcedure
+		.input(
+			z.object({
+				liveCashGameSessionId: z.string().optional(),
+				liveTournamentSessionId: z.string().optional(),
+				playerId: z.string().min(1),
+				seatPosition: z.number().int().min(0).max(8).nullable(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const { liveCashGameSessionId, liveTournamentSessionId, playerId } =
+				input;
+			validateExactlyOneSessionId(
+				liveCashGameSessionId,
+				liveTournamentSessionId
+			);
+
+			const userId = ctx.session.user.id;
+			await resolveSessionOwnership(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId,
+				userId
+			);
+
+			const sessionCond = liveCashGameSessionId
+				? eq(sessionTablePlayer.liveCashGameSessionId, liveCashGameSessionId)
+				: eq(
+						sessionTablePlayer.liveTournamentSessionId,
+						liveTournamentSessionId as string
+					);
+
+			const [existing] = await ctx.db
+				.select()
+				.from(sessionTablePlayer)
+				.where(and(sessionCond, eq(sessionTablePlayer.playerId, playerId)));
+
+			if (!existing) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Player not found in session",
+				});
+			}
+
+			const now = new Date();
+			await ctx.db
+				.update(sessionTablePlayer)
+				.set({ seatPosition: input.seatPosition, updatedAt: now })
+				.where(eq(sessionTablePlayer.id, existing.id));
+
+			return { id: existing.id };
 		}),
 
 	remove: protectedProcedure

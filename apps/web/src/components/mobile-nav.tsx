@@ -2,18 +2,21 @@ import {
 	IconBolt,
 	IconBuildingStore,
 	IconCards,
+	IconLayoutDashboard,
 	IconList,
 	IconPlus,
 	IconSettings,
 	IconUsers,
 } from "@tabler/icons-react";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { type ComponentType, useState } from "react";
 import { CreateSessionDialog } from "@/components/live-sessions/create-session-dialog";
 import { useActiveSession } from "@/hooks/use-active-session";
+import { useStackSheet } from "@/hooks/use-stack-sheet";
 import { cn } from "@/lib/utils";
 
 export interface NavigationItem {
+	exact?: boolean;
 	icon: ComponentType<{ size?: number; stroke?: number; className?: string }>;
 	label: string;
 	to: string;
@@ -44,14 +47,18 @@ export const NORMAL_NAV_ITEMS: readonly NavigationItem[] = [
 	...NORMAL_RIGHT_ITEMS,
 ] as const;
 
-export function isActive(currentPath: string, itemPath: string): boolean {
-	if (itemPath === "/") {
-		return currentPath === "/";
+export function isActive(
+	currentPath: string,
+	itemPath: string,
+	exact = false
+): boolean {
+	if (itemPath === "/" || exact) {
+		return currentPath === itemPath;
 	}
 	return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
 }
 
-function NavItem({ item, active }: { item: NavigationItem; active: boolean }) {
+function NavItem({ active, item }: { active: boolean; item: NavigationItem }) {
 	return (
 		<li className="flex-1">
 			<Link
@@ -70,55 +77,38 @@ function NavItem({ item, active }: { item: NavigationItem; active: boolean }) {
 	);
 }
 
-function CenterButton({
-	hasActiveSession,
-	activeSessionPath,
-	onNewClick,
-}: {
-	hasActiveSession: boolean;
-	activeSessionPath: string | null;
-	onNewClick: () => void;
-}) {
-	const navigate = useNavigate();
-
-	const handleClick = () => {
-		if (hasActiveSession && activeSessionPath) {
-			navigate({ to: activeSessionPath });
-		} else {
-			onNewClick();
-		}
-	};
-
+function NormalCenterButton({ onClick }: { onClick: () => void }) {
 	return (
 		<li className="flex-1">
 			<button
 				className="relative mx-auto flex flex-col items-center"
-				onClick={handleClick}
+				onClick={onClick}
 				type="button"
 			>
-				<div
-					className={cn(
-						"flex size-12 translate-y-1 items-center justify-center rounded-full shadow-lg transition-colors",
-						hasActiveSession
-							? "bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
-							: "bg-primary text-primary-foreground hover:bg-primary/90"
-					)}
-				>
-					{hasActiveSession ? (
-						<IconBolt size={24} stroke={2} />
-					) : (
-						<IconPlus size={24} stroke={2} />
-					)}
+				<div className="flex size-12 translate-y-1 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-colors hover:bg-primary/90">
+					<IconPlus size={24} stroke={2} />
 				</div>
-				<span
-					className={cn(
-						"relative z-10 mt-0.5 rounded-full px-2 py-px font-bold text-[10px]",
-						hasActiveSession
-							? "bg-green-600 text-white dark:bg-green-500"
-							: "bg-primary text-primary-foreground"
-					)}
-				>
-					{hasActiveSession ? "Live" : "New"}
+				<span className="relative z-10 mt-0.5 rounded-full bg-primary px-2 py-px font-bold text-[10px] text-primary-foreground">
+					New
+				</span>
+			</button>
+		</li>
+	);
+}
+
+function LiveCenterButton({ onClick }: { onClick: () => void }) {
+	return (
+		<li className="flex-1">
+			<button
+				className="relative mx-auto flex flex-col items-center"
+				onClick={onClick}
+				type="button"
+			>
+				<div className="flex size-12 translate-y-1 items-center justify-center rounded-full bg-green-600 text-white shadow-lg transition-colors hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600">
+					<IconBolt size={24} stroke={2} />
+				</div>
+				<span className="relative z-10 mt-0.5 rounded-full bg-green-600 px-2 py-px font-bold text-[10px] text-white dark:bg-green-500">
+					Stack
 				</span>
 			</button>
 		</li>
@@ -130,12 +120,8 @@ export function MobileNav() {
 		select: (s) => s.location.pathname,
 	});
 	const { hasActive } = useActiveSession();
+	const stackSheet = useStackSheet();
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
-
-	let activeSessionPath: string | null = null;
-	if (hasActive) {
-		activeSessionPath = "/active-session";
-	}
 
 	// In live mode, build dynamic nav items
 	const liveLeftItems: NavigationItem[] = hasActive
@@ -145,10 +131,17 @@ export function MobileNav() {
 			]
 		: [];
 
-	const liveRightItems: NavigationItem[] = [
-		{ to: "/stores", label: "Stores", icon: IconBuildingStore },
-		{ to: "/settings", label: "Settings", icon: IconSettings },
-	];
+	const liveRightItems: NavigationItem[] = hasActive
+		? [
+				{
+					to: "/active-session",
+					label: "Overview",
+					icon: IconLayoutDashboard,
+					exact: true,
+				},
+				{ to: "/settings", label: "Settings", icon: IconSettings },
+			]
+		: [];
 
 	const leftItems = hasActive ? liveLeftItems : NORMAL_LEFT_ITEMS;
 	const rightItems = hasActive ? liveRightItems : NORMAL_RIGHT_ITEMS;
@@ -159,21 +152,21 @@ export function MobileNav() {
 				<ul className="flex h-16 items-center">
 					{leftItems.map((item) => (
 						<NavItem
-							active={isActive(pathname, item.to)}
+							active={isActive(pathname, item.to, item.exact)}
 							item={item}
 							key={item.to}
 						/>
 					))}
 
-					<CenterButton
-						activeSessionPath={activeSessionPath}
-						hasActiveSession={hasActive}
-						onNewClick={() => setIsCreateOpen(true)}
-					/>
+					{hasActive ? (
+						<LiveCenterButton onClick={() => stackSheet.open()} />
+					) : (
+						<NormalCenterButton onClick={() => setIsCreateOpen(true)} />
+					)}
 
 					{rightItems.map((item) => (
 						<NavItem
-							active={isActive(pathname, item.to)}
+							active={isActive(pathname, item.to, item.exact)}
 							item={item}
 							key={item.to}
 						/>

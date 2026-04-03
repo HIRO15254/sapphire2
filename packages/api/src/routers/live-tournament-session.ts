@@ -760,4 +760,23 @@ export const liveTournamentSessionRouter = router({
 
 			return { id: input.id };
 		}),
+
+	updateHeroSeat: protectedProcedure
+		.input(
+			z.object({
+				id: z.string(),
+				heroSeatPosition: z.number().int().min(0).max(8).nullable(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await findLiveTournamentSession(ctx.db, input.id, userId);
+
+			await ctx.db
+				.update(liveTournamentSession)
+				.set({ heroSeatPosition: input.heroSeatPosition })
+				.where(eq(liveTournamentSession.id, input.id));
+
+			return { id: input.id };
+		}),
 });
