@@ -16,6 +16,7 @@ import { useStackSheet } from "@/hooks/use-stack-sheet";
 import { cn } from "@/lib/utils";
 
 export interface NavigationItem {
+	exact?: boolean;
 	icon: ComponentType<{ size?: number; stroke?: number; className?: string }>;
 	label: string;
 	to: string;
@@ -46,14 +47,18 @@ export const NORMAL_NAV_ITEMS: readonly NavigationItem[] = [
 	...NORMAL_RIGHT_ITEMS,
 ] as const;
 
-export function isActive(currentPath: string, itemPath: string): boolean {
-	if (itemPath === "/") {
-		return currentPath === "/";
+export function isActive(
+	currentPath: string,
+	itemPath: string,
+	exact = false
+): boolean {
+	if (itemPath === "/" || exact) {
+		return currentPath === itemPath;
 	}
 	return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
 }
 
-function NavItem({ item, active }: { item: NavigationItem; active: boolean }) {
+function NavItem({ active, item }: { active: boolean; item: NavigationItem }) {
 	return (
 		<li className="flex-1">
 			<Link
@@ -132,6 +137,7 @@ export function MobileNav() {
 					to: "/active-session",
 					label: "Overview",
 					icon: IconLayoutDashboard,
+					exact: true,
 				},
 				{ to: "/settings", label: "Settings", icon: IconSettings },
 			]
@@ -146,7 +152,7 @@ export function MobileNav() {
 				<ul className="flex h-16 items-center">
 					{leftItems.map((item) => (
 						<NavItem
-							active={isActive(pathname, item.to)}
+							active={isActive(pathname, item.to, item.exact)}
 							item={item}
 							key={item.to}
 						/>
@@ -160,7 +166,7 @@ export function MobileNav() {
 
 					{rightItems.map((item) => (
 						<NavItem
-							active={isActive(pathname, item.to)}
+							active={isActive(pathname, item.to, item.exact)}
 							item={item}
 							key={item.to}
 						/>
