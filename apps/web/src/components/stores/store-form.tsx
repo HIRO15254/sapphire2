@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface StoreFormValues {
 	memo?: string;
@@ -28,10 +29,7 @@ export function StoreForm({
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="name">
-					Store Name <span className="text-destructive">*</span>
-				</Label>
+			<Field htmlFor="name" label="Store Name" required>
 				<Input
 					defaultValue={defaultValues?.name}
 					id="name"
@@ -39,17 +37,15 @@ export function StoreForm({
 					placeholder="Enter store name"
 					required
 				/>
-			</div>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="memo">Memo</Label>
-				<textarea
-					className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+			</Field>
+			<Field htmlFor="memo" label="Memo">
+				<Textarea
 					defaultValue={defaultValues?.memo}
 					id="memo"
 					name="memo"
 					placeholder="Optional notes about this store"
 				/>
-			</div>
+			</Field>
 			<Button disabled={isLoading} type="submit">
 				{isLoading ? "Saving..." : "Save"}
 			</Button>

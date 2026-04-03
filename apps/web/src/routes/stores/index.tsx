@@ -2,9 +2,11 @@ import { IconBuildingStore, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { PageHeader } from "@/components/page-header";
 import { StoreCard } from "@/components/stores/store-card";
 import { StoreForm } from "@/components/stores/store-form";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -129,24 +131,28 @@ function StoresPage() {
 
 	return (
 		<div className="p-4 md:p-6">
-			<div className="mb-6 flex items-center justify-between">
-				<h1 className="font-bold text-2xl">Stores</h1>
-				<Button onClick={() => setIsCreateOpen(true)}>
-					<IconPlus size={16} />
-					New Store
-				</Button>
-			</div>
-
-			{stores.length === 0 ? (
-				<div className="flex flex-col items-center justify-center gap-4 py-16 text-muted-foreground">
-					<IconBuildingStore size={48} />
-					<p className="text-lg">No stores yet</p>
-					<p className="text-sm">Create your first store to get started.</p>
-					<Button onClick={() => setIsCreateOpen(true)} variant="outline">
+			<PageHeader
+				actions={
+					<Button onClick={() => setIsCreateOpen(true)}>
 						<IconPlus size={16} />
 						New Store
 					</Button>
-				</div>
+				}
+				heading="Stores"
+			/>
+
+			{stores.length === 0 ? (
+				<EmptyState
+					action={
+						<Button onClick={() => setIsCreateOpen(true)} variant="outline">
+							<IconPlus size={16} />
+							New Store
+						</Button>
+					}
+					description="Create your first store to get started."
+					heading="No stores yet"
+					icon={<IconBuildingStore size={48} />}
+				/>
 			) : (
 				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 					{stores.map((store) => (

@@ -2,10 +2,11 @@ import { IconPlus, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/utils/trpc";
 
 interface AddPlayerSheetProps {
@@ -73,33 +74,15 @@ export function AddPlayerSheet({
 			title="Add Player"
 		>
 			<div className="flex flex-col gap-3">
-				{/* Tab selector */}
-				<div className="flex gap-1 rounded-lg bg-muted p-1">
-					<button
-						className={cn(
-							"flex-1 rounded-md px-3 py-1.5 font-medium text-sm transition-colors",
-							tab === "existing"
-								? "bg-background shadow-sm"
-								: "text-muted-foreground hover:text-foreground"
-						)}
-						onClick={() => setTab("existing")}
-						type="button"
-					>
-						Existing
-					</button>
-					<button
-						className={cn(
-							"flex-1 rounded-md px-3 py-1.5 font-medium text-sm transition-colors",
-							tab === "new"
-								? "bg-background shadow-sm"
-								: "text-muted-foreground hover:text-foreground"
-						)}
-						onClick={() => setTab("new")}
-						type="button"
-					>
-						New Player
-					</button>
-				</div>
+				<Tabs
+					onValueChange={(value) => setTab(value as "existing" | "new")}
+					value={tab}
+				>
+					<TabsList className="grid w-full grid-cols-2">
+						<TabsTrigger value="existing">Existing</TabsTrigger>
+						<TabsTrigger value="new">New Player</TabsTrigger>
+					</TabsList>
+				</Tabs>
 
 				{tab === "existing" && (
 					<div className="flex flex-col gap-2">
@@ -120,9 +103,13 @@ export function AddPlayerSheet({
 						{/* Player list */}
 						<div className="max-h-[40vh] overflow-y-auto">
 							{filteredPlayers.length === 0 && (
-								<p className="py-4 text-center text-muted-foreground text-sm">
-									{search ? "No matching players" : "No available players"}
-								</p>
+								<EmptyState
+									className="border-none bg-transparent px-0 py-4"
+									description={search ? "Try a different name." : undefined}
+									heading={
+										search ? "No matching players" : "No available players"
+									}
+								/>
 							)}
 							{filteredPlayers.map((p) => (
 								<button
@@ -154,8 +141,7 @@ export function AddPlayerSheet({
 
 				{tab === "new" && (
 					<form className="flex flex-col gap-4" onSubmit={handleAddNew}>
-						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="new-player-name">Name</Label>
+						<Field htmlFor="new-player-name" label="Name">
 							<Input
 								id="new-player-name"
 								onChange={(e) => setNewName(e.target.value)}
@@ -163,16 +149,15 @@ export function AddPlayerSheet({
 								required
 								value={newName}
 							/>
-						</div>
-						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="new-player-memo">Memo (optional)</Label>
+						</Field>
+						<Field htmlFor="new-player-memo" label="Memo (optional)">
 							<Input
 								id="new-player-memo"
 								onChange={(e) => setNewMemo(e.target.value)}
 								placeholder="Notes about this player"
 								value={newMemo}
 							/>
-						</div>
+						</Field>
 						<Button type="submit">Add Player</Button>
 					</form>
 				)}

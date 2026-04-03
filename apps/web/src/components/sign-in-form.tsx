@@ -4,12 +4,13 @@ import { toast } from "sonner";
 import z from "zod";
 
 import { authClient } from "@/lib/auth-client";
+import { AuthFormShell, authSubmitLabels } from "./auth-form-shell";
 import { DiscordIcon } from "./icons/discord";
 import { GoogleIcon } from "./icons/google";
 import Loader from "./loader";
 import { Button } from "./ui/button";
+import { Field } from "./ui/field";
 import { Input } from "./ui/input";
-import { Label } from "./ui/label";
 
 export default function SignInForm({
 	onSwitchToSignUp,
@@ -57,58 +58,42 @@ export default function SignInForm({
 		return <Loader />;
 	}
 
+	const providerActions = [
+		{
+			label: "Sign in with Google",
+			icon: <GoogleIcon className="mr-2 h-4 w-4" />,
+			onClick: async () => {
+				const result = await authClient.signIn.social({
+					provider: "google",
+					callbackURL: `${window.location.origin}/dashboard`,
+				});
+				if (result.error) {
+					toast.error(result.error.message || "Google sign in unavailable");
+				}
+			},
+		},
+		{
+			label: "Sign in with Discord",
+			icon: <DiscordIcon className="mr-2 h-4 w-4" />,
+			onClick: async () => {
+				const result = await authClient.signIn.social({
+					provider: "discord",
+					callbackURL: `${window.location.origin}/dashboard`,
+				});
+				if (result.error) {
+					toast.error(result.error.message || "Discord sign in unavailable");
+				}
+			},
+		},
+	];
+
 	return (
-		<div className="mx-auto mt-10 w-full max-w-md p-6">
-			<h1 className="mb-6 text-center font-bold text-3xl">Welcome Back</h1>
-
-			<div className="space-y-2">
-				<Button
-					className="w-full"
-					onClick={async () => {
-						const result = await authClient.signIn.social({
-							provider: "google",
-							callbackURL: `${window.location.origin}/dashboard`,
-						});
-						if (result.error) {
-							toast.error(result.error.message || "Google sign in unavailable");
-						}
-					}}
-					type="button"
-					variant="outline"
-				>
-					<GoogleIcon className="mr-2 h-4 w-4" />
-					Sign in with Google
-				</Button>
-				<Button
-					className="w-full"
-					onClick={async () => {
-						const result = await authClient.signIn.social({
-							provider: "discord",
-							callbackURL: `${window.location.origin}/dashboard`,
-						});
-						if (result.error) {
-							toast.error(
-								result.error.message || "Discord sign in unavailable"
-							);
-						}
-					}}
-					type="button"
-					variant="outline"
-				>
-					<DiscordIcon className="mr-2 h-4 w-4" />
-					Sign in with Discord
-				</Button>
-			</div>
-
-			<div className="relative my-4">
-				<div className="absolute inset-0 flex items-center">
-					<span className="w-full border-t" />
-				</div>
-				<div className="relative flex justify-center text-xs uppercase">
-					<span className="bg-background px-2 text-muted-foreground">or</span>
-				</div>
-			</div>
-
+		<AuthFormShell
+			onSwitchMode={onSwitchToSignUp}
+			providerActions={providerActions}
+			switchLabel="Need an account? Sign Up"
+			title="Welcome Back"
+		>
 			<form
 				className="space-y-4"
 				onSubmit={(e) => {
@@ -117,51 +102,43 @@ export default function SignInForm({
 					form.handleSubmit();
 				}}
 			>
-				<div>
-					<form.Field name="email">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor={field.name}>Email</Label>
-								<Input
-									id={field.name}
-									name={field.name}
-									onBlur={field.handleBlur}
-									onChange={(e) => field.handleChange(e.target.value)}
-									type="email"
-									value={field.state.value}
-								/>
-								{field.state.meta.errors.map((error) => (
-									<p className="text-red-500" key={error?.message}>
-										{error?.message}
-									</p>
-								))}
-							</div>
-						)}
-					</form.Field>
-				</div>
+				<form.Field name="email">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Email"
+						>
+							<Input
+								id={field.name}
+								name={field.name}
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								type="email"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
 
-				<div>
-					<form.Field name="password">
-						{(field) => (
-							<div className="space-y-2">
-								<Label htmlFor={field.name}>Password</Label>
-								<Input
-									id={field.name}
-									name={field.name}
-									onBlur={field.handleBlur}
-									onChange={(e) => field.handleChange(e.target.value)}
-									type="password"
-									value={field.state.value}
-								/>
-								{field.state.meta.errors.map((error) => (
-									<p className="text-red-500" key={error?.message}>
-										{error?.message}
-									</p>
-								))}
-							</div>
-						)}
-					</form.Field>
-				</div>
+				<form.Field name="password">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Password"
+						>
+							<Input
+								id={field.name}
+								name={field.name}
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								type="password"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
 
 				<form.Subscribe>
 					{(state) => (
@@ -170,21 +147,13 @@ export default function SignInForm({
 							disabled={!state.canSubmit || state.isSubmitting}
 							type="submit"
 						>
-							{state.isSubmitting ? "Submitting..." : "Sign In"}
+							{state.isSubmitting
+								? authSubmitLabels.signIn.submitting
+								: authSubmitLabels.signIn.idle}
 						</Button>
 					)}
 				</form.Subscribe>
 			</form>
-
-			<div className="mt-4 text-center">
-				<Button
-					className="text-primary hover:text-primary/80"
-					onClick={onSwitchToSignUp}
-					variant="link"
-				>
-					Need an account? Sign Up
-				</Button>
-			</div>
-		</div>
+		</AuthFormShell>
 	);
 }

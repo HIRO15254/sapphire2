@@ -5,6 +5,7 @@ import { useState } from "react";
 import { LinkedAccounts } from "@/components/linked-accounts";
 import { TransactionTypeManager } from "@/components/stores/transaction-type-manager";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -67,9 +68,11 @@ function SessionTagManager() {
 
 	if (tags.length === 0) {
 		return (
-			<p className="text-muted-foreground text-sm">
-				No session tags yet. Create tags when recording sessions.
-			</p>
+			<EmptyState
+				className="border-none bg-transparent px-0 py-4"
+				description="Create tags when recording sessions."
+				heading="No session tags yet"
+			/>
 		);
 	}
 

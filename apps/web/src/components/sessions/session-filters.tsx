@@ -2,6 +2,7 @@ import { IconFilter } from "@tabler/icons-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DialogActionRow } from "@/components/ui/dialog-action-row";
 import { Input } from "@/components/ui/input";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import {
@@ -207,14 +208,14 @@ export function SessionFilters({
 						</div>
 					</div>
 
-					<div className="flex gap-2 pt-2">
+					<DialogActionRow className="sm:justify-stretch">
 						<Button className="flex-1" onClick={handleReset} variant="outline">
 							Reset
 						</Button>
 						<Button className="flex-1" onClick={handleApply}>
 							Apply
 						</Button>
-					</div>
+					</DialogActionRow>
 				</div>
 			</ResponsiveDialog>
 		</>

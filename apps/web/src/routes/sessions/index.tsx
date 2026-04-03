@@ -2,6 +2,7 @@ import { IconCards, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { PageHeader } from "@/components/page-header";
 import { SessionCard } from "@/components/sessions/session-card";
 import {
 	SessionFilters,
@@ -9,6 +10,7 @@ import {
 } from "@/components/sessions/session-filters";
 import { SessionForm } from "@/components/sessions/session-form";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -511,34 +513,36 @@ function SessionsPage() {
 
 	return (
 		<div className="p-4 md:p-6">
-			<div className="mb-6 flex items-center justify-between">
-				<h1 className="font-bold text-2xl">Sessions</h1>
-				<div className="flex items-center gap-2">
-					<SessionFilters
-						currencies={currencies}
-						filters={filters}
-						onFiltersChange={setFilters}
-						stores={stores}
-					/>
-					<Button onClick={() => setIsCreateOpen(true)}>
-						<IconPlus size={16} />
-						New Session
-					</Button>
-				</div>
-			</div>
+			<PageHeader
+				actions={
+					<>
+						<SessionFilters
+							currencies={currencies}
+							filters={filters}
+							onFiltersChange={setFilters}
+							stores={stores}
+						/>
+						<Button onClick={() => setIsCreateOpen(true)}>
+							<IconPlus size={16} />
+							New Session
+						</Button>
+					</>
+				}
+				heading="Sessions"
+			/>
 
 			{sessions.length === 0 ? (
-				<div className="flex flex-col items-center justify-center gap-4 py-16 text-muted-foreground">
-					<IconCards size={48} />
-					<p className="text-lg">No sessions yet</p>
-					<p className="text-sm">
-						Record your first poker session to start tracking P&L.
-					</p>
-					<Button onClick={() => setIsCreateOpen(true)} variant="outline">
-						<IconPlus size={16} />
-						New Session
-					</Button>
-				</div>
+				<EmptyState
+					action={
+						<Button onClick={() => setIsCreateOpen(true)} variant="outline">
+							<IconPlus size={16} />
+							New Session
+						</Button>
+					}
+					description="Record your first poker session to start tracking P&L."
+					heading="No sessions yet"
+					icon={<IconCards size={48} />}
+				/>
 			) : (
 				<div className="flex flex-col gap-2">
 					{sessions.map((s) => (

@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TagInput } from "@/components/ui/tag-input";
+import { Textarea } from "@/components/ui/textarea";
 import { CashGameFields } from "./cash-game-fields";
 import { FormAccordion } from "./form-section";
 import { StoreGameSelectors } from "./link-selectors";
@@ -268,8 +271,7 @@ function SessionFormFields({
 
 	const tagsContent = (
 		<>
-			<div className="flex flex-col gap-2">
-				<Label>Session Tags</Label>
+			<Field label="Session Tags">
 				<TagInput
 					availableTags={tags}
 					onAdd={(tag) => setSelectedTagIds((prev) => [...prev, tag.id])}
@@ -281,17 +283,15 @@ function SessionFormFields({
 						.map((id) => tags?.find((t) => t.id === id))
 						.filter((t): t is { id: string; name: string } => t !== undefined)}
 				/>
-			</div>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="memo">Memo</Label>
-				<textarea
-					className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+			</Field>
+			<Field htmlFor="memo" label="Memo">
+				<Textarea
 					defaultValue={defaultValues?.memo}
 					id="memo"
 					name="memo"
 					placeholder="Notes about this session"
 				/>
-			</div>
+			</Field>
 		</>
 	);
 
@@ -532,35 +532,19 @@ export function SessionForm({
 	return (
 		<form className="flex flex-col gap-2" onSubmit={handleSubmit}>
 			{/* Session Type */}
-			<div className="flex flex-col gap-2">
-				<Label>Session Type</Label>
-				<div className="grid grid-cols-2 gap-2">
-					<Button
-						className={
-							isCashGame
-								? ""
-								: "border-transparent bg-transparent text-muted-foreground"
-						}
-						onClick={() => setSessionType("cash_game")}
-						type="button"
-						variant={isCashGame ? "default" : "outline"}
-					>
-						Cash Game
-					</Button>
-					<Button
-						className={
-							isCashGame
-								? "border-transparent bg-transparent text-muted-foreground"
-								: ""
-						}
-						onClick={() => setSessionType("tournament")}
-						type="button"
-						variant={isCashGame ? "outline" : "default"}
-					>
-						Tournament
-					</Button>
-				</div>
-			</div>
+			<Field label="Session Type">
+				<Tabs
+					onValueChange={(value) =>
+						setSessionType(value as "cash_game" | "tournament")
+					}
+					value={sessionType}
+				>
+					<TabsList className="grid w-full grid-cols-2">
+						<TabsTrigger value="cash_game">Cash Game</TabsTrigger>
+						<TabsTrigger value="tournament">Tournament</TabsTrigger>
+					</TabsList>
+				</Tabs>
+			</Field>
 
 			<SessionFormFields
 				currencies={currencies}

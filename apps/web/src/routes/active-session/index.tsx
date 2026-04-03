@@ -11,6 +11,7 @@ import {
 } from "@/components/live-sessions/poker-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { useActiveSession } from "@/hooks/use-active-session";
 import { useTablePlayers } from "@/hooks/use-table-players";
@@ -732,7 +733,11 @@ function ActiveSessionPage() {
 	if (isSessionLoading) {
 		return (
 			<div className="flex h-[100dvh] items-center justify-center pb-16">
-				<p className="text-muted-foreground">Loading...</p>
+				<EmptyState
+					className="border-none bg-transparent py-0"
+					description="Fetching the current active session."
+					heading="Loading..."
+				/>
 			</div>
 		);
 	}
@@ -740,7 +745,11 @@ function ActiveSessionPage() {
 	if (!activeSession) {
 		return (
 			<div className="flex h-[100dvh] items-center justify-center pb-16">
-				<p className="text-muted-foreground">No active session</p>
+				<EmptyState
+					className="border-none bg-transparent py-0"
+					description="Start a live session from the sessions screen."
+					heading="No active session"
+				/>
 			</div>
 		);
 	}

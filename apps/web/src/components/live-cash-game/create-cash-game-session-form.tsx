@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -9,6 +10,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 interface CreateCashGameSessionFormProps {
 	currencies: Array<{ id: string; name: string }>;
@@ -102,10 +104,7 @@ export function CreateCashGameSessionForm({
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<div className="flex flex-col gap-2">
-				<Label>
-					Store <span className="text-destructive">*</span>
-				</Label>
+			<Field label="Store" required>
 				{stores.length > 0 ? (
 					<Select onValueChange={handleStoreChange} value={selectedStoreId}>
 						<SelectTrigger>
@@ -120,17 +119,16 @@ export function CreateCashGameSessionForm({
 						</SelectContent>
 					</Select>
 				) : (
-					<p className="text-muted-foreground text-sm">
-						No stores available. Create a store first.
-					</p>
+					<EmptyState
+						className="px-4 py-8"
+						description="Create a store first."
+						heading="No stores available"
+					/>
 				)}
-			</div>
+			</Field>
 
 			{selectedStoreId && (
-				<div className="flex flex-col gap-2">
-					<Label>
-						Ring Game <span className="text-destructive">*</span>
-					</Label>
+				<Field label="Ring Game" required>
 					{hasRingGames ? (
 						<Select
 							onValueChange={handleRingGameChange}
@@ -148,18 +146,19 @@ export function CreateCashGameSessionForm({
 							</SelectContent>
 						</Select>
 					) : (
-						<p className="text-muted-foreground text-sm">
-							No ring games available. Create one in store settings.
-						</p>
+						<EmptyState
+							className="px-4 py-8"
+							description="Create one in store settings."
+							heading="No ring games available"
+						/>
 					)}
-				</div>
+				</Field>
 			)}
 
 			{selectedRingGameId && (
 				<>
 					{currencies.length > 0 && (
-						<div className="flex flex-col gap-2">
-							<Label>Currency</Label>
+						<Field label="Currency">
 							<Select
 								disabled={isCurrencyLocked}
 								onValueChange={handleCurrencyChange}
@@ -176,11 +175,10 @@ export function CreateCashGameSessionForm({
 									))}
 								</SelectContent>
 							</Select>
-						</div>
+						</Field>
 					)}
 
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="initialBuyIn">Initial Buy-in</Label>
+					<Field htmlFor="initialBuyIn" label="Initial Buy-in">
 						<Input
 							disabled={isBuyInLocked}
 							id="initialBuyIn"
@@ -190,17 +188,15 @@ export function CreateCashGameSessionForm({
 							type="number"
 							value={initialBuyIn}
 						/>
-					</div>
+					</Field>
 
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="memo">Memo</Label>
-						<textarea
-							className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+					<Field htmlFor="memo" label="Memo">
+						<Textarea
 							id="memo"
 							name="memo"
 							placeholder="Notes about this session"
 						/>
-					</div>
+					</Field>
 				</>
 			)}
 

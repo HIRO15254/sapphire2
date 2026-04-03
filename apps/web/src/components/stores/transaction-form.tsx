@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -10,6 +10,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 const NEW_TYPE_VALUE = "__new__";
@@ -90,10 +91,7 @@ export function TransactionForm({
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="amount">
-					Amount <span className="text-destructive">*</span>
-				</Label>
+			<Field htmlFor="amount" label="Amount" required>
 				<Input
 					defaultValue={defaultValues?.amount}
 					id="amount"
@@ -102,11 +100,8 @@ export function TransactionForm({
 					required
 					type="number"
 				/>
-			</div>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="transactionTypeId">
-					Type <span className="text-destructive">*</span>
-				</Label>
+			</Field>
+			<Field htmlFor="transactionTypeId" label="Type" required>
 				<Select onValueChange={setSelectedType} required value={selectedType}>
 					<SelectTrigger className="w-full" id="transactionTypeId">
 						<SelectValue placeholder="Select type..." />
@@ -120,10 +115,9 @@ export function TransactionForm({
 						<SelectItem value={NEW_TYPE_VALUE}>+ New type...</SelectItem>
 					</SelectContent>
 				</Select>
-			</div>
+			</Field>
 			{isNewType && (
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="newTypeName">New Type Name</Label>
+				<Field htmlFor="newTypeName" label="New Type Name">
 					<Input
 						id="newTypeName"
 						onChange={(e) => setNewTypeName(e.target.value)}
@@ -131,12 +125,9 @@ export function TransactionForm({
 						required
 						value={newTypeName}
 					/>
-				</div>
+				</Field>
 			)}
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="transactedAt">
-					Date <span className="text-destructive">*</span>
-				</Label>
+			<Field htmlFor="transactedAt" label="Date" required>
 				<Input
 					defaultValue={
 						defaultValues?.transactedAt
@@ -148,16 +139,15 @@ export function TransactionForm({
 					required
 					type="date"
 				/>
-			</div>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="memo">Memo</Label>
-				<Input
+			</Field>
+			<Field htmlFor="memo" label="Memo">
+				<Textarea
 					defaultValue={defaultValues?.memo}
 					id="memo"
 					name="memo"
 					placeholder="Optional note"
 				/>
-			</div>
+			</Field>
 			<Button disabled={isLoading || isCreatingType} type="submit">
 				{getButtonLabel(isCreatingType, isLoading)}
 			</Button>

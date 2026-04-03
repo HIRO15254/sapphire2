@@ -2,12 +2,14 @@ import { IconPlus, IconTags, IconUsers } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { PageHeader } from "@/components/page-header";
 import { PlayerCard } from "@/components/players/player-card";
 import { PlayerFilters } from "@/components/players/player-filters";
 import type { PlayerFormValues } from "@/components/players/player-form";
 import { PlayerForm } from "@/components/players/player-form";
 import { PlayerTagManager } from "@/components/players/player-tag-manager";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -183,23 +185,25 @@ function PlayersPage() {
 
 	return (
 		<div className="p-4 md:p-6">
-			<div className="mb-6 flex items-center justify-between">
-				<h1 className="font-bold text-2xl">Players</h1>
-				<div className="flex gap-2">
-					<Button
-						onClick={() => setIsTagManagerOpen(true)}
-						size="sm"
-						variant="outline"
-					>
-						<IconTags size={16} />
-						Manage Tags
-					</Button>
-					<Button onClick={() => setIsCreateOpen(true)}>
-						<IconPlus size={16} />
-						New Player
-					</Button>
-				</div>
-			</div>
+			<PageHeader
+				actions={
+					<>
+						<Button
+							onClick={() => setIsTagManagerOpen(true)}
+							size="sm"
+							variant="outline"
+						>
+							<IconTags size={16} />
+							Manage Tags
+						</Button>
+						<Button onClick={() => setIsCreateOpen(true)}>
+							<IconPlus size={16} />
+							New Player
+						</Button>
+					</>
+				}
+				heading="Players"
+			/>
 
 			{availableTags.length > 0 && (
 				<div className="mb-4">
@@ -212,25 +216,27 @@ function PlayersPage() {
 			)}
 
 			{players.length === 0 ? (
-				<div className="flex flex-col items-center justify-center gap-4 py-16 text-muted-foreground">
-					<IconUsers size={48} />
-					<p className="text-lg">
-						{filterTagIds.length > 0
-							? "No players match the selected filters"
-							: "No players yet"}
-					</p>
-					{filterTagIds.length === 0 && (
-						<>
-							<p className="text-sm">
-								Create your first player to start tracking opponents.
-							</p>
+				<EmptyState
+					action={
+						filterTagIds.length === 0 ? (
 							<Button onClick={() => setIsCreateOpen(true)} variant="outline">
 								<IconPlus size={16} />
 								New Player
 							</Button>
-						</>
-					)}
-				</div>
+						) : undefined
+					}
+					description={
+						filterTagIds.length > 0
+							? "Try changing the selected tags."
+							: "Create your first player to start tracking opponents."
+					}
+					heading={
+						filterTagIds.length > 0
+							? "No players match the selected filters"
+							: "No players yet"
+					}
+					icon={<IconUsers size={48} />}
+				/>
 			) : (
 				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 					{players.map((player) => (

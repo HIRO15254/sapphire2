@@ -59,9 +59,8 @@ describe("CreateTournamentSessionForm", () => {
 			/>
 		);
 
-		expect(
-			screen.getByText("No stores available. Create a store first.")
-		).toBeInTheDocument();
+		expect(screen.getByText("No stores available")).toBeInTheDocument();
+		expect(screen.getByText("Create a store first.")).toBeInTheDocument();
 	});
 
 	it("hides buy-in and starting stack until tournament selected", () => {

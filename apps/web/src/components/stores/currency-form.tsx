@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface CurrencyFormValues {
 	name: string;
@@ -28,10 +28,7 @@ export function CurrencyForm({
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="name">
-					Currency Name <span className="text-destructive">*</span>
-				</Label>
+			<Field htmlFor="name" label="Currency Name" required>
 				<Input
 					defaultValue={defaultValues?.name}
 					id="name"
@@ -39,16 +36,15 @@ export function CurrencyForm({
 					placeholder="e.g. Gold, Points"
 					required
 				/>
-			</div>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="unit">Unit</Label>
+			</Field>
+			<Field htmlFor="unit" label="Unit">
 				<Input
 					defaultValue={defaultValues?.unit}
 					id="unit"
 					name="unit"
 					placeholder="e.g. G, pts"
 				/>
-			</div>
+			</Field>
 			<Button disabled={isLoading} type="submit">
 				{isLoading ? "Saving..." : "Save"}
 			</Button>

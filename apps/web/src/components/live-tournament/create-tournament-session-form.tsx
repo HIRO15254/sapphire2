@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -9,6 +10,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 interface CreateTournamentSessionFormProps {
 	currencies: Array<{ id: string; name: string }>;
@@ -131,10 +133,7 @@ export function CreateTournamentSessionForm({
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<div className="flex flex-col gap-2">
-				<Label>
-					Store <span className="text-destructive">*</span>
-				</Label>
+			<Field label="Store" required>
 				{stores.length > 0 ? (
 					<Select onValueChange={handleStoreChange} value={selectedStoreId}>
 						<SelectTrigger>
@@ -149,17 +148,16 @@ export function CreateTournamentSessionForm({
 						</SelectContent>
 					</Select>
 				) : (
-					<p className="text-muted-foreground text-sm">
-						No stores available. Create a store first.
-					</p>
+					<EmptyState
+						className="px-4 py-8"
+						description="Create a store first."
+						heading="No stores available"
+					/>
 				)}
-			</div>
+			</Field>
 
 			{selectedStoreId && (
-				<div className="flex flex-col gap-2">
-					<Label>
-						Tournament <span className="text-destructive">*</span>
-					</Label>
+				<Field label="Tournament" required>
 					{hasTournaments ? (
 						<Select
 							onValueChange={handleTournamentChange}
@@ -177,18 +175,19 @@ export function CreateTournamentSessionForm({
 							</SelectContent>
 						</Select>
 					) : (
-						<p className="text-muted-foreground text-sm">
-							No tournaments available. Create one in store settings.
-						</p>
+						<EmptyState
+							className="px-4 py-8"
+							description="Create one in store settings."
+							heading="No tournaments available"
+						/>
 					)}
-				</div>
+				</Field>
 			)}
 
 			{selectedTournamentId && (
 				<>
 					{currencies.length > 0 && (
-						<div className="flex flex-col gap-2">
-							<Label>Currency</Label>
+						<Field label="Currency">
 							<Select
 								disabled={isCurrencyLocked}
 								onValueChange={handleCurrencyChange}
@@ -205,14 +204,11 @@ export function CreateTournamentSessionForm({
 									))}
 								</SelectContent>
 							</Select>
-						</div>
+						</Field>
 					)}
 
 					<div className="flex gap-3">
-						<div className="flex flex-1 flex-col gap-2">
-							<Label htmlFor="buyIn">
-								Buy-in <span className="text-destructive">*</span>
-							</Label>
+						<Field className="flex-1" htmlFor="buyIn" label="Buy-in" required>
 							<Input
 								disabled={isBuyInLocked}
 								id="buyIn"
@@ -223,9 +219,8 @@ export function CreateTournamentSessionForm({
 								type="number"
 								value={buyIn}
 							/>
-						</div>
-						<div className="flex flex-1 flex-col gap-2">
-							<Label htmlFor="entryFee">Entry Fee</Label>
+						</Field>
+						<Field className="flex-1" htmlFor="entryFee" label="Entry Fee">
 							<Input
 								disabled={isEntryFeeLocked}
 								id="entryFee"
@@ -235,13 +230,10 @@ export function CreateTournamentSessionForm({
 								type="number"
 								value={entryFee}
 							/>
-						</div>
+						</Field>
 					</div>
 
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="startingStack">
-							Starting Stack <span className="text-destructive">*</span>
-						</Label>
+					<Field htmlFor="startingStack" label="Starting Stack" required>
 						<Input
 							disabled={isStartingStackLocked}
 							id="startingStack"
@@ -252,17 +244,15 @@ export function CreateTournamentSessionForm({
 							type="number"
 							value={startingStack}
 						/>
-					</div>
+					</Field>
 
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="memo">Memo</Label>
-						<textarea
-							className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+					<Field htmlFor="memo" label="Memo">
+						<Textarea
 							id="memo"
 							name="memo"
 							placeholder="Notes about this tournament"
 						/>
-					</div>
+					</Field>
 				</>
 			)}
 

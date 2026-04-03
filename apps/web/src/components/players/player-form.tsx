@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { PlayerTagInput } from "@/components/players/player-tag-input";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 
 interface TagWithColor {
@@ -59,10 +59,7 @@ export function PlayerForm({
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="name">
-					Player Name <span className="text-destructive">*</span>
-				</Label>
+			<Field htmlFor="name" label="Player Name" required>
 				<Input
 					defaultValue={defaultValues?.name}
 					id="name"
@@ -71,10 +68,9 @@ export function PlayerForm({
 					placeholder="Enter player name"
 					required
 				/>
-			</div>
+			</Field>
 			{availableTags && (
-				<div className="flex flex-col gap-2">
-					<Label>Tags</Label>
+				<Field label="Tags">
 					<PlayerTagInput
 						availableTags={availableTags}
 						onAdd={(tag) => setSelectedTags((prev) => [...prev, tag])}
@@ -84,15 +80,14 @@ export function PlayerForm({
 						}
 						selectedTags={selectedTags}
 					/>
-				</div>
+				</Field>
 			)}
-			<div className="flex flex-col gap-2">
-				<Label>Memo</Label>
+			<Field label="Memo">
 				<RichTextEditor
 					initialContent={defaultMemo}
 					onChange={handleMemoChange}
 				/>
-			</div>
+			</Field>
 			<Button disabled={isLoading} type="submit">
 				{isLoading ? "Saving..." : "Save"}
 			</Button>

@@ -205,13 +205,9 @@ describe("Single-session guard — no active session", () => {
 
 		// The dialog title should be visible
 		await screen.findByText("New Session");
-		// Both type switcher buttons should be present
-		expect(
-			screen.getByRole("button", { name: "Cash Game" })
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Tournament" })
-		).toBeInTheDocument();
+		// Both type switcher tabs should be present
+		expect(screen.getByRole("tab", { name: "Cash Game" })).toBeInTheDocument();
+		expect(screen.getByRole("tab", { name: "Tournament" })).toBeInTheDocument();
 	});
 
 	it("renders cash game form by default in CreateSessionDialog", async () => {
@@ -226,8 +222,8 @@ describe("Single-session guard — no active session", () => {
 		const router = createTestRouter(() => <DialogTestPage open />);
 		render(<RouterProvider router={router} />);
 
-		await screen.findByRole("button", { name: "Tournament" });
-		await user.click(screen.getByRole("button", { name: "Tournament" }));
+		await screen.findByRole("tab", { name: "Tournament" });
+		await user.click(screen.getByRole("tab", { name: "Tournament" }));
 
 		await screen.findByTestId("tournament-form");
 		expect(screen.queryByTestId("cash-game-form")).not.toBeInTheDocument();

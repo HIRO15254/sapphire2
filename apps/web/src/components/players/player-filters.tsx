@@ -3,6 +3,8 @@ import { useState } from "react";
 import { ColorBadge } from "@/components/players/color-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DialogActionRow } from "@/components/ui/dialog-action-row";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 
 interface TagItem {
@@ -77,9 +79,11 @@ export function PlayerFilters({
 			>
 				<div className="flex flex-col gap-4">
 					{availableTags.length === 0 ? (
-						<p className="py-4 text-center text-muted-foreground text-sm">
-							No tags available. Create tags first.
-						</p>
+						<EmptyState
+							className="border-none bg-transparent px-0 py-4"
+							description="Create tags first."
+							heading="No tags available"
+						/>
 					) : (
 						<div className="flex flex-wrap gap-2">
 							{availableTags.map((tag) => {
@@ -98,14 +102,14 @@ export function PlayerFilters({
 							})}
 						</div>
 					)}
-					<div className="flex gap-2 pt-2">
+					<DialogActionRow className="sm:justify-stretch">
 						<Button className="flex-1" onClick={handleReset} variant="outline">
 							Reset
 						</Button>
 						<Button className="flex-1" onClick={handleApply}>
 							Apply
 						</Button>
-					</div>
+					</DialogActionRow>
 				</div>
 			</ResponsiveDialog>
 		</>

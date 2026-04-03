@@ -4,7 +4,7 @@ import { useState } from "react";
 import { CreateCashGameSessionForm } from "@/components/live-cash-game/create-cash-game-session-form";
 import { CreateTournamentSessionForm } from "@/components/live-tournament/create-tournament-session-form";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 type SessionType = "cash_game" | "tournament";
@@ -143,32 +143,16 @@ export function CreateSessionDialog({
 			title="New Session"
 		>
 			{/* Session type selector */}
-			<div className="mb-4 flex rounded-lg border border-border p-1">
-				<button
-					className={cn(
-						"flex-1 rounded-md px-3 py-1.5 text-center font-medium text-sm transition-colors",
-						sessionType === "cash_game"
-							? "bg-primary text-primary-foreground"
-							: "text-muted-foreground hover:text-foreground"
-					)}
-					onClick={() => setSessionType("cash_game")}
-					type="button"
-				>
-					Cash Game
-				</button>
-				<button
-					className={cn(
-						"flex-1 rounded-md px-3 py-1.5 text-center font-medium text-sm transition-colors",
-						sessionType === "tournament"
-							? "bg-primary text-primary-foreground"
-							: "text-muted-foreground hover:text-foreground"
-					)}
-					onClick={() => setSessionType("tournament")}
-					type="button"
-				>
-					Tournament
-				</button>
-			</div>
+			<Tabs
+				className="mb-4"
+				onValueChange={(value) => setSessionType(value as SessionType)}
+				value={sessionType}
+			>
+				<TabsList className="grid w-full grid-cols-2">
+					<TabsTrigger value="cash_game">Cash Game</TabsTrigger>
+					<TabsTrigger value="tournament">Tournament</TabsTrigger>
+				</TabsList>
+			</Tabs>
 
 			{sessionType === "cash_game" ? (
 				<CreateCashGameSessionForm
