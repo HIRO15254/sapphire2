@@ -73,7 +73,7 @@ function RootComponent() {
 						<SidebarNav />
 						<div className="flex h-svh flex-col md:ml-56">
 							<OnlineStatusBar />
-							<div className="flex-1 overflow-auto pb-16 md:pb-0">
+							<div className="relative flex-1 overflow-auto pb-16 md:pb-0">
 								<Outlet />
 							</div>
 						</div>

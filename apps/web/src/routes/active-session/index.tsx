@@ -929,7 +929,7 @@ function ActiveSessionPage() {
 	}
 
 	return (
-		<div className="flex h-[calc(100svh-4rem)] flex-col px-4 pt-2 md:h-svh md:px-6 md:pt-4">
+		<div className="absolute inset-0 flex flex-col px-4 pt-2 pb-16 md:px-6 md:pt-4 md:pb-0">
 			{activeSession.type === "cash_game" ? (
 				<CashGameSession sessionId={activeSession.id} />
 			) : (
