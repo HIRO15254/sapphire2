@@ -97,42 +97,12 @@ jobs:
           sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
           bunx wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote
 
-      - name: Seed data from parent branch DB (first deploy only)
+      - name: Seed data from master DB (first deploy only)
         continue-on-error: true
         if: needs.d1-setup.outputs.is_new_db == 'true'
         working-directory: apps/server
         run: |
-          # Determine source database: parent branch PR DB or production
-          BASE_REF="${{ github.event.pull_request.base.ref }}"
           SOURCE_DB="sapphire2-db"
-
-          if [ "$BASE_REF" != "master" ] && [ "$BASE_REF" != "main" ]; then
-            # Find parent branch's PR number to use its DB
-            PARENT_PR=$(curl -sf \
-              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
-              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-              | jq -r ".result[] | select(.name | startswith(\"sapphire2-db-pr-\")) | select(.name != \"${{ needs.setup.outputs.d1_db_name }}\") | .name" \
-              | head -1)
-
-            # Search for a PR DB matching the base branch
-            BASE_DB_NAME=""
-            OPEN_PRS=$(curl -sf \
-              "https://api.github.com/repos/${{ github.repository }}/pulls?state=open&head=${{ github.repository_owner }}:${BASE_REF}" \
-              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              | jq -r '.[0].number // empty')
-
-            if [ -n "$OPEN_PRS" ]; then
-              CANDIDATE="sapphire2-db-pr-${OPEN_PRS}"
-              EXISTS=$(curl -sf \
-                "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
-                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-                | jq -r ".result[] | select(.name == \"${CANDIDATE}\") | .uuid")
-              if [ -n "$EXISTS" ]; then
-                SOURCE_DB="$CANDIDATE"
-                echo "Using parent branch DB: $SOURCE_DB"
-              fi
-            fi
-          fi
 
           echo "Exporting data from: $SOURCE_DB"
           git checkout wrangler.toml
