@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TournamentStackForm } from "../tournament-stack-form";
 
 // Mock the tournament form context
-vi.mock("@/routes/active-session", () => ({
+vi.mock("@/hooks/use-session-form", () => ({
 	useTournamentFormContext: () => ({
 		state: {
 			stackAmount: "",

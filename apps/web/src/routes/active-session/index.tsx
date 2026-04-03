@@ -2,8 +2,6 @@ import { IconAlertTriangle } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { CashGameCompleteForm } from "@/components/live-cash-game/cash-game-complete-form";
-import { CashGameStackForm } from "@/components/live-cash-game/cash-game-stack-form";
 import { AddPlayerSheet } from "@/components/live-sessions/add-player-sheet";
 import { PlayerDetailSheet } from "@/components/live-sessions/player-detail-sheet";
 import {
@@ -11,13 +9,10 @@ import {
 	type TableGameInfo,
 	type TablePlayer,
 } from "@/components/live-sessions/poker-table";
-import { TournamentCompleteForm } from "@/components/live-tournament/tournament-complete-form";
-import { TournamentStackForm } from "@/components/live-tournament/tournament-stack-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { useActiveSession } from "@/hooks/use-active-session";
-import { useStackSheet } from "@/hooks/use-stack-sheet";
 import { useTablePlayers } from "@/hooks/use-table-players";
 import { cn } from "@/lib/utils";
 import { formatCompactNumber } from "@/utils/format-number";
@@ -327,13 +322,8 @@ function usePlayerDetail(playerId: string | null) {
 function CashGameSession({ sessionId }: { sessionId: string }) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const stackSheet = useStackSheet();
 
-	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
 	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
-	const [defaultFinalStack, setDefaultFinalStack] = useState<
-		number | undefined
-	>(undefined);
 
 	const sessionQuery = useQuery({
 		...trpc.liveCashGameSession.getById.queryOptions({ id: sessionId }),
@@ -349,60 +339,7 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 		enabled: !!session?.storeId,
 	});
 
-	const sessionKey = trpc.liveCashGameSession.getById.queryOptions({
-		id: sessionId,
-	}).queryKey;
-	const eventsKey = trpc.sessionEvent.list.queryOptions({
-		liveCashGameSessionId: sessionId,
-	}).queryKey;
 	const listKey = trpc.liveCashGameSession.list.queryOptions({}).queryKey;
-
-	const invalidateSession = async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: sessionKey }),
-			queryClient.invalidateQueries({ queryKey: eventsKey }),
-		]);
-	};
-
-	const stackMutation = useMutation({
-		mutationFn: (values: {
-			allIns: Array<{
-				potSize: number;
-				trials: number;
-				equity: number;
-				wins: number;
-			}>;
-			stackAmount: number;
-		}) =>
-			trpcClient.sessionEvent.create.mutate({
-				liveCashGameSessionId: sessionId,
-				eventType: "stack_record",
-				payload: { stackAmount: values.stackAmount, allIns: values.allIns },
-			}),
-		onSuccess: invalidateSession,
-	});
-
-	const chipAddMutation = useMutation({
-		mutationFn: (amount: number) =>
-			trpcClient.sessionEvent.create.mutate({
-				liveCashGameSessionId: sessionId,
-				eventType: "chip_add",
-				payload: { amount },
-			}),
-		onSuccess: invalidateSession,
-	});
-
-	const completeMutation = useMutation({
-		mutationFn: (values: { finalStack: number }) =>
-			trpcClient.liveCashGameSession.complete.mutate({
-				id: sessionId,
-				finalStack: values.finalStack,
-			}),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: listKey });
-			await navigate({ to: "/sessions" });
-		},
-	});
 
 	const discardMutation = useMutation({
 		mutationFn: () =>
@@ -496,40 +433,6 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 				/>
 			</div>
 
-			{/* Stack form sheet (opened via MobileNav center button) */}
-			<ResponsiveDialog
-				onOpenChange={stackSheet.setIsOpen}
-				open={stackSheet.isOpen}
-				title="Record Stack"
-			>
-				<CashGameStackForm
-					isLoading={stackMutation.isPending}
-					onChipAdd={(amount) => chipAddMutation.mutate(amount)}
-					onComplete={(currentStack) => {
-						stackSheet.close();
-						setDefaultFinalStack(currentStack);
-						setIsCompleteOpen(true);
-					}}
-					onSubmit={(values) => {
-						stackMutation.mutate(values);
-						stackSheet.close();
-					}}
-				/>
-			</ResponsiveDialog>
-
-			{/* Complete dialog */}
-			<ResponsiveDialog
-				onOpenChange={setIsCompleteOpen}
-				open={isCompleteOpen}
-				title="Complete Session"
-			>
-				<CashGameCompleteForm
-					defaultFinalStack={defaultFinalStack}
-					isLoading={completeMutation.isPending}
-					onSubmit={(values) => completeMutation.mutate(values)}
-				/>
-			</ResponsiveDialog>
-
 			{/* Add player sheet */}
 			<AddPlayerSheet
 				excludePlayerIds={tablePlayers.excludePlayerIds}
@@ -608,9 +511,7 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 function TournamentSession({ sessionId }: { sessionId: string }) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
-	const stackSheet = useStackSheet();
 
-	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
 	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
 
 	const sessionQuery = useQuery({
@@ -620,80 +521,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 	});
 	const session = sessionQuery.data;
 
-	const tournamentId = session?.tournamentId ?? null;
-
-	const chipPurchaseTypesQuery = useQuery({
-		...trpc.tournamentChipPurchase.listByTournament.queryOptions({
-			tournamentId: tournamentId ?? "",
-		}),
-		enabled: !!tournamentId,
-	});
-	const chipPurchaseTypes = (chipPurchaseTypesQuery.data ?? []).map((t) => ({
-		name: t.name,
-		cost: t.cost,
-		chips: t.chips,
-	}));
-
-	const sessionKey = trpc.liveTournamentSession.getById.queryOptions({
-		id: sessionId,
-	}).queryKey;
-	const eventsKey = trpc.sessionEvent.list.queryOptions({
-		liveTournamentSessionId: sessionId,
-	}).queryKey;
 	const listKey = trpc.liveTournamentSession.list.queryOptions({}).queryKey;
-
-	const invalidateSession = async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: sessionKey }),
-			queryClient.invalidateQueries({ queryKey: eventsKey }),
-		]);
-	};
-
-	const stackMutation = useMutation({
-		mutationFn: (values: {
-			chipPurchaseCounts: Array<{
-				name: string;
-				count: number;
-				chipsPerUnit: number;
-			}>;
-			chipPurchases: Array<{ name: string; cost: number; chips: number }>;
-			remainingPlayers: number | null;
-			stackAmount: number;
-			totalEntries: number | null;
-		}) =>
-			trpcClient.sessionEvent.create.mutate({
-				liveTournamentSessionId: sessionId,
-				eventType: "tournament_stack_record",
-				payload: {
-					stackAmount: values.stackAmount,
-					remainingPlayers: values.remainingPlayers,
-					totalEntries: values.totalEntries,
-					chipPurchases: values.chipPurchases,
-					chipPurchaseCounts: values.chipPurchaseCounts,
-				},
-			}),
-		onSuccess: invalidateSession,
-	});
-
-	const completeMutation = useMutation({
-		mutationFn: (values: {
-			bountyPrizes?: number;
-			placement: number;
-			prizeMoney: number;
-			totalEntries: number;
-		}) =>
-			trpcClient.liveTournamentSession.complete.mutate({
-				id: sessionId,
-				placement: values.placement,
-				totalEntries: values.totalEntries,
-				prizeMoney: values.prizeMoney,
-				bountyPrizes: values.bountyPrizes,
-			}),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: listKey });
-			await navigate({ to: "/sessions" });
-		},
-	});
 
 	const discardMutation = useMutation({
 		mutationFn: () =>
@@ -776,39 +604,6 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 					waitingForHero={tableInteraction.waitingForHero}
 				/>
 			</div>
-
-			{/* Stack form trigger */}
-			{/* Stack form sheet (opened via MobileNav center button) */}
-			<ResponsiveDialog
-				onOpenChange={stackSheet.setIsOpen}
-				open={stackSheet.isOpen}
-				title="Record Stack"
-			>
-				<TournamentStackForm
-					chipPurchaseTypes={chipPurchaseTypes}
-					isLoading={stackMutation.isPending}
-					onComplete={() => {
-						stackSheet.close();
-						setIsCompleteOpen(true);
-					}}
-					onSubmit={(values) => {
-						stackMutation.mutate(values);
-						stackSheet.close();
-					}}
-				/>
-			</ResponsiveDialog>
-
-			{/* Complete dialog */}
-			<ResponsiveDialog
-				onOpenChange={setIsCompleteOpen}
-				open={isCompleteOpen}
-				title="Complete Tournament"
-			>
-				<TournamentCompleteForm
-					isLoading={completeMutation.isPending}
-					onSubmit={(values) => completeMutation.mutate(values)}
-				/>
-			</ResponsiveDialog>
 
 			{/* Add player sheet */}
 			<AddPlayerSheet

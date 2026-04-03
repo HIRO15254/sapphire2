@@ -4,7 +4,7 @@ import { ChipPurchaseSheet } from "@/components/live-tournament/chip-purchase-sh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useTournamentFormContext } from "@/routes/active-session";
+import { useTournamentFormContext } from "@/hooks/use-session-form";
 
 interface ChipPurchaseType {
 	chips: number;

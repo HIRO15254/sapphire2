@@ -4,7 +4,7 @@ import { AllInBottomSheet } from "@/components/live-sessions/all-in-bottom-sheet
 import { EventBadge } from "@/components/live-sessions/event-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useStackFormContext } from "@/routes/active-session";
+import { useStackFormContext } from "@/hooks/use-session-form";
 
 interface CashGameStackFormProps {
 	isLoading: boolean;
