@@ -481,8 +481,8 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 				<p className="mt-1 text-muted-foreground text-xs">{session.memo}</p>
 			)}
 
-			{/* Poker table */}
-			<div className="min-h-0 flex-1 py-3">
+			{/* Poker table — shrinks when keyboard is open */}
+			<div className="min-h-0 flex-1 py-2">
 				<PokerTable
 					gameInfo={gameInfo}
 					heroSeatPosition={tableInteraction.heroSeatPosition}
@@ -753,8 +753,8 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 				<p className="mt-1 text-muted-foreground text-xs">{session.memo}</p>
 			)}
 
-			{/* Poker table */}
-			<div className="min-h-0 flex-1 py-3">
+			{/* Poker table — shrinks when keyboard is open */}
+			<div className="min-h-0 flex-1 py-2">
 				<PokerTable
 					gameInfo={gameInfo}
 					heroSeatPosition={tableInteraction.heroSeatPosition}

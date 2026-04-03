@@ -3,18 +3,8 @@ import { cn } from "@/lib/utils";
 
 const MAX_SEATS = 9;
 
-/** Avatar background colors for non-hero players, cycled by seat index. */
-const AVATAR_COLORS = [
-	"bg-blue-500",
-	"bg-rose-500",
-	"bg-amber-500",
-	"bg-teal-500",
-	"bg-purple-500",
-	"bg-orange-500",
-	"bg-cyan-500",
-	"bg-pink-500",
-	"bg-lime-500",
-] as const;
+/** Uniform color for non-hero player avatars. */
+const PLAYER_COLOR = "bg-slate-500";
 
 /**
  * Seat positions around a stadium-shaped (racetrack) poker table (0-8).
@@ -90,7 +80,6 @@ function SeatSlot({
 }) {
 	const [left, top] = SEAT_POSITIONS[seatIndex];
 	const isOccupied = !!player;
-	const colorClass = AVATAR_COLORS[seatIndex % AVATAR_COLORS.length];
 
 	return (
 		<button
@@ -127,7 +116,7 @@ function SeatSlot({
 						"flex size-9 items-center justify-center rounded-full border-2 font-bold text-[11px] text-white shadow-md",
 						isHero
 							? "border-amber-400 bg-amber-500/80"
-							: `border-white/30 ${colorClass}`
+							: `border-white/30 ${PLAYER_COLOR}`
 					)}
 				>
 					{player.player.name.slice(0, 2).toUpperCase()}
@@ -162,8 +151,11 @@ export function PokerTable({
 	waitingForHero,
 }: PokerTableProps) {
 	return (
-		<div className="relative mx-auto w-full max-w-sm pt-5 pb-6">
-			<div className="relative aspect-[2/1]">
+		<div className="relative mx-auto flex h-full w-full max-w-sm items-center justify-center py-2">
+			<div
+				className="relative aspect-[2/1] w-full"
+				style={{ maxHeight: "100%" }}
+			>
 				{/* Table rim — stadium shape (rounded-full = semicircle caps) */}
 				<div className="absolute inset-x-[4%] inset-y-[10%] rounded-full bg-emerald-900 shadow-lg dark:bg-emerald-950" />
 
