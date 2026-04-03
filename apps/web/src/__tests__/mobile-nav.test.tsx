@@ -42,8 +42,6 @@ function createTestRouter(initialPath: string) {
 		"/currencies",
 		"/sessions",
 		"/live-sessions",
-		"/live-sessions/cash-game/$sessionId",
-		"/live-sessions/cash-game/$sessionId/events",
 		"/live-sessions/$sessionType/$sessionId/events",
 		"/players",
 		"/settings",
@@ -124,7 +122,9 @@ describe("MobileNav - Live Session Mode (active session)", () => {
 	});
 
 	it("renders 4 nav links and 1 center button", async () => {
-		const router = createTestRouter("/live-sessions/cash-game/session-123");
+		const router = createTestRouter(
+			"/live-sessions/cash-game/session-123/events"
+		);
 		render(<RouterProvider router={router} />);
 
 		const links = await screen.findAllByRole("link");
@@ -135,7 +135,9 @@ describe("MobileNav - Live Session Mode (active session)", () => {
 	});
 
 	it("displays live mode labels with dynamic events link", async () => {
-		const router = createTestRouter("/live-sessions/cash-game/session-123");
+		const router = createTestRouter(
+			"/live-sessions/cash-game/session-123/events"
+		);
 		render(<RouterProvider router={router} />);
 
 		await screen.findByText("Events");
@@ -146,7 +148,9 @@ describe("MobileNav - Live Session Mode (active session)", () => {
 	});
 
 	it("center button has green styling in live mode", async () => {
-		const router = createTestRouter("/live-sessions/cash-game/session-123");
+		const router = createTestRouter(
+			"/live-sessions/cash-game/session-123/events"
+		);
 		render(<RouterProvider router={router} />);
 
 		await screen.findByText("Stack");
