@@ -1,3 +1,4 @@
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -19,19 +20,21 @@ const GAME_VARIANTS = {
 
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
-interface TournamentFormValues {
-	addonAllowed: boolean;
-	addonChips?: number;
-	addonCost?: number;
+interface ChipPurchaseFormItem {
+	chips: number;
+	cost: number;
+	name: string;
+	uid: string;
+}
+
+export interface TournamentFormValues {
 	bountyAmount?: number;
 	buyIn?: number;
+	chipPurchases: Array<{ name: string; cost: number; chips: number }>;
 	currencyId?: string;
 	entryFee?: number;
 	memo?: string;
 	name: string;
-	rebuyAllowed: boolean;
-	rebuyChips?: number;
-	rebuyCost?: number;
 	startingStack?: number;
 	tableSize?: number;
 	tags?: string[];
@@ -39,7 +42,8 @@ interface TournamentFormValues {
 }
 
 interface TournamentFormProps {
-	defaultValues?: Omit<TournamentFormValues, "tags"> & {
+	defaultValues?: Omit<TournamentFormValues, "tags" | "chipPurchases"> & {
+		chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
 		tags?: string[];
 	};
 	isLoading?: boolean;
@@ -54,21 +58,53 @@ function parseOptionalInt(value: string): number | undefined {
 	return Number.isNaN(parsed) ? undefined : parsed;
 }
 
+function emptyChipPurchase(): ChipPurchaseFormItem {
+	return { name: "", cost: 0, chips: 0, uid: crypto.randomUUID() };
+}
+
 export function TournamentForm({
 	onSubmit,
 	defaultValues,
 	isLoading = false,
 }: TournamentFormProps) {
-	const [rebuyAllowed, setRebuyAllowed] = useState(
-		defaultValues?.rebuyAllowed ?? false
-	);
-	const [addonAllowed, setAddonAllowed] = useState(
-		defaultValues?.addonAllowed ?? false
-	);
 	const [tags, setTags] = useState<string[]>(defaultValues?.tags ?? []);
+	const [chipPurchases, setChipPurchases] = useState<ChipPurchaseFormItem[]>(
+		() =>
+			(defaultValues?.chipPurchases ?? []).map((cp) => ({
+				...cp,
+				uid: crypto.randomUUID(),
+			}))
+	);
 
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
+
+	const addChipPurchase = () => {
+		setChipPurchases((prev) => [...prev, emptyChipPurchase()]);
+	};
+
+	const removeChipPurchase = (index: number) => {
+		setChipPurchases((prev) => prev.filter((_, i) => i !== index));
+	};
+
+	const updateChipPurchase = (
+		index: number,
+		field: keyof ChipPurchaseFormItem,
+		value: string
+	) => {
+		setChipPurchases((prev) =>
+			prev.map((cp, i) => {
+				if (i !== index) {
+					return cp;
+				}
+				if (field === "name") {
+					return { ...cp, name: value };
+				}
+				const parsed = Number.parseInt(value, 10);
+				return { ...cp, [field]: Number.isNaN(parsed) ? 0 : parsed };
+			})
+		);
+	};
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -80,20 +116,11 @@ export function TournamentForm({
 			buyIn: parseOptionalInt(formData.get("buyIn") as string),
 			entryFee: parseOptionalInt(formData.get("entryFee") as string),
 			startingStack: parseOptionalInt(formData.get("startingStack") as string),
-			rebuyAllowed,
-			rebuyCost: rebuyAllowed
-				? parseOptionalInt(formData.get("rebuyCost") as string)
-				: undefined,
-			rebuyChips: rebuyAllowed
-				? parseOptionalInt(formData.get("rebuyChips") as string)
-				: undefined,
-			addonAllowed,
-			addonCost: addonAllowed
-				? parseOptionalInt(formData.get("addonCost") as string)
-				: undefined,
-			addonChips: addonAllowed
-				? parseOptionalInt(formData.get("addonChips") as string)
-				: undefined,
+			chipPurchases: chipPurchases.map((cp) => ({
+				name: cp.name,
+				cost: cp.cost,
+				chips: cp.chips,
+			})),
 			bountyAmount: parseOptionalInt(formData.get("bountyAmount") as string),
 			tableSize: parseOptionalInt(formData.get("tableSize") as string),
 			currencyId: (formData.get("currencyId") as string) || undefined,
@@ -179,92 +206,77 @@ export function TournamentForm({
 
 			<div className="flex flex-col gap-2 rounded-md border p-3">
 				<div className="flex items-center justify-between">
-					<Label htmlFor="rebuyToggle">Rebuy</Label>
-					<button
-						className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
-						data-state={rebuyAllowed ? "checked" : "unchecked"}
-						id="rebuyToggle"
-						onClick={() => setRebuyAllowed((v) => !v)}
+					<span className="font-medium text-sm">Chip Purchases</span>
+					<Button
+						onClick={addChipPurchase}
+						size="xs"
 						type="button"
+						variant="outline"
 					>
-						<span
-							className="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0"
-							data-state={rebuyAllowed ? "checked" : "unchecked"}
-						/>
-					</button>
+						<IconPlus size={12} />
+						Add
+					</Button>
 				</div>
-				{rebuyAllowed && (
-					<div className="grid grid-cols-2 gap-3">
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="rebuyCost">Rebuy Cost</Label>
-							<Input
-								defaultValue={defaultValues?.rebuyCost}
-								id="rebuyCost"
-								inputMode="numeric"
-								min={0}
-								name="rebuyCost"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="rebuyChips">Rebuy Chips</Label>
-							<Input
-								defaultValue={defaultValues?.rebuyChips}
-								id="rebuyChips"
-								inputMode="numeric"
-								min={0}
-								name="rebuyChips"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
-					</div>
-				)}
-			</div>
-
-			<div className="flex flex-col gap-2 rounded-md border p-3">
-				<div className="flex items-center justify-between">
-					<Label htmlFor="addonToggle">Add-on</Label>
-					<button
-						className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
-						data-state={addonAllowed ? "checked" : "unchecked"}
-						id="addonToggle"
-						onClick={() => setAddonAllowed((v) => !v)}
-						type="button"
-					>
-						<span
-							className="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0"
-							data-state={addonAllowed ? "checked" : "unchecked"}
-						/>
-					</button>
-				</div>
-				{addonAllowed && (
-					<div className="grid grid-cols-2 gap-3">
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="addonCost">Add-on Cost</Label>
-							<Input
-								defaultValue={defaultValues?.addonCost}
-								id="addonCost"
-								inputMode="numeric"
-								min={0}
-								name="addonCost"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="addonChips">Add-on Chips</Label>
-							<Input
-								defaultValue={defaultValues?.addonChips}
-								id="addonChips"
-								inputMode="numeric"
-								min={0}
-								name="addonChips"
-								placeholder="0"
-								type="number"
-							/>
-						</div>
+				{chipPurchases.length > 0 && (
+					<div className="flex flex-col gap-2">
+						{chipPurchases.map((cp, index) => (
+							<div className="flex items-end gap-2" key={cp.uid}>
+								<div className="flex flex-1 flex-col gap-1">
+									<Label className="text-xs" htmlFor={`cp-name-${index}`}>
+										Name
+									</Label>
+									<Input
+										id={`cp-name-${index}`}
+										onChange={(e) =>
+											updateChipPurchase(index, "name", e.target.value)
+										}
+										placeholder="e.g. Rebuy"
+										value={cp.name}
+									/>
+								</div>
+								<div className="flex w-20 flex-col gap-1">
+									<Label className="text-xs" htmlFor={`cp-cost-${index}`}>
+										Cost
+									</Label>
+									<Input
+										id={`cp-cost-${index}`}
+										inputMode="numeric"
+										min={0}
+										onChange={(e) =>
+											updateChipPurchase(index, "cost", e.target.value)
+										}
+										placeholder="0"
+										type="number"
+										value={cp.cost}
+									/>
+								</div>
+								<div className="flex w-20 flex-col gap-1">
+									<Label className="text-xs" htmlFor={`cp-chips-${index}`}>
+										Chips
+									</Label>
+									<Input
+										id={`cp-chips-${index}`}
+										inputMode="numeric"
+										min={0}
+										onChange={(e) =>
+											updateChipPurchase(index, "chips", e.target.value)
+										}
+										placeholder="0"
+										type="number"
+										value={cp.chips}
+									/>
+								</div>
+								<Button
+									aria-label="Remove chip purchase"
+									onClick={() => removeChipPurchase(index)}
+									size="icon-xs"
+									type="button"
+									variant="ghost"
+								>
+									<IconTrash size={12} />
+								</Button>
+							</div>
+						))}
 					</div>
 				)}
 			</div>

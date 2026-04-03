@@ -8,11 +8,14 @@ import {
 	useLocation,
 } from "@tanstack/react-router";
 import { DevtoolsToggle } from "@/components/devtools-toggle";
+import { LiveStackFormSheet } from "@/components/live-sessions/live-stack-form-sheet";
 import { MobileNav } from "@/components/mobile-nav";
 import { OnlineStatusBar } from "@/components/online-status-bar";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { SessionFormProvider } from "@/hooks/use-session-form";
+import { StackSheetProvider } from "@/hooks/use-stack-sheet";
 import { authClient } from "@/lib/auth-client";
 import type { trpc } from "@/utils/trpc";
 
@@ -69,16 +72,19 @@ function RootComponent() {
 				{isLoginPage ? (
 					<Outlet />
 				) : (
-					<>
-						<SidebarNav />
-						<div className="flex h-svh flex-col md:ml-56">
-							<OnlineStatusBar />
-							<div className="flex-1 overflow-auto pb-16 md:pb-0">
-								<Outlet />
+					<SessionFormProvider>
+						<StackSheetProvider>
+							<SidebarNav />
+							<div className="flex h-svh flex-col md:ml-56">
+								<OnlineStatusBar />
+								<div className="flex-1 overflow-auto pb-16 md:pb-0">
+									<Outlet />
+								</div>
 							</div>
-						</div>
-						<MobileNav />
-					</>
+							<MobileNav />
+							<LiveStackFormSheet />
+						</StackSheetProvider>
+					</SessionFormProvider>
 				)}
 				<Toaster position="top-right" richColors />
 			</ThemeProvider>

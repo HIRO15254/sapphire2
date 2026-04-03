@@ -1,5 +1,9 @@
 import { store } from "@sapphire2/db/schema/store";
-import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
+import {
+	blindLevel,
+	tournament,
+	tournamentChipPurchase,
+} from "@sapphire2/db/schema/tournament";
 import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
@@ -76,7 +80,7 @@ export const tournamentRouter = router({
 
 			const results = await Promise.all(
 				tournaments.map(async (t) => {
-					const [levels, tagRows] = await Promise.all([
+					const [levels, tagRows, chipPurchaseRows] = await Promise.all([
 						ctx.db
 							.select()
 							.from(blindLevel)
@@ -85,11 +89,23 @@ export const tournamentRouter = router({
 							.select()
 							.from(tournamentTag)
 							.where(eq(tournamentTag.tournamentId, t.id)),
+						ctx.db
+							.select()
+							.from(tournamentChipPurchase)
+							.where(eq(tournamentChipPurchase.tournamentId, t.id))
+							.orderBy(asc(tournamentChipPurchase.sortOrder)),
 					]);
 					return {
 						...t,
 						blindLevelCount: levels.length,
 						tags: tagRows.map((r) => ({ id: r.id, name: r.name })),
+						chipPurchases: chipPurchaseRows.map((r) => ({
+							id: r.id,
+							name: r.name,
+							cost: r.cost,
+							chips: r.chips,
+							sortOrder: r.sortOrder,
+						})),
 					};
 				})
 			);
@@ -131,12 +147,6 @@ export const tournamentRouter = router({
 				buyIn: z.number().int().optional(),
 				entryFee: z.number().int().optional(),
 				startingStack: z.number().int().optional(),
-				rebuyAllowed: z.boolean().default(false),
-				rebuyCost: z.number().int().optional(),
-				rebuyChips: z.number().int().optional(),
-				addonAllowed: z.boolean().default(false),
-				addonCost: z.number().int().optional(),
-				addonChips: z.number().int().optional(),
 				bountyAmount: z.number().int().optional(),
 				tableSize: z.number().int().optional(),
 				currencyId: z.string().optional(),
@@ -156,12 +166,6 @@ export const tournamentRouter = router({
 				buyIn: input.buyIn ?? null,
 				entryFee: input.entryFee ?? null,
 				startingStack: input.startingStack ?? null,
-				rebuyAllowed: input.rebuyAllowed,
-				rebuyCost: input.rebuyCost ?? null,
-				rebuyChips: input.rebuyChips ?? null,
-				addonAllowed: input.addonAllowed,
-				addonCost: input.addonCost ?? null,
-				addonChips: input.addonChips ?? null,
 				bountyAmount: input.bountyAmount ?? null,
 				tableSize: input.tableSize ?? null,
 				currencyId: input.currencyId ?? null,
@@ -185,12 +189,6 @@ export const tournamentRouter = router({
 				buyIn: z.number().int().nullable().optional(),
 				entryFee: z.number().int().nullable().optional(),
 				startingStack: z.number().int().nullable().optional(),
-				rebuyAllowed: z.boolean().optional(),
-				rebuyCost: z.number().int().nullable().optional(),
-				rebuyChips: z.number().int().nullable().optional(),
-				addonAllowed: z.boolean().optional(),
-				addonCost: z.number().int().nullable().optional(),
-				addonChips: z.number().int().nullable().optional(),
 				bountyAmount: z.number().int().nullable().optional(),
 				tableSize: z.number().int().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
@@ -216,24 +214,6 @@ export const tournamentRouter = router({
 			}
 			if (input.startingStack !== undefined) {
 				updateData.startingStack = input.startingStack;
-			}
-			if (input.rebuyAllowed !== undefined) {
-				updateData.rebuyAllowed = input.rebuyAllowed;
-			}
-			if (input.rebuyCost !== undefined) {
-				updateData.rebuyCost = input.rebuyCost;
-			}
-			if (input.rebuyChips !== undefined) {
-				updateData.rebuyChips = input.rebuyChips;
-			}
-			if (input.addonAllowed !== undefined) {
-				updateData.addonAllowed = input.addonAllowed;
-			}
-			if (input.addonCost !== undefined) {
-				updateData.addonCost = input.addonCost;
-			}
-			if (input.addonChips !== undefined) {
-				updateData.addonChips = input.addonChips;
 			}
 			if (input.bountyAmount !== undefined) {
 				updateData.bountyAmount = input.bountyAmount;

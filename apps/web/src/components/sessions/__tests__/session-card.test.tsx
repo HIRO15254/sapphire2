@@ -38,6 +38,8 @@ function makeCashGameSession(
 		currencyName: null,
 		currencyUnit: null,
 		createdAt: "2026-03-20T10:00:00Z",
+		liveCashGameSessionId: null,
+		liveTournamentSessionId: null,
 		tags: [],
 		...overrides,
 	};
@@ -78,6 +80,8 @@ function makeTournamentSession(
 		currencyName: null,
 		currencyUnit: null,
 		createdAt: "2026-03-20T10:00:00Z",
+		liveCashGameSessionId: null,
+		liveTournamentSessionId: null,
 		tags: [],
 		...overrides,
 	};

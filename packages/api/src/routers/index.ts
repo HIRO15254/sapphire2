@@ -2,13 +2,18 @@ import { protectedProcedure, publicProcedure, router } from "../index";
 import { blindLevelRouter } from "./blind-level";
 import { currencyRouter } from "./currency";
 import { currencyTransactionRouter } from "./currency-transaction";
+import { liveCashGameSessionRouter } from "./live-cash-game-session";
+import { liveTournamentSessionRouter } from "./live-tournament-session";
 import { playerRouter } from "./player";
 import { playerTagRouter } from "./player-tag";
 import { ringGameRouter } from "./ring-game";
 import { sessionRouter } from "./session";
+import { sessionEventRouter } from "./session-event";
+import { sessionTablePlayerRouter } from "./session-table-player";
 import { sessionTagRouter } from "./session-tag";
 import { storeRouter } from "./store";
 import { tournamentRouter } from "./tournament";
+import { tournamentChipPurchaseRouter } from "./tournament-chip-purchase";
 import { transactionTypeRouter } from "./transaction-type";
 
 export const appRouter = router({
@@ -28,9 +33,14 @@ export const appRouter = router({
 	ringGame: ringGameRouter,
 	tournament: tournamentRouter,
 	blindLevel: blindLevelRouter,
+	tournamentChipPurchase: tournamentChipPurchaseRouter,
 	session: sessionRouter,
+	sessionEvent: sessionEventRouter,
 	sessionTag: sessionTagRouter,
 	player: playerRouter,
 	playerTag: playerTagRouter,
+	liveCashGameSession: liveCashGameSessionRouter,
+	liveTournamentSession: liveTournamentSessionRouter,
+	sessionTablePlayer: sessionTablePlayerRouter,
 });
 export type AppRouter = typeof appRouter;

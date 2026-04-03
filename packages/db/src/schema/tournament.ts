@@ -15,16 +15,6 @@ export const tournament = sqliteTable(
 		buyIn: integer("buy_in"),
 		entryFee: integer("entry_fee"),
 		startingStack: integer("starting_stack"),
-		rebuyAllowed: integer("rebuy_allowed", { mode: "boolean" })
-			.notNull()
-			.default(false),
-		rebuyCost: integer("rebuy_cost"),
-		rebuyChips: integer("rebuy_chips"),
-		addonAllowed: integer("addon_allowed", { mode: "boolean" })
-			.notNull()
-			.default(false),
-		addonCost: integer("addon_cost"),
-		addonChips: integer("addon_chips"),
 		bountyAmount: integer("bounty_amount"),
 		tableSize: integer("table_size"),
 		currencyId: text("currency_id").references(() => currency.id, {
@@ -60,6 +50,23 @@ export const blindLevel = sqliteTable(
 	(table) => [index("blindLevel_tournamentId_idx").on(table.tournamentId)]
 );
 
+export const tournamentChipPurchase = sqliteTable(
+	"tournament_chip_purchase",
+	{
+		id: text("id").primaryKey(),
+		tournamentId: text("tournament_id")
+			.notNull()
+			.references(() => tournament.id, { onDelete: "cascade" }),
+		name: text("name").notNull(),
+		cost: integer("cost").notNull(),
+		chips: integer("chips").notNull(),
+		sortOrder: integer("sort_order").notNull().default(0),
+	},
+	(table) => [
+		index("tournamentChipPurchase_tournamentId_idx").on(table.tournamentId),
+	]
+);
+
 export const tournamentRelations = relations(tournament, ({ one, many }) => ({
 	store: one(store, {
 		fields: [tournament.storeId],
@@ -70,6 +77,7 @@ export const tournamentRelations = relations(tournament, ({ one, many }) => ({
 		references: [currency.id],
 	}),
 	blindLevels: many(blindLevel),
+	chipPurchases: many(tournamentChipPurchase),
 	tags: many(tournamentTag),
 }));
 
@@ -79,3 +87,13 @@ export const blindLevelRelations = relations(blindLevel, ({ one }) => ({
 		references: [tournament.id],
 	}),
 }));
+
+export const tournamentChipPurchaseRelations = relations(
+	tournamentChipPurchase,
+	({ one }) => ({
+		tournament: one(tournament, {
+			fields: [tournamentChipPurchase.tournamentId],
+			references: [tournament.id],
+		}),
+	})
+);

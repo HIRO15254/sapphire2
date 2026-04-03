@@ -21,22 +21,25 @@ import {
 import { getTableSizeClassName } from "@/utils/table-size-colors";
 import { trpc, trpcClient } from "@/utils/trpc";
 
+interface ChipPurchase {
+	chips: number;
+	cost: number;
+	id: string;
+	name: string;
+	sortOrder: number;
+}
+
 interface Tournament {
-	addonAllowed: boolean;
-	addonChips: number | null;
-	addonCost: number | null;
 	archivedAt: Date | string | null;
 	blindLevelCount: number;
 	bountyAmount: number | null;
 	buyIn: number | null;
+	chipPurchases: ChipPurchase[];
 	currencyId: string | null;
 	entryFee: number | null;
 	id: string;
 	memo: string | null;
 	name: string;
-	rebuyAllowed: boolean;
-	rebuyChips: number | null;
-	rebuyCost: number | null;
 	startingStack: number | null;
 	storeId: string;
 	tableSize: number | null;
@@ -44,19 +47,20 @@ interface Tournament {
 	variant: string;
 }
 
+interface ChipPurchaseFormItem {
+	chips: number;
+	cost: number;
+	name: string;
+}
+
 interface TournamentFormValues {
-	addonAllowed: boolean;
-	addonChips?: number;
-	addonCost?: number;
 	bountyAmount?: number;
 	buyIn?: number;
+	chipPurchases: ChipPurchaseFormItem[];
 	currencyId?: string;
 	entryFee?: number;
 	memo?: string;
 	name: string;
-	rebuyAllowed: boolean;
-	rebuyChips?: number;
-	rebuyCost?: number;
 	startingStack?: number;
 	tableSize?: number;
 	tags?: string[];
@@ -341,31 +345,14 @@ function TournamentDetail({
 	onEdit,
 	onRestore,
 }: TournamentDetailProps) {
-	const fmt = createGroupFormatter([
-		tournament.rebuyCost,
-		tournament.rebuyChips,
-		tournament.addonCost,
-		tournament.addonChips,
-		tournament.bountyAmount,
-	]);
+	const fmt = createGroupFormatter([tournament.bountyAmount]);
 
 	const details: string[] = [];
 	if (tournament.startingStack != null) {
 		details.push(`Stack: ${formatCompactNumber(tournament.startingStack)}`);
 	}
-	if (tournament.rebuyAllowed) {
-		const rebuyStr =
-			tournament.rebuyCost != null
-				? `Rebuy: ${fmt(tournament.rebuyCost)}`
-				: "Rebuy: Yes";
-		details.push(rebuyStr);
-	}
-	if (tournament.addonAllowed) {
-		const addonStr =
-			tournament.addonCost != null
-				? `Add-on: ${fmt(tournament.addonCost)}`
-				: "Add-on: Yes";
-		details.push(addonStr);
+	for (const cp of tournament.chipPurchases) {
+		details.push(`${cp.name}: ${cp.cost}`);
 	}
 	if (tournament.bountyAmount != null) {
 		details.push(`Bounty: ${fmt(tournament.bountyAmount)}`);
@@ -655,15 +642,40 @@ export function TournamentTab({
 		});
 	};
 
+	const syncChipPurchases = async (
+		tournamentId: string,
+		chipPurchases: ChipPurchaseFormItem[],
+		existingIds: string[]
+	) => {
+		await Promise.all(
+			existingIds.map((id) =>
+				trpcClient.tournamentChipPurchase.delete.mutate({ id })
+			)
+		);
+		await Promise.all(
+			chipPurchases.map((cp) =>
+				trpcClient.tournamentChipPurchase.create.mutate({
+					tournamentId,
+					name: cp.name,
+					cost: cp.cost,
+					chips: cp.chips,
+				})
+			)
+		);
+	};
+
 	const createMutation = useMutation({
 		mutationFn: async (values: TournamentFormValues) => {
-			const { tags, ...rest } = values;
+			const { tags, chipPurchases, ...rest } = values;
 			const created = await trpcClient.tournament.create.mutate({
 				storeId,
 				...rest,
 			});
 			if (tags && tags.length > 0) {
 				await syncTags(created.id, tags, []);
+			}
+			if (chipPurchases.length > 0) {
+				await syncChipPurchases(created.id, chipPurchases, []);
 			}
 			return created;
 		},
@@ -676,15 +688,27 @@ export function TournamentTab({
 	const updateMutation = useMutation({
 		mutationFn: async (
 			values: TournamentFormValues & {
-				id: string;
+				existingChipPurchaseIds: string[];
 				existingTags: { id: string; name: string }[];
+				id: string;
 			}
 		) => {
-			const { tags, existingTags, ...rest } = values;
+			const {
+				tags,
+				existingTags,
+				chipPurchases,
+				existingChipPurchaseIds,
+				...rest
+			} = values;
 			const updated = await trpcClient.tournament.update.mutate(rest);
 			if (tags !== undefined) {
 				await syncTags(values.id, tags, existingTags);
 			}
+			await syncChipPurchases(
+				values.id,
+				chipPurchases,
+				existingChipPurchaseIds
+			);
 			return updated;
 		},
 		onSettled: invalidateBoth,
@@ -719,6 +743,9 @@ export function TournamentTab({
 		updateMutation.mutate({
 			id: editingTournament.id,
 			existingTags: editingTournament.tags,
+			existingChipPurchaseIds: editingTournament.chipPurchases.map(
+				(cp) => cp.id
+			),
 			...values,
 		});
 	};
@@ -798,12 +825,12 @@ export function TournamentTab({
 							buyIn: editingTournament.buyIn ?? undefined,
 							entryFee: editingTournament.entryFee ?? undefined,
 							startingStack: editingTournament.startingStack ?? undefined,
-							rebuyAllowed: editingTournament.rebuyAllowed,
-							rebuyCost: editingTournament.rebuyCost ?? undefined,
-							rebuyChips: editingTournament.rebuyChips ?? undefined,
-							addonAllowed: editingTournament.addonAllowed,
-							addonCost: editingTournament.addonCost ?? undefined,
-							addonChips: editingTournament.addonChips ?? undefined,
+							chipPurchases: editingTournament.chipPurchases.map((cp) => ({
+								uid: cp.id,
+								name: cp.name,
+								cost: cp.cost,
+								chips: cp.chips,
+							})),
 							bountyAmount: editingTournament.bountyAmount ?? undefined,
 							tableSize: editingTournament.tableSize ?? undefined,
 							currencyId: editingTournament.currencyId ?? undefined,

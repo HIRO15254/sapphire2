@@ -70,12 +70,10 @@ interface RingGameOption {
 }
 
 interface TournamentOption {
-	addonCost?: number | null;
 	buyIn?: number | null;
 	entryFee?: number | null;
 	id: string;
 	name: string;
-	rebuyCost?: number | null;
 }
 
 interface SessionFormDefaults {
@@ -208,8 +206,6 @@ function buildTournamentOverrides(
 	return {
 		tournamentBuyIn: (nullToUndefined(game.buyIn) as number) ?? undefined,
 		entryFee: (nullToUndefined(game.entryFee) as number) ?? undefined,
-		rebuyCost: (nullToUndefined(game.rebuyCost) as number) ?? undefined,
-		addonCost: (nullToUndefined(game.addonCost) as number) ?? undefined,
 	};
 }
 

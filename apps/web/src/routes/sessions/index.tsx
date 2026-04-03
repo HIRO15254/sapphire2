@@ -1,6 +1,6 @@
 import { IconCards, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { SessionCard } from "@/components/sessions/session-card";
 import {
@@ -76,6 +76,8 @@ interface SessionItem {
 	evDiff: number | null;
 	evProfitLoss: number | null;
 	id: string;
+	liveCashGameSessionId: string | null;
+	liveTournamentSessionId: string | null;
 	memo: string | null;
 	placement: number | null;
 	prizeMoney: number | null;
@@ -133,8 +135,6 @@ function useStoreGames(storeId: string | undefined) {
 			name: t.name,
 			buyIn: t.buyIn,
 			entryFee: t.entryFee,
-			rebuyCost: t.rebuyCost,
-			addonCost: t.addonCost,
 		})),
 	};
 }
@@ -288,6 +288,8 @@ function buildOptimisticItem(newSession: SessionFormValues): SessionItem {
 		currencyName: null,
 		currencyUnit: null,
 		createdAt: new Date().toISOString(),
+		liveCashGameSessionId: null,
+		liveTournamentSessionId: null,
 		tags: [],
 	};
 	if (newSession.type === "cash_game") {
@@ -357,6 +359,7 @@ function SessionsPage() {
 	const [filters, setFilters] = useState<SessionFilterValues>({});
 
 	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 
 	const listInput = filtersToListInput(filters);
 	const sessionListKey = trpc.session.list.queryOptions(listInput).queryKey;
@@ -491,6 +494,21 @@ function SessionsPage() {
 		deleteMutation.mutate(id);
 	};
 
+	const reopenMutation = useMutation({
+		mutationFn: (liveCashGameSessionId: string) =>
+			trpcClient.liveCashGameSession.reopen.mutate({
+				id: liveCashGameSessionId,
+			}),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: sessionListKey });
+			await navigate({ to: "/active-session" });
+		},
+	});
+
+	const handleReopen = (liveCashGameSessionId: string) => {
+		reopenMutation.mutate(liveCashGameSessionId);
+	};
+
 	return (
 		<div className="p-4 md:p-6">
 			<div className="mb-6 flex items-center justify-between">
@@ -531,6 +549,7 @@ function SessionsPage() {
 								setEditingSession(session);
 								setEditStoreId(session.storeId ?? undefined);
 							}}
+							onReopen={handleReopen}
 							session={s}
 						/>
 					))}
