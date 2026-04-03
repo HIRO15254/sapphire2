@@ -40,11 +40,14 @@ function SetPasswordDialog({
 			confirmPassword: "",
 		},
 		onSubmit: async ({ value }) => {
-			const result = await authClient.setPassword({
-				newPassword: value.newPassword,
+			const { error } = await authClient.$fetch("/set-password", {
+				method: "POST",
+				body: { newPassword: value.newPassword },
 			});
-			if (result.error) {
-				toast.error(result.error.message || "Failed to set password");
+			if (error) {
+				toast.error(
+					(error as { message?: string }).message || "Failed to set password"
+				);
 				return;
 			}
 			toast.success("Password set successfully");
