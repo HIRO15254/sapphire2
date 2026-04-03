@@ -1,0 +1,92 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { TournamentForm } from "../tournament-form";
+
+vi.mock("@tanstack/react-query", () => ({
+	useQuery: () => ({
+		data: [
+			{ id: "currency-1", name: "JPY", unit: "JPY" },
+			{ id: "currency-2", name: "USD", unit: "$" },
+		],
+	}),
+}));
+
+vi.mock("@/utils/trpc", () => ({
+	trpc: {
+		currency: {
+			list: {
+				queryOptions: () => ({}),
+			},
+		},
+	},
+}));
+
+describe("TournamentForm", () => {
+	function getForm() {
+		const form = screen.getByRole("button", { name: "Save" }).closest("form");
+		if (!form) {
+			throw new Error("Save form not found");
+		}
+		return form;
+	}
+
+	it("renders memo as textarea and preserves edit payload", () => {
+		const onSubmit = vi.fn();
+
+		render(
+			<TournamentForm
+				defaultValues={{
+					name: "Sunday Major",
+					variant: "nlh",
+					buyIn: 10_000,
+					entryFee: 1000,
+					memo: "two flights\nfinal table on Sunday",
+					tags: ["series"],
+					chipPurchases: [{ name: "Addon", cost: 2000, chips: 10_000 }],
+				}}
+				onSubmit={onSubmit}
+			/>
+		);
+
+		const memo = screen.getByLabelText("Memo");
+		expect(memo.tagName).toBe("TEXTAREA");
+		expect(memo).toHaveValue("two flights\nfinal table on Sunday");
+
+		fireEvent.submit(getForm());
+
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "Sunday Major",
+				buyIn: 10_000,
+				entryFee: 1000,
+				memo: "two flights\nfinal table on Sunday",
+				tags: ["series"],
+				chipPurchases: [{ name: "Addon", cost: 2000, chips: 10_000 }],
+			})
+		);
+	});
+
+	it("submits multiline memo in create mode", () => {
+		const onSubmit = vi.fn();
+
+		render(<TournamentForm onSubmit={onSubmit} />);
+
+		fireEvent.change(screen.getByLabelText("Tournament Name *"), {
+			target: { value: "Nightly Deepstack" },
+		});
+		fireEvent.change(screen.getByLabelText("Memo"), {
+			target: { value: "late reg open\n15 minute levels" },
+		});
+
+		fireEvent.submit(getForm());
+
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "Nightly Deepstack",
+				memo: "late reg open\n15 minute levels",
+				chipPurchases: [],
+				tags: [],
+			})
+		);
+	});
+});

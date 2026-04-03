@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+	ManagementList,
+	ManagementListItem,
+} from "@/components/management/management-list";
 import { authClient } from "@/lib/auth-client";
 import { DiscordIcon } from "./icons/discord";
 import { GoogleIcon } from "./icons/google";
@@ -65,54 +69,46 @@ export function LinkedAccounts() {
 
 	return (
 		<div className="space-y-3">
-			<div className="flex items-center justify-between rounded-md border p-3">
-				<div className="flex items-center gap-2">
-					<p className="font-medium text-sm">Email / Password</p>
-				</div>
-				<span className="text-muted-foreground text-xs">
-					{hasCredential ? "Linked" : "Not linked"}
-				</span>
-			</div>
+			<ManagementList>
+				<ManagementListItem
+					description={hasCredential ? "Linked" : "Not linked"}
+					title="Email / Password"
+				/>
 
-			{PROVIDERS.map((provider) => {
-				const isLinked = linkedProviderIds.has(provider.id);
-				const canUnlink = isLinked && totalLinked > 1;
+				{PROVIDERS.map((provider) => {
+					const isLinked = linkedProviderIds.has(provider.id);
+					const canUnlink = isLinked && totalLinked > 1;
 
-				return (
-					<div
-						className="flex items-center justify-between rounded-md border p-3"
-						key={provider.id}
-					>
-						<div className="flex items-center gap-2">
-							{provider.icon}
-							<div>
-								<p className="font-medium text-sm">{provider.label}</p>
-								<p className="text-muted-foreground text-xs">
-									{isLinked ? "Linked" : "Not linked"}
-								</p>
-							</div>
-						</div>
-						{isLinked ? (
-							<Button
-								disabled={!canUnlink}
-								onClick={() => handleUnlink(provider.id)}
-								size="sm"
-								variant="outline"
-							>
-								Unlink
-							</Button>
-						) : (
-							<Button
-								onClick={() => handleLink(provider.id)}
-								size="sm"
-								variant="outline"
-							>
-								Link
-							</Button>
-						)}
-					</div>
-				);
-			})}
+					return (
+						<ManagementListItem
+							actions={
+								isLinked ? (
+									<Button
+										disabled={!canUnlink}
+										onClick={() => handleUnlink(provider.id)}
+										size="sm"
+										variant="outline"
+									>
+										Unlink
+									</Button>
+								) : (
+									<Button
+										onClick={() => handleLink(provider.id)}
+										size="sm"
+										variant="outline"
+									>
+										Link
+									</Button>
+								)
+							}
+							description={isLinked ? "Linked" : "Not linked"}
+							key={provider.id}
+							leading={provider.icon}
+							title={provider.label}
+						/>
+					);
+				})}
+			</ManagementList>
 
 			{totalLinked <= 1 && (
 				<p className="text-muted-foreground text-xs">

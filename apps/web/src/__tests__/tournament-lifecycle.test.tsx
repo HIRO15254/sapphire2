@@ -226,7 +226,6 @@ function TestQueryProvider({ children }: { children: ReactNode }) {
 	);
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: test router type variance
 function renderWithProviders(router: any) {
 	return render(
 		<TestQueryProvider>
@@ -239,7 +238,6 @@ function renderWithProviders(router: any) {
 // Router factory helpers
 // ---------------------------------------------------------------------------
 
-// biome-ignore lint/suspicious/noExplicitAny: RouteComponent type compatibility in tests
 type AnyComponent = any;
 
 function createTestRouter(Component: AnyComponent, path = "/active-session") {
@@ -263,7 +261,6 @@ function createEventsRouter() {
 	const eventsRoute = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/active-session/events",
-		// biome-ignore lint/suspicious/noExplicitAny: RouteComponent type compatibility in tests
 		component: ActiveSessionEventsPage as any,
 	});
 	const routeTree = rootRoute.addChildren([eventsRoute]);

@@ -667,6 +667,10 @@ function BlindStructureContent({
 
 	return (
 		<div className="flex flex-col gap-3">
+			<p className="text-muted-foreground text-sm">
+				Drag levels to reorder the structure. Use breaks for scheduled pauses
+				between blind levels.
+			</p>
 			<div className="flex justify-end gap-2">
 				<Button
 					disabled={isAdding}

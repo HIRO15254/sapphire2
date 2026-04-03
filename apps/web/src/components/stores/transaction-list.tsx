@@ -1,5 +1,9 @@
 import { IconEdit, IconTrash, IconX } from "@tabler/icons-react";
 import { useState } from "react";
+import {
+	ExpandableItem,
+	ExpandableItemList,
+} from "@/components/management/expandable-item-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createGroupFormatter } from "@/utils/format-number";
@@ -45,128 +49,127 @@ export function TransactionList({
 
 	const fmt = createGroupFormatter(transactions.map((tx) => tx.amount));
 
-	const toggleExpand = (id: string) => {
-		setExpandedId((prev) => (prev === id ? null : id));
-		setConfirmingDeleteId(null);
-	};
-
 	return (
-		<div className="flex flex-col divide-y">
-			{transactions.map((tx) => {
-				const isPositive = tx.amount >= 0;
-				const amountClass = isPositive ? "text-green-600" : "text-red-600";
-				const amountDisplay = isPositive
-					? `+${fmt(tx.amount)}`
-					: fmt(tx.amount);
-				const txDate = new Date(tx.transactedAt);
-				const dateDisplay = `${txDate.getFullYear()}/${String(txDate.getMonth() + 1).padStart(2, "0")}/${String(txDate.getDate()).padStart(2, "0")}`;
-				const isSessionGenerated = !!tx.sessionId;
-				const isExpanded = expandedId === tx.id;
-				const isConfirmingDelete = confirmingDeleteId === tx.id;
+		<div className="flex flex-col">
+			<ExpandableItemList
+				onValueChange={(id) => {
+					setExpandedId(id);
+					setConfirmingDeleteId(null);
+				}}
+				value={expandedId}
+			>
+				{transactions.map((tx) => {
+					const isPositive = tx.amount >= 0;
+					const amountClass = isPositive ? "text-green-600" : "text-red-600";
+					const amountDisplay = isPositive
+						? `+${fmt(tx.amount)}`
+						: fmt(tx.amount);
+					const txDate = new Date(tx.transactedAt);
+					const dateDisplay = `${txDate.getFullYear()}/${String(txDate.getMonth() + 1).padStart(2, "0")}/${String(txDate.getDate()).padStart(2, "0")}`;
+					const isSessionGenerated = !!tx.sessionId;
+					const isConfirmingDelete = confirmingDeleteId === tx.id;
 
-				return (
-					<div key={tx.id}>
-						<button
-							className="flex w-full items-center justify-between gap-2 py-1.5 text-left"
-							onClick={() => toggleExpand(tx.id)}
-							type="button"
+					return (
+						<ExpandableItem
+							contentClassName="pb-1.5"
+							key={tx.id}
+							summary={
+								<div className="flex w-full items-center justify-between gap-2 pr-1 text-left">
+									<div className="flex items-center gap-1.5">
+										<span className="text-muted-foreground text-xs">
+											{dateDisplay}
+										</span>
+										<Badge className="text-[10px]" variant="outline">
+											{tx.transactionTypeName}
+										</Badge>
+										{isSessionGenerated && (
+											<Badge className="text-[10px]" variant="secondary">
+												Session
+											</Badge>
+										)}
+									</div>
+									<span
+										className={`shrink-0 font-semibold text-sm ${amountClass}`}
+									>
+										{amountDisplay}
+									</span>
+								</div>
+							}
+							value={tx.id}
 						>
-							<div className="flex items-center gap-1.5">
-								<span className="text-muted-foreground text-xs">
-									{dateDisplay}
-								</span>
-								<Badge className="text-[10px]" variant="outline">
-									{tx.transactionTypeName}
-								</Badge>
-								{isSessionGenerated && (
-									<Badge className="text-[10px]" variant="secondary">
-										Session
-									</Badge>
+							<div className="pb-1.5">
+								{tx.memo && (
+									<p className="mb-1 text-muted-foreground text-xs">
+										{tx.memo}
+									</p>
 								)}
-							</div>
-							<span className={`shrink-0 font-semibold text-sm ${amountClass}`}>
-								{amountDisplay}
-							</span>
-						</button>
-
-						<div
-							className={`grid transition-[grid-template-rows] duration-150 ease-out ${isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-						>
-							<div className="overflow-hidden">
-								<div className="pb-1.5">
-									{tx.memo && (
-										<p className="mb-1 text-muted-foreground text-xs">
-											{tx.memo}
-										</p>
-									)}
-									{isConfirmingDelete ? (
-										<div className="flex items-center justify-end gap-1">
-											<span className="text-destructive text-xs">Delete?</span>
+								{isConfirmingDelete ? (
+									<div className="flex items-center justify-end gap-1">
+										<span className="text-destructive text-xs">Delete?</span>
+										<Button
+											aria-label="Confirm delete"
+											className="text-destructive hover:text-destructive"
+											onClick={(e) => {
+												e.stopPropagation();
+												onDelete(tx.id);
+												setConfirmingDeleteId(null);
+												setExpandedId(null);
+											}}
+											size="icon-xs"
+											variant="ghost"
+										>
+											<IconTrash size={13} />
+										</Button>
+										<Button
+											aria-label="Cancel delete"
+											onClick={(e) => {
+												e.stopPropagation();
+												setConfirmingDeleteId(null);
+											}}
+											size="icon-xs"
+											variant="ghost"
+										>
+											<IconX size={13} />
+										</Button>
+									</div>
+								) : (
+									<div className="flex items-center justify-end gap-0.5">
+										{onEdit && !isSessionGenerated && (
 											<Button
-												aria-label="Confirm delete"
+												aria-label="Edit transaction"
+												onClick={(e) => {
+													e.stopPropagation();
+													onEdit(tx);
+												}}
+												size="icon-xs"
+												variant="ghost"
+											>
+												<IconEdit size={13} />
+											</Button>
+										)}
+										{!isSessionGenerated && (
+											<Button
+												aria-label="Delete transaction"
 												className="text-destructive hover:text-destructive"
 												onClick={(e) => {
 													e.stopPropagation();
-													onDelete(tx.id);
-													setConfirmingDeleteId(null);
-													setExpandedId(null);
+													setConfirmingDeleteId(tx.id);
 												}}
 												size="icon-xs"
 												variant="ghost"
 											>
 												<IconTrash size={13} />
 											</Button>
-											<Button
-												aria-label="Cancel delete"
-												onClick={(e) => {
-													e.stopPropagation();
-													setConfirmingDeleteId(null);
-												}}
-												size="icon-xs"
-												variant="ghost"
-											>
-												<IconX size={13} />
-											</Button>
-										</div>
-									) : (
-										<div className="flex items-center justify-end gap-0.5">
-											{onEdit && !isSessionGenerated && (
-												<Button
-													aria-label="Edit transaction"
-													onClick={(e) => {
-														e.stopPropagation();
-														onEdit(tx);
-													}}
-													size="icon-xs"
-													variant="ghost"
-												>
-													<IconEdit size={13} />
-												</Button>
-											)}
-											{!isSessionGenerated && (
-												<Button
-													aria-label="Delete transaction"
-													className="text-destructive hover:text-destructive"
-													onClick={(e) => {
-														e.stopPropagation();
-														setConfirmingDeleteId(tx.id);
-													}}
-													size="icon-xs"
-													variant="ghost"
-												>
-													<IconTrash size={13} />
-												</Button>
-											)}
-										</div>
-									)}
-								</div>
+										)}
+									</div>
+								)}
 							</div>
-						</div>
-					</div>
-				);
-			})}
-			{hasMore && (
-				<div className="pt-2">
+						</ExpandableItem>
+					);
+				})}
+			</ExpandableItemList>
+			<div className="pt-2">
+				{hasMore && (
 					<Button
 						className="w-full"
 						disabled={isLoadingMore}
@@ -176,8 +179,8 @@ export function TransactionList({
 					>
 						{isLoadingMore ? "Loading..." : "Load more"}
 					</Button>
-				</div>
-			)}
+				)}
+			</div>
 		</div>
 	);
 }

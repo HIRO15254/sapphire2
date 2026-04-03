@@ -17,8 +17,8 @@ function StoreDetailPage() {
 	const storeQuery = useQuery(trpc.store.getById.queryOptions({ id: storeId }));
 	const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
 
-	const handleToggleGame = (id: string) => {
-		setExpandedGameId((prev) => (prev === id ? null : id));
+	const handleToggleGame = (id: string | null) => {
+		setExpandedGameId(id);
 	};
 
 	const store = storeQuery.data;

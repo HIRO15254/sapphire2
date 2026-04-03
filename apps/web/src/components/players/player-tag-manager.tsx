@@ -1,11 +1,18 @@
 import { IconEdit, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import {
+	ManagementList,
+	ManagementListItem,
+} from "@/components/management/management-list";
 import { ColorBadge } from "@/components/players/color-badge";
 import { Button } from "@/components/ui/button";
+import { DialogActionRow } from "@/components/ui/dialog-action-row";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { TAG_COLOR_NAMES, type TagColor } from "@/constants/player-tag-colors";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -42,10 +49,7 @@ function TagForm({
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="tag-name">
-					Tag Name <span className="text-destructive">*</span>
-				</Label>
+			<Field htmlFor="tag-name" label="Tag Name" required>
 				<Input
 					defaultValue={defaultValues?.name}
 					id="tag-name"
@@ -55,24 +59,29 @@ function TagForm({
 					placeholder="Enter tag name"
 					required
 				/>
-			</div>
-			<div className="flex flex-col gap-2">
-				<Label>Color</Label>
-				<div className="flex flex-wrap gap-2">
+			</Field>
+			<Field label="Color">
+				<ToggleGroup
+					onValueChange={(value) => {
+						if (value) {
+							setSelectedColor(value as TagColor);
+						}
+					}}
+					type="single"
+					value={selectedColor}
+				>
 					{TAG_COLOR_NAMES.map((color) => (
-						<button
+						<ToggleGroupItem
 							aria-label={`Select ${color} color`}
-							aria-pressed={selectedColor === color}
-							className={`rounded-full border-2 p-0.5 ${selectedColor === color ? "border-foreground" : "border-transparent"}`}
 							key={color}
-							onClick={() => setSelectedColor(color)}
-							type="button"
+							size="sm"
+							value={color}
 						>
 							<ColorBadge color={color}>{color}</ColorBadge>
-						</button>
+						</ToggleGroupItem>
 					))}
-				</div>
-			</div>
+				</ToggleGroup>
+			</Field>
 			<Button disabled={isLoading} type="submit">
 				{isLoading ? "Saving..." : "Save"}
 			</Button>
@@ -142,38 +151,40 @@ export function PlayerTagManager() {
 			</div>
 
 			{tags.length === 0 ? (
-				<p className="py-8 text-center text-muted-foreground text-sm">
-					No tags yet. Create your first tag to categorize players.
-				</p>
+				<EmptyState
+					className="border-none bg-transparent px-0 py-8"
+					description="Create your first tag to categorize players."
+					heading="No tags yet"
+				/>
 			) : (
-				<div className="flex flex-col gap-2">
+				<ManagementList>
 					{tags.map((tag) => (
-						<div
-							className="flex items-center justify-between rounded-md border p-3"
+						<ManagementListItem
+							actions={
+								<div className="flex gap-1">
+									<Button
+										aria-label={`Edit tag ${tag.name}`}
+										onClick={() => setEditingTag(tag)}
+										size="sm"
+										variant="ghost"
+									>
+										<IconEdit size={16} />
+									</Button>
+									<Button
+										aria-label={`Delete tag ${tag.name}`}
+										onClick={() => setDeletingTag(tag)}
+										size="sm"
+										variant="ghost"
+									>
+										<IconTrash size={16} />
+									</Button>
+								</div>
+							}
 							key={tag.id}
-						>
-							<ColorBadge color={tag.color}>{tag.name}</ColorBadge>
-							<div className="flex gap-1">
-								<Button
-									aria-label={`Edit tag ${tag.name}`}
-									onClick={() => setEditingTag(tag)}
-									size="sm"
-									variant="ghost"
-								>
-									<IconEdit size={16} />
-								</Button>
-								<Button
-									aria-label={`Delete tag ${tag.name}`}
-									onClick={() => setDeletingTag(tag)}
-									size="sm"
-									variant="ghost"
-								>
-									<IconTrash size={16} />
-								</Button>
-							</div>
-						</div>
+							title={<ColorBadge color={tag.color}>{tag.name}</ColorBadge>}
+						/>
 					))}
-				</div>
+				</ManagementList>
 			)}
 
 			<ResponsiveDialog
@@ -228,23 +239,18 @@ export function PlayerTagManager() {
 							</ColorBadge>
 							? This will remove it from all players.
 						</p>
-						<div className="flex gap-2">
-							<Button
-								className="flex-1"
-								onClick={() => setDeletingTag(null)}
-								variant="outline"
-							>
+						<DialogActionRow>
+							<Button onClick={() => setDeletingTag(null)} variant="outline">
 								Cancel
 							</Button>
 							<Button
-								className="flex-1"
 								disabled={deleteMutation.isPending}
 								onClick={() => deleteMutation.mutate(deletingTag.id)}
 								variant="destructive"
 							>
 								{deleteMutation.isPending ? "Deleting..." : "Delete"}
 							</Button>
-						</div>
+						</DialogActionRow>
 					</div>
 				)}
 			</ResponsiveDialog>

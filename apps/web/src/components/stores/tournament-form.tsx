@@ -2,8 +2,8 @@ import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -12,6 +12,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { TagInput } from "@/components/ui/tag-input";
+import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/utils/trpc";
 
 const GAME_VARIANTS = {
@@ -133,10 +134,7 @@ export function TournamentForm({
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="name">
-					Tournament Name <span className="text-destructive">*</span>
-				</Label>
+			<Field htmlFor="name" label="Tournament Name" required>
 				<Input
 					defaultValue={defaultValues?.name}
 					id="name"
@@ -144,12 +142,9 @@ export function TournamentForm({
 					placeholder="e.g. Sunday Main Event"
 					required
 				/>
-			</div>
+			</Field>
 
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="variant">
-					Variant <span className="text-destructive">*</span>
-				</Label>
+			<Field htmlFor="variant" label="Variant" required>
 				<Select defaultValue={defaultValues?.variant ?? "nlh"} name="variant">
 					<SelectTrigger className="w-full" id="variant">
 						<SelectValue placeholder="Select variant" />
@@ -162,11 +157,10 @@ export function TournamentForm({
 						))}
 					</SelectContent>
 				</Select>
-			</div>
+			</Field>
 
 			<div className="grid grid-cols-2 gap-3">
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="buyIn">Buy-In</Label>
+				<Field htmlFor="buyIn" label="Buy-In">
 					<Input
 						defaultValue={defaultValues?.buyIn}
 						id="buyIn"
@@ -176,9 +170,8 @@ export function TournamentForm({
 						placeholder="0"
 						type="number"
 					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="entryFee">Entry Fee</Label>
+				</Field>
+				<Field htmlFor="entryFee" label="Entry Fee">
 					<Input
 						defaultValue={defaultValues?.entryFee}
 						id="entryFee"
@@ -188,11 +181,10 @@ export function TournamentForm({
 						placeholder="0"
 						type="number"
 					/>
-				</div>
+				</Field>
 			</div>
 
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="startingStack">Starting Stack</Label>
+			<Field htmlFor="startingStack" label="Starting Stack">
 				<Input
 					defaultValue={defaultValues?.startingStack}
 					id="startingStack"
@@ -202,11 +194,14 @@ export function TournamentForm({
 					placeholder="0"
 					type="number"
 				/>
-			</div>
+			</Field>
 
-			<div className="flex flex-col gap-2 rounded-md border p-3">
+			<Field
+				className="rounded-md border p-3"
+				description="Define optional rebuy or addon structures used during play."
+				label="Chip Purchases"
+			>
 				<div className="flex items-center justify-between">
-					<span className="font-medium text-sm">Chip Purchases</span>
 					<Button
 						onClick={addChipPurchase}
 						size="xs"
@@ -221,10 +216,11 @@ export function TournamentForm({
 					<div className="flex flex-col gap-2">
 						{chipPurchases.map((cp, index) => (
 							<div className="flex items-end gap-2" key={cp.uid}>
-								<div className="flex flex-1 flex-col gap-1">
-									<Label className="text-xs" htmlFor={`cp-name-${index}`}>
-										Name
-									</Label>
+								<Field
+									className="flex flex-1 flex-col gap-1"
+									htmlFor={`cp-name-${index}`}
+									label="Name"
+								>
 									<Input
 										id={`cp-name-${index}`}
 										onChange={(e) =>
@@ -233,11 +229,12 @@ export function TournamentForm({
 										placeholder="e.g. Rebuy"
 										value={cp.name}
 									/>
-								</div>
-								<div className="flex w-20 flex-col gap-1">
-									<Label className="text-xs" htmlFor={`cp-cost-${index}`}>
-										Cost
-									</Label>
+								</Field>
+								<Field
+									className="flex w-20 flex-col gap-1"
+									htmlFor={`cp-cost-${index}`}
+									label="Cost"
+								>
 									<Input
 										id={`cp-cost-${index}`}
 										inputMode="numeric"
@@ -249,11 +246,12 @@ export function TournamentForm({
 										type="number"
 										value={cp.cost}
 									/>
-								</div>
-								<div className="flex w-20 flex-col gap-1">
-									<Label className="text-xs" htmlFor={`cp-chips-${index}`}>
-										Chips
-									</Label>
+								</Field>
+								<Field
+									className="flex w-20 flex-col gap-1"
+									htmlFor={`cp-chips-${index}`}
+									label="Chips"
+								>
 									<Input
 										id={`cp-chips-${index}`}
 										inputMode="numeric"
@@ -265,7 +263,7 @@ export function TournamentForm({
 										type="number"
 										value={cp.chips}
 									/>
-								</div>
+								</Field>
 								<Button
 									aria-label="Remove chip purchase"
 									onClick={() => removeChipPurchase(index)}
@@ -279,10 +277,9 @@ export function TournamentForm({
 						))}
 					</div>
 				)}
-			</div>
+			</Field>
 
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="bountyAmount">Bounty Amount</Label>
+			<Field htmlFor="bountyAmount" label="Bounty Amount">
 				<Input
 					defaultValue={defaultValues?.bountyAmount}
 					id="bountyAmount"
@@ -292,10 +289,9 @@ export function TournamentForm({
 					placeholder="0"
 					type="number"
 				/>
-			</div>
+			</Field>
 
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="tableSize">Table Size</Label>
+			<Field htmlFor="tableSize" label="Table Size">
 				<Select
 					defaultValue={defaultValues?.tableSize?.toString()}
 					name="tableSize"
@@ -311,10 +307,9 @@ export function TournamentForm({
 						))}
 					</SelectContent>
 				</Select>
-			</div>
+			</Field>
 
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="currencyId">Currency</Label>
+			<Field htmlFor="currencyId" label="Currency">
 				<Select defaultValue={defaultValues?.currencyId} name="currencyId">
 					<SelectTrigger className="w-full" id="currencyId">
 						<SelectValue placeholder="Select currency" />
@@ -328,20 +323,19 @@ export function TournamentForm({
 						))}
 					</SelectContent>
 				</Select>
-			</div>
+			</Field>
 
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="memo">Memo</Label>
-				<Input
+			<Field htmlFor="memo" label="Memo">
+				<Textarea
 					defaultValue={defaultValues?.memo}
 					id="memo"
 					name="memo"
 					placeholder="Notes about this tournament"
+					rows={4}
 				/>
-			</div>
+			</Field>
 
-			<div className="flex flex-col gap-2">
-				<Label>Tags</Label>
+			<Field label="Tags">
 				<TagInput
 					onAdd={(tag) =>
 						setTags((prev) =>
@@ -355,7 +349,7 @@ export function TournamentForm({
 					placeholder="Add a tag"
 					selectedTags={tags.map((name) => ({ id: name, name }))}
 				/>
-			</div>
+			</Field>
 
 			<Button disabled={isLoading} type="submit">
 				{isLoading ? "Saving..." : "Save"}

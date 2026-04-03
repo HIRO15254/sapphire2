@@ -7,7 +7,11 @@ import {
 	IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+	ExpandableItem,
+	ExpandableItemList,
+} from "@/components/management/expandable-item-list";
 import { RingGameForm } from "@/components/stores/ring-game-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,7 +55,7 @@ interface RingGameFormValues {
 
 interface RingGameTabProps {
 	expandedGameId: string | null;
-	onToggleGame: (id: string) => void;
+	onToggleGame: (id: string | null) => void;
 	storeId: string;
 }
 
@@ -60,7 +64,6 @@ interface GameActionHandlers {
 	onDelete: (id: string) => void;
 	onEdit: (game: RingGame) => void;
 	onRestore: (id: string) => void;
-	onToggle: (id: string) => void;
 }
 
 interface RingGameListProps extends GameActionHandlers {
@@ -68,6 +71,7 @@ interface RingGameListProps extends GameActionHandlers {
 	expandedGameId: string | null;
 	games: RingGame[];
 	isArchived: boolean;
+	onToggleGame: (id: string | null) => void;
 }
 
 function RingGameList({
@@ -75,6 +79,7 @@ function RingGameList({
 	currencies,
 	expandedGameId,
 	isArchived,
+	onToggleGame,
 	...handlers
 }: RingGameListProps) {
 	if (games.length === 0) {
@@ -82,7 +87,12 @@ function RingGameList({
 	}
 
 	return (
-		<div className="divide-y">
+		<ExpandableItemList
+			onValueChange={onToggleGame}
+			value={
+				games.some((game) => game.id === expandedGameId) ? expandedGameId : null
+			}
+		>
 			{games.map((game) => (
 				<RingGameRow
 					currencies={currencies}
@@ -93,7 +103,7 @@ function RingGameList({
 					{...handlers}
 				/>
 			))}
-		</div>
+		</ExpandableItemList>
 	);
 }
 
@@ -102,6 +112,7 @@ interface ArchivedRingGameSectionProps extends GameActionHandlers {
 	expandedGameId: string | null;
 	games: RingGame[];
 	isLoading: boolean;
+	onToggleGame: (id: string | null) => void;
 }
 
 function ArchivedRingGameSection({
@@ -109,6 +120,7 @@ function ArchivedRingGameSection({
 	currencies,
 	expandedGameId,
 	isLoading,
+	onToggleGame,
 	...handlers
 }: ArchivedRingGameSectionProps) {
 	if (isLoading) {
@@ -134,6 +146,7 @@ function ArchivedRingGameSection({
 				expandedGameId={expandedGameId}
 				games={games}
 				isArchived
+				onToggleGame={onToggleGame}
 				{...handlers}
 			/>
 		</div>
@@ -147,6 +160,7 @@ interface RingGameContentProps extends GameActionHandlers {
 	currencies: { id: string; name: string; unit?: string | null }[];
 	expandedGameId: string | null;
 	isLoading: boolean;
+	onToggleGame: (id: string | null) => void;
 	showArchived: boolean;
 }
 
@@ -157,6 +171,7 @@ function RingGameContent({
 	currencies,
 	expandedGameId,
 	isLoading,
+	onToggleGame,
 	showArchived,
 	...handlers
 }: RingGameContentProps) {
@@ -180,6 +195,7 @@ function RingGameContent({
 				expandedGameId={expandedGameId}
 				games={activeGames}
 				isArchived={false}
+				onToggleGame={onToggleGame}
 				{...handlers}
 			/>
 			{showArchived && (
@@ -188,6 +204,7 @@ function RingGameContent({
 					expandedGameId={expandedGameId}
 					games={archivedGames}
 					isLoading={archivedLoading}
+					onToggleGame={onToggleGame}
 					{...handlers}
 				/>
 			)}
@@ -249,7 +266,6 @@ interface RingGameRowProps {
 	onDelete: (id: string) => void;
 	onEdit: (game: RingGame) => void;
 	onRestore: (id: string) => void;
-	onToggle: (id: string) => void;
 }
 
 function RingGameRow({
@@ -261,7 +277,6 @@ function RingGameRow({
 	onDelete,
 	onEdit,
 	onRestore,
-	onToggle,
 }: RingGameRowProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const currency = currencies.find((c) => c.id === game.currencyId);
@@ -270,21 +285,19 @@ function RingGameRow({
 		VARIANT_LABELS[game.variant] ?? game.variant.toUpperCase();
 	const fmt = createGroupFormatter([game.minBuyIn, game.maxBuyIn]);
 
+	useEffect(() => {
+		if (!expanded) {
+			setConfirmingDelete(false);
+		}
+	}, [expanded]);
+
 	return (
-		<div>
-			<div className="flex items-center gap-1.5 py-1">
+		<ExpandableItem
+			contentClassName="pl-2 pb-2"
+			summary={
 				<div className="min-w-0 flex-1">
 					<div className="flex flex-wrap items-center gap-1">
-						<button
-							className="truncate font-medium text-xs hover:underline"
-							onClick={() => {
-								onToggle(game.id);
-								setConfirmingDelete(false);
-							}}
-							type="button"
-						>
-							{game.name}
-						</button>
+						<span className="truncate font-medium text-xs">{game.name}</span>
 						<Badge className="px-1 py-0 text-[10px]" variant="secondary">
 							{variantLabel}
 						</Badge>
@@ -302,40 +315,33 @@ function RingGameRow({
 						)}
 					</div>
 				</div>
-			</div>
+			}
+			value={game.id}
+		>
+			{(game.minBuyIn != null || game.maxBuyIn != null) && (
+				<p className="text-[11px] text-muted-foreground">
+					Buy-in: {game.minBuyIn != null ? fmt(game.minBuyIn) : "—"} -{" "}
+					{game.maxBuyIn != null ? fmt(game.maxBuyIn) : "—"}
+					{currency?.unit ? ` ${currency.unit}` : ""}
+				</p>
+			)}
+			{game.memo && (
+				<p className="whitespace-pre-wrap text-[11px] text-muted-foreground">
+					{game.memo}
+				</p>
+			)}
 
-			<div
-				className={`grid transition-[grid-template-rows] duration-200 ease-out ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-			>
-				<div className="overflow-hidden">
-					<div className="pb-2 pl-2">
-						{(game.minBuyIn != null || game.maxBuyIn != null) && (
-							<p className="text-[11px] text-muted-foreground">
-								Buy-in: {game.minBuyIn != null ? fmt(game.minBuyIn) : "—"} -{" "}
-								{game.maxBuyIn != null ? fmt(game.maxBuyIn) : "—"}
-								{currency?.unit ? ` ${currency.unit}` : ""}
-							</p>
-						)}
-						{game.memo && (
-							<p className="whitespace-pre-wrap text-[11px] text-muted-foreground">
-								{game.memo}
-							</p>
-						)}
-
-						<RingGameActions
-							confirmingDelete={confirmingDelete}
-							game={game}
-							isArchived={isArchived}
-							onArchive={onArchive}
-							onDelete={onDelete}
-							onEdit={onEdit}
-							onRestore={onRestore}
-							setConfirmingDelete={setConfirmingDelete}
-						/>
-					</div>
-				</div>
-			</div>
-		</div>
+			<RingGameActions
+				confirmingDelete={confirmingDelete}
+				game={game}
+				isArchived={isArchived}
+				onArchive={onArchive}
+				onDelete={onDelete}
+				onEdit={onEdit}
+				onRestore={onRestore}
+				setConfirmingDelete={setConfirmingDelete}
+			/>
+		</ExpandableItem>
 	);
 }
 
@@ -556,7 +562,7 @@ export function RingGameTab({
 				onDelete={(id) => deleteMutation.mutate(id)}
 				onEdit={setEditingGame}
 				onRestore={(id) => restoreMutation.mutate(id)}
-				onToggle={onToggleGame}
+				onToggleGame={onToggleGame}
 				showArchived={showArchived}
 			/>
 

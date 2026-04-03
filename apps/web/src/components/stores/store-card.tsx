@@ -16,8 +16,8 @@ interface StoreCardProps {
 export function StoreCard({ store, onEdit, onDelete }: StoreCardProps) {
 	const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
 
-	const handleToggleGame = (id: string) => {
-		setExpandedGameId((prev) => (prev === id ? null : id));
+	const handleToggleGame = (id: string | null) => {
+		setExpandedGameId(id);
 	};
 
 	return (

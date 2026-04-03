@@ -8,7 +8,11 @@ import {
 	IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+	ExpandableItem,
+	ExpandableItemList,
+} from "@/components/management/expandable-item-list";
 import { BlindLevelEditor } from "@/components/stores/blind-level-editor";
 import { TournamentForm } from "@/components/stores/tournament-form";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +73,7 @@ interface TournamentFormValues {
 
 interface TournamentTabProps {
 	expandedGameId: string | null;
-	onToggleGame: (id: string) => void;
+	onToggleGame: (id: string | null) => void;
 	storeId: string;
 }
 
@@ -78,12 +82,12 @@ interface TournamentActionHandlers {
 	onDelete: (id: string) => void;
 	onEdit: (tournament: Tournament) => void;
 	onRestore: (id: string) => void;
-	onToggle: (id: string) => void;
 }
 
 interface TournamentListProps extends TournamentActionHandlers {
 	expandedGameId: string | null;
 	isArchived: boolean;
+	onToggleGame: (id: string | null) => void;
 	tournaments: Tournament[];
 }
 
@@ -91,6 +95,7 @@ function TournamentList({
 	tournaments,
 	expandedGameId,
 	isArchived,
+	onToggleGame,
 	...handlers
 }: TournamentListProps) {
 	if (tournaments.length === 0) {
@@ -98,7 +103,14 @@ function TournamentList({
 	}
 
 	return (
-		<div className="divide-y">
+		<ExpandableItemList
+			onValueChange={onToggleGame}
+			value={
+				tournaments.some((tournament) => tournament.id === expandedGameId)
+					? expandedGameId
+					: null
+			}
+		>
 			{tournaments.map((t) => (
 				<TournamentRow
 					expanded={expandedGameId === t.id}
@@ -108,13 +120,14 @@ function TournamentList({
 					{...handlers}
 				/>
 			))}
-		</div>
+		</ExpandableItemList>
 	);
 }
 
 interface ArchivedTournamentSectionProps extends TournamentActionHandlers {
 	expandedGameId: string | null;
 	isLoading: boolean;
+	onToggleGame: (id: string | null) => void;
 	tournaments: Tournament[];
 }
 
@@ -122,6 +135,7 @@ function ArchivedTournamentSection({
 	tournaments,
 	expandedGameId,
 	isLoading,
+	onToggleGame,
 	...handlers
 }: ArchivedTournamentSectionProps) {
 	if (isLoading) {
@@ -145,6 +159,7 @@ function ArchivedTournamentSection({
 			<TournamentList
 				expandedGameId={expandedGameId}
 				isArchived
+				onToggleGame={onToggleGame}
 				tournaments={tournaments}
 				{...handlers}
 			/>
@@ -158,6 +173,7 @@ interface TournamentContentProps extends TournamentActionHandlers {
 	archivedTournaments: Tournament[];
 	expandedGameId: string | null;
 	isLoading: boolean;
+	onToggleGame: (id: string | null) => void;
 	showArchived: boolean;
 }
 
@@ -167,6 +183,7 @@ function TournamentContent({
 	archivedTournaments,
 	expandedGameId,
 	isLoading,
+	onToggleGame,
 	showArchived,
 	...handlers
 }: TournamentContentProps) {
@@ -188,6 +205,7 @@ function TournamentContent({
 			<TournamentList
 				expandedGameId={expandedGameId}
 				isArchived={false}
+				onToggleGame={onToggleGame}
 				tournaments={activeTournaments}
 				{...handlers}
 			/>
@@ -195,6 +213,7 @@ function TournamentContent({
 				<ArchivedTournamentSection
 					expandedGameId={expandedGameId}
 					isLoading={archivedLoading}
+					onToggleGame={onToggleGame}
 					tournaments={archivedTournaments}
 					{...handlers}
 				/>
@@ -233,7 +252,6 @@ interface TournamentRowProps {
 	onDelete: (id: string) => void;
 	onEdit: (tournament: Tournament) => void;
 	onRestore: (id: string) => void;
-	onToggle: (id: string) => void;
 	tournament: Tournament;
 }
 
@@ -245,80 +263,75 @@ function TournamentRow({
 	onDelete,
 	onEdit,
 	onRestore,
-	onToggle,
 }: TournamentRowProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [blindEditorOpen, setBlindEditorOpen] = useState(false);
 	const buyInStr = formatBuyInShort(tournament);
 
+	useEffect(() => {
+		if (!expanded) {
+			setConfirmingDelete(false);
+		}
+	}, [expanded]);
+
 	return (
-		<div>
-			<div className="flex items-center gap-1.5 py-1">
-				<div className="min-w-0 flex-1">
-					<div className="flex flex-wrap items-center gap-1">
-						<button
-							className="truncate font-medium text-xs hover:underline"
-							onClick={() => {
-								onToggle(tournament.id);
-								setConfirmingDelete(false);
-							}}
-							type="button"
-						>
-							{tournament.name}
-						</button>
-						<Badge className="px-1 py-0 text-[10px]" variant="secondary">
-							{tournament.variant.toUpperCase()}
-						</Badge>
-						{tournament.tableSize != null && (
-							<Badge
-								className={`px-1 py-0 text-[10px] ${getTableSizeClassName(tournament.tableSize)}`}
-							>
-								{tournament.tableSize}-max
-							</Badge>
-						)}
-						{tournament.tags.map((tag) => (
-							<Badge
-								className="px-1 py-0 text-[10px]"
-								key={tag.id}
-								variant="outline"
-							>
-								{tag.name}
-							</Badge>
-						))}
-						{buyInStr && (
-							<span className="text-[11px] text-muted-foreground">
-								{buyInStr}
+		<>
+			<ExpandableItem
+				contentClassName="pl-2 pb-2"
+				summary={
+					<div className="min-w-0 flex-1">
+						<div className="flex flex-wrap items-center gap-1">
+							<span className="truncate font-medium text-xs">
+								{tournament.name}
 							</span>
-						)}
+							<Badge className="px-1 py-0 text-[10px]" variant="secondary">
+								{tournament.variant.toUpperCase()}
+							</Badge>
+							{tournament.tableSize != null && (
+								<Badge
+									className={`px-1 py-0 text-[10px] ${getTableSizeClassName(tournament.tableSize)}`}
+								>
+									{tournament.tableSize}-max
+								</Badge>
+							)}
+							{tournament.tags.map((tag) => (
+								<Badge
+									className="px-1 py-0 text-[10px]"
+									key={tag.id}
+									variant="outline"
+								>
+									{tag.name}
+								</Badge>
+							))}
+							{buyInStr && (
+								<span className="text-[11px] text-muted-foreground">
+									{buyInStr}
+								</span>
+							)}
+						</div>
 					</div>
-				</div>
-			</div>
-
-			<div
-				className={`grid transition-[grid-template-rows] duration-200 ease-out ${expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+				}
+				value={tournament.id}
 			>
-				<div className="overflow-hidden">
-					<TournamentDetail
-						confirmingDelete={confirmingDelete}
-						isArchived={isArchived}
-						onArchive={onArchive}
-						onBlindEdit={() => setBlindEditorOpen(true)}
-						onDelete={onDelete}
-						onEdit={onEdit}
-						onRestore={onRestore}
-						setConfirmingDelete={setConfirmingDelete}
-						tournament={tournament}
-					/>
-				</div>
-			</div>
-
+				<TournamentDetail
+					confirmingDelete={confirmingDelete}
+					isArchived={isArchived}
+					onArchive={onArchive}
+					onBlindEdit={() => setBlindEditorOpen(true)}
+					onDelete={onDelete}
+					onEdit={onEdit}
+					onRestore={onRestore}
+					setConfirmingDelete={setConfirmingDelete}
+					tournament={tournament}
+				/>
+			</ExpandableItem>
 			<BlindLevelEditor
 				onOpenChange={setBlindEditorOpen}
 				open={blindEditorOpen}
 				tournamentId={tournament.id}
 				variant={tournament.variant}
 			/>
-		</div>
+		</>
 	);
 }
 
@@ -793,7 +806,7 @@ export function TournamentTab({
 				onDelete={(id) => deleteMutation.mutate(id)}
 				onEdit={setEditingTournament}
 				onRestore={(id) => restoreMutation.mutate(id)}
-				onToggle={onToggleGame}
+				onToggleGame={onToggleGame}
 				showArchived={showArchived}
 			/>
 
