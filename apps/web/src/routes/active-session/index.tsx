@@ -235,9 +235,9 @@ function usePokerTableInteraction(
 		onError: (_err, _vars, ctx) => {
 			setLocalHero(ctx?.prev ?? undefined);
 		},
-		onSettled: () => {
+		onSettled: async () => {
+			await queryClient.invalidateQueries({ queryKey: sessionKey });
 			setLocalHero(undefined);
-			queryClient.invalidateQueries({ queryKey: sessionKey });
 		},
 	});
 
@@ -482,7 +482,7 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 			)}
 
 			{/* Poker table */}
-			<div className="min-h-0 flex-1 overflow-hidden py-3">
+			<div className="min-h-0 flex-1 py-3">
 				<PokerTable
 					gameInfo={gameInfo}
 					heroSeatPosition={tableInteraction.heroSeatPosition}
@@ -524,11 +524,17 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 			<AddPlayerSheet
 				excludePlayerIds={tablePlayers.excludePlayerIds}
 				onAddExisting={(playerId, playerName) => {
-					tablePlayers.handleAddExisting(playerId, playerName);
+					const seat = tableInteraction.addPlayerSeat;
+					if (seat !== null) {
+						tablePlayers.handleAddExisting(playerId, playerName, seat);
+					}
 					tableInteraction.setAddPlayerSeat(null);
 				}}
 				onAddNew={(name, memo) => {
-					tablePlayers.handleAddNew(name, memo);
+					const seat = tableInteraction.addPlayerSeat;
+					if (seat !== null) {
+						tablePlayers.handleAddNew(name, seat, memo);
+					}
 					tableInteraction.setAddPlayerSeat(null);
 				}}
 				onOpenChange={(open) => {
@@ -748,7 +754,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			)}
 
 			{/* Poker table */}
-			<div className="min-h-0 flex-1 overflow-hidden py-3">
+			<div className="min-h-0 flex-1 py-3">
 				<PokerTable
 					gameInfo={gameInfo}
 					heroSeatPosition={tableInteraction.heroSeatPosition}
@@ -786,11 +792,17 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			<AddPlayerSheet
 				excludePlayerIds={tablePlayers.excludePlayerIds}
 				onAddExisting={(playerId, playerName) => {
-					tablePlayers.handleAddExisting(playerId, playerName);
+					const seat = tableInteraction.addPlayerSeat;
+					if (seat !== null) {
+						tablePlayers.handleAddExisting(playerId, playerName, seat);
+					}
 					tableInteraction.setAddPlayerSeat(null);
 				}}
 				onAddNew={(name, memo) => {
-					tablePlayers.handleAddNew(name, memo);
+					const seat = tableInteraction.addPlayerSeat;
+					if (seat !== null) {
+						tablePlayers.handleAddNew(name, seat, memo);
+					}
 					tableInteraction.setAddPlayerSeat(null);
 				}}
 				onOpenChange={(open) => {

@@ -31,14 +31,14 @@ const AVATAR_COLORS = [
  */
 const SEAT_POSITIONS: [number, number][] = [
 	[50, 98], // 0: bottom center
-	[72, 6], // 1: top right
-	[96, 35], // 2: right upper
-	[96, 70], // 3: right lower
-	[72, 96], // 4: bottom right
-	[28, 96], // 5: bottom left
-	[4, 70], // 6: left lower
-	[4, 35], // 7: left upper
-	[28, 6], // 8: top left
+	[73, 6], // 1: top right
+	[92, 35], // 2: right upper
+	[92, 70], // 3: right lower
+	[73, 96], // 4: bottom right
+	[27, 96], // 5: bottom left
+	[8, 70], // 6: left lower
+	[8, 35], // 7: left upper
+	[27, 6], // 8: top left
 ];
 
 export interface TablePlayer {

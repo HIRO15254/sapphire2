@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 interface UseTablePlayersOptions {
@@ -25,7 +24,6 @@ export function useTablePlayers({
 	liveTournamentSessionId,
 }: UseTablePlayersOptions) {
 	const queryClient = useQueryClient();
-	const [addPlayerSeat, setAddPlayerSeat] = useState<number | null>(null);
 
 	const sessionParam = liveCashGameSessionId
 		? { liveCashGameSessionId }
@@ -47,7 +45,7 @@ export function useTablePlayers({
 		mutationFn: (params: {
 			playerId: string;
 			playerName: string;
-			seatPosition?: number;
+			seatPosition: number;
 		}) =>
 			trpcClient.sessionTablePlayer.add.mutate({
 				...sessionParam,
@@ -71,7 +69,7 @@ export function useTablePlayers({
 							isActive: true,
 							joinedAt: new Date().toISOString(),
 							leftAt: null,
-							seatPosition: params.seatPosition ?? null,
+							seatPosition: params.seatPosition,
 						},
 					],
 				});
@@ -90,7 +88,7 @@ export function useTablePlayers({
 		mutationFn: (params: {
 			playerName: string;
 			playerMemo?: string;
-			seatPosition?: number;
+			seatPosition: number;
 		}) =>
 			trpcClient.sessionTablePlayer.addNew.mutate({
 				...sessionParam,
@@ -115,7 +113,7 @@ export function useTablePlayers({
 							isActive: true,
 							joinedAt: new Date().toISOString(),
 							leftAt: null,
-							seatPosition: params.seatPosition ?? null,
+							seatPosition: params.seatPosition,
 						},
 					],
 				});
@@ -198,43 +196,26 @@ export function useTablePlayers({
 		.filter((p) => p.isActive)
 		.map((p) => p.player.id);
 
-	const handleAddPlayer = (seatPosition: number) => {
-		setAddPlayerSeat(seatPosition);
-	};
-
-	const handleAddExisting = (playerId: string, playerName: string) => {
-		addMutation.mutate({
-			playerId,
-			playerName,
-			seatPosition: addPlayerSeat ?? undefined,
-		});
-	};
-
-	const handleAddNew = (name: string, memo?: string) => {
-		addNewMutation.mutate({
-			playerName: name,
-			playerMemo: memo,
-			seatPosition: addPlayerSeat ?? undefined,
-		});
-	};
-
-	const handleRemovePlayer = (playerId: string) => {
-		removeMutation.mutate(playerId);
-	};
-
 	return {
 		players,
 		excludePlayerIds,
-		addPlayerSheetOpen: addPlayerSeat !== null,
-		setAddPlayerSheetOpen: (open: boolean) => {
-			if (!open) {
-				setAddPlayerSeat(null);
-			}
+		handleAddExisting: (
+			playerId: string,
+			playerName: string,
+			seatPosition: number
+		) => {
+			addMutation.mutate({ playerId, playerName, seatPosition });
 		},
-		handleAddPlayer,
-		handleAddExisting,
-		handleAddNew,
-		handleRemovePlayer,
+		handleAddNew: (name: string, seatPosition: number, memo?: string) => {
+			addNewMutation.mutate({
+				playerName: name,
+				playerMemo: memo,
+				seatPosition,
+			});
+		},
+		handleRemovePlayer: (playerId: string) => {
+			removeMutation.mutate(playerId);
+		},
 		updateSeatMutation,
 	};
 }
