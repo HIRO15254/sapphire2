@@ -12,9 +12,9 @@ import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export const Route = createFileRoute(
-	"/live-sessions/cash-game/$sessionId/events"
+	"/live-sessions/$sessionType/$sessionId/events"
 )({
-	component: CashGameEventsPage,
+	component: SessionEventsPage,
 });
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -632,23 +632,31 @@ function EventEditor({
 	);
 }
 
-function CashGameEventsPage() {
-	const { sessionId } = Route.useParams();
+function SessionEventsPage() {
+	const { sessionId, sessionType } = Route.useParams();
 	const queryClient = useQueryClient();
 
 	const [editEvent, setEditEvent] = useState<SessionEvent | null>(null);
 
-	const eventsQuery = useQuery(
-		trpc.sessionEvent.list.queryOptions({ liveCashGameSessionId: sessionId })
-	);
+	const isTournament = sessionType === "tournament";
+
+	const eventsQueryOptions = isTournament
+		? trpc.sessionEvent.list.queryOptions({
+				liveTournamentSessionId: sessionId,
+			})
+		: trpc.sessionEvent.list.queryOptions({
+				liveCashGameSessionId: sessionId,
+			});
+
+	const eventsQuery = useQuery(eventsQueryOptions);
 	const events = (eventsQuery.data ?? []) as SessionEvent[];
 
-	const eventsKey = trpc.sessionEvent.list.queryOptions({
-		liveCashGameSessionId: sessionId,
-	}).queryKey;
-	const sessionKey = trpc.liveCashGameSession.getById.queryOptions({
-		id: sessionId,
-	}).queryKey;
+	const eventsKey = eventsQueryOptions.queryKey;
+
+	const sessionKey = isTournament
+		? trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
+				.queryKey
+		: trpc.liveCashGameSession.getById.queryOptions({ id: sessionId }).queryKey;
 
 	const invalidateAll = async () => {
 		await Promise.all([

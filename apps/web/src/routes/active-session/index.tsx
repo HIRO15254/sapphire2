@@ -421,7 +421,7 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 			)}
 
 			{/* Poker table */}
-			<div className="flex-1">
+			<div className="min-h-0 flex-1">
 				<PokerTable
 					gameInfo={gameInfo}
 					heroSeatPosition={tableInteraction.heroSeatPosition}
@@ -593,7 +593,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			)}
 
 			{/* Poker table */}
-			<div className="flex-1">
+			<div className="min-h-0 flex-1">
 				<PokerTable
 					gameInfo={gameInfo}
 					heroSeatPosition={tableInteraction.heroSeatPosition}
