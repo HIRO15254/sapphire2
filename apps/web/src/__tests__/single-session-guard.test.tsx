@@ -164,7 +164,6 @@ function DialogTestPage({ open }: { open: boolean }) {
 	);
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: RouteComponent type compatibility in tests
 function createTestRouter(component: any, path = "/") {
 	const rootRoute = createRootRoute({ component });
 	const indexRoute = createRoute({
