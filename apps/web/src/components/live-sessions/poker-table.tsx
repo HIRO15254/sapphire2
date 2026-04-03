@@ -151,11 +151,8 @@ export function PokerTable({
 	waitingForHero,
 }: PokerTableProps) {
 	return (
-		<div className="relative mx-auto flex h-full w-full max-w-sm items-center justify-center py-2">
-			<div
-				className="relative aspect-[2/1] w-full"
-				style={{ maxHeight: "100%" }}
-			>
+		<div className="relative mx-auto w-full max-w-sm pt-5 pb-6">
+			<div className="relative aspect-[2/1]">
 				{/* Table rim — stadium shape (rounded-full = semicircle caps) */}
 				<div className="absolute inset-x-[4%] inset-y-[10%] rounded-full bg-emerald-900 shadow-lg dark:bg-emerald-950" />
 
