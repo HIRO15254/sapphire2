@@ -10,6 +10,9 @@ interface AuthProviderAction {
 
 interface AuthFormShellProps {
 	children: ReactNode;
+	description?: ReactNode;
+	eyebrow?: ReactNode;
+	footerNote?: ReactNode;
 	onSwitchMode: () => void;
 	providerActions: AuthProviderAction[];
 	switchLabel: string;
@@ -18,14 +21,29 @@ interface AuthFormShellProps {
 
 export function AuthFormShell({
 	children,
+	description,
+	eyebrow,
+	footerNote,
 	onSwitchMode,
 	providerActions,
 	switchLabel,
 	title,
 }: AuthFormShellProps) {
 	return (
-		<div className="mx-auto mt-10 w-full max-w-md p-6">
-			<h1 className="mb-6 text-center font-bold text-3xl">{title}</h1>
+		<div className="w-full rounded-2xl border bg-card/95 p-6 shadow-sm backdrop-blur sm:p-8">
+			<div className="mb-6 space-y-2 text-center">
+				{eyebrow ? (
+					<p className="font-medium text-primary text-xs uppercase tracking-[0.24em]">
+						{eyebrow}
+					</p>
+				) : null}
+				<h1 className="font-bold text-3xl">{title}</h1>
+				{description ? (
+					<p className="text-balance text-muted-foreground text-sm">
+						{description}
+					</p>
+				) : null}
+			</div>
 
 			<div className="space-y-2">
 				{providerActions.map((action) => (
@@ -50,7 +68,7 @@ export function AuthFormShell({
 
 			{children}
 
-			<div className="mt-4 text-center">
+			<div className="mt-4 space-y-3 text-center">
 				<Button
 					className="text-primary hover:text-primary/80"
 					onClick={onSwitchMode}
@@ -58,6 +76,9 @@ export function AuthFormShell({
 				>
 					{switchLabel}
 				</Button>
+				{footerNote ? (
+					<p className="text-muted-foreground text-xs">{footerNote}</p>
+				) : null}
 			</div>
 		</div>
 	);

@@ -92,10 +92,13 @@ export default function SignUpForm({
 
 	return (
 		<AuthFormShell
+			description="Create your account to start tracking sessions, players, and stores."
+			eyebrow="New Account"
+			footerNote="By continuing, you can also connect Google or Discord after sign up."
 			onSwitchMode={onSwitchToSignIn}
 			providerActions={providerActions}
 			switchLabel="Already have an account? Sign In"
-			title="Create Account"
+			title="Create your sapphire2 account"
 		>
 			<form
 				className="space-y-4"

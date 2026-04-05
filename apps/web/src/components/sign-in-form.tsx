@@ -89,10 +89,13 @@ export default function SignInForm({
 
 	return (
 		<AuthFormShell
+			description="Use your email and password or continue with a linked provider."
+			eyebrow="Welcome Back"
+			footerNote="You will be redirected to the dashboard after signing in."
 			onSwitchMode={onSwitchToSignUp}
 			providerActions={providerActions}
 			switchLabel="Need an account? Sign Up"
-			title="Welcome Back"
+			title="Sign in to sapphire2"
 		>
 			<form
 				className="space-y-4"
