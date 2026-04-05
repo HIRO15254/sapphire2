@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -73,10 +74,11 @@ function StatusBadge({ status }: { status: "active" | "completed" }) {
 
 export function LiveSessionCard({ session, onClick }: LiveSessionCardProps) {
 	return (
-		<button
-			className="w-full text-left"
+		<Button
+			className="h-auto w-full justify-start p-0 text-left hover:bg-transparent"
 			onClick={() => onClick(session.id)}
 			type="button"
+			variant="ghost"
 		>
 			<Card className="transition-colors hover:bg-muted/50">
 				<CardContent className="flex flex-col gap-2">
@@ -118,6 +120,6 @@ export function LiveSessionCard({ session, onClick }: LiveSessionCardProps) {
 					)}
 				</CardContent>
 			</Card>
-		</button>
+		</Button>
 	);
 }

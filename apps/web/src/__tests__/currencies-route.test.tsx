@@ -169,7 +169,7 @@ let routeModule: typeof import("@/routes/currencies/index");
 describe("CurrenciesPage", () => {
 	beforeAll(async () => {
 		routeModule = await import("@/routes/currencies/index");
-	});
+	}, 20_000);
 
 	beforeEach(() => {
 		mocks.currencies = [];

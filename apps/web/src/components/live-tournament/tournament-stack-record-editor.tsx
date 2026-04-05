@@ -4,12 +4,16 @@ import {
 	toTimeInputValue,
 	validateOccurredAtTime,
 } from "@/components/live-sessions/stack-editor-time";
+import {
+	StackBadgeRow,
+	StackEditorActionRow,
+	StackNumberField,
+	StackSectionHeader,
+	StackTimeField,
+} from "@/components/live-sessions/stack-ui";
 import { ChipPurchaseSheet } from "@/components/live-tournament/chip-purchase-sheet";
 import { Button } from "@/components/ui/button";
-import { DialogActionRow } from "@/components/ui/dialog-action-row";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 interface TournamentStackRecordPayload {
 	chipPurchaseCounts: Array<{
@@ -56,15 +60,35 @@ function ChipPurchaseList({
 }) {
 	return (
 		<div className="flex flex-col gap-2">
-			<div className="flex items-center justify-between">
-				<Label>Chip Purchases</Label>
-				<Button onClick={onAdd} size="xs" type="button" variant="ghost">
-					+ Add
-				</Button>
-			</div>
+			<StackSectionHeader
+				action={
+					<Button onClick={onAdd} size="xs" type="button" variant="ghost">
+						+ Add
+					</Button>
+				}
+				title="Chip Purchases"
+			/>
+			{purchases.length > 0 ? (
+				<StackBadgeRow className="pb-0">
+					{purchases.map((purchase, i) => (
+						<Button
+							className={cn("h-auto rounded-full px-2 py-1 text-xs")}
+							key={`${purchase.name}-${String(i)}-badge`}
+							onClick={() => onEdit(i)}
+							size="xs"
+							type="button"
+							variant="secondary"
+						>
+							{purchase.name}: {purchase.cost}
+						</Button>
+					))}
+				</StackBadgeRow>
+			) : null}
 			{purchases.map((purchase, i) => (
-				// biome-ignore lint/suspicious/noArrayIndexKey: order-stable list
-				<div className="flex items-center justify-between" key={i}>
+				<div
+					className="flex items-center justify-between"
+					key={`${purchase.name}-${String(i)}-meta`}
+				>
 					<span className="text-muted-foreground text-xs">
 						{purchase.name}: cost {purchase.cost}, chips {purchase.chips}
 					</span>
@@ -186,49 +210,39 @@ export function TournamentStackRecordEditor({
 	return (
 		<div className="flex flex-col gap-4">
 			{initialOccurredAt && (
-				<Field error={timeError} htmlFor="edit-time" label="Time">
-					<Input
-						id="edit-time"
-						onChange={(e) => setTime(e.target.value)}
-						type="time"
-						value={time}
-					/>
-				</Field>
+				<StackTimeField error={timeError} onChange={setTime} value={time} />
 			)}
 
-			<Field htmlFor="edit-stackAmount" label="Stack Amount" required>
-				<Input
-					id="edit-stackAmount"
-					inputMode="numeric"
-					min={0}
-					onChange={(e) => setStackAmount(e.target.value)}
-					required
-					type="number"
-					value={stackAmount}
-				/>
-			</Field>
+			<StackNumberField
+				id="edit-stackAmount"
+				inputMode="numeric"
+				label="Stack Amount"
+				min={0}
+				onChange={setStackAmount}
+				required
+				type="number"
+				value={stackAmount}
+			/>
 
-			<Field htmlFor="edit-remainingPlayers" label="Remaining Players">
-				<Input
-					id="edit-remainingPlayers"
-					inputMode="numeric"
-					min={1}
-					onChange={(e) => setRemainingPlayers(e.target.value)}
-					type="number"
-					value={remainingPlayers}
-				/>
-			</Field>
+			<StackNumberField
+				id="edit-remainingPlayers"
+				inputMode="numeric"
+				label="Remaining Players"
+				min={1}
+				onChange={setRemainingPlayers}
+				type="number"
+				value={remainingPlayers}
+			/>
 
-			<Field htmlFor="edit-totalEntries" label="Total Entries">
-				<Input
-					id="edit-totalEntries"
-					inputMode="numeric"
-					min={1}
-					onChange={(e) => setTotalEntries(e.target.value)}
-					type="number"
-					value={totalEntries}
-				/>
-			</Field>
+			<StackNumberField
+				id="edit-totalEntries"
+				inputMode="numeric"
+				label="Total Entries"
+				min={1}
+				onChange={setTotalEntries}
+				type="number"
+				value={totalEntries}
+			/>
 
 			<ChipPurchaseList
 				onAdd={openAddSheet}
@@ -237,19 +251,12 @@ export function TournamentStackRecordEditor({
 				purchases={chipPurchases}
 			/>
 
-			{/* Actions */}
-			<DialogActionRow>
-				<Button onClick={onDelete} type="button" variant="destructive">
-					Delete
-				</Button>
-				<Button
-					disabled={isLoading || timeError !== null}
-					onClick={handleSave}
-					type="button"
-				>
-					{isLoading ? "Saving..." : "Save"}
-				</Button>
-			</DialogActionRow>
+			<StackEditorActionRow
+				isLoading={isLoading}
+				onDelete={onDelete}
+				onSave={handleSave}
+				saveDisabled={timeError !== null}
+			/>
 
 			<ChipPurchaseSheet
 				initialValues={

@@ -1,9 +1,14 @@
 import { useState } from "react";
 import { EventBadge } from "@/components/live-sessions/event-badge";
+import {
+	StackBadgeRow,
+	StackNumberField,
+	StackPrimaryRow,
+	StackQuickActions,
+	StackSecondaryGrid,
+} from "@/components/live-sessions/stack-ui";
 import { ChipPurchaseSheet } from "@/components/live-tournament/chip-purchase-sheet";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useTournamentFormContext } from "@/hooks/use-session-form";
 
 interface ChipPurchaseType {
@@ -123,7 +128,7 @@ export function TournamentStackForm({
 		<div className="flex flex-col gap-2">
 			{/* Row 1: Event badges */}
 			{chipPurchases.length > 0 && (
-				<div className="flex gap-1.5 overflow-x-auto pb-1">
+				<StackBadgeRow>
 					{chipPurchases.map((purchase) => (
 						<EventBadge
 							data={{
@@ -136,18 +141,18 @@ export function TournamentStackForm({
 							type="chip-purchase"
 						/>
 					))}
-				</div>
+				</StackBadgeRow>
 			)}
 
-			{/* Row 2: Stack input + optional fields */}
 			<form className="flex flex-col gap-2" onSubmit={handleSubmit}>
-				<div className="flex items-center gap-2">
-					<Input
-						className="flex-1"
+				<StackPrimaryRow>
+					<StackNumberField
+						className="sm:min-w-[12rem]"
+						id="tournament-stack-amount"
 						inputMode="numeric"
+						label="Current Stack"
 						min={0}
-						onChange={(e) => setStackAmount(e.target.value)}
-						placeholder="Stack"
+						onChange={setStackAmount}
 						required
 						type="number"
 						value={stackAmount}
@@ -163,30 +168,31 @@ export function TournamentStackForm({
 					>
 						End
 					</Button>
-				</div>
+				</StackPrimaryRow>
 
-				<div className="flex items-center gap-2">
-					<Input
+				<StackSecondaryGrid>
+					<StackNumberField
 						className="flex-1"
+						id="tournament-remaining-players"
 						inputMode="numeric"
+						label="Remaining Players"
 						min={1}
-						onChange={(e) => setRemainingPlayers(e.target.value)}
-						placeholder="Remaining"
+						onChange={setRemainingPlayers}
 						type="number"
 						value={remainingPlayers}
 					/>
-					<Input
+					<StackNumberField
 						className="flex-1"
+						id="tournament-total-entries"
 						inputMode="numeric"
+						label="Total Entries"
 						min={1}
-						onChange={(e) => setTotalEntries(e.target.value)}
-						placeholder="Total Entries"
+						onChange={setTotalEntries}
 						type="number"
 						value={totalEntries}
 					/>
-				</div>
+				</StackSecondaryGrid>
 
-				{/* Chip purchase counts per type */}
 				{chipPurchaseTypes.length > 0 && (
 					<div className="flex flex-col gap-1.5">
 						{chipPurchaseTypes.map((t) => {
@@ -195,47 +201,43 @@ export function TournamentStackForm({
 							);
 							const countValue = countEntry?.count ?? 0;
 							return (
-								<div className="flex items-center gap-2" key={t.name}>
-									<Label className="w-24 shrink-0 text-xs">
-										{t.name} count
-									</Label>
-									<Input
-										className="flex-1"
-										inputMode="numeric"
-										min={0}
-										onChange={(e) => {
-											const newCount = Number(e.target.value);
-											setChipPurchaseCounts((prev) => {
-												const without = prev.filter((c) => c.name !== t.name);
-												if (newCount === 0) {
-													return without;
-												}
-												return [
-													...without,
-													{
-														name: t.name,
-														count: newCount,
-														chipsPerUnit: t.chips,
-													},
-												];
-											});
-										}}
-										type="number"
-										value={countValue === 0 ? "" : String(countValue)}
-									/>
-								</div>
+								<StackNumberField
+									className="flex-1"
+									id={`chip-purchase-count-${t.name}`}
+									inputMode="numeric"
+									key={t.name}
+									label={`${t.name} count`}
+									min={0}
+									onChange={(value) => {
+										const newCount = Number(value);
+										setChipPurchaseCounts((prev) => {
+											const without = prev.filter((c) => c.name !== t.name);
+											if (newCount === 0) {
+												return without;
+											}
+											return [
+												...without,
+												{
+													name: t.name,
+													count: newCount,
+													chipsPerUnit: t.chips,
+												},
+											];
+										});
+									}}
+									type="number"
+									value={countValue === 0 ? "" : String(countValue)}
+								/>
 							);
 						})}
 					</div>
 				)}
 			</form>
 
-			{/* Row 3: + Chip Purchase buttons */}
-			<div className="flex gap-2">
+			<StackQuickActions>
 				{buildChipPurchaseButtons(chipPurchaseTypes, handleInstantAdd)}
-			</div>
+			</StackQuickActions>
 
-			{/* View-only sheet for badge tap (delete only) */}
 			<ChipPurchaseSheet
 				initialValues={
 					viewingPurchase

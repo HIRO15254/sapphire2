@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { EntityListItem } from "@/components/management/entity-list-item";
 import { RingGameTab } from "@/components/stores/ring-game-tab";
 import { TournamentTab } from "@/components/stores/tournament-tab";
-import { ExpandableCard } from "@/components/ui/expandable-card";
 
 interface StoreCardProps {
 	onDelete: (id: string) => void;
@@ -21,33 +21,32 @@ export function StoreCard({ store, onEdit, onDelete }: StoreCardProps) {
 	};
 
 	return (
-		<ExpandableCard
+		<EntityListItem
+			contentClassName="space-y-3"
 			deleteLabel="store"
-			header={
-				<div className="min-w-0 flex-1">
+			onDelete={() => onDelete(store.id)}
+			onEdit={() => onEdit(store)}
+			summary={
+				<div className="min-w-0 flex-1 text-left">
 					<span className="font-medium text-sm">{store.name}</span>
-					{store.memo && (
+					{store.memo ? (
 						<p className="mt-0.5 line-clamp-1 text-muted-foreground text-xs">
 							{store.memo}
 						</p>
-					)}
+					) : null}
 				</div>
 			}
-			onDelete={() => onDelete(store.id)}
-			onEdit={() => onEdit(store)}
 		>
-			<div className="space-y-3">
-				<RingGameTab
-					expandedGameId={expandedGameId}
-					onToggleGame={handleToggleGame}
-					storeId={store.id}
-				/>
-				<TournamentTab
-					expandedGameId={expandedGameId}
-					onToggleGame={handleToggleGame}
-					storeId={store.id}
-				/>
-			</div>
-		</ExpandableCard>
+			<RingGameTab
+				expandedGameId={expandedGameId}
+				onToggleGame={handleToggleGame}
+				storeId={store.id}
+			/>
+			<TournamentTab
+				expandedGameId={expandedGameId}
+				onToggleGame={handleToggleGame}
+				storeId={store.id}
+			/>
+		</EntityListItem>
 	);
 }

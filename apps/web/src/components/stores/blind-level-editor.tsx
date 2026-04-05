@@ -21,9 +21,11 @@ import {
 	IconTrash,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ComponentProps } from "react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
+import { cn } from "@/lib/utils";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 const GAME_VARIANTS = {
@@ -52,6 +54,9 @@ interface BlindLevelRow {
 	tournamentId: string;
 }
 
+const BLIND_LEVEL_INPUT_CLASS =
+	"h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/40 focus:bg-accent focus:ring-1 focus:ring-ring";
+
 function parseIntOrNull(value: string): number | null {
 	if (!value) {
 		return null;
@@ -69,15 +74,28 @@ interface DragHandleProps {
 
 function DragHandle({ attributes, listeners }: DragHandleProps) {
 	return (
-		<button
+		<Button
 			aria-label="Drag to reorder"
 			className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+			size="icon-xs"
 			type="button"
+			variant="ghost"
 			{...attributes}
 			{...listeners}
 		>
 			<IconGripVertical size={14} />
-		</button>
+		</Button>
+	);
+}
+
+function BlindLevelInput(
+	props: ComponentProps<"input"> & { className?: string }
+) {
+	return (
+		<input
+			{...props}
+			className={cn(BLIND_LEVEL_INPUT_CLASS, props.className)}
+		/>
 	);
 }
 
@@ -164,8 +182,7 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 				</div>
 			</td>
 			<td className="px-0.5">
-				<input
-					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none focus:bg-accent focus:ring-1 focus:ring-ring"
+				<BlindLevelInput
 					defaultValue={row.blind1 ?? ""}
 					inputMode="numeric"
 					key={`${row.id}-blind1`}
@@ -175,8 +192,7 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 				/>
 			</td>
 			<td className="px-0.5">
-				<input
-					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none focus:bg-accent focus:ring-1 focus:ring-ring"
+				<BlindLevelInput
 					defaultValue={row.blind2 ?? ""}
 					inputMode="numeric"
 					key={`${row.id}-blind2-${row.blind2}`}
@@ -186,8 +202,7 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 				/>
 			</td>
 			<td className="px-0.5">
-				<input
-					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none focus:bg-accent focus:ring-1 focus:ring-ring"
+				<BlindLevelInput
 					defaultValue={row.ante ?? ""}
 					inputMode="numeric"
 					key={`${row.id}-ante-${row.ante}`}
@@ -197,8 +212,7 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 				/>
 			</td>
 			<td className="w-12 px-0.5">
-				<input
-					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none focus:bg-accent focus:ring-1 focus:ring-ring"
+				<BlindLevelInput
 					defaultValue={row.minutes ?? ""}
 					inputMode="numeric"
 					key={`${row.id}-minutes`}
@@ -208,14 +222,16 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 				/>
 			</td>
 			<td className="w-8 px-0.5 text-center">
-				<button
+				<Button
 					aria-label="Delete level"
-					className="text-muted-foreground transition-colors hover:text-destructive"
+					className="text-muted-foreground hover:text-destructive"
 					onClick={() => onDelete(row.id)}
+					size="icon-xs"
 					type="button"
+					variant="ghost"
 				>
 					<IconTrash size={14} />
-				</button>
+				</Button>
 			</td>
 		</tr>
 	);
@@ -260,8 +276,7 @@ function SortableBreakRow({ row, onDelete, onUpdate }: SortableBreakRowProps) {
 				</div>
 			</td>
 			<td className="w-12 px-0.5">
-				<input
-					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none focus:bg-accent focus:ring-1 focus:ring-ring"
+				<BlindLevelInput
 					defaultValue={row.minutes ?? ""}
 					inputMode="numeric"
 					key={`${row.id}-minutes`}
@@ -273,14 +288,16 @@ function SortableBreakRow({ row, onDelete, onUpdate }: SortableBreakRowProps) {
 				/>
 			</td>
 			<td className="w-8 px-0.5 text-center">
-				<button
+				<Button
 					aria-label="Delete break"
-					className="text-muted-foreground transition-colors hover:text-destructive"
+					className="text-muted-foreground hover:text-destructive"
 					onClick={() => onDelete(row.id)}
+					size="icon-xs"
 					type="button"
+					variant="ghost"
 				>
 					<IconTrash size={14} />
-				</button>
+				</Button>
 			</td>
 		</tr>
 	);
@@ -373,8 +390,7 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 				<span className="text-muted-foreground text-xs">+</span>
 			</td>
 			<td className="px-0.5">
-				<input
-					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/40 focus:bg-accent focus:ring-1 focus:ring-ring"
+				<BlindLevelInput
 					inputMode="numeric"
 					onBlur={handleBlind1Blur}
 					placeholder="SB"
@@ -383,8 +399,7 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 				/>
 			</td>
 			<td className="px-0.5">
-				<input
-					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/40 focus:bg-accent focus:ring-1 focus:ring-ring"
+				<BlindLevelInput
 					inputMode="numeric"
 					onBlur={handleBlind2Blur}
 					placeholder="BB"
@@ -393,8 +408,7 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 				/>
 			</td>
 			<td className="px-0.5">
-				<input
-					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/40 focus:bg-accent focus:ring-1 focus:ring-ring"
+				<BlindLevelInput
 					inputMode="numeric"
 					onBlur={handleAnteBlur}
 					placeholder="Ante"
@@ -403,8 +417,7 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 				/>
 			</td>
 			<td className="w-12 px-0.5">
-				<input
-					className="h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/40 focus:bg-accent focus:ring-1 focus:ring-ring"
+				<BlindLevelInput
 					inputMode="numeric"
 					onBlur={handleMinutesBlur}
 					placeholder="Min"
@@ -756,6 +769,7 @@ export function BlindLevelEditor({
 }: BlindLevelEditorProps) {
 	return (
 		<ResponsiveDialog
+			description="Manage blind levels, breaks, and ordering for this tournament structure."
 			fullHeight
 			onOpenChange={onOpenChange}
 			open={open}

@@ -2,8 +2,13 @@ import { useState } from "react";
 import { AddonBottomSheet } from "@/components/live-sessions/addon-bottom-sheet";
 import { AllInBottomSheet } from "@/components/live-sessions/all-in-bottom-sheet";
 import { EventBadge } from "@/components/live-sessions/event-badge";
+import {
+	StackBadgeRow,
+	StackNumberField,
+	StackPrimaryRow,
+	StackQuickActions,
+} from "@/components/live-sessions/stack-ui";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useStackFormContext } from "@/hooks/use-session-form";
 
 interface CashGameStackFormProps {
@@ -106,10 +111,9 @@ export function CashGameStackForm({
 	};
 
 	return (
-		<div className="flex flex-col gap-2">
-			{/* Row 1: Event badges */}
+		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
 			{allIns.length > 0 && (
-				<div className="flex gap-1.5 overflow-x-auto pb-1">
+				<StackBadgeRow>
 					{allIns.map((allIn) => (
 						<EventBadge
 							data={{
@@ -123,17 +127,17 @@ export function CashGameStackForm({
 							type="all-in"
 						/>
 					))}
-				</div>
+				</StackBadgeRow>
 			)}
 
-			{/* Row 2: Stack input + Update + End */}
-			<form className="flex items-center gap-2" onSubmit={handleSubmit}>
-				<Input
-					className="flex-1"
+			<StackPrimaryRow>
+				<StackNumberField
+					className="sm:min-w-[12rem]"
+					id="cash-stack-amount"
 					inputMode="numeric"
+					label="Current Stack"
 					min={0}
-					onChange={(e) => setStackAmount(e.target.value)}
-					placeholder="Stack"
+					onChange={setStackAmount}
 					required
 					type="number"
 					value={stackAmount}
@@ -149,10 +153,9 @@ export function CashGameStackForm({
 				>
 					End
 				</Button>
-			</form>
+			</StackPrimaryRow>
 
-			{/* Row 3: +All-in +Addon buttons */}
-			<div className="flex gap-2">
+			<StackQuickActions>
 				<Button
 					onClick={handleAddAllInClick}
 					size="xs"
@@ -169,9 +172,8 @@ export function CashGameStackForm({
 				>
 					+ Addon
 				</Button>
-			</div>
+			</StackQuickActions>
 
-			{/* Bottom sheets */}
 			<AllInBottomSheet
 				initialValues={editingAllIn ?? undefined}
 				onDelete={editingAllIn !== null ? handleAllInDelete : undefined}
@@ -185,6 +187,6 @@ export function CashGameStackForm({
 				onSubmit={handleAddonSubmit}
 				open={addonBottomSheetOpen}
 			/>
-		</div>
+		</form>
 	);
 }

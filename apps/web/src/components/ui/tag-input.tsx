@@ -1,5 +1,6 @@
 import { IconX } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { TagPickerBase } from "@/components/ui/tag-picker-base";
 
 interface Tag {
@@ -34,14 +35,16 @@ export function TagInput({
 			renderSelectedTag={(tag, handleRemove) => (
 				<Badge className="gap-1 pr-1" variant="outline">
 					{tag.name}
-					<button
+					<Button
 						aria-label={`Remove tag ${tag.name}`}
-						className="text-muted-foreground hover:text-foreground"
+						className="size-4 text-muted-foreground hover:text-foreground"
 						onClick={handleRemove}
+						size="icon-xs"
 						type="button"
+						variant="ghost"
 					>
 						<IconX size={10} />
-					</button>
+					</Button>
 				</Badge>
 			)}
 			renderSuggestion={(tag) => tag.name}

@@ -1,5 +1,6 @@
 import { IconX } from "@tabler/icons-react";
 import { ColorBadge } from "@/components/players/color-badge";
+import { Button } from "@/components/ui/button";
 import { TagPickerBase } from "@/components/ui/tag-picker-base";
 
 interface TagWithColor {
@@ -35,14 +36,16 @@ export function PlayerTagInput({
 			renderSelectedTag={(tag, handleRemove) => (
 				<ColorBadge className="gap-1 pr-1" color={tag.color}>
 					{tag.name}
-					<button
+					<Button
 						aria-label={`Remove tag ${tag.name}`}
-						className="opacity-70 hover:opacity-100"
+						className="size-4 opacity-70 hover:opacity-100"
 						onClick={handleRemove}
+						size="icon-xs"
 						type="button"
+						variant="ghost"
 					>
 						<IconX size={10} />
-					</button>
+					</Button>
 				</ColorBadge>
 			)}
 			renderSuggestion={(tag) => (

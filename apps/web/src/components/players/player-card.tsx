@@ -1,7 +1,7 @@
 import { IconNote } from "@tabler/icons-react";
 import { useEffect, useRef } from "react";
+import { EntityListItem } from "@/components/management/entity-list-item";
 import { ColorBadge } from "@/components/players/color-badge";
-import { ExpandableCard } from "@/components/ui/expandable-card";
 
 const ALLOWED_TAGS = new Set([
 	"P",
@@ -76,13 +76,15 @@ interface PlayerCardProps {
 
 export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
 	return (
-		<ExpandableCard
+		<EntityListItem
 			deleteLabel="player"
-			header={
-				<>
+			onDelete={() => onDelete(player.id)}
+			onEdit={() => onEdit(player)}
+			summary={
+				<div className="flex w-full items-start justify-between gap-3 text-left">
 					<div className="min-w-0 flex-1">
 						<span className="font-medium text-sm">{player.name}</span>
-						{player.tags.length > 0 && (
+						{player.tags.length > 0 ? (
 							<div className="mt-1 flex flex-wrap gap-1">
 								{player.tags.map((tag) => (
 									<ColorBadge color={tag.color} key={tag.id}>
@@ -90,18 +92,16 @@ export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
 									</ColorBadge>
 								))}
 							</div>
-						)}
+						) : null}
 					</div>
-					{player.memo && (
+					{player.memo ? (
 						<IconNote
 							className="mt-0.5 shrink-0 text-muted-foreground"
 							size={14}
 						/>
-					)}
-				</>
+					) : null}
+				</div>
 			}
-			onDelete={() => onDelete(player.id)}
-			onEdit={() => onEdit(player)}
 		>
 			{player.memo ? (
 				<SafeHtml
@@ -111,6 +111,6 @@ export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
 			) : (
 				<p className="text-muted-foreground text-xs">No memo yet.</p>
 			)}
-		</ExpandableCard>
+		</EntityListItem>
 	);
 }

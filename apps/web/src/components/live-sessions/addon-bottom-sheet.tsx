@@ -37,6 +37,7 @@ export function AddonBottomSheet({
 
 	return (
 		<ResponsiveDialog
+			description="Add or edit an addon amount for this stack update."
 			onOpenChange={onOpenChange}
 			open={open}
 			title={isEditMode ? "Edit Addon" : "Add Addon"}

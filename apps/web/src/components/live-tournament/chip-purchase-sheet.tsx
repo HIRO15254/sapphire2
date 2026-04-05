@@ -63,7 +63,12 @@ export function ChipPurchaseSheet({
 	}
 
 	return (
-		<ResponsiveDialog onOpenChange={onOpenChange} open={open} title={title}>
+		<ResponsiveDialog
+			description="Add, review, or edit a chip purchase entry for this tournament stack."
+			onOpenChange={onOpenChange}
+			open={open}
+			title={title}
+		>
 			<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
 				<Field htmlFor="chip-purchase-name" label="Name" required>
 					<Input

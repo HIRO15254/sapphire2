@@ -1,7 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { SessionCard } from "../session-card";
+
+vi.mock("@tanstack/react-router", () => ({
+	Link: ({ children, to }: { children: ReactNode; to: string }) => (
+		<a href={to}>{children}</a>
+	),
+}));
 
 function makeCashGameSession(
 	overrides: Record<string, unknown> = {}
@@ -231,5 +238,29 @@ describe("SessionCard", () => {
 		await user.click(screen.getByLabelText("Confirm delete"));
 
 		expect(onDelete).toHaveBeenCalledWith("s1");
+	});
+
+	it("shows events and reopen actions for live sessions", async () => {
+		const user = userEvent.setup();
+		const onReopen = vi.fn();
+		const session = makeCashGameSession({
+			liveCashGameSessionId: "live-1",
+		});
+
+		render(
+			<SessionCard
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				onReopen={onReopen}
+				session={session}
+			/>
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+
+		expect(screen.getByRole("link", { name: "Events" })).toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Reopen" }));
+		expect(onReopen).toHaveBeenCalledWith("live-1");
 	});
 });

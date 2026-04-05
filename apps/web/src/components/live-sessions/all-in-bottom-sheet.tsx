@@ -67,6 +67,7 @@ export function AllInBottomSheet({
 
 	return (
 		<ResponsiveDialog
+			description="Capture the pot size, equity, and result for an all-in spot."
 			onOpenChange={onOpenChange}
 			open={open}
 			title={isEditMode ? "Edit All-in" : "Add All-in"}

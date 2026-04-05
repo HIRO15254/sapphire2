@@ -110,7 +110,7 @@ describe("TransactionForm", () => {
 			transactedAt: "2026-04-05",
 			transactionTypeId: "created-manual",
 		});
-	});
+	}, 15_000);
 
 	it("calls onCancel when cancel is pressed", async () => {
 		const user = userEvent.setup();

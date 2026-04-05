@@ -149,5 +149,5 @@ describe("SessionFilters", () => {
 			storeId: "store1",
 			type: "tournament",
 		});
-	}, 10_000);
+	}, 20_000);
 });

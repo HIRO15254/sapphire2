@@ -6,11 +6,14 @@ import {
 	toTimeInputValue,
 	validateOccurredAtTime,
 } from "@/components/live-sessions/stack-editor-time";
+import {
+	StackBadgeRow,
+	StackEditorActionRow,
+	StackNumberField,
+	StackSectionHeader,
+	StackTimeField,
+} from "@/components/live-sessions/stack-ui";
 import { Button } from "@/components/ui/button";
-import { DialogActionRow } from "@/components/ui/dialog-action-row";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface AllIn {
 	equity: number;
@@ -114,46 +117,39 @@ export function StackRecordEditor({
 	return (
 		<div className="flex flex-col gap-4">
 			{initialOccurredAt && (
-				<Field error={timeError} htmlFor="edit-time" label="Time">
-					<Input
-						id="edit-time"
-						onChange={(e) => setTime(e.target.value)}
-						type="time"
-						value={time}
-					/>
-				</Field>
+				<StackTimeField error={timeError} onChange={setTime} value={time} />
 			)}
 
-			<Field htmlFor="edit-stackAmount" label="Stack Amount" required>
-				<Input
-					id="edit-stackAmount"
-					inputMode="numeric"
-					min={0}
-					onChange={(e) => setStackAmount(e.target.value)}
-					required
-					type="number"
-					value={stackAmount}
-				/>
-			</Field>
+			<StackNumberField
+				id="edit-stackAmount"
+				inputMode="numeric"
+				label="Stack Amount"
+				min={0}
+				onChange={setStackAmount}
+				required
+				type="number"
+				value={stackAmount}
+			/>
 
-			{/* All-ins */}
 			<div className="flex flex-col gap-2">
-				<div className="flex items-center justify-between">
-					<Label>All-ins</Label>
-					<Button
-						onClick={() => {
-							setEditingAllIn(null);
-							setAllInSheetOpen(true);
-						}}
-						size="xs"
-						type="button"
-						variant="ghost"
-					>
-						+ All-in
-					</Button>
-				</div>
-				{allIns.length > 0 && (
-					<div className="flex flex-wrap gap-1.5">
+				<StackSectionHeader
+					action={
+						<Button
+							onClick={() => {
+								setEditingAllIn(null);
+								setAllInSheetOpen(true);
+							}}
+							size="xs"
+							type="button"
+							variant="ghost"
+						>
+							+ All-in
+						</Button>
+					}
+					title="All-ins"
+				/>
+				{allIns.length > 0 ? (
+					<StackBadgeRow className="pb-0">
 						{allIns.map((allIn) => (
 							<EventBadge
 								data={{
@@ -170,23 +166,16 @@ export function StackRecordEditor({
 								type="all-in"
 							/>
 						))}
-					</div>
-				)}
+					</StackBadgeRow>
+				) : null}
 			</div>
 
-			{/* Actions */}
-			<DialogActionRow>
-				<Button onClick={onDelete} type="button" variant="destructive">
-					Delete
-				</Button>
-				<Button
-					disabled={isLoading || timeError !== null}
-					onClick={handleSave}
-					type="button"
-				>
-					{isLoading ? "Saving..." : "Save"}
-				</Button>
-			</DialogActionRow>
+			<StackEditorActionRow
+				isLoading={isLoading}
+				onDelete={onDelete}
+				onSave={handleSave}
+				saveDisabled={timeError !== null}
+			/>
 
 			<AllInBottomSheet
 				initialValues={editingAllIn ?? undefined}

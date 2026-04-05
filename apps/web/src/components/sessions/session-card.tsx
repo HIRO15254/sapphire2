@@ -7,8 +7,9 @@ import {
 	IconTrophy,
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
+import { EntityListItem } from "@/components/management/entity-list-item";
 import { Badge } from "@/components/ui/badge";
-import { ExpandableCard } from "@/components/ui/expandable-card";
+import { Button } from "@/components/ui/button";
 import { formatCompactNumber } from "@/utils/format-number";
 
 interface SessionCardProps {
@@ -226,7 +227,6 @@ function SessionHeader({ session }: { session: SessionCardProps["session"] }) {
 
 	return (
 		<>
-			{/* Left column: game info */}
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-center gap-1.5">
 					<span className="truncate font-medium text-sm">{gameName}</span>
@@ -260,8 +260,6 @@ function SessionHeader({ session }: { session: SessionCardProps["session"] }) {
 					</span>
 				</div>
 			</div>
-
-			{/* Right column: P&L + sub info */}
 			<div className="flex shrink-0 flex-col items-end">
 				<span className={`font-semibold text-sm ${profitColorClass}`}>
 					{formatProfitLoss(profitLoss, session.currencyUnit)}
@@ -301,11 +299,15 @@ export function SessionCard({
 		session.liveCashGameSessionId ?? session.liveTournamentSessionId;
 
 	return (
-		<ExpandableCard
+		<EntityListItem
 			deleteLabel="session"
-			header={<SessionHeader session={session} />}
 			onDelete={() => onDelete(session.id)}
 			onEdit={() => onEdit(session)}
+			summary={
+				<div className="flex w-full items-start justify-between gap-3 pr-1 text-left">
+					<SessionHeader session={session} />
+				</div>
+			}
 		>
 			<div className="flex flex-col gap-1 text-xs">
 				{isTournament ? (
@@ -322,30 +324,33 @@ export function SessionCard({
 				)}
 				{liveSessionId && (
 					<div className="mt-2 flex items-center gap-2 border-t pt-2">
-						<Link
-							className="inline-flex items-center gap-1 text-primary text-xs hover:underline"
-							params={{
-								sessionType: isTournament ? "tournament" : "cash-game",
-								sessionId: liveSessionId,
-							}}
-							to="/live-sessions/$sessionType/$sessionId/events"
-						>
-							<IconList size={12} />
-							Events
-						</Link>
+						<Button asChild className="px-0" size="xs" variant="link">
+							<Link
+								params={{
+									sessionType: isTournament ? "tournament" : "cash-game",
+									sessionId: liveSessionId,
+								}}
+								to="/live-sessions/$sessionType/$sessionId/events"
+							>
+								<IconList size={12} />
+								Events
+							</Link>
+						</Button>
 						{onReopen && (
-							<button
-								className="inline-flex items-center gap-1 text-primary text-xs hover:underline"
+							<Button
+								className="px-0"
 								onClick={() => onReopen(liveSessionId)}
+								size="xs"
 								type="button"
+								variant="link"
 							>
 								<IconPlayerPlay size={12} />
 								Reopen
-							</button>
+							</Button>
 						)}
 					</div>
 				)}
 			</div>
-		</ExpandableCard>
+		</EntityListItem>
 	);
 }

@@ -154,7 +154,7 @@ function StoresPage() {
 					icon={<IconBuildingStore size={48} />}
 				/>
 			) : (
-				<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+				<div className="flex flex-col gap-2">
 					{stores.map((store) => (
 						<StoreCard
 							key={store.id}
