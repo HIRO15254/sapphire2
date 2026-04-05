@@ -29,6 +29,24 @@ app.use("/*", (c, next) => {
 	return corsMiddleware(c, next);
 });
 
+app.post("/api/auth/set-password", async (c) => {
+	const db = createDb(c.env.DB);
+	const auth = createAuth(db, {
+		corsOrigin: c.env.CORS_ORIGIN,
+		secret: c.env.BETTER_AUTH_SECRET,
+		baseURL: c.env.BETTER_AUTH_URL,
+		googleClientId: c.env.GOOGLE_CLIENT_ID,
+		googleClientSecret: c.env.GOOGLE_CLIENT_SECRET,
+		discordClientId: c.env.DISCORD_CLIENT_ID,
+		discordClientSecret: c.env.DISCORD_CLIENT_SECRET,
+	});
+	const result = await auth.api.setPassword({
+		headers: c.req.raw.headers,
+		body: await c.req.json(),
+	});
+	return c.json(result);
+});
+
 app.on(["POST", "GET"], "/api/auth/*", (c) => {
 	const db = createDb(c.env.DB);
 	const auth = createAuth(db, {

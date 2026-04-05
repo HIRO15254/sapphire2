@@ -1,13 +1,28 @@
-import { createFileRoute } from "@tanstack/react-router";
+import {
+	IconCheck,
+	IconLogout,
+	IconPencil,
+	IconTrash,
+	IconX,
+} from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { LinkedAccounts } from "@/components/linked-accounts";
 import { SessionTagManager } from "@/components/management/session-tag-manager";
 import { TransactionTypeManager } from "@/components/stores/transaction-type-manager";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { authClient } from "@/lib/auth-client";
+import { trpc, trpcClient } from "@/utils/trpc";
 
 export const Route = createFileRoute("/settings")({
 	component: SettingsComponent,
 });
 
 function SettingsComponent() {
+	const navigate = useNavigate();
+
 	return (
 		<div className="container mx-auto max-w-3xl px-4 py-2">
 			<h1 className="font-bold text-2xl">Settings</h1>
@@ -34,6 +49,24 @@ function SettingsComponent() {
 			<section className="mt-8">
 				<h2 className="mb-4 font-semibold text-lg">Session Tags</h2>
 				<SessionTagManager />
+			</section>
+
+			<section className="mt-8 border-t pt-6">
+				<Button
+					onClick={() => {
+						authClient.signOut({
+							fetchOptions: {
+								onSuccess: () => {
+									navigate({ to: "/" });
+								},
+							},
+						});
+					}}
+					variant="destructive"
+				>
+					<IconLogout size={16} />
+					Sign Out
+				</Button>
 			</section>
 		</div>
 	);
