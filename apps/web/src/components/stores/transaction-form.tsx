@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DialogActionRow } from "@/components/ui/dialog-action-row";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,6 +26,7 @@ interface TransactionFormValues {
 interface TransactionFormProps {
 	defaultValues?: TransactionFormValues;
 	isLoading?: boolean;
+	onCancel?: () => void;
 	onSubmit: (values: TransactionFormValues) => void;
 }
 
@@ -44,6 +46,7 @@ function getButtonLabel(isCreatingType: boolean, isLoading: boolean) {
 
 export function TransactionForm({
 	onSubmit,
+	onCancel,
 	defaultValues,
 	isLoading = false,
 }: TransactionFormProps) {
@@ -148,9 +151,16 @@ export function TransactionForm({
 					placeholder="Optional note"
 				/>
 			</Field>
-			<Button disabled={isLoading || isCreatingType} type="submit">
-				{getButtonLabel(isCreatingType, isLoading)}
-			</Button>
+			<DialogActionRow>
+				{onCancel ? (
+					<Button onClick={onCancel} type="button" variant="outline">
+						Cancel
+					</Button>
+				) : null}
+				<Button disabled={isLoading || isCreatingType} type="submit">
+					{getButtonLabel(isCreatingType, isLoading)}
+				</Button>
+			</DialogActionRow>
 		</form>
 	);
 }

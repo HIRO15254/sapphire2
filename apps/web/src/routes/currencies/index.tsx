@@ -2,10 +2,13 @@ import { IconCoins, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { ExpandableItemList } from "@/components/management/expandable-item-list";
+import { PageHeader } from "@/components/page-header";
 import { CurrencyCard } from "@/components/stores/currency-card";
 import { CurrencyForm } from "@/components/stores/currency-form";
 import { TransactionForm } from "@/components/stores/transaction-form";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -303,13 +306,11 @@ function CurrenciesPage() {
 		}
 	};
 
-	const toggleExpand = (id: string) => {
+	const handleExpandedCurrencyChange = (id: string | null) => {
 		setExpandedCurrencyId((prev) => {
-			if (prev === id) {
+			if (prev !== id) {
 				resetTransactionState();
-				return null;
 			}
-			resetTransactionState();
 			return id;
 		});
 	};
@@ -321,28 +322,34 @@ function CurrenciesPage() {
 
 	return (
 		<div className="p-4 md:p-6">
-			<div className="mb-6 flex items-center justify-between">
-				<h1 className="font-bold text-2xl">Currencies</h1>
-				<Button onClick={() => setIsCreateOpen(true)}>
-					<IconPlus size={16} />
-					New Currency
-				</Button>
-			</div>
-
-			{currencies.length === 0 ? (
-				<div className="flex flex-col items-center justify-center gap-4 py-16 text-muted-foreground">
-					<IconCoins size={48} />
-					<p className="text-lg">No currencies yet</p>
-					<p className="text-sm">
-						Create your first currency to start tracking balances.
-					</p>
-					<Button onClick={() => setIsCreateOpen(true)} variant="outline">
+			<PageHeader
+				actions={
+					<Button onClick={() => setIsCreateOpen(true)}>
 						<IconPlus size={16} />
 						New Currency
 					</Button>
-				</div>
+				}
+				description="Track balances and manual transactions for each currency."
+				heading="Currencies"
+			/>
+
+			{currencies.length === 0 ? (
+				<EmptyState
+					action={
+						<Button onClick={() => setIsCreateOpen(true)} variant="outline">
+							<IconPlus size={16} />
+							New Currency
+						</Button>
+					}
+					description="Create your first currency to start tracking balances."
+					heading="No currencies yet"
+					icon={<IconCoins size={48} />}
+				/>
 			) : (
-				<div className="flex flex-col gap-2">
+				<ExpandableItemList
+					onValueChange={handleExpandedCurrencyChange}
+					value={expandedCurrencyId}
+				>
 					{currencies.map((c) => (
 						<CurrencyCard
 							currency={c}
@@ -358,22 +365,27 @@ function CurrenciesPage() {
 							onEdit={setEditingCurrency}
 							onEditTransaction={setEditingTransaction}
 							onLoadMore={handleLoadMore}
-							onToggleExpand={() => toggleExpand(c.id)}
 							transactions={expandedCurrencyId === c.id ? allTransactions : []}
 						/>
 					))}
-				</div>
+				</ExpandableItemList>
 			)}
 
 			<ResponsiveDialog
+				description="Create a currency to track balances and manual transactions."
 				onOpenChange={setIsCreateOpen}
 				open={isCreateOpen}
 				title="New Currency"
 			>
-				<CurrencyForm isLoading={isSubmittingCreate} onSubmit={handleCreate} />
+				<CurrencyForm
+					isLoading={isSubmittingCreate}
+					onCancel={() => setIsCreateOpen(false)}
+					onSubmit={handleCreate}
+				/>
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
+				description="Update the currency name or unit shown across balances."
 				onOpenChange={(open) => {
 					if (!open) {
 						setEditingCurrency(null);
@@ -389,12 +401,14 @@ function CurrenciesPage() {
 							unit: editingCurrency.unit ?? undefined,
 						}}
 						isLoading={isSubmittingUpdate}
+						onCancel={() => setEditingCurrency(null)}
 						onSubmit={handleUpdate}
 					/>
 				)}
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
+				description="Record a manual balance change for this currency."
 				onOpenChange={(open) => {
 					if (!open) {
 						setAddTransactionCurrencyId(null);
@@ -405,11 +419,13 @@ function CurrenciesPage() {
 			>
 				<TransactionForm
 					isLoading={isSubmittingAddTransaction}
+					onCancel={() => setAddTransactionCurrencyId(null)}
 					onSubmit={handleAddTransaction}
 				/>
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
+				description="Update the type, amount, date, or memo for this transaction."
 				onOpenChange={(open) => {
 					if (!open) {
 						setEditingTransaction(null);
@@ -430,6 +446,7 @@ function CurrenciesPage() {
 							memo: editingTransaction.memo ?? undefined,
 						}}
 						isLoading={isSubmittingEditTransaction}
+						onCancel={() => setEditingTransaction(null)}
 						onSubmit={handleEditTransaction}
 					/>
 				)}

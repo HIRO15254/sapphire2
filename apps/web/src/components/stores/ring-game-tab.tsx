@@ -12,6 +12,8 @@ import {
 	ExpandableItem,
 	ExpandableItemList,
 } from "@/components/management/expandable-item-list";
+import { ManagementSectionHeader } from "@/components/management/management-section-header";
+import { ManagementSectionState } from "@/components/management/management-section-state";
 import { RingGameForm } from "@/components/stores/ring-game-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -124,18 +126,12 @@ function ArchivedRingGameSection({
 	...handlers
 }: ArchivedRingGameSectionProps) {
 	if (isLoading) {
-		return (
-			<p className="py-1 text-center text-[11px] text-muted-foreground">
-				Loading archived...
-			</p>
-		);
+		return <ManagementSectionState>Loading archived...</ManagementSectionState>;
 	}
 
 	if (games.length === 0) {
 		return (
-			<p className="py-1 text-center text-[11px] text-muted-foreground">
-				No archived cash games.
-			</p>
+			<ManagementSectionState>No archived cash games.</ManagementSectionState>
 		);
 	}
 
@@ -177,18 +173,16 @@ function RingGameContent({
 }: RingGameContentProps) {
 	if (isLoading) {
 		return (
-			<p className="py-2 text-center text-muted-foreground text-xs">
+			<ManagementSectionState className="py-2 text-xs">
 				Loading...
-			</p>
+			</ManagementSectionState>
 		);
 	}
 
 	return (
 		<>
 			{activeGames.length === 0 && !showArchived && (
-				<p className="py-1 text-center text-[11px] text-muted-foreground">
-					No cash games yet.
-				</p>
+				<ManagementSectionState>No cash games yet.</ManagementSectionState>
 			)}
 			<RingGameList
 				currencies={currencies}
@@ -522,11 +516,17 @@ export function RingGameTab({
 
 	return (
 		<div>
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-1">
-					<span className="font-medium text-muted-foreground text-xs">
-						Cash Games
-					</span>
+			<ManagementSectionHeader
+				action={
+					<Button
+						onClick={() => setIsCreateOpen(true)}
+						size="icon-xs"
+						variant="ghost"
+					>
+						<IconPlus size={12} />
+					</Button>
+				}
+				controls={
 					<Button
 						aria-label={
 							showArchived ? "Hide archived games" : "Show archived games"
@@ -541,15 +541,9 @@ export function RingGameTab({
 							<IconArchive className="text-muted-foreground" size={12} />
 						)}
 					</Button>
-				</div>
-				<Button
-					onClick={() => setIsCreateOpen(true)}
-					size="icon-xs"
-					variant="ghost"
-				>
-					<IconPlus size={12} />
-				</Button>
-			</div>
+				}
+				heading="Cash Games"
+			/>
 
 			<RingGameContent
 				activeGames={activeGames}

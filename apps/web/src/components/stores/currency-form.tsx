@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { DialogActionRow } from "@/components/ui/dialog-action-row";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
@@ -10,11 +11,13 @@ interface CurrencyFormValues {
 interface CurrencyFormProps {
 	defaultValues?: CurrencyFormValues;
 	isLoading?: boolean;
+	onCancel?: () => void;
 	onSubmit: (values: CurrencyFormValues) => void;
 }
 
 export function CurrencyForm({
 	onSubmit,
+	onCancel,
 	defaultValues,
 	isLoading = false,
 }: CurrencyFormProps) {
@@ -45,9 +48,16 @@ export function CurrencyForm({
 					placeholder="e.g. G, pts"
 				/>
 			</Field>
-			<Button disabled={isLoading} type="submit">
-				{isLoading ? "Saving..." : "Save"}
-			</Button>
+			<DialogActionRow>
+				{onCancel ? (
+					<Button onClick={onCancel} type="button" variant="outline">
+						Cancel
+					</Button>
+				) : null}
+				<Button disabled={isLoading} type="submit">
+					{isLoading ? "Saving..." : "Save"}
+				</Button>
+			</DialogActionRow>
 		</form>
 	);
 }

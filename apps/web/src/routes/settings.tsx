@@ -1,20 +1,10 @@
-import {
-	IconCheck,
-	IconLogout,
-	IconPencil,
-	IconTrash,
-	IconX,
-} from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { IconLogout } from "@tabler/icons-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { LinkedAccounts } from "@/components/linked-accounts";
 import { SessionTagManager } from "@/components/management/session-tag-manager";
 import { TransactionTypeManager } from "@/components/stores/transaction-type-manager";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
-import { trpc, trpcClient } from "@/utils/trpc";
 
 export const Route = createFileRoute("/settings")({
 	component: SettingsComponent,

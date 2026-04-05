@@ -13,6 +13,8 @@ import {
 	ExpandableItem,
 	ExpandableItemList,
 } from "@/components/management/expandable-item-list";
+import { ManagementSectionHeader } from "@/components/management/management-section-header";
+import { ManagementSectionState } from "@/components/management/management-section-state";
 import { BlindLevelEditor } from "@/components/stores/blind-level-editor";
 import { TournamentForm } from "@/components/stores/tournament-form";
 import { Badge } from "@/components/ui/badge";
@@ -139,18 +141,12 @@ function ArchivedTournamentSection({
 	...handlers
 }: ArchivedTournamentSectionProps) {
 	if (isLoading) {
-		return (
-			<p className="py-1 text-center text-[11px] text-muted-foreground">
-				Loading archived...
-			</p>
-		);
+		return <ManagementSectionState>Loading archived...</ManagementSectionState>;
 	}
 
 	if (tournaments.length === 0) {
 		return (
-			<p className="py-1 text-center text-[11px] text-muted-foreground">
-				No archived tournaments.
-			</p>
+			<ManagementSectionState>No archived tournaments.</ManagementSectionState>
 		);
 	}
 
@@ -189,18 +185,16 @@ function TournamentContent({
 }: TournamentContentProps) {
 	if (isLoading) {
 		return (
-			<p className="py-2 text-center text-muted-foreground text-xs">
+			<ManagementSectionState className="py-2 text-xs">
 				Loading...
-			</p>
+			</ManagementSectionState>
 		);
 	}
 
 	return (
 		<>
 			{activeTournaments.length === 0 && !showArchived && (
-				<p className="py-1 text-center text-[11px] text-muted-foreground">
-					No tournaments yet.
-				</p>
+				<ManagementSectionState>No tournaments yet.</ManagementSectionState>
 			)}
 			<TournamentList
 				expandedGameId={expandedGameId}
@@ -765,11 +759,17 @@ export function TournamentTab({
 
 	return (
 		<div>
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-1">
-					<span className="font-medium text-muted-foreground text-xs">
-						Tournaments
-					</span>
+			<ManagementSectionHeader
+				action={
+					<Button
+						onClick={() => setIsCreateOpen(true)}
+						size="icon-xs"
+						variant="ghost"
+					>
+						<IconPlus size={12} />
+					</Button>
+				}
+				controls={
 					<Button
 						aria-label={
 							showArchived
@@ -786,15 +786,9 @@ export function TournamentTab({
 							<IconArchive className="text-muted-foreground" size={12} />
 						)}
 					</Button>
-				</div>
-				<Button
-					onClick={() => setIsCreateOpen(true)}
-					size="icon-xs"
-					variant="ghost"
-				>
-					<IconPlus size={12} />
-				</Button>
-			</div>
+				}
+				heading="Tournaments"
+			/>
 
 			<TournamentContent
 				activeTournaments={activeTournaments}
