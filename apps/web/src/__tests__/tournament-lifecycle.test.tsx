@@ -109,6 +109,12 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 		player: {
+			list: {
+				queryOptions: (args?: unknown) => ({
+					queryKey: ["players", args],
+					queryFn: () => mockQuery("player-list", args),
+				}),
+			},
 			getById: {
 				queryOptions: (args: { id: string }) => ({
 					queryKey: ["player", args.id],

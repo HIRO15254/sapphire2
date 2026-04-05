@@ -27,12 +27,30 @@ interface PlayerTagWithColor {
 	name: string;
 }
 
+interface PlayerTagQueryItem extends PlayerTagWithColor {
+	createdAt: string;
+	updatedAt: string;
+	userId: string;
+}
+
 interface PlayerDetailValues {
 	memo?: string | null;
 	tagIds?: string[];
 }
 
 interface PlayerDetailData {
+	id: string;
+	memo: string | null;
+	name: string;
+	tags: PlayerTagWithColor[];
+}
+
+interface SessionDetailWithHeroSeat {
+	heroSeatPosition?: number | null;
+	[key: string]: unknown;
+}
+
+interface PlayerListItemWithTags {
 	id: string;
 	memo: string | null;
 	name: string;
@@ -91,13 +109,21 @@ function usePokerTableInteraction(
 						id: sessionId,
 						heroSeatPosition: nextSeatPosition,
 					}),
-		onMutate: (nextSeatPosition) => {
+		onMutate: async (nextSeatPosition) => {
+			await queryClient.cancelQueries({ queryKey: sessionKey });
+			const previousSession = queryClient.getQueryData(sessionKey);
+			queryClient.setQueryData<SessionDetailWithHeroSeat>(sessionKey, (old) =>
+				old ? { ...old, heroSeatPosition: nextSeatPosition } : old
+			);
 			const previousSeat =
 				localHeroSeat !== undefined ? localHeroSeat : heroSeatPosition;
 			setLocalHeroSeat(nextSeatPosition);
-			return { previousSeat };
+			return { previousSeat, previousSession };
 		},
 		onError: (_error, _variables, context) => {
+			if (context?.previousSession) {
+				queryClient.setQueryData(sessionKey, context.previousSession);
+			}
 			setLocalHeroSeat(context?.previousSeat ?? undefined);
 		},
 		onSettled: async () => {
@@ -145,6 +171,7 @@ function usePlayerDetail(playerId: string | null) {
 		id: playerId ?? "",
 	}).queryKey;
 	const tagsKey = trpc.playerTag.list.queryOptions().queryKey;
+	const playerListKey = trpc.player.list.queryOptions().queryKey;
 
 	const updateMutation = useMutation({
 		mutationFn: (values: {
@@ -152,13 +179,80 @@ function usePlayerDetail(playerId: string | null) {
 			memo?: string | null;
 			tagIds?: string[];
 		}) => trpcClient.player.update.mutate(values),
+		onMutate: async (values) => {
+			await queryClient.cancelQueries({ queryKey: playerKey });
+			const previousPlayer = queryClient.getQueryData(playerKey);
+			const previousLists = queryClient.getQueriesData({
+				queryKey: playerListKey,
+			});
+			const nextTags =
+				values.tagIds === undefined
+					? (previousPlayer?.tags ?? [])
+					: (tagsQuery.data ?? []).filter((tag) =>
+							values.tagIds?.includes(tag.id)
+						);
+			queryClient.setQueryData<PlayerDetailData | null>(playerKey, (old) =>
+				old
+					? {
+							...old,
+							memo: values.memo ?? old.memo,
+							tags: nextTags as PlayerTagWithColor[],
+						}
+					: old
+			);
+			queryClient.setQueriesData<PlayerListItemWithTags[]>(
+				{ queryKey: playerListKey },
+				(old) =>
+					old?.map((player) =>
+						player.id === values.id
+							? {
+									...player,
+									memo: values.memo ?? player.memo,
+									tags: nextTags as PlayerTagWithColor[],
+								}
+							: player
+					)
+			);
+			return { previousLists, previousPlayer };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousPlayer) {
+				queryClient.setQueryData(playerKey, context.previousPlayer);
+			}
+			for (const [queryKey, data] of context?.previousLists ?? []) {
+				queryClient.setQueryData(queryKey, data);
+			}
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: playerKey });
+			queryClient.invalidateQueries({ queryKey: playerListKey });
 		},
 	});
 
 	const createTagMutation = useMutation({
 		mutationFn: (name: string) => trpcClient.playerTag.create.mutate({ name }),
+		onMutate: async (name) => {
+			await queryClient.cancelQueries({ queryKey: tagsKey });
+			const previousTags = queryClient.getQueryData(tagsKey);
+			const optimisticTag: PlayerTagQueryItem = {
+				color: "gray",
+				createdAt: new Date().toISOString(),
+				id: `temp-tag-${Date.now()}`,
+				name,
+				updatedAt: new Date().toISOString(),
+				userId: "",
+			};
+			queryClient.setQueryData<PlayerTagQueryItem[]>(tagsKey, (old) => [
+				...(old ?? []),
+				optimisticTag,
+			]);
+			return { previousTags };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousTags) {
+				queryClient.setQueryData(tagsKey, context.previousTags);
+			}
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: tagsKey });
 		},

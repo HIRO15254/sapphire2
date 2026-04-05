@@ -96,6 +96,7 @@ export function PlayerTagManager() {
 
 	const queryClient = useQueryClient();
 	const tagListKey = trpc.playerTag.list.queryOptions().queryKey;
+	const playerListKey = trpc.player.list.queryOptions().queryKey;
 
 	const tagsQuery = useQuery(trpc.playerTag.list.queryOptions());
 	const tags = tagsQuery.data ?? [];
@@ -103,6 +104,36 @@ export function PlayerTagManager() {
 	const createMutation = useMutation({
 		mutationFn: (values: TagFormValues) =>
 			trpcClient.playerTag.create.mutate(values),
+		onMutate: async (newTag) => {
+			await queryClient.cancelQueries({ queryKey: tagListKey });
+			const previous = queryClient.getQueryData(tagListKey);
+			queryClient.setQueryData<
+				Array<{
+					color: string;
+					createdAt?: string;
+					id: string;
+					name: string;
+					updatedAt?: string;
+					userId?: string;
+				}>
+			>(tagListKey, (old) => [
+				...(old ?? []),
+				{
+					id: `temp-tag-${Date.now()}`,
+					name: newTag.name,
+					color: newTag.color,
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+					userId: "",
+				},
+			]);
+			return { previous };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(tagListKey, context.previous);
+			}
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: tagListKey });
 		},
@@ -114,10 +145,47 @@ export function PlayerTagManager() {
 	const updateMutation = useMutation({
 		mutationFn: (values: TagFormValues & { id: string }) =>
 			trpcClient.playerTag.update.mutate(values),
+		onMutate: async (updated) => {
+			await queryClient.cancelQueries({ queryKey: tagListKey });
+			const previousTags = queryClient.getQueryData(tagListKey);
+			const previousPlayers = queryClient.getQueriesData({
+				queryKey: playerListKey,
+			});
+			queryClient.setQueryData<TagItem[]>(
+				tagListKey,
+				(old) =>
+					old?.map((tag) =>
+						tag.id === updated.id
+							? { ...tag, name: updated.name, color: updated.color }
+							: tag
+					) ?? []
+			);
+			queryClient.setQueriesData<Array<{ tags: TagItem[] }>>(
+				{ queryKey: playerListKey },
+				(old) =>
+					old?.map((player) => ({
+						...player,
+						tags: player.tags.map((tag) =>
+							tag.id === updated.id
+								? { ...tag, name: updated.name, color: updated.color }
+								: tag
+						),
+					}))
+			);
+			return { previousPlayers, previousTags };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousTags) {
+				queryClient.setQueryData(tagListKey, context.previousTags);
+			}
+			for (const [queryKey, data] of context?.previousPlayers ?? []) {
+				queryClient.setQueryData(queryKey, data);
+			}
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: tagListKey });
 			queryClient.invalidateQueries({
-				queryKey: trpc.player.list.queryOptions().queryKey,
+				queryKey: playerListKey,
 			});
 		},
 		onSuccess: () => {
@@ -127,10 +195,38 @@ export function PlayerTagManager() {
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.playerTag.delete.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({ queryKey: tagListKey });
+			const previousTags = queryClient.getQueryData(tagListKey);
+			const previousPlayers = queryClient.getQueriesData({
+				queryKey: playerListKey,
+			});
+			queryClient.setQueryData<TagItem[]>(
+				tagListKey,
+				(old) => old?.filter((tag) => tag.id !== id) ?? []
+			);
+			queryClient.setQueriesData<Array<{ tags: TagItem[] }>>(
+				{ queryKey: playerListKey },
+				(old) =>
+					old?.map((player) => ({
+						...player,
+						tags: player.tags.filter((tag) => tag.id !== id),
+					}))
+			);
+			return { previousPlayers, previousTags };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousTags) {
+				queryClient.setQueryData(tagListKey, context.previousTags);
+			}
+			for (const [queryKey, data] of context?.previousPlayers ?? []) {
+				queryClient.setQueryData(queryKey, data);
+			}
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: tagListKey });
 			queryClient.invalidateQueries({
-				queryKey: trpc.player.list.queryOptions().queryKey,
+				queryKey: playerListKey,
 			});
 		},
 		onSuccess: () => {

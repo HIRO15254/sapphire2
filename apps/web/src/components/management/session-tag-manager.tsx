@@ -24,6 +24,21 @@ export function SessionTagManager() {
 	const updateMutation = useMutation({
 		mutationFn: ({ id, name }: { id: string; name: string }) =>
 			trpcClient.sessionTag.update.mutate({ id, name }),
+		onMutate: async ({ id, name }) => {
+			await queryClient.cancelQueries({ queryKey: tagsKey });
+			const previous = queryClient.getQueryData(tagsKey);
+			queryClient.setQueryData<SessionTag[]>(
+				tagsKey,
+				(old) =>
+					old?.map((tag) => (tag.id === id ? { ...tag, name } : tag)) ?? []
+			);
+			return { previous };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(tagsKey, context.previous);
+			}
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: tagsKey });
 		},
@@ -35,6 +50,20 @@ export function SessionTagManager() {
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.sessionTag.delete.mutate({ id }),
+		onMutate: async (id) => {
+			await queryClient.cancelQueries({ queryKey: tagsKey });
+			const previous = queryClient.getQueryData(tagsKey);
+			queryClient.setQueryData<SessionTag[]>(
+				tagsKey,
+				(old) => old?.filter((tag) => tag.id !== id) ?? []
+			);
+			return { previous };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(tagsKey, context.previous);
+			}
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: tagsKey });
 		},

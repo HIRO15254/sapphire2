@@ -32,6 +32,11 @@ export interface SessionEvent {
 	payload: unknown;
 }
 
+interface SessionSummaryData {
+	summary?: Record<string, unknown>;
+	[key: string]: unknown;
+}
+
 type SessionType = "cash_game" | "tournament";
 
 interface SessionEventsSceneProps {
@@ -218,6 +223,127 @@ function normalizeTournamentStackPayload(
 				}>)
 			: [],
 	};
+}
+
+function applyChipAddSummary(
+	summary: Record<string, unknown>,
+	payload: Record<string, unknown>
+) {
+	if (typeof payload.amount !== "number") {
+		return;
+	}
+
+	if (typeof summary.currentStack === "number") {
+		summary.currentStack = payload.amount;
+	}
+}
+
+function applyStackRecordSummary(
+	summary: Record<string, unknown>,
+	payload: Record<string, unknown>
+) {
+	if (typeof payload.stackAmount === "number") {
+		summary.currentStack = payload.stackAmount;
+	}
+
+	if (Array.isArray(payload.allIns)) {
+		summary.addonCount = payload.allIns.length;
+	}
+}
+
+function getChipPurchaseCountTotal(items: unknown[]) {
+	return items.reduce<number>(
+		(total, item) =>
+			total +
+			(typeof (item as { count?: unknown }).count === "number"
+				? (item as { count: number }).count
+				: 0),
+		0
+	);
+}
+
+function applyTournamentStackSummary(
+	summary: Record<string, unknown>,
+	payload: Record<string, unknown>
+) {
+	const typedPayload = payload as {
+		chipPurchaseCounts?: unknown[];
+		remainingPlayers?: number | null;
+		stackAmount?: number;
+		totalEntries?: number | null;
+	};
+
+	if (typeof typedPayload.stackAmount === "number") {
+		summary.currentStack = typedPayload.stackAmount;
+	}
+
+	if (typeof typedPayload.remainingPlayers === "number") {
+		summary.remainingPlayers = typedPayload.remainingPlayers;
+	}
+
+	if (typeof typedPayload.totalEntries === "number") {
+		summary.totalEntries = typedPayload.totalEntries;
+	}
+
+	if (Array.isArray(typedPayload.chipPurchaseCounts)) {
+		summary.totalChipPurchases = getChipPurchaseCountTotal(
+			typedPayload.chipPurchaseCounts
+		);
+	}
+}
+
+function applyTournamentResultSummary(
+	summary: Record<string, unknown>,
+	payload: Record<string, unknown>
+) {
+	const typedPayload = payload as {
+		bountyPrizes?: number | null;
+		prizeMoney?: number;
+		totalEntries?: number;
+	};
+
+	if (typeof typedPayload.totalEntries === "number") {
+		summary.totalEntries = typedPayload.totalEntries;
+	}
+
+	if (typeof typedPayload.prizeMoney === "number") {
+		summary.profitLoss =
+			typedPayload.prizeMoney +
+			(typeof typedPayload.bountyPrizes === "number"
+				? typedPayload.bountyPrizes
+				: 0);
+	}
+}
+
+function buildOptimisticSessionSummary(
+	summary: Record<string, unknown>,
+	eventType: string,
+	payload: Record<string, unknown>,
+	occurredAt?: number
+) {
+	const nextSummary = { ...summary };
+
+	if (eventType === "chip_add") {
+		applyChipAddSummary(nextSummary, payload);
+	}
+
+	if (eventType === "stack_record") {
+		applyStackRecordSummary(nextSummary, payload);
+	}
+
+	if (eventType === "tournament_stack_record") {
+		applyTournamentStackSummary(nextSummary, payload);
+	}
+
+	if (eventType === "tournament_result") {
+		applyTournamentResultSummary(nextSummary, payload);
+	}
+
+	if (occurredAt) {
+		nextSummary.lastUpdatedAt = occurredAt;
+	}
+
+	return nextSummary;
 }
 
 function renderStackRecordDetail(payload: Record<string, unknown>) {
@@ -634,6 +760,27 @@ export function SessionEventsScene({
 					.queryKey
 			: trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
 					.queryKey;
+	const applyEventSummaryToSession = (
+		event: SessionEvent,
+		payload: unknown,
+		occurredAt?: number
+	) => {
+		queryClient.setQueryData<SessionSummaryData>(sessionKey, (old) => {
+			if (!(old?.summary && payload) || typeof payload !== "object") {
+				return old;
+			}
+
+			return {
+				...old,
+				summary: buildOptimisticSessionSummary(
+					old.summary,
+					event.eventType,
+					payload as Record<string, unknown>,
+					occurredAt
+				),
+			};
+		});
+	};
 	const invalidateAll = async () => {
 		await Promise.all([
 			queryClient.invalidateQueries({ queryKey: eventsQueryOptions.queryKey }),
@@ -646,6 +793,47 @@ export function SessionEventsScene({
 			occurredAt?: number;
 			payload?: unknown;
 		}) => trpcClient.sessionEvent.update.mutate(args),
+		onMutate: async (args) => {
+			await Promise.all([
+				queryClient.cancelQueries({ queryKey: eventsQueryOptions.queryKey }),
+				queryClient.cancelQueries({ queryKey: sessionKey }),
+			]);
+			const previousEvents = queryClient.getQueryData(
+				eventsQueryOptions.queryKey
+			);
+			const previousSession = queryClient.getQueryData(sessionKey);
+			const targetEvent = events.find((event) => event.id === args.id);
+			queryClient.setQueryData<SessionEvent[]>(
+				eventsQueryOptions.queryKey,
+				(old) =>
+					old?.map((event) =>
+						event.id === args.id
+							? {
+									...event,
+									occurredAt: args.occurredAt
+										? new Date(args.occurredAt * 1000).toISOString()
+										: event.occurredAt,
+									payload: args.payload ?? event.payload,
+								}
+							: event
+					) ?? []
+			);
+			if (targetEvent && args.payload) {
+				applyEventSummaryToSession(targetEvent, args.payload, args.occurredAt);
+			}
+			return { previousEvents, previousSession };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousEvents) {
+				queryClient.setQueryData(
+					eventsQueryOptions.queryKey,
+					context.previousEvents
+				);
+			}
+			if (context?.previousSession) {
+				queryClient.setQueryData(sessionKey, context.previousSession);
+			}
+		},
 		onSuccess: async () => {
 			await invalidateAll();
 			setEditEvent(null);
@@ -653,6 +841,32 @@ export function SessionEventsScene({
 	});
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.sessionEvent.delete.mutate({ id }),
+		onMutate: async (id) => {
+			await Promise.all([
+				queryClient.cancelQueries({ queryKey: eventsQueryOptions.queryKey }),
+				queryClient.cancelQueries({ queryKey: sessionKey }),
+			]);
+			const previousEvents = queryClient.getQueryData(
+				eventsQueryOptions.queryKey
+			);
+			const previousSession = queryClient.getQueryData(sessionKey);
+			queryClient.setQueryData<SessionEvent[]>(
+				eventsQueryOptions.queryKey,
+				(old) => old?.filter((event) => event.id !== id) ?? []
+			);
+			return { previousEvents, previousSession };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousEvents) {
+				queryClient.setQueryData(
+					eventsQueryOptions.queryKey,
+					context.previousEvents
+				);
+			}
+			if (context?.previousSession) {
+				queryClient.setQueryData(sessionKey, context.previousSession);
+			}
+		},
 		onSuccess: async () => {
 			await invalidateAll();
 			setEditEvent(null);

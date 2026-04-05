@@ -36,11 +36,12 @@ interface ChipPurchase {
 }
 
 interface Tournament {
-	archivedAt: Date | string | null;
+	archivedAt: string | null;
 	blindLevelCount: number;
 	bountyAmount: number | null;
 	buyIn: number | null;
 	chipPurchases: ChipPurchase[];
+	createdAt: string;
 	currencyId: string | null;
 	entryFee: number | null;
 	id: string;
@@ -50,6 +51,7 @@ interface Tournament {
 	storeId: string;
 	tableSize: number | null;
 	tags: { id: string; name: string }[];
+	updatedAt: string;
 	variant: string;
 }
 
@@ -71,6 +73,49 @@ interface TournamentFormValues {
 	tableSize?: number;
 	tags?: string[];
 	variant: string;
+}
+
+function buildOptimisticTournament(
+	storeId: string,
+	values: TournamentFormValues,
+	id: string,
+	existing?: Tournament
+): Tournament {
+	return {
+		archivedAt: existing?.archivedAt ?? null,
+		blindLevelCount: existing?.blindLevelCount ?? 0,
+		bountyAmount: values.bountyAmount ?? null,
+		buyIn: values.buyIn ?? null,
+		chipPurchases:
+			values.chipPurchases?.map((chipPurchase, index) => ({
+				chips: chipPurchase.chips,
+				cost: chipPurchase.cost,
+				id: `${id}-chip-${String(index)}`,
+				name: chipPurchase.name,
+				sortOrder: index,
+			})) ?? [],
+		currencyId: values.currencyId ?? null,
+		entryFee: values.entryFee ?? null,
+		id,
+		memo: values.memo ?? null,
+		name: values.name,
+		startingStack: values.startingStack ?? null,
+		storeId,
+		tableSize: values.tableSize ?? null,
+		createdAt: existing?.createdAt ?? new Date().toISOString(),
+		tags:
+			values.tags?.map((tagName, index) => {
+				const existingTag = existing?.tags.find((tag) => tag.name === tagName);
+				return {
+					id: existingTag?.id ?? `${id}-tag-${String(index)}`,
+					name: tagName,
+				};
+			}) ??
+			existing?.tags ??
+			[],
+		updatedAt: new Date().toISOString(),
+		variant: values.variant,
+	};
 }
 
 interface TournamentTabProps {
@@ -686,6 +731,44 @@ export function TournamentTab({
 			}
 			return created;
 		},
+		onMutate: async (values) => {
+			await Promise.all([
+				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
+				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			]);
+			const previousActive = queryClient.getQueryData(
+				activeQueryOptions.queryKey
+			);
+			const previousArchived = queryClient.getQueryData(
+				archivedQueryOptions.queryKey
+			);
+			queryClient.setQueryData<Tournament[]>(
+				activeQueryOptions.queryKey,
+				(old) => [
+					...(old ?? []),
+					buildOptimisticTournament(
+						storeId,
+						values,
+						`temp-tournament-${Date.now()}`
+					),
+				]
+			);
+			return { previousActive, previousArchived };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousActive) {
+				queryClient.setQueryData(
+					activeQueryOptions.queryKey,
+					context.previousActive
+				);
+			}
+			if (context?.previousArchived) {
+				queryClient.setQueryData(
+					archivedQueryOptions.queryKey,
+					context.previousArchived
+				);
+			}
+		},
 		onSettled: invalidateBoth,
 		onSuccess: () => {
 			setIsCreateOpen(false);
@@ -718,6 +801,41 @@ export function TournamentTab({
 			);
 			return updated;
 		},
+		onMutate: async (values) => {
+			await Promise.all([
+				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
+				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			]);
+			const previousActive = queryClient.getQueryData(
+				activeQueryOptions.queryKey
+			);
+			const previousArchived = queryClient.getQueryData(
+				archivedQueryOptions.queryKey
+			);
+			const applyUpdate = (old: Tournament[] | undefined) =>
+				old?.map((tournament) =>
+					tournament.id === values.id
+						? buildOptimisticTournament(storeId, values, values.id, tournament)
+						: tournament
+				) ?? [];
+			queryClient.setQueryData(activeQueryOptions.queryKey, applyUpdate);
+			queryClient.setQueryData(archivedQueryOptions.queryKey, applyUpdate);
+			return { previousActive, previousArchived };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousActive) {
+				queryClient.setQueryData(
+					activeQueryOptions.queryKey,
+					context.previousActive
+				);
+			}
+			if (context?.previousArchived) {
+				queryClient.setQueryData(
+					archivedQueryOptions.queryKey,
+					context.previousArchived
+				);
+			}
+		},
 		onSettled: invalidateBoth,
 		onSuccess: () => {
 			setEditingTournament(null);
@@ -726,16 +844,134 @@ export function TournamentTab({
 
 	const archiveMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.archive.mutate({ id }),
+		onMutate: async (id) => {
+			await Promise.all([
+				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
+				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			]);
+			const previousActive = queryClient.getQueryData(
+				activeQueryOptions.queryKey
+			);
+			const previousArchived = queryClient.getQueryData(
+				archivedQueryOptions.queryKey
+			);
+			const archivedTournament = (
+				previousActive as Tournament[] | undefined
+			)?.find((tournament) => tournament.id === id);
+			queryClient.setQueryData<Tournament[]>(
+				activeQueryOptions.queryKey,
+				(old) => old?.filter((tournament) => tournament.id !== id) ?? []
+			);
+			if (archivedTournament) {
+				queryClient.setQueryData<Tournament[]>(
+					archivedQueryOptions.queryKey,
+					(old) => [
+						...(old ?? []),
+						{ ...archivedTournament, archivedAt: new Date().toISOString() },
+					]
+				);
+			}
+			return { previousActive, previousArchived };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousActive) {
+				queryClient.setQueryData(
+					activeQueryOptions.queryKey,
+					context.previousActive
+				);
+			}
+			if (context?.previousArchived) {
+				queryClient.setQueryData(
+					archivedQueryOptions.queryKey,
+					context.previousArchived
+				);
+			}
+		},
 		onSettled: invalidateBoth,
 	});
 
 	const restoreMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.restore.mutate({ id }),
+		onMutate: async (id) => {
+			await Promise.all([
+				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
+				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			]);
+			const previousActive = queryClient.getQueryData(
+				activeQueryOptions.queryKey
+			);
+			const previousArchived = queryClient.getQueryData(
+				archivedQueryOptions.queryKey
+			);
+			const restoredTournament = (
+				previousArchived as Tournament[] | undefined
+			)?.find((tournament) => tournament.id === id);
+			queryClient.setQueryData<Tournament[]>(
+				archivedQueryOptions.queryKey,
+				(old) => old?.filter((tournament) => tournament.id !== id) ?? []
+			);
+			if (restoredTournament) {
+				queryClient.setQueryData<Tournament[]>(
+					activeQueryOptions.queryKey,
+					(old) => [...(old ?? []), { ...restoredTournament, archivedAt: null }]
+				);
+			}
+			return { previousActive, previousArchived };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousActive) {
+				queryClient.setQueryData(
+					activeQueryOptions.queryKey,
+					context.previousActive
+				);
+			}
+			if (context?.previousArchived) {
+				queryClient.setQueryData(
+					archivedQueryOptions.queryKey,
+					context.previousArchived
+				);
+			}
+		},
 		onSettled: invalidateBoth,
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.delete.mutate({ id }),
+		onMutate: async (id) => {
+			await Promise.all([
+				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
+				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			]);
+			const previousActive = queryClient.getQueryData(
+				activeQueryOptions.queryKey
+			);
+			const previousArchived = queryClient.getQueryData(
+				archivedQueryOptions.queryKey
+			);
+			queryClient.setQueryData<Tournament[]>(
+				activeQueryOptions.queryKey,
+				(old) => old?.filter((tournament) => tournament.id !== id) ?? []
+			);
+			queryClient.setQueryData<Tournament[]>(
+				archivedQueryOptions.queryKey,
+				(old) => old?.filter((tournament) => tournament.id !== id) ?? []
+			);
+			return { previousActive, previousArchived };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousActive) {
+				queryClient.setQueryData(
+					activeQueryOptions.queryKey,
+					context.previousActive
+				);
+			}
+			if (context?.previousArchived) {
+				queryClient.setQueryData(
+					archivedQueryOptions.queryKey,
+					context.previousArchived
+				);
+			}
+		},
 		onSettled: invalidateBoth,
 	});
 

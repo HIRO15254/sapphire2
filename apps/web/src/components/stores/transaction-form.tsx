@@ -65,6 +65,34 @@ export function TransactionForm({
 	const createTypeMutation = useMutation({
 		mutationFn: (name: string) =>
 			trpcClient.transactionType.create.mutate({ name }),
+		onMutate: async (name) => {
+			await queryClient.cancelQueries({ queryKey: typeListKey });
+			const previous = queryClient.getQueryData(typeListKey);
+			queryClient.setQueryData<
+				Array<{
+					createdAt?: string;
+					id: string;
+					name: string;
+					updatedAt?: string;
+					userId?: string;
+				}>
+			>(typeListKey, (old) => [
+				...(old ?? []),
+				{
+					createdAt: new Date().toISOString(),
+					id: `temp-type-${Date.now()}`,
+					name,
+					updatedAt: new Date().toISOString(),
+					userId: "",
+				},
+			]);
+			return { previous };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previous) {
+				queryClient.setQueryData(typeListKey, context.previous);
+			}
+		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: typeListKey });
 		},
