@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TournamentForm } from "../tournament-form";
 
@@ -86,6 +87,28 @@ describe("TournamentForm", () => {
 				memo: "late reg open\n15 minute levels",
 				chipPurchases: [],
 				tags: [],
+			})
+		);
+	});
+
+	it("submits tags added through the combobox", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+
+		render(<TournamentForm onSubmit={onSubmit} />);
+
+		fireEvent.change(screen.getByLabelText("Tournament Name *"), {
+			target: { value: "Nightly Deepstack" },
+		});
+		await user.type(screen.getByLabelText("Search tags"), "Series");
+		await user.keyboard("{Enter}");
+
+		fireEvent.submit(getForm());
+
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "Nightly Deepstack",
+				tags: ["Series"],
 			})
 		);
 	});

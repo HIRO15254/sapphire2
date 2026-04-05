@@ -1,10 +1,7 @@
-import { IconFilter } from "@tabler/icons-react";
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DialogActionRow } from "@/components/ui/dialog-action-row";
+import { FilterDialogShell } from "@/components/filter-dialog-shell";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import {
 	Select,
 	SelectContent,
@@ -76,148 +73,123 @@ export function SessionFilters({
 	};
 
 	return (
-		<>
-			<Button
-				className="relative"
-				onClick={handleOpen}
-				size="sm"
-				variant="outline"
-			>
-				<IconFilter size={16} />
-				Filter
-				{activeCount > 0 && (
-					<Badge className="ml-1 h-4 min-w-4 px-1 text-[10px]">
-						{activeCount}
-					</Badge>
-				)}
-			</Button>
-
-			<ResponsiveDialog
-				onOpenChange={(open) => {
-					if (!open) {
-						setIsOpen(false);
+		<FilterDialogShell
+			activeCount={activeCount}
+			description="Refine the session list by type, venue, currency, or date."
+			onApply={handleApply}
+			onOpen={handleOpen}
+			onOpenChange={(open) => {
+				if (!open) {
+					setIsOpen(false);
+				}
+			}}
+			onReset={handleReset}
+			open={isOpen}
+			title="Filters"
+		>
+			<Field label="Type">
+				<Select
+					onValueChange={(value) =>
+						setDraft({
+							...draft,
+							type:
+								value === "all"
+									? undefined
+									: (value as "cash_game" | "tournament"),
+						})
 					}
-				}}
-				open={isOpen}
-				title="Filters"
-			>
-				<div className="flex flex-col gap-4">
-					<div className="flex flex-col gap-1.5">
-						<span className="font-medium text-sm">Type</span>
-						<Select
-							onValueChange={(value) =>
-								setDraft({
-									...draft,
-									type:
-										value === "all"
-											? undefined
-											: (value as "cash_game" | "tournament"),
-								})
-							}
-							value={draft.type ?? "all"}
-						>
-							<SelectTrigger aria-label="Type" className="w-full">
-								<SelectValue placeholder="All Types" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Types</SelectItem>
-								<SelectItem value="cash_game">Cash Game</SelectItem>
-								<SelectItem value="tournament">Tournament</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
+					value={draft.type ?? "all"}
+				>
+					<SelectTrigger aria-label="Type" className="w-full">
+						<SelectValue placeholder="All Types" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">All Types</SelectItem>
+						<SelectItem value="cash_game">Cash Game</SelectItem>
+						<SelectItem value="tournament">Tournament</SelectItem>
+					</SelectContent>
+				</Select>
+			</Field>
 
-					<div className="flex flex-col gap-1.5">
-						<span className="font-medium text-sm">Store</span>
-						<Select
-							onValueChange={(value) =>
-								setDraft({
-									...draft,
-									storeId: value === "all" ? undefined : value,
-								})
-							}
-							value={draft.storeId ?? "all"}
-						>
-							<SelectTrigger aria-label="Store" className="w-full">
-								<SelectValue placeholder="All Stores" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Stores</SelectItem>
-								{stores.map((s) => (
-									<SelectItem key={s.id} value={s.id}>
-										{s.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
+			<Field label="Store">
+				<Select
+					onValueChange={(value) =>
+						setDraft({
+							...draft,
+							storeId: value === "all" ? undefined : value,
+						})
+					}
+					value={draft.storeId ?? "all"}
+				>
+					<SelectTrigger aria-label="Store" className="w-full">
+						<SelectValue placeholder="All Stores" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">All Stores</SelectItem>
+						{stores.map((store) => (
+							<SelectItem key={store.id} value={store.id}>
+								{store.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</Field>
 
-					<div className="flex flex-col gap-1.5">
-						<span className="font-medium text-sm">Currency</span>
-						<Select
-							onValueChange={(value) =>
-								setDraft({
-									...draft,
-									currencyId: value === "all" ? undefined : value,
-								})
-							}
-							value={draft.currencyId ?? "all"}
-						>
-							<SelectTrigger aria-label="Currency" className="w-full">
-								<SelectValue placeholder="All Currencies" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All Currencies</SelectItem>
-								{currencies.map((c) => (
-									<SelectItem key={c.id} value={c.id}>
-										{c.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
+			<Field label="Currency">
+				<Select
+					onValueChange={(value) =>
+						setDraft({
+							...draft,
+							currencyId: value === "all" ? undefined : value,
+						})
+					}
+					value={draft.currencyId ?? "all"}
+				>
+					<SelectTrigger aria-label="Currency" className="w-full">
+						<SelectValue placeholder="All Currencies" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">All Currencies</SelectItem>
+						{currencies.map((currency) => (
+							<SelectItem key={currency.id} value={currency.id}>
+								{currency.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</Field>
 
-					<div className="flex flex-col gap-1.5">
-						<span className="font-medium text-sm">Date Range</span>
-						<div className="flex items-center gap-2">
-							<Input
-								className="flex-1"
-								onChange={(e) =>
-									setDraft({
-										...draft,
-										dateFrom: e.target.value || undefined,
-									})
-								}
-								placeholder="From"
-								type="date"
-								value={draft.dateFrom ?? ""}
-							/>
-							<span className="text-muted-foreground text-sm">~</span>
-							<Input
-								className="flex-1"
-								onChange={(e) =>
-									setDraft({
-										...draft,
-										dateTo: e.target.value || undefined,
-									})
-								}
-								placeholder="To"
-								type="date"
-								value={draft.dateTo ?? ""}
-							/>
-						</div>
-					</div>
-
-					<DialogActionRow className="sm:justify-stretch">
-						<Button className="flex-1" onClick={handleReset} variant="outline">
-							Reset
-						</Button>
-						<Button className="flex-1" onClick={handleApply}>
-							Apply
-						</Button>
-					</DialogActionRow>
+			<Field label="Date Range">
+				<div className="flex items-center gap-2">
+					<Input
+						aria-label="Date From"
+						className="flex-1"
+						onChange={(event) =>
+							setDraft({
+								...draft,
+								dateFrom: event.target.value || undefined,
+							})
+						}
+						placeholder="From"
+						type="date"
+						value={draft.dateFrom ?? ""}
+					/>
+					<span className="text-muted-foreground text-sm">~</span>
+					<Input
+						aria-label="Date To"
+						className="flex-1"
+						onChange={(event) =>
+							setDraft({
+								...draft,
+								dateTo: event.target.value || undefined,
+							})
+						}
+						placeholder="To"
+						type="date"
+						value={draft.dateTo ?? ""}
+					/>
 				</div>
-			</ResponsiveDialog>
-		</>
+			</Field>
+		</FilterDialogShell>
 	);
 }

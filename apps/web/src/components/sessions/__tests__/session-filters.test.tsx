@@ -17,6 +17,18 @@ beforeAll(() => {
 			dispatchEvent: vi.fn(),
 		})),
 	});
+	Object.defineProperty(HTMLElement.prototype, "hasPointerCapture", {
+		configurable: true,
+		value: vi.fn(() => false),
+	});
+	Object.defineProperty(HTMLElement.prototype, "releasePointerCapture", {
+		configurable: true,
+		value: vi.fn(),
+	});
+	Object.defineProperty(HTMLElement.prototype, "setPointerCapture", {
+		configurable: true,
+		value: vi.fn(),
+	});
 });
 
 const stores = [
@@ -104,5 +116,38 @@ describe("SessionFilters", () => {
 		await user.click(screen.getByText("Reset"));
 
 		expect(onFiltersChange).toHaveBeenCalledWith({});
+	});
+
+	it("applies the draft filter values", async () => {
+		const user = userEvent.setup();
+		const onFiltersChange = vi.fn();
+
+		render(
+			<SessionFilters
+				currencies={currencies}
+				filters={{}}
+				onFiltersChange={onFiltersChange}
+				stores={stores}
+			/>
+		);
+
+		await user.click(screen.getByText("Filter"));
+		await user.click(screen.getByLabelText("Type"));
+		await user.click(screen.getByText("Tournament"));
+		await user.click(screen.getByLabelText("Store"));
+		await user.click(screen.getByText("Poker Palace"));
+		await user.click(screen.getByLabelText("Currency"));
+		await user.click(screen.getByText("Points"));
+		await user.type(screen.getByLabelText("Date From"), "2026-04-01");
+		await user.type(screen.getByLabelText("Date To"), "2026-04-30");
+		await user.click(screen.getByText("Apply"));
+
+		expect(onFiltersChange).toHaveBeenCalledWith({
+			currencyId: "cur2",
+			dateFrom: "2026-04-01",
+			dateTo: "2026-04-30",
+			storeId: "store1",
+			type: "tournament",
+		});
 	});
 });
