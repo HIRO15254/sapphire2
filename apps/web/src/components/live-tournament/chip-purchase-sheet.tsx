@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DialogActionRow } from "@/components/ui/dialog-action-row";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 
 interface ChipPurchaseSheetProps {
@@ -64,8 +65,7 @@ export function ChipPurchaseSheet({
 	return (
 		<ResponsiveDialog onOpenChange={onOpenChange} open={open} title={title}>
 			<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="chip-purchase-name">Name</Label>
+				<Field htmlFor="chip-purchase-name" label="Name" required>
 					<Input
 						disabled={readOnly}
 						id="chip-purchase-name"
@@ -75,9 +75,8 @@ export function ChipPurchaseSheet({
 						type="text"
 						value={name}
 					/>
-				</div>
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="chip-purchase-cost">Cost</Label>
+				</Field>
+				<Field htmlFor="chip-purchase-cost" label="Cost" required>
 					<Input
 						disabled={readOnly}
 						id="chip-purchase-cost"
@@ -88,9 +87,8 @@ export function ChipPurchaseSheet({
 						type="number"
 						value={cost}
 					/>
-				</div>
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="chip-purchase-chips">Chips Received</Label>
+				</Field>
+				<Field htmlFor="chip-purchase-chips" label="Chips Received" required>
 					<Input
 						disabled={readOnly}
 						id="chip-purchase-chips"
@@ -101,19 +99,26 @@ export function ChipPurchaseSheet({
 						type="number"
 						value={chips}
 					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					{!readOnly && (
+				</Field>
+				<DialogActionRow>
+					<Button
+						onClick={() => onOpenChange(false)}
+						type="button"
+						variant="outline"
+					>
+						Cancel
+					</Button>
+					{onDelete ? (
+						<Button onClick={onDelete} type="button" variant="destructive">
+							Delete
+						</Button>
+					) : null}
+					{readOnly ? null : (
 						<Button type="submit">
 							{isEditMode ? "Save" : "Add Chip Purchase"}
 						</Button>
 					)}
-					{onDelete && (
-						<Button onClick={onDelete} type="button" variant="destructive">
-							Delete
-						</Button>
-					)}
-				</div>
+				</DialogActionRow>
 			</form>
 		</ResponsiveDialog>
 	);

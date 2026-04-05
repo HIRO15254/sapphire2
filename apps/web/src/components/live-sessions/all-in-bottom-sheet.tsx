@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DialogActionRow } from "@/components/ui/dialog-action-row";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 
 interface AllIn {
@@ -71,8 +72,7 @@ export function AllInBottomSheet({
 			title={isEditMode ? "Edit All-in" : "Add All-in"}
 		>
 			<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="allIn-potSize">Pot Size</Label>
+				<Field htmlFor="allIn-potSize" label="Pot Size" required>
 					<Input
 						id="allIn-potSize"
 						min={0}
@@ -82,9 +82,8 @@ export function AllInBottomSheet({
 						type="number"
 						value={potSize}
 					/>
-				</div>
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="allIn-trials">Trials</Label>
+				</Field>
+				<Field htmlFor="allIn-trials" label="Trials" required>
 					<Input
 						id="allIn-trials"
 						min={1}
@@ -94,9 +93,8 @@ export function AllInBottomSheet({
 						type="number"
 						value={trials}
 					/>
-				</div>
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="allIn-equity">Equity %</Label>
+				</Field>
+				<Field htmlFor="allIn-equity" label="Equity %">
 					<Input
 						id="allIn-equity"
 						max={100}
@@ -106,14 +104,12 @@ export function AllInBottomSheet({
 						type="number"
 						value={equity}
 					/>
-				</div>
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="allIn-wins">
-						Wins{" "}
-						<span className="text-muted-foreground text-xs">
-							(decimal allowed for chop)
-						</span>
-					</Label>
+				</Field>
+				<Field
+					description="Decimal values are allowed for chopped pots."
+					htmlFor="allIn-wins"
+					label="Wins"
+				>
 					<Input
 						id="allIn-wins"
 						min={0}
@@ -122,20 +118,27 @@ export function AllInBottomSheet({
 						type="number"
 						value={wins}
 					/>
-				</div>
+				</Field>
 				<div className="rounded-lg bg-muted p-3 text-sm">
 					<p>EV Amount: {evAmount.toFixed(2)}</p>
 					<p>Actual: {actual.toFixed(2)}</p>
 					<p>EV Diff: {evDiff.toFixed(2)}</p>
 				</div>
-				<div className="flex flex-col gap-2">
-					<Button type="submit">{isEditMode ? "Save" : "Add All-in"}</Button>
-					{onDelete && (
+				<DialogActionRow>
+					<Button
+						onClick={() => onOpenChange(false)}
+						type="button"
+						variant="outline"
+					>
+						Cancel
+					</Button>
+					{onDelete ? (
 						<Button onClick={onDelete} type="button" variant="destructive">
 							Delete
 						</Button>
-					)}
-				</div>
+					) : null}
+					<Button type="submit">{isEditMode ? "Save" : "Add All-in"}</Button>
+				</DialogActionRow>
 			</form>
 		</ResponsiveDialog>
 	);

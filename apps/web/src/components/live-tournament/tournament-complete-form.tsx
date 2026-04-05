@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
+import { DialogActionRow } from "@/components/ui/dialog-action-row";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface TournamentCompleteFormProps {
 	isLoading: boolean;
@@ -30,10 +31,7 @@ export function TournamentCompleteForm({
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="placement">
-					Placement <span className="text-destructive">*</span>
-				</Label>
+			<Field htmlFor="placement" label="Placement" required>
 				<Input
 					id="placement"
 					inputMode="numeric"
@@ -43,12 +41,9 @@ export function TournamentCompleteForm({
 					required
 					type="number"
 				/>
-			</div>
+			</Field>
 
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="totalEntries">
-					Total Entries <span className="text-destructive">*</span>
-				</Label>
+			<Field htmlFor="totalEntries" label="Total Entries" required>
 				<Input
 					id="totalEntries"
 					inputMode="numeric"
@@ -58,12 +53,9 @@ export function TournamentCompleteForm({
 					required
 					type="number"
 				/>
-			</div>
+			</Field>
 
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="prizeMoney">
-					Prize Money <span className="text-destructive">*</span>
-				</Label>
+			<Field htmlFor="prizeMoney" label="Prize Money" required>
 				<Input
 					defaultValue={0}
 					id="prizeMoney"
@@ -74,10 +66,9 @@ export function TournamentCompleteForm({
 					required
 					type="number"
 				/>
-			</div>
+			</Field>
 
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="bountyPrizes">Bounty Prizes</Label>
+			<Field htmlFor="bountyPrizes" label="Bounty Prizes">
 				<Input
 					id="bountyPrizes"
 					inputMode="numeric"
@@ -86,11 +77,13 @@ export function TournamentCompleteForm({
 					placeholder="0"
 					type="number"
 				/>
-			</div>
+			</Field>
 
-			<Button className="mt-2" disabled={isLoading} type="submit">
-				{isLoading ? "Completing..." : "Complete Tournament"}
-			</Button>
+			<DialogActionRow>
+				<Button disabled={isLoading} type="submit">
+					{isLoading ? "Completing..." : "Complete Tournament"}
+				</Button>
+			</DialogActionRow>
 		</form>
 	);
 }

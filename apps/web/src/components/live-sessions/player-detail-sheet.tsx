@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { ColorBadge } from "@/components/players/color-badge";
 import { PlayerTagInput } from "@/components/players/player-tag-input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { DialogActionRow } from "@/components/ui/dialog-action-row";
+import { Field } from "@/components/ui/field";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 
@@ -69,8 +70,7 @@ export function PlayerDetailSheet({
 			title={player?.name ?? "Player"}
 		>
 			<div className="flex flex-col gap-6">
-				<div className="flex flex-col gap-2">
-					<Label>Tags</Label>
+				<Field label="Tags">
 					{selectedTags.length > 0 && (
 						<div className="flex flex-wrap gap-1">
 							{selectedTags.map((tag) => (
@@ -89,18 +89,14 @@ export function PlayerDetailSheet({
 						}
 						selectedTags={selectedTags}
 					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Label>Memo</Label>
+				</Field>
+				<Field label="Memo">
 					<RichTextEditor
 						initialContent={player?.memo}
 						onChange={handleMemoChange}
 					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Button disabled={isSaving} onClick={handleSave} type="button">
-						{isSaving ? "Saving..." : "Save"}
-					</Button>
+				</Field>
+				<DialogActionRow>
 					<Button
 						className="border-destructive text-destructive hover:bg-destructive/10"
 						onClick={onRemove}
@@ -109,7 +105,10 @@ export function PlayerDetailSheet({
 					>
 						Remove from table
 					</Button>
-				</div>
+					<Button disabled={isSaving} onClick={handleSave} type="button">
+						{isSaving ? "Saving..." : "Save"}
+					</Button>
+				</DialogActionRow>
 			</div>
 		</ResponsiveDialog>
 	);

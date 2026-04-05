@@ -2,11 +2,13 @@ import { IconPlus, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DialogActionRow } from "@/components/ui/dialog-action-row";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/utils/trpc";
 
 interface AddPlayerSheetProps {
@@ -86,21 +88,21 @@ export function AddPlayerSheet({
 
 				{tab === "existing" && (
 					<div className="flex flex-col gap-2">
-						{/* Search input */}
 						<div className="relative">
 							<IconSearch
 								className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
 								size={16}
 							/>
 							<Input
+								aria-label="Search players"
 								className="pl-9"
+								id="add-player-search"
 								onChange={(e) => setSearch(e.target.value)}
 								placeholder="Search players..."
 								value={search}
 							/>
 						</div>
 
-						{/* Player list */}
 						<div className="max-h-[40vh] overflow-y-auto">
 							{filteredPlayers.length === 0 && (
 								<EmptyState
@@ -112,11 +114,12 @@ export function AddPlayerSheet({
 								/>
 							)}
 							{filteredPlayers.map((p) => (
-								<button
-									className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-muted"
+								<Button
+									className="h-auto w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left"
 									key={p.id}
 									onClick={() => handleAddExisting(p.id, p.name)}
 									type="button"
+									variant="ghost"
 								>
 									<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary text-xs">
 										{p.name.slice(0, 2).toUpperCase()}
@@ -133,7 +136,7 @@ export function AddPlayerSheet({
 										className="shrink-0 text-muted-foreground"
 										size={16}
 									/>
-								</button>
+								</Button>
 							))}
 						</div>
 					</div>
@@ -141,7 +144,7 @@ export function AddPlayerSheet({
 
 				{tab === "new" && (
 					<form className="flex flex-col gap-4" onSubmit={handleAddNew}>
-						<Field htmlFor="new-player-name" label="Name">
+						<Field htmlFor="new-player-name" label="Name" required>
 							<Input
 								id="new-player-name"
 								onChange={(e) => setNewName(e.target.value)}
@@ -151,14 +154,24 @@ export function AddPlayerSheet({
 							/>
 						</Field>
 						<Field htmlFor="new-player-memo" label="Memo (optional)">
-							<Input
+							<Textarea
 								id="new-player-memo"
 								onChange={(e) => setNewMemo(e.target.value)}
 								placeholder="Notes about this player"
+								rows={4}
 								value={newMemo}
 							/>
 						</Field>
-						<Button type="submit">Add Player</Button>
+						<DialogActionRow>
+							<Button
+								onClick={() => onOpenChange(false)}
+								type="button"
+								variant="outline"
+							>
+								Cancel
+							</Button>
+							<Button type="submit">Add Player</Button>
+						</DialogActionRow>
 					</form>
 				)}
 			</div>

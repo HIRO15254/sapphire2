@@ -97,6 +97,7 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
+				description="Enter the final stack to complete this cash game session."
 				onOpenChange={setIsCompleteOpen}
 				open={isCompleteOpen}
 				title="Complete Session"
@@ -218,6 +219,7 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
+				description="Enter the tournament result to complete this live session."
 				onOpenChange={setIsCompleteOpen}
 				open={isCompleteOpen}
 				title="Complete Tournament"

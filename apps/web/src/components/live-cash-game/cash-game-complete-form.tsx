@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
+import { DialogActionRow } from "@/components/ui/dialog-action-row";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 interface CashGameCompleteFormProps {
 	defaultFinalStack?: number;
@@ -23,10 +24,7 @@ export function CashGameCompleteForm({
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="finalStack">
-					Final Stack <span className="text-destructive">*</span>
-				</Label>
+			<Field htmlFor="finalStack" label="Final Stack" required>
 				<Input
 					defaultValue={defaultFinalStack ?? ""}
 					id="finalStack"
@@ -37,11 +35,13 @@ export function CashGameCompleteForm({
 					required
 					type="number"
 				/>
-			</div>
+			</Field>
 
-			<Button className="mt-2" disabled={isLoading} type="submit">
-				{isLoading ? "Completing..." : "Complete Session"}
-			</Button>
+			<DialogActionRow>
+				<Button disabled={isLoading} type="submit">
+					{isLoading ? "Completing..." : "Complete Session"}
+				</Button>
+			</DialogActionRow>
 		</form>
 	);
 }

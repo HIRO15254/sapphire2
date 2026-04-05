@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
 import {
 	Drawer,
 	DrawerContent,
+	DrawerDescription,
 	DrawerHeader,
 	DrawerTitle,
 } from "@/components/ui/drawer";
@@ -17,6 +19,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 
 interface ResponsiveDialogProps {
 	children: ReactNode;
+	description?: ReactNode;
 	/**
 	 * When true, the mobile Drawer always uses maximum height.
 	 * Use for content with dynamic height (e.g., editable tables).
@@ -29,22 +32,25 @@ interface ResponsiveDialogProps {
 
 export function ResponsiveDialog({
 	children,
+	description,
 	fullHeight = false,
 	onOpenChange,
 	open,
 	title,
 }: ResponsiveDialogProps) {
 	const isDesktop = useMediaQuery("(min-width: 768px)");
+	const descriptionContent = description ?? "Dialog details";
+	const descriptionClassName = description ? undefined : "sr-only";
 
 	if (isDesktop) {
 		return (
 			<Dialog onOpenChange={onOpenChange} open={open}>
-				<DialogContent
-					aria-describedby={undefined}
-					className="max-h-[85vh] overflow-y-auto"
-				>
+				<DialogContent className="max-h-[85vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle>{title}</DialogTitle>
+						<DialogDescription className={descriptionClassName}>
+							{descriptionContent}
+						</DialogDescription>
 					</DialogHeader>
 					{children}
 				</DialogContent>
@@ -59,6 +65,9 @@ export function ResponsiveDialog({
 			>
 				<DrawerHeader className="relative shrink-0">
 					<DrawerTitle>{title}</DrawerTitle>
+					<DrawerDescription className={descriptionClassName}>
+						{descriptionContent}
+					</DrawerDescription>
 					<Button
 						className="absolute top-2 right-2"
 						onClick={() => onOpenChange(false)}
