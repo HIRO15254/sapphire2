@@ -1,4 +1,3 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DialogActionRow } from "@/components/ui/dialog-action-row";
@@ -12,13 +11,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import {
-	cancelTargets,
-	invalidateTargets,
-	restoreSnapshots,
-	snapshotQuery,
-} from "@/utils/optimistic-update";
-import { trpc, trpcClient } from "@/utils/trpc";
+import { useTransactionTypes } from "@/hooks/use-transaction-types";
 
 const NEW_TYPE_VALUE = "__new__";
 
@@ -56,51 +49,13 @@ export function TransactionForm({
 	defaultValues,
 	isLoading = false,
 }: TransactionFormProps) {
-	const queryClient = useQueryClient();
-	const typeListKey = trpc.transactionType.list.queryOptions().queryKey;
-
-	const typesQuery = useQuery(trpc.transactionType.list.queryOptions());
-	const types = typesQuery.data ?? [];
+	const { types, createType, isCreatingType } = useTransactionTypes();
 	const [selectedType, setSelectedType] = useState(
 		defaultValues?.transactionTypeId ?? ""
 	);
 	const [newTypeName, setNewTypeName] = useState("");
 
 	const isNewType = selectedType === NEW_TYPE_VALUE;
-
-	const createTypeMutation = useMutation({
-		mutationFn: (name: string) =>
-			trpcClient.transactionType.create.mutate({ name }),
-		onMutate: async (name) => {
-			await cancelTargets(queryClient, [{ queryKey: typeListKey }]);
-			const previous = snapshotQuery(queryClient, typeListKey);
-			queryClient.setQueryData<
-				Array<{
-					createdAt?: string;
-					id: string;
-					name: string;
-					updatedAt?: string;
-					userId?: string;
-				}>
-			>(typeListKey, (old) => [
-				...(old ?? []),
-				{
-					createdAt: new Date().toISOString(),
-					id: `temp-type-${Date.now()}`,
-					name,
-					updatedAt: new Date().toISOString(),
-					userId: "",
-				},
-			]);
-			return { previous };
-		},
-		onError: (_error, _variables, context) => {
-			restoreSnapshots(queryClient, [context?.previous]);
-		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: typeListKey }]);
-		},
-	});
 
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -115,14 +70,12 @@ export function TransactionForm({
 			if (!newTypeName.trim()) {
 				return;
 			}
-			const created = await createTypeMutation.mutateAsync(newTypeName.trim());
+			const created = await createType(newTypeName.trim());
 			transactionTypeId = created.id;
 		}
 
 		onSubmit({ amount, transactionTypeId, transactedAt, memo });
 	};
-
-	const isCreatingType = createTypeMutation.isPending;
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>

@@ -1,68 +1,16 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { SimpleEditableList } from "@/components/management/simple-editable-list";
-import { trpc, trpcClient } from "@/utils/trpc";
+import { useTransactionTypeManager } from "@/hooks/use-transaction-type-manager";
 
 export function TransactionTypeManager() {
-	const queryClient = useQueryClient();
-	const typeListKey = trpc.transactionType.list.queryOptions().queryKey;
-
-	const typesQuery = useQuery(trpc.transactionType.list.queryOptions());
-	const types = typesQuery.data ?? [];
+	const { types, update, delete: deleteType, isUpdatePending, isDeletePending } =
+		useTransactionTypeManager();
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editingName, setEditingName] = useState("");
 	const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
 		null
 	);
 	const [deleteError, setDeleteError] = useState<string | null>(null);
-
-	const updateMutation = useMutation({
-		mutationFn: ({ id, name }: { id: string; name: string }) =>
-			trpcClient.transactionType.update.mutate({ id, name }),
-		onMutate: async ({ id, name }) => {
-			await queryClient.cancelQueries({ queryKey: typeListKey });
-			const previous = queryClient.getQueryData(typeListKey);
-			queryClient.setQueryData(typeListKey, (old) =>
-				old?.map((t) => (t.id === id ? { ...t, name } : t))
-			);
-			return { previous };
-		},
-		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(typeListKey, context.previous);
-			}
-		},
-		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: typeListKey });
-		},
-		onSuccess: () => {
-			setEditingId(null);
-			setEditingName("");
-		},
-	});
-
-	const deleteMutation = useMutation({
-		mutationFn: (id: string) =>
-			trpcClient.transactionType.delete.mutate({ id }),
-		onError: (err: unknown) => {
-			if (
-				err &&
-				typeof err === "object" &&
-				"message" in err &&
-				typeof err.message === "string"
-			) {
-				setDeleteError(err.message);
-			} else {
-				setDeleteError("Failed to delete");
-			}
-		},
-		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: typeListKey });
-		},
-		onSuccess: () => {
-			setConfirmingDeleteId(null);
-		},
-	});
 
 	const startEdit = (id: string, name: string) => {
 		setEditingId(id);
@@ -73,7 +21,20 @@ export function TransactionTypeManager() {
 
 	const handleDelete = (id: string) => {
 		setDeleteError(null);
-		deleteMutation.mutate(id);
+		deleteType(id).then(() => {
+			setConfirmingDeleteId(null);
+		}).catch((err: unknown) => {
+			if (
+				err &&
+				typeof err === "object" &&
+				"message" in err &&
+				typeof err.message === "string"
+			) {
+				setDeleteError(err.message);
+			} else {
+				setDeleteError("Failed to delete");
+			}
+		});
 	};
 
 	return (
@@ -85,8 +46,8 @@ export function TransactionTypeManager() {
 			emptyDescription="They will be created automatically when you first access the currencies page."
 			emptyHeading="No transaction types yet"
 			getItemLabel={(type) => type.name}
-			isDeleting={deleteMutation.isPending}
-			isSaving={updateMutation.isPending}
+			isDeleting={isDeletePending}
+			isSaving={isUpdatePending}
 			itemNoun="type"
 			items={types}
 			onCancelDelete={() => {
@@ -103,7 +64,10 @@ export function TransactionTypeManager() {
 				if (!(editingId && editingName.trim())) {
 					return;
 				}
-				updateMutation.mutate({ id: type.id, name: editingName.trim() });
+				update({ id: type.id, name: editingName.trim() }).then(() => {
+					setEditingId(null);
+					setEditingName("");
+				});
 			}}
 			onStartDeleting={(type) => {
 				setConfirmingDeleteId(type.id);

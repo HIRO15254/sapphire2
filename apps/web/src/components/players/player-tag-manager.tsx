@@ -1,5 +1,4 @@
 import { IconEdit, IconPlus, IconTrash } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
 	ManagementList,
@@ -15,24 +14,10 @@ import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { TAG_COLOR_NAMES, type TagColor } from "@/constants/player-tag-colors";
 import {
-	cancelTargets,
-	invalidateTargets,
-	restoreSnapshots,
-	snapshotQueries,
-	snapshotQuery,
-} from "@/utils/optimistic-update";
-import { trpc, trpcClient } from "@/utils/trpc";
-
-interface TagFormValues {
-	color: TagColor;
-	name: string;
-}
-
-interface TagItem {
-	color: string;
-	id: string;
-	name: string;
-}
+	type TagFormValues,
+	type TagItem,
+	usePlayerTags,
+} from "@/hooks/use-player-tags";
 
 function TagForm({
 	defaultValues,
@@ -101,145 +86,7 @@ export function PlayerTagManager() {
 	const [editingTag, setEditingTag] = useState<TagItem | null>(null);
 	const [deletingTag, setDeletingTag] = useState<TagItem | null>(null);
 
-	const queryClient = useQueryClient();
-	const tagListKey = trpc.playerTag.list.queryOptions().queryKey;
-	const playerListKey = trpc.player.list.queryOptions().queryKey;
-
-	const tagsQuery = useQuery(trpc.playerTag.list.queryOptions());
-	const tags = tagsQuery.data ?? [];
-
-	const createMutation = useMutation({
-		mutationFn: (values: TagFormValues) =>
-			trpcClient.playerTag.create.mutate(values),
-		onMutate: async (newTag) => {
-			await cancelTargets(queryClient, [{ queryKey: tagListKey }]);
-			const previous = snapshotQuery(queryClient, tagListKey);
-			queryClient.setQueryData<
-				Array<{
-					color: string;
-					createdAt?: string;
-					id: string;
-					name: string;
-					updatedAt?: string;
-					userId?: string;
-				}>
-			>(tagListKey, (old) => [
-				...(old ?? []),
-				{
-					id: `temp-tag-${Date.now()}`,
-					name: newTag.name,
-					color: newTag.color,
-					createdAt: new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
-					userId: "",
-				},
-			]);
-			return { previous };
-		},
-		onError: (_error, _variables, context) => {
-			restoreSnapshots(queryClient, [context?.previous]);
-		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: tagListKey }]);
-		},
-		onSuccess: () => {
-			setIsCreateOpen(false);
-		},
-	});
-
-	const updateMutation = useMutation({
-		mutationFn: (values: TagFormValues & { id: string }) =>
-			trpcClient.playerTag.update.mutate(values),
-		onMutate: async (updated) => {
-			await cancelTargets(queryClient, [
-				{ queryKey: tagListKey },
-				{ filters: { queryKey: playerListKey } },
-			]);
-			const previousTags = snapshotQuery(queryClient, tagListKey);
-			const previousPlayers = snapshotQueries(queryClient, {
-				queryKey: playerListKey,
-			});
-			queryClient.setQueryData<TagItem[]>(
-				tagListKey,
-				(old) =>
-					old?.map((tag) =>
-						tag.id === updated.id
-							? { ...tag, name: updated.name, color: updated.color }
-							: tag
-					) ?? []
-			);
-			queryClient.setQueriesData<Array<{ tags: TagItem[] }>>(
-				{ queryKey: playerListKey },
-				(old) =>
-					old?.map((player) => ({
-						...player,
-						tags: player.tags.map((tag) =>
-							tag.id === updated.id
-								? { ...tag, name: updated.name, color: updated.color }
-								: tag
-						),
-					}))
-			);
-			return { previousPlayers, previousTags };
-		},
-		onError: (_error, _variables, context) => {
-			restoreSnapshots(queryClient, [
-				context?.previousTags,
-				context?.previousPlayers,
-			]);
-		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [
-				{ queryKey: tagListKey },
-				{ filters: { queryKey: playerListKey } },
-			]);
-		},
-		onSuccess: () => {
-			setEditingTag(null);
-		},
-	});
-
-	const deleteMutation = useMutation({
-		mutationFn: (id: string) => trpcClient.playerTag.delete.mutate({ id }),
-		onMutate: async (id) => {
-			await cancelTargets(queryClient, [
-				{ queryKey: tagListKey },
-				{ filters: { queryKey: playerListKey } },
-			]);
-			const previousTags = snapshotQuery(queryClient, tagListKey);
-			const previousPlayers = snapshotQueries(queryClient, {
-				queryKey: playerListKey,
-			});
-			queryClient.setQueryData<TagItem[]>(
-				tagListKey,
-				(old) => old?.filter((tag) => tag.id !== id) ?? []
-			);
-			queryClient.setQueriesData<Array<{ tags: TagItem[] }>>(
-				{ queryKey: playerListKey },
-				(old) =>
-					old?.map((player) => ({
-						...player,
-						tags: player.tags.filter((tag) => tag.id !== id),
-					}))
-			);
-			return { previousPlayers, previousTags };
-		},
-		onError: (_error, _variables, context) => {
-			restoreSnapshots(queryClient, [
-				context?.previousTags,
-				context?.previousPlayers,
-			]);
-		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [
-				{ queryKey: tagListKey },
-				{ filters: { queryKey: playerListKey } },
-			]);
-		},
-		onSuccess: () => {
-			setDeletingTag(null);
-		},
-	});
+	const { tags, create, update, delete: deleteTag, isCreatePending, isUpdatePending, isDeletePending } = usePlayerTags();
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -296,8 +143,8 @@ export function PlayerTagManager() {
 				title="New Tag"
 			>
 				<TagForm
-					isLoading={createMutation.isPending}
-					onSubmit={(values) => createMutation.mutate(values)}
+					isLoading={isCreatePending}
+					onSubmit={(values) => create(values).then(() => setIsCreateOpen(false))}
 				/>
 			</ResponsiveDialog>
 
@@ -316,9 +163,9 @@ export function PlayerTagManager() {
 							name: editingTag.name,
 							color: editingTag.color as TagColor,
 						}}
-						isLoading={updateMutation.isPending}
+						isLoading={isUpdatePending}
 						onSubmit={(values) =>
-							updateMutation.mutate({ id: editingTag.id, ...values })
+							update({ id: editingTag.id, ...values }).then(() => setEditingTag(null))
 						}
 					/>
 				)}
@@ -347,11 +194,11 @@ export function PlayerTagManager() {
 								Cancel
 							</Button>
 							<Button
-								disabled={deleteMutation.isPending}
-								onClick={() => deleteMutation.mutate(deletingTag.id)}
+								disabled={isDeletePending}
+								onClick={() => deleteTag(deletingTag.id).then(() => setDeletingTag(null))}
 								variant="destructive"
 							>
-								{deleteMutation.isPending ? "Deleting..." : "Delete"}
+								{isDeletePending ? "Deleting..." : "Delete"}
 							</Button>
 						</DialogActionRow>
 					</div>
