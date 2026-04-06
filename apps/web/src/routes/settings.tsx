@@ -1,11 +1,11 @@
 import { IconLogout } from "@tabler/icons-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { LinkedAccounts } from "@/components/linked-accounts";
-import { SessionTagManager } from "@/components/management/session-tag-manager";
-import { PageHeader } from "@/components/page-header";
-import { PageSection } from "@/components/page-section";
-import { TransactionTypeManager } from "@/components/stores/transaction-type-manager";
-import { Button } from "@/components/ui/button";
+import { LinkedAccounts } from "@/shared/components/linked-accounts";
+import { SessionTagManager } from "@/sessions/components/session-tag-manager";
+import { PageHeader } from "@/shared/components/page-header";
+import { PageSection } from "@/shared/components/page-section";
+import { TransactionTypeManager } from "@/currencies/components/transaction-type-manager";
+import { Button } from "@/shared/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/settings")({

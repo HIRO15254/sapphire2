@@ -1,14 +1,14 @@
 import { IconBuildingStore, IconPlus } from "@tabler/icons-react"
 import { createFileRoute } from "@tanstack/react-router"
 import { useState } from "react"
-import { PageHeader } from "@/components/page-header"
-import { StoreCard } from "@/components/stores/store-card"
-import { StoreForm } from "@/components/stores/store-form"
-import { Button } from "@/components/ui/button"
-import { EmptyState } from "@/components/ui/empty-state"
-import { ResponsiveDialog } from "@/components/ui/responsive-dialog"
-import type { StoreItem, StoreValues } from "@/hooks/use-stores"
-import { useStores } from "@/hooks/use-stores"
+import { PageHeader } from "@/shared/components/page-header"
+import { StoreCard } from "@/stores/components/store-card"
+import { StoreForm } from "@/stores/components/store-form"
+import { Button } from "@/shared/components/ui/button"
+import { EmptyState } from "@/shared/components/ui/empty-state"
+import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog"
+import type { StoreItem, StoreValues } from "@/stores/hooks/use-stores"
+import { useStores } from "@/stores/hooks/use-stores"
 
 export const Route = createFileRoute("/stores/")({
 	component: StoresPage,

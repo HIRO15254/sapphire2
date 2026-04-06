@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { PageSection } from "@/components/page-section";
-import { PublicPageShell } from "@/components/public-page-shell";
-import { Button } from "@/components/ui/button";
+import { PageSection } from "@/shared/components/page-section";
+import { PublicPageShell } from "@/shared/components/public-page-shell";
+import { Button } from "@/shared/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { trpc } from "@/utils/trpc";
 

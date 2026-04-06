@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { PageHeader } from "@/components/page-header";
-import { PageSection } from "@/components/page-section";
+import { PageHeader } from "@/shared/components/page-header";
+import { PageSection } from "@/shared/components/page-section";
 import { authClient } from "@/lib/auth-client";
 import { trpc } from "@/utils/trpc";
 

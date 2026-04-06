@@ -1,23 +1,23 @@
 import { IconCards, IconPlus } from "@tabler/icons-react"
 import { createFileRoute } from "@tanstack/react-router"
 import { useState } from "react"
-import { PageHeader } from "@/components/page-header"
-import { SessionCard } from "@/components/sessions/session-card"
+import { PageHeader } from "@/shared/components/page-header"
+import { SessionCard } from "@/sessions/components/session-card"
 import {
 	SessionFilters,
 	type SessionFilterValues,
-} from "@/components/sessions/session-filters"
-import { SessionForm } from "@/components/sessions/session-form"
-import { Button } from "@/components/ui/button"
-import { EmptyState } from "@/components/ui/empty-state"
-import { ResponsiveDialog } from "@/components/ui/responsive-dialog"
-import { useEntityLists, useStoreGames } from "@/hooks/use-store-games"
+} from "@/sessions/components/session-filters"
+import { SessionForm } from "@/sessions/components/session-form"
+import { Button } from "@/shared/components/ui/button"
+import { EmptyState } from "@/shared/components/ui/empty-state"
+import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog"
+import { useEntityLists, useStoreGames } from "@/stores/hooks/use-store-games"
 import {
 	buildEditDefaults,
 	type SessionFormValues,
 	type SessionItem,
 	useSessions,
-} from "@/hooks/use-sessions"
+} from "@/sessions/hooks/use-sessions"
 
 export const Route = createFileRoute("/sessions/")({
 	component: SessionsPage,

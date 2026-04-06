@@ -2,12 +2,12 @@ import { createFileRoute } from "@tanstack/react-router"
 import {
 	ActiveSessionScene,
 	useActiveSessionSceneState,
-} from "@/components/live-sessions/active-session-scene"
-import type { TableGameInfo } from "@/components/live-sessions/poker-table"
-import { EmptyState } from "@/components/ui/empty-state"
-import { useActiveSession } from "@/hooks/use-active-session"
-import { useCashGameSession } from "@/hooks/use-cash-game-session"
-import { useTournamentSession } from "@/hooks/use-tournament-session"
+} from "@/live-sessions/components/active-session-scene"
+import type { TableGameInfo } from "@/live-sessions/components/poker-table"
+import { EmptyState } from "@/shared/components/ui/empty-state"
+import { useActiveSession } from "@/live-sessions/hooks/use-active-session"
+import { useCashGameSession } from "@/live-sessions/hooks/use-cash-game-session"
+import { useTournamentSession } from "@/live-sessions/hooks/use-tournament-session"
 import { cn } from "@/lib/utils"
 import { formatCompactNumber } from "@/utils/format-number"
 

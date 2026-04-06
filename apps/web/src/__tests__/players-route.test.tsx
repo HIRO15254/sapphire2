@@ -43,25 +43,25 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
-vi.mock("@/components/players/player-card", () => ({
+vi.mock("@/players/components/player-card", () => ({
 	PlayerCard: ({ player }: { player: { name: string } }) => (
 		<div>Player Row: {player.name}</div>
 	),
 }));
 
-vi.mock("@/components/players/player-filters", () => ({
+vi.mock("@/players/components/player-filters", () => ({
 	PlayerFilters: () => <div>Player Filters</div>,
 }));
 
-vi.mock("@/components/players/player-form", () => ({
+vi.mock("@/players/components/player-form", () => ({
 	PlayerForm: () => <div>Player Form</div>,
 }));
 
-vi.mock("@/components/players/player-tag-manager", () => ({
+vi.mock("@/players/components/player-tag-manager", () => ({
 	PlayerTagManager: () => <div>Tag Manager</div>,
 }));
 
-vi.mock("@/components/ui/responsive-dialog", () => ({
+vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	ResponsiveDialog: ({
 		children,
 		open,

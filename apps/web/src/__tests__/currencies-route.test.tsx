@@ -70,7 +70,7 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
-vi.mock("@/components/stores/currency-form", () => ({
+vi.mock("@/currencies/components/currency-form", () => ({
 	CurrencyForm: ({
 		defaultValues,
 		onCancel,
@@ -88,7 +88,7 @@ vi.mock("@/components/stores/currency-form", () => ({
 	),
 }));
 
-vi.mock("@/components/stores/transaction-form", () => ({
+vi.mock("@/currencies/components/transaction-form", () => ({
 	TransactionForm: ({
 		defaultValues,
 		onCancel,
@@ -111,7 +111,7 @@ vi.mock("@/components/stores/transaction-form", () => ({
 	),
 }));
 
-vi.mock("@/components/ui/responsive-dialog", () => ({
+vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	ResponsiveDialog: ({
 		children,
 		description,

@@ -7,9 +7,9 @@ import {
 	redirect,
 	useLocation,
 } from "@tanstack/react-router";
-import { AuthenticatedShell } from "@/components/authenticated-shell";
-import { ThemeProvider } from "@/components/theme-provider";
-import { Toaster } from "@/components/ui/sonner";
+import { AuthenticatedShell } from "@/shared/components/authenticated-shell";
+import { ThemeProvider } from "@/shared/components/theme-provider";
+import { Toaster } from "@/shared/components/ui/sonner";
 import { authClient } from "@/lib/auth-client";
 import type { trpc } from "@/utils/trpc";
 

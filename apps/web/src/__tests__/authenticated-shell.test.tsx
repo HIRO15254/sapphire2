@@ -22,41 +22,41 @@ vi.mock("@/lib/auth-client", () => ({
 	},
 }));
 
-vi.mock("@/components/sidebar-nav", () => ({
+vi.mock("@/shared/components/sidebar-nav", () => ({
 	SidebarNav: () => <div>Sidebar Nav</div>,
 }));
 
-vi.mock("@/components/mobile-nav", () => ({
+vi.mock("@/shared/components/mobile-nav", () => ({
 	MobileNav: () => <div>Mobile Nav</div>,
 }));
 
-vi.mock("@/components/live-sessions/live-stack-form-sheet", () => ({
+vi.mock("@/live-sessions/components/live-stack-form-sheet", () => ({
 	LiveStackFormSheet: () => <div>Live Stack Sheet</div>,
 }));
 
-vi.mock("@/components/online-status-bar", () => ({
+vi.mock("@/shared/components/online-status-bar", () => ({
 	OnlineStatusBar: () => <div>Online Status</div>,
 }));
 
-vi.mock("@/components/devtools-toggle", () => ({
+vi.mock("@/shared/components/devtools-toggle", () => ({
 	DevtoolsToggle: () => <div>Devtools Toggle</div>,
 }));
 
-vi.mock("@/components/theme-provider", () => ({
+vi.mock("@/shared/components/theme-provider", () => ({
 	ThemeProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
-vi.mock("@/components/ui/sonner", () => ({
+vi.mock("@/shared/components/ui/sonner", () => ({
 	Toaster: () => <div>Toaster</div>,
 }));
 
-vi.mock("@/hooks/use-session-form", () => ({
+vi.mock("@/live-sessions/hooks/use-session-form", () => ({
 	SessionFormProvider: ({ children }: { children: ReactNode }) => (
 		<>{children}</>
 	),
 }));
 
-vi.mock("@/hooks/use-stack-sheet", () => ({
+vi.mock("@/live-sessions/hooks/use-stack-sheet", () => ({
 	StackSheetProvider: ({ children }: { children: ReactNode }) => (
 		<>{children}</>
 	),

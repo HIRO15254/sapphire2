@@ -31,17 +31,17 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
-vi.mock("@/components/stores/store-card", () => ({
+vi.mock("@/stores/components/store-card", () => ({
 	StoreCard: ({ store }: { store: { name: string } }) => (
 		<div>Store Row: {store.name}</div>
 	),
 }));
 
-vi.mock("@/components/stores/store-form", () => ({
+vi.mock("@/stores/components/store-form", () => ({
 	StoreForm: () => <div>Store Form</div>,
 }));
 
-vi.mock("@/components/ui/responsive-dialog", () => ({
+vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	ResponsiveDialog: ({
 		children,
 		open,
