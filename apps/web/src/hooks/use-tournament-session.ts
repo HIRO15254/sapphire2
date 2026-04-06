@@ -17,9 +17,14 @@ export function useTournamentSession(sessionId: string) {
 		mutationFn: () =>
 			trpcClient.liveTournamentSession.discard.mutate({ id: sessionId }),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: trpc.liveTournamentSession.list.queryOptions({}).queryKey,
-			})
+			await Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: trpc.liveTournamentSession.list.queryOptions({}).queryKey,
+				}),
+				queryClient.invalidateQueries({
+					queryKey: trpc.session.list.queryOptions({}).queryKey,
+				}),
+			])
 			await navigate({ to: "/sessions" })
 		},
 	})

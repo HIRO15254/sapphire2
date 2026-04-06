@@ -27,7 +27,7 @@ export const queryClient = new QueryClient({
 	defaultOptions: {
 		queries: {
 			gcTime: 1000 * 60 * 60 * 24,
-			staleTime: 1000 * 60 * 5,
+			staleTime: 0,
 			networkMode: "offlineFirst",
 		},
 		mutations: {
@@ -43,6 +43,7 @@ export const persister = createAsyncStoragePersister({
 		removeItem: (key) => del(key),
 	},
 	key: "sapphire2-query-cache",
+	buster: "v1",
 });
 
 export const trpcClient = createTRPCClient<AppRouter>({

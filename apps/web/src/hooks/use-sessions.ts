@@ -411,7 +411,12 @@ export function useSessions(filters: SessionFilterValues) {
 				id: liveCashGameSessionId,
 			}),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: sessionListKey })
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: sessionListKey }),
+				queryClient.invalidateQueries({
+					queryKey: trpc.liveCashGameSession.list.queryOptions({}).queryKey,
+				}),
+			])
 			await navigate({ to: "/active-session" })
 		},
 	})

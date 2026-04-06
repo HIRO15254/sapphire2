@@ -19,6 +19,8 @@ export function useSessionTags() {
 	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions());
 	const tags = (tagsQuery.data ?? []) as SessionTag[];
 
+	const sessionListFilters = { queryKey: trpc.session.list.queryOptions({}).queryKey };
+
 	const updateMutation = useMutation({
 		mutationFn: ({ id, name }: { id: string; name: string }) =>
 			trpcClient.sessionTag.update.mutate({ id, name }),
@@ -36,7 +38,10 @@ export function useSessionTags() {
 			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: tagsKey }]);
+			invalidateTargets(queryClient, [
+				{ queryKey: tagsKey },
+				{ filters: sessionListFilters },
+			]);
 		},
 	});
 
@@ -55,7 +60,10 @@ export function useSessionTags() {
 			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: tagsKey }]);
+			invalidateTargets(queryClient, [
+				{ queryKey: tagsKey },
+				{ filters: sessionListFilters },
+			]);
 		},
 	});
 

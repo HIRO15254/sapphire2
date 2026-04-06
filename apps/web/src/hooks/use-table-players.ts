@@ -125,7 +125,12 @@ export function useTablePlayers({
 				queryClient.setQueryData(playersKey, ctx.prev);
 			}
 		},
-		onSettled: invalidatePlayers,
+		onSettled: () => {
+			invalidatePlayers();
+			queryClient.invalidateQueries({
+				queryKey: trpc.player.list.queryOptions().queryKey,
+			});
+		},
 	});
 
 	const removeMutation = useMutation({

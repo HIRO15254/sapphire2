@@ -59,6 +59,8 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 		{}
 	).queryKey;
 
+	const sessionListKey = trpc.session.list.queryOptions({}).queryKey;
+
 	const createCashMutation = useMutation({
 		mutationFn: (values: {
 			currencyId?: string;
@@ -68,7 +70,10 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			storeId?: string;
 		}) => trpcClient.liveCashGameSession.create.mutate(values),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: cashListKey });
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: cashListKey }),
+				queryClient.invalidateQueries({ queryKey: sessionListKey }),
+			]);
 			onClose();
 			await navigate({ to: "/active-session" });
 		},
@@ -102,7 +107,10 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			return result;
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: tournamentListKey });
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: tournamentListKey }),
+				queryClient.invalidateQueries({ queryKey: sessionListKey }),
+			]);
 			onClose();
 			await navigate({ to: "/active-session" });
 		},

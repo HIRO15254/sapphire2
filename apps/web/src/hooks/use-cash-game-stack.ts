@@ -56,7 +56,12 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 				finalStack: values.finalStack,
 			}),
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: listKey });
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: listKey }),
+				queryClient.invalidateQueries({
+					queryKey: trpc.session.list.queryOptions({}).queryKey,
+				}),
+			]);
 			await navigate({ to: "/sessions" });
 		},
 	});
