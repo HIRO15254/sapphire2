@@ -24,6 +24,12 @@ import {
 	createGroupFormatter,
 	formatCompactNumber,
 } from "@/utils/format-number";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -688,10 +694,10 @@ export function TournamentTab({
 	};
 
 	const invalidateBoth = () => {
-		queryClient.invalidateQueries({ queryKey: activeQueryOptions.queryKey });
-		queryClient.invalidateQueries({
-			queryKey: archivedQueryOptions.queryKey,
-		});
+		invalidateTargets(queryClient, [
+			{ queryKey: activeQueryOptions.queryKey },
+			{ queryKey: archivedQueryOptions.queryKey },
+		]);
 	};
 
 	const syncChipPurchases = async (
@@ -732,14 +738,16 @@ export function TournamentTab({
 			return created;
 		},
 		onMutate: async (values) => {
-			await Promise.all([
-				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
-				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			await cancelTargets(queryClient, [
+				{ queryKey: activeQueryOptions.queryKey },
+				{ queryKey: archivedQueryOptions.queryKey },
 			]);
-			const previousActive = queryClient.getQueryData(
+			const previousActive = snapshotQuery(
+				queryClient,
 				activeQueryOptions.queryKey
 			);
-			const previousArchived = queryClient.getQueryData(
+			const previousArchived = snapshotQuery(
+				queryClient,
 				archivedQueryOptions.queryKey
 			);
 			queryClient.setQueryData<Tournament[]>(
@@ -756,18 +764,10 @@ export function TournamentTab({
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousActive) {
-				queryClient.setQueryData(
-					activeQueryOptions.queryKey,
-					context.previousActive
-				);
-			}
-			if (context?.previousArchived) {
-				queryClient.setQueryData(
-					archivedQueryOptions.queryKey,
-					context.previousArchived
-				);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousActive,
+				context?.previousArchived,
+			]);
 		},
 		onSettled: invalidateBoth,
 		onSuccess: () => {
@@ -802,14 +802,16 @@ export function TournamentTab({
 			return updated;
 		},
 		onMutate: async (values) => {
-			await Promise.all([
-				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
-				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			await cancelTargets(queryClient, [
+				{ queryKey: activeQueryOptions.queryKey },
+				{ queryKey: archivedQueryOptions.queryKey },
 			]);
-			const previousActive = queryClient.getQueryData(
+			const previousActive = snapshotQuery(
+				queryClient,
 				activeQueryOptions.queryKey
 			);
-			const previousArchived = queryClient.getQueryData(
+			const previousArchived = snapshotQuery(
+				queryClient,
 				archivedQueryOptions.queryKey
 			);
 			const applyUpdate = (old: Tournament[] | undefined) =>
@@ -823,18 +825,10 @@ export function TournamentTab({
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousActive) {
-				queryClient.setQueryData(
-					activeQueryOptions.queryKey,
-					context.previousActive
-				);
-			}
-			if (context?.previousArchived) {
-				queryClient.setQueryData(
-					archivedQueryOptions.queryKey,
-					context.previousArchived
-				);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousActive,
+				context?.previousArchived,
+			]);
 		},
 		onSettled: invalidateBoth,
 		onSuccess: () => {
@@ -845,18 +839,20 @@ export function TournamentTab({
 	const archiveMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.archive.mutate({ id }),
 		onMutate: async (id) => {
-			await Promise.all([
-				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
-				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			await cancelTargets(queryClient, [
+				{ queryKey: activeQueryOptions.queryKey },
+				{ queryKey: archivedQueryOptions.queryKey },
 			]);
-			const previousActive = queryClient.getQueryData(
+			const previousActive = snapshotQuery(
+				queryClient,
 				activeQueryOptions.queryKey
 			);
-			const previousArchived = queryClient.getQueryData(
+			const previousArchived = snapshotQuery(
+				queryClient,
 				archivedQueryOptions.queryKey
 			);
 			const archivedTournament = (
-				previousActive as Tournament[] | undefined
+				previousActive.data as Tournament[] | undefined
 			)?.find((tournament) => tournament.id === id);
 			queryClient.setQueryData<Tournament[]>(
 				activeQueryOptions.queryKey,
@@ -874,18 +870,10 @@ export function TournamentTab({
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousActive) {
-				queryClient.setQueryData(
-					activeQueryOptions.queryKey,
-					context.previousActive
-				);
-			}
-			if (context?.previousArchived) {
-				queryClient.setQueryData(
-					archivedQueryOptions.queryKey,
-					context.previousArchived
-				);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousActive,
+				context?.previousArchived,
+			]);
 		},
 		onSettled: invalidateBoth,
 	});
@@ -893,18 +881,20 @@ export function TournamentTab({
 	const restoreMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.restore.mutate({ id }),
 		onMutate: async (id) => {
-			await Promise.all([
-				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
-				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			await cancelTargets(queryClient, [
+				{ queryKey: activeQueryOptions.queryKey },
+				{ queryKey: archivedQueryOptions.queryKey },
 			]);
-			const previousActive = queryClient.getQueryData(
+			const previousActive = snapshotQuery(
+				queryClient,
 				activeQueryOptions.queryKey
 			);
-			const previousArchived = queryClient.getQueryData(
+			const previousArchived = snapshotQuery(
+				queryClient,
 				archivedQueryOptions.queryKey
 			);
 			const restoredTournament = (
-				previousArchived as Tournament[] | undefined
+				previousArchived.data as Tournament[] | undefined
 			)?.find((tournament) => tournament.id === id);
 			queryClient.setQueryData<Tournament[]>(
 				archivedQueryOptions.queryKey,
@@ -919,18 +909,10 @@ export function TournamentTab({
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousActive) {
-				queryClient.setQueryData(
-					activeQueryOptions.queryKey,
-					context.previousActive
-				);
-			}
-			if (context?.previousArchived) {
-				queryClient.setQueryData(
-					archivedQueryOptions.queryKey,
-					context.previousArchived
-				);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousActive,
+				context?.previousArchived,
+			]);
 		},
 		onSettled: invalidateBoth,
 	});
@@ -938,14 +920,16 @@ export function TournamentTab({
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.delete.mutate({ id }),
 		onMutate: async (id) => {
-			await Promise.all([
-				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
-				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			await cancelTargets(queryClient, [
+				{ queryKey: activeQueryOptions.queryKey },
+				{ queryKey: archivedQueryOptions.queryKey },
 			]);
-			const previousActive = queryClient.getQueryData(
+			const previousActive = snapshotQuery(
+				queryClient,
 				activeQueryOptions.queryKey
 			);
-			const previousArchived = queryClient.getQueryData(
+			const previousArchived = snapshotQuery(
+				queryClient,
 				archivedQueryOptions.queryKey
 			);
 			queryClient.setQueryData<Tournament[]>(
@@ -959,18 +943,10 @@ export function TournamentTab({
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousActive) {
-				queryClient.setQueryData(
-					activeQueryOptions.queryKey,
-					context.previousActive
-				);
-			}
-			if (context?.previousArchived) {
-				queryClient.setQueryData(
-					archivedQueryOptions.queryKey,
-					context.previousArchived
-				);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousActive,
+				context?.previousArchived,
+			]);
 		},
 		onSettled: invalidateBoth,
 	});

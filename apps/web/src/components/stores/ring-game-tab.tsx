@@ -19,6 +19,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { createGroupFormatter } from "@/utils/format-number";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -490,24 +496,26 @@ export function RingGameTab({
 	const currencies = currenciesQuery.data ?? [];
 
 	const invalidateBoth = () => {
-		queryClient.invalidateQueries({ queryKey: activeQueryOptions.queryKey });
-		queryClient.invalidateQueries({
-			queryKey: archivedQueryOptions.queryKey,
-		});
+		invalidateTargets(queryClient, [
+			{ queryKey: activeQueryOptions.queryKey },
+			{ queryKey: archivedQueryOptions.queryKey },
+		]);
 	};
 
 	const createMutation = useMutation({
 		mutationFn: (values: RingGameFormValues) =>
 			trpcClient.ringGame.create.mutate({ storeId, ...values }),
 		onMutate: async (values) => {
-			await Promise.all([
-				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
-				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			await cancelTargets(queryClient, [
+				{ queryKey: activeQueryOptions.queryKey },
+				{ queryKey: archivedQueryOptions.queryKey },
 			]);
-			const previousActive = queryClient.getQueryData(
+			const previousActive = snapshotQuery(
+				queryClient,
 				activeQueryOptions.queryKey
 			);
-			const previousArchived = queryClient.getQueryData(
+			const previousArchived = snapshotQuery(
+				queryClient,
 				archivedQueryOptions.queryKey
 			);
 			queryClient.setQueryData<RingGame[]>(
@@ -524,18 +532,10 @@ export function RingGameTab({
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousActive) {
-				queryClient.setQueryData(
-					activeQueryOptions.queryKey,
-					context.previousActive
-				);
-			}
-			if (context?.previousArchived) {
-				queryClient.setQueryData(
-					archivedQueryOptions.queryKey,
-					context.previousArchived
-				);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousActive,
+				context?.previousArchived,
+			]);
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: activeQueryOptions.queryKey });
@@ -549,14 +549,16 @@ export function RingGameTab({
 		mutationFn: (values: RingGameFormValues & { id: string }) =>
 			trpcClient.ringGame.update.mutate(values),
 		onMutate: async (values) => {
-			await Promise.all([
-				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
-				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			await cancelTargets(queryClient, [
+				{ queryKey: activeQueryOptions.queryKey },
+				{ queryKey: archivedQueryOptions.queryKey },
 			]);
-			const previousActive = queryClient.getQueryData(
+			const previousActive = snapshotQuery(
+				queryClient,
 				activeQueryOptions.queryKey
 			);
-			const previousArchived = queryClient.getQueryData(
+			const previousArchived = snapshotQuery(
+				queryClient,
 				archivedQueryOptions.queryKey
 			);
 			const applyUpdate = (games: RingGame[] | undefined) =>
@@ -573,18 +575,10 @@ export function RingGameTab({
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousActive) {
-				queryClient.setQueryData(
-					activeQueryOptions.queryKey,
-					context.previousActive
-				);
-			}
-			if (context?.previousArchived) {
-				queryClient.setQueryData(
-					archivedQueryOptions.queryKey,
-					context.previousArchived
-				);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousActive,
+				context?.previousArchived,
+			]);
 		},
 		onSettled: invalidateBoth,
 		onSuccess: () => {
@@ -595,20 +589,22 @@ export function RingGameTab({
 	const archiveMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.ringGame.archive.mutate({ id }),
 		onMutate: async (id) => {
-			await Promise.all([
-				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
-				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			await cancelTargets(queryClient, [
+				{ queryKey: activeQueryOptions.queryKey },
+				{ queryKey: archivedQueryOptions.queryKey },
 			]);
-			const previousActive = queryClient.getQueryData(
+			const previousActive = snapshotQuery(
+				queryClient,
 				activeQueryOptions.queryKey
 			);
-			const previousArchived = queryClient.getQueryData(
+			const previousArchived = snapshotQuery(
+				queryClient,
 				archivedQueryOptions.queryKey
 			);
 			const now = new Date().toISOString();
-			const archivedGame = (previousActive as RingGame[] | undefined)?.find(
-				(game) => game.id === id
-			);
+			const archivedGame = (
+				previousActive.data as RingGame[] | undefined
+			)?.find((game) => game.id === id);
 			queryClient.setQueryData<RingGame[]>(
 				activeQueryOptions.queryKey,
 				(old) => old?.filter((game) => game.id !== id) ?? []
@@ -622,18 +618,10 @@ export function RingGameTab({
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousActive) {
-				queryClient.setQueryData(
-					activeQueryOptions.queryKey,
-					context.previousActive
-				);
-			}
-			if (context?.previousArchived) {
-				queryClient.setQueryData(
-					archivedQueryOptions.queryKey,
-					context.previousArchived
-				);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousActive,
+				context?.previousArchived,
+			]);
 		},
 		onSettled: invalidateBoth,
 	});
@@ -641,19 +629,21 @@ export function RingGameTab({
 	const restoreMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.ringGame.restore.mutate({ id }),
 		onMutate: async (id) => {
-			await Promise.all([
-				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
-				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			await cancelTargets(queryClient, [
+				{ queryKey: activeQueryOptions.queryKey },
+				{ queryKey: archivedQueryOptions.queryKey },
 			]);
-			const previousActive = queryClient.getQueryData(
+			const previousActive = snapshotQuery(
+				queryClient,
 				activeQueryOptions.queryKey
 			);
-			const previousArchived = queryClient.getQueryData(
+			const previousArchived = snapshotQuery(
+				queryClient,
 				archivedQueryOptions.queryKey
 			);
-			const restoredGame = (previousArchived as RingGame[] | undefined)?.find(
-				(game) => game.id === id
-			);
+			const restoredGame = (
+				previousArchived.data as RingGame[] | undefined
+			)?.find((game) => game.id === id);
 			queryClient.setQueryData<RingGame[]>(
 				archivedQueryOptions.queryKey,
 				(old) => old?.filter((game) => game.id !== id) ?? []
@@ -667,18 +657,10 @@ export function RingGameTab({
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousActive) {
-				queryClient.setQueryData(
-					activeQueryOptions.queryKey,
-					context.previousActive
-				);
-			}
-			if (context?.previousArchived) {
-				queryClient.setQueryData(
-					archivedQueryOptions.queryKey,
-					context.previousArchived
-				);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousActive,
+				context?.previousArchived,
+			]);
 		},
 		onSettled: invalidateBoth,
 	});
@@ -686,14 +668,16 @@ export function RingGameTab({
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.ringGame.delete.mutate({ id }),
 		onMutate: async (id) => {
-			await Promise.all([
-				queryClient.cancelQueries({ queryKey: activeQueryOptions.queryKey }),
-				queryClient.cancelQueries({ queryKey: archivedQueryOptions.queryKey }),
+			await cancelTargets(queryClient, [
+				{ queryKey: activeQueryOptions.queryKey },
+				{ queryKey: archivedQueryOptions.queryKey },
 			]);
-			const previousActive = queryClient.getQueryData(
+			const previousActive = snapshotQuery(
+				queryClient,
 				activeQueryOptions.queryKey
 			);
-			const previousArchived = queryClient.getQueryData(
+			const previousArchived = snapshotQuery(
+				queryClient,
 				archivedQueryOptions.queryKey
 			);
 			queryClient.setQueryData<RingGame[]>(
@@ -707,18 +691,10 @@ export function RingGameTab({
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousActive) {
-				queryClient.setQueryData(
-					activeQueryOptions.queryKey,
-					context.previousActive
-				);
-			}
-			if (context?.previousArchived) {
-				queryClient.setQueryData(
-					archivedQueryOptions.queryKey,
-					context.previousArchived
-				);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousActive,
+				context?.previousArchived,
+			]);
 		},
 		onSettled: invalidateBoth,
 	});

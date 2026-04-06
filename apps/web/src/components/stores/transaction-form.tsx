@@ -12,6 +12,12 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 const NEW_TYPE_VALUE = "__new__";
@@ -66,8 +72,8 @@ export function TransactionForm({
 		mutationFn: (name: string) =>
 			trpcClient.transactionType.create.mutate({ name }),
 		onMutate: async (name) => {
-			await queryClient.cancelQueries({ queryKey: typeListKey });
-			const previous = queryClient.getQueryData(typeListKey);
+			await cancelTargets(queryClient, [{ queryKey: typeListKey }]);
+			const previous = snapshotQuery(queryClient, typeListKey);
 			queryClient.setQueryData<
 				Array<{
 					createdAt?: string;
@@ -89,12 +95,10 @@ export function TransactionForm({
 			return { previous };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(typeListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: typeListKey });
+			invalidateTargets(queryClient, [{ queryKey: typeListKey }]);
 		},
 	});
 

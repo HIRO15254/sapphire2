@@ -14,6 +14,13 @@ import { Button } from "@/components/ui/button";
 import { DialogActionRow } from "@/components/ui/dialog-action-row";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 import { useTablePlayers } from "@/hooks/use-table-players";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQueries,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 interface SelectedPlayer {
@@ -110,8 +117,8 @@ function usePokerTableInteraction(
 						heroSeatPosition: nextSeatPosition,
 					}),
 		onMutate: async (nextSeatPosition) => {
-			await queryClient.cancelQueries({ queryKey: sessionKey });
-			const previousSession = queryClient.getQueryData(sessionKey);
+			await cancelTargets(queryClient, [{ queryKey: sessionKey }]);
+			const previousSession = snapshotQuery(queryClient, sessionKey);
 			queryClient.setQueryData<SessionDetailWithHeroSeat>(sessionKey, (old) =>
 				old ? { ...old, heroSeatPosition: nextSeatPosition } : old
 			);
@@ -121,13 +128,11 @@ function usePokerTableInteraction(
 			return { previousSeat, previousSession };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousSession) {
-				queryClient.setQueryData(sessionKey, context.previousSession);
-			}
+			restoreSnapshots(queryClient, [context?.previousSession]);
 			setLocalHeroSeat(context?.previousSeat ?? undefined);
 		},
 		onSettled: async () => {
-			await queryClient.invalidateQueries({ queryKey: sessionKey });
+			await invalidateTargets(queryClient, [{ queryKey: sessionKey }]);
 			setLocalHeroSeat(undefined);
 		},
 	});
@@ -180,14 +185,18 @@ function usePlayerDetail(playerId: string | null) {
 			tagIds?: string[];
 		}) => trpcClient.player.update.mutate(values),
 		onMutate: async (values) => {
-			await queryClient.cancelQueries({ queryKey: playerKey });
-			const previousPlayer = queryClient.getQueryData(playerKey);
-			const previousLists = queryClient.getQueriesData({
+			await cancelTargets(queryClient, [
+				{ queryKey: playerKey },
+				{ filters: { queryKey: playerListKey } },
+			]);
+			const previousPlayer = snapshotQuery(queryClient, playerKey);
+			const previousLists = snapshotQueries(queryClient, {
 				queryKey: playerListKey,
 			});
 			const nextTags =
 				values.tagIds === undefined
-					? (previousPlayer?.tags ?? [])
+					? ((previousPlayer.data as PlayerDetailData | null | undefined)
+							?.tags ?? [])
 					: (tagsQuery.data ?? []).filter((tag) =>
 							values.tagIds?.includes(tag.id)
 						);
@@ -216,24 +225,24 @@ function usePlayerDetail(playerId: string | null) {
 			return { previousLists, previousPlayer };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousPlayer) {
-				queryClient.setQueryData(playerKey, context.previousPlayer);
-			}
-			for (const [queryKey, data] of context?.previousLists ?? []) {
-				queryClient.setQueryData(queryKey, data);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousPlayer,
+				context?.previousLists,
+			]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: playerKey });
-			queryClient.invalidateQueries({ queryKey: playerListKey });
+			invalidateTargets(queryClient, [
+				{ queryKey: playerKey },
+				{ filters: { queryKey: playerListKey } },
+			]);
 		},
 	});
 
 	const createTagMutation = useMutation({
 		mutationFn: (name: string) => trpcClient.playerTag.create.mutate({ name }),
 		onMutate: async (name) => {
-			await queryClient.cancelQueries({ queryKey: tagsKey });
-			const previousTags = queryClient.getQueryData(tagsKey);
+			await cancelTargets(queryClient, [{ queryKey: tagsKey }]);
+			const previousTags = snapshotQuery(queryClient, tagsKey);
 			const optimisticTag: PlayerTagQueryItem = {
 				color: "gray",
 				createdAt: new Date().toISOString(),
@@ -249,12 +258,10 @@ function usePlayerDetail(playerId: string | null) {
 			return { previousTags };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousTags) {
-				queryClient.setQueryData(tagsKey, context.previousTags);
-			}
+			restoreSnapshots(queryClient, [context?.previousTags]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: tagsKey });
+			invalidateTargets(queryClient, [{ queryKey: tagsKey }]);
 		},
 	});
 

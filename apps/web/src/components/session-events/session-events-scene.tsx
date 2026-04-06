@@ -10,6 +10,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
@@ -782,9 +788,9 @@ export function SessionEventsScene({
 		});
 	};
 	const invalidateAll = async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: eventsQueryOptions.queryKey }),
-			queryClient.invalidateQueries({ queryKey: sessionKey }),
+		await invalidateTargets(queryClient, [
+			{ queryKey: eventsQueryOptions.queryKey },
+			{ queryKey: sessionKey },
 		]);
 	};
 	const updateMutation = useMutation({
@@ -794,14 +800,15 @@ export function SessionEventsScene({
 			payload?: unknown;
 		}) => trpcClient.sessionEvent.update.mutate(args),
 		onMutate: async (args) => {
-			await Promise.all([
-				queryClient.cancelQueries({ queryKey: eventsQueryOptions.queryKey }),
-				queryClient.cancelQueries({ queryKey: sessionKey }),
+			await cancelTargets(queryClient, [
+				{ queryKey: eventsQueryOptions.queryKey },
+				{ queryKey: sessionKey },
 			]);
-			const previousEvents = queryClient.getQueryData(
+			const previousEvents = snapshotQuery(
+				queryClient,
 				eventsQueryOptions.queryKey
 			);
-			const previousSession = queryClient.getQueryData(sessionKey);
+			const previousSession = snapshotQuery(queryClient, sessionKey);
 			const targetEvent = events.find((event) => event.id === args.id);
 			queryClient.setQueryData<SessionEvent[]>(
 				eventsQueryOptions.queryKey,
@@ -824,15 +831,10 @@ export function SessionEventsScene({
 			return { previousEvents, previousSession };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousEvents) {
-				queryClient.setQueryData(
-					eventsQueryOptions.queryKey,
-					context.previousEvents
-				);
-			}
-			if (context?.previousSession) {
-				queryClient.setQueryData(sessionKey, context.previousSession);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousEvents,
+				context?.previousSession,
+			]);
 		},
 		onSuccess: async () => {
 			await invalidateAll();
@@ -842,14 +844,15 @@ export function SessionEventsScene({
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.sessionEvent.delete.mutate({ id }),
 		onMutate: async (id) => {
-			await Promise.all([
-				queryClient.cancelQueries({ queryKey: eventsQueryOptions.queryKey }),
-				queryClient.cancelQueries({ queryKey: sessionKey }),
+			await cancelTargets(queryClient, [
+				{ queryKey: eventsQueryOptions.queryKey },
+				{ queryKey: sessionKey },
 			]);
-			const previousEvents = queryClient.getQueryData(
+			const previousEvents = snapshotQuery(
+				queryClient,
 				eventsQueryOptions.queryKey
 			);
-			const previousSession = queryClient.getQueryData(sessionKey);
+			const previousSession = snapshotQuery(queryClient, sessionKey);
 			queryClient.setQueryData<SessionEvent[]>(
 				eventsQueryOptions.queryKey,
 				(old) => old?.filter((event) => event.id !== id) ?? []
@@ -857,15 +860,10 @@ export function SessionEventsScene({
 			return { previousEvents, previousSession };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousEvents) {
-				queryClient.setQueryData(
-					eventsQueryOptions.queryKey,
-					context.previousEvents
-				);
-			}
-			if (context?.previousSession) {
-				queryClient.setQueryData(sessionKey, context.previousSession);
-			}
+			restoreSnapshots(queryClient, [
+				context?.previousEvents,
+				context?.previousSession,
+			]);
 		},
 		onSuccess: async () => {
 			await invalidateAll();

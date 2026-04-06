@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { SimpleEditableList } from "@/components/management/simple-editable-list";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 interface SessionTag {
@@ -25,8 +31,8 @@ export function SessionTagManager() {
 		mutationFn: ({ id, name }: { id: string; name: string }) =>
 			trpcClient.sessionTag.update.mutate({ id, name }),
 		onMutate: async ({ id, name }) => {
-			await queryClient.cancelQueries({ queryKey: tagsKey });
-			const previous = queryClient.getQueryData(tagsKey);
+			await cancelTargets(queryClient, [{ queryKey: tagsKey }]);
+			const previous = snapshotQuery(queryClient, tagsKey);
 			queryClient.setQueryData<SessionTag[]>(
 				tagsKey,
 				(old) =>
@@ -35,12 +41,10 @@ export function SessionTagManager() {
 			return { previous };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(tagsKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: tagsKey });
+			invalidateTargets(queryClient, [{ queryKey: tagsKey }]);
 		},
 		onSuccess: () => {
 			setEditingId(null);
@@ -51,8 +55,8 @@ export function SessionTagManager() {
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.sessionTag.delete.mutate({ id }),
 		onMutate: async (id) => {
-			await queryClient.cancelQueries({ queryKey: tagsKey });
-			const previous = queryClient.getQueryData(tagsKey);
+			await cancelTargets(queryClient, [{ queryKey: tagsKey }]);
+			const previous = snapshotQuery(queryClient, tagsKey);
 			queryClient.setQueryData<SessionTag[]>(
 				tagsKey,
 				(old) => old?.filter((tag) => tag.id !== id) ?? []
@@ -60,12 +64,10 @@ export function SessionTagManager() {
 			return { previous };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(tagsKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: tagsKey });
+			invalidateTargets(queryClient, [{ queryKey: tagsKey }]);
 		},
 		onSuccess: () => {
 			setConfirmingDeleteId(null);
