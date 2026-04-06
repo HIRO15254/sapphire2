@@ -36,7 +36,7 @@ export function MobileNav() {
 	return (
 		<>
 			<nav className="fixed inset-x-0 bottom-0 z-40 border-sidebar-border border-t bg-sidebar md:hidden">
-				<ul className="flex h-16 items-center">
+				<ul className="grid h-16 grid-cols-4 items-center">
 					{leftItems.map((item) => (
 						<MobileNavItem
 							active={isActive(pathname, item.to, item.exact)}
@@ -44,8 +44,6 @@ export function MobileNav() {
 							key={item.to}
 						/>
 					))}
-
-					<NavigationCenterButton action={centerAction} />
 
 					{rightItems.map((item) => (
 						<MobileNavItem
@@ -55,6 +53,11 @@ export function MobileNav() {
 						/>
 					))}
 				</ul>
+				<div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center">
+					<div className="pointer-events-auto">
+						<NavigationCenterButton action={centerAction} />
+					</div>
+				</div>
 			</nav>
 
 			{!hasActive && (

@@ -143,34 +143,32 @@ export function NavigationCenterButton({
 	const isLive = action.tone === "live";
 
 	return (
-		<li className="flex-1">
-			<Button
-				className="relative mx-auto h-auto flex-col gap-0 bg-transparent px-0 py-0 hover:bg-transparent"
-				onClick={action.onClick}
-				type="button"
-				variant="ghost"
+		<Button
+			className="relative h-auto flex-col gap-0 bg-transparent px-0 py-0 hover:bg-transparent"
+			onClick={action.onClick}
+			type="button"
+			variant="ghost"
+		>
+			<div
+				className={cn(
+					"flex size-12 translate-y-1 items-center justify-center rounded-full shadow-lg transition-colors",
+					isLive
+						? "bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
+						: "bg-primary text-primary-foreground hover:bg-primary/90"
+				)}
 			>
-				<div
-					className={cn(
-						"flex size-12 translate-y-1 items-center justify-center rounded-full shadow-lg transition-colors",
-						isLive
-							? "bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
-							: "bg-primary text-primary-foreground hover:bg-primary/90"
-					)}
-				>
-					<Icon size={24} stroke={2} />
-				</div>
-				<span
-					className={cn(
-						"relative z-10 mt-0.5 rounded-full px-2 py-px font-bold text-[10px]",
-						isLive
-							? "bg-green-600 text-white dark:bg-green-500"
-							: "bg-primary text-primary-foreground"
-					)}
-				>
-					{action.label}
-				</span>
-			</Button>
-		</li>
+				<Icon size={24} stroke={2} />
+			</div>
+			<span
+				className={cn(
+					"relative z-10 mt-0.5 rounded-full px-2 py-px font-bold text-[10px]",
+					isLive
+						? "bg-green-600 text-white dark:bg-green-500"
+						: "bg-primary text-primary-foreground"
+				)}
+			>
+				{action.label}
+			</span>
+		</Button>
 	);
 }
