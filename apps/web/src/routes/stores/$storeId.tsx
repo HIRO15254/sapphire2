@@ -2,11 +2,11 @@ import { IconArrowLeft } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { PageHeader } from "@/components/page-header";
-import { RingGameTab } from "@/components/stores/ring-game-tab";
-import { TournamentTab } from "@/components/stores/tournament-tab";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader } from "@/shared/components/page-header";
+import { RingGameTab } from "@/stores/components/ring-game-tab";
+import { TournamentTab } from "@/stores/components/tournament-tab";
+import { Button } from "@/shared/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { trpc } from "@/utils/trpc";
 
 export const Route = createFileRoute("/stores/$storeId")({

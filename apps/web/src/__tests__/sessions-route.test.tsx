@@ -51,21 +51,21 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
-vi.mock("@/components/sessions/session-card", () => ({
+vi.mock("@/sessions/components/session-card", () => ({
 	SessionCard: ({ session }: { session: { id: string } }) => (
 		<div>Session Row: {session.id}</div>
 	),
 }));
 
-vi.mock("@/components/sessions/session-filters", () => ({
+vi.mock("@/sessions/components/session-filters", () => ({
 	SessionFilters: () => <div>Session Filters</div>,
 }));
 
-vi.mock("@/components/sessions/session-form", () => ({
+vi.mock("@/sessions/components/session-form", () => ({
 	SessionForm: () => <div>Session Form</div>,
 }));
 
-vi.mock("@/components/ui/responsive-dialog", () => ({
+vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	ResponsiveDialog: ({
 		children,
 		open,

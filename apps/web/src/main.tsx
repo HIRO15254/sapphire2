@@ -2,7 +2,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 
-import Loader from "./components/loader";
+import Loader from "./shared/components/loader";
 import { routeTree } from "./routeTree.gen";
 import { persister, queryClient, trpc } from "./utils/trpc";
 

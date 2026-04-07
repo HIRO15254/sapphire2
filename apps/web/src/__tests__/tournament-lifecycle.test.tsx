@@ -29,14 +29,14 @@ Object.defineProperty(window, "matchMedia", {
 // Mock: useActiveSession
 // ---------------------------------------------------------------------------
 const mockUseActiveSession = vi.fn();
-vi.mock("@/hooks/use-active-session", () => ({
+vi.mock("@/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
 // ---------------------------------------------------------------------------
 // Mock: useTablePlayers – avoids the full tRPC session machinery
 // ---------------------------------------------------------------------------
-vi.mock("@/hooks/use-table-players", () => ({
+vi.mock("@/players/hooks/use-table-players", () => ({
 	useTablePlayers: () => ({
 		players: [],
 		excludePlayerIds: [],
@@ -49,15 +49,15 @@ vi.mock("@/hooks/use-table-players", () => ({
 // ---------------------------------------------------------------------------
 // Mock: heavy UI sub-components that would require additional providers
 // ---------------------------------------------------------------------------
-vi.mock("@/components/live-sessions/poker-table", () => ({
+vi.mock("@/live-sessions/components/poker-table", () => ({
 	PokerTable: () => <div data-testid="poker-table" />,
 }));
 
-vi.mock("@/components/live-sessions/add-player-sheet", () => ({
+vi.mock("@/live-sessions/components/add-player-sheet", () => ({
 	AddPlayerSheet: () => null,
 }));
 
-vi.mock("@/components/live-sessions/player-detail-sheet", () => ({
+vi.mock("@/live-sessions/components/player-detail-sheet", () => ({
 	PlayerDetailSheet: () => null,
 }));
 
@@ -161,7 +161,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-import { TournamentCompleteForm } from "@/components/live-tournament/tournament-complete-form";
+import { TournamentCompleteForm } from "@/live-sessions/components/tournament-complete-form";
 // biome-ignore lint/performance/noNamespaceImport: required to access named export from route module
 import * as ActiveSessionEventsModule from "@/routes/active-session/events";
 // Pull in route components after all mocks are declared.

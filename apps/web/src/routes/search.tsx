@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PageHeader } from "@/components/page-header";
-import { PageSection } from "@/components/page-section";
+import { PageHeader } from "@/shared/components/page-header";
+import { PageSection } from "@/shared/components/page-section";
 
 export const Route = createFileRoute("/search")({
 	component: SearchComponent,

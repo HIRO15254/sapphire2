@@ -1,46 +1,46 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router"
 import {
 	ActiveSessionScene,
 	useActiveSessionSceneState,
-} from "@/components/live-sessions/active-session-scene";
-import type { TableGameInfo } from "@/components/live-sessions/poker-table";
-import { EmptyState } from "@/components/ui/empty-state";
-import { useActiveSession } from "@/hooks/use-active-session";
-import { cn } from "@/lib/utils";
-import { formatCompactNumber } from "@/utils/format-number";
-import { trpc, trpcClient } from "@/utils/trpc";
+} from "@/live-sessions/components/active-session-scene"
+import type { TableGameInfo } from "@/live-sessions/components/poker-table"
+import { EmptyState } from "@/shared/components/ui/empty-state"
+import { useActiveSession } from "@/live-sessions/hooks/use-active-session"
+import { useCashGameSession } from "@/live-sessions/hooks/use-cash-game-session"
+import { useTournamentSession } from "@/live-sessions/hooks/use-tournament-session"
+import { cn } from "@/lib/utils"
+import { formatCompactNumber } from "@/utils/format-number"
 
 export const Route = createFileRoute("/active-session/")({
 	component: ActiveSessionPage,
-});
+})
 
 function plColorClass(value: number): string {
 	if (value > 0) {
-		return "text-green-600 dark:text-green-400";
+		return "text-green-600 dark:text-green-400"
 	}
 	if (value < 0) {
-		return "text-red-600 dark:text-red-400";
+		return "text-red-600 dark:text-red-400"
 	}
-	return "";
+	return ""
 }
 
 function formatPl(value: number): string {
-	const sign = value >= 0 ? "+" : "";
-	return `${sign}${formatCompactNumber(value)}`;
+	const sign = value >= 0 ? "+" : ""
+	return `${sign}${formatCompactNumber(value)}`
 }
 
 function CashGameCompactSummary({
 	summary,
 }: {
 	summary: {
-		addonCount: number;
-		cashOut: number | null;
-		currentStack: number | null;
-		evCashOut: number | null;
-		profitLoss: number | null;
-		totalBuyIn: number;
-	};
+		addonCount: number
+		cashOut: number | null
+		currentStack: number | null
+		evCashOut: number | null
+		profitLoss: number | null
+		totalBuyIn: number
+	}
 }) {
 	return (
 		<div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
@@ -86,23 +86,23 @@ function CashGameCompactSummary({
 				</div>
 			) : null}
 		</div>
-	);
+	)
 }
 
 function TournamentCompactSummary({
 	summary,
 }: {
 	summary: {
-		buyIn: number | null;
-		currentStack: number | null;
-		entryFee: number | null;
-		profitLoss: number | null;
-		remainingPlayers: number | null;
-		totalChipPurchases: number;
-		totalEntries: number | null;
-	};
+		buyIn: number | null
+		currentStack: number | null
+		entryFee: number | null
+		profitLoss: number | null
+		remainingPlayers: number | null
+		totalChipPurchases: number
+		totalEntries: number | null
+	}
 }) {
-	const totalCost = (summary.buyIn ?? 0) + (summary.entryFee ?? 0);
+	const totalCost = (summary.buyIn ?? 0) + (summary.entryFee ?? 0)
 
 	return (
 		<div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
@@ -147,21 +147,21 @@ function TournamentCompactSummary({
 				</div>
 			) : null}
 		</div>
-	);
+	)
 }
 
 function buildTournamentSummary(session: {
-	summary: Record<string, unknown>;
+	summary: Record<string, unknown>
 }): {
-	buyIn: number | null;
-	currentStack: number | null;
-	entryFee: number | null;
-	profitLoss: number | null;
-	remainingPlayers: number | null;
-	totalChipPurchases: number;
-	totalEntries: number | null;
+	buyIn: number | null
+	currentStack: number | null
+	entryFee: number | null
+	profitLoss: number | null
+	remainingPlayers: number | null
+	totalChipPurchases: number
+	totalEntries: number | null
 } {
-	const summary = session.summary;
+	const summary = session.summary
 	return {
 		buyIn: typeof summary.buyIn === "number" ? summary.buyIn : null,
 		currentStack:
@@ -179,55 +179,29 @@ function buildTournamentSummary(session: {
 				: 0,
 		totalEntries:
 			typeof summary.totalEntries === "number" ? summary.totalEntries : null,
-	};
+	}
 }
 
 function CashGameSession({ sessionId }: { sessionId: string }) {
-	const navigate = useNavigate();
-	const queryClient = useQueryClient();
+	const { session, ringGames, isDiscardPending, discard } =
+		useCashGameSession(sessionId)
 
-	const sessionQuery = useQuery({
-		...trpc.liveCashGameSession.getById.queryOptions({ id: sessionId }),
-		enabled: !!sessionId,
-		refetchInterval: 5000,
-	});
-	const session = sessionQuery.data;
-
-	const ringGameQuery = useQuery({
-		...trpc.ringGame.listByStore.queryOptions({
-			storeId: session?.storeId ?? "",
-		}),
-		enabled: !!session?.storeId,
-	});
-
-	const discardMutation = useMutation({
-		mutationFn: () =>
-			trpcClient.liveCashGameSession.discard.mutate({ id: sessionId }),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: trpc.liveCashGameSession.list.queryOptions({}).queryKey,
-			});
-			await navigate({ to: "/sessions" });
-		},
-	});
-
-	const rawHeroSeat = session?.heroSeatPosition;
+	const rawHeroSeat = session?.heroSeatPosition
 	const heroSeatPosition =
-		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
+		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null
 	const sceneState = useActiveSessionSceneState({
 		heroSeatPosition,
 		sessionId,
 		sessionType: "cash_game",
-	});
+	})
 
 	if (!session) {
-		return null;
+		return null
 	}
 
-	const ringGames = ringGameQuery.data ?? [];
 	const ringGame = session.ringGameId
 		? ringGames.find((candidate) => candidate.id === session.ringGameId)
-		: undefined;
+		: undefined
 	const gameInfo: TableGameInfo = ringGame
 		? {
 				blinds:
@@ -240,76 +214,57 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 						: null,
 				name: ringGame.name,
 			}
-		: {};
+		: {}
 
 	return (
 		<ActiveSessionScene
 			gameInfo={gameInfo}
-			isDiscardPending={discardMutation.isPending}
+			isDiscardPending={isDiscardPending}
 			memo={session.memo}
-			onDiscard={() => discardMutation.mutate()}
+			onDiscard={discard}
 			state={sceneState}
 			summary={<CashGameCompactSummary summary={session.summary} />}
 			title="Cash Game"
 		/>
-	);
+	)
 }
 
 function TournamentSession({ sessionId }: { sessionId: string }) {
-	const navigate = useNavigate();
-	const queryClient = useQueryClient();
+	const { session, isDiscardPending, discard } = useTournamentSession(sessionId)
 
-	const sessionQuery = useQuery({
-		...trpc.liveTournamentSession.getById.queryOptions({ id: sessionId }),
-		enabled: !!sessionId,
-		refetchInterval: 5000,
-	});
-	const session = sessionQuery.data;
-
-	const discardMutation = useMutation({
-		mutationFn: () =>
-			trpcClient.liveTournamentSession.discard.mutate({ id: sessionId }),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: trpc.liveTournamentSession.list.queryOptions({}).queryKey,
-			});
-			await navigate({ to: "/sessions" });
-		},
-	});
-
-	const rawHeroSeat = session?.heroSeatPosition;
+	const rawHeroSeat = session?.heroSeatPosition
 	const heroSeatPosition =
-		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
+		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null
 	const sceneState = useActiveSessionSceneState({
 		heroSeatPosition,
 		sessionId,
 		sessionType: "tournament",
-	});
+	})
 
 	if (!session) {
-		return null;
+		return null
 	}
 	const tournamentSummary = buildTournamentSummary(
 		session as { summary: Record<string, unknown> }
-	);
+	)
 
 	return (
 		<ActiveSessionScene
 			gameInfo={{
 				name: session.tournamentId ? "Tournament" : null,
 			}}
-			isDiscardPending={discardMutation.isPending}
+			isDiscardPending={isDiscardPending}
 			memo={session.memo}
-			onDiscard={() => discardMutation.mutate()}
+			onDiscard={discard}
 			state={sceneState}
 			summary={<TournamentCompactSummary summary={tournamentSummary} />}
 			title="Tournament"
 		/>
-	);
+	)
 }
 
 function ActiveSessionPage() {
-	const { activeSession, isLoading: isSessionLoading } = useActiveSession();
+	const { activeSession, isLoading: isSessionLoading } = useActiveSession()
 
 	if (isSessionLoading) {
 		return (
@@ -320,7 +275,7 @@ function ActiveSessionPage() {
 					heading="Loading..."
 				/>
 			</div>
-		);
+		)
 	}
 
 	if (!activeSession) {
@@ -332,7 +287,7 @@ function ActiveSessionPage() {
 					heading="No active session"
 				/>
 			</div>
-		);
+		)
 	}
 
 	return (
@@ -343,5 +298,5 @@ function ActiveSessionPage() {
 				<TournamentSession sessionId={activeSession.id} />
 			)}
 		</div>
-	);
+	)
 }

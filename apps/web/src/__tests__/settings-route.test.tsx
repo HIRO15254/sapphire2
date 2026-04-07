@@ -15,15 +15,15 @@ vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => mocks.navigate,
 }));
 
-vi.mock("@/components/linked-accounts", () => ({
+vi.mock("@/shared/components/linked-accounts", () => ({
 	LinkedAccounts: () => <div>Linked Accounts Content</div>,
 }));
 
-vi.mock("@/components/management/session-tag-manager", () => ({
+vi.mock("@/sessions/components/session-tag-manager", () => ({
 	SessionTagManager: () => <div>Session Tags Content</div>,
 }));
 
-vi.mock("@/components/stores/transaction-type-manager", () => ({
+vi.mock("@/currencies/components/transaction-type-manager", () => ({
 	TransactionTypeManager: () => <div>Transaction Types Content</div>,
 }));
 

@@ -23,11 +23,11 @@ vi.mock("@tanstack/react-router", () => ({
 	}),
 }));
 
-vi.mock("@/components/stores/ring-game-tab", () => ({
+vi.mock("@/stores/components/ring-game-tab", () => ({
 	RingGameTab: () => <div>Cash Games Content</div>,
 }));
 
-vi.mock("@/components/stores/tournament-tab", () => ({
+vi.mock("@/stores/components/tournament-tab", () => ({
 	TournamentTab: () => <div>Tournaments Content</div>,
 }));
 
