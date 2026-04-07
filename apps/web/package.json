@@ -39,6 +39,7 @@
     "better-auth": "catalog:",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "dotenv": "catalog:",
     "idb-keyval": "^6.2.2",
     "lucide-react": "^0.473.0",

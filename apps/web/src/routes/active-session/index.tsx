@@ -1,22 +1,15 @@
-import { IconAlertTriangle } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { AddPlayerSheet } from "@/components/live-sessions/add-player-sheet";
-import { PlayerDetailSheet } from "@/components/live-sessions/player-detail-sheet";
-import {
-	PokerTable,
-	type TableGameInfo,
-	type TablePlayer,
-} from "@/components/live-sessions/poker-table";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
-import { useActiveSession } from "@/hooks/use-active-session";
-import { useTablePlayers } from "@/hooks/use-table-players";
+import { createFileRoute } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
+import {
+	ActiveSessionScene,
+	useActiveSessionSceneState,
+} from "@/live-sessions/components/active-session-scene";
+import type { TableGameInfo } from "@/live-sessions/components/poker-table";
+import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
+import { useCashGameSession } from "@/live-sessions/hooks/use-cash-game-session";
+import { useTournamentSession } from "@/live-sessions/hooks/use-tournament-session";
+import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatCompactNumber } from "@/utils/format-number";
-import { trpc, trpcClient } from "@/utils/trpc";
 
 export const Route = createFileRoute("/active-session/")({
 	component: ActiveSessionPage,
@@ -41,12 +34,12 @@ function CashGameCompactSummary({
 	summary,
 }: {
 	summary: {
-		totalBuyIn: number;
-		cashOut: number | null;
-		profitLoss: number | null;
-		evCashOut: number | null;
-		currentStack: number | null;
 		addonCount: number;
+		cashOut: number | null;
+		currentStack: number | null;
+		evCashOut: number | null;
+		profitLoss: number | null;
+		totalBuyIn: number;
 	};
 }) {
 	return (
@@ -78,20 +71,20 @@ function CashGameCompactSummary({
 					{summary.profitLoss !== null ? formatPl(summary.profitLoss) : "-"}
 				</p>
 			</div>
-			{summary.evCashOut !== null && (
+			{summary.evCashOut !== null ? (
 				<div>
 					<span className="text-muted-foreground text-xs">EV P&L</span>
 					<p className="font-semibold">
 						{formatPl(summary.evCashOut - summary.totalBuyIn)}
 					</p>
 				</div>
-			)}
-			{summary.addonCount > 0 && (
+			) : null}
+			{summary.addonCount > 0 ? (
 				<div>
 					<span className="text-muted-foreground text-xs">Addons</span>
 					<p className="font-semibold">{summary.addonCount}</p>
 				</div>
-			)}
+			) : null}
 		</div>
 	);
 }
@@ -101,24 +94,24 @@ function TournamentCompactSummary({
 }: {
 	summary: {
 		buyIn: number | null;
-		entryFee: number | null;
 		currentStack: number | null;
-		remainingPlayers: number | null;
-		totalEntries: number | null;
-		totalChipPurchases: number;
+		entryFee: number | null;
 		profitLoss: number | null;
+		remainingPlayers: number | null;
+		totalChipPurchases: number;
+		totalEntries: number | null;
 	};
 }) {
 	const totalCost = (summary.buyIn ?? 0) + (summary.entryFee ?? 0);
 
 	return (
 		<div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
-			{totalCost > 0 && (
+			{totalCost > 0 ? (
 				<div>
 					<span className="text-muted-foreground text-xs">Buy-in</span>
 					<p className="font-semibold">{formatCompactNumber(totalCost)}</p>
 				</div>
-			)}
+			) : null}
 			<div>
 				<span className="text-muted-foreground text-xs">Stack</span>
 				<p className="font-semibold">
@@ -133,26 +126,26 @@ function TournamentCompactSummary({
 					{summary.remainingPlayers !== null ? summary.remainingPlayers : "-"}
 				</p>
 			</div>
-			{summary.totalEntries !== null && (
+			{summary.totalEntries !== null ? (
 				<div>
 					<span className="text-muted-foreground text-xs">Entries</span>
 					<p className="font-semibold">{summary.totalEntries}</p>
 				</div>
-			)}
-			{summary.totalChipPurchases > 0 && (
+			) : null}
+			{summary.totalChipPurchases > 0 ? (
 				<div>
 					<span className="text-muted-foreground text-xs">Chip Purchases</span>
 					<p className="font-semibold">{summary.totalChipPurchases}</p>
 				</div>
-			)}
-			{summary.profitLoss !== null && (
+			) : null}
+			{summary.profitLoss !== null ? (
 				<div>
 					<span className="text-muted-foreground text-xs">P&L</span>
 					<p className={cn("font-semibold", plColorClass(summary.profitLoss))}>
 						{formatPl(summary.profitLoss)}
 					</p>
 				</div>
-			)}
+			) : null}
 		</div>
 	);
 }
@@ -161,223 +154,56 @@ function buildTournamentSummary(session: {
 	summary: Record<string, unknown>;
 }): {
 	buyIn: number | null;
-	entryFee: number | null;
 	currentStack: number | null;
-	remainingPlayers: number | null;
-	totalEntries: number | null;
-	totalChipPurchases: number;
+	entryFee: number | null;
 	profitLoss: number | null;
+	remainingPlayers: number | null;
+	totalChipPurchases: number;
+	totalEntries: number | null;
 } {
-	const s = session.summary as Record<string, unknown>;
+	const summary = session.summary;
 	return {
-		buyIn: typeof s.buyIn === "number" ? s.buyIn : null,
-		entryFee: typeof s.entryFee === "number" ? s.entryFee : null,
-		currentStack: typeof s.currentStack === "number" ? s.currentStack : null,
+		buyIn: typeof summary.buyIn === "number" ? summary.buyIn : null,
+		currentStack:
+			typeof summary.currentStack === "number" ? summary.currentStack : null,
+		entryFee: typeof summary.entryFee === "number" ? summary.entryFee : null,
+		profitLoss:
+			typeof summary.profitLoss === "number" ? summary.profitLoss : null,
 		remainingPlayers:
-			typeof s.remainingPlayers === "number" ? s.remainingPlayers : null,
-		totalEntries: typeof s.totalEntries === "number" ? s.totalEntries : null,
+			typeof summary.remainingPlayers === "number"
+				? summary.remainingPlayers
+				: null,
 		totalChipPurchases:
-			typeof s.totalChipPurchases === "number" ? s.totalChipPurchases : 0,
-		profitLoss: typeof s.profitLoss === "number" ? s.profitLoss : null,
+			typeof summary.totalChipPurchases === "number"
+				? summary.totalChipPurchases
+				: 0,
+		totalEntries:
+			typeof summary.totalEntries === "number" ? summary.totalEntries : null,
 	};
 }
-
-// --- Shared table player interaction logic ---
-
-interface SelectedPlayer {
-	playerId: string;
-	seatPosition: number;
-}
-
-function usePokerTableInteraction(
-	sessionType: "cash_game" | "tournament",
-	sessionId: string,
-	heroSeatPosition: number | null
-) {
-	const queryClient = useQueryClient();
-	const [addPlayerSeat, setAddPlayerSeat] = useState<number | null>(null);
-	const [selectedPlayer, setSelectedPlayer] = useState<SelectedPlayer | null>(
-		null
-	);
-
-	const sessionKey =
-		sessionType === "cash_game"
-			? trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
-					.queryKey
-			: trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
-					.queryKey;
-
-	const [localHero, setLocalHero] = useState<number | null | undefined>(
-		undefined
-	);
-	const effectiveHero = localHero !== undefined ? localHero : heroSeatPosition;
-
-	const heroMutation = useMutation({
-		mutationFn: (pos: number | null) =>
-			sessionType === "cash_game"
-				? trpcClient.liveCashGameSession.updateHeroSeat.mutate({
-						id: sessionId,
-						heroSeatPosition: pos,
-					})
-				: trpcClient.liveTournamentSession.updateHeroSeat.mutate({
-						id: sessionId,
-						heroSeatPosition: pos,
-					}),
-		onMutate: (pos) => {
-			const prev = localHero !== undefined ? localHero : heroSeatPosition;
-			setLocalHero(pos);
-			return { prev };
-		},
-		onError: (_err, _vars, ctx) => {
-			setLocalHero(ctx?.prev ?? undefined);
-		},
-		onSettled: async () => {
-			await queryClient.invalidateQueries({ queryKey: sessionKey });
-			setLocalHero(undefined);
-		},
-	});
-
-	const handleEmptySeatTap = (seatPosition: number) => {
-		if (effectiveHero === null) {
-			heroMutation.mutate(seatPosition);
-		} else {
-			setAddPlayerSeat(seatPosition);
-		}
-	};
-
-	const handlePlayerSeatTap = (player: TablePlayer, seatPosition: number) => {
-		setSelectedPlayer({ playerId: player.player.id, seatPosition });
-	};
-
-	const handleHeroSeatTap = () => {
-		heroMutation.mutate(null);
-	};
-
-	return {
-		heroSeatPosition: effectiveHero,
-		waitingForHero: effectiveHero === null,
-		addPlayerSeat,
-		setAddPlayerSeat,
-		selectedPlayer,
-		setSelectedPlayer,
-		handleEmptySeatTap,
-		handlePlayerSeatTap,
-		handleHeroSeatTap,
-	};
-}
-
-function usePlayerDetail(playerId: string | null) {
-	const queryClient = useQueryClient();
-
-	const playerQuery = useQuery({
-		...trpc.player.getById.queryOptions({ id: playerId ?? "" }),
-		enabled: !!playerId,
-	});
-
-	const tagsQuery = useQuery({
-		...trpc.playerTag.list.queryOptions(),
-	});
-
-	const playerKey = trpc.player.getById.queryOptions({
-		id: playerId ?? "",
-	}).queryKey;
-	const tagsKey = trpc.playerTag.list.queryOptions().queryKey;
-
-	const updateMutation = useMutation({
-		mutationFn: (values: {
-			id: string;
-			memo?: string | null;
-			tagIds?: string[];
-		}) => trpcClient.player.update.mutate(values),
-		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: playerKey });
-		},
-	});
-
-	const createTagMutation = useMutation({
-		mutationFn: (name: string) => trpcClient.playerTag.create.mutate({ name }),
-		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: tagsKey });
-		},
-	});
-
-	return {
-		player: playerQuery.data ?? null,
-		availableTags: (tagsQuery.data ?? []) as Array<{
-			id: string;
-			name: string;
-			color: string;
-		}>,
-		updatePlayer: updateMutation.mutate,
-		isSaving: updateMutation.isPending,
-		createTag: async (name: string) => {
-			const result = await createTagMutation.mutateAsync(name);
-			return result as { id: string; name: string; color: string };
-		},
-	};
-}
-
-// --- Session components ---
 
 function CashGameSession({ sessionId }: { sessionId: string }) {
-	const navigate = useNavigate();
-	const queryClient = useQueryClient();
+	const { session, ringGames, isDiscardPending, discard } =
+		useCashGameSession(sessionId);
 
-	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
-
-	const sessionQuery = useQuery({
-		...trpc.liveCashGameSession.getById.queryOptions({ id: sessionId }),
-		enabled: !!sessionId,
-		refetchInterval: 5000,
-	});
-	const session = sessionQuery.data;
-
-	const ringGameQuery = useQuery({
-		...trpc.ringGame.listByStore.queryOptions({
-			storeId: session?.storeId ?? "",
-		}),
-		enabled: !!session?.storeId,
-	});
-
-	const listKey = trpc.liveCashGameSession.list.queryOptions({}).queryKey;
-
-	const discardMutation = useMutation({
-		mutationFn: () =>
-			trpcClient.liveCashGameSession.discard.mutate({ id: sessionId }),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: listKey });
-			await navigate({ to: "/sessions" });
-		},
-	});
-
-	const rawHero = session?.heroSeatPosition;
-	const heroSeat = typeof rawHero === "number" && rawHero >= 0 ? rawHero : null;
-
-	const tablePlayers = useTablePlayers({
-		liveCashGameSessionId: sessionId,
-	});
-
-	const tableInteraction = usePokerTableInteraction(
-		"cash_game",
+	const rawHeroSeat = session?.heroSeatPosition;
+	const heroSeatPosition =
+		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
+	const sceneState = useActiveSessionSceneState({
+		heroSeatPosition,
 		sessionId,
-		heroSeat
-	);
-
-	const playerDetail = usePlayerDetail(
-		tableInteraction.selectedPlayer?.playerId ?? null
-	);
+		sessionType: "cash_game",
+	});
 
 	if (!session) {
 		return null;
 	}
 
-	const ringGames = ringGameQuery.data ?? [];
 	const ringGame = session.ringGameId
-		? ringGames.find((rg) => rg.id === session.ringGameId)
+		? ringGames.find((candidate) => candidate.id === session.ringGameId)
 		: undefined;
 	const gameInfo: TableGameInfo = ringGame
 		? {
-				name: ringGame.name,
 				blinds:
 					ringGame.blind1 && ringGame.blind2
 						? `${formatCompactNumber(ringGame.blind1)}-${formatCompactNumber(ringGame.blind2)}`
@@ -386,343 +212,55 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 					ringGame.minBuyIn && ringGame.maxBuyIn
 						? `MIN ${formatCompactNumber(ringGame.minBuyIn)} - MAX ${formatCompactNumber(ringGame.maxBuyIn)}`
 						: null,
+				name: ringGame.name,
 			}
 		: {};
 
 	return (
-		<>
-			{/* Compact header */}
-			<div className="mb-2 flex items-center justify-between">
-				<div className="flex items-center gap-2">
-					<h1 className="font-bold text-lg">Cash Game</h1>
-					<Badge
-						className="border-green-200 bg-green-50 text-[10px] text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400"
-						variant="outline"
-					>
-						Active
-					</Badge>
-				</div>
-				<button
-					className="text-destructive/60 text-xs hover:text-destructive"
-					onClick={() => setIsDiscardOpen(true)}
-					type="button"
-				>
-					Discard
-				</button>
-			</div>
-
-			{/* Summary */}
-			<div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-				<CashGameCompactSummary summary={session.summary} />
-			</div>
-
-			{session.memo && (
-				<p className="mt-1 text-muted-foreground text-xs">{session.memo}</p>
-			)}
-
-			{/* Poker table */}
-			<div className="min-h-0 flex-1">
-				<PokerTable
-					gameInfo={gameInfo}
-					heroSeatPosition={tableInteraction.heroSeatPosition}
-					onEmptySeatTap={tableInteraction.handleEmptySeatTap}
-					onHeroSeatTap={tableInteraction.handleHeroSeatTap}
-					onPlayerSeatTap={tableInteraction.handlePlayerSeatTap}
-					players={tablePlayers.players as TablePlayer[]}
-					waitingForHero={tableInteraction.waitingForHero}
-				/>
-			</div>
-
-			{/* Add player sheet */}
-			<AddPlayerSheet
-				excludePlayerIds={tablePlayers.excludePlayerIds}
-				onAddExisting={(playerId, playerName) => {
-					const seat = tableInteraction.addPlayerSeat;
-					if (seat !== null) {
-						tablePlayers.handleAddExisting(playerId, playerName, seat);
-					}
-					tableInteraction.setAddPlayerSeat(null);
-				}}
-				onAddNew={(name, memo) => {
-					const seat = tableInteraction.addPlayerSeat;
-					if (seat !== null) {
-						tablePlayers.handleAddNew(name, seat, memo);
-					}
-					tableInteraction.setAddPlayerSeat(null);
-				}}
-				onOpenChange={(open) => {
-					if (!open) {
-						tableInteraction.setAddPlayerSeat(null);
-					}
-				}}
-				open={tableInteraction.addPlayerSeat !== null}
-			/>
-
-			{/* Player detail sheet */}
-			<PlayerDetailSheet
-				availableTags={playerDetail.availableTags}
-				isSaving={playerDetail.isSaving}
-				onCreateTag={playerDetail.createTag}
-				onOpenChange={(open) => {
-					if (!open) {
-						tableInteraction.setSelectedPlayer(null);
-					}
-				}}
-				onRemove={() => {
-					if (tableInteraction.selectedPlayer) {
-						tablePlayers.handleRemovePlayer(
-							tableInteraction.selectedPlayer.playerId
-						);
-						tableInteraction.setSelectedPlayer(null);
-					}
-				}}
-				onSave={(values) => {
-					if (tableInteraction.selectedPlayer) {
-						playerDetail.updatePlayer({
-							id: tableInteraction.selectedPlayer.playerId,
-							...values,
-						});
-					}
-				}}
-				open={tableInteraction.selectedPlayer !== null}
-				player={
-					playerDetail.player
-						? {
-								id: playerDetail.player.id,
-								name: playerDetail.player.name,
-								memo: playerDetail.player.memo,
-								tags: playerDetail.player.tags ?? [],
-							}
-						: null
-				}
-			/>
-
-			{/* Discard dialog */}
-			<DiscardDialog
-				isOpen={isDiscardOpen}
-				isPending={discardMutation.isPending}
-				onClose={() => setIsDiscardOpen(false)}
-				onConfirm={() => discardMutation.mutate()}
-			/>
-		</>
+		<ActiveSessionScene
+			gameInfo={gameInfo}
+			isDiscardPending={isDiscardPending}
+			memo={session.memo}
+			onDiscard={discard}
+			state={sceneState}
+			summary={<CashGameCompactSummary summary={session.summary} />}
+			title="Cash Game"
+		/>
 	);
 }
 
 function TournamentSession({ sessionId }: { sessionId: string }) {
-	const navigate = useNavigate();
-	const queryClient = useQueryClient();
+	const { session, isDiscardPending, discard } =
+		useTournamentSession(sessionId);
 
-	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
-
-	const sessionQuery = useQuery({
-		...trpc.liveTournamentSession.getById.queryOptions({ id: sessionId }),
-		enabled: !!sessionId,
-		refetchInterval: 5000,
-	});
-	const session = sessionQuery.data;
-
-	const listKey = trpc.liveTournamentSession.list.queryOptions({}).queryKey;
-
-	const discardMutation = useMutation({
-		mutationFn: () =>
-			trpcClient.liveTournamentSession.discard.mutate({ id: sessionId }),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: listKey });
-			await navigate({ to: "/sessions" });
-		},
-	});
-
-	const rawHero = session?.heroSeatPosition;
-	const heroSeat = typeof rawHero === "number" && rawHero >= 0 ? rawHero : null;
-
-	const tablePlayers = useTablePlayers({
-		liveTournamentSessionId: sessionId,
-	});
-
-	const tableInteraction = usePokerTableInteraction(
-		"tournament",
+	const rawHeroSeat = session?.heroSeatPosition;
+	const heroSeatPosition =
+		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
+	const sceneState = useActiveSessionSceneState({
+		heroSeatPosition,
 		sessionId,
-		heroSeat
-	);
-
-	const playerDetail = usePlayerDetail(
-		tableInteraction.selectedPlayer?.playerId ?? null
-	);
+		sessionType: "tournament",
+	});
 
 	if (!session) {
 		return null;
 	}
-
 	const tournamentSummary = buildTournamentSummary(
 		session as { summary: Record<string, unknown> }
 	);
 
-	const gameInfo: TableGameInfo = {
-		name: session.tournamentId ? "Tournament" : null,
-	};
-
 	return (
-		<>
-			{/* Compact header */}
-			<div className="mb-2 flex items-center justify-between">
-				<div className="flex items-center gap-2">
-					<h1 className="font-bold text-lg">Tournament</h1>
-					<Badge
-						className="border-green-200 bg-green-50 text-[10px] text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400"
-						variant="outline"
-					>
-						Active
-					</Badge>
-				</div>
-				<button
-					className="text-destructive/60 text-xs hover:text-destructive"
-					onClick={() => setIsDiscardOpen(true)}
-					type="button"
-				>
-					Discard
-				</button>
-			</div>
-
-			{/* Summary */}
-			<div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-				<TournamentCompactSummary summary={tournamentSummary} />
-			</div>
-
-			{session.memo && (
-				<p className="mt-1 text-muted-foreground text-xs">{session.memo}</p>
-			)}
-
-			{/* Poker table */}
-			<div className="min-h-0 flex-1">
-				<PokerTable
-					gameInfo={gameInfo}
-					heroSeatPosition={tableInteraction.heroSeatPosition}
-					onEmptySeatTap={tableInteraction.handleEmptySeatTap}
-					onHeroSeatTap={tableInteraction.handleHeroSeatTap}
-					onPlayerSeatTap={tableInteraction.handlePlayerSeatTap}
-					players={tablePlayers.players as TablePlayer[]}
-					waitingForHero={tableInteraction.waitingForHero}
-				/>
-			</div>
-
-			{/* Add player sheet */}
-			<AddPlayerSheet
-				excludePlayerIds={tablePlayers.excludePlayerIds}
-				onAddExisting={(playerId, playerName) => {
-					const seat = tableInteraction.addPlayerSeat;
-					if (seat !== null) {
-						tablePlayers.handleAddExisting(playerId, playerName, seat);
-					}
-					tableInteraction.setAddPlayerSeat(null);
-				}}
-				onAddNew={(name, memo) => {
-					const seat = tableInteraction.addPlayerSeat;
-					if (seat !== null) {
-						tablePlayers.handleAddNew(name, seat, memo);
-					}
-					tableInteraction.setAddPlayerSeat(null);
-				}}
-				onOpenChange={(open) => {
-					if (!open) {
-						tableInteraction.setAddPlayerSeat(null);
-					}
-				}}
-				open={tableInteraction.addPlayerSeat !== null}
-			/>
-
-			{/* Player detail sheet */}
-			<PlayerDetailSheet
-				availableTags={playerDetail.availableTags}
-				isSaving={playerDetail.isSaving}
-				onCreateTag={playerDetail.createTag}
-				onOpenChange={(open) => {
-					if (!open) {
-						tableInteraction.setSelectedPlayer(null);
-					}
-				}}
-				onRemove={() => {
-					if (tableInteraction.selectedPlayer) {
-						tablePlayers.handleRemovePlayer(
-							tableInteraction.selectedPlayer.playerId
-						);
-						tableInteraction.setSelectedPlayer(null);
-					}
-				}}
-				onSave={(values) => {
-					if (tableInteraction.selectedPlayer) {
-						playerDetail.updatePlayer({
-							id: tableInteraction.selectedPlayer.playerId,
-							...values,
-						});
-					}
-				}}
-				open={tableInteraction.selectedPlayer !== null}
-				player={
-					playerDetail.player
-						? {
-								id: playerDetail.player.id,
-								name: playerDetail.player.name,
-								memo: playerDetail.player.memo,
-								tags: playerDetail.player.tags ?? [],
-							}
-						: null
-				}
-			/>
-
-			{/* Discard dialog */}
-			<DiscardDialog
-				isOpen={isDiscardOpen}
-				isPending={discardMutation.isPending}
-				onClose={() => setIsDiscardOpen(false)}
-				onConfirm={() => discardMutation.mutate()}
-			/>
-		</>
-	);
-}
-
-function DiscardDialog({
-	isOpen,
-	isPending,
-	onClose,
-	onConfirm,
-}: {
-	isOpen: boolean;
-	isPending: boolean;
-	onClose: () => void;
-	onConfirm: () => void;
-}) {
-	return (
-		<ResponsiveDialog
-			onOpenChange={(open) => {
-				if (!open) {
-					onClose();
-				}
+		<ActiveSessionScene
+			gameInfo={{
+				name: session.tournamentId ? "Tournament" : null,
 			}}
-			open={isOpen}
-			title="Discard Session"
-		>
-			<div className="flex flex-col gap-4">
-				<div className="flex items-start gap-3 text-destructive">
-					<IconAlertTriangle className="mt-0.5 shrink-0" size={20} />
-					<p className="text-sm">
-						This will permanently delete this session and all its events.
-					</p>
-				</div>
-				<div className="flex justify-end gap-2">
-					<Button onClick={onClose} type="button" variant="outline">
-						Cancel
-					</Button>
-					<Button
-						disabled={isPending}
-						onClick={onConfirm}
-						type="button"
-						variant="destructive"
-					>
-						{isPending ? "Discarding..." : "Discard"}
-					</Button>
-				</div>
-			</div>
-		</ResponsiveDialog>
+			isDiscardPending={isDiscardPending}
+			memo={session.memo}
+			onDiscard={discard}
+			state={sceneState}
+			summary={<TournamentCompactSummary summary={tournamentSummary} />}
+			title="Tournament"
+		/>
 	);
 }
 
@@ -732,7 +270,11 @@ function ActiveSessionPage() {
 	if (isSessionLoading) {
 		return (
 			<div className="flex h-[100dvh] items-center justify-center pb-16">
-				<p className="text-muted-foreground">Loading...</p>
+				<EmptyState
+					className="border-none bg-transparent py-0"
+					description="Fetching the current active session."
+					heading="Loading..."
+				/>
 			</div>
 		);
 	}
@@ -740,7 +282,11 @@ function ActiveSessionPage() {
 	if (!activeSession) {
 		return (
 			<div className="flex h-[100dvh] items-center justify-center pb-16">
-				<p className="text-muted-foreground">No active session</p>
+				<EmptyState
+					className="border-none bg-transparent py-0"
+					description="Start a live session from the sessions screen."
+					heading="No active session"
+				/>
 			</div>
 		);
 	}

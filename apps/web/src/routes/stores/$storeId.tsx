@@ -2,10 +2,16 @@ import { IconArrowLeft } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { RingGameTab } from "@/components/stores/ring-game-tab";
-import { TournamentTab } from "@/components/stores/tournament-tab";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageHeader } from "@/shared/components/page-header";
+import { Button } from "@/shared/components/ui/button";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@/shared/components/ui/tabs";
+import { RingGameTab } from "@/stores/components/ring-game-tab";
+import { TournamentTab } from "@/stores/components/tournament-tab";
 import { trpc } from "@/utils/trpc";
 
 export const Route = createFileRoute("/stores/$storeId")({
@@ -17,43 +23,46 @@ function StoreDetailPage() {
 	const storeQuery = useQuery(trpc.store.getById.queryOptions({ id: storeId }));
 	const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
 
-	const handleToggleGame = (id: string) => {
-		setExpandedGameId((prev) => (prev === id ? null : id));
+	const handleToggleGame = (id: string | null) => {
+		setExpandedGameId(id);
 	};
 
 	const store = storeQuery.data;
 
 	if (storeQuery.isLoading) {
 		return (
-			<div className="flex items-center justify-center p-16">
-				<p className="text-muted-foreground">Loading...</p>
+			<div className="p-4 md:p-6">
+				<div className="flex items-center justify-center py-16">
+					<p className="text-muted-foreground text-sm">Loading store...</p>
+				</div>
 			</div>
 		);
 	}
 
 	if (!store) {
 		return (
-			<div className="flex items-center justify-center p-16">
-				<p className="text-muted-foreground">Store not found.</p>
+			<div className="p-4 md:p-6">
+				<div className="flex items-center justify-center py-16">
+					<p className="text-muted-foreground text-sm">Store not found.</p>
+				</div>
 			</div>
 		);
 	}
 
 	return (
 		<div className="p-4 md:p-6">
-			<div className="mb-6 flex items-center gap-4">
-				<Button asChild size="sm" variant="ghost">
-					<Link to="/stores">
-						<IconArrowLeft size={16} />
-						Back
-					</Link>
-				</Button>
-				<h1 className="font-bold text-2xl">{store.name}</h1>
-			</div>
-
-			{store.memo && (
-				<p className="mb-6 text-muted-foreground text-sm">{store.memo}</p>
-			)}
+			<PageHeader
+				actions={
+					<Button asChild size="sm" variant="ghost">
+						<Link to="/stores">
+							<IconArrowLeft size={16} />
+							Back
+						</Link>
+					</Button>
+				}
+				description={store.memo ?? undefined}
+				heading={store.name}
+			/>
 
 			<Tabs defaultValue="ring-games">
 				<TabsList>

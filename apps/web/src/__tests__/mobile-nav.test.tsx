@@ -7,21 +7,21 @@ import {
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MobileNav } from "../components/mobile-nav";
+import { MobileNav } from "../shared/components/mobile-nav";
 
 // Mock useActiveSession to control nav mode
 const mockUseActiveSession = vi.fn();
-vi.mock("@/hooks/use-active-session", () => ({
+vi.mock("@/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
 // Mock CreateSessionDialog to avoid trpc/env imports
-vi.mock("@/components/live-sessions/create-session-dialog", () => ({
+vi.mock("@/live-sessions/components/create-session-dialog", () => ({
 	CreateSessionDialog: () => null,
 }));
 
 // Mock useStackSheet to avoid provider requirement
-vi.mock("@/hooks/use-stack-sheet", () => ({
+vi.mock("@/live-sessions/hooks/use-stack-sheet", () => ({
 	useStackSheet: () => ({
 		isOpen: false,
 		open: vi.fn(),

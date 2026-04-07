@@ -28,18 +28,18 @@ Object.defineProperty(window, "matchMedia", {
 
 // Control the active-session hook return value from each test
 const mockUseActiveSession = vi.fn();
-vi.mock("@/hooks/use-active-session", () => ({
+vi.mock("@/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
 // Stub heavy child components inside CreateSessionDialog
-vi.mock("@/components/live-cash-game/create-cash-game-session-form", () => ({
+vi.mock("@/live-sessions/components/create-cash-game-session-form", () => ({
 	CreateCashGameSessionForm: () => (
 		<div data-testid="cash-game-form">Cash Game Form</div>
 	),
 }));
 
-vi.mock("@/components/live-tournament/create-tournament-session-form", () => ({
+vi.mock("@/live-sessions/components/create-tournament-session-form", () => ({
 	CreateTournamentSessionForm: () => (
 		<div data-testid="tournament-form">Tournament Form</div>
 	),
@@ -52,6 +52,14 @@ const { mockQuery } = vi.hoisted(() => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
+		session: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["sessions"],
+					queryFn: () => mockQuery("sessions"),
+				}),
+			},
+		},
 		store: {
 			list: {
 				queryOptions: () => ({
@@ -115,7 +123,7 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 // Import component under test after mocks
-import { CreateSessionDialog } from "@/components/live-sessions/create-session-dialog";
+import { CreateSessionDialog } from "@/live-sessions/components/create-session-dialog";
 
 const testQueryClient = new QueryClient({
 	defaultOptions: { queries: { retry: false } },
@@ -164,7 +172,6 @@ function DialogTestPage({ open }: { open: boolean }) {
 	);
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: RouteComponent type compatibility in tests
 function createTestRouter(component: any, path = "/") {
 	const rootRoute = createRootRoute({ component });
 	const indexRoute = createRoute({
@@ -205,13 +212,9 @@ describe("Single-session guard — no active session", () => {
 
 		// The dialog title should be visible
 		await screen.findByText("New Session");
-		// Both type switcher buttons should be present
-		expect(
-			screen.getByRole("button", { name: "Cash Game" })
-		).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: "Tournament" })
-		).toBeInTheDocument();
+		// Both type switcher tabs should be present
+		expect(screen.getByRole("tab", { name: "Cash Game" })).toBeInTheDocument();
+		expect(screen.getByRole("tab", { name: "Tournament" })).toBeInTheDocument();
 	});
 
 	it("renders cash game form by default in CreateSessionDialog", async () => {
@@ -226,8 +229,8 @@ describe("Single-session guard — no active session", () => {
 		const router = createTestRouter(() => <DialogTestPage open />);
 		render(<RouterProvider router={router} />);
 
-		await screen.findByRole("button", { name: "Tournament" });
-		await user.click(screen.getByRole("button", { name: "Tournament" }));
+		await screen.findByRole("tab", { name: "Tournament" });
+		await user.click(screen.getByRole("tab", { name: "Tournament" }));
 
 		await screen.findByTestId("tournament-form");
 		expect(screen.queryByTestId("cash-game-form")).not.toBeInTheDocument();

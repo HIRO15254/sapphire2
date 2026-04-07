@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PageHeader } from "@/shared/components/page-header";
+import { PageSection } from "@/shared/components/page-section";
 
 export const Route = createFileRoute("/search")({
 	component: SearchComponent,
@@ -7,8 +9,15 @@ export const Route = createFileRoute("/search")({
 function SearchComponent() {
 	return (
 		<div className="container mx-auto max-w-3xl px-4 py-2">
-			<h1 className="font-bold text-2xl">Search</h1>
-			<p className="mt-2 text-muted-foreground">Coming soon.</p>
+			<PageHeader
+				description="Search across your data will live here."
+				heading="Search"
+			/>
+			<PageSection description="Coming soon." heading="Availability">
+				<p className="text-muted-foreground text-sm">
+					This page is reserved for app-wide search.
+				</p>
+			</PageSection>
 		</div>
 	);
 }

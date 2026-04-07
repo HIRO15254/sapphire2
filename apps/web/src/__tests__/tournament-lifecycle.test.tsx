@@ -29,14 +29,14 @@ Object.defineProperty(window, "matchMedia", {
 // Mock: useActiveSession
 // ---------------------------------------------------------------------------
 const mockUseActiveSession = vi.fn();
-vi.mock("@/hooks/use-active-session", () => ({
+vi.mock("@/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
 // ---------------------------------------------------------------------------
 // Mock: useTablePlayers – avoids the full tRPC session machinery
 // ---------------------------------------------------------------------------
-vi.mock("@/hooks/use-table-players", () => ({
+vi.mock("@/players/hooks/use-table-players", () => ({
 	useTablePlayers: () => ({
 		players: [],
 		excludePlayerIds: [],
@@ -49,15 +49,15 @@ vi.mock("@/hooks/use-table-players", () => ({
 // ---------------------------------------------------------------------------
 // Mock: heavy UI sub-components that would require additional providers
 // ---------------------------------------------------------------------------
-vi.mock("@/components/live-sessions/poker-table", () => ({
+vi.mock("@/live-sessions/components/poker-table", () => ({
 	PokerTable: () => <div data-testid="poker-table" />,
 }));
 
-vi.mock("@/components/live-sessions/add-player-sheet", () => ({
+vi.mock("@/live-sessions/components/add-player-sheet", () => ({
 	AddPlayerSheet: () => null,
 }));
 
-vi.mock("@/components/live-sessions/player-detail-sheet", () => ({
+vi.mock("@/live-sessions/components/player-detail-sheet", () => ({
 	PlayerDetailSheet: () => null,
 }));
 
@@ -109,6 +109,12 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 		player: {
+			list: {
+				queryOptions: (args?: unknown) => ({
+					queryKey: ["players", args],
+					queryFn: () => mockQuery("player-list", args),
+				}),
+			},
 			getById: {
 				queryOptions: (args: { id: string }) => ({
 					queryKey: ["player", args.id],
@@ -155,7 +161,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-import { TournamentCompleteForm } from "@/components/live-tournament/tournament-complete-form";
+import { TournamentCompleteForm } from "@/live-sessions/components/tournament-complete-form";
 // biome-ignore lint/performance/noNamespaceImport: required to access named export from route module
 import * as ActiveSessionEventsModule from "@/routes/active-session/events";
 // Pull in route components after all mocks are declared.
@@ -226,7 +232,6 @@ function TestQueryProvider({ children }: { children: ReactNode }) {
 	);
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: test router type variance
 function renderWithProviders(router: any) {
 	return render(
 		<TestQueryProvider>
@@ -239,7 +244,6 @@ function renderWithProviders(router: any) {
 // Router factory helpers
 // ---------------------------------------------------------------------------
 
-// biome-ignore lint/suspicious/noExplicitAny: RouteComponent type compatibility in tests
 type AnyComponent = any;
 
 function createTestRouter(Component: AnyComponent, path = "/active-session") {
@@ -263,7 +267,6 @@ function createEventsRouter() {
 	const eventsRoute = createRoute({
 		getParentRoute: () => rootRoute,
 		path: "/active-session/events",
-		// biome-ignore lint/suspicious/noExplicitAny: RouteComponent type compatibility in tests
 		component: ActiveSessionEventsPage as any,
 	});
 	const routeTree = rootRoute.addChildren([eventsRoute]);

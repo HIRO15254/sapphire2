@@ -1,27 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { authClient } from "@/lib/auth-client";
+import { PageSection } from "@/shared/components/page-section";
+import { PublicPageShell } from "@/shared/components/public-page-shell";
+import { Button } from "@/shared/components/ui/button";
 import { trpc } from "@/utils/trpc";
 
 export const Route = createFileRoute("/")({
 	component: HomeComponent,
 });
-
-const TITLE_TEXT = `
- ██████╗ ███████╗████████╗████████╗███████╗██████╗
- ██╔══██╗██╔════╝╚══██╔══╝╚══██╔══╝██╔════╝██╔══██╗
- ██████╔╝█████╗     ██║      ██║   █████╗  ██████╔╝
- ██╔══██╗██╔══╝     ██║      ██║   ██╔══╝  ██╔══██╗
- ██████╔╝███████╗   ██║      ██║   ███████╗██║  ██║
- ╚═════╝ ╚══════╝   ╚═╝      ╚═╝   ╚══════╝╚═╝  ╚═╝
-
- ████████╗    ███████╗████████╗ █████╗  ██████╗██╗  ██╗
- ╚══██╔══╝    ██╔════╝╚══██╔══╝██╔══██╗██╔════╝██║ ██╔╝
-    ██║       ███████╗   ██║   ███████║██║     █████╔╝
-    ██║       ╚════██║   ██║   ██╔══██║██║     ██╔═██╗
-    ██║       ███████║   ██║   ██║  ██║╚██████╗██║  ██╗
-    ╚═╝       ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
- `;
 
 function getStatusText(isLoading: boolean, data: unknown) {
 	if (isLoading) {
@@ -33,25 +20,94 @@ function getStatusText(isLoading: boolean, data: unknown) {
 	return "Disconnected";
 }
 
+function getStatusDescription(isLoading: boolean, isConnected: boolean) {
+	if (isLoading) {
+		return "Checking server connectivity before you continue.";
+	}
+	if (isConnected) {
+		return "Everything looks ready.";
+	}
+	return "Server connection is unavailable right now.";
+}
+
 function HomeComponent() {
 	const healthCheck = useQuery(trpc.healthCheck.queryOptions());
+	const { data: session } = authClient.useSession();
+	const isConnected = Boolean(healthCheck.data);
+	const isSignedIn = Boolean(session);
+	const healthStatusDescription = getStatusDescription(
+		healthCheck.isLoading,
+		isConnected
+	);
 
 	return (
-		<div className="container mx-auto max-w-3xl px-4 py-2">
-			<pre className="overflow-x-auto font-mono text-sm">{TITLE_TEXT}</pre>
-			<div className="grid gap-6">
-				<section className="rounded-lg border p-4">
-					<h2 className="mb-2 font-medium">API Status</h2>
-					<div className="flex items-center gap-2">
+		<PublicPageShell
+			actions={
+				<>
+					<Button asChild>
+						<Link to={isSignedIn ? "/dashboard" : "/login"}>
+							{isSignedIn ? "Open Dashboard" : "Get Started"}
+						</Link>
+					</Button>
+					{isSignedIn ? null : (
+						<Button asChild variant="outline">
+							<Link to="/login">Sign In</Link>
+						</Button>
+					)}
+				</>
+			}
+			aside={
+				<PageSection
+					description="The same shared UI system now powers public entry, auth, and the authenticated app."
+					heading="What you can do"
+				>
+					<ul className="space-y-2 text-muted-foreground text-sm">
+						<li>Track live and historical sessions in one place.</li>
+						<li>Manage stores, currencies, players, and shared tags.</li>
+						<li>Jump straight into live session tools after sign in.</li>
+					</ul>
+				</PageSection>
+			}
+			description="A lightweight public entry point for session tracking, store management, and live play workflows."
+			eyebrow="Session Tracking"
+			title="sapphire2 keeps your poker operations in sync."
+		>
+			<div className="space-y-4">
+				<PageSection
+					description="Public routes stay lightweight while still reflecting the current app health."
+					heading="API Status"
+				>
+					<div className="flex items-center gap-3">
 						<div
-							className={`h-2 w-2 rounded-full ${healthCheck.data ? "bg-green-500" : "bg-red-500"}`}
+							className={`size-3 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}
 						/>
-						<span className="text-muted-foreground text-sm">
-							{getStatusText(healthCheck.isLoading, healthCheck.data)}
-						</span>
+						<div className="space-y-1">
+							<p className="font-medium">
+								API: {getStatusText(healthCheck.isLoading, healthCheck.data)}
+							</p>
+							<p className="text-muted-foreground text-sm">
+								{healthStatusDescription}
+							</p>
+						</div>
 					</div>
-				</section>
+				</PageSection>
+				<PageSection
+					description={
+						isSignedIn
+							? `Signed in as ${session?.user.name ?? "your account"}. Continue where you left off.`
+							: "Sign in to access dashboard, settings, sessions, and live tools."
+					}
+					heading={isSignedIn ? "Ready to continue" : "Start with your account"}
+				>
+					<div className="flex flex-wrap gap-3">
+						<Button asChild variant={isSignedIn ? "default" : "outline"}>
+							<Link to={isSignedIn ? "/dashboard" : "/login"}>
+								{isSignedIn ? "Go to Dashboard" : "Open Sign In"}
+							</Link>
+						</Button>
+					</div>
+				</PageSection>
 			</div>
-		</div>
+		</PublicPageShell>
 	);
 }
