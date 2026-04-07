@@ -1,7 +1,7 @@
 import { IconNote } from "@tabler/icons-react";
 import { useEffect, useRef } from "react";
-import { EntityListItem } from "@/shared/components/management/entity-list-item";
 import { ColorBadge } from "@/players/components/color-badge";
+import { EntityListItem } from "@/shared/components/management/entity-list-item";
 
 const ALLOWED_TAGS = new Set([
 	"P",

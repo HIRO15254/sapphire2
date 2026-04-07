@@ -20,9 +20,9 @@ import {
 } from "@tabler/icons-react";
 import type { ComponentProps } from "react";
 import { useRef } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { cn } from "@/lib/utils";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
 import { useBlindLevels } from "@/stores/hooks/use-blind-levels";
 

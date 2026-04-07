@@ -1,10 +1,15 @@
 import { useState } from "react";
-import { SimpleEditableList } from "@/shared/components/management/simple-editable-list";
 import { useTransactionTypeManager } from "@/currencies/hooks/use-transaction-type-manager";
+import { SimpleEditableList } from "@/shared/components/management/simple-editable-list";
 
 export function TransactionTypeManager() {
-	const { types, update, delete: deleteType, isUpdatePending, isDeletePending } =
-		useTransactionTypeManager();
+	const {
+		types,
+		update,
+		delete: deleteType,
+		isUpdatePending,
+		isDeletePending,
+	} = useTransactionTypeManager();
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editingName, setEditingName] = useState("");
 	const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
@@ -21,20 +26,22 @@ export function TransactionTypeManager() {
 
 	const handleDelete = (id: string) => {
 		setDeleteError(null);
-		deleteType(id).then(() => {
-			setConfirmingDeleteId(null);
-		}).catch((err: unknown) => {
-			if (
-				err &&
-				typeof err === "object" &&
-				"message" in err &&
-				typeof err.message === "string"
-			) {
-				setDeleteError(err.message);
-			} else {
-				setDeleteError("Failed to delete");
-			}
-		});
+		deleteType(id)
+			.then(() => {
+				setConfirmingDeleteId(null);
+			})
+			.catch((err: unknown) => {
+				if (
+					err &&
+					typeof err === "object" &&
+					"message" in err &&
+					typeof err.message === "string"
+				) {
+					setDeleteError(err.message);
+				} else {
+					setDeleteError("Failed to delete");
+				}
+			});
 	};
 
 	return (

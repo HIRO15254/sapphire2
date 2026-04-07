@@ -1,17 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate } from "@tanstack/react-router"
-import { trpc, trpcClient } from "@/utils/trpc"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { trpc, trpcClient } from "@/utils/trpc";
 
 export function useTournamentSession(sessionId: string) {
-	const navigate = useNavigate()
-	const queryClient = useQueryClient()
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
 
 	const sessionQuery = useQuery({
 		...trpc.liveTournamentSession.getById.queryOptions({ id: sessionId }),
 		enabled: !!sessionId,
 		refetchInterval: 5000,
-	})
-	const session = sessionQuery.data
+	});
+	const session = sessionQuery.data;
 
 	const discardMutation = useMutation({
 		mutationFn: () =>
@@ -24,16 +24,16 @@ export function useTournamentSession(sessionId: string) {
 				queryClient.invalidateQueries({
 					queryKey: trpc.session.list.queryOptions({}).queryKey,
 				}),
-			])
-			await navigate({ to: "/sessions" })
+			]);
+			await navigate({ to: "/sessions" });
 		},
-	})
+	});
 
 	return {
 		session,
 		isDiscardPending: discardMutation.isPending,
 		discard: () => {
-			discardMutation.mutate()
+			discardMutation.mutate();
 		},
-	}
+	};
 }

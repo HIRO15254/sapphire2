@@ -15,22 +15,35 @@ vi.mock("@tanstack/react-query", () => ({
 		mutationFn: (arg: unknown) => Promise<unknown> | unknown;
 		onSettled?: () => void;
 		onSuccess?: () => void;
-	}) => ({
-		isPending: false,
-		mutate: async (arg: unknown) => {
-			await options.mutationFn(arg);
+	}) => {
+		const mutate = async (arg: unknown) => {
+			const result = await options.mutationFn(arg);
 			await options.onSuccess?.();
 			await options.onSettled?.();
-		},
-	}),
+			return result;
+		};
+		return {
+			isPending: false,
+			mutate,
+			mutateAsync: mutate,
+		};
+	},
 	useQuery: () => ({ data: mocks.tags }),
 	useQueryClient: () => ({
+		cancelQueries: vi.fn(),
+		getQueryData: vi.fn(),
 		invalidateQueries: mocks.invalidateQueries,
+		setQueryData: vi.fn(),
 	}),
 }));
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
+		session: {
+			list: {
+				queryOptions: () => ({ queryKey: ["sessions"] }),
+			},
+		},
 		sessionTag: {
 			list: {
 				queryOptions: () => ({ queryKey: ["session-tags"] }),

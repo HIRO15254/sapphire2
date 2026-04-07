@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { FilterDialogShell } from "@/shared/components/filter-dialog-shell";
 import { PlayerTagInput } from "@/players/components/player-tag-input";
+import { FilterDialogShell } from "@/shared/components/filter-dialog-shell";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
 

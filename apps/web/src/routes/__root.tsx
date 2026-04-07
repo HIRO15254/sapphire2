@@ -7,10 +7,10 @@ import {
 	redirect,
 	useLocation,
 } from "@tanstack/react-router";
+import { authClient } from "@/lib/auth-client";
 import { AuthenticatedShell } from "@/shared/components/authenticated-shell";
 import { ThemeProvider } from "@/shared/components/theme-provider";
 import { Toaster } from "@/shared/components/ui/sonner";
-import { authClient } from "@/lib/auth-client";
 import type { trpc } from "@/utils/trpc";
 
 import "../index.css";

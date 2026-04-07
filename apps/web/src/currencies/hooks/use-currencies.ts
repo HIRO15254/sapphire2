@@ -1,82 +1,82 @@
-import { useEffect, useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { trpc, trpcClient } from "@/utils/trpc"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { trpc, trpcClient } from "@/utils/trpc";
 
 export interface CurrencyValues {
-	name: string
-	unit?: string
+	name: string;
+	unit?: string;
 }
 
 export interface TransactionValues {
-	amount: number
-	memo?: string
-	transactedAt: string
-	transactionTypeId: string
+	amount: number;
+	memo?: string;
+	transactedAt: string;
+	transactionTypeId: string;
 }
 
 export interface CurrencyItem {
-	id: string
-	name: string
-	unit?: string | null
+	id: string;
+	name: string;
+	unit?: string | null;
 }
 
 export interface Transaction {
-	amount: number
-	createdAt?: Date | string
-	currencyId?: string
-	id: string
-	memo?: string | null
-	transactedAt: Date | string
-	transactionTypeId?: string
-	transactionTypeName: string
+	amount: number;
+	createdAt?: Date | string;
+	currencyId?: string;
+	id: string;
+	memo?: string | null;
+	transactedAt: Date | string;
+	transactionTypeId?: string;
+	transactionTypeName: string;
 }
 
 export function useCurrencies(expandedCurrencyId: string | null) {
-	const [allTransactions, setAllTransactions] = useState<Transaction[]>([])
-	const [txCursor, setTxCursor] = useState<string | undefined>(undefined)
-	const [txHasMore, setTxHasMore] = useState(false)
-	const [isLoadingMore, setIsLoadingMore] = useState(false)
+	const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+	const [txCursor, setTxCursor] = useState<string | undefined>(undefined);
+	const [txHasMore, setTxHasMore] = useState(false);
+	const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-	const queryClient = useQueryClient()
-	const currencyListKey = trpc.currency.list.queryOptions().queryKey
+	const queryClient = useQueryClient();
+	const currencyListKey = trpc.currency.list.queryOptions().queryKey;
 
-	const currenciesQuery = useQuery(trpc.currency.list.queryOptions())
-	const currencies = currenciesQuery.data ?? []
+	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
+	const currencies = currenciesQuery.data ?? [];
 
 	const transactionsQueryOptions =
 		trpc.currencyTransaction.listByCurrency.queryOptions(
 			{ currencyId: expandedCurrencyId ?? "" },
 			{ enabled: expandedCurrencyId !== null }
-		)
+		);
 
-	const transactionsQuery = useQuery(transactionsQueryOptions)
+	const transactionsQuery = useQuery(transactionsQueryOptions);
 
 	useEffect(() => {
 		if (transactionsQuery.data) {
-			setAllTransactions(transactionsQuery.data.items)
-			setTxCursor(transactionsQuery.data.nextCursor)
-			setTxHasMore(transactionsQuery.data.nextCursor !== undefined)
+			setAllTransactions(transactionsQuery.data.items);
+			setTxCursor(transactionsQuery.data.nextCursor);
+			setTxHasMore(transactionsQuery.data.nextCursor !== undefined);
 		}
-	}, [transactionsQuery.data])
+	}, [transactionsQuery.data]);
 
 	const resetTransactionState = () => {
-		setAllTransactions([])
-		setTxCursor(undefined)
-		setTxHasMore(false)
-		setIsLoadingMore(false)
-	}
+		setAllTransactions([]);
+		setTxCursor(undefined);
+		setTxHasMore(false);
+		setIsLoadingMore(false);
+	};
 
 	const createMutation = useMutation({
 		mutationFn: (values: CurrencyValues) =>
 			trpcClient.currency.create.mutate(values),
 		onMutate: async (newCurrency) => {
-			await queryClient.cancelQueries({ queryKey: currencyListKey })
-			const previous = queryClient.getQueryData(currencyListKey)
+			await queryClient.cancelQueries({ queryKey: currencyListKey });
+			const previous = queryClient.getQueryData(currencyListKey);
 			queryClient.setQueryData(currencyListKey, (old) => {
 				if (!old) {
-					return old
+					return old;
 				}
-				const base = old[0]
+				const base = old[0];
 				return [
 					...old,
 					{
@@ -86,82 +86,82 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 						unit: newCurrency.unit ?? null,
 						balance: 0,
 					},
-				]
-			})
-			return { previous }
+				];
+			});
+			return { previous };
 		},
 		onError: (_err, _vars, context) => {
 			if (context?.previous) {
-				queryClient.setQueryData(currencyListKey, context.previous)
+				queryClient.setQueryData(currencyListKey, context.previous);
 			}
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: currencyListKey })
+			queryClient.invalidateQueries({ queryKey: currencyListKey });
 		},
-	})
+	});
 
 	const updateMutation = useMutation({
 		mutationFn: (values: CurrencyValues & { id: string }) =>
 			trpcClient.currency.update.mutate(values),
 		onMutate: async (updated) => {
-			await queryClient.cancelQueries({ queryKey: currencyListKey })
-			const previous = queryClient.getQueryData(currencyListKey)
+			await queryClient.cancelQueries({ queryKey: currencyListKey });
+			const previous = queryClient.getQueryData(currencyListKey);
 			queryClient.setQueryData(currencyListKey, (old) =>
 				old?.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
-			)
-			return { previous }
+			);
+			return { previous };
 		},
 		onError: (_err, _vars, context) => {
 			if (context?.previous) {
-				queryClient.setQueryData(currencyListKey, context.previous)
+				queryClient.setQueryData(currencyListKey, context.previous);
 			}
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: currencyListKey })
+			queryClient.invalidateQueries({ queryKey: currencyListKey });
 		},
-	})
+	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.currency.delete.mutate({ id }),
 		onMutate: async (id) => {
-			await queryClient.cancelQueries({ queryKey: currencyListKey })
-			const previous = queryClient.getQueryData(currencyListKey)
+			await queryClient.cancelQueries({ queryKey: currencyListKey });
+			const previous = queryClient.getQueryData(currencyListKey);
 			queryClient.setQueryData(currencyListKey, (old) =>
 				old?.filter((c) => c.id !== id)
-			)
-			return { previous }
+			);
+			return { previous };
 		},
 		onError: (_err, _vars, context) => {
 			if (context?.previous) {
-				queryClient.setQueryData(currencyListKey, context.previous)
+				queryClient.setQueryData(currencyListKey, context.previous);
 			}
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: currencyListKey })
+			queryClient.invalidateQueries({ queryKey: currencyListKey });
 		},
-	})
+	});
 
 	const addTransactionMutation = useMutation({
 		mutationFn: (values: TransactionValues & { currencyId: string }) =>
 			trpcClient.currencyTransaction.create.mutate(values),
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: currencyListKey })
+			queryClient.invalidateQueries({ queryKey: currencyListKey });
 			queryClient.invalidateQueries({
 				queryKey: transactionsQueryOptions.queryKey,
-			})
+			});
 		},
 		onSuccess: () => {
-			resetTransactionState()
+			resetTransactionState();
 		},
-	})
+	});
 
 	const editTransactionMutation = useMutation({
 		mutationFn: (values: {
-			amount: number
-			id: string
-			memo: string | null
-			transactedAt: string
-			transactionTypeId: string
+			amount: number;
+			id: string;
+			memo: string | null;
+			transactedAt: string;
+			transactionTypeId: string;
 		}) =>
 			trpcClient.currencyTransaction.update.mutate({
 				id: values.id,
@@ -171,57 +171,57 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 				memo: values.memo,
 			}),
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: currencyListKey })
+			queryClient.invalidateQueries({ queryKey: currencyListKey });
 			queryClient.invalidateQueries({
 				queryKey: transactionsQueryOptions.queryKey,
-			})
+			});
 		},
 		onSuccess: () => {
-			resetTransactionState()
+			resetTransactionState();
 		},
-	})
+	});
 
 	const deleteTransactionMutation = useMutation({
 		mutationFn: (id: string) =>
 			trpcClient.currencyTransaction.delete.mutate({ id }),
 		onMutate: (id) => {
-			const previous = allTransactions
-			setAllTransactions((prev) => prev.filter((t) => t.id !== id))
-			return { previous }
+			const previous = allTransactions;
+			setAllTransactions((prev) => prev.filter((t) => t.id !== id));
+			return { previous };
 		},
 		onError: (_err, _vars, context) => {
 			if (context?.previous) {
-				setAllTransactions(context.previous)
+				setAllTransactions(context.previous);
 			}
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: currencyListKey })
+			queryClient.invalidateQueries({ queryKey: currencyListKey });
 			queryClient.invalidateQueries({
 				queryKey: transactionsQueryOptions.queryKey,
-			})
+			});
 		},
 		onSuccess: () => {
-			resetTransactionState()
+			resetTransactionState();
 		},
-	})
+	});
 
 	const handleLoadMore = async () => {
 		if (!(expandedCurrencyId && txCursor) || isLoadingMore) {
-			return
+			return;
 		}
-		setIsLoadingMore(true)
+		setIsLoadingMore(true);
 		try {
 			const result = await trpcClient.currencyTransaction.listByCurrency.query({
 				currencyId: expandedCurrencyId,
 				cursor: txCursor,
-			})
-			setAllTransactions((prev) => [...prev, ...result.items])
-			setTxCursor(result.nextCursor)
-			setTxHasMore(result.nextCursor !== undefined)
+			});
+			setAllTransactions((prev) => [...prev, ...result.items]);
+			setTxCursor(result.nextCursor);
+			setTxHasMore(result.nextCursor !== undefined);
 		} finally {
-			setIsLoadingMore(false)
+			setIsLoadingMore(false);
 		}
-	}
+	};
 
 	return {
 		currencies,
@@ -240,15 +240,15 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		addTransaction: (values: TransactionValues & { currencyId: string }) =>
 			addTransactionMutation.mutateAsync(values),
 		editTransaction: (values: {
-			amount: number
-			id: string
-			memo: string | null
-			transactedAt: string
-			transactionTypeId: string
+			amount: number;
+			id: string;
+			memo: string | null;
+			transactedAt: string;
+			transactionTypeId: string;
 		}) => editTransactionMutation.mutateAsync(values),
 		deleteTransaction: (id: string) => {
-			deleteTransactionMutation.mutate(id)
+			deleteTransactionMutation.mutate(id);
 		},
 		handleLoadMore,
-	}
+	};
 }

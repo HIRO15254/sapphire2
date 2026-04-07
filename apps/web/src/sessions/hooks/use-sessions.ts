@@ -1,88 +1,88 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate } from "@tanstack/react-router"
-import type { SessionFilterValues } from "@/sessions/components/session-filters"
-import { trpc, trpcClient } from "@/utils/trpc"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import type { SessionFilterValues } from "@/sessions/components/session-filters";
+import { trpc, trpcClient } from "@/utils/trpc";
 
 export interface CashGameFormValues {
-	ante?: number
-	anteType?: string
-	blind1?: number
-	blind2?: number
-	blind3?: number
-	buyIn: number
-	cashOut: number
-	currencyId?: string
-	endTime?: string
-	evCashOut?: number
-	memo?: string
-	ringGameId?: string
-	sessionDate: string
-	startTime?: string
-	storeId?: string
-	tableSize?: number
-	tagIds?: string[]
-	type: "cash_game"
-	variant: string
+	ante?: number;
+	anteType?: string;
+	blind1?: number;
+	blind2?: number;
+	blind3?: number;
+	buyIn: number;
+	cashOut: number;
+	currencyId?: string;
+	endTime?: string;
+	evCashOut?: number;
+	memo?: string;
+	ringGameId?: string;
+	sessionDate: string;
+	startTime?: string;
+	storeId?: string;
+	tableSize?: number;
+	tagIds?: string[];
+	type: "cash_game";
+	variant: string;
 }
 
 export interface TournamentFormValues {
-	addonCost?: number
-	bountyPrizes?: number
-	currencyId?: string
-	endTime?: string
-	entryFee?: number
-	memo?: string
-	placement?: number
-	prizeMoney?: number
-	rebuyCost?: number
-	rebuyCount?: number
-	sessionDate: string
-	startTime?: string
-	storeId?: string
-	tagIds?: string[]
-	totalEntries?: number
-	tournamentBuyIn: number
-	tournamentId?: string
-	type: "tournament"
+	addonCost?: number;
+	bountyPrizes?: number;
+	currencyId?: string;
+	endTime?: string;
+	entryFee?: number;
+	memo?: string;
+	placement?: number;
+	prizeMoney?: number;
+	rebuyCost?: number;
+	rebuyCount?: number;
+	sessionDate: string;
+	startTime?: string;
+	storeId?: string;
+	tagIds?: string[];
+	totalEntries?: number;
+	tournamentBuyIn: number;
+	tournamentId?: string;
+	type: "tournament";
 }
 
-export type SessionFormValues = CashGameFormValues | TournamentFormValues
+export type SessionFormValues = CashGameFormValues | TournamentFormValues;
 
 export interface SessionItem {
-	addonCost: number | null
-	bountyPrizes: number | null
-	buyIn: number | null
-	cashOut: number | null
-	createdAt: string
-	currencyId: string | null
-	currencyName: string | null
-	currencyUnit: string | null
-	endedAt: string | null
-	entryFee: number | null
-	evCashOut: number | null
-	evDiff: number | null
-	evProfitLoss: number | null
-	id: string
-	liveCashGameSessionId: string | null
-	liveTournamentSessionId: string | null
-	memo: string | null
-	placement: number | null
-	prizeMoney: number | null
-	profitLoss: number | null
-	rebuyCost: number | null
-	rebuyCount: number | null
-	ringGameId: string | null
-	ringGameName: string | null
-	sessionDate: string
-	startedAt: string | null
-	storeId: string | null
-	storeName: string | null
-	tags: Array<{ id: string; name: string }>
-	totalEntries: number | null
-	tournamentBuyIn: number | null
-	tournamentId: string | null
-	tournamentName: string | null
-	type: string
+	addonCost: number | null;
+	bountyPrizes: number | null;
+	buyIn: number | null;
+	cashOut: number | null;
+	createdAt: string;
+	currencyId: string | null;
+	currencyName: string | null;
+	currencyUnit: string | null;
+	endedAt: string | null;
+	entryFee: number | null;
+	evCashOut: number | null;
+	evDiff: number | null;
+	evProfitLoss: number | null;
+	id: string;
+	liveCashGameSessionId: string | null;
+	liveTournamentSessionId: string | null;
+	memo: string | null;
+	placement: number | null;
+	prizeMoney: number | null;
+	profitLoss: number | null;
+	rebuyCost: number | null;
+	rebuyCount: number | null;
+	ringGameId: string | null;
+	ringGameName: string | null;
+	sessionDate: string;
+	startedAt: string | null;
+	storeId: string | null;
+	storeName: string | null;
+	tags: Array<{ id: string; name: string }>;
+	totalEntries: number | null;
+	tournamentBuyIn: number | null;
+	tournamentId: string | null;
+	tournamentName: string | null;
+	type: string;
 }
 
 function timeToUnix(
@@ -90,13 +90,13 @@ function timeToUnix(
 	time: string | undefined
 ): number | undefined {
 	if (!time) {
-		return undefined
+		return undefined;
 	}
-	return Math.floor(new Date(`${sessionDate}T${time}`).getTime() / 1000)
+	return Math.floor(new Date(`${sessionDate}T${time}`).getTime() / 1000);
 }
 
 export function buildCreatePayload(values: SessionFormValues) {
-	const sessionDate = Math.floor(new Date(values.sessionDate).getTime() / 1000)
+	const sessionDate = Math.floor(new Date(values.sessionDate).getTime() / 1000);
 	const common = {
 		sessionDate,
 		startedAt: timeToUnix(values.sessionDate, values.startTime),
@@ -105,7 +105,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 		tagIds: values.tagIds,
 		storeId: values.storeId,
 		currencyId: values.currencyId,
-	}
+	};
 	if (values.type === "cash_game") {
 		return {
 			...common,
@@ -121,7 +121,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 			anteType: values.anteType as "none" | "all" | "bb" | undefined,
 			tableSize: values.tableSize,
 			ringGameId: values.ringGameId,
-		}
+		};
 	}
 	return {
 		...common,
@@ -136,7 +136,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 		addonCost: values.addonCost,
 		bountyPrizes: values.bountyPrizes,
 		tournamentId: values.tournamentId,
-	}
+	};
 }
 
 export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
@@ -149,7 +149,7 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		tagIds: values.tagIds,
 		storeId: values.storeId ?? null,
 		currencyId: values.currencyId ?? null,
-	}
+	};
 	if (values.type === "cash_game") {
 		return {
 			...common,
@@ -164,7 +164,7 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 			anteType: values.anteType as "none" | "all" | "bb" | undefined,
 			tableSize: values.tableSize,
 			ringGameId: values.ringGameId ?? null,
-		}
+		};
 	}
 	return {
 		...common,
@@ -178,10 +178,12 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		addonCost: values.addonCost,
 		bountyPrizes: values.bountyPrizes,
 		tournamentId: values.tournamentId ?? null,
-	}
+	};
 }
 
-export function buildOptimisticItem(newSession: SessionFormValues): SessionItem {
+export function buildOptimisticItem(
+	newSession: SessionFormValues
+): SessionItem {
 	const item: SessionItem = {
 		id: `temp-${Date.now()}`,
 		type: newSession.type,
@@ -217,21 +219,21 @@ export function buildOptimisticItem(newSession: SessionFormValues): SessionItem 
 		liveCashGameSessionId: null,
 		liveTournamentSessionId: null,
 		tags: [],
-	}
+	};
 	if (newSession.type === "cash_game") {
-		item.buyIn = newSession.buyIn
-		item.cashOut = newSession.cashOut
-		item.evCashOut = newSession.evCashOut ?? null
-		item.profitLoss = newSession.cashOut - newSession.buyIn
+		item.buyIn = newSession.buyIn;
+		item.cashOut = newSession.cashOut;
+		item.evCashOut = newSession.evCashOut ?? null;
+		item.profitLoss = newSession.cashOut - newSession.buyIn;
 		if (newSession.evCashOut !== undefined) {
-			item.evProfitLoss = newSession.evCashOut - newSession.buyIn
-			item.evDiff = item.evProfitLoss - item.profitLoss
+			item.evProfitLoss = newSession.evCashOut - newSession.buyIn;
+			item.evDiff = item.evProfitLoss - item.profitLoss;
 		}
 	} else {
-		item.tournamentBuyIn = newSession.tournamentBuyIn
-		item.entryFee = newSession.entryFee ?? null
+		item.tournamentBuyIn = newSession.tournamentBuyIn;
+		item.entryFee = newSession.entryFee ?? null;
 	}
-	return item
+	return item;
 }
 
 export function buildEditDefaults(session: SessionItem) {
@@ -258,7 +260,7 @@ export function buildEditDefaults(session: SessionItem) {
 		ringGameId: session.ringGameId ?? undefined,
 		tournamentId: session.tournamentId ?? undefined,
 		currencyId: session.currencyId ?? undefined,
-	}
+	};
 }
 
 export function filtersToListInput(filters: SessionFilterValues) {
@@ -272,90 +274,90 @@ export function filtersToListInput(filters: SessionFilterValues) {
 		dateTo: filters.dateTo
 			? Math.floor(new Date(`${filters.dateTo}T23:59:59`).getTime() / 1000)
 			: undefined,
-	}
+	};
 }
 
 export function formatDateForInput(date: string): string {
-	const d = new Date(date)
-	const year = d.getFullYear()
-	const month = String(d.getMonth() + 1).padStart(2, "0")
-	const day = String(d.getDate()).padStart(2, "0")
-	return `${year}-${month}-${day}`
+	const d = new Date(date);
+	const year = d.getFullYear();
+	const month = String(d.getMonth() + 1).padStart(2, "0");
+	const day = String(d.getDate()).padStart(2, "0");
+	return `${year}-${month}-${day}`;
 }
 
 export function formatTimeFromDate(date: string | null): string | undefined {
 	if (!date) {
-		return undefined
+		return undefined;
 	}
-	const d = new Date(date)
-	const hours = String(d.getHours()).padStart(2, "0")
-	const minutes = String(d.getMinutes()).padStart(2, "0")
-	return `${hours}:${minutes}`
+	const d = new Date(date);
+	const hours = String(d.getHours()).padStart(2, "0");
+	const minutes = String(d.getMinutes()).padStart(2, "0");
+	return `${hours}:${minutes}`;
 }
 
 export function useSessions(filters: SessionFilterValues) {
-	const queryClient = useQueryClient()
-	const navigate = useNavigate()
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 
-	const listInput = filtersToListInput(filters)
-	const sessionListKey = trpc.session.list.queryOptions(listInput).queryKey
+	const listInput = filtersToListInput(filters);
+	const sessionListKey = trpc.session.list.queryOptions(listInput).queryKey;
 
-	const sessionsQuery = useQuery(trpc.session.list.queryOptions(listInput))
-	const sessions = sessionsQuery.data?.items ?? []
+	const sessionsQuery = useQuery(trpc.session.list.queryOptions(listInput));
+	const sessions = sessionsQuery.data?.items ?? [];
 
-	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions())
-	const availableTags = tagsQuery.data ?? []
+	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions());
+	const availableTags = tagsQuery.data ?? [];
 
 	const createTagMutation = useMutation({
 		mutationFn: (name: string) => trpcClient.sessionTag.create.mutate({ name }),
 		onSettled: () => {
 			queryClient.invalidateQueries({
 				queryKey: trpc.sessionTag.list.queryOptions().queryKey,
-			})
+			});
 		},
-	})
+	});
 
 	const handleCreateTag = async (name: string) => {
-		const result = await createTagMutation.mutateAsync(name)
-		return { id: result.id, name: result.name }
-	}
+		const result = await createTagMutation.mutateAsync(name);
+		return { id: result.id, name: result.name };
+	};
 
 	const createMutation = useMutation({
 		mutationFn: (values: SessionFormValues) =>
 			trpcClient.session.create.mutate(buildCreatePayload(values)),
 		onMutate: async (newSession) => {
-			await queryClient.cancelQueries({ queryKey: sessionListKey })
-			const previous = queryClient.getQueryData(sessionListKey)
+			await queryClient.cancelQueries({ queryKey: sessionListKey });
+			const previous = queryClient.getQueryData(sessionListKey);
 			queryClient.setQueryData(sessionListKey, (old) => {
 				if (!old) {
-					return old
+					return old;
 				}
 				return {
 					...old,
 					items: [buildOptimisticItem(newSession), ...old.items],
-				}
-			})
-			return { previous }
+				};
+			});
+			return { previous };
 		},
 		onError: (_err, _vars, context) => {
 			if (context?.previous) {
-				queryClient.setQueryData(sessionListKey, context.previous)
+				queryClient.setQueryData(sessionListKey, context.previous);
 			}
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: sessionListKey })
+			queryClient.invalidateQueries({ queryKey: sessionListKey });
 		},
-	})
+	});
 
 	const updateMutation = useMutation({
 		mutationFn: (values: SessionFormValues & { id: string }) =>
 			trpcClient.session.update.mutate(buildUpdatePayload(values)),
 		onMutate: async (updated) => {
-			await queryClient.cancelQueries({ queryKey: sessionListKey })
-			const previous = queryClient.getQueryData(sessionListKey)
+			await queryClient.cancelQueries({ queryKey: sessionListKey });
+			const previous = queryClient.getQueryData(sessionListKey);
 			queryClient.setQueryData(sessionListKey, (old) => {
 				if (!old) {
-					return old
+					return old;
 				}
 				return {
 					...old,
@@ -368,42 +370,42 @@ export function useSessions(filters: SessionFilterValues) {
 								}
 							: s
 					),
-				}
-			})
-			return { previous }
+				};
+			});
+			return { previous };
 		},
 		onError: (_err, _vars, context) => {
 			if (context?.previous) {
-				queryClient.setQueryData(sessionListKey, context.previous)
+				queryClient.setQueryData(sessionListKey, context.previous);
 			}
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: sessionListKey })
+			queryClient.invalidateQueries({ queryKey: sessionListKey });
 		},
-	})
+	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.session.delete.mutate({ id }),
 		onMutate: async (id) => {
-			await queryClient.cancelQueries({ queryKey: sessionListKey })
-			const previous = queryClient.getQueryData(sessionListKey)
+			await queryClient.cancelQueries({ queryKey: sessionListKey });
+			const previous = queryClient.getQueryData(sessionListKey);
 			queryClient.setQueryData(sessionListKey, (old) => {
 				if (!old) {
-					return old
+					return old;
 				}
-				return { ...old, items: old.items.filter((s) => s.id !== id) }
-			})
-			return { previous }
+				return { ...old, items: old.items.filter((s) => s.id !== id) };
+			});
+			return { previous };
 		},
 		onError: (_err, _vars, context) => {
 			if (context?.previous) {
-				queryClient.setQueryData(sessionListKey, context.previous)
+				queryClient.setQueryData(sessionListKey, context.previous);
 			}
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: sessionListKey })
+			queryClient.invalidateQueries({ queryKey: sessionListKey });
 		},
-	})
+	});
 
 	const reopenMutation = useMutation({
 		mutationFn: (liveCashGameSessionId: string) =>
@@ -416,10 +418,10 @@ export function useSessions(filters: SessionFilterValues) {
 				queryClient.invalidateQueries({
 					queryKey: trpc.liveCashGameSession.list.queryOptions({}).queryKey,
 				}),
-			])
-			await navigate({ to: "/active-session" })
+			]);
+			await navigate({ to: "/active-session" });
 		},
-	})
+	});
 
 	return {
 		sessions,
@@ -430,11 +432,11 @@ export function useSessions(filters: SessionFilterValues) {
 		update: (values: SessionFormValues & { id: string }) =>
 			updateMutation.mutateAsync(values),
 		delete: (id: string) => {
-			deleteMutation.mutate(id)
+			deleteMutation.mutate(id);
 		},
 		reopen: (liveCashGameSessionId: string) => {
-			reopenMutation.mutate(liveCashGameSessionId)
+			reopenMutation.mutate(liveCashGameSessionId);
 		},
 		createTag: handleCreateTag,
-	}
+	};
 }

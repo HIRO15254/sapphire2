@@ -103,7 +103,10 @@ interface UseTournamentsOptions {
 	storeId: string;
 }
 
-export function useTournaments({ storeId, showArchived }: UseTournamentsOptions) {
+export function useTournaments({
+	storeId,
+	showArchived,
+}: UseTournamentsOptions) {
 	const queryClient = useQueryClient();
 
 	const activeQueryOptions = trpc.tournament.listByStore.queryOptions({
@@ -401,7 +404,8 @@ export function useTournaments({ storeId, showArchived }: UseTournamentsOptions)
 		archivedLoading: archivedQuery.isLoading,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
-		create: (values: TournamentFormValues) => createMutation.mutateAsync(values),
+		create: (values: TournamentFormValues) =>
+			createMutation.mutateAsync(values),
 		update: (
 			values: TournamentFormValues & {
 				existingChipPurchaseIds: string[];

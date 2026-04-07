@@ -1,8 +1,8 @@
 import { IconEdit, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
+import { TransactionList } from "@/currencies/components/transaction-list";
 import { ExpandableItem } from "@/shared/components/management/expandable-item-list";
 import { ManagementSectionHeader } from "@/shared/components/management/management-section-header";
-import { TransactionList } from "@/currencies/components/transaction-list";
 import { Button } from "@/shared/components/ui/button";
 import { formatCompactNumber } from "@/utils/format-number";
 

@@ -1,23 +1,29 @@
 import { IconEdit, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
+import { ColorBadge } from "@/players/components/color-badge";
+import {
+	TAG_COLOR_NAMES,
+	type TagColor,
+} from "@/players/constants/player-tag-colors";
+import {
+	type TagFormValues,
+	type TagItem,
+	usePlayerTags,
+} from "@/players/hooks/use-player-tags";
 import {
 	ManagementList,
 	ManagementListItem,
 } from "@/shared/components/management/management-list";
-import { ColorBadge } from "@/players/components/color-badge";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { ToggleGroup, ToggleGroupItem } from "@/shared/components/ui/toggle-group";
-import { TAG_COLOR_NAMES, type TagColor } from "@/players/constants/player-tag-colors";
 import {
-	type TagFormValues,
-	type TagItem,
-	usePlayerTags,
-} from "@/players/hooks/use-player-tags";
+	ToggleGroup,
+	ToggleGroupItem,
+} from "@/shared/components/ui/toggle-group";
 
 function TagForm({
 	defaultValues,
@@ -86,7 +92,15 @@ export function PlayerTagManager() {
 	const [editingTag, setEditingTag] = useState<TagItem | null>(null);
 	const [deletingTag, setDeletingTag] = useState<TagItem | null>(null);
 
-	const { tags, create, update, delete: deleteTag, isCreatePending, isUpdatePending, isDeletePending } = usePlayerTags();
+	const {
+		tags,
+		create,
+		update,
+		delete: deleteTag,
+		isCreatePending,
+		isUpdatePending,
+		isDeletePending,
+	} = usePlayerTags();
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -144,7 +158,9 @@ export function PlayerTagManager() {
 			>
 				<TagForm
 					isLoading={isCreatePending}
-					onSubmit={(values) => create(values).then(() => setIsCreateOpen(false))}
+					onSubmit={(values) =>
+						create(values).then(() => setIsCreateOpen(false))
+					}
 				/>
 			</ResponsiveDialog>
 
@@ -165,7 +181,9 @@ export function PlayerTagManager() {
 						}}
 						isLoading={isUpdatePending}
 						onSubmit={(values) =>
-							update({ id: editingTag.id, ...values }).then(() => setEditingTag(null))
+							update({ id: editingTag.id, ...values }).then(() =>
+								setEditingTag(null)
+							)
 						}
 					/>
 				)}
@@ -195,7 +213,9 @@ export function PlayerTagManager() {
 							</Button>
 							<Button
 								disabled={isDeletePending}
-								onClick={() => deleteTag(deletingTag.id).then(() => setDeletingTag(null))}
+								onClick={() =>
+									deleteTag(deletingTag.id).then(() => setDeletingTag(null))
+								}
 								variant="destructive"
 							>
 								{isDeletePending ? "Deleting..." : "Delete"}

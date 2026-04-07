@@ -23,21 +23,27 @@ vi.mock("@tanstack/react-query", () => ({
 			context?: unknown
 		) => void;
 		onSuccess?: (data: unknown, arg: unknown, context?: unknown) => void;
-	}) => ({
-		isPending: false,
-		mutate: async (arg: unknown) => {
+	}) => {
+		const mutate = async (arg: unknown) => {
 			let context: unknown;
 			try {
 				context = await options.onMutate?.(arg);
 				const result = await options.mutationFn(arg);
 				await options.onSuccess?.(result, arg, context);
 				await options.onSettled?.(result, null, arg, context);
+				return result;
 			} catch (error) {
 				await options.onError?.(error, arg, context);
 				await options.onSettled?.(undefined, error, arg, context);
+				throw error;
 			}
-		},
-	}),
+		};
+		return {
+			isPending: false,
+			mutate,
+			mutateAsync: mutate,
+		};
+	},
 	useQuery: () => ({ data: mocks.types }),
 	useQueryClient: () => ({
 		cancelQueries: vi.fn(),

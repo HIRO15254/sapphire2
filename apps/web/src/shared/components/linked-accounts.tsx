@@ -2,11 +2,11 @@ import { useForm } from "@tanstack/react-form";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
+import { authClient } from "@/lib/auth-client";
 import {
 	ManagementList,
 	ManagementListItem,
 } from "@/shared/components/management/management-list";
-import { authClient } from "@/lib/auth-client";
 import { DiscordIcon } from "./icons/discord";
 import { GoogleIcon } from "./icons/google";
 import { Button } from "./ui/button";

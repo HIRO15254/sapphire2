@@ -52,6 +52,14 @@ const { mockQuery } = vi.hoisted(() => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
+		session: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["sessions"],
+					queryFn: () => mockQuery("sessions"),
+				}),
+			},
+		},
 		store: {
 			list: {
 				queryOptions: () => ({

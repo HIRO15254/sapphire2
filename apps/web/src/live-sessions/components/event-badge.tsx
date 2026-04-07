@@ -1,5 +1,5 @@
-import { Badge } from "@/shared/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/shared/components/ui/badge";
 
 interface AllInBadgeProps {
 	data: { potSize: number; trials: number; equity: number; wins: number };

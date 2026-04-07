@@ -1,6 +1,6 @@
 import type * as React from "react";
-import { Label } from "@/shared/components/ui/label";
 import { cn } from "@/lib/utils";
+import { Label } from "@/shared/components/ui/label";
 
 interface FieldProps extends React.ComponentProps<"div"> {
 	description?: React.ReactNode;

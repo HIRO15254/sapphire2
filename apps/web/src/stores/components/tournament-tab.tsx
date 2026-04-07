@@ -15,20 +15,23 @@ import {
 } from "@/shared/components/management/expandable-item-list";
 import { ManagementSectionHeader } from "@/shared/components/management/management-section-header";
 import { ManagementSectionState } from "@/shared/components/management/management-section-state";
-import { BlindLevelEditor } from "@/stores/components/blind-level-editor";
-import { TournamentForm } from "@/stores/components/tournament-form";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { BlindLevelEditor } from "@/stores/components/blind-level-editor";
+import { TournamentForm } from "@/stores/components/tournament-form";
+import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
+import type {
+	Tournament,
+	TournamentFormValues,
+} from "@/stores/hooks/use-tournaments";
+import { useTournaments } from "@/stores/hooks/use-tournaments";
 import {
 	createGroupFormatter,
 	formatCompactNumber,
 } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
 import { trpc } from "@/utils/trpc";
-import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
-import type { Tournament, TournamentFormValues } from "@/stores/hooks/use-tournaments";
-import { useTournaments } from "@/stores/hooks/use-tournaments";
 
 interface TournamentTabProps {
 	expandedGameId: string | null;
@@ -637,10 +640,7 @@ export function TournamentTab({
 				open={isCreateOpen}
 				title="Add Tournament"
 			>
-				<TournamentForm
-					isLoading={isCreatePending}
-					onSubmit={handleCreate}
-				/>
+				<TournamentForm isLoading={isCreatePending} onSubmit={handleCreate} />
 			</ResponsiveDialog>
 
 			<ResponsiveDialog

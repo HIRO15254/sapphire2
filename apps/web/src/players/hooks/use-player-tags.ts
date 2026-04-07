@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type TagColor } from "@/players/constants/player-tag-colors";
+import type { TagColor } from "@/players/constants/player-tag-colors";
 import {
 	cancelTargets,
 	invalidateTargets,

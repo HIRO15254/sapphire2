@@ -1,5 +1,8 @@
-import { TAG_COLORS, type TagColor } from "@/players/constants/player-tag-colors";
 import { cn } from "@/lib/utils";
+import {
+	TAG_COLORS,
+	type TagColor,
+} from "@/players/constants/player-tag-colors";
 
 interface ColorBadgeProps {
 	children: React.ReactNode;
