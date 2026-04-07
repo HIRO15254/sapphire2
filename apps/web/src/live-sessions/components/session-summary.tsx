@@ -1,5 +1,5 @@
-import { Card, CardContent } from "@/shared/components/ui/card";
 import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/shared/components/ui/card";
 import { formatCompactNumber } from "@/utils/format-number";
 
 interface SessionSummaryProps {

@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { AuthenticatedShell } from "../shared/components/authenticated-shell";
 import { RootComponent } from "../routes/__root";
+import { AuthenticatedShell } from "../shared/components/authenticated-shell";
 
 const mocks = vi.hoisted(() => ({
 	useLocation: vi.fn(() => ({ pathname: "/dashboard" })),

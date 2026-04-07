@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-sheet";
 import { EventBadge } from "@/live-sessions/components/event-badge";
 import {
 	StackBadgeRow,
@@ -7,9 +8,8 @@ import {
 	StackQuickActions,
 	StackSecondaryGrid,
 } from "@/live-sessions/components/stack-ui";
-import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-sheet";
-import { Button } from "@/shared/components/ui/button";
 import { useTournamentFormContext } from "@/live-sessions/hooks/use-session-form";
+import { Button } from "@/shared/components/ui/button";
 
 interface ChipPurchaseType {
 	chips: number;

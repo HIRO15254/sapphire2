@@ -10,8 +10,8 @@ import {
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
 import type { ComponentType } from "react";
-import { Button } from "@/shared/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Button } from "@/shared/components/ui/button";
 
 export interface NavigationItem {
 	exact?: boolean;

@@ -2,6 +2,10 @@ import { IconPencil, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { StackRecordEditor } from "@/live-sessions/components/stack-record-editor";
 import { TournamentStackRecordEditor } from "@/live-sessions/components/tournament-stack-record-editor";
+import {
+	type SessionEvent,
+	useSessionEvents,
+} from "@/live-sessions/hooks/use-session-events";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
@@ -9,9 +13,6 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { type SessionEvent, useSessionEvents } from "@/live-sessions/hooks/use-session-events";
-
-export type { SessionEvent };
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
 	chip_add: "Chip Add",
@@ -610,7 +611,12 @@ export function SessionEventsScene({
 }: SessionEventsSceneProps) {
 	const [editEvent, setEditEvent] = useState<SessionEvent | null>(null);
 
-	const { events, update, delete: deleteEvent, isUpdatePending } = useSessionEvents({
+	const {
+		events,
+		update,
+		delete: deleteEvent,
+		isUpdatePending,
+	} = useSessionEvents({
 		sessionId,
 		sessionType,
 		refetchInterval,
@@ -718,7 +724,9 @@ export function SessionEventsScene({
 						isLoading={isUpdatePending}
 						maxTime={timeBounds.maxTime}
 						minTime={timeBounds.minTime}
-						onDelete={() => deleteEvent(editEvent.id).then(() => setEditEvent(null))}
+						onDelete={() =>
+							deleteEvent(editEvent.id).then(() => setEditEvent(null))
+						}
 						onSubmit={(payload, occurredAt) =>
 							update({
 								id: editEvent.id,
@@ -727,7 +735,9 @@ export function SessionEventsScene({
 							}).then(() => setEditEvent(null))
 						}
 						onTimeUpdate={(occurredAt) =>
-							update({ id: editEvent.id, occurredAt }).then(() => setEditEvent(null))
+							update({ id: editEvent.id, occurredAt }).then(() =>
+								setEditEvent(null)
+							)
 						}
 					/>
 				) : null}

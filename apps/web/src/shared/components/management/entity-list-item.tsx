@@ -1,11 +1,11 @@
 import { IconEdit, IconTrash, IconX } from "@tabler/icons-react";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import {
 	ExpandableItem,
 	ExpandableItemList,
 } from "@/shared/components/management/expandable-item-list";
 import { Button } from "@/shared/components/ui/button";
-import { cn } from "@/lib/utils";
 
 interface EntityListItemProps {
 	children: React.ReactNode;

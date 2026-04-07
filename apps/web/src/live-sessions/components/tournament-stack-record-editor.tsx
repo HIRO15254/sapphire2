@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-sheet";
 import {
 	toOccurredAtTimestamp,
 	toTimeInputValue,
@@ -11,9 +13,7 @@ import {
 	StackSectionHeader,
 	StackTimeField,
 } from "@/live-sessions/components/stack-ui";
-import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-sheet";
 import { Button } from "@/shared/components/ui/button";
-import { cn } from "@/lib/utils";
 
 interface TournamentStackRecordPayload {
 	chipPurchaseCounts: Array<{

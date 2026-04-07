@@ -1,43 +1,50 @@
-import { IconBuildingStore, IconPlus } from "@tabler/icons-react"
-import { createFileRoute } from "@tanstack/react-router"
-import { useState } from "react"
-import { PageHeader } from "@/shared/components/page-header"
-import { StoreCard } from "@/stores/components/store-card"
-import { StoreForm } from "@/stores/components/store-form"
-import { Button } from "@/shared/components/ui/button"
-import { EmptyState } from "@/shared/components/ui/empty-state"
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog"
-import type { StoreItem, StoreValues } from "@/stores/hooks/use-stores"
-import { useStores } from "@/stores/hooks/use-stores"
+import { IconBuildingStore, IconPlus } from "@tabler/icons-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { PageHeader } from "@/shared/components/page-header";
+import { Button } from "@/shared/components/ui/button";
+import { EmptyState } from "@/shared/components/ui/empty-state";
+import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { StoreCard } from "@/stores/components/store-card";
+import { StoreForm } from "@/stores/components/store-form";
+import type { StoreItem, StoreValues } from "@/stores/hooks/use-stores";
+import { useStores } from "@/stores/hooks/use-stores";
 
 export const Route = createFileRoute("/stores/")({
 	component: StoresPage,
-})
+});
 
 function StoresPage() {
-	const [isCreateOpen, setIsCreateOpen] = useState(false)
-	const [editingStore, setEditingStore] = useState<StoreItem | null>(null)
+	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	const [editingStore, setEditingStore] = useState<StoreItem | null>(null);
 
-	const { stores, isCreatePending, isUpdatePending, create, update, delete: deleteStore } = useStores()
+	const {
+		stores,
+		isCreatePending,
+		isUpdatePending,
+		create,
+		update,
+		delete: deleteStore,
+	} = useStores();
 
 	const handleCreate = (values: StoreValues) => {
 		create(values).then(() => {
-			setIsCreateOpen(false)
-		})
-	}
+			setIsCreateOpen(false);
+		});
+	};
 
 	const handleUpdate = (values: StoreValues) => {
 		if (!editingStore) {
-			return
+			return;
 		}
 		update({ id: editingStore.id, ...values }).then(() => {
-			setEditingStore(null)
-		})
-	}
+			setEditingStore(null);
+		});
+	};
 
 	const handleDelete = (id: string) => {
-		deleteStore(id)
-	}
+		deleteStore(id);
+	};
 
 	return (
 		<div className="p-4 md:p-6">
@@ -81,16 +88,13 @@ function StoresPage() {
 				open={isCreateOpen}
 				title="New Store"
 			>
-				<StoreForm
-					isLoading={isCreatePending}
-					onSubmit={handleCreate}
-				/>
+				<StoreForm isLoading={isCreatePending} onSubmit={handleCreate} />
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
 				onOpenChange={(open) => {
 					if (!open) {
-						setEditingStore(null)
+						setEditingStore(null);
 					}
 				}}
 				open={editingStore !== null}
@@ -108,5 +112,5 @@ function StoresPage() {
 				)}
 			</ResponsiveDialog>
 		</div>
-	)
+	);
 }

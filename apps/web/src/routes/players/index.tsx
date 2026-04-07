@@ -1,27 +1,27 @@
-import { IconPlus, IconTags, IconUsers } from "@tabler/icons-react"
-import { createFileRoute } from "@tanstack/react-router"
-import { useState } from "react"
-import { PageHeader } from "@/shared/components/page-header"
-import { PlayerCard } from "@/players/components/player-card"
-import { PlayerFilters } from "@/players/components/player-filters"
-import type { PlayerFormValues } from "@/players/components/player-form"
-import { PlayerForm } from "@/players/components/player-form"
-import { PlayerTagManager } from "@/players/components/player-tag-manager"
-import { Button } from "@/shared/components/ui/button"
-import { EmptyState } from "@/shared/components/ui/empty-state"
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog"
-import type { PlayerItem } from "@/players/hooks/use-players"
-import { usePlayers } from "@/players/hooks/use-players"
+import { IconPlus, IconTags, IconUsers } from "@tabler/icons-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { PlayerCard } from "@/players/components/player-card";
+import { PlayerFilters } from "@/players/components/player-filters";
+import type { PlayerFormValues } from "@/players/components/player-form";
+import { PlayerForm } from "@/players/components/player-form";
+import { PlayerTagManager } from "@/players/components/player-tag-manager";
+import type { PlayerItem } from "@/players/hooks/use-players";
+import { usePlayers } from "@/players/hooks/use-players";
+import { PageHeader } from "@/shared/components/page-header";
+import { Button } from "@/shared/components/ui/button";
+import { EmptyState } from "@/shared/components/ui/empty-state";
+import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 
 export const Route = createFileRoute("/players/")({
 	component: PlayersPage,
-})
+});
 
 function PlayersPage() {
-	const [isCreateOpen, setIsCreateOpen] = useState(false)
-	const [editingPlayer, setEditingPlayer] = useState<PlayerItem | null>(null)
-	const [isTagManagerOpen, setIsTagManagerOpen] = useState(false)
-	const [filterTagIds, setFilterTagIds] = useState<string[]>([])
+	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	const [editingPlayer, setEditingPlayer] = useState<PlayerItem | null>(null);
+	const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
+	const [filterTagIds, setFilterTagIds] = useState<string[]>([]);
 
 	const {
 		players,
@@ -32,26 +32,26 @@ function PlayersPage() {
 		update,
 		delete: deletePlayer,
 		createTag,
-	} = usePlayers(filterTagIds)
+	} = usePlayers(filterTagIds);
 
 	const handleCreate = (values: PlayerFormValues) => {
 		create(values).then(() => {
-			setIsCreateOpen(false)
-		})
-	}
+			setIsCreateOpen(false);
+		});
+	};
 
 	const handleUpdate = (values: PlayerFormValues) => {
 		if (!editingPlayer) {
-			return
+			return;
 		}
 		update({ id: editingPlayer.id, ...values }).then(() => {
-			setEditingPlayer(null)
-		})
-	}
+			setEditingPlayer(null);
+		});
+	};
 
 	const handleDelete = (id: string) => {
-		deletePlayer(id)
-	}
+		deletePlayer(id);
+	};
 
 	return (
 		<div className="p-4 md:p-6">
@@ -136,7 +136,7 @@ function PlayersPage() {
 			<ResponsiveDialog
 				onOpenChange={(open) => {
 					if (!open) {
-						setEditingPlayer(null)
+						setEditingPlayer(null);
 					}
 				}}
 				open={editingPlayer !== null}
@@ -163,5 +163,5 @@ function PlayersPage() {
 				<PlayerTagManager />
 			</ResponsiveDialog>
 		</div>
-	)
+	);
 }

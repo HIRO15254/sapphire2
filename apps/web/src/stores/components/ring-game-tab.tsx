@@ -13,14 +13,17 @@ import {
 } from "@/shared/components/management/expandable-item-list";
 import { ManagementSectionHeader } from "@/shared/components/management/management-section-header";
 import { ManagementSectionState } from "@/shared/components/management/management-section-state";
-import { RingGameForm } from "@/stores/components/ring-game-form";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { RingGameForm } from "@/stores/components/ring-game-form";
+import type {
+	RingGame,
+	RingGameFormValues,
+} from "@/stores/hooks/use-ring-games";
+import { useRingGames } from "@/stores/hooks/use-ring-games";
 import { createGroupFormatter } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
-import type { RingGame, RingGameFormValues } from "@/stores/hooks/use-ring-games";
-import { useRingGames } from "@/stores/hooks/use-ring-games";
 
 interface RingGameTabProps {
 	expandedGameId: string | null;
@@ -486,10 +489,7 @@ export function RingGameTab({
 				open={isCreateOpen}
 				title="Add Cash Game"
 			>
-				<RingGameForm
-					isLoading={isCreatePending}
-					onSubmit={handleCreate}
-				/>
+				<RingGameForm isLoading={isCreatePending} onSubmit={handleCreate} />
 			</ResponsiveDialog>
 
 			<ResponsiveDialog

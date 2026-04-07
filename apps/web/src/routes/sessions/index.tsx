@@ -1,34 +1,36 @@
-import { IconCards, IconPlus } from "@tabler/icons-react"
-import { createFileRoute } from "@tanstack/react-router"
-import { useState } from "react"
-import { PageHeader } from "@/shared/components/page-header"
-import { SessionCard } from "@/sessions/components/session-card"
+import { IconCards, IconPlus } from "@tabler/icons-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { SessionCard } from "@/sessions/components/session-card";
 import {
 	SessionFilters,
 	type SessionFilterValues,
-} from "@/sessions/components/session-filters"
-import { SessionForm } from "@/sessions/components/session-form"
-import { Button } from "@/shared/components/ui/button"
-import { EmptyState } from "@/shared/components/ui/empty-state"
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog"
-import { useEntityLists, useStoreGames } from "@/stores/hooks/use-store-games"
+} from "@/sessions/components/session-filters";
+import { SessionForm } from "@/sessions/components/session-form";
 import {
 	buildEditDefaults,
 	type SessionFormValues,
 	type SessionItem,
 	useSessions,
-} from "@/sessions/hooks/use-sessions"
+} from "@/sessions/hooks/use-sessions";
+import { PageHeader } from "@/shared/components/page-header";
+import { Button } from "@/shared/components/ui/button";
+import { EmptyState } from "@/shared/components/ui/empty-state";
+import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { useEntityLists, useStoreGames } from "@/stores/hooks/use-store-games";
 
 export const Route = createFileRoute("/sessions/")({
 	component: SessionsPage,
-})
+});
 
 function SessionsPage() {
-	const [isCreateOpen, setIsCreateOpen] = useState(false)
-	const [editingSession, setEditingSession] = useState<SessionItem | null>(null)
-	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>()
-	const [editStoreId, setEditStoreId] = useState<string | undefined>()
-	const [filters, setFilters] = useState<SessionFilterValues>({})
+	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	const [editingSession, setEditingSession] = useState<SessionItem | null>(
+		null
+	);
+	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>();
+	const [editStoreId, setEditStoreId] = useState<string | undefined>();
+	const [filters, setFilters] = useState<SessionFilterValues>({});
 
 	const {
 		sessions,
@@ -40,34 +42,34 @@ function SessionsPage() {
 		delete: deleteSession,
 		reopen,
 		createTag,
-	} = useSessions(filters)
+	} = useSessions(filters);
 
-	const { stores, currencies } = useEntityLists()
-	const createGames = useStoreGames(selectedStoreId)
-	const editGames = useStoreGames(editStoreId)
+	const { stores, currencies } = useEntityLists();
+	const createGames = useStoreGames(selectedStoreId);
+	const editGames = useStoreGames(editStoreId);
 
 	const handleCreate = (values: SessionFormValues) => {
 		create(values).then(() => {
-			setIsCreateOpen(false)
-		})
-	}
+			setIsCreateOpen(false);
+		});
+	};
 
 	const handleUpdate = (values: SessionFormValues) => {
 		if (!editingSession) {
-			return
+			return;
 		}
 		update({ id: editingSession.id, ...values }).then(() => {
-			setEditingSession(null)
-		})
-	}
+			setEditingSession(null);
+		});
+	};
 
 	const handleDelete = (id: string) => {
-		deleteSession(id)
-	}
+		deleteSession(id);
+	};
 
 	const handleReopen = (liveCashGameSessionId: string) => {
-		reopen(liveCashGameSessionId)
-	}
+		reopen(liveCashGameSessionId);
+	};
 
 	return (
 		<div className="p-4 md:p-6">
@@ -108,8 +110,8 @@ function SessionsPage() {
 							key={s.id}
 							onDelete={handleDelete}
 							onEdit={(session) => {
-								setEditingSession(session)
-								setEditStoreId(session.storeId ?? undefined)
+								setEditingSession(session);
+								setEditStoreId(session.storeId ?? undefined);
 							}}
 							onReopen={handleReopen}
 							session={s}
@@ -120,9 +122,9 @@ function SessionsPage() {
 
 			<ResponsiveDialog
 				onOpenChange={(open) => {
-					setIsCreateOpen(open)
+					setIsCreateOpen(open);
 					if (!open) {
-						setSelectedStoreId(undefined)
+						setSelectedStoreId(undefined);
 					}
 				}}
 				open={isCreateOpen}
@@ -144,8 +146,8 @@ function SessionsPage() {
 			<ResponsiveDialog
 				onOpenChange={(open) => {
 					if (!open) {
-						setEditingSession(null)
-						setEditStoreId(undefined)
+						setEditingSession(null);
+						setEditStoreId(undefined);
 					}
 				}}
 				open={editingSession !== null}
@@ -167,5 +169,5 @@ function SessionsPage() {
 				)}
 			</ResponsiveDialog>
 		</div>
-	)
+	);
 }

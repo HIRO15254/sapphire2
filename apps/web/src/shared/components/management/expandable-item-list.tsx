@@ -1,11 +1,11 @@
 import type * as React from "react";
+import { cn } from "@/lib/utils";
 import {
 	Accordion,
 	AccordionContent,
 	AccordionItem,
 	AccordionTrigger,
 } from "@/shared/components/ui/accordion";
-import { cn } from "@/lib/utils";
 
 interface ExpandableItemListProps {
 	children: React.ReactNode;

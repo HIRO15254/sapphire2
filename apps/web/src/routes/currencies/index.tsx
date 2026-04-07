@@ -1,34 +1,39 @@
-import { IconCoins, IconPlus } from "@tabler/icons-react"
-import { createFileRoute } from "@tanstack/react-router"
-import { useState } from "react"
-import { ExpandableItemList } from "@/shared/components/management/expandable-item-list"
-import { PageHeader } from "@/shared/components/page-header"
-import { CurrencyCard } from "@/currencies/components/currency-card"
-import { CurrencyForm } from "@/currencies/components/currency-form"
-import { TransactionForm } from "@/currencies/components/transaction-form"
-import { Button } from "@/shared/components/ui/button"
-import { EmptyState } from "@/shared/components/ui/empty-state"
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog"
-import type { CurrencyItem, CurrencyValues, Transaction, TransactionValues } from "@/currencies/hooks/use-currencies"
-import { useCurrencies } from "@/currencies/hooks/use-currencies"
+import { IconCoins, IconPlus } from "@tabler/icons-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { CurrencyCard } from "@/currencies/components/currency-card";
+import { CurrencyForm } from "@/currencies/components/currency-form";
+import { TransactionForm } from "@/currencies/components/transaction-form";
+import type {
+	CurrencyItem,
+	CurrencyValues,
+	Transaction,
+	TransactionValues,
+} from "@/currencies/hooks/use-currencies";
+import { useCurrencies } from "@/currencies/hooks/use-currencies";
+import { ExpandableItemList } from "@/shared/components/management/expandable-item-list";
+import { PageHeader } from "@/shared/components/page-header";
+import { Button } from "@/shared/components/ui/button";
+import { EmptyState } from "@/shared/components/ui/empty-state";
+import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 
 export const Route = createFileRoute("/currencies/")({
 	component: CurrenciesPage,
-})
+});
 
 function CurrenciesPage() {
-	const [isCreateOpen, setIsCreateOpen] = useState(false)
+	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingCurrency, setEditingCurrency] = useState<CurrencyItem | null>(
 		null
-	)
+	);
 	const [expandedCurrencyId, setExpandedCurrencyId] = useState<string | null>(
 		null
-	)
+	);
 	const [addTransactionCurrencyId, setAddTransactionCurrencyId] = useState<
 		string | null
-	>(null)
+	>(null);
 	const [editingTransaction, setEditingTransaction] =
-		useState<Transaction | null>(null)
+		useState<Transaction | null>(null);
 
 	const {
 		currencies,
@@ -47,47 +52,47 @@ function CurrenciesPage() {
 		editTransaction,
 		deleteTransaction,
 		handleLoadMore,
-	} = useCurrencies(expandedCurrencyId)
+	} = useCurrencies(expandedCurrencyId);
 
 	const handleCreate = (values: CurrencyValues) => {
 		create(values).then(() => {
-			setIsCreateOpen(false)
-		})
-	}
+			setIsCreateOpen(false);
+		});
+	};
 
 	const handleUpdate = (values: CurrencyValues) => {
 		if (!editingCurrency) {
-			return
+			return;
 		}
 		update({ id: editingCurrency.id, ...values }).then(() => {
-			setEditingCurrency(null)
-		})
-	}
+			setEditingCurrency(null);
+		});
+	};
 
 	const handleDelete = (id: string) => {
 		deleteCurrency(id).then(() => {
 			if (expandedCurrencyId === id) {
-				setExpandedCurrencyId(null)
-				resetTransactionState()
+				setExpandedCurrencyId(null);
+				resetTransactionState();
 			}
-		})
-	}
+		});
+	};
 
 	const handleAddTransaction = (values: TransactionValues) => {
 		if (!addTransactionCurrencyId) {
-			return
+			return;
 		}
 		addTransaction({
 			currencyId: addTransactionCurrencyId,
 			...values,
 		}).then(() => {
-			setAddTransactionCurrencyId(null)
-		})
-	}
+			setAddTransactionCurrencyId(null);
+		});
+	};
 
 	const handleEditTransaction = (values: TransactionValues) => {
 		if (!editingTransaction) {
-			return
+			return;
 		}
 		editTransaction({
 			id: editingTransaction.id,
@@ -96,22 +101,22 @@ function CurrenciesPage() {
 			transactedAt: values.transactedAt,
 			memo: values.memo ?? null,
 		}).then(() => {
-			setEditingTransaction(null)
-		})
-	}
+			setEditingTransaction(null);
+		});
+	};
 
 	const handleDeleteTransaction = (id: string) => {
-		deleteTransaction(id)
-	}
+		deleteTransaction(id);
+	};
 
 	const handleExpandedCurrencyChange = (id: string | null) => {
 		setExpandedCurrencyId((prev) => {
 			if (prev !== id) {
-				resetTransactionState()
+				resetTransactionState();
 			}
-			return id
-		})
-	}
+			return id;
+		});
+	};
 
 	return (
 		<div className="p-4 md:p-6">
@@ -181,7 +186,7 @@ function CurrenciesPage() {
 				description="Update the currency name or unit shown across balances."
 				onOpenChange={(open) => {
 					if (!open) {
-						setEditingCurrency(null)
+						setEditingCurrency(null);
 					}
 				}}
 				open={editingCurrency !== null}
@@ -204,7 +209,7 @@ function CurrenciesPage() {
 				description="Record a manual balance change for this currency."
 				onOpenChange={(open) => {
 					if (!open) {
-						setAddTransactionCurrencyId(null)
+						setAddTransactionCurrencyId(null);
 					}
 				}}
 				open={addTransactionCurrencyId !== null}
@@ -221,7 +226,7 @@ function CurrenciesPage() {
 				description="Update the type, amount, date, or memo for this transaction."
 				onOpenChange={(open) => {
 					if (!open) {
-						setEditingTransaction(null)
+						setEditingTransaction(null);
 					}
 				}}
 				open={editingTransaction !== null}
@@ -245,5 +250,5 @@ function CurrenciesPage() {
 				)}
 			</ResponsiveDialog>
 		</div>
-	)
+	);
 }

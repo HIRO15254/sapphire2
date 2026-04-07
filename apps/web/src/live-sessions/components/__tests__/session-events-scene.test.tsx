@@ -20,16 +20,24 @@ vi.mock("@tanstack/react-query", () => ({
 	useMutation: (options: {
 		mutationFn: (arg: unknown) => Promise<unknown> | unknown;
 		onSuccess?: () => void;
-	}) => ({
-		isPending: false,
-		mutate: async (arg: unknown) => {
-			await options.mutationFn(arg);
+	}) => {
+		const mutate = async (arg: unknown) => {
+			const result = await options.mutationFn(arg);
 			await options.onSuccess?.();
-		},
-	}),
+			return result;
+		};
+		return {
+			isPending: false,
+			mutate,
+			mutateAsync: mutate,
+		};
+	},
 	useQuery: () => ({ data: mocks.events }),
 	useQueryClient: () => ({
+		cancelQueries: vi.fn(),
+		getQueryData: vi.fn(),
 		invalidateQueries: mocks.invalidateQueries,
+		setQueryData: vi.fn(),
 	}),
 }));
 

@@ -1,11 +1,11 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
+import { authClient } from "@/lib/auth-client";
 import { PageSection } from "@/shared/components/page-section";
 import { PreviewAutoLogin } from "@/shared/components/preview-auto-login";
 import { PublicPageShell } from "@/shared/components/public-page-shell";
 import SignInForm from "@/shared/components/sign-in-form";
 import SignUpForm from "@/shared/components/sign-up-form";
-import { authClient } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/login")({
 	beforeLoad: async () => {

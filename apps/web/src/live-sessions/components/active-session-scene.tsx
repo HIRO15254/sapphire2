@@ -8,18 +8,18 @@ import {
 	type TableGameInfo,
 	type TablePlayer,
 } from "@/live-sessions/components/poker-table";
-import { Badge } from "@/shared/components/ui/badge";
-import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { usePlayerDetail } from "@/players/hooks/use-player-detail";
 import type {
 	PlayerDetailData,
 	PlayerDetailValues,
 	PlayerTagWithColor,
 } from "@/players/hooks/use-player-detail";
+import { usePlayerDetail } from "@/players/hooks/use-player-detail";
 import { usePokerTableInteraction } from "@/players/hooks/use-poker-table-interaction";
 import { useTablePlayers } from "@/players/hooks/use-table-players";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
+import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 
 interface ActiveSessionSceneProps {
 	discardDescription?: ReactNode;
@@ -37,7 +37,6 @@ interface UseActiveSessionSceneStateOptions {
 	sessionId: string;
 	sessionType: "cash_game" | "tournament";
 }
-
 
 export interface ActiveSessionSceneState {
 	addPlayerSheetOpen: boolean;

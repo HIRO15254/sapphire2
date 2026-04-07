@@ -1,9 +1,15 @@
 import { useState } from "react";
+import { useSessionTags } from "@/sessions/hooks/use-session-tags";
 import { SimpleEditableList } from "@/shared/components/management/simple-editable-list";
-import { type SessionTag, useSessionTags } from "@/sessions/hooks/use-session-tags";
 
 export function SessionTagManager() {
-	const { tags, update, delete: deleteTag, isUpdatePending, isDeletePending } = useSessionTags();
+	const {
+		tags,
+		update,
+		delete: deleteTag,
+		isUpdatePending,
+		isDeletePending,
+	} = useSessionTags();
 
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editingName, setEditingName] = useState("");

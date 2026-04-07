@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { authClient } from "@/lib/auth-client";
 import { PageHeader } from "@/shared/components/page-header";
 import { PageSection } from "@/shared/components/page-section";
-import { authClient } from "@/lib/auth-client";
 import { trpc } from "@/utils/trpc";
 
 export const Route = createFileRoute("/dashboard")({

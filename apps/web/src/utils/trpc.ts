@@ -43,7 +43,6 @@ export const persister = createAsyncStoragePersister({
 		removeItem: (key) => del(key),
 	},
 	key: "sapphire2-query-cache",
-	buster: "v1",
 });
 
 export const trpcClient = createTRPCClient<AppRouter>({

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTransactionTypes } from "@/currencies/hooks/use-transaction-types";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
@@ -11,7 +12,6 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { useTransactionTypes } from "@/currencies/hooks/use-transaction-types";
 
 const NEW_TYPE_VALUE = "__new__";
 

@@ -1,8 +1,8 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { ToggleGroup as ToggleGroupPrimitive } from "radix-ui";
 import type * as React from "react";
-import { buttonVariants } from "@/shared/components/ui/button";
 import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/shared/components/ui/button";
 
 function ToggleGroup({
 	className,
