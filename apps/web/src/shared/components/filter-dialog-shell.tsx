@@ -36,7 +36,15 @@ export function FilterDialogShell({
 }: FilterDialogShellProps) {
 	return (
 		<>
-			<Button className="relative" onClick={onOpen} size="sm" variant="outline">
+			<Button
+				aria-label={
+					activeCount > 0 ? `${buttonLabel} ${activeCount}` : buttonLabel
+				}
+				className="relative"
+				onClick={onOpen}
+				size="sm"
+				variant="outline"
+			>
 				<IconFilter size={16} />
 				{buttonLabel}
 				{activeCount > 0 ? (
