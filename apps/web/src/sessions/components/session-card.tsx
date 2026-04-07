@@ -267,7 +267,7 @@ function SessionHeader({ session }: { session: SessionCardProps["session"] }) {
 				{isTournament && session.placement !== null && (
 					<span className="text-[10px] text-muted-foreground">
 						{session.placement}
-						{session.totalEntries !== null ? `/${session.totalEntries}` : ""}
+						{session.totalEntries === null ? "" : `/${session.totalEntries}`}
 						{" place"}
 					</span>
 				)}

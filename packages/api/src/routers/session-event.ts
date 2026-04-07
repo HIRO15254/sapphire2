@@ -112,7 +112,7 @@ async function computeNextSortOrder(
 			)
 		);
 
-	return maxResult?.maxSortOrder != null ? maxResult.maxSortOrder + 1 : 0;
+	return maxResult?.maxSortOrder == null ? 0 : maxResult.maxSortOrder + 1;
 }
 
 function buildTablePlayerCondition(

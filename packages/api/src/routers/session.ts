@@ -288,10 +288,10 @@ async function syncCurrencyTransaction(
 }
 
 export {
-	validateSessionOwnership,
+	buildRingGameUpdateData,
 	computeCashGamePL,
 	computeTournamentPL,
-	buildRingGameUpdateData,
+	validateSessionOwnership,
 };
 
 const cashGameCreateSchema = z.object({
@@ -390,7 +390,7 @@ function buildTournamentSessionValues(
 }
 
 function timestampToDate(ts: number | undefined): Date | null {
-	return ts !== undefined ? new Date(ts * 1000) : null;
+	return ts === undefined ? null : new Date(ts * 1000);
 }
 
 function nullableTimestampToDate(
@@ -399,7 +399,7 @@ function nullableTimestampToDate(
 	if (ts === undefined) {
 		return undefined;
 	}
-	return ts !== null ? new Date(ts * 1000) : null;
+	return ts === null ? null : new Date(ts * 1000);
 }
 
 const SESSION_UPDATE_FIELDS = [

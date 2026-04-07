@@ -176,7 +176,7 @@ export function CashGameStackForm({
 
 			<AllInBottomSheet
 				initialValues={editingAllIn ?? undefined}
-				onDelete={editingAllIn !== null ? handleAllInDelete : undefined}
+				onDelete={editingAllIn === null ? undefined : handleAllInDelete}
 				onOpenChange={setAllInBottomSheetOpen}
 				onSubmit={handleAllInSubmit}
 				open={allInBottomSheetOpen}

@@ -62,18 +62,18 @@ export function SessionSummary({ summary }: SessionSummaryProps) {
 			<StatCard
 				label="Cash Out"
 				value={
-					summary.cashOut !== null ? formatCompactNumber(summary.cashOut) : "-"
+					summary.cashOut === null ? "-" : formatCompactNumber(summary.cashOut)
 				}
 			/>
 
 			<StatCard
 				colorClass={
-					summary.profitLoss !== null
-						? plColorClass(summary.profitLoss)
-						: undefined
+					summary.profitLoss === null
+						? undefined
+						: plColorClass(summary.profitLoss)
 				}
 				label="P&L"
-				value={summary.profitLoss !== null ? formatPl(summary.profitLoss) : "-"}
+				value={summary.profitLoss === null ? "-" : formatPl(summary.profitLoss)}
 			/>
 
 			{summary.evCashOut !== null && (

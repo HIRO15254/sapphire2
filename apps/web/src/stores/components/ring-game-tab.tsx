@@ -284,8 +284,8 @@ function RingGameRow({
 		>
 			{(game.minBuyIn != null || game.maxBuyIn != null) && (
 				<p className="text-[11px] text-muted-foreground">
-					Buy-in: {game.minBuyIn != null ? fmt(game.minBuyIn) : "—"} -{" "}
-					{game.maxBuyIn != null ? fmt(game.maxBuyIn) : "—"}
+					Buy-in: {game.minBuyIn == null ? "—" : fmt(game.minBuyIn)} -{" "}
+					{game.maxBuyIn == null ? "—" : fmt(game.maxBuyIn)}
 					{currency?.unit ? ` ${currency.unit}` : ""}
 				</p>
 			)}
