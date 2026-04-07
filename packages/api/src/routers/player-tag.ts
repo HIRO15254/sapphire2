@@ -66,8 +66,8 @@ export const playerTagRouter = router({
 			await ctx.db
 				.update(playerTag)
 				.set({
-					...(input.name !== undefined ? { name: input.name } : {}),
-					...(input.color !== undefined ? { color: input.color } : {}),
+					...(input.name === undefined ? {} : { name: input.name }),
+					...(input.color === undefined ? {} : { color: input.color }),
 				})
 				.where(eq(playerTag.id, input.id));
 			const [updated] = await ctx.db

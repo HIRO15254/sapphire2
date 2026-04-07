@@ -53,9 +53,9 @@ function CashGameCompactSummary({
 			<div>
 				<span className="text-muted-foreground text-xs">Stack</span>
 				<p className="font-semibold">
-					{summary.currentStack !== null
-						? formatCompactNumber(summary.currentStack)
-						: "-"}
+					{summary.currentStack === null
+						? "-"
+						: formatCompactNumber(summary.currentStack)}
 				</p>
 			</div>
 			<div>
@@ -63,22 +63,22 @@ function CashGameCompactSummary({
 				<p
 					className={cn(
 						"font-semibold",
-						summary.profitLoss !== null
-							? plColorClass(summary.profitLoss)
-							: undefined
+						summary.profitLoss === null
+							? undefined
+							: plColorClass(summary.profitLoss)
 					)}
 				>
-					{summary.profitLoss !== null ? formatPl(summary.profitLoss) : "-"}
+					{summary.profitLoss === null ? "-" : formatPl(summary.profitLoss)}
 				</p>
 			</div>
-			{summary.evCashOut !== null ? (
+			{summary.evCashOut === null ? null : (
 				<div>
 					<span className="text-muted-foreground text-xs">EV P&L</span>
 					<p className="font-semibold">
 						{formatPl(summary.evCashOut - summary.totalBuyIn)}
 					</p>
 				</div>
-			) : null}
+			)}
 			{summary.addonCount > 0 ? (
 				<div>
 					<span className="text-muted-foreground text-xs">Addons</span>
@@ -115,37 +115,37 @@ function TournamentCompactSummary({
 			<div>
 				<span className="text-muted-foreground text-xs">Stack</span>
 				<p className="font-semibold">
-					{summary.currentStack !== null
-						? formatCompactNumber(summary.currentStack)
-						: "-"}
+					{summary.currentStack === null
+						? "-"
+						: formatCompactNumber(summary.currentStack)}
 				</p>
 			</div>
 			<div>
 				<span className="text-muted-foreground text-xs">Remaining</span>
 				<p className="font-semibold">
-					{summary.remainingPlayers !== null ? summary.remainingPlayers : "-"}
+					{summary.remainingPlayers === null ? "-" : summary.remainingPlayers}
 				</p>
 			</div>
-			{summary.totalEntries !== null ? (
+			{summary.totalEntries === null ? null : (
 				<div>
 					<span className="text-muted-foreground text-xs">Entries</span>
 					<p className="font-semibold">{summary.totalEntries}</p>
 				</div>
-			) : null}
+			)}
 			{summary.totalChipPurchases > 0 ? (
 				<div>
 					<span className="text-muted-foreground text-xs">Chip Purchases</span>
 					<p className="font-semibold">{summary.totalChipPurchases}</p>
 				</div>
 			) : null}
-			{summary.profitLoss !== null ? (
+			{summary.profitLoss === null ? null : (
 				<div>
 					<span className="text-muted-foreground text-xs">P&L</span>
 					<p className={cn("font-semibold", plColorClass(summary.profitLoss))}>
 						{formatPl(summary.profitLoss)}
 					</p>
 				</div>
-			) : null}
+			)}
 		</div>
 	);
 }

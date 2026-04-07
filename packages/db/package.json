@@ -18,10 +18,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260317.1",
+    "@cloudflare/workers-types": "^4.20260405.1",
     "@sapphire2/config": "workspace:*",
-    "drizzle-kit": "^0.31.8",
+    "drizzle-kit": "^0.31.10",
     "typescript": "catalog:",
-    "vitest": "^3.1.0"
+    "vitest": "^4.1.2"
   }
 }

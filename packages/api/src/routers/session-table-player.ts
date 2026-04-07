@@ -87,7 +87,7 @@ async function insertPlayerJoinEvent(
 		);
 
 	const sortOrder =
-		maxResult?.maxSortOrder != null ? maxResult.maxSortOrder + 1 : 0;
+		maxResult?.maxSortOrder == null ? 0 : maxResult.maxSortOrder + 1;
 
 	await db.insert(sessionEvent).values({
 		id: crypto.randomUUID(),
@@ -128,7 +128,7 @@ async function insertPlayerLeaveEvent(
 		);
 
 	const sortOrder =
-		maxResult?.maxSortOrder != null ? maxResult.maxSortOrder + 1 : 0;
+		maxResult?.maxSortOrder == null ? 0 : maxResult.maxSortOrder + 1;
 
 	await db.insert(sessionEvent).values({
 		id: crypto.randomUUID(),

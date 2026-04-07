@@ -521,13 +521,13 @@ function BlindStructureSummary({ tournamentId }: { tournamentId: string }) {
 									{row.level}
 								</td>
 								<td className="py-0.5 text-center">
-									{row.blind1 != null ? fmt(row.blind1) : "—"}
+									{row.blind1 == null ? "—" : fmt(row.blind1)}
 								</td>
 								<td className="py-0.5 text-center">
-									{row.blind2 != null ? fmt(row.blind2) : "—"}
+									{row.blind2 == null ? "—" : fmt(row.blind2)}
 								</td>
 								<td className="py-0.5 text-center">
-									{row.ante != null ? fmt(row.ante) : "—"}
+									{row.ante == null ? "—" : fmt(row.ante)}
 								</td>
 								<td className="py-0.5 text-center text-muted-foreground">
 									{row.minutes ?? "—"}

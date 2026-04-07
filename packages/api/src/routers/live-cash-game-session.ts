@@ -258,7 +258,7 @@ export const liveCashGameSessionRouter = router({
 			const s = computeSummaryFromEvents(
 				events.map((e) => ({ eventType: e.eventType, payload: e.payload }))
 			);
-			const profitLoss = s.cashOut !== null ? s.cashOut - s.totalBuyIn : null;
+			const profitLoss = s.cashOut === null ? null : s.cashOut - s.totalBuyIn;
 			const evCashOut = computeCashGamePLFromEvents(
 				events.map((e) => ({ eventType: e.eventType, payload: e.payload }))
 			).evCashOut;

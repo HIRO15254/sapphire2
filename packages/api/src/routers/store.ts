@@ -81,8 +81,8 @@ export const storeRouter = router({
 			await ctx.db
 				.update(store)
 				.set({
-					...(input.name !== undefined ? { name: input.name } : {}),
-					...(input.memo !== undefined ? { memo: input.memo } : {}),
+					...(input.name === undefined ? {} : { name: input.name }),
+					...(input.memo === undefined ? {} : { memo: input.memo }),
 					updatedAt: new Date(),
 				})
 				.where(eq(store.id, input.id));

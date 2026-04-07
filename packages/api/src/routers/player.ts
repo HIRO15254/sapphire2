@@ -217,8 +217,8 @@ export const playerRouter = router({
 			await ctx.db
 				.update(player)
 				.set({
-					...(input.name !== undefined ? { name: input.name } : {}),
-					...(input.memo !== undefined ? { memo: input.memo } : {}),
+					...(input.name === undefined ? {} : { name: input.name }),
+					...(input.memo === undefined ? {} : { memo: input.memo }),
 				})
 				.where(eq(player.id, input.id));
 

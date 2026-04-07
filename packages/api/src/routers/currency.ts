@@ -85,8 +85,8 @@ export const currencyRouter = router({
 			await ctx.db
 				.update(currency)
 				.set({
-					...(input.name !== undefined ? { name: input.name } : {}),
-					...(input.unit !== undefined ? { unit: input.unit } : {}),
+					...(input.name === undefined ? {} : { name: input.name }),
+					...(input.unit === undefined ? {} : { unit: input.unit }),
 					updatedAt: new Date(),
 				})
 				.where(eq(currency.id, input.id));

@@ -129,14 +129,14 @@ export function TournamentStackRecordEditor({
 		String(initialPayload.stackAmount)
 	);
 	const [remainingPlayers, setRemainingPlayers] = useState(
-		initialPayload.remainingPlayers !== null
-			? String(initialPayload.remainingPlayers)
-			: ""
+		initialPayload.remainingPlayers === null
+			? ""
+			: String(initialPayload.remainingPlayers)
 	);
 	const [totalEntries, setTotalEntries] = useState(
-		initialPayload.totalEntries !== null
-			? String(initialPayload.totalEntries)
-			: ""
+		initialPayload.totalEntries === null
+			? ""
+			: String(initialPayload.totalEntries)
 	);
 	const [chipPurchases, setChipPurchases] = useState<
 		Array<{ name: string; cost: number; chips: number }>
@@ -167,12 +167,12 @@ export function TournamentStackRecordEditor({
 		cost: number;
 		chips: number;
 	}) => {
-		if (editingPurchase !== null) {
+		if (editingPurchase === null) {
+			setChipPurchases((prev) => [...prev, purchase]);
+		} else {
 			setChipPurchases((prev) =>
 				prev.map((p, i) => (i === editingPurchase.index ? purchase : p))
 			);
-		} else {
-			setChipPurchases((prev) => [...prev, purchase]);
 		}
 		setSheetOpen(false);
 	};
@@ -268,7 +268,7 @@ export function TournamentStackRecordEditor({
 							}
 						: undefined
 				}
-				onDelete={editingPurchase !== null ? handleSheetDelete : undefined}
+				onDelete={editingPurchase === null ? undefined : handleSheetDelete}
 				onOpenChange={(open) => {
 					if (!open) {
 						setSheetOpen(false);

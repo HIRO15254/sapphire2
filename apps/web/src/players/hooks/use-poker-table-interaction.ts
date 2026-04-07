@@ -41,7 +41,7 @@ export function usePokerTableInteraction(
 		undefined
 	);
 	const effectiveHeroSeat =
-		localHeroSeat !== undefined ? localHeroSeat : heroSeatPosition;
+		localHeroSeat === undefined ? heroSeatPosition : localHeroSeat;
 
 	const heroMutation = useMutation({
 		mutationFn: (nextSeatPosition: number | null) =>
@@ -61,7 +61,7 @@ export function usePokerTableInteraction(
 				old ? { ...old, heroSeatPosition: nextSeatPosition } : old
 			);
 			const previousSeat =
-				localHeroSeat !== undefined ? localHeroSeat : heroSeatPosition;
+				localHeroSeat === undefined ? heroSeatPosition : localHeroSeat;
 			setLocalHeroSeat(nextSeatPosition);
 			return { previousSeat, previousSession };
 		},

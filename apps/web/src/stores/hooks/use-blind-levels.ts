@@ -66,10 +66,10 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 				tournamentId,
 				level: newLevel.level,
 				isBreak: newLevel.isBreak,
-				...(newLevel.blind1 != null ? { blind1: newLevel.blind1 } : {}),
-				...(newLevel.blind2 != null ? { blind2: newLevel.blind2 } : {}),
-				...(newLevel.ante != null ? { ante: newLevel.ante } : {}),
-				...(newLevel.minutes != null ? { minutes: newLevel.minutes } : {}),
+				...(newLevel.blind1 == null ? {} : { blind1: newLevel.blind1 }),
+				...(newLevel.blind2 == null ? {} : { blind2: newLevel.blind2 }),
+				...(newLevel.ante == null ? {} : { ante: newLevel.ante }),
+				...(newLevel.minutes == null ? {} : { minutes: newLevel.minutes }),
 			}),
 		onMutate: async (newLevel) => {
 			await queryClient.cancelQueries({
@@ -192,9 +192,9 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 		addLevelMutation.mutate({
 			level: nextLevel,
 			isBreak: false,
-			...(effectiveLastMinutes != null
-				? { minutes: effectiveLastMinutes }
-				: {}),
+			...(effectiveLastMinutes == null
+				? {}
+				: { minutes: effectiveLastMinutes }),
 		});
 	};
 
@@ -203,9 +203,9 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 		addLevelMutation.mutate({
 			level: nextLevel,
 			isBreak: true,
-			...(effectiveLastMinutes != null
-				? { minutes: effectiveLastMinutes }
-				: {}),
+			...(effectiveLastMinutes == null
+				? {}
+				: { minutes: effectiveLastMinutes }),
 		});
 	};
 
@@ -236,7 +236,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			blind1: values.blind1,
 			blind2: values.blind2,
 			ante: values.ante,
-			...(minutes != null ? { minutes } : {}),
+			...(minutes == null ? {} : { minutes }),
 		});
 		if (minutes != null) {
 			setLastMinutes(minutes);

@@ -10,7 +10,6 @@
     "skipLibCheck": true,
     "types": ["vite/client", "@cloudflare/workers-types"],
     "rootDirs": ["."],
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }

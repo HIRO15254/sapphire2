@@ -104,8 +104,8 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 	} = useSortable({ id: row.id });
 
 	// Track current input values for auto-fill logic on blur
-	const currentBlind2Ref = useRef(row.blind2 != null ? String(row.blind2) : "");
-	const currentAnteRef = useRef(row.ante != null ? String(row.ante) : "");
+	const currentBlind2Ref = useRef(row.blind2 == null ? "" : String(row.blind2));
+	const currentAnteRef = useRef(row.ante == null ? "" : String(row.ante));
 
 	const style = {
 		transform: CSS.Transform.toString(transform),

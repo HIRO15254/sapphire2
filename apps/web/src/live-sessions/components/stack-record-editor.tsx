@@ -179,7 +179,7 @@ export function StackRecordEditor({
 
 			<AllInBottomSheet
 				initialValues={editingAllIn ?? undefined}
-				onDelete={editingAllIn !== null ? handleAllInDelete : undefined}
+				onDelete={editingAllIn === null ? undefined : handleAllInDelete}
 				onOpenChange={setAllInSheetOpen}
 				onSubmit={handleAllInSubmit}
 				open={allInSheetOpen}

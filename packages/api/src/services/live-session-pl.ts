@@ -68,8 +68,8 @@ export function computeCashGamePLFromEvents(
 		}
 	}
 
-	const profitLoss = cashOut !== null ? cashOut - totalBuyIn : null;
-	const evCashOut = cashOut !== null ? cashOut + totalEvDiff : null;
+	const profitLoss = cashOut === null ? null : cashOut - totalBuyIn;
+	const evCashOut = cashOut === null ? null : cashOut + totalEvDiff;
 
 	return { totalBuyIn, cashOut, profitLoss, evCashOut, addonTotal };
 }
@@ -150,7 +150,7 @@ export function computeTournamentPLFromEvents(
 	const income = (prizeMoney ?? 0) + (bountyPrizes ?? 0);
 	const cost =
 		(tournamentBuyIn ?? 0) + (tournamentEntryFee ?? 0) + rebuyCost + addonCost;
-	const profitLoss = placement !== null ? income - cost : null;
+	const profitLoss = placement === null ? null : income - cost;
 
 	return {
 		rebuyCount,
