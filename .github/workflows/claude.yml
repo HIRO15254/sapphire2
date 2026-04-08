@@ -45,7 +45,7 @@ jobs:
     if: |
       github.event_name == 'issues' &&
       github.event.action == 'labeled' &&
-      github.event.label.name == 'brainstorm'
+      github.event.label.name == 'spex:brainstorm'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -69,7 +69,7 @@ jobs:
           prompt: |
             Run /spex:brainstorm for the following issue. Write the brainstorm output to specs/ directory.
             When brainstorm is complete, use gh to remove the "brainstorm" label and add the "ship" label:
-              gh issue edit ${{ github.event.issue.number }} --remove-label "brainstorm" --add-label "ship"
+              gh issue edit ${{ github.event.issue.number }} --remove-label "spex:brainstorm" --add-label "spex:ship"
 
             Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
 
@@ -80,7 +80,7 @@ jobs:
     if: |
       github.event_name == 'issues' &&
       github.event.action == 'labeled' &&
-      github.event.label.name == 'ship'
+      github.event.label.name == 'spex:ship'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -105,7 +105,7 @@ jobs:
             Run /spex:ship --ask smart --create-pr for issue #${{ github.event.issue.number }}.
             Use the brainstorm/spec artifacts already in the specs/ directory for this issue.
             When ship completes and the PR is created, use gh to:
-              gh issue edit ${{ github.event.issue.number }} --remove-label "ship" --add-label "done"
+              gh issue edit ${{ github.event.issue.number }} --remove-label "spex:ship" --add-label "done"
 
             Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
 
