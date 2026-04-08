@@ -1,39 +1,26 @@
-# Specification Quality Checklist: Session Post-Recording
+# Specification Quality Checklist: Live Session Recording
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Purpose**: Validate that the spec matches the current implementation
 **Created**: 2026-03-23
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
 
-- [x] No implementation details (languages, frameworks, APIs)
-- [x] Focused on user value and business needs
-- [x] Written for non-technical stakeholders
-- [x] All mandatory sections completed
+- [x] The spec reflects the current live-session split and historical session list.
+- [x] The routes in the document match the app (`/sessions`, `/active-session`, event routes, settings).
+- [x] The terminology matches the current code (`pokerSession`, `liveCashGameSession`, `liveTournamentSession`).
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain
-- [x] Requirements are testable and unambiguous
-- [x] Success criteria are measurable
-- [x] Success criteria are technology-agnostic (no implementation details)
-- [x] All acceptance scenarios are defined
-- [x] Edge cases are identified
-- [x] Scope is clearly bounded
-- [x] Dependencies and assumptions identified
+- [x] Session history, live play, event editing, tags, and currency sync are all covered.
+- [x] The requirements are stated in a way that can be checked against the current implementation.
+- [x] Stale post-recording assumptions were removed.
 
 ## Feature Readiness
 
-- [x] All functional requirements have clear acceptance criteria
-- [x] User scenarios cover primary flows
-- [x] Feature meets measurable outcomes defined in Success Criteria
-- [x] No implementation details leak into specification
+- [x] The document set now describes the shipped behavior instead of the original aspirational plan.
+- [x] Remaining ambiguity is limited to future product decisions rather than current code structure.
 
 ## Notes
 
-- All items passed validation.
-- Revision 2: Cash game and tournament sessions are now explicitly differentiated with type-specific fields, validation rules, P&L formulas, and summary metrics.
-- Cash game: total buy-in / cash-out model
-- Tournament: buy-in + entry fee + rebuys + addon / prize + bounty model
-- Tournament-specific summary metrics added (average placement, ITM rate)
-- Session type is immutable after creation (documented in edge cases)
+- The original checklist has been superseded by the current live-session implementation.

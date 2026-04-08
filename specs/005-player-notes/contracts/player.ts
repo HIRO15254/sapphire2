@@ -10,12 +10,12 @@
 export interface PlayerCreateInput {
 	memo?: string; // HTML content, max(50000)
 	name: string; // min(1), max(100)
-	tagIds?: string[]; // optional initial tag assignments
+	tagIds?: string[]; // initial tag assignments
 }
 
 export interface PlayerUpdateInput {
 	id: string;
-	memo?: string; // HTML content, max(50000)
+	memo?: string | null; // HTML content, optional null to clear
 	name?: string; // min(1), max(100)
 	tagIds?: string[]; // full replacement of tag assignments
 }
@@ -29,19 +29,26 @@ export interface PlayerGetByIdInput {
 }
 
 export interface PlayerListInput {
-	search?: string; // search by name (partial match)
-	tagIds?: string[]; // filter by tags (AND logic)
+	search?: string; // partial match on player name
+	tagIds?: string[]; // matches players that have any selected tag
 }
 
 // === Outputs ===
+
+export interface PlayerTagSummary {
+	color: string;
+	id: string;
+	name: string;
+}
 
 export interface PlayerListItem {
 	createdAt: Date;
 	id: string;
 	memo: string | null;
 	name: string;
-	tags: Array<{ id: string; name: string; color: string }>;
+	tags: PlayerTagSummary[];
 	updatedAt: Date;
+	userId: string;
 }
 
 export interface PlayerDetail {
@@ -49,13 +56,14 @@ export interface PlayerDetail {
 	id: string;
 	memo: string | null;
 	name: string;
-	tags: Array<{ id: string; name: string; color: string }>;
+	tags: PlayerTagSummary[];
 	updatedAt: Date;
+	userId: string;
 }
 
 // === Procedures ===
 
-// player.list    -> query(PlayerListInput)  -> PlayerListItem[]
+// player.list    -> query(PlayerListInput | undefined) -> PlayerListItem[]
 // player.getById -> query(PlayerGetByIdInput) -> PlayerDetail
 // player.create  -> mutation(PlayerCreateInput) -> PlayerDetail
 // player.update  -> mutation(PlayerUpdateInput) -> PlayerDetail

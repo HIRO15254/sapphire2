@@ -1,225 +1,56 @@
 ---
 name: plan-writer
-description: 承認済み仕様書から実装計画とタスク一覧を作成するPlanning専門エージェント
+description: 承認済み仕様書から現行 repo に沿った plan / tasks を作成・更新するエージェント
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 ---
 
-# Implementation Planning Domain Expert
+# Planning Domain Expert
 
-承認済みの仕様書（spec.md）から、実装計画（plan.md）とタスク一覧（tasks.md）を自律的に作成・更新するエージェント。
-既存のDraft PR上にcommit & pushし、PRコメント投稿・ラベル遷移まで全ステップを一貫して実行する。
+このエージェントは `spec.md` を実装可能な `plan.md` と `tasks.md` に落とし込む。
+現行 repo の構造と運用を前提にし、存在しない自動 PR ワークフローや外部 Bot には依存しない。
 
-## Technology Stack
-
-- **Git**: feature branch管理、commit、push
-- **`.github/.pr-meta.json`**: ラベル遷移のメタデータ（push時にワークフローが実行）
-- **`.github/.pr-comment.md`**: PRコメント本文（push時にワークフローが投稿）
-- **PowerShell**: `.specify/scripts/powershell/setup-plan.ps1`（planテンプレート配置）
-- **Markdown**: plan/tasksオーサリング
-
-> **Note**: GitHub API操作（コメント、ラベル遷移）は全て `auto-pr.yml` ワークフロー経由で Bot 名義で実行される。エージェントが直接 `gh pr` / `gh issue` コマンドを呼び出すことはない。
-
-## Key File Locations
+## Inputs
 
 | Purpose | Path |
 |---------|------|
-| Planテンプレート | `.specify/templates/plan-template.md` |
-| Tasksテンプレート | `.specify/templates/tasks-template.md` |
-| Constitution（プロジェクト原則） | `.specify/memory/constitution.md` |
-| Plan配置スクリプト | `.specify/scripts/powershell/setup-plan.ps1` |
-| ワークフローラベル定義 | `.specify/workflow/labels.json` |
-| 入力 | `specs/{branch-name}/spec.md` |
-| 出力（plan） | `specs/{branch-name}/plan.md` |
-| 出力（tasks） | `specs/{branch-name}/tasks.md` |
-| 出力（research） | `specs/{branch-name}/research.md` |
-| 出力（data-model） | `specs/{branch-name}/data-model.md` |
+| Spec | `specs/{feature}/spec.md` |
+| Constitution | `.specify/memory/constitution.md` |
+| Plan template | `.specify/templates/plan-template.md` |
+| Tasks template | `.specify/templates/tasks-template.md` |
 
-## Input Contract
+## Outputs
 
-このエージェントは以下のフィールドを含むpromptで呼び出される:
+| Purpose | Path |
+|---------|------|
+| Plan | `specs/{feature}/plan.md` |
+| Tasks | `specs/{feature}/tasks.md` |
+| Optional research | `specs/{feature}/research.md` |
+| Optional data model | `specs/{feature}/data-model.md` |
+| Optional contracts | `specs/{feature}/contracts/*` |
 
-| フィールド | 必須 | 説明 |
-|-----------|------|------|
-| `ISSUE_NUMBER` | 必須 | GitHub Issue番号 |
-| `ISSUE_TITLE` | 必須 | Issueタイトル |
-| `BRANCH_NAME` | 必須 | feature branch名 |
-| `MODE` | 必須 | `new`（新規）または `revision`（差し戻し修正） |
-| `REJECTION_REASON` | revision時のみ | PRレビューのCHANGES_REQUESTEDコメントの修正理由 |
+## Planning Rules
 
-## Execution Protocol
+- 実在するディレクトリとファイルパスを使う
+- 技術前提は現行スタックに合わせる
+  - Cloudflare Workers
+  - Cloudflare D1(SQLite)
+  - React 19
+  - TanStack Router / Query
+  - tRPC v11
+- 不明点は repo 探索で埋め、埋まらないものだけ Assumptions に明示する
+- タスクはテストや検証まで含めて完結する粒度にする
 
-### Step 1: コンテキスト読み込み
+## Current Repo Guidance
 
-1. branchをチェックアウト:
-   ```bash
-   git fetch --all --prune
-   git checkout {BRANCH_NAME}
-   git pull origin {BRANCH_NAME}
-   ```
+- Frontend paths: `apps/web/src/...`
+- Backend paths: `apps/server/src/worker.ts`, `packages/api/src/...`
+- Database paths: `packages/db/src/schema*.ts`, `packages/db/src/migrations/...`
+- Tests already live in route tests, component tests, router tests, schema tests
 
-2. 以下を読み込み:
-   - `specs/{BRANCH_NAME}/spec.md`（必須 — 入力仕様書）
-   - `.specify/memory/constitution.md`（プロジェクト原則）
-   - `.specify/templates/plan-template.md`（planテンプレート）
-   - `.specify/templates/tasks-template.md`（tasksテンプレート）
+## Quality Checks
 
-3. **MODE: revision の場合**:
-   - 既存の `plan.md`, `tasks.md` を読み込み（修正のベース）
-   - `REJECTION_REASON` から修正対象を把握
-
-### Step 2: 実装計画を生成
-
-1. **Planテンプレート配置**:
-   ```bash
-   .specify/scripts/powershell/setup-plan.ps1 -Json
-   ```
-
-2. **Technical Context を記入**:
-   - constitution.md からtech stackを転記
-   - Language/Version: TypeScript (strict mode), Bun
-   - Primary Dependencies: React 19, Hono, tRPC v11, Drizzle ORM
-   - Storage: PostgreSQL (Neon)
-   - Testing: Vitest, Testing Library
-   - Target Platform: Cloudflare Workers (API) + Cloudflare Pages (Web)
-   - 不明点は `NEEDS CLARIFICATION` として記録
-
-3. **Constitution Check を実施**:
-   - constitution.md の各原則に対して準拠/違反を確認
-   - 違反がある場合は justification を Complexity Tracking に記録
-
-4. **Phase 0: Research**:
-   - unknowns を調査（既存コードベース探索、パターン確認）
-   - `specs/{BRANCH_NAME}/research.md` に結果を記録
-
-5. **Phase 1: Design**:
-   - `specs/{BRANCH_NAME}/data-model.md` — データモデル設計
-   - `specs/{BRANCH_NAME}/contracts/` — API契約（該当する場合）
-   - Project Structure セクションを実際のmonorepo構造に合わせて記入
-
-6. **MODE: revision の場合**:
-   - REJECTION_REASON に言及されたセクションのみ更新
-   - 影響を受けないセクションはそのまま保持
-
-### Step 3: タスク一覧を生成
-
-1. **tasks-template.md の構造に従い**、spec.md + plan.md からタスクを抽出:
-   - Phase 1: Setup（プロジェクト構造）
-   - Phase 2: Foundational（ブロッキング前提条件）
-   - Phase 3+: User Story別（spec.mdのP1, P2, P3...順）
-   - Final Phase: Polish & Cross-Cutting Concerns
-
-2. **各タスクの形式**: `- [ ] [TaskID] [P?] [Story?] Description with file path`
-   - `[P]`: 並列実行可能（異なるファイル、依存なし）
-   - `[Story]`: 所属ユーザーストーリー（US1, US2等）
-   - ファイルパスは実際のmonorepo構造に合わせる
-
-3. **テストタスクを含む**:
-   - constitutionに従いテストは必須
-   - テストファーストで記載（テスト → 実装の順）
-
-4. **Dependencies & Execution Order セクション**を記入
-
-### Step 4: 品質チェック（speckit.analyze相当）
-
-1. **カバレッジチェック**:
-   - spec.md の全要件(FR-xxx)がtasks.mdでカバーされているか
-   - spec.md の全ユーザーストーリーがtasks.mdのPhaseに対応しているか
-
-2. **依存関係チェック**:
-   - 循環依存がないか
-   - [P]マークされたタスクが本当に並列実行可能か
-
-3. **constitution準拠チェック**:
-   - テストタスクが含まれているか
-   - パッケージ境界を尊重しているか
-
-4. CRITICAL/HIGHの問題があれば自動修正
-
-### Step 5: Commit & Push（コメント・ラベル遷移を含む）
-
-plan.md と tasks.md の全内容を読み込み、以下のファイルを更新してまとめてcommit & push:
-
-1. **`.github/.pr-comment.md`** にコメント本文を書き込み:
-
-```markdown
-## 📋 実装計画が完成しました
-
-**タスク数**: {X}件（{Y} フェーズ）
-**並列実行可能**: {Z}件
-
-<details>
-<summary>実装計画全文を表示</summary>
-
-{plan.md の全内容}
-
-</details>
-
-<details>
-<summary>タスク一覧を表示</summary>
-
-{tasks.md の全内容}
-
-</details>
-
----
-PRをレビューしてください。Approve → 実装へ | Request Changes → 修正
-```
-
-2. **`.github/.pr-meta.json`** の `labels_add` / `labels_remove` を更新:
-
-```json
-{
-  "labels_add": ["wf:plan-review"],
-  "labels_remove": ["wf:needs-plan"]
-}
-```
-
-3. commit & push:
-
-```bash
-git add specs/ .github/.pr-meta.json .github/.pr-comment.md
-git commit -m "{MODE == new ? 'Generate' : 'Revise'} plan and tasks for #{ISSUE_NUMBER}: {ISSUE_TITLE}"
-git push origin {BRANCH_NAME}
-```
-
-pushにより `auto-pr.yml` が起動し、Bot名義でコメント投稿・ラベル遷移を実行する。
-
-## Error Handling
-
-| エラー種別 | 対応 |
-|-----------|------|
-| spec.md未発見 | Issueコメントにエラー投稿、`wf:blocked` に遷移 |
-| Script失敗 | Issueコメントにエラー内容を投稿、`wf:blocked` に遷移 |
-| Git競合 | Issueコメントで報告、`wf:blocked` に遷移 |
-| 品質チェック失敗 | 自動修正を試行、不能なら警告付きで続行 |
-
-エラー時はメタデータファイル経由でBot名義で通知:
-
-1. `.github/.pr-comment.md` にエラー内容を書き込み:
-```markdown
-## ⚠️ エラーが発生しました
-
-{エラー詳細}
-
-手動での対応が必要です。
-```
-
-2. `.github/.pr-meta.json` を更新:
-```json
-{
-  "labels_add": ["wf:blocked"],
-  "labels_remove": ["wf:needs-plan"]
-}
-```
-
-3. commit & push（`auto-pr.yml` が Bot 名義で実行）
-
-## Code Quality Rules
-
-- plan.mdには**具体的なファイルパス**を含める（monorepo構造に合わせる）
-- tasks.mdは**テスト可能かつアトミック**なタスクに分割
-- constitutionの原則に従い、YAGNI（必要最小限）を維持
-- Git操作は常にfeature branch上、**masterを直接変更しない**
-- commit メッセージ: `Generate plan and tasks for #N: title`（新規）/ `Revise plan and tasks for #N: title`（修正）
-- PRコメントは必ず折りたたみ方式（`<details>` タグ）を使用
+- Spec の要求が tasks に落ちているか
+- タスク依存が循環していないか
+- テストまたは検証タスクが抜けていないか
+- plan が PostgreSQL / Neon / `todo` サンプルなど古い前提を含んでいないか

@@ -1,147 +1,92 @@
-# tRPC Router Contract: liveTournamentSession
+# tRPC Router Contract: `liveTournamentSession`
 
 **Package**: `@sapphire2/api`
-**Router**: `liveTournamentSessionRouter`
 
 ## Procedures
 
-### liveTournamentSession.list
+### `list`
 
-**Type**: query (protected)
-**Input**:
-```typescript
-{
-  status?: "active" | "completed"
-  cursor?: string
-  limit?: number                               // デフォルト20
-}
-```
-**Output**:
-```typescript
-{
-  items: {
-    id: string
-    status: "active" | "completed"
-    store: { id: string, name: string } | null
-    tournament: { id: string, name: string } | null
-    currency: { id: string, name: string, unit: string } | null
-    startedAt: Date
-    endedAt: Date | null
-    memo: string | null
-    latestStackAmount: number | null
-    remainingPlayers: number | null
-    averageStack: number | null
-    eventCount: number
-  }[]
-  nextCursor: string | null
-}
-```
+Protected query with `status?`, `cursor?`, and `limit?`.
 
-### liveTournamentSession.getById
+Returns paginated tournament live sessions with store, tournament, currency, timestamps, memo, current summary fields, and event count.
 
-**Type**: query (protected)
-**Input**: `{ id: string }`
-**Output**:
-```typescript
-{
-  id: string
-  status: "active" | "completed"
-  store: { id: string, name: string } | null
-  tournament: { ... } | null
-  currency: { ... } | null
-  startedAt: Date
-  endedAt: Date | null
-  memo: string | null
-  pokerSessionId: string | null
-  events: SessionEvent[]
-  tablePlayers: SessionTablePlayer[]
-  summary: {
-    rebuyCount: number
-    rebuyCost: number
-    addonCount: number
-    addonCost: number
-    placement: number | null
-    totalEntries: number | null
-    prizeMoney: number | null
-    bountyPrizes: number | null
-    profitLoss: number | null
-    maxStack: number | null
-    minStack: number | null
-    currentStack: number | null
-    remainingPlayers: number | null
-    averageStack: number | null
-  }
-}
-```
+### `getById`
 
-### liveTournamentSession.create
+Protected query with `{ id }`.
 
-**Type**: mutation (protected)
-**Input**:
-```typescript
-{
-  storeId?: string
-  tournamentId?: string
-  currencyId?: string
-  memo?: string
-}
-```
-**Output**: `{ id: string }`
+Returns the live tournament session, its events, table players, and computed summary values:
 
-### liveTournamentSession.update
+- `rebuyCount`
+- `rebuyCost`
+- `addonCount`
+- `addonCost`
+- `placement`
+- `totalEntries`
+- `prizeMoney`
+- `bountyPrizes`
+- `profitLoss`
+- `maxStack`
+- `minStack`
+- `currentStack`
+- `remainingPlayers`
+- `averageStack`
 
-**Type**: mutation (protected)
-**Input**:
-```typescript
-{
-  id: string
-  memo?: string
-  storeId?: string | null
-  currencyId?: string | null
-}
-```
-**Output**: `{ id: string }`
+### `create`
 
-### liveTournamentSession.complete
+Protected mutation with:
 
-**Type**: mutation (protected)
-**Input**:
-```typescript
-{
-  id: string
-  placement: number
-  totalEntries: number
-  prizeMoney: number
-  bountyPrizes?: number
-}
-```
-**Output**: `{ id: string, pokerSessionId: string }`
-**Side effects**:
-- tournament_resultイベントを自動記録
-- pokerSessionレコードを作成（イベント集約からP&L計算）
-- 通貨トランザクションを自動作成（currencyId設定時）
+- `storeId?`
+- `tournamentId?`
+- `currencyId?`
+- `buyIn?`
+- `entryFee?`
+- `memo?`
 
-### liveTournamentSession.reopen
+Behavior:
 
-**Type**: mutation (protected)
-**Input**: `{ id: string }`
-**Output**: `{ id: string }`
-**Validation**: status === "completed", no other active session exists
-**Side effects**: status を "active" に変更
+- Blocks creation if another live session is active for the user.
+- Creates the live session in `active` state.
+- Records `session_start`.
 
-### liveTournamentSession.discard
+The current UI writes the initial `tournament_stack_record` immediately after this mutation succeeds.
 
-**Type**: mutation (protected)
-**Input**: `{ id: string }`
-**Output**: `{ id: string }`
-**Validation**: status === "active"
-**Side effects**: セッション + 全イベント + 全SessionTablePlayerをカスケード削除
+### `complete`
 
-## Error Codes
+Protected mutation with `{ id, placement, totalEntries, prizeMoney, bountyPrizes? }`.
 
-| Code | Condition |
-|------|-----------|
-| NOT_FOUND | セッションが存在しないまたは他ユーザーのセッション |
-| BAD_REQUEST | 無効な状態遷移 |
-| BAD_REQUEST | アクティブでないセッションの破棄 |
-| BAD_REQUEST | reopen時に他のアクティブセッションが存在する |
+Behavior:
+
+- Rejects already completed sessions.
+- Records `tournament_result`.
+- Records `session_end`.
+- Creates or updates the linked `pokerSession`.
+- Creates or updates the linked `currencyTransaction` when a currency is set.
+
+### `reopen`
+
+Protected mutation with `{ id }`.
+
+Behavior:
+
+- Only completed sessions can reopen.
+- Blocks reopening if another live session is active.
+- Removes the derived `pokerSession` and `currencyTransaction`.
+- Moves the session back to `active`.
+- Appends a new `session_start`.
+
+### `discard`
+
+Protected mutation with `{ id }`.
+
+Behavior:
+
+- Only active sessions can be discarded.
+- Deletes the live session and its cascaded events and table players.
+
+### `updateHeroSeat`
+
+Protected mutation with `{ id, heroSeatPosition }`.
+
+Behavior:
+
+- Updates the hero seat for the live tournament session.

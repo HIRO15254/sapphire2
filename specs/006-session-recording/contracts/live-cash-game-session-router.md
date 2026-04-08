@@ -1,150 +1,84 @@
-# tRPC Router Contract: liveCashGameSession
+# tRPC Router Contract: `liveCashGameSession`
 
 **Package**: `@sapphire2/api`
-**Router**: `liveCashGameSessionRouter`
 
 ## Procedures
 
-### liveCashGameSession.list
+### `list`
 
-**Type**: query (protected)
-**Input**:
-```typescript
-{
-  status?: "active" | "completed"
-  cursor?: string
-  limit?: number                               // デフォルト20
-}
-```
-**Output**:
-```typescript
-{
-  items: {
-    id: string
-    status: "active" | "completed"
-    store: { id: string, name: string } | null
-    ringGame: { id: string, name: string } | null
-    currency: { id: string, name: string, unit: string } | null
-    startedAt: Date
-    endedAt: Date | null
-    memo: string | null
-    latestStackAmount: number | null
-    eventCount: number
-  }[]
-  nextCursor: string | null
-}
-```
+Protected query with `status?`, `cursor?`, and `limit?`.
 
-### liveCashGameSession.getById
+Returns paginated cash-game live sessions with store, ring game, currency, timestamps, memo, current summary fields, and event count.
 
-**Type**: query (protected)
-**Input**: `{ id: string }`
-**Output**:
-```typescript
-{
-  id: string
-  status: "active" | "completed"
-  store: { id: string, name: string } | null
-  ringGame: { ... } | null
-  currency: { ... } | null
-  startedAt: Date
-  endedAt: Date | null
-  memo: string | null
-  pokerSessionId: string | null
-  events: SessionEvent[]
-  tablePlayers: SessionTablePlayer[]
-  summary: {
-    totalBuyIn: number
-    cashOut: number | null
-    profitLoss: number | null
-    evCashOut: number | null
-    addonCount: number
-    maxStack: number | null
-    minStack: number | null
-    currentStack: number | null
-  }
-}
-```
+### `getById`
 
-### liveCashGameSession.create
+Protected query with `{ id }`.
 
-**Type**: mutation (protected)
-**Input**:
-```typescript
-{
-  storeId?: string
-  ringGameId?: string
-  currencyId?: string
-  memo?: string
-  initialBuyIn: number                          // required, min 0
-}
-```
-**Output**: `{ id: string }`
-**Validation**:
-- No other active session exists for the user (checked across both `liveCashGameSession` and `liveTournamentSession` tables); throws `BAD_REQUEST` if one does
-**Side effects**:
-- `session_start` イベントを自動記録 (payload: `{}`)
-- `chip_add` イベントを自動記録 (payload: `{ amount: initialBuyIn }`)
+Returns the live cash-game session, its events, table players, and computed summary values:
 
-### liveCashGameSession.update
+- `totalBuyIn`
+- `cashOut`
+- `profitLoss`
+- `evCashOut`
+- `addonCount`
+- `maxStack`
+- `minStack`
+- `currentStack`
 
-**Type**: mutation (protected)
-**Input**:
-```typescript
-{
-  id: string
-  memo?: string
-  storeId?: string | null
-  currencyId?: string | null
-}
-```
-**Output**: `{ id: string }`
+### `create`
 
-### liveCashGameSession.complete
+Protected mutation with:
 
-**Type**: mutation (protected)
-**Input**:
-```typescript
-{
-  id: string
-  finalStack: number
-}
-```
-**Output**: `{ id: string, pokerSessionId: string }`
-**Side effects**:
-- `stack_record` イベントを自動記録 (payload: `{ stackAmount: finalStack, allIns: [] }`)
-- `session_end` イベントを自動記録 (payload: `{}`)
-- pokerSessionレコードを作成または更新（イベント集約からP&L計算）
-  - totalBuyIn = Σ chip_add.amount
-  - cashOut = last stack_record.stackAmount
-- 通貨トランザクションを自動作成または更新（currencyId設定時）
+- `storeId?`
+- `ringGameId?`
+- `currencyId?`
+- `memo?`
+- `initialBuyIn`
 
-### liveCashGameSession.reopen
+Behavior:
 
-**Type**: mutation (protected)
-**Input**: `{ id: string }`
-**Output**: `{ id: string }`
-**Validation**:
-- `status === "completed"`
-- No other active session exists for the user (checked across both `liveCashGameSession` and `liveTournamentSession` tables)
-**Side effects**:
-- `status` を `"active"` に変更、`endedAt` をクリア
-- 新しい `session_start` イベントを末尾に追加（既存イベントは保持）
-- リンクされた `pokerSession` と `currencyTransaction` を削除（次回 `complete` 時に再作成）
+- Blocks creation if another live session is active for the user.
+- Creates the live session in `active` state.
+- Records `session_start`.
+- Records the initial `chip_add`.
 
-### liveCashGameSession.discard
+### `complete`
 
-**Type**: mutation (protected)
-**Input**: `{ id: string }`
-**Output**: `{ id: string }`
-**Validation**: `status === "active"`
-**Side effects**: セッション + 全イベント + 全SessionTablePlayerをカスケード削除
+Protected mutation with `{ id, finalStack }`.
 
-## Error Codes
+Behavior:
 
-| Code | Condition |
-|------|-----------|
-| NOT_FOUND | セッションが存在しないまたは他ユーザーのセッション |
-| BAD_REQUEST | 無効な状態遷移 |
-| BAD_REQUEST | アクティブでないセッションの破棄 |
-| BAD_REQUEST | create/reopen時に他のアクティブセッションが存在する（キャッシュゲーム・トーナメント両テーブルをチェック） |
+- Rejects already completed sessions.
+- Records the final `stack_record`.
+- Records `session_end`.
+- Creates or updates the linked `pokerSession`.
+- Creates or updates the linked `currencyTransaction` when a currency is set.
+
+### `reopen`
+
+Protected mutation with `{ id }`.
+
+Behavior:
+
+- Only completed sessions can reopen.
+- Blocks reopening if another live session is active.
+- Moves the session back to `active`.
+- Appends a new `session_start`.
+- Removes the derived `pokerSession` and `currencyTransaction` so the next completion recomputes them.
+
+### `discard`
+
+Protected mutation with `{ id }`.
+
+Behavior:
+
+- Only active sessions can be discarded.
+- Deletes the live session and its cascaded events and table players.
+
+### `updateHeroSeat`
+
+Protected mutation with `{ id, heroSeatPosition }`.
+
+Behavior:
+
+- Updates the hero seat for the live cash-game session.

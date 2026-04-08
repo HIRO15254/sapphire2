@@ -1,201 +1,78 @@
-# Feature Specification: リアルタイムセッション記録
+# Feature Specification: Live Session Recording
 
 **Feature Branch**: `006-session-recording`
-**Created**: 2026-03-29
-**Status**: Draft (Implementation Sync 2026-03-31)
-**Input**: User description: "リアルタイムのセッション記録機能を追加したいです。例えば、スタック履歴の記録や同卓者の管理、トーナメントであれば残り人数やアベレージスタックの記録などです。データモデルとしてはセッションイベントを記録していき、それらからセッションの詳細を組んでいく感じがいいかなと思っています。セッションは途中で中断することが可能とし、セッション1の中断中にセッション2が開始して完了する、といったことが想定されます"
+**Status**: Implementation Synced
+**Scope**: Current live-session implementation only
 
-## User Scenarios & Testing *(mandatory)*
+## Summary
 
-### User Story 1 - キャッシュゲームのリアルタイム記録 (Priority: P1)
+This feature covers the current live poker session flow in the app:
 
-ユーザーがキャッシュゲームに参加する際、ゲーム設定を選択し初回バイイン額を入力してセッションを開始する。ゲーム選択時にはmaxBuyInが自動入力され、通貨も自動紐づけされる。セッション開始は `session_start` イベントと初回バイインの `chip_add` イベントが記録されることで行われる。セッション中はスタック変動を `stack_record` イベントで記録し、スタック記録時にオールイン情報（ポットサイズ・試行回数・勝率・勝利数）をボトムシートで追加できる。アドオン（追加バイイン）は独立した `chip_add` イベントとして記録される。追加された記録はバッジとして表示され、タップで編集・削除が可能。セッション終了時にはファイナルスタックを `stack_record` で記録後、`session_end` イベントでセッションを完了してP&Lが自動算出される。ライブセッション中のすべての画面は1画面に収まる設計とする。
+- Cash games and tournaments are tracked as separate live session tables.
+- The active live session is surfaced through `/active-session`.
+- Event history is available at `/active-session/events` for the current session and `/live-sessions/$sessionType/$sessionId/events` for completed sessions.
+- Session cards in `/sessions` expose `Events` and, for cash/tournament sessions, `Reopen` when applicable.
 
-**Why this priority**: キャッシュゲームは最も頻繁にプレイされる形式であり、スタック履歴の記録はユーザーの主要な要望。セッション記録の基盤となる機能。
+## User Scenarios
 
-**Independent Test**: キャッシュゲームセッションを開始（初回バイイン入力）し、スタック変動・オールイン・アドオン・キャッシュアウトを記録して、セッション詳細画面でイベント履歴とP&Lが正しく表示されることを確認する。
+### 1. Start and record a cash game session
 
-**Acceptance Scenarios**:
+As a user, I can start a cash game live session from the create-session dialog, pick a store and ring game, enter an initial buy-in, and begin recording stack changes.
 
-1. **Given** ユーザーがキャッシュゲーム設定と初回バイイン額を入力した状態, **When** セッション開始を実行する, **Then** セッションが「進行中」状態で作成され、`session_start` イベントと初回バイインの `chip_add` イベントが記録される
-2. **Given** リングゲーム設定にmaxBuyInが設定されている状態, **When** ゲームを選択する, **Then** バイイン入力欄にmaxBuyInが自動入力される
-3. **Given** リングゲーム設定にcurrencyIdが設定されている状態, **When** ゲームを選択する, **Then** 通貨が自動で紐づけされる
-4. **Given** 進行中のキャッシュゲームセッションがある状態, **When** スタック変動を記録する, **Then** `stack_record` イベントが記録され、記録時刻とスタック額がイベント履歴に追加される
-5. **Given** 進行中のキャッシュゲームセッションがある状態, **When** スタック記録画面で「Add All-in」ボタンを押す, **Then** ボトムシートが開き、ポットサイズ・試行回数・勝率・勝利数を入力してオールインを追加できる
-6. **Given** オールイン記録が追加された状態, **When** 追加済みのオールインバッジをタップする, **Then** 編集・削除の選択肢が表示される
-7. **Given** 進行中のキャッシュゲームセッションがある状態, **When** アドオンを記録する, **Then** 独立した `chip_add` イベントが作成され、アドオン額が合計コストに反映される
-8. **Given** 進行中のキャッシュゲームセッションがある状態, **When** ファイナルスタックを `stack_record` で記録してセッションを終了する, **Then** `session_end` イベントが記録されてセッションが「完了」状態になり、P&Lが自動計算される
+Current behavior:
+- The ring game selection autofills `maxBuyIn` and `currencyId` when available.
+- Starting a cash game creates `session_start` and `chip_add` events automatically.
+- During the session, I can record `stack_record` events and add all-ins in the stack sheet.
+- Additional buy-ins are recorded as separate `chip_add` events.
+- Completing the session records a final `stack_record` and `session_end`, then generates or updates the linked `pokerSession`.
 
----
+### 2. Start and record a tournament session
 
-### User Story 2 - トーナメントのリアルタイム記録 (Priority: P1)
+As a user, I can start a tournament live session, enter the tournament defaults, and record stack updates, chip purchases, and the final result.
 
-ユーザーがトーナメントに参加する際、トーナメント固有の情報（残り人数、アベレージスタック、自分のスタック）をリアルタイムで記録する。スタック記録時には、前回の記録以降に発生したリバイやアドオンを付随情報として記録できる。ブラインドレベルの進行に合わせてイベントを追加し、最終結果（順位・賞金）を記録する。
+Current behavior:
+- Tournament selection autofills `buyIn`, `entryFee`, `startingStack`, and `currencyId` when available.
+- The backend create call records `session_start`.
+- The create dialog immediately records the initial `tournament_stack_record` for the starting stack.
+- During the session, I can add more `tournament_stack_record` entries and complete the session with `placement`, `totalEntries`, `prizeMoney`, and optional `bountyPrizes`.
+- Completing the session records `tournament_result` and `session_end`, then generates or updates the linked `pokerSession`.
 
-**Why this priority**: トーナメントはキャッシュゲームと並ぶ主要なゲーム形式であり、残り人数やアベレージスタックの記録はユーザーの明示的な要望。
+### 3. Review, edit, and reopen sessions
 
-**Independent Test**: トーナメントセッションを開始し、残り人数・アベレージスタック・自分のスタック・リバイを記録して、セッション詳細画面でイベント履歴と最終結果が正しく表示されることを確認する。
+As a user, I can inspect the current session's event history, edit event payloads and timestamps, and reopen completed sessions from the sessions list.
 
-**Acceptance Scenarios**:
+Current behavior:
+- `sessionEvent.update` and `sessionEvent.delete` are available for editable events.
+- Editing or deleting completed-session events triggers P&L recalculation.
+- Completed sessions can be reopened only when no other session is active.
+- Reopening appends a new `session_start` event and removes the linked `pokerSession` / `currencyTransaction` so the next completion recalculates them.
 
-1. **Given** ユーザーがトーナメント設定を選択した状態, **When** セッション開始を実行する, **Then** セッションが「進行中」状態で作成され、`session_start` イベントと初回エントリーの `chip_add` イベントが記録される
-2. **Given** 進行中のトーナメントセッションがある状態, **When** 残り人数とアベレージスタックを記録する, **Then** イベント履歴に追加され、最新の残り人数・アベレージスタックが反映される
-3. **Given** 進行中のトーナメントセッションがある状態, **When** スタック記録時にリバイがあったことを付随させる, **Then** スタック記録にリバイ情報が紐づいて記録され、リバイ回数・総コストに反映される
-4. **Given** 進行中のトーナメントセッションがある状態, **When** スタック記録時にアドオンがあったことを付随させる, **Then** スタック記録にアドオン情報が紐づいて記録され、総コストに反映される
-5. **Given** 進行中のトーナメントセッションがある状態, **When** 最終順位と賞金を入力してセッションを終了する, **Then** セッションが「完了」状態になり、トーナメントP&Lが自動計算される
+### 4. Manage table players
 
----
+As a user, I can add existing players or create new ones while a session is active, and I can mark them as left later.
 
-### User Story 3 - 完了セッションの再始動 (Priority: P2)
+Current behavior:
+- Table players are tracked in `sessionTablePlayer`.
+- `player_join` and `player_leave` events stay in sync with the table-player state.
+- The poker table UI is shared by cash game and tournament live sessions.
 
-ユーザーが完了済みのセッションを再始動（reopen）できる。再始動すると、セッションが「進行中」状態に戻り、追加のイベント（スタック記録、オールイン、アドオンなど）を記録できる。再度完了すると、pokerSessionとcurrencyTransactionが再計算される。同時に進行できるセッションは1つのみとする。
+## Functional Requirements
 
-**Why this priority**: 実際のプレイ環境では、セッション終了後に再びプレイを続けることがあり、同一セッションとして連続的に記録したい要望がある。
+- The app must support exactly two live session types: `cash_game` and `tournament`.
+- Only one live session may be active at a time for a user across both live session tables.
+- Cash game starts must record `session_start` and the initial `chip_add`.
+- Tournament starts must record `session_start`, and the create dialog must write the initial `tournament_stack_record`.
+- Cash game stack updates must support `stack_record` plus optional all-in entries.
+- Tournament stack updates must support `tournament_stack_record` plus chip purchase details.
+- Session events must support create, update, delete, and list by live session id.
+- Completed sessions must expose event history routes and support reopen from the sessions list.
+- Table players must support add, addNew, remove, and list.
+- The mobile bottom navigation must switch its center action between session creation and stack recording based on whether a live session is active.
 
-**Independent Test**: セッションAを開始・完了し、その後セッションAを再始動して追加イベントを記録し、再度完了して、P&Lが全イベントを反映して正しく再計算されていることを確認する。
+## Success Criteria
 
-**Acceptance Scenarios**:
-
-1. **Given** 完了済みのセッションがある状態, **When** セッションを再始動する, **Then** 新しい `session_start` イベントが既存のイベント列末尾に追記されてセッションが「進行中」状態に戻り、追加のイベントを記録できるようになる
-2. **Given** 再始動されたセッションにイベントを追加した状態, **When** セッションを再度完了する, **Then** すべてのイベント（初回分＋追加分）からP&Lが再計算され、pokerSessionとcurrencyTransactionが更新される
-3. **Given** 進行中のセッションがある状態, **When** 新しいセッションを開始しようとする, **Then** 進行中のセッションがあるため開始できないことが通知される（同時進行不可）
-4. **Given** 進行中のセッションがない状態, **When** 完了済みセッションの再始動を選択する, **Then** 選択したセッションが進行中に戻る
-
----
-
-### User Story 4 - 同卓者の記録 (Priority: P2)
-
-ユーザーがセッション中に同卓プレイヤーを追加・削除して記録できる。既存のプレイヤーリストから選択するか、新しいプレイヤーを即座に作成して追加できる。テーブル移動時には同卓者の入れ替えを記録できる。
-
-**Why this priority**: 同卓者の記録はユーザーの要望であり、対戦相手の分析に有用。基本的なセッション記録が機能した上で価値を発揮する。
-
-**Independent Test**: セッション中にプレイヤーを追加・削除し、セッション詳細画面で同卓者の履歴が時系列で表示されることを確認する。
-
-**Acceptance Scenarios**:
-
-1. **Given** 進行中のセッションがある状態, **When** 既存プレイヤーを同卓者として追加する, **Then** プレイヤー参加イベントが記録され、現在の同卓者リストに表示される
-2. **Given** 進行中のセッションがある状態, **When** 新しいプレイヤーを作成して同卓者として追加する, **Then** プレイヤーが新規作成され、同時に同卓者として記録される
-3. **Given** 同卓者が記録されているセッション, **When** あるプレイヤーが退席したことを記録する, **Then** プレイヤー退席イベントが記録され、現在の同卓者リストから除外される
-
----
-
-### User Story 5 - セッションイベント履歴の閲覧 (Priority: P3)
-
-ユーザーが完了済みまたは進行中のセッションのイベント履歴を時系列で閲覧できる。スタック推移のサマリーや、セッション中の主要な出来事を振り返ることができる。
-
-**Why this priority**: イベント履歴の閲覧はセッション記録の振り返りに重要だが、記録機能が先に必要。
-
-**Independent Test**: 複数のイベントが記録されたセッションのイベント画面を開き、イベントが時系列で表示され、スタック推移が視覚的に確認できることを検証する。進行中セッションは `/active-session/events`、完了セッションは `/live-sessions/cash-game/$sessionId/events` で確認する。
-
-**Acceptance Scenarios**:
-
-1. **Given** 複数のイベントが記録されたセッション, **When** セッションのイベント画面を開く, **Then** すべてのイベントが時系列順に表示される
-2. **Given** `stack_record` イベントが記録されたセッション, **When** イベント画面を開く, **Then** スタック推移のサマリー（最大・最小・最終スタック）が表示される
-3. **Given** 進行中のセッションがある状態, **When** `/active-session/events` を開く, **Then** リアルタイムで更新されるイベント履歴が表示される
-4. **Given** 完了済みのキャッシュゲームセッション, **When** `/live-sessions/cash-game/$sessionId/events` を開く, **Then** セッションのイベント履歴が表示される
-
----
-
-### Edge Cases
-
-- セッション中にアプリを閉じた場合、セッションは進行中のまま保持される（中断状態は廃止）
-- 同一時刻に複数のイベントが記録された場合、記録順序で並べられる
-- 完了済みセッションが長期間放置された場合でも、再始動可能であること
-- バイイン額やスタック額に0や負の値が入力された場合、適切なバリデーションが行われる
-- 完了済みセッションのイベントを編集・削除した場合、P&Lと通貨トランザクションが正しく再計算される
-- イベントを削除した場合、後続のイベントのコンテキスト（前回スタックからの変動など）が正しく再計算される
-- 進行中のセッションがある状態で新しいセッションを開始しようとした場合、適切にブロックされる
-- オールインのwins値が0〜trialsの範囲であること（小数許容、chop対応）
-
-## Requirements *(mandatory)*
-
-### Functional Requirements
-
-- **FR-001**: システムは「進行中」「完了」の2つのセッション状態を管理できなければならない（「中断中」状態は廃止）
-- **FR-018**: ユーザーは完了前（進行中）のセッションを破棄（削除）できなければならない。破棄されたセッションはpokerSessionレコードを作成せず、P&Lに影響しない
-- **FR-002**: システムはセッション中の全操作をイベント（タイムスタンプ付き）として記録しなければならない
-- **FR-003**: ユーザーは進行中のセッションに対してスタック変動イベントを記録できなければならない
-- **FR-004**: ユーザーはキャッシュゲームセッション開始時に初回バイイン額を入力しなければならない。リングゲーム設定のmaxBuyInが初期値として自動入力される。セッション開始時に `session_start` イベントと `chip_add`（initialBuyIn）イベントが記録される。2回目以降のバイイン（追加チップ購入）は独立した `chip_add` イベントとして記録する
-- **FR-004b**: リングゲーム設定にcurrencyIdが設定されている場合、ゲーム選択時にセッションの通貨が自動で紐づけされなければならない
-- **FR-005**: ユーザーはトーナメントセッションで残り人数・アベレージスタック・自分のスタックを記録できなければならない
-- **FR-014**: ユーザーはキャッシュゲームのスタック記録時に、前回記録以降に発生した複数のオールインの情報（ポットサイズ・試行回数・勝率・勝利数）を付随情報としてボトムシート経由で個別に記録できなければならない。追加済みのオールインはバッジとして表示され、タップで編集・削除が可能
-- **FR-014b**: オールインのEV計算は勝率ベースで行う。evAmount = potSize × (equity / 100) × trials、actualAmount = potSize × wins。EV差分 = evAmount - actualAmount。winsは小数を許容する（chop対応、例: 2回中1勝1chop → 1.5）
-- **FR-015**: ユーザーはアドオン（追加バイイン）を独立した `chip_add` イベントとして記録できなければならない。アドオンはスタック記録とは別のイベントとして追加され、総バイインコストに反映される
-- **FR-016**: ユーザーはトーナメントのスタック記録時に、前回記録以降に発生したリバイ・アドオンを付随情報として記録できなければならない
-- **FR-006**: ユーザーは完了済みのセッションを再始動（reopen）して「進行中」に戻し、追加のイベントを記録できなければならない。再始動時は新しい `session_start` イベントが既存のイベント列末尾に追記される（以前の `session_end` を含む全イベントを保持）。再度完了時にP&L・pokerSession・currencyTransactionが再計算される
-- **FR-007**: システムは同時に1つのセッションのみ「進行中」状態を許可する。進行中のセッションがある間は新しいセッションの開始・再始動を不可とする
-- **FR-008**: ユーザーはセッション中に同卓プレイヤーを追加・削除できなければならない
-- **FR-009**: セッション完了時にP&Lが既存のpokerSessionのロジックと整合する形で自動計算されなければならない
-- **FR-010**: ユーザーはセッションのイベント履歴を時系列で閲覧できなければならない
-- **FR-011**: ユーザーはセッションの状態にかかわらず、記録済みのイベントを編集・削除できなければならない
-- **FR-017**: 完了済みセッションのイベントを編集・削除した場合、P&Lおよび関連する通貨トランザクションが自動的に再計算されなければならない
-- **FR-012**: 各イベントにはタイムスタンプが自動付与されなければならない
-- **FR-013**: セッション完了時に、既存のpokerSessionレコードが作成され、通貨トランザクションとの連携が維持されなければならない
-- **FR-019**: ボトムナビゲーションはライブセッションの状態に応じて2モードで動的に変化しなければならない。通常モード（セッションなし）: Sessions・Stores・[+New 中央]・Players・Settings の構成で、中央ボタン（+）タップで新規作成ダイアログを開く。ライブモード（進行中セッションあり）: Events・Players・[⚡Live 中央]・Stores・Settings の構成で、中央ボタン（⚡）タップで `/active-session` へ遷移する
-- **FR-020**: ライブセッション中に表示されるすべての画面は、スクロールなしでビューポート内に収まる1画面完結の設計でなければならない
-
-### Key Entities
-
-- **LiveCashGameSession（キャッシュゲームライブセッション）**: キャッシュゲームのセッション管理エンティティ。状態（進行中/完了）、関連するリングゲーム設定・店舗・通貨への参照、開始時刻を持つ。完了時にpokerSessionレコードを作成し、pokerSessionから参照を保持する。完了後も永続的に保持される。
-- **LiveTournamentSession（トーナメントライブセッション）**: トーナメントのセッション管理エンティティ。状態（進行中/完了）、関連するトーナメント設定・店舗・通貨への参照、開始時刻を持つ。完了時にpokerSessionレコードを作成し、pokerSessionから参照を保持する。完了後も永続的に保持される。
-- **SessionEvent（セッションイベント）**: セッション中の各操作を表すイベントエンティティ。キャッシュゲーム・トーナメント両方のセッションで共有する。イベント種別は4グループに分類される: 汎用イベント（`chip_add`, `stack_record`）、ライフサイクルイベント（`session_start`, `session_end`）、トーナメント専用イベント（`tournament_stack_record`, `tournament_result`）、共通イベント（`player_join`, `player_leave`）。`session_start` と `session_end` はシステムが自動生成し、ユーザーが手動作成することはできない。スタック記録イベント（`stack_record`）にはオールイン情報（ポットサイズ・試行回数・勝率・勝利数）を付随できる。アドオンは `stack_record` に埋め込まず独立した `chip_add` イベントとして記録する。
-- **SessionTablePlayer（同卓プレイヤー）**: セッション中の同卓プレイヤーの参加状態を管理するエンティティ。キャッシュゲーム・トーナメント両方のセッションで共有する。プレイヤーの関連、参加・退席の状態を持つ。
-
-## Success Criteria *(mandatory)*
-
-### Measurable Outcomes
-
-- **SC-001**: ユーザーがセッション開始からイベント記録までの操作を30秒以内に完了できる
-- **SC-002**: セッションの完了・再始動操作がワンタップで完了する
-- **SC-003**: 同時に進行中のセッションが1つのみであることがシステムレベルで保証される
-- **SC-004**: 完了したセッションのP&L計算結果が、既存のセッション記録機能と一致する
-- **SC-005**: セッションイベント履歴が時系列順に100%正確に表示される
-- **SC-006**: 1セッションあたり100件以上のイベントが記録されても、セッション詳細の表示に支障がない
-- **SC-007**: ライブセッション中のすべての画面がスクロールなしでビューポート内に収まる
-
-## Assumptions
-
-- イベントの集合からセッション状態を組み立てるデータ構造を採用するが、厳密な追記型イベントソーシングではなく、イベントの直接編集・削除を許容する
-- ライブセッション（liveCashGameSession / liveTournamentSession）の完了時に、既存のpokerSessionテーブルにレコードを作成することで、既存の分析・フィルタリング機能との互換性を維持する
-- ライブセッションとイベントは完了後も永続的に保持し、pokerSessionからライブセッションへの参照を持つ。P&Lサマリーは既存のpokerSession、詳細なイベント履歴はライブセッション経由で参照する
-- 同卓プレイヤーは既存のplayerエンティティを再利用する
-- セッション進行中の状態はサーバー側で永続化され、ブラウザを閉じても失われない
-- イベント編集・削除時は派生データ（P&L・通貨トランザクション）を再計算する
-- 既存のpokerSession直接入力（一括入力）機能は維持し、ライブセッション経由の記録と共存する。直接入力で作成されたpokerSessionにはライブセッションが紐づかない
-- リアルタイム同期（WebSocketなど）は初期バージョンではスコープ外とし、ユーザーが手動でイベントを記録する方式とする
-- セッション状態は「進行中」と「完了」の2状態のみとする。「中断中（paused）」状態は廃止する
-- 同時に「進行中」にできるセッションは1つのみ。完了済みセッションの再始動（reopen）により、同一セッションに追加イベントを記録可能
-- 初回バイインはセッション開始時の必須入力。2回目以降のチップ追加は独立した `chip_add` イベントとして記録する（スタック記録への埋め込みではない）
-- P&L計算: totalBuyIn = Σ chip_add.amount（全 `chip_add` イベントの合計）、cashOut = 最後の `stack_record.stackAmount`、addonTotal = Σ chip_add.amount - 最初の chip_add.amount、evDiff = Σ(potSize × equity/100 × trials - potSize × wins)
-- オールインのEV計算は勝率ベース。ポットサイズ・試行回数・勝率・実際の勝利数（chop対応で小数許容）を記録する
-- メインのセッション記録画面は `/active-session`（URL パラメータなし、useActiveSession フックで進行中セッションを取得）。進行中セッションのイベント履歴は `/active-session/events`。完了セッションのイベント閲覧は `/live-sessions/cash-game/$sessionId/events`。全セッション一覧は `/sessions`（ライブセッション由来を含む）。`/live-sessions/` インデックスページは存在しない
-
-## Clarifications
-
-### Session 2026-03-30
-
-- Q: LiveSession完了後のデータ永続化方針は？ → A: LiveSessionとイベントを永続保持し、pokerSessionから参照する
-- Q: イベント編集のアプローチは？ → A: 直接編集方式（イベントレコードを上書き・削除し、派生データを再計算）
-- Q: 1回のスタック記録に複数のオールインを記録できるか？ → A: 可能。複数のオールインをそれぞれ個別に記録できる
-- Q: 誤って開始したセッションを破棄できるか？ → A: 完了前のセッションは破棄可能。pokerSessionは作成されずP&Lに影響しない
-- Q: 既存のpokerSession直接入力とLiveSessionは共存するか？ → A: 共存。既存の一括入力とLiveSession経由の両方でpokerSessionを作成可能
-
-### Session 2026-03-30 (UX Feedback)
-
-- Q: 同時に「進行中」にできるセッション数は？ → A: 1つのみ。複数セッションの同時進行は廃止。代わりに完了済みセッションを再始動（reopen）可能
-- Q: 完了セッションの再始動の挙動は？ → A: 完了したセッションを「進行中」に戻し、そこにさらにイベントを足していける。再度完了時にP&Lを全イベントから再計算
-- Q: ゲーム選択時のCurrency紐づけは？ → A: ringGame.currencyIdから自動設定
-- Q: 初回バイインの扱いは？ → A: セッション開始時の必須入力。ゲーム選択時はmaxBuyInが自動入力される
-- Q: 2回目以降のバイインは？ → A: 独立した `chip_add` イベントとして記録。スタック記録への addon フィールド埋め込みは廃止
-- Q: オールインの記録形式は？ → A: ポットサイズ・試行回数・勝率(%)・実際の勝利数（chop対応で小数許容）。EV計算は勝率ベース
-- Q: オールイン・アドオンの入力UIは？ → A: ボトムシート（Drawer）で入力。追加済みの記録はバッジ表示。タップで編集・削除
-- Q: ボトムナビの挙動は？ → A: セッション進行中は中央強調ボタン（⚡、IconBolt）でセッション画面（/active-session）へ遷移、他ナビはイベント履歴等。それ以外は中央ボタン（+）で新規作成ダイアログを開く
-- Q: 画面設計の制約は？ → A: ライブセッション中の全画面は1画面完結（スクロールなし）
-
-### Session 2026-03-31 (Implementation Sync)
-
-- Q: イベントタイプの分類は？ → A: GENERIC_EVENT_TYPES（chip_add, stack_record）、LIFECYCLE_EVENT_TYPES（session_start, session_end）、TOURNAMENT_EVENT_TYPES（tournament_stack_record, tournament_result）、COMMON_EVENT_TYPES（player_join, player_leave）の4グループ
-- Q: MANUAL_CREATE_BLOCKEDの対象は？ → A: session_start と session_end のみ。chip_add と stack_record はユーザーが手動作成可能
-- Q: アドオンはどこに記録するか？ → A: stack_record に addon フィールドは存在しない。アドオンは独立した chip_add イベントとして記録する
-- Q: セッション再始動の実装は？ → A: 既存の session_end を削除せず、新しい session_start イベントをイベント列末尾に追記する（全イベント保持）
-- Q: cashOut の計算基準は？ → A: 最後の stack_record.stackAmount（cash_out イベントは廃止）
+- A user can start a cash game live session, record a stack update, and complete it from the current UI.
+- A user can start a tournament live session, record stack and result data, and complete it from the current UI.
+- A completed session can be reopened from `/sessions` and resumes as the active live session.
+- The active session event history and the completed-session event history both render the same event payloads currently stored in the database.
+- The current implementation remains compatible with `pokerSession` for reporting and the sessions list.

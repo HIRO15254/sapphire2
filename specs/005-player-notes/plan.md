@@ -1,82 +1,27 @@
 # Implementation Plan: プレイヤーメモ機能
 
 **Branch**: `005-player-notes` | **Date**: 2026-03-28 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/005-player-notes/spec.md`
 
 ## Summary
 
-プレイヤー（対戦相手）の登録・管理機能を追加し、プレイヤーに色付きタグを割り当て、Tiptapリッチテキストエディタを使ったHTML形式メモを作成できるようにする。既存のStore/SessionTag CRUDパターンを踏襲し、新規DBスキーマ・tRPCルーター・フロントエンドルートを追加する。
+この feature は `Players` 画面を中心に実装済みで、プレイヤー CRUD、タグ CRUD、タグによる絞り込み、HTML メモ編集を一つの流れで提供している。実装の中心は `packages/db/src/schema/player.ts`、`packages/api/src/routers/player*.ts`、`apps/web/src/components/players/*`、`apps/web/src/routes/players/index.tsx`。
 
-## Technical Context
+## Current Architecture
 
-**Language/Version**: TypeScript (strict mode)
-**Primary Dependencies**: React 19, Hono, tRPC v11, Drizzle ORM, shadcn/ui, Tiptap (新規)
-**Storage**: Cloudflare D1 (SQLite) via Drizzle ORM
-**Testing**: Vitest, Testing Library
-**Target Platform**: Cloudflare Workers (API) + Cloudflare Pages (Web)
-**Project Type**: Web application (monorepo: apps/web, apps/server, packages/*)
-**Performance Goals**: プレイヤー一覧表示・検索1秒以内 (50人以上)
-**Constraints**: Mobile-first UI, Offline-first data layer (TanStack Query + IndexedDB)
-**Scale/Scope**: 個人ユーザーあたり50-200人程度のプレイヤー
+- `packages/db/src/schema/player.ts` に `player`、`playerTag`、`playerToPlayerTag` を定義し、`packages/db/src/schema.ts` から再エクスポートしている。
+- `packages/api/src/routers/player.ts` は一覧、詳細取得、作成、更新、削除を担当し、`playerTag.ts` はタグの一覧、作成、更新、削除を担当する。
+- `apps/web/src/routes/players/index.tsx` は一覧、作成/編集ダイアログ、タグ管理ダイアログ、タグ絞り込みをまとめる。
+- `apps/web/src/components/players/player-form.tsx` は名前、タグ、メモを同一フォームで編集する。
+- `apps/web/src/components/ui/rich-text-editor.tsx` が HTML メモ入力を支え、`player-card.tsx` がメモの安全なプレビューを表示する。
 
-## Constitution Check
+## Validation Notes
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+- タグ色はプリセットカラーのみを許可する。
+- プレイヤー名とタグ名の長さ制約は API 側で検証する。
+- タグ削除時は関連する `playerToPlayerTag` を外し、プレイヤー一覧が壊れないことを確認する。
+- メモは HTML として保存されるが、一覧表示ではサニタイズした抜粋のみを描画する。
 
-| Principle | Status | Notes |
-|-----------|--------|-------|
-| I. Type Safety First | PASS | Drizzle schema → Zod validation → tRPC type inference |
-| II. Monorepo Package Boundaries | PASS | Schema in packages/db, routers in packages/api, UI in apps/web |
-| III. Test Coverage Required | PASS | Unit (router), Component (forms), Schema tests planned |
-| IV. Code Quality Automation | PASS | Biome/Ultracite, PostToolUse hook |
-| V. English-Only UI | PASS | All UI text in English |
-| VI. Mobile-First UI Design | PASS | Mobile-first layouts, responsive dialog pattern |
-| VII. API Contract Discipline | PASS | tRPC protectedProcedure + Zod input schemas |
-| VIII. Offline-First Data Layer | PASS | TanStack Query queryOptions/mutationOptions + optimistic updates |
+## Assumptions
 
-## Project Structure
-
-### Documentation (this feature)
-
-```text
-specs/005-player-notes/
-├── plan.md              # This file
-├── research.md          # Phase 0 output
-├── data-model.md        # Phase 1 output
-├── quickstart.md        # Phase 1 output
-├── contracts/           # Phase 1 output
-│   ├── player.ts        # Player router contract
-│   ├── playerTag.ts     # PlayerTag router contract
-│   └── playerMemo.ts    # PlayerMemo router contract
-└── tasks.md             # Phase 2 output (/speckit.tasks)
-```
-
-### Source Code (repository root)
-
-```text
-packages/db/src/schema/
-├── player.ts            # Player, PlayerTag, PlayerToPlayerTag tables + relations
-
-packages/api/src/routers/
-├── player.ts            # Player CRUD router
-├── player-tag.ts        # PlayerTag CRUD router (with color)
-├── player-memo.ts       # PlayerMemo update/get router
-
-apps/web/src/
-├── routes/
-│   └── players/
-│       └── index.tsx    # Player list page (with tag filtering, create/edit/delete)
-├── components/
-│   └── players/
-│       ├── player-form.tsx       # Player create/edit form
-│       ├── player-card.tsx       # Player list item card
-│       ├── player-tag-manager.tsx # Tag management UI (standalone)
-│       ├── player-memo-editor.tsx # Tiptap rich text editor wrapper
-│       └── player-filters.tsx    # Tag-based filter controls
-```
-
-**Structure Decision**: Follows existing patterns - schema in packages/db, routers in packages/api, routes and components in apps/web. New `/players/` route parallels existing `/sessions/`, `/stores/`, `/currencies/` routes.
-
-## Complexity Tracking
-
-No constitution violations to justify.
+- 追加の機能分割や新規ページは不要で、現行の `Players` 画面を継続利用する。
+- この feature のドキュメントは実装追従を目的とし、未実装の理想仕様は含めない。

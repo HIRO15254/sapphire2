@@ -1,4 +1,4 @@
-# Better-T-App Constitution
+# Sapphire2 Constitution
 
 ## Core Principles
 
@@ -9,12 +9,12 @@ All code MUST be fully typed with TypeScript strict mode. No usage of `any`. Pre
 Each package (`api`, `auth`, `config`, `db`, `env`) MUST be self-contained with explicit exports. Cross-package imports MUST go through the package's public API (package.json exports field). No reaching into another package's internal files. Apps (`web`, `server`) consume packages; packages MUST NOT import from apps.
 
 ### III. Test Coverage Required
-Every implementation task MUST produce corresponding tests. Use Vitest as the test runner across all workspaces. Test types required:
+Behavior-changing implementation work MUST produce corresponding tests or a clear justification for why existing coverage is sufficient. Use Vitest as the test runner across all workspaces. Common test types include:
 - **Unit tests**: Business logic in services and utilities
 - **Component tests**: React components via Testing Library + jsdom
 - **Integration tests**: tRPC routers with mocked DB
 - **Schema tests**: Drizzle ORM schema structure validation
-Tests MUST pass before code is committed (enforced by pre-commit hook).
+Tests MUST pass before code is committed when the affected suites are available (the pre-commit hook runs `bun run test` plus lint-staged).
 
 ### IV. Code Quality Automation
 Biome (via Ultracite) is the single source of truth for formatting and linting. Tabs for indentation. The PostToolUse hook auto-formats on every write. lint-staged runs on commit. No manual formatting debates. Run `bun x ultracite fix` before committing.
@@ -29,7 +29,7 @@ All UI components and layouts MUST be designed mobile-first. Start with the smal
 tRPC routers define the contract between frontend and backend. Input validation uses Zod schemas. Protected routes use `protectedProcedure`; public routes use `publicProcedure`. Every router procedure MUST validate its inputs. Error responses use TRPCError with descriptive messages and appropriate error codes.
 
 ### VIII. Offline-First Data Layer
-All data fetching uses TanStack Query via tRPC's `queryOptions()`. Mutations MUST use `useMutation` with tRPC's `mutationOptions()` and include optimistic `onMutate`/`onError`/`onSettled` callbacks. Direct `trpcClient.*.mutate()` calls are prohibited in React components. Query cache is persisted to IndexedDB via `@tanstack/react-query-persist-client`. `networkMode: 'offlineFirst'` is the default for both queries and mutations.
+All data fetching uses TanStack Query via tRPC's `queryOptions()`. The current frontend uses React Query's `useMutation` together with `trpcClient.*.mutate()` inside `mutationFn`, often with optimistic `onMutate`/`onError`/`onSettled` callbacks; new work MUST follow the established pattern already used in the surrounding feature unless the team intentionally refactors it. Query cache is persisted to IndexedDB via `@tanstack/react-query-persist-client`. `networkMode: 'offlineFirst'` is the default for both queries and mutations.
 
 ## Technology Standards
 
@@ -48,11 +48,11 @@ All data fetching uses TanStack Query via tRPC's `queryOptions()`. Mutations MUS
 
 ## Development Workflow
 
-- Feature branches follow the pattern: `{number}-{short-name}`
+- Feature branches typically follow the pattern: `{number}-{short-name}`
 - Spec-kit pipeline: specify → clarify → plan → tasks → analyze → implement
 - Constitution is checked at the plan stage and during analysis
-- All PRs must pass: type checking (`bun run check-types`), tests (`bun run test`), lint (`bun run check`)
-- Pre-commit hook enforces: tests + lint-staged (ultracite fix)
+- Local verification should prefer: type checking (`bun run check-types`), tests (`bun run test`), and lint (`bun run check`) when the change warrants them
+- Pre-commit hook currently runs `bun run test` and `lint-staged`
 
 ## Governance
 

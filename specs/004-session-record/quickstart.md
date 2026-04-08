@@ -1,67 +1,40 @@
-# Quickstart: Session Post-Recording
+# Quickstart: Live Session Recording
 
 ## Prerequisites
 
 - Bun installed
-- Project dependencies installed (`bun install`)
-- Local D1 database running (`bun run dev` in apps/server)
+- Dependencies installed with `bun install`
+- Local dev environment running with `bun run dev`
 
-## Key Files to Create/Modify
+## Current Routes
 
-### New Files
+- `/sessions` - historical session list, filters, create/edit dialogs, reopen action
+- `/active-session` - current live session surface
+- `/active-session/events` - event timeline for the active session
+- `/live-sessions/$sessionType/$sessionId/events` - direct event inspection for a specific live session
+- `/settings` - session tag management
 
-| File | Purpose |
-|------|---------|
-| `packages/db/src/schema/session.ts` | Session table + relations |
-| `packages/db/src/schema/session-tag.ts` | Session tag + junction table + relations |
-| `packages/api/src/routers/session.ts` | Session CRUD + summary + currency transaction sync |
-| `packages/api/src/routers/session-tag.ts` | Session tag CRUD |
-| `apps/web/src/routes/sessions/index.tsx` | Sessions page (summary + list + filters) |
-| `apps/web/src/components/sessions/session-form.tsx` | Create/edit form (type-conditional) |
-| `apps/web/src/components/sessions/session-card.tsx` | Session list item card |
-| `apps/web/src/components/sessions/session-summary.tsx` | Summary statistics display |
-| `apps/web/src/components/sessions/session-filters.tsx` | Filter controls (type, store, date range) |
-| `packages/api/src/__tests__/session.test.ts` | Router smoke tests |
+## Key Files
 
-### Modified Files
+- `packages/db/src/schema/session.ts`
+- `packages/db/src/schema/live-cash-game-session.ts`
+- `packages/db/src/schema/live-tournament-session.ts`
+- `packages/db/src/schema/session-event.ts`
+- `packages/db/src/schema/session-table-player.ts`
+- `packages/api/src/routers/session.ts`
+- `packages/api/src/routers/live-cash-game-session.ts`
+- `packages/api/src/routers/live-tournament-session.ts`
+- `packages/api/src/routers/session-event.ts`
+- `packages/api/src/routers/session-table-player.ts`
+- `apps/web/src/routes/sessions/index.tsx`
+- `apps/web/src/routes/active-session/index.tsx`
+- `apps/web/src/routes/active-session/events.tsx`
+- `apps/web/src/routes/live-sessions/$sessionType/$sessionId/events.tsx`
 
-| File | Change |
-|------|--------|
-| `packages/db/src/schema/store.ts` | Add `sessionId` column to `currencyTransaction` table |
-| `packages/db/src/schema/ring-game.ts` | Make `storeId` nullable for standalone game configs |
-| `packages/api/src/routers/index.ts` | Register `sessionRouter` |
-| `packages/api/src/routers/ring-game.ts` | Update ownership validation for nullable storeId |
-| `packages/api/src/routers/currency-transaction.ts` | Mark session-generated transactions as read-only |
-| `packages/api/src/routers/transaction-type.ts` | Seed "Session Result" default type |
-| `apps/web/src/components/stores/transaction-list.tsx` | Show read-only indicator for session transactions |
-| `apps/web/src/components/mobile-nav.tsx` | Add "Sessions" nav item |
+## Verify the Flow
 
-### Database Migration
-
-```bash
-# After schema changes
-bun run generate  # Generate migration SQL
-bun run migrate   # Apply migration
-```
-
-## Development Order
-
-1. **Schema** → Add `session` table, modify `currencyTransaction`, make `ringGame.storeId` nullable
-2. **Migration** → Generate and apply
-3. **Router** → Session CRUD with currency transaction sync
-4. **Tests** → Router smoke tests
-5. **Frontend** → Sessions page, form, card, summary, filters
-6. **Integration** → Currency transaction read-only, nav update
-
-## Pattern References
-
-| Pattern | Reference File |
-|---------|---------------|
-| Table definition | `packages/db/src/schema/store.ts` (store, currencyTransaction) |
-| CRUD router | `packages/api/src/routers/currency.ts` |
-| Cursor pagination | `packages/api/src/routers/currency-transaction.ts` |
-| Ownership validation | `packages/api/src/routers/ring-game.ts` |
-| Page with list + summary | `apps/web/src/routes/currencies/index.tsx` |
-| Form component | `apps/web/src/components/stores/ring-game-form.tsx` |
-| Card component | `apps/web/src/components/stores/currency-card.tsx` |
-| Optimistic mutations | `apps/web/src/routes/currencies/index.tsx` |
+1. Open `/sessions` and create a cash game or tournament record.
+2. Open `/active-session` and confirm the current live session summary matches the active record.
+3. Open the event timeline and add or edit events.
+4. Return to `/sessions` and confirm the history card shows P&L, tags, linked entities, and any EV values.
+5. Open `/settings` and confirm session tags can be listed, renamed, and deleted.

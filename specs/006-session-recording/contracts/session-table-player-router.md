@@ -1,93 +1,58 @@
-# tRPC Router Contract: sessionTablePlayer
+# tRPC Router Contract: `sessionTablePlayer`
 
 **Package**: `@sapphire2/api`
-**Router**: `sessionTablePlayerRouter`
 
 ## Procedures
 
-### sessionTablePlayer.list
+### `list`
 
-**Type**: query (protected)
-**Input**:
-```typescript
-{
-  liveCashGameSessionId?: string
-  liveTournamentSessionId?: string
-  activeOnly?: boolean     // デフォルトfalse
-}
-```
-**Validation**: セッションIDはいずれか一方のみ指定
-**Output**:
-```typescript
-{
-  items: {
-    id: string
-    player: { id: string, name: string, memo: string | null }
-    isActive: boolean
-    joinedAt: Date
-    leftAt: Date | null
-  }[]
-}
-```
+Protected query with:
 
-### sessionTablePlayer.add
+- `liveCashGameSessionId?`
+- `liveTournamentSessionId?`
+- `activeOnly?`
 
-**Type**: mutation (protected)
-**Input**:
-```typescript
-{
-  liveCashGameSessionId?: string
-  liveTournamentSessionId?: string
-  playerId: string
-}
-```
-**Validation**: セッションIDはいずれか一方のみ指定
-**Output**: `{ id: string }`
-**Side effects**:
-- SessionTablePlayerレコードを作成（isActive=true）
-- player_joinイベントを自動記録
+Returns the current table-player rows with player metadata, active state, join/leave timestamps, and optional seat position.
 
-### sessionTablePlayer.addNew
+### `add`
 
-**Type**: mutation (protected)
-**Input**:
-```typescript
-{
-  liveCashGameSessionId?: string
-  liveTournamentSessionId?: string
-  playerName: string
-  playerMemo?: string
-}
-```
-**Validation**: セッションIDはいずれか一方のみ指定
-**Output**: `{ id: string, playerId: string }`
-**Side effects**:
-- 新規playerレコードを作成
-- SessionTablePlayerレコードを作成（isActive=true）
-- player_joinイベントを自動記録
+Protected mutation with:
 
-### sessionTablePlayer.remove
+- `liveCashGameSessionId?`
+- `liveTournamentSessionId?`
+- `playerId`
+- `seatPosition?`
 
-**Type**: mutation (protected)
-**Input**:
-```typescript
-{
-  liveCashGameSessionId?: string
-  liveTournamentSessionId?: string
-  playerId: string
-}
-```
-**Validation**: セッションIDはいずれか一方のみ指定
-**Output**: `{ id: string }`
-**Side effects**:
-- SessionTablePlayerのisActive=false, leftAt=now
-- player_leaveイベントを自動記録
+Behavior:
 
-## Error Codes
+- Requires exactly one live session id.
+- Adds the player to the current table state.
+- Writes a `player_join` event.
 
-| Code | Condition |
-|------|-----------|
-| NOT_FOUND | セッションまたはプレイヤーが存在しない |
-| BAD_REQUEST | 既にアクティブなプレイヤーを再追加 |
-| BAD_REQUEST | アクティブでないプレイヤーを退席させる |
-| BAD_REQUEST | セッションIDの指定が不正 |
+### `addNew`
+
+Protected mutation with:
+
+- `liveCashGameSessionId?`
+- `liveTournamentSessionId?`
+- `playerName`
+- `playerMemo?`
+- `seatPosition?`
+
+Behavior:
+
+- Requires exactly one live session id.
+- Creates a new player, adds them to the current table state, and writes a `player_join` event.
+
+### `remove`
+
+Protected mutation with:
+
+- `liveCashGameSessionId?`
+- `liveTournamentSessionId?`
+- `playerId`
+
+Behavior:
+
+- Requires exactly one live session id.
+- Marks the player as inactive, stores `leftAt`, and writes a `player_leave` event.

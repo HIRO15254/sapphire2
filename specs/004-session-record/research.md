@@ -1,49 +1,31 @@
-# Research: Session Post-Recording
+# Research: Live Session Recording
 
-## Decision 1: Single Table with Type Discriminator vs. Separate Tables
+## Decision 1: Split live state from historical records
 
-**Decision**: Single `session` table with a `type` text column (`cash_game` | `tournament`) and nullable type-specific fields.
+**Decision**: Keep `live_cash_game_session` and `live_tournament_session` for in-progress play, and use `poker_session` for the completed history list.
 
-**Rationale**: The existing codebase uses single tables for each entity (ringGame, tournament). Session shares many common fields (userId, storeId, currencyId, date, memo, timestamps). A discriminator column keeps queries simple (one table scan for the session list with mixed types) and avoids JOINs for the most common operation (listing all sessions).
+**Why**: The current code already treats live play and historical analysis as different concerns. Live state needs fast event updates, while the history page needs stable records, filters, tags, and P&L calculations.
 
-**Alternatives considered**:
-- Two separate tables (`cashGameSession`, `tournamentSession`): Would require UNION queries for the combined session list, complicate pagination, and duplicate common column definitions. Rejected for added complexity.
-- Polymorphic table with JSON blob for type-specific fields: Loses type safety and query-ability at the DB level. Rejected.
+## Decision 2: Store live play as an event log
 
-## Decision 2: Currency Transaction Auto-generation Approach
+**Decision**: Record live updates in `session_event` and derive summaries from those events.
 
-**Decision**: Add a nullable `sessionId` foreign key to the existing `currencyTransaction` table to link auto-generated transactions back to their source session. Use a dedicated `transactionType` named "Session Result" (auto-seeded) for session-generated transactions.
+**Why**: The event log naturally supports stack changes, tournament results, lifecycle events, and editing of recent play without flattening everything into a single summary row.
 
-**Rationale**: The existing `currencyTransaction` table already has `transactionTypeId` for categorization and `memo` for context. Adding a `sessionId` FK is the minimal change to enable: (1) identifying session-generated transactions, (2) enforcing read-only behavior on the currency page, (3) cascading deletes when a session is deleted. A dedicated transactionType makes filtering straightforward.
+## Decision 3: Keep session-generated currency transactions linked
 
-**Alternatives considered**:
-- Boolean flag `isSessionGenerated` on currencyTransaction: Less queryable, no direct link back to the session for navigation. Rejected.
-- Separate table `sessionTransaction`: Adds redundancy with currencyTransaction and requires separate balance calculation logic. Rejected.
+**Decision**: Session-linked currency entries stay in `currency_transaction` and point back to `poker_session.sessionId`.
 
-## Decision 3: Summary Statistics Calculation
+**Why**: This keeps the history page and currency page aligned and lets the session remain the source of truth for the generated transaction amount.
 
-**Decision**: Calculate summary statistics on-the-fly via SQL aggregation queries. No materialized view or separate aggregation table.
+## Decision 4: Tag management is user-scoped
 
-**Rationale**: At the expected scale (hundreds of sessions per user, not millions), aggregate queries over a single indexed table are fast enough. The existing currency balance pattern already uses `COALESCE(SUM(...), 0)` in the list query. Adding WHERE clauses for filters (type, storeId, date range) leverages indexes.
+**Decision**: Session tags live in `session_tag`, are owned by the authenticated user, and are attached through `session_to_session_tag`.
 
-**Alternatives considered**:
-- Materialized summary table updated on each mutation: Premature optimization, adds write complexity and consistency risk. Rejected per YAGNI principle.
+**Why**: Tags are reusable metadata, so they should be managed independently of any single session record.
 
-## Decision 4: Cursor Pagination for Session List
+## Decision 5: Current routes are split by task
 
-**Decision**: Use cursor-based pagination on `sessionDate` (descending) with `id` as tie-breaker, following the existing `currencyTransaction.listByCurrency` pattern.
+**Decision**: Use `/sessions` for history, `/active-session` for the current live session, `/active-session/events` for the active timeline, and `/live-sessions/$sessionType/$sessionId/events` for direct event inspection.
 
-**Rationale**: Consistent with established project patterns. Cursor pagination is more reliable than offset for lists that change frequently (new sessions added).
-
-**Alternatives considered**:
-- Offset pagination: Simpler but can skip/duplicate items when data changes between pages. Not used elsewhere in the project. Rejected for consistency.
-
-## Decision 5: Session Form UI Pattern
-
-**Decision**: Two-step form: (1) select session type (cash game / tournament), (2) show type-specific form fields. Use ResponsiveDialog (drawer on mobile, dialog on desktop) consistent with existing form patterns.
-
-**Rationale**: The type selection must happen first because it determines which fields are shown. Existing forms (ring-game-form, tournament-form) use the ResponsiveDialog pattern with FormData API. The session form follows the same pattern but adds type-conditional rendering.
-
-**Alternatives considered**:
-- Single form with all fields, hiding irrelevant ones: More complex state management, confusing UX with many hidden fields. Rejected.
-- Separate routes for cash game vs tournament session creation: Adds navigation complexity for a single-entity operation. Rejected.
+**Why**: The codebase already exposes these separate routes and the docs should match what users can actually open today.

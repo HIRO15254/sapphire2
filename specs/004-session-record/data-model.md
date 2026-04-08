@@ -1,216 +1,126 @@
-# Data Model: Session Post-Recording
+# Data Model: Live Session Recording
 
-## Entity: `session`
+## Entity: `poker_session`
 
-Single table with type discriminator. All type-specific fields are nullable.
+Historical session record used by the `/sessions` page.
 
-| Column | Type | Nullable | Default | Description |
-|--------|------|----------|---------|-------------|
-| id | TEXT | NO | — | Primary key (UUID) |
-| userId | TEXT | NO | — | FK → user.id (CASCADE) |
-| type | TEXT | NO | — | `cash_game` or `tournament` |
-| sessionDate | INTEGER | NO | — | Calendar date as unix timestamp |
-| storeId | TEXT | YES | NULL | FK → store.id (SET NULL) |
-| ringGameId | TEXT | YES | NULL | FK → ringGame.id (SET NULL) |
-| tournamentId | TEXT | YES | NULL | FK → tournament.id (SET NULL) |
-| currencyId | TEXT | YES | NULL | FK → currency.id (SET NULL) |
-| **Cash game fields** | | | | |
-| buyIn | INTEGER | YES | NULL | Total buy-in amount (cash game) |
-| cashOut | INTEGER | YES | NULL | Cash-out amount (cash game) |
-| evCashOut | INTEGER | YES | NULL | EV-adjusted cash-out (cash game only) |
-| **Tournament fields** | | | | |
-| tournamentBuyIn | INTEGER | YES | NULL | Tournament buy-in |
-| entryFee | INTEGER | YES | NULL | Tournament entry fee |
-| placement | INTEGER | YES | NULL | Finishing position |
-| totalEntries | INTEGER | YES | NULL | Total tournament entries |
-| prizeMoney | INTEGER | YES | NULL | Prize money won |
-| rebuyCount | INTEGER | YES | NULL | Number of rebuys |
-| rebuyCost | INTEGER | YES | NULL | Cost per rebuy |
-| addonCost | INTEGER | YES | NULL | Addon cost |
-| bountyPrizes | INTEGER | YES | NULL | Bounty prizes earned |
-| **Common optional fields** | | | | |
-| startedAt | INTEGER | YES | NULL | Session start timestamp |
-| endedAt | INTEGER | YES | NULL | Session end timestamp |
-| memo | TEXT | YES | NULL | Free-text notes |
-| **Timestamps** | | | | |
-| createdAt | INTEGER | NO | unixepoch() | Record creation |
-| updatedAt | INTEGER | NO | — | Last update ($onUpdate) |
+| Column | Type | Nullable | Notes |
+|--------|------|----------|-------|
+| id | TEXT | NO | Primary key |
+| userId | TEXT | NO | FK to user, cascade delete |
+| type | TEXT | NO | `cash_game` or `tournament` |
+| sessionDate | INTEGER | NO | Session date |
+| storeId | TEXT | YES | Optional store link, set null on delete |
+| ringGameId | TEXT | YES | Optional cash-game config link |
+| tournamentId | TEXT | YES | Optional tournament config link |
+| currencyId | TEXT | YES | Optional currency link |
+| liveCashGameSessionId | TEXT | YES | Link back to active cash session |
+| liveTournamentSessionId | TEXT | YES | Link back to active tournament session |
+| buyIn / cashOut / evCashOut | INTEGER | YES | Cash game fields |
+| tournamentBuyIn / entryFee / placement / totalEntries / prizeMoney / rebuyCount / rebuyCost / addonCost / bountyPrizes | INTEGER | YES | Tournament fields |
+| startedAt / endedAt | INTEGER | YES | Session time range |
+| memo | TEXT | YES | Free text notes |
+| createdAt / updatedAt | INTEGER | NO | Timestamps |
 
-### Indexes
+### Computed Fields
 
-- `session_userId_idx` on (userId)
-- `session_sessionDate_idx` on (sessionDate)
-- `session_storeId_idx` on (storeId)
-- `session_currencyId_idx` on (currencyId)
+- Cash game `profitLoss = cashOut - buyIn`
+- Cash game `evProfitLoss = evCashOut - buyIn`
+- Cash game `evDiff = evProfitLoss - profitLoss`
+- Tournament `profitLoss = (prizeMoney + bountyPrizes) - (tournamentBuyIn + entryFee + rebuyCount * rebuyCost + addonCost)`
 
-### Computed Fields (application-level)
+## Entity: `live_cash_game_session`
 
-**Cash game**:
-- `profitLoss` = cashOut - buyIn
-- `evProfitLoss` = evCashOut - buyIn (when evCashOut is set)
-- `evDiff` = evProfitLoss - profitLoss
+Current live cash game state.
 
-**Tournament**:
-- `totalCost` = tournamentBuyIn + entryFee + (rebuyCount × rebuyCost) + addonCost
-- `profitLoss` = (prizeMoney + bountyPrizes) - totalCost
+| Column | Type | Nullable | Notes |
+|--------|------|----------|-------|
+| id | TEXT | NO | Primary key |
+| userId | TEXT | NO | Owner |
+| status | TEXT | NO | `active` or `completed` |
+| storeId | TEXT | YES | Optional store link |
+| ringGameId | TEXT | YES | Optional ring game link |
+| currencyId | TEXT | YES | Optional currency link |
+| startedAt | INTEGER | NO | Start time |
+| endedAt | INTEGER | YES | Completion time |
+| heroSeatPosition | INTEGER | YES | Current hero seat |
+| memo | TEXT | YES | Notes |
+| createdAt / updatedAt | INTEGER | NO | Timestamps |
 
-### Relations
+## Entity: `live_tournament_session`
 
-```
-session.userId → user.id (many-to-one)
-session.storeId → store.id (many-to-one, optional)
-session.ringGameId → ringGame.id (many-to-one, optional)
-session.tournamentId → tournament.id (many-to-one, optional)
-session.currencyId → currency.id (many-to-one, optional)
-session → currencyTransaction (one-to-many, via currencyTransaction.sessionId)
-session → sessionToSessionTag → sessionTag (many-to-many)
-```
+Current live tournament state.
 
-### Validation Rules
+| Column | Type | Nullable | Notes |
+|--------|------|----------|-------|
+| id | TEXT | NO | Primary key |
+| userId | TEXT | NO | Owner |
+| status | TEXT | NO | `active` or `completed` |
+| storeId | TEXT | YES | Optional store link |
+| tournamentId | TEXT | YES | Optional tournament link |
+| currencyId | TEXT | YES | Optional currency link |
+| buyIn / entryFee | INTEGER | YES | Session defaults |
+| startedAt | INTEGER | NO | Start time |
+| endedAt | INTEGER | YES | Completion time |
+| heroSeatPosition | INTEGER | YES | Current hero seat |
+| memo | TEXT | YES | Notes |
+| createdAt / updatedAt | INTEGER | NO | Timestamps |
 
-- `type` must be `cash_game` or `tournament`
-- Cash game: `buyIn` and `cashOut` required, both ≥ 0
-- Tournament: `tournamentBuyIn` and `entryFee` required, both ≥ 0
-- Tournament: `placement` > 0 and `placement` ≤ `totalEntries` (when both provided)
-- All monetary amounts ≥ 0
-- `ringGameId` only set when type = `cash_game`
-- `tournamentId` only set when type = `tournament`
-- `evCashOut` only set when type = `cash_game`
-- `startedAt` ≤ `endedAt` (when both provided)
+## Entity: `session_event`
 
----
+Ordered event log for a live session.
 
-## Entity: `sessionTag`
+| Column | Type | Nullable | Notes |
+|--------|------|----------|-------|
+| id | TEXT | NO | Primary key |
+| liveCashGameSessionId | TEXT | YES | FK to live cash session |
+| liveTournamentSessionId | TEXT | YES | FK to live tournament session |
+| eventType | TEXT | NO | `chip_add`, `stack_record`, `player_join`, `player_leave`, `session_start`, `session_end`, `tournament_stack_record`, `tournament_result` |
+| occurredAt | INTEGER | NO | Event time |
+| sortOrder | INTEGER | NO | Stable ordering for same timestamp |
+| payload | TEXT | NO | JSON payload |
+| createdAt / updatedAt | INTEGER | NO | Timestamps |
 
-User-defined tags for categorizing sessions. Scoped per user.
+## Entity: `session_table_player`
 
-| Column | Type | Nullable | Default | Description |
-|--------|------|----------|---------|-------------|
-| id | TEXT | NO | — | Primary key (UUID) |
-| userId | TEXT | NO | — | FK → user.id (CASCADE) |
-| name | TEXT | NO | — | Tag display name |
-| createdAt | INTEGER | NO | unixepoch() | Record creation |
+Seating and activity state for live sessions.
 
-### Indexes
+| Column | Type | Nullable | Notes |
+|--------|------|----------|-------|
+| id | TEXT | NO | Primary key |
+| liveCashGameSessionId | TEXT | YES | FK to live cash session |
+| liveTournamentSessionId | TEXT | YES | FK to live tournament session |
+| playerId | TEXT | NO | FK to player |
+| seatPosition | INTEGER | YES | Seat index |
+| isActive | INTEGER | NO | 0/1 active flag |
+| joinedAt / leftAt | INTEGER | YES | Activity timestamps |
+| createdAt / updatedAt | INTEGER | NO | Timestamps |
 
-- `sessionTag_userId_idx` on (userId)
+## Entity: `session_tag`
 
-### Relations
+User-scoped session label.
 
-```
-sessionTag.userId → user.id (many-to-one)
-sessionTag → sessionToSessionTag → session (many-to-many)
-```
+| Column | Type | Nullable | Notes |
+|--------|------|----------|-------|
+| id | TEXT | NO | Primary key |
+| userId | TEXT | NO | Owner |
+| name | TEXT | NO | Tag name |
+| createdAt | INTEGER | NO | Timestamp |
 
----
+## Junction: `session_to_session_tag`
 
-## Junction: `sessionToSessionTag`
+Many-to-many link between `poker_session` and `session_tag`.
 
-Many-to-many relationship between sessions and tags.
+| Column | Type | Nullable | Notes |
+|--------|------|----------|-------|
+| sessionId | TEXT | NO | FK to poker_session |
+| sessionTagId | TEXT | NO | FK to session_tag |
 
-| Column | Type | Nullable | Default | Description |
-|--------|------|----------|---------|-------------|
-| sessionId | TEXT | NO | — | FK → session.id (CASCADE) |
-| sessionTagId | TEXT | NO | — | FK → sessionTag.id (CASCADE) |
+## Related Entity: `currency_transaction`
 
-### Primary Key
+- `sessionId` links read-only session-generated transactions back to their source `poker_session`.
+- Currency-linked sessions create or update one transaction that mirrors the session P&L.
 
-Composite: (sessionId, sessionTagId)
+## Related Entity: `ring_game`
 
-### Relations
-
-```
-sessionToSessionTag.sessionId → session.id
-sessionToSessionTag.sessionTagId → sessionTag.id
-```
-
----
-
-## Modification: `ringGame` (existing table)
-
-Make `storeId` nullable to support standalone ring game configurations created from session recording.
-
-| Column | Type | Nullable (before) | Nullable (after) | Description |
-|--------|------|-------------------|-------------------|-------------|
-| storeId | TEXT | NO | YES | FK → store.id (CASCADE). Now nullable for standalone game configs |
-
-### Behavior
-
-- When `storeId` is NOT NULL, the ring game belongs to a store (existing behavior).
-- When `storeId` is NULL, the ring game is a standalone configuration auto-created from a session recording.
-- CASCADE delete: if the linked store is deleted, the ring game is also deleted (unchanged).
-- Standalone ring games (storeId=NULL) are not affected by store deletions.
-
-### Auto-creation from Session
-
-When creating a cash game session, if no existing `ringGameId` is provided, the system auto-creates a standalone ring game with the game configuration fields (variant, blinds, table size, ante, buy-in limits) entered in the session form. The session is then linked to this auto-created ring game via `ringGameId`.
-
----
-
-## Modification: `currencyTransaction` (existing table)
-
-Add one nullable column:
-
-| Column | Type | Nullable | Default | Description |
-|--------|------|----------|---------|-------------|
-| sessionId | TEXT | YES | NULL | FK → session.id (CASCADE) |
-
-### New Index
-
-- `currencyTransaction_sessionId_idx` on (sessionId)
-
-### Behavior
-
-- When `sessionId` is NOT NULL, the transaction is session-generated and read-only from the currency page
-- CASCADE delete: if session is deleted, its auto-generated transaction is also deleted
-- The transaction uses a dedicated transactionType "Session Result" (auto-seeded, similar to existing default types)
-
-### Updated Relations
-
-```
-currencyTransaction.sessionId → session.id (many-to-one, optional)
-```
-
----
-
-## Modification: `transactionType` (existing table, data only)
-
-Seed a new default transactionType:
-
-| name | description |
-|------|-------------|
-| Session Result | Auto-generated from session P&L |
-
-This follows the existing pattern of seeding default transaction types (Purchase, Bonus, Other).
-
----
-
-## Summary Statistics (computed, not stored)
-
-### Overall Summary
-
-```sql
-SELECT
-  COUNT(*) as totalSessions,
-  COALESCE(SUM(profitLoss), 0) as totalProfitLoss,
-  AVG(profitLoss) as avgProfitLoss,
-  COUNT(CASE WHEN profitLoss > 0 THEN 1 END) * 100.0 / COUNT(*) as winRate
-FROM (computed session P&L subquery)
-WHERE userId = ? AND [optional filters]
-```
-
-### Tournament-specific Summary (when filtered to tournaments)
-
-```sql
-AVG(placement) as avgPlacement,
-SUM(prizeMoney + bountyPrizes) as totalPrizeMoney,
-COUNT(CASE WHEN prizeMoney > 0 THEN 1 END) * 100.0 / COUNT(*) as itmRate
-```
-
-### EV Summary (cash game sessions with EV data only)
-
-```sql
-SUM(evProfitLoss) as totalEvProfitLoss,
-SUM(evDiff) as totalEvDiff
-WHERE type = 'cash_game' AND evCashOut IS NOT NULL
-```
+- `storeId` is nullable so session-created standalone ring game configurations can exist without a store.

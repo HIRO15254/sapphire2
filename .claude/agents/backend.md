@@ -1,6 +1,6 @@
 ---
 name: backend
-description: Hono + tRPC v11のバックエンドAPI実装
+description: Hono + tRPC v11 + better-auth の現行バックエンド API 実装
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 ---
@@ -9,136 +9,81 @@ model: sonnet
 
 ## Technology Stack
 
-- **Server Framework**: Hono
+- **Server Framework**: Hono on Cloudflare Workers
 - **API Layer**: tRPC v11
+- **Auth**: better-auth
 - **Validation**: Zod
-- **Auth**: better-auth (session-based)
-- **Runtime**: Bun
+- **Database Access**: Drizzle via `createDb(D1Database)`
 
 ## Key File Locations
 
 | Purpose | Path |
 |---------|------|
-| tRPC init (router, procedures) | `packages/api/src/index.ts` |
-| tRPC context | `packages/api/src/context.ts` |
-| Router registration | `packages/api/src/routers/index.ts` |
-| Router definitions | `packages/api/src/routers/[name].ts` |
-| Server entry | `apps/server/src/index.ts` (Hono + CORS + logger + auth + tRPC adapter) |
-| Tests | `packages/api/src/__tests__/` |
+| Worker entry | `apps/server/src/worker.ts` |
+| tRPC init | `packages/api/src/index.ts` |
+| Context factory | `packages/api/src/context.ts` |
+| Router registry | `packages/api/src/routers/index.ts` |
+| Router definitions | `packages/api/src/routers/*.ts` |
+| API tests | `packages/api/src/__tests__/` |
 
-## Implementation Patterns
+## Current Patterns
 
-### tRPC Router Definition
+### Server Wiring
 
-Reference pattern from `packages/api/src/routers/todo.ts`:
+- Hono worker entry is `apps/server/src/worker.ts`
+- Auth and DB are created per request from Cloudflare bindings
+- tRPC is mounted under `/trpc/*`
+- better-auth routes live under `/api/auth/*`
+
+### Router Design
+
+- Routers are grouped by domain, for example:
+  - `store`
+  - `currency`
+  - `currencyTransaction`
+  - `ringGame`
+  - `tournament`
+  - `session`
+  - `sessionEvent`
+  - `sessionTablePlayer`
+  - `liveCashGameSession`
+  - `liveTournamentSession`
+  - `player`
+  - `playerTag`
+- Input validation is done with Zod at every procedure boundary
+- Authenticated data access uses `protectedProcedure`
 
 ```typescript
-import { z } from "zod";
-import { publicProcedure, protectedProcedure, router } from "../index";
-import { db } from "@sapphire2/db";
-import { todoTable } from "@sapphire2/db/schema";
-import { eq } from "drizzle-orm";
-
-export const todoRouter = router({
-	list: publicProcedure.query(async () => {
-		return db.select().from(todoTable);
+export const storeRouter = router({
+	list: protectedProcedure.query(({ ctx }) => {
+		return ctx.db.select().from(store).where(eq(store.userId, ctx.session.user.id));
 	}),
-
-	create: protectedProcedure
-		.input(z.object({ title: z.string().min(1) }))
-		.mutation(async ({ input }) => {
-			return db.insert(todoTable).values(input).returning();
-		}),
 });
 ```
-
-### Router Registration
-
-In `packages/api/src/routers/index.ts`:
-
-```typescript
-import { router } from "../index";
-import { todoRouter } from "./todo";
-import { newRouter } from "./new-router";
-
-export const appRouter = router({
-	todo: todoRouter,
-	newRouter: newRouter,
-});
-
-export type AppRouter = typeof appRouter;
-```
-
-### Procedure Types
-
-- `publicProcedure`: No auth required
-- `protectedProcedure`: Requires authenticated session (ctx.session available)
-- Always validate inputs with Zod schemas
-- Use `TRPCError` with descriptive messages and appropriate codes
 
 ### Error Handling
 
-```typescript
-import { TRPCError } from "@trpc/server";
+- Use `TRPCError`
+- Prefer `NOT_FOUND`, `FORBIDDEN`, `BAD_REQUEST`, and `PRECONDITION_FAILED` where they match current behavior
+- Follow the existing ownership-check pattern before mutating records
 
-throw new TRPCError({
-	code: "NOT_FOUND",
-	message: "Resource not found",
-});
-```
+### Data Access
 
-## Testing Patterns
+- Prefer `ctx.db` from the request context, not global DB singletons
+- Import schema from `@sapphire2/db/schema/...`
+- Preserve current ownership validation and derived-record sync rules, especially for:
+  - session currency transactions
+  - live session completion / reopen
+  - table-player and event synchronization
 
-**Location**: `packages/api/src/__tests__/[router].test.ts`
-**Approach**: Mock DB and env, then dynamically import the router
+## Testing Guidance
 
-```typescript
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("@sapphire2/db", () => ({
-	db: {},
-}));
-
-vi.mock("@sapphire2/env/server", () => ({
-	env: {
-		DATABASE_URL: "postgres://test:test@localhost:5432/test",
-		BETTER_AUTH_SECRET: "test-secret",
-	},
-}));
-
-describe("todoRouter", () => {
-	it("has expected procedures", async () => {
-		const { todoRouter } = await import("../routers/todo");
-		expect(todoRouter).toBeDefined();
-		expect(todoRouter.list).toBeDefined();
-		expect(todoRouter.create).toBeDefined();
-	});
-
-	it("list is a query procedure", async () => {
-		const { todoRouter } = await import("../routers/todo");
-		expect(todoRouter.list._def.type).toBe("query");
-	});
-
-	it("create is a mutation procedure", async () => {
-		const { todoRouter } = await import("../routers/todo");
-		expect(todoRouter.create._def.type).toBe("mutation");
-	});
-});
-```
-
-### Testing Checklist
-
-- Router has all expected procedures
-- Procedures are of correct type (query vs mutation)
-- Input validation schemas are correct
-- Mock DB and env modules with `vi.mock()`
-- Use dynamic `import()` after mocks are set up
+- Router tests already exist in `packages/api/src/__tests__/`
+- Prefer extending domain-specific tests rather than adding synthetic example routers
+- Mock request context and DB in the style already used by the repo
 
 ## Code Quality Rules
 
-- Run `bun x ultracite fix` after creating new files
-- No `console.log` in production code
-- Always validate inputs with Zod
-- Use `async/await` instead of promise chains
-- Handle errors with `TRPCError` (not generic `Error`)
-- Package boundary: import from `@sapphire2/db`, not relative paths to db package
+- Do not introduce sample `todo` routers or generic scaffolding
+- Keep procedure names aligned with the current app router surface
+- Maintain compatibility with the existing web client contracts before refactoring API shapes

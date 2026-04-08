@@ -1,36 +1,28 @@
-# Specification Quality Checklist: リアルタイムセッション記録
+# Specification Quality Checklist: Live Session Recording
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning
-**Created**: 2026-03-29
+**Purpose**: Validate the documentation against the current implementation
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
 
-- [x] No implementation details (languages, frameworks, APIs)
-- [x] Focused on user value and business needs
-- [x] Written for non-technical stakeholders
-- [x] All mandatory sections completed
+- [x] The docs focus on the current live-session implementation.
+- [x] The docs avoid aspirational features that are not in the codebase.
+- [x] The current routes, routers, and schema names are reflected consistently.
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain
-- [x] Requirements are testable and unambiguous
-- [x] Success criteria are measurable
-- [x] Success criteria are technology-agnostic (no implementation details)
-- [x] All acceptance scenarios are defined
-- [x] Edge cases are identified
-- [x] Scope is clearly bounded
-- [x] Dependencies and assumptions identified
+- [x] The two live session types are described consistently.
+- [x] The active-session and completed-session routes are documented.
+- [x] Event creation, update, delete, and list flows are covered.
+- [x] Table-player management is covered.
+- [x] Reopen behavior is covered.
 
 ## Feature Readiness
 
-- [x] All functional requirements have clear acceptance criteria
-- [x] User scenarios cover primary flows
-- [x] Feature meets measurable outcomes defined in Success Criteria
-- [x] No implementation details leak into specification
+- [x] The docs match the current `cash_game` / `tournament` split.
+- [x] The docs match the current event payload shapes at a high level.
+- [x] The docs match the current reporting compatibility through `pokerSession`.
 
 ## Notes
 
-- All checklist items pass validation
-- Spec is ready for `/speckit.clarify` or `/speckit.plan`
-- Assumptions section documents key design decisions (event sourcing pattern, pokerSession compatibility, append-only events, no real-time sync in v1)
+- Tournament creation is documented as a session create followed by an initial `tournament_stack_record` from the client, which matches the current UI flow.

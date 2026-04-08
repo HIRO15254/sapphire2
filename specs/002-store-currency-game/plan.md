@@ -1,119 +1,30 @@
-# Implementation Plan: 店舗・通貨・ゲーム設定マスターデータ管理
+# Documentation Sync Plan: 店舗・通貨・ゲーム設定マスターデータ管理
 
-**Branch**: `002-store-currency-game` | **Date**: 2026-03-19 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/002-store-currency-game/spec.md`
+**Branch**: `002-store-currency-game` | **Date**: 2026-04-08 | **Spec**: [spec.md](./spec.md)
 
 ## Summary
 
-アミューズメントポーカーの成績管理アプリの基盤となるマスターデータ管理機能を実装する。店舗・通貨・トランザクション種別・キャッシュゲーム（RingGame）・トーナメント・ブラインドレベル・トーナメントタグの7エンティティをDrizzle ORMスキーマとして定義し、tRPCルーターでCRUD APIを提供、TanStack Router + shadcn/uiでモバイルファーストUIを構築する。
+この feature はすでに実装済みであり、計画書は現行の実装構成を説明する役割に絞る。
+対象は `Stores` / `Currencies` / `Settings` の画面と、店舗詳細の `Cash Games` / `Tournaments` タブ、そして API / schema の対応関係。
 
-## Technical Context
+## Current Structure
 
-**Language/Version**: TypeScript (strict mode), Bun runtime
-**Primary Dependencies**: React 19, TanStack Router/Query/Form, Hono, tRPC v11, shadcn/ui, Tailwind v4
-**Storage**: Cloudflare D1 (SQLite) via Drizzle ORM
-**Testing**: Vitest, Testing Library
-**Target Platform**: Cloudflare Workers (API) + Cloudflare Pages (Web/PWA)
-**Project Type**: Full-stack web application (monorepo)
-**Performance Goals**: Standard web app expectations (sub-second page loads)
-**Constraints**: D1 SQLite制約（JOINは可能だがサブクエリ制限あり）
-**Scale/Scope**: 個人利用、1店舗あたり数個〜十数個のエンティティ
+- **Web**: `apps/web/src/routes/stores`, `apps/web/src/routes/currencies`, `apps/web/src/routes/settings`
+- **Store detail**: `apps/web/src/routes/stores/$storeId.tsx` で Cash Games / Tournaments を切り替え
+- **API**: `store`, `currency`, `transactionType`, `currencyTransaction`, `ringGame`, `tournament`, `blindLevel`, `tournamentChipPurchase`
+- **DB**: `store.ts` に通貨・種別・通貨トランザクション、`ring-game.ts` に Cash Game、`tournament.ts` に Tournament / BlindLevel / ChipPurchase、`tournament-tag.ts` にタグ
 
-## Constitution Check
+## Documentation Changes
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+- `spec.md` は現在の機能範囲に合わせて整理
+- `data-model.md` は実スキーマに合わせて更新
+- `contracts/trpc-routers.md` は実在 router と CRUD を列挙
+- `quickstart.md` は現行コマンドと導線に更新
+- `research.md` は実装済みの設計判断のみを残す
+- `tasks.md` と `checklists/requirements.md` は完了済みの現状に合わせる
 
-| Principle | Status | Notes |
-|-----------|--------|-------|
-| I. Type Safety First | ✅ Pass | Zod input validation, Drizzle schema as source of truth |
-| II. Monorepo Package Boundaries | ✅ Pass | Schema in `db`, routers in `api`, UI in `web` |
-| III. Test Coverage Required | ✅ Pass | Schema tests, router integration tests, component tests planned |
-| IV. Code Quality Automation | ✅ Pass | Biome/Ultracite enforced via hooks |
-| V. English-Only UI | ✅ Pass | All UI text in English |
-| VI. Mobile-First UI Design | ✅ Pass | Mobile-first layouts, touch-friendly targets |
-| VII. API Contract Discipline | ✅ Pass | protectedProcedure for all routes, Zod validation |
-| VIII. Offline-First Data Layer | ✅ Pass | IndexedDB persistence + optimistic updates |
+## Assumptions
 
-## Project Structure
-
-### Documentation (this feature)
-
-```text
-specs/002-store-currency-game/
-├── plan.md              # This file
-├── spec.md              # Feature specification
-├── research.md          # Phase 0 output
-├── data-model.md        # Phase 1 output
-├── quickstart.md        # Phase 1 output
-├── contracts/           # Phase 1 output (tRPC router contracts)
-├── checklists/          # Quality checklists
-└── tasks.md             # Phase 2 output (/speckit.tasks)
-```
-
-### Source Code (repository root)
-
-```text
-packages/db/src/
-├── schema/
-│   ├── auth.ts              # (existing) Auth tables
-│   ├── todo.ts              # (deleted) Sample todo
-│   ├── store.ts             # NEW: store, currency, currencyTransaction, transactionType
-│   ├── ring-game.ts         # NEW: ringGame (anteType field added)
-│   ├── tournament.ts        # NEW: tournament, blindLevel
-│   └── tournament-tag.ts    # NEW: tournamentTag
-├── schema.ts                # UPDATE: export new schemas
-├── index.ts                 # (existing) createDb factory
-└── migrations/              # NEW: generated migration
-
-packages/api/src/
-├── routers/
-│   ├── index.ts             # UPDATE: add new sub-routers, remove todo
-│   ├── todo.ts              # (deleted)
-│   ├── store.ts             # NEW: store CRUD
-│   ├── currency.ts              # NEW: currency CRUD (user-level, not store-level)
-│   ├── currency-transaction.ts  # NEW: currency transaction CRUD + cursor pagination
-│   ├── transaction-type.ts      # NEW: transaction type CRUD + default seeding
-│   ├── ring-game.ts             # NEW: ring game CRUD + archive
-│   ├── tournament.ts            # NEW: tournament CRUD + archive + tag management
-│   └── blind-level.ts           # NEW: blind level CRUD + reorder
-└── index.ts                 # (existing)
-
-apps/web/src/
-├── routes/
-│   ├── stores/
-│   │   ├── index.tsx        # NEW: store list page
-│   │   └── $storeId.tsx     # NEW: store detail (tabs: cash game/tournament)
-│   ├── currencies/
-│   │   └── index.tsx        # NEW: currency list + transaction history page
-│   ├── todos.tsx             # (deleted)
-│   └── ...                   # (existing routes unchanged)
-├── components/
-│   ├── mobile-nav.tsx       # UPDATE: add Stores/Currencies nav items, remove Todos
-│   ├── online-status-bar.tsx # NEW: offline indicator banner
-│   ├── stores/              # NEW: store-related components
-│   │   ├── store-form.tsx
-│   │   ├── store-card.tsx
-│   │   ├── currency-tab.tsx
-│   │   ├── currency-form.tsx
-│   │   ├── transaction-list.tsx
-│   │   ├── transaction-form.tsx
-│   │   ├── ring-game-tab.tsx
-│   │   ├── ring-game-form.tsx
-│   │   ├── tournament-tab.tsx
-│   │   ├── tournament-form.tsx
-│   │   └── blind-level-editor.tsx
-│   └── ui/                  # NEW shadcn/ui components as needed
-│       ├── tabs.tsx
-│       ├── dialog.tsx
-│       ├── drawer.tsx        # bottom sheet, no swipe dismiss, X button close only
-│       ├── select.tsx
-│       ├── badge.tsx
-│       └── separator.tsx
-├── hooks/
-│   └── use-online-status.ts  # NEW: online status hook
-└── utils/
-    ├── format-number.ts      # NEW: k/M/B compact number formatting
-    └── table-size-colors.ts  # NEW: table size badge color mapping
-```
-
-**Structure Decision**: 既存のモノレポ構造に従い、`db`パッケージにスキーマ、`api`パッケージにルーター、`web`アプリにUI。スキーマはドメイン単位でファイル分割（store.ts, ring-game.ts, tournament.ts, tournament-tag.ts）。
+- コード変更は行わず、ドキュメントのみを更新する
+- `Currencies` は独立ページとして扱う
+- `TournamentChipPurchase` は Tournament の子データとして明示する

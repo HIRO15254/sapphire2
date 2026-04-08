@@ -1,6 +1,6 @@
 ---
 name: frontend
-description: React 19 + shadcn/ui + TanStack Routerのフロントエンド実装
+description: React 19 + TanStack Router + TanStack Query の現行フロントエンド実装
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
 ---
@@ -10,97 +10,84 @@ model: sonnet
 ## Technology Stack
 
 - **Framework**: React 19 + Vite
-- **Routing**: TanStack Router (file-based routing in `apps/web/src/routes/`)
-- **Server State**: TanStack Query via tRPC client
-- **UI Library**: shadcn/ui (`apps/web/src/components/ui/`)
-- **Styling**: Tailwind CSS v4 (utility-first)
-- **Auth**: better-auth client (`apps/web/src/lib/auth-client.ts`)
-- **Validation**: Zod (for form schemas)
+- **Routing**: TanStack Router file-based routing
+- **Server State**: TanStack Query + `createTRPCOptionsProxy`
+- **Persistence**: `PersistQueryClientProvider` + IndexedDB persister
+- **UI Library**: shadcn/ui
+- **Styling**: Tailwind CSS v4
+- **Auth**: better-auth client
 
 ## Key File Locations
 
 | Purpose | Path |
 |---------|------|
-| tRPC client | `apps/web/src/utils/trpc.ts` (createTRPCOptionsProxy + TanStack Query) |
-| Auth client | `apps/web/src/lib/auth-client.ts` |
-| Routes | `apps/web/src/routes/` (TanStack Router file-based) |
-| UI components | `apps/web/src/components/ui/` |
-| Utility functions | `apps/web/src/lib/utils.ts` (`cn()` for class merging) |
-| Tests | `apps/web/src/__tests__/` |
+| App entry | `apps/web/src/main.tsx` |
+| Route tree root | `apps/web/src/routes/__root.tsx` |
+| Routes | `apps/web/src/routes/` |
+| tRPC + Query setup | `apps/web/src/utils/trpc.ts` |
+| Shared shell | `apps/web/src/components/authenticated-shell.tsx` |
+| UI primitives | `apps/web/src/components/ui/` |
+| Route and component tests | `apps/web/src/__tests__/` and nearby `__tests__/` folders |
 
-## Implementation Patterns
+## Current Patterns
 
-### Component Structure
+### Data Fetching
 
-- Function components only (no class components)
-- React 19: use `ref` as a prop (not `forwardRef`)
-- Use `cn()` from `apps/web/src/lib/utils.ts` for conditional class merging
-- Semantic HTML and ARIA attributes for accessibility
-- Use `<button>`, `<nav>`, etc. instead of divs with roles
-
-### tRPC Client Usage
+- Queries use `trpc.<router>.<procedure>.queryOptions()` with React Query's `useQuery`
+- Router context receives `trpc` and `queryClient` from `apps/web/src/main.tsx`
+- Query cache is persisted and defaults to `networkMode: "offlineFirst"`
 
 ```typescript
-import { trpc } from "@/utils/trpc";
-import { useSuspenseQuery } from "@tanstack/react-query";
-
-// Query
-const [data] = useSuspenseQuery(trpc.routerName.procedureName.queryOptions());
-
-// Mutation
-const mutation = trpc.routerName.procedureName.useMutation();
+const playersQuery = useQuery(trpc.player.list.queryOptions());
 ```
 
-### Routing (TanStack Router)
+### Mutations
 
-- File-based routing in `apps/web/src/routes/`
-- `__root.tsx` defines the root layout
-- Route files export `Route` via `createFileRoute`
-- Use `Route.useParams()`, `Route.useSearch()` for route data
-
-### State Management
-
-- Server state: TanStack Query (via tRPC)
-- UI state: React `useState` / `useReducer`
-- No global state library unless explicitly required
-
-## Testing Patterns
-
-**Location**: `apps/web/src/__tests__/[component].test.tsx`
-**Tools**: Vitest + @testing-library/react + @testing-library/user-event + jsdom
+- The current codebase mainly uses React Query's `useMutation` with `trpcClient.*.mutate(...)` inside `mutationFn`
+- Optimistic `onMutate` / rollback / invalidate patterns are already used heavily and should be preserved
+- Do not assume `trpc.<router>.<procedure>.useMutation()` exists in this repo
 
 ```typescript
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
-
-describe("ComponentName", () => {
-	it("renders without crashing", () => {
-		render(<ComponentName />);
-		expect(screen.getByRole("heading")).toBeInTheDocument();
-	});
-
-	it("handles user interaction", async () => {
-		const user = userEvent.setup();
-		render(<ComponentName />);
-		await user.click(screen.getByRole("button", { name: /submit/i }));
-		expect(screen.getByText("Success")).toBeInTheDocument();
-	});
+const createMutation = useMutation({
+	mutationFn: (values: PlayerFormValues) =>
+		trpcClient.player.create.mutate(values),
+	onSettled: () => {
+		queryClient.invalidateQueries({ queryKey: playerListKey });
+	},
 });
 ```
 
-### Testing Checklist
+### Routing
 
-- Component renders without crashing
-- Expected elements are present (use `getByRole`, `getByText`, `getByLabelText`)
-- User interactions work correctly (click, type, etc.)
-- Accessibility: semantic HTML, ARIA attributes present
-- Mock tRPC calls when testing components that fetch data
+- Route files export `Route` via `createFileRoute(...)`
+- Important current routes include:
+  - `/sessions`
+  - `/stores`
+  - `/stores/$storeId`
+  - `/players`
+  - `/currencies`
+  - `/settings`
+  - `/active-session`
+  - `/active-session/events`
+  - `/live-sessions/$sessionType/$sessionId/events`
+
+### Layout and Navigation
+
+- `AuthenticatedShell` owns the logged-in layout
+- Mobile uses `MobileNav`
+- Desktop uses `SidebarNav`
+- The mobile center action changes based on active session state
+
+## Testing Guidance
+
+- Prefer existing route-level tests in `apps/web/src/__tests__/`
+- Component-specific tests may live near the feature under `__tests__/`
+- Use Testing Library + Vitest
+- When changing behavior, update or add the narrowest useful test rather than creating broad snapshot coverage
 
 ## Code Quality Rules
 
-- Run `bun x ultracite fix` after creating new files
-- No `console.log`, `debugger`, or `alert` in production code
-- Use `const` by default, `let` only when reassignment is needed
-- Prefer template literals over string concatenation
-- Use optional chaining (`?.`) and nullish coalescing (`??`)
+- Keep user-facing strings in English
+- Follow existing optimistic update utilities and invalidation patterns
+- Preserve offline-first query behavior
+- Prefer editing existing routes/components over introducing parallel abstractions

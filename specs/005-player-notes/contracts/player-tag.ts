@@ -41,12 +41,13 @@ export interface PlayerTagItem {
 	id: string;
 	name: string;
 	updatedAt: Date;
+	userId: string;
 }
 
 // === Procedures ===
 
-// playerTag.list   -> query()                      -> PlayerTagItem[]
-// playerTag.create -> mutation(PlayerTagCreateInput)  -> PlayerTagItem
-// playerTag.update -> mutation(PlayerTagUpdateInput)  -> PlayerTagItem
-// playerTag.delete -> mutation(PlayerTagDeleteInput)  -> { success: true }
-//   (cascade: removes all playerToPlayerTag entries for this tag)
+// playerTag.list   -> query() -> PlayerTagItem[]
+// playerTag.create -> mutation(PlayerTagCreateInput) -> PlayerTagItem
+// playerTag.update -> mutation(PlayerTagUpdateInput) -> PlayerTagItem
+// playerTag.delete -> mutation(PlayerTagDeleteInput) -> { success: true }
+//   (cascade cleanup removes all playerToPlayerTag rows for the tag)
