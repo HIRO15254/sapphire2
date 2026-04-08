@@ -10,8 +10,13 @@ on:
   pull_request_review:
     types: [submitted]
 
+env:
+  SPEX_MARKETPLACE: https://github.com/rhuss/cc-rhuss-marketplace.git
+  SPEX_PLUGIN: spex@cc-rhuss-marketplace
+  SUPERPOWERS_PLUGIN: superpowers@claude-plugins-official
+
 jobs:
-  # General @claude mention handler
+  # General @claude mention handler (also handles brainstorm dialogue)
   claude:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
@@ -21,9 +26,9 @@ jobs:
         (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
+      contents: write
+      pull-requests: write
+      issues: write
       id-token: write
       actions: read
     steps:
@@ -37,10 +42,14 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: ${{ env.SPEX_MARKETPLACE }}
+          plugins: |
+            ${{ env.SPEX_PLUGIN }}
+            ${{ env.SUPERPOWERS_PLUGIN }}
           additional_permissions: |
             actions: read
 
-  # Label "brainstorm" → run /spex:brainstorm, then swap to "ship" label
+  # Label "spex:brainstorm" → kick off brainstorm dialogue via issue comment
   brainstorm:
     if: |
       github.event_name == 'issues' &&
@@ -48,8 +57,8 @@ jobs:
       github.event.label.name == 'spex:brainstorm'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
+      pull-requests: read
       issues: write
       id-token: write
       actions: read
@@ -57,25 +66,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Run spex:brainstorm
+      - name: Start brainstorm dialogue
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: ${{ env.SPEX_MARKETPLACE }}
+          plugins: |
+            ${{ env.SPEX_PLUGIN }}
+            ${{ env.SUPERPOWERS_PLUGIN }}
           additional_permissions: |
             actions: read
           prompt: |
-            Run /spex:brainstorm for the following issue. Write the brainstorm output to specs/ directory.
-            When brainstorm is complete, use gh to remove the "brainstorm" label and add the "ship" label:
-              gh issue edit ${{ github.event.issue.number }} --remove-label "spex:brainstorm" --add-label "spex:ship"
+            Start /spex:brainstorm for the following issue.
+            This is an interactive process — post your questions and proposals as comments on this issue.
+            The user will reply via issue comments, and you will continue the dialogue via @claude mentions.
+
+            When you have enough information to write a solid spec, tell the user:
+            "Brainstorm complete. Add the `spex:ship` label to start autonomous implementation."
 
             Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
 
             ${{ github.event.issue.body }}
 
-  # Label "ship" → run /spex:ship, then swap to "done" label and close
+  # Label "spex:ship" → run full autonomous pipeline (specify → stamp), create PR
   ship:
     if: |
       github.event_name == 'issues' &&
@@ -99,15 +115,22 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: ${{ env.SPEX_MARKETPLACE }}
+          plugins: |
+            ${{ env.SPEX_PLUGIN }}
+            ${{ env.SUPERPOWERS_PLUGIN }}
           additional_permissions: |
             actions: read
           prompt: |
-            Run /spex:ship --ask smart --create-pr for issue #${{ github.event.issue.number }}.
-            Use the brainstorm/spec artifacts already in the specs/ directory for this issue.
-            When ship completes and the PR is created, use gh to:
+            First, read the full conversation history on this issue to gather brainstorm context:
+              gh issue view ${{ github.event.issue.number }} --comments
+
+            Then run /spex:ship --ask never --create-pr for issue #${{ github.event.issue.number }}.
+            Use the issue description AND the brainstorm dialogue from the comments to inform the specification.
+
+            When ship completes and the PR is created:
               gh issue edit ${{ github.event.issue.number }} --remove-label "spex:ship" --add-label "done"
 
             Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
 
             ${{ github.event.issue.body }}
-
