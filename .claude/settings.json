@@ -24,5 +24,9 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "spex@cc-rhuss-marketplace": true,
+    "superpowers@claude-plugins-official": true
   }
 }
