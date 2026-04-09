@@ -5,11 +5,15 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Write|Edit",
+        "matcher": "Write|Edit|MultiEdit",
         "hooks": [
           {
             "type": "command",
             "command": "bun x ultracite fix"
+          },
+          {
+            "type": "command",
+            "command": "bun run release:validate-local"
           }
         ]
       }
@@ -20,6 +24,10 @@
           {
             "type": "command",
             "command": "bun run test"
+          },
+          {
+            "type": "command",
+            "command": "bun run release:validate-local --staged"
           }
         ]
       }

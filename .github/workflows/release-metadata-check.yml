@@ -1,0 +1,32 @@
+name: Release Metadata Check
+
+on:
+  pull_request:
+    branches: [main, staging]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate staging release metadata
+        if: github.base_ref == 'staging'
+        run: bun run release:validate --mode staging-pr --base-ref origin/${{ github.base_ref }} --head-ref HEAD --head-branch ${{ github.head_ref }}
+
+      - name: Validate main release preparation
+        if: github.base_ref == 'main'
+        run: bun run release:validate --mode main-pr --base-ref origin/${{ github.base_ref }} --head-ref HEAD --head-branch ${{ github.head_ref }}

@@ -23,6 +23,7 @@
     "dev": "bun run --filter '*' dev",
     "build": "bun run --filter '*' build",
     "check-types": "bun run --filter '*' check-types",
+    "check-types:root": "tsc --noEmit",
     "dev:web": "bun run --filter web dev",
     "dev:server": "bun run --filter server dev",
     "db:studio": "bun run --filter @sapphire2/db db:studio",
@@ -34,6 +35,10 @@
     "test:ci": "vitest run --reporter=verbose",
     "check": "ultracite check",
     "fix": "ultracite fix",
+    "release:validate": "bun run ./scripts/releases/validate.ts",
+    "release:validate-local": "bun run ./scripts/releases/validate-local.ts",
+    "release:prepare-main-pr": "bun run ./scripts/releases/prepare-main-pr.ts",
+    "release:publish": "bun run ./scripts/releases/publish.ts",
     "prepare": "husky"
   },
   "dependencies": {

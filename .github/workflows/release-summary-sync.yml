@@ -1,0 +1,60 @@
+name: Release Summary Sync
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  sync:
+    if: github.head_ref == 'staging' || startsWith(github.head_ref, 'hotfix/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Prepare release summary
+        run: bun run release:prepare-main-pr --base-ref origin/${{ github.base_ref }} --head-ref HEAD
+
+      - name: Commit generated release assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            exit 0
+          fi
+          git add .release apps/web/public/release-notes
+          git commit -m "chore: sync release summary"
+          git push origin HEAD:${{ github.head_ref }}
+
+      - name: Render pull request summary
+        run: bun run ./scripts/releases/render-markdown.ts --target pr --output "$RUNNER_TEMP/pr-body.md"
+
+      - name: Update pull request body
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require("node:fs");
+            const body = fs.readFileSync(`${process.env.RUNNER_TEMP}/pr-body.md`, "utf8");
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              body,
+            });

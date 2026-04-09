@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth-client";
 import { AuthenticatedShell } from "@/shared/components/authenticated-shell";
+import { ReleaseNotesGate } from "@/shared/components/release-notes-gate";
 import { ThemeProvider } from "@/shared/components/theme-provider";
 import { Toaster } from "@/shared/components/ui/sonner";
 import type { trpc } from "@/utils/trpc";
@@ -67,7 +68,10 @@ export function RootComponent() {
 					<Outlet />
 				) : (
 					<AuthenticatedShell>
-						<Outlet />
+						<>
+							<Outlet />
+							<ReleaseNotesGate />
+						</>
 					</AuthenticatedShell>
 				)}
 				<Toaster position="top-right" richColors />

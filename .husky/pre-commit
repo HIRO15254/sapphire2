@@ -1,3 +1,6 @@
+echo "Validating release metadata..."
+bun run release:validate-local --staged
+
 bun run test
 
 # Auto-stage routeTree.gen.ts if it has unstaged changes
