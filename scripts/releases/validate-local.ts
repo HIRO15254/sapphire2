@@ -1,3 +1,5 @@
+declare const Bun: typeof import("bun");
+
 import {
 	latestReleaseNotesPath,
 	parseArgs,

@@ -24,7 +24,9 @@ async function main() {
 
 	if (mode === "staging-pr") {
 		const pendingFiles = changedFiles
-			.filter((entry) => entry.status !== "D" && isPendingMetadataPath(entry.path))
+			.filter(
+				(entry) => entry.status !== "D" && isPendingMetadataPath(entry.path)
+			)
 			.map((entry) => entry.path);
 
 		if (pendingFiles.length !== 1) {
@@ -33,7 +35,12 @@ async function main() {
 			);
 		}
 
-		await readReleaseMetadata(pendingFiles[0]!);
+		const pendingFile = pendingFiles[0];
+		if (!pendingFile) {
+			throw new Error("Missing pending release metadata file");
+		}
+
+		await readReleaseMetadata(pendingFile);
 		return;
 	}
 
@@ -42,10 +49,16 @@ async function main() {
 	}
 
 	if (headBranch !== "staging" && !headBranch.startsWith("hotfix/")) {
-		throw new Error("PRs into main must come from staging or hotfix/* branches");
+		throw new Error(
+			"PRs into main must come from staging or hotfix/* branches"
+		);
 	}
 
-	const requiredChangedFiles = [summaryPath, versionPath, latestReleaseNotesPath];
+	const requiredChangedFiles = [
+		summaryPath,
+		versionPath,
+		latestReleaseNotesPath,
+	];
 	const diffPaths = new Set(changedFiles.map((entry) => entry.path));
 
 	for (const filePath of requiredChangedFiles) {
@@ -64,11 +77,15 @@ async function main() {
 	);
 
 	if (summary.nextVersion !== version.version) {
-		throw new Error("Summary nextVersion and .release/version.json do not match");
+		throw new Error(
+			"Summary nextVersion and .release/version.json do not match"
+		);
 	}
 
 	if (summary.nextVersion !== latestNotes.version) {
-		throw new Error("Summary nextVersion and latest release notes do not match");
+		throw new Error(
+			"Summary nextVersion and latest release notes do not match"
+		);
 	}
 
 	if (summary.entries.length === 0) {

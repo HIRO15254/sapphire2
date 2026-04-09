@@ -68,10 +68,10 @@ export function RootComponent() {
 					<Outlet />
 				) : (
 					<AuthenticatedShell>
-						<>
+						<div>
 							<Outlet />
 							<ReleaseNotesGate />
-						</>
+						</div>
 					</AuthenticatedShell>
 				)}
 				<Toaster position="top-right" richColors />

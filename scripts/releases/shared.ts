@@ -1,3 +1,5 @@
+declare const Bun: typeof import("bun");
+
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -6,9 +8,12 @@ import { z } from "zod";
 export const pendingDirectory = ".release/pending";
 export const summaryPath = ".release/summary/next-release.json";
 export const versionPath = ".release/version.json";
-export const latestReleaseNotesPath = "apps/web/public/release-notes/latest.json";
+export const latestReleaseNotesPath =
+	"apps/web/public/release-notes/latest.json";
 export const versionedReleaseNotesDirectory =
 	"apps/web/public/release-notes/versions";
+const whitespacePattern = /\s+/;
+const releaseTitleHeadingPattern = /^# Release .*$/m;
 
 const releaseChangeSchema = z.object({
 	type: z.enum(["major", "minor", "fix"]),
@@ -145,7 +150,7 @@ export async function getDiffNameStatus(baseRef: string, headRef: string) {
 		.map((line) => line.trim())
 		.filter(Boolean)
 		.map((line) => {
-			const [status, ...rest] = line.split(/\s+/);
+			const [status, ...rest] = line.split(whitespacePattern);
 			return {
 				status,
 				path: rest.join(" ").replaceAll("\\", "/"),
@@ -219,9 +224,7 @@ export function bumpVersion(
 	baseVersion: string,
 	entries: ReleaseMetadata[]
 ): string {
-	const [major = 0, minor = 0, patch = 0] = baseVersion
-		.split(".")
-		.map(Number);
+	const [major = 0, minor = 0, patch = 0] = baseVersion.split(".").map(Number);
 	const highestType = getHighestReleaseType(entries);
 
 	if (highestType === "major") {
@@ -233,18 +236,18 @@ export function bumpVersion(
 	return `${major}.${minor}.${patch + 1}`;
 }
 
-export async function readReleaseMetadata(filePath: string) {
+export function readReleaseMetadata(filePath: string) {
 	return readJsonFile(filePath, releaseMetadataSchema);
 }
 
-export async function readSummaryIfExists() {
+export function readSummaryIfExists() {
 	if (!existsSync(resolve(summaryPath))) {
 		return null;
 	}
 	return readJsonFile(summaryPath, releaseSummarySchema);
 }
 
-export async function readVersionIfExists() {
+export function readVersionIfExists() {
 	if (!existsSync(resolve(versionPath))) {
 		return null;
 	}
@@ -266,7 +269,9 @@ export function createSummary(
 	};
 }
 
-export function createPublicReleaseNotes(summary: ReleaseSummary): PublicReleaseNotes {
+export function createPublicReleaseNotes(
+	summary: ReleaseSummary
+): PublicReleaseNotes {
 	return {
 		version: summary.nextVersion,
 		releasedAt: summary.generatedAt,
@@ -284,7 +289,9 @@ export function buildReleaseMarkdown(summary: ReleaseSummary) {
 	];
 
 	for (const scope of ["user", "developer"] as const) {
-		sections.push(`## ${scope === "user" ? "User impact" : "Developer impact"}`);
+		sections.push(
+			`## ${scope === "user" ? "User impact" : "Developer impact"}`
+		);
 		sections.push("");
 
 		const items = summary.changes[scope];
@@ -308,10 +315,13 @@ export function buildReleaseMarkdown(summary: ReleaseSummary) {
 
 export function buildPullRequestBody(summary: ReleaseSummary) {
 	return [
-		`## Release Summary`,
+		"## Release Summary",
 		"",
 		`This PR prepares release \`v${summary.nextVersion}\` from base \`${summary.baseVersion}\`.`,
 		"",
-		buildReleaseMarkdown(summary).replace(/^# Release .*$/m, "### Notes"),
+		buildReleaseMarkdown(summary).replace(
+			releaseTitleHeadingPattern,
+			"### Notes"
+		),
 	].join("\n");
 }

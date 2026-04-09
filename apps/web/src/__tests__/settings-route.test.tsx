@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentType } from "react";
@@ -35,6 +36,22 @@ vi.mock("@/lib/auth-client", () => ({
 
 let routeModule: typeof import("@/routes/settings");
 
+function renderWithQueryClient(Component: ComponentType) {
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				retry: false,
+			},
+		},
+	});
+
+	return render(
+		<QueryClientProvider client={queryClient}>
+			<Component />
+		</QueryClientProvider>
+	);
+}
+
 describe("SettingsComponent", () => {
 	beforeAll(async () => {
 		routeModule = await import("@/routes/settings");
@@ -53,7 +70,7 @@ describe("SettingsComponent", () => {
 	it("renders the page header and section helper text", () => {
 		const Component = routeModule.Route.options.component as ComponentType;
 
-		render(<Component />);
+		renderWithQueryClient(Component);
 
 		expect(
 			screen.getByRole("heading", { name: "Settings" })
@@ -72,7 +89,7 @@ describe("SettingsComponent", () => {
 		const user = userEvent.setup();
 		const Component = routeModule.Route.options.component as ComponentType;
 
-		render(<Component />);
+		renderWithQueryClient(Component);
 
 		await user.click(screen.getByRole("button", { name: "Sign Out" }));
 

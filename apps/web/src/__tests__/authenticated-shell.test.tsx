@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -62,6 +63,20 @@ vi.mock("@/live-sessions/hooks/use-stack-sheet", () => ({
 	),
 }));
 
+function renderWithQueryClient(children: ReactNode) {
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: {
+				retry: false,
+			},
+		},
+	});
+
+	return render(
+		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+	);
+}
+
 describe("AuthenticatedShell", () => {
 	it("renders the authenticated navigation shell", () => {
 		render(
@@ -81,7 +96,7 @@ describe("AuthenticatedShell", () => {
 
 describe("RootComponent", () => {
 	it("renders the authenticated shell away from login", () => {
-		render(<RootComponent />);
+		renderWithQueryClient(<RootComponent />);
 
 		expect(screen.getByText("Sidebar Nav")).toBeInTheDocument();
 		expect(screen.getByText("Outlet Content")).toBeInTheDocument();
@@ -90,7 +105,7 @@ describe("RootComponent", () => {
 	it("skips the authenticated shell on /login", () => {
 		mocks.useLocation.mockReturnValue({ pathname: "/login" });
 
-		render(<RootComponent />);
+		renderWithQueryClient(<RootComponent />);
 
 		expect(screen.queryByText("Sidebar Nav")).not.toBeInTheDocument();
 		expect(screen.getByText("Outlet Content")).toBeInTheDocument();

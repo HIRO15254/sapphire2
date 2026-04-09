@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { IconLogout } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { TransactionTypeManager } from "@/currencies/components/transaction-type-manager";
 import { authClient } from "@/lib/auth-client";
 import {
@@ -27,6 +27,15 @@ function SettingsComponent() {
 		queryFn: fetchLatestReleaseNotes,
 		retry: false,
 	});
+	let releaseNotesStatus: string;
+
+	if (latestReleaseNotesQuery.data) {
+		releaseNotesStatus = `Latest version: v${latestReleaseNotesQuery.data.version}`;
+	} else if (latestReleaseNotesQuery.isError) {
+		releaseNotesStatus = "Release notes are temporarily unavailable.";
+	} else {
+		releaseNotesStatus = "Loading release notes...";
+	}
 
 	return (
 		<div className="container mx-auto max-w-3xl px-4 py-2">
@@ -80,13 +89,7 @@ function SettingsComponent() {
 				>
 					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div className="text-muted-foreground text-sm">
-							{latestReleaseNotesQuery.data ? (
-								<span>Latest version: v{latestReleaseNotesQuery.data.version}</span>
-							) : latestReleaseNotesQuery.isError ? (
-								<span>Release notes are temporarily unavailable.</span>
-							) : (
-								<span>Loading release notes...</span>
-							)}
+							{releaseNotesStatus}
 						</div>
 						<Button
 							disabled={!latestReleaseNotesQuery.data}

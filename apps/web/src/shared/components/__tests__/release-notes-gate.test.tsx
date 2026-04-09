@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ReleaseNotesGate } from "@/shared/components/release-notes-gate";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { lastSeenReleaseVersionStorageKey } from "@/lib/release-notes";
+import { ReleaseNotesGate } from "@/shared/components/release-notes-gate";
 
 vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	ResponsiveDialog: ({
@@ -84,7 +85,9 @@ describe("ReleaseNotesGate", () => {
 		render(<ReleaseNotesGate />, { wrapper });
 
 		await waitFor(() => {
-			expect(screen.queryByText("What's new in v1.2.0")).not.toBeInTheDocument();
+			expect(
+				screen.queryByText("What's new in v1.2.0")
+			).not.toBeInTheDocument();
 		});
 	});
 });

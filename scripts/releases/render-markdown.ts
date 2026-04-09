@@ -15,14 +15,12 @@ async function main() {
 	const output = assertStringArg(args, "output");
 	const target = assertStringArg(args, "target");
 	const summary = await readJsonFile(summaryPath, releaseSummarySchema);
-	const markdown =
-		target === "pr"
-			? buildPullRequestBody(summary)
-			: target === "release"
-				? buildReleaseMarkdown(summary)
-				: null;
-
-	if (!markdown) {
+	let markdown: string;
+	if (target === "pr") {
+		markdown = buildPullRequestBody(summary);
+	} else if (target === "release") {
+		markdown = buildReleaseMarkdown(summary);
+	} else {
 		throw new Error(`Unsupported render target: ${target}`);
 	}
 
