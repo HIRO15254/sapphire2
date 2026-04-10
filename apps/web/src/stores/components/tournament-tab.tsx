@@ -47,6 +47,7 @@ interface TournamentActionHandlers {
 }
 
 interface TournamentListProps extends TournamentActionHandlers {
+	currencies: { id: string; name: string; unit?: string | null }[];
 	expandedGameId: string | null;
 	isArchived: boolean;
 	onToggleGame: (id: string | null) => void;
@@ -55,6 +56,7 @@ interface TournamentListProps extends TournamentActionHandlers {
 
 function TournamentList({
 	tournaments,
+	currencies,
 	expandedGameId,
 	isArchived,
 	onToggleGame,
@@ -75,6 +77,7 @@ function TournamentList({
 		>
 			{tournaments.map((t) => (
 				<TournamentRow
+					currencies={currencies}
 					expanded={expandedGameId === t.id}
 					isArchived={isArchived}
 					key={t.id}
@@ -87,6 +90,7 @@ function TournamentList({
 }
 
 interface ArchivedTournamentSectionProps extends TournamentActionHandlers {
+	currencies: { id: string; name: string; unit?: string | null }[];
 	expandedGameId: string | null;
 	isLoading: boolean;
 	onToggleGame: (id: string | null) => void;
@@ -95,6 +99,7 @@ interface ArchivedTournamentSectionProps extends TournamentActionHandlers {
 
 function ArchivedTournamentSection({
 	tournaments,
+	currencies,
 	expandedGameId,
 	isLoading,
 	onToggleGame,
@@ -113,6 +118,7 @@ function ArchivedTournamentSection({
 	return (
 		<div className="mt-1 border-t border-dashed pt-1">
 			<TournamentList
+				currencies={currencies}
 				expandedGameId={expandedGameId}
 				isArchived
 				onToggleGame={onToggleGame}
@@ -127,6 +133,7 @@ interface TournamentContentProps extends TournamentActionHandlers {
 	activeTournaments: Tournament[];
 	archivedLoading: boolean;
 	archivedTournaments: Tournament[];
+	currencies: { id: string; name: string; unit?: string | null }[];
 	expandedGameId: string | null;
 	isLoading: boolean;
 	onToggleGame: (id: string | null) => void;
@@ -137,6 +144,7 @@ function TournamentContent({
 	activeTournaments,
 	archivedLoading,
 	archivedTournaments,
+	currencies,
 	expandedGameId,
 	isLoading,
 	onToggleGame,
@@ -157,6 +165,7 @@ function TournamentContent({
 				<ManagementSectionState>No tournaments yet.</ManagementSectionState>
 			)}
 			<TournamentList
+				currencies={currencies}
 				expandedGameId={expandedGameId}
 				isArchived={false}
 				onToggleGame={onToggleGame}
@@ -165,6 +174,7 @@ function TournamentContent({
 			/>
 			{showArchived && (
 				<ArchivedTournamentSection
+					currencies={currencies}
 					expandedGameId={expandedGameId}
 					isLoading={archivedLoading}
 					onToggleGame={onToggleGame}
@@ -176,18 +186,23 @@ function TournamentContent({
 	);
 }
 
-function formatBuyInShort(t: Tournament): string {
+function formatBuyInShort(
+	t: Tournament,
+	currencyUnit: string | null | undefined
+): string {
 	if (t.buyIn == null) {
 		return "";
 	}
 	const fmt = createGroupFormatter([t.buyIn, t.entryFee]);
+	const unitStr = currencyUnit ? ` ${currencyUnit}` : "";
 	if (t.entryFee != null) {
-		return `${fmt(t.buyIn)}+${fmt(t.entryFee)}`;
+		return `${fmt(t.buyIn)}+${fmt(t.entryFee)}${unitStr}`;
 	}
-	return fmt(t.buyIn);
+	return `${fmt(t.buyIn)}${unitStr}`;
 }
 
 interface TournamentRowProps {
+	currencies: { id: string; name: string; unit?: string | null }[];
 	expanded: boolean;
 	isArchived: boolean;
 	onArchive: (id: string) => void;
@@ -199,6 +214,7 @@ interface TournamentRowProps {
 
 function TournamentRow({
 	tournament,
+	currencies,
 	expanded,
 	isArchived,
 	onArchive,
@@ -208,7 +224,8 @@ function TournamentRow({
 }: TournamentRowProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [blindEditorOpen, setBlindEditorOpen] = useState(false);
-	const buyInStr = formatBuyInShort(tournament);
+	const currency = currencies.find((c) => c.id === tournament.currencyId);
+	const buyInStr = formatBuyInShort(tournament, currency?.unit);
 
 	useEffect(() => {
 		if (!expanded) {
@@ -555,6 +572,7 @@ export function TournamentTab({
 	const {
 		activeTournaments,
 		archivedTournaments,
+		currencies,
 		activeLoading,
 		archivedLoading,
 		isCreatePending,
@@ -625,6 +643,7 @@ export function TournamentTab({
 				activeTournaments={activeTournaments}
 				archivedLoading={archivedLoading}
 				archivedTournaments={archivedTournaments}
+				currencies={currencies}
 				expandedGameId={expandedGameId}
 				isLoading={activeLoading}
 				onArchive={archive}

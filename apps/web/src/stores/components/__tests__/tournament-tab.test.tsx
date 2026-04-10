@@ -89,6 +89,11 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
+		currency: {
+			list: {
+				queryOptions: () => ({ queryKey: ["currency"] }),
+			},
+		},
 		tournament: {
 			listByStore: {
 				queryOptions: ({
