@@ -157,7 +157,7 @@ export function NavigationCenterButton({
 						: "bg-primary text-primary-foreground hover:bg-primary/90"
 				)}
 			>
-				<Icon size={44} stroke={2} />
+				<Icon className="size-11" size={44} stroke={2} />
 			</div>
 			<span
 				className={cn(
