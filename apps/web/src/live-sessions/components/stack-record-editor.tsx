@@ -39,7 +39,6 @@ interface StackRecordEditorProps {
 	isLoading: boolean;
 	maxTime?: Date | null;
 	minTime?: Date | null;
-	onDelete: () => void;
 	onSubmit: (payload: StackRecordPayload, occurredAt?: number) => void;
 }
 
@@ -49,7 +48,6 @@ export function StackRecordEditor({
 	isLoading,
 	maxTime,
 	minTime,
-	onDelete,
 	onSubmit,
 }: StackRecordEditorProps) {
 	const [stackAmount, setStackAmount] = useState(
@@ -172,7 +170,6 @@ export function StackRecordEditor({
 
 			<StackEditorActionRow
 				isLoading={isLoading}
-				onDelete={onDelete}
 				onSave={handleSave}
 				saveDisabled={timeError !== null}
 			/>
