@@ -151,13 +151,13 @@ export function NavigationCenterButton({
 		>
 			<div
 				className={cn(
-					"flex size-12 translate-y-1 items-center justify-center rounded-full shadow-lg transition-colors",
+					"flex size-16 -translate-y-4 items-center justify-center rounded-full shadow-lg transition-colors",
 					isLive
 						? "bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
 						: "bg-primary text-primary-foreground hover:bg-primary/90"
 				)}
 			>
-				<Icon size={24} stroke={2} />
+				<Icon size={30} stroke={2} />
 			</div>
 			<span
 				className={cn(
