@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import {
 	TAG_COLOR_NAMES,
 	TAG_COLORS,
@@ -18,7 +19,12 @@ export function TagColorPicker({ value, onChange }: TagColorPickerProps) {
 		>
 			{TAG_COLOR_NAMES.map((color) => (
 				<label
-					className={`block h-7 w-7 cursor-pointer rounded-full transition-transform ${TAG_COLORS[color].swatch}${value === color ? "scale-110 ring-2 ring-white ring-offset-2 dark:ring-offset-gray-900" : ""}`}
+					className={cn(
+						"block h-7 w-7 cursor-pointer rounded-full transition-transform",
+						TAG_COLORS[color].swatch,
+						value === color &&
+							"scale-110 ring-2 ring-white ring-offset-2 dark:ring-offset-gray-900"
+					)}
 					key={color}
 				>
 					<input
