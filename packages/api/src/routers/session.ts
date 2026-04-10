@@ -842,6 +842,7 @@ export const sessionRouter = router({
 					storeName: store.name,
 					ringGameId: pokerSession.ringGameId,
 					ringGameName: ringGame.name,
+					ringGameBlind2: ringGame.blind2,
 					tournamentId: pokerSession.tournamentId,
 					tournamentName: tournament.name,
 					currencyId: pokerSession.currencyId,

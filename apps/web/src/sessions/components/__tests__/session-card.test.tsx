@@ -37,6 +37,7 @@ function makeCashGameSession(
 		memo: null,
 		storeId: null,
 		storeName: null,
+		ringGameBlind2: null,
 		ringGameId: null,
 		ringGameName: "NLH 1/2",
 		tournamentId: null,
@@ -79,6 +80,7 @@ function makeTournamentSession(
 		memo: null,
 		storeId: null,
 		storeName: null,
+		ringGameBlind2: null,
 		ringGameId: null,
 		ringGameName: null,
 		tournamentId: null,
@@ -238,6 +240,222 @@ describe("SessionCard", () => {
 		await user.click(screen.getByLabelText("Confirm delete"));
 
 		expect(onDelete).toHaveBeenCalledWith("s1");
+	});
+
+	it("displays BB P&L for cash game when bbBiMode is true", () => {
+		const session = makeCashGameSession({
+			ringGameBlind2: 200,
+			profitLoss: 5000,
+		});
+		render(
+			<SessionCard
+				bbBiMode={true}
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				session={session}
+			/>
+		);
+
+		expect(screen.getByText("+25.0 BB")).toBeInTheDocument();
+	});
+
+	it("displays EV P&L in BB when bbBiMode is true", () => {
+		const session = makeCashGameSession({
+			ringGameBlind2: 200,
+			evCashOut: 13_000,
+			evProfitLoss: 3000,
+			evDiff: -2000,
+		});
+		render(
+			<SessionCard
+				bbBiMode={true}
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				session={session}
+			/>
+		);
+
+		expect(screen.getByText("+15.0 BB")).toBeInTheDocument();
+	});
+
+	it("displays BI P&L for tournament when bbBiMode is true", () => {
+		const session = makeTournamentSession({
+			tournamentBuyIn: 5000,
+			entryFee: 500,
+			profitLoss: 14_000,
+			rebuyCount: 0,
+			rebuyCost: 0,
+			addonCost: 0,
+		});
+		render(
+			<SessionCard
+				bbBiMode={true}
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				session={session}
+			/>
+		);
+
+		// 14000 / (5000 + 500) = 2.5 (rounded to 1 decimal: 2.5)
+		expect(screen.getByText("+2.5 BI")).toBeInTheDocument();
+	});
+
+	it("falls back to chip value when bbBiMode is true but blind2 is null", () => {
+		const session = makeCashGameSession({
+			ringGameBlind2: null,
+			profitLoss: 5000,
+		});
+		render(
+			<SessionCard
+				bbBiMode={true}
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				session={session}
+			/>
+		);
+
+		expect(screen.getByText("+5,000")).toBeInTheDocument();
+	});
+
+	it("falls back to chip value when bbBiMode is true but blind2 is 0", () => {
+		const session = makeCashGameSession({
+			ringGameBlind2: 0,
+			profitLoss: 5000,
+		});
+		render(
+			<SessionCard
+				bbBiMode={true}
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				session={session}
+			/>
+		);
+
+		expect(screen.getByText("+5,000")).toBeInTheDocument();
+	});
+
+	it("falls back to chip value when bbBiMode is true but tournament totalCost is 0", () => {
+		const session = makeTournamentSession({
+			tournamentBuyIn: 0,
+			entryFee: 0,
+			rebuyCount: 0,
+			rebuyCost: 0,
+			addonCost: 0,
+			profitLoss: 14_000,
+		});
+		render(
+			<SessionCard
+				bbBiMode={true}
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				session={session}
+			/>
+		);
+
+		expect(screen.getByText("+14k")).toBeInTheDocument();
+	});
+
+	it("displays chip values when bbBiMode is false", () => {
+		const session = makeCashGameSession({
+			ringGameBlind2: 200,
+			profitLoss: 5000,
+		});
+		render(
+			<SessionCard
+				bbBiMode={false}
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				session={session}
+			/>
+		);
+
+		expect(screen.getByText("+5,000")).toBeInTheDocument();
+	});
+
+	it("displays Buy-in and Cash-out in BB in expanded view when bbBiMode is true", async () => {
+		const user = userEvent.setup();
+		const session = makeCashGameSession({
+			ringGameBlind2: 200,
+			buyIn: 10_000,
+			cashOut: 15_000,
+		});
+		render(
+			<SessionCard
+				bbBiMode={true}
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				session={session}
+			/>
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+
+		expect(screen.getByText("50.0 BB")).toBeInTheDocument();
+		expect(screen.getByText("75.0 BB")).toBeInTheDocument();
+	});
+
+	it("displays EV Cash-out in BB in expanded view when bbBiMode is true", async () => {
+		const user = userEvent.setup();
+		const session = makeCashGameSession({
+			ringGameBlind2: 200,
+			buyIn: 10_000,
+			cashOut: 15_000,
+			evCashOut: 16_000,
+			evProfitLoss: 6000,
+			evDiff: 1000,
+		});
+		render(
+			<SessionCard
+				bbBiMode={true}
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				session={session}
+			/>
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+
+		expect(screen.getByText("80.0 BB")).toBeInTheDocument();
+	});
+
+	it("does not convert tournament detail values in bbBiMode", async () => {
+		const user = userEvent.setup();
+		const session = makeTournamentSession();
+		render(
+			<SessionCard
+				bbBiMode={true}
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				session={session}
+			/>
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+
+		// tournamentBuyIn=5000 → formatCompactNumber(5000) = "5,000" (threshold is 10k)
+		expect(screen.getByText("5,000")).toBeInTheDocument();
+	});
+
+	it("displays chip values in expanded view when bbBiMode is true but blind2 is null", async () => {
+		const user = userEvent.setup();
+		const session = makeCashGameSession({
+			ringGameBlind2: null,
+			buyIn: 10_000,
+			cashOut: 15_000,
+		});
+		render(
+			<SessionCard
+				bbBiMode={true}
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				session={session}
+			/>
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+
+		expect(screen.getByText("10k")).toBeInTheDocument();
+		expect(screen.getByText("15k")).toBeInTheDocument();
 	});
 
 	it("shows events and reopen actions for live sessions", async () => {

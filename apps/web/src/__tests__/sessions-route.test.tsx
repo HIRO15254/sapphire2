@@ -157,6 +157,23 @@ describe("SessionsPage", () => {
 		expect(screen.getByText("Session Filters")).toBeInTheDocument();
 	});
 
+	it("renders BB/BI toggle switch", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		expect(screen.getByLabelText("BB/BI")).toBeInTheDocument();
+	});
+
+	it("renders BB/BI toggle off by default", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		const toggle = screen.getByRole("switch");
+		expect(toggle).not.toBeChecked();
+	});
+
 	it("renders the populated vertical list", () => {
 		const Component = routeModule.Route.options.component as ComponentType;
 

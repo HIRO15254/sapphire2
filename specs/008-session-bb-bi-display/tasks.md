@@ -21,11 +21,11 @@
 
 **⚠️ CRITICAL**: Phase 1 が完了するまで US1-5 の実装タスクは開始不可。
 
-- [ ] T001 [P] `session.list` のSELECTに `ringGameBlind2: ringGame.blind2` を追加する `packages/api/src/routers/session.ts`（既存の `ringGameName: ringGame.name` の直後に追加。`itemsWithPL` の map 内でそのまま spread されるため、追加のマッピング不要）
+- [x] T001 [P] `session.list` のSELECTに `ringGameBlind2: ringGame.blind2` を追加する `packages/api/src/routers/session.ts`（既存の `ringGameName: ringGame.name` の直後に追加。`itemsWithPL` の map 内でそのまま spread されるため、追加のマッピング不要）
 
-- [ ] T002 [P] `SessionItem` インターフェースに `ringGameBlind2: number | null` フィールドを追加する `apps/web/src/sessions/hooks/use-sessions.ts`（`ringGameName` の直後に追加。`buildOptimisticItem` 関数内の初期値にも `ringGameBlind2: null` を追加）
+- [x] T002 [P] `SessionItem` インターフェースに `ringGameBlind2: number | null` フィールドを追加する `apps/web/src/sessions/hooks/use-sessions.ts`（`ringGameName` の直後に追加。`buildOptimisticItem` 関数内の初期値にも `ringGameBlind2: null` を追加）
 
-- [ ] T003 [P] shadcn/ui `Switch` コンポーネントを追加する `apps/web/src/shared/components/ui/switch.tsx`（`bunx --bun shadcn@latest add switch` を実行。実行後にファイルが正しく生成されたことを確認し、`bun x ultracite fix` でフォーマット修正）
+- [x] T003 [P] shadcn/ui `Switch` コンポーネントを追加する `apps/web/src/shared/components/ui/switch.tsx`（`bunx --bun shadcn@latest add switch` を実行。実行後にファイルが正しく生成されたことを確認し、`bun x ultracite fix` でフォーマット修正）
 
 **Checkpoint**: APIが `ringGameBlind2` を返却し、フロントエンド型が更新され、Switch コンポーネントが利用可能 → Phase 2 へ進む
 
@@ -41,7 +41,7 @@
 
 > **NOTE: T004-T005 のテストを実装（T006-T009）の前に作成し、テストが FAIL することを確認してから実装へ進む**
 
-- [ ] T004 [P] [US1/US2/US3] `SessionCard` の BB/BI 表示テストを追加する `apps/web/src/sessions/components/__tests__/session-card.test.tsx`（既存の `makeCashGameSession` と `makeTournamentSession` ヘルパーに `ringGameBlind2: null` フィールドを追加。以下のテストケースを追加:
+- [x] T004 [P] [US1/US2/US3] `SessionCard` の BB/BI 表示テストを追加する `apps/web/src/sessions/components/__tests__/session-card.test.tsx`（既存の `makeCashGameSession` と `makeTournamentSession` ヘルパーに `ringGameBlind2: null` フィールドを追加。以下のテストケースを追加:
   ① bbBiMode=true で blind2=200, profitLoss=5000 のCash Game → ヘッダーに `+25.0 BB` が表示される
   ② bbBiMode=true で evProfitLoss=3000, blind2=200 のCash Game → EV表示が `+15.0 BB` になる
   ③ bbBiMode=true で tournamentBuyIn=5000, entryFee=500, profitLoss=14000 のTourney → ヘッダーに `+2.5 BI` が表示される（14000/5500=2.5）
@@ -50,11 +50,11 @@
   ⑥ bbBiMode=true で tournamentBuyIn=0, entryFee=0 のTourney → 通常のチップ値が表示される（フォールバック）
   ⑦ bbBiMode=false のとき → 全セッションが通常のチップ値で表示される）
 
-- [ ] T005 [P] [US4] セッション一覧ルートのトグル表示テストを追加する `apps/web/src/__tests__/sessions-route.test.tsx`（既存テストファイルに追加。BB/BI トグルの Switch がレンダリングされること、デフォルトでオフであることを検証。可能であればトグルオン時にSessionCardに bbBiMode=true が渡されることも検証）
+- [x] T005 [P] [US4] セッション一覧ルートのトグル表示テストを追加する `apps/web/src/__tests__/sessions-route.test.tsx`（既存テストファイルに追加。BB/BI トグルの Switch がレンダリングされること、デフォルトでオフであることを検証。可能であればトグルオン時にSessionCardに bbBiMode=true が渡されることも検証）
 
 ### Implementation for US1-4
 
-- [ ] T006 [US1/US2/US3] `SessionCard` コンポーネントの props に `bbBiMode: boolean` を追加し、BB/BI 変換ロジックを実装する `apps/web/src/sessions/components/session-card.tsx`（以下の変更を行う:
+- [x] T006 [US1/US2/US3] `SessionCard` コンポーネントの props に `bbBiMode: boolean` を追加し、BB/BI 変換ロジックを実装する `apps/web/src/sessions/components/session-card.tsx`（以下の変更を行う:
   ① `SessionCardProps` に `bbBiMode: boolean` を追加
   ② `SessionCardProps.session` に `ringGameBlind2: number | null` を追加
   ③ ヘルパー関数 `toBB(value: number, blind2: number | null): number | null` を追加 — blind2 が null または 0 なら null を返し、それ以外は value / blind2 を返す
@@ -66,7 +66,7 @@
   ⑨ `SessionCard` コンポーネント本体で `bbBiMode` prop を受け取り、`SessionHeader` 等に渡す）
   （T001, T002, T004 に依存）
 
-- [ ] T007 [US4] セッション一覧ルートに BB/BI トグルを追加する `apps/web/src/routes/sessions/index.tsx`（以下の変更を行う:
+- [x] T007 [US4] セッション一覧ルートに BB/BI トグルを追加する `apps/web/src/routes/sessions/index.tsx`（以下の変更を行う:
   ① `useState<boolean>(false)` で `bbBiMode` を管理
   ② `PageHeader` の `actions` 内、`SessionFilters` と `New Session` ボタンの間に `<div className="flex items-center gap-1.5"><Label htmlFor="bb-bi-switch" className="text-xs">BB/BI</Label><Switch id="bb-bi-switch" checked={bbBiMode} onCheckedChange={setBbBiMode} /></div>` を追加
   ③ `SessionCard` に `bbBiMode={bbBiMode}` prop を渡す
@@ -85,7 +85,7 @@
 
 ### Tests for US5
 
-- [ ] T008 [P] [US5] `SessionCard` の詳細部BB表示テストを追加する `apps/web/src/sessions/components/__tests__/session-card.test.tsx`（以下のテストケースを追加:
+- [x] T008 [P] [US5] `SessionCard` の詳細部BB表示テストを追加する `apps/web/src/sessions/components/__tests__/session-card.test.tsx`（以下のテストケースを追加:
   ① bbBiMode=true で blind2=200, buyIn=10000, cashOut=15000 のCash Game → 展開時に Buy-in `50.0 BB`, Cash-out `75.0 BB` が表示される
   ② bbBiMode=true で evCashOut=16000, blind2=200 のCash Game → 展開時に EV Cash-out `80.0 BB` が表示される
   ③ bbBiMode=true のTourney → 展開時の Buy-in, Entry Fee, Prize 等は通常のチップ値のまま（変換されない）
@@ -93,7 +93,7 @@
 
 ### Implementation for US5
 
-- [ ] T009 [US5] `CashGameDetails` コンポーネントに bbBiMode を反映する `apps/web/src/sessions/components/session-card.tsx`（以下の変更を行う:
+- [x] T009 [US5] `CashGameDetails` コンポーネントに bbBiMode を反映する `apps/web/src/sessions/components/session-card.tsx`（以下の変更を行う:
   ① `CashGameDetails` の props に `bbBiMode: boolean` を追加
   ② bbBiMode かつ blind2 が有効な場合、Buy-in, Cash-out, EV Cash-out の値を `toBB()` で変換し `{value.toFixed(1)} BB` 形式で表示
   ③ bbBiMode かつ blind2 が無効な場合、従来の `formatCompactNumber` でフォールバック
@@ -110,9 +110,9 @@
 
 **Purpose**: コード品質・テスト通過の最終確認
 
-- [ ] T010 [P] `bun x ultracite fix` を実行して変更ファイルのフォーマット・lint を修正する（対象: `session.ts`（API）, `use-sessions.ts`, `session-card.tsx`, `sessions/index.tsx`, `switch.tsx`, テストファイル）
-- [ ] T011 `bun run test` を実行して全テストが通過することを確認する（T010 に依存）
-- [ ] T012 `bun run check-types` を実行して型エラーがないことを確認する（T010 に依存）
+- [x] T010 [P] `bun x ultracite fix` を実行して変更ファイルのフォーマット・lint を修正する（対象: `session.ts`（API）, `use-sessions.ts`, `session-card.tsx`, `sessions/index.tsx`, `switch.tsx`, テストファイル）
+- [x] T011 `bun run test` を実行して全テストが通過することを確認する（T010 に依存）
+- [x] T012 `bun run check-types` を実行して型エラーがないことを確認する（T010 に依存）
 
 ---
 
