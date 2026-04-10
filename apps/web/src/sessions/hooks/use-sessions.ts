@@ -71,6 +71,7 @@ export interface SessionItem {
 	profitLoss: number | null;
 	rebuyCost: number | null;
 	rebuyCount: number | null;
+	ringGameBlind2: number | null;
 	ringGameId: string | null;
 	ringGameName: string | null;
 	sessionDate: string;
@@ -209,6 +210,7 @@ export function buildOptimisticItem(
 		storeId: newSession.storeId ?? null,
 		storeName: null,
 		ringGameId: null,
+		ringGameBlind2: null,
 		ringGameName: null,
 		tournamentId: null,
 		tournamentName: null,
