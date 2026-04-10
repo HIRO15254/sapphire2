@@ -20,11 +20,6 @@ export interface PlayerTagQueryItem extends PlayerTagWithColor {
 	userId: string;
 }
 
-export interface PlayerDetailValues {
-	memo?: string | null;
-	tagIds?: string[];
-}
-
 export interface PlayerDetailData {
 	id: string;
 	memo: string | null;
@@ -61,6 +56,7 @@ export function usePlayerDetail(playerId: string | null) {
 		mutationFn: (values: {
 			id: string;
 			memo?: string | null;
+			name?: string;
 			tagIds?: string[];
 		}) => trpcClient.player.update.mutate(values),
 		onMutate: async (values) => {
@@ -84,6 +80,7 @@ export function usePlayerDetail(playerId: string | null) {
 					? {
 							...old,
 							memo: values.memo ?? old.memo,
+							name: values.name ?? old.name,
 							tags: nextTags as PlayerTagWithColor[],
 						}
 					: old
@@ -96,6 +93,7 @@ export function usePlayerDetail(playerId: string | null) {
 							? {
 									...player,
 									memo: values.memo ?? player.memo,
+									name: values.name ?? player.name,
 									tags: nextTags as PlayerTagWithColor[],
 								}
 							: player

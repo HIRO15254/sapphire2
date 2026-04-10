@@ -8,9 +8,9 @@ import {
 	type TableGameInfo,
 	type TablePlayer,
 } from "@/live-sessions/components/poker-table";
+import type { PlayerFormValues } from "@/players/components/player-form";
 import type {
 	PlayerDetailData,
-	PlayerDetailValues,
 	PlayerTagWithColor,
 } from "@/players/hooks/use-player-detail";
 import { usePlayerDetail } from "@/players/hooks/use-player-detail";
@@ -46,11 +46,15 @@ export interface ActiveSessionSceneState {
 	heroSeatPosition: number | null;
 	isSavingPlayer: boolean;
 	onAddExisting: (playerId: string, playerName: string) => void;
-	onAddNew: (name: string, memo?: string) => void;
+	onAddNew: (values: {
+		memo?: string | null;
+		name: string;
+		tagIds?: string[];
+	}) => void;
 	onEmptySeatTap: (seatPosition: number) => void;
 	onHeroSeatTap: () => void;
 	onPlayerRemove: () => void;
-	onPlayerSave: (values: PlayerDetailValues) => void;
+	onPlayerSave: (values: PlayerFormValues) => void;
 	onPlayerSeatTap: (player: TablePlayer, seatPosition: number) => void;
 	playerSheetOpen: boolean;
 	players: TablePlayer[];
@@ -93,10 +97,15 @@ export function useActiveSessionSceneState({
 			}
 			tableInteraction.setAddPlayerSeat(null);
 		},
-		onAddNew: (name, memo) => {
+		onAddNew: ({ name, memo, tagIds }) => {
 			const seatPosition = tableInteraction.addPlayerSeat;
 			if (seatPosition !== null) {
-				tablePlayers.handleAddNew(name, seatPosition, memo);
+				tablePlayers.handleAddNew(
+					name,
+					seatPosition,
+					memo ?? undefined,
+					tagIds
+				);
 			}
 			tableInteraction.setAddPlayerSeat(null);
 		},
@@ -114,7 +123,9 @@ export function useActiveSessionSceneState({
 			if (tableInteraction.selectedPlayer) {
 				playerDetail.updatePlayer({
 					id: tableInteraction.selectedPlayer.playerId,
-					...values,
+					memo: values.memo,
+					name: values.name,
+					tagIds: values.tagIds,
 				});
 			}
 		},
@@ -246,9 +257,11 @@ export function ActiveSessionScene({
 			</div>
 
 			<AddPlayerSheet
+				availableTags={state.availableTags}
 				excludePlayerIds={state.excludePlayerIds}
 				onAddExisting={state.onAddExisting}
 				onAddNew={state.onAddNew}
+				onCreateTag={state.createTag}
 				onOpenChange={state.setAddPlayerSheetOpen}
 				open={state.addPlayerSheetOpen}
 			/>
