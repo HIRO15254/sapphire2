@@ -1,6 +1,7 @@
 import {
 	IconBolt,
 	IconCalendar,
+	IconClock,
 	IconList,
 	IconMapPin,
 	IconPlayerPlay,
@@ -117,15 +118,8 @@ function formatBBBI(value: number, unit: "BB" | "BI"): string {
 
 function formatDuration(startedAt: string, endedAt: string): string {
 	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
-	const hours = Math.floor(diffMs / (1000 * 60 * 60));
-	const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-	if (hours > 0 && minutes > 0) {
-		return `${hours}h ${minutes}m`;
-	}
-	if (hours > 0) {
-		return `${hours}h`;
-	}
-	return `${minutes}m`;
+	const hours = diffMs / (1000 * 60 * 60);
+	return `${hours.toFixed(1)}h`;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -382,6 +376,12 @@ function SessionHeader({
 						<IconCalendar className="shrink-0" size={12} />
 						{formatSessionDate(session.sessionDate)}
 					</span>
+					{session.startedAt && session.endedAt && (
+						<span className="flex items-center gap-0.5">
+							<IconClock className="shrink-0" size={12} />
+							{formatDuration(session.startedAt, session.endedAt)}
+						</span>
+					)}
 				</div>
 			</div>
 			<div className="flex shrink-0 flex-col items-end">
