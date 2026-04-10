@@ -359,7 +359,7 @@ function SessionHeader({
 						)}
 						{hasLiveRecording && (
 							<IconBolt
-								className="absolute -bottom-1 -right-1 text-green-500 dark:text-green-400"
+								className="absolute -right-1 -bottom-1 text-green-500 dark:text-green-400"
 								size={10}
 							/>
 						)}
