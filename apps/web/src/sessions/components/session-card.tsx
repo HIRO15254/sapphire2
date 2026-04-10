@@ -1,4 +1,5 @@
 import {
+	IconBolt,
 	IconCalendar,
 	IconList,
 	IconMapPin,
@@ -332,6 +333,9 @@ function SessionHeader({
 }) {
 	const profitLoss = session.profitLoss ?? 0;
 	const isTournament = session.type === "tournament";
+	const hasLiveRecording =
+		session.liveCashGameSessionId !== null ||
+		session.liveTournamentSessionId !== null;
 	const plDisplay = getPlDisplay(session, profitLoss, bbBiMode);
 	const profitColorClass = getProfitColorClass(profitLoss);
 	const gameName = getGameName(session);
@@ -341,18 +345,26 @@ function SessionHeader({
 		<>
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-center gap-1.5">
-					<span className="truncate font-medium text-sm">{gameName}</span>
-					<Badge
-						className={`shrink-0 gap-0.5 ${isTournament ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400" : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400"}`}
-						variant="outline"
-					>
+					<span className="relative shrink-0">
 						{isTournament ? (
-							<IconTrophy size={10} />
+							<IconTrophy
+								className="text-yellow-500 dark:text-yellow-400"
+								size={16}
+							/>
 						) : (
-							<IconPokerChip size={10} />
+							<IconPokerChip
+								className="text-blue-500 dark:text-blue-400"
+								size={16}
+							/>
 						)}
-						{isTournament ? "Tourney" : "Cash"}
-					</Badge>
+						{hasLiveRecording && (
+							<IconBolt
+								className="absolute -bottom-1 -right-1 text-green-500 dark:text-green-400"
+								size={10}
+							/>
+						)}
+					</span>
+					<span className="truncate font-medium text-sm">{gameName}</span>
 					{session.tags.map((tag) => (
 						<Badge className="shrink-0" key={tag.id} variant="outline">
 							{tag.name}
