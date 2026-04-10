@@ -296,8 +296,8 @@ describe("SessionCard", () => {
 			/>
 		);
 
-		// 14000 / (5000 + 500) = 2.5 (rounded to 1 decimal: 2.5)
-		expect(screen.getByText("+2.5 BI")).toBeInTheDocument();
+		// 14000 / (5000 + 500) = 2.545454... → 2.55
+		expect(screen.getByText("+2.55 BI")).toBeInTheDocument();
 	});
 
 	it("falls back to chip value when bbBiMode is true but blind2 is null", () => {

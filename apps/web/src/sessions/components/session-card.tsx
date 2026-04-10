@@ -110,7 +110,8 @@ function toBI(profitLoss: number, totalCost: number): number | null {
 }
 
 function formatBBBI(value: number, unit: "BB" | "BI"): string {
-	return `${value >= 0 ? "+" : ""}${value.toFixed(1)} ${unit}`;
+	const decimals = unit === "BI" ? 2 : 1;
+	return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)} ${unit}`;
 }
 
 function formatDuration(startedAt: string, endedAt: string): string {
