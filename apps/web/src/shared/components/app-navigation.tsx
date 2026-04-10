@@ -144,24 +144,24 @@ export function NavigationCenterButton({
 
 	return (
 		<Button
-			className="relative h-auto flex-col gap-0 bg-transparent px-0 py-0 hover:bg-transparent"
+			className="relative h-16 w-full overflow-visible bg-transparent p-0 hover:bg-transparent"
 			onClick={action.onClick}
 			type="button"
 			variant="ghost"
 		>
 			<div
 				className={cn(
-					"flex size-16 -translate-y-4 items-center justify-center rounded-full shadow-lg transition-colors",
+					"absolute left-1/2 top-[-10px] flex size-14 -translate-x-1/2 items-center justify-center rounded-full shadow-lg transition-colors",
 					isLive
 						? "bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
 						: "bg-primary text-primary-foreground hover:bg-primary/90"
 				)}
 			>
-				<Icon size={30} stroke={2} />
+				<Icon size={44} stroke={2} />
 			</div>
 			<span
 				className={cn(
-					"relative z-10 mt-0.5 rounded-full px-2 py-px font-bold text-[10px]",
+					"absolute bottom-1.5 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-px font-bold text-[10px]",
 					isLive
 						? "bg-green-600 text-white dark:bg-green-500"
 						: "bg-primary text-primary-foreground"

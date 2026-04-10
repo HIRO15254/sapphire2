@@ -45,7 +45,7 @@ export function MobileNav() {
 						/>
 					))}
 
-					<li className="flex justify-center">
+					<li className="flex justify-center self-stretch">
 						<NavigationCenterButton action={centerAction} />
 					</li>
 
