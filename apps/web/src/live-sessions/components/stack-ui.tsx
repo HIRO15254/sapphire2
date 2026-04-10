@@ -136,16 +136,18 @@ export function StackEditorActionRow({
 }: {
 	deleteLabel?: string;
 	isLoading: boolean;
-	onDelete: () => void;
+	onDelete?: () => void;
 	onSave: () => void;
 	saveDisabled?: boolean;
 	saveLabel?: string;
 }) {
 	return (
 		<DialogActionRow>
-			<Button onClick={onDelete} type="button" variant="destructive">
-				{deleteLabel}
-			</Button>
+			{onDelete ? (
+				<Button onClick={onDelete} type="button" variant="destructive">
+					{deleteLabel}
+				</Button>
+			) : null}
 			<Button
 				disabled={isLoading || saveDisabled}
 				onClick={onSave}
