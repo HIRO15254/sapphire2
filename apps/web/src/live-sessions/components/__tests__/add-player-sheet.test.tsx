@@ -46,6 +46,21 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
+vi.mock("@/shared/components/ui/rich-text-editor", () => ({
+	RichTextEditor: ({
+		onChange,
+	}: {
+		initialContent?: string | null;
+		onChange: (html: string) => void;
+	}) => (
+		<textarea aria-label="Memo" onChange={(e) => onChange(e.target.value)} />
+	),
+}));
+
+vi.mock("@/players/components/player-tag-input", () => ({
+	PlayerTagInput: () => null,
+}));
+
 describe("AddPlayerSheet", () => {
 	it("filters existing players by search text", async () => {
 		const user = userEvent.setup();
@@ -56,9 +71,11 @@ describe("AddPlayerSheet", () => {
 
 		render(
 			<AddPlayerSheet
+				availableTags={[]}
 				excludePlayerIds={[]}
 				onAddExisting={vi.fn()}
 				onAddNew={vi.fn()}
+				onCreateTag={vi.fn()}
 				onOpenChange={vi.fn()}
 				open
 			/>
@@ -79,9 +96,11 @@ describe("AddPlayerSheet", () => {
 
 		render(
 			<AddPlayerSheet
+				availableTags={[]}
 				excludePlayerIds={["p1"]}
 				onAddExisting={vi.fn()}
 				onAddNew={vi.fn()}
+				onCreateTag={vi.fn()}
 				onOpenChange={vi.fn()}
 				open
 			/>
@@ -98,9 +117,11 @@ describe("AddPlayerSheet", () => {
 
 		render(
 			<AddPlayerSheet
+				availableTags={[]}
 				excludePlayerIds={[]}
 				onAddExisting={onAddExisting}
 				onAddNew={vi.fn()}
+				onCreateTag={vi.fn()}
 				onOpenChange={onOpenChange}
 				open
 			/>
@@ -120,9 +141,11 @@ describe("AddPlayerSheet", () => {
 
 		render(
 			<AddPlayerSheet
+				availableTags={[]}
 				excludePlayerIds={[]}
 				onAddExisting={vi.fn()}
 				onAddNew={onAddNew}
+				onCreateTag={vi.fn()}
 				onOpenChange={onOpenChange}
 				open
 			/>
@@ -130,10 +153,14 @@ describe("AddPlayerSheet", () => {
 
 		await user.click(screen.getByRole("tab", { name: "New Player" }));
 		await user.type(screen.getByLabelText(NAME_LABEL_PATTERN), "New Hero");
-		await user.type(screen.getByLabelText("Memo (optional)"), "Late reg");
-		await user.click(screen.getByRole("button", { name: "Add Player" }));
+		await user.type(screen.getByLabelText("Memo"), "Late reg");
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
-		expect(onAddNew).toHaveBeenCalledWith("New Hero", "Late reg");
+		expect(onAddNew).toHaveBeenCalledWith({
+			memo: "Late reg",
+			name: "New Hero",
+			tagIds: undefined,
+		});
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 	});
 });

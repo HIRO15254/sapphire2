@@ -70,6 +70,7 @@ describe("PlayerDetailSheet", () => {
 
 		expect(onSave).toHaveBeenCalledWith({
 			memo: "Initial note updated",
+			name: "Alice",
 			tagIds: ["vip", "reg"],
 		});
 	});
