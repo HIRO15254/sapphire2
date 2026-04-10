@@ -21,7 +21,7 @@
 
 **⚠️ CRITICAL**: T001 が完了するまで US1 の実装タスクは開始不可。
 
-- [ ] T001 `TAG_COLORS` に `swatch` フィールドを追加する `apps/web/src/players/constants/player-tag-colors.ts`（各色のソリッドカラー Tailwind クラスを定義: gray→`bg-gray-400`, red→`bg-red-500`, orange→`bg-orange-500`, yellow→`bg-yellow-400`, green→`bg-green-500`, blue→`bg-blue-500`, purple→`bg-purple-500`, pink→`bg-pink-500`）
+- [x] T001 `TAG_COLORS` に `swatch` フィールドを追加する `apps/web/src/players/constants/player-tag-colors.ts`（各色のソリッドカラー Tailwind クラスを定義: gray→`bg-gray-400`, red→`bg-red-500`, orange→`bg-orange-500`, yellow→`bg-yellow-400`, green→`bg-green-500`, blue→`bg-blue-500`, purple→`bg-purple-500`, pink→`bg-pink-500`）
 
 **Checkpoint**: `TAG_COLORS` に `swatch` フィールドが追加され、型定義が更新されたことを確認 → US1 実装へ進む
 
@@ -37,13 +37,13 @@
 
 > **NOTE: T002 のテストを実装 (T003) の前に作成し、テストが FAIL することを確認してから実装へ進む**
 
-- [ ] T002 [P] [US1] `TagColorPicker` のコンポーネントテストを作成する `apps/web/src/players/components/__tests__/tag-color-picker.test.tsx`（以下のケースをカバー: ①8色のスウォッチがすべてレンダリングされる ②`value` prop に対応するスウォッチが `aria-checked="true"` である ③スウォッチをクリックすると `onChange` が正しいカラー名で呼ばれる ④各スウォッチに `aria-label="Select {color} color"` が付与されている ⑤未選択スウォッチは `aria-checked="false"` である）
+- [x] T002 [P] [US1] `TagColorPicker` のコンポーネントテストを作成する `apps/web/src/players/components/__tests__/tag-color-picker.test.tsx`（以下のケースをカバー: ①8色のスウォッチがすべてレンダリングされる ②`value` prop に対応するスウォッチが `aria-checked="true"` である ③スウォッチをクリックすると `onChange` が正しいカラー名で呼ばれる ④各スウォッチに `aria-label="Select {color} color"` が付与されている ⑤未選択スウォッチは `aria-checked="false"` である）
 
 ### Implementation for User Story 1
 
-- [ ] T003 [US1] `TagColorPicker` コンポーネントを新規作成する `apps/web/src/players/components/tag-color-picker.tsx`（Props: `value: TagColor`, `onChange: (color: TagColor) => void`; `div[role="radiogroup"][aria-label="Tag color"]` を root に、各色を `button[role="radio"]` で実装; `rounded-full` の丸型スウォッチ、`TAG_COLORS[color].swatch` を背景色に使用; 選択状態は `ring-2 ring-offset-2 ring-white dark:ring-offset-gray-900` + `scale-110` で表現; タッチターゲット `min-w-[44px] min-h-[44px]` を確保; `aria-label="Select {color} color"`, `aria-checked={value === color}` を設定; `type="button"` を明示）（T001、T002 に依存）
+- [x] T003 [US1] `TagColorPicker` コンポーネントを新規作成する `apps/web/src/players/components/tag-color-picker.tsx`（Props: `value: TagColor`, `onChange: (color: TagColor) => void`; `div[role="radiogroup"][aria-label="Tag color"]` を root に、各色を `button[role="radio"]` で実装; `rounded-full` の丸型スウォッチ、`TAG_COLORS[color].swatch` を背景色に使用; 選択状態は `ring-2 ring-offset-2 ring-white dark:ring-offset-gray-900` + `scale-110` で表現; タッチターゲット `min-w-[44px] min-h-[44px]` を確保; `aria-label="Select {color} color"`, `aria-checked={value === color}` を設定; `type="button"` を明示）（T001、T002 に依存）
 
-- [ ] T004 [US1] `player-tag-manager.tsx` の `TagForm` を更新して `TagColorPicker` を使用する `apps/web/src/players/components/player-tag-manager.tsx`（`ToggleGroup`/`ToggleGroupItem` のインポートを削除し `TagColorPicker` をインポート; `<ToggleGroup ...>...</ToggleGroup>` ブロックを `<TagColorPicker value={selectedColor} onChange={setSelectedColor} />` に置き換える）（T003 に依存）
+- [x] T004 [US1] `player-tag-manager.tsx` の `TagForm` を更新して `TagColorPicker` を使用する `apps/web/src/players/components/player-tag-manager.tsx`（`ToggleGroup`/`ToggleGroupItem` のインポートを削除し `TagColorPicker` をインポート; `<ToggleGroup ...>...</ToggleGroup>` ブロックを `<TagColorPicker value={selectedColor} onChange={setSelectedColor} />` に置き換える）（T003 に依存）
 
 **Checkpoint**: タグ作成・編集ダイアログを開き、8 色スウォッチが表示され、選択状態が明確に視認でき、選択した色でタグが保存されることを確認
 
@@ -53,9 +53,9 @@
 
 **Purpose**: コード品質・テスト通過の最終確認
 
-- [ ] T005 [P] `bun x ultracite fix` を実行して変更ファイルのフォーマット・lint を修正する（対象: `player-tag-colors.ts`, `tag-color-picker.tsx`, `player-tag-manager.tsx`）
-- [ ] T006 `bun run test` を実行して全テストが通過することを確認する（T005 に依存）
-- [ ] T007 `bun run check-types` を実行して型エラーがないことを確認する
+- [x] T005 [P] `bun x ultracite fix` を実行して変更ファイルのフォーマット・lint を修正する（対象: `player-tag-colors.ts`, `tag-color-picker.tsx`, `player-tag-manager.tsx`）
+- [x] T006 `bun run test` を実行して全テストが通過することを確認する（T005 に依存）
+- [x] T007 `bun run check-types` を実行して型エラーがないことを確認する
 
 ---
 
