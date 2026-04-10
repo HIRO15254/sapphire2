@@ -26,6 +26,7 @@ interface CreateCashGameSessionFormProps {
 	ringGames: Array<{
 		id: string;
 		name: string;
+		minBuyIn: number | null;
 		maxBuyIn: number | null;
 		currencyId: string | null;
 	}>;
@@ -93,9 +94,6 @@ export function CreateCashGameSessionForm({
 	const selectedRingGame = selectedRingGameId
 		? ringGames.find((g) => g.id === selectedRingGameId)
 		: null;
-	const isBuyInLocked =
-		selectedRingGame?.maxBuyIn !== null &&
-		selectedRingGame?.maxBuyIn !== undefined;
 	const isCurrencyLocked =
 		selectedRingGame?.currencyId !== null &&
 		selectedRingGame?.currencyId !== undefined;
@@ -180,9 +178,9 @@ export function CreateCashGameSessionForm({
 
 					<Field htmlFor="initialBuyIn" label="Initial Buy-in">
 						<Input
-							disabled={isBuyInLocked}
 							id="initialBuyIn"
-							min={0}
+							max={selectedRingGame?.maxBuyIn ?? undefined}
+							min={selectedRingGame?.minBuyIn ?? 0}
 							onChange={(e) => setInitialBuyIn(e.target.value)}
 							required
 							type="number"

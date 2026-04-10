@@ -321,6 +321,38 @@ export const liveCashGameSessionRouter = router({
 				});
 			}
 
+			// Validate initialBuyIn against ring game bounds
+			if (input.ringGameId) {
+				const [foundRingGame] = await ctx.db
+					.select({
+						minBuyIn: ringGame.minBuyIn,
+						maxBuyIn: ringGame.maxBuyIn,
+					})
+					.from(ringGame)
+					.where(eq(ringGame.id, input.ringGameId));
+
+				if (foundRingGame) {
+					if (
+						foundRingGame.minBuyIn !== null &&
+						input.initialBuyIn < foundRingGame.minBuyIn
+					) {
+						throw new TRPCError({
+							code: "BAD_REQUEST",
+							message: `Initial buy-in must be at least ${foundRingGame.minBuyIn}`,
+						});
+					}
+					if (
+						foundRingGame.maxBuyIn !== null &&
+						input.initialBuyIn > foundRingGame.maxBuyIn
+					) {
+						throw new TRPCError({
+							code: "BAD_REQUEST",
+							message: `Initial buy-in must be at most ${foundRingGame.maxBuyIn}`,
+						});
+					}
+				}
+			}
+
 			const id = crypto.randomUUID();
 
 			await ctx.db.insert(liveCashGameSession).values({
