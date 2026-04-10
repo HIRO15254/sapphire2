@@ -15,7 +15,10 @@ async function main() {
 	const notesOutput = assertStringArg(args, "notes-output");
 	const envOutput = assertStringArg(args, "env-output");
 	const summary = await readJsonFile(summaryPath, releaseSummarySchema);
-	await readJsonFile("apps/web/public/release-notes/latest.json", publicReleaseNotesSchema);
+	await readJsonFile(
+		"apps/web/public/release-notes/latest.json",
+		publicReleaseNotesSchema
+	);
 
 	const markdown = buildReleaseMarkdown(summary);
 

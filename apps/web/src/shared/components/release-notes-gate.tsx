@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { ReleaseNotesDialog } from "@/shared/components/release-notes-dialog";
 import {
 	fetchLatestReleaseNotes,
 	lastSeenReleaseVersionStorageKey,
 	latestReleaseNotesQueryKey,
 } from "@/lib/release-notes";
+import { ReleaseNotesDialog } from "@/shared/components/release-notes-dialog";
 
 export function ReleaseNotesGate() {
 	const releaseNotesQuery = useQuery({

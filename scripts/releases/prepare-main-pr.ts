@@ -34,7 +34,9 @@ async function main() {
 			: null;
 
 	const pendingFiles = changedFiles
-		.filter((entry) => entry.status !== "D" && isPendingMetadataPath(entry.path))
+		.filter(
+			(entry) => entry.status !== "D" && isPendingMetadataPath(entry.path)
+		)
 		.map((entry) => entry.path);
 
 	const pendingEntries = await Promise.all(
@@ -50,7 +52,11 @@ async function main() {
 		throw new Error("No release metadata found to prepare a main PR");
 	}
 
-	const baseVersion = await getFileFromGitRef(baseRef, versionPath, versionFileSchema);
+	const baseVersion = await getFileFromGitRef(
+		baseRef,
+		versionPath,
+		versionFileSchema
+	);
 	const summary = createSummary(baseVersion.version, entries);
 	const latestNotes = createPublicReleaseNotes(summary);
 

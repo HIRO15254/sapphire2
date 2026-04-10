@@ -1,6 +1,6 @@
+import type { LatestReleaseNotes } from "@/lib/release-notes";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import type { LatestReleaseNotes } from "@/lib/release-notes";
 
 interface ReleaseNotesDialogProps {
 	description?: string;
