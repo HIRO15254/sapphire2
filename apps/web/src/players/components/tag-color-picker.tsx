@@ -11,14 +11,10 @@ interface TagColorPickerProps {
 
 export function TagColorPicker({ value, onChange }: TagColorPickerProps) {
 	return (
-		<div
-			aria-label="Tag color"
-			className="flex flex-wrap gap-2"
-			role="radiogroup"
-		>
+		<div aria-label="Tag color" className="flex flex-wrap" role="radiogroup">
 			{TAG_COLOR_NAMES.map((color) => (
 				<label
-					className={`flex min-h-[44px] min-w-[44px] cursor-pointer rounded-full transition-transform ${TAG_COLORS[color].swatch}${value === color ? "scale-110 ring-2 ring-white ring-offset-2 dark:ring-offset-gray-900" : ""}`}
+					className="flex h-[44px] w-[44px] cursor-pointer items-center justify-center"
 					key={color}
 				>
 					<input
@@ -29,6 +25,9 @@ export function TagColorPicker({ value, onChange }: TagColorPickerProps) {
 						onChange={() => onChange(color)}
 						type="radio"
 						value={color}
+					/>
+					<span
+						className={`h-6 w-6 rounded-full transition-transform ${TAG_COLORS[color].swatch}${value === color ? "scale-110 ring-2 ring-white ring-offset-2 dark:ring-offset-gray-900" : ""}`}
 					/>
 				</label>
 			))}
