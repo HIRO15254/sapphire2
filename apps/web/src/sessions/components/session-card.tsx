@@ -348,19 +348,19 @@ function SessionHeader({
 					<span className="relative shrink-0">
 						{isTournament ? (
 							<IconTrophy
-								className="text-amber-500 dark:text-amber-400"
+								className="text-yellow-500 dark:text-yellow-400"
 								size={16}
 							/>
 						) : (
 							<IconPokerChip
-								className="text-emerald-500 dark:text-emerald-400"
+								className="text-blue-500 dark:text-blue-400"
 								size={16}
 							/>
 						)}
 						{hasLiveRecording && (
 							<IconBolt
-								className="absolute -bottom-1 -right-1 text-muted-foreground"
-								size={8}
+								className="absolute -bottom-1 -right-1 text-green-500 dark:text-green-400"
+								size={10}
 							/>
 						)}
 					</span>
