@@ -1,10 +1,8 @@
 import { IconEdit, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { ColorBadge } from "@/players/components/color-badge";
-import {
-	TAG_COLOR_NAMES,
-	type TagColor,
-} from "@/players/constants/player-tag-colors";
+import { TagColorPicker } from "@/players/components/tag-color-picker";
+import type { TagColor } from "@/players/constants/player-tag-colors";
 import {
 	type TagFormValues,
 	type TagItem,
@@ -20,10 +18,6 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import {
-	ToggleGroup,
-	ToggleGroupItem,
-} from "@/shared/components/ui/toggle-group";
 
 function TagForm({
 	defaultValues,
@@ -59,26 +53,7 @@ function TagForm({
 				/>
 			</Field>
 			<Field label="Color">
-				<ToggleGroup
-					onValueChange={(value) => {
-						if (value) {
-							setSelectedColor(value as TagColor);
-						}
-					}}
-					type="single"
-					value={selectedColor}
-				>
-					{TAG_COLOR_NAMES.map((color) => (
-						<ToggleGroupItem
-							aria-label={`Select ${color} color`}
-							key={color}
-							size="sm"
-							value={color}
-						>
-							<ColorBadge color={color}>{color}</ColorBadge>
-						</ToggleGroupItem>
-					))}
-				</ToggleGroup>
+				<TagColorPicker onChange={setSelectedColor} value={selectedColor} />
 			</Field>
 			<Button disabled={isLoading} type="submit">
 				{isLoading ? "Saving..." : "Save"}
