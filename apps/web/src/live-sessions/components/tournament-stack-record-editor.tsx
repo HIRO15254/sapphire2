@@ -33,7 +33,6 @@ interface TournamentStackRecordEditorProps {
 	isLoading: boolean;
 	maxTime?: Date | null;
 	minTime?: Date | null;
-	onDelete: () => void;
 	onSubmit: (
 		payload: TournamentStackRecordPayload,
 		occurredAt?: number
@@ -122,7 +121,6 @@ export function TournamentStackRecordEditor({
 	isLoading,
 	maxTime,
 	minTime,
-	onDelete,
 	onSubmit,
 }: TournamentStackRecordEditorProps) {
 	const [stackAmount, setStackAmount] = useState(
@@ -253,7 +251,6 @@ export function TournamentStackRecordEditor({
 
 			<StackEditorActionRow
 				isLoading={isLoading}
-				onDelete={onDelete}
 				onSave={handleSave}
 				saveDisabled={timeError !== null}
 			/>

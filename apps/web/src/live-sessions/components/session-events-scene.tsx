@@ -1,4 +1,4 @@
-import { IconPencil, IconTrash } from "@tabler/icons-react";
+import { IconPencil, IconTrash, IconX } from "@tabler/icons-react";
 import { useState } from "react";
 import { StackRecordEditor } from "@/live-sessions/components/stack-record-editor";
 import { TournamentStackRecordEditor } from "@/live-sessions/components/tournament-stack-record-editor";
@@ -42,7 +42,6 @@ interface EventEditorProps {
 	isLoading: boolean;
 	maxTime: Date | null;
 	minTime: Date | null;
-	onDelete: () => void;
 	onSubmit: (payload: unknown, occurredAt?: number) => void;
 	onTimeUpdate: (occurredAt: number) => void;
 }
@@ -350,11 +349,10 @@ function AmountEditor({
 	isLoading,
 	maxTime,
 	minTime,
-	onDelete,
 	onSubmit,
 }: Pick<
 	EventEditorProps,
-	"event" | "isLoading" | "maxTime" | "minTime" | "onDelete" | "onSubmit"
+	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
 >) {
 	const payload = (event.payload ?? {}) as Record<string, unknown>;
 	const [amount, setAmount] = useState(String(payload.amount ?? 0));
@@ -381,9 +379,6 @@ function AmountEditor({
 				/>
 			</Field>
 			<DialogActionRow>
-				<Button onClick={onDelete} type="button" variant="destructive">
-					Delete
-				</Button>
 				<Button
 					disabled={isLoading || error !== null}
 					onClick={() => {
@@ -407,11 +402,10 @@ function TournamentResultEditor({
 	isLoading,
 	maxTime,
 	minTime,
-	onDelete,
 	onSubmit,
 }: Pick<
 	EventEditorProps,
-	"event" | "isLoading" | "maxTime" | "minTime" | "onDelete" | "onSubmit"
+	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
 >) {
 	const payload = (event.payload ?? {}) as Record<string, unknown>;
 	const [placement, setPlacement] = useState(String(payload.placement ?? 1));
@@ -480,9 +474,6 @@ function TournamentResultEditor({
 				/>
 			</Field>
 			<DialogActionRow>
-				<Button onClick={onDelete} type="button" variant="destructive">
-					Delete
-				</Button>
 				<Button
 					disabled={isLoading || error !== null}
 					onClick={() => {
@@ -524,7 +515,6 @@ function EventEditor({
 	isLoading,
 	maxTime,
 	minTime,
-	onDelete,
 	onSubmit,
 	onTimeUpdate,
 }: EventEditorProps) {
@@ -558,7 +548,6 @@ function EventEditor({
 				isLoading={isLoading}
 				maxTime={maxTime}
 				minTime={minTime}
-				onDelete={onDelete}
 				onSubmit={(payload, occurredAt) => onSubmit(payload, occurredAt)}
 			/>
 		);
@@ -573,7 +562,6 @@ function EventEditor({
 				isLoading={isLoading}
 				maxTime={maxTime}
 				minTime={minTime}
-				onDelete={onDelete}
 				onSubmit={(payload, occurredAt) => onSubmit(payload, occurredAt)}
 			/>
 		);
@@ -585,7 +573,6 @@ function EventEditor({
 				isLoading={isLoading}
 				maxTime={maxTime}
 				minTime={minTime}
-				onDelete={onDelete}
 				onSubmit={onSubmit}
 			/>
 		);
@@ -596,7 +583,6 @@ function EventEditor({
 			isLoading={isLoading}
 			maxTime={maxTime}
 			minTime={minTime}
-			onDelete={onDelete}
 			onSubmit={onSubmit}
 		/>
 	);
@@ -610,6 +596,9 @@ export function SessionEventsScene({
 	sessionType,
 }: SessionEventsSceneProps) {
 	const [editEvent, setEditEvent] = useState<SessionEvent | null>(null);
+	const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
+		null
+	);
 
 	const {
 		events,
@@ -682,25 +671,59 @@ export function SessionEventsScene({
 												payload={event.payload}
 											/>
 										</div>
-										<div className="flex shrink-0 gap-1">
+										<div className="flex shrink-0 items-center gap-1">
 											<Button
 												aria-label={`Edit ${formatEventLabel(event.eventType)}`}
-												onClick={() => setEditEvent(event)}
+												onClick={() => {
+													setConfirmingDeleteId(null);
+													setEditEvent(event);
+												}}
 												size="icon-xs"
 												variant="ghost"
 											>
 												<IconPencil size={14} />
 											</Button>
-											{isLifecycle ? null : (
-												<Button
-													aria-label={`Delete ${formatEventLabel(event.eventType)}`}
-													onClick={() => deleteEvent(event.id)}
-													size="icon-xs"
-													variant="ghost"
-												>
-													<IconTrash size={14} />
-												</Button>
-											)}
+											{!isLifecycle &&
+												(confirmingDeleteId === event.id ? (
+													<>
+														<span className="text-destructive text-xs">
+															Delete?
+														</span>
+														<Button
+															aria-label="Confirm delete"
+															className="text-destructive hover:text-destructive"
+															onClick={() => {
+																deleteEvent(event.id);
+																setConfirmingDeleteId(null);
+															}}
+															size="icon-xs"
+															type="button"
+															variant="ghost"
+														>
+															<IconTrash size={14} />
+														</Button>
+														<Button
+															aria-label="Cancel delete"
+															onClick={() => setConfirmingDeleteId(null)}
+															size="icon-xs"
+															type="button"
+															variant="ghost"
+														>
+															<IconX size={14} />
+														</Button>
+													</>
+												) : (
+													<Button
+														aria-label={`Delete ${formatEventLabel(event.eventType)}`}
+														className="text-destructive hover:text-destructive"
+														onClick={() => setConfirmingDeleteId(event.id)}
+														size="icon-xs"
+														type="button"
+														variant="ghost"
+													>
+														<IconTrash size={14} />
+													</Button>
+												))}
 										</div>
 									</div>
 								</div>
@@ -724,9 +747,6 @@ export function SessionEventsScene({
 						isLoading={isUpdatePending}
 						maxTime={timeBounds.maxTime}
 						minTime={timeBounds.minTime}
-						onDelete={() =>
-							deleteEvent(editEvent.id).then(() => setEditEvent(null))
-						}
 						onSubmit={(payload, occurredAt) =>
 							update({
 								id: editEvent.id,
