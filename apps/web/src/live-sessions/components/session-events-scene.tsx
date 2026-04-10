@@ -672,58 +672,58 @@ export function SessionEventsScene({
 											/>
 										</div>
 										<div className="flex shrink-0 items-center gap-1">
-											<Button
-												aria-label={`Edit ${formatEventLabel(event.eventType)}`}
-												onClick={() => {
-													setConfirmingDeleteId(null);
-													setEditEvent(event);
-												}}
-												size="icon-xs"
-												variant="ghost"
-											>
-												<IconPencil size={14} />
-											</Button>
-											{!isLifecycle &&
-												(confirmingDeleteId === event.id ? (
-													<>
-														<span className="text-destructive text-xs">
-															Delete?
-														</span>
-														<Button
-															aria-label="Confirm delete"
-															className="text-destructive hover:text-destructive"
-															onClick={() => {
-																deleteEvent(event.id);
-																setConfirmingDeleteId(null);
-															}}
-															size="icon-xs"
-															type="button"
-															variant="ghost"
-														>
-															<IconTrash size={14} />
-														</Button>
-														<Button
-															aria-label="Cancel delete"
-															onClick={() => setConfirmingDeleteId(null)}
-															size="icon-xs"
-															type="button"
-															variant="ghost"
-														>
-															<IconX size={14} />
-														</Button>
-													</>
-												) : (
+											{!isLifecycle && confirmingDeleteId === event.id ? (
+												<>
+													<span className="text-destructive text-xs">
+														Delete?
+													</span>
 													<Button
-														aria-label={`Delete ${formatEventLabel(event.eventType)}`}
+														aria-label="Confirm delete"
 														className="text-destructive hover:text-destructive"
-														onClick={() => setConfirmingDeleteId(event.id)}
+														onClick={() => {
+															deleteEvent(event.id);
+															setConfirmingDeleteId(null);
+														}}
 														size="icon-xs"
 														type="button"
 														variant="ghost"
 													>
 														<IconTrash size={14} />
 													</Button>
-												))}
+													<Button
+														aria-label="Cancel delete"
+														onClick={() => setConfirmingDeleteId(null)}
+														size="icon-xs"
+														type="button"
+														variant="ghost"
+													>
+														<IconX size={14} />
+													</Button>
+												</>
+											) : (
+												<>
+													<Button
+														aria-label={`Edit ${formatEventLabel(event.eventType)}`}
+														onClick={() => setEditEvent(event)}
+														size="icon-xs"
+														variant="ghost"
+													>
+														<IconPencil size={14} />
+													</Button>
+													{!isLifecycle && (
+														<Button
+															aria-label={`Delete ${formatEventLabel(event.eventType)}`}
+															className="text-destructive hover:text-destructive"
+															onClick={() => setConfirmingDeleteId(event.id)}
+															size="icon-xs"
+															type="button"
+															variant="ghost"
+														>
+															<IconTrash size={14} />
+														</Button>
+													)}
+												</>
+											)}
 										</div>
 									</div>
 								</div>
