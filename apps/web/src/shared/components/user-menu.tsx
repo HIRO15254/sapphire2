@@ -9,6 +9,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
+import { useUpdateNotesSheet } from "@/update-notes/hooks/use-update-notes-sheet";
 
 import { Button } from "./ui/button";
 import { Skeleton } from "./ui/skeleton";
@@ -16,6 +17,7 @@ import { Skeleton } from "./ui/skeleton";
 export function UserMenu() {
 	const navigate = useNavigate();
 	const { data: session, isPending } = authClient.useSession();
+	const updateNotesSheet = useUpdateNotesSheet();
 
 	if (isPending) {
 		return <Skeleton className="h-8 w-24" />;
@@ -43,6 +45,9 @@ export function UserMenu() {
 					<DropdownMenuLabel>My Account</DropdownMenuLabel>
 					<DropdownMenuSeparator />
 					<DropdownMenuItem>{session.user.email}</DropdownMenuItem>
+					<DropdownMenuItem onClick={updateNotesSheet.open}>
+						Update Notes
+					</DropdownMenuItem>
 					<DropdownMenuItem
 						onClick={() => {
 							authClient.signOut({

@@ -15,6 +15,7 @@ import { storeRouter } from "./store";
 import { tournamentRouter } from "./tournament";
 import { tournamentChipPurchaseRouter } from "./tournament-chip-purchase";
 import { transactionTypeRouter } from "./transaction-type";
+import { updateNoteViewRouter } from "./update-note-view";
 
 export const appRouter = router({
 	healthCheck: publicProcedure.query(() => {
@@ -42,5 +43,6 @@ export const appRouter = router({
 	liveCashGameSession: liveCashGameSessionRouter,
 	liveTournamentSession: liveTournamentSessionRouter,
 	sessionTablePlayer: sessionTablePlayerRouter,
+	updateNoteView: updateNoteViewRouter,
 });
 export type AppRouter = typeof appRouter;

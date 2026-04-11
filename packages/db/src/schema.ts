@@ -55,6 +55,10 @@ import {
 	tournamentRelations,
 } from "./schema/tournament";
 import { tournamentTag, tournamentTagRelations } from "./schema/tournament-tag";
+import {
+	updateNoteView,
+	updateNoteViewRelations,
+} from "./schema/update-note-view";
 
 export const schema = {
 	account,
@@ -102,4 +106,6 @@ export const schema = {
 	playerTagRelations,
 	playerToPlayerTag,
 	playerToPlayerTagRelations,
+	updateNoteView,
+	updateNoteViewRelations,
 };

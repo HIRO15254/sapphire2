@@ -27,8 +27,8 @@ export function SessionTagManager() {
 			)}
 			renderDeleteDescription={(tag) => (
 				<p className="text-sm">
-					Are you sure you want to delete the tag &ldquo;{tag.name}&rdquo;?
-					This will remove it from all sessions.
+					Are you sure you want to delete the tag &ldquo;{tag.name}&rdquo;? This
+					will remove it from all sessions.
 				</p>
 			)}
 			renderEditForm={(tag, onClose) => (
