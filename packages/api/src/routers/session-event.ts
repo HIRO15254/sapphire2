@@ -15,8 +15,8 @@ import { and, asc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
-	recalculateCashGamePL,
-	recalculateTournamentPL,
+	recalculateCashGameSession,
+	recalculateTournamentSession,
 } from "../services/live-session-pl";
 
 type DbInstance = Parameters<
@@ -182,20 +182,16 @@ async function handlePlayerLeaveSideEffect(
 		.where(cond);
 }
 
-async function recalculateIfCompleted(
+async function recalculateSession(
 	db: DbInstance,
-	sessionStatus: string,
 	liveCashGameSessionId: string | null | undefined,
 	liveTournamentSessionId: string | null | undefined,
 	userId: string
 ) {
-	if (sessionStatus !== "completed") {
-		return;
-	}
 	if (liveCashGameSessionId) {
-		await recalculateCashGamePL(db, liveCashGameSessionId, userId);
+		await recalculateCashGameSession(db, liveCashGameSessionId, userId);
 	} else if (liveTournamentSessionId) {
-		await recalculateTournamentPL(db, liveTournamentSessionId, userId);
+		await recalculateTournamentSession(db, liveTournamentSessionId, userId);
 	}
 }
 
@@ -259,7 +255,7 @@ export const sessionEventRouter = router({
 			);
 
 			const userId = ctx.session.user.id;
-			const { sessionType, status } = await resolveSessionOwnership(
+			const { sessionType } = await resolveSessionOwnership(
 				ctx.db,
 				liveCashGameSessionId,
 				liveTournamentSessionId,
@@ -321,9 +317,8 @@ export const sessionEventRouter = router({
 				);
 			}
 
-			await recalculateIfCompleted(
+			await recalculateSession(
 				ctx.db,
-				status,
 				liveCashGameSessionId,
 				liveTournamentSessionId,
 				userId
@@ -358,7 +353,7 @@ export const sessionEventRouter = router({
 				throw new TRPCError({ code: "NOT_FOUND", message: "Event not found" });
 			}
 
-			const { status } = await resolveSessionOwnership(
+			await resolveSessionOwnership(
 				ctx.db,
 				event.liveCashGameSessionId ?? undefined,
 				event.liveTournamentSessionId ?? undefined,
@@ -381,9 +376,8 @@ export const sessionEventRouter = router({
 				.set(updates)
 				.where(eq(sessionEvent.id, input.id));
 
-			await recalculateIfCompleted(
+			await recalculateSession(
 				ctx.db,
-				status,
 				event.liveCashGameSessionId,
 				event.liveTournamentSessionId,
 				userId
@@ -412,7 +406,17 @@ export const sessionEventRouter = router({
 				throw new TRPCError({ code: "NOT_FOUND", message: "Event not found" });
 			}
 
-			const { status } = await resolveSessionOwnership(
+			if (
+				event.eventType === "session_start" ||
+				event.eventType === "session_end"
+			) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Lifecycle events cannot be deleted",
+				});
+			}
+
+			await resolveSessionOwnership(
 				ctx.db,
 				event.liveCashGameSessionId ?? undefined,
 				event.liveTournamentSessionId ?? undefined,
@@ -431,9 +435,8 @@ export const sessionEventRouter = router({
 
 			await ctx.db.delete(sessionEvent).where(eq(sessionEvent.id, input.id));
 
-			await recalculateIfCompleted(
+			await recalculateSession(
 				ctx.db,
-				status,
 				event.liveCashGameSessionId,
 				event.liveTournamentSessionId,
 				userId

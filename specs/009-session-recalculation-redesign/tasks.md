@@ -25,14 +25,14 @@
 
 **CRITICAL**: No router simplification can begin until the unified recalculation functions are ready.
 
-- [ ] T001 Add `computeTimestampsFromEvents` pure function that derives `startedAt` (first `session_start`) and `endedAt` (last `session_end`) from an event array in `packages/api/src/services/live-session-pl.ts`
-- [ ] T002 Refactor `recalculateCashGamePL` into `recalculateCashGameSession` in `packages/api/src/services/live-session-pl.ts`: expand to derive all fields (P&L via `computeCashGamePLFromEvents`, timestamps via `computeTimestampsFromEvents`, break minutes via `computeBreakMinutesFromEvents`), update live session `startedAt`/`endedAt`, upsert `pokerSession` with all derived fields (`buyIn`, `cashOut`, `evCashOut`, `startedAt`, `endedAt`, `breakMinutes`, `sessionDate`), and sync `currencyTransaction`. Skip `pokerSession` upsert when session status is `"active"`
-- [ ] T003 Refactor `recalculateTournamentPL` into `recalculateTournamentSession` in `packages/api/src/services/live-session-pl.ts`: expand to derive all fields (P&L via `computeTournamentPLFromEvents`, timestamps, break minutes), update live session `startedAt`/`endedAt`, upsert `pokerSession` with all derived fields (`placement`, `totalEntries`, `prizeMoney`, `bountyPrizes`, `rebuyCount`, `rebuyCost`, `addonCost`, `startedAt`, `endedAt`, `breakMinutes`, `sessionDate`), and sync `currencyTransaction`. Skip `pokerSession` upsert when session status is `"active"`
-- [ ] T004 Consolidate duplicated `getSessionResultTypeId` helper: remove copies from `packages/api/src/routers/live-cash-game-session.ts` and `packages/api/src/routers/live-tournament-session.ts`, keep the single copy in `packages/api/src/services/live-session-pl.ts` and export it
-- [ ] T005 [P] Add unit tests for `computeTimestampsFromEvents` in `packages/api/src/__tests__/live-session-pl.test.ts`: test single session_start, multiple session_start/session_end pairs, empty events, events with no lifecycle events
-- [ ] T006 [P] Add unit tests for `computeCashGamePLFromEvents` in `packages/api/src/__tests__/live-session-pl.test.ts`: test single chip_add, multiple chip_adds (initial + addons), stack_records with allIns (EV calculation), missing stack_record (cashOut null), empty events
-- [ ] T007 [P] Add unit tests for `computeTournamentPLFromEvents` in `packages/api/src/__tests__/live-session-pl.test.ts`: test tournament_stack_record with chipPurchases (rebuy/addon counting), tournament_result extraction, missing tournament_result (profitLoss null), legacy rebuy/addon fields
-- [ ] T008 [P] Add unit tests for `computeBreakMinutesFromEvents` in `packages/api/src/__tests__/live-session-pl.test.ts`: test single session with no breaks, session with one break (session_end then session_start), multiple breaks (reopen scenario), no session_end events
+- [x] T001 Add `computeTimestampsFromEvents` pure function that derives `startedAt` (first `session_start`) and `endedAt` (last `session_end`) from an event array in `packages/api/src/services/live-session-pl.ts`
+- [x] T002 Refactor `recalculateCashGamePL` into `recalculateCashGameSession` in `packages/api/src/services/live-session-pl.ts`: expand to derive all fields (P&L via `computeCashGamePLFromEvents`, timestamps via `computeTimestampsFromEvents`, break minutes via `computeBreakMinutesFromEvents`), update live session `startedAt`/`endedAt`, upsert `pokerSession` with all derived fields (`buyIn`, `cashOut`, `evCashOut`, `startedAt`, `endedAt`, `breakMinutes`, `sessionDate`), and sync `currencyTransaction`. Skip `pokerSession` upsert when session status is `"active"`
+- [x] T003 Refactor `recalculateTournamentPL` into `recalculateTournamentSession` in `packages/api/src/services/live-session-pl.ts`: expand to derive all fields (P&L via `computeTournamentPLFromEvents`, timestamps, break minutes), update live session `startedAt`/`endedAt`, upsert `pokerSession` with all derived fields (`placement`, `totalEntries`, `prizeMoney`, `bountyPrizes`, `rebuyCount`, `rebuyCost`, `addonCost`, `startedAt`, `endedAt`, `breakMinutes`, `sessionDate`), and sync `currencyTransaction`. Skip `pokerSession` upsert when session status is `"active"`
+- [x] T004 Consolidate duplicated `getSessionResultTypeId` helper: remove copies from `packages/api/src/routers/live-cash-game-session.ts` and `packages/api/src/routers/live-tournament-session.ts`, keep the single copy in `packages/api/src/services/live-session-pl.ts` and export it
+- [x] T005 [P] Add unit tests for `computeTimestampsFromEvents` in `packages/api/src/__tests__/live-session-pl.test.ts`: test single session_start, multiple session_start/session_end pairs, empty events, events with no lifecycle events
+- [x] T006 [P] Add unit tests for `computeCashGamePLFromEvents` in `packages/api/src/__tests__/live-session-pl.test.ts`: test single chip_add, multiple chip_adds (initial + addons), stack_records with allIns (EV calculation), missing stack_record (cashOut null), empty events
+- [x] T007 [P] Add unit tests for `computeTournamentPLFromEvents` in `packages/api/src/__tests__/live-session-pl.test.ts`: test tournament_stack_record with chipPurchases (rebuy/addon counting), tournament_result extraction, missing tournament_result (profitLoss null), legacy rebuy/addon fields
+- [x] T008 [P] Add unit tests for `computeBreakMinutesFromEvents` in `packages/api/src/__tests__/live-session-pl.test.ts`: test single session with no breaks, session with one break (session_end then session_start), multiple breaks (reopen scenario), no session_end events
 
 **Checkpoint**: Unified recalculation service is ready with full test coverage. Router refactoring can now begin.
 
@@ -46,9 +46,9 @@
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Simplify `complete` procedure in `packages/api/src/routers/live-cash-game-session.ts`: remove inline P&L computation (~40 lines), remove local `createCurrencyTransactionForSession` and `getSessionResultTypeId`, keep only event insertion + status update + call to `recalculateCashGameSession`. Return pokerSessionId by querying after recalculation
-- [ ] T010 [US1] Update `sessionEvent` router in `packages/api/src/routers/session-event.ts`: in `create`, `update`, and `delete` mutations, replace `recalculateIfCompleted()` with unconditional call to `recalculateCashGameSession` (when `liveCashGameSessionId` is set). Remove the `recalculateIfCompleted` wrapper function
-- [ ] T011 [US1] Add lifecycle event deletion guard in `packages/api/src/routers/session-event.ts`: in `delete` mutation, throw `TRPCError` with code `BAD_REQUEST` if `event.eventType` is `"session_start"` or `"session_end"`
+- [x] T009 [US1] Simplify `complete` procedure in `packages/api/src/routers/live-cash-game-session.ts`: remove inline P&L computation (~40 lines), remove local `createCurrencyTransactionForSession` and `getSessionResultTypeId`, keep only event insertion + status update + call to `recalculateCashGameSession`. Return pokerSessionId by querying after recalculation
+- [x] T010 [US1] Update `sessionEvent` router in `packages/api/src/routers/session-event.ts`: in `create`, `update`, and `delete` mutations, replace `recalculateIfCompleted()` with unconditional call to `recalculateCashGameSession` (when `liveCashGameSessionId` is set). Remove the `recalculateIfCompleted` wrapper function
+- [x] T011 [US1] Add lifecycle event deletion guard in `packages/api/src/routers/session-event.ts`: in `delete` mutation, throw `TRPCError` with code `BAD_REQUEST` if `event.eventType` is `"session_start"` or `"session_end"`
 
 **Checkpoint**: Cash game recalculation is unified. Editing events on completed cash game sessions recalculates all fields including timestamps and break minutes.
 
@@ -62,8 +62,8 @@
 
 ### Implementation for User Story 2
 
-- [ ] T012 [US2] Simplify `complete` procedure in `packages/api/src/routers/live-tournament-session.ts`: remove inline P&L computation, remove local `upsertPokerSession`, `upsertCurrencyTransaction`, and `getSessionResultTypeId`, keep only event insertion + status update + call to `recalculateTournamentSession`. Return pokerSessionId by querying after recalculation
-- [ ] T013 [US2] Update `sessionEvent` router in `packages/api/src/routers/session-event.ts`: in `create`, `update`, and `delete` mutations, add unconditional call to `recalculateTournamentSession` (when `liveTournamentSessionId` is set). This completes the removal of `recalculateIfCompleted` for both session types
+- [x] T012 [US2] Simplify `complete` procedure in `packages/api/src/routers/live-tournament-session.ts`: remove inline P&L computation, remove local `upsertPokerSession`, `upsertCurrencyTransaction`, and `getSessionResultTypeId`, keep only event insertion + status update + call to `recalculateTournamentSession`. Return pokerSessionId by querying after recalculation
+- [x] T013 [US2] Update `sessionEvent` router in `packages/api/src/routers/session-event.ts`: in `create`, `update`, and `delete` mutations, add unconditional call to `recalculateTournamentSession` (when `liveTournamentSessionId` is set). This completes the removal of `recalculateIfCompleted` for both session types
 
 **Checkpoint**: Tournament recalculation is unified. Both cash game and tournament sessions use the same recalculation pattern.
 
@@ -77,8 +77,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] Verify and clean up `reopen` procedure in `packages/api/src/routers/live-cash-game-session.ts`: ensure the event insertion after reopen triggers recalculation of live session metadata (startedAt should remain unchanged as it uses the first session_start). Remove any now-unnecessary code
-- [ ] T015 [US3] Verify and clean up `reopen` procedure in `packages/api/src/routers/live-tournament-session.ts`: same verification as cash game — ensure consistency after reopen + re-complete cycle
+- [x] T014 [US3] Verify and clean up `reopen` procedure in `packages/api/src/routers/live-cash-game-session.ts`: ensure the event insertion after reopen triggers recalculation of live session metadata (startedAt should remain unchanged as it uses the first session_start). Remove any now-unnecessary code
+- [x] T015 [US3] Verify and clean up `reopen` procedure in `packages/api/src/routers/live-tournament-session.ts`: same verification as cash game — ensure consistency after reopen + re-complete cycle
 
 **Checkpoint**: Complete → reopen → re-complete cycle produces correct results for both session types.
 
@@ -92,8 +92,8 @@
 
 ### Implementation for User Story 4
 
-- [ ] T016 [US4] Verify that `recalculateCashGameSession` in `packages/api/src/services/live-session-pl.ts` updates `liveCashGameSession.startedAt` even when session status is `"active"` (the early return should happen AFTER the startedAt update, not before). Adjust the function ordering if needed
-- [ ] T017 [US4] Verify that `recalculateTournamentSession` in `packages/api/src/services/live-session-pl.ts` updates `liveTournamentSession.startedAt` even when session status is `"active"`. Adjust the function ordering if needed
+- [x] T016 [US4] Verify that `recalculateCashGameSession` in `packages/api/src/services/live-session-pl.ts` updates `liveCashGameSession.startedAt` even when session status is `"active"` (the early return should happen AFTER the startedAt update, not before). Adjust the function ordering if needed
+- [x] T017 [US4] Verify that `recalculateTournamentSession` in `packages/api/src/services/live-session-pl.ts` updates `liveTournamentSession.startedAt` even when session status is `"active"`. Adjust the function ordering if needed
 
 **Checkpoint**: Live session metadata is always consistent with event timestamps, regardless of session status.
 
@@ -103,11 +103,11 @@
 
 **Purpose**: Clean up, verify no regressions, remove dead code
 
-- [ ] T018 Remove unused imports and dead code from `packages/api/src/routers/live-cash-game-session.ts`: remove `computeCashGamePLFromEvents` import if no longer used in `getById`, remove `computeBreakMinutesFromEvents` import, remove `createCurrencyTransactionForSession` function, remove `getSessionResultTypeId` function
-- [ ] T019 [P] Remove unused imports and dead code from `packages/api/src/routers/live-tournament-session.ts`: remove `computeTournamentPLFromEvents` import if no longer used, remove `computeBreakMinutesFromEvents` import, remove `upsertPokerSession` function, remove `upsertCurrencyTransaction` function, remove `getSessionResultTypeId` function, remove `fetchTournamentMasterData` if moved to service
-- [ ] T020 [P] Run full test suite (`bun run test`) and fix any regressions
-- [ ] T021 [P] Run type checking (`bun run check-types`) and fix any type errors
-- [ ] T022 Run linter (`bun x ultracite check`) and fix any formatting issues
+- [x] T018 Remove unused imports and dead code from `packages/api/src/routers/live-cash-game-session.ts`: remove `computeCashGamePLFromEvents` import if no longer used in `getById`, remove `computeBreakMinutesFromEvents` import, remove `createCurrencyTransactionForSession` function, remove `getSessionResultTypeId` function
+- [x] T019 [P] Remove unused imports and dead code from `packages/api/src/routers/live-tournament-session.ts`: remove `computeTournamentPLFromEvents` import if no longer used, remove `computeBreakMinutesFromEvents` import, remove `upsertPokerSession` function, remove `upsertCurrencyTransaction` function, remove `getSessionResultTypeId` function, remove `fetchTournamentMasterData` if moved to service
+- [x] T020 [P] Run full test suite (`bun run test`) and fix any regressions
+- [x] T021 [P] Run type checking (`bun run check-types`) and fix any type errors
+- [x] T022 Run linter (`bun x ultracite check`) and fix any formatting issues
 
 ---
 
