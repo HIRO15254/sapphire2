@@ -9,6 +9,7 @@ export interface CashGameFormValues {
 	blind1?: number;
 	blind2?: number;
 	blind3?: number;
+	breakMinutes?: number;
 	buyIn: number;
 	cashOut: number;
 	currencyId?: string;
@@ -28,6 +29,7 @@ export interface CashGameFormValues {
 export interface TournamentFormValues {
 	addonCost?: number;
 	bountyPrizes?: number;
+	breakMinutes?: number;
 	currencyId?: string;
 	endTime?: string;
 	entryFee?: number;
@@ -51,6 +53,7 @@ export type SessionFormValues = CashGameFormValues | TournamentFormValues;
 export interface SessionItem {
 	addonCost: number | null;
 	bountyPrizes: number | null;
+	breakMinutes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
 	createdAt: string;
@@ -102,6 +105,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 		sessionDate,
 		startedAt: timeToUnix(values.sessionDate, values.startTime),
 		endedAt: timeToUnix(values.sessionDate, values.endTime),
+		breakMinutes: values.breakMinutes,
 		memo: values.memo,
 		tagIds: values.tagIds,
 		storeId: values.storeId,
@@ -146,6 +150,7 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		sessionDate: Math.floor(new Date(values.sessionDate).getTime() / 1000),
 		startedAt: timeToUnix(values.sessionDate, values.startTime) ?? null,
 		endedAt: timeToUnix(values.sessionDate, values.endTime) ?? null,
+		breakMinutes: values.breakMinutes ?? null,
 		memo: values.memo,
 		tagIds: values.tagIds,
 		storeId: values.storeId ?? null,
@@ -203,6 +208,7 @@ export function buildOptimisticItem(
 		rebuyCost: null,
 		addonCost: null,
 		bountyPrizes: null,
+		breakMinutes: newSession.breakMinutes ?? null,
 		profitLoss: 0,
 		startedAt: null,
 		endedAt: null,
@@ -256,6 +262,7 @@ export function buildEditDefaults(session: SessionItem) {
 		bountyPrizes: session.bountyPrizes ?? undefined,
 		startTime: formatTimeFromDate(session.startedAt),
 		endTime: formatTimeFromDate(session.endedAt),
+		breakMinutes: session.breakMinutes ?? undefined,
 		memo: session.memo ?? undefined,
 		tagIds: session.tags.map((t) => t.id),
 		storeId: session.storeId ?? undefined,

@@ -18,7 +18,10 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
-import { computeCashGamePLFromEvents } from "../services/live-session-pl";
+import {
+	computeBreakMinutesFromEvents,
+	computeCashGamePLFromEvents,
+} from "../services/live-session-pl";
 
 const DEFAULT_LIMIT = 20;
 
@@ -491,17 +494,21 @@ export const liveCashGameSessionRouter = router({
 				.set({ status: "completed", endedAt: now, updatedAt: now })
 				.where(eq(liveCashGameSession.id, input.id));
 
-			// Fetch all events for P&L computation
+			// Fetch all events for P&L and break time computation
 			const allEvents = await ctx.db
 				.select({
 					eventType: sessionEvent.eventType,
 					payload: sessionEvent.payload,
+					occurredAt: sessionEvent.occurredAt,
 				})
 				.from(sessionEvent)
 				.where(eq(sessionEvent.liveCashGameSessionId, input.id))
 				.orderBy(asc(sessionEvent.sortOrder));
 
 			const pl = computeCashGamePLFromEvents(allEvents);
+			const effectiveBreakMinutes = computeBreakMinutesFromEvents(allEvents);
+			const breakMinutesValue =
+				effectiveBreakMinutes > 0 ? effectiveBreakMinutes : null;
 
 			// Check if a pokerSession already exists for this live session
 			const [existingPokerSession] = await ctx.db
@@ -520,6 +527,7 @@ export const liveCashGameSessionRouter = router({
 						cashOut: pl.cashOut,
 						evCashOut: pl.evCashOut,
 						endedAt: now,
+						breakMinutes: breakMinutesValue,
 						updatedAt: now,
 					})
 					.where(eq(pokerSession.id, pokerSessionId));
@@ -563,6 +571,7 @@ export const liveCashGameSessionRouter = router({
 					evCashOut: pl.evCashOut,
 					startedAt: session.startedAt,
 					endedAt: now,
+					breakMinutes: breakMinutesValue,
 					memo: session.memo ?? null,
 					updatedAt: now,
 				});
