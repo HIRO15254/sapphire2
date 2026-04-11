@@ -32,14 +32,14 @@ interface PlayerFormProps {
 }
 
 const playerFormSchema = z.object({
-	memo: z.string().max(50_000).nullable().optional(),
+	memo: z.string().max(50_000).nullable(),
 	name: z
 		.string()
 		.min(1, "Name is required")
 		.max(100, "Name must be 100 characters or less"),
-	tags: z
-		.array(z.object({ color: z.string(), id: z.string(), name: z.string() }))
-		.optional(),
+	tags: z.array(
+		z.object({ color: z.string(), id: z.string(), name: z.string() })
+	),
 });
 
 export function PlayerForm({
