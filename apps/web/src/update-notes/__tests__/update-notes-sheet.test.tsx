@@ -28,6 +28,22 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
+vi.mock("@/update-notes/constants", () => ({
+	UPDATE_NOTES: [
+		{
+			version: "1.0.0",
+			releasedAt: "2026-04-11",
+			title: "Update Notes Feature",
+			changes: [
+				"Added update notes modal to view past release information",
+				"Unviewed updates are highlighted with a NEW badge",
+				"Update notes sheet automatically opens after a new release",
+			],
+		},
+	],
+	LATEST_VERSION: "1.0.0",
+}));
+
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		updateNoteView: {
