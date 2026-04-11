@@ -40,6 +40,12 @@ interface TournamentPLResult {
 	totalEntries: number | null;
 }
 
+interface SessionState {
+	endedAt: Date | null;
+	startedAt: Date | null;
+	status: "active" | "completed";
+}
+
 export function computeBreakMinutesFromEvents(
 	events: { eventType: string; occurredAt: Date }[]
 ): number {
@@ -58,27 +64,29 @@ export function computeBreakMinutesFromEvents(
 	return Math.floor(totalBreakMs / (1000 * 60));
 }
 
-interface SessionTimestamps {
-	endedAt: Date | null;
-	startedAt: Date | null;
-}
-
-export function computeTimestampsFromEvents(
+export function computeSessionStateFromEvents(
 	events: { eventType: string; occurredAt: Date }[]
-): SessionTimestamps {
+): SessionState {
 	let startedAt: Date | null = null;
 	let endedAt: Date | null = null;
+	let lastLifecycleEvent: string | null = null;
 
 	for (const event of events) {
-		if (event.eventType === "session_start" && startedAt === null) {
-			startedAt = event.occurredAt;
+		if (event.eventType === "session_start") {
+			if (startedAt === null) {
+				startedAt = event.occurredAt;
+			}
+			lastLifecycleEvent = "session_start";
 		}
 		if (event.eventType === "session_end") {
 			endedAt = event.occurredAt;
+			lastLifecycleEvent = "session_end";
 		}
 	}
 
-	return { startedAt, endedAt };
+	const status: "active" | "completed" =
+		lastLifecycleEvent === "session_end" ? "completed" : "active";
+	return { startedAt, endedAt, status };
 }
 
 export function computeCashGamePLFromEvents(
@@ -271,6 +279,27 @@ async function syncCurrencyTransaction(
 	}
 }
 
+async function deletePokerSessionAndTransaction(
+	db: DbInstance,
+	liveSessionFilter: Parameters<typeof eq>[1],
+	liveSessionColumn: Parameters<typeof eq>[0]
+): Promise<void> {
+	const [existing] = await db
+		.select()
+		.from(pokerSession)
+		.where(eq(liveSessionColumn, liveSessionFilter));
+
+	if (!existing) {
+		return;
+	}
+
+	await db
+		.delete(currencyTransaction)
+		.where(eq(currencyTransaction.sessionId, existing.id));
+
+	await db.delete(pokerSession).where(eq(pokerSession.id, existing.id));
+}
+
 export async function recalculateCashGameSession(
 	db: DbInstance,
 	liveCashGameSessionId: string,
@@ -283,42 +312,46 @@ export async function recalculateCashGameSession(
 		.where(eq(sessionEvent.liveCashGameSessionId, liveCashGameSessionId))
 		.orderBy(asc(sessionEvent.sortOrder));
 
-	// Derive timestamps
-	const timestamps = computeTimestampsFromEvents(events);
+	// Derive status, startedAt, endedAt from events
+	const state = computeSessionStateFromEvents(events);
 
-	// Update live session startedAt (even for active sessions)
-	if (timestamps.startedAt) {
-		await db
-			.update(liveCashGameSession)
-			.set({ startedAt: timestamps.startedAt, updatedAt: new Date() })
-			.where(eq(liveCashGameSession.id, liveCashGameSessionId));
-	}
-
-	// Fetch session to check status and get metadata
+	// Fetch live session for metadata
 	const [session] = await db
 		.select()
 		.from(liveCashGameSession)
 		.where(eq(liveCashGameSession.id, liveCashGameSessionId));
 
-	if (!session || session.status !== "completed") {
+	if (!session) {
 		return;
 	}
 
-	// Update endedAt for completed sessions
-	if (timestamps.endedAt) {
-		await db
-			.update(liveCashGameSession)
-			.set({ endedAt: timestamps.endedAt, updatedAt: new Date() })
-			.where(eq(liveCashGameSession.id, liveCashGameSessionId));
+	// Update live session with all derived state
+	await db
+		.update(liveCashGameSession)
+		.set({
+			status: state.status,
+			startedAt: state.startedAt ?? session.startedAt,
+			endedAt: state.status === "active" ? null : (state.endedAt ?? null),
+			updatedAt: new Date(),
+		})
+		.where(eq(liveCashGameSession.id, liveCashGameSessionId));
+
+	if (state.status === "active") {
+		// Clean up any lingering pokerSession from a previous completion
+		await deletePokerSessionAndTransaction(
+			db,
+			liveCashGameSessionId,
+			pokerSession.liveCashGameSessionId
+		);
+		return;
 	}
 
-	// Compute P&L and break minutes
+	// status === "completed": compute P&L, break minutes, upsert pokerSession
 	const pl = computeCashGamePLFromEvents(events);
 	const breakMinutes = computeBreakMinutesFromEvents(events);
 	const breakMinutesValue = breakMinutes > 0 ? breakMinutes : null;
 	const now = new Date();
 
-	// Upsert pokerSession with ALL derived fields
 	const [existingPokerSession] = await db
 		.select()
 		.from(pokerSession)
@@ -334,10 +367,10 @@ export async function recalculateCashGameSession(
 				buyIn: pl.totalBuyIn,
 				cashOut: pl.cashOut,
 				evCashOut: pl.evCashOut,
-				startedAt: timestamps.startedAt,
-				endedAt: timestamps.endedAt,
+				startedAt: state.startedAt,
+				endedAt: state.endedAt,
 				breakMinutes: breakMinutesValue,
-				sessionDate: timestamps.startedAt ?? session.startedAt,
+				sessionDate: state.startedAt ?? session.startedAt,
 				updatedAt: now,
 			})
 			.where(eq(pokerSession.id, pokerSessionId));
@@ -347,7 +380,7 @@ export async function recalculateCashGameSession(
 			id: pokerSessionId,
 			userId,
 			type: "cash_game",
-			sessionDate: timestamps.startedAt ?? session.startedAt,
+			sessionDate: state.startedAt ?? session.startedAt,
 			storeId: session.storeId ?? null,
 			ringGameId: session.ringGameId ?? null,
 			currencyId: session.currencyId ?? null,
@@ -355,8 +388,8 @@ export async function recalculateCashGameSession(
 			buyIn: pl.totalBuyIn,
 			cashOut: pl.cashOut,
 			evCashOut: pl.evCashOut,
-			startedAt: timestamps.startedAt ?? session.startedAt,
-			endedAt: timestamps.endedAt,
+			startedAt: state.startedAt ?? session.startedAt,
+			endedAt: state.endedAt,
 			breakMinutes: breakMinutesValue,
 			memo: session.memo ?? null,
 			updatedAt: now,
@@ -369,7 +402,7 @@ export async function recalculateCashGameSession(
 		pokerSessionId,
 		session.currencyId,
 		pl.profitLoss,
-		timestamps.startedAt ?? session.startedAt,
+		state.startedAt ?? session.startedAt,
 		userId
 	);
 }
@@ -408,7 +441,7 @@ async function upsertTournamentPokerSession(
 	userId: string,
 	session: typeof liveTournamentSession.$inferSelect,
 	pl: TournamentPLResult,
-	timestamps: { startedAt: Date | null; endedAt: Date | null },
+	state: SessionState,
 	breakMinutesValue: number | null,
 	tournamentBuyIn: number | undefined,
 	entryFee: number | undefined
@@ -430,10 +463,10 @@ async function upsertTournamentPokerSession(
 				rebuyCount: pl.rebuyCount,
 				rebuyCost: pl.rebuyCost > 0 ? pl.rebuyCost : null,
 				addonCost: pl.addonCost > 0 ? pl.addonCost : null,
-				startedAt: timestamps.startedAt,
-				endedAt: timestamps.endedAt,
+				startedAt: state.startedAt,
+				endedAt: state.endedAt,
 				breakMinutes: breakMinutesValue,
-				sessionDate: timestamps.startedAt ?? session.startedAt,
+				sessionDate: state.startedAt ?? session.startedAt,
 				updatedAt: now,
 			})
 			.where(eq(pokerSession.id, existing.id));
@@ -445,7 +478,7 @@ async function upsertTournamentPokerSession(
 		id,
 		userId,
 		type: "tournament",
-		sessionDate: timestamps.startedAt ?? session.startedAt,
+		sessionDate: state.startedAt ?? session.startedAt,
 		storeId: session.storeId ?? null,
 		tournamentId: session.tournamentId ?? null,
 		currencyId: session.currencyId ?? null,
@@ -459,8 +492,8 @@ async function upsertTournamentPokerSession(
 		rebuyCount: pl.rebuyCount,
 		rebuyCost: pl.rebuyCost > 0 ? pl.rebuyCost : null,
 		addonCost: pl.addonCost > 0 ? pl.addonCost : null,
-		startedAt: timestamps.startedAt ?? session.startedAt,
-		endedAt: timestamps.endedAt,
+		startedAt: state.startedAt ?? session.startedAt,
+		endedAt: state.endedAt,
 		breakMinutes: breakMinutesValue,
 		memo: session.memo ?? null,
 		updatedAt: now,
@@ -479,31 +512,41 @@ export async function recalculateTournamentSession(
 		.where(eq(sessionEvent.liveTournamentSessionId, liveTournamentSessionId))
 		.orderBy(asc(sessionEvent.sortOrder));
 
-	const timestamps = computeTimestampsFromEvents(events);
+	// Derive status, startedAt, endedAt from events
+	const state = computeSessionStateFromEvents(events);
 
-	if (timestamps.startedAt) {
-		await db
-			.update(liveTournamentSession)
-			.set({ startedAt: timestamps.startedAt, updatedAt: new Date() })
-			.where(eq(liveTournamentSession.id, liveTournamentSessionId));
-	}
-
+	// Fetch live session for metadata
 	const [session] = await db
 		.select()
 		.from(liveTournamentSession)
 		.where(eq(liveTournamentSession.id, liveTournamentSessionId));
 
-	if (!session || session.status !== "completed") {
+	if (!session) {
 		return;
 	}
 
-	if (timestamps.endedAt) {
-		await db
-			.update(liveTournamentSession)
-			.set({ endedAt: timestamps.endedAt, updatedAt: new Date() })
-			.where(eq(liveTournamentSession.id, liveTournamentSessionId));
+	// Update live session with all derived state
+	await db
+		.update(liveTournamentSession)
+		.set({
+			status: state.status,
+			startedAt: state.startedAt ?? session.startedAt,
+			endedAt: state.status === "active" ? null : (state.endedAt ?? null),
+			updatedAt: new Date(),
+		})
+		.where(eq(liveTournamentSession.id, liveTournamentSessionId));
+
+	if (state.status === "active") {
+		// Clean up any lingering pokerSession from a previous completion
+		await deletePokerSessionAndTransaction(
+			db,
+			liveTournamentSessionId,
+			pokerSession.liveTournamentSessionId
+		);
+		return;
 	}
 
+	// status === "completed": compute P&L, break minutes, upsert pokerSession
 	const { tournamentBuyIn, entryFee } = await resolveTournamentBuyInFees(
 		db,
 		session
@@ -518,7 +561,7 @@ export async function recalculateTournamentSession(
 		userId,
 		session,
 		pl,
-		timestamps,
+		state,
 		breakMinutesValue,
 		tournamentBuyIn,
 		entryFee
@@ -529,7 +572,7 @@ export async function recalculateTournamentSession(
 		pokerSessionId,
 		session.currencyId,
 		pl.profitLoss,
-		timestamps.startedAt ?? session.startedAt,
+		state.startedAt ?? session.startedAt,
 		userId
 	);
 }

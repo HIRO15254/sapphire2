@@ -7,11 +7,7 @@ import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-sess
 import { pokerSession } from "@sapphire2/db/schema/session";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
-import {
-	currency,
-	currencyTransaction,
-	store,
-} from "@sapphire2/db/schema/store";
+import { currency, store } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
@@ -502,11 +498,6 @@ export const liveTournamentSessionRouter = router({
 				updatedAt: now,
 			});
 
-			await ctx.db
-				.update(liveTournamentSession)
-				.set({ status: "completed", endedAt: now, updatedAt: now })
-				.where(eq(liveTournamentSession.id, input.id));
-
 			await recalculateTournamentSession(ctx.db, input.id, userId);
 
 			const [linkedPokerSession] = await ctx.db
@@ -534,21 +525,6 @@ export const liveTournamentSessionRouter = router({
 
 			await assertNoActiveSession(ctx.db, userId);
 
-			const [linkedPokerSession] = await ctx.db
-				.select({ id: pokerSession.id })
-				.from(pokerSession)
-				.where(eq(pokerSession.liveTournamentSessionId, input.id));
-
-			if (linkedPokerSession) {
-				await ctx.db
-					.delete(currencyTransaction)
-					.where(eq(currencyTransaction.sessionId, linkedPokerSession.id));
-
-				await ctx.db
-					.delete(pokerSession)
-					.where(eq(pokerSession.id, linkedPokerSession.id));
-			}
-
 			const now = new Date();
 
 			// Add new session_start event (keeps previous session_end + tournament_result in history)
@@ -570,10 +546,8 @@ export const liveTournamentSessionRouter = router({
 				updatedAt: now,
 			});
 
-			await ctx.db
-				.update(liveTournamentSession)
-				.set({ status: "active", endedAt: null, updatedAt: now })
-				.where(eq(liveTournamentSession.id, input.id));
+			// Recalculate derives status: "active" from events and cleans up pokerSession
+			await recalculateTournamentSession(ctx.db, input.id, userId);
 
 			return { id: input.id };
 		}),

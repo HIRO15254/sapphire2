@@ -90,15 +90,17 @@ The live session records themselves (`liveCashGameSession`, `liveTournamentSessi
 - **FR-001**: The system MUST derive all poker session fields (`buyIn`, `cashOut`, `evCashOut`, `startedAt`, `endedAt`, `breakMinutes`, `placement`, `totalEntries`, `prizeMoney`, `bountyPrizes`, `rebuyCount`, `rebuyCost`, `addonCost`) from the live session's event history
 - **FR-002**: The system MUST recalculate derived data whenever a session event is created, updated, or deleted
 - **FR-003**: For completed sessions, recalculation MUST update the linked `pokerSession` record and its associated `currencyTransaction`
-- **FR-004**: For active sessions, recalculation MUST update the live session metadata (`startedAt` from first `session_start`, `endedAt` remains null) but MUST NOT create or modify a `pokerSession`
-- **FR-005**: The session completion flow (`complete` procedure) MUST use the same recalculation logic as event mutations, eliminating duplicated P&L computation code
+- **FR-004**: For active sessions, recalculation MUST update the live session metadata (`status`, `startedAt` from first `session_start`, `endedAt` = null) and MUST delete any lingering `pokerSession` and `currencyTransaction` from a prior completion, but MUST NOT create a new `pokerSession`
+- **FR-005**: The session completion flow (`complete` procedure) MUST only insert events (`stack_record`/`tournament_result` + `session_end`) and delegate ALL state changes (status, timestamps, pokerSession, currencyTransaction) to the recalculation service
+- **FR-005b**: The session reopen flow (`reopen` procedure) MUST only insert a `session_start` event and delegate ALL state changes (status, timestamps, pokerSession/currencyTransaction cleanup) to the recalculation service
 - **FR-006**: The `pokerSession.startedAt` MUST be derived from the first `session_start` event's `occurredAt`
 - **FR-007**: The `pokerSession.endedAt` MUST be derived from the last `session_end` event's `occurredAt`
 - **FR-008**: The `pokerSession.breakMinutes` MUST be derived from the time gaps between `session_end` and subsequent `session_start` event pairs
 - **FR-009**: Cash game P&L calculation: `totalBuyIn` = sum of all `chip_add` amounts, `cashOut` = last `stack_record.stackAmount`, `evCashOut` = `cashOut` + EV difference from all `stack_record.allIns`
 - **FR-010**: Tournament P&L calculation: rebuy/addon counts and costs from all `tournament_stack_record` events, placement/totalEntries/prizeMoney/bountyPrizes from the latest `tournament_result` event
 - **FR-011**: The `liveCashGameSession.startedAt` and `liveTournamentSession.startedAt` MUST be updated to match the first `session_start` event's `occurredAt` on recalculation
-- **FR-012**: The `liveCashGameSession.endedAt` and `liveTournamentSession.endedAt` MUST be updated to match the last `session_end` event's `occurredAt` on recalculation (for completed sessions)
+- **FR-012**: The `liveCashGameSession.endedAt` and `liveTournamentSession.endedAt` MUST be updated to match the last `session_end` event's `occurredAt` on recalculation (null when status is active)
+- **FR-012b**: The `liveCashGameSession.status` and `liveTournamentSession.status` MUST be derived from events: `"completed"` if the last lifecycle event is `session_end`, `"active"` if the last lifecycle event is `session_start`
 - **FR-013**: Recalculation MUST handle the case where a currency is set on the live session: if a `currencyTransaction` does not yet exist for the poker session, it MUST be created; if it exists, it MUST be updated
 - **FR-014**: Recalculation MUST handle the case where `profitLoss` is `null` (e.g., no `stack_record` for cash game, no `tournament_result` for tournament): no `currencyTransaction` should be created, and any existing one should be preserved with its current amount
 - **FR-015**: The `pokerSession.sessionDate` MUST be derived from the first `session_start` event's `occurredAt`

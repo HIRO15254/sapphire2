@@ -2,29 +2,46 @@ import { describe, expect, it } from "vitest";
 import {
 	computeBreakMinutesFromEvents,
 	computeCashGamePLFromEvents,
-	computeTimestampsFromEvents,
+	computeSessionStateFromEvents,
 	computeTournamentPLFromEvents,
 } from "../services/live-session-pl";
 
-describe("computeTimestampsFromEvents", () => {
-	it("returns startedAt from a single session_start event and endedAt as null", () => {
+describe("computeSessionStateFromEvents", () => {
+	it("returns startedAt from a single session_start event, endedAt null, status active", () => {
 		const start = new Date("2024-01-01T10:00:00Z");
 		const events = [{ eventType: "session_start", occurredAt: start }];
-		const result = computeTimestampsFromEvents(events);
+		const result = computeSessionStateFromEvents(events);
 		expect(result.startedAt).toEqual(start);
 		expect(result.endedAt).toBeNull();
+		expect(result.status).toBe("active");
 	});
 
-	it("returns both startedAt and endedAt when session_start and session_end are present", () => {
+	it("returns status completed and endedAt when session_start and session_end are present", () => {
 		const start = new Date("2024-01-01T10:00:00Z");
 		const end = new Date("2024-01-01T12:00:00Z");
 		const events = [
 			{ eventType: "session_start", occurredAt: start },
 			{ eventType: "session_end", occurredAt: end },
 		];
-		const result = computeTimestampsFromEvents(events);
+		const result = computeSessionStateFromEvents(events);
 		expect(result.startedAt).toEqual(start);
 		expect(result.endedAt).toEqual(end);
+		expect(result.status).toBe("completed");
+	});
+
+	it("returns status active when last lifecycle event is session_start (reopened)", () => {
+		const firstStart = new Date("2024-01-01T10:00:00Z");
+		const firstEnd = new Date("2024-01-01T11:00:00Z");
+		const secondStart = new Date("2024-01-01T11:30:00Z");
+		const events = [
+			{ eventType: "session_start", occurredAt: firstStart },
+			{ eventType: "session_end", occurredAt: firstEnd },
+			{ eventType: "session_start", occurredAt: secondStart },
+		];
+		const result = computeSessionStateFromEvents(events);
+		expect(result.startedAt).toEqual(firstStart);
+		expect(result.endedAt).toEqual(firstEnd);
+		expect(result.status).toBe("active");
 	});
 
 	it("uses the first session_start and last session_end across multiple pairs", () => {
@@ -38,27 +55,30 @@ describe("computeTimestampsFromEvents", () => {
 			{ eventType: "session_start", occurredAt: secondStart },
 			{ eventType: "session_end", occurredAt: secondEnd },
 		];
-		const result = computeTimestampsFromEvents(events);
+		const result = computeSessionStateFromEvents(events);
 		expect(result.startedAt).toEqual(firstStart);
 		expect(result.endedAt).toEqual(secondEnd);
+		expect(result.status).toBe("completed");
 	});
 
-	it("returns both null when events array is empty", () => {
-		const result = computeTimestampsFromEvents([]);
+	it("returns all null/active when events array is empty", () => {
+		const result = computeSessionStateFromEvents([]);
 		expect(result.startedAt).toBeNull();
 		expect(result.endedAt).toBeNull();
+		expect(result.status).toBe("active");
 	});
 
-	it("returns both null when events contain no lifecycle events", () => {
+	it("returns all null/active when events contain no lifecycle events", () => {
 		const events = [
 			{
 				eventType: "chip_add",
 				occurredAt: new Date("2024-01-01T10:00:00Z"),
 			},
 		];
-		const result = computeTimestampsFromEvents(events);
+		const result = computeSessionStateFromEvents(events);
 		expect(result.startedAt).toBeNull();
 		expect(result.endedAt).toBeNull();
+		expect(result.status).toBe("active");
 	});
 });
 

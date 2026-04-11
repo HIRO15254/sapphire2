@@ -8,11 +8,7 @@ import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { pokerSession } from "@sapphire2/db/schema/session";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
-import {
-	currency,
-	currencyTransaction,
-	store,
-} from "@sapphire2/db/schema/store";
+import { currency, store } from "@sapphire2/db/schema/store";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -440,12 +436,6 @@ export const liveCashGameSessionRouter = router({
 				updatedAt: now,
 			});
 
-			// Mark session as completed
-			await ctx.db
-				.update(liveCashGameSession)
-				.set({ status: "completed", endedAt: now, updatedAt: now })
-				.where(eq(liveCashGameSession.id, input.id));
-
 			// Recalculate P&L, pokerSession, and currencyTransaction via service
 			await recalculateCashGameSession(ctx.db, input.id, userId);
 
@@ -501,21 +491,6 @@ export const liveCashGameSessionRouter = router({
 				});
 			}
 
-			// Find linked pokerSession and clean up derived data
-			const [linkedPokerSession] = await ctx.db
-				.select({ id: pokerSession.id })
-				.from(pokerSession)
-				.where(eq(pokerSession.liveCashGameSessionId, input.id));
-
-			if (linkedPokerSession) {
-				await ctx.db
-					.delete(currencyTransaction)
-					.where(eq(currencyTransaction.sessionId, linkedPokerSession.id));
-				await ctx.db
-					.delete(pokerSession)
-					.where(eq(pokerSession.id, linkedPokerSession.id));
-			}
-
 			const now = new Date();
 
 			// Add new session_start event (keeps previous events in history)
@@ -537,11 +512,8 @@ export const liveCashGameSessionRouter = router({
 				updatedAt: now,
 			});
 
-			// Reopen the session
-			await ctx.db
-				.update(liveCashGameSession)
-				.set({ status: "active", endedAt: null, updatedAt: now })
-				.where(eq(liveCashGameSession.id, input.id));
+			// Recalculate derives status: "active" from events and cleans up pokerSession
+			await recalculateCashGameSession(ctx.db, input.id, userId);
 
 			return { id: input.id };
 		}),
