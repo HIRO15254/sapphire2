@@ -70,7 +70,7 @@ function formatTime(value: string | Date) {
 function applyTimeToDate(original: string | Date, timeStr: string) {
 	const date = new Date(typeof original === "string" ? original : original);
 	const [h, m] = timeStr.split(":").map(Number);
-	date.setHours(h ?? 0, m ?? 0, 0, 0);
+	date.setHours(h ?? 0, m ?? 0);
 	return date;
 }
 
@@ -81,11 +81,19 @@ function validateTime(
 	maxTime: Date | null
 ) {
 	const newDate = applyTimeToDate(original, timeStr);
-	if (minTime && newDate.getTime() < minTime.getTime()) {
-		return `Must be after ${formatTime(minTime)}`;
+	if (minTime) {
+		const minMinute = new Date(minTime);
+		minMinute.setSeconds(0, 0);
+		if (newDate.getTime() < minMinute.getTime()) {
+			return `Must be after ${formatTime(minTime)}`;
+		}
 	}
-	if (maxTime && newDate.getTime() > maxTime.getTime()) {
-		return `Must be before ${formatTime(maxTime)}`;
+	if (maxTime) {
+		const maxMinute = new Date(maxTime);
+		maxMinute.setSeconds(0, 0);
+		if (newDate.getTime() > maxMinute.getTime()) {
+			return `Must be before ${formatTime(maxTime)}`;
+		}
 	}
 	return null;
 }

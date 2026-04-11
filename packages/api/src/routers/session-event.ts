@@ -368,7 +368,14 @@ export const sessionEventRouter = router({
 			const eventType = event.eventType as SessionEventType;
 			const updates: Record<string, unknown> = { updatedAt: new Date() };
 			if (input.occurredAt !== undefined) {
-				updates.occurredAt = new Date(input.occurredAt * 1000);
+				const newOccurredAt = new Date(input.occurredAt * 1000);
+				updates.occurredAt = newOccurredAt;
+				updates.sortOrder = await computeNextSortOrder(
+					ctx.db,
+					event.liveCashGameSessionId ?? undefined,
+					event.liveTournamentSessionId ?? undefined,
+					newOccurredAt
+				);
 			}
 			if (input.payload !== undefined) {
 				updates.payload = JSON.stringify(

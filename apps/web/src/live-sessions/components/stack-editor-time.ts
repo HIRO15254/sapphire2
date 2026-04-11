@@ -20,11 +20,19 @@ export function validateOccurredAtTime(
 	maxTime: Date | null | undefined
 ): string | null {
 	const nextDate = applyTimeToDate(original, timeStr);
-	if (minTime && nextDate.getTime() < minTime.getTime()) {
-		return `Must be after ${toTimeInputValue(minTime)}`;
+	if (minTime) {
+		const minMinute = new Date(minTime);
+		minMinute.setSeconds(0, 0);
+		if (nextDate.getTime() < minMinute.getTime()) {
+			return `Must be after ${toTimeInputValue(minTime)}`;
+		}
 	}
-	if (maxTime && nextDate.getTime() > maxTime.getTime()) {
-		return `Must be before ${toTimeInputValue(maxTime)}`;
+	if (maxTime) {
+		const maxMinute = new Date(maxTime);
+		maxMinute.setSeconds(0, 0);
+		if (nextDate.getTime() > maxMinute.getTime()) {
+			return `Must be before ${toTimeInputValue(maxTime)}`;
+		}
 	}
 	return null;
 }
