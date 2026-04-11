@@ -13,7 +13,7 @@
 
 **Purpose**: Static data definition and project structure
 
-- [ ] T001 [P] Create update notes static data constants with UpdateNote type definition and initial release data in `apps/web/src/update-notes/constants.ts` (FR-001)
+- [x] T001 [P] Create update notes static data constants with UpdateNote type definition and initial release data in `apps/web/src/update-notes/constants.ts` (FR-001)
 
 ---
 
@@ -23,12 +23,12 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 Create Drizzle schema for `update_note_view` table with id, userId (FK→user, CASCADE), version, viewedAt fields, unique index on (userId, version), and index on userId in `packages/db/src/schema/update-note-view.ts` (data-model.md)
-- [ ] T003 Export `updateNoteView` table and relations from `packages/db/src/schema.ts`
-- [ ] T004 Add `updateNoteView` many-relation to existing `userRelations` in `packages/db/src/schema/auth.ts`
-- [ ] T005 Generate database migration by running `cd packages/db && bun run db:generate`
-- [ ] T006 Create tRPC router `updateNoteViewRouter` in `packages/api/src/routers/update-note-view.ts` with three protected procedures: `list` (query: return all viewed versions for user), `markViewed` (mutation: idempotent upsert of version view record), `getLatestViewedVersion` (query: return latest viewed version or null) per contracts/trpc-router.md
-- [ ] T007 Register `updateNoteViewRouter` as `updateNoteView` in `packages/api/src/routers/index.ts`
+- [x] T002 Create Drizzle schema for `update_note_view` table with id, userId (FK→user, CASCADE), version, viewedAt fields, unique index on (userId, version), and index on userId in `packages/db/src/schema/update-note-view.ts` (data-model.md)
+- [x] T003 Export `updateNoteView` table and relations from `packages/db/src/schema.ts`
+- [x] T004 Relation defined in `update-note-view.ts` (skipped auth.ts modification to avoid circular import — follows existing codebase pattern)
+- [x] T005 Generate database migration by running `cd packages/db && bun run db:generate`
+- [x] T006 Create tRPC router `updateNoteViewRouter` in `packages/api/src/routers/update-note-view.ts` with three protected procedures: `list` (query: return all viewed versions for user), `markViewed` (mutation: idempotent upsert of version view record), `getLatestViewedVersion` (query: return latest viewed version or null) per contracts/trpc-router.md
+- [x] T007 Register `updateNoteViewRouter` as `updateNoteView` in `packages/api/src/routers/index.ts`
 
 **Checkpoint**: Backend API ready — `updateNoteView.list`, `updateNoteView.markViewed`, `updateNoteView.getLatestViewedVersion` endpoints available
 
@@ -42,9 +42,9 @@
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Create `UpdateNotesProvider` context and `useUpdateNotesSheet` hook in `apps/web/src/update-notes/hooks/use-update-notes-sheet.tsx` — manage sheet open/close state, fetch `getLatestViewedVersion` via tRPC query, compare with `LATEST_VERSION` constant, auto-open sheet via `useEffect` when unviewed version detected (skip if `viewedVersion === null` for first-time users) (FR-006, FR-007)
-- [ ] T009 [US1] Create `UpdateNotesSheet` component in `apps/web/src/update-notes/components/update-notes-sheet.tsx` — use `ResponsiveDialog` with title "Update Notes", render latest version's title and changes list, consume `useUpdateNotesSheet` context for open/close state (FR-002)
-- [ ] T010 [US1] Integrate into `AuthenticatedShell` in `apps/web/src/shared/components/authenticated-shell.tsx` — wrap children with `UpdateNotesProvider`, render `UpdateNotesSheet` at shell level alongside `LiveStackFormSheet`
+- [x] T008 [US1] Create `UpdateNotesProvider` context and `useUpdateNotesSheet` hook in `apps/web/src/update-notes/hooks/use-update-notes-sheet.tsx` — manage sheet open/close state, fetch `getLatestViewedVersion` via tRPC query, compare with `LATEST_VERSION` constant, auto-open sheet via `useEffect` when unviewed version detected (skip if `viewedVersion === null` for first-time users) (FR-006, FR-007)
+- [x] T009 [US1] Create `UpdateNotesSheet` component in `apps/web/src/update-notes/components/update-notes-sheet.tsx` — use `ResponsiveDialog` with title "Update Notes", render latest version's title and changes list, consume `useUpdateNotesSheet` context for open/close state (FR-002)
+- [x] T010 [US1] Integrate into `AuthenticatedShell` in `apps/web/src/shared/components/authenticated-shell.tsx` — wrap children with `UpdateNotesProvider`, render `UpdateNotesSheet` at shell level alongside `LiveStackFormSheet`
 
 **Checkpoint**: Auto-open on first access after update works. Sheet displays latest version info. Closing prevents re-open.
 
@@ -58,9 +58,9 @@
 
 ### Implementation for User Story 2
 
-- [ ] T011 [US2] Add "Update Notes" `DropdownMenuItem` to `UserMenu` in `apps/web/src/shared/components/user-menu.tsx` — on click, call `useUpdateNotesSheet().open()` from context (FR-008, SC-002)
-- [ ] T012 [US2] Enhance `UpdateNotesSheet` component to display full update notes list using `Accordion` — fetch `updateNoteView.list` to determine viewed versions, render each version as `AccordionItem` with version name + release date in `AccordionTrigger`, show `Badge` with "NEW" for unviewed versions, sort by releasedAt descending (FR-002, FR-004, FR-010, SC-003)
-- [ ] T013 [US2] Handle empty state in `UpdateNotesSheet` — when no update notes exist in constants, display "No update notes available" message
+- [x] T011 [US2] Add "Update Notes" `DropdownMenuItem` to `UserMenu` in `apps/web/src/shared/components/user-menu.tsx` — on click, call `useUpdateNotesSheet().open()` from context (FR-008, SC-002)
+- [x] T012 [US2] Enhance `UpdateNotesSheet` component to display full update notes list using `Accordion` — fetch `updateNoteView.list` to determine viewed versions, render each version as `AccordionItem` with version name + release date in `AccordionTrigger`, show `Badge` with "NEW" for unviewed versions, sort by releasedAt descending (FR-002, FR-004, FR-010, SC-003)
+- [x] T013 [US2] Handle empty state in `UpdateNotesSheet` — when no update notes exist in constants, display "No update notes available" message
 
 **Checkpoint**: Manual trigger via UserMenu works. All versions listed with dates. Unviewed versions highlighted with "NEW" badge.
 
@@ -74,9 +74,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T014 [US3] Add `AccordionContent` with changes list to each `AccordionItem` in `UpdateNotesSheet` — render each change as a list item inside the accordion content area (FR-005)
-- [ ] T015 [US3] Fire `markViewed` mutation on accordion expand — use `onValueChange` callback on `Accordion` to detect expansion, call `updateNoteView.markViewed` tRPC mutation with the expanded version, invalidate `list` and `getLatestViewedVersion` queries on success to update UI (FR-009)
-- [ ] T016 [US3] Handle optimistic update for viewed state — after `markViewed` mutation fires, immediately remove "NEW" badge from the expanded item without waiting for server response (offline-first, Constitution VIII)
+- [x] T014 [US3] Add `AccordionContent` with changes list to each `AccordionItem` in `UpdateNotesSheet` — render each change as a list item inside the accordion content area (FR-005)
+- [x] T015 [US3] Fire `markViewed` mutation on accordion expand — use `onValueChange` callback on `Accordion` to detect expansion, call `updateNoteView.markViewed` tRPC mutation with the expanded version, invalidate `list` and `getLatestViewedVersion` queries on success to update UI (FR-009)
+- [x] T016 [US3] Handle optimistic update for viewed state — after `markViewed` mutation fires, immediately remove "NEW" badge from the expanded item without waiting for server response (offline-first, Constitution VIII)
 
 **Checkpoint**: All user stories fully functional. Accordion expand/collapse works. Viewing marks version as read. Badge disappears after viewing.
 
@@ -86,10 +86,10 @@
 
 **Purpose**: Testing, edge cases, and quality assurance
 
-- [ ] T017 [P] Write schema tests in `packages/db/src/__tests__/update-note-view.test.ts` — verify table structure, unique constraint on (userId, version), cascade delete when user is deleted (Constitution III)
-- [ ] T018 [P] Write tRPC router integration tests in `packages/api/src/__tests__/update-note-view.test.ts` — test `list` returns user's views, `markViewed` is idempotent, `getLatestViewedVersion` returns null for new user and correct version for existing user (Constitution III)
-- [ ] T019 [P] Write component tests in `apps/web/src/update-notes/__tests__/update-notes-sheet.test.tsx` — test sheet renders with accordion items, "NEW" badge appears for unviewed versions, accordion expand/collapse works (Constitution III)
-- [ ] T020 Run `bun run check-types && bun run test && bun run check` to verify all checks pass
+- [x] T017 [P] Write schema tests in `packages/db/src/__tests__/update-note-view.test.ts` — verify table structure, unique constraint on (userId, version), cascade delete when user is deleted (Constitution III)
+- [x] T018 [P] Write tRPC router integration tests in `packages/api/src/__tests__/update-note-view.test.ts` — test `list` returns user's views, `markViewed` is idempotent, `getLatestViewedVersion` returns null for new user and correct version for existing user (Constitution III)
+- [x] T019 [P] Write component tests in `apps/web/src/update-notes/__tests__/update-notes-sheet.test.tsx` — test sheet renders with accordion items, "NEW" badge appears for unviewed versions, accordion expand/collapse works (Constitution III)
+- [x] T020 Run `bun run check-types && bun run test && bun run check` to verify all checks pass
 
 ---
 
