@@ -23,6 +23,14 @@ export function useSessionTags() {
 		queryKey: trpc.session.list.queryOptions({}).queryKey,
 	};
 
+	const createMutation = useMutation({
+		mutationFn: (name: string) =>
+			trpcClient.sessionTag.create.mutate({ name }),
+		onSettled: () => {
+			invalidateTargets(queryClient, [{ queryKey: tagsKey }]);
+		},
+	});
+
 	const updateMutation = useMutation({
 		mutationFn: ({ id, name }: { id: string; name: string }) =>
 			trpcClient.sessionTag.update.mutate({ id, name }),
@@ -71,9 +79,11 @@ export function useSessionTags() {
 
 	return {
 		tags,
+		create: (name: string) => createMutation.mutateAsync(name),
 		update: (params: { id: string; name: string }) =>
 			updateMutation.mutateAsync(params),
 		delete: (id: string) => deleteMutation.mutateAsync(id),
+		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		isDeletePending: deleteMutation.isPending,
 	};
