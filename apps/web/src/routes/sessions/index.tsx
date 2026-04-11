@@ -2,12 +2,12 @@ import { IconCards, IconPlus, IconTags } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { SessionCard } from "@/sessions/components/session-card";
-import { SessionTagManager } from "@/sessions/components/session-tag-manager";
 import {
 	SessionFilters,
 	type SessionFilterValues,
 } from "@/sessions/components/session-filters";
 import { SessionForm } from "@/sessions/components/session-form";
+import { SessionTagManager } from "@/sessions/components/session-tag-manager";
 import {
 	buildEditDefaults,
 	type SessionFormValues,
@@ -82,19 +82,19 @@ function SessionsPage() {
 				actions={
 					<>
 						<Button
-						onClick={() => setIsTagManagerOpen(true)}
-						size="sm"
-						variant="outline"
-					>
-						<IconTags size={16} />
-						Manage Tags
-					</Button>
-					<SessionFilters
-						currencies={currencies}
-						filters={filters}
-						onFiltersChange={setFilters}
-						stores={stores}
-					/>
+							onClick={() => setIsTagManagerOpen(true)}
+							size="sm"
+							variant="outline"
+						>
+							<IconTags size={16} />
+							Manage Tags
+						</Button>
+						<SessionFilters
+							currencies={currencies}
+							filters={filters}
+							onFiltersChange={setFilters}
+							stores={stores}
+						/>
 						<div className="flex items-center gap-1.5">
 							<Label className="text-xs" htmlFor="bb-bi-switch">
 								BB/BI

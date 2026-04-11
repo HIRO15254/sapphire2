@@ -74,9 +74,7 @@ export function PlayerTagManager() {
 						color: tag.color as TagColor,
 					}}
 					isLoading={isUpdatePending}
-					onSubmit={(values) =>
-						update({ id: tag.id, ...values }).then(onClose)
-					}
+					onSubmit={(values) => update({ id: tag.id, ...values }).then(onClose)}
 				/>
 			)}
 			renderTagLabel={(tag) => (

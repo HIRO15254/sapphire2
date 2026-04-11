@@ -24,8 +24,7 @@ export function useSessionTags() {
 	};
 
 	const createMutation = useMutation({
-		mutationFn: (name: string) =>
-			trpcClient.sessionTag.create.mutate({ name }),
+		mutationFn: (name: string) => trpcClient.sessionTag.create.mutate({ name }),
 		onSettled: () => {
 			invalidateTargets(queryClient, [{ queryKey: tagsKey }]);
 		},

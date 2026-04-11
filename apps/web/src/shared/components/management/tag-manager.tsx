@@ -11,15 +11,15 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 
 interface TagManagerProps<TTag extends { id: string; name: string }> {
-	tags: TTag[];
 	emptyDescription?: React.ReactNode;
 	emptyHeading?: React.ReactNode;
 	isDeletePending?: boolean;
 	onDelete: (id: string) => Promise<unknown>;
-	renderTagLabel?: (tag: TTag) => React.ReactNode;
-	renderDeleteDescription: (tag: TTag) => React.ReactNode;
 	renderCreateForm: (onClose: () => void) => React.ReactNode;
+	renderDeleteDescription: (tag: TTag) => React.ReactNode;
 	renderEditForm: (tag: TTag, onClose: () => void) => React.ReactNode;
+	renderTagLabel?: (tag: TTag) => React.ReactNode;
+	tags: TTag[];
 }
 
 export function TagManager<TTag extends { id: string; name: string }>({
