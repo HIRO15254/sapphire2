@@ -51,6 +51,7 @@ export const pokerSession = sqliteTable(
 		bountyPrizes: integer("bounty_prizes"),
 		startedAt: integer("started_at", { mode: "timestamp" }),
 		endedAt: integer("ended_at", { mode: "timestamp" }),
+		breakMinutes: integer("break_minutes"),
 		memo: text("memo"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)

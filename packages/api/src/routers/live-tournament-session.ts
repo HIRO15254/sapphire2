@@ -18,7 +18,10 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
-import { computeTournamentPLFromEvents } from "../services/live-session-pl";
+import {
+	computeBreakMinutesFromEvents,
+	computeTournamentPLFromEvents,
+} from "../services/live-session-pl";
 
 const DEFAULT_LIMIT = 20;
 
@@ -280,12 +283,16 @@ async function upsertPokerSession(
 	tournamentBuyIn: number | undefined,
 	entryFee: number | undefined,
 	pl: TournamentPL,
-	now: Date
+	now: Date,
+	breakMinutes?: number
 ): Promise<string> {
 	const [existing] = await db
 		.select({ id: pokerSession.id })
 		.from(pokerSession)
 		.where(eq(pokerSession.liveTournamentSessionId, liveTournamentSessionId));
+
+	const effectiveBreakMinutes =
+		breakMinutes && breakMinutes > 0 ? breakMinutes : null;
 
 	if (existing) {
 		await db
@@ -299,6 +306,7 @@ async function upsertPokerSession(
 				rebuyCost: pl.rebuyCost > 0 ? pl.rebuyCost : null,
 				addonCost: pl.addonCost > 0 ? pl.addonCost : null,
 				endedAt: now,
+				breakMinutes: effectiveBreakMinutes,
 				updatedAt: now,
 			})
 			.where(eq(pokerSession.id, existing.id));
@@ -326,6 +334,7 @@ async function upsertPokerSession(
 		addonCost: pl.addonCost > 0 ? pl.addonCost : null,
 		startedAt: session.startedAt,
 		endedAt: now,
+		breakMinutes: effectiveBreakMinutes,
 		memo: session.memo ?? null,
 		updatedAt: now,
 	});
@@ -637,10 +646,13 @@ export const liveTournamentSessionRouter = router({
 				.select({
 					eventType: sessionEvent.eventType,
 					payload: sessionEvent.payload,
+					occurredAt: sessionEvent.occurredAt,
 				})
 				.from(sessionEvent)
 				.where(eq(sessionEvent.liveTournamentSessionId, input.id))
 				.orderBy(asc(sessionEvent.sortOrder));
+
+			const breakMinutes = computeBreakMinutesFromEvents(allEvents);
 
 			const masterData = await fetchTournamentMasterData(
 				ctx.db,
@@ -665,7 +677,8 @@ export const liveTournamentSessionRouter = router({
 				tournamentBuyIn,
 				entryFee,
 				pl,
-				now
+				now,
+				breakMinutes
 			);
 
 			if (session.currencyId && pl.profitLoss !== null) {

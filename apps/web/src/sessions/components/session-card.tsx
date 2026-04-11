@@ -22,6 +22,7 @@ interface SessionCardProps {
 	session: {
 		addonCost: number | null;
 		bountyPrizes: number | null;
+		breakMinutes: number | null;
 		buyIn: number | null;
 		cashOut: number | null;
 		createdAt: string;
@@ -116,9 +117,14 @@ function formatBBBI(value: number, unit: "BB" | "BI"): string {
 	return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)} ${unit}`;
 }
 
-function formatDuration(startedAt: string, endedAt: string): string {
+function formatDuration(
+	startedAt: string,
+	endedAt: string,
+	breakMinutes?: number | null
+): string {
 	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
-	const hours = diffMs / (1000 * 60 * 60);
+	const breakMs = (breakMinutes ?? 0) * 60 * 1000;
+	const hours = (diffMs - breakMs) / (1000 * 60 * 60);
 	return `${hours.toFixed(1)}h`;
 }
 
@@ -199,7 +205,11 @@ function CashGameDetails({
 	if (session.startedAt && session.endedAt) {
 		rows.push({
 			label: "Duration",
-			value: formatDuration(session.startedAt, session.endedAt),
+			value: formatDuration(
+				session.startedAt,
+				session.endedAt,
+				session.breakMinutes
+			),
 		});
 	}
 	return (
@@ -260,7 +270,11 @@ function TournamentDetails({
 	if (session.startedAt && session.endedAt) {
 		rows.push({
 			label: "Duration",
-			value: formatDuration(session.startedAt, session.endedAt),
+			value: formatDuration(
+				session.startedAt,
+				session.endedAt,
+				session.breakMinutes
+			),
 		});
 	}
 	return (
@@ -379,7 +393,11 @@ function SessionHeader({
 					{session.startedAt && session.endedAt && (
 						<span className="flex items-center gap-0.5">
 							<IconClock className="shrink-0" size={12} />
-							{formatDuration(session.startedAt, session.endedAt)}
+							{formatDuration(
+								session.startedAt,
+								session.endedAt,
+								session.breakMinutes
+							)}
 						</span>
 					)}
 				</div>

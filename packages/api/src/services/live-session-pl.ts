@@ -37,6 +37,24 @@ interface TournamentPLResult {
 	totalEntries: number | null;
 }
 
+export function computeBreakMinutesFromEvents(
+	events: { eventType: string; occurredAt: Date }[]
+): number {
+	let totalBreakMs = 0;
+	let lastSessionEndAt: Date | null = null;
+
+	for (const event of events) {
+		if (event.eventType === "session_end") {
+			lastSessionEndAt = event.occurredAt;
+		} else if (event.eventType === "session_start" && lastSessionEndAt) {
+			totalBreakMs += event.occurredAt.getTime() - lastSessionEndAt.getTime();
+			lastSessionEndAt = null;
+		}
+	}
+
+	return Math.floor(totalBreakMs / (1000 * 60));
+}
+
 export function computeCashGamePLFromEvents(
 	events: { eventType: string; payload: string }[]
 ): CashGamePLResult {
