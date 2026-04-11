@@ -1,9 +1,6 @@
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
 import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
-import {
-	player,
-	playerToPlayerTag,
-} from "@sapphire2/db/schema/player";
+import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { TRPCError } from "@trpc/server";

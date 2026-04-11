@@ -33,7 +33,10 @@ interface PlayerFormProps {
 
 const playerFormSchema = z.object({
 	memo: z.string().max(50_000).nullable().optional(),
-	name: z.string().min(1, "Name is required").max(100, "Name must be 100 characters or less"),
+	name: z
+		.string()
+		.min(1, "Name is required")
+		.max(100, "Name must be 100 characters or less"),
 	tags: z
 		.array(z.object({ color: z.string(), id: z.string(), name: z.string() }))
 		.optional(),
@@ -51,16 +54,15 @@ export function PlayerForm({
 }: PlayerFormProps) {
 	const form = useForm({
 		defaultValues: {
-			memo: defaultMemo ?? null as string | null,
+			memo: defaultMemo ?? (null as string | null),
 			name: defaultValues?.name ?? "",
-			tags: defaultTags ?? [] as TagWithColor[],
+			tags: defaultTags ?? ([] as TagWithColor[]),
 		},
 		onSubmit: ({ value }) => {
 			onSubmit({
 				memo: value.memo,
 				name: value.name,
-				tagIds:
-					value.tags.length > 0 ? value.tags.map((t) => t.id) : undefined,
+				tagIds: value.tags.length > 0 ? value.tags.map((t) => t.id) : undefined,
 			});
 		},
 		validators: {
@@ -103,9 +105,7 @@ export function PlayerForm({
 						<Field label="Tags">
 							<PlayerTagInput
 								availableTags={availableTags}
-								onAdd={(tag) =>
-									field.handleChange([...field.state.value, tag])
-								}
+								onAdd={(tag) => field.handleChange([...field.state.value, tag])}
 								onCreateTag={onCreateTag}
 								onRemove={(tag) =>
 									field.handleChange(

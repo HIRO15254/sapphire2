@@ -43,12 +43,12 @@ export function PlayerDetailSheet({
 			title={player?.name ?? "Player"}
 		>
 			<PlayerForm
-				key={player?.id ?? "empty"}
 				availableTags={availableTags}
 				defaultMemo={player?.memo}
 				defaultTags={player?.tags ?? []}
 				defaultValues={{ name: player?.name ?? "" }}
 				isLoading={isSaving}
+				key={player?.id ?? "empty"}
 				leadingActions={
 					<Button
 						className="border-destructive text-destructive hover:bg-destructive/10"

@@ -5,7 +5,6 @@ import type { PlayerFormValues } from "@/players/components/player-form";
 import { PlayerForm } from "@/players/components/player-form";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
@@ -21,7 +20,11 @@ interface AddPlayerSheetProps {
 	availableTags: TagWithColor[];
 	excludePlayerIds: string[];
 	onAddExisting: (playerId: string, playerName: string) => void;
-	onAddNew: (values: { memo?: string | null; name: string; tagIds?: string[] }) => void;
+	onAddNew: (values: {
+		memo?: string | null;
+		name: string;
+		tagIds?: string[];
+	}) => void;
 	onCreateTag: (name: string) => Promise<TagWithColor>;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
@@ -150,8 +153,8 @@ export function AddPlayerSheet({
 
 				{tab === "new" && (
 					<PlayerForm
-						key={String(open)}
 						availableTags={availableTags}
+						key={String(open)}
 						leadingActions={
 							<Button
 								onClick={() => onOpenChange(false)}
