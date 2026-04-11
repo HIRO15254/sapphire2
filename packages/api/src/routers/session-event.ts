@@ -369,13 +369,19 @@ export const sessionEventRouter = router({
 			const updates: Record<string, unknown> = { updatedAt: new Date() };
 			if (input.occurredAt !== undefined) {
 				const newOccurredAt = new Date(input.occurredAt * 1000);
-				updates.occurredAt = newOccurredAt;
-				updates.sortOrder = await computeNextSortOrder(
-					ctx.db,
-					event.liveCashGameSessionId ?? undefined,
-					event.liveTournamentSessionId ?? undefined,
-					newOccurredAt
+				const oldOccurredAtUnix = Math.floor(
+					new Date(event.occurredAt).getTime() / 1000
 				);
+				const newOccurredAtUnix = Math.floor(newOccurredAt.getTime() / 1000);
+				updates.occurredAt = newOccurredAt;
+				if (newOccurredAtUnix !== oldOccurredAtUnix) {
+					updates.sortOrder = await computeNextSortOrder(
+						ctx.db,
+						event.liveCashGameSessionId ?? undefined,
+						event.liveTournamentSessionId ?? undefined,
+						newOccurredAt
+					);
+				}
 			}
 			if (input.payload !== undefined) {
 				updates.payload = JSON.stringify(

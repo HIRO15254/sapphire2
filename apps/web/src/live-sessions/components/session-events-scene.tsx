@@ -81,17 +81,19 @@ function validateTime(
 	maxTime: Date | null
 ) {
 	const newDate = applyTimeToDate(original, timeStr);
+	const newMinute = new Date(newDate);
+	newMinute.setSeconds(0, 0);
 	if (minTime) {
 		const minMinute = new Date(minTime);
 		minMinute.setSeconds(0, 0);
-		if (newDate.getTime() < minMinute.getTime()) {
+		if (newMinute.getTime() < minMinute.getTime()) {
 			return `Must be after ${formatTime(minTime)}`;
 		}
 	}
 	if (maxTime) {
 		const maxMinute = new Date(maxTime);
 		maxMinute.setSeconds(0, 0);
-		if (newDate.getTime() > maxMinute.getTime()) {
+		if (newMinute.getTime() > maxMinute.getTime()) {
 			return `Must be before ${formatTime(maxTime)}`;
 		}
 	}
