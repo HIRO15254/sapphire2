@@ -1,44 +1,6 @@
 import { useSessionTags } from "@/sessions/hooks/use-session-tags";
 import { TagManager } from "@/shared/components/management/tag-manager";
-import { Button } from "@/shared/components/ui/button";
-import { Field } from "@/shared/components/ui/field";
-import { Input } from "@/shared/components/ui/input";
-
-function SessionTagForm({
-	defaultValue,
-	isLoading,
-	onSubmit,
-}: {
-	defaultValue?: string;
-	isLoading?: boolean;
-	onSubmit: (name: string) => void;
-}) {
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		const formData = new FormData(e.currentTarget);
-		const name = formData.get("name") as string;
-		onSubmit(name);
-	};
-
-	return (
-		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<Field htmlFor="tag-name" label="Tag Name" required>
-				<Input
-					defaultValue={defaultValue}
-					id="tag-name"
-					maxLength={50}
-					minLength={1}
-					name="name"
-					placeholder="Enter tag name"
-					required
-				/>
-			</Field>
-			<Button disabled={isLoading} type="submit">
-				{isLoading ? "Saving..." : "Save"}
-			</Button>
-		</form>
-	);
-}
+import { TagNameForm } from "@/shared/components/management/tag-name-form";
 
 export function SessionTagManager() {
 	const {
@@ -58,7 +20,7 @@ export function SessionTagManager() {
 			isDeletePending={isDeletePending}
 			onDelete={deleteTag}
 			renderCreateForm={(onClose) => (
-				<SessionTagForm
+				<TagNameForm
 					isLoading={isCreatePending}
 					onSubmit={(name) => create(name).then(onClose)}
 				/>
@@ -70,8 +32,8 @@ export function SessionTagManager() {
 				</p>
 			)}
 			renderEditForm={(tag, onClose) => (
-				<SessionTagForm
-					defaultValue={tag.name}
+				<TagNameForm
+					defaultName={tag.name}
 					isLoading={isUpdatePending}
 					onSubmit={(name) => update({ id: tag.id, name }).then(onClose)}
 				/>

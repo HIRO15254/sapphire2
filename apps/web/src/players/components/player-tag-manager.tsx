@@ -8,9 +8,8 @@ import {
 	usePlayerTags,
 } from "@/players/hooks/use-player-tags";
 import { TagManager } from "@/shared/components/management/tag-manager";
-import { Button } from "@/shared/components/ui/button";
+import { TagNameForm } from "@/shared/components/management/tag-name-form";
 import { Field } from "@/shared/components/ui/field";
-import { Input } from "@/shared/components/ui/input";
 
 function TagForm({
 	defaultValues,
@@ -25,33 +24,16 @@ function TagForm({
 		defaultValues?.color ?? "gray"
 	);
 
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		const formData = new FormData(e.currentTarget);
-		const name = formData.get("name") as string;
-		onSubmit({ name, color: selectedColor });
-	};
-
 	return (
-		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<Field htmlFor="tag-name" label="Tag Name" required>
-				<Input
-					defaultValue={defaultValues?.name}
-					id="tag-name"
-					maxLength={50}
-					minLength={1}
-					name="name"
-					placeholder="Enter tag name"
-					required
-				/>
-			</Field>
+		<TagNameForm
+			defaultName={defaultValues?.name}
+			isLoading={isLoading}
+			onSubmit={(name) => onSubmit({ name, color: selectedColor })}
+		>
 			<Field label="Color">
 				<TagColorPicker onChange={setSelectedColor} value={selectedColor} />
 			</Field>
-			<Button disabled={isLoading} type="submit">
-				{isLoading ? "Saving..." : "Save"}
-			</Button>
-		</form>
+		</TagNameForm>
 	);
 }
 
