@@ -7,20 +7,15 @@ import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-sess
 import { pokerSession } from "@sapphire2/db/schema/session";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
-import {
-	currency,
-	currencyTransaction,
-	store,
-	transactionType,
-} from "@sapphire2/db/schema/store";
+import { currency, store } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
-	computeBreakMinutesFromEvents,
 	computeTournamentPLFromEvents,
+	recalculateTournamentSession,
 } from "../services/live-session-pl";
 
 const DEFAULT_LIMIT = 20;
@@ -88,66 +83,6 @@ async function assertNoActiveSession(
 			message: "Another session is already active",
 		});
 	}
-}
-
-async function getSessionResultTypeId(
-	db: DbInstance,
-	userId: string
-): Promise<string> {
-	const [found] = await db
-		.select()
-		.from(transactionType)
-		.where(
-			and(
-				eq(transactionType.userId, userId),
-				eq(transactionType.name, "Session Result")
-			)
-		);
-
-	if (found) {
-		return found.id;
-	}
-
-	const id = crypto.randomUUID();
-	await db.insert(transactionType).values({
-		id,
-		userId,
-		name: "Session Result",
-		updatedAt: new Date(),
-	});
-	return id;
-}
-
-async function upsertCurrencyTransaction(
-	db: DbInstance,
-	pokerSessionId: string,
-	currencyId: string,
-	profitLoss: number,
-	sessionDate: Date,
-	userId: string
-): Promise<void> {
-	const [existingTx] = await db
-		.select({ id: currencyTransaction.id })
-		.from(currencyTransaction)
-		.where(eq(currencyTransaction.sessionId, pokerSessionId));
-
-	if (existingTx) {
-		await db
-			.update(currencyTransaction)
-			.set({ amount: profitLoss })
-			.where(eq(currencyTransaction.id, existingTx.id));
-		return;
-	}
-
-	const typeId = await getSessionResultTypeId(db, userId);
-	await db.insert(currencyTransaction).values({
-		id: crypto.randomUUID(),
-		currencyId,
-		transactionTypeId: typeId,
-		sessionId: pokerSessionId,
-		amount: profitLoss,
-		transactedAt: sessionDate,
-	});
 }
 
 async function fetchTournamentMasterData(
@@ -265,80 +200,6 @@ function computeAverageStack(
 		totalChips += cp.count * cp.chipsPerUnit;
 	}
 	return Math.round(totalChips / remainingPlayers);
-}
-
-type TournamentPL = ReturnType<typeof computeTournamentPLFromEvents>;
-
-async function upsertPokerSession(
-	db: DbInstance,
-	liveTournamentSessionId: string,
-	userId: string,
-	session: {
-		startedAt: Date;
-		storeId: string | null;
-		tournamentId: string | null;
-		currencyId: string | null;
-		memo: string | null;
-	},
-	tournamentBuyIn: number | undefined,
-	entryFee: number | undefined,
-	pl: TournamentPL,
-	now: Date,
-	breakMinutes?: number
-): Promise<string> {
-	const [existing] = await db
-		.select({ id: pokerSession.id })
-		.from(pokerSession)
-		.where(eq(pokerSession.liveTournamentSessionId, liveTournamentSessionId));
-
-	const effectiveBreakMinutes =
-		breakMinutes && breakMinutes > 0 ? breakMinutes : null;
-
-	if (existing) {
-		await db
-			.update(pokerSession)
-			.set({
-				placement: pl.placement,
-				totalEntries: pl.totalEntries,
-				prizeMoney: pl.prizeMoney,
-				bountyPrizes: pl.bountyPrizes,
-				rebuyCount: pl.rebuyCount,
-				rebuyCost: pl.rebuyCost > 0 ? pl.rebuyCost : null,
-				addonCost: pl.addonCost > 0 ? pl.addonCost : null,
-				endedAt: now,
-				breakMinutes: effectiveBreakMinutes,
-				updatedAt: now,
-			})
-			.where(eq(pokerSession.id, existing.id));
-		return existing.id;
-	}
-
-	const pokerSessionId = crypto.randomUUID();
-	await db.insert(pokerSession).values({
-		id: pokerSessionId,
-		userId,
-		type: "tournament",
-		sessionDate: session.startedAt,
-		storeId: session.storeId ?? null,
-		tournamentId: session.tournamentId ?? null,
-		currencyId: session.currencyId ?? null,
-		liveTournamentSessionId,
-		tournamentBuyIn: tournamentBuyIn ?? null,
-		entryFee: entryFee ?? null,
-		placement: pl.placement,
-		totalEntries: pl.totalEntries,
-		prizeMoney: pl.prizeMoney,
-		bountyPrizes: pl.bountyPrizes,
-		rebuyCount: pl.rebuyCount,
-		rebuyCost: pl.rebuyCost > 0 ? pl.rebuyCost : null,
-		addonCost: pl.addonCost > 0 ? pl.addonCost : null,
-		startedAt: session.startedAt,
-		endedAt: now,
-		breakMinutes: effectiveBreakMinutes,
-		memo: session.memo ?? null,
-		updatedAt: now,
-	});
-	return pokerSessionId;
 }
 
 export const liveTournamentSessionRouter = router({
@@ -637,60 +498,14 @@ export const liveTournamentSessionRouter = router({
 				updatedAt: now,
 			});
 
-			await ctx.db
-				.update(liveTournamentSession)
-				.set({ status: "completed", endedAt: now, updatedAt: now })
-				.where(eq(liveTournamentSession.id, input.id));
+			await recalculateTournamentSession(ctx.db, input.id, userId);
 
-			const allEvents = await ctx.db
-				.select({
-					eventType: sessionEvent.eventType,
-					payload: sessionEvent.payload,
-					occurredAt: sessionEvent.occurredAt,
-				})
-				.from(sessionEvent)
-				.where(eq(sessionEvent.liveTournamentSessionId, input.id))
-				.orderBy(asc(sessionEvent.sortOrder));
+			const [linkedPokerSession] = await ctx.db
+				.select({ id: pokerSession.id })
+				.from(pokerSession)
+				.where(eq(pokerSession.liveTournamentSessionId, input.id));
 
-			const breakMinutes = computeBreakMinutesFromEvents(allEvents);
-
-			const masterData = await fetchTournamentMasterData(
-				ctx.db,
-				session.tournamentId
-			);
-
-			// Session-level buyIn/entryFee take precedence over tournament master data
-			const tournamentBuyIn = session.buyIn ?? masterData.tournamentBuyIn;
-			const entryFee = session.entryFee ?? masterData.entryFee;
-
-			const pl = computeTournamentPLFromEvents(
-				allEvents,
-				tournamentBuyIn,
-				entryFee
-			);
-
-			const pokerSessionId = await upsertPokerSession(
-				ctx.db,
-				input.id,
-				userId,
-				session,
-				tournamentBuyIn,
-				entryFee,
-				pl,
-				now,
-				breakMinutes
-			);
-
-			if (session.currencyId && pl.profitLoss !== null) {
-				await upsertCurrencyTransaction(
-					ctx.db,
-					pokerSessionId,
-					session.currencyId,
-					pl.profitLoss,
-					session.startedAt,
-					userId
-				);
-			}
+			const pokerSessionId = linkedPokerSession?.id ?? null;
 
 			return { id: input.id, pokerSessionId };
 		}),
@@ -709,21 +524,6 @@ export const liveTournamentSessionRouter = router({
 			}
 
 			await assertNoActiveSession(ctx.db, userId);
-
-			const [linkedPokerSession] = await ctx.db
-				.select({ id: pokerSession.id })
-				.from(pokerSession)
-				.where(eq(pokerSession.liveTournamentSessionId, input.id));
-
-			if (linkedPokerSession) {
-				await ctx.db
-					.delete(currencyTransaction)
-					.where(eq(currencyTransaction.sessionId, linkedPokerSession.id));
-
-				await ctx.db
-					.delete(pokerSession)
-					.where(eq(pokerSession.id, linkedPokerSession.id));
-			}
 
 			const now = new Date();
 
@@ -746,10 +546,8 @@ export const liveTournamentSessionRouter = router({
 				updatedAt: now,
 			});
 
-			await ctx.db
-				.update(liveTournamentSession)
-				.set({ status: "active", endedAt: null, updatedAt: now })
-				.where(eq(liveTournamentSession.id, input.id));
+			// Recalculate derives status: "active" from events and cleans up pokerSession
+			await recalculateTournamentSession(ctx.db, input.id, userId);
 
 			return { id: input.id };
 		}),
