@@ -2,7 +2,6 @@ import { IconLogout } from "@tabler/icons-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { TransactionTypeManager } from "@/currencies/components/transaction-type-manager";
 import { authClient } from "@/lib/auth-client";
-import { SessionTagManager } from "@/sessions/components/session-tag-manager";
 import { LinkedAccounts } from "@/shared/components/linked-accounts";
 import { PageHeader } from "@/shared/components/page-header";
 import { PageSection } from "@/shared/components/page-section";
@@ -52,13 +51,6 @@ function SettingsComponent() {
 					heading="Transaction Types"
 				>
 					<TransactionTypeManager />
-				</PageSection>
-
-				<PageSection
-					description="Manage reusable tags for session records and filters."
-					heading="Session Tags"
-				>
-					<SessionTagManager />
 				</PageSection>
 			</div>
 		</div>

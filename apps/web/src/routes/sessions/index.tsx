@@ -1,7 +1,8 @@
-import { IconCards, IconPlus } from "@tabler/icons-react";
+import { IconCards, IconPlus, IconTags } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { SessionCard } from "@/sessions/components/session-card";
+import { SessionTagManager } from "@/sessions/components/session-tag-manager";
 import {
 	SessionFilters,
 	type SessionFilterValues,
@@ -27,6 +28,7 @@ export const Route = createFileRoute("/sessions/")({
 
 function SessionsPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
 	const [editingSession, setEditingSession] = useState<SessionItem | null>(
 		null
 	);
@@ -79,12 +81,20 @@ function SessionsPage() {
 			<PageHeader
 				actions={
 					<>
-						<SessionFilters
-							currencies={currencies}
-							filters={filters}
-							onFiltersChange={setFilters}
-							stores={stores}
-						/>
+						<Button
+						onClick={() => setIsTagManagerOpen(true)}
+						size="sm"
+						variant="outline"
+					>
+						<IconTags size={16} />
+						Manage Tags
+					</Button>
+					<SessionFilters
+						currencies={currencies}
+						filters={filters}
+						onFiltersChange={setFilters}
+						stores={stores}
+					/>
 						<div className="flex items-center gap-1.5">
 							<Label className="text-xs" htmlFor="bb-bi-switch">
 								BB/BI
@@ -181,6 +191,14 @@ function SessionsPage() {
 						tournaments={editGames.tournaments}
 					/>
 				)}
+			</ResponsiveDialog>
+
+			<ResponsiveDialog
+				onOpenChange={setIsTagManagerOpen}
+				open={isTagManagerOpen}
+				title="Manage Tags"
+			>
+				<SessionTagManager />
 			</ResponsiveDialog>
 		</div>
 	);
