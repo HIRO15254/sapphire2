@@ -40,44 +40,36 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 	};
 
 	const stackMutation = useMutation({
-		mutationFn: (values: {
-			chipPurchaseCounts: Array<{
-				name: string;
-				count: number;
-				chipsPerUnit: number;
-			}>;
-			chipPurchases: Array<{ name: string; cost: number; chips: number }>;
-			remainingPlayers: number | null;
-			stackAmount: number;
-			totalEntries: number | null;
-		}) =>
+		mutationFn: (values: { stackAmount: number }) =>
 			trpcClient.sessionEvent.create.mutate({
 				liveTournamentSessionId: sessionId,
-				eventType: "tournament_stack_record",
+				eventType: "update_stack",
 				payload: {
 					stackAmount: values.stackAmount,
-					remainingPlayers: values.remainingPlayers,
-					totalEntries: values.totalEntries,
-					chipPurchases: values.chipPurchases,
-					chipPurchaseCounts: values.chipPurchaseCounts,
 				},
 			}),
 		onSuccess: invalidateSession,
 	});
 
 	const completeMutation = useMutation({
-		mutationFn: (values: {
-			bountyPrizes?: number;
-			placement: number;
-			prizeMoney: number;
-			totalEntries: number;
-		}) =>
+		mutationFn: (
+			values:
+				| {
+						beforeDeadline: false;
+						bountyPrizes: number;
+						placement: number;
+						prizeMoney: number;
+						totalEntries: number;
+				  }
+				| {
+						beforeDeadline: true;
+						bountyPrizes: number;
+						prizeMoney: number;
+				  }
+		) =>
 			trpcClient.liveTournamentSession.complete.mutate({
 				id: sessionId,
-				placement: values.placement,
-				totalEntries: values.totalEntries,
-				prizeMoney: values.prizeMoney,
-				bountyPrizes: values.bountyPrizes,
+				...values,
 			}),
 		onSuccess: async () => {
 			await Promise.all([
@@ -92,23 +84,23 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 
 	return {
 		chipPurchaseTypes,
-		recordStack: (values: {
-			chipPurchaseCounts: Array<{
-				name: string;
-				count: number;
-				chipsPerUnit: number;
-			}>;
-			chipPurchases: Array<{ name: string; cost: number; chips: number }>;
-			remainingPlayers: number | null;
-			stackAmount: number;
-			totalEntries: number | null;
-		}) => stackMutation.mutate(values),
-		complete: (values: {
-			bountyPrizes?: number;
-			placement: number;
-			prizeMoney: number;
-			totalEntries: number;
-		}) => completeMutation.mutate(values),
+		recordStack: (values: { stackAmount: number }) =>
+			stackMutation.mutate(values),
+		complete: (
+			values:
+				| {
+						beforeDeadline: false;
+						bountyPrizes: number;
+						placement: number;
+						prizeMoney: number;
+						totalEntries: number;
+				  }
+				| {
+						beforeDeadline: true;
+						bountyPrizes: number;
+						prizeMoney: number;
+				  }
+		) => completeMutation.mutate(values),
 		isStackPending: stackMutation.isPending,
 		isCompletePending: completeMutation.isPending,
 	};

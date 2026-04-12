@@ -242,8 +242,8 @@ export function getSessionCurrentState(events: EventForState[]): SessionStatus {
 		return b.sortOrder - a.sortOrder;
 	});
 
-	const latest = sorted[0];
-	if (latest.eventType === "session_pause") {
+	const latest = sorted[0] as EventForState | undefined;
+	if (latest?.eventType === "session_pause") {
 		return "paused";
 	}
 
