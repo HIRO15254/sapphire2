@@ -62,6 +62,7 @@ export function AllInBottomSheet({
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
+		e.stopPropagation();
 		onSubmit({ potSize, trials, equity, wins });
 	};
 
