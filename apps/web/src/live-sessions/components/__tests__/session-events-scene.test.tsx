@@ -84,14 +84,14 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 describe("SessionEventsScene", () => {
-	it("updates a chip add event from the shared scene", async () => {
+	it("updates a chips add/remove event from the shared scene", async () => {
 		const user = userEvent.setup();
 		mocks.events = [
 			{
-				eventType: "chip_add",
+				eventType: "chips_add_remove",
 				id: "event-1",
 				occurredAt: "2026-04-03T10:00:00.000Z",
-				payload: { amount: 5000 },
+				payload: { amount: 5000, type: "add" },
 			},
 		];
 
@@ -99,7 +99,7 @@ describe("SessionEventsScene", () => {
 			<SessionEventsScene sessionId="session-1" sessionType="cash_game" />
 		);
 
-		await user.click(screen.getByLabelText("Edit Chip Add"));
+		await user.click(screen.getByLabelText("Edit Chips Add/Remove"));
 		await user.clear(screen.getByLabelText("Amount"));
 		await user.type(screen.getByLabelText("Amount"), "7500");
 		await user.click(screen.getByRole("button", { name: "Save" }));
@@ -108,24 +108,23 @@ describe("SessionEventsScene", () => {
 			expect(mocks.updateMutate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					id: "event-1",
-					payload: { amount: 7500 },
+					payload: expect.objectContaining({ amount: 7500 }),
 				})
 			);
 		});
 	});
 
-	it("updates a tournament result event from the shared scene", async () => {
+	it("updates a purchase chips event from the shared scene", async () => {
 		const user = userEvent.setup();
 		mocks.events = [
 			{
-				eventType: "tournament_result",
+				eventType: "purchase_chips",
 				id: "event-2",
 				occurredAt: "2026-04-03T12:30:00.000Z",
 				payload: {
-					bountyPrizes: 0,
-					placement: 3,
-					prizeMoney: 20_000,
-					totalEntries: 100,
+					name: "Rebuy",
+					cost: 100,
+					chips: 10_000,
 				},
 			},
 		];
@@ -134,9 +133,9 @@ describe("SessionEventsScene", () => {
 			<SessionEventsScene sessionId="session-2" sessionType="tournament" />
 		);
 
-		await user.click(screen.getByLabelText("Edit Tournament Result"));
-		await user.clear(screen.getByLabelText("Placement"));
-		await user.type(screen.getByLabelText("Placement"), "2");
+		await user.click(screen.getByLabelText("Edit Purchase Chips"));
+		await user.clear(screen.getByLabelText("Cost"));
+		await user.type(screen.getByLabelText("Cost"), "200");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
@@ -144,9 +143,7 @@ describe("SessionEventsScene", () => {
 				expect.objectContaining({
 					id: "event-2",
 					payload: expect.objectContaining({
-						placement: 2,
-						totalEntries: 100,
-						prizeMoney: 20_000,
+						cost: 200,
 					}),
 				})
 			);

@@ -1,7 +1,5 @@
 import { IconPencil, IconTrash, IconX } from "@tabler/icons-react";
 import { useState } from "react";
-import { StackRecordEditor } from "@/live-sessions/components/stack-record-editor";
-import { TournamentStackRecordEditor } from "@/live-sessions/components/tournament-stack-record-editor";
 import {
 	type SessionEvent,
 	useSessionEvents,
@@ -13,18 +11,28 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { Textarea } from "@/shared/components/ui/textarea";
+import {
+	ToggleGroup,
+	ToggleGroupItem,
+} from "@/shared/components/ui/toggle-group";
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
-	chip_add: "Chip Add",
-	stack_record: "Stack Record",
-	player_join: "Player Join",
-	player_leave: "Player Leave",
+	chips_add_remove: "Chips Add/Remove",
+	update_stack: "Stack Update",
+	all_in: "All-in",
+	purchase_chips: "Purchase Chips",
+	update_tournament_info: "Tournament Info",
+	memo: "Memo",
+	session_pause: "Session Pause",
+	session_resume: "Session Resume",
 	session_start: "Session Start",
 	session_end: "Session End",
-	tournament_stack_record: "Stack Record",
-	tournament_result: "Tournament Result",
+	player_join: "Player Join",
+	player_leave: "Player Leave",
 };
 
+// Events that cannot be deleted (lifecycle only)
 const LIFECYCLE_EVENTS = new Set(["session_start", "session_end"]);
 
 type SessionType = "cash_game" | "tournament";
@@ -44,18 +52,7 @@ interface EventEditorProps {
 	minTime: Date | null;
 	onSubmit: (payload: unknown, occurredAt?: number) => void;
 	onTimeUpdate: (occurredAt: number) => void;
-}
-
-interface NormalizedStackPayload {
-	chipPurchaseCounts: Array<{
-		name: string;
-		count: number;
-		chipsPerUnit: number;
-	}>;
-	chipPurchases: Array<{ name: string; cost: number; chips: number }>;
-	remainingPlayers: number | null;
-	stackAmount: number;
-	totalEntries: number | null;
+	sessionType: SessionType;
 }
 
 function formatEventLabel(eventType: string) {
@@ -90,221 +87,142 @@ function validateTime(
 	return null;
 }
 
-function formatTournamentStackSummary(payload: Record<string, unknown>) {
-	if (typeof payload.stackAmount !== "number") {
-		return null;
+function formatChipsAddRemoveSummary(p: Record<string, unknown>) {
+	const amount = typeof p.amount === "number" ? p.amount : null;
+	let type: string | null = null;
+	if (p.type === "add") {
+		type = "Add";
+	} else if (p.type === "remove") {
+		type = "Remove";
 	}
-	const parts = [`Stack: ${payload.stackAmount.toLocaleString()}`];
-	if (typeof payload.remainingPlayers === "number") {
-		parts.push(`${payload.remainingPlayers} left`);
+	if (amount !== null && type !== null) {
+		return `${type}: ${amount.toLocaleString()}`;
 	}
-	if (typeof payload.totalEntries === "number") {
-		parts.push(`${payload.totalEntries} entries`);
-	}
-	if (
-		Array.isArray(payload.chipPurchases) &&
-		payload.chipPurchases.length > 0
-	) {
-		const names = (payload.chipPurchases as Array<{ name?: unknown }>)
-			.map((chipPurchase) =>
-				typeof chipPurchase.name === "string" ? chipPurchase.name : "Purchase"
-			)
-			.join(", ");
-		parts.push(names);
-	} else {
-		if (payload.rebuy && typeof payload.rebuy === "object") {
-			parts.push("Rebuy");
-		}
-		if (payload.addon && typeof payload.addon === "object") {
-			parts.push("Addon");
-		}
-	}
-	return parts.join(" · ");
+	return null;
 }
 
-function formatTournamentResultSummary(payload: Record<string, unknown>) {
+function formatAllInSummary(p: Record<string, unknown>) {
 	const parts: string[] = [];
-	if (typeof payload.placement === "number") {
-		parts.push(`#${payload.placement}`);
+	if (typeof p.potSize === "number") {
+		parts.push(`Pot: ${p.potSize.toLocaleString()}`);
 	}
-	if (typeof payload.totalEntries === "number") {
-		parts.push(`/${payload.totalEntries}`);
+	if (typeof p.equity === "number") {
+		parts.push(`Equity: ${p.equity}%`);
 	}
-	if (typeof payload.prizeMoney === "number" && payload.prizeMoney > 0) {
-		parts.push(`Prize: ${payload.prizeMoney.toLocaleString()}`);
-	}
-	return parts.join(" ") || null;
+	return parts.length > 0 ? parts.join(" · ") : null;
 }
+
+function formatSessionEndSummary(p: Record<string, unknown>) {
+	if (typeof p.cashOutAmount === "number") {
+		return `Cash-out: ${p.cashOutAmount.toLocaleString()}`;
+	}
+	if (typeof p.placement === "number" && typeof p.totalEntries === "number") {
+		return `#${p.placement} / ${p.totalEntries}`;
+	}
+	if (typeof p.placement === "number") {
+		return `#${p.placement}`;
+	}
+	return null;
+}
+
+function formatPurchaseChipsSummary(p: Record<string, unknown>) {
+	const name = typeof p.name === "string" ? p.name : null;
+	const cost = typeof p.cost === "number" ? p.cost : null;
+	return name !== null && cost !== null
+		? `${name}: ${cost.toLocaleString()}`
+		: null;
+}
+
+function formatUpdateTournamentInfoSummary(p: Record<string, unknown>) {
+	if (typeof p.remainingPlayers === "number") {
+		return `Remaining: ${p.remainingPlayers}`;
+	}
+	if (typeof p.totalEntries === "number") {
+		return `Entries: ${p.totalEntries}`;
+	}
+	return null;
+}
+
+function formatMemoSummary(p: Record<string, unknown>) {
+	if (typeof p.text !== "string") {
+		return null;
+	}
+	const text = p.text.trim();
+	return text.length > 60 ? `${text.slice(0, 60)}…` : text;
+}
+
+type PayloadSummarizer = (p: Record<string, unknown>) => string | null;
+
+const PAYLOAD_SUMMARIZERS: Record<string, PayloadSummarizer> = {
+	chips_add_remove: formatChipsAddRemoveSummary,
+	update_stack: (p) =>
+		typeof p.stackAmount === "number"
+			? `Stack: ${p.stackAmount.toLocaleString()}`
+			: null,
+	all_in: formatAllInSummary,
+	purchase_chips: formatPurchaseChipsSummary,
+	update_tournament_info: formatUpdateTournamentInfoSummary,
+	memo: formatMemoSummary,
+	session_start: (p) =>
+		typeof p.buyInAmount === "number"
+			? `Buy-in: ${p.buyInAmount.toLocaleString()}`
+			: null,
+	session_end: formatSessionEndSummary,
+	session_pause: () => "Paused",
+	session_resume: () => "Resumed",
+};
 
 function formatPayloadSummary(eventType: string, payload: unknown) {
 	if (!payload || typeof payload !== "object") {
 		return null;
 	}
-	const objectPayload = payload as Record<string, unknown>;
-	if (eventType === "chip_add" && typeof objectPayload.amount === "number") {
-		return `Amount: ${objectPayload.amount.toLocaleString()}`;
-	}
-	if (
-		eventType === "stack_record" &&
-		typeof objectPayload.stackAmount === "number"
-	) {
-		const parts = [`Stack: ${objectPayload.stackAmount.toLocaleString()}`];
-		if (
-			Array.isArray(objectPayload.allIns) &&
-			objectPayload.allIns.length > 0
-		) {
-			parts.push(`${objectPayload.allIns.length} all-in(s)`);
-		}
-		return parts.join(" · ");
-	}
-	if (eventType === "tournament_stack_record") {
-		return formatTournamentStackSummary(objectPayload);
-	}
-	if (eventType === "tournament_result") {
-		return formatTournamentResultSummary(objectPayload);
-	}
-	return null;
+	const summarizer = PAYLOAD_SUMMARIZERS[eventType];
+	return summarizer ? summarizer(payload as Record<string, unknown>) : null;
 }
 
-function normalizeTournamentStackPayload(
-	payload: Record<string, unknown>
-): NormalizedStackPayload {
-	const hasNewPurchases = Array.isArray(payload.chipPurchases);
-	const legacyPurchases: Array<{ name: string; cost: number; chips: number }> =
-		[];
-	if (!hasNewPurchases && payload.rebuy && typeof payload.rebuy === "object") {
-		const rebuy = payload.rebuy as Record<string, unknown>;
-		legacyPurchases.push({
-			name: "Rebuy",
-			cost: typeof rebuy.cost === "number" ? rebuy.cost : 0,
-			chips: typeof rebuy.chips === "number" ? rebuy.chips : 0,
-		});
-	}
-	if (!hasNewPurchases && payload.addon && typeof payload.addon === "object") {
-		const addon = payload.addon as Record<string, unknown>;
-		legacyPurchases.push({
-			name: "Addon",
-			cost: typeof addon.cost === "number" ? addon.cost : 0,
-			chips: typeof addon.chips === "number" ? addon.chips : 0,
-		});
-	}
-	return {
-		stackAmount:
-			typeof payload.stackAmount === "number" ? payload.stackAmount : 0,
-		remainingPlayers:
-			typeof payload.remainingPlayers === "number"
-				? payload.remainingPlayers
-				: null,
-		totalEntries:
-			typeof payload.totalEntries === "number" ? payload.totalEntries : null,
-		chipPurchases: hasNewPurchases
-			? (payload.chipPurchases as Array<{
-					name: string;
-					cost: number;
-					chips: number;
-				}>)
-			: legacyPurchases,
-		chipPurchaseCounts: Array.isArray(payload.chipPurchaseCounts)
-			? (payload.chipPurchaseCounts as Array<{
-					name: string;
-					count: number;
-					chipsPerUnit: number;
-				}>)
-			: [],
-	};
+// --- Editor shared helpers ---
+
+interface TimeFieldProps {
+	error: string | null;
+	onChange: (value: string) => void;
+	value: string;
 }
 
-function renderStackRecordDetail(payload: Record<string, unknown>) {
-	if (!Array.isArray(payload.allIns) || payload.allIns.length === 0) {
-		return null;
-	}
+function TimeField({ error, onChange, value }: TimeFieldProps) {
 	return (
-		<ul className="mt-1 flex flex-col gap-0.5">
-			{payload.allIns.map((item, index) => {
-				if (!item || typeof item !== "object") {
-					return null;
-				}
-				const allIn = item as Record<string, unknown>;
-				const parts: string[] = [];
-				if (typeof allIn.potSize === "number") {
-					parts.push(`Pot: ${allIn.potSize.toLocaleString()}`);
-				}
-				if (typeof allIn.equity === "number") {
-					parts.push(`Equity: ${allIn.equity}%`);
-				}
-				if (typeof allIn.wins === "number") {
-					parts.push(`Wins: ${allIn.wins}`);
-				}
-				return (
-					// biome-ignore lint/suspicious/noArrayIndexKey: static payload order
-					<li className="text-muted-foreground text-xs" key={index}>
-						All-in {index + 1}: {parts.join(", ")}
-					</li>
-				);
-			})}
-		</ul>
+		<Field error={error} htmlFor="edit-time" label="Time">
+			<Input
+				id="edit-time"
+				onChange={(e) => onChange(e.target.value)}
+				type="time"
+				value={value}
+			/>
+		</Field>
 	);
 }
 
-function renderTournamentStackDetail(payload: Record<string, unknown>) {
-	const details: string[] = [];
-	if (
-		Array.isArray(payload.chipPurchases) &&
-		payload.chipPurchases.length > 0
-	) {
-		for (const chipPurchase of payload.chipPurchases as Record<
-			string,
-			unknown
-		>[]) {
-			if (typeof chipPurchase.name === "string") {
-				details.push(
-					`${chipPurchase.name}: cost ${chipPurchase.cost}, chips ${chipPurchase.chips}`
-				);
-			}
-		}
-	} else {
-		if (payload.rebuy && typeof payload.rebuy === "object") {
-			const rebuy = payload.rebuy as Record<string, unknown>;
-			details.push(`Rebuy: cost ${rebuy.cost}, chips ${rebuy.chips}`);
-		}
-		if (payload.addon && typeof payload.addon === "object") {
-			const addon = payload.addon as Record<string, unknown>;
-			details.push(`Addon: cost ${addon.cost}, chips ${addon.chips}`);
-		}
-	}
-	if (details.length === 0) {
-		return null;
-	}
+interface SaveButtonProps {
+	disabled: boolean;
+	isLoading: boolean;
+	onClick: () => void;
+}
+
+function SaveButton({ disabled, isLoading, onClick }: SaveButtonProps) {
 	return (
-		<ul className="mt-1 flex flex-col gap-0.5">
-			{details.map((detail) => (
-				<li className="text-muted-foreground text-xs" key={detail}>
-					{detail}
-				</li>
-			))}
-		</ul>
+		<DialogActionRow>
+			<Button disabled={disabled || isLoading} onClick={onClick} type="button">
+				{isLoading ? "Saving..." : "Save"}
+			</Button>
+		</DialogActionRow>
 	);
 }
 
-function EventDetail({
-	eventType,
-	payload,
-}: {
-	eventType: string;
-	payload: unknown;
-}) {
-	if (!payload || typeof payload !== "object") {
-		return null;
-	}
-	const objectPayload = payload as Record<string, unknown>;
-	if (eventType === "stack_record") {
-		return renderStackRecordDetail(objectPayload);
-	}
-	if (eventType === "tournament_stack_record") {
-		return renderTournamentStackDetail(objectPayload);
-	}
-	return null;
-}
+// --- Individual editors ---
+
+type EditorBaseProps = Pick<
+	EventEditorProps,
+	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit" | "onTimeUpdate"
+>;
 
 function TimeOnlyEditor({
 	event,
@@ -313,132 +231,329 @@ function TimeOnlyEditor({
 	minTime,
 	onTimeUpdate,
 }: Pick<
-	EventEditorProps,
+	EditorBaseProps,
 	"event" | "isLoading" | "maxTime" | "minTime" | "onTimeUpdate"
 >) {
 	const [time, setTime] = useState(formatTime(event.occurredAt));
 	const error = validateTime(time, event.occurredAt, minTime, maxTime);
 	return (
 		<div className="flex flex-col gap-4">
-			<Field error={error} htmlFor="edit-time" label="Time">
-				<Input
-					id="edit-time"
-					onChange={(event) => setTime(event.target.value)}
-					type="time"
-					value={time}
-				/>
-			</Field>
-			<DialogActionRow>
-				<Button
-					disabled={isLoading || error !== null}
-					onClick={() => {
-						const newDate = applyTimeToDate(event.occurredAt, time);
-						onTimeUpdate(Math.floor(newDate.getTime() / 1000));
-					}}
-					type="button"
-				>
-					{isLoading ? "Saving..." : "Save"}
-				</Button>
-			</DialogActionRow>
+			<TimeField error={error} onChange={setTime} value={time} />
+			<SaveButton
+				disabled={error !== null}
+				isLoading={isLoading}
+				onClick={() => {
+					const newDate = applyTimeToDate(event.occurredAt, time);
+					onTimeUpdate(Math.floor(newDate.getTime() / 1000));
+				}}
+			/>
 		</div>
 	);
 }
 
-function AmountEditor({
+function ChipsAddRemoveEditor({
 	event,
 	isLoading,
 	maxTime,
 	minTime,
 	onSubmit,
-}: Pick<
-	EventEditorProps,
-	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
->) {
+}: EditorBaseProps) {
 	const payload = (event.payload ?? {}) as Record<string, unknown>;
 	const [amount, setAmount] = useState(String(payload.amount ?? 0));
+	const [type, setType] = useState<string>(
+		payload.type === "remove" ? "remove" : "add"
+	);
 	const [time, setTime] = useState(formatTime(event.occurredAt));
 	const error = validateTime(time, event.occurredAt, minTime, maxTime);
 	return (
 		<div className="flex flex-col gap-4">
-			<Field error={error} htmlFor="edit-time" label="Time">
-				<Input
-					id="edit-time"
-					onChange={(event) => setTime(event.target.value)}
-					type="time"
-					value={time}
-				/>
-			</Field>
+			<TimeField error={error} onChange={setTime} value={time} />
 			<Field htmlFor="edit-amount" label="Amount">
 				<Input
 					id="edit-amount"
 					inputMode="numeric"
 					min={0}
-					onChange={(event) => setAmount(event.target.value)}
+					onChange={(e) => setAmount(e.target.value)}
 					type="number"
 					value={amount}
 				/>
 			</Field>
-			<DialogActionRow>
-				<Button
-					disabled={isLoading || error !== null}
-					onClick={() => {
-						const newDate = applyTimeToDate(event.occurredAt, time);
-						onSubmit(
-							{ amount: Number(amount) },
-							Math.floor(newDate.getTime() / 1000)
-						);
+			<Field htmlFor="edit-type" label="Type">
+				<ToggleGroup
+					onValueChange={(val) => {
+						if (val) {
+							setType(val);
+						}
 					}}
-					type="button"
+					type="single"
+					value={type}
 				>
-					{isLoading ? "Saving..." : "Save"}
-				</Button>
-			</DialogActionRow>
+					<ToggleGroupItem value="add">Add</ToggleGroupItem>
+					<ToggleGroupItem value="remove">Remove</ToggleGroupItem>
+				</ToggleGroup>
+			</Field>
+			<SaveButton
+				disabled={error !== null}
+				isLoading={isLoading}
+				onClick={() => {
+					const newDate = applyTimeToDate(event.occurredAt, time);
+					onSubmit(
+						{ amount: Number(amount), type },
+						Math.floor(newDate.getTime() / 1000)
+					);
+				}}
+			/>
 		</div>
 	);
 }
 
-function TournamentResultEditor({
+function UpdateStackEditor({
 	event,
 	isLoading,
 	maxTime,
 	minTime,
 	onSubmit,
-}: Pick<
-	EventEditorProps,
-	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
->) {
+}: EditorBaseProps) {
 	const payload = (event.payload ?? {}) as Record<string, unknown>;
-	const [placement, setPlacement] = useState(String(payload.placement ?? 1));
-	const [totalEntries, setTotalEntries] = useState(
-		String(payload.totalEntries ?? 1)
-	);
-	const [prizeMoney, setPrizeMoney] = useState(String(payload.prizeMoney ?? 0));
-	const [bountyPrizes, setBountyPrizes] = useState(
-		payload.bountyPrizes !== null && payload.bountyPrizes !== undefined
-			? String(payload.bountyPrizes)
-			: ""
+	const [stackAmount, setStackAmount] = useState(
+		String(payload.stackAmount ?? 0)
 	);
 	const [time, setTime] = useState(formatTime(event.occurredAt));
 	const error = validateTime(time, event.occurredAt, minTime, maxTime);
 	return (
 		<div className="flex flex-col gap-4">
-			<Field error={error} htmlFor="edit-time" label="Time">
+			<TimeField error={error} onChange={setTime} value={time} />
+			<Field htmlFor="edit-stackAmount" label="Stack Amount">
 				<Input
-					id="edit-time"
-					onChange={(event) => setTime(event.target.value)}
-					type="time"
-					value={time}
+					id="edit-stackAmount"
+					inputMode="numeric"
+					min={0}
+					onChange={(e) => setStackAmount(e.target.value)}
+					type="number"
+					value={stackAmount}
 				/>
 			</Field>
-			<Field htmlFor="edit-placement" label="Placement">
+			<SaveButton
+				disabled={error !== null}
+				isLoading={isLoading}
+				onClick={() => {
+					const newDate = applyTimeToDate(event.occurredAt, time);
+					onSubmit(
+						{ stackAmount: Number(stackAmount) },
+						Math.floor(newDate.getTime() / 1000)
+					);
+				}}
+			/>
+		</div>
+	);
+}
+
+function AllInEditor({
+	event,
+	isLoading,
+	maxTime,
+	minTime,
+	onSubmit,
+}: EditorBaseProps) {
+	const payload = (event.payload ?? {}) as Record<string, unknown>;
+	const [potSize, setPotSize] = useState(String(payload.potSize ?? 0));
+	const [trials, setTrials] = useState(String(payload.trials ?? 1));
+	const [equity, setEquity] = useState(String(payload.equity ?? 0));
+	const [wins, setWins] = useState(String(payload.wins ?? 0));
+	const [time, setTime] = useState(formatTime(event.occurredAt));
+	const error = validateTime(time, event.occurredAt, minTime, maxTime);
+	return (
+		<div className="flex flex-col gap-4">
+			<TimeField error={error} onChange={setTime} value={time} />
+			<Field htmlFor="edit-potSize" label="Pot Size">
 				<Input
-					id="edit-placement"
+					id="edit-potSize"
+					inputMode="numeric"
+					min={0}
+					onChange={(e) => setPotSize(e.target.value)}
+					type="number"
+					value={potSize}
+				/>
+			</Field>
+			<Field htmlFor="edit-trials" label="Trials">
+				<Input
+					id="edit-trials"
 					inputMode="numeric"
 					min={1}
-					onChange={(event) => setPlacement(event.target.value)}
-					required
+					onChange={(e) => setTrials(e.target.value)}
 					type="number"
-					value={placement}
+					value={trials}
+				/>
+			</Field>
+			<Field htmlFor="edit-equity" label="Equity (%)">
+				<Input
+					id="edit-equity"
+					inputMode="decimal"
+					max={100}
+					min={0}
+					onChange={(e) => setEquity(e.target.value)}
+					type="number"
+					value={equity}
+				/>
+			</Field>
+			<Field htmlFor="edit-wins" label="Wins">
+				<Input
+					id="edit-wins"
+					inputMode="numeric"
+					min={0}
+					onChange={(e) => setWins(e.target.value)}
+					type="number"
+					value={wins}
+				/>
+			</Field>
+			<SaveButton
+				disabled={error !== null}
+				isLoading={isLoading}
+				onClick={() => {
+					const newDate = applyTimeToDate(event.occurredAt, time);
+					onSubmit(
+						{
+							potSize: Number(potSize),
+							trials: Number(trials),
+							equity: Number(equity),
+							wins: Number(wins),
+						},
+						Math.floor(newDate.getTime() / 1000)
+					);
+				}}
+			/>
+		</div>
+	);
+}
+
+function MemoEditor({
+	event,
+	isLoading,
+	maxTime,
+	minTime,
+	onSubmit,
+}: EditorBaseProps) {
+	const payload = (event.payload ?? {}) as Record<string, unknown>;
+	const [text, setText] = useState(
+		typeof payload.text === "string" ? payload.text : ""
+	);
+	const [time, setTime] = useState(formatTime(event.occurredAt));
+	const error = validateTime(time, event.occurredAt, minTime, maxTime);
+	return (
+		<div className="flex flex-col gap-4">
+			<TimeField error={error} onChange={setTime} value={time} />
+			<Field htmlFor="edit-memo" label="Memo">
+				<Textarea
+					id="edit-memo"
+					onChange={(e) => setText(e.target.value)}
+					value={text}
+				/>
+			</Field>
+			<SaveButton
+				disabled={error !== null || text.trim().length === 0}
+				isLoading={isLoading}
+				onClick={() => {
+					const newDate = applyTimeToDate(event.occurredAt, time);
+					onSubmit({ text }, Math.floor(newDate.getTime() / 1000));
+				}}
+			/>
+		</div>
+	);
+}
+
+function PurchaseChipsEditor({
+	event,
+	isLoading,
+	maxTime,
+	minTime,
+	onSubmit,
+}: EditorBaseProps) {
+	const payload = (event.payload ?? {}) as Record<string, unknown>;
+	const [name, setName] = useState(
+		typeof payload.name === "string" ? payload.name : ""
+	);
+	const [cost, setCost] = useState(String(payload.cost ?? 0));
+	const [chips, setChips] = useState(String(payload.chips ?? 0));
+	const [time, setTime] = useState(formatTime(event.occurredAt));
+	const error = validateTime(time, event.occurredAt, minTime, maxTime);
+	return (
+		<div className="flex flex-col gap-4">
+			<TimeField error={error} onChange={setTime} value={time} />
+			<Field htmlFor="edit-name" label="Name">
+				<Input
+					id="edit-name"
+					onChange={(e) => setName(e.target.value)}
+					value={name}
+				/>
+			</Field>
+			<Field htmlFor="edit-cost" label="Cost">
+				<Input
+					id="edit-cost"
+					inputMode="numeric"
+					min={0}
+					onChange={(e) => setCost(e.target.value)}
+					type="number"
+					value={cost}
+				/>
+			</Field>
+			<Field htmlFor="edit-chips" label="Chips">
+				<Input
+					id="edit-chips"
+					inputMode="numeric"
+					min={0}
+					onChange={(e) => setChips(e.target.value)}
+					type="number"
+					value={chips}
+				/>
+			</Field>
+			<SaveButton
+				disabled={error !== null || name.trim().length === 0}
+				isLoading={isLoading}
+				onClick={() => {
+					const newDate = applyTimeToDate(event.occurredAt, time);
+					onSubmit(
+						{ name, cost: Number(cost), chips: Number(chips) },
+						Math.floor(newDate.getTime() / 1000)
+					);
+				}}
+			/>
+		</div>
+	);
+}
+
+function UpdateTournamentInfoEditor({
+	event,
+	isLoading,
+	maxTime,
+	minTime,
+	onSubmit,
+}: EditorBaseProps) {
+	const payload = (event.payload ?? {}) as Record<string, unknown>;
+	const [remainingPlayers, setRemainingPlayers] = useState(
+		typeof payload.remainingPlayers === "number"
+			? String(payload.remainingPlayers)
+			: ""
+	);
+	const [totalEntries, setTotalEntries] = useState(
+		typeof payload.totalEntries === "number" ? String(payload.totalEntries) : ""
+	);
+	const [averageStack, setAverageStack] = useState(
+		typeof payload.averageStack === "number" ? String(payload.averageStack) : ""
+	);
+	const [time, setTime] = useState(formatTime(event.occurredAt));
+	const error = validateTime(time, event.occurredAt, minTime, maxTime);
+	return (
+		<div className="flex flex-col gap-4">
+			<TimeField error={error} onChange={setTime} value={time} />
+			<Field htmlFor="edit-remainingPlayers" label="Remaining Players">
+				<Input
+					id="edit-remainingPlayers"
+					inputMode="numeric"
+					min={1}
+					onChange={(e) => setRemainingPlayers(e.target.value)}
+					placeholder="Optional"
+					type="number"
+					value={remainingPlayers}
 				/>
 			</Field>
 			<Field htmlFor="edit-totalEntries" label="Total Entries">
@@ -446,53 +561,174 @@ function TournamentResultEditor({
 					id="edit-totalEntries"
 					inputMode="numeric"
 					min={1}
-					onChange={(event) => setTotalEntries(event.target.value)}
-					required
+					onChange={(e) => setTotalEntries(e.target.value)}
+					placeholder="Optional"
 					type="number"
 					value={totalEntries}
 				/>
 			</Field>
-			<Field htmlFor="edit-prizeMoney" label="Prize Money">
+			<Field htmlFor="edit-averageStack" label="Average Stack">
 				<Input
-					id="edit-prizeMoney"
+					id="edit-averageStack"
 					inputMode="numeric"
 					min={0}
-					onChange={(event) => setPrizeMoney(event.target.value)}
-					required
+					onChange={(e) => setAverageStack(e.target.value)}
+					placeholder="Optional"
 					type="number"
-					value={prizeMoney}
+					value={averageStack}
 				/>
 			</Field>
-			<Field htmlFor="edit-bountyPrizes" label="Bounty Prizes">
-				<Input
-					id="edit-bountyPrizes"
-					inputMode="numeric"
-					min={0}
-					onChange={(event) => setBountyPrizes(event.target.value)}
-					type="number"
-					value={bountyPrizes}
-				/>
-			</Field>
-			<DialogActionRow>
-				<Button
-					disabled={isLoading || error !== null}
-					onClick={() => {
-						const newDate = applyTimeToDate(event.occurredAt, time);
-						onSubmit(
-							{
-								placement: Number(placement),
-								totalEntries: Number(totalEntries),
-								prizeMoney: Number(prizeMoney),
-								bountyPrizes: bountyPrizes ? Number(bountyPrizes) : null,
-							},
-							Math.floor(newDate.getTime() / 1000)
-						);
-					}}
-					type="button"
-				>
-					{isLoading ? "Saving..." : "Save"}
-				</Button>
-			</DialogActionRow>
+			<SaveButton
+				disabled={error !== null}
+				isLoading={isLoading}
+				onClick={() => {
+					const newDate = applyTimeToDate(event.occurredAt, time);
+					onSubmit(
+						{
+							remainingPlayers: remainingPlayers
+								? Number(remainingPlayers)
+								: null,
+							totalEntries: totalEntries ? Number(totalEntries) : null,
+							averageStack: averageStack ? Number(averageStack) : null,
+						},
+						Math.floor(newDate.getTime() / 1000)
+					);
+				}}
+			/>
+		</div>
+	);
+}
+
+function SessionStartEditor({
+	event,
+	isLoading,
+	maxTime,
+	minTime,
+	onTimeUpdate,
+	sessionType,
+}: Pick<
+	EditorBaseProps,
+	"event" | "isLoading" | "maxTime" | "minTime" | "onTimeUpdate"
+> & {
+	sessionType: SessionType;
+}) {
+	const payload = (event.payload ?? {}) as Record<string, unknown>;
+	const [time, setTime] = useState(formatTime(event.occurredAt));
+	const error = validateTime(time, event.occurredAt, minTime, maxTime);
+	return (
+		<div className="flex flex-col gap-4">
+			<TimeField error={error} onChange={setTime} value={time} />
+			{sessionType === "cash_game" &&
+			typeof payload.buyInAmount === "number" ? (
+				<Field htmlFor="edit-buyInAmount" label="Buy-in Amount">
+					<Input
+						disabled
+						id="edit-buyInAmount"
+						readOnly
+						type="text"
+						value={payload.buyInAmount.toLocaleString()}
+					/>
+				</Field>
+			) : null}
+			<SaveButton
+				disabled={error !== null}
+				isLoading={isLoading}
+				onClick={() => {
+					const newDate = applyTimeToDate(event.occurredAt, time);
+					onTimeUpdate(Math.floor(newDate.getTime() / 1000));
+				}}
+			/>
+		</div>
+	);
+}
+
+function SessionEndEditor({
+	event,
+	isLoading,
+	maxTime,
+	minTime,
+	onTimeUpdate,
+	sessionType,
+}: Pick<
+	EditorBaseProps,
+	"event" | "isLoading" | "maxTime" | "minTime" | "onTimeUpdate"
+> & {
+	sessionType: SessionType;
+}) {
+	const payload = (event.payload ?? {}) as Record<string, unknown>;
+	const [time, setTime] = useState(formatTime(event.occurredAt));
+	const error = validateTime(time, event.occurredAt, minTime, maxTime);
+	return (
+		<div className="flex flex-col gap-4">
+			<TimeField error={error} onChange={setTime} value={time} />
+			{sessionType === "cash_game" &&
+			typeof payload.cashOutAmount === "number" ? (
+				<Field htmlFor="edit-cashOutAmount" label="Cash-out Amount">
+					<Input
+						disabled
+						id="edit-cashOutAmount"
+						readOnly
+						type="text"
+						value={payload.cashOutAmount.toLocaleString()}
+					/>
+				</Field>
+			) : null}
+			{sessionType === "tournament" && (
+				<>
+					{typeof payload.placement === "number" ? (
+						<Field htmlFor="edit-placement" label="Placement">
+							<Input
+								disabled
+								id="edit-placement"
+								readOnly
+								type="text"
+								value={String(payload.placement)}
+							/>
+						</Field>
+					) : null}
+					{typeof payload.totalEntries === "number" ? (
+						<Field htmlFor="edit-totalEntries" label="Total Entries">
+							<Input
+								disabled
+								id="edit-totalEntries"
+								readOnly
+								type="text"
+								value={String(payload.totalEntries)}
+							/>
+						</Field>
+					) : null}
+					{typeof payload.prizeMoney === "number" ? (
+						<Field htmlFor="edit-prizeMoney" label="Prize Money">
+							<Input
+								disabled
+								id="edit-prizeMoney"
+								readOnly
+								type="text"
+								value={payload.prizeMoney.toLocaleString()}
+							/>
+						</Field>
+					) : null}
+					{typeof payload.bountyPrizes === "number" ? (
+						<Field htmlFor="edit-bountyPrizes" label="Bounty Prizes">
+							<Input
+								disabled
+								id="edit-bountyPrizes"
+								readOnly
+								type="text"
+								value={payload.bountyPrizes.toLocaleString()}
+							/>
+						</Field>
+					) : null}
+				</>
+			)}
+			<SaveButton
+				disabled={error !== null}
+				isLoading={isLoading}
+				onClick={() => {
+					const newDate = applyTimeToDate(event.occurredAt, time);
+					onTimeUpdate(Math.floor(newDate.getTime() / 1000));
+				}}
+			/>
 		</div>
 	);
 }
@@ -517,8 +753,36 @@ function EventEditor({
 	minTime,
 	onSubmit,
 	onTimeUpdate,
+	sessionType,
 }: EventEditorProps) {
-	if (LIFECYCLE_EVENTS.has(event.eventType)) {
+	if (event.eventType === "session_start") {
+		return (
+			<SessionStartEditor
+				event={event}
+				isLoading={isLoading}
+				maxTime={maxTime}
+				minTime={minTime}
+				onTimeUpdate={onTimeUpdate}
+				sessionType={sessionType}
+			/>
+		);
+	}
+	if (event.eventType === "session_end") {
+		return (
+			<SessionEndEditor
+				event={event}
+				isLoading={isLoading}
+				maxTime={maxTime}
+				minTime={minTime}
+				onTimeUpdate={onTimeUpdate}
+				sessionType={sessionType}
+			/>
+		);
+	}
+	if (
+		event.eventType === "session_pause" ||
+		event.eventType === "session_resume"
+	) {
 		return (
 			<TimeOnlyEditor
 				event={event}
@@ -529,61 +793,86 @@ function EventEditor({
 			/>
 		);
 	}
-	if (event.eventType === "stack_record") {
+	if (event.eventType === "chips_add_remove") {
 		return (
-			<StackRecordEditor
-				initialOccurredAt={event.occurredAt}
-				initialPayload={{
-					stackAmount:
-						(event.payload as { stackAmount?: number })?.stackAmount ?? 0,
-					allIns: Array.isArray((event.payload as { allIns?: unknown })?.allIns)
-						? ((event.payload as { allIns: unknown[] }).allIns as Array<{
-								equity: number;
-								potSize: number;
-								trials: number;
-								wins: number;
-							}>)
-						: [],
-				}}
-				isLoading={isLoading}
-				maxTime={maxTime}
-				minTime={minTime}
-				onSubmit={(payload, occurredAt) => onSubmit(payload, occurredAt)}
-			/>
-		);
-	}
-	if (event.eventType === "tournament_stack_record") {
-		return (
-			<TournamentStackRecordEditor
-				initialOccurredAt={event.occurredAt}
-				initialPayload={normalizeTournamentStackPayload(
-					(event.payload ?? {}) as Record<string, unknown>
-				)}
-				isLoading={isLoading}
-				maxTime={maxTime}
-				minTime={minTime}
-				onSubmit={(payload, occurredAt) => onSubmit(payload, occurredAt)}
-			/>
-		);
-	}
-	if (event.eventType === "tournament_result") {
-		return (
-			<TournamentResultEditor
+			<ChipsAddRemoveEditor
 				event={event}
 				isLoading={isLoading}
 				maxTime={maxTime}
 				minTime={minTime}
 				onSubmit={onSubmit}
+				onTimeUpdate={onTimeUpdate}
 			/>
 		);
 	}
+	if (event.eventType === "update_stack") {
+		return (
+			<UpdateStackEditor
+				event={event}
+				isLoading={isLoading}
+				maxTime={maxTime}
+				minTime={minTime}
+				onSubmit={onSubmit}
+				onTimeUpdate={onTimeUpdate}
+			/>
+		);
+	}
+	if (event.eventType === "all_in") {
+		return (
+			<AllInEditor
+				event={event}
+				isLoading={isLoading}
+				maxTime={maxTime}
+				minTime={minTime}
+				onSubmit={onSubmit}
+				onTimeUpdate={onTimeUpdate}
+			/>
+		);
+	}
+	if (event.eventType === "purchase_chips") {
+		return (
+			<PurchaseChipsEditor
+				event={event}
+				isLoading={isLoading}
+				maxTime={maxTime}
+				minTime={minTime}
+				onSubmit={onSubmit}
+				onTimeUpdate={onTimeUpdate}
+			/>
+		);
+	}
+	if (event.eventType === "update_tournament_info") {
+		return (
+			<UpdateTournamentInfoEditor
+				event={event}
+				isLoading={isLoading}
+				maxTime={maxTime}
+				minTime={minTime}
+				onSubmit={onSubmit}
+				onTimeUpdate={onTimeUpdate}
+			/>
+		);
+	}
+	if (event.eventType === "memo") {
+		return (
+			<MemoEditor
+				event={event}
+				isLoading={isLoading}
+				maxTime={maxTime}
+				minTime={minTime}
+				onSubmit={onSubmit}
+				onTimeUpdate={onTimeUpdate}
+			/>
+		);
+	}
+	// player_join, player_leave: time only
 	return (
-		<AmountEditor
+		<TimeOnlyEditor
 			event={event}
 			isLoading={isLoading}
 			maxTime={maxTime}
 			minTime={minTime}
-			onSubmit={onSubmit}
+			onTimeUpdate={onTimeUpdate}
 		/>
 	);
 }
@@ -649,6 +938,7 @@ export function SessionEventsScene({
 							event.payload
 						);
 						const isLifecycle = LIFECYCLE_EVENTS.has(event.eventType);
+						const canDelete = !isLifecycle;
 						return (
 							<div className="relative flex gap-3 pb-4" key={event.id}>
 								<div className="w-[44px] shrink-0 pt-0.5 text-right text-muted-foreground text-xs">
@@ -666,13 +956,9 @@ export function SessionEventsScene({
 													{payloadSummary}
 												</p>
 											) : null}
-											<EventDetail
-												eventType={event.eventType}
-												payload={event.payload}
-											/>
 										</div>
 										<div className="flex shrink-0 items-center gap-1">
-											{!isLifecycle && confirmingDeleteId === event.id ? (
+											{canDelete && confirmingDeleteId === event.id ? (
 												<>
 													<span className="text-destructive text-xs">
 														Delete?
@@ -710,7 +996,7 @@ export function SessionEventsScene({
 													>
 														<IconPencil size={14} />
 													</Button>
-													{!isLifecycle && (
+													{canDelete && (
 														<Button
 															aria-label={`Delete ${formatEventLabel(event.eventType)}`}
 															className="text-destructive hover:text-destructive"
@@ -759,6 +1045,7 @@ export function SessionEventsScene({
 								setEditEvent(null)
 							)
 						}
+						sessionType={sessionType}
 					/>
 				) : null}
 			</ResponsiveDialog>
