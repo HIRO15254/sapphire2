@@ -6,6 +6,7 @@ import {
 	LIFECYCLE_EVENT_TYPES,
 	MANUAL_CREATE_BLOCKED_EVENT_TYPES,
 	playerJoinPayload,
+	playerLeavePayload,
 	type SessionEventType,
 	validateEventPayload,
 } from "@sapphire2/db/constants/session-event-types";
@@ -139,6 +140,9 @@ async function handlePlayerJoinSideEffect(
 	validatedPayload: unknown
 ) {
 	const parsed = playerJoinPayload.parse(validatedPayload);
+	if (!parsed.playerId) {
+		return;
+	}
 	const now = new Date();
 	const cond = buildTablePlayerCondition(
 		liveCashGameSessionId,
@@ -172,7 +176,10 @@ async function handlePlayerLeaveSideEffect(
 	liveTournamentSessionId: string | undefined,
 	validatedPayload: unknown
 ) {
-	const parsed = playerJoinPayload.parse(validatedPayload);
+	const parsed = playerLeavePayload.parse(validatedPayload);
+	if (!parsed.playerId) {
+		return;
+	}
 	const now = new Date();
 	const cond = buildTablePlayerCondition(
 		liveCashGameSessionId,
@@ -445,6 +452,9 @@ export const sessionEventRouter = router({
 
 			if (event.eventType === "player_join") {
 				const parsed = playerJoinPayload.parse(JSON.parse(event.payload));
+				if (!parsed.playerId) {
+					return { success: true as const };
+				}
 				const cond = buildTablePlayerCondition(
 					event.liveCashGameSessionId ?? undefined,
 					event.liveTournamentSessionId ?? undefined,

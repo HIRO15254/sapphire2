@@ -109,11 +109,13 @@ export const updateStackPayload = z.object({
 });
 
 export const playerJoinPayload = z.object({
-	playerId: z.string().min(1),
+	playerId: z.string().min(1).optional(),
+	isHero: z.boolean().default(false),
 });
 
 export const playerLeavePayload = z.object({
-	playerId: z.string().min(1),
+	playerId: z.string().min(1).optional(),
+	isHero: z.boolean().default(false),
 });
 
 export const memoPayload = z.object({

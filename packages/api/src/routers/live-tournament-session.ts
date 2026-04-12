@@ -5,7 +5,6 @@ import {
 } from "@sapphire2/db/constants/session-event-types";
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
 import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
-import { player } from "@sapphire2/db/schema/player";
 import { pokerSession } from "@sapphire2/db/schema/session";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
@@ -548,100 +547,44 @@ export const liveTournamentSessionRouter = router({
 				.set({ heroSeatPosition: input.heroSeatPosition })
 				.where(eq(liveTournamentSession.id, input.id));
 
-			const [heroPlayer] = await ctx.db
-				.select({ id: player.id })
-				.from(player)
-				.where(eq(player.userId, userId))
-				.limit(1);
+			const now = new Date();
 
-			if (heroPlayer) {
-				const now = new Date();
+			const getNextSortOrder = async () => {
+				const [latest] = await ctx.db
+					.select({ maxSort: max(sessionEvent.sortOrder) })
+					.from(sessionEvent)
+					.where(eq(sessionEvent.liveTournamentSessionId, input.id));
+				return (latest?.maxSort ?? -1) + 1;
+			};
 
-				const getNextSortOrder = async () => {
-					const [latest] = await ctx.db
-						.select({ maxSort: max(sessionEvent.sortOrder) })
-						.from(sessionEvent)
-						.where(eq(sessionEvent.liveTournamentSessionId, input.id));
-					return (latest?.maxSort ?? -1) + 1;
-				};
+			// Hero sitting down
+			if (previousHeroSeat === null && input.heroSeatPosition !== null) {
+				const sortOrder = await getNextSortOrder();
+				await ctx.db.insert(sessionEvent).values({
+					id: crypto.randomUUID(),
+					liveCashGameSessionId: null,
+					liveTournamentSessionId: input.id,
+					eventType: "player_join",
+					occurredAt: now,
+					sortOrder,
+					payload: JSON.stringify({ isHero: true }),
+					updatedAt: now,
+				});
+			}
 
-				if (previousHeroSeat === null && input.heroSeatPosition !== null) {
-					const [existing] = await ctx.db
-						.select()
-						.from(sessionTablePlayer)
-						.where(
-							and(
-								eq(sessionTablePlayer.liveTournamentSessionId, input.id),
-								eq(sessionTablePlayer.playerId, heroPlayer.id)
-							)
-						);
-
-					if (existing) {
-						await ctx.db
-							.update(sessionTablePlayer)
-							.set({
-								isActive: 1,
-								joinedAt: now,
-								seatPosition: input.heroSeatPosition,
-								updatedAt: now,
-							})
-							.where(eq(sessionTablePlayer.id, existing.id));
-					} else {
-						await ctx.db.insert(sessionTablePlayer).values({
-							id: crypto.randomUUID(),
-							liveCashGameSessionId: null,
-							liveTournamentSessionId: input.id,
-							playerId: heroPlayer.id,
-							seatPosition: input.heroSeatPosition,
-							isActive: 1,
-							joinedAt: now,
-							updatedAt: now,
-						});
-					}
-
-					const sortOrder = await getNextSortOrder();
-					await ctx.db.insert(sessionEvent).values({
-						id: crypto.randomUUID(),
-						liveCashGameSessionId: null,
-						liveTournamentSessionId: input.id,
-						eventType: "player_join",
-						occurredAt: now,
-						sortOrder,
-						payload: JSON.stringify({ playerId: heroPlayer.id }),
-						updatedAt: now,
-					});
-				}
-
-				if (previousHeroSeat !== null && input.heroSeatPosition === null) {
-					const [existing] = await ctx.db
-						.select()
-						.from(sessionTablePlayer)
-						.where(
-							and(
-								eq(sessionTablePlayer.liveTournamentSessionId, input.id),
-								eq(sessionTablePlayer.playerId, heroPlayer.id)
-							)
-						);
-
-					if (existing?.isActive) {
-						await ctx.db
-							.update(sessionTablePlayer)
-							.set({ isActive: 0, leftAt: now, updatedAt: now })
-							.where(eq(sessionTablePlayer.id, existing.id));
-
-						const sortOrder = await getNextSortOrder();
-						await ctx.db.insert(sessionEvent).values({
-							id: crypto.randomUUID(),
-							liveCashGameSessionId: null,
-							liveTournamentSessionId: input.id,
-							eventType: "player_leave",
-							occurredAt: now,
-							sortOrder,
-							payload: JSON.stringify({ playerId: heroPlayer.id }),
-							updatedAt: now,
-						});
-					}
-				}
+			// Hero standing up
+			if (previousHeroSeat !== null && input.heroSeatPosition === null) {
+				const sortOrder = await getNextSortOrder();
+				await ctx.db.insert(sessionEvent).values({
+					id: crypto.randomUUID(),
+					liveCashGameSessionId: null,
+					liveTournamentSessionId: input.id,
+					eventType: "player_leave",
+					occurredAt: now,
+					sortOrder,
+					payload: JSON.stringify({ isHero: true }),
+					updatedAt: now,
+				});
 			}
 
 			return { id: input.id };
