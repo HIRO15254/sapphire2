@@ -1,9 +1,10 @@
-import { IconCoins, IconPlus } from "@tabler/icons-react";
+import { IconCoins, IconPlus, IconTags } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { CurrencyCard } from "@/currencies/components/currency-card";
 import { CurrencyForm } from "@/currencies/components/currency-form";
 import { TransactionForm } from "@/currencies/components/transaction-form";
+import { TransactionTypeManager } from "@/currencies/components/transaction-type-manager";
 import type {
 	CurrencyItem,
 	CurrencyValues,
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/currencies/")({
 
 function CurrenciesPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	const [isTypeManagerOpen, setIsTypeManagerOpen] = useState(false);
 	const [editingCurrency, setEditingCurrency] = useState<CurrencyItem | null>(
 		null
 	);
@@ -122,10 +124,20 @@ function CurrenciesPage() {
 		<div className="p-4 md:p-6">
 			<PageHeader
 				actions={
-					<Button onClick={() => setIsCreateOpen(true)}>
-						<IconPlus size={16} />
-						New Currency
-					</Button>
+					<>
+						<Button
+							onClick={() => setIsTypeManagerOpen(true)}
+							size="sm"
+							variant="outline"
+						>
+							<IconTags size={16} />
+							Manage Types
+						</Button>
+						<Button onClick={() => setIsCreateOpen(true)}>
+							<IconPlus size={16} />
+							New Currency
+						</Button>
+					</>
 				}
 				description="Track balances and manual transactions for each currency."
 				heading="Currencies"
@@ -248,6 +260,14 @@ function CurrenciesPage() {
 						onSubmit={handleEditTransaction}
 					/>
 				)}
+			</ResponsiveDialog>
+
+			<ResponsiveDialog
+				onOpenChange={setIsTypeManagerOpen}
+				open={isTypeManagerOpen}
+				title="Manage Types"
+			>
+				<TransactionTypeManager />
 			</ResponsiveDialog>
 		</div>
 	);
