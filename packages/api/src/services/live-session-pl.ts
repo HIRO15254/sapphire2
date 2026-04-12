@@ -4,6 +4,7 @@ import {
 	tournamentResultPayload,
 	tournamentStackRecordPayload,
 } from "@sapphire2/db/constants/session-event-types";
+import type { SessionStatus } from "@sapphire2/db/constants/session-event-types";
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
 import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
 import { pokerSession } from "@sapphire2/db/schema/session";
@@ -43,22 +44,26 @@ interface TournamentPLResult {
 interface SessionState {
 	endedAt: Date | null;
 	startedAt: Date | null;
-	status: "active" | "completed";
+	status: SessionStatus;
 }
 
 export function computeBreakMinutesFromEvents(
 	events: { eventType: string; occurredAt: Date }[]
 ): number {
 	let totalBreakMs = 0;
-	let lastSessionEndAt: Date | null = null;
+	let pausedAt: Date | null = null;
 
 	for (const event of events) {
-		if (event.eventType === "session_end") {
-			lastSessionEndAt = event.occurredAt;
-		} else if (event.eventType === "session_start" && lastSessionEndAt) {
-			totalBreakMs += event.occurredAt.getTime() - lastSessionEndAt.getTime();
-			lastSessionEndAt = null;
+		if (event.eventType === "session_pause") {
+			pausedAt = event.occurredAt;
+		} else if (event.eventType === "session_resume" && pausedAt) {
+			totalBreakMs += event.occurredAt.getTime() - pausedAt.getTime();
+			pausedAt = null;
 		}
+	}
+
+	if (pausedAt) {
+		totalBreakMs += Date.now() - pausedAt.getTime();
 	}
 
 	return Math.floor(totalBreakMs / (1000 * 60));
@@ -69,23 +74,34 @@ export function computeSessionStateFromEvents(
 ): SessionState {
 	let startedAt: Date | null = null;
 	let endedAt: Date | null = null;
-	let lastLifecycleEvent: string | null = null;
+	let lastStateEvent: string | null = null;
 
 	for (const event of events) {
 		if (event.eventType === "session_start") {
 			if (startedAt === null) {
 				startedAt = event.occurredAt;
 			}
-			lastLifecycleEvent = "session_start";
+			lastStateEvent = "session_start";
 		}
 		if (event.eventType === "session_end") {
 			endedAt = event.occurredAt;
-			lastLifecycleEvent = "session_end";
+			lastStateEvent = "session_end";
+		}
+		if (event.eventType === "session_pause") {
+			lastStateEvent = "session_pause";
+		}
+		if (event.eventType === "session_resume") {
+			lastStateEvent = "session_resume";
 		}
 	}
 
-	const status: "active" | "completed" =
-		lastLifecycleEvent === "session_end" ? "completed" : "active";
+	let status: SessionStatus = "active";
+	if (lastStateEvent === "session_end") {
+		status = "completed";
+	} else if (lastStateEvent === "session_pause") {
+		status = "paused";
+	}
+
 	return { startedAt, endedAt, status };
 }
 
