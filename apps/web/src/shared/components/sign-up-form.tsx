@@ -94,7 +94,6 @@ export default function SignUpForm({
 		<AuthFormShell
 			description="Create your account to start tracking sessions, players, and stores."
 			eyebrow="New Account"
-			footerNote="By continuing, you can also connect Google or Discord after sign up."
 			onSwitchMode={onSwitchToSignIn}
 			providerActions={providerActions}
 			switchLabel="Already have an account? Sign In"

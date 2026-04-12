@@ -15,6 +15,12 @@ const mocks = vi.hoisted(() => ({
 		isPending: false,
 	},
 	signOut: vi.fn(),
+	updateNotesSheet: {
+		isOpen: false,
+		open: vi.fn(),
+		close: vi.fn(),
+		setIsOpen: vi.fn(),
+	},
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -29,6 +35,10 @@ vi.mock("@/lib/auth-client", () => ({
 		signOut: mocks.signOut,
 		useSession: () => mocks.sessionState,
 	},
+}));
+
+vi.mock("@/update-notes/hooks/use-update-notes-sheet", () => ({
+	useUpdateNotesSheet: () => mocks.updateNotesSheet,
 }));
 
 describe("UserMenu", () => {

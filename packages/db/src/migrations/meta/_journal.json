@@ -78,6 +78,20 @@
       "when": 1775091606970,
       "tag": "0010_huge_switch",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1775867364928,
+      "tag": "0011_furry_lily_hollister",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1775883379516,
+      "tag": "0012_boring_vivisector",
+      "breakpoints": true
     }
   ]
 }

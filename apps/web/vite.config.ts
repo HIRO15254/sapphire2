@@ -4,9 +4,11 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { githubReleasesPlugin } from "./src/plugins/vite-plugin-github-releases";
 
 export default defineConfig({
 	plugins: [
+		githubReleasesPlugin("hiro15254/sapphire2"),
 		tailwindcss(),
 		tanstackRouter({}),
 		react(),

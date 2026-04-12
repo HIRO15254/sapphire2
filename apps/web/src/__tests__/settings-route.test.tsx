@@ -19,10 +19,6 @@ vi.mock("@/shared/components/linked-accounts", () => ({
 	LinkedAccounts: () => <div>Linked Accounts Content</div>,
 }));
 
-vi.mock("@/sessions/components/session-tag-manager", () => ({
-	SessionTagManager: () => <div>Session Tags Content</div>,
-}));
-
 vi.mock("@/currencies/components/transaction-type-manager", () => ({
 	TransactionTypeManager: () => <div>Transaction Types Content</div>,
 }));
@@ -65,7 +61,6 @@ describe("SettingsComponent", () => {
 		).toBeInTheDocument();
 		expect(screen.getByText("Linked Accounts")).toBeInTheDocument();
 		expect(screen.getByText("Transaction Types")).toBeInTheDocument();
-		expect(screen.getByText("Session Tags")).toBeInTheDocument();
 	});
 
 	it("signs out from the page header action", async () => {

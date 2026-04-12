@@ -2,6 +2,8 @@ import {
 	type IconBolt,
 	IconBuildingStore,
 	IconCards,
+	IconCategory,
+	IconCoins,
 	IconLayoutDashboard,
 	IconList,
 	type IconPlus,
@@ -17,6 +19,7 @@ export interface NavigationItem {
 	exact?: boolean;
 	icon: ComponentType<{ size?: number; stroke?: number; className?: string }>;
 	label: string;
+	matchPaths?: string[];
 	to: string;
 }
 
@@ -27,20 +30,35 @@ export interface NavigationCenterAction {
 	tone: "accent" | "live";
 }
 
+export const RESOURCE_ITEMS: readonly NavigationItem[] = [
+	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
+	{ to: "/players", label: "Players", icon: IconUsers },
+	{ to: "/currencies", label: "Currencies", icon: IconCoins },
+] as const;
+
 export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
+	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
 	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
+	{ to: "/currencies", label: "Currencies", icon: IconCoins },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
 const NORMAL_LEFT_ITEMS: readonly NavigationItem[] = [
+	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
-	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
 ] as const;
 
+const RESOURCES_NAV_ITEM: NavigationItem = {
+	to: "/resources",
+	label: "Resources",
+	icon: IconCategory,
+	matchPaths: ["/stores", "/players", "/currencies"],
+};
+
 const NORMAL_RIGHT_ITEMS: readonly NavigationItem[] = [
-	{ to: "/players", label: "Players", icon: IconUsers },
+	RESOURCES_NAV_ITEM,
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
@@ -73,6 +91,19 @@ export function isActive(
 		return currentPath === itemPath;
 	}
 	return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
+}
+
+export function isActiveItem(
+	currentPath: string,
+	item: NavigationItem
+): boolean {
+	if (isActive(currentPath, item.to, item.exact)) {
+		return true;
+	}
+	if (item.matchPaths) {
+		return item.matchPaths.some((p) => isActive(currentPath, p));
+	}
+	return false;
 }
 
 export function getMobileNavigationItems(hasActive: boolean): {
@@ -144,24 +175,24 @@ export function NavigationCenterButton({
 
 	return (
 		<Button
-			className="relative h-auto flex-col gap-0 bg-transparent px-0 py-0 hover:bg-transparent"
+			className="relative h-16 w-full overflow-visible bg-transparent p-0 hover:bg-transparent"
 			onClick={action.onClick}
 			type="button"
 			variant="ghost"
 		>
 			<div
 				className={cn(
-					"flex size-12 translate-y-1 items-center justify-center rounded-full shadow-lg transition-colors",
+					"absolute top-[-10px] left-1/2 flex size-14 -translate-x-1/2 items-center justify-center rounded-full shadow-lg transition-colors",
 					isLive
 						? "bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600"
 						: "bg-primary text-primary-foreground hover:bg-primary/90"
 				)}
 			>
-				<Icon size={24} stroke={2} />
+				<Icon className="size-8" size={32} stroke={2} />
 			</div>
 			<span
 				className={cn(
-					"relative z-10 mt-0.5 rounded-full px-2 py-px font-bold text-[10px]",
+					"absolute bottom-1.5 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-px font-bold text-[10px]",
 					isLive
 						? "bg-green-600 text-white dark:bg-green-500"
 						: "bg-primary text-primary-foreground"

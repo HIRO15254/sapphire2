@@ -56,12 +56,13 @@ export function AllInBottomSheet({
 
 	const isEditMode = initialValues !== undefined;
 
-	const evAmount = potSize * (equity / 100) * trials;
-	const actual = potSize * wins;
+	const evAmount = potSize * (equity / 100);
+	const actual = (potSize / trials) * wins;
 	const evDiff = evAmount - actual;
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
+		e.stopPropagation();
 		onSubmit({ potSize, trials, equity, wins });
 	};
 

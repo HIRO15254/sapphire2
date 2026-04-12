@@ -21,7 +21,6 @@ describe("StackRecordEditor", () => {
 				isLoading={false}
 				maxTime={new Date("2026-04-04T10:45:00")}
 				minTime={new Date("2026-04-04T10:15:00")}
-				onDelete={vi.fn()}
 				onSubmit={onSubmit}
 			/>
 		);

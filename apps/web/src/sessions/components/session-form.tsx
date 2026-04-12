@@ -20,6 +20,7 @@ interface CashGameFormValues {
 	blind1?: number;
 	blind2?: number;
 	blind3?: number;
+	breakMinutes?: number;
 	buyIn: number;
 	cashOut: number;
 	currencyId?: string;
@@ -39,6 +40,7 @@ interface CashGameFormValues {
 interface TournamentFormValues {
 	addonCost?: number;
 	bountyPrizes?: number;
+	breakMinutes?: number;
 	currencyId?: string;
 	endTime?: string;
 	entryFee?: number;
@@ -87,6 +89,7 @@ interface SessionFormDefaults {
 	blind2?: number;
 	blind3?: number;
 	bountyPrizes?: number;
+	breakMinutes?: number;
 	buyIn?: number;
 	cashOut?: number;
 	currencyId?: string;
@@ -335,6 +338,20 @@ function SessionFormFields({
 					</div>
 				</div>
 
+				{/* Break Time */}
+				<div className="flex flex-col gap-2">
+					<Label htmlFor="breakMinutes">Break Time (min)</Label>
+					<Input
+						defaultValue={defaultValues?.breakMinutes}
+						id="breakMinutes"
+						inputMode="numeric"
+						min={0}
+						name="breakMinutes"
+						placeholder="0"
+						type="number"
+					/>
+				</div>
+
 				{/* Store / Game Selectors */}
 				<StoreGameSelectors
 					gameLabel={gameLabel}
@@ -506,6 +523,7 @@ export function SessionForm({
 			sessionDate: formData.get("sessionDate") as string,
 			startTime: (formData.get("startTime") as string) || undefined,
 			endTime: (formData.get("endTime") as string) || undefined,
+			breakMinutes: parseOptionalInt(formData.get("breakMinutes") as string),
 			tagIds: selectedTagIds,
 			memo: (formData.get("memo") as string) || undefined,
 			storeId: selectedStoreId,

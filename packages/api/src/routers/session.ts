@@ -315,6 +315,7 @@ const cashGameCreateSchema = z.object({
 	// Time + memo
 	startedAt: z.number().optional(),
 	endedAt: z.number().optional(),
+	breakMinutes: z.number().int().min(0).optional(),
 	memo: z.string().optional(),
 	// Tags
 	tagIds: z.array(z.string()).optional(),
@@ -340,6 +341,7 @@ const tournamentCreateSchema = z
 		// Time + memo
 		startedAt: z.number().optional(),
 		endedAt: z.number().optional(),
+		breakMinutes: z.number().int().min(0).optional(),
 		memo: z.string().optional(),
 		// Tags
 		tagIds: z.array(z.string()).optional(),
@@ -415,6 +417,7 @@ const SESSION_UPDATE_FIELDS = [
 	"addonCost",
 	"bountyPrizes",
 	"evCashOut",
+	"breakMinutes",
 	"memo",
 ] as const;
 
@@ -754,6 +757,7 @@ export const sessionRouter = router({
 				sessionDate,
 				startedAt: timestampToDate(input.startedAt),
 				endedAt: timestampToDate(input.endedAt),
+				breakMinutes: input.breakMinutes ?? null,
 				memo: input.memo ?? null,
 				updatedAt: now,
 				...linkValues,
@@ -837,11 +841,13 @@ export const sessionRouter = router({
 					bountyPrizes: pokerSession.bountyPrizes,
 					startedAt: pokerSession.startedAt,
 					endedAt: pokerSession.endedAt,
+					breakMinutes: pokerSession.breakMinutes,
 					memo: pokerSession.memo,
 					storeId: pokerSession.storeId,
 					storeName: store.name,
 					ringGameId: pokerSession.ringGameId,
 					ringGameName: ringGame.name,
+					ringGameBlind2: ringGame.blind2,
 					tournamentId: pokerSession.tournamentId,
 					tournamentName: tournament.name,
 					currencyId: pokerSession.currencyId,
@@ -961,6 +967,7 @@ export const sessionRouter = router({
 				// Common
 				startedAt: z.number().nullable().optional(),
 				endedAt: z.number().nullable().optional(),
+				breakMinutes: z.number().int().min(0).nullable().optional(),
 				memo: z.string().nullable().optional(),
 				// Ring game config updates
 				variant: z.string().optional(),

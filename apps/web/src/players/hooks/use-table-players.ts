@@ -86,14 +86,16 @@ export function useTablePlayers({
 
 	const addNewMutation = useMutation({
 		mutationFn: (params: {
-			playerName: string;
 			playerMemo?: string;
+			playerName: string;
+			playerTagIds?: string[];
 			seatPosition: number;
 		}) =>
 			trpcClient.sessionTablePlayer.addNew.mutate({
 				...sessionParam,
-				playerName: params.playerName,
 				playerMemo: params.playerMemo,
+				playerName: params.playerName,
+				playerTagIds: params.playerTagIds,
 				seatPosition: params.seatPosition,
 			}),
 		onMutate: async (params) => {
@@ -211,10 +213,16 @@ export function useTablePlayers({
 		) => {
 			addMutation.mutate({ playerId, playerName, seatPosition });
 		},
-		handleAddNew: (name: string, seatPosition: number, memo?: string) => {
+		handleAddNew: (
+			name: string,
+			seatPosition: number,
+			memo?: string,
+			tagIds?: string[]
+		) => {
 			addNewMutation.mutate({
-				playerName: name,
 				playerMemo: memo,
+				playerName: name,
+				playerTagIds: tagIds,
 				seatPosition,
 			});
 		},

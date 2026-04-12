@@ -1,42 +1,51 @@
 import { IconPlus, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import type { PlayerFormValues } from "@/players/components/player-form";
+import { PlayerForm } from "@/players/components/player-form";
 import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
-import { Textarea } from "@/shared/components/ui/textarea";
 import { trpc } from "@/utils/trpc";
 
+interface TagWithColor {
+	color: string;
+	id: string;
+	name: string;
+}
+
 interface AddPlayerSheetProps {
+	availableTags: TagWithColor[];
 	excludePlayerIds: string[];
 	onAddExisting: (playerId: string, playerName: string) => void;
-	onAddNew: (name: string, memo?: string) => void;
+	onAddNew: (values: {
+		memo?: string | null;
+		name: string;
+		tagIds?: string[];
+	}) => void;
+	onCreateTag: (name: string) => Promise<TagWithColor>;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 }
 
 export function AddPlayerSheet({
+	availableTags,
 	excludePlayerIds,
 	onAddExisting,
 	onAddNew,
+	onCreateTag,
 	onOpenChange,
 	open,
 }: AddPlayerSheetProps) {
 	const [tab, setTab] = useState<"existing" | "new">("existing");
 	const [search, setSearch] = useState("");
-	const [newName, setNewName] = useState("");
-	const [newMemo, setNewMemo] = useState("");
 
 	useEffect(() => {
 		if (open) {
 			setTab("existing");
 			setSearch("");
-			setNewName("");
-			setNewMemo("");
 		}
 	}, [open]);
 
@@ -59,12 +68,12 @@ export function AddPlayerSheet({
 		onOpenChange(false);
 	};
 
-	const handleAddNew = (e: React.FormEvent) => {
-		e.preventDefault();
-		if (!newName.trim()) {
-			return;
-		}
-		onAddNew(newName.trim(), newMemo.trim() || undefined);
+	const handleAddNew = (values: PlayerFormValues) => {
+		onAddNew({
+			memo: values.memo,
+			name: values.name,
+			tagIds: values.tagIds,
+		});
 		onOpenChange(false);
 	};
 
@@ -143,26 +152,10 @@ export function AddPlayerSheet({
 				)}
 
 				{tab === "new" && (
-					<form className="flex flex-col gap-4" onSubmit={handleAddNew}>
-						<Field htmlFor="new-player-name" label="Name" required>
-							<Input
-								id="new-player-name"
-								onChange={(e) => setNewName(e.target.value)}
-								placeholder="Player name"
-								required
-								value={newName}
-							/>
-						</Field>
-						<Field htmlFor="new-player-memo" label="Memo (optional)">
-							<Textarea
-								id="new-player-memo"
-								onChange={(e) => setNewMemo(e.target.value)}
-								placeholder="Notes about this player"
-								rows={4}
-								value={newMemo}
-							/>
-						</Field>
-						<DialogActionRow>
+					<PlayerForm
+						availableTags={availableTags}
+						key={String(open)}
+						leadingActions={
 							<Button
 								onClick={() => onOpenChange(false)}
 								type="button"
@@ -170,9 +163,10 @@ export function AddPlayerSheet({
 							>
 								Cancel
 							</Button>
-							<Button type="submit">Add Player</Button>
-						</DialogActionRow>
-					</form>
+						}
+						onCreateTag={onCreateTag}
+						onSubmit={handleAddNew}
+					/>
 				)}
 			</div>
 		</ResponsiveDialog>

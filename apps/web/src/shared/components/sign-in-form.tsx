@@ -91,7 +91,6 @@ export default function SignInForm({
 		<AuthFormShell
 			description="Use your email and password or continue with a linked provider."
 			eyebrow="Welcome Back"
-			footerNote="You will be redirected to the dashboard after signing in."
 			onSwitchMode={onSwitchToSignUp}
 			providerActions={providerActions}
 			switchLabel="Need an account? Sign Up"

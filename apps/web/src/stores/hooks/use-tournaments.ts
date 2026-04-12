@@ -127,6 +127,9 @@ export function useTournaments({
 	});
 	const archivedTournaments = (archivedQuery.data ?? []) as Tournament[];
 
+	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
+	const currencies = currenciesQuery.data ?? [];
+
 	const syncTags = async (
 		tournamentId: string,
 		newTags: string[],
@@ -400,6 +403,7 @@ export function useTournaments({
 	return {
 		activeTournaments,
 		archivedTournaments,
+		currencies,
 		activeLoading: activeQuery.isLoading,
 		archivedLoading: archivedQuery.isLoading,
 		isCreatePending: createMutation.isPending,

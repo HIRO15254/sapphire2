@@ -1,58 +1,44 @@
-import { useState } from "react";
 import { useSessionTags } from "@/sessions/hooks/use-session-tags";
-import { SimpleEditableList } from "@/shared/components/management/simple-editable-list";
+import { TagManager } from "@/shared/components/management/tag-manager";
+import { TagNameForm } from "@/shared/components/management/tag-name-form";
 
 export function SessionTagManager() {
 	const {
 		tags,
+		create,
 		update,
 		delete: deleteTag,
+		isCreatePending,
 		isUpdatePending,
 		isDeletePending,
 	} = useSessionTags();
 
-	const [editingId, setEditingId] = useState<string | null>(null);
-	const [editingName, setEditingName] = useState("");
-	const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
-		null
-	);
-
 	return (
-		<SimpleEditableList
-			confirmingDeleteId={confirmingDeleteId}
-			editingId={editingId}
-			editingValue={editingName}
+		<TagManager
 			emptyDescription="Create tags when recording sessions."
 			emptyHeading="No session tags yet"
-			getItemLabel={(tag) => tag.name}
-			isDeleting={isDeletePending}
-			isSaving={isUpdatePending}
-			itemNoun="tag"
-			items={tags}
-			onCancelDelete={() => setConfirmingDeleteId(null)}
-			onCancelEditing={() => {
-				setEditingId(null);
-				setEditingName("");
-			}}
-			onConfirmDelete={(tag) =>
-				deleteTag(tag.id).then(() => setConfirmingDeleteId(null))
-			}
-			onEditingValueChange={setEditingName}
-			onSaveEditing={(tag) => {
-				if (!editingName.trim()) {
-					return;
-				}
-				update({ id: tag.id, name: editingName.trim() }).then(() => {
-					setEditingId(null);
-					setEditingName("");
-				});
-			}}
-			onStartDeleting={(tag) => setConfirmingDeleteId(tag.id)}
-			onStartEditing={(tag) => {
-				setEditingId(tag.id);
-				setEditingName(tag.name);
-				setConfirmingDeleteId(null);
-			}}
+			isDeletePending={isDeletePending}
+			onDelete={deleteTag}
+			renderCreateForm={(onClose) => (
+				<TagNameForm
+					isLoading={isCreatePending}
+					onSubmit={(name) => create(name).then(onClose)}
+				/>
+			)}
+			renderDeleteDescription={(tag) => (
+				<p className="text-sm">
+					Are you sure you want to delete the tag &ldquo;{tag.name}&rdquo;? This
+					will remove it from all sessions.
+				</p>
+			)}
+			renderEditForm={(tag, onClose) => (
+				<TagNameForm
+					defaultName={tag.name}
+					isLoading={isUpdatePending}
+					onSubmit={(name) => update({ id: tag.id, name }).then(onClose)}
+				/>
+			)}
+			tags={tags}
 		/>
 	);
 }

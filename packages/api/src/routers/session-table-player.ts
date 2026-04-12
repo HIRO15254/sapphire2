@@ -1,6 +1,6 @@
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
 import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
-import { player } from "@sapphire2/db/schema/player";
+import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { TRPCError } from "@trpc/server";
@@ -312,8 +312,9 @@ export const sessionTablePlayerRouter = router({
 			z.object({
 				liveCashGameSessionId: z.string().optional(),
 				liveTournamentSessionId: z.string().optional(),
-				playerName: z.string().min(1),
 				playerMemo: z.string().optional(),
+				playerName: z.string().min(1),
+				playerTagIds: z.array(z.string()).optional(),
 				seatPosition: z.number().int().min(0).max(8).optional(),
 			})
 		)
@@ -337,20 +338,30 @@ export const sessionTablePlayerRouter = router({
 			const playerId = crypto.randomUUID();
 			await ctx.db.insert(player).values({
 				id: playerId,
-				userId,
-				name: input.playerName,
 				memo: input.playerMemo ?? null,
+				name: input.playerName,
 				updatedAt: now,
+				userId,
 			});
+
+			if (input.playerTagIds && input.playerTagIds.length > 0) {
+				await ctx.db.insert(playerToPlayerTag).values(
+					input.playerTagIds.map((tagId, index) => ({
+						playerId,
+						playerTagId: tagId,
+						position: index,
+					}))
+				);
+			}
 
 			const tablePlayerId = crypto.randomUUID();
 			await ctx.db.insert(sessionTablePlayer).values({
 				id: tablePlayerId,
+				isActive: 1,
+				joinedAt: now,
 				liveCashGameSessionId: liveCashGameSessionId ?? null,
 				liveTournamentSessionId: liveTournamentSessionId ?? null,
 				playerId,
-				isActive: 1,
-				joinedAt: now,
 				updatedAt: now,
 				...(seatPosition !== undefined && { seatPosition }),
 			});

@@ -1,5 +1,7 @@
 import {
+	IconBolt,
 	IconCalendar,
+	IconClock,
 	IconList,
 	IconMapPin,
 	IconPlayerPlay,
@@ -13,12 +15,14 @@ import { Button } from "@/shared/components/ui/button";
 import { formatCompactNumber } from "@/utils/format-number";
 
 interface SessionCardProps {
+	bbBiMode?: boolean;
 	onDelete: (id: string) => void;
 	onEdit: (session: SessionCardProps["session"]) => void;
 	onReopen?: (liveCashGameSessionId: string) => void;
 	session: {
 		addonCost: number | null;
 		bountyPrizes: number | null;
+		breakMinutes: number | null;
 		buyIn: number | null;
 		cashOut: number | null;
 		createdAt: string;
@@ -39,6 +43,7 @@ interface SessionCardProps {
 		profitLoss: number | null;
 		rebuyCost: number | null;
 		rebuyCount: number | null;
+		ringGameBlind2: number | null;
 		ringGameId: string | null;
 		ringGameName: string | null;
 		sessionDate: string;
@@ -84,17 +89,43 @@ function formatProfitLoss(
 	return `${sign}${value}`;
 }
 
-function formatDuration(startedAt: string, endedAt: string): string {
+function toBB(value: number, blind2: number | null): number | null {
+	if (blind2 === null || blind2 === 0) {
+		return null;
+	}
+	return value / blind2;
+}
+
+function computeTotalCost(session: SessionCardProps["session"]): number {
+	return (
+		(session.tournamentBuyIn ?? 0) +
+		(session.entryFee ?? 0) +
+		(session.rebuyCount ?? 0) * (session.rebuyCost ?? 0) +
+		(session.addonCost ?? 0)
+	);
+}
+
+function toBI(profitLoss: number, totalCost: number): number | null {
+	if (totalCost === 0) {
+		return null;
+	}
+	return profitLoss / totalCost;
+}
+
+function formatBBBI(value: number, unit: "BB" | "BI"): string {
+	const decimals = unit === "BI" ? 2 : 1;
+	return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)} ${unit}`;
+}
+
+function formatDuration(
+	startedAt: string,
+	endedAt: string,
+	breakMinutes?: number | null
+): string {
 	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
-	const hours = Math.floor(diffMs / (1000 * 60 * 60));
-	const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-	if (hours > 0 && minutes > 0) {
-		return `${hours}h ${minutes}m`;
-	}
-	if (hours > 0) {
-		return `${hours}h`;
-	}
-	return `${minutes}m`;
+	const breakMs = (breakMinutes ?? 0) * 60 * 1000;
+	const hours = (diffMs - breakMs) / (1000 * 60 * 60);
+	return `${hours.toFixed(1)}h`;
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -106,31 +137,66 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 	);
 }
 
+function formatDetailValue(
+	value: number,
+	blind2: number | null,
+	bbBiMode?: boolean
+): string {
+	if (bbBiMode) {
+		const bb = toBB(value, blind2);
+		if (bb !== null) {
+			return `${bb.toFixed(1)} BB`;
+		}
+	}
+	return formatCompactNumber(value);
+}
+
 function CashGameDetails({
+	bbBiMode,
 	session,
 }: {
+	bbBiMode?: boolean;
 	session: SessionCardProps["session"];
 }) {
 	const rows: Array<{ label: string; value: string }> = [];
 	if (session.buyIn !== null) {
-		rows.push({ label: "Buy-in", value: formatCompactNumber(session.buyIn) });
+		rows.push({
+			label: "Buy-in",
+			value: formatDetailValue(session.buyIn, session.ringGameBlind2, bbBiMode),
+		});
 	}
 	if (session.cashOut !== null) {
 		rows.push({
 			label: "Cash-out",
-			value: formatCompactNumber(session.cashOut),
+			value: formatDetailValue(
+				session.cashOut,
+				session.ringGameBlind2,
+				bbBiMode
+			),
 		});
 	}
 	if (session.evCashOut !== null) {
 		rows.push({
 			label: "EV Cash-out",
-			value: formatCompactNumber(session.evCashOut),
+			value: formatDetailValue(
+				session.evCashOut,
+				session.ringGameBlind2,
+				bbBiMode
+			),
 		});
 	}
 	if (session.evProfitLoss !== null) {
+		const evValue = bbBiMode
+			? (() => {
+					const bb = toBB(session.evProfitLoss, session.ringGameBlind2);
+					return bb === null
+						? `${session.evProfitLoss >= 0 ? "+" : ""}${formatCompactNumber(session.evProfitLoss)}`
+						: formatBBBI(bb, "BB");
+				})()
+			: `${session.evProfitLoss >= 0 ? "+" : ""}${formatCompactNumber(session.evProfitLoss)}`;
 		rows.push({
 			label: "EV P&L",
-			value: `${session.evProfitLoss >= 0 ? "+" : ""}${formatCompactNumber(session.evProfitLoss)}`,
+			value: evValue,
 		});
 	}
 	if (session.currencyName) {
@@ -139,7 +205,11 @@ function CashGameDetails({
 	if (session.startedAt && session.endedAt) {
 		rows.push({
 			label: "Duration",
-			value: formatDuration(session.startedAt, session.endedAt),
+			value: formatDuration(
+				session.startedAt,
+				session.endedAt,
+				session.breakMinutes
+			),
 		});
 	}
 	return (
@@ -200,7 +270,11 @@ function TournamentDetails({
 	if (session.startedAt && session.endedAt) {
 		rows.push({
 			label: "Duration",
-			value: formatDuration(session.startedAt, session.endedAt),
+			value: formatDuration(
+				session.startedAt,
+				session.endedAt,
+				session.breakMinutes
+			),
 		});
 	}
 	return (
@@ -212,35 +286,93 @@ function TournamentDetails({
 	);
 }
 
-function SessionHeader({ session }: { session: SessionCardProps["session"] }) {
+function getPlDisplay(
+	session: SessionCardProps["session"],
+	profitLoss: number,
+	bbBiMode?: boolean
+): string {
+	if (!bbBiMode) {
+		return formatProfitLoss(profitLoss, session.currencyUnit);
+	}
+	if (session.type === "tournament") {
+		const bi = toBI(profitLoss, computeTotalCost(session));
+		return bi === null
+			? formatProfitLoss(profitLoss, session.currencyUnit)
+			: formatBBBI(bi, "BI");
+	}
+	const bb = toBB(profitLoss, session.ringGameBlind2);
+	return bb === null
+		? formatProfitLoss(profitLoss, session.currencyUnit)
+		: formatBBBI(bb, "BB");
+}
+
+function getEvDisplay(
+	session: SessionCardProps["session"],
+	bbBiMode?: boolean
+): string | null {
+	if (session.type === "tournament" || session.evProfitLoss === null) {
+		return null;
+	}
+	if (!bbBiMode) {
+		return formatProfitLoss(session.evProfitLoss, session.currencyUnit);
+	}
+	const evBB = toBB(session.evProfitLoss, session.ringGameBlind2);
+	return evBB === null
+		? formatProfitLoss(session.evProfitLoss, session.currencyUnit)
+		: formatBBBI(evBB, "BB");
+}
+
+function getProfitColorClass(profitLoss: number): string {
+	if (profitLoss > 0) {
+		return "text-green-600";
+	}
+	if (profitLoss < 0) {
+		return "text-red-600";
+	}
+	return "text-foreground";
+}
+
+function SessionHeader({
+	bbBiMode,
+	session,
+}: {
+	bbBiMode?: boolean;
+	session: SessionCardProps["session"];
+}) {
 	const profitLoss = session.profitLoss ?? 0;
 	const isTournament = session.type === "tournament";
-
-	let profitColorClass = "text-foreground";
-	if (profitLoss > 0) {
-		profitColorClass = "text-green-600";
-	} else if (profitLoss < 0) {
-		profitColorClass = "text-red-600";
-	}
-
+	const hasLiveRecording =
+		session.liveCashGameSessionId !== null ||
+		session.liveTournamentSessionId !== null;
+	const plDisplay = getPlDisplay(session, profitLoss, bbBiMode);
+	const profitColorClass = getProfitColorClass(profitLoss);
 	const gameName = getGameName(session);
+	const evDisplay = getEvDisplay(session, bbBiMode);
 
 	return (
 		<>
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-center gap-1.5">
-					<span className="truncate font-medium text-sm">{gameName}</span>
-					<Badge
-						className={`shrink-0 gap-0.5 ${isTournament ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400" : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400"}`}
-						variant="outline"
-					>
+					<span className="relative shrink-0">
 						{isTournament ? (
-							<IconTrophy size={10} />
+							<IconTrophy
+								className="text-yellow-500 dark:text-yellow-400"
+								size={16}
+							/>
 						) : (
-							<IconPokerChip size={10} />
+							<IconPokerChip
+								className="text-blue-500 dark:text-blue-400"
+								size={16}
+							/>
 						)}
-						{isTournament ? "Tourney" : "Cash"}
-					</Badge>
+						{hasLiveRecording && (
+							<IconBolt
+								className="absolute -right-1 -bottom-1 text-green-500 dark:text-green-400"
+								size={10}
+							/>
+						)}
+					</span>
+					<span className="truncate font-medium text-sm">{gameName}</span>
 					{session.tags.map((tag) => (
 						<Badge className="shrink-0" key={tag.id} variant="outline">
 							{tag.name}
@@ -248,21 +380,31 @@ function SessionHeader({ session }: { session: SessionCardProps["session"] }) {
 					))}
 				</div>
 				<div className="mt-1 flex items-center gap-3 text-muted-foreground text-xs">
+					<span className="flex items-center gap-0.5">
+						<IconCalendar className="shrink-0" size={12} />
+						{formatSessionDate(session.sessionDate)}
+					</span>
 					{session.storeName && (
 						<span className="flex max-w-[120px] items-center gap-0.5">
 							<IconMapPin className="shrink-0" size={12} />
 							<span className="truncate">{session.storeName}</span>
 						</span>
 					)}
-					<span className="flex items-center gap-0.5">
-						<IconCalendar className="shrink-0" size={12} />
-						{formatSessionDate(session.sessionDate)}
-					</span>
+					{session.startedAt && session.endedAt && (
+						<span className="flex items-center gap-0.5">
+							<IconClock className="shrink-0" size={12} />
+							{formatDuration(
+								session.startedAt,
+								session.endedAt,
+								session.breakMinutes
+							)}
+						</span>
+					)}
 				</div>
 			</div>
 			<div className="flex shrink-0 flex-col items-end">
 				<span className={`font-semibold text-sm ${profitColorClass}`}>
-					{formatProfitLoss(profitLoss, session.currencyUnit)}
+					{plDisplay}
 				</span>
 				{isTournament && session.placement !== null && (
 					<span className="text-[10px] text-muted-foreground">
@@ -271,15 +413,17 @@ function SessionHeader({ session }: { session: SessionCardProps["session"] }) {
 						{" place"}
 					</span>
 				)}
-				{!isTournament && session.evProfitLoss !== null && (
+				{evDisplay !== null && (
 					<span className="text-[10px] text-muted-foreground">
 						EV{" "}
 						<span
 							className={
-								session.evProfitLoss >= 0 ? "text-green-600" : "text-red-600"
+								(session.evProfitLoss ?? 0) >= 0
+									? "text-green-600"
+									: "text-red-600"
 							}
 						>
-							{formatProfitLoss(session.evProfitLoss, session.currencyUnit)}
+							{evDisplay}
 						</span>
 					</span>
 				)}
@@ -289,6 +433,7 @@ function SessionHeader({ session }: { session: SessionCardProps["session"] }) {
 }
 
 export function SessionCard({
+	bbBiMode,
 	session,
 	onEdit,
 	onDelete,
@@ -305,7 +450,7 @@ export function SessionCard({
 			onEdit={() => onEdit(session)}
 			summary={
 				<div className="flex w-full items-start justify-between gap-3 pr-1 text-left">
-					<SessionHeader session={session} />
+					<SessionHeader bbBiMode={bbBiMode} session={session} />
 				</div>
 			}
 		>
@@ -313,7 +458,7 @@ export function SessionCard({
 				{isTournament ? (
 					<TournamentDetails session={session} />
 				) : (
-					<CashGameDetails session={session} />
+					<CashGameDetails bbBiMode={bbBiMode} session={session} />
 				)}
 				{session.memo && (
 					<div className="mt-2 border-t pt-2">

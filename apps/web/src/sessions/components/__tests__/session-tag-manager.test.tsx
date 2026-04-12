@@ -1,7 +1,24 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { SessionTagManager } from "../session-tag-manager";
+
+beforeAll(() => {
+	Object.defineProperty(window, "matchMedia", {
+		writable: true,
+		value: vi.fn().mockImplementation((query: string) => ({
+			matches: false,
+			media: query,
+			onchange: null,
+			addListener: vi.fn(),
+			removeListener: vi.fn(),
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+			dispatchEvent: vi.fn(),
+		})),
+	});
+});
 
 const mocks = vi.hoisted(() => ({
 	deleteMutate: vi.fn(async () => undefined),
@@ -58,16 +75,36 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
+vi.mock("@/shared/components/ui/responsive-dialog", () => ({
+	ResponsiveDialog: ({
+		children,
+		open,
+		title,
+	}: {
+		children: ReactNode;
+		open: boolean;
+		title: string;
+	}) =>
+		open ? (
+			<div data-testid={`dialog-${title}`}>
+				<h2>{title}</h2>
+				{children}
+			</div>
+		) : null,
+}));
+
 describe("SessionTagManager", () => {
 	it("edits and saves a session tag", async () => {
 		const user = userEvent.setup();
 
 		render(<SessionTagManager />);
 
-		await user.click(screen.getByLabelText("Edit tag"));
-		await user.clear(screen.getByRole("textbox"));
-		await user.type(screen.getByRole("textbox"), "Weekly");
-		await user.click(screen.getByLabelText("Save tag"));
+		await user.click(screen.getByLabelText("Edit tag Series"));
+
+		const input = screen.getByRole("textbox");
+		await user.clear(input);
+		await user.type(input, "Weekly");
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
 			expect(mocks.updateMutate).toHaveBeenCalledWith({
@@ -82,8 +119,8 @@ describe("SessionTagManager", () => {
 
 		render(<SessionTagManager />);
 
-		await user.click(screen.getByLabelText("Delete tag"));
-		await user.click(screen.getByLabelText("Confirm delete tag"));
+		await user.click(screen.getByLabelText("Delete tag Series"));
+		await user.click(screen.getByRole("button", { name: "Delete" }));
 
 		await waitFor(() => {
 			expect(mocks.deleteMutate).toHaveBeenCalledWith({ id: "tag-1" });

@@ -11,6 +11,7 @@ function useStoreRingGames(storeId: string | undefined) {
 	return (ringGamesQuery.data ?? []).map((g) => ({
 		id: g.id,
 		name: g.name,
+		minBuyIn: g.minBuyIn,
 		maxBuyIn: g.maxBuyIn,
 		currencyId: g.currencyId,
 	}));

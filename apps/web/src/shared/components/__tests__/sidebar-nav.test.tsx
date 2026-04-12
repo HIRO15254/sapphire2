@@ -23,7 +23,14 @@ function createTestRouter(initialPath: string) {
 		component: () => <SidebarNav />,
 	});
 
-	const routes = ["/sessions", "/stores", "/players", "/settings"].map((path) =>
+	const routes = [
+		"/dashboard",
+		"/sessions",
+		"/stores",
+		"/players",
+		"/currencies",
+		"/settings",
+	].map((path) =>
 		createRoute({
 			component: () => <div>{path}</div>,
 			getParentRoute: () => rootRoute,
@@ -43,8 +50,10 @@ describe("SidebarNav", () => {
 		render(<RouterProvider router={router} />);
 
 		expect(await screen.findByText("Sessions")).toBeInTheDocument();
+		expect(screen.getByText("Dashboard")).toBeInTheDocument();
 		expect(screen.getByText("Stores")).toBeInTheDocument();
 		expect(screen.getByText("Players")).toBeInTheDocument();
+		expect(screen.getByText("Currencies")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
 		expect(screen.getByText("User Menu")).toBeInTheDocument();
 		expect(screen.getByText("Mode Toggle")).toBeInTheDocument();

@@ -1,6 +1,6 @@
 import { useRouterState } from "@tanstack/react-router";
 import {
-	isActive,
+	isActiveItem,
 	SIDEBAR_ITEMS,
 	SidebarNavItem,
 } from "@/shared/components/app-navigation";
@@ -17,7 +17,7 @@ export function SidebarNav() {
 			<div className="flex-1 overflow-y-auto px-3 py-4">
 				<ul className="flex flex-col gap-1">
 					{SIDEBAR_ITEMS.map((item) => {
-						const active = isActive(pathname, item.to);
+						const active = isActiveItem(pathname, item);
 						return <SidebarNavItem active={active} item={item} key={item.to} />;
 					})}
 				</ul>

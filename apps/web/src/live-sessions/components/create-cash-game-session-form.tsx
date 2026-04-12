@@ -1,3 +1,4 @@
+import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
@@ -26,6 +27,7 @@ interface CreateCashGameSessionFormProps {
 	ringGames: Array<{
 		id: string;
 		name: string;
+		minBuyIn: number | null;
 		maxBuyIn: number | null;
 		currencyId: string | null;
 	}>;
@@ -49,11 +51,38 @@ export function CreateCashGameSessionForm({
 	const [selectedCurrencyId, setSelectedCurrencyId] = useState<
 		string | undefined
 	>(undefined);
-	const [initialBuyIn, setInitialBuyIn] = useState<string>("");
+
+	const selectedRingGame = selectedRingGameId
+		? ringGames.find((g) => g.id === selectedRingGameId)
+		: null;
+
+	const isCurrencyLocked =
+		selectedRingGame?.currencyId !== null &&
+		selectedRingGame?.currencyId !== undefined;
+
+	const form = useForm({
+		defaultValues: {
+			initialBuyIn: "",
+			memo: "",
+		},
+		onSubmit: ({ value }) => {
+			if (!(selectedStoreId && selectedRingGameId)) {
+				return;
+			}
+			onSubmit({
+				storeId: selectedStoreId,
+				ringGameId: selectedRingGameId,
+				currencyId: selectedCurrencyId,
+				initialBuyIn: Number(value.initialBuyIn),
+				memo: value.memo || undefined,
+			});
+		},
+	});
 
 	const handleStoreChange = (value: string) => {
 		setSelectedStoreId(value);
 		setSelectedRingGameId(undefined);
+		form.setFieldValue("initialBuyIn", "");
 		onStoreChange?.(value);
 	};
 
@@ -61,7 +90,7 @@ export function CreateCashGameSessionForm({
 		setSelectedRingGameId(value);
 		const ringGame = ringGames.find((g) => g.id === value);
 		if (ringGame) {
-			setInitialBuyIn(ringGame.maxBuyIn?.toString() ?? "");
+			form.setFieldValue("initialBuyIn", ringGame.maxBuyIn?.toString() ?? "");
 			setSelectedCurrencyId(ringGame.currencyId ?? undefined);
 		}
 	};
@@ -70,40 +99,18 @@ export function CreateCashGameSessionForm({
 		setSelectedCurrencyId(value);
 	};
 
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		if (!(selectedStoreId && selectedRingGameId)) {
-			return;
-		}
-		const formData = new FormData(e.currentTarget);
-		const memo = (formData.get("memo") as string) || undefined;
-
-		onSubmit({
-			storeId: selectedStoreId,
-			ringGameId: selectedRingGameId,
-			currencyId: selectedCurrencyId,
-			initialBuyIn: Number(initialBuyIn),
-			memo,
-		});
-	};
-
 	const hasRingGames = ringGames.length > 0;
-
-	// Determine which fields are locked by the selected ring game
-	const selectedRingGame = selectedRingGameId
-		? ringGames.find((g) => g.id === selectedRingGameId)
-		: null;
-	const isBuyInLocked =
-		selectedRingGame?.maxBuyIn !== null &&
-		selectedRingGame?.maxBuyIn !== undefined;
-	const isCurrencyLocked =
-		selectedRingGame?.currencyId !== null &&
-		selectedRingGame?.currencyId !== undefined;
-
 	const canSubmit = !!selectedStoreId && !!selectedRingGameId;
 
 	return (
-		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+		<form
+			className="flex flex-col gap-4"
+			onSubmit={(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				form.handleSubmit();
+			}}
+		>
 			<Field label="Store" required>
 				{stores.length > 0 ? (
 					<Select onValueChange={handleStoreChange} value={selectedStoreId}>
@@ -178,31 +185,84 @@ export function CreateCashGameSessionForm({
 						</Field>
 					)}
 
-					<Field htmlFor="initialBuyIn" label="Initial Buy-in">
-						<Input
-							disabled={isBuyInLocked}
-							id="initialBuyIn"
-							min={0}
-							onChange={(e) => setInitialBuyIn(e.target.value)}
-							required
-							type="number"
-							value={initialBuyIn}
-						/>
-					</Field>
+					<form.Field
+						name="initialBuyIn"
+						validators={{
+							onChange: ({ value }) => {
+								if (value === "") {
+									return "Buy-in is required";
+								}
+								const numValue = Number(value);
+								if (Number.isNaN(numValue)) {
+									return "Must be a number";
+								}
+								if (numValue < 0) {
+									return "Must be 0 or greater";
+								}
+								if (
+									selectedRingGame?.minBuyIn != null &&
+									numValue < selectedRingGame.minBuyIn
+								) {
+									return `Must be at least ${selectedRingGame.minBuyIn}`;
+								}
+								if (
+									selectedRingGame?.maxBuyIn != null &&
+									numValue > selectedRingGame.maxBuyIn
+								) {
+									return `Must be at most ${selectedRingGame.maxBuyIn}`;
+								}
+								return undefined;
+							},
+						}}
+					>
+						{(field) => (
+							<Field
+								error={field.state.meta.errors[0]}
+								htmlFor={field.name}
+								label="Initial Buy-in"
+							>
+								<Input
+									id={field.name}
+									max={selectedRingGame?.maxBuyIn ?? undefined}
+									min={selectedRingGame?.minBuyIn ?? 0}
+									onBlur={field.handleBlur}
+									onChange={(e) => field.handleChange(e.target.value)}
+									type="number"
+									value={field.state.value}
+								/>
+							</Field>
+						)}
+					</form.Field>
 
-					<Field htmlFor="memo" label="Memo">
-						<Textarea
-							id="memo"
-							name="memo"
-							placeholder="Notes about this session"
-						/>
-					</Field>
+					<form.Field name="memo">
+						{(field) => (
+							<Field htmlFor={field.name} label="Memo">
+								<Textarea
+									id={field.name}
+									onBlur={field.handleBlur}
+									onChange={(e) => field.handleChange(e.target.value)}
+									placeholder="Notes about this session"
+									value={field.state.value}
+								/>
+							</Field>
+						)}
+					</form.Field>
 				</>
 			)}
 
-			<Button className="mt-2" disabled={isLoading || !canSubmit} type="submit">
-				{isLoading ? "Starting..." : "Start Session"}
-			</Button>
+			<form.Subscribe>
+				{(state) => (
+					<Button
+						className="mt-2"
+						disabled={
+							isLoading || !canSubmit || !state.canSubmit || state.isSubmitting
+						}
+						type="submit"
+					>
+						{isLoading ? "Starting..." : "Start Session"}
+					</Button>
+				)}
+			</form.Subscribe>
 		</form>
 	);
 }

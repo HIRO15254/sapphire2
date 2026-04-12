@@ -1,4 +1,4 @@
-import { IconCards, IconPlus } from "@tabler/icons-react";
+import { IconCards, IconPlus, IconTags } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { SessionCard } from "@/sessions/components/session-card";
@@ -7,6 +7,7 @@ import {
 	type SessionFilterValues,
 } from "@/sessions/components/session-filters";
 import { SessionForm } from "@/sessions/components/session-form";
+import { SessionTagManager } from "@/sessions/components/session-tag-manager";
 import {
 	buildEditDefaults,
 	type SessionFormValues,
@@ -16,7 +17,9 @@ import {
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { Label } from "@/shared/components/ui/label";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { Switch } from "@/shared/components/ui/switch";
 import { useEntityLists, useStoreGames } from "@/stores/hooks/use-store-games";
 
 export const Route = createFileRoute("/sessions/")({
@@ -25,12 +28,14 @@ export const Route = createFileRoute("/sessions/")({
 
 function SessionsPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
+	const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
 	const [editingSession, setEditingSession] = useState<SessionItem | null>(
 		null
 	);
 	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>();
 	const [editStoreId, setEditStoreId] = useState<string | undefined>();
 	const [filters, setFilters] = useState<SessionFilterValues>({});
+	const [bbBiMode, setBbBiMode] = useState(false);
 
 	const {
 		sessions,
@@ -76,12 +81,30 @@ function SessionsPage() {
 			<PageHeader
 				actions={
 					<>
+						<Button
+							onClick={() => setIsTagManagerOpen(true)}
+							size="sm"
+							variant="outline"
+						>
+							<IconTags size={16} />
+							Manage Tags
+						</Button>
 						<SessionFilters
 							currencies={currencies}
 							filters={filters}
 							onFiltersChange={setFilters}
 							stores={stores}
 						/>
+						<div className="flex items-center gap-1.5">
+							<Label className="text-xs" htmlFor="bb-bi-switch">
+								BB/BI
+							</Label>
+							<Switch
+								checked={bbBiMode}
+								id="bb-bi-switch"
+								onCheckedChange={setBbBiMode}
+							/>
+						</div>
 						<Button onClick={() => setIsCreateOpen(true)}>
 							<IconPlus size={16} />
 							New Session
@@ -107,6 +130,7 @@ function SessionsPage() {
 				<div className="flex flex-col gap-2">
 					{sessions.map((s) => (
 						<SessionCard
+							bbBiMode={bbBiMode}
 							key={s.id}
 							onDelete={handleDelete}
 							onEdit={(session) => {
@@ -167,6 +191,14 @@ function SessionsPage() {
 						tournaments={editGames.tournaments}
 					/>
 				)}
+			</ResponsiveDialog>
+
+			<ResponsiveDialog
+				onOpenChange={setIsTagManagerOpen}
+				open={isTagManagerOpen}
+				title="Manage Tags"
+			>
+				<SessionTagManager />
 			</ResponsiveDialog>
 		</div>
 	);
