@@ -6,6 +6,7 @@ import {
 } from "@sapphire2/db/constants/session-event-types";
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
 import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
+import { player } from "@sapphire2/db/schema/player";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { pokerSession } from "@sapphire2/db/schema/session";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
@@ -603,12 +604,113 @@ export const liveCashGameSessionRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await findLiveCashGameSession(ctx.db, input.id, userId);
+			const session = await findLiveCashGameSession(ctx.db, input.id, userId);
+
+			const previousHeroSeat = session.heroSeatPosition;
 
 			await ctx.db
 				.update(liveCashGameSession)
 				.set({ heroSeatPosition: input.heroSeatPosition })
 				.where(eq(liveCashGameSession.id, input.id));
+
+			// Find the user's own player record
+			const [heroPlayer] = await ctx.db
+				.select({ id: player.id })
+				.from(player)
+				.where(eq(player.userId, userId))
+				.limit(1);
+
+			if (heroPlayer) {
+				const now = new Date();
+
+				const getNextSortOrder = async () => {
+					const [latest] = await ctx.db
+						.select({ maxSort: max(sessionEvent.sortOrder) })
+						.from(sessionEvent)
+						.where(eq(sessionEvent.liveCashGameSessionId, input.id));
+					return (latest?.maxSort ?? -1) + 1;
+				};
+
+				// Hero sitting down: create sessionTablePlayer + player_join event
+				if (previousHeroSeat === null && input.heroSeatPosition !== null) {
+					const [existing] = await ctx.db
+						.select()
+						.from(sessionTablePlayer)
+						.where(
+							and(
+								eq(sessionTablePlayer.liveCashGameSessionId, input.id),
+								eq(sessionTablePlayer.playerId, heroPlayer.id)
+							)
+						);
+
+					if (existing) {
+						await ctx.db
+							.update(sessionTablePlayer)
+							.set({
+								isActive: 1,
+								joinedAt: now,
+								seatPosition: input.heroSeatPosition,
+								updatedAt: now,
+							})
+							.where(eq(sessionTablePlayer.id, existing.id));
+					} else {
+						await ctx.db.insert(sessionTablePlayer).values({
+							id: crypto.randomUUID(),
+							liveCashGameSessionId: input.id,
+							liveTournamentSessionId: null,
+							playerId: heroPlayer.id,
+							seatPosition: input.heroSeatPosition,
+							isActive: 1,
+							joinedAt: now,
+							updatedAt: now,
+						});
+					}
+
+					const sortOrder = await getNextSortOrder();
+					await ctx.db.insert(sessionEvent).values({
+						id: crypto.randomUUID(),
+						liveCashGameSessionId: input.id,
+						liveTournamentSessionId: null,
+						eventType: "player_join",
+						occurredAt: now,
+						sortOrder,
+						payload: JSON.stringify({ playerId: heroPlayer.id }),
+						updatedAt: now,
+					});
+				}
+
+				// Hero standing up: deactivate sessionTablePlayer + player_leave event
+				if (previousHeroSeat !== null && input.heroSeatPosition === null) {
+					const [existing] = await ctx.db
+						.select()
+						.from(sessionTablePlayer)
+						.where(
+							and(
+								eq(sessionTablePlayer.liveCashGameSessionId, input.id),
+								eq(sessionTablePlayer.playerId, heroPlayer.id)
+							)
+						);
+
+					if (existing?.isActive) {
+						await ctx.db
+							.update(sessionTablePlayer)
+							.set({ isActive: 0, leftAt: now, updatedAt: now })
+							.where(eq(sessionTablePlayer.id, existing.id));
+
+						const sortOrder = await getNextSortOrder();
+						await ctx.db.insert(sessionEvent).values({
+							id: crypto.randomUUID(),
+							liveCashGameSessionId: input.id,
+							liveTournamentSessionId: null,
+							eventType: "player_leave",
+							occurredAt: now,
+							sortOrder,
+							payload: JSON.stringify({ playerId: heroPlayer.id }),
+							updatedAt: now,
+						});
+					}
+				}
+			}
 
 			return { id: input.id };
 		}),

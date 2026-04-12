@@ -5,13 +5,14 @@ import {
 } from "@sapphire2/db/constants/session-event-types";
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
 import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
+import { player } from "@sapphire2/db/schema/player";
 import { pokerSession } from "@sapphire2/db/schema/session";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { currency, store } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
@@ -538,12 +539,110 @@ export const liveTournamentSessionRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await findLiveTournamentSession(ctx.db, input.id, userId);
+			const session = await findLiveTournamentSession(ctx.db, input.id, userId);
+
+			const previousHeroSeat = session.heroSeatPosition;
 
 			await ctx.db
 				.update(liveTournamentSession)
 				.set({ heroSeatPosition: input.heroSeatPosition })
 				.where(eq(liveTournamentSession.id, input.id));
+
+			const [heroPlayer] = await ctx.db
+				.select({ id: player.id })
+				.from(player)
+				.where(eq(player.userId, userId))
+				.limit(1);
+
+			if (heroPlayer) {
+				const now = new Date();
+
+				const getNextSortOrder = async () => {
+					const [latest] = await ctx.db
+						.select({ maxSort: max(sessionEvent.sortOrder) })
+						.from(sessionEvent)
+						.where(eq(sessionEvent.liveTournamentSessionId, input.id));
+					return (latest?.maxSort ?? -1) + 1;
+				};
+
+				if (previousHeroSeat === null && input.heroSeatPosition !== null) {
+					const [existing] = await ctx.db
+						.select()
+						.from(sessionTablePlayer)
+						.where(
+							and(
+								eq(sessionTablePlayer.liveTournamentSessionId, input.id),
+								eq(sessionTablePlayer.playerId, heroPlayer.id)
+							)
+						);
+
+					if (existing) {
+						await ctx.db
+							.update(sessionTablePlayer)
+							.set({
+								isActive: 1,
+								joinedAt: now,
+								seatPosition: input.heroSeatPosition,
+								updatedAt: now,
+							})
+							.where(eq(sessionTablePlayer.id, existing.id));
+					} else {
+						await ctx.db.insert(sessionTablePlayer).values({
+							id: crypto.randomUUID(),
+							liveCashGameSessionId: null,
+							liveTournamentSessionId: input.id,
+							playerId: heroPlayer.id,
+							seatPosition: input.heroSeatPosition,
+							isActive: 1,
+							joinedAt: now,
+							updatedAt: now,
+						});
+					}
+
+					const sortOrder = await getNextSortOrder();
+					await ctx.db.insert(sessionEvent).values({
+						id: crypto.randomUUID(),
+						liveCashGameSessionId: null,
+						liveTournamentSessionId: input.id,
+						eventType: "player_join",
+						occurredAt: now,
+						sortOrder,
+						payload: JSON.stringify({ playerId: heroPlayer.id }),
+						updatedAt: now,
+					});
+				}
+
+				if (previousHeroSeat !== null && input.heroSeatPosition === null) {
+					const [existing] = await ctx.db
+						.select()
+						.from(sessionTablePlayer)
+						.where(
+							and(
+								eq(sessionTablePlayer.liveTournamentSessionId, input.id),
+								eq(sessionTablePlayer.playerId, heroPlayer.id)
+							)
+						);
+
+					if (existing?.isActive) {
+						await ctx.db
+							.update(sessionTablePlayer)
+							.set({ isActive: 0, leftAt: now, updatedAt: now })
+							.where(eq(sessionTablePlayer.id, existing.id));
+
+						const sortOrder = await getNextSortOrder();
+						await ctx.db.insert(sessionEvent).values({
+							id: crypto.randomUUID(),
+							liveCashGameSessionId: null,
+							liveTournamentSessionId: input.id,
+							eventType: "player_leave",
+							occurredAt: now,
+							sortOrder,
+							payload: JSON.stringify({ playerId: heroPlayer.id }),
+							updatedAt: now,
+						});
+					}
+				}
+			}
 
 			return { id: input.id };
 		}),
