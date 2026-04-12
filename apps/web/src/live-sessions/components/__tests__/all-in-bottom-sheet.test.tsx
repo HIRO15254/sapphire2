@@ -73,4 +73,19 @@ describe("AllInBottomSheet", () => {
 		expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
 		expect(screen.getByDisplayValue("900")).toBeInTheDocument();
 	});
+
+	it("allows clearing a field without it snapping to 0", async () => {
+		const user = userEvent.setup();
+		render(
+			<AllInBottomSheet
+				initialValues={{ equity: 40, potSize: 900, trials: 3, wins: 1 }}
+				onOpenChange={vi.fn()}
+				onSubmit={vi.fn()}
+				open
+			/>
+		);
+		const potSizeInput = screen.getByLabelText(POT_SIZE_LABEL_PATTERN);
+		await user.clear(potSizeInput);
+		expect(potSizeInput).toHaveValue(null);
+	});
 });
