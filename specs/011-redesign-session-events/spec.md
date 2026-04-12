@@ -123,6 +123,7 @@
 - 既存の「stack_record」に含まれていた allIns データの移行先 → スタック更新イベントとオールインイベントに分離して変換する
 - 完了済みトーナメントセッションの再開 → キャッシュゲームとは異なり、トーナメント固有の再開ルールを定義する必要がある（Session End の順位・賞金・参加締め切り前フラグの扱い）
 - Session Pause 後に Session End（完了）しようとした場合 → 中断中の状態からも直接完了できる
+- Session Pause 中にゲームイベント（Chips Add 等）を記録しようとした場合 → エラーとなり拒否される（Memo と Session Resume のみ許可）
 - 既存データで Session Start が複数存在するセッション（旧 reopen により作成）のマイグレーション → 2つ目以降の Session Start を Session Resume に変換し、その直前に Session Pause を挿入する
 
 ## Requirements *(mandatory)*
@@ -141,7 +142,7 @@
 - **FR-010**: キャッシュゲームの Session Start イベントはバイイン額を必須ペイロードとして記録しなければならない
 - **FR-011**: キャッシュゲームの Session End イベントはキャッシュアウト額を必須ペイロードとして記録しなければならない
 - **FR-012**: トーナメントの Session End イベントは「参加締め切り前フラグ」を持つ。フラグがオフ（締め切り後）の場合は順位・総エントリー数・賞金を全て必須で記録する。フラグがオン（締め切り前に飛んだ場合）は順位・総エントリー数を記録せず、賞金のみ記録する
-- **FR-013**: Session Pause イベントはセッションの一時中断を記録し、Session Resume イベントはセッションの再開を記録する
+- **FR-013**: Session Pause イベントはセッションの一時中断を記録し、Session Resume イベントはセッションの再開を記録する。Pause 中のセッションに対しては Memo と Session Resume のみ記録可能とし、それ以外のイベント（Chips Add/Remove, Update Stack, All-in, Player Join/Leave, Purchase Chips, Update Tournament Info）は記録を拒否する
 - **FR-014**: 完了済みキャッシュゲームセッションを再開する場合、Session End イベントを削除し、同時刻にスタック更新イベント（キャッシュアウト額と同額）＋ Session Pause イベントを作成し、現時刻に Session Resume イベントを作成しなければならない
 - **FR-015**: 新しいイベント体系に基づいて、キャッシュゲームの収支計算（総バイイン、キャッシュアウト、損益、EV計算）が正しく動作しなければならない。バイインは Session Start から、キャッシュアウトは Session End から取得する
 - **FR-016**: 新しいイベント体系に基づいて、トーナメントの収支計算（リバイ/アドオンコスト、順位、賞金、損益）が正しく動作しなければならない。順位・賞金は Session End から取得する
@@ -173,6 +174,12 @@
 - **SC-010**: メモイベントを記録・表示でき、セッションのタイムラインに正しく表示される
 - **SC-011**: 完了済みキャッシュゲームセッションの再開時に、Session End がスタック更新＋Session Pause に正しく分解され、Session Resume が作成される
 - **SC-012**: Session Start / Session End が各セッションに1つのみ存在することが保証される
+
+## Clarifications
+
+### Session 2026-04-12
+
+- Q: Session Pause 中に他のイベント（Chips Add, Update Stack 等）を記録できるか？ → A: Pause 中は Memo と Session Resume のみ記録可能。ゲーム参加中でないためチップ・スタック変動は発生しない。
 
 ## Assumptions
 
