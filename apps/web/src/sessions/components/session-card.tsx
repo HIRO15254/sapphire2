@@ -379,26 +379,28 @@ function SessionHeader({
 						</Badge>
 					))}
 				</div>
-				<div className="mt-1 flex items-center gap-3 text-muted-foreground text-xs">
-					<span className="flex items-center gap-0.5">
-						<IconCalendar className="shrink-0" size={12} />
-						{formatSessionDate(session.sessionDate)}
-					</span>
+				<div className="mt-1 flex flex-col text-muted-foreground text-xs">
+					<div className="flex items-center gap-3">
+						<span className="flex items-center gap-0.5">
+							<IconCalendar className="shrink-0" size={12} />
+							{formatSessionDate(session.sessionDate)}
+						</span>
+						{session.startedAt && session.endedAt && (
+							<span className="flex items-center gap-0.5">
+								<IconClock className="shrink-0" size={12} />
+								{formatDuration(
+									session.startedAt,
+									session.endedAt,
+									session.breakMinutes
+								)}
+							</span>
+						)}
+					</div>
 					{session.storeName && (
-						<span className="flex max-w-[120px] items-center gap-0.5">
+						<div className="flex items-center gap-0.5">
 							<IconMapPin className="shrink-0" size={12} />
 							<span className="truncate">{session.storeName}</span>
-						</span>
-					)}
-					{session.startedAt && session.endedAt && (
-						<span className="flex items-center gap-0.5">
-							<IconClock className="shrink-0" size={12} />
-							{formatDuration(
-								session.startedAt,
-								session.endedAt,
-								session.breakMinutes
-							)}
-						</span>
+						</div>
 					)}
 				</div>
 			</div>
