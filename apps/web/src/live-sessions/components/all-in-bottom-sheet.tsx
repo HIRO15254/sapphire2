@@ -88,8 +88,8 @@ export function AllInBottomSheet({
 							if (Number.isNaN(n)) {
 								return "Must be a number";
 							}
-							if (n < 0) {
-								return "Must be 0 or greater";
+							if (n <= 0) {
+								return "Must be greater than 0";
 							}
 							return undefined;
 						},
@@ -108,7 +108,7 @@ export function AllInBottomSheet({
 						>
 							<Input
 								id="allIn-potSize"
-								min={0}
+								min={1}
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
 								step="any"
