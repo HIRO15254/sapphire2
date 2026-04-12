@@ -141,12 +141,12 @@
 - **FR-009**: Session Start / Session End イベントは各セッションに1つのみ存在し、ライフサイクルイベントとして自動生成され、手動での追加作成・削除は不可とする
 - **FR-010**: キャッシュゲームの Session Start イベントはバイイン額を必須ペイロードとして記録しなければならない
 - **FR-011**: キャッシュゲームの Session End イベントはキャッシュアウト額を必須ペイロードとして記録しなければならない
-- **FR-012**: トーナメントの Session End イベントは「参加締め切り前フラグ」を持つ。フラグがオフ（締め切り後）の場合は順位・総エントリー数・賞金を全て必須で記録する。フラグがオン（締め切り前に飛んだ場合）は順位・総エントリー数を記録せず、賞金のみ記録する
+- **FR-012**: トーナメントの Session End イベントは「参加締め切り前フラグ」を持つ。フラグがオフ（締め切り後）の場合は順位・総エントリー数・賞金・バウンティ賞金を全て必須で記録する。フラグがオン（締め切り前に飛んだ場合）は順位・総エントリー数を記録せず、賞金・バウンティ賞金のみ記録する。賞金とバウンティ賞金は別フィールドとする
 - **FR-013**: Session Pause イベントはセッションの一時中断を記録し、Session Resume イベントはセッションの再開を記録する。Pause 中のセッションに対しては Memo と Session Resume のみ記録可能とし、それ以外のイベント（Chips Add/Remove, Update Stack, All-in, Player Join/Leave, Purchase Chips, Update Tournament Info）は記録を拒否する
 - **FR-014**: 完了済みキャッシュゲームセッションを再開する場合、Session End イベントを削除し、同時刻にスタック更新イベント（キャッシュアウト額と同額）＋ Session Pause イベントを作成し、現時刻に Session Resume イベントを作成しなければならない
 - **FR-014a**: 完了済みトーナメントセッションの再開は禁止する。完了後の修正が必要な場合は、Session End のペイロード（順位・賞金等）を個別に編集して対応する
 - **FR-015**: 新しいイベント体系に基づいて、キャッシュゲームの収支計算（総バイイン、キャッシュアウト、損益、EV計算）が正しく動作しなければならない。バイインは Session Start から、キャッシュアウトは Session End から取得する
-- **FR-016**: 新しいイベント体系に基づいて、トーナメントの収支計算（リバイ/アドオンコスト、順位、賞金、損益）が正しく動作しなければならない。順位・賞金は Session End から取得する
+- **FR-016**: 新しいイベント体系に基づいて、トーナメントの収支計算（リバイ/アドオンコスト、順位、賞金、バウンティ賞金、損益）が正しく動作しなければならない。順位・賞金・バウンティ賞金は Session End から取得し、収入 = 賞金 + バウンティ賞金として計算する
 - **FR-017**: 既存のイベントデータを新しい形式にマイグレーションする際、エラーが発生してはならない
 - **FR-018**: マイグレーション時、過去のデータは完全な情報保持を必須としないが、可能な範囲で情報を保持する
 - **FR-019**: Update Stack イベントは、キャッシュゲームとトーナメントの両方で共通のイベントタイプとして使用できなければならない
@@ -156,7 +156,7 @@
 
 - **Session Event**: セッション中に発生する個別の記録。イベントタイプ、発生時刻、並び順、ペイロード（イベント固有データ）を持つ。キャッシュゲームセッションまたはトーナメントセッションのいずれか一方に紐付く。
 - **Cash Game Event Types**: Session Start（バイイン額）, Session End（キャッシュアウト額）, Session Pause, Session Resume, Chips Add/Remove, Player Join, Player Leave, Update Stack, All-in, Memo の10種類
-- **Tournament Event Types**: Session Start, Session End（参加締め切り前フラグ・順位・総エントリー数・賞金）, Session Pause, Session Resume, Update Stack, Purchase Chips, Update Tournament Info, Player Join, Player Leave, Memo の10種類
+- **Tournament Event Types**: Session Start, Session End（参加締め切り前フラグ・順位・総エントリー数・賞金・バウンティ賞金）, Session Pause, Session Resume, Update Stack, Purchase Chips, Update Tournament Info, Player Join, Player Leave, Memo の10種類
 - **Player**: セッションテーブルに参加するプレイヤー。ヒーロー（自分自身）を含む。参加・離席イベントにより状態が管理される。
 
 ## Success Criteria *(mandatory)*
@@ -182,6 +182,7 @@
 
 - Q: Session Pause 中に他のイベント（Chips Add, Update Stack 等）を記録できるか？ → A: Pause 中は Memo と Session Resume のみ記録可能。ゲーム参加中でないためチップ・スタック変動は発生しない。
 - Q: 完了済みトーナメントセッションの再開ルールは？ → A: 再開を禁止する。完了後の修正はイベント個別編集（Session End のペイロード編集等）で対応する。
+- Q: バウンティ賞金の扱いは？ → A: 賞金（prizeMoney）とバウンティ賞金（bountyPrizes）を別フィールドとして Session End に記録する。収入 = 賞金 + バウンティ賞金。
 
 ## Assumptions
 
