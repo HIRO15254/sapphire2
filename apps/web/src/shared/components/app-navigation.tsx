@@ -2,6 +2,8 @@ import {
 	type IconBolt,
 	IconBuildingStore,
 	IconCards,
+	IconCategory,
+	IconCoins,
 	IconLayoutDashboard,
 	IconList,
 	type IconPlus,
@@ -17,6 +19,7 @@ export interface NavigationItem {
 	exact?: boolean;
 	icon: ComponentType<{ size?: number; stroke?: number; className?: string }>;
 	label: string;
+	matchPaths?: string[];
 	to: string;
 }
 
@@ -27,20 +30,35 @@ export interface NavigationCenterAction {
 	tone: "accent" | "live";
 }
 
+export const RESOURCE_ITEMS: readonly NavigationItem[] = [
+	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
+	{ to: "/players", label: "Players", icon: IconUsers },
+	{ to: "/currencies", label: "Currencies", icon: IconCoins },
+] as const;
+
 export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
+	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
 	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
+	{ to: "/currencies", label: "Currencies", icon: IconCoins },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
 const NORMAL_LEFT_ITEMS: readonly NavigationItem[] = [
+	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
-	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
 ] as const;
 
+const RESOURCES_NAV_ITEM: NavigationItem = {
+	to: "/resources",
+	label: "Resources",
+	icon: IconCategory,
+	matchPaths: ["/stores", "/players", "/currencies"],
+};
+
 const NORMAL_RIGHT_ITEMS: readonly NavigationItem[] = [
-	{ to: "/players", label: "Players", icon: IconUsers },
+	RESOURCES_NAV_ITEM,
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
@@ -73,6 +91,19 @@ export function isActive(
 		return currentPath === itemPath;
 	}
 	return currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
+}
+
+export function isActiveItem(
+	currentPath: string,
+	item: NavigationItem
+): boolean {
+	if (isActive(currentPath, item.to, item.exact)) {
+		return true;
+	}
+	if (item.matchPaths) {
+		return item.matchPaths.some((p) => isActive(currentPath, p));
+	}
+	return false;
 }
 
 export function getMobileNavigationItems(hasActive: boolean): {

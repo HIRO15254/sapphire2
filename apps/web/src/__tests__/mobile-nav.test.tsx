@@ -38,6 +38,7 @@ function createTestRouter(initialPath: string) {
 	const routes = [
 		"/",
 		"/dashboard",
+		"/resources",
 		"/stores",
 		"/currencies",
 		"/sessions",
@@ -70,15 +71,15 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 		});
 	});
 
-	it("renders 4 nav links and 1 center button", async () => {
+	it("renders 3 nav links, 1 resources popover button, and 1 center button", async () => {
 		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
 
 		const links = await screen.findAllByRole("link");
-		expect(links).toHaveLength(4);
+		expect(links).toHaveLength(3);
 
-		const centerButton = screen.getByRole("button");
-		expect(centerButton).toBeInTheDocument();
+		const buttons = screen.getAllByRole("button");
+		expect(buttons).toHaveLength(2);
 	});
 
 	it("displays normal mode labels", async () => {
@@ -86,8 +87,8 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 		render(<RouterProvider router={router} />);
 
 		await screen.findByText("Sessions");
-		expect(screen.getByText("Stores")).toBeInTheDocument();
-		expect(screen.getByText("Players")).toBeInTheDocument();
+		expect(screen.getByText("Dashboard")).toBeInTheDocument();
+		expect(screen.getByText("Resources")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
 		expect(screen.getByText("New")).toBeInTheDocument();
 	});
@@ -106,9 +107,9 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 		render(<RouterProvider router={router} />);
 
 		await screen.findByText("Sessions");
-		const storesLink = screen.getByText("Stores");
-		const anchor = storesLink.closest("a");
-		expect(anchor?.className).toContain("text-sidebar-foreground");
+		const resourcesButton = screen.getByText("Resources");
+		const button = resourcesButton.closest("button");
+		expect(button?.className).toContain("text-sidebar-foreground");
 	});
 });
 
