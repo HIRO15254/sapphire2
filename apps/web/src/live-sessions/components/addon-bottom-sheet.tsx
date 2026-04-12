@@ -32,6 +32,7 @@ export function AddonBottomSheet({
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
+		e.stopPropagation();
 		onSubmit({ amount });
 	};
 
