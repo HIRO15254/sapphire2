@@ -212,7 +212,8 @@ export function AllInBottomSheet({
 				<form.Field
 					name="wins"
 					validators={{
-						onChange: ({ value }) => {
+						onChangeListenTo: ["trials"],
+						onChange: ({ value, fieldApi }) => {
 							if (value === "") {
 								return undefined;
 							}
@@ -222,6 +223,11 @@ export function AllInBottomSheet({
 							}
 							if (n < 0) {
 								return "Must be 0 or greater";
+							}
+							const trialsStr = fieldApi.form.getFieldValue("trials");
+							const trials = Number(trialsStr);
+							if (!Number.isNaN(trials) && trials > 0 && n > trials) {
+								return `Must be ${trials} or less (cannot exceed trials)`;
 							}
 							return undefined;
 						},
