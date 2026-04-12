@@ -5,15 +5,18 @@ import {
 	ManagementList,
 	ManagementListItem,
 } from "@/shared/components/management/management-list";
+import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 
 interface TagManagerProps<TTag extends { id: string; name: string }> {
+	deleteError?: React.ReactNode;
 	emptyDescription?: React.ReactNode;
 	emptyHeading?: React.ReactNode;
 	isDeletePending?: boolean;
+	noun?: string;
 	onDelete: (id: string) => Promise<unknown>;
 	renderCreateForm: (onClose: () => void) => React.ReactNode;
 	renderDeleteDescription: (tag: TTag) => React.ReactNode;
@@ -24,9 +27,11 @@ interface TagManagerProps<TTag extends { id: string; name: string }> {
 
 export function TagManager<TTag extends { id: string; name: string }>({
 	tags,
+	deleteError,
 	emptyDescription,
 	emptyHeading = "No tags yet",
 	isDeletePending = false,
+	noun = "tag",
 	onDelete,
 	renderTagLabel,
 	renderDeleteDescription,
@@ -41,11 +46,11 @@ export function TagManager<TTag extends { id: string; name: string }>({
 		<div className="flex flex-col gap-4">
 			<div className="flex items-center justify-between">
 				<p className="font-medium text-sm">
-					{tags.length} {tags.length === 1 ? "tag" : "tags"}
+					{tags.length} {tags.length === 1 ? noun : `${noun}s`}
 				</p>
 				<Button onClick={() => setIsCreateOpen(true)} size="sm">
 					<IconPlus size={16} />
-					New Tag
+					New {noun.charAt(0).toUpperCase() + noun.slice(1)}
 				</Button>
 			</div>
 
@@ -62,7 +67,7 @@ export function TagManager<TTag extends { id: string; name: string }>({
 							actions={
 								<div className="flex gap-1">
 									<Button
-										aria-label={`Edit tag ${tag.name}`}
+										aria-label={`Edit ${noun} ${tag.name}`}
 										onClick={() => setEditingTag(tag)}
 										size="sm"
 										variant="ghost"
@@ -70,7 +75,7 @@ export function TagManager<TTag extends { id: string; name: string }>({
 										<IconEdit size={16} />
 									</Button>
 									<Button
-										aria-label={`Delete tag ${tag.name}`}
+										aria-label={`Delete ${noun} ${tag.name}`}
 										onClick={() => setDeletingTag(tag)}
 										size="sm"
 										variant="ghost"
@@ -89,7 +94,7 @@ export function TagManager<TTag extends { id: string; name: string }>({
 			<ResponsiveDialog
 				onOpenChange={setIsCreateOpen}
 				open={isCreateOpen}
-				title="New Tag"
+				title={`New ${noun.charAt(0).toUpperCase() + noun.slice(1)}`}
 			>
 				{renderCreateForm(() => setIsCreateOpen(false))}
 			</ResponsiveDialog>
@@ -101,7 +106,7 @@ export function TagManager<TTag extends { id: string; name: string }>({
 					}
 				}}
 				open={editingTag !== null}
-				title="Edit Tag"
+				title={`Edit ${noun.charAt(0).toUpperCase() + noun.slice(1)}`}
 			>
 				{editingTag && renderEditForm(editingTag, () => setEditingTag(null))}
 			</ResponsiveDialog>
@@ -113,11 +118,16 @@ export function TagManager<TTag extends { id: string; name: string }>({
 					}
 				}}
 				open={deletingTag !== null}
-				title="Delete Tag"
+				title={`Delete ${noun.charAt(0).toUpperCase() + noun.slice(1)}`}
 			>
 				{deletingTag && (
 					<div className="flex flex-col gap-4">
 						{renderDeleteDescription(deletingTag)}
+						{deleteError ? (
+							<Alert variant="destructive">
+								<AlertDescription>{deleteError}</AlertDescription>
+							</Alert>
+						) : null}
 						<DialogActionRow>
 							<Button onClick={() => setDeletingTag(null)} variant="outline">
 								Cancel
@@ -125,7 +135,11 @@ export function TagManager<TTag extends { id: string; name: string }>({
 							<Button
 								disabled={isDeletePending}
 								onClick={() =>
-									onDelete(deletingTag.id).then(() => setDeletingTag(null))
+									onDelete(deletingTag.id)
+										.then(() => setDeletingTag(null))
+										.catch(() => {
+											// Error handled by caller via deleteError prop
+										})
 								}
 								variant="destructive"
 							>

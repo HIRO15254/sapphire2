@@ -1,86 +1,68 @@
 import { useState } from "react";
 import { useTransactionTypeManager } from "@/currencies/hooks/use-transaction-type-manager";
-import { SimpleEditableList } from "@/shared/components/management/simple-editable-list";
+import { TagManager } from "@/shared/components/management/tag-manager";
+import { TagNameForm } from "@/shared/components/management/tag-name-form";
 
 export function TransactionTypeManager() {
 	const {
 		types,
+		create,
 		update,
 		delete: deleteType,
+		isCreatePending,
 		isUpdatePending,
 		isDeletePending,
 	} = useTransactionTypeManager();
-	const [editingId, setEditingId] = useState<string | null>(null);
-	const [editingName, setEditingName] = useState("");
-	const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
-		null
-	);
+
 	const [deleteError, setDeleteError] = useState<string | null>(null);
 
-	const startEdit = (id: string, name: string) => {
-		setEditingId(id);
-		setEditingName(name);
-		setConfirmingDeleteId(null);
+	const handleDelete = async (id: string) => {
 		setDeleteError(null);
-	};
-
-	const handleDelete = (id: string) => {
-		setDeleteError(null);
-		deleteType(id)
-			.then(() => {
-				setConfirmingDeleteId(null);
-			})
-			.catch((err: unknown) => {
-				if (
-					err &&
-					typeof err === "object" &&
-					"message" in err &&
-					typeof err.message === "string"
-				) {
-					setDeleteError(err.message);
-				} else {
-					setDeleteError("Failed to delete");
-				}
-			});
+		try {
+			await deleteType(id);
+		} catch (err: unknown) {
+			if (
+				err &&
+				typeof err === "object" &&
+				"message" in err &&
+				typeof err.message === "string"
+			) {
+				setDeleteError(err.message);
+			} else {
+				setDeleteError("Failed to delete");
+			}
+			throw err;
+		}
 	};
 
 	return (
-		<SimpleEditableList
-			confirmingDeleteId={confirmingDeleteId}
+		<TagManager
 			deleteError={deleteError}
-			editingId={editingId}
-			editingValue={editingName}
 			emptyDescription="They will be created automatically when you first access the currencies page."
 			emptyHeading="No transaction types yet"
-			getItemLabel={(type) => type.name}
-			isDeleting={isDeletePending}
-			isSaving={isUpdatePending}
-			itemNoun="type"
-			items={types}
-			onCancelDelete={() => {
-				setConfirmingDeleteId(null);
-				setDeleteError(null);
-			}}
-			onCancelEditing={() => {
-				setEditingId(null);
-				setEditingName("");
-			}}
-			onConfirmDelete={(type) => handleDelete(type.id)}
-			onEditingValueChange={setEditingName}
-			onSaveEditing={(type) => {
-				if (!(editingId && editingName.trim())) {
-					return;
-				}
-				update({ id: type.id, name: editingName.trim() }).then(() => {
-					setEditingId(null);
-					setEditingName("");
-				});
-			}}
-			onStartDeleting={(type) => {
-				setConfirmingDeleteId(type.id);
-				setDeleteError(null);
-			}}
-			onStartEditing={(type) => startEdit(type.id, type.name)}
+			isDeletePending={isDeletePending}
+			noun="type"
+			onDelete={handleDelete}
+			renderCreateForm={(onClose) => (
+				<TagNameForm
+					isLoading={isCreatePending}
+					onSubmit={(name) => create(name).then(onClose)}
+				/>
+			)}
+			renderDeleteDescription={(type) => (
+				<p className="text-sm">
+					Are you sure you want to delete the type &ldquo;{type.name}&rdquo;?
+					Types in use by existing transactions cannot be deleted.
+				</p>
+			)}
+			renderEditForm={(type, onClose) => (
+				<TagNameForm
+					defaultName={type.name}
+					isLoading={isUpdatePending}
+					onSubmit={(name) => update({ id: type.id, name }).then(onClose)}
+				/>
+			)}
+			tags={types}
 		/>
 	);
 }

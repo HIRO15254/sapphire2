@@ -1,6 +1,5 @@
 import { IconLogout } from "@tabler/icons-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { TransactionTypeManager } from "@/currencies/components/transaction-type-manager";
 import { authClient } from "@/lib/auth-client";
 import { LinkedAccounts } from "@/shared/components/linked-accounts";
 import { PageHeader } from "@/shared/components/page-header";
@@ -34,25 +33,16 @@ function SettingsComponent() {
 						Sign Out
 					</Button>
 				}
-				description="Manage login methods and shared labels used across the app."
+				description="Manage login methods and account preferences."
 				heading="Settings"
 			/>
 
-			<div className="space-y-6">
-				<PageSection
-					description="Connect social providers or add an email and password login."
-					heading="Linked Accounts"
-				>
-					<LinkedAccounts />
-				</PageSection>
-
-				<PageSection
-					description="Manage transaction type labels used for currency transactions. Types in use by existing transactions cannot be deleted."
-					heading="Transaction Types"
-				>
-					<TransactionTypeManager />
-				</PageSection>
-			</div>
+			<PageSection
+				description="Connect social providers or add an email and password login."
+				heading="Linked Accounts"
+			>
+				<LinkedAccounts />
+			</PageSection>
 		</div>
 	);
 }

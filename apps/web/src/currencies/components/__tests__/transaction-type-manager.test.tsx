@@ -1,12 +1,28 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { TransactionTypeManager } from "../transaction-type-manager";
+
+beforeAll(() => {
+	Object.defineProperty(window, "matchMedia", {
+		writable: true,
+		value: vi.fn().mockImplementation((query: string) => ({
+			matches: false,
+			media: query,
+			onchange: null,
+			addListener: vi.fn(),
+			removeListener: vi.fn(),
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+			dispatchEvent: vi.fn(),
+		})),
+	});
+});
 
 const mocks = vi.hoisted(() => ({
 	deleteMutate: vi.fn(async () => undefined),
 	invalidateQueries: vi.fn(),
-	setQueryData: vi.fn(),
 	types: [{ id: "type-1", name: "Cash" }],
 	updateMutate: vi.fn(async () => undefined),
 }));
@@ -14,29 +30,14 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@tanstack/react-query", () => ({
 	useMutation: (options: {
 		mutationFn: (arg: unknown) => Promise<unknown> | unknown;
-		onError?: (error: unknown, arg: unknown, context?: unknown) => void;
-		onMutate?: (arg: unknown) => Promise<unknown> | unknown;
-		onSettled?: (
-			data: unknown,
-			error: unknown,
-			arg: unknown,
-			context?: unknown
-		) => void;
-		onSuccess?: (data: unknown, arg: unknown, context?: unknown) => void;
+		onSettled?: () => void;
+		onSuccess?: () => void;
 	}) => {
 		const mutate = async (arg: unknown) => {
-			let context: unknown;
-			try {
-				context = await options.onMutate?.(arg);
-				const result = await options.mutationFn(arg);
-				await options.onSuccess?.(result, arg, context);
-				await options.onSettled?.(result, null, arg, context);
-				return result;
-			} catch (error) {
-				await options.onError?.(error, arg, context);
-				await options.onSettled?.(undefined, error, arg, context);
-				throw error;
-			}
+			const result = await options.mutationFn(arg);
+			await options.onSuccess?.();
+			await options.onSettled?.();
+			return result;
 		};
 		return {
 			isPending: false,
@@ -47,9 +48,9 @@ vi.mock("@tanstack/react-query", () => ({
 	useQuery: () => ({ data: mocks.types }),
 	useQueryClient: () => ({
 		cancelQueries: vi.fn(),
-		getQueryData: vi.fn(() => mocks.types),
+		getQueryData: vi.fn(),
 		invalidateQueries: mocks.invalidateQueries,
-		setQueryData: mocks.setQueryData,
+		setQueryData: vi.fn(),
 	}),
 }));
 
@@ -69,16 +70,36 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
+vi.mock("@/shared/components/ui/responsive-dialog", () => ({
+	ResponsiveDialog: ({
+		children,
+		open,
+		title,
+	}: {
+		children: ReactNode;
+		open: boolean;
+		title: string;
+	}) =>
+		open ? (
+			<div data-testid={`dialog-${title}`}>
+				<h2>{title}</h2>
+				{children}
+			</div>
+		) : null,
+}));
+
 describe("TransactionTypeManager", () => {
 	it("edits and saves a transaction type", async () => {
 		const user = userEvent.setup();
 
 		render(<TransactionTypeManager />);
 
-		await user.click(screen.getByLabelText("Edit type"));
-		await user.clear(screen.getByRole("textbox"));
-		await user.type(screen.getByRole("textbox"), "Tournament Buy-in");
-		await user.click(screen.getByLabelText("Save type"));
+		await user.click(screen.getByLabelText("Edit type Cash"));
+
+		const input = screen.getByRole("textbox");
+		await user.clear(input);
+		await user.type(input, "Tournament Buy-in");
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
 			expect(mocks.updateMutate).toHaveBeenCalledWith({
@@ -88,15 +109,32 @@ describe("TransactionTypeManager", () => {
 		});
 	});
 
-	it("shows an alert when delete fails", async () => {
+	it("confirms and deletes a transaction type", async () => {
 		const user = userEvent.setup();
-		mocks.deleteMutate.mockRejectedValueOnce(new Error("Type is in use"));
 
 		render(<TransactionTypeManager />);
 
-		await user.click(screen.getByLabelText("Delete type"));
-		await user.click(screen.getByLabelText("Confirm delete type"));
+		await user.click(screen.getByLabelText("Delete type Cash"));
+		await user.click(screen.getByRole("button", { name: "Delete" }));
 
-		expect(await screen.findByText("Type is in use")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(mocks.deleteMutate).toHaveBeenCalledWith({ id: "type-1" });
+		});
+	});
+
+	it("shows an error when delete fails", async () => {
+		const user = userEvent.setup();
+		mocks.deleteMutate.mockRejectedValueOnce(
+			new Error("Cannot delete: type is in use by transactions")
+		);
+
+		render(<TransactionTypeManager />);
+
+		await user.click(screen.getByLabelText("Delete type Cash"));
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+
+		expect(
+			await screen.findByText("Cannot delete: type is in use by transactions")
+		).toBeInTheDocument();
 	});
 });
