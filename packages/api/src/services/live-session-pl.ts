@@ -1,10 +1,12 @@
-import {
-	chipAddPayload,
-	stackRecordPayload,
-	tournamentResultPayload,
-	tournamentStackRecordPayload,
-} from "@sapphire2/db/constants/session-event-types";
 import type { SessionStatus } from "@sapphire2/db/constants/session-event-types";
+import {
+	allInPayload,
+	cashSessionEndPayload,
+	cashSessionStartPayload,
+	chipsAddRemovePayload,
+	purchaseChipsPayload,
+	tournamentSessionEndPayload,
+} from "@sapphire2/db/constants/session-event-types";
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
 import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
 import { pokerSession } from "@sapphire2/db/schema/session";
@@ -110,76 +112,40 @@ export function computeCashGamePLFromEvents(
 ): CashGamePLResult {
 	let totalBuyIn = 0;
 	let addonTotal = 0;
+	let chipRemoveTotal = 0;
 	let cashOut: number | null = null;
 	let totalEvDiff = 0;
-	let isFirstChipAdd = true;
 
 	for (const event of events) {
 		const parsed = JSON.parse(event.payload);
 
-		if (event.eventType === "chip_add") {
-			const data = chipAddPayload.parse(parsed);
-			totalBuyIn += data.amount;
-			if (isFirstChipAdd) {
-				isFirstChipAdd = false;
-			} else {
+		if (event.eventType === "session_start") {
+			const data = cashSessionStartPayload.parse(parsed);
+			totalBuyIn += data.buyInAmount;
+		} else if (event.eventType === "chips_add_remove") {
+			const data = chipsAddRemovePayload.parse(parsed);
+			if (data.type === "add") {
+				totalBuyIn += data.amount;
 				addonTotal += data.amount;
+			} else {
+				chipRemoveTotal += data.amount;
 			}
-		} else if (event.eventType === "stack_record") {
-			const data = stackRecordPayload.parse(parsed);
-			cashOut = data.stackAmount;
-			for (const allIn of data.allIns) {
-				totalEvDiff +=
-					allIn.potSize * (allIn.equity / 100) -
-					(allIn.potSize / allIn.trials) * allIn.wins;
-			}
+		} else if (event.eventType === "all_in") {
+			const data = allInPayload.parse(parsed);
+			totalEvDiff +=
+				data.potSize * (data.equity / 100) -
+				(data.potSize / data.trials) * data.wins;
+		} else if (event.eventType === "session_end") {
+			const data = cashSessionEndPayload.parse(parsed);
+			cashOut = data.cashOutAmount;
 		}
 	}
 
-	const profitLoss = cashOut === null ? null : cashOut - totalBuyIn;
+	const profitLoss =
+		cashOut === null ? null : cashOut + chipRemoveTotal - totalBuyIn;
 	const evCashOut = cashOut === null ? null : cashOut + totalEvDiff;
 
 	return { totalBuyIn, cashOut, profitLoss, evCashOut, addonTotal };
-}
-
-function processStackRecordPurchases(data: {
-	chipPurchases: Array<{ name: string; cost: number; chips: number }>;
-	rebuy?: { cost: number; chips: number } | null;
-	addon?: { cost: number; chips: number } | null;
-}): {
-	rebuyCount: number;
-	rebuyCost: number;
-	addonCount: number;
-	addonCost: number;
-} {
-	let rebuyCount = 0;
-	let rebuyCost = 0;
-	let addonCount = 0;
-	let addonCost = 0;
-
-	if (data.chipPurchases.length > 0) {
-		for (const cp of data.chipPurchases) {
-			if (cp.name.toLowerCase().includes("rebuy")) {
-				rebuyCount++;
-				rebuyCost += cp.cost;
-			} else {
-				addonCount++;
-				addonCost += cp.cost;
-			}
-		}
-	} else {
-		// Legacy fallback: process old rebuy/addon fields
-		if (data.rebuy) {
-			rebuyCount++;
-			rebuyCost += data.rebuy.cost;
-		}
-		if (data.addon) {
-			addonCount++;
-			addonCost += data.addon.cost;
-		}
-	}
-
-	return { rebuyCount, rebuyCost, addonCount, addonCost };
 }
 
 export function computeTournamentPLFromEvents(
@@ -187,44 +153,48 @@ export function computeTournamentPLFromEvents(
 	tournamentBuyIn?: number,
 	tournamentEntryFee?: number
 ): TournamentPLResult {
-	let rebuyCount = 0;
-	let rebuyCost = 0;
-	let addonCount = 0;
-	let addonCost = 0;
+	let chipPurchaseCount = 0;
+	let totalChipPurchaseCost = 0;
 	let placement: number | null = null;
 	let totalEntries: number | null = null;
 	let prizeMoney: number | null = null;
 	let bountyPrizes: number | null = null;
+	let beforeDeadline = false;
 
 	for (const event of events) {
 		const parsed = JSON.parse(event.payload);
 
-		if (event.eventType === "tournament_stack_record") {
-			const data = tournamentStackRecordPayload.parse(parsed);
-			const counts = processStackRecordPurchases(data);
-			rebuyCount += counts.rebuyCount;
-			rebuyCost += counts.rebuyCost;
-			addonCount += counts.addonCount;
-			addonCost += counts.addonCost;
-		} else if (event.eventType === "tournament_result") {
-			const data = tournamentResultPayload.parse(parsed);
-			placement = data.placement;
-			totalEntries = data.totalEntries;
-			prizeMoney = data.prizeMoney;
-			bountyPrizes = data.bountyPrizes;
+		if (event.eventType === "purchase_chips") {
+			const data = purchaseChipsPayload.parse(parsed);
+			chipPurchaseCount++;
+			totalChipPurchaseCost += data.cost;
+		} else if (event.eventType === "session_end") {
+			const result = tournamentSessionEndPayload.safeParse(parsed);
+			if (result.success) {
+				prizeMoney = result.data.prizeMoney;
+				bountyPrizes = result.data.bountyPrizes;
+				if (result.data.beforeDeadline === false) {
+					placement = result.data.placement;
+					totalEntries = result.data.totalEntries;
+				} else {
+					beforeDeadline = true;
+				}
+			}
 		}
 	}
 
 	const income = (prizeMoney ?? 0) + (bountyPrizes ?? 0);
 	const cost =
-		(tournamentBuyIn ?? 0) + (tournamentEntryFee ?? 0) + rebuyCost + addonCost;
-	const profitLoss = placement === null ? null : income - cost;
+		(tournamentBuyIn ?? 0) + (tournamentEntryFee ?? 0) + totalChipPurchaseCost;
+	// profitLoss is null if session ended before deadline (no placement) or not yet completed
+	const profitLoss =
+		prizeMoney === null || beforeDeadline ? null : income - cost;
 
 	return {
-		rebuyCount,
-		rebuyCost,
-		addonCount,
-		addonCost,
+		rebuyCount: chipPurchaseCount,
+		rebuyCost: totalChipPurchaseCost,
+		addonCount: 0,
+		addonCost: 0,
 		placement,
 		totalEntries,
 		prizeMoney,

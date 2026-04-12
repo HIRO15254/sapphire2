@@ -5,20 +5,14 @@ export const SESSION_STATUSES = ["active", "paused", "completed"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
 // Event type categories
-export const LIFECYCLE_EVENT_TYPES = [
-	"session_start",
-	"session_end",
-] as const;
+export const LIFECYCLE_EVENT_TYPES = ["session_start", "session_end"] as const;
 
 export const PAUSE_RESUME_EVENT_TYPES = [
 	"session_pause",
 	"session_resume",
 ] as const;
 
-export const CASH_EVENT_TYPES = [
-	"chips_add_remove",
-	"all_in",
-] as const;
+export const CASH_EVENT_TYPES = ["chips_add_remove", "all_in"] as const;
 
 export const TOURNAMENT_EVENT_TYPES = [
 	"purchase_chips",
@@ -163,13 +157,11 @@ export function validateEventPayload(
 	sessionType?: "cash_game" | "tournament"
 ) {
 	if (eventType === "session_start") {
-		const schema =
-			SESSION_START_PAYLOAD_SCHEMAS[sessionType ?? "tournament"];
+		const schema = SESSION_START_PAYLOAD_SCHEMAS[sessionType ?? "tournament"];
 		return schema.parse(payload);
 	}
 	if (eventType === "session_end") {
-		const schema =
-			SESSION_END_PAYLOAD_SCHEMAS[sessionType ?? "tournament"];
+		const schema = SESSION_END_PAYLOAD_SCHEMAS[sessionType ?? "tournament"];
 		return schema.parse(payload);
 	}
 	const schema = EVENT_PAYLOAD_SCHEMAS[eventType];
@@ -244,7 +236,9 @@ export function getSessionCurrentState(events: EventForState[]): SessionStatus {
 	const sorted = [...stateEvents].sort((a, b) => {
 		const timeA = new Date(a.occurredAt).getTime();
 		const timeB = new Date(b.occurredAt).getTime();
-		if (timeB !== timeA) return timeB - timeA;
+		if (timeB !== timeA) {
+			return timeB - timeA;
+		}
 		return b.sortOrder - a.sortOrder;
 	});
 
