@@ -144,8 +144,8 @@ describe("computeCashGamePLFromEvents", () => {
 	});
 
 	it("computes evCashOut correctly using allIn equity data", () => {
-		// EV diff = potSize * (equity / 100) * trials - potSize * wins
-		// potSize=400, equity=75, trials=1, wins=0 => 400 * 0.75 * 1 - 400 * 0 = 300
+		// EV diff = potSize * (equity / 100) - (potSize / trials) * wins
+		// potSize=400, equity=75, trials=1, wins=0 => 400 * 0.75 - (400 / 1) * 0 = 300
 		const allIn = { potSize: 400, equity: 75, trials: 1, wins: 0 };
 		const events = [
 			{
@@ -161,6 +161,28 @@ describe("computeCashGamePLFromEvents", () => {
 		expect(result.cashOut).toBe(0);
 		expect(result.profitLoss).toBe(-200);
 		// evCashOut = 0 + 300 = 300
+		expect(result.evCashOut).toBe(300);
+	});
+
+	it("computes evCashOut correctly with multiple trials", () => {
+		// EV diff = potSize * (equity / 100) - (potSize / trials) * wins
+		// potSize=600, equity=50, trials=3, wins=2
+		// => 600 * 0.50 - (600 / 3) * 2 = 300 - 400 = -100
+		const allIn = { potSize: 600, equity: 50, trials: 3, wins: 2 };
+		const events = [
+			{
+				eventType: "chip_add",
+				payload: JSON.stringify({ amount: 500 }),
+			},
+			{
+				eventType: "stack_record",
+				payload: JSON.stringify({ stackAmount: 400, allIns: [allIn] }),
+			},
+		];
+		const result = computeCashGamePLFromEvents(events);
+		expect(result.cashOut).toBe(400);
+		expect(result.profitLoss).toBe(-100);
+		// evCashOut = 400 + (-100) = 300
 		expect(result.evCashOut).toBe(300);
 	});
 

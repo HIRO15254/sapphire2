@@ -114,8 +114,8 @@ export function computeCashGamePLFromEvents(
 			cashOut = data.stackAmount;
 			for (const allIn of data.allIns) {
 				totalEvDiff +=
-					allIn.potSize * (allIn.equity / 100) * allIn.trials -
-					allIn.potSize * allIn.wins;
+					allIn.potSize * (allIn.equity / 100) -
+					(allIn.potSize / allIn.trials) * allIn.wins;
 			}
 		}
 	}
