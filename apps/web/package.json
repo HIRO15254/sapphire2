@@ -58,8 +58,6 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260405.1",
     "@sapphire2/config": "workspace:*",
-    "@tanstack/react-query-devtools": "^5.96.2",
-    "@tanstack/react-router-devtools": "^1.166.11",
     "@tanstack/router-plugin": "^1.167.12",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
