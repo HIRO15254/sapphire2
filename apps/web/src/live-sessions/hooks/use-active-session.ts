@@ -13,20 +13,36 @@ interface UseActiveSessionResult {
 }
 
 export function useActiveSession(): UseActiveSessionResult {
-	const cashQuery = useQuery(
+	const cashActiveQuery = useQuery(
 		trpc.liveCashGameSession.list.queryOptions({ status: "active", limit: 1 })
 	);
-	const tournamentQuery = useQuery(
+	const cashPausedQuery = useQuery(
+		trpc.liveCashGameSession.list.queryOptions({ status: "paused", limit: 1 })
+	);
+	const tournamentActiveQuery = useQuery(
 		trpc.liveTournamentSession.list.queryOptions({
 			status: "active",
 			limit: 1,
 		})
 	);
+	const tournamentPausedQuery = useQuery(
+		trpc.liveTournamentSession.list.queryOptions({
+			status: "paused",
+			limit: 1,
+		})
+	);
 
-	const isLoading = cashQuery.isLoading || tournamentQuery.isLoading;
+	const isLoading =
+		cashActiveQuery.isLoading ||
+		cashPausedQuery.isLoading ||
+		tournamentActiveQuery.isLoading ||
+		tournamentPausedQuery.isLoading;
 
-	const activeCash = cashQuery.data?.items?.[0];
-	const activeTournament = tournamentQuery.data?.items?.[0];
+	const activeCash =
+		cashActiveQuery.data?.items?.[0] ?? cashPausedQuery.data?.items?.[0];
+	const activeTournament =
+		tournamentActiveQuery.data?.items?.[0] ??
+		tournamentPausedQuery.data?.items?.[0];
 
 	let activeSession: ActiveSessionInfo | null = null;
 	if (activeCash) {

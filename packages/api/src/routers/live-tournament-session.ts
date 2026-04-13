@@ -62,7 +62,7 @@ async function assertNoActiveSession(
 		.where(
 			and(
 				eq(liveCashGameSession.userId, userId),
-				eq(liveCashGameSession.status, "active")
+				sql`${liveCashGameSession.status} != 'completed'`
 			)
 		)
 		.limit(1);
@@ -73,7 +73,7 @@ async function assertNoActiveSession(
 		.where(
 			and(
 				eq(liveTournamentSession.userId, userId),
-				eq(liveTournamentSession.status, "active")
+				sql`${liveTournamentSession.status} != 'completed'`
 			)
 		)
 		.limit(1);
@@ -192,7 +192,7 @@ export const liveTournamentSessionRouter = router({
 	list: protectedProcedure
 		.input(
 			z.object({
-				status: z.enum(["active", "completed"]).optional(),
+				status: z.enum(["active", "paused", "completed"]).optional(),
 				cursor: z.string().optional(),
 				limit: z.number().int().min(1).max(100).default(DEFAULT_LIMIT),
 			})
@@ -515,7 +515,7 @@ export const liveTournamentSessionRouter = router({
 			const userId = ctx.session.user.id;
 			const session = await findLiveTournamentSession(ctx.db, input.id, userId);
 
-			if (session.status !== "active") {
+			if (session.status === "completed") {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "Only active sessions can be discarded",

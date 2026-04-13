@@ -113,7 +113,7 @@ export const liveCashGameSessionRouter = router({
 	list: protectedProcedure
 		.input(
 			z.object({
-				status: z.enum(["active", "completed"]).optional(),
+				status: z.enum(["active", "paused", "completed"]).optional(),
 				cursor: z.string().optional(),
 				limit: z.number().int().min(1).max(100).default(DEFAULT_LIMIT),
 			})
@@ -260,7 +260,7 @@ export const liveCashGameSessionRouter = router({
 				.where(
 					and(
 						eq(liveCashGameSession.userId, userId),
-						eq(liveCashGameSession.status, "active")
+						sql`${liveCashGameSession.status} != 'completed'`
 					)
 				)
 				.limit(1);
@@ -271,7 +271,7 @@ export const liveCashGameSessionRouter = router({
 				.where(
 					and(
 						eq(liveTournamentSession.userId, userId),
-						eq(liveTournamentSession.status, "active")
+						sql`${liveTournamentSession.status} != 'completed'`
 					)
 				)
 				.limit(1);
@@ -457,7 +457,7 @@ export const liveCashGameSessionRouter = router({
 				.where(
 					and(
 						eq(liveCashGameSession.userId, userId),
-						eq(liveCashGameSession.status, "active")
+						sql`${liveCashGameSession.status} != 'completed'`
 					)
 				)
 				.limit(1);
@@ -468,7 +468,7 @@ export const liveCashGameSessionRouter = router({
 				.where(
 					and(
 						eq(liveTournamentSession.userId, userId),
-						eq(liveTournamentSession.status, "active")
+						sql`${liveTournamentSession.status} != 'completed'`
 					)
 				)
 				.limit(1);

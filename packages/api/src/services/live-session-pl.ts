@@ -317,12 +317,12 @@ export async function recalculateCashGameSession(
 		.set({
 			status: state.status,
 			startedAt: state.startedAt ?? session.startedAt,
-			endedAt: state.status === "active" ? null : (state.endedAt ?? null),
+			endedAt: state.status === "completed" ? (state.endedAt ?? null) : null,
 			updatedAt: new Date(),
 		})
 		.where(eq(liveCashGameSession.id, liveCashGameSessionId));
 
-	if (state.status === "active") {
+	if (state.status !== "completed") {
 		// Clean up any lingering pokerSession from a previous completion
 		await deletePokerSessionAndTransaction(
 			db,
@@ -517,12 +517,12 @@ export async function recalculateTournamentSession(
 		.set({
 			status: state.status,
 			startedAt: state.startedAt ?? session.startedAt,
-			endedAt: state.status === "active" ? null : (state.endedAt ?? null),
+			endedAt: state.status === "completed" ? (state.endedAt ?? null) : null,
 			updatedAt: new Date(),
 		})
 		.where(eq(liveTournamentSession.id, liveTournamentSessionId));
 
-	if (state.status === "active") {
+	if (state.status !== "completed") {
 		// Clean up any lingering pokerSession from a previous completion
 		await deletePokerSessionAndTransaction(
 			db,
