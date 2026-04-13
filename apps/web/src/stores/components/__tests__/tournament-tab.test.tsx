@@ -73,8 +73,7 @@ vi.mock("@/stores/components/tournament-form", () => ({
 }));
 
 vi.mock("@/stores/components/blind-level-editor", () => ({
-	BlindLevelEditor: ({ open }: { open: boolean }) =>
-		open ? <div>Blind editor</div> : null,
+	BlindStructureContent: () => <div>Blind structure content</div>,
 }));
 
 vi.mock("@/shared/components/ui/responsive-dialog", () => ({
@@ -179,6 +178,19 @@ describe("TournamentTab", () => {
 				id: "tournament-1",
 			});
 		});
+	});
+
+	it("opens edit modal with Details and Structure tabs", async () => {
+		const user = userEvent.setup();
+
+		render(<Harness />);
+
+		await user.click(screen.getByText("Sunday Major"));
+		await user.click(screen.getByLabelText("Edit tournament"));
+
+		expect(screen.getByText("Details")).toBeInTheDocument();
+		expect(screen.getByText("Structure")).toBeInTheDocument();
+		expect(screen.getByTestId("tournament-form")).toBeInTheDocument();
 	});
 
 	it("shows the empty state when there are no tournaments", () => {
