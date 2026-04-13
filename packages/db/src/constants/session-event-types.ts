@@ -97,10 +97,17 @@ export const purchaseChipsPayload = z.object({
 	chips: z.number().int().min(0),
 });
 
+export const chipPurchaseCountSchema = z.object({
+	name: z.string().min(1),
+	count: z.number().int().min(0),
+	chipsPerUnit: z.number().int().min(0),
+});
+
 export const updateTournamentInfoPayload = z.object({
 	remainingPlayers: z.number().int().min(1).nullable().default(null),
 	totalEntries: z.number().int().min(1).nullable().default(null),
 	averageStack: z.number().int().min(0).nullable().default(null),
+	chipPurchaseCounts: z.array(chipPurchaseCountSchema).default([]),
 });
 
 // Common event payloads
