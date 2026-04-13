@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { LiveStackFormSheet } from "@/live-sessions/components/live-stack-form-sheet";
 import { SessionFormProvider } from "@/live-sessions/hooks/use-session-form";
 import { StackSheetProvider } from "@/live-sessions/hooks/use-stack-sheet";
-import { DevtoolsToggle } from "@/shared/components/devtools-toggle";
 import { MobileNav } from "@/shared/components/mobile-nav";
 import { OnlineStatusBar } from "@/shared/components/online-status-bar";
 import { SidebarNav } from "@/shared/components/sidebar-nav";
@@ -28,7 +27,6 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 					</div>
 				</UpdateNotesProvider>
 			</StackSheetProvider>
-			<DevtoolsToggle />
 		</SessionFormProvider>
 	);
 }

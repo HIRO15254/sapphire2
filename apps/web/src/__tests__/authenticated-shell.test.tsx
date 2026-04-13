@@ -38,10 +38,6 @@ vi.mock("@/shared/components/online-status-bar", () => ({
 	OnlineStatusBar: () => <div>Online Status</div>,
 }));
 
-vi.mock("@/shared/components/devtools-toggle", () => ({
-	DevtoolsToggle: () => <div>Devtools Toggle</div>,
-}));
-
 vi.mock("@/shared/components/theme-provider", () => ({
 	ThemeProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
@@ -84,7 +80,6 @@ describe("AuthenticatedShell", () => {
 		expect(screen.getByText("Mobile Nav")).toBeInTheDocument();
 		expect(screen.getByText("Live Stack Sheet")).toBeInTheDocument();
 		expect(screen.getByText("Online Status")).toBeInTheDocument();
-		expect(screen.getByText("Devtools Toggle")).toBeInTheDocument();
 		expect(screen.getByText("Shell Body")).toBeInTheDocument();
 	});
 });
