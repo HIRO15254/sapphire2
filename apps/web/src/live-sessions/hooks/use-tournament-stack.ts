@@ -51,6 +51,69 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 		onSuccess: invalidateSession,
 	});
 
+	const purchaseChipsMutation = useMutation({
+		mutationFn: (values: { name: string; cost: number; chips: number }) =>
+			trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: sessionId,
+				eventType: "purchase_chips",
+				payload: values,
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const updateTournamentInfoMutation = useMutation({
+		mutationFn: (values: {
+			remainingPlayers: number | null;
+			totalEntries: number | null;
+			chipPurchaseCounts: Array<{
+				name: string;
+				count: number;
+				chipsPerUnit: number;
+			}>;
+		}) =>
+			trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: sessionId,
+				eventType: "update_tournament_info",
+				payload: {
+					remainingPlayers: values.remainingPlayers,
+					totalEntries: values.totalEntries,
+					averageStack: null,
+					chipPurchaseCounts: values.chipPurchaseCounts,
+				},
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const memoMutation = useMutation({
+		mutationFn: (text: string) =>
+			trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: sessionId,
+				eventType: "memo",
+				payload: { text },
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const pauseMutation = useMutation({
+		mutationFn: () =>
+			trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: sessionId,
+				eventType: "session_pause",
+				payload: {},
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const resumeMutation = useMutation({
+		mutationFn: () =>
+			trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: sessionId,
+				eventType: "session_resume",
+				payload: {},
+			}),
+		onSuccess: invalidateSession,
+	});
+
 	const completeMutation = useMutation({
 		mutationFn: (
 			values:
@@ -86,6 +149,17 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 		chipPurchaseTypes,
 		recordStack: (values: { stackAmount: number }) =>
 			stackMutation.mutate(values),
+		purchaseChips: (values: { name: string; cost: number; chips: number }) =>
+			purchaseChipsMutation.mutate(values),
+		updateTournamentInfo: (values: {
+			remainingPlayers: number | null;
+			totalEntries: number | null;
+			chipPurchaseCounts: Array<{
+				name: string;
+				count: number;
+				chipsPerUnit: number;
+			}>;
+		}) => updateTournamentInfoMutation.mutate(values),
 		complete: (
 			values:
 				| {
@@ -101,6 +175,9 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 						prizeMoney: number;
 				  }
 		) => completeMutation.mutate(values),
+		addMemo: (text: string) => memoMutation.mutate(text),
+		pause: () => pauseMutation.mutate(),
+		resume: () => resumeMutation.mutate(),
 		isStackPending: stackMutation.isPending,
 		isCompletePending: completeMutation.isPending,
 	};
