@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CashGameCompleteForm } from "@/live-sessions/components/cash-game-complete-form";
 import { CashGameStackForm } from "@/live-sessions/components/cash-game-stack-form";
 import { TournamentCompleteForm } from "@/live-sessions/components/tournament-complete-form";
+import { TournamentInfoForm } from "@/live-sessions/components/tournament-info-form";
 import { TournamentStackForm } from "@/live-sessions/components/tournament-stack-form";
 import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
 import { useCashGameStack } from "@/live-sessions/hooks/use-cash-game-stack";
@@ -16,8 +17,17 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 		number | undefined
 	>(undefined);
 
-	const { recordStack, addChip, complete, isStackPending, isCompletePending } =
-		useCashGameStack({ sessionId });
+	const {
+		recordStack,
+		addChip,
+		removeChip,
+		addAllIn,
+		addMemo,
+		pause,
+		complete,
+		isStackPending,
+		isCompletePending,
+	} = useCashGameStack({ sessionId });
 
 	return (
 		<>
@@ -29,12 +39,16 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 			>
 				<CashGameStackForm
 					isLoading={isStackPending}
+					onAllIn={(values) => addAllIn(values)}
 					onChipAdd={(amount) => addChip(amount)}
+					onChipRemove={(amount) => removeChip(amount)}
 					onComplete={(currentStack) => {
 						stackSheet.close();
 						setDefaultFinalStack(currentStack);
 						setIsCompleteOpen(true);
 					}}
+					onMemo={(text) => addMemo(text)}
+					onPause={() => pause()}
 					onSubmit={(values) => {
 						recordStack(values);
 						stackSheet.close();
@@ -61,10 +75,15 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 	const stackSheet = useStackSheet();
 	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
+	const [isTournamentInfoOpen, setIsTournamentInfoOpen] = useState(false);
 
 	const {
 		chipPurchaseTypes,
 		recordStack,
+		purchaseChips,
+		updateTournamentInfo,
+		addMemo,
+		pause,
 		complete,
 		isStackPending,
 		isCompletePending,
@@ -73,7 +92,7 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 	return (
 		<>
 			<ResponsiveDialog
-				description="Record the latest stack, remaining players, and chip purchases for this tournament."
+				description="Record the latest stack and chip purchases for this tournament."
 				onOpenChange={stackSheet.setIsOpen}
 				open={stackSheet.isOpen}
 				title="Record Stack"
@@ -85,9 +104,28 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 						stackSheet.close();
 						setIsCompleteOpen(true);
 					}}
+					onMemo={(text) => addMemo(text)}
+					onPause={() => pause()}
+					onPurchaseChips={(values) => purchaseChips(values)}
 					onSubmit={(values) => {
 						recordStack(values);
 						stackSheet.close();
+					}}
+				/>
+			</ResponsiveDialog>
+
+			<ResponsiveDialog
+				description="Update remaining players, total entries, and chip purchase counts for this tournament."
+				onOpenChange={setIsTournamentInfoOpen}
+				open={isTournamentInfoOpen}
+				title="Tournament Info"
+			>
+				<TournamentInfoForm
+					chipPurchaseTypes={chipPurchaseTypes}
+					isLoading={false}
+					onSubmit={(values) => {
+						updateTournamentInfo(values);
+						setIsTournamentInfoOpen(false);
 					}}
 				/>
 			</ResponsiveDialog>
