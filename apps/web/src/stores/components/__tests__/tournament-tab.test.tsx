@@ -181,6 +181,18 @@ describe("TournamentTab", () => {
 		});
 	});
 
+	it("shows Edit Structure button even when blindLevelCount is 0", async () => {
+		const user = userEvent.setup();
+
+		render(<Harness />);
+
+		await user.click(screen.getByText("Sunday Major"));
+		expect(screen.getByText("Edit Structure")).toBeInTheDocument();
+
+		await user.click(screen.getByText("Edit Structure"));
+		expect(screen.getByText("Blind editor")).toBeInTheDocument();
+	});
+
 	it("shows the empty state when there are no tournaments", () => {
 		mocks.activeTournaments = [];
 

@@ -344,20 +344,20 @@ function TournamentDetail({
 				</p>
 			)}
 
-			{tournament.blindLevelCount > 0 && (
-				<div className="mt-1">
+			<div className="mt-1">
+				{tournament.blindLevelCount > 0 && (
 					<BlindStructureSummary tournamentId={tournament.id} />
-					<Button
-						className="mt-1 gap-1 text-[10px]"
-						onClick={onBlindEdit}
-						size="xs"
-						variant="outline"
-					>
-						<IconList size={12} />
-						Edit Structure
-					</Button>
-				</div>
-			)}
+				)}
+				<Button
+					className={`${tournament.blindLevelCount > 0 ? "mt-1" : ""} gap-1 text-[10px]`}
+					onClick={onBlindEdit}
+					size="xs"
+					variant="outline"
+				>
+					<IconList size={12} />
+					Edit Structure
+				</Button>
+			</div>
 
 			<TournamentActions
 				confirmingDelete={confirmingDelete}
