@@ -5,12 +5,21 @@ import { Input } from "@/shared/components/ui/input";
 
 interface TournamentCompleteFormProps {
 	isLoading: boolean;
-	onSubmit: (values: {
-		bountyPrizes?: number;
-		placement: number;
-		prizeMoney: number;
-		totalEntries: number;
-	}) => void;
+	onSubmit: (
+		values:
+			| {
+					beforeDeadline: false;
+					bountyPrizes: number;
+					placement: number;
+					prizeMoney: number;
+					totalEntries: number;
+			  }
+			| {
+					beforeDeadline: true;
+					bountyPrizes: number;
+					prizeMoney: number;
+			  }
+	) => void;
 }
 
 export function TournamentCompleteForm({
@@ -24,9 +33,15 @@ export function TournamentCompleteForm({
 		const totalEntries = Number(formData.get("totalEntries"));
 		const prizeMoney = Number(formData.get("prizeMoney"));
 		const bountyRaw = formData.get("bountyPrizes") as string;
-		const bountyPrizes = bountyRaw ? Number(bountyRaw) : undefined;
+		const bountyPrizes = bountyRaw ? Number(bountyRaw) : 0;
 
-		onSubmit({ placement, totalEntries, prizeMoney, bountyPrizes });
+		onSubmit({
+			beforeDeadline: false,
+			placement,
+			totalEntries,
+			prizeMoney,
+			bountyPrizes,
+		});
 	};
 
 	return (

@@ -1,57 +1,52 @@
 import { useState } from "react";
 import { AddonBottomSheet } from "@/live-sessions/components/addon-bottom-sheet";
 import { AllInBottomSheet } from "@/live-sessions/components/all-in-bottom-sheet";
-import { EventBadge } from "@/live-sessions/components/event-badge";
 import {
-	StackBadgeRow,
 	StackNumberField,
 	StackPrimaryRow,
 	StackQuickActions,
 } from "@/live-sessions/components/stack-ui";
 import { useStackFormContext } from "@/live-sessions/hooks/use-session-form";
 import { Button } from "@/shared/components/ui/button";
+import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import { Field } from "@/shared/components/ui/field";
+import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { Textarea } from "@/shared/components/ui/textarea";
 
 interface CashGameStackFormProps {
 	isLoading: boolean;
-	onChipAdd: (amount: number) => void;
-	onComplete: (currentStack: number) => void;
-	onSubmit: (values: {
-		allIns: Array<{
-			potSize: number;
-			trials: number;
-			equity: number;
-			wins: number;
-		}>;
-		stackAmount: number;
+	onAllIn: (values: {
+		potSize: number;
+		trials: number;
+		equity: number;
+		wins: number;
 	}) => void;
+	onChipAdd: (amount: number) => void;
+	onChipRemove: (amount: number) => void;
+	onComplete: (currentStack: number) => void;
+	onMemo: (text: string) => void;
+	onPause: () => void;
+	onSubmit: (values: { stackAmount: number }) => void;
 }
 
 export function CashGameStackForm({
 	isLoading,
+	onAllIn,
 	onChipAdd,
+	onChipRemove,
 	onComplete,
+	onMemo,
+	onPause,
 	onSubmit,
 }: CashGameStackFormProps) {
-	const { state, setStackAmount, setAllIns } = useStackFormContext();
-	const { stackAmount, allIns } = state;
+	const { state, setStackAmount } = useStackFormContext();
+	const { stackAmount } = state;
 
 	const [allInBottomSheetOpen, setAllInBottomSheetOpen] = useState(false);
-	const [editingAllIn, setEditingAllIn] = useState<
-		(typeof allIns)[number] | null
-	>(null);
 	const [addonBottomSheetOpen, setAddonBottomSheetOpen] = useState(false);
-
-	let nextId = allIns.length > 0 ? Math.max(...allIns.map((a) => a.id)) : 0;
-
-	const handleAddAllInClick = () => {
-		setEditingAllIn(null);
-		setAllInBottomSheetOpen(true);
-	};
-
-	const handleAllInBadgeClick = (allIn: (typeof allIns)[number]) => {
-		setEditingAllIn(allIn);
-		setAllInBottomSheetOpen(true);
-	};
+	const [removeBottomSheetOpen, setRemoveBottomSheetOpen] = useState(false);
+	const [memoBottomSheetOpen, setMemoBottomSheetOpen] = useState(false);
+	const [memoText, setMemoText] = useState("");
 
 	const handleAllInSubmit = (values: {
 		potSize: number;
@@ -59,51 +54,33 @@ export function CashGameStackForm({
 		equity: number;
 		wins: number;
 	}) => {
-		if (editingAllIn === null) {
-			nextId += 1;
-			setAllIns((prev) => [...prev, { ...values, id: nextId }]);
-		} else {
-			setAllIns((prev) =>
-				prev.map((item) =>
-					item.id === editingAllIn.id ? { ...values, id: item.id } : item
-				)
-			);
-		}
+		onAllIn(values);
 		setAllInBottomSheetOpen(false);
-		setEditingAllIn(null);
-	};
-
-	const handleAllInDelete = () => {
-		if (editingAllIn !== null) {
-			setAllIns((prev) => prev.filter((item) => item.id !== editingAllIn.id));
-		}
-		setAllInBottomSheetOpen(false);
-		setEditingAllIn(null);
 	};
 
 	const handleAddonSubmit = (values: { amount: number }) => {
 		onChipAdd(values.amount);
-		// Auto-increment stack by addon amount
 		const currentStack = Number(stackAmount) || 0;
 		setStackAmount(String(currentStack + values.amount));
 		setAddonBottomSheetOpen(false);
 	};
 
+	const handleRemoveSubmit = (values: { amount: number }) => {
+		onChipRemove(values.amount);
+		setRemoveBottomSheetOpen(false);
+	};
+
+	const handleMemoSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault();
+		e.stopPropagation();
+		onMemo(memoText);
+		setMemoText("");
+		setMemoBottomSheetOpen(false);
+	};
+
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
-
-		onSubmit({
-			stackAmount: Number(stackAmount),
-			allIns: allIns.map(({ potSize, trials, equity, wins }) => ({
-				potSize,
-				trials,
-				equity,
-				wins,
-			})),
-		});
-
-		// Reset allIns after submit, but keep stackAmount
-		setAllIns([]);
+		onSubmit({ stackAmount: Number(stackAmount) });
 	};
 
 	const handleComplete = () => {
@@ -112,24 +89,6 @@ export function CashGameStackForm({
 
 	return (
 		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			{allIns.length > 0 && (
-				<StackBadgeRow>
-					{allIns.map((allIn) => (
-						<EventBadge
-							data={{
-								potSize: allIn.potSize,
-								trials: allIn.trials,
-								equity: allIn.equity,
-								wins: allIn.wins,
-							}}
-							key={allIn.id}
-							onEdit={() => handleAllInBadgeClick(allIn)}
-							type="all-in"
-						/>
-					))}
-				</StackBadgeRow>
-			)}
-
 			<StackPrimaryRow>
 				<StackNumberField
 					className="sm:min-w-[12rem]"
@@ -157,7 +116,7 @@ export function CashGameStackForm({
 
 			<StackQuickActions>
 				<Button
-					onClick={handleAddAllInClick}
+					onClick={() => setAllInBottomSheetOpen(true)}
 					size="xs"
 					type="button"
 					variant="ghost"
@@ -172,11 +131,28 @@ export function CashGameStackForm({
 				>
 					+ Addon
 				</Button>
+				<Button
+					onClick={() => setRemoveBottomSheetOpen(true)}
+					size="xs"
+					type="button"
+					variant="ghost"
+				>
+					+ Remove
+				</Button>
+				<Button
+					onClick={() => setMemoBottomSheetOpen(true)}
+					size="xs"
+					type="button"
+					variant="ghost"
+				>
+					+ Memo
+				</Button>
+				<Button onClick={onPause} size="xs" type="button" variant="ghost">
+					Pause
+				</Button>
 			</StackQuickActions>
 
 			<AllInBottomSheet
-				initialValues={editingAllIn ?? undefined}
-				onDelete={editingAllIn === null ? undefined : handleAllInDelete}
 				onOpenChange={setAllInBottomSheetOpen}
 				onSubmit={handleAllInSubmit}
 				open={allInBottomSheetOpen}
@@ -187,6 +163,40 @@ export function CashGameStackForm({
 				onSubmit={handleAddonSubmit}
 				open={addonBottomSheetOpen}
 			/>
+
+			<AddonBottomSheet
+				onOpenChange={setRemoveBottomSheetOpen}
+				onSubmit={handleRemoveSubmit}
+				open={removeBottomSheetOpen}
+			/>
+
+			<ResponsiveDialog
+				description="Add a note to this session."
+				onOpenChange={setMemoBottomSheetOpen}
+				open={memoBottomSheetOpen}
+				title="Add Memo"
+			>
+				<form className="flex flex-col gap-4" onSubmit={handleMemoSubmit}>
+					<Field htmlFor="memo-text" label="Note">
+						<Textarea
+							id="memo-text"
+							onChange={(e) => setMemoText(e.target.value)}
+							placeholder="Enter a note..."
+							value={memoText}
+						/>
+					</Field>
+					<DialogActionRow>
+						<Button
+							onClick={() => setMemoBottomSheetOpen(false)}
+							type="button"
+							variant="outline"
+						>
+							Cancel
+						</Button>
+						<Button type="submit">Add Memo</Button>
+					</DialogActionRow>
+				</form>
+			</ResponsiveDialog>
 		</form>
 	);
 }

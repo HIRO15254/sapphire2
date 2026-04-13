@@ -176,7 +176,7 @@ const ActiveSessionEventsPage = ActiveSessionEventsModule.Route.options
 
 // Top-level regex literals (required by lint/performance/useTopLevelRegex)
 const REGEX_STACK_15000 = /Stack: 15,000/;
-const REGEX_PLACEMENT_3 = /#3/;
+const REGEX_REBUY = /Rebuy/;
 const REGEX_PLACEMENT_LABEL = /placement/i;
 const REGEX_TOTAL_ENTRIES_LABEL = /total entries/i;
 const REGEX_PRIZE_MONEY_LABEL = /prize money/i;
@@ -576,24 +576,20 @@ describe("ActiveSessionEventsPage — tournament events display", () => {
 				return [
 					{
 						id: "evt-1",
-						eventType: "tournament_stack_record",
+						eventType: "update_stack",
 						occurredAt: new Date("2026-04-03T10:00:00"),
 						payload: {
 							stackAmount: 15_000,
-							remainingPlayers: 50,
-							totalEntries: 120,
-							chipPurchases: [],
-							chipPurchaseCounts: [],
 						},
 					},
 					{
 						id: "evt-2",
-						eventType: "tournament_result",
+						eventType: "purchase_chips",
 						occurredAt: new Date("2026-04-03T14:00:00"),
 						payload: {
-							placement: 3,
-							totalEntries: 120,
-							prizeMoney: 5000,
+							name: "Rebuy",
+							cost: 100,
+							chips: 10_000,
 						},
 					},
 				];
@@ -611,34 +607,32 @@ describe("ActiveSessionEventsPage — tournament events display", () => {
 		await screen.findByText("2");
 	});
 
-	it("renders tournament_stack_record events with 'Stack Record' label", async () => {
+	it("renders update_stack events with 'Stack Update' label", async () => {
 		const router = createEventsRouter();
 		renderWithProviders(router);
 
-		await screen.findByText("Stack Record");
+		await screen.findByText("Stack Update");
 	});
 
-	it("renders tournament_result events with 'Tournament Result' label", async () => {
+	it("renders purchase_chips events with 'Purchase Chips' label", async () => {
 		const router = createEventsRouter();
 		renderWithProviders(router);
 
-		await screen.findByText("Tournament Result");
+		await screen.findByText("Purchase Chips");
 	});
 
-	it("shows the stack amount in the tournament_stack_record payload summary", async () => {
+	it("shows the stack amount in the update_stack payload summary", async () => {
 		const router = createEventsRouter();
 		renderWithProviders(router);
 
-		// formatTournamentStackSummary renders "Stack: 15,000 · 50 left · 120 entries"
 		await screen.findByText(REGEX_STACK_15000);
 	});
 
-	it("shows placement in the tournament_result payload summary", async () => {
+	it("shows purchase chips details in the payload summary", async () => {
 		const router = createEventsRouter();
 		renderWithProviders(router);
 
-		// formatTournamentResultSummary renders "#3 /120 Prize: 5,000"
-		await screen.findByText(REGEX_PLACEMENT_3);
+		await screen.findByText(REGEX_REBUY);
 	});
 });
 

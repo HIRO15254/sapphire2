@@ -1,27 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { CashGameStackForm } from "../cash-game-stack-form";
 
 const mocks = vi.hoisted(() => ({
 	state: {
-		allIns: [] as Array<{
-			equity: number;
-			id: number;
-			potSize: number;
-			trials: number;
-			wins: number;
-		}>,
 		stackAmount: "",
 	},
-	setAllIns: vi.fn(),
 	setStackAmount: vi.fn(),
 }));
 
 vi.mock("@/live-sessions/hooks/use-session-form", () => ({
 	useStackFormContext: () => ({
 		state: mocks.state,
-		setAllIns: mocks.setAllIns,
 		setStackAmount: mocks.setStackAmount,
 	}),
 }));
@@ -66,19 +58,40 @@ vi.mock("@/live-sessions/components/addon-bottom-sheet", () => ({
 		) : null,
 }));
 
+vi.mock("@/shared/components/ui/responsive-dialog", () => ({
+	ResponsiveDialog: ({
+		children,
+		open,
+		title,
+	}: {
+		children: React.ReactNode;
+		open: boolean;
+		title: string;
+	}) =>
+		open ? (
+			<div>
+				<h2>{title}</h2>
+				{children}
+			</div>
+		) : null,
+}));
+
+const defaultProps = {
+	isLoading: false,
+	onAllIn: vi.fn(),
+	onChipAdd: vi.fn(),
+	onChipRemove: vi.fn(),
+	onComplete: vi.fn(),
+	onMemo: vi.fn(),
+	onPause: vi.fn(),
+	onSubmit: vi.fn(),
+};
+
 describe("CashGameStackForm", () => {
 	it("renders stack field and primary actions", () => {
 		mocks.state.stackAmount = "";
-		mocks.state.allIns = [];
 
-		render(
-			<CashGameStackForm
-				isLoading={false}
-				onChipAdd={vi.fn()}
-				onComplete={vi.fn()}
-				onSubmit={vi.fn()}
-			/>
-		);
+		render(<CashGameStackForm {...defaultProps} />);
 
 		expect(screen.getByLabelText("Current Stack *")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Update" })).toBeInTheDocument();
@@ -87,50 +100,52 @@ describe("CashGameStackForm", () => {
 			screen.getByRole("button", { name: "+ All-in" })
 		).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "+ Addon" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "+ Remove" })
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "+ Memo" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
 	});
 
 	it("calls onComplete with the current stack", async () => {
 		const user = userEvent.setup();
 		const onComplete = vi.fn();
 		mocks.state.stackAmount = "4200";
-		mocks.state.allIns = [];
 
-		render(
-			<CashGameStackForm
-				isLoading={false}
-				onChipAdd={vi.fn()}
-				onComplete={onComplete}
-				onSubmit={vi.fn()}
-			/>
-		);
+		render(<CashGameStackForm {...defaultProps} onComplete={onComplete} />);
 
 		await user.click(screen.getByRole("button", { name: "End" }));
 
 		expect(onComplete).toHaveBeenCalledWith(4200);
 	});
 
-	it("submits the same payload shape on update", async () => {
+	it("submits stackAmount only on update", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		mocks.state.stackAmount = "5000";
-		mocks.state.allIns = [
-			{ equity: 25, id: 1, potSize: 1200, trials: 2, wins: 1 },
-		];
 
-		render(
-			<CashGameStackForm
-				isLoading={false}
-				onChipAdd={vi.fn()}
-				onComplete={vi.fn()}
-				onSubmit={onSubmit}
-			/>
-		);
+		render(<CashGameStackForm {...defaultProps} onSubmit={onSubmit} />);
 
 		await user.click(screen.getByRole("button", { name: "Update" }));
 
-		expect(onSubmit).toHaveBeenCalledWith({
-			allIns: [{ equity: 25, potSize: 1200, trials: 2, wins: 1 }],
-			stackAmount: 5000,
+		expect(onSubmit).toHaveBeenCalledWith({ stackAmount: 5000 });
+	});
+
+	it("calls onAllIn immediately when all-in is submitted", async () => {
+		const user = userEvent.setup();
+		const onAllIn = vi.fn();
+		mocks.state.stackAmount = "1000";
+
+		render(<CashGameStackForm {...defaultProps} onAllIn={onAllIn} />);
+
+		await user.click(screen.getByRole("button", { name: "+ All-in" }));
+		await user.click(screen.getByRole("button", { name: "Mock Save All-in" }));
+
+		expect(onAllIn).toHaveBeenCalledWith({
+			equity: 40,
+			potSize: 1200,
+			trials: 2,
+			wins: 1,
 		});
 	});
 
@@ -138,21 +153,25 @@ describe("CashGameStackForm", () => {
 		const user = userEvent.setup();
 		const onChipAdd = vi.fn();
 		mocks.state.stackAmount = "1000";
-		mocks.state.allIns = [];
 
-		render(
-			<CashGameStackForm
-				isLoading={false}
-				onChipAdd={onChipAdd}
-				onComplete={vi.fn()}
-				onSubmit={vi.fn()}
-			/>
-		);
+		render(<CashGameStackForm {...defaultProps} onChipAdd={onChipAdd} />);
 
 		await user.click(screen.getByRole("button", { name: "+ Addon" }));
 		await user.click(screen.getByRole("button", { name: "Mock Save Addon" }));
 
 		expect(onChipAdd).toHaveBeenCalledWith(300);
 		expect(mocks.setStackAmount).toHaveBeenCalledWith("1300");
+	});
+
+	it("calls onPause when the Pause button is clicked", async () => {
+		const user = userEvent.setup();
+		const onPause = vi.fn();
+		mocks.state.stackAmount = "";
+
+		render(<CashGameStackForm {...defaultProps} onPause={onPause} />);
+
+		await user.click(screen.getByRole("button", { name: "Pause" }));
+
+		expect(onPause).toHaveBeenCalledOnce();
 	});
 });

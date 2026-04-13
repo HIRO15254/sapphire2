@@ -21,57 +21,23 @@ interface SessionSummaryData {
 
 type SessionType = "cash_game" | "tournament";
 
-function applyChipAddSummary(
-	summary: Record<string, unknown>,
-	payload: Record<string, unknown>
-) {
-	if (typeof payload.amount !== "number") {
-		return;
-	}
-
-	if (typeof summary.currentStack === "number") {
-		summary.currentStack = payload.amount;
-	}
-}
-
-function applyStackRecordSummary(
+function applyUpdateStackSummary(
 	summary: Record<string, unknown>,
 	payload: Record<string, unknown>
 ) {
 	if (typeof payload.stackAmount === "number") {
 		summary.currentStack = payload.stackAmount;
 	}
-
-	if (Array.isArray(payload.allIns)) {
-		summary.addonCount = payload.allIns.length;
-	}
 }
 
-function getChipPurchaseCountTotal(items: unknown[]) {
-	return items.reduce<number>(
-		(total, item) =>
-			total +
-			(typeof (item as { count?: unknown }).count === "number"
-				? (item as { count: number }).count
-				: 0),
-		0
-	);
-}
-
-function applyTournamentStackSummary(
+function applyUpdateTournamentInfoSummary(
 	summary: Record<string, unknown>,
 	payload: Record<string, unknown>
 ) {
 	const typedPayload = payload as {
-		chipPurchaseCounts?: unknown[];
 		remainingPlayers?: number | null;
-		stackAmount?: number;
 		totalEntries?: number | null;
 	};
-
-	if (typeof typedPayload.stackAmount === "number") {
-		summary.currentStack = typedPayload.stackAmount;
-	}
 
 	if (typeof typedPayload.remainingPlayers === "number") {
 		summary.remainingPlayers = typedPayload.remainingPlayers;
@@ -80,34 +46,69 @@ function applyTournamentStackSummary(
 	if (typeof typedPayload.totalEntries === "number") {
 		summary.totalEntries = typedPayload.totalEntries;
 	}
-
-	if (Array.isArray(typedPayload.chipPurchaseCounts)) {
-		summary.totalChipPurchases = getChipPurchaseCountTotal(
-			typedPayload.chipPurchaseCounts
-		);
-	}
 }
 
-function applyTournamentResultSummary(
+function applySessionStartSummary(
 	summary: Record<string, unknown>,
 	payload: Record<string, unknown>
 ) {
-	const typedPayload = payload as {
-		bountyPrizes?: number | null;
-		prizeMoney?: number;
-		totalEntries?: number;
-	};
+	if (typeof payload.buyInAmount === "number") {
+		summary.totalBuyIn = payload.buyInAmount;
+	}
+}
 
-	if (typeof typedPayload.totalEntries === "number") {
-		summary.totalEntries = typedPayload.totalEntries;
+function applySessionEndSummary(
+	summary: Record<string, unknown>,
+	payload: Record<string, unknown>
+) {
+	// Cash game end: cashOutAmount drives profitLoss
+	if (typeof payload.cashOutAmount === "number") {
+		summary.cashOut = payload.cashOutAmount;
+		const totalBuyIn =
+			typeof summary.totalBuyIn === "number" ? summary.totalBuyIn : 0;
+		summary.profitLoss = payload.cashOutAmount - totalBuyIn;
 	}
 
-	if (typeof typedPayload.prizeMoney === "number") {
-		summary.profitLoss =
-			typedPayload.prizeMoney +
-			(typeof typedPayload.bountyPrizes === "number"
-				? typedPayload.bountyPrizes
-				: 0);
+	// Tournament end (not before deadline): placement + prizes
+	if (payload.beforeDeadline === false) {
+		const typedPayload = payload as {
+			placement?: number;
+			totalEntries?: number;
+			prizeMoney?: number;
+			bountyPrizes?: number;
+		};
+
+		if (typeof typedPayload.placement === "number") {
+			summary.placement = typedPayload.placement;
+		}
+
+		if (typeof typedPayload.totalEntries === "number") {
+			summary.totalEntries = typedPayload.totalEntries;
+		}
+
+		if (typeof typedPayload.prizeMoney === "number") {
+			summary.profitLoss =
+				typedPayload.prizeMoney +
+				(typeof typedPayload.bountyPrizes === "number"
+					? typedPayload.bountyPrizes
+					: 0);
+		}
+	}
+
+	// Tournament end before deadline: only prizes
+	if (payload.beforeDeadline === true) {
+		const typedPayload = payload as {
+			prizeMoney?: number;
+			bountyPrizes?: number;
+		};
+
+		if (typeof typedPayload.prizeMoney === "number") {
+			summary.profitLoss =
+				typedPayload.prizeMoney +
+				(typeof typedPayload.bountyPrizes === "number"
+					? typedPayload.bountyPrizes
+					: 0);
+		}
 	}
 }
 
@@ -119,20 +120,24 @@ function buildOptimisticSessionSummary(
 ) {
 	const nextSummary = { ...summary };
 
-	if (eventType === "chip_add") {
-		applyChipAddSummary(nextSummary, payload);
-	}
-
-	if (eventType === "stack_record") {
-		applyStackRecordSummary(nextSummary, payload);
-	}
-
-	if (eventType === "tournament_stack_record") {
-		applyTournamentStackSummary(nextSummary, payload);
-	}
-
-	if (eventType === "tournament_result") {
-		applyTournamentResultSummary(nextSummary, payload);
+	switch (eventType) {
+		case "session_start":
+			applySessionStartSummary(nextSummary, payload);
+			break;
+		case "session_end":
+			applySessionEndSummary(nextSummary, payload);
+			break;
+		case "update_stack":
+			applyUpdateStackSummary(nextSummary, payload);
+			break;
+		case "update_tournament_info":
+			applyUpdateTournamentInfoSummary(nextSummary, payload);
+			break;
+		// chips_add_remove affects totalBuyIn server-side; skip optimistic stack update
+		// all_in, memo, session_pause, session_resume, purchase_chips, player_join,
+		// player_leave: no summary fields to update optimistically
+		default:
+			break;
 	}
 
 	if (occurredAt) {

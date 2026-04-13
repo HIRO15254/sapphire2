@@ -22,19 +22,11 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 	};
 
 	const stackMutation = useMutation({
-		mutationFn: (values: {
-			allIns: Array<{
-				potSize: number;
-				trials: number;
-				equity: number;
-				wins: number;
-			}>;
-			stackAmount: number;
-		}) =>
+		mutationFn: (values: { stackAmount: number }) =>
 			trpcClient.sessionEvent.create.mutate({
 				liveCashGameSessionId: sessionId,
-				eventType: "stack_record",
-				payload: { stackAmount: values.stackAmount, allIns: values.allIns },
+				eventType: "update_stack",
+				payload: { stackAmount: values.stackAmount },
 			}),
 		onSuccess: invalidateSession,
 	});
@@ -43,8 +35,63 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 		mutationFn: (amount: number) =>
 			trpcClient.sessionEvent.create.mutate({
 				liveCashGameSessionId: sessionId,
-				eventType: "chip_add",
-				payload: { amount },
+				eventType: "chips_add_remove",
+				payload: { amount, type: "add" },
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const chipRemoveMutation = useMutation({
+		mutationFn: (amount: number) =>
+			trpcClient.sessionEvent.create.mutate({
+				liveCashGameSessionId: sessionId,
+				eventType: "chips_add_remove",
+				payload: { amount, type: "remove" },
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const allInMutation = useMutation({
+		mutationFn: (values: {
+			potSize: number;
+			trials: number;
+			equity: number;
+			wins: number;
+		}) =>
+			trpcClient.sessionEvent.create.mutate({
+				liveCashGameSessionId: sessionId,
+				eventType: "all_in",
+				payload: values,
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const memoMutation = useMutation({
+		mutationFn: (text: string) =>
+			trpcClient.sessionEvent.create.mutate({
+				liveCashGameSessionId: sessionId,
+				eventType: "memo",
+				payload: { text },
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const pauseMutation = useMutation({
+		mutationFn: () =>
+			trpcClient.sessionEvent.create.mutate({
+				liveCashGameSessionId: sessionId,
+				eventType: "session_pause",
+				payload: {},
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const resumeMutation = useMutation({
+		mutationFn: () =>
+			trpcClient.sessionEvent.create.mutate({
+				liveCashGameSessionId: sessionId,
+				eventType: "session_resume",
+				payload: {},
 			}),
 		onSuccess: invalidateSession,
 	});
@@ -67,16 +114,19 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 	});
 
 	return {
-		recordStack: (values: {
-			allIns: Array<{
-				potSize: number;
-				trials: number;
-				equity: number;
-				wins: number;
-			}>;
-			stackAmount: number;
-		}) => stackMutation.mutate(values),
+		recordStack: (values: { stackAmount: number }) =>
+			stackMutation.mutate(values),
 		addChip: (amount: number) => chipAddMutation.mutate(amount),
+		removeChip: (amount: number) => chipRemoveMutation.mutate(amount),
+		addAllIn: (values: {
+			potSize: number;
+			trials: number;
+			equity: number;
+			wins: number;
+		}) => allInMutation.mutate(values),
+		addMemo: (text: string) => memoMutation.mutate(text),
+		pause: () => pauseMutation.mutate(),
+		resume: () => resumeMutation.mutate(),
 		complete: (values: { finalStack: number }) =>
 			completeMutation.mutate(values),
 		isStackPending: stackMutation.isPending,
