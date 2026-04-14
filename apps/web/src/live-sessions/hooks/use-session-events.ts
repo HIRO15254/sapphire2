@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	cancelTargets,
 	invalidateTargets,
+	type OptimisticTarget,
 	restoreSnapshots,
 	snapshotQuery,
 } from "@/utils/optimistic-update";
@@ -17,6 +18,10 @@ export interface SessionEvent {
 interface SessionSummaryData {
 	summary?: Record<string, unknown>;
 	[key: string]: unknown;
+}
+
+interface LiveSessionData extends SessionSummaryData {
+	currencyId?: string | null;
 }
 
 type SessionType = "cash_game" | "tournament";
@@ -171,19 +176,34 @@ export function useSessionEvents({
 	});
 	const events = (eventsQuery.data ?? []) as SessionEvent[];
 
+	const cashSessionQueryOptions = trpc.liveCashGameSession.getById.queryOptions(
+		{
+			id: sessionId,
+		}
+	);
+	const tournamentSessionQueryOptions =
+		trpc.liveTournamentSession.getById.queryOptions({
+			id: sessionId,
+		});
+	const cashSessionQuery = useQuery({
+		...cashSessionQueryOptions,
+		enabled: !!sessionId && sessionType === "cash_game",
+	});
+	const tournamentSessionQuery = useQuery({
+		...tournamentSessionQueryOptions,
+		enabled: !!sessionId && sessionType === "tournament",
+	});
 	const sessionKey =
 		sessionType === "tournament"
-			? trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
-					.queryKey
-			: trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
-					.queryKey;
+			? tournamentSessionQueryOptions.queryKey
+			: cashSessionQueryOptions.queryKey;
 
 	const applyEventSummaryToSession = (
 		event: SessionEvent,
 		payload: unknown,
 		occurredAt?: number
 	) => {
-		queryClient.setQueryData<SessionSummaryData>(sessionKey, (old) => {
+		queryClient.setQueryData<LiveSessionData>(sessionKey, (old) => {
 			if (!(old?.summary && payload) || typeof payload !== "object") {
 				return old;
 			}
@@ -201,10 +221,26 @@ export function useSessionEvents({
 	};
 
 	const invalidateAll = async () => {
-		await invalidateTargets(queryClient, [
+		const currentSession =
+			(sessionType === "tournament"
+				? (tournamentSessionQuery.data as LiveSessionData | undefined)
+				: (cashSessionQuery.data as LiveSessionData | undefined)) ??
+			queryClient.getQueryData<LiveSessionData>(sessionKey);
+		const targets: OptimisticTarget[] = [
 			{ queryKey: eventsQueryOptions.queryKey },
 			{ queryKey: sessionKey },
-		]);
+			{ queryKey: trpc.session.list.queryOptions({}).queryKey },
+			{ queryKey: trpc.currency.list.queryOptions().queryKey },
+		];
+		const currencyId = currentSession?.currencyId;
+		if (currencyId) {
+			targets.push({
+				queryKey: trpc.currencyTransaction.listByCurrency.queryOptions({
+					currencyId,
+				}).queryKey,
+			});
+		}
+		await invalidateTargets(queryClient, targets);
 	};
 
 	const updateMutation = useMutation({

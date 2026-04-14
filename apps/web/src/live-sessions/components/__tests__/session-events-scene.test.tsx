@@ -1,10 +1,14 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SessionEventsScene } from "../session-events-scene";
 
 const mocks = vi.hoisted(() => ({
+	cashSession: null as null | {
+		currencyId: string | null;
+		summary?: Record<string, unknown>;
+	},
 	deleteMutate: vi.fn(async () => undefined),
 	events: [] as Array<{
 		eventType: string;
@@ -12,7 +16,12 @@ const mocks = vi.hoisted(() => ({
 		occurredAt: string;
 		payload: Record<string, unknown>;
 	}>,
+	getQueryData: vi.fn(),
 	invalidateQueries: vi.fn(),
+	tournamentSession: null as null | {
+		currencyId: string | null;
+		summary?: Record<string, unknown>;
+	},
 	updateMutate: vi.fn(async () => undefined),
 }));
 
@@ -28,14 +37,26 @@ vi.mock("@tanstack/react-query", () => ({
 		};
 		return {
 			isPending: false,
-			mutate,
+			mutate: vi.fn(),
 			mutateAsync: mutate,
 		};
 	},
-	useQuery: () => ({ data: mocks.events }),
+	useQuery: (options: { queryKey?: unknown[] }) => {
+		const scope = options.queryKey?.[0];
+		if (scope === "events") {
+			return { data: mocks.events };
+		}
+		if (scope === "cash-session") {
+			return { data: mocks.cashSession };
+		}
+		if (scope === "tournament-session") {
+			return { data: mocks.tournamentSession };
+		}
+		return { data: undefined };
+	},
 	useQueryClient: () => ({
 		cancelQueries: vi.fn(),
-		getQueryData: vi.fn(),
+		getQueryData: mocks.getQueryData,
 		invalidateQueries: mocks.invalidateQueries,
 		setQueryData: vi.fn(),
 	}),
@@ -53,6 +74,20 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
+		currency: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["currency-list"],
+				}),
+			},
+		},
+		currencyTransaction: {
+			listByCurrency: {
+				queryOptions: ({ currencyId }: { currencyId: string }) => ({
+					queryKey: ["currency-transaction-list", currencyId],
+				}),
+			},
+		},
 		liveCashGameSession: {
 			getById: {
 				queryOptions: ({ id }: { id: string }) => ({
@@ -64,6 +99,13 @@ vi.mock("@/utils/trpc", () => ({
 			getById: {
 				queryOptions: ({ id }: { id: string }) => ({
 					queryKey: ["tournament-session", id],
+				}),
+			},
+		},
+		session: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["session-list"],
 				}),
 			},
 		},
@@ -83,9 +125,20 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
+beforeEach(() => {
+	mocks.cashSession = null;
+	mocks.tournamentSession = null;
+	mocks.events = [];
+	mocks.deleteMutate.mockClear();
+	mocks.getQueryData.mockReset();
+	mocks.invalidateQueries.mockClear();
+	mocks.updateMutate.mockClear();
+});
+
 describe("SessionEventsScene", () => {
-	it("updates a chips add/remove event from the shared scene", async () => {
+	it("invalidates dependent session and currency queries after cash event updates", async () => {
 		const user = userEvent.setup();
+		mocks.cashSession = { currencyId: "currency-1", summary: {} };
 		mocks.events = [
 			{
 				eventType: "chips_add_remove",
@@ -112,10 +165,27 @@ describe("SessionEventsScene", () => {
 				})
 			);
 		});
+
+		await waitFor(() => {
+			const queryKeys = [
+				["events", { liveCashGameSessionId: "session-1" }],
+				["cash-session", "session-1"],
+				["session-list"],
+				["currency-list"],
+				["currency-transaction-list", "currency-1"],
+			];
+			expect(mocks.invalidateQueries).toHaveBeenCalledTimes(queryKeys.length);
+			for (const [index, queryKey] of queryKeys.entries()) {
+				expect(mocks.invalidateQueries).toHaveBeenNthCalledWith(index + 1, {
+					queryKey,
+				});
+			}
+		});
 	});
 
-	it("updates a purchase chips event from the shared scene", async () => {
+	it("invalidates dependent session and currency queries after tournament event updates", async () => {
 		const user = userEvent.setup();
+		mocks.tournamentSession = { currencyId: "currency-2", summary: {} };
 		mocks.events = [
 			{
 				eventType: "purchase_chips",
@@ -147,6 +217,61 @@ describe("SessionEventsScene", () => {
 					}),
 				})
 			);
+		});
+
+		await waitFor(() => {
+			const queryKeys = [
+				["events", { liveTournamentSessionId: "session-2" }],
+				["tournament-session", "session-2"],
+				["session-list"],
+				["currency-list"],
+				["currency-transaction-list", "currency-2"],
+			];
+			expect(mocks.invalidateQueries).toHaveBeenCalledTimes(queryKeys.length);
+			for (const [index, queryKey] of queryKeys.entries()) {
+				expect(mocks.invalidateQueries).toHaveBeenNthCalledWith(index + 1, {
+					queryKey,
+				});
+			}
+		});
+	});
+
+	it("skips currency transaction invalidation when deleting an event from a session without currency", async () => {
+		const user = userEvent.setup();
+		mocks.cashSession = { currencyId: null, summary: {} };
+		mocks.events = [
+			{
+				eventType: "memo",
+				id: "event-3",
+				occurredAt: "2026-04-03T14:00:00.000Z",
+				payload: { text: "note" },
+			},
+		];
+
+		render(
+			<SessionEventsScene sessionId="session-3" sessionType="cash_game" />
+		);
+
+		await user.click(screen.getByLabelText("Delete Memo"));
+		await user.click(screen.getByLabelText("Confirm delete"));
+
+		await waitFor(() => {
+			expect(mocks.deleteMutate).toHaveBeenCalledWith({ id: "event-3" });
+		});
+
+		await waitFor(() => {
+			const queryKeys = [
+				["events", { liveCashGameSessionId: "session-3" }],
+				["cash-session", "session-3"],
+				["session-list"],
+				["currency-list"],
+			];
+			expect(mocks.invalidateQueries).toHaveBeenCalledTimes(queryKeys.length);
+			for (const [index, queryKey] of queryKeys.entries()) {
+				expect(mocks.invalidateQueries).toHaveBeenNthCalledWith(index + 1, {
+					queryKey,
+				});
+			}
 		});
 	});
 });
