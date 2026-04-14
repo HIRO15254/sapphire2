@@ -1,10 +1,8 @@
 import { IconPlus, IconUser } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { PlayerAvatar } from "@/players/components/player-avatar";
 
 const MAX_SEATS = 9;
-
-/** Uniform color for non-hero player avatars. */
-const PLAYER_COLOR = "bg-slate-500";
 
 /**
  * Seat positions around a stadium-shaped (racetrack) poker table (0-8).
@@ -110,18 +108,7 @@ function SeatSlot({
 			)}
 
 			{/* Occupied seat */}
-			{isOccupied && (
-				<div
-					className={cn(
-						"flex size-9 items-center justify-center rounded-full border-2 font-bold text-[11px] text-white shadow-md",
-						isHero
-							? "border-amber-400 bg-amber-500/80"
-							: `border-white/30 ${PLAYER_COLOR}`
-					)}
-				>
-					{player.player.name.slice(0, 2).toUpperCase()}
-				</div>
-			)}
+			{isOccupied && <PlayerAvatar isHero={isHero} name={player.player.name} />}
 
 			{/* Name label */}
 			<span
