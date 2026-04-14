@@ -4,7 +4,7 @@ import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, max, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -167,47 +167,127 @@ export const sessionTablePlayerRouter = router({
 				userId
 			);
 
-			const sessionCond = liveCashGameSessionId
+			const sessionEventCond = liveCashGameSessionId
+				? eq(sessionEvent.liveCashGameSessionId, liveCashGameSessionId)
+				: eq(
+						sessionEvent.liveTournamentSessionId,
+						liveTournamentSessionId as string
+					);
+
+			const events = await ctx.db
+				.select({
+					eventType: sessionEvent.eventType,
+					occurredAt: sessionEvent.occurredAt,
+					sortOrder: sessionEvent.sortOrder,
+					payload: sessionEvent.payload,
+				})
+				.from(sessionEvent)
+				.where(sessionEventCond)
+				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+
+			type DerivedTablePlayer = {
+				isActive: boolean;
+				joinedAt: Date;
+				leftAt: Date | null;
+			};
+			const derivedByPlayerId = new Map<string, DerivedTablePlayer>();
+
+			for (const event of events) {
+				if (
+					event.eventType !== "player_join" &&
+					event.eventType !== "player_leave"
+				) {
+					continue;
+				}
+
+				const payload = JSON.parse(event.payload) as { playerId?: string };
+				if (!payload.playerId) {
+					continue;
+				}
+
+				if (event.eventType === "player_join") {
+					derivedByPlayerId.set(payload.playerId, {
+						isActive: true,
+						joinedAt: event.occurredAt,
+						leftAt: null,
+					});
+				} else {
+					const existing = derivedByPlayerId.get(payload.playerId);
+					derivedByPlayerId.set(payload.playerId, {
+						isActive: false,
+						joinedAt: existing?.joinedAt ?? event.occurredAt,
+						leftAt: event.occurredAt,
+					});
+				}
+			}
+
+			const playerIds = [...derivedByPlayerId.keys()];
+			if (playerIds.length === 0) {
+				return { items: [] };
+			}
+
+			const players = await ctx.db
+				.select({ id: player.id, name: player.name, memo: player.memo })
+				.from(player)
+				.where(and(inArray(player.id, playerIds), eq(player.userId, userId)));
+
+			const tableSessionCond = liveCashGameSessionId
 				? eq(sessionTablePlayer.liveCashGameSessionId, liveCashGameSessionId)
 				: eq(
 						sessionTablePlayer.liveTournamentSessionId,
 						liveTournamentSessionId as string
 					);
 
-			const conditions = activeOnly
-				? and(sessionCond, eq(sessionTablePlayer.isActive, 1))
-				: sessionCond;
-
-			const rows = await ctx.db
+			const tableRows = await ctx.db
 				.select({
 					id: sessionTablePlayer.id,
-					isActive: sessionTablePlayer.isActive,
-					joinedAt: sessionTablePlayer.joinedAt,
-					leftAt: sessionTablePlayer.leftAt,
+					playerId: sessionTablePlayer.playerId,
 					seatPosition: sessionTablePlayer.seatPosition,
-					playerId: player.id,
-					playerName: player.name,
-					playerMemo: player.memo,
 				})
 				.from(sessionTablePlayer)
-				.innerJoin(player, eq(player.id, sessionTablePlayer.playerId))
-				.where(conditions)
-				.orderBy(asc(sessionTablePlayer.joinedAt));
+				.where(and(tableSessionCond, inArray(sessionTablePlayer.playerId, playerIds)));
 
-			return {
-				items: rows.map((row) => ({
-					id: row.id,
-					player: {
-						id: row.playerId,
-						name: row.playerName,
-						memo: row.playerMemo,
-					},
-					isActive: row.isActive === 1,
-					joinedAt: row.joinedAt,
-					leftAt: row.leftAt ?? null,
-					seatPosition: row.seatPosition ?? null,
-				})),
-			};
+			const tableRowByPlayerId = new Map(
+				tableRows.map((row) => [row.playerId, row] as const)
+			);
+
+			const items = players
+				.map((playerRow) => {
+					const derived = derivedByPlayerId.get(playerRow.id);
+					if (!derived) {
+						return null;
+					}
+
+					const tableRow = tableRowByPlayerId.get(playerRow.id);
+					return {
+						id: tableRow?.id ?? `derived-${playerRow.id}`,
+						player: {
+							id: playerRow.id,
+							name: playerRow.name,
+							memo: playerRow.memo,
+						},
+						isActive: derived.isActive,
+						joinedAt: derived.joinedAt,
+						leftAt: derived.leftAt,
+						seatPosition: tableRow?.seatPosition ?? null,
+					};
+				})
+				.filter(
+					(
+						item
+					): item is {
+						id: string;
+						player: { id: string; memo: string | null; name: string };
+						isActive: boolean;
+						joinedAt: Date;
+						leftAt: Date | null;
+						seatPosition: number | null;
+					} => item !== null
+				)
+				.filter((item) => (activeOnly ? item.isActive : true))
+				.sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime());
+
+			return { items };
 		}),
 
 	add: protectedProcedure
