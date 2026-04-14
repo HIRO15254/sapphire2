@@ -1,12 +1,10 @@
 import {
-	type IconBolt,
 	IconBuildingStore,
 	IconCards,
 	IconCategory,
 	IconCoins,
 	IconLayoutDashboard,
 	IconList,
-	type IconPlus,
 	IconSettings,
 	IconUsers,
 } from "@tabler/icons-react";
@@ -24,7 +22,7 @@ export interface NavigationItem {
 }
 
 export interface NavigationCenterAction {
-	icon: typeof IconPlus | typeof IconBolt;
+	icon: ComponentType<{ size?: number; stroke?: number; className?: string }>;
 	label: string;
 	onClick: () => void;
 	tone: "accent" | "live";

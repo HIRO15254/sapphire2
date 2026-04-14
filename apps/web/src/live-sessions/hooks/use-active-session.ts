@@ -3,6 +3,7 @@ import { trpc } from "@/utils/trpc";
 
 interface ActiveSessionInfo {
 	id: string;
+	status: "active" | "paused";
 	type: "cash_game" | "tournament";
 }
 
@@ -46,9 +47,22 @@ export function useActiveSession(): UseActiveSessionResult {
 
 	let activeSession: ActiveSessionInfo | null = null;
 	if (activeCash) {
-		activeSession = { id: activeCash.id, type: "cash_game" };
+		const isPaused =
+			!cashActiveQuery.data?.items?.[0] && !!cashPausedQuery.data?.items?.[0];
+		activeSession = {
+			id: activeCash.id,
+			type: "cash_game",
+			status: isPaused ? "paused" : "active",
+		};
 	} else if (activeTournament) {
-		activeSession = { id: activeTournament.id, type: "tournament" };
+		const isPaused =
+			!tournamentActiveQuery.data?.items?.[0] &&
+			!!tournamentPausedQuery.data?.items?.[0];
+		activeSession = {
+			id: activeTournament.id,
+			type: "tournament",
+			status: isPaused ? "paused" : "active",
+		};
 	}
 
 	return {
