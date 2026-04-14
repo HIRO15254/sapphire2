@@ -1,3 +1,7 @@
+import {
+	playerJoinPayload,
+	playerLeavePayload,
+} from "@sapphire2/db/constants/session-event-types";
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
 import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
 import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
@@ -142,6 +146,70 @@ async function insertPlayerLeaveEvent(
 	});
 }
 
+interface RecoveredSeatState {
+	isActive: boolean;
+	lastJoinedAt: Date | null;
+	lastLeftAt: Date | null;
+}
+
+async function recoverSeatStateFromEvents(
+	db: DbInstance,
+	liveCashGameSessionId: string | undefined,
+	liveTournamentSessionId: string | undefined
+) {
+	const sessionCond = liveCashGameSessionId
+		? eq(sessionEvent.liveCashGameSessionId, liveCashGameSessionId)
+		: eq(
+				sessionEvent.liveTournamentSessionId,
+				liveTournamentSessionId as string
+			);
+
+	const events = await db
+		.select({
+			eventType: sessionEvent.eventType,
+			payload: sessionEvent.payload,
+			occurredAt: sessionEvent.occurredAt,
+			sortOrder: sessionEvent.sortOrder,
+		})
+		.from(sessionEvent)
+		.where(sessionCond)
+		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+
+	const stateByPlayerId = new Map<string, RecoveredSeatState>();
+
+	for (const event of events) {
+		if (event.eventType === "player_join") {
+			const parsed = playerJoinPayload.safeParse(JSON.parse(event.payload));
+			const playerId = parsed.success ? parsed.data.playerId : undefined;
+			if (!playerId) {
+				continue;
+			}
+			stateByPlayerId.set(playerId, {
+				isActive: true,
+				lastJoinedAt: event.occurredAt,
+				lastLeftAt: null,
+			});
+			continue;
+		}
+
+		if (event.eventType === "player_leave") {
+			const parsed = playerLeavePayload.safeParse(JSON.parse(event.payload));
+			const playerId = parsed.success ? parsed.data.playerId : undefined;
+			if (!playerId) {
+				continue;
+			}
+			const current = stateByPlayerId.get(playerId);
+			stateByPlayerId.set(playerId, {
+				isActive: false,
+				lastJoinedAt: current?.lastJoinedAt ?? null,
+				lastLeftAt: event.occurredAt,
+			});
+		}
+	}
+
+	return stateByPlayerId;
+}
+
 export const sessionTablePlayerRouter = router({
 	list: protectedProcedure
 		.input(
@@ -174,10 +242,6 @@ export const sessionTablePlayerRouter = router({
 						liveTournamentSessionId as string
 					);
 
-			const conditions = activeOnly
-				? and(sessionCond, eq(sessionTablePlayer.isActive, 1))
-				: sessionCond;
-
 			const rows = await ctx.db
 				.select({
 					id: sessionTablePlayer.id,
@@ -191,22 +255,35 @@ export const sessionTablePlayerRouter = router({
 				})
 				.from(sessionTablePlayer)
 				.innerJoin(player, eq(player.id, sessionTablePlayer.playerId))
-				.where(conditions)
+				.where(sessionCond)
 				.orderBy(asc(sessionTablePlayer.joinedAt));
 
-			return {
-				items: rows.map((row) => ({
+			const recoveredSeatState = await recoverSeatStateFromEvents(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId
+			);
+
+			const items = rows.map((row) => {
+				const recovered = recoveredSeatState.get(row.playerId);
+				const isActive = recovered?.isActive ?? row.isActive === 1;
+
+				return {
 					id: row.id,
 					player: {
 						id: row.playerId,
 						name: row.playerName,
 						memo: row.playerMemo,
 					},
-					isActive: row.isActive === 1,
-					joinedAt: row.joinedAt,
-					leftAt: row.leftAt ?? null,
+					isActive,
+					joinedAt: recovered?.lastJoinedAt ?? row.joinedAt,
+					leftAt: recovered?.lastLeftAt ?? row.leftAt ?? null,
 					seatPosition: row.seatPosition ?? null,
-				})),
+				};
+			});
+
+			return {
+				items: activeOnly ? items.filter((item) => item.isActive) : items,
 			};
 		}),
 
@@ -260,7 +337,15 @@ export const sessionTablePlayerRouter = router({
 				.from(sessionTablePlayer)
 				.where(and(sessionCond, eq(sessionTablePlayer.playerId, playerId)));
 
-			if (existing?.isActive === 1) {
+			const recoveredSeatState = await recoverSeatStateFromEvents(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId
+			);
+			const isActiveByEvent =
+				recoveredSeatState.get(playerId)?.isActive ?? false;
+
+			if (isActiveByEvent) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "Player is already active in this session",
@@ -471,7 +556,15 @@ export const sessionTablePlayerRouter = router({
 					message: "Player not found in session",
 				});
 			}
-			if (existing.isActive === 0) {
+			const recoveredSeatState = await recoverSeatStateFromEvents(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId
+			);
+			const isActiveByEvent =
+				recoveredSeatState.get(playerId)?.isActive ?? false;
+
+			if (!isActiveByEvent) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "Player is not active in this session",
