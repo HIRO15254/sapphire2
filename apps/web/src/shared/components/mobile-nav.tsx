@@ -1,4 +1,5 @@
-import { IconBolt, IconPlus } from "@tabler/icons-react";
+import { IconBolt, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/shared/components/ui/popover";
+import { trpcClient } from "@/utils/trpc";
 
 function MobileNavPopoverItem({
 	active,
@@ -72,23 +74,53 @@ export function MobileNav() {
 	const pathname = useRouterState({
 		select: (s) => s.location.pathname,
 	});
-	const { hasActive } = useActiveSession();
+	const { activeSession, hasActive } = useActiveSession();
 	const stackSheet = useStackSheet();
+	const queryClient = useQueryClient();
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const { leftItems, rightItems } = getMobileNavigationItems(hasActive);
-	const centerAction = hasActive
-		? {
-				icon: IconBolt,
-				label: "Stack",
-				onClick: () => stackSheet.open(),
-				tone: "live" as const,
+
+	const resumeMutation = useMutation({
+		mutationFn: async () => {
+			if (!activeSession) {
+				return;
 			}
-		: {
-				icon: IconPlus,
-				label: "New",
-				onClick: () => setIsCreateOpen(true),
-				tone: "accent" as const,
-			};
+			const sessionIdKey =
+				activeSession.type === "cash_game"
+					? "liveCashGameSessionId"
+					: "liveTournamentSessionId";
+			await trpcClient.sessionEvent.create.mutate({
+				[sessionIdKey]: activeSession.id,
+				eventType: "session_resume",
+				payload: {},
+			});
+		},
+		onSuccess: () => queryClient.invalidateQueries(),
+	});
+
+	let centerAction: NavigationCenterAction;
+	if (hasActive && activeSession?.status === "paused") {
+		centerAction = {
+			icon: IconPlayerPlay,
+			label: "Resume",
+			onClick: () => resumeMutation.mutate(),
+			tone: "live" as const,
+		};
+	} else if (hasActive) {
+		centerAction = {
+			icon: IconBolt,
+			label: "Stack",
+			onClick: () => stackSheet.open(),
+			tone: "live" as const,
+		};
+	} else {
+		centerAction = {
+			icon: IconPlus,
+			label: "New",
+			onClick: () => setIsCreateOpen(true),
+			tone: "accent" as const,
+		};
+	}
 
 	return (
 		<>

@@ -8,7 +8,7 @@ interface LiveSessionCardProps {
 	session: {
 		id: string;
 		type: "cash_game" | "tournament";
-		status: "active" | "completed";
+		status: "active" | "paused" | "completed";
 		storeName: string | null;
 		gameName: string | null;
 		currencyName: string | null;
@@ -55,7 +55,18 @@ function TypeBadge({ type }: { type: "cash_game" | "tournament" }) {
 	);
 }
 
-function StatusBadge({ status }: { status: "active" | "completed" }) {
+function StatusBadge({
+	status,
+}: {
+	status: "active" | "paused" | "completed";
+}) {
+	if (status === "paused") {
+		return (
+			<Badge className="border-yellow-600 text-yellow-600" variant="outline">
+				Paused
+			</Badge>
+		);
+	}
 	const classMap: Record<string, string> = {
 		active:
 			"border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400",

@@ -1,6 +1,7 @@
 import {
-	tournamentResultPayload,
-	tournamentStackRecordPayload,
+	tournamentSessionEndPayload,
+	updateStackPayload,
+	updateTournamentInfoPayload,
 } from "@sapphire2/db/constants/session-event-types";
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
 import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
@@ -10,7 +11,7 @@ import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { currency, store } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
@@ -61,7 +62,7 @@ async function assertNoActiveSession(
 		.where(
 			and(
 				eq(liveCashGameSession.userId, userId),
-				eq(liveCashGameSession.status, "active")
+				sql`${liveCashGameSession.status} != 'completed'`
 			)
 		)
 		.limit(1);
@@ -72,7 +73,7 @@ async function assertNoActiveSession(
 		.where(
 			and(
 				eq(liveTournamentSession.userId, userId),
-				eq(liveTournamentSession.status, "active")
+				sql`${liveTournamentSession.status} != 'completed'`
 			)
 		)
 		.limit(1);
@@ -91,34 +92,73 @@ async function fetchTournamentMasterData(
 ): Promise<{
 	tournamentBuyIn: number | undefined;
 	entryFee: number | undefined;
-	startingStack: number | null;
 }> {
 	if (!tournamentId) {
 		return {
 			tournamentBuyIn: undefined,
 			entryFee: undefined,
-			startingStack: null,
 		};
 	}
 	const [t] = await db
 		.select({
 			buyIn: tournament.buyIn,
 			entryFee: tournament.entryFee,
-			startingStack: tournament.startingStack,
 		})
 		.from(tournament)
 		.where(eq(tournament.id, tournamentId));
 	return {
 		tournamentBuyIn: t?.buyIn ?? undefined,
 		entryFee: t?.entryFee ?? undefined,
-		startingStack: t?.startingStack ?? null,
 	};
 }
 
-function computeStackStats(
-	events: { eventType: string; payload: string }[],
-	startingStack: number | null
-): {
+interface StackBounds {
+	currentStack: number | null;
+	maxStack: number | null;
+	minStack: number | null;
+}
+
+interface TournamentInfo {
+	averageStack: number | null;
+	remainingPlayers: number | null;
+	totalEntries: number | null;
+}
+
+function applyUpdateStack(payload: string, bounds: StackBounds): StackBounds {
+	const parsed = updateStackPayload.safeParse(JSON.parse(payload));
+	if (!parsed.success) {
+		return bounds;
+	}
+	const stack = parsed.data.stackAmount;
+	return {
+		maxStack:
+			bounds.maxStack === null || stack > bounds.maxStack
+				? stack
+				: bounds.maxStack,
+		minStack:
+			bounds.minStack === null || stack < bounds.minStack
+				? stack
+				: bounds.minStack,
+		currentStack: stack,
+	};
+}
+
+function applyUpdateTournamentInfo(
+	payload: string,
+	info: TournamentInfo
+): TournamentInfo {
+	const parsed = updateTournamentInfoPayload.safeParse(JSON.parse(payload));
+	if (!parsed.success) {
+		return info;
+	}
+	return {
+		remainingPlayers: parsed.data.remainingPlayers ?? info.remainingPlayers,
+		totalEntries: parsed.data.totalEntries ?? info.totalEntries,
+		averageStack: parsed.data.averageStack ?? info.averageStack,
+	};
+}
+
+function computeStackStats(events: { eventType: string; payload: string }[]): {
 	maxStack: number | null;
 	minStack: number | null;
 	currentStack: number | null;
@@ -126,87 +166,33 @@ function computeStackStats(
 	totalEntries: number | null;
 	averageStack: number | null;
 } {
-	let maxStack: number | null = null;
-	let minStack: number | null = null;
-	let currentStack: number | null = null;
-	let remainingPlayers: number | null = null;
-	let totalEntries: number | null = null;
-	let averageStack: number | null = null;
+	let bounds: StackBounds = {
+		maxStack: null,
+		minStack: null,
+		currentStack: null,
+	};
+	let info: TournamentInfo = {
+		remainingPlayers: null,
+		totalEntries: null,
+		averageStack: null,
+	};
 
 	for (const event of events) {
-		if (event.eventType !== "tournament_stack_record") {
-			continue;
-		}
-		const parsed = tournamentStackRecordPayload.safeParse(
-			JSON.parse(event.payload)
-		);
-		if (!parsed.success) {
-			continue;
-		}
-		const stack = parsed.data.stackAmount;
-		if (maxStack === null || stack > maxStack) {
-			maxStack = stack;
-		}
-		if (minStack === null || stack < minStack) {
-			minStack = stack;
-		}
-		currentStack = stack;
-		if (parsed.data.remainingPlayers !== null) {
-			remainingPlayers = parsed.data.remainingPlayers;
-		}
-		if (parsed.data.totalEntries !== null) {
-			totalEntries = parsed.data.totalEntries;
-		}
-
-		// Auto-calculate averageStack from chipPurchaseCounts
-		averageStack = computeAverageStack(
-			totalEntries,
-			startingStack,
-			remainingPlayers,
-			parsed.data.chipPurchaseCounts
-		);
-
-		// Legacy fallback
-		if (averageStack === null && parsed.data.averageStack !== undefined) {
-			averageStack = parsed.data.averageStack ?? null;
+		if (event.eventType === "update_stack") {
+			bounds = applyUpdateStack(event.payload, bounds);
+		} else if (event.eventType === "update_tournament_info") {
+			info = applyUpdateTournamentInfo(event.payload, info);
 		}
 	}
 
-	return {
-		maxStack,
-		minStack,
-		currentStack,
-		remainingPlayers,
-		totalEntries,
-		averageStack,
-	};
-}
-
-function computeAverageStack(
-	totalEntries: number | null,
-	startingStack: number | null,
-	remainingPlayers: number | null,
-	chipPurchaseCounts: Array<{
-		name: string;
-		count: number;
-		chipsPerUnit: number;
-	}>
-): number | null {
-	if (!(totalEntries && startingStack && remainingPlayers)) {
-		return null;
-	}
-	let totalChips = totalEntries * startingStack;
-	for (const cp of chipPurchaseCounts) {
-		totalChips += cp.count * cp.chipsPerUnit;
-	}
-	return Math.round(totalChips / remainingPlayers);
+	return { ...bounds, ...info };
 }
 
 export const liveTournamentSessionRouter = router({
 	list: protectedProcedure
 		.input(
 			z.object({
-				status: z.enum(["active", "completed"]).optional(),
+				status: z.enum(["active", "paused", "completed"]).optional(),
 				cursor: z.string().optional(),
 				limit: z.number().int().min(1).max(100).default(DEFAULT_LIMIT),
 			})
@@ -274,8 +260,7 @@ export const liveTournamentSessionRouter = router({
 						events.map((e) => ({
 							eventType: e.eventType,
 							payload: e.payload,
-						})),
-						null // startingStack not available in list view
+						}))
 					);
 
 					return {
@@ -324,8 +309,7 @@ export const liveTournamentSessionRouter = router({
 			);
 
 			const stackStats = computeStackStats(
-				events.map((e) => ({ eventType: e.eventType, payload: e.payload })),
-				masterData.startingStack
+				events.map((e) => ({ eventType: e.eventType, payload: e.payload }))
 			);
 
 			const summary = {
@@ -439,13 +423,22 @@ export const liveTournamentSessionRouter = router({
 
 	complete: protectedProcedure
 		.input(
-			z.object({
-				id: z.string(),
-				placement: z.number().int().min(1),
-				totalEntries: z.number().int().min(1),
-				prizeMoney: z.number().int().min(0),
-				bountyPrizes: z.number().int().min(0).optional(),
-			})
+			z.discriminatedUnion("beforeDeadline", [
+				z.object({
+					id: z.string(),
+					beforeDeadline: z.literal(false),
+					placement: z.number().int().min(1),
+					totalEntries: z.number().int().min(1),
+					prizeMoney: z.number().int().min(0),
+					bountyPrizes: z.number().int().min(0),
+				}),
+				z.object({
+					id: z.string(),
+					beforeDeadline: z.literal(true),
+					prizeMoney: z.number().int().min(0),
+					bountyPrizes: z.number().int().min(0),
+				}),
+			])
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
@@ -470,31 +463,28 @@ export const liveTournamentSessionRouter = router({
 			const nextSortOrder =
 				existingEvents.length > 0 ? (existingEvents[0]?.sortOrder ?? 0) + 1 : 0;
 
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				liveTournamentSessionId: input.id,
-				eventType: "tournament_result",
-				occurredAt: now,
-				sortOrder: nextSortOrder,
-				payload: JSON.stringify(
-					tournamentResultPayload.parse({
-						placement: input.placement,
-						totalEntries: input.totalEntries,
-						prizeMoney: input.prizeMoney,
-						bountyPrizes: input.bountyPrizes ?? null,
-					})
-				),
-				updatedAt: now,
-			});
+			const endPayload =
+				input.beforeDeadline === false
+					? tournamentSessionEndPayload.parse({
+							beforeDeadline: false,
+							placement: input.placement,
+							totalEntries: input.totalEntries,
+							prizeMoney: input.prizeMoney,
+							bountyPrizes: input.bountyPrizes,
+						})
+					: tournamentSessionEndPayload.parse({
+							beforeDeadline: true,
+							prizeMoney: input.prizeMoney,
+							bountyPrizes: input.bountyPrizes,
+						});
 
-			// Insert session_end event
 			await ctx.db.insert(sessionEvent).values({
 				id: crypto.randomUUID(),
 				liveTournamentSessionId: input.id,
 				eventType: "session_end",
 				occurredAt: now,
-				sortOrder: nextSortOrder + 1,
-				payload: JSON.stringify({}),
+				sortOrder: nextSortOrder,
+				payload: JSON.stringify(endPayload),
 				updatedAt: now,
 			});
 
@@ -512,44 +502,11 @@ export const liveTournamentSessionRouter = router({
 
 	reopen: protectedProcedure
 		.input(z.object({ id: z.string() }))
-		.mutation(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const session = await findLiveTournamentSession(ctx.db, input.id, userId);
-
-			if (session.status !== "completed") {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Only completed sessions can be reopened",
-				});
-			}
-
-			await assertNoActiveSession(ctx.db, userId);
-
-			const now = new Date();
-
-			// Add new session_start event (keeps previous session_end + tournament_result in history)
-			const [lastEvent] = await ctx.db
-				.select({ sortOrder: sessionEvent.sortOrder })
-				.from(sessionEvent)
-				.where(eq(sessionEvent.liveTournamentSessionId, input.id))
-				.orderBy(desc(sessionEvent.sortOrder))
-				.limit(1);
-			const nextSortOrder = lastEvent ? (lastEvent.sortOrder ?? 0) + 1 : 0;
-
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				liveTournamentSessionId: input.id,
-				eventType: "session_start",
-				occurredAt: now,
-				sortOrder: nextSortOrder,
-				payload: JSON.stringify({}),
-				updatedAt: now,
+		.mutation(() => {
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "Tournament sessions cannot be reopened after completion",
 			});
-
-			// Recalculate derives status: "active" from events and cleans up pokerSession
-			await recalculateTournamentSession(ctx.db, input.id, userId);
-
-			return { id: input.id };
 		}),
 
 	discard: protectedProcedure
@@ -558,7 +515,7 @@ export const liveTournamentSessionRouter = router({
 			const userId = ctx.session.user.id;
 			const session = await findLiveTournamentSession(ctx.db, input.id, userId);
 
-			if (session.status !== "active") {
+			if (session.status === "completed") {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "Only active sessions can be discarded",
@@ -581,12 +538,54 @@ export const liveTournamentSessionRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await findLiveTournamentSession(ctx.db, input.id, userId);
+			const session = await findLiveTournamentSession(ctx.db, input.id, userId);
+
+			const previousHeroSeat = session.heroSeatPosition;
 
 			await ctx.db
 				.update(liveTournamentSession)
 				.set({ heroSeatPosition: input.heroSeatPosition })
 				.where(eq(liveTournamentSession.id, input.id));
+
+			const now = new Date();
+
+			const getNextSortOrder = async () => {
+				const [latest] = await ctx.db
+					.select({ maxSort: max(sessionEvent.sortOrder) })
+					.from(sessionEvent)
+					.where(eq(sessionEvent.liveTournamentSessionId, input.id));
+				return (latest?.maxSort ?? -1) + 1;
+			};
+
+			// Hero sitting down
+			if (previousHeroSeat === null && input.heroSeatPosition !== null) {
+				const sortOrder = await getNextSortOrder();
+				await ctx.db.insert(sessionEvent).values({
+					id: crypto.randomUUID(),
+					liveCashGameSessionId: null,
+					liveTournamentSessionId: input.id,
+					eventType: "player_join",
+					occurredAt: now,
+					sortOrder,
+					payload: JSON.stringify({ isHero: true }),
+					updatedAt: now,
+				});
+			}
+
+			// Hero standing up
+			if (previousHeroSeat !== null && input.heroSeatPosition === null) {
+				const sortOrder = await getNextSortOrder();
+				await ctx.db.insert(sessionEvent).values({
+					id: crypto.randomUUID(),
+					liveCashGameSessionId: null,
+					liveTournamentSessionId: input.id,
+					eventType: "player_leave",
+					occurredAt: now,
+					sortOrder,
+					payload: JSON.stringify({ isHero: true }),
+					updatedAt: now,
+				});
+			}
 
 			return { id: input.id };
 		}),

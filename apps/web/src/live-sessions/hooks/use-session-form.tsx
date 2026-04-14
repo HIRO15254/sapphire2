@@ -1,4 +1,4 @@
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext, useState } from "react";
 
 // --- Cash game form context ---
 
@@ -41,24 +41,12 @@ interface TournamentFormState {
 		count: number;
 		chipsPerUnit: number;
 	}>;
-	chipPurchases: Array<{
-		id: number;
-		name: string;
-		cost: number;
-		chips: number;
-	}>;
 	remainingPlayers: string;
 	stackAmount: string;
 	totalEntries: string;
 }
 
 interface TournamentFormContextValue {
-	addChipPurchase: (purchase: {
-		name: string;
-		cost: number;
-		chips: number;
-	}) => void;
-	removeChipPurchase: (id: number) => void;
 	setChipPurchaseCounts: React.Dispatch<
 		React.SetStateAction<
 			Array<{ name: string; count: number; chipsPerUnit: number }>
@@ -99,27 +87,9 @@ export function SessionFormProvider({
 	const [tStackAmount, setTStackAmount] = useState("");
 	const [remainingPlayers, setRemainingPlayers] = useState("");
 	const [totalEntries, setTotalEntries] = useState("");
-	const [chipPurchases, setChipPurchases] = useState<
-		Array<{ id: number; name: string; cost: number; chips: number }>
-	>([]);
 	const [chipPurchaseCounts, setChipPurchaseCounts] = useState<
 		Array<{ name: string; count: number; chipsPerUnit: number }>
 	>([]);
-	const nextChipPurchaseId = useRef(1);
-
-	const addChipPurchase = (purchase: {
-		name: string;
-		cost: number;
-		chips: number;
-	}) => {
-		const id = nextChipPurchaseId.current;
-		nextChipPurchaseId.current += 1;
-		setChipPurchases((prev) => [...prev, { ...purchase, id }]);
-	};
-
-	const removeChipPurchase = (id: number) => {
-		setChipPurchases((prev) => prev.filter((p) => p.id !== id));
-	};
 
 	return (
 		<StackFormContext.Provider
@@ -135,15 +105,12 @@ export function SessionFormProvider({
 						stackAmount: tStackAmount,
 						remainingPlayers,
 						totalEntries,
-						chipPurchases,
 						chipPurchaseCounts,
 					},
 					setStackAmount: setTStackAmount,
 					setRemainingPlayers,
 					setTotalEntries,
 					setChipPurchaseCounts,
-					addChipPurchase,
-					removeChipPurchase,
 				}}
 			>
 				{children}

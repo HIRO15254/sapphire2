@@ -40,44 +40,99 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 	};
 
 	const stackMutation = useMutation({
+		mutationFn: (values: { stackAmount: number }) =>
+			trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: sessionId,
+				eventType: "update_stack",
+				payload: {
+					stackAmount: values.stackAmount,
+				},
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const purchaseChipsMutation = useMutation({
+		mutationFn: (values: { name: string; cost: number; chips: number }) =>
+			trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: sessionId,
+				eventType: "purchase_chips",
+				payload: values,
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const updateTournamentInfoMutation = useMutation({
 		mutationFn: (values: {
+			remainingPlayers: number | null;
+			totalEntries: number | null;
 			chipPurchaseCounts: Array<{
 				name: string;
 				count: number;
 				chipsPerUnit: number;
 			}>;
-			chipPurchases: Array<{ name: string; cost: number; chips: number }>;
-			remainingPlayers: number | null;
-			stackAmount: number;
-			totalEntries: number | null;
 		}) =>
 			trpcClient.sessionEvent.create.mutate({
 				liveTournamentSessionId: sessionId,
-				eventType: "tournament_stack_record",
+				eventType: "update_tournament_info",
 				payload: {
-					stackAmount: values.stackAmount,
 					remainingPlayers: values.remainingPlayers,
 					totalEntries: values.totalEntries,
-					chipPurchases: values.chipPurchases,
+					averageStack: null,
 					chipPurchaseCounts: values.chipPurchaseCounts,
 				},
 			}),
 		onSuccess: invalidateSession,
 	});
 
+	const memoMutation = useMutation({
+		mutationFn: (text: string) =>
+			trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: sessionId,
+				eventType: "memo",
+				payload: { text },
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const pauseMutation = useMutation({
+		mutationFn: () =>
+			trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: sessionId,
+				eventType: "session_pause",
+				payload: {},
+			}),
+		onSuccess: invalidateSession,
+	});
+
+	const resumeMutation = useMutation({
+		mutationFn: () =>
+			trpcClient.sessionEvent.create.mutate({
+				liveTournamentSessionId: sessionId,
+				eventType: "session_resume",
+				payload: {},
+			}),
+		onSuccess: invalidateSession,
+	});
+
 	const completeMutation = useMutation({
-		mutationFn: (values: {
-			bountyPrizes?: number;
-			placement: number;
-			prizeMoney: number;
-			totalEntries: number;
-		}) =>
+		mutationFn: (
+			values:
+				| {
+						beforeDeadline: false;
+						bountyPrizes: number;
+						placement: number;
+						prizeMoney: number;
+						totalEntries: number;
+				  }
+				| {
+						beforeDeadline: true;
+						bountyPrizes: number;
+						prizeMoney: number;
+				  }
+		) =>
 			trpcClient.liveTournamentSession.complete.mutate({
 				id: sessionId,
-				placement: values.placement,
-				totalEntries: values.totalEntries,
-				prizeMoney: values.prizeMoney,
-				bountyPrizes: values.bountyPrizes,
+				...values,
 			}),
 		onSuccess: async () => {
 			await Promise.all([
@@ -92,23 +147,37 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 
 	return {
 		chipPurchaseTypes,
-		recordStack: (values: {
+		recordStack: (values: { stackAmount: number }) =>
+			stackMutation.mutate(values),
+		purchaseChips: (values: { name: string; cost: number; chips: number }) =>
+			purchaseChipsMutation.mutate(values),
+		updateTournamentInfo: (values: {
+			remainingPlayers: number | null;
+			totalEntries: number | null;
 			chipPurchaseCounts: Array<{
 				name: string;
 				count: number;
 				chipsPerUnit: number;
 			}>;
-			chipPurchases: Array<{ name: string; cost: number; chips: number }>;
-			remainingPlayers: number | null;
-			stackAmount: number;
-			totalEntries: number | null;
-		}) => stackMutation.mutate(values),
-		complete: (values: {
-			bountyPrizes?: number;
-			placement: number;
-			prizeMoney: number;
-			totalEntries: number;
-		}) => completeMutation.mutate(values),
+		}) => updateTournamentInfoMutation.mutate(values),
+		complete: (
+			values:
+				| {
+						beforeDeadline: false;
+						bountyPrizes: number;
+						placement: number;
+						prizeMoney: number;
+						totalEntries: number;
+				  }
+				| {
+						beforeDeadline: true;
+						bountyPrizes: number;
+						prizeMoney: number;
+				  }
+		) => completeMutation.mutate(values),
+		addMemo: (text: string) => memoMutation.mutate(text),
+		pause: () => pauseMutation.mutate(),
+		resume: () => resumeMutation.mutate(),
 		isStackPending: stackMutation.isPending,
 		isCompletePending: completeMutation.isPending,
 	};

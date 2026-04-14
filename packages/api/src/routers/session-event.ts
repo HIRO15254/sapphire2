@@ -1,8 +1,12 @@
 import {
 	ALL_EVENT_TYPES,
+	getSessionCurrentState,
+	isEventAllowedInState,
 	isValidEventTypeForSessionType,
+	LIFECYCLE_EVENT_TYPES,
 	MANUAL_CREATE_BLOCKED_EVENT_TYPES,
 	playerJoinPayload,
+	playerLeavePayload,
 	type SessionEventType,
 	validateEventPayload,
 } from "@sapphire2/db/constants/session-event-types";
@@ -136,6 +140,9 @@ async function handlePlayerJoinSideEffect(
 	validatedPayload: unknown
 ) {
 	const parsed = playerJoinPayload.parse(validatedPayload);
+	if (!parsed.playerId) {
+		return;
+	}
 	const now = new Date();
 	const cond = buildTablePlayerCondition(
 		liveCashGameSessionId,
@@ -169,7 +176,10 @@ async function handlePlayerLeaveSideEffect(
 	liveTournamentSessionId: string | undefined,
 	validatedPayload: unknown
 ) {
-	const parsed = playerJoinPayload.parse(validatedPayload);
+	const parsed = playerLeavePayload.parse(validatedPayload);
+	if (!parsed.playerId) {
+		return;
+	}
 	const now = new Date();
 	const cond = buildTablePlayerCondition(
 		liveCashGameSessionId,
@@ -277,7 +287,25 @@ export const sessionEventRouter = router({
 				});
 			}
 
-			const validatedPayload = validateEventPayload(eventType, input.payload);
+			const sessionEvents = await ctx.db
+				.select()
+				.from(sessionEvent)
+				.where(
+					buildSessionCondition(liveCashGameSessionId, liveTournamentSessionId)
+				);
+			const currentState = getSessionCurrentState(sessionEvents);
+			if (!isEventAllowedInState(eventType, currentState)) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: `Event type "${eventType}" is not allowed in the current session state "${currentState}"`,
+				});
+			}
+
+			const validatedPayload = validateEventPayload(
+				eventType,
+				input.payload,
+				sessionType
+			);
 			const occurredAtDate = input.occurredAt
 				? new Date(input.occurredAt * 1000)
 				: new Date();
@@ -353,7 +381,7 @@ export const sessionEventRouter = router({
 				throw new TRPCError({ code: "NOT_FOUND", message: "Event not found" });
 			}
 
-			await resolveSessionOwnership(
+			const { sessionType } = await resolveSessionOwnership(
 				ctx.db,
 				event.liveCashGameSessionId ?? undefined,
 				event.liveTournamentSessionId ?? undefined,
@@ -367,7 +395,7 @@ export const sessionEventRouter = router({
 			}
 			if (input.payload !== undefined) {
 				updates.payload = JSON.stringify(
-					validateEventPayload(eventType, input.payload)
+					validateEventPayload(eventType, input.payload, sessionType)
 				);
 			}
 
@@ -407,8 +435,7 @@ export const sessionEventRouter = router({
 			}
 
 			if (
-				event.eventType === "session_start" ||
-				event.eventType === "session_end"
+				(LIFECYCLE_EVENT_TYPES as readonly string[]).includes(event.eventType)
 			) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
@@ -425,6 +452,9 @@ export const sessionEventRouter = router({
 
 			if (event.eventType === "player_join") {
 				const parsed = playerJoinPayload.parse(JSON.parse(event.payload));
+				if (!parsed.playerId) {
+					return { success: true as const };
+				}
 				const cond = buildTablePlayerCondition(
 					event.liveCashGameSessionId ?? undefined,
 					event.liveTournamentSessionId ?? undefined,
