@@ -1,4 +1,4 @@
-import { IconPlus, IconUser } from "@tabler/icons-react";
+import { IconLoader2, IconPlus, IconUser } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { PlayerAvatar } from "@/players/components/player-avatar";
 
@@ -112,11 +112,19 @@ function SeatSlot({
 
 			{/* Occupied seat */}
 			{isOccupied && (
-				<PlayerAvatar
-					className={cn(isLoading && "animate-pulse opacity-50")}
-					isHero={isHero}
-					name={player.player.name}
-				/>
+				<div className="relative">
+					<PlayerAvatar
+						className={cn(isLoading && "opacity-40")}
+						isHero={isHero}
+						name={player.player.name}
+					/>
+					{isLoading && (
+						<IconLoader2
+							className="absolute inset-0 m-auto animate-spin text-white"
+							size={16}
+						/>
+					)}
+				</div>
 			)}
 
 			{/* Name label */}
