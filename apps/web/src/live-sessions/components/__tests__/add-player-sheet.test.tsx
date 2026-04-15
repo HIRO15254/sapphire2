@@ -58,9 +58,7 @@ vi.mock("@/players/components/player-tag-input", () => ({
 }));
 
 vi.mock("@/players/components/player-avatar", () => ({
-	PlayerAvatar: ({ name }: { name: string }) => (
-		<div data-testid="player-avatar">{name.slice(0, 2).toUpperCase()}</div>
-	),
+	PlayerAvatar: () => <div data-testid="player-avatar" />,
 }));
 
 vi.mock("@/players/components/color-badge", () => ({

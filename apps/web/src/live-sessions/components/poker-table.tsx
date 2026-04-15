@@ -106,8 +106,8 @@ function SeatSlot({
 
 			{/* Hero seat (no player) */}
 			{isHero && !isOccupied && (
-				<div className="flex size-9 items-center justify-center rounded-full border-2 border-amber-400 bg-amber-500/80 text-white shadow-md">
-					<IconUser size={14} />
+				<div className="flex size-10 items-center justify-center rounded-full border-2 border-amber-400 bg-amber-500/80 text-white shadow-md">
+					<IconUser size={16} />
 				</div>
 			)}
 
@@ -117,7 +117,7 @@ function SeatSlot({
 					<PlayerAvatar
 						className={cn(isLoading && "opacity-40")}
 						isHero={isHero}
-						name={player.player.name}
+						isTemporary={player.player.isTemporary}
 					/>
 					{isLoading && (
 						<IconLoader2
