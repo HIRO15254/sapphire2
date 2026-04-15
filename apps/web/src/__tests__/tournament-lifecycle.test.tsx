@@ -130,11 +130,43 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		currency: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["currency-list"],
+					queryFn: () => mockQuery("currency-list"),
+				}),
+			},
+		},
+		currencyTransaction: {
+			listByCurrency: {
+				queryOptions: (args: { currencyId: string }) => ({
+					queryKey: ["currency-transaction", args.currencyId],
+					queryFn: () => mockQuery("currency-transaction", args),
+				}),
+			},
+		},
+		session: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["session-list"],
+					queryFn: () => mockQuery("session-list"),
+				}),
+			},
+		},
 		sessionEvent: {
 			list: {
 				queryOptions: (args?: unknown) => ({
 					queryKey: ["events", args],
 					queryFn: () => mockQuery("events", args),
+				}),
+			},
+		},
+		sessionTablePlayer: {
+			list: {
+				queryOptions: (args?: unknown) => ({
+					queryKey: ["session-table-players", args],
+					queryFn: () => mockQuery("session-table-players", args),
 				}),
 			},
 		},

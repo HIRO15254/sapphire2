@@ -32,6 +32,46 @@ vi.mock("@/live-sessions/hooks/use-stack-sheet", () => ({
 
 // Mock trpc to avoid env validation
 vi.mock("@/utils/trpc", () => ({
+	trpc: {
+		liveCashGameSession: {
+			getById: {
+				queryOptions: ({ id }: { id: string }) => ({
+					queryKey: ["cash-session", id],
+				}),
+			},
+			list: {
+				queryOptions: (input: Record<string, unknown>) => ({
+					queryKey: ["cash-session-list", input],
+				}),
+			},
+		},
+		liveTournamentSession: {
+			getById: {
+				queryOptions: ({ id }: { id: string }) => ({
+					queryKey: ["tournament-session", id],
+				}),
+			},
+			list: {
+				queryOptions: (input: Record<string, unknown>) => ({
+					queryKey: ["tournament-session-list", input],
+				}),
+			},
+		},
+		sessionEvent: {
+			list: {
+				queryOptions: (input: Record<string, unknown>) => ({
+					queryKey: ["session-events", input],
+				}),
+			},
+		},
+		sessionTablePlayer: {
+			list: {
+				queryOptions: (input: Record<string, unknown>) => ({
+					queryKey: ["session-players", input],
+				}),
+			},
+		},
+	},
 	trpcClient: {
 		sessionEvent: {
 			create: { mutate: vi.fn() },
@@ -178,5 +218,20 @@ describe("MobileNav - Live Session Mode (active session)", () => {
 		const centerButton = screen.getByRole("button");
 		const greenDiv = centerButton.querySelector("div");
 		expect(greenDiv?.className).toContain("bg-green");
+	});
+
+	it("shows the resume action when the active session is paused", async () => {
+		mockUseActiveSession.mockReturnValue({
+			activeSession: { id: "session-123", type: "cash_game", status: "paused" },
+			hasActive: true,
+			isLoading: false,
+		});
+		const router = createTestRouter(
+			"/live-sessions/cash-game/session-123/events"
+		);
+		render(<RouterProvider router={router} />);
+
+		await screen.findByText("Resume");
+		expect(screen.queryByText("Stack")).not.toBeInTheDocument();
 	});
 });

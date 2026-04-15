@@ -7,9 +7,20 @@ import { CreateSessionDialog } from "@/live-sessions/components/create-session-d
 import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
 import { useStackSheet } from "@/live-sessions/hooks/use-stack-sheet";
 import {
+	applyOptimisticLiveSessionEvent,
+	cancelLiveSessionCaches,
+	getLiveSessionCacheRefs,
+	invalidateLiveSessionCaches,
+	type LiveSessionEvent,
+	type LiveSessionEventType,
+	restoreLiveSessionCaches,
+	snapshotLiveSessionCaches,
+} from "@/live-sessions/lib/live-session-cache";
+import {
 	getMobileNavigationItems,
 	isActiveItem,
 	MobileNavItem,
+	type NavigationCenterAction,
 	NavigationCenterButton,
 	type NavigationItem,
 	RESOURCE_ITEMS,
@@ -20,6 +31,18 @@ import {
 	PopoverTrigger,
 } from "@/shared/components/ui/popover";
 import { trpcClient } from "@/utils/trpc";
+
+function buildOptimisticEvent(
+	eventType: LiveSessionEventType,
+	payload: unknown
+): LiveSessionEvent {
+	return {
+		eventType,
+		id: `optimistic-${Date.now()}`,
+		occurredAt: new Date().toISOString(),
+		payload,
+	};
+}
 
 function MobileNavPopoverItem({
 	active,
@@ -95,7 +118,36 @@ export function MobileNav() {
 				payload: {},
 			});
 		},
-		onSuccess: () => queryClient.invalidateQueries(),
+		onMutate: async () => {
+			if (!activeSession) {
+				return { snapshot: null };
+			}
+
+			const refs = getLiveSessionCacheRefs({
+				sessionId: activeSession.id,
+				sessionType: activeSession.type,
+			});
+			await cancelLiveSessionCaches(queryClient, refs);
+			const snapshot = snapshotLiveSessionCaches(queryClient, refs);
+
+			applyOptimisticLiveSessionEvent(queryClient, refs, {
+				event: buildOptimisticEvent("session_resume", {}),
+				eventType: "session_resume",
+				payload: {},
+			});
+
+			return { refs, snapshot };
+		},
+		onError: (_error, _variables, context) => {
+			restoreLiveSessionCaches(queryClient, context?.snapshot);
+		},
+		onSettled: async (_data, _error, _variables, context) => {
+			if (!context?.refs) {
+				return;
+			}
+
+			await invalidateLiveSessionCaches(queryClient, context.refs);
+		},
 	});
 
 	let centerAction: NavigationCenterAction;

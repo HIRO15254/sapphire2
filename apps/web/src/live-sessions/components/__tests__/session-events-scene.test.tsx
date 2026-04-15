@@ -94,11 +94,21 @@ vi.mock("@/utils/trpc", () => ({
 					queryKey: ["cash-session", id],
 				}),
 			},
+			list: {
+				queryOptions: (input: Record<string, unknown>) => ({
+					queryKey: ["cash-session-list", input],
+				}),
+			},
 		},
 		liveTournamentSession: {
 			getById: {
 				queryOptions: ({ id }: { id: string }) => ({
 					queryKey: ["tournament-session", id],
+				}),
+			},
+			list: {
+				queryOptions: (input: Record<string, unknown>) => ({
+					queryKey: ["tournament-session-list", input],
 				}),
 			},
 		},
@@ -113,6 +123,13 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: (input: unknown) => ({
 					queryKey: ["events", input],
+				}),
+			},
+		},
+		sessionTablePlayer: {
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: ["players", input],
 				}),
 			},
 		},
@@ -134,6 +151,12 @@ beforeEach(() => {
 	mocks.invalidateQueries.mockClear();
 	mocks.updateMutate.mockClear();
 });
+
+function hasInvalidationFor(queryKey: unknown[]) {
+	return mocks.invalidateQueries.mock.calls.some(
+		([args]) => JSON.stringify(args) === JSON.stringify({ queryKey })
+	);
+}
 
 describe("SessionEventsScene", () => {
 	it("invalidates dependent session and currency queries after cash event updates", async () => {
@@ -170,15 +193,15 @@ describe("SessionEventsScene", () => {
 			const queryKeys = [
 				["events", { liveCashGameSessionId: "session-1" }],
 				["cash-session", "session-1"],
+				["cash-session-list", {}],
+				["cash-session-list", { status: "active", limit: 1 }],
+				["cash-session-list", { status: "paused", limit: 1 }],
 				["session-list"],
 				["currency-list"],
 				["currency-transaction-list", "currency-1"],
 			];
-			expect(mocks.invalidateQueries).toHaveBeenCalledTimes(queryKeys.length);
-			for (const [index, queryKey] of queryKeys.entries()) {
-				expect(mocks.invalidateQueries).toHaveBeenNthCalledWith(index + 1, {
-					queryKey,
-				});
+			for (const queryKey of queryKeys) {
+				expect(hasInvalidationFor(queryKey)).toBe(true);
 			}
 		});
 	});
@@ -223,15 +246,15 @@ describe("SessionEventsScene", () => {
 			const queryKeys = [
 				["events", { liveTournamentSessionId: "session-2" }],
 				["tournament-session", "session-2"],
+				["tournament-session-list", {}],
+				["tournament-session-list", { status: "active", limit: 1 }],
+				["tournament-session-list", { status: "paused", limit: 1 }],
 				["session-list"],
 				["currency-list"],
 				["currency-transaction-list", "currency-2"],
 			];
-			expect(mocks.invalidateQueries).toHaveBeenCalledTimes(queryKeys.length);
-			for (const [index, queryKey] of queryKeys.entries()) {
-				expect(mocks.invalidateQueries).toHaveBeenNthCalledWith(index + 1, {
-					queryKey,
-				});
+			for (const queryKey of queryKeys) {
+				expect(hasInvalidationFor(queryKey)).toBe(true);
 			}
 		});
 	});
@@ -263,15 +286,18 @@ describe("SessionEventsScene", () => {
 			const queryKeys = [
 				["events", { liveCashGameSessionId: "session-3" }],
 				["cash-session", "session-3"],
+				["cash-session-list", {}],
+				["cash-session-list", { status: "active", limit: 1 }],
+				["cash-session-list", { status: "paused", limit: 1 }],
 				["session-list"],
 				["currency-list"],
 			];
-			expect(mocks.invalidateQueries).toHaveBeenCalledTimes(queryKeys.length);
-			for (const [index, queryKey] of queryKeys.entries()) {
-				expect(mocks.invalidateQueries).toHaveBeenNthCalledWith(index + 1, {
-					queryKey,
-				});
+			for (const queryKey of queryKeys) {
+				expect(hasInvalidationFor(queryKey)).toBe(true);
 			}
+			expect(mocks.invalidateQueries).not.toHaveBeenCalledWith({
+				queryKey: ["currency-transaction-list", expect.any(String)],
+			});
 		});
 	});
 });

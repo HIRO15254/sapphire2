@@ -8,6 +8,7 @@ import {
 	type TableGameInfo,
 	type TablePlayer,
 } from "@/live-sessions/components/poker-table";
+import type { LiveSessionStatus } from "@/live-sessions/lib/live-session-cache";
 import type { PlayerFormValues } from "@/players/components/player-form";
 import type {
 	PlayerDetailData,
@@ -28,6 +29,7 @@ interface ActiveSessionSceneProps {
 	memo?: string | null;
 	onDiscard: () => void;
 	state: ActiveSessionSceneState;
+	status: Extract<LiveSessionStatus, "active" | "paused">;
 	summary: ReactNode;
 	title: string;
 }
@@ -207,6 +209,7 @@ export function ActiveSessionScene({
 	isDiscardPending,
 	memo,
 	onDiscard,
+	status,
 	state,
 	summary,
 	title,
@@ -219,10 +222,14 @@ export function ActiveSessionScene({
 				<div className="flex items-center gap-2">
 					<h1 className="font-bold text-lg">{title}</h1>
 					<Badge
-						className="border-green-200 bg-green-50 text-[10px] text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400"
+						className={
+							status === "paused"
+								? "border-amber-200 bg-amber-50 text-[10px] text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-400"
+								: "border-green-200 bg-green-50 text-[10px] text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400"
+						}
 						variant="outline"
 					>
-						Active
+						{status === "paused" ? "Paused" : "Active"}
 					</Badge>
 				</div>
 				<Button

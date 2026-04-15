@@ -198,6 +198,7 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 	if (!session) {
 		return null;
 	}
+	const status = session.status === "paused" ? "paused" : "active";
 
 	const ringGame = session.ringGameId
 		? ringGames.find((candidate) => candidate.id === session.ringGameId)
@@ -223,6 +224,7 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 			memo={session.memo}
 			onDiscard={discard}
 			state={sceneState}
+			status={status}
 			summary={<CashGameCompactSummary summary={session.summary} />}
 			title="Cash Game"
 		/>
@@ -245,6 +247,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 	if (!session) {
 		return null;
 	}
+	const status = session.status === "paused" ? "paused" : "active";
 	const tournamentSummary = buildTournamentSummary(
 		session as { summary: Record<string, unknown> }
 	);
@@ -258,6 +261,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			memo={session.memo}
 			onDiscard={discard}
 			state={sceneState}
+			status={status}
 			summary={<TournamentCompactSummary summary={tournamentSummary} />}
 			title="Tournament"
 		/>

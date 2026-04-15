@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import {
+	getLiveSessionCacheRefs,
+	invalidateLiveSessionCaches,
+} from "@/live-sessions/lib/live-session-cache";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 function useStoreRingGames(storeId: string | undefined) {
@@ -55,13 +59,6 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 	const ringGames = useStoreRingGames(selectedStoreId);
 	const tournaments = useStoreTournaments(selectedStoreId);
 
-	const cashListKey = trpc.liveCashGameSession.list.queryOptions({}).queryKey;
-	const tournamentListKey = trpc.liveTournamentSession.list.queryOptions(
-		{}
-	).queryKey;
-
-	const sessionListKey = trpc.session.list.queryOptions({}).queryKey;
-
 	const createCashMutation = useMutation({
 		mutationFn: (values: {
 			currencyId?: string;
@@ -70,11 +67,17 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			ringGameId?: string;
 			storeId?: string;
 		}) => trpcClient.liveCashGameSession.create.mutate(values),
-		onSuccess: async () => {
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: cashListKey }),
-				queryClient.invalidateQueries({ queryKey: sessionListKey }),
-			]);
+		onSuccess: async (result) => {
+			await invalidateLiveSessionCaches(
+				queryClient,
+				getLiveSessionCacheRefs({
+					sessionId: result.id,
+					sessionType: "cash_game",
+				}),
+				{
+					includeHistorical: true,
+				}
+			);
 			onClose();
 			await navigate({ to: "/active-session" });
 		},
@@ -103,11 +106,17 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			});
 			return result;
 		},
-		onSuccess: async () => {
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: tournamentListKey }),
-				queryClient.invalidateQueries({ queryKey: sessionListKey }),
-			]);
+		onSuccess: async (result) => {
+			await invalidateLiveSessionCaches(
+				queryClient,
+				getLiveSessionCacheRefs({
+					sessionId: result.id,
+					sessionType: "tournament",
+				}),
+				{
+					includeHistorical: true,
+				}
+			);
 			onClose();
 			await navigate({ to: "/active-session" });
 		},

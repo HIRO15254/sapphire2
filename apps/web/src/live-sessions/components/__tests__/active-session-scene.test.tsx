@@ -163,6 +163,7 @@ describe("ActiveSessionScene", () => {
 				isDiscardPending={false}
 				onDiscard={vi.fn()}
 				state={createState()}
+				status="active"
 				summary={<div>Cash summary</div>}
 				title="Cash Game"
 			/>
@@ -181,6 +182,7 @@ describe("ActiveSessionScene", () => {
 				isDiscardPending={false}
 				onDiscard={onDiscard}
 				state={createState()}
+				status="active"
 				summary={<div>Tournament summary</div>}
 				title="Tournament"
 			/>
@@ -224,6 +226,7 @@ describe("ActiveSessionScene", () => {
 				isDiscardPending={false}
 				onDiscard={vi.fn()}
 				state={state}
+				status="active"
 				summary={<div>Scene summary</div>}
 				title="Cash Game"
 			/>
@@ -242,5 +245,20 @@ describe("ActiveSessionScene", () => {
 			}),
 			1
 		);
+	});
+
+	it("renders the paused badge when the session is paused", () => {
+		render(
+			<ActiveSessionScene
+				isDiscardPending={false}
+				onDiscard={vi.fn()}
+				state={createState()}
+				status="paused"
+				summary={<div>Paused summary</div>}
+				title="Cash Game"
+			/>
+		);
+
+		expect(screen.getByText("Paused")).toBeInTheDocument();
 	});
 });

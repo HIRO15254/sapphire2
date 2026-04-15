@@ -44,7 +44,10 @@ vi.mock("@tanstack/react-query", () => ({
 		return { data: undefined };
 	},
 	useQueryClient: () => ({
+		cancelQueries: vi.fn(),
+		getQueryData: vi.fn(),
 		invalidateQueries: vi.fn(),
+		setQueryData: vi.fn(),
 	}),
 }));
 
@@ -137,6 +140,30 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: (input: Record<string, string>) => ({
 					queryKey: ["sessionEvent.list", input],
+				}),
+			},
+		},
+		sessionTablePlayer: {
+			list: {
+				queryOptions: (input: Record<string, string>) => ({
+					queryKey: ["sessionTablePlayer.list", input],
+				}),
+			},
+		},
+		session: {
+			list: {
+				queryOptions: () => ({ queryKey: ["session.list"] }),
+			},
+		},
+		currency: {
+			list: {
+				queryOptions: () => ({ queryKey: ["currency.list"] }),
+			},
+		},
+		currencyTransaction: {
+			listByCurrency: {
+				queryOptions: ({ currencyId }: { currencyId: string }) => ({
+					queryKey: ["currencyTransaction.listByCurrency", currencyId],
 				}),
 			},
 		},

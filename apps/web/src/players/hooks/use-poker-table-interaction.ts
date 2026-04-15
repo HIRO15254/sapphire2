@@ -2,25 +2,38 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { TablePlayer } from "@/live-sessions/components/poker-table";
 import {
-	cancelTargets,
-	invalidateTargets,
-	restoreSnapshots,
-	snapshotQuery,
-} from "@/utils/optimistic-update";
-import { trpc, trpcClient } from "@/utils/trpc";
+	applyOptimisticLiveSessionEvent,
+	cancelLiveSessionCaches,
+	getLiveSessionCacheRefs,
+	invalidateLiveSessionCaches,
+	type LiveSessionEvent,
+	type LiveSessionEventType,
+	type LiveSessionType,
+	patchLiveSessionDetail,
+	restoreLiveSessionCaches,
+	snapshotLiveSessionCaches,
+} from "@/live-sessions/lib/live-session-cache";
+import { trpcClient } from "@/utils/trpc";
 
 export interface SelectedPlayer {
 	playerId: string;
 	seatPosition: number;
 }
 
-export interface SessionDetailWithHeroSeat {
-	heroSeatPosition?: number | null;
-	[key: string]: unknown;
+function buildOptimisticEvent(
+	eventType: LiveSessionEventType,
+	payload: unknown
+): LiveSessionEvent {
+	return {
+		eventType,
+		id: `optimistic-${Date.now()}`,
+		occurredAt: new Date().toISOString(),
+		payload,
+	};
 }
 
 export function usePokerTableInteraction(
-	sessionType: "cash_game" | "tournament",
+	sessionType: LiveSessionType,
 	sessionId: string,
 	heroSeatPosition: number | null
 ) {
@@ -29,19 +42,7 @@ export function usePokerTableInteraction(
 	const [selectedPlayer, setSelectedPlayer] = useState<SelectedPlayer | null>(
 		null
 	);
-
-	const sessionKey =
-		sessionType === "cash_game"
-			? trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
-					.queryKey
-			: trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
-					.queryKey;
-
-	const [localHeroSeat, setLocalHeroSeat] = useState<number | null | undefined>(
-		undefined
-	);
-	const effectiveHeroSeat =
-		localHeroSeat === undefined ? heroSeatPosition : localHeroSeat;
+	const refs = getLiveSessionCacheRefs({ sessionId, sessionType });
 
 	const heroMutation = useMutation({
 		mutationFn: (nextSeatPosition: number | null) =>
@@ -55,30 +56,61 @@ export function usePokerTableInteraction(
 						heroSeatPosition: nextSeatPosition,
 					}),
 		onMutate: async (nextSeatPosition) => {
-			await cancelTargets(queryClient, [{ queryKey: sessionKey }]);
-			const previousSession = snapshotQuery(queryClient, sessionKey);
-			queryClient.setQueryData<SessionDetailWithHeroSeat>(sessionKey, (old) =>
+			await cancelLiveSessionCaches(queryClient, refs, {
+				includeLists: false,
+				includePlayers: false,
+			});
+			const snapshot = snapshotLiveSessionCaches(queryClient, refs);
+			const currentHeroSeat =
+				queryClient.getQueryData<{ heroSeatPosition?: number | null }>(
+					refs.detailKey
+				)?.heroSeatPosition ?? heroSeatPosition;
+
+			patchLiveSessionDetail(queryClient, refs, (old) =>
 				old ? { ...old, heroSeatPosition: nextSeatPosition } : old
 			);
-			const previousSeat =
-				localHeroSeat === undefined ? heroSeatPosition : localHeroSeat;
-			setLocalHeroSeat(nextSeatPosition);
-			return { previousSeat, previousSession };
+
+			if (currentHeroSeat === null && nextSeatPosition !== null) {
+				applyOptimisticLiveSessionEvent(queryClient, refs, {
+					event: buildOptimisticEvent("player_join", {
+						isHero: true,
+					}),
+					eventType: "player_join",
+					payload: {
+						isHero: true,
+					},
+				});
+			}
+
+			if (currentHeroSeat !== null && nextSeatPosition === null) {
+				applyOptimisticLiveSessionEvent(queryClient, refs, {
+					event: buildOptimisticEvent("player_leave", {
+						isHero: true,
+					}),
+					eventType: "player_leave",
+					payload: {
+						isHero: true,
+					},
+				});
+			}
+
+			return { snapshot };
 		},
 		onError: (_error, _variables, context) => {
-			restoreSnapshots(queryClient, [context?.previousSession]);
-			setLocalHeroSeat(context?.previousSeat ?? undefined);
+			restoreLiveSessionCaches(queryClient, context?.snapshot);
 		},
 		onSettled: async () => {
-			await invalidateTargets(queryClient, [{ queryKey: sessionKey }]);
-			setLocalHeroSeat(undefined);
+			await invalidateLiveSessionCaches(queryClient, refs, {
+				includeLists: false,
+				includePlayers: false,
+			});
 		},
 	});
 
 	return {
 		addPlayerSeat,
 		handleEmptySeatTap: (seatPosition: number) => {
-			if (effectiveHeroSeat === null) {
+			if (heroSeatPosition === null) {
 				heroMutation.mutate(seatPosition);
 				return;
 			}
@@ -90,10 +122,10 @@ export function usePokerTableInteraction(
 		handlePlayerSeatTap: (player: TablePlayer, seatPosition: number) => {
 			setSelectedPlayer({ playerId: player.player.id, seatPosition });
 		},
-		heroSeatPosition: effectiveHeroSeat,
+		heroSeatPosition,
 		selectedPlayer,
 		setAddPlayerSeat,
 		setSelectedPlayer,
-		waitingForHero: effectiveHeroSeat === null,
+		waitingForHero: heroSeatPosition === null,
 	};
 }

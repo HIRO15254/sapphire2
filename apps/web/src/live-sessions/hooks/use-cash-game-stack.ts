@@ -1,99 +1,68 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { trpc, trpcClient } from "@/utils/trpc";
+import {
+	applyOptimisticLiveSessionEvent,
+	cancelLiveSessionCaches,
+	getLiveSessionCacheRefs,
+	invalidateLiveSessionCaches,
+	type LiveSessionEvent,
+	type LiveSessionEventType,
+	restoreLiveSessionCaches,
+	snapshotLiveSessionCaches,
+} from "@/live-sessions/lib/live-session-cache";
+import { trpcClient } from "@/utils/trpc";
+
+function buildOptimisticEvent(
+	eventType: LiveSessionEventType,
+	payload: unknown
+): LiveSessionEvent {
+	return {
+		eventType,
+		id: `optimistic-${Date.now()}`,
+		occurredAt: new Date().toISOString(),
+		payload,
+	};
+}
 
 export function useCashGameStack({ sessionId }: { sessionId: string }) {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-
-	const sessionKey = trpc.liveCashGameSession.getById.queryOptions({
-		id: sessionId,
-	}).queryKey;
-	const eventsKey = trpc.sessionEvent.list.queryOptions({
-		liveCashGameSessionId: sessionId,
-	}).queryKey;
-	const listKey = trpc.liveCashGameSession.list.queryOptions({}).queryKey;
-
-	const invalidateSession = async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: sessionKey }),
-			queryClient.invalidateQueries({ queryKey: eventsKey }),
-		]);
-	};
-
-	const stackMutation = useMutation({
-		mutationFn: (values: { stackAmount: number }) =>
-			trpcClient.sessionEvent.create.mutate({
-				liveCashGameSessionId: sessionId,
-				eventType: "update_stack",
-				payload: { stackAmount: values.stackAmount },
-			}),
-		onSuccess: invalidateSession,
+	const refs = getLiveSessionCacheRefs({
+		sessionId,
+		sessionType: "cash_game",
 	});
 
-	const chipAddMutation = useMutation({
-		mutationFn: (amount: number) =>
-			trpcClient.sessionEvent.create.mutate({
-				liveCashGameSessionId: sessionId,
-				eventType: "chips_add_remove",
-				payload: { amount, type: "add" },
-			}),
-		onSuccess: invalidateSession,
-	});
-
-	const chipRemoveMutation = useMutation({
-		mutationFn: (amount: number) =>
-			trpcClient.sessionEvent.create.mutate({
-				liveCashGameSessionId: sessionId,
-				eventType: "chips_add_remove",
-				payload: { amount, type: "remove" },
-			}),
-		onSuccess: invalidateSession,
-	});
-
-	const allInMutation = useMutation({
-		mutationFn: (values: {
-			potSize: number;
-			trials: number;
-			equity: number;
-			wins: number;
+	const applyCreateEventMutation = useMutation({
+		mutationFn: ({
+			eventType,
+			payload,
+		}: {
+			eventType: LiveSessionEventType;
+			payload: unknown;
 		}) =>
 			trpcClient.sessionEvent.create.mutate({
 				liveCashGameSessionId: sessionId,
-				eventType: "all_in",
-				payload: values,
+				eventType,
+				payload,
 			}),
-		onSuccess: invalidateSession,
-	});
+		onMutate: async ({ eventType, payload }) => {
+			await cancelLiveSessionCaches(queryClient, refs);
+			const snapshot = snapshotLiveSessionCaches(queryClient, refs);
 
-	const memoMutation = useMutation({
-		mutationFn: (text: string) =>
-			trpcClient.sessionEvent.create.mutate({
-				liveCashGameSessionId: sessionId,
-				eventType: "memo",
-				payload: { text },
-			}),
-		onSuccess: invalidateSession,
-	});
+			applyOptimisticLiveSessionEvent(queryClient, refs, {
+				event: buildOptimisticEvent(eventType, payload),
+				eventType,
+				payload,
+			});
 
-	const pauseMutation = useMutation({
-		mutationFn: () =>
-			trpcClient.sessionEvent.create.mutate({
-				liveCashGameSessionId: sessionId,
-				eventType: "session_pause",
-				payload: {},
-			}),
-		onSuccess: invalidateSession,
-	});
-
-	const resumeMutation = useMutation({
-		mutationFn: () =>
-			trpcClient.sessionEvent.create.mutate({
-				liveCashGameSessionId: sessionId,
-				eventType: "session_resume",
-				payload: {},
-			}),
-		onSuccess: invalidateSession,
+			return { snapshot };
+		},
+		onError: (_error, _variables, context) => {
+			restoreLiveSessionCaches(queryClient, context?.snapshot);
+		},
+		onSettled: async () => {
+			await invalidateLiveSessionCaches(queryClient, refs);
+		},
 	});
 
 	const completeMutation = useMutation({
@@ -103,33 +72,57 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 				finalStack: values.finalStack,
 			}),
 		onSuccess: async () => {
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: listKey }),
-				queryClient.invalidateQueries({
-					queryKey: trpc.session.list.queryOptions({}).queryKey,
-				}),
-			]);
+			await invalidateLiveSessionCaches(queryClient, refs, {
+				includeHistorical: true,
+			});
 			await navigate({ to: "/sessions" });
 		},
 	});
 
 	return {
 		recordStack: (values: { stackAmount: number }) =>
-			stackMutation.mutate(values),
-		addChip: (amount: number) => chipAddMutation.mutate(amount),
-		removeChip: (amount: number) => chipRemoveMutation.mutate(amount),
+			applyCreateEventMutation.mutate({
+				eventType: "update_stack",
+				payload: { stackAmount: values.stackAmount },
+			}),
+		addChip: (amount: number) =>
+			applyCreateEventMutation.mutate({
+				eventType: "chips_add_remove",
+				payload: { amount, type: "add" },
+			}),
+		removeChip: (amount: number) =>
+			applyCreateEventMutation.mutate({
+				eventType: "chips_add_remove",
+				payload: { amount, type: "remove" },
+			}),
 		addAllIn: (values: {
 			potSize: number;
 			trials: number;
 			equity: number;
 			wins: number;
-		}) => allInMutation.mutate(values),
-		addMemo: (text: string) => memoMutation.mutate(text),
-		pause: () => pauseMutation.mutate(),
-		resume: () => resumeMutation.mutate(),
+		}) =>
+			applyCreateEventMutation.mutate({
+				eventType: "all_in",
+				payload: values,
+			}),
+		addMemo: (text: string) =>
+			applyCreateEventMutation.mutate({
+				eventType: "memo",
+				payload: { text },
+			}),
+		pause: () =>
+			applyCreateEventMutation.mutate({
+				eventType: "session_pause",
+				payload: {},
+			}),
+		resume: () =>
+			applyCreateEventMutation.mutate({
+				eventType: "session_resume",
+				payload: {},
+			}),
 		complete: (values: { finalStack: number }) =>
 			completeMutation.mutate(values),
-		isStackPending: stackMutation.isPending,
+		isStackPending: applyCreateEventMutation.isPending,
 		isCompletePending: completeMutation.isPending,
 	};
 }
