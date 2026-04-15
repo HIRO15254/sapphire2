@@ -2,7 +2,6 @@ import { useState } from "react";
 import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-sheet";
 import {
 	StackNumberField,
-	StackPrimaryRow,
 	StackSecondaryGrid,
 } from "@/live-sessions/components/stack-ui";
 import { useTournamentFormContext } from "@/live-sessions/hooks/use-session-form";
@@ -90,23 +89,17 @@ export function TournamentStackForm({
 
 	return (
 		<div className="flex flex-col gap-4">
-			<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-				<StackPrimaryRow>
-					<StackNumberField
-						className="sm:min-w-[12rem]"
-						id="tournament-stack-amount"
-						inputMode="numeric"
-						label="Current Stack"
-						min={0}
-						onChange={setStackAmount}
-						required
-						type="number"
-						value={stackAmount}
-					/>
-					<Button disabled={isLoading} size="sm" type="submit">
-						{isLoading ? "..." : "Update"}
-					</Button>
-				</StackPrimaryRow>
+			<form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+				<StackNumberField
+					id="tournament-stack-amount"
+					inputMode="numeric"
+					label="Current Stack"
+					min={0}
+					onChange={setStackAmount}
+					required
+					type="number"
+					value={stackAmount}
+				/>
 
 				<div className="flex items-center gap-2">
 					<Checkbox
@@ -116,27 +109,25 @@ export function TournamentStackForm({
 							setRecordTournamentInfo(checked === true)
 						}
 					/>
-					<Label htmlFor="record-tournament-info">トーナメント状況も記録する</Label>
+					<Label htmlFor="record-tournament-info">トナメ情報も記録</Label>
 				</div>
 
 				{recordTournamentInfo && (
-					<div className="flex flex-col gap-3">
+					<>
 						<StackSecondaryGrid>
 							<StackNumberField
-								className="flex-1"
 								id="tournament-remaining-players"
 								inputMode="numeric"
-								label="Remaining Players"
+								label="残り人数"
 								min={1}
 								onChange={setRemainingPlayers}
 								type="number"
 								value={remainingPlayers}
 							/>
 							<StackNumberField
-								className="flex-1"
 								id="tournament-total-entries"
 								inputMode="numeric"
-								label="Total Entries"
+								label="エントリー数"
 								min={1}
 								onChange={setTotalEntries}
 								type="number"
@@ -153,7 +144,6 @@ export function TournamentStackForm({
 									const countValue = countEntry?.count ?? 0;
 									return (
 										<StackNumberField
-											className="flex-1"
 											id={`chip-purchase-count-${t.name}`}
 											inputMode="numeric"
 											key={t.name}
@@ -183,8 +173,12 @@ export function TournamentStackForm({
 								})}
 							</div>
 						)}
-					</div>
+					</>
 				)}
+
+				<Button className="w-full" disabled={isLoading} type="submit">
+					{isLoading ? "..." : "Update"}
+				</Button>
 			</form>
 
 			<div className="-mx-4 border-t" />
