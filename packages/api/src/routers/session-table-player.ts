@@ -703,19 +703,7 @@ export const sessionTablePlayerRouter = router({
 			}
 			const memo = memoLines.join("\n");
 
-			// Resolve name collisions
-			const existingPlayers = await ctx.db
-				.select({ name: player.name })
-				.from(player)
-				.where(eq(player.userId, userId));
-			const existingNames = new Set(existingPlayers.map((p) => p.name));
-
-			let finalName = "Anonymous";
-			let counter = 2;
-			while (existingNames.has(finalName)) {
-				finalName = `Anonymous (${counter})`;
-				counter++;
-			}
+			const finalName = "Anonymous";
 
 			const playerId = crypto.randomUUID();
 			await ctx.db.insert(player).values({
