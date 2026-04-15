@@ -160,7 +160,7 @@ export function AddPlayerSheet({
 							type="button"
 							variant="ghost"
 						>
-							<PlayerAvatar className="shrink-0" name={p.name} />
+							<PlayerAvatar className="shrink-0" />
 							<div className="min-w-0 flex-1">
 								<p className="truncate font-medium text-sm">{p.name}</p>
 								{p.tags.length > 0 && (
