@@ -701,7 +701,7 @@ export const sessionTablePlayerRouter = router({
 			if (seatPosition !== undefined) {
 				memoLines.push(`Seat: ${seatPosition + 1}`);
 			}
-			const memo = memoLines.join("\n");
+			const memo = `<p>${memoLines.join("<br>")}</p>`;
 
 			const finalName = "Anonymous";
 
