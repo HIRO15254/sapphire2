@@ -109,7 +109,7 @@ export function TournamentStackForm({
 							setRecordTournamentInfo(checked === true)
 						}
 					/>
-					<Label htmlFor="record-tournament-info">トナメ情報も記録</Label>
+					<Label htmlFor="record-tournament-info">Record tournament info</Label>
 				</div>
 
 				{recordTournamentInfo && (
@@ -118,7 +118,7 @@ export function TournamentStackForm({
 							<StackNumberField
 								id="tournament-remaining-players"
 								inputMode="numeric"
-								label="残り人数"
+								label="Remaining Players"
 								min={1}
 								onChange={setRemainingPlayers}
 								type="number"
@@ -127,7 +127,7 @@ export function TournamentStackForm({
 							<StackNumberField
 								id="tournament-total-entries"
 								inputMode="numeric"
-								label="エントリー数"
+								label="Total Entries"
 								min={1}
 								onChange={setTotalEntries}
 								type="number"
