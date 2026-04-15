@@ -1,4 +1,4 @@
-import { IconPlus, IconUser } from "@tabler/icons-react";
+import { IconLoader2, IconPlus, IconUser } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { PlayerAvatar } from "@/players/components/player-avatar";
 
@@ -32,6 +32,7 @@ const SEAT_POSITIONS: [number, number][] = [
 export interface TablePlayer {
 	id: string;
 	isActive: boolean;
+	isLoading?: boolean;
 	player: {
 		id: string;
 		name: string;
@@ -65,12 +66,14 @@ function getPlayerAtSeat(
 
 function SeatSlot({
 	isHero,
+	isLoading,
 	onTap,
 	player,
 	seatIndex,
 	waitingForHero,
 }: {
 	isHero: boolean;
+	isLoading: boolean;
 	onTap: () => void;
 	player: TablePlayer | undefined;
 	seatIndex: number;
@@ -82,7 +85,7 @@ function SeatSlot({
 	return (
 		<button
 			className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5"
-			onClick={onTap}
+			onClick={isLoading ? undefined : onTap}
 			style={{ left: `${left}%`, top: `${top}%` }}
 			type="button"
 		>
@@ -108,7 +111,21 @@ function SeatSlot({
 			)}
 
 			{/* Occupied seat */}
-			{isOccupied && <PlayerAvatar isHero={isHero} name={player.player.name} />}
+			{isOccupied && (
+				<div className="relative">
+					<PlayerAvatar
+						className={cn(isLoading && "opacity-40")}
+						isHero={isHero}
+						name={player.player.name}
+					/>
+					{isLoading && (
+						<IconLoader2
+							className="absolute inset-0 m-auto animate-spin text-white"
+							size={16}
+						/>
+					)}
+				</div>
+			)}
 
 			{/* Name label */}
 			<span
@@ -116,6 +133,7 @@ function SeatSlot({
 					"max-w-[56px] truncate text-center text-[9px] leading-tight",
 					isHero && "font-bold text-amber-300",
 					isOccupied && !isHero && "font-medium text-white/90",
+					isOccupied && isLoading && "opacity-50",
 					!(isOccupied || isHero) && waitingForHero && "text-amber-300/50",
 					!(isOccupied || isHero || waitingForHero) && "text-white/30"
 				)}
@@ -176,6 +194,7 @@ export function PokerTable({
 					return (
 						<SeatSlot
 							isHero={isHero}
+							isLoading={playerAtSeat?.isLoading ?? false}
 							key={`seat-${String(i)}`}
 							onTap={() => {
 								if (isHero && !playerAtSeat) {

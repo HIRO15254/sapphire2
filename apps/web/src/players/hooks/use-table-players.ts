@@ -195,6 +195,7 @@ export function useTablePlayers({
 	const players = (playersQuery.data?.items ?? []).map((item) => ({
 		id: item.id,
 		isActive: item.isActive,
+		isLoading: item.id.startsWith("optimistic-"),
 		player: { id: item.player.id, name: item.player.name },
 		seatPosition: item.seatPosition ?? null,
 	}));
