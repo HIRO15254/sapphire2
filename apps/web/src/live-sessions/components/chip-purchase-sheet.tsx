@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
+import { ChipPurchaseFields } from "@/live-sessions/components/event-fields";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { Field } from "@/shared/components/ui/field";
-import { Input } from "@/shared/components/ui/input";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 
 interface ChipPurchaseSheetProps {
@@ -72,60 +71,16 @@ export function ChipPurchaseSheet({
 			title={title}
 		>
 			<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-				{shortcuts && shortcuts.length > 0 && !readOnly && (
-					<div className="flex flex-wrap gap-2">
-						{shortcuts.map((s) => (
-							<Button
-								key={s.name}
-								onClick={() => {
-									setName(s.name);
-									setCost(s.cost);
-									setChips(s.chips);
-								}}
-								size="xs"
-								type="button"
-								variant="outline"
-							>
-								{s.name}
-							</Button>
-						))}
-					</div>
-				)}
-				<Field htmlFor="chip-purchase-name" label="Name" required>
-					<Input
-						disabled={readOnly}
-						id="chip-purchase-name"
-						onChange={(e) => setName(e.target.value)}
-						placeholder="e.g. Rebuy, Addon"
-						required
-						type="text"
-						value={name}
-					/>
-				</Field>
-				<Field htmlFor="chip-purchase-cost" label="Cost" required>
-					<Input
-						disabled={readOnly}
-						id="chip-purchase-cost"
-						min={0}
-						onChange={(e) => setCost(Math.round(Number(e.target.value)))}
-						required
-						step={1}
-						type="number"
-						value={cost}
-					/>
-				</Field>
-				<Field htmlFor="chip-purchase-chips" label="Chips Received" required>
-					<Input
-						disabled={readOnly}
-						id="chip-purchase-chips"
-						min={0}
-						onChange={(e) => setChips(Math.round(Number(e.target.value)))}
-						required
-						step={1}
-						type="number"
-						value={chips}
-					/>
-				</Field>
+				<ChipPurchaseFields
+					chips={chips}
+					cost={cost}
+					name={name}
+					onChipsChange={setChips}
+					onCostChange={setCost}
+					onNameChange={setName}
+					readOnly={readOnly}
+					shortcuts={shortcuts}
+				/>
 				<DialogActionRow>
 					<Button
 						onClick={() => onOpenChange(false)}

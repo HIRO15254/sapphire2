@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
+import { AddonFields } from "@/live-sessions/components/event-fields";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { Field } from "@/shared/components/ui/field";
-import { Input } from "@/shared/components/ui/input";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 
 interface AddonBottomSheetProps {
@@ -44,17 +43,7 @@ export function AddonBottomSheet({
 			title={isEditMode ? "Edit Addon" : "Add Addon"}
 		>
 			<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-				<Field htmlFor="addon-amount" label="Addon Amount" required>
-					<Input
-						id="addon-amount"
-						min={0}
-						onChange={(e) => setAmount(Math.round(Number(e.target.value)))}
-						required
-						step={1}
-						type="number"
-						value={amount}
-					/>
-				</Field>
+				<AddonFields amount={amount} onAmountChange={setAmount} />
 				<DialogActionRow>
 					<Button
 						onClick={() => onOpenChange(false)}

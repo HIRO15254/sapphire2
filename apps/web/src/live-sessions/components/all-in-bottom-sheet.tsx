@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
+import { AllInFields } from "@/live-sessions/components/event-fields";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { Field } from "@/shared/components/ui/field";
-import { Input } from "@/shared/components/ui/input";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 
 interface AllIn {
@@ -56,10 +55,6 @@ export function AllInBottomSheet({
 
 	const isEditMode = initialValues !== undefined;
 
-	const evAmount = potSize * (equity / 100);
-	const actual = (potSize / trials) * wins;
-	const evDiff = evAmount - actual;
-
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
@@ -74,58 +69,16 @@ export function AllInBottomSheet({
 			title={isEditMode ? "Edit All-in" : "Add All-in"}
 		>
 			<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-				<Field htmlFor="allIn-potSize" label="Pot Size" required>
-					<Input
-						id="allIn-potSize"
-						min={0}
-						onChange={(e) => setPotSize(Number(e.target.value))}
-						required
-						step="any"
-						type="number"
-						value={potSize}
-					/>
-				</Field>
-				<Field htmlFor="allIn-trials" label="Trials" required>
-					<Input
-						id="allIn-trials"
-						min={1}
-						onChange={(e) => setTrials(Math.round(Number(e.target.value)))}
-						required
-						step={1}
-						type="number"
-						value={trials}
-					/>
-				</Field>
-				<Field htmlFor="allIn-equity" label="Equity %">
-					<Input
-						id="allIn-equity"
-						max={100}
-						min={0}
-						onChange={(e) => setEquity(Number(e.target.value))}
-						step={0.1}
-						type="number"
-						value={equity}
-					/>
-				</Field>
-				<Field
-					description="Decimal values are allowed for chopped pots."
-					htmlFor="allIn-wins"
-					label="Wins"
-				>
-					<Input
-						id="allIn-wins"
-						min={0}
-						onChange={(e) => setWins(Number(e.target.value))}
-						step={0.1}
-						type="number"
-						value={wins}
-					/>
-				</Field>
-				<div className="rounded-lg bg-muted p-3 text-sm">
-					<p>EV Amount: {evAmount.toFixed(2)}</p>
-					<p>Actual: {actual.toFixed(2)}</p>
-					<p>EV Diff: {evDiff.toFixed(2)}</p>
-				</div>
+				<AllInFields
+					equity={equity}
+					onEquityChange={setEquity}
+					onPotSizeChange={setPotSize}
+					onTrialsChange={(v) => setTrials(v)}
+					onWinsChange={setWins}
+					potSize={potSize}
+					trials={trials}
+					wins={wins}
+				/>
 				<DialogActionRow>
 					<Button
 						onClick={() => onOpenChange(false)}
