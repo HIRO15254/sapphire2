@@ -32,6 +32,7 @@ const SEAT_POSITIONS: [number, number][] = [
 export interface TablePlayer {
 	id: string;
 	isActive: boolean;
+	isLoading?: boolean;
 	player: {
 		id: string;
 		name: string;
@@ -65,12 +66,14 @@ function getPlayerAtSeat(
 
 function SeatSlot({
 	isHero,
+	isLoading,
 	onTap,
 	player,
 	seatIndex,
 	waitingForHero,
 }: {
 	isHero: boolean;
+	isLoading: boolean;
 	onTap: () => void;
 	player: TablePlayer | undefined;
 	seatIndex: number;
@@ -82,7 +85,7 @@ function SeatSlot({
 	return (
 		<button
 			className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5"
-			onClick={onTap}
+			onClick={isLoading ? undefined : onTap}
 			style={{ left: `${left}%`, top: `${top}%` }}
 			type="button"
 		>
@@ -107,21 +110,31 @@ function SeatSlot({
 				</div>
 			)}
 
+			{/* Loading occupied seat */}
+			{isOccupied && isLoading && (
+				<div className="size-9 animate-pulse rounded-full border-2 border-white/20 bg-slate-500/50" />
+			)}
+
 			{/* Occupied seat */}
-			{isOccupied && <PlayerAvatar isHero={isHero} name={player.player.name} />}
+			{isOccupied && !isLoading && (
+				<PlayerAvatar isHero={isHero} name={player.player.name} />
+			)}
 
 			{/* Name label */}
 			<span
 				className={cn(
 					"max-w-[56px] truncate text-center text-[9px] leading-tight",
 					isHero && "font-bold text-amber-300",
-					isOccupied && !isHero && "font-medium text-white/90",
+					isOccupied && !isHero && !isLoading && "font-medium text-white/90",
 					!(isOccupied || isHero) && waitingForHero && "text-amber-300/50",
 					!(isOccupied || isHero || waitingForHero) && "text-white/30"
 				)}
 			>
 				{isHero && !isOccupied && "You"}
-				{isOccupied && player.player.name}
+				{isOccupied && !isLoading && player.player.name}
+				{isOccupied && isLoading && (
+					<span className="inline-block h-2 w-10 animate-pulse rounded bg-white/20" />
+				)}
 				{!(isOccupied || isHero) && waitingForHero && "Sit"}
 			</span>
 		</button>
@@ -176,6 +189,7 @@ export function PokerTable({
 					return (
 						<SeatSlot
 							isHero={isHero}
+							isLoading={playerAtSeat?.isLoading ?? false}
 							key={`seat-${String(i)}`}
 							onTap={() => {
 								if (isHero && !playerAtSeat) {
