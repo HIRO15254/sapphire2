@@ -3,13 +3,16 @@ import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-shee
 import {
 	StackNumberField,
 	StackPrimaryRow,
-	StackQuickActions,
 	StackSecondaryGrid,
 } from "@/live-sessions/components/stack-ui";
 import { useTournamentFormContext } from "@/live-sessions/hooks/use-session-form";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
+import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import { Field } from "@/shared/components/ui/field";
 import { Label } from "@/shared/components/ui/label";
+import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { Textarea } from "@/shared/components/ui/textarea";
 
 interface ChipPurchaseType {
 	chips: number;
@@ -54,6 +57,8 @@ export function TournamentStackForm({
 
 	const [recordTournamentInfo, setRecordTournamentInfo] = useState(true);
 	const [chipPurchaseSheetOpen, setChipPurchaseSheetOpen] = useState(false);
+	const [memoSheetOpen, setMemoSheetOpen] = useState(false);
+	const [memoText, setMemoText] = useState("");
 
 	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
@@ -75,6 +80,14 @@ export function TournamentStackForm({
 		setChipPurchaseSheetOpen(false);
 	};
 
+	const handleMemoSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault();
+		e.stopPropagation();
+		onMemo(memoText);
+		setMemoText("");
+		setMemoSheetOpen(false);
+	};
+
 	return (
 		<div className="flex flex-col gap-4">
 			<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
@@ -92,14 +105,6 @@ export function TournamentStackForm({
 					/>
 					<Button disabled={isLoading} size="sm" type="submit">
 						{isLoading ? "..." : "Update"}
-					</Button>
-					<Button
-						onClick={onComplete}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						End
 					</Button>
 				</StackPrimaryRow>
 
@@ -182,27 +187,41 @@ export function TournamentStackForm({
 				)}
 			</form>
 
-			<StackQuickActions>
-				<Button
-					onClick={() => setChipPurchaseSheetOpen(true)}
-					size="xs"
-					type="button"
-					variant="ghost"
-				>
-					+ Chip Purchase
-				</Button>
-				<Button
-					onClick={() => onMemo("")}
-					size="xs"
-					type="button"
-					variant="ghost"
-				>
-					+ Memo
-				</Button>
-				<Button onClick={onPause} size="xs" type="button" variant="ghost">
-					Pause
-				</Button>
-			</StackQuickActions>
+			<div className="-mx-4 border-t" />
+
+			<div className="flex flex-col gap-2">
+				<p className="font-medium text-muted-foreground text-xs">Events</p>
+				<div className="grid grid-cols-2 gap-2">
+					<Button
+						onClick={() => setChipPurchaseSheetOpen(true)}
+						type="button"
+						variant="outline"
+					>
+						Chip Purchase
+					</Button>
+					<Button
+						onClick={() => setMemoSheetOpen(true)}
+						type="button"
+						variant="outline"
+					>
+						Memo
+					</Button>
+				</div>
+			</div>
+
+			<div className="-mx-4 border-t" />
+
+			<div className="flex flex-col gap-2">
+				<p className="font-medium text-muted-foreground text-xs">Session</p>
+				<div className="grid grid-cols-2 gap-2">
+					<Button onClick={onPause} type="button" variant="outline">
+						Pause
+					</Button>
+					<Button onClick={onComplete} type="button" variant="outline">
+						Complete
+					</Button>
+				</div>
+			</div>
 
 			<ChipPurchaseSheet
 				onOpenChange={setChipPurchaseSheetOpen}
@@ -210,6 +229,33 @@ export function TournamentStackForm({
 				open={chipPurchaseSheetOpen}
 				shortcuts={chipPurchaseTypes}
 			/>
+
+			<ResponsiveDialog
+				onOpenChange={setMemoSheetOpen}
+				open={memoSheetOpen}
+				title="Add Memo"
+			>
+				<form className="flex flex-col gap-4" onSubmit={handleMemoSubmit}>
+					<Field htmlFor="tournament-memo-text" label="Note">
+						<Textarea
+							id="tournament-memo-text"
+							onChange={(e) => setMemoText(e.target.value)}
+							placeholder="Enter a note..."
+							value={memoText}
+						/>
+					</Field>
+					<DialogActionRow>
+						<Button
+							onClick={() => setMemoSheetOpen(false)}
+							type="button"
+							variant="outline"
+						>
+							Cancel
+						</Button>
+						<Button type="submit">Add Memo</Button>
+					</DialogActionRow>
+				</form>
+			</ResponsiveDialog>
 		</div>
 	);
 }

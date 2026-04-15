@@ -31,7 +31,6 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 	return (
 		<>
 			<ResponsiveDialog
-				description="Record the latest stack and any related all-ins or addons for this cash game."
 				onOpenChange={stackSheet.setIsOpen}
 				open={stackSheet.isOpen}
 				title="Record Stack"
@@ -58,7 +57,6 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
-				description="Enter the final stack to complete this cash game session."
 				onOpenChange={setIsCompleteOpen}
 				open={isCompleteOpen}
 				title="Complete Session"
@@ -96,7 +94,6 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 	return (
 		<>
 			<ResponsiveDialog
-				description="Record the latest stack and tournament status for this tournament."
 				onOpenChange={stackSheet.setIsOpen}
 				open={stackSheet.isOpen}
 				title="Record Stack"
@@ -128,7 +125,6 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
-				description="Enter the tournament result to complete this live session."
 				onOpenChange={setIsCompleteOpen}
 				open={isCompleteOpen}
 				title="Complete Tournament"
