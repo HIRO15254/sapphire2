@@ -1,10 +1,16 @@
 import { IconPencil, IconTrash, IconX } from "@tabler/icons-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
 	type SessionEvent,
 	useSessionEvents,
 } from "@/live-sessions/hooks/use-session-events";
 import { toTimeInputValue } from "@/live-sessions/components/stack-editor-time";
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger,
+} from "@/shared/components/ui/accordion";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
@@ -124,8 +130,8 @@ const PAYLOAD_SUMMARIZERS: Record<string, PayloadSummarizer> = {
 			? `Buy-in: ${p.buyInAmount.toLocaleString()}`
 			: null,
 	session_end: formatSessionEndSummary,
-	session_pause: () => "Paused",
-	session_resume: () => "Resumed",
+	player_join: (p) => (p.isHero === true ? "Hero" : null),
+	player_leave: (p) => (p.isHero === true ? "Hero" : null),
 };
 
 function formatPayloadSummary(eventType: string, payload: unknown) {
@@ -147,6 +153,41 @@ function getTimeBounds(
 		minTime: previous ? new Date(previous.occurredAt) : null,
 		maxTime: next ? new Date(next.occurredAt) : null,
 	};
+}
+
+type EventGroup =
+	| { type: "single"; event: SessionEvent }
+	| { type: "player_group"; events: SessionEvent[] };
+
+function groupEventsForDisplay(events: SessionEvent[]): EventGroup[] {
+	const groups: EventGroup[] = [];
+	let i = 0;
+	while (i < events.length) {
+		const event = events[i];
+		if (
+			event.eventType === "player_join" ||
+			event.eventType === "player_leave"
+		) {
+			const clusterStart = i;
+			while (
+				i < events.length &&
+				(events[i].eventType === "player_join" ||
+					events[i].eventType === "player_leave")
+			) {
+				i++;
+			}
+			const cluster = events.slice(clusterStart, i);
+			if (cluster.length >= 2) {
+				groups.push({ type: "player_group", events: cluster });
+			} else {
+				groups.push({ type: "single", event: cluster[0] });
+			}
+		} else {
+			groups.push({ type: "single", event });
+			i++;
+		}
+	}
+	return groups;
 }
 
 export function SessionEventsScene({
@@ -189,6 +230,94 @@ export function SessionEventsScene({
 	const timeBounds = editEvent
 		? getTimeBounds(events, editEvent.id)
 		: { minTime: null, maxTime: null };
+
+	const groups = useMemo(() => groupEventsForDisplay(events), [events]);
+
+	function renderEventRow(event: SessionEvent) {
+		const payloadSummary = formatPayloadSummary(
+			event.eventType,
+			event.payload
+		);
+		const isLifecycle = LIFECYCLE_EVENTS.has(event.eventType);
+		const canDelete = !isLifecycle;
+		return (
+			<div className="relative flex gap-3 pb-4" key={event.id}>
+				<div className="w-[44px] shrink-0 pt-0.5 text-right text-muted-foreground text-xs">
+					{toTimeInputValue(event.occurredAt)}
+				</div>
+				<div className="relative z-10 mt-1.5 size-2.5 shrink-0 rounded-full bg-primary" />
+				<div className="min-w-0 flex-1">
+					<div className="flex items-start justify-between gap-2">
+						<div>
+							<span className="font-medium text-sm">
+								{formatEventLabel(event.eventType)}
+							</span>
+							{payloadSummary ? (
+								<p className="mt-0.5 text-muted-foreground text-xs">
+									{payloadSummary}
+								</p>
+							) : null}
+						</div>
+						<div className="flex shrink-0 items-center gap-1">
+							{canDelete && confirmingDeleteId === event.id ? (
+								<>
+									<span className="text-destructive text-xs">
+										Delete?
+									</span>
+									<Button
+										aria-label="Confirm delete"
+										className="text-destructive hover:text-destructive"
+										onClick={() => {
+											deleteEvent(event.id);
+											setConfirmingDeleteId(null);
+										}}
+										size="icon-xs"
+										type="button"
+										variant="ghost"
+									>
+										<IconTrash size={14} />
+									</Button>
+									<Button
+										aria-label="Cancel delete"
+										onClick={() => setConfirmingDeleteId(null)}
+										size="icon-xs"
+										type="button"
+										variant="ghost"
+									>
+										<IconX size={14} />
+									</Button>
+								</>
+							) : (
+								<>
+									<Button
+										aria-label={`Edit ${formatEventLabel(event.eventType)}`}
+										onClick={() => setEditEvent(event)}
+										size="icon-xs"
+										variant="ghost"
+									>
+										<IconPencil size={14} />
+									</Button>
+									{canDelete && (
+										<Button
+											aria-label={`Delete ${formatEventLabel(event.eventType)}`}
+											className="text-destructive hover:text-destructive"
+											onClick={() => setConfirmingDeleteId(event.id)}
+											size="icon-xs"
+											type="button"
+											variant="ghost"
+										>
+											<IconTrash size={14} />
+										</Button>
+									)}
+								</>
+							)}
+						</div>
+					</div>
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<div className="p-4 md:p-6">
 			<div className="mb-4 flex flex-wrap items-center gap-2">
@@ -204,88 +333,42 @@ export function SessionEventsScene({
 			) : (
 				<div className="relative">
 					<div className="absolute top-0 bottom-0 left-[52px] w-px bg-border" />
-					{events.map((event) => {
-						const payloadSummary = formatPayloadSummary(
-							event.eventType,
-							event.payload
-						);
-						const isLifecycle = LIFECYCLE_EVENTS.has(event.eventType);
-						const canDelete = !isLifecycle;
+					{groups.map((group) => {
+						if (group.type === "single") {
+							return renderEventRow(group.event);
+						}
+						const first = group.events[0];
+						const last = group.events[group.events.length - 1];
+						const timeRange = `${toTimeInputValue(first.occurredAt)}–${toTimeInputValue(last.occurredAt)}`;
+						const summary = `${group.events.length} player changes`;
 						return (
-							<div className="relative flex gap-3 pb-4" key={event.id}>
-								<div className="w-[44px] shrink-0 pt-0.5 text-right text-muted-foreground text-xs">
-									{toTimeInputValue(event.occurredAt)}
-								</div>
-								<div className="relative z-10 mt-1.5 size-2.5 shrink-0 rounded-full bg-primary" />
-								<div className="min-w-0 flex-1">
-									<div className="flex items-start justify-between gap-2">
-										<div>
-											<span className="font-medium text-sm">
-												{formatEventLabel(event.eventType)}
-											</span>
-											{payloadSummary ? (
-												<p className="mt-0.5 text-muted-foreground text-xs">
-													{payloadSummary}
-												</p>
-											) : null}
+							<Accordion
+								className="relative"
+								key={first.id}
+								type="multiple"
+							>
+								<AccordionItem
+									className="border-b-0"
+									value={first.id}
+								>
+									<div className="relative flex gap-3">
+										<div className="w-[44px] shrink-0 pt-0.5 text-right text-muted-foreground text-xs">
+											{toTimeInputValue(first.occurredAt)}
 										</div>
-										<div className="flex shrink-0 items-center gap-1">
-											{canDelete && confirmingDeleteId === event.id ? (
-												<>
-													<span className="text-destructive text-xs">
-														Delete?
-													</span>
-													<Button
-														aria-label="Confirm delete"
-														className="text-destructive hover:text-destructive"
-														onClick={() => {
-															deleteEvent(event.id);
-															setConfirmingDeleteId(null);
-														}}
-														size="icon-xs"
-														type="button"
-														variant="ghost"
-													>
-														<IconTrash size={14} />
-													</Button>
-													<Button
-														aria-label="Cancel delete"
-														onClick={() => setConfirmingDeleteId(null)}
-														size="icon-xs"
-														type="button"
-														variant="ghost"
-													>
-														<IconX size={14} />
-													</Button>
-												</>
-											) : (
-												<>
-													<Button
-														aria-label={`Edit ${formatEventLabel(event.eventType)}`}
-														onClick={() => setEditEvent(event)}
-														size="icon-xs"
-														variant="ghost"
-													>
-														<IconPencil size={14} />
-													</Button>
-													{canDelete && (
-														<Button
-															aria-label={`Delete ${formatEventLabel(event.eventType)}`}
-															className="text-destructive hover:text-destructive"
-															onClick={() => setConfirmingDeleteId(event.id)}
-															size="icon-xs"
-															type="button"
-															variant="ghost"
-														>
-															<IconTrash size={14} />
-														</Button>
-													)}
-												</>
-											)}
+										<div className="relative z-10 mt-1.5 size-2.5 shrink-0 rounded-full bg-primary" />
+										<div className="min-w-0 flex-1">
+											<AccordionTrigger className="py-0 pb-4">
+												<span className="font-medium text-sm">
+													{summary} · {timeRange}
+												</span>
+											</AccordionTrigger>
 										</div>
 									</div>
-								</div>
-							</div>
+									<AccordionContent className="pb-0">
+										{group.events.map((event) => renderEventRow(event))}
+									</AccordionContent>
+								</AccordionItem>
+							</Accordion>
 						);
 					})}
 				</div>
