@@ -7,7 +7,7 @@ import { LiveStackFormSheet } from "../live-stack-form-sheet";
 const CASH_STACK_DESCRIPTION_PATTERN =
 	/latest stack and any related all-ins or addons/i;
 const TOURNAMENT_STACK_DESCRIPTION_PATTERN =
-	/latest stack and chip purchases for this tournament/i;
+	/latest stack and tournament status for this tournament/i;
 
 const mocks = vi.hoisted(() => ({
 	activeSession: null as null | {
@@ -105,10 +105,6 @@ vi.mock("@/live-sessions/components/tournament-stack-form", () => ({
 
 vi.mock("@/live-sessions/components/tournament-complete-form", () => ({
 	TournamentCompleteForm: () => <div>Tournament Complete Form</div>,
-}));
-
-vi.mock("@/live-sessions/components/tournament-info-form", () => ({
-	TournamentInfoForm: () => <div>Tournament Info Form</div>,
 }));
 
 vi.mock("@/utils/trpc", () => ({

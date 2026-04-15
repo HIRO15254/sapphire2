@@ -2,7 +2,6 @@ import { useState } from "react";
 import { CashGameCompleteForm } from "@/live-sessions/components/cash-game-complete-form";
 import { CashGameStackForm } from "@/live-sessions/components/cash-game-stack-form";
 import { TournamentCompleteForm } from "@/live-sessions/components/tournament-complete-form";
-import { TournamentInfoForm } from "@/live-sessions/components/tournament-info-form";
 import { TournamentStackForm } from "@/live-sessions/components/tournament-stack-form";
 import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
 import { useCashGameStack } from "@/live-sessions/hooks/use-cash-game-stack";
@@ -43,12 +42,14 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 					onChipAdd={(amount) => addChip(amount)}
 					onChipRemove={(amount) => removeChip(amount)}
 					onComplete={(currentStack) => {
-						stackSheet.close();
 						setDefaultFinalStack(currentStack);
 						setIsCompleteOpen(true);
 					}}
 					onMemo={(text) => addMemo(text)}
-					onPause={() => pause()}
+					onPause={() => {
+						pause();
+						stackSheet.close();
+					}}
 					onSubmit={(values) => {
 						recordStack(values);
 						stackSheet.close();
@@ -65,7 +66,11 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 				<CashGameCompleteForm
 					defaultFinalStack={defaultFinalStack}
 					isLoading={isCompletePending}
-					onSubmit={(values) => complete(values)}
+					onSubmit={(values) => {
+						complete(values);
+						setIsCompleteOpen(false);
+						stackSheet.close();
+					}}
 				/>
 			</ResponsiveDialog>
 		</>
@@ -75,7 +80,6 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 	const stackSheet = useStackSheet();
 	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
-	const [isTournamentInfoOpen, setIsTournamentInfoOpen] = useState(false);
 
 	const {
 		chipPurchaseTypes,
@@ -92,7 +96,7 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 	return (
 		<>
 			<ResponsiveDialog
-				description="Record the latest stack and chip purchases for this tournament."
+				description="Record the latest stack and tournament status for this tournament."
 				onOpenChange={stackSheet.setIsOpen}
 				open={stackSheet.isOpen}
 				title="Record Stack"
@@ -101,31 +105,24 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 					chipPurchaseTypes={chipPurchaseTypes}
 					isLoading={isStackPending}
 					onComplete={() => {
-						stackSheet.close();
 						setIsCompleteOpen(true);
 					}}
 					onMemo={(text) => addMemo(text)}
-					onPause={() => pause()}
-					onPurchaseChips={(values) => purchaseChips(values)}
-					onSubmit={(values) => {
-						recordStack(values);
+					onPause={() => {
+						pause();
 						stackSheet.close();
 					}}
-				/>
-			</ResponsiveDialog>
-
-			<ResponsiveDialog
-				description="Update remaining players, total entries, and chip purchase counts for this tournament."
-				onOpenChange={setIsTournamentInfoOpen}
-				open={isTournamentInfoOpen}
-				title="Tournament Info"
-			>
-				<TournamentInfoForm
-					chipPurchaseTypes={chipPurchaseTypes}
-					isLoading={false}
+					onPurchaseChips={(values) => purchaseChips(values)}
 					onSubmit={(values) => {
-						updateTournamentInfo(values);
-						setIsTournamentInfoOpen(false);
+						recordStack({ stackAmount: values.stackAmount });
+						if (values.recordTournamentInfo) {
+							updateTournamentInfo({
+								remainingPlayers: values.remainingPlayers,
+								totalEntries: values.totalEntries,
+								chipPurchaseCounts: values.chipPurchaseCounts,
+							});
+						}
+						stackSheet.close();
 					}}
 				/>
 			</ResponsiveDialog>
@@ -138,7 +135,11 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 			>
 				<TournamentCompleteForm
 					isLoading={isCompletePending}
-					onSubmit={(values) => complete(values)}
+					onSubmit={(values) => {
+						complete(values);
+						setIsCompleteOpen(false);
+						stackSheet.close();
+					}}
 				/>
 			</ResponsiveDialog>
 		</>
