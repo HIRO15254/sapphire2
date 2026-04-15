@@ -19,7 +19,7 @@ export function PlayerAvatar({
 				isHero
 					? "border-amber-400 bg-amber-500/80 text-white"
 					: isTemporary
-						? "border-white/20 bg-white/10 text-white/60"
+						? "border-zinc-500/60 bg-zinc-700 text-white/80"
 						: "border-white/30 bg-slate-500 text-white",
 				className
 			)}
