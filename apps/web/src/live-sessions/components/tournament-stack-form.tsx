@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-sheet";
-import {
-	StackNumberField,
-	StackSecondaryGrid,
-} from "@/live-sessions/components/stack-ui";
+import { StackNumberField } from "@/live-sessions/components/stack-ui";
 import { useTournamentFormContext } from "@/live-sessions/hooks/use-session-form";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
@@ -114,7 +111,7 @@ export function TournamentStackForm({
 
 				{recordTournamentInfo && (
 					<>
-						<StackSecondaryGrid>
+						<div className="grid grid-cols-2 gap-2">
 							<StackNumberField
 								id="tournament-remaining-players"
 								inputMode="numeric"
@@ -133,7 +130,7 @@ export function TournamentStackForm({
 								type="number"
 								value={totalEntries}
 							/>
-						</StackSecondaryGrid>
+						</div>
 
 						{chipPurchaseTypes.length > 0 && (
 							<div className="flex flex-col gap-1.5">
