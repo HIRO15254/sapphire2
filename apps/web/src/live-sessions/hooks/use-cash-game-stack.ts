@@ -1,25 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { createSessionEventMutationOptions } from "@/live-sessions/utils/optimistic-session-event";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export function useCashGameStack({ sessionId }: { sessionId: string }) {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
-	const sessionKey = trpc.liveCashGameSession.getById.queryOptions({
-		id: sessionId,
-	}).queryKey;
-	const eventsKey = trpc.sessionEvent.list.queryOptions({
-		liveCashGameSessionId: sessionId,
-	}).queryKey;
 	const listKey = trpc.liveCashGameSession.list.queryOptions({}).queryKey;
-
-	const invalidateSession = async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: sessionKey }),
-			queryClient.invalidateQueries({ queryKey: eventsKey }),
-		]);
-	};
 
 	const stackMutation = useMutation({
 		mutationFn: (values: { stackAmount: number }) =>
@@ -28,7 +16,13 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 				eventType: "update_stack",
 				payload: { stackAmount: values.stackAmount },
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions<{ stackAmount: number }>({
+			queryClient,
+			sessionId,
+			sessionType: "cash_game",
+			eventType: "update_stack",
+			getPayload: (values) => ({ stackAmount: values.stackAmount }),
+		}),
 	});
 
 	const chipAddMutation = useMutation({
@@ -38,7 +32,13 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 				eventType: "chips_add_remove",
 				payload: { amount, type: "add" },
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions<number>({
+			queryClient,
+			sessionId,
+			sessionType: "cash_game",
+			eventType: "chips_add_remove",
+			getPayload: (amount) => ({ amount, type: "add" }),
+		}),
 	});
 
 	const chipRemoveMutation = useMutation({
@@ -48,7 +48,13 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 				eventType: "chips_add_remove",
 				payload: { amount, type: "remove" },
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions<number>({
+			queryClient,
+			sessionId,
+			sessionType: "cash_game",
+			eventType: "chips_add_remove",
+			getPayload: (amount) => ({ amount, type: "remove" }),
+		}),
 	});
 
 	const allInMutation = useMutation({
@@ -63,7 +69,18 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 				eventType: "all_in",
 				payload: values,
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions<{
+			potSize: number;
+			trials: number;
+			equity: number;
+			wins: number;
+		}>({
+			queryClient,
+			sessionId,
+			sessionType: "cash_game",
+			eventType: "all_in",
+			getPayload: (values) => values,
+		}),
 	});
 
 	const memoMutation = useMutation({
@@ -73,7 +90,13 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 				eventType: "memo",
 				payload: { text },
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions<string>({
+			queryClient,
+			sessionId,
+			sessionType: "cash_game",
+			eventType: "memo",
+			getPayload: (text) => ({ text }),
+		}),
 	});
 
 	const pauseMutation = useMutation({
@@ -83,7 +106,14 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 				eventType: "session_pause",
 				payload: {},
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions({
+			queryClient,
+			sessionId,
+			sessionType: "cash_game",
+			eventType: "session_pause",
+			getPayload: () => ({}),
+			changesStatus: true,
+		}),
 	});
 
 	const resumeMutation = useMutation({
@@ -93,7 +123,14 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 				eventType: "session_resume",
 				payload: {},
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions({
+			queryClient,
+			sessionId,
+			sessionType: "cash_game",
+			eventType: "session_resume",
+			getPayload: () => ({}),
+			changesStatus: true,
+		}),
 	});
 
 	const completeMutation = useMutation({

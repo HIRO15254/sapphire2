@@ -427,6 +427,18 @@ export function useSessions(filters: SessionFilterValues) {
 				queryClient.invalidateQueries({
 					queryKey: trpc.liveCashGameSession.list.queryOptions({}).queryKey,
 				}),
+				queryClient.invalidateQueries({
+					queryKey: trpc.liveCashGameSession.list.queryOptions({
+						status: "active",
+						limit: 1,
+					}).queryKey,
+				}),
+				queryClient.invalidateQueries({
+					queryKey: trpc.liveCashGameSession.list.queryOptions({
+						status: "paused",
+						limit: 1,
+					}).queryKey,
+				}),
 			]);
 			await navigate({ to: "/active-session" });
 		},
