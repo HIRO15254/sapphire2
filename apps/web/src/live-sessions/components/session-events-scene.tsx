@@ -78,11 +78,19 @@ function validateTime(
 	maxTime: Date | null
 ) {
 	const newDate = applyTimeToDate(original, timeStr);
-	if (minTime && newDate.getTime() < minTime.getTime()) {
-		return `Must be after ${formatTime(minTime)}`;
+	if (minTime) {
+		const minTrunc = new Date(minTime);
+		minTrunc.setSeconds(0, 0);
+		if (newDate.getTime() < minTrunc.getTime()) {
+			return `Must be after ${formatTime(minTime)}`;
+		}
 	}
-	if (maxTime && newDate.getTime() > maxTime.getTime()) {
-		return `Must be before ${formatTime(maxTime)}`;
+	if (maxTime) {
+		const maxTrunc = new Date(maxTime);
+		maxTrunc.setSeconds(0, 0);
+		if (newDate.getTime() > maxTrunc.getTime()) {
+			return `Must be before ${formatTime(maxTime)}`;
+		}
 	}
 	return null;
 }
