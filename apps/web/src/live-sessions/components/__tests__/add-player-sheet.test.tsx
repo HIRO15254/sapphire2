@@ -7,7 +7,7 @@ import { AddPlayerSheet } from "../add-player-sheet";
 const ALICE_NAME_PATTERN = /alice/i;
 const BOB_NAME_PATTERN = /bob/i;
 const CREATE_NEW_HERO_PATTERN = /create "new hero"/i;
-const ADD_TEMPORARY_PATTERN = /一時プレイヤーを追加/;
+const ADD_TEMPORARY_PATTERN = /Add Temporary Player/;
 
 const mocks = vi.hoisted(() => ({
 	players: [] as Array<{

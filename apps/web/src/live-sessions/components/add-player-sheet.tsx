@@ -133,7 +133,7 @@ export function AddPlayerSheet({
 					<div className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-muted-foreground/30 border-dashed text-muted-foreground">
 						<IconUserQuestion size={16} />
 					</div>
-					<p className="font-medium text-sm">一時プレイヤーを追加</p>
+					<p className="font-medium text-sm">Add Temporary Player</p>
 				</Button>
 
 				<div className="max-h-[40vh] overflow-y-auto">

@@ -48,7 +48,7 @@ vi.mock("@/shared/components/ui/badge", () => ({
 }));
 
 describe("PlayerDetailSheet", () => {
-	it("shows a 一時 badge when isTemporary is true", () => {
+	it("shows a Temp badge when isTemporary is true", () => {
 		render(
 			<PlayerDetailSheet
 				availableTags={[]}
@@ -61,13 +61,13 @@ describe("PlayerDetailSheet", () => {
 				player={{
 					id: "p1",
 					memo: null,
-					name: "シート1 (2026-04-15)",
+					name: "Seat 1 (2026-04-15)",
 					tags: [],
 				}}
 			/>
 		);
 
-		expect(screen.getByTestId("badge")).toHaveTextContent("一時");
+		expect(screen.getByTestId("badge")).toHaveTextContent("Temp");
 	});
 
 	it("does not show the badge for regular players", () => {

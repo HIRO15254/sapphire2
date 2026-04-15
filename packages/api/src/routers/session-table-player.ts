@@ -617,8 +617,8 @@ export const sessionTablePlayerRouter = router({
 			const today = new Date().toISOString().slice(0, 10);
 			const seatLabel =
 				seatPosition === undefined
-					? "一時プレイヤー"
-					: `シート${seatPosition + 1}`;
+					? "Temporary Player"
+					: `Seat ${seatPosition + 1}`;
 			const baseName = `${seatLabel} (${today})`;
 
 			// Resolve name collisions by appending a counter

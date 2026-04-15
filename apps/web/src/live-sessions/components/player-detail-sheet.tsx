@@ -46,7 +46,7 @@ export function PlayerDetailSheet({
 					className="border-orange-200 bg-orange-50 text-[10px] text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-400"
 					variant="outline"
 				>
-					一時
+					Temp
 				</Badge>
 			)}
 		</span>
