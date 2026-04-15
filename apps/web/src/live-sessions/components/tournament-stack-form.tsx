@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-sheet";
-import { MemoFields } from "@/live-sessions/components/event-fields";
+import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
 import { StackNumberField } from "@/live-sessions/components/stack-ui";
 import { useTournamentFormContext } from "@/live-sessions/hooks/use-session-form";
 import { Button } from "@/shared/components/ui/button";
@@ -16,7 +16,11 @@ interface ChipPurchaseType {
 }
 
 interface TournamentStackFormSubmitValues {
-	chipPurchaseCounts: Array<{ chipsPerUnit: number; count: number; name: string }>;
+	chipPurchaseCounts: Array<{
+		chipsPerUnit: number;
+		count: number;
+		name: string;
+	}>;
 	recordTournamentInfo: boolean;
 	remainingPlayers: number | null;
 	stackAmount: number;
@@ -46,9 +50,15 @@ export function TournamentStackForm({
 	onPurchaseChips,
 	onSubmit,
 }: TournamentStackFormProps) {
-	const { state, setStackAmount, setRemainingPlayers, setTotalEntries, setChipPurchaseCounts } =
-		useTournamentFormContext();
-	const { stackAmount, remainingPlayers, totalEntries, chipPurchaseCounts } = state;
+	const {
+		state,
+		setStackAmount,
+		setRemainingPlayers,
+		setTotalEntries,
+		setChipPurchaseCounts,
+	} = useTournamentFormContext();
+	const { stackAmount, remainingPlayers, totalEntries, chipPurchaseCounts } =
+		state;
 
 	const [recordTournamentInfo, setRecordTournamentInfo] = useState(true);
 	const [chipPurchaseSheetOpen, setChipPurchaseSheetOpen] = useState(false);

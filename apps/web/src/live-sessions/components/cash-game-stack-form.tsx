@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AddonBottomSheet } from "@/live-sessions/components/addon-bottom-sheet";
 import { AllInBottomSheet } from "@/live-sessions/components/all-in-bottom-sheet";
-import { MemoFields } from "@/live-sessions/components/event-fields";
+import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
 import {
 	StackNumberField,
 	StackPrimaryRow,

@@ -1,11 +1,6 @@
+import type { SessionEvent } from "@/live-sessions/hooks/use-session-events";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import type { SessionEvent } from "@/live-sessions/hooks/use-session-events";
-import {
-	toTimeInputValue,
-	validateOccurredAtTime,
-	toOccurredAtTimestamp,
-} from "@/live-sessions/components/stack-editor-time";
 
 export type SessionType = "cash_game" | "tournament";
 
@@ -39,5 +34,3 @@ export function TimeField({
 		</Field>
 	);
 }
-
-export { toTimeInputValue, validateOccurredAtTime, toOccurredAtTimestamp };

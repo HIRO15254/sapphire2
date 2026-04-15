@@ -150,9 +150,15 @@ export function deriveOptimisticStatus(
 	currentStatus: SessionStatus,
 	eventType: string
 ): SessionStatus {
-	if (eventType === "session_pause") return "paused";
-	if (eventType === "session_resume") return "active";
-	if (eventType === "session_end") return "completed";
+	if (eventType === "session_pause") {
+		return "paused";
+	}
+	if (eventType === "session_resume") {
+		return "active";
+	}
+	if (eventType === "session_end") {
+		return "completed";
+	}
 	return currentStatus;
 }
 
@@ -226,8 +232,8 @@ export function getSessionQueryKeys(
 // ---------------------------------------------------------------------------
 
 interface SessionSummaryData {
-	summary?: Record<string, unknown>;
 	status?: SessionStatus;
+	summary?: Record<string, unknown>;
 	[key: string]: unknown;
 }
 
@@ -237,18 +243,18 @@ interface ListData {
 }
 
 interface SnapshotContext {
-	previousSession: OptimisticSnapshot;
 	previousEvents: OptimisticSnapshot;
 	previousLists: OptimisticSnapshot;
+	previousSession: OptimisticSnapshot;
 }
 
 interface SessionEventMutationConfig<TVariables = void> {
+	changesStatus?: boolean;
+	eventType: string;
+	getPayload: (variables: TVariables) => Record<string, unknown>;
 	queryClient: QueryClient;
 	sessionId: string;
 	sessionType: SessionType;
-	eventType: string;
-	getPayload: (variables: TVariables) => Record<string, unknown>;
-	changesStatus?: boolean;
 }
 
 export function createSessionEventMutationOptions<TVariables = void>({
@@ -289,7 +295,9 @@ export function createSessionEventMutationOptions<TVariables = void>({
 
 			// 4. Optimistic: update session summary + status
 			queryClient.setQueryData<SessionSummaryData>(sessionKey, (old) => {
-				if (!old) return old;
+				if (!old) {
+					return old;
+				}
 
 				const nextSummary = old.summary
 					? buildOptimisticSessionSummary(old.summary, eventType, payload)
@@ -364,7 +372,9 @@ function optimisticListStatusUpdate(
 
 	// Remove from source list
 	queryClient.setQueryData<ListData>(fromKey, (old) => {
-		if (!old?.items) return old;
+		if (!old?.items) {
+			return old;
+		}
 		return {
 			...old,
 			items: old.items.filter((item) => item.id !== sessionId),
@@ -375,10 +385,7 @@ function optimisticListStatusUpdate(
 	if (sessionItem) {
 		queryClient.setQueryData<ListData>(toKey, (old) => ({
 			...(old ?? { nextCursor: undefined }),
-			items: [
-				{ ...sessionItem, status: newStatus },
-				...(old?.items ?? []),
-			],
+			items: [{ ...sessionItem, status: newStatus }, ...(old?.items ?? [])],
 		}));
 	}
 }

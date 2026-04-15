@@ -1,10 +1,11 @@
 import { IconPencil, IconTrash, IconX } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
+import { EventEditor } from "@/live-sessions/components/event-editors/event-editor";
+import { toTimeInputValue } from "@/live-sessions/components/stack-editor-time";
 import {
 	type SessionEvent,
 	useSessionEvents,
 } from "@/live-sessions/hooks/use-session-events";
-import { toTimeInputValue } from "@/live-sessions/components/stack-editor-time";
 import {
 	Accordion,
 	AccordionContent,
@@ -15,7 +16,6 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { EventEditor } from "@/live-sessions/components/event-editors";
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
 	chips_add_remove: "Chips Add/Remove",
@@ -213,6 +213,8 @@ export function SessionEventsScene({
 		refetchInterval,
 	});
 
+	const groups = useMemo(() => groupEventsForDisplay(events), [events]);
+
 	if (sessionLoading) {
 		return (
 			<div className="flex h-[100dvh] items-center justify-center pb-16">
@@ -231,13 +233,8 @@ export function SessionEventsScene({
 		? getTimeBounds(events, editEvent.id)
 		: { minTime: null, maxTime: null };
 
-	const groups = useMemo(() => groupEventsForDisplay(events), [events]);
-
 	function renderEventRow(event: SessionEvent) {
-		const payloadSummary = formatPayloadSummary(
-			event.eventType,
-			event.payload
-		);
+		const payloadSummary = formatPayloadSummary(event.eventType, event.payload);
 		const isLifecycle = LIFECYCLE_EVENTS.has(event.eventType);
 		const canDelete = !isLifecycle;
 		return (
@@ -261,9 +258,7 @@ export function SessionEventsScene({
 						<div className="flex shrink-0 items-center gap-1">
 							{canDelete && confirmingDeleteId === event.id ? (
 								<>
-									<span className="text-destructive text-xs">
-										Delete?
-									</span>
+									<span className="text-destructive text-xs">Delete?</span>
 									<Button
 										aria-label="Confirm delete"
 										className="text-destructive hover:text-destructive"
@@ -338,19 +333,12 @@ export function SessionEventsScene({
 							return renderEventRow(group.event);
 						}
 						const first = group.events[0];
-						const last = group.events[group.events.length - 1];
-						const timeRange = `${toTimeInputValue(first.occurredAt)}–${toTimeInputValue(last.occurredAt)}`;
+						const last = group.events.at(-1);
+						const timeRange = `${toTimeInputValue(first.occurredAt)}–${toTimeInputValue(last?.occurredAt ?? first.occurredAt)}`;
 						const summary = `${group.events.length} player changes`;
 						return (
-							<Accordion
-								className="relative"
-								key={first.id}
-								type="multiple"
-							>
-								<AccordionItem
-									className="border-b-0"
-									value={first.id}
-								>
+							<Accordion className="relative" key={first.id} type="multiple">
+								<AccordionItem className="border-b-0" value={first.id}>
 									<div className="relative flex gap-3">
 										<div className="w-[44px] shrink-0 pt-0.5 text-right text-muted-foreground text-xs">
 											{toTimeInputValue(first.occurredAt)}

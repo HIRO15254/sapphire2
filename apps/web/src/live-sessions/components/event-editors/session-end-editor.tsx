@@ -1,16 +1,14 @@
 import { useForm } from "@tanstack/react-form";
+import {
+	toOccurredAtTimestamp,
+	toTimeInputValue,
+	validateOccurredAtTime,
+} from "@/live-sessions/components/stack-editor-time";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import {
-	TimeField,
-	toTimeInputValue,
-	validateOccurredAtTime,
-	toOccurredAtTimestamp,
-	type EditorBaseProps,
-	type SessionType,
-} from "./shared";
+import { type EditorBaseProps, type SessionType, TimeField } from "./shared";
 
 type Props = Pick<
 	EditorBaseProps,
@@ -124,7 +122,9 @@ export function SessionEndEditor({
 					) : null}
 				</>
 			)}
-			<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+			<form.Subscribe
+				selector={(state) => [state.canSubmit, state.isSubmitting]}
+			>
 				{([canSubmit, isSubmitting]) => (
 					<DialogActionRow>
 						<Button

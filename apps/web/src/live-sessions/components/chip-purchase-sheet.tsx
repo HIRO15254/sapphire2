@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChipPurchaseFields } from "@/live-sessions/components/event-fields";
+import { ChipPurchaseFields } from "@/live-sessions/components/event-fields/chip-purchase-fields";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";

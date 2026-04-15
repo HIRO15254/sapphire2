@@ -1,14 +1,13 @@
 import { useForm } from "@tanstack/react-form";
-import { MemoFields } from "@/live-sessions/components/event-fields";
-import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
 import {
-	TimeField,
+	toOccurredAtTimestamp,
 	toTimeInputValue,
 	validateOccurredAtTime,
-	toOccurredAtTimestamp,
-	type EditorBaseProps,
-} from "./shared";
+} from "@/live-sessions/components/stack-editor-time";
+import { Button } from "@/shared/components/ui/button";
+import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import { type EditorBaseProps, TimeField } from "./shared";
 
 type Props = Pick<
 	EditorBaseProps,
@@ -74,7 +73,9 @@ export function MemoEditor({
 					/>
 				)}
 			</form.Field>
-			<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+			<form.Subscribe
+				selector={(state) => [state.canSubmit, state.isSubmitting]}
+			>
 				{([canSubmit, isSubmitting]) => (
 					<DialogActionRow>
 						<Button

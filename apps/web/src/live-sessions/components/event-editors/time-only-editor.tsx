@@ -1,13 +1,12 @@
 import { useForm } from "@tanstack/react-form";
-import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import {
-	TimeField,
+	toOccurredAtTimestamp,
 	toTimeInputValue,
 	validateOccurredAtTime,
-	toOccurredAtTimestamp,
-	type EditorBaseProps,
-} from "./shared";
+} from "@/live-sessions/components/stack-editor-time";
+import { Button } from "@/shared/components/ui/button";
+import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import { type EditorBaseProps, TimeField } from "./shared";
 
 type TimeOnlyEditorProps = Pick<
 	EditorBaseProps,
@@ -56,7 +55,9 @@ export function TimeOnlyEditor({
 					/>
 				)}
 			</form.Field>
-			<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+			<form.Subscribe
+				selector={(state) => [state.canSubmit, state.isSubmitting]}
+			>
 				{([canSubmit, isSubmitting]) => (
 					<DialogActionRow>
 						<Button

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AllInFields } from "@/live-sessions/components/event-fields";
+import { AllInFields } from "@/live-sessions/components/event-fields/all-in-fields";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";

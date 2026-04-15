@@ -35,10 +35,7 @@ export function TournamentInfoFields({
 }: TournamentInfoFieldsProps) {
 	return (
 		<>
-			<Field
-				htmlFor="tournament-remaining-players"
-				label="Remaining Players"
-			>
+			<Field htmlFor="tournament-remaining-players" label="Remaining Players">
 				<Input
 					id="tournament-remaining-players"
 					inputMode="numeric"

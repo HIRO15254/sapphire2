@@ -1,10 +1,10 @@
-import type { EditorBaseProps } from "./shared";
 import { AllInEditor } from "./all-in-editor";
 import { ChipsAddRemoveEditor } from "./chips-add-remove-editor";
 import { MemoEditor } from "./memo-editor";
 import { PurchaseChipsEditor } from "./purchase-chips-editor";
 import { SessionEndEditor } from "./session-end-editor";
 import { SessionStartEditor } from "./session-start-editor";
+import type { EditorBaseProps } from "./shared";
 import { TimeOnlyEditor } from "./time-only-editor";
 import { UpdateStackEditor } from "./update-stack-editor";
 import { UpdateTournamentInfoEditor } from "./update-tournament-info-editor";

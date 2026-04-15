@@ -1,5 +1,10 @@
 import { useForm } from "@tanstack/react-form";
-import { AddonFields } from "@/live-sessions/components/event-fields";
+import { AddonFields } from "@/live-sessions/components/event-fields/addon-fields";
+import {
+	toOccurredAtTimestamp,
+	toTimeInputValue,
+	validateOccurredAtTime,
+} from "@/live-sessions/components/stack-editor-time";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
@@ -7,13 +12,7 @@ import {
 	ToggleGroup,
 	ToggleGroupItem,
 } from "@/shared/components/ui/toggle-group";
-import {
-	TimeField,
-	toTimeInputValue,
-	validateOccurredAtTime,
-	toOccurredAtTimestamp,
-	type EditorBaseProps,
-} from "./shared";
+import { type EditorBaseProps, TimeField } from "./shared";
 
 type Props = Pick<
 	EditorBaseProps,
@@ -92,7 +91,9 @@ export function ChipsAddRemoveEditor({
 					</Field>
 				)}
 			</form.Field>
-			<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+			<form.Subscribe
+				selector={(state) => [state.canSubmit, state.isSubmitting]}
+			>
 				{([canSubmit, isSubmitting]) => (
 					<DialogActionRow>
 						<Button
