@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { createSessionEventMutationOptions } from "@/live-sessions/utils/optimistic-session-event";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export function useTournamentStack({ sessionId }: { sessionId: string }) {
@@ -24,20 +25,7 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 		chips: t.chips,
 	}));
 
-	const sessionKey = trpc.liveTournamentSession.getById.queryOptions({
-		id: sessionId,
-	}).queryKey;
-	const eventsKey = trpc.sessionEvent.list.queryOptions({
-		liveTournamentSessionId: sessionId,
-	}).queryKey;
 	const listKey = trpc.liveTournamentSession.list.queryOptions({}).queryKey;
-
-	const invalidateSession = async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: sessionKey }),
-			queryClient.invalidateQueries({ queryKey: eventsKey }),
-		]);
-	};
 
 	const stackMutation = useMutation({
 		mutationFn: (values: { stackAmount: number }) =>
@@ -48,7 +36,13 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 					stackAmount: values.stackAmount,
 				},
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions<{ stackAmount: number }>({
+			queryClient,
+			sessionId,
+			sessionType: "tournament",
+			eventType: "update_stack",
+			getPayload: (values) => ({ stackAmount: values.stackAmount }),
+		}),
 	});
 
 	const purchaseChipsMutation = useMutation({
@@ -58,7 +52,17 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 				eventType: "purchase_chips",
 				payload: values,
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions<{
+			name: string;
+			cost: number;
+			chips: number;
+		}>({
+			queryClient,
+			sessionId,
+			sessionType: "tournament",
+			eventType: "purchase_chips",
+			getPayload: (values) => values,
+		}),
 	});
 
 	const updateTournamentInfoMutation = useMutation({
@@ -81,7 +85,26 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 					chipPurchaseCounts: values.chipPurchaseCounts,
 				},
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions<{
+			remainingPlayers: number | null;
+			totalEntries: number | null;
+			chipPurchaseCounts: Array<{
+				name: string;
+				count: number;
+				chipsPerUnit: number;
+			}>;
+		}>({
+			queryClient,
+			sessionId,
+			sessionType: "tournament",
+			eventType: "update_tournament_info",
+			getPayload: (values) => ({
+				remainingPlayers: values.remainingPlayers,
+				totalEntries: values.totalEntries,
+				averageStack: null,
+				chipPurchaseCounts: values.chipPurchaseCounts,
+			}),
+		}),
 	});
 
 	const memoMutation = useMutation({
@@ -91,7 +114,13 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 				eventType: "memo",
 				payload: { text },
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions<string>({
+			queryClient,
+			sessionId,
+			sessionType: "tournament",
+			eventType: "memo",
+			getPayload: (text) => ({ text }),
+		}),
 	});
 
 	const pauseMutation = useMutation({
@@ -101,7 +130,14 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 				eventType: "session_pause",
 				payload: {},
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions({
+			queryClient,
+			sessionId,
+			sessionType: "tournament",
+			eventType: "session_pause",
+			getPayload: () => ({}),
+			changesStatus: true,
+		}),
 	});
 
 	const resumeMutation = useMutation({
@@ -111,7 +147,14 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 				eventType: "session_resume",
 				payload: {},
 			}),
-		onSuccess: invalidateSession,
+		...createSessionEventMutationOptions({
+			queryClient,
+			sessionId,
+			sessionType: "tournament",
+			eventType: "session_resume",
+			getPayload: () => ({}),
+			changesStatus: true,
+		}),
 	});
 
 	const completeMutation = useMutation({

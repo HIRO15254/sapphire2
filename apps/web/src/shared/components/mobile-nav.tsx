@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { CreateSessionDialog } from "@/live-sessions/components/create-session-dialog";
 import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
 import { useStackSheet } from "@/live-sessions/hooks/use-stack-sheet";
+import { createSessionEventMutationOptions } from "@/live-sessions/utils/optimistic-session-event";
 import {
 	getMobileNavigationItems,
 	isActiveItem,
@@ -80,6 +81,17 @@ export function MobileNav() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const { leftItems, rightItems } = getMobileNavigationItems(hasActive);
 
+	const optimisticOptions = activeSession
+		? createSessionEventMutationOptions({
+				queryClient,
+				sessionId: activeSession.id,
+				sessionType: activeSession.type,
+				eventType: "session_resume",
+				getPayload: () => ({}),
+				changesStatus: true,
+			})
+		: {};
+
 	const resumeMutation = useMutation({
 		mutationFn: async () => {
 			if (!activeSession) {
@@ -95,7 +107,7 @@ export function MobileNav() {
 				payload: {},
 			});
 		},
-		onSuccess: () => queryClient.invalidateQueries(),
+		...optimisticOptions,
 	});
 
 	let centerAction: NavigationCenterAction;
