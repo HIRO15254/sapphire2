@@ -15,6 +15,7 @@ interface ChipPurchaseSheetProps {
 	onSubmit: (purchase: { name: string; cost: number; chips: number }) => void;
 	open: boolean;
 	readOnly?: boolean;
+	shortcuts?: Array<{ chips: number; cost: number; name: string }>;
 }
 
 export function ChipPurchaseSheet({
@@ -27,6 +28,7 @@ export function ChipPurchaseSheet({
 	onSubmit,
 	onDelete,
 	readOnly = false,
+	shortcuts,
 }: ChipPurchaseSheetProps) {
 	const [name, setName] = useState(initialValues?.name ?? defaultName ?? "");
 	const [cost, setCost] = useState(initialValues?.cost ?? defaultCost ?? 0);
@@ -70,6 +72,25 @@ export function ChipPurchaseSheet({
 			title={title}
 		>
 			<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+				{shortcuts && shortcuts.length > 0 && !readOnly && (
+					<div className="flex flex-wrap gap-2">
+						{shortcuts.map((s) => (
+							<Button
+								key={s.name}
+								onClick={() => {
+									setName(s.name);
+									setCost(s.cost);
+									setChips(s.chips);
+								}}
+								size="xs"
+								type="button"
+								variant="outline"
+							>
+								{s.name}
+							</Button>
+						))}
+					</div>
+				)}
 				<Field htmlFor="chip-purchase-name" label="Name" required>
 					<Input
 						disabled={readOnly}

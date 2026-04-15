@@ -4,7 +4,6 @@ import { AllInBottomSheet } from "@/live-sessions/components/all-in-bottom-sheet
 import {
 	StackNumberField,
 	StackPrimaryRow,
-	StackQuickActions,
 } from "@/live-sessions/components/stack-ui";
 import { useStackFormContext } from "@/live-sessions/hooks/use-session-form";
 import { Button } from "@/shared/components/ui/button";
@@ -88,69 +87,75 @@ export function CashGameStackForm({
 	};
 
 	return (
-		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<StackPrimaryRow>
-				<StackNumberField
-					className="sm:min-w-[12rem]"
-					id="cash-stack-amount"
-					inputMode="numeric"
-					label="Current Stack"
-					min={0}
-					onChange={setStackAmount}
-					required
-					type="number"
-					value={stackAmount}
-				/>
-				<Button disabled={isLoading} size="sm" type="submit">
-					{isLoading ? "..." : "Update"}
-				</Button>
-				<Button
-					onClick={handleComplete}
-					size="sm"
-					type="button"
-					variant="outline"
-				>
-					End
-				</Button>
-			</StackPrimaryRow>
+		<div className="flex flex-col gap-4">
+			<form onSubmit={handleSubmit}>
+				<StackPrimaryRow>
+					<StackNumberField
+						className="sm:min-w-[12rem]"
+						id="cash-stack-amount"
+						inputMode="numeric"
+						label="Current Stack"
+						min={0}
+						onChange={setStackAmount}
+						required
+						type="number"
+						value={stackAmount}
+					/>
+					<Button disabled={isLoading} size="sm" type="submit">
+						{isLoading ? "..." : "Update"}
+					</Button>
+				</StackPrimaryRow>
+			</form>
 
-			<StackQuickActions>
-				<Button
-					onClick={() => setAllInBottomSheetOpen(true)}
-					size="xs"
-					type="button"
-					variant="ghost"
-				>
-					+ All-in
-				</Button>
-				<Button
-					onClick={() => setAddonBottomSheetOpen(true)}
-					size="xs"
-					type="button"
-					variant="ghost"
-				>
-					+ Addon
-				</Button>
-				<Button
-					onClick={() => setRemoveBottomSheetOpen(true)}
-					size="xs"
-					type="button"
-					variant="ghost"
-				>
-					+ Remove
-				</Button>
-				<Button
-					onClick={() => setMemoBottomSheetOpen(true)}
-					size="xs"
-					type="button"
-					variant="ghost"
-				>
-					+ Memo
-				</Button>
-				<Button onClick={onPause} size="xs" type="button" variant="ghost">
-					Pause
-				</Button>
-			</StackQuickActions>
+			<div className="-mx-4 border-t" />
+
+			<div className="flex flex-col gap-2">
+				<p className="font-medium text-muted-foreground text-xs">Events</p>
+				<div className="grid grid-cols-2 gap-2">
+					<Button
+						onClick={() => setAllInBottomSheetOpen(true)}
+						type="button"
+						variant="outline"
+					>
+						All-in
+					</Button>
+					<Button
+						onClick={() => setAddonBottomSheetOpen(true)}
+						type="button"
+						variant="outline"
+					>
+						Add Chips
+					</Button>
+					<Button
+						onClick={() => setRemoveBottomSheetOpen(true)}
+						type="button"
+						variant="outline"
+					>
+						Remove Chips
+					</Button>
+					<Button
+						onClick={() => setMemoBottomSheetOpen(true)}
+						type="button"
+						variant="outline"
+					>
+						Memo
+					</Button>
+				</div>
+			</div>
+
+			<div className="-mx-4 border-t" />
+
+			<div className="flex flex-col gap-2">
+				<p className="font-medium text-muted-foreground text-xs">Session</p>
+				<div className="grid grid-cols-2 gap-2">
+					<Button onClick={onPause} type="button" variant="outline">
+						Pause
+					</Button>
+					<Button onClick={handleComplete} type="button" variant="outline">
+						Complete
+					</Button>
+				</div>
+			</div>
 
 			<AllInBottomSheet
 				onOpenChange={setAllInBottomSheetOpen}
@@ -171,7 +176,6 @@ export function CashGameStackForm({
 			/>
 
 			<ResponsiveDialog
-				description="Add a note to this session."
 				onOpenChange={setMemoBottomSheetOpen}
 				open={memoBottomSheetOpen}
 				title="Add Memo"
@@ -197,6 +201,6 @@ export function CashGameStackForm({
 					</DialogActionRow>
 				</form>
 			</ResponsiveDialog>
-		</form>
+		</div>
 	);
 }
