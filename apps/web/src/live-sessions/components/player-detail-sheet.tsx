@@ -1,5 +1,6 @@
 import type { PlayerFormValues } from "@/players/components/player-form";
 import { PlayerForm } from "@/players/components/player-form";
+import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 
@@ -12,6 +13,7 @@ interface TagWithColor {
 interface PlayerDetailSheetProps {
 	availableTags: TagWithColor[];
 	isSaving: boolean;
+	isTemporary?: boolean;
 	onCreateTag?: (name: string) => Promise<TagWithColor>;
 	onOpenChange: (open: boolean) => void;
 	onRemove: () => void;
@@ -27,6 +29,7 @@ interface PlayerDetailSheetProps {
 
 export function PlayerDetailSheet({
 	availableTags,
+	isTemporary = false,
 	isSaving,
 	onCreateTag,
 	onOpenChange,
@@ -35,12 +38,26 @@ export function PlayerDetailSheet({
 	open,
 	player,
 }: PlayerDetailSheetProps) {
+	const titleNode = (
+		<span className="flex items-center gap-2">
+			{player?.name ?? "Player"}
+			{isTemporary && (
+				<Badge
+					className="border-orange-200 bg-orange-50 text-[10px] text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-400"
+					variant="outline"
+				>
+					一時
+				</Badge>
+			)}
+		</span>
+	);
+
 	return (
 		<ResponsiveDialog
 			fullHeight
 			onOpenChange={onOpenChange}
 			open={open}
-			title={player?.name ?? "Player"}
+			title={titleNode}
 		>
 			<PlayerForm
 				availableTags={availableTags}

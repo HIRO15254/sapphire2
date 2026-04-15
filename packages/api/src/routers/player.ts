@@ -34,7 +34,10 @@ export const playerRouter = router({
 				}
 			}
 
-			const conditions = [eq(player.userId, userId)];
+			const conditions = [
+				eq(player.userId, userId),
+				eq(player.isTemporary, false),
+			];
 			if (input?.search) {
 				conditions.push(like(player.name, `%${input.search}%`));
 			}

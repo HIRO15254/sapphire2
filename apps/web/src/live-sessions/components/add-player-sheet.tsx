@@ -1,4 +1,4 @@
-import { IconPlus, IconSearch } from "@tabler/icons-react";
+import { IconPlus, IconSearch, IconUserQuestion } from "@tabler/icons-react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useDeferredValue, useEffect, useState } from "react";
 import { ColorBadge } from "@/players/components/color-badge";
@@ -25,6 +25,7 @@ interface AddPlayerSheetProps {
 		name: string;
 		tagIds?: string[];
 	}) => void;
+	onAddTemporary: () => void;
 	onCreateTag: (name: string) => Promise<TagWithColor>;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
@@ -35,6 +36,7 @@ export function AddPlayerSheet({
 	excludePlayerIds,
 	onAddExisting,
 	onAddNew,
+	onAddTemporary,
 	onCreateTag,
 	onOpenChange,
 	open,
@@ -83,6 +85,11 @@ export function AddPlayerSheet({
 		onOpenChange(false);
 	};
 
+	const handleAddTemporary = () => {
+		onAddTemporary();
+		onOpenChange(false);
+	};
+
 	return (
 		<ResponsiveDialog
 			fullHeight
@@ -116,6 +123,18 @@ export function AddPlayerSheet({
 					placeholder="Filter by tags..."
 					selectedTags={selectedTags}
 				/>
+
+				<Button
+					className="h-auto w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left"
+					onClick={handleAddTemporary}
+					type="button"
+					variant="ghost"
+				>
+					<div className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-muted-foreground/30 border-dashed text-muted-foreground">
+						<IconUserQuestion size={16} />
+					</div>
+					<p className="font-medium text-sm">一時プレイヤーを追加</p>
+				</Button>
 
 				<div className="max-h-[40vh] overflow-y-auto">
 					{search.trim() && (

@@ -252,6 +252,7 @@ export const sessionTablePlayerRouter = router({
 					playerId: player.id,
 					playerName: player.name,
 					playerMemo: player.memo,
+					playerIsTemporary: player.isTemporary,
 				})
 				.from(sessionTablePlayer)
 				.innerJoin(player, eq(player.id, sessionTablePlayer.playerId))
@@ -272,8 +273,9 @@ export const sessionTablePlayerRouter = router({
 					id: row.id,
 					player: {
 						id: row.playerId,
-						name: row.playerName,
+						isTemporary: row.playerIsTemporary,
 						memo: row.playerMemo,
+						name: row.playerName,
 					},
 					isActive,
 					joinedAt: recovered?.lastJoinedAt ?? row.joinedAt,
@@ -585,5 +587,84 @@ export const sessionTablePlayerRouter = router({
 			);
 
 			return { id: existing.id };
+		}),
+
+	addTemporary: protectedProcedure
+		.input(
+			z.object({
+				liveCashGameSessionId: z.string().optional(),
+				liveTournamentSessionId: z.string().optional(),
+				seatPosition: z.number().int().min(0).max(8).optional(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const { liveCashGameSessionId, liveTournamentSessionId, seatPosition } =
+				input;
+			validateExactlyOneSessionId(
+				liveCashGameSessionId,
+				liveTournamentSessionId
+			);
+
+			const userId = ctx.session.user.id;
+			await resolveSessionOwnership(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId,
+				userId
+			);
+
+			// Generate a base name from seat position and today's date
+			const today = new Date().toISOString().slice(0, 10);
+			const seatLabel =
+				seatPosition === undefined
+					? "一時プレイヤー"
+					: `シート${seatPosition + 1}`;
+			const baseName = `${seatLabel} (${today})`;
+
+			// Resolve name collisions by appending a counter
+			const existingPlayers = await ctx.db
+				.select({ name: player.name })
+				.from(player)
+				.where(eq(player.userId, userId));
+			const existingNames = new Set(existingPlayers.map((p) => p.name));
+
+			let finalName = baseName;
+			let counter = 2;
+			while (existingNames.has(finalName)) {
+				finalName = `${baseName} (${counter})`;
+				counter++;
+			}
+
+			const now = new Date();
+			const playerId = crypto.randomUUID();
+			await ctx.db.insert(player).values({
+				id: playerId,
+				isTemporary: true,
+				memo: null,
+				name: finalName,
+				updatedAt: now,
+				userId,
+			});
+
+			const tablePlayerId = crypto.randomUUID();
+			await ctx.db.insert(sessionTablePlayer).values({
+				id: tablePlayerId,
+				isActive: 1,
+				joinedAt: now,
+				liveCashGameSessionId: liveCashGameSessionId ?? null,
+				liveTournamentSessionId: liveTournamentSessionId ?? null,
+				playerId,
+				updatedAt: now,
+				...(seatPosition !== undefined && { seatPosition }),
+			});
+
+			await insertPlayerJoinEvent(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId,
+				playerId
+			);
+
+			return { id: tablePlayerId, playerId };
 		}),
 });

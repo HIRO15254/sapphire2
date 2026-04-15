@@ -15,7 +15,7 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	}: {
 		children: ReactNode;
 		open: boolean;
-		title: string;
+		title: ReactNode;
 	}) =>
 		open ? (
 			<div>
@@ -41,7 +41,51 @@ vi.mock("@/shared/components/ui/rich-text-editor", () => ({
 	),
 }));
 
+vi.mock("@/shared/components/ui/badge", () => ({
+	Badge: ({ children }: { children: ReactNode }) => (
+		<span data-testid="badge">{children}</span>
+	),
+}));
+
 describe("PlayerDetailSheet", () => {
+	it("shows a 一時 badge when isTemporary is true", () => {
+		render(
+			<PlayerDetailSheet
+				availableTags={[]}
+				isSaving={false}
+				isTemporary
+				onOpenChange={vi.fn()}
+				onRemove={vi.fn()}
+				onSave={vi.fn()}
+				open
+				player={{
+					id: "p1",
+					memo: null,
+					name: "シート1 (2026-04-15)",
+					tags: [],
+				}}
+			/>
+		);
+
+		expect(screen.getByTestId("badge")).toHaveTextContent("一時");
+	});
+
+	it("does not show the badge for regular players", () => {
+		render(
+			<PlayerDetailSheet
+				availableTags={[]}
+				isSaving={false}
+				onOpenChange={vi.fn()}
+				onRemove={vi.fn()}
+				onSave={vi.fn()}
+				open
+				player={{ id: "p1", memo: null, name: "Alice", tags: [] }}
+			/>
+		);
+
+		expect(screen.queryByTestId("badge")).not.toBeInTheDocument();
+	});
+
 	it("saves updated tag ids and memo without changing the payload shape", async () => {
 		const user = userEvent.setup();
 		const onSave = vi.fn();

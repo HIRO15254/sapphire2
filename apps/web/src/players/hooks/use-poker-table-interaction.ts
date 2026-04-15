@@ -31,10 +31,7 @@ export function usePokerTableInteraction(
 		null
 	);
 
-	const { sessionKey, eventsKey } = getSessionQueryKeys(
-		sessionId,
-		sessionType
-	);
+	const { sessionKey, eventsKey } = getSessionQueryKeys(sessionId, sessionType);
 
 	const [localHeroSeat, setLocalHeroSeat] = useState<number | null | undefined>(
 		undefined
