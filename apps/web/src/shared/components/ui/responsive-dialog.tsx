@@ -27,7 +27,7 @@ interface ResponsiveDialogProps {
 	fullHeight?: boolean;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
-	title: string;
+	title: ReactNode;
 }
 
 export function ResponsiveDialog({

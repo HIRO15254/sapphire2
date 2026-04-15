@@ -35,6 +35,7 @@ export interface TablePlayer {
 	isLoading?: boolean;
 	player: {
 		id: string;
+		isTemporary: boolean;
 		name: string;
 	};
 	seatPosition: number | null;

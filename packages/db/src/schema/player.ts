@@ -17,6 +17,9 @@ export const player = sqliteTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		memo: text("memo"),
+		isTemporary: integer("is_temporary", { mode: "boolean" })
+			.notNull()
+			.default(false),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),

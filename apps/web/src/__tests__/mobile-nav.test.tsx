@@ -31,13 +31,21 @@ vi.mock("@/live-sessions/hooks/use-stack-sheet", () => ({
 }));
 
 // Mock trpc to avoid env validation
-vi.mock("@/utils/trpc", () => ({
-	trpcClient: {
-		sessionEvent: {
-			create: { mutate: vi.fn() },
+vi.mock("@/utils/trpc", () => {
+	const qo = () => ({ queryKey: [] });
+	const proc = { queryOptions: qo };
+	const makeRouter = (): Record<string, unknown> =>
+		new Proxy({}, { get: () => proc });
+	const trpc = new Proxy({}, { get: () => makeRouter() });
+	return {
+		trpcClient: {
+			sessionEvent: {
+				create: { mutate: () => undefined },
+			},
 		},
-	},
-}));
+		trpc,
+	};
+});
 
 // Mock react-query hooks used directly in MobileNav
 vi.mock("@tanstack/react-query", () => ({
