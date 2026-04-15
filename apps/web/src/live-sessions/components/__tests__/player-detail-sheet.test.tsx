@@ -61,7 +61,7 @@ describe("PlayerDetailSheet", () => {
 				player={{
 					id: "p1",
 					memo: null,
-					name: "Seat 1 (2026-04-15)",
+					name: "Anonymous",
 					tags: [],
 				}}
 			/>

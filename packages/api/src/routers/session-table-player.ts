@@ -5,8 +5,11 @@ import {
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
 import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
 import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
+import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
+import { store } from "@sapphire2/db/schema/store";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -62,6 +65,70 @@ async function resolveSessionOwnership(
 		});
 	}
 	return { sessionType: "tournament" };
+}
+
+async function fetchSessionContext(
+	db: DbInstance,
+	liveCashGameSessionId: string | undefined,
+	liveTournamentSessionId: string | undefined
+): Promise<{ storeName: string | null; gameName: string | null }> {
+	let storeName: string | null = null;
+	let gameName: string | null = null;
+	let storeId: string | null = null;
+
+	if (liveCashGameSessionId) {
+		const [session] = await db
+			.select({
+				ringGameId: liveCashGameSession.ringGameId,
+				storeId: liveCashGameSession.storeId,
+			})
+			.from(liveCashGameSession)
+			.where(eq(liveCashGameSession.id, liveCashGameSessionId));
+		storeId = session?.storeId ?? null;
+		if (session?.ringGameId) {
+			const [gameRow] = await db
+				.select({
+					blind1: ringGame.blind1,
+					blind2: ringGame.blind2,
+					name: ringGame.name,
+				})
+				.from(ringGame)
+				.where(eq(ringGame.id, session.ringGameId));
+			if (gameRow) {
+				const blinds =
+					gameRow.blind1 !== null && gameRow.blind2 !== null
+						? ` ${gameRow.blind1}/${gameRow.blind2}`
+						: "";
+				gameName = `${gameRow.name}${blinds}`;
+			}
+		}
+	} else if (liveTournamentSessionId) {
+		const [session] = await db
+			.select({
+				storeId: liveTournamentSession.storeId,
+				tournamentId: liveTournamentSession.tournamentId,
+			})
+			.from(liveTournamentSession)
+			.where(eq(liveTournamentSession.id, liveTournamentSessionId));
+		storeId = session?.storeId ?? null;
+		if (session?.tournamentId) {
+			const [tourneyRow] = await db
+				.select({ name: tournament.name })
+				.from(tournament)
+				.where(eq(tournament.id, session.tournamentId));
+			gameName = tourneyRow?.name ?? null;
+		}
+	}
+
+	if (storeId) {
+		const [storeRow] = await db
+			.select({ name: store.name })
+			.from(store)
+			.where(eq(store.id, storeId));
+		storeName = storeRow?.name ?? null;
+	}
+
+	return { storeName, gameName };
 }
 
 async function insertPlayerJoinEvent(
@@ -613,34 +680,48 @@ export const sessionTablePlayerRouter = router({
 				userId
 			);
 
-			// Generate a base name from seat position and today's date
-			const today = new Date().toISOString().slice(0, 10);
-			const seatLabel =
-				seatPosition === undefined
-					? "Temporary Player"
-					: `Seat ${seatPosition + 1}`;
-			const baseName = `${seatLabel} (${today})`;
+			// Fetch session context for memo
+			const { storeName, gameName } = await fetchSessionContext(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId
+			);
 
-			// Resolve name collisions by appending a counter
+			const now = new Date();
+			const hh = String(now.getUTCHours()).padStart(2, "0");
+			const mm = String(now.getUTCMinutes()).padStart(2, "0");
+			const dateStr = now.toISOString().slice(0, 10);
+			const memoLines = [`Joined: ${dateStr} ${hh}:${mm}`];
+			if (storeName) {
+				memoLines.push(`Store: ${storeName}`);
+			}
+			if (gameName) {
+				memoLines.push(`Game: ${gameName}`);
+			}
+			if (seatPosition !== undefined) {
+				memoLines.push(`Seat: ${seatPosition + 1}`);
+			}
+			const memo = memoLines.join("\n");
+
+			// Resolve name collisions
 			const existingPlayers = await ctx.db
 				.select({ name: player.name })
 				.from(player)
 				.where(eq(player.userId, userId));
 			const existingNames = new Set(existingPlayers.map((p) => p.name));
 
-			let finalName = baseName;
+			let finalName = "Anonymous";
 			let counter = 2;
 			while (existingNames.has(finalName)) {
-				finalName = `${baseName} (${counter})`;
+				finalName = `Anonymous (${counter})`;
 				counter++;
 			}
 
-			const now = new Date();
 			const playerId = crypto.randomUUID();
 			await ctx.db.insert(player).values({
 				id: playerId,
 				isTemporary: true,
-				memo: null,
+				memo,
 				name: finalName,
 				updatedAt: now,
 				userId,
