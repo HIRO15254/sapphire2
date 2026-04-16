@@ -142,9 +142,7 @@ export function AiExtractInput({ onExtracted }: AiExtractInputProps) {
 	const canAdd = items.length < 5;
 
 	return (
-		<div className="mb-4 flex flex-col gap-2 rounded-md border p-3">
-			<p className="font-medium text-sm">URLまたは画像から自動入力</p>
-
+		<div className="flex flex-col gap-2">
 			<div className="flex flex-col gap-1.5">
 				{items.map((item) =>
 					item.kind === "url" ? (

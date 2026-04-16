@@ -4,6 +4,7 @@ import {
 	IconArchiveOff,
 	IconEdit,
 	IconPlus,
+	IconSparkles,
 	IconTrash,
 	IconX,
 } from "@tabler/icons-react";
@@ -565,6 +566,12 @@ export function TournamentTab({
 		NonNullable<ExtractedTournamentData["blindLevels"]>
 	>([]);
 	const [formKey, setFormKey] = useState(0);
+	const [aiSheetOpen, setAiSheetOpen] = useState(false);
+	const [createTabValue, setCreateTabValue] = useState("details");
+	const [createdTournamentId, setCreatedTournamentId] = useState<string | null>(
+		null
+	);
+	const [createdVariant, setCreatedVariant] = useState("nlh");
 
 	const {
 		activeTournaments,
@@ -593,12 +600,21 @@ export function TournamentTab({
 		});
 		setAiBlindLevels(data.blindLevels ?? []);
 		setFormKey((k) => k + 1);
+		setAiSheetOpen(false);
 	};
 
 	const resetAiState = () => {
 		setAiFormDefaults(undefined);
 		setAiBlindLevels([]);
 		setFormKey(0);
+		setAiSheetOpen(false);
+	};
+
+	const resetCreateState = () => {
+		resetAiState();
+		setCreateTabValue("details");
+		setCreatedTournamentId(null);
+		setCreatedVariant("nlh");
 	};
 
 	const handleCreate = async (values: TournamentFormValues) => {
@@ -617,8 +633,13 @@ export function TournamentTab({
 				});
 			}
 		}
-		resetAiState();
-		setIsCreateOpen(false);
+		setCreatedTournamentId(created.id);
+		setCreatedVariant(values.variant);
+		setCreateTabValue("structure");
+		setAiFormDefaults(undefined);
+		setAiBlindLevels([]);
+		setFormKey(0);
+		setAiSheetOpen(false);
 	};
 
 	const handleUpdate = (values: TournamentFormValues) => {
@@ -685,23 +706,67 @@ export function TournamentTab({
 				showArchived={showArchived}
 			/>
 
+			{/* AI Extract Sheet - opens on top of the create modal */}
 			<ResponsiveDialog
+				onOpenChange={setAiSheetOpen}
+				open={aiSheetOpen}
+				title="AI自動入力"
+			>
+				<AiExtractInput onExtracted={handleAiExtracted} />
+			</ResponsiveDialog>
+
+			{/* Create Tournament modal */}
+			<ResponsiveDialog
+				fullHeight
+				headerAction={
+					<Button
+						onClick={() => setAiSheetOpen(true)}
+						size="xs"
+						type="button"
+						variant="outline"
+					>
+						<IconSparkles size={12} />
+						AI自動入力
+						<Badge className="px-1 py-0 text-[10px]" variant="secondary">
+							beta
+						</Badge>
+					</Button>
+				}
 				onOpenChange={(open) => {
 					setIsCreateOpen(open);
 					if (!open) {
-						resetAiState();
+						resetCreateState();
 					}
 				}}
 				open={isCreateOpen}
 				title="Add Tournament"
 			>
-				<AiExtractInput onExtracted={handleAiExtracted} />
-				<TournamentForm
-					defaultValues={aiFormDefaults}
-					isLoading={isCreatePending}
-					key={formKey}
-					onSubmit={handleCreate}
-				/>
+				<Tabs onValueChange={setCreateTabValue} value={createTabValue}>
+					<TabsList className="w-full">
+						<TabsTrigger value="details">Details</TabsTrigger>
+						<TabsTrigger value="structure">Structure</TabsTrigger>
+					</TabsList>
+					<TabsContent value="details">
+						<TournamentForm
+							defaultValues={aiFormDefaults}
+							isLoading={isCreatePending}
+							key={formKey}
+							onSubmit={handleCreate}
+						/>
+					</TabsContent>
+					<TabsContent value="structure">
+						{createdTournamentId ? (
+							<BlindStructureContent
+								tournamentId={createdTournamentId}
+								variant={createdVariant}
+							/>
+						) : (
+							<p className="py-4 text-center text-muted-foreground text-sm">
+								Save tournament details first to edit blind levels.
+							</p>
+						)}
+					</TabsContent>
+				</Tabs>
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
