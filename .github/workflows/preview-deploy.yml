@@ -155,6 +155,7 @@ jobs:
           echo "${{ secrets.GOOGLE_CLIENT_SECRET }}" | bunx wrangler secret put GOOGLE_CLIENT_SECRET --name "${{ needs.setup.outputs.worker_name }}"
           echo "${{ secrets.DISCORD_CLIENT_ID }}" | bunx wrangler secret put DISCORD_CLIENT_ID --name "${{ needs.setup.outputs.worker_name }}"
           echo "${{ secrets.DISCORD_CLIENT_SECRET }}" | bunx wrangler secret put DISCORD_CLIENT_SECRET --name "${{ needs.setup.outputs.worker_name }}"
+          echo "${{ secrets.ANTHROPIC_API_KEY }}" | bunx wrangler secret put ANTHROPIC_API_KEY --name "${{ needs.setup.outputs.worker_name }}"
 
   deploy-web:
     needs: [setup, deploy-api]

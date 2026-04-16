@@ -286,6 +286,233 @@ export const tournamentRouter = router({
 			return { success: true };
 		}),
 
+	createWithLevels: protectedProcedure
+		.input(
+			z.object({
+				storeId: z.string(),
+				name: z.string().min(1),
+				variant: z.string().default("nlh"),
+				buyIn: z.number().int().optional(),
+				entryFee: z.number().int().optional(),
+				startingStack: z.number().int().optional(),
+				bountyAmount: z.number().int().optional(),
+				tableSize: z.number().int().optional(),
+				currencyId: z.string().optional(),
+				memo: z.string().optional(),
+				tags: z.array(z.string()).optional(),
+				chipPurchases: z
+					.array(
+						z.object({
+							name: z.string(),
+							cost: z.number().int(),
+							chips: z.number().int(),
+						})
+					)
+					.optional(),
+				blindLevels: z
+					.array(
+						z.object({
+							isBreak: z.boolean(),
+							blind1: z.number().int().nullable().optional(),
+							blind2: z.number().int().nullable().optional(),
+							blind3: z.number().int().nullable().optional(),
+							ante: z.number().int().nullable().optional(),
+							minutes: z.number().int().nullable().optional(),
+						})
+					)
+					.optional(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateStoreOwnership(ctx.db, input.storeId, userId);
+
+			const id = crypto.randomUUID();
+			await ctx.db.insert(tournament).values({
+				id,
+				storeId: input.storeId,
+				name: input.name,
+				variant: input.variant,
+				buyIn: input.buyIn ?? null,
+				entryFee: input.entryFee ?? null,
+				startingStack: input.startingStack ?? null,
+				bountyAmount: input.bountyAmount ?? null,
+				tableSize: input.tableSize ?? null,
+				currencyId: input.currencyId ?? null,
+				memo: input.memo ?? null,
+				updatedAt: new Date(),
+			});
+
+			await Promise.all([
+				...(input.tags ?? []).map((name) =>
+					ctx.db
+						.insert(tournamentTag)
+						.values({ id: crypto.randomUUID(), tournamentId: id, name })
+				),
+				...(input.chipPurchases ?? []).map((cp, i) =>
+					ctx.db.insert(tournamentChipPurchase).values({
+						id: crypto.randomUUID(),
+						tournamentId: id,
+						name: cp.name,
+						cost: cp.cost,
+						chips: cp.chips,
+						sortOrder: i,
+					})
+				),
+				...(input.blindLevels ?? []).map((l, i) =>
+					ctx.db.insert(blindLevel).values({
+						id: crypto.randomUUID(),
+						tournamentId: id,
+						level: i + 1,
+						isBreak: l.isBreak,
+						blind1: l.blind1 ?? null,
+						blind2: l.blind2 ?? null,
+						blind3: l.blind3 ?? null,
+						ante: l.ante ?? null,
+						minutes: l.minutes ?? null,
+					})
+				),
+			]);
+
+			const [created] = await ctx.db
+				.select()
+				.from(tournament)
+				.where(eq(tournament.id, id));
+			return created;
+		}),
+
+	updateWithLevels: protectedProcedure
+		.input(
+			z.object({
+				id: z.string(),
+				name: z.string().min(1).optional(),
+				variant: z.string().optional(),
+				buyIn: z.number().int().nullable().optional(),
+				entryFee: z.number().int().nullable().optional(),
+				startingStack: z.number().int().nullable().optional(),
+				bountyAmount: z.number().int().nullable().optional(),
+				tableSize: z.number().int().nullable().optional(),
+				currencyId: z.string().nullable().optional(),
+				memo: z.string().nullable().optional(),
+				tags: z.array(z.string()).optional(),
+				chipPurchases: z
+					.array(
+						z.object({
+							name: z.string(),
+							cost: z.number().int(),
+							chips: z.number().int(),
+						})
+					)
+					.optional(),
+				blindLevels: z.array(
+					z.object({
+						isBreak: z.boolean(),
+						blind1: z.number().int().nullable().optional(),
+						blind2: z.number().int().nullable().optional(),
+						blind3: z.number().int().nullable().optional(),
+						ante: z.number().int().nullable().optional(),
+						minutes: z.number().int().nullable().optional(),
+					})
+				),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const found = await validateTournamentOwnership(ctx.db, input.id, userId);
+
+			const updateData: Partial<typeof found> = { updatedAt: new Date() };
+			if (input.name !== undefined) {
+				updateData.name = input.name;
+			}
+			if (input.variant !== undefined) {
+				updateData.variant = input.variant;
+			}
+			if (input.buyIn !== undefined) {
+				updateData.buyIn = input.buyIn;
+			}
+			if (input.entryFee !== undefined) {
+				updateData.entryFee = input.entryFee;
+			}
+			if (input.startingStack !== undefined) {
+				updateData.startingStack = input.startingStack;
+			}
+			if (input.bountyAmount !== undefined) {
+				updateData.bountyAmount = input.bountyAmount;
+			}
+			if (input.tableSize !== undefined) {
+				updateData.tableSize = input.tableSize;
+			}
+			if (input.currencyId !== undefined) {
+				updateData.currencyId = input.currencyId;
+			}
+			if (input.memo !== undefined) {
+				updateData.memo = input.memo;
+			}
+
+			await ctx.db
+				.update(tournament)
+				.set(updateData)
+				.where(eq(tournament.id, input.id));
+
+			if (input.tags !== undefined) {
+				await ctx.db
+					.delete(tournamentTag)
+					.where(eq(tournamentTag.tournamentId, input.id));
+				await Promise.all(
+					input.tags.map((name) =>
+						ctx.db.insert(tournamentTag).values({
+							id: crypto.randomUUID(),
+							tournamentId: input.id,
+							name,
+						})
+					)
+				);
+			}
+
+			if (input.chipPurchases !== undefined) {
+				await ctx.db
+					.delete(tournamentChipPurchase)
+					.where(eq(tournamentChipPurchase.tournamentId, input.id));
+				await Promise.all(
+					input.chipPurchases.map((cp, i) =>
+						ctx.db.insert(tournamentChipPurchase).values({
+							id: crypto.randomUUID(),
+							tournamentId: input.id,
+							name: cp.name,
+							cost: cp.cost,
+							chips: cp.chips,
+							sortOrder: i,
+						})
+					)
+				);
+			}
+
+			await ctx.db
+				.delete(blindLevel)
+				.where(eq(blindLevel.tournamentId, input.id));
+			await Promise.all(
+				input.blindLevels.map((l, i) =>
+					ctx.db.insert(blindLevel).values({
+						id: crypto.randomUUID(),
+						tournamentId: input.id,
+						level: i + 1,
+						isBreak: l.isBreak,
+						blind1: l.blind1 ?? null,
+						blind2: l.blind2 ?? null,
+						blind3: l.blind3 ?? null,
+						ante: l.ante ?? null,
+						minutes: l.minutes ?? null,
+					})
+				)
+			);
+
+			const [updated] = await ctx.db
+				.select()
+				.from(tournament)
+				.where(eq(tournament.id, input.id));
+			return updated;
+		}),
+
 	addTag: protectedProcedure
 		.input(z.object({ tournamentId: z.string(), name: z.string().min(1) }))
 		.mutation(async ({ ctx, input }) => {

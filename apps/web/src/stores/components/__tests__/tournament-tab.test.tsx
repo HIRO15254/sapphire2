@@ -73,7 +73,7 @@ vi.mock("@/stores/components/tournament-form", () => ({
 }));
 
 vi.mock("@/stores/components/blind-level-editor", () => ({
-	BlindStructureContent: () => <div>Blind structure content</div>,
+	LocalBlindStructureContent: () => <div>Blind structure content</div>,
 }));
 
 vi.mock("@/shared/components/ui/responsive-dialog", () => ({
@@ -88,6 +88,13 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
+		blindLevel: {
+			listByTournament: {
+				queryOptions: ({ tournamentId }: { tournamentId: string }) => ({
+					queryKey: ["blindLevel", tournamentId],
+				}),
+			},
+		},
 		currency: {
 			list: {
 				queryOptions: () => ({ queryKey: ["currency"] }),
@@ -116,10 +123,12 @@ vi.mock("@/utils/trpc", () => ({
 			addTag: { mutate: vi.fn(async () => undefined) },
 			archive: { mutate: mocks.archiveMutate },
 			create: { mutate: mocks.createMutate },
+			createWithLevels: { mutate: vi.fn(async () => undefined) },
 			delete: { mutate: mocks.deleteMutate },
 			removeTag: { mutate: vi.fn(async () => undefined) },
 			restore: { mutate: mocks.restoreMutate },
 			update: { mutate: mocks.updateMutate },
+			updateWithLevels: { mutate: vi.fn(async () => undefined) },
 		},
 		tournamentChipPurchase: {
 			create: { mutate: vi.fn(async () => undefined) },

@@ -25,6 +25,7 @@ interface ResponsiveDialogProps {
 	 * Use for content with dynamic height (e.g., editable tables).
 	 */
 	fullHeight?: boolean;
+	headerAction?: ReactNode;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	title: ReactNode;
@@ -34,6 +35,7 @@ export function ResponsiveDialog({
 	children,
 	description,
 	fullHeight = false,
+	headerAction,
 	onOpenChange,
 	open,
 	title,
@@ -47,7 +49,10 @@ export function ResponsiveDialog({
 			<Dialog onOpenChange={onOpenChange} open={open}>
 				<DialogContent className="max-h-[85vh] overflow-y-auto">
 					<DialogHeader>
-						<DialogTitle>{title}</DialogTitle>
+						<div className="flex items-center gap-2">
+							<DialogTitle>{title}</DialogTitle>
+							{headerAction}
+						</div>
 						<DialogDescription className={descriptionClassName}>
 							{descriptionContent}
 						</DialogDescription>
@@ -64,7 +69,10 @@ export function ResponsiveDialog({
 				className={fullHeight ? "h-[calc(100svh-2rem)]" : undefined}
 			>
 				<DrawerHeader className="relative shrink-0">
-					<DrawerTitle>{title}</DrawerTitle>
+					<div className="flex items-center gap-2">
+						<DrawerTitle>{title}</DrawerTitle>
+						{headerAction}
+					</div>
 					<DrawerDescription className={descriptionClassName}>
 						{descriptionContent}
 					</DrawerDescription>

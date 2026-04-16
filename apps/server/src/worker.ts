@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 interface Env {
+	ANTHROPIC_API_KEY?: string;
 	BETTER_AUTH_SECRET: string;
 	BETTER_AUTH_URL: string;
 	CORS_ORIGIN: string;
@@ -72,7 +73,11 @@ app.use("/trpc/*", (c, next) => {
 		discordClientId: c.env.DISCORD_CLIENT_ID,
 		discordClientSecret: c.env.DISCORD_CLIENT_SECRET,
 	});
-	const contextFactory = createContextFactory(auth, db);
+	const contextFactory = createContextFactory(
+		auth,
+		db,
+		c.env.ANTHROPIC_API_KEY
+	);
 	const middleware = trpcServer({
 		router: appRouter,
 		createContext: (_opts, context) => contextFactory({ context }),
