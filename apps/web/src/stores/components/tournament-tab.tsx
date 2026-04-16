@@ -26,7 +26,7 @@ import {
 	TabsTrigger,
 } from "@/shared/components/ui/tabs";
 import { AiExtractInput } from "@/stores/components/ai-extract-input";
-import { BlindStructureContent } from "@/stores/components/blind-level-editor";
+import { LocalBlindStructureContent } from "@/stores/components/blind-level-editor";
 import { TournamentForm } from "@/stores/components/tournament-form";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
 import type {
@@ -39,7 +39,7 @@ import {
 	formatCompactNumber,
 } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
-import { trpc, trpcClient } from "@/utils/trpc";
+import { trpc } from "@/utils/trpc";
 
 interface TournamentTabProps {
 	expandedGameId: string | null;
@@ -545,6 +545,62 @@ function BlindStructureSummary({ tournamentId }: { tournamentId: string }) {
 	);
 }
 
+// ---- Shared modal content (used by both create and edit) ----
+
+type TournamentModalFormValues = Omit<
+	TournamentFormValues,
+	"tags" | "chipPurchases"
+> & {
+	chipPurchases?: Array<{ chips: number; cost: number; name: string }>;
+	tags?: string[];
+};
+
+interface TournamentModalContentProps {
+	formKey?: number;
+	initialBlindLevels: BlindLevelRow[];
+	initialFormValues?: TournamentModalFormValues;
+	isLoading: boolean;
+	onSave: (
+		values: TournamentFormValues,
+		levels: BlindLevelRow[]
+	) => void | Promise<void>;
+}
+
+function TournamentModalContent({
+	formKey,
+	initialBlindLevels,
+	initialFormValues,
+	isLoading,
+	onSave,
+}: TournamentModalContentProps) {
+	const [localBlindLevels, setLocalBlindLevels] =
+		useState<BlindLevelRow[]>(initialBlindLevels);
+
+	return (
+		<Tabs defaultValue="details">
+			<TabsList className="w-full">
+				<TabsTrigger value="details">Details</TabsTrigger>
+				<TabsTrigger value="structure">Structure</TabsTrigger>
+			</TabsList>
+			<TabsContent value="details">
+				<TournamentForm
+					defaultValues={initialFormValues}
+					isLoading={isLoading}
+					key={formKey}
+					onSubmit={(values) => onSave(values, localBlindLevels)}
+				/>
+			</TabsContent>
+			<TabsContent value="structure">
+				<LocalBlindStructureContent
+					onChange={setLocalBlindLevels}
+					value={localBlindLevels}
+					variant={initialFormValues?.variant ?? "nlh"}
+				/>
+			</TabsContent>
+		</Tabs>
+	);
+}
+
 export function TournamentTab({
 	storeId,
 	expandedGameId,
@@ -555,23 +611,11 @@ export function TournamentTab({
 	const [editingTournament, setEditingTournament] = useState<Tournament | null>(
 		null
 	);
-	const [aiFormDefaults, setAiFormDefaults] = useState<
-		| (Omit<TournamentFormValues, "tags" | "chipPurchases"> & {
-				chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
-				tags?: string[];
-		  })
-		| undefined
-	>();
-	const [aiBlindLevels, setAiBlindLevels] = useState<
-		NonNullable<ExtractedTournamentData["blindLevels"]>
-	>([]);
+	const [aiFormDefaults, setAiFormDefaults] =
+		useState<TournamentModalFormValues>();
+	const [aiInitialLevels, setAiInitialLevels] = useState<BlindLevelRow[]>([]);
 	const [formKey, setFormKey] = useState(0);
 	const [aiSheetOpen, setAiSheetOpen] = useState(false);
-	const [createTabValue, setCreateTabValue] = useState("details");
-	const [createdTournamentId, setCreatedTournamentId] = useState<string | null>(
-		null
-	);
-	const [createdVariant, setCreatedVariant] = useState("nlh");
 
 	const {
 		activeTournaments,
@@ -579,14 +623,21 @@ export function TournamentTab({
 		currencies,
 		activeLoading,
 		archivedLoading,
-		isCreatePending,
-		isUpdatePending,
-		create,
-		update,
+		isCreateWithLevelsPending,
+		isUpdateWithLevelsPending,
+		createWithLevels,
+		updateWithLevels,
 		archive,
 		restore,
 		delete: deleteTournament,
 	} = useTournaments({ storeId, showArchived });
+
+	const editBlindLevelsQuery = useQuery({
+		...trpc.blindLevel.listByTournament.queryOptions({
+			tournamentId: editingTournament?.id ?? "",
+		}),
+		enabled: editingTournament !== null,
+	});
 
 	const handleAiExtracted = (data: ExtractedTournamentData) => {
 		setAiFormDefaults({
@@ -598,64 +649,48 @@ export function TournamentTab({
 			chipPurchases: data.chipPurchases ?? [],
 			variant: "nlh",
 		});
-		setAiBlindLevels(data.blindLevels ?? []);
+		setAiInitialLevels(
+			(data.blindLevels ?? []).map((l, i) => ({
+				id: crypto.randomUUID(),
+				tournamentId: "",
+				level: i + 1,
+				isBreak: l.isBreak,
+				blind1: l.blind1 ?? null,
+				blind2: l.blind2 ?? null,
+				blind3: l.blind3 ?? null,
+				ante: l.ante ?? null,
+				minutes: l.minutes ?? null,
+			}))
+		);
 		setFormKey((k) => k + 1);
 		setAiSheetOpen(false);
 	};
 
-	const resetAiState = () => {
-		setAiFormDefaults(undefined);
-		setAiBlindLevels([]);
-		setFormKey(0);
-		setAiSheetOpen(false);
-	};
-
 	const resetCreateState = () => {
-		resetAiState();
-		setCreateTabValue("details");
-		setCreatedTournamentId(null);
-		setCreatedVariant("nlh");
-	};
-
-	const handleCreate = async (values: TournamentFormValues) => {
-		const created = await create(values);
-		if (aiBlindLevels.length > 0) {
-			for (const [i, level] of aiBlindLevels.entries()) {
-				await trpcClient.blindLevel.create.mutate({
-					tournamentId: created.id,
-					level: i + 1,
-					isBreak: level.isBreak,
-					blind1: level.blind1 ?? undefined,
-					blind2: level.blind2 ?? undefined,
-					blind3: level.blind3 ?? undefined,
-					ante: level.ante ?? undefined,
-					minutes: level.minutes ?? undefined,
-				});
-			}
-		}
-		setCreatedTournamentId(created.id);
-		setCreatedVariant(values.variant);
-		setCreateTabValue("structure");
 		setAiFormDefaults(undefined);
-		setAiBlindLevels([]);
+		setAiInitialLevels([]);
 		setFormKey(0);
 		setAiSheetOpen(false);
 	};
 
-	const handleUpdate = (values: TournamentFormValues) => {
+	const handleCreate = async (
+		values: TournamentFormValues,
+		levels: BlindLevelRow[]
+	) => {
+		await createWithLevels(values, levels);
+		setIsCreateOpen(false);
+		resetCreateState();
+	};
+
+	const handleUpdate = async (
+		values: TournamentFormValues,
+		levels: BlindLevelRow[]
+	) => {
 		if (!editingTournament) {
 			return;
 		}
-		update({
-			id: editingTournament.id,
-			existingTags: editingTournament.tags,
-			existingChipPurchaseIds: editingTournament.chipPurchases.map(
-				(cp) => cp.id
-			),
-			...values,
-		}).then(() => {
-			setEditingTournament(null);
-		});
+		await updateWithLevels(editingTournament.id, values, levels);
+		setEditingTournament(null);
 	};
 
 	return (
@@ -741,34 +776,16 @@ export function TournamentTab({
 				open={isCreateOpen}
 				title="Add Tournament"
 			>
-				<Tabs onValueChange={setCreateTabValue} value={createTabValue}>
-					<TabsList className="w-full">
-						<TabsTrigger value="details">Details</TabsTrigger>
-						<TabsTrigger value="structure">Structure</TabsTrigger>
-					</TabsList>
-					<TabsContent value="details">
-						<TournamentForm
-							defaultValues={aiFormDefaults}
-							isLoading={isCreatePending}
-							key={formKey}
-							onSubmit={handleCreate}
-						/>
-					</TabsContent>
-					<TabsContent value="structure">
-						{createdTournamentId ? (
-							<BlindStructureContent
-								tournamentId={createdTournamentId}
-								variant={createdVariant}
-							/>
-						) : (
-							<p className="py-4 text-center text-muted-foreground text-sm">
-								Save tournament details first to edit blind levels.
-							</p>
-						)}
-					</TabsContent>
-				</Tabs>
+				<TournamentModalContent
+					formKey={formKey}
+					initialBlindLevels={aiInitialLevels}
+					initialFormValues={aiFormDefaults}
+					isLoading={isCreateWithLevelsPending}
+					onSave={handleCreate}
+				/>
 			</ResponsiveDialog>
 
+			{/* Edit Tournament modal */}
 			<ResponsiveDialog
 				fullHeight
 				onOpenChange={(open) => {
@@ -779,44 +796,38 @@ export function TournamentTab({
 				open={editingTournament !== null}
 				title="Edit Tournament"
 			>
-				{editingTournament && (
-					<Tabs defaultValue="details">
-						<TabsList className="w-full">
-							<TabsTrigger value="details">Details</TabsTrigger>
-							<TabsTrigger value="structure">Structure</TabsTrigger>
-						</TabsList>
-						<TabsContent value="details">
-							<TournamentForm
-								defaultValues={{
-									name: editingTournament.name,
-									variant: editingTournament.variant,
-									buyIn: editingTournament.buyIn ?? undefined,
-									entryFee: editingTournament.entryFee ?? undefined,
-									startingStack: editingTournament.startingStack ?? undefined,
-									chipPurchases: editingTournament.chipPurchases.map((cp) => ({
-										uid: cp.id,
-										name: cp.name,
-										cost: cp.cost,
-										chips: cp.chips,
-									})),
-									bountyAmount: editingTournament.bountyAmount ?? undefined,
-									tableSize: editingTournament.tableSize ?? undefined,
-									currencyId: editingTournament.currencyId ?? undefined,
-									memo: editingTournament.memo ?? undefined,
-									tags: editingTournament.tags.map((t) => t.name),
-								}}
-								isLoading={isUpdatePending}
-								onSubmit={handleUpdate}
-							/>
-						</TabsContent>
-						<TabsContent value="structure">
-							<BlindStructureContent
-								tournamentId={editingTournament.id}
-								variant={editingTournament.variant}
-							/>
-						</TabsContent>
-					</Tabs>
-				)}
+				{editingTournament &&
+					(editBlindLevelsQuery.isLoading ? (
+						<p className="py-8 text-center text-muted-foreground text-sm">
+							Loading...
+						</p>
+					) : (
+						<TournamentModalContent
+							initialBlindLevels={
+								(editBlindLevelsQuery.data ?? []) as BlindLevelRow[]
+							}
+							initialFormValues={{
+								name: editingTournament.name,
+								variant: editingTournament.variant,
+								buyIn: editingTournament.buyIn ?? undefined,
+								entryFee: editingTournament.entryFee ?? undefined,
+								startingStack: editingTournament.startingStack ?? undefined,
+								bountyAmount: editingTournament.bountyAmount ?? undefined,
+								tableSize: editingTournament.tableSize ?? undefined,
+								currencyId: editingTournament.currencyId ?? undefined,
+								memo: editingTournament.memo ?? undefined,
+								chipPurchases: editingTournament.chipPurchases.map((cp) => ({
+									name: cp.name,
+									cost: cp.cost,
+									chips: cp.chips,
+								})),
+								tags: editingTournament.tags.map((t) => t.name),
+							}}
+							isLoading={isUpdateWithLevelsPending}
+							key={editingTournament.id}
+							onSave={handleUpdate}
+						/>
+					))}
 			</ResponsiveDialog>
 		</div>
 	);
