@@ -657,32 +657,56 @@ export function TournamentTab({
 		setAiInitialLevels([]);
 	};
 
-	const handleAiExtracted = (data: ExtractedTournamentData) => {
-		setAiInitialFormValues({
-			name: data.name ?? "",
-			buyIn: data.buyIn,
-			entryFee: data.entryFee,
+	const toBlindLevelRows = (data: ExtractedTournamentData): BlindLevelRow[] =>
+		(data.blindLevels ?? []).map((l, i) => ({
+			id: crypto.randomUUID(),
+			tournamentId: "",
+			level: i + 1,
+			isBreak: l.isBreak,
+			blind1: l.blind1 ?? null,
+			blind2: l.blind2 ?? null,
+			blind3: l.blind3 ?? null,
+			ante: l.ante ?? null,
+			minutes: l.minutes ?? null,
+		}));
+
+	const mergeAiIntoEditFormValues = (
+		data: ExtractedTournamentData,
+		base: PartialFormValues | undefined
+	): PartialFormValues => ({
+		...base,
+		name: data.name ?? base?.name ?? "",
+		variant: base?.variant ?? "nlh",
+		...(data.buyIn !== undefined && { buyIn: data.buyIn }),
+		...(data.entryFee !== undefined && { entryFee: data.entryFee }),
+		...(data.startingStack !== undefined && {
 			startingStack: data.startingStack,
-			tableSize: data.tableSize,
-			chipPurchases: data.chipPurchases ?? [],
-			variant: "nlh",
-		});
-		setAiInitialLevels(
-			(data.blindLevels ?? []).map((l, i) => ({
-				id: crypto.randomUUID(),
-				tournamentId: "",
-				level: i + 1,
-				isBreak: l.isBreak,
-				blind1: l.blind1 ?? null,
-				blind2: l.blind2 ?? null,
-				blind3: l.blind3 ?? null,
-				ante: l.ante ?? null,
-				minutes: l.minutes ?? null,
-			}))
-		);
+		}),
+		...(data.tableSize !== undefined && { tableSize: data.tableSize }),
+		...(data.chipPurchases && { chipPurchases: data.chipPurchases }),
+	});
+
+	const handleAiExtracted = (data: ExtractedTournamentData) => {
+		const extractedLevels = toBlindLevelRows(data);
 		if (isCreateOpen) {
+			setAiInitialFormValues({
+				name: data.name ?? "",
+				buyIn: data.buyIn,
+				entryFee: data.entryFee,
+				startingStack: data.startingStack,
+				tableSize: data.tableSize,
+				chipPurchases: data.chipPurchases ?? [],
+				variant: "nlh",
+			});
+			setAiInitialLevels(extractedLevels);
 			setCreateKey((k) => k + 1);
 		} else {
+			setAiInitialFormValues(mergeAiIntoEditFormValues(data, editFormValues));
+			setAiInitialLevels(
+				extractedLevels.length > 0
+					? extractedLevels
+					: ((editBlindLevelsQuery.data ?? []) as BlindLevelRow[])
+			);
 			setEditKey((k) => k + 1);
 		}
 		setAiSheetOpen(false);
