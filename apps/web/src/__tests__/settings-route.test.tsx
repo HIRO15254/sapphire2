@@ -19,10 +19,6 @@ vi.mock("@/shared/components/linked-accounts", () => ({
 	LinkedAccounts: () => <div>Linked Accounts Content</div>,
 }));
 
-vi.mock("@/currencies/components/transaction-type-manager", () => ({
-	TransactionTypeManager: () => <div>Transaction Types Content</div>,
-}));
-
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
 		signOut: mocks.signOut,
@@ -55,12 +51,9 @@ describe("SettingsComponent", () => {
 			screen.getByRole("heading", { name: "Settings" })
 		).toBeInTheDocument();
 		expect(
-			screen.getByText(
-				"Manage login methods and shared labels used across the app."
-			)
+			screen.getByText("Manage login methods and account preferences.")
 		).toBeInTheDocument();
 		expect(screen.getByText("Linked Accounts")).toBeInTheDocument();
-		expect(screen.getByText("Transaction Types")).toBeInTheDocument();
 	});
 
 	it("signs out from the page header action", async () => {

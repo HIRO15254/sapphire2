@@ -2,7 +2,6 @@ import {
 	IconArchive,
 	IconArchiveOff,
 	IconEdit,
-	IconList,
 	IconPlus,
 	IconTrash,
 	IconX,
@@ -18,7 +17,13 @@ import { ManagementSectionState } from "@/shared/components/management/managemen
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { BlindLevelEditor } from "@/stores/components/blind-level-editor";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@/shared/components/ui/tabs";
+import { BlindStructureContent } from "@/stores/components/blind-level-editor";
 import { TournamentForm } from "@/stores/components/tournament-form";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
 import type {
@@ -223,7 +228,6 @@ function TournamentRow({
 	onRestore,
 }: TournamentRowProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const [blindEditorOpen, setBlindEditorOpen] = useState(false);
 	const currency = currencies.find((c) => c.id === tournament.currencyId);
 	const buyInStr = formatBuyInShort(tournament, currency?.unit);
 
@@ -234,63 +238,54 @@ function TournamentRow({
 	}, [expanded]);
 
 	return (
-		<>
-			<ExpandableItem
-				contentClassName="pl-2 pb-2"
-				summary={
-					<div className="min-w-0 flex-1">
-						<div className="flex flex-wrap items-center gap-1">
-							<span className="truncate font-medium text-xs">
-								{tournament.name}
-							</span>
-							<Badge className="px-1 py-0 text-[10px]" variant="secondary">
-								{tournament.variant.toUpperCase()}
+		<ExpandableItem
+			contentClassName="pl-2 pb-2"
+			summary={
+				<div className="min-w-0 flex-1">
+					<div className="flex flex-wrap items-center gap-1">
+						<span className="truncate font-medium text-xs">
+							{tournament.name}
+						</span>
+						<Badge className="px-1 py-0 text-[10px]" variant="secondary">
+							{tournament.variant.toUpperCase()}
+						</Badge>
+						{tournament.tableSize != null && (
+							<Badge
+								className={`px-1 py-0 text-[10px] ${getTableSizeClassName(tournament.tableSize)}`}
+							>
+								{tournament.tableSize}-max
 							</Badge>
-							{tournament.tableSize != null && (
-								<Badge
-									className={`px-1 py-0 text-[10px] ${getTableSizeClassName(tournament.tableSize)}`}
-								>
-									{tournament.tableSize}-max
-								</Badge>
-							)}
-							{tournament.tags.map((tag) => (
-								<Badge
-									className="px-1 py-0 text-[10px]"
-									key={tag.id}
-									variant="outline"
-								>
-									{tag.name}
-								</Badge>
-							))}
-							{buyInStr && (
-								<span className="text-[11px] text-muted-foreground">
-									{buyInStr}
-								</span>
-							)}
-						</div>
+						)}
+						{tournament.tags.map((tag) => (
+							<Badge
+								className="px-1 py-0 text-[10px]"
+								key={tag.id}
+								variant="outline"
+							>
+								{tag.name}
+							</Badge>
+						))}
+						{buyInStr && (
+							<span className="text-[11px] text-muted-foreground">
+								{buyInStr}
+							</span>
+						)}
 					</div>
-				}
-				value={tournament.id}
-			>
-				<TournamentDetail
-					confirmingDelete={confirmingDelete}
-					isArchived={isArchived}
-					onArchive={onArchive}
-					onBlindEdit={() => setBlindEditorOpen(true)}
-					onDelete={onDelete}
-					onEdit={onEdit}
-					onRestore={onRestore}
-					setConfirmingDelete={setConfirmingDelete}
-					tournament={tournament}
-				/>
-			</ExpandableItem>
-			<BlindLevelEditor
-				onOpenChange={setBlindEditorOpen}
-				open={blindEditorOpen}
-				tournamentId={tournament.id}
-				variant={tournament.variant}
+				</div>
+			}
+			value={tournament.id}
+		>
+			<TournamentDetail
+				confirmingDelete={confirmingDelete}
+				isArchived={isArchived}
+				onArchive={onArchive}
+				onDelete={onDelete}
+				onEdit={onEdit}
+				onRestore={onRestore}
+				setConfirmingDelete={setConfirmingDelete}
+				tournament={tournament}
 			/>
-		</>
+		</ExpandableItem>
 	);
 }
 
@@ -298,7 +293,6 @@ interface TournamentDetailProps {
 	confirmingDelete: boolean;
 	isArchived: boolean;
 	onArchive: (id: string) => void;
-	onBlindEdit: () => void;
 	onDelete: (id: string) => void;
 	onEdit: (tournament: Tournament) => void;
 	onRestore: (id: string) => void;
@@ -312,7 +306,6 @@ function TournamentDetail({
 	confirmingDelete,
 	setConfirmingDelete,
 	onArchive,
-	onBlindEdit,
 	onDelete,
 	onEdit,
 	onRestore,
@@ -347,15 +340,6 @@ function TournamentDetail({
 			{tournament.blindLevelCount > 0 && (
 				<div className="mt-1">
 					<BlindStructureSummary tournamentId={tournament.id} />
-					<Button
-						className="mt-1 gap-1 text-[10px]"
-						onClick={onBlindEdit}
-						size="xs"
-						variant="outline"
-					>
-						<IconList size={12} />
-						Edit Structure
-					</Button>
 				</div>
 			)}
 
@@ -663,6 +647,7 @@ export function TournamentTab({
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
+				fullHeight
 				onOpenChange={(open) => {
 					if (!open) {
 						setEditingTournament(null);
@@ -672,28 +657,42 @@ export function TournamentTab({
 				title="Edit Tournament"
 			>
 				{editingTournament && (
-					<TournamentForm
-						defaultValues={{
-							name: editingTournament.name,
-							variant: editingTournament.variant,
-							buyIn: editingTournament.buyIn ?? undefined,
-							entryFee: editingTournament.entryFee ?? undefined,
-							startingStack: editingTournament.startingStack ?? undefined,
-							chipPurchases: editingTournament.chipPurchases.map((cp) => ({
-								uid: cp.id,
-								name: cp.name,
-								cost: cp.cost,
-								chips: cp.chips,
-							})),
-							bountyAmount: editingTournament.bountyAmount ?? undefined,
-							tableSize: editingTournament.tableSize ?? undefined,
-							currencyId: editingTournament.currencyId ?? undefined,
-							memo: editingTournament.memo ?? undefined,
-							tags: editingTournament.tags.map((t) => t.name),
-						}}
-						isLoading={isUpdatePending}
-						onSubmit={handleUpdate}
-					/>
+					<Tabs defaultValue="details">
+						<TabsList className="w-full">
+							<TabsTrigger value="details">Details</TabsTrigger>
+							<TabsTrigger value="structure">Structure</TabsTrigger>
+						</TabsList>
+						<TabsContent value="details">
+							<TournamentForm
+								defaultValues={{
+									name: editingTournament.name,
+									variant: editingTournament.variant,
+									buyIn: editingTournament.buyIn ?? undefined,
+									entryFee: editingTournament.entryFee ?? undefined,
+									startingStack: editingTournament.startingStack ?? undefined,
+									chipPurchases: editingTournament.chipPurchases.map((cp) => ({
+										uid: cp.id,
+										name: cp.name,
+										cost: cp.cost,
+										chips: cp.chips,
+									})),
+									bountyAmount: editingTournament.bountyAmount ?? undefined,
+									tableSize: editingTournament.tableSize ?? undefined,
+									currencyId: editingTournament.currencyId ?? undefined,
+									memo: editingTournament.memo ?? undefined,
+									tags: editingTournament.tags.map((t) => t.name),
+								}}
+								isLoading={isUpdatePending}
+								onSubmit={handleUpdate}
+							/>
+						</TabsContent>
+						<TabsContent value="structure">
+							<BlindStructureContent
+								tournamentId={editingTournament.id}
+								variant={editingTournament.variant}
+							/>
+						</TabsContent>
+					</Tabs>
 				)}
 			</ResponsiveDialog>
 		</div>

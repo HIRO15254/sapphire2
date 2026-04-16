@@ -423,7 +423,7 @@ interface BlindStructureContentProps {
 	variant: string;
 }
 
-function BlindStructureContent({
+export function BlindStructureContent({
 	tournamentId,
 	variant,
 }: BlindStructureContentProps) {
