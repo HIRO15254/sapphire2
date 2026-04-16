@@ -25,6 +25,14 @@ declare module "turndown" {
 	export = TurndownService;
 }
 
+declare module "@mixmark-io/domino" {
+	export function createDocument(html?: string, force?: boolean): Document;
+	export function createWindow(
+		html?: string,
+		address?: string
+	): Window & typeof globalThis;
+}
+
 declare module "turndown-plugin-gfm" {
 	import type TurndownService from "turndown";
 	export const gfm: (service: TurndownService) => void;

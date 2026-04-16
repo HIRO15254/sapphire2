@@ -12,6 +12,7 @@
   "scripts": {},
   "dependencies": {
     "@anthropic-ai/sdk": "catalog:",
+    "@mixmark-io/domino": "catalog:",
     "@sapphire2/auth": "workspace:*",
     "@sapphire2/db": "workspace:*",
     "@trpc/client": "catalog:",

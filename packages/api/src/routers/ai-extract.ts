@@ -1,5 +1,8 @@
 /// <reference path="../types/turndown.d.ts" />
 import Anthropic from "@anthropic-ai/sdk";
+// Cloudflare Workers には DOMParser が存在しないため、Turndown の内部 HTML 解析の
+// 代わりに純粋 JS DOM 実装の domino を使用する（Turndown の依存として同梱済み）
+import domino from "@mixmark-io/domino";
 import { TRPCError } from "@trpc/server";
 import TurndownService from "turndown";
 import { tables } from "turndown-plugin-gfm";
@@ -127,10 +130,10 @@ async function fetchAndConvertToMarkdown(url: string): Promise<string> {
 		return "";
 	}
 
-	// Cloudflare Workers では `window` が未定義のため Turndown の内部 DOMParser
-	// 検出が失敗する。先に Workers ネイティブの DOMParser でパースし、
-	// DOM ノードを渡すことで Turndown のHTML解析処理を迂回する。
-	const doc = new DOMParser().parseFromString(trimmed, "text/html");
+	// Cloudflare Workers には DOMParser が存在しない。
+	// Turndown の依存パッケージ @mixmark-io/domino（純粋 JS DOM 実装）で
+	// パースし DOM ノードを渡すことで Turndown の内部 HTML 解析を迂回する。
+	const doc = domino.createDocument(trimmed);
 	const td = new TurndownService({
 		headingStyle: "atx",
 		codeBlockStyle: "fenced",
