@@ -14,7 +14,7 @@ declare module "turndown" {
 
 	class TurndownService {
 		constructor(options?: Options);
-		turndown(html: string): string;
+		turndown(html: string | Node): string;
 		use(plugin: (service: TurndownService) => void): this;
 		addRule(key: string, rule: object): this;
 		keep(filter: string | string[] | ((node: Node) => boolean)): this;

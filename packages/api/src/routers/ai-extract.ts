@@ -122,12 +122,21 @@ async function fetchAndConvertToMarkdown(url: string): Promise<string> {
 		.transform(res)
 		.text();
 
+	const trimmed = cleanedHtml.trim();
+	if (!trimmed) {
+		return "";
+	}
+
+	// Cloudflare Workers では `window` が未定義のため Turndown の内部 DOMParser
+	// 検出が失敗する。先に Workers ネイティブの DOMParser でパースし、
+	// DOM ノードを渡すことで Turndown のHTML解析処理を迂回する。
+	const doc = new DOMParser().parseFromString(trimmed, "text/html");
 	const td = new TurndownService({
 		headingStyle: "atx",
 		codeBlockStyle: "fenced",
 	});
 	td.use(tables);
-	return td.turndown(cleanedHtml).trim().slice(0, 30_000);
+	return td.turndown(doc.body).trim().slice(0, 30_000);
 }
 
 export const aiExtractRouter = router({
@@ -148,11 +157,13 @@ export const aiExtractRouter = router({
 
 			const client = new Anthropic({ apiKey: ctx.anthropicApiKey });
 
-			const contentBlocks = await Promise.all(
+			const allBlocks = await Promise.all(
 				input.sources.map(
 					async (
 						source
-					): Promise<Anthropic.ImageBlockParam | Anthropic.TextBlockParam> => {
+					): Promise<
+						Anthropic.ImageBlockParam | Anthropic.TextBlockParam | null
+					> => {
 						if (source.kind === "image") {
 							return {
 								type: "image",
@@ -170,6 +181,9 @@ export const aiExtractRouter = router({
 							};
 						}
 						const markdown = await fetchAndConvertToMarkdown(source.url);
+						if (!markdown) {
+							return null;
+						}
 						return {
 							type: "text",
 							text: `[ソース: ${source.url}]\n\n${markdown}`,
@@ -177,6 +191,10 @@ export const aiExtractRouter = router({
 					}
 				)
 			);
+			const contentBlocks: (
+				| Anthropic.ImageBlockParam
+				| Anthropic.TextBlockParam
+			)[] = allBlocks.filter((b) => b !== null);
 
 			contentBlocks.push({
 				type: "text",
