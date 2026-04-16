@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-sheet";
+import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
 import { StackNumberField } from "@/live-sessions/components/stack-ui";
 import { useTournamentFormContext } from "@/live-sessions/hooks/use-session-form";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { Field } from "@/shared/components/ui/field";
 import { Label } from "@/shared/components/ui/label";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { Textarea } from "@/shared/components/ui/textarea";
 
 interface ChipPurchaseType {
 	chips: number;
@@ -17,7 +16,11 @@ interface ChipPurchaseType {
 }
 
 interface TournamentStackFormSubmitValues {
-	chipPurchaseCounts: Array<{ chipsPerUnit: number; count: number; name: string }>;
+	chipPurchaseCounts: Array<{
+		chipsPerUnit: number;
+		count: number;
+		name: string;
+	}>;
 	recordTournamentInfo: boolean;
 	remainingPlayers: number | null;
 	stackAmount: number;
@@ -47,9 +50,15 @@ export function TournamentStackForm({
 	onPurchaseChips,
 	onSubmit,
 }: TournamentStackFormProps) {
-	const { state, setStackAmount, setRemainingPlayers, setTotalEntries, setChipPurchaseCounts } =
-		useTournamentFormContext();
-	const { stackAmount, remainingPlayers, totalEntries, chipPurchaseCounts } = state;
+	const {
+		state,
+		setStackAmount,
+		setRemainingPlayers,
+		setTotalEntries,
+		setChipPurchaseCounts,
+	} = useTournamentFormContext();
+	const { stackAmount, remainingPlayers, totalEntries, chipPurchaseCounts } =
+		state;
 
 	const [recordTournamentInfo, setRecordTournamentInfo] = useState(true);
 	const [chipPurchaseSheetOpen, setChipPurchaseSheetOpen] = useState(false);
@@ -227,14 +236,7 @@ export function TournamentStackForm({
 				title="Add Memo"
 			>
 				<form className="flex flex-col gap-4" onSubmit={handleMemoSubmit}>
-					<Field htmlFor="tournament-memo-text" label="Note">
-						<Textarea
-							id="tournament-memo-text"
-							onChange={(e) => setMemoText(e.target.value)}
-							placeholder="Enter a note..."
-							value={memoText}
-						/>
-					</Field>
+					<MemoFields onTextChange={setMemoText} text={memoText} />
 					<DialogActionRow>
 						<Button
 							onClick={() => setMemoSheetOpen(false)}

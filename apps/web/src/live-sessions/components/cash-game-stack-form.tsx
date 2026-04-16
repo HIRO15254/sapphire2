@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AddonBottomSheet } from "@/live-sessions/components/addon-bottom-sheet";
 import { AllInBottomSheet } from "@/live-sessions/components/all-in-bottom-sheet";
+import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
 import {
 	StackNumberField,
 	StackPrimaryRow,
@@ -8,9 +9,7 @@ import {
 import { useStackFormContext } from "@/live-sessions/hooks/use-session-form";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { Field } from "@/shared/components/ui/field";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { Textarea } from "@/shared/components/ui/textarea";
 
 interface CashGameStackFormProps {
 	isLoading: boolean;
@@ -181,14 +180,7 @@ export function CashGameStackForm({
 				title="Add Memo"
 			>
 				<form className="flex flex-col gap-4" onSubmit={handleMemoSubmit}>
-					<Field htmlFor="memo-text" label="Note">
-						<Textarea
-							id="memo-text"
-							onChange={(e) => setMemoText(e.target.value)}
-							placeholder="Enter a note..."
-							value={memoText}
-						/>
-					</Field>
+					<MemoFields onTextChange={setMemoText} text={memoText} />
 					<DialogActionRow>
 						<Button
 							onClick={() => setMemoBottomSheetOpen(false)}

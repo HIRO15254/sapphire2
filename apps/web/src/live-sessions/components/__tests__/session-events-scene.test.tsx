@@ -83,6 +83,9 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
+const ADDON_AMOUNT_LABEL = /Addon Amount/;
+const COST_LABEL = /^Cost/;
+
 describe("SessionEventsScene", () => {
 	it("updates a chips add/remove event from the shared scene", async () => {
 		const user = userEvent.setup();
@@ -100,8 +103,8 @@ describe("SessionEventsScene", () => {
 		);
 
 		await user.click(screen.getByLabelText("Edit Chips Add/Remove"));
-		await user.clear(screen.getByLabelText("Amount"));
-		await user.type(screen.getByLabelText("Amount"), "7500");
+		await user.clear(screen.getByLabelText(ADDON_AMOUNT_LABEL));
+		await user.type(screen.getByLabelText(ADDON_AMOUNT_LABEL), "7500");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
@@ -134,8 +137,8 @@ describe("SessionEventsScene", () => {
 		);
 
 		await user.click(screen.getByLabelText("Edit Purchase Chips"));
-		await user.clear(screen.getByLabelText("Cost"));
-		await user.type(screen.getByLabelText("Cost"), "200");
+		await user.clear(screen.getByLabelText(COST_LABEL));
+		await user.type(screen.getByLabelText(COST_LABEL), "200");
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
