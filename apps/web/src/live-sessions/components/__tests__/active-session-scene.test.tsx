@@ -141,6 +141,7 @@ function createState(
 		isSavingPlayer: false,
 		onAddExisting: vi.fn(),
 		onAddNew: vi.fn(),
+		onAddTemporary: vi.fn(),
 		onEmptySeatTap: vi.fn(),
 		onHeroSeatTap: vi.fn(),
 		onPlayerRemove: vi.fn(),
@@ -213,6 +214,7 @@ describe("ActiveSessionScene", () => {
 			playerSheetOpen: true,
 			selectedPlayer: {
 				id: "player-1",
+				isTemporary: false,
 				memo: null,
 				name: "Alice",
 				tags: [],
