@@ -66,21 +66,38 @@ export type ExtractedTournamentData = z.infer<
 
 const TOOL_INPUT_SCHEMA = {
 	type: "object" as const,
+	// 全フィールド省略可能 — ソースに明確に記載されているものだけ含める
+	required: [] as string[],
 	properties: {
-		name: { type: "string", description: "トーナメント名" },
-		buyIn: { type: "number", description: "バイイン金額" },
-		entryFee: { type: "number", description: "エントリーフィー（レイク）" },
+		name: {
+			type: "string",
+			description:
+				"トーナメント名。ソースに明示されている場合のみ含める。不明な場合は省略（空文字列不可）。",
+		},
+		buyIn: {
+			type: "number",
+			description:
+				"バイイン金額（数値のみ）。ソースに明示されている場合のみ含める。",
+		},
+		entryFee: {
+			type: "number",
+			description:
+				"エントリーフィー・レイク（数値のみ）。ソースに明示されている場合のみ含める。",
+		},
 		startingStack: {
 			type: "number",
-			description: "スターティングスタック（チップ数）",
+			description:
+				"スターティングスタック（チップ数）。ソースに明示されている場合のみ含める。",
 		},
 		tableSize: {
 			type: "number",
-			description: "1テーブルの最大人数（通常9または10）",
+			description:
+				"1テーブルの最大人数（通常9または10）。ソースに明示されている場合のみ含める。",
 		},
 		chipPurchases: {
 			type: "array",
-			description: "リバイ・アドオン等のチップ購入オプション",
+			description:
+				"リバイ・アドオン等のチップ購入オプション。存在する場合のみ含める。空配列は返さない。",
 			items: {
 				type: "object",
 				properties: {
@@ -93,16 +110,35 @@ const TOOL_INPUT_SCHEMA = {
 		},
 		blindLevels: {
 			type: "array",
-			description: "ブラインドレベル構成（順番通りに配列）",
+			description:
+				"ブラインドレベル構成（順番通りに配列）。存在する場合のみ含める。",
 			items: {
 				type: "object",
 				properties: {
-					isBreak: { type: "boolean", description: "ブレイクの場合true" },
-					blind1: { type: "number", description: "スモールブラインド" },
-					blind2: { type: "number", description: "ビッグブラインド" },
-					blind3: { type: "number", description: "ストラドル（任意）" },
-					ante: { type: "number", description: "アンティ" },
-					minutes: { type: "number", description: "レベルの時間（分）" },
+					isBreak: {
+						type: "boolean",
+						description: "ブレイクはtrue、通常レベルはfalse",
+					},
+					blind1: {
+						type: "number",
+						description: "スモールブラインド（SB）。不明な場合は省略。",
+					},
+					blind2: {
+						type: "number",
+						description: "ビッグブラインド（BB）。不明な場合は省略。",
+					},
+					blind3: {
+						type: "number",
+						description: "ストラドル。存在する場合のみ含める。",
+					},
+					ante: {
+						type: "number",
+						description: "アンティ。存在する場合のみ含める。",
+					},
+					minutes: {
+						type: "number",
+						description: "レベルの時間（分）。記載がある場合のみ含める。",
+					},
 				},
 				required: ["isBreak"],
 			},
@@ -201,7 +237,7 @@ export const aiExtractRouter = router({
 
 			contentBlocks.push({
 				type: "text",
-				text: "上記のコンテンツからポーカートーナメントの構造データを抽出してください。確信を持って判断できない項目は省略してください。",
+				text: "上記のコンテンツからポーカートーナメントの構造データを抽出してください。各フィールドはソースに明確に記載されている場合のみ返してください。推測・空文字列・ゼロ埋めは行わず、不明なフィールドは省略してください。",
 			});
 
 			const response = await client.messages.create({
@@ -211,7 +247,7 @@ export const aiExtractRouter = router({
 					{
 						name: "extract_tournament_data",
 						description:
-							"ポーカートーナメントの構造データ（ブラインドレベル、バイイン、スターティングスタック等）を抽出する",
+							"ポーカートーナメントの構造データを抽出する。ソースに明示されているフィールドのみを含めること。不明・未記載のフィールドは省略する（空文字列・0・null は返さない）。",
 						input_schema: TOOL_INPUT_SCHEMA,
 					},
 				],

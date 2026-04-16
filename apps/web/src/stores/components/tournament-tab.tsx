@@ -675,7 +675,8 @@ export function TournamentTab({
 		base: PartialFormValues | undefined
 	): PartialFormValues => ({
 		...base,
-		name: data.name ?? base?.name ?? "",
+		// Use || so that empty strings fall back to the existing value
+		name: data.name || base?.name || "",
 		variant: base?.variant ?? "nlh",
 		...(data.buyIn !== undefined && { buyIn: data.buyIn }),
 		...(data.entryFee !== undefined && { entryFee: data.entryFee }),
@@ -683,7 +684,8 @@ export function TournamentTab({
 			startingStack: data.startingStack,
 		}),
 		...(data.tableSize !== undefined && { tableSize: data.tableSize }),
-		...(data.chipPurchases && { chipPurchases: data.chipPurchases }),
+		// Only override chip purchases if AI actually extracted some entries
+		...(data.chipPurchases?.length && { chipPurchases: data.chipPurchases }),
 	});
 
 	const handleAiExtracted = (data: ExtractedTournamentData) => {
