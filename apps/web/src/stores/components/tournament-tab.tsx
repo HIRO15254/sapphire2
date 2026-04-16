@@ -8,7 +8,7 @@ import {
 	IconTrash,
 	IconX,
 } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
 	ExpandableItem,
@@ -39,7 +39,7 @@ import {
 	formatCompactNumber,
 } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
-import { trpc } from "@/utils/trpc";
+import { trpc, trpcClient } from "@/utils/trpc";
 
 interface TournamentTabProps {
 	expandedGameId: string | null;
@@ -393,6 +393,7 @@ function TournamentActions({
 						setConfirmingDelete(false);
 					}}
 					size="icon-xs"
+					type="button"
 					variant="ghost"
 				>
 					<IconTrash size={12} />
@@ -401,6 +402,7 @@ function TournamentActions({
 					aria-label="Cancel delete"
 					onClick={() => setConfirmingDelete(false)}
 					size="icon-xs"
+					type="button"
 					variant="ghost"
 				>
 					<IconX size={12} />
@@ -415,6 +417,7 @@ function TournamentActions({
 				aria-label="Edit tournament"
 				onClick={() => onEdit(tournament)}
 				size="icon-xs"
+				type="button"
 				variant="ghost"
 			>
 				<IconEdit size={12} />
@@ -424,6 +427,7 @@ function TournamentActions({
 					aria-label="Restore tournament"
 					onClick={() => onRestore(tournament.id)}
 					size="icon-xs"
+					type="button"
 					variant="ghost"
 				>
 					<IconArchiveOff size={12} />
@@ -433,6 +437,7 @@ function TournamentActions({
 					aria-label="Archive tournament"
 					onClick={() => onArchive(tournament.id)}
 					size="icon-xs"
+					type="button"
 					variant="ghost"
 				>
 					<IconArchive size={12} />
@@ -442,6 +447,7 @@ function TournamentActions({
 				aria-label="Delete tournament"
 				onClick={() => setConfirmingDelete(true)}
 				size="icon-xs"
+				type="button"
 				variant="ghost"
 			>
 				<IconTrash size={12} />
@@ -545,20 +551,19 @@ function BlindStructureSummary({ tournamentId }: { tournamentId: string }) {
 	);
 }
 
-// ---- Shared modal content (used by both create and edit) ----
+// ---- Shared modal content (used by both create and edit dialogs) ----
 
-type TournamentModalFormValues = Omit<
+type PartialFormValues = Omit<
 	TournamentFormValues,
 	"tags" | "chipPurchases"
 > & {
-	chipPurchases?: Array<{ chips: number; cost: number; name: string }>;
+	chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
 	tags?: string[];
 };
 
 interface TournamentModalContentProps {
-	formKey?: number;
 	initialBlindLevels: BlindLevelRow[];
-	initialFormValues?: TournamentModalFormValues;
+	initialFormValues?: PartialFormValues;
 	isLoading: boolean;
 	onSave: (
 		values: TournamentFormValues,
@@ -567,7 +572,6 @@ interface TournamentModalContentProps {
 }
 
 function TournamentModalContent({
-	formKey,
 	initialBlindLevels,
 	initialFormValues,
 	isLoading,
@@ -586,7 +590,6 @@ function TournamentModalContent({
 				<TournamentForm
 					defaultValues={initialFormValues}
 					isLoading={isLoading}
-					key={formKey}
 					onSubmit={(values) => onSave(values, localBlindLevels)}
 				/>
 			</TabsContent>
@@ -601,21 +604,34 @@ function TournamentModalContent({
 	);
 }
 
+// ---- Main tab component ----
+
 export function TournamentTab({
 	storeId,
 	expandedGameId,
 	onToggleGame,
 }: TournamentTabProps) {
+	const queryClient = useQueryClient();
 	const [showArchived, setShowArchived] = useState(false);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingTournament, setEditingTournament] = useState<Tournament | null>(
 		null
 	);
-	const [aiFormDefaults, setAiFormDefaults] =
-		useState<TournamentModalFormValues>();
-	const [aiInitialLevels, setAiInitialLevels] = useState<BlindLevelRow[]>([]);
-	const [formKey, setFormKey] = useState(0);
+
+	// AI state (shared — only one modal is open at a time)
 	const [aiSheetOpen, setAiSheetOpen] = useState(false);
+	const [aiInitialFormValues, setAiInitialFormValues] = useState<
+		PartialFormValues | undefined
+	>();
+	const [aiInitialLevels, setAiInitialLevels] = useState<BlindLevelRow[]>([]);
+
+	// Keys to force-remount TournamentModalContent when AI data arrives
+	const [createKey, setCreateKey] = useState(0);
+	const [editKey, setEditKey] = useState(0);
+
+	// Loading states for the combined mutations
+	const [isCreateLoading, setIsCreateLoading] = useState(false);
+	const [isUpdateLoading, setIsUpdateLoading] = useState(false);
 
 	const {
 		activeTournaments,
@@ -623,15 +639,12 @@ export function TournamentTab({
 		currencies,
 		activeLoading,
 		archivedLoading,
-		isCreateWithLevelsPending,
-		isUpdateWithLevelsPending,
-		createWithLevels,
-		updateWithLevels,
 		archive,
 		restore,
 		delete: deleteTournament,
 	} = useTournaments({ storeId, showArchived });
 
+	// Fetch blind levels for the tournament being edited
 	const editBlindLevelsQuery = useQuery({
 		...trpc.blindLevel.listByTournament.queryOptions({
 			tournamentId: editingTournament?.id ?? "",
@@ -639,8 +652,13 @@ export function TournamentTab({
 		enabled: editingTournament !== null,
 	});
 
+	const resetAiState = () => {
+		setAiInitialFormValues(undefined);
+		setAiInitialLevels([]);
+	};
+
 	const handleAiExtracted = (data: ExtractedTournamentData) => {
-		setAiFormDefaults({
+		setAiInitialFormValues({
 			name: data.name ?? "",
 			buyIn: data.buyIn,
 			entryFee: data.entryFee,
@@ -662,24 +680,66 @@ export function TournamentTab({
 				minutes: l.minutes ?? null,
 			}))
 		);
-		setFormKey((k) => k + 1);
+		if (isCreateOpen) {
+			setCreateKey((k) => k + 1);
+		} else {
+			setEditKey((k) => k + 1);
+		}
 		setAiSheetOpen(false);
 	};
 
-	const resetCreateState = () => {
-		setAiFormDefaults(undefined);
-		setAiInitialLevels([]);
-		setFormKey(0);
-		setAiSheetOpen(false);
+	const invalidateTournamentLists = async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: trpc.tournament.listByStore.queryOptions({
+					storeId,
+					includeArchived: false,
+				}).queryKey,
+			}),
+			queryClient.invalidateQueries({
+				queryKey: trpc.tournament.listByStore.queryOptions({
+					storeId,
+					includeArchived: true,
+				}).queryKey,
+			}),
+		]);
 	};
 
 	const handleCreate = async (
 		values: TournamentFormValues,
 		levels: BlindLevelRow[]
 	) => {
-		await createWithLevels(values, levels);
-		setIsCreateOpen(false);
-		resetCreateState();
+		setIsCreateLoading(true);
+		try {
+			await trpcClient.tournament.createWithLevels.mutate({
+				storeId,
+				name: values.name,
+				variant: values.variant,
+				buyIn: values.buyIn,
+				entryFee: values.entryFee,
+				startingStack: values.startingStack,
+				bountyAmount: values.bountyAmount,
+				tableSize: values.tableSize,
+				currencyId: values.currencyId,
+				memo: values.memo,
+				tags: values.tags,
+				chipPurchases: values.chipPurchases,
+				blindLevels: levels.map((l) => ({
+					isBreak: l.isBreak,
+					blind1: l.blind1,
+					blind2: l.blind2,
+					blind3: l.blind3,
+					ante: l.ante,
+					minutes: l.minutes,
+				})),
+			});
+			await invalidateTournamentLists();
+			setIsCreateOpen(false);
+			resetAiState();
+			setCreateKey(0);
+		} finally {
+			setIsCreateLoading(false);
+		}
 	};
 
 	const handleUpdate = async (
@@ -689,9 +749,88 @@ export function TournamentTab({
 		if (!editingTournament) {
 			return;
 		}
-		await updateWithLevels(editingTournament.id, values, levels);
-		setEditingTournament(null);
+		setIsUpdateLoading(true);
+		try {
+			await trpcClient.tournament.updateWithLevels.mutate({
+				id: editingTournament.id,
+				name: values.name,
+				variant: values.variant,
+				buyIn: values.buyIn ?? null,
+				entryFee: values.entryFee ?? null,
+				startingStack: values.startingStack ?? null,
+				bountyAmount: values.bountyAmount ?? null,
+				tableSize: values.tableSize ?? null,
+				currencyId: values.currencyId ?? null,
+				memo: values.memo ?? null,
+				tags: values.tags,
+				chipPurchases: values.chipPurchases,
+				blindLevels: levels.map((l) => ({
+					isBreak: l.isBreak,
+					blind1: l.blind1,
+					blind2: l.blind2,
+					blind3: l.blind3,
+					ante: l.ante,
+					minutes: l.minutes,
+				})),
+			});
+			await Promise.all([
+				invalidateTournamentLists(),
+				queryClient.invalidateQueries({
+					queryKey: trpc.blindLevel.listByTournament.queryOptions({
+						tournamentId: editingTournament.id,
+					}).queryKey,
+				}),
+			]);
+			setEditingTournament(null);
+			resetAiState();
+			setEditKey(0);
+		} finally {
+			setIsUpdateLoading(false);
+		}
 	};
+
+	const aiButton = (
+		<Button
+			onClick={() => setAiSheetOpen(true)}
+			size="xs"
+			type="button"
+			variant="outline"
+		>
+			<IconSparkles size={12} />
+			AI自動入力
+			<Badge className="px-1 py-0 text-[10px]" variant="secondary">
+				beta
+			</Badge>
+		</Button>
+	);
+
+	// Edit modal initial values: AI overrides when editKey > 0
+	const editFormValues: PartialFormValues | undefined = editingTournament
+		? {
+				name: editingTournament.name,
+				variant: editingTournament.variant,
+				buyIn: editingTournament.buyIn ?? undefined,
+				entryFee: editingTournament.entryFee ?? undefined,
+				startingStack: editingTournament.startingStack ?? undefined,
+				chipPurchases: editingTournament.chipPurchases.map((cp) => ({
+					name: cp.name,
+					cost: cp.cost,
+					chips: cp.chips,
+				})),
+				bountyAmount: editingTournament.bountyAmount ?? undefined,
+				tableSize: editingTournament.tableSize ?? undefined,
+				currencyId: editingTournament.currencyId ?? undefined,
+				memo: editingTournament.memo ?? undefined,
+				tags: editingTournament.tags.map((t) => t.name),
+			}
+		: undefined;
+
+	const editInitialFormValues =
+		editKey > 0 ? aiInitialFormValues : editFormValues;
+	const editInitialLevels =
+		editKey > 0
+			? aiInitialLevels
+			: ((editBlindLevelsQuery.data ?? []) as BlindLevelRow[]);
 
 	return (
 		<div>
@@ -741,7 +880,7 @@ export function TournamentTab({
 				showArchived={showArchived}
 			/>
 
-			{/* AI Extract Sheet - opens on top of the create modal */}
+			{/* Shared AI extract sheet */}
 			<ResponsiveDialog
 				onOpenChange={setAiSheetOpen}
 				open={aiSheetOpen}
@@ -753,34 +892,22 @@ export function TournamentTab({
 			{/* Create Tournament modal */}
 			<ResponsiveDialog
 				fullHeight
-				headerAction={
-					<Button
-						onClick={() => setAiSheetOpen(true)}
-						size="xs"
-						type="button"
-						variant="outline"
-					>
-						<IconSparkles size={12} />
-						AI自動入力
-						<Badge className="px-1 py-0 text-[10px]" variant="secondary">
-							beta
-						</Badge>
-					</Button>
-				}
+				headerAction={aiButton}
 				onOpenChange={(open) => {
 					setIsCreateOpen(open);
 					if (!open) {
-						resetCreateState();
+						resetAiState();
+						setCreateKey(0);
 					}
 				}}
 				open={isCreateOpen}
 				title="Add Tournament"
 			>
 				<TournamentModalContent
-					formKey={formKey}
-					initialBlindLevels={aiInitialLevels}
-					initialFormValues={aiFormDefaults}
-					isLoading={isCreateWithLevelsPending}
+					initialBlindLevels={createKey > 0 ? aiInitialLevels : []}
+					initialFormValues={createKey > 0 ? aiInitialFormValues : undefined}
+					isLoading={isCreateLoading}
+					key={createKey}
 					onSave={handleCreate}
 				/>
 			</ResponsiveDialog>
@@ -788,43 +915,28 @@ export function TournamentTab({
 			{/* Edit Tournament modal */}
 			<ResponsiveDialog
 				fullHeight
+				headerAction={aiButton}
 				onOpenChange={(open) => {
 					if (!open) {
 						setEditingTournament(null);
+						resetAiState();
+						setEditKey(0);
 					}
 				}}
 				open={editingTournament !== null}
 				title="Edit Tournament"
 			>
 				{editingTournament &&
-					(editBlindLevelsQuery.isLoading ? (
+					(editBlindLevelsQuery.isLoading && editKey === 0 ? (
 						<p className="py-8 text-center text-muted-foreground text-sm">
 							Loading...
 						</p>
 					) : (
 						<TournamentModalContent
-							initialBlindLevels={
-								(editBlindLevelsQuery.data ?? []) as BlindLevelRow[]
-							}
-							initialFormValues={{
-								name: editingTournament.name,
-								variant: editingTournament.variant,
-								buyIn: editingTournament.buyIn ?? undefined,
-								entryFee: editingTournament.entryFee ?? undefined,
-								startingStack: editingTournament.startingStack ?? undefined,
-								bountyAmount: editingTournament.bountyAmount ?? undefined,
-								tableSize: editingTournament.tableSize ?? undefined,
-								currencyId: editingTournament.currencyId ?? undefined,
-								memo: editingTournament.memo ?? undefined,
-								chipPurchases: editingTournament.chipPurchases.map((cp) => ({
-									name: cp.name,
-									cost: cp.cost,
-									chips: cp.chips,
-								})),
-								tags: editingTournament.tags.map((t) => t.name),
-							}}
-							isLoading={isUpdateWithLevelsPending}
-							key={editingTournament.id}
+							initialBlindLevels={editInitialLevels}
+							initialFormValues={editInitialFormValues}
+							isLoading={isUpdateLoading}
+							key={`${editingTournament.id}-${editKey}`}
 							onSave={handleUpdate}
 						/>
 					))}
