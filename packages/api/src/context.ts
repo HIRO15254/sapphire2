@@ -10,13 +10,14 @@ type AuthInstance = ReturnType<typeof createAuth>;
 
 export function createContextFactory(
 	authInstance: AuthInstance,
-	dbInstance: Database
+	dbInstance: Database,
+	anthropicApiKey?: string
 ) {
 	return async ({ context }: CreateContextOptions) => {
 		const session = await authInstance.api.getSession({
 			headers: context.req.raw.headers,
 		});
-		return { session, db: dbInstance };
+		return { session, db: dbInstance, anthropicApiKey };
 	};
 }
 

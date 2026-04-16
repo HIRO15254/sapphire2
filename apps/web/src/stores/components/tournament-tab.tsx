@@ -1,3 +1,4 @@
+import type { ExtractedTournamentData } from "@sapphire2/api/routers/ai-extract";
 import {
 	IconArchive,
 	IconArchiveOff,
@@ -18,6 +19,7 @@ import { ManagementSectionState } from "@/shared/components/management/managemen
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { AiExtractInput } from "@/stores/components/ai-extract-input";
 import { BlindLevelEditor } from "@/stores/components/blind-level-editor";
 import { TournamentForm } from "@/stores/components/tournament-form";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
@@ -31,7 +33,7 @@ import {
 	formatCompactNumber,
 } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
-import { trpc } from "@/utils/trpc";
+import { trpc, trpcClient } from "@/utils/trpc";
 
 interface TournamentTabProps {
 	expandedGameId: string | null;
@@ -568,6 +570,17 @@ export function TournamentTab({
 	const [editingTournament, setEditingTournament] = useState<Tournament | null>(
 		null
 	);
+	const [aiFormDefaults, setAiFormDefaults] = useState<
+		| (Omit<TournamentFormValues, "tags" | "chipPurchases"> & {
+				chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
+				tags?: string[];
+		  })
+		| undefined
+	>();
+	const [aiBlindLevels, setAiBlindLevels] = useState<
+		NonNullable<ExtractedTournamentData["blindLevels"]>
+	>([]);
+	const [formKey, setFormKey] = useState(0);
 
 	const {
 		activeTournaments,
@@ -584,10 +597,44 @@ export function TournamentTab({
 		delete: deleteTournament,
 	} = useTournaments({ storeId, showArchived });
 
-	const handleCreate = (values: TournamentFormValues) => {
-		create(values).then(() => {
-			setIsCreateOpen(false);
+	const handleAiExtracted = (data: ExtractedTournamentData) => {
+		setAiFormDefaults({
+			name: data.name ?? "",
+			buyIn: data.buyIn,
+			entryFee: data.entryFee,
+			startingStack: data.startingStack,
+			tableSize: data.tableSize,
+			chipPurchases: data.chipPurchases ?? [],
+			variant: "nlh",
 		});
+		setAiBlindLevels(data.blindLevels ?? []);
+		setFormKey((k) => k + 1);
+	};
+
+	const resetAiState = () => {
+		setAiFormDefaults(undefined);
+		setAiBlindLevels([]);
+		setFormKey(0);
+	};
+
+	const handleCreate = async (values: TournamentFormValues) => {
+		const created = await create(values);
+		if (aiBlindLevels.length > 0) {
+			for (const [i, level] of aiBlindLevels.entries()) {
+				await trpcClient.blindLevel.create.mutate({
+					tournamentId: created.id,
+					level: i + 1,
+					isBreak: level.isBreak,
+					blind1: level.blind1 ?? undefined,
+					blind2: level.blind2 ?? undefined,
+					blind3: level.blind3 ?? undefined,
+					ante: level.ante ?? undefined,
+					minutes: level.minutes ?? undefined,
+				});
+			}
+		}
+		resetAiState();
+		setIsCreateOpen(false);
 	};
 
 	const handleUpdate = (values: TournamentFormValues) => {
@@ -655,11 +702,22 @@ export function TournamentTab({
 			/>
 
 			<ResponsiveDialog
-				onOpenChange={setIsCreateOpen}
+				onOpenChange={(open) => {
+					setIsCreateOpen(open);
+					if (!open) {
+						resetAiState();
+					}
+				}}
 				open={isCreateOpen}
 				title="Add Tournament"
 			>
-				<TournamentForm isLoading={isCreatePending} onSubmit={handleCreate} />
+				<AiExtractInput onExtracted={handleAiExtracted} />
+				<TournamentForm
+					defaultValues={aiFormDefaults}
+					isLoading={isCreatePending}
+					key={formKey}
+					onSubmit={handleCreate}
+				/>
 			</ResponsiveDialog>
 
 			<ResponsiveDialog

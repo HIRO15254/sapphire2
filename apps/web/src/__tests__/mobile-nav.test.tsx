@@ -37,6 +37,19 @@ vi.mock("@/utils/trpc", () => ({
 			create: { mutate: vi.fn() },
 		},
 	},
+	trpc: {
+		liveCashGameSession: {
+			getById: { queryOptions: () => ({ queryKey: [] }) },
+			list: { queryOptions: () => ({ queryKey: [] }) },
+		},
+		liveTournamentSession: {
+			getById: { queryOptions: () => ({ queryKey: [] }) },
+			list: { queryOptions: () => ({ queryKey: [] }) },
+		},
+		sessionEvent: {
+			list: { queryOptions: () => ({ queryKey: [] }) },
+		},
+	},
 }));
 
 // Mock react-query hooks used directly in MobileNav
