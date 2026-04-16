@@ -66,7 +66,7 @@ export function TransactionList({
 					if (isSessionGenerated) {
 						return (
 							<div
-								className="flex items-center justify-between gap-2 py-2 text-left"
+								className="flex items-center justify-between gap-2 py-2 pr-8 text-left"
 								key={tx.id}
 							>
 								<div className="flex items-center gap-1.5">
