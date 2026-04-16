@@ -1,8 +1,24 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { CashGameStackForm } from "../cash-game-stack-form";
+
+beforeAll(() => {
+	Object.defineProperty(window, "matchMedia", {
+		writable: true,
+		value: vi.fn().mockImplementation((query: string) => ({
+			matches: false,
+			media: query,
+			onchange: null,
+			addListener: vi.fn(),
+			removeListener: vi.fn(),
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+			dispatchEvent: vi.fn(),
+		})),
+	});
+});
 
 const mocks = vi.hoisted(() => ({
 	state: {
@@ -95,15 +111,17 @@ describe("CashGameStackForm", () => {
 
 		expect(screen.getByLabelText("Current Stack *")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Update" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "End" })).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: "+ All-in" })
+			screen.getByRole("button", { name: "Complete" })
 		).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "+ Addon" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "All-in" })).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: "+ Remove" })
+			screen.getByRole("button", { name: "Add Chips" })
 		).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "+ Memo" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Remove Chips" })
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Memo" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
 	});
 
@@ -114,7 +132,7 @@ describe("CashGameStackForm", () => {
 
 		render(<CashGameStackForm {...defaultProps} onComplete={onComplete} />);
 
-		await user.click(screen.getByRole("button", { name: "End" }));
+		await user.click(screen.getByRole("button", { name: "Complete" }));
 
 		expect(onComplete).toHaveBeenCalledWith(4200);
 	});
@@ -138,7 +156,7 @@ describe("CashGameStackForm", () => {
 
 		render(<CashGameStackForm {...defaultProps} onAllIn={onAllIn} />);
 
-		await user.click(screen.getByRole("button", { name: "+ All-in" }));
+		await user.click(screen.getByRole("button", { name: "All-in" }));
 		await user.click(screen.getByRole("button", { name: "Mock Save All-in" }));
 
 		expect(onAllIn).toHaveBeenCalledWith({
@@ -156,7 +174,7 @@ describe("CashGameStackForm", () => {
 
 		render(<CashGameStackForm {...defaultProps} onChipAdd={onChipAdd} />);
 
-		await user.click(screen.getByRole("button", { name: "+ Addon" }));
+		await user.click(screen.getByRole("button", { name: "Add Chips" }));
 		await user.click(screen.getByRole("button", { name: "Mock Save Addon" }));
 
 		expect(onChipAdd).toHaveBeenCalledWith(300);

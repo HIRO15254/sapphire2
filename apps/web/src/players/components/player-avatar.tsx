@@ -16,11 +16,11 @@ export function PlayerAvatar({
 		<div
 			className={cn(
 				"flex size-10 items-center justify-center rounded-full border-2 shadow-md",
-				isHero
-					? "border-amber-400 bg-amber-500/80 text-white"
-					: isTemporary
-						? "border-zinc-500/60 bg-zinc-700 text-white/80"
-						: "border-white/30 bg-slate-500 text-white",
+				isHero && "border-amber-400 bg-amber-500/80 text-white",
+				!isHero &&
+					isTemporary &&
+					"border-zinc-500/60 bg-zinc-700 text-white/80",
+				!(isHero || isTemporary) && "border-white/30 bg-slate-500 text-white",
 				className
 			)}
 		>

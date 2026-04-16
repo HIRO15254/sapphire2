@@ -1,7 +1,24 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { TournamentStackForm } from "../tournament-stack-form";
+
+beforeAll(() => {
+	Object.defineProperty(window, "matchMedia", {
+		writable: true,
+		value: vi.fn().mockImplementation((query: string) => ({
+			matches: false,
+			media: query,
+			onchange: null,
+			addListener: vi.fn(),
+			removeListener: vi.fn(),
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+			dispatchEvent: vi.fn(),
+		})),
+	});
+});
 
 const mocks = vi.hoisted(() => ({
 	setStackAmount: vi.fn(),
@@ -27,6 +44,42 @@ vi.mock("@/live-sessions/hooks/use-session-form", () => ({
 	}),
 }));
 
+vi.mock("@/live-sessions/components/chip-purchase-sheet", () => ({
+	ChipPurchaseSheet: ({
+		onSubmit,
+		open,
+	}: {
+		onSubmit: (value: { chips: number; cost: number; name: string }) => void;
+		open: boolean;
+	}) =>
+		open ? (
+			<button
+				onClick={() => onSubmit({ chips: 10_000, cost: 5000, name: "Rebuy" })}
+				type="button"
+			>
+				Mock Purchase
+			</button>
+		) : null,
+}));
+
+vi.mock("@/shared/components/ui/responsive-dialog", () => ({
+	ResponsiveDialog: ({
+		children,
+		open,
+		title,
+	}: {
+		children: ReactNode;
+		open: boolean;
+		title: string;
+	}) =>
+		open ? (
+			<div>
+				<h2>{title}</h2>
+				{children}
+			</div>
+		) : null,
+}));
+
 const CHIP_PURCHASE_TYPES = [
 	{ name: "Rebuy", cost: 5000, chips: 10_000 },
 	{ name: "Addon", cost: 3000, chips: 8000 },
@@ -50,12 +103,12 @@ describe("TournamentStackForm", () => {
 
 		expect(screen.getByLabelText("Current Stack *")).toBeInTheDocument();
 		expect(screen.getByText("Update")).toBeInTheDocument();
-		expect(screen.getByText("End")).toBeInTheDocument();
-		expect(screen.getByText("+ Memo")).toBeInTheDocument();
+		expect(screen.getByText("Complete")).toBeInTheDocument();
+		expect(screen.getByText("Memo")).toBeInTheDocument();
 		expect(screen.getByText("Pause")).toBeInTheDocument();
 	});
 
-	it("renders chip purchase quick action buttons when types provided", () => {
+	it("renders chip purchase count fields when types provided", () => {
 		mocks.state.stackAmount = "";
 
 		render(
@@ -70,11 +123,11 @@ describe("TournamentStackForm", () => {
 			/>
 		);
 
-		expect(screen.getByText("+ Rebuy")).toBeInTheDocument();
-		expect(screen.getByText("+ Addon")).toBeInTheDocument();
+		expect(screen.getByLabelText("Rebuy count")).toBeInTheDocument();
+		expect(screen.getByLabelText("Addon count")).toBeInTheDocument();
 	});
 
-	it("shows no chip purchase buttons when no types provided", () => {
+	it("shows no chip purchase count fields when no types provided", () => {
 		mocks.state.stackAmount = "";
 
 		render(
@@ -88,11 +141,11 @@ describe("TournamentStackForm", () => {
 			/>
 		);
 
-		expect(screen.queryByText("+ Rebuy")).not.toBeInTheDocument();
-		expect(screen.queryByText("+ Addon")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Rebuy count")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Addon count")).not.toBeInTheDocument();
 	});
 
-	it("does not render remaining players or total entries fields", () => {
+	it("renders remaining players and total entries fields by default", () => {
 		mocks.state.stackAmount = "";
 
 		render(
@@ -107,10 +160,8 @@ describe("TournamentStackForm", () => {
 			/>
 		);
 
-		expect(
-			screen.queryByLabelText("Remaining Players")
-		).not.toBeInTheDocument();
-		expect(screen.queryByLabelText("Total Entries")).not.toBeInTheDocument();
+		expect(screen.getByLabelText("Remaining Players")).toBeInTheDocument();
+		expect(screen.getByLabelText("Total Entries")).toBeInTheDocument();
 	});
 
 	it("shows loading state on Update button", () => {
@@ -130,7 +181,7 @@ describe("TournamentStackForm", () => {
 		expect(screen.getByText("...")).toBeInTheDocument();
 	});
 
-	it("calls onComplete when End is clicked", async () => {
+	it("calls onComplete when Complete is clicked", async () => {
 		const user = userEvent.setup();
 		const onComplete = vi.fn();
 		mocks.state.stackAmount = "";
@@ -146,7 +197,7 @@ describe("TournamentStackForm", () => {
 			/>
 		);
 
-		await user.click(screen.getByText("End"));
+		await user.click(screen.getByText("Complete"));
 		expect(onComplete).toHaveBeenCalled();
 	});
 
@@ -170,7 +221,7 @@ describe("TournamentStackForm", () => {
 		expect(onPause).toHaveBeenCalled();
 	});
 
-	it("calls onPurchaseChips and increments stack when a quick purchase button is used", async () => {
+	it("calls onPurchaseChips via chip purchase sheet", async () => {
 		const user = userEvent.setup();
 		const onPurchaseChips = vi.fn();
 		mocks.state.stackAmount = "1200";
@@ -187,17 +238,17 @@ describe("TournamentStackForm", () => {
 			/>
 		);
 
-		await user.click(screen.getByText("+ Rebuy"));
+		await user.click(screen.getByText("Chip Purchase"));
+		await user.click(screen.getByText("Mock Purchase"));
 
 		expect(onPurchaseChips).toHaveBeenCalledWith({
 			chips: 10_000,
 			cost: 5000,
 			name: "Rebuy",
 		});
-		expect(mocks.setStackAmount).toHaveBeenCalledWith("11200");
 	});
 
-	it("submits only stackAmount on update", async () => {
+	it("submits form values on update", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		mocks.state.stackAmount = "8000";
@@ -216,6 +267,8 @@ describe("TournamentStackForm", () => {
 
 		await user.click(screen.getByText("Update"));
 
-		expect(onSubmit).toHaveBeenCalledWith({ stackAmount: 8000 });
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ stackAmount: 8000 })
+		);
 	});
 });

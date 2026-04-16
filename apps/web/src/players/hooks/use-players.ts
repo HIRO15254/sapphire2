@@ -5,6 +5,7 @@ import { trpc, trpcClient } from "@/utils/trpc";
 export interface PlayerItem {
 	createdAt: string;
 	id: string;
+	isTemporary: boolean;
 	memo: string | null;
 	name: string;
 	tags: Array<{ id: string; name: string; color: string }>;
@@ -60,6 +61,7 @@ export function usePlayers(filterTagIds: string[]) {
 						...old,
 						{
 							id: `temp-${Date.now()}`,
+							isTemporary: false,
 							name: newPlayer.name,
 							memo: newPlayer.memo ?? null,
 							tags: newTags,
