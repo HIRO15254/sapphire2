@@ -12,8 +12,10 @@ interface EntityListItemProps {
 	className?: string;
 	contentClassName?: string;
 	deleteLabel: string;
+	expandedValue?: string | null;
 	onDelete: () => void;
 	onEdit: () => void;
+	onExpandedValueChange?: (value: string | null) => void;
 	summary: React.ReactNode;
 	summaryClassName?: string;
 }
@@ -23,20 +25,28 @@ export function EntityListItem({
 	className,
 	contentClassName,
 	deleteLabel,
+	expandedValue: controlledExpandedValue,
 	onDelete,
 	onEdit,
+	onExpandedValueChange,
 	summary,
 	summaryClassName,
 }: EntityListItemProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const [expandedValue, setExpandedValue] = useState<string | null>(null);
+	const [internalExpandedValue, setInternalExpandedValue] = useState<string | null>(null);
+
+	const isControlled = controlledExpandedValue !== undefined;
+	const expandedValue = isControlled ? controlledExpandedValue : internalExpandedValue;
 
 	return (
 		<ExpandableItemList
 			className={cn("rounded-lg border bg-card", className)}
 			onValueChange={(nextValue) => {
-				setExpandedValue(nextValue);
+				if (!isControlled) {
+					setInternalExpandedValue(nextValue);
+				}
 				setConfirmingDelete(false);
+				onExpandedValueChange?.(nextValue);
 			}}
 			value={expandedValue}
 		>
@@ -65,7 +75,10 @@ export function EntityListItem({
 										event.stopPropagation();
 										onDelete();
 										setConfirmingDelete(false);
-										setExpandedValue(null);
+										if (!isControlled) {
+											setInternalExpandedValue(null);
+										}
+										onExpandedValueChange?.(null);
 									}}
 									size="xs"
 									type="button"

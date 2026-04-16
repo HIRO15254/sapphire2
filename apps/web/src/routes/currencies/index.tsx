@@ -12,7 +12,6 @@ import type {
 	TransactionValues,
 } from "@/currencies/hooks/use-currencies";
 import { useCurrencies } from "@/currencies/hooks/use-currencies";
-import { ExpandableItemList } from "@/shared/components/management/expandable-item-list";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
@@ -156,15 +155,12 @@ function CurrenciesPage() {
 					icon={<IconCoins size={48} />}
 				/>
 			) : (
-				<ExpandableItemList
-					onValueChange={handleExpandedCurrencyChange}
-					value={expandedCurrencyId}
-				>
+				<div className="flex flex-col gap-2">
 					{currencies.map((c) => (
 						<CurrencyCard
 							currency={c}
-							expanded={expandedCurrencyId === c.id}
 							hasMore={expandedCurrencyId === c.id ? txHasMore : false}
+							isExpanded={expandedCurrencyId === c.id}
 							isLoadingMore={
 								expandedCurrencyId === c.id ? isLoadingMore : false
 							}
@@ -174,11 +170,14 @@ function CurrenciesPage() {
 							onDeleteTransaction={handleDeleteTransaction}
 							onEdit={setEditingCurrency}
 							onEditTransaction={setEditingTransaction}
+							onExpandChange={(expanded) => {
+								handleExpandedCurrencyChange(expanded ? c.id : null);
+							}}
 							onLoadMore={handleLoadMore}
 							transactions={expandedCurrencyId === c.id ? allTransactions : []}
 						/>
 					))}
-				</ExpandableItemList>
+				</div>
 			)}
 
 			<ResponsiveDialog
