@@ -1,13 +1,14 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { TablePlayer } from "@/live-sessions/components/poker-table";
+import { getSessionQueryKeys } from "@/live-sessions/utils/optimistic-session-event";
 import {
 	cancelTargets,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
 } from "@/utils/optimistic-update";
-import { trpc, trpcClient } from "@/utils/trpc";
+import { trpcClient } from "@/utils/trpc";
 
 export interface SelectedPlayer {
 	playerId: string;
@@ -30,12 +31,7 @@ export function usePokerTableInteraction(
 		null
 	);
 
-	const sessionKey =
-		sessionType === "cash_game"
-			? trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
-					.queryKey
-			: trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
-					.queryKey;
+	const { sessionKey, eventsKey } = getSessionQueryKeys(sessionId, sessionType);
 
 	const [localHeroSeat, setLocalHeroSeat] = useState<number | null | undefined>(
 		undefined
@@ -70,7 +66,10 @@ export function usePokerTableInteraction(
 			setLocalHeroSeat(context?.previousSeat ?? undefined);
 		},
 		onSettled: async () => {
-			await invalidateTargets(queryClient, [{ queryKey: sessionKey }]);
+			await invalidateTargets(queryClient, [
+				{ queryKey: sessionKey },
+				{ queryKey: eventsKey },
+			]);
 			setLocalHeroSeat(undefined);
 		},
 	});

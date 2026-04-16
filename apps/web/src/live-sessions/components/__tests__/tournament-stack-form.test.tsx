@@ -1,25 +1,31 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { TournamentStackForm } from "../tournament-stack-form";
 
+beforeAll(() => {
+	Object.defineProperty(window, "matchMedia", {
+		writable: true,
+		value: vi.fn().mockImplementation((query: string) => ({
+			matches: false,
+			media: query,
+			onchange: null,
+			addListener: vi.fn(),
+			removeListener: vi.fn(),
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+			dispatchEvent: vi.fn(),
+		})),
+	});
+});
+
 const mocks = vi.hoisted(() => ({
-	addChipPurchase: vi.fn(),
-	removeChipPurchase: vi.fn(),
-	setChipPurchaseCounts: vi.fn(),
-	setRemainingPlayers: vi.fn(),
 	setStackAmount: vi.fn(),
-	setTotalEntries: vi.fn(),
 	state: {
 		chipPurchaseCounts: [] as Array<{
 			chipsPerUnit: number;
 			count: number;
-			name: string;
-		}>,
-		chipPurchases: [] as Array<{
-			chips: number;
-			cost: number;
-			id: number;
 			name: string;
 		}>,
 		remainingPlayers: "",
@@ -30,25 +36,48 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/live-sessions/hooks/use-session-form", () => ({
 	useTournamentFormContext: () => ({
-		addChipPurchase: mocks.addChipPurchase,
-		removeChipPurchase: mocks.removeChipPurchase,
-		setChipPurchaseCounts: mocks.setChipPurchaseCounts,
-		setRemainingPlayers: mocks.setRemainingPlayers,
+		setChipPurchaseCounts: vi.fn(),
+		setRemainingPlayers: vi.fn(),
 		setStackAmount: mocks.setStackAmount,
-		setTotalEntries: mocks.setTotalEntries,
+		setTotalEntries: vi.fn(),
 		state: mocks.state,
 	}),
 }));
 
-// Mock ResponsiveDialog to render children without portal
+vi.mock("@/live-sessions/components/chip-purchase-sheet", () => ({
+	ChipPurchaseSheet: ({
+		onSubmit,
+		open,
+	}: {
+		onSubmit: (value: { chips: number; cost: number; name: string }) => void;
+		open: boolean;
+	}) =>
+		open ? (
+			<button
+				onClick={() => onSubmit({ chips: 10_000, cost: 5000, name: "Rebuy" })}
+				type="button"
+			>
+				Mock Purchase
+			</button>
+		) : null,
+}));
+
 vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	ResponsiveDialog: ({
 		children,
 		open,
+		title,
 	}: {
-		children: React.ReactNode;
+		children: ReactNode;
 		open: boolean;
-	}) => (open ? <div>{children}</div> : null),
+		title: string;
+	}) =>
+		open ? (
+			<div>
+				<h2>{title}</h2>
+				{children}
+			</div>
+		) : null,
 }));
 
 const CHIP_PURCHASE_TYPES = [
@@ -57,162 +86,189 @@ const CHIP_PURCHASE_TYPES = [
 ];
 
 describe("TournamentStackForm", () => {
-	it("renders stack input and buttons", () => {
+	it("renders stack input and action buttons", () => {
 		mocks.state.stackAmount = "";
-		mocks.state.remainingPlayers = "";
-		mocks.state.totalEntries = "";
-		mocks.state.chipPurchases = [];
-		mocks.state.chipPurchaseCounts = [];
 
 		render(
 			<TournamentStackForm
 				chipPurchaseTypes={CHIP_PURCHASE_TYPES}
 				isLoading={false}
 				onComplete={vi.fn()}
+				onMemo={vi.fn()}
+				onPause={vi.fn()}
+				onPurchaseChips={vi.fn()}
 				onSubmit={vi.fn()}
 			/>
 		);
 
 		expect(screen.getByLabelText("Current Stack *")).toBeInTheDocument();
-		expect(screen.getByLabelText("Remaining Players")).toBeInTheDocument();
-		expect(screen.getByLabelText("Total Entries")).toBeInTheDocument();
 		expect(screen.getByText("Update")).toBeInTheDocument();
-		expect(screen.getByText("End")).toBeInTheDocument();
-		expect(screen.getByText("+ Rebuy")).toBeInTheDocument();
-		expect(screen.getByText("+ Addon")).toBeInTheDocument();
+		expect(screen.getByText("Complete")).toBeInTheDocument();
+		expect(screen.getByText("Memo")).toBeInTheDocument();
+		expect(screen.getByText("Pause")).toBeInTheDocument();
 	});
 
-	it("shows no chip purchase buttons when no types provided", () => {
+	it("renders chip purchase count fields when types provided", () => {
 		mocks.state.stackAmount = "";
-		mocks.state.remainingPlayers = "";
-		mocks.state.totalEntries = "";
-		mocks.state.chipPurchases = [];
-		mocks.state.chipPurchaseCounts = [];
-
-		render(
-			<TournamentStackForm
-				isLoading={false}
-				onComplete={vi.fn()}
-				onSubmit={vi.fn()}
-			/>
-		);
-
-		expect(screen.queryByText("+ Chip Purchase")).not.toBeInTheDocument();
-		expect(screen.queryByText("+ Rebuy")).not.toBeInTheDocument();
-	});
-
-	it("shows count inputs when chipPurchaseTypes provided", () => {
-		mocks.state.stackAmount = "";
-		mocks.state.remainingPlayers = "";
-		mocks.state.totalEntries = "";
-		mocks.state.chipPurchases = [];
-		mocks.state.chipPurchaseCounts = [];
 
 		render(
 			<TournamentStackForm
 				chipPurchaseTypes={CHIP_PURCHASE_TYPES}
 				isLoading={false}
 				onComplete={vi.fn()}
+				onMemo={vi.fn()}
+				onPause={vi.fn()}
+				onPurchaseChips={vi.fn()}
 				onSubmit={vi.fn()}
 			/>
 		);
 
-		expect(screen.getByText("Rebuy count")).toBeInTheDocument();
-		expect(screen.getByText("Addon count")).toBeInTheDocument();
+		expect(screen.getByLabelText("Rebuy count")).toBeInTheDocument();
+		expect(screen.getByLabelText("Addon count")).toBeInTheDocument();
+	});
+
+	it("shows no chip purchase count fields when no types provided", () => {
+		mocks.state.stackAmount = "";
+
+		render(
+			<TournamentStackForm
+				isLoading={false}
+				onComplete={vi.fn()}
+				onMemo={vi.fn()}
+				onPause={vi.fn()}
+				onPurchaseChips={vi.fn()}
+				onSubmit={vi.fn()}
+			/>
+		);
+
+		expect(screen.queryByLabelText("Rebuy count")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Addon count")).not.toBeInTheDocument();
+	});
+
+	it("renders remaining players and total entries fields by default", () => {
+		mocks.state.stackAmount = "";
+
+		render(
+			<TournamentStackForm
+				chipPurchaseTypes={CHIP_PURCHASE_TYPES}
+				isLoading={false}
+				onComplete={vi.fn()}
+				onMemo={vi.fn()}
+				onPause={vi.fn()}
+				onPurchaseChips={vi.fn()}
+				onSubmit={vi.fn()}
+			/>
+		);
+
+		expect(screen.getByLabelText("Remaining Players")).toBeInTheDocument();
+		expect(screen.getByLabelText("Total Entries")).toBeInTheDocument();
 	});
 
 	it("shows loading state on Update button", () => {
 		mocks.state.stackAmount = "";
-		mocks.state.remainingPlayers = "";
-		mocks.state.totalEntries = "";
-		mocks.state.chipPurchases = [];
-		mocks.state.chipPurchaseCounts = [];
 
 		render(
-			<TournamentStackForm isLoading onComplete={vi.fn()} onSubmit={vi.fn()} />
+			<TournamentStackForm
+				isLoading
+				onComplete={vi.fn()}
+				onMemo={vi.fn()}
+				onPause={vi.fn()}
+				onPurchaseChips={vi.fn()}
+				onSubmit={vi.fn()}
+			/>
 		);
 
 		expect(screen.getByText("...")).toBeInTheDocument();
 	});
 
-	it("calls onComplete when End is clicked", async () => {
+	it("calls onComplete when Complete is clicked", async () => {
 		const user = userEvent.setup();
 		const onComplete = vi.fn();
 		mocks.state.stackAmount = "";
-		mocks.state.remainingPlayers = "";
-		mocks.state.totalEntries = "";
-		mocks.state.chipPurchases = [];
-		mocks.state.chipPurchaseCounts = [];
 
 		render(
 			<TournamentStackForm
 				isLoading={false}
 				onComplete={onComplete}
+				onMemo={vi.fn()}
+				onPause={vi.fn()}
+				onPurchaseChips={vi.fn()}
 				onSubmit={vi.fn()}
 			/>
 		);
 
-		await user.click(screen.getByText("End"));
+		await user.click(screen.getByText("Complete"));
 		expect(onComplete).toHaveBeenCalled();
 	});
 
-	it("increments the stack when a quick purchase button is used", async () => {
+	it("calls onPause when Pause is clicked", async () => {
 		const user = userEvent.setup();
+		const onPause = vi.fn();
+		mocks.state.stackAmount = "";
+
+		render(
+			<TournamentStackForm
+				isLoading={false}
+				onComplete={vi.fn()}
+				onMemo={vi.fn()}
+				onPause={onPause}
+				onPurchaseChips={vi.fn()}
+				onSubmit={vi.fn()}
+			/>
+		);
+
+		await user.click(screen.getByText("Pause"));
+		expect(onPause).toHaveBeenCalled();
+	});
+
+	it("calls onPurchaseChips via chip purchase sheet", async () => {
+		const user = userEvent.setup();
+		const onPurchaseChips = vi.fn();
 		mocks.state.stackAmount = "1200";
-		mocks.state.remainingPlayers = "";
-		mocks.state.totalEntries = "";
-		mocks.state.chipPurchases = [];
-		mocks.state.chipPurchaseCounts = [];
 
 		render(
 			<TournamentStackForm
 				chipPurchaseTypes={CHIP_PURCHASE_TYPES}
 				isLoading={false}
 				onComplete={vi.fn()}
+				onMemo={vi.fn()}
+				onPause={vi.fn()}
+				onPurchaseChips={onPurchaseChips}
 				onSubmit={vi.fn()}
 			/>
 		);
 
-		await user.click(screen.getByText("+ Rebuy"));
+		await user.click(screen.getByText("Chip Purchase"));
+		await user.click(screen.getByText("Mock Purchase"));
 
-		expect(mocks.addChipPurchase).toHaveBeenCalledWith({
+		expect(onPurchaseChips).toHaveBeenCalledWith({
 			chips: 10_000,
 			cost: 5000,
 			name: "Rebuy",
 		});
-		expect(mocks.setStackAmount).toHaveBeenCalledWith("11200");
 	});
 
-	it("submits the same tournament payload shape on update", async () => {
+	it("submits form values on update", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		mocks.state.stackAmount = "8000";
-		mocks.state.remainingPlayers = "12";
-		mocks.state.totalEntries = "120";
-		mocks.state.chipPurchases = [
-			{ chips: 5000, cost: 1000, id: 1, name: "Rebuy" },
-		];
-		mocks.state.chipPurchaseCounts = [
-			{ chipsPerUnit: 5000, count: 2, name: "Rebuy" },
-		];
 
 		render(
 			<TournamentStackForm
 				chipPurchaseTypes={CHIP_PURCHASE_TYPES}
 				isLoading={false}
 				onComplete={vi.fn()}
+				onMemo={vi.fn()}
+				onPause={vi.fn()}
+				onPurchaseChips={vi.fn()}
 				onSubmit={onSubmit}
 			/>
 		);
 
 		await user.click(screen.getByText("Update"));
 
-		expect(onSubmit).toHaveBeenCalledWith({
-			chipPurchaseCounts: [{ chipsPerUnit: 5000, count: 2, name: "Rebuy" }],
-			chipPurchases: [{ chips: 5000, cost: 1000, name: "Rebuy" }],
-			remainingPlayers: 12,
-			stackAmount: 8000,
-			totalEntries: 120,
-		});
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ stackAmount: 8000 })
+		);
 	});
 });

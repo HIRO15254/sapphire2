@@ -1,8 +1,15 @@
+import {
+	playerJoinPayload,
+	playerLeavePayload,
+} from "@sapphire2/db/constants/session-event-types";
 import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
 import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
 import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
+import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
+import { store } from "@sapphire2/db/schema/store";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -58,6 +65,70 @@ async function resolveSessionOwnership(
 		});
 	}
 	return { sessionType: "tournament" };
+}
+
+async function fetchSessionContext(
+	db: DbInstance,
+	liveCashGameSessionId: string | undefined,
+	liveTournamentSessionId: string | undefined
+): Promise<{ storeName: string | null; gameName: string | null }> {
+	let storeName: string | null = null;
+	let gameName: string | null = null;
+	let storeId: string | null = null;
+
+	if (liveCashGameSessionId) {
+		const [session] = await db
+			.select({
+				ringGameId: liveCashGameSession.ringGameId,
+				storeId: liveCashGameSession.storeId,
+			})
+			.from(liveCashGameSession)
+			.where(eq(liveCashGameSession.id, liveCashGameSessionId));
+		storeId = session?.storeId ?? null;
+		if (session?.ringGameId) {
+			const [gameRow] = await db
+				.select({
+					blind1: ringGame.blind1,
+					blind2: ringGame.blind2,
+					name: ringGame.name,
+				})
+				.from(ringGame)
+				.where(eq(ringGame.id, session.ringGameId));
+			if (gameRow) {
+				const blinds =
+					gameRow.blind1 !== null && gameRow.blind2 !== null
+						? ` ${gameRow.blind1}/${gameRow.blind2}`
+						: "";
+				gameName = `${gameRow.name}${blinds}`;
+			}
+		}
+	} else if (liveTournamentSessionId) {
+		const [session] = await db
+			.select({
+				storeId: liveTournamentSession.storeId,
+				tournamentId: liveTournamentSession.tournamentId,
+			})
+			.from(liveTournamentSession)
+			.where(eq(liveTournamentSession.id, liveTournamentSessionId));
+		storeId = session?.storeId ?? null;
+		if (session?.tournamentId) {
+			const [tourneyRow] = await db
+				.select({ name: tournament.name })
+				.from(tournament)
+				.where(eq(tournament.id, session.tournamentId));
+			gameName = tourneyRow?.name ?? null;
+		}
+	}
+
+	if (storeId) {
+		const [storeRow] = await db
+			.select({ name: store.name })
+			.from(store)
+			.where(eq(store.id, storeId));
+		storeName = storeRow?.name ?? null;
+	}
+
+	return { storeName, gameName };
 }
 
 async function insertPlayerJoinEvent(
@@ -142,6 +213,70 @@ async function insertPlayerLeaveEvent(
 	});
 }
 
+interface RecoveredSeatState {
+	isActive: boolean;
+	lastJoinedAt: Date | null;
+	lastLeftAt: Date | null;
+}
+
+async function recoverSeatStateFromEvents(
+	db: DbInstance,
+	liveCashGameSessionId: string | undefined,
+	liveTournamentSessionId: string | undefined
+) {
+	const sessionCond = liveCashGameSessionId
+		? eq(sessionEvent.liveCashGameSessionId, liveCashGameSessionId)
+		: eq(
+				sessionEvent.liveTournamentSessionId,
+				liveTournamentSessionId as string
+			);
+
+	const events = await db
+		.select({
+			eventType: sessionEvent.eventType,
+			payload: sessionEvent.payload,
+			occurredAt: sessionEvent.occurredAt,
+			sortOrder: sessionEvent.sortOrder,
+		})
+		.from(sessionEvent)
+		.where(sessionCond)
+		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+
+	const stateByPlayerId = new Map<string, RecoveredSeatState>();
+
+	for (const event of events) {
+		if (event.eventType === "player_join") {
+			const parsed = playerJoinPayload.safeParse(JSON.parse(event.payload));
+			const playerId = parsed.success ? parsed.data.playerId : undefined;
+			if (!playerId) {
+				continue;
+			}
+			stateByPlayerId.set(playerId, {
+				isActive: true,
+				lastJoinedAt: event.occurredAt,
+				lastLeftAt: null,
+			});
+			continue;
+		}
+
+		if (event.eventType === "player_leave") {
+			const parsed = playerLeavePayload.safeParse(JSON.parse(event.payload));
+			const playerId = parsed.success ? parsed.data.playerId : undefined;
+			if (!playerId) {
+				continue;
+			}
+			const current = stateByPlayerId.get(playerId);
+			stateByPlayerId.set(playerId, {
+				isActive: false,
+				lastJoinedAt: current?.lastJoinedAt ?? null,
+				lastLeftAt: event.occurredAt,
+			});
+		}
+	}
+
+	return stateByPlayerId;
+}
+
 export const sessionTablePlayerRouter = router({
 	list: protectedProcedure
 		.input(
@@ -174,10 +309,6 @@ export const sessionTablePlayerRouter = router({
 						liveTournamentSessionId as string
 					);
 
-			const conditions = activeOnly
-				? and(sessionCond, eq(sessionTablePlayer.isActive, 1))
-				: sessionCond;
-
 			const rows = await ctx.db
 				.select({
 					id: sessionTablePlayer.id,
@@ -188,25 +319,40 @@ export const sessionTablePlayerRouter = router({
 					playerId: player.id,
 					playerName: player.name,
 					playerMemo: player.memo,
+					playerIsTemporary: player.isTemporary,
 				})
 				.from(sessionTablePlayer)
 				.innerJoin(player, eq(player.id, sessionTablePlayer.playerId))
-				.where(conditions)
+				.where(sessionCond)
 				.orderBy(asc(sessionTablePlayer.joinedAt));
 
-			return {
-				items: rows.map((row) => ({
+			const recoveredSeatState = await recoverSeatStateFromEvents(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId
+			);
+
+			const items = rows.map((row) => {
+				const recovered = recoveredSeatState.get(row.playerId);
+				const isActive = recovered?.isActive ?? row.isActive === 1;
+
+				return {
 					id: row.id,
 					player: {
 						id: row.playerId,
-						name: row.playerName,
+						isTemporary: row.playerIsTemporary,
 						memo: row.playerMemo,
+						name: row.playerName,
 					},
-					isActive: row.isActive === 1,
-					joinedAt: row.joinedAt,
-					leftAt: row.leftAt ?? null,
+					isActive,
+					joinedAt: recovered?.lastJoinedAt ?? row.joinedAt,
+					leftAt: recovered?.lastLeftAt ?? row.leftAt ?? null,
 					seatPosition: row.seatPosition ?? null,
-				})),
+				};
+			});
+
+			return {
+				items: activeOnly ? items.filter((item) => item.isActive) : items,
 			};
 		}),
 
@@ -260,7 +406,15 @@ export const sessionTablePlayerRouter = router({
 				.from(sessionTablePlayer)
 				.where(and(sessionCond, eq(sessionTablePlayer.playerId, playerId)));
 
-			if (existing?.isActive === 1) {
+			const recoveredSeatState = await recoverSeatStateFromEvents(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId
+			);
+			const isActiveByEvent =
+				recoveredSeatState.get(playerId)?.isActive ?? false;
+
+			if (isActiveByEvent) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "Player is already active in this session",
@@ -471,7 +625,15 @@ export const sessionTablePlayerRouter = router({
 					message: "Player not found in session",
 				});
 			}
-			if (existing.isActive === 0) {
+			const recoveredSeatState = await recoverSeatStateFromEvents(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId
+			);
+			const isActiveByEvent =
+				recoveredSeatState.get(playerId)?.isActive ?? false;
+
+			if (!isActiveByEvent) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "Player is not active in this session",
@@ -492,5 +654,86 @@ export const sessionTablePlayerRouter = router({
 			);
 
 			return { id: existing.id };
+		}),
+
+	addTemporary: protectedProcedure
+		.input(
+			z.object({
+				liveCashGameSessionId: z.string().optional(),
+				liveTournamentSessionId: z.string().optional(),
+				seatPosition: z.number().int().min(0).max(8).optional(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const { liveCashGameSessionId, liveTournamentSessionId, seatPosition } =
+				input;
+			validateExactlyOneSessionId(
+				liveCashGameSessionId,
+				liveTournamentSessionId
+			);
+
+			const userId = ctx.session.user.id;
+			await resolveSessionOwnership(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId,
+				userId
+			);
+
+			// Fetch session context for memo
+			const { storeName, gameName } = await fetchSessionContext(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId
+			);
+
+			const now = new Date();
+			const hh = String(now.getUTCHours()).padStart(2, "0");
+			const mm = String(now.getUTCMinutes()).padStart(2, "0");
+			const dateStr = now.toISOString().slice(0, 10);
+			const memoLines = [`Joined: ${dateStr} ${hh}:${mm}`];
+			if (storeName) {
+				memoLines.push(`Store: ${storeName}`);
+			}
+			if (gameName) {
+				memoLines.push(`Game: ${gameName}`);
+			}
+			if (seatPosition !== undefined) {
+				memoLines.push(`Seat: ${seatPosition + 1}`);
+			}
+			const memo = `<p>${memoLines.join("<br>")}</p>`;
+
+			const finalName = "Anonymous";
+
+			const playerId = crypto.randomUUID();
+			await ctx.db.insert(player).values({
+				id: playerId,
+				isTemporary: true,
+				memo,
+				name: finalName,
+				updatedAt: now,
+				userId,
+			});
+
+			const tablePlayerId = crypto.randomUUID();
+			await ctx.db.insert(sessionTablePlayer).values({
+				id: tablePlayerId,
+				isActive: 1,
+				joinedAt: now,
+				liveCashGameSessionId: liveCashGameSessionId ?? null,
+				liveTournamentSessionId: liveTournamentSessionId ?? null,
+				playerId,
+				updatedAt: now,
+				...(seatPosition !== undefined && { seatPosition }),
+			});
+
+			await insertPlayerJoinEvent(
+				ctx.db,
+				liveCashGameSessionId,
+				liveTournamentSessionId,
+				playerId
+			);
+
+			return { id: tablePlayerId, playerId };
 		}),
 });

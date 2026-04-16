@@ -113,7 +113,9 @@ function PlayersPage() {
 						<PlayerCard
 							key={player.id}
 							onDelete={handleDelete}
-							onEdit={setEditingPlayer}
+							onEdit={(player) =>
+								setEditingPlayer({ ...player, isTemporary: false })
+							}
 							player={player}
 						/>
 					))}

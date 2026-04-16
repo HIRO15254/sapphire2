@@ -30,6 +30,34 @@ vi.mock("@/live-sessions/hooks/use-stack-sheet", () => ({
 	}),
 }));
 
+// Mock trpc to avoid env validation
+vi.mock("@/utils/trpc", () => {
+	const qo = () => ({ queryKey: [] });
+	const proc = { queryOptions: qo };
+	const makeRouter = (): Record<string, unknown> =>
+		new Proxy({}, { get: () => proc });
+	const trpc = new Proxy({}, { get: () => makeRouter() });
+	return {
+		trpcClient: {
+			sessionEvent: {
+				create: { mutate: () => undefined },
+			},
+		},
+		trpc,
+	};
+});
+
+// Mock react-query hooks used directly in MobileNav
+vi.mock("@tanstack/react-query", () => ({
+	useMutation: () => ({
+		mutate: vi.fn(),
+		isPending: false,
+	}),
+	useQueryClient: () => ({
+		invalidateQueries: vi.fn(),
+	}),
+}));
+
 function createTestRouter(initialPath: string) {
 	const rootRoute = createRootRoute({
 		component: () => <MobileNav />,
@@ -116,7 +144,7 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 describe("MobileNav - Live Session Mode (active session)", () => {
 	beforeEach(() => {
 		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "session-123", type: "cash_game" },
+			activeSession: { id: "session-123", type: "cash_game", status: "active" },
 			hasActive: true,
 			isLoading: false,
 		});

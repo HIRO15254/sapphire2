@@ -1,26 +1,37 @@
 import { z } from "zod";
 
 // Session statuses
-export const SESSION_STATUSES = ["active", "completed"] as const;
+export const SESSION_STATUSES = ["active", "paused", "completed"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
-// Event types - generic (shared across cash game / tournament)
-export const GENERIC_EVENT_TYPES = ["chip_add", "stack_record"] as const;
-
-export const TOURNAMENT_EVENT_TYPES = [
-	"tournament_stack_record",
-	"tournament_result",
-] as const;
-
-export const COMMON_EVENT_TYPES = ["player_join", "player_leave"] as const;
-
+// Event type categories
 export const LIFECYCLE_EVENT_TYPES = ["session_start", "session_end"] as const;
 
+export const PAUSE_RESUME_EVENT_TYPES = [
+	"session_pause",
+	"session_resume",
+] as const;
+
+export const CASH_EVENT_TYPES = ["chips_add_remove", "all_in"] as const;
+
+export const TOURNAMENT_EVENT_TYPES = [
+	"purchase_chips",
+	"update_tournament_info",
+] as const;
+
+export const COMMON_EVENT_TYPES = [
+	"update_stack",
+	"player_join",
+	"player_leave",
+	"memo",
+] as const;
+
 export const ALL_EVENT_TYPES = [
-	...GENERIC_EVENT_TYPES,
+	...LIFECYCLE_EVENT_TYPES,
+	...PAUSE_RESUME_EVENT_TYPES,
+	...CASH_EVENT_TYPES,
 	...TOURNAMENT_EVENT_TYPES,
 	...COMMON_EVENT_TYPES,
-	...LIFECYCLE_EVENT_TYPES,
 ] as const;
 
 export type SessionEventType = (typeof ALL_EVENT_TYPES)[number];
@@ -31,34 +42,56 @@ export const MANUAL_CREATE_BLOCKED_EVENT_TYPES: readonly string[] = [
 	"session_end",
 ] as const;
 
-// Payload Zod schemas
-export const chipAddPayload = z.object({
-	amount: z.number().int().min(0),
+// --- Payload Zod schemas ---
+
+// Lifecycle payloads
+export const cashSessionStartPayload = z.object({
+	buyInAmount: z.number().int().min(0),
 });
 
-export const allInSchema = z.object({
+export const tournamentSessionStartPayload = z.object({});
+
+export const cashSessionEndPayload = z.object({
+	cashOutAmount: z.number().int().min(0),
+});
+
+export const tournamentSessionEndPayload = z.discriminatedUnion(
+	"beforeDeadline",
+	[
+		z.object({
+			beforeDeadline: z.literal(false),
+			placement: z.number().int().min(1),
+			totalEntries: z.number().int().min(1),
+			prizeMoney: z.number().int().min(0),
+			bountyPrizes: z.number().int().min(0),
+		}),
+		z.object({
+			beforeDeadline: z.literal(true),
+			prizeMoney: z.number().int().min(0),
+			bountyPrizes: z.number().int().min(0),
+		}),
+	]
+);
+
+// Pause/Resume payloads
+export const sessionPausePayload = z.object({});
+export const sessionResumePayload = z.object({});
+
+// Cash event payloads
+export const chipsAddRemovePayload = z.object({
+	amount: z.number().int().min(0),
+	type: z.enum(["add", "remove"]),
+});
+
+export const allInPayload = z.object({
 	potSize: z.number().min(0),
 	trials: z.number().int().min(1),
 	equity: z.number().min(0).max(100),
 	wins: z.number().min(0),
 });
 
-export const stackRecordPayload = z.object({
-	stackAmount: z.number().int().min(0),
-	allIns: z.array(allInSchema).default([]),
-});
-
-export const tournamentRebuySchema = z.object({
-	cost: z.number().int().min(0),
-	chips: z.number().int().min(0),
-});
-
-export const tournamentAddonSchema = z.object({
-	cost: z.number().int().min(0),
-	chips: z.number().int().min(0),
-});
-
-export const chipPurchaseSchema = z.object({
+// Tournament event payloads
+export const purchaseChipsPayload = z.object({
 	name: z.string().min(1),
 	cost: z.number().int().min(0),
 	chips: z.number().int().min(0),
@@ -70,54 +103,76 @@ export const chipPurchaseCountSchema = z.object({
 	chipsPerUnit: z.number().int().min(0),
 });
 
-export const tournamentStackRecordPayload = z.object({
-	stackAmount: z.number().int().min(0),
+export const updateTournamentInfoPayload = z.object({
 	remainingPlayers: z.number().int().min(1).nullable().default(null),
 	totalEntries: z.number().int().min(1).nullable().default(null),
-	chipPurchases: z.array(chipPurchaseSchema).default([]),
+	averageStack: z.number().int().min(0).nullable().default(null),
 	chipPurchaseCounts: z.array(chipPurchaseCountSchema).default([]),
-	// Legacy fields kept for backward compatibility with existing events
-	averageStack: z.number().int().min(0).nullable().default(null).optional(),
-	rebuy: tournamentRebuySchema.nullable().default(null).optional(),
-	addon: tournamentAddonSchema.nullable().default(null).optional(),
 });
 
-export const tournamentResultPayload = z.object({
-	placement: z.number().int().min(1),
-	totalEntries: z.number().int().min(1),
-	prizeMoney: z.number().int().min(0),
-	bountyPrizes: z.number().int().min(0).nullable().default(null),
+// Common event payloads
+export const updateStackPayload = z.object({
+	stackAmount: z.number().int().min(0),
 });
 
 export const playerJoinPayload = z.object({
-	playerId: z.string().min(1),
+	playerId: z.string().min(1).optional(),
+	isHero: z.boolean().default(false),
 });
 
 export const playerLeavePayload = z.object({
-	playerId: z.string().min(1),
+	playerId: z.string().min(1).optional(),
+	isHero: z.boolean().default(false),
 });
 
-export const sessionStartPayload = z.object({});
+export const memoPayload = z.object({
+	text: z.string().min(1),
+});
 
-export const sessionEndPayload = z.object({});
+// --- Payload schema map ---
 
-// Payload schema map for dispatch
-export const EVENT_PAYLOAD_SCHEMAS: Record<SessionEventType, z.ZodTypeAny> = {
-	chip_add: chipAddPayload,
-	stack_record: stackRecordPayload,
-	tournament_stack_record: tournamentStackRecordPayload,
-	tournament_result: tournamentResultPayload,
+// Session-type-aware payload schemas for session_start and session_end
+export const SESSION_START_PAYLOAD_SCHEMAS = {
+	cash_game: cashSessionStartPayload,
+	tournament: tournamentSessionStartPayload,
+} as const;
+
+export const SESSION_END_PAYLOAD_SCHEMAS = {
+	cash_game: cashSessionEndPayload,
+	tournament: tournamentSessionEndPayload,
+} as const;
+
+// General payload schema map (for non-session-type-dependent events)
+export const EVENT_PAYLOAD_SCHEMAS: Record<
+	Exclude<SessionEventType, "session_start" | "session_end">,
+	z.ZodTypeAny
+> = {
+	session_pause: sessionPausePayload,
+	session_resume: sessionResumePayload,
+	chips_add_remove: chipsAddRemovePayload,
+	all_in: allInPayload,
+	purchase_chips: purchaseChipsPayload,
+	update_tournament_info: updateTournamentInfoPayload,
+	update_stack: updateStackPayload,
 	player_join: playerJoinPayload,
 	player_leave: playerLeavePayload,
-	session_start: sessionStartPayload,
-	session_end: sessionEndPayload,
+	memo: memoPayload,
 };
 
 // Helper to validate payload for a given event type
 export function validateEventPayload(
 	eventType: SessionEventType,
-	payload: unknown
+	payload: unknown,
+	sessionType?: "cash_game" | "tournament"
 ) {
+	if (eventType === "session_start") {
+		const schema = SESSION_START_PAYLOAD_SCHEMAS[sessionType ?? "tournament"];
+		return schema.parse(payload);
+	}
+	if (eventType === "session_end") {
+		const schema = SESSION_END_PAYLOAD_SCHEMAS[sessionType ?? "tournament"];
+		return schema.parse(payload);
+	}
 	const schema = EVENT_PAYLOAD_SCHEMAS[eventType];
 	return schema.parse(payload);
 }
@@ -127,19 +182,24 @@ export function isValidEventTypeForSessionType(
 	eventType: SessionEventType,
 	sessionType: "cash_game" | "tournament"
 ): boolean {
-	const commonTypes: readonly string[] = COMMON_EVENT_TYPES;
-	if (commonTypes.includes(eventType)) {
-		return true;
-	}
-
 	const lifecycleTypes: readonly string[] = LIFECYCLE_EVENT_TYPES;
 	if (lifecycleTypes.includes(eventType)) {
 		return true;
 	}
 
-	const genericTypes: readonly string[] = GENERIC_EVENT_TYPES;
-	if (genericTypes.includes(eventType)) {
+	const pauseResumeTypes: readonly string[] = PAUSE_RESUME_EVENT_TYPES;
+	if (pauseResumeTypes.includes(eventType)) {
 		return true;
+	}
+
+	const commonTypes: readonly string[] = COMMON_EVENT_TYPES;
+	if (commonTypes.includes(eventType)) {
+		return true;
+	}
+
+	if (sessionType === "cash_game") {
+		const cashTypes: readonly string[] = CASH_EVENT_TYPES;
+		return cashTypes.includes(eventType);
 	}
 
 	if (sessionType === "tournament") {
@@ -148,4 +208,88 @@ export function isValidEventTypeForSessionType(
 	}
 
 	return false;
+}
+
+// --- Session state helpers ---
+
+interface EventForState {
+	eventType: string;
+	occurredAt: Date | string;
+	sortOrder: number;
+}
+
+/**
+ * Derive the current session state from the event stream.
+ * - completed: session_end exists
+ * - paused: latest lifecycle/pause/resume event is session_pause
+ * - active: otherwise (session_start or session_resume is latest)
+ */
+export function getSessionCurrentState(events: EventForState[]): SessionStatus {
+	const hasSessionEnd = events.some((e) => e.eventType === "session_end");
+	if (hasSessionEnd) {
+		return "completed";
+	}
+
+	const stateEvents = events.filter(
+		(e) =>
+			e.eventType === "session_start" ||
+			e.eventType === "session_pause" ||
+			e.eventType === "session_resume"
+	);
+
+	if (stateEvents.length === 0) {
+		return "active";
+	}
+
+	// Sort by occurredAt desc, then sortOrder desc to find latest
+	const sorted = [...stateEvents].sort((a, b) => {
+		const timeA = new Date(a.occurredAt).getTime();
+		const timeB = new Date(b.occurredAt).getTime();
+		if (timeB !== timeA) {
+			return timeB - timeA;
+		}
+		return b.sortOrder - a.sortOrder;
+	});
+
+	const latest = sorted[0] as EventForState | undefined;
+	if (latest?.eventType === "session_pause") {
+		return "paused";
+	}
+
+	return "active";
+}
+
+// Events allowed per session state
+const EVENTS_ALLOWED_WHEN_ACTIVE: readonly string[] = [
+	...CASH_EVENT_TYPES,
+	...TOURNAMENT_EVENT_TYPES,
+	...COMMON_EVENT_TYPES,
+	"session_pause",
+	"session_end",
+];
+
+const EVENTS_ALLOWED_WHEN_PAUSED: readonly string[] = [
+	"memo",
+	"session_resume",
+	"session_end",
+];
+
+/**
+ * Check if an event type is allowed given the current session state.
+ * Lifecycle events (session_start) are never manually created, so not checked here.
+ */
+export function isEventAllowedInState(
+	eventType: SessionEventType,
+	state: SessionStatus
+): boolean {
+	if (state === "completed") {
+		return false;
+	}
+
+	if (state === "paused") {
+		return EVENTS_ALLOWED_WHEN_PAUSED.includes(eventType);
+	}
+
+	// active
+	return EVENTS_ALLOWED_WHEN_ACTIVE.includes(eventType);
 }

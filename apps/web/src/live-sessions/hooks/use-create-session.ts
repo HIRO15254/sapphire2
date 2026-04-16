@@ -93,16 +93,12 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			const { startingStack, ...createValues } = values;
 			const result =
 				await trpcClient.liveTournamentSession.create.mutate(createValues);
-			// Create initial tournament_stack_record with starting stack
+			// Create initial update_stack with starting stack
 			await trpcClient.sessionEvent.create.mutate({
 				liveTournamentSessionId: result.id,
-				eventType: "tournament_stack_record",
+				eventType: "update_stack",
 				payload: {
 					stackAmount: startingStack,
-					remainingPlayers: null,
-					totalEntries: null,
-					chipPurchases: [],
-					chipPurchaseCounts: [],
 				},
 			});
 			return result;

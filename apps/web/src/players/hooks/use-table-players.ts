@@ -11,7 +11,12 @@ interface TablePlayerItem {
 	isActive: boolean;
 	joinedAt: string;
 	leftAt: string | null;
-	player: { id: string; memo: string | null; name: string };
+	player: {
+		id: string;
+		isTemporary: boolean;
+		memo: string | null;
+		name: string;
+	};
 	seatPosition: number | null;
 }
 
@@ -63,8 +68,9 @@ export function useTablePlayers({
 							id: `optimistic-${Date.now()}`,
 							player: {
 								id: params.playerId,
-								name: params.playerName,
+								isTemporary: false,
 								memo: null,
+								name: params.playerName,
 							},
 							isActive: true,
 							joinedAt: new Date().toISOString(),
@@ -109,8 +115,9 @@ export function useTablePlayers({
 							id: `optimistic-${Date.now()}`,
 							player: {
 								id: `new-${Date.now()}`,
-								name: params.playerName,
+								isTemporary: false,
 								memo: params.playerMemo ?? null,
+								name: params.playerName,
 							},
 							isActive: true,
 							joinedAt: new Date().toISOString(),
@@ -133,6 +140,45 @@ export function useTablePlayers({
 				queryKey: trpc.player.list.queryOptions().queryKey,
 			});
 		},
+	});
+
+	const addTemporaryMutation = useMutation({
+		mutationFn: (params: { seatPosition: number }) =>
+			trpcClient.sessionTablePlayer.addTemporary.mutate({
+				...sessionParam,
+				seatPosition: params.seatPosition,
+			}),
+		onMutate: async (params) => {
+			await queryClient.cancelQueries({ queryKey: playersKey });
+			const prev = queryClient.getQueryData<TablePlayerData>(playersKey);
+			if (prev) {
+				queryClient.setQueryData<TablePlayerData>(playersKey, {
+					items: [
+						...prev.items,
+						{
+							id: `optimistic-${Date.now()}`,
+							player: {
+								id: `temp-${Date.now()}`,
+								isTemporary: true,
+								memo: null,
+								name: "...",
+							},
+							isActive: true,
+							joinedAt: new Date().toISOString(),
+							leftAt: null,
+							seatPosition: params.seatPosition,
+						},
+					],
+				});
+			}
+			return { prev };
+		},
+		onError: (_err, _vars, ctx) => {
+			if (ctx?.prev) {
+				queryClient.setQueryData(playersKey, ctx.prev);
+			}
+		},
+		onSettled: invalidatePlayers,
 	});
 
 	const removeMutation = useMutation({
@@ -195,7 +241,12 @@ export function useTablePlayers({
 	const players = (playersQuery.data?.items ?? []).map((item) => ({
 		id: item.id,
 		isActive: item.isActive,
-		player: { id: item.player.id, name: item.player.name },
+		isLoading: item.id.startsWith("optimistic-"),
+		player: {
+			id: item.player.id,
+			isTemporary: item.player.isTemporary,
+			name: item.player.name,
+		},
 		seatPosition: item.seatPosition ?? null,
 	}));
 
@@ -225,6 +276,9 @@ export function useTablePlayers({
 				playerTagIds: tagIds,
 				seatPosition,
 			});
+		},
+		handleAddTemporary: (seatPosition: number) => {
+			addTemporaryMutation.mutate({ seatPosition });
 		},
 		handleRemovePlayer: (playerId: string) => {
 			removeMutation.mutate(playerId);

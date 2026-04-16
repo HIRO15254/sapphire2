@@ -51,6 +51,7 @@ export interface ActiveSessionSceneState {
 		name: string;
 		tagIds?: string[];
 	}) => void;
+	onAddTemporary: () => void;
 	onEmptySeatTap: (seatPosition: number) => void;
 	onHeroSeatTap: () => void;
 	onPlayerRemove: () => void;
@@ -58,7 +59,7 @@ export interface ActiveSessionSceneState {
 	onPlayerSeatTap: (player: TablePlayer, seatPosition: number) => void;
 	playerSheetOpen: boolean;
 	players: TablePlayer[];
-	selectedPlayer: PlayerDetailData | null;
+	selectedPlayer: (PlayerDetailData & { isTemporary: boolean }) | null;
 	setAddPlayerSheetOpen: (open: boolean) => void;
 	setPlayerSheetOpen: (open: boolean) => void;
 	waitingForHero: boolean;
@@ -109,6 +110,13 @@ export function useActiveSessionSceneState({
 			}
 			tableInteraction.setAddPlayerSeat(null);
 		},
+		onAddTemporary: () => {
+			const seatPosition = tableInteraction.addPlayerSeat;
+			if (seatPosition !== null) {
+				tablePlayers.handleAddTemporary(seatPosition);
+			}
+			tableInteraction.setAddPlayerSeat(null);
+		},
 		onEmptySeatTap: tableInteraction.handleEmptySeatTap,
 		onHeroSeatTap: tableInteraction.handleHeroSeatTap,
 		onPlayerRemove: () => {
@@ -135,6 +143,10 @@ export function useActiveSessionSceneState({
 		selectedPlayer: playerDetail.player
 			? {
 					id: playerDetail.player.id,
+					isTemporary:
+						tablePlayers.players.find(
+							(p) => p.player.id === tableInteraction.selectedPlayer?.playerId
+						)?.player.isTemporary ?? false,
 					memo: playerDetail.player.memo,
 					name: playerDetail.player.name,
 					tags: playerDetail.player.tags ?? [],
@@ -261,6 +273,7 @@ export function ActiveSessionScene({
 				excludePlayerIds={state.excludePlayerIds}
 				onAddExisting={state.onAddExisting}
 				onAddNew={state.onAddNew}
+				onAddTemporary={state.onAddTemporary}
 				onCreateTag={state.createTag}
 				onOpenChange={state.setAddPlayerSheetOpen}
 				open={state.addPlayerSheetOpen}
@@ -269,6 +282,7 @@ export function ActiveSessionScene({
 			<PlayerDetailSheet
 				availableTags={state.availableTags}
 				isSaving={state.isSavingPlayer}
+				isTemporary={state.selectedPlayer?.isTemporary ?? false}
 				onCreateTag={state.createTag}
 				onOpenChange={state.setPlayerSheetOpen}
 				onRemove={state.onPlayerRemove}

@@ -9,7 +9,7 @@ export function applyTimeToDate(
 ): Date {
 	const date = new Date(typeof original === "string" ? original : original);
 	const [hours, minutes] = timeStr.split(":").map(Number);
-	date.setHours(hours ?? 0, minutes ?? 0);
+	date.setHours(hours ?? 0, minutes ?? 0, 0, 0);
 	return date;
 }
 
@@ -20,11 +20,19 @@ export function validateOccurredAtTime(
 	maxTime: Date | null | undefined
 ): string | null {
 	const nextDate = applyTimeToDate(original, timeStr);
-	if (minTime && nextDate.getTime() < minTime.getTime()) {
-		return `Must be after ${toTimeInputValue(minTime)}`;
+	if (minTime) {
+		const minTrunc = new Date(minTime);
+		minTrunc.setSeconds(0, 0);
+		if (nextDate.getTime() < minTrunc.getTime()) {
+			return `Must be after ${toTimeInputValue(minTime)}`;
+		}
 	}
-	if (maxTime && nextDate.getTime() > maxTime.getTime()) {
-		return `Must be before ${toTimeInputValue(maxTime)}`;
+	if (maxTime) {
+		const maxTrunc = new Date(maxTime);
+		maxTrunc.setSeconds(0, 0);
+		if (nextDate.getTime() > maxTrunc.getTime()) {
+			return `Must be before ${toTimeInputValue(maxTime)}`;
+		}
 	}
 	return null;
 }

@@ -6,13 +6,20 @@ import { AddPlayerSheet } from "../add-player-sheet";
 
 const ALICE_NAME_PATTERN = /alice/i;
 const BOB_NAME_PATTERN = /bob/i;
-const NAME_LABEL_PATTERN = /name/i;
+const CREATE_NEW_HERO_PATTERN = /create "new hero"/i;
+const ADD_TEMPORARY_PATTERN = /Add Temporary Player/;
 
 const mocks = vi.hoisted(() => ({
-	players: [] as Array<{ id: string; memo: string | null; name: string }>,
+	players: [] as Array<{
+		id: string;
+		memo: string | null;
+		name: string;
+		tags: Array<{ color: string; id: string; name: string }>;
+	}>,
 }));
 
 vi.mock("@tanstack/react-query", () => ({
+	keepPreviousData: (prev: unknown) => prev,
 	useQuery: () => ({
 		data: mocks.players,
 	}),
@@ -46,28 +53,26 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-vi.mock("@/shared/components/ui/rich-text-editor", () => ({
-	RichTextEditor: ({
-		onChange,
-	}: {
-		initialContent?: string | null;
-		onChange: (html: string) => void;
-	}) => (
-		<textarea aria-label="Memo" onChange={(e) => onChange(e.target.value)} />
-	),
-}));
-
 vi.mock("@/players/components/player-tag-input", () => ({
 	PlayerTagInput: () => null,
 }));
 
+vi.mock("@/players/components/player-avatar", () => ({
+	PlayerAvatar: () => <div data-testid="player-avatar" />,
+}));
+
+vi.mock("@/players/components/color-badge", () => ({
+	ColorBadge: ({ children }: { children: React.ReactNode; color: string }) => (
+		<span>{children}</span>
+	),
+}));
+
 describe("AddPlayerSheet", () => {
-	it("filters existing players by search text", async () => {
+	it("calls onAddTemporary and closes the sheet when the button is clicked", async () => {
 		const user = userEvent.setup();
-		mocks.players = [
-			{ id: "p1", memo: "Aggro", name: "Alice" },
-			{ id: "p2", memo: "Tight", name: "Bob" },
-		];
+		const onAddTemporary = vi.fn();
+		const onOpenChange = vi.fn();
+		mocks.players = [];
 
 		render(
 			<AddPlayerSheet
@@ -75,13 +80,39 @@ describe("AddPlayerSheet", () => {
 				excludePlayerIds={[]}
 				onAddExisting={vi.fn()}
 				onAddNew={vi.fn()}
+				onAddTemporary={onAddTemporary}
+				onCreateTag={vi.fn()}
+				onOpenChange={onOpenChange}
+				open
+			/>
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: ADD_TEMPORARY_PATTERN })
+		);
+
+		expect(onAddTemporary).toHaveBeenCalledOnce();
+		expect(onOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("excludes already-seated players from the list", () => {
+		mocks.players = [
+			{ id: "p1", memo: "Aggro", name: "Alice", tags: [] },
+			{ id: "p2", memo: "Tight", name: "Bob", tags: [] },
+		];
+
+		render(
+			<AddPlayerSheet
+				availableTags={[]}
+				excludePlayerIds={["p1"]}
+				onAddExisting={vi.fn()}
+				onAddNew={vi.fn()}
+				onAddTemporary={vi.fn()}
 				onCreateTag={vi.fn()}
 				onOpenChange={vi.fn()}
 				open
 			/>
 		);
-
-		await user.type(screen.getByLabelText("Search players"), "bo");
 
 		expect(
 			screen.queryByRole("button", { name: ALICE_NAME_PATTERN })
@@ -92,7 +123,7 @@ describe("AddPlayerSheet", () => {
 	});
 
 	it("shows the empty state when no selectable players remain", () => {
-		mocks.players = [{ id: "p1", memo: null, name: "Alice" }];
+		mocks.players = [{ id: "p1", memo: null, name: "Alice", tags: [] }];
 
 		render(
 			<AddPlayerSheet
@@ -100,6 +131,7 @@ describe("AddPlayerSheet", () => {
 				excludePlayerIds={["p1"]}
 				onAddExisting={vi.fn()}
 				onAddNew={vi.fn()}
+				onAddTemporary={vi.fn()}
 				onCreateTag={vi.fn()}
 				onOpenChange={vi.fn()}
 				open
@@ -113,7 +145,7 @@ describe("AddPlayerSheet", () => {
 		const user = userEvent.setup();
 		const onAddExisting = vi.fn();
 		const onOpenChange = vi.fn();
-		mocks.players = [{ id: "p1", memo: "Aggro", name: "Alice" }];
+		mocks.players = [{ id: "p1", memo: "Aggro", name: "Alice", tags: [] }];
 
 		render(
 			<AddPlayerSheet
@@ -121,6 +153,7 @@ describe("AddPlayerSheet", () => {
 				excludePlayerIds={[]}
 				onAddExisting={onAddExisting}
 				onAddNew={vi.fn()}
+				onAddTemporary={vi.fn()}
 				onCreateTag={vi.fn()}
 				onOpenChange={onOpenChange}
 				open
@@ -133,7 +166,7 @@ describe("AddPlayerSheet", () => {
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 	});
 
-	it("submits a new player with memo text", async () => {
+	it("creates a new player via the create option", async () => {
 		const user = userEvent.setup();
 		const onAddNew = vi.fn();
 		const onOpenChange = vi.fn();
@@ -145,22 +178,52 @@ describe("AddPlayerSheet", () => {
 				excludePlayerIds={[]}
 				onAddExisting={vi.fn()}
 				onAddNew={onAddNew}
+				onAddTemporary={vi.fn()}
 				onCreateTag={vi.fn()}
 				onOpenChange={onOpenChange}
 				open
 			/>
 		);
 
-		await user.click(screen.getByRole("tab", { name: "New Player" }));
-		await user.type(screen.getByLabelText(NAME_LABEL_PATTERN), "New Hero");
-		await user.type(screen.getByLabelText("Memo"), "Late reg");
-		await user.click(screen.getByRole("button", { name: "Save" }));
+		await user.type(screen.getByLabelText("Search players"), "New Hero");
+		await user.click(
+			screen.getByRole("button", { name: CREATE_NEW_HERO_PATTERN })
+		);
 
 		expect(onAddNew).toHaveBeenCalledWith({
-			memo: "Late reg",
 			name: "New Hero",
 			tagIds: undefined,
 		});
 		expect(onOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("displays tags on player items", () => {
+		mocks.players = [
+			{
+				id: "p1",
+				memo: null,
+				name: "Alice",
+				tags: [
+					{ color: "red", id: "t1", name: "Regular" },
+					{ color: "blue", id: "t2", name: "Aggressive" },
+				],
+			},
+		];
+
+		render(
+			<AddPlayerSheet
+				availableTags={[]}
+				excludePlayerIds={[]}
+				onAddExisting={vi.fn()}
+				onAddNew={vi.fn()}
+				onAddTemporary={vi.fn()}
+				onCreateTag={vi.fn()}
+				onOpenChange={vi.fn()}
+				open
+			/>
+		);
+
+		expect(screen.getByText("Regular")).toBeInTheDocument();
+		expect(screen.getByText("Aggressive")).toBeInTheDocument();
 	});
 });

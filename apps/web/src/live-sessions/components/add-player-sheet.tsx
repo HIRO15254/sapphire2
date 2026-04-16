@@ -1,13 +1,13 @@
-import { IconPlus, IconSearch } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import type { PlayerFormValues } from "@/players/components/player-form";
-import { PlayerForm } from "@/players/components/player-form";
+import { IconPlus, IconSearch, IconUserQuestion } from "@tabler/icons-react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useDeferredValue, useEffect, useState } from "react";
+import { ColorBadge } from "@/players/components/color-badge";
+import { PlayerAvatar } from "@/players/components/player-avatar";
+import { PlayerTagInput } from "@/players/components/player-tag-input";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Input } from "@/shared/components/ui/input";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { trpc } from "@/utils/trpc";
 
 interface TagWithColor {
@@ -25,6 +25,7 @@ interface AddPlayerSheetProps {
 		name: string;
 		tagIds?: string[];
 	}) => void;
+	onAddTemporary: () => void;
 	onCreateTag: (name: string) => Promise<TagWithColor>;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
@@ -35,45 +36,57 @@ export function AddPlayerSheet({
 	excludePlayerIds,
 	onAddExisting,
 	onAddNew,
+	onAddTemporary,
 	onCreateTag,
 	onOpenChange,
 	open,
 }: AddPlayerSheetProps) {
-	const [tab, setTab] = useState<"existing" | "new">("existing");
 	const [search, setSearch] = useState("");
+	const [selectedTags, setSelectedTags] = useState<TagWithColor[]>([]);
 
 	useEffect(() => {
 		if (open) {
-			setTab("existing");
 			setSearch("");
+			setSelectedTags([]);
 		}
 	}, [open]);
 
+	const deferredSearch = useDeferredValue(search);
+	const selectedTagIds = selectedTags.map((t) => t.id);
+	const queryInput = {
+		...(deferredSearch ? { search: deferredSearch } : {}),
+		...(selectedTagIds.length > 0 ? { tagIds: selectedTagIds } : {}),
+	};
+
 	const playersQuery = useQuery({
-		...trpc.player.list.queryOptions({}),
+		...trpc.player.list.queryOptions(queryInput),
 		enabled: open,
+		placeholderData: keepPreviousData,
 	});
 
 	const allPlayers = playersQuery.data ?? [];
 	const excludeSet = new Set(excludePlayerIds);
-	const availablePlayers = allPlayers.filter((p) => !excludeSet.has(p.id));
-	const filteredPlayers = search
-		? availablePlayers.filter((p) =>
-				p.name.toLowerCase().includes(search.toLowerCase())
-			)
-		: availablePlayers;
+	const filteredPlayers = allPlayers.filter((p) => !excludeSet.has(p.id));
 
 	const handleAddExisting = (playerId: string, playerName: string) => {
 		onAddExisting(playerId, playerName);
 		onOpenChange(false);
 	};
 
-	const handleAddNew = (values: PlayerFormValues) => {
+	const handleCreateNew = () => {
+		const trimmed = search.trim();
+		if (!trimmed) {
+			return;
+		}
 		onAddNew({
-			memo: values.memo,
-			name: values.name,
-			tagIds: values.tagIds,
+			name: trimmed,
+			tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
 		});
+		onOpenChange(false);
+	};
+
+	const handleAddTemporary = () => {
+		onAddTemporary();
 		onOpenChange(false);
 	};
 
@@ -85,89 +98,98 @@ export function AddPlayerSheet({
 			title="Add Player"
 		>
 			<div className="flex flex-col gap-3">
-				<Tabs
-					onValueChange={(value) => setTab(value as "existing" | "new")}
-					value={tab}
-				>
-					<TabsList className="grid w-full grid-cols-2">
-						<TabsTrigger value="existing">Existing</TabsTrigger>
-						<TabsTrigger value="new">New Player</TabsTrigger>
-					</TabsList>
-				</Tabs>
-
-				{tab === "existing" && (
-					<div className="flex flex-col gap-2">
-						<div className="relative">
-							<IconSearch
-								className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
-								size={16}
-							/>
-							<Input
-								aria-label="Search players"
-								className="pl-9"
-								id="add-player-search"
-								onChange={(e) => setSearch(e.target.value)}
-								placeholder="Search players..."
-								value={search}
-							/>
-						</div>
-
-						<div className="max-h-[40vh] overflow-y-auto">
-							{filteredPlayers.length === 0 && (
-								<EmptyState
-									className="border-none bg-transparent px-0 py-4"
-									description={search ? "Try a different name." : undefined}
-									heading={
-										search ? "No matching players" : "No available players"
-									}
-								/>
-							)}
-							{filteredPlayers.map((p) => (
-								<Button
-									className="h-auto w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left"
-									key={p.id}
-									onClick={() => handleAddExisting(p.id, p.name)}
-									type="button"
-									variant="ghost"
-								>
-									<div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary text-xs">
-										{p.name.slice(0, 2).toUpperCase()}
-									</div>
-									<div className="min-w-0 flex-1">
-										<p className="truncate font-medium text-sm">{p.name}</p>
-										{p.memo && (
-											<p className="truncate text-muted-foreground text-xs">
-												{p.memo}
-											</p>
-										)}
-									</div>
-									<IconPlus
-										className="shrink-0 text-muted-foreground"
-										size={16}
-									/>
-								</Button>
-							))}
-						</div>
-					</div>
-				)}
-
-				{tab === "new" && (
-					<PlayerForm
-						availableTags={availableTags}
-						key={String(open)}
-						leadingActions={
-							<Button
-								onClick={() => onOpenChange(false)}
-								type="button"
-								variant="outline"
-							>
-								Cancel
-							</Button>
-						}
-						onCreateTag={onCreateTag}
-						onSubmit={handleAddNew}
+				<div className="relative">
+					<IconSearch
+						className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
+						size={16}
 					/>
-				)}
+					<Input
+						aria-label="Search players"
+						className="pl-9"
+						id="add-player-search"
+						onChange={(e) => setSearch(e.target.value)}
+						placeholder="Search players..."
+						value={search}
+					/>
+				</div>
+
+				<PlayerTagInput
+					availableTags={availableTags}
+					onAdd={(tag) => setSelectedTags((prev) => [...prev, tag])}
+					onCreateTag={onCreateTag}
+					onRemove={(tag) =>
+						setSelectedTags((prev) => prev.filter((t) => t.id !== tag.id))
+					}
+					placeholder="Filter by tags..."
+					selectedTags={selectedTags}
+				/>
+
+				<Button
+					className="h-auto w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left"
+					onClick={handleAddTemporary}
+					type="button"
+					variant="ghost"
+				>
+					<div className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-muted-foreground/30 border-dashed text-muted-foreground">
+						<IconUserQuestion size={16} />
+					</div>
+					<p className="font-medium text-sm">Add Temporary Player</p>
+				</Button>
+
+				<div className="max-h-[40vh] overflow-y-auto">
+					{search.trim() && (
+						<Button
+							className="h-auto w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left"
+							onClick={handleCreateNew}
+							type="button"
+							variant="ghost"
+						>
+							<div className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-muted-foreground/30 border-dashed text-muted-foreground">
+								<IconPlus size={16} />
+							</div>
+							<p className="font-medium text-sm">
+								Create &quot;{search.trim()}&quot;
+							</p>
+						</Button>
+					)}
+					{filteredPlayers.map((p) => (
+						<Button
+							className="h-auto w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left"
+							key={p.id}
+							onClick={() => handleAddExisting(p.id, p.name)}
+							type="button"
+							variant="ghost"
+						>
+							<PlayerAvatar className="shrink-0" />
+							<div className="min-w-0 flex-1">
+								<p className="truncate font-medium text-sm">{p.name}</p>
+								{p.tags.length > 0 && (
+									<div className="mt-0.5 flex flex-wrap gap-1">
+										{p.tags.map((tag) => (
+											<ColorBadge color={tag.color} key={tag.id}>
+												{tag.name}
+											</ColorBadge>
+										))}
+									</div>
+								)}
+								{p.memo && (
+									<p className="truncate text-muted-foreground text-xs">
+										{p.memo}
+									</p>
+								)}
+							</div>
+							<IconPlus className="shrink-0 text-muted-foreground" size={16} />
+						</Button>
+					))}
+					{filteredPlayers.length === 0 &&
+						!search.trim() &&
+						selectedTagIds.length === 0 && (
+							<EmptyState
+								className="border-none bg-transparent px-0 py-4"
+								heading="No available players"
+							/>
+						)}
+				</div>
 			</div>
 		</ResponsiveDialog>
 	);
