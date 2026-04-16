@@ -73,4 +73,36 @@ describe("AllInBottomSheet", () => {
 		expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
 		expect(screen.getByDisplayValue("900")).toBeInTheDocument();
 	});
+
+	it("allows clearing a field without it snapping to 0", async () => {
+		const user = userEvent.setup();
+		render(
+			<AllInBottomSheet
+				initialValues={{ equity: 40, potSize: 900, trials: 3, wins: 1 }}
+				onOpenChange={vi.fn()}
+				onSubmit={vi.fn()}
+				open
+			/>
+		);
+		const potSizeInput = screen.getByLabelText(POT_SIZE_LABEL_PATTERN);
+		await user.clear(potSizeInput);
+		expect(potSizeInput).toHaveValue(null);
+	});
+
+	it("prevents wins from exceeding trials", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		render(
+			<AllInBottomSheet onOpenChange={vi.fn()} onSubmit={onSubmit} open />
+		);
+
+		await user.type(screen.getByLabelText(POT_SIZE_LABEL_PATTERN), "1000");
+		await user.clear(screen.getByLabelText(TRIALS_LABEL_PATTERN));
+		await user.type(screen.getByLabelText(TRIALS_LABEL_PATTERN), "2");
+		await user.type(screen.getByLabelText(WINS_LABEL_PATTERN), "3");
+
+		expect(
+			screen.getByText("Must be 2 or less (cannot exceed trials)")
+		).toBeInTheDocument();
+	});
 });
