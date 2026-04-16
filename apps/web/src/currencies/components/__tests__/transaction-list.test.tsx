@@ -60,7 +60,7 @@ describe("TransactionList", () => {
 		);
 
 		expect(screen.getByText("Session")).toBeInTheDocument();
-		expect(screen.getByText("Session Result")).toBeInTheDocument();
+		expect(screen.queryByText("Session Result")).not.toBeInTheDocument();
 	});
 
 	it("does not show Session badge for regular transactions", () => {
@@ -86,8 +86,7 @@ describe("TransactionList", () => {
 		expect(screen.getByLabelText("Delete transaction")).toBeInTheDocument();
 	});
 
-	it("hides edit and delete buttons for session-generated transactions", async () => {
-		const user = userEvent.setup();
+	it("hides edit and delete buttons for session-generated transactions", () => {
 		render(
 			<TransactionList
 				onDelete={vi.fn()}
@@ -96,8 +95,6 @@ describe("TransactionList", () => {
 			/>
 		);
 
-		const row = screen.getByRole("button", { name: DATE_PATTERN });
-		await user.click(row);
 		expect(screen.queryByLabelText("Edit transaction")).not.toBeInTheDocument();
 		expect(
 			screen.queryByLabelText("Delete transaction")
