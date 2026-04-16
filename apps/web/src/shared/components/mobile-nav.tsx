@@ -11,6 +11,7 @@ import {
 	getMobileNavigationItems,
 	isActiveItem,
 	MobileNavItem,
+	type NavigationCenterAction,
 	NavigationCenterButton,
 	type NavigationItem,
 	RESOURCE_ITEMS,

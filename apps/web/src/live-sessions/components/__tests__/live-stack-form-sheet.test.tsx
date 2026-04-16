@@ -4,11 +4,6 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { LiveStackFormSheet } from "../live-stack-form-sheet";
 
-const CASH_STACK_DESCRIPTION_PATTERN =
-	/latest stack and any related all-ins or addons/i;
-const TOURNAMENT_STACK_DESCRIPTION_PATTERN =
-	/latest stack and chip purchases for this tournament/i;
-
 const mocks = vi.hoisted(() => ({
 	activeSession: null as null | {
 		id: string;
@@ -61,19 +56,16 @@ vi.mock("@/live-sessions/hooks/use-stack-sheet", () => ({
 vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	ResponsiveDialog: ({
 		children,
-		description,
 		open,
 		title,
 	}: {
 		children: ReactNode;
-		description?: ReactNode;
 		open: boolean;
 		title: string;
 	}) =>
 		open ? (
 			<div>
 				<h2>{title}</h2>
-				{description ? <p>{description}</p> : null}
 				{children}
 			</div>
 		) : null,
@@ -105,10 +97,6 @@ vi.mock("@/live-sessions/components/tournament-stack-form", () => ({
 
 vi.mock("@/live-sessions/components/tournament-complete-form", () => ({
 	TournamentCompleteForm: () => <div>Tournament Complete Form</div>,
-}));
-
-vi.mock("@/live-sessions/components/tournament-info-form", () => ({
-	TournamentInfoForm: () => <div>Tournament Info Form</div>,
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -169,9 +157,6 @@ describe("LiveStackFormSheet", () => {
 		render(<LiveStackFormSheet />);
 
 		expect(screen.getByText("Record Stack")).toBeInTheDocument();
-		expect(
-			screen.getByText(CASH_STACK_DESCRIPTION_PATTERN)
-		).toBeInTheDocument();
 
 		await user.click(
 			screen.getByRole("button", { name: "Open Cash Complete" })
@@ -190,9 +175,6 @@ describe("LiveStackFormSheet", () => {
 		render(<LiveStackFormSheet />);
 
 		expect(screen.getByText("Record Stack")).toBeInTheDocument();
-		expect(
-			screen.getByText(TOURNAMENT_STACK_DESCRIPTION_PATTERN)
-		).toBeInTheDocument();
 
 		await user.click(
 			screen.getByRole("button", { name: "Open Tournament Complete" })

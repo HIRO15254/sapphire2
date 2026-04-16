@@ -7,6 +7,7 @@ import { AddPlayerSheet } from "../add-player-sheet";
 const ALICE_NAME_PATTERN = /alice/i;
 const BOB_NAME_PATTERN = /bob/i;
 const CREATE_NEW_HERO_PATTERN = /create "new hero"/i;
+const ADD_TEMPORARY_PATTERN = /Add Temporary Player/;
 
 const mocks = vi.hoisted(() => ({
 	players: [] as Array<{
@@ -57,9 +58,7 @@ vi.mock("@/players/components/player-tag-input", () => ({
 }));
 
 vi.mock("@/players/components/player-avatar", () => ({
-	PlayerAvatar: ({ name }: { name: string }) => (
-		<div data-testid="player-avatar">{name.slice(0, 2).toUpperCase()}</div>
-	),
+	PlayerAvatar: () => <div data-testid="player-avatar" />,
 }));
 
 vi.mock("@/players/components/color-badge", () => ({
@@ -69,6 +68,33 @@ vi.mock("@/players/components/color-badge", () => ({
 }));
 
 describe("AddPlayerSheet", () => {
+	it("calls onAddTemporary and closes the sheet when the button is clicked", async () => {
+		const user = userEvent.setup();
+		const onAddTemporary = vi.fn();
+		const onOpenChange = vi.fn();
+		mocks.players = [];
+
+		render(
+			<AddPlayerSheet
+				availableTags={[]}
+				excludePlayerIds={[]}
+				onAddExisting={vi.fn()}
+				onAddNew={vi.fn()}
+				onAddTemporary={onAddTemporary}
+				onCreateTag={vi.fn()}
+				onOpenChange={onOpenChange}
+				open
+			/>
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: ADD_TEMPORARY_PATTERN })
+		);
+
+		expect(onAddTemporary).toHaveBeenCalledOnce();
+		expect(onOpenChange).toHaveBeenCalledWith(false);
+	});
+
 	it("excludes already-seated players from the list", () => {
 		mocks.players = [
 			{ id: "p1", memo: "Aggro", name: "Alice", tags: [] },
@@ -81,6 +107,7 @@ describe("AddPlayerSheet", () => {
 				excludePlayerIds={["p1"]}
 				onAddExisting={vi.fn()}
 				onAddNew={vi.fn()}
+				onAddTemporary={vi.fn()}
 				onCreateTag={vi.fn()}
 				onOpenChange={vi.fn()}
 				open
@@ -104,6 +131,7 @@ describe("AddPlayerSheet", () => {
 				excludePlayerIds={["p1"]}
 				onAddExisting={vi.fn()}
 				onAddNew={vi.fn()}
+				onAddTemporary={vi.fn()}
 				onCreateTag={vi.fn()}
 				onOpenChange={vi.fn()}
 				open
@@ -125,6 +153,7 @@ describe("AddPlayerSheet", () => {
 				excludePlayerIds={[]}
 				onAddExisting={onAddExisting}
 				onAddNew={vi.fn()}
+				onAddTemporary={vi.fn()}
 				onCreateTag={vi.fn()}
 				onOpenChange={onOpenChange}
 				open
@@ -149,6 +178,7 @@ describe("AddPlayerSheet", () => {
 				excludePlayerIds={[]}
 				onAddExisting={vi.fn()}
 				onAddNew={onAddNew}
+				onAddTemporary={vi.fn()}
 				onCreateTag={vi.fn()}
 				onOpenChange={onOpenChange}
 				open
@@ -186,6 +216,7 @@ describe("AddPlayerSheet", () => {
 				excludePlayerIds={[]}
 				onAddExisting={vi.fn()}
 				onAddNew={vi.fn()}
+				onAddTemporary={vi.fn()}
 				onCreateTag={vi.fn()}
 				onOpenChange={vi.fn()}
 				open
