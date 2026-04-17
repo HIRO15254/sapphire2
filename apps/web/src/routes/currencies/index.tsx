@@ -218,7 +218,6 @@ function CurrenciesPage() {
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
-				description="Record a manual balance change for this currency."
 				onOpenChange={(open) => {
 					if (!open) {
 						setAddTransactionCurrencyId(null);
@@ -229,13 +228,11 @@ function CurrenciesPage() {
 			>
 				<TransactionForm
 					isLoading={isAddTransactionPending}
-					onCancel={() => setAddTransactionCurrencyId(null)}
 					onSubmit={handleAddTransaction}
 				/>
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
-				description="Update the type, amount, date, or memo for this transaction."
 				onOpenChange={(open) => {
 					if (!open) {
 						setEditingTransaction(null);
@@ -256,7 +253,6 @@ function CurrenciesPage() {
 							memo: editingTransaction.memo ?? undefined,
 						}}
 						isLoading={isEditTransactionPending}
-						onCancel={() => setEditingTransaction(null)}
 						onSubmit={handleEditTransaction}
 					/>
 				)}

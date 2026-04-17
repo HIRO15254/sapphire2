@@ -98,9 +98,9 @@ describe("TransactionForm", () => {
 			target: { value: "2026-04-05" },
 		});
 
-		await user.click(screen.getByRole("combobox"));
-		await user.click(screen.getByRole("option", { name: "+ New type..." }));
-		await user.type(screen.getByLabelText("New Type Name"), "Manual");
+		const typeCombobox = screen.getByRole("combobox");
+		await user.type(typeCombobox, "Manual");
+		await user.click(screen.getByRole("option", { name: 'Create "Manual"' }));
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(mocks.createTypeMutate).toHaveBeenCalledWith({ name: "Manual" });
@@ -111,15 +111,4 @@ describe("TransactionForm", () => {
 			transactionTypeId: "created-manual",
 		});
 	}, 15_000);
-
-	it("calls onCancel when cancel is pressed", async () => {
-		const user = userEvent.setup();
-		const onCancel = vi.fn();
-
-		render(<TransactionForm onCancel={onCancel} onSubmit={vi.fn()} />);
-
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
-
-		expect(onCancel).toHaveBeenCalledOnce();
-	});
 });
