@@ -210,6 +210,7 @@ export function LinkedAccounts() {
 		<div className="space-y-3">
 			<ManagementList>
 				<ManagementListItem
+					className="min-h-14"
 					actions={
 						hasCredential ? undefined : (
 							<Button
@@ -239,6 +240,7 @@ export function LinkedAccounts() {
 
 					return (
 						<ManagementListItem
+							className="min-h-14"
 							actions={
 								isLinked ? (
 									<Button
