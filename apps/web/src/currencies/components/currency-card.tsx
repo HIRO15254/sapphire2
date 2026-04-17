@@ -52,8 +52,12 @@ export function CurrencyCard({
 	onLoadMore,
 	transactions,
 }: CurrencyCardProps) {
-	const expandedValue =
-		isExpanded !== undefined ? (isExpanded ? "details" : null) : undefined;
+	let expandedValue: string | null | undefined;
+	if (isExpanded === undefined) {
+		expandedValue = undefined;
+	} else {
+		expandedValue = isExpanded ? "details" : null;
+	}
 
 	return (
 		<EntityListItem
