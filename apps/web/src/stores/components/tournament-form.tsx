@@ -65,7 +65,10 @@ const tournamentFormSchema = z.object({
 	bountyAmount: z.coerce.number().min(0, "Must be 0 or greater").optional(),
 	tableSize: z.coerce.number().min(0, "Must be 0 or greater").optional(),
 	currencyId: z.string().optional(),
-	memo: z.string().max(10_000, "Memo must be 10,000 characters or less").optional(),
+	memo: z
+		.string()
+		.max(10_000, "Memo must be 10,000 characters or less")
+		.optional(),
 	tags: z.array(z.string()).optional(),
 });
 
@@ -83,12 +86,14 @@ export function TournamentForm({
 			variant: defaultValues?.variant ?? "nlh",
 			buyIn: defaultValues?.buyIn ?? (undefined as number | undefined),
 			entryFee: defaultValues?.entryFee ?? (undefined as number | undefined),
-			startingStack: defaultValues?.startingStack ?? (undefined as number | undefined),
+			startingStack:
+				defaultValues?.startingStack ?? (undefined as number | undefined),
 			chipPurchases: (defaultValues?.chipPurchases ?? []).map((cp) => ({
 				...cp,
 				uid: crypto.randomUUID(),
 			})) as Array<{ name: string; cost: number; chips: number; uid: string }>,
-			bountyAmount: defaultValues?.bountyAmount ?? (undefined as number | undefined),
+			bountyAmount:
+				defaultValues?.bountyAmount ?? (undefined as number | undefined),
 			tableSize: defaultValues?.tableSize ?? (undefined as number | undefined),
 			currencyId: defaultValues?.currencyId ?? "",
 			memo: defaultValues?.memo ?? "",
@@ -196,7 +201,11 @@ export function TournamentForm({
 								}
 								placeholder="0"
 								type="number"
-								value={field.state.value !== undefined ? String(field.state.value) : ""}
+								value={
+									field.state.value === undefined
+										? ""
+										: String(field.state.value)
+								}
 							/>
 						</Field>
 					)}
@@ -221,7 +230,11 @@ export function TournamentForm({
 								}
 								placeholder="0"
 								type="number"
-								value={field.state.value !== undefined ? String(field.state.value) : ""}
+								value={
+									field.state.value === undefined
+										? ""
+										: String(field.state.value)
+								}
 							/>
 						</Field>
 					)}
@@ -248,7 +261,9 @@ export function TournamentForm({
 							}
 							placeholder="0"
 							type="number"
-							value={field.state.value !== undefined ? String(field.state.value) : ""}
+							value={
+								field.state.value === undefined ? "" : String(field.state.value)
+							}
 						/>
 					</Field>
 				)}
@@ -290,7 +305,9 @@ export function TournamentForm({
 												id={`cp-name-${cp.uid}`}
 												onChange={(e) => {
 													const updated = field.state.value.map((item, i) =>
-														i === index ? { ...item, name: e.target.value } : item
+														i === index
+															? { ...item, name: e.target.value }
+															: item
 													);
 													field.handleChange(updated);
 												}}
@@ -311,7 +328,10 @@ export function TournamentForm({
 													const parsed = Number.parseInt(e.target.value, 10);
 													const updated = field.state.value.map((item, i) =>
 														i === index
-															? { ...item, cost: Number.isNaN(parsed) ? 0 : parsed }
+															? {
+																	...item,
+																	cost: Number.isNaN(parsed) ? 0 : parsed,
+																}
 															: item
 													);
 													field.handleChange(updated);
@@ -334,7 +354,10 @@ export function TournamentForm({
 													const parsed = Number.parseInt(e.target.value, 10);
 													const updated = field.state.value.map((item, i) =>
 														i === index
-															? { ...item, chips: Number.isNaN(parsed) ? 0 : parsed }
+															? {
+																	...item,
+																	chips: Number.isNaN(parsed) ? 0 : parsed,
+																}
 															: item
 													);
 													field.handleChange(updated);
@@ -385,7 +408,9 @@ export function TournamentForm({
 							}
 							placeholder="0"
 							type="number"
-							value={field.state.value !== undefined ? String(field.state.value) : ""}
+							value={
+								field.state.value === undefined ? "" : String(field.state.value)
+							}
 						/>
 					</Field>
 				)}
@@ -486,7 +511,10 @@ export function TournamentForm({
 								)
 							}
 							placeholder="Add a tag"
-							selectedTags={field.state.value.map((name) => ({ id: name, name }))}
+							selectedTags={field.state.value.map((name) => ({
+								id: name,
+								name,
+							}))}
 						/>
 					</Field>
 				)}

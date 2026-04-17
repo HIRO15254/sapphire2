@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { CurrencyForm } from "../currency-form";
@@ -20,7 +20,8 @@ describe("CurrencyForm", () => {
 		});
 	});
 
-	it("submits edited values without changing the payload shape", () => {
+	it("submits edited values without changing the payload shape", async () => {
+		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
 		render(
@@ -30,13 +31,11 @@ describe("CurrencyForm", () => {
 			/>
 		);
 
-		fireEvent.change(screen.getByLabelText("Currency Name *"), {
-			target: { value: "USD" },
-		});
-		fireEvent.change(screen.getByLabelText("Unit"), {
-			target: { value: "US$" },
-		});
-		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+		await user.clear(screen.getByLabelText("Currency Name *"));
+		await user.type(screen.getByLabelText("Currency Name *"), "USD");
+		await user.clear(screen.getByLabelText("Unit"));
+		await user.type(screen.getByLabelText("Unit"), "US$");
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith({
 			name: "USD",

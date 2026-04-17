@@ -34,7 +34,11 @@ function todayISODate() {
 	return new Date().toISOString().slice(0, 10);
 }
 
-function getButtonLabel(isCreatingType: boolean, isLoading: boolean, isSubmitting: boolean) {
+function getButtonLabel(
+	isCreatingType: boolean,
+	isLoading: boolean,
+	isSubmitting: boolean
+) {
 	if (isCreatingType || isSubmitting) {
 		return "Saving...";
 	}
@@ -46,9 +50,7 @@ function getButtonLabel(isCreatingType: boolean, isLoading: boolean, isSubmittin
 
 const transactionFormSchema = z.object({
 	amount: z.coerce.number({ invalid_type_error: "Amount is required" }),
-	transactionTypeId: z
-		.string()
-		.min(1, "Type is required"),
+	transactionTypeId: z.string().min(1, "Type is required"),
 	newTypeName: z.string().optional(),
 	transactedAt: z.string().min(1, "Date is required"),
 	memo: z.string().optional(),

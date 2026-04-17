@@ -56,16 +56,37 @@ const ringGameFormSchema = z.object({
 		.min(1, "Game name is required")
 		.max(100, "Game name must be 100 characters or less"),
 	variant: z.string().min(1, "Variant is required"),
-	blind1: z.coerce.number().nonnegative("Blind 1 must be non-negative").optional(),
-	blind2: z.coerce.number().nonnegative("Blind 2 must be non-negative").optional(),
-	blind3: z.coerce.number().nonnegative("Blind 3 must be non-negative").optional(),
+	blind1: z.coerce
+		.number()
+		.nonnegative("Blind 1 must be non-negative")
+		.optional(),
+	blind2: z.coerce
+		.number()
+		.nonnegative("Blind 2 must be non-negative")
+		.optional(),
+	blind3: z.coerce
+		.number()
+		.nonnegative("Blind 3 must be non-negative")
+		.optional(),
 	ante: z.coerce.number().nonnegative("Ante must be non-negative").optional(),
 	anteType: z.enum(["none", "bb", "all"]).optional(),
-	minBuyIn: z.coerce.number().nonnegative("Min Buy-In must be non-negative").optional(),
-	maxBuyIn: z.coerce.number().nonnegative("Max Buy-In must be non-negative").optional(),
-	tableSize: z.coerce.number().nonnegative("Table size must be non-negative").optional(),
+	minBuyIn: z.coerce
+		.number()
+		.nonnegative("Min Buy-In must be non-negative")
+		.optional(),
+	maxBuyIn: z.coerce
+		.number()
+		.nonnegative("Max Buy-In must be non-negative")
+		.optional(),
+	tableSize: z.coerce
+		.number()
+		.nonnegative("Table size must be non-negative")
+		.optional(),
 	currencyId: z.string().optional(),
-	memo: z.string().max(10_000, "Memo must be 10,000 characters or less").optional(),
+	memo: z
+		.string()
+		.max(10_000, "Memo must be 10,000 characters or less")
+		.optional(),
 });
 
 export function RingGameForm({
@@ -99,7 +120,8 @@ export function RingGameForm({
 				blind2: value.blind2,
 				blind3: value.blind3,
 				ante: value.anteType === "none" ? undefined : value.ante,
-				anteType: (value.anteType as "all" | "bb" | "none" | undefined) || undefined,
+				anteType:
+					(value.anteType as "all" | "bb" | "none" | undefined) || undefined,
 				minBuyIn: value.minBuyIn,
 				maxBuyIn: value.maxBuyIn,
 				tableSize: value.tableSize,
@@ -195,7 +217,9 @@ export function RingGameForm({
 								name={field.name}
 								onBlur={field.handleBlur}
 								onChange={(e) =>
-									field.handleChange(e.target.value === "" ? undefined : Number(e.target.value))
+									field.handleChange(
+										e.target.value === "" ? undefined : Number(e.target.value)
+									)
 								}
 								placeholder="0"
 								type="number"
@@ -218,7 +242,9 @@ export function RingGameForm({
 								name={field.name}
 								onBlur={field.handleBlur}
 								onChange={(e) =>
-									field.handleChange(e.target.value === "" ? undefined : Number(e.target.value))
+									field.handleChange(
+										e.target.value === "" ? undefined : Number(e.target.value)
+									)
 								}
 								placeholder="0"
 								type="number"
@@ -241,7 +267,9 @@ export function RingGameForm({
 								name={field.name}
 								onBlur={field.handleBlur}
 								onChange={(e) =>
-									field.handleChange(e.target.value === "" ? undefined : Number(e.target.value))
+									field.handleChange(
+										e.target.value === "" ? undefined : Number(e.target.value)
+									)
 								}
 								placeholder="0"
 								type="number"
@@ -297,7 +325,9 @@ export function RingGameForm({
 								name={field.name}
 								onBlur={field.handleBlur}
 								onChange={(e) =>
-									field.handleChange(e.target.value === "" ? undefined : Number(e.target.value))
+									field.handleChange(
+										e.target.value === "" ? undefined : Number(e.target.value)
+									)
 								}
 								placeholder="0"
 								type="number"
@@ -323,7 +353,9 @@ export function RingGameForm({
 								name={field.name}
 								onBlur={field.handleBlur}
 								onChange={(e) =>
-									field.handleChange(e.target.value === "" ? undefined : Number(e.target.value))
+									field.handleChange(
+										e.target.value === "" ? undefined : Number(e.target.value)
+									)
 								}
 								placeholder="0"
 								type="number"
@@ -346,7 +378,9 @@ export function RingGameForm({
 								name={field.name}
 								onBlur={field.handleBlur}
 								onChange={(e) =>
-									field.handleChange(e.target.value === "" ? undefined : Number(e.target.value))
+									field.handleChange(
+										e.target.value === "" ? undefined : Number(e.target.value)
+									)
 								}
 								placeholder="0"
 								type="number"
@@ -436,7 +470,10 @@ export function RingGameForm({
 
 			<form.Subscribe>
 				{(state) => (
-					<Button disabled={isLoading || !state.canSubmit || state.isSubmitting} type="submit">
+					<Button
+						disabled={isLoading || !state.canSubmit || state.isSubmitting}
+						type="submit"
+					>
 						{isLoading || state.isSubmitting ? "Saving..." : "Save"}
 					</Button>
 				)}

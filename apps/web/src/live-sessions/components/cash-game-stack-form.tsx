@@ -4,9 +4,8 @@ import z from "zod";
 import { AddonBottomSheet } from "@/live-sessions/components/addon-bottom-sheet";
 import { AllInBottomSheet } from "@/live-sessions/components/all-in-bottom-sheet";
 import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
-import {
-	StackPrimaryRow,
-} from "@/live-sessions/components/stack-ui";
+import { StackPrimaryRow } from "@/live-sessions/components/stack-ui";
+import { useStackFormContext } from "@/live-sessions/hooks/use-session-form";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
@@ -45,6 +44,8 @@ export function CashGameStackForm({
 	onPause,
 	onSubmit,
 }: CashGameStackFormProps) {
+	const { state: stackFormState, setStackAmount: setContextStackAmount } =
+		useStackFormContext();
 	const [allInBottomSheetOpen, setAllInBottomSheetOpen] = useState(false);
 	const [addonBottomSheetOpen, setAddonBottomSheetOpen] = useState(false);
 	const [removeBottomSheetOpen, setRemoveBottomSheetOpen] = useState(false);
@@ -53,7 +54,9 @@ export function CashGameStackForm({
 
 	const form = useForm({
 		defaultValues: {
-			stackAmount: undefined as number | undefined,
+			stackAmount: stackFormState.stackAmount
+				? Number(stackFormState.stackAmount)
+				: (undefined as number | undefined),
 		},
 		onSubmit: ({ value }) => {
 			onSubmit({ stackAmount: value.stackAmount as number });
@@ -76,7 +79,9 @@ export function CashGameStackForm({
 	const handleAddonSubmit = (values: { amount: number }) => {
 		onChipAdd(values.amount);
 		const currentStack = form.getFieldValue("stackAmount") ?? 0;
-		form.setFieldValue("stackAmount", (currentStack as number) + values.amount);
+		const newStackValue = (currentStack as number) + values.amount;
+		form.setFieldValue("stackAmount", newStackValue);
+		setContextStackAmount(String(newStackValue));
 		setAddonBottomSheetOpen(false);
 	};
 
@@ -123,13 +128,18 @@ export function CashGameStackForm({
 									min={0}
 									name={field.name}
 									onBlur={field.handleBlur}
-									onChange={(e) =>
+									onChange={(e) => {
 										field.handleChange(
 											e.target.value === "" ? undefined : Number(e.target.value)
-										)
-									}
+										);
+										setContextStackAmount(e.target.value);
+									}}
 									type="number"
-									value={field.state.value !== undefined ? String(field.state.value) : ""}
+									value={
+										field.state.value === undefined
+											? ""
+											: String(field.state.value)
+									}
 								/>
 							</Field>
 						)}

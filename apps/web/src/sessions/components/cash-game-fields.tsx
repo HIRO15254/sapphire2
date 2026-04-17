@@ -39,7 +39,9 @@ const ANTE_TYPES = [
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 function parseNumericInput(value: string): number | undefined {
-	if (!value) return undefined;
+	if (!value) {
+		return undefined;
+	}
 	const parsed = Number.parseFloat(value);
 	return Number.isNaN(parsed) ? undefined : parsed;
 }
@@ -98,10 +100,7 @@ export function CashGameFields({
 			{/* Variant */}
 			<div className="flex flex-col gap-2">
 				<Label htmlFor="variant">Variant</Label>
-				<Select
-					onValueChange={(v) => onVariantChange?.(v)}
-					value={variant}
-				>
+				<Select onValueChange={(v) => onVariantChange?.(v)} value={variant}>
 					<SelectTrigger className="w-full" id="variant">
 						<SelectValue placeholder="Select variant" />
 					</SelectTrigger>
@@ -119,7 +118,9 @@ export function CashGameFields({
 						id="blind1"
 						inputMode="numeric"
 						min={0}
-						onChange={(e) => onBlind1Change?.(parseNumericInput(e.target.value))}
+						onChange={(e) =>
+							onBlind1Change?.(parseNumericInput(e.target.value))
+						}
 						placeholder="0"
 						type="number"
 						value={blind1 ?? ""}
@@ -131,7 +132,9 @@ export function CashGameFields({
 						id="blind2"
 						inputMode="numeric"
 						min={0}
-						onChange={(e) => onBlind2Change?.(parseNumericInput(e.target.value))}
+						onChange={(e) =>
+							onBlind2Change?.(parseNumericInput(e.target.value))
+						}
 						placeholder="0"
 						type="number"
 						value={blind2 ?? ""}
@@ -143,7 +146,9 @@ export function CashGameFields({
 						id="blind3"
 						inputMode="numeric"
 						min={0}
-						onChange={(e) => onBlind3Change?.(parseNumericInput(e.target.value))}
+						onChange={(e) =>
+							onBlind3Change?.(parseNumericInput(e.target.value))
+						}
 						placeholder="0"
 						type="number"
 						value={blind3 ?? ""}
@@ -155,10 +160,7 @@ export function CashGameFields({
 			<div className="flex gap-3">
 				<div className="flex flex-1 flex-col gap-2">
 					<Label htmlFor="anteType">Ante Type</Label>
-					<Select
-						onValueChange={(v) => onAnteTypeChange?.(v)}
-						value={anteType}
-					>
+					<Select onValueChange={(v) => onAnteTypeChange?.(v)} value={anteType}>
 						<SelectTrigger className="w-full" id="anteType">
 							<SelectValue placeholder="Select ante type" />
 						</SelectTrigger>

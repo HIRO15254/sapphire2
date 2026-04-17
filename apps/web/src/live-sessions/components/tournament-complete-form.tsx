@@ -93,8 +93,11 @@ export function TournamentCompleteForm({
 								)
 							}
 							placeholder="1"
+							required
 							type="number"
-							value={field.state.value !== undefined ? String(field.state.value) : ""}
+							value={
+								field.state.value === undefined ? "" : String(field.state.value)
+							}
 						/>
 					</Field>
 				)}
@@ -121,7 +124,9 @@ export function TournamentCompleteForm({
 							}
 							placeholder="100"
 							type="number"
-							value={field.state.value !== undefined ? String(field.state.value) : ""}
+							value={
+								field.state.value === undefined ? "" : String(field.state.value)
+							}
 						/>
 					</Field>
 				)}
@@ -174,7 +179,9 @@ export function TournamentCompleteForm({
 							}
 							placeholder="0"
 							type="number"
-							value={field.state.value !== undefined ? String(field.state.value) : ""}
+							value={
+								field.state.value === undefined ? "" : String(field.state.value)
+							}
 						/>
 					</Field>
 				)}
@@ -187,7 +194,9 @@ export function TournamentCompleteForm({
 							disabled={isLoading || !state.canSubmit || state.isSubmitting}
 							type="submit"
 						>
-							{isLoading || state.isSubmitting ? "Completing..." : "Complete Tournament"}
+							{isLoading || state.isSubmitting
+								? "Completing..."
+								: "Complete Tournament"}
 						</Button>
 					</DialogActionRow>
 				)}

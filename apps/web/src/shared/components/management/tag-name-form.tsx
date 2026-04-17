@@ -68,7 +68,10 @@ export function TagNameForm({
 			{children}
 			<form.Subscribe>
 				{(state) => (
-					<Button disabled={isLoading || !state.canSubmit || state.isSubmitting} type="submit">
+					<Button
+						disabled={isLoading || !state.canSubmit || state.isSubmitting}
+						type="submit"
+					>
 						{isLoading || state.isSubmitting ? "Saving..." : "Save"}
 					</Button>
 				)}

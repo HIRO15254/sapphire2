@@ -3,9 +3,8 @@ import { useState } from "react";
 import z from "zod";
 import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-sheet";
 import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
-import {
-	StackNumberField,
-} from "@/live-sessions/components/stack-ui";
+import { StackNumberField } from "@/live-sessions/components/stack-ui";
+import { useTournamentFormContext } from "@/live-sessions/hooks/use-session-form";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
@@ -56,11 +55,7 @@ const tournamentStackFormSchema = z.object({
 		.int()
 		.min(1, "Must be at least 1")
 		.optional(),
-	totalEntries: z.coerce
-		.number()
-		.int()
-		.min(1, "Must be at least 1")
-		.optional(),
+	totalEntries: z.coerce.number().int().min(1, "Must be at least 1").optional(),
 	chipPurchaseCounts: z.array(
 		z.object({
 			name: z.string(),
@@ -79,13 +74,17 @@ export function TournamentStackForm({
 	onPurchaseChips,
 	onSubmit,
 }: TournamentStackFormProps) {
+	const { state: stackFormState, setStackAmount: setContextStackAmount } =
+		useTournamentFormContext();
 	const [chipPurchaseSheetOpen, setChipPurchaseSheetOpen] = useState(false);
 	const [memoSheetOpen, setMemoSheetOpen] = useState(false);
 	const [memoText, setMemoText] = useState("");
 
 	const form = useForm({
 		defaultValues: {
-			stackAmount: undefined as number | undefined,
+			stackAmount: stackFormState.stackAmount
+				? Number(stackFormState.stackAmount)
+				: (undefined as number | undefined),
 			recordTournamentInfo: true,
 			remainingPlayers: undefined as number | undefined,
 			totalEntries: undefined as number | undefined,
@@ -143,12 +142,15 @@ export function TournamentStackForm({
 							inputMode="numeric"
 							label="Current Stack"
 							min={0}
-							onChange={(value) =>
-								field.handleChange(value === "" ? undefined : Number(value))
-							}
+							onChange={(value) => {
+								field.handleChange(value === "" ? undefined : Number(value));
+								setContextStackAmount(value);
+							}}
 							required
 							type="number"
-							value={field.state.value !== undefined ? String(field.state.value) : ""}
+							value={
+								field.state.value === undefined ? "" : String(field.state.value)
+							}
 						/>
 					)}
 				</form.Field>
@@ -264,9 +266,7 @@ export function TournamentStackForm({
 																}
 															}}
 															type="number"
-															value={
-																countValue === 0 ? "" : String(countValue)
-															}
+															value={countValue === 0 ? "" : String(countValue)}
 														/>
 													);
 												}}

@@ -242,11 +242,17 @@ export function CreateTournamentSessionForm({
 										onBlur={field.handleBlur}
 										onChange={(e) =>
 											field.handleChange(
-												e.target.value === "" ? undefined : Number(e.target.value)
+												e.target.value === ""
+													? undefined
+													: Number(e.target.value)
 											)
 										}
 										type="number"
-										value={field.state.value !== undefined ? String(field.state.value) : ""}
+										value={
+											field.state.value === undefined
+												? ""
+												: String(field.state.value)
+										}
 									/>
 								</Field>
 							)}
@@ -268,11 +274,17 @@ export function CreateTournamentSessionForm({
 										onBlur={field.handleBlur}
 										onChange={(e) =>
 											field.handleChange(
-												e.target.value === "" ? undefined : Number(e.target.value)
+												e.target.value === ""
+													? undefined
+													: Number(e.target.value)
 											)
 										}
 										type="number"
-										value={field.state.value !== undefined ? String(field.state.value) : ""}
+										value={
+											field.state.value === undefined
+												? ""
+												: String(field.state.value)
+										}
 									/>
 								</Field>
 							)}
@@ -300,7 +312,11 @@ export function CreateTournamentSessionForm({
 										)
 									}
 									type="number"
-									value={field.state.value !== undefined ? String(field.state.value) : ""}
+									value={
+										field.state.value === undefined
+											? ""
+											: String(field.state.value)
+									}
 								/>
 							</Field>
 						)}
@@ -332,7 +348,9 @@ export function CreateTournamentSessionForm({
 						}
 						type="submit"
 					>
-						{isLoading || state.isSubmitting ? "Starting..." : "Start Tournament"}
+						{isLoading || state.isSubmitting
+							? "Starting..."
+							: "Start Tournament"}
 					</Button>
 				)}
 			</form.Subscribe>

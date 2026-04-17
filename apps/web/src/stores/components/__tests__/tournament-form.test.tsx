@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TournamentForm } from "../tournament-form";
@@ -23,15 +23,8 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 describe("TournamentForm", () => {
-	function getForm() {
-		const form = screen.getByRole("button", { name: "Save" }).closest("form");
-		if (!form) {
-			throw new Error("Save form not found");
-		}
-		return form;
-	}
-
-	it("renders memo as textarea and preserves edit payload", () => {
+	it("renders memo as textarea and preserves edit payload", async () => {
+		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
 		render(
@@ -53,7 +46,7 @@ describe("TournamentForm", () => {
 		expect(memo.tagName).toBe("TEXTAREA");
 		expect(memo).toHaveValue("two flights\nfinal table on Sunday");
 
-		fireEvent.submit(getForm());
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -67,19 +60,24 @@ describe("TournamentForm", () => {
 		);
 	});
 
-	it("submits multiline memo in create mode", () => {
+	it("submits multiline memo in create mode", async () => {
+		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
 		render(<TournamentForm onSubmit={onSubmit} />);
 
-		fireEvent.change(screen.getByLabelText("Tournament Name *"), {
-			target: { value: "Nightly Deepstack" },
-		});
-		fireEvent.change(screen.getByLabelText("Memo"), {
-			target: { value: "late reg open\n15 minute levels" },
-		});
+		await user.clear(screen.getByLabelText("Tournament Name *"));
+		await user.type(
+			screen.getByLabelText("Tournament Name *"),
+			"Nightly Deepstack"
+		);
+		await user.clear(screen.getByLabelText("Memo"));
+		await user.type(
+			screen.getByLabelText("Memo"),
+			"late reg open\n15 minute levels"
+		);
 
-		fireEvent.submit(getForm());
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -97,13 +95,15 @@ describe("TournamentForm", () => {
 
 		render(<TournamentForm onSubmit={onSubmit} />);
 
-		fireEvent.change(screen.getByLabelText("Tournament Name *"), {
-			target: { value: "Nightly Deepstack" },
-		});
+		await user.clear(screen.getByLabelText("Tournament Name *"));
+		await user.type(
+			screen.getByLabelText("Tournament Name *"),
+			"Nightly Deepstack"
+		);
 		await user.type(screen.getByLabelText("Search tags"), "Series");
 		await user.keyboard("{Enter}");
 
-		fireEvent.submit(getForm());
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({

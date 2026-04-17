@@ -21,7 +21,10 @@ const storeFormSchema = z.object({
 		.string()
 		.min(1, "Store name is required")
 		.max(100, "Store name must be 100 characters or less"),
-	memo: z.string().max(10_000, "Memo must be 10,000 characters or less").optional(),
+	memo: z
+		.string()
+		.max(10_000, "Memo must be 10,000 characters or less")
+		.optional(),
 });
 
 export function StoreForm({
@@ -93,7 +96,10 @@ export function StoreForm({
 			</form.Field>
 			<form.Subscribe>
 				{(state) => (
-					<Button disabled={isLoading || !state.canSubmit || state.isSubmitting} type="submit">
+					<Button
+						disabled={isLoading || !state.canSubmit || state.isSubmitting}
+						type="submit"
+					>
 						{isLoading || state.isSubmitting ? "Saving..." : "Save"}
 					</Button>
 				)}

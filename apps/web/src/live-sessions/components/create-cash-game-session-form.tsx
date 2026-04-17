@@ -101,10 +101,7 @@ export function CreateCashGameSessionForm({
 		setSelectedRingGameId(value);
 		const ringGame = ringGames.find((g) => g.id === value);
 		if (ringGame) {
-			form.setFieldValue(
-				"initialBuyIn",
-				ringGame.maxBuyIn ?? undefined
-			);
+			form.setFieldValue("initialBuyIn", ringGame.maxBuyIn ?? undefined);
 			setSelectedCurrencyId(ringGame.currencyId ?? undefined);
 		}
 	};
@@ -247,7 +244,11 @@ export function CreateCashGameSessionForm({
 										)
 									}
 									type="number"
-									value={field.state.value !== undefined ? String(field.state.value) : ""}
+									value={
+										field.state.value === undefined
+											? ""
+											: String(field.state.value)
+									}
 								/>
 							</Field>
 						)}

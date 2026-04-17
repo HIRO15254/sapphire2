@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SessionForm } from "../session-form";
@@ -7,14 +7,6 @@ const EV_HELPER_RE = /Expected value cash-out based on all-in equity/;
 const BUY_IN_RE = /Buy-in/;
 const SESSION_DATE_RE = /Session Date/;
 const SESSION_TAG = { id: "series", name: "Series" };
-
-function getForm() {
-	const form = screen.getByRole("button", { name: "Save" }).closest("form");
-	if (!form) {
-		throw new Error("Session form not found");
-	}
-	return form;
-}
 
 describe("SessionForm", () => {
 	it("renders cash game mode by default", () => {
@@ -121,7 +113,7 @@ describe("SessionForm", () => {
 		await user.click(screen.getByLabelText("Search tags"));
 		await user.click(screen.getByText("Series"));
 
-		fireEvent.submit(getForm());
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({

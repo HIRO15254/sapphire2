@@ -1,9 +1,10 @@
-import { useForm } from "@tanstack/react-form";
+// biome-ignore assist/source/organizeImports: useStore is re-exported from react-form; react-store is not a direct dependency
+import { useForm, useStore } from "@tanstack/react-form";
+import { useState } from "react";
 import z from "zod";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { TagInput } from "@/shared/components/ui/tag-input";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -159,10 +160,7 @@ const cashGameSchema = z.object({
 	ringGameId: z.string().optional(),
 	buyIn: z.number().min(0, "Buy-in cannot be negative"),
 	cashOut: z.number().min(0, "Cash-out cannot be negative"),
-	evCashOut: z
-		.number()
-		.min(0, "EV cash-out cannot be negative")
-		.optional(),
+	evCashOut: z.number().min(0, "EV cash-out cannot be negative").optional(),
 	variant: z.string().min(1, "Variant is required"),
 	blind1: z.number().min(0, "SB cannot be negative").optional(),
 	blind2: z.number().min(0, "BB cannot be negative").optional(),
@@ -207,10 +205,7 @@ const tournamentSchema = z.object({
 		.int("Total entries must be a whole number")
 		.min(1, "Total entries must be at least 1")
 		.optional(),
-	prizeMoney: z
-		.number()
-		.min(0, "Prize money cannot be negative")
-		.optional(),
+	prizeMoney: z.number().min(0, "Prize money cannot be negative").optional(),
 	rebuyCount: z
 		.number()
 		.int("Rebuy count must be a whole number")
@@ -261,16 +256,22 @@ function SessionFormFields({
 	stores,
 	tags,
 }: SessionFormFieldsProps) {
-	const selectedStoreId = form.useStore((s) => {
+	const selectedStoreId = useStore(form.store, (s) => {
 		const v = s.values;
-		if (v.sessionType === "cash_game") return v.storeId;
+		if (v.sessionType === "cash_game") {
+			return v.storeId;
+		}
 		return v.storeId;
 	});
 
-	const selectedGameId = form.useStore((s) => {
+	const selectedGameId = useStore(form.store, (s) => {
 		const v = s.values;
-		if (v.sessionType === "cash_game") return v.ringGameId;
-		if (v.sessionType === "tournament") return v.tournamentId;
+		if (v.sessionType === "cash_game") {
+			return v.ringGameId;
+		}
+		if (v.sessionType === "tournament") {
+			return v.tournamentId;
+		}
 		return undefined;
 	});
 
@@ -517,13 +518,13 @@ function SessionFormFields({
 								onBlur={field.handleBlur}
 								onChange={(e) => {
 									const val = e.target.value;
-									if (!val) {
-										field.handleChange(undefined);
-									} else {
+									if (val) {
 										const parsed = Number.parseInt(val, 10);
 										field.handleChange(
 											Number.isNaN(parsed) ? undefined : parsed
 										);
+									} else {
+										field.handleChange(undefined);
 									}
 								}}
 								placeholder="0"
@@ -616,13 +617,13 @@ function SessionFormFields({
 										onBlur={field.handleBlur}
 										onChange={(e) => {
 											const val = e.target.value;
-											if (!val) {
-												field.handleChange(undefined);
-											} else {
+											if (val) {
 												const parsed = Number.parseFloat(val);
 												field.handleChange(
 													Number.isNaN(parsed) ? undefined : parsed
 												);
+											} else {
+												field.handleChange(undefined);
 											}
 										}}
 										placeholder="0"
@@ -785,8 +786,8 @@ export function SessionForm({
 					blind1: value.blind1,
 					blind2: value.blind2,
 					blind3: value.blind3,
-					anteType: anteType !== "none" ? anteType : undefined,
-					ante: anteType !== "none" ? value.ante : undefined,
+					anteType: anteType === "none" ? undefined : anteType,
+					ante: anteType === "none" ? undefined : value.ante,
 					tableSize: value.tableSize,
 					ringGameId: value.ringGameId,
 				});
@@ -812,16 +813,18 @@ export function SessionForm({
 		},
 	});
 
-	const sessionType = form.useStore((s) => {
-		const v = s.values;
-		return v.sessionType;
-	});
+	const [sessionType, setSessionType] = useState<"cash_game" | "tournament">(
+		initialSessionType
+	);
 	const isCashGame = sessionType === "cash_game";
 	const gameOptions = isCashGame ? ringGames : tournaments;
 
 	const handleSessionTypeChange = (value: string) => {
 		const newType = value as "cash_game" | "tournament";
-		if (newType === sessionType) return;
+		if (newType === sessionType) {
+			return;
+		}
+		setSessionType(newType);
 
 		const current = form.getFieldValue("sessionDate" as never) as string;
 		const currentStartTime = form.getFieldValue("startTime" as never) as
@@ -904,71 +907,71 @@ export function SessionForm({
 		onStoreChange?.(storeId);
 	};
 
+	const applyRingGameDefaults = (gameId: string) => {
+		if (!ringGames) {
+			return;
+		}
+		const game = ringGames.find((g) => g.id === gameId);
+		if (!game) {
+			return;
+		}
+		if (game.variant != null) {
+			form.setFieldValue("variant" as never, game.variant as never);
+		}
+		form.setFieldValue(
+			"blind1" as never,
+			nullToUndefined(game.blind1) as never
+		);
+		form.setFieldValue(
+			"blind2" as never,
+			nullToUndefined(game.blind2) as never
+		);
+		form.setFieldValue(
+			"blind3" as never,
+			nullToUndefined(game.blind3) as never
+		);
+		form.setFieldValue("ante" as never, nullToUndefined(game.ante) as never);
+		form.setFieldValue(
+			"anteType" as never,
+			(nullToUndefined(game.anteType) ?? "none") as never
+		);
+		form.setFieldValue(
+			"tableSize" as never,
+			nullToUndefined(game.tableSize) as never
+		);
+		if (game.currencyId) {
+			form.setFieldValue("currencyId" as never, game.currencyId as never);
+		}
+	};
+
+	const applyTournamentDefaults = (gameId: string) => {
+		if (!tournaments) {
+			return;
+		}
+		const game = tournaments.find((t) => t.id === gameId);
+		if (!game) {
+			return;
+		}
+		if (game.buyIn != null) {
+			form.setFieldValue("tournamentBuyIn" as never, game.buyIn as never);
+		}
+		if (game.entryFee != null) {
+			form.setFieldValue("entryFee" as never, game.entryFee as never);
+		}
+	};
+
 	const handleGameChange = (value: string) => {
 		const gameId = value === NONE_VALUE ? undefined : value;
 
 		if (isCashGame) {
 			form.setFieldValue("ringGameId" as never, gameId as never);
-
-			// Auto-fill fields from ring game
-			if (ringGames && gameId) {
-				const game = ringGames.find((g) => g.id === gameId);
-				if (game) {
-					if (game.variant != null) {
-						form.setFieldValue("variant" as never, game.variant as never);
-					}
-					form.setFieldValue(
-						"blind1" as never,
-						nullToUndefined(game.blind1) as never
-					);
-					form.setFieldValue(
-						"blind2" as never,
-						nullToUndefined(game.blind2) as never
-					);
-					form.setFieldValue(
-						"blind3" as never,
-						nullToUndefined(game.blind3) as never
-					);
-					form.setFieldValue(
-						"ante" as never,
-						nullToUndefined(game.ante) as never
-					);
-					form.setFieldValue(
-						"anteType" as never,
-						(nullToUndefined(game.anteType) ?? "none") as never
-					);
-					form.setFieldValue(
-						"tableSize" as never,
-						nullToUndefined(game.tableSize) as never
-					);
-					if (game.currencyId) {
-						form.setFieldValue(
-							"currencyId" as never,
-							game.currencyId as never
-						);
-					}
-				}
+			if (gameId) {
+				applyRingGameDefaults(gameId);
 			}
 		} else {
 			form.setFieldValue("tournamentId" as never, gameId as never);
-
-			// Auto-fill fields from tournament
-			if (tournaments && gameId) {
-				const game = tournaments.find((t) => t.id === gameId);
-				if (game) {
-					if (game.buyIn != null) {
-						form.setFieldValue(
-							"tournamentBuyIn" as never,
-							game.buyIn as never
-						);
-					}
-					if (game.entryFee != null) {
-						form.setFieldValue(
-							"entryFee" as never,
-							game.entryFee as never
-						);
-					}
-				}
+			if (gameId) {
+				applyTournamentDefaults(gameId);
 			}
 		}
 	};

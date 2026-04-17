@@ -38,7 +38,9 @@ export interface TournamentDetailFieldsProps {
 const NONE_VALUE = "__none__";
 
 function parseNumericInput(value: string): number | undefined {
-	if (!value) return undefined;
+	if (!value) {
+		return undefined;
+	}
 	const parsed = Number.parseFloat(value);
 	return Number.isNaN(parsed) ? undefined : parsed;
 }
@@ -83,7 +85,9 @@ export function TournamentPrimaryFields({
 						id="entryFee"
 						inputMode="numeric"
 						min={0}
-						onChange={(e) => onEntryFeeChange?.(parseNumericInput(e.target.value))}
+						onChange={(e) =>
+							onEntryFeeChange?.(parseNumericInput(e.target.value))
+						}
 						placeholder="0"
 						type="number"
 						value={entryFee ?? ""}
@@ -98,7 +102,9 @@ export function TournamentPrimaryFields({
 					id="prizeMoney"
 					inputMode="numeric"
 					min={0}
-					onChange={(e) => onPrizeMoneyChange?.(parseNumericInput(e.target.value))}
+					onChange={(e) =>
+						onPrizeMoneyChange?.(parseNumericInput(e.target.value))
+					}
 					placeholder="0"
 					type="number"
 					value={prizeMoney ?? ""}

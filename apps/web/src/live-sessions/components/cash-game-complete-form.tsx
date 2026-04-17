@@ -64,7 +64,9 @@ export function CashGameCompleteForm({
 							}
 							placeholder="0"
 							type="number"
-							value={field.state.value !== undefined ? String(field.state.value) : ""}
+							value={
+								field.state.value === undefined ? "" : String(field.state.value)
+							}
 						/>
 					</Field>
 				)}
@@ -77,7 +79,9 @@ export function CashGameCompleteForm({
 							disabled={isLoading || !state.canSubmit || state.isSubmitting}
 							type="submit"
 						>
-							{isLoading || state.isSubmitting ? "Completing..." : "Complete Session"}
+							{isLoading || state.isSubmitting
+								? "Completing..."
+								: "Complete Session"}
 						</Button>
 					</DialogActionRow>
 				)}
