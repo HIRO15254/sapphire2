@@ -15,7 +15,6 @@ import {
 	type LayoutItem,
 	useLayoutSync,
 } from "@/dashboard/hooks/use-layout-sync";
-import { PageHeader } from "@/shared/components/page-header";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
@@ -157,15 +156,13 @@ export function DashboardPage() {
 
 	return (
 		<div className="p-4 md:p-6">
-			<PageHeader
-				actions={
-					<div className="flex items-center gap-2">
-						{isEditing ? <AddWidgetMenu onSelect={handleAdd} /> : null}
-						<EditModeToggle isEditing={isEditing} onToggle={toggle} />
-					</div>
-				}
-				heading="Dashboard"
-			/>
+			<div className="mb-6 flex items-center justify-between gap-3">
+				<h1 className="font-bold text-2xl">Dashboard</h1>
+				<div className="flex items-center gap-2">
+					{isEditing ? <AddWidgetMenu onSelect={handleAdd} /> : null}
+					<EditModeToggle isEditing={isEditing} onToggle={toggle} />
+				</div>
+			</div>
 
 			{error ? (
 				<Alert className="mb-4" variant="destructive">

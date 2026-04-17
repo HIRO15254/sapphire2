@@ -60,6 +60,7 @@ export function DashboardGrid({
 	return (
 		<GridLayout
 			cols={GRID_COLS[device]}
+			containerPadding={[0, 0]}
 			draggableHandle={`.${WIDGET_DRAG_HANDLE_CLASS}`}
 			isDraggable={isEditing}
 			isResizable={isEditing}
