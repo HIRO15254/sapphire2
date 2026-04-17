@@ -35,15 +35,19 @@ export function DashboardWidget({
 				isEditing && "ring-1 ring-primary/40"
 			)}
 		>
-			<div
-				className={cn(
-					"flex items-center justify-between gap-2 border-b bg-muted/30 px-2 py-1.5",
-					isEditing && `${WIDGET_DRAG_HANDLE_CLASS} cursor-move`
-				)}
-			>
-				<div className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+			<div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-2 py-1.5">
+				<div className="flex min-w-0 items-center gap-1 text-muted-foreground">
 					{isEditing ? (
-						<IconGripVertical className="shrink-0" size={14} />
+						<button
+							aria-label={`Drag ${label}`}
+							className={cn(
+								WIDGET_DRAG_HANDLE_CLASS,
+								"shrink-0 cursor-grab rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+							)}
+							type="button"
+						>
+							<IconGripVertical size={14} />
+						</button>
 					) : null}
 					{Icon ? <Icon className="shrink-0" size={14} /> : null}
 					<span className="truncate font-medium text-xs">{label}</span>

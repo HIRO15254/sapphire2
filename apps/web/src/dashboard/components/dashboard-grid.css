@@ -1,0 +1,15 @@
+.react-grid-item.react-grid-placeholder {
+	background: hsl(var(--muted));
+	border: 2px dashed hsl(var(--border));
+	border-radius: 0.75rem;
+	opacity: 0.6;
+}
+
+.react-grid-item.react-grid-placeholder.placeholder-resizing {
+	opacity: 0.4;
+}
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se::after {
+	border-right-color: hsl(var(--muted-foreground));
+	border-bottom-color: hsl(var(--muted-foreground));
+}

@@ -5,6 +5,15 @@ import { ManagementSectionHeader } from "@/shared/components/management/manageme
 import { Button } from "@/shared/components/ui/button";
 import { formatCompactNumber } from "@/utils/format-number";
 
+function getExpandedValue(
+	isExpanded: boolean | undefined
+): "details" | null | undefined {
+	if (isExpanded === undefined) {
+		return undefined;
+	}
+	return isExpanded ? "details" : null;
+}
+
 interface Transaction {
 	amount: number;
 	id: string;
@@ -52,8 +61,7 @@ export function CurrencyCard({
 	onLoadMore,
 	transactions,
 }: CurrencyCardProps) {
-	const expandedValue =
-		isExpanded !== undefined ? (isExpanded ? "details" : null) : undefined;
+	const expandedValue = getExpandedValue(isExpanded);
 
 	return (
 		<EntityListItem

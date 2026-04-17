@@ -1,4 +1,5 @@
 import "react-grid-layout/css/styles.css";
+import "./dashboard-grid.css";
 import { useMemo, useRef } from "react";
 import GridLayout, { type Layout } from "react-grid-layout";
 import {
@@ -69,7 +70,6 @@ export function DashboardGrid({
 			margin={[8, 8]}
 			onDragStop={(_layout) => onLayoutChange?.(_layout)}
 			onResizeStop={(_layout) => onLayoutChange?.(_layout)}
-			preventCollision
 			rowHeight={ROW_HEIGHT}
 			width={containerWidth}
 		>
