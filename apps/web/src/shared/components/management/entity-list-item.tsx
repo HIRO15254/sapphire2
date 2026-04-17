@@ -8,6 +8,7 @@ import {
 import { Button } from "@/shared/components/ui/button";
 
 interface EntityListItemProps {
+	actions?: React.ReactNode;
 	children: React.ReactNode;
 	className?: string;
 	contentClassName?: string;
@@ -21,6 +22,7 @@ interface EntityListItemProps {
 }
 
 export function EntityListItem({
+	actions,
 	children,
 	className,
 	contentClassName,
@@ -67,6 +69,9 @@ export function EntityListItem({
 				<div className={cn("space-y-3 px-3 py-3", contentClassName)}>
 					{children}
 					<div className="flex flex-wrap items-center justify-end gap-1 border-t pt-3">
+						{actions && (
+							<div className="mr-auto flex items-center gap-1">{actions}</div>
+						)}
 						{confirmingDelete ? (
 							<>
 								<span className="mr-auto text-destructive text-xs">

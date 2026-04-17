@@ -6,9 +6,12 @@ import {
 	IconMapPin,
 	IconPlayerPlay,
 	IconPokerChip,
+	IconShare2,
 	IconTrophy,
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { shareSession } from "@/sessions/utils/share-session";
 import { EntityListItem } from "@/shared/components/management/entity-list-item";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -441,12 +444,34 @@ export function SessionCard({
 	onDelete,
 	onReopen,
 }: SessionCardProps) {
+	const [isSharing, setIsSharing] = useState(false);
 	const isTournament = session.type === "tournament";
 	const liveSessionId =
 		session.liveCashGameSessionId ?? session.liveTournamentSessionId;
 
+	const handleShare = async () => {
+		setIsSharing(true);
+		try {
+			await shareSession(session);
+		} finally {
+			setIsSharing(false);
+		}
+	};
+
 	return (
 		<EntityListItem
+			actions={
+				<Button
+					disabled={isSharing}
+					onClick={handleShare}
+					size="xs"
+					type="button"
+					variant="ghost"
+				>
+					<IconShare2 size={14} />
+					{isSharing ? "Sharing..." : "Share"}
+				</Button>
+			}
 			deleteLabel="session"
 			onDelete={() => onDelete(session.id)}
 			onEdit={() => onEdit(session)}
