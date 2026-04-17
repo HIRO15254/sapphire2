@@ -1,4 +1,5 @@
 import { useForm } from "@tanstack/react-form";
+import { IconLink, IconUnlink } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
@@ -9,6 +10,7 @@ import {
 } from "@/shared/components/management/management-list";
 import { DiscordIcon } from "./icons/discord";
 import { GoogleIcon } from "./icons/google";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { DialogActionRow } from "./ui/dialog-action-row";
 import { Field } from "./ui/field";
@@ -208,10 +210,9 @@ export function LinkedAccounts() {
 		<div className="space-y-3">
 			<ManagementList>
 				<ManagementListItem
+					className="min-h-14"
 					actions={
-						hasCredential ? (
-							<span className="text-muted-foreground text-xs">Linked</span>
-						) : (
+						hasCredential ? undefined : (
 							<Button
 								onClick={() => setSetPasswordOpen(true)}
 								size="sm"
@@ -221,12 +222,16 @@ export function LinkedAccounts() {
 							</Button>
 						)
 					}
-					description={
-						hasCredential
-							? "Use your email and password to sign in directly."
-							: "Add a password login alongside your linked social accounts."
+					title={
+						<span className="flex items-center gap-2">
+							Email / Password
+							{hasCredential ? (
+								<Badge className="border-green-500 text-green-600" variant="outline">
+									Linked
+								</Badge>
+							) : null}
+						</span>
 					}
-					title="Email / Password"
 				/>
 
 				{PROVIDERS.map((provider) => {
@@ -235,6 +240,7 @@ export function LinkedAccounts() {
 
 					return (
 						<ManagementListItem
+							className="min-h-14"
 							actions={
 								isLinked ? (
 									<Button
@@ -243,6 +249,7 @@ export function LinkedAccounts() {
 										size="sm"
 										variant="outline"
 									>
+										<IconUnlink />
 										Unlink
 									</Button>
 								) : (
@@ -251,14 +258,24 @@ export function LinkedAccounts() {
 										size="sm"
 										variant="outline"
 									>
+										<IconLink />
 										Link
 									</Button>
 								)
 							}
-							description={isLinked ? "Linked" : "Not linked"}
 							key={provider.id}
 							leading={provider.icon}
-							title={provider.label}
+							title={
+								<span className="flex items-center gap-2">
+									{provider.label}
+									<Badge
+										className={isLinked ? "border-green-500 text-green-600" : ""}
+										variant="outline"
+									>
+										{isLinked ? "Linked" : "Not linked"}
+									</Badge>
+								</span>
+							}
 						/>
 					);
 				})}

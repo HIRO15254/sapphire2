@@ -24,14 +24,14 @@ function ManagementListItem({
 }: ManagementListItemProps) {
 	return (
 		<div
-			className={cn("rounded-md border p-3", className)}
+			className={cn("flex items-center rounded-md border p-3", className)}
 			data-slot="management-list-item"
 			{...props}
 		>
-			<div className="flex items-start justify-between gap-3">
+			<div className="flex w-full items-center justify-between gap-3">
 				<div className="min-w-0 flex-1">
-					<div className="flex items-start gap-2">
-						{leading ? <div className="shrink-0 pt-0.5">{leading}</div> : null}
+					<div className="flex items-center gap-2">
+						{leading ? <div className="shrink-0">{leading}</div> : null}
 						<div className="min-w-0 flex-1">
 							<div className="font-medium text-sm">{title}</div>
 							{description ? (
