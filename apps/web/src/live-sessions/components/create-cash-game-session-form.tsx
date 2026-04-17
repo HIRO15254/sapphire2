@@ -227,7 +227,11 @@ export function CreateCashGameSessionForm({
 					>
 						{(field) => (
 							<Field
-								error={field.state.meta.errors[0]?.message}
+								error={
+									field.state.meta.errors[0]
+										? String(field.state.meta.errors[0])
+										: undefined
+								}
 								htmlFor={field.name}
 								label="Initial Buy-in"
 							>
