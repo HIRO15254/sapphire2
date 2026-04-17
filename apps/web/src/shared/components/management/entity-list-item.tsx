@@ -33,10 +33,14 @@ export function EntityListItem({
 	summaryClassName,
 }: EntityListItemProps) {
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const [internalExpandedValue, setInternalExpandedValue] = useState<string | null>(null);
+	const [internalExpandedValue, setInternalExpandedValue] = useState<
+		string | null
+	>(null);
 
 	const isControlled = controlledExpandedValue !== undefined;
-	const expandedValue = isControlled ? controlledExpandedValue : internalExpandedValue;
+	const expandedValue = isControlled
+		? controlledExpandedValue
+		: internalExpandedValue;
 
 	return (
 		<ExpandableItemList

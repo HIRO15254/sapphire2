@@ -6,9 +6,12 @@ import {
 	IconMapPin,
 	IconPlayerPlay,
 	IconPokerChip,
+	IconShare2,
 	IconTrophy,
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { shareSession } from "@/sessions/utils/share-session";
 import { EntityListItem } from "@/shared/components/management/entity-list-item";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -441,9 +444,19 @@ export function SessionCard({
 	onDelete,
 	onReopen,
 }: SessionCardProps) {
+	const [isSharing, setIsSharing] = useState(false);
 	const isTournament = session.type === "tournament";
 	const liveSessionId =
 		session.liveCashGameSessionId ?? session.liveTournamentSessionId;
+
+	const handleShare = async () => {
+		setIsSharing(true);
+		try {
+			await shareSession(session);
+		} finally {
+			setIsSharing(false);
+		}
+	};
 
 	return (
 		<EntityListItem
@@ -469,34 +482,47 @@ export function SessionCard({
 						</p>
 					</div>
 				)}
-				{liveSessionId && (
-					<div className="mt-2 flex items-center gap-2 border-t pt-2">
-						<Button asChild className="px-0" size="xs" variant="link">
-							<Link
-								params={{
-									sessionType: isTournament ? "tournament" : "cash-game",
-									sessionId: liveSessionId,
-								}}
-								to="/live-sessions/$sessionType/$sessionId/events"
-							>
-								<IconList size={12} />
-								Events
-							</Link>
-						</Button>
-						{onReopen && (
-							<Button
-								className="px-0"
-								onClick={() => onReopen(liveSessionId)}
-								size="xs"
-								type="button"
-								variant="link"
-							>
-								<IconPlayerPlay size={12} />
-								Reopen
+				<div className="mt-2 flex items-center gap-2 border-t pt-2">
+					<Button
+						className="px-0"
+						disabled={isSharing}
+						onClick={handleShare}
+						size="xs"
+						type="button"
+						variant="link"
+					>
+						<IconShare2 size={12} />
+						{isSharing ? "Sharing..." : "Share"}
+					</Button>
+					{liveSessionId && (
+						<>
+							<Button asChild className="px-0" size="xs" variant="link">
+								<Link
+									params={{
+										sessionType: isTournament ? "tournament" : "cash-game",
+										sessionId: liveSessionId,
+									}}
+									to="/live-sessions/$sessionType/$sessionId/events"
+								>
+									<IconList size={12} />
+									Events
+								</Link>
 							</Button>
-						)}
-					</div>
-				)}
+							{onReopen && (
+								<Button
+									className="px-0"
+									onClick={() => onReopen(liveSessionId)}
+									size="xs"
+									type="button"
+									variant="link"
+								>
+									<IconPlayerPlay size={12} />
+									Reopen
+								</Button>
+							)}
+						</>
+					)}
+				</div>
 			</div>
 		</EntityListItem>
 	);
