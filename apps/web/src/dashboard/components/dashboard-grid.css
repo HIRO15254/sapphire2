@@ -1,0 +1,15 @@
+.react-grid-item.react-grid-placeholder {
+	background: color-mix(in oklch, var(--primary) 30%, transparent);
+	border: 2px dashed color-mix(in oklch, var(--primary) 70%, transparent);
+	border-radius: 0.75rem;
+	opacity: 1;
+}
+
+.react-grid-item.react-grid-placeholder.placeholder-resizing {
+	background: color-mix(in oklch, var(--primary) 20%, transparent);
+}
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se::after {
+	border-right-color: var(--muted-foreground);
+	border-bottom-color: var(--muted-foreground);
+}

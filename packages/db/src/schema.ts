@@ -8,6 +8,10 @@ import {
 	verification,
 } from "./schema/auth";
 import {
+	dashboardWidget,
+	dashboardWidgetRelations,
+} from "./schema/dashboard-widget";
+import {
 	liveCashGameSession,
 	liveCashGameSessionRelations,
 } from "./schema/live-cash-game-session";
@@ -108,4 +112,6 @@ export const schema = {
 	playerToPlayerTagRelations,
 	updateNoteView,
 	updateNoteViewRelations,
+	dashboardWidget,
+	dashboardWidgetRelations,
 };
