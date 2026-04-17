@@ -688,19 +688,18 @@ describe("TournamentCompleteForm — complete dialog fields", () => {
 		expect(button).toBeDisabled();
 	});
 
-	it("placement input has min=1 and is required", () => {
+	it("placement input has numeric inputMode", () => {
 		render(<TournamentCompleteForm isLoading={false} onSubmit={vi.fn()} />);
 
 		const input = screen.getByLabelText(REGEX_PLACEMENT_LABEL);
-		expect(input).toHaveAttribute("min", "1");
-		expect(input).toBeRequired();
+		expect(input).toHaveAttribute("inputMode", "numeric");
 	});
 
 	it("prizeMoney input has defaultValue of 0", () => {
 		render(<TournamentCompleteForm isLoading={false} onSubmit={vi.fn()} />);
 
 		const input = screen.getByLabelText(REGEX_PRIZE_MONEY_LABEL);
-		expect(input).toHaveValue(0);
+		expect(input).toHaveValue("0");
 	});
 });
 
