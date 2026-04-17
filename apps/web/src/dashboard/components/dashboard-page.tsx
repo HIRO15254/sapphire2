@@ -156,7 +156,7 @@ export function DashboardPage() {
 	}, [deletingWidget, deleteWidget]);
 
 	return (
-		<div className="container mx-auto max-w-7xl px-4 py-4">
+		<div className="p-4 md:p-6">
 			<PageHeader
 				actions={
 					<div className="flex items-center gap-2">
@@ -164,7 +164,6 @@ export function DashboardPage() {
 						<EditModeToggle isEditing={isEditing} onToggle={toggle} />
 					</div>
 				}
-				description="Customize your dashboard with widgets"
 				heading="Dashboard"
 			/>
 
