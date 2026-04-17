@@ -1,5 +1,5 @@
 import { useForm } from "@tanstack/react-form";
-import { Link2, Unlink2 } from "lucide-react";
+import { IconLink, IconUnlink } from "@tabler/icons-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
@@ -211,9 +211,7 @@ export function LinkedAccounts() {
 			<ManagementList>
 				<ManagementListItem
 					actions={
-						hasCredential ? (
-							<Badge variant="secondary">Linked</Badge>
-						) : (
+						hasCredential ? undefined : (
 							<Button
 								onClick={() => setSetPasswordOpen(true)}
 								size="sm"
@@ -223,7 +221,16 @@ export function LinkedAccounts() {
 							</Button>
 						)
 					}
-					title="Email / Password"
+					title={
+						<span className="flex items-center gap-2">
+							Email / Password
+							{hasCredential ? (
+								<Badge className="border-green-500 text-green-600" variant="outline">
+									Linked
+								</Badge>
+							) : null}
+						</span>
+					}
 				/>
 
 				{PROVIDERS.map((provider) => {
@@ -240,7 +247,7 @@ export function LinkedAccounts() {
 										size="sm"
 										variant="outline"
 									>
-										<Unlink2 />
+										<IconUnlink />
 										Unlink
 									</Button>
 								) : (
@@ -249,7 +256,7 @@ export function LinkedAccounts() {
 										size="sm"
 										variant="outline"
 									>
-										<Link2 />
+										<IconLink />
 										Link
 									</Button>
 								)
@@ -259,7 +266,10 @@ export function LinkedAccounts() {
 							title={
 								<span className="flex items-center gap-2">
 									{provider.label}
-									<Badge variant={isLinked ? "secondary" : "outline"}>
+									<Badge
+										className={isLinked ? "border-green-500 text-green-600" : ""}
+										variant="outline"
+									>
 										{isLinked ? "Linked" : "Not linked"}
 									</Badge>
 								</span>
