@@ -1,5 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
+import z from "zod";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
@@ -34,6 +35,13 @@ interface CreateCashGameSessionFormProps {
 	stores: Array<{ id: string; name: string }>;
 }
 
+const createCashGameSessionFormSchema = z.object({
+	initialBuyIn: z.coerce
+		.number({ invalid_type_error: "Buy-in is required" })
+		.min(0, "Must be 0 or greater"),
+	memo: z.string().optional(),
+});
+
 export function CreateCashGameSessionForm({
 	currencies,
 	isLoading,
@@ -62,7 +70,7 @@ export function CreateCashGameSessionForm({
 
 	const form = useForm({
 		defaultValues: {
-			initialBuyIn: "",
+			initialBuyIn: undefined as number | undefined,
 			memo: "",
 		},
 		onSubmit: ({ value }) => {
@@ -73,16 +81,19 @@ export function CreateCashGameSessionForm({
 				storeId: selectedStoreId,
 				ringGameId: selectedRingGameId,
 				currencyId: selectedCurrencyId,
-				initialBuyIn: Number(value.initialBuyIn),
+				initialBuyIn: value.initialBuyIn as number,
 				memo: value.memo || undefined,
 			});
+		},
+		validators: {
+			onSubmit: createCashGameSessionFormSchema,
 		},
 	});
 
 	const handleStoreChange = (value: string) => {
 		setSelectedStoreId(value);
 		setSelectedRingGameId(undefined);
-		form.setFieldValue("initialBuyIn", "");
+		form.setFieldValue("initialBuyIn", undefined);
 		onStoreChange?.(value);
 	};
 
@@ -90,7 +101,10 @@ export function CreateCashGameSessionForm({
 		setSelectedRingGameId(value);
 		const ringGame = ringGames.find((g) => g.id === value);
 		if (ringGame) {
-			form.setFieldValue("initialBuyIn", ringGame.maxBuyIn?.toString() ?? "");
+			form.setFieldValue(
+				"initialBuyIn",
+				ringGame.maxBuyIn ?? undefined
+			);
 			setSelectedCurrencyId(ringGame.currencyId ?? undefined);
 		}
 	};
@@ -189,25 +203,21 @@ export function CreateCashGameSessionForm({
 						name="initialBuyIn"
 						validators={{
 							onChange: ({ value }) => {
-								if (value === "") {
+								if (value === undefined || value === null) {
 									return "Buy-in is required";
 								}
-								const numValue = Number(value);
-								if (Number.isNaN(numValue)) {
-									return "Must be a number";
-								}
-								if (numValue < 0) {
+								if (value < 0) {
 									return "Must be 0 or greater";
 								}
 								if (
 									selectedRingGame?.minBuyIn != null &&
-									numValue < selectedRingGame.minBuyIn
+									value < selectedRingGame.minBuyIn
 								) {
 									return `Must be at least ${selectedRingGame.minBuyIn}`;
 								}
 								if (
 									selectedRingGame?.maxBuyIn != null &&
-									numValue > selectedRingGame.maxBuyIn
+									value > selectedRingGame.maxBuyIn
 								) {
 									return `Must be at most ${selectedRingGame.maxBuyIn}`;
 								}
@@ -217,7 +227,7 @@ export function CreateCashGameSessionForm({
 					>
 						{(field) => (
 							<Field
-								error={field.state.meta.errors[0]}
+								error={field.state.meta.errors[0]?.message}
 								htmlFor={field.name}
 								label="Initial Buy-in"
 							>
@@ -225,10 +235,15 @@ export function CreateCashGameSessionForm({
 									id={field.name}
 									max={selectedRingGame?.maxBuyIn ?? undefined}
 									min={selectedRingGame?.minBuyIn ?? 0}
+									name={field.name}
 									onBlur={field.handleBlur}
-									onChange={(e) => field.handleChange(e.target.value)}
+									onChange={(e) =>
+										field.handleChange(
+											e.target.value === "" ? undefined : Number(e.target.value)
+										)
+									}
 									type="number"
-									value={field.state.value}
+									value={field.state.value !== undefined ? String(field.state.value) : ""}
 								/>
 							</Field>
 						)}
@@ -239,6 +254,7 @@ export function CreateCashGameSessionForm({
 							<Field htmlFor={field.name} label="Memo">
 								<Textarea
 									id={field.name}
+									name={field.name}
 									onBlur={field.handleBlur}
 									onChange={(e) => field.handleChange(e.target.value)}
 									placeholder="Notes about this session"
@@ -259,7 +275,7 @@ export function CreateCashGameSessionForm({
 						}
 						type="submit"
 					>
-						{isLoading ? "Starting..." : "Start Session"}
+						{isLoading || state.isSubmitting ? "Starting..." : "Start Session"}
 					</Button>
 				)}
 			</form.Subscribe>

@@ -1,11 +1,16 @@
+import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
+import z from "zod";
 import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-sheet";
 import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
-import { StackNumberField } from "@/live-sessions/components/stack-ui";
-import { useTournamentFormContext } from "@/live-sessions/hooks/use-session-form";
+import {
+	StackNumberField,
+} from "@/live-sessions/components/stack-ui";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import { Field } from "@/shared/components/ui/field";
+import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 
@@ -41,6 +46,30 @@ interface TournamentStackFormProps {
 	onSubmit: (values: TournamentStackFormSubmitValues) => void;
 }
 
+const tournamentStackFormSchema = z.object({
+	stackAmount: z.coerce
+		.number({ invalid_type_error: "Stack amount is required" })
+		.min(0, "Stack amount must be 0 or greater"),
+	recordTournamentInfo: z.boolean(),
+	remainingPlayers: z.coerce
+		.number()
+		.int()
+		.min(1, "Must be at least 1")
+		.optional(),
+	totalEntries: z.coerce
+		.number()
+		.int()
+		.min(1, "Must be at least 1")
+		.optional(),
+	chipPurchaseCounts: z.array(
+		z.object({
+			name: z.string(),
+			count: z.number().int().min(0),
+			chipsPerUnit: z.number(),
+		})
+	),
+});
+
 export function TournamentStackForm({
 	chipPurchaseTypes = [],
 	isLoading,
@@ -50,31 +79,35 @@ export function TournamentStackForm({
 	onPurchaseChips,
 	onSubmit,
 }: TournamentStackFormProps) {
-	const {
-		state,
-		setStackAmount,
-		setRemainingPlayers,
-		setTotalEntries,
-		setChipPurchaseCounts,
-	} = useTournamentFormContext();
-	const { stackAmount, remainingPlayers, totalEntries, chipPurchaseCounts } =
-		state;
-
-	const [recordTournamentInfo, setRecordTournamentInfo] = useState(true);
 	const [chipPurchaseSheetOpen, setChipPurchaseSheetOpen] = useState(false);
 	const [memoSheetOpen, setMemoSheetOpen] = useState(false);
 	const [memoText, setMemoText] = useState("");
 
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		onSubmit({
-			stackAmount: Number(stackAmount),
-			recordTournamentInfo,
-			remainingPlayers: remainingPlayers ? Number(remainingPlayers) : null,
-			totalEntries: totalEntries ? Number(totalEntries) : null,
-			chipPurchaseCounts,
-		});
-	};
+	const form = useForm({
+		defaultValues: {
+			stackAmount: undefined as number | undefined,
+			recordTournamentInfo: true,
+			remainingPlayers: undefined as number | undefined,
+			totalEntries: undefined as number | undefined,
+			chipPurchaseCounts: [] as Array<{
+				name: string;
+				count: number;
+				chipsPerUnit: number;
+			}>,
+		},
+		onSubmit: ({ value }) => {
+			onSubmit({
+				stackAmount: value.stackAmount as number,
+				recordTournamentInfo: value.recordTournamentInfo,
+				remainingPlayers: value.remainingPlayers ?? null,
+				totalEntries: value.totalEntries ?? null,
+				chipPurchaseCounts: value.chipPurchaseCounts,
+			});
+		},
+		validators: {
+			onSubmit: tournamentStackFormSchema,
+		},
+	});
 
 	const handleChipPurchaseSubmit = (values: {
 		chips: number;
@@ -95,96 +128,168 @@ export function TournamentStackForm({
 
 	return (
 		<div className="flex flex-col gap-4">
-			<form className="flex flex-col gap-3" onSubmit={handleSubmit}>
-				<StackNumberField
-					id="tournament-stack-amount"
-					inputMode="numeric"
-					label="Current Stack"
-					min={0}
-					onChange={setStackAmount}
-					required
-					type="number"
-					value={stackAmount}
-				/>
+			<form
+				className="flex flex-col gap-3"
+				onSubmit={(e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					form.handleSubmit();
+				}}
+			>
+				<form.Field name="stackAmount">
+					{(field) => (
+						<StackNumberField
+							id="tournament-stack-amount"
+							inputMode="numeric"
+							label="Current Stack"
+							min={0}
+							onChange={(value) =>
+								field.handleChange(value === "" ? undefined : Number(value))
+							}
+							required
+							type="number"
+							value={field.state.value !== undefined ? String(field.state.value) : ""}
+						/>
+					)}
+				</form.Field>
 
-				<div className="flex items-center gap-2">
-					<Checkbox
-						checked={recordTournamentInfo}
-						id="record-tournament-info"
-						onCheckedChange={(checked) =>
-							setRecordTournamentInfo(checked === true)
-						}
-					/>
-					<Label htmlFor="record-tournament-info">Record tournament info</Label>
-				</div>
-
-				{recordTournamentInfo && (
-					<>
-						<div className="grid grid-cols-2 gap-2">
-							<StackNumberField
-								id="tournament-remaining-players"
-								inputMode="numeric"
-								label="Remaining Players"
-								min={1}
-								onChange={setRemainingPlayers}
-								type="number"
-								value={remainingPlayers}
+				<form.Field name="recordTournamentInfo">
+					{(field) => (
+						<div className="flex items-center gap-2">
+							<Checkbox
+								checked={field.state.value}
+								id="record-tournament-info"
+								onCheckedChange={(checked) =>
+									field.handleChange(checked === true)
+								}
 							/>
-							<StackNumberField
-								id="tournament-total-entries"
-								inputMode="numeric"
-								label="Total Entries"
-								min={1}
-								onChange={setTotalEntries}
-								type="number"
-								value={totalEntries}
-							/>
+							<Label htmlFor="record-tournament-info">
+								Record tournament info
+							</Label>
 						</div>
+					)}
+				</form.Field>
 
-						{chipPurchaseTypes.length > 0 && (
-							<div className="flex flex-col gap-1.5">
-								{chipPurchaseTypes.map((t) => {
-									const countEntry = chipPurchaseCounts.find(
-										(c) => c.name === t.name
-									);
-									const countValue = countEntry?.count ?? 0;
-									return (
-										<StackNumberField
-											id={`chip-purchase-count-${t.name}`}
-											inputMode="numeric"
-											key={t.name}
-											label={`${t.name} count`}
-											min={0}
-											onChange={(value) => {
-												const newCount = Number(value);
-												setChipPurchaseCounts((prev) => {
-													const without = prev.filter((c) => c.name !== t.name);
-													if (newCount === 0) {
-														return without;
+				<form.Subscribe selector={(state) => state.values.recordTournamentInfo}>
+					{(recordTournamentInfo) =>
+						recordTournamentInfo ? (
+							<>
+								<div className="grid grid-cols-2 gap-2">
+									<form.Field name="remainingPlayers">
+										{(field) => (
+											<Field
+												error={field.state.meta.errors[0]?.message}
+												htmlFor={field.name}
+												label="Remaining Players"
+											>
+												<Input
+													id={field.name}
+													inputMode="numeric"
+													min={1}
+													name={field.name}
+													onBlur={field.handleBlur}
+													onChange={(e) =>
+														field.handleChange(
+															e.target.value === ""
+																? undefined
+																: Number(e.target.value)
+														)
 													}
-													return [
-														...without,
-														{
-															name: t.name,
-															count: newCount,
-															chipsPerUnit: t.chips,
-														},
-													];
-												});
-											}}
-											type="number"
-											value={countValue === 0 ? "" : String(countValue)}
-										/>
-									);
-								})}
-							</div>
-						)}
-					</>
-				)}
+													type="number"
+													value={field.state.value ?? ""}
+												/>
+											</Field>
+										)}
+									</form.Field>
+									<form.Field name="totalEntries">
+										{(field) => (
+											<Field
+												error={field.state.meta.errors[0]?.message}
+												htmlFor={field.name}
+												label="Total Entries"
+											>
+												<Input
+													id={field.name}
+													inputMode="numeric"
+													min={1}
+													name={field.name}
+													onBlur={field.handleBlur}
+													onChange={(e) =>
+														field.handleChange(
+															e.target.value === ""
+																? undefined
+																: Number(e.target.value)
+														)
+													}
+													type="number"
+													value={field.state.value ?? ""}
+												/>
+											</Field>
+										)}
+									</form.Field>
+								</div>
 
-				<Button className="w-full" disabled={isLoading} type="submit">
-					{isLoading ? "..." : "Update"}
-				</Button>
+								{chipPurchaseTypes.length > 0 && (
+									<div className="flex flex-col gap-1.5">
+										{chipPurchaseTypes.map((t) => (
+											<form.Field key={t.name} name="chipPurchaseCounts">
+												{(field) => {
+													const counts = field.state.value;
+													const countEntry = counts.find(
+														(c) => c.name === t.name
+													);
+													const countValue = countEntry?.count ?? 0;
+													return (
+														<StackNumberField
+															id={`chip-purchase-count-${t.name}`}
+															inputMode="numeric"
+															label={`${t.name} count`}
+															min={0}
+															onChange={(value) => {
+																const newCount = Number(value);
+																const without = counts.filter(
+																	(c) => c.name !== t.name
+																);
+																if (newCount === 0) {
+																	field.handleChange(without);
+																} else {
+																	field.handleChange([
+																		...without,
+																		{
+																			name: t.name,
+																			count: newCount,
+																			chipsPerUnit: t.chips,
+																		},
+																	]);
+																}
+															}}
+															type="number"
+															value={
+																countValue === 0 ? "" : String(countValue)
+															}
+														/>
+													);
+												}}
+											</form.Field>
+										))}
+									</div>
+								)}
+							</>
+						) : null
+					}
+				</form.Subscribe>
+
+				<form.Subscribe>
+					{(state) => (
+						<Button
+							className="w-full"
+							disabled={isLoading || !state.canSubmit || state.isSubmitting}
+							type="submit"
+						>
+							{isLoading || state.isSubmitting ? "..." : "Update"}
+						</Button>
+					)}
+				</form.Subscribe>
 			</form>
 
 			<div className="-mx-4 border-t" />

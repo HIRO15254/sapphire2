@@ -1,3 +1,5 @@
+import { useForm } from "@tanstack/react-form";
+import z from "zod";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -14,41 +16,88 @@ interface StoreFormProps {
 	onSubmit: (values: StoreFormValues) => void;
 }
 
+const storeFormSchema = z.object({
+	name: z
+		.string()
+		.min(1, "Store name is required")
+		.max(100, "Store name must be 100 characters or less"),
+	memo: z.string().max(10_000, "Memo must be 10,000 characters or less").optional(),
+});
+
 export function StoreForm({
 	onSubmit,
 	defaultValues,
 	isLoading = false,
 }: StoreFormProps) {
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		const formData = new FormData(e.currentTarget);
-		const name = formData.get("name") as string;
-		const memo = (formData.get("memo") as string) || undefined;
-		onSubmit({ name, memo });
-	};
+	const form = useForm({
+		defaultValues: {
+			name: defaultValues?.name ?? "",
+			memo: defaultValues?.memo ?? "",
+		},
+		onSubmit: ({ value }) => {
+			onSubmit({
+				name: value.name,
+				memo: value.memo || undefined,
+			});
+		},
+		validators: {
+			onSubmit: storeFormSchema,
+		},
+	});
 
 	return (
-		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<Field htmlFor="name" label="Store Name" required>
-				<Input
-					defaultValue={defaultValues?.name}
-					id="name"
-					name="name"
-					placeholder="Enter store name"
-					required
-				/>
-			</Field>
-			<Field htmlFor="memo" label="Memo">
-				<Textarea
-					defaultValue={defaultValues?.memo}
-					id="memo"
-					name="memo"
-					placeholder="Optional notes about this store"
-				/>
-			</Field>
-			<Button disabled={isLoading} type="submit">
-				{isLoading ? "Saving..." : "Save"}
-			</Button>
+		<form
+			className="flex flex-col gap-4"
+			onSubmit={(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				form.handleSubmit();
+			}}
+		>
+			<form.Field name="name">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Store Name"
+						required
+					>
+						<Input
+							id={field.name}
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="Enter store name"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+			<form.Field name="memo">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Memo"
+					>
+						<Textarea
+							id={field.name}
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="Optional notes about this store"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+			<form.Subscribe>
+				{(state) => (
+					<Button disabled={isLoading || !state.canSubmit || state.isSubmitting} type="submit">
+						{isLoading || state.isSubmitting ? "Saving..." : "Save"}
+					</Button>
+				)}
+			</form.Subscribe>
 		</form>
 	);
 }

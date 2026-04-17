@@ -1,7 +1,16 @@
+import { useForm } from "@tanstack/react-form";
 import type * as React from "react";
+import z from "zod";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+
+const tagNameFormSchema = z.object({
+	name: z
+		.string()
+		.min(1, "Tag name is required")
+		.max(50, "Tag name must be 50 characters or less"),
+});
 
 export function TagNameForm({
 	children,
@@ -14,30 +23,56 @@ export function TagNameForm({
 	isLoading?: boolean;
 	onSubmit: (name: string) => void;
 }) {
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		const formData = new FormData(e.currentTarget);
-		const name = formData.get("name") as string;
-		onSubmit(name);
-	};
+	const form = useForm({
+		defaultValues: {
+			name: defaultName ?? "",
+		},
+		onSubmit: ({ value }) => {
+			onSubmit(value.name);
+		},
+		validators: {
+			onSubmit: tagNameFormSchema,
+		},
+	});
 
 	return (
-		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<Field htmlFor="tag-name" label="Tag Name" required>
-				<Input
-					defaultValue={defaultName}
-					id="tag-name"
-					maxLength={50}
-					minLength={1}
-					name="name"
-					placeholder="Enter tag name"
-					required
-				/>
-			</Field>
+		<form
+			className="flex flex-col gap-4"
+			onSubmit={(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				form.handleSubmit();
+			}}
+		>
+			<form.Field name="name">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Tag Name"
+						required
+					>
+						<Input
+							id={field.name}
+							maxLength={50}
+							minLength={1}
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="Enter tag name"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 			{children}
-			<Button disabled={isLoading} type="submit">
-				{isLoading ? "Saving..." : "Save"}
-			</Button>
+			<form.Subscribe>
+				{(state) => (
+					<Button disabled={isLoading || !state.canSubmit || state.isSubmitting} type="submit">
+						{isLoading || state.isSubmitting ? "Saving..." : "Save"}
+					</Button>
+				)}
+			</form.Subscribe>
 		</form>
 	);
 }
