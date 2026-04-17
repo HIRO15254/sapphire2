@@ -1,4 +1,5 @@
 import { useForm } from "@tanstack/react-form";
+import { Link2, Unlink2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
@@ -9,6 +10,7 @@ import {
 } from "@/shared/components/management/management-list";
 import { DiscordIcon } from "./icons/discord";
 import { GoogleIcon } from "./icons/google";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { DialogActionRow } from "./ui/dialog-action-row";
 import { Field } from "./ui/field";
@@ -210,7 +212,7 @@ export function LinkedAccounts() {
 				<ManagementListItem
 					actions={
 						hasCredential ? (
-							<span className="text-muted-foreground text-xs">Linked</span>
+							<Badge variant="secondary">Linked</Badge>
 						) : (
 							<Button
 								onClick={() => setSetPasswordOpen(true)}
@@ -220,11 +222,6 @@ export function LinkedAccounts() {
 								Set Password
 							</Button>
 						)
-					}
-					description={
-						hasCredential
-							? "Use your email and password to sign in directly."
-							: "Add a password login alongside your linked social accounts."
 					}
 					title="Email / Password"
 				/>
@@ -243,6 +240,7 @@ export function LinkedAccounts() {
 										size="sm"
 										variant="outline"
 									>
+										<Unlink2 />
 										Unlink
 									</Button>
 								) : (
@@ -251,14 +249,21 @@ export function LinkedAccounts() {
 										size="sm"
 										variant="outline"
 									>
+										<Link2 />
 										Link
 									</Button>
 								)
 							}
-							description={isLinked ? "Linked" : "Not linked"}
 							key={provider.id}
 							leading={provider.icon}
-							title={provider.label}
+							title={
+								<span className="flex items-center gap-2">
+									{provider.label}
+									<Badge variant={isLinked ? "secondary" : "outline"}>
+										{isLinked ? "Linked" : "Not linked"}
+									</Badge>
+								</span>
+							}
 						/>
 					);
 				})}
