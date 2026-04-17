@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
 import { useTransactionTypes } from "@/currencies/hooks/use-transaction-types";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
@@ -12,6 +13,7 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { requiredNumericString } from "@/shared/lib/form-fields";
 
 const NEW_TYPE_VALUE = "__new__";
 
@@ -43,6 +45,29 @@ function getButtonLabel(isCreatingType: boolean, isLoading: boolean) {
 	return "Save";
 }
 
+function buildSchema() {
+	return z
+		.object({
+			amount: requiredNumericString(),
+			transactionTypeId: z.string().min(1, "Type is required"),
+			newTypeName: z.string(),
+			transactedAt: z.string().min(1, "Date is required"),
+			memo: z.string(),
+		})
+		.superRefine((value, ctx) => {
+			if (
+				value.transactionTypeId === NEW_TYPE_VALUE &&
+				value.newTypeName.trim() === ""
+			) {
+				ctx.addIssue({
+					code: "custom",
+					path: ["newTypeName"],
+					message: "New type name is required",
+				});
+			}
+		});
+}
+
 export function TransactionForm({
 	onSubmit,
 	onCancel,
@@ -50,101 +75,170 @@ export function TransactionForm({
 	isLoading = false,
 }: TransactionFormProps) {
 	const { types, createType, isCreatingType } = useTransactionTypes();
-	const [selectedType, setSelectedType] = useState(
-		defaultValues?.transactionTypeId ?? ""
-	);
-	const [newTypeName, setNewTypeName] = useState("");
 
-	const isNewType = selectedType === NEW_TYPE_VALUE;
-
-	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		const formData = new FormData(e.currentTarget);
-		const amount = Number(formData.get("amount"));
-		const transactedAt = formData.get("transactedAt") as string;
-		const memo = (formData.get("memo") as string) || undefined;
-
-		let transactionTypeId = selectedType;
-
-		if (isNewType) {
-			if (!newTypeName.trim()) {
-				return;
+	const form = useForm({
+		defaultValues: {
+			amount:
+				defaultValues?.amount === undefined ? "" : String(defaultValues.amount),
+			transactionTypeId: defaultValues?.transactionTypeId ?? "",
+			newTypeName: "",
+			transactedAt: defaultValues?.transactedAt
+				? new Date(defaultValues.transactedAt).toISOString().slice(0, 10)
+				: todayISODate(),
+			memo: defaultValues?.memo ?? "",
+		},
+		onSubmit: async ({ value }) => {
+			let transactionTypeId = value.transactionTypeId;
+			if (transactionTypeId === NEW_TYPE_VALUE) {
+				const created = await createType(value.newTypeName.trim());
+				transactionTypeId = created.id;
 			}
-			const created = await createType(newTypeName.trim());
-			transactionTypeId = created.id;
-		}
-
-		onSubmit({ amount, transactionTypeId, transactedAt, memo });
-	};
+			onSubmit({
+				amount: Number(value.amount),
+				transactionTypeId,
+				transactedAt: value.transactedAt,
+				memo: value.memo ? value.memo : undefined,
+			});
+		},
+		validators: {
+			onSubmit: buildSchema(),
+		},
+	});
 
 	return (
-		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<Field htmlFor="amount" label="Amount" required>
-				<Input
-					defaultValue={defaultValues?.amount}
-					id="amount"
-					name="amount"
-					placeholder="Enter amount (negative for withdrawal)"
-					required
-					type="number"
-				/>
-			</Field>
-			<Field htmlFor="transactionTypeId" label="Type" required>
-				<Select onValueChange={setSelectedType} required value={selectedType}>
-					<SelectTrigger className="w-full" id="transactionTypeId">
-						<SelectValue placeholder="Select type..." />
-					</SelectTrigger>
-					<SelectContent>
-						{types.map((t) => (
-							<SelectItem key={t.id} value={t.id}>
-								{t.name}
-							</SelectItem>
-						))}
-						<SelectItem value={NEW_TYPE_VALUE}>+ New type...</SelectItem>
-					</SelectContent>
-				</Select>
-			</Field>
-			{isNewType && (
-				<Field htmlFor="newTypeName" label="New Type Name">
-					<Input
-						id="newTypeName"
-						onChange={(e) => setNewTypeName(e.target.value)}
-						placeholder="Enter new type name"
+		<form
+			className="flex flex-col gap-4"
+			onSubmit={(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				form.handleSubmit();
+			}}
+		>
+			<form.Field name="amount">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Amount"
 						required
-						value={newTypeName}
-					/>
-				</Field>
-			)}
-			<Field htmlFor="transactedAt" label="Date" required>
-				<Input
-					defaultValue={
-						defaultValues?.transactedAt
-							? new Date(defaultValues.transactedAt).toISOString().slice(0, 10)
-							: todayISODate()
-					}
-					id="transactedAt"
-					name="transactedAt"
-					required
-					type="date"
-				/>
-			</Field>
-			<Field htmlFor="memo" label="Memo">
-				<Textarea
-					defaultValue={defaultValues?.memo}
-					id="memo"
-					name="memo"
-					placeholder="Optional note"
-				/>
-			</Field>
+					>
+						<Input
+							id={field.name}
+							inputMode="numeric"
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="Enter amount (negative for withdrawal)"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+			<form.Field name="transactionTypeId">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Type"
+						required
+					>
+						<Select
+							onValueChange={(v) => field.handleChange(v)}
+							value={field.state.value}
+						>
+							<SelectTrigger className="w-full" id={field.name}>
+								<SelectValue placeholder="Select type..." />
+							</SelectTrigger>
+							<SelectContent>
+								{types.map((t) => (
+									<SelectItem key={t.id} value={t.id}>
+										{t.name}
+									</SelectItem>
+								))}
+								<SelectItem value={NEW_TYPE_VALUE}>+ New type...</SelectItem>
+							</SelectContent>
+						</Select>
+					</Field>
+				)}
+			</form.Field>
+			<form.Subscribe
+				selector={(state) => state.values.transactionTypeId === NEW_TYPE_VALUE}
+			>
+				{(isNewType) =>
+					isNewType ? (
+						<form.Field name="newTypeName">
+							{(field) => (
+								<Field
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="New Type Name"
+								>
+									<Input
+										id={field.name}
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										placeholder="Enter new type name"
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
+					) : null
+				}
+			</form.Subscribe>
+			<form.Field name="transactedAt">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Date"
+						required
+					>
+						<Input
+							id={field.name}
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							type="date"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+			<form.Field name="memo">
+				{(field) => (
+					<Field htmlFor={field.name} label="Memo">
+						<Textarea
+							id={field.name}
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="Optional note"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 			<DialogActionRow>
 				{onCancel ? (
 					<Button onClick={onCancel} type="button" variant="outline">
 						Cancel
 					</Button>
 				) : null}
-				<Button disabled={isLoading || isCreatingType} type="submit">
-					{getButtonLabel(isCreatingType, isLoading)}
-				</Button>
+				<form.Subscribe
+					selector={(state) => [state.canSubmit, state.isSubmitting]}
+				>
+					{([canSubmit, isSubmitting]) => (
+						<Button
+							disabled={
+								isLoading || isCreatingType || !canSubmit || isSubmitting
+							}
+							type="submit"
+						>
+							{getButtonLabel(isCreatingType, isLoading)}
+						</Button>
+					)}
+				</form.Subscribe>
 			</DialogActionRow>
 		</form>
 	);

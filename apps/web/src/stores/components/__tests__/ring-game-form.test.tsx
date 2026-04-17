@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { RingGameForm } from "../ring-game-form";
 
@@ -22,15 +23,8 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 describe("RingGameForm", () => {
-	function getForm() {
-		const form = screen.getByRole("button", { name: "Save" }).closest("form");
-		if (!form) {
-			throw new Error("Save form not found");
-		}
-		return form;
-	}
-
-	it("renders memo as textarea and preserves default values on submit", () => {
+	it("renders memo as textarea and preserves default values on submit", async () => {
+		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
 		render(
@@ -50,7 +44,7 @@ describe("RingGameForm", () => {
 		expect(memo.tagName).toBe("TEXTAREA");
 		expect(memo).toHaveValue("deep stack\nweekday game");
 
-		fireEvent.submit(getForm());
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -62,7 +56,8 @@ describe("RingGameForm", () => {
 		);
 	});
 
-	it("submits multiline memo in create mode", () => {
+	it("submits multiline memo in create mode", async () => {
+		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
 		render(<RingGameForm onSubmit={onSubmit} />);
@@ -74,7 +69,7 @@ describe("RingGameForm", () => {
 			target: { value: "straddles allowed\nweekend only" },
 		});
 
-		fireEvent.submit(getForm());
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({

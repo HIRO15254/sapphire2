@@ -1,4 +1,5 @@
 import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
 import { ChipPurchaseFields } from "@/live-sessions/components/event-fields/chip-purchase-fields";
 import {
 	toOccurredAtTimestamp,
@@ -7,12 +8,20 @@ import {
 } from "@/live-sessions/components/stack-editor-time";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import { requiredNumericString } from "@/shared/lib/form-fields";
 import { type EditorBaseProps, TimeField } from "./shared";
 
 type Props = Pick<
 	EditorBaseProps,
 	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
 >;
+
+const purchaseChipsSchema = z.object({
+	time: z.string(),
+	name: z.string().min(1, "Name is required"),
+	cost: requiredNumericString({ integer: true, min: 0 }),
+	chips: requiredNumericString({ integer: true, min: 0 }),
+});
 
 export function PurchaseChipsEditor({
 	event,
@@ -27,15 +36,22 @@ export function PurchaseChipsEditor({
 		defaultValues: {
 			time: toTimeInputValue(event.occurredAt),
 			name: typeof payload.name === "string" ? payload.name : "",
-			cost: typeof payload.cost === "number" ? payload.cost : 0,
-			chips: typeof payload.chips === "number" ? payload.chips : 0,
+			cost: typeof payload.cost === "number" ? String(payload.cost) : "0",
+			chips: typeof payload.chips === "number" ? String(payload.chips) : "0",
 		},
 		onSubmit: ({ value }) => {
 			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
 			onSubmit(
-				{ name: value.name, cost: value.cost, chips: value.chips },
+				{
+					name: value.name,
+					cost: Math.round(Number(value.cost)),
+					chips: Math.round(Number(value.chips)),
+				},
 				occurredAt
 			);
+		},
+		validators: {
+			onSubmit: purchaseChipsSchema,
 		},
 	});
 
@@ -64,26 +80,28 @@ export function PurchaseChipsEditor({
 					/>
 				)}
 			</form.Field>
-			<form.Subscribe selector={(state) => state.values}>
-				{(values) => (
-					<ChipPurchaseFields
-						chips={values.chips}
-						cost={values.cost}
-						name={values.name}
-						onChipsChange={(v) => form.setFieldValue("chips", v)}
-						onCostChange={(v) => form.setFieldValue("cost", v)}
-						onNameChange={(v) => form.setFieldValue("name", v)}
-					/>
+			<form.Field name="name">
+				{(nameField) => (
+					<form.Field name="cost">
+						{(costField) => (
+							<form.Field name="chips">
+								{(chipsField) => (
+									<ChipPurchaseFields
+										chips={chipsField.state.value}
+										chipsError={chipsField.state.meta.errors[0]?.message}
+										cost={costField.state.value}
+										costError={costField.state.meta.errors[0]?.message}
+										name={nameField.state.value}
+										nameError={nameField.state.meta.errors[0]?.message}
+										onChipsChange={(v) => chipsField.handleChange(v)}
+										onCostChange={(v) => costField.handleChange(v)}
+										onNameChange={(v) => nameField.handleChange(v)}
+									/>
+								)}
+							</form.Field>
+						)}
+					</form.Field>
 				)}
-			</form.Subscribe>
-			<form.Field
-				name="name"
-				validators={{
-					onChange: ({ value }) =>
-						value.trim().length === 0 ? "Name is required" : undefined,
-				}}
-			>
-				{() => null}
 			</form.Field>
 			<form.Subscribe
 				selector={(state) => [state.canSubmit, state.isSubmitting]}

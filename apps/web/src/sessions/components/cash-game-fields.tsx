@@ -1,4 +1,5 @@
-import { useState } from "react";
+import type { ReactFormExtendedApi } from "@tanstack/react-form";
+import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
@@ -9,17 +10,26 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 
+// biome-ignore-start lint/suspicious/noExplicitAny: tanstack-form's ReactFormExtendedApi has 12 generic parameters; threading a fully typed form through child components would require exporting the parent's full form generics.
+type AnyForm = ReactFormExtendedApi<
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any
+>;
+// biome-ignore-end lint/suspicious/noExplicitAny: end
+
 interface CashGameFieldsProps {
 	currencies?: Array<{ id: string; name: string }>;
-	defaultValues?: {
-		ante?: number;
-		anteType?: string;
-		blind1?: number;
-		blind2?: number;
-		blind3?: number;
-		tableSize?: number;
-		variant?: string;
-	};
+	form: AnyForm;
 	onCurrencyChange?: (id: string | undefined) => void;
 	selectedCurrencyId?: string;
 }
@@ -36,19 +46,12 @@ const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 export function CashGameFields({
 	currencies,
-	defaultValues,
+	form,
 	onCurrencyChange,
 	selectedCurrencyId,
 }: CashGameFieldsProps) {
-	const [anteType, setAnteType] = useState<string>(
-		defaultValues?.anteType ?? "none"
-	);
-
-	const isAnteDisabled = anteType === "none";
-
 	return (
 		<>
-			{/* Currency Selector */}
 			{currencies && currencies.length > 0 && (
 				<div className="flex flex-col gap-2">
 					<Label>Currency</Label>
@@ -76,114 +79,151 @@ export function CashGameFields({
 				</div>
 			)}
 
-			{/* Variant */}
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="variant">Variant</Label>
-				<Select defaultValue={defaultValues?.variant ?? "nlh"} name="variant">
-					<SelectTrigger className="w-full" id="variant">
-						<SelectValue placeholder="Select variant" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="nlh">NL Hold&apos;em</SelectItem>
-					</SelectContent>
-				</Select>
-			</div>
+			<form.Field name="variant">
+				{(field) => (
+					<Field htmlFor={field.name} label="Variant">
+						<Select
+							onValueChange={(v) => field.handleChange(v)}
+							value={field.state.value}
+						>
+							<SelectTrigger className="w-full" id={field.name}>
+								<SelectValue placeholder="Select variant" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="nlh">NL Hold&apos;em</SelectItem>
+							</SelectContent>
+						</Select>
+					</Field>
+				)}
+			</form.Field>
 
-			{/* SB / BB / Straddle */}
 			<div className="grid grid-cols-3 gap-3">
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="blind1">SB</Label>
-					<Input
-						defaultValue={defaultValues?.blind1}
-						id="blind1"
-						inputMode="numeric"
-						min={0}
-						name="blind1"
-						placeholder="0"
-						type="number"
-					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="blind2">BB</Label>
-					<Input
-						defaultValue={defaultValues?.blind2}
-						id="blind2"
-						inputMode="numeric"
-						min={0}
-						name="blind2"
-						placeholder="0"
-						type="number"
-					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="blind3">Straddle</Label>
-					<Input
-						defaultValue={defaultValues?.blind3}
-						id="blind3"
-						inputMode="numeric"
-						min={0}
-						name="blind3"
-						placeholder="0"
-						type="number"
-					/>
-				</div>
+				<form.Field name="blind1">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="SB"
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="0"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+				<form.Field name="blind2">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="BB"
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="0"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+				<form.Field name="blind3">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Straddle"
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="0"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
 			</div>
 
-			{/* Ante Type / Ante */}
 			<div className="flex gap-3">
-				<div className="flex flex-1 flex-col gap-2">
-					<Label htmlFor="anteType">Ante Type</Label>
-					<Select
-						defaultValue={defaultValues?.anteType ?? "none"}
-						name="anteType"
-						onValueChange={setAnteType}
-					>
-						<SelectTrigger className="w-full" id="anteType">
-							<SelectValue placeholder="Select ante type" />
-						</SelectTrigger>
-						<SelectContent>
-							{ANTE_TYPES.map((at) => (
-								<SelectItem key={at.value} value={at.value}>
-									{at.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
-				<div className="flex flex-1 flex-col gap-2">
-					<Label htmlFor="ante">Ante</Label>
-					<Input
-						defaultValue={defaultValues?.ante}
-						disabled={isAnteDisabled}
-						id="ante"
-						inputMode="numeric"
-						min={0}
-						name="ante"
-						placeholder="0"
-						type="number"
-					/>
-				</div>
+				<form.Field name="anteType">
+					{(field) => (
+						<Field className="flex-1" htmlFor={field.name} label="Ante Type">
+							<Select
+								onValueChange={(v) => field.handleChange(v)}
+								value={field.state.value}
+							>
+								<SelectTrigger className="w-full" id={field.name}>
+									<SelectValue placeholder="Select ante type" />
+								</SelectTrigger>
+								<SelectContent>
+									{ANTE_TYPES.map((at) => (
+										<SelectItem key={at.value} value={at.value}>
+											{at.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</Field>
+					)}
+				</form.Field>
+
+				<form.Subscribe selector={(state) => state.values.anteType === "none"}>
+					{(isAnteDisabled) => (
+						<form.Field name="ante">
+							{(field) => (
+								<Field
+									className="flex-1"
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="Ante"
+								>
+									<Input
+										disabled={isAnteDisabled}
+										id={field.name}
+										inputMode="numeric"
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										placeholder="0"
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
+					)}
+				</form.Subscribe>
 			</div>
 
-			{/* Table Size */}
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="tableSize">Table Size</Label>
-				<Select
-					defaultValue={defaultValues?.tableSize?.toString()}
-					name="tableSize"
-				>
-					<SelectTrigger className="w-full" id="tableSize">
-						<SelectValue placeholder="Select table size" />
-					</SelectTrigger>
-					<SelectContent>
-						{TABLE_SIZES.map((size) => (
-							<SelectItem key={size} value={size.toString()}>
-								{size}-max
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
+			<form.Field name="tableSize">
+				{(field) => (
+					<Field htmlFor={field.name} label="Table Size">
+						<Select
+							onValueChange={(v) => field.handleChange(v)}
+							value={field.state.value}
+						>
+							<SelectTrigger className="w-full" id={field.name}>
+								<SelectValue placeholder="Select table size" />
+							</SelectTrigger>
+							<SelectContent>
+								{TABLE_SIZES.map((size) => (
+									<SelectItem key={size} value={size.toString()}>
+										{size}-max
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</Field>
+				)}
+			</form.Field>
 		</>
 	);
 }

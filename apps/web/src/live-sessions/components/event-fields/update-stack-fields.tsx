@@ -2,24 +2,28 @@ import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 
 interface UpdateStackFieldsProps {
-	onStackAmountChange: (v: string) => void;
-	stackAmount: string;
+	error?: string;
+	onStackAmountChange: (value: string) => void;
+	value: string;
 }
 
 export function UpdateStackFields({
+	error,
 	onStackAmountChange,
-	stackAmount,
+	value,
 }: UpdateStackFieldsProps) {
 	return (
-		<Field htmlFor="update-stack-amount" label="Stack Amount" required>
+		<Field
+			error={error}
+			htmlFor="update-stack-amount"
+			label="Stack Amount"
+			required
+		>
 			<Input
 				id="update-stack-amount"
 				inputMode="numeric"
-				min={0}
 				onChange={(e) => onStackAmountChange(e.target.value)}
-				required
-				type="number"
-				value={stackAmount}
+				value={value}
 			/>
 		</Field>
 	);

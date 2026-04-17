@@ -1,6 +1,4 @@
 import { StackNumberField } from "@/live-sessions/components/stack-ui";
-import { Field } from "@/shared/components/ui/field";
-import { Input } from "@/shared/components/ui/input";
 
 interface ChipPurchaseType {
 	chips: number;
@@ -35,28 +33,22 @@ export function TournamentInfoFields({
 }: TournamentInfoFieldsProps) {
 	return (
 		<>
-			<Field htmlFor="tournament-remaining-players" label="Remaining Players">
-				<Input
-					id="tournament-remaining-players"
-					inputMode="numeric"
-					min={1}
-					onChange={(e) => onRemainingPlayersChange(e.target.value)}
-					placeholder="Optional"
-					type="number"
-					value={remainingPlayers}
-				/>
-			</Field>
-			<Field htmlFor="tournament-total-entries" label="Total Entries">
-				<Input
-					id="tournament-total-entries"
-					inputMode="numeric"
-					min={1}
-					onChange={(e) => onTotalEntriesChange(e.target.value)}
-					placeholder="Optional"
-					type="number"
-					value={totalEntries}
-				/>
-			</Field>
+			<StackNumberField
+				id="tournament-remaining-players"
+				inputMode="numeric"
+				label="Remaining Players"
+				onChange={onRemainingPlayersChange}
+				placeholder="Optional"
+				value={remainingPlayers}
+			/>
+			<StackNumberField
+				id="tournament-total-entries"
+				inputMode="numeric"
+				label="Total Entries"
+				onChange={onTotalEntriesChange}
+				placeholder="Optional"
+				value={totalEntries}
+			/>
 			{chipPurchaseTypes && chipPurchaseTypes.length > 0 && (
 				<div className="flex flex-col gap-1.5">
 					{chipPurchaseTypes.map((t) => {
@@ -71,15 +63,12 @@ export function TournamentInfoFields({
 								inputMode="numeric"
 								key={t.name}
 								label={`${t.name} count`}
-								min={0}
 								onChange={(value) => {
 									const newCount = Number(value);
 									const without = chipPurchaseCounts.filter(
 										(c) => c.name !== t.name
 									);
-									if (newCount === 0) {
-										onChipPurchaseCountsChange(without);
-									} else {
+									if (newCount) {
 										onChipPurchaseCountsChange([
 											...without,
 											{
@@ -88,9 +77,10 @@ export function TournamentInfoFields({
 												chipsPerUnit: t.chips,
 											},
 										]);
+									} else {
+										onChipPurchaseCountsChange(without);
 									}
 								}}
-								type="number"
 								value={countValue === 0 ? "" : String(countValue)}
 							/>
 						);

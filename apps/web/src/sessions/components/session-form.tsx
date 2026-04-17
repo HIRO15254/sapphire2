@@ -1,4 +1,6 @@
+import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
+import { z } from "zod";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -6,6 +8,7 @@ import { Label } from "@/shared/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { TagInput } from "@/shared/components/ui/tag-input";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { optionalNumericString } from "@/shared/lib/form-fields";
 import { CashGameFields } from "./cash-game-fields";
 import { FormAccordion } from "./form-section";
 import { StoreGameSelectors } from "./link-selectors";
@@ -135,314 +138,74 @@ function getTodayDateString(): string {
 	return `${year}-${month}-${day}`;
 }
 
-function parseOptionalInt(value: string): number | undefined {
-	if (!value) {
+function numStrOrEmpty(value: number | undefined): string {
+	return value === undefined ? "" : String(value);
+}
+
+function parseOptInt(value: string): number | undefined {
+	if (value === "") {
 		return undefined;
 	}
 	const parsed = Number.parseInt(value, 10);
-	return Number.isNaN(parsed) ? undefined : parsed;
-}
-
-function parseCashGameFields(
-	formData: FormData
-): Omit<
-	CashGameFormValues,
-	"endTime" | "memo" | "sessionDate" | "startTime" | "tagIds"
-> {
-	const anteType = (formData.get("anteType") as string) || "none";
-	return {
-		type: "cash_game",
-		buyIn: Number(formData.get("buyIn")),
-		cashOut: Number(formData.get("cashOut")),
-		evCashOut: parseOptionalInt(formData.get("evCashOut") as string),
-		variant: (formData.get("variant") as string) || "nlh",
-		blind1: parseOptionalInt(formData.get("blind1") as string),
-		blind2: parseOptionalInt(formData.get("blind2") as string),
-		blind3: parseOptionalInt(formData.get("blind3") as string),
-		ante:
-			anteType === "none"
-				? undefined
-				: parseOptionalInt(formData.get("ante") as string),
-		anteType: anteType || undefined,
-		tableSize: parseOptionalInt(formData.get("tableSize") as string),
-	};
-}
-
-function parseTournamentFields(
-	formData: FormData
-): Omit<
-	TournamentFormValues,
-	"endTime" | "memo" | "sessionDate" | "startTime" | "tagIds"
-> {
-	return {
-		type: "tournament",
-		tournamentBuyIn: Number(formData.get("tournamentBuyIn")),
-		entryFee: parseOptionalInt(formData.get("entryFee") as string),
-		placement: parseOptionalInt(formData.get("placement") as string),
-		totalEntries: parseOptionalInt(formData.get("totalEntries") as string),
-		prizeMoney: parseOptionalInt(formData.get("prizeMoney") as string),
-		rebuyCount: parseOptionalInt(formData.get("rebuyCount") as string),
-		rebuyCost: parseOptionalInt(formData.get("rebuyCost") as string),
-		addonCost: parseOptionalInt(formData.get("addonCost") as string),
-		bountyPrizes: parseOptionalInt(formData.get("bountyPrizes") as string),
-	};
-}
-
-function nullToUndefined(value: unknown): unknown {
-	return value === null ? undefined : value;
-}
-
-function buildCashGameOverrides(
-	game: RingGameOption
-): Partial<SessionFormDefaults> {
-	return {
-		variant: (nullToUndefined(game.variant) as string) ?? undefined,
-		blind1: (nullToUndefined(game.blind1) as number) ?? undefined,
-		blind2: (nullToUndefined(game.blind2) as number) ?? undefined,
-		blind3: (nullToUndefined(game.blind3) as number) ?? undefined,
-		ante: (nullToUndefined(game.ante) as number) ?? undefined,
-		anteType: (nullToUndefined(game.anteType) as string) ?? undefined,
-		tableSize: (nullToUndefined(game.tableSize) as number) ?? undefined,
-	};
-}
-
-function buildTournamentOverrides(
-	game: TournamentOption
-): Partial<SessionFormDefaults> {
-	return {
-		tournamentBuyIn: (nullToUndefined(game.buyIn) as number) ?? undefined,
-		entryFee: (nullToUndefined(game.entryFee) as number) ?? undefined,
-	};
+	return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 const NONE_VALUE = "__none__";
 
-function SessionFormFields({
-	currencies,
-	defaultValues,
-	effectiveDefaults,
-	gameLabel,
-	gameOptions,
-	handleGameChange,
-	handleStoreChange,
-	isCashGame,
-	onCreateTag,
-	selectedCurrencyId,
-	selectedGameId,
-	selectedStoreId,
-	selectedTagIds,
-	setSelectedCurrencyId,
-	setSelectedTagIds,
-	stores,
-	tags,
-}: {
-	currencies?: Array<{ id: string; name: string }>;
-	defaultValues?: SessionFormDefaults;
-	effectiveDefaults?: SessionFormDefaults;
-	gameLabel: string;
-	gameOptions?: Array<{ id: string; name: string }>;
-	handleGameChange: (value: string) => void;
-	handleStoreChange: (value: string) => void;
-	isCashGame: boolean;
-	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
-	selectedCurrencyId: string | undefined;
-	selectedGameId: string | undefined;
-	selectedStoreId: string | undefined;
-	selectedTagIds: string[];
-	setSelectedCurrencyId: (id: string | undefined) => void;
-	setSelectedTagIds: React.Dispatch<React.SetStateAction<string[]>>;
-	stores?: Array<{ id: string; name: string }>;
-	tags?: Array<{ id: string; name: string }>;
-}) {
-	const detailContent = isCashGame ? (
-		<CashGameFields
-			currencies={currencies}
-			defaultValues={effectiveDefaults}
-			key={`cash-${selectedGameId ?? "none"}`}
-			onCurrencyChange={setSelectedCurrencyId}
-			selectedCurrencyId={selectedCurrencyId}
-		/>
-	) : (
-		<TournamentDetailFields
-			currencies={currencies}
-			defaultValues={effectiveDefaults}
-			key={`tourney-detail-${selectedGameId ?? "none"}`}
-			onCurrencyChange={setSelectedCurrencyId}
-			selectedCurrencyId={selectedCurrencyId}
-		/>
-	);
+const sessionFormSchema = z.object({
+	sessionDate: z.string().min(1, "Date is required"),
+	startTime: z.string(),
+	endTime: z.string(),
+	breakMinutes: optionalNumericString({ integer: true, min: 0 }),
+	memo: z.string(),
+	buyIn: optionalNumericString({ integer: true, min: 0 }),
+	cashOut: optionalNumericString({ integer: true, min: 0 }),
+	evCashOut: optionalNumericString({ integer: true, min: 0 }),
+	variant: z.string(),
+	blind1: optionalNumericString({ integer: true, min: 0 }),
+	blind2: optionalNumericString({ integer: true, min: 0 }),
+	blind3: optionalNumericString({ integer: true, min: 0 }),
+	ante: optionalNumericString({ integer: true, min: 0 }),
+	anteType: z.string(),
+	tableSize: z.string(),
+	tournamentBuyIn: optionalNumericString({ integer: true, min: 0 }),
+	entryFee: optionalNumericString({ integer: true, min: 0 }),
+	placement: optionalNumericString({ integer: true, min: 1 }),
+	totalEntries: optionalNumericString({ integer: true, min: 1 }),
+	prizeMoney: optionalNumericString({ integer: true, min: 0 }),
+	rebuyCount: optionalNumericString({ integer: true, min: 0 }),
+	rebuyCost: optionalNumericString({ integer: true, min: 0 }),
+	addonCost: optionalNumericString({ integer: true, min: 0 }),
+	bountyPrizes: optionalNumericString({ integer: true, min: 0 }),
+});
 
-	const tagsContent = (
-		<>
-			<Field label="Session Tags">
-				<TagInput
-					availableTags={tags}
-					onAdd={(tag) => setSelectedTagIds((prev) => [...prev, tag.id])}
-					onCreateTag={onCreateTag}
-					onRemove={(tag) =>
-						setSelectedTagIds((prev) => prev.filter((id) => id !== tag.id))
-					}
-					selectedTags={selectedTagIds
-						.map((id) => tags?.find((t) => t.id === id))
-						.filter((t): t is { id: string; name: string } => t !== undefined)}
-				/>
-			</Field>
-			<Field htmlFor="memo" label="Memo">
-				<Textarea
-					defaultValue={defaultValues?.memo}
-					id="memo"
-					name="memo"
-					placeholder="Notes about this session"
-				/>
-			</Field>
-		</>
-	);
-
-	return (
-		<>
-			{/* === Top section (always visible) === */}
-			<div className="flex flex-col gap-4">
-				{/* Session Date */}
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="sessionDate">
-						Session Date <span className="text-destructive">*</span>
-					</Label>
-					<Input
-						defaultValue={defaultValues?.sessionDate ?? getTodayDateString()}
-						id="sessionDate"
-						name="sessionDate"
-						required
-						type="date"
-					/>
-				</div>
-
-				{/* Start Time / End Time */}
-				<div className="grid grid-cols-2 gap-3">
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="startTime">Start Time</Label>
-						<Input
-							defaultValue={defaultValues?.startTime}
-							id="startTime"
-							name="startTime"
-							type="time"
-						/>
-					</div>
-					<div className="flex flex-col gap-2">
-						<Label htmlFor="endTime">End Time</Label>
-						<Input
-							defaultValue={defaultValues?.endTime}
-							id="endTime"
-							name="endTime"
-							type="time"
-						/>
-					</div>
-				</div>
-
-				{/* Break Time */}
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="breakMinutes">Break Time (min)</Label>
-					<Input
-						defaultValue={defaultValues?.breakMinutes}
-						id="breakMinutes"
-						inputMode="numeric"
-						min={0}
-						name="breakMinutes"
-						placeholder="0"
-						type="number"
-					/>
-				</div>
-
-				{/* Store / Game Selectors */}
-				<StoreGameSelectors
-					gameLabel={gameLabel}
-					gameOptions={gameOptions}
-					onGameChange={handleGameChange}
-					onStoreChange={handleStoreChange}
-					selectedGameId={selectedGameId}
-					selectedStoreId={selectedStoreId}
-					stores={stores}
-				/>
-
-				{/* Buy-in / Cash-out (cash game only) */}
-				{isCashGame && (
-					<>
-						<div className="grid grid-cols-2 gap-3">
-							<div className="flex flex-col gap-2">
-								<Label htmlFor="buyIn">
-									Buy-in <span className="text-destructive">*</span>
-								</Label>
-								<Input
-									defaultValue={defaultValues?.buyIn}
-									id="buyIn"
-									inputMode="numeric"
-									min={0}
-									name="buyIn"
-									placeholder="0"
-									required
-									type="number"
-								/>
-							</div>
-							<div className="flex flex-col gap-2">
-								<Label htmlFor="cashOut">
-									Cash-out <span className="text-destructive">*</span>
-								</Label>
-								<Input
-									defaultValue={defaultValues?.cashOut}
-									id="cashOut"
-									inputMode="numeric"
-									min={0}
-									name="cashOut"
-									placeholder="0"
-									required
-									type="number"
-								/>
-							</div>
-						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="evCashOut">EV Cash-out</Label>
-							<Input
-								defaultValue={defaultValues?.evCashOut}
-								id="evCashOut"
-								inputMode="numeric"
-								min={0}
-								name="evCashOut"
-								placeholder="0"
-								type="number"
-							/>
-							<p className="text-muted-foreground text-xs">
-								Expected value cash-out based on all-in equity. Leave empty if
-								not tracking EV.
-							</p>
-						</div>
-					</>
-				)}
-
-				{/* Tournament primary fields (outside accordion) */}
-				{!isCashGame && (
-					<TournamentPrimaryFields
-						defaultValues={effectiveDefaults}
-						key={`tourney-primary-${selectedGameId ?? "none"}`}
-					/>
-				)}
-			</div>
-
-			{/* === Accordion sections === */}
-			<FormAccordion
-				items={[
-					{
-						value: "detail",
-						title: isCashGame ? "Detail" : "Tournament Details",
-						children: detailContent,
-					},
-					{
-						value: "tags",
-						title: "Tags & Memo",
-						children: tagsContent,
-					},
-				]}
-			/>
-		</>
-	);
+function buildDefaults(defaults: SessionFormDefaults | undefined) {
+	return {
+		sessionDate: defaults?.sessionDate ?? getTodayDateString(),
+		startTime: defaults?.startTime ?? "",
+		endTime: defaults?.endTime ?? "",
+		breakMinutes: numStrOrEmpty(defaults?.breakMinutes),
+		memo: defaults?.memo ?? "",
+		buyIn: numStrOrEmpty(defaults?.buyIn),
+		cashOut: numStrOrEmpty(defaults?.cashOut),
+		evCashOut: numStrOrEmpty(defaults?.evCashOut),
+		variant: defaults?.variant ?? "nlh",
+		blind1: numStrOrEmpty(defaults?.blind1),
+		blind2: numStrOrEmpty(defaults?.blind2),
+		blind3: numStrOrEmpty(defaults?.blind3),
+		ante: numStrOrEmpty(defaults?.ante),
+		anteType: defaults?.anteType ?? "none",
+		tableSize: defaults?.tableSize?.toString() ?? "",
+		tournamentBuyIn: numStrOrEmpty(defaults?.tournamentBuyIn),
+		entryFee: numStrOrEmpty(defaults?.entryFee),
+		placement: numStrOrEmpty(defaults?.placement),
+		totalEntries: numStrOrEmpty(defaults?.totalEntries),
+		prizeMoney: numStrOrEmpty(defaults?.prizeMoney),
+		rebuyCount: numStrOrEmpty(defaults?.rebuyCount),
+		rebuyCost: numStrOrEmpty(defaults?.rebuyCost),
+		addonCost: numStrOrEmpty(defaults?.addonCost),
+		bountyPrizes: numStrOrEmpty(defaults?.bountyPrizes),
+	};
 }
 
 export function SessionForm({
@@ -476,24 +239,70 @@ export function SessionForm({
 	const isCashGame = sessionType === "cash_game";
 	const gameOptions = isCashGame ? ringGames : tournaments;
 
-	const effectiveDefaults = (() => {
-		if (!selectedGameId) {
-			return defaultValues;
-		}
-		if (isCashGame && ringGames) {
-			const game = ringGames.find((g) => g.id === selectedGameId);
-			if (game) {
-				return { ...defaultValues, ...buildCashGameOverrides(game) };
+	const form = useForm({
+		defaultValues: buildDefaults(defaultValues),
+		onSubmit: ({ value }) => {
+			const common = {
+				sessionDate: value.sessionDate,
+				startTime: value.startTime || undefined,
+				endTime: value.endTime || undefined,
+				breakMinutes: parseOptInt(value.breakMinutes),
+				tagIds: selectedTagIds,
+				memo: value.memo || undefined,
+				storeId: selectedStoreId,
+				currencyId: selectedCurrencyId,
+			};
+
+			if (isCashGame) {
+				onSubmit({
+					...common,
+					type: "cash_game",
+					buyIn: Number(value.buyIn),
+					cashOut: Number(value.cashOut),
+					evCashOut: parseOptInt(value.evCashOut),
+					variant: value.variant || "nlh",
+					blind1: parseOptInt(value.blind1),
+					blind2: parseOptInt(value.blind2),
+					blind3: parseOptInt(value.blind3),
+					ante: value.anteType === "none" ? undefined : parseOptInt(value.ante),
+					anteType: value.anteType || undefined,
+					tableSize: parseOptInt(value.tableSize),
+					ringGameId: selectedGameId,
+				});
+			} else {
+				onSubmit({
+					...common,
+					type: "tournament",
+					tournamentBuyIn: Number(value.tournamentBuyIn),
+					entryFee: parseOptInt(value.entryFee),
+					placement: parseOptInt(value.placement),
+					totalEntries: parseOptInt(value.totalEntries),
+					prizeMoney: parseOptInt(value.prizeMoney),
+					rebuyCount: parseOptInt(value.rebuyCount),
+					rebuyCost: parseOptInt(value.rebuyCost),
+					addonCost: parseOptInt(value.addonCost),
+					bountyPrizes: parseOptInt(value.bountyPrizes),
+					tournamentId: selectedGameId,
+				});
+			}
+		},
+		validators: {
+			onSubmit: sessionFormSchema,
+		},
+	});
+
+	const applyOverrides = (
+		overrides: Partial<ReturnType<typeof buildDefaults>>
+	) => {
+		for (const [key, value] of Object.entries(overrides)) {
+			if (value !== undefined) {
+				form.setFieldValue(
+					key as keyof ReturnType<typeof buildDefaults>,
+					value as string
+				);
 			}
 		}
-		if (!isCashGame && tournaments) {
-			const game = tournaments.find((t) => t.id === selectedGameId);
-			if (game) {
-				return { ...defaultValues, ...buildTournamentOverrides(game) };
-			}
-		}
-		return defaultValues;
-	})();
+	};
 
 	const handleStoreChange = (value: string) => {
 		const storeId = value === NONE_VALUE ? undefined : value;
@@ -502,54 +311,107 @@ export function SessionForm({
 		onStoreChange?.(storeId);
 	};
 
+	const applyRingGameDefaults = (gameId: string) => {
+		const game = ringGames?.find((g) => g.id === gameId);
+		if (!game) {
+			return;
+		}
+		if (game.currencyId) {
+			setSelectedCurrencyId(game.currencyId);
+		}
+		applyOverrides({
+			variant: game.variant ?? undefined,
+			blind1: numStrOrEmpty(game.blind1 ?? undefined),
+			blind2: numStrOrEmpty(game.blind2 ?? undefined),
+			blind3: numStrOrEmpty(game.blind3 ?? undefined),
+			ante: numStrOrEmpty(game.ante ?? undefined),
+			anteType: game.anteType ?? undefined,
+			tableSize: game.tableSize?.toString() ?? undefined,
+		});
+	};
+
+	const applyTournamentDefaults = (gameId: string) => {
+		const game = tournaments?.find((t) => t.id === gameId);
+		if (!game) {
+			return;
+		}
+		applyOverrides({
+			tournamentBuyIn: numStrOrEmpty(game.buyIn ?? undefined),
+			entryFee: numStrOrEmpty(game.entryFee ?? undefined),
+		});
+	};
+
 	const handleGameChange = (value: string) => {
 		const gameId = value === NONE_VALUE ? undefined : value;
 		setSelectedGameId(gameId);
-
-		// Auto-fill currency from ring game
-		if (isCashGame && ringGames && gameId) {
-			const game = ringGames.find((g) => g.id === gameId);
-			if (game?.currencyId) {
-				setSelectedCurrencyId(game.currencyId);
-			}
+		if (!gameId) {
+			return;
 		}
-	};
-
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		const formData = new FormData(e.currentTarget);
-
-		const common = {
-			sessionDate: formData.get("sessionDate") as string,
-			startTime: (formData.get("startTime") as string) || undefined,
-			endTime: (formData.get("endTime") as string) || undefined,
-			breakMinutes: parseOptionalInt(formData.get("breakMinutes") as string),
-			tagIds: selectedTagIds,
-			memo: (formData.get("memo") as string) || undefined,
-			storeId: selectedStoreId,
-			currencyId: selectedCurrencyId,
-		};
-
 		if (isCashGame) {
-			onSubmit({
-				...common,
-				...parseCashGameFields(formData),
-				ringGameId: selectedGameId,
-			});
+			applyRingGameDefaults(gameId);
 		} else {
-			onSubmit({
-				...common,
-				...parseTournamentFields(formData),
-				tournamentId: selectedGameId,
-			});
+			applyTournamentDefaults(gameId);
 		}
 	};
 
 	const gameLabel = isCashGame ? "Cash Game" : "Tournament";
 
+	const detailContent = isCashGame ? (
+		<CashGameFields
+			currencies={currencies}
+			form={form}
+			onCurrencyChange={setSelectedCurrencyId}
+			selectedCurrencyId={selectedCurrencyId}
+		/>
+	) : (
+		<TournamentDetailFields
+			currencies={currencies}
+			form={form}
+			onCurrencyChange={setSelectedCurrencyId}
+			selectedCurrencyId={selectedCurrencyId}
+		/>
+	);
+
+	const tagsContent = (
+		<>
+			<Field label="Session Tags">
+				<TagInput
+					availableTags={tags}
+					onAdd={(tag) => setSelectedTagIds((prev) => [...prev, tag.id])}
+					onCreateTag={onCreateTag}
+					onRemove={(tag) =>
+						setSelectedTagIds((prev) => prev.filter((id) => id !== tag.id))
+					}
+					selectedTags={selectedTagIds
+						.map((id) => tags?.find((t) => t.id === id))
+						.filter((t): t is { id: string; name: string } => t !== undefined)}
+				/>
+			</Field>
+			<form.Field name="memo">
+				{(field) => (
+					<Field htmlFor={field.name} label="Memo">
+						<Textarea
+							id={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="Notes about this session"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+		</>
+	);
+
 	return (
-		<form className="flex flex-col gap-2" onSubmit={handleSubmit}>
-			{/* Session Type */}
+		<form
+			className="flex flex-col gap-2"
+			onSubmit={(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				form.handleSubmit();
+			}}
+		>
 			<Field label="Session Type">
 				<Tabs
 					onValueChange={(value) =>
@@ -564,29 +426,192 @@ export function SessionForm({
 				</Tabs>
 			</Field>
 
-			<SessionFormFields
-				currencies={currencies}
-				defaultValues={defaultValues}
-				effectiveDefaults={effectiveDefaults}
-				gameLabel={gameLabel}
-				gameOptions={gameOptions}
-				handleGameChange={handleGameChange}
-				handleStoreChange={handleStoreChange}
-				isCashGame={isCashGame}
-				onCreateTag={onCreateTag}
-				selectedCurrencyId={selectedCurrencyId}
-				selectedGameId={selectedGameId}
-				selectedStoreId={selectedStoreId}
-				selectedTagIds={selectedTagIds}
-				setSelectedCurrencyId={setSelectedCurrencyId}
-				setSelectedTagIds={setSelectedTagIds}
-				stores={stores}
-				tags={tags}
+			<div className="flex flex-col gap-4">
+				<form.Field name="sessionDate">
+					{(field) => (
+						<div className="flex flex-col gap-2">
+							<Label htmlFor={field.name}>
+								Session Date <span className="text-destructive">*</span>
+							</Label>
+							<Input
+								id={field.name}
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								type="date"
+								value={field.state.value}
+							/>
+						</div>
+					)}
+				</form.Field>
+
+				<div className="grid grid-cols-2 gap-3">
+					<form.Field name="startTime">
+						{(field) => (
+							<div className="flex flex-col gap-2">
+								<Label htmlFor={field.name}>Start Time</Label>
+								<Input
+									id={field.name}
+									onBlur={field.handleBlur}
+									onChange={(e) => field.handleChange(e.target.value)}
+									type="time"
+									value={field.state.value}
+								/>
+							</div>
+						)}
+					</form.Field>
+					<form.Field name="endTime">
+						{(field) => (
+							<div className="flex flex-col gap-2">
+								<Label htmlFor={field.name}>End Time</Label>
+								<Input
+									id={field.name}
+									onBlur={field.handleBlur}
+									onChange={(e) => field.handleChange(e.target.value)}
+									type="time"
+									value={field.state.value}
+								/>
+							</div>
+						)}
+					</form.Field>
+				</div>
+
+				<form.Field name="breakMinutes">
+					{(field) => (
+						<div className="flex flex-col gap-2">
+							<Label htmlFor={field.name}>Break Time (min)</Label>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="0"
+								value={field.state.value}
+							/>
+							{field.state.meta.errors[0] ? (
+								<p className="text-destructive text-sm">
+									{field.state.meta.errors[0]?.message}
+								</p>
+							) : null}
+						</div>
+					)}
+				</form.Field>
+
+				<StoreGameSelectors
+					gameLabel={gameLabel}
+					gameOptions={gameOptions}
+					onGameChange={handleGameChange}
+					onStoreChange={handleStoreChange}
+					selectedGameId={selectedGameId}
+					selectedStoreId={selectedStoreId}
+					stores={stores}
+				/>
+
+				{isCashGame && (
+					<>
+						<div className="grid grid-cols-2 gap-3">
+							<form.Field name="buyIn">
+								{(field) => (
+									<div className="flex flex-col gap-2">
+										<Label htmlFor={field.name}>
+											Buy-in <span className="text-destructive">*</span>
+										</Label>
+										<Input
+											id={field.name}
+											inputMode="numeric"
+											onBlur={field.handleBlur}
+											onChange={(e) => field.handleChange(e.target.value)}
+											placeholder="0"
+											value={field.state.value}
+										/>
+										{field.state.meta.errors[0] ? (
+											<p className="text-destructive text-sm">
+												{field.state.meta.errors[0]?.message}
+											</p>
+										) : null}
+									</div>
+								)}
+							</form.Field>
+							<form.Field name="cashOut">
+								{(field) => (
+									<div className="flex flex-col gap-2">
+										<Label htmlFor={field.name}>
+											Cash-out <span className="text-destructive">*</span>
+										</Label>
+										<Input
+											id={field.name}
+											inputMode="numeric"
+											onBlur={field.handleBlur}
+											onChange={(e) => field.handleChange(e.target.value)}
+											placeholder="0"
+											value={field.state.value}
+										/>
+										{field.state.meta.errors[0] ? (
+											<p className="text-destructive text-sm">
+												{field.state.meta.errors[0]?.message}
+											</p>
+										) : null}
+									</div>
+								)}
+							</form.Field>
+						</div>
+						<form.Field name="evCashOut">
+							{(field) => (
+								<div className="flex flex-col gap-2">
+									<Label htmlFor={field.name}>EV Cash-out</Label>
+									<Input
+										id={field.name}
+										inputMode="numeric"
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										placeholder="0"
+										value={field.state.value}
+									/>
+									<p className="text-muted-foreground text-xs">
+										Expected value cash-out based on all-in equity. Leave empty
+										if not tracking EV.
+									</p>
+								</div>
+							)}
+						</form.Field>
+					</>
+				)}
+
+				{!isCashGame && (
+					<TournamentPrimaryFields
+						form={form}
+						key={`tourney-primary-${selectedGameId ?? "none"}`}
+					/>
+				)}
+			</div>
+
+			<FormAccordion
+				items={[
+					{
+						value: "detail",
+						title: isCashGame ? "Detail" : "Tournament Details",
+						children: detailContent,
+					},
+					{
+						value: "tags",
+						title: "Tags & Memo",
+						children: tagsContent,
+					},
+				]}
 			/>
 
-			<Button className="mt-2" disabled={isLoading} type="submit">
-				{isLoading ? "Saving..." : "Save"}
-			</Button>
+			<form.Subscribe
+				selector={(state) => [state.canSubmit, state.isSubmitting]}
+			>
+				{([canSubmit, isSubmitting]) => (
+					<Button
+						className="mt-2"
+						disabled={isLoading || !canSubmit || isSubmitting}
+						type="submit"
+					>
+						{isLoading ? "Saving..." : "Save"}
+					</Button>
+				)}
+			</form.Subscribe>
 		</form>
 	);
 }

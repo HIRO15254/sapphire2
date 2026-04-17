@@ -23,15 +23,8 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 describe("TournamentForm", () => {
-	function getForm() {
-		const form = screen.getByRole("button", { name: "Save" }).closest("form");
-		if (!form) {
-			throw new Error("Save form not found");
-		}
-		return form;
-	}
-
-	it("renders memo as textarea and preserves edit payload", () => {
+	it("renders memo as textarea and preserves edit payload", async () => {
+		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
 		render(
@@ -53,7 +46,7 @@ describe("TournamentForm", () => {
 		expect(memo.tagName).toBe("TEXTAREA");
 		expect(memo).toHaveValue("two flights\nfinal table on Sunday");
 
-		fireEvent.submit(getForm());
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -67,7 +60,8 @@ describe("TournamentForm", () => {
 		);
 	});
 
-	it("submits multiline memo in create mode", () => {
+	it("submits multiline memo in create mode", async () => {
+		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
 		render(<TournamentForm onSubmit={onSubmit} />);
@@ -79,7 +73,7 @@ describe("TournamentForm", () => {
 			target: { value: "late reg open\n15 minute levels" },
 		});
 
-		fireEvent.submit(getForm());
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -103,7 +97,7 @@ describe("TournamentForm", () => {
 		await user.type(screen.getByLabelText("Search tags"), "Series");
 		await user.keyboard("{Enter}");
 
-		fireEvent.submit(getForm());
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({

@@ -3,20 +3,26 @@ import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 
 interface ChipPurchaseFieldsProps {
-	chips: number;
-	cost: number;
+	chips: string;
+	chipsError?: string;
+	cost: string;
+	costError?: string;
 	name: string;
-	onChipsChange: (v: number) => void;
-	onCostChange: (v: number) => void;
-	onNameChange: (v: string) => void;
+	nameError?: string;
+	onChipsChange: (value: string) => void;
+	onCostChange: (value: string) => void;
+	onNameChange: (value: string) => void;
 	readOnly?: boolean;
 	shortcuts?: Array<{ chips: number; cost: number; name: string }>;
 }
 
 export function ChipPurchaseFields({
 	chips,
+	chipsError,
 	cost,
+	costError,
 	name,
+	nameError,
 	onChipsChange,
 	onCostChange,
 	onNameChange,
@@ -32,8 +38,8 @@ export function ChipPurchaseFields({
 							key={s.name}
 							onClick={() => {
 								onNameChange(s.name);
-								onCostChange(s.cost);
-								onChipsChange(s.chips);
+								onCostChange(String(s.cost));
+								onChipsChange(String(s.chips));
 							}}
 							size="xs"
 							type="button"
@@ -44,38 +50,46 @@ export function ChipPurchaseFields({
 					))}
 				</div>
 			)}
-			<Field htmlFor="chip-purchase-name" label="Name" required>
+			<Field
+				error={nameError}
+				htmlFor="chip-purchase-name"
+				label="Name"
+				required
+			>
 				<Input
 					disabled={readOnly}
 					id="chip-purchase-name"
 					onChange={(e) => onNameChange(e.target.value)}
 					placeholder="e.g. Rebuy, Addon"
-					required
 					type="text"
 					value={name}
 				/>
 			</Field>
-			<Field htmlFor="chip-purchase-cost" label="Cost" required>
+			<Field
+				error={costError}
+				htmlFor="chip-purchase-cost"
+				label="Cost"
+				required
+			>
 				<Input
 					disabled={readOnly}
 					id="chip-purchase-cost"
-					min={0}
-					onChange={(e) => onCostChange(Math.round(Number(e.target.value)))}
-					required
-					step={1}
-					type="number"
+					inputMode="numeric"
+					onChange={(e) => onCostChange(e.target.value)}
 					value={cost}
 				/>
 			</Field>
-			<Field htmlFor="chip-purchase-chips" label="Chips Received" required>
+			<Field
+				error={chipsError}
+				htmlFor="chip-purchase-chips"
+				label="Chips Received"
+				required
+			>
 				<Input
 					disabled={readOnly}
 					id="chip-purchase-chips"
-					min={0}
-					onChange={(e) => onChipsChange(Math.round(Number(e.target.value)))}
-					required
-					step={1}
-					type="number"
+					inputMode="numeric"
+					onChange={(e) => onChipsChange(e.target.value)}
 					value={chips}
 				/>
 			</Field>

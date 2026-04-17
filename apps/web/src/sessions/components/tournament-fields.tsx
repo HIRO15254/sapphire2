@@ -1,5 +1,6 @@
+import type { ReactFormExtendedApi } from "@tanstack/react-form";
+import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -8,20 +9,25 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 
-interface TournamentFieldsDefaultValues {
-	addonCost?: number;
-	bountyPrizes?: number;
-	entryFee?: number;
-	placement?: number;
-	prizeMoney?: number;
-	rebuyCost?: number;
-	rebuyCount?: number;
-	totalEntries?: number;
-	tournamentBuyIn?: number;
-}
+// biome-ignore-start lint/suspicious/noExplicitAny: tanstack-form's ReactFormExtendedApi has 12 generic parameters; threading a fully typed form through child components would require exporting the parent's full form generics.
+type AnyForm = ReactFormExtendedApi<
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any,
+	any
+>;
+// biome-ignore-end lint/suspicious/noExplicitAny: end
 
 interface TournamentFieldsProps {
-	defaultValues?: TournamentFieldsDefaultValues;
+	form: AnyForm;
 }
 
 interface TournamentDetailFieldsProps extends TournamentFieldsProps {
@@ -32,82 +38,105 @@ interface TournamentDetailFieldsProps extends TournamentFieldsProps {
 
 const NONE_VALUE = "__none__";
 
-export function TournamentPrimaryFields({
-	defaultValues,
-}: TournamentFieldsProps) {
+export function TournamentPrimaryFields({ form }: TournamentFieldsProps) {
 	return (
 		<>
-			{/* Tournament Buy-in / Entry Fee */}
 			<div className="grid grid-cols-2 gap-3">
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="tournamentBuyIn">
-						Buy-in <span className="text-destructive">*</span>
-					</Label>
-					<Input
-						defaultValue={defaultValues?.tournamentBuyIn}
-						id="tournamentBuyIn"
-						inputMode="numeric"
-						min={0}
-						name="tournamentBuyIn"
-						placeholder="0"
-						required
-						type="number"
-					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="entryFee">Entry Fee</Label>
-					<Input
-						defaultValue={defaultValues?.entryFee}
-						id="entryFee"
-						inputMode="numeric"
-						min={0}
-						name="entryFee"
-						placeholder="0"
-						type="number"
-					/>
-				</div>
+				<form.Field name="tournamentBuyIn">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Buy-in"
+							required
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="0"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+				<form.Field name="entryFee">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Entry Fee"
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="0"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
 			</div>
 
-			{/* Prize Money */}
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="prizeMoney">Prize Money</Label>
-				<Input
-					defaultValue={defaultValues?.prizeMoney}
-					id="prizeMoney"
-					inputMode="numeric"
-					min={0}
-					name="prizeMoney"
-					placeholder="0"
-					type="number"
-				/>
-			</div>
+			<form.Field name="prizeMoney">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Prize Money"
+					>
+						<Input
+							id={field.name}
+							inputMode="numeric"
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="0"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 
-			{/* Placement / Total Entries */}
 			<div className="grid grid-cols-2 gap-3">
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="placement">Placement</Label>
-					<Input
-						defaultValue={defaultValues?.placement}
-						id="placement"
-						inputMode="numeric"
-						min={1}
-						name="placement"
-						placeholder="e.g. 3"
-						type="number"
-					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="totalEntries">Total Entries</Label>
-					<Input
-						defaultValue={defaultValues?.totalEntries}
-						id="totalEntries"
-						inputMode="numeric"
-						min={1}
-						name="totalEntries"
-						placeholder="e.g. 50"
-						type="number"
-					/>
-				</div>
+				<form.Field name="placement">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Placement"
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="e.g. 3"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+				<form.Field name="totalEntries">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Total Entries"
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="e.g. 50"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
 			</div>
 		</>
 	);
@@ -115,16 +144,17 @@ export function TournamentPrimaryFields({
 
 export function TournamentDetailFields({
 	currencies,
-	defaultValues,
+	form,
 	onCurrencyChange,
 	selectedCurrencyId,
 }: TournamentDetailFieldsProps) {
 	return (
 		<>
-			{/* Currency Selector */}
 			{currencies && currencies.length > 0 && (
-				<div className="flex flex-col gap-2">
-					<Label>Currency</Label>
+				<Field
+					description="Auto-generates a transaction with the session's P&L."
+					label="Currency"
+				>
 					<Select
 						onValueChange={(v) =>
 							onCurrencyChange?.(v === NONE_VALUE ? undefined : v)
@@ -143,76 +173,86 @@ export function TournamentDetailFields({
 							))}
 						</SelectContent>
 					</Select>
-					<p className="text-muted-foreground text-xs">
-						Auto-generates a transaction with the session&apos;s P&L.
-					</p>
-				</div>
+				</Field>
 			)}
 
-			{/* Rebuy Count / Rebuy Cost */}
 			<div className="grid grid-cols-2 gap-3">
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="rebuyCount">Rebuy Count</Label>
-					<Input
-						defaultValue={defaultValues?.rebuyCount}
-						id="rebuyCount"
-						inputMode="numeric"
-						min={0}
-						name="rebuyCount"
-						placeholder="0"
-						type="number"
-					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="rebuyCost">Rebuy Cost</Label>
-					<Input
-						defaultValue={defaultValues?.rebuyCost}
-						id="rebuyCost"
-						inputMode="numeric"
-						min={0}
-						name="rebuyCost"
-						placeholder="0"
-						type="number"
-					/>
-				</div>
+				<form.Field name="rebuyCount">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Rebuy Count"
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="0"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+				<form.Field name="rebuyCost">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Rebuy Cost"
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="0"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
 			</div>
 
-			{/* Addon Cost / Bounty Prizes */}
 			<div className="grid grid-cols-2 gap-3">
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="addonCost">Addon Cost</Label>
-					<Input
-						defaultValue={defaultValues?.addonCost}
-						id="addonCost"
-						inputMode="numeric"
-						min={0}
-						name="addonCost"
-						placeholder="0"
-						type="number"
-					/>
-				</div>
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="bountyPrizes">Bounty Prizes</Label>
-					<Input
-						defaultValue={defaultValues?.bountyPrizes}
-						id="bountyPrizes"
-						inputMode="numeric"
-						min={0}
-						name="bountyPrizes"
-						placeholder="0"
-						type="number"
-					/>
-				</div>
+				<form.Field name="addonCost">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Addon Cost"
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="0"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+				<form.Field name="bountyPrizes">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Bounty Prizes"
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="0"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
 			</div>
-		</>
-	);
-}
-
-export function TournamentFields({ defaultValues }: TournamentFieldsProps) {
-	return (
-		<>
-			<TournamentPrimaryFields defaultValues={defaultValues} />
-			<TournamentDetailFields defaultValues={defaultValues} />
 		</>
 	);
 }
