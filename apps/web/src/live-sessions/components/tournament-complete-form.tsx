@@ -61,7 +61,7 @@ export function TournamentCompleteForm({
 					id="beforeDeadline"
 					onCheckedChange={(checked) => setBeforeDeadline(checked === true)}
 				/>
-				<Label htmlFor="beforeDeadline">レジストクローズ前に完了</Label>
+				<Label htmlFor="beforeDeadline">Completed before registration closes</Label>
 			</div>
 
 			{!beforeDeadline && (
