@@ -460,6 +460,18 @@ export function SessionCard({
 
 	return (
 		<EntityListItem
+			actions={
+				<Button
+					disabled={isSharing}
+					onClick={handleShare}
+					size="xs"
+					type="button"
+					variant="ghost"
+				>
+					<IconShare2 size={14} />
+					{isSharing ? "Sharing..." : "Share"}
+				</Button>
+			}
 			deleteLabel="session"
 			onDelete={() => onDelete(session.id)}
 			onEdit={() => onEdit(session)}
@@ -482,47 +494,34 @@ export function SessionCard({
 						</p>
 					</div>
 				)}
-				<div className="mt-2 flex items-center gap-2 border-t pt-2">
-					<Button
-						className="px-0"
-						disabled={isSharing}
-						onClick={handleShare}
-						size="xs"
-						type="button"
-						variant="link"
-					>
-						<IconShare2 size={12} />
-						{isSharing ? "Sharing..." : "Share"}
-					</Button>
-					{liveSessionId && (
-						<>
-							<Button asChild className="px-0" size="xs" variant="link">
-								<Link
-									params={{
-										sessionType: isTournament ? "tournament" : "cash-game",
-										sessionId: liveSessionId,
-									}}
-									to="/live-sessions/$sessionType/$sessionId/events"
-								>
-									<IconList size={12} />
-									Events
-								</Link>
+				{liveSessionId && (
+					<div className="mt-2 flex items-center gap-2 border-t pt-2">
+						<Button asChild className="px-0" size="xs" variant="link">
+							<Link
+								params={{
+									sessionType: isTournament ? "tournament" : "cash-game",
+									sessionId: liveSessionId,
+								}}
+								to="/live-sessions/$sessionType/$sessionId/events"
+							>
+								<IconList size={12} />
+								Events
+							</Link>
+						</Button>
+						{onReopen && (
+							<Button
+								className="px-0"
+								onClick={() => onReopen(liveSessionId)}
+								size="xs"
+								type="button"
+								variant="link"
+							>
+								<IconPlayerPlay size={12} />
+								Reopen
 							</Button>
-							{onReopen && (
-								<Button
-									className="px-0"
-									onClick={() => onReopen(liveSessionId)}
-									size="xs"
-									type="button"
-									variant="link"
-								>
-									<IconPlayerPlay size={12} />
-									Reopen
-								</Button>
-							)}
-						</>
-					)}
-				</div>
+						)}
+					</div>
+				)}
 			</div>
 		</EntityListItem>
 	);
