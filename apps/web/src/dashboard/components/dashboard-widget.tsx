@@ -35,7 +35,7 @@ export function DashboardWidget({
 				isEditing && "ring-1 ring-primary/40"
 			)}
 		>
-			<div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-2 py-1.5">
+			<div className="flex min-h-9 items-center justify-between gap-2 border-b bg-muted/30 px-2 py-1.5">
 				<div className="flex min-w-0 items-center gap-1 text-muted-foreground">
 					{isEditing ? (
 						<button
