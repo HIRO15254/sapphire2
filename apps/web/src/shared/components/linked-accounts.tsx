@@ -1,5 +1,5 @@
-import { useForm } from "@tanstack/react-form";
 import { IconLink, IconUnlink } from "@tabler/icons-react";
+import { useForm } from "@tanstack/react-form";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
@@ -210,7 +210,6 @@ export function LinkedAccounts() {
 		<div className="space-y-3">
 			<ManagementList>
 				<ManagementListItem
-					className="min-h-14"
 					actions={
 						hasCredential ? undefined : (
 							<Button
@@ -222,11 +221,15 @@ export function LinkedAccounts() {
 							</Button>
 						)
 					}
+					className="min-h-14"
 					title={
 						<span className="flex items-center gap-2">
 							Email / Password
 							{hasCredential ? (
-								<Badge className="border-green-500 text-green-600" variant="outline">
+								<Badge
+									className="border-green-500 text-green-600"
+									variant="outline"
+								>
 									Linked
 								</Badge>
 							) : null}
@@ -240,7 +243,6 @@ export function LinkedAccounts() {
 
 					return (
 						<ManagementListItem
-							className="min-h-14"
 							actions={
 								isLinked ? (
 									<Button
@@ -263,13 +265,16 @@ export function LinkedAccounts() {
 									</Button>
 								)
 							}
+							className="min-h-14"
 							key={provider.id}
 							leading={provider.icon}
 							title={
 								<span className="flex items-center gap-2">
 									{provider.label}
 									<Badge
-										className={isLinked ? "border-green-500 text-green-600" : ""}
+										className={
+											isLinked ? "border-green-500 text-green-600" : ""
+										}
 										variant="outline"
 									>
 										{isLinked ? "Linked" : "Not linked"}
