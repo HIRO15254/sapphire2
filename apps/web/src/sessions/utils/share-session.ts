@@ -39,41 +39,84 @@ function formatOrdinal(n: number): string {
 	return `${n}${suffix[(v - 20) % 10] ?? suffix[v] ?? suffix[0]}`;
 }
 
+function formatDuration(
+	startedAt: string | null,
+	endedAt: string | null
+): string | null {
+	if (!(startedAt && endedAt)) {
+		return null;
+	}
+	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+	const hours = diffMs / (1000 * 60 * 60);
+	return `${hours.toFixed(1)}h`;
+}
+
+function buildProfitLossLine(
+	session: ShareableSession,
+	plIcon: string,
+	plSign: string,
+	profitLoss: number,
+	currencyUnit: string
+): string {
+	const baseAmount = formatCompactNumberForShare(profitLoss);
+	let line = `${plIcon} ${plSign}${baseAmount} ${currencyUnit}`;
+
+	if (session.type === "tournament") {
+		if (session.prizeMoney !== null && session.prizeMoney > 0) {
+			const prize = formatCompactNumberForShare(session.prizeMoney);
+			line += ` (Prize: +${prize} ${currencyUnit})`;
+		}
+	} else {
+		const duration = formatDuration(session.startedAt, session.endedAt);
+		if (session.evProfitLoss !== null) {
+			const evSign = session.evProfitLoss >= 0 ? "+" : "";
+			const evAmount = formatCompactNumberForShare(session.evProfitLoss);
+			line += ` (EV: ${evSign}${evAmount} ${currencyUnit})`;
+		}
+		if (duration) {
+			line += ` / ${duration}`;
+		}
+	}
+
+	return line;
+}
+
 export function createSessionShareText(session: ShareableSession): string {
 	const isTournament = session.type === "tournament";
 	const gameName = isTournament
 		? session.tournamentName || "Tournament"
 		: session.ringGameName || "Cash Game";
 	const profitLoss = session.profitLoss ?? 0;
-	const sign = profitLoss >= 0 ? "+" : "";
+	const plIcon = profitLoss >= 0 ? "📈" : "📉";
+	const plSign = profitLoss >= 0 ? "+" : "";
 	const currencyUnit = session.currencyUnit ?? "";
 	const date = new Date(session.sessionDate).toLocaleDateString("ja-JP");
-
-	const venue = session.storeName ? ` @ ${session.storeName}` : "";
+	const gameIcon = isTournament ? "🏆" : "💲";
 
 	let text = "📊 Poker Session Result\n";
-	text += `\n🃏 ${gameName}${venue}\n`;
-	text += `📅 ${date}\n`;
-	text += `\n💰 P&L: ${sign}${formatCompactNumberForShare(profitLoss)} ${currencyUnit}\n`;
+	text += `\n📅 ${date}\n`;
 
-	if (isTournament) {
-		if (session.placement !== null) {
-			const ordinal = formatOrdinal(session.placement);
-			const entries =
-				session.totalEntries === null
-					? ""
-					: ` / ${session.totalEntries} entries`;
-			text += `🏆 ${ordinal}${entries}\n`;
-		}
-		if (session.prizeMoney !== null && session.prizeMoney > 0) {
-			text += `Prize: +${formatCompactNumberForShare(session.prizeMoney)} ${currencyUnit}\n`;
-		}
-	} else if (session.evProfitLoss !== null) {
-		const evSign = session.evProfitLoss >= 0 ? "+" : "";
-		text += `📈 EV P&L: ${evSign}${formatCompactNumberForShare(session.evProfitLoss)} ${currencyUnit}\n`;
+	if (session.storeName) {
+		text += `📍 ${session.storeName}\n`;
 	}
 
-	text += `\n#Poker${isTournament ? " #Tournament" : " #CashGame"}`;
+	text += `\n${gameIcon} ${gameName}\n`;
+
+	if (isTournament && session.placement !== null) {
+		const ordinal = formatOrdinal(session.placement);
+		const entries =
+			session.totalEntries === null ? "" : ` / ${session.totalEntries} entries`;
+		text += `🧾 ${ordinal}${entries}\n`;
+	}
+
+	const plLine = buildProfitLossLine(
+		session,
+		plIcon,
+		plSign,
+		profitLoss,
+		currencyUnit
+	);
+	text += `${plLine}\n`;
 
 	return text;
 }
