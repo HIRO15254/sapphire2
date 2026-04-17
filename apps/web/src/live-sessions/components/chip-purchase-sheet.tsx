@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { useForm } from "@tanstack/react-form";
+import { useEffect } from "react";
+import { z } from "zod";
 import { ChipPurchaseFields } from "@/live-sessions/components/event-fields/chip-purchase-fields";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { requiredNumericString } from "@/shared/lib/form-fields";
 
 interface ChipPurchaseSheetProps {
 	defaultChips?: number;
@@ -17,6 +20,30 @@ interface ChipPurchaseSheetProps {
 	shortcuts?: Array<{ chips: number; cost: number; name: string }>;
 }
 
+const chipPurchaseSchema = z.object({
+	name: z.string().min(1, "Name is required"),
+	cost: requiredNumericString({ integer: true, min: 0 }),
+	chips: requiredNumericString({ integer: true, min: 0 }),
+});
+
+function buildDefaults({
+	initialValues,
+	defaultName,
+	defaultCost,
+	defaultChips,
+}: {
+	defaultChips?: number;
+	defaultCost?: number;
+	defaultName?: string;
+	initialValues?: { name: string; cost: number; chips: number };
+}) {
+	return {
+		name: initialValues?.name ?? defaultName ?? "",
+		cost: String(initialValues?.cost ?? defaultCost ?? 0),
+		chips: String(initialValues?.chips ?? defaultChips ?? 0),
+	};
+}
+
 export function ChipPurchaseSheet({
 	open,
 	onOpenChange,
@@ -29,36 +56,38 @@ export function ChipPurchaseSheet({
 	readOnly = false,
 	shortcuts,
 }: ChipPurchaseSheetProps) {
-	const [name, setName] = useState(initialValues?.name ?? defaultName ?? "");
-	const [cost, setCost] = useState(initialValues?.cost ?? defaultCost ?? 0);
-	const [chips, setChips] = useState(initialValues?.chips ?? defaultChips ?? 0);
+	const form = useForm({
+		defaultValues: buildDefaults({
+			defaultChips,
+			defaultCost,
+			defaultName,
+			initialValues,
+		}),
+		onSubmit: ({ value }) => {
+			onSubmit({
+				name: value.name,
+				cost: Math.round(Number(value.cost)),
+				chips: Math.round(Number(value.chips)),
+			});
+		},
+		validators: {
+			onSubmit: chipPurchaseSchema,
+		},
+	});
 
 	useEffect(() => {
 		if (open) {
-			setName(initialValues?.name ?? defaultName ?? "");
-			setCost(initialValues?.cost ?? defaultCost ?? 0);
-			setChips(initialValues?.chips ?? defaultChips ?? 0);
+			form.reset(
+				buildDefaults({ defaultChips, defaultCost, defaultName, initialValues })
+			);
 		}
-	}, [
-		open,
-		initialValues?.name,
-		initialValues?.cost,
-		initialValues?.chips,
-		defaultName,
-		defaultCost,
-		defaultChips,
-	]);
+	}, [open, defaultChips, defaultCost, defaultName, initialValues, form]);
 
 	const isEditMode = initialValues !== undefined;
 
-	const handleSubmit = (e: React.FormEvent) => {
-		e.preventDefault();
-		onSubmit({ name, cost, chips });
-	};
-
 	let title = "Add Chip Purchase";
 	if (readOnly) {
-		title = name || "Chip Purchase";
+		title = form.state.values.name || "Chip Purchase";
 	} else if (isEditMode) {
 		title = "Edit Chip Purchase";
 	}
@@ -70,17 +99,39 @@ export function ChipPurchaseSheet({
 			open={open}
 			title={title}
 		>
-			<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-				<ChipPurchaseFields
-					chips={chips}
-					cost={cost}
-					name={name}
-					onChipsChange={setChips}
-					onCostChange={setCost}
-					onNameChange={setName}
-					readOnly={readOnly}
-					shortcuts={shortcuts}
-				/>
+			<form
+				className="flex flex-col gap-4"
+				onSubmit={(e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					form.handleSubmit();
+				}}
+			>
+				<form.Field name="name">
+					{(nameField) => (
+						<form.Field name="cost">
+							{(costField) => (
+								<form.Field name="chips">
+									{(chipsField) => (
+										<ChipPurchaseFields
+											chips={chipsField.state.value}
+											chipsError={chipsField.state.meta.errors[0]?.message}
+											cost={costField.state.value}
+											costError={costField.state.meta.errors[0]?.message}
+											name={nameField.state.value}
+											nameError={nameField.state.meta.errors[0]?.message}
+											onChipsChange={(v) => chipsField.handleChange(v)}
+											onCostChange={(v) => costField.handleChange(v)}
+											onNameChange={(v) => nameField.handleChange(v)}
+											readOnly={readOnly}
+											shortcuts={shortcuts}
+										/>
+									)}
+								</form.Field>
+							)}
+						</form.Field>
+					)}
+				</form.Field>
 				<DialogActionRow>
 					<Button
 						onClick={() => onOpenChange(false)}

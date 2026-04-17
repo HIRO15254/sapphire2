@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { useForm } from "@tanstack/react-form";
+import { useEffect } from "react";
+import { z } from "zod";
 import { AllInFields } from "@/live-sessions/components/event-fields/all-in-fields";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { requiredNumericString } from "@/shared/lib/form-fields";
 
 interface AllIn {
 	equity: number;
@@ -19,12 +22,31 @@ interface AllInBottomSheetProps {
 	open: boolean;
 }
 
-const DEFAULT_VALUES: AllIn = {
-	potSize: 0,
-	trials: 1,
-	equity: 0,
-	wins: 0,
+const DEFAULT_VALUES = {
+	potSize: "0",
+	trials: "1",
+	equity: "0",
+	wins: "0",
 };
+
+const allInSchema = z.object({
+	potSize: requiredNumericString({ min: 0 }),
+	trials: requiredNumericString({ integer: true, min: 1 }),
+	equity: requiredNumericString({ min: 0, max: 100 }),
+	wins: requiredNumericString({ min: 0 }),
+});
+
+function toFormDefaults(initial: AllIn | undefined) {
+	if (!initial) {
+		return DEFAULT_VALUES;
+	}
+	return {
+		potSize: String(initial.potSize),
+		trials: String(initial.trials),
+		equity: String(initial.equity),
+		wins: String(initial.wins),
+	};
+}
 
 export function AllInBottomSheet({
 	open,
@@ -33,33 +55,28 @@ export function AllInBottomSheet({
 	onSubmit,
 	onDelete,
 }: AllInBottomSheetProps) {
-	const [potSize, setPotSize] = useState(
-		initialValues?.potSize ?? DEFAULT_VALUES.potSize
-	);
-	const [trials, setTrials] = useState(
-		initialValues?.trials ?? DEFAULT_VALUES.trials
-	);
-	const [equity, setEquity] = useState(
-		initialValues?.equity ?? DEFAULT_VALUES.equity
-	);
-	const [wins, setWins] = useState(initialValues?.wins ?? DEFAULT_VALUES.wins);
+	const form = useForm({
+		defaultValues: toFormDefaults(initialValues),
+		onSubmit: ({ value }) => {
+			onSubmit({
+				potSize: Number(value.potSize),
+				trials: Number(value.trials),
+				equity: Number(value.equity),
+				wins: Number(value.wins),
+			});
+		},
+		validators: {
+			onSubmit: allInSchema,
+		},
+	});
 
 	useEffect(() => {
 		if (open) {
-			setPotSize(initialValues?.potSize ?? DEFAULT_VALUES.potSize);
-			setTrials(initialValues?.trials ?? DEFAULT_VALUES.trials);
-			setEquity(initialValues?.equity ?? DEFAULT_VALUES.equity);
-			setWins(initialValues?.wins ?? DEFAULT_VALUES.wins);
+			form.reset(toFormDefaults(initialValues));
 		}
-	}, [open, initialValues]);
+	}, [open, initialValues, form]);
 
 	const isEditMode = initialValues !== undefined;
-
-	const handleSubmit = (e: React.FormEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		onSubmit({ potSize, trials, equity, wins });
-	};
 
 	return (
 		<ResponsiveDialog
@@ -68,17 +85,50 @@ export function AllInBottomSheet({
 			open={open}
 			title={isEditMode ? "Edit All-in" : "Add All-in"}
 		>
-			<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-				<AllInFields
-					equity={equity}
-					onEquityChange={setEquity}
-					onPotSizeChange={setPotSize}
-					onTrialsChange={(v) => setTrials(v)}
-					onWinsChange={setWins}
-					potSize={potSize}
-					trials={trials}
-					wins={wins}
-				/>
+			<form
+				className="flex flex-col gap-4"
+				onSubmit={(e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					form.handleSubmit();
+				}}
+			>
+				<form.Field name="potSize">
+					{(potSizeField) => (
+						<form.Field name="trials">
+							{(trialsField) => (
+								<form.Field name="equity">
+									{(equityField) => (
+										<form.Field name="wins">
+											{(winsField) => (
+												<AllInFields
+													equity={equityField.state.value}
+													equityError={
+														equityField.state.meta.errors[0]?.message
+													}
+													onEquityChange={(v) => equityField.handleChange(v)}
+													onPotSizeChange={(v) => potSizeField.handleChange(v)}
+													onTrialsChange={(v) => trialsField.handleChange(v)}
+													onWinsChange={(v) => winsField.handleChange(v)}
+													potSize={potSizeField.state.value}
+													potSizeError={
+														potSizeField.state.meta.errors[0]?.message
+													}
+													trials={trialsField.state.value}
+													trialsError={
+														trialsField.state.meta.errors[0]?.message
+													}
+													wins={winsField.state.value}
+													winsError={winsField.state.meta.errors[0]?.message}
+												/>
+											)}
+										</form.Field>
+									)}
+								</form.Field>
+							)}
+						</form.Field>
+					)}
+				</form.Field>
 				<DialogActionRow>
 					<Button
 						onClick={() => onOpenChange(false)}

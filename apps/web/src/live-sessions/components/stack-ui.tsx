@@ -95,6 +95,7 @@ export function StackTimeField({
 
 export function StackNumberField({
 	description,
+	error,
 	id,
 	label,
 	onChange,
@@ -103,6 +104,7 @@ export function StackNumberField({
 	...props
 }: Omit<React.ComponentProps<typeof Input>, "onChange" | "value"> & {
 	description?: React.ReactNode;
+	error?: React.ReactNode;
 	id: string;
 	label: React.ReactNode;
 	onChange: (value: string) => void;
@@ -112,6 +114,7 @@ export function StackNumberField({
 	return (
 		<Field
 			description={description}
+			error={error}
 			htmlFor={id}
 			label={label}
 			required={required}

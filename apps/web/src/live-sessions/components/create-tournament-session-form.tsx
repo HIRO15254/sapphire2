@@ -1,4 +1,6 @@
+import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
+import { z } from "zod";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
@@ -11,6 +13,10 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import {
+	optionalNumericString,
+	requiredNumericString,
+} from "@/shared/lib/form-fields";
 
 interface CreateTournamentSessionFormProps {
 	currencies: Array<{ id: string; name: string }>;
@@ -36,6 +42,13 @@ interface CreateTournamentSessionFormProps {
 	}>;
 }
 
+const formSchema = z.object({
+	buyIn: requiredNumericString({ integer: true, min: 0 }),
+	entryFee: optionalNumericString({ integer: true, min: 0 }),
+	startingStack: requiredNumericString({ integer: true, min: 0 }),
+	memo: z.string(),
+});
+
 export function CreateTournamentSessionForm({
 	currencies,
 	isLoading,
@@ -53,9 +66,32 @@ export function CreateTournamentSessionForm({
 	const [selectedCurrencyId, setSelectedCurrencyId] = useState<
 		string | undefined
 	>(undefined);
-	const [buyIn, setBuyIn] = useState<string>("");
-	const [entryFee, setEntryFee] = useState<string>("");
-	const [startingStack, setStartingStack] = useState<string>("");
+
+	const form = useForm({
+		defaultValues: {
+			buyIn: "",
+			entryFee: "",
+			startingStack: "",
+			memo: "",
+		},
+		onSubmit: ({ value }) => {
+			if (!(selectedStoreId && selectedTournamentId)) {
+				return;
+			}
+			onSubmit({
+				storeId: selectedStoreId,
+				tournamentId: selectedTournamentId,
+				currencyId: selectedCurrencyId,
+				buyIn: Number(value.buyIn),
+				entryFee: value.entryFee ? Number(value.entryFee) : undefined,
+				startingStack: Number(value.startingStack),
+				memo: value.memo ? value.memo : undefined,
+			});
+		},
+		validators: {
+			onSubmit: formSchema,
+		},
+	});
 
 	const handleStoreChange = (value: string) => {
 		setSelectedStoreId(value);
@@ -68,19 +104,19 @@ export function CreateTournamentSessionForm({
 			setSelectedCurrencyId(t.currencyId);
 		}
 		if (t.buyIn !== null) {
-			setBuyIn(String(t.buyIn));
+			form.setFieldValue("buyIn", String(t.buyIn));
 		}
 		if (t.entryFee !== null) {
-			setEntryFee(String(t.entryFee));
+			form.setFieldValue("entryFee", String(t.entryFee));
 		}
 		if (t.startingStack !== null) {
-			setStartingStack(String(t.startingStack));
+			form.setFieldValue("startingStack", String(t.startingStack));
 		}
 	};
 
 	const handleTournamentChange = (value: string) => {
 		setSelectedTournamentId(value);
-		const t = tournaments.find((t) => t.id === value);
+		const t = tournaments.find((tour) => tour.id === value);
 		if (t) {
 			applyTournamentDefaults(t);
 		}
@@ -90,29 +126,8 @@ export function CreateTournamentSessionForm({
 		setSelectedCurrencyId(value);
 	};
 
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		if (!(selectedStoreId && selectedTournamentId)) {
-			return;
-		}
-		const formData = new FormData(e.currentTarget);
-		const memo = (formData.get("memo") as string) || undefined;
-		const entryFeeNum = entryFee ? Number(entryFee) : undefined;
-
-		onSubmit({
-			storeId: selectedStoreId,
-			tournamentId: selectedTournamentId,
-			currencyId: selectedCurrencyId,
-			buyIn: Number(buyIn),
-			entryFee: entryFeeNum,
-			startingStack: Number(startingStack),
-			memo,
-		});
-	};
-
 	const hasTournaments = tournaments.length > 0;
 
-	// Determine which fields are locked by the selected tournament
 	const selectedTournament = selectedTournamentId
 		? tournaments.find((t) => t.id === selectedTournamentId)
 		: null;
@@ -132,7 +147,14 @@ export function CreateTournamentSessionForm({
 	const canSubmit = !!selectedStoreId && !!selectedTournamentId;
 
 	return (
-		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+		<form
+			className="flex flex-col gap-4"
+			onSubmit={(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				form.handleSubmit();
+			}}
+		>
 			<Field label="Store" required>
 				{stores.length > 0 ? (
 					<Select onValueChange={handleStoreChange} value={selectedStoreId}>
@@ -208,57 +230,96 @@ export function CreateTournamentSessionForm({
 					)}
 
 					<div className="flex gap-3">
-						<Field className="flex-1" htmlFor="buyIn" label="Buy-in" required>
-							<Input
-								disabled={isBuyInLocked}
-								id="buyIn"
-								inputMode="numeric"
-								min={0}
-								onChange={(e) => setBuyIn(e.target.value)}
-								required
-								type="number"
-								value={buyIn}
-							/>
-						</Field>
-						<Field className="flex-1" htmlFor="entryFee" label="Entry Fee">
-							<Input
-								disabled={isEntryFeeLocked}
-								id="entryFee"
-								inputMode="numeric"
-								min={0}
-								onChange={(e) => setEntryFee(e.target.value)}
-								type="number"
-								value={entryFee}
-							/>
-						</Field>
+						<form.Field name="buyIn">
+							{(field) => (
+								<Field
+									className="flex-1"
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="Buy-in"
+									required
+								>
+									<Input
+										disabled={isBuyInLocked}
+										id={field.name}
+										inputMode="numeric"
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="entryFee">
+							{(field) => (
+								<Field
+									className="flex-1"
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="Entry Fee"
+								>
+									<Input
+										disabled={isEntryFeeLocked}
+										id={field.name}
+										inputMode="numeric"
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
 					</div>
 
-					<Field htmlFor="startingStack" label="Starting Stack" required>
-						<Input
-							disabled={isStartingStackLocked}
-							id="startingStack"
-							inputMode="numeric"
-							min={0}
-							onChange={(e) => setStartingStack(e.target.value)}
-							required
-							type="number"
-							value={startingStack}
-						/>
-					</Field>
+					<form.Field name="startingStack">
+						{(field) => (
+							<Field
+								error={field.state.meta.errors[0]?.message}
+								htmlFor={field.name}
+								label="Starting Stack"
+								required
+							>
+								<Input
+									disabled={isStartingStackLocked}
+									id={field.name}
+									inputMode="numeric"
+									onBlur={field.handleBlur}
+									onChange={(e) => field.handleChange(e.target.value)}
+									value={field.state.value}
+								/>
+							</Field>
+						)}
+					</form.Field>
 
-					<Field htmlFor="memo" label="Memo">
-						<Textarea
-							id="memo"
-							name="memo"
-							placeholder="Notes about this tournament"
-						/>
-					</Field>
+					<form.Field name="memo">
+						{(field) => (
+							<Field htmlFor={field.name} label="Memo">
+								<Textarea
+									id={field.name}
+									onBlur={field.handleBlur}
+									onChange={(e) => field.handleChange(e.target.value)}
+									placeholder="Notes about this tournament"
+									value={field.state.value}
+								/>
+							</Field>
+						)}
+					</form.Field>
 				</>
 			)}
 
-			<Button className="mt-2" disabled={isLoading || !canSubmit} type="submit">
-				{isLoading ? "Starting..." : "Start Tournament"}
-			</Button>
+			<form.Subscribe>
+				{(state) => (
+					<Button
+						className="mt-2"
+						disabled={
+							isLoading || !canSubmit || !state.canSubmit || state.isSubmitting
+						}
+						type="submit"
+					>
+						{isLoading ? "Starting..." : "Start Tournament"}
+					</Button>
+				)}
+			</form.Subscribe>
 		</form>
 	);
 }

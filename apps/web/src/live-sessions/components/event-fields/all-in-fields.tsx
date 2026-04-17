@@ -2,76 +2,83 @@ import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 
 interface AllInFieldsProps {
-	equity: number;
-	onEquityChange: (v: number) => void;
-	onPotSizeChange: (v: number) => void;
-	onTrialsChange: (v: number) => void;
-	onWinsChange: (v: number) => void;
-	potSize: number;
-	trials: number;
-	wins: number;
+	equity: string;
+	equityError?: string;
+	onEquityChange: (v: string) => void;
+	onPotSizeChange: (v: string) => void;
+	onTrialsChange: (v: string) => void;
+	onWinsChange: (v: string) => void;
+	potSize: string;
+	potSizeError?: string;
+	trials: string;
+	trialsError?: string;
+	wins: string;
+	winsError?: string;
 }
 
 export function AllInFields({
 	equity,
+	equityError,
 	onEquityChange,
 	onPotSizeChange,
 	onTrialsChange,
 	onWinsChange,
 	potSize,
+	potSizeError,
 	trials,
+	trialsError,
 	wins,
+	winsError,
 }: AllInFieldsProps) {
-	const evAmount = potSize * (equity / 100);
-	const actual = (potSize / trials) * wins;
+	const potSizeNum = Number(potSize) || 0;
+	const trialsNum = Number(trials) || 1;
+	const equityNum = Number(equity) || 0;
+	const winsNum = Number(wins) || 0;
+	const evAmount = potSizeNum * (equityNum / 100);
+	const actual = (potSizeNum / trialsNum) * winsNum;
 	const evDiff = evAmount - actual;
 
 	return (
 		<>
-			<Field htmlFor="allIn-potSize" label="Pot Size" required>
+			<Field
+				error={potSizeError}
+				htmlFor="allIn-potSize"
+				label="Pot Size"
+				required
+			>
 				<Input
 					id="allIn-potSize"
-					min={0}
-					onChange={(e) => onPotSizeChange(Number(e.target.value))}
-					required
-					step="any"
-					type="number"
+					inputMode="decimal"
+					onChange={(e) => onPotSizeChange(e.target.value)}
 					value={potSize}
 				/>
 			</Field>
-			<Field htmlFor="allIn-trials" label="Trials" required>
+			<Field error={trialsError} htmlFor="allIn-trials" label="Trials" required>
 				<Input
 					id="allIn-trials"
-					min={1}
-					onChange={(e) => onTrialsChange(Math.round(Number(e.target.value)))}
-					required
-					step={1}
-					type="number"
+					inputMode="numeric"
+					onChange={(e) => onTrialsChange(e.target.value)}
 					value={trials}
 				/>
 			</Field>
-			<Field htmlFor="allIn-equity" label="Equity %">
+			<Field error={equityError} htmlFor="allIn-equity" label="Equity %">
 				<Input
 					id="allIn-equity"
-					max={100}
-					min={0}
-					onChange={(e) => onEquityChange(Number(e.target.value))}
-					step={0.1}
-					type="number"
+					inputMode="decimal"
+					onChange={(e) => onEquityChange(e.target.value)}
 					value={equity}
 				/>
 			</Field>
 			<Field
 				description="Decimal values are allowed for chopped pots."
+				error={winsError}
 				htmlFor="allIn-wins"
 				label="Wins"
 			>
 				<Input
 					id="allIn-wins"
-					min={0}
-					onChange={(e) => onWinsChange(Number(e.target.value))}
-					step={0.1}
-					type="number"
+					inputMode="decimal"
+					onChange={(e) => onWinsChange(e.target.value)}
 					value={wins}
 				/>
 			</Field>

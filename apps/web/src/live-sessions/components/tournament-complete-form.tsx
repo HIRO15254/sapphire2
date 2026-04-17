@@ -1,7 +1,13 @@
+import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import {
+	optionalNumericString,
+	requiredNumericString,
+} from "@/shared/lib/form-fields";
 
 interface TournamentCompleteFormProps {
 	isLoading: boolean;
@@ -22,82 +28,143 @@ interface TournamentCompleteFormProps {
 	) => void;
 }
 
+const tournamentCompleteSchema = z.object({
+	placement: requiredNumericString({ integer: true, min: 1 }),
+	totalEntries: requiredNumericString({ integer: true, min: 1 }),
+	prizeMoney: requiredNumericString({ integer: true, min: 0 }),
+	bountyPrizes: optionalNumericString({ integer: true, min: 0 }),
+});
+
 export function TournamentCompleteForm({
 	isLoading,
 	onSubmit,
 }: TournamentCompleteFormProps) {
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		const formData = new FormData(e.currentTarget);
-		const placement = Number(formData.get("placement"));
-		const totalEntries = Number(formData.get("totalEntries"));
-		const prizeMoney = Number(formData.get("prizeMoney"));
-		const bountyRaw = formData.get("bountyPrizes") as string;
-		const bountyPrizes = bountyRaw ? Number(bountyRaw) : 0;
-
-		onSubmit({
-			beforeDeadline: false,
-			placement,
-			totalEntries,
-			prizeMoney,
-			bountyPrizes,
-		});
-	};
+	const form = useForm({
+		defaultValues: {
+			placement: "",
+			totalEntries: "",
+			prizeMoney: "0",
+			bountyPrizes: "",
+		},
+		onSubmit: ({ value }) => {
+			onSubmit({
+				beforeDeadline: false,
+				placement: Number(value.placement),
+				totalEntries: Number(value.totalEntries),
+				prizeMoney: Number(value.prizeMoney),
+				bountyPrizes: value.bountyPrizes ? Number(value.bountyPrizes) : 0,
+			});
+		},
+		validators: {
+			onSubmit: tournamentCompleteSchema,
+		},
+	});
 
 	return (
-		<form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-			<Field htmlFor="placement" label="Placement" required>
-				<Input
-					id="placement"
-					inputMode="numeric"
-					min={1}
-					name="placement"
-					placeholder="1"
-					required
-					type="number"
-				/>
-			</Field>
+		<form
+			className="flex flex-col gap-4"
+			onSubmit={(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				form.handleSubmit();
+			}}
+		>
+			<form.Field name="placement">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Placement"
+						required
+					>
+						<Input
+							id={field.name}
+							inputMode="numeric"
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="1"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 
-			<Field htmlFor="totalEntries" label="Total Entries" required>
-				<Input
-					id="totalEntries"
-					inputMode="numeric"
-					min={1}
-					name="totalEntries"
-					placeholder="100"
-					required
-					type="number"
-				/>
-			</Field>
+			<form.Field name="totalEntries">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Total Entries"
+						required
+					>
+						<Input
+							id={field.name}
+							inputMode="numeric"
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="100"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 
-			<Field htmlFor="prizeMoney" label="Prize Money" required>
-				<Input
-					defaultValue={0}
-					id="prizeMoney"
-					inputMode="numeric"
-					min={0}
-					name="prizeMoney"
-					placeholder="0"
-					required
-					type="number"
-				/>
-			</Field>
+			<form.Field name="prizeMoney">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Prize Money"
+						required
+					>
+						<Input
+							id={field.name}
+							inputMode="numeric"
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="0"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 
-			<Field htmlFor="bountyPrizes" label="Bounty Prizes">
-				<Input
-					id="bountyPrizes"
-					inputMode="numeric"
-					min={0}
-					name="bountyPrizes"
-					placeholder="0"
-					type="number"
-				/>
-			</Field>
+			<form.Field name="bountyPrizes">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Bounty Prizes"
+					>
+						<Input
+							id={field.name}
+							inputMode="numeric"
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="0"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 
 			<DialogActionRow>
-				<Button disabled={isLoading} type="submit">
-					{isLoading ? "Completing..." : "Complete Tournament"}
-				</Button>
+				<form.Subscribe
+					selector={(state) => [state.canSubmit, state.isSubmitting]}
+				>
+					{([canSubmit, isSubmitting]) => (
+						<Button
+							disabled={isLoading || !canSubmit || isSubmitting}
+							type="submit"
+						>
+							{isLoading ? "Completing..." : "Complete Tournament"}
+						</Button>
+					)}
+				</form.Subscribe>
 			</DialogActionRow>
 		</form>
 	);
