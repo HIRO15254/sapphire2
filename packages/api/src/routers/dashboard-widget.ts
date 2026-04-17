@@ -11,10 +11,15 @@ import {
 	parseWidgetConfig,
 	stringifyWidgetConfig,
 	type WidgetType,
-	widgetConfigSchema,
 	widgetPositionSchema,
 	widgetTypeSchema,
 } from "../types/dashboard-widget";
+
+// Permissive input: each widget type has its own config shape and the union
+// would silently strip fields that don't match the first-matching schema.
+// Validation happens later via parseWidgetConfig(widgetType, ...) against the
+// correct type-specific schema, with invalid values falling back to defaults.
+const widgetConfigInputSchema = z.record(z.string(), z.unknown());
 
 type WidgetRow = typeof dashboardWidget.$inferSelect;
 
@@ -151,7 +156,7 @@ export const dashboardWidgetRouter = router({
 			z.object({
 				device: deviceSchema,
 				type: widgetTypeSchema,
-				config: widgetConfigSchema.optional(),
+				config: widgetConfigInputSchema.optional(),
 				position: widgetPositionSchema.optional(),
 			})
 		)
@@ -166,7 +171,9 @@ export const dashboardWidgetRouter = router({
 			};
 
 			const config = stringifyWidgetConfig(
-				input.config ?? getDefaultWidgetConfig(input.type)
+				input.config
+					? parseWidgetConfig(input.type, JSON.stringify(input.config))
+					: getDefaultWidgetConfig(input.type)
 			);
 
 			const id = crypto.randomUUID();
@@ -202,7 +209,7 @@ export const dashboardWidgetRouter = router({
 		.input(
 			z.object({
 				id: z.string(),
-				config: widgetConfigSchema.optional(),
+				config: widgetConfigInputSchema.optional(),
 				position: widgetPositionSchema.optional(),
 			})
 		)
@@ -228,7 +235,12 @@ export const dashboardWidgetRouter = router({
 
 			const updateData: Partial<typeof found> = { updatedAt: new Date() };
 			if (input.config !== undefined) {
-				updateData.config = stringifyWidgetConfig(input.config);
+				updateData.config = stringifyWidgetConfig(
+					parseWidgetConfig(
+						found.type as WidgetType,
+						JSON.stringify(input.config)
+					)
+				);
 			}
 			if (input.position !== undefined) {
 				updateData.x = input.position.x;
