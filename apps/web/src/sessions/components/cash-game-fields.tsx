@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
@@ -9,19 +8,24 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 
-interface CashGameFieldsProps {
+export interface CashGameFieldsProps {
+	ante?: number;
+	anteType?: string;
+	blind1?: number;
+	blind2?: number;
+	blind3?: number;
 	currencies?: Array<{ id: string; name: string }>;
-	defaultValues?: {
-		ante?: number;
-		anteType?: string;
-		blind1?: number;
-		blind2?: number;
-		blind3?: number;
-		tableSize?: number;
-		variant?: string;
-	};
+	onAnteChange?: (value: number | undefined) => void;
+	onAnteTypeChange?: (value: string) => void;
+	onBlind1Change?: (value: number | undefined) => void;
+	onBlind2Change?: (value: number | undefined) => void;
+	onBlind3Change?: (value: number | undefined) => void;
 	onCurrencyChange?: (id: string | undefined) => void;
+	onTableSizeChange?: (value: number | undefined) => void;
+	onVariantChange?: (value: string) => void;
 	selectedCurrencyId?: string;
+	tableSize?: number;
+	variant?: string;
 }
 
 const NONE_VALUE = "__none__";
@@ -34,16 +38,31 @@ const ANTE_TYPES = [
 
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
-export function CashGameFields({
-	currencies,
-	defaultValues,
-	onCurrencyChange,
-	selectedCurrencyId,
-}: CashGameFieldsProps) {
-	const [anteType, setAnteType] = useState<string>(
-		defaultValues?.anteType ?? "none"
-	);
+function parseNumericInput(value: string): number | undefined {
+	if (!value) return undefined;
+	const parsed = Number.parseFloat(value);
+	return Number.isNaN(parsed) ? undefined : parsed;
+}
 
+export function CashGameFields({
+	ante,
+	anteType = "none",
+	blind1,
+	blind2,
+	blind3,
+	currencies,
+	onAnteChange,
+	onAnteTypeChange,
+	onBlind1Change,
+	onBlind2Change,
+	onBlind3Change,
+	onCurrencyChange,
+	onTableSizeChange,
+	onVariantChange,
+	selectedCurrencyId,
+	tableSize,
+	variant = "nlh",
+}: CashGameFieldsProps) {
 	const isAnteDisabled = anteType === "none";
 
 	return (
@@ -79,7 +98,10 @@ export function CashGameFields({
 			{/* Variant */}
 			<div className="flex flex-col gap-2">
 				<Label htmlFor="variant">Variant</Label>
-				<Select defaultValue={defaultValues?.variant ?? "nlh"} name="variant">
+				<Select
+					onValueChange={(v) => onVariantChange?.(v)}
+					value={variant}
+				>
 					<SelectTrigger className="w-full" id="variant">
 						<SelectValue placeholder="Select variant" />
 					</SelectTrigger>
@@ -94,37 +116,37 @@ export function CashGameFields({
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="blind1">SB</Label>
 					<Input
-						defaultValue={defaultValues?.blind1}
 						id="blind1"
 						inputMode="numeric"
 						min={0}
-						name="blind1"
+						onChange={(e) => onBlind1Change?.(parseNumericInput(e.target.value))}
 						placeholder="0"
 						type="number"
+						value={blind1 ?? ""}
 					/>
 				</div>
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="blind2">BB</Label>
 					<Input
-						defaultValue={defaultValues?.blind2}
 						id="blind2"
 						inputMode="numeric"
 						min={0}
-						name="blind2"
+						onChange={(e) => onBlind2Change?.(parseNumericInput(e.target.value))}
 						placeholder="0"
 						type="number"
+						value={blind2 ?? ""}
 					/>
 				</div>
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="blind3">Straddle</Label>
 					<Input
-						defaultValue={defaultValues?.blind3}
 						id="blind3"
 						inputMode="numeric"
 						min={0}
-						name="blind3"
+						onChange={(e) => onBlind3Change?.(parseNumericInput(e.target.value))}
 						placeholder="0"
 						type="number"
+						value={blind3 ?? ""}
 					/>
 				</div>
 			</div>
@@ -134,9 +156,8 @@ export function CashGameFields({
 				<div className="flex flex-1 flex-col gap-2">
 					<Label htmlFor="anteType">Ante Type</Label>
 					<Select
-						defaultValue={defaultValues?.anteType ?? "none"}
-						name="anteType"
-						onValueChange={setAnteType}
+						onValueChange={(v) => onAnteTypeChange?.(v)}
+						value={anteType}
 					>
 						<SelectTrigger className="w-full" id="anteType">
 							<SelectValue placeholder="Select ante type" />
@@ -153,14 +174,14 @@ export function CashGameFields({
 				<div className="flex flex-1 flex-col gap-2">
 					<Label htmlFor="ante">Ante</Label>
 					<Input
-						defaultValue={defaultValues?.ante}
 						disabled={isAnteDisabled}
 						id="ante"
 						inputMode="numeric"
 						min={0}
-						name="ante"
+						onChange={(e) => onAnteChange?.(parseNumericInput(e.target.value))}
 						placeholder="0"
 						type="number"
+						value={isAnteDisabled ? "" : (ante ?? "")}
 					/>
 				</div>
 			</div>
@@ -169,13 +190,16 @@ export function CashGameFields({
 			<div className="flex flex-col gap-2">
 				<Label htmlFor="tableSize">Table Size</Label>
 				<Select
-					defaultValue={defaultValues?.tableSize?.toString()}
-					name="tableSize"
+					onValueChange={(v) =>
+						onTableSizeChange?.(v === NONE_VALUE ? undefined : Number(v))
+					}
+					value={tableSize?.toString() ?? NONE_VALUE}
 				>
 					<SelectTrigger className="w-full" id="tableSize">
 						<SelectValue placeholder="Select table size" />
 					</SelectTrigger>
 					<SelectContent>
+						<SelectItem value={NONE_VALUE}>None</SelectItem>
 						{TABLE_SIZES.map((size) => (
 							<SelectItem key={size} value={size.toString()}>
 								{size}-max

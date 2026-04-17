@@ -8,33 +8,53 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 
-interface TournamentFieldsDefaultValues {
-	addonCost?: number;
-	bountyPrizes?: number;
+export interface TournamentPrimaryFieldsProps {
 	entryFee?: number;
+	onEntryFeeChange?: (value: number | undefined) => void;
+	onPlacementChange?: (value: number | undefined) => void;
+	onPrizeMoneyChange?: (value: number | undefined) => void;
+	onTotalEntriesChange?: (value: number | undefined) => void;
+	onTournamentBuyInChange?: (value: number) => void;
 	placement?: number;
 	prizeMoney?: number;
-	rebuyCost?: number;
-	rebuyCount?: number;
 	totalEntries?: number;
 	tournamentBuyIn?: number;
 }
 
-interface TournamentFieldsProps {
-	defaultValues?: TournamentFieldsDefaultValues;
-}
-
-interface TournamentDetailFieldsProps extends TournamentFieldsProps {
+export interface TournamentDetailFieldsProps {
+	addonCost?: number;
+	bountyPrizes?: number;
 	currencies?: Array<{ id: string; name: string }>;
+	onAddonCostChange?: (value: number | undefined) => void;
+	onBountyPrizesChange?: (value: number | undefined) => void;
 	onCurrencyChange?: (id: string | undefined) => void;
+	onRebuyCostChange?: (value: number | undefined) => void;
+	onRebuyCountChange?: (value: number | undefined) => void;
+	rebuyCost?: number;
+	rebuyCount?: number;
 	selectedCurrencyId?: string;
 }
 
 const NONE_VALUE = "__none__";
 
+function parseNumericInput(value: string): number | undefined {
+	if (!value) return undefined;
+	const parsed = Number.parseFloat(value);
+	return Number.isNaN(parsed) ? undefined : parsed;
+}
+
 export function TournamentPrimaryFields({
-	defaultValues,
-}: TournamentFieldsProps) {
+	entryFee,
+	onEntryFeeChange,
+	onPlacementChange,
+	onPrizeMoneyChange,
+	onTotalEntriesChange,
+	onTournamentBuyInChange,
+	placement,
+	prizeMoney,
+	totalEntries,
+	tournamentBuyIn,
+}: TournamentPrimaryFieldsProps) {
 	return (
 		<>
 			{/* Tournament Buy-in / Entry Fee */}
@@ -44,26 +64,29 @@ export function TournamentPrimaryFields({
 						Buy-in <span className="text-destructive">*</span>
 					</Label>
 					<Input
-						defaultValue={defaultValues?.tournamentBuyIn}
 						id="tournamentBuyIn"
 						inputMode="numeric"
 						min={0}
-						name="tournamentBuyIn"
+						onChange={(e) => {
+							const val = parseNumericInput(e.target.value);
+							onTournamentBuyInChange?.(val ?? 0);
+						}}
 						placeholder="0"
 						required
 						type="number"
+						value={tournamentBuyIn ?? ""}
 					/>
 				</div>
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="entryFee">Entry Fee</Label>
 					<Input
-						defaultValue={defaultValues?.entryFee}
 						id="entryFee"
 						inputMode="numeric"
 						min={0}
-						name="entryFee"
+						onChange={(e) => onEntryFeeChange?.(parseNumericInput(e.target.value))}
 						placeholder="0"
 						type="number"
+						value={entryFee ?? ""}
 					/>
 				</div>
 			</div>
@@ -72,13 +95,13 @@ export function TournamentPrimaryFields({
 			<div className="flex flex-col gap-2">
 				<Label htmlFor="prizeMoney">Prize Money</Label>
 				<Input
-					defaultValue={defaultValues?.prizeMoney}
 					id="prizeMoney"
 					inputMode="numeric"
 					min={0}
-					name="prizeMoney"
+					onChange={(e) => onPrizeMoneyChange?.(parseNumericInput(e.target.value))}
 					placeholder="0"
 					type="number"
+					value={prizeMoney ?? ""}
 				/>
 			</div>
 
@@ -87,25 +110,29 @@ export function TournamentPrimaryFields({
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="placement">Placement</Label>
 					<Input
-						defaultValue={defaultValues?.placement}
 						id="placement"
 						inputMode="numeric"
 						min={1}
-						name="placement"
+						onChange={(e) =>
+							onPlacementChange?.(parseNumericInput(e.target.value))
+						}
 						placeholder="e.g. 3"
 						type="number"
+						value={placement ?? ""}
 					/>
 				</div>
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="totalEntries">Total Entries</Label>
 					<Input
-						defaultValue={defaultValues?.totalEntries}
 						id="totalEntries"
 						inputMode="numeric"
 						min={1}
-						name="totalEntries"
+						onChange={(e) =>
+							onTotalEntriesChange?.(parseNumericInput(e.target.value))
+						}
 						placeholder="e.g. 50"
 						type="number"
+						value={totalEntries ?? ""}
 					/>
 				</div>
 			</div>
@@ -114,9 +141,16 @@ export function TournamentPrimaryFields({
 }
 
 export function TournamentDetailFields({
+	addonCost,
+	bountyPrizes,
 	currencies,
-	defaultValues,
+	onAddonCostChange,
+	onBountyPrizesChange,
 	onCurrencyChange,
+	onRebuyCostChange,
+	onRebuyCountChange,
+	rebuyCost,
+	rebuyCount,
 	selectedCurrencyId,
 }: TournamentDetailFieldsProps) {
 	return (
@@ -154,25 +188,29 @@ export function TournamentDetailFields({
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="rebuyCount">Rebuy Count</Label>
 					<Input
-						defaultValue={defaultValues?.rebuyCount}
 						id="rebuyCount"
 						inputMode="numeric"
 						min={0}
-						name="rebuyCount"
+						onChange={(e) =>
+							onRebuyCountChange?.(parseNumericInput(e.target.value))
+						}
 						placeholder="0"
 						type="number"
+						value={rebuyCount ?? ""}
 					/>
 				</div>
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="rebuyCost">Rebuy Cost</Label>
 					<Input
-						defaultValue={defaultValues?.rebuyCost}
 						id="rebuyCost"
 						inputMode="numeric"
 						min={0}
-						name="rebuyCost"
+						onChange={(e) =>
+							onRebuyCostChange?.(parseNumericInput(e.target.value))
+						}
 						placeholder="0"
 						type="number"
+						value={rebuyCost ?? ""}
 					/>
 				</div>
 			</div>
@@ -182,25 +220,29 @@ export function TournamentDetailFields({
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="addonCost">Addon Cost</Label>
 					<Input
-						defaultValue={defaultValues?.addonCost}
 						id="addonCost"
 						inputMode="numeric"
 						min={0}
-						name="addonCost"
+						onChange={(e) =>
+							onAddonCostChange?.(parseNumericInput(e.target.value))
+						}
 						placeholder="0"
 						type="number"
+						value={addonCost ?? ""}
 					/>
 				</div>
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="bountyPrizes">Bounty Prizes</Label>
 					<Input
-						defaultValue={defaultValues?.bountyPrizes}
 						id="bountyPrizes"
 						inputMode="numeric"
 						min={0}
-						name="bountyPrizes"
+						onChange={(e) =>
+							onBountyPrizesChange?.(parseNumericInput(e.target.value))
+						}
 						placeholder="0"
 						type="number"
+						value={bountyPrizes ?? ""}
 					/>
 				</div>
 			</div>
@@ -208,11 +250,80 @@ export function TournamentDetailFields({
 	);
 }
 
-export function TournamentFields({ defaultValues }: TournamentFieldsProps) {
+interface TournamentFieldsProps {
+	addonCost?: number;
+	bountyPrizes?: number;
+	currencies?: Array<{ id: string; name: string }>;
+	entryFee?: number;
+	onAddonCostChange?: (value: number | undefined) => void;
+	onBountyPrizesChange?: (value: number | undefined) => void;
+	onCurrencyChange?: (id: string | undefined) => void;
+	onEntryFeeChange?: (value: number | undefined) => void;
+	onPlacementChange?: (value: number | undefined) => void;
+	onPrizeMoneyChange?: (value: number | undefined) => void;
+	onRebuyCostChange?: (value: number | undefined) => void;
+	onRebuyCountChange?: (value: number | undefined) => void;
+	onTotalEntriesChange?: (value: number | undefined) => void;
+	onTournamentBuyInChange?: (value: number) => void;
+	placement?: number;
+	prizeMoney?: number;
+	rebuyCost?: number;
+	rebuyCount?: number;
+	selectedCurrencyId?: string;
+	totalEntries?: number;
+	tournamentBuyIn?: number;
+}
+
+export function TournamentFields({
+	addonCost,
+	bountyPrizes,
+	currencies,
+	entryFee,
+	onAddonCostChange,
+	onBountyPrizesChange,
+	onCurrencyChange,
+	onEntryFeeChange,
+	onPlacementChange,
+	onPrizeMoneyChange,
+	onRebuyCostChange,
+	onRebuyCountChange,
+	onTotalEntriesChange,
+	onTournamentBuyInChange,
+	placement,
+	prizeMoney,
+	rebuyCost,
+	rebuyCount,
+	selectedCurrencyId,
+	totalEntries,
+	tournamentBuyIn,
+}: TournamentFieldsProps) {
 	return (
 		<>
-			<TournamentPrimaryFields defaultValues={defaultValues} />
-			<TournamentDetailFields defaultValues={defaultValues} />
+			<TournamentPrimaryFields
+				entryFee={entryFee}
+				onEntryFeeChange={onEntryFeeChange}
+				onPlacementChange={onPlacementChange}
+				onPrizeMoneyChange={onPrizeMoneyChange}
+				onTotalEntriesChange={onTotalEntriesChange}
+				onTournamentBuyInChange={onTournamentBuyInChange}
+				placement={placement}
+				prizeMoney={prizeMoney}
+				totalEntries={totalEntries}
+				tournamentBuyIn={tournamentBuyIn}
+			/>
+			<TournamentDetailFields
+				addonCost={addonCost}
+				bountyPrizes={bountyPrizes}
+				currencies={currencies}
+				onAddonCostChange={onAddonCostChange}
+				onBountyPrizesChange={onBountyPrizesChange}
+				onCurrencyChange={onCurrencyChange}
+				onRebuyCostChange={onRebuyCostChange}
+				onRebuyCountChange={onRebuyCountChange}
+				rebuyCost={rebuyCost}
+				rebuyCount={rebuyCount}
+				selectedCurrencyId={selectedCurrencyId}
+			/>
 		</>
 	);
 }
