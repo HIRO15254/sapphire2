@@ -1,19 +1,21 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTransactionTypes } from "@/currencies/hooks/use-transaction-types";
 import { Button } from "@/shared/components/ui/button";
+import {
+	Command,
+	CommandEmpty,
+	CommandItem,
+	CommandList,
+} from "@/shared/components/ui/command";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/shared/components/ui/select";
+	Popover,
+	PopoverAnchor,
+	PopoverContent,
+} from "@/shared/components/ui/popover";
 import { Textarea } from "@/shared/components/ui/textarea";
-
-const NEW_TYPE_VALUE = "__new__";
 
 interface TransactionFormValues {
 	amount: number;
@@ -25,7 +27,6 @@ interface TransactionFormValues {
 interface TransactionFormProps {
 	defaultValues?: TransactionFormValues;
 	isLoading?: boolean;
-	onCancel?: () => void;
 	onSubmit: (values: TransactionFormValues) => void;
 }
 
@@ -45,36 +46,60 @@ function getButtonLabel(isCreatingType: boolean, isLoading: boolean) {
 
 export function TransactionForm({
 	onSubmit,
-	onCancel,
 	defaultValues,
 	isLoading = false,
 }: TransactionFormProps) {
 	const { types, createType, isCreatingType } = useTransactionTypes();
-	const [selectedType, setSelectedType] = useState(
+
+	const defaultType = defaultValues?.transactionTypeId
+		? (types.find((t) => t.id === defaultValues.transactionTypeId)?.name ?? "")
+		: "";
+
+	const [typeInput, setTypeInput] = useState(defaultType);
+	const [selectedTypeId, setSelectedTypeId] = useState(
 		defaultValues?.transactionTypeId ?? ""
 	);
-	const [newTypeName, setNewTypeName] = useState("");
+	const [isTypeOpen, setIsTypeOpen] = useState(false);
+	const typeAnchorRef = useRef<HTMLDivElement>(null);
 
-	const isNewType = selectedType === NEW_TYPE_VALUE;
+	const normalizedInput = typeInput.trim();
+	const filteredTypes = types.filter(
+		(t) =>
+			!normalizedInput ||
+			t.name.toLowerCase().includes(normalizedInput.toLowerCase())
+	);
+	const matchingType = types.find(
+		(t) => t.name.toLowerCase() === normalizedInput.toLowerCase()
+	);
+	const canCreate = Boolean(normalizedInput && !matchingType);
+	const shouldRenderPopover =
+		isTypeOpen && (types.length > 0 || Boolean(normalizedInput));
 
-	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+	const handleTypeSelect = (type: { id: string; name: string }) => {
+		setTypeInput(type.name);
+		setSelectedTypeId(type.id);
+		setIsTypeOpen(false);
+	};
+
+	const handleTypeCreate = async () => {
+		if (!normalizedInput) {
+			return;
+		}
+		const created = await createType(normalizedInput);
+		handleTypeSelect(created);
+	};
+
+	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
+		if (!selectedTypeId) {
+			return;
+		}
 		const formData = new FormData(e.currentTarget);
 		const amount = Number(formData.get("amount"));
 		const transactedAt = formData.get("transactedAt") as string;
 		const memo = (formData.get("memo") as string) || undefined;
 
-		let transactionTypeId = selectedType;
-
-		if (isNewType) {
-			if (!newTypeName.trim()) {
-				return;
-			}
-			const created = await createType(newTypeName.trim());
-			transactionTypeId = created.id;
-		}
-
-		onSubmit({ amount, transactionTypeId, transactedAt, memo });
+		onSubmit({ amount, transactionTypeId: selectedTypeId, transactedAt, memo });
 	};
 
 	return (
@@ -89,32 +114,85 @@ export function TransactionForm({
 					type="number"
 				/>
 			</Field>
-			<Field htmlFor="transactionTypeId" label="Type" required>
-				<Select onValueChange={setSelectedType} required value={selectedType}>
-					<SelectTrigger className="w-full" id="transactionTypeId">
-						<SelectValue placeholder="Select type..." />
-					</SelectTrigger>
-					<SelectContent>
-						{types.map((t) => (
-							<SelectItem key={t.id} value={t.id}>
-								{t.name}
-							</SelectItem>
-						))}
-						<SelectItem value={NEW_TYPE_VALUE}>+ New type...</SelectItem>
-					</SelectContent>
-				</Select>
+			<Field label="Type" required>
+				<Popover
+					modal={false}
+					onOpenChange={setIsTypeOpen}
+					open={shouldRenderPopover}
+				>
+					<PopoverAnchor asChild>
+						<div ref={typeAnchorRef}>
+							<Input
+								aria-label="Type"
+								autoComplete="off"
+								onChange={(e) => {
+									setTypeInput(e.target.value);
+									setSelectedTypeId("");
+									setIsTypeOpen(true);
+								}}
+								onFocus={() => setIsTypeOpen(true)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") {
+										e.preventDefault();
+										if (matchingType) {
+											handleTypeSelect(matchingType);
+										} else if (canCreate) {
+											handleTypeCreate().catch(() => undefined);
+										}
+									}
+									if (e.key === "Escape") {
+										setIsTypeOpen(false);
+									}
+								}}
+								placeholder="Select or create type..."
+								role="combobox"
+								value={typeInput}
+							/>
+						</div>
+					</PopoverAnchor>
+					{shouldRenderPopover ? (
+						<PopoverContent
+							align="start"
+							className="p-0"
+							onOpenAutoFocus={(e) => e.preventDefault()}
+							style={
+								typeAnchorRef.current
+									? { width: typeAnchorRef.current.offsetWidth }
+									: undefined
+							}
+						>
+							<Command shouldFilter={false}>
+								<CommandList>
+									{filteredTypes.length === 0 && !canCreate ? (
+										<CommandEmpty>No types found.</CommandEmpty>
+									) : null}
+									{filteredTypes.map((t) => (
+										<CommandItem
+											key={t.id}
+											onMouseDown={(e) => e.preventDefault()}
+											onSelect={() => handleTypeSelect(t)}
+											value={t.name}
+										>
+											{t.name}
+										</CommandItem>
+									))}
+									{canCreate ? (
+										<CommandItem
+											onMouseDown={(e) => e.preventDefault()}
+											onSelect={() => {
+												handleTypeCreate().catch(() => undefined);
+											}}
+											value={`create-${normalizedInput}`}
+										>
+											Create &quot;{normalizedInput}&quot;
+										</CommandItem>
+									) : null}
+								</CommandList>
+							</Command>
+						</PopoverContent>
+					) : null}
+				</Popover>
 			</Field>
-			{isNewType && (
-				<Field htmlFor="newTypeName" label="New Type Name">
-					<Input
-						id="newTypeName"
-						onChange={(e) => setNewTypeName(e.target.value)}
-						placeholder="Enter new type name"
-						required
-						value={newTypeName}
-					/>
-				</Field>
-			)}
 			<Field htmlFor="transactedAt" label="Date" required>
 				<Input
 					defaultValue={
@@ -137,11 +215,6 @@ export function TransactionForm({
 				/>
 			</Field>
 			<DialogActionRow>
-				{onCancel ? (
-					<Button onClick={onCancel} type="button" variant="outline">
-						Cancel
-					</Button>
-				) : null}
 				<Button disabled={isLoading || isCreatingType} type="submit">
 					{getButtonLabel(isCreatingType, isLoading)}
 				</Button>

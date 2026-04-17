@@ -91,7 +91,6 @@ vi.mock("@/currencies/components/currency-form", () => ({
 vi.mock("@/currencies/components/transaction-form", () => ({
 	TransactionForm: ({
 		defaultValues,
-		onCancel,
 	}: {
 		defaultValues?: {
 			amount: number;
@@ -99,14 +98,10 @@ vi.mock("@/currencies/components/transaction-form", () => ({
 			transactedAt: string;
 			transactionTypeId: string;
 		};
-		onCancel?: () => void;
 	}) => (
 		<div>
 			<div>Transaction Form</div>
 			{defaultValues ? <pre>{JSON.stringify(defaultValues)}</pre> : null}
-			<button onClick={onCancel} type="button">
-				Cancel Transaction
-			</button>
 		</div>
 	),
 }));
@@ -115,11 +110,13 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	ResponsiveDialog: ({
 		children,
 		description,
+		onOpenChange,
 		open,
 		title,
 	}: {
 		children: ReactNode;
 		description?: ReactNode;
+		onOpenChange?: (open: boolean) => void;
 		open: boolean;
 		title: string;
 	}) =>
@@ -127,6 +124,9 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 			<div>
 				<h2>{title}</h2>
 				{description ? <p>{description}</p> : null}
+				<button onClick={() => onOpenChange?.(false)} type="button">
+					Close Dialog
+				</button>
 				{children}
 			</div>
 		) : null,
@@ -218,9 +218,7 @@ describe("CurrenciesPage", () => {
 			screen.getByRole("heading", { name: "Add Transaction" })
 		).toBeInTheDocument();
 
-		await user.click(
-			screen.getByRole("button", { name: "Cancel Transaction" })
-		);
+		await user.click(screen.getByRole("button", { name: "Close Dialog" }));
 		expect(
 			screen.queryByRole("heading", { name: "Add Transaction" })
 		).not.toBeInTheDocument();
