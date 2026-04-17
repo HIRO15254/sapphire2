@@ -1,3 +1,4 @@
+import { useBlocker } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Layout } from "react-grid-layout";
 import { AddWidgetMenu } from "@/dashboard/components/add-widget-menu";
@@ -106,8 +107,8 @@ export function DashboardPage() {
 		updateWidget,
 		deleteWidget,
 	} = useDashboardWidgets(device);
-	const { isEditing, toggle } = useEditMode();
-	const { enqueue, flush } = useLayoutSync(device);
+	const { isEditing, setEditing, toggle } = useEditMode();
+	const { enqueue, flush, discard, hasPendingChanges } = useLayoutSync(device);
 	const [containerRef, containerWidth] = useContainerWidth();
 	const [editingWidget, setEditingWidget] = useState<DashboardWidget | null>(
 		null
@@ -116,11 +117,11 @@ export function DashboardPage() {
 		null
 	);
 
-	useEffect(() => {
-		if (!isEditing) {
-			flush();
-		}
-	}, [isEditing, flush]);
+	const blocker = useBlocker({
+		shouldBlockFn: () => hasPendingChanges,
+		enableBeforeUnload: () => hasPendingChanges,
+		withResolver: true,
+	});
 
 	const handleLayoutChange = useCallback(
 		(layout: Layout[]) => {
@@ -129,11 +130,21 @@ export function DashboardPage() {
 		[enqueue]
 	);
 
+	const handleDoneClick = useCallback(async () => {
+		if (isEditing) {
+			await flush();
+			setEditing(false);
+		} else {
+			toggle();
+		}
+	}, [isEditing, flush, setEditing, toggle]);
+
 	const handleAdd = useCallback(
 		async (type: WidgetType) => {
+			await flush();
 			await createWidget({ type });
 		},
-		[createWidget]
+		[createWidget, flush]
 	);
 
 	const handleEditSave = useCallback(
@@ -150,9 +161,26 @@ export function DashboardPage() {
 		if (!deletingWidget) {
 			return;
 		}
+		await flush();
 		await deleteWidget(deletingWidget.id);
 		setDeletingWidget(null);
-	}, [deletingWidget, deleteWidget]);
+	}, [deletingWidget, deleteWidget, flush]);
+
+	const handleBlockerSave = useCallback(async () => {
+		if (blocker.status !== "blocked") {
+			return;
+		}
+		await flush();
+		blocker.proceed();
+	}, [blocker, flush]);
+
+	const handleBlockerDiscard = useCallback(() => {
+		if (blocker.status !== "blocked") {
+			return;
+		}
+		discard();
+		blocker.proceed();
+	}, [blocker, discard]);
 
 	return (
 		<div className="p-4 md:p-6">
@@ -160,7 +188,7 @@ export function DashboardPage() {
 				<h1 className="font-bold text-2xl">Dashboard</h1>
 				<div className="flex items-center gap-2">
 					{isEditing ? <AddWidgetMenu onSelect={handleAdd} /> : null}
-					<EditModeToggle isEditing={isEditing} onToggle={toggle} />
+					<EditModeToggle isEditing={isEditing} onToggle={handleDoneClick} />
 				</div>
 			</div>
 
@@ -227,6 +255,32 @@ export function DashboardPage() {
 						</DialogActionRow>
 					</div>
 				) : null}
+			</ResponsiveDialog>
+
+			<ResponsiveDialog
+				description="You have unsaved layout changes. Save before leaving?"
+				onOpenChange={(open) => {
+					if (!open && blocker.status === "blocked") {
+						blocker.reset();
+					}
+				}}
+				open={blocker.status === "blocked"}
+				title="Unsaved changes"
+			>
+				<DialogActionRow>
+					<Button
+						onClick={() =>
+							blocker.status === "blocked" ? blocker.reset() : undefined
+						}
+						variant="outline"
+					>
+						Cancel
+					</Button>
+					<Button onClick={handleBlockerDiscard} variant="destructive">
+						Discard
+					</Button>
+					<Button onClick={handleBlockerSave}>Save & continue</Button>
+				</DialogActionRow>
 			</ResponsiveDialog>
 		</div>
 	);

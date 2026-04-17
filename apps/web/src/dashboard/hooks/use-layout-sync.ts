@@ -1,10 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { trpc, trpcClient } from "@/utils/trpc";
 import type { Device } from "./use-current-device";
 import type { DashboardWidget } from "./use-dashboard-widgets";
-
-const LAYOUT_DEBOUNCE_MS = 500;
 
 export interface LayoutItem {
 	h: number;
@@ -18,27 +16,24 @@ export function useLayoutSync(device: Device) {
 	const queryClient = useQueryClient();
 	const listKey = trpc.dashboardWidget.list.queryOptions({ device }).queryKey;
 	const pendingRef = useRef<Map<string, LayoutItem>>(new Map());
-	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [hasPendingChanges, setHasPendingChanges] = useState(false);
 
 	const mutation = useMutation({
 		mutationFn: (items: LayoutItem[]) =>
 			trpcClient.dashboardWidget.updateLayouts.mutate({ device, items }),
-		onSettled: async () => {
+		onError: async () => {
 			await queryClient.invalidateQueries({ queryKey: listKey });
 		},
 	});
 
-	const flush = useCallback(() => {
-		if (timerRef.current) {
-			clearTimeout(timerRef.current);
-			timerRef.current = null;
-		}
+	const flush = useCallback(async () => {
 		if (pendingRef.current.size === 0) {
 			return;
 		}
 		const items = Array.from(pendingRef.current.values());
 		pendingRef.current.clear();
-		mutation.mutate(items);
+		setHasPendingChanges(false);
+		await mutation.mutateAsync(items);
 	}, [mutation]);
 
 	const enqueue = useCallback(
@@ -57,21 +52,22 @@ export function useLayoutSync(device: Device) {
 			for (const item of items) {
 				pendingRef.current.set(item.id, item);
 			}
-			if (timerRef.current) {
-				clearTimeout(timerRef.current);
-			}
-			timerRef.current = setTimeout(flush, LAYOUT_DEBOUNCE_MS);
+			setHasPendingChanges(true);
 		},
-		[queryClient, listKey, flush]
+		[queryClient, listKey]
 	);
 
-	useEffect(() => {
-		return () => {
-			if (timerRef.current) {
-				clearTimeout(timerRef.current);
-			}
-		};
-	}, []);
+	const discard = useCallback(() => {
+		pendingRef.current.clear();
+		setHasPendingChanges(false);
+		queryClient.invalidateQueries({ queryKey: listKey });
+	}, [queryClient, listKey]);
 
-	return { enqueue, flush, isSyncing: mutation.isPending };
+	return {
+		enqueue,
+		flush,
+		discard,
+		hasPendingChanges,
+		isSyncing: mutation.isPending,
+	};
 }
