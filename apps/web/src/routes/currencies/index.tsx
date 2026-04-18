@@ -184,11 +184,7 @@ function CurrenciesPage() {
 				open={isCreateOpen}
 				title="New Currency"
 			>
-				<CurrencyForm
-					isLoading={isCreatePending}
-					onCancel={() => setIsCreateOpen(false)}
-					onSubmit={handleCreate}
-				/>
+				<CurrencyForm isLoading={isCreatePending} onSubmit={handleCreate} />
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
@@ -207,7 +203,6 @@ function CurrenciesPage() {
 							unit: editingCurrency.unit ?? undefined,
 						}}
 						isLoading={isUpdatePending}
-						onCancel={() => setEditingCurrency(null)}
 						onSubmit={handleUpdate}
 					/>
 				)}

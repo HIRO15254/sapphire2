@@ -13,7 +13,6 @@ interface CurrencyFormValues {
 interface CurrencyFormProps {
 	defaultValues?: CurrencyFormValues;
 	isLoading?: boolean;
-	onCancel?: () => void;
 	onSubmit: (values: CurrencyFormValues) => void;
 }
 
@@ -24,7 +23,6 @@ const currencyFormSchema = z.object({
 
 export function CurrencyForm({
 	onSubmit,
-	onCancel,
 	defaultValues,
 	isLoading = false,
 }: CurrencyFormProps) {
