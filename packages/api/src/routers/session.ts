@@ -334,6 +334,7 @@ const tournamentCreateSchema = z
 		rebuyCost: z.number().int().min(0).optional(),
 		addonCost: z.number().int().min(0).optional(),
 		bountyPrizes: z.number().int().min(0).optional(),
+		endedBeforeRegistrationClose: z.boolean().optional(),
 		// Links (all optional)
 		storeId: z.string().optional(),
 		tournamentId: z.string().optional(),
@@ -348,12 +349,18 @@ const tournamentCreateSchema = z
 	})
 	.refine(
 		(data) => {
+			if (data.endedBeforeRegistrationClose) {
+				return data.placement === undefined && data.totalEntries === undefined;
+			}
 			if (data.placement !== undefined && data.totalEntries !== undefined) {
 				return data.placement <= data.totalEntries;
 			}
 			return true;
 		},
-		{ message: "Placement must be less than or equal to total entries" }
+		{
+			message:
+				"Placement must be less than or equal to total entries, and both must be omitted when ended before registration close",
+		}
 	);
 
 const createInputSchema = z.discriminatedUnion("type", [
@@ -388,6 +395,7 @@ function buildTournamentSessionValues(
 		rebuyCost: input.rebuyCost ?? null,
 		addonCost: input.addonCost ?? null,
 		bountyPrizes: input.bountyPrizes ?? null,
+		endedBeforeRegistrationClose: input.endedBeforeRegistrationClose ?? null,
 	};
 }
 
@@ -416,6 +424,7 @@ const SESSION_UPDATE_FIELDS = [
 	"rebuyCost",
 	"addonCost",
 	"bountyPrizes",
+	"endedBeforeRegistrationClose",
 	"evCashOut",
 	"breakMinutes",
 	"memo",
@@ -839,6 +848,8 @@ export const sessionRouter = router({
 					rebuyCost: pokerSession.rebuyCost,
 					addonCost: pokerSession.addonCost,
 					bountyPrizes: pokerSession.bountyPrizes,
+					endedBeforeRegistrationClose:
+						pokerSession.endedBeforeRegistrationClose,
 					startedAt: pokerSession.startedAt,
 					endedAt: pokerSession.endedAt,
 					breakMinutes: pokerSession.breakMinutes,
@@ -964,6 +975,7 @@ export const sessionRouter = router({
 				rebuyCost: z.number().int().min(0).nullable().optional(),
 				addonCost: z.number().int().min(0).nullable().optional(),
 				bountyPrizes: z.number().int().min(0).nullable().optional(),
+				endedBeforeRegistrationClose: z.boolean().nullable().optional(),
 				// Common
 				startedAt: z.number().nullable().optional(),
 				endedAt: z.number().nullable().optional(),

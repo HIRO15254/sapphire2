@@ -32,6 +32,7 @@ function makeCashGameSession(
 		rebuyCost: null,
 		addonCost: null,
 		bountyPrizes: null,
+		endedBeforeRegistrationClose: null,
 		profitLoss: 5000,
 		startedAt: null,
 		endedAt: null,
@@ -76,6 +77,7 @@ function makeTournamentSession(
 		rebuyCost: 5000,
 		addonCost: 0,
 		bountyPrizes: 0,
+		endedBeforeRegistrationClose: false,
 		profitLoss: 14_000,
 		startedAt: null,
 		endedAt: null,
@@ -117,7 +119,20 @@ describe("SessionCard", () => {
 
 		expect(screen.getByText("Sunday Major")).toBeInTheDocument();
 		expect(screen.getByText("+14k")).toBeInTheDocument();
-		expect(screen.getByText("3/50 place")).toBeInTheDocument();
+		expect(screen.getByText("3 / 50 entries")).toBeInTheDocument();
+	});
+
+	it("renders '- / - entries' when ended before registration close", () => {
+		const session = makeTournamentSession({
+			endedBeforeRegistrationClose: true,
+			placement: null,
+			totalEntries: null,
+		});
+		render(
+			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
+		);
+
+		expect(screen.getByText("- / - entries")).toBeInTheDocument();
 	});
 
 	it("renders negative P&L with red color", () => {

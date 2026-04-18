@@ -33,6 +33,7 @@ interface SessionCardProps {
 		currencyName: string | null;
 		currencyUnit: string | null;
 		endedAt: string | null;
+		endedBeforeRegistrationClose: boolean | null;
 		entryFee: number | null;
 		evCashOut: number | null;
 		evDiff: number | null;
@@ -411,12 +412,17 @@ function SessionHeader({
 				<span className={`font-semibold text-sm ${profitColorClass}`}>
 					{plDisplay}
 				</span>
-				{isTournament && session.placement !== null && (
+				{isTournament && session.endedBeforeRegistrationClose ? (
 					<span className="text-[10px] text-muted-foreground">
-						{session.placement}
-						{session.totalEntries === null ? "" : `/${session.totalEntries}`}
-						{" place"}
+						- / - entries
 					</span>
+				) : (
+					isTournament &&
+					session.placement !== null && (
+						<span className="text-[10px] text-muted-foreground">
+							{session.placement} / {session.totalEntries ?? "-"} entries
+						</span>
+					)
 				)}
 				{evDisplay !== null && (
 					<span className="text-[10px] text-muted-foreground">

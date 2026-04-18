@@ -35,6 +35,7 @@ interface TournamentPLResult {
 	addonCost: number;
 	addonCount: number;
 	bountyPrizes: number | null;
+	endedBeforeRegistrationClose: boolean;
 	placement: number | null;
 	prizeMoney: number | null;
 	profitLoss: number | null;
@@ -200,6 +201,7 @@ export function computeTournamentPLFromEvents(
 		prizeMoney,
 		bountyPrizes,
 		profitLoss,
+		endedBeforeRegistrationClose: beforeDeadline,
 	};
 }
 
@@ -446,6 +448,7 @@ async function upsertTournamentPokerSession(
 				totalEntries: pl.totalEntries,
 				prizeMoney: pl.prizeMoney,
 				bountyPrizes: pl.bountyPrizes,
+				endedBeforeRegistrationClose: pl.endedBeforeRegistrationClose,
 				rebuyCount: pl.rebuyCount,
 				rebuyCost: pl.rebuyCost > 0 ? pl.rebuyCost : null,
 				addonCost: pl.addonCost > 0 ? pl.addonCost : null,
@@ -475,6 +478,7 @@ async function upsertTournamentPokerSession(
 		totalEntries: pl.totalEntries,
 		prizeMoney: pl.prizeMoney,
 		bountyPrizes: pl.bountyPrizes,
+		endedBeforeRegistrationClose: pl.endedBeforeRegistrationClose,
 		rebuyCount: pl.rebuyCount,
 		rebuyCost: pl.rebuyCost > 0 ? pl.rebuyCost : null,
 		addonCost: pl.addonCost > 0 ? pl.addonCost : null,

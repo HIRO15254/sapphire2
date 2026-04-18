@@ -45,6 +45,7 @@ interface TournamentFormValues {
 	bountyPrizes?: number;
 	breakMinutes?: number;
 	currencyId?: string;
+	endedBeforeRegistrationClose?: boolean;
 	endTime?: string;
 	entryFee?: number;
 	memo?: string;
@@ -96,6 +97,7 @@ interface SessionFormDefaults {
 	buyIn?: number;
 	cashOut?: number;
 	currencyId?: string;
+	endedBeforeRegistrationClose?: boolean;
 	endTime?: string;
 	entryFee?: number;
 	evCashOut?: number;
@@ -177,6 +179,7 @@ const sessionFormSchema = z.object({
 	rebuyCost: optionalNumericString({ integer: true, min: 0 }),
 	addonCost: optionalNumericString({ integer: true, min: 0 }),
 	bountyPrizes: optionalNumericString({ integer: true, min: 0 }),
+	endedBeforeRegistrationClose: z.boolean(),
 });
 
 function buildDefaults(defaults: SessionFormDefaults | undefined) {
@@ -205,6 +208,8 @@ function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		rebuyCost: numStrOrEmpty(defaults?.rebuyCost),
 		addonCost: numStrOrEmpty(defaults?.addonCost),
 		bountyPrizes: numStrOrEmpty(defaults?.bountyPrizes),
+		endedBeforeRegistrationClose:
+			defaults?.endedBeforeRegistrationClose ?? false,
 	};
 }
 
@@ -270,18 +275,25 @@ export function SessionForm({
 					ringGameId: selectedGameId,
 				});
 			} else {
+				const endedBeforeRegistrationClose =
+					value.endedBeforeRegistrationClose === true;
 				onSubmit({
 					...common,
 					type: "tournament",
 					tournamentBuyIn: Number(value.tournamentBuyIn),
 					entryFee: parseOptInt(value.entryFee),
-					placement: parseOptInt(value.placement),
-					totalEntries: parseOptInt(value.totalEntries),
+					placement: endedBeforeRegistrationClose
+						? undefined
+						: parseOptInt(value.placement),
+					totalEntries: endedBeforeRegistrationClose
+						? undefined
+						: parseOptInt(value.totalEntries),
 					prizeMoney: parseOptInt(value.prizeMoney),
 					rebuyCount: parseOptInt(value.rebuyCount),
 					rebuyCost: parseOptInt(value.rebuyCost),
 					addonCost: parseOptInt(value.addonCost),
 					bountyPrizes: parseOptInt(value.bountyPrizes),
+					endedBeforeRegistrationClose,
 					tournamentId: selectedGameId,
 				});
 			}

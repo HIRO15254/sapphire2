@@ -31,6 +31,7 @@ export interface TournamentFormValues {
 	bountyPrizes?: number;
 	breakMinutes?: number;
 	currencyId?: string;
+	endedBeforeRegistrationClose?: boolean;
 	endTime?: string;
 	entryFee?: number;
 	memo?: string;
@@ -61,6 +62,7 @@ export interface SessionItem {
 	currencyName: string | null;
 	currencyUnit: string | null;
 	endedAt: string | null;
+	endedBeforeRegistrationClose: boolean | null;
 	entryFee: number | null;
 	evCashOut: number | null;
 	evDiff: number | null;
@@ -140,6 +142,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 		rebuyCost: values.rebuyCost,
 		addonCost: values.addonCost,
 		bountyPrizes: values.bountyPrizes,
+		endedBeforeRegistrationClose: values.endedBeforeRegistrationClose,
 		tournamentId: values.tournamentId,
 	};
 }
@@ -183,6 +186,7 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		rebuyCost: values.rebuyCost,
 		addonCost: values.addonCost,
 		bountyPrizes: values.bountyPrizes,
+		endedBeforeRegistrationClose: values.endedBeforeRegistrationClose ?? null,
 		tournamentId: values.tournamentId ?? null,
 	};
 }
@@ -208,6 +212,7 @@ export function buildOptimisticItem(
 		rebuyCost: null,
 		addonCost: null,
 		bountyPrizes: null,
+		endedBeforeRegistrationClose: null,
 		breakMinutes: newSession.breakMinutes ?? null,
 		profitLoss: 0,
 		startedAt: null,
@@ -260,6 +265,8 @@ export function buildEditDefaults(session: SessionItem) {
 		rebuyCost: session.rebuyCost ?? undefined,
 		addonCost: session.addonCost ?? undefined,
 		bountyPrizes: session.bountyPrizes ?? undefined,
+		endedBeforeRegistrationClose:
+			session.endedBeforeRegistrationClose ?? undefined,
 		startTime: formatTimeFromDate(session.startedAt),
 		endTime: formatTimeFromDate(session.endedAt),
 		breakMinutes: session.breakMinutes ?? undefined,

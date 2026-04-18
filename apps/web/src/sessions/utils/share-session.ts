@@ -5,6 +5,7 @@ export interface ShareableSession {
 	cashOut: number | null;
 	currencyUnit: string | null;
 	endedAt: string | null;
+	endedBeforeRegistrationClose: boolean | null;
 	entryFee: number | null;
 	evProfitLoss: number | null;
 	placement: number | null;
@@ -102,7 +103,9 @@ export function createSessionShareText(session: ShareableSession): string {
 
 	text += `\n${gameIcon} ${gameName}\n`;
 
-	if (isTournament && session.placement !== null) {
+	if (isTournament && session.endedBeforeRegistrationClose) {
+		text += "🧾 - / - entries\n";
+	} else if (isTournament && session.placement !== null) {
 		const ordinal = formatOrdinal(session.placement);
 		const entries =
 			session.totalEntries === null ? "" : ` / ${session.totalEntries} entries`;

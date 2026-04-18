@@ -323,6 +323,7 @@ export const liveTournamentSessionRouter = router({
 				totalEntries: stackStats.totalEntries ?? pl.totalEntries,
 				prizeMoney: pl.prizeMoney,
 				bountyPrizes: pl.bountyPrizes,
+				endedBeforeRegistrationClose: pl.endedBeforeRegistrationClose,
 				profitLoss: pl.profitLoss,
 				maxStack: stackStats.maxStack,
 				minStack: stackStats.minStack,

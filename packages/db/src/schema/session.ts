@@ -49,6 +49,9 @@ export const pokerSession = sqliteTable(
 		rebuyCost: integer("rebuy_cost"),
 		addonCost: integer("addon_cost"),
 		bountyPrizes: integer("bounty_prizes"),
+		endedBeforeRegistrationClose: integer("ended_before_registration_close", {
+			mode: "boolean",
+		}),
 		startedAt: integer("started_at", { mode: "timestamp" }),
 		endedAt: integer("ended_at", { mode: "timestamp" }),
 		breakMinutes: integer("break_minutes"),

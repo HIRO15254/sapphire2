@@ -1,6 +1,8 @@
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -100,44 +102,71 @@ export function TournamentPrimaryFields({ form }: TournamentFieldsProps) {
 				)}
 			</form.Field>
 
-			<div className="grid grid-cols-2 gap-3">
-				<form.Field name="placement">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Placement"
-						>
-							<Input
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="e.g. 3"
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="totalEntries">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Total Entries"
-						>
-							<Input
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="e.g. 50"
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-			</div>
+			<form.Field name="endedBeforeRegistrationClose">
+				{(field) => (
+					<div className="flex items-center gap-2">
+						<Checkbox
+							checked={field.state.value === true}
+							id={field.name}
+							onCheckedChange={(checked) => {
+								field.handleChange(checked === true);
+								if (checked === true) {
+									form.setFieldValue("placement", "");
+									form.setFieldValue("totalEntries", "");
+								}
+							}}
+						/>
+						<Label htmlFor={field.name}>Ended before registration close</Label>
+					</div>
+				)}
+			</form.Field>
+
+			<form.Subscribe
+				selector={(state) => state.values.endedBeforeRegistrationClose}
+			>
+				{(endedBeforeRegistrationClose) =>
+					!endedBeforeRegistrationClose && (
+						<div className="grid grid-cols-2 gap-3">
+							<form.Field name="placement">
+								{(field) => (
+									<Field
+										error={field.state.meta.errors[0]?.message}
+										htmlFor={field.name}
+										label="Placement"
+									>
+										<Input
+											id={field.name}
+											inputMode="numeric"
+											onBlur={field.handleBlur}
+											onChange={(e) => field.handleChange(e.target.value)}
+											placeholder="e.g. 3"
+											value={field.state.value}
+										/>
+									</Field>
+								)}
+							</form.Field>
+							<form.Field name="totalEntries">
+								{(field) => (
+									<Field
+										error={field.state.meta.errors[0]?.message}
+										htmlFor={field.name}
+										label="Total Entries"
+									>
+										<Input
+											id={field.name}
+											inputMode="numeric"
+											onBlur={field.handleBlur}
+											onChange={(e) => field.handleChange(e.target.value)}
+											placeholder="e.g. 50"
+											value={field.state.value}
+										/>
+									</Field>
+								)}
+							</form.Field>
+						</div>
+					)
+				}
+			</form.Subscribe>
 		</>
 	);
 }
