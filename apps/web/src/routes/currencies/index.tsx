@@ -138,7 +138,6 @@ function CurrenciesPage() {
 						</Button>
 					</>
 				}
-				description="Track balances and manual transactions for each currency."
 				heading="Currencies"
 			/>
 
