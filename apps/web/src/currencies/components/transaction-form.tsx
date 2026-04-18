@@ -1,17 +1,22 @@
 import { useForm } from "@tanstack/react-form";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { useTransactionTypes } from "@/currencies/hooks/use-transaction-types";
 import { Button } from "@/shared/components/ui/button";
+import {
+	Command,
+	CommandEmpty,
+	CommandItem,
+	CommandList,
+} from "@/shared/components/ui/command";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/shared/components/ui/select";
+	Popover,
+	PopoverAnchor,
+	PopoverContent,
+} from "@/shared/components/ui/popover";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { requiredNumericString } from "@/shared/lib/form-fields";
 
@@ -27,8 +32,150 @@ interface TransactionFormValues {
 interface TransactionFormProps {
 	defaultValues?: TransactionFormValues;
 	isLoading?: boolean;
-	onCancel?: () => void;
 	onSubmit: (values: TransactionFormValues) => void;
+}
+
+interface TypeComboboxProps {
+	id?: string;
+	newTypeName: string;
+	onNewTypeNameChange: (name: string) => void;
+	onTypeChange: (id: string) => void;
+	typeId: string;
+	types: { id: string; name: string }[];
+}
+
+function TypeCombobox({
+	id,
+	newTypeName,
+	onNewTypeNameChange,
+	onTypeChange,
+	typeId,
+	types,
+}: TypeComboboxProps) {
+	const initialDisplay =
+		typeId === NEW_TYPE_VALUE
+			? newTypeName
+			: (types.find((t) => t.id === typeId)?.name ?? "");
+
+	const [inputValue, setInputValue] = useState(initialDisplay);
+	const [isOpen, setIsOpen] = useState(false);
+	const [contentWidth, setContentWidth] = useState<number>();
+	const anchorRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		if (!typeId || typeId === NEW_TYPE_VALUE) {
+			return;
+		}
+		const typeName = types.find((t) => t.id === typeId)?.name;
+		if (typeName) {
+			setInputValue(typeName);
+		}
+	}, [typeId, types]);
+
+	const normalizedInput = inputValue.trim();
+	const filteredTypes = types.filter(
+		(t) =>
+			!normalizedInput ||
+			t.name.toLowerCase().includes(normalizedInput.toLowerCase())
+	);
+	const exactMatch = types.find(
+		(t) => t.name.toLowerCase() === normalizedInput.toLowerCase()
+	);
+	const canCreate = Boolean(normalizedInput && !exactMatch);
+	const shouldShowPopover =
+		isOpen && (types.length > 0 || Boolean(normalizedInput));
+
+	useEffect(() => {
+		if (!(shouldShowPopover && anchorRef.current)) {
+			return;
+		}
+		setContentWidth(anchorRef.current.offsetWidth);
+	}, [shouldShowPopover]);
+
+	const handleSelect = (type: { id: string; name: string }) => {
+		setInputValue(type.name);
+		onTypeChange(type.id);
+		onNewTypeNameChange("");
+		setIsOpen(false);
+	};
+
+	const handleCreate = () => {
+		onTypeChange(NEW_TYPE_VALUE);
+		onNewTypeNameChange(normalizedInput);
+		setIsOpen(false);
+	};
+
+	return (
+		<Popover modal={false} onOpenChange={setIsOpen} open={shouldShowPopover}>
+			<PopoverAnchor asChild>
+				<div ref={anchorRef}>
+					<Input
+						aria-expanded={shouldShowPopover}
+						autoComplete="off"
+						id={id}
+						onChange={(e) => {
+							setInputValue(e.target.value);
+							setIsOpen(true);
+							onTypeChange("");
+							onNewTypeNameChange("");
+						}}
+						onFocus={() => setIsOpen(true)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								e.preventDefault();
+								if (exactMatch) {
+									handleSelect(exactMatch);
+								} else if (canCreate) {
+									handleCreate();
+								}
+							}
+							if (e.key === "Escape") {
+								setIsOpen(false);
+							}
+						}}
+						placeholder="Select or create type..."
+						role="combobox"
+						value={inputValue}
+					/>
+				</div>
+			</PopoverAnchor>
+			{shouldShowPopover ? (
+				<PopoverContent
+					align="start"
+					className="p-0"
+					onOpenAutoFocus={(e) => e.preventDefault()}
+					style={contentWidth ? { width: contentWidth } : undefined}
+				>
+					<Command shouldFilter={false}>
+						<CommandList>
+							{filteredTypes.length === 0 && !canCreate ? (
+								<CommandEmpty>No matching types.</CommandEmpty>
+							) : null}
+							{filteredTypes.map((t) => (
+								<CommandItem
+									key={t.id}
+									onMouseDown={(e) => e.preventDefault()}
+									onSelect={() => handleSelect(t)}
+									value={t.name}
+								>
+									{t.name}
+								</CommandItem>
+							))}
+							{canCreate ? (
+								<CommandItem
+									onMouseDown={(e) => e.preventDefault()}
+									onSelect={handleCreate}
+									value={`create-${normalizedInput}`}
+								>
+									Create &quot;{normalizedInput}&quot;
+								</CommandItem>
+							) : null}
+						</CommandList>
+					</Command>
+				</PopoverContent>
+			) : null}
+		</Popover>
+	);
 }
 
 function todayISODate() {
@@ -70,7 +217,6 @@ function buildSchema() {
 
 export function TransactionForm({
 	onSubmit,
-	onCancel,
 	defaultValues,
 	isLoading = false,
 }: TransactionFormProps) {
@@ -135,57 +281,28 @@ export function TransactionForm({
 				)}
 			</form.Field>
 			<form.Field name="transactionTypeId">
-				{(field) => (
-					<Field
-						error={field.state.meta.errors[0]?.message}
-						htmlFor={field.name}
-						label="Type"
-						required
-					>
-						<Select
-							onValueChange={(v) => field.handleChange(v)}
-							value={field.state.value}
-						>
-							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select type..." />
-							</SelectTrigger>
-							<SelectContent>
-								{types.map((t) => (
-									<SelectItem key={t.id} value={t.id}>
-										{t.name}
-									</SelectItem>
-								))}
-								<SelectItem value={NEW_TYPE_VALUE}>+ New type...</SelectItem>
-							</SelectContent>
-						</Select>
-					</Field>
+				{(typeField) => (
+					<form.Field name="newTypeName">
+						{(newTypeField) => (
+							<Field
+								error={typeField.state.meta.errors[0]?.message}
+								htmlFor={typeField.name}
+								label="Type"
+								required
+							>
+								<TypeCombobox
+									id={typeField.name}
+									newTypeName={newTypeField.state.value}
+									onNewTypeNameChange={newTypeField.handleChange}
+									onTypeChange={typeField.handleChange}
+									typeId={typeField.state.value}
+									types={types}
+								/>
+							</Field>
+						)}
+					</form.Field>
 				)}
 			</form.Field>
-			<form.Subscribe
-				selector={(state) => state.values.transactionTypeId === NEW_TYPE_VALUE}
-			>
-				{(isNewType) =>
-					isNewType ? (
-						<form.Field name="newTypeName">
-							{(field) => (
-								<Field
-									error={field.state.meta.errors[0]?.message}
-									htmlFor={field.name}
-									label="New Type Name"
-								>
-									<Input
-										id={field.name}
-										onBlur={field.handleBlur}
-										onChange={(e) => field.handleChange(e.target.value)}
-										placeholder="Enter new type name"
-										value={field.state.value}
-									/>
-								</Field>
-							)}
-						</form.Field>
-					) : null
-				}
-			</form.Subscribe>
 			<form.Field name="transactedAt">
 				{(field) => (
 					<Field
@@ -220,11 +337,6 @@ export function TransactionForm({
 				)}
 			</form.Field>
 			<DialogActionRow>
-				{onCancel ? (
-					<Button onClick={onCancel} type="button" variant="outline">
-						Cancel
-					</Button>
-				) : null}
 				<form.Subscribe
 					selector={(state) => [state.canSubmit, state.isSubmitting]}
 				>
