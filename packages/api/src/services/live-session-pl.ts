@@ -34,6 +34,7 @@ interface CashGamePLResult {
 interface TournamentPLResult {
 	addonCost: number;
 	addonCount: number;
+	beforeDeadline: boolean;
 	bountyPrizes: number | null;
 	placement: number | null;
 	prizeMoney: number | null;
@@ -195,6 +196,7 @@ export function computeTournamentPLFromEvents(
 		rebuyCost: totalChipPurchaseCost,
 		addonCount: 0,
 		addonCost: 0,
+		beforeDeadline,
 		placement,
 		totalEntries,
 		prizeMoney,
@@ -444,6 +446,7 @@ async function upsertTournamentPokerSession(
 			.set({
 				placement: pl.placement,
 				totalEntries: pl.totalEntries,
+				beforeDeadline: pl.beforeDeadline ? true : null,
 				prizeMoney: pl.prizeMoney,
 				bountyPrizes: pl.bountyPrizes,
 				rebuyCount: pl.rebuyCount,
@@ -473,6 +476,7 @@ async function upsertTournamentPokerSession(
 		entryFee: entryFee ?? null,
 		placement: pl.placement,
 		totalEntries: pl.totalEntries,
+		beforeDeadline: pl.beforeDeadline ? true : null,
 		prizeMoney: pl.prizeMoney,
 		bountyPrizes: pl.bountyPrizes,
 		rebuyCount: pl.rebuyCount,

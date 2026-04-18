@@ -203,6 +203,9 @@ function computeSessionPL(session: typeof pokerSession.$inferSelect): number {
 	) {
 		return computeCashGamePL(session.buyIn, session.cashOut);
 	}
+	if (session.type === "tournament" && session.beforeDeadline === true) {
+		return 0;
+	}
 	return computeTournamentPL(
 		session.tournamentBuyIn,
 		session.entryFee,
@@ -327,6 +330,7 @@ const tournamentCreateSchema = z
 		sessionDate: z.number(),
 		tournamentBuyIn: z.number().int().min(0),
 		entryFee: z.number().int().min(0).default(0),
+		beforeDeadline: z.boolean().optional(),
 		placement: z.number().int().min(1).optional(),
 		totalEntries: z.number().int().min(1).optional(),
 		prizeMoney: z.number().int().min(0).optional(),
@@ -348,6 +352,9 @@ const tournamentCreateSchema = z
 	})
 	.refine(
 		(data) => {
+			if (data.beforeDeadline === true) {
+				return true;
+			}
 			if (data.placement !== undefined && data.totalEntries !== undefined) {
 				return data.placement <= data.totalEntries;
 			}
@@ -378,11 +385,13 @@ function buildCashGameSessionValues(
 function buildTournamentSessionValues(
 	input: Extract<CreateInput, { type: "tournament" }>
 ): Partial<typeof pokerSession.$inferInsert> {
+	const beforeDeadline = input.beforeDeadline === true;
 	return {
 		tournamentBuyIn: input.tournamentBuyIn,
 		entryFee: input.entryFee,
-		placement: input.placement ?? null,
-		totalEntries: input.totalEntries ?? null,
+		beforeDeadline: beforeDeadline ? true : null,
+		placement: beforeDeadline ? null : (input.placement ?? null),
+		totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
 		prizeMoney: input.prizeMoney ?? null,
 		rebuyCount: input.rebuyCount ?? null,
 		rebuyCost: input.rebuyCost ?? null,
@@ -411,6 +420,7 @@ const SESSION_UPDATE_FIELDS = [
 	"entryFee",
 	"placement",
 	"totalEntries",
+	"beforeDeadline",
 	"prizeMoney",
 	"rebuyCount",
 	"rebuyCost",
@@ -434,6 +444,10 @@ function buildSessionUpdateData(
 		if (input[field] !== undefined) {
 			(data as Record<string, unknown>)[field] = input[field];
 		}
+	}
+	if (input.beforeDeadline === true) {
+		data.placement = null;
+		data.totalEntries = null;
 	}
 	const startedAt = nullableTimestampToDate(
 		input.startedAt as number | null | undefined
@@ -561,6 +575,7 @@ interface SessionSummary {
 
 interface SummarySessionRow {
 	addonCost: number | null;
+	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
@@ -577,6 +592,9 @@ interface SummarySessionRow {
 function computeSessionPLFromRow(s: SummarySessionRow): number {
 	if (s.type === "cash_game" && s.buyIn !== null && s.cashOut !== null) {
 		return computeCashGamePL(s.buyIn, s.cashOut);
+	}
+	if (s.type === "tournament" && s.beforeDeadline === true) {
+		return 0;
 	}
 	return computeTournamentPL(
 		s.buyIn,
@@ -703,6 +721,7 @@ async function computeSummary(
 			bountyPrizes: pokerSession.bountyPrizes,
 			placement: pokerSession.placement,
 			totalEntries: pokerSession.totalEntries,
+			beforeDeadline: pokerSession.beforeDeadline,
 		})
 		.from(pokerSession)
 		.where(and(...filterConditions));
@@ -834,6 +853,7 @@ export const sessionRouter = router({
 					entryFee: pokerSession.entryFee,
 					placement: pokerSession.placement,
 					totalEntries: pokerSession.totalEntries,
+					beforeDeadline: pokerSession.beforeDeadline,
 					prizeMoney: pokerSession.prizeMoney,
 					rebuyCount: pokerSession.rebuyCount,
 					rebuyCost: pokerSession.rebuyCost,
@@ -885,15 +905,19 @@ export const sessionRouter = router({
 						evDiff = evProfitLoss - profitLoss;
 					}
 				} else if (item.type === "tournament") {
-					profitLoss = computeTournamentPL(
-						item.tournamentBuyIn,
-						item.entryFee,
-						item.rebuyCount,
-						item.rebuyCost,
-						item.addonCost,
-						item.prizeMoney,
-						item.bountyPrizes
-					);
+					if (item.beforeDeadline === true) {
+						profitLoss = null;
+					} else {
+						profitLoss = computeTournamentPL(
+							item.tournamentBuyIn,
+							item.entryFee,
+							item.rebuyCount,
+							item.rebuyCost,
+							item.addonCost,
+							item.prizeMoney,
+							item.bountyPrizes
+						);
+					}
 				}
 				return { ...item, profitLoss, evProfitLoss, evDiff };
 			});
@@ -959,6 +983,7 @@ export const sessionRouter = router({
 				entryFee: z.number().int().min(0).optional(),
 				placement: z.number().int().min(1).nullable().optional(),
 				totalEntries: z.number().int().min(1).nullable().optional(),
+				beforeDeadline: z.boolean().nullable().optional(),
 				prizeMoney: z.number().int().min(0).nullable().optional(),
 				rebuyCount: z.number().int().min(0).nullable().optional(),
 				rebuyCost: z.number().int().min(0).nullable().optional(),

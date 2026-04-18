@@ -1,6 +1,8 @@
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -100,44 +102,69 @@ export function TournamentPrimaryFields({ form }: TournamentFieldsProps) {
 				)}
 			</form.Field>
 
-			<div className="grid grid-cols-2 gap-3">
-				<form.Field name="placement">
+			<div className="flex items-center gap-2">
+				<form.Field name="beforeDeadline">
 					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Placement"
-						>
-							<Input
+						<>
+							<Checkbox
+								checked={field.state.value === true}
 								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="e.g. 3"
-								value={field.state.value}
+								onCheckedChange={(checked) =>
+									field.handleChange(checked === true)
+								}
 							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="totalEntries">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Total Entries"
-						>
-							<Input
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="e.g. 50"
-								value={field.state.value}
-							/>
-						</Field>
+							<Label htmlFor={field.name}>
+								Finished before registration close
+							</Label>
+						</>
 					)}
 				</form.Field>
 			</div>
+
+			<form.Subscribe selector={(state) => state.values.beforeDeadline}>
+				{(beforeDeadline) =>
+					beforeDeadline !== true && (
+						<div className="grid grid-cols-2 gap-3">
+							<form.Field name="placement">
+								{(field) => (
+									<Field
+										error={field.state.meta.errors[0]?.message}
+										htmlFor={field.name}
+										label="Placement"
+									>
+										<Input
+											id={field.name}
+											inputMode="numeric"
+											onBlur={field.handleBlur}
+											onChange={(e) => field.handleChange(e.target.value)}
+											placeholder="e.g. 3"
+											value={field.state.value}
+										/>
+									</Field>
+								)}
+							</form.Field>
+							<form.Field name="totalEntries">
+								{(field) => (
+									<Field
+										error={field.state.meta.errors[0]?.message}
+										htmlFor={field.name}
+										label="Total Entries"
+									>
+										<Input
+											id={field.name}
+											inputMode="numeric"
+											onBlur={field.handleBlur}
+											onChange={(e) => field.handleChange(e.target.value)}
+											placeholder="e.g. 50"
+											value={field.state.value}
+										/>
+									</Field>
+								)}
+							</form.Field>
+						</div>
+					)
+				}
+			</form.Subscribe>
 		</>
 	);
 }

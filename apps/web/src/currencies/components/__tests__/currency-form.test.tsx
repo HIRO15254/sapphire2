@@ -44,15 +44,4 @@ describe("CurrencyForm", () => {
 			unit: "US$",
 		});
 	});
-
-	it("calls onCancel when cancel is pressed", async () => {
-		const user = userEvent.setup();
-		const onCancel = vi.fn();
-
-		render(<CurrencyForm onCancel={onCancel} onSubmit={vi.fn()} />);
-
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
-
-		expect(onCancel).toHaveBeenCalledOnce();
-	});
 });

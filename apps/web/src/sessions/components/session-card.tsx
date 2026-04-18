@@ -24,6 +24,7 @@ interface SessionCardProps {
 	onReopen?: (liveCashGameSessionId: string) => void;
 	session: {
 		addonCost: number | null;
+		beforeDeadline: boolean | null;
 		bountyPrizes: number | null;
 		breakMinutes: number | null;
 		buyIn: number | null;
@@ -344,11 +345,16 @@ function SessionHeader({
 }) {
 	const profitLoss = session.profitLoss ?? 0;
 	const isTournament = session.type === "tournament";
+	const isBeforeDeadline = isTournament && session.beforeDeadline === true;
 	const hasLiveRecording =
 		session.liveCashGameSessionId !== null ||
 		session.liveTournamentSessionId !== null;
-	const plDisplay = getPlDisplay(session, profitLoss, bbBiMode);
-	const profitColorClass = getProfitColorClass(profitLoss);
+	const plDisplay = isBeforeDeadline
+		? "-"
+		: getPlDisplay(session, profitLoss, bbBiMode);
+	const profitColorClass = isBeforeDeadline
+		? "text-muted-foreground"
+		: getProfitColorClass(profitLoss);
 	const gameName = getGameName(session);
 	const evDisplay = getEvDisplay(session, bbBiMode);
 
@@ -411,13 +417,20 @@ function SessionHeader({
 				<span className={`font-semibold text-sm ${profitColorClass}`}>
 					{plDisplay}
 				</span>
-				{isTournament && session.placement !== null && (
+				{isTournament && session.beforeDeadline === true && (
 					<span className="text-[10px] text-muted-foreground">
-						{session.placement}
-						{session.totalEntries === null ? "" : `/${session.totalEntries}`}
-						{" place"}
+						- / - entries
 					</span>
 				)}
+				{isTournament &&
+					session.beforeDeadline !== true &&
+					session.placement !== null && (
+						<span className="text-[10px] text-muted-foreground">
+							{session.placement}
+							{session.totalEntries === null ? "" : `/${session.totalEntries}`}
+							{" place"}
+						</span>
+					)}
 				{evDisplay !== null && (
 					<span className="text-[10px] text-muted-foreground">
 						EV{" "}

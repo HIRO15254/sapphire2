@@ -42,6 +42,7 @@ interface CashGameFormValues {
 
 interface TournamentFormValues {
 	addonCost?: number;
+	beforeDeadline?: boolean;
 	bountyPrizes?: number;
 	breakMinutes?: number;
 	currencyId?: string;
@@ -88,6 +89,7 @@ interface SessionFormDefaults {
 	addonCost?: number;
 	ante?: number;
 	anteType?: string;
+	beforeDeadline?: boolean;
 	blind1?: number;
 	blind2?: number;
 	blind3?: number;
@@ -170,6 +172,7 @@ const sessionFormSchema = z.object({
 	tableSize: z.string(),
 	tournamentBuyIn: optionalNumericString({ integer: true, min: 0 }),
 	entryFee: optionalNumericString({ integer: true, min: 0 }),
+	beforeDeadline: z.boolean(),
 	placement: optionalNumericString({ integer: true, min: 1 }),
 	totalEntries: optionalNumericString({ integer: true, min: 1 }),
 	prizeMoney: optionalNumericString({ integer: true, min: 0 }),
@@ -198,6 +201,7 @@ function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		tableSize: defaults?.tableSize?.toString() ?? "",
 		tournamentBuyIn: numStrOrEmpty(defaults?.tournamentBuyIn),
 		entryFee: numStrOrEmpty(defaults?.entryFee),
+		beforeDeadline: defaults?.beforeDeadline === true,
 		placement: numStrOrEmpty(defaults?.placement),
 		totalEntries: numStrOrEmpty(defaults?.totalEntries),
 		prizeMoney: numStrOrEmpty(defaults?.prizeMoney),
@@ -270,13 +274,17 @@ export function SessionForm({
 					ringGameId: selectedGameId,
 				});
 			} else {
+				const beforeDeadline = value.beforeDeadline === true;
 				onSubmit({
 					...common,
 					type: "tournament",
 					tournamentBuyIn: Number(value.tournamentBuyIn),
 					entryFee: parseOptInt(value.entryFee),
-					placement: parseOptInt(value.placement),
-					totalEntries: parseOptInt(value.totalEntries),
+					beforeDeadline,
+					placement: beforeDeadline ? undefined : parseOptInt(value.placement),
+					totalEntries: beforeDeadline
+						? undefined
+						: parseOptInt(value.totalEntries),
 					prizeMoney: parseOptInt(value.prizeMoney),
 					rebuyCount: parseOptInt(value.rebuyCount),
 					rebuyCost: parseOptInt(value.rebuyCost),
