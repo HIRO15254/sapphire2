@@ -91,11 +91,6 @@ export function CurrencyForm({
 				)}
 			</form.Field>
 			<DialogActionRow>
-				{onCancel ? (
-					<Button onClick={onCancel} type="button" variant="outline">
-						Cancel
-					</Button>
-				) : null}
 				<form.Subscribe
 					selector={(state) => [state.canSubmit, state.isSubmitting]}
 				>
