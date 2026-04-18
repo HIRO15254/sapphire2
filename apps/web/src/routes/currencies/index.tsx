@@ -180,7 +180,6 @@ function CurrenciesPage() {
 			)}
 
 			<ResponsiveDialog
-				description="Create a currency to track balances and manual transactions."
 				onOpenChange={setIsCreateOpen}
 				open={isCreateOpen}
 				title="New Currency"
@@ -193,7 +192,6 @@ function CurrenciesPage() {
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
-				description="Update the currency name or unit shown across balances."
 				onOpenChange={(open) => {
 					if (!open) {
 						setEditingCurrency(null);
