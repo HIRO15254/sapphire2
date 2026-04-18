@@ -117,6 +117,12 @@ function TypeCombobox({
 						aria-expanded={shouldShowPopover}
 						autoComplete="off"
 						id={id}
+						onBlur={(e) => {
+							const relatedTarget = e.relatedTarget as HTMLElement | null;
+							if (!relatedTarget?.closest('[data-slot="popover-content"]')) {
+								setIsOpen(false);
+							}
+						}}
 						onChange={(e) => {
 							setInputValue(e.target.value);
 							setIsFiltering(true);
@@ -148,6 +154,7 @@ function TypeCombobox({
 				<PopoverContent
 					align="start"
 					className="p-0"
+					onFocusOutside={(e) => e.preventDefault()}
 					onOpenAutoFocus={(e) => e.preventDefault()}
 					style={contentWidth ? { width: contentWidth } : undefined}
 				>
