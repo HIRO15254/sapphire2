@@ -58,6 +58,7 @@ function TypeCombobox({
 			: (types.find((t) => t.id === typeId)?.name ?? "");
 
 	const [inputValue, setInputValue] = useState(initialDisplay);
+	const [isFiltering, setIsFiltering] = useState(false);
 	const [isOpen, setIsOpen] = useState(false);
 	const [contentWidth, setContentWidth] = useState<number>();
 	const anchorRef = useRef<HTMLDivElement>(null);
@@ -69,13 +70,14 @@ function TypeCombobox({
 		const typeName = types.find((t) => t.id === typeId)?.name;
 		if (typeName) {
 			setInputValue(typeName);
+			setIsFiltering(false);
 		}
 	}, [typeId, types]);
 
 	const normalizedInput = inputValue.trim();
 	const filteredTypes = types.filter(
 		(t) =>
-			!normalizedInput ||
+			!(isFiltering && normalizedInput) ||
 			t.name.toLowerCase().includes(normalizedInput.toLowerCase())
 	);
 	const exactMatch = types.find(
@@ -94,12 +96,14 @@ function TypeCombobox({
 
 	const handleSelect = (type: { id: string; name: string }) => {
 		setInputValue(type.name);
+		setIsFiltering(false);
 		onTypeChange(type.id);
 		onNewTypeNameChange("");
 		setIsOpen(false);
 	};
 
 	const handleCreate = () => {
+		setIsFiltering(false);
 		onTypeChange(NEW_TYPE_VALUE);
 		onNewTypeNameChange(normalizedInput);
 		setIsOpen(false);
@@ -115,6 +119,7 @@ function TypeCombobox({
 						id={id}
 						onChange={(e) => {
 							setInputValue(e.target.value);
+							setIsFiltering(true);
 							setIsOpen(true);
 							onTypeChange("");
 							onNewTypeNameChange("");
@@ -260,26 +265,6 @@ export function TransactionForm({
 				form.handleSubmit();
 			}}
 		>
-			<form.Field name="amount">
-				{(field) => (
-					<Field
-						error={field.state.meta.errors[0]?.message}
-						htmlFor={field.name}
-						label="Amount"
-						required
-					>
-						<Input
-							id={field.name}
-							inputMode="numeric"
-							name={field.name}
-							onBlur={field.handleBlur}
-							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Enter amount (negative for withdrawal)"
-							value={field.state.value}
-						/>
-					</Field>
-				)}
-			</form.Field>
 			<form.Field name="transactionTypeId">
 				{(typeField) => (
 					<form.Field name="newTypeName">
@@ -301,6 +286,26 @@ export function TransactionForm({
 							</Field>
 						)}
 					</form.Field>
+				)}
+			</form.Field>
+			<form.Field name="amount">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Amount"
+						required
+					>
+						<Input
+							id={field.name}
+							inputMode="numeric"
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="Enter amount (negative for withdrawal)"
+							value={field.state.value}
+						/>
+					</Field>
 				)}
 			</form.Field>
 			<form.Field name="transactedAt">
