@@ -187,9 +187,7 @@ export function computeTournamentPLFromEvents(
 	const income = (prizeMoney ?? 0) + (bountyPrizes ?? 0);
 	const cost =
 		(tournamentBuyIn ?? 0) + (tournamentEntryFee ?? 0) + totalChipPurchaseCost;
-	// profitLoss is null if session ended before deadline (no placement) or not yet completed
-	const profitLoss =
-		prizeMoney === null || beforeDeadline ? null : income - cost;
+	const profitLoss = prizeMoney === null ? null : income - cost;
 
 	return {
 		rebuyCount: chipPurchaseCount,

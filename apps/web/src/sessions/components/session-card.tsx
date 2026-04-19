@@ -345,16 +345,11 @@ function SessionHeader({
 }) {
 	const profitLoss = session.profitLoss ?? 0;
 	const isTournament = session.type === "tournament";
-	const isBeforeDeadline = isTournament && session.beforeDeadline === true;
 	const hasLiveRecording =
 		session.liveCashGameSessionId !== null ||
 		session.liveTournamentSessionId !== null;
-	const plDisplay = isBeforeDeadline
-		? "-"
-		: getPlDisplay(session, profitLoss, bbBiMode);
-	const profitColorClass = isBeforeDeadline
-		? "text-muted-foreground"
-		: getProfitColorClass(profitLoss);
+	const plDisplay = getPlDisplay(session, profitLoss, bbBiMode);
+	const profitColorClass = getProfitColorClass(profitLoss);
 	const gameName = getGameName(session);
 	const evDisplay = getEvDisplay(session, bbBiMode);
 

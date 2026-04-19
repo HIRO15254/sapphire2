@@ -203,9 +203,6 @@ function computeSessionPL(session: typeof pokerSession.$inferSelect): number {
 	) {
 		return computeCashGamePL(session.buyIn, session.cashOut);
 	}
-	if (session.type === "tournament" && session.beforeDeadline === true) {
-		return 0;
-	}
 	return computeTournamentPL(
 		session.tournamentBuyIn,
 		session.entryFee,
@@ -575,7 +572,6 @@ interface SessionSummary {
 
 interface SummarySessionRow {
 	addonCost: number | null;
-	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
@@ -592,9 +588,6 @@ interface SummarySessionRow {
 function computeSessionPLFromRow(s: SummarySessionRow): number {
 	if (s.type === "cash_game" && s.buyIn !== null && s.cashOut !== null) {
 		return computeCashGamePL(s.buyIn, s.cashOut);
-	}
-	if (s.type === "tournament" && s.beforeDeadline === true) {
-		return 0;
 	}
 	return computeTournamentPL(
 		s.buyIn,
@@ -721,7 +714,6 @@ async function computeSummary(
 			bountyPrizes: pokerSession.bountyPrizes,
 			placement: pokerSession.placement,
 			totalEntries: pokerSession.totalEntries,
-			beforeDeadline: pokerSession.beforeDeadline,
 		})
 		.from(pokerSession)
 		.where(and(...filterConditions));
@@ -905,19 +897,15 @@ export const sessionRouter = router({
 						evDiff = evProfitLoss - profitLoss;
 					}
 				} else if (item.type === "tournament") {
-					if (item.beforeDeadline === true) {
-						profitLoss = null;
-					} else {
-						profitLoss = computeTournamentPL(
-							item.tournamentBuyIn,
-							item.entryFee,
-							item.rebuyCount,
-							item.rebuyCost,
-							item.addonCost,
-							item.prizeMoney,
-							item.bountyPrizes
-						);
-					}
+					profitLoss = computeTournamentPL(
+						item.tournamentBuyIn,
+						item.entryFee,
+						item.rebuyCount,
+						item.rebuyCost,
+						item.addonCost,
+						item.prizeMoney,
+						item.bountyPrizes
+					);
 				}
 				return { ...item, profitLoss, evProfitLoss, evDiff };
 			});
