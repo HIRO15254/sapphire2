@@ -290,12 +290,14 @@ export function SeatFromScreenshotSheet({
 				if (row.rowId !== rowId) {
 					return row;
 				}
+				const trimmed = nextName.trim();
+				const nextAction: RowAction = trimmed === "" ? "skip" : "new";
 				return buildRow({
 					isHero: row.isHeroCandidate,
 					name: nextName,
 					occupiedSeatPositions,
 					playersByNormalizedName,
-					preferredAction: row.action === "existing" ? "new" : row.action,
+					preferredAction: nextAction,
 					seatNumber: row.seatNumber,
 					seatPosition: row.seatPosition,
 				});
@@ -487,6 +489,8 @@ export function SeatFromScreenshotSheet({
 		const seatablesCount = rows.filter(
 			(row) => row.action !== "skip" && row.warning === null
 		).length;
+		const heroAssignedRowId =
+			rows.find((r) => r.action === "hero")?.rowId ?? null;
 
 		return (
 			<div className="flex flex-col gap-3">
@@ -501,6 +505,9 @@ export function SeatFromScreenshotSheet({
 							heroAlreadySeatedElsewhere={
 								heroSeatPosition !== null &&
 								heroSeatPosition !== row.seatPosition
+							}
+							heroAvailable={
+								heroAssignedRowId === null || heroAssignedRowId === row.rowId
 							}
 							key={row.rowId}
 							onActionChange={(next) => handleRowActionChange(row.rowId, next)}
@@ -580,6 +587,7 @@ const ACTION_BADGE_LABEL: Record<RowAction, string> = {
 function ReviewRowItem({
 	allPlayers,
 	heroAlreadySeatedElsewhere,
+	heroAvailable,
 	onActionChange,
 	onNameChange,
 	onSelectExisting,
@@ -587,6 +595,7 @@ function ReviewRowItem({
 }: {
 	allPlayers: PlayerOption[];
 	heroAlreadySeatedElsewhere: boolean;
+	heroAvailable: boolean;
 	onActionChange: (next: RowAction) => void;
 	onNameChange: (next: string) => void;
 	onSelectExisting: (player: PlayerOption) => void;
@@ -603,13 +612,17 @@ function ReviewRowItem({
 				<SeatCombobox
 					allPlayers={allPlayers}
 					disabled={disabled}
+					heroAvailable={heroAvailable}
 					onActionChange={onActionChange}
 					onNameChange={onNameChange}
 					onSelectExisting={onSelectExisting}
 					row={row}
 				/>
 				<Badge
-					className={cn("shrink-0", ACTION_BADGE_CLASS[row.action])}
+					className={cn(
+						"w-16 shrink-0 justify-center",
+						ACTION_BADGE_CLASS[row.action]
+					)}
 					variant={ACTION_BADGE_VARIANT[row.action]}
 				>
 					{ACTION_BADGE_LABEL[row.action]}
@@ -639,15 +652,13 @@ function getSeatDisplayValue(row: ReviewRow): string {
 	if (row.action === "hero") {
 		return "Hero (self)";
 	}
-	if (row.action === "skip") {
-		return "Skipped";
-	}
 	return row.name;
 }
 
 function SeatCombobox({
 	allPlayers,
 	disabled,
+	heroAvailable,
 	onActionChange,
 	onNameChange,
 	onSelectExisting,
@@ -655,25 +666,23 @@ function SeatCombobox({
 }: {
 	allPlayers: PlayerOption[];
 	disabled: boolean;
+	heroAvailable: boolean;
 	onActionChange: (next: RowAction) => void;
 	onNameChange: (next: string) => void;
 	onSelectExisting: (player: PlayerOption) => void;
 	row: ReviewRow;
 }) {
 	const [isOpen, setIsOpen] = useState(false);
-	const [isFiltering, setIsFiltering] = useState(false);
 	const [contentWidth, setContentWidth] = useState<number>();
 	const anchorRef = useRef<HTMLDivElement>(null);
 
 	const displayValue = getSeatDisplayValue(row);
-
-	const readOnly = row.action === "hero" || row.action === "skip";
+	const readOnly = row.action === "hero";
 	const normalizedInput = row.name.trim().toLowerCase();
-	const filteredPlayers = allPlayers.filter(
-		(p) =>
-			!(isFiltering && normalizedInput) ||
-			p.name.toLowerCase().includes(normalizedInput)
-	);
+	const filteredPlayers = normalizedInput
+		? allPlayers.filter((p) => p.name.toLowerCase().includes(normalizedInput))
+		: allPlayers;
+	const trimmedName = row.name.trim();
 
 	useEffect(() => {
 		if (!(isOpen && anchorRef.current)) {
@@ -684,25 +693,16 @@ function SeatCombobox({
 
 	const handleSelectExisting = (player: PlayerOption) => {
 		onSelectExisting(player);
-		setIsFiltering(false);
 		setIsOpen(false);
 	};
 
 	const handlePickHero = () => {
 		onActionChange("hero");
-		setIsFiltering(false);
-		setIsOpen(false);
-	};
-
-	const handlePickSkip = () => {
-		onActionChange("skip");
-		setIsFiltering(false);
 		setIsOpen(false);
 	};
 
 	const handleKeepAsNew = () => {
 		onActionChange("new");
-		setIsFiltering(false);
 		setIsOpen(false);
 	};
 
@@ -729,7 +729,6 @@ function SeatCombobox({
 								return;
 							}
 							onNameChange(e.target.value);
-							setIsFiltering(true);
 							setIsOpen(true);
 						}}
 						onFocus={() => {
@@ -758,27 +757,28 @@ function SeatCombobox({
 					style={contentWidth ? { width: contentWidth } : undefined}
 				>
 					<Command shouldFilter={false}>
-						<CommandList>
+						<CommandList className="max-h-64 overflow-y-auto overscroll-contain">
+							{heroAvailable && row.action !== "hero" ? (
+								<CommandItem
+									className={row.isHeroCandidate ? "text-amber-500" : ""}
+									onMouseDown={(e) => e.preventDefault()}
+									onSelect={handlePickHero}
+									value="__hero__"
+								>
+									Seat Hero here
+								</CommandItem>
+							) : null}
+							{trimmedName && row.action !== "new" ? (
+								<CommandItem
+									onMouseDown={(e) => e.preventDefault()}
+									onSelect={handleKeepAsNew}
+									value="__new__"
+								>
+									Create new: {trimmedName}
+								</CommandItem>
+							) : null}
 							{filteredPlayers.length === 0 ? (
 								<CommandEmpty>No matching players.</CommandEmpty>
-							) : null}
-							{row.isHeroCandidate && row.action !== "hero" ? (
-								<CommandItem
-									onMouseDown={(e) => e.preventDefault()}
-									onSelect={handlePickHero}
-									value="__hero__"
-								>
-									<span className="text-amber-500">Hero (self)</span>
-								</CommandItem>
-							) : null}
-							{!row.isHeroCandidate && row.action !== "hero" ? (
-								<CommandItem
-									onMouseDown={(e) => e.preventDefault()}
-									onSelect={handlePickHero}
-									value="__hero__"
-								>
-									<span>Seat Hero here</span>
-								</CommandItem>
 							) : null}
 							{filteredPlayers.map((p) => (
 								<CommandItem
@@ -790,28 +790,6 @@ function SeatCombobox({
 									{p.name}
 								</CommandItem>
 							))}
-							{row.name.trim() &&
-							row.action !== "new" &&
-							!allPlayers.some(
-								(p) => p.name.toLowerCase() === normalizedInput
-							) ? (
-								<CommandItem
-									onMouseDown={(e) => e.preventDefault()}
-									onSelect={handleKeepAsNew}
-									value="__new__"
-								>
-									<span>Create new: {row.name.trim()}</span>
-								</CommandItem>
-							) : null}
-							{row.action === "skip" ? null : (
-								<CommandItem
-									onMouseDown={(e) => e.preventDefault()}
-									onSelect={handlePickSkip}
-									value="__skip__"
-								>
-									<span className="text-muted-foreground">Skip this seat</span>
-								</CommandItem>
-							)}
 						</CommandList>
 					</Command>
 				</PopoverContent>
@@ -821,32 +799,25 @@ function SeatCombobox({
 }
 
 function computeRowWarning({
-	effectivePreferredAction,
-	isHeroCandidate,
+	action,
 	occupiedSeatPositions,
 	seatNumber,
 	seatPosition,
-	trimmedName,
 }: {
-	effectivePreferredAction: RowAction | undefined;
-	isHeroCandidate: boolean;
+	action: RowAction;
 	occupiedSeatPositions: Set<number>;
 	seatNumber: number;
 	seatPosition: number;
-	trimmedName: string;
 }): string | null {
 	if (seatPosition < 0 || seatPosition > 8) {
 		return `Seat ${seatNumber} is out of range (1-9).`;
 	}
-	const isHero =
-		effectivePreferredAction === "hero" ||
-		(effectivePreferredAction === undefined && isHeroCandidate);
-	const isSkip = effectivePreferredAction === "skip";
-	if (!(isHero || isSkip) && occupiedSeatPositions.has(seatPosition)) {
+	if (
+		action !== "hero" &&
+		action !== "skip" &&
+		occupiedSeatPositions.has(seatPosition)
+	) {
 		return `Seat ${seatNumber} is already occupied.`;
-	}
-	if (!(isHero || isSkip || trimmedName)) {
-		return "Name is empty.";
 	}
 	return null;
 }
@@ -855,19 +826,27 @@ function computeRowAction({
 	effectivePreferredAction,
 	isHeroCandidate,
 	matchedPlayer,
+	trimmedName,
 }: {
 	effectivePreferredAction: RowAction | undefined;
 	isHeroCandidate: boolean;
 	matchedPlayer: { id: string; name: string } | null;
+	trimmedName: string;
 }): RowAction {
 	if (effectivePreferredAction) {
 		if (effectivePreferredAction === "existing" && !matchedPlayer) {
 			return "new";
 		}
+		if (effectivePreferredAction === "new" && trimmedName === "") {
+			return "skip";
+		}
 		return effectivePreferredAction;
 	}
 	if (isHeroCandidate) {
 		return "hero";
+	}
+	if (trimmedName === "") {
+		return "skip";
 	}
 	if (matchedPlayer) {
 		return "existing";
@@ -905,18 +884,17 @@ function buildRow({
 
 	const effectivePreferredAction = preferredAction;
 
-	const warning = computeRowWarning({
-		effectivePreferredAction,
-		isHeroCandidate,
-		occupiedSeatPositions,
-		seatNumber,
-		seatPosition,
-		trimmedName,
-	});
 	const action = computeRowAction({
 		effectivePreferredAction,
 		isHeroCandidate,
 		matchedPlayer,
+		trimmedName,
+	});
+	const warning = computeRowWarning({
+		action,
+		occupiedSeatPositions,
+		seatNumber,
+		seatPosition,
 	});
 
 	return {
