@@ -132,7 +132,9 @@ function CashGameEndEditor({
 					</Field>
 				)}
 			</form.Field>
-			<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+			<form.Subscribe
+				selector={(state) => [state.canSubmit, state.isSubmitting]}
+			>
 				{([canSubmit, isSubmitting]) => (
 					<DialogActionRow>
 						<Button
@@ -162,9 +164,7 @@ function TournamentEndEditor({
 			time: toTimeInputValue(event.occurredAt),
 			beforeDeadline: payload.beforeDeadline === true,
 			placement:
-				typeof payload.placement === "number"
-					? String(payload.placement)
-					: "",
+				typeof payload.placement === "number" ? String(payload.placement) : "",
 			totalEntries:
 				typeof payload.totalEntries === "number"
 					? String(payload.totalEntries)
@@ -337,7 +337,9 @@ function TournamentEndEditor({
 					</Field>
 				)}
 			</form.Field>
-			<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+			<form.Subscribe
+				selector={(state) => [state.canSubmit, state.isSubmitting]}
+			>
 				{([canSubmit, isSubmitting]) => (
 					<DialogActionRow>
 						<Button
