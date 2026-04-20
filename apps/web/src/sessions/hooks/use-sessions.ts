@@ -28,6 +28,7 @@ export interface CashGameFormValues {
 
 export interface TournamentFormValues {
 	addonCost?: number;
+	beforeDeadline?: boolean;
 	bountyPrizes?: number;
 	breakMinutes?: number;
 	currencyId?: string;
@@ -52,6 +53,7 @@ export type SessionFormValues = CashGameFormValues | TournamentFormValues;
 
 export interface SessionItem {
 	addonCost: number | null;
+	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
 	buyIn: number | null;
@@ -133,6 +135,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 		type: "tournament" as const,
 		tournamentBuyIn: values.tournamentBuyIn,
 		entryFee: values.entryFee,
+		beforeDeadline: values.beforeDeadline,
 		placement: values.placement,
 		totalEntries: values.totalEntries,
 		prizeMoney: values.prizeMoney,
@@ -176,8 +179,9 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		...common,
 		tournamentBuyIn: values.tournamentBuyIn,
 		entryFee: values.entryFee,
-		placement: values.placement,
-		totalEntries: values.totalEntries,
+		beforeDeadline: values.beforeDeadline ?? null,
+		placement: values.placement ?? null,
+		totalEntries: values.totalEntries ?? null,
 		prizeMoney: values.prizeMoney,
 		rebuyCount: values.rebuyCount,
 		rebuyCost: values.rebuyCost,
@@ -201,6 +205,7 @@ export function buildOptimisticItem(
 		evDiff: null,
 		tournamentBuyIn: null,
 		entryFee: null,
+		beforeDeadline: null,
 		placement: null,
 		totalEntries: null,
 		prizeMoney: null,
@@ -240,6 +245,7 @@ export function buildOptimisticItem(
 	} else {
 		item.tournamentBuyIn = newSession.tournamentBuyIn;
 		item.entryFee = newSession.entryFee ?? null;
+		item.beforeDeadline = newSession.beforeDeadline ?? null;
 	}
 	return item;
 }
@@ -253,6 +259,7 @@ export function buildEditDefaults(session: SessionItem) {
 		evCashOut: session.evCashOut ?? undefined,
 		tournamentBuyIn: session.tournamentBuyIn ?? 0,
 		entryFee: session.entryFee ?? undefined,
+		beforeDeadline: session.beforeDeadline ?? undefined,
 		placement: session.placement ?? undefined,
 		totalEntries: session.totalEntries ?? undefined,
 		prizeMoney: session.prizeMoney ?? undefined,

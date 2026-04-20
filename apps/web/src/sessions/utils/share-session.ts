@@ -1,5 +1,6 @@
 export interface ShareableSession {
 	addonCost: number | null;
+	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
@@ -102,7 +103,9 @@ export function createSessionShareText(session: ShareableSession): string {
 
 	text += `\n${gameIcon} ${gameName}\n`;
 
-	if (isTournament && session.placement !== null) {
+	if (isTournament && session.beforeDeadline === true) {
+		text += "🧾 - / - entries\n";
+	} else if (isTournament && session.placement !== null) {
 		const ordinal = formatOrdinal(session.placement);
 		const entries =
 			session.totalEntries === null ? "" : ` / ${session.totalEntries} entries`;

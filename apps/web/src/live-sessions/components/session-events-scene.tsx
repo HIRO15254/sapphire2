@@ -78,6 +78,9 @@ function formatSessionEndSummary(p: Record<string, unknown>) {
 	if (typeof p.cashOutAmount === "number") {
 		return `Cash-out: ${p.cashOutAmount.toLocaleString()}`;
 	}
+	if (p.beforeDeadline === true) {
+		return "- / - entries";
+	}
 	if (typeof p.placement === "number" && typeof p.totalEntries === "number") {
 		return `#${p.placement} / ${p.totalEntries}`;
 	}

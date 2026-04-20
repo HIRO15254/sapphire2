@@ -34,6 +34,7 @@ interface CashGamePLResult {
 interface TournamentPLResult {
 	addonCost: number;
 	addonCount: number;
+	beforeDeadline: boolean;
 	bountyPrizes: number | null;
 	placement: number | null;
 	prizeMoney: number | null;
@@ -186,15 +187,14 @@ export function computeTournamentPLFromEvents(
 	const income = (prizeMoney ?? 0) + (bountyPrizes ?? 0);
 	const cost =
 		(tournamentBuyIn ?? 0) + (tournamentEntryFee ?? 0) + totalChipPurchaseCost;
-	// profitLoss is null if session ended before deadline (no placement) or not yet completed
-	const profitLoss =
-		prizeMoney === null || beforeDeadline ? null : income - cost;
+	const profitLoss = prizeMoney === null ? null : income - cost;
 
 	return {
 		rebuyCount: chipPurchaseCount,
 		rebuyCost: totalChipPurchaseCost,
 		addonCount: 0,
 		addonCost: 0,
+		beforeDeadline,
 		placement,
 		totalEntries,
 		prizeMoney,
@@ -444,6 +444,7 @@ async function upsertTournamentPokerSession(
 			.set({
 				placement: pl.placement,
 				totalEntries: pl.totalEntries,
+				beforeDeadline: pl.beforeDeadline ? true : null,
 				prizeMoney: pl.prizeMoney,
 				bountyPrizes: pl.bountyPrizes,
 				rebuyCount: pl.rebuyCount,
@@ -473,6 +474,7 @@ async function upsertTournamentPokerSession(
 		entryFee: entryFee ?? null,
 		placement: pl.placement,
 		totalEntries: pl.totalEntries,
+		beforeDeadline: pl.beforeDeadline ? true : null,
 		prizeMoney: pl.prizeMoney,
 		bountyPrizes: pl.bountyPrizes,
 		rebuyCount: pl.rebuyCount,

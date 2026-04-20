@@ -44,6 +44,7 @@ export const pokerSession = sqliteTable(
 		entryFee: integer("entry_fee"),
 		placement: integer("placement"),
 		totalEntries: integer("total_entries"),
+		beforeDeadline: integer("before_deadline", { mode: "boolean" }),
 		prizeMoney: integer("prize_money"),
 		rebuyCount: integer("rebuy_count"),
 		rebuyCost: integer("rebuy_cost"),

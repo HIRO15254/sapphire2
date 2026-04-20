@@ -24,6 +24,7 @@ interface SessionCardProps {
 	onReopen?: (liveCashGameSessionId: string) => void;
 	session: {
 		addonCost: number | null;
+		beforeDeadline: boolean | null;
 		bountyPrizes: number | null;
 		breakMinutes: number | null;
 		buyIn: number | null;
@@ -411,13 +412,20 @@ function SessionHeader({
 				<span className={`font-semibold text-sm ${profitColorClass}`}>
 					{plDisplay}
 				</span>
-				{isTournament && session.placement !== null && (
+				{isTournament && session.beforeDeadline === true && (
 					<span className="text-[10px] text-muted-foreground">
-						{session.placement}
-						{session.totalEntries === null ? "" : `/${session.totalEntries}`}
-						{" place"}
+						- / - entries
 					</span>
 				)}
+				{isTournament &&
+					session.beforeDeadline !== true &&
+					session.placement !== null && (
+						<span className="text-[10px] text-muted-foreground">
+							{session.placement}
+							{session.totalEntries === null ? "" : `/${session.totalEntries}`}
+							{" place"}
+						</span>
+					)}
 				{evDisplay !== null && (
 					<span className="text-[10px] text-muted-foreground">
 						EV{" "}
