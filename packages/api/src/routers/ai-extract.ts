@@ -1,5 +1,6 @@
 /// <reference path="../types/turndown.d.ts" />
 import Anthropic from "@anthropic-ai/sdk";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 // Cloudflare Workers には DOMParser が存在しないため、Turndown の内部 HTML 解析の
 // 代わりに純粋 JS DOM 実装の domino を使用する（Turndown の依存として同梱済み）
 import domino from "@mixmark-io/domino";
@@ -82,36 +83,6 @@ const ExtractedTablePlayersSchema = z.object({
 });
 
 export type ExtractedTablePlayers = z.infer<typeof ExtractedTablePlayersSchema>;
-
-const TABLE_PLAYERS_TOOL_INPUT_SCHEMA = {
-	type: "object" as const,
-	required: ["seats"] as string[],
-	properties: {
-		seats: {
-			type: "array",
-			description:
-				"席番号とプレイヤー名のリスト。名前が読み取れた席のみ含める。空席は省略する。",
-			items: {
-				type: "object",
-				properties: {
-					seatNumber: {
-						type: "integer",
-						minimum: 1,
-						maximum: MAX_SEAT_NUMBER,
-						description:
-							"アプリ固有の採番規約に従った 1-indexed の席番号 (1-9)。",
-					},
-					name: {
-						type: "string",
-						description:
-							"その席に表示されているプレイヤー名。前後の記号・残スタック表示などは除去し、名前のみを返す。",
-					},
-				},
-				required: ["seatNumber", "name"],
-			},
-		},
-	},
-};
 
 const TOOL_INPUT_SCHEMA = {
 	type: "object" as const,
@@ -368,43 +339,29 @@ export const aiExtractRouter = router({
 				...imageBlocks,
 				{
 					type: "text",
-					text: `${appConfig.prompt}\n\n抽出結果は必ず extract_table_players ツールで返してください。`,
+					text: appConfig.prompt,
 				},
 			];
 
-			const response = await client.messages.create({
-				model: "claude-sonnet-4-6",
+			const response = await client.messages.parse({
+				model: "claude-opus-4-7",
 				max_tokens: 1024,
-				tools: [
-					{
-						name: "extract_table_players",
-						description:
-							"ポーカーテーブルのスクリーンショットから、各席のプレイヤー名を抽出する。席番号は当該ソースアプリの採番規約に従った 1-indexed の整数。",
-						input_schema: TABLE_PLAYERS_TOOL_INPUT_SCHEMA,
-					},
-				],
-				tool_choice: { type: "tool", name: "extract_table_players" },
+				output_config: {
+					format: zodOutputFormat(ExtractedTablePlayersSchema),
+				},
 				messages: [{ role: "user", content: contentBlocks }],
 			});
 
-			const toolUse = response.content.find((c) => c.type === "tool_use");
-			if (!toolUse || toolUse.type !== "tool_use") {
+			const parsedOutput = response.parsed_output;
+			if (!parsedOutput) {
 				throw new TRPCError({
 					code: "INTERNAL_SERVER_ERROR",
 					message: "AI did not return structured data",
 				});
 			}
 
-			const parsed = ExtractedTablePlayersSchema.safeParse(toolUse.input);
-			if (!parsed.success) {
-				throw new TRPCError({
-					code: "INTERNAL_SERVER_ERROR",
-					message: "Failed to parse AI response",
-				});
-			}
-
 			const seenSeatNumbers = new Set<number>();
-			const deduped = parsed.data.seats.filter((seat) => {
+			const deduped = parsedOutput.seats.filter((seat) => {
 				if (seenSeatNumbers.has(seat.seatNumber)) {
 					return false;
 				}

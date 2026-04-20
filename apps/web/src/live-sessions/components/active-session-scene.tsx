@@ -315,6 +315,7 @@ export function ActiveSessionScene({
 			/>
 
 			<SeatFromScreenshotSheet
+				heroSeatPosition={state.heroSeatPosition}
 				occupiedSeatPositions={occupiedSeatPositions}
 				onOpenChange={setIsScanSheetOpen}
 				open={isScanSheetOpen}

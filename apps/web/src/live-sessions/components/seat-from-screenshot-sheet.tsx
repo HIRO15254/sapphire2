@@ -30,6 +30,7 @@ type SessionParam =
 	| { liveCashGameSessionId?: never; liveTournamentSessionId: string };
 
 interface SeatFromScreenshotSheetProps {
+	heroSeatPosition: number | null;
 	occupiedSeatPositions: Set<number>;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
@@ -38,7 +39,7 @@ interface SeatFromScreenshotSheetProps {
 
 type Step = "select-app" | "upload" | "review";
 
-type RowAction = "existing" | "new" | "skip";
+type RowAction = "existing" | "new" | "hero" | "skip";
 
 interface ReviewRow {
 	action: RowAction;
@@ -85,7 +86,47 @@ const SOURCE_APP_ENTRIES = Object.entries(TABLE_PLAYER_SOURCE_APPS) as [
 	(typeof TABLE_PLAYER_SOURCE_APPS)[TablePlayerSourceApp],
 ][];
 
+function applyRowAction(
+	row: ReviewRow,
+	targetRowId: string,
+	nextAction: RowAction
+): ReviewRow {
+	if (row.rowId !== targetRowId) {
+		if (nextAction === "hero" && row.action === "hero") {
+			return {
+				...row,
+				action: row.existingPlayerId ? "existing" : "new",
+			};
+		}
+		return row;
+	}
+	if (row.ambiguous && nextAction === "existing") {
+		return row;
+	}
+	return { ...row, action: nextAction };
+}
+
+function updateHeroSeatViaClient(
+	sessionParam: SessionParam,
+	heroSeatPosition: number | null
+): Promise<unknown> {
+	if (sessionParam.liveCashGameSessionId !== undefined) {
+		return trpcClient.liveCashGameSession.updateHeroSeat.mutate({
+			id: sessionParam.liveCashGameSessionId,
+			heroSeatPosition,
+		});
+	}
+	if (sessionParam.liveTournamentSessionId !== undefined) {
+		return trpcClient.liveTournamentSession.updateHeroSeat.mutate({
+			id: sessionParam.liveTournamentSessionId,
+			heroSeatPosition,
+		});
+	}
+	throw new Error("Invalid sessionParam: neither cash game nor tournament");
+}
+
 export function SeatFromScreenshotSheet({
+	heroSeatPosition,
 	occupiedSeatPositions,
 	onOpenChange,
 	open,
@@ -208,15 +249,7 @@ export function SeatFromScreenshotSheet({
 
 	const handleRowActionChange = (rowId: string, nextAction: RowAction) => {
 		setRows((prev) =>
-			prev.map((row) => {
-				if (row.rowId !== rowId) {
-					return row;
-				}
-				if (row.ambiguous && nextAction === "existing") {
-					return row;
-				}
-				return { ...row, action: nextAction };
-			})
+			prev.map((row) => applyRowAction(row, rowId, nextAction))
 		);
 	};
 
@@ -228,6 +261,19 @@ export function SeatFromScreenshotSheet({
 		queryClient.invalidateQueries({
 			queryKey: trpc.player.list.queryOptions().queryKey,
 		});
+		if (sessionParam.liveCashGameSessionId !== undefined) {
+			queryClient.invalidateQueries({
+				queryKey: trpc.liveCashGameSession.getById.queryOptions({
+					id: sessionParam.liveCashGameSessionId,
+				}).queryKey,
+			});
+		} else if (sessionParam.liveTournamentSessionId !== undefined) {
+			queryClient.invalidateQueries({
+				queryKey: trpc.liveTournamentSession.getById.queryOptions({
+					id: sessionParam.liveTournamentSessionId,
+				}).queryKey,
+			});
+		}
 	};
 
 	const handleApply = async () => {
@@ -244,7 +290,9 @@ export function SeatFromScreenshotSheet({
 		let failure = 0;
 		for (const row of actionable) {
 			try {
-				if (row.action === "existing" && row.existingPlayerId) {
+				if (row.action === "hero") {
+					await updateHeroSeatViaClient(sessionParam, row.seatPosition);
+				} else if (row.action === "existing" && row.existingPlayerId) {
 					await trpcClient.sessionTablePlayer.add.mutate({
 						...sessionParam,
 						playerId: row.existingPlayerId,
@@ -266,10 +314,10 @@ export function SeatFromScreenshotSheet({
 		invalidateQueries();
 
 		if (failure === 0) {
-			toast.success(`${success} 人を着席させました`);
+			toast.success(`${success} 件を反映しました`);
 			onOpenChange(false);
 		} else {
-			toast.error(`着席 ${success} 件成功 / ${failure} 件失敗`);
+			toast.error(`反映 ${success} 件成功 / ${failure} 件失敗`);
 		}
 	};
 
@@ -387,12 +435,16 @@ export function SeatFromScreenshotSheet({
 		return (
 			<div className="flex flex-col gap-3">
 				<p className="text-muted-foreground text-sm">
-					{rows.length}{" "}
-					件を検出しました。内容を確認して「着席」を押してください。
+					{rows.length} 件を検出しました。自分の席は「Hero
+					(自分)」を選択してください。内容を確認して「反映」を押してください。
 				</p>
 				<div className="flex flex-col gap-2">
 					{rows.map((row) => (
 						<ReviewRowItem
+							heroAlreadySeatedElsewhere={
+								heroSeatPosition !== null &&
+								heroSeatPosition !== row.seatPosition
+							}
 							key={row.rowId}
 							onActionChange={(next) => handleRowActionChange(row.rowId, next)}
 							onNameChange={(next) => handleRowNameChange(row.rowId, next)}
@@ -417,12 +469,12 @@ export function SeatFromScreenshotSheet({
 						{isApplying ? (
 							<>
 								<IconLoader2 className="animate-spin" size={16} />
-								着席中...
+								反映中...
 							</>
 						) : (
 							<>
 								<IconSparkles size={16} />
-								着席 ({seatablesCount})
+								反映 ({seatablesCount})
 							</>
 						)}
 					</Button>
@@ -445,10 +497,12 @@ export function SeatFromScreenshotSheet({
 }
 
 function ReviewRowItem({
+	heroAlreadySeatedElsewhere,
 	onActionChange,
 	onNameChange,
 	row,
 }: {
+	heroAlreadySeatedElsewhere: boolean;
 	onActionChange: (next: RowAction) => void;
 	onNameChange: (next: string) => void;
 	row: ReviewRow;
@@ -466,7 +520,7 @@ function ReviewRowItem({
 				</Badge>
 				<Input
 					className="h-8"
-					disabled={disabled}
+					disabled={disabled || row.action === "hero"}
 					onChange={(e) => onNameChange(e.target.value)}
 					placeholder="プレイヤー名"
 					value={row.name}
@@ -492,12 +546,18 @@ function ReviewRowItem({
 								{existingLabel}
 							</SelectItem>
 							<SelectItem value="new">新規作成</SelectItem>
+							<SelectItem value="hero">Hero (自分)</SelectItem>
 							<SelectItem value="skip">スキップ</SelectItem>
 						</SelectContent>
 					</Select>
 					{row.ambiguous && (
 						<span className="text-muted-foreground text-xs">
 							同名が複数存在します
+						</span>
+					)}
+					{row.action === "hero" && heroAlreadySeatedElsewhere && (
+						<span className="text-muted-foreground text-xs">
+							既存の Hero 席は上書きされます
 						</span>
 					)}
 				</div>
@@ -534,9 +594,12 @@ function buildRow({
 	let warning: string | null = null;
 	if (seatPosition < 0 || seatPosition > 8) {
 		warning = `席番号 ${seatNumber} は範囲外です (1-9)`;
-	} else if (occupiedSeatPositions.has(seatPosition)) {
+	} else if (
+		preferredAction !== "hero" &&
+		occupiedSeatPositions.has(seatPosition)
+	) {
 		warning = `席 ${seatNumber} には既に着席中のプレイヤーがいます`;
-	} else if (!trimmedName) {
+	} else if (preferredAction !== "hero" && !trimmedName) {
 		warning = "名前が空です";
 	}
 
