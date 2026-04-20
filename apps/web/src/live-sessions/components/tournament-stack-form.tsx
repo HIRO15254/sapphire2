@@ -22,7 +22,6 @@ interface ChipPurchaseType {
 }
 
 interface TournamentStackFormSubmitValues {
-	averageStack: number | null;
 	chipPurchaseCounts: Array<{
 		chipsPerUnit: number;
 		count: number;
@@ -72,10 +71,9 @@ export function TournamentStackForm({
 		setStackAmount,
 		setRemainingPlayers,
 		setTotalEntries,
-		setAverageStack,
 		setChipPurchaseCounts,
 	} = useTournamentFormContext();
-	const { stackAmount, remainingPlayers, totalEntries, averageStack, chipPurchaseCounts } =
+	const { stackAmount, remainingPlayers, totalEntries, chipPurchaseCounts } =
 		state;
 
 	const form = useForm({
@@ -83,7 +81,6 @@ export function TournamentStackForm({
 			stackAmount,
 			remainingPlayers,
 			totalEntries,
-			averageStack,
 		},
 		onSubmit: ({ value }) => {
 			onSubmit({
@@ -93,7 +90,6 @@ export function TournamentStackForm({
 					? Number(value.remainingPlayers)
 					: null,
 				totalEntries: value.totalEntries ? Number(value.totalEntries) : null,
-				averageStack: value.averageStack ? Number(value.averageStack) : null,
 				chipPurchaseCounts,
 			});
 		},
@@ -112,10 +108,7 @@ export function TournamentStackForm({
 		if (form.state.values.totalEntries !== totalEntries) {
 			form.setFieldValue("totalEntries", totalEntries);
 		}
-		if (form.state.values.averageStack !== averageStack) {
-			form.setFieldValue("averageStack", averageStack);
-		}
-	}, [stackAmount, remainingPlayers, totalEntries, averageStack, form]);
+	}, [stackAmount, remainingPlayers, totalEntries, form]);
 
 	const memoForm = useForm({
 		defaultValues: { text: "" },
@@ -214,21 +207,6 @@ export function TournamentStackForm({
 								)}
 							</form.Field>
 						</div>
-						<form.Field name="averageStack">
-							{(field) => (
-								<StackNumberField
-									error={field.state.meta.errors[0]?.message}
-									id="tournament-average-stack"
-									inputMode="numeric"
-									label="Avg Stack"
-									onChange={(v) => {
-										field.handleChange(v);
-										setAverageStack(v);
-									}}
-									value={field.state.value}
-								/>
-							)}
-						</form.Field>
 
 						{chipPurchaseTypes.length > 0 && (
 							<div className="flex flex-col gap-1.5">

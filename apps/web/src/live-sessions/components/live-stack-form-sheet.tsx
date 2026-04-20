@@ -114,7 +114,6 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 						recordStack({ stackAmount: values.stackAmount });
 						if (values.recordTournamentInfo) {
 							updateTournamentInfo({
-								averageStack: values.averageStack,
 								remainingPlayers: values.remainingPlayers,
 								totalEntries: values.totalEntries,
 								chipPurchaseCounts: values.chipPurchaseCounts,

@@ -28,7 +28,11 @@ function applyUpdateTournamentInfoSummary(
 	payload: Record<string, unknown>
 ) {
 	const typedPayload = payload as {
-		averageStack?: number | null;
+		chipPurchaseCounts?: Array<{
+			chipsPerUnit: number;
+			count: number;
+			name: string;
+		}>;
 		remainingPlayers?: number | null;
 		totalEntries?: number | null;
 	};
@@ -41,8 +45,29 @@ function applyUpdateTournamentInfoSummary(
 		summary.totalEntries = typedPayload.totalEntries;
 	}
 
-	if (typeof typedPayload.averageStack === "number") {
-		summary.averageStack = typedPayload.averageStack;
+	const startingStack =
+		typeof summary.startingStack === "number" ? summary.startingStack : null;
+	const totalEntries =
+		typeof typedPayload.totalEntries === "number"
+			? typedPayload.totalEntries
+			: typeof summary.totalEntries === "number"
+				? summary.totalEntries
+				: null;
+	const remainingPlayers =
+		typeof typedPayload.remainingPlayers === "number"
+			? typedPayload.remainingPlayers
+			: typeof summary.remainingPlayers === "number"
+				? summary.remainingPlayers
+				: null;
+	const chipTotal = (typedPayload.chipPurchaseCounts ?? []).reduce(
+		(acc, c) => acc + c.count * c.chipsPerUnit,
+		0
+	);
+
+	if (startingStack && totalEntries && remainingPlayers && remainingPlayers > 0) {
+		summary.averageStack = Math.round(
+			(startingStack * totalEntries + chipTotal) / remainingPlayers
+		);
 	}
 }
 
