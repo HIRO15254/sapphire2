@@ -104,7 +104,7 @@ function CashGameCompactSummary({
 					{displayPL === null ? "-" : formatPl(displayPL)}
 				</p>
 				{showEvPL ? (
-					<p className="text-muted-foreground text-xs">
+					<p className={cn("text-xs", plColorClass(evPL))}>
 						EV: {formatPl(evPL)}
 					</p>
 				) : null}
