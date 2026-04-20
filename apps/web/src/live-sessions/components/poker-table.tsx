@@ -195,18 +195,18 @@ export function PokerTable({
 					)}
 				</div>
 
-				{/* Scan players button (overlay, top-right of felt) */}
+				{/* Scan players button (top-center overlay) */}
 				{onScanPlayers && (
 					<Button
-						aria-label="スクリーンショットから着席"
-						className="absolute top-[12%] right-[6%] z-10 h-7 gap-1 px-2 text-[10px]"
+						aria-label="Seat from screenshot"
+						className="absolute top-0 left-1/2 z-10 h-7 -translate-x-1/2 gap-1 px-2 text-[10px]"
 						onClick={onScanPlayers}
 						size="xs"
 						type="button"
 						variant="outline"
 					>
 						<IconSparkles size={12} />
-						AI 着席
+						AI Seat
 					</Button>
 				)}
 
