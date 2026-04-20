@@ -51,7 +51,6 @@ export function PlayerFilters({
 	return (
 		<FilterDialogShell
 			activeCount={selectedTagIds.length}
-			description="Select one or more tags to narrow the player list."
 			onApply={handleApply}
 			onOpen={handleOpen}
 			onOpenChange={(open) => {
