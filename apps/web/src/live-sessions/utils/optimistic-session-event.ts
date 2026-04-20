@@ -28,6 +28,11 @@ function applyUpdateTournamentInfoSummary(
 	payload: Record<string, unknown>
 ) {
 	const typedPayload = payload as {
+		chipPurchaseCounts?: Array<{
+			chipsPerUnit: number;
+			count: number;
+			name: string;
+		}>;
 		remainingPlayers?: number | null;
 		totalEntries?: number | null;
 	};
@@ -38,6 +43,31 @@ function applyUpdateTournamentInfoSummary(
 
 	if (typeof typedPayload.totalEntries === "number") {
 		summary.totalEntries = typedPayload.totalEntries;
+	}
+
+	const startingStack =
+		typeof summary.startingStack === "number" ? summary.startingStack : null;
+	const totalEntries =
+		typeof typedPayload.totalEntries === "number"
+			? typedPayload.totalEntries
+			: typeof summary.totalEntries === "number"
+				? summary.totalEntries
+				: null;
+	const remainingPlayers =
+		typeof typedPayload.remainingPlayers === "number"
+			? typedPayload.remainingPlayers
+			: typeof summary.remainingPlayers === "number"
+				? summary.remainingPlayers
+				: null;
+	const chipTotal = (typedPayload.chipPurchaseCounts ?? []).reduce(
+		(acc, c) => acc + c.count * c.chipsPerUnit,
+		0
+	);
+
+	if (startingStack && totalEntries && remainingPlayers && remainingPlayers > 0) {
+		summary.averageStack = Math.round(
+			(startingStack * totalEntries + chipTotal) / remainingPlayers
+		);
 	}
 }
 
@@ -126,8 +156,31 @@ export function buildOptimisticSessionSummary(
 		case "update_tournament_info":
 			applyUpdateTournamentInfoSummary(nextSummary, payload);
 			break;
+		case "all_in": {
+			const p = payload as {
+				equity?: number;
+				potSize?: number;
+				trials?: number;
+				wins?: number;
+			};
+			if (
+				typeof p.potSize === "number" &&
+				typeof p.equity === "number" &&
+				typeof p.trials === "number" &&
+				typeof p.wins === "number" &&
+				p.trials > 0
+			) {
+				const current =
+					typeof nextSummary.evDiff === "number" ? nextSummary.evDiff : 0;
+				nextSummary.evDiff =
+					current +
+					p.potSize * (p.equity / 100) -
+					(p.potSize / p.trials) * p.wins;
+			}
+			break;
+		}
 		// chips_add_remove affects totalBuyIn server-side; skip optimistic stack update
-		// all_in, memo, session_pause, session_resume, purchase_chips, player_join,
+		// memo, session_pause, session_resume, purchase_chips, player_join,
 		// player_leave: no summary fields to update optimistically
 		default:
 			break;

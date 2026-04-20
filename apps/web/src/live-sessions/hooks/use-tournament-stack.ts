@@ -81,7 +81,6 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 				payload: {
 					remainingPlayers: values.remainingPlayers,
 					totalEntries: values.totalEntries,
-					averageStack: null,
 					chipPurchaseCounts: values.chipPurchaseCounts,
 				},
 			}),
@@ -101,7 +100,6 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 			getPayload: (values) => ({
 				remainingPlayers: values.remainingPlayers,
 				totalEntries: values.totalEntries,
-				averageStack: null,
 				chipPurchaseCounts: values.chipPurchaseCounts,
 			}),
 		}),

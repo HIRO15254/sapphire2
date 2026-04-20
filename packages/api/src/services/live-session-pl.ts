@@ -27,6 +27,7 @@ interface CashGamePLResult {
 	addonTotal: number;
 	cashOut: number | null;
 	evCashOut: number | null;
+	evDiff: number;
 	profitLoss: number | null;
 	totalBuyIn: number;
 }
@@ -146,7 +147,7 @@ export function computeCashGamePLFromEvents(
 		cashOut === null ? null : cashOut + chipRemoveTotal - totalBuyIn;
 	const evCashOut = cashOut === null ? null : cashOut + totalEvDiff;
 
-	return { totalBuyIn, cashOut, profitLoss, evCashOut, addonTotal };
+	return { totalBuyIn, cashOut, profitLoss, evCashOut, evDiff: totalEvDiff, addonTotal };
 }
 
 export function computeTournamentPLFromEvents(

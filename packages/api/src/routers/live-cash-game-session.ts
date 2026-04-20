@@ -230,6 +230,7 @@ export const liveCashGameSessionRouter = router({
 				cashOut: s.cashOut,
 				profitLoss: pl.profitLoss,
 				evCashOut: pl.evCashOut,
+				evDiff: pl.evDiff,
 				addonCount: s.addonCount,
 				maxStack: s.maxStack,
 				minStack: s.minStack,

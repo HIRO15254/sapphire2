@@ -92,23 +92,27 @@ async function fetchTournamentMasterData(
 ): Promise<{
 	tournamentBuyIn: number | undefined;
 	entryFee: number | undefined;
+	startingStack: number | undefined;
 }> {
 	if (!tournamentId) {
 		return {
 			tournamentBuyIn: undefined,
 			entryFee: undefined,
+			startingStack: undefined,
 		};
 	}
 	const [t] = await db
 		.select({
 			buyIn: tournament.buyIn,
 			entryFee: tournament.entryFee,
+			startingStack: tournament.startingStack,
 		})
 		.from(tournament)
 		.where(eq(tournament.id, tournamentId));
 	return {
 		tournamentBuyIn: t?.buyIn ?? undefined,
 		entryFee: t?.entryFee ?? undefined,
+		startingStack: t?.startingStack ?? undefined,
 	};
 }
 
@@ -118,8 +122,14 @@ interface StackBounds {
 	minStack: number | null;
 }
 
+interface ChipPurchaseCount {
+	chipsPerUnit: number;
+	count: number;
+	name: string;
+}
+
 interface TournamentInfo {
-	averageStack: number | null;
+	chipPurchaseCounts: ChipPurchaseCount[];
 	remainingPlayers: number | null;
 	totalEntries: number | null;
 }
@@ -154,11 +164,17 @@ function applyUpdateTournamentInfo(
 	return {
 		remainingPlayers: parsed.data.remainingPlayers ?? info.remainingPlayers,
 		totalEntries: parsed.data.totalEntries ?? info.totalEntries,
-		averageStack: parsed.data.averageStack ?? info.averageStack,
+		chipPurchaseCounts:
+			parsed.data.chipPurchaseCounts.length > 0
+				? parsed.data.chipPurchaseCounts
+				: info.chipPurchaseCounts,
 	};
 }
 
-function computeStackStats(events: { eventType: string; payload: string }[]): {
+function computeStackStats(
+	events: { eventType: string; payload: string }[],
+	startingStack?: number | null
+): {
 	maxStack: number | null;
 	minStack: number | null;
 	currentStack: number | null;
@@ -172,9 +188,9 @@ function computeStackStats(events: { eventType: string; payload: string }[]): {
 		currentStack: null,
 	};
 	let info: TournamentInfo = {
+		chipPurchaseCounts: [],
 		remainingPlayers: null,
 		totalEntries: null,
-		averageStack: null,
 	};
 
 	for (const event of events) {
@@ -185,7 +201,23 @@ function computeStackStats(events: { eventType: string; payload: string }[]): {
 		}
 	}
 
-	return { ...bounds, ...info };
+	let averageStack: number | null = null;
+	if (
+		startingStack &&
+		info.totalEntries &&
+		info.remainingPlayers &&
+		info.remainingPlayers > 0
+	) {
+		const chipTotal = info.chipPurchaseCounts.reduce(
+			(acc, c) => acc + c.count * c.chipsPerUnit,
+			0
+		);
+		averageStack = Math.round(
+			(startingStack * info.totalEntries + chipTotal) / info.remainingPlayers
+		);
+	}
+
+	return { ...bounds, ...info, averageStack };
 }
 
 export const liveTournamentSessionRouter = router({
@@ -219,6 +251,7 @@ export const liveTournamentSessionRouter = router({
 					storeName: store.name,
 					tournamentId: liveTournamentSession.tournamentId,
 					tournamentName: tournament.name,
+					startingStack: tournament.startingStack,
 					currencyId: liveTournamentSession.currencyId,
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
@@ -260,7 +293,8 @@ export const liveTournamentSessionRouter = router({
 						events.map((e) => ({
 							eventType: e.eventType,
 							payload: e.payload,
-						}))
+						})),
+						item.startingStack
 					);
 
 					return {
@@ -309,7 +343,8 @@ export const liveTournamentSessionRouter = router({
 			);
 
 			const stackStats = computeStackStats(
-				events.map((e) => ({ eventType: e.eventType, payload: e.payload }))
+				events.map((e) => ({ eventType: e.eventType, payload: e.payload })),
+				masterData.startingStack
 			);
 
 			const summary = {
@@ -329,6 +364,7 @@ export const liveTournamentSessionRouter = router({
 				currentStack: stackStats.currentStack,
 				remainingPlayers: stackStats.remainingPlayers,
 				averageStack: stackStats.averageStack,
+				startingStack: masterData.startingStack ?? null,
 			};
 
 			return { ...session, events, tablePlayers, summary };

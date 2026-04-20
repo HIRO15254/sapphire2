@@ -270,15 +270,13 @@ export function ActiveSessionScene({
 				</Button>
 			</div>
 
-			<div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-				{summary}
-			</div>
+			<div>{summary}</div>
 
 			{memo ? (
 				<p className="mt-1 text-muted-foreground text-xs">{memo}</p>
 			) : null}
 
-			<div className="min-h-0 flex-1">
+			<div className="mt-3 min-h-0 flex-1">
 				<PokerTable
 					gameInfo={gameInfo}
 					heroSeatPosition={state.heroSeatPosition}
