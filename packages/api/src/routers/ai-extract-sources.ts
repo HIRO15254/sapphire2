@@ -19,7 +19,12 @@ Extract the player name at each seat.
 Seat numbering rules:
 - The seat with the notch at the bottom-center of the screen is seat number 1.
 - Number the remaining seats clockwise: 2, 3, 4, ...
-- Up to 9 seats per table (seatNumber is an integer from 1 to 9).
+
+Hero detection:
+- The name of the user who is using this app is displayed at the top area of the screen (typically next to an account icon / header).
+- For each seat in the \`seats\` array, set \`isHero: true\` when that seat's player name is identical to the user name displayed at the top of the screen. Otherwise set \`isHero: false\`.
+- If you cannot confidently read the user name at the top, or you cannot confidently match it to any seat, set \`isHero: null\` for every seat you return.
+- At most one seat should have \`isHero: true\`.
 
 Extraction rules:
 - Include only seats whose names are readable in the \`seats\` array.

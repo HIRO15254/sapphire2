@@ -11,7 +11,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { authClient } from "@/lib/auth-client";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
@@ -102,9 +101,6 @@ function applyRowAction(
 		}
 		return row;
 	}
-	if (nextAction === "hero" && !row.isHeroCandidate) {
-		return row;
-	}
 	if (row.ambiguous && nextAction === "existing") {
 		return row;
 	}
@@ -139,15 +135,6 @@ export function SeatFromScreenshotSheet({
 }: SeatFromScreenshotSheetProps) {
 	const queryClient = useQueryClient();
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const { data: sessionData } = authClient.useSession();
-	const userNameNormalized = useMemo(() => {
-		const raw = sessionData?.user?.name;
-		if (!raw) {
-			return null;
-		}
-		const normalized = normalizeName(raw);
-		return normalized === "" ? null : normalized;
-	}, [sessionData?.user?.name]);
 
 	const [step, setStep] = useState<Step>("select-app");
 	const [sourceApp, setSourceApp] = useState<TablePlayerSourceApp>(
@@ -220,6 +207,7 @@ export function SeatFromScreenshotSheet({
 			});
 
 			const seenSeatNumbers = new Set<number>();
+			let heroAssigned = false;
 			const built: ReviewRow[] = [];
 			for (const seat of result.seats) {
 				if (seenSeatNumbers.has(seat.seatNumber)) {
@@ -227,13 +215,17 @@ export function SeatFromScreenshotSheet({
 				}
 				seenSeatNumbers.add(seat.seatNumber);
 				const seatPosition = seat.seatNumber - 1;
+				const isHero = seat.isHero === true && !heroAssigned;
+				if (isHero) {
+					heroAssigned = true;
+				}
 				const row = buildRow({
+					isHero,
 					name: seat.name,
 					occupiedSeatPositions,
 					playersByNormalizedName,
 					seatNumber: seat.seatNumber,
 					seatPosition,
-					userNameNormalized,
 				});
 				built.push(row);
 			}
@@ -251,13 +243,13 @@ export function SeatFromScreenshotSheet({
 					return row;
 				}
 				return buildRow({
+					isHero: row.isHeroCandidate,
 					name: nextName,
 					occupiedSeatPositions,
 					playersByNormalizedName,
+					preferredAction: row.action,
 					seatNumber: row.seatNumber,
 					seatPosition: row.seatPosition,
-					preferredAction: row.action,
-					userNameNormalized,
 				});
 			})
 		);
@@ -562,9 +554,7 @@ function ReviewRowItem({
 								{existingLabel}
 							</SelectItem>
 							<SelectItem value="new">新規作成</SelectItem>
-							<SelectItem disabled={!row.isHeroCandidate} value="hero">
-								Hero (自分)
-							</SelectItem>
+							<SelectItem value="hero">Hero (自分)</SelectItem>
 							<SelectItem value="skip">スキップ</SelectItem>
 						</SelectContent>
 					</Select>
@@ -639,14 +629,15 @@ function computeRowAction({
 }
 
 function buildRow({
+	isHero,
 	name,
 	occupiedSeatPositions,
 	playersByNormalizedName,
+	preferredAction,
 	seatNumber,
 	seatPosition,
-	preferredAction,
-	userNameNormalized,
 }: {
+	isHero: boolean;
 	name: string;
 	occupiedSeatPositions: Set<number>;
 	playersByNormalizedName: Map<
@@ -656,7 +647,6 @@ function buildRow({
 	preferredAction?: RowAction;
 	seatNumber: number;
 	seatPosition: number;
-	userNameNormalized: string | null;
 }): ReviewRow {
 	const rowId = `seat-${seatNumber}`;
 	const trimmedName = name.trim();
@@ -664,15 +654,9 @@ function buildRow({
 	const matches = trimmedName ? (playersByNormalizedName.get(key) ?? []) : [];
 	const ambiguous = matches.length > 1;
 	const matchedPlayer = matches.length === 1 ? matches[0] : null;
-	const isHeroCandidate =
-		userNameNormalized !== null &&
-		trimmedName !== "" &&
-		key === userNameNormalized;
+	const isHeroCandidate = isHero;
 
-	const effectivePreferredAction =
-		preferredAction === "hero" && !isHeroCandidate
-			? undefined
-			: preferredAction;
+	const effectivePreferredAction = preferredAction;
 
 	const warning = computeRowWarning({
 		effectivePreferredAction,

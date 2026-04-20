@@ -77,6 +77,7 @@ const ExtractedTablePlayersSchema = z.object({
 			z.object({
 				seatNumber: z.number().int().min(1).max(MAX_SEAT_NUMBER),
 				name: z.string().min(1),
+				isHero: z.boolean().nullable(),
 			})
 		)
 		.default([]),
@@ -298,7 +299,7 @@ export const aiExtractRouter = router({
 		.input(
 			z.object({
 				sourceApp: z.enum(TABLE_PLAYER_SOURCE_APP_IDS),
-				sources: z.array(SourceSchema).min(1).max(5),
+				sources: z.array(SourceSchema).length(1),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
