@@ -11,6 +11,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
@@ -45,6 +46,7 @@ interface ReviewRow {
 	action: RowAction;
 	ambiguous: boolean;
 	existingPlayerId: string | null;
+	isHeroCandidate: boolean;
 	matchedPlayerName: string | null;
 	name: string;
 	rowId: string;
@@ -100,6 +102,9 @@ function applyRowAction(
 		}
 		return row;
 	}
+	if (nextAction === "hero" && !row.isHeroCandidate) {
+		return row;
+	}
 	if (row.ambiguous && nextAction === "existing") {
 		return row;
 	}
@@ -134,6 +139,15 @@ export function SeatFromScreenshotSheet({
 }: SeatFromScreenshotSheetProps) {
 	const queryClient = useQueryClient();
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const { data: sessionData } = authClient.useSession();
+	const userNameNormalized = useMemo(() => {
+		const raw = sessionData?.user?.name;
+		if (!raw) {
+			return null;
+		}
+		const normalized = normalizeName(raw);
+		return normalized === "" ? null : normalized;
+	}, [sessionData?.user?.name]);
 
 	const [step, setStep] = useState<Step>("select-app");
 	const [sourceApp, setSourceApp] = useState<TablePlayerSourceApp>(
@@ -219,6 +233,7 @@ export function SeatFromScreenshotSheet({
 					playersByNormalizedName,
 					seatNumber: seat.seatNumber,
 					seatPosition,
+					userNameNormalized,
 				});
 				built.push(row);
 			}
@@ -242,6 +257,7 @@ export function SeatFromScreenshotSheet({
 					seatNumber: row.seatNumber,
 					seatPosition: row.seatPosition,
 					preferredAction: row.action,
+					userNameNormalized,
 				});
 			})
 		);
@@ -546,7 +562,9 @@ function ReviewRowItem({
 								{existingLabel}
 							</SelectItem>
 							<SelectItem value="new">新規作成</SelectItem>
-							<SelectItem value="hero">Hero (自分)</SelectItem>
+							<SelectItem disabled={!row.isHeroCandidate} value="hero">
+								Hero (自分)
+							</SelectItem>
 							<SelectItem value="skip">スキップ</SelectItem>
 						</SelectContent>
 					</Select>
@@ -566,6 +584,60 @@ function ReviewRowItem({
 	);
 }
 
+function computeRowWarning({
+	effectivePreferredAction,
+	isHeroCandidate,
+	occupiedSeatPositions,
+	seatNumber,
+	seatPosition,
+	trimmedName,
+}: {
+	effectivePreferredAction: RowAction | undefined;
+	isHeroCandidate: boolean;
+	occupiedSeatPositions: Set<number>;
+	seatNumber: number;
+	seatPosition: number;
+	trimmedName: string;
+}): string | null {
+	if (seatPosition < 0 || seatPosition > 8) {
+		return `席番号 ${seatNumber} は範囲外です (1-9)`;
+	}
+	const isHero =
+		effectivePreferredAction === "hero" ||
+		(effectivePreferredAction === undefined && isHeroCandidate);
+	if (!isHero && occupiedSeatPositions.has(seatPosition)) {
+		return `席 ${seatNumber} には既に着席中のプレイヤーがいます`;
+	}
+	if (!(isHero || trimmedName)) {
+		return "名前が空です";
+	}
+	return null;
+}
+
+function computeRowAction({
+	effectivePreferredAction,
+	isHeroCandidate,
+	matchedPlayer,
+}: {
+	effectivePreferredAction: RowAction | undefined;
+	isHeroCandidate: boolean;
+	matchedPlayer: { id: string; name: string } | null;
+}): RowAction {
+	if (effectivePreferredAction) {
+		if (effectivePreferredAction === "existing" && !matchedPlayer) {
+			return "new";
+		}
+		return effectivePreferredAction;
+	}
+	if (isHeroCandidate) {
+		return "hero";
+	}
+	if (matchedPlayer) {
+		return "existing";
+	}
+	return "new";
+}
+
 function buildRow({
 	name,
 	occupiedSeatPositions,
@@ -573,6 +645,7 @@ function buildRow({
 	seatNumber,
 	seatPosition,
 	preferredAction,
+	userNameNormalized,
 }: {
 	name: string;
 	occupiedSeatPositions: Set<number>;
@@ -583,6 +656,7 @@ function buildRow({
 	preferredAction?: RowAction;
 	seatNumber: number;
 	seatPosition: number;
+	userNameNormalized: string | null;
 }): ReviewRow {
 	const rowId = `seat-${seatNumber}`;
 	const trimmedName = name.trim();
@@ -590,35 +664,35 @@ function buildRow({
 	const matches = trimmedName ? (playersByNormalizedName.get(key) ?? []) : [];
 	const ambiguous = matches.length > 1;
 	const matchedPlayer = matches.length === 1 ? matches[0] : null;
+	const isHeroCandidate =
+		userNameNormalized !== null &&
+		trimmedName !== "" &&
+		key === userNameNormalized;
 
-	let warning: string | null = null;
-	if (seatPosition < 0 || seatPosition > 8) {
-		warning = `席番号 ${seatNumber} は範囲外です (1-9)`;
-	} else if (
-		preferredAction !== "hero" &&
-		occupiedSeatPositions.has(seatPosition)
-	) {
-		warning = `席 ${seatNumber} には既に着席中のプレイヤーがいます`;
-	} else if (preferredAction !== "hero" && !trimmedName) {
-		warning = "名前が空です";
-	}
+	const effectivePreferredAction =
+		preferredAction === "hero" && !isHeroCandidate
+			? undefined
+			: preferredAction;
 
-	let action: RowAction;
-	if (preferredAction) {
-		action = preferredAction;
-		if (action === "existing" && !matchedPlayer) {
-			action = "new";
-		}
-	} else if (matchedPlayer) {
-		action = "existing";
-	} else {
-		action = "new";
-	}
+	const warning = computeRowWarning({
+		effectivePreferredAction,
+		isHeroCandidate,
+		occupiedSeatPositions,
+		seatNumber,
+		seatPosition,
+		trimmedName,
+	});
+	const action = computeRowAction({
+		effectivePreferredAction,
+		isHeroCandidate,
+		matchedPlayer,
+	});
 
 	return {
 		action,
 		ambiguous,
 		existingPlayerId: matchedPlayer?.id ?? null,
+		isHeroCandidate,
 		matchedPlayerName: matchedPlayer?.name ?? null,
 		name: trimmedName,
 		rowId,

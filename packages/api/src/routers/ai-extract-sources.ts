@@ -13,15 +13,18 @@ export const TABLE_PLAYER_SOURCE_APPS: Record<
 > = {
 	dmm_waitinglist: {
 		label: "DMM Waitinglist",
-		prompt: `画像は DMM Waitinglist アプリのテーブルビューです。
-各席のプレイヤー名を抽出してください。
-席番号の採番規則:
-- 画面下中央の切り欠き(ノッチ)のある席を 1 番とします。
-- そこから時計回り(右回り)に 2, 3, 4, ... と採番します。
-- テーブル最大 9 席まで (seatNumber は 1-9 の整数)。
-抽出条件:
-- 名前が読み取れた席のみ seats 配列に含めてください。
-- 空席や名前が不鮮明な席は省略してください。
-- 名前の前後の記号・装飾・残スタック表示などは除去し、プレイヤー名のみを返してください。`,
+		prompt: `The image is a table view from the DMM Waitinglist app.
+Extract the player name at each seat.
+
+Seat numbering rules:
+- The seat with the notch at the bottom-center of the screen is seat number 1.
+- Number the remaining seats clockwise: 2, 3, 4, ...
+- Up to 9 seats per table (seatNumber is an integer from 1 to 9).
+
+Extraction rules:
+- Include only seats whose names are readable in the \`seats\` array.
+- Omit empty seats and seats whose names are unclear.
+- Return only the player name; strip surrounding symbols, decorations, and stack / chip count displays.
+- Player names may be in Japanese (hiragana, katakana, kanji), English, or a mix. Preserve the exact characters as shown, do not translate or romanize.`,
 	},
 };
