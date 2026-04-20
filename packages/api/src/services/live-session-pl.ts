@@ -147,7 +147,14 @@ export function computeCashGamePLFromEvents(
 		cashOut === null ? null : cashOut + chipRemoveTotal - totalBuyIn;
 	const evCashOut = cashOut === null ? null : cashOut + totalEvDiff;
 
-	return { totalBuyIn, cashOut, profitLoss, evCashOut, evDiff: totalEvDiff, addonTotal };
+	return {
+		totalBuyIn,
+		cashOut,
+		profitLoss,
+		evCashOut,
+		evDiff: totalEvDiff,
+		addonTotal,
+	};
 }
 
 export function computeTournamentPLFromEvents(
