@@ -82,18 +82,18 @@ function CashGameCompactSummary({
 	const showEvPL = evPL !== null && evPL !== displayPL;
 
 	return (
-		<div className="grid grid-cols-3 gap-2">
-			<div className="flex flex-col gap-0.5 rounded-md border px-3 py-2">
+		<div className="flex rounded-md border">
+			<div className="flex flex-1 flex-col gap-0.5 px-3 py-2">
 				<span className="text-muted-foreground text-xs">Time</span>
 				<p className="font-semibold">{duration}</p>
 			</div>
-			<div className="flex flex-col gap-0.5 rounded-md border px-3 py-2">
+			<div className="flex flex-1 flex-col gap-0.5 border-l px-3 py-2">
 				<span className="text-muted-foreground text-xs">Total Buy-in</span>
 				<p className="font-semibold">
 					{formatCompactNumber(summary.totalBuyIn)}
 				</p>
 			</div>
-			<div className="flex flex-col gap-0.5 rounded-md border px-3 py-2">
+			<div className="flex flex-1 flex-col gap-0.5 border-l px-3 py-2">
 				<span className="text-muted-foreground text-xs">P&L</span>
 				<p
 					className={cn(
@@ -101,12 +101,13 @@ function CashGameCompactSummary({
 						displayPL === null ? undefined : plColorClass(displayPL)
 					)}
 				>
-					{displayPL === null
-						? "-"
-						: showEvPL
-							? `${formatPl(displayPL)} (EV: ${formatPl(evPL)})`
-							: formatPl(displayPL)}
+					{displayPL === null ? "-" : formatPl(displayPL)}
 				</p>
+				{showEvPL ? (
+					<p className="text-muted-foreground text-xs">
+						EV: {formatPl(evPL)}
+					</p>
+				) : null}
 			</div>
 		</div>
 	);
@@ -129,16 +130,16 @@ function TournamentCompactSummary({
 			: `${summary.remainingPlayers ?? "-"}/${summary.totalEntries ?? "-"}`;
 
 	return (
-		<div className="grid grid-cols-3 gap-2">
-			<div className="flex flex-col gap-0.5 rounded-md border px-3 py-2">
+		<div className="flex rounded-md border">
+			<div className="flex flex-1 flex-col gap-0.5 px-3 py-2">
 				<span className="text-muted-foreground text-xs">Time</span>
 				<p className="font-semibold">{duration}</p>
 			</div>
-			<div className="flex flex-col gap-0.5 rounded-md border px-3 py-2">
+			<div className="flex flex-1 flex-col gap-0.5 border-l px-3 py-2">
 				<span className="text-muted-foreground text-xs">Field/Entry</span>
 				<p className="font-semibold">{fieldEntry}</p>
 			</div>
-			<div>
+			<div className="flex flex-1 flex-col gap-0.5 border-l px-3 py-2">
 				<span className="text-muted-foreground text-xs">Avg Stack</span>
 				<p className="font-semibold">
 					{summary.averageStack === null

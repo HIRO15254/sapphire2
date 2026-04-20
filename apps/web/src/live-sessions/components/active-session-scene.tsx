@@ -254,7 +254,7 @@ export function ActiveSessionScene({
 				<p className="mt-1 text-muted-foreground text-xs">{memo}</p>
 			) : null}
 
-			<div className="min-h-0 flex-1">
+			<div className="mt-3 min-h-0 flex-1">
 				<PokerTable
 					gameInfo={gameInfo}
 					heroSeatPosition={state.heroSeatPosition}
