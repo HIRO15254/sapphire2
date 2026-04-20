@@ -754,10 +754,21 @@ function SeatCombobox({
 					className="p-0"
 					onFocusOutside={(e) => e.preventDefault()}
 					onOpenAutoFocus={(e) => e.preventDefault()}
+					onPointerDownOutside={(e) => {
+						// Drawer + Radix Popover conflict: keep the drawer from capturing
+						// touches inside the popover on mobile.
+						e.preventDefault();
+					}}
 					style={contentWidth ? { width: contentWidth } : undefined}
 				>
 					<Command shouldFilter={false}>
-						<CommandList className="max-h-64 overflow-y-auto overscroll-contain">
+						<CommandList
+							className="max-h-64 overflow-y-auto overscroll-contain"
+							data-vaul-no-drag=""
+							onTouchMove={(e) => e.stopPropagation()}
+							onTouchStart={(e) => e.stopPropagation()}
+							style={{ touchAction: "pan-y" }}
+						>
 							{heroAvailable && row.action !== "hero" ? (
 								<CommandItem
 									className={row.isHeroCandidate ? "text-amber-500" : ""}
