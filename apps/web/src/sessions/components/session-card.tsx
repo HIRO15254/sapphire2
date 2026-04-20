@@ -6,9 +6,12 @@ import {
 	IconMapPin,
 	IconPlayerPlay,
 	IconPokerChip,
+	IconShare2,
 	IconTrophy,
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { shareSession } from "@/sessions/utils/share-session";
 import { EntityListItem } from "@/shared/components/management/entity-list-item";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -21,6 +24,7 @@ interface SessionCardProps {
 	onReopen?: (liveCashGameSessionId: string) => void;
 	session: {
 		addonCost: number | null;
+		beforeDeadline: boolean | null;
 		bountyPrizes: number | null;
 		breakMinutes: number | null;
 		buyIn: number | null;
@@ -408,13 +412,20 @@ function SessionHeader({
 				<span className={`font-semibold text-sm ${profitColorClass}`}>
 					{plDisplay}
 				</span>
-				{isTournament && session.placement !== null && (
+				{isTournament && session.beforeDeadline === true && (
 					<span className="text-[10px] text-muted-foreground">
-						{session.placement}
-						{session.totalEntries === null ? "" : `/${session.totalEntries}`}
-						{" place"}
+						- / - entries
 					</span>
 				)}
+				{isTournament &&
+					session.beforeDeadline !== true &&
+					session.placement !== null && (
+						<span className="text-[10px] text-muted-foreground">
+							{session.placement}
+							{session.totalEntries === null ? "" : `/${session.totalEntries}`}
+							{" place"}
+						</span>
+					)}
 				{evDisplay !== null && (
 					<span className="text-[10px] text-muted-foreground">
 						EV{" "}
@@ -441,12 +452,34 @@ export function SessionCard({
 	onDelete,
 	onReopen,
 }: SessionCardProps) {
+	const [isSharing, setIsSharing] = useState(false);
 	const isTournament = session.type === "tournament";
 	const liveSessionId =
 		session.liveCashGameSessionId ?? session.liveTournamentSessionId;
 
+	const handleShare = async () => {
+		setIsSharing(true);
+		try {
+			await shareSession(session);
+		} finally {
+			setIsSharing(false);
+		}
+	};
+
 	return (
 		<EntityListItem
+			actions={
+				<Button
+					disabled={isSharing}
+					onClick={handleShare}
+					size="xs"
+					type="button"
+					variant="ghost"
+				>
+					<IconShare2 size={14} />
+					{isSharing ? "Sharing..." : "Share"}
+				</Button>
+			}
 			deleteLabel="session"
 			onDelete={() => onDelete(session.id)}
 			onEdit={() => onEdit(session)}

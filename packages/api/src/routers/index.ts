@@ -1,7 +1,9 @@
 import { protectedProcedure, publicProcedure, router } from "../index";
+import { aiExtractRouter } from "./ai-extract";
 import { blindLevelRouter } from "./blind-level";
 import { currencyRouter } from "./currency";
 import { currencyTransactionRouter } from "./currency-transaction";
+import { dashboardWidgetRouter } from "./dashboard-widget";
 import { liveCashGameSessionRouter } from "./live-cash-game-session";
 import { liveTournamentSessionRouter } from "./live-tournament-session";
 import { playerRouter } from "./player";
@@ -27,6 +29,7 @@ export const appRouter = router({
 			user: ctx.session.user,
 		};
 	}),
+	aiExtract: aiExtractRouter,
 	store: storeRouter,
 	transactionType: transactionTypeRouter,
 	currency: currencyRouter,
@@ -44,5 +47,6 @@ export const appRouter = router({
 	liveTournamentSession: liveTournamentSessionRouter,
 	sessionTablePlayer: sessionTablePlayerRouter,
 	updateNoteView: updateNoteViewRouter,
+	dashboardWidget: dashboardWidgetRouter,
 });
 export type AppRouter = typeof appRouter;

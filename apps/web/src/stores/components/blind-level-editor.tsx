@@ -1,12 +1,14 @@
 import {
 	closestCenter,
 	DndContext,
+	type DragEndEvent,
 	PointerSensor,
 	TouchSensor,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
 import {
+	arrayMove,
 	SortableContext,
 	useSortable,
 	verticalListSortingStrategy,
@@ -19,7 +21,7 @@ import {
 	IconTrash,
 } from "@tabler/icons-react";
 import type { ComponentProps } from "react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
@@ -416,49 +418,33 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 	);
 }
 
-// ---- Main content ----
+// ---- Shared table JSX ----
 
-interface BlindStructureContentProps {
-	tournamentId: string;
-	variant: string;
+interface BlindStructureTableProps {
+	blindLabels: { blind1: string; blind2: string; blind3: string };
+	handleAddBreak: () => void;
+	handleAddLevel: () => void;
+	handleCreateLevel: (values: NewLevelValues) => void;
+	handleDelete: (id: string) => void;
+	handleDragEnd: (event: DragEndEvent) => void;
+	handleUpdate: (id: string, updates: Record<string, number | null>) => void;
+	isAdding?: boolean;
+	levels: BlindLevelRow[];
+	sensors: ReturnType<typeof useSensors>;
 }
 
-export function BlindStructureContent({
-	tournamentId,
-	variant,
-}: BlindStructureContentProps) {
-	const {
-		levels,
-		isLoading,
-		isAdding,
-		handleDragEnd,
-		handleAddLevel,
-		handleAddBreak,
-		handleDelete,
-		handleUpdate,
-		handleCreateLevel,
-	} = useBlindLevels({ tournamentId });
-
-	const variantKey = (
-		variant in GAME_VARIANTS ? variant : "nlh"
-	) as keyof typeof GAME_VARIANTS;
-	const blindLabels = GAME_VARIANTS[variantKey].blindLabels;
-
-	const sensors = useSensors(
-		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-		useSensor(TouchSensor, {
-			activationConstraint: { delay: 250, tolerance: 8 },
-		})
-	);
-
-	if (isLoading) {
-		return (
-			<p className="py-8 text-center text-muted-foreground text-sm">
-				Loading levels...
-			</p>
-		);
-	}
-
+function BlindStructureTable({
+	levels,
+	blindLabels,
+	sensors,
+	isAdding = false,
+	handleDragEnd,
+	handleAddBreak,
+	handleAddLevel,
+	handleDelete,
+	handleUpdate,
+	handleCreateLevel,
+}: BlindStructureTableProps) {
 	return (
 		<div className="flex flex-col gap-3">
 			<p className="text-muted-foreground text-sm">
@@ -539,6 +525,205 @@ export function BlindStructureContent({
 				</table>
 			</div>
 		</div>
+	);
+}
+
+// ---- Main content (API-backed) ----
+
+interface BlindStructureContentProps {
+	tournamentId: string;
+	variant: string;
+}
+
+export function BlindStructureContent({
+	tournamentId,
+	variant,
+}: BlindStructureContentProps) {
+	const {
+		levels,
+		isLoading,
+		isAdding,
+		handleDragEnd,
+		handleAddLevel,
+		handleAddBreak,
+		handleDelete,
+		handleUpdate,
+		handleCreateLevel,
+	} = useBlindLevels({ tournamentId });
+
+	const variantKey = (
+		variant in GAME_VARIANTS ? variant : "nlh"
+	) as keyof typeof GAME_VARIANTS;
+	const blindLabels = GAME_VARIANTS[variantKey].blindLabels;
+
+	const sensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+		useSensor(TouchSensor, {
+			activationConstraint: { delay: 250, tolerance: 8 },
+		})
+	);
+
+	if (isLoading) {
+		return (
+			<p className="py-8 text-center text-muted-foreground text-sm">
+				Loading levels...
+			</p>
+		);
+	}
+
+	return (
+		<BlindStructureTable
+			blindLabels={blindLabels}
+			handleAddBreak={handleAddBreak}
+			handleAddLevel={handleAddLevel}
+			handleCreateLevel={handleCreateLevel}
+			handleDelete={handleDelete}
+			handleDragEnd={handleDragEnd}
+			handleUpdate={handleUpdate}
+			isAdding={isAdding}
+			levels={levels}
+			sensors={sensors}
+		/>
+	);
+}
+
+// ---- Local-state content (for create modal) ----
+
+interface LocalBlindStructureContentProps {
+	onChange: (levels: BlindLevelRow[]) => void;
+	value: BlindLevelRow[];
+	variant?: string;
+}
+
+export function LocalBlindStructureContent({
+	value,
+	onChange,
+	variant = "nlh",
+}: LocalBlindStructureContentProps) {
+	const [lastMinutes, setLastMinutes] = useState<number | null>(null);
+
+	const effectiveLastMinutes = (() => {
+		if (lastMinutes != null) {
+			return lastMinutes;
+		}
+		for (let i = value.length - 1; i >= 0; i--) {
+			if (value[i].minutes != null) {
+				return value[i].minutes;
+			}
+		}
+		return null;
+	})();
+
+	const variantKey = (
+		variant in GAME_VARIANTS ? variant : "nlh"
+	) as keyof typeof GAME_VARIANTS;
+	const blindLabels = GAME_VARIANTS[variantKey].blindLabels;
+
+	const sensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+		useSensor(TouchSensor, {
+			activationConstraint: { delay: 250, tolerance: 8 },
+		})
+	);
+
+	const handleDragEnd = (event: DragEndEvent) => {
+		const { active, over } = event;
+		if (!over || active.id === over.id) {
+			return;
+		}
+		const oldIndex = value.findIndex((l) => l.id === active.id);
+		const newIndex = value.findIndex((l) => l.id === over.id);
+		if (oldIndex === -1 || newIndex === -1) {
+			return;
+		}
+		onChange(
+			arrayMove(value, oldIndex, newIndex).map((l, i) => ({
+				...l,
+				level: i + 1,
+			}))
+		);
+	};
+
+	const handleAddLevel = () => {
+		onChange([
+			...value,
+			{
+				id: crypto.randomUUID(),
+				tournamentId: "",
+				level: value.length + 1,
+				isBreak: false,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				ante: null,
+				minutes: effectiveLastMinutes,
+			},
+		]);
+	};
+
+	const handleAddBreak = () => {
+		onChange([
+			...value,
+			{
+				id: crypto.randomUUID(),
+				tournamentId: "",
+				level: value.length + 1,
+				isBreak: true,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				ante: null,
+				minutes: effectiveLastMinutes,
+			},
+		]);
+	};
+
+	const handleDelete = (id: string) => {
+		onChange(
+			value.filter((l) => l.id !== id).map((l, i) => ({ ...l, level: i + 1 }))
+		);
+	};
+
+	const handleUpdate = (id: string, updates: Record<string, number | null>) => {
+		onChange(value.map((l) => (l.id === id ? { ...l, ...updates } : l)));
+		if (updates.minutes != null) {
+			setLastMinutes(updates.minutes);
+		}
+	};
+
+	const handleCreateLevel = (vals: NewLevelValues) => {
+		const minutes = vals.minutes ?? effectiveLastMinutes;
+		onChange([
+			...value,
+			{
+				id: crypto.randomUUID(),
+				tournamentId: "",
+				level: value.length + 1,
+				isBreak: false,
+				blind1: vals.blind1,
+				blind2: vals.blind2,
+				blind3: null,
+				ante: vals.ante,
+				minutes,
+			},
+		]);
+		if (minutes != null) {
+			setLastMinutes(minutes);
+		}
+	};
+
+	return (
+		<BlindStructureTable
+			blindLabels={blindLabels}
+			handleAddBreak={handleAddBreak}
+			handleAddLevel={handleAddLevel}
+			handleCreateLevel={handleCreateLevel}
+			handleDelete={handleDelete}
+			handleDragEnd={handleDragEnd}
+			handleUpdate={handleUpdate}
+			levels={value}
+			sensors={sensors}
+		/>
 	);
 }
 

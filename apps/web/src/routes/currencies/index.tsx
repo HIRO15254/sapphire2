@@ -12,7 +12,6 @@ import type {
 	TransactionValues,
 } from "@/currencies/hooks/use-currencies";
 import { useCurrencies } from "@/currencies/hooks/use-currencies";
-import { ExpandableItemList } from "@/shared/components/management/expandable-item-list";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
@@ -139,7 +138,6 @@ function CurrenciesPage() {
 						</Button>
 					</>
 				}
-				description="Track balances and manual transactions for each currency."
 				heading="Currencies"
 			/>
 
@@ -156,15 +154,12 @@ function CurrenciesPage() {
 					icon={<IconCoins size={48} />}
 				/>
 			) : (
-				<ExpandableItemList
-					onValueChange={handleExpandedCurrencyChange}
-					value={expandedCurrencyId}
-				>
+				<div className="flex flex-col gap-2">
 					{currencies.map((c) => (
 						<CurrencyCard
 							currency={c}
-							expanded={expandedCurrencyId === c.id}
 							hasMore={expandedCurrencyId === c.id ? txHasMore : false}
+							isExpanded={expandedCurrencyId === c.id}
 							isLoadingMore={
 								expandedCurrencyId === c.id ? isLoadingMore : false
 							}
@@ -174,28 +169,25 @@ function CurrenciesPage() {
 							onDeleteTransaction={handleDeleteTransaction}
 							onEdit={setEditingCurrency}
 							onEditTransaction={setEditingTransaction}
+							onExpandChange={(expanded) => {
+								handleExpandedCurrencyChange(expanded ? c.id : null);
+							}}
 							onLoadMore={handleLoadMore}
 							transactions={expandedCurrencyId === c.id ? allTransactions : []}
 						/>
 					))}
-				</ExpandableItemList>
+				</div>
 			)}
 
 			<ResponsiveDialog
-				description="Create a currency to track balances and manual transactions."
 				onOpenChange={setIsCreateOpen}
 				open={isCreateOpen}
 				title="New Currency"
 			>
-				<CurrencyForm
-					isLoading={isCreatePending}
-					onCancel={() => setIsCreateOpen(false)}
-					onSubmit={handleCreate}
-				/>
+				<CurrencyForm isLoading={isCreatePending} onSubmit={handleCreate} />
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
-				description="Update the currency name or unit shown across balances."
 				onOpenChange={(open) => {
 					if (!open) {
 						setEditingCurrency(null);
@@ -211,14 +203,12 @@ function CurrenciesPage() {
 							unit: editingCurrency.unit ?? undefined,
 						}}
 						isLoading={isUpdatePending}
-						onCancel={() => setEditingCurrency(null)}
 						onSubmit={handleUpdate}
 					/>
 				)}
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
-				description="Record a manual balance change for this currency."
 				onOpenChange={(open) => {
 					if (!open) {
 						setAddTransactionCurrencyId(null);
@@ -229,13 +219,11 @@ function CurrenciesPage() {
 			>
 				<TransactionForm
 					isLoading={isAddTransactionPending}
-					onCancel={() => setAddTransactionCurrencyId(null)}
 					onSubmit={handleAddTransaction}
 				/>
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
-				description="Update the type, amount, date, or memo for this transaction."
 				onOpenChange={(open) => {
 					if (!open) {
 						setEditingTransaction(null);
@@ -256,7 +244,6 @@ function CurrenciesPage() {
 							memo: editingTransaction.memo ?? undefined,
 						}}
 						isLoading={isEditTransactionPending}
-						onCancel={() => setEditingTransaction(null)}
 						onSubmit={handleEditTransaction}
 					/>
 				)}

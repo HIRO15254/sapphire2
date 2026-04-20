@@ -1,4 +1,5 @@
 import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
 import { UpdateStackFields } from "@/live-sessions/components/event-fields/update-stack-fields";
 import {
 	toOccurredAtTimestamp,
@@ -7,12 +8,18 @@ import {
 } from "@/live-sessions/components/stack-editor-time";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import { requiredNumericString } from "@/shared/lib/form-fields";
 import { type EditorBaseProps, TimeField } from "./shared";
 
 type Props = Pick<
 	EditorBaseProps,
 	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
 >;
+
+const updateStackSchema = z.object({
+	time: z.string(),
+	stackAmount: requiredNumericString({ integer: true, min: 0 }),
+});
 
 export function UpdateStackEditor({
 	event,
@@ -31,6 +38,9 @@ export function UpdateStackEditor({
 		onSubmit: ({ value }) => {
 			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
 			onSubmit({ stackAmount: Number(value.stackAmount) }, occurredAt);
+		},
+		validators: {
+			onSubmit: updateStackSchema,
 		},
 	});
 
@@ -62,8 +72,9 @@ export function UpdateStackEditor({
 			<form.Field name="stackAmount">
 				{(field) => (
 					<UpdateStackFields
+						error={field.state.meta.errors[0]?.message}
 						onStackAmountChange={(v) => field.handleChange(v)}
-						stackAmount={field.state.value}
+						value={field.state.value}
 					/>
 				)}
 			</form.Field>

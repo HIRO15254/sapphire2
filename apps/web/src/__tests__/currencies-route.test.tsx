@@ -73,17 +73,12 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/currencies/components/currency-form", () => ({
 	CurrencyForm: ({
 		defaultValues,
-		onCancel,
 	}: {
 		defaultValues?: { name: string; unit?: string };
-		onCancel?: () => void;
 	}) => (
 		<div>
 			<div>Currency Form</div>
 			{defaultValues ? <pre>{JSON.stringify(defaultValues)}</pre> : null}
-			<button onClick={onCancel} type="button">
-				Cancel Currency
-			</button>
 		</div>
 	),
 }));
@@ -91,7 +86,6 @@ vi.mock("@/currencies/components/currency-form", () => ({
 vi.mock("@/currencies/components/transaction-form", () => ({
 	TransactionForm: ({
 		defaultValues,
-		onCancel,
 	}: {
 		defaultValues?: {
 			amount: number;
@@ -99,14 +93,10 @@ vi.mock("@/currencies/components/transaction-form", () => ({
 			transactedAt: string;
 			transactionTypeId: string;
 		};
-		onCancel?: () => void;
 	}) => (
 		<div>
 			<div>Transaction Form</div>
 			{defaultValues ? <pre>{JSON.stringify(defaultValues)}</pre> : null}
-			<button onClick={onCancel} type="button">
-				Cancel Transaction
-			</button>
 		</div>
 	),
 }));
@@ -115,11 +105,13 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	ResponsiveDialog: ({
 		children,
 		description,
+		onOpenChange,
 		open,
 		title,
 	}: {
 		children: ReactNode;
 		description?: ReactNode;
+		onOpenChange: (open: boolean) => void;
 		open: boolean;
 		title: string;
 	}) =>
@@ -127,6 +119,9 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 			<div>
 				<h2>{title}</h2>
 				{description ? <p>{description}</p> : null}
+				<button onClick={() => onOpenChange(false)} type="button">
+					Close {title}
+				</button>
 				{children}
 			</div>
 		) : null,
@@ -176,7 +171,7 @@ describe("CurrenciesPage", () => {
 		mocks.transactionsByCurrency = {};
 	});
 
-	it("shows the empty state and opens or closes the new currency dialog", async () => {
+	it("shows the empty state and opens the new currency dialog", async () => {
 		const user = userEvent.setup();
 		const Component = routeModule.Route.options.component as ComponentType;
 
@@ -190,11 +185,6 @@ describe("CurrenciesPage", () => {
 		expect(
 			screen.getByRole("heading", { name: "New Currency" })
 		).toBeInTheDocument();
-
-		await user.click(screen.getByRole("button", { name: "Cancel Currency" }));
-		expect(
-			screen.queryByRole("heading", { name: "New Currency" })
-		).not.toBeInTheDocument();
 	}, 15_000);
 
 	it("expands and collapses a currency row and opens the add transaction dialog", async () => {
@@ -219,7 +209,7 @@ describe("CurrenciesPage", () => {
 		).toBeInTheDocument();
 
 		await user.click(
-			screen.getByRole("button", { name: "Cancel Transaction" })
+			screen.getByRole("button", { name: "Close Add Transaction" })
 		);
 		expect(
 			screen.queryByRole("heading", { name: "Add Transaction" })

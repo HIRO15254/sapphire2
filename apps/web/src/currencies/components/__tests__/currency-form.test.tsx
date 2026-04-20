@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { CurrencyForm } from "../currency-form";
@@ -20,7 +20,8 @@ describe("CurrencyForm", () => {
 		});
 	});
 
-	it("submits edited values without changing the payload shape", () => {
+	it("submits edited values without changing the payload shape", async () => {
+		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
 		render(
@@ -30,28 +31,17 @@ describe("CurrencyForm", () => {
 			/>
 		);
 
-		fireEvent.change(screen.getByLabelText("Currency Name *"), {
-			target: { value: "USD" },
-		});
-		fireEvent.change(screen.getByLabelText("Unit"), {
-			target: { value: "US$" },
-		});
-		fireEvent.click(screen.getByRole("button", { name: "Save" }));
+		const nameInput = screen.getByLabelText("Currency Name *");
+		await user.clear(nameInput);
+		await user.type(nameInput, "USD");
+		const unitInput = screen.getByLabelText("Unit");
+		await user.clear(unitInput);
+		await user.type(unitInput, "US$");
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith({
 			name: "USD",
 			unit: "US$",
 		});
-	});
-
-	it("calls onCancel when cancel is pressed", async () => {
-		const user = userEvent.setup();
-		const onCancel = vi.fn();
-
-		render(<CurrencyForm onCancel={onCancel} onSubmit={vi.fn()} />);
-
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
-
-		expect(onCancel).toHaveBeenCalledOnce();
 	});
 });

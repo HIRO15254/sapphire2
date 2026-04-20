@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SessionForm } from "../session-form";
@@ -7,14 +7,6 @@ const EV_HELPER_RE = /Expected value cash-out based on all-in equity/;
 const BUY_IN_RE = /Buy-in/;
 const SESSION_DATE_RE = /Session Date/;
 const SESSION_TAG = { id: "series", name: "Series" };
-
-function getForm() {
-	const form = screen.getByRole("button", { name: "Save" }).closest("form");
-	if (!form) {
-		throw new Error("Session form not found");
-	}
-	return form;
-}
 
 describe("SessionForm", () => {
 	it("renders cash game mode by default", () => {
@@ -106,9 +98,9 @@ describe("SessionForm", () => {
 		const buyInInput = document.getElementById("buyIn") as HTMLInputElement;
 		const cashOutInput = document.getElementById("cashOut") as HTMLInputElement;
 		const evInput = document.getElementById("evCashOut") as HTMLInputElement;
-		expect(buyInInput.defaultValue).toBe("5000");
-		expect(cashOutInput.defaultValue).toBe("8000");
-		expect(evInput.defaultValue).toBe("7000");
+		expect(buyInInput.value).toBe("5000");
+		expect(cashOutInput.value).toBe("8000");
+		expect(evInput.value).toBe("7000");
 	});
 
 	it("submits selected tag ids in cash game mode", async () => {
@@ -121,7 +113,9 @@ describe("SessionForm", () => {
 		await user.click(screen.getByLabelText("Search tags"));
 		await user.click(screen.getByText("Series"));
 
-		fireEvent.submit(getForm());
+		await user.type(document.getElementById("buyIn") as HTMLElement, "1000");
+		await user.type(document.getElementById("cashOut") as HTMLElement, "2000");
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -129,5 +123,82 @@ describe("SessionForm", () => {
 				type: "cash_game",
 			})
 		);
+	});
+
+	describe("isLiveLinked cash session", () => {
+		const renderLiveLinkedCash = () =>
+			render(
+				<SessionForm
+					defaultValues={{
+						type: "cash_game",
+						buyIn: 10_000,
+						cashOut: 12_000,
+						evCashOut: 11_500,
+					}}
+					isLiveLinked
+					onSubmit={vi.fn()}
+				/>
+			);
+
+		it("shows the live-linked informational banner", () => {
+			renderLiveLinkedCash();
+			expect(screen.getByTestId("live-linked-banner")).toBeInTheDocument();
+		});
+
+		it("disables session type switcher", () => {
+			renderLiveLinkedCash();
+			expect(screen.getByRole("tab", { name: "Cash Game" })).toBeDisabled();
+			expect(screen.getByRole("tab", { name: "Tournament" })).toBeDisabled();
+		});
+
+		it("disables the derived cash fields (buyIn, cashOut, evCashOut)", () => {
+			renderLiveLinkedCash();
+			expect(document.getElementById("buyIn")).toBeDisabled();
+			expect(document.getElementById("cashOut")).toBeDisabled();
+			expect(document.getElementById("evCashOut")).toBeDisabled();
+		});
+
+		it("disables session date / time / break inputs", () => {
+			renderLiveLinkedCash();
+			expect(screen.getByLabelText(SESSION_DATE_RE)).toBeDisabled();
+			expect(screen.getByLabelText("Start Time")).toBeDisabled();
+			expect(screen.getByLabelText("End Time")).toBeDisabled();
+			expect(screen.getByLabelText("Break Time (min)")).toBeDisabled();
+		});
+	});
+
+	describe("isLiveLinked metadata fields remain editable", () => {
+		it("keeps memo textarea enabled and tag input accessible", async () => {
+			const user = userEvent.setup();
+			render(
+				<SessionForm
+					defaultValues={{ type: "cash_game" }}
+					isLiveLinked
+					onSubmit={vi.fn()}
+					tags={[SESSION_TAG]}
+				/>
+			);
+
+			await user.click(screen.getByRole("button", { name: "Tags & Memo" }));
+			expect(screen.getByLabelText("Memo")).not.toBeDisabled();
+			expect(screen.getByLabelText("Search tags")).not.toBeDisabled();
+		});
+	});
+
+	describe("non-live-linked (default) remains fully editable", () => {
+		it("does not render the live-linked banner", () => {
+			render(<SessionForm onSubmit={vi.fn()} />);
+			expect(
+				screen.queryByTestId("live-linked-banner")
+			).not.toBeInTheDocument();
+		});
+
+		it("keeps derived fields enabled", () => {
+			render(<SessionForm onSubmit={vi.fn()} />);
+			expect(document.getElementById("buyIn")).not.toBeDisabled();
+			expect(document.getElementById("cashOut")).not.toBeDisabled();
+			expect(screen.getByLabelText(SESSION_DATE_RE)).not.toBeDisabled();
+			expect(screen.getByRole("tab", { name: "Cash Game" })).not.toBeDisabled();
+		});
 	});
 });

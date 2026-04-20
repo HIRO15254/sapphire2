@@ -62,13 +62,11 @@ export function FilterDialogShell({
 			>
 				<div className="flex flex-col gap-4">
 					{children}
-					<DialogActionRow className="sm:justify-stretch">
-						<Button className="flex-1" onClick={onReset} variant="outline">
+					<DialogActionRow>
+						<Button onClick={onReset} variant="outline">
 							{resetLabel}
 						</Button>
-						<Button className="flex-1" onClick={onApply}>
-							{applyLabel}
-						</Button>
+						<Button onClick={onApply}>{applyLabel}</Button>
 					</DialogActionRow>
 				</div>
 			</ResponsiveDialog>

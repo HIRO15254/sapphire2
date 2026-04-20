@@ -281,12 +281,13 @@ describe("computeTournamentPLFromEvents", () => {
 			},
 		];
 		const result = computeTournamentPLFromEvents(events, 200, 20);
+		expect(result.beforeDeadline).toBe(true);
 		expect(result.placement).toBeNull();
 		expect(result.totalEntries).toBeNull();
 		expect(result.prizeMoney).toBe(0);
 		expect(result.bountyPrizes).toBe(0);
-		// beforeDeadline=true → profitLoss is null (not calculable)
-		expect(result.profitLoss).toBeNull();
+		// profitLoss = (0 + 0) - (200 + 20) = -220
+		expect(result.profitLoss).toBe(-220);
 	});
 
 	it("computes profitLoss correctly using tournamentBuyIn, entryFee, and purchase_chips costs", () => {

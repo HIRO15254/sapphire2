@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useForm } from "@tanstack/react-form";
+import { useEffect, useState } from "react";
+import { z } from "zod";
 import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-sheet";
 import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
 import { StackNumberField } from "@/live-sessions/components/stack-ui";
@@ -8,6 +10,10 @@ import { Checkbox } from "@/shared/components/ui/checkbox";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Label } from "@/shared/components/ui/label";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import {
+	optionalNumericString,
+	requiredNumericString,
+} from "@/shared/lib/form-fields";
 
 interface ChipPurchaseType {
 	chips: number;
@@ -41,6 +47,16 @@ interface TournamentStackFormProps {
 	onSubmit: (values: TournamentStackFormSubmitValues) => void;
 }
 
+const updateSchema = z.object({
+	stackAmount: requiredNumericString({ integer: true, min: 0 }),
+	remainingPlayers: optionalNumericString({ integer: true, min: 1 }),
+	totalEntries: optionalNumericString({ integer: true, min: 1 }),
+});
+
+const memoSchema = z.object({
+	text: z.string().min(1, "Text is required"),
+});
+
 export function TournamentStackForm({
 	chipPurchaseTypes = [],
 	isLoading,
@@ -60,21 +76,55 @@ export function TournamentStackForm({
 	const { stackAmount, remainingPlayers, totalEntries, chipPurchaseCounts } =
 		state;
 
+	const form = useForm({
+		defaultValues: {
+			stackAmount,
+			remainingPlayers,
+			totalEntries,
+		},
+		onSubmit: ({ value }) => {
+			onSubmit({
+				stackAmount: Number(value.stackAmount),
+				recordTournamentInfo,
+				remainingPlayers: value.remainingPlayers
+					? Number(value.remainingPlayers)
+					: null,
+				totalEntries: value.totalEntries ? Number(value.totalEntries) : null,
+				chipPurchaseCounts,
+			});
+		},
+		validators: {
+			onSubmit: updateSchema,
+		},
+	});
+
+	useEffect(() => {
+		if (form.state.values.stackAmount !== stackAmount) {
+			form.setFieldValue("stackAmount", stackAmount);
+		}
+		if (form.state.values.remainingPlayers !== remainingPlayers) {
+			form.setFieldValue("remainingPlayers", remainingPlayers);
+		}
+		if (form.state.values.totalEntries !== totalEntries) {
+			form.setFieldValue("totalEntries", totalEntries);
+		}
+	}, [stackAmount, remainingPlayers, totalEntries, form]);
+
+	const memoForm = useForm({
+		defaultValues: { text: "" },
+		onSubmit: ({ value }) => {
+			onMemo(value.text);
+			memoForm.reset();
+			setMemoSheetOpen(false);
+		},
+		validators: {
+			onSubmit: memoSchema,
+		},
+	});
+
 	const [recordTournamentInfo, setRecordTournamentInfo] = useState(true);
 	const [chipPurchaseSheetOpen, setChipPurchaseSheetOpen] = useState(false);
 	const [memoSheetOpen, setMemoSheetOpen] = useState(false);
-	const [memoText, setMemoText] = useState("");
-
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		onSubmit({
-			stackAmount: Number(stackAmount),
-			recordTournamentInfo,
-			remainingPlayers: remainingPlayers ? Number(remainingPlayers) : null,
-			totalEntries: totalEntries ? Number(totalEntries) : null,
-			chipPurchaseCounts,
-		});
-	};
 
 	const handleChipPurchaseSubmit = (values: {
 		chips: number;
@@ -85,27 +135,32 @@ export function TournamentStackForm({
 		setChipPurchaseSheetOpen(false);
 	};
 
-	const handleMemoSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		e.stopPropagation();
-		onMemo(memoText);
-		setMemoText("");
-		setMemoSheetOpen(false);
-	};
-
 	return (
 		<div className="flex flex-col gap-4">
-			<form className="flex flex-col gap-3" onSubmit={handleSubmit}>
-				<StackNumberField
-					id="tournament-stack-amount"
-					inputMode="numeric"
-					label="Current Stack"
-					min={0}
-					onChange={setStackAmount}
-					required
-					type="number"
-					value={stackAmount}
-				/>
+			<form
+				className="flex flex-col gap-3"
+				onSubmit={(e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					form.handleSubmit();
+				}}
+			>
+				<form.Field name="stackAmount">
+					{(field) => (
+						<StackNumberField
+							error={field.state.meta.errors[0]?.message}
+							id="tournament-stack-amount"
+							inputMode="numeric"
+							label="Current Stack"
+							onChange={(v) => {
+								field.handleChange(v);
+								setStackAmount(v);
+							}}
+							required
+							value={field.state.value}
+						/>
+					)}
+				</form.Field>
 
 				<div className="flex items-center gap-2">
 					<Checkbox
@@ -121,24 +176,36 @@ export function TournamentStackForm({
 				{recordTournamentInfo && (
 					<>
 						<div className="grid grid-cols-2 gap-2">
-							<StackNumberField
-								id="tournament-remaining-players"
-								inputMode="numeric"
-								label="Remaining Players"
-								min={1}
-								onChange={setRemainingPlayers}
-								type="number"
-								value={remainingPlayers}
-							/>
-							<StackNumberField
-								id="tournament-total-entries"
-								inputMode="numeric"
-								label="Total Entries"
-								min={1}
-								onChange={setTotalEntries}
-								type="number"
-								value={totalEntries}
-							/>
+							<form.Field name="remainingPlayers">
+								{(field) => (
+									<StackNumberField
+										error={field.state.meta.errors[0]?.message}
+										id="tournament-remaining-players"
+										inputMode="numeric"
+										label="Remaining Players"
+										onChange={(v) => {
+											field.handleChange(v);
+											setRemainingPlayers(v);
+										}}
+										value={field.state.value}
+									/>
+								)}
+							</form.Field>
+							<form.Field name="totalEntries">
+								{(field) => (
+									<StackNumberField
+										error={field.state.meta.errors[0]?.message}
+										id="tournament-total-entries"
+										inputMode="numeric"
+										label="Total Entries"
+										onChange={(v) => {
+											field.handleChange(v);
+											setTotalEntries(v);
+										}}
+										value={field.state.value}
+									/>
+								)}
+							</form.Field>
 						</div>
 
 						{chipPurchaseTypes.length > 0 && (
@@ -154,12 +221,11 @@ export function TournamentStackForm({
 											inputMode="numeric"
 											key={t.name}
 											label={`${t.name} count`}
-											min={0}
 											onChange={(value) => {
 												const newCount = Number(value);
 												setChipPurchaseCounts((prev) => {
 													const without = prev.filter((c) => c.name !== t.name);
-													if (newCount === 0) {
+													if (!newCount) {
 														return without;
 													}
 													return [
@@ -172,7 +238,6 @@ export function TournamentStackForm({
 													];
 												});
 											}}
-											type="number"
 											value={countValue === 0 ? "" : String(countValue)}
 										/>
 									);
@@ -235,8 +300,22 @@ export function TournamentStackForm({
 				open={memoSheetOpen}
 				title="Add Memo"
 			>
-				<form className="flex flex-col gap-4" onSubmit={handleMemoSubmit}>
-					<MemoFields onTextChange={setMemoText} text={memoText} />
+				<form
+					className="flex flex-col gap-4"
+					onSubmit={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						memoForm.handleSubmit();
+					}}
+				>
+					<memoForm.Field name="text">
+						{(field) => (
+							<MemoFields
+								onTextChange={(v) => field.handleChange(v)}
+								text={field.state.value}
+							/>
+						)}
+					</memoForm.Field>
 					<DialogActionRow>
 						<Button
 							onClick={() => setMemoSheetOpen(false)}

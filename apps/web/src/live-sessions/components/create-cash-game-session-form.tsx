@@ -193,7 +193,7 @@ export function CreateCashGameSessionForm({
 									return "Buy-in is required";
 								}
 								const numValue = Number(value);
-								if (Number.isNaN(numValue)) {
+								if (!Number.isFinite(numValue)) {
 									return "Must be a number";
 								}
 								if (numValue < 0) {
@@ -223,11 +223,9 @@ export function CreateCashGameSessionForm({
 							>
 								<Input
 									id={field.name}
-									max={selectedRingGame?.maxBuyIn ?? undefined}
-									min={selectedRingGame?.minBuyIn ?? 0}
+									inputMode="numeric"
 									onBlur={field.handleBlur}
 									onChange={(e) => field.handleChange(e.target.value)}
-									type="number"
 									value={field.state.value}
 								/>
 							</Field>

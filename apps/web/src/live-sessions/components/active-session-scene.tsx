@@ -1,6 +1,6 @@
 import { IconAlertTriangle } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AddPlayerSheet } from "@/live-sessions/components/add-player-sheet";
 import { PlayerDetailSheet } from "@/live-sessions/components/player-detail-sheet";
 import {
@@ -8,6 +8,7 @@ import {
 	type TableGameInfo,
 	type TablePlayer,
 } from "@/live-sessions/components/poker-table";
+import { SeatFromScreenshotSheet } from "@/live-sessions/components/seat-from-screenshot-sheet";
 import type { PlayerFormValues } from "@/players/components/player-form";
 import type {
 	PlayerDetailData,
@@ -20,6 +21,10 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+
+type SessionParam =
+	| { liveCashGameSessionId: string; liveTournamentSessionId?: never }
+	| { liveCashGameSessionId?: never; liveTournamentSessionId: string };
 
 interface ActiveSessionSceneProps {
 	discardDescription?: ReactNode;
@@ -60,6 +65,7 @@ export interface ActiveSessionSceneState {
 	playerSheetOpen: boolean;
 	players: TablePlayer[];
 	selectedPlayer: (PlayerDetailData & { isTemporary: boolean }) | null;
+	sessionParam: SessionParam;
 	setAddPlayerSheetOpen: (open: boolean) => void;
 	setPlayerSheetOpen: (open: boolean) => void;
 	waitingForHero: boolean;
@@ -70,6 +76,10 @@ export function useActiveSessionSceneState({
 	sessionId,
 	sessionType,
 }: UseActiveSessionSceneStateOptions): ActiveSessionSceneState {
+	const sessionParam: SessionParam =
+		sessionType === "cash_game"
+			? { liveCashGameSessionId: sessionId }
+			: { liveTournamentSessionId: sessionId };
 	const tablePlayers = useTablePlayers(
 		sessionType === "cash_game"
 			? { liveCashGameSessionId: sessionId }
@@ -152,6 +162,7 @@ export function useActiveSessionSceneState({
 					tags: playerDetail.player.tags ?? [],
 				}
 			: null,
+		sessionParam,
 		setAddPlayerSheetOpen: (open) => {
 			if (!open) {
 				tableInteraction.setAddPlayerSeat(null);
@@ -224,6 +235,17 @@ export function ActiveSessionScene({
 	title,
 }: ActiveSessionSceneProps) {
 	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
+	const [isScanSheetOpen, setIsScanSheetOpen] = useState(false);
+
+	const occupiedSeatPositions = useMemo(() => {
+		const set = new Set<number>();
+		for (const p of state.players) {
+			if (p.isActive && typeof p.seatPosition === "number") {
+				set.add(p.seatPosition);
+			}
+		}
+		return set;
+	}, [state.players]);
 
 	return (
 		<>
@@ -248,21 +270,20 @@ export function ActiveSessionScene({
 				</Button>
 			</div>
 
-			<div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-				{summary}
-			</div>
+			<div>{summary}</div>
 
 			{memo ? (
 				<p className="mt-1 text-muted-foreground text-xs">{memo}</p>
 			) : null}
 
-			<div className="min-h-0 flex-1">
+			<div className="mt-3 min-h-0 flex-1">
 				<PokerTable
 					gameInfo={gameInfo}
 					heroSeatPosition={state.heroSeatPosition}
 					onEmptySeatTap={state.onEmptySeatTap}
 					onHeroSeatTap={state.onHeroSeatTap}
 					onPlayerSeatTap={state.onPlayerSeatTap}
+					onScanPlayers={() => setIsScanSheetOpen(true)}
 					players={state.players}
 					waitingForHero={state.waitingForHero}
 				/>
@@ -289,6 +310,14 @@ export function ActiveSessionScene({
 				onSave={state.onPlayerSave}
 				open={state.playerSheetOpen}
 				player={state.selectedPlayer}
+			/>
+
+			<SeatFromScreenshotSheet
+				heroSeatPosition={state.heroSeatPosition}
+				occupiedSeatPositions={occupiedSeatPositions}
+				onOpenChange={setIsScanSheetOpen}
+				open={isScanSheetOpen}
+				sessionParam={state.sessionParam}
 			/>
 
 			<DiscardDialog

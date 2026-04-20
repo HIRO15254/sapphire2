@@ -28,6 +28,7 @@ export interface CashGameFormValues {
 
 export interface TournamentFormValues {
 	addonCost?: number;
+	beforeDeadline?: boolean;
 	bountyPrizes?: number;
 	breakMinutes?: number;
 	currencyId?: string;
@@ -52,6 +53,7 @@ export type SessionFormValues = CashGameFormValues | TournamentFormValues;
 
 export interface SessionItem {
 	addonCost: number | null;
+	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
 	buyIn: number | null;
@@ -133,6 +135,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 		type: "tournament" as const,
 		tournamentBuyIn: values.tournamentBuyIn,
 		entryFee: values.entryFee,
+		beforeDeadline: values.beforeDeadline,
 		placement: values.placement,
 		totalEntries: values.totalEntries,
 		prizeMoney: values.prizeMoney,
@@ -141,6 +144,18 @@ export function buildCreatePayload(values: SessionFormValues) {
 		addonCost: values.addonCost,
 		bountyPrizes: values.bountyPrizes,
 		tournamentId: values.tournamentId,
+	};
+}
+
+export function buildLiveLinkedUpdatePayload(
+	values: SessionFormValues & { id: string }
+) {
+	return {
+		id: values.id,
+		memo: values.memo,
+		tagIds: values.tagIds,
+		storeId: values.storeId ?? null,
+		currencyId: values.currencyId ?? null,
 	};
 }
 
@@ -176,8 +191,9 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		...common,
 		tournamentBuyIn: values.tournamentBuyIn,
 		entryFee: values.entryFee,
-		placement: values.placement,
-		totalEntries: values.totalEntries,
+		beforeDeadline: values.beforeDeadline ?? null,
+		placement: values.placement ?? null,
+		totalEntries: values.totalEntries ?? null,
 		prizeMoney: values.prizeMoney,
 		rebuyCount: values.rebuyCount,
 		rebuyCost: values.rebuyCost,
@@ -201,6 +217,7 @@ export function buildOptimisticItem(
 		evDiff: null,
 		tournamentBuyIn: null,
 		entryFee: null,
+		beforeDeadline: null,
 		placement: null,
 		totalEntries: null,
 		prizeMoney: null,
@@ -240,6 +257,7 @@ export function buildOptimisticItem(
 	} else {
 		item.tournamentBuyIn = newSession.tournamentBuyIn;
 		item.entryFee = newSession.entryFee ?? null;
+		item.beforeDeadline = newSession.beforeDeadline ?? null;
 	}
 	return item;
 }
@@ -253,6 +271,7 @@ export function buildEditDefaults(session: SessionItem) {
 		evCashOut: session.evCashOut ?? undefined,
 		tournamentBuyIn: session.tournamentBuyIn ?? 0,
 		entryFee: session.entryFee ?? undefined,
+		beforeDeadline: session.beforeDeadline ?? undefined,
 		placement: session.placement ?? undefined,
 		totalEntries: session.totalEntries ?? undefined,
 		prizeMoney: session.prizeMoney ?? undefined,
@@ -359,8 +378,14 @@ export function useSessions(filters: SessionFilterValues) {
 	});
 
 	const updateMutation = useMutation({
-		mutationFn: (values: SessionFormValues & { id: string }) =>
-			trpcClient.session.update.mutate(buildUpdatePayload(values)),
+		mutationFn: (
+			values: SessionFormValues & { id: string; isLiveLinked?: boolean }
+		) =>
+			trpcClient.session.update.mutate(
+				values.isLiveLinked
+					? buildLiveLinkedUpdatePayload(values)
+					: buildUpdatePayload(values)
+			),
 		onMutate: async (updated) => {
 			await queryClient.cancelQueries({ queryKey: sessionListKey });
 			const previous = queryClient.getQueryData(sessionListKey);
@@ -450,8 +475,9 @@ export function useSessions(filters: SessionFilterValues) {
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		create: (values: SessionFormValues) => createMutation.mutateAsync(values),
-		update: (values: SessionFormValues & { id: string }) =>
-			updateMutation.mutateAsync(values),
+		update: (
+			values: SessionFormValues & { id: string; isLiveLinked?: boolean }
+		) => updateMutation.mutateAsync(values),
 		delete: (id: string) => {
 			deleteMutation.mutate(id);
 		},

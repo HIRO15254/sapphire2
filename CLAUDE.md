@@ -36,4 +36,15 @@ TypeScript (strict mode): Follow standard conventions
 - 007-improve-tag-colorpicker: Added TypeScript (strict mode) + React 19, Tailwind v4, Radix UI, Vitest, Testing Library
 
 <!-- MANUAL ADDITIONS START -->
+
+## Forms (MANDATORY)
+
+**All forms in `apps/web` MUST be built with [`@tanstack/react-form`](https://tanstack.com/form/latest).**
+
+- Do not use raw `<form onSubmit={handleSubmit}>` with `FormData`/`useState` for form state. Use `useForm({ defaultValues, onSubmit, validators })` instead.
+- Attach validation via `validators.onSubmit: zodSchema` (and/or `onChange` per-field). Keep the schema close to the form.
+- **Number inputs must not use `type="number"`.** Keep inputs as `type="text"` + `inputMode="numeric"`, store the raw string in form state, and validate/convert via Zod. `type="number"` has inconsistent cross-browser behavior (scroll-to-change, locale handling, allowed characters) and hides errors behind silent coercion.
+- Use helpers from `@/shared/lib/form-fields` (`requiredNumericString`, `optionalNumericString`, `parseOptionalInt`, etc.) to keep numeric validation uniform.
+- Reference implementations: `apps/web/src/shared/components/sign-in-form.tsx`, `apps/web/src/players/components/player-form.tsx`, `apps/web/src/live-sessions/components/event-editors/update-stack-editor.tsx`.
+
 <!-- MANUAL ADDITIONS END -->

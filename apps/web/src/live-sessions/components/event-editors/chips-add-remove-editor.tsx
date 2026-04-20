@@ -1,4 +1,5 @@
 import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
 import { AddonFields } from "@/live-sessions/components/event-fields/addon-fields";
 import {
 	toOccurredAtTimestamp,
@@ -12,12 +13,19 @@ import {
 	ToggleGroup,
 	ToggleGroupItem,
 } from "@/shared/components/ui/toggle-group";
+import { requiredNumericString } from "@/shared/lib/form-fields";
 import { type EditorBaseProps, TimeField } from "./shared";
 
 type Props = Pick<
 	EditorBaseProps,
 	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
 >;
+
+const chipsAddRemoveSchema = z.object({
+	time: z.string(),
+	amount: requiredNumericString({ integer: true, min: 0 }),
+	type: z.enum(["add", "remove"]),
+});
 
 export function ChipsAddRemoveEditor({
 	event,
@@ -31,12 +39,18 @@ export function ChipsAddRemoveEditor({
 	const form = useForm({
 		defaultValues: {
 			time: toTimeInputValue(event.occurredAt),
-			amount: typeof payload.amount === "number" ? payload.amount : 0,
+			amount: typeof payload.amount === "number" ? String(payload.amount) : "0",
 			type: (payload.type === "remove" ? "remove" : "add") as "add" | "remove",
 		},
 		onSubmit: ({ value }) => {
 			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
-			onSubmit({ amount: value.amount, type: value.type }, occurredAt);
+			onSubmit(
+				{ amount: Math.round(Number(value.amount)), type: value.type },
+				occurredAt
+			);
+		},
+		validators: {
+			onSubmit: chipsAddRemoveSchema,
 		},
 	});
 
@@ -68,8 +82,9 @@ export function ChipsAddRemoveEditor({
 			<form.Field name="amount">
 				{(field) => (
 					<AddonFields
-						amount={field.state.value}
+						error={field.state.meta.errors[0]?.message}
 						onAmountChange={(v) => field.handleChange(v)}
+						value={field.state.value}
 					/>
 				)}
 			</form.Field>

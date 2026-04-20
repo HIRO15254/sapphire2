@@ -51,7 +51,6 @@ export function PlayerFilters({
 	return (
 		<FilterDialogShell
 			activeCount={selectedTagIds.length}
-			description="Select one or more tags to narrow the player list."
 			onApply={handleApply}
 			onOpen={handleOpen}
 			onOpenChange={(open) => {
@@ -70,7 +69,7 @@ export function PlayerFilters({
 					heading="No tags available"
 				/>
 			) : (
-				<Field description="Search and select multiple tags." label="Tags">
+				<Field label="Tags">
 					<PlayerTagInput
 						availableTags={availableTags}
 						onAdd={(tag) => toggleTag(tag.id)}

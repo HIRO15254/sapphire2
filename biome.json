@@ -71,7 +71,8 @@
   "javascript": {
     "formatter": {
       "quoteStyle": "double"
-    }
+    },
+    "globals": ["HTMLRewriter"]
   },
   "css": {
     "parser": {
