@@ -66,9 +66,7 @@ export function FilterDialogShell({
 						<Button onClick={onReset} variant="outline">
 							{resetLabel}
 						</Button>
-						<Button onClick={onApply}>
-							{applyLabel}
-						</Button>
+						<Button onClick={onApply}>{applyLabel}</Button>
 					</DialogActionRow>
 				</div>
 			</ResponsiveDialog>

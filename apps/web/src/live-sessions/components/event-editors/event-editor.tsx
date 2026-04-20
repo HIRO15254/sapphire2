@@ -20,6 +20,7 @@ export function EventEditor(props: EditorBaseProps) {
 					isLoading={props.isLoading}
 					maxTime={props.maxTime}
 					minTime={props.minTime}
+					onSubmit={props.onSubmit}
 					onTimeUpdate={props.onTimeUpdate}
 					sessionType={props.sessionType}
 				/>
@@ -31,7 +32,7 @@ export function EventEditor(props: EditorBaseProps) {
 					isLoading={props.isLoading}
 					maxTime={props.maxTime}
 					minTime={props.minTime}
-					onTimeUpdate={props.onTimeUpdate}
+					onSubmit={props.onSubmit}
 					sessionType={props.sessionType}
 				/>
 			);

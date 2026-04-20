@@ -1,4 +1,5 @@
 import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
 import {
 	toOccurredAtTimestamp,
 	toTimeInputValue,
@@ -8,33 +9,51 @@ import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import { requiredNumericString } from "@/shared/lib/form-fields";
 import { type EditorBaseProps, type SessionType, TimeField } from "./shared";
 
 type Props = Pick<
 	EditorBaseProps,
-	"event" | "isLoading" | "maxTime" | "minTime" | "onTimeUpdate"
+	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit" | "onTimeUpdate"
 > & {
 	sessionType: SessionType;
 };
+
+const cashGameStartSchema = z.object({
+	time: z.string(),
+	buyInAmount: requiredNumericString({ integer: true, min: 0 }),
+});
 
 export function SessionStartEditor({
 	event,
 	isLoading,
 	maxTime,
 	minTime,
+	onSubmit,
 	onTimeUpdate,
 	sessionType,
 }: Props) {
 	const payload = (event.payload ?? {}) as Record<string, unknown>;
 
+	const isCashGame = sessionType === "cash_game";
+
 	const form = useForm({
-		defaultValues: { time: toTimeInputValue(event.occurredAt) },
+		defaultValues: {
+			time: toTimeInputValue(event.occurredAt),
+			buyInAmount:
+				typeof payload.buyInAmount === "number"
+					? String(payload.buyInAmount)
+					: "0",
+		},
 		onSubmit: ({ value }) => {
-			const ts = toOccurredAtTimestamp(event.occurredAt, value.time);
-			if (ts !== undefined) {
-				onTimeUpdate(ts);
+			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
+			if (isCashGame) {
+				onSubmit({ buyInAmount: Number(value.buyInAmount) }, occurredAt);
+			} else if (occurredAt !== undefined) {
+				onTimeUpdate(occurredAt);
 			}
 		},
+		validators: isCashGame ? { onSubmit: cashGameStartSchema } : undefined,
 	});
 
 	return (
@@ -62,18 +81,28 @@ export function SessionStartEditor({
 					/>
 				)}
 			</form.Field>
-			{sessionType === "cash_game" &&
-			typeof payload.buyInAmount === "number" ? (
-				<Field htmlFor="edit-buyInAmount" label="Buy-in Amount">
-					<Input
-						disabled
-						id="edit-buyInAmount"
-						readOnly
-						type="text"
-						value={payload.buyInAmount.toLocaleString()}
-					/>
-				</Field>
-			) : null}
+			{isCashGame && (
+				<form.Field name="buyInAmount">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Buy-in Amount"
+							required
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								name={field.name}
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								placeholder="0"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+			)}
 			<form.Subscribe
 				selector={(state) => [state.canSubmit, state.isSubmitting]}
 			>
