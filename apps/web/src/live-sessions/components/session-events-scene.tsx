@@ -1,4 +1,5 @@
-import { IconPencil, IconTrash, IconX } from "@tabler/icons-react";
+import { IconArrowLeft, IconPencil, IconTrash, IconX } from "@tabler/icons-react";
+import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { EventEditor } from "@/live-sessions/components/event-editors/event-editor";
 import { toTimeInputValue } from "@/live-sessions/components/stack-editor-time";
@@ -38,6 +39,7 @@ const LIFECYCLE_EVENTS = new Set(["session_start", "session_end"]);
 type SessionType = "cash_game" | "tournament";
 
 interface SessionEventsSceneProps {
+	backTo?: string;
 	emptySessionMessage?: string;
 	refetchInterval?: number;
 	sessionId: string;
@@ -194,6 +196,7 @@ function groupEventsForDisplay(events: SessionEvent[]): EventGroup[] {
 }
 
 export function SessionEventsScene({
+	backTo,
 	emptySessionMessage = "No active session",
 	refetchInterval,
 	sessionId,
@@ -319,6 +322,14 @@ export function SessionEventsScene({
 	return (
 		<div className="p-4 md:p-6">
 			<div className="mb-4 flex flex-wrap items-center gap-2">
+				{backTo && (
+					<Button asChild size="sm" variant="ghost" className="-ml-2 mr-1">
+						<Link to={backTo}>
+							<IconArrowLeft size={16} />
+							Back
+						</Link>
+					</Button>
+				)}
 				<h1 className="font-bold text-2xl">Events</h1>
 				<Badge variant="outline">{events.length}</Badge>
 			</div>

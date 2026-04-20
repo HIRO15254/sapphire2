@@ -12,6 +12,7 @@ function SessionEventsPage() {
 
 	return (
 		<SessionEventsScene
+			backTo="/sessions"
 			sessionId={sessionId}
 			sessionType={sessionType === "tournament" ? "tournament" : "cash_game"}
 		/>
