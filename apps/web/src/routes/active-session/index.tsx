@@ -60,7 +60,7 @@ function CashGameCompactSummary({
 }: {
 	summary: {
 		currentStack: number | null;
-		evCashOut: number | null;
+		evDiff: number;
 		startedAt: Date | string | number;
 		totalBuyIn: number;
 	};
@@ -74,9 +74,10 @@ function CashGameCompactSummary({
 			? summary.currentStack - summary.totalBuyIn
 			: null;
 
+	// Running EV P&L = (currentStack + evDiff) - totalBuyIn
 	const evPL =
-		summary.evCashOut !== null
-			? summary.evCashOut - summary.totalBuyIn
+		summary.currentStack !== null && summary.evDiff !== 0
+			? summary.currentStack + summary.evDiff - summary.totalBuyIn
 			: null;
 	const showEvPL = evPL !== null && evPL !== displayPL;
 
@@ -215,7 +216,10 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 				<CashGameCompactSummary
 					summary={{
 						currentStack: session.summary.currentStack,
-						evCashOut: session.summary.evCashOut,
+						evDiff:
+							typeof session.summary.evDiff === "number"
+								? session.summary.evDiff
+								: 0,
 						startedAt: session.startedAt,
 						totalBuyIn: session.summary.totalBuyIn,
 					}}
