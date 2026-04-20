@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
 	ActiveSessionScene,
@@ -30,32 +31,56 @@ function formatPl(value: number): string {
 	return `${sign}${formatCompactNumber(value)}`;
 }
 
+function formatDuration(startedAt: Date): string {
+	const elapsed = Math.floor((Date.now() - startedAt.getTime()) / 60000);
+	const hours = Math.floor(elapsed / 60);
+	const minutes = elapsed % 60;
+	if (hours > 0) {
+		return `${hours}h ${minutes}m`;
+	}
+	return `${minutes}m`;
+}
+
+function useSessionDuration(startedAt: Date): string {
+	const [duration, setDuration] = useState(() => formatDuration(startedAt));
+
+	useEffect(() => {
+		const id = setInterval(() => {
+			setDuration(formatDuration(startedAt));
+		}, 60000);
+		return () => clearInterval(id);
+	}, [startedAt]);
+
+	return duration;
+}
+
 function CashGameCompactSummary({
 	summary,
 }: {
 	summary: {
-		addonCount: number;
-		cashOut: number | null;
-		currentStack: number | null;
 		evCashOut: number | null;
 		profitLoss: number | null;
+		startedAt: Date;
 		totalBuyIn: number;
 	};
 }) {
+	const duration = useSessionDuration(summary.startedAt);
+	const evPL =
+		summary.evCashOut !== null
+			? summary.evCashOut - summary.totalBuyIn
+			: null;
+	const showEvPL = evPL !== null && evPL !== summary.profitLoss;
+
 	return (
 		<div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
 			<div>
-				<span className="text-muted-foreground text-xs">Buy-in</span>
-				<p className="font-semibold">
-					{formatCompactNumber(summary.totalBuyIn)}
-				</p>
+				<span className="text-muted-foreground text-xs">Time</span>
+				<p className="font-semibold">{duration}</p>
 			</div>
 			<div>
-				<span className="text-muted-foreground text-xs">Stack</span>
+				<span className="text-muted-foreground text-xs">Total Buy-in</span>
 				<p className="font-semibold">
-					{summary.currentStack === null
-						? "-"
-						: formatCompactNumber(summary.currentStack)}
+					{formatCompactNumber(summary.totalBuyIn)}
 				</p>
 			</div>
 			<div>
@@ -68,23 +93,13 @@ function CashGameCompactSummary({
 							: plColorClass(summary.profitLoss)
 					)}
 				>
-					{summary.profitLoss === null ? "-" : formatPl(summary.profitLoss)}
+					{summary.profitLoss === null
+						? "-"
+						: showEvPL
+							? `${formatPl(summary.profitLoss)} (EV: ${formatPl(evPL)})`
+							: formatPl(summary.profitLoss)}
 				</p>
 			</div>
-			{summary.evCashOut === null ? null : (
-				<div>
-					<span className="text-muted-foreground text-xs">EV P&L</span>
-					<p className="font-semibold">
-						{formatPl(summary.evCashOut - summary.totalBuyIn)}
-					</p>
-				</div>
-			)}
-			{summary.addonCount > 0 ? (
-				<div>
-					<span className="text-muted-foreground text-xs">Addons</span>
-					<p className="font-semibold">{summary.addonCount}</p>
-				</div>
-			) : null}
 		</div>
 	);
 }
@@ -93,59 +108,36 @@ function TournamentCompactSummary({
 	summary,
 }: {
 	summary: {
-		buyIn: number | null;
-		currentStack: number | null;
-		entryFee: number | null;
-		profitLoss: number | null;
+		averageStack: number | null;
 		remainingPlayers: number | null;
-		totalChipPurchases: number;
+		startedAt: Date;
 		totalEntries: number | null;
 	};
 }) {
-	const totalCost = (summary.buyIn ?? 0) + (summary.entryFee ?? 0);
+	const duration = useSessionDuration(summary.startedAt);
+	const fieldEntry =
+		summary.remainingPlayers === null && summary.totalEntries === null
+			? "-"
+			: `${summary.remainingPlayers ?? "-"}/${summary.totalEntries ?? "-"}`;
 
 	return (
 		<div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
-			{totalCost > 0 ? (
-				<div>
-					<span className="text-muted-foreground text-xs">Buy-in</span>
-					<p className="font-semibold">{formatCompactNumber(totalCost)}</p>
-				</div>
-			) : null}
 			<div>
-				<span className="text-muted-foreground text-xs">Stack</span>
+				<span className="text-muted-foreground text-xs">Time</span>
+				<p className="font-semibold">{duration}</p>
+			</div>
+			<div>
+				<span className="text-muted-foreground text-xs">Field/Entry</span>
+				<p className="font-semibold">{fieldEntry}</p>
+			</div>
+			<div>
+				<span className="text-muted-foreground text-xs">Avg Stack</span>
 				<p className="font-semibold">
-					{summary.currentStack === null
+					{summary.averageStack === null
 						? "-"
-						: formatCompactNumber(summary.currentStack)}
+						: formatCompactNumber(summary.averageStack)}
 				</p>
 			</div>
-			<div>
-				<span className="text-muted-foreground text-xs">Remaining</span>
-				<p className="font-semibold">
-					{summary.remainingPlayers === null ? "-" : summary.remainingPlayers}
-				</p>
-			</div>
-			{summary.totalEntries === null ? null : (
-				<div>
-					<span className="text-muted-foreground text-xs">Entries</span>
-					<p className="font-semibold">{summary.totalEntries}</p>
-				</div>
-			)}
-			{summary.totalChipPurchases > 0 ? (
-				<div>
-					<span className="text-muted-foreground text-xs">Chip Purchases</span>
-					<p className="font-semibold">{summary.totalChipPurchases}</p>
-				</div>
-			) : null}
-			{summary.profitLoss === null ? null : (
-				<div>
-					<span className="text-muted-foreground text-xs">P&L</span>
-					<p className={cn("font-semibold", plColorClass(summary.profitLoss))}>
-						{formatPl(summary.profitLoss)}
-					</p>
-				</div>
-			)}
 		</div>
 	);
 }
@@ -153,30 +145,18 @@ function TournamentCompactSummary({
 function buildTournamentSummary(session: {
 	summary: Record<string, unknown>;
 }): {
-	buyIn: number | null;
-	currentStack: number | null;
-	entryFee: number | null;
-	profitLoss: number | null;
+	averageStack: number | null;
 	remainingPlayers: number | null;
-	totalChipPurchases: number;
 	totalEntries: number | null;
 } {
 	const summary = session.summary;
 	return {
-		buyIn: typeof summary.buyIn === "number" ? summary.buyIn : null,
-		currentStack:
-			typeof summary.currentStack === "number" ? summary.currentStack : null,
-		entryFee: typeof summary.entryFee === "number" ? summary.entryFee : null,
-		profitLoss:
-			typeof summary.profitLoss === "number" ? summary.profitLoss : null,
+		averageStack:
+			typeof summary.averageStack === "number" ? summary.averageStack : null,
 		remainingPlayers:
 			typeof summary.remainingPlayers === "number"
 				? summary.remainingPlayers
 				: null,
-		totalChipPurchases:
-			typeof summary.totalChipPurchases === "number"
-				? summary.totalChipPurchases
-				: 0,
 		totalEntries:
 			typeof summary.totalEntries === "number" ? summary.totalEntries : null,
 	};
@@ -223,7 +203,16 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 			memo={session.memo}
 			onDiscard={discard}
 			state={sceneState}
-			summary={<CashGameCompactSummary summary={session.summary} />}
+			summary={
+				<CashGameCompactSummary
+					summary={{
+						evCashOut: session.summary.evCashOut,
+						profitLoss: session.summary.profitLoss,
+						startedAt: session.startedAt,
+						totalBuyIn: session.summary.totalBuyIn,
+					}}
+				/>
+			}
 			title="Cash Game"
 		/>
 	);
@@ -258,7 +247,11 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			memo={session.memo}
 			onDiscard={discard}
 			state={sceneState}
-			summary={<TournamentCompactSummary summary={tournamentSummary} />}
+			summary={
+				<TournamentCompactSummary
+					summary={{ ...tournamentSummary, startedAt: session.startedAt }}
+				/>
+			}
 			title="Tournament"
 		/>
 	);
