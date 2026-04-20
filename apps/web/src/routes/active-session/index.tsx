@@ -33,7 +33,7 @@ function formatPl(value: number): string {
 
 function formatDuration(startedAt: Date | string | number): string {
 	const start = new Date(startedAt);
-	const elapsed = Math.floor((Date.now() - start.getTime()) / 60000);
+	const elapsed = Math.floor((Date.now() - start.getTime()) / 60_000);
 	const hours = Math.floor(elapsed / 60);
 	const minutes = elapsed % 60;
 	if (hours > 0) {
@@ -48,7 +48,7 @@ function useSessionDuration(startedAt: Date | string | number): string {
 	useEffect(() => {
 		const id = setInterval(() => {
 			setDuration(formatDuration(startedAt));
-		}, 60000);
+		}, 60_000);
 		return () => clearInterval(id);
 	}, [startedAt]);
 
@@ -70,9 +70,9 @@ function CashGameCompactSummary({
 	// Use currentStack-based running P&L during the active session.
 	// profitLoss (from cashOut) is only available at session end.
 	const displayPL =
-		summary.currentStack !== null
-			? summary.currentStack - summary.totalBuyIn
-			: null;
+		summary.currentStack === null
+			? null
+			: summary.currentStack - summary.totalBuyIn;
 
 	// Running EV P&L = (currentStack + evDiff) - totalBuyIn
 	const evPL =
@@ -150,7 +150,6 @@ function TournamentCompactSummary({
 		</div>
 	);
 }
-
 
 function buildTournamentSummary(session: {
 	summary: Record<string, unknown>;

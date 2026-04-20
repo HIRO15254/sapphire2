@@ -443,7 +443,7 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 		});
 	});
 
-	it("shows Stack and Remaining fields from tournament summary", async () => {
+	it("shows Field/Entry and Avg Stack labels from tournament summary", async () => {
 		mockQuery.mockImplementation((key: string) => {
 			if (key === "tournament-getById") {
 				return {
@@ -468,11 +468,11 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByText("Stack");
-		expect(screen.getByText("Remaining")).toBeInTheDocument();
+		await screen.findByText("Field/Entry");
+		expect(screen.getByText("Avg Stack")).toBeInTheDocument();
 	});
 
-	it("shows Buy-in field when totalCost is non-zero", async () => {
+	it("shows dash for Field/Entry when remainingPlayers and totalEntries are null", async () => {
 		mockQuery.mockImplementation((key: string) => {
 			if (key === "tournament-getById") {
 				return {
@@ -497,10 +497,10 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByText("Buy-in");
+		await screen.findByText("Field/Entry");
 	});
 
-	it("shows Entries when totalEntries is provided", async () => {
+	it("shows Field/Entry with remainingPlayers/totalEntries when provided", async () => {
 		mockQuery.mockImplementation((key: string) => {
 			if (key === "tournament-getById") {
 				return {
@@ -525,7 +525,7 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByText("Entries");
+		await screen.findByText("15/80");
 	});
 });
 
