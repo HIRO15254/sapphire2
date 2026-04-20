@@ -73,18 +73,18 @@ function CashGameCompactSummary({
 	const showEvPL = evPL !== null && evPL !== summary.profitLoss;
 
 	return (
-		<div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
-			<div>
+		<div className="grid grid-cols-3 gap-2">
+			<div className="flex flex-col gap-0.5 rounded-md border px-3 py-2">
 				<span className="text-muted-foreground text-xs">Time</span>
 				<p className="font-semibold">{duration}</p>
 			</div>
-			<div>
+			<div className="flex flex-col gap-0.5 rounded-md border px-3 py-2">
 				<span className="text-muted-foreground text-xs">Total Buy-in</span>
 				<p className="font-semibold">
 					{formatCompactNumber(summary.totalBuyIn)}
 				</p>
 			</div>
-			<div>
+			<div className="flex flex-col gap-0.5 rounded-md border px-3 py-2">
 				<span className="text-muted-foreground text-xs">P&L</span>
 				<p
 					className={cn(
@@ -122,12 +122,12 @@ function TournamentCompactSummary({
 			: `${summary.remainingPlayers ?? "-"}/${summary.totalEntries ?? "-"}`;
 
 	return (
-		<div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
-			<div>
+		<div className="grid grid-cols-3 gap-2">
+			<div className="flex flex-col gap-0.5 rounded-md border px-3 py-2">
 				<span className="text-muted-foreground text-xs">Time</span>
 				<p className="font-semibold">{duration}</p>
 			</div>
-			<div>
+			<div className="flex flex-col gap-0.5 rounded-md border px-3 py-2">
 				<span className="text-muted-foreground text-xs">Field/Entry</span>
 				<p className="font-semibold">{fieldEntry}</p>
 			</div>
@@ -142,6 +142,7 @@ function TournamentCompactSummary({
 		</div>
 	);
 }
+
 
 function buildTournamentSummary(session: {
 	summary: Record<string, unknown>;

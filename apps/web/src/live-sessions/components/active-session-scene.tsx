@@ -248,9 +248,7 @@ export function ActiveSessionScene({
 				</Button>
 			</div>
 
-			<div className="rounded-lg border border-border bg-muted/30 px-3 py-2">
-				{summary}
-			</div>
+			<div>{summary}</div>
 
 			{memo ? (
 				<p className="mt-1 text-muted-foreground text-xs">{memo}</p>
