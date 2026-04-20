@@ -30,6 +30,7 @@ type AnyForm = ReactFormExtendedApi<
 
 interface TournamentFieldsProps {
 	form: AnyForm;
+	isLiveLinked?: boolean;
 }
 
 interface TournamentDetailFieldsProps extends TournamentFieldsProps {
@@ -40,7 +41,10 @@ interface TournamentDetailFieldsProps extends TournamentFieldsProps {
 
 const NONE_VALUE = "__none__";
 
-export function TournamentPrimaryFields({ form }: TournamentFieldsProps) {
+export function TournamentPrimaryFields({
+	form,
+	isLiveLinked = false,
+}: TournamentFieldsProps) {
 	return (
 		<>
 			<div className="grid grid-cols-2 gap-3">
@@ -53,6 +57,7 @@ export function TournamentPrimaryFields({ form }: TournamentFieldsProps) {
 							required
 						>
 							<Input
+								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -71,6 +76,7 @@ export function TournamentPrimaryFields({ form }: TournamentFieldsProps) {
 							label="Entry Fee"
 						>
 							<Input
+								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -91,6 +97,7 @@ export function TournamentPrimaryFields({ form }: TournamentFieldsProps) {
 						label="Prize Money"
 					>
 						<Input
+							disabled={isLiveLinked}
 							id={field.name}
 							inputMode="numeric"
 							onBlur={field.handleBlur}
@@ -108,6 +115,7 @@ export function TournamentPrimaryFields({ form }: TournamentFieldsProps) {
 						<>
 							<Checkbox
 								checked={field.state.value === true}
+								disabled={isLiveLinked}
 								id={field.name}
 								onCheckedChange={(checked) =>
 									field.handleChange(checked === true)
@@ -133,6 +141,7 @@ export function TournamentPrimaryFields({ form }: TournamentFieldsProps) {
 										label="Placement"
 									>
 										<Input
+											disabled={isLiveLinked}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -151,6 +160,7 @@ export function TournamentPrimaryFields({ form }: TournamentFieldsProps) {
 										label="Total Entries"
 									>
 										<Input
+											disabled={isLiveLinked}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -172,6 +182,7 @@ export function TournamentPrimaryFields({ form }: TournamentFieldsProps) {
 export function TournamentDetailFields({
 	currencies,
 	form,
+	isLiveLinked = false,
 	onCurrencyChange,
 	selectedCurrencyId,
 }: TournamentDetailFieldsProps) {
@@ -212,6 +223,7 @@ export function TournamentDetailFields({
 							label="Rebuy Count"
 						>
 							<Input
+								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -230,6 +242,7 @@ export function TournamentDetailFields({
 							label="Rebuy Cost"
 						>
 							<Input
+								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -251,6 +264,7 @@ export function TournamentDetailFields({
 							label="Addon Cost"
 						>
 							<Input
+								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -269,6 +283,7 @@ export function TournamentDetailFields({
 							label="Bounty Prizes"
 						>
 							<Input
+								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}

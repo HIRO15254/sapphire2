@@ -1,6 +1,7 @@
 import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
 import { z } from "zod";
+import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -122,6 +123,7 @@ interface SessionFormDefaults {
 interface SessionFormProps {
 	currencies?: Array<{ id: string; name: string }>;
 	defaultValues?: SessionFormDefaults;
+	isLiveLinked?: boolean;
 	isLoading?: boolean;
 	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
 	onStoreChange?: (storeId: string | undefined) => void;
@@ -215,6 +217,7 @@ function buildDefaults(defaults: SessionFormDefaults | undefined) {
 export function SessionForm({
 	currencies,
 	defaultValues,
+	isLiveLinked = false,
 	isLoading = false,
 	onCreateTag,
 	onStoreChange,
@@ -368,6 +371,7 @@ export function SessionForm({
 		<CashGameFields
 			currencies={currencies}
 			form={form}
+			isLiveLinked={isLiveLinked}
 			onCurrencyChange={setSelectedCurrencyId}
 			selectedCurrencyId={selectedCurrencyId}
 		/>
@@ -375,6 +379,7 @@ export function SessionForm({
 		<TournamentDetailFields
 			currencies={currencies}
 			form={form}
+			isLiveLinked={isLiveLinked}
 			onCurrencyChange={setSelectedCurrencyId}
 			selectedCurrencyId={selectedCurrencyId}
 		/>
@@ -420,6 +425,15 @@ export function SessionForm({
 				form.handleSubmit();
 			}}
 		>
+			{isLiveLinked && (
+				<Alert data-testid="live-linked-banner">
+					<AlertDescription>
+						このセッションはライブセッションから生成されています。
+						イベント履歴から計算される項目は編集できません。
+						変更するにはライブセッションのイベントを編集してください。
+					</AlertDescription>
+				</Alert>
+			)}
 			<Field label="Session Type">
 				<Tabs
 					onValueChange={(value) =>
@@ -428,8 +442,12 @@ export function SessionForm({
 					value={sessionType}
 				>
 					<TabsList className="grid w-full grid-cols-2">
-						<TabsTrigger value="cash_game">Cash Game</TabsTrigger>
-						<TabsTrigger value="tournament">Tournament</TabsTrigger>
+						<TabsTrigger disabled={isLiveLinked} value="cash_game">
+							Cash Game
+						</TabsTrigger>
+						<TabsTrigger disabled={isLiveLinked} value="tournament">
+							Tournament
+						</TabsTrigger>
 					</TabsList>
 				</Tabs>
 			</Field>
@@ -442,6 +460,7 @@ export function SessionForm({
 								Session Date <span className="text-destructive">*</span>
 							</Label>
 							<Input
+								disabled={isLiveLinked}
 								id={field.name}
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
@@ -458,6 +477,7 @@ export function SessionForm({
 							<div className="flex flex-col gap-2">
 								<Label htmlFor={field.name}>Start Time</Label>
 								<Input
+									disabled={isLiveLinked}
 									id={field.name}
 									onBlur={field.handleBlur}
 									onChange={(e) => field.handleChange(e.target.value)}
@@ -472,6 +492,7 @@ export function SessionForm({
 							<div className="flex flex-col gap-2">
 								<Label htmlFor={field.name}>End Time</Label>
 								<Input
+									disabled={isLiveLinked}
 									id={field.name}
 									onBlur={field.handleBlur}
 									onChange={(e) => field.handleChange(e.target.value)}
@@ -488,6 +509,7 @@ export function SessionForm({
 						<div className="flex flex-col gap-2">
 							<Label htmlFor={field.name}>Break Time (min)</Label>
 							<Input
+								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -507,6 +529,7 @@ export function SessionForm({
 				<StoreGameSelectors
 					gameLabel={gameLabel}
 					gameOptions={gameOptions}
+					isLiveLinked={isLiveLinked}
 					onGameChange={handleGameChange}
 					onStoreChange={handleStoreChange}
 					selectedGameId={selectedGameId}
@@ -524,6 +547,7 @@ export function SessionForm({
 											Buy-in <span className="text-destructive">*</span>
 										</Label>
 										<Input
+											disabled={isLiveLinked}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -546,6 +570,7 @@ export function SessionForm({
 											Cash-out <span className="text-destructive">*</span>
 										</Label>
 										<Input
+											disabled={isLiveLinked}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -567,6 +592,7 @@ export function SessionForm({
 								<div className="flex flex-col gap-2">
 									<Label htmlFor={field.name}>EV Cash-out</Label>
 									<Input
+										disabled={isLiveLinked}
 										id={field.name}
 										inputMode="numeric"
 										onBlur={field.handleBlur}
@@ -587,6 +613,7 @@ export function SessionForm({
 				{!isCashGame && (
 					<TournamentPrimaryFields
 						form={form}
+						isLiveLinked={isLiveLinked}
 						key={`tourney-primary-${selectedGameId ?? "none"}`}
 					/>
 				)}

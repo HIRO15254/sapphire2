@@ -63,7 +63,10 @@ function SessionsPage() {
 		if (!editingSession) {
 			return;
 		}
-		update({ id: editingSession.id, ...values }).then(() => {
+		const isLiveLinked =
+			editingSession.liveCashGameSessionId !== null ||
+			editingSession.liveTournamentSessionId !== null;
+		update({ id: editingSession.id, isLiveLinked, ...values }).then(() => {
 			setEditingSession(null);
 		});
 	};
@@ -181,6 +184,10 @@ function SessionsPage() {
 					<SessionForm
 						currencies={currencies}
 						defaultValues={buildEditDefaults(editingSession)}
+						isLiveLinked={
+							editingSession.liveCashGameSessionId !== null ||
+							editingSession.liveTournamentSessionId !== null
+						}
 						isLoading={isUpdatePending}
 						onCreateTag={createTag}
 						onStoreChange={setEditStoreId}

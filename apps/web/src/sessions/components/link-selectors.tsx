@@ -12,6 +12,7 @@ const NONE_VALUE = "__none__";
 interface StoreGameSelectorProps {
 	gameLabel: string;
 	gameOptions?: Array<{ id: string; name: string }>;
+	isLiveLinked?: boolean;
 	onGameChange: (value: string) => void;
 	onStoreChange: (value: string) => void;
 	selectedGameId: string | undefined;
@@ -22,6 +23,7 @@ interface StoreGameSelectorProps {
 export function StoreGameSelectors({
 	gameLabel,
 	gameOptions,
+	isLiveLinked = false,
 	onGameChange,
 	onStoreChange,
 	selectedGameId,
@@ -62,6 +64,7 @@ export function StoreGameSelectors({
 					<Label>{gameLabel}</Label>
 					{hasGameOptions ? (
 						<Select
+							disabled={isLiveLinked}
 							onValueChange={onGameChange}
 							value={selectedGameId ?? NONE_VALUE}
 						>

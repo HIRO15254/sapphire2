@@ -147,6 +147,18 @@ export function buildCreatePayload(values: SessionFormValues) {
 	};
 }
 
+export function buildLiveLinkedUpdatePayload(
+	values: SessionFormValues & { id: string }
+) {
+	return {
+		id: values.id,
+		memo: values.memo,
+		tagIds: values.tagIds,
+		storeId: values.storeId ?? null,
+		currencyId: values.currencyId ?? null,
+	};
+}
+
 export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 	const common = {
 		id: values.id,
@@ -366,8 +378,14 @@ export function useSessions(filters: SessionFilterValues) {
 	});
 
 	const updateMutation = useMutation({
-		mutationFn: (values: SessionFormValues & { id: string }) =>
-			trpcClient.session.update.mutate(buildUpdatePayload(values)),
+		mutationFn: (
+			values: SessionFormValues & { id: string; isLiveLinked?: boolean }
+		) =>
+			trpcClient.session.update.mutate(
+				values.isLiveLinked
+					? buildLiveLinkedUpdatePayload(values)
+					: buildUpdatePayload(values)
+			),
 		onMutate: async (updated) => {
 			await queryClient.cancelQueries({ queryKey: sessionListKey });
 			const previous = queryClient.getQueryData(sessionListKey);
@@ -457,8 +475,9 @@ export function useSessions(filters: SessionFilterValues) {
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		create: (values: SessionFormValues) => createMutation.mutateAsync(values),
-		update: (values: SessionFormValues & { id: string }) =>
-			updateMutation.mutateAsync(values),
+		update: (
+			values: SessionFormValues & { id: string; isLiveLinked?: boolean }
+		) => updateMutation.mutateAsync(values),
 		delete: (id: string) => {
 			deleteMutation.mutate(id);
 		},
