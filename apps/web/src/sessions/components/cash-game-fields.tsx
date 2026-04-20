@@ -30,6 +30,7 @@ type AnyForm = ReactFormExtendedApi<
 interface CashGameFieldsProps {
 	currencies?: Array<{ id: string; name: string }>;
 	form: AnyForm;
+	isLiveLinked?: boolean;
 	onCurrencyChange?: (id: string | undefined) => void;
 	selectedCurrencyId?: string;
 }
@@ -47,6 +48,7 @@ const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 export function CashGameFields({
 	currencies,
 	form,
+	isLiveLinked = false,
 	onCurrencyChange,
 	selectedCurrencyId,
 }: CashGameFieldsProps) {
@@ -83,6 +85,7 @@ export function CashGameFields({
 				{(field) => (
 					<Field htmlFor={field.name} label="Variant">
 						<Select
+							disabled={isLiveLinked}
 							onValueChange={(v) => field.handleChange(v)}
 							value={field.state.value}
 						>
@@ -106,6 +109,7 @@ export function CashGameFields({
 							label="SB"
 						>
 							<Input
+								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -124,6 +128,7 @@ export function CashGameFields({
 							label="BB"
 						>
 							<Input
+								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -142,6 +147,7 @@ export function CashGameFields({
 							label="Straddle"
 						>
 							<Input
+								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -159,6 +165,7 @@ export function CashGameFields({
 					{(field) => (
 						<Field className="flex-1" htmlFor={field.name} label="Ante Type">
 							<Select
+								disabled={isLiveLinked}
 								onValueChange={(v) => field.handleChange(v)}
 								value={field.state.value}
 							>
@@ -188,7 +195,7 @@ export function CashGameFields({
 									label="Ante"
 								>
 									<Input
-										disabled={isAnteDisabled}
+										disabled={isLiveLinked || isAnteDisabled}
 										id={field.name}
 										inputMode="numeric"
 										onBlur={field.handleBlur}
@@ -207,6 +214,7 @@ export function CashGameFields({
 				{(field) => (
 					<Field htmlFor={field.name} label="Table Size">
 						<Select
+							disabled={isLiveLinked}
 							onValueChange={(v) => field.handleChange(v)}
 							value={field.state.value}
 						>

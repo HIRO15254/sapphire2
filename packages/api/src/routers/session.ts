@@ -428,6 +428,69 @@ const SESSION_UPDATE_FIELDS = [
 	"memo",
 ] as const;
 
+const CASH_LIVE_LINKED_RESTRICTED_FIELDS = [
+	"buyIn",
+	"cashOut",
+	"evCashOut",
+	"startedAt",
+	"endedAt",
+	"breakMinutes",
+	"sessionDate",
+	"ringGameId",
+	"variant",
+	"blind1",
+	"blind2",
+	"blind3",
+	"ante",
+	"anteType",
+	"tableSize",
+] as const;
+
+const TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS = [
+	"tournamentBuyIn",
+	"entryFee",
+	"placement",
+	"totalEntries",
+	"beforeDeadline",
+	"prizeMoney",
+	"bountyPrizes",
+	"rebuyCount",
+	"rebuyCost",
+	"addonCost",
+	"startedAt",
+	"endedAt",
+	"breakMinutes",
+	"sessionDate",
+	"tournamentId",
+] as const;
+
+export function assertNoLiveLinkedRestrictedEdits(
+	session: {
+		liveCashGameSessionId: string | null;
+		liveTournamentSessionId: string | null;
+		type: string;
+	},
+	input: Record<string, unknown>
+): void {
+	if (
+		session.liveCashGameSessionId === null &&
+		session.liveTournamentSessionId === null
+	) {
+		return;
+	}
+	const fields =
+		session.type === "cash_game"
+			? CASH_LIVE_LINKED_RESTRICTED_FIELDS
+			: TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS;
+	const violations = fields.filter((f) => input[f] !== undefined);
+	if (violations.length > 0) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: `Cannot edit fields derived from live session events: ${violations.join(", ")}`,
+		});
+	}
+}
+
 function buildSessionUpdateData(
 	input: Record<string, unknown>
 ): Partial<typeof pokerSession.$inferInsert> {
@@ -997,6 +1060,8 @@ export const sessionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const session = await validateSessionOwnership(ctx.db, input.id, userId);
+
+			assertNoLiveLinkedRestrictedEdits(session, input);
 
 			// Validate linked entity ownership
 			if (input.storeId) {
