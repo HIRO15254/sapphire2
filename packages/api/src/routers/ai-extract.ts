@@ -8,6 +8,10 @@ import TurndownService from "turndown";
 import { tables } from "turndown-plugin-gfm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
+import {
+	TABLE_PLAYER_SOURCE_APP_IDS,
+	TABLE_PLAYER_SOURCE_APPS,
+} from "./ai-extract-sources";
 
 const IMAGE_URL_RE = /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i;
 
@@ -63,6 +67,51 @@ const ExtractedTournamentDataSchema = z.object({
 export type ExtractedTournamentData = z.infer<
 	typeof ExtractedTournamentDataSchema
 >;
+
+const MAX_SEAT_NUMBER = 9;
+
+const ExtractedTablePlayersSchema = z.object({
+	seats: z
+		.array(
+			z.object({
+				seatNumber: z.number().int().min(1).max(MAX_SEAT_NUMBER),
+				name: z.string().min(1),
+			})
+		)
+		.default([]),
+});
+
+export type ExtractedTablePlayers = z.infer<typeof ExtractedTablePlayersSchema>;
+
+const TABLE_PLAYERS_TOOL_INPUT_SCHEMA = {
+	type: "object" as const,
+	required: ["seats"] as string[],
+	properties: {
+		seats: {
+			type: "array",
+			description:
+				"席番号とプレイヤー名のリスト。名前が読み取れた席のみ含める。空席は省略する。",
+			items: {
+				type: "object",
+				properties: {
+					seatNumber: {
+						type: "integer",
+						minimum: 1,
+						maximum: MAX_SEAT_NUMBER,
+						description:
+							"アプリ固有の採番規約に従った 1-indexed の席番号 (1-9)。",
+					},
+					name: {
+						type: "string",
+						description:
+							"その席に表示されているプレイヤー名。前後の記号・残スタック表示などは除去し、名前のみを返す。",
+					},
+				},
+				required: ["seatNumber", "name"],
+			},
+		},
+	},
+};
 
 const TOOL_INPUT_SCHEMA = {
 	type: "object" as const,
@@ -272,5 +321,97 @@ export const aiExtractRouter = router({
 			}
 
 			return parsed.data;
+		}),
+
+	extractTablePlayers: protectedProcedure
+		.input(
+			z.object({
+				sourceApp: z.enum(TABLE_PLAYER_SOURCE_APP_IDS),
+				sources: z.array(SourceSchema).min(1).max(5),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			if (!ctx.anthropicApiKey) {
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message:
+						"AI extraction is not configured (missing ANTHROPIC_API_KEY)",
+				});
+			}
+
+			const client = new Anthropic({ apiKey: ctx.anthropicApiKey });
+			const appConfig = TABLE_PLAYER_SOURCE_APPS[input.sourceApp];
+
+			const imageBlocks: Anthropic.ImageBlockParam[] = input.sources.map(
+				(source) => {
+					if (source.kind === "image") {
+						return {
+							type: "image",
+							source: {
+								type: "base64",
+								media_type: source.mediaType as MediaType,
+								data: source.data,
+							},
+						};
+					}
+					return {
+						type: "image",
+						source: { type: "url", url: source.url },
+					};
+				}
+			);
+
+			const contentBlocks: (
+				| Anthropic.ImageBlockParam
+				| Anthropic.TextBlockParam
+			)[] = [
+				...imageBlocks,
+				{
+					type: "text",
+					text: `${appConfig.prompt}\n\n抽出結果は必ず extract_table_players ツールで返してください。`,
+				},
+			];
+
+			const response = await client.messages.create({
+				model: "claude-sonnet-4-6",
+				max_tokens: 1024,
+				tools: [
+					{
+						name: "extract_table_players",
+						description:
+							"ポーカーテーブルのスクリーンショットから、各席のプレイヤー名を抽出する。席番号は当該ソースアプリの採番規約に従った 1-indexed の整数。",
+						input_schema: TABLE_PLAYERS_TOOL_INPUT_SCHEMA,
+					},
+				],
+				tool_choice: { type: "tool", name: "extract_table_players" },
+				messages: [{ role: "user", content: contentBlocks }],
+			});
+
+			const toolUse = response.content.find((c) => c.type === "tool_use");
+			if (!toolUse || toolUse.type !== "tool_use") {
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "AI did not return structured data",
+				});
+			}
+
+			const parsed = ExtractedTablePlayersSchema.safeParse(toolUse.input);
+			if (!parsed.success) {
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "Failed to parse AI response",
+				});
+			}
+
+			const seenSeatNumbers = new Set<number>();
+			const deduped = parsed.data.seats.filter((seat) => {
+				if (seenSeatNumbers.has(seat.seatNumber)) {
+					return false;
+				}
+				seenSeatNumbers.add(seat.seatNumber);
+				return true;
+			});
+
+			return { seats: deduped };
 		}),
 });

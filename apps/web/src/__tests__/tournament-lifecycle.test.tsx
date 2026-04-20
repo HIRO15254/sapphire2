@@ -61,6 +61,10 @@ vi.mock("@/live-sessions/components/player-detail-sheet", () => ({
 	PlayerDetailSheet: () => null,
 }));
 
+vi.mock("@/live-sessions/components/seat-from-screenshot-sheet", () => ({
+	SeatFromScreenshotSheet: () => null,
+}));
+
 // ---------------------------------------------------------------------------
 // Mock: tRPC client and proxy
 //

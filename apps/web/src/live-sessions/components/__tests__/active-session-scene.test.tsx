@@ -57,6 +57,11 @@ vi.mock("@/live-sessions/components/player-detail-sheet", () => ({
 		open ? <div>Player detail sheet</div> : null,
 }));
 
+vi.mock("@/live-sessions/components/seat-from-screenshot-sheet", () => ({
+	SeatFromScreenshotSheet: ({ open }: { open: boolean }) =>
+		open ? <div>Seat from screenshot sheet</div> : null,
+}));
+
 vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	ResponsiveDialog: ({
 		children,
@@ -150,6 +155,7 @@ function createState(
 		players: [],
 		playerSheetOpen: false,
 		selectedPlayer: null,
+		sessionParam: { liveCashGameSessionId: "cash-1" },
 		setAddPlayerSheetOpen: vi.fn(),
 		setPlayerSheetOpen: vi.fn(),
 		waitingForHero: true,
