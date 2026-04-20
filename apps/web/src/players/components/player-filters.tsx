@@ -70,7 +70,7 @@ export function PlayerFilters({
 					heading="No tags available"
 				/>
 			) : (
-				<Field description="Search and select multiple tags." label="Tags">
+				<Field label="Tags">
 					<PlayerTagInput
 						availableTags={availableTags}
 						onAdd={(tag) => toggleTag(tag.id)}
