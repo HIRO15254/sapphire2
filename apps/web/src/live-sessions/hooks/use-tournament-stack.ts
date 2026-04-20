@@ -67,6 +67,7 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 
 	const updateTournamentInfoMutation = useMutation({
 		mutationFn: (values: {
+			averageStack: number | null;
 			remainingPlayers: number | null;
 			totalEntries: number | null;
 			chipPurchaseCounts: Array<{
@@ -81,11 +82,12 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 				payload: {
 					remainingPlayers: values.remainingPlayers,
 					totalEntries: values.totalEntries,
-					averageStack: null,
+					averageStack: values.averageStack,
 					chipPurchaseCounts: values.chipPurchaseCounts,
 				},
 			}),
 		...createSessionEventMutationOptions<{
+			averageStack: number | null;
 			remainingPlayers: number | null;
 			totalEntries: number | null;
 			chipPurchaseCounts: Array<{
@@ -101,7 +103,7 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 			getPayload: (values) => ({
 				remainingPlayers: values.remainingPlayers,
 				totalEntries: values.totalEntries,
-				averageStack: null,
+				averageStack: values.averageStack,
 				chipPurchaseCounts: values.chipPurchaseCounts,
 			}),
 		}),
@@ -195,6 +197,7 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 		purchaseChips: (values: { name: string; cost: number; chips: number }) =>
 			purchaseChipsMutation.mutate(values),
 		updateTournamentInfo: (values: {
+			averageStack: number | null;
 			remainingPlayers: number | null;
 			totalEntries: number | null;
 			chipPurchaseCounts: Array<{

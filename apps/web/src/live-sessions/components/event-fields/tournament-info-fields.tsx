@@ -13,8 +13,10 @@ interface ChipPurchaseCount {
 }
 
 interface TournamentInfoFieldsProps {
+	averageStack: string;
 	chipPurchaseCounts: ChipPurchaseCount[];
 	chipPurchaseTypes?: ChipPurchaseType[];
+	onAverageStackChange: (v: string) => void;
 	onChipPurchaseCountsChange: (v: ChipPurchaseCount[]) => void;
 	onRemainingPlayersChange: (v: string) => void;
 	onTotalEntriesChange: (v: string) => void;
@@ -23,8 +25,10 @@ interface TournamentInfoFieldsProps {
 }
 
 export function TournamentInfoFields({
+	averageStack,
 	chipPurchaseCounts,
 	chipPurchaseTypes,
+	onAverageStackChange,
 	onChipPurchaseCountsChange,
 	onRemainingPlayersChange,
 	onTotalEntriesChange,
@@ -48,6 +52,14 @@ export function TournamentInfoFields({
 				onChange={onTotalEntriesChange}
 				placeholder="Optional"
 				value={totalEntries}
+			/>
+			<StackNumberField
+				id="tournament-average-stack"
+				inputMode="numeric"
+				label="Avg Stack"
+				onChange={onAverageStackChange}
+				placeholder="Optional"
+				value={averageStack}
 			/>
 			{chipPurchaseTypes && chipPurchaseTypes.length > 0 && (
 				<div className="flex flex-col gap-1.5">

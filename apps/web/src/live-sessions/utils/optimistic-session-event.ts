@@ -28,6 +28,7 @@ function applyUpdateTournamentInfoSummary(
 	payload: Record<string, unknown>
 ) {
 	const typedPayload = payload as {
+		averageStack?: number | null;
 		remainingPlayers?: number | null;
 		totalEntries?: number | null;
 	};
@@ -38,6 +39,10 @@ function applyUpdateTournamentInfoSummary(
 
 	if (typeof typedPayload.totalEntries === "number") {
 		summary.totalEntries = typedPayload.totalEntries;
+	}
+
+	if (typeof typedPayload.averageStack === "number") {
+		summary.averageStack = typedPayload.averageStack;
 	}
 }
 

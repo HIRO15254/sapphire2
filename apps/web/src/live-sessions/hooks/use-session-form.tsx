@@ -36,6 +36,7 @@ export function useStackFormContext() {
 // --- Tournament form context ---
 
 interface TournamentFormState {
+	averageStack: string;
 	chipPurchaseCounts: Array<{
 		name: string;
 		count: number;
@@ -47,6 +48,7 @@ interface TournamentFormState {
 }
 
 interface TournamentFormContextValue {
+	setAverageStack: (value: string) => void;
 	setChipPurchaseCounts: React.Dispatch<
 		React.SetStateAction<
 			Array<{ name: string; count: number; chipsPerUnit: number }>
@@ -87,6 +89,7 @@ export function SessionFormProvider({
 	const [tStackAmount, setTStackAmount] = useState("");
 	const [remainingPlayers, setRemainingPlayers] = useState("");
 	const [totalEntries, setTotalEntries] = useState("");
+	const [averageStack, setAverageStack] = useState("");
 	const [chipPurchaseCounts, setChipPurchaseCounts] = useState<
 		Array<{ name: string; count: number; chipsPerUnit: number }>
 	>([]);
@@ -105,11 +108,13 @@ export function SessionFormProvider({
 						stackAmount: tStackAmount,
 						remainingPlayers,
 						totalEntries,
+						averageStack,
 						chipPurchaseCounts,
 					},
 					setStackAmount: setTStackAmount,
 					setRemainingPlayers,
 					setTotalEntries,
+					setAverageStack,
 					setChipPurchaseCounts,
 				}}
 			>
