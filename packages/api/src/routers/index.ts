@@ -1,5 +1,6 @@
 import { protectedProcedure, publicProcedure, router } from "../index";
 import { aiExtractRouter } from "./ai-extract";
+import { aiExtractPlayersRouter } from "./ai-extract-players";
 import { blindLevelRouter } from "./blind-level";
 import { currencyRouter } from "./currency";
 import { currencyTransactionRouter } from "./currency-transaction";
@@ -30,6 +31,7 @@ export const appRouter = router({
 		};
 	}),
 	aiExtract: aiExtractRouter,
+	aiExtractPlayers: aiExtractPlayersRouter,
 	store: storeRouter,
 	transactionType: transactionTypeRouter,
 	currency: currencyRouter,

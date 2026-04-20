@@ -1,6 +1,7 @@
 import { IconPlus, IconSearch, IconUserQuestion } from "@tabler/icons-react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useDeferredValue, useEffect, useState } from "react";
+import { OcrPlayerImport } from "@/live-sessions/components/ocr-player-import";
 import { ColorBadge } from "@/players/components/color-badge";
 import { PlayerAvatar } from "@/players/components/player-avatar";
 import { PlayerTagInput } from "@/players/components/player-tag-input";
@@ -8,6 +9,12 @@ import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Input } from "@/shared/components/ui/input";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@/shared/components/ui/tabs";
 import { trpc } from "@/utils/trpc";
 
 interface TagWithColor {
@@ -43,11 +50,15 @@ export function AddPlayerSheet({
 }: AddPlayerSheetProps) {
 	const [search, setSearch] = useState("");
 	const [selectedTags, setSelectedTags] = useState<TagWithColor[]>([]);
+	const [extractedNames, setExtractedNames] = useState<string[]>([]);
+	const [showConfirmation, setShowConfirmation] = useState(false);
 
 	useEffect(() => {
 		if (open) {
 			setSearch("");
 			setSelectedTags([]);
+			setExtractedNames([]);
+			setShowConfirmation(false);
 		}
 	}, [open]);
 
@@ -90,6 +101,79 @@ export function AddPlayerSheet({
 		onOpenChange(false);
 	};
 
+	const handleOcrPlayersExtracted = (playerNames: string[]) => {
+		setExtractedNames(playerNames);
+		setShowConfirmation(true);
+	};
+
+	const handleConfirmImport = () => {
+		const excludeSet = new Set(excludePlayerIds);
+		for (const name of extractedNames) {
+			const trimmed = name.trim();
+			if (trimmed && !excludeSet.has(trimmed)) {
+				onAddNew({
+					name: trimmed,
+					tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
+				});
+				excludeSet.add(trimmed);
+			}
+		}
+		setExtractedNames([]);
+		setShowConfirmation(false);
+		onOpenChange(false);
+	};
+
+	if (showConfirmation && extractedNames.length > 0) {
+		return (
+			<ResponsiveDialog
+				fullHeight
+				onOpenChange={(confirm) => {
+					if (!confirm) {
+						setShowConfirmation(false);
+						setExtractedNames([]);
+					}
+				}}
+				open={showConfirmation}
+				title="Confirm Players"
+			>
+				<div className="flex flex-col gap-3">
+					<p className="text-muted-foreground text-sm">
+						Found {extractedNames.length} player(s):
+					</p>
+					<div className="max-h-[50vh] space-y-2 overflow-y-auto">
+						{extractedNames.map((name) => (
+							<div
+								className="flex items-center gap-2 rounded-lg border px-3 py-2"
+								key={name}
+							>
+								<p className="truncate font-medium text-sm">{name}</p>
+							</div>
+						))}
+					</div>
+					<div className="flex gap-2">
+						<Button
+							onClick={() => {
+								setShowConfirmation(false);
+								setExtractedNames([]);
+							}}
+							type="button"
+							variant="outline"
+						>
+							Cancel
+						</Button>
+						<Button
+							className="flex-1"
+							onClick={handleConfirmImport}
+							type="button"
+						>
+							Add {extractedNames.length} Player(s)
+						</Button>
+					</div>
+				</div>
+			</ResponsiveDialog>
+		);
+	}
+
 	return (
 		<ResponsiveDialog
 			fullHeight
@@ -97,100 +181,118 @@ export function AddPlayerSheet({
 			open={open}
 			title="Add Player"
 		>
-			<div className="flex flex-col gap-3">
-				<div className="relative">
-					<IconSearch
-						className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
-						size={16}
-					/>
-					<Input
-						aria-label="Search players"
-						className="pl-9"
-						id="add-player-search"
-						onChange={(e) => setSearch(e.target.value)}
-						placeholder="Search players..."
-						value={search}
-					/>
-				</div>
+			<Tabs className="flex flex-col" defaultValue="manual">
+				<TabsList className="grid w-full grid-cols-2">
+					<TabsTrigger value="manual">Search</TabsTrigger>
+					<TabsTrigger value="ocr">Screenshot</TabsTrigger>
+				</TabsList>
 
-				<PlayerTagInput
-					availableTags={availableTags}
-					onAdd={(tag) => setSelectedTags((prev) => [...prev, tag])}
-					onCreateTag={onCreateTag}
-					onRemove={(tag) =>
-						setSelectedTags((prev) => prev.filter((t) => t.id !== tag.id))
-					}
-					placeholder="Filter by tags..."
-					selectedTags={selectedTags}
-				/>
+				<TabsContent className="flex-1 overflow-hidden" value="manual">
+					<div className="flex h-full flex-col gap-3">
+						<div className="relative">
+							<IconSearch
+								className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
+								size={16}
+							/>
+							<Input
+								aria-label="Search players"
+								className="pl-9"
+								id="add-player-search"
+								onChange={(e) => setSearch(e.target.value)}
+								placeholder="Search players..."
+								value={search}
+							/>
+						</div>
 
-				<Button
-					className="h-auto w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left"
-					onClick={handleAddTemporary}
-					type="button"
-					variant="ghost"
-				>
-					<div className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-muted-foreground/30 border-dashed text-muted-foreground">
-						<IconUserQuestion size={16} />
-					</div>
-					<p className="font-medium text-sm">Add Temporary Player</p>
-				</Button>
+						<PlayerTagInput
+							availableTags={availableTags}
+							onAdd={(tag) => setSelectedTags((prev) => [...prev, tag])}
+							onCreateTag={onCreateTag}
+							onRemove={(tag) =>
+								setSelectedTags((prev) => prev.filter((t) => t.id !== tag.id))
+							}
+							placeholder="Filter by tags..."
+							selectedTags={selectedTags}
+						/>
 
-				<div className="max-h-[40vh] overflow-y-auto">
-					{search.trim() && (
 						<Button
 							className="h-auto w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left"
-							onClick={handleCreateNew}
+							onClick={handleAddTemporary}
 							type="button"
 							variant="ghost"
 						>
 							<div className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-muted-foreground/30 border-dashed text-muted-foreground">
-								<IconPlus size={16} />
+								<IconUserQuestion size={16} />
 							</div>
-							<p className="font-medium text-sm">
-								Create &quot;{search.trim()}&quot;
-							</p>
+							<p className="font-medium text-sm">Add Temporary Player</p>
 						</Button>
-					)}
-					{filteredPlayers.map((p) => (
-						<Button
-							className="h-auto w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left"
-							key={p.id}
-							onClick={() => handleAddExisting(p.id, p.name)}
-							type="button"
-							variant="ghost"
-						>
-							<PlayerAvatar className="shrink-0" />
-							<div className="min-w-0 flex-1">
-								<p className="truncate font-medium text-sm">{p.name}</p>
-								{p.tags.length > 0 && (
-									<div className="mt-0.5 flex flex-wrap gap-1">
-										{p.tags.map((tag) => (
-											<ColorBadge color={tag.color} key={tag.id}>
-												{tag.name}
-											</ColorBadge>
-										))}
+
+						<div className="max-h-[40vh] overflow-y-auto">
+							{search.trim() && (
+								<Button
+									className="h-auto w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left"
+									onClick={handleCreateNew}
+									type="button"
+									variant="ghost"
+								>
+									<div className="flex size-9 shrink-0 items-center justify-center rounded-full border-2 border-muted-foreground/30 border-dashed text-muted-foreground">
+										<IconPlus size={16} />
 									</div>
-								)}
-								{p.memo && (
-									<p className="truncate text-muted-foreground text-xs">
-										{p.memo}
+									<p className="font-medium text-sm">
+										Create &quot;{search.trim()}&quot;
 									</p>
+								</Button>
+							)}
+							{filteredPlayers.map((p) => (
+								<Button
+									className="h-auto w-full justify-start gap-3 rounded-lg px-3 py-2.5 text-left"
+									key={p.id}
+									onClick={() => handleAddExisting(p.id, p.name)}
+									type="button"
+									variant="ghost"
+								>
+									<PlayerAvatar className="shrink-0" />
+									<div className="min-w-0 flex-1">
+										<p className="truncate font-medium text-sm">{p.name}</p>
+										{p.tags.length > 0 && (
+											<div className="mt-0.5 flex flex-wrap gap-1">
+												{p.tags.map((tag) => (
+													<ColorBadge color={tag.color} key={tag.id}>
+														{tag.name}
+													</ColorBadge>
+												))}
+											</div>
+										)}
+										{p.memo && (
+											<p className="truncate text-muted-foreground text-xs">
+												{p.memo}
+											</p>
+										)}
+									</div>
+									<IconPlus
+										className="shrink-0 text-muted-foreground"
+										size={16}
+									/>
+								</Button>
+							))}
+							{filteredPlayers.length === 0 &&
+								!search.trim() &&
+								selectedTagIds.length === 0 && (
+									<EmptyState
+										className="border-none bg-transparent px-0 py-4"
+										heading="No available players"
+									/>
 								)}
-							</div>
-							<IconPlus className="shrink-0 text-muted-foreground" size={16} />
-						</Button>
-					))}
-					{filteredPlayers.length === 0 &&
-						!search.trim() &&
-						selectedTagIds.length === 0 && (
-							<EmptyState
-								className="border-none bg-transparent px-0 py-4"
-								heading="No available players"
-							/>
-						)}
-				</div>
-			</div>
+						</div>
+					</div>
+				</TabsContent>
+
+				<TabsContent className="flex-1 overflow-hidden" value="ocr">
+					<div className="h-full overflow-y-auto">
+						<OcrPlayerImport onPlayersExtracted={handleOcrPlayersExtracted} />
+					</div>
+				</TabsContent>
+			</Tabs>
 		</ResponsiveDialog>
 	);
 }
