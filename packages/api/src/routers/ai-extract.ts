@@ -1,5 +1,6 @@
 /// <reference path="../types/turndown.d.ts" />
 import Anthropic from "@anthropic-ai/sdk";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 // Cloudflare Workers には DOMParser が存在しないため、Turndown の内部 HTML 解析の
 // 代わりに純粋 JS DOM 実装の domino を使用する（Turndown の依存として同梱済み）
 import domino from "@mixmark-io/domino";
@@ -8,6 +9,10 @@ import TurndownService from "turndown";
 import { tables } from "turndown-plugin-gfm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
+import {
+	TABLE_PLAYER_SOURCE_APP_IDS,
+	TABLE_PLAYER_SOURCE_APPS,
+} from "./ai-extract-sources";
 
 const IMAGE_URL_RE = /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i;
 
@@ -63,6 +68,22 @@ const ExtractedTournamentDataSchema = z.object({
 export type ExtractedTournamentData = z.infer<
 	typeof ExtractedTournamentDataSchema
 >;
+
+const MAX_SEAT_NUMBER = 9;
+
+const ExtractedTablePlayersSchema = z.object({
+	seats: z
+		.array(
+			z.object({
+				seatNumber: z.number().int().min(1).max(MAX_SEAT_NUMBER),
+				name: z.string().min(1),
+				isHero: z.boolean().nullable(),
+			})
+		)
+		.default([]),
+});
+
+export type ExtractedTablePlayers = z.infer<typeof ExtractedTablePlayersSchema>;
 
 const TOOL_INPUT_SCHEMA = {
 	type: "object" as const,
@@ -272,5 +293,83 @@ export const aiExtractRouter = router({
 			}
 
 			return parsed.data;
+		}),
+
+	extractTablePlayers: protectedProcedure
+		.input(
+			z.object({
+				sourceApp: z.enum(TABLE_PLAYER_SOURCE_APP_IDS),
+				sources: z.array(SourceSchema).length(1),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			if (!ctx.anthropicApiKey) {
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message:
+						"AI extraction is not configured (missing ANTHROPIC_API_KEY)",
+				});
+			}
+
+			const client = new Anthropic({ apiKey: ctx.anthropicApiKey });
+			const appConfig = TABLE_PLAYER_SOURCE_APPS[input.sourceApp];
+
+			const imageBlocks: Anthropic.ImageBlockParam[] = input.sources.map(
+				(source) => {
+					if (source.kind === "image") {
+						return {
+							type: "image",
+							source: {
+								type: "base64",
+								media_type: source.mediaType as MediaType,
+								data: source.data,
+							},
+						};
+					}
+					return {
+						type: "image",
+						source: { type: "url", url: source.url },
+					};
+				}
+			);
+
+			const contentBlocks: (
+				| Anthropic.ImageBlockParam
+				| Anthropic.TextBlockParam
+			)[] = [
+				...imageBlocks,
+				{
+					type: "text",
+					text: appConfig.prompt,
+				},
+			];
+
+			const response = await client.messages.parse({
+				model: "claude-opus-4-7",
+				max_tokens: 1024,
+				output_config: {
+					format: zodOutputFormat(ExtractedTablePlayersSchema),
+				},
+				messages: [{ role: "user", content: contentBlocks }],
+			});
+
+			const parsedOutput = response.parsed_output;
+			if (!parsedOutput) {
+				throw new TRPCError({
+					code: "INTERNAL_SERVER_ERROR",
+					message: "AI did not return structured data",
+				});
+			}
+
+			const seenSeatNumbers = new Set<number>();
+			const deduped = parsedOutput.seats.filter((seat) => {
+				if (seenSeatNumbers.has(seat.seatNumber)) {
+					return false;
+				}
+				seenSeatNumbers.add(seat.seatNumber);
+				return true;
+			});
+
+			return { seats: deduped };
 		}),
 });

@@ -1,6 +1,12 @@
-import { IconLoader2, IconPlus, IconUser } from "@tabler/icons-react";
+import {
+	IconLoader2,
+	IconPlus,
+	IconSparkles,
+	IconUser,
+} from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { PlayerAvatar } from "@/players/components/player-avatar";
+import { Button } from "@/shared/components/ui/button";
 
 const MAX_SEATS = 9;
 
@@ -53,6 +59,7 @@ interface PokerTableProps {
 	onEmptySeatTap: (seatPosition: number) => void;
 	onHeroSeatTap: () => void;
 	onPlayerSeatTap: (player: TablePlayer, seatPosition: number) => void;
+	onScanPlayers?: () => void;
 	players: TablePlayer[];
 	/** True when no hero is seated yet — empty seats show "Sit" hint */
 	waitingForHero: boolean;
@@ -153,6 +160,7 @@ export function PokerTable({
 	onEmptySeatTap,
 	onHeroSeatTap,
 	onPlayerSeatTap,
+	onScanPlayers,
 	players,
 	waitingForHero,
 }: PokerTableProps) {
@@ -186,6 +194,21 @@ export function PokerTable({
 						<span className="select-none text-white/20 text-xs">TABLE</span>
 					)}
 				</div>
+
+				{/* Scan players button (top-center overlay) */}
+				{onScanPlayers && (
+					<Button
+						aria-label="Seat from screenshot"
+						className="absolute top-0 left-1/2 z-10 h-7 -translate-x-1/2 gap-1 px-2 text-[10px]"
+						onClick={onScanPlayers}
+						size="xs"
+						type="button"
+						variant="outline"
+					>
+						<IconSparkles size={12} />
+						AI Seat
+					</Button>
+				)}
 
 				{/* Seats */}
 				{Array.from({ length: MAX_SEATS }, (_, i) => {
