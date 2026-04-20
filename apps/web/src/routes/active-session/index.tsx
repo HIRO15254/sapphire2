@@ -59,18 +59,26 @@ function CashGameCompactSummary({
 	summary,
 }: {
 	summary: {
+		currentStack: number | null;
 		evCashOut: number | null;
-		profitLoss: number | null;
 		startedAt: Date | string | number;
 		totalBuyIn: number;
 	};
 }) {
 	const duration = useSessionDuration(summary.startedAt);
+
+	// Use currentStack-based running P&L during the active session.
+	// profitLoss (from cashOut) is only available at session end.
+	const displayPL =
+		summary.currentStack !== null
+			? summary.currentStack - summary.totalBuyIn
+			: null;
+
 	const evPL =
 		summary.evCashOut !== null
 			? summary.evCashOut - summary.totalBuyIn
 			: null;
-	const showEvPL = evPL !== null && evPL !== summary.profitLoss;
+	const showEvPL = evPL !== null && evPL !== displayPL;
 
 	return (
 		<div className="grid grid-cols-3 gap-2">
@@ -89,16 +97,14 @@ function CashGameCompactSummary({
 				<p
 					className={cn(
 						"font-semibold",
-						summary.profitLoss === null
-							? undefined
-							: plColorClass(summary.profitLoss)
+						displayPL === null ? undefined : plColorClass(displayPL)
 					)}
 				>
-					{summary.profitLoss === null
+					{displayPL === null
 						? "-"
 						: showEvPL
-							? `${formatPl(summary.profitLoss)} (EV: ${formatPl(evPL)})`
-							: formatPl(summary.profitLoss)}
+							? `${formatPl(displayPL)} (EV: ${formatPl(evPL)})`
+							: formatPl(displayPL)}
 				</p>
 			</div>
 		</div>
@@ -208,8 +214,8 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 			summary={
 				<CashGameCompactSummary
 					summary={{
+						currentStack: session.summary.currentStack,
 						evCashOut: session.summary.evCashOut,
-						profitLoss: session.summary.profitLoss,
 						startedAt: session.startedAt,
 						totalBuyIn: session.summary.totalBuyIn,
 					}}
