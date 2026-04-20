@@ -31,8 +31,9 @@ function formatPl(value: number): string {
 	return `${sign}${formatCompactNumber(value)}`;
 }
 
-function formatDuration(startedAt: Date): string {
-	const elapsed = Math.floor((Date.now() - startedAt.getTime()) / 60000);
+function formatDuration(startedAt: Date | string | number): string {
+	const start = new Date(startedAt);
+	const elapsed = Math.floor((Date.now() - start.getTime()) / 60000);
 	const hours = Math.floor(elapsed / 60);
 	const minutes = elapsed % 60;
 	if (hours > 0) {
@@ -41,7 +42,7 @@ function formatDuration(startedAt: Date): string {
 	return `${minutes}m`;
 }
 
-function useSessionDuration(startedAt: Date): string {
+function useSessionDuration(startedAt: Date | string | number): string {
 	const [duration, setDuration] = useState(() => formatDuration(startedAt));
 
 	useEffect(() => {
@@ -60,7 +61,7 @@ function CashGameCompactSummary({
 	summary: {
 		evCashOut: number | null;
 		profitLoss: number | null;
-		startedAt: Date;
+		startedAt: Date | string | number;
 		totalBuyIn: number;
 	};
 }) {
@@ -110,7 +111,7 @@ function TournamentCompactSummary({
 	summary: {
 		averageStack: number | null;
 		remainingPlayers: number | null;
-		startedAt: Date;
+		startedAt: Date | string | number;
 		totalEntries: number | null;
 	};
 }) {
