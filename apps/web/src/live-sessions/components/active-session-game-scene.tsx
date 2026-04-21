@@ -15,7 +15,7 @@ import {
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { RingGameForm } from "@/stores/components/ring-game-form";
-import { TournamentModalContent } from "@/stores/components/tournament-modal-content";
+import { TournamentEditDialog } from "@/stores/components/tournament-edit-dialog";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
 import type {
 	RingGame,
@@ -674,20 +674,17 @@ function TournamentDetailsBody({
 			<ChipPurchasesCard chipPurchases={chipPurchases} />
 			<StructureCard isLoading={isLevelsLoading} levels={levels} />
 
-			<ResponsiveDialog
-				fullHeight
+			<TournamentEditDialog
+				aiMode="edit"
+				initialBlindLevels={levels}
+				initialFormValues={toInitialFormValues(tournament, chipPurchases)}
+				isLoading={isSaving || isUpdateWithLevelsPending}
 				onOpenChange={setIsEditOpen}
+				onSave={handleSave}
 				open={isEditOpen}
+				resetKey={tournament.id}
 				title="Edit Tournament"
-			>
-				<TournamentModalContent
-					initialBlindLevels={levels}
-					initialFormValues={toInitialFormValues(tournament, chipPurchases)}
-					isLoading={isSaving || isUpdateWithLevelsPending}
-					key={tournament.id}
-					onSave={handleSave}
-				/>
-			</ResponsiveDialog>
+			/>
 		</GameSceneShell>
 	);
 }

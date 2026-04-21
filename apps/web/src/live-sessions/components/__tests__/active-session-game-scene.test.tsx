@@ -69,8 +69,8 @@ vi.mock("@/stores/components/ring-game-form", () => ({
 	RingGameForm: () => <div data-testid="ring-game-form" />,
 }));
 
-vi.mock("@/stores/components/tournament-modal-content", () => ({
-	TournamentModalContent: () => <div data-testid="tournament-modal-content" />,
+vi.mock("@/stores/components/tournament-edit-dialog", () => ({
+	TournamentEditDialog: () => <div data-testid="tournament-edit-dialog" />,
 }));
 
 vi.mock("@/shared/components/ui/responsive-dialog", () => ({
