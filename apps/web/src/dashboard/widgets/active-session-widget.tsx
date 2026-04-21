@@ -1,7 +1,11 @@
 import { IconBolt, IconPokerChip, IconTrophy } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import {
+	type ActiveSessionWidgetSessionType,
+	parseActiveSessionWidgetConfig,
+	useActiveSessionWidget,
+} from "@/dashboard/hooks/use-active-session-widget";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
@@ -12,21 +16,6 @@ import { Label } from "@/shared/components/ui/label";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useElapsedTime } from "@/shared/hooks/use-elapsed-time";
 import { formatCompactNumber } from "@/utils/format-number";
-import { trpc } from "@/utils/trpc";
-
-type SessionTypeFilter = "all" | "cash_game" | "tournament";
-
-interface ParsedConfig {
-	sessionType: SessionTypeFilter;
-}
-
-function parseConfig(raw: Record<string, unknown>): ParsedConfig {
-	const sessionType =
-		raw.sessionType === "cash_game" || raw.sessionType === "tournament"
-			? (raw.sessionType as SessionTypeFilter)
-			: ("all" as SessionTypeFilter);
-	return { sessionType };
-}
 
 interface ActiveSessionRowProps {
 	latestStackAmount: number | null;
@@ -77,29 +66,8 @@ function ActiveSessionRow({
 }
 
 export function ActiveSessionWidget({ config }: WidgetRenderProps) {
-	const parsed = parseConfig(config);
-
-	const cashQuery = useQuery({
-		...trpc.liveCashGameSession.list.queryOptions({
-			status: "active",
-			limit: 5,
-		}),
-		refetchInterval: 5000,
-		refetchIntervalInBackground: false,
-		enabled: parsed.sessionType !== "tournament",
-	});
-
-	const tournamentQuery = useQuery({
-		...trpc.liveTournamentSession.list.queryOptions({
-			status: "active",
-			limit: 5,
-		}),
-		refetchInterval: 5000,
-		refetchIntervalInBackground: false,
-		enabled: parsed.sessionType !== "cash_game",
-	});
-
-	const isLoading = cashQuery.isLoading || tournamentQuery.isLoading;
+	const { isLoading, cashItems, tournamentItems } =
+		useActiveSessionWidget(config);
 
 	if (isLoading) {
 		return (
@@ -109,13 +77,6 @@ export function ActiveSessionWidget({ config }: WidgetRenderProps) {
 			</div>
 		);
 	}
-
-	const cashItems =
-		parsed.sessionType === "tournament" ? [] : (cashQuery.data?.items ?? []);
-	const tournamentItems =
-		parsed.sessionType === "cash_game"
-			? []
-			: (tournamentQuery.data?.items ?? []);
 
 	if (cashItems.length === 0 && tournamentItems.length === 0) {
 		return (
@@ -157,10 +118,9 @@ export function ActiveSessionEditForm({
 	onSave,
 	onCancel,
 }: WidgetEditProps) {
-	const parsed = parseConfig(config);
-	const [sessionType, setSessionType] = useState<SessionTypeFilter>(
-		parsed.sessionType
-	);
+	const parsed = parseActiveSessionWidgetConfig(config);
+	const [sessionType, setSessionType] =
+		useState<ActiveSessionWidgetSessionType>(parsed.sessionType);
 	const [isSaving, setIsSaving] = useState(false);
 
 	const handleSave = async () => {
@@ -179,7 +139,9 @@ export function ActiveSessionEditForm({
 				<select
 					className="rounded-md border bg-background px-3 py-2 text-sm"
 					id="active-session-type"
-					onChange={(e) => setSessionType(e.target.value as SessionTypeFilter)}
+					onChange={(e) =>
+						setSessionType(e.target.value as ActiveSessionWidgetSessionType)
+					}
 					value={sessionType}
 				>
 					<option value="all">All</option>

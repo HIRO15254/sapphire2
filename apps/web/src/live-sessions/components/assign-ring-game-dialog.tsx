@@ -1,7 +1,4 @@
-import { useForm } from "@tanstack/react-form";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { toast } from "sonner";
+import { useAssignRingGame } from "@/live-sessions/hooks/use-assign-ring-game";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
@@ -15,8 +12,6 @@ import {
 } from "@/shared/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { RingGameForm } from "@/stores/components/ring-game-form";
-import type { RingGameFormValues } from "@/stores/hooks/use-ring-games";
-import { trpc, trpcClient } from "@/utils/trpc";
 
 interface AssignRingGameDialogProps {
 	onOpenChange: (open: boolean) => void;
@@ -24,8 +19,6 @@ interface AssignRingGameDialogProps {
 	sessionId: string;
 	sessionStoreId: string | null;
 }
-
-type Mode = "existing" | "create";
 
 interface RingGameListItem {
 	id: string;
@@ -125,117 +118,25 @@ export function AssignRingGameDialog({
 	sessionId,
 	sessionStoreId,
 }: AssignRingGameDialogProps) {
-	const [mode, setMode] = useState<Mode>("existing");
-	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>(
-		sessionStoreId ?? undefined
-	);
-	const queryClient = useQueryClient();
-
-	const storesQuery = useQuery({
-		...trpc.store.list.queryOptions(),
-		enabled: open,
+	const {
+		mode,
+		setMode,
+		stores,
+		selectedStoreId,
+		setSelectedStoreId,
+		effectiveStoreId,
+		ringGames,
+		selectForm,
+		handleCreate,
+		isAssignPending,
+		isCreatePending,
+		isBusy,
+	} = useAssignRingGame({
+		onClose: () => onOpenChange(false),
+		open,
+		sessionId,
+		sessionStoreId,
 	});
-	const stores = storesQuery.data ?? [];
-
-	const effectiveStoreId = sessionStoreId ?? selectedStoreId;
-
-	const ringGamesQuery = useQuery({
-		...trpc.ringGame.listByStore.queryOptions({
-			storeId: effectiveStoreId ?? "",
-			includeArchived: false,
-		}),
-		enabled: open && !!effectiveStoreId,
-	});
-	const ringGames = (ringGamesQuery.data ?? []) as RingGameListItem[];
-
-	const invalidateSession = async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({
-				queryKey: trpc.liveCashGameSession.getById.queryOptions({
-					id: sessionId,
-				}).queryKey,
-			}),
-			queryClient.invalidateQueries({
-				queryKey: trpc.liveCashGameSession.list.queryOptions({}).queryKey,
-			}),
-			queryClient.invalidateQueries({
-				queryKey: trpc.session.list.queryOptions({}).queryKey,
-			}),
-		]);
-	};
-
-	const assignMutation = useMutation({
-		mutationFn: (ringGameId: string) =>
-			trpcClient.liveCashGameSession.update.mutate({
-				id: sessionId,
-				ringGameId,
-			}),
-		onSuccess: async () => {
-			await invalidateSession();
-			toast.success("Game assigned");
-			onOpenChange(false);
-		},
-		onError: (error) => {
-			toast.error(error.message || "Failed to assign game");
-		},
-	});
-
-	const createAndAssignMutation = useMutation({
-		mutationFn: async ({
-			storeId,
-			values,
-		}: {
-			storeId: string;
-			values: RingGameFormValues;
-		}) => {
-			const created = await trpcClient.ringGame.create.mutate({
-				storeId,
-				...values,
-			});
-			await trpcClient.liveCashGameSession.update.mutate({
-				id: sessionId,
-				ringGameId: created.id,
-			});
-			return created;
-		},
-		onSuccess: async () => {
-			await Promise.all([
-				invalidateSession(),
-				queryClient.invalidateQueries({
-					queryKey: trpc.ringGame.listByStore.queryOptions({
-						storeId: effectiveStoreId ?? "",
-					}).queryKey,
-				}),
-			]);
-			toast.success("Game created and assigned");
-			onOpenChange(false);
-		},
-		onError: (error) => {
-			toast.error(error.message || "Failed to create game");
-		},
-	});
-
-	const selectForm = useForm({
-		defaultValues: { ringGameId: "" },
-		onSubmit: ({ value }) => {
-			if (!value.ringGameId) {
-				return;
-			}
-			assignMutation.mutate(value.ringGameId);
-		},
-	});
-
-	const handleCreate = (values: RingGameFormValues) => {
-		if (!effectiveStoreId) {
-			toast.error("Select a store first");
-			return;
-		}
-		createAndAssignMutation.mutate({ storeId: effectiveStoreId, values });
-	};
-
-	const isAssignPending = assignMutation.isPending;
-	const isCreatePending = createAndAssignMutation.isPending;
-	const isBusy = isAssignPending || isCreatePending;
 
 	const renderExistingTab = () => (
 		<form
@@ -299,7 +200,7 @@ export function AssignRingGameDialog({
 		>
 			<Tabs
 				className="mb-4"
-				onValueChange={(value) => setMode(value as Mode)}
+				onValueChange={(value) => setMode(value as "existing" | "create")}
 				value={mode}
 			>
 				<TabsList className="grid w-full grid-cols-2">

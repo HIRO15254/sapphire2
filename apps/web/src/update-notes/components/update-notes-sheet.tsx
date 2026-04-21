@@ -1,5 +1,3 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import {
 	Accordion,
 	AccordionContent,
@@ -10,47 +8,11 @@ import { Badge } from "@/shared/components/ui/badge";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { UPDATE_NOTES } from "@/update-notes/constants";
 import { useUpdateNotesSheet } from "@/update-notes/hooks/use-update-notes-sheet";
-import { trpc } from "@/utils/trpc";
+import { useUpdateNotesViewed } from "@/update-notes/hooks/use-update-notes-viewed";
 
 export function UpdateNotesSheet() {
 	const { isOpen, setIsOpen } = useUpdateNotesSheet();
-	const queryClient = useQueryClient();
-	const [optimisticallyViewed, setOptimisticallyViewed] = useState<Set<string>>(
-		new Set()
-	);
-
-	const { data: viewedList } = useQuery(
-		trpc.updateNoteView.list.queryOptions()
-	);
-
-	const serverViewedVersions = new Set(viewedList?.map((v) => v.version));
-	const viewedVersions = new Set([
-		...serverViewedVersions,
-		...optimisticallyViewed,
-	]);
-
-	const markViewedMutation = useMutation(
-		trpc.updateNoteView.markViewed.mutationOptions({
-			onSettled: () => {
-				queryClient.invalidateQueries({
-					queryKey: trpc.updateNoteView.list.queryOptions().queryKey,
-				});
-				queryClient.invalidateQueries({
-					queryKey:
-						trpc.updateNoteView.getLatestViewedVersion.queryOptions().queryKey,
-				});
-			},
-		})
-	);
-
-	const handleAccordionChange = (value: string[]) => {
-		for (const version of value) {
-			if (!viewedVersions.has(version)) {
-				setOptimisticallyViewed((prev) => new Set([...prev, version]));
-				markViewedMutation.mutate({ version });
-			}
-		}
-	};
+	const { viewedVersions, handleAccordionChange } = useUpdateNotesViewed();
 
 	return (
 		<ResponsiveDialog

@@ -1,7 +1,4 @@
 import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { useForm } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
-import { z } from "zod";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -14,35 +11,14 @@ import {
 } from "@/shared/components/ui/select";
 import { TagInput } from "@/shared/components/ui/tag-input";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { optionalNumericString } from "@/shared/lib/form-fields";
-import { trpc } from "@/utils/trpc";
+import { useTournamentForm } from "@/stores/hooks/use-tournament-form";
+import type { TournamentFormValues } from "@/stores/hooks/use-tournaments";
 
 const GAME_VARIANTS = {
 	nlh: { label: "NL Hold'em" },
 } as const;
 
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
-
-interface ChipPurchaseFormItem {
-	chips: string;
-	cost: string;
-	name: string;
-	uid: string;
-}
-
-export interface TournamentFormValues {
-	bountyAmount?: number;
-	buyIn?: number;
-	chipPurchases: Array<{ name: string; cost: number; chips: number }>;
-	currencyId?: string;
-	entryFee?: number;
-	memo?: string;
-	name: string;
-	startingStack?: number;
-	tableSize?: number;
-	tags?: string[];
-	variant: string;
-}
 
 interface TournamentFormProps {
 	defaultValues?: Omit<TournamentFormValues, "tags" | "chipPurchases"> & {
@@ -53,94 +29,12 @@ interface TournamentFormProps {
 	onSubmit: (values: TournamentFormValues) => void;
 }
 
-function numStrOrEmpty(value: number | undefined): string {
-	return value === undefined ? "" : String(value);
-}
-
-function parseOptInt(value: string): number | undefined {
-	if (value === "") {
-		return undefined;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function parseCostInt(value: string): number {
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) ? parsed : 0;
-}
-
-const chipPurchaseItemSchema = z.object({
-	name: z.string(),
-	cost: z.string(),
-	chips: z.string(),
-	uid: z.string(),
-});
-
-const tournamentFormSchema = z.object({
-	name: z.string().min(1, "Tournament name is required"),
-	variant: z.string(),
-	buyIn: optionalNumericString({ integer: true, min: 0 }),
-	entryFee: optionalNumericString({ integer: true, min: 0 }),
-	startingStack: optionalNumericString({ integer: true, min: 0 }),
-	bountyAmount: optionalNumericString({ integer: true, min: 0 }),
-	tableSize: z.string(),
-	currencyId: z.string(),
-	memo: z.string(),
-	tags: z.array(z.string()),
-	chipPurchases: z.array(chipPurchaseItemSchema),
-});
-
 export function TournamentForm({
 	onSubmit,
 	defaultValues,
 	isLoading = false,
 }: TournamentFormProps) {
-	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
-	const currencies = currenciesQuery.data ?? [];
-
-	const form = useForm({
-		defaultValues: {
-			name: defaultValues?.name ?? "",
-			variant: defaultValues?.variant ?? "nlh",
-			buyIn: numStrOrEmpty(defaultValues?.buyIn),
-			entryFee: numStrOrEmpty(defaultValues?.entryFee),
-			startingStack: numStrOrEmpty(defaultValues?.startingStack),
-			bountyAmount: numStrOrEmpty(defaultValues?.bountyAmount),
-			tableSize: defaultValues?.tableSize?.toString() ?? "",
-			currencyId: defaultValues?.currencyId ?? "",
-			memo: defaultValues?.memo ?? "",
-			tags: defaultValues?.tags ?? [],
-			chipPurchases: (defaultValues?.chipPurchases ?? []).map((cp) => ({
-				name: cp.name,
-				cost: String(cp.cost),
-				chips: String(cp.chips),
-				uid: crypto.randomUUID(),
-			})) as ChipPurchaseFormItem[],
-		},
-		onSubmit: ({ value }) => {
-			onSubmit({
-				name: value.name,
-				variant: value.variant || "nlh",
-				buyIn: parseOptInt(value.buyIn),
-				entryFee: parseOptInt(value.entryFee),
-				startingStack: parseOptInt(value.startingStack),
-				chipPurchases: value.chipPurchases.map((cp) => ({
-					name: cp.name,
-					cost: parseCostInt(cp.cost),
-					chips: parseCostInt(cp.chips),
-				})),
-				bountyAmount: parseOptInt(value.bountyAmount),
-				tableSize: parseOptInt(value.tableSize),
-				currencyId: value.currencyId || undefined,
-				memo: value.memo ? value.memo : undefined,
-				tags: value.tags,
-			});
-		},
-		validators: {
-			onSubmit: tournamentFormSchema,
-		},
-	});
+	const { form, currencies } = useTournamentForm({ defaultValues, onSubmit });
 
 	return (
 		<form

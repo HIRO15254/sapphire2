@@ -1,6 +1,9 @@
 import { IconCoin } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import {
+	useCurrencyBalanceOptions,
+	useCurrencyBalanceWidget,
+} from "@/dashboard/hooks/use-currency-balance-widget";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
@@ -11,22 +14,11 @@ import { Label } from "@/shared/components/ui/label";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatCompactNumber } from "@/utils/format-number";
 import { profitLossColorClass } from "@/utils/format-profit-loss";
-import { trpc } from "@/utils/trpc";
-
-interface ParsedConfig {
-	currencyId: string | null;
-}
-
-function parseConfig(raw: Record<string, unknown>): ParsedConfig {
-	const currencyId = typeof raw.currencyId === "string" ? raw.currencyId : null;
-	return { currencyId };
-}
 
 export function CurrencyBalanceWidget({ config }: WidgetRenderProps) {
-	const parsed = parseConfig(config);
-	const query = useQuery(trpc.currency.list.queryOptions());
+	const { isLoading, currencies, selected } = useCurrencyBalanceWidget(config);
 
-	if (query.isLoading) {
+	if (isLoading) {
 		return (
 			<div className="flex h-full items-center p-2">
 				<Skeleton className="h-10 w-full" />
@@ -34,7 +26,6 @@ export function CurrencyBalanceWidget({ config }: WidgetRenderProps) {
 		);
 	}
 
-	const currencies = query.data ?? [];
 	if (currencies.length === 0) {
 		return (
 			<div className="flex h-full items-center justify-center p-4 text-muted-foreground text-sm">
@@ -42,11 +33,6 @@ export function CurrencyBalanceWidget({ config }: WidgetRenderProps) {
 			</div>
 		);
 	}
-
-	const selected =
-		parsed.currencyId === null
-			? currencies[0]
-			: currencies.find((c) => c.id === parsed.currencyId);
 
 	if (!selected) {
 		return (
@@ -82,13 +68,13 @@ export function CurrencyBalanceEditForm({
 	onSave,
 	onCancel,
 }: WidgetEditProps) {
-	const parsed = parseConfig(config);
+	const currencyIdFromConfig =
+		typeof config.currencyId === "string" ? config.currencyId : null;
 	const [currencyId, setCurrencyId] = useState<string | null>(
-		parsed.currencyId
+		currencyIdFromConfig
 	);
 	const [isSaving, setIsSaving] = useState(false);
-	const query = useQuery(trpc.currency.list.queryOptions());
-	const currencies = query.data ?? [];
+	const currencies = useCurrencyBalanceOptions();
 
 	const handleSave = async () => {
 		setIsSaving(true);

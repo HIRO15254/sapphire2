@@ -1,5 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import {
+	parseSummaryStatsWidgetConfig,
+	SUMMARY_STATS_ALL_METRICS,
+	SUMMARY_STATS_DEFAULT_METRICS,
+	type SummaryStatsMetricKey,
+	type SummaryStatsSummary,
+	type SummaryStatsWidgetType,
+	useSummaryStatsWidget,
+} from "@/dashboard/hooks/use-summary-stats-widget";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
@@ -12,68 +20,10 @@ import {
 	formatProfitLoss,
 	profitLossColorClass,
 } from "@/utils/format-profit-loss";
-import { trpc } from "@/utils/trpc";
-
-type StatsType = "all" | "cash_game" | "tournament";
-
-type MetricKey =
-	| "totalSessions"
-	| "totalProfitLoss"
-	| "winRate"
-	| "avgProfitLoss"
-	| "totalEvProfitLoss"
-	| "totalEvDiff";
-
-const ALL_METRICS: Array<{ key: MetricKey; label: string }> = [
-	{ key: "totalSessions", label: "Total Sessions" },
-	{ key: "totalProfitLoss", label: "Total P&L" },
-	{ key: "winRate", label: "Win Rate" },
-	{ key: "avgProfitLoss", label: "Avg P&L" },
-	{ key: "totalEvProfitLoss", label: "Total EV P&L" },
-	{ key: "totalEvDiff", label: "Total EV Diff" },
-];
-
-const DEFAULT_METRICS: MetricKey[] = [
-	"totalSessions",
-	"totalProfitLoss",
-	"winRate",
-	"avgProfitLoss",
-];
-
-interface ParsedConfig {
-	dateRangeDays: number | null;
-	metrics: MetricKey[];
-	type: StatsType;
-}
-
-function parseConfig(raw: Record<string, unknown>): ParsedConfig {
-	const metricsRaw = Array.isArray(raw.metrics) ? raw.metrics : [];
-	const metrics = metricsRaw.filter((m): m is MetricKey =>
-		ALL_METRICS.some((am) => am.key === m)
-	);
-	const type =
-		raw.type === "cash_game" || raw.type === "tournament"
-			? (raw.type as StatsType)
-			: ("all" as StatsType);
-	const dateRangeDays =
-		typeof raw.dateRangeDays === "number" ? raw.dateRangeDays : null;
-	return {
-		metrics: metrics.length > 0 ? metrics : DEFAULT_METRICS,
-		type,
-		dateRangeDays,
-	};
-}
 
 function formatMetricValue(
-	key: MetricKey,
-	summary: {
-		totalSessions: number;
-		totalProfitLoss: number;
-		winRate: number;
-		avgProfitLoss: number | null;
-		totalEvProfitLoss: number | null;
-		totalEvDiff: number | null;
-	}
+	key: SummaryStatsMetricKey,
+	summary: SummaryStatsSummary
 ): string {
 	switch (key) {
 		case "totalSessions":
@@ -98,13 +48,8 @@ function formatMetricValue(
 }
 
 function metricColor(
-	key: MetricKey,
-	summary: {
-		totalProfitLoss: number;
-		avgProfitLoss: number | null;
-		totalEvProfitLoss: number | null;
-		totalEvDiff: number | null;
-	}
+	key: SummaryStatsMetricKey,
+	summary: SummaryStatsSummary
 ): string {
 	switch (key) {
 		case "totalProfitLoss":
@@ -121,30 +66,18 @@ function metricColor(
 }
 
 export function SummaryStatsWidget({ config }: WidgetRenderProps) {
-	const parsed = parseConfig(config);
-	const dateFrom =
-		parsed.dateRangeDays === null
-			? undefined
-			: Math.floor(Date.now() / 1000) - parsed.dateRangeDays * 86_400;
+	const { isLoading, metrics, summary } = useSummaryStatsWidget(config);
 
-	const query = useQuery(
-		trpc.session.list.queryOptions({
-			type: parsed.type === "all" ? undefined : parsed.type,
-			dateFrom,
-		})
-	);
-
-	if (query.isLoading) {
+	if (isLoading) {
 		return (
 			<div className="grid grid-cols-2 gap-2 p-2 sm:grid-cols-3">
-				{parsed.metrics.map((m) => (
+				{metrics.map((m) => (
 					<Skeleton className="h-14" key={m} />
 				))}
 			</div>
 		);
 	}
 
-	const summary = query.data?.summary;
 	if (!summary || summary.totalSessions === 0) {
 		return (
 			<div className="flex h-full items-center justify-center p-4 text-muted-foreground text-sm">
@@ -155,8 +88,9 @@ export function SummaryStatsWidget({ config }: WidgetRenderProps) {
 
 	return (
 		<div className="grid h-full grid-cols-2 gap-2 overflow-auto p-2 sm:grid-cols-3">
-			{parsed.metrics.map((key) => {
-				const label = ALL_METRICS.find((am) => am.key === key)?.label ?? key;
+			{metrics.map((key) => {
+				const label =
+					SUMMARY_STATS_ALL_METRICS.find((am) => am.key === key)?.label ?? key;
 				const value = formatMetricValue(key, summary);
 				const colorClass = metricColor(key, summary);
 				return (
@@ -180,15 +114,17 @@ export function SummaryStatsEditForm({
 	onSave,
 	onCancel,
 }: WidgetEditProps) {
-	const parsed = parseConfig(config);
-	const [metrics, setMetrics] = useState<MetricKey[]>(parsed.metrics);
-	const [type, setType] = useState<StatsType>(parsed.type);
+	const parsed = parseSummaryStatsWidgetConfig(config);
+	const [metrics, setMetrics] = useState<SummaryStatsMetricKey[]>(
+		parsed.metrics
+	);
+	const [type, setType] = useState<SummaryStatsWidgetType>(parsed.type);
 	const [dateRangeDays, setDateRangeDays] = useState<number | null>(
 		parsed.dateRangeDays
 	);
 	const [isSaving, setIsSaving] = useState(false);
 
-	const toggleMetric = (key: MetricKey) => {
+	const toggleMetric = (key: SummaryStatsMetricKey) => {
 		setMetrics((prev) =>
 			prev.includes(key) ? prev.filter((m) => m !== key) : [...prev, key]
 		);
@@ -198,7 +134,7 @@ export function SummaryStatsEditForm({
 		setIsSaving(true);
 		try {
 			await onSave({
-				metrics: metrics.length > 0 ? metrics : DEFAULT_METRICS,
+				metrics: metrics.length > 0 ? metrics : SUMMARY_STATS_DEFAULT_METRICS,
 				type,
 				dateRangeDays,
 			});
@@ -212,7 +148,7 @@ export function SummaryStatsEditForm({
 			<div className="flex flex-col gap-2">
 				<Label>Metrics</Label>
 				<div className="grid grid-cols-2 gap-2">
-					{ALL_METRICS.map((m) => (
+					{SUMMARY_STATS_ALL_METRICS.map((m) => (
 						<label
 							className="flex cursor-pointer items-center gap-2 text-sm"
 							key={m.key}
@@ -232,7 +168,7 @@ export function SummaryStatsEditForm({
 				<select
 					className="rounded-md border bg-background px-3 py-2 text-sm"
 					id="summary-stats-type"
-					onChange={(e) => setType(e.target.value as StatsType)}
+					onChange={(e) => setType(e.target.value as SummaryStatsWidgetType)}
 					value={type}
 				>
 					<option value="all">All</option>

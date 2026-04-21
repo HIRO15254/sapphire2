@@ -1,7 +1,11 @@
 import { IconPokerChip, IconTrophy } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import {
+	parseRecentSessionsWidgetConfig,
+	type RecentSessionsWidgetTypeFilter,
+	useRecentSessionsWidget,
+} from "@/dashboard/hooks/use-recent-sessions-widget";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
@@ -15,46 +19,20 @@ import {
 	formatProfitLoss,
 	profitLossColorClass,
 } from "@/utils/format-profit-loss";
-import { trpc } from "@/utils/trpc";
-
-type TypeFilter = "all" | "cash_game" | "tournament";
-
-interface ParsedConfig {
-	limit: number;
-	type: TypeFilter;
-}
-
-function parseConfig(raw: Record<string, unknown>): ParsedConfig {
-	const limit =
-		typeof raw.limit === "number" && raw.limit > 0 && raw.limit <= 20
-			? Math.floor(raw.limit)
-			: 5;
-	const type =
-		raw.type === "cash_game" || raw.type === "tournament"
-			? (raw.type as TypeFilter)
-			: ("all" as TypeFilter);
-	return { limit, type };
-}
 
 export function RecentSessionsWidget({ config }: WidgetRenderProps) {
-	const parsed = parseConfig(config);
-	const query = useQuery(
-		trpc.session.list.queryOptions({
-			type: parsed.type === "all" ? undefined : parsed.type,
-		})
-	);
+	const { isLoading, items, limit } = useRecentSessionsWidget(config);
 
-	if (query.isLoading) {
+	if (isLoading) {
 		return (
 			<div className="flex flex-col gap-2 p-2">
-				{Array.from({ length: parsed.limit }, (_, i) => i).map((i) => (
+				{Array.from({ length: limit }, (_, i) => i).map((i) => (
 					<Skeleton className="h-10" key={i} />
 				))}
 			</div>
 		);
 	}
 
-	const items = (query.data?.items ?? []).slice(0, parsed.limit);
 	if (items.length === 0) {
 		return (
 			<div className="flex h-full items-center justify-center p-4 text-muted-foreground text-sm">
@@ -112,9 +90,9 @@ export function RecentSessionsEditForm({
 	onSave,
 	onCancel,
 }: WidgetEditProps) {
-	const parsed = parseConfig(config);
+	const parsed = parseRecentSessionsWidgetConfig(config);
 	const [limit, setLimit] = useState<number>(parsed.limit);
-	const [type, setType] = useState<TypeFilter>(parsed.type);
+	const [type, setType] = useState<RecentSessionsWidgetTypeFilter>(parsed.type);
 	const [isSaving, setIsSaving] = useState(false);
 
 	const handleSave = async () => {
@@ -145,7 +123,9 @@ export function RecentSessionsEditForm({
 				<select
 					className="rounded-md border bg-background px-3 py-2 text-sm"
 					id="recent-sessions-type"
-					onChange={(e) => setType(e.target.value as TypeFilter)}
+					onChange={(e) =>
+						setType(e.target.value as RecentSessionsWidgetTypeFilter)
+					}
 					value={type}
 				>
 					<option value="all">All</option>
