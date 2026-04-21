@@ -1,10 +1,8 @@
-import type { ExtractedTournamentData } from "@sapphire2/api/routers/ai-extract";
 import {
 	IconArchive,
 	IconArchiveOff,
 	IconEdit,
 	IconPlus,
-	IconSparkles,
 	IconTrash,
 	IconX,
 } from "@tabler/icons-react";
@@ -18,16 +16,8 @@ import { ManagementSectionHeader } from "@/shared/components/management/manageme
 import { ManagementSectionState } from "@/shared/components/management/management-section-state";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import {
-	Tabs,
-	TabsContent,
-	TabsList,
-	TabsTrigger,
-} from "@/shared/components/ui/tabs";
-import { AiExtractInput } from "@/stores/components/ai-extract-input";
-import { LocalBlindStructureContent } from "@/stores/components/blind-level-editor";
-import { TournamentForm } from "@/stores/components/tournament-form";
+import { TournamentEditDialog } from "@/stores/components/tournament-edit-dialog";
+import type { TournamentPartialFormValues } from "@/stores/components/tournament-modal-content";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
 import type {
 	Tournament,
@@ -551,60 +541,40 @@ function BlindStructureSummary({ tournamentId }: { tournamentId: string }) {
 	);
 }
 
-// ---- Shared modal content (used by both create and edit dialogs) ----
-
-type PartialFormValues = Omit<
-	TournamentFormValues,
-	"tags" | "chipPurchases"
-> & {
-	chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
-	tags?: string[];
-};
-
-interface TournamentModalContentProps {
-	initialBlindLevels: BlindLevelRow[];
-	initialFormValues?: PartialFormValues;
-	isLoading: boolean;
-	onSave: (
-		values: TournamentFormValues,
-		levels: BlindLevelRow[]
-	) => void | Promise<void>;
-}
-
-function TournamentModalContent({
-	initialBlindLevels,
-	initialFormValues,
-	isLoading,
-	onSave,
-}: TournamentModalContentProps) {
-	const [localBlindLevels, setLocalBlindLevels] =
-		useState<BlindLevelRow[]>(initialBlindLevels);
-
-	return (
-		<Tabs defaultValue="details">
-			<TabsList className="w-full">
-				<TabsTrigger value="details">Details</TabsTrigger>
-				<TabsTrigger value="structure">Structure</TabsTrigger>
-			</TabsList>
-			<TabsContent value="details">
-				<TournamentForm
-					defaultValues={initialFormValues}
-					isLoading={isLoading}
-					onSubmit={(values) => onSave(values, localBlindLevels)}
-				/>
-			</TabsContent>
-			<TabsContent value="structure">
-				<LocalBlindStructureContent
-					onChange={setLocalBlindLevels}
-					value={localBlindLevels}
-					variant={initialFormValues?.variant ?? "nlh"}
-				/>
-			</TabsContent>
-		</Tabs>
-	);
-}
-
 // ---- Main tab component ----
+
+function tournamentToInitialFormValues(
+	tournament: Tournament
+): TournamentPartialFormValues {
+	return {
+		name: tournament.name,
+		variant: tournament.variant,
+		buyIn: tournament.buyIn ?? undefined,
+		entryFee: tournament.entryFee ?? undefined,
+		startingStack: tournament.startingStack ?? undefined,
+		chipPurchases: tournament.chipPurchases.map((cp) => ({
+			name: cp.name,
+			cost: cp.cost,
+			chips: cp.chips,
+		})),
+		bountyAmount: tournament.bountyAmount ?? undefined,
+		tableSize: tournament.tableSize ?? undefined,
+		currencyId: tournament.currencyId ?? undefined,
+		memo: tournament.memo ?? undefined,
+		tags: tournament.tags.map((t) => t.name),
+	};
+}
+
+function levelsToPayload(levels: BlindLevelRow[]) {
+	return levels.map((l) => ({
+		isBreak: l.isBreak,
+		blind1: l.blind1,
+		blind2: l.blind2,
+		blind3: l.blind3,
+		ante: l.ante,
+		minutes: l.minutes,
+	}));
+}
 
 export function TournamentTab({
 	storeId,
@@ -617,19 +587,6 @@ export function TournamentTab({
 	const [editingTournament, setEditingTournament] = useState<Tournament | null>(
 		null
 	);
-
-	// AI state (shared — only one modal is open at a time)
-	const [aiSheetOpen, setAiSheetOpen] = useState(false);
-	const [aiInitialFormValues, setAiInitialFormValues] = useState<
-		PartialFormValues | undefined
-	>();
-	const [aiInitialLevels, setAiInitialLevels] = useState<BlindLevelRow[]>([]);
-
-	// Keys to force-remount TournamentModalContent when AI data arrives
-	const [createKey, setCreateKey] = useState(0);
-	const [editKey, setEditKey] = useState(0);
-
-	// Loading states for the combined mutations
 	const [isCreateLoading, setIsCreateLoading] = useState(false);
 	const [isUpdateLoading, setIsUpdateLoading] = useState(false);
 
@@ -644,75 +601,12 @@ export function TournamentTab({
 		delete: deleteTournament,
 	} = useTournaments({ storeId, showArchived });
 
-	// Fetch blind levels for the tournament being edited
 	const editBlindLevelsQuery = useQuery({
 		...trpc.blindLevel.listByTournament.queryOptions({
 			tournamentId: editingTournament?.id ?? "",
 		}),
 		enabled: editingTournament !== null,
 	});
-
-	const resetAiState = () => {
-		setAiInitialFormValues(undefined);
-		setAiInitialLevels([]);
-	};
-
-	const toBlindLevelRows = (data: ExtractedTournamentData): BlindLevelRow[] =>
-		(data.blindLevels ?? []).map((l, i) => ({
-			id: crypto.randomUUID(),
-			tournamentId: "",
-			level: i + 1,
-			isBreak: l.isBreak,
-			blind1: l.blind1 ?? null,
-			blind2: l.blind2 ?? null,
-			blind3: l.blind3 ?? null,
-			ante: l.ante ?? null,
-			minutes: l.minutes ?? null,
-		}));
-
-	const mergeAiIntoEditFormValues = (
-		data: ExtractedTournamentData,
-		base: PartialFormValues | undefined
-	): PartialFormValues => ({
-		...base,
-		// Use || so that empty strings fall back to the existing value
-		name: data.name || base?.name || "",
-		variant: base?.variant ?? "nlh",
-		...(data.buyIn !== undefined && { buyIn: data.buyIn }),
-		...(data.entryFee !== undefined && { entryFee: data.entryFee }),
-		...(data.startingStack !== undefined && {
-			startingStack: data.startingStack,
-		}),
-		...(data.tableSize !== undefined && { tableSize: data.tableSize }),
-		// Only override chip purchases if AI actually extracted some entries
-		...(data.chipPurchases?.length && { chipPurchases: data.chipPurchases }),
-	});
-
-	const handleAiExtracted = (data: ExtractedTournamentData) => {
-		const extractedLevels = toBlindLevelRows(data);
-		if (isCreateOpen) {
-			setAiInitialFormValues({
-				name: data.name ?? "",
-				buyIn: data.buyIn,
-				entryFee: data.entryFee,
-				startingStack: data.startingStack,
-				tableSize: data.tableSize,
-				chipPurchases: data.chipPurchases ?? [],
-				variant: "nlh",
-			});
-			setAiInitialLevels(extractedLevels);
-			setCreateKey((k) => k + 1);
-		} else {
-			setAiInitialFormValues(mergeAiIntoEditFormValues(data, editFormValues));
-			setAiInitialLevels(
-				extractedLevels.length > 0
-					? extractedLevels
-					: ((editBlindLevelsQuery.data ?? []) as BlindLevelRow[])
-			);
-			setEditKey((k) => k + 1);
-		}
-		setAiSheetOpen(false);
-	};
 
 	const invalidateTournamentLists = async () => {
 		await Promise.all([
@@ -750,19 +644,10 @@ export function TournamentTab({
 				memo: values.memo,
 				tags: values.tags,
 				chipPurchases: values.chipPurchases,
-				blindLevels: levels.map((l) => ({
-					isBreak: l.isBreak,
-					blind1: l.blind1,
-					blind2: l.blind2,
-					blind3: l.blind3,
-					ante: l.ante,
-					minutes: l.minutes,
-				})),
+				blindLevels: levelsToPayload(levels),
 			});
 			await invalidateTournamentLists();
 			setIsCreateOpen(false);
-			resetAiState();
-			setCreateKey(0);
 		} finally {
 			setIsCreateLoading(false);
 		}
@@ -790,14 +675,7 @@ export function TournamentTab({
 				memo: values.memo ?? null,
 				tags: values.tags,
 				chipPurchases: values.chipPurchases,
-				blindLevels: levels.map((l) => ({
-					isBreak: l.isBreak,
-					blind1: l.blind1,
-					blind2: l.blind2,
-					blind3: l.blind3,
-					ante: l.ante,
-					minutes: l.minutes,
-				})),
+				blindLevels: levelsToPayload(levels),
 			});
 			await Promise.all([
 				invalidateTournamentLists(),
@@ -808,55 +686,16 @@ export function TournamentTab({
 				}),
 			]);
 			setEditingTournament(null);
-			resetAiState();
-			setEditKey(0);
 		} finally {
 			setIsUpdateLoading(false);
 		}
 	};
 
-	const aiButton = (
-		<Button
-			onClick={() => setAiSheetOpen(true)}
-			size="xs"
-			type="button"
-			variant="outline"
-		>
-			<IconSparkles size={12} />
-			AI自動入力
-			<Badge className="px-1 py-0 text-[10px]" variant="secondary">
-				beta
-			</Badge>
-		</Button>
-	);
-
-	// Edit modal initial values: AI overrides when editKey > 0
-	const editFormValues: PartialFormValues | undefined = editingTournament
-		? {
-				name: editingTournament.name,
-				variant: editingTournament.variant,
-				buyIn: editingTournament.buyIn ?? undefined,
-				entryFee: editingTournament.entryFee ?? undefined,
-				startingStack: editingTournament.startingStack ?? undefined,
-				chipPurchases: editingTournament.chipPurchases.map((cp) => ({
-					name: cp.name,
-					cost: cp.cost,
-					chips: cp.chips,
-				})),
-				bountyAmount: editingTournament.bountyAmount ?? undefined,
-				tableSize: editingTournament.tableSize ?? undefined,
-				currencyId: editingTournament.currencyId ?? undefined,
-				memo: editingTournament.memo ?? undefined,
-				tags: editingTournament.tags.map((t) => t.name),
-			}
+	const editInitialFormValues = editingTournament
+		? tournamentToInitialFormValues(editingTournament)
 		: undefined;
-
-	const editInitialFormValues =
-		editKey > 0 ? aiInitialFormValues : editFormValues;
-	const editInitialLevels =
-		editKey > 0
-			? aiInitialLevels
-			: ((editBlindLevelsQuery.data ?? []) as BlindLevelRow[]);
+	const editInitialLevels = (editBlindLevelsQuery.data ??
+		[]) as BlindLevelRow[];
 
 	return (
 		<div>
@@ -906,67 +745,32 @@ export function TournamentTab({
 				showArchived={showArchived}
 			/>
 
-			{/* Shared AI extract sheet */}
-			<ResponsiveDialog
-				onOpenChange={setAiSheetOpen}
-				open={aiSheetOpen}
-				title="AI自動入力"
-			>
-				<AiExtractInput onExtracted={handleAiExtracted} />
-			</ResponsiveDialog>
-
-			{/* Create Tournament modal */}
-			<ResponsiveDialog
-				fullHeight
-				headerAction={aiButton}
-				onOpenChange={(open) => {
-					setIsCreateOpen(open);
-					if (!open) {
-						resetAiState();
-						setCreateKey(0);
-					}
-				}}
+			<TournamentEditDialog
+				aiMode="create"
+				initialBlindLevels={[]}
+				isLoading={isCreateLoading}
+				onOpenChange={setIsCreateOpen}
+				onSave={handleCreate}
 				open={isCreateOpen}
 				title="Add Tournament"
-			>
-				<TournamentModalContent
-					initialBlindLevels={createKey > 0 ? aiInitialLevels : []}
-					initialFormValues={createKey > 0 ? aiInitialFormValues : undefined}
-					isLoading={isCreateLoading}
-					key={createKey}
-					onSave={handleCreate}
-				/>
-			</ResponsiveDialog>
+			/>
 
-			{/* Edit Tournament modal */}
-			<ResponsiveDialog
-				fullHeight
-				headerAction={aiButton}
+			<TournamentEditDialog
+				aiMode="edit"
+				initialBlindLevels={editInitialLevels}
+				initialFormValues={editInitialFormValues}
+				isInitializing={editBlindLevelsQuery.isLoading}
+				isLoading={isUpdateLoading}
 				onOpenChange={(open) => {
 					if (!open) {
 						setEditingTournament(null);
-						resetAiState();
-						setEditKey(0);
 					}
 				}}
+				onSave={handleUpdate}
 				open={editingTournament !== null}
+				resetKey={editingTournament?.id}
 				title="Edit Tournament"
-			>
-				{editingTournament &&
-					(editBlindLevelsQuery.isLoading && editKey === 0 ? (
-						<p className="py-8 text-center text-muted-foreground text-sm">
-							Loading...
-						</p>
-					) : (
-						<TournamentModalContent
-							initialBlindLevels={editInitialLevels}
-							initialFormValues={editInitialFormValues}
-							isLoading={isUpdateLoading}
-							key={`${editingTournament.id}-${editKey}`}
-							onSave={handleUpdate}
-						/>
-					))}
-			</ResponsiveDialog>
+			/>
 		</div>
 	);
 }
