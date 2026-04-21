@@ -34,7 +34,9 @@ interface ActiveSessionSceneProps {
 	onDiscard: () => void;
 	state: ActiveSessionSceneState;
 	summary: ReactNode;
+	tableSize?: number | null;
 	title: string;
+	topSlot?: ReactNode;
 }
 
 interface UseActiveSessionSceneStateOptions {
@@ -232,7 +234,9 @@ export function ActiveSessionScene({
 	onDiscard,
 	state,
 	summary,
+	tableSize,
 	title,
+	topSlot,
 }: ActiveSessionSceneProps) {
 	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
 	const [isScanSheetOpen, setIsScanSheetOpen] = useState(false);
@@ -270,6 +274,8 @@ export function ActiveSessionScene({
 				</Button>
 			</div>
 
+			{topSlot ? <div className="mb-2">{topSlot}</div> : null}
+
 			<div>{summary}</div>
 
 			{memo ? (
@@ -285,6 +291,7 @@ export function ActiveSessionScene({
 					onPlayerSeatTap={state.onPlayerSeatTap}
 					onScanPlayers={() => setIsScanSheetOpen(true)}
 					players={state.players}
+					tableSize={tableSize}
 					waitingForHero={state.waitingForHero}
 				/>
 			</div>

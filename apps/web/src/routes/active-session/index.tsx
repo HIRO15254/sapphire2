@@ -6,9 +6,12 @@ import {
 	useActiveSessionSceneState,
 } from "@/live-sessions/components/active-session-scene";
 import type { TableGameInfo } from "@/live-sessions/components/poker-table";
+import { TournamentTimer } from "@/live-sessions/components/tournament-timer";
+import { TournamentTimerDialog } from "@/live-sessions/components/tournament-timer-dialog";
 import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
 import { useCashGameSession } from "@/live-sessions/hooks/use-cash-game-session";
 import { useTournamentSession } from "@/live-sessions/hooks/use-tournament-session";
+import type { TournamentBlindLevel } from "@/live-sessions/utils/tournament-timer";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatCompactNumber } from "@/utils/format-number";
 
@@ -225,14 +228,21 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 					}}
 				/>
 			}
+			tableSize={ringGame?.tableSize ?? null}
 			title="Cash Game"
 		/>
 	);
 }
 
 function TournamentSession({ sessionId }: { sessionId: string }) {
-	const { session, isDiscardPending, discard } =
-		useTournamentSession(sessionId);
+	const {
+		session,
+		isDiscardPending,
+		discard,
+		isUpdatingTimer,
+		updateTimerStartedAt,
+	} = useTournamentSession(sessionId);
+	const [isTimerDialogOpen, setIsTimerDialogOpen] = useState(false);
 
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
@@ -250,22 +260,60 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 		session as { summary: Record<string, unknown> }
 	);
 
+	const blindLevels = ((session as { blindLevels?: TournamentBlindLevel[] })
+		.blindLevels ?? []) as TournamentBlindLevel[];
+	const timerStartedAt =
+		(session as { timerStartedAt?: Date | string | number | null })
+			.timerStartedAt ?? null;
+	const hasStructure = blindLevels.length > 0;
+
+	const tableSize =
+		(session as { tableSize?: number | null }).tableSize ?? null;
+
 	return (
-		<ActiveSessionScene
-			gameInfo={{
-				name: session.tournamentId ? "Tournament" : null,
-			}}
-			isDiscardPending={isDiscardPending}
-			memo={session.memo}
-			onDiscard={discard}
-			state={sceneState}
-			summary={
-				<TournamentCompactSummary
-					summary={{ ...tournamentSummary, startedAt: session.startedAt }}
+		<>
+			<ActiveSessionScene
+				gameInfo={{
+					name: session.tournamentId ? "Tournament" : null,
+				}}
+				isDiscardPending={isDiscardPending}
+				memo={session.memo}
+				onDiscard={discard}
+				state={sceneState}
+				summary={
+					<TournamentCompactSummary
+						summary={{ ...tournamentSummary, startedAt: session.startedAt }}
+					/>
+				}
+				tableSize={tableSize}
+				title="Tournament"
+				topSlot={
+					hasStructure ? (
+						<TournamentTimer
+							blindLevels={blindLevels}
+							onEditTimer={() => setIsTimerDialogOpen(true)}
+							timerStartedAt={timerStartedAt}
+						/>
+					) : undefined
+				}
+			/>
+			{hasStructure ? (
+				<TournamentTimerDialog
+					isLoading={isUpdatingTimer}
+					onClear={() => {
+						updateTimerStartedAt(null);
+						setIsTimerDialogOpen(false);
+					}}
+					onOpenChange={setIsTimerDialogOpen}
+					onSubmit={(value) => {
+						updateTimerStartedAt(value);
+						setIsTimerDialogOpen(false);
+					}}
+					open={isTimerDialogOpen}
+					timerStartedAt={timerStartedAt}
 				/>
-			}
-			title="Tournament"
-		/>
+			) : null}
+		</>
 	);
 }
 

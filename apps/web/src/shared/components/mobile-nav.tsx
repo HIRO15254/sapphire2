@@ -1,6 +1,6 @@
 import { IconBolt, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { CreateSessionDialog } from "@/live-sessions/components/create-session-dialog";
@@ -76,11 +76,15 @@ export function MobileNav() {
 	const pathname = useRouterState({
 		select: (s) => s.location.pathname,
 	});
+	const navigate = useNavigate();
 	const { activeSession, hasActive } = useActiveSession();
 	const stackSheet = useStackSheet();
 	const queryClient = useQueryClient();
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const { leftItems, rightItems } = getMobileNavigationItems(hasActive);
+	const isPaused = activeSession?.status === "paused";
+	const { leftItems, rightItems } = getMobileNavigationItems(
+		hasActive && !isPaused
+	);
 
 	const optimisticOptions = activeSession
 		? createSessionEventMutationOptions({
@@ -116,7 +120,10 @@ export function MobileNav() {
 		centerAction = {
 			icon: IconPlayerPlay,
 			label: "Resume",
-			onClick: () => resumeMutation.mutate(),
+			onClick: () => {
+				resumeMutation.mutate();
+				navigate({ to: "/active-session" });
+			},
 			tone: "live" as const,
 		};
 	} else if (hasActive) {

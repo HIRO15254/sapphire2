@@ -109,6 +109,65 @@ function computeSummaryFromEvents(
 	};
 }
 
+async function resolveRingGameAssignment(
+	db: DbInstance,
+	ringGameId: string,
+	userId: string,
+	currentStoreId: string | null,
+	currentCurrencyId: string | null
+): Promise<{
+	ringGameId: string;
+	storeId?: string;
+	currencyId?: string;
+}> {
+	const [foundRingGame] = await db
+		.select()
+		.from(ringGame)
+		.where(eq(ringGame.id, ringGameId));
+
+	if (!foundRingGame) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Ring game not found",
+		});
+	}
+
+	if (foundRingGame.storeId) {
+		const [foundStore] = await db
+			.select()
+			.from(store)
+			.where(eq(store.id, foundRingGame.storeId));
+		if (!foundStore || foundStore.userId !== userId) {
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "You do not own this ring game",
+			});
+		}
+	}
+
+	if (
+		currentStoreId &&
+		foundRingGame.storeId &&
+		currentStoreId !== foundRingGame.storeId
+	) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Ring game belongs to a different store than the session",
+		});
+	}
+
+	const patch: { ringGameId: string; storeId?: string; currencyId?: string } = {
+		ringGameId,
+	};
+	if (!currentStoreId && foundRingGame.storeId) {
+		patch.storeId = foundRingGame.storeId;
+	}
+	if (!currentCurrencyId && foundRingGame.currencyId) {
+		patch.currencyId = foundRingGame.currencyId;
+	}
+	return patch;
+}
+
 export const liveCashGameSessionRouter = router({
 	list: protectedProcedure
 		.input(
@@ -351,11 +410,12 @@ export const liveCashGameSessionRouter = router({
 				memo: z.string().nullable().optional(),
 				storeId: z.string().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
+				ringGameId: z.string().nullable().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await findLiveCashGameSession(ctx.db, input.id, userId);
+			const existing = await findLiveCashGameSession(ctx.db, input.id, userId);
 
 			const updateData: Partial<typeof liveCashGameSession.$inferInsert> = {
 				updatedAt: new Date(),
@@ -369,6 +429,33 @@ export const liveCashGameSessionRouter = router({
 			}
 			if (input.currencyId !== undefined) {
 				updateData.currencyId = input.currencyId;
+			}
+
+			if (input.ringGameId === null) {
+				updateData.ringGameId = null;
+			} else if (input.ringGameId !== undefined) {
+				const resolvedStoreId =
+					updateData.storeId === undefined
+						? existing.storeId
+						: updateData.storeId;
+				const resolvedCurrencyId =
+					updateData.currencyId === undefined
+						? existing.currencyId
+						: updateData.currencyId;
+				const patch = await resolveRingGameAssignment(
+					ctx.db,
+					input.ringGameId,
+					userId,
+					resolvedStoreId,
+					resolvedCurrencyId
+				);
+				updateData.ringGameId = patch.ringGameId;
+				if (patch.storeId) {
+					updateData.storeId = patch.storeId;
+				}
+				if (patch.currencyId) {
+					updateData.currencyId = patch.currencyId;
+				}
 			}
 
 			await ctx.db
