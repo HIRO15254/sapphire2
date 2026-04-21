@@ -1,6 +1,6 @@
 import { IconBolt, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { CreateSessionDialog } from "@/live-sessions/components/create-session-dialog";
@@ -76,6 +76,7 @@ export function MobileNav() {
 	const pathname = useRouterState({
 		select: (s) => s.location.pathname,
 	});
+	const navigate = useNavigate();
 	const { activeSession, hasActive } = useActiveSession();
 	const stackSheet = useStackSheet();
 	const queryClient = useQueryClient();
@@ -112,6 +113,9 @@ export function MobileNav() {
 			});
 		},
 		...optimisticOptions,
+		onSuccess: async () => {
+			await navigate({ to: "/active-session" });
+		},
 	});
 
 	let centerAction: NavigationCenterAction;
