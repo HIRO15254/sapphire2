@@ -113,9 +113,6 @@ export function MobileNav() {
 			});
 		},
 		...optimisticOptions,
-		onSuccess: async () => {
-			await navigate({ to: "/active-session" });
-		},
 	});
 
 	let centerAction: NavigationCenterAction;
@@ -123,7 +120,10 @@ export function MobileNav() {
 		centerAction = {
 			icon: IconPlayerPlay,
 			label: "Resume",
-			onClick: () => resumeMutation.mutate(),
+			onClick: () => {
+				resumeMutation.mutate();
+				navigate({ to: "/active-session" });
+			},
 			tone: "live" as const,
 		};
 	} else if (hasActive) {
