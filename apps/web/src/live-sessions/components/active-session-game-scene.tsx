@@ -1,6 +1,8 @@
 import { IconEdit } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { AssignRingGameDialog } from "@/live-sessions/components/assign-ring-game-dialog";
+import { AssignTournamentDialog } from "@/live-sessions/components/assign-tournament-dialog";
 import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
 import { useCashGameSession } from "@/live-sessions/hooks/use-cash-game-session";
 import { useTournamentSession } from "@/live-sessions/hooks/use-tournament-session";
@@ -171,6 +173,35 @@ function RingGameDetailsCard({
 	);
 }
 
+function CashGameNotLinked({
+	sessionId,
+	sessionStoreId,
+}: {
+	sessionId: string;
+	sessionStoreId: string | null;
+}) {
+	const [isAssignOpen, setIsAssignOpen] = useState(false);
+	return (
+		<GameSceneShell title="Cash Game">
+			<EmptyState
+				action={
+					<Button onClick={() => setIsAssignOpen(true)} size="sm" type="button">
+						ゲームを選択・作成
+					</Button>
+				}
+				description="このセッションにはキャッシュゲームが紐付いていません。"
+				heading="Game not linked"
+			/>
+			<AssignRingGameDialog
+				onOpenChange={setIsAssignOpen}
+				open={isAssignOpen}
+				sessionId={sessionId}
+				sessionStoreId={sessionStoreId}
+			/>
+		</GameSceneShell>
+	);
+}
+
 function CashGameDetails({ sessionId }: { sessionId: string }) {
 	const queryClient = useQueryClient();
 	const [isEditOpen, setIsEditOpen] = useState(false);
@@ -199,12 +230,10 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 
 	if (!(session.ringGameId && ringGame)) {
 		return (
-			<GameSceneShell title="Cash Game">
-				<EmptyState
-					description="このセッションにはキャッシュゲームが紐付いていません。"
-					heading="Game not linked"
-				/>
-			</GameSceneShell>
+			<CashGameNotLinked
+				sessionId={sessionId}
+				sessionStoreId={session.storeId ?? null}
+			/>
 		);
 	}
 
@@ -689,6 +718,35 @@ function TournamentDetailsBody({
 	);
 }
 
+function TournamentNotLinked({
+	sessionId,
+	sessionStoreId,
+}: {
+	sessionId: string;
+	sessionStoreId: string | null;
+}) {
+	const [isAssignOpen, setIsAssignOpen] = useState(false);
+	return (
+		<GameSceneShell title="Tournament">
+			<EmptyState
+				action={
+					<Button onClick={() => setIsAssignOpen(true)} size="sm" type="button">
+						トーナメントを選択・作成
+					</Button>
+				}
+				description="このセッションにはトーナメントが紐付いていません。"
+				heading="Game not linked"
+			/>
+			<AssignTournamentDialog
+				onOpenChange={setIsAssignOpen}
+				open={isAssignOpen}
+				sessionId={sessionId}
+				sessionStoreId={sessionStoreId}
+			/>
+		</GameSceneShell>
+	);
+}
+
 function TournamentDetails({ sessionId }: { sessionId: string }) {
 	const { session } = useTournamentSession(sessionId);
 	const tournamentId = session?.tournamentId ?? "";
@@ -707,7 +765,16 @@ function TournamentDetails({ sessionId }: { sessionId: string }) {
 		);
 	}
 
-	if (!(tournamentId && storeId)) {
+	if (!tournamentId) {
+		return (
+			<TournamentNotLinked
+				sessionId={sessionId}
+				sessionStoreId={session.storeId ?? null}
+			/>
+		);
+	}
+
+	if (!storeId) {
 		return (
 			<GameSceneShell title="Tournament">
 				<EmptyState

@@ -220,6 +220,61 @@ function computeStackStats(
 	return { ...bounds, ...info, averageStack };
 }
 
+async function resolveTournamentAssignment(
+	db: DbInstance,
+	tournamentId: string,
+	userId: string,
+	currentStoreId: string | null,
+	currentCurrencyId: string | null
+): Promise<{
+	tournamentId: string;
+	storeId?: string;
+	currencyId?: string;
+}> {
+	const [foundTournament] = await db
+		.select()
+		.from(tournament)
+		.where(eq(tournament.id, tournamentId));
+
+	if (!foundTournament) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Tournament not found",
+		});
+	}
+
+	const [foundStore] = await db
+		.select()
+		.from(store)
+		.where(eq(store.id, foundTournament.storeId));
+	if (!foundStore || foundStore.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this tournament",
+		});
+	}
+
+	if (currentStoreId && currentStoreId !== foundTournament.storeId) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Tournament belongs to a different store than the session",
+		});
+	}
+
+	const patch: {
+		tournamentId: string;
+		storeId?: string;
+		currencyId?: string;
+	} = { tournamentId };
+	if (!currentStoreId) {
+		patch.storeId = foundTournament.storeId;
+	}
+	if (!currentCurrencyId && foundTournament.currencyId) {
+		patch.currencyId = foundTournament.currencyId;
+	}
+	return patch;
+}
+
 export const liveTournamentSessionRouter = router({
 	list: protectedProcedure
 		.input(
@@ -424,11 +479,16 @@ export const liveTournamentSessionRouter = router({
 				memo: z.string().nullable().optional(),
 				storeId: z.string().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
+				tournamentId: z.string().nullable().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await findLiveTournamentSession(ctx.db, input.id, userId);
+			const existing = await findLiveTournamentSession(
+				ctx.db,
+				input.id,
+				userId
+			);
 
 			const updateData: Partial<typeof liveTournamentSession.$inferInsert> = {
 				updatedAt: new Date(),
@@ -442,6 +502,33 @@ export const liveTournamentSessionRouter = router({
 			}
 			if (input.currencyId !== undefined) {
 				updateData.currencyId = input.currencyId;
+			}
+
+			if (input.tournamentId === null) {
+				updateData.tournamentId = null;
+			} else if (input.tournamentId !== undefined) {
+				const resolvedStoreId =
+					updateData.storeId === undefined
+						? existing.storeId
+						: updateData.storeId;
+				const resolvedCurrencyId =
+					updateData.currencyId === undefined
+						? existing.currencyId
+						: updateData.currencyId;
+				const patch = await resolveTournamentAssignment(
+					ctx.db,
+					input.tournamentId,
+					userId,
+					resolvedStoreId,
+					resolvedCurrencyId
+				);
+				updateData.tournamentId = patch.tournamentId;
+				if (patch.storeId) {
+					updateData.storeId = patch.storeId;
+				}
+				if (patch.currencyId) {
+					updateData.currencyId = patch.currencyId;
+				}
 			}
 
 			await ctx.db
