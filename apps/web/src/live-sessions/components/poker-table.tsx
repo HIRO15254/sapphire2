@@ -84,14 +84,14 @@ const SEAT_POSITIONS_BY_SIZE: Record<number, [number, number][]> = {
 	],
 	10: [
 		[78, 96], // 1: bottom-right
-		[92, 75], // 2: right-lower
+		[92, 82], // 2: right-lower
 		[96, 50], // 3: right-middle
-		[92, 25], // 4: right-upper
+		[92, 18], // 4: right-upper
 		[65, 6], // 5: top-right
 		[35, 6], // 6: top-left
-		[8, 25], // 7: left-upper
+		[8, 18], // 7: left-upper
 		[4, 50], // 8: left-middle
-		[8, 75], // 9: left-lower
+		[8, 82], // 9: left-lower
 		[22, 96], // 10: bottom-left
 	],
 };
