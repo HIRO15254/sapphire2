@@ -128,10 +128,17 @@ const PAYLOAD_SUMMARIZERS: Record<string, PayloadSummarizer> = {
 	purchase_chips: formatPurchaseChipsSummary,
 	update_tournament_info: formatUpdateTournamentInfoSummary,
 	memo: formatMemoSummary,
-	session_start: (p) =>
-		typeof p.buyInAmount === "number"
-			? `Buy-in: ${p.buyInAmount.toLocaleString()}`
-			: null,
+	session_start: (p) => {
+		if (typeof p.buyInAmount === "number") {
+			return `Buy-in: ${p.buyInAmount.toLocaleString()}`;
+		}
+		if (typeof p.timerStartedAt === "number") {
+			const date = new Date(p.timerStartedAt * 1000);
+			const pad = (n: number) => String(n).padStart(2, "0");
+			return `Timer: ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+		}
+		return null;
+	},
 	session_end: formatSessionEndSummary,
 	player_join: (p) => (p.isHero === true ? "Hero" : null),
 	player_leave: (p) => (p.isHero === true ? "Hero" : null),

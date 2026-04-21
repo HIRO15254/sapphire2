@@ -35,6 +35,7 @@ interface ActiveSessionSceneProps {
 	state: ActiveSessionSceneState;
 	summary: ReactNode;
 	title: string;
+	topSlot?: ReactNode;
 }
 
 interface UseActiveSessionSceneStateOptions {
@@ -233,6 +234,7 @@ export function ActiveSessionScene({
 	state,
 	summary,
 	title,
+	topSlot,
 }: ActiveSessionSceneProps) {
 	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
 	const [isScanSheetOpen, setIsScanSheetOpen] = useState(false);
@@ -269,6 +271,8 @@ export function ActiveSessionScene({
 					Discard
 				</Button>
 			</div>
+
+			{topSlot ? <div className="mb-2">{topSlot}</div> : null}
 
 			<div>{summary}</div>
 
