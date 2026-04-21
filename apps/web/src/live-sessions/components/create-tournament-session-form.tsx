@@ -29,6 +29,7 @@ interface CreateTournamentSessionFormProps {
 		memo?: string;
 		startingStack: number;
 		storeId: string;
+		timerStartedAt?: number;
 		tournamentId: string;
 	}) => void;
 	stores: Array<{ id: string; name: string }>;
@@ -47,7 +48,21 @@ const formSchema = z.object({
 	entryFee: optionalNumericString({ integer: true, min: 0 }),
 	startingStack: requiredNumericString({ integer: true, min: 0 }),
 	memo: z.string(),
+	timerStartedAt: z.string(),
 });
+
+function parseTimerStartedAt(value: string): number | undefined {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+	const parsed = new Date(trimmed);
+	const ms = parsed.getTime();
+	if (Number.isNaN(ms)) {
+		return undefined;
+	}
+	return Math.floor(ms / 1000);
+}
 
 export function CreateTournamentSessionForm({
 	currencies,
@@ -73,6 +88,7 @@ export function CreateTournamentSessionForm({
 			entryFee: "",
 			startingStack: "",
 			memo: "",
+			timerStartedAt: "",
 		},
 		onSubmit: ({ value }) => {
 			if (!(selectedStoreId && selectedTournamentId)) {
@@ -86,6 +102,7 @@ export function CreateTournamentSessionForm({
 				entryFee: value.entryFee ? Number(value.entryFee) : undefined,
 				startingStack: Number(value.startingStack),
 				memo: value.memo ? value.memo : undefined,
+				timerStartedAt: parseTimerStartedAt(value.timerStartedAt),
 			});
 		},
 		validators: {
@@ -285,6 +302,25 @@ export function CreateTournamentSessionForm({
 									inputMode="numeric"
 									onBlur={field.handleBlur}
 									onChange={(e) => field.handleChange(e.target.value)}
+									value={field.state.value}
+								/>
+							</Field>
+						)}
+					</form.Field>
+
+					<form.Field name="timerStartedAt">
+						{(field) => (
+							<Field
+								error={field.state.meta.errors[0]?.message}
+								htmlFor={field.name}
+								label="Timer Start Time (optional)"
+							>
+								<Input
+									id={field.name}
+									onBlur={field.handleBlur}
+									onChange={(e) => field.handleChange(e.target.value)}
+									step={60}
+									type="datetime-local"
 									value={field.state.value}
 								/>
 							</Field>

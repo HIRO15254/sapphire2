@@ -9,7 +9,7 @@ import { pokerSession } from "@sapphire2/db/schema/session";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { currency, store } from "@sapphire2/db/schema/store";
-import { tournament } from "@sapphire2/db/schema/tournament";
+import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -336,6 +336,14 @@ export const liveTournamentSessionRouter = router({
 				.from(sessionTablePlayer)
 				.where(eq(sessionTablePlayer.liveTournamentSessionId, input.id));
 
+			const blindLevels = session.tournamentId
+				? await ctx.db
+						.select()
+						.from(blindLevel)
+						.where(eq(blindLevel.tournamentId, session.tournamentId))
+						.orderBy(asc(blindLevel.level))
+				: [];
+
 			const pl = computeTournamentPLFromEvents(
 				events.map((e) => ({ eventType: e.eventType, payload: e.payload })),
 				tournamentBuyIn,
@@ -367,7 +375,7 @@ export const liveTournamentSessionRouter = router({
 				startingStack: masterData.startingStack ?? null,
 			};
 
-			return { ...session, events, tablePlayers, summary };
+			return { ...session, events, tablePlayers, blindLevels, summary };
 		}),
 
 	create: protectedProcedure
@@ -379,6 +387,7 @@ export const liveTournamentSessionRouter = router({
 				buyIn: z.number().int().min(0).optional(),
 				entryFee: z.number().int().min(0).optional(),
 				memo: z.string().optional(),
+				timerStartedAt: z.number().int().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -400,6 +409,10 @@ export const liveTournamentSessionRouter = router({
 				entryFee: input.entryFee ?? null,
 				startedAt: now,
 				memo: input.memo ?? null,
+				timerStartedAt:
+					input.timerStartedAt === undefined
+						? null
+						: new Date(input.timerStartedAt * 1000),
 				updatedAt: now,
 			});
 
@@ -424,6 +437,7 @@ export const liveTournamentSessionRouter = router({
 				memo: z.string().nullable().optional(),
 				storeId: z.string().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
+				timerStartedAt: z.number().int().nullable().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -442,6 +456,12 @@ export const liveTournamentSessionRouter = router({
 			}
 			if (input.currencyId !== undefined) {
 				updateData.currencyId = input.currencyId;
+			}
+			if (input.timerStartedAt !== undefined) {
+				updateData.timerStartedAt =
+					input.timerStartedAt === null
+						? null
+						: new Date(input.timerStartedAt * 1000);
 			}
 
 			await ctx.db

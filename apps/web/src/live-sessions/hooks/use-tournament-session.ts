@@ -6,8 +6,11 @@ export function useTournamentSession(sessionId: string) {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 
+	const sessionQueryOptions = trpc.liveTournamentSession.getById.queryOptions({
+		id: sessionId,
+	});
 	const sessionQuery = useQuery({
-		...trpc.liveTournamentSession.getById.queryOptions({ id: sessionId }),
+		...sessionQueryOptions,
 		enabled: !!sessionId,
 		refetchInterval: 5000,
 	});
@@ -29,11 +32,29 @@ export function useTournamentSession(sessionId: string) {
 		},
 	});
 
+	const updateTimerMutation = useMutation({
+		mutationFn: (timerStartedAt: Date | null) =>
+			trpcClient.liveTournamentSession.update.mutate({
+				id: sessionId,
+				timerStartedAt:
+					timerStartedAt === null
+						? null
+						: Math.floor(timerStartedAt.getTime() / 1000),
+			}),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: sessionQueryOptions.queryKey });
+		},
+	});
+
 	return {
 		session,
 		isDiscardPending: discardMutation.isPending,
 		discard: () => {
 			discardMutation.mutate();
+		},
+		isUpdatingTimer: updateTimerMutation.isPending,
+		updateTimerStartedAt: (value: Date | null) => {
+			updateTimerMutation.mutate(value);
 		},
 	};
 }

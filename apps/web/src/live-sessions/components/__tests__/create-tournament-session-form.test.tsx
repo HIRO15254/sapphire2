@@ -78,6 +78,9 @@ describe("CreateTournamentSessionForm", () => {
 		expect(screen.queryByText("Buy-in")).not.toBeInTheDocument();
 		expect(screen.queryByText("Starting Stack")).not.toBeInTheDocument();
 		expect(screen.queryByText("Memo")).not.toBeInTheDocument();
+		expect(
+			screen.queryByText("Timer Start Time (optional)")
+		).not.toBeInTheDocument();
 	});
 
 	it("shows loading state when isLoading", () => {
