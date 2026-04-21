@@ -80,7 +80,10 @@ export function MobileNav() {
 	const stackSheet = useStackSheet();
 	const queryClient = useQueryClient();
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const { leftItems, rightItems } = getMobileNavigationItems(hasActive);
+	const isPaused = activeSession?.status === "paused";
+	const { leftItems, rightItems } = getMobileNavigationItems(
+		hasActive && !isPaused
+	);
 
 	const optimisticOptions = activeSession
 		? createSessionEventMutationOptions({
