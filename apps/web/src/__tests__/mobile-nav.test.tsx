@@ -144,6 +144,59 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 	});
 });
 
+describe("MobileNav - Paused Session Mode", () => {
+	beforeEach(() => {
+		mockUseActiveSession.mockReturnValue({
+			activeSession: {
+				id: "session-123",
+				type: "cash_game",
+				status: "paused",
+			},
+			hasActive: true,
+			isLoading: false,
+		});
+	});
+
+	it("renders 3 nav links, 1 resources popover button, and 1 center button (same as normal mode)", async () => {
+		const router = createTestRouter("/sessions");
+		render(<RouterProvider router={router} />);
+
+		const links = await screen.findAllByRole("link");
+		expect(links).toHaveLength(3);
+
+		const buttons = screen.getAllByRole("button");
+		expect(buttons).toHaveLength(2);
+	});
+
+	it("displays normal mode nav items (Dashboard, Sessions, Resources, Settings)", async () => {
+		const router = createTestRouter("/sessions");
+		render(<RouterProvider router={router} />);
+
+		await screen.findByText("Sessions");
+		expect(screen.getByText("Dashboard")).toBeInTheDocument();
+		expect(screen.getByText("Resources")).toBeInTheDocument();
+		expect(screen.getByText("Settings")).toBeInTheDocument();
+	});
+
+	it("displays Resume as center button label", async () => {
+		const router = createTestRouter("/sessions");
+		render(<RouterProvider router={router} />);
+
+		await screen.findByText("Resume");
+		expect(screen.getByText("Resume")).toBeInTheDocument();
+	});
+
+	it("does not display live session nav items (Events, Game, Overview)", async () => {
+		const router = createTestRouter("/sessions");
+		render(<RouterProvider router={router} />);
+
+		await screen.findByText("Dashboard");
+		expect(screen.queryByText("Events")).not.toBeInTheDocument();
+		expect(screen.queryByText("Game")).not.toBeInTheDocument();
+		expect(screen.queryByText("Overview")).not.toBeInTheDocument();
+	});
+});
+
 describe("MobileNav - Live Session Mode (active session)", () => {
 	beforeEach(() => {
 		mockUseActiveSession.mockReturnValue({
