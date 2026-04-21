@@ -19,15 +19,11 @@ import { ManagementSectionState } from "@/shared/components/management/managemen
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import {
-	Tabs,
-	TabsContent,
-	TabsList,
-	TabsTrigger,
-} from "@/shared/components/ui/tabs";
 import { AiExtractInput } from "@/stores/components/ai-extract-input";
-import { LocalBlindStructureContent } from "@/stores/components/blind-level-editor";
-import { TournamentForm } from "@/stores/components/tournament-form";
+import {
+	TournamentModalContent,
+	type TournamentPartialFormValues,
+} from "@/stores/components/tournament-modal-content";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
 import type {
 	Tournament,
@@ -551,59 +547,6 @@ function BlindStructureSummary({ tournamentId }: { tournamentId: string }) {
 	);
 }
 
-// ---- Shared modal content (used by both create and edit dialogs) ----
-
-type PartialFormValues = Omit<
-	TournamentFormValues,
-	"tags" | "chipPurchases"
-> & {
-	chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
-	tags?: string[];
-};
-
-interface TournamentModalContentProps {
-	initialBlindLevels: BlindLevelRow[];
-	initialFormValues?: PartialFormValues;
-	isLoading: boolean;
-	onSave: (
-		values: TournamentFormValues,
-		levels: BlindLevelRow[]
-	) => void | Promise<void>;
-}
-
-function TournamentModalContent({
-	initialBlindLevels,
-	initialFormValues,
-	isLoading,
-	onSave,
-}: TournamentModalContentProps) {
-	const [localBlindLevels, setLocalBlindLevels] =
-		useState<BlindLevelRow[]>(initialBlindLevels);
-
-	return (
-		<Tabs defaultValue="details">
-			<TabsList className="w-full">
-				<TabsTrigger value="details">Details</TabsTrigger>
-				<TabsTrigger value="structure">Structure</TabsTrigger>
-			</TabsList>
-			<TabsContent value="details">
-				<TournamentForm
-					defaultValues={initialFormValues}
-					isLoading={isLoading}
-					onSubmit={(values) => onSave(values, localBlindLevels)}
-				/>
-			</TabsContent>
-			<TabsContent value="structure">
-				<LocalBlindStructureContent
-					onChange={setLocalBlindLevels}
-					value={localBlindLevels}
-					variant={initialFormValues?.variant ?? "nlh"}
-				/>
-			</TabsContent>
-		</Tabs>
-	);
-}
-
 // ---- Main tab component ----
 
 export function TournamentTab({
@@ -621,7 +564,7 @@ export function TournamentTab({
 	// AI state (shared — only one modal is open at a time)
 	const [aiSheetOpen, setAiSheetOpen] = useState(false);
 	const [aiInitialFormValues, setAiInitialFormValues] = useState<
-		PartialFormValues | undefined
+		TournamentPartialFormValues | undefined
 	>();
 	const [aiInitialLevels, setAiInitialLevels] = useState<BlindLevelRow[]>([]);
 
@@ -672,8 +615,8 @@ export function TournamentTab({
 
 	const mergeAiIntoEditFormValues = (
 		data: ExtractedTournamentData,
-		base: PartialFormValues | undefined
-	): PartialFormValues => ({
+		base: TournamentPartialFormValues | undefined
+	): TournamentPartialFormValues => ({
 		...base,
 		// Use || so that empty strings fall back to the existing value
 		name: data.name || base?.name || "",
@@ -831,25 +774,26 @@ export function TournamentTab({
 	);
 
 	// Edit modal initial values: AI overrides when editKey > 0
-	const editFormValues: PartialFormValues | undefined = editingTournament
-		? {
-				name: editingTournament.name,
-				variant: editingTournament.variant,
-				buyIn: editingTournament.buyIn ?? undefined,
-				entryFee: editingTournament.entryFee ?? undefined,
-				startingStack: editingTournament.startingStack ?? undefined,
-				chipPurchases: editingTournament.chipPurchases.map((cp) => ({
-					name: cp.name,
-					cost: cp.cost,
-					chips: cp.chips,
-				})),
-				bountyAmount: editingTournament.bountyAmount ?? undefined,
-				tableSize: editingTournament.tableSize ?? undefined,
-				currencyId: editingTournament.currencyId ?? undefined,
-				memo: editingTournament.memo ?? undefined,
-				tags: editingTournament.tags.map((t) => t.name),
-			}
-		: undefined;
+	const editFormValues: TournamentPartialFormValues | undefined =
+		editingTournament
+			? {
+					name: editingTournament.name,
+					variant: editingTournament.variant,
+					buyIn: editingTournament.buyIn ?? undefined,
+					entryFee: editingTournament.entryFee ?? undefined,
+					startingStack: editingTournament.startingStack ?? undefined,
+					chipPurchases: editingTournament.chipPurchases.map((cp) => ({
+						name: cp.name,
+						cost: cp.cost,
+						chips: cp.chips,
+					})),
+					bountyAmount: editingTournament.bountyAmount ?? undefined,
+					tableSize: editingTournament.tableSize ?? undefined,
+					currencyId: editingTournament.currencyId ?? undefined,
+					memo: editingTournament.memo ?? undefined,
+					tags: editingTournament.tags.map((t) => t.name),
+				}
+			: undefined;
 
 	const editInitialFormValues =
 		editKey > 0 ? aiInitialFormValues : editFormValues;
