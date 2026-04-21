@@ -28,7 +28,7 @@ const SEAT_POSITIONS_BY_SIZE: Record<number, [number, number][]> = {
 	],
 	3: [
 		[73, 96], // 1: bottom-right
-		[50, 2], // 2: top-center
+		[50, 6], // 2: top-center
 		[27, 96], // 3: bottom-left
 	],
 	4: [
@@ -39,9 +39,9 @@ const SEAT_POSITIONS_BY_SIZE: Record<number, [number, number][]> = {
 	],
 	5: [
 		[73, 96], // 1: bottom-right
-		[92, 35], // 2: right-upper
-		[50, 2], // 3: top-center
-		[8, 35], // 4: left-upper
+		[94, 35], // 2: right-upper
+		[50, 6], // 3: top-center
+		[6, 35], // 4: left-upper
 		[27, 96], // 5: bottom-left
 	],
 	6: [
@@ -56,42 +56,42 @@ const SEAT_POSITIONS_BY_SIZE: Record<number, [number, number][]> = {
 		[73, 96], // 1: bottom-right
 		[96, 50], // 2: right-middle
 		[73, 6], // 3: top-right
-		[50, 2], // 4: top-center
+		[50, 6], // 4: top-center
 		[27, 6], // 5: top-left
 		[4, 50], // 6: left-middle
 		[27, 96], // 7: bottom-left
 	],
 	8: [
 		[73, 96], // 1: bottom-right
-		[92, 70], // 2: right-lower
-		[92, 35], // 3: right-upper
+		[94, 70], // 2: right-lower
+		[94, 35], // 3: right-upper
 		[73, 6], // 4: top-right
 		[27, 6], // 5: top-left
-		[8, 35], // 6: left-upper
-		[8, 70], // 7: left-lower
+		[6, 35], // 6: left-upper
+		[6, 70], // 7: left-lower
 		[27, 96], // 8: bottom-left
 	],
 	9: [
 		[73, 96], // 1: bottom-right
-		[92, 70], // 2: right-lower
-		[92, 35], // 3: right-upper
+		[94, 70], // 2: right-lower
+		[94, 35], // 3: right-upper
 		[73, 6], // 4: top-right
-		[50, 2], // 5: top-center
+		[50, 6], // 5: top-center
 		[27, 6], // 6: top-left
-		[8, 35], // 7: left-upper
-		[8, 70], // 8: left-lower
+		[6, 35], // 7: left-upper
+		[6, 70], // 8: left-lower
 		[27, 96], // 9: bottom-left
 	],
 	10: [
 		[73, 96], // 1: bottom-right
-		[92, 82], // 2: right-lower
+		[94, 82], // 2: right-lower
 		[96, 50], // 3: right-middle
-		[92, 18], // 4: right-upper
+		[94, 18], // 4: right-upper
 		[65, 6], // 5: top-right
 		[35, 6], // 6: top-left
-		[8, 18], // 7: left-upper
+		[6, 18], // 7: left-upper
 		[4, 50], // 8: left-middle
-		[8, 82], // 9: left-lower
+		[6, 82], // 9: left-lower
 		[27, 96], // 10: bottom-left
 	],
 };
