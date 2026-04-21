@@ -17,81 +17,82 @@ const MAX_TABLE_SIZE = 10;
  * [left%, top%] relative to the container.
  *
  * Stadium shape = rectangle with semicircle caps on left/right.
- * Seat 0 is always at the bottom center; remaining seats are distributed
- * around the perimeter for each supported table size (2..10).
+ * The bottom-center (50%, 98%) is always left empty. Seats are numbered
+ * clockwise starting from the first position to the right of bottom-center
+ * — displayed as seat 1..N (internal array indices 0..N-1).
  */
 const SEAT_POSITIONS_BY_SIZE: Record<number, [number, number][]> = {
 	2: [
-		[50, 98], // 0: bottom center
-		[50, 6], // 1: top center
+		[92, 50], // 1: right-middle
+		[8, 50], // 2: left-middle
 	],
 	3: [
-		[50, 98], // 0: bottom center
-		[73, 6], // 1: top right
-		[27, 6], // 2: top left
+		[73, 96], // 1: bottom-right
+		[50, 6], // 2: top-center
+		[27, 96], // 3: bottom-left
 	],
 	4: [
-		[50, 98], // 0: bottom center
-		[92, 50], // 1: right
-		[50, 6], // 2: top center
-		[8, 50], // 3: left
+		[73, 96], // 1: bottom-right
+		[73, 6], // 2: top-right
+		[27, 6], // 3: top-left
+		[27, 96], // 4: bottom-left
 	],
 	5: [
-		[50, 98], // 0: bottom center
-		[73, 6], // 1: top right
-		[92, 50], // 2: right
-		[8, 50], // 3: left
-		[27, 6], // 4: top left
+		[73, 96], // 1: bottom-right
+		[92, 35], // 2: right-upper
+		[50, 6], // 3: top-center
+		[8, 35], // 4: left-upper
+		[27, 96], // 5: bottom-left
 	],
 	6: [
-		[50, 98], // 0: bottom center
-		[73, 96], // 1: bottom right
-		[92, 50], // 2: right
-		[50, 6], // 3: top center
-		[8, 50], // 4: left
-		[27, 96], // 5: bottom left
+		[73, 96], // 1: bottom-right
+		[92, 50], // 2: right-middle
+		[73, 6], // 3: top-right
+		[27, 6], // 4: top-left
+		[8, 50], // 5: left-middle
+		[27, 96], // 6: bottom-left
 	],
 	7: [
-		[50, 98], // 0: bottom center
-		[73, 6], // 1: top right
-		[92, 50], // 2: right
-		[73, 96], // 3: bottom right
-		[27, 96], // 4: bottom left
-		[8, 50], // 5: left
-		[27, 6], // 6: top left
+		[73, 96], // 1: bottom-right
+		[92, 50], // 2: right-middle
+		[73, 6], // 3: top-right
+		[50, 6], // 4: top-center
+		[27, 6], // 5: top-left
+		[8, 50], // 6: left-middle
+		[27, 96], // 7: bottom-left
 	],
 	8: [
-		[50, 98], // 0: bottom center
-		[73, 6], // 1: top right
-		[92, 35], // 2: right upper
-		[92, 70], // 3: right lower
-		[73, 96], // 4: bottom right
-		[27, 96], // 5: bottom left
-		[8, 70], // 6: left lower
-		[8, 35], // 7: left upper
+		[73, 96], // 1: bottom-right
+		[92, 70], // 2: right-lower
+		[92, 35], // 3: right-upper
+		[73, 6], // 4: top-right
+		[27, 6], // 5: top-left
+		[8, 35], // 6: left-upper
+		[8, 70], // 7: left-lower
+		[27, 96], // 8: bottom-left
 	],
 	9: [
-		[50, 98], // 0: bottom center
-		[73, 6], // 1: top right
-		[92, 35], // 2: right upper
-		[92, 70], // 3: right lower
-		[73, 96], // 4: bottom right
-		[27, 96], // 5: bottom left
-		[8, 70], // 6: left lower
-		[8, 35], // 7: left upper
-		[27, 6], // 8: top left
+		[73, 96], // 1: bottom-right
+		[92, 70], // 2: right-lower
+		[92, 35], // 3: right-upper
+		[73, 6], // 4: top-right
+		[50, 6], // 5: top-center
+		[27, 6], // 6: top-left
+		[8, 35], // 7: left-upper
+		[8, 70], // 8: left-lower
+		[27, 96], // 9: bottom-left
 	],
 	10: [
-		[50, 98], // 0: bottom center
-		[70, 6], // 1: top right
-		[92, 35], // 2: right upper
-		[92, 70], // 3: right lower
-		[70, 96], // 4: bottom right
-		[30, 96], // 5: bottom left
-		[8, 70], // 6: left lower
-		[8, 35], // 7: left upper
-		[30, 6], // 8: top left
-		[50, 6], // 9: top center
+		[78, 96], // 1: bottom-right
+		[92, 75], // 2: right-lower
+		[96, 50], // 3: right-middle
+		[92, 25], // 4: right-upper
+		[65, 6], // 5: top-right
+		[35, 6], // 6: top-left
+		[8, 25], // 7: left-upper
+		[4, 50], // 8: left-middle
+		[8, 75], // 9: left-lower
+		[22, 96], // 10: bottom-left
 	],
 };
 
