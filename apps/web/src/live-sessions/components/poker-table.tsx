@@ -83,7 +83,7 @@ const SEAT_POSITIONS_BY_SIZE: Record<number, [number, number][]> = {
 		[27, 96], // 9: bottom-left
 	],
 	10: [
-		[78, 96], // 1: bottom-right
+		[73, 96], // 1: bottom-right
 		[92, 82], // 2: right-lower
 		[96, 50], // 3: right-middle
 		[92, 18], // 4: right-upper
@@ -92,7 +92,7 @@ const SEAT_POSITIONS_BY_SIZE: Record<number, [number, number][]> = {
 		[8, 18], // 7: left-upper
 		[4, 50], // 8: left-middle
 		[8, 82], // 9: left-lower
-		[22, 96], // 10: bottom-left
+		[27, 96], // 10: bottom-left
 	],
 };
 
@@ -272,11 +272,11 @@ export function PokerTable({
 					)}
 				</div>
 
-				{/* Scan players button (top-center overlay) */}
+				{/* Scan players button (bottom-center overlay, in reserved slot) */}
 				{onScanPlayers && (
 					<Button
 						aria-label="Seat from screenshot"
-						className="absolute top-0 left-1/2 z-10 h-7 -translate-x-1/2 gap-1 px-2 text-[10px]"
+						className="absolute bottom-0 left-1/2 z-10 h-7 -translate-x-1/2 gap-1 px-2 text-[10px]"
 						onClick={onScanPlayers}
 						size="xs"
 						type="button"
