@@ -49,7 +49,9 @@ export const cashSessionStartPayload = z.object({
 	buyInAmount: z.number().int().min(0),
 });
 
-export const tournamentSessionStartPayload = z.object({});
+export const tournamentSessionStartPayload = z.object({
+	timerStartedAt: z.number().int().nullable().optional(),
+});
 
 export const cashSessionEndPayload = z.object({
 	cashOutAmount: z.number().int().min(0),

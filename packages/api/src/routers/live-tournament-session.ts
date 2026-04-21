@@ -423,7 +423,9 @@ export const liveTournamentSessionRouter = router({
 				eventType: "session_start",
 				occurredAt: now,
 				sortOrder: 0,
-				payload: JSON.stringify({}),
+				payload: JSON.stringify({
+					timerStartedAt: input.timerStartedAt ?? null,
+				}),
 				updatedAt: now,
 			});
 
@@ -468,6 +470,36 @@ export const liveTournamentSessionRouter = router({
 				.update(liveTournamentSession)
 				.set(updateData)
 				.where(eq(liveTournamentSession.id, input.id));
+
+			// Keep the session_start event payload's timerStartedAt in sync so that
+			// the event view and the column stay consistent.
+			if (input.timerStartedAt !== undefined) {
+				const [startEvent] = await ctx.db
+					.select()
+					.from(sessionEvent)
+					.where(
+						and(
+							eq(sessionEvent.liveTournamentSessionId, input.id),
+							eq(sessionEvent.eventType, "session_start")
+						)
+					);
+				if (startEvent) {
+					const existing = JSON.parse(startEvent.payload) as Record<
+						string,
+						unknown
+					>;
+					await ctx.db
+						.update(sessionEvent)
+						.set({
+							payload: JSON.stringify({
+								...existing,
+								timerStartedAt: input.timerStartedAt ?? null,
+							}),
+							updatedAt: new Date(),
+						})
+						.where(eq(sessionEvent.id, startEvent.id));
+				}
+			}
 
 			const [updated] = await ctx.db
 				.select()

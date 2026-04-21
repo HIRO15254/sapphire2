@@ -13,12 +13,26 @@ export interface TournamentTimerState {
 	currentLevel: TournamentBlindLevel | null;
 	currentLevelIndex: number;
 	elapsedSeconds: number;
+	levelDurationSeconds: number | null;
+	levelProgressFraction: number | null;
 	nextLevel: TournamentBlindLevel | null;
 	remainingSecondsInLevel: number | null;
 	totalDurationSeconds: number | null;
 }
 
 const SECONDS_PER_MINUTE = 60;
+
+function computeLevelProgressFraction(
+	minutes: number | null,
+	remainingSeconds: number | null
+): number | null {
+	if (minutes === null || minutes <= 0 || remainingSeconds === null) {
+		return null;
+	}
+	const total = minutes * SECONDS_PER_MINUTE;
+	const elapsedInLevel = total - remainingSeconds;
+	return Math.min(1, Math.max(0, elapsedInLevel / total));
+}
 
 export function computeTournamentTimerState(
 	blindLevels: readonly TournamentBlindLevel[],
@@ -55,6 +69,8 @@ export function computeTournamentTimerState(
 				currentLevel: level,
 				currentLevelIndex: i,
 				elapsedSeconds,
+				levelDurationSeconds: null,
+				levelProgressFraction: null,
 				nextLevel: sortedLevels[i + 1] ?? null,
 				remainingSecondsInLevel: null,
 				totalDurationSeconds,
@@ -63,12 +79,18 @@ export function computeTournamentTimerState(
 
 		const levelEndSeconds = cumulativeSeconds + minutes * SECONDS_PER_MINUTE;
 		if (elapsedSeconds < levelEndSeconds) {
+			const remainingSecondsInLevel = levelEndSeconds - elapsedSeconds;
 			return {
 				currentLevel: level,
 				currentLevelIndex: i,
 				elapsedSeconds,
+				levelDurationSeconds: minutes * SECONDS_PER_MINUTE,
+				levelProgressFraction: computeLevelProgressFraction(
+					minutes,
+					remainingSecondsInLevel
+				),
 				nextLevel: sortedLevels[i + 1] ?? null,
-				remainingSecondsInLevel: levelEndSeconds - elapsedSeconds,
+				remainingSecondsInLevel,
 				totalDurationSeconds,
 			};
 		}
@@ -76,10 +98,15 @@ export function computeTournamentTimerState(
 	}
 
 	const lastLevel = sortedLevels.at(-1) ?? null;
+	const lastLevelMinutes =
+		typeof lastLevel?.minutes === "number" ? lastLevel.minutes : null;
 	return {
 		currentLevel: lastLevel,
 		currentLevelIndex: lastLevel ? sortedLevels.length - 1 : -1,
 		elapsedSeconds,
+		levelDurationSeconds:
+			lastLevelMinutes === null ? null : lastLevelMinutes * SECONDS_PER_MINUTE,
+		levelProgressFraction: lastLevelMinutes === null ? null : 1,
 		nextLevel: null,
 		remainingSecondsInLevel: 0,
 		totalDurationSeconds,
@@ -116,4 +143,18 @@ export function formatBlindLevelLabel(level: TournamentBlindLevel): string {
 	const blindsLabel = parts.length > 0 ? parts.join("/") : "—";
 	const anteLabel = level.ante ? ` (ante ${level.ante})` : "";
 	return `L${level.level} ${blindsLabel}${anteLabel}`;
+}
+
+export function formatBlindsValue(level: TournamentBlindLevel): string {
+	const parts: string[] = [];
+	if (level.blind1 !== null) {
+		parts.push(String(level.blind1));
+	}
+	if (level.blind2 !== null) {
+		parts.push(String(level.blind2));
+	}
+	if (level.blind3 !== null) {
+		parts.push(String(level.blind3));
+	}
+	return parts.length > 0 ? parts.join(" / ") : "—";
 }
