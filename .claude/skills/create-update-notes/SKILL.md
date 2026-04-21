@@ -1,6 +1,6 @@
 ---
 name: create-update-notes
-description: Draft a GitHub release note (update note) for sapphire2 from PRs merged since the latest tag, following the style of past sapphire2 releases, and publish it as a draft release. Use when the user asks to create release notes, update notes, or publish a new version, or invokes `/create-update-notes`.
+description: Draft a GitHub release note (update note) for sapphire2 from PRs merged since the latest tag, following the style of past sapphire2 releases, and output the final Markdown for the user to publish themselves. Use when the user asks to create release notes, update notes, or draft a new version, or invokes `/create-update-notes`.
 ---
 
 ## User Input
@@ -13,7 +13,7 @@ $ARGUMENTS
 
 ## Goal
 
-Produce an update note for sapphire2 in the exact tone and structure of past releases (v1.1.0 / v1.2.0 / v1.3.0), then register it as a draft GitHub Release on `HIRO15254/sapphire2`. Return the resulting URL and the final Markdown body to the user.
+Produce an update note for sapphire2 in the exact tone and structure of past releases (v1.1.0 / v1.2.0 / v1.3.0) and output the final Markdown body to the user. The user creates the GitHub Release themselves; the skill never touches GitHub on its own.
 
 ## Fixed Structure
 
@@ -168,50 +168,18 @@ Present the assembled Markdown in a fenced code block and ask the user, in a sin
 
 Apply edits and iterate until approved (max 3 rounds).
 
-### 8. Create the draft release
+### 8. Deliver the final output
 
-After approval, post to the GitHub API directly (MCP has no `create_release` tool):
+After approval, print the final result to the user. Do not call the GitHub API, do not create a release (draft or otherwise), and do not push anything. The user takes the output and creates the Release on GitHub themselves.
 
-```bash
-if [ -z "$GITHUB_TOKEN" ]; then
-  echo "GITHUB_TOKEN is not set; skipping automated draft creation"
-else
-  curl -sS -X POST \
-    -H "Authorization: Bearer $GITHUB_TOKEN" \
-    -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    https://api.github.com/repos/HIRO15254/sapphire2/releases \
-    -d @/tmp/release-body.json
-fi
-```
+Output exactly these three things:
 
-Write `/tmp/release-body.json` as:
-
-```json
-{
-  "tag_name": "vX.Y.Z",
-  "target_commitish": "main",
-  "name": "vX.Y.Z",
-  "body": "...<final Markdown>...",
-  "draft": true,
-  "prerelease": false
-}
-```
-
-- On success, display the response's `html_url` to the user.
-- If `GITHUB_TOKEN` is unset, or the API returns 4xx, fall back to a pre-filled manual URL: `https://github.com/HIRO15254/sapphire2/releases/new?tag=<vX.Y.Z>&title=<vX.Y.Z>&body=<urlencoded>`.
-- Either way, always print the final Markdown body to the user.
-
-## Output
-
-Return to the user:
-
-1. Draft Release URL (auto-created) or the manual-creation URL (fallback).
-2. The full final Markdown body.
-3. A short list of PR numbers that were excluded (if any).
+1. **The final Markdown body**, fenced in a single ```` ```markdown ```` block so it can be copy-pasted into the GitHub Release form verbatim. Do not add any surrounding commentary inside the block.
+2. **The suggested tag and title**: both `vX.Y.Z`.
+3. **Excluded PRs**: a short bulleted list of PR numbers that were excluded along with the one-word reason (`bot`, `release-bump`, `refactor`, `same-window-regression`, etc.). Omit this section if nothing was excluded.
 
 ## Notes
 
-- This skill only drafts the release body. It does not bump `package.json`, update `CHANGELOG.md`, push tags, or publish a non-draft release.
-- The skill must never `git push` on its own or create a release with `draft: false`. The user publishes the draft themselves.
+- This skill only drafts the release body. It does not bump `package.json`, update `CHANGELOG.md`, push tags, create releases, or call the GitHub write API.
+- The skill must never `git push` on its own. The user publishes the release themselves.
 - When the format of past releases changes, update both the "Fixed Structure" and the "Good examples" blocks above.
