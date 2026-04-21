@@ -34,6 +34,7 @@ interface ActiveSessionSceneProps {
 	onDiscard: () => void;
 	state: ActiveSessionSceneState;
 	summary: ReactNode;
+	tableSize?: number | null;
 	title: string;
 	topSlot?: ReactNode;
 }
@@ -233,6 +234,7 @@ export function ActiveSessionScene({
 	onDiscard,
 	state,
 	summary,
+	tableSize,
 	title,
 	topSlot,
 }: ActiveSessionSceneProps) {
@@ -289,6 +291,7 @@ export function ActiveSessionScene({
 					onPlayerSeatTap={state.onPlayerSeatTap}
 					onScanPlayers={() => setIsScanSheetOpen(true)}
 					players={state.players}
+					tableSize={tableSize}
 					waitingForHero={state.waitingForHero}
 				/>
 			</div>

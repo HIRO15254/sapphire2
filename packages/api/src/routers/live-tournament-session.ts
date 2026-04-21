@@ -93,12 +93,14 @@ async function fetchTournamentMasterData(
 	tournamentBuyIn: number | undefined;
 	entryFee: number | undefined;
 	startingStack: number | undefined;
+	tableSize: number | null;
 }> {
 	if (!tournamentId) {
 		return {
 			tournamentBuyIn: undefined,
 			entryFee: undefined,
 			startingStack: undefined,
+			tableSize: null,
 		};
 	}
 	const [t] = await db
@@ -106,6 +108,7 @@ async function fetchTournamentMasterData(
 			buyIn: tournament.buyIn,
 			entryFee: tournament.entryFee,
 			startingStack: tournament.startingStack,
+			tableSize: tournament.tableSize,
 		})
 		.from(tournament)
 		.where(eq(tournament.id, tournamentId));
@@ -113,6 +116,7 @@ async function fetchTournamentMasterData(
 		tournamentBuyIn: t?.buyIn ?? undefined,
 		entryFee: t?.entryFee ?? undefined,
 		startingStack: t?.startingStack ?? undefined,
+		tableSize: t?.tableSize ?? null,
 	};
 }
 
@@ -430,7 +434,14 @@ export const liveTournamentSessionRouter = router({
 				startingStack: masterData.startingStack ?? null,
 			};
 
-			return { ...session, events, tablePlayers, blindLevels, summary };
+			return {
+				...session,
+				events,
+				tablePlayers,
+				blindLevels,
+				summary,
+				tableSize: masterData.tableSize,
+			};
 		}),
 
 	create: protectedProcedure

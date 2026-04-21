@@ -8,32 +8,105 @@ import { cn } from "@/lib/utils";
 import { PlayerAvatar } from "@/players/components/player-avatar";
 import { Button } from "@/shared/components/ui/button";
 
-const MAX_SEATS = 9;
+const DEFAULT_TABLE_SIZE = 9;
+const MIN_TABLE_SIZE = 2;
+const MAX_TABLE_SIZE = 10;
 
 /**
- * Seat positions around a stadium-shaped (racetrack) poker table (0-8).
+ * Seat positions around a stadium-shaped (racetrack) poker table.
  * [left%, top%] relative to the container.
  *
  * Stadium shape = rectangle with semicircle caps on left/right.
- * Seats distributed: 1 bottom-center, 3 on each long side, 1 on each cap.
- *
- *          8         1
- *    7                    2
- *    6                    3
- *          5         4
- *               0
+ * The bottom-center (50%, 98%) is always left empty. Seats are numbered
+ * clockwise starting from the first position to the right of bottom-center
+ * — displayed as seat 1..N (internal array indices 0..N-1).
  */
-const SEAT_POSITIONS: [number, number][] = [
-	[50, 98], // 0: bottom center
-	[73, 6], // 1: top right
-	[92, 35], // 2: right upper
-	[92, 70], // 3: right lower
-	[73, 96], // 4: bottom right
-	[27, 96], // 5: bottom left
-	[8, 70], // 6: left lower
-	[8, 35], // 7: left upper
-	[27, 6], // 8: top left
-];
+const SEAT_POSITIONS_BY_SIZE: Record<number, [number, number][]> = {
+	2: [
+		[96, 50], // 1: right-middle
+		[4, 50], // 2: left-middle
+	],
+	3: [
+		[73, 96], // 1: bottom-right
+		[50, 6], // 2: top-center
+		[27, 96], // 3: bottom-left
+	],
+	4: [
+		[73, 96], // 1: bottom-right
+		[73, 6], // 2: top-right
+		[27, 6], // 3: top-left
+		[27, 96], // 4: bottom-left
+	],
+	5: [
+		[73, 96], // 1: bottom-right
+		[94, 35], // 2: right-upper
+		[50, 6], // 3: top-center
+		[6, 35], // 4: left-upper
+		[27, 96], // 5: bottom-left
+	],
+	6: [
+		[73, 96], // 1: bottom-right
+		[96, 50], // 2: right-middle
+		[73, 6], // 3: top-right
+		[27, 6], // 4: top-left
+		[4, 50], // 5: left-middle
+		[27, 96], // 6: bottom-left
+	],
+	7: [
+		[73, 96], // 1: bottom-right
+		[96, 50], // 2: right-middle
+		[73, 6], // 3: top-right
+		[50, 6], // 4: top-center
+		[27, 6], // 5: top-left
+		[4, 50], // 6: left-middle
+		[27, 96], // 7: bottom-left
+	],
+	8: [
+		[73, 96], // 1: bottom-right
+		[94, 70], // 2: right-lower
+		[94, 35], // 3: right-upper
+		[73, 6], // 4: top-right
+		[27, 6], // 5: top-left
+		[6, 35], // 6: left-upper
+		[6, 70], // 7: left-lower
+		[27, 96], // 8: bottom-left
+	],
+	9: [
+		[73, 96], // 1: bottom-right
+		[94, 70], // 2: right-lower
+		[94, 35], // 3: right-upper
+		[73, 6], // 4: top-right
+		[50, 6], // 5: top-center
+		[27, 6], // 6: top-left
+		[6, 35], // 7: left-upper
+		[6, 70], // 8: left-lower
+		[27, 96], // 9: bottom-left
+	],
+	10: [
+		[73, 96], // 1: bottom-right
+		[94, 82], // 2: right-lower
+		[96, 50], // 3: right-middle
+		[94, 18], // 4: right-upper
+		[65, 6], // 5: top-right
+		[35, 6], // 6: top-left
+		[6, 18], // 7: left-upper
+		[4, 50], // 8: left-middle
+		[6, 82], // 9: left-lower
+		[27, 96], // 10: bottom-left
+	],
+};
+
+function resolveSeatPositions(
+	tableSize: number | null | undefined
+): [number, number][] {
+	const size =
+		typeof tableSize === "number" &&
+		tableSize >= MIN_TABLE_SIZE &&
+		tableSize <= MAX_TABLE_SIZE
+			? tableSize
+			: DEFAULT_TABLE_SIZE;
+	return SEAT_POSITIONS_BY_SIZE[size];
+}
 
 export interface TablePlayer {
 	id: string;
@@ -61,6 +134,8 @@ interface PokerTableProps {
 	onPlayerSeatTap: (player: TablePlayer, seatPosition: number) => void;
 	onScanPlayers?: () => void;
 	players: TablePlayer[];
+	/** Number of seats around the table (2..10). Defaults to 9 when nullish. */
+	tableSize?: number | null;
 	/** True when no hero is seated yet — empty seats show "Sit" hint */
 	waitingForHero: boolean;
 }
@@ -77,17 +152,17 @@ function SeatSlot({
 	isLoading,
 	onTap,
 	player,
-	seatIndex,
+	position,
 	waitingForHero,
 }: {
 	isHero: boolean;
 	isLoading: boolean;
 	onTap: () => void;
 	player: TablePlayer | undefined;
-	seatIndex: number;
+	position: [number, number];
 	waitingForHero: boolean;
 }) {
-	const [left, top] = SEAT_POSITIONS[seatIndex];
+	const [left, top] = position;
 	const isOccupied = !!player;
 
 	return (
@@ -162,8 +237,10 @@ export function PokerTable({
 	onPlayerSeatTap,
 	onScanPlayers,
 	players,
+	tableSize,
 	waitingForHero,
 }: PokerTableProps) {
+	const seatPositions = resolveSeatPositions(tableSize);
 	return (
 		<div className="relative mx-auto w-full max-w-sm pt-5 pb-6">
 			<div className="relative aspect-[2/1]">
@@ -195,11 +272,11 @@ export function PokerTable({
 					)}
 				</div>
 
-				{/* Scan players button (top-center overlay) */}
+				{/* Scan players button (bottom-center overlay, in reserved slot) */}
 				{onScanPlayers && (
 					<Button
 						aria-label="Seat from screenshot"
-						className="absolute top-0 left-1/2 z-10 h-7 -translate-x-1/2 gap-1 px-2 text-[10px]"
+						className="absolute bottom-0 left-1/2 z-10 h-7 -translate-x-1/2 gap-1 px-2 text-[10px]"
 						onClick={onScanPlayers}
 						size="xs"
 						type="button"
@@ -211,7 +288,7 @@ export function PokerTable({
 				)}
 
 				{/* Seats */}
-				{Array.from({ length: MAX_SEATS }, (_, i) => {
+				{seatPositions.map((position, i) => {
 					const playerAtSeat = getPlayerAtSeat(players, i);
 					const isHero = heroSeatPosition === i;
 
@@ -230,7 +307,7 @@ export function PokerTable({
 								}
 							}}
 							player={playerAtSeat}
-							seatIndex={i}
+							position={position}
 							waitingForHero={waitingForHero}
 						/>
 					);
