@@ -6,7 +6,7 @@ import {
 } from "@/shared/components/management/expandable-item-list";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { createGroupFormatter } from "@/utils/format-number";
+import { createGroupFormatter, formatYmdSlash } from "@/utils/format-number";
 
 interface Transaction {
 	amount: number;
@@ -58,8 +58,7 @@ export function TransactionList({
 					const amountDisplay = isPositive
 						? `+${fmt(tx.amount)}`
 						: fmt(tx.amount);
-					const txDate = new Date(tx.transactedAt);
-					const dateDisplay = `${txDate.getFullYear()}/${String(txDate.getMonth() + 1).padStart(2, "0")}/${String(txDate.getDate()).padStart(2, "0")}`;
+					const dateDisplay = formatYmdSlash(new Date(tx.transactedAt));
 					const isSessionGenerated = !!tx.sessionId;
 					const isConfirmingDelete = confirmingDeleteId === tx.id;
 
