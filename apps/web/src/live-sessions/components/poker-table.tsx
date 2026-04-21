@@ -23,12 +23,12 @@ const MAX_TABLE_SIZE = 10;
  */
 const SEAT_POSITIONS_BY_SIZE: Record<number, [number, number][]> = {
 	2: [
-		[92, 50], // 1: right-middle
-		[8, 50], // 2: left-middle
+		[96, 50], // 1: right-middle
+		[4, 50], // 2: left-middle
 	],
 	3: [
 		[73, 96], // 1: bottom-right
-		[50, 6], // 2: top-center
+		[50, 2], // 2: top-center
 		[27, 96], // 3: bottom-left
 	],
 	4: [
@@ -40,25 +40,25 @@ const SEAT_POSITIONS_BY_SIZE: Record<number, [number, number][]> = {
 	5: [
 		[73, 96], // 1: bottom-right
 		[92, 35], // 2: right-upper
-		[50, 6], // 3: top-center
+		[50, 2], // 3: top-center
 		[8, 35], // 4: left-upper
 		[27, 96], // 5: bottom-left
 	],
 	6: [
 		[73, 96], // 1: bottom-right
-		[92, 50], // 2: right-middle
+		[96, 50], // 2: right-middle
 		[73, 6], // 3: top-right
 		[27, 6], // 4: top-left
-		[8, 50], // 5: left-middle
+		[4, 50], // 5: left-middle
 		[27, 96], // 6: bottom-left
 	],
 	7: [
 		[73, 96], // 1: bottom-right
-		[92, 50], // 2: right-middle
+		[96, 50], // 2: right-middle
 		[73, 6], // 3: top-right
-		[50, 6], // 4: top-center
+		[50, 2], // 4: top-center
 		[27, 6], // 5: top-left
-		[8, 50], // 6: left-middle
+		[4, 50], // 6: left-middle
 		[27, 96], // 7: bottom-left
 	],
 	8: [
@@ -76,7 +76,7 @@ const SEAT_POSITIONS_BY_SIZE: Record<number, [number, number][]> = {
 		[92, 70], // 2: right-lower
 		[92, 35], // 3: right-upper
 		[73, 6], // 4: top-right
-		[50, 6], // 5: top-center
+		[50, 2], // 5: top-center
 		[27, 6], // 6: top-left
 		[8, 35], // 7: left-upper
 		[8, 70], // 8: left-lower
