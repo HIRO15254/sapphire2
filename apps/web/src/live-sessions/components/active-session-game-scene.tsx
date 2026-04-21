@@ -1,11 +1,22 @@
 import { IconEdit } from "@tabler/icons-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AssignRingGameDialog } from "@/live-sessions/components/assign-ring-game-dialog";
 import { AssignTournamentDialog } from "@/live-sessions/components/assign-tournament-dialog";
 import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
 import { useCashGameSession } from "@/live-sessions/hooks/use-cash-game-session";
+import { useRingGameSceneActions } from "@/live-sessions/hooks/use-ring-game-scene-actions";
+import {
+	type ChipPurchaseRow,
+	type TournamentDetail,
+	useTournamentDetail,
+} from "@/live-sessions/hooks/use-tournament-detail";
+import { useTournamentSceneActions } from "@/live-sessions/hooks/use-tournament-scene-actions";
 import { useTournamentSession } from "@/live-sessions/hooks/use-tournament-session";
+import {
+	formatAnteSuffix,
+	formatBlindParts,
+	variantLabel,
+} from "@/live-sessions/utils/game-scene-formatters";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -19,24 +30,9 @@ import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { RingGameForm } from "@/stores/components/ring-game-form";
 import { TournamentEditDialog } from "@/stores/components/tournament-edit-dialog";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
-import type {
-	RingGame,
-	RingGameFormValues,
-} from "@/stores/hooks/use-ring-games";
-import { useRingGames } from "@/stores/hooks/use-ring-games";
-import type { TournamentFormValues } from "@/stores/hooks/use-tournaments";
-import { useTournaments } from "@/stores/hooks/use-tournaments";
+import type { RingGame } from "@/stores/hooks/use-ring-games";
 import { createGroupFormatter } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
-import { trpc, trpcClient } from "@/utils/trpc";
-
-const VARIANT_LABELS: Record<string, string> = {
-	nlh: "NLH",
-};
-
-function variantLabel(variant: string): string {
-	return VARIANT_LABELS[variant] ?? variant.toUpperCase();
-}
 
 function GameSceneShell({
 	children,
@@ -71,42 +67,6 @@ function DetailRow({
 			<span className="text-right font-medium text-sm">{value}</span>
 		</div>
 	);
-}
-
-function formatBlindParts(game: RingGame): string {
-	const fmt = createGroupFormatter([
-		game.blind1,
-		game.blind2,
-		game.blind3,
-		game.ante,
-	]);
-	const parts: string[] = [];
-	if (game.blind1 != null) {
-		parts.push(fmt(game.blind1));
-	}
-	if (game.blind2 != null) {
-		parts.push(fmt(game.blind2));
-	} else if (parts.length > 0) {
-		parts.push("—");
-	}
-	if (game.blind3 != null) {
-		parts.push(fmt(game.blind3));
-	}
-	return parts.join("/");
-}
-
-function formatAnteSuffix(game: RingGame): string {
-	if (game.ante == null || game.anteType == null || game.anteType === "none") {
-		return "";
-	}
-	const fmt = createGroupFormatter([game.ante]);
-	if (game.anteType === "bb") {
-		return `(BBA:${fmt(game.ante)})`;
-	}
-	if (game.anteType === "all") {
-		return `(Ante:${fmt(game.ante)})`;
-	}
-	return "";
 }
 
 function RingGameDetailsCard({
@@ -203,13 +163,20 @@ function CashGameNotLinked({
 }
 
 function CashGameDetails({ sessionId }: { sessionId: string }) {
-	const queryClient = useQueryClient();
-	const [isEditOpen, setIsEditOpen] = useState(false);
 	const { session, ringGames } = useCashGameSession(sessionId);
 	const storeId = session?.storeId ?? "";
-	const { update, isUpdatePending, currencies } = useRingGames({
+	const ringGameId = session?.ringGameId ?? "";
+
+	const {
+		isEditOpen,
+		setIsEditOpen,
+		handleUpdate,
+		isUpdatePending,
+		currencies,
+	} = useRingGameSceneActions({
+		ringGameId,
+		sessionId,
 		storeId,
-		showArchived: false,
 	});
 
 	if (!session) {
@@ -238,15 +205,6 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 	}
 
 	const currency = currencies.find((c) => c.id === ringGame.currencyId);
-
-	const handleUpdate = async (values: RingGameFormValues) => {
-		await update({ id: ringGame.id, ...values });
-		await queryClient.invalidateQueries({
-			queryKey: trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
-				.queryKey,
-		});
-		setIsEditOpen(false);
-	};
 
 	return (
 		<GameSceneShell
@@ -381,44 +339,6 @@ function TournamentStructureTable({ levels }: { levels: BlindLevelRow[] }) {
 			</table>
 		</div>
 	);
-}
-
-type TournamentDetail = NonNullable<
-	ReturnType<typeof useTournamentDetail>["tournament"]
->;
-
-interface ChipPurchaseRow {
-	chips: number;
-	cost: number;
-	id: string;
-	name: string;
-}
-
-function useTournamentDetail(tournamentId: string) {
-	const tournamentQuery = useQuery({
-		...trpc.tournament.getById.queryOptions({ id: tournamentId }),
-		enabled: !!tournamentId,
-	});
-	const chipPurchasesQuery = useQuery({
-		...trpc.tournamentChipPurchase.listByTournament.queryOptions({
-			tournamentId,
-		}),
-		enabled: !!tournamentId,
-	});
-	const levelsQuery = useQuery({
-		...trpc.blindLevel.listByTournament.queryOptions({ tournamentId }),
-		enabled: !!tournamentId,
-	});
-	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
-
-	return {
-		tournament: tournamentQuery.data,
-		isTournamentLoading: tournamentQuery.isLoading,
-		chipPurchases: (chipPurchasesQuery.data ?? []) as ChipPurchaseRow[],
-		levels: (levelsQuery.data ?? []) as BlindLevelRow[],
-		isLevelsLoading: levelsQuery.isLoading,
-		currencies: currenciesQuery.data ?? [],
-	};
 }
 
 function TournamentInfoCard({
@@ -573,81 +493,6 @@ function toInitialFormValues(
 	};
 }
 
-function useTournamentUpdate({
-	sessionId,
-	storeId,
-	tournamentId,
-}: {
-	sessionId: string;
-	storeId: string;
-	tournamentId: string;
-}) {
-	const queryClient = useQueryClient();
-	const [isSaving, setIsSaving] = useState(false);
-
-	const save = async (
-		values: TournamentFormValues,
-		updatedLevels: BlindLevelRow[]
-	) => {
-		setIsSaving(true);
-		try {
-			await trpcClient.tournament.updateWithLevels.mutate({
-				id: tournamentId,
-				name: values.name,
-				variant: values.variant,
-				buyIn: values.buyIn ?? null,
-				entryFee: values.entryFee ?? null,
-				startingStack: values.startingStack ?? null,
-				bountyAmount: values.bountyAmount ?? null,
-				tableSize: values.tableSize ?? null,
-				currencyId: values.currencyId ?? null,
-				memo: values.memo ?? null,
-				tags: values.tags,
-				chipPurchases: values.chipPurchases,
-				blindLevels: updatedLevels.map((l) => ({
-					isBreak: l.isBreak,
-					blind1: l.blind1,
-					blind2: l.blind2,
-					blind3: l.blind3,
-					ante: l.ante,
-					minutes: l.minutes,
-				})),
-			});
-			await Promise.all([
-				queryClient.invalidateQueries({
-					queryKey: trpc.tournament.getById.queryOptions({ id: tournamentId })
-						.queryKey,
-				}),
-				queryClient.invalidateQueries({
-					queryKey: trpc.tournament.listByStore.queryOptions({
-						storeId,
-						includeArchived: false,
-					}).queryKey,
-				}),
-				queryClient.invalidateQueries({
-					queryKey: trpc.blindLevel.listByTournament.queryOptions({
-						tournamentId,
-					}).queryKey,
-				}),
-				queryClient.invalidateQueries({
-					queryKey: trpc.tournamentChipPurchase.listByTournament.queryOptions({
-						tournamentId,
-					}).queryKey,
-				}),
-				queryClient.invalidateQueries({
-					queryKey: trpc.liveTournamentSession.getById.queryOptions({
-						id: sessionId,
-					}).queryKey,
-				}),
-			]);
-		} finally {
-			setIsSaving(false);
-		}
-	};
-
-	return { save, isSaving };
-}
-
 function TournamentDetailsBody({
 	sessionId,
 	storeId,
@@ -665,24 +510,17 @@ function TournamentDetailsBody({
 	isLevelsLoading: boolean;
 	currencyName: string | null | undefined;
 }) {
-	const [isEditOpen, setIsEditOpen] = useState(false);
-	const { save, isSaving } = useTournamentUpdate({
+	const {
+		isEditOpen,
+		setIsEditOpen,
+		handleSave,
+		isSaving,
+		isUpdateWithLevelsPending,
+	} = useTournamentSceneActions({
 		sessionId,
 		storeId,
 		tournamentId: tournament.id,
 	});
-	const { isUpdateWithLevelsPending } = useTournaments({
-		storeId,
-		showArchived: false,
-	});
-
-	const handleSave = async (
-		values: TournamentFormValues,
-		updatedLevels: BlindLevelRow[]
-	) => {
-		await save(values, updatedLevels);
-		setIsEditOpen(false);
-	};
 
 	return (
 		<GameSceneShell
