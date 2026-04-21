@@ -51,27 +51,34 @@ Produce an update note for sapphire2 in the exact tone and structure of past rel
 5. **One line per item. No trailing period.** (Matches past notes.)
 6. **Append the PR reference** as `(#123)`; combine related PRs as `(#123, #124)`.
 7. **Write in English.** Past notes are in English; keep the style consistent.
-8. **Length**: aim for 60–120 characters before the `(#...)` suffix. Break a single PR into multiple bullets if it shipped several user-visible changes.
-9. **Exclude unless they change user experience**: dependency bumps, version-bump PRs, pure refactors, test-only, docs-only, CI-only, bot PRs, internal renames.
+8. **Keep it concise. Do not enumerate sub-components.** Name what changed at the highest level the user recognises and stop. Skip column counts, the full list of fields shown, internal layout terms, and other micro-detail.
+   - Target ~40–80 characters before the `(#...)` suffix.
+   - If the user would need to read the PR to understand the bullet, it is too detailed; shorten it.
+9. **Break a single PR into multiple bullets only when it shipped several clearly distinct user-visible changes** (e.g. a new feature plus an unrelated bug fix).
+10. **Exclude unless they change user experience**: dependency bumps, version-bump PRs, pure refactors, test-only, docs-only, CI-only, bot PRs, internal renames.
 
-### Good examples (one per category, excerpted from v1.3.0)
+### Good examples (one per category)
 
 ```
 - AI-powered tournament data extraction from tournament URLs and images (#154)
-- Live session header redesigned with 3-column layout showing time, field/entries, and P&L/avg stack (#185, #190)
+- Live session header summary redesigned (#185, #190)
 - Fixed HTML parsing errors in Cloudflare Workers (#154)
 ```
+
+Note: past notes occasionally went too deep (e.g. enumerating a 3-column layout and every field it shows). Prefer the shorter phrasing above — past notes are guidance, not a ceiling on brevity.
 
 ### Contrast examples (reject → rewrite)
 
 - Reject: "Refactored session event router to use discriminated unions (#111)"
-  → Rewrite as UI Improvement: "Live session state stays consistent after reconnect and navigation (#111)"
+  → Rewrite as UI Improvement: "Live session state stays consistent after reconnect (#111)"
 - Reject: "Added `update_note_view` table and tRPC procedure (#99)"
   → Rewrite as New Feature: "In-app update notes panel shows what's new on each release (#99)"
 - Reject: "Fixed useMutation race condition in stack editor (#113)"
   → Rewrite as Bug Fix: "Fixed stack edits sometimes reverting when tapped quickly (#113)"
+- Reject (too detailed): "Live session header redesigned with 3-column layout showing time, field/entries, and P&L/avg stack (#185, #190)"
+  → Rewrite: "Live session header summary redesigned (#185, #190)"
 
-When in doubt between UI Improvement and Refactor, ask: would a user notice this change if they opened the app? If no, drop it.
+When in doubt between UI Improvement and Refactor, ask: would a user notice this change if they opened the app? If no, drop it. When in doubt about length, cut.
 
 ## Execution Flow
 
@@ -120,8 +127,9 @@ For each PR:
 1. Strip conventional prefixes (`feat:`, `fix:`, scopes) from the title.
 2. Read the body's first paragraph / Summary section to identify the user-visible change.
 3. Apply the Style Rules above. For New Features, rewrite until the sentence starts from what the user can now do. For UI Improvements, rewrite until the sentence describes what the user sees or feels. For Bug Fixes, rewrite until it starts with `Fixed` and names the symptom.
-4. Append `(#PR)`. Collapse sibling PRs into `(#123, #124)`.
-5. If the PR shipped several user-visible changes, split it into multiple bullets across the appropriate categories.
+4. **Trim aggressively.** Remove enumerations, column counts, exhaustive field lists, and internal layout words. If the sentence could be halved without losing its meaning to a user, halve it.
+5. Append `(#PR)`. Collapse sibling PRs into `(#123, #124)`.
+6. Split a PR into multiple bullets only when it shipped several clearly distinct user-visible changes.
 
 ### 6. Review with the user
 
