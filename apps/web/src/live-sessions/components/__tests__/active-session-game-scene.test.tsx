@@ -103,6 +103,11 @@ vi.mock("@tanstack/react-query", () => ({
 	useQueryClient: () => ({
 		invalidateQueries: vi.fn(async () => undefined),
 	}),
+	useMutation: () => ({
+		mutate: vi.fn(),
+		mutateAsync: vi.fn(async () => undefined),
+		isPending: false,
+	}),
 }));
 
 vi.mock("@/utils/trpc", () => {
@@ -123,17 +128,38 @@ vi.mock("@/utils/trpc", () => {
 			},
 			liveCashGameSession: {
 				getById: makeProc("liveCashGameSession"),
+				list: makeProc("liveCashGameSession"),
 			},
 			liveTournamentSession: {
 				getById: makeProc("liveTournamentSession"),
+				list: makeProc("liveTournamentSession"),
 			},
 			currency: {
 				list: makeProc("currency"),
+			},
+			store: {
+				list: makeProc("store"),
+			},
+			ringGame: {
+				listByStore: makeProc("ringGame"),
+			},
+			session: {
+				list: makeProc("session"),
 			},
 		},
 		trpcClient: {
 			tournament: {
 				updateWithLevels: { mutate: vi.fn() },
+				createWithLevels: { mutate: vi.fn() },
+			},
+			ringGame: {
+				create: { mutate: vi.fn() },
+			},
+			liveCashGameSession: {
+				update: { mutate: vi.fn() },
+			},
+			liveTournamentSession: {
+				update: { mutate: vi.fn() },
 			},
 		},
 	};
@@ -209,6 +235,26 @@ describe("ActiveSessionGameScene", () => {
 
 		render(<ActiveSessionGameScene />);
 		expect(screen.getByText("Game not linked")).toBeInTheDocument();
+		expect(screen.getByText("Select or create a game")).toBeInTheDocument();
+	});
+
+	it("shows a fallback with an assign action when the tournament session has no tournament linked", () => {
+		mocks.activeSession = {
+			id: "session-2",
+			type: "tournament",
+			status: "active",
+		};
+		mocks.tournamentSession = {
+			id: "session-2",
+			storeId: "store-1",
+			tournamentId: null,
+		};
+
+		render(<ActiveSessionGameScene />);
+		expect(screen.getByText("Game not linked")).toBeInTheDocument();
+		expect(
+			screen.getByText("Select or create a tournament")
+		).toBeInTheDocument();
 	});
 
 	it("renders tournament details", () => {
