@@ -85,7 +85,7 @@ function RingGamePickerField({
 		return (
 			<Field label="Ring Game" required>
 				<p className="text-muted-foreground text-sm">
-					先にStoreを選択してください。
+					Please select a store first.
 				</p>
 			</Field>
 		);
@@ -95,8 +95,8 @@ function RingGamePickerField({
 			<Field label="Ring Game" required>
 				<EmptyState
 					className="px-4 py-8"
-					description="新規作成タブから作成してください。"
-					heading="ゲームがありません"
+					description="Use the Create new tab to add one."
+					heading="No ring games"
 				/>
 			</Field>
 		);
@@ -268,7 +268,7 @@ export function AssignRingGameDialog({
 						}
 						type="submit"
 					>
-						{isAssignPending ? "割り当て中..." : "割り当て"}
+						{isAssignPending ? "Assigning..." : "Assign"}
 					</Button>
 				)}
 			</selectForm.Subscribe>
@@ -279,7 +279,7 @@ export function AssignRingGameDialog({
 		if (!effectiveStoreId) {
 			return (
 				<p className="text-muted-foreground text-sm">
-					先にStoreを選択してください。
+					Please select a store first.
 				</p>
 			);
 		}
@@ -295,7 +295,7 @@ export function AssignRingGameDialog({
 				}
 			}}
 			open={open}
-			title="ゲームを割り当て"
+			title="Assign Ring Game"
 		>
 			<Tabs
 				className="mb-4"
@@ -303,8 +303,8 @@ export function AssignRingGameDialog({
 				value={mode}
 			>
 				<TabsList className="grid w-full grid-cols-2">
-					<TabsTrigger value="existing">既存から選択</TabsTrigger>
-					<TabsTrigger value="create">新規作成</TabsTrigger>
+					<TabsTrigger value="existing">Select existing</TabsTrigger>
+					<TabsTrigger value="create">Create new</TabsTrigger>
 				</TabsList>
 			</Tabs>
 

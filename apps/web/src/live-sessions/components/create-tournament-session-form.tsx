@@ -153,7 +153,7 @@ export function CreateTournamentSessionForm({
 				{stores.length > 0 ? (
 					<Select onValueChange={handleStoreChange} value={selectedStoreId}>
 						<SelectTrigger>
-							<SelectValue placeholder="未指定のまま開始できます" />
+							<SelectValue placeholder="Optional — leave unset to start without a store" />
 						</SelectTrigger>
 						<SelectContent>
 							{stores.map((store) => (
@@ -165,7 +165,7 @@ export function CreateTournamentSessionForm({
 					</Select>
 				) : (
 					<p className="text-muted-foreground text-xs">
-						店舗がまだありません。未指定のまま開始できます。
+						No stores yet. You can start without one.
 					</p>
 				)}
 			</Field>
@@ -178,7 +178,7 @@ export function CreateTournamentSessionForm({
 							value={selectedTournamentId}
 						>
 							<SelectTrigger>
-								<SelectValue placeholder="未指定のまま開始できます" />
+								<SelectValue placeholder="Optional — leave unset to start without a tournament" />
 							</SelectTrigger>
 							<SelectContent>
 								{tournaments.map((t) => (
@@ -190,7 +190,7 @@ export function CreateTournamentSessionForm({
 						</Select>
 					) : (
 						<p className="text-muted-foreground text-xs">
-							セッション開始後に作成・割り当てもできます。
+							You can create and assign one later from the active session.
 						</p>
 					)}
 				</Field>

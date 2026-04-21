@@ -186,10 +186,10 @@ function CashGameNotLinked({
 			<EmptyState
 				action={
 					<Button onClick={() => setIsAssignOpen(true)} size="sm" type="button">
-						ゲームを選択・作成
+						Select or create a game
 					</Button>
 				}
-				description="このセッションにはキャッシュゲームが紐付いていません。"
+				description="No cash game is linked to this session."
 				heading="Game not linked"
 			/>
 			<AssignRingGameDialog
@@ -731,10 +731,10 @@ function TournamentNotLinked({
 			<EmptyState
 				action={
 					<Button onClick={() => setIsAssignOpen(true)} size="sm" type="button">
-						トーナメントを選択・作成
+						Select or create a tournament
 					</Button>
 				}
-				description="このセッションにはトーナメントが紐付いていません。"
+				description="No tournament is linked to this session."
 				heading="Game not linked"
 			/>
 			<AssignTournamentDialog
@@ -778,7 +778,7 @@ function TournamentDetails({ sessionId }: { sessionId: string }) {
 		return (
 			<GameSceneShell title="Tournament">
 				<EmptyState
-					description="このセッションにはトーナメントが紐付いていません。"
+					description="No tournament is linked to this session."
 					heading="Game not linked"
 				/>
 			</GameSceneShell>

@@ -111,7 +111,7 @@ export function CreateCashGameSessionForm({
 				{stores.length > 0 ? (
 					<Select onValueChange={handleStoreChange} value={selectedStoreId}>
 						<SelectTrigger>
-							<SelectValue placeholder="未指定のまま開始できます" />
+							<SelectValue placeholder="Optional — leave unset to start without a store" />
 						</SelectTrigger>
 						<SelectContent>
 							{stores.map((store) => (
@@ -123,7 +123,7 @@ export function CreateCashGameSessionForm({
 					</Select>
 				) : (
 					<p className="text-muted-foreground text-xs">
-						店舗がまだありません。未指定のまま開始できます。
+						No stores yet. You can start without one.
 					</p>
 				)}
 			</Field>
@@ -136,7 +136,7 @@ export function CreateCashGameSessionForm({
 							value={selectedRingGameId}
 						>
 							<SelectTrigger>
-								<SelectValue placeholder="未指定のまま開始できます" />
+								<SelectValue placeholder="Optional — leave unset to start without a game" />
 							</SelectTrigger>
 							<SelectContent>
 								{ringGames.map((game) => (
@@ -149,7 +149,7 @@ export function CreateCashGameSessionForm({
 					) : (
 						<EmptyState
 							className="px-4 py-8"
-							description="セッション開始後に作成・割り当てもできます。"
+							description="You can create and assign one later from the active session."
 							heading="No ring games available"
 						/>
 					)}

@@ -235,7 +235,7 @@ describe("ActiveSessionGameScene", () => {
 
 		render(<ActiveSessionGameScene />);
 		expect(screen.getByText("Game not linked")).toBeInTheDocument();
-		expect(screen.getByText("ゲームを選択・作成")).toBeInTheDocument();
+		expect(screen.getByText("Select or create a game")).toBeInTheDocument();
 	});
 
 	it("shows a fallback with an assign action when the tournament session has no tournament linked", () => {
@@ -252,7 +252,9 @@ describe("ActiveSessionGameScene", () => {
 
 		render(<ActiveSessionGameScene />);
 		expect(screen.getByText("Game not linked")).toBeInTheDocument();
-		expect(screen.getByText("トーナメントを選択・作成")).toBeInTheDocument();
+		expect(
+			screen.getByText("Select or create a tournament")
+		).toBeInTheDocument();
 	});
 
 	it("renders tournament details", () => {

@@ -44,7 +44,9 @@ describe("CreateTournamentSessionForm", () => {
 		);
 
 		expect(screen.getByText("Store")).toBeInTheDocument();
-		expect(screen.getByText("未指定のまま開始できます")).toBeInTheDocument();
+		expect(
+			screen.getByText("Optional — leave unset to start without a store")
+		).toBeInTheDocument();
 	});
 
 	it("shows guidance message when no stores available", () => {
@@ -59,7 +61,7 @@ describe("CreateTournamentSessionForm", () => {
 		);
 
 		expect(
-			screen.getByText("店舗がまだありません。未指定のまま開始できます。")
+			screen.getByText("No stores yet. You can start without one.")
 		).toBeInTheDocument();
 	});
 

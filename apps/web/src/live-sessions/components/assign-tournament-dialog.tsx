@@ -96,7 +96,7 @@ function TournamentPickerField({
 		return (
 			<Field label="Tournament" required>
 				<p className="text-muted-foreground text-sm">
-					先にStoreを選択してください。
+					Please select a store first.
 				</p>
 			</Field>
 		);
@@ -106,8 +106,8 @@ function TournamentPickerField({
 			<Field label="Tournament" required>
 				<EmptyState
 					className="px-4 py-8"
-					description="新規作成タブから作成してください。"
-					heading="トーナメントがありません"
+					description="Use the Create new tab to add one."
+					heading="No tournaments"
 				/>
 			</Field>
 		);
@@ -284,7 +284,7 @@ export function AssignTournamentDialog({
 				onClick={handleAssign}
 				type="button"
 			>
-				{isAssignPending ? "割り当て中..." : "割り当て"}
+				{isAssignPending ? "Assigning..." : "Assign"}
 			</Button>
 		</div>
 	);
@@ -293,7 +293,7 @@ export function AssignTournamentDialog({
 		if (!effectiveStoreId) {
 			return (
 				<p className="text-muted-foreground text-sm">
-					先にStoreを選択してください。
+					Please select a store first.
 				</p>
 			);
 		}
@@ -304,7 +304,7 @@ export function AssignTournamentDialog({
 					onClick={() => setIsCreateDialogOpen(true)}
 					type="button"
 				>
-					新規トーナメントを作成
+					Create new tournament
 				</Button>
 			</div>
 		);
@@ -319,7 +319,7 @@ export function AssignTournamentDialog({
 					}
 				}}
 				open={open}
-				title="トーナメントを割り当て"
+				title="Assign Tournament"
 			>
 				<Tabs
 					className="mb-4"
@@ -327,8 +327,8 @@ export function AssignTournamentDialog({
 					value={mode}
 				>
 					<TabsList className="grid w-full grid-cols-2">
-						<TabsTrigger value="existing">既存から選択</TabsTrigger>
-						<TabsTrigger value="create">新規作成</TabsTrigger>
+						<TabsTrigger value="existing">Select existing</TabsTrigger>
+						<TabsTrigger value="create">Create new</TabsTrigger>
 					</TabsList>
 				</Tabs>
 
@@ -353,7 +353,7 @@ export function AssignTournamentDialog({
 				onOpenChange={setIsCreateDialogOpen}
 				onSave={handleCreate}
 				open={isCreateDialogOpen}
-				title="新規トーナメント"
+				title="New Tournament"
 			/>
 		</>
 	);
