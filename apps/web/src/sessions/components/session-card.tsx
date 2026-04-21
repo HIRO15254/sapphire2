@@ -15,7 +15,11 @@ import { shareSession } from "@/sessions/utils/share-session";
 import { EntityListItem } from "@/shared/components/management/entity-list-item";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { formatCompactNumber } from "@/utils/format-number";
+import { formatCompactNumber, formatYmdSlash } from "@/utils/format-number";
+import {
+	formatProfitLoss,
+	profitLossColorClass,
+} from "@/utils/format-profit-loss";
 
 interface SessionCardProps {
 	bbBiMode?: boolean;
@@ -63,14 +67,6 @@ interface SessionCardProps {
 	};
 }
 
-function formatSessionDate(date: string): string {
-	const d = new Date(date);
-	const y = d.getFullYear();
-	const m = String(d.getMonth() + 1).padStart(2, "0");
-	const day = String(d.getDate()).padStart(2, "0");
-	return `${y}/${m}/${day}`;
-}
-
 function getGameName(session: SessionCardProps["session"]): string {
 	if (session.type === "tournament" && session.tournamentName) {
 		return session.tournamentName;
@@ -79,18 +75,6 @@ function getGameName(session: SessionCardProps["session"]): string {
 		return session.ringGameName;
 	}
 	return session.type === "tournament" ? "Tournament" : "Cash Game";
-}
-
-function formatProfitLoss(
-	profitLoss: number,
-	currencyUnit: string | null
-): string {
-	const sign = profitLoss >= 0 ? "+" : "";
-	const value = formatCompactNumber(profitLoss);
-	if (currencyUnit) {
-		return `${sign}${value} ${currencyUnit}`;
-	}
-	return `${sign}${value}`;
 }
 
 function toBB(value: number, blind2: number | null): number | null {
@@ -194,10 +178,10 @@ function CashGameDetails({
 			? (() => {
 					const bb = toBB(session.evProfitLoss, session.ringGameBlind2);
 					return bb === null
-						? `${session.evProfitLoss >= 0 ? "+" : ""}${formatCompactNumber(session.evProfitLoss)}`
+						? formatProfitLoss(session.evProfitLoss)
 						: formatBBBI(bb, "BB");
 				})()
-			: `${session.evProfitLoss >= 0 ? "+" : ""}${formatCompactNumber(session.evProfitLoss)}`;
+			: formatProfitLoss(session.evProfitLoss);
 		rows.push({
 			label: "EV P&L",
 			value: evValue,
@@ -296,17 +280,17 @@ function getPlDisplay(
 	bbBiMode?: boolean
 ): string {
 	if (!bbBiMode) {
-		return formatProfitLoss(profitLoss, session.currencyUnit);
+		return formatProfitLoss(profitLoss, { currencyUnit: session.currencyUnit });
 	}
 	if (session.type === "tournament") {
 		const bi = toBI(profitLoss, computeTotalCost(session));
 		return bi === null
-			? formatProfitLoss(profitLoss, session.currencyUnit)
+			? formatProfitLoss(profitLoss, { currencyUnit: session.currencyUnit })
 			: formatBBBI(bi, "BI");
 	}
 	const bb = toBB(profitLoss, session.ringGameBlind2);
 	return bb === null
-		? formatProfitLoss(profitLoss, session.currencyUnit)
+		? formatProfitLoss(profitLoss, { currencyUnit: session.currencyUnit })
 		: formatBBBI(bb, "BB");
 }
 
@@ -318,22 +302,16 @@ function getEvDisplay(
 		return null;
 	}
 	if (!bbBiMode) {
-		return formatProfitLoss(session.evProfitLoss, session.currencyUnit);
+		return formatProfitLoss(session.evProfitLoss, {
+			currencyUnit: session.currencyUnit,
+		});
 	}
 	const evBB = toBB(session.evProfitLoss, session.ringGameBlind2);
 	return evBB === null
-		? formatProfitLoss(session.evProfitLoss, session.currencyUnit)
+		? formatProfitLoss(session.evProfitLoss, {
+				currencyUnit: session.currencyUnit,
+			})
 		: formatBBBI(evBB, "BB");
-}
-
-function getProfitColorClass(profitLoss: number): string {
-	if (profitLoss > 0) {
-		return "text-green-600";
-	}
-	if (profitLoss < 0) {
-		return "text-red-600";
-	}
-	return "text-foreground";
 }
 
 function SessionHeader({
@@ -349,7 +327,7 @@ function SessionHeader({
 		session.liveCashGameSessionId !== null ||
 		session.liveTournamentSessionId !== null;
 	const plDisplay = getPlDisplay(session, profitLoss, bbBiMode);
-	const profitColorClass = getProfitColorClass(profitLoss);
+	const profitColorClass = profitLossColorClass(profitLoss);
 	const gameName = getGameName(session);
 	const evDisplay = getEvDisplay(session, bbBiMode);
 
@@ -387,7 +365,7 @@ function SessionHeader({
 					<div className="flex items-center gap-3">
 						<span className="flex items-center gap-0.5">
 							<IconCalendar className="shrink-0" size={12} />
-							{formatSessionDate(session.sessionDate)}
+							{formatYmdSlash(session.sessionDate)}
 						</span>
 						{session.startedAt && session.endedAt && (
 							<span className="flex items-center gap-0.5">

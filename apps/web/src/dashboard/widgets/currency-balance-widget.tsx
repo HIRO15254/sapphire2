@@ -10,6 +10,7 @@ import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Label } from "@/shared/components/ui/label";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatCompactNumber } from "@/utils/format-number";
+import { profitLossColorClass } from "@/utils/format-profit-loss";
 import { trpc } from "@/utils/trpc";
 
 interface ParsedConfig {
@@ -19,13 +20,6 @@ interface ParsedConfig {
 function parseConfig(raw: Record<string, unknown>): ParsedConfig {
 	const currencyId = typeof raw.currencyId === "string" ? raw.currencyId : null;
 	return { currencyId };
-}
-
-function balanceColor(value: number): string {
-	if (value === 0) {
-		return "text-foreground";
-	}
-	return value > 0 ? "text-green-600" : "text-red-600";
 }
 
 export function CurrencyBalanceWidget({ config }: WidgetRenderProps) {
@@ -70,7 +64,7 @@ export function CurrencyBalanceWidget({ config }: WidgetRenderProps) {
 				<span className="truncate">{selected.name}</span>
 			</div>
 			<div
-				className={`font-semibold text-xl tabular-nums ${balanceColor(balance)}`}
+				className={`font-semibold text-xl tabular-nums ${profitLossColorClass(balance)}`}
 			>
 				{formatCompactNumber(balance)}
 				{selected.unit ? (

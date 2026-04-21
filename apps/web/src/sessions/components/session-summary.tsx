@@ -1,4 +1,8 @@
 import { formatCompactNumber } from "@/utils/format-number";
+import {
+	formatProfitLoss,
+	profitLossColorClass,
+} from "@/utils/format-profit-loss";
 
 interface SessionSummaryProps {
 	summary: {
@@ -33,16 +37,6 @@ function StatCard({
 	);
 }
 
-function plColorClass(value: number): string {
-	if (value > 0) {
-		return "text-green-600";
-	}
-	if (value < 0) {
-		return "text-red-600";
-	}
-	return "";
-}
-
 export function SessionSummary({ summary }: SessionSummaryProps) {
 	if (summary.totalSessions === 0) {
 		return null;
@@ -55,16 +49,16 @@ export function SessionSummary({ summary }: SessionSummaryProps) {
 				value={summary.totalSessions.toString()}
 			/>
 			<StatCard
-				colorClass={plColorClass(summary.totalProfitLoss)}
+				colorClass={profitLossColorClass(summary.totalProfitLoss)}
 				label="Total P&L"
-				value={`${summary.totalProfitLoss >= 0 ? "+" : ""}${formatCompactNumber(summary.totalProfitLoss)}`}
+				value={formatProfitLoss(summary.totalProfitLoss)}
 			/>
 			<StatCard label="Win Rate" value={`${summary.winRate.toFixed(1)}%`} />
 			{summary.avgProfitLoss !== null && (
 				<StatCard
-					colorClass={plColorClass(summary.avgProfitLoss)}
+					colorClass={profitLossColorClass(summary.avgProfitLoss)}
 					label="Avg P&L"
-					value={`${summary.avgProfitLoss >= 0 ? "+" : ""}${formatCompactNumber(Math.round(summary.avgProfitLoss))}`}
+					value={formatProfitLoss(Math.round(summary.avgProfitLoss))}
 				/>
 			)}
 			{summary.avgPlacement !== null && (
@@ -84,16 +78,16 @@ export function SessionSummary({ summary }: SessionSummaryProps) {
 			)}
 			{summary.totalEvProfitLoss !== null && (
 				<StatCard
-					colorClass={plColorClass(summary.totalEvProfitLoss)}
+					colorClass={profitLossColorClass(summary.totalEvProfitLoss)}
 					label="Total EV P&L"
-					value={`${summary.totalEvProfitLoss >= 0 ? "+" : ""}${formatCompactNumber(summary.totalEvProfitLoss)}`}
+					value={formatProfitLoss(summary.totalEvProfitLoss)}
 				/>
 			)}
 			{summary.totalEvDiff !== null && (
 				<StatCard
-					colorClass={plColorClass(summary.totalEvDiff)}
+					colorClass={profitLossColorClass(summary.totalEvDiff)}
 					label="Total EV Diff"
-					value={`${summary.totalEvDiff >= 0 ? "+" : ""}${formatCompactNumber(summary.totalEvDiff)}`}
+					value={formatProfitLoss(summary.totalEvDiff)}
 				/>
 			)}
 		</div>

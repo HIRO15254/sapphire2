@@ -10,7 +10,11 @@ import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Label } from "@/shared/components/ui/label";
 import { Skeleton } from "@/shared/components/ui/skeleton";
-import { formatCompactNumber } from "@/utils/format-number";
+import { formatYmdSlash } from "@/utils/format-number";
+import {
+	formatProfitLoss,
+	profitLossColorClass,
+} from "@/utils/format-profit-loss";
 import { trpc } from "@/utils/trpc";
 
 type TypeFilter = "all" | "cash_game" | "tournament";
@@ -30,29 +34,6 @@ function parseConfig(raw: Record<string, unknown>): ParsedConfig {
 			? (raw.type as TypeFilter)
 			: ("all" as TypeFilter);
 	return { limit, type };
-}
-
-function formatPL(value: number | null): string {
-	if (value === null) {
-		return "—";
-	}
-	const sign = value >= 0 ? "+" : "";
-	return `${sign}${formatCompactNumber(value)}`;
-}
-
-function plColor(value: number | null): string {
-	if (value === null || value === 0) {
-		return "text-foreground";
-	}
-	return value > 0 ? "text-green-600" : "text-red-600";
-}
-
-function formatDate(date: string | Date): string {
-	const d = typeof date === "string" ? new Date(date) : date;
-	const y = d.getFullYear();
-	const m = String(d.getMonth() + 1).padStart(2, "0");
-	const day = String(d.getDate()).padStart(2, "0");
-	return `${y}/${m}/${day}`;
 }
 
 export function RecentSessionsWidget({ config }: WidgetRenderProps) {
@@ -110,14 +91,14 @@ export function RecentSessionsWidget({ config }: WidgetRenderProps) {
 							<div className="flex min-w-0 flex-col">
 								<span className="truncate font-medium text-sm">{name}</span>
 								<span className="text-muted-foreground text-xs">
-									{formatDate(session.sessionDate)}
+									{formatYmdSlash(session.sessionDate)}
 								</span>
 							</div>
 						</div>
 						<span
-							className={`shrink-0 font-semibold text-sm ${plColor(session.profitLoss)}`}
+							className={`shrink-0 font-semibold text-sm ${profitLossColorClass(session.profitLoss)}`}
 						>
-							{formatPL(session.profitLoss)}
+							{formatProfitLoss(session.profitLoss)}
 						</span>
 					</Link>
 				);

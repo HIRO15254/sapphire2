@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
 	ActiveSessionScene,
@@ -13,50 +13,16 @@ import { useCashGameSession } from "@/live-sessions/hooks/use-cash-game-session"
 import { useTournamentSession } from "@/live-sessions/hooks/use-tournament-session";
 import type { TournamentBlindLevel } from "@/live-sessions/utils/tournament-timer";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { useElapsedTime } from "@/shared/hooks/use-elapsed-time";
 import { formatCompactNumber } from "@/utils/format-number";
+import {
+	formatProfitLoss,
+	profitLossColorClass,
+} from "@/utils/format-profit-loss";
 
 export const Route = createFileRoute("/active-session/")({
 	component: ActiveSessionPage,
 });
-
-function plColorClass(value: number): string {
-	if (value > 0) {
-		return "text-green-600 dark:text-green-400";
-	}
-	if (value < 0) {
-		return "text-red-600 dark:text-red-400";
-	}
-	return "";
-}
-
-function formatPl(value: number): string {
-	const sign = value >= 0 ? "+" : "";
-	return `${sign}${formatCompactNumber(value)}`;
-}
-
-function formatDuration(startedAt: Date | string | number): string {
-	const start = new Date(startedAt);
-	const elapsed = Math.floor((Date.now() - start.getTime()) / 60_000);
-	const hours = Math.floor(elapsed / 60);
-	const minutes = elapsed % 60;
-	if (hours > 0) {
-		return `${hours}h ${minutes}m`;
-	}
-	return `${minutes}m`;
-}
-
-function useSessionDuration(startedAt: Date | string | number): string {
-	const [duration, setDuration] = useState(() => formatDuration(startedAt));
-
-	useEffect(() => {
-		const id = setInterval(() => {
-			setDuration(formatDuration(startedAt));
-		}, 60_000);
-		return () => clearInterval(id);
-	}, [startedAt]);
-
-	return duration;
-}
 
 function CashGameCompactSummary({
 	summary,
@@ -68,7 +34,7 @@ function CashGameCompactSummary({
 		totalBuyIn: number;
 	};
 }) {
-	const duration = useSessionDuration(summary.startedAt);
+	const duration = useElapsedTime(summary.startedAt);
 
 	// Use currentStack-based running P&L during the active session.
 	// profitLoss (from cashOut) is only available at session end.
@@ -101,14 +67,14 @@ function CashGameCompactSummary({
 				<p
 					className={cn(
 						"font-semibold",
-						displayPL === null ? undefined : plColorClass(displayPL)
+						displayPL === null ? undefined : profitLossColorClass(displayPL)
 					)}
 				>
-					{displayPL === null ? "-" : formatPl(displayPL)}
+					{displayPL === null ? "-" : formatProfitLoss(displayPL)}
 				</p>
 				{showEvPL ? (
-					<p className={cn("text-xs", plColorClass(evPL))}>
-						EV: {formatPl(evPL)}
+					<p className={cn("text-xs", profitLossColorClass(evPL))}>
+						EV: {formatProfitLoss(evPL)}
 					</p>
 				) : null}
 			</div>
@@ -126,7 +92,7 @@ function TournamentCompactSummary({
 		totalEntries: number | null;
 	};
 }) {
-	const duration = useSessionDuration(summary.startedAt);
+	const duration = useElapsedTime(summary.startedAt);
 	const fieldEntry =
 		summary.remainingPlayers === null && summary.totalEntries === null
 			? "-"

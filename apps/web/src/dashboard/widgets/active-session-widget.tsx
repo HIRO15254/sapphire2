@@ -1,7 +1,7 @@
 import { IconBolt, IconPokerChip, IconTrophy } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
@@ -10,6 +10,7 @@ import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Label } from "@/shared/components/ui/label";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import { useElapsedTime } from "@/shared/hooks/use-elapsed-time";
 import { formatCompactNumber } from "@/utils/format-number";
 import { trpc } from "@/utils/trpc";
 
@@ -27,35 +28,56 @@ function parseConfig(raw: Record<string, unknown>): ParsedConfig {
 	return { sessionType };
 }
 
-function formatElapsed(startedAt: string | Date | null): string {
-	if (!startedAt) {
-		return "—";
-	}
-	const start = typeof startedAt === "string" ? new Date(startedAt) : startedAt;
-	const diffMs = Date.now() - start.getTime();
-	if (diffMs < 0) {
-		return "—";
-	}
-	const totalMinutes = Math.floor(diffMs / 60_000);
-	const hours = Math.floor(totalMinutes / 60);
-	const minutes = totalMinutes % 60;
-	if (hours === 0) {
-		return `${minutes}m`;
-	}
-	return `${hours}h ${minutes}m`;
+interface ActiveSessionRowProps {
+	latestStackAmount: number | null;
+	name: string;
+	sessionId: string;
+	sessionType: "cash-game" | "tournament";
+	startedAt: string | Date | null;
 }
 
-function useTicker(intervalMs = 30_000): void {
-	const [, setTick] = useState(0);
-	useEffect(() => {
-		const id = setInterval(() => setTick((t) => t + 1), intervalMs);
-		return () => clearInterval(id);
-	}, [intervalMs]);
+function ActiveSessionRow({
+	sessionType,
+	sessionId,
+	name,
+	startedAt,
+	latestStackAmount,
+}: ActiveSessionRowProps) {
+	const elapsed = useElapsedTime(startedAt, 30_000);
+	return (
+		<Link
+			className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-accent"
+			params={{ sessionType, sessionId }}
+			to="/live-sessions/$sessionType/$sessionId/events"
+		>
+			<div className="flex min-w-0 items-center gap-2">
+				{sessionType === "tournament" ? (
+					<IconTrophy
+						className="shrink-0 text-yellow-500 dark:text-yellow-400"
+						size={14}
+					/>
+				) : (
+					<IconPokerChip
+						className="shrink-0 text-blue-500 dark:text-blue-400"
+						size={14}
+					/>
+				)}
+				<div className="flex min-w-0 flex-col">
+					<span className="truncate font-medium text-sm">{name}</span>
+					<span className="text-muted-foreground text-xs">{elapsed}</span>
+				</div>
+			</div>
+			<span className="shrink-0 font-semibold text-sm">
+				{latestStackAmount === null
+					? "—"
+					: formatCompactNumber(latestStackAmount)}
+			</span>
+		</Link>
+	);
 }
 
 export function ActiveSessionWidget({ config }: WidgetRenderProps) {
 	const parsed = parseConfig(config);
-	useTicker();
 
 	const cashQuery = useQuery({
 		...trpc.liveCashGameSession.list.queryOptions({
@@ -107,66 +129,24 @@ export function ActiveSessionWidget({ config }: WidgetRenderProps) {
 	return (
 		<div className="flex h-full flex-col gap-1 overflow-auto p-2">
 			{cashItems.map((item) => (
-				<Link
-					className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-accent"
+				<ActiveSessionRow
 					key={item.id}
-					params={{
-						sessionType: "cash-game",
-						sessionId: item.id,
-					}}
-					to="/live-sessions/$sessionType/$sessionId/events"
-				>
-					<div className="flex min-w-0 items-center gap-2">
-						<IconPokerChip
-							className="shrink-0 text-blue-500 dark:text-blue-400"
-							size={14}
-						/>
-						<div className="flex min-w-0 flex-col">
-							<span className="truncate font-medium text-sm">
-								{item.ringGameName ?? "Cash Game"}
-							</span>
-							<span className="text-muted-foreground text-xs">
-								{formatElapsed(item.startedAt)}
-							</span>
-						</div>
-					</div>
-					<span className="shrink-0 font-semibold text-sm">
-						{item.latestStackAmount === null
-							? "—"
-							: formatCompactNumber(item.latestStackAmount)}
-					</span>
-				</Link>
+					latestStackAmount={item.latestStackAmount}
+					name={item.ringGameName ?? "Cash Game"}
+					sessionId={item.id}
+					sessionType="cash-game"
+					startedAt={item.startedAt}
+				/>
 			))}
 			{tournamentItems.map((item) => (
-				<Link
-					className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-accent"
+				<ActiveSessionRow
 					key={item.id}
-					params={{
-						sessionType: "tournament",
-						sessionId: item.id,
-					}}
-					to="/live-sessions/$sessionType/$sessionId/events"
-				>
-					<div className="flex min-w-0 items-center gap-2">
-						<IconTrophy
-							className="shrink-0 text-yellow-500 dark:text-yellow-400"
-							size={14}
-						/>
-						<div className="flex min-w-0 flex-col">
-							<span className="truncate font-medium text-sm">
-								{item.tournamentName ?? "Tournament"}
-							</span>
-							<span className="text-muted-foreground text-xs">
-								{formatElapsed(item.startedAt)}
-							</span>
-						</div>
-					</div>
-					<span className="shrink-0 font-semibold text-sm">
-						{item.latestStackAmount === null
-							? "—"
-							: formatCompactNumber(item.latestStackAmount)}
-					</span>
-				</Link>
+					latestStackAmount={item.latestStackAmount}
+					name={item.tournamentName ?? "Tournament"}
+					sessionId={item.id}
+					sessionType="tournament"
+					startedAt={item.startedAt}
+				/>
 			))}
 		</div>
 	);

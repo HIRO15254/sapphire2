@@ -1,6 +1,10 @@
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { formatCompactNumber } from "@/utils/format-number";
+import {
+	formatProfitLoss,
+	profitLossColorClass,
+} from "@/utils/format-profit-loss";
 
 interface SessionSummaryProps {
 	summary: {
@@ -13,16 +17,6 @@ interface SessionSummaryProps {
 		minStack: number | null;
 		currentStack: number | null;
 	};
-}
-
-function plColorClass(value: number): string {
-	if (value > 0) {
-		return "text-green-600 dark:text-green-400";
-	}
-	if (value < 0) {
-		return "text-red-600 dark:text-red-400";
-	}
-	return "";
 }
 
 function StatCard({
@@ -42,11 +36,6 @@ function StatCard({
 			</CardContent>
 		</Card>
 	);
-}
-
-function formatPl(value: number): string {
-	const sign = value >= 0 ? "+" : "";
-	return `${sign}${formatCompactNumber(value)}`;
 }
 
 export function SessionSummary({ summary }: SessionSummaryProps) {
@@ -70,10 +59,14 @@ export function SessionSummary({ summary }: SessionSummaryProps) {
 				colorClass={
 					summary.profitLoss === null
 						? undefined
-						: plColorClass(summary.profitLoss)
+						: profitLossColorClass(summary.profitLoss)
 				}
 				label="P&L"
-				value={summary.profitLoss === null ? "-" : formatPl(summary.profitLoss)}
+				value={
+					summary.profitLoss === null
+						? "-"
+						: formatProfitLoss(summary.profitLoss)
+				}
 			/>
 
 			{summary.evCashOut !== null && (

@@ -8,7 +8,10 @@ import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Label } from "@/shared/components/ui/label";
 import { Skeleton } from "@/shared/components/ui/skeleton";
-import { formatCompactNumber } from "@/utils/format-number";
+import {
+	formatProfitLoss,
+	profitLossColorClass,
+} from "@/utils/format-profit-loss";
 import { trpc } from "@/utils/trpc";
 
 type StatsType = "all" | "cash_game" | "tournament";
@@ -61,13 +64,6 @@ function parseConfig(raw: Record<string, unknown>): ParsedConfig {
 	};
 }
 
-function plColorClass(value: number | null | undefined): string {
-	if (value === null || value === undefined || value === 0) {
-		return "";
-	}
-	return value > 0 ? "text-green-600" : "text-red-600";
-}
-
 function formatMetricValue(
 	key: MetricKey,
 	summary: {
@@ -82,33 +78,20 @@ function formatMetricValue(
 	switch (key) {
 		case "totalSessions":
 			return summary.totalSessions.toString();
-		case "totalProfitLoss": {
-			const sign = summary.totalProfitLoss >= 0 ? "+" : "";
-			return `${sign}${formatCompactNumber(summary.totalProfitLoss)}`;
-		}
+		case "totalProfitLoss":
+			return formatProfitLoss(summary.totalProfitLoss);
 		case "winRate":
 			return `${summary.winRate.toFixed(1)}%`;
-		case "avgProfitLoss": {
-			if (summary.avgProfitLoss === null) {
-				return "—";
-			}
-			const sign = summary.avgProfitLoss >= 0 ? "+" : "";
-			return `${sign}${formatCompactNumber(Math.round(summary.avgProfitLoss))}`;
-		}
-		case "totalEvProfitLoss": {
-			if (summary.totalEvProfitLoss === null) {
-				return "—";
-			}
-			const sign = summary.totalEvProfitLoss >= 0 ? "+" : "";
-			return `${sign}${formatCompactNumber(summary.totalEvProfitLoss)}`;
-		}
-		case "totalEvDiff": {
-			if (summary.totalEvDiff === null) {
-				return "—";
-			}
-			const sign = summary.totalEvDiff >= 0 ? "+" : "";
-			return `${sign}${formatCompactNumber(summary.totalEvDiff)}`;
-		}
+		case "avgProfitLoss":
+			return formatProfitLoss(
+				summary.avgProfitLoss === null
+					? null
+					: Math.round(summary.avgProfitLoss)
+			);
+		case "totalEvProfitLoss":
+			return formatProfitLoss(summary.totalEvProfitLoss);
+		case "totalEvDiff":
+			return formatProfitLoss(summary.totalEvDiff);
 		default:
 			return "—";
 	}
@@ -125,13 +108,13 @@ function metricColor(
 ): string {
 	switch (key) {
 		case "totalProfitLoss":
-			return plColorClass(summary.totalProfitLoss);
+			return profitLossColorClass(summary.totalProfitLoss);
 		case "avgProfitLoss":
-			return plColorClass(summary.avgProfitLoss);
+			return profitLossColorClass(summary.avgProfitLoss);
 		case "totalEvProfitLoss":
-			return plColorClass(summary.totalEvProfitLoss);
+			return profitLossColorClass(summary.totalEvProfitLoss);
 		case "totalEvDiff":
-			return plColorClass(summary.totalEvDiff);
+			return profitLossColorClass(summary.totalEvDiff);
 		default:
 			return "";
 	}
