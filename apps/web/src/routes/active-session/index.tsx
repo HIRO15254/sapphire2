@@ -228,6 +228,7 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 					}}
 				/>
 			}
+			tableSize={ringGame?.tableSize ?? null}
 			title="Cash Game"
 		/>
 	);
@@ -266,6 +267,9 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			.timerStartedAt ?? null;
 	const hasStructure = blindLevels.length > 0;
 
+	const tableSize =
+		(session as { tableSize?: number | null }).tableSize ?? null;
+
 	return (
 		<>
 			<ActiveSessionScene
@@ -281,6 +285,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 						summary={{ ...tournamentSummary, startedAt: session.startedAt }}
 					/>
 				}
+				tableSize={tableSize}
 				title="Tournament"
 				topSlot={
 					hasStructure ? (
