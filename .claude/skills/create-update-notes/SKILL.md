@@ -56,6 +56,7 @@ Produce an update note for sapphire2 in the exact tone and structure of past rel
    - If the user would need to read the PR to understand the bullet, it is too detailed; shorten it.
 9. **Break a single PR into multiple bullets only when it shipped several clearly distinct user-visible changes** (e.g. a new feature plus an unrelated bug fix).
 10. **Exclude unless they change user experience**: dependency bumps, version-bump PRs, pure refactors, test-only, docs-only, CI-only, bot PRs, internal renames.
+11. **Exclude regressions that were both introduced and fixed within the current release window.** If the buggy code first shipped in a PR merged after `PREV_TAG`, end users never experienced the bug, so the fix should not appear in Bug Fixes. See Execution Flow step 5 for how to detect this.
 
 ### Good examples (one per category)
 
@@ -109,6 +110,7 @@ Exclude a PR if:
 - `title` matches a release/version-bump pattern (`Release vX.Y.Z`, `chore(release): ...`).
 - An explicit skip label exists (e.g. `ignore-release-notes`).
 - The change is pure refactor / test-only / docs-only / CI-only with no visible user effect.
+- The PR is a Bug Fix for a regression introduced by another PR that is itself in the current window (see step 5).
 
 ### 4. Classify (LLM inference)
 
@@ -120,9 +122,33 @@ Hints:
 - Labels: `enhancement` → Features or UI, `bug` → Bug Fixes, `ui` / `design` → UI Improvements.
 - Body keywords: "redesign" / "layout" / "rework" / "UX" → UI; "broken" / "regression" / "wasn't" → Bug Fixes; "add" / "support for" / "new" → Features.
 
-### 5. Draft the one-line summary
+### 5. Prune same-window regression fixes
 
-For each PR:
+End users only experienced bugs that shipped in a previous release. If a fix PR in the current window is repairing something another PR in the same window broke, drop the fix — the bug never reached production.
+
+For each candidate Bug Fix, decide whether to keep it:
+
+1. Collect references from the fix PR's title and body:
+   - Linked PR numbers (`#NNN`), especially those after phrases like "regression from", "introduced by", "broke in", "follow-up to", "follow-up of", "reverts", "after #NNN", or "since #NNN".
+   - Linked commit SHAs.
+   - Linked issues — then look at the issue's timeline for the commit or PR that introduced the problem.
+2. If every source of the regression is itself within `${PREV_TAG}..origin/main` (i.e. also in `WINDOW_PRS` from step 2), mark the fix **excluded — same-window regression**.
+3. If any source predates `PREV_TAG`, or no introducing source can be identified, keep the fix as a Bug Fix candidate.
+4. For borderline cases — no explicit reference, but the body says things like "fix bug added in this release" — mark `[needs review]` and surface it during the review step rather than silently dropping or keeping it.
+
+Optional sanity check when the fix modifies a small set of files:
+
+```bash
+git log --oneline "${PREV_TAG}..origin/main" -- <path1> <path2>
+```
+
+If every prior touch of those paths in the window is itself a same-window PR, that corroborates the exclusion.
+
+Record excluded same-window regressions in the final exclusion list shown to the user (step 7), so the user can override if they disagree.
+
+### 6. Draft the one-line summary
+
+For each remaining PR:
 
 1. Strip conventional prefixes (`feat:`, `fix:`, scopes) from the title.
 2. Read the body's first paragraph / Summary section to identify the user-visible change.
@@ -131,7 +157,7 @@ For each PR:
 5. Append `(#PR)`. Collapse sibling PRs into `(#123, #124)`.
 6. Split a PR into multiple bullets only when it shipped several clearly distinct user-visible changes.
 
-### 6. Review with the user
+### 7. Review with the user
 
 Present the assembled Markdown in a fenced code block and ask the user, in a single round-trip:
 
@@ -142,7 +168,7 @@ Present the assembled Markdown in a fenced code block and ask the user, in a sin
 
 Apply edits and iterate until approved (max 3 rounds).
 
-### 7. Create the draft release
+### 8. Create the draft release
 
 After approval, post to the GitHub API directly (MCP has no `create_release` tool):
 
