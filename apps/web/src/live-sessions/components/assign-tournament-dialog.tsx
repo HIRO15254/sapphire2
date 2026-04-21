@@ -1,6 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { toast } from "sonner";
+import {
+	type AssignTournamentMode,
+	type TournamentListItem,
+	useAssignTournament,
+} from "@/live-sessions/hooks/use-assign-tournament";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
@@ -14,33 +16,12 @@ import {
 } from "@/shared/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { TournamentEditDialog } from "@/stores/components/tournament-edit-dialog";
-import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
-import type { TournamentFormValues } from "@/stores/hooks/use-tournaments";
-import { trpc, trpcClient } from "@/utils/trpc";
 
 interface AssignTournamentDialogProps {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	sessionId: string;
 	sessionStoreId: string | null;
-}
-
-type Mode = "existing" | "create";
-
-interface TournamentListItem {
-	id: string;
-	name: string;
-}
-
-function levelsToPayload(levels: BlindLevelRow[]) {
-	return levels.map((l) => ({
-		isBreak: l.isBreak,
-		blind1: l.blind1,
-		blind2: l.blind2,
-		blind3: l.blind3,
-		ante: l.ante,
-		minutes: l.minutes,
-	}));
 }
 
 function StoreSelectField({
@@ -136,140 +117,29 @@ export function AssignTournamentDialog({
 	sessionId,
 	sessionStoreId,
 }: AssignTournamentDialogProps) {
-	const [mode, setMode] = useState<Mode>("existing");
-	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>(
-		sessionStoreId ?? undefined
-	);
-	const [selectedTournamentId, setSelectedTournamentId] = useState<
-		string | undefined
-	>(undefined);
-	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-	const queryClient = useQueryClient();
-
-	const storesQuery = useQuery({
-		...trpc.store.list.queryOptions(),
-		enabled: open,
+	const {
+		mode,
+		setMode,
+		selectedStoreId,
+		selectedTournamentId,
+		setSelectedTournamentId,
+		isCreateDialogOpen,
+		setIsCreateDialogOpen,
+		stores,
+		tournaments,
+		effectiveStoreId,
+		isAssignPending,
+		isCreatePending,
+		isBusy,
+		handleStoreChange,
+		handleAssign,
+		handleCreate,
+	} = useAssignTournament({
+		onOpenChange,
+		open,
+		sessionId,
+		sessionStoreId,
 	});
-	const stores = storesQuery.data ?? [];
-
-	const effectiveStoreId = sessionStoreId ?? selectedStoreId;
-
-	const tournamentsQuery = useQuery({
-		...trpc.tournament.listByStore.queryOptions({
-			storeId: effectiveStoreId ?? "",
-			includeArchived: false,
-		}),
-		enabled: open && !!effectiveStoreId,
-	});
-	const tournaments = (tournamentsQuery.data ?? []) as TournamentListItem[];
-
-	const invalidateSession = async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({
-				queryKey: trpc.liveTournamentSession.getById.queryOptions({
-					id: sessionId,
-				}).queryKey,
-			}),
-			queryClient.invalidateQueries({
-				queryKey: trpc.liveTournamentSession.list.queryOptions({}).queryKey,
-			}),
-			queryClient.invalidateQueries({
-				queryKey: trpc.session.list.queryOptions({}).queryKey,
-			}),
-		]);
-	};
-
-	const assignMutation = useMutation({
-		mutationFn: (tournamentId: string) =>
-			trpcClient.liveTournamentSession.update.mutate({
-				id: sessionId,
-				tournamentId,
-			}),
-		onSuccess: async () => {
-			await invalidateSession();
-			toast.success("Tournament assigned");
-			onOpenChange(false);
-		},
-		onError: (error) => {
-			toast.error(error.message || "Failed to assign tournament");
-		},
-	});
-
-	const createAndAssignMutation = useMutation({
-		mutationFn: async ({
-			storeId,
-			values,
-			levels,
-		}: {
-			storeId: string;
-			values: TournamentFormValues;
-			levels: BlindLevelRow[];
-		}) => {
-			const created = await trpcClient.tournament.createWithLevels.mutate({
-				storeId,
-				name: values.name,
-				variant: values.variant,
-				buyIn: values.buyIn,
-				entryFee: values.entryFee,
-				startingStack: values.startingStack,
-				bountyAmount: values.bountyAmount,
-				tableSize: values.tableSize,
-				currencyId: values.currencyId,
-				memo: values.memo,
-				tags: values.tags,
-				chipPurchases: values.chipPurchases,
-				blindLevels: levelsToPayload(levels),
-			});
-			await trpcClient.liveTournamentSession.update.mutate({
-				id: sessionId,
-				tournamentId: created.id,
-			});
-			return created;
-		},
-		onSuccess: async () => {
-			await Promise.all([
-				invalidateSession(),
-				queryClient.invalidateQueries({
-					queryKey: trpc.tournament.listByStore.queryOptions({
-						storeId: effectiveStoreId ?? "",
-						includeArchived: false,
-					}).queryKey,
-				}),
-			]);
-			toast.success("Tournament created and assigned");
-			setIsCreateDialogOpen(false);
-			onOpenChange(false);
-		},
-		onError: (error) => {
-			toast.error(error.message || "Failed to create tournament");
-		},
-	});
-
-	const isAssignPending = assignMutation.isPending;
-	const isCreatePending = createAndAssignMutation.isPending;
-	const isBusy = isAssignPending || isCreatePending;
-
-	const handleAssign = () => {
-		if (!selectedTournamentId) {
-			return;
-		}
-		assignMutation.mutate(selectedTournamentId);
-	};
-
-	const handleCreate = async (
-		values: TournamentFormValues,
-		levels: BlindLevelRow[]
-	) => {
-		if (!effectiveStoreId) {
-			toast.error("Select a store first");
-			return;
-		}
-		await createAndAssignMutation.mutateAsync({
-			storeId: effectiveStoreId,
-			values,
-			levels,
-		});
-	};
 
 	const renderExistingTab = () => (
 		<div className="flex flex-col gap-4">
@@ -323,7 +193,7 @@ export function AssignTournamentDialog({
 			>
 				<Tabs
 					className="mb-4"
-					onValueChange={(value) => setMode(value as Mode)}
+					onValueChange={(value) => setMode(value as AssignTournamentMode)}
 					value={mode}
 				>
 					<TabsList className="grid w-full grid-cols-2">
@@ -334,10 +204,7 @@ export function AssignTournamentDialog({
 
 				{sessionStoreId ? null : (
 					<StoreSelectField
-						onChange={(value) => {
-							setSelectedStoreId(value);
-							setSelectedTournamentId(undefined);
-						}}
+						onChange={handleStoreChange}
 						stores={stores}
 						value={selectedStoreId}
 					/>

@@ -1,6 +1,5 @@
 import { IconPlus, IconSearch, IconUserQuestion } from "@tabler/icons-react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useDeferredValue, useEffect, useState } from "react";
+import { useAddPlayerSearch } from "@/live-sessions/hooks/use-add-player-search";
 import { ColorBadge } from "@/players/components/color-badge";
 import { PlayerAvatar } from "@/players/components/player-avatar";
 import { PlayerTagInput } from "@/players/components/player-tag-input";
@@ -8,7 +7,6 @@ import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Input } from "@/shared/components/ui/input";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { trpc } from "@/utils/trpc";
 
 interface TagWithColor {
 	color: string;
@@ -41,32 +39,15 @@ export function AddPlayerSheet({
 	onOpenChange,
 	open,
 }: AddPlayerSheetProps) {
-	const [search, setSearch] = useState("");
-	const [selectedTags, setSelectedTags] = useState<TagWithColor[]>([]);
-
-	useEffect(() => {
-		if (open) {
-			setSearch("");
-			setSelectedTags([]);
-		}
-	}, [open]);
-
-	const deferredSearch = useDeferredValue(search);
-	const selectedTagIds = selectedTags.map((t) => t.id);
-	const queryInput = {
-		...(deferredSearch ? { search: deferredSearch } : {}),
-		...(selectedTagIds.length > 0 ? { tagIds: selectedTagIds } : {}),
-	};
-
-	const playersQuery = useQuery({
-		...trpc.player.list.queryOptions(queryInput),
-		enabled: open,
-		placeholderData: keepPreviousData,
-	});
-
-	const allPlayers = playersQuery.data ?? [];
-	const excludeSet = new Set(excludePlayerIds);
-	const filteredPlayers = allPlayers.filter((p) => !excludeSet.has(p.id));
+	const {
+		search,
+		setSearch,
+		selectedTags,
+		selectedTagIds,
+		addSelectedTag,
+		removeSelectedTag,
+		filteredPlayers,
+	} = useAddPlayerSearch({ excludePlayerIds, open });
 
 	const handleAddExisting = (playerId: string, playerName: string) => {
 		onAddExisting(playerId, playerName);
@@ -115,11 +96,9 @@ export function AddPlayerSheet({
 
 				<PlayerTagInput
 					availableTags={availableTags}
-					onAdd={(tag) => setSelectedTags((prev) => [...prev, tag])}
+					onAdd={addSelectedTag}
 					onCreateTag={onCreateTag}
-					onRemove={(tag) =>
-						setSelectedTags((prev) => prev.filter((t) => t.id !== tag.id))
-					}
+					onRemove={removeSelectedTag}
 					placeholder="Filter by tags..."
 					selectedTags={selectedTags}
 				/>
