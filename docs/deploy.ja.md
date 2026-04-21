@@ -182,7 +182,7 @@ GitHub App 設定 > **Install App** > リポジトリを選択
 `apps/server/wrangler.toml` の `name` を変更した場合:
 
 - `.github/workflows/preview-deploy.yml` の `WORKER_NAME` 変数
-- `.github/workflows/preview-cleanup.yml` の `--name` 引数
+- `.github/workflows/preview-cleanup.yml` の `WORKER_PREFIX` 環境変数
 
 ### Pages プロジェクト名の変更
 

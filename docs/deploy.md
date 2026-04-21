@@ -182,7 +182,7 @@ Add via **Settings > Secrets and variables > Actions > Secrets tab > New reposit
 If you change `name` in `apps/server/wrangler.toml`, also update:
 
 - `WORKER_NAME` variable in `.github/workflows/preview-deploy.yml`
-- `--name` argument in `.github/workflows/preview-cleanup.yml`
+- `WORKER_PREFIX` env variable in `.github/workflows/preview-cleanup.yml`
 
 ### Changing the Pages Project Name
 

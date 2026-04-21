@@ -8,6 +8,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
   CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+  WORKER_PREFIX: sapphire2-api-pr-
 
 jobs:
   cleanup:
@@ -17,9 +18,56 @@ jobs:
     steps:
       - name: Delete backend Worker
         run: |
-          bunx wrangler delete \
-            --name "sapphire2-api-pr-${{ github.event.pull_request.number }}" \
-            --force
+          WORKER_NAME="${WORKER_PREFIX}${{ github.event.pull_request.number }}"
+          STATUS=$(curl -s -o /tmp/worker-delete.json -w "%{http_code}" -X DELETE \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${WORKER_NAME}?force=true" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          if [ "$STATUS" = "200" ]; then
+            echo "Deleted Worker: ${WORKER_NAME}"
+          elif [ "$STATUS" = "404" ]; then
+            echo "Worker ${WORKER_NAME} not found (already deleted)"
+          else
+            echo "Failed to delete Worker ${WORKER_NAME} (HTTP ${STATUS})"
+            cat /tmp/worker-delete.json
+            exit 1
+          fi
+        continue-on-error: true
+
+      - name: Delete orphan preview Workers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OPEN_PRS=$(gh api \
+            "repos/${{ github.repository }}/pulls?state=open&per_page=100" \
+            --paginate \
+            --jq '.[].number' | sort -u)
+
+          WORKERS=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r --arg prefix "${WORKER_PREFIX}" \
+              '.result[] | select(.id | startswith($prefix)) | .id')
+
+          if [ -z "$WORKERS" ]; then
+            echo "No preview Workers found"
+            exit 0
+          fi
+
+          for WORKER in $WORKERS; do
+            PR_NUM="${WORKER#${WORKER_PREFIX}}"
+            if echo "$OPEN_PRS" | grep -qx "$PR_NUM"; then
+              echo "Keeping ${WORKER} (PR #${PR_NUM} still open)"
+              continue
+            fi
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${WORKER}?force=true" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "404" ]; then
+              echo "Deleted orphan Worker: ${WORKER}"
+            else
+              echo "Failed to delete ${WORKER} (HTTP ${STATUS})"
+            fi
+          done
         continue-on-error: true
 
       - name: Delete frontend Pages deployments
