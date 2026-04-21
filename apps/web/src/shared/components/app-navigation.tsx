@@ -62,7 +62,7 @@ const NORMAL_RIGHT_ITEMS: readonly NavigationItem[] = [
 
 const LIVE_LEFT_ITEMS: readonly NavigationItem[] = [
 	{ to: "/active-session/events", label: "Events", icon: IconList },
-	{ to: "/players", label: "Players", icon: IconUsers },
+	{ to: "/active-session/game", label: "Game", icon: IconCards },
 ] as const;
 
 const LIVE_RIGHT_ITEMS: readonly NavigationItem[] = [

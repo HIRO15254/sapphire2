@@ -72,6 +72,9 @@ function createTestRouter(initialPath: string) {
 		"/sessions",
 		"/live-sessions",
 		"/live-sessions/$sessionType/$sessionId/events",
+		"/active-session",
+		"/active-session/events",
+		"/active-session/game",
 		"/players",
 		"/settings",
 	].map((path) =>
@@ -170,10 +173,19 @@ describe("MobileNav - Live Session Mode (active session)", () => {
 		render(<RouterProvider router={router} />);
 
 		await screen.findByText("Events");
-		expect(screen.getByText("Players")).toBeInTheDocument();
+		expect(screen.getByText("Game")).toBeInTheDocument();
 		expect(screen.getByText("Overview")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
 		expect(screen.getByText("Stack")).toBeInTheDocument();
+	});
+
+	it("renders a Game link pointing to /active-session/game", async () => {
+		const router = createTestRouter("/active-session");
+		render(<RouterProvider router={router} />);
+
+		const gameLink = await screen.findByText("Game");
+		const anchor = gameLink.closest("a");
+		expect(anchor?.getAttribute("href")).toBe("/active-session/game");
 	});
 
 	it("center button has green styling in live mode", async () => {
