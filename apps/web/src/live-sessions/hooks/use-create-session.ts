@@ -88,6 +88,7 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			memo?: string;
 			startingStack: number;
 			storeId?: string;
+			timerStartedAt?: number;
 			tournamentId?: string;
 		}) => {
 			const { startingStack, ...createValues } = values;
@@ -137,6 +138,7 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			memo?: string;
 			startingStack: number;
 			storeId?: string;
+			timerStartedAt?: number;
 			tournamentId?: string;
 		}) => createTournamentMutation.mutate(values),
 		isLoading,

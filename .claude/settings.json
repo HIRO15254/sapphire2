@@ -14,12 +14,12 @@
         ]
       }
     ],
-    "TaskCompleted": [
+    "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "bun run test"
+            "command": "bun x vitest run --changed HEAD && bun x ultracite check"
           }
         ]
       }

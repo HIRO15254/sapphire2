@@ -79,6 +79,7 @@ describe("CreateTournamentSessionForm", () => {
 		expect(screen.getByText("Buy-in")).toBeInTheDocument();
 		expect(screen.getByText("Starting Stack")).toBeInTheDocument();
 		expect(screen.getByText("Memo")).toBeInTheDocument();
+		expect(screen.getByText("Timer Start Time (optional)")).toBeInTheDocument();
 	});
 
 	it("shows loading state when isLoading", () => {

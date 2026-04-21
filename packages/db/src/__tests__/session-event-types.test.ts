@@ -20,6 +20,7 @@ import {
 	SESSION_STATUSES,
 	TOURNAMENT_EVENT_TYPES,
 	tournamentSessionEndPayload,
+	tournamentSessionStartPayload,
 	updateStackPayload,
 	updateTournamentInfoPayload,
 	validateEventPayload,
@@ -122,6 +123,33 @@ describe("payload schemas", () => {
 		it("rejects negative buyInAmount", () => {
 			expect(() =>
 				cashSessionStartPayload.parse({ buyInAmount: -1 })
+			).toThrow();
+		});
+	});
+
+	describe("tournamentSessionStartPayload", () => {
+		it("accepts an empty payload", () => {
+			const result = tournamentSessionStartPayload.parse({});
+			expect(result.timerStartedAt).toBeUndefined();
+		});
+
+		it("accepts null timerStartedAt", () => {
+			const result = tournamentSessionStartPayload.parse({
+				timerStartedAt: null,
+			});
+			expect(result.timerStartedAt).toBeNull();
+		});
+
+		it("accepts an integer timerStartedAt (unix seconds)", () => {
+			const result = tournamentSessionStartPayload.parse({
+				timerStartedAt: 1_700_000_000,
+			});
+			expect(result.timerStartedAt).toBe(1_700_000_000);
+		});
+
+		it("rejects a non-integer timerStartedAt", () => {
+			expect(() =>
+				tournamentSessionStartPayload.parse({ timerStartedAt: 12.5 })
 			).toThrow();
 		});
 	});
@@ -324,7 +352,16 @@ describe("validateEventPayload", () => {
 		expect(result).toBeDefined();
 	});
 
-	it("dispatches session_start to empty schema for tournament", () => {
+	it("dispatches session_start to tournament schema carrying timerStartedAt", () => {
+		const result = validateEventPayload(
+			"session_start",
+			{ timerStartedAt: 1_700_000_000 },
+			"tournament"
+		) as { timerStartedAt?: number | null };
+		expect(result.timerStartedAt).toBe(1_700_000_000);
+	});
+
+	it("dispatches session_start for tournament with missing timerStartedAt", () => {
 		const result = validateEventPayload("session_start", {}, "tournament");
 		expect(result).toBeDefined();
 	});

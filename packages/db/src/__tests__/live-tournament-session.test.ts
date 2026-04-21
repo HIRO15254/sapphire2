@@ -39,4 +39,10 @@ describe("LiveTournamentSession schema", () => {
 		expect(columns.endedAt.notNull).toBe(false);
 		expect(columns.memo.notNull).toBe(false);
 	});
+
+	it("has nullable timerStartedAt column for tournament timer", () => {
+		const columns = getTableColumns(liveTournamentSession);
+		expect(columns.timerStartedAt).toBeDefined();
+		expect(columns.timerStartedAt.notNull).toBe(false);
+	});
 });

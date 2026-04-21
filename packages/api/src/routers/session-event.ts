@@ -393,16 +393,46 @@ export const sessionEventRouter = router({
 			if (input.occurredAt !== undefined) {
 				updates.occurredAt = new Date(input.occurredAt * 1000);
 			}
+			let validatedPayload: unknown;
 			if (input.payload !== undefined) {
-				updates.payload = JSON.stringify(
-					validateEventPayload(eventType, input.payload, sessionType)
+				validatedPayload = validateEventPayload(
+					eventType,
+					input.payload,
+					sessionType
 				);
+				updates.payload = JSON.stringify(validatedPayload);
 			}
 
 			await ctx.db
 				.update(sessionEvent)
 				.set(updates)
 				.where(eq(sessionEvent.id, input.id));
+
+			// Session_start for tournament carries timerStartedAt in its payload.
+			// Mirror the change onto the top-level column so existing readers stay
+			// in sync.
+			if (
+				eventType === "session_start" &&
+				sessionType === "tournament" &&
+				event.liveTournamentSessionId &&
+				validatedPayload &&
+				typeof validatedPayload === "object"
+			) {
+				const timerRaw = (validatedPayload as Record<string, unknown>)
+					.timerStartedAt;
+				let timerStartedAt: Date | null | undefined;
+				if (typeof timerRaw === "number") {
+					timerStartedAt = new Date(timerRaw * 1000);
+				} else if (timerRaw === null) {
+					timerStartedAt = null;
+				}
+				if (timerStartedAt !== undefined) {
+					await ctx.db
+						.update(liveTournamentSession)
+						.set({ timerStartedAt, updatedAt: new Date() })
+						.where(eq(liveTournamentSession.id, event.liveTournamentSessionId));
+				}
+			}
 
 			await recalculateSession(
 				ctx.db,

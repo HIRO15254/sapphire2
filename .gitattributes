@@ -1,0 +1,28 @@
+# Normalize all text files to LF in the repository.
+# Working trees get LF on every OS; no CRLF conversion on checkout.
+* text=auto eol=lf
+
+# Windows-only shell formats must stay CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files — never convert.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.avif binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.db binary
+*.sqlite binary
