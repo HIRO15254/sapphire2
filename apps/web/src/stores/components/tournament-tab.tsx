@@ -6,7 +6,6 @@ import {
 	IconTrash,
 	IconX,
 } from "@tabler/icons-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import {
 	ExpandableItem,
@@ -17,19 +16,17 @@ import { ManagementSectionState } from "@/shared/components/management/managemen
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { TournamentEditDialog } from "@/stores/components/tournament-edit-dialog";
-import type { TournamentPartialFormValues } from "@/stores/components/tournament-modal-content";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
-import type {
-	Tournament,
-	TournamentFormValues,
-} from "@/stores/hooks/use-tournaments";
-import { useTournaments } from "@/stores/hooks/use-tournaments";
+import {
+	useBlindStructureSummary,
+	useTournamentTab,
+} from "@/stores/hooks/use-tournament-tab";
+import type { Tournament } from "@/stores/hooks/use-tournaments";
 import {
 	createGroupFormatter,
 	formatCompactNumber,
 } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
-import { trpc, trpcClient } from "@/utils/trpc";
 
 interface TournamentTabProps {
 	expandedGameId: string | null;
@@ -447,12 +444,9 @@ function TournamentActions({
 }
 
 function BlindStructureSummary({ tournamentId }: { tournamentId: string }) {
-	const levelsQuery = useQuery(
-		trpc.blindLevel.listByTournament.queryOptions({ tournamentId })
-	);
-	const levels = (levelsQuery.data ?? []) as BlindLevelRow[];
+	const { levels, isLoading } = useBlindStructureSummary(tournamentId);
 
-	if (levelsQuery.isLoading) {
+	if (isLoading) {
 		return (
 			<p className="py-1 text-center text-muted-foreground text-xs">
 				Loading levels...
@@ -491,7 +485,7 @@ function BlindStructureSummary({ tournamentId }: { tournamentId: string }) {
 					</tr>
 				</thead>
 				<tbody>
-					{levels.map((row) => {
+					{levels.map((row: BlindLevelRow) => {
 						if (row.isBreak) {
 							return (
 								<tr className="bg-muted/30" key={row.id}>
@@ -543,53 +537,11 @@ function BlindStructureSummary({ tournamentId }: { tournamentId: string }) {
 
 // ---- Main tab component ----
 
-function tournamentToInitialFormValues(
-	tournament: Tournament
-): TournamentPartialFormValues {
-	return {
-		name: tournament.name,
-		variant: tournament.variant,
-		buyIn: tournament.buyIn ?? undefined,
-		entryFee: tournament.entryFee ?? undefined,
-		startingStack: tournament.startingStack ?? undefined,
-		chipPurchases: tournament.chipPurchases.map((cp) => ({
-			name: cp.name,
-			cost: cp.cost,
-			chips: cp.chips,
-		})),
-		bountyAmount: tournament.bountyAmount ?? undefined,
-		tableSize: tournament.tableSize ?? undefined,
-		currencyId: tournament.currencyId ?? undefined,
-		memo: tournament.memo ?? undefined,
-		tags: tournament.tags.map((t) => t.name),
-	};
-}
-
-function levelsToPayload(levels: BlindLevelRow[]) {
-	return levels.map((l) => ({
-		isBreak: l.isBreak,
-		blind1: l.blind1,
-		blind2: l.blind2,
-		blind3: l.blind3,
-		ante: l.ante,
-		minutes: l.minutes,
-	}));
-}
-
 export function TournamentTab({
 	storeId,
 	expandedGameId,
 	onToggleGame,
 }: TournamentTabProps) {
-	const queryClient = useQueryClient();
-	const [showArchived, setShowArchived] = useState(false);
-	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const [editingTournament, setEditingTournament] = useState<Tournament | null>(
-		null
-	);
-	const [isCreateLoading, setIsCreateLoading] = useState(false);
-	const [isUpdateLoading, setIsUpdateLoading] = useState(false);
-
 	const {
 		activeTournaments,
 		archivedTournaments,
@@ -598,104 +550,21 @@ export function TournamentTab({
 		archivedLoading,
 		archive,
 		restore,
-		delete: deleteTournament,
-	} = useTournaments({ storeId, showArchived });
-
-	const editBlindLevelsQuery = useQuery({
-		...trpc.blindLevel.listByTournament.queryOptions({
-			tournamentId: editingTournament?.id ?? "",
-		}),
-		enabled: editingTournament !== null,
-	});
-
-	const invalidateTournamentLists = async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({
-				queryKey: trpc.tournament.listByStore.queryOptions({
-					storeId,
-					includeArchived: false,
-				}).queryKey,
-			}),
-			queryClient.invalidateQueries({
-				queryKey: trpc.tournament.listByStore.queryOptions({
-					storeId,
-					includeArchived: true,
-				}).queryKey,
-			}),
-		]);
-	};
-
-	const handleCreate = async (
-		values: TournamentFormValues,
-		levels: BlindLevelRow[]
-	) => {
-		setIsCreateLoading(true);
-		try {
-			await trpcClient.tournament.createWithLevels.mutate({
-				storeId,
-				name: values.name,
-				variant: values.variant,
-				buyIn: values.buyIn,
-				entryFee: values.entryFee,
-				startingStack: values.startingStack,
-				bountyAmount: values.bountyAmount,
-				tableSize: values.tableSize,
-				currencyId: values.currencyId,
-				memo: values.memo,
-				tags: values.tags,
-				chipPurchases: values.chipPurchases,
-				blindLevels: levelsToPayload(levels),
-			});
-			await invalidateTournamentLists();
-			setIsCreateOpen(false);
-		} finally {
-			setIsCreateLoading(false);
-		}
-	};
-
-	const handleUpdate = async (
-		values: TournamentFormValues,
-		levels: BlindLevelRow[]
-	) => {
-		if (!editingTournament) {
-			return;
-		}
-		setIsUpdateLoading(true);
-		try {
-			await trpcClient.tournament.updateWithLevels.mutate({
-				id: editingTournament.id,
-				name: values.name,
-				variant: values.variant,
-				buyIn: values.buyIn ?? null,
-				entryFee: values.entryFee ?? null,
-				startingStack: values.startingStack ?? null,
-				bountyAmount: values.bountyAmount ?? null,
-				tableSize: values.tableSize ?? null,
-				currencyId: values.currencyId ?? null,
-				memo: values.memo ?? null,
-				tags: values.tags,
-				chipPurchases: values.chipPurchases,
-				blindLevels: levelsToPayload(levels),
-			});
-			await Promise.all([
-				invalidateTournamentLists(),
-				queryClient.invalidateQueries({
-					queryKey: trpc.blindLevel.listByTournament.queryOptions({
-						tournamentId: editingTournament.id,
-					}).queryKey,
-				}),
-			]);
-			setEditingTournament(null);
-		} finally {
-			setIsUpdateLoading(false);
-		}
-	};
-
-	const editInitialFormValues = editingTournament
-		? tournamentToInitialFormValues(editingTournament)
-		: undefined;
-	const editInitialLevels = (editBlindLevelsQuery.data ??
-		[]) as BlindLevelRow[];
+		deleteTournament,
+		showArchived,
+		setShowArchived,
+		isCreateOpen,
+		setIsCreateOpen,
+		editingTournament,
+		setEditingTournament,
+		isCreateLoading,
+		isUpdateLoading,
+		editBlindLevelsLoading,
+		editInitialFormValues,
+		editInitialLevels,
+		handleCreate,
+		handleUpdate,
+	} = useTournamentTab({ storeId });
 
 	return (
 		<div>
@@ -759,7 +628,7 @@ export function TournamentTab({
 				aiMode="edit"
 				initialBlindLevels={editInitialLevels}
 				initialFormValues={editInitialFormValues}
-				isInitializing={editBlindLevelsQuery.isLoading}
+				isInitializing={editBlindLevelsLoading}
 				isLoading={isUpdateLoading}
 				onOpenChange={(open) => {
 					if (!open) {
