@@ -31,6 +31,14 @@ import {
 } from "@/shared/components/ui/card";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/shared/components/ui/table";
 import { createGroupFormatter } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
 
@@ -269,75 +277,69 @@ function TournamentStructureTable({ levels }: { levels: BlindLevelRow[] }) {
 	}
 
 	return (
-		<div className="w-full overflow-x-auto">
-			<table className="w-full table-fixed border-collapse text-[11px]">
-				<thead>
-					<tr>
-						<th className="w-6 pb-0.5 text-center font-medium text-muted-foreground">
-							#
-						</th>
-						<th className="pb-0.5 text-center font-medium text-muted-foreground">
-							SB
-						</th>
-						<th className="pb-0.5 text-center font-medium text-muted-foreground">
-							BB
-						</th>
-						<th className="pb-0.5 text-center font-medium text-muted-foreground">
-							Ante
-						</th>
-						<th className="w-8 pb-0.5 text-center font-medium text-muted-foreground">
-							Min
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{levels.map((row) => {
-						if (row.isBreak) {
-							return (
-								<tr className="bg-muted/30" key={row.id}>
-									<td className="py-0.5 text-center text-muted-foreground">
-										{row.level}
-									</td>
-									<td
-										className="py-0.5 text-center text-muted-foreground"
-										colSpan={3}
-									>
-										Break
-									</td>
-									<td className="py-0.5 text-center text-muted-foreground">
-										{row.minutes ?? "—"}
-									</td>
-								</tr>
-							);
-						}
-						const fmt = createGroupFormatter([
-							row.blind1,
-							row.blind2,
-							row.ante,
-						]);
+		<Table className="table-fixed text-[11px]">
+			<TableHeader>
+				<TableRow>
+					<TableHead className="h-auto w-6 pb-0.5 text-center font-medium text-muted-foreground">
+						#
+					</TableHead>
+					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
+						SB
+					</TableHead>
+					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
+						BB
+					</TableHead>
+					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
+						Ante
+					</TableHead>
+					<TableHead className="h-auto w-8 pb-0.5 text-center font-medium text-muted-foreground">
+						Min
+					</TableHead>
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				{levels.map((row) => {
+					if (row.isBreak) {
 						return (
-							<tr key={row.id}>
-								<td className="py-0.5 text-center text-muted-foreground">
+							<TableRow className="bg-muted/30" key={row.id}>
+								<TableCell className="py-0.5 text-center text-muted-foreground">
 									{row.level}
-								</td>
-								<td className="py-0.5 text-center">
-									{row.blind1 == null ? "—" : fmt(row.blind1)}
-								</td>
-								<td className="py-0.5 text-center">
-									{row.blind2 == null ? "—" : fmt(row.blind2)}
-								</td>
-								<td className="py-0.5 text-center">
-									{row.ante == null ? "—" : fmt(row.ante)}
-								</td>
-								<td className="py-0.5 text-center text-muted-foreground">
+								</TableCell>
+								<TableCell
+									className="py-0.5 text-center text-muted-foreground"
+									colSpan={3}
+								>
+									Break
+								</TableCell>
+								<TableCell className="py-0.5 text-center text-muted-foreground">
 									{row.minutes ?? "—"}
-								</td>
-							</tr>
+								</TableCell>
+							</TableRow>
 						);
-					})}
-				</tbody>
-			</table>
-		</div>
+					}
+					const fmt = createGroupFormatter([row.blind1, row.blind2, row.ante]);
+					return (
+						<TableRow key={row.id}>
+							<TableCell className="py-0.5 text-center text-muted-foreground">
+								{row.level}
+							</TableCell>
+							<TableCell className="py-0.5 text-center">
+								{row.blind1 == null ? "—" : fmt(row.blind1)}
+							</TableCell>
+							<TableCell className="py-0.5 text-center">
+								{row.blind2 == null ? "—" : fmt(row.blind2)}
+							</TableCell>
+							<TableCell className="py-0.5 text-center">
+								{row.ante == null ? "—" : fmt(row.ante)}
+							</TableCell>
+							<TableCell className="py-0.5 text-center text-muted-foreground">
+								{row.minutes ?? "—"}
+							</TableCell>
+						</TableRow>
+					);
+				})}
+			</TableBody>
+		</Table>
 	);
 }
 
