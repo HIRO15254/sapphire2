@@ -3,6 +3,7 @@ import {
 	type TagColor,
 } from "@/features/players/constants/player-tag-colors";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/shared/components/ui/badge";
 
 interface ColorBadgeProps {
 	children: React.ReactNode;
@@ -14,15 +15,8 @@ export function ColorBadge({ color, children, className }: ColorBadgeProps) {
 	const colorConfig = TAG_COLORS[color as TagColor] ?? TAG_COLORS.gray;
 
 	return (
-		<span
-			className={cn(
-				"inline-flex items-center rounded-full px-2 py-0.5 font-medium text-xs",
-				colorConfig.bg,
-				colorConfig.text,
-				className
-			)}
-		>
+		<Badge className={cn(colorConfig.bg, colorConfig.text, className)}>
 			{children}
-		</span>
+		</Badge>
 	);
 }
