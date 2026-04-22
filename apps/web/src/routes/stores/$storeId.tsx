@@ -10,7 +10,7 @@ import {
 } from "@/shared/components/ui/tabs";
 import { RingGameTab } from "@/stores/components/ring-game-tab";
 import { TournamentTab } from "@/stores/components/tournament-tab";
-import { useStoreDetailPage } from "@/stores/hooks/use-store-detail-page";
+import { useStoreDetailPage } from "./-use-store-detail-page";
 
 export const Route = createFileRoute("/stores/$storeId")({
 	component: StoreDetailPage,

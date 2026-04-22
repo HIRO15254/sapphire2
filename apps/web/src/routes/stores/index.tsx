@@ -6,7 +6,7 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { StoreCard } from "@/stores/components/store-card";
 import { StoreForm } from "@/stores/components/store-form";
-import { useStoresPage } from "@/stores/hooks/use-stores-page";
+import { useStoresPage } from "./-use-stores-page";
 
 export const Route = createFileRoute("/stores/")({
 	component: StoresPage,

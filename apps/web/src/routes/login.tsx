@@ -5,7 +5,7 @@ import { PreviewAutoLogin } from "@/shared/components/preview-auto-login";
 import { PublicPageShell } from "@/shared/components/public-page-shell";
 import SignInForm from "@/shared/components/sign-in-form";
 import SignUpForm from "@/shared/components/sign-up-form";
-import { useLoginPage } from "@/shared/hooks/use-login-page";
+import { useLoginPage } from "./-use-login-page";
 
 export const Route = createFileRoute("/login")({
 	beforeLoad: async () => {

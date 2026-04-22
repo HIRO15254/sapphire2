@@ -4,11 +4,11 @@ import { CurrencyCard } from "@/currencies/components/currency-card";
 import { CurrencyForm } from "@/currencies/components/currency-form";
 import { TransactionForm } from "@/currencies/components/transaction-form";
 import { TransactionTypeManager } from "@/currencies/components/transaction-type-manager";
-import { useCurrenciesPage } from "@/currencies/hooks/use-currencies-page";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { useCurrenciesPage } from "./-use-currencies-page";
 
 export const Route = createFileRoute("/currencies/")({
 	component: CurrenciesPage,

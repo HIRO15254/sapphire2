@@ -8,13 +8,13 @@ import type { TableGameInfo } from "@/live-sessions/components/poker-table";
 import { TournamentTimer } from "@/live-sessions/components/tournament-timer";
 import { TournamentTimerDialog } from "@/live-sessions/components/tournament-timer-dialog";
 import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
-import { useTournamentSessionPage } from "@/live-sessions/hooks/use-active-session-page";
 import { useCashGameCompactSummary } from "@/live-sessions/hooks/use-cash-game-compact-summary";
 import { useCashGameSession } from "@/live-sessions/hooks/use-cash-game-session";
 import { useTournamentCompactSummary } from "@/live-sessions/hooks/use-tournament-compact-summary";
 import type { TournamentBlindLevel } from "@/live-sessions/utils/tournament-timer";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatCompactNumber } from "@/utils/format-number";
+import { useTournamentSessionPage } from "./-use-active-session-page";
 
 export const Route = createFileRoute("/active-session/")({
 	component: ActiveSessionPage,

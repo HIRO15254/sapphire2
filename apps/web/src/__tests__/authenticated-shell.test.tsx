@@ -58,13 +58,10 @@ vi.mock("@/live-sessions/hooks/use-stack-sheet", () => ({
 	),
 }));
 
-vi.mock("@/update-notes/hooks/use-update-notes-sheet", () => ({
+vi.mock("@/update-notes/components/update-notes-sheet", () => ({
 	UpdateNotesProvider: ({ children }: { children: ReactNode }) => (
 		<>{children}</>
 	),
-}));
-
-vi.mock("@/update-notes/components/update-notes-sheet", () => ({
 	UpdateNotesSheet: () => <div>Update Notes Sheet</div>,
 }));
 

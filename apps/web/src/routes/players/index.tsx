@@ -4,11 +4,11 @@ import { PlayerCard } from "@/players/components/player-card";
 import { PlayerFilters } from "@/players/components/player-filters";
 import { PlayerForm } from "@/players/components/player-form";
 import { PlayerTagManager } from "@/players/components/player-tag-manager";
-import { usePlayersPage } from "@/players/hooks/use-players-page";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { usePlayersPage } from "./-use-players-page";
 
 export const Route = createFileRoute("/players/")({
 	component: PlayersPage,

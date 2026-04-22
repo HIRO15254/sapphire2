@@ -5,13 +5,13 @@ import { SessionFilters } from "@/sessions/components/session-filters";
 import { SessionForm } from "@/sessions/components/session-form";
 import { SessionTagManager } from "@/sessions/components/session-tag-manager";
 import { buildEditDefaults } from "@/sessions/hooks/use-sessions";
-import { useSessionsPage } from "@/sessions/hooks/use-sessions-page";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Label } from "@/shared/components/ui/label";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { Switch } from "@/shared/components/ui/switch";
+import { useSessionsPage } from "./-use-sessions-page";
 
 export const Route = createFileRoute("/sessions/")({
 	component: SessionsPage,
