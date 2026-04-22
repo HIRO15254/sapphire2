@@ -1,14 +1,9 @@
-import { useForm } from "@tanstack/react-form";
-import { z } from "zod";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
-
-interface StoreFormValues {
-	memo?: string;
-	name: string;
-}
+import type { StoreFormValues } from "@/stores/hooks/use-store-form";
+import { useStoreForm } from "@/stores/hooks/use-store-form";
 
 interface StoreFormProps {
 	defaultValues?: StoreFormValues;
@@ -16,31 +11,12 @@ interface StoreFormProps {
 	onSubmit: (values: StoreFormValues) => void;
 }
 
-const storeFormSchema = z.object({
-	name: z.string().min(1, "Store name is required"),
-	memo: z.string(),
-});
-
 export function StoreForm({
 	onSubmit,
 	defaultValues,
 	isLoading = false,
 }: StoreFormProps) {
-	const form = useForm({
-		defaultValues: {
-			name: defaultValues?.name ?? "",
-			memo: defaultValues?.memo ?? "",
-		},
-		onSubmit: ({ value }) => {
-			onSubmit({
-				name: value.name,
-				memo: value.memo ? value.memo : undefined,
-			});
-		},
-		validators: {
-			onSubmit: storeFormSchema,
-		},
-	});
+	const { form } = useStoreForm({ onSubmit, defaultValues });
 
 	return (
 		<form

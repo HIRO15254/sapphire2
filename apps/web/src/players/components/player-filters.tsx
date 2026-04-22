@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { PlayerTagInput } from "@/players/components/player-tag-input";
+import { usePlayerFilters } from "@/players/hooks/use-player-filters";
 import { FilterDialogShell } from "@/shared/components/filter-dialog-shell";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
@@ -21,44 +21,16 @@ export function PlayerFilters({
 	onTagIdsChange,
 	selectedTagIds,
 }: PlayerFiltersProps) {
-	const [isOpen, setIsOpen] = useState(false);
-	const [draft, setDraft] = useState<string[]>(selectedTagIds);
-
-	const handleOpen = () => {
-		setDraft(selectedTagIds);
-		setIsOpen(true);
-	};
-
-	const toggleTag = (tagId: string) => {
-		setDraft((prev) =>
-			prev.includes(tagId)
-				? prev.filter((id) => id !== tagId)
-				: [...prev, tagId]
-		);
-	};
-
-	const handleApply = () => {
-		onTagIdsChange(draft);
-		setIsOpen(false);
-	};
-
-	const handleReset = () => {
-		setDraft([]);
-		onTagIdsChange([]);
-		setIsOpen(false);
-	};
+	const { draft, isOpen, onApply, onOpen, onOpenChange, onReset, toggleTag } =
+		usePlayerFilters({ onTagIdsChange, selectedTagIds });
 
 	return (
 		<FilterDialogShell
 			activeCount={selectedTagIds.length}
-			onApply={handleApply}
-			onOpen={handleOpen}
-			onOpenChange={(open) => {
-				if (!open) {
-					setIsOpen(false);
-				}
-			}}
-			onReset={handleReset}
+			onApply={onApply}
+			onOpen={onOpen}
+			onOpenChange={onOpenChange}
+			onReset={onReset}
 			open={isOpen}
 			title="Filter by Tags"
 		>

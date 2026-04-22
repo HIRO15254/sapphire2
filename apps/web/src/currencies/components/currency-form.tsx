@@ -1,14 +1,9 @@
-import { useForm } from "@tanstack/react-form";
-import { z } from "zod";
+import type { CurrencyFormValues } from "@/currencies/hooks/use-currency-form";
+import { useCurrencyForm } from "@/currencies/hooks/use-currency-form";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-
-interface CurrencyFormValues {
-	name: string;
-	unit?: string;
-}
 
 interface CurrencyFormProps {
 	defaultValues?: CurrencyFormValues;
@@ -16,31 +11,12 @@ interface CurrencyFormProps {
 	onSubmit: (values: CurrencyFormValues) => void;
 }
 
-const currencyFormSchema = z.object({
-	name: z.string().min(1, "Currency name is required"),
-	unit: z.string(),
-});
-
 export function CurrencyForm({
 	onSubmit,
 	defaultValues,
 	isLoading = false,
 }: CurrencyFormProps) {
-	const form = useForm({
-		defaultValues: {
-			name: defaultValues?.name ?? "",
-			unit: defaultValues?.unit ?? "",
-		},
-		onSubmit: ({ value }) => {
-			onSubmit({
-				name: value.name,
-				unit: value.unit ? value.unit : undefined,
-			});
-		},
-		validators: {
-			onSubmit: currencyFormSchema,
-		},
-	});
+	const { form } = useCurrencyForm({ defaultValues, onSubmit });
 
 	return (
 		<form

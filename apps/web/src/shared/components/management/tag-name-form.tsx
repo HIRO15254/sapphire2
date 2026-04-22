@@ -1,16 +1,8 @@
-import { useForm } from "@tanstack/react-form";
 import type * as React from "react";
-import { z } from "zod";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-
-const tagNameFormSchema = z.object({
-	name: z
-		.string()
-		.min(1, "Tag name is required")
-		.max(50, "Tag name must be 50 characters or less"),
-});
+import { useTagNameForm } from "@/shared/hooks/use-tag-name-form";
 
 export function TagNameForm({
 	children,
@@ -23,17 +15,7 @@ export function TagNameForm({
 	isLoading?: boolean;
 	onSubmit: (name: string) => void;
 }) {
-	const form = useForm({
-		defaultValues: {
-			name: defaultName ?? "",
-		},
-		onSubmit: ({ value }) => {
-			onSubmit(value.name);
-		},
-		validators: {
-			onSubmit: tagNameFormSchema,
-		},
-	});
+	const { form } = useTagNameForm({ defaultName, onSubmit });
 
 	return (
 		<form

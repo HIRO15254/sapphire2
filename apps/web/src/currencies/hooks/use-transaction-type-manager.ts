@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
 	cancelTargets,
 	invalidateTargets,
@@ -76,5 +77,35 @@ export function useTransactionTypeManager() {
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		isDeletePending: deleteMutation.isPending,
+	};
+}
+
+export function useTransactionTypeManagerWithDeleteError() {
+	const manager = useTransactionTypeManager();
+	const [deleteError, setDeleteError] = useState<string | null>(null);
+
+	const handleDelete = async (id: string) => {
+		setDeleteError(null);
+		try {
+			await manager.delete(id);
+		} catch (err: unknown) {
+			if (
+				err &&
+				typeof err === "object" &&
+				"message" in err &&
+				typeof err.message === "string"
+			) {
+				setDeleteError(err.message);
+			} else {
+				setDeleteError("Failed to delete");
+			}
+			throw err;
+		}
+	};
+
+	return {
+		...manager,
+		deleteError,
+		handleDelete,
 	};
 }

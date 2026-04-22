@@ -1,6 +1,5 @@
 import { IconEdit, IconPlus, IconTrash } from "@tabler/icons-react";
 import type * as React from "react";
-import { useState } from "react";
 import {
 	ManagementList,
 	ManagementListItem,
@@ -10,6 +9,7 @@ import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { useTagManager } from "@/shared/hooks/use-tag-manager";
 
 interface TagManagerProps<TTag extends { id: string; name: string }> {
 	deleteError?: React.ReactNode;
@@ -38,9 +38,17 @@ export function TagManager<TTag extends { id: string; name: string }>({
 	renderCreateForm,
 	renderEditForm,
 }: TagManagerProps<TTag>) {
-	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const [editingTag, setEditingTag] = useState<TTag | null>(null);
-	const [deletingTag, setDeletingTag] = useState<TTag | null>(null);
+	const {
+		deletingTag,
+		editingTag,
+		isCreateOpen,
+		onCloseCreate,
+		onCloseDelete,
+		onCloseEdit,
+		onOpenCreate,
+		onStartDelete,
+		onStartEdit,
+	} = useTagManager<TTag>();
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -48,7 +56,7 @@ export function TagManager<TTag extends { id: string; name: string }>({
 				<p className="font-medium text-sm">
 					{tags.length} {tags.length === 1 ? noun : `${noun}s`}
 				</p>
-				<Button onClick={() => setIsCreateOpen(true)} size="sm">
+				<Button onClick={onOpenCreate} size="sm">
 					<IconPlus size={16} />
 					New {noun.charAt(0).toUpperCase() + noun.slice(1)}
 				</Button>
@@ -68,7 +76,7 @@ export function TagManager<TTag extends { id: string; name: string }>({
 								<div className="flex gap-1">
 									<Button
 										aria-label={`Edit ${noun} ${tag.name}`}
-										onClick={() => setEditingTag(tag)}
+										onClick={() => onStartEdit(tag)}
 										size="sm"
 										variant="ghost"
 									>
@@ -76,7 +84,7 @@ export function TagManager<TTag extends { id: string; name: string }>({
 									</Button>
 									<Button
 										aria-label={`Delete ${noun} ${tag.name}`}
-										onClick={() => setDeletingTag(tag)}
+										onClick={() => onStartDelete(tag)}
 										size="sm"
 										variant="ghost"
 									>
@@ -92,29 +100,33 @@ export function TagManager<TTag extends { id: string; name: string }>({
 			)}
 
 			<ResponsiveDialog
-				onOpenChange={setIsCreateOpen}
+				onOpenChange={(open) => {
+					if (!open) {
+						onCloseCreate();
+					}
+				}}
 				open={isCreateOpen}
 				title={`New ${noun.charAt(0).toUpperCase() + noun.slice(1)}`}
 			>
-				{renderCreateForm(() => setIsCreateOpen(false))}
+				{renderCreateForm(onCloseCreate)}
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
 				onOpenChange={(open) => {
 					if (!open) {
-						setEditingTag(null);
+						onCloseEdit();
 					}
 				}}
 				open={editingTag !== null}
 				title={`Edit ${noun.charAt(0).toUpperCase() + noun.slice(1)}`}
 			>
-				{editingTag && renderEditForm(editingTag, () => setEditingTag(null))}
+				{editingTag && renderEditForm(editingTag, onCloseEdit)}
 			</ResponsiveDialog>
 
 			<ResponsiveDialog
 				onOpenChange={(open) => {
 					if (!open) {
-						setDeletingTag(null);
+						onCloseDelete();
 					}
 				}}
 				open={deletingTag !== null}
@@ -129,14 +141,14 @@ export function TagManager<TTag extends { id: string; name: string }>({
 							</Alert>
 						) : null}
 						<DialogActionRow>
-							<Button onClick={() => setDeletingTag(null)} variant="outline">
+							<Button onClick={onCloseDelete} variant="outline">
 								Cancel
 							</Button>
 							<Button
 								disabled={isDeletePending}
 								onClick={() =>
 									onDelete(deletingTag.id)
-										.then(() => setDeletingTag(null))
+										.then(() => onCloseDelete())
 										.catch(() => {
 											// Error handled by caller via deleteError prop
 										})

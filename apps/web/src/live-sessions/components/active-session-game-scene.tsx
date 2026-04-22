@@ -1,8 +1,8 @@
 import { IconEdit } from "@tabler/icons-react";
-import { useState } from "react";
 import { AssignRingGameDialog } from "@/live-sessions/components/assign-ring-game-dialog";
 import { AssignTournamentDialog } from "@/live-sessions/components/assign-tournament-dialog";
 import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
+import { useAssignDialogState } from "@/live-sessions/hooks/use-assign-dialog-state";
 import { useCashGameSession } from "@/live-sessions/hooks/use-cash-game-session";
 import { useRingGameSceneActions } from "@/live-sessions/hooks/use-ring-game-scene-actions";
 import {
@@ -140,7 +140,7 @@ function CashGameNotLinked({
 	sessionId: string;
 	sessionStoreId: string | null;
 }) {
-	const [isAssignOpen, setIsAssignOpen] = useState(false);
+	const { isAssignOpen, setIsAssignOpen } = useAssignDialogState();
 	return (
 		<GameSceneShell title="Cash Game">
 			<EmptyState
@@ -563,7 +563,7 @@ function TournamentNotLinked({
 	sessionId: string;
 	sessionStoreId: string | null;
 }) {
-	const [isAssignOpen, setIsAssignOpen] = useState(false);
+	const { isAssignOpen, setIsAssignOpen } = useAssignDialogState();
 	return (
 		<GameSceneShell title="Tournament">
 			<EmptyState

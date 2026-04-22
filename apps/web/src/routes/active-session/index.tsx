@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
 	ActiveSessionScene,
@@ -9,16 +8,13 @@ import type { TableGameInfo } from "@/live-sessions/components/poker-table";
 import { TournamentTimer } from "@/live-sessions/components/tournament-timer";
 import { TournamentTimerDialog } from "@/live-sessions/components/tournament-timer-dialog";
 import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
+import { useTournamentSessionPage } from "@/live-sessions/hooks/use-active-session-page";
+import { useCashGameCompactSummary } from "@/live-sessions/hooks/use-cash-game-compact-summary";
 import { useCashGameSession } from "@/live-sessions/hooks/use-cash-game-session";
-import { useTournamentSession } from "@/live-sessions/hooks/use-tournament-session";
+import { useTournamentCompactSummary } from "@/live-sessions/hooks/use-tournament-compact-summary";
 import type { TournamentBlindLevel } from "@/live-sessions/utils/tournament-timer";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { useElapsedTime } from "@/shared/hooks/use-elapsed-time";
 import { formatCompactNumber } from "@/utils/format-number";
-import {
-	formatProfitLoss,
-	profitLossColorClass,
-} from "@/utils/format-profit-loss";
 
 export const Route = createFileRoute("/active-session/")({
 	component: ActiveSessionPage,
@@ -34,47 +30,26 @@ function CashGameCompactSummary({
 		totalBuyIn: number;
 	};
 }) {
-	const duration = useElapsedTime(summary.startedAt);
-
-	// Use currentStack-based running P&L during the active session.
-	// profitLoss (from cashOut) is only available at session end.
-	const displayPL =
-		summary.currentStack === null
-			? null
-			: summary.currentStack - summary.totalBuyIn;
-
-	// Running EV P&L = (currentStack + evDiff) - totalBuyIn
-	const evPL =
-		summary.currentStack !== null && summary.evDiff !== 0
-			? summary.currentStack + summary.evDiff - summary.totalBuyIn
-			: null;
-	const showEvPL = evPL !== null && evPL !== displayPL;
+	const vm = useCashGameCompactSummary(summary);
 
 	return (
 		<div className="flex rounded-md border">
 			<div className="flex flex-1 flex-col gap-0.5 px-3 py-2">
 				<span className="text-muted-foreground text-xs">Time</span>
-				<p className="font-semibold">{duration}</p>
+				<p className="font-semibold">{vm.duration}</p>
 			</div>
 			<div className="flex flex-1 flex-col gap-0.5 border-l px-3 py-2">
 				<span className="text-muted-foreground text-xs">Total Buy-in</span>
-				<p className="font-semibold">
-					{formatCompactNumber(summary.totalBuyIn)}
-				</p>
+				<p className="font-semibold">{vm.totalBuyInFormatted}</p>
 			</div>
 			<div className="flex flex-1 flex-col gap-0.5 border-l px-3 py-2">
 				<span className="text-muted-foreground text-xs">P&L</span>
-				<p
-					className={cn(
-						"font-semibold",
-						displayPL === null ? undefined : profitLossColorClass(displayPL)
-					)}
-				>
-					{displayPL === null ? "-" : formatProfitLoss(displayPL)}
+				<p className={cn("font-semibold", vm.displayPLColorClass || undefined)}>
+					{vm.displayPLFormatted}
 				</p>
-				{showEvPL ? (
-					<p className={cn("text-xs", profitLossColorClass(evPL))}>
-						EV: {formatProfitLoss(evPL)}
+				{vm.showEvPL ? (
+					<p className={cn("text-xs", vm.evPLColorClass)}>
+						EV: {vm.evPLFormatted}
 					</p>
 				) : null}
 			</div>
@@ -92,29 +67,21 @@ function TournamentCompactSummary({
 		totalEntries: number | null;
 	};
 }) {
-	const duration = useElapsedTime(summary.startedAt);
-	const fieldEntry =
-		summary.remainingPlayers === null && summary.totalEntries === null
-			? "-"
-			: `${summary.remainingPlayers ?? "-"}/${summary.totalEntries ?? "-"}`;
+	const vm = useTournamentCompactSummary(summary);
 
 	return (
 		<div className="flex rounded-md border">
 			<div className="flex flex-1 flex-col gap-0.5 px-3 py-2">
 				<span className="text-muted-foreground text-xs">Time</span>
-				<p className="font-semibold">{duration}</p>
+				<p className="font-semibold">{vm.duration}</p>
 			</div>
 			<div className="flex flex-1 flex-col gap-0.5 border-l px-3 py-2">
 				<span className="text-muted-foreground text-xs">Field/Entry</span>
-				<p className="font-semibold">{fieldEntry}</p>
+				<p className="font-semibold">{vm.fieldEntry}</p>
 			</div>
 			<div className="flex flex-1 flex-col gap-0.5 border-l px-3 py-2">
 				<span className="text-muted-foreground text-xs">Avg Stack</span>
-				<p className="font-semibold">
-					{summary.averageStack === null
-						? "-"
-						: formatCompactNumber(summary.averageStack)}
-				</p>
+				<p className="font-semibold">{vm.averageStackFormatted}</p>
 			</div>
 		</div>
 	);
@@ -206,9 +173,12 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 		isDiscardPending,
 		discard,
 		isUpdatingTimer,
-		updateTimerStartedAt,
-	} = useTournamentSession(sessionId);
-	const [isTimerDialogOpen, setIsTimerDialogOpen] = useState(false);
+		isTimerDialogOpen,
+		setIsTimerDialogOpen,
+		handleOpenTimerDialog,
+		handleClearTimer,
+		handleSubmitTimer,
+	} = useTournamentSessionPage(sessionId);
 
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
@@ -222,6 +192,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 	if (!session) {
 		return null;
 	}
+
 	const tournamentSummary = buildTournamentSummary(
 		session as { summary: Record<string, unknown> }
 	);
@@ -257,7 +228,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 					hasStructure ? (
 						<TournamentTimer
 							blindLevels={blindLevels}
-							onEditTimer={() => setIsTimerDialogOpen(true)}
+							onEditTimer={handleOpenTimerDialog}
 							timerStartedAt={timerStartedAt}
 						/>
 					) : undefined
@@ -266,15 +237,9 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			{hasStructure ? (
 				<TournamentTimerDialog
 					isLoading={isUpdatingTimer}
-					onClear={() => {
-						updateTimerStartedAt(null);
-						setIsTimerDialogOpen(false);
-					}}
+					onClear={handleClearTimer}
 					onOpenChange={setIsTimerDialogOpen}
-					onSubmit={(value) => {
-						updateTimerStartedAt(value);
-						setIsTimerDialogOpen(false);
-					}}
+					onSubmit={handleSubmitTimer}
 					open={isTimerDialogOpen}
 					timerStartedAt={timerStartedAt}
 				/>

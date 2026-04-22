@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { EntityListItem } from "@/shared/components/management/entity-list-item";
 import { RingGameTab } from "@/stores/components/ring-game-tab";
 import { TournamentTab } from "@/stores/components/tournament-tab";
+import { useStoreCard } from "@/stores/hooks/use-store-card";
 
 interface StoreCardProps {
 	onDelete: (id: string) => void;
@@ -14,11 +14,7 @@ interface StoreCardProps {
 }
 
 export function StoreCard({ store, onEdit, onDelete }: StoreCardProps) {
-	const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
-
-	const handleToggleGame = (id: string | null) => {
-		setExpandedGameId(id);
-	};
+	const { expandedGameId, handleToggleGame } = useStoreCard();
 
 	return (
 		<EntityListItem

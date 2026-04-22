@@ -2,13 +2,10 @@ import {
 	closestCenter,
 	DndContext,
 	type DragEndEvent,
-	PointerSensor,
-	TouchSensor,
-	useSensor,
-	useSensors,
+	type SensorDescriptor,
+	type SensorOptions,
 } from "@dnd-kit/core";
 import {
-	arrayMove,
 	SortableContext,
 	useSortable,
 	verticalListSortingStrategy,
@@ -21,12 +18,15 @@ import {
 	IconTrash,
 } from "@tabler/icons-react";
 import type { ComponentProps } from "react";
-import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { useLocalBlindStructure } from "@/stores/hooks/use-blind-level-editor";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
 import { useBlindLevels } from "@/stores/hooks/use-blind-levels";
+import { useEmptyRow } from "@/stores/hooks/use-empty-row";
+import { useSortableLevelRow } from "@/stores/hooks/use-sortable-level-row";
+import type { NewLevelValues } from "@/stores/utils/blind-level-helpers";
 
 const GAME_VARIANTS = {
 	nlh: {
@@ -105,56 +105,17 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 		isDragging,
 	} = useSortable({ id: row.id });
 
-	// Track current input values for auto-fill logic on blur
-	const currentBlind2Ref = useRef(row.blind2 == null ? "" : String(row.blind2));
-	const currentAnteRef = useRef(row.ante == null ? "" : String(row.ante));
+	const {
+		handleBlind1Blur,
+		handleBlind2Blur,
+		handleAnteBlur,
+		handleMinutesBlur,
+	} = useSortableLevelRow({ row, onUpdate });
 
 	const style = {
 		transform: CSS.Transform.toString(transform),
 		transition,
 		opacity: isDragging ? 0.5 : 1,
-	};
-
-	const handleBlind1Blur = (e: React.FocusEvent<HTMLInputElement>) => {
-		const val = e.target.value;
-		const parsed = parseIntOrNull(val);
-		const updates: Record<string, number | null> = { blind1: parsed };
-		if (parsed != null) {
-			if (!currentBlind2Ref.current) {
-				const bb = parsed * 2;
-				currentBlind2Ref.current = String(bb);
-				updates.blind2 = bb;
-				if (!currentAnteRef.current) {
-					currentAnteRef.current = String(bb);
-					updates.ante = bb;
-				}
-			} else if (!currentAnteRef.current) {
-				currentAnteRef.current = String(parsed);
-				updates.ante = parsed;
-			}
-		}
-		onUpdate(row.id, updates);
-	};
-
-	const handleBlind2Blur = (e: React.FocusEvent<HTMLInputElement>) => {
-		const val = e.target.value;
-		currentBlind2Ref.current = val;
-		const parsed = parseIntOrNull(val);
-		const updates: Record<string, number | null> = { blind2: parsed };
-		if (parsed != null && !currentAnteRef.current) {
-			currentAnteRef.current = val;
-			updates.ante = parsed;
-		}
-		onUpdate(row.id, updates);
-	};
-
-	const handleAnteBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-		currentAnteRef.current = e.target.value;
-		onUpdate(row.id, { ante: parseIntOrNull(e.target.value) });
-	};
-
-	const handleMinutesBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-		onUpdate(row.id, { minutes: parseIntOrNull(e.target.value) });
 	};
 
 	return (
@@ -293,84 +254,21 @@ function SortableBreakRow({ row, onDelete, onUpdate }: SortableBreakRowProps) {
 
 // ---- Empty bottom row for adding a new level ----
 
-interface NewLevelValues {
-	ante: number | null;
-	blind1: number | null;
-	blind2: number | null;
-	minutes: number | null;
-}
-
 interface EmptyRowProps {
 	onCreateLevel: (values: NewLevelValues) => void;
 }
 
 function EmptyRow({ onCreateLevel }: EmptyRowProps) {
-	const blind1Ref = useRef<HTMLInputElement>(null);
-	const blind2Ref = useRef<HTMLInputElement>(null);
-	const anteRef = useRef<HTMLInputElement>(null);
-	const minutesRef = useRef<HTMLInputElement>(null);
-
-	const resetRow = () => {
-		for (const ref of [blind1Ref, blind2Ref, anteRef, minutesRef]) {
-			if (ref.current) {
-				ref.current.value = "";
-			}
-		}
-	};
-
-	const tryCreate = (relatedTarget: EventTarget | null) => {
-		const cells = [
-			blind1Ref.current,
-			blind2Ref.current,
-			anteRef.current,
-			minutesRef.current,
-		];
-		if (cells.includes(relatedTarget as HTMLInputElement)) {
-			return;
-		}
-		const blind1Val = parseIntOrNull(blind1Ref.current?.value ?? "");
-		if (blind1Val == null) {
-			return;
-		}
-		onCreateLevel({
-			blind1: blind1Val,
-			blind2: parseIntOrNull(blind2Ref.current?.value ?? ""),
-			ante: parseIntOrNull(anteRef.current?.value ?? ""),
-			minutes: parseIntOrNull(minutesRef.current?.value ?? ""),
-		});
-		resetRow();
-	};
-
-	const handleBlind1Blur = (e: React.FocusEvent<HTMLInputElement>) => {
-		const val = e.target.value;
-		const parsed = parseIntOrNull(val);
-		if (parsed != null) {
-			if (blind2Ref.current && !blind2Ref.current.value) {
-				blind2Ref.current.value = String(parsed * 2);
-			}
-			if (anteRef.current && !anteRef.current.value) {
-				anteRef.current.value = blind2Ref.current?.value ?? val;
-			}
-		}
-		tryCreate(e.relatedTarget);
-	};
-
-	const handleBlind2Blur = (e: React.FocusEvent<HTMLInputElement>) => {
-		const val = e.target.value;
-		const parsed = parseIntOrNull(val);
-		if (parsed != null && anteRef.current && !anteRef.current.value) {
-			anteRef.current.value = val;
-		}
-		tryCreate(e.relatedTarget);
-	};
-
-	const handleAnteBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-		tryCreate(e.relatedTarget);
-	};
-
-	const handleMinutesBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-		tryCreate(e.relatedTarget);
-	};
+	const {
+		blind1Ref,
+		blind2Ref,
+		anteRef,
+		minutesRef,
+		handleBlind1Blur,
+		handleBlind2Blur,
+		handleAnteBlur,
+		handleMinutesBlur,
+	} = useEmptyRow({ onCreateLevel });
 
 	return (
 		<tr className="border-t border-dashed">
@@ -430,7 +328,7 @@ interface BlindStructureTableProps {
 	handleUpdate: (id: string, updates: Record<string, number | null>) => void;
 	isAdding?: boolean;
 	levels: BlindLevelRow[];
-	sensors: ReturnType<typeof useSensors>;
+	sensors: SensorDescriptor<SensorOptions>[];
 }
 
 function BlindStructureTable({
@@ -543,6 +441,7 @@ export function BlindStructureContent({
 		levels,
 		isLoading,
 		isAdding,
+		sensors,
 		handleDragEnd,
 		handleAddLevel,
 		handleAddBreak,
@@ -555,13 +454,6 @@ export function BlindStructureContent({
 		variant in GAME_VARIANTS ? variant : "nlh"
 	) as keyof typeof GAME_VARIANTS;
 	const blindLabels = GAME_VARIANTS[variantKey].blindLabels;
-
-	const sensors = useSensors(
-		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-		useSensor(TouchSensor, {
-			activationConstraint: { delay: 250, tolerance: 8 },
-		})
-	);
 
 	if (isLoading) {
 		return (
@@ -600,117 +492,20 @@ export function LocalBlindStructureContent({
 	onChange,
 	variant = "nlh",
 }: LocalBlindStructureContentProps) {
-	const [lastMinutes, setLastMinutes] = useState<number | null>(null);
-
-	const effectiveLastMinutes = (() => {
-		if (lastMinutes != null) {
-			return lastMinutes;
-		}
-		for (let i = value.length - 1; i >= 0; i--) {
-			if (value[i].minutes != null) {
-				return value[i].minutes;
-			}
-		}
-		return null;
-	})();
+	const {
+		sensors,
+		handleDragEnd,
+		handleAddLevel,
+		handleAddBreak,
+		handleDelete,
+		handleUpdate,
+		handleCreateLevel,
+	} = useLocalBlindStructure({ value, onChange });
 
 	const variantKey = (
 		variant in GAME_VARIANTS ? variant : "nlh"
 	) as keyof typeof GAME_VARIANTS;
 	const blindLabels = GAME_VARIANTS[variantKey].blindLabels;
-
-	const sensors = useSensors(
-		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-		useSensor(TouchSensor, {
-			activationConstraint: { delay: 250, tolerance: 8 },
-		})
-	);
-
-	const handleDragEnd = (event: DragEndEvent) => {
-		const { active, over } = event;
-		if (!over || active.id === over.id) {
-			return;
-		}
-		const oldIndex = value.findIndex((l) => l.id === active.id);
-		const newIndex = value.findIndex((l) => l.id === over.id);
-		if (oldIndex === -1 || newIndex === -1) {
-			return;
-		}
-		onChange(
-			arrayMove(value, oldIndex, newIndex).map((l, i) => ({
-				...l,
-				level: i + 1,
-			}))
-		);
-	};
-
-	const handleAddLevel = () => {
-		onChange([
-			...value,
-			{
-				id: crypto.randomUUID(),
-				tournamentId: "",
-				level: value.length + 1,
-				isBreak: false,
-				blind1: null,
-				blind2: null,
-				blind3: null,
-				ante: null,
-				minutes: effectiveLastMinutes,
-			},
-		]);
-	};
-
-	const handleAddBreak = () => {
-		onChange([
-			...value,
-			{
-				id: crypto.randomUUID(),
-				tournamentId: "",
-				level: value.length + 1,
-				isBreak: true,
-				blind1: null,
-				blind2: null,
-				blind3: null,
-				ante: null,
-				minutes: effectiveLastMinutes,
-			},
-		]);
-	};
-
-	const handleDelete = (id: string) => {
-		onChange(
-			value.filter((l) => l.id !== id).map((l, i) => ({ ...l, level: i + 1 }))
-		);
-	};
-
-	const handleUpdate = (id: string, updates: Record<string, number | null>) => {
-		onChange(value.map((l) => (l.id === id ? { ...l, ...updates } : l)));
-		if (updates.minutes != null) {
-			setLastMinutes(updates.minutes);
-		}
-	};
-
-	const handleCreateLevel = (vals: NewLevelValues) => {
-		const minutes = vals.minutes ?? effectiveLastMinutes;
-		onChange([
-			...value,
-			{
-				id: crypto.randomUUID(),
-				tournamentId: "",
-				level: value.length + 1,
-				isBreak: false,
-				blind1: vals.blind1,
-				blind2: vals.blind2,
-				blind3: null,
-				ante: vals.ante,
-				minutes,
-			},
-		]);
-		if (minutes != null) {
-			setLastMinutes(minutes);
-		}
-	};
 
 	return (
 		<BlindStructureTable

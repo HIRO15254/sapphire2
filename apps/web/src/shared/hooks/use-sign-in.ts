@@ -4,12 +4,14 @@ import { toast } from "sonner";
 import z from "zod";
 import { authClient } from "@/lib/auth-client";
 
-const signInSchema = z.object({
-	email: z.email("Invalid email address"),
-	password: z.string().min(8, "Password must be at least 8 characters"),
-});
+interface UseSignInResult {
+	form: ReturnType<typeof useForm<{ email: string; password: string }>>;
+	isPending: boolean;
+	onSignInWithDiscord: () => Promise<void>;
+	onSignInWithGoogle: () => Promise<void>;
+}
 
-export function useSignIn() {
+export function useSignIn(): UseSignInResult {
 	const navigate = useNavigate({ from: "/" });
 	const { isPending } = authClient.useSession();
 
@@ -36,11 +38,14 @@ export function useSignIn() {
 			);
 		},
 		validators: {
-			onSubmit: signInSchema,
+			onSubmit: z.object({
+				email: z.email("Invalid email address"),
+				password: z.string().min(8, "Password must be at least 8 characters"),
+			}),
 		},
 	});
 
-	const signInWithGoogle = async () => {
+	const onSignInWithGoogle = async () => {
 		const result = await authClient.signIn.social({
 			provider: "google",
 			callbackURL: `${window.location.origin}/dashboard`,
@@ -50,7 +55,7 @@ export function useSignIn() {
 		}
 	};
 
-	const signInWithDiscord = async () => {
+	const onSignInWithDiscord = async () => {
 		const result = await authClient.signIn.social({
 			provider: "discord",
 			callbackURL: `${window.location.origin}/dashboard`,
@@ -60,10 +65,5 @@ export function useSignIn() {
 		}
 	};
 
-	return {
-		form,
-		isSessionPending: isPending,
-		signInWithGoogle,
-		signInWithDiscord,
-	};
+	return { form, isPending, onSignInWithDiscord, onSignInWithGoogle };
 }

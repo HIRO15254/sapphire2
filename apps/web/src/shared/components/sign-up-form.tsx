@@ -1,9 +1,4 @@
-import { useForm } from "@tanstack/react-form";
-import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
-import z from "zod";
-
-import { authClient } from "@/lib/auth-client";
+import { useSignUp } from "@/shared/hooks/use-sign-up";
 import { AuthFormShell, authSubmitLabels } from "./auth-form-shell";
 import { DiscordIcon } from "./icons/discord";
 import { GoogleIcon } from "./icons/google";
@@ -17,45 +12,8 @@ export default function SignUpForm({
 }: {
 	onSwitchToSignIn: () => void;
 }) {
-	const navigate = useNavigate({
-		from: "/",
-	});
-	const { isPending } = authClient.useSession();
-
-	const form = useForm({
-		defaultValues: {
-			email: "",
-			password: "",
-			name: "",
-		},
-		onSubmit: async ({ value }) => {
-			await authClient.signUp.email(
-				{
-					email: value.email,
-					password: value.password,
-					name: value.name,
-				},
-				{
-					onSuccess: () => {
-						navigate({
-							to: "/dashboard",
-						});
-						toast.success("Sign up successful");
-					},
-					onError: (error) => {
-						toast.error(error.error.message || error.error.statusText);
-					},
-				}
-			);
-		},
-		validators: {
-			onSubmit: z.object({
-				name: z.string().min(2, "Name must be at least 2 characters"),
-				email: z.email("Invalid email address"),
-				password: z.string().min(8, "Password must be at least 8 characters"),
-			}),
-		},
-	});
+	const { form, isPending, onSignInWithDiscord, onSignInWithGoogle } =
+		useSignUp();
 
 	if (isPending) {
 		return <Loader />;
@@ -65,28 +23,12 @@ export default function SignUpForm({
 		{
 			label: "Sign up with Google",
 			icon: <GoogleIcon className="mr-2 h-4 w-4" />,
-			onClick: async () => {
-				const result = await authClient.signIn.social({
-					provider: "google",
-					callbackURL: `${window.location.origin}/dashboard`,
-				});
-				if (result.error) {
-					toast.error(result.error.message || "Google sign up unavailable");
-				}
-			},
+			onClick: onSignInWithGoogle,
 		},
 		{
 			label: "Sign up with Discord",
 			icon: <DiscordIcon className="mr-2 h-4 w-4" />,
-			onClick: async () => {
-				const result = await authClient.signIn.social({
-					provider: "discord",
-					callbackURL: `${window.location.origin}/dashboard`,
-				});
-				if (result.error) {
-					toast.error(result.error.message || "Discord sign up unavailable");
-				}
-			},
+			onClick: onSignInWithDiscord,
 		},
 	];
 

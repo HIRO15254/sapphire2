@@ -1,12 +1,11 @@
 import { IconEdit, IconTrash, IconX } from "@tabler/icons-react";
-import { useState } from "react";
+import { useTransactionList } from "@/currencies/hooks/use-transaction-list";
 import {
 	ExpandableItem,
 	ExpandableItemList,
 } from "@/shared/components/management/expandable-item-list";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { createGroupFormatter, formatYmdSlash } from "@/utils/format-number";
 
 interface Transaction {
 	amount: number;
@@ -34,10 +33,17 @@ export function TransactionList({
 	isLoadingMore,
 	onLoadMore,
 }: TransactionListProps) {
-	const [expandedId, setExpandedId] = useState<string | null>(null);
-	const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
-		null
-	);
+	const {
+		confirmingDeleteId,
+		expandedId,
+		getAmountClass,
+		getAmountDisplay,
+		getDateDisplay,
+		onCollapse,
+		onConfirmDelete,
+		onConfirmDeleteCancel,
+		onExpand,
+	} = useTransactionList(transactions);
 
 	if (transactions.length === 0) {
 		return (
@@ -47,18 +53,13 @@ export function TransactionList({
 		);
 	}
 
-	const fmt = createGroupFormatter(transactions.map((tx) => tx.amount));
-
 	return (
 		<div className="flex flex-col">
 			<div className="divide-y">
 				{transactions.map((tx) => {
-					const isPositive = tx.amount >= 0;
-					const amountClass = isPositive ? "text-green-600" : "text-red-600";
-					const amountDisplay = isPositive
-						? `+${fmt(tx.amount)}`
-						: fmt(tx.amount);
-					const dateDisplay = formatYmdSlash(new Date(tx.transactedAt));
+					const amountClass = getAmountClass(tx.amount);
+					const amountDisplay = getAmountDisplay(tx.amount);
+					const dateDisplay = getDateDisplay(tx.transactedAt);
 					const isSessionGenerated = !!tx.sessionId;
 					const isConfirmingDelete = confirmingDeleteId === tx.id;
 
@@ -89,8 +90,11 @@ export function TransactionList({
 						<ExpandableItemList
 							key={tx.id}
 							onValueChange={(id) => {
-								setExpandedId(id);
-								setConfirmingDeleteId(null);
+								if (id) {
+									onExpand(id);
+								} else {
+									onCollapse();
+								}
 							}}
 							value={expandedId === tx.id ? tx.id : null}
 						>
@@ -130,8 +134,8 @@ export function TransactionList({
 												onClick={(e) => {
 													e.stopPropagation();
 													onDelete(tx.id);
-													setConfirmingDeleteId(null);
-													setExpandedId(null);
+													onConfirmDeleteCancel();
+													onCollapse();
 												}}
 												size="icon-xs"
 												variant="ghost"
@@ -142,7 +146,7 @@ export function TransactionList({
 												aria-label="Cancel delete"
 												onClick={(e) => {
 													e.stopPropagation();
-													setConfirmingDeleteId(null);
+													onConfirmDeleteCancel();
 												}}
 												size="icon-xs"
 												variant="ghost"
@@ -170,7 +174,7 @@ export function TransactionList({
 												className="text-destructive hover:text-destructive"
 												onClick={(e) => {
 													e.stopPropagation();
-													setConfirmingDeleteId(tx.id);
+													onConfirmDelete(tx.id);
 												}}
 												size="icon-xs"
 												variant="ghost"

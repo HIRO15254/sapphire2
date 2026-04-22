@@ -1,11 +1,8 @@
-import { useForm } from "@tanstack/react-form";
-import { useEffect } from "react";
-import { z } from "zod";
 import { AllInFields } from "@/live-sessions/components/event-fields/all-in-fields";
+import { useAllInForm } from "@/live-sessions/hooks/use-all-in-form";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { requiredNumericString } from "@/shared/lib/form-fields";
 
 interface AllIn {
 	equity: number;
@@ -22,32 +19,6 @@ interface AllInBottomSheetProps {
 	open: boolean;
 }
 
-const DEFAULT_VALUES = {
-	potSize: "0",
-	trials: "1",
-	equity: "0",
-	wins: "0",
-};
-
-const allInSchema = z.object({
-	potSize: requiredNumericString({ min: 0 }),
-	trials: requiredNumericString({ integer: true, min: 1 }),
-	equity: requiredNumericString({ min: 0, max: 100 }),
-	wins: requiredNumericString({ min: 0 }),
-});
-
-function toFormDefaults(initial: AllIn | undefined) {
-	if (!initial) {
-		return DEFAULT_VALUES;
-	}
-	return {
-		potSize: String(initial.potSize),
-		trials: String(initial.trials),
-		equity: String(initial.equity),
-		wins: String(initial.wins),
-	};
-}
-
 export function AllInBottomSheet({
 	open,
 	onOpenChange,
@@ -55,26 +26,7 @@ export function AllInBottomSheet({
 	onSubmit,
 	onDelete,
 }: AllInBottomSheetProps) {
-	const form = useForm({
-		defaultValues: toFormDefaults(initialValues),
-		onSubmit: ({ value }) => {
-			onSubmit({
-				potSize: Number(value.potSize),
-				trials: Number(value.trials),
-				equity: Number(value.equity),
-				wins: Number(value.wins),
-			});
-		},
-		validators: {
-			onSubmit: allInSchema,
-		},
-	});
-
-	useEffect(() => {
-		if (open) {
-			form.reset(toFormDefaults(initialValues));
-		}
-	}, [open, initialValues, form]);
+	const { form } = useAllInForm({ initialValues, open, onSubmit });
 
 	const isEditMode = initialValues !== undefined;
 

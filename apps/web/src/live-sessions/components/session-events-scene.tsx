@@ -1,16 +1,11 @@
 import { IconPencil, IconTrash, IconX } from "@tabler/icons-react";
-import { useMemo, useState } from "react";
 import { EventEditor } from "@/live-sessions/components/event-editors/event-editor";
 import { toTimeInputValue } from "@/live-sessions/components/stack-editor-time";
-import {
-	type SessionEvent,
-	useSessionEvents,
-} from "@/live-sessions/hooks/use-session-events";
+import type { SessionEvent } from "@/live-sessions/hooks/use-session-events";
+import { useSessionEventsScene } from "@/live-sessions/hooks/use-session-events-scene";
 import {
 	formatEventLabel,
 	formatPayloadSummary,
-	getTimeBounds,
-	groupEventsForDisplay,
 	LIFECYCLE_EVENTS,
 } from "@/live-sessions/utils/session-events-formatters";
 import {
@@ -41,23 +36,18 @@ export function SessionEventsScene({
 	sessionLoading = false,
 	sessionType,
 }: SessionEventsSceneProps) {
-	const [editEvent, setEditEvent] = useState<SessionEvent | null>(null);
-	const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
-		null
-	);
-
 	const {
+		editEvent,
+		setEditEvent,
+		confirmingDeleteId,
+		setConfirmingDeleteId,
 		events,
 		update,
-		delete: deleteEvent,
+		deleteEvent,
 		isUpdatePending,
-	} = useSessionEvents({
-		sessionId,
-		sessionType,
-		refetchInterval,
-	});
-
-	const groups = useMemo(() => groupEventsForDisplay(events), [events]);
+		groups,
+		timeBounds,
+	} = useSessionEventsScene({ sessionId, sessionType, refetchInterval });
 
 	if (sessionLoading) {
 		return (
@@ -73,10 +63,6 @@ export function SessionEventsScene({
 			</div>
 		);
 	}
-	const timeBounds = editEvent
-		? getTimeBounds(events, editEvent.id)
-		: { minTime: null, maxTime: null };
-
 	function renderEventRow(event: SessionEvent) {
 		const payloadSummary = formatPayloadSummary(event.eventType, event.payload);
 		const isLifecycle = LIFECYCLE_EVENTS.has(event.eventType);

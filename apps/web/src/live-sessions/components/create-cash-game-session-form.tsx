@@ -1,5 +1,4 @@
-import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
+import { useCreateCashGameSessionForm } from "@/live-sessions/hooks/use-create-cash-game-session-form";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
@@ -42,59 +41,17 @@ export function CreateCashGameSessionForm({
 	ringGames,
 	stores,
 }: CreateCashGameSessionFormProps) {
-	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>(
-		undefined
-	);
-	const [selectedRingGameId, setSelectedRingGameId] = useState<
-		string | undefined
-	>(undefined);
-	const [selectedCurrencyId, setSelectedCurrencyId] = useState<
-		string | undefined
-	>(undefined);
-
-	const selectedRingGame = selectedRingGameId
-		? ringGames.find((g) => g.id === selectedRingGameId)
-		: null;
-
-	const isCurrencyLocked =
-		selectedRingGame?.currencyId !== null &&
-		selectedRingGame?.currencyId !== undefined;
-
-	const form = useForm({
-		defaultValues: {
-			initialBuyIn: "",
-			memo: "",
-		},
-		onSubmit: ({ value }) => {
-			onSubmit({
-				storeId: selectedStoreId,
-				ringGameId: selectedRingGameId,
-				currencyId: selectedCurrencyId,
-				initialBuyIn: Number(value.initialBuyIn),
-				memo: value.memo || undefined,
-			});
-		},
-	});
-
-	const handleStoreChange = (value: string) => {
-		setSelectedStoreId(value);
-		setSelectedRingGameId(undefined);
-		form.setFieldValue("initialBuyIn", "");
-		onStoreChange?.(value);
-	};
-
-	const handleRingGameChange = (value: string) => {
-		setSelectedRingGameId(value);
-		const ringGame = ringGames.find((g) => g.id === value);
-		if (ringGame) {
-			form.setFieldValue("initialBuyIn", ringGame.maxBuyIn?.toString() ?? "");
-			setSelectedCurrencyId(ringGame.currencyId ?? undefined);
-		}
-	};
-
-	const handleCurrencyChange = (value: string) => {
-		setSelectedCurrencyId(value);
-	};
+	const {
+		form,
+		selectedStoreId,
+		selectedRingGameId,
+		selectedRingGame,
+		selectedCurrencyId,
+		isCurrencyLocked,
+		handleStoreChange,
+		handleRingGameChange,
+		handleCurrencyChange,
+	} = useCreateCashGameSessionForm({ onStoreChange, onSubmit, ringGames });
 
 	const hasRingGames = ringGames.length > 0;
 

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
 	Tabs,
 	TabsContent,
@@ -8,6 +7,7 @@ import {
 import { LocalBlindStructureContent } from "@/stores/components/blind-level-editor";
 import { TournamentForm } from "@/stores/components/tournament-form";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
+import { useTournamentModalContent } from "@/stores/hooks/use-tournament-modal-content";
 import type { TournamentFormValues } from "@/stores/hooks/use-tournaments";
 
 export type TournamentPartialFormValues = Omit<
@@ -34,8 +34,9 @@ export function TournamentModalContent({
 	isLoading,
 	onSave,
 }: TournamentModalContentProps) {
-	const [localBlindLevels, setLocalBlindLevels] =
-		useState<BlindLevelRow[]>(initialBlindLevels);
+	const { localBlindLevels, setLocalBlindLevels } = useTournamentModalContent({
+		initialBlindLevels,
+	});
 
 	return (
 		<Tabs defaultValue="details">

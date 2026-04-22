@@ -1,11 +1,11 @@
 import type * as React from "react";
-import { useEffect, useRef, useState } from "react";
 import {
 	Command,
 	CommandEmpty,
 	CommandItem,
 	CommandList,
 } from "@/shared/components/ui/command";
+import { useTagPickerBase } from "@/shared/components/ui/hooks/use-tag-picker-base";
 import { Input } from "@/shared/components/ui/input";
 import {
 	Popover,
@@ -43,72 +43,26 @@ export function TagPickerBase<TTag extends TagItemBase>({
 	searchAriaLabel,
 	selectedTags,
 }: TagPickerBaseProps<TTag>) {
-	const [inputValue, setInputValue] = useState("");
-	const [isOpen, setIsOpen] = useState(false);
-	const [contentWidth, setContentWidth] = useState<number>();
-	const anchorRef = useRef<HTMLDivElement>(null);
-	const inputRef = useRef<HTMLInputElement>(null);
-
-	const normalizedInput = inputValue.trim();
-	const allTags = availableTags ?? [];
-	const selectedTagIds = new Set(selectedTags.map((tag) => tag.id));
-	const filteredTags = allTags.filter((tag) => {
-		if (selectedTagIds.has(tag.id)) {
-			return false;
-		}
-		if (!normalizedInput) {
-			return true;
-		}
-		return tag.name.toLowerCase().includes(normalizedInput.toLowerCase());
+	const {
+		anchorRef,
+		canCreate,
+		contentWidth,
+		filteredTags,
+		handleInputSubmit,
+		handleTagSelect,
+		inputRef,
+		inputValue,
+		normalizedInput,
+		onInputChange,
+		onOpenChange,
+		shouldRenderPopover,
+	} = useTagPickerBase({
+		availableTags,
+		onAdd,
+		onCreateTag,
+		onRemove,
+		selectedTags,
 	});
-	const matchingTag = allTags.find(
-		(tag) => tag.name.toLowerCase() === normalizedInput.toLowerCase()
-	);
-	const canCreate = Boolean(onCreateTag && normalizedInput && !matchingTag);
-	const shouldRenderPopover =
-		isOpen && (allTags.length > 0 || Boolean(normalizedInput));
-
-	useEffect(() => {
-		if (!(shouldRenderPopover && anchorRef.current)) {
-			return;
-		}
-		setContentWidth(anchorRef.current.offsetWidth);
-	}, [shouldRenderPopover]);
-
-	const focusInput = () => {
-		inputRef.current?.focus();
-	};
-
-	const closeAndReset = () => {
-		setInputValue("");
-		setIsOpen(false);
-	};
-
-	const handleTagSelect = (tag: TTag) => {
-		onAdd(tag);
-		closeAndReset();
-		focusInput();
-	};
-
-	const handleInputSubmit = async () => {
-		if (!normalizedInput) {
-			return;
-		}
-
-		if (matchingTag) {
-			if (!selectedTagIds.has(matchingTag.id)) {
-				handleTagSelect(matchingTag);
-			}
-			return;
-		}
-
-		if (!onCreateTag) {
-			return;
-		}
-
-		const createdTag = await onCreateTag(normalizedInput);
-		handleTagSelect(createdTag);
-	};
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -124,7 +78,7 @@ export function TagPickerBase<TTag extends TagItemBase>({
 
 			<Popover
 				modal={false}
-				onOpenChange={setIsOpen}
+				onOpenChange={onOpenChange}
 				open={shouldRenderPopover}
 			>
 				<PopoverAnchor asChild>
@@ -134,17 +88,17 @@ export function TagPickerBase<TTag extends TagItemBase>({
 							aria-label={searchAriaLabel}
 							autoComplete="off"
 							onChange={(event) => {
-								setInputValue(event.target.value);
-								setIsOpen(true);
+								onInputChange(event.target.value);
+								onOpenChange(true);
 							}}
-							onFocus={() => setIsOpen(true)}
+							onFocus={() => onOpenChange(true)}
 							onKeyDown={(event) => {
 								if (event.key === "Enter") {
 									event.preventDefault();
 									handleInputSubmit().catch(() => undefined);
 								}
 								if (event.key === "Escape") {
-									setIsOpen(false);
+									onOpenChange(false);
 								}
 							}}
 							placeholder={placeholder}

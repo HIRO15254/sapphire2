@@ -1,6 +1,3 @@
-import { useForm } from "@tanstack/react-form";
-import { useEffect, useState } from "react";
-import { z } from "zod";
 import { AddonBottomSheet } from "@/live-sessions/components/addon-bottom-sheet";
 import { AllInBottomSheet } from "@/live-sessions/components/all-in-bottom-sheet";
 import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
@@ -8,11 +5,10 @@ import {
 	StackNumberField,
 	StackPrimaryRow,
 } from "@/live-sessions/components/stack-ui";
-import { useStackFormContext } from "@/live-sessions/hooks/use-session-form";
+import { useCashGameStackForm } from "@/live-sessions/hooks/use-cash-game-stack-form";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { requiredNumericString } from "@/shared/lib/form-fields";
 
 interface CashGameStackFormProps {
 	isLoading: boolean;
@@ -30,14 +26,6 @@ interface CashGameStackFormProps {
 	onSubmit: (values: { stackAmount: number }) => void;
 }
 
-const stackSchema = z.object({
-	stackAmount: requiredNumericString({ integer: true, min: 0 }),
-});
-
-const memoSchema = z.object({
-	text: z.string().min(1, "Text is required"),
-});
-
 export function CashGameStackForm({
 	isLoading,
 	onAllIn,
@@ -48,41 +36,20 @@ export function CashGameStackForm({
 	onPause,
 	onSubmit,
 }: CashGameStackFormProps) {
-	const { state, setStackAmount } = useStackFormContext();
-	const { stackAmount } = state;
-
-	const stackForm = useForm({
-		defaultValues: { stackAmount },
-		onSubmit: ({ value }) => {
-			onSubmit({ stackAmount: Number(value.stackAmount) });
-		},
-		validators: {
-			onSubmit: stackSchema,
-		},
-	});
-
-	useEffect(() => {
-		if (stackForm.state.values.stackAmount !== stackAmount) {
-			stackForm.setFieldValue("stackAmount", stackAmount);
-		}
-	}, [stackAmount, stackForm]);
-
-	const memoForm = useForm({
-		defaultValues: { text: "" },
-		onSubmit: ({ value }) => {
-			onMemo(value.text);
-			memoForm.reset();
-			setMemoBottomSheetOpen(false);
-		},
-		validators: {
-			onSubmit: memoSchema,
-		},
-	});
-
-	const [allInBottomSheetOpen, setAllInBottomSheetOpen] = useState(false);
-	const [addonBottomSheetOpen, setAddonBottomSheetOpen] = useState(false);
-	const [removeBottomSheetOpen, setRemoveBottomSheetOpen] = useState(false);
-	const [memoBottomSheetOpen, setMemoBottomSheetOpen] = useState(false);
+	const {
+		stackForm,
+		memoForm,
+		stackAmount,
+		setStackAmount,
+		allInBottomSheetOpen,
+		setAllInBottomSheetOpen,
+		addonBottomSheetOpen,
+		setAddonBottomSheetOpen,
+		removeBottomSheetOpen,
+		setRemoveBottomSheetOpen,
+		memoBottomSheetOpen,
+		setMemoBottomSheetOpen,
+	} = useCashGameStackForm({ onMemo, onSubmit });
 
 	const handleAllInSubmit = (values: {
 		potSize: number;

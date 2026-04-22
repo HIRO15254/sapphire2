@@ -1,50 +1,31 @@
 import { IconBuildingStore, IconPlus } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { StoreCard } from "@/stores/components/store-card";
 import { StoreForm } from "@/stores/components/store-form";
-import type { StoreItem, StoreValues } from "@/stores/hooks/use-stores";
-import { useStores } from "@/stores/hooks/use-stores";
+import { useStoresPage } from "@/stores/hooks/use-stores-page";
 
 export const Route = createFileRoute("/stores/")({
 	component: StoresPage,
 });
 
 function StoresPage() {
-	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const [editingStore, setEditingStore] = useState<StoreItem | null>(null);
-
 	const {
 		stores,
 		isCreatePending,
 		isUpdatePending,
-		create,
-		update,
-		delete: deleteStore,
-	} = useStores();
-
-	const handleCreate = (values: StoreValues) => {
-		create(values).then(() => {
-			setIsCreateOpen(false);
-		});
-	};
-
-	const handleUpdate = (values: StoreValues) => {
-		if (!editingStore) {
-			return;
-		}
-		update({ id: editingStore.id, ...values }).then(() => {
-			setEditingStore(null);
-		});
-	};
-
-	const handleDelete = (id: string) => {
-		deleteStore(id);
-	};
+		isCreateOpen,
+		editingStore,
+		setIsCreateOpen,
+		setEditingStore,
+		handleCreate,
+		handleUpdate,
+		handleDelete,
+		handleCloseEdit,
+	} = useStoresPage();
 
 	return (
 		<div className="p-4 md:p-6">
@@ -94,7 +75,7 @@ function StoresPage() {
 			<ResponsiveDialog
 				onOpenChange={(open) => {
 					if (!open) {
-						setEditingStore(null);
+						handleCloseEdit();
 					}
 				}}
 				open={editingStore !== null}

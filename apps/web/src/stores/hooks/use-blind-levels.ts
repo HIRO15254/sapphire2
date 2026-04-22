@@ -1,4 +1,10 @@
 import type { DragEndEvent } from "@dnd-kit/core";
+import {
+	PointerSensor,
+	TouchSensor,
+	useSensor,
+	useSensors,
+} from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -243,10 +249,18 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 		}
 	};
 
+	const sensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+		useSensor(TouchSensor, {
+			activationConstraint: { delay: 250, tolerance: 8 },
+		})
+	);
+
 	return {
 		levels: levels as BlindLevelRow[],
 		isLoading: levelsQuery.isLoading,
 		isAdding: addLevelMutation.isPending,
+		sensors,
 		handleDragEnd,
 		handleAddLevel,
 		handleAddBreak,

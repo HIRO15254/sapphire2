@@ -1,6 +1,5 @@
 import { IconAlertTriangle } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
 import { AddPlayerSheet } from "@/live-sessions/components/add-player-sheet";
 import { PlayerDetailSheet } from "@/live-sessions/components/player-detail-sheet";
 import {
@@ -9,6 +8,7 @@ import {
 	type TablePlayer,
 } from "@/live-sessions/components/poker-table";
 import { SeatFromScreenshotSheet } from "@/live-sessions/components/seat-from-screenshot-sheet";
+import { useActiveSessionScene } from "@/live-sessions/hooks/use-active-session-scene";
 import type { PlayerFormValues } from "@/players/components/player-form";
 import type {
 	PlayerDetailData,
@@ -238,18 +238,13 @@ export function ActiveSessionScene({
 	title,
 	topSlot,
 }: ActiveSessionSceneProps) {
-	const [isDiscardOpen, setIsDiscardOpen] = useState(false);
-	const [isScanSheetOpen, setIsScanSheetOpen] = useState(false);
-
-	const occupiedSeatPositions = useMemo(() => {
-		const set = new Set<number>();
-		for (const p of state.players) {
-			if (p.isActive && typeof p.seatPosition === "number") {
-				set.add(p.seatPosition);
-			}
-		}
-		return set;
-	}, [state.players]);
+	const {
+		isDiscardOpen,
+		setIsDiscardOpen,
+		isScanSheetOpen,
+		setIsScanSheetOpen,
+		occupiedSeatPositions,
+	} = useActiveSessionScene({ players: state.players });
 
 	return (
 		<>

@@ -1,11 +1,8 @@
-import { useState } from "react";
 import { CreateCashGameSessionForm } from "@/live-sessions/components/create-cash-game-session-form";
 import { CreateTournamentSessionForm } from "@/live-sessions/components/create-tournament-session-form";
-import { useCreateSession } from "@/live-sessions/hooks/use-create-session";
+import { useCreateSessionDialog } from "@/live-sessions/hooks/use-create-session-dialog";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
-
-type SessionType = "cash_game" | "tournament";
 
 interface CreateSessionDialogProps {
 	onOpenChange: (open: boolean) => void;
@@ -16,9 +13,9 @@ export function CreateSessionDialog({
 	open,
 	onOpenChange,
 }: CreateSessionDialogProps) {
-	const [sessionType, setSessionType] = useState<SessionType>("cash_game");
-
 	const {
+		sessionType,
+		setSessionType,
 		stores,
 		currencies,
 		ringGames,
@@ -27,12 +24,8 @@ export function CreateSessionDialog({
 		createCash,
 		createTournament,
 		isLoading,
-	} = useCreateSession({ onClose: () => onOpenChange(false) });
-
-	const handleReset = () => {
-		setSelectedStoreId(undefined);
-		setSessionType("cash_game");
-	};
+		handleReset,
+	} = useCreateSessionDialog({ onOpenChange });
 
 	return (
 		<ResponsiveDialog
@@ -48,7 +41,9 @@ export function CreateSessionDialog({
 			{/* Session type selector */}
 			<Tabs
 				className="mb-4"
-				onValueChange={(value) => setSessionType(value as SessionType)}
+				onValueChange={(value) =>
+					setSessionType(value as "cash_game" | "tournament")
+				}
 				value={sessionType}
 			>
 				<TabsList className="grid w-full grid-cols-2">

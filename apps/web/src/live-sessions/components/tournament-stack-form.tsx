@@ -1,19 +1,12 @@
-import { useForm } from "@tanstack/react-form";
-import { useEffect, useState } from "react";
-import { z } from "zod";
 import { ChipPurchaseSheet } from "@/live-sessions/components/chip-purchase-sheet";
 import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
 import { StackNumberField } from "@/live-sessions/components/stack-ui";
-import { useTournamentFormContext } from "@/live-sessions/hooks/use-session-form";
+import { useTournamentStackForm } from "@/live-sessions/hooks/use-tournament-stack-form";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Label } from "@/shared/components/ui/label";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import {
-	optionalNumericString,
-	requiredNumericString,
-} from "@/shared/lib/form-fields";
 
 interface ChipPurchaseType {
 	chips: number;
@@ -47,16 +40,6 @@ interface TournamentStackFormProps {
 	onSubmit: (values: TournamentStackFormSubmitValues) => void;
 }
 
-const updateSchema = z.object({
-	stackAmount: requiredNumericString({ integer: true, min: 0 }),
-	remainingPlayers: optionalNumericString({ integer: true, min: 1 }),
-	totalEntries: optionalNumericString({ integer: true, min: 1 }),
-});
-
-const memoSchema = z.object({
-	text: z.string().min(1, "Text is required"),
-});
-
 export function TournamentStackForm({
 	chipPurchaseTypes = [],
 	isLoading,
@@ -67,64 +50,20 @@ export function TournamentStackForm({
 	onSubmit,
 }: TournamentStackFormProps) {
 	const {
-		state,
+		form,
+		memoForm,
 		setStackAmount,
 		setRemainingPlayers,
 		setTotalEntries,
+		chipPurchaseCounts,
 		setChipPurchaseCounts,
-	} = useTournamentFormContext();
-	const { stackAmount, remainingPlayers, totalEntries, chipPurchaseCounts } =
-		state;
-
-	const form = useForm({
-		defaultValues: {
-			stackAmount,
-			remainingPlayers,
-			totalEntries,
-		},
-		onSubmit: ({ value }) => {
-			onSubmit({
-				stackAmount: Number(value.stackAmount),
-				recordTournamentInfo,
-				remainingPlayers: value.remainingPlayers
-					? Number(value.remainingPlayers)
-					: null,
-				totalEntries: value.totalEntries ? Number(value.totalEntries) : null,
-				chipPurchaseCounts,
-			});
-		},
-		validators: {
-			onSubmit: updateSchema,
-		},
-	});
-
-	useEffect(() => {
-		if (form.state.values.stackAmount !== stackAmount) {
-			form.setFieldValue("stackAmount", stackAmount);
-		}
-		if (form.state.values.remainingPlayers !== remainingPlayers) {
-			form.setFieldValue("remainingPlayers", remainingPlayers);
-		}
-		if (form.state.values.totalEntries !== totalEntries) {
-			form.setFieldValue("totalEntries", totalEntries);
-		}
-	}, [stackAmount, remainingPlayers, totalEntries, form]);
-
-	const memoForm = useForm({
-		defaultValues: { text: "" },
-		onSubmit: ({ value }) => {
-			onMemo(value.text);
-			memoForm.reset();
-			setMemoSheetOpen(false);
-		},
-		validators: {
-			onSubmit: memoSchema,
-		},
-	});
-
-	const [recordTournamentInfo, setRecordTournamentInfo] = useState(true);
-	const [chipPurchaseSheetOpen, setChipPurchaseSheetOpen] = useState(false);
-	const [memoSheetOpen, setMemoSheetOpen] = useState(false);
+		recordTournamentInfo,
+		setRecordTournamentInfo,
+		chipPurchaseSheetOpen,
+		setChipPurchaseSheetOpen,
+		memoSheetOpen,
+		setMemoSheetOpen,
+	} = useTournamentStackForm({ onMemo, onSubmit });
 
 	const handleChipPurchaseSubmit = (values: {
 		chips: number;

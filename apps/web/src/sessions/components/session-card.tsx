@@ -10,8 +10,7 @@ import {
 	IconTrophy,
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { shareSession } from "@/sessions/utils/share-session";
+import { useSessionCard } from "@/sessions/hooks/use-session-card";
 import { EntityListItem } from "@/shared/components/management/entity-list-item";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -430,26 +429,17 @@ export function SessionCard({
 	onDelete,
 	onReopen,
 }: SessionCardProps) {
-	const [isSharing, setIsSharing] = useState(false);
+	const { isSharing, onShare } = useSessionCard(session);
 	const isTournament = session.type === "tournament";
 	const liveSessionId =
 		session.liveCashGameSessionId ?? session.liveTournamentSessionId;
-
-	const handleShare = async () => {
-		setIsSharing(true);
-		try {
-			await shareSession(session);
-		} finally {
-			setIsSharing(false);
-		}
-	};
 
 	return (
 		<EntityListItem
 			actions={
 				<Button
 					disabled={isSharing}
-					onClick={handleShare}
+					onClick={onShare}
 					size="xs"
 					type="button"
 					variant="ghost"

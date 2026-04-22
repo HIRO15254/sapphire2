@@ -1,7 +1,6 @@
 import { IconPlus } from "@tabler/icons-react";
-import { useState } from "react";
+import { useAddWidgetMenu } from "@/dashboard/hooks/use-add-widget-menu";
 import type { WidgetType } from "@/dashboard/hooks/use-dashboard-widgets";
-import { listWidgetTypes } from "@/dashboard/widgets/registry";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 
@@ -11,19 +10,14 @@ interface AddWidgetMenuProps {
 }
 
 export function AddWidgetMenu({ onSelect, disabled }: AddWidgetMenuProps) {
-	const [open, setOpen] = useState(false);
-	const entries = listWidgetTypes();
-
-	const handleSelect = (type: WidgetType) => {
-		setOpen(false);
-		onSelect(type);
-	};
+	const { entries, handleOpen, handleSelect, open, setOpen } =
+		useAddWidgetMenu(onSelect);
 
 	return (
 		<>
 			<Button
 				disabled={disabled}
-				onClick={() => setOpen(true)}
+				onClick={handleOpen}
 				size="sm"
 				variant="outline"
 			>

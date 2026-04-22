@@ -1,7 +1,6 @@
-import { useForm } from "@tanstack/react-form";
 import type { ReactNode } from "react";
-import z from "zod";
 import { PlayerTagInput } from "@/players/components/player-tag-input";
+import { usePlayerForm } from "@/players/hooks/use-player-form";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
@@ -31,17 +30,6 @@ interface PlayerFormProps {
 	onSubmit: (values: PlayerFormValues) => void;
 }
 
-const playerFormSchema = z.object({
-	memo: z.string().max(50_000).nullable(),
-	name: z
-		.string()
-		.min(1, "Name is required")
-		.max(100, "Name must be 100 characters or less"),
-	tags: z.array(
-		z.object({ color: z.string(), id: z.string(), name: z.string() })
-	),
-});
-
 export function PlayerForm({
 	availableTags,
 	defaultMemo,
@@ -52,22 +40,11 @@ export function PlayerForm({
 	onCreateTag,
 	onSubmit,
 }: PlayerFormProps) {
-	const form = useForm({
-		defaultValues: {
-			memo: defaultMemo ?? (null as string | null),
-			name: defaultValues?.name ?? "",
-			tags: defaultTags ?? ([] as TagWithColor[]),
-		},
-		onSubmit: ({ value }) => {
-			onSubmit({
-				memo: value.memo,
-				name: value.name,
-				tagIds: value.tags.length > 0 ? value.tags.map((t) => t.id) : undefined,
-			});
-		},
-		validators: {
-			onSubmit: playerFormSchema,
-		},
+	const { form } = usePlayerForm({
+		defaultMemo,
+		defaultTags,
+		defaultValues,
+		onSubmit,
 	});
 
 	return (

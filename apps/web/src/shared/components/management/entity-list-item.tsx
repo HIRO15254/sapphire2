@@ -1,11 +1,11 @@
 import { IconEdit, IconTrash, IconX } from "@tabler/icons-react";
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
 	ExpandableItem,
 	ExpandableItemList,
 } from "@/shared/components/management/expandable-item-list";
 import { Button } from "@/shared/components/ui/button";
+import { useEntityListItem } from "@/shared/hooks/use-entity-list-item";
 
 interface EntityListItemProps {
 	actions?: React.ReactNode;
@@ -34,12 +34,17 @@ export function EntityListItem({
 	summary,
 	summaryClassName,
 }: EntityListItemProps) {
-	const [confirmingDelete, setConfirmingDelete] = useState(false);
-	const [internalExpandedValue, setInternalExpandedValue] = useState<
-		string | null
-	>(null);
-
 	const isControlled = controlledExpandedValue !== undefined;
+
+	const {
+		confirmingDelete,
+		handleCancelDelete,
+		handleConfirmDelete,
+		handleExpandedValueChange,
+		handleStartDelete,
+		internalExpandedValue,
+	} = useEntityListItem({ isControlled, onExpandedValueChange });
+
 	const expandedValue = isControlled
 		? controlledExpandedValue
 		: internalExpandedValue;
@@ -47,13 +52,7 @@ export function EntityListItem({
 	return (
 		<ExpandableItemList
 			className={cn("rounded-lg border bg-card", className)}
-			onValueChange={(nextValue) => {
-				if (!isControlled) {
-					setInternalExpandedValue(nextValue);
-				}
-				setConfirmingDelete(false);
-				onExpandedValueChange?.(nextValue);
-			}}
+			onValueChange={handleExpandedValueChange}
 			value={expandedValue}
 		>
 			<ExpandableItem
@@ -80,15 +79,7 @@ export function EntityListItem({
 								<Button
 									aria-label="Confirm delete"
 									className="text-destructive hover:text-destructive"
-									onClick={(event) => {
-										event.stopPropagation();
-										onDelete();
-										setConfirmingDelete(false);
-										if (!isControlled) {
-											setInternalExpandedValue(null);
-										}
-										onExpandedValueChange?.(null);
-									}}
+									onClick={(event) => handleConfirmDelete(event, onDelete)}
 									size="xs"
 									type="button"
 									variant="ghost"
@@ -98,10 +89,7 @@ export function EntityListItem({
 								</Button>
 								<Button
 									aria-label="Cancel delete"
-									onClick={(event) => {
-										event.stopPropagation();
-										setConfirmingDelete(false);
-									}}
+									onClick={handleCancelDelete}
 									size="xs"
 									type="button"
 									variant="ghost"
@@ -126,10 +114,7 @@ export function EntityListItem({
 								</Button>
 								<Button
 									className="text-destructive hover:text-destructive"
-									onClick={(event) => {
-										event.stopPropagation();
-										setConfirmingDelete(true);
-									}}
+									onClick={handleStartDelete}
 									size="xs"
 									type="button"
 									variant="ghost"

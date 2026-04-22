@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useTransactionTypeManager } from "@/currencies/hooks/use-transaction-type-manager";
+import { useTransactionTypeManagerWithDeleteError } from "@/currencies/hooks/use-transaction-type-manager";
 import { TagManager } from "@/shared/components/management/tag-manager";
 import { TagNameForm } from "@/shared/components/management/tag-name-form";
 
@@ -8,32 +7,12 @@ export function TransactionTypeManager() {
 		types,
 		create,
 		update,
-		delete: deleteType,
+		handleDelete,
+		deleteError,
 		isCreatePending,
 		isUpdatePending,
 		isDeletePending,
-	} = useTransactionTypeManager();
-
-	const [deleteError, setDeleteError] = useState<string | null>(null);
-
-	const handleDelete = async (id: string) => {
-		setDeleteError(null);
-		try {
-			await deleteType(id);
-		} catch (err: unknown) {
-			if (
-				err &&
-				typeof err === "object" &&
-				"message" in err &&
-				typeof err.message === "string"
-			) {
-				setDeleteError(err.message);
-			} else {
-				setDeleteError("Failed to delete");
-			}
-			throw err;
-		}
-	};
+	} = useTransactionTypeManagerWithDeleteError();
 
 	return (
 		<TagManager
