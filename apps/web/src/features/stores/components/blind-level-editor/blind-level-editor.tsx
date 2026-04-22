@@ -26,6 +26,14 @@ import type { NewLevelValues } from "@/features/stores/utils/blind-level-helpers
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/shared/components/ui/table";
 import { useLocalBlindStructure } from "./use-blind-level-editor";
 
 const GAME_VARIANTS = {
@@ -119,18 +127,18 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 	};
 
 	return (
-		<tr
-			className={isDragging ? "opacity-50" : ""}
+		<TableRow
+			className={cn("hover:bg-transparent", isDragging && "opacity-50")}
 			ref={setNodeRef}
 			style={style}
 		>
-			<td className="w-10 px-0.5 text-center">
+			<TableCell className="w-10 p-0 px-0.5 text-center">
 				<div className="flex items-center justify-center gap-0.5">
 					<DragHandle attributes={attributes} listeners={listeners} />
 					<span className="text-muted-foreground text-xs">{row.level}</span>
 				</div>
-			</td>
-			<td className="px-0.5">
+			</TableCell>
+			<TableCell className="p-0 px-0.5">
 				<BlindLevelInput
 					defaultValue={row.blind1 ?? ""}
 					inputMode="numeric"
@@ -139,8 +147,8 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 					placeholder="—"
 					type="number"
 				/>
-			</td>
-			<td className="px-0.5">
+			</TableCell>
+			<TableCell className="p-0 px-0.5">
 				<BlindLevelInput
 					defaultValue={row.blind2 ?? ""}
 					inputMode="numeric"
@@ -149,8 +157,8 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 					placeholder="—"
 					type="number"
 				/>
-			</td>
-			<td className="px-0.5">
+			</TableCell>
+			<TableCell className="p-0 px-0.5">
 				<BlindLevelInput
 					defaultValue={row.ante ?? ""}
 					inputMode="numeric"
@@ -159,8 +167,8 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 					placeholder="—"
 					type="number"
 				/>
-			</td>
-			<td className="w-12 px-0.5">
+			</TableCell>
+			<TableCell className="w-12 p-0 px-0.5">
 				<BlindLevelInput
 					defaultValue={row.minutes ?? ""}
 					inputMode="numeric"
@@ -169,8 +177,8 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 					placeholder="—"
 					type="number"
 				/>
-			</td>
-			<td className="w-8 px-0.5 text-center">
+			</TableCell>
+			<TableCell className="w-8 p-0 px-0.5 text-center">
 				<Button
 					aria-label="Delete level"
 					className="text-muted-foreground hover:text-destructive"
@@ -181,8 +189,8 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 				>
 					<IconTrash size={14} />
 				</Button>
-			</td>
-		</tr>
+			</TableCell>
+		</TableRow>
 	);
 }
 
@@ -211,20 +219,24 @@ function SortableBreakRow({ row, onDelete, onUpdate }: SortableBreakRowProps) {
 	};
 
 	return (
-		<tr className="bg-muted/30" ref={setNodeRef} style={style}>
-			<td className="w-10 px-0.5 text-center">
+		<TableRow
+			className="bg-muted/30 hover:bg-muted/30"
+			ref={setNodeRef}
+			style={style}
+		>
+			<TableCell className="w-10 p-0 px-0.5 text-center">
 				<div className="flex items-center justify-center gap-0.5">
 					<DragHandle attributes={attributes} listeners={listeners} />
 					<span className="text-muted-foreground text-xs">{row.level}</span>
 				</div>
-			</td>
-			<td className="px-1.5 py-1" colSpan={3}>
+			</TableCell>
+			<TableCell className="p-0 px-1.5 py-1" colSpan={3}>
 				<div className="flex items-center gap-1 text-muted-foreground text-sm">
 					<IconCoffee size={14} />
 					<span>Break</span>
 				</div>
-			</td>
-			<td className="w-12 px-0.5">
+			</TableCell>
+			<TableCell className="w-12 p-0 px-0.5">
 				<BlindLevelInput
 					defaultValue={row.minutes ?? ""}
 					inputMode="numeric"
@@ -235,8 +247,8 @@ function SortableBreakRow({ row, onDelete, onUpdate }: SortableBreakRowProps) {
 					placeholder="—"
 					type="number"
 				/>
-			</td>
-			<td className="w-8 px-0.5 text-center">
+			</TableCell>
+			<TableCell className="w-8 p-0 px-0.5 text-center">
 				<Button
 					aria-label="Delete break"
 					className="text-muted-foreground hover:text-destructive"
@@ -247,8 +259,8 @@ function SortableBreakRow({ row, onDelete, onUpdate }: SortableBreakRowProps) {
 				>
 					<IconTrash size={14} />
 				</Button>
-			</td>
-		</tr>
+			</TableCell>
+		</TableRow>
 	);
 }
 
@@ -271,11 +283,11 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 	} = useEmptyRow({ onCreateLevel });
 
 	return (
-		<tr className="border-t border-dashed">
-			<td className="w-10 px-0.5 text-center">
+		<TableRow className="border-t border-dashed hover:bg-transparent">
+			<TableCell className="w-10 p-0 px-0.5 text-center">
 				<span className="text-muted-foreground text-xs">+</span>
-			</td>
-			<td className="px-0.5">
+			</TableCell>
+			<TableCell className="p-0 px-0.5">
 				<BlindLevelInput
 					inputMode="numeric"
 					onBlur={handleBlind1Blur}
@@ -283,8 +295,8 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 					ref={blind1Ref}
 					type="number"
 				/>
-			</td>
-			<td className="px-0.5">
+			</TableCell>
+			<TableCell className="p-0 px-0.5">
 				<BlindLevelInput
 					inputMode="numeric"
 					onBlur={handleBlind2Blur}
@@ -292,8 +304,8 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 					ref={blind2Ref}
 					type="number"
 				/>
-			</td>
-			<td className="px-0.5">
+			</TableCell>
+			<TableCell className="p-0 px-0.5">
 				<BlindLevelInput
 					inputMode="numeric"
 					onBlur={handleAnteBlur}
@@ -301,8 +313,8 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 					ref={anteRef}
 					type="number"
 				/>
-			</td>
-			<td className="w-12 px-0.5">
+			</TableCell>
+			<TableCell className="w-12 p-0 px-0.5">
 				<BlindLevelInput
 					inputMode="numeric"
 					onBlur={handleMinutesBlur}
@@ -310,9 +322,9 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 					ref={minutesRef}
 					type="number"
 				/>
-			</td>
-			<td className="w-8" />
-		</tr>
+			</TableCell>
+			<TableCell className="w-8 p-0" />
+		</TableRow>
 	);
 }
 
@@ -365,63 +377,61 @@ function BlindStructureTable({
 				</Button>
 			</div>
 
-			<div className="w-full overflow-x-auto">
-				<table className="w-full table-fixed border-collapse">
-					<thead>
-						<tr>
-							<th className="w-10 pb-1 text-center font-medium text-muted-foreground text-xs">
-								#
-							</th>
-							<th className="pb-1 text-center font-medium text-muted-foreground text-xs">
-								{blindLabels.blind1}
-							</th>
-							<th className="pb-1 text-center font-medium text-muted-foreground text-xs">
-								{blindLabels.blind2}
-							</th>
-							<th className="pb-1 text-center font-medium text-muted-foreground text-xs">
-								Ante
-							</th>
-							<th className="w-12 pb-1 text-center font-medium text-muted-foreground text-xs">
-								Min
-							</th>
-							<th className="w-8 pb-1" />
-						</tr>
-					</thead>
-					<tbody>
-						{levels.length > 0 && (
-							<DndContext
-								collisionDetection={closestCenter}
-								onDragEnd={handleDragEnd}
-								sensors={sensors}
+			<Table className="table-fixed">
+				<TableHeader>
+					<TableRow className="hover:bg-transparent">
+						<TableHead className="h-auto w-10 pb-1 text-center font-medium text-muted-foreground text-xs">
+							#
+						</TableHead>
+						<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
+							{blindLabels.blind1}
+						</TableHead>
+						<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
+							{blindLabels.blind2}
+						</TableHead>
+						<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
+							Ante
+						</TableHead>
+						<TableHead className="h-auto w-12 pb-1 text-center font-medium text-muted-foreground text-xs">
+							Min
+						</TableHead>
+						<TableHead className="h-auto w-8 pb-1" />
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{levels.length > 0 && (
+						<DndContext
+							collisionDetection={closestCenter}
+							onDragEnd={handleDragEnd}
+							sensors={sensors}
+						>
+							<SortableContext
+								items={levels.map((l) => l.id)}
+								strategy={verticalListSortingStrategy}
 							>
-								<SortableContext
-									items={levels.map((l) => l.id)}
-									strategy={verticalListSortingStrategy}
-								>
-									{levels.map((row) =>
-										row.isBreak ? (
-											<SortableBreakRow
-												key={row.id}
-												onDelete={handleDelete}
-												onUpdate={handleUpdate}
-												row={row}
-											/>
-										) : (
-											<SortableLevelRow
-												key={row.id}
-												onDelete={handleDelete}
-												onUpdate={handleUpdate}
-												row={row}
-											/>
-										)
-									)}
-								</SortableContext>
-							</DndContext>
-						)}
-						<EmptyRow onCreateLevel={handleCreateLevel} />
-					</tbody>
-				</table>
-			</div>
+								{levels.map((row) =>
+									row.isBreak ? (
+										<SortableBreakRow
+											key={row.id}
+											onDelete={handleDelete}
+											onUpdate={handleUpdate}
+											row={row}
+										/>
+									) : (
+										<SortableLevelRow
+											key={row.id}
+											onDelete={handleDelete}
+											onUpdate={handleUpdate}
+											row={row}
+										/>
+									)
+								)}
+							</SortableContext>
+						</DndContext>
+					)}
+					<EmptyRow onCreateLevel={handleCreateLevel} />
+				</TableBody>
+			</Table>
 		</div>
 	);
 }

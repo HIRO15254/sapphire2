@@ -1,23 +1,30 @@
-import { useState } from "react";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
 } from "@/features/dashboard/widgets/registry";
 import { Button } from "@/shared/components/ui/button";
+import { Checkbox } from "@/shared/components/ui/checkbox";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import { Field } from "@/shared/components/ui/field";
+import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
 	formatProfitLoss,
 	profitLossColorClass,
 } from "@/utils/format-profit-loss";
+import { useSummaryStatsEditForm } from "./use-summary-stats-edit-form";
 import {
-	parseSummaryStatsWidgetConfig,
 	SUMMARY_STATS_ALL_METRICS,
-	SUMMARY_STATS_DEFAULT_METRICS,
 	type SummaryStatsMetricKey,
 	type SummaryStatsSummary,
-	type SummaryStatsWidgetType,
 	useSummaryStatsWidget,
 } from "./use-summary-stats-widget";
 
@@ -114,91 +121,106 @@ export function SummaryStatsEditForm({
 	onSave,
 	onCancel,
 }: WidgetEditProps) {
-	const parsed = parseSummaryStatsWidgetConfig(config);
-	const [metrics, setMetrics] = useState<SummaryStatsMetricKey[]>(
-		parsed.metrics
-	);
-	const [type, setType] = useState<SummaryStatsWidgetType>(parsed.type);
-	const [dateRangeDays, setDateRangeDays] = useState<number | null>(
-		parsed.dateRangeDays
-	);
-	const [isSaving, setIsSaving] = useState(false);
-
-	const toggleMetric = (key: SummaryStatsMetricKey) => {
-		setMetrics((prev) =>
-			prev.includes(key) ? prev.filter((m) => m !== key) : [...prev, key]
-		);
-	};
-
-	const handleSave = async () => {
-		setIsSaving(true);
-		try {
-			await onSave({
-				metrics: metrics.length > 0 ? metrics : SUMMARY_STATS_DEFAULT_METRICS,
-				type,
-				dateRangeDays,
-			});
-		} finally {
-			setIsSaving(false);
-		}
-	};
+	const { form } = useSummaryStatsEditForm({ config, onSave });
 
 	return (
-		<div className="flex flex-col gap-4">
-			<div className="flex flex-col gap-2">
-				<Label>Metrics</Label>
-				<div className="grid grid-cols-2 gap-2">
-					{SUMMARY_STATS_ALL_METRICS.map((m) => (
-						<label
-							className="flex cursor-pointer items-center gap-2 text-sm"
-							key={m.key}
+		<form
+			className="flex flex-col gap-4"
+			onSubmit={(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				form.handleSubmit();
+			}}
+		>
+			<form.Field name="metrics">
+				{(field) => (
+					<Field label="Metrics">
+						<div className="grid grid-cols-2 gap-2">
+							{SUMMARY_STATS_ALL_METRICS.map((m) => {
+								const id = `summary-stats-metric-${m.key}`;
+								const checked = field.state.value.includes(m.key);
+								return (
+									<div className="flex items-center gap-2" key={m.key}>
+										<Checkbox
+											checked={checked}
+											id={id}
+											onCheckedChange={(next) => {
+												if (next === true) {
+													field.handleChange(
+														field.state.value.includes(m.key)
+															? field.state.value
+															: [...field.state.value, m.key]
+													);
+												} else {
+													field.handleChange(
+														field.state.value.filter((k) => k !== m.key)
+													);
+												}
+											}}
+										/>
+										<Label className="cursor-pointer text-sm" htmlFor={id}>
+											{m.label}
+										</Label>
+									</div>
+								);
+							})}
+						</div>
+					</Field>
+				)}
+			</form.Field>
+			<form.Field name="type">
+				{(field) => (
+					<Field htmlFor={field.name} label="Session Type">
+						<Select
+							onValueChange={(value) =>
+								field.handleChange(value as typeof field.state.value)
+							}
+							value={field.state.value}
 						>
-							<input
-								checked={metrics.includes(m.key)}
-								onChange={() => toggleMetric(m.key)}
-								type="checkbox"
-							/>
-							<span>{m.label}</span>
-						</label>
-					))}
-				</div>
-			</div>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="summary-stats-type">Session Type</Label>
-				<select
-					className="rounded-md border bg-background px-3 py-2 text-sm"
-					id="summary-stats-type"
-					onChange={(e) => setType(e.target.value as SummaryStatsWidgetType)}
-					value={type}
-				>
-					<option value="all">All</option>
-					<option value="cash_game">Cash Game</option>
-					<option value="tournament">Tournament</option>
-				</select>
-			</div>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="summary-stats-range">Date Range (days)</Label>
-				<input
-					className="rounded-md border bg-background px-3 py-2 text-sm"
-					id="summary-stats-range"
-					min={1}
-					onChange={(e) => {
-						const value = e.target.value;
-						setDateRangeDays(value === "" ? null : Number(value));
-					}}
-					placeholder="All time"
-					type="number"
-					value={dateRangeDays ?? ""}
-				/>
-			</div>
+							<SelectTrigger className="w-full" id={field.name}>
+								<SelectValue placeholder="Select type" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All</SelectItem>
+								<SelectItem value="cash_game">Cash Game</SelectItem>
+								<SelectItem value="tournament">Tournament</SelectItem>
+							</SelectContent>
+						</Select>
+					</Field>
+				)}
+			</form.Field>
+			<form.Field name="dateRangeDays">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Date Range (days)"
+					>
+						<Input
+							id={field.name}
+							inputMode="numeric"
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							placeholder="All time"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 			<DialogActionRow>
-				<Button onClick={onCancel} variant="outline">
+				<Button onClick={onCancel} type="button" variant="outline">
 					Cancel
 				</Button>
-				<Button disabled={isSaving} onClick={handleSave}>
-					{isSaving ? "Saving..." : "Save"}
-				</Button>
+				<form.Subscribe
+					selector={(state) => [state.canSubmit, state.isSubmitting]}
+				>
+					{([canSubmit, isSubmitting]) => (
+						<Button disabled={!canSubmit || isSubmitting} type="submit">
+							{isSubmitting ? "Saving..." : "Save"}
+						</Button>
+					)}
+				</form.Subscribe>
 			</DialogActionRow>
-		</div>
+		</form>
 	);
 }
