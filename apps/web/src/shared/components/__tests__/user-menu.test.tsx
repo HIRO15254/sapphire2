@@ -37,7 +37,7 @@ vi.mock("@/lib/auth-client", () => ({
 	},
 }));
 
-vi.mock("@/update-notes/hooks/use-update-notes-sheet", () => ({
+vi.mock("@/update-notes/components/update-notes-sheet", () => ({
 	useUpdateNotesSheet: () => mocks.updateNotesSheet,
 }));
 

@@ -7,8 +7,8 @@ import {
 import { Badge } from "@/shared/components/ui/badge";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { UPDATE_NOTES } from "@/update-notes/constants";
-import { useUpdateNotesSheet } from "@/update-notes/hooks/use-update-notes-sheet";
 import { useUpdateNotesViewed } from "@/update-notes/hooks/use-update-notes-viewed";
+import { useUpdateNotesSheet } from "./use-update-notes-sheet";
 
 export function UpdateNotesSheet() {
 	const { isOpen, setIsOpen } = useUpdateNotesSheet();

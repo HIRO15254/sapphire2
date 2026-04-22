@@ -5,8 +5,10 @@ import { StackSheetProvider } from "@/live-sessions/hooks/use-stack-sheet";
 import { MobileNav } from "@/shared/components/mobile-nav";
 import { OnlineStatusBar } from "@/shared/components/online-status-bar";
 import { SidebarNav } from "@/shared/components/sidebar-nav";
-import { UpdateNotesSheet } from "@/update-notes/components/update-notes-sheet";
-import { UpdateNotesProvider } from "@/update-notes/hooks/use-update-notes-sheet";
+import {
+	UpdateNotesProvider,
+	UpdateNotesSheet,
+} from "@/update-notes/components/update-notes-sheet";
 
 export function AuthenticatedShell({ children }: { children: ReactNode }) {
 	return (

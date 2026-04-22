@@ -9,7 +9,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
-import { useUpdateNotesSheet } from "@/update-notes/hooks/use-update-notes-sheet";
+import { useUpdateNotesSheet } from "@/update-notes/components/update-notes-sheet";
 
 import { Button } from "./ui/button";
 import { Skeleton } from "./ui/skeleton";

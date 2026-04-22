@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { UpdateNotesSheet } from "../components/update-notes-sheet";
+import { UpdateNotesSheet } from "./update-notes-sheet";
 
 const mocks = vi.hoisted(() => ({
 	sheetState: {
@@ -13,9 +13,12 @@ const mocks = vi.hoisted(() => ({
 	markViewedMutate: vi.fn(),
 }));
 
-vi.mock("@/update-notes/hooks/use-update-notes-sheet", () => ({
-	useUpdateNotesSheet: () => mocks.sheetState,
-}));
+vi.mock(
+	"@/update-notes/components/update-notes-sheet/use-update-notes-sheet",
+	() => ({
+		useUpdateNotesSheet: () => mocks.sheetState,
+	})
+);
 
 vi.mock("@tanstack/react-query", () => ({
 	useQuery: () => ({ data: mocks.viewedList }),
