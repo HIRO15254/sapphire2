@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTournamentSession } from "@/live-sessions/hooks/use-tournament-session";
+import { useTournamentSession } from "@/features/live-sessions/hooks/use-tournament-session";
 
 export function useTournamentSessionPage(sessionId: string) {
 	const tournamentSession = useTournamentSession(sessionId);

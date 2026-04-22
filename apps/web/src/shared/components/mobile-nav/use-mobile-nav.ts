@@ -2,9 +2,9 @@ import { IconBolt, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
-import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
-import { useStackSheet } from "@/live-sessions/hooks/use-stack-sheet";
-import { createSessionEventMutationOptions } from "@/live-sessions/utils/optimistic-session-event";
+import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
+import { useStackSheet } from "@/features/live-sessions/hooks/use-stack-sheet";
+import { createSessionEventMutationOptions } from "@/features/live-sessions/utils/optimistic-session-event";
 import {
 	getMobileNavigationItems,
 	type NavigationCenterAction,

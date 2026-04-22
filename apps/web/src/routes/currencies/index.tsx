@@ -1,9 +1,9 @@
 import { IconCoins, IconPlus, IconTags } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CurrencyCard } from "@/currencies/components/currency-card";
-import { CurrencyForm } from "@/currencies/components/currency-form";
-import { TransactionForm } from "@/currencies/components/transaction-form";
-import { TransactionTypeManager } from "@/currencies/components/transaction-type-manager";
+import { CurrencyCard } from "@/features/currencies/components/currency-card";
+import { CurrencyForm } from "@/features/currencies/components/currency-form";
+import { TransactionForm } from "@/features/currencies/components/transaction-form";
+import { TransactionTypeManager } from "@/features/currencies/components/transaction-type-manager";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";

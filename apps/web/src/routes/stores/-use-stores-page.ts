@@ -1,6 +1,9 @@
 import { useState } from "react";
-import type { StoreItem, StoreValues } from "@/stores/hooks/use-stores";
-import { useStores } from "@/stores/hooks/use-stores";
+import type {
+	StoreItem,
+	StoreValues,
+} from "@/features/stores/hooks/use-stores";
+import { useStores } from "@/features/stores/hooks/use-stores";
 
 export function useStoresPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);

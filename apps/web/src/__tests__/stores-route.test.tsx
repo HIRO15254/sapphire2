@@ -31,13 +31,13 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
-vi.mock("@/stores/components/store-card", () => ({
+vi.mock("@/features/stores/components/store-card", () => ({
 	StoreCard: ({ store }: { store: { name: string } }) => (
 		<div>Store Row: {store.name}</div>
 	),
 }));
 
-vi.mock("@/stores/components/store-form", () => ({
+vi.mock("@/features/stores/components/store-form", () => ({
 	StoreForm: () => <div>Store Form</div>,
 }));
 

@@ -30,7 +30,7 @@ vi.mock("@/shared/components/mobile-nav", () => ({
 	MobileNav: () => <div>Mobile Nav</div>,
 }));
 
-vi.mock("@/live-sessions/components/live-stack-form-sheet", () => ({
+vi.mock("@/features/live-sessions/components/live-stack-form-sheet", () => ({
 	LiveStackFormSheet: () => <div>Live Stack Sheet</div>,
 }));
 
@@ -46,19 +46,19 @@ vi.mock("@/shared/components/ui/sonner", () => ({
 	Toaster: () => <div>Toaster</div>,
 }));
 
-vi.mock("@/live-sessions/hooks/use-session-form", () => ({
+vi.mock("@/features/live-sessions/hooks/use-session-form", () => ({
 	SessionFormProvider: ({ children }: { children: ReactNode }) => (
 		<>{children}</>
 	),
 }));
 
-vi.mock("@/live-sessions/hooks/use-stack-sheet", () => ({
+vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
 	StackSheetProvider: ({ children }: { children: ReactNode }) => (
 		<>{children}</>
 	),
 }));
 
-vi.mock("@/update-notes/components/update-notes-sheet", () => ({
+vi.mock("@/features/update-notes/components/update-notes-sheet", () => ({
 	UpdateNotesProvider: ({ children }: { children: ReactNode }) => (
 		<>{children}</>
 	),

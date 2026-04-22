@@ -7,7 +7,7 @@ vi.mock("@tanstack/react-router", () => ({
 	}),
 }));
 
-vi.mock("@/dashboard/components/dashboard-page", () => ({
+vi.mock("@/features/dashboard/components/dashboard-page", () => ({
 	DashboardPage: () => null,
 }));
 
