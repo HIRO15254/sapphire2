@@ -1,19 +1,23 @@
 import { IconCoin } from "@tabler/icons-react";
-import { useState } from "react";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
 } from "@/features/dashboard/widgets/registry";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { Label } from "@/shared/components/ui/label";
+import { Field } from "@/shared/components/ui/field";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatCompactNumber } from "@/utils/format-number";
 import { profitLossColorClass } from "@/utils/format-profit-loss";
-import {
-	useCurrencyBalanceOptions,
-	useCurrencyBalanceWidget,
-} from "./use-currency-balance-widget";
+import { useCurrencyBalanceEditForm } from "./use-currency-balance-edit-form";
+import { useCurrencyBalanceWidget } from "./use-currency-balance-widget";
 
 export function CurrencyBalanceWidget({ config }: WidgetRenderProps) {
 	const { isLoading, currencies, selected } = useCurrencyBalanceWidget(config);
@@ -68,49 +72,58 @@ export function CurrencyBalanceEditForm({
 	onSave,
 	onCancel,
 }: WidgetEditProps) {
-	const currencyIdFromConfig =
-		typeof config.currencyId === "string" ? config.currencyId : null;
-	const [currencyId, setCurrencyId] = useState<string | null>(
-		currencyIdFromConfig
-	);
-	const [isSaving, setIsSaving] = useState(false);
-	const currencies = useCurrencyBalanceOptions();
-
-	const handleSave = async () => {
-		setIsSaving(true);
-		try {
-			await onSave({ currencyId });
-		} finally {
-			setIsSaving(false);
-		}
-	};
+	const { form, currencies, FIRST_AVAILABLE } = useCurrencyBalanceEditForm({
+		config,
+		onSave,
+	});
 
 	return (
-		<div className="flex flex-col gap-4">
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="currency-balance-id">Currency</Label>
-				<select
-					className="rounded-md border bg-background px-3 py-2 text-sm"
-					id="currency-balance-id"
-					onChange={(e) => setCurrencyId(e.target.value || null)}
-					value={currencyId ?? ""}
-				>
-					<option value="">(First available)</option>
-					{currencies.map((c) => (
-						<option key={c.id} value={c.id}>
-							{c.name}
-						</option>
-					))}
-				</select>
-			</div>
+		<form
+			className="flex flex-col gap-4"
+			onSubmit={(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				form.handleSubmit();
+			}}
+		>
+			<form.Field name="currencyId">
+				{(field) => (
+					<Field htmlFor={field.name} label="Currency">
+						<Select
+							onValueChange={(value) => field.handleChange(value)}
+							value={field.state.value}
+						>
+							<SelectTrigger className="w-full" id={field.name}>
+								<SelectValue placeholder="Select currency" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value={FIRST_AVAILABLE}>
+									(First available)
+								</SelectItem>
+								{currencies.map((c) => (
+									<SelectItem key={c.id} value={c.id}>
+										{c.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</Field>
+				)}
+			</form.Field>
 			<DialogActionRow>
-				<Button onClick={onCancel} variant="outline">
+				<Button onClick={onCancel} type="button" variant="outline">
 					Cancel
 				</Button>
-				<Button disabled={isSaving} onClick={handleSave}>
-					{isSaving ? "Saving..." : "Save"}
-				</Button>
+				<form.Subscribe
+					selector={(state) => [state.canSubmit, state.isSubmitting]}
+				>
+					{([canSubmit, isSubmitting]) => (
+						<Button disabled={!canSubmit || isSubmitting} type="submit">
+							{isSubmitting ? "Saving..." : "Save"}
+						</Button>
+					)}
+				</form.Subscribe>
 			</DialogActionRow>
-		</div>
+		</form>
 	);
 }

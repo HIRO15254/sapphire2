@@ -1,24 +1,28 @@
 import { IconPokerChip, IconTrophy } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
 } from "@/features/dashboard/widgets/registry";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { Label } from "@/shared/components/ui/label";
+import { Field } from "@/shared/components/ui/field";
+import { Input } from "@/shared/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatYmdSlash } from "@/utils/format-number";
 import {
 	formatProfitLoss,
 	profitLossColorClass,
 } from "@/utils/format-profit-loss";
-import {
-	parseRecentSessionsWidgetConfig,
-	type RecentSessionsWidgetTypeFilter,
-	useRecentSessionsWidget,
-} from "./use-recent-sessions-widget";
+import { useRecentSessionsEditForm } from "./use-recent-sessions-edit-form";
+import { useRecentSessionsWidget } from "./use-recent-sessions-widget";
 
 export function RecentSessionsWidget({ config }: WidgetRenderProps) {
 	const { isLoading, items, limit } = useRecentSessionsWidget(config);
@@ -90,57 +94,69 @@ export function RecentSessionsEditForm({
 	onSave,
 	onCancel,
 }: WidgetEditProps) {
-	const parsed = parseRecentSessionsWidgetConfig(config);
-	const [limit, setLimit] = useState<number>(parsed.limit);
-	const [type, setType] = useState<RecentSessionsWidgetTypeFilter>(parsed.type);
-	const [isSaving, setIsSaving] = useState(false);
-
-	const handleSave = async () => {
-		setIsSaving(true);
-		try {
-			await onSave({ limit, type });
-		} finally {
-			setIsSaving(false);
-		}
-	};
+	const { form } = useRecentSessionsEditForm({ config, onSave });
 
 	return (
-		<div className="flex flex-col gap-4">
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="recent-sessions-limit">Number of Sessions</Label>
-				<input
-					className="rounded-md border bg-background px-3 py-2 text-sm"
-					id="recent-sessions-limit"
-					max={20}
-					min={1}
-					onChange={(e) => setLimit(Math.max(1, Number(e.target.value)))}
-					type="number"
-					value={limit}
-				/>
-			</div>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="recent-sessions-type">Type</Label>
-				<select
-					className="rounded-md border bg-background px-3 py-2 text-sm"
-					id="recent-sessions-type"
-					onChange={(e) =>
-						setType(e.target.value as RecentSessionsWidgetTypeFilter)
-					}
-					value={type}
-				>
-					<option value="all">All</option>
-					<option value="cash_game">Cash Game</option>
-					<option value="tournament">Tournament</option>
-				</select>
-			</div>
+		<form
+			className="flex flex-col gap-4"
+			onSubmit={(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				form.handleSubmit();
+			}}
+		>
+			<form.Field name="limit">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Number of Sessions"
+					>
+						<Input
+							id={field.name}
+							inputMode="numeric"
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+			<form.Field name="type">
+				{(field) => (
+					<Field htmlFor={field.name} label="Type">
+						<Select
+							onValueChange={(value) =>
+								field.handleChange(value as typeof field.state.value)
+							}
+							value={field.state.value}
+						>
+							<SelectTrigger className="w-full" id={field.name}>
+								<SelectValue placeholder="Select type" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All</SelectItem>
+								<SelectItem value="cash_game">Cash Game</SelectItem>
+								<SelectItem value="tournament">Tournament</SelectItem>
+							</SelectContent>
+						</Select>
+					</Field>
+				)}
+			</form.Field>
 			<DialogActionRow>
-				<Button onClick={onCancel} variant="outline">
+				<Button onClick={onCancel} type="button" variant="outline">
 					Cancel
 				</Button>
-				<Button disabled={isSaving} onClick={handleSave}>
-					{isSaving ? "Saving..." : "Save"}
-				</Button>
+				<form.Subscribe
+					selector={(state) => [state.canSubmit, state.isSubmitting]}
+				>
+					{([canSubmit, isSubmitting]) => (
+						<Button disabled={!canSubmit || isSubmitting} type="submit">
+							{isSubmitting ? "Saving..." : "Save"}
+						</Button>
+					)}
+				</form.Subscribe>
 			</DialogActionRow>
-		</div>
+		</form>
 	);
 }
