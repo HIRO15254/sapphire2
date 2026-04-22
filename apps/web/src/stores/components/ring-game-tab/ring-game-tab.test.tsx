@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ReactNode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { RingGameTab } from "../ring-game-tab";
+import { RingGameTab } from "./ring-game-tab";
 
 const mocks = vi.hoisted(() => ({
 	activeGames: [

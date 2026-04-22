@@ -2,8 +2,8 @@ import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
-import type { StoreFormValues } from "@/stores/hooks/use-store-form";
-import { useStoreForm } from "@/stores/hooks/use-store-form";
+import type { StoreFormValues } from "./use-store-form";
+import { useStoreForm } from "./use-store-form";
 
 interface StoreFormProps {
 	defaultValues?: StoreFormValues;

@@ -11,8 +11,8 @@ import {
 } from "@/shared/components/ui/select";
 import { TagInput } from "@/shared/components/ui/tag-input";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { useTournamentForm } from "@/stores/hooks/use-tournament-form";
 import type { TournamentFormValues } from "@/stores/hooks/use-tournaments";
+import { useTournamentForm } from "./use-tournament-form";
 
 const GAME_VARIANTS = {
 	nlh: { label: "NL Hold'em" },

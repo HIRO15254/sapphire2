@@ -7,7 +7,7 @@ import {
 } from "@tabler/icons-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
-import { useAiExtractInput } from "@/stores/hooks/use-ai-extract-input";
+import { useAiExtractInput } from "./use-ai-extract-input";
 
 interface AiExtractInputProps {
 	onExtracted: (data: ExtractedTournamentData) => void;

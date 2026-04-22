@@ -21,12 +21,12 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { useLocalBlindStructure } from "@/stores/hooks/use-blind-level-editor";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
 import { useBlindLevels } from "@/stores/hooks/use-blind-levels";
 import { useEmptyRow } from "@/stores/hooks/use-empty-row";
 import { useSortableLevelRow } from "@/stores/hooks/use-sortable-level-row";
 import type { NewLevelValues } from "@/stores/utils/blind-level-helpers";
+import { useLocalBlindStructure } from "./use-blind-level-editor";
 
 const GAME_VARIANTS = {
 	nlh: {

@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BlindLevelEditor } from "../blind-level-editor";
+import { BlindLevelEditor } from "./blind-level-editor";
 
 const BLIND_DESCRIPTION_PATTERN = /manage blind levels, breaks, and ordering/i;
 const BLIND_HELPER_PATTERN = /drag levels to reorder the structure/i;

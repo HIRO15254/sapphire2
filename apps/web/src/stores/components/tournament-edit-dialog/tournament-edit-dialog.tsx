@@ -8,8 +8,8 @@ import {
 	type TournamentPartialFormValues,
 } from "@/stores/components/tournament-modal-content";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
-import { useTournamentEditDialog } from "@/stores/hooks/use-tournament-edit-dialog";
 import type { TournamentFormValues } from "@/stores/hooks/use-tournaments";
+import { useTournamentEditDialog } from "./use-tournament-edit-dialog";
 
 export type TournamentEditDialogMode = "create" | "edit";
 

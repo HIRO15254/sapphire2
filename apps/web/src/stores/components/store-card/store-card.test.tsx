@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { StoreCard } from "../store-card";
+import { StoreCard } from "./store-card";
 
 vi.mock("@/stores/components/ring-game-tab", () => ({
 	RingGameTab: () => <div>Cash Games Content</div>,

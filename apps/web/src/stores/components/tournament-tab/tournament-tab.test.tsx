@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ReactNode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TournamentTab } from "../tournament-tab";
+import { TournamentTab } from "./tournament-tab";
 
 const mocks = vi.hoisted(() => ({
 	activeTournaments: [

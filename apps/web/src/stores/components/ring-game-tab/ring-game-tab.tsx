@@ -17,10 +17,10 @@ import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { RingGameForm } from "@/stores/components/ring-game-form";
 import { useRingGameRow } from "@/stores/hooks/use-ring-game-row";
-import { useRingGameTab } from "@/stores/hooks/use-ring-game-tab";
 import type { RingGame } from "@/stores/hooks/use-ring-games";
 import { createGroupFormatter } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
+import { useRingGameTab } from "./use-ring-game-tab";
 
 interface RingGameTabProps {
 	expandedGameId: string | null;

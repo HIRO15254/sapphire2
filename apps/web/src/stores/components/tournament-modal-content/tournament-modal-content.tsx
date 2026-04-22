@@ -7,8 +7,8 @@ import {
 import { LocalBlindStructureContent } from "@/stores/components/blind-level-editor";
 import { TournamentForm } from "@/stores/components/tournament-form";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
-import { useTournamentModalContent } from "@/stores/hooks/use-tournament-modal-content";
 import type { TournamentFormValues } from "@/stores/hooks/use-tournaments";
+import { useTournamentModalContent } from "./use-tournament-modal-content";
 
 export type TournamentPartialFormValues = Omit<
 	TournamentFormValues,

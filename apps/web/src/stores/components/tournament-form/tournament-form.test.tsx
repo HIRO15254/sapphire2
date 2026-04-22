@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { TournamentForm } from "../tournament-form";
+import { TournamentForm } from "./tournament-form";
 
 vi.mock("@tanstack/react-query", () => ({
 	useQuery: () => ({

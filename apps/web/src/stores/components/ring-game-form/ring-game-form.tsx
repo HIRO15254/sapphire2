@@ -9,8 +9,8 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { useRingGameForm } from "@/stores/hooks/use-ring-game-form";
 import type { RingGameFormValues } from "@/stores/hooks/use-ring-games";
+import { useRingGameForm } from "./use-ring-game-form";
 
 const GAME_VARIANTS = {
 	nlh: {

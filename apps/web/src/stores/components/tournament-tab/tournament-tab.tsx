@@ -17,16 +17,16 @@ import { Button } from "@/shared/components/ui/button";
 import { TournamentEditDialog } from "@/stores/components/tournament-edit-dialog";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
 import { useTournamentRow } from "@/stores/hooks/use-tournament-row";
-import {
-	useBlindStructureSummary,
-	useTournamentTab,
-} from "@/stores/hooks/use-tournament-tab";
 import type { Tournament } from "@/stores/hooks/use-tournaments";
 import {
 	createGroupFormatter,
 	formatCompactNumber,
 } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
+import {
+	useBlindStructureSummary,
+	useTournamentTab,
+} from "./use-tournament-tab";
 
 interface TournamentTabProps {
 	expandedGameId: string | null;
