@@ -1,11 +1,11 @@
 import { IconEdit, IconTrash, IconX } from "@tabler/icons-react";
-import { useTransactionList } from "@/currencies/hooks/use-transaction-list";
 import {
 	ExpandableItem,
 	ExpandableItemList,
 } from "@/shared/components/management/expandable-item-list";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { useTransactionList } from "./use-transaction-list";
 
 interface Transaction {
 	amount: number;

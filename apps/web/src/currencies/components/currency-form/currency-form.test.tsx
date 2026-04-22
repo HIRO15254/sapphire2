@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { CurrencyForm } from "../currency-form";
+import { CurrencyForm } from "./currency-form";
 
 describe("CurrencyForm", () => {
 	it("submits create values without changing the payload shape", async () => {

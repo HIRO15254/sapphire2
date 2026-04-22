@@ -1,9 +1,9 @@
-import type { CurrencyFormValues } from "@/currencies/hooks/use-currency-form";
-import { useCurrencyForm } from "@/currencies/hooks/use-currency-form";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import type { CurrencyFormValues } from "./use-currency-form";
+import { useCurrencyForm } from "./use-currency-form";
 
 interface CurrencyFormProps {
 	defaultValues?: CurrencyFormValues;

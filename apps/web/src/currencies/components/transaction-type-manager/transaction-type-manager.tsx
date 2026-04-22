@@ -1,6 +1,6 @@
-import { useTransactionTypeManagerWithDeleteError } from "@/currencies/hooks/use-transaction-type-manager";
 import { TagManager } from "@/shared/components/management/tag-manager";
 import { TagNameForm } from "@/shared/components/management/tag-name-form";
+import { useTransactionTypeManagerWithDeleteError } from "./use-transaction-type-manager";
 
 export function TransactionTypeManager() {
 	const {

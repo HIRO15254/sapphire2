@@ -1,8 +1,3 @@
-import {
-	getButtonLabel,
-	type TransactionFormValues,
-	useTransactionForm,
-} from "@/currencies/hooks/use-transaction-form";
 import { useTypeCombobox } from "@/currencies/hooks/use-type-combobox";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -20,6 +15,11 @@ import {
 	PopoverContent,
 } from "@/shared/components/ui/popover";
 import { Textarea } from "@/shared/components/ui/textarea";
+import {
+	getButtonLabel,
+	type TransactionFormValues,
+	useTransactionForm,
+} from "./use-transaction-form";
 
 interface TransactionFormProps {
 	defaultValues?: TransactionFormValues;

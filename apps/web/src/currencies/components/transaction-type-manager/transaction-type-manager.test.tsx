@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { TransactionTypeManager } from "../transaction-type-manager";
+import { TransactionTypeManager } from "./transaction-type-manager";
 
 beforeAll(() => {
 	Object.defineProperty(window, "matchMedia", {
