@@ -1,6 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { z } from "zod";
+import z from "zod";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 import type { TournamentFormValues } from "@/stores/hooks/use-tournaments";
 import { trpc } from "@/utils/trpc";

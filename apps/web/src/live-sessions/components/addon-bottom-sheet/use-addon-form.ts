@@ -1,6 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import { useEffect } from "react";
-import { z } from "zod";
+import z from "zod";
 import { requiredNumericString } from "@/shared/lib/form-fields";
 
 const addonSchema = z.object({

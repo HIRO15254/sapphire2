@@ -1,6 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useState } from "react";
-import { z } from "zod";
+import z from "zod";
 import { useTournamentFormContext } from "@/live-sessions/hooks/use-session-form";
 import {
 	optionalNumericString,

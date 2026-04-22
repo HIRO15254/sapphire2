@@ -1,5 +1,5 @@
 import { useForm } from "@tanstack/react-form";
-import { z } from "zod";
+import z from "zod";
 import { useTransactionTypes } from "@/currencies/hooks/use-transaction-types";
 import { requiredNumericString } from "@/shared/lib/form-fields";
 
