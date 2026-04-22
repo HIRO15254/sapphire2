@@ -39,19 +39,19 @@ export interface WidgetEditProps {
 import {
 	ActiveSessionEditForm,
 	ActiveSessionWidget,
-} from "./active-session-widget";
+} from "../active-session-widget";
 import {
 	CurrencyBalanceEditForm,
 	CurrencyBalanceWidget,
-} from "./currency-balance-widget";
+} from "../currency-balance-widget";
 import {
 	RecentSessionsEditForm,
 	RecentSessionsWidget,
-} from "./recent-sessions-widget";
+} from "../recent-sessions-widget";
 import {
 	SummaryStatsEditForm,
 	SummaryStatsWidget,
-} from "./summary-stats-widget";
+} from "../summary-stats-widget";
 
 export const widgetRegistry: Record<WidgetType, WidgetRegistryEntry> = {
 	summary_stats: {

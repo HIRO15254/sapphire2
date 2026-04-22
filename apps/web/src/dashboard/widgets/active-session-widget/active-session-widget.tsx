@@ -1,11 +1,6 @@
 import { IconBolt, IconPokerChip, IconTrophy } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import {
-	type ActiveSessionWidgetSessionType,
-	parseActiveSessionWidgetConfig,
-	useActiveSessionWidget,
-} from "@/dashboard/hooks/use-active-session-widget";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
@@ -16,6 +11,11 @@ import { Label } from "@/shared/components/ui/label";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { useElapsedTime } from "@/shared/hooks/use-elapsed-time";
 import { formatCompactNumber } from "@/utils/format-number";
+import {
+	type ActiveSessionWidgetSessionType,
+	parseActiveSessionWidgetConfig,
+	useActiveSessionWidget,
+} from "./use-active-session-widget";
 
 interface ActiveSessionRowProps {
 	latestStackAmount: number | null;

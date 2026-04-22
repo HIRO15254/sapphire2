@@ -7,11 +7,8 @@ import {
 } from "@/dashboard/components/dashboard-widget";
 import { WidgetRenderer } from "@/dashboard/components/widget-renderer";
 import type { Device } from "@/dashboard/hooks/use-current-device";
-import {
-	GRID_COLS,
-	useDashboardGrid,
-} from "@/dashboard/hooks/use-dashboard-grid";
 import type { DashboardWidget as DashboardWidgetRow } from "@/dashboard/hooks/use-dashboard-widgets";
+import { GRID_COLS, useDashboardGrid } from "./use-dashboard-grid";
 
 const ROW_HEIGHT = 80;
 

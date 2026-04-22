@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { useEditMode } from "@/dashboard/hooks/use-edit-mode";
+import { useEditMode } from "./use-edit-mode";
 
 describe("useEditMode", () => {
 	it("defaults to not editing", () => {

@@ -1,8 +1,8 @@
 import { IconPlus } from "@tabler/icons-react";
-import { useAddWidgetMenu } from "@/dashboard/hooks/use-add-widget-menu";
 import type { WidgetType } from "@/dashboard/hooks/use-dashboard-widgets";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { useAddWidgetMenu } from "./use-add-widget-menu";
 
 interface AddWidgetMenuProps {
 	disabled?: boolean;

@@ -1,11 +1,6 @@
 import { IconPokerChip, IconTrophy } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import {
-	parseRecentSessionsWidgetConfig,
-	type RecentSessionsWidgetTypeFilter,
-	useRecentSessionsWidget,
-} from "@/dashboard/hooks/use-recent-sessions-widget";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
@@ -19,6 +14,11 @@ import {
 	formatProfitLoss,
 	profitLossColorClass,
 } from "@/utils/format-profit-loss";
+import {
+	parseRecentSessionsWidgetConfig,
+	type RecentSessionsWidgetTypeFilter,
+	useRecentSessionsWidget,
+} from "./use-recent-sessions-widget";
 
 export function RecentSessionsWidget({ config }: WidgetRenderProps) {
 	const { isLoading, items, limit } = useRecentSessionsWidget(config);

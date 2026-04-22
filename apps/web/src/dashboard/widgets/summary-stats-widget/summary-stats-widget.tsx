@@ -1,13 +1,4 @@
 import { useState } from "react";
-import {
-	parseSummaryStatsWidgetConfig,
-	SUMMARY_STATS_ALL_METRICS,
-	SUMMARY_STATS_DEFAULT_METRICS,
-	type SummaryStatsMetricKey,
-	type SummaryStatsSummary,
-	type SummaryStatsWidgetType,
-	useSummaryStatsWidget,
-} from "@/dashboard/hooks/use-summary-stats-widget";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
@@ -20,6 +11,15 @@ import {
 	formatProfitLoss,
 	profitLossColorClass,
 } from "@/utils/format-profit-loss";
+import {
+	parseSummaryStatsWidgetConfig,
+	SUMMARY_STATS_ALL_METRICS,
+	SUMMARY_STATS_DEFAULT_METRICS,
+	type SummaryStatsMetricKey,
+	type SummaryStatsSummary,
+	type SummaryStatsWidgetType,
+	useSummaryStatsWidget,
+} from "./use-summary-stats-widget";
 
 function formatMetricValue(
 	key: SummaryStatsMetricKey,

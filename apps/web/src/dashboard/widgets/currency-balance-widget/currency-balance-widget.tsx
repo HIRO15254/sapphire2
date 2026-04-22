@@ -1,9 +1,5 @@
 import { IconCoin } from "@tabler/icons-react";
 import { useState } from "react";
-import {
-	useCurrencyBalanceOptions,
-	useCurrencyBalanceWidget,
-} from "@/dashboard/hooks/use-currency-balance-widget";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
@@ -14,6 +10,10 @@ import { Label } from "@/shared/components/ui/label";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatCompactNumber } from "@/utils/format-number";
 import { profitLossColorClass } from "@/utils/format-profit-loss";
+import {
+	useCurrencyBalanceOptions,
+	useCurrencyBalanceWidget,
+} from "./use-currency-balance-widget";
 
 export function CurrencyBalanceWidget({ config }: WidgetRenderProps) {
 	const { isLoading, currencies, selected } = useCurrencyBalanceWidget(config);

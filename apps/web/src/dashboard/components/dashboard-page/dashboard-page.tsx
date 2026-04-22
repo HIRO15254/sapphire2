@@ -4,11 +4,11 @@ import { DashboardGrid } from "@/dashboard/components/dashboard-grid";
 import { EditModeToggle } from "@/dashboard/components/edit-mode-toggle";
 import { WidgetEditDialog } from "@/dashboard/components/widget-edit-dialog";
 import type { Device } from "@/dashboard/hooks/use-current-device";
-import { useDashboardPage } from "@/dashboard/hooks/use-dashboard-page";
 import type {
 	DashboardWidget,
 	WidgetType,
 } from "@/dashboard/hooks/use-dashboard-widgets";
+import { useDashboardPage } from "@/routes/-use-dashboard-page";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";

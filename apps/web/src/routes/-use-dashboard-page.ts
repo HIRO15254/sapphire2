@@ -1,13 +1,13 @@
 import { useBlocker } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Layout } from "react-grid-layout";
+import { useEditMode } from "@/dashboard/components/edit-mode-toggle";
 import { useCurrentDevice } from "@/dashboard/hooks/use-current-device";
 import {
 	type DashboardWidget,
 	useDashboardWidgets,
 	type WidgetType,
 } from "@/dashboard/hooks/use-dashboard-widgets";
-import { useEditMode } from "@/dashboard/hooks/use-edit-mode";
 import {
 	type LayoutItem,
 	useLayoutSync,
