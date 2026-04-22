@@ -1,5 +1,6 @@
 import { IconUser, IconUserQuestion } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
 
 interface PlayerAvatarProps {
 	className?: string;
@@ -13,18 +14,24 @@ export function PlayerAvatar({
 	isTemporary = false,
 }: PlayerAvatarProps) {
 	return (
-		<div
+		<Avatar
 			className={cn(
-				"flex size-10 items-center justify-center rounded-full border-2 shadow-md",
-				isHero && "border-amber-400 bg-amber-500/80 text-white",
-				!isHero &&
-					isTemporary &&
-					"border-zinc-500/60 bg-zinc-700 text-white/80",
-				!(isHero || isTemporary) && "border-white/30 bg-slate-500 text-white",
+				"size-10 border-2 shadow-md after:hidden",
+				isHero && "border-amber-400",
+				!isHero && isTemporary && "border-zinc-500/60",
+				!(isHero || isTemporary) && "border-white/30",
 				className
 			)}
 		>
-			{isTemporary ? <IconUserQuestion size={16} /> : <IconUser size={16} />}
-		</div>
+			<AvatarFallback
+				className={cn(
+					isHero && "bg-amber-500/80 text-white",
+					!isHero && isTemporary && "bg-zinc-700 text-white/80",
+					!(isHero || isTemporary) && "bg-slate-500 text-white"
+				)}
+			>
+				{isTemporary ? <IconUserQuestion size={16} /> : <IconUser size={16} />}
+			</AvatarFallback>
+		</Avatar>
 	);
 }
