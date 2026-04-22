@@ -54,6 +54,9 @@
           }
         }
       },
+      "performance": {
+        "noBarrelFile": "off"
+      },
       "style": {
         "noParameterAssign": "error",
         "useAsConstAssertion": "error",
