@@ -6,6 +6,7 @@ import { PlayerCard } from "./player-card";
 const taggedPlayer = {
 	createdAt: "2026-04-01T10:00:00Z",
 	id: "player-1",
+	isTemporary: false,
 	memo: "<p><strong>Regular</strong> in the weekday game.</p>",
 	name: "Alice",
 	tags: [

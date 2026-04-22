@@ -4,14 +4,7 @@ import { toast } from "sonner";
 import z from "zod";
 import { authClient } from "@/lib/auth-client";
 
-interface UseSignInResult {
-	form: ReturnType<typeof useForm<{ email: string; password: string }>>;
-	isPending: boolean;
-	onSignInWithDiscord: () => Promise<void>;
-	onSignInWithGoogle: () => Promise<void>;
-}
-
-export function useSignIn(): UseSignInResult {
+export function useSignIn() {
 	const navigate = useNavigate({ from: "/" });
 	const { isPending } = authClient.useSession();
 

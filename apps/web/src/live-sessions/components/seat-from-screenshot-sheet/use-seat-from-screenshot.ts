@@ -16,7 +16,10 @@ import {
 	SOURCE_APP_ENTRIES,
 	type Step,
 } from "@/live-sessions/utils/seat-screenshot";
-import { invalidateTargets } from "@/utils/optimistic-update";
+import {
+	invalidateTargets,
+	type OptimisticTarget,
+} from "@/utils/optimistic-update";
 import { trpc } from "@/utils/trpc";
 
 interface UseSeatFromScreenshotArgs {
@@ -184,7 +187,7 @@ export function useSeatFromScreenshot({
 	};
 
 	const invalidateSessionQueries = async () => {
-		const targets = [
+		const targets: OptimisticTarget[] = [
 			{
 				queryKey:
 					trpc.sessionTablePlayer.list.queryOptions(sessionParam).queryKey,
