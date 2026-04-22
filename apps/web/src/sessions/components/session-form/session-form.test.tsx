@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { SessionForm } from "../session-form";
+import { SessionForm } from "./session-form";
 
 const EV_HELPER_RE = /Expected value cash-out based on all-in equity/;
 const BUY_IN_RE = /Buy-in/;

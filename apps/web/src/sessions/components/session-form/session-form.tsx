@@ -1,4 +1,3 @@
-import { useSessionFormState } from "@/sessions/hooks/use-session-form-state";
 import type {
 	RingGameOption,
 	SessionFormDefaults,
@@ -13,13 +12,14 @@ import { Label } from "@/shared/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { TagInput } from "@/shared/components/ui/tag-input";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { CashGameFields } from "./cash-game-fields";
-import { FormAccordion } from "./form-section";
-import { StoreGameSelectors } from "./link-selectors";
+import { CashGameFields } from "../cash-game-fields";
+import { FormAccordion } from "../form-section";
+import { StoreGameSelectors } from "../link-selectors";
 import {
 	TournamentDetailFields,
 	TournamentPrimaryFields,
-} from "./tournament-fields";
+} from "../tournament-fields";
+import { useSessionFormState } from "./use-session-form-state";
 
 export type {
 	CashGameFormValues,

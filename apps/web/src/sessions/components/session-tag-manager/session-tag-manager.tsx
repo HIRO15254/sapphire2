@@ -1,6 +1,6 @@
-import { useSessionTags } from "@/sessions/hooks/use-session-tags";
 import { TagManager } from "@/shared/components/management/tag-manager";
 import { TagNameForm } from "@/shared/components/management/tag-name-form";
+import { useSessionTags } from "./use-session-tags";
 
 export function SessionTagManager() {
 	const {

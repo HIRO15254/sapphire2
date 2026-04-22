@@ -1,4 +1,3 @@
-import { useSessionFilters } from "@/sessions/hooks/use-session-filters";
 import { FilterDialogShell } from "@/shared/components/filter-dialog-shell";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -9,6 +8,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/shared/components/ui/select";
+import { useSessionFilters } from "./use-session-filters";
 
 export interface SessionFilterValues {
 	currencyId?: string;

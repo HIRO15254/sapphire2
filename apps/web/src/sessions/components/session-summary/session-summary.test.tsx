@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SessionSummary } from "../session-summary";
+import { SessionSummary } from "./session-summary";
 
 const baseSummary = {
 	totalSessions: 10,

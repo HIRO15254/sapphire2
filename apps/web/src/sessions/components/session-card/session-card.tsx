@@ -10,7 +10,6 @@ import {
 	IconTrophy,
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
-import { useSessionCard } from "@/sessions/hooks/use-session-card";
 import { EntityListItem } from "@/shared/components/management/entity-list-item";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -19,6 +18,7 @@ import {
 	formatProfitLoss,
 	profitLossColorClass,
 } from "@/utils/format-profit-loss";
+import { useSessionCard } from "./use-session-card";
 
 interface SessionCardProps {
 	bbBiMode?: boolean;
