@@ -1,8 +1,8 @@
 import { AllInFields } from "@/live-sessions/components/event-fields/all-in-fields";
-import { useAllInEditor } from "@/live-sessions/hooks/event-editors/use-all-in-editor";
+import { useAllInEditor } from "./use-all-in-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { type EditorBaseProps, TimeField } from "./shared";
+import { type EditorBaseProps, TimeField } from "../shared";
 
 type Props = Pick<
 	EditorBaseProps,

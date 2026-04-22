@@ -1,22 +1,31 @@
-import { UpdateStackFields } from "@/live-sessions/components/event-fields/update-stack-fields";
-import { useUpdateStackEditor } from "@/live-sessions/hooks/event-editors/use-update-stack-editor";
+import { TournamentInfoFields } from "@/live-sessions/components/event-fields/tournament-info-fields";
+import { useUpdateTournamentInfoEditor } from "./use-update-tournament-info-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { type EditorBaseProps, TimeField } from "./shared";
+import { type EditorBaseProps, TimeField } from "../shared";
+
+interface ChipPurchaseType {
+	chips: number;
+	cost: number;
+	name: string;
+}
 
 type Props = Pick<
 	EditorBaseProps,
 	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
->;
+> & {
+	chipPurchaseTypes?: ChipPurchaseType[];
+};
 
-export function UpdateStackEditor({
+export function UpdateTournamentInfoEditor({
 	event,
 	isLoading,
 	maxTime,
 	minTime,
 	onSubmit,
+	chipPurchaseTypes,
 }: Props) {
-	const { form, timeValidator } = useUpdateStackEditor({
+	const { form, timeValidator } = useUpdateTournamentInfoEditor({
 		event,
 		isLoading,
 		maxTime,
@@ -47,15 +56,23 @@ export function UpdateStackEditor({
 					/>
 				)}
 			</form.Field>
-			<form.Field name="stackAmount">
-				{(field) => (
-					<UpdateStackFields
-						error={field.state.meta.errors[0]?.message}
-						onStackAmountChange={(v) => field.handleChange(v)}
-						value={field.state.value}
+			<form.Subscribe selector={(state) => state.values}>
+				{(values) => (
+					<TournamentInfoFields
+						chipPurchaseCounts={values.chipPurchaseCounts}
+						chipPurchaseTypes={chipPurchaseTypes}
+						onChipPurchaseCountsChange={(v) =>
+							form.setFieldValue("chipPurchaseCounts", v)
+						}
+						onRemainingPlayersChange={(v) =>
+							form.setFieldValue("remainingPlayers", v)
+						}
+						onTotalEntriesChange={(v) => form.setFieldValue("totalEntries", v)}
+						remainingPlayers={values.remainingPlayers}
+						totalEntries={values.totalEntries}
 					/>
 				)}
-			</form.Field>
+			</form.Subscribe>
 			<form.Subscribe
 				selector={(state) => [state.canSubmit, state.isSubmitting]}
 			>

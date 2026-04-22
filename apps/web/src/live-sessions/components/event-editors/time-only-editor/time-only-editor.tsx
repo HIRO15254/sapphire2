@@ -1,7 +1,7 @@
-import { useTimeOnlyEditor } from "@/live-sessions/hooks/event-editors/use-time-only-editor";
+import { useTimeOnlyEditor } from "./use-time-only-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { type EditorBaseProps, TimeField } from "./shared";
+import { type EditorBaseProps, TimeField } from "../shared";
 
 type TimeOnlyEditorProps = Pick<
 	EditorBaseProps,

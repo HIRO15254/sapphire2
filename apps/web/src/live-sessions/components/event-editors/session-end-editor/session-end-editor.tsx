@@ -1,14 +1,14 @@
 import {
 	useCashGameEndEditor,
 	useTournamentEndEditor,
-} from "@/live-sessions/hooks/event-editors/use-session-end-editor";
+} from "./use-session-end-editor";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { type EditorBaseProps, type SessionType, TimeField } from "./shared";
+import { type EditorBaseProps, type SessionType, TimeField } from "../shared";
 
 type Props = Pick<
 	EditorBaseProps,

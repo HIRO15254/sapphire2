@@ -1,27 +1,22 @@
-import { AddonFields } from "@/live-sessions/components/event-fields/addon-fields";
-import { useChipsAddRemoveEditor } from "@/live-sessions/hooks/event-editors/use-chips-add-remove-editor";
+import { UpdateStackFields } from "@/live-sessions/components/event-fields/update-stack-fields";
+import { useUpdateStackEditor } from "./use-update-stack-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { Field } from "@/shared/components/ui/field";
-import {
-	ToggleGroup,
-	ToggleGroupItem,
-} from "@/shared/components/ui/toggle-group";
-import { type EditorBaseProps, TimeField } from "./shared";
+import { type EditorBaseProps, TimeField } from "../shared";
 
 type Props = Pick<
 	EditorBaseProps,
 	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
 >;
 
-export function ChipsAddRemoveEditor({
+export function UpdateStackEditor({
 	event,
 	isLoading,
 	maxTime,
 	minTime,
 	onSubmit,
 }: Props) {
-	const { form, timeValidator } = useChipsAddRemoveEditor({
+	const { form, timeValidator } = useUpdateStackEditor({
 		event,
 		isLoading,
 		maxTime,
@@ -52,31 +47,13 @@ export function ChipsAddRemoveEditor({
 					/>
 				)}
 			</form.Field>
-			<form.Field name="amount">
+			<form.Field name="stackAmount">
 				{(field) => (
-					<AddonFields
+					<UpdateStackFields
 						error={field.state.meta.errors[0]?.message}
-						onAmountChange={(v) => field.handleChange(v)}
+						onStackAmountChange={(v) => field.handleChange(v)}
 						value={field.state.value}
 					/>
-				)}
-			</form.Field>
-			<form.Field name="type">
-				{(field) => (
-					<Field htmlFor="edit-type" label="Type">
-						<ToggleGroup
-							onValueChange={(val) => {
-								if (val) {
-									field.handleChange(val as "add" | "remove");
-								}
-							}}
-							type="single"
-							value={field.state.value}
-						>
-							<ToggleGroupItem value="add">Add</ToggleGroupItem>
-							<ToggleGroupItem value="remove">Remove</ToggleGroupItem>
-						</ToggleGroup>
-					</Field>
 				)}
 			</form.Field>
 			<form.Subscribe

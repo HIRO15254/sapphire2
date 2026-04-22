@@ -1,22 +1,22 @@
-import { ChipPurchaseFields } from "@/live-sessions/components/event-fields/chip-purchase-fields";
-import { usePurchaseChipsEditor } from "@/live-sessions/hooks/event-editors/use-purchase-chips-editor";
+import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
+import { useMemoEditor } from "./use-memo-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { type EditorBaseProps, TimeField } from "./shared";
+import { type EditorBaseProps, TimeField } from "../shared";
 
 type Props = Pick<
 	EditorBaseProps,
 	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
 >;
 
-export function PurchaseChipsEditor({
+export function MemoEditor({
 	event,
 	isLoading,
 	maxTime,
 	minTime,
 	onSubmit,
 }: Props) {
-	const { form, timeValidator } = usePurchaseChipsEditor({
+	const { form, timeValidator, textValidator } = useMemoEditor({
 		event,
 		isLoading,
 		maxTime,
@@ -47,27 +47,17 @@ export function PurchaseChipsEditor({
 					/>
 				)}
 			</form.Field>
-			<form.Field name="name">
-				{(nameField) => (
-					<form.Field name="cost">
-						{(costField) => (
-							<form.Field name="chips">
-								{(chipsField) => (
-									<ChipPurchaseFields
-										chips={chipsField.state.value}
-										chipsError={chipsField.state.meta.errors[0]?.message}
-										cost={costField.state.value}
-										costError={costField.state.meta.errors[0]?.message}
-										name={nameField.state.value}
-										nameError={nameField.state.meta.errors[0]?.message}
-										onChipsChange={(v) => chipsField.handleChange(v)}
-										onCostChange={(v) => costField.handleChange(v)}
-										onNameChange={(v) => nameField.handleChange(v)}
-									/>
-								)}
-							</form.Field>
-						)}
-					</form.Field>
+			<form.Field
+				name="text"
+				validators={{
+					onChange: ({ value }) => textValidator(value),
+				}}
+			>
+				{(field) => (
+					<MemoFields
+						onTextChange={(v) => field.handleChange(v)}
+						text={field.state.value}
+					/>
 				)}
 			</form.Field>
 			<form.Subscribe

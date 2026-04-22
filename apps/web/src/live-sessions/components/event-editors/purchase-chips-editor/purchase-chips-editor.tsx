@@ -1,31 +1,22 @@
-import { TournamentInfoFields } from "@/live-sessions/components/event-fields/tournament-info-fields";
-import { useUpdateTournamentInfoEditor } from "@/live-sessions/hooks/event-editors/use-update-tournament-info-editor";
+import { ChipPurchaseFields } from "@/live-sessions/components/event-fields/chip-purchase-fields";
+import { usePurchaseChipsEditor } from "./use-purchase-chips-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { type EditorBaseProps, TimeField } from "./shared";
-
-interface ChipPurchaseType {
-	chips: number;
-	cost: number;
-	name: string;
-}
+import { type EditorBaseProps, TimeField } from "../shared";
 
 type Props = Pick<
 	EditorBaseProps,
 	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
-> & {
-	chipPurchaseTypes?: ChipPurchaseType[];
-};
+>;
 
-export function UpdateTournamentInfoEditor({
+export function PurchaseChipsEditor({
 	event,
 	isLoading,
 	maxTime,
 	minTime,
 	onSubmit,
-	chipPurchaseTypes,
 }: Props) {
-	const { form, timeValidator } = useUpdateTournamentInfoEditor({
+	const { form, timeValidator } = usePurchaseChipsEditor({
 		event,
 		isLoading,
 		maxTime,
@@ -56,23 +47,29 @@ export function UpdateTournamentInfoEditor({
 					/>
 				)}
 			</form.Field>
-			<form.Subscribe selector={(state) => state.values}>
-				{(values) => (
-					<TournamentInfoFields
-						chipPurchaseCounts={values.chipPurchaseCounts}
-						chipPurchaseTypes={chipPurchaseTypes}
-						onChipPurchaseCountsChange={(v) =>
-							form.setFieldValue("chipPurchaseCounts", v)
-						}
-						onRemainingPlayersChange={(v) =>
-							form.setFieldValue("remainingPlayers", v)
-						}
-						onTotalEntriesChange={(v) => form.setFieldValue("totalEntries", v)}
-						remainingPlayers={values.remainingPlayers}
-						totalEntries={values.totalEntries}
-					/>
+			<form.Field name="name">
+				{(nameField) => (
+					<form.Field name="cost">
+						{(costField) => (
+							<form.Field name="chips">
+								{(chipsField) => (
+									<ChipPurchaseFields
+										chips={chipsField.state.value}
+										chipsError={chipsField.state.meta.errors[0]?.message}
+										cost={costField.state.value}
+										costError={costField.state.meta.errors[0]?.message}
+										name={nameField.state.value}
+										nameError={nameField.state.meta.errors[0]?.message}
+										onChipsChange={(v) => chipsField.handleChange(v)}
+										onCostChange={(v) => costField.handleChange(v)}
+										onNameChange={(v) => nameField.handleChange(v)}
+									/>
+								)}
+							</form.Field>
+						)}
+					</form.Field>
 				)}
-			</form.Subscribe>
+			</form.Field>
 			<form.Subscribe
 				selector={(state) => [state.canSubmit, state.isSubmitting]}
 			>
