@@ -45,7 +45,7 @@ TypeScript (strict mode): Follow standard conventions
 - Attach validation via `validators.onSubmit: zodSchema` (and/or `onChange` per-field). Keep the schema close to the form.
 - **Number inputs must not use `type="number"`.** Keep inputs as `type="text"` + `inputMode="numeric"`, store the raw string in form state, and validate/convert via Zod. `type="number"` has inconsistent cross-browser behavior (scroll-to-change, locale handling, allowed characters) and hides errors behind silent coercion.
 - Use helpers from `@/shared/lib/form-fields` (`requiredNumericString`, `optionalNumericString`, `parseOptionalInt`, etc.) to keep numeric validation uniform.
-- Reference implementations: `apps/web/src/shared/hooks/use-sign-in.ts`, `apps/web/src/players/components/player-form.tsx`, `apps/web/src/live-sessions/components/event-editors/update-stack-editor.tsx`.
+- Reference implementations: `apps/web/src/shared/hooks/use-sign-in.ts`, `apps/web/src/features/players/components/player-form.tsx`, `apps/web/src/features/live-sessions/components/event-editors/update-stack-editor.tsx`.
 
 ## UI/Logic Separation (STRICT MANDATORY)
 
@@ -61,10 +61,10 @@ Third-party hooks: `useForm` (`@tanstack/react-form`), `useQuery` / `useMutation
 - Pure JSX rendering from destructured values.
 
 ### File layout
-- **Custom hook**: `apps/web/src/<feature>/hooks/use-<name>.ts` (or `.tsx` when returning JSX).
-- **Pure helpers, constants, types**: `apps/web/src/<feature>/utils/*.ts`.
+- **Custom hook**: `apps/web/src/features/<feature>/hooks/use-<name>.ts` (or `.tsx` when returning JSX).
+- **Pure helpers, constants, types**: `apps/web/src/features/<feature>/utils/*.ts`.
 - **UI primitive hooks**: `apps/web/src/shared/components/ui/hooks/use-*.ts`.
-- **Route page hooks**: `apps/web/src/<feature>/hooks/use-<page>-page.ts`.
+- **Route page hooks**: `apps/web/src/features/<feature>/hooks/use-<page>-page.ts`.
 
 ### Hook return shape
 `{ data系, is*Pending, on*Handler, state, setState, ... }`. See references below.
@@ -79,9 +79,9 @@ The `useForm` call from `@tanstack/react-form` lives in a hook. The component re
 Purely presentational subcomponents (`DetailRow`, `XxxCard`, etc.) that take **only props** and call **no hooks** may stay in the same file. Pure helper functions already at module level need not be moved to `utils/` unless they grow or become shared.
 
 ### Reference implementations
-- Pair: [use-players-page.ts](apps/web/src/players/hooks/use-players-page.ts) + [routes/players/index.tsx](apps/web/src/routes/players/index.tsx)
-- Form: [use-player-form.ts](apps/web/src/players/hooks/use-player-form.ts) + [player-form.tsx](apps/web/src/players/components/player-form.tsx)
-- tRPC: [use-currencies.ts](apps/web/src/currencies/hooks/use-currencies.ts), [use-cash-game-session.ts](apps/web/src/live-sessions/hooks/use-cash-game-session.ts)
+- Pair: [use-players-page.ts](apps/web/src/features/players/hooks/use-players-page.ts) + [routes/players/index.tsx](apps/web/src/routes/players/index.tsx)
+- Form: [use-player-form.ts](apps/web/src/features/players/hooks/use-player-form.ts) + [player-form.tsx](apps/web/src/features/players/components/player-form.tsx)
+- tRPC: [use-currencies.ts](apps/web/src/features/currencies/hooks/use-currencies.ts), [use-cash-game-session.ts](apps/web/src/features/live-sessions/hooks/use-cash-game-session.ts)
 - Auth: [use-sign-in.ts](apps/web/src/shared/hooks/use-sign-in.ts) + [sign-in-form.tsx](apps/web/src/shared/components/sign-in-form.tsx)
 
 ### Verification

@@ -1,17 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { cn } from "@/lib/utils";
 import {
 	ActiveSessionScene,
 	useActiveSessionSceneState,
-} from "@/live-sessions/components/active-session-scene";
-import type { TableGameInfo } from "@/live-sessions/components/poker-table";
-import { TournamentTimer } from "@/live-sessions/components/tournament-timer";
-import { TournamentTimerDialog } from "@/live-sessions/components/tournament-timer-dialog";
-import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
-import { useCashGameCompactSummary } from "@/live-sessions/hooks/use-cash-game-compact-summary";
-import { useCashGameSession } from "@/live-sessions/hooks/use-cash-game-session";
-import { useTournamentCompactSummary } from "@/live-sessions/hooks/use-tournament-compact-summary";
-import type { TournamentBlindLevel } from "@/live-sessions/utils/tournament-timer";
+} from "@/features/live-sessions/components/active-session-scene";
+import type { TableGameInfo } from "@/features/live-sessions/components/poker-table";
+import { TournamentTimer } from "@/features/live-sessions/components/tournament-timer";
+import { TournamentTimerDialog } from "@/features/live-sessions/components/tournament-timer-dialog";
+import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
+import { useCashGameCompactSummary } from "@/features/live-sessions/hooks/use-cash-game-compact-summary";
+import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
+import { useTournamentCompactSummary } from "@/features/live-sessions/hooks/use-tournament-compact-summary";
+import type { TournamentBlindLevel } from "@/features/live-sessions/utils/tournament-timer";
+import { cn } from "@/lib/utils";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatCompactNumber } from "@/utils/format-number";
 import { useTournamentSessionPage } from "./-use-active-session-page";

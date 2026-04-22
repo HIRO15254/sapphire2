@@ -29,14 +29,14 @@ Object.defineProperty(window, "matchMedia", {
 // Mock: useActiveSession
 // ---------------------------------------------------------------------------
 const mockUseActiveSession = vi.fn();
-vi.mock("@/live-sessions/hooks/use-active-session", () => ({
+vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
 // ---------------------------------------------------------------------------
 // Mock: useTablePlayers – avoids the full tRPC session machinery
 // ---------------------------------------------------------------------------
-vi.mock("@/players/hooks/use-table-players", () => ({
+vi.mock("@/features/players/hooks/use-table-players", () => ({
 	useTablePlayers: () => ({
 		players: [],
 		excludePlayerIds: [],
@@ -49,21 +49,24 @@ vi.mock("@/players/hooks/use-table-players", () => ({
 // ---------------------------------------------------------------------------
 // Mock: heavy UI sub-components that would require additional providers
 // ---------------------------------------------------------------------------
-vi.mock("@/live-sessions/components/poker-table", () => ({
+vi.mock("@/features/live-sessions/components/poker-table", () => ({
 	PokerTable: () => <div data-testid="poker-table" />,
 }));
 
-vi.mock("@/live-sessions/components/add-player-sheet", () => ({
+vi.mock("@/features/live-sessions/components/add-player-sheet", () => ({
 	AddPlayerSheet: () => null,
 }));
 
-vi.mock("@/live-sessions/components/player-detail-sheet", () => ({
+vi.mock("@/features/live-sessions/components/player-detail-sheet", () => ({
 	PlayerDetailSheet: () => null,
 }));
 
-vi.mock("@/live-sessions/components/seat-from-screenshot-sheet", () => ({
-	SeatFromScreenshotSheet: () => null,
-}));
+vi.mock(
+	"@/features/live-sessions/components/seat-from-screenshot-sheet",
+	() => ({
+		SeatFromScreenshotSheet: () => null,
+	})
+);
 
 // ---------------------------------------------------------------------------
 // Mock: tRPC client and proxy
@@ -165,7 +168,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-import { TournamentCompleteForm } from "@/live-sessions/components/tournament-complete-form";
+import { TournamentCompleteForm } from "@/features/live-sessions/components/tournament-complete-form";
 // biome-ignore lint/performance/noNamespaceImport: required to access named export from route module
 import * as ActiveSessionEventsModule from "@/routes/active-session/events";
 // Pull in route components after all mocks are declared.

@@ -5,5 +5,10 @@ export default defineConfig({
 		name: "db",
 		environment: "node",
 		include: ["src/**/*.test.ts"],
+		server: {
+			deps: {
+				inline: ["zod"],
+			},
+		},
 	},
 });

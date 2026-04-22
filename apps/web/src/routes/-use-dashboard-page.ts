@@ -1,17 +1,17 @@
 import { useBlocker } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Layout } from "react-grid-layout";
-import { useEditMode } from "@/dashboard/components/edit-mode-toggle";
-import { useCurrentDevice } from "@/dashboard/hooks/use-current-device";
+import { useEditMode } from "@/features/dashboard/components/edit-mode-toggle";
+import { useCurrentDevice } from "@/features/dashboard/hooks/use-current-device";
 import {
 	type DashboardWidget,
 	useDashboardWidgets,
 	type WidgetType,
-} from "@/dashboard/hooks/use-dashboard-widgets";
+} from "@/features/dashboard/hooks/use-dashboard-widgets";
 import {
 	type LayoutItem,
 	useLayoutSync,
-} from "@/dashboard/hooks/use-layout-sync";
+} from "@/features/dashboard/hooks/use-layout-sync";
 
 function layoutsToItems(layout: Layout[]): LayoutItem[] {
 	return layout.map((l) => ({

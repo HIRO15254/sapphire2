@@ -4,8 +4,8 @@ import type {
 	CurrencyValues,
 	Transaction,
 	TransactionValues,
-} from "@/currencies/hooks/use-currencies";
-import { useCurrencies } from "@/currencies/hooks/use-currencies";
+} from "@/features/currencies/hooks/use-currencies";
+import { useCurrencies } from "@/features/currencies/hooks/use-currencies";
 
 export function useCurrenciesPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);

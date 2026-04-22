@@ -1,5 +1,7 @@
 import { IconArrowLeft } from "@tabler/icons-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { RingGameTab } from "@/features/stores/components/ring-game-tab";
+import { TournamentTab } from "@/features/stores/components/tournament-tab";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -8,8 +10,6 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "@/shared/components/ui/tabs";
-import { RingGameTab } from "@/stores/components/ring-game-tab";
-import { TournamentTab } from "@/stores/components/tournament-tab";
 import { useStoreDetailPage } from "./-use-store-detail-page";
 
 export const Route = createFileRoute("/stores/$storeId")({

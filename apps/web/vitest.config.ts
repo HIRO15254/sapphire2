@@ -13,5 +13,10 @@ export default defineConfig({
 		setupFiles: ["./src/__tests__/setup.ts"],
 		include: ["src/**/*.test.{ts,tsx}"],
 		globals: true,
+		server: {
+			deps: {
+				inline: ["zod"],
+			},
+		},
 	},
 });

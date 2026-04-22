@@ -70,7 +70,7 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
-vi.mock("@/currencies/components/currency-form", () => ({
+vi.mock("@/features/currencies/components/currency-form", () => ({
 	CurrencyForm: ({
 		defaultValues,
 	}: {
@@ -83,7 +83,7 @@ vi.mock("@/currencies/components/currency-form", () => ({
 	),
 }));
 
-vi.mock("@/currencies/components/transaction-form", () => ({
+vi.mock("@/features/currencies/components/transaction-form", () => ({
 	TransactionForm: ({
 		defaultValues,
 	}: {

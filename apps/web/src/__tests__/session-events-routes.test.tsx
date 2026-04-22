@@ -7,11 +7,11 @@ const sceneSpy = vi.hoisted(() =>
 );
 const activeSessionMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/live-sessions/components/session-events-scene", () => ({
+vi.mock("@/features/live-sessions/components/session-events-scene", () => ({
 	SessionEventsScene: (props: unknown) => sceneSpy(props),
 }));
 
-vi.mock("@/live-sessions/hooks/use-active-session", () => ({
+vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => activeSessionMock(),
 }));
 

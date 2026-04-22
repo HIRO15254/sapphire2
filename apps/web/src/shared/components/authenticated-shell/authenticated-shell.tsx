@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
-import { LiveStackFormSheet } from "@/live-sessions/components/live-stack-form-sheet";
-import { SessionFormProvider } from "@/live-sessions/hooks/use-session-form";
-import { StackSheetProvider } from "@/live-sessions/hooks/use-stack-sheet";
-import { MobileNav } from "@/shared/components/mobile-nav";
-import { OnlineStatusBar } from "@/shared/components/online-status-bar";
-import { SidebarNav } from "@/shared/components/sidebar-nav";
+import { LiveStackFormSheet } from "@/features/live-sessions/components/live-stack-form-sheet";
+import { SessionFormProvider } from "@/features/live-sessions/hooks/use-session-form";
+import { StackSheetProvider } from "@/features/live-sessions/hooks/use-stack-sheet";
 import {
 	UpdateNotesProvider,
 	UpdateNotesSheet,
-} from "@/update-notes/components/update-notes-sheet";
+} from "@/features/update-notes/components/update-notes-sheet";
+import { MobileNav } from "@/shared/components/mobile-nav";
+import { OnlineStatusBar } from "@/shared/components/online-status-bar";
+import { SidebarNav } from "@/shared/components/sidebar-nav";
 
 export function AuthenticatedShell({ children }: { children: ReactNode }) {
 	return (

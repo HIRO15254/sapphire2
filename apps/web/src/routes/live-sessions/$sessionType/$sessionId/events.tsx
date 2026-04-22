@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SessionEventsScene } from "@/live-sessions/components/session-events-scene";
+import { SessionEventsScene } from "@/features/live-sessions/components/session-events-scene";
 
 export const Route = createFileRoute(
 	"/live-sessions/$sessionType/$sessionId/events"
