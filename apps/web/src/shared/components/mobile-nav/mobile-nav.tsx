@@ -13,8 +13,8 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/shared/components/ui/popover";
-import { useMobileNav } from "@/shared/hooks/use-mobile-nav";
 import { useMobileNavPopover } from "@/shared/hooks/use-mobile-nav-popover";
+import { useMobileNav } from "./use-mobile-nav";
 
 function MobileNavPopoverItem({
 	active,

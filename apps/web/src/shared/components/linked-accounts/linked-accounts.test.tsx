@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { LinkedAccounts } from "../linked-accounts";
+import { LinkedAccounts } from "./linked-accounts";
 
 const mocks = vi.hoisted(() => ({
 	fetchSetPassword: vi.fn(),

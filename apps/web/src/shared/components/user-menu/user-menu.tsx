@@ -11,8 +11,8 @@ import {
 } from "@/shared/components/ui/dropdown-menu";
 import { useUpdateNotesSheet } from "@/update-notes/components/update-notes-sheet";
 
-import { Button } from "./ui/button";
-import { Skeleton } from "./ui/skeleton";
+import { Button } from "../ui/button";
+import { Skeleton } from "../ui/skeleton";
 
 export function UserMenu() {
 	const navigate = useNavigate();

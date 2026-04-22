@@ -1,5 +1,5 @@
 import { IconRefresh, IconWifi, IconWifiOff } from "@tabler/icons-react";
-import { useOnlineStatusBar } from "@/shared/hooks/use-online-status-bar";
+import { useOnlineStatusBar } from "./use-online-status-bar";
 
 type DisplayState = "hidden" | "offline" | "syncing" | "back-online";
 

@@ -4,8 +4,8 @@ import {
 	SIDEBAR_ITEMS,
 	SidebarNavItem,
 } from "@/shared/components/app-navigation";
-import { ModeToggle } from "./mode-toggle";
-import UserMenu from "./user-menu";
+import { ModeToggle } from "../mode-toggle";
+import UserMenu from "../user-menu";
 
 export function SidebarNav() {
 	const pathname = useRouterState({

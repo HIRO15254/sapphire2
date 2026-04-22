@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { AuthFormShell } from "../auth-form-shell";
+import { AuthFormShell } from "./auth-form-shell";
 
 const GOOGLE_BUTTON_NAME = /Continue with Google/i;
 

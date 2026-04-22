@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { SidebarNav } from "../sidebar-nav";
+import { SidebarNav } from "./sidebar-nav";
 
 vi.mock("@/shared/components/user-menu", () => ({
 	UserMenu: () => <div>User Menu</div>,

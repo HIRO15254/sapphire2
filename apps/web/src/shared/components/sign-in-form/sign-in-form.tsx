@@ -1,19 +1,19 @@
-import { useSignUp } from "@/shared/hooks/use-sign-up";
-import { AuthFormShell, authSubmitLabels } from "./auth-form-shell";
-import { DiscordIcon } from "./icons/discord";
-import { GoogleIcon } from "./icons/google";
-import Loader from "./loader";
-import { Button } from "./ui/button";
-import { Field } from "./ui/field";
-import { Input } from "./ui/input";
+import { AuthFormShell, authSubmitLabels } from "../auth-form-shell";
+import { DiscordIcon } from "../icons/discord";
+import { GoogleIcon } from "../icons/google";
+import Loader from "../loader";
+import { Button } from "../ui/button";
+import { Field } from "../ui/field";
+import { Input } from "../ui/input";
+import { useSignIn } from "./use-sign-in";
 
-export default function SignUpForm({
-	onSwitchToSignIn,
+export default function SignInForm({
+	onSwitchToSignUp,
 }: {
-	onSwitchToSignIn: () => void;
+	onSwitchToSignUp: () => void;
 }) {
 	const { form, isPending, onSignInWithDiscord, onSignInWithGoogle } =
-		useSignUp();
+		useSignIn();
 
 	if (isPending) {
 		return <Loader />;
@@ -21,12 +21,12 @@ export default function SignUpForm({
 
 	const providerActions = [
 		{
-			label: "Sign up with Google",
+			label: "Sign in with Google",
 			icon: <GoogleIcon className="mr-2 h-4 w-4" />,
 			onClick: onSignInWithGoogle,
 		},
 		{
-			label: "Sign up with Discord",
+			label: "Sign in with Discord",
 			icon: <DiscordIcon className="mr-2 h-4 w-4" />,
 			onClick: onSignInWithDiscord,
 		},
@@ -34,12 +34,12 @@ export default function SignUpForm({
 
 	return (
 		<AuthFormShell
-			description="Create your account to start tracking sessions, players, and stores."
-			eyebrow="New Account"
-			onSwitchMode={onSwitchToSignIn}
+			description="Use your email and password or continue with a linked provider."
+			eyebrow="Welcome Back"
+			onSwitchMode={onSwitchToSignUp}
 			providerActions={providerActions}
-			switchLabel="Already have an account? Sign In"
-			title="Create your sapphire2 account"
+			switchLabel="Need an account? Sign Up"
+			title="Sign in to sapphire2"
 		>
 			<form
 				className="space-y-4"
@@ -49,24 +49,6 @@ export default function SignUpForm({
 					form.handleSubmit();
 				}}
 			>
-				<form.Field name="name">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Name"
-						>
-							<Input
-								id={field.name}
-								name={field.name}
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-
 				<form.Field name="email">
 					{(field) => (
 						<Field
@@ -113,8 +95,8 @@ export default function SignUpForm({
 							type="submit"
 						>
 							{state.isSubmitting
-								? authSubmitLabels.signUp.submitting
-								: authSubmitLabels.signUp.idle}
+								? authSubmitLabels.signIn.submitting
+								: authSubmitLabels.signIn.idle}
 						</Button>
 					)}
 				</form.Subscribe>

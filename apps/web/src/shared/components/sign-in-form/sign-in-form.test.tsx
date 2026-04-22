@@ -1,15 +1,15 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import SignUpForm from "../sign-up-form";
+import SignInForm from "./sign-in-form";
 
-const SIGN_UP_BUTTON_NAME = "Sign Up";
+const SIGN_IN_BUTTON_NAME = "Sign In";
 
 const mocks = vi.hoisted(() => ({
 	navigate: vi.fn(),
-	onSwitchToSignIn: vi.fn(),
+	onSwitchToSignUp: vi.fn(),
+	signInEmail: vi.fn(),
 	signInSocial: vi.fn(),
-	signUpEmail: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -26,10 +26,8 @@ vi.mock("sonner", () => ({
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
 		signIn: {
+			email: mocks.signInEmail,
 			social: mocks.signInSocial,
-		},
-		signUp: {
-			email: mocks.signUpEmail,
 		},
 		useSession: () => ({
 			isPending: false,
@@ -37,46 +35,44 @@ vi.mock("@/lib/auth-client", () => ({
 	},
 }));
 
-describe("SignUpForm", () => {
+describe("SignInForm", () => {
 	it("renders auth fields and provider buttons", () => {
-		render(<SignUpForm onSwitchToSignIn={mocks.onSwitchToSignIn} />);
+		render(<SignInForm onSwitchToSignUp={mocks.onSwitchToSignUp} />);
 
-		expect(screen.getByLabelText("Name")).toBeInTheDocument();
 		expect(screen.getByLabelText("Email")).toBeInTheDocument();
 		expect(screen.getByLabelText("Password")).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: "Sign up with Google" })
+			screen.getByRole("button", { name: "Sign in with Google" })
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: "Sign up with Discord" })
+			screen.getByRole("button", { name: "Sign in with Discord" })
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: "Already have an account? Sign In" })
+			screen.getByRole("button", { name: "Need an account? Sign Up" })
 		).toBeInTheDocument();
 	});
 
 	it("submits valid credentials and calls the switch callback", async () => {
 		const user = userEvent.setup();
-		mocks.signUpEmail.mockResolvedValue(undefined);
+		mocks.signInEmail.mockResolvedValue(undefined);
 
-		render(<SignUpForm onSwitchToSignIn={mocks.onSwitchToSignIn} />);
+		render(<SignInForm onSwitchToSignUp={mocks.onSwitchToSignUp} />);
 
 		const submitButton = screen.getByRole("button", {
-			name: SIGN_UP_BUTTON_NAME,
+			name: SIGN_IN_BUTTON_NAME,
 		});
 
-		await user.type(screen.getByLabelText("Name"), "Hero");
 		await user.type(screen.getByLabelText("Email"), "hero@example.com");
 		await user.type(screen.getByLabelText("Password"), "password123");
 		await user.click(submitButton);
 
 		await waitFor(() => {
-			expect(mocks.signUpEmail).toHaveBeenCalled();
+			expect(mocks.signInEmail).toHaveBeenCalled();
 		});
 
 		await user.click(
-			screen.getByRole("button", { name: "Already have an account? Sign In" })
+			screen.getByRole("button", { name: "Need an account? Sign Up" })
 		);
-		expect(mocks.onSwitchToSignIn).toHaveBeenCalledTimes(1);
+		expect(mocks.onSwitchToSignUp).toHaveBeenCalledTimes(1);
 	});
 });

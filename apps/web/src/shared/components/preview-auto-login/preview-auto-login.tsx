@@ -1,4 +1,4 @@
-import { usePreviewAutoLogin } from "@/shared/hooks/use-preview-auto-login";
+import { usePreviewAutoLogin } from "./use-preview-auto-login";
 
 export function PreviewAutoLogin() {
 	usePreviewAutoLogin();

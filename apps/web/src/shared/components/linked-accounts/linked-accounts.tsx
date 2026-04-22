@@ -3,16 +3,16 @@ import {
 	ManagementList,
 	ManagementListItem,
 } from "@/shared/components/management/management-list";
-import { useLinkedAccounts } from "@/shared/hooks/use-linked-accounts";
 import { useSetPasswordForm } from "@/shared/hooks/use-set-password-form";
-import { DiscordIcon } from "./icons/discord";
-import { GoogleIcon } from "./icons/google";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { DialogActionRow } from "./ui/dialog-action-row";
-import { Field } from "./ui/field";
-import { Input } from "./ui/input";
-import { ResponsiveDialog } from "./ui/responsive-dialog";
+import { DiscordIcon } from "../icons/discord";
+import { GoogleIcon } from "../icons/google";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { DialogActionRow } from "../ui/dialog-action-row";
+import { Field } from "../ui/field";
+import { Input } from "../ui/input";
+import { ResponsiveDialog } from "../ui/responsive-dialog";
+import { useLinkedAccounts } from "./use-linked-accounts";
 
 const PROVIDERS = [
 	{ id: "google", label: "Google", icon: <GoogleIcon className="h-4 w-4" /> },

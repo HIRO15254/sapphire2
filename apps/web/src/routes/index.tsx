@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageSection } from "@/shared/components/page-section";
 import { PublicPageShell } from "@/shared/components/public-page-shell";
 import { Button } from "@/shared/components/ui/button";
-import { useHomePage } from "@/shared/hooks/use-home-page";
+import { useHomePage } from "./-use-home-page";
 
 export const Route = createFileRoute("/")({
 	component: HomeComponent,
