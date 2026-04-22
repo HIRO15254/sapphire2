@@ -14,7 +14,7 @@ interface UseTagPickerBaseOptions<TTag extends TagItemBase> {
 }
 
 interface UseTagPickerBaseResult<TTag extends TagItemBase> {
-	anchorRef: React.RefObject<HTMLDivElement>;
+	anchorRef: React.RefObject<HTMLDivElement | null>;
 	canCreate: boolean;
 	closeAndReset: () => void;
 	contentWidth: number | undefined;
@@ -22,7 +22,7 @@ interface UseTagPickerBaseResult<TTag extends TagItemBase> {
 	focusInput: () => void;
 	handleInputSubmit: () => Promise<void>;
 	handleTagSelect: (tag: TTag) => void;
-	inputRef: React.RefObject<HTMLInputElement>;
+	inputRef: React.RefObject<HTMLInputElement | null>;
 	inputValue: string;
 	isOpen: boolean;
 	normalizedInput: string;

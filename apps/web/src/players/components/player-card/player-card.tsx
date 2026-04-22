@@ -1,5 +1,6 @@
 import { IconNote } from "@tabler/icons-react";
 import { ColorBadge } from "@/players/components/color-badge";
+import type { PlayerItem } from "@/players/hooks/use-players";
 import { EntityListItem } from "@/shared/components/management/entity-list-item";
 import { useSafeHtml } from "./use-player-card";
 
@@ -10,16 +11,8 @@ function SafeHtml({ className, html }: { className?: string; html: string }) {
 
 interface PlayerCardProps {
 	onDelete: (id: string) => void;
-	onEdit: (player: PlayerCardProps["player"]) => void;
-	player: {
-		createdAt: string;
-		id: string;
-		memo: string | null;
-		name: string;
-		tags: Array<{ id: string; name: string; color: string }>;
-		updatedAt: string;
-		userId: string;
-	};
+	onEdit: (player: PlayerItem) => void;
+	player: PlayerItem;
 }
 
 export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {

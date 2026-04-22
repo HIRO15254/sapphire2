@@ -1,6 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { z } from "zod";
+import z from "zod";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 import type { RingGameFormValues } from "@/stores/hooks/use-ring-games";
 import { trpc } from "@/utils/trpc";

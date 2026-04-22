@@ -1,4 +1,4 @@
-import { z } from "zod";
+import z from "zod";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 
 export interface CashGameFormValues {

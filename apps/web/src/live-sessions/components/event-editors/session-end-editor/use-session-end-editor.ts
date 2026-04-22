@@ -1,5 +1,5 @@
 import { useForm } from "@tanstack/react-form";
-import { z } from "zod";
+import z from "zod";
 import type { SessionEvent } from "@/live-sessions/hooks/use-session-events";
 import {
 	toOccurredAtTimestamp,
