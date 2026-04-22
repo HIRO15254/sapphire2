@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { TagInput } from "../tag-input";
+import { TagInput } from "./tag-input";
 
 const SERIES_TAG = { id: "series", name: "Series" };
 const DAILY_TAG = { id: "daily", name: "Daily" };

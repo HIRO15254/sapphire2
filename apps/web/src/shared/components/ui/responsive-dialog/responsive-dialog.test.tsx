@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ResponsiveDialog } from "../responsive-dialog";
+import { ResponsiveDialog } from "./responsive-dialog";
 
 const mockUseMediaQuery = vi.hoisted(() => vi.fn());
 

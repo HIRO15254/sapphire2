@@ -12,8 +12,8 @@ import {
 } from "@tabler/icons-react";
 import { EditorContent } from "@tiptap/react";
 import { Button } from "@/shared/components/ui/button";
-import { useRichTextEditor } from "@/shared/components/ui/hooks/use-rich-text-editor";
 import { Input } from "@/shared/components/ui/input";
+import { useRichTextEditor } from "./use-rich-text-editor";
 
 interface RichTextEditorProps {
 	initialContent?: string | null;

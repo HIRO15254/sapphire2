@@ -5,13 +5,13 @@ import {
 	CommandItem,
 	CommandList,
 } from "@/shared/components/ui/command";
-import { useTagPickerBase } from "@/shared/components/ui/hooks/use-tag-picker-base";
 import { Input } from "@/shared/components/ui/input";
 import {
 	Popover,
 	PopoverAnchor,
 	PopoverContent,
 } from "@/shared/components/ui/popover";
+import { useTagPickerBase } from "./use-tag-picker-base";
 
 interface TagItemBase {
 	id: string;
