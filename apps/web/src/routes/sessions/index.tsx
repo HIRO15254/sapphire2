@@ -1,10 +1,10 @@
 import { IconCards, IconPlus, IconTags } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
-import { SessionCard } from "@/sessions/components/session-card";
-import { SessionFilters } from "@/sessions/components/session-filters";
-import { SessionForm } from "@/sessions/components/session-form";
-import { SessionTagManager } from "@/sessions/components/session-tag-manager";
-import { buildEditDefaults } from "@/sessions/hooks/use-sessions";
+import { SessionCard } from "@/features/sessions/components/session-card";
+import { SessionFilters } from "@/features/sessions/components/session-filters";
+import { SessionForm } from "@/features/sessions/components/session-form";
+import { SessionTagManager } from "@/features/sessions/components/session-tag-manager";
+import { buildEditDefaults } from "@/features/sessions/hooks/use-sessions";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";

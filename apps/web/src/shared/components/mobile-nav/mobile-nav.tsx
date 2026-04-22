@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
+import { CreateSessionDialog } from "@/features/live-sessions/components/create-session-dialog";
 import { cn } from "@/lib/utils";
-import { CreateSessionDialog } from "@/live-sessions/components/create-session-dialog";
 import {
 	isActiveItem,
 	MobileNavItem,

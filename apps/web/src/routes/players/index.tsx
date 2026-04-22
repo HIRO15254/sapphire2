@@ -1,9 +1,9 @@
 import { IconPlus, IconTags, IconUsers } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
-import { PlayerCard } from "@/players/components/player-card";
-import { PlayerFilters } from "@/players/components/player-filters";
-import { PlayerForm } from "@/players/components/player-form";
-import { PlayerTagManager } from "@/players/components/player-tag-manager";
+import { PlayerCard } from "@/features/players/components/player-card";
+import { PlayerFilters } from "@/features/players/components/player-filters";
+import { PlayerForm } from "@/features/players/components/player-form";
+import { PlayerTagManager } from "@/features/players/components/player-tag-manager";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";

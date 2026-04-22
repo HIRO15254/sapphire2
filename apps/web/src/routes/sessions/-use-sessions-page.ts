@@ -1,11 +1,14 @@
 import { useState } from "react";
-import type { SessionFilterValues } from "@/sessions/components/session-filters";
+import type { SessionFilterValues } from "@/features/sessions/components/session-filters";
 import type {
 	SessionFormValues,
 	SessionItem,
-} from "@/sessions/hooks/use-sessions";
-import { useSessions } from "@/sessions/hooks/use-sessions";
-import { useEntityLists, useStoreGames } from "@/stores/hooks/use-store-games";
+} from "@/features/sessions/hooks/use-sessions";
+import { useSessions } from "@/features/sessions/hooks/use-sessions";
+import {
+	useEntityLists,
+	useStoreGames,
+} from "@/features/stores/hooks/use-store-games";
 
 export function useSessionsPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import type { PlayerFormValues } from "@/players/components/player-form";
-import type { PlayerItem } from "@/players/hooks/use-players";
-import { usePlayers } from "@/players/hooks/use-players";
+import type { PlayerFormValues } from "@/features/players/components/player-form";
+import type { PlayerItem } from "@/features/players/hooks/use-players";
+import { usePlayers } from "@/features/players/hooks/use-players";
 
 export function usePlayersPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
