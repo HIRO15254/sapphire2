@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { ColorBadge } from "@/players/components/color-badge";
 import { TagColorPicker } from "@/players/components/tag-color-picker";
 import type { TagColor } from "@/players/constants/player-tag-colors";
+import { useTagForm } from "@/players/hooks/use-player-tag-manager";
 import {
 	type TagFormValues,
 	type TagItem,
@@ -20,9 +20,7 @@ function TagForm({
 	isLoading?: boolean;
 	onSubmit: (values: TagFormValues) => void;
 }) {
-	const [selectedColor, setSelectedColor] = useState<TagColor>(
-		defaultValues?.color ?? "gray"
-	);
+	const { selectedColor, onColorChange } = useTagForm({ defaultValues });
 
 	return (
 		<TagNameForm
@@ -31,7 +29,7 @@ function TagForm({
 			onSubmit={(name) => onSubmit({ name, color: selectedColor })}
 		>
 			<Field label="Color">
-				<TagColorPicker onChange={setSelectedColor} value={selectedColor} />
+				<TagColorPicker onChange={onColorChange} value={selectedColor} />
 			</Field>
 		</TagNameForm>
 	);

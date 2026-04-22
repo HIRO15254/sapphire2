@@ -10,11 +10,9 @@ import {
 	IconListNumbers,
 	IconX,
 } from "@tabler/icons-react";
-import Link from "@tiptap/extension-link";
-import { EditorContent, useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import { useCallback, useState } from "react";
+import { EditorContent } from "@tiptap/react";
 import { Button } from "@/shared/components/ui/button";
+import { useRichTextEditor } from "@/shared/components/ui/hooks/use-rich-text-editor";
 import { Input } from "@/shared/components/ui/input";
 
 interface RichTextEditorProps {
@@ -26,65 +24,16 @@ export function RichTextEditor({
 	initialContent,
 	onChange,
 }: RichTextEditorProps) {
-	const [showLinkInput, setShowLinkInput] = useState(false);
-	const [linkUrl, setLinkUrl] = useState("");
-
-	const editor = useEditor({
-		extensions: [
-			StarterKit.configure({
-				heading: { levels: [2, 3] },
-			}),
-			Link.configure({
-				openOnClick: false,
-				HTMLAttributes: { rel: "noopener noreferrer", target: "_blank" },
-			}),
-		],
-		content: initialContent ?? "",
-		shouldRerenderOnTransaction: true,
-		onUpdate: ({ editor: ed }) => {
-			const html = ed.getHTML();
-			const emptyContent = "<p></p>";
-			onChange(html === emptyContent ? "" : html);
-		},
-	});
-
-	const openLinkInput = useCallback(() => {
-		if (!editor) {
-			return;
-		}
-		const existingHref = editor.getAttributes("link").href as
-			| string
-			| undefined;
-		setLinkUrl(existingHref ?? "https://");
-		setShowLinkInput(true);
-	}, [editor]);
-
-	const applyLink = useCallback(() => {
-		if (!editor) {
-			return;
-		}
-		if (linkUrl.trim() === "") {
-			editor.chain().focus().extendMarkRange("link").unsetLink().run();
-		} else {
-			editor
-				.chain()
-				.focus()
-				.extendMarkRange("link")
-				.setLink({ href: linkUrl.trim() })
-				.run();
-		}
-		setShowLinkInput(false);
-		setLinkUrl("");
-	}, [editor, linkUrl]);
-
-	const removeLink = useCallback(() => {
-		if (!editor) {
-			return;
-		}
-		editor.chain().focus().extendMarkRange("link").unsetLink().run();
-		setShowLinkInput(false);
-		setLinkUrl("");
-	}, [editor]);
+	const {
+		applyLink,
+		cancelLinkInput,
+		editor,
+		linkUrl,
+		onLinkUrlChange,
+		openLinkInput,
+		removeLink,
+		showLinkInput,
+	} = useRichTextEditor({ initialContent, onChange });
 
 	if (!editor) {
 		return null;
@@ -153,15 +102,14 @@ export function RichTextEditor({
 					<Input
 						autoFocus
 						className="h-8 flex-1"
-						onChange={(e) => setLinkUrl(e.target.value)}
+						onChange={(e) => onLinkUrlChange(e.target.value)}
 						onKeyDown={(e) => {
 							if (e.key === "Enter") {
 								e.preventDefault();
 								applyLink();
 							}
 							if (e.key === "Escape") {
-								setShowLinkInput(false);
-								setLinkUrl("");
+								cancelLinkInput();
 							}
 						}}
 						placeholder="https://example.com"
@@ -190,10 +138,7 @@ export function RichTextEditor({
 					)}
 					<Button
 						aria-label="Cancel"
-						onClick={() => {
-							setShowLinkInput(false);
-							setLinkUrl("");
-						}}
+						onClick={cancelLinkInput}
 						size="sm"
 						type="button"
 						variant="ghost"

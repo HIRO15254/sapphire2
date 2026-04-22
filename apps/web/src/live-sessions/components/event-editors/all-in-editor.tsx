@@ -1,28 +1,13 @@
-import { useForm } from "@tanstack/react-form";
-import { z } from "zod";
 import { AllInFields } from "@/live-sessions/components/event-fields/all-in-fields";
-import {
-	toOccurredAtTimestamp,
-	toTimeInputValue,
-	validateOccurredAtTime,
-} from "@/live-sessions/components/stack-editor-time";
+import { useAllInEditor } from "@/live-sessions/hooks/event-editors/use-all-in-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { requiredNumericString } from "@/shared/lib/form-fields";
 import { type EditorBaseProps, TimeField } from "./shared";
 
 type Props = Pick<
 	EditorBaseProps,
 	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
 >;
-
-const allInSchema = z.object({
-	time: z.string(),
-	potSize: requiredNumericString({ min: 0 }),
-	trials: requiredNumericString({ integer: true, min: 1 }),
-	equity: requiredNumericString({ min: 0, max: 100 }),
-	wins: requiredNumericString({ min: 0 }),
-});
 
 export function AllInEditor({
 	event,
@@ -31,32 +16,12 @@ export function AllInEditor({
 	minTime,
 	onSubmit,
 }: Props) {
-	const payload = (event.payload ?? {}) as Record<string, unknown>;
-
-	const form = useForm({
-		defaultValues: {
-			time: toTimeInputValue(event.occurredAt),
-			potSize:
-				typeof payload.potSize === "number" ? String(payload.potSize) : "0",
-			trials: typeof payload.trials === "number" ? String(payload.trials) : "1",
-			equity: typeof payload.equity === "number" ? String(payload.equity) : "0",
-			wins: typeof payload.wins === "number" ? String(payload.wins) : "0",
-		},
-		onSubmit: ({ value }) => {
-			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
-			onSubmit(
-				{
-					potSize: Number(value.potSize),
-					trials: Number(value.trials),
-					equity: Number(value.equity),
-					wins: Number(value.wins),
-				},
-				occurredAt
-			);
-		},
-		validators: {
-			onSubmit: allInSchema,
-		},
+	const { form, timeValidator } = useAllInEditor({
+		event,
+		isLoading,
+		maxTime,
+		minTime,
+		onSubmit,
 	});
 
 	return (
@@ -71,9 +36,7 @@ export function AllInEditor({
 			<form.Field
 				name="time"
 				validators={{
-					onChange: ({ value }) =>
-						validateOccurredAtTime(value, event.occurredAt, minTime, maxTime) ??
-						undefined,
+					onChange: ({ value }) => timeValidator(value),
 				}}
 			>
 				{(field) => (

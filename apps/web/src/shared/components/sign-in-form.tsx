@@ -12,10 +12,10 @@ export default function SignInForm({
 }: {
 	onSwitchToSignUp: () => void;
 }) {
-	const { form, isSessionPending, signInWithGoogle, signInWithDiscord } =
+	const { form, isPending, onSignInWithDiscord, onSignInWithGoogle } =
 		useSignIn();
 
-	if (isSessionPending) {
+	if (isPending) {
 		return <Loader />;
 	}
 
@@ -23,12 +23,12 @@ export default function SignInForm({
 		{
 			label: "Sign in with Google",
 			icon: <GoogleIcon className="mr-2 h-4 w-4" />,
-			onClick: signInWithGoogle,
+			onClick: onSignInWithGoogle,
 		},
 		{
 			label: "Sign in with Discord",
 			icon: <DiscordIcon className="mr-2 h-4 w-4" />,
-			onClick: signInWithDiscord,
+			onClick: onSignInWithDiscord,
 		},
 	];
 

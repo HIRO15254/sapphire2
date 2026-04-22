@@ -1,6 +1,4 @@
-import { useForm } from "@tanstack/react-form";
-import { useEffect } from "react";
-import { z } from "zod";
+import { useTournamentTimerDialog } from "@/live-sessions/hooks/use-tournament-timer-dialog";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
@@ -16,16 +14,6 @@ interface TournamentTimerDialogProps {
 	timerStartedAt: Date | string | number | null;
 }
 
-function toDatetimeLocalValue(value: Date | string | number | null): string {
-	const date = value ? new Date(value) : new Date();
-	const pad = (n: number) => String(n).padStart(2, "0");
-	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-const schema = z.object({
-	timerStartedAt: z.string().min(1, "Required"),
-});
-
 export function TournamentTimerDialog({
 	isLoading = false,
 	onClear,
@@ -34,29 +22,7 @@ export function TournamentTimerDialog({
 	open,
 	timerStartedAt,
 }: TournamentTimerDialogProps) {
-	const form = useForm({
-		defaultValues: {
-			timerStartedAt: toDatetimeLocalValue(timerStartedAt),
-		},
-		onSubmit: ({ value }) => {
-			const parsed = new Date(value.timerStartedAt);
-			if (!Number.isNaN(parsed.getTime())) {
-				onSubmit(parsed);
-			}
-		},
-		validators: {
-			onSubmit: schema,
-		},
-	});
-
-	useEffect(() => {
-		if (open) {
-			form.setFieldValue(
-				"timerStartedAt",
-				toDatetimeLocalValue(timerStartedAt)
-			);
-		}
-	}, [open, timerStartedAt, form]);
+	const { form } = useTournamentTimerDialog({ open, timerStartedAt, onSubmit });
 
 	return (
 		<ResponsiveDialog

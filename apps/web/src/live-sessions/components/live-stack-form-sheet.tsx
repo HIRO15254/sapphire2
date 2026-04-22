@@ -1,20 +1,24 @@
-import { useState } from "react";
 import { CashGameCompleteForm } from "@/live-sessions/components/cash-game-complete-form";
 import { CashGameStackForm } from "@/live-sessions/components/cash-game-stack-form";
 import { TournamentCompleteForm } from "@/live-sessions/components/tournament-complete-form";
 import { TournamentStackForm } from "@/live-sessions/components/tournament-stack-form";
 import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
 import { useCashGameStack } from "@/live-sessions/hooks/use-cash-game-stack";
-import { useStackSheet } from "@/live-sessions/hooks/use-stack-sheet";
+import {
+	useCashGameStackSheet,
+	useTournamentStackSheet,
+} from "@/live-sessions/hooks/use-live-stack-form-sheet";
 import { useTournamentStack } from "@/live-sessions/hooks/use-tournament-stack";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 
 function CashGameStackSheet({ sessionId }: { sessionId: string }) {
-	const stackSheet = useStackSheet();
-	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
-	const [defaultFinalStack, setDefaultFinalStack] = useState<
-		number | undefined
-	>(undefined);
+	const {
+		stackSheet,
+		isCompleteOpen,
+		setIsCompleteOpen,
+		defaultFinalStack,
+		setDefaultFinalStack,
+	} = useCashGameStackSheet();
 
 	const {
 		recordStack,
@@ -76,8 +80,8 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 }
 
 function TournamentStackSheet({ sessionId }: { sessionId: string }) {
-	const stackSheet = useStackSheet();
-	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
+	const { stackSheet, isCompleteOpen, setIsCompleteOpen } =
+		useTournamentStackSheet();
 
 	const {
 		chipPurchaseTypes,

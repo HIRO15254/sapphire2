@@ -1,6 +1,6 @@
 import { IconClock } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useNowTick } from "@/live-sessions/hooks/use-tournament-timer-scene";
 import {
 	computeTournamentTimerState,
 	formatBlindLevelLabel,
@@ -16,15 +16,6 @@ interface TournamentTimerProps {
 	blindLevels: readonly TournamentBlindLevel[];
 	onEditTimer: () => void;
 	timerStartedAt: Date | string | number | null;
-}
-
-function useNowTick(intervalMs: number): number {
-	const [now, setNow] = useState(() => Date.now());
-	useEffect(() => {
-		const id = setInterval(() => setNow(Date.now()), intervalMs);
-		return () => clearInterval(id);
-	}, [intervalMs]);
-	return now;
 }
 
 function TimerNotStarted({ onEditTimer }: { onEditTimer: () => void }) {

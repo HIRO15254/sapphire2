@@ -1,21 +1,14 @@
-import { useBlocker } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
 import type { Layout } from "react-grid-layout";
 import { AddWidgetMenu } from "@/dashboard/components/add-widget-menu";
 import { DashboardGrid } from "@/dashboard/components/dashboard-grid";
 import { EditModeToggle } from "@/dashboard/components/edit-mode-toggle";
 import { WidgetEditDialog } from "@/dashboard/components/widget-edit-dialog";
-import { useCurrentDevice } from "@/dashboard/hooks/use-current-device";
-import {
-	type DashboardWidget,
-	useDashboardWidgets,
-	type WidgetType,
+import type { Device } from "@/dashboard/hooks/use-current-device";
+import { useDashboardPage } from "@/dashboard/hooks/use-dashboard-page";
+import type {
+	DashboardWidget,
+	WidgetType,
 } from "@/dashboard/hooks/use-dashboard-widgets";
-import { useEditMode } from "@/dashboard/hooks/use-edit-mode";
-import {
-	type LayoutItem,
-	useLayoutSync,
-} from "@/dashboard/hooks/use-layout-sync";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
@@ -23,38 +16,9 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
-function useContainerWidth(): [React.RefObject<HTMLDivElement | null>, number] {
-	const ref = useRef<HTMLDivElement>(null);
-	const [width, setWidth] = useState(0);
-
-	useEffect(() => {
-		const el = ref.current;
-		if (!el) {
-			return;
-		}
-		const update = () => setWidth(el.getBoundingClientRect().width);
-		update();
-		const observer = new ResizeObserver(update);
-		observer.observe(el);
-		return () => observer.disconnect();
-	}, []);
-
-	return [ref, width];
-}
-
-function layoutsToItems(layout: Layout[]): LayoutItem[] {
-	return layout.map((l) => ({
-		id: l.i,
-		x: l.x,
-		y: l.y,
-		w: l.w,
-		h: l.h,
-	}));
-}
-
 interface DashboardContentProps {
 	containerWidth: number;
-	device: ReturnType<typeof useCurrentDevice>;
+	device: Device;
 	isEditing: boolean;
 	isEmpty: boolean;
 	isLoading: boolean;
@@ -98,89 +62,30 @@ function renderContent(props: DashboardContentProps) {
 }
 
 export function DashboardPage() {
-	const device = useCurrentDevice();
 	const {
-		widgets,
-		isLoading,
+		blocker,
+		containerRef,
+		containerWidth,
+		deletingWidget,
+		device,
+		editingWidget,
 		error,
-		createWidget,
-		updateWidget,
-		deleteWidget,
-	} = useDashboardWidgets(device);
-	const { isEditing, setEditing, toggle } = useEditMode();
-	const { enqueue, flush, discard, hasPendingChanges } = useLayoutSync(device);
-	const [containerRef, containerWidth] = useContainerWidth();
-	const [editingWidget, setEditingWidget] = useState<DashboardWidget | null>(
-		null
-	);
-	const [deletingWidget, setDeletingWidget] = useState<DashboardWidget | null>(
-		null
-	);
-
-	const blocker = useBlocker({
-		shouldBlockFn: () => hasPendingChanges,
-		enableBeforeUnload: () => hasPendingChanges,
-		withResolver: true,
-	});
-
-	const handleLayoutChange = useCallback(
-		(layout: Layout[]) => {
-			enqueue(layoutsToItems(layout));
-		},
-		[enqueue]
-	);
-
-	const handleDoneClick = useCallback(async () => {
-		if (isEditing) {
-			await flush();
-			setEditing(false);
-		} else {
-			toggle();
-		}
-	}, [isEditing, flush, setEditing, toggle]);
-
-	const handleAdd = useCallback(
-		async (type: WidgetType) => {
-			await flush();
-			await createWidget({ type });
-		},
-		[createWidget, flush]
-	);
-
-	const handleEditSave = useCallback(
-		async (nextConfig: Record<string, unknown>) => {
-			if (!editingWidget) {
-				return;
-			}
-			await updateWidget({ id: editingWidget.id, config: nextConfig });
-		},
-		[editingWidget, updateWidget]
-	);
-
-	const handleDelete = useCallback(async () => {
-		if (!deletingWidget) {
-			return;
-		}
-		await flush();
-		await deleteWidget(deletingWidget.id);
-		setDeletingWidget(null);
-	}, [deletingWidget, deleteWidget, flush]);
-
-	const handleBlockerSave = useCallback(async () => {
-		if (blocker.status !== "blocked") {
-			return;
-		}
-		await flush();
-		blocker.proceed();
-	}, [blocker, flush]);
-
-	const handleBlockerDiscard = useCallback(() => {
-		if (blocker.status !== "blocked") {
-			return;
-		}
-		discard();
-		blocker.proceed();
-	}, [blocker, discard]);
+		handleAdd,
+		handleBlockerCancel,
+		handleBlockerDiscard,
+		handleBlockerSave,
+		handleDelete,
+		handleDeletingWidgetDialogChange,
+		handleDoneClick,
+		handleEditingWidgetDialogChange,
+		handleEditSave,
+		handleLayoutChange,
+		isEditing,
+		isLoading,
+		setDeletingWidget,
+		setEditingWidget,
+		widgets,
+	} = useDashboardPage();
 
 	return (
 		<div className="p-4 md:p-6">
@@ -218,11 +123,7 @@ export function DashboardPage() {
 			{editingWidget ? (
 				<WidgetEditDialog
 					config={editingWidget.config}
-					onOpenChange={(open) => {
-						if (!open) {
-							setEditingWidget(null);
-						}
-					}}
+					onOpenChange={handleEditingWidgetDialogChange}
 					onSave={handleEditSave}
 					open
 					type={editingWidget.type}
@@ -231,11 +132,7 @@ export function DashboardPage() {
 			) : null}
 
 			<ResponsiveDialog
-				onOpenChange={(open) => {
-					if (!open) {
-						setDeletingWidget(null);
-					}
-				}}
+				onOpenChange={handleDeletingWidgetDialogChange}
 				open={deletingWidget !== null}
 				title="Delete widget"
 			>
@@ -268,18 +165,13 @@ export function DashboardPage() {
 				title="Unsaved changes"
 			>
 				<DialogActionRow>
-					<Button
-						onClick={() =>
-							blocker.status === "blocked" ? blocker.reset() : undefined
-						}
-						variant="outline"
-					>
+					<Button onClick={handleBlockerCancel} variant="outline">
 						Cancel
 					</Button>
 					<Button onClick={handleBlockerDiscard} variant="destructive">
 						Discard
 					</Button>
-					<Button onClick={handleBlockerSave}>Save & continue</Button>
+					<Button onClick={handleBlockerSave}>Save &amp; continue</Button>
 				</DialogActionRow>
 			</ResponsiveDialog>
 		</div>

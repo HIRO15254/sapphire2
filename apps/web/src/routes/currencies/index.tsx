@@ -1,17 +1,10 @@
 import { IconCoins, IconPlus, IconTags } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { CurrencyCard } from "@/currencies/components/currency-card";
 import { CurrencyForm } from "@/currencies/components/currency-form";
 import { TransactionForm } from "@/currencies/components/transaction-form";
 import { TransactionTypeManager } from "@/currencies/components/transaction-type-manager";
-import type {
-	CurrencyItem,
-	CurrencyValues,
-	Transaction,
-	TransactionValues,
-} from "@/currencies/hooks/use-currencies";
-import { useCurrencies } from "@/currencies/hooks/use-currencies";
+import { useCurrenciesPage } from "@/currencies/hooks/use-currencies-page";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
@@ -22,20 +15,6 @@ export const Route = createFileRoute("/currencies/")({
 });
 
 function CurrenciesPage() {
-	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const [isTypeManagerOpen, setIsTypeManagerOpen] = useState(false);
-	const [editingCurrency, setEditingCurrency] = useState<CurrencyItem | null>(
-		null
-	);
-	const [expandedCurrencyId, setExpandedCurrencyId] = useState<string | null>(
-		null
-	);
-	const [addTransactionCurrencyId, setAddTransactionCurrencyId] = useState<
-		string | null
-	>(null);
-	const [editingTransaction, setEditingTransaction] =
-		useState<Transaction | null>(null);
-
 	const {
 		currencies,
 		allTransactions,
@@ -45,79 +24,26 @@ function CurrenciesPage() {
 		isUpdatePending,
 		isAddTransactionPending,
 		isEditTransactionPending,
-		resetTransactionState,
-		create,
-		update,
-		delete: deleteCurrency,
-		addTransaction,
-		editTransaction,
-		deleteTransaction,
+		isCreateOpen,
+		isTypeManagerOpen,
+		editingCurrency,
+		expandedCurrencyId,
+		addTransactionCurrencyId,
+		editingTransaction,
+		setIsCreateOpen,
+		setIsTypeManagerOpen,
+		setEditingCurrency,
+		setAddTransactionCurrencyId,
+		setEditingTransaction,
+		handleCreate,
+		handleUpdate,
+		handleDelete,
+		handleAddTransaction,
+		handleEditTransaction,
+		handleDeleteTransaction,
+		handleExpandedCurrencyChange,
 		handleLoadMore,
-	} = useCurrencies(expandedCurrencyId);
-
-	const handleCreate = (values: CurrencyValues) => {
-		create(values).then(() => {
-			setIsCreateOpen(false);
-		});
-	};
-
-	const handleUpdate = (values: CurrencyValues) => {
-		if (!editingCurrency) {
-			return;
-		}
-		update({ id: editingCurrency.id, ...values }).then(() => {
-			setEditingCurrency(null);
-		});
-	};
-
-	const handleDelete = (id: string) => {
-		deleteCurrency(id).then(() => {
-			if (expandedCurrencyId === id) {
-				setExpandedCurrencyId(null);
-				resetTransactionState();
-			}
-		});
-	};
-
-	const handleAddTransaction = (values: TransactionValues) => {
-		if (!addTransactionCurrencyId) {
-			return;
-		}
-		addTransaction({
-			currencyId: addTransactionCurrencyId,
-			...values,
-		}).then(() => {
-			setAddTransactionCurrencyId(null);
-		});
-	};
-
-	const handleEditTransaction = (values: TransactionValues) => {
-		if (!editingTransaction) {
-			return;
-		}
-		editTransaction({
-			id: editingTransaction.id,
-			transactionTypeId: values.transactionTypeId,
-			amount: values.amount,
-			transactedAt: values.transactedAt,
-			memo: values.memo ?? null,
-		}).then(() => {
-			setEditingTransaction(null);
-		});
-	};
-
-	const handleDeleteTransaction = (id: string) => {
-		deleteTransaction(id);
-	};
-
-	const handleExpandedCurrencyChange = (id: string | null) => {
-		setExpandedCurrencyId((prev) => {
-			if (prev !== id) {
-				resetTransactionState();
-			}
-			return id;
-		});
-	};
+	} = useCurrenciesPage();
 
 	return (
 		<div className="p-4 md:p-6">

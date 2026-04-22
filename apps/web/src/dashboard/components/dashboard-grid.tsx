@@ -1,6 +1,5 @@
 import "react-grid-layout/css/styles.css";
 import "./dashboard-grid.css";
-import { useMemo } from "react";
 import GridLayout, { type Layout } from "react-grid-layout";
 import {
 	DashboardWidget,
@@ -8,13 +7,11 @@ import {
 } from "@/dashboard/components/dashboard-widget";
 import { WidgetRenderer } from "@/dashboard/components/widget-renderer";
 import type { Device } from "@/dashboard/hooks/use-current-device";
+import {
+	GRID_COLS,
+	useDashboardGrid,
+} from "@/dashboard/hooks/use-dashboard-grid";
 import type { DashboardWidget as DashboardWidgetRow } from "@/dashboard/hooks/use-dashboard-widgets";
-import { getWidgetEntry } from "@/dashboard/widgets/registry";
-
-const GRID_COLS: Record<Device, number> = {
-	mobile: 4,
-	desktop: 12,
-};
 
 const ROW_HEIGHT = 80;
 
@@ -28,21 +25,6 @@ export interface DashboardGridProps {
 	widgets: DashboardWidgetRow[];
 }
 
-function toLayoutItem(widget: DashboardWidgetRow, device: Device): Layout {
-	const entry = getWidgetEntry(widget.type);
-	const minSize = entry?.minSize ?? { w: 2, h: 1 };
-	return {
-		i: widget.id,
-		x: widget.x,
-		y: widget.y,
-		w: widget.w,
-		h: widget.h,
-		minW: minSize.w,
-		minH: minSize.h,
-		maxW: GRID_COLS[device],
-	};
-}
-
 export function DashboardGrid({
 	device,
 	widgets,
@@ -52,10 +34,7 @@ export function DashboardGrid({
 	onEditWidget,
 	onDeleteWidget,
 }: DashboardGridProps) {
-	const layout = useMemo(
-		() => widgets.map((w) => toLayoutItem(w, device)),
-		[widgets, device]
-	);
+	const { layout } = useDashboardGrid(widgets, device);
 
 	return (
 		<GridLayout

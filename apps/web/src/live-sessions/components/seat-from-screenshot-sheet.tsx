@@ -6,13 +6,9 @@ import {
 	IconPhotoUp,
 	IconSparkles,
 } from "@tabler/icons-react";
-import {
-	type KeyboardEvent as ReactKeyboardEvent,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
+import { useSeatCombobox } from "@/live-sessions/hooks/use-seat-combobox";
 import { useSeatFromScreenshot } from "@/live-sessions/hooks/use-seat-from-screenshot";
 import {
 	type PlayerOption,
@@ -361,9 +357,8 @@ function SeatCombobox({
 	onSelectExisting: (player: PlayerOption) => void;
 	row: ReviewRow;
 }) {
-	const [isOpen, setIsOpen] = useState(false);
-	const [contentWidth, setContentWidth] = useState<number>();
-	const anchorRef = useRef<HTMLDivElement>(null);
+	const { popoverOpen, setPopoverOpen, contentWidth, anchorRef } =
+		useSeatCombobox();
 
 	const displayValue = getSeatDisplayValue(row);
 	const readOnly = row.action === "hero";
@@ -373,40 +368,33 @@ function SeatCombobox({
 		: allPlayers;
 	const trimmedName = row.name.trim();
 
-	useEffect(() => {
-		if (!(isOpen && anchorRef.current)) {
-			return;
-		}
-		setContentWidth(anchorRef.current.offsetWidth);
-	}, [isOpen]);
-
 	const handleSelectExisting = (player: PlayerOption) => {
 		onSelectExisting(player);
-		setIsOpen(false);
+		setPopoverOpen(false);
 	};
 
 	const handlePickHero = () => {
 		onActionChange("hero");
-		setIsOpen(false);
+		setPopoverOpen(false);
 	};
 
 	const handleKeepAsNew = () => {
 		onActionChange("new");
-		setIsOpen(false);
+		setPopoverOpen(false);
 	};
 
 	const handleKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
 		if (e.key === "Escape") {
-			setIsOpen(false);
+			setPopoverOpen(false);
 		}
 	};
 
 	return (
-		<Popover modal={false} onOpenChange={setIsOpen} open={isOpen}>
+		<Popover modal={false} onOpenChange={setPopoverOpen} open={popoverOpen}>
 			<PopoverAnchor asChild>
 				<div className="relative flex-1" ref={anchorRef}>
 					<Input
-						aria-expanded={isOpen}
+						aria-expanded={popoverOpen}
 						autoComplete="off"
 						className={cn(
 							"h-8 pr-7",
@@ -418,11 +406,11 @@ function SeatCombobox({
 								return;
 							}
 							onNameChange(e.target.value);
-							setIsOpen(true);
+							setPopoverOpen(true);
 						}}
 						onFocus={() => {
 							if (!disabled) {
-								setIsOpen(true);
+								setPopoverOpen(true);
 							}
 						}}
 						onKeyDown={handleKeyDown}
@@ -437,7 +425,7 @@ function SeatCombobox({
 					/>
 				</div>
 			</PopoverAnchor>
-			{isOpen ? (
+			{popoverOpen ? (
 				<PopoverContent
 					align="start"
 					className="p-0"

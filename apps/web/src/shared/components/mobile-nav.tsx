@@ -1,17 +1,9 @@
-import { IconBolt, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { CreateSessionDialog } from "@/live-sessions/components/create-session-dialog";
-import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
-import { useStackSheet } from "@/live-sessions/hooks/use-stack-sheet";
-import { createSessionEventMutationOptions } from "@/live-sessions/utils/optimistic-session-event";
 import {
-	getMobileNavigationItems,
 	isActiveItem,
 	MobileNavItem,
-	type NavigationCenterAction,
 	NavigationCenterButton,
 	type NavigationItem,
 	RESOURCE_ITEMS,
@@ -21,7 +13,8 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/shared/components/ui/popover";
-import { trpcClient } from "@/utils/trpc";
+import { useMobileNav } from "@/shared/hooks/use-mobile-nav";
+import { useMobileNavPopover } from "@/shared/hooks/use-mobile-nav-popover";
 
 function MobileNavPopoverItem({
 	active,
@@ -32,11 +25,11 @@ function MobileNavPopoverItem({
 	item: NavigationItem;
 	children: readonly NavigationItem[];
 }) {
-	const [open, setOpen] = useState(false);
+	const { isOpen, onClose, onOpenChange } = useMobileNavPopover();
 
 	return (
 		<li className="flex-1">
-			<Popover onOpenChange={setOpen} open={open}>
+			<Popover onOpenChange={onOpenChange} open={isOpen}>
 				<PopoverTrigger asChild>
 					<button
 						className={cn(
@@ -57,7 +50,7 @@ function MobileNavPopoverItem({
 							<li key={child.to}>
 								<Link
 									className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors hover:bg-accent"
-									onClick={() => setOpen(false)}
+									onClick={onClose}
 									to={child.to}
 								>
 									<child.icon size={18} stroke={1.5} />
@@ -73,74 +66,15 @@ function MobileNavPopoverItem({
 }
 
 export function MobileNav() {
-	const pathname = useRouterState({
-		select: (s) => s.location.pathname,
-	});
-	const navigate = useNavigate();
-	const { activeSession, hasActive } = useActiveSession();
-	const stackSheet = useStackSheet();
-	const queryClient = useQueryClient();
-	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const isPaused = activeSession?.status === "paused";
-	const { leftItems, rightItems } = getMobileNavigationItems(
-		hasActive && !isPaused
-	);
-
-	const optimisticOptions = activeSession
-		? createSessionEventMutationOptions({
-				queryClient,
-				sessionId: activeSession.id,
-				sessionType: activeSession.type,
-				eventType: "session_resume",
-				getPayload: () => ({}),
-				changesStatus: true,
-			})
-		: {};
-
-	const resumeMutation = useMutation({
-		mutationFn: async () => {
-			if (!activeSession) {
-				return;
-			}
-			const sessionIdKey =
-				activeSession.type === "cash_game"
-					? "liveCashGameSessionId"
-					: "liveTournamentSessionId";
-			await trpcClient.sessionEvent.create.mutate({
-				[sessionIdKey]: activeSession.id,
-				eventType: "session_resume",
-				payload: {},
-			});
-		},
-		...optimisticOptions,
-	});
-
-	let centerAction: NavigationCenterAction;
-	if (hasActive && activeSession?.status === "paused") {
-		centerAction = {
-			icon: IconPlayerPlay,
-			label: "Resume",
-			onClick: () => {
-				resumeMutation.mutate();
-				navigate({ to: "/active-session" });
-			},
-			tone: "live" as const,
-		};
-	} else if (hasActive) {
-		centerAction = {
-			icon: IconBolt,
-			label: "Stack",
-			onClick: () => stackSheet.open(),
-			tone: "live" as const,
-		};
-	} else {
-		centerAction = {
-			icon: IconPlus,
-			label: "New",
-			onClick: () => setIsCreateOpen(true),
-			tone: "accent" as const,
-		};
-	}
+	const {
+		centerAction,
+		hasActive,
+		isCreateOpen,
+		leftItems,
+		onCreateOpenChange,
+		pathname,
+		rightItems,
+	} = useMobileNav();
 
 	return (
 		<>
@@ -180,7 +114,7 @@ export function MobileNav() {
 
 			{!hasActive && (
 				<CreateSessionDialog
-					onOpenChange={setIsCreateOpen}
+					onOpenChange={onCreateOpenChange}
 					open={isCreateOpen}
 				/>
 			)}

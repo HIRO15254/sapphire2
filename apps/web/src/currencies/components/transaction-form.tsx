@@ -1,7 +1,9 @@
-import { useForm } from "@tanstack/react-form";
-import { useEffect, useRef, useState } from "react";
-import { z } from "zod";
-import { useTransactionTypes } from "@/currencies/hooks/use-transaction-types";
+import {
+	getButtonLabel,
+	type TransactionFormValues,
+	useTransactionForm,
+} from "@/currencies/hooks/use-transaction-form";
+import { useTypeCombobox } from "@/currencies/hooks/use-type-combobox";
 import { Button } from "@/shared/components/ui/button";
 import {
 	Command,
@@ -18,16 +20,6 @@ import {
 	PopoverContent,
 } from "@/shared/components/ui/popover";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { requiredNumericString } from "@/shared/lib/form-fields";
-
-const NEW_TYPE_VALUE = "__new__";
-
-interface TransactionFormValues {
-	amount: number;
-	memo?: string;
-	transactedAt: string;
-	transactionTypeId: string;
-}
 
 interface TransactionFormProps {
 	defaultValues?: TransactionFormValues;
@@ -52,65 +44,33 @@ function TypeCombobox({
 	typeId,
 	types,
 }: TypeComboboxProps) {
-	const initialDisplay =
-		typeId === NEW_TYPE_VALUE
-			? newTypeName
-			: (types.find((t) => t.id === typeId)?.name ?? "");
-
-	const [inputValue, setInputValue] = useState(initialDisplay);
-	const [isFiltering, setIsFiltering] = useState(false);
-	const [isOpen, setIsOpen] = useState(false);
-	const [contentWidth, setContentWidth] = useState<number>();
-	const anchorRef = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		if (!typeId || typeId === NEW_TYPE_VALUE) {
-			return;
-		}
-		const typeName = types.find((t) => t.id === typeId)?.name;
-		if (typeName) {
-			setInputValue(typeName);
-			setIsFiltering(false);
-		}
-	}, [typeId, types]);
-
-	const normalizedInput = inputValue.trim();
-	const filteredTypes = types.filter(
-		(t) =>
-			!(isFiltering && normalizedInput) ||
-			t.name.toLowerCase().includes(normalizedInput.toLowerCase())
-	);
-	const exactMatch = types.find(
-		(t) => t.name.toLowerCase() === normalizedInput.toLowerCase()
-	);
-	const canCreate = Boolean(normalizedInput && !exactMatch);
-	const shouldShowPopover =
-		isOpen && (types.length > 0 || Boolean(normalizedInput));
-
-	useEffect(() => {
-		if (!(shouldShowPopover && anchorRef.current)) {
-			return;
-		}
-		setContentWidth(anchorRef.current.offsetWidth);
-	}, [shouldShowPopover]);
-
-	const handleSelect = (type: { id: string; name: string }) => {
-		setInputValue(type.name);
-		setIsFiltering(false);
-		onTypeChange(type.id);
-		onNewTypeNameChange("");
-		setIsOpen(false);
-	};
-
-	const handleCreate = () => {
-		setIsFiltering(false);
-		onTypeChange(NEW_TYPE_VALUE);
-		onNewTypeNameChange(normalizedInput);
-		setIsOpen(false);
-	};
+	const {
+		anchorRef,
+		canCreate,
+		contentWidth,
+		filteredTypes,
+		handleCreate,
+		handleInputBlur,
+		handleInputChange,
+		handleInputFocus,
+		handleKeyDown,
+		handleSelect,
+		inputValue,
+		shouldShowPopover,
+	} = useTypeCombobox({
+		newTypeName,
+		onNewTypeNameChange,
+		onTypeChange,
+		typeId,
+		types,
+	});
 
 	return (
-		<Popover modal={false} onOpenChange={setIsOpen} open={shouldShowPopover}>
+		<Popover
+			modal={false}
+			onOpenChange={() => undefined}
+			open={shouldShowPopover}
+		>
 			<PopoverAnchor asChild>
 				<div ref={anchorRef}>
 					<Input
@@ -119,30 +79,17 @@ function TypeCombobox({
 						id={id}
 						onBlur={(e) => {
 							const relatedTarget = e.relatedTarget as HTMLElement | null;
-							if (!relatedTarget?.closest('[data-slot="popover-content"]')) {
-								setIsOpen(false);
-							}
+							handleInputBlur(relatedTarget);
 						}}
 						onChange={(e) => {
-							setInputValue(e.target.value);
-							setIsFiltering(true);
-							setIsOpen(true);
-							onTypeChange("");
-							onNewTypeNameChange("");
+							handleInputChange(e.target.value);
 						}}
-						onFocus={() => setIsOpen(true)}
+						onFocus={handleInputFocus}
 						onKeyDown={(e) => {
 							if (e.key === "Enter") {
 								e.preventDefault();
-								if (exactMatch) {
-									handleSelect(exactMatch);
-								} else if (canCreate) {
-									handleCreate();
-								}
 							}
-							if (e.key === "Escape") {
-								setIsOpen(false);
-							}
+							handleKeyDown(e.key);
 						}}
 						placeholder="Select or create type..."
 						role="combobox"
@@ -177,9 +124,9 @@ function TypeCombobox({
 								<CommandItem
 									onMouseDown={(e) => e.preventDefault()}
 									onSelect={handleCreate}
-									value={`create-${normalizedInput}`}
+									value={`create-${inputValue.trim()}`}
 								>
-									Create &quot;{normalizedInput}&quot;
+									Create &quot;{inputValue.trim()}&quot;
 								</CommandItem>
 							) : null}
 						</CommandList>
@@ -190,77 +137,14 @@ function TypeCombobox({
 	);
 }
 
-function todayISODate() {
-	return new Date().toISOString().slice(0, 10);
-}
-
-function getButtonLabel(isCreatingType: boolean, isLoading: boolean) {
-	if (isCreatingType) {
-		return "Creating type...";
-	}
-	if (isLoading) {
-		return "Saving...";
-	}
-	return "Save";
-}
-
-function buildSchema() {
-	return z
-		.object({
-			amount: requiredNumericString(),
-			transactionTypeId: z.string().min(1, "Type is required"),
-			newTypeName: z.string(),
-			transactedAt: z.string().min(1, "Date is required"),
-			memo: z.string(),
-		})
-		.superRefine((value, ctx) => {
-			if (
-				value.transactionTypeId === NEW_TYPE_VALUE &&
-				value.newTypeName.trim() === ""
-			) {
-				ctx.addIssue({
-					code: "custom",
-					path: ["newTypeName"],
-					message: "New type name is required",
-				});
-			}
-		});
-}
-
 export function TransactionForm({
 	onSubmit,
 	defaultValues,
 	isLoading = false,
 }: TransactionFormProps) {
-	const { types, createType, isCreatingType } = useTransactionTypes();
-
-	const form = useForm({
-		defaultValues: {
-			amount:
-				defaultValues?.amount === undefined ? "" : String(defaultValues.amount),
-			transactionTypeId: defaultValues?.transactionTypeId ?? "",
-			newTypeName: "",
-			transactedAt: defaultValues?.transactedAt
-				? new Date(defaultValues.transactedAt).toISOString().slice(0, 10)
-				: todayISODate(),
-			memo: defaultValues?.memo ?? "",
-		},
-		onSubmit: async ({ value }) => {
-			let transactionTypeId = value.transactionTypeId;
-			if (transactionTypeId === NEW_TYPE_VALUE) {
-				const created = await createType(value.newTypeName.trim());
-				transactionTypeId = created.id;
-			}
-			onSubmit({
-				amount: Number(value.amount),
-				transactionTypeId,
-				transactedAt: value.transactedAt,
-				memo: value.memo ? value.memo : undefined,
-			});
-		},
-		validators: {
-			onSubmit: buildSchema(),
-		},
+	const { form, types, isCreatingType } = useTransactionForm({
+		defaultValues,
+		onSubmit,
 	});
 
 	return (

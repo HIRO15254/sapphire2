@@ -1,8 +1,5 @@
 import { IconRefresh, IconWifi, IconWifiOff } from "@tabler/icons-react";
-import { useIsMutating } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-
-import { useOnlineStatus } from "@/shared/hooks/use-online-status";
+import { useOnlineStatusBar } from "@/shared/hooks/use-online-status-bar";
 
 type DisplayState = "hidden" | "offline" | "syncing" | "back-online";
 
@@ -19,45 +16,7 @@ function getBarClassName(displayState: DisplayState): string {
 }
 
 export function OnlineStatusBar() {
-	const isOnline = useOnlineStatus();
-	const isMutating = useIsMutating();
-	const [displayState, setDisplayState] = useState<DisplayState>("hidden");
-	const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const wasOfflineRef = useRef(false);
-
-	useEffect(() => {
-		if (!isOnline) {
-			wasOfflineRef.current = true;
-			if (fadeTimerRef.current) {
-				clearTimeout(fadeTimerRef.current);
-				fadeTimerRef.current = null;
-			}
-			setDisplayState("offline");
-			return;
-		}
-
-		if (!wasOfflineRef.current) {
-			setDisplayState("hidden");
-			return;
-		}
-
-		if (isMutating > 0) {
-			setDisplayState("syncing");
-			return;
-		}
-
-		setDisplayState("back-online");
-		fadeTimerRef.current = setTimeout(() => {
-			setDisplayState("hidden");
-			wasOfflineRef.current = false;
-		}, 2000);
-
-		return () => {
-			if (fadeTimerRef.current) {
-				clearTimeout(fadeTimerRef.current);
-			}
-		};
-	}, [isOnline, isMutating]);
+	const { displayState } = useOnlineStatusBar();
 
 	if (displayState === "hidden") {
 		return null;

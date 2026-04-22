@@ -1,10 +1,5 @@
-import { useForm } from "@tanstack/react-form";
 import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
-import {
-	toOccurredAtTimestamp,
-	toTimeInputValue,
-	validateOccurredAtTime,
-} from "@/live-sessions/components/stack-editor-time";
+import { useMemoEditor } from "@/live-sessions/hooks/event-editors/use-memo-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { type EditorBaseProps, TimeField } from "./shared";
@@ -21,17 +16,12 @@ export function MemoEditor({
 	minTime,
 	onSubmit,
 }: Props) {
-	const payload = (event.payload ?? {}) as Record<string, unknown>;
-
-	const form = useForm({
-		defaultValues: {
-			time: toTimeInputValue(event.occurredAt),
-			text: typeof payload.text === "string" ? payload.text : "",
-		},
-		onSubmit: ({ value }) => {
-			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
-			onSubmit({ text: value.text }, occurredAt);
-		},
+	const { form, timeValidator, textValidator } = useMemoEditor({
+		event,
+		isLoading,
+		maxTime,
+		minTime,
+		onSubmit,
 	});
 
 	return (
@@ -46,9 +36,7 @@ export function MemoEditor({
 			<form.Field
 				name="time"
 				validators={{
-					onChange: ({ value }) =>
-						validateOccurredAtTime(value, event.occurredAt, minTime, maxTime) ??
-						undefined,
+					onChange: ({ value }) => timeValidator(value),
 				}}
 			>
 				{(field) => (
@@ -62,8 +50,7 @@ export function MemoEditor({
 			<form.Field
 				name="text"
 				validators={{
-					onChange: ({ value }) =>
-						value.trim().length === 0 ? "Text is required" : undefined,
+					onChange: ({ value }) => textValidator(value),
 				}}
 			>
 				{(field) => (

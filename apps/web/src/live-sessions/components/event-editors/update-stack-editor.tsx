@@ -1,25 +1,13 @@
-import { useForm } from "@tanstack/react-form";
-import { z } from "zod";
 import { UpdateStackFields } from "@/live-sessions/components/event-fields/update-stack-fields";
-import {
-	toOccurredAtTimestamp,
-	toTimeInputValue,
-	validateOccurredAtTime,
-} from "@/live-sessions/components/stack-editor-time";
+import { useUpdateStackEditor } from "@/live-sessions/hooks/event-editors/use-update-stack-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { requiredNumericString } from "@/shared/lib/form-fields";
 import { type EditorBaseProps, TimeField } from "./shared";
 
 type Props = Pick<
 	EditorBaseProps,
 	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
 >;
-
-const updateStackSchema = z.object({
-	time: z.string(),
-	stackAmount: requiredNumericString({ integer: true, min: 0 }),
-});
 
 export function UpdateStackEditor({
 	event,
@@ -28,20 +16,12 @@ export function UpdateStackEditor({
 	minTime,
 	onSubmit,
 }: Props) {
-	const payload = (event.payload ?? {}) as Record<string, unknown>;
-
-	const form = useForm({
-		defaultValues: {
-			time: toTimeInputValue(event.occurredAt),
-			stackAmount: String(payload.stackAmount ?? 0),
-		},
-		onSubmit: ({ value }) => {
-			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
-			onSubmit({ stackAmount: Number(value.stackAmount) }, occurredAt);
-		},
-		validators: {
-			onSubmit: updateStackSchema,
-		},
+	const { form, timeValidator } = useUpdateStackEditor({
+		event,
+		isLoading,
+		maxTime,
+		minTime,
+		onSubmit,
 	});
 
 	return (
@@ -56,9 +36,7 @@ export function UpdateStackEditor({
 			<form.Field
 				name="time"
 				validators={{
-					onChange: ({ value }) =>
-						validateOccurredAtTime(value, event.occurredAt, minTime, maxTime) ??
-						undefined,
+					onChange: ({ value }) => timeValidator(value),
 				}}
 			>
 				{(field) => (

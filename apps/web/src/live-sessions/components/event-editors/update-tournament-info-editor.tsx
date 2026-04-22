@@ -1,19 +1,8 @@
-import { useForm } from "@tanstack/react-form";
 import { TournamentInfoFields } from "@/live-sessions/components/event-fields/tournament-info-fields";
-import {
-	toOccurredAtTimestamp,
-	toTimeInputValue,
-	validateOccurredAtTime,
-} from "@/live-sessions/components/stack-editor-time";
+import { useUpdateTournamentInfoEditor } from "@/live-sessions/hooks/event-editors/use-update-tournament-info-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { type EditorBaseProps, TimeField } from "./shared";
-
-interface ChipPurchaseCount {
-	chipsPerUnit: number;
-	count: number;
-	name: string;
-}
 
 interface ChipPurchaseType {
 	chips: number;
@@ -36,36 +25,12 @@ export function UpdateTournamentInfoEditor({
 	onSubmit,
 	chipPurchaseTypes,
 }: Props) {
-	const payload = (event.payload ?? {}) as Record<string, unknown>;
-
-	const form = useForm({
-		defaultValues: {
-			time: toTimeInputValue(event.occurredAt),
-			remainingPlayers:
-				typeof payload.remainingPlayers === "number"
-					? String(payload.remainingPlayers)
-					: "",
-			totalEntries:
-				typeof payload.totalEntries === "number"
-					? String(payload.totalEntries)
-					: "",
-			chipPurchaseCounts: Array.isArray(payload.chipPurchaseCounts)
-				? (payload.chipPurchaseCounts as ChipPurchaseCount[])
-				: ([] as ChipPurchaseCount[]),
-		},
-		onSubmit: ({ value }) => {
-			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
-			onSubmit(
-				{
-					remainingPlayers: value.remainingPlayers
-						? Number(value.remainingPlayers)
-						: null,
-					totalEntries: value.totalEntries ? Number(value.totalEntries) : null,
-					chipPurchaseCounts: value.chipPurchaseCounts,
-				},
-				occurredAt
-			);
-		},
+	const { form, timeValidator } = useUpdateTournamentInfoEditor({
+		event,
+		isLoading,
+		maxTime,
+		minTime,
+		onSubmit,
 	});
 
 	return (
@@ -80,9 +45,7 @@ export function UpdateTournamentInfoEditor({
 			<form.Field
 				name="time"
 				validators={{
-					onChange: ({ value }) =>
-						validateOccurredAtTime(value, event.occurredAt, minTime, maxTime) ??
-						undefined,
+					onChange: ({ value }) => timeValidator(value),
 				}}
 			>
 				{(field) => (

@@ -1,10 +1,8 @@
-import { useForm } from "@tanstack/react-form";
-import { z } from "zod";
+import { useCashGameCompleteForm } from "@/live-sessions/hooks/use-cash-game-complete-form";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import { requiredNumericString } from "@/shared/lib/form-fields";
 
 interface CashGameCompleteFormProps {
 	defaultFinalStack?: number;
@@ -12,27 +10,12 @@ interface CashGameCompleteFormProps {
 	onSubmit: (values: { finalStack: number }) => void;
 }
 
-const cashGameCompleteSchema = z.object({
-	finalStack: requiredNumericString({ integer: true, min: 0 }),
-});
-
 export function CashGameCompleteForm({
 	defaultFinalStack,
 	isLoading,
 	onSubmit,
 }: CashGameCompleteFormProps) {
-	const form = useForm({
-		defaultValues: {
-			finalStack:
-				defaultFinalStack === undefined ? "" : String(defaultFinalStack),
-		},
-		onSubmit: ({ value }) => {
-			onSubmit({ finalStack: Number(value.finalStack) });
-		},
-		validators: {
-			onSubmit: cashGameCompleteSchema,
-		},
-	});
+	const { form } = useCashGameCompleteForm({ defaultFinalStack, onSubmit });
 
 	return (
 		<form

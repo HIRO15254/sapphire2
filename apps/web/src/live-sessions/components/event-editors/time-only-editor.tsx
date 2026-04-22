@@ -1,9 +1,4 @@
-import { useForm } from "@tanstack/react-form";
-import {
-	toOccurredAtTimestamp,
-	toTimeInputValue,
-	validateOccurredAtTime,
-} from "@/live-sessions/components/stack-editor-time";
+import { useTimeOnlyEditor } from "@/live-sessions/hooks/event-editors/use-time-only-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { type EditorBaseProps, TimeField } from "./shared";
@@ -20,14 +15,12 @@ export function TimeOnlyEditor({
 	minTime,
 	onTimeUpdate,
 }: TimeOnlyEditorProps) {
-	const form = useForm({
-		defaultValues: { time: toTimeInputValue(event.occurredAt) },
-		onSubmit: ({ value }) => {
-			const ts = toOccurredAtTimestamp(event.occurredAt, value.time);
-			if (ts !== undefined) {
-				onTimeUpdate(ts);
-			}
-		},
+	const { form, timeValidator } = useTimeOnlyEditor({
+		event,
+		isLoading,
+		maxTime,
+		minTime,
+		onTimeUpdate,
 	});
 
 	return (
@@ -42,9 +35,7 @@ export function TimeOnlyEditor({
 			<form.Field
 				name="time"
 				validators={{
-					onChange: ({ value }) =>
-						validateOccurredAtTime(value, event.occurredAt, minTime, maxTime) ??
-						undefined,
+					onChange: ({ value }) => timeValidator(value),
 				}}
 			>
 				{(field) => (

@@ -1,20 +1,13 @@
-import { useForm } from "@tanstack/react-form";
-import { z } from "zod";
 import {
-	toOccurredAtTimestamp,
-	toTimeInputValue,
-	validateOccurredAtTime,
-} from "@/live-sessions/components/stack-editor-time";
+	useCashGameEndEditor,
+	useTournamentEndEditor,
+} from "@/live-sessions/hooks/event-editors/use-session-end-editor";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import {
-	optionalNumericString,
-	requiredNumericString,
-} from "@/shared/lib/form-fields";
 import { type EditorBaseProps, type SessionType, TimeField } from "./shared";
 
 type Props = Pick<
@@ -24,43 +17,6 @@ type Props = Pick<
 	sessionType: SessionType;
 };
 
-const cashGameEndSchema = z.object({
-	time: z.string(),
-	cashOutAmount: requiredNumericString({ integer: true, min: 0 }),
-});
-
-const tournamentEndSchema = z
-	.object({
-		time: z.string(),
-		beforeDeadline: z.boolean(),
-		placement: z.string(),
-		totalEntries: z.string(),
-		prizeMoney: requiredNumericString({ integer: true, min: 0 }),
-		bountyPrizes: optionalNumericString({ integer: true, min: 0 }),
-	})
-	.superRefine((data, ctx) => {
-		if (!data.beforeDeadline) {
-			const placementResult = requiredNumericString({
-				integer: true,
-				min: 1,
-			}).safeParse(data.placement);
-			if (!placementResult.success) {
-				for (const issue of placementResult.error.issues) {
-					ctx.addIssue({ ...issue, path: ["placement"] });
-				}
-			}
-			const totalEntriesResult = requiredNumericString({
-				integer: true,
-				min: 1,
-			}).safeParse(data.totalEntries);
-			if (!totalEntriesResult.success) {
-				for (const issue of totalEntriesResult.error.issues) {
-					ctx.addIssue({ ...issue, path: ["totalEntries"] });
-				}
-			}
-		}
-	});
-
 function CashGameEndEditor({
 	event,
 	isLoading,
@@ -68,23 +24,12 @@ function CashGameEndEditor({
 	minTime,
 	onSubmit,
 }: Props) {
-	const payload = (event.payload ?? {}) as Record<string, unknown>;
-
-	const form = useForm({
-		defaultValues: {
-			time: toTimeInputValue(event.occurredAt),
-			cashOutAmount:
-				typeof payload.cashOutAmount === "number"
-					? String(payload.cashOutAmount)
-					: "0",
-		},
-		onSubmit: ({ value }) => {
-			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
-			onSubmit({ cashOutAmount: Number(value.cashOutAmount) }, occurredAt);
-		},
-		validators: {
-			onSubmit: cashGameEndSchema,
-		},
+	const { form, timeValidator } = useCashGameEndEditor({
+		event,
+		isLoading,
+		maxTime,
+		minTime,
+		onSubmit,
 	});
 
 	return (
@@ -99,9 +44,7 @@ function CashGameEndEditor({
 			<form.Field
 				name="time"
 				validators={{
-					onChange: ({ value }) =>
-						validateOccurredAtTime(value, event.occurredAt, minTime, maxTime) ??
-						undefined,
+					onChange: ({ value }) => timeValidator(value),
 				}}
 			>
 				{(field) => (
@@ -157,54 +100,12 @@ function TournamentEndEditor({
 	minTime,
 	onSubmit,
 }: Props) {
-	const payload = (event.payload ?? {}) as Record<string, unknown>;
-
-	const form = useForm({
-		defaultValues: {
-			time: toTimeInputValue(event.occurredAt),
-			beforeDeadline: payload.beforeDeadline === true,
-			placement:
-				typeof payload.placement === "number" ? String(payload.placement) : "",
-			totalEntries:
-				typeof payload.totalEntries === "number"
-					? String(payload.totalEntries)
-					: "",
-			prizeMoney:
-				typeof payload.prizeMoney === "number"
-					? String(payload.prizeMoney)
-					: "0",
-			bountyPrizes:
-				typeof payload.bountyPrizes === "number" && payload.bountyPrizes > 0
-					? String(payload.bountyPrizes)
-					: "",
-		},
-		onSubmit: ({ value }) => {
-			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
-			if (value.beforeDeadline) {
-				onSubmit(
-					{
-						beforeDeadline: true,
-						prizeMoney: Number(value.prizeMoney),
-						bountyPrizes: value.bountyPrizes ? Number(value.bountyPrizes) : 0,
-					},
-					occurredAt
-				);
-			} else {
-				onSubmit(
-					{
-						beforeDeadline: false,
-						placement: Number(value.placement),
-						totalEntries: Number(value.totalEntries),
-						prizeMoney: Number(value.prizeMoney),
-						bountyPrizes: value.bountyPrizes ? Number(value.bountyPrizes) : 0,
-					},
-					occurredAt
-				);
-			}
-		},
-		validators: {
-			onSubmit: tournamentEndSchema,
-		},
+	const { form, timeValidator } = useTournamentEndEditor({
+		event,
+		isLoading,
+		maxTime,
+		minTime,
+		onSubmit,
 	});
 
 	return (
@@ -219,9 +120,7 @@ function TournamentEndEditor({
 			<form.Field
 				name="time"
 				validators={{
-					onChange: ({ value }) =>
-						validateOccurredAtTime(value, event.occurredAt, minTime, maxTime) ??
-						undefined,
+					onChange: ({ value }) => timeValidator(value),
 				}}
 			>
 				{(field) => (

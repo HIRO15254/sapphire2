@@ -6,7 +6,6 @@ import {
 	IconTrash,
 	IconX,
 } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
 import {
 	ExpandableItem,
 	ExpandableItemList,
@@ -17,11 +16,9 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { RingGameForm } from "@/stores/components/ring-game-form";
-import type {
-	RingGame,
-	RingGameFormValues,
-} from "@/stores/hooks/use-ring-games";
-import { useRingGames } from "@/stores/hooks/use-ring-games";
+import { useRingGameRow } from "@/stores/hooks/use-ring-game-row";
+import { useRingGameTab } from "@/stores/hooks/use-ring-game-tab";
+import type { RingGame } from "@/stores/hooks/use-ring-games";
 import { createGroupFormatter } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
 
@@ -242,18 +239,14 @@ function RingGameRow({
 	onEdit,
 	onRestore,
 }: RingGameRowProps) {
-	const [confirmingDelete, setConfirmingDelete] = useState(false);
+	const { confirmingDelete, setConfirmingDelete } = useRingGameRow({
+		expanded,
+	});
 	const currency = currencies.find((c) => c.id === game.currencyId);
 	const blindLine = formatBlindsLine(game, currency?.unit);
 	const variantLabel =
 		VARIANT_LABELS[game.variant] ?? game.variant.toUpperCase();
 	const fmt = createGroupFormatter([game.minBuyIn, game.maxBuyIn]);
-
-	useEffect(() => {
-		if (!expanded) {
-			setConfirmingDelete(false);
-		}
-	}, [expanded]);
 
 	return (
 		<ExpandableItem
@@ -404,11 +397,13 @@ export function RingGameTab({
 	expandedGameId,
 	onToggleGame,
 }: RingGameTabProps) {
-	const [showArchived, setShowArchived] = useState(false);
-	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const [editingGame, setEditingGame] = useState<RingGame | null>(null);
-
 	const {
+		showArchived,
+		setShowArchived,
+		isCreateOpen,
+		setIsCreateOpen,
+		editingGame,
+		setEditingGame,
 		activeGames,
 		archivedGames,
 		currencies,
@@ -416,27 +411,12 @@ export function RingGameTab({
 		archivedLoading,
 		isCreatePending,
 		isUpdatePending,
-		create,
-		update,
 		archive,
 		restore,
-		delete: deleteGame,
-	} = useRingGames({ storeId, showArchived });
-
-	const handleCreate = (values: RingGameFormValues) => {
-		create(values).then(() => {
-			setIsCreateOpen(false);
-		});
-	};
-
-	const handleUpdate = (values: RingGameFormValues) => {
-		if (!editingGame) {
-			return;
-		}
-		update({ id: editingGame.id, ...values }).then(() => {
-			setEditingGame(null);
-		});
-	};
+		deleteGame,
+		handleCreate,
+		handleUpdate,
+	} = useRingGameTab({ storeId });
 
 	return (
 		<div>

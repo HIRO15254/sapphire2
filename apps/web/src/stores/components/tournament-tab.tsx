@@ -6,7 +6,6 @@ import {
 	IconTrash,
 	IconX,
 } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
 import {
 	ExpandableItem,
 	ExpandableItemList,
@@ -17,6 +16,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { TournamentEditDialog } from "@/stores/components/tournament-edit-dialog";
 import type { BlindLevelRow } from "@/stores/hooks/use-blind-levels";
+import { useTournamentRow } from "@/stores/hooks/use-tournament-row";
 import {
 	useBlindStructureSummary,
 	useTournamentTab,
@@ -217,15 +217,11 @@ function TournamentRow({
 	onEdit,
 	onRestore,
 }: TournamentRowProps) {
-	const [confirmingDelete, setConfirmingDelete] = useState(false);
+	const { confirmingDelete, setConfirmingDelete } = useTournamentRow({
+		expanded,
+	});
 	const currency = currencies.find((c) => c.id === tournament.currencyId);
 	const buyInStr = formatBuyInShort(tournament, currency?.unit);
-
-	useEffect(() => {
-		if (!expanded) {
-			setConfirmingDelete(false);
-		}
-	}, [expanded]);
 
 	return (
 		<ExpandableItem

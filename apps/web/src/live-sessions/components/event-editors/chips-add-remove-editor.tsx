@@ -1,11 +1,5 @@
-import { useForm } from "@tanstack/react-form";
-import { z } from "zod";
 import { AddonFields } from "@/live-sessions/components/event-fields/addon-fields";
-import {
-	toOccurredAtTimestamp,
-	toTimeInputValue,
-	validateOccurredAtTime,
-} from "@/live-sessions/components/stack-editor-time";
+import { useChipsAddRemoveEditor } from "@/live-sessions/hooks/event-editors/use-chips-add-remove-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
@@ -13,19 +7,12 @@ import {
 	ToggleGroup,
 	ToggleGroupItem,
 } from "@/shared/components/ui/toggle-group";
-import { requiredNumericString } from "@/shared/lib/form-fields";
 import { type EditorBaseProps, TimeField } from "./shared";
 
 type Props = Pick<
 	EditorBaseProps,
 	"event" | "isLoading" | "maxTime" | "minTime" | "onSubmit"
 >;
-
-const chipsAddRemoveSchema = z.object({
-	time: z.string(),
-	amount: requiredNumericString({ integer: true, min: 0 }),
-	type: z.enum(["add", "remove"]),
-});
 
 export function ChipsAddRemoveEditor({
 	event,
@@ -34,24 +21,12 @@ export function ChipsAddRemoveEditor({
 	minTime,
 	onSubmit,
 }: Props) {
-	const payload = (event.payload ?? {}) as Record<string, unknown>;
-
-	const form = useForm({
-		defaultValues: {
-			time: toTimeInputValue(event.occurredAt),
-			amount: typeof payload.amount === "number" ? String(payload.amount) : "0",
-			type: (payload.type === "remove" ? "remove" : "add") as "add" | "remove",
-		},
-		onSubmit: ({ value }) => {
-			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
-			onSubmit(
-				{ amount: Math.round(Number(value.amount)), type: value.type },
-				occurredAt
-			);
-		},
-		validators: {
-			onSubmit: chipsAddRemoveSchema,
-		},
+	const { form, timeValidator } = useChipsAddRemoveEditor({
+		event,
+		isLoading,
+		maxTime,
+		minTime,
+		onSubmit,
 	});
 
 	return (
@@ -66,9 +41,7 @@ export function ChipsAddRemoveEditor({
 			<form.Field
 				name="time"
 				validators={{
-					onChange: ({ value }) =>
-						validateOccurredAtTime(value, event.occurredAt, minTime, maxTime) ??
-						undefined,
+					onChange: ({ value }) => timeValidator(value),
 				}}
 			>
 				{(field) => (
