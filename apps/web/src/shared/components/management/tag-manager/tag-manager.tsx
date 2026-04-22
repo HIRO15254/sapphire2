@@ -9,7 +9,7 @@ import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { useTagManager } from "@/shared/hooks/use-tag-manager";
+import { useTagManager } from "./use-tag-manager";
 
 interface TagManagerProps<TTag extends { id: string; name: string }> {
 	deleteError?: React.ReactNode;

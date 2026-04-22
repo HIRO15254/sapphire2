@@ -2,7 +2,7 @@ import type * as React from "react";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import { useTagNameForm } from "@/shared/hooks/use-tag-name-form";
+import { useTagNameForm } from "./use-tag-name-form";
 
 export function TagNameForm({
 	children,

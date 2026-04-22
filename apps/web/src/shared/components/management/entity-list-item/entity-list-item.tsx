@@ -5,7 +5,7 @@ import {
 	ExpandableItemList,
 } from "@/shared/components/management/expandable-item-list";
 import { Button } from "@/shared/components/ui/button";
-import { useEntityListItem } from "@/shared/hooks/use-entity-list-item";
+import { useEntityListItem } from "./use-entity-list-item";
 
 interface EntityListItemProps {
 	actions?: React.ReactNode;
