@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TAG_COLOR_NAMES } from "@/players/constants/player-tag-colors";
-import { TagColorPicker } from "../tag-color-picker";
+import { TagColorPicker } from "./tag-color-picker";
 
 describe("TagColorPicker", () => {
 	it("renders all 8 color swatches", () => {

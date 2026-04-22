@@ -1,7 +1,7 @@
 import { IconNote } from "@tabler/icons-react";
 import { ColorBadge } from "@/players/components/color-badge";
-import { useSafeHtml } from "@/players/hooks/use-player-card";
 import { EntityListItem } from "@/shared/components/management/entity-list-item";
+import { useSafeHtml } from "./use-player-card";
 
 function SafeHtml({ className, html }: { className?: string; html: string }) {
 	const { ref } = useSafeHtml(html);

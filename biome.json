@@ -85,7 +85,12 @@
   "extends": ["ultracite/biome/core", "ultracite/biome/react"],
   "overrides": [
     {
-      "includes": ["**/routes/**/$*.tsx", "**/routes/**/$*.ts"],
+      "includes": [
+        "**/routes/**/$*.tsx",
+        "**/routes/**/$*.ts",
+        "**/routes/**/-*.tsx",
+        "**/routes/**/-*.ts"
+      ],
       "linter": {
         "rules": {
           "style": {

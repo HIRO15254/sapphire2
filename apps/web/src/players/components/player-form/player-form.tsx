@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import { PlayerTagInput } from "@/players/components/player-tag-input";
-import { usePlayerForm } from "@/players/hooks/use-player-form";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { RichTextEditor } from "@/shared/components/ui/rich-text-editor";
+import { usePlayerForm } from "./use-player-form";
 
 interface TagWithColor {
 	color: string;

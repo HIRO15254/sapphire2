@@ -1,6 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import z from "zod";
-import type { PlayerFormValues } from "@/players/components/player-form";
+import type { PlayerFormValues } from "./player-form";
 
 interface TagWithColor {
 	color: string;

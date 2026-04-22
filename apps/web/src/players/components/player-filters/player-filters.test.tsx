@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { PlayerFilters } from "../player-filters";
+import { PlayerFilters } from "./player-filters";
 
 const VIP_TAG = { color: "blue", id: "vip", name: "VIP" };
 const REG_TAG = { color: "red", id: "reg", name: "Regular" };

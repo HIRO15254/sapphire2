@@ -1,8 +1,8 @@
 import { PlayerTagInput } from "@/players/components/player-tag-input";
-import { usePlayerFilters } from "@/players/hooks/use-player-filters";
 import { FilterDialogShell } from "@/shared/components/filter-dialog-shell";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
+import { usePlayerFilters } from "./use-player-filters";
 
 interface TagItem {
 	color: string;

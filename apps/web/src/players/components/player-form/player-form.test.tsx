@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { PlayerForm } from "../player-form";
+import { PlayerForm } from "./player-form";
 
 const VIP_TAG = { color: "blue", id: "vip", name: "VIP" };
 

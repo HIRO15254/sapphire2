@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { PlayerCard } from "../player-card";
+import { PlayerCard } from "./player-card";
 
 const taggedPlayer = {
 	createdAt: "2026-04-01T10:00:00Z",

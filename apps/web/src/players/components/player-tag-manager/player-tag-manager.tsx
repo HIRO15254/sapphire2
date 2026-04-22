@@ -1,7 +1,6 @@
 import { ColorBadge } from "@/players/components/color-badge";
 import { TagColorPicker } from "@/players/components/tag-color-picker";
 import type { TagColor } from "@/players/constants/player-tag-colors";
-import { useTagForm } from "@/players/hooks/use-player-tag-manager";
 import {
 	type TagFormValues,
 	type TagItem,
@@ -10,6 +9,7 @@ import {
 import { TagManager } from "@/shared/components/management/tag-manager";
 import { TagNameForm } from "@/shared/components/management/tag-name-form";
 import { Field } from "@/shared/components/ui/field";
+import { useTagForm } from "./use-player-tag-manager";
 
 function TagForm({
 	defaultValues,
