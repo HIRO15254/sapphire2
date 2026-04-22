@@ -1,11 +1,11 @@
 import { useForm } from "@tanstack/react-form";
 import { z } from "zod";
+import type { SessionEvent } from "@/live-sessions/hooks/use-session-events";
 import {
 	toOccurredAtTimestamp,
 	toTimeInputValue,
 	validateOccurredAtTime,
-} from "@/live-sessions/components/stack-editor-time";
-import type { SessionEvent } from "@/live-sessions/hooks/use-session-events";
+} from "@/live-sessions/utils/stack-editor-time";
 import { requiredNumericString } from "@/shared/lib/form-fields";
 
 const cashGameStartSchema = z.object({

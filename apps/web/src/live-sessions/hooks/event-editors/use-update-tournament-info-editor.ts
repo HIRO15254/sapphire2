@@ -1,10 +1,10 @@
 import { useForm } from "@tanstack/react-form";
+import type { SessionEvent } from "@/live-sessions/hooks/use-session-events";
 import {
 	toOccurredAtTimestamp,
 	toTimeInputValue,
 	validateOccurredAtTime,
-} from "@/live-sessions/components/stack-editor-time";
-import type { SessionEvent } from "@/live-sessions/hooks/use-session-events";
+} from "@/live-sessions/utils/stack-editor-time";
 
 interface ChipPurchaseCount {
 	chipsPerUnit: number;
