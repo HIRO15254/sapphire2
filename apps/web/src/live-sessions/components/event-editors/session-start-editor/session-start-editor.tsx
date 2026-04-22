@@ -1,12 +1,12 @@
-import {
-	useCashGameStartEditor,
-	useTournamentStartEditor,
-} from "./use-session-start-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { type EditorBaseProps, type SessionType, TimeField } from "../shared";
+import {
+	useCashGameStartEditor,
+	useTournamentStartEditor,
+} from "./use-session-start-editor";
 
 type Props = Pick<
 	EditorBaseProps,

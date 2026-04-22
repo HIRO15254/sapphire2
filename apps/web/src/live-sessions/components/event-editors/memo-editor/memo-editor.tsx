@@ -1,8 +1,8 @@
 import { MemoFields } from "@/live-sessions/components/event-fields/memo-fields";
-import { useMemoEditor } from "./use-memo-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { type EditorBaseProps, TimeField } from "../shared";
+import { useMemoEditor } from "./use-memo-editor";
 
 type Props = Pick<
 	EditorBaseProps,

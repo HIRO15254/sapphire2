@@ -1,8 +1,8 @@
 import { TournamentInfoFields } from "@/live-sessions/components/event-fields/tournament-info-fields";
-import { useUpdateTournamentInfoEditor } from "./use-update-tournament-info-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { type EditorBaseProps, TimeField } from "../shared";
+import { useUpdateTournamentInfoEditor } from "./use-update-tournament-info-editor";
 
 interface ChipPurchaseType {
 	chips: number;

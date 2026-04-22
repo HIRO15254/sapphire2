@@ -1,5 +1,4 @@
 import { AddonFields } from "@/live-sessions/components/event-fields/addon-fields";
-import { useChipsAddRemoveEditor } from "./use-chips-add-remove-editor";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
@@ -8,6 +7,7 @@ import {
 	ToggleGroupItem,
 } from "@/shared/components/ui/toggle-group";
 import { type EditorBaseProps, TimeField } from "../shared";
+import { useChipsAddRemoveEditor } from "./use-chips-add-remove-editor";
 
 type Props = Pick<
 	EditorBaseProps,
