@@ -1,3 +1,4 @@
+#!/usr/bin/env sh
 # Auto-stage routeTree.gen.ts if it has unstaged changes
 # (prevents lint-staged stash conflicts with this auto-generated file)
 if git diff --name-only | grep -q 'routeTree.gen.ts'; then
