@@ -38,6 +38,36 @@ describe("StoreCard", () => {
 		expect(screen.getByText("Tournaments Content")).toBeInTheDocument();
 	});
 
+	it("cancels a delete after the confirmation prompt appears", async () => {
+		const user = userEvent.setup();
+		const onDelete = vi.fn();
+
+		render(<StoreCard onDelete={onDelete} onEdit={vi.fn()} store={store} />);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		expect(screen.getByText("Delete this store?")).toBeInTheDocument();
+
+		await user.click(screen.getByLabelText("Cancel delete"));
+		expect(onDelete).not.toHaveBeenCalled();
+		expect(screen.queryByText("Delete this store?")).not.toBeInTheDocument();
+	});
+
+	it("renders without a memo when the store memo is empty", () => {
+		render(
+			<StoreCard
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				store={{ ...store, memo: "" }}
+			/>
+		);
+		// Name still renders.
+		expect(screen.getByText("Akiba Poker Room")).toBeInTheDocument();
+		expect(
+			screen.queryByText("Late-night cash and weekly tournaments")
+		).not.toBeInTheDocument();
+	});
+
 	it("calls onEdit and onDelete from the shared footer actions", async () => {
 		const user = userEvent.setup();
 		const onDelete = vi.fn();

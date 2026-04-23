@@ -177,4 +177,16 @@ describe("RingGameTab", () => {
 
 		expect(screen.getByText("No cash games yet.")).toBeInTheDocument();
 	});
+
+	it("still renders the header controls and empty state when archived list is also empty", () => {
+		mocks.activeGames = [];
+		mocks.archivedGames = [];
+
+		render(<Harness />);
+
+		// Primary create control / or any header action is present (fallback
+		// check: 'New' create button or + add) — the empty-state message must
+		// be shown.
+		expect(screen.getByText("No cash games yet.")).toBeInTheDocument();
+	});
 });

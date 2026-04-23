@@ -57,4 +57,14 @@ describe("TagColorPicker", () => {
 			).toBeInTheDocument();
 		}
 	});
+
+	it("clicking the currently selected swatch does not fire onChange (RadioGroup semantics)", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+
+		render(<TagColorPicker onChange={onChange} value="gray" />);
+
+		await user.click(screen.getByRole("radio", { name: "Select gray color" }));
+		expect(onChange).not.toHaveBeenCalled();
+	});
 });

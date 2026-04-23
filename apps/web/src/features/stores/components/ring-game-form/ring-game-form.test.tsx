@@ -78,4 +78,14 @@ describe("RingGameForm", () => {
 			})
 		);
 	});
+
+	it("blocks submit when the required Game Name is empty (Zod validation)", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+
+		render(<RingGameForm onSubmit={onSubmit} />);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
 });

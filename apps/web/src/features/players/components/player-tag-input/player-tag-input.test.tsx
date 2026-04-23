@@ -53,6 +53,44 @@ describe("PlayerTagInput", () => {
 		expect(onAdd).toHaveBeenCalledWith(SHARK_TAG);
 	});
 
+	it("does not call onAdd for a non-matching name when onCreateTag is not provided", async () => {
+		const user = userEvent.setup();
+		const onAdd = vi.fn();
+
+		render(
+			<PlayerTagInput
+				availableTags={[VIP_TAG]}
+				onAdd={onAdd}
+				onRemove={vi.fn()}
+				selectedTags={[]}
+			/>
+		);
+
+		await user.type(screen.getByLabelText("Search player tags"), "Ghost");
+		await user.keyboard("{Enter}");
+
+		expect(onAdd).not.toHaveBeenCalled();
+	});
+
+	it("does not re-add a tag that is already selected", async () => {
+		const user = userEvent.setup();
+		const onAdd = vi.fn();
+
+		render(
+			<PlayerTagInput
+				availableTags={[VIP_TAG, REG_TAG]}
+				onAdd={onAdd}
+				onRemove={vi.fn()}
+				selectedTags={[VIP_TAG]}
+			/>
+		);
+
+		await user.type(screen.getByLabelText("Search player tags"), "VIP");
+		await user.keyboard("{Enter}");
+
+		expect(onAdd).not.toHaveBeenCalled();
+	});
+
 	it("removes a selected colored tag", async () => {
 		const user = userEvent.setup();
 		const onRemove = vi.fn();

@@ -60,6 +60,29 @@ describe("PlayerFilters", () => {
 		expect(onTagIdsChange).toHaveBeenCalledWith(["vip"]);
 	});
 
+	it("renders a selected-count badge equal to the number of initially selected tag ids", () => {
+		render(
+			<PlayerFilters
+				availableTags={[VIP_TAG, REG_TAG]}
+				onTagIdsChange={vi.fn()}
+				selectedTagIds={["vip", "reg"]}
+			/>
+		);
+		expect(screen.getByText("2")).toBeInTheDocument();
+	});
+
+	it("does not show the count badge when no tags are selected", () => {
+		render(
+			<PlayerFilters
+				availableTags={[VIP_TAG, REG_TAG]}
+				onTagIdsChange={vi.fn()}
+				selectedTagIds={[]}
+			/>
+		);
+		// "Filter" button text should be present without a trailing count.
+		expect(screen.getByRole("button", { name: "Filter" })).toBeInTheDocument();
+	});
+
 	it("resets the selected tags", async () => {
 		const user = userEvent.setup();
 		const onTagIdsChange = vi.fn();

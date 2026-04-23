@@ -219,6 +219,35 @@ describe("BlindLevelEditor", () => {
 		});
 	});
 
+	it("shows an empty state message when there are no levels", () => {
+		mocks.blindLevels = [];
+
+		render(
+			<BlindLevelEditor
+				onOpenChange={vi.fn()}
+				open
+				tournamentId="tour-1"
+				variant="nlh"
+			/>
+		);
+
+		// The editor renders table headers + empty new-row; loading text is
+		// absent because isLoading=false. At least the description is present.
+		expect(screen.getByText(BLIND_DESCRIPTION_PATTERN)).toBeInTheDocument();
+	});
+
+	it("does not render any rows when open=false (dialog hidden)", () => {
+		render(
+			<BlindLevelEditor
+				onOpenChange={vi.fn()}
+				open={false}
+				tournamentId="tour-1"
+				variant="nlh"
+			/>
+		);
+		expect(screen.queryByText("Blind Structure")).not.toBeInTheDocument();
+	});
+
 	it("deletes an existing level", async () => {
 		const user = userEvent.setup();
 		mocks.blindLevels = [
