@@ -2,11 +2,11 @@ import { FilterDialogShell } from "@/shared/components/filter-dialog-shell";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
-	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
+	SelectWithClear,
 } from "@/shared/components/ui/select";
 import { useSessionFilters } from "./use-session-filters";
 
@@ -54,68 +54,58 @@ export function SessionFilters({
 			title="Filters"
 		>
 			<Field label="Type">
-				<Select
+				<SelectWithClear
 					onValueChange={(value) =>
 						updateDraft({
-							type:
-								value === "all"
-									? undefined
-									: (value as "cash_game" | "tournament"),
+							type: value as "cash_game" | "tournament" | undefined,
 						})
 					}
-					value={draft.type ?? "all"}
+					value={draft.type}
 				>
 					<SelectTrigger aria-label="Type" className="w-full">
-						<SelectValue placeholder="All Types" />
+						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all">All Types</SelectItem>
 						<SelectItem value="cash_game">Cash Game</SelectItem>
 						<SelectItem value="tournament">Tournament</SelectItem>
 					</SelectContent>
-				</Select>
+				</SelectWithClear>
 			</Field>
 
 			<Field label="Store">
-				<Select
-					onValueChange={(value) =>
-						updateDraft({ storeId: value === "all" ? undefined : value })
-					}
-					value={draft.storeId ?? "all"}
+				<SelectWithClear
+					onValueChange={(value) => updateDraft({ storeId: value })}
+					value={draft.storeId}
 				>
 					<SelectTrigger aria-label="Store" className="w-full">
-						<SelectValue placeholder="All Stores" />
+						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all">All Stores</SelectItem>
 						{stores.map((store) => (
 							<SelectItem key={store.id} value={store.id}>
 								{store.name}
 							</SelectItem>
 						))}
 					</SelectContent>
-				</Select>
+				</SelectWithClear>
 			</Field>
 
 			<Field label="Currency">
-				<Select
-					onValueChange={(value) =>
-						updateDraft({ currencyId: value === "all" ? undefined : value })
-					}
-					value={draft.currencyId ?? "all"}
+				<SelectWithClear
+					onValueChange={(value) => updateDraft({ currencyId: value })}
+					value={draft.currencyId}
 				>
 					<SelectTrigger aria-label="Currency" className="w-full">
-						<SelectValue placeholder="All Currencies" />
+						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all">All Currencies</SelectItem>
 						{currencies.map((currency) => (
 							<SelectItem key={currency.id} value={currency.id}>
 								{currency.name}
 							</SelectItem>
 						))}
 					</SelectContent>
-				</Select>
+				</SelectWithClear>
 			</Field>
 
 			<Field label="Date Range">

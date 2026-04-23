@@ -142,7 +142,7 @@ export function ActiveSessionEditForm({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select type" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="all">All</SelectItem>

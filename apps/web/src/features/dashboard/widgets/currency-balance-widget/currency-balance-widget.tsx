@@ -94,7 +94,7 @@ export function CurrencyBalanceEditForm({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select currency" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value={FIRST_AVAILABLE}>

@@ -1,20 +1,19 @@
-import { Label } from "@/shared/components/ui/label";
+import { Field } from "@/shared/components/ui/field";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
+	SelectWithClear,
 } from "@/shared/components/ui/select";
-
-const NONE_VALUE = "__none__";
 
 interface StoreGameSelectorProps {
 	gameLabel: string;
 	gameOptions?: Array<{ id: string; name: string }>;
 	isLiveLinked?: boolean;
-	onGameChange: (value: string) => void;
-	onStoreChange: (value: string) => void;
+	onGameChange: (value: string | undefined) => void;
+	onStoreChange: (value: string | undefined) => void;
 	selectedGameId: string | undefined;
 	selectedStoreId: string | undefined;
 	stores?: Array<{ id: string; name: string }>;
@@ -39,57 +38,48 @@ export function StoreGameSelectors({
 
 	return (
 		<>
-			<div className="flex flex-col gap-2">
-				<Label>Store</Label>
-				<Select
-					onValueChange={onStoreChange}
-					value={selectedStoreId ?? NONE_VALUE}
-				>
+			<Field label="Store">
+				<SelectWithClear onValueChange={onStoreChange} value={selectedStoreId}>
 					<SelectTrigger>
-						<SelectValue placeholder="Select a store" />
+						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value={NONE_VALUE}>None</SelectItem>
 						{stores.map((s) => (
 							<SelectItem key={s.id} value={s.id}>
 								{s.name}
 							</SelectItem>
 						))}
 					</SelectContent>
-				</Select>
-			</div>
+				</SelectWithClear>
+			</Field>
 
 			{selectedStoreId && (
-				<div className="flex flex-col gap-2">
-					<Label>{gameLabel}</Label>
+				<Field label={gameLabel}>
 					{hasGameOptions ? (
-						<Select
+						<SelectWithClear
 							disabled={isLiveLinked}
 							onValueChange={onGameChange}
-							value={selectedGameId ?? NONE_VALUE}
+							value={selectedGameId}
 						>
 							<SelectTrigger>
-								<SelectValue
-									placeholder={`Select a ${gameLabel.toLowerCase()}`}
-								/>
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value={NONE_VALUE}>None</SelectItem>
 								{gameOptions.map((g) => (
 									<SelectItem key={g.id} value={g.id}>
 										{g.name}
 									</SelectItem>
 								))}
 							</SelectContent>
-						</Select>
+						</SelectWithClear>
 					) : (
 						<Select disabled>
 							<SelectTrigger>
-								<SelectValue placeholder="No games available" />
+								<SelectValue />
 							</SelectTrigger>
 						</Select>
 					)}
-				</div>
+				</Field>
 			)}
 		</>
 	);

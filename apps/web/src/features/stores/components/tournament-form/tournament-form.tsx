@@ -71,7 +71,7 @@ export function TournamentForm({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select variant" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{Object.entries(GAME_VARIANTS).map(([key, val]) => (
@@ -259,7 +259,7 @@ export function TournamentForm({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select table size" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{TABLE_SIZES.map((size) => (
@@ -281,7 +281,7 @@ export function TournamentForm({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select currency" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{currencies.map((c) => (
