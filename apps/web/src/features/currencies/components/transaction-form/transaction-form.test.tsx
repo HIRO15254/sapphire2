@@ -110,4 +110,22 @@ describe("TransactionForm", () => {
 			transactionTypeId: "created-manual",
 		});
 	}, 15_000);
+
+	it("does not submit when required fields are empty", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+
+		render(<TransactionForm onSubmit={onSubmit} />);
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("shows Saving... and disables submit while isLoading", () => {
+		render(<TransactionForm isLoading onSubmit={vi.fn()} />);
+		const button = screen.getByRole("button", { name: "Saving..." });
+		expect(button).toBeInTheDocument();
+		expect(button).toBeDisabled();
+	});
 });

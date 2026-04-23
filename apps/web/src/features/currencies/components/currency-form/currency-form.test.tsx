@@ -44,4 +44,35 @@ describe("CurrencyForm", () => {
 			unit: "US$",
 		});
 	});
+
+	it("does not submit when required name is empty and surfaces validation error", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+
+		render(<CurrencyForm onSubmit={onSubmit} />);
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(screen.getByText("Currency name is required")).toBeInTheDocument();
+	});
+
+	it("submits with unit=undefined when the optional unit is left blank", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+
+		render(<CurrencyForm onSubmit={onSubmit} />);
+
+		await user.type(screen.getByLabelText("Currency Name *"), "Chips");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(onSubmit).toHaveBeenCalledWith({ name: "Chips", unit: undefined });
+	});
+
+	it("shows Saving... and disables submit while isLoading", () => {
+		render(<CurrencyForm isLoading onSubmit={vi.fn()} />);
+		const button = screen.getByRole("button", { name: "Saving..." });
+		expect(button).toBeInTheDocument();
+		expect(button).toBeDisabled();
+	});
 });

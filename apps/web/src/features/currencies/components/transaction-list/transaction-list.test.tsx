@@ -146,4 +146,51 @@ describe("TransactionList", () => {
 
 		expect(screen.getByText("Load more")).toBeInTheDocument();
 	});
+
+	it("shows Loading... and disables the button when isLoadingMore is true", () => {
+		render(
+			<TransactionList
+				hasMore
+				isLoadingMore
+				onDelete={vi.fn()}
+				transactions={[regularTransaction]}
+			/>
+		);
+		const button = screen.getByRole("button", { name: "Loading..." });
+		expect(button).toBeDisabled();
+	});
+
+	it("cancels delete confirmation when cancel is clicked", async () => {
+		const user = userEvent.setup();
+		const onDelete = vi.fn();
+		render(
+			<TransactionList
+				onDelete={onDelete}
+				transactions={[regularTransaction]}
+			/>
+		);
+
+		await expandRow(user);
+		await user.click(screen.getByLabelText("Delete transaction"));
+		expect(screen.getByText("Delete?")).toBeInTheDocument();
+
+		await user.click(screen.getByLabelText("Cancel delete"));
+		expect(screen.queryByText("Delete?")).not.toBeInTheDocument();
+		expect(onDelete).not.toHaveBeenCalled();
+	});
+
+	it("does not render memo when memo is null (no explicit memo paragraph)", async () => {
+		const user = userEvent.setup();
+		const noMemoTx = { ...regularTransaction, memo: null };
+		render(<TransactionList onDelete={vi.fn()} transactions={[noMemoTx]} />);
+		await expandRow(user);
+		expect(screen.queryByText("Regular transaction")).not.toBeInTheDocument();
+	});
+
+	it("hides the load more button when hasMore is false", () => {
+		render(
+			<TransactionList onDelete={vi.fn()} transactions={[regularTransaction]} />
+		);
+		expect(screen.queryByText("Load more")).not.toBeInTheDocument();
+	});
 });

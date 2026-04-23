@@ -118,6 +118,39 @@ describe("SessionFilters", () => {
 		expect(onFiltersChange).toHaveBeenCalledWith({});
 	});
 
+	it("counts all 4 active filters including date range", () => {
+		render(
+			<SessionFilters
+				currencies={currencies}
+				filters={{
+					type: "cash_game",
+					storeId: "store1",
+					currencyId: "cur1",
+					dateFrom: "2026-04-01",
+				}}
+				onFiltersChange={vi.fn()}
+				stores={stores}
+			/>
+		);
+		expect(screen.getByText("4")).toBeInTheDocument();
+	});
+
+	it("renders with empty stores and currencies lists without crashing", async () => {
+		const user = userEvent.setup();
+		render(
+			<SessionFilters
+				currencies={[]}
+				filters={{}}
+				onFiltersChange={vi.fn()}
+				stores={[]}
+			/>
+		);
+		await user.click(screen.getByText("Filter"));
+		// The dialog still renders all labels; store/currency selects are empty.
+		expect(screen.getByText("Store")).toBeInTheDocument();
+		expect(screen.getByText("Currency")).toBeInTheDocument();
+	});
+
 	it("applies the draft filter values", async () => {
 		const user = userEvent.setup();
 		const onFiltersChange = vi.fn();

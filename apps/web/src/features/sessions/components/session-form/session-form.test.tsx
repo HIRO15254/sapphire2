@@ -199,4 +199,18 @@ describe("SessionForm", () => {
 			expect(screen.getByRole("tab", { name: "Cash Game" })).not.toBeDisabled();
 		});
 	});
+
+	it("disables the save button while isLoading", () => {
+		render(<SessionForm isLoading onSubmit={vi.fn()} />);
+		expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
+	});
+
+	it("tournament mode exposes tournamentBuyIn but not cash-game buyIn/cashOut", async () => {
+		const user = userEvent.setup();
+		render(<SessionForm onSubmit={vi.fn()} />);
+		await user.click(screen.getByText("Tournament"));
+		expect(document.getElementById("tournamentBuyIn")).toBeInTheDocument();
+		expect(document.getElementById("buyIn")).not.toBeInTheDocument();
+		expect(document.getElementById("cashOut")).not.toBeInTheDocument();
+	});
 });

@@ -26,6 +26,7 @@ export default defineConfig({
 			"src/shared/hooks/__tests__/*.test.ts",
 			"src/shared/components/**/__tests__/*.test.ts",
 			"src/features/**/components/**/__tests__/*.test.ts",
+			"src/features/**/hooks/__tests__/*.test.ts",
 			"src/features/dashboard/widgets/**/__tests__/*.test.ts",
 			"src/features/sessions/utils/__tests__/share-session.test.ts",
 		],

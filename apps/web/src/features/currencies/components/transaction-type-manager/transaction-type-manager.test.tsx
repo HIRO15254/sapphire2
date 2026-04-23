@@ -137,4 +137,14 @@ describe("TransactionTypeManager", () => {
 			await screen.findByText("Cannot delete: type is in use by transactions")
 		).toBeInTheDocument();
 	});
+
+	it("renders the empty state when no types exist", () => {
+		mocks.types.length = 0;
+		try {
+			render(<TransactionTypeManager />);
+			expect(screen.getByText("No transaction types yet")).toBeInTheDocument();
+		} finally {
+			mocks.types.push({ id: "type-1", name: "Cash" });
+		}
+	});
 });
