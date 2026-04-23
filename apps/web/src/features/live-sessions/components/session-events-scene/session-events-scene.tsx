@@ -14,7 +14,6 @@ import {
 	AccordionItem,
 	AccordionTrigger,
 } from "@/shared/components/ui/accordion";
-import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
@@ -146,10 +145,7 @@ export function SessionEventsScene({
 
 	return (
 		<div className="p-4 md:p-6">
-			<PageHeader
-				badge={<Badge variant="outline">{events.length}</Badge>}
-				heading="Events"
-			/>
+			<PageHeader heading="Events" />
 			{events.length === 0 ? (
 				<EmptyState
 					className="border-none bg-transparent px-0 py-8"

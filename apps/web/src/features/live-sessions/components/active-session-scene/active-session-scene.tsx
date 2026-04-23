@@ -17,7 +17,6 @@ import { usePlayerDetail } from "@/features/players/hooks/use-player-detail";
 import { usePokerTableInteraction } from "@/features/players/hooks/use-poker-table-interaction";
 import { useTablePlayers } from "@/features/players/hooks/use-table-players";
 import { PageHeader } from "@/shared/components/page-header";
-import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
@@ -260,14 +259,6 @@ export function ActiveSessionScene({
 					>
 						Discard
 					</Button>
-				}
-				badge={
-					<Badge
-						className="border-green-200 bg-green-50 text-[10px] text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400"
-						variant="outline"
-					>
-						Active
-					</Badge>
 				}
 				heading={title}
 			/>
