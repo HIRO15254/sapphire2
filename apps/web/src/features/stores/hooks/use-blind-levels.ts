@@ -8,6 +8,12 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export interface BlindLevelRow {
@@ -78,10 +84,10 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 				...(newLevel.minutes == null ? {} : { minutes: newLevel.minutes }),
 			}),
 		onMutate: async (newLevel) => {
-			await queryClient.cancelQueries({
-				queryKey: levelsQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(levelsQueryOptions.queryKey);
+			await cancelTargets(queryClient, [
+				{ queryKey: levelsQueryOptions.queryKey },
+			]);
+			const previous = snapshotQuery(queryClient, levelsQueryOptions.queryKey);
 			const tempRow: BlindLevelRow = {
 				id: `temp-${Date.now()}`,
 				tournamentId,
@@ -100,22 +106,22 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(levelsQueryOptions.queryKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: levelsQueryOptions.queryKey });
+			invalidateTargets(queryClient, [
+				{ queryKey: levelsQueryOptions.queryKey },
+			]);
 		},
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.blindLevel.delete.mutate({ id }),
 		onMutate: async (id) => {
-			await queryClient.cancelQueries({
-				queryKey: levelsQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(levelsQueryOptions.queryKey);
+			await cancelTargets(queryClient, [
+				{ queryKey: levelsQueryOptions.queryKey },
+			]);
+			const previous = snapshotQuery(queryClient, levelsQueryOptions.queryKey);
 			queryClient.setQueryData(
 				levelsQueryOptions.queryKey,
 				(old: BlindLevelRow[] | undefined) =>
@@ -124,12 +130,12 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(levelsQueryOptions.queryKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: levelsQueryOptions.queryKey });
+			invalidateTargets(queryClient, [
+				{ queryKey: levelsQueryOptions.queryKey },
+			]);
 		},
 	});
 
@@ -144,7 +150,9 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			value: number | null;
 		}) => trpcClient.blindLevel.update.mutate({ id, [field]: value }),
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: levelsQueryOptions.queryKey });
+			invalidateTargets(queryClient, [
+				{ queryKey: levelsQueryOptions.queryKey },
+			]);
 		},
 	});
 
@@ -152,10 +160,10 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 		mutationFn: (levelIds: string[]) =>
 			trpcClient.blindLevel.reorder.mutate({ tournamentId, levelIds }),
 		onMutate: async (levelIds) => {
-			await queryClient.cancelQueries({
-				queryKey: levelsQueryOptions.queryKey,
-			});
-			const previous = queryClient.getQueryData(levelsQueryOptions.queryKey);
+			await cancelTargets(queryClient, [
+				{ queryKey: levelsQueryOptions.queryKey },
+			]);
+			const previous = snapshotQuery(queryClient, levelsQueryOptions.queryKey);
 			queryClient.setQueryData(
 				levelsQueryOptions.queryKey,
 				(old: BlindLevelRow[] | undefined) => {
@@ -170,12 +178,12 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(levelsQueryOptions.queryKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: levelsQueryOptions.queryKey });
+			invalidateTargets(queryClient, [
+				{ queryKey: levelsQueryOptions.queryKey },
+			]);
 		},
 	});
 

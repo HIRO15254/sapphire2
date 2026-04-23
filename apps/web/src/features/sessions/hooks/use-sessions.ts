@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { SessionFilterValues } from "@/features/sessions/components/session-filters";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export interface CashGameFormValues {
@@ -339,9 +345,9 @@ export function useSessions(filters: SessionFilterValues) {
 	const createTagMutation = useMutation({
 		mutationFn: (name: string) => trpcClient.sessionTag.create.mutate({ name }),
 		onSettled: () => {
-			queryClient.invalidateQueries({
-				queryKey: trpc.sessionTag.list.queryOptions().queryKey,
-			});
+			invalidateTargets(queryClient, [
+				{ queryKey: trpc.sessionTag.list.queryOptions().queryKey },
+			]);
 		},
 	});
 
@@ -354,8 +360,8 @@ export function useSessions(filters: SessionFilterValues) {
 		mutationFn: (values: SessionFormValues) =>
 			trpcClient.session.create.mutate(buildCreatePayload(values)),
 		onMutate: async (newSession) => {
-			await queryClient.cancelQueries({ queryKey: sessionListKey });
-			const previous = queryClient.getQueryData(sessionListKey);
+			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
+			const previous = snapshotQuery(queryClient, sessionListKey);
 			queryClient.setQueryData(sessionListKey, (old) => {
 				if (!old) {
 					return old;
@@ -368,12 +374,10 @@ export function useSessions(filters: SessionFilterValues) {
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(sessionListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: sessionListKey });
+			invalidateTargets(queryClient, [{ queryKey: sessionListKey }]);
 		},
 	});
 
@@ -387,8 +391,8 @@ export function useSessions(filters: SessionFilterValues) {
 					: buildUpdatePayload(values)
 			),
 		onMutate: async (updated) => {
-			await queryClient.cancelQueries({ queryKey: sessionListKey });
-			const previous = queryClient.getQueryData(sessionListKey);
+			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
+			const previous = snapshotQuery(queryClient, sessionListKey);
 			queryClient.setQueryData(sessionListKey, (old) => {
 				if (!old) {
 					return old;
@@ -409,20 +413,18 @@ export function useSessions(filters: SessionFilterValues) {
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(sessionListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: sessionListKey });
+			invalidateTargets(queryClient, [{ queryKey: sessionListKey }]);
 		},
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.session.delete.mutate({ id }),
 		onMutate: async (id) => {
-			await queryClient.cancelQueries({ queryKey: sessionListKey });
-			const previous = queryClient.getQueryData(sessionListKey);
+			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
+			const previous = snapshotQuery(queryClient, sessionListKey);
 			queryClient.setQueryData(sessionListKey, (old) => {
 				if (!old) {
 					return old;
@@ -432,12 +434,10 @@ export function useSessions(filters: SessionFilterValues) {
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(sessionListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: sessionListKey });
+			invalidateTargets(queryClient, [{ queryKey: sessionListKey }]);
 		},
 	});
 
@@ -447,23 +447,23 @@ export function useSessions(filters: SessionFilterValues) {
 				id: liveCashGameSessionId,
 			}),
 		onSuccess: async () => {
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: sessionListKey }),
-				queryClient.invalidateQueries({
+			await invalidateTargets(queryClient, [
+				{ queryKey: sessionListKey },
+				{
 					queryKey: trpc.liveCashGameSession.list.queryOptions({}).queryKey,
-				}),
-				queryClient.invalidateQueries({
+				},
+				{
 					queryKey: trpc.liveCashGameSession.list.queryOptions({
 						status: "active",
 						limit: 1,
 					}).queryKey,
-				}),
-				queryClient.invalidateQueries({
+				},
+				{
 					queryKey: trpc.liveCashGameSession.list.queryOptions({
 						status: "paused",
 						limit: 1,
 					}).queryKey,
-				}),
+				},
 			]);
 			await navigate({ to: "/active-session" });
 		},

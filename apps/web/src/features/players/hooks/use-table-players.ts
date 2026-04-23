@@ -1,4 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 interface UseTablePlayersOptions {
@@ -43,9 +49,6 @@ export function useTablePlayers({
 	const playersKey =
 		trpc.sessionTablePlayer.list.queryOptions(sessionParam).queryKey;
 
-	const invalidatePlayers = () =>
-		queryClient.invalidateQueries({ queryKey: playersKey });
-
 	const addMutation = useMutation({
 		mutationFn: (params: {
 			playerId: string;
@@ -58,12 +61,15 @@ export function useTablePlayers({
 				seatPosition: params.seatPosition,
 			}),
 		onMutate: async (params) => {
-			await queryClient.cancelQueries({ queryKey: playersKey });
-			const prev = queryClient.getQueryData<TablePlayerData>(playersKey);
-			if (prev) {
-				queryClient.setQueryData<TablePlayerData>(playersKey, {
+			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
+			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
+			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				return {
 					items: [
-						...prev.items,
+						...old.items,
 						{
 							id: `optimistic-${Date.now()}`,
 							player: {
@@ -78,16 +84,16 @@ export function useTablePlayers({
 							seatPosition: params.seatPosition,
 						},
 					],
-				});
-			}
-			return { prev };
+				};
+			});
+			return { previous };
 		},
-		onError: (_err, _vars, ctx) => {
-			if (ctx?.prev) {
-				queryClient.setQueryData(playersKey, ctx.prev);
-			}
+		onError: (_err, _vars, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
-		onSettled: invalidatePlayers,
+		onSettled: () => {
+			invalidateTargets(queryClient, [{ queryKey: playersKey }]);
+		},
 	});
 
 	const addNewMutation = useMutation({
@@ -105,12 +111,15 @@ export function useTablePlayers({
 				seatPosition: params.seatPosition,
 			}),
 		onMutate: async (params) => {
-			await queryClient.cancelQueries({ queryKey: playersKey });
-			const prev = queryClient.getQueryData<TablePlayerData>(playersKey);
-			if (prev) {
-				queryClient.setQueryData<TablePlayerData>(playersKey, {
+			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
+			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
+			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				return {
 					items: [
-						...prev.items,
+						...old.items,
 						{
 							id: `optimistic-${Date.now()}`,
 							player: {
@@ -125,20 +134,18 @@ export function useTablePlayers({
 							seatPosition: params.seatPosition,
 						},
 					],
-				});
-			}
-			return { prev };
+				};
+			});
+			return { previous };
 		},
-		onError: (_err, _vars, ctx) => {
-			if (ctx?.prev) {
-				queryClient.setQueryData(playersKey, ctx.prev);
-			}
+		onError: (_err, _vars, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			invalidatePlayers();
-			queryClient.invalidateQueries({
-				queryKey: trpc.player.list.queryOptions().queryKey,
-			});
+			invalidateTargets(queryClient, [
+				{ queryKey: playersKey },
+				{ queryKey: trpc.player.list.queryOptions().queryKey },
+			]);
 		},
 	});
 
@@ -149,12 +156,15 @@ export function useTablePlayers({
 				seatPosition: params.seatPosition,
 			}),
 		onMutate: async (params) => {
-			await queryClient.cancelQueries({ queryKey: playersKey });
-			const prev = queryClient.getQueryData<TablePlayerData>(playersKey);
-			if (prev) {
-				queryClient.setQueryData<TablePlayerData>(playersKey, {
+			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
+			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
+			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				return {
 					items: [
-						...prev.items,
+						...old.items,
 						{
 							id: `optimistic-${Date.now()}`,
 							player: {
@@ -169,16 +179,16 @@ export function useTablePlayers({
 							seatPosition: params.seatPosition,
 						},
 					],
-				});
-			}
-			return { prev };
+				};
+			});
+			return { previous };
 		},
-		onError: (_err, _vars, ctx) => {
-			if (ctx?.prev) {
-				queryClient.setQueryData(playersKey, ctx.prev);
-			}
+		onError: (_err, _vars, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
-		onSettled: invalidatePlayers,
+		onSettled: () => {
+			invalidateTargets(queryClient, [{ queryKey: playersKey }]);
+		},
 	});
 
 	const removeMutation = useMutation({
@@ -188,25 +198,28 @@ export function useTablePlayers({
 				playerId,
 			}),
 		onMutate: async (playerId) => {
-			await queryClient.cancelQueries({ queryKey: playersKey });
-			const prev = queryClient.getQueryData<TablePlayerData>(playersKey);
-			if (prev) {
-				queryClient.setQueryData<TablePlayerData>(playersKey, {
-					items: prev.items.map((item) =>
+			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
+			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
+			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				return {
+					items: old.items.map((item) =>
 						item.player.id === playerId
 							? { ...item, isActive: false, leftAt: new Date().toISOString() }
 							: item
 					),
-				});
-			}
-			return { prev };
+				};
+			});
+			return { previous };
 		},
-		onError: (_err, _vars, ctx) => {
-			if (ctx?.prev) {
-				queryClient.setQueryData(playersKey, ctx.prev);
-			}
+		onError: (_err, _vars, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
-		onSettled: invalidatePlayers,
+		onSettled: () => {
+			invalidateTargets(queryClient, [{ queryKey: playersKey }]);
+		},
 	});
 
 	const updateSeatMutation = useMutation({
@@ -217,25 +230,28 @@ export function useTablePlayers({
 				seatPosition: params.seatPosition,
 			}),
 		onMutate: async (params) => {
-			await queryClient.cancelQueries({ queryKey: playersKey });
-			const prev = queryClient.getQueryData<TablePlayerData>(playersKey);
-			if (prev) {
-				queryClient.setQueryData<TablePlayerData>(playersKey, {
-					items: prev.items.map((item) =>
+			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
+			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
+			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				return {
+					items: old.items.map((item) =>
 						item.player.id === params.playerId
 							? { ...item, seatPosition: params.seatPosition }
 							: item
 					),
-				});
-			}
-			return { prev };
+				};
+			});
+			return { previous };
 		},
-		onError: (_err, _vars, ctx) => {
-			if (ctx?.prev) {
-				queryClient.setQueryData(playersKey, ctx.prev);
-			}
+		onError: (_err, _vars, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
-		onSettled: invalidatePlayers,
+		onSettled: () => {
+			invalidateTargets(queryClient, [{ queryKey: playersKey }]);
+		},
 	});
 
 	const players = (playersQuery.data?.items ?? []).map((item) => ({

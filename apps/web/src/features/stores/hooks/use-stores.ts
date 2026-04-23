@@ -1,4 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export interface StoreValues {
@@ -22,8 +28,8 @@ export function useStores() {
 	const createMutation = useMutation({
 		mutationFn: (values: StoreValues) => trpcClient.store.create.mutate(values),
 		onMutate: async (newStore) => {
-			await queryClient.cancelQueries({ queryKey: storeListKey });
-			const previous = queryClient.getQueryData(storeListKey);
+			await cancelTargets(queryClient, [{ queryKey: storeListKey }]);
+			const previous = snapshotQuery(queryClient, storeListKey);
 			queryClient.setQueryData(storeListKey, (old) => {
 				if (!old) {
 					return old;
@@ -42,12 +48,10 @@ export function useStores() {
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(storeListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: storeListKey });
+			invalidateTargets(queryClient, [{ queryKey: storeListKey }]);
 		},
 	});
 
@@ -55,40 +59,36 @@ export function useStores() {
 		mutationFn: (values: StoreValues & { id: string }) =>
 			trpcClient.store.update.mutate(values),
 		onMutate: async (updated) => {
-			await queryClient.cancelQueries({ queryKey: storeListKey });
-			const previous = queryClient.getQueryData(storeListKey);
+			await cancelTargets(queryClient, [{ queryKey: storeListKey }]);
+			const previous = snapshotQuery(queryClient, storeListKey);
 			queryClient.setQueryData(storeListKey, (old) =>
 				old?.map((s) => (s.id === updated.id ? { ...s, ...updated } : s))
 			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(storeListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: storeListKey });
+			invalidateTargets(queryClient, [{ queryKey: storeListKey }]);
 		},
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.store.delete.mutate({ id }),
 		onMutate: async (id) => {
-			await queryClient.cancelQueries({ queryKey: storeListKey });
-			const previous = queryClient.getQueryData(storeListKey);
+			await cancelTargets(queryClient, [{ queryKey: storeListKey }]);
+			const previous = snapshotQuery(queryClient, storeListKey);
 			queryClient.setQueryData(storeListKey, (old) =>
 				old?.filter((s) => s.id !== id)
 			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(storeListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: storeListKey });
+			invalidateTargets(queryClient, [{ queryKey: storeListKey }]);
 		},
 	});
 

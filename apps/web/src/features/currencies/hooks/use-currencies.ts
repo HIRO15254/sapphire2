@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export interface CurrencyValues {
@@ -70,8 +76,8 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		mutationFn: (values: CurrencyValues) =>
 			trpcClient.currency.create.mutate(values),
 		onMutate: async (newCurrency) => {
-			await queryClient.cancelQueries({ queryKey: currencyListKey });
-			const previous = queryClient.getQueryData(currencyListKey);
+			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
+			const previous = snapshotQuery(queryClient, currencyListKey);
 			queryClient.setQueryData(currencyListKey, (old) => {
 				if (!old) {
 					return old;
@@ -91,12 +97,10 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(currencyListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: currencyListKey });
+			invalidateTargets(queryClient, [{ queryKey: currencyListKey }]);
 		},
 	});
 
@@ -104,40 +108,36 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		mutationFn: (values: CurrencyValues & { id: string }) =>
 			trpcClient.currency.update.mutate(values),
 		onMutate: async (updated) => {
-			await queryClient.cancelQueries({ queryKey: currencyListKey });
-			const previous = queryClient.getQueryData(currencyListKey);
+			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
+			const previous = snapshotQuery(queryClient, currencyListKey);
 			queryClient.setQueryData(currencyListKey, (old) =>
 				old?.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
 			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(currencyListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: currencyListKey });
+			invalidateTargets(queryClient, [{ queryKey: currencyListKey }]);
 		},
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.currency.delete.mutate({ id }),
 		onMutate: async (id) => {
-			await queryClient.cancelQueries({ queryKey: currencyListKey });
-			const previous = queryClient.getQueryData(currencyListKey);
+			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
+			const previous = snapshotQuery(queryClient, currencyListKey);
 			queryClient.setQueryData(currencyListKey, (old) =>
 				old?.filter((c) => c.id !== id)
 			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(currencyListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: currencyListKey });
+			invalidateTargets(queryClient, [{ queryKey: currencyListKey }]);
 		},
 	});
 
@@ -145,10 +145,10 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		mutationFn: (values: TransactionValues & { currencyId: string }) =>
 			trpcClient.currencyTransaction.create.mutate(values),
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: currencyListKey });
-			queryClient.invalidateQueries({
-				queryKey: transactionsQueryOptions.queryKey,
-			});
+			invalidateTargets(queryClient, [
+				{ queryKey: currencyListKey },
+				{ queryKey: transactionsQueryOptions.queryKey },
+			]);
 		},
 		onSuccess: () => {
 			resetTransactionState();
@@ -171,10 +171,10 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 				memo: values.memo,
 			}),
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: currencyListKey });
-			queryClient.invalidateQueries({
-				queryKey: transactionsQueryOptions.queryKey,
-			});
+			invalidateTargets(queryClient, [
+				{ queryKey: currencyListKey },
+				{ queryKey: transactionsQueryOptions.queryKey },
+			]);
 		},
 		onSuccess: () => {
 			resetTransactionState();
@@ -195,10 +195,10 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 			}
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: currencyListKey });
-			queryClient.invalidateQueries({
-				queryKey: transactionsQueryOptions.queryKey,
-			});
+			invalidateTargets(queryClient, [
+				{ queryKey: currencyListKey },
+				{ queryKey: transactionsQueryOptions.queryKey },
+			]);
 		},
 		onSuccess: () => {
 			resetTransactionState();

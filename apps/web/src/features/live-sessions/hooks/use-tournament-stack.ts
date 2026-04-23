@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { createSessionEventMutationOptions } from "@/features/live-sessions/utils/optimistic-session-event";
+import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export function useTournamentStack({ sessionId }: { sessionId: string }) {
@@ -176,11 +177,9 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 				...values,
 			}),
 		onSuccess: async () => {
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: listKey }),
-				queryClient.invalidateQueries({
-					queryKey: trpc.session.list.queryOptions({}).queryKey,
-				}),
+			await invalidateTargets(queryClient, [
+				{ queryKey: listKey },
+				{ queryKey: trpc.session.list.queryOptions({}).queryKey },
 			]);
 			await navigate({ to: "/sessions" });
 		},
