@@ -272,7 +272,6 @@ export function ActiveSessionScene({
 						</Badge>
 					</span>
 				}
-				size="compact"
 			/>
 
 			{topSlot ? <div className="mb-2">{topSlot}</div> : null}

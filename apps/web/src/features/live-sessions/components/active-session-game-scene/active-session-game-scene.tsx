@@ -53,8 +53,8 @@ function GameSceneShell({
 	action?: React.ReactNode;
 }) {
 	return (
-		<div className="flex flex-col gap-3 pb-6">
-			<PageHeader actions={action} heading={title} size="compact" />
+		<div className="flex flex-col gap-3">
+			<PageHeader actions={action} heading={title} />
 			{children}
 		</div>
 	);
@@ -680,7 +680,7 @@ export function ActiveSessionGameScene() {
 	}
 
 	return (
-		<div className="flex flex-col px-4 pt-2 pb-0 md:px-6 md:pt-4">
+		<div className="flex flex-col p-4 md:p-6">
 			{activeSession.type === "cash_game" ? (
 				<CashGameDetails sessionId={activeSession.id} />
 			) : (
