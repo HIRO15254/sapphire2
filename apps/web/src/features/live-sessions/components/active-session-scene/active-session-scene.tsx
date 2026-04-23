@@ -16,6 +16,7 @@ import type {
 import { usePlayerDetail } from "@/features/players/hooks/use-player-detail";
 import { usePokerTableInteraction } from "@/features/players/hooks/use-poker-table-interaction";
 import { useTablePlayers } from "@/features/players/hooks/use-table-players";
+import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
@@ -248,26 +249,31 @@ export function ActiveSessionScene({
 
 	return (
 		<>
-			<div className="mb-2 flex items-center justify-between gap-3">
-				<div className="flex items-center gap-2">
-					<h1 className="font-bold text-lg">{title}</h1>
-					<Badge
-						className="border-green-200 bg-green-50 text-[10px] text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400"
-						variant="outline"
+			<PageHeader
+				actions={
+					<Button
+						className="text-destructive hover:text-destructive"
+						onClick={() => setIsDiscardOpen(true)}
+						size="sm"
+						type="button"
+						variant="ghost"
 					>
-						Active
-					</Badge>
-				</div>
-				<Button
-					className="text-destructive hover:text-destructive"
-					onClick={() => setIsDiscardOpen(true)}
-					size="sm"
-					type="button"
-					variant="ghost"
-				>
-					Discard
-				</Button>
-			</div>
+						Discard
+					</Button>
+				}
+				heading={
+					<span className="flex items-center gap-2">
+						{title}
+						<Badge
+							className="border-green-200 bg-green-50 text-[10px] text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400"
+							variant="outline"
+						>
+							Active
+						</Badge>
+					</span>
+				}
+				size="compact"
+			/>
 
 			{topSlot ? <div className="mb-2">{topSlot}</div> : null}
 

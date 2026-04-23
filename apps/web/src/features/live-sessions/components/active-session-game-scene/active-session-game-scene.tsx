@@ -21,6 +21,7 @@ import { RingGameForm } from "@/features/stores/components/ring-game-form";
 import { TournamentEditDialog } from "@/features/stores/components/tournament-edit-dialog";
 import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
 import type { RingGame } from "@/features/stores/hooks/use-ring-games";
+import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -53,10 +54,7 @@ function GameSceneShell({
 }) {
 	return (
 		<div className="flex flex-col gap-3 pb-6">
-			<div className="flex items-center justify-between gap-2">
-				<h1 className="font-semibold text-lg">{title}</h1>
-				{action}
-			</div>
+			<PageHeader actions={action} heading={title} size="compact" />
 			{children}
 		</div>
 	);

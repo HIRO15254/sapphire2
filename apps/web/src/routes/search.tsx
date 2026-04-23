@@ -8,7 +8,7 @@ export const Route = createFileRoute("/search")({
 
 function SearchComponent() {
 	return (
-		<div className="container mx-auto max-w-3xl px-4 py-2">
+		<div className="p-4 md:p-6">
 			<PageHeader
 				description="Search across your data will live here."
 				heading="Search"

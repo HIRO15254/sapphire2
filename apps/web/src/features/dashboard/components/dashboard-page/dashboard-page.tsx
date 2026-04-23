@@ -9,6 +9,7 @@ import type {
 	WidgetType,
 } from "@/features/dashboard/hooks/use-dashboard-widgets";
 import { useDashboardPage } from "@/routes/-use-dashboard-page";
+import { PageHeader } from "@/shared/components/page-header";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
@@ -89,13 +90,15 @@ export function DashboardPage() {
 
 	return (
 		<div className="p-4 md:p-6">
-			<div className="mb-6 flex items-center justify-between gap-3">
-				<h1 className="font-bold text-2xl">Dashboard</h1>
-				<div className="flex items-center gap-2">
-					{isEditing ? <AddWidgetMenu onSelect={handleAdd} /> : null}
-					<EditModeToggle isEditing={isEditing} onToggle={handleDoneClick} />
-				</div>
-			</div>
+			<PageHeader
+				actions={
+					<>
+						{isEditing ? <AddWidgetMenu onSelect={handleAdd} /> : null}
+						<EditModeToggle isEditing={isEditing} onToggle={handleDoneClick} />
+					</>
+				}
+				heading="Dashboard"
+			/>
 
 			{error ? (
 				<Alert className="mb-4" variant="destructive">

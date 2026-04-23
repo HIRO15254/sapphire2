@@ -7,6 +7,7 @@ import {
 	LIFECYCLE_EVENTS,
 } from "@/features/live-sessions/utils/session-events-formatters";
 import { toTimeInputValue } from "@/features/live-sessions/utils/stack-editor-time";
+import { PageHeader } from "@/shared/components/page-header";
 import {
 	Accordion,
 	AccordionContent,
@@ -145,10 +146,10 @@ export function SessionEventsScene({
 
 	return (
 		<div className="p-4 md:p-6">
-			<div className="mb-4 flex flex-wrap items-center gap-2">
-				<h1 className="font-bold text-2xl">Events</h1>
-				<Badge variant="outline">{events.length}</Badge>
-			</div>
+			<PageHeader
+				actions={<Badge variant="outline">{events.length}</Badge>}
+				heading="Events"
+			/>
 			{events.length === 0 ? (
 				<EmptyState
 					className="border-none bg-transparent px-0 py-8"
