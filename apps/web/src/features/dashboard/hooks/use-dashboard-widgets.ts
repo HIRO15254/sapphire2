@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 import type { Device } from "./use-current-device";
 
@@ -37,7 +43,7 @@ export function useDashboardWidgets(device: Device) {
 	);
 
 	const invalidateList = useCallback(() => {
-		return queryClient.invalidateQueries({ queryKey: listKey });
+		return invalidateTargets(queryClient, [{ queryKey: listKey }]);
 	}, [queryClient, listKey]);
 
 	const createMutation = useMutation({
@@ -59,22 +65,19 @@ export function useDashboardWidgets(device: Device) {
 				config: input.config,
 			}),
 		onMutate: async (input) => {
-			await queryClient.cancelQueries({ queryKey: listKey });
-			const previous = queryClient.getQueryData<DashboardWidget[]>(listKey);
-			if (previous) {
-				queryClient.setQueryData<DashboardWidget[]>(
-					listKey,
-					previous.map((w) =>
+			await cancelTargets(queryClient, [{ queryKey: listKey }]);
+			const previous = snapshotQuery<DashboardWidget[]>(queryClient, listKey);
+			queryClient.setQueryData<DashboardWidget[]>(
+				listKey,
+				(old) =>
+					old?.map((w) =>
 						w.id === input.id ? { ...w, config: input.config ?? w.config } : w
-					)
-				);
-			}
+					) ?? []
+			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(listKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: async () => {
 			await invalidateList();
@@ -85,20 +88,16 @@ export function useDashboardWidgets(device: Device) {
 		mutationFn: (id: string) =>
 			trpcClient.dashboardWidget.delete.mutate({ id }),
 		onMutate: async (id) => {
-			await queryClient.cancelQueries({ queryKey: listKey });
-			const previous = queryClient.getQueryData<DashboardWidget[]>(listKey);
-			if (previous) {
-				queryClient.setQueryData<DashboardWidget[]>(
-					listKey,
-					previous.filter((w) => w.id !== id)
-				);
-			}
+			await cancelTargets(queryClient, [{ queryKey: listKey }]);
+			const previous = snapshotQuery<DashboardWidget[]>(queryClient, listKey);
+			queryClient.setQueryData<DashboardWidget[]>(
+				listKey,
+				(old) => old?.filter((w) => w.id !== id) ?? []
+			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(listKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: async () => {
 			await invalidateList();

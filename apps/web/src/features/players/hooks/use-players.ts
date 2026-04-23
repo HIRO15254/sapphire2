@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PlayerFormValues } from "@/features/players/components/player-form";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export interface PlayerItem {
@@ -33,9 +39,9 @@ export function usePlayers(filterTagIds: string[]) {
 
 	const createTag = async (name: string) => {
 		const created = await trpcClient.playerTag.create.mutate({ name });
-		queryClient.invalidateQueries({
-			queryKey: trpc.playerTag.list.queryOptions().queryKey,
-		});
+		invalidateTargets(queryClient, [
+			{ queryKey: trpc.playerTag.list.queryOptions().queryKey },
+		]);
 		return { id: created.id, name: created.name, color: created.color };
 	};
 
@@ -46,8 +52,8 @@ export function usePlayers(filterTagIds: string[]) {
 				memo: values.memo ?? undefined,
 			}),
 		onMutate: async (newPlayer) => {
-			await queryClient.cancelQueries({ queryKey: playerListKey });
-			const previous = queryClient.getQueryData(playerListKey);
+			await cancelTargets(queryClient, [{ queryKey: playerListKey }]);
+			const previous = snapshotQuery(queryClient, playerListKey);
 			queryClient.setQueryData(
 				playerListKey,
 				(old: PlayerItem[] | undefined) => {
@@ -75,12 +81,10 @@ export function usePlayers(filterTagIds: string[]) {
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(playerListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: playerListKey });
+			invalidateTargets(queryClient, [{ queryKey: playerListKey }]);
 		},
 	});
 
@@ -88,8 +92,8 @@ export function usePlayers(filterTagIds: string[]) {
 		mutationFn: (values: PlayerFormValues & { id: string }) =>
 			trpcClient.player.update.mutate(values),
 		onMutate: async (updated) => {
-			await queryClient.cancelQueries({ queryKey: playerListKey });
-			const previous = queryClient.getQueryData(playerListKey);
+			await cancelTargets(queryClient, [{ queryKey: playerListKey }]);
+			const previous = snapshotQuery(queryClient, playerListKey);
 			queryClient.setQueryData(
 				playerListKey,
 				(old: PlayerItem[] | undefined) => {
@@ -115,32 +119,28 @@ export function usePlayers(filterTagIds: string[]) {
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(playerListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: playerListKey });
+			invalidateTargets(queryClient, [{ queryKey: playerListKey }]);
 		},
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.player.delete.mutate({ id }),
 		onMutate: async (id) => {
-			await queryClient.cancelQueries({ queryKey: playerListKey });
-			const previous = queryClient.getQueryData(playerListKey);
+			await cancelTargets(queryClient, [{ queryKey: playerListKey }]);
+			const previous = snapshotQuery(queryClient, playerListKey);
 			queryClient.setQueryData(playerListKey, (old: PlayerItem[] | undefined) =>
 				old?.filter((p) => p.id !== id)
 			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				queryClient.setQueryData(playerListKey, context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: playerListKey });
+			invalidateTargets(queryClient, [{ queryKey: playerListKey }]);
 		},
 	});
 

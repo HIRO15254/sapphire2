@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 function useStoreRingGames(storeId: string | undefined) {
@@ -71,9 +72,9 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			storeId?: string;
 		}) => trpcClient.liveCashGameSession.create.mutate(values),
 		onSuccess: async () => {
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: cashListKey }),
-				queryClient.invalidateQueries({ queryKey: sessionListKey }),
+			await invalidateTargets(queryClient, [
+				{ queryKey: cashListKey },
+				{ queryKey: sessionListKey },
 			]);
 			onClose();
 			await navigate({ to: "/active-session" });
@@ -105,9 +106,9 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			return result;
 		},
 		onSuccess: async () => {
-			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: tournamentListKey }),
-				queryClient.invalidateQueries({ queryKey: sessionListKey }),
+			await invalidateTargets(queryClient, [
+				{ queryKey: tournamentListKey },
+				{ queryKey: sessionListKey },
 			]);
 			onClose();
 			await navigate({ to: "/active-session" });

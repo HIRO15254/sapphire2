@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
+import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 import type { Device } from "./use-current-device";
 import type { DashboardWidget } from "./use-dashboard-widgets";
@@ -22,7 +23,7 @@ export function useLayoutSync(device: Device) {
 		mutationFn: (items: LayoutItem[]) =>
 			trpcClient.dashboardWidget.updateLayouts.mutate({ device, items }),
 		onError: async () => {
-			await queryClient.invalidateQueries({ queryKey: listKey });
+			await invalidateTargets(queryClient, [{ queryKey: listKey }]);
 		},
 	});
 
@@ -60,7 +61,7 @@ export function useLayoutSync(device: Device) {
 	const discard = useCallback(() => {
 		pendingRef.current.clear();
 		setHasPendingChanges(false);
-		queryClient.invalidateQueries({ queryKey: listKey });
+		invalidateTargets(queryClient, [{ queryKey: listKey }]);
 	}, [queryClient, listKey]);
 
 	return {
