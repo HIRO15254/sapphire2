@@ -76,4 +76,80 @@ describe("ChipPurchaseSheet", () => {
 		expect(screen.getByLabelText(COST_LABEL_PATTERN)).toBeDisabled();
 		expect(screen.getByLabelText(CHIPS_RECEIVED_LABEL_PATTERN)).toBeDisabled();
 	});
+
+	it("edit mode renders 'Edit Chip Purchase' title and a Save button", () => {
+		render(
+			<ChipPurchaseSheet
+				initialValues={{ chips: 10_000, cost: 1500, name: "Addon" }}
+				onOpenChange={vi.fn()}
+				onSubmit={vi.fn()}
+				open
+			/>
+		);
+		expect(
+			screen.getByRole("heading", { name: "Edit Chip Purchase" })
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+	});
+
+	it("falls back to 'Chip Purchase' heading when readOnly and name is empty", () => {
+		render(
+			<ChipPurchaseSheet
+				initialValues={{ chips: 10_000, cost: 1500, name: "" }}
+				onOpenChange={vi.fn()}
+				onSubmit={vi.fn()}
+				open
+				readOnly
+			/>
+		);
+		expect(
+			screen.getByRole("heading", { name: "Chip Purchase" })
+		).toBeInTheDocument();
+	});
+
+	it("invokes onOpenChange(false) when Cancel is clicked", async () => {
+		const user = userEvent.setup();
+		const onOpenChange = vi.fn();
+		render(
+			<ChipPurchaseSheet onOpenChange={onOpenChange} onSubmit={vi.fn()} open />
+		);
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		expect(onOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("invokes onDelete when Delete is clicked in edit mode", async () => {
+		const user = userEvent.setup();
+		const onDelete = vi.fn();
+		render(
+			<ChipPurchaseSheet
+				initialValues={{ chips: 10_000, cost: 1500, name: "Addon" }}
+				onDelete={onDelete}
+				onOpenChange={vi.fn()}
+				onSubmit={vi.fn()}
+				open
+			/>
+		);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		expect(onDelete).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not render Delete button when onDelete is absent", () => {
+		render(
+			<ChipPurchaseSheet onOpenChange={vi.fn()} onSubmit={vi.fn()} open />
+		);
+		expect(
+			screen.queryByRole("button", { name: "Delete" })
+		).not.toBeInTheDocument();
+	});
+
+	it("does not submit when required name is empty (form validation)", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		render(
+			<ChipPurchaseSheet onOpenChange={vi.fn()} onSubmit={onSubmit} open />
+		);
+		// Leave name empty, submit.
+		await user.click(screen.getByRole("button", { name: "Add Chip Purchase" }));
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
 });
