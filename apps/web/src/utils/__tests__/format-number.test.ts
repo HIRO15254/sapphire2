@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
 	createGroupFormatter,
 	formatCompactNumber,
+	formatYmdSlash,
 } from "@/utils/format-number";
 
 const B_SUFFIX = /B$/;
+const YMD_SHAPE = /^2026\/06\/1[45]$/;
 
 describe("formatCompactNumber", () => {
 	describe("below the 10k threshold", () => {
@@ -182,5 +184,32 @@ describe("createGroupFormatter", () => {
 			expect(fmt(20_000)).toBe("20k");
 			expect(fmt(12_500)).toBe("12.5k");
 		});
+	});
+});
+
+describe("formatYmdSlash", () => {
+	it("formats a Date as Y/MM/DD", () => {
+		expect(formatYmdSlash(new Date(2026, 3, 5))).toBe("2026/04/05");
+	});
+
+	it("zero-pads single-digit months and days", () => {
+		expect(formatYmdSlash(new Date(2026, 0, 1))).toBe("2026/01/01");
+		expect(formatYmdSlash(new Date(2026, 8, 9))).toBe("2026/09/09");
+	});
+
+	it("parses a YYYY-MM-DD string (local interpretation)", () => {
+		// JS Date parses 'YYYY-MM-DD' as UTC, but we output local date fields.
+		// Pin to a value that resolves the same in any timezone we run in:
+		const iso = "2026-06-15T09:00:00";
+		const result = formatYmdSlash(iso);
+		expect(result).toMatch(YMD_SHAPE);
+	});
+
+	it("formats December 31 without off-by-one", () => {
+		expect(formatYmdSlash(new Date(2026, 11, 31))).toBe("2026/12/31");
+	});
+
+	it("handles a pre-epoch date", () => {
+		expect(formatYmdSlash(new Date(1969, 6, 20))).toBe("1969/07/20");
 	});
 });
