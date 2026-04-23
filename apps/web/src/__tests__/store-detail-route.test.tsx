@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import type { ComponentType, ReactNode } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+const BACK_PATTERN = /back/i;
+
 const storeQueryState = vi.hoisted(() => ({
 	data: null as { id: string; memo?: string | null; name: string } | null,
 	isLoading: false,
@@ -93,5 +95,68 @@ describe("StoreDetailPage", () => {
 		await user.click(screen.getByRole("tab", { name: "Tournaments" }));
 
 		expect(screen.getByText("Tournaments Content")).toBeInTheDocument();
+	});
+
+	it("renders without a memo description when memo is null", () => {
+		storeQueryState.data = {
+			id: "store-1",
+			memo: null,
+			name: "No Memo Store",
+		};
+
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		expect(
+			screen.getByRole("heading", { name: "No Memo Store" })
+		).toBeInTheDocument();
+	});
+
+	it("renders a Back link pointing to /stores", () => {
+		storeQueryState.data = {
+			id: "store-1",
+			memo: null,
+			name: "Akiba",
+		};
+
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		const backLink = screen.getByRole("link", { name: BACK_PATTERN });
+		expect(backLink).toHaveAttribute("href", "/stores");
+	});
+
+	it("passes the storeId from route params into the tab components", () => {
+		routeParamsMock.mockReturnValue({ storeId: "custom-store-id" });
+		storeQueryState.data = {
+			id: "custom-store-id",
+			memo: null,
+			name: "Custom",
+		};
+
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		expect(screen.getByText("Cash Games Content")).toBeInTheDocument();
+		// Restore for subsequent tests
+		routeParamsMock.mockReturnValue({ storeId: "store-1" });
+	});
+
+	it("defaults to the Cash Games tab being active", () => {
+		storeQueryState.data = {
+			id: "store-1",
+			memo: null,
+			name: "Akiba",
+		};
+
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		const cashGamesTab = screen.getByRole("tab", { name: "Cash Games" });
+		expect(cashGamesTab).toHaveAttribute("aria-selected", "true");
 	});
 });

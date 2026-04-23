@@ -101,6 +101,10 @@ vi.mock("@/features/currencies/components/transaction-form", () => ({
 	),
 }));
 
+vi.mock("@/features/currencies/components/transaction-type-manager", () => ({
+	TransactionTypeManager: () => <div>Transaction Type Manager</div>,
+}));
+
 vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	ResponsiveDialog: ({
 		children,
@@ -217,6 +221,35 @@ describe("CurrenciesPage", () => {
 
 		await user.click(screen.getAllByText("USD")[0]);
 		expect(screen.queryByText("Transaction History")).not.toBeInTheDocument();
+	});
+
+	it("opens the Manage Types dialog from the page header action", async () => {
+		const user = userEvent.setup();
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		await user.click(screen.getByRole("button", { name: "Manage Types" }));
+
+		expect(
+			screen.getByRole("heading", { name: "Manage Types" })
+		).toBeInTheDocument();
+		expect(screen.getByText("Transaction Type Manager")).toBeInTheDocument();
+	});
+
+	it("expands a currency and shows its transaction list heading", async () => {
+		const user = userEvent.setup();
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		mocks.currencies = [{ balance: 0, id: "c1", name: "USD", unit: "$" }];
+		mocks.transactionsByCurrency = {
+			c1: { items: [], nextCursor: undefined },
+		};
+
+		render(<Component />);
+
+		await user.click(screen.getAllByText("USD")[0]);
+		expect(screen.getByText("Transaction History")).toBeInTheDocument();
 	});
 
 	it("opens the edit transaction dialog with the expected default values", async () => {

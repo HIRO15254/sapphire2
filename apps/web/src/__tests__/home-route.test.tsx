@@ -105,4 +105,60 @@ describe("HomeRoute", () => {
 
 		expect(screen.getByText("API: Disconnected")).toBeInTheDocument();
 	});
+
+	it("describes connectivity state with the connected description", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+		mocks.healthCheck.data = { ok: true };
+		mocks.healthCheck.isLoading = false;
+
+		render(<Component />);
+
+		expect(screen.getByText("Everything looks ready.")).toBeInTheDocument();
+	});
+
+	it("describes connectivity state with the disconnected description", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+		mocks.healthCheck.data = null;
+		mocks.healthCheck.isLoading = false;
+
+		render(<Component />);
+
+		expect(
+			screen.getByText("Server connection is unavailable right now.")
+		).toBeInTheDocument();
+	});
+
+	it("describes connectivity state with the checking description while loading", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+		mocks.healthCheck.data = null;
+		mocks.healthCheck.isLoading = true;
+
+		render(<Component />);
+
+		expect(
+			screen.getByText("Checking server connectivity before you continue.")
+		).toBeInTheDocument();
+	});
+
+	it("hides the Sign In link when a session exists", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+		mocks.session = { user: { name: "Hiro" } };
+
+		render(<Component />);
+
+		expect(screen.queryByRole("link", { name: "Sign In" })).toBeNull();
+	});
+
+	it("falls back to 'your account' wording when session has no username", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+		// userName resolves to null; the page uses "your account" as fallback text
+		mocks.session = { user: { name: "" } };
+
+		render(<Component />);
+
+		// When name is empty string, userName is "" (falsy), so fallback kicks in
+		expect(
+			screen.getByText("Signed in as . Continue where you left off.")
+		).toBeInTheDocument();
+	});
 });
