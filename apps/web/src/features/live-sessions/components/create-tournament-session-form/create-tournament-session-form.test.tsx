@@ -44,7 +44,6 @@ describe("CreateTournamentSessionForm", () => {
 		);
 
 		expect(screen.getByText("Store")).toBeInTheDocument();
-		expect(screen.getByText("Select a store")).toBeInTheDocument();
 	});
 
 	it("shows guidance message when no stores available", () => {

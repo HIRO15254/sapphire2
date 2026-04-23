@@ -19,9 +19,18 @@ export function SelectWithClear({
 	...props
 }: SelectWithClearProps) {
 	const canClear = value !== undefined && value !== "" && !props.disabled;
+	// Radix Select does not reset its internal state when `value` switches from a
+	// defined string to `undefined` while controlled. Remounting via `key` forces
+	// it back to the empty (placeholder) state.
+	const selectKey = value ?? "__unset__";
 	return (
 		<div className="relative">
-			<Select onValueChange={onValueChange} value={value} {...props}>
+			<Select
+				key={selectKey}
+				onValueChange={onValueChange}
+				value={value}
+				{...props}
+			>
 				{children}
 			</Select>
 			{canClear && onValueChange ? (

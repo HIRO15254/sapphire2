@@ -76,7 +76,7 @@ export function CreateTournamentSessionForm({
 						value={selectedStoreId}
 					>
 						<SelectTrigger>
-							<SelectValue placeholder="Select a store" />
+							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
 							{stores.map((store) => (
@@ -101,7 +101,7 @@ export function CreateTournamentSessionForm({
 							value={selectedTournamentId}
 						>
 							<SelectTrigger>
-								<SelectValue placeholder="Select a tournament" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{tournaments.map((t) => (
@@ -127,7 +127,7 @@ export function CreateTournamentSessionForm({
 						value={selectedCurrencyId}
 					>
 						<SelectTrigger>
-							<SelectValue placeholder="Select a currency" />
+							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
 							{currencies.map((currency) => (

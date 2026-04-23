@@ -71,7 +71,7 @@ export function CreateCashGameSessionForm({
 						value={selectedStoreId}
 					>
 						<SelectTrigger>
-							<SelectValue placeholder="Select a store" />
+							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
 							{stores.map((store) => (
@@ -96,7 +96,7 @@ export function CreateCashGameSessionForm({
 							value={selectedRingGameId}
 						>
 							<SelectTrigger>
-								<SelectValue placeholder="Select a ring game" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{ringGames.map((game) => (
@@ -124,7 +124,7 @@ export function CreateCashGameSessionForm({
 						value={selectedCurrencyId}
 					>
 						<SelectTrigger>
-							<SelectValue placeholder="Select a currency" />
+							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
 							{currencies.map((currency) => (
