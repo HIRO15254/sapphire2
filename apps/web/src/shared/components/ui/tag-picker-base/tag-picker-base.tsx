@@ -24,7 +24,6 @@ interface TagPickerBaseProps<TTag extends TagItemBase> {
 	onAdd: (tag: TTag) => void;
 	onCreateTag?: (name: string) => Promise<TTag>;
 	onRemove: (tag: TTag) => void;
-	placeholder: string;
 	renderSelectedTag: (tag: TTag, onRemove: () => void) => React.ReactNode;
 	renderSuggestion: (tag: TTag) => React.ReactNode;
 	searchAriaLabel: string;
@@ -37,7 +36,6 @@ export function TagPickerBase<TTag extends TagItemBase>({
 	onAdd,
 	onCreateTag,
 	onRemove,
-	placeholder,
 	renderSelectedTag,
 	renderSuggestion,
 	searchAriaLabel,
@@ -101,7 +99,6 @@ export function TagPickerBase<TTag extends TagItemBase>({
 									onOpenChange(false);
 								}
 							}}
-							placeholder={placeholder}
 							ref={inputRef}
 							role="combobox"
 							value={inputValue}

@@ -48,7 +48,6 @@ export function TournamentForm({
 			<form.Field name="name">
 				{(field) => (
 					<Field
-						description="例: Sunday Main Event"
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Tournament Name"
@@ -145,7 +144,7 @@ export function TournamentForm({
 				{(field) => (
 					<Field
 						className="rounded-md border p-3"
-						description="リバイやアドオンの構造を定義します。"
+						description="Define rebuy or add-on structures used during play."
 						label="Chip Purchases"
 					>
 						<div className="flex items-center justify-between">
@@ -174,7 +173,6 @@ export function TournamentForm({
 											{(sub) => (
 												<Field
 													className="flex flex-1 flex-col gap-1"
-													description="例: Rebuy"
 													htmlFor={`cp-name-${index}`}
 													label="Name"
 												>

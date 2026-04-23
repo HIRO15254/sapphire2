@@ -63,7 +63,6 @@ export function RingGameForm({
 			<form.Field name="name">
 				{(field) => (
 					<Field
-						description="例: 1/2 NLH"
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Game Name"

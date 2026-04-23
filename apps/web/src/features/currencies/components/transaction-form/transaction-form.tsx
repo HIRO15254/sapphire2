@@ -181,7 +181,7 @@ export function TransactionForm({
 			<form.Field name="amount">
 				{(field) => (
 					<Field
-						description="負の値で出金を表します"
+						description="Use a negative value for a withdrawal."
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Amount"

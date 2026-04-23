@@ -30,7 +30,6 @@ export function CurrencyForm({
 			<form.Field name="name">
 				{(field) => (
 					<Field
-						description="例: Gold, Points"
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Currency Name"
@@ -49,7 +48,6 @@ export function CurrencyForm({
 			<form.Field name="unit">
 				{(field) => (
 					<Field
-						description="例: G, pts"
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Unit"

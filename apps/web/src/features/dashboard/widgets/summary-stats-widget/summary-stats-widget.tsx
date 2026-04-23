@@ -192,7 +192,7 @@ export function SummaryStatsEditForm({
 			<form.Field name="dateRangeDays">
 				{(field) => (
 					<Field
-						description="空のまま保存すると全期間になります"
+						description="Leave empty to use all-time data."
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Date Range (days)"

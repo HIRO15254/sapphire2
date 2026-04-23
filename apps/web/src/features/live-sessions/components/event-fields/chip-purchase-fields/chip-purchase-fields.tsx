@@ -51,7 +51,6 @@ export function ChipPurchaseFields({
 				</div>
 			)}
 			<Field
-				description="例: Rebuy, Addon"
 				error={nameError}
 				htmlFor="chip-purchase-name"
 				label="Name"

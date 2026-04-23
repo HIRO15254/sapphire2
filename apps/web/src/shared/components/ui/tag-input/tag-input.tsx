@@ -13,7 +13,6 @@ interface TagInputProps {
 	onAdd: (tag: Tag) => void;
 	onCreateTag?: (name: string) => Promise<Tag>;
 	onRemove: (tag: Tag) => void;
-	placeholder?: string;
 	selectedTags: Tag[];
 }
 
@@ -22,7 +21,6 @@ export function TagInput({
 	onAdd,
 	onCreateTag,
 	onRemove,
-	placeholder = "Type to search or create tags...",
 	selectedTags,
 }: TagInputProps) {
 	return (
@@ -31,7 +29,6 @@ export function TagInput({
 			onAdd={onAdd}
 			onCreateTag={onCreateTag}
 			onRemove={onRemove}
-			placeholder={placeholder}
 			renderSelectedTag={(tag, handleRemove) => (
 				<Badge className="gap-1 pr-1" variant="outline">
 					{tag.name}

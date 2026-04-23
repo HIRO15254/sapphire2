@@ -14,7 +14,6 @@ interface PlayerTagInputProps {
 	onAdd: (tag: TagWithColor) => void;
 	onCreateTag?: (name: string) => Promise<TagWithColor>;
 	onRemove: (tag: TagWithColor) => void;
-	placeholder?: string;
 	selectedTags: TagWithColor[];
 }
 
@@ -23,7 +22,6 @@ export function PlayerTagInput({
 	onAdd,
 	onCreateTag,
 	onRemove,
-	placeholder = "Type to search or create tags...",
 	selectedTags,
 }: PlayerTagInputProps) {
 	return (
@@ -32,7 +30,6 @@ export function PlayerTagInput({
 			onAdd={onAdd}
 			onCreateTag={onCreateTag}
 			onRemove={onRemove}
-			placeholder={placeholder}
 			renderSelectedTag={(tag, handleRemove) => (
 				<ColorBadge className="gap-1 pr-1" color={tag.color}>
 					{tag.name}

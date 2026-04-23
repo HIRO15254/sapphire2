@@ -284,11 +284,7 @@ export function SessionForm({
 						</div>
 						<form.Field name="evCashOut">
 							{(field) => (
-								<Field
-									description="オールイン時の期待値ベースのキャッシュアウト。追跡しない場合は空のままにしてください。"
-									htmlFor={field.name}
-									label="EV Cash-out"
-								>
+								<Field htmlFor={field.name} label="EV Cash-out">
 									<Input
 										disabled={isLiveLinked}
 										id={field.name}
