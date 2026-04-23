@@ -21,6 +21,7 @@ import { RingGameForm } from "@/features/stores/components/ring-game-form";
 import { TournamentEditDialog } from "@/features/stores/components/tournament-edit-dialog";
 import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
 import type { RingGame } from "@/features/stores/hooks/use-ring-games";
+import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -52,11 +53,8 @@ function GameSceneShell({
 	action?: React.ReactNode;
 }) {
 	return (
-		<div className="flex flex-col gap-3 pb-6">
-			<div className="flex items-center justify-between gap-2">
-				<h1 className="font-semibold text-lg">{title}</h1>
-				{action}
-			</div>
+		<div className="flex flex-col gap-3">
+			<PageHeader actions={action} heading={title} />
 			{children}
 		</div>
 	);
@@ -682,7 +680,7 @@ export function ActiveSessionGameScene() {
 	}
 
 	return (
-		<div className="flex flex-col px-4 pt-2 pb-0 md:px-6 md:pt-4">
+		<div className="flex flex-col p-4 md:p-6">
 			{activeSession.type === "cash_game" ? (
 				<CashGameDetails sessionId={activeSession.id} />
 			) : (

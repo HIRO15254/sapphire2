@@ -61,22 +61,6 @@ function SessionsPage() {
 							<IconTags size={16} />
 							Manage Tags
 						</Button>
-						<SessionFilters
-							currencies={currencies}
-							filters={filters}
-							onFiltersChange={setFilters}
-							stores={stores}
-						/>
-						<div className="flex items-center gap-1.5">
-							<Label className="text-xs" htmlFor="bb-bi-switch">
-								BB/BI
-							</Label>
-							<Switch
-								checked={bbBiMode}
-								id="bb-bi-switch"
-								onCheckedChange={setBbBiMode}
-							/>
-						</div>
 						<Button onClick={() => handleCreateDialogOpenChange(true)}>
 							<IconPlus size={16} />
 							New Session
@@ -85,6 +69,25 @@ function SessionsPage() {
 				}
 				heading="Sessions"
 			/>
+
+			<div className="mb-4 flex flex-wrap items-center gap-3">
+				<SessionFilters
+					currencies={currencies}
+					filters={filters}
+					onFiltersChange={setFilters}
+					stores={stores}
+				/>
+				<div className="flex items-center gap-1.5">
+					<Label className="text-xs" htmlFor="bb-bi-switch">
+						BB/BI
+					</Label>
+					<Switch
+						checked={bbBiMode}
+						id="bb-bi-switch"
+						onCheckedChange={setBbBiMode}
+					/>
+				</div>
+			</div>
 
 			{sessions.length === 0 ? (
 				<EmptyState
