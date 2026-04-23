@@ -1,13 +1,13 @@
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
+	SelectWithClear,
 } from "@/shared/components/ui/select";
 
 // biome-ignore-start lint/suspicious/noExplicitAny: tanstack-form's ReactFormExtendedApi has 12 generic parameters; threading a fully typed form through child components would require exporting the parent's full form generics.
@@ -35,8 +35,6 @@ interface CashGameFieldsProps {
 	selectedCurrencyId?: string;
 }
 
-const NONE_VALUE = "__none__";
-
 const ANTE_TYPES = [
 	{ value: "none", label: "No Ante" },
 	{ value: "bb", label: "BB Ante" },
@@ -55,30 +53,26 @@ export function CashGameFields({
 	return (
 		<>
 			{currencies && currencies.length > 0 && (
-				<div className="flex flex-col gap-2">
-					<Label>Currency</Label>
-					<Select
-						onValueChange={(v) =>
-							onCurrencyChange?.(v === NONE_VALUE ? undefined : v)
-						}
-						value={selectedCurrencyId ?? NONE_VALUE}
+				<Field
+					description="Auto-generates a transaction with the session's P&L."
+					label="Currency"
+				>
+					<SelectWithClear
+						onValueChange={onCurrencyChange}
+						value={selectedCurrencyId}
 					>
 						<SelectTrigger>
-							<SelectValue placeholder="Select a currency" />
+							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value={NONE_VALUE}>None</SelectItem>
 							{currencies.map((c) => (
 								<SelectItem key={c.id} value={c.id}>
 									{c.name}
 								</SelectItem>
 							))}
 						</SelectContent>
-					</Select>
-					<p className="text-muted-foreground text-xs">
-						Auto-generates a transaction with the session&apos;s P&L.
-					</p>
-				</div>
+					</SelectWithClear>
+				</Field>
 			)}
 
 			<form.Field name="variant">
@@ -90,7 +84,7 @@ export function CashGameFields({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select variant" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="nlh">NL Hold&apos;em</SelectItem>
@@ -114,7 +108,6 @@ export function CashGameFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -133,7 +126,6 @@ export function CashGameFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -152,7 +144,6 @@ export function CashGameFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -170,7 +161,7 @@ export function CashGameFields({
 								value={field.state.value}
 							>
 								<SelectTrigger className="w-full" id={field.name}>
-									<SelectValue placeholder="Select ante type" />
+									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
 									{ANTE_TYPES.map((at) => (
@@ -200,7 +191,6 @@ export function CashGameFields({
 										inputMode="numeric"
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
-										placeholder="0"
 										value={field.state.value}
 									/>
 								</Field>
@@ -219,7 +209,7 @@ export function CashGameFields({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select table size" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{TABLE_SIZES.map((size) => (

@@ -40,7 +40,6 @@ export function CurrencyForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="e.g. Gold, Points"
 							value={field.state.value}
 						/>
 					</Field>
@@ -58,7 +57,6 @@ export function CurrencyForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="e.g. G, pts"
 							value={field.state.value}
 						/>
 					</Field>

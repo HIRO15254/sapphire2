@@ -35,9 +35,9 @@ export function AiExtractInput({ onExtracted }: AiExtractInputProps) {
 					item.kind === "url" ? (
 						<div className="flex items-center gap-1.5" key={item.id}>
 							<Input
+								aria-label="URL"
 								className="h-8 flex-1 text-sm"
 								onChange={(e) => updateUrl(item.id, e.target.value)}
-								placeholder="https://..."
 								type="url"
 								value={item.value}
 							/>

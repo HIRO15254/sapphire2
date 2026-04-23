@@ -89,7 +89,6 @@ export function AddPlayerSheet({
 						className="pl-9"
 						id="add-player-search"
 						onChange={(e) => setSearch(e.target.value)}
-						placeholder="Search players..."
 						value={search}
 					/>
 				</div>
@@ -99,7 +98,6 @@ export function AddPlayerSheet({
 					onAdd={addSelectedTag}
 					onCreateTag={onCreateTag}
 					onRemove={removeSelectedTag}
-					placeholder="Filter by tags..."
 					selectedTags={selectedTags}
 				/>
 

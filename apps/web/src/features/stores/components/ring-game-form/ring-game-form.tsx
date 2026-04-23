@@ -72,7 +72,6 @@ export function RingGameForm({
 							id={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="e.g. 1/2 NLH"
 							value={field.state.value}
 						/>
 					</Field>
@@ -87,7 +86,7 @@ export function RingGameForm({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select variant" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{Object.entries(GAME_VARIANTS).map(([key, val]) => (
@@ -114,7 +113,6 @@ export function RingGameForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -132,7 +130,6 @@ export function RingGameForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -150,7 +147,6 @@ export function RingGameForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -167,7 +163,7 @@ export function RingGameForm({
 								value={field.state.value}
 							>
 								<SelectTrigger className="w-full" id={field.name}>
-									<SelectValue placeholder="Select ante type" />
+									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
 									{ANTE_TYPES.map((at) => (
@@ -197,7 +193,6 @@ export function RingGameForm({
 										inputMode="numeric"
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
-										placeholder="0"
 										value={field.state.value}
 									/>
 								</Field>
@@ -220,7 +215,6 @@ export function RingGameForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -238,7 +232,6 @@ export function RingGameForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -254,7 +247,7 @@ export function RingGameForm({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select table size" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{TABLE_SIZES.map((size) => (
@@ -276,7 +269,7 @@ export function RingGameForm({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select currency" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{currencies.map((c) => (
@@ -298,7 +291,6 @@ export function RingGameForm({
 							id={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Notes about this game"
 							rows={4}
 							value={field.state.value}
 						/>

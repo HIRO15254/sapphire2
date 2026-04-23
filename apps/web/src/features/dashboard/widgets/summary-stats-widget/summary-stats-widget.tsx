@@ -178,7 +178,7 @@ export function SummaryStatsEditForm({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select type" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="all">All</SelectItem>
@@ -192,6 +192,7 @@ export function SummaryStatsEditForm({
 			<form.Field name="dateRangeDays">
 				{(field) => (
 					<Field
+						description="Leave empty to use all-time data."
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Date Range (days)"
@@ -201,7 +202,6 @@ export function SummaryStatsEditForm({
 							inputMode="numeric"
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="All time"
 							value={field.state.value}
 						/>
 					</Field>

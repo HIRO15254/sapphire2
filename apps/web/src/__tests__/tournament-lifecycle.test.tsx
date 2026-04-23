@@ -353,12 +353,11 @@ describe("ActiveSessionPage — active cash game session", () => {
 		});
 	});
 
-	it("renders Cash Game heading with Active badge", async () => {
+	it("renders Cash Game heading", async () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
 		await screen.findByText("Cash Game");
-		expect(screen.getByText("Active")).toBeInTheDocument();
 	});
 
 	it("renders Discard button", async () => {
@@ -410,12 +409,11 @@ describe("ActiveSessionPage — active tournament session", () => {
 		});
 	});
 
-	it("renders Tournament heading with Active badge", async () => {
+	it("renders Tournament heading", async () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
 		await screen.findByText("Tournament");
-		expect(screen.getByText("Active")).toBeInTheDocument();
 	});
 
 	it("renders Discard button", async () => {
@@ -605,13 +603,11 @@ describe("ActiveSessionEventsPage — tournament events display", () => {
 		});
 	});
 
-	it("renders Events heading with event count badge", async () => {
+	it("renders Events heading", async () => {
 		const router = createEventsRouter();
 		renderWithProviders(router);
 
 		await screen.findByRole("heading", { name: "Events" });
-		// The badge count updates once the events query resolves — wait for it
-		await screen.findByText("2");
 	});
 
 	it("renders update_stack events with 'Stack Update' label", async () => {

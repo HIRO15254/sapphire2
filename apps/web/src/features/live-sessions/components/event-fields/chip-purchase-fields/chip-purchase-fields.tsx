@@ -60,7 +60,6 @@ export function ChipPurchaseFields({
 					disabled={readOnly}
 					id="chip-purchase-name"
 					onChange={(e) => onNameChange(e.target.value)}
-					placeholder="e.g. Rebuy, Addon"
 					type="text"
 					value={name}
 				/>

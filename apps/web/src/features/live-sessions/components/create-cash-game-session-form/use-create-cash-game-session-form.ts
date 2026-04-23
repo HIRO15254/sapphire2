@@ -60,15 +60,18 @@ export function useCreateCashGameSessionForm({
 		},
 	});
 
-	const handleStoreChange = (value: string) => {
+	const handleStoreChange = (value: string | undefined) => {
 		setSelectedStoreId(value);
 		setSelectedRingGameId(undefined);
 		form.setFieldValue("initialBuyIn", "");
 		onStoreChange?.(value);
 	};
 
-	const handleRingGameChange = (value: string) => {
+	const handleRingGameChange = (value: string | undefined) => {
 		setSelectedRingGameId(value);
+		if (value === undefined) {
+			return;
+		}
 		const ringGame = ringGames.find((g) => g.id === value);
 		if (ringGame) {
 			form.setFieldValue("initialBuyIn", ringGame.maxBuyIn?.toString() ?? "");
@@ -76,7 +79,7 @@ export function useCreateCashGameSessionForm({
 		}
 	};
 
-	const handleCurrencyChange = (value: string) => {
+	const handleCurrencyChange = (value: string | undefined) => {
 		setSelectedCurrencyId(value);
 	};
 

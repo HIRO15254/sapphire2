@@ -69,7 +69,7 @@ export function useCreateTournamentSessionForm({
 		},
 	});
 
-	const handleStoreChange = (value: string) => {
+	const handleStoreChange = (value: string | undefined) => {
 		setSelectedStoreId(value);
 		setSelectedTournamentId(undefined);
 		onStoreChange?.(value);
@@ -90,15 +90,18 @@ export function useCreateTournamentSessionForm({
 		}
 	};
 
-	const handleTournamentChange = (value: string) => {
+	const handleTournamentChange = (value: string | undefined) => {
 		setSelectedTournamentId(value);
+		if (value === undefined) {
+			return;
+		}
 		const t = tournaments.find((tour) => tour.id === value);
 		if (t) {
 			applyTournamentDefaults(t);
 		}
 	};
 
-	const handleCurrencyChange = (value: string) => {
+	const handleCurrencyChange = (value: string | undefined) => {
 		setSelectedCurrencyId(value);
 	};
 

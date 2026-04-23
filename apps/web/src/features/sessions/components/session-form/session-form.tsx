@@ -8,7 +8,6 @@ import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import { Label } from "@/shared/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { TagInput } from "@/shared/components/ui/tag-input";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -120,7 +119,6 @@ export function SessionForm({
 							id={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Notes about this session"
 							value={field.state.value}
 						/>
 					</Field>
@@ -168,10 +166,7 @@ export function SessionForm({
 			<div className="flex flex-col gap-4">
 				<form.Field name="sessionDate">
 					{(field) => (
-						<div className="flex flex-col gap-2">
-							<Label htmlFor={field.name}>
-								Session Date <span className="text-destructive">*</span>
-							</Label>
+						<Field htmlFor={field.name} label="Session Date" required>
 							<Input
 								disabled={isLiveLinked}
 								id={field.name}
@@ -180,15 +175,14 @@ export function SessionForm({
 								type="date"
 								value={field.state.value}
 							/>
-						</div>
+						</Field>
 					)}
 				</form.Field>
 
 				<div className="grid grid-cols-2 gap-3">
 					<form.Field name="startTime">
 						{(field) => (
-							<div className="flex flex-col gap-2">
-								<Label htmlFor={field.name}>Start Time</Label>
+							<Field htmlFor={field.name} label="Start Time">
 								<Input
 									disabled={isLiveLinked}
 									id={field.name}
@@ -197,13 +191,12 @@ export function SessionForm({
 									type="time"
 									value={field.state.value}
 								/>
-							</div>
+							</Field>
 						)}
 					</form.Field>
 					<form.Field name="endTime">
 						{(field) => (
-							<div className="flex flex-col gap-2">
-								<Label htmlFor={field.name}>End Time</Label>
+							<Field htmlFor={field.name} label="End Time">
 								<Input
 									disabled={isLiveLinked}
 									id={field.name}
@@ -212,30 +205,27 @@ export function SessionForm({
 									type="time"
 									value={field.state.value}
 								/>
-							</div>
+							</Field>
 						)}
 					</form.Field>
 				</div>
 
 				<form.Field name="breakMinutes">
 					{(field) => (
-						<div className="flex flex-col gap-2">
-							<Label htmlFor={field.name}>Break Time (min)</Label>
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Break Time (min)"
+						>
 							<Input
 								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
-							{field.state.meta.errors[0] ? (
-								<p className="text-destructive text-sm">
-									{field.state.meta.errors[0]?.message}
-								</p>
-							) : null}
-						</div>
+						</Field>
 					)}
 				</form.Field>
 
@@ -255,69 +245,55 @@ export function SessionForm({
 						<div className="grid grid-cols-2 gap-3">
 							<form.Field name="buyIn">
 								{(field) => (
-									<div className="flex flex-col gap-2">
-										<Label htmlFor={field.name}>
-											Buy-in <span className="text-destructive">*</span>
-										</Label>
+									<Field
+										error={field.state.meta.errors[0]?.message}
+										htmlFor={field.name}
+										label="Buy-in"
+										required
+									>
 										<Input
 											disabled={isLiveLinked}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
 											onChange={(e) => field.handleChange(e.target.value)}
-											placeholder="0"
 											value={field.state.value}
 										/>
-										{field.state.meta.errors[0] ? (
-											<p className="text-destructive text-sm">
-												{field.state.meta.errors[0]?.message}
-											</p>
-										) : null}
-									</div>
+									</Field>
 								)}
 							</form.Field>
 							<form.Field name="cashOut">
 								{(field) => (
-									<div className="flex flex-col gap-2">
-										<Label htmlFor={field.name}>
-											Cash-out <span className="text-destructive">*</span>
-										</Label>
+									<Field
+										error={field.state.meta.errors[0]?.message}
+										htmlFor={field.name}
+										label="Cash-out"
+										required
+									>
 										<Input
 											disabled={isLiveLinked}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
 											onChange={(e) => field.handleChange(e.target.value)}
-											placeholder="0"
 											value={field.state.value}
 										/>
-										{field.state.meta.errors[0] ? (
-											<p className="text-destructive text-sm">
-												{field.state.meta.errors[0]?.message}
-											</p>
-										) : null}
-									</div>
+									</Field>
 								)}
 							</form.Field>
 						</div>
 						<form.Field name="evCashOut">
 							{(field) => (
-								<div className="flex flex-col gap-2">
-									<Label htmlFor={field.name}>EV Cash-out</Label>
+								<Field htmlFor={field.name} label="EV Cash-out">
 									<Input
 										disabled={isLiveLinked}
 										id={field.name}
 										inputMode="numeric"
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
-										placeholder="0"
 										value={field.state.value}
 									/>
-									<p className="text-muted-foreground text-xs">
-										Expected value cash-out based on all-in equity. Leave empty
-										if not tracking EV.
-									</p>
-								</div>
+								</Field>
 							)}
 						</form.Field>
 					</>

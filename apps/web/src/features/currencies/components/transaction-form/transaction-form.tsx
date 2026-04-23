@@ -91,7 +91,6 @@ function TypeCombobox({
 							}
 							handleKeyDown(e.key);
 						}}
-						placeholder="Select or create type..."
 						role="combobox"
 						value={inputValue}
 					/>
@@ -182,6 +181,7 @@ export function TransactionForm({
 			<form.Field name="amount">
 				{(field) => (
 					<Field
+						description="Use a negative value for a withdrawal."
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Amount"
@@ -193,7 +193,6 @@ export function TransactionForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Enter amount (negative for withdrawal)"
 							value={field.state.value}
 						/>
 					</Field>
@@ -226,7 +225,6 @@ export function TransactionForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Optional note"
 							value={field.state.value}
 						/>
 					</Field>

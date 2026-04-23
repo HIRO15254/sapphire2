@@ -49,7 +49,7 @@ function StoreSelectField({
 		<Field className="mb-4" label="Store" required>
 			<Select onValueChange={onChange} value={value}>
 				<SelectTrigger>
-					<SelectValue placeholder="Select a store" />
+					<SelectValue />
 				</SelectTrigger>
 				<SelectContent>
 					{stores.map((s) => (
@@ -98,7 +98,7 @@ function RingGamePickerField({
 		<Field label="Ring Game" required>
 			<Select onValueChange={onChange} value={value}>
 				<SelectTrigger>
-					<SelectValue placeholder="Select a ring game" />
+					<SelectValue />
 				</SelectTrigger>
 				<SelectContent>
 					{ringGames.map((g) => (

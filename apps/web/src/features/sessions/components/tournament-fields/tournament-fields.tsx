@@ -4,11 +4,11 @@ import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
-	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
+	SelectWithClear,
 } from "@/shared/components/ui/select";
 
 // biome-ignore-start lint/suspicious/noExplicitAny: tanstack-form's ReactFormExtendedApi has 12 generic parameters; threading a fully typed form through child components would require exporting the parent's full form generics.
@@ -39,8 +39,6 @@ interface TournamentDetailFieldsProps extends TournamentFieldsProps {
 	selectedCurrencyId?: string;
 }
 
-const NONE_VALUE = "__none__";
-
 export function TournamentPrimaryFields({
 	form,
 	isLiveLinked = false,
@@ -62,7 +60,6 @@ export function TournamentPrimaryFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -81,7 +78,6 @@ export function TournamentPrimaryFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -102,7 +98,6 @@ export function TournamentPrimaryFields({
 							inputMode="numeric"
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="0"
 							value={field.state.value}
 						/>
 					</Field>
@@ -146,7 +141,6 @@ export function TournamentPrimaryFields({
 											inputMode="numeric"
 											onBlur={field.handleBlur}
 											onChange={(e) => field.handleChange(e.target.value)}
-											placeholder="e.g. 3"
 											value={field.state.value}
 										/>
 									</Field>
@@ -165,7 +159,6 @@ export function TournamentPrimaryFields({
 											inputMode="numeric"
 											onBlur={field.handleBlur}
 											onChange={(e) => field.handleChange(e.target.value)}
-											placeholder="e.g. 50"
 											value={field.state.value}
 										/>
 									</Field>
@@ -193,24 +186,21 @@ export function TournamentDetailFields({
 					description="Auto-generates a transaction with the session's P&L."
 					label="Currency"
 				>
-					<Select
-						onValueChange={(v) =>
-							onCurrencyChange?.(v === NONE_VALUE ? undefined : v)
-						}
-						value={selectedCurrencyId ?? NONE_VALUE}
+					<SelectWithClear
+						onValueChange={onCurrencyChange}
+						value={selectedCurrencyId}
 					>
 						<SelectTrigger>
-							<SelectValue placeholder="Select a currency" />
+							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value={NONE_VALUE}>None</SelectItem>
 							{currencies.map((c) => (
 								<SelectItem key={c.id} value={c.id}>
 									{c.name}
 								</SelectItem>
 							))}
 						</SelectContent>
-					</Select>
+					</SelectWithClear>
 				</Field>
 			)}
 
@@ -228,7 +218,6 @@ export function TournamentDetailFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -247,7 +236,6 @@ export function TournamentDetailFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -269,7 +257,6 @@ export function TournamentDetailFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -288,7 +275,6 @@ export function TournamentDetailFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>

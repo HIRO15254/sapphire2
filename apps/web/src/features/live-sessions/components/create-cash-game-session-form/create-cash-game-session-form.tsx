@@ -3,11 +3,11 @@ import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
-	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
+	SelectWithClear,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useCreateCashGameSessionForm } from "./use-create-cash-game-session-form";
@@ -66,9 +66,12 @@ export function CreateCashGameSessionForm({
 		>
 			<Field label="Store">
 				{stores.length > 0 ? (
-					<Select onValueChange={handleStoreChange} value={selectedStoreId}>
+					<SelectWithClear
+						onValueChange={handleStoreChange}
+						value={selectedStoreId}
+					>
 						<SelectTrigger>
-							<SelectValue placeholder="Optional — leave unset to start without a store" />
+							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
 							{stores.map((store) => (
@@ -77,7 +80,7 @@ export function CreateCashGameSessionForm({
 								</SelectItem>
 							))}
 						</SelectContent>
-					</Select>
+					</SelectWithClear>
 				) : (
 					<p className="text-muted-foreground text-xs">
 						No stores yet. You can start without one.
@@ -88,12 +91,12 @@ export function CreateCashGameSessionForm({
 			{selectedStoreId ? (
 				<Field label="Ring Game">
 					{hasRingGames ? (
-						<Select
+						<SelectWithClear
 							onValueChange={handleRingGameChange}
 							value={selectedRingGameId}
 						>
 							<SelectTrigger>
-								<SelectValue placeholder="Optional — leave unset to start without a game" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{ringGames.map((game) => (
@@ -102,7 +105,7 @@ export function CreateCashGameSessionForm({
 									</SelectItem>
 								))}
 							</SelectContent>
-						</Select>
+						</SelectWithClear>
 					) : (
 						<EmptyState
 							className="px-4 py-8"
@@ -114,14 +117,14 @@ export function CreateCashGameSessionForm({
 			) : null}
 
 			{currencies.length > 0 ? (
-				<Field label="Currency">
-					<Select
+				<Field label="Currency" required>
+					<SelectWithClear
 						disabled={isCurrencyLocked}
 						onValueChange={handleCurrencyChange}
 						value={selectedCurrencyId}
 					>
 						<SelectTrigger>
-							<SelectValue placeholder="Select a currency" />
+							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
 							{currencies.map((currency) => (
@@ -130,7 +133,7 @@ export function CreateCashGameSessionForm({
 								</SelectItem>
 							))}
 						</SelectContent>
-					</Select>
+					</SelectWithClear>
 				</Field>
 			) : null}
 
@@ -189,7 +192,6 @@ export function CreateCashGameSessionForm({
 							id={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Notes about this session"
 							value={field.state.value}
 						/>
 					</Field>

@@ -57,7 +57,6 @@ export function TournamentForm({
 							id={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="e.g. Sunday Main Event"
 							value={field.state.value}
 						/>
 					</Field>
@@ -72,7 +71,7 @@ export function TournamentForm({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select variant" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{Object.entries(GAME_VARIANTS).map(([key, val]) => (
@@ -99,7 +98,6 @@ export function TournamentForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -117,7 +115,6 @@ export function TournamentForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -137,7 +134,6 @@ export function TournamentForm({
 							inputMode="numeric"
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="0"
 							value={field.state.value}
 						/>
 					</Field>
@@ -148,7 +144,7 @@ export function TournamentForm({
 				{(field) => (
 					<Field
 						className="rounded-md border p-3"
-						description="Define optional rebuy or addon structures used during play."
+						description="Define rebuy or add-on structures used during play."
 						label="Chip Purchases"
 					>
 						<div className="flex items-center justify-between">
@@ -183,7 +179,6 @@ export function TournamentForm({
 													<Input
 														id={`cp-name-${index}`}
 														onChange={(e) => sub.handleChange(e.target.value)}
-														placeholder="e.g. Rebuy"
 														value={sub.state.value}
 													/>
 												</Field>
@@ -200,7 +195,6 @@ export function TournamentForm({
 														id={`cp-cost-${index}`}
 														inputMode="numeric"
 														onChange={(e) => sub.handleChange(e.target.value)}
-														placeholder="0"
 														value={sub.state.value}
 													/>
 												</Field>
@@ -217,7 +211,6 @@ export function TournamentForm({
 														id={`cp-chips-${index}`}
 														inputMode="numeric"
 														onChange={(e) => sub.handleChange(e.target.value)}
-														placeholder="0"
 														value={sub.state.value}
 													/>
 												</Field>
@@ -252,7 +245,6 @@ export function TournamentForm({
 							inputMode="numeric"
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="0"
 							value={field.state.value}
 						/>
 					</Field>
@@ -267,7 +259,7 @@ export function TournamentForm({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select table size" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{TABLE_SIZES.map((size) => (
@@ -289,7 +281,7 @@ export function TournamentForm({
 							value={field.state.value}
 						>
 							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue placeholder="Select currency" />
+								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								{currencies.map((c) => (
@@ -311,7 +303,6 @@ export function TournamentForm({
 							id={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Notes about this tournament"
 							rows={4}
 							value={field.state.value}
 						/>
@@ -336,7 +327,6 @@ export function TournamentForm({
 									field.state.value.filter((t) => t !== tag.name)
 								)
 							}
-							placeholder="Add a tag"
 							selectedTags={field.state.value.map((name) => ({
 								id: name,
 								name,

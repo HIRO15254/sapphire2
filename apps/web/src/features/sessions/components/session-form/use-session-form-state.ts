@@ -2,7 +2,6 @@ import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
 import {
 	buildDefaults,
-	NONE_VALUE,
 	numStrOrEmpty,
 	parseOptInt,
 	type RingGameOption,
@@ -146,23 +145,21 @@ export function useSessionFormState({
 		});
 	};
 
-	const handleStoreChange = (value: string) => {
-		const storeId = value === NONE_VALUE ? undefined : value;
-		setSelectedStoreId(storeId);
+	const handleStoreChange = (value: string | undefined) => {
+		setSelectedStoreId(value);
 		setSelectedGameId(undefined);
-		onStoreChange?.(storeId);
+		onStoreChange?.(value);
 	};
 
-	const handleGameChange = (value: string) => {
-		const gameId = value === NONE_VALUE ? undefined : value;
-		setSelectedGameId(gameId);
-		if (!gameId) {
+	const handleGameChange = (value: string | undefined) => {
+		setSelectedGameId(value);
+		if (!value) {
 			return;
 		}
 		if (isCashGame) {
-			applyRingGameDefaults(gameId);
+			applyRingGameDefaults(value);
 		} else {
-			applyTournamentDefaults(gameId);
+			applyTournamentDefaults(value);
 		}
 	};
 

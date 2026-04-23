@@ -39,7 +39,6 @@ export function TagNameForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Enter tag name"
 							value={field.state.value}
 						/>
 					</Field>
