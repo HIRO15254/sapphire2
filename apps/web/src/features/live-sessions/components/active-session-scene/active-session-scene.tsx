@@ -261,17 +261,15 @@ export function ActiveSessionScene({
 						Discard
 					</Button>
 				}
-				heading={
-					<span className="flex items-center gap-2">
-						{title}
-						<Badge
-							className="border-green-200 bg-green-50 text-[10px] text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400"
-							variant="outline"
-						>
-							Active
-						</Badge>
-					</span>
+				badge={
+					<Badge
+						className="border-green-200 bg-green-50 text-[10px] text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400"
+						variant="outline"
+					>
+						Active
+					</Badge>
 				}
+				heading={title}
 			/>
 
 			{topSlot ? <div className="mb-2">{topSlot}</div> : null}

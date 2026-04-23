@@ -147,7 +147,7 @@ export function SessionEventsScene({
 	return (
 		<div className="p-4 md:p-6">
 			<PageHeader
-				actions={<Badge variant="outline">{events.length}</Badge>}
+				badge={<Badge variant="outline">{events.length}</Badge>}
 				heading="Events"
 			/>
 			{events.length === 0 ? (

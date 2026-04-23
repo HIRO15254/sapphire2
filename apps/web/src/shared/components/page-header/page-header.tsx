@@ -3,12 +3,14 @@ import { cn } from "@/lib/utils";
 
 interface PageHeaderProps extends React.ComponentProps<"div"> {
 	actions?: React.ReactNode;
+	badge?: React.ReactNode;
 	description?: React.ReactNode;
 	heading: React.ReactNode;
 }
 
 export function PageHeader({
 	actions,
+	badge,
 	className,
 	description,
 	heading,
@@ -23,7 +25,10 @@ export function PageHeader({
 			{...props}
 		>
 			<div className="space-y-1">
-				<h1 className="font-bold text-2xl">{heading}</h1>
+				<div className="flex flex-wrap items-center gap-2">
+					<h1 className="font-bold text-2xl">{heading}</h1>
+					{badge}
+				</div>
 				{description ? (
 					<p className="text-muted-foreground text-sm">{description}</p>
 				) : null}
