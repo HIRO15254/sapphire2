@@ -114,7 +114,6 @@ export function CashGameFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -133,7 +132,6 @@ export function CashGameFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -152,7 +150,6 @@ export function CashGameFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -200,7 +197,6 @@ export function CashGameFields({
 										inputMode="numeric"
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
-										placeholder="0"
 										value={field.state.value}
 									/>
 								</Field>

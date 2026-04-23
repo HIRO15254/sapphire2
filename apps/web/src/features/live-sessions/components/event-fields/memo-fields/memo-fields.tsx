@@ -12,7 +12,6 @@ export function MemoFields({ onTextChange, text }: MemoFieldsProps) {
 			<Textarea
 				id="memo-text"
 				onChange={(e) => onTextChange(e.target.value)}
-				placeholder="Enter a note..."
 				value={text}
 			/>
 		</Field>

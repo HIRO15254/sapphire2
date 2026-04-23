@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SessionForm } from "./session-form";
 
-const EV_HELPER_RE = /Expected value cash-out based on all-in equity/;
+const EV_HELPER_RE = /オールイン時の期待値ベース/;
 const BUY_IN_RE = /Buy-in/;
 const SESSION_DATE_RE = /Session Date/;
 const SESSION_TAG = { id: "series", name: "Series" };

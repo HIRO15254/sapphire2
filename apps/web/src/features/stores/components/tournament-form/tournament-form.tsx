@@ -48,6 +48,7 @@ export function TournamentForm({
 			<form.Field name="name">
 				{(field) => (
 					<Field
+						description="例: Sunday Main Event"
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Tournament Name"
@@ -57,7 +58,6 @@ export function TournamentForm({
 							id={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="e.g. Sunday Main Event"
 							value={field.state.value}
 						/>
 					</Field>
@@ -99,7 +99,6 @@ export function TournamentForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -117,7 +116,6 @@ export function TournamentForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -137,7 +135,6 @@ export function TournamentForm({
 							inputMode="numeric"
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="0"
 							value={field.state.value}
 						/>
 					</Field>
@@ -148,7 +145,7 @@ export function TournamentForm({
 				{(field) => (
 					<Field
 						className="rounded-md border p-3"
-						description="Define optional rebuy or addon structures used during play."
+						description="リバイやアドオンの構造を定義します。"
 						label="Chip Purchases"
 					>
 						<div className="flex items-center justify-between">
@@ -177,13 +174,13 @@ export function TournamentForm({
 											{(sub) => (
 												<Field
 													className="flex flex-1 flex-col gap-1"
+													description="例: Rebuy"
 													htmlFor={`cp-name-${index}`}
 													label="Name"
 												>
 													<Input
 														id={`cp-name-${index}`}
 														onChange={(e) => sub.handleChange(e.target.value)}
-														placeholder="e.g. Rebuy"
 														value={sub.state.value}
 													/>
 												</Field>
@@ -200,7 +197,6 @@ export function TournamentForm({
 														id={`cp-cost-${index}`}
 														inputMode="numeric"
 														onChange={(e) => sub.handleChange(e.target.value)}
-														placeholder="0"
 														value={sub.state.value}
 													/>
 												</Field>
@@ -217,7 +213,6 @@ export function TournamentForm({
 														id={`cp-chips-${index}`}
 														inputMode="numeric"
 														onChange={(e) => sub.handleChange(e.target.value)}
-														placeholder="0"
 														value={sub.state.value}
 													/>
 												</Field>
@@ -252,7 +247,6 @@ export function TournamentForm({
 							inputMode="numeric"
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="0"
 							value={field.state.value}
 						/>
 					</Field>
@@ -311,7 +305,6 @@ export function TournamentForm({
 							id={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Notes about this tournament"
 							rows={4}
 							value={field.state.value}
 						/>
@@ -336,7 +329,6 @@ export function TournamentForm({
 									field.state.value.filter((t) => t !== tag.name)
 								)
 							}
-							placeholder="Add a tag"
 							selectedTags={field.state.value.map((name) => ({
 								id: name,
 								name,

@@ -51,6 +51,7 @@ export function ChipPurchaseFields({
 				</div>
 			)}
 			<Field
+				description="例: Rebuy, Addon"
 				error={nameError}
 				htmlFor="chip-purchase-name"
 				label="Name"
@@ -60,7 +61,6 @@ export function ChipPurchaseFields({
 					disabled={readOnly}
 					id="chip-purchase-name"
 					onChange={(e) => onNameChange(e.target.value)}
-					placeholder="e.g. Rebuy, Addon"
 					type="text"
 					value={name}
 				/>

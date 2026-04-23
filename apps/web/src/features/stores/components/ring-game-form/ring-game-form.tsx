@@ -63,6 +63,7 @@ export function RingGameForm({
 			<form.Field name="name">
 				{(field) => (
 					<Field
+						description="例: 1/2 NLH"
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Game Name"
@@ -72,7 +73,6 @@ export function RingGameForm({
 							id={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="e.g. 1/2 NLH"
 							value={field.state.value}
 						/>
 					</Field>
@@ -114,7 +114,6 @@ export function RingGameForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -132,7 +131,6 @@ export function RingGameForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -150,7 +148,6 @@ export function RingGameForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -197,7 +194,6 @@ export function RingGameForm({
 										inputMode="numeric"
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
-										placeholder="0"
 										value={field.state.value}
 									/>
 								</Field>
@@ -220,7 +216,6 @@ export function RingGameForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -238,7 +233,6 @@ export function RingGameForm({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -298,7 +292,6 @@ export function RingGameForm({
 							id={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Notes about this game"
 							rows={4}
 							value={field.state.value}
 						/>

@@ -40,7 +40,6 @@ export function StoreForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Enter store name"
 							value={field.state.value}
 						/>
 					</Field>
@@ -54,7 +53,6 @@ export function StoreForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Optional notes about this store"
 							value={field.state.value}
 						/>
 					</Field>

@@ -62,7 +62,6 @@ export function TournamentPrimaryFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -81,7 +80,6 @@ export function TournamentPrimaryFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -102,7 +100,6 @@ export function TournamentPrimaryFields({
 							inputMode="numeric"
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="0"
 							value={field.state.value}
 						/>
 					</Field>
@@ -146,7 +143,6 @@ export function TournamentPrimaryFields({
 											inputMode="numeric"
 											onBlur={field.handleBlur}
 											onChange={(e) => field.handleChange(e.target.value)}
-											placeholder="e.g. 3"
 											value={field.state.value}
 										/>
 									</Field>
@@ -165,7 +161,6 @@ export function TournamentPrimaryFields({
 											inputMode="numeric"
 											onBlur={field.handleBlur}
 											onChange={(e) => field.handleChange(e.target.value)}
-											placeholder="e.g. 50"
 											value={field.state.value}
 										/>
 									</Field>
@@ -228,7 +223,6 @@ export function TournamentDetailFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -247,7 +241,6 @@ export function TournamentDetailFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -269,7 +262,6 @@ export function TournamentDetailFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>
@@ -288,7 +280,6 @@ export function TournamentDetailFields({
 								inputMode="numeric"
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
-								placeholder="0"
 								value={field.state.value}
 							/>
 						</Field>

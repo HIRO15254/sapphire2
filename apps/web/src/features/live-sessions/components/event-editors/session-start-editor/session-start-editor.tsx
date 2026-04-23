@@ -67,7 +67,6 @@ function CashGameStartEditor({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="0"
 							value={field.state.value}
 						/>
 					</Field>

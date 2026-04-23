@@ -44,9 +44,7 @@ describe("CreateTournamentSessionForm", () => {
 		);
 
 		expect(screen.getByText("Store")).toBeInTheDocument();
-		expect(
-			screen.getByText("Optional — leave unset to start without a store")
-		).toBeInTheDocument();
+		expect(screen.getByText("Select a store")).toBeInTheDocument();
 	});
 
 	it("shows guidance message when no stores available", () => {
@@ -79,7 +77,7 @@ describe("CreateTournamentSessionForm", () => {
 		expect(screen.getByText("Buy-in")).toBeInTheDocument();
 		expect(screen.getByText("Starting Stack")).toBeInTheDocument();
 		expect(screen.getByText("Memo")).toBeInTheDocument();
-		expect(screen.getByText("Timer Start Time (optional)")).toBeInTheDocument();
+		expect(screen.getByText("Timer Start Time")).toBeInTheDocument();
 	});
 
 	it("shows loading state when isLoading", () => {

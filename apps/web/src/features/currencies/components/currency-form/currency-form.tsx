@@ -30,6 +30,7 @@ export function CurrencyForm({
 			<form.Field name="name">
 				{(field) => (
 					<Field
+						description="例: Gold, Points"
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Currency Name"
@@ -40,7 +41,6 @@ export function CurrencyForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="e.g. Gold, Points"
 							value={field.state.value}
 						/>
 					</Field>
@@ -49,6 +49,7 @@ export function CurrencyForm({
 			<form.Field name="unit">
 				{(field) => (
 					<Field
+						description="例: G, pts"
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Unit"
@@ -58,7 +59,6 @@ export function CurrencyForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="e.g. G, pts"
 							value={field.state.value}
 						/>
 					</Field>

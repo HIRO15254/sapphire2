@@ -38,7 +38,6 @@ export function TournamentInfoFields({
 				inputMode="numeric"
 				label="Remaining Players"
 				onChange={onRemainingPlayersChange}
-				placeholder="Optional"
 				value={remainingPlayers}
 			/>
 			<StackNumberField
@@ -46,7 +45,6 @@ export function TournamentInfoFields({
 				inputMode="numeric"
 				label="Total Entries"
 				onChange={onTotalEntriesChange}
-				placeholder="Optional"
 				value={totalEntries}
 			/>
 			{chipPurchaseTypes && chipPurchaseTypes.length > 0 && (

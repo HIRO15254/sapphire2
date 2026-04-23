@@ -204,7 +204,8 @@ describe("BlindLevelEditor", () => {
 			/>
 		);
 
-		const smallBlindInput = screen.getByPlaceholderText("SB");
+		const numberInputs = screen.getAllByRole("spinbutton");
+		const smallBlindInput = numberInputs[0];
 		fireEvent.change(smallBlindInput, { target: { value: "100" } });
 		fireEvent.blur(smallBlindInput, { relatedTarget: null });
 

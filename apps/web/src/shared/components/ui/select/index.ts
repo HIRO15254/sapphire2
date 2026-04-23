@@ -10,3 +10,4 @@ export {
 	SelectTrigger,
 	SelectValue,
 } from "./select";
+export { SelectWithClear } from "./select-with-clear";

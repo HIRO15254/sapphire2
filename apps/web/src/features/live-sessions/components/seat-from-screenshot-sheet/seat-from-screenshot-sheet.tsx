@@ -414,7 +414,6 @@ function SeatCombobox({
 							}
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Player name"
 						readOnly={readOnly}
 						role="combobox"
 						value={displayValue}

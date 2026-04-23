@@ -77,7 +77,6 @@ export function TournamentCompleteForm({
 											name={field.name}
 											onBlur={field.handleBlur}
 											onChange={(e) => field.handleChange(e.target.value)}
-											placeholder="1"
 											value={field.state.value}
 										/>
 									</Field>
@@ -98,7 +97,6 @@ export function TournamentCompleteForm({
 											name={field.name}
 											onBlur={field.handleBlur}
 											onChange={(e) => field.handleChange(e.target.value)}
-											placeholder="100"
 											value={field.state.value}
 										/>
 									</Field>
@@ -123,7 +121,6 @@ export function TournamentCompleteForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="0"
 							value={field.state.value}
 						/>
 					</Field>
@@ -143,7 +140,6 @@ export function TournamentCompleteForm({
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="0"
 							value={field.state.value}
 						/>
 					</Field>

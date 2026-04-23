@@ -144,7 +144,6 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 					inputMode="numeric"
 					key={`${row.id}-blind1`}
 					onBlur={handleBlind1Blur}
-					placeholder="—"
 					type="number"
 				/>
 			</TableCell>
@@ -154,7 +153,6 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 					inputMode="numeric"
 					key={`${row.id}-blind2-${row.blind2}`}
 					onBlur={handleBlind2Blur}
-					placeholder="—"
 					type="number"
 				/>
 			</TableCell>
@@ -164,7 +162,6 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 					inputMode="numeric"
 					key={`${row.id}-ante-${row.ante}`}
 					onBlur={handleAnteBlur}
-					placeholder="—"
 					type="number"
 				/>
 			</TableCell>
@@ -174,7 +171,6 @@ function SortableLevelRow({ row, onDelete, onUpdate }: SortableLevelRowProps) {
 					inputMode="numeric"
 					key={`${row.id}-minutes`}
 					onBlur={handleMinutesBlur}
-					placeholder="—"
 					type="number"
 				/>
 			</TableCell>
@@ -244,7 +240,6 @@ function SortableBreakRow({ row, onDelete, onUpdate }: SortableBreakRowProps) {
 					onBlur={(e) =>
 						onUpdate(row.id, { minutes: parseIntOrNull(e.target.value) })
 					}
-					placeholder="—"
 					type="number"
 				/>
 			</TableCell>
@@ -291,7 +286,6 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 				<BlindLevelInput
 					inputMode="numeric"
 					onBlur={handleBlind1Blur}
-					placeholder="SB"
 					ref={blind1Ref}
 					type="number"
 				/>
@@ -300,7 +294,6 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 				<BlindLevelInput
 					inputMode="numeric"
 					onBlur={handleBlind2Blur}
-					placeholder="BB"
 					ref={blind2Ref}
 					type="number"
 				/>
@@ -309,7 +302,6 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 				<BlindLevelInput
 					inputMode="numeric"
 					onBlur={handleAnteBlur}
-					placeholder="Ante"
 					ref={anteRef}
 					type="number"
 				/>
@@ -318,7 +310,6 @@ function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 				<BlindLevelInput
 					inputMode="numeric"
 					onBlur={handleMinutesBlur}
-					placeholder="Min"
 					ref={minutesRef}
 					type="number"
 				/>

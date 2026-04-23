@@ -126,7 +126,6 @@ export function SessionFilters({
 						onChange={(event) =>
 							updateDraft({ dateFrom: event.target.value || undefined })
 						}
-						placeholder="From"
 						type="date"
 						value={draft.dateFrom ?? ""}
 					/>
@@ -137,7 +136,6 @@ export function SessionFilters({
 						onChange={(event) =>
 							updateDraft({ dateTo: event.target.value || undefined })
 						}
-						placeholder="To"
 						type="date"
 						value={draft.dateTo ?? ""}
 					/>

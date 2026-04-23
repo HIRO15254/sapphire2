@@ -192,6 +192,7 @@ export function SummaryStatsEditForm({
 			<form.Field name="dateRangeDays">
 				{(field) => (
 					<Field
+						description="空のまま保存すると全期間になります"
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Date Range (days)"
@@ -201,7 +202,6 @@ export function SummaryStatsEditForm({
 							inputMode="numeric"
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="All time"
 							value={field.state.value}
 						/>
 					</Field>

@@ -46,7 +46,6 @@ export function PlayerFilters({
 						availableTags={availableTags}
 						onAdd={(tag) => toggleTag(tag.id)}
 						onRemove={(tag) => toggleTag(tag.id)}
-						placeholder="Search tags"
 						selectedTags={draft
 							.map((id) => availableTags.find((tag) => tag.id === id))
 							.filter((tag): tag is TagItem => tag !== undefined)}

@@ -2,11 +2,11 @@ import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
-	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
+	SelectWithClear,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useCreateTournamentSessionForm } from "./use-create-tournament-session-form";
@@ -71,9 +71,12 @@ export function CreateTournamentSessionForm({
 		>
 			<Field label="Store">
 				{stores.length > 0 ? (
-					<Select onValueChange={handleStoreChange} value={selectedStoreId}>
+					<SelectWithClear
+						onValueChange={handleStoreChange}
+						value={selectedStoreId}
+					>
 						<SelectTrigger>
-							<SelectValue placeholder="Optional — leave unset to start without a store" />
+							<SelectValue placeholder="Select a store" />
 						</SelectTrigger>
 						<SelectContent>
 							{stores.map((store) => (
@@ -82,7 +85,7 @@ export function CreateTournamentSessionForm({
 								</SelectItem>
 							))}
 						</SelectContent>
-					</Select>
+					</SelectWithClear>
 				) : (
 					<p className="text-muted-foreground text-xs">
 						No stores yet. You can start without one.
@@ -93,12 +96,12 @@ export function CreateTournamentSessionForm({
 			{selectedStoreId ? (
 				<Field label="Tournament">
 					{hasTournaments ? (
-						<Select
+						<SelectWithClear
 							onValueChange={handleTournamentChange}
 							value={selectedTournamentId}
 						>
 							<SelectTrigger>
-								<SelectValue placeholder="Optional — leave unset to start without a tournament" />
+								<SelectValue placeholder="Select a tournament" />
 							</SelectTrigger>
 							<SelectContent>
 								{tournaments.map((t) => (
@@ -107,7 +110,7 @@ export function CreateTournamentSessionForm({
 									</SelectItem>
 								))}
 							</SelectContent>
-						</Select>
+						</SelectWithClear>
 					) : (
 						<p className="text-muted-foreground text-xs">
 							You can create and assign one later from the active session.
@@ -117,8 +120,8 @@ export function CreateTournamentSessionForm({
 			) : null}
 
 			{currencies.length > 0 ? (
-				<Field label="Currency">
-					<Select
+				<Field label="Currency" required>
+					<SelectWithClear
 						disabled={isCurrencyLocked}
 						onValueChange={handleCurrencyChange}
 						value={selectedCurrencyId}
@@ -133,7 +136,7 @@ export function CreateTournamentSessionForm({
 								</SelectItem>
 							))}
 						</SelectContent>
-					</Select>
+					</SelectWithClear>
 				</Field>
 			) : null}
 
@@ -204,7 +207,7 @@ export function CreateTournamentSessionForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Timer Start Time (optional)"
+						label="Timer Start Time"
 					>
 						<Input
 							id={field.name}
@@ -225,7 +228,6 @@ export function CreateTournamentSessionForm({
 							id={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
-							placeholder="Notes about this tournament"
 							value={field.state.value}
 						/>
 					</Field>
