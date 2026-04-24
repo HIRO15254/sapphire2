@@ -156,7 +156,7 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 							typeof session.summary.evDiff === "number"
 								? session.summary.evDiff
 								: 0,
-						startedAt: session.startedAt,
+						startedAt: session.startedAt ?? new Date(),
 						totalBuyIn: session.summary.totalBuyIn,
 					}}
 				/>
@@ -219,7 +219,10 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 				state={sceneState}
 				summary={
 					<TournamentCompactSummary
-						summary={{ ...tournamentSummary, startedAt: session.startedAt }}
+						summary={{
+							...tournamentSummary,
+							startedAt: session.startedAt ?? new Date(),
+						}}
 					/>
 				}
 				tableSize={tableSize}

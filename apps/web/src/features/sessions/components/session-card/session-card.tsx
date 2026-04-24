@@ -63,6 +63,9 @@ interface SessionCardProps {
 		tournamentId: string | null;
 		tournamentName: string | null;
 		type: string;
+		// CTI discriminators — added in Phase 1 DB migration
+		source: string;
+		status: string;
 	};
 }
 

@@ -153,6 +153,9 @@ function baseSessionItem(overrides: Partial<SessionItem> = {}): SessionItem {
 		buyIn: 10_000,
 		cashOut: 15_000,
 		createdAt: "2026-04-01T00:00:00Z",
+		// CTI discriminators — added in Phase 1 DB migration
+		source: "manual",
+		status: "completed",
 		currencyId: null,
 		currencyName: null,
 		currencyUnit: null,
