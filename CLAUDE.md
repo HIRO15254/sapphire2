@@ -144,6 +144,10 @@ If a target does not match any pattern above, extend the relevant `test-utils` f
 
 The full suite is enforced by the Claude Code **Stop hook** (`bun x ultracite fix && bun x vitest run --changed HEAD && bun x ultracite check`) at the end of a turn, not by every intermediate step. Pre-commit is skipped when `CLAUDECODE=1` for the same reason.
 
+#### Prefer `rtk vitest` when available
+
+If `rtk` is installed (check with `command -v rtk`), use `rtk vitest <args>` in place of `bunx vitest run <args>` for every frontend test invocation — `rtk` is a token-optimization wrapper that condenses vitest output to failures only, which materially shrinks agent/CI transcripts. Fall back to `bunx vitest run <args>` only when `rtk` is missing. The same substitution applies to `--project web-dom` / `--project web-node` etc.
+
 ## Path-scoped Rule Files
 
 The following rule files live in `.claude/rules/` and are loaded automatically when files under their `paths:` glob are touched:
