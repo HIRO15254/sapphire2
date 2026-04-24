@@ -12,14 +12,6 @@ import {
 	dashboardWidgetRelations,
 } from "./schema/dashboard-widget";
 import {
-	liveCashGameSession,
-	liveCashGameSessionRelations,
-} from "./schema/live-cash-game-session";
-import {
-	liveTournamentSession,
-	liveTournamentSessionRelations,
-} from "./schema/live-tournament-session";
-import {
 	player,
 	playerRelations,
 	playerTag,
@@ -28,7 +20,11 @@ import {
 	playerToPlayerTagRelations,
 } from "./schema/player";
 import { ringGame, ringGameRelations } from "./schema/ring-game";
-import { pokerSession, pokerSessionRelations } from "./schema/session";
+import { gameSession, gameSessionRelations } from "./schema/session";
+import {
+	sessionCashDetail,
+	sessionCashDetailRelations,
+} from "./schema/session-cash-detail";
 import { sessionEvent, sessionEventRelations } from "./schema/session-event";
 import {
 	sessionTablePlayer,
@@ -40,6 +36,10 @@ import {
 	sessionToSessionTag,
 	sessionToSessionTagRelations,
 } from "./schema/session-tag";
+import {
+	sessionTournamentDetail,
+	sessionTournamentDetailRelations,
+} from "./schema/session-tournament-detail";
 import {
 	currency,
 	currencyRelations,
@@ -80,8 +80,8 @@ export const schema = {
 	transactionTypeRelations,
 	currencyTransaction,
 	currencyTransactionRelations,
-	pokerSession,
-	pokerSessionRelations,
+	gameSession,
+	gameSessionRelations,
 	ringGame,
 	ringGameRelations,
 	tournament,
@@ -96,14 +96,14 @@ export const schema = {
 	sessionTagRelations,
 	sessionToSessionTag,
 	sessionToSessionTagRelations,
-	liveCashGameSession,
-	liveCashGameSessionRelations,
-	liveTournamentSession,
-	liveTournamentSessionRelations,
 	sessionEvent,
 	sessionEventRelations,
 	sessionTablePlayer,
 	sessionTablePlayerRelations,
+	sessionCashDetail,
+	sessionCashDetailRelations,
+	sessionTournamentDetail,
+	sessionTournamentDetailRelations,
 	player,
 	playerRelations,
 	playerTag,
