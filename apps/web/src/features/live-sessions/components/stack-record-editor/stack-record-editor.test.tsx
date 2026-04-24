@@ -42,4 +42,39 @@ describe("StackRecordEditor", () => {
 			Math.floor(new Date("2026-04-04T10:40:00").getTime() / 1000)
 		);
 	});
+
+	it("blocks save above maxTime with 'Must be before' message", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		render(
+			<StackRecordEditor
+				initialOccurredAt="2026-04-04T10:30:00"
+				initialPayload={{ allIns: [], stackAmount: 4000 }}
+				isLoading={false}
+				maxTime={new Date("2026-04-04T10:45:00")}
+				minTime={new Date("2026-04-04T10:15:00")}
+				onSubmit={onSubmit}
+			/>
+		);
+		await user.clear(screen.getByLabelText("Time"));
+		await user.type(screen.getByLabelText("Time"), "11:00");
+		expect(screen.getByText("Must be before 10:45")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("switches the Save button label to 'Saving...' and disables it while isLoading is true", () => {
+		render(
+			<StackRecordEditor
+				initialOccurredAt="2026-04-04T10:30:00"
+				initialPayload={{ allIns: [], stackAmount: 4000 }}
+				isLoading
+				onSubmit={vi.fn()}
+			/>
+		);
+		expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
+		expect(
+			screen.queryByRole("button", { name: "Save" })
+		).not.toBeInTheDocument();
+	});
 });

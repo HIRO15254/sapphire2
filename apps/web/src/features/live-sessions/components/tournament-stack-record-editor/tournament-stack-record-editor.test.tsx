@@ -54,4 +54,48 @@ describe("TournamentStackRecordEditor", () => {
 			Math.floor(new Date("2026-04-04T11:20:00").getTime() / 1000)
 		);
 	});
+
+	it("blocks save below minTime with 'Must be after' message", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		render(
+			<TournamentStackRecordEditor
+				initialOccurredAt="2026-04-04T11:00:00"
+				initialPayload={{
+					chipPurchaseCounts: [],
+					chipPurchases: [],
+					remainingPlayers: null,
+					stackAmount: 8000,
+					totalEntries: null,
+				}}
+				isLoading={false}
+				maxTime={new Date("2026-04-04T11:30:00")}
+				minTime={new Date("2026-04-04T10:45:00")}
+				onSubmit={onSubmit}
+			/>
+		);
+		await user.clear(screen.getByLabelText("Time"));
+		await user.type(screen.getByLabelText("Time"), "10:30");
+		expect(screen.getByText("Must be after 10:45")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("switches the Save button label to 'Saving...' and disables it while isLoading is true", () => {
+		render(
+			<TournamentStackRecordEditor
+				initialOccurredAt="2026-04-04T11:00:00"
+				initialPayload={{
+					chipPurchaseCounts: [],
+					chipPurchases: [],
+					remainingPlayers: null,
+					stackAmount: 8000,
+					totalEntries: null,
+				}}
+				isLoading
+				onSubmit={vi.fn()}
+			/>
+		);
+		expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
+	});
 });

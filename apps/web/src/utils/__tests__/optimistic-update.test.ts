@@ -91,4 +91,105 @@ describe("optimistic-update helpers", () => {
 			queryKey: ["sessions"],
 		});
 	});
+
+	it("snapshotQuery captures undefined when the cache is empty", () => {
+		const queryClient = createQueryClientMock();
+		vi.mocked(queryClient.getQueryData).mockReturnValue(undefined);
+
+		const snapshot = snapshotQuery(queryClient, ["players"]);
+
+		expect(snapshot).toEqual({
+			data: undefined,
+			kind: "query",
+			queryKey: ["players"],
+		});
+	});
+
+	it("snapshotQueries returns empty entries when no queries match", () => {
+		const queryClient = createQueryClientMock();
+		vi.mocked(queryClient.getQueriesData).mockReturnValue([]);
+
+		const snapshot = snapshotQueries(queryClient, {
+			queryKey: ["missing"],
+		});
+
+		expect(snapshot).toEqual({ entries: [], kind: "queries" });
+	});
+
+	it("restoreSnapshots ignores null and undefined entries", () => {
+		const queryClient = createQueryClientMock();
+
+		restoreSnapshots(queryClient, [null, undefined]);
+
+		expect(queryClient.setQueryData).not.toHaveBeenCalled();
+	});
+
+	it("restoreSnapshots handles a mixed array of query and queries snapshots", () => {
+		const queryClient = createQueryClientMock();
+
+		restoreSnapshots(queryClient, [
+			{ data: { id: "a" }, kind: "query", queryKey: ["players", "a"] },
+			{
+				entries: [[["sessions", "s1"], { id: "s1" }]],
+				kind: "queries",
+			},
+			null,
+		]);
+
+		expect(queryClient.setQueryData).toHaveBeenCalledTimes(2);
+		expect(queryClient.setQueryData).toHaveBeenNthCalledWith(
+			1,
+			["players", "a"],
+			{ id: "a" }
+		);
+		expect(queryClient.setQueryData).toHaveBeenNthCalledWith(
+			2,
+			["sessions", "s1"],
+			{ id: "s1" }
+		);
+	});
+
+	it("cancelTargets awaits every cancel in parallel", async () => {
+		const queryClient = createQueryClientMock();
+		const resolvers: Array<() => void> = [];
+		vi.mocked(queryClient.cancelQueries).mockImplementation(
+			() =>
+				new Promise<void>((resolve) => {
+					resolvers.push(resolve);
+				})
+		);
+
+		const pending = cancelTargets(queryClient, [
+			{ queryKey: ["a"] },
+			{ queryKey: ["b"] },
+			{ queryKey: ["c"] },
+		]);
+
+		expect(queryClient.cancelQueries).toHaveBeenCalledTimes(3);
+		expect(resolvers).toHaveLength(3);
+		for (const resolve of resolvers) {
+			resolve();
+		}
+		await pending;
+	});
+
+	it("invalidateTargets returns a promise that resolves when all are done", async () => {
+		const queryClient = createQueryClientMock();
+		vi.mocked(queryClient.invalidateQueries).mockResolvedValue(undefined);
+
+		await expect(
+			invalidateTargets(queryClient, [{ queryKey: ["x"] }])
+		).resolves.toBeUndefined();
+		expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1);
+	});
+
+	it("accepts an empty targets array for cancel and invalidate", async () => {
+		const queryClient = createQueryClientMock();
+
+		await cancelTargets(queryClient, []);
+		await invalidateTargets(queryClient, []);
+
+		expect(queryClient.cancelQueries).not.toHaveBeenCalled();
+		expect(queryClient.invalidateQueries).not.toHaveBeenCalled();
+	});
 });

@@ -209,4 +209,15 @@ describe("TournamentTab", () => {
 
 		expect(screen.getByText("No tournaments yet.")).toBeInTheDocument();
 	});
+
+	it("remains empty and does not fire mutations when both lists are empty", () => {
+		mocks.activeTournaments = [];
+		mocks.archivedTournaments = [];
+
+		render(<Harness />);
+
+		expect(screen.getByText("No tournaments yet.")).toBeInTheDocument();
+		expect(mocks.archiveMutate).not.toHaveBeenCalled();
+		expect(mocks.deleteMutate).not.toHaveBeenCalled();
+	});
 });

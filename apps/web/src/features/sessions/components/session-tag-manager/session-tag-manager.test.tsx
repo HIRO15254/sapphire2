@@ -126,4 +126,14 @@ describe("SessionTagManager", () => {
 			expect(mocks.deleteMutate).toHaveBeenCalledWith({ id: "tag-1" });
 		});
 	});
+
+	it("renders empty state when no tags exist", () => {
+		mocks.tags.length = 0;
+		try {
+			render(<SessionTagManager />);
+			expect(screen.getByText("No session tags yet")).toBeInTheDocument();
+		} finally {
+			mocks.tags.push({ id: "tag-1", name: "Series" });
+		}
+	});
 });

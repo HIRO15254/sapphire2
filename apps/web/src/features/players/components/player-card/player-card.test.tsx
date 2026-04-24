@@ -57,6 +57,23 @@ describe("PlayerCard", () => {
 		expect(screen.getByText("No memo yet.")).toBeInTheDocument();
 	});
 
+	it("supports cancelling a delete after the confirmation prompt appears", async () => {
+		const user = userEvent.setup();
+		const onDelete = vi.fn();
+
+		render(
+			<PlayerCard onDelete={onDelete} onEdit={vi.fn()} player={taggedPlayer} />
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		expect(screen.getByText("Delete this player?")).toBeInTheDocument();
+
+		await user.click(screen.getByLabelText("Cancel delete"));
+		expect(onDelete).not.toHaveBeenCalled();
+		expect(screen.queryByText("Delete this player?")).not.toBeInTheDocument();
+	});
+
 	it("calls onEdit and onDelete from the shared footer actions", async () => {
 		const user = userEvent.setup();
 		const onDelete = vi.fn();

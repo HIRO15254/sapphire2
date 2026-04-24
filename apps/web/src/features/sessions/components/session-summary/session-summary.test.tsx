@@ -96,4 +96,26 @@ describe("SessionSummary", () => {
 		const plValue = screen.getByText("-5,000");
 		expect(plValue.className).toContain("text-red-600");
 	});
+
+	it("renders zero P&L with a '+' prefix but without the green/red color class", () => {
+		render(<SessionSummary summary={{ ...baseSummary, totalProfitLoss: 0 }} />);
+		// formatProfitLoss(0) → "+0", profitLossColorClass(0) → "" (no green/red).
+		const plValue = screen.getByText("+0");
+		expect(plValue.className).not.toContain("text-green-600");
+		expect(plValue.className).not.toContain("text-red-600");
+	});
+
+	it("renders only EV P&L when totalEvProfitLoss is set but totalEvDiff is null", () => {
+		render(
+			<SessionSummary
+				summary={{
+					...baseSummary,
+					totalEvProfitLoss: 8000,
+					totalEvDiff: null,
+				}}
+			/>
+		);
+		expect(screen.getByText("Total EV P&L")).toBeInTheDocument();
+		expect(screen.queryByText("Total EV Diff")).not.toBeInTheDocument();
+	});
 });

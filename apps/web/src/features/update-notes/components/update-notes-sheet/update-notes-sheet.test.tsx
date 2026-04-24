@@ -146,4 +146,24 @@ describe("UpdateNotesSheet", () => {
 			)
 		).toBeInTheDocument();
 	});
+
+	it("renders all three change bullets from the fixture", () => {
+		mocks.sheetState.isOpen = true;
+		render(<UpdateNotesSheet />);
+		expect(
+			screen.getByText("Unviewed updates are highlighted with a NEW badge")
+		).toBeInTheDocument();
+		expect(
+			screen.getByText(
+				"Update notes sheet automatically opens after a new release"
+			)
+		).toBeInTheDocument();
+	});
+
+	it("does not render dialog content when isOpen=false even if viewedList is populated", () => {
+		mocks.sheetState.isOpen = false;
+		mocks.viewedList = [{ id: "1", version: "1.0.0", viewedAt: new Date() }];
+		render(<UpdateNotesSheet />);
+		expect(screen.queryByText("Update Notes")).not.toBeInTheDocument();
+	});
 });

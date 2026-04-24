@@ -45,4 +45,41 @@ describe("formatElapsedTime", () => {
 		const epoch = NOW.getTime() - 60 * 60_000;
 		expect(formatElapsedTime(epoch)).toBe("1h 0m");
 	});
+
+	it("returns '0m' when the timestamp is exactly now", () => {
+		expect(formatElapsedTime(NOW)).toBe("0m");
+	});
+
+	it("returns '0m' for sub-minute elapsed time", () => {
+		const past = new Date(NOW.getTime() - 59_000);
+		expect(formatElapsedTime(past)).toBe("0m");
+	});
+
+	it("returns '0m' when elapsed is exactly one second (floored)", () => {
+		const past = new Date(NOW.getTime() - 1000);
+		expect(formatElapsedTime(past)).toBe("0m");
+	});
+
+	it("transitions from 'Xm' to 'Xh 0m' at exactly one hour", () => {
+		const past = new Date(NOW.getTime() - 60 * 60_000);
+		expect(formatElapsedTime(past)).toBe("1h 0m");
+	});
+
+	it("handles elapsed time larger than a day", () => {
+		// 25 hours ago → 25h 0m
+		const past = new Date(NOW.getTime() - 25 * 60 * 60_000);
+		expect(formatElapsedTime(past)).toBe("25h 0m");
+	});
+
+	it("returns em dash for unparseable string input (NaN diff)", () => {
+		expect(formatElapsedTime("not-a-date")).toBe("—");
+	});
+
+	it("returns em dash for NaN numeric input", () => {
+		expect(formatElapsedTime(Number.NaN)).toBe("—");
+	});
+
+	it("returns em dash for future epoch number input", () => {
+		expect(formatElapsedTime(NOW.getTime() + 60_000)).toBe("—");
+	});
 });

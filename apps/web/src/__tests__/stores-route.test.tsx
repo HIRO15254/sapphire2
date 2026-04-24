@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ComponentType, ReactNode } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -105,5 +106,51 @@ describe("StoresPage", () => {
 
 		expect(screen.getByText("Store Row: Akiba")).toBeInTheDocument();
 		expect(screen.queryByText("No stores yet")).not.toBeInTheDocument();
+	});
+
+	it("renders multiple stores in order", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		mocks.stores = [
+			{ id: "s1", memo: null, name: "Akiba" },
+			{ id: "s2", memo: null, name: "Shinjuku" },
+			{ id: "s3", memo: null, name: "Shibuya" },
+		];
+
+		render(<Component />);
+
+		expect(screen.getByText("Store Row: Akiba")).toBeInTheDocument();
+		expect(screen.getByText("Store Row: Shinjuku")).toBeInTheDocument();
+		expect(screen.getByText("Store Row: Shibuya")).toBeInTheDocument();
+	});
+
+	it("opens the New Store dialog from the page header action", async () => {
+		const user = userEvent.setup();
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		await user.click(screen.getAllByRole("button", { name: "New Store" })[0]);
+
+		expect(
+			screen.getByRole("heading", { name: "New Store" })
+		).toBeInTheDocument();
+		expect(screen.getByText("Store Form")).toBeInTheDocument();
+	});
+
+	it("opens the New Store dialog from the empty-state action", async () => {
+		const user = userEvent.setup();
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		// Empty state renders a second New Store button
+		const buttons = screen.getAllByRole("button", { name: "New Store" });
+		expect(buttons.length).toBeGreaterThanOrEqual(2);
+		await user.click(buttons[1] as HTMLElement);
+
+		expect(
+			screen.getByRole("heading", { name: "New Store" })
+		).toBeInTheDocument();
 	});
 });

@@ -14,6 +14,209 @@ describe("session router", () => {
 	it("appRouter has session namespace", () => {
 		expect(appRouter.session).toBeDefined();
 	});
+
+	it("exposes exactly the expected procedure set", () => {
+		expect(Object.keys(appRouter.session).sort()).toEqual(
+			["create", "delete", "getById", "list", "update"].sort()
+		);
+	});
+});
+
+describe("session router input validation", () => {
+	const CASH_BASE = {
+		type: "cash_game",
+		sessionDate: 1_700_000_000,
+		buyIn: 1000,
+		cashOut: 2000,
+	} as const;
+
+	const TOURNAMENT_BASE = {
+		type: "tournament",
+		sessionDate: 1_700_000_000,
+		tournamentBuyIn: 10_000,
+	} as const;
+
+	it("create accepts a valid cash_game session", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(schema.safeParse(CASH_BASE).success).toBe(true);
+	});
+
+	it("create accepts a valid tournament session (entryFee defaults to 0)", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as {
+			safeParse: (v: unknown) => {
+				success: true;
+				data: { entryFee: number };
+			};
+		};
+		const parsed = schema.safeParse(TOURNAMENT_BASE) as unknown as {
+			success: true;
+			data: { entryFee: number };
+		};
+		expect(parsed.success).toBe(true);
+		expect(parsed.data.entryFee).toBe(0);
+	});
+
+	it("create rejects tournament session where placement > totalEntries", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				...TOURNAMENT_BASE,
+				placement: 10,
+				totalEntries: 5,
+			}).success
+		).toBe(false);
+	});
+
+	it("create accepts tournament session where placement == totalEntries (boundary)", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				...TOURNAMENT_BASE,
+				placement: 5,
+				totalEntries: 5,
+			}).success
+		).toBe(true);
+	});
+
+	it("create rejects unknown discriminator type", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				type: "other",
+				sessionDate: 1,
+				buyIn: 0,
+				cashOut: 0,
+			}).success
+		).toBe(false);
+	});
+
+	it("create rejects negative buyIn", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(schema.safeParse({ ...CASH_BASE, buyIn: -1 }).success).toBe(false);
+	});
+
+	it("list accepts empty object (all filters optional)", () => {
+		const schema = (
+			appRouter.session.list as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(schema.safeParse({}).success).toBe(true);
+	});
+
+	it("list accepts all filter combinations", () => {
+		const schema = (
+			appRouter.session.list as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				cursor: "s1",
+				type: "cash_game",
+				storeId: "st1",
+				currencyId: "c1",
+				dateFrom: 1,
+				dateTo: 2,
+			}).success
+		).toBe(true);
+	});
+
+	it("list rejects unknown type", () => {
+		const schema = (
+			appRouter.session.list as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(schema.safeParse({ type: "hybrid" }).success).toBe(false);
+	});
+
+	it("getById accepts {id}", () => {
+		const schema = (
+			appRouter.session.getById as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(schema.safeParse({ id: "s1" }).success).toBe(true);
+		expect(schema.safeParse({}).success).toBe(false);
+	});
+
+	it("update accepts id-only payload", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(schema.safeParse({ id: "s1" }).success).toBe(true);
+	});
+
+	it("update rejects negative buyIn", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(schema.safeParse({ id: "s1", buyIn: -1 }).success).toBe(false);
+	});
+
+	it("update rejects placement < 1", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(schema.safeParse({ id: "s1", placement: 0 }).success).toBe(false);
+	});
+
+	it("update accepts explicit null clears for nullable link fields", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				id: "s1",
+				storeId: null,
+				ringGameId: null,
+				tournamentId: null,
+				currencyId: null,
+			}).success
+		).toBe(true);
+	});
+
+	it("delete rejects missing id", () => {
+		const schema = (
+			appRouter.session.delete as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(schema.safeParse({}).success).toBe(false);
+	});
 });
 
 describe("assertNoLiveLinkedRestrictedEdits", () => {

@@ -34,8 +34,47 @@ describe("formatProfitLoss", () => {
 		expect(formatProfitLoss(null, { currencyUnit: "JPY" })).toBe("—");
 	});
 
-	it("uses compact notation for large values", () => {
+	it("uses compact notation for large values (k tier)", () => {
 		expect(formatProfitLoss(15_000)).toBe("+15k");
+	});
+
+	it("uses compact notation for M tier", () => {
+		expect(formatProfitLoss(-12_500_000)).toBe("-12.5M");
+	});
+
+	it("uses compact notation for B tier", () => {
+		expect(formatProfitLoss(10_000_000_000)).toBe("+10B");
+	});
+
+	it("falls through to no unit when currencyUnit is null", () => {
+		expect(formatProfitLoss(500, { currencyUnit: null })).toBe("+500");
+	});
+
+	it("falls through to no unit when currencyUnit is empty string", () => {
+		expect(formatProfitLoss(500, { currencyUnit: "" })).toBe("+500");
+	});
+
+	it("keeps decimals for small non-integer values", () => {
+		expect(formatProfitLoss(1.5)).toBe("+1.5");
+	});
+
+	it("prints the odd '+-0' when value is -0 (sign + underlying locale string)", () => {
+		// -0 >= 0 is true, so sign is '+'.
+		// (-0).toLocaleString() === '-0' → concatenation yields '+-0'.
+		// This test pins the current behavior; callers that dislike it must pre-normalize.
+		expect(formatProfitLoss(-0)).toBe("+-0");
+	});
+
+	it("combines currency unit with compact notation", () => {
+		expect(formatProfitLoss(-12_500, { currencyUnit: "JPY" })).toBe(
+			"-12.5k JPY"
+		);
+	});
+
+	it("uses custom nullDisplay even when currencyUnit is supplied", () => {
+		expect(
+			formatProfitLoss(undefined, { currencyUnit: "JPY", nullDisplay: "N/A" })
+		).toBe("N/A");
 	});
 });
 

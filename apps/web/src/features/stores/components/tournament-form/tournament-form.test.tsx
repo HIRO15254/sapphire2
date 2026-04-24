@@ -85,6 +85,16 @@ describe("TournamentForm", () => {
 		);
 	});
 
+	it("blocks submit when the required Tournament Name is empty", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+
+		render(<TournamentForm onSubmit={onSubmit} />);
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("submits tags added through the combobox", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
