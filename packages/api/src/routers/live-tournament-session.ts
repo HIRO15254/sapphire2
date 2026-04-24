@@ -219,6 +219,137 @@ function computeStackStats(
 	return { ...bounds, ...info, averageStack };
 }
 
+function buildLiveSessionUpdateData(input: {
+	memo?: string | null;
+	storeId?: string | null;
+	currencyId?: string | null;
+}): Partial<typeof gameSession.$inferInsert> {
+	const updateData: Partial<typeof gameSession.$inferInsert> = {
+		updatedAt: new Date(),
+	};
+	if (input.memo !== undefined) {
+		updateData.memo = input.memo;
+	}
+	if (input.storeId !== undefined) {
+		updateData.storeId = input.storeId;
+	}
+	if (input.currencyId !== undefined) {
+		updateData.currencyId = input.currencyId;
+	}
+	return updateData;
+}
+
+async function resolveDetailUpdate(
+	db: DbInstance,
+	input: {
+		tournamentId?: string | null;
+		timerStartedAt?: number | null;
+	},
+	updateData: Partial<typeof gameSession.$inferInsert>,
+	existing: { storeId: string | null; currencyId: string | null },
+	userId: string
+): Promise<{
+	detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert>;
+	patchedUpdateData: Partial<typeof gameSession.$inferInsert>;
+}> {
+	const detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> = {};
+	const patchedUpdateData = { ...updateData };
+
+	if (input.timerStartedAt !== undefined) {
+		detailUpdate.timerStartedAt =
+			input.timerStartedAt === null
+				? null
+				: new Date(input.timerStartedAt * 1000);
+	}
+
+	if (input.tournamentId === null) {
+		detailUpdate.tournamentId = null;
+	} else if (input.tournamentId !== undefined) {
+		const resolvedStoreId =
+			patchedUpdateData.storeId === undefined
+				? existing.storeId
+				: patchedUpdateData.storeId;
+		const resolvedCurrencyId =
+			patchedUpdateData.currencyId === undefined
+				? existing.currencyId
+				: patchedUpdateData.currencyId;
+		const patch = await resolveTournamentAssignment(
+			db,
+			input.tournamentId,
+			userId,
+			resolvedStoreId,
+			resolvedCurrencyId
+		);
+		detailUpdate.tournamentId = patch.tournamentId;
+		if (patch.storeId) {
+			patchedUpdateData.storeId = patch.storeId;
+		}
+		if (patch.currencyId) {
+			patchedUpdateData.currencyId = patch.currencyId;
+		}
+	}
+
+	return { detailUpdate, patchedUpdateData };
+}
+
+async function upsertLiveTournamentDetail(
+	db: DbInstance,
+	sessionId: string,
+	existingDetail: { sessionId: string } | undefined,
+	detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert>
+): Promise<void> {
+	if (Object.keys(detailUpdate).length === 0) {
+		return;
+	}
+	if (existingDetail) {
+		await db
+			.update(sessionTournamentDetail)
+			.set(detailUpdate)
+			.where(eq(sessionTournamentDetail.sessionId, sessionId));
+	} else {
+		await db.insert(sessionTournamentDetail).values({
+			sessionId,
+			...detailUpdate,
+		});
+	}
+}
+
+async function syncTimerStartedAtEvent(
+	db: DbInstance,
+	sessionId: string,
+	timerStartedAt: number | null | undefined
+): Promise<void> {
+	if (timerStartedAt === undefined) {
+		return;
+	}
+	const [startEvent] = await db
+		.select()
+		.from(sessionEvent)
+		.where(
+			and(
+				eq(sessionEvent.sessionId, sessionId),
+				eq(sessionEvent.eventType, "session_start")
+			)
+		);
+	if (!startEvent) {
+		return;
+	}
+	const existingPayload = JSON.parse(startEvent.payload) as Record<
+		string,
+		unknown
+	>;
+	await db
+		.update(sessionEvent)
+		.set({
+			payload: JSON.stringify({
+				...existingPayload,
+				timerStartedAt: timerStartedAt ?? null,
+			}),
+			updatedAt: new Date(),
+		})
+		.where(eq(sessionEvent.id, startEvent.id));
+}
+
 async function resolveTournamentAssignment(
 	db: DbInstance,
 	tournamentId: string,
@@ -587,103 +718,28 @@ export const liveTournamentSessionRouter = router({
 				.from(sessionTournamentDetail)
 				.where(eq(sessionTournamentDetail.sessionId, input.id));
 
-			const updateData: Partial<typeof gameSession.$inferInsert> = {
-				updatedAt: new Date(),
-			};
-
-			if (input.memo !== undefined) {
-				updateData.memo = input.memo;
-			}
-			if (input.storeId !== undefined) {
-				updateData.storeId = input.storeId;
-			}
-			if (input.currencyId !== undefined) {
-				updateData.currencyId = input.currencyId;
-			}
-
-			const detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> =
-				{};
-
-			if (input.timerStartedAt !== undefined) {
-				detailUpdate.timerStartedAt =
-					input.timerStartedAt === null
-						? null
-						: new Date(input.timerStartedAt * 1000);
-			}
-
-			if (input.tournamentId === null) {
-				detailUpdate.tournamentId = null;
-			} else if (input.tournamentId !== undefined) {
-				const resolvedStoreId =
-					updateData.storeId === undefined
-						? existing.storeId
-						: updateData.storeId;
-				const resolvedCurrencyId =
-					updateData.currencyId === undefined
-						? existing.currencyId
-						: updateData.currencyId;
-				const patch = await resolveTournamentAssignment(
-					ctx.db,
-					input.tournamentId,
-					userId,
-					resolvedStoreId,
-					resolvedCurrencyId
-				);
-				detailUpdate.tournamentId = patch.tournamentId;
-				if (patch.storeId) {
-					updateData.storeId = patch.storeId;
-				}
-				if (patch.currencyId) {
-					updateData.currencyId = patch.currencyId;
-				}
-			}
+			const baseUpdateData = buildLiveSessionUpdateData(input);
+			const { detailUpdate, patchedUpdateData } = await resolveDetailUpdate(
+				ctx.db,
+				input,
+				baseUpdateData,
+				existing,
+				userId
+			);
 
 			await ctx.db
 				.update(gameSession)
-				.set(updateData)
+				.set(patchedUpdateData)
 				.where(eq(gameSession.id, input.id));
 
-			if (Object.keys(detailUpdate).length > 0) {
-				if (existingDetail) {
-					await ctx.db
-						.update(sessionTournamentDetail)
-						.set(detailUpdate)
-						.where(eq(sessionTournamentDetail.sessionId, input.id));
-				} else {
-					await ctx.db.insert(sessionTournamentDetail).values({
-						sessionId: input.id,
-						...detailUpdate,
-					});
-				}
-			}
+			await upsertLiveTournamentDetail(
+				ctx.db,
+				input.id,
+				existingDetail,
+				detailUpdate
+			);
 
-			if (input.timerStartedAt !== undefined) {
-				const [startEvent] = await ctx.db
-					.select()
-					.from(sessionEvent)
-					.where(
-						and(
-							eq(sessionEvent.sessionId, input.id),
-							eq(sessionEvent.eventType, "session_start")
-						)
-					);
-				if (startEvent) {
-					const existingPayload = JSON.parse(startEvent.payload) as Record<
-						string,
-						unknown
-					>;
-					await ctx.db
-						.update(sessionEvent)
-						.set({
-							payload: JSON.stringify({
-								...existingPayload,
-								timerStartedAt: input.timerStartedAt ?? null,
-							}),
-							updatedAt: new Date(),
-						})
-						.where(eq(sessionEvent.id, startEvent.id));
-				}
-			}
+			await syncTimerStartedAtEvent(ctx.db, input.id, input.timerStartedAt);
 
 			const [updated] = await ctx.db
 				.select()
