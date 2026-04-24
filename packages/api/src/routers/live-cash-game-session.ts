@@ -644,27 +644,15 @@ export const liveCashGameSessionRouter = router({
 				updatedAt: now,
 			});
 
-			const [maxSortOrderRow] = await ctx.db
-				.select({ maxSortOrder: max(sessionEvent.sortOrder) })
-				.from(sessionEvent)
-				.where(
-					and(
-						eq(sessionEvent.sessionId, input.id),
-						eq(sessionEvent.occurredAt, now)
-					)
-				);
-			const resumeSortOrder =
-				maxSortOrderRow?.maxSortOrder !== null &&
-				maxSortOrderRow?.maxSortOrder !== undefined
-					? maxSortOrderRow.maxSortOrder + 1
-					: 0;
-
+			// session_resume must sort strictly after session_pause so
+			// computeSessionStateFromEvents sees the pair in the right order
+			// and break-minute calculation can close the pause.
 			await ctx.db.insert(sessionEvent).values({
 				id: crypto.randomUUID(),
 				sessionId: input.id,
 				eventType: "session_resume",
 				occurredAt: now,
-				sortOrder: resumeSortOrder,
+				sortOrder: endSortOrder + 2,
 				payload: JSON.stringify({}),
 				updatedAt: now,
 			});
