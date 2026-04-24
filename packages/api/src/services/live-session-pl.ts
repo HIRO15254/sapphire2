@@ -7,10 +7,10 @@ import {
 	purchaseChipsPayload,
 	tournamentSessionEndPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
-import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
-import { pokerSession } from "@sapphire2/db/schema/session";
+import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
+import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import {
 	currencyTransaction,
 	transactionType,
@@ -240,7 +240,7 @@ export async function getSessionResultTypeId(
 
 async function syncCurrencyTransaction(
 	db: DbInstance,
-	pokerSessionId: string,
+	sessionId: string,
 	currencyId: string | null,
 	profitLoss: number | null,
 	sessionDate: Date,
@@ -253,7 +253,7 @@ async function syncCurrencyTransaction(
 	const [existingTx] = await db
 		.select()
 		.from(currencyTransaction)
-		.where(eq(currencyTransaction.sessionId, pokerSessionId));
+		.where(eq(currencyTransaction.sessionId, sessionId));
 
 	if (existingTx) {
 		await db
@@ -266,137 +266,103 @@ async function syncCurrencyTransaction(
 			id: crypto.randomUUID(),
 			currencyId,
 			transactionTypeId: typeId,
-			sessionId: pokerSessionId,
+			sessionId,
 			amount: profitLoss,
 			transactedAt: sessionDate,
 		});
 	}
 }
 
-async function deletePokerSessionAndTransaction(
+async function deleteCurrencyTransaction(
 	db: DbInstance,
-	liveSessionFilter: Parameters<typeof eq>[1],
-	liveSessionColumn: Parameters<typeof eq>[0]
+	sessionId: string
 ): Promise<void> {
-	const [existing] = await db
-		.select()
-		.from(pokerSession)
-		.where(eq(liveSessionColumn, liveSessionFilter));
-
-	if (!existing) {
-		return;
-	}
-
 	await db
 		.delete(currencyTransaction)
-		.where(eq(currencyTransaction.sessionId, existing.id));
-
-	await db.delete(pokerSession).where(eq(pokerSession.id, existing.id));
+		.where(eq(currencyTransaction.sessionId, sessionId));
 }
 
 export async function recalculateCashGameSession(
 	db: DbInstance,
-	liveCashGameSessionId: string,
+	sessionId: string,
 	userId: string
 ): Promise<void> {
-	// Fetch all events ordered by sortOrder
 	const events = await db
 		.select()
 		.from(sessionEvent)
-		.where(eq(sessionEvent.liveCashGameSessionId, liveCashGameSessionId))
+		.where(eq(sessionEvent.sessionId, sessionId))
 		.orderBy(asc(sessionEvent.sortOrder));
 
-	// Derive status, startedAt, endedAt from events
 	const state = computeSessionStateFromEvents(events);
 
-	// Fetch live session for metadata
 	const [session] = await db
 		.select()
-		.from(liveCashGameSession)
-		.where(eq(liveCashGameSession.id, liveCashGameSessionId));
+		.from(gameSession)
+		.where(eq(gameSession.id, sessionId));
 
 	if (!session) {
 		return;
 	}
 
-	// Update live session with all derived state
 	await db
-		.update(liveCashGameSession)
+		.update(gameSession)
 		.set({
 			status: state.status,
 			startedAt: state.startedAt ?? session.startedAt,
 			endedAt: state.status === "completed" ? (state.endedAt ?? null) : null,
 			updatedAt: new Date(),
 		})
-		.where(eq(liveCashGameSession.id, liveCashGameSessionId));
+		.where(eq(gameSession.id, sessionId));
 
 	if (state.status !== "completed") {
-		// Clean up any lingering pokerSession from a previous completion
-		await deletePokerSessionAndTransaction(
-			db,
-			liveCashGameSessionId,
-			pokerSession.liveCashGameSessionId
-		);
+		await deleteCurrencyTransaction(db, sessionId);
 		return;
 	}
 
-	// status === "completed": compute P&L, break minutes, upsert pokerSession
 	const pl = computeCashGamePLFromEvents(events);
 	const breakMinutes = computeBreakMinutesFromEvents(events);
 	const breakMinutesValue = breakMinutes > 0 ? breakMinutes : null;
-	const now = new Date();
 
-	const [existingPokerSession] = await db
+	const effectiveSessionDate =
+		state.startedAt ?? session.startedAt ?? new Date();
+
+	await db
+		.update(gameSession)
+		.set({
+			breakMinutes: breakMinutesValue,
+			sessionDate: effectiveSessionDate,
+		})
+		.where(eq(gameSession.id, sessionId));
+
+	const [existingDetail] = await db
 		.select()
-		.from(pokerSession)
-		.where(eq(pokerSession.liveCashGameSessionId, liveCashGameSessionId));
+		.from(sessionCashDetail)
+		.where(eq(sessionCashDetail.sessionId, sessionId));
 
-	let pokerSessionId: string;
-
-	if (existingPokerSession) {
-		pokerSessionId = existingPokerSession.id;
+	if (existingDetail) {
 		await db
-			.update(pokerSession)
+			.update(sessionCashDetail)
 			.set({
 				buyIn: pl.totalBuyIn,
 				cashOut: pl.cashOut,
 				evCashOut: pl.evCashOut,
-				startedAt: state.startedAt,
-				endedAt: state.endedAt,
-				breakMinutes: breakMinutesValue,
-				sessionDate: state.startedAt ?? session.startedAt,
-				updatedAt: now,
 			})
-			.where(eq(pokerSession.id, pokerSessionId));
+			.where(eq(sessionCashDetail.sessionId, sessionId));
 	} else {
-		pokerSessionId = crypto.randomUUID();
-		await db.insert(pokerSession).values({
-			id: pokerSessionId,
-			userId,
-			type: "cash_game",
-			sessionDate: state.startedAt ?? session.startedAt,
-			storeId: session.storeId ?? null,
-			ringGameId: session.ringGameId ?? null,
-			currencyId: session.currencyId ?? null,
-			liveCashGameSessionId,
+		await db.insert(sessionCashDetail).values({
+			sessionId,
 			buyIn: pl.totalBuyIn,
 			cashOut: pl.cashOut,
 			evCashOut: pl.evCashOut,
-			startedAt: state.startedAt ?? session.startedAt,
-			endedAt: state.endedAt,
-			breakMinutes: breakMinutesValue,
-			memo: session.memo ?? null,
-			updatedAt: now,
 		});
 	}
 
-	// Sync currency transaction
 	await syncCurrencyTransaction(
 		db,
-		pokerSessionId,
+		sessionId,
 		session.currencyId,
 		pl.profitLoss,
-		state.startedAt ?? session.startedAt,
+		effectiveSessionDate,
 		userId
 	);
 }
@@ -404,16 +370,18 @@ export async function recalculateCashGameSession(
 async function resolveTournamentBuyInFees(
 	db: DbInstance,
 	session: {
-		buyIn: number | null;
-		entryFee: number | null;
 		tournamentId: string | null;
+	},
+	detail: {
+		tournamentBuyIn: number | null;
+		entryFee: number | null;
 	}
 ): Promise<{
 	tournamentBuyIn: number | undefined;
 	entryFee: number | undefined;
 }> {
-	let tournamentBuyIn = session.buyIn ?? undefined;
-	let entryFee = session.entryFee ?? undefined;
+	let tournamentBuyIn = detail.tournamentBuyIn ?? undefined;
+	let entryFee = detail.entryFee ?? undefined;
 
 	if (session.tournamentId) {
 		const [t] = await db
@@ -421,65 +389,81 @@ async function resolveTournamentBuyInFees(
 			.from(tournament)
 			.where(eq(tournament.id, session.tournamentId));
 		if (t) {
-			tournamentBuyIn = session.buyIn ?? t.buyIn ?? undefined;
-			entryFee = session.entryFee ?? t.entryFee ?? undefined;
+			tournamentBuyIn = detail.tournamentBuyIn ?? t.buyIn ?? undefined;
+			entryFee = detail.entryFee ?? t.entryFee ?? undefined;
 		}
 	}
 
 	return { tournamentBuyIn, entryFee };
 }
 
-async function upsertTournamentPokerSession(
+export async function recalculateTournamentSession(
 	db: DbInstance,
-	liveTournamentSessionId: string,
-	userId: string,
-	session: typeof liveTournamentSession.$inferSelect,
-	pl: TournamentPLResult,
-	state: SessionState,
-	breakMinutesValue: number | null,
-	tournamentBuyIn: number | undefined,
-	entryFee: number | undefined
-): Promise<string> {
-	const now = new Date();
-	const [existing] = await db
+	sessionId: string,
+	userId: string
+): Promise<void> {
+	const events = await db
 		.select()
-		.from(pokerSession)
-		.where(eq(pokerSession.liveTournamentSessionId, liveTournamentSessionId));
+		.from(sessionEvent)
+		.where(eq(sessionEvent.sessionId, sessionId))
+		.orderBy(asc(sessionEvent.sortOrder));
 
-	if (existing) {
-		await db
-			.update(pokerSession)
-			.set({
-				placement: pl.placement,
-				totalEntries: pl.totalEntries,
-				beforeDeadline: pl.beforeDeadline ? true : null,
-				prizeMoney: pl.prizeMoney,
-				bountyPrizes: pl.bountyPrizes,
-				rebuyCount: pl.rebuyCount,
-				rebuyCost: pl.rebuyCost > 0 ? pl.rebuyCost : null,
-				addonCost: pl.addonCost > 0 ? pl.addonCost : null,
-				startedAt: state.startedAt,
-				endedAt: state.endedAt,
-				breakMinutes: breakMinutesValue,
-				sessionDate: state.startedAt ?? session.startedAt,
-				updatedAt: now,
-			})
-			.where(eq(pokerSession.id, existing.id));
-		return existing.id;
+	const state = computeSessionStateFromEvents(events);
+
+	const [session] = await db
+		.select()
+		.from(gameSession)
+		.where(eq(gameSession.id, sessionId));
+
+	if (!session) {
+		return;
 	}
 
-	const id = crypto.randomUUID();
-	await db.insert(pokerSession).values({
-		id,
-		userId,
-		type: "tournament",
-		sessionDate: state.startedAt ?? session.startedAt,
-		storeId: session.storeId ?? null,
-		tournamentId: session.tournamentId ?? null,
-		currencyId: session.currencyId ?? null,
-		liveTournamentSessionId,
-		tournamentBuyIn: tournamentBuyIn ?? null,
-		entryFee: entryFee ?? null,
+	await db
+		.update(gameSession)
+		.set({
+			status: state.status,
+			startedAt: state.startedAt ?? session.startedAt,
+			endedAt: state.status === "completed" ? (state.endedAt ?? null) : null,
+			updatedAt: new Date(),
+		})
+		.where(eq(gameSession.id, sessionId));
+
+	if (state.status !== "completed") {
+		await deleteCurrencyTransaction(db, sessionId);
+		return;
+	}
+
+	const [existingDetail] = await db
+		.select()
+		.from(sessionTournamentDetail)
+		.where(eq(sessionTournamentDetail.sessionId, sessionId));
+
+	const { tournamentBuyIn, entryFee } = await resolveTournamentBuyInFees(
+		db,
+		{ tournamentId: existingDetail?.tournamentId ?? null },
+		{
+			tournamentBuyIn: existingDetail?.tournamentBuyIn ?? null,
+			entryFee: existingDetail?.entryFee ?? null,
+		}
+	);
+
+	const pl = computeTournamentPLFromEvents(events, tournamentBuyIn, entryFee);
+	const breakMinutes = computeBreakMinutesFromEvents(events);
+	const breakMinutesValue = breakMinutes > 0 ? breakMinutes : null;
+
+	const effectiveSessionDate =
+		state.startedAt ?? session.startedAt ?? new Date();
+
+	await db
+		.update(gameSession)
+		.set({
+			breakMinutes: breakMinutesValue,
+			sessionDate: effectiveSessionDate,
+		})
+		.where(eq(gameSession.id, sessionId));
+
+	const detailUpdate = {
 		placement: pl.placement,
 		totalEntries: pl.totalEntries,
 		beforeDeadline: pl.beforeDeadline ? true : null,
@@ -488,87 +472,27 @@ async function upsertTournamentPokerSession(
 		rebuyCount: pl.rebuyCount,
 		rebuyCost: pl.rebuyCost > 0 ? pl.rebuyCost : null,
 		addonCost: pl.addonCost > 0 ? pl.addonCost : null,
-		startedAt: state.startedAt ?? session.startedAt,
-		endedAt: state.endedAt,
-		breakMinutes: breakMinutesValue,
-		memo: session.memo ?? null,
-		updatedAt: now,
-	});
-	return id;
-}
+	};
 
-export async function recalculateTournamentSession(
-	db: DbInstance,
-	liveTournamentSessionId: string,
-	userId: string
-): Promise<void> {
-	const events = await db
-		.select()
-		.from(sessionEvent)
-		.where(eq(sessionEvent.liveTournamentSessionId, liveTournamentSessionId))
-		.orderBy(asc(sessionEvent.sortOrder));
-
-	// Derive status, startedAt, endedAt from events
-	const state = computeSessionStateFromEvents(events);
-
-	// Fetch live session for metadata
-	const [session] = await db
-		.select()
-		.from(liveTournamentSession)
-		.where(eq(liveTournamentSession.id, liveTournamentSessionId));
-
-	if (!session) {
-		return;
+	if (existingDetail) {
+		await db
+			.update(sessionTournamentDetail)
+			.set(detailUpdate)
+			.where(eq(sessionTournamentDetail.sessionId, sessionId));
+	} else {
+		await db.insert(sessionTournamentDetail).values({
+			sessionId,
+			tournamentId: null,
+			...detailUpdate,
+		});
 	}
-
-	// Update live session with all derived state
-	await db
-		.update(liveTournamentSession)
-		.set({
-			status: state.status,
-			startedAt: state.startedAt ?? session.startedAt,
-			endedAt: state.status === "completed" ? (state.endedAt ?? null) : null,
-			updatedAt: new Date(),
-		})
-		.where(eq(liveTournamentSession.id, liveTournamentSessionId));
-
-	if (state.status !== "completed") {
-		// Clean up any lingering pokerSession from a previous completion
-		await deletePokerSessionAndTransaction(
-			db,
-			liveTournamentSessionId,
-			pokerSession.liveTournamentSessionId
-		);
-		return;
-	}
-
-	// status === "completed": compute P&L, break minutes, upsert pokerSession
-	const { tournamentBuyIn, entryFee } = await resolveTournamentBuyInFees(
-		db,
-		session
-	);
-	const pl = computeTournamentPLFromEvents(events, tournamentBuyIn, entryFee);
-	const breakMinutes = computeBreakMinutesFromEvents(events);
-	const breakMinutesValue = breakMinutes > 0 ? breakMinutes : null;
-
-	const pokerSessionId = await upsertTournamentPokerSession(
-		db,
-		liveTournamentSessionId,
-		userId,
-		session,
-		pl,
-		state,
-		breakMinutesValue,
-		tournamentBuyIn,
-		entryFee
-	);
 
 	await syncCurrencyTransaction(
 		db,
-		pokerSessionId,
+		sessionId,
 		session.currencyId,
 		pl.profitLoss,
-		state.startedAt ?? session.startedAt,
+		effectiveSessionDate,
 		userId
 	);
 }

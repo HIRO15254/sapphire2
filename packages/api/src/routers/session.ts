@@ -1,9 +1,11 @@
 import { ringGame } from "@sapphire2/db/schema/ring-game";
-import { pokerSession } from "@sapphire2/db/schema/session";
+import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import {
 	sessionTag,
 	sessionToSessionTag,
 } from "@sapphire2/db/schema/session-tag";
+import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import {
 	currency,
 	currencyTransaction,
@@ -18,17 +20,19 @@ import { protectedProcedure, router } from "../index";
 
 const PAGE_SIZE = 20;
 
+type DbInstance = Parameters<
+	Parameters<typeof protectedProcedure.query>[0]
+>[0]["ctx"]["db"];
+
 async function validateSessionOwnership(
-	db: Parameters<
-		Parameters<typeof protectedProcedure.query>[0]
-	>[0]["ctx"]["db"],
+	db: DbInstance,
 	sessionId: string,
 	userId: string
 ) {
 	const [found] = await db
 		.select()
-		.from(pokerSession)
-		.where(eq(pokerSession.id, sessionId));
+		.from(gameSession)
+		.where(eq(gameSession.id, sessionId));
 
 	if (!found) {
 		throw new TRPCError({
@@ -105,10 +109,6 @@ function buildRingGameUpdateData(
 	return data;
 }
 
-type DbInstance = Parameters<
-	Parameters<typeof protectedProcedure.query>[0]
->[0]["ctx"]["db"];
-
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "currency" | "ringGame" | "store" | "tournament",
@@ -184,7 +184,6 @@ async function getSessionResultTypeId(
 	if (found) {
 		return found.id;
 	}
-	// Seed if not found
 	const id = crypto.randomUUID();
 	await db.insert(transactionType).values({
 		id,
@@ -193,25 +192,6 @@ async function getSessionResultTypeId(
 		updatedAt: new Date(),
 	});
 	return id;
-}
-
-function computeSessionPL(session: typeof pokerSession.$inferSelect): number {
-	if (
-		session.type === "cash_game" &&
-		session.buyIn !== null &&
-		session.cashOut !== null
-	) {
-		return computeCashGamePL(session.buyIn, session.cashOut);
-	}
-	return computeTournamentPL(
-		session.tournamentBuyIn,
-		session.entryFee,
-		session.rebuyCount,
-		session.rebuyCost,
-		session.addonCost,
-		session.prizeMoney,
-		session.bountyPrizes
-	);
 }
 
 async function createCurrencyTransactionForSession(
@@ -242,17 +222,14 @@ async function syncCurrencyTransaction(
 	sessionDate: Date,
 	userId: string
 ) {
-	// undefined means no change requested
 	const effectiveNewCurrencyId =
 		newCurrencyId === undefined ? oldCurrencyId : newCurrencyId;
 
 	if (oldCurrencyId && !effectiveNewCurrencyId) {
-		// Currency removed — delete transaction
 		await db
 			.delete(currencyTransaction)
 			.where(eq(currencyTransaction.sessionId, sessionId));
 	} else if (!oldCurrencyId && effectiveNewCurrencyId) {
-		// Currency added — create transaction
 		await createCurrencyTransactionForSession(
 			db,
 			sessionId,
@@ -266,7 +243,6 @@ async function syncCurrencyTransaction(
 		effectiveNewCurrencyId &&
 		oldCurrencyId !== effectiveNewCurrencyId
 	) {
-		// Currency changed — delete old, create new
 		await db
 			.delete(currencyTransaction)
 			.where(eq(currencyTransaction.sessionId, sessionId));
@@ -279,7 +255,6 @@ async function syncCurrencyTransaction(
 			userId
 		);
 	} else if (effectiveNewCurrencyId) {
-		// Same currency — update amount
 		await db
 			.update(currencyTransaction)
 			.set({ amount, transactedAt: sessionDate })
@@ -293,140 +268,6 @@ export {
 	computeTournamentPL,
 	validateSessionOwnership,
 };
-
-const cashGameCreateSchema = z.object({
-	type: z.literal("cash_game"),
-	sessionDate: z.number(),
-	buyIn: z.number().int().min(0),
-	cashOut: z.number().int().min(0),
-	evCashOut: z.number().int().min(0).optional(),
-	// Links (all optional)
-	storeId: z.string().optional(),
-	ringGameId: z.string().optional(),
-	currencyId: z.string().optional(),
-	// Ring game config (all optional)
-	variant: z.string().default("nlh"),
-	blind1: z.number().int().optional(),
-	blind2: z.number().int().optional(),
-	blind3: z.number().int().optional(),
-	ante: z.number().int().optional(),
-	anteType: z.enum(["none", "all", "bb"]).optional(),
-	tableSize: z.number().int().optional(),
-	// Time + memo
-	startedAt: z.number().optional(),
-	endedAt: z.number().optional(),
-	breakMinutes: z.number().int().min(0).optional(),
-	memo: z.string().optional(),
-	// Tags
-	tagIds: z.array(z.string()).optional(),
-});
-
-const tournamentCreateSchema = z
-	.object({
-		type: z.literal("tournament"),
-		sessionDate: z.number(),
-		tournamentBuyIn: z.number().int().min(0),
-		entryFee: z.number().int().min(0).default(0),
-		beforeDeadline: z.boolean().optional(),
-		placement: z.number().int().min(1).optional(),
-		totalEntries: z.number().int().min(1).optional(),
-		prizeMoney: z.number().int().min(0).optional(),
-		rebuyCount: z.number().int().min(0).optional(),
-		rebuyCost: z.number().int().min(0).optional(),
-		addonCost: z.number().int().min(0).optional(),
-		bountyPrizes: z.number().int().min(0).optional(),
-		// Links (all optional)
-		storeId: z.string().optional(),
-		tournamentId: z.string().optional(),
-		currencyId: z.string().optional(),
-		// Time + memo
-		startedAt: z.number().optional(),
-		endedAt: z.number().optional(),
-		breakMinutes: z.number().int().min(0).optional(),
-		memo: z.string().optional(),
-		// Tags
-		tagIds: z.array(z.string()).optional(),
-	})
-	.refine(
-		(data) => {
-			if (data.beforeDeadline === true) {
-				return true;
-			}
-			if (data.placement !== undefined && data.totalEntries !== undefined) {
-				return data.placement <= data.totalEntries;
-			}
-			return true;
-		},
-		{ message: "Placement must be less than or equal to total entries" }
-	);
-
-const createInputSchema = z.discriminatedUnion("type", [
-	cashGameCreateSchema,
-	tournamentCreateSchema,
-]);
-
-type CreateInput = z.infer<typeof createInputSchema>;
-
-function buildCashGameSessionValues(
-	input: Extract<CreateInput, { type: "cash_game" }>,
-	ringGameId: string
-): Partial<typeof pokerSession.$inferInsert> {
-	return {
-		buyIn: input.buyIn,
-		cashOut: input.cashOut,
-		evCashOut: input.evCashOut ?? null,
-		ringGameId,
-	};
-}
-
-function buildTournamentSessionValues(
-	input: Extract<CreateInput, { type: "tournament" }>
-): Partial<typeof pokerSession.$inferInsert> {
-	const beforeDeadline = input.beforeDeadline === true;
-	return {
-		tournamentBuyIn: input.tournamentBuyIn,
-		entryFee: input.entryFee,
-		beforeDeadline: beforeDeadline ? true : null,
-		placement: beforeDeadline ? null : (input.placement ?? null),
-		totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
-		prizeMoney: input.prizeMoney ?? null,
-		rebuyCount: input.rebuyCount ?? null,
-		rebuyCost: input.rebuyCost ?? null,
-		addonCost: input.addonCost ?? null,
-		bountyPrizes: input.bountyPrizes ?? null,
-	};
-}
-
-function timestampToDate(ts: number | undefined): Date | null {
-	return ts === undefined ? null : new Date(ts * 1000);
-}
-
-function nullableTimestampToDate(
-	ts: number | null | undefined
-): Date | null | undefined {
-	if (ts === undefined) {
-		return undefined;
-	}
-	return ts === null ? null : new Date(ts * 1000);
-}
-
-const SESSION_UPDATE_FIELDS = [
-	"buyIn",
-	"cashOut",
-	"tournamentBuyIn",
-	"entryFee",
-	"placement",
-	"totalEntries",
-	"beforeDeadline",
-	"prizeMoney",
-	"rebuyCount",
-	"rebuyCost",
-	"addonCost",
-	"bountyPrizes",
-	"evCashOut",
-	"breakMinutes",
-	"memo",
-] as const;
 
 const CASH_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"buyIn",
@@ -466,20 +307,16 @@ const TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS = [
 
 export function assertNoLiveLinkedRestrictedEdits(
 	session: {
-		liveCashGameSessionId: string | null;
-		liveTournamentSessionId: string | null;
-		type: string;
+		source: string;
+		kind: string;
 	},
 	input: Record<string, unknown>
 ): void {
-	if (
-		session.liveCashGameSessionId === null &&
-		session.liveTournamentSessionId === null
-	) {
+	if (session.source !== "live") {
 		return;
 	}
 	const fields =
-		session.type === "cash_game"
+		session.kind === "cash_game"
 			? CASH_LIVE_LINKED_RESTRICTED_FIELDS
 			: TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS;
 	const violations = fields.filter((f) => input[f] !== undefined);
@@ -491,135 +328,84 @@ export function assertNoLiveLinkedRestrictedEdits(
 	}
 }
 
-function buildSessionUpdateData(
-	input: Record<string, unknown>
-): Partial<typeof pokerSession.$inferInsert> {
-	const data: Partial<typeof pokerSession.$inferInsert> = {
-		updatedAt: new Date(),
-	};
-	if (input.sessionDate !== undefined) {
-		data.sessionDate = new Date((input.sessionDate as number) * 1000);
+function timestampToDate(ts: number | undefined): Date | null {
+	return ts === undefined ? null : new Date(ts * 1000);
+}
+
+function nullableTimestampToDate(
+	ts: number | null | undefined
+): Date | null | undefined {
+	if (ts === undefined) {
+		return undefined;
 	}
-	for (const field of SESSION_UPDATE_FIELDS) {
-		if (input[field] !== undefined) {
-			(data as Record<string, unknown>)[field] = input[field];
-		}
-	}
-	if (input.beforeDeadline === true) {
-		data.placement = null;
-		data.totalEntries = null;
-	}
-	const startedAt = nullableTimestampToDate(
-		input.startedAt as number | null | undefined
+	return ts === null ? null : new Date(ts * 1000);
+}
+
+const cashGameCreateSchema = z.object({
+	type: z.literal("cash_game"),
+	sessionDate: z.number(),
+	buyIn: z.number().int().min(0),
+	cashOut: z.number().int().min(0),
+	evCashOut: z.number().int().min(0).optional(),
+	storeId: z.string().optional(),
+	ringGameId: z.string().optional(),
+	currencyId: z.string().optional(),
+	variant: z.string().default("nlh"),
+	blind1: z.number().int().optional(),
+	blind2: z.number().int().optional(),
+	blind3: z.number().int().optional(),
+	ante: z.number().int().optional(),
+	anteType: z.enum(["none", "all", "bb"]).optional(),
+	tableSize: z.number().int().optional(),
+	startedAt: z.number().optional(),
+	endedAt: z.number().optional(),
+	breakMinutes: z.number().int().min(0).optional(),
+	memo: z.string().optional(),
+	tagIds: z.array(z.string()).optional(),
+});
+
+const tournamentCreateSchema = z
+	.object({
+		type: z.literal("tournament"),
+		sessionDate: z.number(),
+		tournamentBuyIn: z.number().int().min(0),
+		entryFee: z.number().int().min(0).default(0),
+		beforeDeadline: z.boolean().optional(),
+		placement: z.number().int().min(1).optional(),
+		totalEntries: z.number().int().min(1).optional(),
+		prizeMoney: z.number().int().min(0).optional(),
+		rebuyCount: z.number().int().min(0).optional(),
+		rebuyCost: z.number().int().min(0).optional(),
+		addonCost: z.number().int().min(0).optional(),
+		bountyPrizes: z.number().int().min(0).optional(),
+		storeId: z.string().optional(),
+		tournamentId: z.string().optional(),
+		currencyId: z.string().optional(),
+		startedAt: z.number().optional(),
+		endedAt: z.number().optional(),
+		breakMinutes: z.number().int().min(0).optional(),
+		memo: z.string().optional(),
+		tagIds: z.array(z.string()).optional(),
+	})
+	.refine(
+		(data) => {
+			if (data.beforeDeadline === true) {
+				return true;
+			}
+			if (data.placement !== undefined && data.totalEntries !== undefined) {
+				return data.placement <= data.totalEntries;
+			}
+			return true;
+		},
+		{ message: "Placement must be less than or equal to total entries" }
 	);
-	if (startedAt !== undefined) {
-		data.startedAt = startedAt;
-	}
-	const endedAt = nullableTimestampToDate(
-		input.endedAt as number | null | undefined
-	);
-	if (endedAt !== undefined) {
-		data.endedAt = endedAt;
-	}
-	return data;
-}
 
-async function validateCreateLinks(
-	db: DbInstance,
-	input: CreateInput,
-	userId: string
-) {
-	if (input.storeId) {
-		await validateEntityOwnership(db, "store", input.storeId, userId);
-	}
-	if (input.currencyId) {
-		await validateEntityOwnership(db, "currency", input.currencyId, userId);
-	}
-	if (input.type === "cash_game" && input.ringGameId) {
-		await validateEntityOwnership(db, "ringGame", input.ringGameId, userId);
-	}
-	if (input.type === "tournament" && input.tournamentId) {
-		await validateEntityOwnership(db, "tournament", input.tournamentId, userId);
-	}
-}
+const createInputSchema = z.discriminatedUnion("type", [
+	cashGameCreateSchema,
+	tournamentCreateSchema,
+]);
 
-async function buildCreateValues(
-	db: DbInstance,
-	input: CreateInput,
-	now: Date
-) {
-	const linkValues: Partial<typeof pokerSession.$inferInsert> = {
-		storeId: input.storeId ?? null,
-		currencyId: input.currencyId ?? null,
-	};
-
-	if (input.type === "cash_game") {
-		if (input.ringGameId) {
-			return {
-				linkValues,
-				typeValues: buildCashGameSessionValues(input, input.ringGameId),
-			};
-		}
-		const ringGameId = crypto.randomUUID();
-		await db.insert(ringGame).values({
-			id: ringGameId,
-			storeId: null,
-			name: `${input.variant ?? "nlh"} ${input.blind1 ?? 0}/${input.blind2 ?? 0}`,
-			variant: input.variant ?? "nlh",
-			blind1: input.blind1 ?? null,
-			blind2: input.blind2 ?? null,
-			blind3: input.blind3 ?? null,
-			ante: input.ante ?? null,
-			anteType: input.anteType ?? null,
-			minBuyIn: null,
-			maxBuyIn: null,
-			tableSize: input.tableSize ?? null,
-			updatedAt: now,
-		});
-		return {
-			linkValues,
-			typeValues: buildCashGameSessionValues(input, ringGameId),
-		};
-	}
-
-	if (input.tournamentId) {
-		linkValues.tournamentId = input.tournamentId;
-	}
-	return { linkValues, typeValues: buildTournamentSessionValues(input) };
-}
-
-function buildFilterConditions(
-	userId: string,
-	filters: {
-		currencyId?: string;
-		dateFrom?: number;
-		dateTo?: number;
-		storeId?: string;
-		type?: "cash_game" | "tournament";
-	}
-) {
-	const conditions = [eq(pokerSession.userId, userId)];
-	if (filters.type) {
-		conditions.push(eq(pokerSession.type, filters.type));
-	}
-	if (filters.storeId) {
-		conditions.push(eq(pokerSession.storeId, filters.storeId));
-	}
-	if (filters.currencyId) {
-		conditions.push(eq(pokerSession.currencyId, filters.currencyId));
-	}
-	if (filters.dateFrom !== undefined) {
-		conditions.push(
-			gte(pokerSession.sessionDate, new Date(filters.dateFrom * 1000))
-		);
-	}
-	if (filters.dateTo !== undefined) {
-		conditions.push(
-			lte(pokerSession.sessionDate, new Date(filters.dateTo * 1000))
-		);
-	}
-	return conditions;
-}
+type CreateInput = z.infer<typeof createInputSchema>;
 
 interface SessionSummary {
 	avgPlacement: number | null;
@@ -661,6 +447,31 @@ function computeSessionPLFromRow(s: SummarySessionRow): number {
 		s.prizeMoney,
 		s.bountyPrizes
 	);
+}
+
+function accumulateEvMetrics(
+	s: SummarySessionRow,
+	pl: number,
+	current: {
+		totalEvProfitLoss: number;
+		totalEvDiff: number;
+		evSessionCount: number;
+	},
+	update: (ev: {
+		totalEvProfitLoss: number;
+		totalEvDiff: number;
+		evSessionCount: number;
+	}) => void
+) {
+	if (s.type !== "cash_game" || s.evCashOut === null || s.buyIn === null) {
+		return;
+	}
+	const evPl = s.evCashOut - s.buyIn;
+	update({
+		totalEvProfitLoss: current.totalEvProfitLoss + evPl,
+		totalEvDiff: current.totalEvDiff + (evPl - pl),
+		evSessionCount: current.evSessionCount + 1,
+	});
 }
 
 function aggregateSessions(allSessions: SummarySessionRow[]) {
@@ -721,31 +532,6 @@ function aggregateSessions(allSessions: SummarySessionRow[]) {
 	};
 }
 
-function accumulateEvMetrics(
-	s: SummarySessionRow,
-	pl: number,
-	current: {
-		totalEvProfitLoss: number;
-		totalEvDiff: number;
-		evSessionCount: number;
-	},
-	update: (ev: {
-		totalEvProfitLoss: number;
-		totalEvDiff: number;
-		evSessionCount: number;
-	}) => void
-) {
-	if (s.type !== "cash_game" || s.evCashOut === null || s.buyIn === null) {
-		return;
-	}
-	const evPl = s.evCashOut - s.buyIn;
-	update({
-		totalEvProfitLoss: current.totalEvProfitLoss + evPl,
-		totalEvDiff: current.totalEvDiff + (evPl - pl),
-		evSessionCount: current.evSessionCount + 1,
-	});
-}
-
 const EMPTY_SUMMARY: SessionSummary = {
 	totalSessions: 0,
 	totalProfitLoss: 0,
@@ -760,26 +546,62 @@ const EMPTY_SUMMARY: SessionSummary = {
 
 async function computeSummary(
 	db: DbInstance,
-	filterConditions: ReturnType<typeof buildFilterConditions>,
+	userId: string,
+	filters: {
+		currencyId?: string;
+		dateFrom?: number;
+		dateTo?: number;
+		storeId?: string;
+		type?: "cash_game" | "tournament";
+	},
 	typeFilter?: "cash_game" | "tournament"
 ): Promise<SessionSummary> {
+	const conditions = [eq(gameSession.userId, userId)];
+	if (filters.type) {
+		conditions.push(eq(gameSession.kind, filters.type));
+	}
+	if (filters.storeId) {
+		conditions.push(eq(gameSession.storeId, filters.storeId));
+	}
+	if (filters.currencyId) {
+		conditions.push(eq(gameSession.currencyId, filters.currencyId));
+	}
+	if (filters.dateFrom !== undefined) {
+		conditions.push(
+			gte(gameSession.sessionDate, new Date(filters.dateFrom * 1000))
+		);
+	}
+	if (filters.dateTo !== undefined) {
+		conditions.push(
+			lte(gameSession.sessionDate, new Date(filters.dateTo * 1000))
+		);
+	}
+
 	const allSessions = await db
 		.select({
-			type: pokerSession.type,
-			buyIn: pokerSession.buyIn,
-			cashOut: pokerSession.cashOut,
-			evCashOut: pokerSession.evCashOut,
-			entryFee: pokerSession.entryFee,
-			rebuyCount: pokerSession.rebuyCount,
-			rebuyCost: pokerSession.rebuyCost,
-			addonCost: pokerSession.addonCost,
-			prizeMoney: pokerSession.prizeMoney,
-			bountyPrizes: pokerSession.bountyPrizes,
-			placement: pokerSession.placement,
-			totalEntries: pokerSession.totalEntries,
+			type: gameSession.kind,
+			buyIn: sessionCashDetail.buyIn,
+			cashOut: sessionCashDetail.cashOut,
+			evCashOut: sessionCashDetail.evCashOut,
+			entryFee: sessionTournamentDetail.entryFee,
+			rebuyCount: sessionTournamentDetail.rebuyCount,
+			rebuyCost: sessionTournamentDetail.rebuyCost,
+			addonCost: sessionTournamentDetail.addonCost,
+			prizeMoney: sessionTournamentDetail.prizeMoney,
+			bountyPrizes: sessionTournamentDetail.bountyPrizes,
+			placement: sessionTournamentDetail.placement,
+			totalEntries: sessionTournamentDetail.totalEntries,
 		})
-		.from(pokerSession)
-		.where(and(...filterConditions));
+		.from(gameSession)
+		.leftJoin(
+			sessionCashDetail,
+			eq(sessionCashDetail.sessionId, gameSession.id)
+		)
+		.leftJoin(
+			sessionTournamentDetail,
+			eq(sessionTournamentDetail.sessionId, gameSession.id)
+		)
+		.where(and(...conditions));
 
 	const totalSessions = allSessions.length;
 	if (totalSessions === 0) {
@@ -808,6 +630,445 @@ async function computeSummary(
 	};
 }
 
+async function validateCreateLinks(
+	db: DbInstance,
+	input: CreateInput,
+	userId: string
+) {
+	if (input.storeId) {
+		await validateEntityOwnership(db, "store", input.storeId, userId);
+	}
+	if (input.currencyId) {
+		await validateEntityOwnership(db, "currency", input.currencyId, userId);
+	}
+	if (input.type === "cash_game" && input.ringGameId) {
+		await validateEntityOwnership(db, "ringGame", input.ringGameId, userId);
+	}
+	if (input.type === "tournament" && input.tournamentId) {
+		await validateEntityOwnership(db, "tournament", input.tournamentId, userId);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// create helpers
+// ---------------------------------------------------------------------------
+
+async function createCashGameDetailForSession(
+	db: DbInstance,
+	sessionId: string,
+	input: {
+		ringGameId?: string;
+		variant?: string;
+		blind1?: number;
+		blind2?: number;
+		blind3?: number;
+		ante?: number;
+		anteType?: "none" | "all" | "bb";
+		tableSize?: number;
+		buyIn: number;
+		cashOut: number;
+		evCashOut?: number;
+	},
+	now: Date
+): Promise<void> {
+	let ringGameId = input.ringGameId ?? null;
+	if (!ringGameId) {
+		ringGameId = crypto.randomUUID();
+		await db.insert(ringGame).values({
+			id: ringGameId,
+			storeId: null,
+			name: `${input.variant ?? "nlh"} ${input.blind1 ?? 0}/${input.blind2 ?? 0}`,
+			variant: input.variant ?? "nlh",
+			blind1: input.blind1 ?? null,
+			blind2: input.blind2 ?? null,
+			blind3: input.blind3 ?? null,
+			ante: input.ante ?? null,
+			anteType: input.anteType ?? null,
+			minBuyIn: null,
+			maxBuyIn: null,
+			tableSize: input.tableSize ?? null,
+			updatedAt: now,
+		});
+	}
+	await db.insert(sessionCashDetail).values({
+		sessionId,
+		ringGameId,
+		buyIn: input.buyIn,
+		cashOut: input.cashOut,
+		evCashOut: input.evCashOut ?? null,
+	});
+}
+
+async function createTournamentDetailForSession(
+	db: DbInstance,
+	sessionId: string,
+	input: {
+		tournamentId?: string;
+		tournamentBuyIn: number;
+		entryFee: number;
+		beforeDeadline?: boolean;
+		placement?: number;
+		totalEntries?: number;
+		prizeMoney?: number;
+		rebuyCount?: number;
+		rebuyCost?: number;
+		addonCost?: number;
+		bountyPrizes?: number;
+	}
+): Promise<void> {
+	const beforeDeadline = input.beforeDeadline === true;
+	await db.insert(sessionTournamentDetail).values({
+		sessionId,
+		tournamentId: input.tournamentId ?? null,
+		tournamentBuyIn: input.tournamentBuyIn,
+		entryFee: input.entryFee,
+		beforeDeadline: beforeDeadline ? true : null,
+		placement: beforeDeadline ? null : (input.placement ?? null),
+		totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
+		prizeMoney: input.prizeMoney ?? null,
+		rebuyCount: input.rebuyCount ?? null,
+		rebuyCost: input.rebuyCost ?? null,
+		addonCost: input.addonCost ?? null,
+		bountyPrizes: input.bountyPrizes ?? null,
+	});
+}
+
+function computeCreatePL(input: CreateInput): number {
+	if (input.type === "cash_game") {
+		return computeCashGamePL(input.buyIn, input.cashOut);
+	}
+	return computeTournamentPL(
+		input.tournamentBuyIn,
+		input.entryFee,
+		input.rebuyCount ?? null,
+		input.rebuyCost ?? null,
+		input.addonCost ?? null,
+		input.prizeMoney ?? null,
+		input.bountyPrizes ?? null
+	);
+}
+
+// ---------------------------------------------------------------------------
+// list helpers
+// ---------------------------------------------------------------------------
+
+interface ListFilters {
+	currencyId?: string;
+	cursor?: string;
+	dateFrom?: number;
+	dateTo?: number;
+	storeId?: string;
+	type?: "cash_game" | "tournament";
+}
+
+function buildSessionListConditions(userId: string, filters: ListFilters) {
+	const conditions = [eq(gameSession.userId, userId)];
+	if (filters.type) {
+		conditions.push(eq(gameSession.kind, filters.type));
+	}
+	if (filters.storeId) {
+		conditions.push(eq(gameSession.storeId, filters.storeId));
+	}
+	if (filters.currencyId) {
+		conditions.push(eq(gameSession.currencyId, filters.currencyId));
+	}
+	if (filters.dateFrom !== undefined) {
+		conditions.push(
+			gte(gameSession.sessionDate, new Date(filters.dateFrom * 1000))
+		);
+	}
+	if (filters.dateTo !== undefined) {
+		conditions.push(
+			lte(gameSession.sessionDate, new Date(filters.dateTo * 1000))
+		);
+	}
+	const paginationConditions = [...conditions];
+	if (filters.cursor) {
+		paginationConditions.push(lt(gameSession.id, filters.cursor));
+	}
+	return { conditions, paginationConditions };
+}
+
+interface ListItemRaw {
+	addonCost: number | null;
+	bountyPrizes: number | null;
+	buyIn: number | null;
+	cashOut: number | null;
+	entryFee: number | null;
+	evCashOut: number | null;
+	id: string;
+	prizeMoney: number | null;
+	rebuyCost: number | null;
+	rebuyCount: number | null;
+	source: string;
+	tournamentBuyIn: number | null;
+	type: string;
+}
+
+function enrichItemWithPL<T extends ListItemRaw>(item: T) {
+	let profitLoss: number | null = null;
+	let evProfitLoss: number | null = null;
+	let evDiff: number | null = null;
+
+	if (
+		item.type === "cash_game" &&
+		item.buyIn !== null &&
+		item.cashOut !== null
+	) {
+		profitLoss = computeCashGamePL(item.buyIn, item.cashOut);
+		if (item.evCashOut !== null) {
+			evProfitLoss = item.evCashOut - item.buyIn;
+			evDiff = evProfitLoss - profitLoss;
+		}
+	} else if (item.type === "tournament") {
+		profitLoss = computeTournamentPL(
+			item.tournamentBuyIn,
+			item.entryFee,
+			item.rebuyCount,
+			item.rebuyCost,
+			item.addonCost,
+			item.prizeMoney,
+			item.bountyPrizes
+		);
+	}
+
+	const liveCashGameSessionId =
+		item.source === "live" && item.type === "cash_game" ? item.id : null;
+	const liveTournamentSessionId =
+		item.source === "live" && item.type === "tournament" ? item.id : null;
+
+	return {
+		...item,
+		liveCashGameSessionId,
+		liveTournamentSessionId,
+		profitLoss,
+		evProfitLoss,
+		evDiff,
+	};
+}
+
+// ---------------------------------------------------------------------------
+// update helpers
+// ---------------------------------------------------------------------------
+
+type UpdateInput = {
+	sessionDate?: number;
+	storeId?: string | null;
+	currencyId?: string | null;
+	memo?: string | null;
+	breakMinutes?: number | null;
+	startedAt?: number | null;
+	endedAt?: number | null;
+};
+
+function buildSessionUpdateFields(
+	input: UpdateInput
+): Partial<typeof gameSession.$inferInsert> {
+	const update: Partial<typeof gameSession.$inferInsert> = {
+		updatedAt: new Date(),
+	};
+	if (input.sessionDate !== undefined) {
+		update.sessionDate = new Date(input.sessionDate * 1000);
+	}
+	if (input.storeId !== undefined) {
+		update.storeId = input.storeId;
+	}
+	if (input.currencyId !== undefined) {
+		update.currencyId = input.currencyId;
+	}
+	if (input.memo !== undefined) {
+		update.memo = input.memo;
+	}
+	if (input.breakMinutes !== undefined) {
+		update.breakMinutes = input.breakMinutes;
+	}
+	const startedAt = nullableTimestampToDate(input.startedAt);
+	if (startedAt !== undefined) {
+		update.startedAt = startedAt;
+	}
+	const endedAt = nullableTimestampToDate(input.endedAt);
+	if (endedAt !== undefined) {
+		update.endedAt = endedAt;
+	}
+	return update;
+}
+
+type CashUpdateInput = {
+	buyIn?: number;
+	cashOut?: number;
+	evCashOut?: number | null;
+	ringGameId?: string | null;
+	variant?: string;
+	blind1?: number | null;
+	blind2?: number | null;
+	blind3?: number | null;
+	ante?: number | null;
+	anteType?: "none" | "all" | "bb" | null;
+	tableSize?: number | null;
+};
+
+async function applyCashDetailUpdate(
+	db: DbInstance,
+	sessionId: string,
+	input: CashUpdateInput
+): Promise<void> {
+	const cashUpdate: Partial<typeof sessionCashDetail.$inferInsert> = {};
+	if (input.buyIn !== undefined) {
+		cashUpdate.buyIn = input.buyIn;
+	}
+	if (input.cashOut !== undefined) {
+		cashUpdate.cashOut = input.cashOut;
+	}
+	if (input.evCashOut !== undefined) {
+		cashUpdate.evCashOut = input.evCashOut;
+	}
+	if (input.ringGameId !== undefined) {
+		cashUpdate.ringGameId = input.ringGameId;
+	}
+
+	if (Object.keys(cashUpdate).length > 0) {
+		const [existingDetail] = await db
+			.select()
+			.from(sessionCashDetail)
+			.where(eq(sessionCashDetail.sessionId, sessionId));
+		if (existingDetail) {
+			await db
+				.update(sessionCashDetail)
+				.set(cashUpdate)
+				.where(eq(sessionCashDetail.sessionId, sessionId));
+		} else {
+			await db.insert(sessionCashDetail).values({ sessionId, ...cashUpdate });
+		}
+	}
+
+	const rgUpdateData = buildRingGameUpdateData(input);
+	if (rgUpdateData) {
+		const [currentDetail] = await db
+			.select()
+			.from(sessionCashDetail)
+			.where(eq(sessionCashDetail.sessionId, sessionId));
+		if (currentDetail?.ringGameId) {
+			await db
+				.update(ringGame)
+				.set(rgUpdateData)
+				.where(eq(ringGame.id, currentDetail.ringGameId));
+		}
+	}
+}
+
+type TournamentUpdateInput = {
+	tournamentId?: string | null;
+	tournamentBuyIn?: number;
+	entryFee?: number;
+	placement?: number | null;
+	totalEntries?: number | null;
+	beforeDeadline?: boolean | null;
+	prizeMoney?: number | null;
+	rebuyCount?: number | null;
+	rebuyCost?: number | null;
+	addonCost?: number | null;
+	bountyPrizes?: number | null;
+};
+
+async function applyTournamentDetailUpdate(
+	db: DbInstance,
+	sessionId: string,
+	input: TournamentUpdateInput
+): Promise<void> {
+	const tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> = {};
+	if (input.tournamentId !== undefined) {
+		tournUpdate.tournamentId = input.tournamentId;
+	}
+	if (input.tournamentBuyIn !== undefined) {
+		tournUpdate.tournamentBuyIn = input.tournamentBuyIn;
+	}
+	if (input.entryFee !== undefined) {
+		tournUpdate.entryFee = input.entryFee;
+	}
+	if (input.placement !== undefined) {
+		tournUpdate.placement = input.placement;
+	}
+	if (input.totalEntries !== undefined) {
+		tournUpdate.totalEntries = input.totalEntries;
+	}
+	if (input.beforeDeadline !== undefined) {
+		tournUpdate.beforeDeadline = input.beforeDeadline;
+		if (input.beforeDeadline === true) {
+			tournUpdate.placement = null;
+			tournUpdate.totalEntries = null;
+		}
+	}
+	if (input.prizeMoney !== undefined) {
+		tournUpdate.prizeMoney = input.prizeMoney;
+	}
+	if (input.rebuyCount !== undefined) {
+		tournUpdate.rebuyCount = input.rebuyCount;
+	}
+	if (input.rebuyCost !== undefined) {
+		tournUpdate.rebuyCost = input.rebuyCost;
+	}
+	if (input.addonCost !== undefined) {
+		tournUpdate.addonCost = input.addonCost;
+	}
+	if (input.bountyPrizes !== undefined) {
+		tournUpdate.bountyPrizes = input.bountyPrizes;
+	}
+
+	if (Object.keys(tournUpdate).length === 0) {
+		return;
+	}
+	const [existingDetail] = await db
+		.select()
+		.from(sessionTournamentDetail)
+		.where(eq(sessionTournamentDetail.sessionId, sessionId));
+	if (existingDetail) {
+		await db
+			.update(sessionTournamentDetail)
+			.set(tournUpdate)
+			.where(eq(sessionTournamentDetail.sessionId, sessionId));
+	} else {
+		await db
+			.insert(sessionTournamentDetail)
+			.values({ sessionId, ...tournUpdate });
+	}
+}
+
+function computeSessionPLFromDetails(
+	kind: string,
+	cashDetail: { buyIn: number | null; cashOut: number | null } | undefined,
+	tournamentDetail:
+		| {
+				tournamentBuyIn: number | null;
+				entryFee: number | null;
+				rebuyCount: number | null;
+				rebuyCost: number | null;
+				addonCost: number | null;
+				prizeMoney: number | null;
+				bountyPrizes: number | null;
+		  }
+		| undefined
+): number {
+	if (
+		kind === "cash_game" &&
+		cashDetail?.buyIn != null &&
+		cashDetail?.cashOut != null
+	) {
+		return computeCashGamePL(cashDetail.buyIn, cashDetail.cashOut);
+	}
+	if (kind === "tournament" && tournamentDetail) {
+		return computeTournamentPL(
+			tournamentDetail.tournamentBuyIn,
+			tournamentDetail.entryFee,
+			tournamentDetail.rebuyCount,
+			tournamentDetail.rebuyCost,
+			tournamentDetail.addonCost,
+			tournamentDetail.prizeMoney,
+			tournamentDetail.bountyPrizes
+		);
+	}
+	return 0;
+}
+
 export const sessionRouter = router({
 	create: protectedProcedure
 		.input(createInputSchema)
@@ -818,25 +1079,67 @@ export const sessionRouter = router({
 			const sessionDate = new Date(input.sessionDate * 1000);
 
 			await validateCreateLinks(ctx.db, input, userId);
-			const { linkValues, typeValues } = await buildCreateValues(
-				ctx.db,
-				input,
-				now
-			);
 
-			await ctx.db.insert(pokerSession).values({
+			await ctx.db.insert(gameSession).values({
 				id,
 				userId,
-				type: input.type,
+				kind: input.type,
+				status: "completed",
+				source: "manual",
 				sessionDate,
 				startedAt: timestampToDate(input.startedAt),
 				endedAt: timestampToDate(input.endedAt),
 				breakMinutes: input.breakMinutes ?? null,
 				memo: input.memo ?? null,
+				storeId: input.storeId ?? null,
+				currencyId: input.currencyId ?? null,
 				updatedAt: now,
-				...linkValues,
-				...typeValues,
 			});
+
+			if (input.type === "cash_game") {
+				let ringGameId = input.ringGameId ?? null;
+				if (!ringGameId) {
+					ringGameId = crypto.randomUUID();
+					await ctx.db.insert(ringGame).values({
+						id: ringGameId,
+						storeId: null,
+						name: `${input.variant ?? "nlh"} ${input.blind1 ?? 0}/${input.blind2 ?? 0}`,
+						variant: input.variant ?? "nlh",
+						blind1: input.blind1 ?? null,
+						blind2: input.blind2 ?? null,
+						blind3: input.blind3 ?? null,
+						ante: input.ante ?? null,
+						anteType: input.anteType ?? null,
+						minBuyIn: null,
+						maxBuyIn: null,
+						tableSize: input.tableSize ?? null,
+						updatedAt: now,
+					});
+				}
+				await ctx.db.insert(sessionCashDetail).values({
+					sessionId: id,
+					ringGameId,
+					buyIn: input.buyIn,
+					cashOut: input.cashOut,
+					evCashOut: input.evCashOut ?? null,
+				});
+			} else {
+				const beforeDeadline = input.beforeDeadline === true;
+				await ctx.db.insert(sessionTournamentDetail).values({
+					sessionId: id,
+					tournamentId: input.tournamentId ?? null,
+					tournamentBuyIn: input.tournamentBuyIn,
+					entryFee: input.entryFee,
+					beforeDeadline: beforeDeadline ? true : null,
+					placement: beforeDeadline ? null : (input.placement ?? null),
+					totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
+					prizeMoney: input.prizeMoney ?? null,
+					rebuyCount: input.rebuyCount ?? null,
+					rebuyCost: input.rebuyCost ?? null,
+					addonCost: input.addonCost ?? null,
+					bountyPrizes: input.bountyPrizes ?? null,
+				});
+			}
 
 			if (input.tagIds && input.tagIds.length > 0) {
 				await ctx.db.insert(sessionToSessionTag).values(
@@ -848,17 +1151,32 @@ export const sessionRouter = router({
 			}
 
 			if (input.currencyId) {
-				const [session] = await ctx.db
-					.select()
-					.from(pokerSession)
-					.where(eq(pokerSession.id, id));
-				if (!session) {
-					throw new TRPCError({
-						code: "INTERNAL_SERVER_ERROR",
-						message: "Session not found after creation",
-					});
+				let pl = 0;
+				if (input.type === "cash_game") {
+					pl = computeCashGamePL(input.buyIn, input.cashOut);
+				} else {
+					const beforeDeadline = input.beforeDeadline === true;
+					pl = computeTournamentPL(
+						input.tournamentBuyIn,
+						input.entryFee,
+						input.rebuyCount ?? null,
+						input.rebuyCost ?? null,
+						input.addonCost ?? null,
+						input.prizeMoney ?? null,
+						input.bountyPrizes ?? null
+					);
+					if (beforeDeadline) {
+						pl = computeTournamentPL(
+							input.tournamentBuyIn,
+							input.entryFee,
+							input.rebuyCount ?? null,
+							input.rebuyCost ?? null,
+							input.addonCost ?? null,
+							input.prizeMoney ?? null,
+							input.bountyPrizes ?? null
+						);
+					}
 				}
-				const pl = computeSessionPL(session);
 				await createCurrencyTransactionForSession(
 					ctx.db,
 					id,
@@ -870,9 +1188,27 @@ export const sessionRouter = router({
 			}
 
 			const [created] = await ctx.db
-				.select()
-				.from(pokerSession)
-				.where(eq(pokerSession.id, id));
+				.select({
+					id: gameSession.id,
+					userId: gameSession.userId,
+					type: gameSession.kind,
+					kind: gameSession.kind,
+					status: gameSession.status,
+					source: gameSession.source,
+					sessionDate: gameSession.sessionDate,
+					startedAt: gameSession.startedAt,
+					endedAt: gameSession.endedAt,
+					breakMinutes: gameSession.breakMinutes,
+					memo: gameSession.memo,
+					storeId: gameSession.storeId,
+					currencyId: gameSession.currencyId,
+					createdAt: gameSession.createdAt,
+					updatedAt: gameSession.updatedAt,
+					liveCashGameSessionId: gameSession.id,
+					liveTournamentSessionId: gameSession.id,
+				})
+				.from(gameSession)
+				.where(eq(gameSession.id, id));
 			return created;
 		}),
 
@@ -889,89 +1225,72 @@ export const sessionRouter = router({
 		)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-
-			const filterConditions = buildFilterConditions(userId, input);
-			const paginationConditions = [...filterConditions];
-			if (input.cursor) {
-				paginationConditions.push(lt(pokerSession.id, input.cursor));
-			}
+			const { paginationConditions } = buildSessionListConditions(
+				userId,
+				input
+			);
 
 			const data = await ctx.db
 				.select({
-					id: pokerSession.id,
-					type: pokerSession.type,
-					sessionDate: pokerSession.sessionDate,
-					buyIn: pokerSession.buyIn,
-					cashOut: pokerSession.cashOut,
-					evCashOut: pokerSession.evCashOut,
-					tournamentBuyIn: pokerSession.tournamentBuyIn,
-					entryFee: pokerSession.entryFee,
-					placement: pokerSession.placement,
-					totalEntries: pokerSession.totalEntries,
-					beforeDeadline: pokerSession.beforeDeadline,
-					prizeMoney: pokerSession.prizeMoney,
-					rebuyCount: pokerSession.rebuyCount,
-					rebuyCost: pokerSession.rebuyCost,
-					addonCost: pokerSession.addonCost,
-					bountyPrizes: pokerSession.bountyPrizes,
-					startedAt: pokerSession.startedAt,
-					endedAt: pokerSession.endedAt,
-					breakMinutes: pokerSession.breakMinutes,
-					memo: pokerSession.memo,
-					storeId: pokerSession.storeId,
+					id: gameSession.id,
+					type: gameSession.kind,
+					sessionDate: gameSession.sessionDate,
+					source: gameSession.source,
+					status: gameSession.status,
+					buyIn: sessionCashDetail.buyIn,
+					cashOut: sessionCashDetail.cashOut,
+					evCashOut: sessionCashDetail.evCashOut,
+					tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
+					entryFee: sessionTournamentDetail.entryFee,
+					placement: sessionTournamentDetail.placement,
+					totalEntries: sessionTournamentDetail.totalEntries,
+					beforeDeadline: sessionTournamentDetail.beforeDeadline,
+					prizeMoney: sessionTournamentDetail.prizeMoney,
+					rebuyCount: sessionTournamentDetail.rebuyCount,
+					rebuyCost: sessionTournamentDetail.rebuyCost,
+					addonCost: sessionTournamentDetail.addonCost,
+					bountyPrizes: sessionTournamentDetail.bountyPrizes,
+					startedAt: gameSession.startedAt,
+					endedAt: gameSession.endedAt,
+					breakMinutes: gameSession.breakMinutes,
+					memo: gameSession.memo,
+					storeId: gameSession.storeId,
 					storeName: store.name,
-					ringGameId: pokerSession.ringGameId,
+					ringGameId: sessionCashDetail.ringGameId,
 					ringGameName: ringGame.name,
 					ringGameBlind2: ringGame.blind2,
-					tournamentId: pokerSession.tournamentId,
+					tournamentId: sessionTournamentDetail.tournamentId,
 					tournamentName: tournament.name,
-					currencyId: pokerSession.currencyId,
+					currencyId: gameSession.currencyId,
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
-					createdAt: pokerSession.createdAt,
-					liveCashGameSessionId: pokerSession.liveCashGameSessionId,
-					liveTournamentSessionId: pokerSession.liveTournamentSessionId,
+					createdAt: gameSession.createdAt,
 				})
-				.from(pokerSession)
-				.leftJoin(store, eq(store.id, pokerSession.storeId))
-				.leftJoin(ringGame, eq(ringGame.id, pokerSession.ringGameId))
-				.leftJoin(tournament, eq(tournament.id, pokerSession.tournamentId))
-				.leftJoin(currency, eq(currency.id, pokerSession.currencyId))
+				.from(gameSession)
+				.leftJoin(
+					sessionCashDetail,
+					eq(sessionCashDetail.sessionId, gameSession.id)
+				)
+				.leftJoin(
+					sessionTournamentDetail,
+					eq(sessionTournamentDetail.sessionId, gameSession.id)
+				)
+				.leftJoin(store, eq(store.id, gameSession.storeId))
+				.leftJoin(ringGame, eq(ringGame.id, sessionCashDetail.ringGameId))
+				.leftJoin(
+					tournament,
+					eq(tournament.id, sessionTournamentDetail.tournamentId)
+				)
+				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
 				.where(and(...paginationConditions))
-				.orderBy(desc(pokerSession.sessionDate), desc(pokerSession.id))
+				.orderBy(desc(gameSession.sessionDate), desc(gameSession.id))
 				.limit(PAGE_SIZE + 1);
 
 			const hasMore = data.length > PAGE_SIZE;
 			const items = hasMore ? data.slice(0, PAGE_SIZE) : data;
 			const nextCursor = hasMore ? items.at(-1)?.id : undefined;
 
-			const itemsWithPL = items.map((item) => {
-				let profitLoss: number | null = null;
-				let evProfitLoss: number | null = null;
-				let evDiff: number | null = null;
-				if (
-					item.type === "cash_game" &&
-					item.buyIn !== null &&
-					item.cashOut !== null
-				) {
-					profitLoss = computeCashGamePL(item.buyIn, item.cashOut);
-					if (item.evCashOut !== null) {
-						evProfitLoss = item.evCashOut - item.buyIn;
-						evDiff = evProfitLoss - profitLoss;
-					}
-				} else if (item.type === "tournament") {
-					profitLoss = computeTournamentPL(
-						item.tournamentBuyIn,
-						item.entryFee,
-						item.rebuyCount,
-						item.rebuyCost,
-						item.addonCost,
-						item.prizeMoney,
-						item.bountyPrizes
-					);
-				}
-				return { ...item, profitLoss, evProfitLoss, evDiff };
-			});
+			const itemsWithPL = items.map(enrichItemWithPL);
 
 			const sessionIds = itemsWithPL.map((item) => item.id);
 			const tagLinks =
@@ -997,12 +1316,7 @@ export const sessionRouter = router({
 					.map((tl) => ({ id: tl.tagId, name: tl.tagName })),
 			}));
 
-			// Summary aggregation
-			const summary = await computeSummary(
-				ctx.db,
-				filterConditions,
-				input.type
-			);
+			const summary = await computeSummary(ctx.db, userId, input, input.type);
 
 			return { items: itemsWithTags, nextCursor, summary };
 		}),
@@ -1012,7 +1326,34 @@ export const sessionRouter = router({
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const session = await validateSessionOwnership(ctx.db, input.id, userId);
-			return session;
+
+			const [cashDetail] = await ctx.db
+				.select()
+				.from(sessionCashDetail)
+				.where(eq(sessionCashDetail.sessionId, input.id));
+
+			const [tournamentDetail] = await ctx.db
+				.select()
+				.from(sessionTournamentDetail)
+				.where(eq(sessionTournamentDetail.sessionId, input.id));
+
+			const liveCashGameSessionId =
+				session.source === "live" && session.kind === "cash_game"
+					? session.id
+					: null;
+			const liveTournamentSessionId =
+				session.source === "live" && session.kind === "tournament"
+					? session.id
+					: null;
+
+			return {
+				...session,
+				type: session.kind,
+				liveCashGameSessionId,
+				liveTournamentSessionId,
+				...cashDetail,
+				...tournamentDetail,
+			};
 		}),
 
 	update: protectedProcedure
@@ -1020,16 +1361,13 @@ export const sessionRouter = router({
 			z.object({
 				id: z.string(),
 				sessionDate: z.number().optional(),
-				// Links
 				storeId: z.string().nullable().optional(),
 				ringGameId: z.string().nullable().optional(),
 				tournamentId: z.string().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
-				// Cash game fields
 				buyIn: z.number().int().min(0).optional(),
 				cashOut: z.number().int().min(0).optional(),
 				evCashOut: z.number().int().min(0).nullable().optional(),
-				// Tournament fields
 				tournamentBuyIn: z.number().int().min(0).optional(),
 				entryFee: z.number().int().min(0).optional(),
 				placement: z.number().int().min(1).nullable().optional(),
@@ -1040,12 +1378,10 @@ export const sessionRouter = router({
 				rebuyCost: z.number().int().min(0).nullable().optional(),
 				addonCost: z.number().int().min(0).nullable().optional(),
 				bountyPrizes: z.number().int().min(0).nullable().optional(),
-				// Common
 				startedAt: z.number().nullable().optional(),
 				endedAt: z.number().nullable().optional(),
 				breakMinutes: z.number().int().min(0).nullable().optional(),
 				memo: z.string().nullable().optional(),
-				// Ring game config updates
 				variant: z.string().optional(),
 				blind1: z.number().int().nullable().optional(),
 				blind2: z.number().int().nullable().optional(),
@@ -1053,7 +1389,6 @@ export const sessionRouter = router({
 				ante: z.number().int().nullable().optional(),
 				anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
 				tableSize: z.number().int().nullable().optional(),
-				// Tags
 				tagIds: z.array(z.string()).optional(),
 			})
 		)
@@ -1061,9 +1396,11 @@ export const sessionRouter = router({
 			const userId = ctx.session.user.id;
 			const session = await validateSessionOwnership(ctx.db, input.id, userId);
 
-			assertNoLiveLinkedRestrictedEdits(session, input);
+			assertNoLiveLinkedRestrictedEdits(
+				{ source: session.source, kind: session.kind },
+				input
+			);
 
-			// Validate linked entity ownership
 			if (input.storeId) {
 				await validateEntityOwnership(ctx.db, "store", input.storeId, userId);
 			}
@@ -1092,34 +1429,16 @@ export const sessionRouter = router({
 				);
 			}
 
-			const updateData = buildSessionUpdateData(input);
-
-			// Handle link field updates
-			if (input.storeId !== undefined) {
-				updateData.storeId = input.storeId;
-			}
-			if (input.ringGameId !== undefined) {
-				updateData.ringGameId = input.ringGameId;
-			}
-			if (input.tournamentId !== undefined) {
-				updateData.tournamentId = input.tournamentId;
-			}
-			if (input.currencyId !== undefined) {
-				updateData.currencyId = input.currencyId;
-			}
-
+			const sessionUpdateFields = buildSessionUpdateFields(input);
 			await ctx.db
-				.update(pokerSession)
-				.set(updateData)
-				.where(eq(pokerSession.id, input.id));
+				.update(gameSession)
+				.set(sessionUpdateFields)
+				.where(eq(gameSession.id, input.id));
 
-			// Update linked ringGame if game config fields provided
-			const rgUpdateData = buildRingGameUpdateData(input);
-			if (rgUpdateData && session.ringGameId) {
-				await ctx.db
-					.update(ringGame)
-					.set(rgUpdateData)
-					.where(eq(ringGame.id, session.ringGameId));
+			if (session.kind === "cash_game") {
+				await applyCashDetailUpdate(ctx.db, input.id, input);
+			} else {
+				await applyTournamentDetailUpdate(ctx.db, input.id, input);
 			}
 
 			if (input.tagIds !== undefined) {
@@ -1136,11 +1455,10 @@ export const sessionRouter = router({
 				}
 			}
 
-			// Sync currency transaction
 			const [updated] = await ctx.db
 				.select()
-				.from(pokerSession)
-				.where(eq(pokerSession.id, input.id));
+				.from(gameSession)
+				.where(eq(gameSession.id, input.id));
 
 			if (!updated) {
 				throw new TRPCError({
@@ -1149,7 +1467,22 @@ export const sessionRouter = router({
 				});
 			}
 
-			const pl = computeSessionPL(updated);
+			const [updatedCashDetail] = await ctx.db
+				.select()
+				.from(sessionCashDetail)
+				.where(eq(sessionCashDetail.sessionId, input.id));
+
+			const [updatedTournamentDetail] = await ctx.db
+				.select()
+				.from(sessionTournamentDetail)
+				.where(eq(sessionTournamentDetail.sessionId, input.id));
+
+			const pl = computeSessionPLFromDetails(
+				updated.kind,
+				updatedCashDetail,
+				updatedTournamentDetail
+			);
+
 			await syncCurrencyTransaction(
 				ctx.db,
 				input.id,
@@ -1169,7 +1502,7 @@ export const sessionRouter = router({
 			const userId = ctx.session.user.id;
 			await validateSessionOwnership(ctx.db, input.id, userId);
 
-			await ctx.db.delete(pokerSession).where(eq(pokerSession.id, input.id));
+			await ctx.db.delete(gameSession).where(eq(gameSession.id, input.id));
 			return { success: true };
 		}),
 });

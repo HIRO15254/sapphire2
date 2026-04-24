@@ -3,11 +3,10 @@ import {
 	updateStackPayload,
 	updateTournamentInfoPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
-import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
-import { pokerSession } from "@sapphire2/db/schema/session";
+import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
+import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { currency, store } from "@sapphire2/db/schema/store";
 import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
@@ -32,8 +31,14 @@ async function findLiveTournamentSession(
 ) {
 	const [found] = await db
 		.select()
-		.from(liveTournamentSession)
-		.where(eq(liveTournamentSession.id, id));
+		.from(gameSession)
+		.where(
+			and(
+				eq(gameSession.id, id),
+				eq(gameSession.kind, "tournament"),
+				eq(gameSession.source, "live")
+			)
+		);
 
 	if (!found) {
 		throw new TRPCError({
@@ -56,29 +61,19 @@ async function assertNoActiveSession(
 	db: DbInstance,
 	userId: string
 ): Promise<void> {
-	const anyActiveCash = await db
-		.select({ id: liveCashGameSession.id })
-		.from(liveCashGameSession)
+	const anyActive = await db
+		.select({ id: gameSession.id })
+		.from(gameSession)
 		.where(
 			and(
-				eq(liveCashGameSession.userId, userId),
-				sql`${liveCashGameSession.status} != 'completed'`
+				eq(gameSession.userId, userId),
+				eq(gameSession.source, "live"),
+				sql`${gameSession.status} != 'completed'`
 			)
 		)
 		.limit(1);
 
-	const anyActiveTournament = await db
-		.select({ id: liveTournamentSession.id })
-		.from(liveTournamentSession)
-		.where(
-			and(
-				eq(liveTournamentSession.userId, userId),
-				sql`${liveTournamentSession.status} != 'completed'`
-			)
-		)
-		.limit(1);
-
-	if (anyActiveCash.length > 0 || anyActiveTournament.length > 0) {
+	if (anyActive.length > 0) {
 		throw new TRPCError({
 			code: "BAD_REQUEST",
 			message: "Another session is already active",
@@ -279,6 +274,52 @@ async function resolveTournamentAssignment(
 	return patch;
 }
 
+async function getNextEventSortOrder(
+	db: DbInstance,
+	sessionId: string
+): Promise<number> {
+	const [latest] = await db
+		.select({ sortOrder: sessionEvent.sortOrder })
+		.from(sessionEvent)
+		.where(eq(sessionEvent.sessionId, sessionId))
+		.orderBy(desc(sessionEvent.sortOrder))
+		.limit(1);
+	return latest ? (latest.sortOrder ?? 0) + 1 : 0;
+}
+
+type CompleteInput =
+	| {
+			id: string;
+			beforeDeadline: false;
+			placement: number;
+			totalEntries: number;
+			prizeMoney: number;
+			bountyPrizes: number;
+	  }
+	| {
+			id: string;
+			beforeDeadline: true;
+			prizeMoney: number;
+			bountyPrizes: number;
+	  };
+
+function buildTournamentEndPayload(input: CompleteInput) {
+	if (input.beforeDeadline === false) {
+		return tournamentSessionEndPayload.parse({
+			beforeDeadline: false,
+			placement: input.placement,
+			totalEntries: input.totalEntries,
+			prizeMoney: input.prizeMoney,
+			bountyPrizes: input.bountyPrizes,
+		});
+	}
+	return tournamentSessionEndPayload.parse({
+		beforeDeadline: true,
+		prizeMoney: input.prizeMoney,
+		bountyPrizes: input.bountyPrizes,
+	});
+}
+
 export const liveTournamentSessionRouter = router({
 	list: protectedProcedure
 		.input(
@@ -291,44 +332,52 @@ export const liveTournamentSessionRouter = router({
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 
-			const conditions = [eq(liveTournamentSession.userId, userId)];
+			const conditions = [
+				eq(gameSession.userId, userId),
+				eq(gameSession.kind, "tournament"),
+				eq(gameSession.source, "live"),
+			];
 			if (input.status) {
-				conditions.push(eq(liveTournamentSession.status, input.status));
+				conditions.push(eq(gameSession.status, input.status));
 			}
 			if (input.cursor) {
 				conditions.push(
-					sql`${liveTournamentSession.startedAt} < (SELECT started_at FROM live_tournament_session WHERE id = ${input.cursor})`
+					sql`${gameSession.startedAt} < (SELECT started_at FROM game_session WHERE id = ${input.cursor})`
 				);
 			}
 
 			const rows = await ctx.db
 				.select({
-					id: liveTournamentSession.id,
-					userId: liveTournamentSession.userId,
-					status: liveTournamentSession.status,
-					storeId: liveTournamentSession.storeId,
+					id: gameSession.id,
+					userId: gameSession.userId,
+					status: gameSession.status,
+					storeId: gameSession.storeId,
 					storeName: store.name,
-					tournamentId: liveTournamentSession.tournamentId,
+					tournamentId: sessionTournamentDetail.tournamentId,
 					tournamentName: tournament.name,
 					startingStack: tournament.startingStack,
-					currencyId: liveTournamentSession.currencyId,
+					currencyId: gameSession.currencyId,
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
-					startedAt: liveTournamentSession.startedAt,
-					endedAt: liveTournamentSession.endedAt,
-					memo: liveTournamentSession.memo,
-					createdAt: liveTournamentSession.createdAt,
-					updatedAt: liveTournamentSession.updatedAt,
+					startedAt: gameSession.startedAt,
+					endedAt: gameSession.endedAt,
+					memo: gameSession.memo,
+					createdAt: gameSession.createdAt,
+					updatedAt: gameSession.updatedAt,
 				})
-				.from(liveTournamentSession)
-				.leftJoin(store, eq(store.id, liveTournamentSession.storeId))
+				.from(gameSession)
+				.leftJoin(
+					sessionTournamentDetail,
+					eq(sessionTournamentDetail.sessionId, gameSession.id)
+				)
+				.leftJoin(store, eq(store.id, gameSession.storeId))
 				.leftJoin(
 					tournament,
-					eq(tournament.id, liveTournamentSession.tournamentId)
+					eq(tournament.id, sessionTournamentDetail.tournamentId)
 				)
-				.leftJoin(currency, eq(currency.id, liveTournamentSession.currencyId))
+				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
 				.where(and(...conditions))
-				.orderBy(desc(liveTournamentSession.startedAt))
+				.orderBy(desc(gameSession.startedAt))
 				.limit(input.limit + 1);
 
 			const hasMore = rows.length > input.limit;
@@ -344,7 +393,7 @@ export const liveTournamentSessionRouter = router({
 							sortOrder: sessionEvent.sortOrder,
 						})
 						.from(sessionEvent)
-						.where(eq(sessionEvent.liveTournamentSessionId, item.id))
+						.where(eq(sessionEvent.sessionId, item.id))
 						.orderBy(asc(sessionEvent.sortOrder));
 
 					const eventCount = events.length;
@@ -375,31 +424,36 @@ export const liveTournamentSessionRouter = router({
 			const userId = ctx.session.user.id;
 			const session = await findLiveTournamentSession(ctx.db, input.id, userId);
 
+			const [detail] = await ctx.db
+				.select()
+				.from(sessionTournamentDetail)
+				.where(eq(sessionTournamentDetail.sessionId, input.id));
+
 			const masterData = await fetchTournamentMasterData(
 				ctx.db,
-				session.tournamentId
+				detail?.tournamentId ?? null
 			);
 
-			// Session-level buyIn/entryFee take precedence over tournament master data
-			const tournamentBuyIn = session.buyIn ?? masterData.tournamentBuyIn;
-			const entryFee = session.entryFee ?? masterData.entryFee;
+			const tournamentBuyIn =
+				detail?.tournamentBuyIn ?? masterData.tournamentBuyIn;
+			const entryFee = detail?.entryFee ?? masterData.entryFee;
 
 			const events = await ctx.db
 				.select()
 				.from(sessionEvent)
-				.where(eq(sessionEvent.liveTournamentSessionId, input.id))
+				.where(eq(sessionEvent.sessionId, input.id))
 				.orderBy(asc(sessionEvent.sortOrder));
 
 			const tablePlayers = await ctx.db
 				.select()
 				.from(sessionTablePlayer)
-				.where(eq(sessionTablePlayer.liveTournamentSessionId, input.id));
+				.where(eq(sessionTablePlayer.sessionId, input.id));
 
-			const blindLevels = session.tournamentId
+			const blindLevels = detail?.tournamentId
 				? await ctx.db
 						.select()
 						.from(blindLevel)
-						.where(eq(blindLevel.tournamentId, session.tournamentId))
+						.where(eq(blindLevel.tournamentId, detail.tournamentId))
 						.orderBy(asc(blindLevel.level))
 				: [];
 
@@ -436,6 +490,11 @@ export const liveTournamentSessionRouter = router({
 
 			return {
 				...session,
+				tournamentId: detail?.tournamentId ?? null,
+				buyIn: detail?.tournamentBuyIn ?? null,
+				entryFee: detail?.entryFee ?? null,
+				timerStartedAt: detail?.timerStartedAt ?? null,
+				heroSeatPosition: session.heroSeatPosition ?? null,
 				events,
 				tablePlayers,
 				blindLevels,
@@ -464,28 +523,34 @@ export const liveTournamentSessionRouter = router({
 			const id = crypto.randomUUID();
 			const now = new Date();
 
-			await ctx.db.insert(liveTournamentSession).values({
+			await ctx.db.insert(gameSession).values({
 				id,
 				userId,
+				kind: "tournament",
 				status: "active",
+				source: "live",
 				storeId: input.storeId ?? null,
-				tournamentId: input.tournamentId ?? null,
 				currencyId: input.currencyId ?? null,
-				buyIn: input.buyIn ?? null,
-				entryFee: input.entryFee ?? null,
 				startedAt: now,
 				memo: input.memo ?? null,
+				sessionDate: now,
+				updatedAt: now,
+			});
+
+			await ctx.db.insert(sessionTournamentDetail).values({
+				sessionId: id,
+				tournamentId: input.tournamentId ?? null,
+				tournamentBuyIn: input.buyIn ?? null,
+				entryFee: input.entryFee ?? null,
 				timerStartedAt:
 					input.timerStartedAt === undefined
 						? null
 						: new Date(input.timerStartedAt * 1000),
-				updatedAt: now,
 			});
 
-			// Auto-create session_start event
 			await ctx.db.insert(sessionEvent).values({
 				id: crypto.randomUUID(),
-				liveTournamentSessionId: id,
+				sessionId: id,
 				eventType: "session_start",
 				occurredAt: now,
 				sortOrder: 0,
@@ -517,7 +582,12 @@ export const liveTournamentSessionRouter = router({
 				userId
 			);
 
-			const updateData: Partial<typeof liveTournamentSession.$inferInsert> = {
+			const [existingDetail] = await ctx.db
+				.select()
+				.from(sessionTournamentDetail)
+				.where(eq(sessionTournamentDetail.sessionId, input.id));
+
+			const updateData: Partial<typeof gameSession.$inferInsert> = {
 				updatedAt: new Date(),
 			};
 
@@ -530,15 +600,19 @@ export const liveTournamentSessionRouter = router({
 			if (input.currencyId !== undefined) {
 				updateData.currencyId = input.currencyId;
 			}
+
+			const detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> =
+				{};
+
 			if (input.timerStartedAt !== undefined) {
-				updateData.timerStartedAt =
+				detailUpdate.timerStartedAt =
 					input.timerStartedAt === null
 						? null
 						: new Date(input.timerStartedAt * 1000);
 			}
 
 			if (input.tournamentId === null) {
-				updateData.tournamentId = null;
+				detailUpdate.tournamentId = null;
 			} else if (input.tournamentId !== undefined) {
 				const resolvedStoreId =
 					updateData.storeId === undefined
@@ -555,7 +629,7 @@ export const liveTournamentSessionRouter = router({
 					resolvedStoreId,
 					resolvedCurrencyId
 				);
-				updateData.tournamentId = patch.tournamentId;
+				detailUpdate.tournamentId = patch.tournamentId;
 				if (patch.storeId) {
 					updateData.storeId = patch.storeId;
 				}
@@ -565,19 +639,31 @@ export const liveTournamentSessionRouter = router({
 			}
 
 			await ctx.db
-				.update(liveTournamentSession)
+				.update(gameSession)
 				.set(updateData)
-				.where(eq(liveTournamentSession.id, input.id));
+				.where(eq(gameSession.id, input.id));
 
-			// Keep the session_start event payload's timerStartedAt in sync so that
-			// the event view and the column stay consistent.
+			if (Object.keys(detailUpdate).length > 0) {
+				if (existingDetail) {
+					await ctx.db
+						.update(sessionTournamentDetail)
+						.set(detailUpdate)
+						.where(eq(sessionTournamentDetail.sessionId, input.id));
+				} else {
+					await ctx.db.insert(sessionTournamentDetail).values({
+						sessionId: input.id,
+						...detailUpdate,
+					});
+				}
+			}
+
 			if (input.timerStartedAt !== undefined) {
 				const [startEvent] = await ctx.db
 					.select()
 					.from(sessionEvent)
 					.where(
 						and(
-							eq(sessionEvent.liveTournamentSessionId, input.id),
+							eq(sessionEvent.sessionId, input.id),
 							eq(sessionEvent.eventType, "session_start")
 						)
 					);
@@ -601,10 +687,21 @@ export const liveTournamentSessionRouter = router({
 
 			const [updated] = await ctx.db
 				.select()
-				.from(liveTournamentSession)
-				.where(eq(liveTournamentSession.id, input.id));
+				.from(gameSession)
+				.where(eq(gameSession.id, input.id));
 
-			return updated;
+			const [updatedDetail] = await ctx.db
+				.select()
+				.from(sessionTournamentDetail)
+				.where(eq(sessionTournamentDetail.sessionId, input.id));
+
+			return {
+				...updated,
+				tournamentId: updatedDetail?.tournamentId ?? null,
+				buyIn: updatedDetail?.tournamentBuyIn ?? null,
+				entryFee: updatedDetail?.entryFee ?? null,
+				timerStartedAt: updatedDetail?.timerStartedAt ?? null,
+			};
 		}),
 
 	complete: protectedProcedure
@@ -638,35 +735,12 @@ export const liveTournamentSessionRouter = router({
 			}
 
 			const now = new Date();
-
-			const existingEvents = await ctx.db
-				.select({ sortOrder: sessionEvent.sortOrder })
-				.from(sessionEvent)
-				.where(eq(sessionEvent.liveTournamentSessionId, input.id))
-				.orderBy(desc(sessionEvent.sortOrder))
-				.limit(1);
-
-			const nextSortOrder =
-				existingEvents.length > 0 ? (existingEvents[0]?.sortOrder ?? 0) + 1 : 0;
-
-			const endPayload =
-				input.beforeDeadline === false
-					? tournamentSessionEndPayload.parse({
-							beforeDeadline: false,
-							placement: input.placement,
-							totalEntries: input.totalEntries,
-							prizeMoney: input.prizeMoney,
-							bountyPrizes: input.bountyPrizes,
-						})
-					: tournamentSessionEndPayload.parse({
-							beforeDeadline: true,
-							prizeMoney: input.prizeMoney,
-							bountyPrizes: input.bountyPrizes,
-						});
+			const nextSortOrder = await getNextEventSortOrder(ctx.db, input.id);
+			const endPayload = buildTournamentEndPayload(input);
 
 			await ctx.db.insert(sessionEvent).values({
 				id: crypto.randomUUID(),
-				liveTournamentSessionId: input.id,
+				sessionId: input.id,
 				eventType: "session_end",
 				occurredAt: now,
 				sortOrder: nextSortOrder,
@@ -676,14 +750,7 @@ export const liveTournamentSessionRouter = router({
 
 			await recalculateTournamentSession(ctx.db, input.id, userId);
 
-			const [linkedPokerSession] = await ctx.db
-				.select({ id: pokerSession.id })
-				.from(pokerSession)
-				.where(eq(pokerSession.liveTournamentSessionId, input.id));
-
-			const pokerSessionId = linkedPokerSession?.id ?? null;
-
-			return { id: input.id, pokerSessionId };
+			return { id: input.id, pokerSessionId: input.id };
 		}),
 
 	reopen: protectedProcedure
@@ -708,9 +775,7 @@ export const liveTournamentSessionRouter = router({
 				});
 			}
 
-			await ctx.db
-				.delete(liveTournamentSession)
-				.where(eq(liveTournamentSession.id, input.id));
+			await ctx.db.delete(gameSession).where(eq(gameSession.id, input.id));
 
 			return { id: input.id };
 		}),
@@ -729,9 +794,9 @@ export const liveTournamentSessionRouter = router({
 			const previousHeroSeat = session.heroSeatPosition;
 
 			await ctx.db
-				.update(liveTournamentSession)
+				.update(gameSession)
 				.set({ heroSeatPosition: input.heroSeatPosition })
-				.where(eq(liveTournamentSession.id, input.id));
+				.where(eq(gameSession.id, input.id));
 
 			const now = new Date();
 
@@ -739,17 +804,15 @@ export const liveTournamentSessionRouter = router({
 				const [latest] = await ctx.db
 					.select({ maxSort: max(sessionEvent.sortOrder) })
 					.from(sessionEvent)
-					.where(eq(sessionEvent.liveTournamentSessionId, input.id));
+					.where(eq(sessionEvent.sessionId, input.id));
 				return (latest?.maxSort ?? -1) + 1;
 			};
 
-			// Hero sitting down
 			if (previousHeroSeat === null && input.heroSeatPosition !== null) {
 				const sortOrder = await getNextSortOrder();
 				await ctx.db.insert(sessionEvent).values({
 					id: crypto.randomUUID(),
-					liveCashGameSessionId: null,
-					liveTournamentSessionId: input.id,
+					sessionId: input.id,
 					eventType: "player_join",
 					occurredAt: now,
 					sortOrder,
@@ -758,13 +821,11 @@ export const liveTournamentSessionRouter = router({
 				});
 			}
 
-			// Hero standing up
 			if (previousHeroSeat !== null && input.heroSeatPosition === null) {
 				const sortOrder = await getNextSortOrder();
 				await ctx.db.insert(sessionEvent).values({
 					id: crypto.randomUUID(),
-					liveCashGameSessionId: null,
-					liveTournamentSessionId: input.id,
+					sessionId: input.id,
 					eventType: "player_leave",
 					occurredAt: now,
 					sortOrder,

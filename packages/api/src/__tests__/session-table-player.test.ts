@@ -63,6 +63,12 @@ describe("sessionTablePlayer.list input validation", () => {
 		});
 	});
 
+	it("accepts new sessionId field (CTI shim)", () => {
+		expectAccepts(appRouter.sessionTablePlayer.list, {
+			sessionId: "gs1",
+		});
+	});
+
 	it("rejects non-boolean activeOnly", () => {
 		expectRejects(appRouter.sessionTablePlayer.list, {
 			activeOnly: "yes",
