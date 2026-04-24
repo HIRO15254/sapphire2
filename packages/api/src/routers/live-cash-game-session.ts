@@ -18,6 +18,7 @@ import {
 	computeCashGamePLFromEvents,
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
+import { floorToMinute } from "../utils/session-event-time";
 
 const DEFAULT_LIMIT = 20;
 
@@ -407,7 +408,7 @@ export const liveCashGameSessionRouter = router({
 				id: crypto.randomUUID(),
 				sessionId: id,
 				eventType: "session_start",
-				occurredAt: now,
+				occurredAt: floorToMinute(now),
 				sortOrder: 0,
 				payload: JSON.stringify({ buyInAmount: input.initialBuyIn }),
 				updatedAt: now,
@@ -545,7 +546,7 @@ export const liveCashGameSessionRouter = router({
 				id: crypto.randomUUID(),
 				sessionId: input.id,
 				eventType: "session_end",
-				occurredAt: now,
+				occurredAt: floorToMinute(now),
 				sortOrder: nextSortOrder,
 				payload: JSON.stringify({ cashOutAmount: input.finalStack }),
 				updatedAt: now,
@@ -624,11 +625,14 @@ export const liveCashGameSessionRouter = router({
 				.delete(sessionEvent)
 				.where(eq(sessionEvent.id, sessionEndEvent.id));
 
+			const flooredEndOccurredAt = floorToMinute(endOccurredAt);
+			const flooredNow = floorToMinute(now);
+
 			await ctx.db.insert(sessionEvent).values({
 				id: crypto.randomUUID(),
 				sessionId: input.id,
 				eventType: "update_stack",
-				occurredAt: endOccurredAt,
+				occurredAt: flooredEndOccurredAt,
 				sortOrder: endSortOrder,
 				payload: JSON.stringify({ stackAmount: cashOutAmount }),
 				updatedAt: now,
@@ -638,7 +642,7 @@ export const liveCashGameSessionRouter = router({
 				id: crypto.randomUUID(),
 				sessionId: input.id,
 				eventType: "session_pause",
-				occurredAt: endOccurredAt,
+				occurredAt: flooredEndOccurredAt,
 				sortOrder: endSortOrder + 1,
 				payload: JSON.stringify({}),
 				updatedAt: now,
@@ -651,7 +655,7 @@ export const liveCashGameSessionRouter = router({
 				id: crypto.randomUUID(),
 				sessionId: input.id,
 				eventType: "session_resume",
-				occurredAt: now,
+				occurredAt: flooredNow,
 				sortOrder: endSortOrder + 2,
 				payload: JSON.stringify({}),
 				updatedAt: now,
@@ -714,7 +718,7 @@ export const liveCashGameSessionRouter = router({
 					id: crypto.randomUUID(),
 					sessionId: input.id,
 					eventType: "player_join",
-					occurredAt: now,
+					occurredAt: floorToMinute(now),
 					sortOrder,
 					payload: JSON.stringify({ isHero: true }),
 					updatedAt: now,
@@ -727,7 +731,7 @@ export const liveCashGameSessionRouter = router({
 					id: crypto.randomUUID(),
 					sessionId: input.id,
 					eventType: "player_leave",
-					occurredAt: now,
+					occurredAt: floorToMinute(now),
 					sortOrder,
 					payload: JSON.stringify({ isHero: true }),
 					updatedAt: now,

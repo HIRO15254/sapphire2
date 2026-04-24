@@ -15,19 +15,24 @@ import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, max, sql } from "drizzle-orm";
+import { and, asc, eq, max } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
 	recalculateCashGameSession,
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
+import {
+	assertOccurredAtOrdering,
+	floorToMinute,
+} from "../utils/session-event-time";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
 interface SessionInfo {
+	sessionDate: Date;
 	sessionId: string;
 	sessionType: "cash_game" | "tournament";
 	status: string;
@@ -66,27 +71,20 @@ async function resolveSessionOwnership(
 		sessionId: session.id,
 		sessionType: session.kind as "cash_game" | "tournament",
 		status: session.status,
+		sessionDate: session.sessionDate,
 	};
 }
 
-async function computeNextSortOrder(
+async function nextAppendSortOrder(
 	db: DbInstance,
-	sessionId: string,
-	occurredAtDate: Date
+	sessionId: string
 ): Promise<number> {
-	const occurredAtUnix = Math.floor(occurredAtDate.getTime() / 1000);
-
-	const [maxResult] = await db
+	const [row] = await db
 		.select({ maxSortOrder: max(sessionEvent.sortOrder) })
 		.from(sessionEvent)
-		.where(
-			and(
-				eq(sessionEvent.sessionId, sessionId),
-				sql`(unixepoch(${sessionEvent.occurredAt})) = ${occurredAtUnix}`
-			)
-		);
+		.where(eq(sessionEvent.sessionId, sessionId));
 
-	return maxResult?.maxSortOrder == null ? 0 : maxResult.maxSortOrder + 1;
+	return row?.maxSortOrder == null ? 0 : row.maxSortOrder + 1;
 }
 
 async function handlePlayerJoinSideEffect(
@@ -188,7 +186,7 @@ export const sessionEventRouter = router({
 				.select()
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, sessionId))
-				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+				.orderBy(asc(sessionEvent.sortOrder));
 
 			return events.map((event) => ({
 				...event,
@@ -216,7 +214,7 @@ export const sessionEventRouter = router({
 			}
 
 			const userId = ctx.session.user.id;
-			const { sessionType } = await resolveSessionOwnership(
+			const { sessionType, sessionDate } = await resolveSessionOwnership(
 				ctx.db,
 				sessionId,
 				userId
@@ -256,13 +254,17 @@ export const sessionEventRouter = router({
 				input.payload,
 				sessionType
 			);
-			const occurredAtDate = input.occurredAt
+			const rawOccurredAt = input.occurredAt
 				? new Date(input.occurredAt * 1000)
-				: new Date();
+				: sessionDate;
+			const occurredAtDate = floorToMinute(rawOccurredAt);
 
-			const sortOrder = await computeNextSortOrder(
+			const sortOrder = await nextAppendSortOrder(ctx.db, sessionId);
+
+			await assertOccurredAtOrdering(
 				ctx.db,
 				sessionId,
+				sortOrder,
 				occurredAtDate
 			);
 
@@ -323,7 +325,16 @@ export const sessionEventRouter = router({
 			const eventType = event.eventType as SessionEventType;
 			const updates: Record<string, unknown> = { updatedAt: new Date() };
 			if (input.occurredAt !== undefined) {
-				updates.occurredAt = new Date(input.occurredAt * 1000);
+				const flooredOccurredAt = floorToMinute(
+					new Date(input.occurredAt * 1000)
+				);
+				await assertOccurredAtOrdering(
+					ctx.db,
+					event.sessionId,
+					event.sortOrder,
+					flooredOccurredAt
+				);
+				updates.occurredAt = flooredOccurredAt;
 			}
 			let validatedPayload: unknown;
 			if (input.payload !== undefined) {

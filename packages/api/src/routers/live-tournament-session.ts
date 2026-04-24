@@ -17,6 +17,7 @@ import {
 	computeTournamentPLFromEvents,
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
+import { floorToMinute } from "../utils/session-event-time";
 
 const DEFAULT_LIMIT = 20;
 
@@ -683,7 +684,7 @@ export const liveTournamentSessionRouter = router({
 				id: crypto.randomUUID(),
 				sessionId: id,
 				eventType: "session_start",
-				occurredAt: now,
+				occurredAt: floorToMinute(now),
 				sortOrder: 0,
 				payload: JSON.stringify({
 					timerStartedAt: input.timerStartedAt ?? null,
@@ -798,7 +799,7 @@ export const liveTournamentSessionRouter = router({
 				id: crypto.randomUUID(),
 				sessionId: input.id,
 				eventType: "session_end",
-				occurredAt: now,
+				occurredAt: floorToMinute(now),
 				sortOrder: nextSortOrder,
 				payload: JSON.stringify(endPayload),
 				updatedAt: now,
@@ -870,7 +871,7 @@ export const liveTournamentSessionRouter = router({
 					id: crypto.randomUUID(),
 					sessionId: input.id,
 					eventType: "player_join",
-					occurredAt: now,
+					occurredAt: floorToMinute(now),
 					sortOrder,
 					payload: JSON.stringify({ isHero: true }),
 					updatedAt: now,
@@ -883,7 +884,7 @@ export const liveTournamentSessionRouter = router({
 					id: crypto.randomUUID(),
 					sessionId: input.id,
 					eventType: "player_leave",
-					occurredAt: now,
+					occurredAt: floorToMinute(now),
 					sortOrder,
 					payload: JSON.stringify({ isHero: true }),
 					updatedAt: now,
