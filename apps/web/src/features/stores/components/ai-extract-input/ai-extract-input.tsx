@@ -83,7 +83,7 @@ export function AiExtractInput({ onExtracted }: AiExtractInputProps) {
 				<div className="flex gap-1.5">
 					<Button onClick={addUrl} size="xs" type="button" variant="outline">
 						<IconPlus size={12} />
-						URLを追加
+						Add URL
 					</Button>
 					<Button
 						onClick={triggerFileInput}
@@ -92,7 +92,7 @@ export function AiExtractInput({ onExtracted }: AiExtractInputProps) {
 						variant="outline"
 					>
 						<IconPhoto size={12} />
-						画像を追加
+						Add Image
 					</Button>
 					<input
 						accept="image/jpeg,image/png,image/gif,image/webp"
@@ -113,7 +113,7 @@ export function AiExtractInput({ onExtracted }: AiExtractInputProps) {
 				type="button"
 			>
 				<IconSparkles size={14} />
-				{isPending ? "解析中..." : "解析"}
+				{isPending ? "Analyzing..." : "Analyze"}
 			</Button>
 		</div>
 	);

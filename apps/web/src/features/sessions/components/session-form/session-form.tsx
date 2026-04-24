@@ -139,9 +139,9 @@ export function SessionForm({
 			{isLiveLinked && (
 				<Alert data-testid="live-linked-banner">
 					<AlertDescription>
-						このセッションはライブセッションから生成されています。
-						イベント履歴から計算される項目は編集できません。
-						変更するにはライブセッションのイベントを編集してください。
+						This session is generated from a live session. Items calculated from
+						event history cannot be edited. To modify, edit the events in the
+						live session.
 					</AlertDescription>
 				</Alert>
 			)}

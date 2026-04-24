@@ -65,7 +65,7 @@ export function TournamentEditDialog({
 			variant="outline"
 		>
 			<IconSparkles size={12} />
-			AI自動入力
+			Auto-fill with AI
 			<Badge className="px-1 py-0 text-[10px]" variant="secondary">
 				beta
 			</Badge>
@@ -78,7 +78,7 @@ export function TournamentEditDialog({
 				<ResponsiveDialog
 					onOpenChange={setAiSheetOpen}
 					open={aiSheetOpen}
-					title="AI自動入力"
+					title="Auto-fill with AI"
 				>
 					<AiExtractInput onExtracted={handleAiExtracted} />
 				</ResponsiveDialog>
