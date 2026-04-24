@@ -88,6 +88,19 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 - When the logic is the point, prefer testing the hook (`renderHook` from Testing Library) over the component.
 - Black-box: assert on returned state and handler side effects, not internal implementation details.
 
+### Do NOT run the full test suite during a task
+
+`bun run test` boots jsdom/node for every workspace and takes several minutes on Windows. While iterating, run only what's relevant:
+
+- Pure-function / schema tests → `bunx vitest run --project web-node [path]`
+- Hook / component / route tests → `bunx vitest run --project web-dom [path]`
+- API router tests → `bunx vitest run --project api [path]`
+- DB schema tests → `bunx vitest run --project db [path]`
+- Env tests → `bunx vitest run --project env`
+- Related to current staged files → `bunx vitest related --run $(git diff --cached --name-only ...)` — already automated by pre-commit for human commits.
+
+The full suite is enforced by the Claude Code **Stop hook** (`bun x ultracite fix && bun x vitest run --changed HEAD && bun x ultracite check`) at the end of a turn, not by every intermediate step. Pre-commit is skipped when `CLAUDECODE=1` for the same reason.
+
 ## Path-scoped Rule Files
 
 The following rule files live in `.claude/rules/` and are loaded automatically when files under their `paths:` glob are touched:
