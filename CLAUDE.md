@@ -88,6 +88,49 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 - When the logic is the point, prefer testing the hook (`renderHook` from Testing Library) over the component.
 - Black-box: assert on returned state and handler side effects, not internal implementation details.
 
+### Test-Driven Development (MANDATORY)
+
+Every code change must be test-driven. The quality bar is set by the comprehensive coverage sweep (PR #226 / branch `test/comprehensive-coverage`) — new tests must match that level of rigor and reuse its patterns.
+
+**Workflow**:
+
+1. **Write tests first.** Before editing any implementation file, author (or extend) the corresponding `__tests__/*.test.ts(x)`. Verify the new tests fail against the existing code (red).
+2. **Implement until green.** Iterate on the minimum code needed to pass.
+3. **Run only the scoped project**, not the full suite. See "Do NOT run the full test suite during a task" below.
+4. **The Claude Code Stop hook** (`ultracite fix && vitest run --changed HEAD && ultracite check`) gives the final green signal; no hand-waving.
+
+**Quality bar (non-negotiable)**:
+
+- **Full branch coverage** per function / hook / procedure — every `if` / `else` / `switch` / early return / guard clause gets a dedicated `it()`.
+- **Boundary values**: `null` / `undefined` / `0` / `""` / empty array / negative / NaN / Infinity / min / max / 1-off-min / 1-off-max — enumerate, do not skip.
+- **Error paths** are required, not optional (mutation failures → rollback, Zod rejects, network errors, auth absent, loader fails).
+- **Side-effect assertions** (toast called, navigate called, query invalidated, localStorage written, `setInterval` cleared) use `toHaveBeenCalledTimes` + `toHaveBeenNthCalledWith` / `toHaveBeenCalledWith`, not bare `toHaveBeenCalled()`.
+- **No smoke tests.** `expect(x).toBeDefined()` alone is never acceptable — exercise the behavior.
+- **Test names describe scenarios**, not mechanics (`"rejects empty name with 'Required'"`, not `"test 1"`).
+
+**Patterns established by the sweep — copy them, do not invent new ones**:
+
+| Target | Project | Reference implementation |
+|---|---|---|
+| Pure util / Zod schema / formatter | `web-node` | [`apps/web/src/features/stores/utils/__tests__/blind-level-helpers.test.ts`](apps/web/src/features/stores/utils/__tests__/blind-level-helpers.test.ts), [`apps/web/src/utils/__tests__/format-number.test.ts`](apps/web/src/utils/__tests__/format-number.test.ts) |
+| Simple hook (no tRPC) | `web-dom` | [`apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts`](apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts) |
+| Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/shared/components/sign-in-form/__tests__/use-sign-in.test.ts`](apps/web/src/shared/components/sign-in-form/__tests__/use-sign-in.test.ts) |
+| tRPC query + mutation hook, simple | `web-dom` | [`apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts`](apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts) |
+| Optimistic flow with real QueryClient | `web-dom` / `web-node` | [`apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts`](apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts) |
+| Route page hook | `web-dom` | [`apps/web/src/routes/__tests__/use-dashboard-page.test.ts`](apps/web/src/routes/__tests__/use-dashboard-page.test.ts) |
+| API router (Zod + procedure enumeration) | `api` | [`packages/api/src/__tests__/player.test.ts`](packages/api/src/__tests__/player.test.ts) (uses [`packages/api/src/__tests__/test-utils.ts`](packages/api/src/__tests__/test-utils.ts) helpers: `getInputSchema`, `expectAccepts`, `expectRejects`, `expectProtected`, `expectType`) |
+| DB schema constraint | `db` | [`packages/db/src/__tests__/session-schema.test.ts`](packages/db/src/__tests__/session-schema.test.ts) (uses `getTableConfig` for FKs, indexes, `onDelete` policies) |
+| Shared test helpers (web) | — | [`apps/web/src/__tests__/test-utils.tsx`](apps/web/src/__tests__/test-utils.tsx) (`createTestQueryClient`, `withQueryClient`, `renderWithQueryClient`, `createTrpcMock`, `createToastMock`, `createAuthClientMock`) |
+
+**Mocking conventions**:
+
+- `vi.hoisted(() => ({ … }))` for mutable mock state shared across `vi.mock` factories.
+- `vi.mock("@/utils/trpc", () => ({ trpc, trpcClient }))` to replace the tRPC proxy at module scope.
+- `@tanstack/react-form`: use the real `useForm`, drive via `result.current.form.setFieldValue(...)` + `await result.current.form.handleSubmit()` inside `act()`.
+- Never mock the module under test; only mock its dependencies.
+
+If a target does not match any pattern above, extend the relevant `test-utils` file with a new helper rather than hand-rolling a new pattern per test file.
+
 ### Do NOT run the full test suite during a task
 
 `bun run test` boots jsdom/node for every workspace and takes several minutes on Windows. While iterating, run only what's relevant:
