@@ -221,21 +221,18 @@ describe("session router input validation", () => {
 
 describe("assertNoLiveLinkedRestrictedEdits", () => {
 	const manualCashSession = {
-		type: "cash_game",
-		liveCashGameSessionId: null,
-		liveTournamentSessionId: null,
+		kind: "cash_game",
+		source: "manual",
 	};
 
 	const liveCashSession = {
-		type: "cash_game",
-		liveCashGameSessionId: "live-cash-1",
-		liveTournamentSessionId: null,
+		kind: "cash_game",
+		source: "live",
 	};
 
 	const liveTournamentSession = {
-		type: "tournament",
-		liveCashGameSessionId: null,
-		liveTournamentSessionId: "live-tournament-1",
+		kind: "tournament",
+		source: "live",
 	};
 
 	it("allows arbitrary field edits for non-live-linked sessions", () => {

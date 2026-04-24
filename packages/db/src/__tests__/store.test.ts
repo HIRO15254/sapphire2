@@ -1,7 +1,7 @@
 import { getTableColumns } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
-import { currency, store } from "../schema/store";
+import { currency, currencyTransaction, store } from "../schema/store";
 
 describe("Store schema", () => {
 	it("has required columns", () => {
@@ -137,5 +137,35 @@ describe("Currency schema (inspected from store.test) — constraints", () => {
 	it("has a userId index", () => {
 		const idxNames = config.indexes.map((i) => i.config.name);
 		expect(idxNames).toContain("currency_userId_idx");
+	});
+});
+
+describe("CurrencyTransaction — sessionId FK references new game_session", () => {
+	const config = getTableConfig(currencyTransaction);
+	const fkByColumn = (columnName: string) =>
+		config.foreignKeys.find((fk) =>
+			fk.reference().columns.some((c) => c.name === columnName)
+		);
+
+	it("sessionId FK cascades", () => {
+		expect(fkByColumn("session_id")?.onDelete).toBe("cascade");
+	});
+
+	it("sessionId FK references game_session table (not poker_session)", () => {
+		const { getTableConfig: gtc } = require("drizzle-orm/sqlite-core");
+		const fk = fkByColumn("session_id");
+		const foreignCol = fk?.reference().foreignColumns[0];
+		const foreignTableConfig = foreignCol ? gtc(foreignCol.table) : undefined;
+		expect(foreignTableConfig?.name).toBe("game_session");
+	});
+
+	it("sessionId FK references id column", () => {
+		const fk = fkByColumn("session_id");
+		expect(fk?.reference().foreignColumns.map((c) => c.name)).toEqual(["id"]);
+	});
+
+	it("sessionId is nullable (transaction may exist without a session)", () => {
+		const columns = getTableColumns(currencyTransaction);
+		expect(columns.sessionId.notNull).toBe(false);
 	});
 });

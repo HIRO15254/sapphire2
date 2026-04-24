@@ -7,7 +7,7 @@ import {
 	text,
 } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
-import { pokerSession } from "./session";
+import { gameSession } from "./session";
 
 export const sessionTag = sqliteTable(
 	"session_tag",
@@ -29,7 +29,7 @@ export const sessionToSessionTag = sqliteTable(
 	{
 		sessionId: text("session_id")
 			.notNull()
-			.references(() => pokerSession.id, { onDelete: "cascade" }),
+			.references(() => gameSession.id, { onDelete: "cascade" }),
 		sessionTagId: text("session_tag_id")
 			.notNull()
 			.references(() => sessionTag.id, { onDelete: "cascade" }),
@@ -48,9 +48,9 @@ export const sessionTagRelations = relations(sessionTag, ({ one, many }) => ({
 export const sessionToSessionTagRelations = relations(
 	sessionToSessionTag,
 	({ one }) => ({
-		session: one(pokerSession, {
+		session: one(gameSession, {
 			fields: [sessionToSessionTag.sessionId],
-			references: [pokerSession.id],
+			references: [gameSession.id],
 		}),
 		tag: one(sessionTag, {
 			fields: [sessionToSessionTag.sessionTagId],

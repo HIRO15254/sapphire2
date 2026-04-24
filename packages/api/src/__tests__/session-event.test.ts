@@ -53,6 +53,12 @@ describe("sessionEvent.list input validation", () => {
 		});
 	});
 
+	it("accepts new sessionId field (CTI shim)", () => {
+		expectAccepts(appRouter.sessionEvent.list, {
+			sessionId: "gs1",
+		});
+	});
+
 	it("accepts empty object (runtime will reject)", () => {
 		expectAccepts(appRouter.sessionEvent.list, {});
 	});

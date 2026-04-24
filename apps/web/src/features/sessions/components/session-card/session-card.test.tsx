@@ -48,6 +48,9 @@ function makeCashGameSession(
 		currencyName: null,
 		currencyUnit: null,
 		createdAt: "2026-03-20T10:00:00Z",
+		// CTI discriminators — added in Phase 1 DB migration
+		source: "manual",
+		status: "completed",
 		liveCashGameSessionId: null,
 		liveTournamentSessionId: null,
 		tags: [],
@@ -93,6 +96,9 @@ function makeTournamentSession(
 		currencyName: null,
 		currencyUnit: null,
 		createdAt: "2026-03-20T10:00:00Z",
+		// CTI discriminators — added in Phase 1 DB migration
+		source: "manual",
+		status: "completed",
 		liveCashGameSessionId: null,
 		liveTournamentSessionId: null,
 		tags: [],

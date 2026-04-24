@@ -1,7 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
-import { pokerSession } from "./session";
+import { gameSession } from "./session";
 
 export const store = sqliteTable(
 	"store",
@@ -69,7 +69,7 @@ export const currencyTransaction = sqliteTable(
 		transactionTypeId: text("transaction_type_id")
 			.notNull()
 			.references(() => transactionType.id),
-		sessionId: text("session_id").references(() => pokerSession.id, {
+		sessionId: text("session_id").references(() => gameSession.id, {
 			onDelete: "cascade",
 		}),
 		amount: integer("amount").notNull(),
@@ -122,9 +122,9 @@ export const currencyTransactionRelations = relations(
 			fields: [currencyTransaction.transactionTypeId],
 			references: [transactionType.id],
 		}),
-		session: one(pokerSession, {
+		session: one(gameSession, {
 			fields: [currencyTransaction.sessionId],
-			references: [pokerSession.id],
+			references: [gameSession.id],
 		}),
 	})
 );

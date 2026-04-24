@@ -86,7 +86,10 @@ export interface SessionItem {
 	ringGameId: string | null;
 	ringGameName: string | null;
 	sessionDate: string;
+	// CTI fields — always present from session.list since Phase 1 DB migration
+	source: string;
 	startedAt: string | null;
+	status: string;
 	storeId: string | null;
 	storeName: string | null;
 	tags: Array<{ id: string; name: string }>;
@@ -247,6 +250,9 @@ export function buildOptimisticItem(
 		currencyName: null,
 		currencyUnit: null,
 		createdAt: new Date().toISOString(),
+		// Manual entries are always source='manual' and status='completed'
+		source: "manual",
+		status: "completed",
 		liveCashGameSessionId: null,
 		liveTournamentSessionId: null,
 		tags: [],
