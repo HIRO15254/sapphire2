@@ -358,6 +358,11 @@ CREATE TABLE `session_event_new` (
 );
 --> statement-breakpoint
 
+-- For events attached to a live session that has since been "completed"
+-- into a poker_session, game_session.id equals poker_session.id (step 2),
+-- NOT the original live session id. Resolve the correct parent id by
+-- joining through poker_session. Only fall back to the live session id
+-- for sessions that are still active/paused (no linked poker_session).
 INSERT INTO `session_event_new` (
 	`id`,
 	`session_id`,
@@ -370,7 +375,12 @@ INSERT INTO `session_event_new` (
 )
 SELECT
 	se.id,
-	COALESCE(se.live_cash_game_session_id, se.live_tournament_session_id),
+	COALESCE(
+		ps_cash.id,
+		ps_tour.id,
+		se.live_cash_game_session_id,
+		se.live_tournament_session_id
+	),
 	se.event_type,
 	se.occurred_at,
 	se.sort_order,
@@ -378,6 +388,10 @@ SELECT
 	se.created_at,
 	se.updated_at
 FROM session_event se
+LEFT JOIN poker_session ps_cash
+	ON ps_cash.live_cash_game_session_id = se.live_cash_game_session_id
+LEFT JOIN poker_session ps_tour
+	ON ps_tour.live_tournament_session_id = se.live_tournament_session_id
 WHERE se.live_cash_game_session_id IS NOT NULL
    OR se.live_tournament_session_id IS NOT NULL;
 --> statement-breakpoint
@@ -413,6 +427,9 @@ CREATE TABLE `session_table_player_new` (
 );
 --> statement-breakpoint
 
+-- Same resolution as session_event: walk through poker_session so that
+-- table-player rows attached to live sessions already projected into
+-- poker_session land on the correct game_session row.
 INSERT INTO `session_table_player_new` (
 	`id`,
 	`session_id`,
@@ -426,7 +443,12 @@ INSERT INTO `session_table_player_new` (
 )
 SELECT
 	stp.id,
-	COALESCE(stp.live_cash_game_session_id, stp.live_tournament_session_id),
+	COALESCE(
+		ps_cash.id,
+		ps_tour.id,
+		stp.live_cash_game_session_id,
+		stp.live_tournament_session_id
+	),
 	stp.player_id,
 	stp.seat_position,
 	stp.is_active,
@@ -435,6 +457,10 @@ SELECT
 	stp.created_at,
 	stp.updated_at
 FROM session_table_player stp
+LEFT JOIN poker_session ps_cash
+	ON ps_cash.live_cash_game_session_id = stp.live_cash_game_session_id
+LEFT JOIN poker_session ps_tour
+	ON ps_tour.live_tournament_session_id = stp.live_tournament_session_id
 WHERE stp.live_cash_game_session_id IS NOT NULL
    OR stp.live_tournament_session_id IS NOT NULL;
 --> statement-breakpoint
