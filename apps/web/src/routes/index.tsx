@@ -1,23 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { authClient } from "@/lib/auth-client";
 import { PageSection } from "@/shared/components/page-section";
 import { PublicPageShell } from "@/shared/components/public-page-shell";
 import { Button } from "@/shared/components/ui/button";
-import { trpc } from "@/utils/trpc";
+import { useHomePage } from "./-use-home-page";
 
 export const Route = createFileRoute("/")({
 	component: HomeComponent,
 });
 
-function getStatusText(isLoading: boolean, data: unknown) {
+function getStatusText(isLoading: boolean, isConnected: boolean) {
 	if (isLoading) {
 		return "Checking...";
 	}
-	if (data) {
-		return "Connected";
-	}
-	return "Disconnected";
+	return isConnected ? "Connected" : "Disconnected";
 }
 
 function getStatusDescription(isLoading: boolean, isConnected: boolean) {
@@ -31,14 +26,8 @@ function getStatusDescription(isLoading: boolean, isConnected: boolean) {
 }
 
 function HomeComponent() {
-	const healthCheck = useQuery(trpc.healthCheck.queryOptions());
-	const { data: session } = authClient.useSession();
-	const isConnected = Boolean(healthCheck.data);
-	const isSignedIn = Boolean(session);
-	const healthStatusDescription = getStatusDescription(
-		healthCheck.isLoading,
-		isConnected
-	);
+	const { isConnected, isSignedIn, isLoading, userName } = useHomePage();
+	const healthStatusDescription = getStatusDescription(isLoading, isConnected);
 
 	return (
 		<PublicPageShell
@@ -83,7 +72,7 @@ function HomeComponent() {
 						/>
 						<div className="space-y-1">
 							<p className="font-medium">
-								API: {getStatusText(healthCheck.isLoading, healthCheck.data)}
+								API: {getStatusText(isLoading, isConnected)}
 							</p>
 							<p className="text-muted-foreground text-sm">
 								{healthStatusDescription}
@@ -94,7 +83,7 @@ function HomeComponent() {
 				<PageSection
 					description={
 						isSignedIn
-							? `Signed in as ${session?.user.name ?? "your account"}. Continue where you left off.`
+							? `Signed in as ${userName ?? "your account"}. Continue where you left off.`
 							: "Sign in to access dashboard, settings, sessions, and live tools."
 					}
 					heading={isSignedIn ? "Ready to continue" : "Start with your account"}

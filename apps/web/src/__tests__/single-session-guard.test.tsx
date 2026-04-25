@@ -28,22 +28,28 @@ Object.defineProperty(window, "matchMedia", {
 
 // Control the active-session hook return value from each test
 const mockUseActiveSession = vi.fn();
-vi.mock("@/live-sessions/hooks/use-active-session", () => ({
+vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
 // Stub heavy child components inside CreateSessionDialog
-vi.mock("@/live-sessions/components/create-cash-game-session-form", () => ({
-	CreateCashGameSessionForm: () => (
-		<div data-testid="cash-game-form">Cash Game Form</div>
-	),
-}));
+vi.mock(
+	"@/features/live-sessions/components/create-cash-game-session-form",
+	() => ({
+		CreateCashGameSessionForm: () => (
+			<div data-testid="cash-game-form">Cash Game Form</div>
+		),
+	})
+);
 
-vi.mock("@/live-sessions/components/create-tournament-session-form", () => ({
-	CreateTournamentSessionForm: () => (
-		<div data-testid="tournament-form">Tournament Form</div>
-	),
-}));
+vi.mock(
+	"@/features/live-sessions/components/create-tournament-session-form",
+	() => ({
+		CreateTournamentSessionForm: () => (
+			<div data-testid="tournament-form">Tournament Form</div>
+		),
+	})
+);
 
 // vi.hoisted ensures these are available when the vi.mock factory runs
 const { mockQuery } = vi.hoisted(() => ({
@@ -123,7 +129,7 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 // Import component under test after mocks
-import { CreateSessionDialog } from "@/live-sessions/components/create-session-dialog";
+import { CreateSessionDialog } from "@/features/live-sessions/components/create-session-dialog";
 
 const testQueryClient = new QueryClient({
 	defaultOptions: { queries: { retry: false } },

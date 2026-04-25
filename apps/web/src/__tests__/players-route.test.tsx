@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ComponentType, ReactNode } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,21 +44,21 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
-vi.mock("@/players/components/player-card", () => ({
+vi.mock("@/features/players/components/player-card", () => ({
 	PlayerCard: ({ player }: { player: { name: string } }) => (
 		<div>Player Row: {player.name}</div>
 	),
 }));
 
-vi.mock("@/players/components/player-filters", () => ({
+vi.mock("@/features/players/components/player-filters", () => ({
 	PlayerFilters: () => <div>Player Filters</div>,
 }));
 
-vi.mock("@/players/components/player-form", () => ({
+vi.mock("@/features/players/components/player-form", () => ({
 	PlayerForm: () => <div>Player Form</div>,
 }));
 
-vi.mock("@/players/components/player-tag-manager", () => ({
+vi.mock("@/features/players/components/player-tag-manager", () => ({
 	PlayerTagManager: () => <div>Tag Manager</div>,
 }));
 
@@ -144,5 +145,70 @@ describe("PlayersPage", () => {
 		expect(screen.getByText("Player Filters")).toBeInTheDocument();
 		expect(screen.getByText("Player Row: Alice")).toBeInTheDocument();
 		expect(screen.queryByText("No players yet")).not.toBeInTheDocument();
+	});
+
+	it("hides the PlayerFilters row when there are no available tags", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		mocks.playerTags = [];
+
+		render(<Component />);
+
+		expect(screen.queryByText("Player Filters")).not.toBeInTheDocument();
+	});
+
+	it("shows the create empty-state action when no filter is selected", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		expect(
+			screen.getByText("Create your first player to start tracking opponents.")
+		).toBeInTheDocument();
+	});
+
+	it("opens the New Player dialog when the header action is clicked", async () => {
+		const user = userEvent.setup();
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		// Two New Player buttons exist (header + empty-state); click the first.
+		await user.click(screen.getAllByRole("button", { name: "New Player" })[0]);
+
+		expect(
+			screen.getByRole("heading", { name: "New Player" })
+		).toBeInTheDocument();
+		expect(screen.getByText("Player Form")).toBeInTheDocument();
+	});
+
+	it("opens the Manage Tags dialog from the page header action", async () => {
+		const user = userEvent.setup();
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		await user.click(screen.getByRole("button", { name: "Manage Tags" }));
+
+		expect(
+			screen.getByRole("heading", { name: "Manage Tags" })
+		).toBeInTheDocument();
+		expect(screen.getByText("Tag Manager")).toBeInTheDocument();
+	});
+
+	it("renders multiple player rows in order", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		mocks.players = [
+			{ id: "p1", name: "Alice" },
+			{ id: "p2", name: "Bob" },
+			{ id: "p3", name: "Carol" },
+		];
+
+		render(<Component />);
+
+		expect(screen.getByText("Player Row: Alice")).toBeInTheDocument();
+		expect(screen.getByText("Player Row: Bob")).toBeInTheDocument();
+		expect(screen.getByText("Player Row: Carol")).toBeInTheDocument();
 	});
 });
