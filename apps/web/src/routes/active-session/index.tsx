@@ -1,62 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
 import {
 	ActiveSessionScene,
 	useActiveSessionSceneState,
-} from "@/live-sessions/components/active-session-scene";
-import type { TableGameInfo } from "@/live-sessions/components/poker-table";
-import { TournamentTimer } from "@/live-sessions/components/tournament-timer";
-import { TournamentTimerDialog } from "@/live-sessions/components/tournament-timer-dialog";
-import { useActiveSession } from "@/live-sessions/hooks/use-active-session";
-import { useCashGameSession } from "@/live-sessions/hooks/use-cash-game-session";
-import { useTournamentSession } from "@/live-sessions/hooks/use-tournament-session";
-import type { TournamentBlindLevel } from "@/live-sessions/utils/tournament-timer";
+} from "@/features/live-sessions/components/active-session-scene";
+import type { TableGameInfo } from "@/features/live-sessions/components/poker-table";
+import { TournamentTimer } from "@/features/live-sessions/components/tournament-timer";
+import { TournamentTimerDialog } from "@/features/live-sessions/components/tournament-timer-dialog";
+import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
+import { useCashGameCompactSummary } from "@/features/live-sessions/hooks/use-cash-game-compact-summary";
+import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
+import { useTournamentCompactSummary } from "@/features/live-sessions/hooks/use-tournament-compact-summary";
+import type { TournamentBlindLevel } from "@/features/live-sessions/utils/tournament-timer";
+import { cn } from "@/lib/utils";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { formatCompactNumber } from "@/utils/format-number";
+import { useTournamentSessionPage } from "./-use-active-session-page";
 
 export const Route = createFileRoute("/active-session/")({
 	component: ActiveSessionPage,
 });
-
-function plColorClass(value: number): string {
-	if (value > 0) {
-		return "text-green-600 dark:text-green-400";
-	}
-	if (value < 0) {
-		return "text-red-600 dark:text-red-400";
-	}
-	return "";
-}
-
-function formatPl(value: number): string {
-	const sign = value >= 0 ? "+" : "";
-	return `${sign}${formatCompactNumber(value)}`;
-}
-
-function formatDuration(startedAt: Date | string | number): string {
-	const start = new Date(startedAt);
-	const elapsed = Math.floor((Date.now() - start.getTime()) / 60_000);
-	const hours = Math.floor(elapsed / 60);
-	const minutes = elapsed % 60;
-	if (hours > 0) {
-		return `${hours}h ${minutes}m`;
-	}
-	return `${minutes}m`;
-}
-
-function useSessionDuration(startedAt: Date | string | number): string {
-	const [duration, setDuration] = useState(() => formatDuration(startedAt));
-
-	useEffect(() => {
-		const id = setInterval(() => {
-			setDuration(formatDuration(startedAt));
-		}, 60_000);
-		return () => clearInterval(id);
-	}, [startedAt]);
-
-	return duration;
-}
 
 function CashGameCompactSummary({
 	summary,
@@ -68,47 +30,26 @@ function CashGameCompactSummary({
 		totalBuyIn: number;
 	};
 }) {
-	const duration = useSessionDuration(summary.startedAt);
-
-	// Use currentStack-based running P&L during the active session.
-	// profitLoss (from cashOut) is only available at session end.
-	const displayPL =
-		summary.currentStack === null
-			? null
-			: summary.currentStack - summary.totalBuyIn;
-
-	// Running EV P&L = (currentStack + evDiff) - totalBuyIn
-	const evPL =
-		summary.currentStack !== null && summary.evDiff !== 0
-			? summary.currentStack + summary.evDiff - summary.totalBuyIn
-			: null;
-	const showEvPL = evPL !== null && evPL !== displayPL;
+	const vm = useCashGameCompactSummary(summary);
 
 	return (
 		<div className="flex rounded-md border">
 			<div className="flex flex-1 flex-col gap-0.5 px-3 py-2">
 				<span className="text-muted-foreground text-xs">Time</span>
-				<p className="font-semibold">{duration}</p>
+				<p className="font-semibold">{vm.duration}</p>
 			</div>
 			<div className="flex flex-1 flex-col gap-0.5 border-l px-3 py-2">
 				<span className="text-muted-foreground text-xs">Total Buy-in</span>
-				<p className="font-semibold">
-					{formatCompactNumber(summary.totalBuyIn)}
-				</p>
+				<p className="font-semibold">{vm.totalBuyInFormatted}</p>
 			</div>
 			<div className="flex flex-1 flex-col gap-0.5 border-l px-3 py-2">
 				<span className="text-muted-foreground text-xs">P&L</span>
-				<p
-					className={cn(
-						"font-semibold",
-						displayPL === null ? undefined : plColorClass(displayPL)
-					)}
-				>
-					{displayPL === null ? "-" : formatPl(displayPL)}
+				<p className={cn("font-semibold", vm.displayPLColorClass || undefined)}>
+					{vm.displayPLFormatted}
 				</p>
-				{showEvPL ? (
-					<p className={cn("text-xs", plColorClass(evPL))}>
-						EV: {formatPl(evPL)}
+				{vm.showEvPL ? (
+					<p className={cn("text-xs", vm.evPLColorClass)}>
+						EV: {vm.evPLFormatted}
 					</p>
 				) : null}
 			</div>
@@ -126,29 +67,21 @@ function TournamentCompactSummary({
 		totalEntries: number | null;
 	};
 }) {
-	const duration = useSessionDuration(summary.startedAt);
-	const fieldEntry =
-		summary.remainingPlayers === null && summary.totalEntries === null
-			? "-"
-			: `${summary.remainingPlayers ?? "-"}/${summary.totalEntries ?? "-"}`;
+	const vm = useTournamentCompactSummary(summary);
 
 	return (
 		<div className="flex rounded-md border">
 			<div className="flex flex-1 flex-col gap-0.5 px-3 py-2">
 				<span className="text-muted-foreground text-xs">Time</span>
-				<p className="font-semibold">{duration}</p>
+				<p className="font-semibold">{vm.duration}</p>
 			</div>
 			<div className="flex flex-1 flex-col gap-0.5 border-l px-3 py-2">
 				<span className="text-muted-foreground text-xs">Field/Entry</span>
-				<p className="font-semibold">{fieldEntry}</p>
+				<p className="font-semibold">{vm.fieldEntry}</p>
 			</div>
 			<div className="flex flex-1 flex-col gap-0.5 border-l px-3 py-2">
 				<span className="text-muted-foreground text-xs">Avg Stack</span>
-				<p className="font-semibold">
-					{summary.averageStack === null
-						? "-"
-						: formatCompactNumber(summary.averageStack)}
-				</p>
+				<p className="font-semibold">{vm.averageStackFormatted}</p>
 			</div>
 		</div>
 	);
@@ -223,7 +156,7 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 							typeof session.summary.evDiff === "number"
 								? session.summary.evDiff
 								: 0,
-						startedAt: session.startedAt,
+						startedAt: session.startedAt ?? new Date(),
 						totalBuyIn: session.summary.totalBuyIn,
 					}}
 				/>
@@ -240,9 +173,12 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 		isDiscardPending,
 		discard,
 		isUpdatingTimer,
-		updateTimerStartedAt,
-	} = useTournamentSession(sessionId);
-	const [isTimerDialogOpen, setIsTimerDialogOpen] = useState(false);
+		isTimerDialogOpen,
+		setIsTimerDialogOpen,
+		handleOpenTimerDialog,
+		handleClearTimer,
+		handleSubmitTimer,
+	} = useTournamentSessionPage(sessionId);
 
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
@@ -256,6 +192,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 	if (!session) {
 		return null;
 	}
+
 	const tournamentSummary = buildTournamentSummary(
 		session as { summary: Record<string, unknown> }
 	);
@@ -282,7 +219,10 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 				state={sceneState}
 				summary={
 					<TournamentCompactSummary
-						summary={{ ...tournamentSummary, startedAt: session.startedAt }}
+						summary={{
+							...tournamentSummary,
+							startedAt: session.startedAt ?? new Date(),
+						}}
 					/>
 				}
 				tableSize={tableSize}
@@ -291,7 +231,7 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 					hasStructure ? (
 						<TournamentTimer
 							blindLevels={blindLevels}
-							onEditTimer={() => setIsTimerDialogOpen(true)}
+							onEditTimer={handleOpenTimerDialog}
 							timerStartedAt={timerStartedAt}
 						/>
 					) : undefined
@@ -300,15 +240,9 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 			{hasStructure ? (
 				<TournamentTimerDialog
 					isLoading={isUpdatingTimer}
-					onClear={() => {
-						updateTimerStartedAt(null);
-						setIsTimerDialogOpen(false);
-					}}
+					onClear={handleClearTimer}
 					onOpenChange={setIsTimerDialogOpen}
-					onSubmit={(value) => {
-						updateTimerStartedAt(value);
-						setIsTimerDialogOpen(false);
-					}}
+					onSubmit={handleSubmitTimer}
 					open={isTimerDialogOpen}
 					timerStartedAt={timerStartedAt}
 				/>
@@ -345,7 +279,7 @@ function ActiveSessionPage() {
 	}
 
 	return (
-		<div className="flex h-[calc(100dvh-4rem)] flex-col px-4 pt-2 pb-0 md:px-6 md:pt-4">
+		<div className="flex h-[calc(100dvh-4rem)] flex-col p-4 md:p-6">
 			{activeSession.type === "cash_game" ? (
 				<CashGameSession sessionId={activeSession.id} />
 			) : (

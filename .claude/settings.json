@@ -3,23 +3,12 @@
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bun x ultracite fix"
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "bun x vitest run --changed HEAD && bun x ultracite check"
+            "command": "bun x ultracite fix && bun x vitest run --changed HEAD && bun x ultracite check"
           }
         ]
       }

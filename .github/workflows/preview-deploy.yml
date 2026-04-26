@@ -90,11 +90,36 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
 
-      - name: Apply migrations to PR database
+      - name: Configure wrangler for PR database
         working-directory: apps/server
         run: |
           sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
           sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
+
+      # For brand-new preview DBs we seed from the master DB, whose schema
+      # trails HEAD by whatever migrations this PR introduces. Destructive
+      # migrations (table renames / drops) in this PR would make the seed
+      # INSERTs fail against the already-migrated target.
+      # Fix: apply all-but-the-latest migration, seed, then apply the latest.
+      # The latest migration's own backfill (INSERT...SELECT) then moves the
+      # seeded rows into the new schema.
+      - name: Stash latest migration (new DB only)
+        if: needs.d1-setup.outputs.is_new_db == 'true'
+        run: |
+          MIGRATIONS_DIR="packages/db/src/migrations"
+          JOURNAL="$MIGRATIONS_DIR/meta/_journal.json"
+          LATEST_SQL=$(ls "$MIGRATIONS_DIR"/[0-9]*_*.sql | sort | tail -1)
+          LATEST_TAG=$(basename "$LATEST_SQL" .sql)
+          mkdir -p /tmp/stashed-migration
+          mv "$LATEST_SQL" /tmp/stashed-migration/
+          cp "$JOURNAL" /tmp/stashed-migration/_journal.json.bak
+          jq --arg tag "$LATEST_TAG" '.entries |= map(select(.tag != $tag))' "$JOURNAL" > /tmp/_journal.json.new
+          mv /tmp/_journal.json.new "$JOURNAL"
+          echo "Stashed $LATEST_TAG"
+
+      - name: Apply base migrations to PR database
+        working-directory: apps/server
+        run: |
           bunx wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote
 
       - name: Seed data from master DB (first deploy only)
@@ -125,6 +150,16 @@ jobs:
           # are expected when migrations add/remove columns. A failure here
           # should not block the preview deploy.
           bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql || echo "⚠️ Seed partially failed (schema mismatch). Preview DB may have incomplete data."
+
+      - name: Restore and apply latest migration (new DB only)
+        if: needs.d1-setup.outputs.is_new_db == 'true'
+        working-directory: apps/server
+        run: |
+          MIGRATIONS_DIR="../../packages/db/src/migrations"
+          JOURNAL="$MIGRATIONS_DIR/meta/_journal.json"
+          mv /tmp/stashed-migration/[0-9]*_*.sql "$MIGRATIONS_DIR/"
+          mv /tmp/stashed-migration/_journal.json.bak "$JOURNAL"
+          bunx wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote
 
   deploy-api:
     needs: [setup, d1-setup, db-migrate]

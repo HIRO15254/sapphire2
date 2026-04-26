@@ -7,11 +7,11 @@ const sceneSpy = vi.hoisted(() =>
 );
 const activeSessionMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/live-sessions/components/session-events-scene", () => ({
+vi.mock("@/features/live-sessions/components/session-events-scene", () => ({
 	SessionEventsScene: (props: unknown) => sceneSpy(props),
 }));
 
-vi.mock("@/live-sessions/hooks/use-active-session", () => ({
+vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => activeSessionMock(),
 }));
 
@@ -54,6 +54,66 @@ describe("session event route wrappers", () => {
 			expect.objectContaining({
 				sessionId: "session-9",
 				sessionType: "tournament",
+			})
+		);
+	});
+
+	it("falls back to empty sessionId when no active session is present", async () => {
+		activeSessionMock.mockReturnValue({
+			activeSession: null,
+			isLoading: false,
+		});
+
+		const module = await import("@/routes/active-session/events");
+		const Component = module.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		expect(sceneSpy).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				emptySessionMessage: "No active session",
+				refetchInterval: 3000,
+				sessionId: "",
+				sessionLoading: false,
+				sessionType: "cash_game",
+			})
+		);
+	});
+
+	it("reports sessionLoading=true while active session query is pending", async () => {
+		activeSessionMock.mockReturnValue({
+			activeSession: null,
+			isLoading: true,
+		});
+
+		const module = await import("@/routes/active-session/events");
+		const Component = module.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		expect(sceneSpy).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				sessionLoading: true,
+			})
+		);
+	});
+
+	it("coerces unknown sessionType values to cash_game in the live-session route", async () => {
+		const module = await import(
+			"@/routes/live-sessions/$sessionType/$sessionId/events"
+		);
+		vi.spyOn(module.Route, "useParams").mockReturnValue({
+			sessionId: "session-10",
+			sessionType: "garbage-type",
+		} as never);
+		const Component = module.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		expect(sceneSpy).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				sessionId: "session-10",
+				sessionType: "cash_game",
 			})
 		);
 	});
