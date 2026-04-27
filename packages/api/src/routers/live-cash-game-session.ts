@@ -16,6 +16,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
 	computeCashGamePLFromEvents,
+	computeHeroSeatPositionFromEvents,
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
@@ -85,7 +86,7 @@ function computeSummaryFromEvents(
 			totalBuyIn += data.buyInAmount;
 		} else if (event.eventType === "chips_add_remove") {
 			const data = chipsAddRemovePayload.parse(parsed);
-			if (data.type === "add") {
+			if (data.amount > 0) {
 				totalBuyIn += data.amount;
 				addonCount++;
 			}
@@ -309,10 +310,12 @@ export const liveCashGameSessionRouter = router({
 				currentStack: s.currentStack,
 			};
 
+			const heroSeatPosition = computeHeroSeatPositionFromEvents(mappedEvents);
+
 			return {
 				...session,
 				ringGameId: cashDetail?.ringGameId ?? null,
-				heroSeatPosition: session.heroSeatPosition ?? null,
+				heroSeatPosition,
 				events,
 				tablePlayers,
 				summary,
@@ -693,40 +696,39 @@ export const liveCashGameSessionRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const session = await findLiveCashGameSession(ctx.db, input.id, userId);
+			await findLiveCashGameSession(ctx.db, input.id, userId);
 
-			const previousHeroSeat = session.heroSeatPosition;
+			const events = await ctx.db
+				.select({
+					eventType: sessionEvent.eventType,
+					payload: sessionEvent.payload,
+				})
+				.from(sessionEvent)
+				.where(eq(sessionEvent.sessionId, input.id))
+				.orderBy(asc(sessionEvent.sortOrder));
 
-			await ctx.db
-				.update(gameSession)
-				.set({ heroSeatPosition: input.heroSeatPosition })
-				.where(eq(gameSession.id, input.id));
+			const previousHeroSeat = computeHeroSeatPositionFromEvents(events);
 
-			const now = new Date();
-
-			const getNextSortOrder = async () => {
-				const [latest] = await ctx.db
-					.select({ maxSort: max(sessionEvent.sortOrder) })
-					.from(sessionEvent)
-					.where(eq(sessionEvent.sessionId, input.id));
-				return (latest?.maxSort ?? -1) + 1;
-			};
-
-			if (previousHeroSeat === null && input.heroSeatPosition !== null) {
-				const sortOrder = await getNextSortOrder();
-				await ctx.db.insert(sessionEvent).values({
-					id: crypto.randomUUID(),
-					sessionId: input.id,
-					eventType: "player_join",
-					occurredAt: floorToMinute(now),
-					sortOrder,
-					payload: JSON.stringify({ isHero: true }),
-					updatedAt: now,
+			if (previousHeroSeat !== null && input.heroSeatPosition !== null) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message:
+						"Hero is already seated. Leave the seat before assigning a new one.",
 				});
 			}
 
-			if (previousHeroSeat !== null && input.heroSeatPosition === null) {
-				const sortOrder = await getNextSortOrder();
+			if (previousHeroSeat === input.heroSeatPosition) {
+				return { id: input.id };
+			}
+
+			const now = new Date();
+			const [latest] = await ctx.db
+				.select({ maxSort: max(sessionEvent.sortOrder) })
+				.from(sessionEvent)
+				.where(eq(sessionEvent.sessionId, input.id));
+			const sortOrder = (latest?.maxSort ?? -1) + 1;
+
+			if (input.heroSeatPosition === null) {
 				await ctx.db.insert(sessionEvent).values({
 					id: crypto.randomUUID(),
 					sessionId: input.id,
@@ -734,6 +736,19 @@ export const liveCashGameSessionRouter = router({
 					occurredAt: floorToMinute(now),
 					sortOrder,
 					payload: JSON.stringify({ isHero: true }),
+					updatedAt: now,
+				});
+			} else {
+				await ctx.db.insert(sessionEvent).values({
+					id: crypto.randomUUID(),
+					sessionId: input.id,
+					eventType: "player_join",
+					occurredAt: floorToMinute(now),
+					sortOrder,
+					payload: JSON.stringify({
+						isHero: true,
+						seatPosition: input.heroSeatPosition,
+					}),
 					updatedAt: now,
 				});
 			}

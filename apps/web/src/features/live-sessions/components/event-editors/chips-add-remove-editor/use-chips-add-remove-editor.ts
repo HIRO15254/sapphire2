@@ -10,7 +10,7 @@ import { requiredNumericString } from "@/shared/lib/form-fields";
 
 const chipsAddRemoveSchema = z.object({
 	time: z.string(),
-	amount: requiredNumericString({ integer: true, min: 0 }),
+	amount: requiredNumericString({ integer: true, min: 1 }),
 	type: z.enum(["add", "remove"]),
 });
 
@@ -29,19 +29,20 @@ export function useChipsAddRemoveEditor({
 	onSubmit,
 }: UseChipsAddRemoveEditorOptions) {
 	const payload = (event.payload ?? {}) as Record<string, unknown>;
+	const initialAmount = typeof payload.amount === "number" ? payload.amount : 0;
+	const initialType: "add" | "remove" = initialAmount < 0 ? "remove" : "add";
 
 	const form = useForm({
 		defaultValues: {
 			time: toTimeInputValue(event.occurredAt),
-			amount: typeof payload.amount === "number" ? String(payload.amount) : "0",
-			type: (payload.type === "remove" ? "remove" : "add") as "add" | "remove",
+			amount: String(Math.abs(initialAmount)),
+			type: initialType,
 		},
 		onSubmit: ({ value }) => {
 			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
-			onSubmit(
-				{ amount: Math.round(Number(value.amount)), type: value.type },
-				occurredAt
-			);
+			const magnitude = Math.round(Number(value.amount));
+			const signedAmount = value.type === "remove" ? -magnitude : magnitude;
+			onSubmit({ amount: signedAmount }, occurredAt);
 		},
 		validators: {
 			onSubmit: chipsAddRemoveSchema,

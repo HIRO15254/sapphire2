@@ -355,11 +355,11 @@ describe("buildOptimisticSessionSummary", () => {
 		});
 	});
 
-	describe("update_tournament_info", () => {
+	describe("update_stack tournament info", () => {
 		it("sets remainingPlayers from payload", () => {
 			const result = buildOptimisticSessionSummary(
 				{ remainingPlayers: 100 },
-				"update_tournament_info",
+				"update_stack",
 				{ remainingPlayers: 50 }
 			);
 			expect(result.remainingPlayers).toBe(50);
@@ -368,7 +368,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("sets totalEntries from payload", () => {
 			const result = buildOptimisticSessionSummary(
 				{ totalEntries: 60 },
-				"update_tournament_info",
+				"update_stack",
 				{ totalEntries: 120 }
 			);
 			expect(result.totalEntries).toBe(120);
@@ -377,7 +377,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("computes averageStack = round((startingStack * totalEntries + chipTotal) / remainingPlayers)", () => {
 			const result = buildOptimisticSessionSummary(
 				{ startingStack: 10_000, totalEntries: 100, remainingPlayers: 20 },
-				"update_tournament_info",
+				"update_stack",
 				{ remainingPlayers: 20 }
 			);
 			// (10_000 * 100 + 0) / 20 = 50_000
@@ -387,7 +387,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("includes chipPurchaseCounts in chipTotal", () => {
 			const result = buildOptimisticSessionSummary(
 				{ startingStack: 10_000, totalEntries: 100, remainingPlayers: 20 },
-				"update_tournament_info",
+				"update_stack",
 				{
 					chipPurchaseCounts: [
 						{ name: "rebuy", count: 10, chipsPerUnit: 1000 },
@@ -402,7 +402,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("prefers payload.totalEntries over summary.totalEntries in computation", () => {
 			const result = buildOptimisticSessionSummary(
 				{ startingStack: 1000, totalEntries: 10, remainingPlayers: 5 },
-				"update_tournament_info",
+				"update_stack",
 				{ totalEntries: 20 }
 			);
 			// Uses payload totalEntries (20), keeps summary remainingPlayers (5).
@@ -414,7 +414,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("prefers payload.remainingPlayers over summary.remainingPlayers in computation", () => {
 			const result = buildOptimisticSessionSummary(
 				{ startingStack: 1000, totalEntries: 10, remainingPlayers: 5 },
-				"update_tournament_info",
+				"update_stack",
 				{ remainingPlayers: 2 }
 			);
 			// (1000 * 10) / 2 = 5000
@@ -424,7 +424,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("rounds the averageStack with Math.round", () => {
 			const result = buildOptimisticSessionSummary(
 				{ startingStack: 1000, totalEntries: 3, remainingPlayers: 2 },
-				"update_tournament_info",
+				"update_stack",
 				{}
 			);
 			// (1000 * 3) / 2 = 1500 → already integer, round no-op.
@@ -432,7 +432,7 @@ describe("buildOptimisticSessionSummary", () => {
 
 			const fractional = buildOptimisticSessionSummary(
 				{ startingStack: 100, totalEntries: 1, remainingPlayers: 3 },
-				"update_tournament_info",
+				"update_stack",
 				{}
 			);
 			// 100 / 3 = 33.333… → Math.round → 33
@@ -442,7 +442,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("skips averageStack when startingStack is null", () => {
 			const result = buildOptimisticSessionSummary(
 				{ startingStack: null, totalEntries: 10, remainingPlayers: 5 },
-				"update_tournament_info",
+				"update_stack",
 				{}
 			);
 			expect(result.averageStack).toBeUndefined();
@@ -451,7 +451,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("skips averageStack when startingStack is 0 (falsy guard)", () => {
 			const result = buildOptimisticSessionSummary(
 				{ startingStack: 0, totalEntries: 10, remainingPlayers: 5 },
-				"update_tournament_info",
+				"update_stack",
 				{}
 			);
 			expect(result.averageStack).toBeUndefined();
@@ -460,7 +460,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("skips averageStack when totalEntries is 0 (falsy guard)", () => {
 			const result = buildOptimisticSessionSummary(
 				{ startingStack: 1000, totalEntries: 0, remainingPlayers: 5 },
-				"update_tournament_info",
+				"update_stack",
 				{}
 			);
 			expect(result.averageStack).toBeUndefined();
@@ -469,7 +469,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("skips averageStack when remainingPlayers is 0 (division guard)", () => {
 			const result = buildOptimisticSessionSummary(
 				{ startingStack: 1000, totalEntries: 10, remainingPlayers: 5 },
-				"update_tournament_info",
+				"update_stack",
 				{ remainingPlayers: 0 }
 			);
 			// payload overrides summary remainingPlayers, but payload value 0 fails the `>0` guard.
@@ -484,7 +484,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("skips averageStack when totalEntries is null in summary and absent in payload", () => {
 			const result = buildOptimisticSessionSummary(
 				{ startingStack: 1000, totalEntries: null, remainingPlayers: 5 },
-				"update_tournament_info",
+				"update_stack",
 				{}
 			);
 			expect(result.averageStack).toBeUndefined();
@@ -493,7 +493,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("handles empty chipPurchaseCounts array", () => {
 			const result = buildOptimisticSessionSummary(
 				{ startingStack: 1000, totalEntries: 10, remainingPlayers: 2 },
-				"update_tournament_info",
+				"update_stack",
 				{ chipPurchaseCounts: [] }
 			);
 			expect(result.averageStack).toBe(5000);
@@ -502,7 +502,7 @@ describe("buildOptimisticSessionSummary", () => {
 		it("handles undefined chipPurchaseCounts (defaults to empty)", () => {
 			const result = buildOptimisticSessionSummary(
 				{ startingStack: 1000, totalEntries: 10, remainingPlayers: 2 },
-				"update_tournament_info",
+				"update_stack",
 				{}
 			);
 			expect(result.averageStack).toBe(5000);
@@ -1393,7 +1393,7 @@ describe("createSessionEventMutationOptions", () => {
 				queryClient,
 				sessionId: "t-1",
 				sessionType: "tournament",
-				eventType: "update_tournament_info",
+				eventType: "update_stack",
 				getPayload: (v) => ({ remainingPlayers: v.remainingPlayers }),
 			});
 
@@ -1403,7 +1403,7 @@ describe("createSessionEventMutationOptions", () => {
 			expect(session?.summary.remainingPlayers).toBe(50);
 			const events = queryClient.getQueryData<SessionEvent[]>(keys.eventsKey);
 			expect(events).toHaveLength(1);
-			expect(events?.[0]?.eventType).toBe("update_tournament_info");
+			expect(events?.[0]?.eventType).toBe("update_stack");
 		});
 	});
 

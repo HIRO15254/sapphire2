@@ -14,10 +14,7 @@ export const PAUSE_RESUME_EVENT_TYPES = [
 
 export const CASH_EVENT_TYPES = ["chips_add_remove", "all_in"] as const;
 
-export const TOURNAMENT_EVENT_TYPES = [
-	"purchase_chips",
-	"update_tournament_info",
-] as const;
+export const TOURNAMENT_EVENT_TYPES = ["purchase_chips"] as const;
 
 export const COMMON_EVENT_TYPES = [
 	"update_stack",
@@ -80,9 +77,16 @@ export const sessionPausePayload = z.object({});
 export const sessionResumePayload = z.object({});
 
 // Cash event payloads
+//
+// `chips_add_remove` uses a signed integer for `amount`: positive values
+// represent adding chips (add-on / top-up), negative values represent
+// removing chips (early cash-out). Zero is rejected to avoid storing
+// no-op events.
 export const chipsAddRemovePayload = z.object({
-	amount: z.number().int().min(0),
-	type: z.enum(["add", "remove"]),
+	amount: z
+		.number()
+		.int()
+		.refine((n) => n !== 0, { message: "amount must be non-zero" }),
 });
 
 export const allInPayload = z.object({
@@ -105,21 +109,26 @@ export const chipPurchaseCountSchema = z.object({
 	chipsPerUnit: z.number().int().min(0),
 });
 
-export const updateTournamentInfoPayload = z.object({
-	remainingPlayers: z.number().int().min(1).nullable().default(null),
-	totalEntries: z.number().int().min(1).nullable().default(null),
-	averageStack: z.number().int().min(0).nullable().default(null),
-	chipPurchaseCounts: z.array(chipPurchaseCountSchema).default([]),
-});
-
 // Common event payloads
+//
+// `update_stack` is shared between cash and tournament sessions. For
+// tournaments, the payload may optionally carry remaining players, total
+// entries, and chip purchase counts so that a single event captures both
+// the stack snapshot and tournament-progress metadata. (`averageStack`
+// is intentionally derived on read from startingStack, totalEntries,
+// remainingPlayers, and chipPurchaseCounts and is therefore not stored
+// on the payload.)
 export const updateStackPayload = z.object({
 	stackAmount: z.number().int().min(0),
+	remainingPlayers: z.number().int().min(1).nullable().optional(),
+	totalEntries: z.number().int().min(1).nullable().optional(),
+	chipPurchaseCounts: z.array(chipPurchaseCountSchema).optional(),
 });
 
 export const playerJoinPayload = z.object({
 	playerId: z.string().min(1).optional(),
 	isHero: z.boolean().default(false),
+	seatPosition: z.number().int().min(0).max(8).optional(),
 });
 
 export const playerLeavePayload = z.object({
@@ -154,7 +163,6 @@ export const EVENT_PAYLOAD_SCHEMAS: Record<
 	chips_add_remove: chipsAddRemovePayload,
 	all_in: allInPayload,
 	purchase_chips: purchaseChipsPayload,
-	update_tournament_info: updateTournamentInfoPayload,
 	update_stack: updateStackPayload,
 	player_join: playerJoinPayload,
 	player_leave: playerLeavePayload,
