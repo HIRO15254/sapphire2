@@ -33,11 +33,15 @@ function formatUpdateStackSummary(p: Record<string, unknown>) {
 		return null;
 	}
 	const parts = [`Stack: ${p.stackAmount.toLocaleString()}`];
-	if (typeof p.remainingPlayers === "number") {
-		parts.push(`Remaining: ${p.remainingPlayers}`);
-	}
-	if (typeof p.totalEntries === "number") {
-		parts.push(`Entries: ${p.totalEntries}`);
+	const remaining =
+		typeof p.remainingPlayers === "number" ? p.remainingPlayers : null;
+	const total = typeof p.totalEntries === "number" ? p.totalEntries : null;
+	if (remaining !== null && total !== null) {
+		parts.push(`${remaining}/${total}`);
+	} else if (remaining !== null) {
+		parts.push(`${remaining}/-`);
+	} else if (total !== null) {
+		parts.push(`-/${total}`);
 	}
 	return parts.join(" · ");
 }

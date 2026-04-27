@@ -93,14 +93,32 @@ describe("formatPayloadSummary", () => {
 			).toBe("Stack: 12,345");
 		});
 
-		it("appends remainingPlayers and totalEntries when present", () => {
+		it("appends remaining/total when both are present", () => {
 			expect(
 				formatPayloadSummary("update_stack", {
 					stackAmount: 12_345,
 					remainingPlayers: 25,
 					totalEntries: 100,
 				})
-			).toBe("Stack: 12,345 · Remaining: 25 · Entries: 100");
+			).toBe("Stack: 12,345 · 25/100");
+		});
+
+		it("renders remaining/- when only remainingPlayers is present", () => {
+			expect(
+				formatPayloadSummary("update_stack", {
+					stackAmount: 12_345,
+					remainingPlayers: 25,
+				})
+			).toBe("Stack: 12,345 · 25/-");
+		});
+
+		it("renders -/total when only totalEntries is present", () => {
+			expect(
+				formatPayloadSummary("update_stack", {
+					stackAmount: 12_345,
+					totalEntries: 100,
+				})
+			).toBe("Stack: 12,345 · -/100");
 		});
 
 		it("returns null when stackAmount is missing", () => {
