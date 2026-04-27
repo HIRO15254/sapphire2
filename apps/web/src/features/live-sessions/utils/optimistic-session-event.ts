@@ -21,12 +21,7 @@ function applyUpdateStackSummary(
 	if (typeof payload.stackAmount === "number") {
 		summary.currentStack = payload.stackAmount;
 	}
-}
 
-function applyUpdateTournamentInfoSummary(
-	summary: Record<string, unknown>,
-	payload: Record<string, unknown>
-) {
 	const typedPayload = payload as {
 		chipPurchaseCounts?: Array<{
 			chipsPerUnit: number;
@@ -157,9 +152,6 @@ export function buildOptimisticSessionSummary(
 			break;
 		case "update_stack":
 			applyUpdateStackSummary(nextSummary, payload);
-			break;
-		case "update_tournament_info":
-			applyUpdateTournamentInfoSummary(nextSummary, payload);
 			break;
 		case "all_in": {
 			const p = payload as {

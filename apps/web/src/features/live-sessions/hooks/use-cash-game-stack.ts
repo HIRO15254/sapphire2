@@ -31,14 +31,14 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 			trpcClient.sessionEvent.create.mutate({
 				liveCashGameSessionId: sessionId,
 				eventType: "chips_add_remove",
-				payload: { amount, type: "add" },
+				payload: { amount },
 			}),
 		...createSessionEventMutationOptions<number>({
 			queryClient,
 			sessionId,
 			sessionType: "cash_game",
 			eventType: "chips_add_remove",
-			getPayload: (amount) => ({ amount, type: "add" }),
+			getPayload: (amount) => ({ amount }),
 		}),
 	});
 
@@ -47,14 +47,14 @@ export function useCashGameStack({ sessionId }: { sessionId: string }) {
 			trpcClient.sessionEvent.create.mutate({
 				liveCashGameSessionId: sessionId,
 				eventType: "chips_add_remove",
-				payload: { amount, type: "remove" },
+				payload: { amount: -amount },
 			}),
 		...createSessionEventMutationOptions<number>({
 			queryClient,
 			sessionId,
 			sessionType: "cash_game",
 			eventType: "chips_add_remove",
-			getPayload: (amount) => ({ amount, type: "remove" }),
+			getPayload: (amount) => ({ amount: -amount }),
 		}),
 	});
 

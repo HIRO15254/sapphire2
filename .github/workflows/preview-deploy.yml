@@ -90,32 +90,61 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
 
+      # For brand-new preview DBs we seed from the master DB, whose schema
+      # may trail HEAD by any number of unreleased migrations. To make the
+      # seed succeed, we:
+      #   1. Query master's `d1_migrations` table to find what tag it is at.
+      #   2. Stash every migration file in the repo that is newer than that.
+      #   3. Apply only the migrations master already has → preview DB
+      #      schema matches master.
+      #   4. Seed from master (must succeed cleanly now).
+      #   5. Restore the stashed migrations and apply them, running their
+      #      own backfills against the seeded data.
+      - name: Stash unreleased migrations (new DB only)
+        if: needs.d1-setup.outputs.is_new_db == 'true'
+        working-directory: apps/server
+        run: |
+          MIGRATIONS_DIR="../../packages/db/src/migrations"
+          JOURNAL="$MIGRATIONS_DIR/meta/_journal.json"
+
+          LAST_APPLIED=$(bunx wrangler d1 execute sapphire2-db --remote --json \
+            --command="SELECT name FROM d1_migrations ORDER BY id DESC LIMIT 1" \
+            | jq -r '.[0].results[0].name // empty')
+
+          if [ -z "$LAST_APPLIED" ]; then
+            echo "Master DB has no applied migrations; nothing to stash"
+            exit 0
+          fi
+          echo "Master DB is at migration: $LAST_APPLIED"
+
+          mkdir -p /tmp/stashed-migration
+          cp "$JOURNAL" /tmp/stashed-migration/_journal.json.bak
+
+          STASHED_TAGS=()
+          for f in "$MIGRATIONS_DIR"/[0-9]*_*.sql; do
+            base=$(basename "$f")
+            # Stash if filename sorts strictly after master's last applied.
+            if [[ "$base" > "$LAST_APPLIED" ]]; then
+              tag="${base%.sql}"
+              echo "Stashing $tag (newer than master)"
+              mv "$f" /tmp/stashed-migration/
+              STASHED_TAGS+=("$tag")
+            fi
+          done
+
+          if [ ${#STASHED_TAGS[@]} -gt 0 ]; then
+            tags_json=$(printf '%s\n' "${STASHED_TAGS[@]}" | jq -R . | jq -s .)
+            jq --argjson tags "$tags_json" \
+              '.entries |= map(select(.tag as $t | $tags | index($t) | not))' \
+              "$JOURNAL" > /tmp/_journal.json.new
+            mv /tmp/_journal.json.new "$JOURNAL"
+          fi
+
       - name: Configure wrangler for PR database
         working-directory: apps/server
         run: |
           sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
           sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
-
-      # For brand-new preview DBs we seed from the master DB, whose schema
-      # trails HEAD by whatever migrations this PR introduces. Destructive
-      # migrations (table renames / drops) in this PR would make the seed
-      # INSERTs fail against the already-migrated target.
-      # Fix: apply all-but-the-latest migration, seed, then apply the latest.
-      # The latest migration's own backfill (INSERT...SELECT) then moves the
-      # seeded rows into the new schema.
-      - name: Stash latest migration (new DB only)
-        if: needs.d1-setup.outputs.is_new_db == 'true'
-        run: |
-          MIGRATIONS_DIR="packages/db/src/migrations"
-          JOURNAL="$MIGRATIONS_DIR/meta/_journal.json"
-          LATEST_SQL=$(ls "$MIGRATIONS_DIR"/[0-9]*_*.sql | sort | tail -1)
-          LATEST_TAG=$(basename "$LATEST_SQL" .sql)
-          mkdir -p /tmp/stashed-migration
-          mv "$LATEST_SQL" /tmp/stashed-migration/
-          cp "$JOURNAL" /tmp/stashed-migration/_journal.json.bak
-          jq --arg tag "$LATEST_TAG" '.entries |= map(select(.tag != $tag))' "$JOURNAL" > /tmp/_journal.json.new
-          mv /tmp/_journal.json.new "$JOURNAL"
-          echo "Stashed $LATEST_TAG"
 
       - name: Apply base migrations to PR database
         working-directory: apps/server
@@ -123,7 +152,6 @@ jobs:
           bunx wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote
 
       - name: Seed data from master DB (first deploy only)
-        continue-on-error: true
         if: needs.d1-setup.outputs.is_new_db == 'true'
         working-directory: apps/server
         run: |
@@ -136,29 +164,29 @@ jobs:
           # Remove d1_migrations data (already applied via migrations step)
           sed -i '/INSERT INTO.*d1_migrations/d' dump.sql
 
-          # Split dump into per-statement files and import each independently.
-          # Source DB may have a different schema (columns added/removed by
-          # migrations), so some INSERT statements can legitimately fail.
-          # We execute each statement individually and tolerate errors so that
-          # as much data as possible is seeded into the preview DB.
           sed -i '1i PRAGMA foreign_keys = OFF;' dump.sql
           echo 'PRAGMA foreign_keys = ON;' >> dump.sql
 
           sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-setup.outputs.d1_database_id }}\"/" wrangler.toml
           sed -i "s/database_name = \".*\"/database_name = \"${{ needs.setup.outputs.d1_db_name }}\"/" wrangler.toml
-          # Seed is best-effort: schema mismatches between source and target
-          # are expected when migrations add/remove columns. A failure here
-          # should not block the preview deploy.
-          bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql || echo "⚠️ Seed partially failed (schema mismatch). Preview DB may have incomplete data."
+          # Stash logic above ensures preview DB schema matches master, so the
+          # seed must succeed cleanly. A failure here means the stash logic
+          # missed something — fail the job so we notice instead of shipping
+          # a preview with incomplete data.
+          bunx wrangler d1 execute "${{ needs.setup.outputs.d1_db_name }}" --remote --file=dump.sql
 
-      - name: Restore and apply latest migration (new DB only)
+      - name: Restore and apply stashed migrations (new DB only)
         if: needs.d1-setup.outputs.is_new_db == 'true'
         working-directory: apps/server
         run: |
           MIGRATIONS_DIR="../../packages/db/src/migrations"
           JOURNAL="$MIGRATIONS_DIR/meta/_journal.json"
-          mv /tmp/stashed-migration/[0-9]*_*.sql "$MIGRATIONS_DIR/"
-          mv /tmp/stashed-migration/_journal.json.bak "$JOURNAL"
+          if compgen -G "/tmp/stashed-migration/[0-9]*_*.sql" > /dev/null; then
+            mv /tmp/stashed-migration/[0-9]*_*.sql "$MIGRATIONS_DIR/"
+          fi
+          if [ -f /tmp/stashed-migration/_journal.json.bak ]; then
+            mv /tmp/stashed-migration/_journal.json.bak "$JOURNAL"
+          fi
           bunx wrangler d1 migrations apply "${{ needs.setup.outputs.d1_db_name }}" --remote
 
   deploy-api:

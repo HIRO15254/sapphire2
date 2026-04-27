@@ -31,7 +31,6 @@ export const gameSession = sqliteTable(
 		currencyId: text("currency_id").references(() => currency.id, {
 			onDelete: "set null",
 		}),
-		heroSeatPosition: integer("hero_seat_position"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),

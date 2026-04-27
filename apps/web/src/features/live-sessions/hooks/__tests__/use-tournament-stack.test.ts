@@ -228,8 +228,8 @@ describe("useTournamentStack", () => {
 		});
 	});
 
-	describe("updateTournamentInfo", () => {
-		it("forwards remainingPlayers/totalEntries/chipPurchaseCounts and computes averageStack optimistically", async () => {
+	describe("recordStack with tournament info", () => {
+		it("forwards stackAmount + remainingPlayers/totalEntries/chipPurchaseCounts and computes averageStack optimistically", async () => {
 			const qc = createClient();
 			qc.setQueryData(sessionKey, {
 				tournamentId: "tourn-1",
@@ -247,7 +247,8 @@ describe("useTournamentStack", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			await act(async () => {
-				result.current.updateTournamentInfo({
+				result.current.recordStack({
+					stackAmount: 25_000,
 					remainingPlayers: 20,
 					totalEntries: 100,
 					chipPurchaseCounts: [],
@@ -257,8 +258,9 @@ describe("useTournamentStack", () => {
 			await waitFor(() => {
 				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
 					liveTournamentSessionId: "t1",
-					eventType: "update_tournament_info",
+					eventType: "update_stack",
 					payload: {
+						stackAmount: 25_000,
 						remainingPlayers: 20,
 						totalEntries: 100,
 						chipPurchaseCounts: [],
@@ -294,7 +296,8 @@ describe("useTournamentStack", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			await act(async () => {
-				result.current.updateTournamentInfo({
+				result.current.recordStack({
+					stackAmount: 30_000,
 					remainingPlayers: null,
 					totalEntries: null,
 					chipPurchaseCounts: [],

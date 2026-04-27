@@ -22,7 +22,6 @@ import {
 	tournamentSessionEndPayload,
 	tournamentSessionStartPayload,
 	updateStackPayload,
-	updateTournamentInfoPayload,
 	validateEventPayload,
 } from "../constants/session-event-types";
 
@@ -56,9 +55,9 @@ describe("event type arrays", () => {
 		expect(CASH_EVENT_TYPES).toContain("all_in");
 	});
 
-	it("TOURNAMENT_EVENT_TYPES contains purchase_chips and update_tournament_info", () => {
+	it("TOURNAMENT_EVENT_TYPES contains purchase_chips", () => {
 		expect(TOURNAMENT_EVENT_TYPES).toContain("purchase_chips");
-		expect(TOURNAMENT_EVENT_TYPES).toContain("update_tournament_info");
+		expect(TOURNAMENT_EVENT_TYPES).not.toContain("update_tournament_info");
 	});
 
 	it("COMMON_EVENT_TYPES contains update_stack, player_join, player_leave, memo", () => {
@@ -70,8 +69,8 @@ describe("event type arrays", () => {
 });
 
 describe("ALL_EVENT_TYPES", () => {
-	it("includes all 12 event types", () => {
-		expect(ALL_EVENT_TYPES).toHaveLength(12);
+	it("includes all 11 event types", () => {
+		expect(ALL_EVENT_TYPES).toHaveLength(11);
 	});
 
 	it("includes all lifecycle event types", () => {
@@ -184,17 +183,22 @@ describe("payload schemas", () => {
 	});
 
 	describe("chipsAddRemovePayload", () => {
-		it('accepts valid amount with type "add"', () => {
-			const result = chipsAddRemovePayload.parse({ amount: 100, type: "add" });
-			expect(result.type).toBe("add");
+		it("accepts a positive amount as an add", () => {
+			const result = chipsAddRemovePayload.parse({ amount: 100 });
+			expect(result.amount).toBe(100);
 		});
 
-		it('accepts valid amount with type "remove"', () => {
-			const result = chipsAddRemovePayload.parse({
-				amount: 50,
-				type: "remove",
-			});
-			expect(result.type).toBe("remove");
+		it("accepts a negative amount as a remove", () => {
+			const result = chipsAddRemovePayload.parse({ amount: -50 });
+			expect(result.amount).toBe(-50);
+		});
+
+		it("rejects an amount of zero", () => {
+			expect(() => chipsAddRemovePayload.parse({ amount: 0 })).toThrow();
+		});
+
+		it("rejects a non-integer amount", () => {
+			expect(() => chipsAddRemovePayload.parse({ amount: 1.5 })).toThrow();
 		});
 	});
 
@@ -223,19 +227,32 @@ describe("payload schemas", () => {
 		});
 	});
 
-	describe("updateTournamentInfoPayload", () => {
-		it("accepts all-null values via defaults", () => {
-			const result = updateTournamentInfoPayload.parse({});
-			expect(result.remainingPlayers).toBeNull();
-			expect(result.totalEntries).toBeNull();
-			expect(result.averageStack).toBeNull();
-		});
-	});
-
 	describe("updateStackPayload", () => {
-		it("accepts valid stackAmount", () => {
+		it("accepts valid stackAmount alone", () => {
 			const result = updateStackPayload.parse({ stackAmount: 5000 });
 			expect(result.stackAmount).toBe(5000);
+		});
+
+		it("accepts optional tournament-info fields", () => {
+			const result = updateStackPayload.parse({
+				stackAmount: 5000,
+				remainingPlayers: 30,
+				totalEntries: 100,
+				chipPurchaseCounts: [{ name: "Rebuy", count: 1, chipsPerUnit: 10_000 }],
+			});
+			expect(result.remainingPlayers).toBe(30);
+			expect(result.totalEntries).toBe(100);
+			expect(result.chipPurchaseCounts).toHaveLength(1);
+		});
+
+		it("accepts null tournament-info fields", () => {
+			const result = updateStackPayload.parse({
+				stackAmount: 5000,
+				remainingPlayers: null,
+				totalEntries: null,
+			});
+			expect(result.remainingPlayers).toBeNull();
+			expect(result.totalEntries).toBeNull();
 		});
 	});
 
@@ -292,18 +309,12 @@ describe("isValidEventTypeForSessionType", () => {
 		expect(isValidEventTypeForSessionType("purchase_chips", "tournament")).toBe(
 			true
 		);
-		expect(
-			isValidEventTypeForSessionType("update_tournament_info", "tournament")
-		).toBe(true);
 	});
 
 	it("blocks tournament event types for cash_game", () => {
 		expect(isValidEventTypeForSessionType("purchase_chips", "cash_game")).toBe(
 			false
 		);
-		expect(
-			isValidEventTypeForSessionType("update_tournament_info", "cash_game")
-		).toBe(false);
 	});
 
 	it("allows common event types for both session types", () => {
@@ -436,9 +447,6 @@ describe("isEventAllowedInState", () => {
 
 	it("active state allows tournament event types", () => {
 		expect(isEventAllowedInState("purchase_chips", "active")).toBe(true);
-		expect(isEventAllowedInState("update_tournament_info", "active")).toBe(
-			true
-		);
 	});
 
 	it("active state allows common event types", () => {
@@ -592,22 +600,22 @@ describe("payload schema edge cases", () => {
 	});
 
 	describe("chipsAddRemovePayload", () => {
-		it("rejects negative amount", () => {
-			expect(() =>
-				chipsAddRemovePayload.parse({ amount: -10, type: "add" })
-			).toThrow();
+		it("accepts a positive amount as an add", () => {
+			expect(chipsAddRemovePayload.parse({ amount: 10 }).amount).toBe(10);
 		});
 
-		it("rejects unknown type", () => {
-			expect(() =>
-				chipsAddRemovePayload.parse({ amount: 10, type: "neither" })
-			).toThrow();
+		it("accepts a negative amount as a remove", () => {
+			expect(chipsAddRemovePayload.parse({ amount: -10 }).amount).toBe(-10);
 		});
 
-		it("accepts amount = 0 (no-op adjustment)", () => {
-			expect(
-				chipsAddRemovePayload.parse({ amount: 0, type: "add" }).amount
-			).toBe(0);
+		it("rejects amount = 0 (no-op event)", () => {
+			expect(() => chipsAddRemovePayload.parse({ amount: 0 })).toThrow();
+		});
+
+		it("ignores legacy type field if present", () => {
+			const result = chipsAddRemovePayload.parse({ amount: 10, type: "add" });
+			expect(result.amount).toBe(10);
+			expect((result as Record<string, unknown>).type).toBeUndefined();
 		});
 	});
 

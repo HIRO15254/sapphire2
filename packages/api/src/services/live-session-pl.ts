@@ -4,6 +4,7 @@ import {
 	cashSessionEndPayload,
 	cashSessionStartPayload,
 	chipsAddRemovePayload,
+	playerJoinPayload,
 	purchaseChipsPayload,
 	tournamentSessionEndPayload,
 } from "@sapphire2/db/constants/session-event-types";
@@ -126,11 +127,11 @@ export function computeCashGamePLFromEvents(
 			totalBuyIn += data.buyInAmount;
 		} else if (event.eventType === "chips_add_remove") {
 			const data = chipsAddRemovePayload.parse(parsed);
-			if (data.type === "add") {
+			if (data.amount > 0) {
 				totalBuyIn += data.amount;
 				addonTotal += data.amount;
 			} else {
-				chipRemoveTotal += data.amount;
+				chipRemoveTotal += -data.amount;
 			}
 		} else if (event.eventType === "all_in") {
 			const data = allInPayload.parse(parsed);
@@ -291,7 +292,7 @@ export async function recalculateCashGameSession(
 		.select()
 		.from(sessionEvent)
 		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(asc(sessionEvent.sortOrder));
+		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
 	const state = computeSessionStateFromEvents(events);
 
@@ -406,7 +407,7 @@ export async function recalculateTournamentSession(
 		.select()
 		.from(sessionEvent)
 		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(asc(sessionEvent.sortOrder));
+		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
 	const state = computeSessionStateFromEvents(events);
 
@@ -495,4 +496,28 @@ export async function recalculateTournamentSession(
 		effectiveSessionDate,
 		userId
 	);
+}
+
+export function computeHeroSeatPositionFromEvents(
+	events: { eventType: string; payload: string }[]
+): number | null {
+	let heroSeat: number | null = null;
+	for (const event of events) {
+		if (
+			event.eventType !== "player_join" &&
+			event.eventType !== "player_leave"
+		) {
+			continue;
+		}
+		const parsed = playerJoinPayload.safeParse(JSON.parse(event.payload));
+		if (!(parsed.success && parsed.data.isHero)) {
+			continue;
+		}
+		if (event.eventType === "player_join") {
+			heroSeat = parsed.data.seatPosition ?? heroSeat;
+		} else {
+			heroSeat = null;
+		}
+	}
+	return heroSeat;
 }

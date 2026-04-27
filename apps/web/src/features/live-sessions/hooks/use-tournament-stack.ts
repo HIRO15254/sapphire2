@@ -4,6 +4,33 @@ import { createSessionEventMutationOptions } from "@/features/live-sessions/util
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
+interface ChipPurchaseCount {
+	chipsPerUnit: number;
+	count: number;
+	name: string;
+}
+
+interface RecordStackValues {
+	chipPurchaseCounts?: ChipPurchaseCount[];
+	remainingPlayers?: number | null;
+	stackAmount: number;
+	totalEntries?: number | null;
+}
+
+function buildStackPayload(values: RecordStackValues) {
+	const payload: Record<string, unknown> = { stackAmount: values.stackAmount };
+	if (values.remainingPlayers !== undefined) {
+		payload.remainingPlayers = values.remainingPlayers;
+	}
+	if (values.totalEntries !== undefined) {
+		payload.totalEntries = values.totalEntries;
+	}
+	if (values.chipPurchaseCounts !== undefined) {
+		payload.chipPurchaseCounts = values.chipPurchaseCounts;
+	}
+	return payload;
+}
+
 export function useTournamentStack({ sessionId }: { sessionId: string }) {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -29,20 +56,18 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 	const listKey = trpc.liveTournamentSession.list.queryOptions({}).queryKey;
 
 	const stackMutation = useMutation({
-		mutationFn: (values: { stackAmount: number }) =>
+		mutationFn: (values: RecordStackValues) =>
 			trpcClient.sessionEvent.create.mutate({
 				liveTournamentSessionId: sessionId,
 				eventType: "update_stack",
-				payload: {
-					stackAmount: values.stackAmount,
-				},
+				payload: buildStackPayload(values),
 			}),
-		...createSessionEventMutationOptions<{ stackAmount: number }>({
+		...createSessionEventMutationOptions<RecordStackValues>({
 			queryClient,
 			sessionId,
 			sessionType: "tournament",
 			eventType: "update_stack",
-			getPayload: (values) => ({ stackAmount: values.stackAmount }),
+			getPayload: buildStackPayload,
 		}),
 	});
 
@@ -63,46 +88,6 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 			sessionType: "tournament",
 			eventType: "purchase_chips",
 			getPayload: (values) => values,
-		}),
-	});
-
-	const updateTournamentInfoMutation = useMutation({
-		mutationFn: (values: {
-			remainingPlayers: number | null;
-			totalEntries: number | null;
-			chipPurchaseCounts: Array<{
-				name: string;
-				count: number;
-				chipsPerUnit: number;
-			}>;
-		}) =>
-			trpcClient.sessionEvent.create.mutate({
-				liveTournamentSessionId: sessionId,
-				eventType: "update_tournament_info",
-				payload: {
-					remainingPlayers: values.remainingPlayers,
-					totalEntries: values.totalEntries,
-					chipPurchaseCounts: values.chipPurchaseCounts,
-				},
-			}),
-		...createSessionEventMutationOptions<{
-			remainingPlayers: number | null;
-			totalEntries: number | null;
-			chipPurchaseCounts: Array<{
-				name: string;
-				count: number;
-				chipsPerUnit: number;
-			}>;
-		}>({
-			queryClient,
-			sessionId,
-			sessionType: "tournament",
-			eventType: "update_tournament_info",
-			getPayload: (values) => ({
-				remainingPlayers: values.remainingPlayers,
-				totalEntries: values.totalEntries,
-				chipPurchaseCounts: values.chipPurchaseCounts,
-			}),
 		}),
 	});
 
@@ -187,19 +172,9 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 
 	return {
 		chipPurchaseTypes,
-		recordStack: (values: { stackAmount: number }) =>
-			stackMutation.mutate(values),
+		recordStack: (values: RecordStackValues) => stackMutation.mutate(values),
 		purchaseChips: (values: { name: string; cost: number; chips: number }) =>
 			purchaseChipsMutation.mutate(values),
-		updateTournamentInfo: (values: {
-			remainingPlayers: number | null;
-			totalEntries: number | null;
-			chipPurchaseCounts: Array<{
-				name: string;
-				count: number;
-				chipsPerUnit: number;
-			}>;
-		}) => updateTournamentInfoMutation.mutate(values),
 		complete: (
 			values:
 				| {

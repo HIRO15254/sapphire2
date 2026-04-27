@@ -31,10 +31,10 @@ describe("useChipsAddRemoveEditor", () => {
 		});
 	});
 
-	it("seeds type='remove' when payload.type === 'remove'", () => {
+	it("seeds type='remove' when payload.amount is negative", () => {
 		const { result } = renderHook(() =>
 			useChipsAddRemoveEditor({
-				event: event({ amount: 500, type: "remove" }),
+				event: event({ amount: -500 }),
 				isLoading: false,
 				maxTime: null,
 				minTime: null,
@@ -45,7 +45,7 @@ describe("useChipsAddRemoveEditor", () => {
 		expect(result.current.form.state.values.amount).toBe("500");
 	});
 
-	it("submits rounded amount with the chosen type", async () => {
+	it("submits a negative amount when type is 'remove'", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
 			useChipsAddRemoveEditor({
@@ -63,13 +63,10 @@ describe("useChipsAddRemoveEditor", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(onSubmit).toHaveBeenCalledWith(
-			{ amount: 250, type: "remove" },
-			expect.any(Number)
-		);
+		expect(onSubmit).toHaveBeenCalledWith({ amount: -250 }, expect.any(Number));
 	});
 
-	it("rejects submission when amount is negative", async () => {
+	it("rejects submission when amount magnitude is zero", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
 			useChipsAddRemoveEditor({
@@ -81,7 +78,7 @@ describe("useChipsAddRemoveEditor", () => {
 			})
 		);
 		act(() => {
-			result.current.form.setFieldValue("amount", "-5");
+			result.current.form.setFieldValue("amount", "0");
 		});
 		await act(async () => {
 			await result.current.form.handleSubmit();
