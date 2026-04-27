@@ -292,7 +292,7 @@ export async function recalculateCashGameSession(
 		.select()
 		.from(sessionEvent)
 		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(asc(sessionEvent.sortOrder));
+		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
 	const state = computeSessionStateFromEvents(events);
 
@@ -407,7 +407,7 @@ export async function recalculateTournamentSession(
 		.select()
 		.from(sessionEvent)
 		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(asc(sessionEvent.sortOrder));
+		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
 	const state = computeSessionStateFromEvents(events);
 

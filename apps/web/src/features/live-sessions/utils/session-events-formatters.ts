@@ -5,7 +5,6 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
 	update_stack: "Stack Update",
 	all_in: "All-in",
 	purchase_chips: "Purchase Chips",
-	update_tournament_info: "Tournament Info",
 	memo: "Memo",
 	session_pause: "Session Pause",
 	session_resume: "Session Resume",
@@ -22,17 +21,35 @@ export function formatEventLabel(eventType: string) {
 }
 
 function formatChipsAddRemoveSummary(p: Record<string, unknown>) {
-	const amount = typeof p.amount === "number" ? p.amount : null;
-	let type: string | null = null;
-	if (p.type === "add") {
-		type = "Add";
-	} else if (p.type === "remove") {
-		type = "Remove";
+	if (typeof p.amount !== "number") {
+		return null;
 	}
-	if (amount !== null && type !== null) {
-		return `${type}: ${amount.toLocaleString()}`;
+	const label = p.amount < 0 ? "Remove" : "Add";
+	return `${label}: ${Math.abs(p.amount).toLocaleString()}`;
+}
+
+function formatUpdateStackSummary(p: Record<string, unknown>) {
+	if (typeof p.stackAmount !== "number") {
+		return null;
 	}
-	return null;
+	const parts = [`Stack: ${p.stackAmount.toLocaleString()}`];
+	if (typeof p.remainingPlayers === "number") {
+		parts.push(`Remaining: ${p.remainingPlayers}`);
+	}
+	if (typeof p.totalEntries === "number") {
+		parts.push(`Entries: ${p.totalEntries}`);
+	}
+	return parts.join(" · ");
+}
+
+function formatPlayerJoinSummary(p: Record<string, unknown>) {
+	if (p.isHero !== true) {
+		return null;
+	}
+	if (typeof p.seatPosition === "number") {
+		return `Hero · Seat ${p.seatPosition}`;
+	}
+	return "Hero";
 }
 
 function formatAllInSummary(p: Record<string, unknown>) {
@@ -70,16 +87,6 @@ function formatPurchaseChipsSummary(p: Record<string, unknown>) {
 		: null;
 }
 
-function formatUpdateTournamentInfoSummary(p: Record<string, unknown>) {
-	if (typeof p.remainingPlayers === "number") {
-		return `Remaining: ${p.remainingPlayers}`;
-	}
-	if (typeof p.totalEntries === "number") {
-		return `Entries: ${p.totalEntries}`;
-	}
-	return null;
-}
-
 function formatMemoSummary(p: Record<string, unknown>) {
 	if (typeof p.text !== "string") {
 		return null;
@@ -92,13 +99,9 @@ type PayloadSummarizer = (p: Record<string, unknown>) => string | null;
 
 const PAYLOAD_SUMMARIZERS: Record<string, PayloadSummarizer> = {
 	chips_add_remove: formatChipsAddRemoveSummary,
-	update_stack: (p) =>
-		typeof p.stackAmount === "number"
-			? `Stack: ${p.stackAmount.toLocaleString()}`
-			: null,
+	update_stack: formatUpdateStackSummary,
 	all_in: formatAllInSummary,
 	purchase_chips: formatPurchaseChipsSummary,
-	update_tournament_info: formatUpdateTournamentInfoSummary,
 	memo: formatMemoSummary,
 	session_start: (p) => {
 		if (typeof p.buyInAmount === "number") {
@@ -112,7 +115,7 @@ const PAYLOAD_SUMMARIZERS: Record<string, PayloadSummarizer> = {
 		return null;
 	},
 	session_end: formatSessionEndSummary,
-	player_join: (p) => (p.isHero === true ? "Hero" : null),
+	player_join: formatPlayerJoinSummary,
 	player_leave: (p) => (p.isHero === true ? "Hero" : null),
 };
 

@@ -186,7 +186,7 @@ export const sessionEventRouter = router({
 				.select()
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, sessionId))
-				.orderBy(asc(sessionEvent.sortOrder));
+				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
 			return events.map((event) => ({
 				...event,

@@ -522,7 +522,7 @@ export const liveTournamentSessionRouter = router({
 						})
 						.from(sessionEvent)
 						.where(eq(sessionEvent.sessionId, item.id))
-						.orderBy(asc(sessionEvent.sortOrder));
+						.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
 					const eventCount = events.length;
 					const statsForList = computeStackStats(
@@ -570,7 +570,7 @@ export const liveTournamentSessionRouter = router({
 				.select()
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(asc(sessionEvent.sortOrder));
+				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
 			const tablePlayers = await ctx.db
 				.select()
@@ -855,7 +855,7 @@ export const liveTournamentSessionRouter = router({
 				})
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(asc(sessionEvent.sortOrder));
+				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
 			const previousHeroSeat = computeHeroSeatPositionFromEvents(events);
 
