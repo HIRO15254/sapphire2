@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ComponentType, ReactNode } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -51,18 +52,22 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
-vi.mock("@/sessions/components/session-card", () => ({
+vi.mock("@/features/sessions/components/session-card", () => ({
 	SessionCard: ({ session }: { session: { id: string } }) => (
 		<div>Session Row: {session.id}</div>
 	),
 }));
 
-vi.mock("@/sessions/components/session-filters", () => ({
+vi.mock("@/features/sessions/components/session-filters", () => ({
 	SessionFilters: () => <div>Session Filters</div>,
 }));
 
-vi.mock("@/sessions/components/session-form", () => ({
+vi.mock("@/features/sessions/components/session-form", () => ({
 	SessionForm: () => <div>Session Form</div>,
+}));
+
+vi.mock("@/features/sessions/components/session-tag-manager", () => ({
+	SessionTagManager: () => <div>Session Tag Manager</div>,
 }));
 
 vi.mock("@/shared/components/ui/responsive-dialog", () => ({
@@ -183,5 +188,62 @@ describe("SessionsPage", () => {
 
 		expect(screen.getByText("Session Row: session-1")).toBeInTheDocument();
 		expect(screen.queryByText("No sessions yet")).not.toBeInTheDocument();
+	});
+
+	it("renders multiple sessions in order", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		mocks.sessions = [
+			{ id: "s-1", type: "cash_game" },
+			{ id: "s-2", type: "tournament" },
+			{ id: "s-3", type: "cash_game" },
+		];
+
+		render(<Component />);
+
+		expect(screen.getByText("Session Row: s-1")).toBeInTheDocument();
+		expect(screen.getByText("Session Row: s-2")).toBeInTheDocument();
+		expect(screen.getByText("Session Row: s-3")).toBeInTheDocument();
+	});
+
+	it("opens the New Session dialog from the page header action", async () => {
+		const user = userEvent.setup();
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		await user.click(screen.getAllByRole("button", { name: "New Session" })[0]);
+
+		expect(
+			screen.getByRole("heading", { name: "New Session" })
+		).toBeInTheDocument();
+		expect(screen.getByText("Session Form")).toBeInTheDocument();
+	});
+
+	it("opens the Manage Tags dialog from the page header action", async () => {
+		const user = userEvent.setup();
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		await user.click(screen.getByRole("button", { name: "Manage Tags" }));
+
+		expect(
+			screen.getByRole("heading", { name: "Manage Tags" })
+		).toBeInTheDocument();
+		expect(screen.getByText("Session Tag Manager")).toBeInTheDocument();
+	});
+
+	it("toggles the BB/BI switch and reflects state in the checked attribute", async () => {
+		const user = userEvent.setup();
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		const toggle = screen.getByRole("switch");
+		expect(toggle).not.toBeChecked();
+
+		await user.click(toggle);
+		expect(toggle).toBeChecked();
 	});
 });

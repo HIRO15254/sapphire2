@@ -10,133 +10,86 @@ import {
 	type SessionEventType,
 	validateEventPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import { liveCashGameSession } from "@sapphire2/db/schema/live-cash-game-session";
-import { liveTournamentSession } from "@sapphire2/db/schema/live-tournament-session";
+import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
+import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, max, sql } from "drizzle-orm";
+import { and, asc, eq, max } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
 	recalculateCashGameSession,
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
+import {
+	assertOccurredAtOrdering,
+	floorToMinute,
+} from "../utils/session-event-time";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
 interface SessionInfo {
+	sessionDate: Date;
+	sessionId: string;
 	sessionType: "cash_game" | "tournament";
 	status: string;
 }
 
-function validateExactlyOneSessionId(
-	liveCashGameSessionId: string | undefined,
-	liveTournamentSessionId: string | undefined
-) {
-	if (
-		(liveCashGameSessionId && liveTournamentSessionId) ||
-		!(liveCashGameSessionId || liveTournamentSessionId)
-	) {
-		throw new TRPCError({
-			code: "BAD_REQUEST",
-			message:
-				"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
-		});
-	}
+function resolveSessionId(input: {
+	sessionId?: string;
+	liveCashGameSessionId?: string;
+	liveTournamentSessionId?: string;
+}): string | undefined {
+	return (
+		input.sessionId ??
+		input.liveCashGameSessionId ??
+		input.liveTournamentSessionId
+	);
 }
 
 async function resolveSessionOwnership(
 	db: DbInstance,
-	liveCashGameSessionId: string | undefined,
-	liveTournamentSessionId: string | undefined,
+	sessionId: string,
 	userId: string
 ): Promise<SessionInfo> {
-	if (liveCashGameSessionId) {
-		const [session] = await db
-			.select()
-			.from(liveCashGameSession)
-			.where(eq(liveCashGameSession.id, liveCashGameSessionId));
-		if (!session || session.userId !== userId) {
-			throw new TRPCError({
-				code: session ? "FORBIDDEN" : "NOT_FOUND",
-				message: session ? "You do not own this session" : "Session not found",
-			});
-		}
-		return { sessionType: "cash_game", status: session.status };
-	}
 	const [session] = await db
 		.select()
-		.from(liveTournamentSession)
-		.where(eq(liveTournamentSession.id, liveTournamentSessionId as string));
+		.from(gameSession)
+		.where(eq(gameSession.id, sessionId));
+
 	if (!session || session.userId !== userId) {
 		throw new TRPCError({
 			code: session ? "FORBIDDEN" : "NOT_FOUND",
 			message: session ? "You do not own this session" : "Session not found",
 		});
 	}
-	return { sessionType: "tournament", status: session.status };
+
+	return {
+		sessionId: session.id,
+		sessionType: session.kind as "cash_game" | "tournament",
+		status: session.status,
+		sessionDate: session.sessionDate,
+	};
 }
 
-function buildSessionCondition(
-	liveCashGameSessionId: string | undefined,
-	liveTournamentSessionId: string | undefined
-) {
-	return liveCashGameSessionId
-		? eq(sessionEvent.liveCashGameSessionId, liveCashGameSessionId)
-		: eq(
-				sessionEvent.liveTournamentSessionId,
-				liveTournamentSessionId as string
-			);
-}
-
-async function computeNextSortOrder(
+async function nextAppendSortOrder(
 	db: DbInstance,
-	liveCashGameSessionId: string | undefined,
-	liveTournamentSessionId: string | undefined,
-	occurredAtDate: Date
+	sessionId: string
 ): Promise<number> {
-	const occurredAtUnix = Math.floor(occurredAtDate.getTime() / 1000);
-	const sessionCond = liveCashGameSessionId
-		? eq(sessionEvent.liveCashGameSessionId, liveCashGameSessionId)
-		: eq(
-				sessionEvent.liveTournamentSessionId,
-				liveTournamentSessionId as string
-			);
-
-	const [maxResult] = await db
+	const [row] = await db
 		.select({ maxSortOrder: max(sessionEvent.sortOrder) })
 		.from(sessionEvent)
-		.where(
-			and(
-				sessionCond,
-				sql`(unixepoch(${sessionEvent.occurredAt})) = ${occurredAtUnix}`
-			)
-		);
+		.where(eq(sessionEvent.sessionId, sessionId));
 
-	return maxResult?.maxSortOrder == null ? 0 : maxResult.maxSortOrder + 1;
-}
-
-function buildTablePlayerCondition(
-	liveCashGameSessionId: string | undefined,
-	liveTournamentSessionId: string | undefined,
-	playerId: string
-) {
-	const sessionCond = liveCashGameSessionId
-		? eq(sessionTablePlayer.liveCashGameSessionId, liveCashGameSessionId)
-		: eq(
-				sessionTablePlayer.liveTournamentSessionId,
-				liveTournamentSessionId as string
-			);
-	return and(sessionCond, eq(sessionTablePlayer.playerId, playerId));
+	return row?.maxSortOrder == null ? 0 : row.maxSortOrder + 1;
 }
 
 async function handlePlayerJoinSideEffect(
 	db: DbInstance,
-	liveCashGameSessionId: string | undefined,
-	liveTournamentSessionId: string | undefined,
+	sessionId: string,
 	validatedPayload: unknown
 ) {
 	const parsed = playerJoinPayload.parse(validatedPayload);
@@ -144,10 +97,9 @@ async function handlePlayerJoinSideEffect(
 		return;
 	}
 	const now = new Date();
-	const cond = buildTablePlayerCondition(
-		liveCashGameSessionId,
-		liveTournamentSessionId,
-		parsed.playerId
+	const cond = and(
+		eq(sessionTablePlayer.sessionId, sessionId),
+		eq(sessionTablePlayer.playerId, parsed.playerId)
 	);
 
 	const [existing] = await db.select().from(sessionTablePlayer).where(cond);
@@ -160,8 +112,7 @@ async function handlePlayerJoinSideEffect(
 	} else {
 		await db.insert(sessionTablePlayer).values({
 			id: crypto.randomUUID(),
-			liveCashGameSessionId: liveCashGameSessionId ?? null,
-			liveTournamentSessionId: liveTournamentSessionId ?? null,
+			sessionId,
 			playerId: parsed.playerId,
 			isActive: 1,
 			joinedAt: now,
@@ -172,8 +123,7 @@ async function handlePlayerJoinSideEffect(
 
 async function handlePlayerLeaveSideEffect(
 	db: DbInstance,
-	liveCashGameSessionId: string | undefined,
-	liveTournamentSessionId: string | undefined,
+	sessionId: string,
 	validatedPayload: unknown
 ) {
 	const parsed = playerLeavePayload.parse(validatedPayload);
@@ -181,27 +131,27 @@ async function handlePlayerLeaveSideEffect(
 		return;
 	}
 	const now = new Date();
-	const cond = buildTablePlayerCondition(
-		liveCashGameSessionId,
-		liveTournamentSessionId,
-		parsed.playerId
-	);
 	await db
 		.update(sessionTablePlayer)
 		.set({ isActive: 0, leftAt: now, updatedAt: now })
-		.where(cond);
+		.where(
+			and(
+				eq(sessionTablePlayer.sessionId, sessionId),
+				eq(sessionTablePlayer.playerId, parsed.playerId)
+			)
+		);
 }
 
 async function recalculateSession(
 	db: DbInstance,
-	liveCashGameSessionId: string | null | undefined,
-	liveTournamentSessionId: string | null | undefined,
+	sessionId: string,
+	sessionType: "cash_game" | "tournament",
 	userId: string
 ) {
-	if (liveCashGameSessionId) {
-		await recalculateCashGameSession(db, liveCashGameSessionId, userId);
-	} else if (liveTournamentSessionId) {
-		await recalculateTournamentSession(db, liveTournamentSessionId, userId);
+	if (sessionType === "cash_game") {
+		await recalculateCashGameSession(db, sessionId, userId);
+	} else {
+		await recalculateTournamentSession(db, sessionId, userId);
 	}
 }
 
@@ -209,35 +159,33 @@ function parseEventPayload(event: { payload: string }) {
 	return JSON.parse(event.payload) as unknown;
 }
 
+const sessionIdInput = z.object({
+	sessionId: z.string().optional(),
+	liveCashGameSessionId: z.string().optional(),
+	liveTournamentSessionId: z.string().optional(),
+});
+
 export const sessionEventRouter = router({
 	list: protectedProcedure
-		.input(
-			z.object({
-				liveCashGameSessionId: z.string().optional(),
-				liveTournamentSessionId: z.string().optional(),
-			})
-		)
+		.input(sessionIdInput)
 		.query(async ({ ctx, input }) => {
-			const { liveCashGameSessionId, liveTournamentSessionId } = input;
-			validateExactlyOneSessionId(
-				liveCashGameSessionId,
-				liveTournamentSessionId
-			);
+			const sessionId = resolveSessionId(input);
+
+			if (!sessionId) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message:
+						"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
+				});
+			}
 
 			const userId = ctx.session.user.id;
-			await resolveSessionOwnership(
-				ctx.db,
-				liveCashGameSessionId,
-				liveTournamentSessionId,
-				userId
-			);
+			await resolveSessionOwnership(ctx.db, sessionId, userId);
 
 			const events = await ctx.db
 				.select()
 				.from(sessionEvent)
-				.where(
-					buildSessionCondition(liveCashGameSessionId, liveTournamentSessionId)
-				)
+				.where(eq(sessionEvent.sessionId, sessionId))
 				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
 			return events.map((event) => ({
@@ -248,29 +196,31 @@ export const sessionEventRouter = router({
 
 	create: protectedProcedure
 		.input(
-			z.object({
-				liveCashGameSessionId: z.string().optional(),
-				liveTournamentSessionId: z.string().optional(),
+			sessionIdInput.extend({
 				eventType: z.enum(ALL_EVENT_TYPES),
 				occurredAt: z.number().optional(),
 				payload: z.unknown(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
-			const { liveCashGameSessionId, liveTournamentSessionId, eventType } =
-				input;
-			validateExactlyOneSessionId(
-				liveCashGameSessionId,
-				liveTournamentSessionId
-			);
+			const sessionId = resolveSessionId(input);
+
+			if (!sessionId) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message:
+						"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
+				});
+			}
 
 			const userId = ctx.session.user.id;
-			const { sessionType } = await resolveSessionOwnership(
+			const { sessionType, sessionDate } = await resolveSessionOwnership(
 				ctx.db,
-				liveCashGameSessionId,
-				liveTournamentSessionId,
+				sessionId,
 				userId
 			);
+
+			const { eventType } = input;
 
 			if (MANUAL_CREATE_BLOCKED_EVENT_TYPES.includes(eventType)) {
 				throw new TRPCError({
@@ -290,9 +240,7 @@ export const sessionEventRouter = router({
 			const sessionEvents = await ctx.db
 				.select()
 				.from(sessionEvent)
-				.where(
-					buildSessionCondition(liveCashGameSessionId, liveTournamentSessionId)
-				);
+				.where(eq(sessionEvent.sessionId, sessionId));
 			const currentState = getSessionCurrentState(sessionEvents);
 			if (!isEventAllowedInState(eventType, currentState)) {
 				throw new TRPCError({
@@ -306,22 +254,24 @@ export const sessionEventRouter = router({
 				input.payload,
 				sessionType
 			);
-			const occurredAtDate = input.occurredAt
+			const rawOccurredAt = input.occurredAt
 				? new Date(input.occurredAt * 1000)
-				: new Date();
+				: sessionDate;
+			const occurredAtDate = floorToMinute(rawOccurredAt);
 
-			const sortOrder = await computeNextSortOrder(
+			const sortOrder = await nextAppendSortOrder(ctx.db, sessionId);
+
+			await assertOccurredAtOrdering(
 				ctx.db,
-				liveCashGameSessionId,
-				liveTournamentSessionId,
+				sessionId,
+				sortOrder,
 				occurredAtDate
 			);
 
 			const id = crypto.randomUUID();
 			await ctx.db.insert(sessionEvent).values({
 				id,
-				liveCashGameSessionId: liveCashGameSessionId ?? null,
-				liveTournamentSessionId: liveTournamentSessionId ?? null,
+				sessionId,
 				eventType,
 				occurredAt: occurredAtDate,
 				sortOrder,
@@ -330,27 +280,12 @@ export const sessionEventRouter = router({
 			});
 
 			if (eventType === "player_join") {
-				await handlePlayerJoinSideEffect(
-					ctx.db,
-					liveCashGameSessionId,
-					liveTournamentSessionId,
-					validatedPayload
-				);
+				await handlePlayerJoinSideEffect(ctx.db, sessionId, validatedPayload);
 			} else if (eventType === "player_leave") {
-				await handlePlayerLeaveSideEffect(
-					ctx.db,
-					liveCashGameSessionId,
-					liveTournamentSessionId,
-					validatedPayload
-				);
+				await handlePlayerLeaveSideEffect(ctx.db, sessionId, validatedPayload);
 			}
 
-			await recalculateSession(
-				ctx.db,
-				liveCashGameSessionId,
-				liveTournamentSessionId,
-				userId
-			);
+			await recalculateSession(ctx.db, sessionId, sessionType, userId);
 
 			const [created] = await ctx.db
 				.select()
@@ -383,15 +318,23 @@ export const sessionEventRouter = router({
 
 			const { sessionType } = await resolveSessionOwnership(
 				ctx.db,
-				event.liveCashGameSessionId ?? undefined,
-				event.liveTournamentSessionId ?? undefined,
+				event.sessionId,
 				userId
 			);
 
 			const eventType = event.eventType as SessionEventType;
 			const updates: Record<string, unknown> = { updatedAt: new Date() };
 			if (input.occurredAt !== undefined) {
-				updates.occurredAt = new Date(input.occurredAt * 1000);
+				const flooredOccurredAt = floorToMinute(
+					new Date(input.occurredAt * 1000)
+				);
+				await assertOccurredAtOrdering(
+					ctx.db,
+					event.sessionId,
+					event.sortOrder,
+					flooredOccurredAt
+				);
+				updates.occurredAt = flooredOccurredAt;
 			}
 			let validatedPayload: unknown;
 			if (input.payload !== undefined) {
@@ -408,13 +351,9 @@ export const sessionEventRouter = router({
 				.set(updates)
 				.where(eq(sessionEvent.id, input.id));
 
-			// Session_start for tournament carries timerStartedAt in its payload.
-			// Mirror the change onto the top-level column so existing readers stay
-			// in sync.
 			if (
 				eventType === "session_start" &&
 				sessionType === "tournament" &&
-				event.liveTournamentSessionId &&
 				validatedPayload &&
 				typeof validatedPayload === "object"
 			) {
@@ -428,18 +367,13 @@ export const sessionEventRouter = router({
 				}
 				if (timerStartedAt !== undefined) {
 					await ctx.db
-						.update(liveTournamentSession)
-						.set({ timerStartedAt, updatedAt: new Date() })
-						.where(eq(liveTournamentSession.id, event.liveTournamentSessionId));
+						.update(sessionTournamentDetail)
+						.set({ timerStartedAt })
+						.where(eq(sessionTournamentDetail.sessionId, event.sessionId));
 				}
 			}
 
-			await recalculateSession(
-				ctx.db,
-				event.liveCashGameSessionId,
-				event.liveTournamentSessionId,
-				userId
-			);
+			await recalculateSession(ctx.db, event.sessionId, sessionType, userId);
 
 			const [updated] = await ctx.db
 				.select()
@@ -473,10 +407,9 @@ export const sessionEventRouter = router({
 				});
 			}
 
-			await resolveSessionOwnership(
+			const { sessionType } = await resolveSessionOwnership(
 				ctx.db,
-				event.liveCashGameSessionId ?? undefined,
-				event.liveTournamentSessionId ?? undefined,
+				event.sessionId,
 				userId
 			);
 
@@ -485,22 +418,19 @@ export const sessionEventRouter = router({
 				if (!parsed.playerId) {
 					return { success: true as const };
 				}
-				const cond = buildTablePlayerCondition(
-					event.liveCashGameSessionId ?? undefined,
-					event.liveTournamentSessionId ?? undefined,
-					parsed.playerId
-				);
-				await ctx.db.delete(sessionTablePlayer).where(cond);
+				await ctx.db
+					.delete(sessionTablePlayer)
+					.where(
+						and(
+							eq(sessionTablePlayer.sessionId, event.sessionId),
+							eq(sessionTablePlayer.playerId, parsed.playerId)
+						)
+					);
 			}
 
 			await ctx.db.delete(sessionEvent).where(eq(sessionEvent.id, input.id));
 
-			await recalculateSession(
-				ctx.db,
-				event.liveCashGameSessionId,
-				event.liveTournamentSessionId,
-				userId
-			);
+			await recalculateSession(ctx.db, event.sessionId, sessionType, userId);
 
 			return { success: true };
 		}),

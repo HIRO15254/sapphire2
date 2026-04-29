@@ -1,5 +1,8 @@
 {
   "enabledPlugins": {
     "spex@cc-rhuss-marketplace": true
+  },
+  "permissions": {
+    "allow": ["Bash(bunx vitest *)"]
   }
 }

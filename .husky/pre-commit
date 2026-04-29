@@ -1,7 +1,16 @@
+#!/usr/bin/env sh
 # Auto-stage routeTree.gen.ts if it has unstaged changes
 # (prevents lint-staged stash conflicts with this auto-generated file)
 if git diff --name-only | grep -q 'routeTree.gen.ts'; then
   git add apps/web/src/routeTree.gen.ts
+fi
+
+# When Claude Code is driving, the Stop hook already runs
+# `ultracite fix && vitest run --changed HEAD && ultracite check`
+# inside the same turn, so running lint-staged + vitest here is wasted work.
+if [ "${CLAUDECODE:-}" = "1" ]; then
+  echo "[husky] pre-commit skipped (CLAUDECODE=1 — Stop hook enforces checks)."
+  exit 0
 fi
 
 bun x lint-staged

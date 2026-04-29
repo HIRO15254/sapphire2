@@ -6,6 +6,12 @@ import {
 	stringifyWidgetConfig,
 	widgetTypeSchema,
 } from "../types/dashboard-widget";
+import {
+	expectAccepts,
+	expectProtected,
+	expectRejects,
+	expectType,
+} from "./test-utils";
 
 describe("dashboardWidget router", () => {
 	it("appRouter has dashboardWidget namespace", () => {
@@ -23,6 +29,162 @@ describe("dashboardWidget router", () => {
 				"delete",
 			])
 		);
+	});
+
+	it("exposes exactly the expected procedure set (no extras)", () => {
+		expect(Object.keys(appRouter.dashboardWidget).sort()).toEqual(
+			["create", "delete", "list", "update", "updateLayouts"].sort()
+		);
+	});
+
+	it("list is a protected query", () => {
+		expectProtected(appRouter.dashboardWidget.list);
+		expectType(appRouter.dashboardWidget.list, "query");
+	});
+
+	it("all mutations are protected mutations", () => {
+		for (const name of [
+			"create",
+			"update",
+			"updateLayouts",
+			"delete",
+		] as const) {
+			const proc = appRouter.dashboardWidget[name];
+			expectProtected(proc);
+			expectType(proc, "mutation");
+		}
+	});
+});
+
+describe("dashboardWidget.list input validation", () => {
+	it("accepts device=desktop", () => {
+		expectAccepts(appRouter.dashboardWidget.list, { device: "desktop" });
+	});
+
+	it("accepts device=mobile", () => {
+		expectAccepts(appRouter.dashboardWidget.list, { device: "mobile" });
+	});
+
+	it("rejects unknown device value", () => {
+		expectRejects(appRouter.dashboardWidget.list, { device: "tablet" });
+	});
+
+	it("rejects missing device", () => {
+		expectRejects(appRouter.dashboardWidget.list, {});
+	});
+});
+
+describe("dashboardWidget.create input validation", () => {
+	it("accepts a valid widget creation payload", () => {
+		expectAccepts(appRouter.dashboardWidget.create, {
+			device: "desktop",
+			type: widgetTypeSchema.options[0],
+		});
+	});
+
+	it("accepts config and position", () => {
+		expectAccepts(appRouter.dashboardWidget.create, {
+			device: "mobile",
+			type: widgetTypeSchema.options[0],
+			config: { foo: "bar" },
+			position: { x: 0, y: 0, w: 4, h: 2 },
+		});
+	});
+
+	it("rejects unknown widget type", () => {
+		expectRejects(appRouter.dashboardWidget.create, {
+			device: "desktop",
+			type: "nonexistent_widget",
+		});
+	});
+
+	it("rejects position with w=0", () => {
+		expectRejects(appRouter.dashboardWidget.create, {
+			device: "desktop",
+			type: widgetTypeSchema.options[0],
+			position: { x: 0, y: 0, w: 0, h: 2 },
+		});
+	});
+
+	it("rejects position with negative x", () => {
+		expectRejects(appRouter.dashboardWidget.create, {
+			device: "desktop",
+			type: widgetTypeSchema.options[0],
+			position: { x: -1, y: 0, w: 4, h: 2 },
+		});
+	});
+});
+
+describe("dashboardWidget.update input validation", () => {
+	it("accepts id-only payload", () => {
+		expectAccepts(appRouter.dashboardWidget.update, { id: "w1" });
+	});
+
+	it("accepts config update", () => {
+		expectAccepts(appRouter.dashboardWidget.update, {
+			id: "w1",
+			config: { limit: 10 },
+		});
+	});
+
+	it("accepts position update", () => {
+		expectAccepts(appRouter.dashboardWidget.update, {
+			id: "w1",
+			position: { x: 2, y: 3, w: 4, h: 2 },
+		});
+	});
+
+	it("rejects missing id", () => {
+		expectRejects(appRouter.dashboardWidget.update, {
+			config: { limit: 10 },
+		});
+	});
+});
+
+describe("dashboardWidget.updateLayouts input validation", () => {
+	it("accepts a single-item layout batch", () => {
+		expectAccepts(appRouter.dashboardWidget.updateLayouts, {
+			device: "desktop",
+			items: [{ id: "w1", x: 0, y: 0, w: 4, h: 2 }],
+		});
+	});
+
+	it("rejects empty items array (.min(1))", () => {
+		expectRejects(appRouter.dashboardWidget.updateLayouts, {
+			device: "desktop",
+			items: [],
+		});
+	});
+
+	it("rejects items with non-integer x", () => {
+		expectRejects(appRouter.dashboardWidget.updateLayouts, {
+			device: "desktop",
+			items: [{ id: "w1", x: 1.5, y: 0, w: 4, h: 2 }],
+		});
+	});
+
+	it("rejects items with w<1", () => {
+		expectRejects(appRouter.dashboardWidget.updateLayouts, {
+			device: "desktop",
+			items: [{ id: "w1", x: 0, y: 0, w: 0, h: 2 }],
+		});
+	});
+
+	it("rejects items with negative y", () => {
+		expectRejects(appRouter.dashboardWidget.updateLayouts, {
+			device: "desktop",
+			items: [{ id: "w1", x: 0, y: -1, w: 4, h: 2 }],
+		});
+	});
+});
+
+describe("dashboardWidget.delete input validation", () => {
+	it("accepts valid id", () => {
+		expectAccepts(appRouter.dashboardWidget.delete, { id: "w1" });
+	});
+
+	it("rejects missing id", () => {
+		expectRejects(appRouter.dashboardWidget.delete, {});
 	});
 });
 

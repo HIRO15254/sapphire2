@@ -1,11 +1,11 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { PageSection } from "@/shared/components/page-section";
 import { PreviewAutoLogin } from "@/shared/components/preview-auto-login";
 import { PublicPageShell } from "@/shared/components/public-page-shell";
 import SignInForm from "@/shared/components/sign-in-form";
 import SignUpForm from "@/shared/components/sign-up-form";
+import { useLoginPage } from "./-use-login-page";
 
 export const Route = createFileRoute("/login")({
 	beforeLoad: async () => {
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/login")({
 });
 
 function RouteComponent() {
-	const [showSignIn, setShowSignIn] = useState(false);
+	const { showSignIn, onSwitchToSignIn, onSwitchToSignUp } = useLoginPage();
 
 	return (
 		<PublicPageShell
@@ -42,9 +42,9 @@ function RouteComponent() {
 		>
 			<PreviewAutoLogin />
 			{showSignIn ? (
-				<SignInForm onSwitchToSignUp={() => setShowSignIn(false)} />
+				<SignInForm onSwitchToSignUp={onSwitchToSignUp} />
 			) : (
-				<SignUpForm onSwitchToSignIn={() => setShowSignIn(true)} />
+				<SignUpForm onSwitchToSignIn={onSwitchToSignIn} />
 			)}
 		</PublicPageShell>
 	);

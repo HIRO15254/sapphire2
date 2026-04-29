@@ -11,17 +11,17 @@ import { MobileNav } from "../shared/components/mobile-nav";
 
 // Mock useActiveSession to control nav mode
 const mockUseActiveSession = vi.fn();
-vi.mock("@/live-sessions/hooks/use-active-session", () => ({
+vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
 // Mock CreateSessionDialog to avoid trpc/env imports
-vi.mock("@/live-sessions/components/create-session-dialog", () => ({
+vi.mock("@/features/live-sessions/components/create-session-dialog", () => ({
 	CreateSessionDialog: () => null,
 }));
 
 // Mock useStackSheet to avoid provider requirement
-vi.mock("@/live-sessions/hooks/use-stack-sheet", () => ({
+vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
 	useStackSheet: () => ({
 		isOpen: false,
 		open: vi.fn(),

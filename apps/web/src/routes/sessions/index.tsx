@@ -1,83 +1,52 @@
 import { IconCards, IconPlus, IconTags } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { SessionCard } from "@/sessions/components/session-card";
-import {
-	SessionFilters,
-	type SessionFilterValues,
-} from "@/sessions/components/session-filters";
-import { SessionForm } from "@/sessions/components/session-form";
-import { SessionTagManager } from "@/sessions/components/session-tag-manager";
-import {
-	buildEditDefaults,
-	type SessionFormValues,
-	type SessionItem,
-	useSessions,
-} from "@/sessions/hooks/use-sessions";
+import { SessionCard } from "@/features/sessions/components/session-card";
+import { SessionFilters } from "@/features/sessions/components/session-filters";
+import { SessionForm } from "@/features/sessions/components/session-form";
+import { SessionTagManager } from "@/features/sessions/components/session-tag-manager";
+import { buildEditDefaults } from "@/features/sessions/hooks/use-sessions";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Label } from "@/shared/components/ui/label";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { Switch } from "@/shared/components/ui/switch";
-import { useEntityLists, useStoreGames } from "@/stores/hooks/use-store-games";
+import { useSessionsPage } from "./-use-sessions-page";
 
 export const Route = createFileRoute("/sessions/")({
 	component: SessionsPage,
 });
 
 function SessionsPage() {
-	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
-	const [editingSession, setEditingSession] = useState<SessionItem | null>(
-		null
-	);
-	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>();
-	const [editStoreId, setEditStoreId] = useState<string | undefined>();
-	const [filters, setFilters] = useState<SessionFilterValues>({});
-	const [bbBiMode, setBbBiMode] = useState(false);
-
 	const {
 		sessions,
 		availableTags,
 		isCreatePending,
 		isUpdatePending,
-		create,
-		update,
-		delete: deleteSession,
-		reopen,
+		isCreateOpen,
+		isTagManagerOpen,
+		editingSession,
+		filters,
+		bbBiMode,
+		stores,
+		currencies,
+		createGames,
+		editGames,
+		isEditLiveLinked,
+		setIsTagManagerOpen,
+		setFilters,
+		setBbBiMode,
+		setSelectedStoreId,
+		setEditStoreId,
+		handleCreate,
+		handleUpdate,
+		handleDelete,
+		handleReopen,
+		handleOpenEdit,
+		handleCloseEdit,
+		handleCreateDialogOpenChange,
 		createTag,
-	} = useSessions(filters);
-
-	const { stores, currencies } = useEntityLists();
-	const createGames = useStoreGames(selectedStoreId);
-	const editGames = useStoreGames(editStoreId);
-
-	const handleCreate = (values: SessionFormValues) => {
-		create(values).then(() => {
-			setIsCreateOpen(false);
-		});
-	};
-
-	const handleUpdate = (values: SessionFormValues) => {
-		if (!editingSession) {
-			return;
-		}
-		const isLiveLinked =
-			editingSession.liveCashGameSessionId !== null ||
-			editingSession.liveTournamentSessionId !== null;
-		update({ id: editingSession.id, isLiveLinked, ...values }).then(() => {
-			setEditingSession(null);
-		});
-	};
-
-	const handleDelete = (id: string) => {
-		deleteSession(id);
-	};
-
-	const handleReopen = (liveCashGameSessionId: string) => {
-		reopen(liveCashGameSessionId);
-	};
+	} = useSessionsPage();
 
 	return (
 		<div className="p-4 md:p-6">
@@ -92,23 +61,7 @@ function SessionsPage() {
 							<IconTags size={16} />
 							Manage Tags
 						</Button>
-						<SessionFilters
-							currencies={currencies}
-							filters={filters}
-							onFiltersChange={setFilters}
-							stores={stores}
-						/>
-						<div className="flex items-center gap-1.5">
-							<Label className="text-xs" htmlFor="bb-bi-switch">
-								BB/BI
-							</Label>
-							<Switch
-								checked={bbBiMode}
-								id="bb-bi-switch"
-								onCheckedChange={setBbBiMode}
-							/>
-						</div>
-						<Button onClick={() => setIsCreateOpen(true)}>
+						<Button onClick={() => handleCreateDialogOpenChange(true)}>
 							<IconPlus size={16} />
 							New Session
 						</Button>
@@ -117,10 +70,32 @@ function SessionsPage() {
 				heading="Sessions"
 			/>
 
+			<div className="mb-4 flex flex-wrap items-center gap-3">
+				<SessionFilters
+					currencies={currencies}
+					filters={filters}
+					onFiltersChange={setFilters}
+					stores={stores}
+				/>
+				<div className="flex items-center gap-1.5">
+					<Label className="text-xs" htmlFor="bb-bi-switch">
+						BB/BI
+					</Label>
+					<Switch
+						checked={bbBiMode}
+						id="bb-bi-switch"
+						onCheckedChange={setBbBiMode}
+					/>
+				</div>
+			</div>
+
 			{sessions.length === 0 ? (
 				<EmptyState
 					action={
-						<Button onClick={() => setIsCreateOpen(true)} variant="outline">
+						<Button
+							onClick={() => handleCreateDialogOpenChange(true)}
+							variant="outline"
+						>
 							<IconPlus size={16} />
 							New Session
 						</Button>
@@ -136,10 +111,7 @@ function SessionsPage() {
 							bbBiMode={bbBiMode}
 							key={s.id}
 							onDelete={handleDelete}
-							onEdit={(session) => {
-								setEditingSession(session);
-								setEditStoreId(session.storeId ?? undefined);
-							}}
+							onEdit={handleOpenEdit}
 							onReopen={handleReopen}
 							session={s}
 						/>
@@ -148,12 +120,7 @@ function SessionsPage() {
 			)}
 
 			<ResponsiveDialog
-				onOpenChange={(open) => {
-					setIsCreateOpen(open);
-					if (!open) {
-						setSelectedStoreId(undefined);
-					}
-				}}
+				onOpenChange={handleCreateDialogOpenChange}
 				open={isCreateOpen}
 				title="New Session"
 			>
@@ -173,8 +140,7 @@ function SessionsPage() {
 			<ResponsiveDialog
 				onOpenChange={(open) => {
 					if (!open) {
-						setEditingSession(null);
-						setEditStoreId(undefined);
+						handleCloseEdit();
 					}
 				}}
 				open={editingSession !== null}
@@ -184,10 +150,7 @@ function SessionsPage() {
 					<SessionForm
 						currencies={currencies}
 						defaultValues={buildEditDefaults(editingSession)}
-						isLiveLinked={
-							editingSession.liveCashGameSessionId !== null ||
-							editingSession.liveTournamentSessionId !== null
-						}
+						isLiveLinked={isEditLiveLinked}
 						isLoading={isUpdatePending}
 						onCreateTag={createTag}
 						onStoreChange={setEditStoreId}

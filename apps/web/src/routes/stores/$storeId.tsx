@@ -1,7 +1,7 @@
 import { IconArrowLeft } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { RingGameTab } from "@/features/stores/components/ring-game-tab";
+import { TournamentTab } from "@/features/stores/components/tournament-tab";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -10,9 +10,7 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "@/shared/components/ui/tabs";
-import { RingGameTab } from "@/stores/components/ring-game-tab";
-import { TournamentTab } from "@/stores/components/tournament-tab";
-import { trpc } from "@/utils/trpc";
+import { useStoreDetailPage } from "./-use-store-detail-page";
 
 export const Route = createFileRoute("/stores/$storeId")({
 	component: StoreDetailPage,
@@ -20,16 +18,10 @@ export const Route = createFileRoute("/stores/$storeId")({
 
 function StoreDetailPage() {
 	const { storeId } = Route.useParams();
-	const storeQuery = useQuery(trpc.store.getById.queryOptions({ id: storeId }));
-	const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
+	const { store, isLoading, expandedGameId, handleToggleGame } =
+		useStoreDetailPage(storeId);
 
-	const handleToggleGame = (id: string | null) => {
-		setExpandedGameId(id);
-	};
-
-	const store = storeQuery.data;
-
-	if (storeQuery.isLoading) {
+	if (isLoading) {
 		return (
 			<div className="p-4 md:p-6">
 				<div className="flex items-center justify-center py-16">
