@@ -169,7 +169,7 @@ describe("useCashGameStack", () => {
 	});
 
 	describe("chip add/remove (chips_add_remove)", () => {
-		it("addChip: posts { amount, type: 'add' }", async () => {
+		it("addChip: posts a positive { amount }", async () => {
 			const qc = createClient();
 			qc.setQueryData(sessionKey, { status: "active", summary: {} });
 			qc.setQueryData(eventsKey, []);
@@ -186,12 +186,12 @@ describe("useCashGameStack", () => {
 				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
 					liveCashGameSessionId: "s1",
 					eventType: "chips_add_remove",
-					payload: { amount: 500, type: "add" },
+					payload: { amount: 500 },
 				});
 			});
 		});
 
-		it("removeChip: posts { amount, type: 'remove' }", async () => {
+		it("removeChip: posts a negative { amount }", async () => {
 			const qc = createClient();
 			qc.setQueryData(sessionKey, { status: "active", summary: {} });
 			qc.setQueryData(eventsKey, []);
@@ -208,7 +208,7 @@ describe("useCashGameStack", () => {
 				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
 					liveCashGameSessionId: "s1",
 					eventType: "chips_add_remove",
-					payload: { amount: 200, type: "remove" },
+					payload: { amount: -200 },
 				});
 			});
 		});

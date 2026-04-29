@@ -1,7 +1,6 @@
 import {
 	tournamentSessionEndPayload,
 	updateStackPayload,
-	updateTournamentInfoPayload,
 } from "@sapphire2/db/constants/session-event-types";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
@@ -14,6 +13,7 @@ import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
+	computeHeroSeatPositionFromEvents,
 	computeTournamentPLFromEvents,
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
@@ -134,13 +134,17 @@ interface TournamentInfo {
 	totalEntries: number | null;
 }
 
-function applyUpdateStack(payload: string, bounds: StackBounds): StackBounds {
+function applyUpdateStack(
+	payload: string,
+	bounds: StackBounds,
+	info: TournamentInfo
+): { bounds: StackBounds; info: TournamentInfo } {
 	const parsed = updateStackPayload.safeParse(JSON.parse(payload));
 	if (!parsed.success) {
-		return bounds;
+		return { bounds, info };
 	}
 	const stack = parsed.data.stackAmount;
-	return {
+	const nextBounds: StackBounds = {
 		maxStack:
 			bounds.maxStack === null || stack > bounds.maxStack
 				? stack
@@ -151,24 +155,16 @@ function applyUpdateStack(payload: string, bounds: StackBounds): StackBounds {
 				: bounds.minStack,
 		currentStack: stack,
 	};
-}
-
-function applyUpdateTournamentInfo(
-	payload: string,
-	info: TournamentInfo
-): TournamentInfo {
-	const parsed = updateTournamentInfoPayload.safeParse(JSON.parse(payload));
-	if (!parsed.success) {
-		return info;
-	}
-	return {
+	const nextInfo: TournamentInfo = {
 		remainingPlayers: parsed.data.remainingPlayers ?? info.remainingPlayers,
 		totalEntries: parsed.data.totalEntries ?? info.totalEntries,
 		chipPurchaseCounts:
+			parsed.data.chipPurchaseCounts &&
 			parsed.data.chipPurchaseCounts.length > 0
 				? parsed.data.chipPurchaseCounts
 				: info.chipPurchaseCounts,
 	};
+	return { bounds: nextBounds, info: nextInfo };
 }
 
 function computeStackStats(
@@ -195,9 +191,9 @@ function computeStackStats(
 
 	for (const event of events) {
 		if (event.eventType === "update_stack") {
-			bounds = applyUpdateStack(event.payload, bounds);
-		} else if (event.eventType === "update_tournament_info") {
-			info = applyUpdateTournamentInfo(event.payload, info);
+			const next = applyUpdateStack(event.payload, bounds, info);
+			bounds = next.bounds;
+			info = next.info;
 		}
 	}
 
@@ -526,7 +522,7 @@ export const liveTournamentSessionRouter = router({
 						})
 						.from(sessionEvent)
 						.where(eq(sessionEvent.sessionId, item.id))
-						.orderBy(asc(sessionEvent.sortOrder));
+						.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
 					const eventCount = events.length;
 					const statsForList = computeStackStats(
@@ -574,7 +570,7 @@ export const liveTournamentSessionRouter = router({
 				.select()
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(asc(sessionEvent.sortOrder));
+				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
 			const tablePlayers = await ctx.db
 				.select()
@@ -620,13 +616,17 @@ export const liveTournamentSessionRouter = router({
 				startingStack: masterData.startingStack ?? null,
 			};
 
+			const heroSeatPosition = computeHeroSeatPositionFromEvents(
+				events.map((e) => ({ eventType: e.eventType, payload: e.payload }))
+			);
+
 			return {
 				...session,
 				tournamentId: detail?.tournamentId ?? null,
 				buyIn: detail?.tournamentBuyIn ?? null,
 				entryFee: detail?.entryFee ?? null,
 				timerStartedAt: detail?.timerStartedAt ?? null,
-				heroSeatPosition: session.heroSeatPosition ?? null,
+				heroSeatPosition,
 				events,
 				tablePlayers,
 				blindLevels,
@@ -846,40 +846,39 @@ export const liveTournamentSessionRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const session = await findLiveTournamentSession(ctx.db, input.id, userId);
+			await findLiveTournamentSession(ctx.db, input.id, userId);
 
-			const previousHeroSeat = session.heroSeatPosition;
+			const events = await ctx.db
+				.select({
+					eventType: sessionEvent.eventType,
+					payload: sessionEvent.payload,
+				})
+				.from(sessionEvent)
+				.where(eq(sessionEvent.sessionId, input.id))
+				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
-			await ctx.db
-				.update(gameSession)
-				.set({ heroSeatPosition: input.heroSeatPosition })
-				.where(eq(gameSession.id, input.id));
+			const previousHeroSeat = computeHeroSeatPositionFromEvents(events);
 
-			const now = new Date();
-
-			const getNextSortOrder = async () => {
-				const [latest] = await ctx.db
-					.select({ maxSort: max(sessionEvent.sortOrder) })
-					.from(sessionEvent)
-					.where(eq(sessionEvent.sessionId, input.id));
-				return (latest?.maxSort ?? -1) + 1;
-			};
-
-			if (previousHeroSeat === null && input.heroSeatPosition !== null) {
-				const sortOrder = await getNextSortOrder();
-				await ctx.db.insert(sessionEvent).values({
-					id: crypto.randomUUID(),
-					sessionId: input.id,
-					eventType: "player_join",
-					occurredAt: floorToMinute(now),
-					sortOrder,
-					payload: JSON.stringify({ isHero: true }),
-					updatedAt: now,
+			if (previousHeroSeat !== null && input.heroSeatPosition !== null) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message:
+						"Hero is already seated. Leave the seat before assigning a new one.",
 				});
 			}
 
-			if (previousHeroSeat !== null && input.heroSeatPosition === null) {
-				const sortOrder = await getNextSortOrder();
+			if (previousHeroSeat === input.heroSeatPosition) {
+				return { id: input.id };
+			}
+
+			const now = new Date();
+			const [latest] = await ctx.db
+				.select({ maxSort: max(sessionEvent.sortOrder) })
+				.from(sessionEvent)
+				.where(eq(sessionEvent.sessionId, input.id));
+			const sortOrder = (latest?.maxSort ?? -1) + 1;
+
+			if (input.heroSeatPosition === null) {
 				await ctx.db.insert(sessionEvent).values({
 					id: crypto.randomUUID(),
 					sessionId: input.id,
@@ -887,6 +886,19 @@ export const liveTournamentSessionRouter = router({
 					occurredAt: floorToMinute(now),
 					sortOrder,
 					payload: JSON.stringify({ isHero: true }),
+					updatedAt: now,
+				});
+			} else {
+				await ctx.db.insert(sessionEvent).values({
+					id: crypto.randomUUID(),
+					sessionId: input.id,
+					eventType: "player_join",
+					occurredAt: floorToMinute(now),
+					sortOrder,
+					payload: JSON.stringify({
+						isHero: true,
+						seatPosition: input.heroSeatPosition,
+					}),
 					updatedAt: now,
 				});
 			}

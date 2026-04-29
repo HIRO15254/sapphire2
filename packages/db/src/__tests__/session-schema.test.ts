@@ -21,11 +21,16 @@ describe("GameSession schema — columns", () => {
 				"memo",
 				"storeId",
 				"currencyId",
-				"heroSeatPosition",
 				"createdAt",
 				"updatedAt",
 			])
 		);
+	});
+
+	it("does not include heroSeatPosition (derived from events)", () => {
+		expect(
+			(columns as Record<string, unknown>).heroSeatPosition
+		).toBeUndefined();
 	});
 
 	it("id is primary key", () => {
@@ -59,7 +64,6 @@ describe("GameSession schema — columns", () => {
 		expect(columns.memo.notNull).toBe(false);
 		expect(columns.storeId.notNull).toBe(false);
 		expect(columns.currencyId.notNull).toBe(false);
-		expect(columns.heroSeatPosition.notNull).toBe(false);
 	});
 
 	it("createdAt and updatedAt are not null", () => {
@@ -88,10 +92,6 @@ describe("GameSession schema — columns", () => {
 		expect(columns.kind.dataType).toBe("string");
 		expect(columns.status.dataType).toBe("string");
 		expect(columns.source.dataType).toBe("string");
-	});
-
-	it("heroSeatPosition is integer", () => {
-		expect(columns.heroSeatPosition.dataType).toBe("number");
 	});
 
 	it("does not have old pokerSession columns (type, ringGameId, tournamentId, liveCashGameSessionId, liveTournamentSessionId)", () => {

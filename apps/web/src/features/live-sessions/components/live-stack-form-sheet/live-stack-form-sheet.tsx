@@ -87,7 +87,6 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 		chipPurchaseTypes,
 		recordStack,
 		purchaseChips,
-		updateTournamentInfo,
 		addMemo,
 		pause,
 		complete,
@@ -115,14 +114,16 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 					}}
 					onPurchaseChips={(values) => purchaseChips(values)}
 					onSubmit={(values) => {
-						recordStack({ stackAmount: values.stackAmount });
-						if (values.recordTournamentInfo) {
-							updateTournamentInfo({
-								remainingPlayers: values.remainingPlayers,
-								totalEntries: values.totalEntries,
-								chipPurchaseCounts: values.chipPurchaseCounts,
-							});
-						}
+						recordStack({
+							stackAmount: values.stackAmount,
+							...(values.recordTournamentInfo
+								? {
+										remainingPlayers: values.remainingPlayers,
+										totalEntries: values.totalEntries,
+										chipPurchaseCounts: values.chipPurchaseCounts,
+									}
+								: {}),
+						});
 						stackSheet.close();
 					}}
 				/>

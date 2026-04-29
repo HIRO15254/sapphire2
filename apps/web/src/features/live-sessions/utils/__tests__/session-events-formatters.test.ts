@@ -33,7 +33,6 @@ describe("formatEventLabel", () => {
 		["update_stack", "Stack Update"],
 		["all_in", "All-in"],
 		["purchase_chips", "Purchase Chips"],
-		["update_tournament_info", "Tournament Info"],
 		["memo", "Memo"],
 		["session_pause", "Session Pause"],
 		["session_resume", "Session Resume"],
@@ -64,39 +63,62 @@ describe("formatPayloadSummary", () => {
 	});
 
 	describe("chips_add_remove", () => {
-		it("formats add type with amount", () => {
-			expect(
-				formatPayloadSummary("chips_add_remove", { type: "add", amount: 1000 })
-			).toBe("Add: 1,000");
+		it("formats positive amount as Add", () => {
+			expect(formatPayloadSummary("chips_add_remove", { amount: 1000 })).toBe(
+				"Add: 1,000"
+			);
 		});
 
-		it("formats remove type with amount", () => {
-			expect(
-				formatPayloadSummary("chips_add_remove", {
-					type: "remove",
-					amount: 500,
-				})
-			).toBe("Remove: 500");
+		it("formats negative amount as Remove with absolute value", () => {
+			expect(formatPayloadSummary("chips_add_remove", { amount: -500 })).toBe(
+				"Remove: 500"
+			);
 		});
 
 		it("returns null when amount is missing", () => {
-			expect(
-				formatPayloadSummary("chips_add_remove", { type: "add" })
-			).toBeNull();
+			expect(formatPayloadSummary("chips_add_remove", {})).toBeNull();
 		});
 
-		it("returns null when type is neither add nor remove", () => {
+		it("returns null when amount is non-numeric", () => {
 			expect(
-				formatPayloadSummary("chips_add_remove", { type: "foo", amount: 100 })
+				formatPayloadSummary("chips_add_remove", { amount: "100" })
 			).toBeNull();
 		});
 	});
 
 	describe("update_stack", () => {
-		it("formats stack amount", () => {
+		it("formats stack amount alone", () => {
 			expect(
 				formatPayloadSummary("update_stack", { stackAmount: 12_345 })
 			).toBe("Stack: 12,345");
+		});
+
+		it("appends remaining/total when both are present", () => {
+			expect(
+				formatPayloadSummary("update_stack", {
+					stackAmount: 12_345,
+					remainingPlayers: 25,
+					totalEntries: 100,
+				})
+			).toBe("Stack: 12,345 · 25/100");
+		});
+
+		it("renders remaining/- when only remainingPlayers is present", () => {
+			expect(
+				formatPayloadSummary("update_stack", {
+					stackAmount: 12_345,
+					remainingPlayers: 25,
+				})
+			).toBe("Stack: 12,345 · 25/-");
+		});
+
+		it("renders -/total when only totalEntries is present", () => {
+			expect(
+				formatPayloadSummary("update_stack", {
+					stackAmount: 12_345,
+					totalEntries: 100,
+				})
+			).toBe("Stack: 12,345 · -/100");
 		});
 
 		it("returns null when stackAmount is missing", () => {
@@ -146,29 +168,6 @@ describe("formatPayloadSummary", () => {
 			expect(
 				formatPayloadSummary("purchase_chips", { name: "Rebuy" })
 			).toBeNull();
-		});
-	});
-
-	describe("update_tournament_info", () => {
-		it("prefers remainingPlayers when set", () => {
-			expect(
-				formatPayloadSummary("update_tournament_info", {
-					remainingPlayers: 25,
-					totalEntries: 100,
-				})
-			).toBe("Remaining: 25");
-		});
-
-		it("falls back to totalEntries", () => {
-			expect(
-				formatPayloadSummary("update_tournament_info", {
-					totalEntries: 100,
-				})
-			).toBe("Entries: 100");
-		});
-
-		it("returns null when neither is set", () => {
-			expect(formatPayloadSummary("update_tournament_info", {})).toBeNull();
 		});
 	});
 
@@ -248,13 +247,19 @@ describe("formatPayloadSummary", () => {
 	});
 
 	describe("player_join / player_leave", () => {
-		it("returns 'Hero' when isHero=true", () => {
+		it("returns 'Hero' when isHero=true and seatPosition is missing", () => {
 			expect(formatPayloadSummary("player_join", { isHero: true })).toBe(
 				"Hero"
 			);
 			expect(formatPayloadSummary("player_leave", { isHero: true })).toBe(
 				"Hero"
 			);
+		});
+
+		it("includes the seat number on hero player_join when seatPosition is set", () => {
+			expect(
+				formatPayloadSummary("player_join", { isHero: true, seatPosition: 5 })
+			).toBe("Hero · Seat 5");
 		});
 
 		it("returns null for non-hero joins/leaves", () => {
