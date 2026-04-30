@@ -1,8 +1,11 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(bunx vitest *)",
+      "mcp__7d3661ac-8fa2-4e4c-b904-cddf640bd4ac__get_issue"
+    ]
+  },
   "enabledPlugins": {
     "spex@cc-rhuss-marketplace": true
-  },
-  "permissions": {
-    "allow": ["Bash(bunx vitest *)"]
   }
 }
