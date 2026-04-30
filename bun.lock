@@ -55,6 +55,7 @@
         "@hookform/resolvers": "^5.2.2",
         "@sapphire2/api": "workspace:*",
         "@sapphire2/auth": "workspace:*",
+        "@sapphire2/db": "workspace:*",
         "@sapphire2/env": "workspace:*",
         "@tabler/icons-react": "^3.41.1",
         "@tailwindcss/typography": "^0.5.19",

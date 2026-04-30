@@ -10,6 +10,7 @@ import {
 	IconTrophy,
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
+import { SessionResultChart } from "@/features/live-sessions/components/session-result-chart";
 import { EntityListItem } from "@/shared/components/management/entity-list-item";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -432,7 +433,13 @@ export function SessionCard({
 	onDelete,
 	onReopen,
 }: SessionCardProps) {
-	const { isSharing, onShare } = useSessionCard(session);
+	const {
+		expandedValue,
+		isExpanded,
+		isSharing,
+		onExpandedValueChange,
+		onShare,
+	} = useSessionCard(session);
 	const isTournament = session.type === "tournament";
 	const liveSessionId =
 		session.liveCashGameSessionId ?? session.liveTournamentSessionId;
@@ -452,8 +459,10 @@ export function SessionCard({
 				</Button>
 			}
 			deleteLabel="session"
+			expandedValue={expandedValue}
 			onDelete={() => onDelete(session.id)}
 			onEdit={() => onEdit(session)}
+			onExpandedValueChange={onExpandedValueChange}
 			summary={
 				<div className="flex w-full items-start justify-between gap-3 pr-1 text-left">
 					<SessionHeader bbBiMode={bbBiMode} session={session} />
@@ -465,6 +474,15 @@ export function SessionCard({
 					<TournamentDetails session={session} />
 				) : (
 					<CashGameDetails bbBiMode={bbBiMode} session={session} />
+				)}
+				{liveSessionId && (
+					<div className="mt-2 border-t pt-2">
+						<SessionResultChart
+							enabled={isExpanded}
+							liveSessionId={liveSessionId}
+							sessionType={isTournament ? "tournament" : "cash_game"}
+						/>
+					</div>
 				)}
 				{session.memo && (
 					<div className="mt-2 border-t pt-2">

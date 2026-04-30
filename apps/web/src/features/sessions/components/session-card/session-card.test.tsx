@@ -10,6 +10,13 @@ vi.mock("@tanstack/react-router", () => ({
 	),
 }));
 
+vi.mock(
+	"@/features/live-sessions/components/session-result-chart",
+	() => ({
+		SessionResultChart: () => null,
+	})
+);
+
 function makeCashGameSession(
 	overrides: Record<string, unknown> = {}
 ): Parameters<typeof SessionCard>[0]["session"] {
