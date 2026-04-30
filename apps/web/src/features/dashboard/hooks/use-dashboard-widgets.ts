@@ -13,7 +13,8 @@ export type WidgetType =
 	| "summary_stats"
 	| "recent_sessions"
 	| "active_session"
-	| "currency_balance";
+	| "currency_balance"
+	| "pnl_graph";
 
 export interface DashboardWidget {
 	config: Record<string, unknown>;

@@ -14,7 +14,7 @@ import {
 } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -1432,6 +1432,124 @@ export const sessionRouter = router({
 			);
 
 			return updated;
+		}),
+
+	profitLossSeries: protectedProcedure
+		.input(
+			z.object({
+				type: z.enum(["cash_game", "tournament"]).optional(),
+				storeId: z.string().optional(),
+				ringGameId: z.string().optional(),
+				currencyId: z.string().optional(),
+				dateFrom: z.number().optional(),
+				dateTo: z.number().optional(),
+			})
+		)
+		.query(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const conditions = [eq(gameSession.userId, userId)];
+			if (input.type) {
+				conditions.push(eq(gameSession.kind, input.type));
+			}
+			if (input.storeId) {
+				conditions.push(eq(gameSession.storeId, input.storeId));
+			}
+			if (input.currencyId) {
+				conditions.push(eq(gameSession.currencyId, input.currencyId));
+			}
+			if (input.ringGameId) {
+				conditions.push(eq(sessionCashDetail.ringGameId, input.ringGameId));
+			}
+			if (input.dateFrom !== undefined) {
+				conditions.push(
+					gte(gameSession.sessionDate, new Date(input.dateFrom * 1000))
+				);
+			}
+			if (input.dateTo !== undefined) {
+				conditions.push(
+					lte(gameSession.sessionDate, new Date(input.dateTo * 1000))
+				);
+			}
+
+			const rows = await ctx.db
+				.select({
+					id: gameSession.id,
+					type: gameSession.kind,
+					sessionDate: gameSession.sessionDate,
+					startedAt: gameSession.startedAt,
+					endedAt: gameSession.endedAt,
+					breakMinutes: gameSession.breakMinutes,
+					buyIn: sessionCashDetail.buyIn,
+					cashOut: sessionCashDetail.cashOut,
+					ringGameBlind2: ringGame.blind2,
+					tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
+					entryFee: sessionTournamentDetail.entryFee,
+					rebuyCount: sessionTournamentDetail.rebuyCount,
+					rebuyCost: sessionTournamentDetail.rebuyCost,
+					addonCost: sessionTournamentDetail.addonCost,
+					prizeMoney: sessionTournamentDetail.prizeMoney,
+					bountyPrizes: sessionTournamentDetail.bountyPrizes,
+				})
+				.from(gameSession)
+				.leftJoin(
+					sessionCashDetail,
+					eq(sessionCashDetail.sessionId, gameSession.id)
+				)
+				.leftJoin(ringGame, eq(ringGame.id, sessionCashDetail.ringGameId))
+				.leftJoin(
+					sessionTournamentDetail,
+					eq(sessionTournamentDetail.sessionId, gameSession.id)
+				)
+				.where(and(...conditions))
+				.orderBy(asc(gameSession.sessionDate), asc(gameSession.id));
+
+			const points = rows.map((r) => {
+				let profitLoss = 0;
+				let buyInTotal: number | null = null;
+				if (r.type === "cash_game" && r.buyIn !== null && r.cashOut !== null) {
+					profitLoss = computeCashGamePL(r.buyIn, r.cashOut);
+					buyInTotal = r.buyIn;
+				} else if (r.type === "tournament") {
+					profitLoss = computeTournamentPL(
+						r.tournamentBuyIn,
+						r.entryFee,
+						r.rebuyCount,
+						r.rebuyCost,
+						r.addonCost,
+						r.prizeMoney,
+						r.bountyPrizes
+					);
+					buyInTotal =
+						(r.tournamentBuyIn ?? 0) +
+						(r.entryFee ?? 0) +
+						(r.rebuyCount ?? 0) * (r.rebuyCost ?? 0) +
+						(r.addonCost ?? 0);
+					if (buyInTotal === 0) {
+						buyInTotal = null;
+					}
+				}
+
+				let playMinutes: number | null = null;
+				if (r.startedAt && r.endedAt) {
+					const elapsed = Math.max(
+						0,
+						(r.endedAt.getTime() - r.startedAt.getTime()) / 60_000
+					);
+					playMinutes = Math.max(0, elapsed - (r.breakMinutes ?? 0));
+				}
+
+				return {
+					id: r.id,
+					type: r.type as "cash_game" | "tournament",
+					sessionDate: Math.floor(r.sessionDate.getTime() / 1000),
+					profitLoss,
+					playMinutes,
+					bigBlind: r.ringGameBlind2 ?? null,
+					buyInTotal,
+				};
+			});
+
+			return { points };
 		}),
 
 	delete: protectedProcedure

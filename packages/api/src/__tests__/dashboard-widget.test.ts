@@ -209,6 +209,65 @@ describe("widget config parsing", () => {
 		expect((parsed as { type: string }).type).toBe("all");
 	});
 
+	it("returns pnl_graph defaults with currency unit and date axis", () => {
+		const parsed = parseWidgetConfig("pnl_graph", "{}") as {
+			currencyId: string | null;
+			dateRangeDays: number | null;
+			ringGameId: string | null;
+			sessionType: string;
+			showFilters: Record<string, boolean>;
+			storeId: string | null;
+			unit: string;
+			xAxis: string;
+		};
+		expect(parsed.xAxis).toBe("date");
+		expect(parsed.dateRangeDays).toBeNull();
+		expect(parsed.sessionType).toBe("all");
+		expect(parsed.unit).toBe("currency");
+		expect(parsed.storeId).toBeNull();
+		expect(parsed.ringGameId).toBeNull();
+		expect(parsed.currencyId).toBeNull();
+		expect(parsed.showFilters.xAxis).toBe(false);
+	});
+
+	it("preserves valid pnl_graph config values", () => {
+		const parsed = parseWidgetConfig(
+			"pnl_graph",
+			JSON.stringify({
+				xAxis: "playTime",
+				dateRangeDays: 30,
+				sessionType: "cash_game",
+				unit: "bb",
+				storeId: "s1",
+				ringGameId: "rg1",
+				currencyId: "c1",
+				showFilters: { xAxis: true, unit: true },
+			})
+		) as {
+			ringGameId: string | null;
+			showFilters: Record<string, boolean>;
+			storeId: string | null;
+			unit: string;
+			xAxis: string;
+		};
+		expect(parsed.xAxis).toBe("playTime");
+		expect(parsed.unit).toBe("bb");
+		expect(parsed.storeId).toBe("s1");
+		expect(parsed.ringGameId).toBe("rg1");
+		expect(parsed.showFilters.xAxis).toBe(true);
+		expect(parsed.showFilters.unit).toBe(true);
+		expect(parsed.showFilters.dateRange).toBe(false);
+	});
+
+	it("falls back to defaults for invalid pnl_graph enum values", () => {
+		const parsed = parseWidgetConfig(
+			"pnl_graph",
+			JSON.stringify({ xAxis: "weird", unit: "satoshi" })
+		) as { unit: string; xAxis: string };
+		expect(parsed.xAxis).toBe("date");
+		expect(parsed.unit).toBe("currency");
+	});
+
 	it("stringifies config safely", () => {
 		expect(stringifyWidgetConfig({ foo: "bar" })).toBe('{"foo":"bar"}');
 		expect(stringifyWidgetConfig(null)).toBe("{}");
