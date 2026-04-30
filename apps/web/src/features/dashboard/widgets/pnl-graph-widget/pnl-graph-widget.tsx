@@ -1,12 +1,4 @@
-import {
-	CartesianGrid,
-	Line,
-	LineChart,
-	ResponsiveContainer,
-	Tooltip,
-	XAxis,
-	YAxis,
-} from "recharts";
+import { lazy, Suspense } from "react";
 import type {
 	WidgetEditProps,
 	WidgetRenderProps,
@@ -25,7 +17,6 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
-import { formatCompactNumber } from "@/utils/format-number";
 import { usePnlGraphEditForm } from "./use-pnl-graph-edit-form";
 import {
 	type PnlGraphSessionType,
@@ -33,6 +24,8 @@ import {
 	type PnlGraphXAxis,
 	usePnlGraphWidget,
 } from "./use-pnl-graph-widget";
+
+const PnlGraphChart = lazy(() => import("./pnl-graph-chart"));
 
 const X_AXIS_LABEL: Record<PnlGraphXAxis, string> = {
 	date: "Date",
@@ -54,26 +47,6 @@ const UNIT_LABEL: Record<PnlGraphUnit, string> = {
 
 const NONE_VALUE = "__none__";
 
-function formatXTick(value: number, xAxis: PnlGraphXAxis): string {
-	if (xAxis === "date") {
-		const d = new Date(value);
-		const month = String(d.getUTCMonth() + 1).padStart(2, "0");
-		const day = String(d.getUTCDate()).padStart(2, "0");
-		return `${month}/${day}`;
-	}
-	return formatCompactNumber(value);
-}
-
-function formatTooltipLabel(value: number, xAxis: PnlGraphXAxis): string {
-	if (xAxis === "date") {
-		return new Date(value).toISOString().slice(0, 10);
-	}
-	if (xAxis === "playTime") {
-		return `${value.toFixed(0)} min`;
-	}
-	return `Session ${value}`;
-}
-
 interface ChartBodyProps {
 	isLoading: boolean;
 	points: { cumulative: number; x: number }[];
@@ -92,44 +65,9 @@ function ChartBody({ isLoading, points, xAxisType }: ChartBodyProps) {
 		);
 	}
 	return (
-		<ResponsiveContainer height="100%" width="100%">
-			<LineChart
-				data={points}
-				margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-			>
-				<CartesianGrid className="stroke-border" strokeDasharray="3 3" />
-				<XAxis
-					dataKey="x"
-					domain={["dataMin", "dataMax"]}
-					tick={{ fontSize: 10 }}
-					tickFormatter={(v: number) => formatXTick(v, xAxisType)}
-					type="number"
-				/>
-				<YAxis
-					tick={{ fontSize: 10 }}
-					tickFormatter={(v: number) => formatCompactNumber(v)}
-					width={50}
-				/>
-				<Tooltip
-					formatter={(value) =>
-						typeof value === "number" ? formatCompactNumber(value) : ""
-					}
-					labelFormatter={(label) =>
-						typeof label === "number"
-							? formatTooltipLabel(label, xAxisType)
-							: ""
-					}
-				/>
-				<Line
-					className="stroke-primary"
-					dataKey="cumulative"
-					dot={false}
-					isAnimationActive={false}
-					strokeWidth={2}
-					type="monotone"
-				/>
-			</LineChart>
-		</ResponsiveContainer>
+		<Suspense fallback={<Skeleton className="h-full w-full" />}>
+			<PnlGraphChart points={points} xAxisType={xAxisType} />
+		</Suspense>
 	);
 }
 
