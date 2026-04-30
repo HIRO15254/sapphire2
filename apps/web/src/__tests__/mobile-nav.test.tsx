@@ -186,12 +186,12 @@ describe("MobileNav - Paused Session Mode", () => {
 		expect(screen.getByText("Resume")).toBeInTheDocument();
 	});
 
-	it("does not display live session nav items (Events, Game, Overview)", async () => {
+	it("does not display live session nav items (Timeline, Game, Overview)", async () => {
 		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
 
 		await screen.findByText("Dashboard");
-		expect(screen.queryByText("Events")).not.toBeInTheDocument();
+		expect(screen.queryByText("Timeline")).not.toBeInTheDocument();
 		expect(screen.queryByText("Game")).not.toBeInTheDocument();
 		expect(screen.queryByText("Overview")).not.toBeInTheDocument();
 	});
@@ -225,7 +225,7 @@ describe("MobileNav - Live Session Mode (active session)", () => {
 		);
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("Events");
+		await screen.findByText("Timeline");
 		expect(screen.getByText("Game")).toBeInTheDocument();
 		expect(screen.getByText("Overview")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
