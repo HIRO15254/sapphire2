@@ -128,4 +128,10 @@
 	html {
 		@apply font-mono;
 	}
+	.recharts-wrapper,
+	.recharts-wrapper *,
+	.recharts-surface,
+	.recharts-surface * {
+		outline: none !important;
+	}
 }

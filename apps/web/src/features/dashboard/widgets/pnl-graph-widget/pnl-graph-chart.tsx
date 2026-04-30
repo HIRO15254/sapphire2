@@ -13,7 +13,6 @@ import type { PnlGraphXAxis } from "./aggregate-pnl-points";
 
 const COLOR_CASH = "oklch(0.62 0.21 250)";
 const COLOR_TOURNAMENT = "oklch(0.75 0.16 70)";
-const COLOR_EV_CASH = "oklch(0.7 0.17 162)";
 const COLOR_PRIMARY = "var(--color-primary)";
 
 function formatXTick(value: number, xAxis: PnlGraphXAxis): string {
@@ -95,6 +94,73 @@ function CustomTooltip({ active, label, payload, xAxis }: CustomTooltipProps) {
 	);
 }
 
+function computeAlignedDomain(
+	min: number,
+	max: number,
+	negFrac: number
+): [number, number] {
+	if (min === 0 && max === 0) {
+		return [-1, 1];
+	}
+	if (negFrac === 0) {
+		return [0, max || 1];
+	}
+	if (negFrac === 1) {
+		return [min || -1, 0];
+	}
+	const candidateMin = (-max * negFrac) / (1 - negFrac);
+	if (candidateMin <= min) {
+		return [candidateMin, max];
+	}
+	const newMax = (-min * (1 - negFrac)) / negFrac;
+	return [min, newMax];
+}
+
+interface ScanResult {
+	bbMax: number;
+	bbMin: number;
+	biMax: number;
+	biMin: number;
+}
+
+function scanDualValues(points: ChartPoint[]): ScanResult {
+	let bbMin = 0;
+	let bbMax = 0;
+	let biMin = 0;
+	let biMax = 0;
+	for (const p of points) {
+		if (typeof p.cashCumulative === "number") {
+			bbMin = Math.min(bbMin, p.cashCumulative);
+			bbMax = Math.max(bbMax, p.cashCumulative);
+		}
+		if (typeof p.evCashCumulative === "number") {
+			bbMin = Math.min(bbMin, p.evCashCumulative);
+			bbMax = Math.max(bbMax, p.evCashCumulative);
+		}
+		if (typeof p.tournamentCumulative === "number") {
+			biMin = Math.min(biMin, p.tournamentCumulative);
+			biMax = Math.max(biMax, p.tournamentCumulative);
+		}
+	}
+	return { bbMin, bbMax, biMin, biMax };
+}
+
+function alignedDualDomains(points: ChartPoint[]): {
+	bb: [number, number];
+	bi: [number, number];
+} {
+	const { bbMin, bbMax, biMin, biMax } = scanDualValues(points);
+	const bbRange = bbMax - bbMin || 1;
+	const biRange = biMax - biMin || 1;
+	const bbNegFrac = -bbMin / bbRange;
+	const biNegFrac = -biMin / biRange;
+	const negFrac = Math.max(bbNegFrac, biNegFrac);
+	return {
+		bb: computeAlignedDomain(bbMin, bbMax, negFrac),
+		bi: computeAlignedDomain(biMin, biMax, negFrac),
+	};
+}
+
 interface PnlGraphChartProps {
 	dual: boolean;
 	points: ChartPoint[];
@@ -109,8 +175,10 @@ export default function PnlGraphChart({
 	xAxisType,
 }: PnlGraphChartProps) {
 	const showLegend = dual || showEvCash;
+	const dualDomains = dual ? alignedDualDomains(points) : null;
+	const singleColor = dual ? COLOR_CASH : COLOR_PRIMARY;
 	return (
-		<div className="h-full w-full focus:outline-none [&_.recharts-surface]:focus:outline-none [&_.recharts-surface]:focus-visible:outline-none [&_.recharts-wrapper]:focus:outline-none [&_.recharts-wrapper]:focus-visible:outline-none">
+		<div className="h-full w-full">
 			<ResponsiveContainer height="100%" width="100%">
 				<LineChart
 					data={points}
@@ -124,15 +192,17 @@ export default function PnlGraphChart({
 						tickFormatter={(v: number) => formatXTick(v, xAxisType)}
 						type="number"
 					/>
-					{dual ? (
+					{dual && dualDomains ? (
 						<>
 							<YAxis
+								domain={dualDomains.bb}
 								tick={{ fontSize: 10 }}
 								tickFormatter={(v: number) => formatCompactNumber(v)}
 								width={50}
 								yAxisId="bb"
 							/>
 							<YAxis
+								domain={dualDomains.bi}
 								orientation="right"
 								tick={{ fontSize: 10 }}
 								tickFormatter={(v: number) => formatCompactNumber(v)}
@@ -181,6 +251,20 @@ export default function PnlGraphChart({
 								type="linear"
 								yAxisId="bb"
 							/>
+							{showEvCash ? (
+								<Line
+									connectNulls
+									dataKey="evCashCumulative"
+									dot={false}
+									isAnimationActive={false}
+									name="EV BB (cash)"
+									stroke={COLOR_CASH}
+									strokeDasharray="4 4"
+									strokeWidth={2}
+									type="linear"
+									yAxisId="bb"
+								/>
+							) : null}
 							<Line
 								connectNulls
 								dataKey="tournamentCumulative"
@@ -192,20 +276,6 @@ export default function PnlGraphChart({
 								type="linear"
 								yAxisId="bi"
 							/>
-							{showEvCash ? (
-								<Line
-									connectNulls
-									dataKey="evCashCumulative"
-									dot={false}
-									isAnimationActive={false}
-									name="EV BB (cash)"
-									stroke={COLOR_EV_CASH}
-									strokeDasharray="4 4"
-									strokeWidth={2}
-									type="linear"
-									yAxisId="bb"
-								/>
-							) : null}
 						</>
 					) : (
 						<>
@@ -214,7 +284,7 @@ export default function PnlGraphChart({
 								dot={false}
 								isAnimationActive={false}
 								name="Cumulative"
-								stroke={COLOR_PRIMARY}
+								stroke={singleColor}
 								strokeWidth={2}
 								type="linear"
 							/>
@@ -225,7 +295,7 @@ export default function PnlGraphChart({
 									dot={false}
 									isAnimationActive={false}
 									name="EV (cash)"
-									stroke={COLOR_EV_CASH}
+									stroke={singleColor}
 									strokeDasharray="4 4"
 									strokeWidth={2}
 									type="linear"
