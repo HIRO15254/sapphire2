@@ -139,95 +139,95 @@ export function SessionForm({
 			{isLiveLinked && (
 				<Alert data-testid="live-linked-banner">
 					<AlertDescription>
-						This session is generated from a live session. Items calculated from
-						event history cannot be edited. To modify, edit the events in the
-						live session.
+						This session was generated from a live session. Fields derived from
+						event history — timing, buy-ins, payouts, placement, chip purchases,
+						and blinds — are managed there and are not shown here. Edit the
+						events in the live session to update them. Store, currency, tags,
+						and memo can still be edited below.
 					</AlertDescription>
 				</Alert>
 			)}
-			<Field label="Session Type">
-				<Tabs
-					onValueChange={(value) =>
-						setSessionType(value as "cash_game" | "tournament")
-					}
-					value={sessionType}
-				>
-					<TabsList className="grid w-full grid-cols-2">
-						<TabsTrigger disabled={isLiveLinked} value="cash_game">
-							Cash Game
-						</TabsTrigger>
-						<TabsTrigger disabled={isLiveLinked} value="tournament">
-							Tournament
-						</TabsTrigger>
-					</TabsList>
-				</Tabs>
-			</Field>
+			{!isLiveLinked && (
+				<Field label="Session Type">
+					<Tabs
+						onValueChange={(value) =>
+							setSessionType(value as "cash_game" | "tournament")
+						}
+						value={sessionType}
+					>
+						<TabsList className="grid w-full grid-cols-2">
+							<TabsTrigger value="cash_game">Cash Game</TabsTrigger>
+							<TabsTrigger value="tournament">Tournament</TabsTrigger>
+						</TabsList>
+					</Tabs>
+				</Field>
+			)}
 
 			<div className="flex flex-col gap-4">
-				<form.Field name="sessionDate">
-					{(field) => (
-						<Field htmlFor={field.name} label="Session Date" required>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								type="date"
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
+				{!isLiveLinked && (
+					<>
+						<form.Field name="sessionDate">
+							{(field) => (
+								<Field htmlFor={field.name} label="Session Date" required>
+									<Input
+										id={field.name}
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										type="date"
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
 
-				<div className="grid grid-cols-2 gap-3">
-					<form.Field name="startTime">
-						{(field) => (
-							<Field htmlFor={field.name} label="Start Time">
-								<Input
-									disabled={isLiveLinked}
-									id={field.name}
-									onBlur={field.handleBlur}
-									onChange={(e) => field.handleChange(e.target.value)}
-									type="time"
-									value={field.state.value}
-								/>
-							</Field>
-						)}
-					</form.Field>
-					<form.Field name="endTime">
-						{(field) => (
-							<Field htmlFor={field.name} label="End Time">
-								<Input
-									disabled={isLiveLinked}
-									id={field.name}
-									onBlur={field.handleBlur}
-									onChange={(e) => field.handleChange(e.target.value)}
-									type="time"
-									value={field.state.value}
-								/>
-							</Field>
-						)}
-					</form.Field>
-				</div>
+						<div className="grid grid-cols-2 gap-3">
+							<form.Field name="startTime">
+								{(field) => (
+									<Field htmlFor={field.name} label="Start Time">
+										<Input
+											id={field.name}
+											onBlur={field.handleBlur}
+											onChange={(e) => field.handleChange(e.target.value)}
+											type="time"
+											value={field.state.value}
+										/>
+									</Field>
+								)}
+							</form.Field>
+							<form.Field name="endTime">
+								{(field) => (
+									<Field htmlFor={field.name} label="End Time">
+										<Input
+											id={field.name}
+											onBlur={field.handleBlur}
+											onChange={(e) => field.handleChange(e.target.value)}
+											type="time"
+											value={field.state.value}
+										/>
+									</Field>
+								)}
+							</form.Field>
+						</div>
 
-				<form.Field name="breakMinutes">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Break Time (min)"
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
+						<form.Field name="breakMinutes">
+							{(field) => (
+								<Field
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="Break Time (min)"
+								>
+									<Input
+										id={field.name}
+										inputMode="numeric"
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
+					</>
+				)}
 
 				<StoreGameSelectors
 					gameLabel={gameLabel}
@@ -240,7 +240,7 @@ export function SessionForm({
 					stores={stores}
 				/>
 
-				{isCashGame && (
+				{!isLiveLinked && isCashGame && (
 					<>
 						<div className="grid grid-cols-2 gap-3">
 							<form.Field name="buyIn">
@@ -252,7 +252,6 @@ export function SessionForm({
 										required
 									>
 										<Input
-											disabled={isLiveLinked}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -271,7 +270,6 @@ export function SessionForm({
 										required
 									>
 										<Input
-											disabled={isLiveLinked}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -286,7 +284,6 @@ export function SessionForm({
 							{(field) => (
 								<Field htmlFor={field.name} label="EV Cash-out">
 									<Input
-										disabled={isLiveLinked}
 										id={field.name}
 										inputMode="numeric"
 										onBlur={field.handleBlur}
@@ -299,10 +296,9 @@ export function SessionForm({
 					</>
 				)}
 
-				{!isCashGame && (
+				{!(isLiveLinked || isCashGame) && (
 					<TournamentPrimaryFields
 						form={form}
-						isLiveLinked={isLiveLinked}
 						key={`tourney-primary-${selectedGameId ?? "none"}`}
 					/>
 				)}

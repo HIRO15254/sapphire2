@@ -75,118 +75,35 @@ export function CashGameFields({
 				</Field>
 			)}
 
-			<form.Field name="variant">
-				{(field) => (
-					<Field htmlFor={field.name} label="Variant">
-						<Select
-							disabled={isLiveLinked}
-							onValueChange={(v) => field.handleChange(v)}
-							value={field.state.value}
-						>
-							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="nlh">NL Hold&apos;em</SelectItem>
-							</SelectContent>
-						</Select>
-					</Field>
-				)}
-			</form.Field>
+			{!isLiveLinked && (
+				<>
+					<form.Field name="variant">
+						{(field) => (
+							<Field htmlFor={field.name} label="Variant">
+								<Select
+									onValueChange={(v) => field.handleChange(v)}
+									value={field.state.value}
+								>
+									<SelectTrigger className="w-full" id={field.name}>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="nlh">NL Hold&apos;em</SelectItem>
+									</SelectContent>
+								</Select>
+							</Field>
+						)}
+					</form.Field>
 
-			<div className="grid grid-cols-3 gap-3">
-				<form.Field name="blind1">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="SB"
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="blind2">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="BB"
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="blind3">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Straddle"
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-			</div>
-
-			<div className="flex gap-3">
-				<form.Field name="anteType">
-					{(field) => (
-						<Field className="flex-1" htmlFor={field.name} label="Ante Type">
-							<Select
-								disabled={isLiveLinked}
-								onValueChange={(v) => field.handleChange(v)}
-								value={field.state.value}
-							>
-								<SelectTrigger className="w-full" id={field.name}>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{ANTE_TYPES.map((at) => (
-										<SelectItem key={at.value} value={at.value}>
-											{at.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</Field>
-					)}
-				</form.Field>
-
-				<form.Subscribe selector={(state) => state.values.anteType === "none"}>
-					{(isAnteDisabled) => (
-						<form.Field name="ante">
+					<div className="grid grid-cols-3 gap-3">
+						<form.Field name="blind1">
 							{(field) => (
 								<Field
-									className="flex-1"
 									error={field.state.meta.errors[0]?.message}
 									htmlFor={field.name}
-									label="Ante"
+									label="SB"
 								>
 									<Input
-										disabled={isLiveLinked || isAnteDisabled}
 										id={field.name}
 										inputMode="numeric"
 										onBlur={field.handleBlur}
@@ -196,32 +113,119 @@ export function CashGameFields({
 								</Field>
 							)}
 						</form.Field>
-					)}
-				</form.Subscribe>
-			</div>
+						<form.Field name="blind2">
+							{(field) => (
+								<Field
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="BB"
+								>
+									<Input
+										id={field.name}
+										inputMode="numeric"
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="blind3">
+							{(field) => (
+								<Field
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="Straddle"
+								>
+									<Input
+										id={field.name}
+										inputMode="numeric"
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
+					</div>
 
-			<form.Field name="tableSize">
-				{(field) => (
-					<Field htmlFor={field.name} label="Table Size">
-						<Select
-							disabled={isLiveLinked}
-							onValueChange={(v) => field.handleChange(v)}
-							value={field.state.value}
+					<div className="flex gap-3">
+						<form.Field name="anteType">
+							{(field) => (
+								<Field
+									className="flex-1"
+									htmlFor={field.name}
+									label="Ante Type"
+								>
+									<Select
+										onValueChange={(v) => field.handleChange(v)}
+										value={field.state.value}
+									>
+										<SelectTrigger className="w-full" id={field.name}>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{ANTE_TYPES.map((at) => (
+												<SelectItem key={at.value} value={at.value}>
+													{at.label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</Field>
+							)}
+						</form.Field>
+
+						<form.Subscribe
+							selector={(state) => state.values.anteType === "none"}
 						>
-							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{TABLE_SIZES.map((size) => (
-									<SelectItem key={size} value={size.toString()}>
-										{size}-max
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</Field>
-				)}
-			</form.Field>
+							{(isAnteDisabled) => (
+								<form.Field name="ante">
+									{(field) => (
+										<Field
+											className="flex-1"
+											error={field.state.meta.errors[0]?.message}
+											htmlFor={field.name}
+											label="Ante"
+										>
+											<Input
+												disabled={isAnteDisabled}
+												id={field.name}
+												inputMode="numeric"
+												onBlur={field.handleBlur}
+												onChange={(e) => field.handleChange(e.target.value)}
+												value={field.state.value}
+											/>
+										</Field>
+									)}
+								</form.Field>
+							)}
+						</form.Subscribe>
+					</div>
+
+					<form.Field name="tableSize">
+						{(field) => (
+							<Field htmlFor={field.name} label="Table Size">
+								<Select
+									onValueChange={(v) => field.handleChange(v)}
+									value={field.state.value}
+								>
+									<SelectTrigger className="w-full" id={field.name}>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{TABLE_SIZES.map((size) => (
+											<SelectItem key={size} value={size.toString()}>
+												{size}-max
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</Field>
+						)}
+					</form.Field>
+				</>
+			)}
 		</>
 	);
 }

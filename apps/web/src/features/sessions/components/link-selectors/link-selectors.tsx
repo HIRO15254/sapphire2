@@ -53,11 +53,10 @@ export function StoreGameSelectors({
 				</SelectWithClear>
 			</Field>
 
-			{selectedStoreId && (
+			{selectedStoreId && !isLiveLinked && (
 				<Field label={gameLabel}>
 					{hasGameOptions ? (
 						<SelectWithClear
-							disabled={isLiveLinked}
 							onValueChange={onGameChange}
 							value={selectedGameId}
 						>
