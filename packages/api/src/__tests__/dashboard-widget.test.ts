@@ -214,4 +214,94 @@ describe("widget config parsing", () => {
 		expect(stringifyWidgetConfig(null)).toBe("{}");
 		expect(stringifyWidgetConfig(undefined)).toBe("{}");
 	});
+
+	it("returns per-field defaults for global_filter when config is empty", () => {
+		const parsed = parseWidgetConfig("global_filter", "{}") as Record<
+			string,
+			{ initialValue: unknown; visible: boolean }
+		>;
+		for (const key of [
+			"type",
+			"storeId",
+			"currencyId",
+			"dateFrom",
+			"dateTo",
+			"dateRangeDays",
+		]) {
+			expect(parsed[key]).toEqual({ initialValue: null, visible: true });
+		}
+	});
+
+	it("preserves valid global_filter values across all fields", () => {
+		const parsed = parseWidgetConfig(
+			"global_filter",
+			JSON.stringify({
+				type: { initialValue: "cash_game", visible: true },
+				storeId: { initialValue: "store-1", visible: false },
+				currencyId: { initialValue: "currency-1", visible: true },
+				dateFrom: { initialValue: "2026-01-01", visible: true },
+				dateTo: { initialValue: "2026-12-31", visible: false },
+				dateRangeDays: { initialValue: 30, visible: true },
+			})
+		) as Record<string, { initialValue: unknown; visible: boolean }>;
+		expect(parsed.type).toEqual({ initialValue: "cash_game", visible: true });
+		expect(parsed.storeId).toEqual({
+			initialValue: "store-1",
+			visible: false,
+		});
+		expect(parsed.currencyId).toEqual({
+			initialValue: "currency-1",
+			visible: true,
+		});
+		expect(parsed.dateFrom).toEqual({
+			initialValue: "2026-01-01",
+			visible: true,
+		});
+		expect(parsed.dateTo).toEqual({
+			initialValue: "2026-12-31",
+			visible: false,
+		});
+		expect(parsed.dateRangeDays).toEqual({
+			initialValue: 30,
+			visible: true,
+		});
+	});
+
+	it("falls back to defaults for global_filter when values are invalid", () => {
+		const parsed = parseWidgetConfig(
+			"global_filter",
+			JSON.stringify({
+				type: { initialValue: "weird", visible: true },
+				dateRangeDays: { initialValue: -5, visible: true },
+			})
+		) as Record<string, { initialValue: unknown; visible: boolean }>;
+		expect(parsed.type).toEqual({ initialValue: null, visible: true });
+		expect(parsed.dateRangeDays).toEqual({
+			initialValue: null,
+			visible: true,
+		});
+	});
+
+	it("respects visible=false on global_filter fields", () => {
+		const parsed = parseWidgetConfig(
+			"global_filter",
+			JSON.stringify({ type: { initialValue: null, visible: false } })
+		) as Record<string, { initialValue: unknown; visible: boolean }>;
+		expect(parsed.type.visible).toBe(false);
+	});
+
+	it("preserves null initialValue on global_filter fields", () => {
+		const parsed = parseWidgetConfig(
+			"global_filter",
+			JSON.stringify({ storeId: { initialValue: null, visible: true } })
+		) as Record<string, { initialValue: unknown; visible: boolean }>;
+		expect(parsed.storeId.initialValue).toBeNull();
+		expect(parsed.storeId.visible).toBe(true);
+	});
+});
+
+describe("widget type schema", () => {
+	it("includes global_filter as a valid type", () => {
+		expect(widgetTypeSchema.options).toContain("global_filter");
+	});
 });

@@ -1,4 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+	resolveDateFromEpoch,
+	resolveDateToEpoch,
+	resolveSessionType,
+	useGlobalFilter,
+} from "@/features/dashboard/hooks/use-global-filter";
 import { trpc } from "@/utils/trpc";
 
 export type RecentSessionsWidgetTypeFilter = "all" | "cash_game" | "tournament";
@@ -41,9 +47,17 @@ export function useRecentSessionsWidget(
 	config: Record<string, unknown>
 ): UseRecentSessionsWidgetResult {
 	const parsed = parseRecentSessionsWidgetConfig(config);
+	const globalFilter = useGlobalFilter();
+	const effectiveType = resolveSessionType(parsed.type, globalFilter);
+	const dateFrom = resolveDateFromEpoch(globalFilter);
+	const dateTo = resolveDateToEpoch(globalFilter);
 	const query = useQuery(
 		trpc.session.list.queryOptions({
-			type: parsed.type === "all" ? undefined : parsed.type,
+			type: effectiveType === "all" ? undefined : effectiveType,
+			storeId: globalFilter.storeId ?? undefined,
+			currencyId: globalFilter.currencyId ?? undefined,
+			dateFrom,
+			dateTo,
 		})
 	);
 

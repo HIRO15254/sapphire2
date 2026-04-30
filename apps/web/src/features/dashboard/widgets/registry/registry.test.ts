@@ -14,6 +14,9 @@ vi.mock("@/utils/trpc", () => ({
 		currency: {
 			list: { queryOptions: () => ({ queryKey: ["currency-list"] }) },
 		},
+		store: {
+			list: { queryOptions: () => ({ queryKey: ["store-list"] }) },
+		},
 		dashboardWidget: {
 			list: { queryOptions: () => ({ queryKey: ["widget-list"] }) },
 		},
@@ -26,11 +29,12 @@ const { getWidgetEntry, listWidgetTypes, widgetRegistry } = await import(
 );
 
 describe("widget registry", () => {
-	it("has entries for all 4 MVP widget types", () => {
+	it("has entries for all 5 widget types", () => {
 		expect(Object.keys(widgetRegistry).sort()).toEqual(
 			[
 				"active_session",
 				"currency_balance",
+				"global_filter",
 				"recent_sessions",
 				"summary_stats",
 			].sort()
@@ -39,7 +43,7 @@ describe("widget registry", () => {
 
 	it("lists all widget entries", () => {
 		const entries = listWidgetTypes();
-		expect(entries).toHaveLength(4);
+		expect(entries).toHaveLength(5);
 		for (const entry of entries) {
 			expect(entry.label).toBeTruthy();
 			expect(entry.Render).toBeTruthy();
@@ -52,5 +56,10 @@ describe("widget registry", () => {
 	it("returns entry by type", () => {
 		expect(getWidgetEntry("summary_stats").type).toBe("summary_stats");
 		expect(getWidgetEntry("active_session").type).toBe("active_session");
+		expect(getWidgetEntry("global_filter").type).toBe("global_filter");
+	});
+
+	it("global_filter has an EditForm", () => {
+		expect(getWidgetEntry("global_filter").EditForm).toBeTruthy();
 	});
 });

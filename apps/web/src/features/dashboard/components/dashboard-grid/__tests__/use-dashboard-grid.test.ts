@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/utils/trpc", () => ({
@@ -13,6 +13,9 @@ vi.mock("@/utils/trpc", () => ({
 		currency: {
 			list: { queryOptions: () => ({ queryKey: ["currency-list"] }) },
 		},
+		store: {
+			list: { queryOptions: () => ({ queryKey: ["store-list"] }) },
+		},
 	},
 	trpcClient: {},
 }));
@@ -23,6 +26,7 @@ import {
 	useDashboardGrid,
 } from "@/features/dashboard/components/dashboard-grid/use-dashboard-grid";
 import type { DashboardWidget } from "@/features/dashboard/hooks/use-dashboard-widgets";
+import { DEFAULT_GLOBAL_FILTER_VALUES } from "@/features/dashboard/hooks/use-global-filter";
 
 function widget(partial: Partial<DashboardWidget>): DashboardWidget {
 	return {
@@ -120,5 +124,106 @@ describe("useDashboardGrid", () => {
 		const first = result.current.layout;
 		rerender({ ws: widgets });
 		expect(result.current.layout).toBe(first);
+	});
+});
+
+describe("useDashboardGrid — globalFilter", () => {
+	it("exposes default values when no global_filter widget is present", () => {
+		const { result } = renderHook(() => useDashboardGrid([], "desktop"));
+		expect(result.current.globalFilter.values).toEqual(
+			DEFAULT_GLOBAL_FILTER_VALUES
+		);
+	});
+
+	it("seeds runtime values from global_filter widget config initialValues", () => {
+		const widgets: DashboardWidget[] = [
+			widget({
+				id: "gf",
+				type: "global_filter",
+				config: {
+					type: { initialValue: "cash_game", visible: true },
+					storeId: { initialValue: "store-1", visible: true },
+					dateRangeDays: { initialValue: 7, visible: true },
+				},
+			}),
+		];
+		const { result } = renderHook(() => useDashboardGrid(widgets, "desktop"));
+		expect(result.current.globalFilter.values.type).toBe("cash_game");
+		expect(result.current.globalFilter.values.storeId).toBe("store-1");
+		expect(result.current.globalFilter.values.dateRangeDays).toBe(7);
+	});
+
+	it("setValue updates a single key", () => {
+		const { result } = renderHook(() => useDashboardGrid([], "desktop"));
+		act(() => {
+			result.current.globalFilter.setValue("type", "tournament");
+		});
+		expect(result.current.globalFilter.values.type).toBe("tournament");
+		expect(result.current.globalFilter.values.storeId).toBeNull();
+	});
+
+	it("reset restores values to the config initialValues", () => {
+		const widgets: DashboardWidget[] = [
+			widget({
+				id: "gf",
+				type: "global_filter",
+				config: {
+					type: { initialValue: "cash_game", visible: true },
+				},
+			}),
+		];
+		const { result } = renderHook(() => useDashboardGrid(widgets, "desktop"));
+		act(() => {
+			result.current.globalFilter.setValue("type", "tournament");
+		});
+		expect(result.current.globalFilter.values.type).toBe("tournament");
+		act(() => {
+			result.current.globalFilter.reset();
+		});
+		expect(result.current.globalFilter.values.type).toBe("cash_game");
+	});
+
+	it("resets runtime values when widget config changes", () => {
+		const initial: DashboardWidget[] = [
+			widget({
+				id: "gf",
+				type: "global_filter",
+				config: { type: { initialValue: "cash_game", visible: true } },
+			}),
+		];
+		const next: DashboardWidget[] = [
+			widget({
+				id: "gf",
+				type: "global_filter",
+				config: { type: { initialValue: "tournament", visible: true } },
+			}),
+		];
+		const { result, rerender } = renderHook(
+			({ ws }: { ws: DashboardWidget[] }) => useDashboardGrid(ws, "desktop"),
+			{ initialProps: { ws: initial } }
+		);
+		expect(result.current.globalFilter.values.type).toBe("cash_game");
+		rerender({ ws: next });
+		expect(result.current.globalFilter.values.type).toBe("tournament");
+	});
+
+	it("preserves user-set runtime values when widgets array reference changes but config doesn't", () => {
+		const widgets: DashboardWidget[] = [
+			widget({
+				id: "gf",
+				type: "global_filter",
+				config: { type: { initialValue: null, visible: true } },
+			}),
+		];
+		const { result, rerender } = renderHook(
+			({ ws }: { ws: DashboardWidget[] }) => useDashboardGrid(ws, "desktop"),
+			{ initialProps: { ws: widgets } }
+		);
+		act(() => {
+			result.current.globalFilter.setValue("type", "tournament");
+		});
+		// Same content but new array reference (e.g. query refetch).
+		rerender({ ws: [...widgets] });
+		expect(result.current.globalFilter.values.type).toBe("tournament");
 	});
 });

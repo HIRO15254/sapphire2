@@ -31,6 +31,11 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 import {
+	DEFAULT_GLOBAL_FILTER_VALUES,
+	GlobalFilterProvider,
+	type GlobalFilterValues,
+} from "@/features/dashboard/hooks/use-global-filter";
+import {
 	parseActiveSessionWidgetConfig,
 	useActiveSessionWidget,
 } from "@/features/dashboard/widgets/active-session-widget/use-active-session-widget";
@@ -58,6 +63,25 @@ function createClient(): QueryClient {
 function wrapper(client: QueryClient) {
 	return function Wrapper({ children }: { children: ReactNode }) {
 		return createElement(QueryClientProvider, { client }, children);
+	};
+}
+
+function wrapperWithGlobalFilter(
+	client: QueryClient,
+	values: GlobalFilterValues
+) {
+	const setValue = vi.fn();
+	const reset = vi.fn();
+	return function Wrapper({ children }: { children: ReactNode }) {
+		return createElement(
+			QueryClientProvider,
+			{ client },
+			createElement(
+				GlobalFilterProvider,
+				{ value: { values, setValue, reset } },
+				children
+			)
+		);
 	};
 }
 
@@ -127,5 +151,52 @@ describe("useActiveSessionWidget", () => {
 		});
 		expect(result.current.cashItems).toEqual([]);
 		expect(result.current.tournamentItems).toEqual([]);
+	});
+});
+
+describe("useActiveSessionWidget — global filter integration", () => {
+	it("global filter type='cash_game' overrides local 'all'", async () => {
+		const qc = createClient();
+		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
+		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
+		const { result } = renderHook(() => useActiveSessionWidget({}), {
+			wrapper: wrapperWithGlobalFilter(qc, {
+				...DEFAULT_GLOBAL_FILTER_VALUES,
+				type: "cash_game",
+			}),
+		});
+		await waitFor(() => expect(result.current.cashItems).toHaveLength(1));
+		expect(result.current.tournamentItems).toEqual([]);
+	});
+
+	it("global filter type='tournament' overrides local 'cash_game'", async () => {
+		const qc = createClient();
+		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
+		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
+		const { result } = renderHook(
+			() => useActiveSessionWidget({ sessionType: "cash_game" }),
+			{
+				wrapper: wrapperWithGlobalFilter(qc, {
+					...DEFAULT_GLOBAL_FILTER_VALUES,
+					type: "tournament",
+				}),
+			}
+		);
+		await waitFor(() => expect(result.current.tournamentItems).toHaveLength(1));
+		expect(result.current.cashItems).toEqual([]);
+	});
+
+	it("falls back to local when global type is null (no override)", async () => {
+		const qc = createClient();
+		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
+		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
+		const { result } = renderHook(
+			() => useActiveSessionWidget({ sessionType: "tournament" }),
+			{
+				wrapper: wrapperWithGlobalFilter(qc, DEFAULT_GLOBAL_FILTER_VALUES),
+			}
+		);
+		await waitFor(() => expect(result.current.tournamentItems).toHaveLength(1));
+		expect(result.current.cashItems).toEqual([]);
 	});
 });

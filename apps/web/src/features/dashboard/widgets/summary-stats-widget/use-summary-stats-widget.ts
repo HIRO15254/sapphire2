@@ -1,4 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+	resolveDateFromEpoch,
+	resolveDateToEpoch,
+	resolveSessionType,
+	useGlobalFilter,
+} from "@/features/dashboard/hooks/use-global-filter";
 import { trpc } from "@/utils/trpc";
 
 export type SummaryStatsWidgetType = "all" | "cash_game" | "tournament";
@@ -75,15 +81,18 @@ export function useSummaryStatsWidget(
 	config: Record<string, unknown>
 ): UseSummaryStatsWidgetResult {
 	const parsed = parseSummaryStatsWidgetConfig(config);
-	const dateFrom =
-		parsed.dateRangeDays === null
-			? undefined
-			: Math.floor(Date.now() / 1000) - parsed.dateRangeDays * 86_400;
+	const globalFilter = useGlobalFilter();
+	const effectiveType = resolveSessionType(parsed.type, globalFilter);
+	const dateFrom = resolveDateFromEpoch(globalFilter, parsed.dateRangeDays);
+	const dateTo = resolveDateToEpoch(globalFilter);
 
 	const query = useQuery(
 		trpc.session.list.queryOptions({
-			type: parsed.type === "all" ? undefined : parsed.type,
+			type: effectiveType === "all" ? undefined : effectiveType,
+			storeId: globalFilter.storeId ?? undefined,
+			currencyId: globalFilter.currencyId ?? undefined,
 			dateFrom,
+			dateTo,
 		})
 	);
 
