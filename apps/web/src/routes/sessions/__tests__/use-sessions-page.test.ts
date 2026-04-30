@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 	lastFilters: null as Record<string, unknown> | null,
 	lastCreateGamesStoreId: null as string | undefined | null,
 	lastEditGamesStoreId: null as string | undefined | null,
+	lastEditIncludeAll: null as boolean | null,
 	lastCalledSlot: "create" as "create" | "edit",
 	sessions: [] as Record<string, unknown>[],
 	availableTags: [] as Array<{ id: string; name: string }>,
@@ -48,7 +49,10 @@ vi.mock("@/features/stores/hooks/use-store-games", () => ({
 		stores: mocks.stores,
 		currencies: mocks.currencies,
 	}),
-	useStoreGames: (storeId: string | undefined) => {
+	useStoreGames: (
+		storeId: string | undefined,
+		options?: { includeAll?: boolean }
+	) => {
 		// useSessionsPage calls useStoreGames twice per render (create + edit
 		// slots). Track each by alternating the slot name.
 		if (mocks.lastCalledSlot === "create") {
@@ -56,6 +60,7 @@ vi.mock("@/features/stores/hooks/use-store-games", () => ({
 			mocks.lastCalledSlot = "edit";
 		} else {
 			mocks.lastEditGamesStoreId = storeId;
+			mocks.lastEditIncludeAll = options?.includeAll ?? false;
 			mocks.lastCalledSlot = "create";
 		}
 		return { ringGames: [], tournaments: [], isLoading: false };
@@ -87,6 +92,7 @@ describe("useSessionsPage", () => {
 		mocks.lastFilters = null;
 		mocks.lastCreateGamesStoreId = null;
 		mocks.lastEditGamesStoreId = null;
+		mocks.lastEditIncludeAll = null;
 		mocks.lastCalledSlot = "create";
 		mocks.sessions = [];
 		mocks.availableTags = [];
@@ -272,6 +278,14 @@ describe("useSessionsPage", () => {
 				);
 			});
 			expect(result.current.editingSession?.id).toBe("s1");
+		});
+	});
+
+	describe("edit games use includeAll", () => {
+		it("passes includeAll: true to useStoreGames for the edit slot", () => {
+			renderHook(() => useSessionsPage());
+			// The edit slot is the second call to useStoreGames each render cycle.
+			expect(mocks.lastEditIncludeAll).toBe(true);
 		});
 	});
 

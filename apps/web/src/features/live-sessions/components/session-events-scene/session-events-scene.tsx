@@ -145,7 +145,7 @@ export function SessionEventsScene({
 
 	return (
 		<div className="p-4 md:p-6">
-			<PageHeader heading="Events" />
+			<PageHeader heading="Timeline" />
 			{events.length === 0 ? (
 				<EmptyState
 					className="border-none bg-transparent px-0 py-8"

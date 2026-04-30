@@ -35,7 +35,7 @@ export function useSessionsPage() {
 
 	const { stores, currencies } = useEntityLists();
 	const createGames = useStoreGames(selectedStoreId);
-	const editGames = useStoreGames(editStoreId);
+	const editGames = useStoreGames(editStoreId, { includeAll: true });
 
 	const handleCreate = (values: SessionFormValues) => {
 		create(values).then(() => {

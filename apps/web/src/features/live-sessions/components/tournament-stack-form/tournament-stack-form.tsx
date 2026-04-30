@@ -194,7 +194,7 @@ export function TournamentStackForm({
 			<div className="-mx-4 border-t" />
 
 			<div className="flex flex-col gap-2">
-				<p className="font-medium text-muted-foreground text-xs">Events</p>
+				<p className="font-medium text-muted-foreground text-xs">Timeline</p>
 				<div className="grid grid-cols-2 gap-2">
 					<Button
 						onClick={() => setChipPurchaseSheetOpen(true)}

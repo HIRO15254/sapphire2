@@ -1,17 +1,46 @@
 import { useQuery } from "@tanstack/react-query";
 import { trpc } from "@/utils/trpc";
 
-export function useStoreGames(storeId: string | undefined) {
+export function useStoreGames(
+	storeId: string | undefined,
+	options?: { includeAll?: boolean }
+) {
+	const includeAll = options?.includeAll ?? false;
+
 	const ringGamesQuery = useQuery({
 		...trpc.ringGame.listByStore.queryOptions({ storeId: storeId ?? "" }),
 		enabled: !!storeId,
+	});
+	const archivedRingGamesQuery = useQuery({
+		...trpc.ringGame.listByStore.queryOptions({
+			storeId: storeId ?? "",
+			includeArchived: true,
+		}),
+		enabled: !!storeId && includeAll,
 	});
 	const tournamentsQuery = useQuery({
 		...trpc.tournament.listByStore.queryOptions({ storeId: storeId ?? "" }),
 		enabled: !!storeId,
 	});
+	const archivedTournamentsQuery = useQuery({
+		...trpc.tournament.listByStore.queryOptions({
+			storeId: storeId ?? "",
+			includeArchived: true,
+		}),
+		enabled: !!storeId && includeAll,
+	});
+
+	const allRingGames = [
+		...(ringGamesQuery.data ?? []),
+		...(includeAll ? (archivedRingGamesQuery.data ?? []) : []),
+	];
+	const allTournaments = [
+		...(tournamentsQuery.data ?? []),
+		...(includeAll ? (archivedTournamentsQuery.data ?? []) : []),
+	];
+
 	return {
-		ringGames: (ringGamesQuery.data ?? []).map((g) => ({
+		ringGames: allRingGames.map((g) => ({
 			id: g.id,
 			name: g.name,
 			variant: g.variant,
@@ -23,7 +52,7 @@ export function useStoreGames(storeId: string | undefined) {
 			tableSize: g.tableSize,
 			currencyId: g.currencyId,
 		})),
-		tournaments: (tournamentsQuery.data ?? []).map((t) => ({
+		tournaments: allTournaments.map((t) => ({
 			id: t.id,
 			name: t.name,
 			buyIn: t.buyIn,
