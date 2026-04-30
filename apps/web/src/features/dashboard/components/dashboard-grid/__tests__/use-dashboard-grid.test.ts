@@ -42,8 +42,8 @@ function widget(partial: Partial<DashboardWidget>): DashboardWidget {
 }
 
 describe("GRID_COLS", () => {
-	it("maps mobile to 4 and desktop to 12", () => {
-		expect(GRID_COLS).toEqual({ mobile: 4, desktop: 12 });
+	it("maps mobile to 6 and desktop to 12", () => {
+		expect(GRID_COLS).toEqual({ mobile: 6, desktop: 12 });
 	});
 });
 
@@ -64,24 +64,24 @@ describe("toLayoutItem", () => {
 			w: 6,
 			h: 2,
 			minW: 2,
-			minH: 1,
+			minH: 2,
 			maxW: 12,
 		});
 	});
 
-	it("uses 4 as maxW on mobile", () => {
+	it("uses 6 as maxW on mobile", () => {
 		const w = widget({ id: "m", type: "currency_balance" });
-		expect(toLayoutItem(w, "mobile").maxW).toBe(4);
+		expect(toLayoutItem(w, "mobile").maxW).toBe(6);
 	});
 
-	it("falls back minSize to { w: 2, h: 1 } when the widget type is not found", () => {
+	it("falls back minSize to { w: 2, h: 2 } when the widget type is not found", () => {
 		const w = widget({
 			id: "unknown",
 			type: "nonexistent" as unknown as DashboardWidget["type"],
 		});
 		const item = toLayoutItem(w, "desktop");
 		expect(item.minW).toBe(2);
-		expect(item.minH).toBe(1);
+		expect(item.minH).toBe(2);
 	});
 });
 
@@ -108,7 +108,7 @@ describe("useDashboardGrid", () => {
 	it("returns an empty layout when there are no widgets", () => {
 		const { result } = renderHook(() => useDashboardGrid([], "mobile"));
 		expect(result.current.layout).toEqual([]);
-		expect(result.current.gridCols).toBe(4);
+		expect(result.current.gridCols).toBe(6);
 	});
 
 	it("memoizes the layout for stable inputs", () => {

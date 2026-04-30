@@ -10,7 +10,7 @@ import type { Device } from "@/features/dashboard/hooks/use-current-device";
 import type { DashboardWidget as DashboardWidgetRow } from "@/features/dashboard/hooks/use-dashboard-widgets";
 import { GRID_COLS, useDashboardGrid } from "./use-dashboard-grid";
 
-const ROW_HEIGHT = 80;
+const ROW_HEIGHT = 40;
 
 export interface DashboardGridProps {
 	containerWidth: number;
