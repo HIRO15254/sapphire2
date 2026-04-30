@@ -14,6 +14,9 @@ vi.mock("@/utils/trpc", () => ({
 		currency: {
 			list: { queryOptions: () => ({ queryKey: ["currency-list"] }) },
 		},
+		store: {
+			list: { queryOptions: () => ({ queryKey: ["store-list"] }) },
+		},
 		dashboardWidget: {
 			list: { queryOptions: () => ({ queryKey: ["widget-list"] }) },
 		},

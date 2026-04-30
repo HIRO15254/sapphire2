@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
-	resolveSessionTypeFilter,
+	resolveSessionType,
 	useGlobalFilter,
 } from "@/features/dashboard/hooks/use-global-filter";
 import { trpc } from "@/utils/trpc";
@@ -46,7 +46,7 @@ export function useActiveSessionWidget(
 ): UseActiveSessionWidgetResult {
 	const parsed = parseActiveSessionWidgetConfig(config);
 	const globalFilter = useGlobalFilter();
-	const effectiveSessionType = resolveSessionTypeFilter(
+	const effectiveSessionType = resolveSessionType(
 		parsed.sessionType,
 		globalFilter
 	);

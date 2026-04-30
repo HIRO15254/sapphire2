@@ -13,7 +13,13 @@ vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		session: {
 			list: {
-				queryOptions: (input: { type?: string }) => ({
+				queryOptions: (input: {
+					currencyId?: string;
+					dateFrom?: number;
+					dateTo?: number;
+					storeId?: string;
+					type?: string;
+				}) => ({
 					queryKey: buildKey("session", "list", input),
 					queryFn: () => Promise.resolve({ items: [] }),
 				}),
@@ -23,6 +29,7 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 import {
+	DEFAULT_GLOBAL_FILTER_VALUES,
 	GlobalFilterProvider,
 	type GlobalFilterValues,
 } from "@/features/dashboard/hooks/use-global-filter";
@@ -48,16 +55,30 @@ function wrapper(client: QueryClient) {
 
 function wrapperWithGlobalFilter(
 	client: QueryClient,
-	globalFilter: GlobalFilterValues
+	values: GlobalFilterValues
 ) {
+	const setValue = vi.fn();
+	const reset = vi.fn();
 	return function Wrapper({ children }: { children: ReactNode }) {
 		return createElement(
 			QueryClientProvider,
 			{ client },
-			createElement(GlobalFilterProvider, { value: globalFilter }, children)
+			createElement(
+				GlobalFilterProvider,
+				{ value: { values, setValue, reset } },
+				children
+			)
 		);
 	};
 }
+
+const DEFAULT_QUERY_INPUT = {
+	type: undefined,
+	storeId: undefined,
+	currencyId: undefined,
+	dateFrom: undefined,
+	dateTo: undefined,
+};
 
 describe("parseRecentSessionsWidgetConfig", () => {
 	it("defaults limit to 5 when not a valid number", () => {
@@ -89,7 +110,7 @@ describe("parseRecentSessionsWidgetConfig", () => {
 describe("useRecentSessionsWidget", () => {
 	it("slices items down to the configured limit", async () => {
 		const qc = createClient();
-		qc.setQueryData(["session", "list", { type: undefined }], {
+		qc.setQueryData(["session", "list", DEFAULT_QUERY_INPUT], {
 			items: [
 				{ id: "s1" },
 				{ id: "s2" },
@@ -108,9 +129,10 @@ describe("useRecentSessionsWidget", () => {
 
 	it("passes the type through to the query when filtering", async () => {
 		const qc = createClient();
-		qc.setQueryData(["session", "list", { type: "tournament" }], {
-			items: [{ id: "t1" }],
-		});
+		qc.setQueryData(
+			["session", "list", { ...DEFAULT_QUERY_INPUT, type: "tournament" }],
+			{ items: [{ id: "t1" }] }
+		);
 		const { result } = renderHook(
 			() => useRecentSessionsWidget({ type: "tournament" }),
 			{ wrapper: wrapper(qc) }
@@ -130,13 +152,14 @@ describe("useRecentSessionsWidget", () => {
 describe("useRecentSessionsWidget — global filter integration", () => {
 	it("global filter type overrides local 'all'", async () => {
 		const qc = createClient();
-		qc.setQueryData(["session", "list", { type: "cash_game" }], {
-			items: [{ id: "x1" }, { id: "x2" }],
-		});
+		qc.setQueryData(
+			["session", "list", { ...DEFAULT_QUERY_INPUT, type: "cash_game" }],
+			{ items: [{ id: "x1" }, { id: "x2" }] }
+		);
 		const { result } = renderHook(() => useRecentSessionsWidget({}), {
 			wrapper: wrapperWithGlobalFilter(qc, {
+				...DEFAULT_GLOBAL_FILTER_VALUES,
 				type: "cash_game",
-				dateRangeDays: null,
 			}),
 		});
 		await waitFor(() => expect(result.current.items).toHaveLength(2));
@@ -144,35 +167,51 @@ describe("useRecentSessionsWidget — global filter integration", () => {
 
 	it("global filter type overrides a non-'all' local type", async () => {
 		const qc = createClient();
-		qc.setQueryData(["session", "list", { type: "tournament" }], {
-			items: [{ id: "t1" }],
-		});
+		qc.setQueryData(
+			["session", "list", { ...DEFAULT_QUERY_INPUT, type: "tournament" }],
+			{ items: [{ id: "t1" }] }
+		);
 		const { result } = renderHook(
 			() => useRecentSessionsWidget({ type: "cash_game" }),
 			{
 				wrapper: wrapperWithGlobalFilter(qc, {
+					...DEFAULT_GLOBAL_FILTER_VALUES,
 					type: "tournament",
-					dateRangeDays: null,
 				}),
 			}
 		);
 		await waitFor(() => expect(result.current.items).toHaveLength(1));
 	});
 
-	it("falls back to local when global type is 'all'", async () => {
+	it("global storeId / currencyId / dateFrom / dateTo are forwarded", async () => {
 		const qc = createClient();
-		qc.setQueryData(["session", "list", { type: "cash_game" }], {
-			items: [{ id: "c1" }],
-		});
-		const { result } = renderHook(
-			() => useRecentSessionsWidget({ type: "cash_game" }),
-			{
-				wrapper: wrapperWithGlobalFilter(qc, {
-					type: "all",
-					dateRangeDays: null,
-				}),
-			}
+		const dateFrom = Math.floor(
+			new Date("2026-01-01T00:00:00").getTime() / 1000
 		);
+		const dateTo = Math.floor(new Date("2026-04-30T23:59:59").getTime() / 1000);
+		qc.setQueryData(
+			[
+				"session",
+				"list",
+				{
+					type: undefined,
+					storeId: "store-A",
+					currencyId: "currency-X",
+					dateFrom,
+					dateTo,
+				},
+			],
+			{ items: [{ id: "z1" }] }
+		);
+		const { result } = renderHook(() => useRecentSessionsWidget({}), {
+			wrapper: wrapperWithGlobalFilter(qc, {
+				...DEFAULT_GLOBAL_FILTER_VALUES,
+				storeId: "store-A",
+				currencyId: "currency-X",
+				dateFrom: "2026-01-01",
+				dateTo: "2026-04-30",
+			}),
+		});
 		await waitFor(() => expect(result.current.items).toHaveLength(1));
 	});
 });

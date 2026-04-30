@@ -54,9 +54,24 @@ export const currencyBalanceConfigSchema = z.object({
 });
 export type CurrencyBalanceConfig = z.infer<typeof currencyBalanceConfigSchema>;
 
+const FILTER_FIELD_DEFAULT = { initialValue: null, visible: true } as const;
+
+function filterField<T extends z.ZodTypeAny>(value: T) {
+	return z
+		.object({
+			initialValue: value.nullable().default(null),
+			visible: z.boolean().default(true),
+		})
+		.default(FILTER_FIELD_DEFAULT);
+}
+
 export const globalFilterConfigSchema = z.object({
-	type: z.enum(["all", "cash_game", "tournament"]).default("all"),
-	dateRangeDays: z.number().int().min(1).max(3650).nullable().default(null),
+	type: filterField(z.enum(["cash_game", "tournament"])),
+	storeId: filterField(z.string()),
+	currencyId: filterField(z.string()),
+	dateFrom: filterField(z.string()),
+	dateTo: filterField(z.string()),
+	dateRangeDays: filterField(z.number().int().min(1).max(3650)),
 });
 export type GlobalFilterConfig = z.infer<typeof globalFilterConfigSchema>;
 

@@ -31,6 +31,7 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 import {
+	DEFAULT_GLOBAL_FILTER_VALUES,
 	GlobalFilterProvider,
 	type GlobalFilterValues,
 } from "@/features/dashboard/hooks/use-global-filter";
@@ -67,13 +68,19 @@ function wrapper(client: QueryClient) {
 
 function wrapperWithGlobalFilter(
 	client: QueryClient,
-	globalFilter: GlobalFilterValues
+	values: GlobalFilterValues
 ) {
+	const setValue = vi.fn();
+	const reset = vi.fn();
 	return function Wrapper({ children }: { children: ReactNode }) {
 		return createElement(
 			QueryClientProvider,
 			{ client },
-			createElement(GlobalFilterProvider, { value: globalFilter }, children)
+			createElement(
+				GlobalFilterProvider,
+				{ value: { values, setValue, reset } },
+				children
+			)
 		);
 	};
 }
@@ -154,8 +161,8 @@ describe("useActiveSessionWidget — global filter integration", () => {
 		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
 		const { result } = renderHook(() => useActiveSessionWidget({}), {
 			wrapper: wrapperWithGlobalFilter(qc, {
+				...DEFAULT_GLOBAL_FILTER_VALUES,
 				type: "cash_game",
-				dateRangeDays: null,
 			}),
 		});
 		await waitFor(() => expect(result.current.cashItems).toHaveLength(1));
@@ -170,8 +177,8 @@ describe("useActiveSessionWidget — global filter integration", () => {
 			() => useActiveSessionWidget({ sessionType: "cash_game" }),
 			{
 				wrapper: wrapperWithGlobalFilter(qc, {
+					...DEFAULT_GLOBAL_FILTER_VALUES,
 					type: "tournament",
-					dateRangeDays: null,
 				}),
 			}
 		);
@@ -179,17 +186,14 @@ describe("useActiveSessionWidget — global filter integration", () => {
 		expect(result.current.cashItems).toEqual([]);
 	});
 
-	it("falls back to local when global type is 'all'", async () => {
+	it("falls back to local when global type is null (no override)", async () => {
 		const qc = createClient();
 		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
 		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
 		const { result } = renderHook(
 			() => useActiveSessionWidget({ sessionType: "tournament" }),
 			{
-				wrapper: wrapperWithGlobalFilter(qc, {
-					type: "all",
-					dateRangeDays: null,
-				}),
+				wrapper: wrapperWithGlobalFilter(qc, DEFAULT_GLOBAL_FILTER_VALUES),
 			}
 		);
 		await waitFor(() => expect(result.current.tournamentItems).toHaveLength(1));
