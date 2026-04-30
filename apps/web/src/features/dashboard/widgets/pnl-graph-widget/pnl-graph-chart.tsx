@@ -168,6 +168,69 @@ interface PnlGraphChartProps {
 	xAxisType: PnlGraphXAxis;
 }
 
+interface LegendItem {
+	color: string;
+	dashed: boolean;
+	value: string;
+}
+
+function legendItemsFor(
+	dual: boolean,
+	showEvCash: boolean,
+	singleColor: string
+): LegendItem[] {
+	if (dual) {
+		const items: LegendItem[] = [
+			{ value: "BB (cash)", color: COLOR_CASH, dashed: false },
+		];
+		if (showEvCash) {
+			items.push({ value: "EV BB (cash)", color: COLOR_CASH, dashed: true });
+		}
+		items.push({
+			value: "BI (tournament)",
+			color: COLOR_TOURNAMENT,
+			dashed: false,
+		});
+		return items;
+	}
+	const items: LegendItem[] = [
+		{ value: "Cumulative", color: singleColor, dashed: false },
+	];
+	if (showEvCash) {
+		items.push({ value: "EV (cash)", color: singleColor, dashed: true });
+	}
+	return items;
+}
+
+function CustomLegend({ items }: { items: LegendItem[] }) {
+	return (
+		<div className="flex flex-wrap items-center justify-center gap-3 pt-1 text-[11px]">
+			{items.map((item) => (
+				<div className="flex items-center gap-1.5" key={item.value}>
+					<svg
+						aria-hidden="true"
+						className="shrink-0"
+						height={6}
+						viewBox="0 0 14 6"
+						width={14}
+					>
+						<line
+							stroke={item.color}
+							strokeDasharray={item.dashed ? "3 2" : undefined}
+							strokeWidth={2}
+							x1={0}
+							x2={14}
+							y1={3}
+							y2={3}
+						/>
+					</svg>
+					<span className="text-foreground">{item.value}</span>
+				</div>
+			))}
+		</div>
+	);
+}
+
 export default function PnlGraphChart({
 	dual,
 	points,
@@ -177,6 +240,7 @@ export default function PnlGraphChart({
 	const showLegend = dual || showEvCash;
 	const dualDomains = dual ? alignedDualDomains(points) : null;
 	const singleColor = dual ? COLOR_CASH : COLOR_PRIMARY;
+	const legendItems = legendItemsFor(dual, showEvCash, singleColor);
 	return (
 		<div className="h-full w-full">
 			<ResponsiveContainer height="100%" width="100%">
@@ -233,9 +297,8 @@ export default function PnlGraphChart({
 					/>
 					{showLegend ? (
 						<Legend
-							iconSize={10}
-							iconType="line"
-							wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+							content={() => <CustomLegend items={legendItems} />}
+							wrapperStyle={{ outline: "none" }}
 						/>
 					) : null}
 					{dual ? (
