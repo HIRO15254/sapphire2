@@ -30,6 +30,7 @@ export interface PnlGraphParsedConfig {
 	dateRangeDays: number | null;
 	ringGameId: string | null;
 	sessionType: PnlGraphSessionType;
+	showEvCash: boolean;
 	showFilters: PnlGraphFilterFlags;
 	storeId: string | null;
 	unit: PnlGraphUnit;
@@ -102,6 +103,7 @@ export function parsePnlGraphWidgetConfig(
 		storeId: parseStringOrNull(raw.storeId),
 		ringGameId: parseStringOrNull(raw.ringGameId),
 		currencyId: parseStringOrNull(raw.currencyId),
+		showEvCash: raw.showEvCash === true,
 		showFilters: parseFlags(raw.showFilters),
 	};
 }
@@ -111,6 +113,7 @@ export interface PnlGraphRuntimeState {
 	dateRangeDays: number | null;
 	ringGameId: string | null;
 	sessionType: PnlGraphSessionType;
+	showEvCash: boolean;
 	storeId: string | null;
 	unit: PnlGraphUnit;
 	xAxis: PnlGraphXAxis;
@@ -125,6 +128,7 @@ function configToState(parsed: PnlGraphParsedConfig): PnlGraphRuntimeState {
 		storeId: parsed.storeId,
 		ringGameId: parsed.ringGameId,
 		currencyId: parsed.currencyId,
+		showEvCash: parsed.showEvCash,
 	};
 }
 
@@ -134,7 +138,13 @@ export function effectiveTypeFilter(
 	return state.sessionType === "all" ? undefined : state.sessionType;
 }
 
+export interface PnlGraphSelectOption {
+	id: string;
+	name: string;
+}
+
 interface UsePnlGraphWidgetResult {
+	currencies: PnlGraphSelectOption[];
 	error: unknown;
 	isLoading: boolean;
 	onChangeCurrencyId: (value: string | null) => void;
@@ -149,6 +159,7 @@ interface UsePnlGraphWidgetResult {
 	rawPoints: PnlSeriesPoint[];
 	skippedCount: number;
 	state: PnlGraphRuntimeState;
+	stores: PnlGraphSelectOption[];
 }
 
 export function usePnlGraphWidget(
@@ -174,15 +185,31 @@ export function usePnlGraphWidget(
 		})
 	);
 
-	const rawPoints = (query.data?.points ?? []) as PnlSeriesPoint[];
-	const aggregated = aggregatePnlPoints(
-		rawPoints,
-		state.xAxis,
-		state.unit,
-		state.sessionType
+	const storesQuery = useQuery(
+		trpc.store.list.queryOptions(undefined, {
+			enabled: parsed.showFilters.store,
+		})
+	);
+	const currenciesQuery = useQuery(
+		trpc.currency.list.queryOptions(undefined, {
+			enabled: parsed.showFilters.currency,
+		})
 	);
 
+	const rawPoints = (query.data?.points ?? []) as PnlSeriesPoint[];
+	const aggregated = aggregatePnlPoints({
+		rawPoints,
+		xAxis: state.xAxis,
+		unit: state.unit,
+		sessionType: state.sessionType,
+		showEvCash: state.showEvCash,
+	});
+
+	const stores = (storesQuery.data ?? []) as PnlGraphSelectOption[];
+	const currencies = (currenciesQuery.data ?? []) as PnlGraphSelectOption[];
+
 	return {
+		currencies,
 		error: query.error,
 		isLoading: query.isLoading,
 		onChangeCurrencyId: (value) =>
@@ -201,5 +228,6 @@ export function usePnlGraphWidget(
 		rawPoints,
 		skippedCount: aggregated.skippedCount,
 		state,
+		stores,
 	};
 }

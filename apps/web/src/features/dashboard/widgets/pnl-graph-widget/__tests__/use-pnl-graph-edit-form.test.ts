@@ -68,6 +68,7 @@ describe("usePnlGraphEditForm", () => {
 		expect(v.currencyId).toBe("__none__");
 		expect(v.showXAxis).toBe(false);
 		expect(v.showDateRange).toBe(false);
+		expect(v.showEvCash).toBe(false);
 	});
 
 	it("seeds form defaults from a populated config", () => {
@@ -115,6 +116,7 @@ describe("usePnlGraphEditForm", () => {
 			result.current.form.setFieldValue("storeId", "store-7");
 			result.current.form.setFieldValue("ringGameId", "rg-9");
 			result.current.form.setFieldValue("currencyId", "__none__");
+			result.current.form.setFieldValue("showEvCash", true);
 			result.current.form.setFieldValue("showXAxis", true);
 			result.current.form.setFieldValue("showUnit", true);
 		});
@@ -130,6 +132,7 @@ describe("usePnlGraphEditForm", () => {
 			storeId: "store-7",
 			ringGameId: "rg-9",
 			currencyId: null,
+			showEvCash: true,
 			showFilters: {
 				xAxis: true,
 				dateRange: false,

@@ -26,6 +26,24 @@ vi.mock("@/utils/trpc", () => ({
 				},
 			},
 		},
+		store: {
+			list: {
+				queryOptions: (_input?: undefined, opts?: { enabled?: boolean }) => ({
+					queryKey: ["store", "list"],
+					queryFn: () => Promise.resolve([]),
+					...(opts ?? {}),
+				}),
+			},
+		},
+		currency: {
+			list: {
+				queryOptions: (_input?: undefined, opts?: { enabled?: boolean }) => ({
+					queryKey: ["currency", "list"],
+					queryFn: () => Promise.resolve([]),
+					...(opts ?? {}),
+				}),
+			},
+		},
 	},
 }));
 
@@ -59,6 +77,7 @@ describe("parsePnlGraphWidgetConfig", () => {
 		expect(parsed.storeId).toBeNull();
 		expect(parsed.ringGameId).toBeNull();
 		expect(parsed.currencyId).toBeNull();
+		expect(parsed.showEvCash).toBe(false);
 		expect(parsed.showFilters).toEqual({
 			xAxis: false,
 			dateRange: false,
@@ -94,6 +113,16 @@ describe("parsePnlGraphWidgetConfig", () => {
 	it("rejects legacy 'bb' / 'bi' unit values", () => {
 		expect(parsePnlGraphWidgetConfig({ unit: "bb" }).unit).toBe("currency");
 		expect(parsePnlGraphWidgetConfig({ unit: "bi" }).unit).toBe("currency");
+	});
+
+	it("parses showEvCash as a strict boolean", () => {
+		expect(parsePnlGraphWidgetConfig({ showEvCash: true }).showEvCash).toBe(
+			true
+		);
+		expect(parsePnlGraphWidgetConfig({ showEvCash: 1 }).showEvCash).toBe(false);
+		expect(
+			parsePnlGraphWidgetConfig({ showEvCash: undefined }).showEvCash
+		).toBe(false);
 	});
 
 	it("treats non-positive or non-numeric dateRangeDays as null", () => {
@@ -225,6 +254,7 @@ describe("usePnlGraphWidget", () => {
 				type: "cash_game",
 				sessionDate: 1,
 				profitLoss: 50,
+				evProfitLoss: null,
 				playMinutes: null,
 				bigBlind: null,
 				buyInTotal: null,
@@ -234,6 +264,7 @@ describe("usePnlGraphWidget", () => {
 				type: "cash_game",
 				sessionDate: 2,
 				profitLoss: -10,
+				evProfitLoss: null,
 				playMinutes: null,
 				bigBlind: null,
 				buyInTotal: null,
@@ -257,9 +288,10 @@ describe("usePnlGraphWidget", () => {
 			() => usePnlGraphWidget({ xAxis: "sessionCount" }),
 			{ wrapper: wrapper(qc) }
 		);
-		await waitFor(() => expect(result.current.points).toHaveLength(2));
-		expect(result.current.points[0]?.cumulative).toBe(50);
-		expect(result.current.points[1]?.cumulative).toBe(40);
+		await waitFor(() => expect(result.current.points).toHaveLength(3));
+		expect(result.current.points[0]?.cumulative).toBe(0);
+		expect(result.current.points[1]?.cumulative).toBe(50);
+		expect(result.current.points[2]?.cumulative).toBe(40);
 	});
 
 	it("on*Handler setters update runtime state", () => {
@@ -288,6 +320,7 @@ describe("usePnlGraphWidget", () => {
 				type: "cash_game",
 				sessionDate: 1,
 				profitLoss: 200,
+				evProfitLoss: null,
 				playMinutes: null,
 				bigBlind: 50,
 				buyInTotal: null,
@@ -297,6 +330,7 @@ describe("usePnlGraphWidget", () => {
 				type: "tournament",
 				sessionDate: 2,
 				profitLoss: 300,
+				evProfitLoss: null,
 				playMinutes: null,
 				bigBlind: null,
 				buyInTotal: 100,
@@ -325,10 +359,12 @@ describe("usePnlGraphWidget", () => {
 				}),
 			{ wrapper: wrapper(qc) }
 		);
-		await waitFor(() => expect(result.current.points).toHaveLength(2));
-		expect(result.current.points[0]?.cashCumulative).toBe(4);
+		await waitFor(() => expect(result.current.points).toHaveLength(3));
+		expect(result.current.points[0]?.cashCumulative).toBe(0);
 		expect(result.current.points[0]?.tournamentCumulative).toBe(0);
 		expect(result.current.points[1]?.cashCumulative).toBe(4);
-		expect(result.current.points[1]?.tournamentCumulative).toBe(3);
+		expect(result.current.points[1]?.tournamentCumulative).toBe(0);
+		expect(result.current.points[2]?.cashCumulative).toBe(4);
+		expect(result.current.points[2]?.tournamentCumulative).toBe(3);
 	});
 });

@@ -93,6 +93,7 @@ export const pnlGraphConfigSchema = z.object({
 	storeId: z.string().nullable().default(null),
 	ringGameId: z.string().nullable().default(null),
 	currencyId: z.string().nullable().default(null),
+	showEvCash: z.boolean().default(false),
 	showFilters: pnlGraphFilterFlagsSchema,
 });
 export type PnlGraphConfig = z.infer<typeof pnlGraphConfigSchema>;

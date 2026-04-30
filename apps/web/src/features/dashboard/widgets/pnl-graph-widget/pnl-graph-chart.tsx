@@ -1,5 +1,6 @@
 import {
 	CartesianGrid,
+	Legend,
 	Line,
 	LineChart,
 	ResponsiveContainer,
@@ -9,6 +10,11 @@ import {
 } from "recharts";
 import { formatCompactNumber } from "@/utils/format-number";
 import type { PnlGraphXAxis } from "./aggregate-pnl-points";
+
+const COLOR_CASH = "oklch(0.62 0.21 250)";
+const COLOR_TOURNAMENT = "oklch(0.75 0.16 70)";
+const COLOR_EV_CASH = "oklch(0.7 0.17 162)";
+const COLOR_PRIMARY = "var(--color-primary)";
 
 function formatXTick(value: number, xAxis: PnlGraphXAxis): string {
 	if (xAxis === "date") {
@@ -36,6 +42,7 @@ function formatTooltipLabel(value: number, xAxis: PnlGraphXAxis): string {
 interface ChartPoint {
 	cashCumulative?: number;
 	cumulative?: number;
+	evCashCumulative?: number;
 	tournamentCumulative?: number;
 	x: number;
 }
@@ -91,102 +98,143 @@ function CustomTooltip({ active, label, payload, xAxis }: CustomTooltipProps) {
 interface PnlGraphChartProps {
 	dual: boolean;
 	points: ChartPoint[];
+	showEvCash: boolean;
 	xAxisType: PnlGraphXAxis;
 }
 
 export default function PnlGraphChart({
 	dual,
 	points,
+	showEvCash,
 	xAxisType,
 }: PnlGraphChartProps) {
+	const showLegend = dual || showEvCash;
 	return (
-		<ResponsiveContainer height="100%" width="100%">
-			<LineChart
-				data={points}
-				margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-			>
-				<CartesianGrid className="stroke-border" strokeDasharray="3 3" />
-				<XAxis
-					dataKey="x"
-					domain={["dataMin", "dataMax"]}
-					tick={{ fontSize: 10 }}
-					tickFormatter={(v: number) => formatXTick(v, xAxisType)}
-					type="number"
-				/>
-				{dual ? (
-					<>
-						<YAxis
-							tick={{ fontSize: 10 }}
-							tickFormatter={(v: number) => formatCompactNumber(v)}
-							width={50}
-							yAxisId="bb"
-						/>
-						<YAxis
-							orientation="right"
-							tick={{ fontSize: 10 }}
-							tickFormatter={(v: number) => formatCompactNumber(v)}
-							width={50}
-							yAxisId="bi"
-						/>
-					</>
-				) : (
-					<YAxis
+		<div className="h-full w-full focus:outline-none [&_.recharts-surface]:focus:outline-none [&_.recharts-surface]:focus-visible:outline-none [&_.recharts-wrapper]:focus:outline-none [&_.recharts-wrapper]:focus-visible:outline-none">
+			<ResponsiveContainer height="100%" width="100%">
+				<LineChart
+					data={points}
+					margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+				>
+					<CartesianGrid className="stroke-border" strokeDasharray="3 3" />
+					<XAxis
+						dataKey="x"
+						domain={["dataMin", "dataMax"]}
 						tick={{ fontSize: 10 }}
-						tickFormatter={(v: number) => formatCompactNumber(v)}
-						width={50}
+						tickFormatter={(v: number) => formatXTick(v, xAxisType)}
+						type="number"
 					/>
-				)}
-				<Tooltip
-					content={(props) => (
-						<CustomTooltip
-							active={props.active}
-							label={props.label as number | string | undefined}
-							payload={
-								props.payload as readonly TooltipPayloadItem[] | undefined
-							}
-							xAxis={xAxisType}
+					{dual ? (
+						<>
+							<YAxis
+								tick={{ fontSize: 10 }}
+								tickFormatter={(v: number) => formatCompactNumber(v)}
+								width={50}
+								yAxisId="bb"
+							/>
+							<YAxis
+								orientation="right"
+								tick={{ fontSize: 10 }}
+								tickFormatter={(v: number) => formatCompactNumber(v)}
+								width={50}
+								yAxisId="bi"
+							/>
+						</>
+					) : (
+						<YAxis
+							tick={{ fontSize: 10 }}
+							tickFormatter={(v: number) => formatCompactNumber(v)}
+							width={50}
 						/>
 					)}
-					cursor={false}
-					wrapperStyle={{ outline: "none" }}
-				/>
-				{dual ? (
-					<>
-						<Line
-							className="stroke-chart-1"
-							connectNulls
-							dataKey="cashCumulative"
-							dot={false}
-							isAnimationActive={false}
-							name="BB (cash)"
-							strokeWidth={2}
-							type="linear"
-							yAxisId="bb"
-						/>
-						<Line
-							className="stroke-chart-2"
-							connectNulls
-							dataKey="tournamentCumulative"
-							dot={false}
-							isAnimationActive={false}
-							name="BI (tournament)"
-							strokeWidth={2}
-							type="linear"
-							yAxisId="bi"
-						/>
-					</>
-				) : (
-					<Line
-						className="stroke-primary"
-						dataKey="cumulative"
-						dot={false}
-						isAnimationActive={false}
-						name="Cumulative"
-						strokeWidth={2}
-						type="linear"
+					<Tooltip
+						content={(props) => (
+							<CustomTooltip
+								active={props.active}
+								label={props.label as number | string | undefined}
+								payload={
+									props.payload as readonly TooltipPayloadItem[] | undefined
+								}
+								xAxis={xAxisType}
+							/>
+						)}
+						cursor={false}
+						wrapperStyle={{ outline: "none" }}
 					/>
-				)}
-			</LineChart>
-		</ResponsiveContainer>
+					{showLegend ? (
+						<Legend
+							iconSize={10}
+							iconType="line"
+							wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+						/>
+					) : null}
+					{dual ? (
+						<>
+							<Line
+								connectNulls
+								dataKey="cashCumulative"
+								dot={false}
+								isAnimationActive={false}
+								name="BB (cash)"
+								stroke={COLOR_CASH}
+								strokeWidth={2}
+								type="linear"
+								yAxisId="bb"
+							/>
+							<Line
+								connectNulls
+								dataKey="tournamentCumulative"
+								dot={false}
+								isAnimationActive={false}
+								name="BI (tournament)"
+								stroke={COLOR_TOURNAMENT}
+								strokeWidth={2}
+								type="linear"
+								yAxisId="bi"
+							/>
+							{showEvCash ? (
+								<Line
+									connectNulls
+									dataKey="evCashCumulative"
+									dot={false}
+									isAnimationActive={false}
+									name="EV BB (cash)"
+									stroke={COLOR_EV_CASH}
+									strokeDasharray="4 4"
+									strokeWidth={2}
+									type="linear"
+									yAxisId="bb"
+								/>
+							) : null}
+						</>
+					) : (
+						<>
+							<Line
+								dataKey="cumulative"
+								dot={false}
+								isAnimationActive={false}
+								name="Cumulative"
+								stroke={COLOR_PRIMARY}
+								strokeWidth={2}
+								type="linear"
+							/>
+							{showEvCash ? (
+								<Line
+									connectNulls
+									dataKey="evCashCumulative"
+									dot={false}
+									isAnimationActive={false}
+									name="EV (cash)"
+									stroke={COLOR_EV_CASH}
+									strokeDasharray="4 4"
+									strokeWidth={2}
+									type="linear"
+								/>
+							) : null}
+						</>
+					)}
+				</LineChart>
+			</ResponsiveContainer>
+		</div>
 	);
 }

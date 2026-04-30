@@ -45,10 +45,12 @@ const UNIT_LABEL: Record<PnlGraphUnit, string> = {
 };
 
 const NONE_VALUE = "__none__";
+const ALL_VALUE = "__all__";
 
 interface AggregatedPoint {
 	cashCumulative?: number;
 	cumulative?: number;
+	evCashCumulative?: number;
 	tournamentCumulative?: number;
 	x: number;
 }
@@ -57,10 +59,17 @@ interface ChartBodyProps {
 	dual: boolean;
 	isLoading: boolean;
 	points: AggregatedPoint[];
+	showEvCash: boolean;
 	xAxisType: PnlGraphXAxis;
 }
 
-function ChartBody({ dual, isLoading, points, xAxisType }: ChartBodyProps) {
+function ChartBody({
+	dual,
+	isLoading,
+	points,
+	showEvCash,
+	xAxisType,
+}: ChartBodyProps) {
 	if (isLoading) {
 		return <Skeleton className="h-full w-full" />;
 	}
@@ -73,111 +82,205 @@ function ChartBody({ dual, isLoading, points, xAxisType }: ChartBodyProps) {
 	}
 	return (
 		<Suspense fallback={<Skeleton className="h-full w-full" />}>
-			<PnlGraphChart dual={dual} points={points} xAxisType={xAxisType} />
+			<PnlGraphChart
+				dual={dual}
+				points={points}
+				showEvCash={showEvCash}
+				xAxisType={xAxisType}
+			/>
 		</Suspense>
 	);
 }
 
-export function PnlGraphWidget({ config }: WidgetRenderProps) {
-	const {
-		isLoading,
-		onChangeDateRangeDays,
-		onChangeSessionType,
-		onChangeUnit,
-		onChangeXAxis,
-		parsed,
-		points,
-		skippedCount,
-		state,
-	} = usePnlGraphWidget(config);
+type InlineHandlers = ReturnType<typeof usePnlGraphWidget>;
+type InlineFiltersProps = Pick<
+	InlineHandlers,
+	| "currencies"
+	| "onChangeCurrencyId"
+	| "onChangeDateRangeDays"
+	| "onChangeSessionType"
+	| "onChangeStoreId"
+	| "onChangeUnit"
+	| "onChangeXAxis"
+	| "state"
+	| "stores"
+> & {
+	flags: InlineHandlers["parsed"]["showFilters"];
+};
 
+function InlineFilters(props: InlineFiltersProps) {
+	const { flags } = props;
+	return (
+		<div className="flex flex-wrap items-center gap-2">
+			{flags.xAxis ? <XAxisSelect {...props} /> : null}
+			{flags.dateRange ? <DateRangeInput {...props} /> : null}
+			{flags.sessionType ? <SessionTypeSelect {...props} /> : null}
+			{flags.unit ? <UnitSelect {...props} /> : null}
+			{flags.store ? <StoreSelect {...props} /> : null}
+			{flags.currency ? <CurrencySelect {...props} /> : null}
+		</div>
+	);
+}
+
+function XAxisSelect({
+	onChangeXAxis,
+	state,
+}: Pick<InlineFiltersProps, "onChangeXAxis" | "state">) {
+	return (
+		<Select
+			onValueChange={(v) => onChangeXAxis(v as PnlGraphXAxis)}
+			value={state.xAxis}
+		>
+			<SelectTrigger className="h-8 w-auto text-xs">
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem value="date">{X_AXIS_LABEL.date}</SelectItem>
+				<SelectItem value="sessionCount">
+					{X_AXIS_LABEL.sessionCount}
+				</SelectItem>
+				<SelectItem value="playTime">{X_AXIS_LABEL.playTime}</SelectItem>
+			</SelectContent>
+		</Select>
+	);
+}
+
+function DateRangeInput({
+	onChangeDateRangeDays,
+	state,
+}: Pick<InlineFiltersProps, "onChangeDateRangeDays" | "state">) {
+	return (
+		<Input
+			className="h-8 w-24 text-xs"
+			inputMode="numeric"
+			onChange={(e) => {
+				const v = e.target.value.trim();
+				onChangeDateRangeDays(v === "" ? null : Number.parseInt(v, 10));
+			}}
+			placeholder="days"
+			value={state.dateRangeDays === null ? "" : String(state.dateRangeDays)}
+		/>
+	);
+}
+
+function SessionTypeSelect({
+	onChangeSessionType,
+	state,
+}: Pick<InlineFiltersProps, "onChangeSessionType" | "state">) {
+	return (
+		<Select
+			onValueChange={(v) => onChangeSessionType(v as PnlGraphSessionType)}
+			value={state.sessionType}
+		>
+			<SelectTrigger className="h-8 w-auto text-xs">
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem value="all">{SESSION_TYPE_LABEL.all}</SelectItem>
+				<SelectItem value="cash_game">
+					{SESSION_TYPE_LABEL.cash_game}
+				</SelectItem>
+				<SelectItem value="tournament">
+					{SESSION_TYPE_LABEL.tournament}
+				</SelectItem>
+			</SelectContent>
+		</Select>
+	);
+}
+
+function UnitSelect({
+	onChangeUnit,
+	state,
+}: Pick<InlineFiltersProps, "onChangeUnit" | "state">) {
+	return (
+		<Select
+			onValueChange={(v) => onChangeUnit(v as PnlGraphUnit)}
+			value={state.unit}
+		>
+			<SelectTrigger className="h-8 w-auto text-xs">
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem value="currency">{UNIT_LABEL.currency}</SelectItem>
+				<SelectItem value="normalized">{UNIT_LABEL.normalized}</SelectItem>
+			</SelectContent>
+		</Select>
+	);
+}
+
+function StoreSelect({
+	onChangeStoreId,
+	state,
+	stores,
+}: Pick<InlineFiltersProps, "onChangeStoreId" | "state" | "stores">) {
+	return (
+		<Select
+			onValueChange={(v) => onChangeStoreId(v === ALL_VALUE ? null : v)}
+			value={state.storeId ?? ALL_VALUE}
+		>
+			<SelectTrigger className="h-8 w-auto text-xs">
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem value={ALL_VALUE}>All stores</SelectItem>
+				{stores.map((s) => (
+					<SelectItem key={s.id} value={s.id}>
+						{s.name}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
+	);
+}
+
+function CurrencySelect({
+	currencies,
+	onChangeCurrencyId,
+	state,
+}: Pick<InlineFiltersProps, "currencies" | "onChangeCurrencyId" | "state">) {
+	return (
+		<Select
+			onValueChange={(v) => onChangeCurrencyId(v === ALL_VALUE ? null : v)}
+			value={state.currencyId ?? ALL_VALUE}
+		>
+			<SelectTrigger className="h-8 w-auto text-xs">
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem value={ALL_VALUE}>All currencies</SelectItem>
+				{currencies.map((c) => (
+					<SelectItem key={c.id} value={c.id}>
+						{c.name}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
+	);
+}
+
+export function PnlGraphWidget({ config }: WidgetRenderProps) {
+	const widget = usePnlGraphWidget(config);
+	const { isLoading, parsed, points, skippedCount, state } = widget;
 	const flags = parsed.showFilters;
 	const anyFilter =
-		flags.xAxis || flags.dateRange || flags.sessionType || flags.unit;
+		flags.xAxis ||
+		flags.dateRange ||
+		flags.sessionType ||
+		flags.unit ||
+		flags.store ||
+		flags.currency;
 	const dualSeries = state.unit === "normalized" && state.sessionType === "all";
 
 	return (
 		<div className="flex h-full flex-col gap-2 p-2">
-			{anyFilter ? (
-				<div className="flex flex-wrap items-center gap-2">
-					{flags.xAxis ? (
-						<Select
-							onValueChange={(v) => onChangeXAxis(v as PnlGraphXAxis)}
-							value={state.xAxis}
-						>
-							<SelectTrigger className="h-8 w-auto text-xs">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="date">{X_AXIS_LABEL.date}</SelectItem>
-								<SelectItem value="sessionCount">
-									{X_AXIS_LABEL.sessionCount}
-								</SelectItem>
-								<SelectItem value="playTime">
-									{X_AXIS_LABEL.playTime}
-								</SelectItem>
-							</SelectContent>
-						</Select>
-					) : null}
-					{flags.dateRange ? (
-						<Input
-							className="h-8 w-24 text-xs"
-							inputMode="numeric"
-							onChange={(e) => {
-								const v = e.target.value.trim();
-								onChangeDateRangeDays(v === "" ? null : Number.parseInt(v, 10));
-							}}
-							placeholder="days"
-							value={
-								state.dateRangeDays === null ? "" : String(state.dateRangeDays)
-							}
-						/>
-					) : null}
-					{flags.sessionType ? (
-						<Select
-							onValueChange={(v) =>
-								onChangeSessionType(v as PnlGraphSessionType)
-							}
-							value={state.sessionType}
-						>
-							<SelectTrigger className="h-8 w-auto text-xs">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">{SESSION_TYPE_LABEL.all}</SelectItem>
-								<SelectItem value="cash_game">
-									{SESSION_TYPE_LABEL.cash_game}
-								</SelectItem>
-								<SelectItem value="tournament">
-									{SESSION_TYPE_LABEL.tournament}
-								</SelectItem>
-							</SelectContent>
-						</Select>
-					) : null}
-					{flags.unit ? (
-						<Select
-							onValueChange={(v) => onChangeUnit(v as PnlGraphUnit)}
-							value={state.unit}
-						>
-							<SelectTrigger className="h-8 w-auto text-xs">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="currency">{UNIT_LABEL.currency}</SelectItem>
-								<SelectItem value="normalized">
-									{UNIT_LABEL.normalized}
-								</SelectItem>
-							</SelectContent>
-						</Select>
-					) : null}
-				</div>
-			) : null}
+			{anyFilter ? <InlineFilters {...widget} flags={flags} /> : null}
 
 			<div className="min-h-0 flex-1">
 				<ChartBody
 					dual={dualSeries}
 					isLoading={isLoading}
 					points={points}
+					showEvCash={state.showEvCash}
 					xAxisType={state.xAxis}
 				/>
 			</div>
@@ -384,6 +487,29 @@ export function PnlGraphEditForm({
 						</Select>
 					</Field>
 				)}
+			</form.Field>
+
+			<form.Field name="showEvCash">
+				{(field) => {
+					const id = "pnl-graph-show-ev-cash";
+					return (
+						<Field
+							description="Adds an EV-based cumulative line for cash sessions."
+							label="Cash EV P&L line"
+						>
+							<div className="flex items-center gap-2">
+								<Checkbox
+									checked={field.state.value}
+									id={id}
+									onCheckedChange={(next) => field.handleChange(next === true)}
+								/>
+								<Label className="cursor-pointer text-sm" htmlFor={id}>
+									Show
+								</Label>
+							</div>
+						</Field>
+					);
+				}}
 			</form.Field>
 
 			<Field label="Show in widget">

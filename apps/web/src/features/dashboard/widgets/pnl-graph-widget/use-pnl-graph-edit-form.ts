@@ -27,6 +27,7 @@ const editFormSchema = z.object({
 	storeId: z.string(),
 	ringGameId: z.string(),
 	currencyId: z.string(),
+	showEvCash: z.boolean(),
 	showXAxis: z.boolean(),
 	showDateRange: z.boolean(),
 	showSessionType: z.boolean(),
@@ -86,6 +87,7 @@ export function usePnlGraphEditForm({
 			storeId: parsed.storeId ?? NONE_VALUE,
 			ringGameId: parsed.ringGameId ?? NONE_VALUE,
 			currencyId: parsed.currencyId ?? NONE_VALUE,
+			showEvCash: parsed.showEvCash,
 			showXAxis: parsed.showFilters.xAxis,
 			showDateRange: parsed.showFilters.dateRange,
 			showSessionType: parsed.showFilters.sessionType,
@@ -103,6 +105,7 @@ export function usePnlGraphEditForm({
 				storeId: value.storeId === NONE_VALUE ? null : value.storeId,
 				ringGameId: value.ringGameId === NONE_VALUE ? null : value.ringGameId,
 				currencyId: value.currencyId === NONE_VALUE ? null : value.currencyId,
+				showEvCash: value.showEvCash,
 				showFilters: {
 					xAxis: value.showXAxis,
 					dateRange: value.showDateRange,

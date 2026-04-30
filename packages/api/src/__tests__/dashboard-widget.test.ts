@@ -215,6 +215,7 @@ describe("widget config parsing", () => {
 			dateRangeDays: number | null;
 			ringGameId: string | null;
 			sessionType: string;
+			showEvCash: boolean;
 			showFilters: Record<string, boolean>;
 			storeId: string | null;
 			unit: string;
@@ -227,6 +228,7 @@ describe("widget config parsing", () => {
 		expect(parsed.storeId).toBeNull();
 		expect(parsed.ringGameId).toBeNull();
 		expect(parsed.currencyId).toBeNull();
+		expect(parsed.showEvCash).toBe(false);
 		expect(parsed.showFilters.xAxis).toBe(false);
 	});
 
