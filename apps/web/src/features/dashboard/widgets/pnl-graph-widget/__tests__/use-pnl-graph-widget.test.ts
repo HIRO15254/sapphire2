@@ -65,7 +65,6 @@ describe("parsePnlGraphWidgetConfig", () => {
 			sessionType: false,
 			unit: false,
 			store: false,
-			ringGame: false,
 			currency: false,
 		});
 	});
@@ -85,11 +84,16 @@ describe("parsePnlGraphWidgetConfig", () => {
 		const parsed = parsePnlGraphWidgetConfig({
 			xAxis: "playTime",
 			sessionType: "cash_game",
-			unit: "bb",
+			unit: "normalized",
 		});
 		expect(parsed.xAxis).toBe("playTime");
 		expect(parsed.sessionType).toBe("cash_game");
-		expect(parsed.unit).toBe("bb");
+		expect(parsed.unit).toBe("normalized");
+	});
+
+	it("rejects legacy 'bb' / 'bi' unit values", () => {
+		expect(parsePnlGraphWidgetConfig({ unit: "bb" }).unit).toBe("currency");
+		expect(parsePnlGraphWidgetConfig({ unit: "bi" }).unit).toBe("currency");
 	});
 
 	it("treats non-positive or non-numeric dateRangeDays as null", () => {
@@ -121,7 +125,6 @@ describe("parsePnlGraphWidgetConfig", () => {
 				sessionType: 1,
 				unit: false,
 				store: null,
-				ringGame: undefined,
 				currency: true,
 			},
 		});
@@ -131,7 +134,6 @@ describe("parsePnlGraphWidgetConfig", () => {
 			sessionType: false,
 			unit: false,
 			store: false,
-			ringGame: false,
 			currency: true,
 		});
 	});
@@ -145,7 +147,6 @@ describe("parsePnlGraphWidgetConfig", () => {
 			sessionType: false,
 			unit: false,
 			store: false,
-			ringGame: false,
 			currency: false,
 		});
 	});
@@ -174,14 +175,14 @@ describe("usePnlGraphWidget", () => {
 		expect(view.result.current.state.currencyId).toBe("cur-1");
 	});
 
-	it("forces type=cash_game when unit is 'bb' regardless of sessionType setting", () => {
-		setup({ unit: "bb", sessionType: "tournament" });
-		expect(captured.lastInput?.type).toBe("cash_game");
+	it("passes the raw sessionType filter regardless of unit selection", () => {
+		setup({ unit: "normalized", sessionType: "tournament" });
+		expect(captured.lastInput?.type).toBe("tournament");
 	});
 
-	it("forces type=tournament when unit is 'bi'", () => {
-		setup({ unit: "bi", sessionType: "all" });
-		expect(captured.lastInput?.type).toBe("tournament");
+	it("does not filter by type when sessionType=all even under normalized unit", () => {
+		setup({ unit: "normalized", sessionType: "all" });
+		expect(captured.lastInput?.type).toBeUndefined();
 	});
 
 	it("passes undefined type when unit=currency and sessionType=all", () => {
@@ -265,8 +266,8 @@ describe("usePnlGraphWidget", () => {
 		const { view } = setup({});
 		act(() => view.result.current.onChangeXAxis("playTime"));
 		expect(view.result.current.state.xAxis).toBe("playTime");
-		act(() => view.result.current.onChangeUnit("bi"));
-		expect(view.result.current.state.unit).toBe("bi");
+		act(() => view.result.current.onChangeUnit("normalized"));
+		expect(view.result.current.state.unit).toBe("normalized");
 		act(() => view.result.current.onChangeSessionType("cash_game"));
 		expect(view.result.current.state.sessionType).toBe("cash_game");
 		act(() => view.result.current.onChangeStoreId("s2"));
@@ -277,5 +278,57 @@ describe("usePnlGraphWidget", () => {
 		expect(view.result.current.state.currencyId).toBe("c2");
 		act(() => view.result.current.onChangeDateRangeDays(30));
 		expect(view.result.current.state.dateRangeDays).toBe(30);
+	});
+
+	it("emits dual-series points (cash + tournament cumulative) when unit=normalized + sessionType=all", async () => {
+		const qc = createClient();
+		const samplePoints = [
+			{
+				id: "a",
+				type: "cash_game",
+				sessionDate: 1,
+				profitLoss: 200,
+				playMinutes: null,
+				bigBlind: 50,
+				buyInTotal: null,
+			},
+			{
+				id: "b",
+				type: "tournament",
+				sessionDate: 2,
+				profitLoss: 300,
+				playMinutes: null,
+				bigBlind: null,
+				buyInTotal: 100,
+			},
+		];
+		qc.setQueryData(
+			[
+				"session",
+				"profitLossSeries",
+				{
+					type: undefined,
+					storeId: undefined,
+					ringGameId: undefined,
+					currencyId: undefined,
+					dateFrom: undefined,
+				},
+			],
+			{ points: samplePoints }
+		);
+		const { result } = renderHook(
+			() =>
+				usePnlGraphWidget({
+					xAxis: "sessionCount",
+					unit: "normalized",
+					sessionType: "all",
+				}),
+			{ wrapper: wrapper(qc) }
+		);
+		await waitFor(() => expect(result.current.points).toHaveLength(2));
+		expect(result.current.points[0]?.cashCumulative).toBe(4);
+		expect(result.current.points[0]?.tournamentCumulative).toBe(0);
+		expect(result.current.points[1]?.cashCumulative).toBe(4);
+		expect(result.current.points[1]?.tournamentCumulative).toBe(3);
 	});
 });

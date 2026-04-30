@@ -79,7 +79,7 @@ describe("usePnlGraphEditForm", () => {
 						xAxis: "sessionCount",
 						dateRangeDays: 30,
 						sessionType: "tournament",
-						unit: "bi",
+						unit: "normalized",
 						storeId: "s1",
 						ringGameId: "rg1",
 						currencyId: "c1",
@@ -93,7 +93,7 @@ describe("usePnlGraphEditForm", () => {
 		expect(v.xAxis).toBe("sessionCount");
 		expect(v.dateRangeDays).toBe("30");
 		expect(v.sessionType).toBe("tournament");
-		expect(v.unit).toBe("bi");
+		expect(v.unit).toBe("normalized");
 		expect(v.storeId).toBe("s1");
 		expect(v.ringGameId).toBe("rg1");
 		expect(v.currencyId).toBe("c1");
@@ -111,7 +111,7 @@ describe("usePnlGraphEditForm", () => {
 			result.current.form.setFieldValue("xAxis", "playTime");
 			result.current.form.setFieldValue("dateRangeDays", "14");
 			result.current.form.setFieldValue("sessionType", "cash_game");
-			result.current.form.setFieldValue("unit", "bb");
+			result.current.form.setFieldValue("unit", "normalized");
 			result.current.form.setFieldValue("storeId", "store-7");
 			result.current.form.setFieldValue("ringGameId", "rg-9");
 			result.current.form.setFieldValue("currencyId", "__none__");
@@ -126,7 +126,7 @@ describe("usePnlGraphEditForm", () => {
 			xAxis: "playTime",
 			dateRangeDays: 14,
 			sessionType: "cash_game",
-			unit: "bb",
+			unit: "normalized",
 			storeId: "store-7",
 			ringGameId: "rg-9",
 			currencyId: null,
@@ -136,7 +136,6 @@ describe("usePnlGraphEditForm", () => {
 				sessionType: false,
 				unit: true,
 				store: false,
-				ringGame: false,
 				currency: false,
 			},
 		});

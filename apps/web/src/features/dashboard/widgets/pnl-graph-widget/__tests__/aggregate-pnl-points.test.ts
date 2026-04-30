@@ -23,7 +23,7 @@ function point(
 describe("aggregatePnlPoints", () => {
 	describe("xAxis = 'date'", () => {
 		it("returns empty result when no points are provided", () => {
-			const result = aggregatePnlPoints([], "date", "currency");
+			const result = aggregatePnlPoints([], "date", "currency", "all");
 			expect(result.points).toEqual([]);
 			expect(result.skippedCount).toBe(0);
 		});
@@ -45,7 +45,8 @@ describe("aggregatePnlPoints", () => {
 					point({ id: "c", profitLoss: 50, sessionDate: nextDay }),
 				],
 				"date",
-				"currency"
+				"currency",
+				"all"
 			);
 			expect(result.points).toHaveLength(2);
 			expect(result.points[0]?.cumulative).toBe(70);
@@ -61,7 +62,8 @@ describe("aggregatePnlPoints", () => {
 					point({ id: "earlier", profitLoss: 10, sessionDate: a }),
 				],
 				"date",
-				"currency"
+				"currency",
+				"all"
 			);
 			expect(result.points[0]?.cumulative).toBe(10);
 			expect(result.points[1]?.cumulative).toBe(60);
@@ -75,7 +77,8 @@ describe("aggregatePnlPoints", () => {
 					point({ id: "a", profitLoss: 10, sessionDate: t }),
 				],
 				"sessionCount",
-				"currency"
+				"currency",
+				"all"
 			);
 			expect(result.points.map((p) => p.cumulative)).toEqual([10, 15]);
 		});
@@ -91,7 +94,8 @@ describe("aggregatePnlPoints", () => {
 					point({ id: "c", profitLoss: -5, sessionDate: t0 + 2 }),
 				],
 				"sessionCount",
-				"currency"
+				"currency",
+				"all"
 			);
 			expect(result.points).toEqual([
 				{ x: 1, cumulative: 10 },
@@ -102,7 +106,7 @@ describe("aggregatePnlPoints", () => {
 	});
 
 	describe("xAxis = 'playTime'", () => {
-		it("uses cumulative play minutes as the x value, treating null as 0", () => {
+		it("uses cumulative play hours (minutes / 60) as the x value, treating null as 0", () => {
 			const result = aggregatePnlPoints(
 				[
 					point({
@@ -125,17 +129,18 @@ describe("aggregatePnlPoints", () => {
 					}),
 				],
 				"playTime",
-				"currency"
+				"currency",
+				"all"
 			);
 			expect(result.points).toEqual([
-				{ x: 60, cumulative: 100 },
-				{ x: 60, cumulative: 50 },
-				{ x: 90, cumulative: 75 },
+				{ x: 1, cumulative: 100 },
+				{ x: 1, cumulative: 50 },
+				{ x: 1.5, cumulative: 75 },
 			]);
 		});
 	});
 
-	describe("unit = 'bb'", () => {
+	describe("unit = 'normalized', sessionType = 'cash_game'", () => {
 		it("divides cash_game profit by bigBlind and skips other rows", () => {
 			const result = aggregatePnlPoints(
 				[
@@ -160,7 +165,8 @@ describe("aggregatePnlPoints", () => {
 					}),
 				],
 				"sessionCount",
-				"bb"
+				"normalized",
+				"cash_game"
 			);
 			expect(result.points).toEqual([
 				{ x: 1, cumulative: 4 },
@@ -176,14 +182,15 @@ describe("aggregatePnlPoints", () => {
 					point({ id: "b", profitLoss: 200, sessionDate: 2, bigBlind: 0 }),
 				],
 				"sessionCount",
-				"bb"
+				"normalized",
+				"cash_game"
 			);
 			expect(result.points).toEqual([]);
 			expect(result.skippedCount).toBe(2);
 		});
 	});
 
-	describe("unit = 'bi'", () => {
+	describe("unit = 'normalized', sessionType = 'tournament'", () => {
 		it("divides tournament profit by buyInTotal and skips other rows", () => {
 			const result = aggregatePnlPoints(
 				[
@@ -202,7 +209,8 @@ describe("aggregatePnlPoints", () => {
 					}),
 				],
 				"sessionCount",
-				"bi"
+				"normalized",
+				"tournament"
 			);
 			expect(result.points).toEqual([{ x: 1, cumulative: 3 }]);
 			expect(result.skippedCount).toBe(1);
@@ -227,10 +235,110 @@ describe("aggregatePnlPoints", () => {
 					}),
 				],
 				"sessionCount",
-				"bi"
+				"normalized",
+				"tournament"
 			);
 			expect(result.points).toEqual([]);
 			expect(result.skippedCount).toBe(2);
+		});
+	});
+
+	describe("unit = 'normalized', sessionType = 'all' (dual series)", () => {
+		it("emits both cashCumulative and tournamentCumulative on every point", () => {
+			const result = aggregatePnlPoints(
+				[
+					point({
+						id: "a",
+						profitLoss: 200,
+						sessionDate: 1,
+						bigBlind: 50,
+					}),
+					point({
+						id: "b",
+						profitLoss: 300,
+						sessionDate: 2,
+						type: "tournament",
+						buyInTotal: 100,
+					}),
+					point({
+						id: "c",
+						profitLoss: 100,
+						sessionDate: 3,
+						bigBlind: 25,
+					}),
+				],
+				"sessionCount",
+				"normalized",
+				"all"
+			);
+			expect(result.points).toEqual([
+				{ x: 1, cashCumulative: 4, tournamentCumulative: 0 },
+				{ x: 2, cashCumulative: 4, tournamentCumulative: 3 },
+				{ x: 3, cashCumulative: 8, tournamentCumulative: 3 },
+			]);
+			expect(result.skippedCount).toBe(0);
+		});
+
+		it("skips sessions with no usable normalization base in either series", () => {
+			const result = aggregatePnlPoints(
+				[
+					point({
+						id: "a",
+						profitLoss: 100,
+						sessionDate: 1,
+						bigBlind: null,
+					}),
+					point({
+						id: "b",
+						profitLoss: 200,
+						sessionDate: 2,
+						type: "tournament",
+						buyInTotal: null,
+					}),
+					point({
+						id: "c",
+						profitLoss: 50,
+						sessionDate: 3,
+						bigBlind: 25,
+					}),
+				],
+				"sessionCount",
+				"normalized",
+				"all"
+			);
+			expect(result.points).toEqual([
+				{ x: 1, cashCumulative: 2, tournamentCumulative: 0 },
+			]);
+			expect(result.skippedCount).toBe(2);
+		});
+
+		it("buckets dual-series points by UTC day for date axis", () => {
+			const day1 = Math.floor(
+				new Date("2026-04-01T03:00:00Z").getTime() / 1000
+			);
+			const day2 = Math.floor(
+				new Date("2026-04-02T03:00:00Z").getTime() / 1000
+			);
+			const result = aggregatePnlPoints(
+				[
+					point({ id: "a", profitLoss: 200, sessionDate: day1, bigBlind: 50 }),
+					point({
+						id: "b",
+						profitLoss: 300,
+						sessionDate: day2,
+						type: "tournament",
+						buyInTotal: 100,
+					}),
+				],
+				"date",
+				"normalized",
+				"all"
+			);
+			expect(result.points).toHaveLength(2);
+			expect(result.points[0]?.cashCumulative).toBe(4);
+			expect(result.points[0]?.tournamentCumulative).toBe(0);
+			expect(result.points[1]?.cashCumulative).toBe(4);
+			expect(result.points[1]?.tournamentCumulative).toBe(3);
 		});
 	});
 });

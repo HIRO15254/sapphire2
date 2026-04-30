@@ -237,7 +237,7 @@ describe("widget config parsing", () => {
 				xAxis: "playTime",
 				dateRangeDays: 30,
 				sessionType: "cash_game",
-				unit: "bb",
+				unit: "normalized",
 				storeId: "s1",
 				ringGameId: "rg1",
 				currencyId: "c1",
@@ -251,7 +251,7 @@ describe("widget config parsing", () => {
 			xAxis: string;
 		};
 		expect(parsed.xAxis).toBe("playTime");
-		expect(parsed.unit).toBe("bb");
+		expect(parsed.unit).toBe("normalized");
 		expect(parsed.storeId).toBe("s1");
 		expect(parsed.ringGameId).toBe("rg1");
 		expect(parsed.showFilters.xAxis).toBe(true);
@@ -259,10 +259,10 @@ describe("widget config parsing", () => {
 		expect(parsed.showFilters.dateRange).toBe(false);
 	});
 
-	it("falls back to defaults for invalid pnl_graph enum values", () => {
+	it("falls back to defaults for invalid pnl_graph enum values, including legacy 'bb'/'bi'", () => {
 		const parsed = parseWidgetConfig(
 			"pnl_graph",
-			JSON.stringify({ xAxis: "weird", unit: "satoshi" })
+			JSON.stringify({ xAxis: "weird", unit: "bb" })
 		) as { unit: string; xAxis: string };
 		expect(parsed.xAxis).toBe("date");
 		expect(parsed.unit).toBe("currency");

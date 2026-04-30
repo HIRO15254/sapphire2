@@ -32,7 +32,6 @@ const editFormSchema = z.object({
 	showSessionType: z.boolean(),
 	showUnit: z.boolean(),
 	showStore: z.boolean(),
-	showRingGame: z.boolean(),
 	showCurrency: z.boolean(),
 });
 
@@ -92,7 +91,6 @@ export function usePnlGraphEditForm({
 			showSessionType: parsed.showFilters.sessionType,
 			showUnit: parsed.showFilters.unit,
 			showStore: parsed.showFilters.store,
-			showRingGame: parsed.showFilters.ringGame,
 			showCurrency: parsed.showFilters.currency,
 		},
 		onSubmit: async ({ value }) => {
@@ -111,7 +109,6 @@ export function usePnlGraphEditForm({
 					sessionType: value.showSessionType,
 					unit: value.showUnit,
 					store: value.showStore,
-					ringGame: value.showRingGame,
 					currency: value.showCurrency,
 				},
 			});

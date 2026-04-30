@@ -4,19 +4,21 @@ import { trpc } from "@/utils/trpc";
 import {
 	type AggregatedPoint,
 	aggregatePnlPoints,
+	type PnlGraphSessionType,
 	type PnlGraphUnit,
 	type PnlGraphXAxis,
 	type PnlSeriesPoint,
 } from "./aggregate-pnl-points";
 
-export type { PnlGraphUnit, PnlGraphXAxis } from "./aggregate-pnl-points";
-
-export type PnlGraphSessionType = "all" | "cash_game" | "tournament";
+export type {
+	PnlGraphSessionType,
+	PnlGraphUnit,
+	PnlGraphXAxis,
+} from "./aggregate-pnl-points";
 
 export interface PnlGraphFilterFlags {
 	currency: boolean;
 	dateRange: boolean;
-	ringGame: boolean;
 	sessionType: boolean;
 	store: boolean;
 	unit: boolean;
@@ -39,7 +41,7 @@ export const PNL_GRAPH_X_AXIS_VALUES: PnlGraphXAxis[] = [
 	"sessionCount",
 	"playTime",
 ];
-export const PNL_GRAPH_UNIT_VALUES: PnlGraphUnit[] = ["currency", "bb", "bi"];
+export const PNL_GRAPH_UNIT_VALUES: PnlGraphUnit[] = ["currency", "normalized"];
 export const PNL_GRAPH_SESSION_TYPE_VALUES: PnlGraphSessionType[] = [
 	"all",
 	"cash_game",
@@ -52,7 +54,6 @@ const DEFAULT_FLAGS: PnlGraphFilterFlags = {
 	sessionType: false,
 	unit: false,
 	store: false,
-	ringGame: false,
 	currency: false,
 };
 
@@ -79,7 +80,6 @@ function parseFlags(value: unknown): PnlGraphFilterFlags {
 		sessionType: raw.sessionType === true,
 		unit: raw.unit === true,
 		store: raw.store === true,
-		ringGame: raw.ringGame === true,
 		currency: raw.currency === true,
 	};
 }
@@ -131,12 +131,6 @@ function configToState(parsed: PnlGraphParsedConfig): PnlGraphRuntimeState {
 export function effectiveTypeFilter(
 	state: PnlGraphRuntimeState
 ): "cash_game" | "tournament" | undefined {
-	if (state.unit === "bb") {
-		return "cash_game";
-	}
-	if (state.unit === "bi") {
-		return "tournament";
-	}
 	return state.sessionType === "all" ? undefined : state.sessionType;
 }
 
@@ -181,7 +175,12 @@ export function usePnlGraphWidget(
 	);
 
 	const rawPoints = (query.data?.points ?? []) as PnlSeriesPoint[];
-	const aggregated = aggregatePnlPoints(rawPoints, state.xAxis, state.unit);
+	const aggregated = aggregatePnlPoints(
+		rawPoints,
+		state.xAxis,
+		state.unit,
+		state.sessionType
+	);
 
 	return {
 		error: query.error,

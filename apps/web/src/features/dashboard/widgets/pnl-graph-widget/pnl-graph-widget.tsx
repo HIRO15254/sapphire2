@@ -30,7 +30,7 @@ const PnlGraphChart = lazy(() => import("./pnl-graph-chart"));
 const X_AXIS_LABEL: Record<PnlGraphXAxis, string> = {
 	date: "Date",
 	sessionCount: "Session #",
-	playTime: "Play Time (min)",
+	playTime: "Play Time (h)",
 };
 
 const SESSION_TYPE_LABEL: Record<PnlGraphSessionType, string> = {
@@ -40,20 +40,27 @@ const SESSION_TYPE_LABEL: Record<PnlGraphSessionType, string> = {
 };
 
 const UNIT_LABEL: Record<PnlGraphUnit, string> = {
-	currency: "Currency",
-	bb: "BB (cash)",
-	bi: "BI (tournament)",
+	currency: "Actual Value",
+	normalized: "Normalized (BB / BI)",
 };
 
 const NONE_VALUE = "__none__";
 
+interface AggregatedPoint {
+	cashCumulative?: number;
+	cumulative?: number;
+	tournamentCumulative?: number;
+	x: number;
+}
+
 interface ChartBodyProps {
+	dual: boolean;
 	isLoading: boolean;
-	points: { cumulative: number; x: number }[];
+	points: AggregatedPoint[];
 	xAxisType: PnlGraphXAxis;
 }
 
-function ChartBody({ isLoading, points, xAxisType }: ChartBodyProps) {
+function ChartBody({ dual, isLoading, points, xAxisType }: ChartBodyProps) {
 	if (isLoading) {
 		return <Skeleton className="h-full w-full" />;
 	}
@@ -66,7 +73,7 @@ function ChartBody({ isLoading, points, xAxisType }: ChartBodyProps) {
 	}
 	return (
 		<Suspense fallback={<Skeleton className="h-full w-full" />}>
-			<PnlGraphChart points={points} xAxisType={xAxisType} />
+			<PnlGraphChart dual={dual} points={points} xAxisType={xAxisType} />
 		</Suspense>
 	);
 }
@@ -87,6 +94,7 @@ export function PnlGraphWidget({ config }: WidgetRenderProps) {
 	const flags = parsed.showFilters;
 	const anyFilter =
 		flags.xAxis || flags.dateRange || flags.sessionType || flags.unit;
+	const dualSeries = state.unit === "normalized" && state.sessionType === "all";
 
 	return (
 		<div className="flex h-full flex-col gap-2 p-2">
@@ -156,8 +164,9 @@ export function PnlGraphWidget({ config }: WidgetRenderProps) {
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="currency">{UNIT_LABEL.currency}</SelectItem>
-								<SelectItem value="bb">{UNIT_LABEL.bb}</SelectItem>
-								<SelectItem value="bi">{UNIT_LABEL.bi}</SelectItem>
+								<SelectItem value="normalized">
+									{UNIT_LABEL.normalized}
+								</SelectItem>
 							</SelectContent>
 						</Select>
 					) : null}
@@ -166,6 +175,7 @@ export function PnlGraphWidget({ config }: WidgetRenderProps) {
 
 			<div className="min-h-0 flex-1">
 				<ChartBody
+					dual={dualSeries}
 					isLoading={isLoading}
 					points={points}
 					xAxisType={state.xAxis}
@@ -275,7 +285,7 @@ export function PnlGraphEditForm({
 			<form.Field name="unit">
 				{(field) => (
 					<Field
-						description="BB only counts cash sessions; BI only counts tournaments."
+						description="Normalized = BB for cash sessions, BI for tournaments."
 						htmlFor={field.name}
 						label="Unit"
 					>
@@ -290,8 +300,9 @@ export function PnlGraphEditForm({
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="currency">{UNIT_LABEL.currency}</SelectItem>
-								<SelectItem value="bb">{UNIT_LABEL.bb}</SelectItem>
-								<SelectItem value="bi">{UNIT_LABEL.bi}</SelectItem>
+								<SelectItem value="normalized">
+									{UNIT_LABEL.normalized}
+								</SelectItem>
 							</SelectContent>
 						</Select>
 					</Field>
@@ -391,11 +402,6 @@ export function PnlGraphEditForm({
 					<EditFormToggle fieldName="showUnit" form={form} label="Unit" />
 					<EditFormToggle fieldName="showStore" form={form} label="Store" />
 					<EditFormToggle
-						fieldName="showRingGame"
-						form={form}
-						label="Ring Game"
-					/>
-					<EditFormToggle
 						fieldName="showCurrency"
 						form={form}
 						label="Currency"
@@ -428,7 +434,6 @@ interface EditFormToggleProps {
 		| "showSessionType"
 		| "showUnit"
 		| "showStore"
-		| "showRingGame"
 		| "showCurrency";
 	form: ReturnType<typeof usePnlGraphEditForm>["form"];
 	label: string;

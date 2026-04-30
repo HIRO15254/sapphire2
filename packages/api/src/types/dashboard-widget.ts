@@ -64,7 +64,7 @@ export const pnlGraphSessionTypeSchema = z.enum([
 ]);
 export type PnlGraphSessionType = z.infer<typeof pnlGraphSessionTypeSchema>;
 
-export const pnlGraphUnitSchema = z.enum(["currency", "bb", "bi"]);
+export const pnlGraphUnitSchema = z.enum(["currency", "normalized"]);
 export type PnlGraphUnit = z.infer<typeof pnlGraphUnitSchema>;
 
 const pnlGraphFilterFlagsSchema = z
@@ -74,7 +74,6 @@ const pnlGraphFilterFlagsSchema = z
 		sessionType: z.boolean().default(false),
 		unit: z.boolean().default(false),
 		store: z.boolean().default(false),
-		ringGame: z.boolean().default(false),
 		currency: z.boolean().default(false),
 	})
 	.default({
@@ -83,7 +82,6 @@ const pnlGraphFilterFlagsSchema = z
 		sessionType: false,
 		unit: false,
 		store: false,
-		ringGame: false,
 		currency: false,
 	});
 
