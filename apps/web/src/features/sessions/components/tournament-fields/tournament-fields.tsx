@@ -30,19 +30,16 @@ type AnyForm = ReactFormExtendedApi<
 
 interface TournamentFieldsProps {
 	form: AnyForm;
-	isLiveLinked?: boolean;
 }
 
 interface TournamentDetailFieldsProps extends TournamentFieldsProps {
 	currencies?: Array<{ id: string; name: string }>;
+	isLiveLinked?: boolean;
 	onCurrencyChange?: (id: string | undefined) => void;
 	selectedCurrencyId?: string;
 }
 
-export function TournamentPrimaryFields({
-	form,
-	isLiveLinked = false,
-}: TournamentFieldsProps) {
+export function TournamentPrimaryFields({ form }: TournamentFieldsProps) {
 	return (
 		<>
 			<div className="grid grid-cols-2 gap-3">
@@ -55,7 +52,6 @@ export function TournamentPrimaryFields({
 							required
 						>
 							<Input
-								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -73,7 +69,6 @@ export function TournamentPrimaryFields({
 							label="Entry Fee"
 						>
 							<Input
-								disabled={isLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -93,7 +88,6 @@ export function TournamentPrimaryFields({
 						label="Prize Money"
 					>
 						<Input
-							disabled={isLiveLinked}
 							id={field.name}
 							inputMode="numeric"
 							onBlur={field.handleBlur}
@@ -110,7 +104,6 @@ export function TournamentPrimaryFields({
 						<>
 							<Checkbox
 								checked={field.state.value === true}
-								disabled={isLiveLinked}
 								id={field.name}
 								onCheckedChange={(checked) =>
 									field.handleChange(checked === true)
@@ -136,7 +129,6 @@ export function TournamentPrimaryFields({
 										label="Placement"
 									>
 										<Input
-											disabled={isLiveLinked}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -154,7 +146,6 @@ export function TournamentPrimaryFields({
 										label="Total Entries"
 									>
 										<Input
-											disabled={isLiveLinked}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -204,83 +195,83 @@ export function TournamentDetailFields({
 				</Field>
 			)}
 
-			<div className="grid grid-cols-2 gap-3">
-				<form.Field name="rebuyCount">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Rebuy Count"
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="rebuyCost">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Rebuy Cost"
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-			</div>
+			{!isLiveLinked && (
+				<>
+					<div className="grid grid-cols-2 gap-3">
+						<form.Field name="rebuyCount">
+							{(field) => (
+								<Field
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="Rebuy Count"
+								>
+									<Input
+										id={field.name}
+										inputMode="numeric"
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="rebuyCost">
+							{(field) => (
+								<Field
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="Rebuy Cost"
+								>
+									<Input
+										id={field.name}
+										inputMode="numeric"
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
+					</div>
 
-			<div className="grid grid-cols-2 gap-3">
-				<form.Field name="addonCost">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Addon Cost"
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="bountyPrizes">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Bounty Prizes"
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-			</div>
+					<div className="grid grid-cols-2 gap-3">
+						<form.Field name="addonCost">
+							{(field) => (
+								<Field
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="Addon Cost"
+								>
+									<Input
+										id={field.name}
+										inputMode="numeric"
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="bountyPrizes">
+							{(field) => (
+								<Field
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="Bounty Prizes"
+								>
+									<Input
+										id={field.name}
+										inputMode="numeric"
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
+					</div>
+				</>
+			)}
 		</>
 	);
 }

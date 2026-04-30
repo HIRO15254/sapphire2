@@ -143,25 +143,95 @@ describe("SessionForm", () => {
 			expect(screen.getByTestId("live-linked-banner")).toBeInTheDocument();
 		});
 
-		it("disables session type switcher", () => {
+		it("hides the session type switcher", () => {
 			renderLiveLinkedCash();
-			expect(screen.getByRole("tab", { name: "Cash Game" })).toBeDisabled();
-			expect(screen.getByRole("tab", { name: "Tournament" })).toBeDisabled();
+			expect(
+				screen.queryByRole("tab", { name: "Cash Game" })
+			).not.toBeInTheDocument();
+			expect(
+				screen.queryByRole("tab", { name: "Tournament" })
+			).not.toBeInTheDocument();
 		});
 
-		it("disables the derived cash fields (buyIn, cashOut, evCashOut)", () => {
+		it("hides the derived cash fields (buyIn, cashOut, evCashOut)", () => {
 			renderLiveLinkedCash();
-			expect(document.getElementById("buyIn")).toBeDisabled();
-			expect(document.getElementById("cashOut")).toBeDisabled();
-			expect(document.getElementById("evCashOut")).toBeDisabled();
+			expect(document.getElementById("buyIn")).not.toBeInTheDocument();
+			expect(document.getElementById("cashOut")).not.toBeInTheDocument();
+			expect(document.getElementById("evCashOut")).not.toBeInTheDocument();
 		});
 
-		it("disables session date / time / break inputs", () => {
+		it("hides session date / time / break inputs", () => {
 			renderLiveLinkedCash();
-			expect(screen.getByLabelText(SESSION_DATE_RE)).toBeDisabled();
-			expect(screen.getByLabelText("Start Time")).toBeDisabled();
-			expect(screen.getByLabelText("End Time")).toBeDisabled();
-			expect(screen.getByLabelText("Break Time (min)")).toBeDisabled();
+			expect(screen.queryByLabelText(SESSION_DATE_RE)).not.toBeInTheDocument();
+			expect(screen.queryByLabelText("Start Time")).not.toBeInTheDocument();
+			expect(screen.queryByLabelText("End Time")).not.toBeInTheDocument();
+			expect(
+				screen.queryByLabelText("Break Time (min)")
+			).not.toBeInTheDocument();
+		});
+
+		it("hides cash-game detail fields (variant, blinds, ante, table size)", async () => {
+			const user = userEvent.setup();
+			renderLiveLinkedCash();
+			await user.click(screen.getByRole("button", { name: "Detail" }));
+			expect(document.getElementById("blind1")).not.toBeInTheDocument();
+			expect(document.getElementById("blind2")).not.toBeInTheDocument();
+			expect(document.getElementById("blind3")).not.toBeInTheDocument();
+			expect(document.getElementById("ante")).not.toBeInTheDocument();
+			expect(document.getElementById("anteType")).not.toBeInTheDocument();
+			expect(document.getElementById("tableSize")).not.toBeInTheDocument();
+			expect(document.getElementById("variant")).not.toBeInTheDocument();
+		});
+	});
+
+	describe("isLiveLinked tournament session", () => {
+		const renderLiveLinkedTournament = () =>
+			render(
+				<SessionForm
+					defaultValues={{
+						type: "tournament",
+						tournamentBuyIn: 10_000,
+						entryFee: 1000,
+						prizeMoney: 25_000,
+						placement: 3,
+						totalEntries: 50,
+						rebuyCount: 1,
+						rebuyCost: 5000,
+						addonCost: 2000,
+						bountyPrizes: 0,
+					}}
+					isLiveLinked
+					onSubmit={vi.fn()}
+				/>
+			);
+
+		it("shows the live-linked informational banner", () => {
+			renderLiveLinkedTournament();
+			expect(screen.getByTestId("live-linked-banner")).toBeInTheDocument();
+		});
+
+		it("hides primary tournament fields derived from events", () => {
+			renderLiveLinkedTournament();
+			expect(
+				document.getElementById("tournamentBuyIn")
+			).not.toBeInTheDocument();
+			expect(document.getElementById("entryFee")).not.toBeInTheDocument();
+			expect(document.getElementById("prizeMoney")).not.toBeInTheDocument();
+			expect(document.getElementById("placement")).not.toBeInTheDocument();
+			expect(document.getElementById("totalEntries")).not.toBeInTheDocument();
+			expect(document.getElementById("beforeDeadline")).not.toBeInTheDocument();
+		});
+
+		it("hides legacy / event-derived detail fields (rebuy, addon, bounty)", async () => {
+			const user = userEvent.setup();
+			renderLiveLinkedTournament();
+			await user.click(
+				screen.getByRole("button", { name: "Tournament Details" })
+			);
+			expect(document.getElementById("rebuyCount")).not.toBeInTheDocument();
+			expect(document.getElementById("rebuyCost")).not.toBeInTheDocument();
+			expect(document.getElementById("addonCost")).not.toBeInTheDocument();
+			expect(document.getElementById("bountyPrizes")).not.toBeInTheDocument();
 		});
 	});
 
