@@ -484,7 +484,7 @@ describe("SessionCard", () => {
 
 		await user.click(screen.getByRole("button", { expanded: false }));
 
-		expect(screen.getByRole("link", { name: "Events" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "Timeline" })).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: "Reopen" }));
 		expect(onReopen).toHaveBeenCalledWith("live-1");

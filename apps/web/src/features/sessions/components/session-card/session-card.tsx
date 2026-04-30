@@ -484,7 +484,7 @@ export function SessionCard({
 								to="/live-sessions/$sessionType/$sessionId/events"
 							>
 								<IconList size={12} />
-								Events
+								Timeline
 							</Link>
 						</Button>
 						{onReopen && (

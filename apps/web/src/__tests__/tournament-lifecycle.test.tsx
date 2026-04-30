@@ -603,11 +603,11 @@ describe("ActiveSessionEventsPage — tournament events display", () => {
 		});
 	});
 
-	it("renders Events heading", async () => {
+	it("renders Timeline heading", async () => {
 		const router = createEventsRouter();
 		renderWithProviders(router);
 
-		await screen.findByRole("heading", { name: "Events" });
+		await screen.findByRole("heading", { name: "Timeline" });
 	});
 
 	it("renders update_stack events with 'Stack Update' label", async () => {
