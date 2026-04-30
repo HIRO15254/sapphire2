@@ -419,4 +419,132 @@ describe("deriveTournamentTimeline", () => {
 		];
 		expect(() => deriveTournamentTimeline(events)).toThrow();
 	});
+
+	it("session_end with non-winning placement drops stack to 0", () => {
+		const events = [
+			event({
+				eventType: "session_start",
+				payload: {},
+				offsetMin: 0,
+			}),
+			event({
+				eventType: "update_stack",
+				payload: {
+					stackAmount: 10_000,
+					remainingPlayers: 30,
+					totalEntries: 50,
+				},
+				offsetMin: 5,
+			}),
+			event({
+				eventType: "session_end",
+				payload: {
+					beforeDeadline: false,
+					placement: 7,
+					totalEntries: 50,
+					prizeMoney: 0,
+					bountyPrizes: 0,
+				},
+				offsetMin: 60,
+			}),
+		];
+		const points = deriveTournamentTimeline(events);
+		expect(points.at(-1)).toEqual({
+			t: 60 * 60_000,
+			stack: 0,
+			averageStack: 25_000 / 1.5, // (10000 * 50) / 30 — preserved from last update_stack
+		});
+	});
+
+	it("session_end with placement=1 sets stack to startingStack * totalEntries (winner takes all)", () => {
+		const events = [
+			event({
+				eventType: "session_start",
+				payload: {},
+				offsetMin: 0,
+			}),
+			event({
+				eventType: "update_stack",
+				payload: { stackAmount: 10_000 },
+				offsetMin: 5,
+			}),
+			event({
+				eventType: "session_end",
+				payload: {
+					beforeDeadline: false,
+					placement: 1,
+					totalEntries: 50,
+					prizeMoney: 100_000,
+					bountyPrizes: 0,
+				},
+				offsetMin: 120,
+			}),
+		];
+		const points = deriveTournamentTimeline(events);
+		expect(points.at(-1)).toMatchObject({
+			t: 120 * 60_000,
+			stack: 10_000 * 50,
+		});
+	});
+
+	it("session_end with placement=1 includes recorded chip purchases in winner stack", () => {
+		const events = [
+			event({
+				eventType: "session_start",
+				payload: {},
+				offsetMin: 0,
+			}),
+			event({
+				eventType: "update_stack",
+				payload: {
+					stackAmount: 10_000,
+					totalEntries: 50,
+					chipPurchaseCounts: [
+						{ name: "Rebuy", count: 20, chipsPerUnit: 10_000 },
+					],
+				},
+				offsetMin: 5,
+			}),
+			event({
+				eventType: "session_end",
+				payload: {
+					beforeDeadline: false,
+					placement: 1,
+					totalEntries: 50,
+					prizeMoney: 100_000,
+					bountyPrizes: 0,
+				},
+				offsetMin: 120,
+			}),
+		];
+		const points = deriveTournamentTimeline(events);
+		// 10000 * 50 + 20 * 10000 = 500000 + 200000 = 700000
+		expect(points.at(-1)?.stack).toBe(700_000);
+	});
+
+	it("session_end with beforeDeadline=true does not alter the running stack", () => {
+		const events = [
+			event({
+				eventType: "session_start",
+				payload: {},
+				offsetMin: 0,
+			}),
+			event({
+				eventType: "update_stack",
+				payload: { stackAmount: 10_000 },
+				offsetMin: 5,
+			}),
+			event({
+				eventType: "session_end",
+				payload: {
+					beforeDeadline: true,
+					prizeMoney: 0,
+					bountyPrizes: 0,
+				},
+				offsetMin: 60,
+			}),
+		];
+		const points = deriveTournamentTimeline(events);
+		expect(points.at(-1)).toMatchObject({ t: 60 * 60_000, stack: 10_000 });
+	});
 });

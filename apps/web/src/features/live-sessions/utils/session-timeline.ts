@@ -4,6 +4,7 @@ import {
 	cashSessionStartPayload,
 	chipsAddRemovePayload,
 	purchaseChipsPayload,
+	tournamentSessionEndPayload,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
 
@@ -110,7 +111,14 @@ export function deriveCashGameTimeline(
 	return points;
 }
 
+interface ChipPurchaseCount {
+	chipsPerUnit: number;
+	count: number;
+	name: string;
+}
+
 interface TournamentAcc {
+	chipPurchaseCounts: ChipPurchaseCount[];
 	remainingPlayers: number | null;
 	stack: number;
 	startingStack: number | null;
@@ -129,6 +137,15 @@ function tournamentAverageStack(acc: TournamentAcc): number | null {
 	return (acc.startingStack * acc.totalEntries) / acc.remainingPlayers;
 }
 
+function totalChipsInPlay(acc: TournamentAcc, totalEntries: number): number {
+	const baseChips = (acc.startingStack ?? 0) * totalEntries;
+	const purchaseChips = acc.chipPurchaseCounts.reduce(
+		(sum, c) => sum + c.count * c.chipsPerUnit,
+		0
+	);
+	return baseChips + purchaseChips;
+}
+
 function tournamentPoint(
 	t: number,
 	acc: TournamentAcc
@@ -138,6 +155,58 @@ function tournamentPoint(
 		stack: acc.stack,
 		averageStack: tournamentAverageStack(acc),
 	};
+}
+
+function applyTournamentUpdateStack(
+	acc: TournamentAcc,
+	payload: unknown
+): void {
+	const data = updateStackPayload.parse(payload);
+	acc.stack = data.stackAmount;
+	if (acc.startingStack === null) {
+		acc.startingStack = data.stackAmount;
+	}
+	if (data.totalEntries != null) {
+		acc.totalEntries = data.totalEntries;
+	}
+	if (data.remainingPlayers != null) {
+		acc.remainingPlayers = data.remainingPlayers;
+	}
+	if (data.chipPurchaseCounts) {
+		acc.chipPurchaseCounts = data.chipPurchaseCounts;
+	}
+}
+
+function applyTournamentSessionEnd(acc: TournamentAcc, payload: unknown): void {
+	const data = tournamentSessionEndPayload.parse(payload);
+	if (data.beforeDeadline === false) {
+		acc.totalEntries = data.totalEntries;
+		acc.stack =
+			data.placement === 1 ? totalChipsInPlay(acc, data.totalEntries) : 0;
+	}
+}
+
+function applyTournamentEvent(
+	acc: TournamentAcc,
+	eventType: string,
+	payload: unknown
+): boolean {
+	if (eventType === "session_start") {
+		return true;
+	}
+	if (eventType === "update_stack") {
+		applyTournamentUpdateStack(acc, payload);
+		return true;
+	}
+	if (eventType === "purchase_chips") {
+		acc.stack += purchaseChipsPayload.parse(payload).chips;
+		return true;
+	}
+	if (eventType === "session_end") {
+		applyTournamentSessionEnd(acc, payload);
+		return true;
+	}
+	return false;
 }
 
 export function deriveTournamentTimeline(
@@ -153,36 +222,15 @@ export function deriveTournamentTimeline(
 		startingStack: null,
 		totalEntries: null,
 		remainingPlayers: null,
+		chipPurchaseCounts: [],
 	};
 	const points: TournamentTimelinePoint[] = [];
 
 	for (let i = startIndex; i < events.length; i++) {
 		const e = events[i];
-		const t = toMs(e.occurredAt) - anchor;
-
-		if (e.eventType === "session_start") {
-			points.push(tournamentPoint(t, acc));
-			continue;
-		}
-		if (e.eventType === "update_stack") {
-			const data = updateStackPayload.parse(e.payload);
-			acc.stack = data.stackAmount;
-			if (acc.startingStack === null) {
-				acc.startingStack = data.stackAmount;
-			}
-			if (data.totalEntries != null) {
-				acc.totalEntries = data.totalEntries;
-			}
-			if (data.remainingPlayers != null) {
-				acc.remainingPlayers = data.remainingPlayers;
-			}
-			points.push(tournamentPoint(t, acc));
-			continue;
-		}
-		if (e.eventType === "purchase_chips") {
-			const data = purchaseChipsPayload.parse(e.payload);
-			acc.stack += data.chips;
-			points.push(tournamentPoint(t, acc));
+		const handled = applyTournamentEvent(acc, e.eventType, e.payload);
+		if (handled) {
+			points.push(tournamentPoint(toMs(e.occurredAt) - anchor, acc));
 		}
 	}
 
