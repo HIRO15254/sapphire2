@@ -23,6 +23,10 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 import {
+	GlobalFilterProvider,
+	type GlobalFilterValues,
+} from "@/features/dashboard/hooks/use-global-filter";
+import {
 	parseSummaryStatsWidgetConfig,
 	SUMMARY_STATS_DEFAULT_METRICS,
 	useSummaryStatsWidget,
@@ -40,6 +44,19 @@ function createClient(): QueryClient {
 function wrapper(client: QueryClient) {
 	return function Wrapper({ children }: { children: ReactNode }) {
 		return createElement(QueryClientProvider, { client }, children);
+	};
+}
+
+function wrapperWithGlobalFilter(
+	client: QueryClient,
+	globalFilter: GlobalFilterValues
+) {
+	return function Wrapper({ children }: { children: ReactNode }) {
+		return createElement(
+			QueryClientProvider,
+			{ client },
+			createElement(GlobalFilterProvider, { value: globalFilter }, children)
+		);
 	};
 }
 
@@ -123,5 +140,95 @@ describe("useSummaryStatsWidget", () => {
 			wrapper: wrapper(qc),
 		});
 		expect(result.current.summary).toBeUndefined();
+	});
+});
+
+describe("useSummaryStatsWidget — global filter integration", () => {
+	it("uses global filter type when local is 'all'", async () => {
+		const qc = createClient();
+		qc.setQueryData(
+			["session", "list", { type: "tournament", dateFrom: undefined }],
+			{ summary: { totalSessions: 9 } }
+		);
+		const { result } = renderHook(() => useSummaryStatsWidget({}), {
+			wrapper: wrapperWithGlobalFilter(qc, {
+				type: "tournament",
+				dateRangeDays: null,
+			}),
+		});
+		await waitFor(() => expect(result.current.summary?.totalSessions).toBe(9));
+	});
+
+	it("global filter type overrides a non-'all' local type", async () => {
+		const qc = createClient();
+		qc.setQueryData(
+			["session", "list", { type: "cash_game", dateFrom: undefined }],
+			{ summary: { totalSessions: 11 } }
+		);
+		const { result } = renderHook(
+			() => useSummaryStatsWidget({ type: "tournament" }),
+			{
+				wrapper: wrapperWithGlobalFilter(qc, {
+					type: "cash_game",
+					dateRangeDays: null,
+				}),
+			}
+		);
+		await waitFor(() => expect(result.current.summary?.totalSessions).toBe(11));
+	});
+
+	it("uses global filter dateRangeDays when local is null", async () => {
+		const qc = createClient();
+		const dateFrom = Math.floor(Date.now() / 1000) - 7 * 86_400;
+		// Match within ~2 seconds tolerance by using a custom selector
+		const expectedKey = [
+			"session",
+			"list",
+			{ type: undefined, dateFrom },
+		] as const;
+		qc.setQueryData(expectedKey, { summary: { totalSessions: 22 } });
+		const { result } = renderHook(() => useSummaryStatsWidget({}), {
+			wrapper: wrapperWithGlobalFilter(qc, {
+				type: "all",
+				dateRangeDays: 7,
+			}),
+		});
+		await waitFor(() => expect(result.current.summary?.totalSessions).toBe(22));
+	});
+
+	it("global dateRangeDays overrides local dateRangeDays", async () => {
+		const qc = createClient();
+		const dateFrom = Math.floor(Date.now() / 1000) - 3 * 86_400;
+		qc.setQueryData(["session", "list", { type: undefined, dateFrom }], {
+			summary: { totalSessions: 33 },
+		});
+		const { result } = renderHook(
+			() => useSummaryStatsWidget({ dateRangeDays: 30 }),
+			{
+				wrapper: wrapperWithGlobalFilter(qc, {
+					type: "all",
+					dateRangeDays: 3,
+				}),
+			}
+		);
+		await waitFor(() => expect(result.current.summary?.totalSessions).toBe(33));
+	});
+
+	it("falls back to local when global is fully default", async () => {
+		const qc = createClient();
+		qc.setQueryData(
+			["session", "list", { type: "cash_game", dateFrom: undefined }],
+			{ summary: { totalSessions: 44 } }
+		);
+		const { result } = renderHook(
+			() => useSummaryStatsWidget({ type: "cash_game" }),
+			{
+				wrapper: wrapperWithGlobalFilter(qc, {
+					type: "all",
+					dateRangeDays: null,
+				}),
+			}
+		);
+		await waitFor(() => expect(result.current.summary?.totalSessions).toBe(44));
 	});
 });

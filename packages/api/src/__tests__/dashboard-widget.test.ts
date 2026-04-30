@@ -214,4 +214,37 @@ describe("widget config parsing", () => {
 		expect(stringifyWidgetConfig(null)).toBe("{}");
 		expect(stringifyWidgetConfig(undefined)).toBe("{}");
 	});
+
+	it("returns defaults for global_filter when config is empty", () => {
+		const parsed = parseWidgetConfig("global_filter", "{}") as {
+			type: string;
+			dateRangeDays: number | null;
+		};
+		expect(parsed.type).toBe("all");
+		expect(parsed.dateRangeDays).toBeNull();
+	});
+
+	it("preserves valid global_filter values", () => {
+		const parsed = parseWidgetConfig(
+			"global_filter",
+			JSON.stringify({ type: "cash_game", dateRangeDays: 14 })
+		) as { type: string; dateRangeDays: number | null };
+		expect(parsed.type).toBe("cash_game");
+		expect(parsed.dateRangeDays).toBe(14);
+	});
+
+	it("falls back to defaults for global_filter when values are invalid", () => {
+		const parsed = parseWidgetConfig(
+			"global_filter",
+			JSON.stringify({ type: "weird", dateRangeDays: -5 })
+		) as { type: string; dateRangeDays: number | null };
+		expect(parsed.type).toBe("all");
+		expect(parsed.dateRangeDays).toBeNull();
+	});
+});
+
+describe("widget type schema", () => {
+	it("includes global_filter as a valid type", () => {
+		expect(widgetTypeSchema.options).toContain("global_filter");
+	});
 });

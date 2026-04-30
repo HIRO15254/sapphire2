@@ -2,6 +2,7 @@ import type { TablerIcon } from "@tabler/icons-react";
 import {
 	IconBolt,
 	IconCoin,
+	IconFilter,
 	IconListDetails,
 	IconReportAnalytics,
 } from "@tabler/icons-react";
@@ -44,6 +45,10 @@ import {
 	CurrencyBalanceEditForm,
 	CurrencyBalanceWidget,
 } from "../currency-balance-widget";
+import {
+	GlobalFilterEditForm,
+	GlobalFilterWidget,
+} from "../global-filter-widget";
 import {
 	RecentSessionsEditForm,
 	RecentSessionsWidget,
@@ -105,6 +110,19 @@ export const widgetRegistry: Record<WidgetType, WidgetRegistryEntry> = {
 			mobile: { w: 3, h: 2 },
 		},
 		minSize: { w: 2, h: 2 },
+	},
+	global_filter: {
+		type: "global_filter",
+		label: "Global Filter",
+		description: "Filters all other widgets on this dashboard",
+		icon: IconFilter,
+		Render: GlobalFilterWidget,
+		EditForm: GlobalFilterEditForm,
+		defaultSize: {
+			desktop: { w: 12, h: 1 },
+			mobile: { w: 4, h: 1 },
+		},
+		minSize: { w: 2, h: 1 },
 	},
 };
 

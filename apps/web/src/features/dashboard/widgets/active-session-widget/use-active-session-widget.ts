@@ -1,4 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+	resolveSessionTypeFilter,
+	useGlobalFilter,
+} from "@/features/dashboard/hooks/use-global-filter";
 import { trpc } from "@/utils/trpc";
 
 export type ActiveSessionWidgetSessionType = "all" | "cash_game" | "tournament";
@@ -41,6 +45,11 @@ export function useActiveSessionWidget(
 	config: Record<string, unknown>
 ): UseActiveSessionWidgetResult {
 	const parsed = parseActiveSessionWidgetConfig(config);
+	const globalFilter = useGlobalFilter();
+	const effectiveSessionType = resolveSessionTypeFilter(
+		parsed.sessionType,
+		globalFilter
+	);
 
 	const cashQuery = useQuery({
 		...trpc.liveCashGameSession.list.queryOptions({
@@ -49,7 +58,7 @@ export function useActiveSessionWidget(
 		}),
 		refetchInterval: 5000,
 		refetchIntervalInBackground: false,
-		enabled: parsed.sessionType !== "tournament",
+		enabled: effectiveSessionType !== "tournament",
 	});
 
 	const tournamentQuery = useQuery({
@@ -59,14 +68,14 @@ export function useActiveSessionWidget(
 		}),
 		refetchInterval: 5000,
 		refetchIntervalInBackground: false,
-		enabled: parsed.sessionType !== "cash_game",
+		enabled: effectiveSessionType !== "cash_game",
 	});
 
 	const isLoading = cashQuery.isLoading || tournamentQuery.isLoading;
 	const cashItems: CashItem[] =
-		parsed.sessionType === "tournament" ? [] : (cashQuery.data?.items ?? []);
+		effectiveSessionType === "tournament" ? [] : (cashQuery.data?.items ?? []);
 	const tournamentItems: TournamentItem[] =
-		parsed.sessionType === "cash_game"
+		effectiveSessionType === "cash_game"
 			? []
 			: (tournamentQuery.data?.items ?? []);
 

@@ -2,6 +2,10 @@ import { useMemo } from "react";
 import type { Layout } from "react-grid-layout";
 import type { Device } from "@/features/dashboard/hooks/use-current-device";
 import type { DashboardWidget } from "@/features/dashboard/hooks/use-dashboard-widgets";
+import {
+	type GlobalFilterValues,
+	resolveGlobalFilterFromWidgets,
+} from "@/features/dashboard/hooks/use-global-filter";
 import { getWidgetEntry } from "@/features/dashboard/widgets/registry";
 
 export const GRID_COLS: Record<Device, number> = {
@@ -30,5 +34,10 @@ export function useDashboardGrid(widgets: DashboardWidget[], device: Device) {
 		[widgets, device]
 	);
 
-	return { layout, gridCols: GRID_COLS[device] };
+	const globalFilter = useMemo<GlobalFilterValues>(
+		() => resolveGlobalFilterFromWidgets(widgets),
+		[widgets]
+	);
+
+	return { layout, gridCols: GRID_COLS[device], globalFilter };
 }

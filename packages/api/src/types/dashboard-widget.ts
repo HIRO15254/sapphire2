@@ -8,6 +8,7 @@ export const widgetTypeSchema = z.enum([
 	"recent_sessions",
 	"active_session",
 	"currency_balance",
+	"global_filter",
 ]);
 export type WidgetType = z.infer<typeof widgetTypeSchema>;
 
@@ -53,11 +54,18 @@ export const currencyBalanceConfigSchema = z.object({
 });
 export type CurrencyBalanceConfig = z.infer<typeof currencyBalanceConfigSchema>;
 
+export const globalFilterConfigSchema = z.object({
+	type: z.enum(["all", "cash_game", "tournament"]).default("all"),
+	dateRangeDays: z.number().int().min(1).max(3650).nullable().default(null),
+});
+export type GlobalFilterConfig = z.infer<typeof globalFilterConfigSchema>;
+
 export const widgetConfigSchema = z.union([
 	summaryStatsConfigSchema,
 	recentSessionsConfigSchema,
 	activeSessionConfigSchema,
 	currencyBalanceConfigSchema,
+	globalFilterConfigSchema,
 ]);
 
 const configSchemaByType = {
@@ -65,6 +73,7 @@ const configSchemaByType = {
 	recent_sessions: recentSessionsConfigSchema,
 	active_session: activeSessionConfigSchema,
 	currency_balance: currencyBalanceConfigSchema,
+	global_filter: globalFilterConfigSchema,
 } as const;
 
 export function parseWidgetConfig(
