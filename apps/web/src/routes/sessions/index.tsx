@@ -1,5 +1,6 @@
 import { IconCards, IconPlus, IconTags } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { SessionEventsScene } from "@/features/live-sessions/components/session-events-scene";
 import { SessionCard } from "@/features/sessions/components/session-card";
 import { SessionFilters } from "@/features/sessions/components/session-filters";
 import { SessionForm } from "@/features/sessions/components/session-form";
@@ -33,6 +34,7 @@ function SessionsPage() {
 		createGames,
 		editGames,
 		isEditLiveLinked,
+		viewingEvents,
 		setIsTagManagerOpen,
 		setFilters,
 		setBbBiMode,
@@ -45,6 +47,8 @@ function SessionsPage() {
 		handleOpenEdit,
 		handleCloseEdit,
 		handleCreateDialogOpenChange,
+		handleOpenEvents,
+		handleCloseEvents,
 		createTag,
 	} = useSessionsPage();
 
@@ -113,6 +117,7 @@ function SessionsPage() {
 							onDelete={handleDelete}
 							onEdit={handleOpenEdit}
 							onReopen={handleReopen}
+							onViewEvents={handleOpenEvents}
 							session={s}
 						/>
 					))}
@@ -169,6 +174,25 @@ function SessionsPage() {
 				title="Manage Tags"
 			>
 				<SessionTagManager />
+			</ResponsiveDialog>
+
+			<ResponsiveDialog
+				fullHeight
+				onOpenChange={(open) => {
+					if (!open) {
+						handleCloseEvents();
+					}
+				}}
+				open={viewingEvents !== null}
+				title="Events"
+			>
+				{viewingEvents && (
+					<SessionEventsScene
+						embedded
+						sessionId={viewingEvents.sessionId}
+						sessionType={viewingEvents.sessionType}
+					/>
+				)}
 			</ResponsiveDialog>
 		</div>
 	);

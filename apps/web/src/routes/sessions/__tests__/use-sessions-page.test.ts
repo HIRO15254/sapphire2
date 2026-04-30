@@ -105,6 +105,7 @@ describe("useSessionsPage", () => {
 			expect(result.current.filters).toEqual({});
 			expect(result.current.bbBiMode).toBe(false);
 			expect(result.current.isEditLiveLinked).toBe(false);
+			expect(result.current.viewingEvents).toBeNull();
 		});
 
 		it("passes empty filters into useSessions initially", () => {
@@ -314,6 +315,50 @@ describe("useSessionsPage", () => {
 				result.current.setBbBiMode(false);
 			});
 			expect(result.current.bbBiMode).toBe(false);
+		});
+	});
+
+	describe("handleOpenEvents / handleCloseEvents", () => {
+		it("opens events viewer for a tournament session", () => {
+			const { result } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.handleOpenEvents({
+					sessionId: "live-1",
+					sessionType: "tournament",
+				});
+			});
+			expect(result.current.viewingEvents).toEqual({
+				sessionId: "live-1",
+				sessionType: "tournament",
+			});
+		});
+
+		it("normalizes cash-game sessionType to cash_game on open", () => {
+			const { result } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.handleOpenEvents({
+					sessionId: "live-2",
+					sessionType: "cash-game",
+				});
+			});
+			expect(result.current.viewingEvents).toEqual({
+				sessionId: "live-2",
+				sessionType: "cash_game",
+			});
+		});
+
+		it("clears viewingEvents on close", () => {
+			const { result } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.handleOpenEvents({
+					sessionId: "live-3",
+					sessionType: "tournament",
+				});
+			});
+			act(() => {
+				result.current.handleCloseEvents();
+			});
+			expect(result.current.viewingEvents).toBeNull();
 		});
 	});
 

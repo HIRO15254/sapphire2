@@ -62,10 +62,10 @@ export const widgetRegistry: Record<WidgetType, WidgetRegistryEntry> = {
 		Render: SummaryStatsWidget,
 		EditForm: SummaryStatsEditForm,
 		defaultSize: {
-			desktop: { w: 6, h: 2 },
-			mobile: { w: 4, h: 2 },
+			desktop: { w: 6, h: 4 },
+			mobile: { w: 6, h: 4 },
 		},
-		minSize: { w: 2, h: 1 },
+		minSize: { w: 2, h: 2 },
 	},
 	recent_sessions: {
 		type: "recent_sessions",
@@ -75,10 +75,10 @@ export const widgetRegistry: Record<WidgetType, WidgetRegistryEntry> = {
 		Render: RecentSessionsWidget,
 		EditForm: RecentSessionsEditForm,
 		defaultSize: {
-			desktop: { w: 6, h: 3 },
-			mobile: { w: 4, h: 3 },
+			desktop: { w: 6, h: 6 },
+			mobile: { w: 6, h: 6 },
 		},
-		minSize: { w: 2, h: 2 },
+		minSize: { w: 2, h: 4 },
 	},
 	active_session: {
 		type: "active_session",
@@ -88,10 +88,10 @@ export const widgetRegistry: Record<WidgetType, WidgetRegistryEntry> = {
 		Render: ActiveSessionWidget,
 		EditForm: ActiveSessionEditForm,
 		defaultSize: {
-			desktop: { w: 6, h: 2 },
-			mobile: { w: 4, h: 2 },
+			desktop: { w: 6, h: 4 },
+			mobile: { w: 6, h: 4 },
 		},
-		minSize: { w: 2, h: 1 },
+		minSize: { w: 2, h: 2 },
 	},
 	currency_balance: {
 		type: "currency_balance",
@@ -101,10 +101,10 @@ export const widgetRegistry: Record<WidgetType, WidgetRegistryEntry> = {
 		Render: CurrencyBalanceWidget,
 		EditForm: CurrencyBalanceEditForm,
 		defaultSize: {
-			desktop: { w: 3, h: 1 },
-			mobile: { w: 2, h: 1 },
+			desktop: { w: 3, h: 2 },
+			mobile: { w: 3, h: 2 },
 		},
-		minSize: { w: 2, h: 1 },
+		minSize: { w: 2, h: 2 },
 	},
 };
 

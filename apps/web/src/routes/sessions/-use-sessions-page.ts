@@ -10,6 +10,11 @@ import {
 	useStoreGames,
 } from "@/features/stores/hooks/use-store-games";
 
+type ViewingEventsState = {
+	sessionId: string;
+	sessionType: "cash_game" | "tournament";
+} | null;
+
 export function useSessionsPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
@@ -20,6 +25,7 @@ export function useSessionsPage() {
 	const [editStoreId, setEditStoreId] = useState<string | undefined>();
 	const [filters, setFilters] = useState<SessionFilterValues>({});
 	const [bbBiMode, setBbBiMode] = useState(false);
+	const [viewingEvents, setViewingEvents] = useState<ViewingEventsState>(null);
 
 	const {
 		sessions,
@@ -80,6 +86,23 @@ export function useSessionsPage() {
 		}
 	};
 
+	const handleOpenEvents = ({
+		sessionId,
+		sessionType,
+	}: {
+		sessionId: string;
+		sessionType: "cash-game" | "tournament";
+	}) => {
+		setViewingEvents({
+			sessionId,
+			sessionType: sessionType === "tournament" ? "tournament" : "cash_game",
+		});
+	};
+
+	const handleCloseEvents = () => {
+		setViewingEvents(null);
+	};
+
 	const isEditLiveLinked =
 		editingSession !== null &&
 		(editingSession.liveCashGameSessionId !== null ||
@@ -100,6 +123,7 @@ export function useSessionsPage() {
 		createGames,
 		editGames,
 		isEditLiveLinked,
+		viewingEvents,
 		setIsTagManagerOpen,
 		setFilters,
 		setBbBiMode,
@@ -112,6 +136,8 @@ export function useSessionsPage() {
 		handleOpenEdit,
 		handleCloseEdit,
 		handleCreateDialogOpenChange,
+		handleOpenEvents,
+		handleCloseEvents,
 		createTag,
 	};
 }
