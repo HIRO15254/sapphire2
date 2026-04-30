@@ -5,13 +5,13 @@ import type { DashboardWidget } from "@/features/dashboard/hooks/use-dashboard-w
 import { getWidgetEntry } from "@/features/dashboard/widgets/registry";
 
 export const GRID_COLS: Record<Device, number> = {
-	mobile: 4,
+	mobile: 6,
 	desktop: 12,
 };
 
 export function toLayoutItem(widget: DashboardWidget, device: Device): Layout {
 	const entry = getWidgetEntry(widget.type);
-	const minSize = entry?.minSize ?? { w: 2, h: 1 };
+	const minSize = entry?.minSize ?? { w: 2, h: 2 };
 	return {
 		i: widget.id,
 		x: widget.x,
