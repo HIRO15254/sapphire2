@@ -22,6 +22,7 @@ import { useSessionEventsScene } from "./use-session-events-scene";
 type SessionType = "cash_game" | "tournament";
 
 interface SessionEventsSceneProps {
+	embedded?: boolean;
 	emptySessionMessage?: string;
 	refetchInterval?: number;
 	sessionId: string;
@@ -30,6 +31,7 @@ interface SessionEventsSceneProps {
 }
 
 export function SessionEventsScene({
+	embedded = false,
 	emptySessionMessage = "No active session",
 	refetchInterval,
 	sessionId,
@@ -49,16 +51,19 @@ export function SessionEventsScene({
 		timeBounds,
 	} = useSessionEventsScene({ sessionId, sessionType, refetchInterval });
 
+	const placeholderClass = embedded
+		? "flex items-center justify-center py-8"
+		: "flex h-[100dvh] items-center justify-center pb-16";
 	if (sessionLoading) {
 		return (
-			<div className="flex h-[100dvh] items-center justify-center pb-16">
+			<div className={placeholderClass}>
 				<p className="text-muted-foreground">Loading...</p>
 			</div>
 		);
 	}
 	if (!sessionId) {
 		return (
-			<div className="flex h-[100dvh] items-center justify-center pb-16">
+			<div className={placeholderClass}>
 				<p className="text-muted-foreground">{emptySessionMessage}</p>
 			</div>
 		);
@@ -144,8 +149,8 @@ export function SessionEventsScene({
 	}
 
 	return (
-		<div className="p-4 md:p-6">
-			<PageHeader heading="Events" />
+		<div className={embedded ? "" : "p-4 md:p-6"}>
+			{!embedded && <PageHeader heading="Events" />}
 			{events.length === 0 ? (
 				<EmptyState
 					className="border-none bg-transparent px-0 py-8"

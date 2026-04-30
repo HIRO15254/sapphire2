@@ -1,14 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { SessionCard } from "./session-card";
-
-vi.mock("@tanstack/react-router", () => ({
-	Link: ({ children, to }: { children: ReactNode; to: string }) => (
-		<a href={to}>{children}</a>
-	),
-}));
 
 function makeCashGameSession(
 	overrides: Record<string, unknown> = {}
@@ -469,6 +462,7 @@ describe("SessionCard", () => {
 	it("shows events and reopen actions for live sessions", async () => {
 		const user = userEvent.setup();
 		const onReopen = vi.fn();
+		const onViewEvents = vi.fn();
 		const session = makeCashGameSession({
 			liveCashGameSessionId: "live-1",
 		});
@@ -478,15 +472,93 @@ describe("SessionCard", () => {
 				onDelete={vi.fn()}
 				onEdit={vi.fn()}
 				onReopen={onReopen}
+				onViewEvents={onViewEvents}
 				session={session}
 			/>
 		);
 
 		await user.click(screen.getByRole("button", { expanded: false }));
 
-		expect(screen.getByRole("link", { name: "Events" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Events" })).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: "Reopen" }));
 		expect(onReopen).toHaveBeenCalledWith("live-1");
+	});
+
+	it("invokes onViewEvents with cash-game payload for live cash sessions", async () => {
+		const user = userEvent.setup();
+		const onViewEvents = vi.fn();
+		const session = makeCashGameSession({
+			liveCashGameSessionId: "live-cash-1",
+		});
+
+		render(
+			<SessionCard
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				onViewEvents={onViewEvents}
+				session={session}
+			/>
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+		await user.click(screen.getByRole("button", { name: "Events" }));
+
+		expect(onViewEvents).toHaveBeenCalledTimes(1);
+		expect(onViewEvents).toHaveBeenCalledWith({
+			sessionId: "live-cash-1",
+			sessionType: "cash-game",
+		});
+	});
+
+	it("invokes onViewEvents with tournament payload for live tournament sessions", async () => {
+		const user = userEvent.setup();
+		const onViewEvents = vi.fn();
+		const session = makeTournamentSession({
+			liveTournamentSessionId: "live-tourn-1",
+		});
+
+		render(
+			<SessionCard
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				onViewEvents={onViewEvents}
+				session={session}
+			/>
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+		await user.click(screen.getByRole("button", { name: "Events" }));
+
+		expect(onViewEvents).toHaveBeenCalledTimes(1);
+		expect(onViewEvents).toHaveBeenCalledWith({
+			sessionId: "live-tourn-1",
+			sessionType: "tournament",
+		});
+	});
+
+	it("does not render Events button when no live session is linked", async () => {
+		const user = userEvent.setup();
+		const onViewEvents = vi.fn();
+		const session = makeCashGameSession({
+			liveCashGameSessionId: null,
+			liveTournamentSessionId: null,
+		});
+
+		render(
+			<SessionCard
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				onViewEvents={onViewEvents}
+				session={session}
+			/>
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+
+		expect(
+			screen.queryByRole("button", { name: "Events" })
+		).not.toBeInTheDocument();
+		expect(onViewEvents).not.toHaveBeenCalled();
 	});
 });

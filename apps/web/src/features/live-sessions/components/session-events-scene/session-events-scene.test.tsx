@@ -117,6 +117,62 @@ describe("SessionEventsScene", () => {
 		});
 	});
 
+	it("renders the page header heading by default", () => {
+		mocks.events = [];
+		render(
+			<SessionEventsScene sessionId="session-3" sessionType="cash_game" />
+		);
+		expect(screen.getByRole("heading", { name: "Events" })).toBeInTheDocument();
+	});
+
+	it("hides the page header heading when embedded", () => {
+		mocks.events = [];
+		render(
+			<SessionEventsScene
+				embedded
+				sessionId="session-4"
+				sessionType="cash_game"
+			/>
+		);
+		expect(
+			screen.queryByRole("heading", { name: "Events" })
+		).not.toBeInTheDocument();
+	});
+
+	it("still allows event editing when embedded", async () => {
+		const user = userEvent.setup();
+		mocks.events = [
+			{
+				eventType: "chips_add_remove",
+				id: "event-3",
+				occurredAt: "2026-04-03T10:00:00.000Z",
+				payload: { amount: 5000, type: "add" },
+			},
+		];
+
+		render(
+			<SessionEventsScene
+				embedded
+				sessionId="session-5"
+				sessionType="cash_game"
+			/>
+		);
+
+		await user.click(screen.getByLabelText("Edit Chips Add/Remove"));
+		await user.clear(screen.getByLabelText(ADDON_AMOUNT_LABEL));
+		await user.type(screen.getByLabelText(ADDON_AMOUNT_LABEL), "9000");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(mocks.updateMutate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					id: "event-3",
+					payload: expect.objectContaining({ amount: 9000 }),
+				})
+			);
+		});
+	});
+
 	it("updates a purchase chips event from the shared scene", async () => {
 		const user = userEvent.setup();
 		mocks.events = [

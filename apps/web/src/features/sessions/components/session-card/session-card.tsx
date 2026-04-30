@@ -9,7 +9,6 @@ import {
 	IconShare2,
 	IconTrophy,
 } from "@tabler/icons-react";
-import { Link } from "@tanstack/react-router";
 import { EntityListItem } from "@/shared/components/management/entity-list-item";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -25,6 +24,10 @@ interface SessionCardProps {
 	onDelete: (id: string) => void;
 	onEdit: (session: SessionCardProps["session"]) => void;
 	onReopen?: (liveCashGameSessionId: string) => void;
+	onViewEvents?: (input: {
+		sessionId: string;
+		sessionType: "cash-game" | "tournament";
+	}) => void;
 	session: {
 		addonCost: number | null;
 		beforeDeadline: boolean | null;
@@ -431,6 +434,7 @@ export function SessionCard({
 	onEdit,
 	onDelete,
 	onReopen,
+	onViewEvents,
 }: SessionCardProps) {
 	const { isSharing, onShare } = useSessionCard(session);
 	const isTournament = session.type === "tournament";
@@ -475,18 +479,23 @@ export function SessionCard({
 				)}
 				{liveSessionId && (
 					<div className="mt-2 flex items-center gap-2 border-t pt-2">
-						<Button asChild className="px-0" size="xs" variant="link">
-							<Link
-								params={{
-									sessionType: isTournament ? "tournament" : "cash-game",
-									sessionId: liveSessionId,
-								}}
-								to="/live-sessions/$sessionType/$sessionId/events"
+						{onViewEvents && (
+							<Button
+								className="px-0"
+								onClick={() =>
+									onViewEvents({
+										sessionId: liveSessionId,
+										sessionType: isTournament ? "tournament" : "cash-game",
+									})
+								}
+								size="xs"
+								type="button"
+								variant="link"
 							>
 								<IconList size={12} />
 								Events
-							</Link>
-						</Button>
+							</Button>
+						)}
 						{onReopen && (
 							<Button
 								className="px-0"
