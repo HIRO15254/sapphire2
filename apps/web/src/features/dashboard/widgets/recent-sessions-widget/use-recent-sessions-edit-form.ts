@@ -1,5 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import z from "zod";
+import { SESSION_TYPE_VALUES } from "@/features/dashboard/utils/session-filter";
 import type { WidgetEditProps } from "@/features/dashboard/widgets/registry";
 import { requiredNumericString } from "@/shared/lib/form-fields";
 import {
@@ -7,11 +8,9 @@ import {
 	type RecentSessionsWidgetTypeFilter,
 } from "./use-recent-sessions-widget";
 
-const TYPE_VALUES = ["all", "cash_game", "tournament"] as const;
-
 const editFormSchema = z.object({
 	limit: requiredNumericString({ integer: true, min: 1, max: 20 }),
-	type: z.enum(TYPE_VALUES),
+	type: z.enum(SESSION_TYPE_VALUES),
 });
 
 interface UseRecentSessionsEditFormOptions {

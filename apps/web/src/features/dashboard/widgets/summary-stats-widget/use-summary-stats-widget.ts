@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
+import { useGlobalFilter } from "@/features/dashboard/hooks/use-global-filter";
 import {
-	resolveDateFromEpoch,
-	resolveDateToEpoch,
-	resolveSessionType,
-	useGlobalFilter,
-} from "@/features/dashboard/hooks/use-global-filter";
+	parseSessionFilterWidgetConfig,
+	resolveSessionListQueryInput,
+	type SessionFilterWidgetConfig,
+	type SessionTypeFilter,
+} from "@/features/dashboard/utils/session-filter";
 import { trpc } from "@/utils/trpc";
 
-export type SummaryStatsWidgetType = "all" | "cash_game" | "tournament";
+export type SummaryStatsWidgetType = SessionTypeFilter;
 
 export type SummaryStatsMetricKey =
 	| "totalSessions"
@@ -36,29 +37,21 @@ export const SUMMARY_STATS_DEFAULT_METRICS: SummaryStatsMetricKey[] = [
 	"avgProfitLoss",
 ];
 
-interface ParsedConfig {
-	dateRangeDays: number | null;
+interface ParsedConfig extends SessionFilterWidgetConfig {
 	metrics: SummaryStatsMetricKey[];
-	type: SummaryStatsWidgetType;
 }
 
 export function parseSummaryStatsWidgetConfig(
 	raw: Record<string, unknown>
 ): ParsedConfig {
+	const sessionFilter = parseSessionFilterWidgetConfig(raw);
 	const metricsRaw = Array.isArray(raw.metrics) ? raw.metrics : [];
 	const metrics = metricsRaw.filter((m): m is SummaryStatsMetricKey =>
 		SUMMARY_STATS_ALL_METRICS.some((am) => am.key === m)
 	);
-	const type =
-		raw.type === "cash_game" || raw.type === "tournament"
-			? (raw.type as SummaryStatsWidgetType)
-			: ("all" as SummaryStatsWidgetType);
-	const dateRangeDays =
-		typeof raw.dateRangeDays === "number" ? raw.dateRangeDays : null;
 	return {
+		...sessionFilter,
 		metrics: metrics.length > 0 ? metrics : SUMMARY_STATS_DEFAULT_METRICS,
-		type,
-		dateRangeDays,
 	};
 }
 
@@ -82,19 +75,9 @@ export function useSummaryStatsWidget(
 ): UseSummaryStatsWidgetResult {
 	const parsed = parseSummaryStatsWidgetConfig(config);
 	const globalFilter = useGlobalFilter();
-	const effectiveType = resolveSessionType(parsed.type, globalFilter);
-	const dateFrom = resolveDateFromEpoch(globalFilter, parsed.dateRangeDays);
-	const dateTo = resolveDateToEpoch(globalFilter);
+	const queryInput = resolveSessionListQueryInput(parsed, globalFilter);
 
-	const query = useQuery(
-		trpc.session.list.queryOptions({
-			type: effectiveType === "all" ? undefined : effectiveType,
-			storeId: globalFilter.storeId ?? undefined,
-			currencyId: globalFilter.currencyId ?? undefined,
-			dateFrom,
-			dateTo,
-		})
-	);
+	const query = useQuery(trpc.session.list.queryOptions(queryInput));
 
 	return {
 		isLoading: query.isLoading,

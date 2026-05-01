@@ -3,22 +3,24 @@ import {
 	resolveSessionType,
 	useGlobalFilter,
 } from "@/features/dashboard/hooks/use-global-filter";
+import {
+	parseSessionType,
+	type SessionTypeFilter,
+} from "@/features/dashboard/utils/session-filter";
 import { trpc } from "@/utils/trpc";
 
-export type ActiveSessionWidgetSessionType = "all" | "cash_game" | "tournament";
+export type ActiveSessionWidgetSessionType = SessionTypeFilter;
 
 interface ParsedConfig {
-	sessionType: ActiveSessionWidgetSessionType;
+	type: ActiveSessionWidgetSessionType;
 }
 
 export function parseActiveSessionWidgetConfig(
 	raw: Record<string, unknown>
 ): ParsedConfig {
-	const sessionType =
-		raw.sessionType === "cash_game" || raw.sessionType === "tournament"
-			? (raw.sessionType as ActiveSessionWidgetSessionType)
-			: ("all" as ActiveSessionWidgetSessionType);
-	return { sessionType };
+	// Legacy configs persisted the field as `sessionType`; read it as a fallback
+	// so existing dashboards keep their selection after the rename.
+	return { type: parseSessionType(raw.type ?? raw.sessionType) };
 }
 
 interface CashItem {
@@ -46,10 +48,7 @@ export function useActiveSessionWidget(
 ): UseActiveSessionWidgetResult {
 	const parsed = parseActiveSessionWidgetConfig(config);
 	const globalFilter = useGlobalFilter();
-	const effectiveSessionType = resolveSessionType(
-		parsed.sessionType,
-		globalFilter
-	);
+	const effectiveType = resolveSessionType(parsed.type, globalFilter);
 
 	const cashQuery = useQuery({
 		...trpc.liveCashGameSession.list.queryOptions({
@@ -58,7 +57,7 @@ export function useActiveSessionWidget(
 		}),
 		refetchInterval: 5000,
 		refetchIntervalInBackground: false,
-		enabled: effectiveSessionType !== "tournament",
+		enabled: effectiveType !== "tournament",
 	});
 
 	const tournamentQuery = useQuery({
@@ -68,16 +67,14 @@ export function useActiveSessionWidget(
 		}),
 		refetchInterval: 5000,
 		refetchIntervalInBackground: false,
-		enabled: effectiveSessionType !== "cash_game",
+		enabled: effectiveType !== "cash_game",
 	});
 
 	const isLoading = cashQuery.isLoading || tournamentQuery.isLoading;
 	const cashItems: CashItem[] =
-		effectiveSessionType === "tournament" ? [] : (cashQuery.data?.items ?? []);
+		effectiveType === "tournament" ? [] : (cashQuery.data?.items ?? []);
 	const tournamentItems: TournamentItem[] =
-		effectiveSessionType === "cash_game"
-			? []
-			: (tournamentQuery.data?.items ?? []);
+		effectiveType === "cash_game" ? [] : (tournamentQuery.data?.items ?? []);
 
 	return { isLoading, cashItems, tournamentItems };
 }

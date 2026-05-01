@@ -132,7 +132,7 @@ export function ActiveSessionEditForm({
 				form.handleSubmit();
 			}}
 		>
-			<form.Field name="sessionType">
+			<form.Field name="type">
 				{(field) => (
 					<Field htmlFor={field.name} label="Session Type">
 						<Select

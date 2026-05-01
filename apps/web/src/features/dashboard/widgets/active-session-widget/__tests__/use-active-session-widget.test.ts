@@ -86,28 +86,47 @@ function wrapperWithGlobalFilter(
 }
 
 describe("parseActiveSessionWidgetConfig", () => {
-	it("defaults sessionType to 'all' when raw has no value", () => {
-		expect(parseActiveSessionWidgetConfig({})).toEqual({ sessionType: "all" });
+	it("defaults type to 'all' when raw has no value", () => {
+		expect(parseActiveSessionWidgetConfig({})).toEqual({ type: "all" });
 	});
 
-	it("keeps cash_game and tournament values", () => {
+	it("keeps cash_game and tournament values from `type`", () => {
+		expect(parseActiveSessionWidgetConfig({ type: "cash_game" }).type).toBe(
+			"cash_game"
+		);
+		expect(parseActiveSessionWidgetConfig({ type: "tournament" }).type).toBe(
+			"tournament"
+		);
+	});
+
+	it("reads legacy `sessionType` key when `type` is missing", () => {
 		expect(
-			parseActiveSessionWidgetConfig({ sessionType: "cash_game" }).sessionType
+			parseActiveSessionWidgetConfig({ sessionType: "cash_game" }).type
 		).toBe("cash_game");
 		expect(
-			parseActiveSessionWidgetConfig({ sessionType: "tournament" }).sessionType
+			parseActiveSessionWidgetConfig({ sessionType: "tournament" }).type
 		).toBe("tournament");
 	});
 
-	it("coerces unknown sessionType to 'all'", () => {
+	it("prefers `type` over legacy `sessionType`", () => {
 		expect(
-			parseActiveSessionWidgetConfig({ sessionType: "weird" }).sessionType
-		).toBe("all");
+			parseActiveSessionWidgetConfig({
+				type: "cash_game",
+				sessionType: "tournament",
+			}).type
+		).toBe("cash_game");
+	});
+
+	it("coerces unknown type to 'all'", () => {
+		expect(parseActiveSessionWidgetConfig({ type: "weird" }).type).toBe("all");
+		expect(parseActiveSessionWidgetConfig({ sessionType: "weird" }).type).toBe(
+			"all"
+		);
 	});
 });
 
 describe("useActiveSessionWidget", () => {
-	it("returns both cash and tournament items for sessionType 'all'", async () => {
+	it("returns both cash and tournament items for type 'all'", async () => {
 		const qc = createClient();
 		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
 		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
@@ -120,7 +139,31 @@ describe("useActiveSessionWidget", () => {
 		});
 	});
 
-	it("returns only cash items when sessionType is 'cash_game'", async () => {
+	it("returns only cash items when type is 'cash_game'", async () => {
+		const qc = createClient();
+		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
+		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
+		const { result } = renderHook(
+			() => useActiveSessionWidget({ type: "cash_game" }),
+			{ wrapper: wrapper(qc) }
+		);
+		await waitFor(() => expect(result.current.cashItems).toHaveLength(1));
+		expect(result.current.tournamentItems).toEqual([]);
+	});
+
+	it("returns only tournament items when type is 'tournament'", async () => {
+		const qc = createClient();
+		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
+		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
+		const { result } = renderHook(
+			() => useActiveSessionWidget({ type: "tournament" }),
+			{ wrapper: wrapper(qc) }
+		);
+		await waitFor(() => expect(result.current.tournamentItems).toHaveLength(1));
+		expect(result.current.cashItems).toEqual([]);
+	});
+
+	it("honors legacy `sessionType` config when filtering", async () => {
 		const qc = createClient();
 		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
 		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
@@ -130,18 +173,6 @@ describe("useActiveSessionWidget", () => {
 		);
 		await waitFor(() => expect(result.current.cashItems).toHaveLength(1));
 		expect(result.current.tournamentItems).toEqual([]);
-	});
-
-	it("returns only tournament items when sessionType is 'tournament'", async () => {
-		const qc = createClient();
-		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
-		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
-		const { result } = renderHook(
-			() => useActiveSessionWidget({ sessionType: "tournament" }),
-			{ wrapper: wrapper(qc) }
-		);
-		await waitFor(() => expect(result.current.tournamentItems).toHaveLength(1));
-		expect(result.current.cashItems).toEqual([]);
 	});
 
 	it("returns empty arrays when queries have no data", () => {
@@ -174,7 +205,7 @@ describe("useActiveSessionWidget — global filter integration", () => {
 		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
 		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
 		const { result } = renderHook(
-			() => useActiveSessionWidget({ sessionType: "cash_game" }),
+			() => useActiveSessionWidget({ type: "cash_game" }),
 			{
 				wrapper: wrapperWithGlobalFilter(qc, {
 					...DEFAULT_GLOBAL_FILTER_VALUES,
@@ -191,7 +222,7 @@ describe("useActiveSessionWidget — global filter integration", () => {
 		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
 		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
 		const { result } = renderHook(
-			() => useActiveSessionWidget({ sessionType: "tournament" }),
+			() => useActiveSessionWidget({ type: "tournament" }),
 			{
 				wrapper: wrapperWithGlobalFilter(qc, DEFAULT_GLOBAL_FILTER_VALUES),
 			}

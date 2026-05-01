@@ -1,5 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import z from "zod";
+import { SESSION_TYPE_VALUES } from "@/features/dashboard/utils/session-filter";
 import type { WidgetEditProps } from "@/features/dashboard/widgets/registry";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 import {
@@ -8,8 +9,6 @@ import {
 	type SummaryStatsMetricKey,
 	type SummaryStatsWidgetType,
 } from "./use-summary-stats-widget";
-
-const TYPE_VALUES = ["all", "cash_game", "tournament"] as const;
 
 const METRIC_VALUES: readonly SummaryStatsMetricKey[] = [
 	"totalSessions",
@@ -22,7 +21,7 @@ const METRIC_VALUES: readonly SummaryStatsMetricKey[] = [
 
 const editFormSchema = z.object({
 	metrics: z.array(z.enum(METRIC_VALUES)),
-	type: z.enum(TYPE_VALUES),
+	type: z.enum(SESSION_TYPE_VALUES),
 	dateRangeDays: optionalNumericString({ integer: true, min: 1 }),
 });
 

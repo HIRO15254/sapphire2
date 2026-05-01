@@ -1,15 +1,14 @@
 import { useForm } from "@tanstack/react-form";
 import z from "zod";
+import { SESSION_TYPE_VALUES } from "@/features/dashboard/utils/session-filter";
 import type { WidgetEditProps } from "@/features/dashboard/widgets/registry";
 import {
 	type ActiveSessionWidgetSessionType,
 	parseActiveSessionWidgetConfig,
 } from "./use-active-session-widget";
 
-const SESSION_TYPE_VALUES = ["all", "cash_game", "tournament"] as const;
-
 const editFormSchema = z.object({
-	sessionType: z.enum(SESSION_TYPE_VALUES),
+	type: z.enum(SESSION_TYPE_VALUES),
 });
 
 interface UseActiveSessionEditFormOptions {
@@ -24,10 +23,10 @@ export function useActiveSessionEditForm({
 	const parsed = parseActiveSessionWidgetConfig(config);
 	const form = useForm({
 		defaultValues: {
-			sessionType: parsed.sessionType as ActiveSessionWidgetSessionType,
+			type: parsed.type as ActiveSessionWidgetSessionType,
 		},
 		onSubmit: async ({ value }) => {
-			await onSave({ sessionType: value.sessionType });
+			await onSave({ type: value.type });
 		},
 		validators: {
 			onSubmit: editFormSchema,
