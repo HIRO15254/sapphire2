@@ -53,6 +53,26 @@ vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
 	useStackSheet: () => mocks.stackSheet,
 }));
 
+vi.mock("@/features/live-sessions/hooks/use-session-form", () => ({
+	useStackFormContext: () => ({
+		state: { stackAmount: "", allIns: [] },
+		setStackAmount: vi.fn(),
+		setAllIns: vi.fn(),
+	}),
+	useTournamentFormContext: () => ({
+		state: {
+			stackAmount: "",
+			remainingPlayers: "",
+			totalEntries: "",
+			chipPurchaseCounts: [],
+		},
+		setStackAmount: vi.fn(),
+		setRemainingPlayers: vi.fn(),
+		setTotalEntries: vi.fn(),
+		setChipPurchaseCounts: vi.fn(),
+	}),
+}));
+
 vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 	ResponsiveDialog: ({
 		children,

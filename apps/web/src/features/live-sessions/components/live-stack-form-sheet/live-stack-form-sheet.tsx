@@ -18,7 +18,7 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 		setIsCompleteOpen,
 		defaultFinalStack,
 		setDefaultFinalStack,
-	} = useCashGameStackSheet();
+	} = useCashGameStackSheet({ sessionId });
 
 	const {
 		recordStack,
@@ -81,7 +81,7 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 
 function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 	const { stackSheet, isCompleteOpen, setIsCompleteOpen } =
-		useTournamentStackSheet();
+		useTournamentStackSheet({ sessionId });
 
 	const {
 		chipPurchaseTypes,

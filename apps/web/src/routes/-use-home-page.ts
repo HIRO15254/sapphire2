@@ -1,20 +1,21 @@
-import { useQuery } from "@tanstack/react-query";
-import { authClient } from "@/lib/auth-client";
-import { trpc } from "@/utils/trpc";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
 
 export function useHomePage() {
-	const healthCheck = useQuery(trpc.healthCheck.queryOptions());
-	const { data: session } = authClient.useSession();
+	const navigate = useNavigate();
+	const { hasActive, isLoading } = useActiveSession();
 
-	const isConnected = Boolean(healthCheck.data);
-	const isSignedIn = Boolean(session);
-	const isLoading = healthCheck.isLoading;
-	const userName = session?.user.name ?? null;
+	useEffect(() => {
+		if (isLoading) {
+			return;
+		}
+		if (hasActive) {
+			navigate({ to: "/active-session" });
+		} else {
+			navigate({ to: "/dashboard" });
+		}
+	}, [isLoading, hasActive, navigate]);
 
-	return {
-		isConnected,
-		isSignedIn,
-		isLoading,
-		userName,
-	};
+	return { isLoading };
 }
