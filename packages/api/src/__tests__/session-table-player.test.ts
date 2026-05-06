@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { appRouter } from "../routers";
+import {
+	insertPlayerJoinEvent,
+	insertPlayerLeaveEvent,
+} from "../routers/session-table-player";
 import {
 	expectAccepts,
 	expectProtected,
@@ -237,6 +241,151 @@ describe("sessionTablePlayer.addTemporary input validation", () => {
 		expectRejects(appRouter.sessionTablePlayer.addTemporary, {
 			liveCashGameSessionId: "lcg1",
 			seatPosition: 9,
+		});
+	});
+});
+
+function makeInsertEventDb(maxSortOrder: number | null) {
+	const valuesSpy = vi.fn().mockResolvedValue(undefined);
+	const insertSpy = vi.fn().mockReturnValue({ values: valuesSpy });
+	const whereSpy = vi.fn().mockResolvedValue([{ maxSortOrder }]);
+	const fromSpy = vi.fn().mockReturnValue({ where: whereSpy });
+	const selectSpy = vi.fn().mockReturnValue({ from: fromSpy });
+	return {
+		db: { select: selectSpy, insert: insertSpy },
+		valuesSpy,
+		insertSpy,
+		whereSpy,
+		fromSpy,
+		selectSpy,
+	};
+}
+
+function firstInsertedRow(valuesSpy: ReturnType<typeof vi.fn>) {
+	const calls = valuesSpy.mock.calls;
+	if (calls.length === 0 || !calls[0] || calls[0].length === 0) {
+		throw new Error("expected values() to have been called at least once");
+	}
+	return calls[0][0] as Record<string, unknown>;
+}
+
+describe("insertPlayerJoinEvent (write-side ordering contract)", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-04-24T17:30:45.123Z"));
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("floors occurredAt to the minute (no leaked seconds or ms)", async () => {
+		const { db, valuesSpy } = makeInsertEventDb(null);
+		await insertPlayerJoinEvent(
+			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
+			"session-1",
+			"player-1"
+		);
+
+		expect(valuesSpy).toHaveBeenCalledTimes(1);
+		const inserted = firstInsertedRow(valuesSpy);
+		expect(inserted.eventType).toBe("player_join");
+		expect((inserted.occurredAt as Date).toISOString()).toBe(
+			"2026-04-24T17:30:00.000Z"
+		);
+	});
+
+	it("returns sortOrder = 0 only when the session has no events", async () => {
+		const { db, valuesSpy } = makeInsertEventDb(null);
+		await insertPlayerJoinEvent(
+			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
+			"session-1",
+			"player-1"
+		);
+		expect(firstInsertedRow(valuesSpy).sortOrder).toBe(0);
+	});
+
+	it("uses session-wide max(sortOrder) + 1, not a per-second scope", async () => {
+		// Pre-existing event with sortOrder=5 at a different second.
+		// The bug it guards against: scoping max(sortOrder) by `unixepoch(occurredAt) = nowUnix`
+		// returned 0 here, colliding with the real session_start at sortOrder=0.
+		const { db, valuesSpy } = makeInsertEventDb(5);
+		await insertPlayerJoinEvent(
+			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
+			"session-1",
+			"player-1"
+		);
+		expect(firstInsertedRow(valuesSpy).sortOrder).toBe(6);
+	});
+
+	it("treats max(sortOrder) = 0 as a real value (returns 1)", async () => {
+		const { db, valuesSpy } = makeInsertEventDb(0);
+		await insertPlayerJoinEvent(
+			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
+			"session-1",
+			"player-1"
+		);
+		expect(firstInsertedRow(valuesSpy).sortOrder).toBe(1);
+	});
+
+	it("serializes the playerId into the payload", async () => {
+		const { db, valuesSpy } = makeInsertEventDb(2);
+		await insertPlayerJoinEvent(
+			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
+			"session-1",
+			"player-xyz"
+		);
+		const inserted = firstInsertedRow(valuesSpy);
+		expect(JSON.parse(inserted.payload as string)).toEqual({
+			playerId: "player-xyz",
+		});
+	});
+});
+
+describe("insertPlayerLeaveEvent (write-side ordering contract)", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-04-24T23:59:59.999Z"));
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("floors occurredAt to the minute even at the end-of-day boundary", async () => {
+		const { db, valuesSpy } = makeInsertEventDb(3);
+		await insertPlayerLeaveEvent(
+			db as unknown as Parameters<typeof insertPlayerLeaveEvent>[0],
+			"session-1",
+			"player-1"
+		);
+		const inserted = firstInsertedRow(valuesSpy);
+		expect(inserted.eventType).toBe("player_leave");
+		expect((inserted.occurredAt as Date).toISOString()).toBe(
+			"2026-04-24T23:59:00.000Z"
+		);
+	});
+
+	it("appends with session-wide max(sortOrder) + 1", async () => {
+		const { db, valuesSpy } = makeInsertEventDb(9);
+		await insertPlayerLeaveEvent(
+			db as unknown as Parameters<typeof insertPlayerLeaveEvent>[0],
+			"session-1",
+			"player-1"
+		);
+		expect(firstInsertedRow(valuesSpy).sortOrder).toBe(10);
+	});
+
+	it("serializes the playerId into the payload", async () => {
+		const { db, valuesSpy } = makeInsertEventDb(0);
+		await insertPlayerLeaveEvent(
+			db as unknown as Parameters<typeof insertPlayerLeaveEvent>[0],
+			"session-1",
+			"player-abc"
+		);
+		const inserted = firstInsertedRow(valuesSpy);
+		expect(JSON.parse(inserted.payload as string)).toEqual({
+			playerId: "player-abc",
 		});
 	});
 });
