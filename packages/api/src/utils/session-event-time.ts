@@ -1,6 +1,6 @@
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gt, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, max } from "drizzle-orm";
 import type { protectedProcedure } from "../index";
 
 type DbInstance = Parameters<
@@ -11,6 +11,18 @@ export function floorToMinute(date: Date): Date {
 	const copy = new Date(date);
 	copy.setSeconds(0, 0);
 	return copy;
+}
+
+export async function nextAppendSortOrder(
+	db: DbInstance,
+	sessionId: string
+): Promise<number> {
+	const [row] = await db
+		.select({ maxSortOrder: max(sessionEvent.sortOrder) })
+		.from(sessionEvent)
+		.where(eq(sessionEvent.sessionId, sessionId));
+
+	return row?.maxSortOrder == null ? 0 : row.maxSortOrder + 1;
 }
 
 function minuteEpoch(date: Date): number {

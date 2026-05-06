@@ -15,7 +15,7 @@ import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, max } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
@@ -25,6 +25,7 @@ import {
 import {
 	assertOccurredAtOrdering,
 	floorToMinute,
+	nextAppendSortOrder,
 } from "../utils/session-event-time";
 
 type DbInstance = Parameters<
@@ -73,18 +74,6 @@ async function resolveSessionOwnership(
 		status: session.status,
 		sessionDate: session.sessionDate,
 	};
-}
-
-async function nextAppendSortOrder(
-	db: DbInstance,
-	sessionId: string
-): Promise<number> {
-	const [row] = await db
-		.select({ maxSortOrder: max(sessionEvent.sortOrder) })
-		.from(sessionEvent)
-		.where(eq(sessionEvent.sessionId, sessionId));
-
-	return row?.maxSortOrder == null ? 0 : row.maxSortOrder + 1;
 }
 
 async function handlePlayerJoinSideEffect(

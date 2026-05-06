@@ -12,9 +12,13 @@ import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament
 import { store } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, max, sql } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
+import {
+	floorToMinute,
+	nextAppendSortOrder,
+} from "../utils/session-event-time";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -113,64 +117,38 @@ async function fetchSessionContext(
 	return { storeName, gameName };
 }
 
-async function insertPlayerJoinEvent(
+export async function insertPlayerJoinEvent(
 	db: DbInstance,
 	sessionId: string,
 	playerId: string
 ) {
 	const now = new Date();
-	const nowUnix = Math.floor(now.getTime() / 1000);
-
-	const [maxResult] = await db
-		.select({ maxSortOrder: max(sessionEvent.sortOrder) })
-		.from(sessionEvent)
-		.where(
-			and(
-				eq(sessionEvent.sessionId, sessionId),
-				sql`(unixepoch(${sessionEvent.occurredAt})) = ${nowUnix}`
-			)
-		);
-
-	const sortOrder =
-		maxResult?.maxSortOrder == null ? 0 : maxResult.maxSortOrder + 1;
+	const sortOrder = await nextAppendSortOrder(db, sessionId);
 
 	await db.insert(sessionEvent).values({
 		id: crypto.randomUUID(),
 		sessionId,
 		eventType: "player_join",
-		occurredAt: now,
+		occurredAt: floorToMinute(now),
 		sortOrder,
 		payload: JSON.stringify({ playerId }),
 		updatedAt: now,
 	});
 }
 
-async function insertPlayerLeaveEvent(
+export async function insertPlayerLeaveEvent(
 	db: DbInstance,
 	sessionId: string,
 	playerId: string
 ) {
 	const now = new Date();
-	const nowUnix = Math.floor(now.getTime() / 1000);
-
-	const [maxResult] = await db
-		.select({ maxSortOrder: max(sessionEvent.sortOrder) })
-		.from(sessionEvent)
-		.where(
-			and(
-				eq(sessionEvent.sessionId, sessionId),
-				sql`(unixepoch(${sessionEvent.occurredAt})) = ${nowUnix}`
-			)
-		);
-
-	const sortOrder =
-		maxResult?.maxSortOrder == null ? 0 : maxResult.maxSortOrder + 1;
+	const sortOrder = await nextAppendSortOrder(db, sessionId);
 
 	await db.insert(sessionEvent).values({
 		id: crypto.randomUUID(),
 		sessionId,
 		eventType: "player_leave",
-		occurredAt: now,
+		occurredAt: floorToMinute(now),
 		sortOrder,
 		payload: JSON.stringify({ playerId }),
 		updatedAt: now,
