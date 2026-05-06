@@ -2,27 +2,59 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-	healthCheck: {
-		data: null as null | { ok: boolean },
-		isLoading: false,
-	},
+	navigate: vi.fn(),
+	isAuthPending: false,
 	session: null as null | { user: { email: string; name: string } },
+	cashItems: [] as Array<{ id: string }>,
+	cashIsLoading: false,
+	tournamentItems: [] as Array<{ id: string }>,
+	tournamentIsLoading: false,
 }));
 
-vi.mock("@tanstack/react-query", () => ({
-	useQuery: () => mocks.healthCheck,
+vi.mock("@tanstack/react-router", () => ({
+	useNavigate: () => mocks.navigate,
 }));
 
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
-		useSession: () => ({ data: mocks.session }),
+		useSession: () => ({ data: mocks.session, isPending: mocks.isAuthPending }),
+	},
+}));
+
+vi.mock("@tanstack/react-query", () => ({
+	useQuery: (options: { queryKey?: unknown[]; enabled?: boolean }) => {
+		const key = options.queryKey?.[0];
+		if (key === "liveCashGameSession.list") {
+			return {
+				data: { items: mocks.cashItems },
+				isLoading: mocks.cashIsLoading,
+			};
+		}
+		if (key === "liveTournamentSession.list") {
+			return {
+				data: { items: mocks.tournamentItems },
+				isLoading: mocks.tournamentIsLoading,
+			};
+		}
+		return { data: undefined, isLoading: false };
 	},
 }));
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		healthCheck: {
-			queryOptions: () => ({ queryKey: ["health-check"] }),
+		liveCashGameSession: {
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: ["liveCashGameSession.list", input],
+				}),
+			},
+		},
+		liveTournamentSession: {
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: ["liveTournamentSession.list", input],
+				}),
+			},
 		},
 	},
 }));
@@ -31,84 +63,97 @@ import { useHomePage } from "@/routes/-use-home-page";
 
 describe("useHomePage", () => {
 	beforeEach(() => {
-		mocks.healthCheck.data = null;
-		mocks.healthCheck.isLoading = false;
+		mocks.navigate.mockReset();
+		mocks.isAuthPending = false;
 		mocks.session = null;
-	});
-
-	describe("isConnected", () => {
-		it("is false when healthCheck.data is null", () => {
-			mocks.healthCheck.data = null;
-			const { result } = renderHook(() => useHomePage());
-			expect(result.current.isConnected).toBe(false);
-		});
-
-		it("is true when healthCheck.data is a non-null object", () => {
-			mocks.healthCheck.data = { ok: true };
-			const { result } = renderHook(() => useHomePage());
-			expect(result.current.isConnected).toBe(true);
-		});
-
-		it("is false while the health check is loading", () => {
-			mocks.healthCheck.isLoading = true;
-			mocks.healthCheck.data = null;
-			const { result } = renderHook(() => useHomePage());
-			expect(result.current.isConnected).toBe(false);
-			expect(result.current.isLoading).toBe(true);
-		});
-	});
-
-	describe("isSignedIn", () => {
-		it("is false when session is null", () => {
-			mocks.session = null;
-			const { result } = renderHook(() => useHomePage());
-			expect(result.current.isSignedIn).toBe(false);
-		});
-
-		it("is true when session is present", () => {
-			mocks.session = { user: { email: "a@b.c", name: "Alice" } };
-			const { result } = renderHook(() => useHomePage());
-			expect(result.current.isSignedIn).toBe(true);
-		});
-	});
-
-	describe("userName", () => {
-		it("is null when the session has no user", () => {
-			mocks.session = null;
-			const { result } = renderHook(() => useHomePage());
-			expect(result.current.userName).toBeNull();
-		});
-
-		it("returns the user name when signed in", () => {
-			mocks.session = { user: { email: "hiro@b.c", name: "Hiro" } };
-			const { result } = renderHook(() => useHomePage());
-			expect(result.current.userName).toBe("Hiro");
-		});
+		mocks.cashItems = [];
+		mocks.cashIsLoading = false;
+		mocks.tournamentItems = [];
+		mocks.tournamentIsLoading = false;
 	});
 
 	describe("isLoading", () => {
-		it("mirrors healthCheck.isLoading", () => {
-			mocks.healthCheck.isLoading = true;
-			const r1 = renderHook(() => useHomePage());
-			expect(r1.result.current.isLoading).toBe(true);
+		it("is true when auth is pending", () => {
+			mocks.isAuthPending = true;
+			const { result } = renderHook(() => useHomePage());
+			expect(result.current.isLoading).toBe(true);
+		});
 
-			mocks.healthCheck.isLoading = false;
-			const r2 = renderHook(() => useHomePage());
-			expect(r2.result.current.isLoading).toBe(false);
+		it("is true when signed in and cash session query is loading", () => {
+			mocks.session = { user: { email: "a@b.c", name: "Alice" } };
+			mocks.cashIsLoading = true;
+			const { result } = renderHook(() => useHomePage());
+			expect(result.current.isLoading).toBe(true);
+		});
+
+		it("is true when signed in and tournament session query is loading", () => {
+			mocks.session = { user: { email: "a@b.c", name: "Alice" } };
+			mocks.tournamentIsLoading = true;
+			const { result } = renderHook(() => useHomePage());
+			expect(result.current.isLoading).toBe(true);
+		});
+
+		it("is false when not signed in and not pending", () => {
+			mocks.session = null;
+			mocks.isAuthPending = false;
+			const { result } = renderHook(() => useHomePage());
+			expect(result.current.isLoading).toBe(false);
+		});
+
+		it("is false when signed in and session queries are done", () => {
+			mocks.session = { user: { email: "a@b.c", name: "Alice" } };
+			mocks.cashIsLoading = false;
+			mocks.tournamentIsLoading = false;
+			const { result } = renderHook(() => useHomePage());
+			expect(result.current.isLoading).toBe(false);
 		});
 	});
 
-	describe("combined state", () => {
-		it("reports connected + signed in with user name", () => {
-			mocks.healthCheck.data = { ok: true };
-			mocks.session = { user: { email: "h@s.c", name: "Hiro" } };
-			const { result } = renderHook(() => useHomePage());
-			expect(result.current).toEqual({
-				isConnected: true,
-				isSignedIn: true,
-				isLoading: false,
-				userName: "Hiro",
-			});
+	describe("redirect behaviour", () => {
+		it("redirects to /login when not signed in and not loading", () => {
+			mocks.session = null;
+			renderHook(() => useHomePage());
+			expect(mocks.navigate).toHaveBeenCalledOnce();
+			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/login" });
+		});
+
+		it("redirects to /active-session when signed in and a cash session is active", () => {
+			mocks.session = { user: { email: "a@b.c", name: "Alice" } };
+			mocks.cashItems = [{ id: "cash-1" }];
+			renderHook(() => useHomePage());
+			expect(mocks.navigate).toHaveBeenCalledOnce();
+			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/active-session" });
+		});
+
+		it("redirects to /active-session when signed in and a tournament session is active", () => {
+			mocks.session = { user: { email: "a@b.c", name: "Alice" } };
+			mocks.tournamentItems = [{ id: "tour-1" }];
+			renderHook(() => useHomePage());
+			expect(mocks.navigate).toHaveBeenCalledOnce();
+			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/active-session" });
+		});
+
+		it("redirects to /dashboard when signed in and no active session", () => {
+			mocks.session = { user: { email: "a@b.c", name: "Alice" } };
+			mocks.cashItems = [];
+			mocks.tournamentItems = [];
+			renderHook(() => useHomePage());
+			expect(mocks.navigate).toHaveBeenCalledOnce();
+			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/dashboard" });
+		});
+
+		it("does not navigate while auth is pending", () => {
+			mocks.isAuthPending = true;
+			mocks.session = null;
+			renderHook(() => useHomePage());
+			expect(mocks.navigate).not.toHaveBeenCalled();
+		});
+
+		it("does not navigate while session queries are loading", () => {
+			mocks.session = { user: { email: "a@b.c", name: "Alice" } };
+			mocks.cashIsLoading = true;
+			renderHook(() => useHomePage());
+			expect(mocks.navigate).not.toHaveBeenCalled();
 		});
 	});
 });

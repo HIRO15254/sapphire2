@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 	},
 	chipPurchaseTypes: [] as Array<{ chips: number; cost: number; name: string }>,
 	sessionData: null as null | { tournamentId: string | null },
+	cashSessionData: null as null | { summary: Record<string, unknown> },
 	stackSheet: {
 		close: vi.fn(),
 		isOpen: true,
@@ -30,6 +31,9 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 	useQuery: (options: { queryKey?: unknown[] }) => {
 		const scope = options.queryKey?.[0];
+		if (scope === "liveCashGameSession.getById") {
+			return { data: mocks.cashSessionData };
+		}
 		if (scope === "liveTournamentSession.getById") {
 			return { data: mocks.sessionData };
 		}
@@ -40,6 +44,26 @@ vi.mock("@tanstack/react-query", () => ({
 	},
 	useQueryClient: () => ({
 		invalidateQueries: vi.fn(),
+	}),
+}));
+
+vi.mock("@/features/live-sessions/hooks/use-session-form", () => ({
+	useStackFormContext: () => ({
+		state: { stackAmount: "", allIns: [] },
+		setStackAmount: vi.fn(),
+		setAllIns: vi.fn(),
+	}),
+	useTournamentFormContext: () => ({
+		state: {
+			stackAmount: "",
+			remainingPlayers: "",
+			totalEntries: "",
+			chipPurchaseCounts: [],
+		},
+		setStackAmount: vi.fn(),
+		setRemainingPlayers: vi.fn(),
+		setTotalEntries: vi.fn(),
+		setChipPurchaseCounts: vi.fn(),
 	}),
 }));
 
