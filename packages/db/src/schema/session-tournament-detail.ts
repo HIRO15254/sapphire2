@@ -18,11 +18,15 @@ export const sessionTournamentDetail = sqliteTable(
 		totalEntries: integer("total_entries"),
 		beforeDeadline: integer("before_deadline", { mode: "boolean" }),
 		prizeMoney: integer("prize_money"),
-		rebuyCount: integer("rebuy_count"),
-		rebuyCost: integer("rebuy_cost"),
-		addonCost: integer("addon_cost"),
+		chipPurchaseCount: integer("chip_purchase_count"),
+		chipPurchaseTotalCost: integer("chip_purchase_total_cost"),
 		bountyPrizes: integer("bounty_prizes"),
 		timerStartedAt: integer("timer_started_at", { mode: "timestamp" }),
+		name: text("name"),
+		variant: text("variant").notNull().default("nlh"),
+		startingStack: integer("starting_stack"),
+		bountyAmount: integer("bounty_amount"),
+		tableSize: integer("table_size"),
 	},
 	(t) => [index("session_tournament_tournament_idx").on(t.tournamentId)]
 );

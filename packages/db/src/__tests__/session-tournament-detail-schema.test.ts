@@ -17,13 +17,24 @@ describe("SessionTournamentDetail schema — columns", () => {
 				"totalEntries",
 				"beforeDeadline",
 				"prizeMoney",
-				"rebuyCount",
-				"rebuyCost",
-				"addonCost",
+				"chipPurchaseCount",
+				"chipPurchaseTotalCost",
 				"bountyPrizes",
 				"timerStartedAt",
+				"name",
+				"variant",
+				"startingStack",
+				"bountyAmount",
+				"tableSize",
 			])
 		);
+	});
+
+	it("does not retain legacy rebuy/addon scalar columns", () => {
+		const keys = Object.keys(columns);
+		expect(keys).not.toContain("rebuyCount");
+		expect(keys).not.toContain("rebuyCost");
+		expect(keys).not.toContain("addonCost");
 	});
 
 	it("sessionId is primary key (PK=FK)", () => {
@@ -40,9 +51,8 @@ describe("SessionTournamentDetail schema — columns", () => {
 		expect(columns.placement.notNull).toBe(false);
 		expect(columns.totalEntries.notNull).toBe(false);
 		expect(columns.prizeMoney.notNull).toBe(false);
-		expect(columns.rebuyCount.notNull).toBe(false);
-		expect(columns.rebuyCost.notNull).toBe(false);
-		expect(columns.addonCost.notNull).toBe(false);
+		expect(columns.chipPurchaseCount.notNull).toBe(false);
+		expect(columns.chipPurchaseTotalCost.notNull).toBe(false);
 		expect(columns.bountyPrizes.notNull).toBe(false);
 	});
 
@@ -62,10 +72,27 @@ describe("SessionTournamentDetail schema — columns", () => {
 		expect(columns.placement.dataType).toBe("number");
 		expect(columns.totalEntries.dataType).toBe("number");
 		expect(columns.prizeMoney.dataType).toBe("number");
-		expect(columns.rebuyCount.dataType).toBe("number");
-		expect(columns.rebuyCost.dataType).toBe("number");
-		expect(columns.addonCost.dataType).toBe("number");
+		expect(columns.chipPurchaseCount.dataType).toBe("number");
+		expect(columns.chipPurchaseTotalCost.dataType).toBe("number");
 		expect(columns.bountyPrizes.dataType).toBe("number");
+	});
+
+	it("name is nullable string (display name owned by session)", () => {
+		expect(columns.name.notNull).toBe(false);
+		expect(columns.name.dataType).toBe("string");
+	});
+
+	it("variant is non-null string with default 'nlh'", () => {
+		expect(columns.variant.notNull).toBe(true);
+		expect(columns.variant.dataType).toBe("string");
+		expect(columns.variant.default).toBe("nlh");
+	});
+
+	it("startingStack / bountyAmount / tableSize are nullable integers", () => {
+		for (const key of ["startingStack", "bountyAmount", "tableSize"] as const) {
+			expect(columns[key].notNull).toBe(false);
+			expect(columns[key].dataType).toBe("number");
+		}
 	});
 });
 

@@ -14,6 +14,16 @@ describe("SessionCashDetail schema — columns", () => {
 				"buyIn",
 				"cashOut",
 				"evCashOut",
+				"name",
+				"variant",
+				"blind1",
+				"blind2",
+				"blind3",
+				"ante",
+				"anteType",
+				"minBuyIn",
+				"maxBuyIn",
+				"tableSize",
 			])
 		);
 	});
@@ -26,13 +36,10 @@ describe("SessionCashDetail schema — columns", () => {
 		expect(columns.ringGameId.notNull).toBe(false);
 	});
 
-	it("buyIn / cashOut / evCashOut are nullable", () => {
+	it("buyIn / cashOut / evCashOut are nullable integers", () => {
 		expect(columns.buyIn.notNull).toBe(false);
 		expect(columns.cashOut.notNull).toBe(false);
 		expect(columns.evCashOut.notNull).toBe(false);
-	});
-
-	it("buyIn / cashOut / evCashOut are integer type", () => {
 		expect(columns.buyIn.dataType).toBe("number");
 		expect(columns.cashOut.dataType).toBe("number");
 		expect(columns.evCashOut.dataType).toBe("number");
@@ -40,6 +47,37 @@ describe("SessionCashDetail schema — columns", () => {
 
 	it("ringGameId is string type", () => {
 		expect(columns.ringGameId.dataType).toBe("string");
+	});
+
+	it("name is nullable string (display name owned by session)", () => {
+		expect(columns.name.notNull).toBe(false);
+		expect(columns.name.dataType).toBe("string");
+	});
+
+	it("variant is non-null string with default 'nlh'", () => {
+		expect(columns.variant.notNull).toBe(true);
+		expect(columns.variant.dataType).toBe("string");
+		expect(columns.variant.default).toBe("nlh");
+	});
+
+	it("blind1 / blind2 / blind3 / ante / minBuyIn / maxBuyIn / tableSize are nullable integers", () => {
+		for (const key of [
+			"blind1",
+			"blind2",
+			"blind3",
+			"ante",
+			"minBuyIn",
+			"maxBuyIn",
+			"tableSize",
+		] as const) {
+			expect(columns[key].notNull).toBe(false);
+			expect(columns[key].dataType).toBe("number");
+		}
+	});
+
+	it("anteType is nullable string", () => {
+		expect(columns.anteType.notNull).toBe(false);
+		expect(columns.anteType.dataType).toBe("string");
 	});
 });
 

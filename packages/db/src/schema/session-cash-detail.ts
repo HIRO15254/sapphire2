@@ -15,6 +15,16 @@ export const sessionCashDetail = sqliteTable(
 		buyIn: integer("buy_in"),
 		cashOut: integer("cash_out"),
 		evCashOut: integer("ev_cash_out"),
+		name: text("name"),
+		variant: text("variant").notNull().default("nlh"),
+		blind1: integer("blind1"),
+		blind2: integer("blind2"),
+		blind3: integer("blind3"),
+		ante: integer("ante"),
+		anteType: text("ante_type"),
+		minBuyIn: integer("min_buy_in"),
+		maxBuyIn: integer("max_buy_in"),
+		tableSize: integer("table_size"),
 	},
 	(t) => [index("session_cash_ring_idx").on(t.ringGameId)]
 );

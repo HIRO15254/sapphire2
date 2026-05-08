@@ -7,6 +7,8 @@ import {
 	text,
 } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
+import { sessionBlindLevel } from "./session-blind-level";
+import { sessionChipPurchase } from "./session-chip-purchase";
 import { sessionToSessionTag } from "./session-tag";
 import { currency, currencyTransaction, store } from "./store";
 
@@ -65,4 +67,6 @@ export const gameSessionRelations = relations(gameSession, ({ one, many }) => ({
 	}),
 	transactions: many(currencyTransaction),
 	tagLinks: many(sessionToSessionTag),
+	blindLevels: many(sessionBlindLevel),
+	chipPurchases: many(sessionChipPurchase),
 }));
