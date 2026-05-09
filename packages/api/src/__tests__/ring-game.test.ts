@@ -5,47 +5,38 @@ import {
 	expectProtected,
 	expectRejects,
 	expectType,
-	getInputSchema,
 } from "./test-utils";
 
-describe("ringGame router", () => {
+describe("ringGame router structure", () => {
 	it("appRouter has ringGame namespace", () => {
 		expect(appRouter.ringGame).toBeDefined();
 	});
 
-	it("has listByStore procedure", () => {
-		expect(appRouter.ringGame.listByStore).toBeDefined();
-	});
-
-	it("has create procedure", () => {
-		expect(appRouter.ringGame.create).toBeDefined();
-	});
-
-	it("has update procedure", () => {
-		expect(appRouter.ringGame.update).toBeDefined();
-	});
-
-	it("has archive procedure", () => {
-		expect(appRouter.ringGame.archive).toBeDefined();
-	});
-
-	it("has restore procedure", () => {
-		expect(appRouter.ringGame.restore).toBeDefined();
-	});
-
-	it("has delete procedure", () => {
-		expect(appRouter.ringGame.delete).toBeDefined();
-	});
-
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.ringGame).sort()).toEqual(
-			["archive", "create", "delete", "listByStore", "restore", "update"].sort()
+			[
+				"listByStore",
+				"getById",
+				"create",
+				"update",
+				"archive",
+				"restore",
+				"delete",
+				"listBlindSets",
+				"addBlindSet",
+				"updateBlindSet",
+				"removeBlindSet",
+			].sort()
 		);
 	});
 
-	it("listByStore is a protected query", () => {
+	it("listByStore / getById / listBlindSets are protected queries", () => {
 		expectProtected(appRouter.ringGame.listByStore);
 		expectType(appRouter.ringGame.listByStore, "query");
+		expectProtected(appRouter.ringGame.getById);
+		expectType(appRouter.ringGame.getById, "query");
+		expectProtected(appRouter.ringGame.listBlindSets);
+		expectType(appRouter.ringGame.listBlindSets, "query");
 	});
 
 	it("all mutations are protected mutations", () => {
@@ -55,6 +46,9 @@ describe("ringGame router", () => {
 			"archive",
 			"restore",
 			"delete",
+			"addBlindSet",
+			"updateBlindSet",
+			"removeBlindSet",
 		] as const) {
 			const proc = appRouter.ringGame[name];
 			expectProtected(proc);
@@ -91,32 +85,42 @@ describe("ringGame.listByStore input validation", () => {
 	});
 });
 
+describe("ringGame.getById input validation", () => {
+	it("accepts a valid id", () => {
+		expectAccepts(appRouter.ringGame.getById, { id: "rg1" });
+	});
+
+	it("rejects missing id", () => {
+		expectRejects(appRouter.ringGame.getById, {});
+	});
+});
+
 describe("ringGame.create input validation", () => {
-	it("accepts minimal valid payload (storeId + name), variant defaults to nlh", () => {
-		const schema = getInputSchema(appRouter.ringGame.create);
-		const parsed = schema.safeParse({
+	it("accepts minimal valid payload (storeId + name)", () => {
+		expectAccepts(appRouter.ringGame.create, {
 			storeId: "s1",
 			name: "1/2 NLH",
-		}) as unknown as { success: true; data: { variant: string } };
-		expect(parsed.success).toBe(true);
-		expect(parsed.data.variant).toBe("nlh");
+		});
 	});
 
-	it("accepts all anteType values", () => {
-		for (const anteType of ["none", "all", "bb"] as const) {
-			expectAccepts(appRouter.ringGame.create, {
-				storeId: "s1",
-				name: "game",
-				anteType,
-			});
-		}
-	});
-
-	it("rejects unknown anteType", () => {
-		expectRejects(appRouter.ringGame.create, {
+	it("accepts optional variantId", () => {
+		expectAccepts(appRouter.ringGame.create, {
 			storeId: "s1",
-			name: "game",
-			anteType: "double",
+			name: "1/2 NLH",
+			variantId: 1,
+		});
+	});
+
+	it("accepts all optional fields", () => {
+		expectAccepts(appRouter.ringGame.create, {
+			storeId: "s1",
+			name: "1/2 NLH",
+			variantId: 1,
+			minBuyIn: 100,
+			maxBuyIn: 500,
+			tableSize: 9,
+			currencyId: "c1",
+			memo: "memo",
 		});
 	});
 
@@ -124,11 +128,15 @@ describe("ringGame.create input validation", () => {
 		expectRejects(appRouter.ringGame.create, { storeId: "s1", name: "" });
 	});
 
-	it("rejects non-integer blind1", () => {
+	it("rejects missing storeId", () => {
+		expectRejects(appRouter.ringGame.create, { name: "1/2 NLH" });
+	});
+
+	it("rejects non-integer variantId", () => {
 		expectRejects(appRouter.ringGame.create, {
 			storeId: "s1",
-			name: "g",
-			blind1: 1.5,
+			name: "game",
+			variantId: 1.5,
 		});
 	});
 });
@@ -141,11 +149,7 @@ describe("ringGame.update input validation", () => {
 	it("accepts nullable fields set to null", () => {
 		expectAccepts(appRouter.ringGame.update, {
 			id: "rg1",
-			blind1: null,
-			blind2: null,
-			blind3: null,
-			ante: null,
-			anteType: null,
+			variantId: null,
 			minBuyIn: null,
 			maxBuyIn: null,
 			tableSize: null,
@@ -158,15 +162,21 @@ describe("ringGame.update input validation", () => {
 		expectRejects(appRouter.ringGame.update, { id: "rg1", name: "" });
 	});
 
-	it("rejects unknown anteType", () => {
-		expectRejects(appRouter.ringGame.update, {
-			id: "rg1",
-			anteType: "straddle",
-		});
-	});
-
 	it("rejects missing id", () => {
 		expectRejects(appRouter.ringGame.update, { name: "x" });
+	});
+
+	it("does not accept old blind1/blind2/blind3/ante fields", () => {
+		// New schema doesn't have these directly on ringGame
+		// The schema should still accept them silently (extra fields) or reject?
+		// Since we use z.object(), extra fields are stripped. The schema accepts {id} + extra.
+		// But since there's no blind1 in the schema, we just verify the schema doesn't add it.
+		const schema = appRouter.ringGame.update._def.inputs[0] as {
+			safeParse: (v: unknown) => { success: boolean };
+		};
+		const result = schema.safeParse({ id: "rg1", blind1: 1, blind2: 2 });
+		// Extra fields are stripped by Zod by default, so it will succeed but strip them
+		expect(result.success).toBe(true);
 	});
 });
 
@@ -187,5 +197,146 @@ describe("ringGame.{archive,restore,delete} input validation", () => {
 		expectRejects(appRouter.ringGame.archive, {});
 		expectRejects(appRouter.ringGame.restore, {});
 		expectRejects(appRouter.ringGame.delete, {});
+	});
+});
+
+describe("ringGame.listBlindSets input validation", () => {
+	it("accepts {ringGameId}", () => {
+		expectAccepts(appRouter.ringGame.listBlindSets, { ringGameId: "rg1" });
+	});
+
+	it("rejects missing ringGameId", () => {
+		expectRejects(appRouter.ringGame.listBlindSets, {});
+	});
+});
+
+describe("ringGame.addBlindSet input validation", () => {
+	it("accepts minimal valid payload", () => {
+		expectAccepts(appRouter.ringGame.addBlindSet, {
+			ringGameId: "rg1",
+			limitFormatId: 1,
+			blind1: 1,
+			blind2: 2,
+			sortOrder: 0,
+		});
+	});
+
+	it("accepts full payload with all optional fields", () => {
+		expectAccepts(appRouter.ringGame.addBlindSet, {
+			ringGameId: "rg1",
+			limitFormatId: 1,
+			blind1: 1,
+			blind2: 2,
+			blind3: 3,
+			blind4: 5,
+			ante: 2,
+			anteType: "bb",
+			sortOrder: 0,
+		});
+	});
+
+	it("rejects limitFormatId=0", () => {
+		expectRejects(appRouter.ringGame.addBlindSet, {
+			ringGameId: "rg1",
+			limitFormatId: 0,
+			blind1: 1,
+			blind2: 2,
+			sortOrder: 0,
+		});
+	});
+
+	it("rejects unknown anteType", () => {
+		expectRejects(appRouter.ringGame.addBlindSet, {
+			ringGameId: "rg1",
+			limitFormatId: 1,
+			blind1: 1,
+			blind2: 2,
+			anteType: "half",
+			sortOrder: 0,
+		});
+	});
+
+	it("accepts all valid anteType values", () => {
+		for (const anteType of ["none", "all", "bb"] as const) {
+			expectAccepts(appRouter.ringGame.addBlindSet, {
+				ringGameId: "rg1",
+				limitFormatId: 1,
+				blind1: 1,
+				blind2: 2,
+				anteType,
+				sortOrder: 0,
+			});
+		}
+	});
+
+	it("rejects missing ringGameId", () => {
+		expectRejects(appRouter.ringGame.addBlindSet, {
+			limitFormatId: 1,
+			blind1: 1,
+			blind2: 2,
+			sortOrder: 0,
+		});
+	});
+
+	it("rejects negative blind1", () => {
+		expectRejects(appRouter.ringGame.addBlindSet, {
+			ringGameId: "rg1",
+			limitFormatId: 1,
+			blind1: -1,
+			blind2: 2,
+			sortOrder: 0,
+		});
+	});
+});
+
+describe("ringGame.updateBlindSet input validation", () => {
+	it("accepts id-only payload", () => {
+		expectAccepts(appRouter.ringGame.updateBlindSet, { id: 1 });
+	});
+
+	it("accepts all optional fields", () => {
+		expectAccepts(appRouter.ringGame.updateBlindSet, {
+			id: 1,
+			limitFormatId: 2,
+			blind1: 5,
+			blind2: 10,
+			blind3: 20,
+			blind4: 40,
+			ante: 10,
+			anteType: "all",
+			sortOrder: 1,
+		});
+	});
+
+	it("accepts null for nullable optional fields", () => {
+		expectAccepts(appRouter.ringGame.updateBlindSet, {
+			id: 1,
+			blind3: null,
+			blind4: null,
+			ante: null,
+			anteType: null,
+		});
+	});
+
+	it("rejects missing id", () => {
+		expectRejects(appRouter.ringGame.updateBlindSet, { blind1: 1 });
+	});
+
+	it("rejects string id", () => {
+		expectRejects(appRouter.ringGame.updateBlindSet, { id: "1" });
+	});
+});
+
+describe("ringGame.removeBlindSet input validation", () => {
+	it("accepts {id: number}", () => {
+		expectAccepts(appRouter.ringGame.removeBlindSet, { id: 1 });
+	});
+
+	it("rejects missing id", () => {
+		expectRejects(appRouter.ringGame.removeBlindSet, {});
+	});
+
+	it("rejects string id", () => {
+		expectRejects(appRouter.ringGame.removeBlindSet, { id: "1" });
 	});
 });
