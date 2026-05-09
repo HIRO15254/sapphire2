@@ -11,6 +11,11 @@ describe("SessionCashDetail schema — columns", () => {
 			expect.arrayContaining([
 				"sessionId",
 				"ringGameId",
+				"ruleName",
+				"minBuyIn",
+				"maxBuyIn",
+				"tableSize",
+				"variantId",
 				"buyIn",
 				"cashOut",
 				"evCashOut",
@@ -18,28 +23,47 @@ describe("SessionCashDetail schema — columns", () => {
 		);
 	});
 
+	it("does NOT have inline blind columns (moved to session_cash_blind_set)", () => {
+		expect((columns as Record<string, unknown>).blind1).toBeUndefined();
+		expect((columns as Record<string, unknown>).blind2).toBeUndefined();
+		expect((columns as Record<string, unknown>).blind3).toBeUndefined();
+		expect((columns as Record<string, unknown>).ante).toBeUndefined();
+		expect((columns as Record<string, unknown>).anteType).toBeUndefined();
+	});
+
 	it("sessionId is primary key (PK=FK)", () => {
 		expect(columns.sessionId.primary).toBe(true);
 	});
 
-	it("ringGameId is nullable", () => {
+	it("ringGameId is nullable (informational SET NULL)", () => {
 		expect(columns.ringGameId.notNull).toBe(false);
 	});
 
-	it("buyIn / cashOut / evCashOut are nullable", () => {
+	it("ruleName is not null (required snapshot)", () => {
+		expect(columns.ruleName.notNull).toBe(true);
+	});
+
+	it("minBuyIn / maxBuyIn / tableSize are nullable integers", () => {
+		expect(columns.minBuyIn.notNull).toBe(false);
+		expect(columns.maxBuyIn.notNull).toBe(false);
+		expect(columns.tableSize.notNull).toBe(false);
+		expect(columns.minBuyIn.dataType).toBe("number");
+		expect(columns.maxBuyIn.dataType).toBe("number");
+		expect(columns.tableSize.dataType).toBe("number");
+	});
+
+	it("variantId is not null (RESTRICT FK to variant master)", () => {
+		expect(columns.variantId.notNull).toBe(true);
+		expect(columns.variantId.dataType).toBe("number");
+	});
+
+	it("buyIn / cashOut / evCashOut are nullable result columns", () => {
 		expect(columns.buyIn.notNull).toBe(false);
 		expect(columns.cashOut.notNull).toBe(false);
 		expect(columns.evCashOut.notNull).toBe(false);
-	});
-
-	it("buyIn / cashOut / evCashOut are integer type", () => {
 		expect(columns.buyIn.dataType).toBe("number");
 		expect(columns.cashOut.dataType).toBe("number");
 		expect(columns.evCashOut.dataType).toBe("number");
-	});
-
-	it("ringGameId is string type", () => {
-		expect(columns.ringGameId.dataType).toBe("string");
 	});
 });
 
@@ -58,8 +82,12 @@ describe("SessionCashDetail — FK cascade policies", () => {
 		expect(fkByColumn("ring_game_id")?.onDelete).toBe("set null");
 	});
 
-	it("has exactly 2 foreign keys", () => {
-		expect(config.foreignKeys).toHaveLength(2);
+	it("variantId FK uses restrict (variant deletion is blocked while referenced)", () => {
+		expect(fkByColumn("variant_id")?.onDelete).toBe("restrict");
+	});
+
+	it("has exactly 3 foreign keys (session, ring_game, variant)", () => {
+		expect(config.foreignKeys).toHaveLength(3);
 	});
 
 	it("sessionId FK references game_session.id", () => {

@@ -3,91 +3,79 @@ import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { ringGame } from "../schema/ring-game";
 
-describe("RingGame schema", () => {
-	it("has required columns", () => {
-		const columns = getTableColumns(ringGame);
-		expect(columns.id).toBeDefined();
-		expect(columns.storeId).toBeDefined();
-		expect(columns.name).toBeDefined();
-		expect(columns.variant).toBeDefined();
-		expect(columns.blind1).toBeDefined();
-		expect(columns.blind2).toBeDefined();
-		expect(columns.blind3).toBeDefined();
-		expect(columns.ante).toBeDefined();
-		expect(columns.anteType).toBeDefined();
-		expect(columns.minBuyIn).toBeDefined();
-		expect(columns.maxBuyIn).toBeDefined();
-		expect(columns.tableSize).toBeDefined();
-		expect(columns.currencyId).toBeDefined();
-		expect(columns.memo).toBeDefined();
-		expect(columns.archivedAt).toBeDefined();
-		expect(columns.createdAt).toBeDefined();
-		expect(columns.updatedAt).toBeDefined();
+describe("RingGame schema — columns", () => {
+	const columns = getTableColumns(ringGame);
+
+	it("has all expected columns", () => {
+		expect(Object.keys(columns)).toEqual(
+			expect.arrayContaining([
+				"id",
+				"storeId",
+				"name",
+				"variantId",
+				"minBuyIn",
+				"maxBuyIn",
+				"tableSize",
+				"currencyId",
+				"memo",
+				"archivedAt",
+				"createdAt",
+				"updatedAt",
+			])
+		);
 	});
 
-	it("anteType is nullable", () => {
-		const columns = getTableColumns(ringGame);
-		expect(columns.anteType.notNull).toBe(false);
+	it("does NOT have old blind columns (moved to ring_game_blind_set)", () => {
+		expect((columns as Record<string, unknown>).variant).toBeUndefined();
+		expect((columns as Record<string, unknown>).blind1).toBeUndefined();
+		expect((columns as Record<string, unknown>).blind2).toBeUndefined();
+		expect((columns as Record<string, unknown>).blind3).toBeUndefined();
+		expect((columns as Record<string, unknown>).ante).toBeUndefined();
+		expect((columns as Record<string, unknown>).anteType).toBeUndefined();
+	});
+
+	it("has variantId as informational FK (SET NULL)", () => {
+		expect(columns.variantId).toBeDefined();
+		expect(columns.variantId.notNull).toBe(false);
 	});
 
 	it("id is primary key", () => {
-		const columns = getTableColumns(ringGame);
 		expect(columns.id.primary).toBe(true);
 	});
 
 	it("storeId is nullable", () => {
-		const columns = getTableColumns(ringGame);
 		expect(columns.storeId.notNull).toBe(false);
 	});
 
 	it("name is not null", () => {
-		const columns = getTableColumns(ringGame);
 		expect(columns.name.notNull).toBe(true);
 	});
 
-	it("variant is not null", () => {
-		const columns = getTableColumns(ringGame);
-		expect(columns.variant.notNull).toBe(true);
-	});
-
-	it("blind1 is nullable", () => {
-		const columns = getTableColumns(ringGame);
-		expect(columns.blind1.notNull).toBe(false);
-	});
-
-	it("blind2 is nullable", () => {
-		const columns = getTableColumns(ringGame);
-		expect(columns.blind2.notNull).toBe(false);
-	});
-
-	it("blind3 is nullable", () => {
-		const columns = getTableColumns(ringGame);
-		expect(columns.blind3.notNull).toBe(false);
-	});
-
 	it("currencyId is nullable", () => {
-		const columns = getTableColumns(ringGame);
 		expect(columns.currencyId.notNull).toBe(false);
 	});
 
-	it("archivedAt is nullable", () => {
-		const columns = getTableColumns(ringGame);
+	it("archivedAt is nullable timestamp", () => {
 		expect(columns.archivedAt.notNull).toBe(false);
+		expect(columns.archivedAt.dataType).toBe("date");
 	});
 
 	it("memo is nullable", () => {
-		const columns = getTableColumns(ringGame);
 		expect(columns.memo.notNull).toBe(false);
+	});
+
+	it("minBuyIn / maxBuyIn / tableSize are nullable integers", () => {
+		expect(columns.minBuyIn.dataType).toBe("number");
+		expect(columns.maxBuyIn.dataType).toBe("number");
+		expect(columns.tableSize.dataType).toBe("number");
+		expect(columns.minBuyIn.notNull).toBe(false);
+		expect(columns.maxBuyIn.notNull).toBe(false);
+		expect(columns.tableSize.notNull).toBe(false);
 	});
 });
 
 describe("RingGame — defaults", () => {
 	const columns = getTableColumns(ringGame);
-
-	it("variant defaults to nlh", () => {
-		expect(columns.variant.hasDefault).toBe(true);
-		expect(columns.variant.default).toBe("nlh");
-	});
 
 	it("createdAt has a default", () => {
 		expect(columns.createdAt.hasDefault).toBe(true);
@@ -96,20 +84,6 @@ describe("RingGame — defaults", () => {
 	it("updatedAt uses $onUpdate", () => {
 		expect(columns.updatedAt.notNull).toBe(true);
 		expect(columns.updatedAt.onUpdateFn).toBeInstanceOf(Function);
-	});
-
-	it("archivedAt is timestamp mode", () => {
-		expect(columns.archivedAt.dataType).toBe("date");
-	});
-
-	it("blind1/blind2/blind3/ante/minBuyIn/maxBuyIn/tableSize are integers", () => {
-		expect(columns.blind1.dataType).toBe("number");
-		expect(columns.blind2.dataType).toBe("number");
-		expect(columns.blind3.dataType).toBe("number");
-		expect(columns.ante.dataType).toBe("number");
-		expect(columns.minBuyIn.dataType).toBe("number");
-		expect(columns.maxBuyIn.dataType).toBe("number");
-		expect(columns.tableSize.dataType).toBe("number");
 	});
 });
 
@@ -128,8 +102,12 @@ describe("RingGame — FK cascade policies", () => {
 		expect(fkByColumn("currency_id")?.onDelete).toBe("set null");
 	});
 
-	it("has exactly 2 foreign keys", () => {
-		expect(config.foreignKeys).toHaveLength(2);
+	it("variantId FK uses set null (informational)", () => {
+		expect(fkByColumn("variant_id")?.onDelete).toBe("set null");
+	});
+
+	it("has exactly 3 foreign keys (store, currency, variant)", () => {
+		expect(config.foreignKeys).toHaveLength(3);
 	});
 });
 
@@ -141,14 +119,11 @@ describe("RingGame — indexes", () => {
 		expect(idxNames).toContain("ringGame_storeId_idx");
 	});
 
-	it("has no unique indexes (ring games can share names within a store)", () => {
+	it("has no unique indexes", () => {
 		const uniqueIdxs = config.indexes.filter(
 			(i) => (i.config as unknown as { unique: boolean }).unique === true
 		);
 		expect(uniqueIdxs).toHaveLength(0);
 	});
-
-	it("has no composite primary key", () => {
-		expect(config.primaryKeys).toHaveLength(0);
-	});
 });
+

@@ -1,1 +1,0 @@
-ALTER TABLE `player_to_player_tag` ADD `position` integer DEFAULT 0 NOT NULL;

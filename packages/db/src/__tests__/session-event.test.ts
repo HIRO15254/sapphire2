@@ -82,6 +82,20 @@ describe("SessionEvent — indexes", () => {
 		expect(idxNames).toContain("sessionEvent_eventType_idx");
 	});
 
+	it("has composite (sessionId, occurredAt, sortOrder) index for time-ordered fetch", () => {
+		expect(idxNames).toContain(
+			"sessionEvent_sessionId_occurredAt_sortOrder_idx"
+		);
+	});
+
+	it("has composite (sessionId, eventType) index for per-session type filtering", () => {
+		expect(idxNames).toContain("sessionEvent_sessionId_eventType_idx");
+	});
+
+	it("has exactly 4 indexes total", () => {
+		expect(config.indexes).toHaveLength(4);
+	});
+
 	it("does NOT have old dual-FK indexes", () => {
 		expect(idxNames).not.toContain("sessionEvent_liveCashGameSessionId_idx");
 		expect(idxNames).not.toContain("sessionEvent_liveTournamentSessionId_idx");

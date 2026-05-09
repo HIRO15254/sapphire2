@@ -6,6 +6,7 @@ import {
 	COMMON_EVENT_TYPES,
 	cashSessionEndPayload,
 	cashSessionStartPayload,
+	chipPurchaseCountSchema,
 	chipsAddRemovePayload,
 	getSessionCurrentState,
 	isEventAllowedInState,
@@ -65,6 +66,10 @@ describe("event type arrays", () => {
 		expect(COMMON_EVENT_TYPES).toContain("player_join");
 		expect(COMMON_EVENT_TYPES).toContain("player_leave");
 		expect(COMMON_EVENT_TYPES).toContain("memo");
+	});
+
+	it("does NOT contain player_seat_change (seat moves are leave → join)", () => {
+		expect(ALL_EVENT_TYPES).not.toContain("player_seat_change");
 	});
 });
 
@@ -126,30 +131,25 @@ describe("payload schemas", () => {
 		});
 	});
 
-	describe("tournamentSessionStartPayload", () => {
-		it("accepts an empty payload", () => {
+	describe("tournamentSessionStartPayload — empty object only (timerStartedAt removed)", () => {
+		it("accepts an empty object", () => {
 			const result = tournamentSessionStartPayload.parse({});
+			expect(result).toEqual({});
+		});
+
+		it("strips unknown keys (timerStartedAt, etc.)", () => {
+			const result = tournamentSessionStartPayload.parse({
+				timerStartedAt: 1_700_000_000,
+			}) as Record<string, unknown>;
 			expect(result.timerStartedAt).toBeUndefined();
 		});
 
-		it("accepts null timerStartedAt", () => {
+		it("strips all unknown keys silently", () => {
 			const result = tournamentSessionStartPayload.parse({
-				timerStartedAt: null,
-			});
-			expect(result.timerStartedAt).toBeNull();
-		});
-
-		it("accepts an integer timerStartedAt (unix seconds)", () => {
-			const result = tournamentSessionStartPayload.parse({
-				timerStartedAt: 1_700_000_000,
-			});
-			expect(result.timerStartedAt).toBe(1_700_000_000);
-		});
-
-		it("rejects a non-integer timerStartedAt", () => {
-			expect(() =>
-				tournamentSessionStartPayload.parse({ timerStartedAt: 12.5 })
-			).toThrow();
+				foo: "bar",
+				extra: 123,
+			}) as Record<string, unknown>;
+			expect(Object.keys(result)).toHaveLength(0);
 		});
 	});
 
@@ -215,34 +215,110 @@ describe("payload schemas", () => {
 		});
 	});
 
-	describe("purchaseChipsPayload", () => {
-		it("accepts valid name, cost, chips", () => {
+	describe("purchaseChipsPayload — new shape: chipPurchaseOptionId", () => {
+		it("accepts valid chipPurchaseOptionId", () => {
 			const result = purchaseChipsPayload.parse({
-				name: "Rebuy",
-				cost: 100,
-				chips: 5000,
+				chipPurchaseOptionId: "option-1",
 			});
-			expect(result.name).toBe("Rebuy");
-			expect(result.chips).toBe(5000);
+			expect(result.chipPurchaseOptionId).toBe("option-1");
+		});
+
+		it("rejects empty chipPurchaseOptionId", () => {
+			expect(() =>
+				purchaseChipsPayload.parse({ chipPurchaseOptionId: "" })
+			).toThrow();
+		});
+
+		it("rejects missing chipPurchaseOptionId", () => {
+			expect(() =>
+				purchaseChipsPayload.parse({} as Record<string, unknown>)
+			).toThrow();
+		});
+
+		it("does NOT accept old shape (name, cost, chips)", () => {
+			// Old fields are stripped by Zod; the required field is missing so it throws.
+			expect(() =>
+				purchaseChipsPayload.parse({ name: "Rebuy", cost: 100, chips: 5000 })
+			).toThrow();
 		});
 	});
 
-	describe("updateStackPayload", () => {
+	describe("chipPurchaseCountSchema — new shape: chipPurchaseOptionId", () => {
+		it("accepts chipPurchaseOptionId and count", () => {
+			const result = chipPurchaseCountSchema.parse({
+				chipPurchaseOptionId: "opt-2",
+				count: 3,
+			});
+			expect(result.chipPurchaseOptionId).toBe("opt-2");
+			expect(result.count).toBe(3);
+		});
+
+		it("accepts count = 0", () => {
+			const result = chipPurchaseCountSchema.parse({
+				chipPurchaseOptionId: "opt-3",
+				count: 0,
+			});
+			expect(result.count).toBe(0);
+		});
+
+		it("rejects empty chipPurchaseOptionId", () => {
+			expect(() =>
+				chipPurchaseCountSchema.parse({ chipPurchaseOptionId: "", count: 1 })
+			).toThrow();
+		});
+
+		it("rejects negative count", () => {
+			expect(() =>
+				chipPurchaseCountSchema.parse({
+					chipPurchaseOptionId: "opt-1",
+					count: -1,
+				})
+			).toThrow();
+		});
+
+		it("does NOT have old name / chipsPerUnit fields", () => {
+			const result = chipPurchaseCountSchema.parse({
+				chipPurchaseOptionId: "opt-1",
+				count: 2,
+				name: "Rebuy",
+				chipsPerUnit: 10_000,
+			}) as Record<string, unknown>;
+			expect(result.name).toBeUndefined();
+			expect(result.chipsPerUnit).toBeUndefined();
+		});
+	});
+
+	describe("updateStackPayload — chipPurchaseCounts uses new schema", () => {
 		it("accepts valid stackAmount alone", () => {
 			const result = updateStackPayload.parse({ stackAmount: 5000 });
 			expect(result.stackAmount).toBe(5000);
 		});
 
-		it("accepts optional tournament-info fields", () => {
+		it("accepts chipPurchaseCounts with chipPurchaseOptionId entries", () => {
 			const result = updateStackPayload.parse({
 				stackAmount: 5000,
 				remainingPlayers: 30,
 				totalEntries: 100,
-				chipPurchaseCounts: [{ name: "Rebuy", count: 1, chipsPerUnit: 10_000 }],
+				chipPurchaseCounts: [
+					{ chipPurchaseOptionId: "opt-1", count: 1 },
+					{ chipPurchaseOptionId: "opt-2", count: 2 },
+				],
 			});
-			expect(result.remainingPlayers).toBe(30);
-			expect(result.totalEntries).toBe(100);
-			expect(result.chipPurchaseCounts).toHaveLength(1);
+			expect(result.chipPurchaseCounts).toHaveLength(2);
+			expect(result.chipPurchaseCounts?.[0]?.chipPurchaseOptionId).toBe(
+				"opt-1"
+			);
+		});
+
+		it("rejects chipPurchaseCounts entries with old shape (name/chipsPerUnit)", () => {
+			expect(() =>
+				updateStackPayload.parse({
+					stackAmount: 5000,
+					chipPurchaseCounts: [
+						{ name: "Rebuy", count: 1, chipsPerUnit: 10_000 },
+					],
+				})
+			).toThrow();
 		});
 
 		it("accepts null tournament-info fields", () => {
@@ -276,6 +352,20 @@ describe("payload schemas", () => {
 		it("rejects empty playerId", () => {
 			expect(() => playerJoinPayload.parse({ playerId: "" })).toThrow();
 		});
+
+		it("accepts isHero=true without playerId (Hero has no player row)", () => {
+			const result = playerJoinPayload.parse({ isHero: true });
+			expect(result.isHero).toBe(true);
+			expect(result.playerId).toBeUndefined();
+		});
+
+		it("accepts seatPosition", () => {
+			const result = playerJoinPayload.parse({
+				isHero: true,
+				seatPosition: 3,
+			});
+			expect(result.seatPosition).toBe(3);
+		});
 	});
 
 	describe("playerLeavePayload", () => {
@@ -286,6 +376,12 @@ describe("payload schemas", () => {
 
 		it("rejects empty playerId", () => {
 			expect(() => playerLeavePayload.parse({ playerId: "" })).toThrow();
+		});
+
+		it("accepts isHero=true without playerId", () => {
+			const result = playerLeavePayload.parse({ isHero: true });
+			expect(result.isHero).toBe(true);
+			expect(result.playerId).toBeUndefined();
 		});
 	});
 });
@@ -363,18 +459,18 @@ describe("validateEventPayload", () => {
 		expect(result).toBeDefined();
 	});
 
-	it("dispatches session_start to tournament schema carrying timerStartedAt", () => {
+	it("dispatches session_start to tournament schema (empty object)", () => {
+		const result = validateEventPayload("session_start", {}, "tournament");
+		expect(result).toEqual({});
+	});
+
+	it("tournament session_start strips timerStartedAt (no longer in payload)", () => {
 		const result = validateEventPayload(
 			"session_start",
 			{ timerStartedAt: 1_700_000_000 },
 			"tournament"
-		) as { timerStartedAt?: number | null };
-		expect(result.timerStartedAt).toBe(1_700_000_000);
-	});
-
-	it("dispatches session_start for tournament with missing timerStartedAt", () => {
-		const result = validateEventPayload("session_start", {}, "tournament");
-		expect(result).toBeDefined();
+		) as Record<string, unknown>;
+		expect(result.timerStartedAt).toBeUndefined();
 	});
 
 	it("dispatches session_end to cash schema for cash_game", () => {
@@ -393,6 +489,23 @@ describe("validateEventPayload", () => {
 			"tournament"
 		);
 		expect(result).toBeDefined();
+	});
+
+	it("dispatches purchase_chips using new chipPurchaseOptionId shape", () => {
+		const result = validateEventPayload("purchase_chips", {
+			chipPurchaseOptionId: "opt-1",
+		}) as { chipPurchaseOptionId: string };
+		expect(result.chipPurchaseOptionId).toBe("opt-1");
+	});
+
+	it("rejects purchase_chips with old shape (name/cost/chips)", () => {
+		expect(() =>
+			validateEventPayload("purchase_chips", {
+				name: "Addon",
+				cost: 50,
+				chips: 5000,
+			})
+		).toThrow();
 	});
 
 	it("dispatches non-lifecycle events using general schema map", () => {
@@ -642,18 +755,6 @@ describe("payload schema edge cases", () => {
 			).toThrow();
 		});
 
-		it("rejects wins > trials (logical boundary, may be schema or app-level)", () => {
-			const result = allInPayload.safeParse({
-				potSize: 1000,
-				trials: 1,
-				equity: 50,
-				wins: 2,
-			});
-			// If schema enforces it, should fail. If not, still boundary-tests the shape.
-			// This test accepts either behavior to match the schema's actual rules.
-			expect(typeof result.success).toBe("boolean");
-		});
-
 		it("accepts equity exactly at 0 and 100", () => {
 			expect(
 				allInPayload.parse({ potSize: 1, trials: 1, equity: 0, wins: 0 }).equity
@@ -662,26 +763,6 @@ describe("payload schema edge cases", () => {
 				allInPayload.parse({ potSize: 1, trials: 1, equity: 100, wins: 1 })
 					.equity
 			).toBe(100);
-		});
-	});
-
-	describe("purchaseChipsPayload", () => {
-		it("rejects empty name", () => {
-			expect(() =>
-				purchaseChipsPayload.parse({ name: "", cost: 1, chips: 1 })
-			).toThrow();
-		});
-
-		it("rejects negative cost", () => {
-			expect(() =>
-				purchaseChipsPayload.parse({ name: "Rebuy", cost: -1, chips: 100 })
-			).toThrow();
-		});
-
-		it("rejects negative chips", () => {
-			expect(() =>
-				purchaseChipsPayload.parse({ name: "Rebuy", cost: 1, chips: -1 })
-			).toThrow();
 		});
 	});
 
@@ -702,7 +783,6 @@ describe("payload schema edge cases", () => {
 	describe("memoPayload", () => {
 		it("rejects whitespace-only text (if trimmed) or accepts (if raw)", () => {
 			const result = memoPayload.safeParse({ text: "   " });
-			// Whatever the behavior is, it must be deterministic
 			expect(typeof result.success).toBe("boolean");
 		});
 
@@ -721,22 +801,19 @@ describe("validateEventPayload — extra dispatch paths", () => {
 		expect(result.amount).toBe(100);
 	});
 
-	it("validates purchase_chips via general map", () => {
+	it("validates purchase_chips via general map (new chipPurchaseOptionId shape)", () => {
 		const result = validateEventPayload("purchase_chips", {
-			name: "Addon",
-			cost: 50,
-			chips: 5000,
-		}) as { name: string };
-		expect(result.name).toBe("Addon");
+			chipPurchaseOptionId: "opt-123",
+		}) as { chipPurchaseOptionId: string };
+		expect(result.chipPurchaseOptionId).toBe("opt-123");
 	});
 
 	it("tournament session_start ignores unknown keys (schema strips extras)", () => {
-		// tournamentSessionStartPayload only defines timerStartedAt; extras are dropped.
 		const result = validateEventPayload(
 			"session_start",
 			{ buyInAmount: 100 },
 			"tournament"
-		) as { buyInAmount?: number };
+		) as Record<string, unknown>;
 		expect(result.buyInAmount).toBeUndefined();
 	});
 

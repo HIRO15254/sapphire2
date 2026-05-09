@@ -172,16 +172,23 @@ describe("GameSession — table name", () => {
 	});
 });
 
-describe("GameSession — CHECK constraint: manual source implies completed status", () => {
-	it("has a check constraint", () => {
-		const config = getTableConfig(gameSession);
-		expect(config.checks.length).toBeGreaterThanOrEqual(1);
+describe("GameSession — CHECK constraints", () => {
+	const config = getTableConfig(gameSession);
+
+	it("has at least 2 check constraints", () => {
+		expect(config.checks.length).toBeGreaterThanOrEqual(2);
 	});
 
-	it("check constraint name is session_manual_completed_check", () => {
-		const config = getTableConfig(gameSession);
+	it("has session_manual_completed_check (source=manual → status=completed)", () => {
 		const ck = config.checks.find(
 			(c) => c.name === "session_manual_completed_check"
+		);
+		expect(ck).toBeDefined();
+	});
+
+	it("has session_manual_started_at_check (source=manual → started_at IS NOT NULL)", () => {
+		const ck = config.checks.find(
+			(c) => c.name === "session_manual_started_at_check"
 		);
 		expect(ck).toBeDefined();
 	});

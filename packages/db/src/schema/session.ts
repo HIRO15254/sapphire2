@@ -43,9 +43,15 @@ export const gameSession = sqliteTable(
 		index("session_user_date_idx").on(t.userId, t.sessionDate),
 		index("session_store_idx").on(t.storeId),
 		index("session_currency_idx").on(t.currencyId),
+		// manual sessions must always be completed
 		check(
 			"session_manual_completed_check",
 			sql`(source != 'manual') OR (status = 'completed')`
+		),
+		// manual sessions must have a started_at timestamp
+		check(
+			"session_manual_started_at_check",
+			sql`(source != 'manual') OR (started_at IS NOT NULL)`
 		),
 	]
 );

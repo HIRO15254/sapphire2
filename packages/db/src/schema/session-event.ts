@@ -23,6 +23,17 @@ export const sessionEvent = sqliteTable(
 	(table) => [
 		index("sessionEvent_sessionId_idx").on(table.sessionId),
 		index("sessionEvent_eventType_idx").on(table.eventType),
+		// composite index for efficient time-ordered event fetch per session
+		index("sessionEvent_sessionId_occurredAt_sortOrder_idx").on(
+			table.sessionId,
+			table.occurredAt,
+			table.sortOrder
+		),
+		// composite index for filtering events by type within a session
+		index("sessionEvent_sessionId_eventType_idx").on(
+			table.sessionId,
+			table.eventType
+		),
 	]
 );
 

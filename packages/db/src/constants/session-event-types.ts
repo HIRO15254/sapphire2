@@ -34,6 +34,7 @@ export const ALL_EVENT_TYPES = [
 export type SessionEventType = (typeof ALL_EVENT_TYPES)[number];
 
 // Event types that cannot be manually created (auto-created by session lifecycle only)
+// Retained for Phase 4 cleanup reference — will be removed when DB trigger covers all cases.
 export const MANUAL_CREATE_BLOCKED_EVENT_TYPES: readonly string[] = [
 	"session_start",
 	"session_end",
@@ -46,9 +47,9 @@ export const cashSessionStartPayload = z.object({
 	buyInAmount: z.number().int().min(0),
 });
 
-export const tournamentSessionStartPayload = z.object({
-	timerStartedAt: z.number().int().nullable().optional(),
-});
+// tournament session_start no longer carries timerStartedAt in the payload;
+// timer_started_at is the canonical column on session_tournament_detail.
+export const tournamentSessionStartPayload = z.object({});
 
 export const cashSessionEndPayload = z.object({
 	cashOutAmount: z.number().int().min(0),
@@ -97,27 +98,24 @@ export const allInPayload = z.object({
 });
 
 // Tournament event payloads
+//
+// `purchase_chips` references a per-session chip purchase option by ID.
+// The option row holds name/cost/chips — no longer embedded in the payload.
 export const purchaseChipsPayload = z.object({
-	name: z.string().min(1),
-	cost: z.number().int().min(0),
-	chips: z.number().int().min(0),
+	chipPurchaseOptionId: z.string().min(1),
 });
 
 export const chipPurchaseCountSchema = z.object({
-	name: z.string().min(1),
+	chipPurchaseOptionId: z.string().min(1),
 	count: z.number().int().min(0),
-	chipsPerUnit: z.number().int().min(0),
 });
 
 // Common event payloads
 //
 // `update_stack` is shared between cash and tournament sessions. For
-// tournaments, the payload may optionally carry remaining players, total
-// entries, and chip purchase counts so that a single event captures both
-// the stack snapshot and tournament-progress metadata. (`averageStack`
-// is intentionally derived on read from startingStack, totalEntries,
-// remainingPlayers, and chipPurchaseCounts and is therefore not stored
-// on the payload.)
+// tournaments, the payload may optionally carry remaining players and
+// total entries. chipPurchaseCounts references option IDs — no longer
+// embedding name/cost/chips directly.
 export const updateStackPayload = z.object({
 	stackAmount: z.number().int().min(0),
 	remainingPlayers: z.number().int().min(1).nullable().optional(),

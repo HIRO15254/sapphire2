@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { currency, store } from "./store";
 import { tournamentTag } from "./tournament-tag";
+import { variant } from "./variant";
 
 export const tournament = sqliteTable(
 	"tournament",
@@ -11,7 +12,10 @@ export const tournament = sqliteTable(
 			.notNull()
 			.references(() => store.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
-		variant: text("variant").notNull().default("nlh"),
+		// informational FK (SET NULL) — variant name shown in master; sessions link directly
+		variantId: integer("variant_id").references(() => variant.id, {
+			onDelete: "set null",
+		}),
 		buyIn: integer("buy_in"),
 		entryFee: integer("entry_fee"),
 		startingStack: integer("starting_stack"),
@@ -26,28 +30,10 @@ export const tournament = sqliteTable(
 			.default(sql`(unixepoch())`)
 			.notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
-			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.$onUpdate(() => new Date())
 			.notNull(),
 	},
 	(table) => [index("tournament_storeId_idx").on(table.storeId)]
-);
-
-export const blindLevel = sqliteTable(
-	"blind_level",
-	{
-		id: text("id").primaryKey(),
-		tournamentId: text("tournament_id")
-			.notNull()
-			.references(() => tournament.id, { onDelete: "cascade" }),
-		level: integer("level").notNull(),
-		isBreak: integer("is_break", { mode: "boolean" }).notNull().default(false),
-		blind1: integer("blind1"),
-		blind2: integer("blind2"),
-		blind3: integer("blind3"),
-		ante: integer("ante"),
-		minutes: integer("minutes"),
-	},
-	(table) => [index("blindLevel_tournamentId_idx").on(table.tournamentId)]
 );
 
 export const tournamentChipPurchase = sqliteTable(
@@ -76,16 +62,12 @@ export const tournamentRelations = relations(tournament, ({ one, many }) => ({
 		fields: [tournament.currencyId],
 		references: [currency.id],
 	}),
-	blindLevels: many(blindLevel),
+	variantRef: one(variant, {
+		fields: [tournament.variantId],
+		references: [variant.id],
+	}),
 	chipPurchases: many(tournamentChipPurchase),
 	tags: many(tournamentTag),
-}));
-
-export const blindLevelRelations = relations(blindLevel, ({ one }) => ({
-	tournament: one(tournament, {
-		fields: [blindLevel.tournamentId],
-		references: [tournament.id],
-	}),
 }));
 
 export const tournamentChipPurchaseRelations = relations(

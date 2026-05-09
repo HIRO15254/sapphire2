@@ -1,6 +1,8 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { ringGameBlindSet } from "./ring-game-blind-set";
 import { currency, store } from "./store";
+import { variant } from "./variant";
 
 export const ringGame = sqliteTable(
 	"ring_game",
@@ -10,12 +12,9 @@ export const ringGame = sqliteTable(
 			onDelete: "cascade",
 		}),
 		name: text("name").notNull(),
-		variant: text("variant").notNull().default("nlh"),
-		blind1: integer("blind1"),
-		blind2: integer("blind2"),
-		blind3: integer("blind3"),
-		ante: integer("ante"),
-		anteType: text("ante_type"),
+		variantId: integer("variant_id").references(() => variant.id, {
+			onDelete: "set null",
+		}),
 		minBuyIn: integer("min_buy_in"),
 		maxBuyIn: integer("max_buy_in"),
 		tableSize: integer("table_size"),
@@ -28,13 +27,13 @@ export const ringGame = sqliteTable(
 			.default(sql`(unixepoch())`)
 			.notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp" })
-			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.$onUpdate(() => new Date())
 			.notNull(),
 	},
 	(table) => [index("ringGame_storeId_idx").on(table.storeId)]
 );
 
-export const ringGameRelations = relations(ringGame, ({ one }) => ({
+export const ringGameRelations = relations(ringGame, ({ one, many }) => ({
 	store: one(store, {
 		fields: [ringGame.storeId],
 		references: [store.id],
@@ -43,4 +42,9 @@ export const ringGameRelations = relations(ringGame, ({ one }) => ({
 		fields: [ringGame.currencyId],
 		references: [currency.id],
 	}),
+	variantRef: one(variant, {
+		fields: [ringGame.variantId],
+		references: [variant.id],
+	}),
+	blindSets: many(ringGameBlindSet),
 }));

@@ -1,1 +1,0 @@
-ALTER TABLE `poker_session` ADD `break_minutes` integer;
