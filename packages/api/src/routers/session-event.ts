@@ -1,54 +1,47 @@
 import {
 	ALL_EVENT_TYPES,
-	getSessionCurrentState,
-	isEventAllowedInState,
-	isValidEventTypeForSessionType,
-	LIFECYCLE_EVENT_TYPES,
-	MANUAL_CREATE_BLOCKED_EVENT_TYPES,
-	playerJoinPayload,
-	playerLeavePayload,
+	purchaseChipsPayload,
 	type SessionEventType,
 	validateEventPayload,
 } from "@sapphire2/db/constants/session-event-types";
+import { player } from "@sapphire2/db/schema/player";
 import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionChipPurchaseOption } from "@sapphire2/db/schema/session-chip-purchase-option";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
-import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
-import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq } from "drizzle-orm";
-import { z } from "zod";
+import { asc, eq } from "drizzle-orm";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
-import {
-	recalculateCashGameSession,
-	recalculateTournamentSession,
-} from "../services/live-session-pl";
+import { recalculate } from "../services/session-projection";
 import {
 	assertOccurredAtOrdering,
 	floorToMinute,
 	nextAppendSortOrder,
 } from "../utils/session-event-time";
+import {
+	assertEventAllowedForSource,
+	assertLiveSession,
+} from "../utils/session-guards";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
+function assertNotDiscarded(status: string): void {
+	if (status === "discarded") {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Cannot modify a discarded session",
+		});
+	}
+}
+
 interface SessionInfo {
 	sessionDate: Date;
 	sessionId: string;
 	sessionType: "cash_game" | "tournament";
+	source: "live" | "manual";
 	status: string;
-}
-
-function resolveSessionId(input: {
-	sessionId?: string;
-	liveCashGameSessionId?: string;
-	liveTournamentSessionId?: string;
-}): string | undefined {
-	return (
-		input.sessionId ??
-		input.liveCashGameSessionId ??
-		input.liveTournamentSessionId
-	);
 }
 
 async function resolveSessionOwnership(
@@ -71,81 +64,69 @@ async function resolveSessionOwnership(
 	return {
 		sessionId: session.id,
 		sessionType: session.kind as "cash_game" | "tournament",
+		source: session.source as "live" | "manual",
 		status: session.status,
 		sessionDate: session.sessionDate,
 	};
 }
 
-async function handlePlayerJoinSideEffect(
+async function guardChipPurchaseOptionId(
 	db: DbInstance,
 	sessionId: string,
-	validatedPayload: unknown
-) {
-	const parsed = playerJoinPayload.parse(validatedPayload);
-	if (!parsed.playerId) {
-		return;
-	}
-	const now = new Date();
-	const cond = and(
-		eq(sessionTablePlayer.sessionId, sessionId),
-		eq(sessionTablePlayer.playerId, parsed.playerId)
-	);
-
-	const [existing] = await db.select().from(sessionTablePlayer).where(cond);
-
-	if (existing) {
-		await db
-			.update(sessionTablePlayer)
-			.set({ isActive: 1, joinedAt: now, updatedAt: now })
-			.where(eq(sessionTablePlayer.id, existing.id));
-	} else {
-		await db.insert(sessionTablePlayer).values({
-			id: crypto.randomUUID(),
-			sessionId,
-			playerId: parsed.playerId,
-			isActive: 1,
-			joinedAt: now,
-			updatedAt: now,
+	chipPurchaseOptionId: string
+): Promise<number> {
+	const numericId = Number(chipPurchaseOptionId);
+	if (!Number.isInteger(numericId) || numericId <= 0) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: `Invalid chipPurchaseOptionId: "${chipPurchaseOptionId}"`,
 		});
 	}
-}
 
-async function handlePlayerLeaveSideEffect(
-	db: DbInstance,
-	sessionId: string,
-	validatedPayload: unknown
-) {
-	const parsed = playerLeavePayload.parse(validatedPayload);
-	if (!parsed.playerId) {
-		return;
-	}
-	const now = new Date();
-	await db
-		.update(sessionTablePlayer)
-		.set({ isActive: 0, leftAt: now, updatedAt: now })
-		.where(
-			and(
-				eq(sessionTablePlayer.sessionId, sessionId),
-				eq(sessionTablePlayer.playerId, parsed.playerId)
-			)
-		);
-}
+	const allOptions = await db
+		.select({ id: sessionChipPurchaseOption.id })
+		.from(sessionChipPurchaseOption)
+		.where(eq(sessionChipPurchaseOption.sessionId, sessionId));
 
-async function recalculateSession(
-	db: DbInstance,
-	sessionId: string,
-	sessionType: "cash_game" | "tournament",
-	userId: string
-) {
-	if (sessionType === "cash_game") {
-		await recalculateCashGameSession(db, sessionId, userId);
-	} else {
-		await recalculateTournamentSession(db, sessionId, userId);
+	const optionIds = allOptions.map((o) => o.id);
+	if (!optionIds.includes(numericId)) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: `Chip purchase option "${chipPurchaseOptionId}" does not belong to session "${sessionId}"`,
+		});
 	}
+
+	return numericId;
 }
 
 function parseEventPayload(event: { payload: string }) {
 	return JSON.parse(event.payload) as unknown;
+}
+
+async function insertEventAndRecalculate(
+	db: DbInstance,
+	sessionId: string,
+	eventType: SessionEventType,
+	occurredAt: Date,
+	payload: unknown
+): Promise<string> {
+	const sortOrder = await nextAppendSortOrder(db, sessionId);
+	await assertOccurredAtOrdering(db, sessionId, sortOrder, occurredAt);
+
+	const id = crypto.randomUUID();
+	await db.insert(sessionEvent).values({
+		id,
+		sessionId,
+		eventType,
+		occurredAt,
+		sortOrder,
+		payload: JSON.stringify(payload),
+		updatedAt: new Date(),
+	});
+
+	await recalculate(db, sessionId);
+
+	return id;
 }
 
 const sessionIdInput = z.object({
@@ -153,6 +134,18 @@ const sessionIdInput = z.object({
 	liveCashGameSessionId: z.string().optional(),
 	liveTournamentSessionId: z.string().optional(),
 });
+
+function resolveSessionId(input: {
+	sessionId?: string;
+	liveCashGameSessionId?: string;
+	liveTournamentSessionId?: string;
+}): string | undefined {
+	return (
+		input.sessionId ??
+		input.liveCashGameSessionId ??
+		input.liveTournamentSessionId
+	);
+}
 
 export const sessionEventRouter = router({
 	list: protectedProcedure
@@ -163,8 +156,7 @@ export const sessionEventRouter = router({
 			if (!sessionId) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
-					message:
-						"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
+					message: "A session id must be specified",
 				});
 			}
 
@@ -197,84 +189,45 @@ export const sessionEventRouter = router({
 			if (!sessionId) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
-					message:
-						"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
+					message: "A session id must be specified",
 				});
 			}
 
 			const userId = ctx.session.user.id;
-			const { sessionType, sessionDate } = await resolveSessionOwnership(
-				ctx.db,
-				sessionId,
-				userId
-			);
+			const { sessionType, source, status, sessionDate } =
+				await resolveSessionOwnership(ctx.db, sessionId, userId);
 
-			const { eventType } = input;
-
-			if (MANUAL_CREATE_BLOCKED_EVENT_TYPES.includes(eventType)) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"This event type is auto-created and cannot be manually added",
-				});
-			}
-
-			if (!isValidEventTypeForSessionType(eventType, sessionType)) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: `Event type "${eventType}" is not valid for session type "${sessionType}"`,
-				});
-			}
-
-			const sessionEvents = await ctx.db
-				.select()
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, sessionId));
-			const currentState = getSessionCurrentState(sessionEvents);
-			if (!isEventAllowedInState(eventType, currentState)) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: `Event type "${eventType}" is not allowed in the current session state "${currentState}"`,
-				});
-			}
+			assertNotDiscarded(status);
+			assertEventAllowedForSource(source, input.eventType);
 
 			const validatedPayload = validateEventPayload(
-				eventType,
+				input.eventType,
 				input.payload,
 				sessionType
 			);
+
+			// Guard chipPurchaseOptionId for purchase_chips
+			if (input.eventType === "purchase_chips") {
+				const parsed = purchaseChipsPayload.parse(validatedPayload);
+				await guardChipPurchaseOptionId(
+					ctx.db,
+					sessionId,
+					parsed.chipPurchaseOptionId
+				);
+			}
+
 			const rawOccurredAt = input.occurredAt
 				? new Date(input.occurredAt * 1000)
 				: sessionDate;
 			const occurredAtDate = floorToMinute(rawOccurredAt);
 
-			const sortOrder = await nextAppendSortOrder(ctx.db, sessionId);
-
-			await assertOccurredAtOrdering(
+			const id = await insertEventAndRecalculate(
 				ctx.db,
 				sessionId,
-				sortOrder,
-				occurredAtDate
+				input.eventType,
+				occurredAtDate,
+				validatedPayload
 			);
-
-			const id = crypto.randomUUID();
-			await ctx.db.insert(sessionEvent).values({
-				id,
-				sessionId,
-				eventType,
-				occurredAt: occurredAtDate,
-				sortOrder,
-				payload: JSON.stringify(validatedPayload),
-				updatedAt: new Date(),
-			});
-
-			if (eventType === "player_join") {
-				await handlePlayerJoinSideEffect(ctx.db, sessionId, validatedPayload);
-			} else if (eventType === "player_leave") {
-				await handlePlayerLeaveSideEffect(ctx.db, sessionId, validatedPayload);
-			}
-
-			await recalculateSession(ctx.db, sessionId, sessionType, userId);
 
 			const [created] = await ctx.db
 				.select()
@@ -305,14 +258,18 @@ export const sessionEventRouter = router({
 				throw new TRPCError({ code: "NOT_FOUND", message: "Event not found" });
 			}
 
-			const { sessionType } = await resolveSessionOwnership(
+			const { sessionType, source, status } = await resolveSessionOwnership(
 				ctx.db,
 				event.sessionId,
 				userId
 			);
 
+			assertNotDiscarded(status);
+			assertLiveSession(source);
+
 			const eventType = event.eventType as SessionEventType;
 			const updates: Record<string, unknown> = { updatedAt: new Date() };
+
 			if (input.occurredAt !== undefined) {
 				const flooredOccurredAt = floorToMinute(
 					new Date(input.occurredAt * 1000)
@@ -325,9 +282,9 @@ export const sessionEventRouter = router({
 				);
 				updates.occurredAt = flooredOccurredAt;
 			}
-			let validatedPayload: unknown;
+
 			if (input.payload !== undefined) {
-				validatedPayload = validateEventPayload(
+				const validatedPayload = validateEventPayload(
 					eventType,
 					input.payload,
 					sessionType
@@ -340,29 +297,7 @@ export const sessionEventRouter = router({
 				.set(updates)
 				.where(eq(sessionEvent.id, input.id));
 
-			if (
-				eventType === "session_start" &&
-				sessionType === "tournament" &&
-				validatedPayload &&
-				typeof validatedPayload === "object"
-			) {
-				const timerRaw = (validatedPayload as Record<string, unknown>)
-					.timerStartedAt;
-				let timerStartedAt: Date | null | undefined;
-				if (typeof timerRaw === "number") {
-					timerStartedAt = new Date(timerRaw * 1000);
-				} else if (timerRaw === null) {
-					timerStartedAt = null;
-				}
-				if (timerStartedAt !== undefined) {
-					await ctx.db
-						.update(sessionTournamentDetail)
-						.set({ timerStartedAt })
-						.where(eq(sessionTournamentDetail.sessionId, event.sessionId));
-				}
-			}
-
-			await recalculateSession(ctx.db, event.sessionId, sessionType, userId);
+			await recalculate(ctx.db, event.sessionId);
 
 			const [updated] = await ctx.db
 				.select()
@@ -387,40 +322,187 @@ export const sessionEventRouter = router({
 				throw new TRPCError({ code: "NOT_FOUND", message: "Event not found" });
 			}
 
-			if (
-				(LIFECYCLE_EVENT_TYPES as readonly string[]).includes(event.eventType)
-			) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Lifecycle events cannot be deleted",
-				});
-			}
-
-			const { sessionType } = await resolveSessionOwnership(
+			const { source, status } = await resolveSessionOwnership(
 				ctx.db,
 				event.sessionId,
 				userId
 			);
 
-			if (event.eventType === "player_join") {
-				const parsed = playerJoinPayload.parse(JSON.parse(event.payload));
-				if (!parsed.playerId) {
-					return { success: true as const };
-				}
-				await ctx.db
-					.delete(sessionTablePlayer)
-					.where(
-						and(
-							eq(sessionTablePlayer.sessionId, event.sessionId),
-							eq(sessionTablePlayer.playerId, parsed.playerId)
-						)
-					);
-			}
+			assertNotDiscarded(status);
+			assertLiveSession(source);
 
 			await ctx.db.delete(sessionEvent).where(eq(sessionEvent.id, input.id));
 
-			await recalculateSession(ctx.db, event.sessionId, sessionType, userId);
+			await recalculate(ctx.db, event.sessionId);
 
 			return { success: true };
+		}),
+
+	// ---------------------------------------------------------------------------
+	// Player seat operations (live sessions only)
+	// ---------------------------------------------------------------------------
+
+	addPlayer: protectedProcedure
+		.input(
+			z.object({
+				sessionId: z.string(),
+				playerId: z.string().optional(),
+				isHero: z.boolean().default(false),
+				seatPosition: z.number().int().min(0).max(8).optional(),
+				occurredAt: z.number().optional(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const { source, status, sessionDate } = await resolveSessionOwnership(
+				ctx.db,
+				input.sessionId,
+				userId
+			);
+
+			assertNotDiscarded(status);
+			assertLiveSession(source);
+
+			if (!(input.isHero || input.playerId)) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "playerId is required when isHero is false",
+				});
+			}
+
+			if (input.playerId) {
+				const [foundPlayer] = await ctx.db
+					.select({ id: player.id })
+					.from(player)
+					.where(eq(player.id, input.playerId));
+				if (!foundPlayer) {
+					throw new TRPCError({
+						code: "NOT_FOUND",
+						message: "Player not found",
+					});
+				}
+			}
+
+			const payload = {
+				playerId: input.playerId,
+				isHero: input.isHero,
+				seatPosition: input.seatPosition,
+			};
+
+			const rawOccurredAt = input.occurredAt
+				? new Date(input.occurredAt * 1000)
+				: sessionDate;
+			const occurredAtDate = floorToMinute(rawOccurredAt);
+
+			const id = await insertEventAndRecalculate(
+				ctx.db,
+				input.sessionId,
+				"player_join",
+				occurredAtDate,
+				payload
+			);
+
+			return { id };
+		}),
+
+	removePlayer: protectedProcedure
+		.input(
+			z.object({
+				sessionId: z.string(),
+				playerId: z.string().optional(),
+				isHero: z.boolean().default(false),
+				occurredAt: z.number().optional(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const { source, status, sessionDate } = await resolveSessionOwnership(
+				ctx.db,
+				input.sessionId,
+				userId
+			);
+
+			assertNotDiscarded(status);
+			assertLiveSession(source);
+
+			if (!(input.isHero || input.playerId)) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "playerId is required when isHero is false",
+				});
+			}
+
+			const payload = {
+				playerId: input.playerId,
+				isHero: input.isHero,
+			};
+
+			const rawOccurredAt = input.occurredAt
+				? new Date(input.occurredAt * 1000)
+				: sessionDate;
+			const occurredAtDate = floorToMinute(rawOccurredAt);
+
+			const id = await insertEventAndRecalculate(
+				ctx.db,
+				input.sessionId,
+				"player_leave",
+				occurredAtDate,
+				payload
+			);
+
+			return { id };
+		}),
+
+	addTemporaryPlayer: protectedProcedure
+		.input(
+			z.object({
+				sessionId: z.string(),
+				name: z.string().min(1),
+				seatPosition: z.number().int().min(0).max(8).optional(),
+				occurredAt: z.number().optional(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const { source, status, sessionDate } = await resolveSessionOwnership(
+				ctx.db,
+				input.sessionId,
+				userId
+			);
+
+			assertNotDiscarded(status);
+			assertLiveSession(source);
+
+			const now = new Date();
+			const playerId = crypto.randomUUID();
+			await ctx.db.insert(player).values({
+				id: playerId,
+				isTemporary: true,
+				memo: null,
+				name: input.name,
+				updatedAt: now,
+				userId,
+			});
+
+			const payload = {
+				playerId,
+				isHero: false,
+				seatPosition: input.seatPosition,
+			};
+
+			const rawOccurredAt = input.occurredAt
+				? new Date(input.occurredAt * 1000)
+				: sessionDate;
+			const occurredAtDate = floorToMinute(rawOccurredAt);
+
+			const id = await insertEventAndRecalculate(
+				ctx.db,
+				input.sessionId,
+				"player_join",
+				occurredAtDate,
+				payload
+			);
+
+			return { id, playerId };
 		}),
 });
