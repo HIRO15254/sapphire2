@@ -11,18 +11,10 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
+		session: {
 			list: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
-				}),
-			},
-		},
-		liveTournamentSession: {
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "list", input),
+					queryKey: buildKey("session", "list", input),
 					queryFn: () => Promise.resolve({ items: [] }),
 				}),
 			},
@@ -33,26 +25,7 @@ vi.mock("@/utils/trpc", () => ({
 
 import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
 
-const cashActiveKey = [
-	"liveCashGameSession",
-	"list",
-	{ status: "active", limit: 1 },
-];
-const cashPausedKey = [
-	"liveCashGameSession",
-	"list",
-	{ status: "paused", limit: 1 },
-];
-const tourActiveKey = [
-	"liveTournamentSession",
-	"list",
-	{ status: "active", limit: 1 },
-];
-const tourPausedKey = [
-	"liveTournamentSession",
-	"list",
-	{ status: "paused", limit: 1 },
-];
+const sessionListKey = ["session", "list", {}];
 
 function createClient(): QueryClient {
 	return new QueryClient({
@@ -69,11 +42,8 @@ function makeWrapper(client: QueryClient) {
 	};
 }
 
-function seedAllEmpty(client: QueryClient) {
-	client.setQueryData(cashActiveKey, { items: [] });
-	client.setQueryData(cashPausedKey, { items: [] });
-	client.setQueryData(tourActiveKey, { items: [] });
-	client.setQueryData(tourPausedKey, { items: [] });
+function seedEmpty(client: QueryClient) {
+	client.setQueryData(sessionListKey, { items: [] });
 }
 
 describe("useActiveSession", () => {
@@ -85,9 +55,9 @@ describe("useActiveSession", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("returns null with hasActive=false when no queries have data yet", () => {
+	it("returns null with hasActive=false when list is empty", () => {
 		const qc = createClient();
-		seedAllEmpty(qc);
+		seedEmpty(qc);
 		const { result } = renderHook(() => useActiveSession(), {
 			wrapper: makeWrapper(qc),
 		});
@@ -96,12 +66,8 @@ describe("useActiveSession", () => {
 		expect(result.current.isLoading).toBe(false);
 	});
 
-	it("flags isLoading=true while any of the four queries is loading", async () => {
+	it("flags isLoading=true while the query is loading (no seed)", async () => {
 		const qc = createClient();
-		// Seed 3 to empty; leave cashPaused as loading (no seed → it fetches).
-		qc.setQueryData(cashActiveKey, { items: [] });
-		qc.setQueryData(tourActiveKey, { items: [] });
-		qc.setQueryData(tourPausedKey, { items: [] });
 		const { result } = renderHook(() => useActiveSession(), {
 			wrapper: makeWrapper(qc),
 		});
@@ -109,40 +75,49 @@ describe("useActiveSession", () => {
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 	});
 
-	it("returns an active cash session when cashActive has an item", () => {
+	it("returns an active cash session from session list", () => {
 		const qc = createClient();
-		seedAllEmpty(qc);
-		qc.setQueryData(cashActiveKey, { items: [{ id: "cash-1" }] });
+		qc.setQueryData(sessionListKey, {
+			items: [
+				{ id: "cash-1", source: "live", kind: "cash_game", status: "active" },
+			],
+		});
 		const { result } = renderHook(() => useActiveSession(), {
 			wrapper: makeWrapper(qc),
 		});
 		expect(result.current.activeSession).toEqual({
 			id: "cash-1",
-			type: "cash_game",
+			kind: "cash_game",
 			status: "active",
 		});
 		expect(result.current.hasActive).toBe(true);
 	});
 
-	it("returns a paused cash session when only cashPaused has items", () => {
+	it("returns a paused cash session", () => {
 		const qc = createClient();
-		seedAllEmpty(qc);
-		qc.setQueryData(cashPausedKey, { items: [{ id: "cash-p1" }] });
+		qc.setQueryData(sessionListKey, {
+			items: [
+				{ id: "cash-p1", source: "live", kind: "cash_game", status: "paused" },
+			],
+		});
 		const { result } = renderHook(() => useActiveSession(), {
 			wrapper: makeWrapper(qc),
 		});
 		expect(result.current.activeSession).toEqual({
 			id: "cash-p1",
-			type: "cash_game",
+			kind: "cash_game",
 			status: "paused",
 		});
 	});
 
-	it("prefers the active cash session over the paused cash session when both have items", () => {
+	it("prefers active over paused when both exist", () => {
 		const qc = createClient();
-		seedAllEmpty(qc);
-		qc.setQueryData(cashActiveKey, { items: [{ id: "cash-active" }] });
-		qc.setQueryData(cashPausedKey, { items: [{ id: "cash-paused" }] });
+		qc.setQueryData(sessionListKey, {
+			items: [
+				{ id: "cash-active", source: "live", kind: "cash_game", status: "active" },
+				{ id: "cash-paused", source: "live", kind: "cash_game", status: "paused" },
+			],
+		});
 		const { result } = renderHook(() => useActiveSession(), {
 			wrapper: makeWrapper(qc),
 		});
@@ -150,55 +125,112 @@ describe("useActiveSession", () => {
 		expect(result.current.activeSession?.status).toBe("active");
 	});
 
-	it("returns an active tournament when only tournament queries have items", () => {
+	it("returns an active tournament session", () => {
 		const qc = createClient();
-		seedAllEmpty(qc);
-		qc.setQueryData(tourActiveKey, { items: [{ id: "t-1" }] });
+		qc.setQueryData(sessionListKey, {
+			items: [
+				{ id: "t-1", source: "live", kind: "tournament", status: "active" },
+			],
+		});
 		const { result } = renderHook(() => useActiveSession(), {
 			wrapper: makeWrapper(qc),
 		});
 		expect(result.current.activeSession).toEqual({
 			id: "t-1",
-			type: "tournament",
+			kind: "tournament",
 			status: "active",
 		});
 	});
 
-	it("returns a paused tournament when only tournamentPaused has items", () => {
+	it("returns a paused tournament session", () => {
 		const qc = createClient();
-		seedAllEmpty(qc);
-		qc.setQueryData(tourPausedKey, { items: [{ id: "t-p1" }] });
+		qc.setQueryData(sessionListKey, {
+			items: [
+				{ id: "t-p1", source: "live", kind: "tournament", status: "paused" },
+			],
+		});
 		const { result } = renderHook(() => useActiveSession(), {
 			wrapper: makeWrapper(qc),
 		});
 		expect(result.current.activeSession).toEqual({
 			id: "t-p1",
-			type: "tournament",
+			kind: "tournament",
 			status: "paused",
 		});
 	});
 
-	it("prefers a cash session over a tournament when both are active (cash wins the if/else)", () => {
+	it("uses kind field (not type) for cash_game sessions", () => {
 		const qc = createClient();
-		seedAllEmpty(qc);
-		qc.setQueryData(cashActiveKey, { items: [{ id: "cash-1" }] });
-		qc.setQueryData(tourActiveKey, { items: [{ id: "t-1" }] });
+		qc.setQueryData(sessionListKey, {
+			items: [
+				{ id: "cash-1", source: "live", kind: "cash_game", status: "active" },
+			],
+		});
 		const { result } = renderHook(() => useActiveSession(), {
 			wrapper: makeWrapper(qc),
 		});
-		expect(result.current.activeSession?.type).toBe("cash_game");
+		expect(result.current.activeSession?.kind).toBe("cash_game");
 	});
 
-	it("handles queries whose data shape is missing items array (optional chaining branch)", () => {
+	it("ignores manual sessions (source !== live)", () => {
 		const qc = createClient();
-		qc.setQueryData(cashActiveKey, {});
-		qc.setQueryData(cashPausedKey, {});
-		qc.setQueryData(tourActiveKey, {});
-		qc.setQueryData(tourPausedKey, {});
+		qc.setQueryData(sessionListKey, {
+			items: [
+				{ id: "manual-1", source: "manual", kind: "cash_game", status: "active" },
+			],
+		});
 		const { result } = renderHook(() => useActiveSession(), {
 			wrapper: makeWrapper(qc),
 		});
 		expect(result.current.activeSession).toBeNull();
 		expect(result.current.hasActive).toBe(false);
+	});
+
+	it("ignores completed sessions even from live source", () => {
+		const qc = createClient();
+		qc.setQueryData(sessionListKey, {
+			items: [
+				{ id: "completed-1", source: "live", kind: "cash_game", status: "completed" },
+			],
+		});
+		const { result } = renderHook(() => useActiveSession(), {
+			wrapper: makeWrapper(qc),
+		});
+		expect(result.current.activeSession).toBeNull();
+	});
+
+	it("returns null when items array is empty", () => {
+		const qc = createClient();
+		qc.setQueryData(sessionListKey, { items: [] });
+		const { result } = renderHook(() => useActiveSession(), {
+			wrapper: makeWrapper(qc),
+		});
+		expect(result.current.activeSession).toBeNull();
+		expect(result.current.hasActive).toBe(false);
+	});
+
+	it("handles missing items property gracefully", () => {
+		const qc = createClient();
+		qc.setQueryData(sessionListKey, {});
+		const { result } = renderHook(() => useActiveSession(), {
+			wrapper: makeWrapper(qc),
+		});
+		expect(result.current.activeSession).toBeNull();
+		expect(result.current.hasActive).toBe(false);
+	});
+
+	it("picks first active live session when multiple live sessions are present", () => {
+		const qc = createClient();
+		qc.setQueryData(sessionListKey, {
+			items: [
+				{ id: "t-1", source: "live", kind: "tournament", status: "active" },
+				{ id: "cash-1", source: "live", kind: "cash_game", status: "active" },
+			],
+		});
+		const { result } = renderHook(() => useActiveSession(), {
+			wrapper: makeWrapper(qc),
+		});
+		// first active live item wins
+		expect(result.current.activeSession?.id).toBe("t-1");
 	});
 });

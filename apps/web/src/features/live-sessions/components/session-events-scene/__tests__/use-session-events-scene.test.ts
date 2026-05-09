@@ -24,17 +24,10 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "getById", input),
-				}),
-			},
-		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "getById", input),
+					queryKey: buildKey("liveSession", "getById", input),
 				}),
 			},
 		},
@@ -68,11 +61,7 @@ function makeWrapper(client: QueryClient) {
 	};
 }
 
-const cashKey = (id: string) => [
-	"sessionEvent",
-	"list",
-	{ liveCashGameSessionId: id },
-];
+const eventsKey = (id: string) => ["sessionEvent", "list", { sessionId: id }];
 
 describe("useSessionEventsScene", () => {
 	beforeEach(() => {
@@ -87,8 +76,7 @@ describe("useSessionEventsScene", () => {
 	it("exposes hook state (editEvent=null, confirmingDeleteId=null) and empty events by default", () => {
 		const qc = createClient();
 		const { result } = renderHook(
-			() =>
-				useSessionEventsScene({ sessionId: "s1", sessionType: "cash_game" }),
+			() => useSessionEventsScene({ sessionId: "s1" }),
 			{ wrapper: makeWrapper(qc) }
 		);
 		expect(result.current.editEvent).toBeNull();
@@ -107,10 +95,9 @@ describe("useSessionEventsScene", () => {
 				occurredAt: "2026-04-10T12:00:00",
 			},
 		];
-		qc.setQueryData(cashKey("s1"), events);
+		qc.setQueryData(eventsKey("s1"), events);
 		const { result } = renderHook(
-			() =>
-				useSessionEventsScene({ sessionId: "s1", sessionType: "cash_game" }),
+			() => useSessionEventsScene({ sessionId: "s1" }),
 			{ wrapper: makeWrapper(qc) }
 		);
 		expect(result.current.events).toHaveLength(1);
@@ -120,8 +107,7 @@ describe("useSessionEventsScene", () => {
 	it("timeBounds is { minTime: null, maxTime: null } when no event is selected", () => {
 		const qc = createClient();
 		const { result } = renderHook(
-			() =>
-				useSessionEventsScene({ sessionId: "s1", sessionType: "cash_game" }),
+			() => useSessionEventsScene({ sessionId: "s1" }),
 			{ wrapper: makeWrapper(qc) }
 		);
 		expect(result.current.timeBounds).toEqual({
@@ -152,10 +138,9 @@ describe("useSessionEventsScene", () => {
 				occurredAt: "2026-04-10T14:00:00",
 			},
 		];
-		qc.setQueryData(cashKey("s1"), events);
+		qc.setQueryData(eventsKey("s1"), events);
 		const { result } = renderHook(
-			() =>
-				useSessionEventsScene({ sessionId: "s1", sessionType: "cash_game" }),
+			() => useSessionEventsScene({ sessionId: "s1" }),
 			{ wrapper: makeWrapper(qc) }
 		);
 		act(() => {
@@ -168,8 +153,7 @@ describe("useSessionEventsScene", () => {
 	it("setEditEvent / setConfirmingDeleteId are independently settable", () => {
 		const qc = createClient();
 		const { result } = renderHook(
-			() =>
-				useSessionEventsScene({ sessionId: "s1", sessionType: "cash_game" }),
+			() => useSessionEventsScene({ sessionId: "s1" }),
 			{ wrapper: makeWrapper(qc) }
 		);
 		act(() => {
@@ -182,15 +166,22 @@ describe("useSessionEventsScene", () => {
 	it("re-exports update / deleteEvent from useSessionEvents", () => {
 		const qc = createClient();
 		const { result } = renderHook(
-			() =>
-				useSessionEventsScene({ sessionId: "s1", sessionType: "cash_game" }),
+			() => useSessionEventsScene({ sessionId: "s1" }),
 			{ wrapper: makeWrapper(qc) }
 		);
 		expect(typeof result.current.update).toBe("function");
 		expect(typeof result.current.deleteEvent).toBe("function");
 	});
 
-	// Import reference so the module load order is not stripped by linters.
+	it("does not require sessionType parameter (removed field)", () => {
+		const qc = createClient();
+		const { result } = renderHook(
+			() => useSessionEventsScene({ sessionId: "s1" }),
+			{ wrapper: makeWrapper(qc) }
+		);
+		expect(result.current.events).toBeDefined();
+	});
+
 	it("uses the same useSessionEvents primitive", () => {
 		expect(useSessionEvents).toBeDefined();
 	});

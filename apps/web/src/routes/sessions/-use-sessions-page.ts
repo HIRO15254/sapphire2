@@ -53,9 +53,7 @@ export function useSessionsPage() {
 		if (!editingSession) {
 			return;
 		}
-		const isLiveLinked =
-			editingSession.liveCashGameSessionId !== null ||
-			editingSession.liveTournamentSessionId !== null;
+		const isLiveLinked = editingSession.source === "live";
 		update({ id: editingSession.id, isLiveLinked, ...values }).then(() => {
 			setEditingSession(null);
 		});
@@ -104,9 +102,7 @@ export function useSessionsPage() {
 	};
 
 	const isEditLiveLinked =
-		editingSession !== null &&
-		(editingSession.liveCashGameSessionId !== null ||
-			editingSession.liveTournamentSessionId !== null);
+		editingSession !== null && editingSession.source === "live";
 
 	return {
 		sessions,

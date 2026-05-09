@@ -3,8 +3,8 @@ import { trpc } from "@/utils/trpc";
 
 interface ActiveSessionInfo {
 	id: string;
+	kind: "cash_game" | "tournament";
 	status: "active" | "paused";
-	type: "cash_game" | "tournament";
 }
 
 interface UseActiveSessionResult {
@@ -14,54 +14,30 @@ interface UseActiveSessionResult {
 }
 
 export function useActiveSession(): UseActiveSessionResult {
-	const cashActiveQuery = useQuery(
-		trpc.liveCashGameSession.list.queryOptions({ status: "active", limit: 1 })
+	// Fetch recent sessions; live sessions in progress will have source='live'
+	// and status 'active' or 'paused'. Session list is sorted by sessionDate desc.
+	const listQuery = useQuery(trpc.session.list.queryOptions({}));
+
+	const isLoading = listQuery.isLoading;
+
+	const items = listQuery.data?.items ?? [];
+
+	// Find the first live session that is active or paused
+	const liveActiveItem = items.find(
+		(item) => item.source === "live" && item.status === "active"
 	);
-	const cashPausedQuery = useQuery(
-		trpc.liveCashGameSession.list.queryOptions({ status: "paused", limit: 1 })
-	);
-	const tournamentActiveQuery = useQuery(
-		trpc.liveTournamentSession.list.queryOptions({
-			status: "active",
-			limit: 1,
-		})
-	);
-	const tournamentPausedQuery = useQuery(
-		trpc.liveTournamentSession.list.queryOptions({
-			status: "paused",
-			limit: 1,
-		})
+	const livePausedItem = items.find(
+		(item) => item.source === "live" && item.status === "paused"
 	);
 
-	const isLoading =
-		cashActiveQuery.isLoading ||
-		cashPausedQuery.isLoading ||
-		tournamentActiveQuery.isLoading ||
-		tournamentPausedQuery.isLoading;
-
-	const activeCash =
-		cashActiveQuery.data?.items?.[0] ?? cashPausedQuery.data?.items?.[0];
-	const activeTournament =
-		tournamentActiveQuery.data?.items?.[0] ??
-		tournamentPausedQuery.data?.items?.[0];
+	const found = liveActiveItem ?? livePausedItem ?? null;
 
 	let activeSession: ActiveSessionInfo | null = null;
-	if (activeCash) {
-		const isPaused =
-			!cashActiveQuery.data?.items?.[0] && !!cashPausedQuery.data?.items?.[0];
+	if (found) {
 		activeSession = {
-			id: activeCash.id,
-			type: "cash_game",
-			status: isPaused ? "paused" : "active",
-		};
-	} else if (activeTournament) {
-		const isPaused =
-			!tournamentActiveQuery.data?.items?.[0] &&
-			!!tournamentPausedQuery.data?.items?.[0];
-		activeSession = {
-			id: activeTournament.id,
-			type: "tournament",
-			status: isPaused ? "paused" : "active",
+			id: found.id,
+			kind: found.kind as "cash_game" | "tournament",
+			status: liveActiveItem ? "active" : "paused",
 		};
 	}
 

@@ -189,24 +189,12 @@ export function useSeatFromScreenshot({
 	const invalidateSessionQueries = async () => {
 		const targets: OptimisticTarget[] = [
 			{
-				queryKey:
-					trpc.sessionTablePlayer.list.queryOptions(sessionParam).queryKey,
+				queryKey: trpc.liveSession.getById.queryOptions({
+					id: sessionParam.sessionId,
+				}).queryKey,
 			},
 			{ queryKey: trpc.player.list.queryOptions().queryKey },
 		];
-		if (sessionParam.liveCashGameSessionId !== undefined) {
-			targets.push({
-				queryKey: trpc.liveCashGameSession.getById.queryOptions({
-					id: sessionParam.liveCashGameSessionId,
-				}).queryKey,
-			});
-		} else if (sessionParam.liveTournamentSessionId !== undefined) {
-			targets.push({
-				queryKey: trpc.liveTournamentSession.getById.queryOptions({
-					id: sessionParam.liveTournamentSessionId,
-				}).queryKey,
-			});
-		}
 		await invalidateTargets(queryClient, targets);
 	};
 

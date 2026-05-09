@@ -24,17 +24,10 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "getById", input),
-				}),
-			},
-		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "getById", input),
+					queryKey: buildKey("liveSession", "getById", input),
 				}),
 			},
 		},
@@ -67,17 +60,11 @@ function makeWrapper(client: QueryClient) {
 	};
 }
 
-function cashEventsKey(id: string) {
-	return ["sessionEvent", "list", { liveCashGameSessionId: id }];
+function eventsKey(sessionId: string) {
+	return ["sessionEvent", "list", { sessionId }];
 }
-function tourEventsKey(id: string) {
-	return ["sessionEvent", "list", { liveTournamentSessionId: id }];
-}
-function cashSessionKey(id: string) {
-	return ["liveCashGameSession", "getById", { id }];
-}
-function tourSessionKey(id: string) {
-	return ["liveTournamentSession", "getById", { id }];
+function sessionKey(sessionId: string) {
+	return ["liveSession", "getById", { id: sessionId }];
 }
 
 describe("useSessionEvents", () => {
@@ -94,7 +81,7 @@ describe("useSessionEvents", () => {
 		it("returns [] when cache is empty", () => {
 			const qc = createClient();
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+				() => useSessionEvents({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			expect(result.current.events).toEqual([]);
@@ -102,26 +89,26 @@ describe("useSessionEvents", () => {
 			expect(result.current.isDeletePending).toBe(false);
 		});
 
-		it("uses cash-game scoped key when sessionType is cash_game", () => {
+		it("returns events from cache when sessionId is provided", () => {
 			const qc = createClient();
-			qc.setQueryData<SessionEvent[]>(cashEventsKey("s1"), [
+			qc.setQueryData<SessionEvent[]>(eventsKey("s1"), [
 				{ id: "e1", eventType: "memo", payload: {}, occurredAt: "t0" },
 			]);
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+				() => useSessionEvents({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			expect(result.current.events).toHaveLength(1);
 		});
 
-		it("uses tournament-scoped key when sessionType is tournament", () => {
+		it("returns events for any session type using a single sessionId key", () => {
 			const qc = createClient();
-			qc.setQueryData<SessionEvent[]>(tourEventsKey("t1"), [
+			qc.setQueryData<SessionEvent[]>(eventsKey("t1"), [
 				{ id: "e1", eventType: "memo", payload: {}, occurredAt: "t0" },
 				{ id: "e2", eventType: "update_stack", payload: {}, occurredAt: "t1" },
 			]);
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "t1", sessionType: "tournament" }),
+				() => useSessionEvents({ sessionId: "t1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			expect(result.current.events).toHaveLength(2);
@@ -130,7 +117,7 @@ describe("useSessionEvents", () => {
 		it("does not fetch when sessionId is empty (enabled gate)", () => {
 			const qc = createClient();
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "", sessionType: "cash_game" }),
+				() => useSessionEvents({ sessionId: "" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			expect(result.current.events).toEqual([]);
@@ -140,7 +127,7 @@ describe("useSessionEvents", () => {
 	describe("update — optimistic", () => {
 		it("patches the target event's payload and occurredAt inside the events cache", async () => {
 			const qc = createClient();
-			qc.setQueryData<SessionEvent[]>(cashEventsKey("s1"), [
+			qc.setQueryData<SessionEvent[]>(eventsKey("s1"), [
 				{
 					id: "e1",
 					eventType: "memo",
@@ -154,7 +141,7 @@ describe("useSessionEvents", () => {
 					occurredAt: "t0",
 				},
 			]);
-			qc.setQueryData(cashSessionKey("s1"), {
+			qc.setQueryData(sessionKey("s1"), {
 				status: "active",
 				summary: { currentStack: 100 },
 			});
@@ -167,7 +154,7 @@ describe("useSessionEvents", () => {
 			);
 
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+				() => useSessionEvents({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
@@ -178,7 +165,7 @@ describe("useSessionEvents", () => {
 				});
 			});
 			await waitFor(() => {
-				const events = qc.getQueryData<SessionEvent[]>(cashEventsKey("s1"));
+				const events = qc.getQueryData<SessionEvent[]>(eventsKey("s1"));
 				expect(events?.[0]?.payload).toEqual({ text: "new" });
 				expect(events?.[0]?.occurredAt).toBe(
 					new Date(1_700_000_000 * 1000).toISOString()
@@ -191,7 +178,7 @@ describe("useSessionEvents", () => {
 
 		it("applies summary updates when payload shape is a known event (update_stack)", async () => {
 			const qc = createClient();
-			qc.setQueryData<SessionEvent[]>(cashEventsKey("s1"), [
+			qc.setQueryData<SessionEvent[]>(eventsKey("s1"), [
 				{
 					id: "e1",
 					eventType: "update_stack",
@@ -199,14 +186,14 @@ describe("useSessionEvents", () => {
 					occurredAt: "t0",
 				},
 			]);
-			qc.setQueryData(cashSessionKey("s1"), {
+			qc.setQueryData(sessionKey("s1"), {
 				status: "active",
 				summary: { currentStack: 100 },
 			});
 			trpcMocks.update.mockResolvedValue({ id: "e1" });
 
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+				() => useSessionEvents({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			await act(async () => {
@@ -217,7 +204,7 @@ describe("useSessionEvents", () => {
 			});
 			const session = qc.getQueryData<{
 				summary: { currentStack: number };
-			}>(cashSessionKey("s1"));
+			}>(sessionKey("s1"));
 			expect(session?.summary.currentStack).toBe(2000);
 		});
 
@@ -235,12 +222,12 @@ describe("useSessionEvents", () => {
 				status: "active" as const,
 				summary: { currentStack: 100 },
 			};
-			qc.setQueryData(cashEventsKey("s1"), initialEvents);
-			qc.setQueryData(cashSessionKey("s1"), initialSession);
+			qc.setQueryData(eventsKey("s1"), initialEvents);
+			qc.setQueryData(sessionKey("s1"), initialSession);
 			trpcMocks.update.mockRejectedValue(new Error("boom"));
 
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+				() => useSessionEvents({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			await act(async () => {
@@ -252,14 +239,14 @@ describe("useSessionEvents", () => {
 				).rejects.toThrow("boom");
 			});
 			await waitFor(() => {
-				expect(qc.getQueryData(cashEventsKey("s1"))).toEqual(initialEvents);
-				expect(qc.getQueryData(cashSessionKey("s1"))).toEqual(initialSession);
+				expect(qc.getQueryData(eventsKey("s1"))).toEqual(initialEvents);
+				expect(qc.getQueryData(sessionKey("s1"))).toEqual(initialSession);
 			});
 		});
 
 		it("preserves existing payload when args.payload is undefined", async () => {
 			const qc = createClient();
-			qc.setQueryData<SessionEvent[]>(cashEventsKey("s1"), [
+			qc.setQueryData<SessionEvent[]>(eventsKey("s1"), [
 				{
 					id: "e1",
 					eventType: "memo",
@@ -271,7 +258,7 @@ describe("useSessionEvents", () => {
 			// before invalidation resets it on success.
 			trpcMocks.update.mockImplementation(() => new Promise(() => undefined));
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+				() => useSessionEvents({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
@@ -283,18 +270,18 @@ describe("useSessionEvents", () => {
 					.catch(() => undefined);
 			});
 			await waitFor(() => {
-				const events = qc.getQueryData<SessionEvent[]>(cashEventsKey("s1"));
+				const events = qc.getQueryData<SessionEvent[]>(eventsKey("s1"));
 				expect(events?.[0]?.occurredAt).toBe(
 					new Date(1_700_000_000 * 1000).toISOString()
 				);
 			});
-			const events = qc.getQueryData<SessionEvent[]>(cashEventsKey("s1"));
+			const events = qc.getQueryData<SessionEvent[]>(eventsKey("s1"));
 			expect(events?.[0]?.payload).toEqual({ text: "orig" });
 		});
 
 		it("flips isUpdatePending while in-flight", async () => {
 			const qc = createClient();
-			qc.setQueryData<SessionEvent[]>(cashEventsKey("s1"), []);
+			qc.setQueryData<SessionEvent[]>(eventsKey("s1"), []);
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.update.mockImplementation(
 				() =>
@@ -303,7 +290,7 @@ describe("useSessionEvents", () => {
 					})
 			);
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+				() => useSessionEvents({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
@@ -318,7 +305,7 @@ describe("useSessionEvents", () => {
 	describe("delete — optimistic", () => {
 		it("filters the target event out of the events cache", async () => {
 			const qc = createClient();
-			qc.setQueryData<SessionEvent[]>(cashEventsKey("s1"), [
+			qc.setQueryData<SessionEvent[]>(eventsKey("s1"), [
 				{ id: "e1", eventType: "memo", payload: {}, occurredAt: "t0" },
 				{ id: "e2", eventType: "memo", payload: {}, occurredAt: "t1" },
 			]);
@@ -326,14 +313,14 @@ describe("useSessionEvents", () => {
 			// onSuccess invalidates.
 			trpcMocks.delete.mockImplementation(() => new Promise(() => undefined));
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+				() => useSessionEvents({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
 				result.current.delete("e1").catch(() => undefined);
 			});
 			await waitFor(() => {
-				const events = qc.getQueryData<SessionEvent[]>(cashEventsKey("s1"));
+				const events = qc.getQueryData<SessionEvent[]>(eventsKey("s1"));
 				expect(events?.map((e) => e.id)).toEqual(["e2"]);
 			});
 		});
@@ -342,13 +329,13 @@ describe("useSessionEvents", () => {
 			const qc = createClient();
 			trpcMocks.delete.mockResolvedValue({ id: "e1" });
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+				() => useSessionEvents({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			await act(async () => {
 				await result.current.delete("e1");
 			});
-			const events = qc.getQueryData<SessionEvent[]>(cashEventsKey("s1"));
+			const events = qc.getQueryData<SessionEvent[]>(eventsKey("s1"));
 			expect(events).toEqual([]);
 		});
 
@@ -357,25 +344,25 @@ describe("useSessionEvents", () => {
 			const initialEvents: SessionEvent[] = [
 				{ id: "e1", eventType: "memo", payload: {}, occurredAt: "t0" },
 			];
-			qc.setQueryData(cashEventsKey("s1"), initialEvents);
-			qc.setQueryData(cashSessionKey("s1"), { status: "active", summary: {} });
+			qc.setQueryData(eventsKey("s1"), initialEvents);
+			qc.setQueryData(sessionKey("s1"), { status: "active", summary: {} });
 			trpcMocks.delete.mockRejectedValue(new Error("nope"));
 
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+				() => useSessionEvents({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			await act(async () => {
 				await expect(result.current.delete("e1")).rejects.toThrow("nope");
 			});
 			await waitFor(() => {
-				expect(qc.getQueryData(cashEventsKey("s1"))).toEqual(initialEvents);
+				expect(qc.getQueryData(eventsKey("s1"))).toEqual(initialEvents);
 			});
 		});
 
 		it("flips isDeletePending while in-flight", async () => {
 			const qc = createClient();
-			qc.setQueryData<SessionEvent[]>(cashEventsKey("s1"), []);
+			qc.setQueryData<SessionEvent[]>(eventsKey("s1"), []);
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.delete.mockImplementation(
 				() =>
@@ -384,7 +371,7 @@ describe("useSessionEvents", () => {
 					})
 			);
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "s1", sessionType: "cash_game" }),
+				() => useSessionEvents({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
@@ -396,10 +383,10 @@ describe("useSessionEvents", () => {
 		});
 	});
 
-	describe("tournament session type", () => {
-		it("operates on tournament-scoped keys", async () => {
+	describe("works with any session (no sessionType branching)", () => {
+		it("operates on sessionId-scoped events key for any session", async () => {
 			const qc = createClient();
-			qc.setQueryData<SessionEvent[]>(tourEventsKey("t1"), [
+			qc.setQueryData<SessionEvent[]>(eventsKey("any-session-id"), [
 				{
 					id: "e1",
 					eventType: "memo",
@@ -407,7 +394,7 @@ describe("useSessionEvents", () => {
 					occurredAt: "t0",
 				},
 			]);
-			qc.setQueryData(tourSessionKey("t1"), {
+			qc.setQueryData(sessionKey("any-session-id"), {
 				status: "active",
 				summary: {},
 			});
@@ -415,7 +402,7 @@ describe("useSessionEvents", () => {
 			// onSuccess invalidation refetches.
 			trpcMocks.update.mockImplementation(() => new Promise(() => undefined));
 			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "t1", sessionType: "tournament" }),
+				() => useSessionEvents({ sessionId: "any-session-id" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
@@ -427,7 +414,9 @@ describe("useSessionEvents", () => {
 					.catch(() => undefined);
 			});
 			await waitFor(() => {
-				const events = qc.getQueryData<SessionEvent[]>(tourEventsKey("t1"));
+				const events = qc.getQueryData<SessionEvent[]>(
+					eventsKey("any-session-id")
+				);
 				expect(events?.[0]?.payload).toEqual({ text: "new" });
 			});
 		});

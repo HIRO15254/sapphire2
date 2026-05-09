@@ -20,25 +20,11 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "getById", input),
+					queryKey: buildKey("liveSession", "getById", input),
 					queryFn: () => Promise.resolve(null),
-				}),
-			},
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
-				}),
-			},
-		},
-		ringGame: {
-			listByStore: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("ringGame", "listByStore", input),
-					queryFn: () => Promise.resolve([]),
 				}),
 			},
 		},
@@ -46,13 +32,13 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("session", "list", input),
-					queryFn: () => Promise.resolve([]),
+					queryFn: () => Promise.resolve({ items: [] }),
 				}),
 			},
 		},
 	},
 	trpcClient: {
-		liveCashGameSession: {
+		liveSession: {
 			discard: { mutate: trpcMocks.discard },
 		},
 	},
@@ -96,40 +82,36 @@ describe("useCashGameSession", () => {
 		expect(result.current.isDiscardPending).toBe(false);
 	});
 
-	it("exposes session from cache and ringGames scoped by storeId", async () => {
+	it("exposes session from cache", async () => {
 		const qc = createClient();
-		qc.setQueryData(["liveCashGameSession", "getById", { id: "s1" }], {
+		qc.setQueryData(["liveSession", "getById", { id: "s1" }], {
 			id: "s1",
 			storeId: "store-1",
+			kind: "cash_game",
 		});
-		qc.setQueryData(
-			["ringGame", "listByStore", { storeId: "store-1" }],
-			[{ id: "rg1", name: "NL200" }]
-		);
 		const { result } = renderHook(() => useCashGameSession("s1"), {
 			wrapper: makeWrapper(qc),
 		});
 		await waitFor(() => {
-			expect(result.current.session).toEqual({ id: "s1", storeId: "store-1" });
+			expect(result.current.session).toMatchObject({ id: "s1", storeId: "store-1" });
 		});
-		expect(result.current.ringGames).toHaveLength(1);
 	});
 
-	it("does not load ringGames when session.storeId is absent (enabled gate)", async () => {
+	it("always returns empty ringGames (delegation wrapper)", async () => {
 		const qc = createClient();
-		qc.setQueryData(["liveCashGameSession", "getById", { id: "s1" }], {
+		qc.setQueryData(["liveSession", "getById", { id: "s1" }], {
 			id: "s1",
+			storeId: "store-1",
+			kind: "cash_game",
 		});
 		const { result } = renderHook(() => useCashGameSession("s1"), {
 			wrapper: makeWrapper(qc),
 		});
-		await waitFor(() => {
-			expect(result.current.session).toBeDefined();
-		});
+		await waitFor(() => expect(result.current.session).toBeDefined());
 		expect(result.current.ringGames).toEqual([]);
 	});
 
-	it("discard() mutates via trpcClient, navigates to /sessions on success", async () => {
+	it("discard() calls liveSession.discard and navigates to /sessions on success", async () => {
 		const qc = createClient();
 		trpcMocks.discard.mockResolvedValue({ id: "s1" });
 		const { result } = renderHook(() => useCashGameSession("s1"), {
@@ -180,7 +162,6 @@ describe("useCashGameSession", () => {
 		await waitFor(() => {
 			expect(trpcMocks.discard).toHaveBeenCalled();
 		});
-		// Give a microtask flush so navigateMock would fire if it were going to.
 		await Promise.resolve();
 		expect(navigateMock).not.toHaveBeenCalled();
 	});

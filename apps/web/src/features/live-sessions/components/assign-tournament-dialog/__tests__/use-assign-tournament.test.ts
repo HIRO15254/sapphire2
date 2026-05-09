@@ -12,7 +12,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 const mocks = vi.hoisted(() => ({
 	storeList: vi.fn(),
 	tournamentsByStore: vi.fn(),
-	updateTournament: vi.fn(),
+	updateRule: vi.fn(),
 	createWithLevels: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
@@ -36,15 +36,10 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
-		liveTournamentSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "getById", input),
-				}),
-			},
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "list", input),
+					queryKey: buildKey("liveSession", "getById", input),
 				}),
 			},
 		},
@@ -57,8 +52,8 @@ vi.mock("@/utils/trpc", () => ({
 		},
 	},
 	trpcClient: {
-		liveTournamentSession: {
-			update: { mutate: mocks.updateTournament },
+		liveSession: {
+			updateRule: { mutate: mocks.updateRule },
 		},
 		tournament: {
 			createWithLevels: { mutate: mocks.createWithLevels },
@@ -90,7 +85,9 @@ function makeWrapper(client: QueryClient) {
 describe("useAssignTournament", () => {
 	beforeEach(() => {
 		for (const m of Object.values(mocks)) {
-			m.mockReset();
+			if (typeof m === "function" && "mockReset" in m) {
+				m.mockReset();
+			}
 		}
 	});
 	afterEach(() => {
@@ -149,13 +146,13 @@ describe("useAssignTournament", () => {
 		act(() => {
 			result.current.handleAssign();
 		});
-		expect(mocks.updateTournament).not.toHaveBeenCalled();
+		expect(mocks.updateRule).not.toHaveBeenCalled();
 	});
 
-	it("handleAssign success calls update, toasts, and closes via onOpenChange(false)", async () => {
+	it("handleAssign success calls updateRule, toasts, and closes via onOpenChange(false)", async () => {
 		const qc = createClient();
 		const onOpenChange = vi.fn();
-		mocks.updateTournament.mockResolvedValue({ id: "s1" });
+		mocks.updateRule.mockResolvedValue({ id: "s1" });
 		const { result } = renderHook(
 			() =>
 				useAssignTournament({
@@ -173,8 +170,9 @@ describe("useAssignTournament", () => {
 			result.current.handleAssign();
 		});
 		await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-		expect(mocks.updateTournament).toHaveBeenCalledWith({
+		expect(mocks.updateRule).toHaveBeenCalledWith({
 			id: "s1",
+			kind: "tournament",
 			tournamentId: "t1",
 		});
 		expect(mocks.toastSuccess).toHaveBeenCalledWith("Tournament assigned");
@@ -182,7 +180,7 @@ describe("useAssignTournament", () => {
 
 	it("handleAssign failure surfaces toast error", async () => {
 		const qc = createClient();
-		mocks.updateTournament.mockRejectedValue(new Error("bad"));
+		mocks.updateRule.mockRejectedValue(new Error("bad"));
 		const { result } = renderHook(
 			() =>
 				useAssignTournament({
@@ -234,11 +232,11 @@ describe("useAssignTournament", () => {
 		expect(mocks.createWithLevels).not.toHaveBeenCalled();
 	});
 
-	it("handleCreate success chains create + update, toasts, and closes both dialogs", async () => {
+	it("handleCreate success chains create + updateRule, toasts, and closes both dialogs", async () => {
 		const qc = createClient();
 		const onOpenChange = vi.fn();
 		mocks.createWithLevels.mockResolvedValue({ id: "new-t" });
-		mocks.updateTournament.mockResolvedValue({ id: "s1" });
+		mocks.updateRule.mockResolvedValue({ id: "s1" });
 		const { result } = renderHook(
 			() =>
 				useAssignTournament({
@@ -295,8 +293,9 @@ describe("useAssignTournament", () => {
 				],
 			})
 		);
-		expect(mocks.updateTournament).toHaveBeenCalledWith({
+		expect(mocks.updateRule).toHaveBeenCalledWith({
 			id: "s1",
+			kind: "tournament",
 			tournamentId: "new-t",
 		});
 		expect(onOpenChange).toHaveBeenCalledWith(false);

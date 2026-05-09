@@ -41,7 +41,6 @@ export function useMobileNav(): UseMobileNavResult {
 		? createSessionEventMutationOptions({
 				queryClient,
 				sessionId: activeSession.id,
-				sessionType: activeSession.type,
 				eventType: "session_resume",
 				getPayload: () => ({}),
 				changesStatus: true,
@@ -53,12 +52,8 @@ export function useMobileNav(): UseMobileNavResult {
 			if (!activeSession) {
 				return;
 			}
-			const sessionIdKey =
-				activeSession.type === "cash_game"
-					? "liveCashGameSessionId"
-					: "liveTournamentSessionId";
 			await trpcClient.sessionEvent.create.mutate({
-				[sessionIdKey]: activeSession.id,
+				sessionId: activeSession.id,
 				eventType: "session_resume",
 				payload: {},
 			});

@@ -22,7 +22,7 @@ const trpcMocks = vi.hoisted(() => ({
 	sessionUpdate: vi.fn(),
 	sessionDelete: vi.fn(),
 	sessionTagCreate: vi.fn(),
-	liveCashReopen: vi.fn(),
+	liveSessionReopen: vi.fn(),
 }));
 
 const routerMocks = vi.hoisted(() => ({
@@ -55,14 +55,6 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
-		liveCashGameSession: {
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
-				}),
-			},
-		},
 	},
 	trpcClient: {
 		session: {
@@ -73,8 +65,8 @@ vi.mock("@/utils/trpc", () => ({
 		sessionTag: {
 			create: { mutate: trpcMocks.sessionTagCreate },
 		},
-		liveCashGameSession: {
-			reopen: { mutate: trpcMocks.liveCashReopen },
+		liveSession: {
+			reopen: { mutate: trpcMocks.liveSessionReopen },
 		},
 	},
 }));
@@ -144,36 +136,26 @@ function tournamentValues(
 function baseSessionItem(overrides: Partial<SessionItem> = {}): SessionItem {
 	return {
 		id: "s1",
-		type: "cash_game",
+		kind: "cash_game",
 		sessionDate: "2026-04-01T00:00:00Z",
-		addonCost: null,
 		beforeDeadline: null,
 		bountyPrizes: null,
 		breakMinutes: null,
-		buyIn: 10_000,
+		cashBuyIn: 10_000,
 		cashOut: 15_000,
+		cashRingGameId: null,
+		cashRuleName: null,
 		createdAt: "2026-04-01T00:00:00Z",
-		// CTI discriminators — added in Phase 1 DB migration
 		source: "manual",
 		status: "completed",
 		currencyId: null,
 		currencyName: null,
 		currencyUnit: null,
 		endedAt: null,
-		entryFee: null,
 		evCashOut: null,
-		evDiff: null,
-		evProfitLoss: null,
-		liveCashGameSessionId: null,
-		liveTournamentSessionId: null,
 		memo: null,
 		placement: null,
 		prizeMoney: null,
-		profitLoss: 5000,
-		rebuyCost: null,
-		rebuyCount: null,
-		ringGameBlind2: null,
-		ringGameId: null,
 		ringGameName: null,
 		startedAt: null,
 		storeId: null,
@@ -181,8 +163,10 @@ function baseSessionItem(overrides: Partial<SessionItem> = {}): SessionItem {
 		tags: [],
 		totalEntries: null,
 		tournamentBuyIn: null,
+		tournamentEntryFee: null,
 		tournamentId: null,
 		tournamentName: null,
+		tournamentRuleName: null,
 		...overrides,
 	};
 }
@@ -353,31 +337,28 @@ describe("pure helpers", () => {
 	});
 
 	describe("buildOptimisticItem", () => {
-		it("computes profitLoss for cash_game = cashOut - buyIn", () => {
+		it("sets kind=cash_game for cash_game session values", () => {
 			const out = buildOptimisticItem(cashValues({ buyIn: 100, cashOut: 150 }));
-			expect(out.type).toBe("cash_game");
-			expect(out.profitLoss).toBe(50);
-			expect(out.evProfitLoss).toBeNull();
-			expect(out.evDiff).toBeNull();
+			expect(out.kind).toBe("cash_game");
+			expect(out.cashBuyIn).toBe(100);
+			expect(out.cashOut).toBe(150);
 		});
 
-		it("computes evProfitLoss and evDiff when evCashOut provided", () => {
+		it("sets evCashOut when provided", () => {
 			const out = buildOptimisticItem(
 				cashValues({ buyIn: 100, cashOut: 150, evCashOut: 200 })
 			);
-			expect(out.evProfitLoss).toBe(100);
-			expect(out.evDiff).toBe(50);
+			expect(out.evCashOut).toBe(200);
 		});
 
-		it("tournament branch leaves cash-specific fields null", () => {
+		it("tournament branch sets kind=tournament and leaves cash fields null", () => {
 			const out = buildOptimisticItem(
 				tournamentValues({ tournamentBuyIn: 500 })
 			);
-			expect(out.type).toBe("tournament");
+			expect(out.kind).toBe("tournament");
 			expect(out.tournamentBuyIn).toBe(500);
-			expect(out.buyIn).toBeNull();
+			expect(out.cashBuyIn).toBeNull();
 			expect(out.cashOut).toBeNull();
-			expect(out.profitLoss).toBe(0);
 		});
 
 		it("id is a synthetic temp-* marker", () => {
@@ -389,7 +370,7 @@ describe("pure helpers", () => {
 	describe("buildEditDefaults", () => {
 		it("coerces null numeric fields to 0 (buyIn/cashOut) for cash game", () => {
 			const out = buildEditDefaults(
-				baseSessionItem({ buyIn: null, cashOut: null })
+				baseSessionItem({ cashBuyIn: null, cashOut: null })
 			);
 			expect(out.buyIn).toBe(0);
 			expect(out.cashOut).toBe(0);
@@ -405,6 +386,20 @@ describe("pure helpers", () => {
 				})
 			);
 			expect(out.tagIds).toEqual(["t1", "t2"]);
+		});
+
+		it("maps cashRingGameId to ringGameId output field", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({ cashRingGameId: "rg-1" })
+			);
+			expect(out.ringGameId).toBe("rg-1");
+		});
+
+		it("maps tournamentEntryFee to entryFee output field", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({ kind: "tournament", tournamentEntryFee: 500 })
+			);
+			expect(out.entryFee).toBe(500);
 		});
 	});
 });
@@ -669,7 +664,7 @@ describe("useSessions", () => {
 				items: [] as SessionItem[],
 				nextCursor: undefined,
 			});
-			trpcMocks.liveCashReopen.mockResolvedValue(undefined);
+			trpcMocks.liveSessionReopen.mockResolvedValue(undefined);
 
 			const { result } = renderHook(() => useSessions({}), {
 				wrapper: makeWrapper(qc),
@@ -679,7 +674,7 @@ describe("useSessions", () => {
 				await Promise.resolve();
 			});
 			await waitFor(() => {
-				expect(trpcMocks.liveCashReopen).toHaveBeenCalledWith({ id: "live-1" });
+				expect(trpcMocks.liveSessionReopen).toHaveBeenCalledWith({ id: "live-1" });
 				expect(routerMocks.navigate).toHaveBeenCalledWith({
 					to: "/active-session",
 				});
@@ -692,7 +687,7 @@ describe("useSessions", () => {
 				items: [] as SessionItem[],
 				nextCursor: undefined,
 			});
-			trpcMocks.liveCashReopen.mockRejectedValue(new Error("500"));
+			trpcMocks.liveSessionReopen.mockRejectedValue(new Error("500"));
 			const { result } = renderHook(() => useSessions({}), {
 				wrapper: makeWrapper(qc),
 			});
@@ -702,7 +697,7 @@ describe("useSessions", () => {
 			});
 			// Wait a tick for mutation to settle.
 			await waitFor(() =>
-				expect(trpcMocks.liveCashReopen).toHaveBeenCalledTimes(1)
+				expect(trpcMocks.liveSessionReopen).toHaveBeenCalledTimes(1)
 			);
 			expect(routerMocks.navigate).not.toHaveBeenCalled();
 		});

@@ -12,7 +12,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 const mocks = vi.hoisted(() => ({
 	storeList: vi.fn(),
 	ringGamesByStore: vi.fn(),
-	updateCashSession: vi.fn(),
+	updateRule: vi.fn(),
 	createRingGame: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
@@ -36,15 +36,10 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "getById", input),
-				}),
-			},
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "list", input),
+					queryKey: buildKey("liveSession", "getById", input),
 				}),
 			},
 		},
@@ -57,8 +52,8 @@ vi.mock("@/utils/trpc", () => ({
 		},
 	},
 	trpcClient: {
-		liveCashGameSession: {
-			update: { mutate: mocks.updateCashSession },
+		liveSession: {
+			updateRule: { mutate: mocks.updateRule },
 		},
 		ringGame: {
 			create: { mutate: mocks.createRingGame },
@@ -148,14 +143,14 @@ describe("useAssignRingGame", () => {
 		await act(async () => {
 			await result.current.selectForm.handleSubmit();
 		});
-		expect(mocks.updateCashSession).not.toHaveBeenCalled();
+		expect(mocks.updateRule).not.toHaveBeenCalled();
 		expect(onClose).not.toHaveBeenCalled();
 	});
 
 	it("selectForm submit triggers the assign mutation, toasts success, and closes on success", async () => {
 		const qc = createClient();
 		const onClose = vi.fn();
-		mocks.updateCashSession.mockResolvedValue({ id: "s1" });
+		mocks.updateRule.mockResolvedValue({ id: "s1" });
 		const { result } = renderHook(
 			() =>
 				useAssignRingGame({
@@ -173,8 +168,9 @@ describe("useAssignRingGame", () => {
 			await result.current.selectForm.handleSubmit();
 		});
 		await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-		expect(mocks.updateCashSession).toHaveBeenCalledWith({
+		expect(mocks.updateRule).toHaveBeenCalledWith({
 			id: "s1",
+			kind: "cash_game",
 			ringGameId: "rg1",
 		});
 		expect(mocks.toastSuccess).toHaveBeenCalledWith("Game assigned");
@@ -182,7 +178,7 @@ describe("useAssignRingGame", () => {
 
 	it("assign mutation error toasts the error message", async () => {
 		const qc = createClient();
-		mocks.updateCashSession.mockRejectedValue(new Error("conflict"));
+		mocks.updateRule.mockRejectedValue(new Error("conflict"));
 		const { result } = renderHook(
 			() =>
 				useAssignRingGame({
@@ -233,11 +229,11 @@ describe("useAssignRingGame", () => {
 		expect(mocks.createRingGame).not.toHaveBeenCalled();
 	});
 
-	it("handleCreate calls ringGame.create then session.update, toasts success, and closes", async () => {
+	it("handleCreate calls ringGame.create then liveSession.updateRule, toasts success, and closes", async () => {
 		const qc = createClient();
 		const onClose = vi.fn();
 		mocks.createRingGame.mockResolvedValue({ id: "new-rg" });
-		mocks.updateCashSession.mockResolvedValue({ id: "s1" });
+		mocks.updateRule.mockResolvedValue({ id: "s1" });
 		const { result } = renderHook(
 			() =>
 				useAssignRingGame({
@@ -263,8 +259,9 @@ describe("useAssignRingGame", () => {
 		});
 		await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
 		expect(mocks.createRingGame).toHaveBeenCalledTimes(1);
-		expect(mocks.updateCashSession).toHaveBeenCalledWith({
+		expect(mocks.updateRule).toHaveBeenCalledWith({
 			id: "s1",
+			kind: "cash_game",
 			ringGameId: "new-rg",
 		});
 		expect(mocks.toastSuccess).toHaveBeenCalledWith(

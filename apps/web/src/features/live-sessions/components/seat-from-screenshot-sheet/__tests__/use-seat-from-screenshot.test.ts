@@ -12,9 +12,8 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 const mocks = vi.hoisted(() => ({
 	playerList: vi.fn(),
 	extractMutateFn: vi.fn(),
-	addExisting: vi.fn(),
-	addNew: vi.fn(),
-	updateHeroCash: vi.fn(),
+	addPlayer: vi.fn(),
+	addTemporaryPlayer: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
 }));
@@ -36,38 +35,18 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
-		sessionTablePlayer: {
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("sessionTablePlayer", "list", input),
-				}),
-			},
-		},
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "getById", input),
-				}),
-			},
-		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "getById", input),
+					queryKey: buildKey("liveSession", "getById", input),
 				}),
 			},
 		},
 	},
 	trpcClient: {
-		sessionTablePlayer: {
-			add: { mutate: mocks.addExisting },
-			addNew: { mutate: mocks.addNew },
-		},
-		liveCashGameSession: {
-			updateHeroSeat: { mutate: mocks.updateHeroCash },
-		},
-		liveTournamentSession: {
-			updateHeroSeat: { mutate: vi.fn() },
+		sessionEvent: {
+			addPlayer: { mutate: mocks.addPlayer },
+			addTemporaryPlayer: { mutate: mocks.addTemporaryPlayer },
 		},
 	},
 }));
@@ -114,7 +93,7 @@ describe("useSeatFromScreenshot", () => {
 					occupiedSeatPositions: new Set<number>(),
 					onOpenChange: vi.fn(),
 					open: false,
-					sessionParam: { liveCashGameSessionId: "s1" },
+					sessionParam: { sessionId: "s1" },
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -132,7 +111,7 @@ describe("useSeatFromScreenshot", () => {
 					occupiedSeatPositions: new Set<number>(),
 					onOpenChange: vi.fn(),
 					open: true,
-					sessionParam: { liveCashGameSessionId: "s1" },
+					sessionParam: { sessionId: "s1" },
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -150,7 +129,7 @@ describe("useSeatFromScreenshot", () => {
 					occupiedSeatPositions: new Set<number>(),
 					onOpenChange: vi.fn(),
 					open: true,
-					sessionParam: { liveCashGameSessionId: "s1" },
+					sessionParam: { sessionId: "s1" },
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -179,7 +158,7 @@ describe("useSeatFromScreenshot", () => {
 					occupiedSeatPositions: new Set<number>(),
 					onOpenChange: vi.fn(),
 					open: p.open,
-					sessionParam: { liveCashGameSessionId: "s1" },
+					sessionParam: { sessionId: "s1" },
 				}),
 			{
 				wrapper: makeWrapper(qc),
@@ -205,7 +184,7 @@ describe("useSeatFromScreenshot", () => {
 					occupiedSeatPositions: new Set<number>(),
 					onOpenChange,
 					open: true,
-					sessionParam: { liveCashGameSessionId: "s1" },
+					sessionParam: { sessionId: "s1" },
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);

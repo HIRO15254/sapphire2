@@ -14,7 +14,7 @@ const tournamentHookMocks = vi.hoisted(() => ({
 }));
 
 const trpcMocks = vi.hoisted(() => ({
-	updateWithLevels: vi.fn(),
+	tournamentUpdate: vi.fn(),
 }));
 
 vi.mock("@/features/stores/hooks/use-tournaments", () => ({
@@ -36,11 +36,9 @@ vi.mock("@/utils/trpc", () => ({
 					queryKey: buildKey("tournament", "listByStore", input),
 				}),
 			},
-		},
-		blindLevel: {
-			listByTournament: {
+			update: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("blindLevel", "listByTournament", input),
+					queryKey: buildKey("tournament", "update", input),
 				}),
 			},
 		},
@@ -55,17 +53,17 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
-		liveTournamentSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "getById", input),
+					queryKey: buildKey("liveSession", "getById", input),
 				}),
 			},
 		},
 	},
 	trpcClient: {
 		tournament: {
-			updateWithLevels: { mutate: trpcMocks.updateWithLevels },
+			update: { mutate: trpcMocks.tournamentUpdate },
 		},
 	},
 }));
@@ -95,44 +93,18 @@ const ARGS = {
 
 const FORM_VALUES = {
 	name: "Main Event",
-	variant: "NLH",
 	buyIn: 10_000,
 	entryFee: 1000,
 	startingStack: 20_000,
+	bountyAmount: 500,
 	tableSize: 9,
 	currencyId: "c1",
-	tags: ["a"],
-	chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000 }],
+	memo: "a memo",
 };
-
-const LEVELS = [
-	{
-		id: "bl1",
-		level: 1,
-		tournamentId: "t1",
-		isBreak: false,
-		blind1: 100,
-		blind2: 200,
-		blind3: null,
-		ante: null,
-		minutes: 15,
-	},
-	{
-		id: "bl2",
-		level: 2,
-		tournamentId: "t1",
-		isBreak: true,
-		blind1: null,
-		blind2: null,
-		blind3: null,
-		ante: null,
-		minutes: 5,
-	},
-];
 
 describe("useTournamentSceneActions", () => {
 	beforeEach(() => {
-		trpcMocks.updateWithLevels.mockReset();
+		trpcMocks.tournamentUpdate.mockReset();
 		tournamentHookMocks.isUpdateWithLevelsPending = false;
 	});
 	afterEach(() => {
@@ -165,8 +137,8 @@ describe("useTournamentSceneActions", () => {
 		expect(result.current.isEditOpen).toBe(false);
 	});
 
-	it("handleSave calls updateWithLevels with the full payload and closes editor on success", async () => {
-		trpcMocks.updateWithLevels.mockResolvedValue({ id: "t1" });
+	it("handleSave calls tournament.update with the full payload and closes editor on success", async () => {
+		trpcMocks.tournamentUpdate.mockResolvedValue({ id: "t1" });
 		const qc = createClient();
 		const { result } = renderHook(() => useTournamentSceneActions(ARGS), {
 			wrapper: makeWrapper(qc),
@@ -175,61 +147,32 @@ describe("useTournamentSceneActions", () => {
 			result.current.setIsEditOpen(true);
 		});
 		await act(async () => {
-			await result.current.handleSave(FORM_VALUES, LEVELS);
+			await result.current.handleSave(FORM_VALUES);
 		});
-		expect(trpcMocks.updateWithLevels).toHaveBeenCalledWith({
+		expect(trpcMocks.tournamentUpdate).toHaveBeenCalledWith({
 			id: "t1",
 			name: "Main Event",
-			variant: "NLH",
 			buyIn: 10_000,
 			entryFee: 1000,
 			startingStack: 20_000,
-			bountyAmount: null,
+			bountyAmount: 500,
 			tableSize: 9,
 			currencyId: "c1",
-			memo: null,
-			tags: ["a"],
-			chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000 }],
-			blindLevels: [
-				{
-					isBreak: false,
-					blind1: 100,
-					blind2: 200,
-					blind3: null,
-					ante: null,
-					minutes: 15,
-				},
-				{
-					isBreak: true,
-					blind1: null,
-					blind2: null,
-					blind3: null,
-					ante: null,
-					minutes: 5,
-				},
-			],
+			memo: "a memo",
 		});
 		expect(result.current.isEditOpen).toBe(false);
 	});
 
 	it("defaults optional form values to null when omitted (?? null branch)", async () => {
-		trpcMocks.updateWithLevels.mockResolvedValue({ id: "t1" });
+		trpcMocks.tournamentUpdate.mockResolvedValue({ id: "t1" });
 		const qc = createClient();
 		const { result } = renderHook(() => useTournamentSceneActions(ARGS), {
 			wrapper: makeWrapper(qc),
 		});
 		await act(async () => {
-			await result.current.handleSave(
-				{
-					name: "X",
-					variant: "NLH",
-					tags: [],
-					chipPurchases: [],
-				},
-				[]
-			);
+			await result.current.handleSave({ name: "X" });
 		});
-		expect(trpcMocks.updateWithLevels).toHaveBeenCalledWith(
+		expect(trpcMocks.tournamentUpdate).toHaveBeenCalledWith(
 			expect.objectContaining({
 				buyIn: null,
 				entryFee: null,
@@ -238,14 +181,13 @@ describe("useTournamentSceneActions", () => {
 				tableSize: null,
 				currencyId: null,
 				memo: null,
-				blindLevels: [],
 			})
 		);
 	});
 
 	it("flips isSaving to true during save and false afterwards", async () => {
 		let resolve: ((v: unknown) => void) | undefined;
-		trpcMocks.updateWithLevels.mockImplementation(
+		trpcMocks.tournamentUpdate.mockImplementation(
 			() =>
 				new Promise((r) => {
 					resolve = r;
@@ -255,10 +197,9 @@ describe("useTournamentSceneActions", () => {
 		const { result } = renderHook(() => useTournamentSceneActions(ARGS), {
 			wrapper: makeWrapper(qc),
 		});
-		// Kick off handleSave without awaiting so we can observe the in-flight state.
 		let savePromise: Promise<unknown> | undefined;
 		act(() => {
-			savePromise = result.current.handleSave(FORM_VALUES, LEVELS);
+			savePromise = result.current.handleSave(FORM_VALUES);
 		});
 		await waitFor(() => expect(result.current.isSaving).toBe(true));
 		resolve?.({ id: "t1" });
@@ -268,29 +209,29 @@ describe("useTournamentSceneActions", () => {
 		expect(result.current.isSaving).toBe(false);
 	});
 
-	it("clears isSaving even when updateWithLevels rejects (try/finally branch)", async () => {
-		trpcMocks.updateWithLevels.mockRejectedValue(new Error("nope"));
+	it("clears isSaving even when tournament.update rejects (try/finally branch)", async () => {
+		trpcMocks.tournamentUpdate.mockRejectedValue(new Error("nope"));
 		const qc = createClient();
 		const { result } = renderHook(() => useTournamentSceneActions(ARGS), {
 			wrapper: makeWrapper(qc),
 		});
 		await act(async () => {
-			await expect(
-				result.current.handleSave(FORM_VALUES, LEVELS)
-			).rejects.toThrow("nope");
+			await expect(result.current.handleSave(FORM_VALUES)).rejects.toThrow(
+				"nope"
+			);
 		});
 		expect(result.current.isSaving).toBe(false);
 	});
 
-	it("invalidates the five target caches on success", async () => {
-		trpcMocks.updateWithLevels.mockResolvedValue({ id: "t1" });
+	it("invalidates the four target caches on success", async () => {
+		trpcMocks.tournamentUpdate.mockResolvedValue({ id: "t1" });
 		const qc = createClient();
 		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
 		const { result } = renderHook(() => useTournamentSceneActions(ARGS), {
 			wrapper: makeWrapper(qc),
 		});
 		await act(async () => {
-			await result.current.handleSave(FORM_VALUES, LEVELS);
+			await result.current.handleSave(FORM_VALUES);
 		});
 		const keys = invalidateSpy.mock.calls.map((c) =>
 			JSON.stringify(c[0]?.queryKey ?? [])
@@ -306,9 +247,6 @@ describe("useTournamentSceneActions", () => {
 			])
 		);
 		expect(keys).toContain(
-			JSON.stringify(["blindLevel", "listByTournament", { tournamentId: "t1" }])
-		);
-		expect(keys).toContain(
 			JSON.stringify([
 				"tournamentChipPurchase",
 				"listByTournament",
@@ -316,7 +254,7 @@ describe("useTournamentSceneActions", () => {
 			])
 		);
 		expect(keys).toContain(
-			JSON.stringify(["liveTournamentSession", "getById", { id: "s1" }])
+			JSON.stringify(["liveSession", "getById", { id: "s1" }])
 		);
 	});
 });

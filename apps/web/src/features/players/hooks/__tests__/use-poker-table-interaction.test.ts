@@ -10,33 +10,16 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const trpcMocks = vi.hoisted(() => ({
-	cashUpdateHero: vi.fn(),
-	tournamentUpdateHero: vi.fn(),
+	addPlayer: vi.fn(),
+	removePlayer: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "getById", input),
-				}),
-			},
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "list", input),
-				}),
-			},
-		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "getById", input),
-				}),
-			},
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "list", input),
+					queryKey: buildKey("liveSession", "getById", input),
 				}),
 			},
 		},
@@ -47,13 +30,18 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		session: {
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: buildKey("session", "list", input),
+				}),
+			},
+		},
 	},
 	trpcClient: {
-		liveCashGameSession: {
-			updateHeroSeat: { mutate: trpcMocks.cashUpdateHero },
-		},
-		liveTournamentSession: {
-			updateHeroSeat: { mutate: trpcMocks.tournamentUpdateHero },
+		sessionEvent: {
+			addPlayer: { mutate: trpcMocks.addPlayer },
+			removePlayer: { mutate: trpcMocks.removePlayer },
 		},
 	},
 }));
@@ -79,8 +67,7 @@ function makeWrapper(client: QueryClient) {
 	};
 }
 
-const cashSessionKey = ["liveCashGameSession", "getById", { id: "s1" }];
-const tourSessionKey = ["liveTournamentSession", "getById", { id: "t1" }];
+const sessionKey = ["liveSession", "getById", { id: "s1" }];
 
 describe("usePokerTableInteraction", () => {
 	beforeEach(() => {
@@ -117,11 +104,13 @@ describe("usePokerTableInteraction", () => {
 	});
 
 	describe("handleEmptySeatTap", () => {
-		it("when hero seat is unset, invokes updateHeroSeat with the tapped seat and optimistically sets session.heroSeatPosition", async () => {
+		it("when hero seat is unset, invokes sessionEvent.addPlayer with isHero=true and optimistically updates currentPlayers", async () => {
 			const qc = createClient();
-			qc.setQueryData(cashSessionKey, { heroSeatPosition: null, foo: 1 });
+			qc.setQueryData(sessionKey, {
+				currentPlayers: [],
+			});
 			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.cashUpdateHero.mockImplementation(
+			trpcMocks.addPlayer.mockImplementation(
 				() =>
 					new Promise((r) => {
 						resolve = r;
@@ -135,21 +124,24 @@ describe("usePokerTableInteraction", () => {
 				result.current.handleEmptySeatTap(5);
 			});
 			await waitFor(() =>
-				expect(trpcMocks.cashUpdateHero).toHaveBeenCalledWith({
-					id: "s1",
-					heroSeatPosition: 5,
+				expect(trpcMocks.addPlayer).toHaveBeenCalledWith({
+					sessionId: "s1",
+					isHero: true,
+					seatPosition: 5,
 				})
 			);
 			const session = qc.getQueryData<{
-				heroSeatPosition: number | null;
-				foo: number;
-			}>(cashSessionKey);
-			expect(session?.heroSeatPosition).toBe(5);
-			expect(session?.foo).toBe(1);
+				currentPlayers: Array<{ isHero: boolean; seatPosition: number }>;
+			}>(sessionKey);
+			expect(session?.currentPlayers).toHaveLength(1);
+			expect(session?.currentPlayers[0]).toMatchObject({
+				isHero: true,
+				seatPosition: 5,
+			});
 			expect(result.current.heroSeatPosition).toBe(5);
 			expect(result.current.waitingForHero).toBe(false);
 			expect(result.current.addPlayerSeat).toBeNull();
-			resolve?.({ id: "s1" });
+			resolve?.({ id: "ev-1" });
 		});
 
 		it("when hero seat is set, stores the tapped seat in addPlayerSeat without calling mutation", () => {
@@ -162,13 +154,14 @@ describe("usePokerTableInteraction", () => {
 				result.current.handleEmptySeatTap(7);
 			});
 			expect(result.current.addPlayerSeat).toBe(7);
-			expect(trpcMocks.cashUpdateHero).not.toHaveBeenCalled();
+			expect(trpcMocks.addPlayer).not.toHaveBeenCalled();
 		});
 
-		it("uses the tournament mutation when sessionType is 'tournament'", async () => {
+		it("sessionType parameter is passed through (tournament scenario)", async () => {
+			const tourSessionKey = ["liveSession", "getById", { id: "t1" }];
 			const qc = createClient();
-			qc.setQueryData(tourSessionKey, { heroSeatPosition: null });
-			trpcMocks.tournamentUpdateHero.mockResolvedValue({ id: "t1" });
+			qc.setQueryData(tourSessionKey, { currentPlayers: [] });
+			trpcMocks.addPlayer.mockResolvedValue({ id: "ev-t" });
 			const { result } = renderHook(
 				() => usePokerTableInteraction("tournament", "t1", null),
 				{ wrapper: makeWrapper(qc) }
@@ -177,21 +170,28 @@ describe("usePokerTableInteraction", () => {
 				result.current.handleEmptySeatTap(2);
 			});
 			await waitFor(() =>
-				expect(trpcMocks.tournamentUpdateHero).toHaveBeenCalledWith({
-					id: "t1",
-					heroSeatPosition: 2,
-				})
+				expect(trpcMocks.addPlayer).toHaveBeenCalledWith(
+					expect.objectContaining({
+						sessionId: "t1",
+						isHero: true,
+						seatPosition: 2,
+					})
+				)
 			);
-			expect(trpcMocks.cashUpdateHero).not.toHaveBeenCalled();
 		});
 	});
 
 	describe("handleHeroSeatTap", () => {
-		it("clears the hero seat (posts null) and updates the session cache optimistically", async () => {
+		it("calls sessionEvent.removePlayer with isHero=true and optimistically clears hero from currentPlayers", async () => {
 			const qc = createClient();
-			qc.setQueryData(cashSessionKey, { heroSeatPosition: 5 });
+			qc.setQueryData(sessionKey, {
+				currentPlayers: [
+					{ isHero: true, seatPosition: 5, joinedAt: "2026-01-01" },
+					{ isHero: false, seatPosition: 2, joinedAt: "2026-01-01", playerId: "p1" },
+				],
+			});
 			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.cashUpdateHero.mockImplementation(
+			trpcMocks.removePlayer.mockImplementation(
 				() =>
 					new Promise((r) => {
 						resolve = r;
@@ -205,15 +205,15 @@ describe("usePokerTableInteraction", () => {
 				result.current.handleHeroSeatTap();
 			});
 			await waitFor(() =>
-				expect(trpcMocks.cashUpdateHero).toHaveBeenCalledWith({
-					id: "s1",
-					heroSeatPosition: null,
+				expect(trpcMocks.removePlayer).toHaveBeenCalledWith({
+					sessionId: "s1",
+					isHero: true,
 				})
 			);
 			// Optimistic: localHeroSeat=null → effectiveHeroSeat=null while pending.
 			await waitFor(() => expect(result.current.heroSeatPosition).toBe(null));
 			expect(result.current.waitingForHero).toBe(true);
-			resolve?.({ id: "s1" });
+			resolve?.({ id: "ev-r" });
 		});
 	});
 
@@ -244,10 +244,10 @@ describe("usePokerTableInteraction", () => {
 	});
 
 	describe("rollback on hero update failure", () => {
-		it("restores session cache and clears localHeroSeat when mutation rejects", async () => {
+		it("restores session cache and clears localHeroSeat when addPlayer rejects", async () => {
 			const qc = createClient();
-			qc.setQueryData(cashSessionKey, { heroSeatPosition: null });
-			trpcMocks.cashUpdateHero.mockRejectedValue(new Error("boom"));
+			qc.setQueryData(sessionKey, { currentPlayers: [] });
+			trpcMocks.addPlayer.mockRejectedValue(new Error("boom"));
 			const { result } = renderHook(
 				() => usePokerTableInteraction("cash_game", "s1", null),
 				{ wrapper: makeWrapper(qc) }
@@ -255,15 +255,15 @@ describe("usePokerTableInteraction", () => {
 			act(() => {
 				result.current.handleEmptySeatTap(3);
 			});
-			await waitFor(() => expect(trpcMocks.cashUpdateHero).toHaveBeenCalled());
-			// onError restores snapshot (heroSeatPosition back to null), and
+			await waitFor(() => expect(trpcMocks.addPlayer).toHaveBeenCalled());
+			// onError restores snapshot (currentPlayers back to []), and
 			// onSettled sets localHeroSeat back to undefined so effectiveHeroSeat
 			// falls back to heroSeatPosition prop (null here).
 			await waitFor(() => {
-				const session = qc.getQueryData<{ heroSeatPosition: number | null }>(
-					cashSessionKey
+				const session = qc.getQueryData<{ currentPlayers: unknown[] }>(
+					sessionKey
 				);
-				expect(session?.heroSeatPosition).toBeNull();
+				expect(session?.currentPlayers).toHaveLength(0);
 			});
 			await waitFor(() => expect(result.current.heroSeatPosition).toBe(null));
 		});

@@ -69,8 +69,7 @@ function ActiveSessionRow({
 }
 
 export function ActiveSessionWidget({ config }: WidgetRenderProps) {
-	const { isLoading, cashItems, tournamentItems } =
-		useActiveSessionWidget(config);
+	const { isLoading, sessions } = useActiveSessionWidget(config);
 
 	if (isLoading) {
 		return (
@@ -81,7 +80,7 @@ export function ActiveSessionWidget({ config }: WidgetRenderProps) {
 		);
 	}
 
-	if (cashItems.length === 0 && tournamentItems.length === 0) {
+	if (sessions.length === 0) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-4 text-muted-foreground text-sm">
 				<IconBolt className="mb-2" size={20} />
@@ -92,23 +91,13 @@ export function ActiveSessionWidget({ config }: WidgetRenderProps) {
 
 	return (
 		<div className="flex h-full flex-col gap-1 overflow-auto p-2">
-			{cashItems.map((item) => (
+			{sessions.map((item) => (
 				<ActiveSessionRow
 					key={item.id}
-					latestStackAmount={item.latestStackAmount}
-					name={item.ringGameName ?? "Cash Game"}
+					latestStackAmount={null}
+					name={item.kind === "tournament" ? "Tournament" : "Cash Game"}
 					sessionId={item.id}
-					sessionType="cash-game"
-					startedAt={item.startedAt}
-				/>
-			))}
-			{tournamentItems.map((item) => (
-				<ActiveSessionRow
-					key={item.id}
-					latestStackAmount={item.latestStackAmount}
-					name={item.tournamentName ?? "Tournament"}
-					sessionId={item.id}
-					sessionType="tournament"
+					sessionType={item.kind === "tournament" ? "tournament" : "cash-game"}
 					startedAt={item.startedAt}
 				/>
 			))}

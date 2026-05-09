@@ -15,8 +15,13 @@ export interface SelectedPlayer {
 	seatPosition: number;
 }
 
-export interface SessionDetailWithHeroSeat {
-	heroSeatPosition?: number | null;
+export interface SessionDetailWithCurrentPlayers {
+	currentPlayers: Array<{
+		isHero: boolean;
+		joinedAt: string | Date;
+		playerId?: string;
+		seatPosition?: number | null;
+	}>;
 	[key: string]: unknown;
 }
 
@@ -39,22 +44,33 @@ export function usePokerTableInteraction(
 	const effectiveHeroSeat =
 		localHeroSeat === undefined ? heroSeatPosition : localHeroSeat;
 
-	const heroMutation = useMutation({
-		mutationFn: (nextSeatPosition: number | null) =>
-			sessionType === "cash_game"
-				? trpcClient.liveCashGameSession.updateHeroSeat.mutate({
-						id: sessionId,
-						heroSeatPosition: nextSeatPosition,
-					})
-				: trpcClient.liveTournamentSession.updateHeroSeat.mutate({
-						id: sessionId,
-						heroSeatPosition: nextSeatPosition,
-					}),
+	// Hero join mutation (add hero to a seat)
+	const heroJoinMutation = useMutation({
+		mutationFn: (nextSeatPosition: number) =>
+			trpcClient.sessionEvent.addPlayer.mutate({
+				sessionId,
+				isHero: true,
+				seatPosition: nextSeatPosition,
+			}),
 		onMutate: async (nextSeatPosition) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionKey }]);
 			const previousSession = snapshotQuery(queryClient, sessionKey);
-			queryClient.setQueryData<SessionDetailWithHeroSeat>(sessionKey, (old) =>
-				old ? { ...old, heroSeatPosition: nextSeatPosition } : old
+			queryClient.setQueryData<SessionDetailWithCurrentPlayers>(
+				sessionKey,
+				(old) =>
+					old
+						? {
+								...old,
+								currentPlayers: [
+									...old.currentPlayers.filter((p) => !p.isHero),
+									{
+										isHero: true,
+										seatPosition: nextSeatPosition,
+										joinedAt: new Date().toISOString(),
+									},
+								],
+							}
+						: old
 			);
 			const previousSeat =
 				localHeroSeat === undefined ? heroSeatPosition : localHeroSeat;
@@ -74,17 +90,55 @@ export function usePokerTableInteraction(
 		},
 	});
 
+	// Hero leave mutation (remove hero from seat)
+	const heroLeaveMutation = useMutation({
+		mutationFn: () =>
+			trpcClient.sessionEvent.removePlayer.mutate({
+				sessionId,
+				isHero: true,
+			}),
+		onMutate: async () => {
+			await cancelTargets(queryClient, [{ queryKey: sessionKey }]);
+			const previousSession = snapshotQuery(queryClient, sessionKey);
+			queryClient.setQueryData<SessionDetailWithCurrentPlayers>(
+				sessionKey,
+				(old) =>
+					old
+						? {
+								...old,
+								currentPlayers: old.currentPlayers.filter((p) => !p.isHero),
+							}
+						: old
+			);
+			const previousSeat =
+				localHeroSeat === undefined ? heroSeatPosition : localHeroSeat;
+			setLocalHeroSeat(null);
+			return { previousSeat, previousSession };
+		},
+		onError: (_error, _variables, context) => {
+			restoreSnapshots(queryClient, [context?.previousSession]);
+			setLocalHeroSeat(context?.previousSeat ?? undefined);
+		},
+		onSettled: async () => {
+			await invalidateTargets(queryClient, [
+				{ queryKey: sessionKey },
+				{ queryKey: eventsKey },
+			]);
+			setLocalHeroSeat(undefined);
+		},
+	});
+
 	return {
 		addPlayerSeat,
 		handleEmptySeatTap: (seatPosition: number) => {
 			if (effectiveHeroSeat === null) {
-				heroMutation.mutate(seatPosition);
+				heroJoinMutation.mutate(seatPosition);
 				return;
 			}
 			setAddPlayerSeat(seatPosition);
 		},
 		handleHeroSeatTap: () => {
-			heroMutation.mutate(null);
+			heroLeaveMutation.mutate();
 		},
 		handlePlayerSeatTap: (player: TablePlayer, seatPosition: number) => {
 			setSelectedPlayer({ playerId: player.player.id, seatPosition });

@@ -79,31 +79,11 @@ const mockQuery = vi.fn();
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (args: { id: string }) => ({
-					queryKey: ["cash-session", args.id],
-					queryFn: () => mockQuery("cash-getById", args),
-				}),
-			},
-			list: {
-				queryOptions: (args?: unknown) => ({
-					queryKey: ["cash-list", args],
-					queryFn: () => mockQuery("cash-list", args),
-				}),
-			},
-		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: (args: { id: string }) => ({
-					queryKey: ["tournament-session", args.id],
-					queryFn: () => mockQuery("tournament-getById", args),
-				}),
-			},
-			list: {
-				queryOptions: (args?: unknown) => ({
-					queryKey: ["tournament-list", args],
-					queryFn: () => mockQuery("tournament-list", args),
+					queryKey: ["live-session", args.id],
+					queryFn: () => mockQuery("live-session-getById", args),
 				}),
 			},
 		},
@@ -145,25 +125,31 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		session: {
+			list: {
+				queryOptions: (args?: unknown) => ({
+					queryKey: ["session-list", args],
+					queryFn: () => mockQuery("session-list", args),
+				}),
+			},
+		},
 	},
 	trpcClient: {
-		liveCashGameSession: {
+		liveSession: {
 			discard: { mutate: vi.fn() },
-			updateHeroSeat: { mutate: vi.fn() },
+			updateRule: { mutate: vi.fn() },
 		},
-		liveTournamentSession: {
-			discard: { mutate: vi.fn() },
-			updateHeroSeat: { mutate: vi.fn() },
+		sessionEvent: {
+			addPlayer: { mutate: vi.fn() },
+			removePlayer: { mutate: vi.fn() },
+			update: { mutate: vi.fn() },
+			delete: { mutate: vi.fn() },
 		},
 		player: {
 			update: { mutate: vi.fn() },
 		},
 		playerTag: {
 			create: { mutate: vi.fn() },
-		},
-		sessionEvent: {
-			update: { mutate: vi.fn() },
-			delete: { mutate: vi.fn() },
 		},
 	},
 }));
@@ -326,13 +312,13 @@ describe("ActiveSessionPage — no active session", () => {
 describe("ActiveSessionPage — active cash game session", () => {
 	beforeEach(() => {
 		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "cash-001", type: "cash_game" },
+			activeSession: { id: "cash-001", kind: "cash_game" },
 			hasActive: true,
 			isLoading: false,
 		});
 
 		mockQuery.mockImplementation((key: string) => {
-			if (key === "cash-getById") {
+			if (key === "live-session-getById") {
 				return {
 					id: "cash-001",
 					storeId: "store-1",
@@ -382,13 +368,13 @@ describe("ActiveSessionPage — active cash game session", () => {
 describe("ActiveSessionPage — active tournament session", () => {
 	beforeEach(() => {
 		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "tourn-001", type: "tournament" },
+			activeSession: { id: "tourn-001", kind: "tournament" },
 			hasActive: true,
 			isLoading: false,
 		});
 
 		mockQuery.mockImplementation((key: string) => {
-			if (key === "tournament-getById") {
+			if (key === "live-session-getById") {
 				return {
 					id: "tourn-001",
 					tournamentId: null,
@@ -438,7 +424,7 @@ describe("ActiveSessionPage — active tournament session", () => {
 describe("ActiveSessionPage — tournament summary labels", () => {
 	beforeEach(() => {
 		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "tourn-002", type: "tournament" },
+			activeSession: { id: "tourn-002", kind: "tournament" },
 			hasActive: true,
 			isLoading: false,
 		});
@@ -446,7 +432,7 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 
 	it("shows Field/Entry and Avg Stack labels from tournament summary", async () => {
 		mockQuery.mockImplementation((key: string) => {
-			if (key === "tournament-getById") {
+			if (key === "live-session-getById") {
 				return {
 					id: "tourn-002",
 					tournamentId: "t-1",
@@ -475,7 +461,7 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 
 	it("shows dash for Field/Entry when remainingPlayers and totalEntries are null", async () => {
 		mockQuery.mockImplementation((key: string) => {
-			if (key === "tournament-getById") {
+			if (key === "live-session-getById") {
 				return {
 					id: "tourn-002",
 					tournamentId: null,
@@ -503,7 +489,7 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 
 	it("shows Field/Entry with remainingPlayers/totalEntries when provided", async () => {
 		mockQuery.mockImplementation((key: string) => {
-			if (key === "tournament-getById") {
+			if (key === "live-session-getById") {
 				return {
 					id: "tourn-002",
 					tournamentId: null,
@@ -571,7 +557,7 @@ describe("ActiveSessionEventsPage — loading state", () => {
 describe("ActiveSessionEventsPage — tournament events display", () => {
 	beforeEach(() => {
 		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "tourn-003", type: "tournament" },
+			activeSession: { id: "tourn-003", kind: "tournament" },
 			hasActive: true,
 			isLoading: false,
 		});
@@ -642,7 +628,7 @@ describe("ActiveSessionEventsPage — tournament events display", () => {
 describe("ActiveSessionEventsPage — empty events list", () => {
 	beforeEach(() => {
 		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "tourn-004", type: "tournament" },
+			activeSession: { id: "tourn-004", kind: "tournament" },
 			hasActive: true,
 			isLoading: false,
 		});
@@ -729,13 +715,13 @@ describe("ActiveSessionPage — reopen flow concept", () => {
 
 	it("shows the tournament session when still active (before completion)", async () => {
 		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "tourn-005", type: "tournament" },
+			activeSession: { id: "tourn-005", kind: "tournament" },
 			hasActive: true,
 			isLoading: false,
 		});
 
 		mockQuery.mockImplementation((key: string) => {
-			if (key === "tournament-getById") {
+			if (key === "live-session-getById") {
 				return {
 					id: "tourn-005",
 					tournamentId: null,

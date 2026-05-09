@@ -236,44 +236,24 @@ type SessionType = "cash_game" | "tournament";
 
 export function getSessionQueryKeys(
 	sessionId: string,
-	sessionType: SessionType
+	_sessionType?: SessionType
 ) {
-	if (sessionType === "cash_game") {
-		return {
-			sessionKey: trpc.liveCashGameSession.getById.queryOptions({
-				id: sessionId,
-			}).queryKey,
-			eventsKey: trpc.sessionEvent.list.queryOptions({
-				liveCashGameSessionId: sessionId,
-			}).queryKey,
-			activeListKey: trpc.liveCashGameSession.list.queryOptions({
-				status: "active",
-				limit: 1,
-			}).queryKey,
-			pausedListKey: trpc.liveCashGameSession.list.queryOptions({
-				status: "paused",
-				limit: 1,
-			}).queryKey,
-			allListsKey: trpc.liveCashGameSession.list.queryOptions({}).queryKey,
-		};
-	}
+	const sessionKey = trpc.liveSession.getById.queryOptions({
+		id: sessionId,
+	}).queryKey;
+
+	const eventsKey = trpc.sessionEvent.list.queryOptions({
+		sessionId,
+	}).queryKey;
+
+	const sessionListKey = trpc.session.list.queryOptions({}).queryKey;
 
 	return {
-		sessionKey: trpc.liveTournamentSession.getById.queryOptions({
-			id: sessionId,
-		}).queryKey,
-		eventsKey: trpc.sessionEvent.list.queryOptions({
-			liveTournamentSessionId: sessionId,
-		}).queryKey,
-		activeListKey: trpc.liveTournamentSession.list.queryOptions({
-			status: "active",
-			limit: 1,
-		}).queryKey,
-		pausedListKey: trpc.liveTournamentSession.list.queryOptions({
-			status: "paused",
-			limit: 1,
-		}).queryKey,
-		allListsKey: trpc.liveTournamentSession.list.queryOptions({}).queryKey,
+		sessionKey,
+		eventsKey,
+		activeListKey: sessionListKey,
+		pausedListKey: sessionListKey,
+		allListsKey: sessionListKey,
 	};
 }
 
@@ -304,7 +284,7 @@ interface SessionEventMutationConfig<TVariables = void> {
 	getPayload: (variables: TVariables) => Record<string, unknown>;
 	queryClient: QueryClient;
 	sessionId: string;
-	sessionType: SessionType;
+	sessionType?: SessionType;
 }
 
 export function createSessionEventMutationOptions<TVariables = void>({

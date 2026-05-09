@@ -8,80 +8,62 @@ import {
 import { trpc, trpcClient } from "@/utils/trpc";
 
 interface UseTablePlayersOptions {
-	liveCashGameSessionId?: string;
-	liveTournamentSessionId?: string;
+	sessionId: string;
 }
 
-interface TablePlayerItem {
-	id: string;
-	isActive: boolean;
-	joinedAt: string;
-	leftAt: string | null;
-	player: {
-		id: string;
-		isTemporary: boolean;
-		memo: string | null;
-		name: string;
-	};
-	seatPosition: number | null;
+interface CurrentPlayerItem {
+	isHero: boolean;
+	joinedAt: string | Date;
+	playerId?: string;
+	seatPosition?: number | null;
 }
 
-interface TablePlayerData {
-	items: TablePlayerItem[];
-}
-
-export function useTablePlayers({
-	liveCashGameSessionId,
-	liveTournamentSessionId,
-}: UseTablePlayersOptions) {
+export function useTablePlayers({ sessionId }: UseTablePlayersOptions) {
 	const queryClient = useQueryClient();
 
-	const sessionParam = liveCashGameSessionId
-		? { liveCashGameSessionId }
-		: { liveTournamentSessionId: liveTournamentSessionId ?? "" };
+	const sessionQueryOptions = trpc.liveSession.getById.queryOptions({
+		id: sessionId,
+	});
 
-	const playersQuery = useQuery({
-		...trpc.sessionTablePlayer.list.queryOptions(sessionParam),
-		enabled: !!(liveCashGameSessionId || liveTournamentSessionId),
+	const sessionQuery = useQuery({
+		...sessionQueryOptions,
+		enabled: !!sessionId,
 		refetchInterval: 5000,
 	});
 
-	const playersKey =
-		trpc.sessionTablePlayer.list.queryOptions(sessionParam).queryKey;
+	const playersKey = sessionQueryOptions.queryKey;
+
+	const currentPlayers: CurrentPlayerItem[] =
+		sessionQuery.data?.currentPlayers ?? [];
 
 	const addMutation = useMutation({
 		mutationFn: (params: {
 			playerId: string;
-			playerName: string;
-			seatPosition: number;
+			seatPosition?: number;
 		}) =>
-			trpcClient.sessionTablePlayer.add.mutate({
-				...sessionParam,
+			trpcClient.sessionEvent.addPlayer.mutate({
+				sessionId,
 				playerId: params.playerId,
+				isHero: false,
 				seatPosition: params.seatPosition,
 			}),
 		onMutate: async (params) => {
 			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
-			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
-			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+			const previous = snapshotQuery(queryClient, playersKey);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			queryClient.setQueryData(playersKey, (old: any) => {
 				if (!old) {
 					return old;
 				}
 				return {
-					items: [
-						...old.items,
+					...old,
+					currentPlayers: [
+						...old.currentPlayers,
 						{
-							id: `optimistic-${Date.now()}`,
-							player: {
-								id: params.playerId,
-								isTemporary: false,
-								memo: null,
-								name: params.playerName,
-							},
-							isActive: true,
+							playerId: params.playerId,
+							isHero: false,
+							seatPosition: params.seatPosition ?? null,
 							joinedAt: new Date().toISOString(),
-							leftAt: null,
-							seatPosition: params.seatPosition,
 						},
 					],
 				};
@@ -96,42 +78,30 @@ export function useTablePlayers({
 		},
 	});
 
-	const addNewMutation = useMutation({
-		mutationFn: (params: {
-			playerMemo?: string;
-			playerName: string;
-			playerTagIds?: string[];
-			seatPosition: number;
-		}) =>
-			trpcClient.sessionTablePlayer.addNew.mutate({
-				...sessionParam,
-				playerMemo: params.playerMemo,
-				playerName: params.playerName,
-				playerTagIds: params.playerTagIds,
+	const addTemporaryMutation = useMutation({
+		mutationFn: (params: { name: string; seatPosition?: number }) =>
+			trpcClient.sessionEvent.addTemporaryPlayer.mutate({
+				sessionId,
+				name: params.name,
 				seatPosition: params.seatPosition,
 			}),
 		onMutate: async (params) => {
 			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
-			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
-			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+			const previous = snapshotQuery(queryClient, playersKey);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			queryClient.setQueryData(playersKey, (old: any) => {
 				if (!old) {
 					return old;
 				}
 				return {
-					items: [
-						...old.items,
+					...old,
+					currentPlayers: [
+						...old.currentPlayers,
 						{
-							id: `optimistic-${Date.now()}`,
-							player: {
-								id: `new-${Date.now()}`,
-								isTemporary: false,
-								memo: params.playerMemo ?? null,
-								name: params.playerName,
-							},
-							isActive: true,
+							playerId: `temp-${Date.now()}`,
+							isHero: false,
+							seatPosition: params.seatPosition ?? null,
 							joinedAt: new Date().toISOString(),
-							leftAt: null,
-							seatPosition: params.seatPosition,
 						},
 					],
 				};
@@ -149,66 +119,25 @@ export function useTablePlayers({
 		},
 	});
 
-	const addTemporaryMutation = useMutation({
-		mutationFn: (params: { seatPosition: number }) =>
-			trpcClient.sessionTablePlayer.addTemporary.mutate({
-				...sessionParam,
-				seatPosition: params.seatPosition,
-			}),
-		onMutate: async (params) => {
-			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
-			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
-			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
-				if (!old) {
-					return old;
-				}
-				return {
-					items: [
-						...old.items,
-						{
-							id: `optimistic-${Date.now()}`,
-							player: {
-								id: `temp-${Date.now()}`,
-								isTemporary: true,
-								memo: null,
-								name: "...",
-							},
-							isActive: true,
-							joinedAt: new Date().toISOString(),
-							leftAt: null,
-							seatPosition: params.seatPosition,
-						},
-					],
-				};
-			});
-			return { previous };
-		},
-		onError: (_err, _vars, context) => {
-			restoreSnapshots(queryClient, [context?.previous]);
-		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: playersKey }]);
-		},
-	});
-
 	const removeMutation = useMutation({
 		mutationFn: (playerId: string) =>
-			trpcClient.sessionTablePlayer.remove.mutate({
-				...sessionParam,
+			trpcClient.sessionEvent.removePlayer.mutate({
+				sessionId,
 				playerId,
+				isHero: false,
 			}),
 		onMutate: async (playerId) => {
 			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
-			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
-			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+			const previous = snapshotQuery(queryClient, playersKey);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			queryClient.setQueryData(playersKey, (old: any) => {
 				if (!old) {
 					return old;
 				}
 				return {
-					items: old.items.map((item) =>
-						item.player.id === playerId
-							? { ...item, isActive: false, leftAt: new Date().toISOString() }
-							: item
+					...old,
+					currentPlayers: old.currentPlayers.filter(
+						(p: { playerId?: string }) => p.playerId !== playerId
 					),
 				};
 			});
@@ -222,83 +151,21 @@ export function useTablePlayers({
 		},
 	});
 
-	const updateSeatMutation = useMutation({
-		mutationFn: (params: { playerId: string; seatPosition: number | null }) =>
-			trpcClient.sessionTablePlayer.updateSeat.mutate({
-				...sessionParam,
-				playerId: params.playerId,
-				seatPosition: params.seatPosition,
-			}),
-		onMutate: async (params) => {
-			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
-			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
-			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
-				if (!old) {
-					return old;
-				}
-				return {
-					items: old.items.map((item) =>
-						item.player.id === params.playerId
-							? { ...item, seatPosition: params.seatPosition }
-							: item
-					),
-				};
-			});
-			return { previous };
-		},
-		onError: (_err, _vars, context) => {
-			restoreSnapshots(queryClient, [context?.previous]);
-		},
-		onSettled: () => {
-			invalidateTargets(queryClient, [{ queryKey: playersKey }]);
-		},
-	});
-
-	const players = (playersQuery.data?.items ?? []).map((item) => ({
-		id: item.id,
-		isActive: item.isActive,
-		isLoading: item.id.startsWith("optimistic-"),
-		player: {
-			id: item.player.id,
-			isTemporary: item.player.isTemporary,
-			name: item.player.name,
-		},
-		seatPosition: item.seatPosition ?? null,
-	}));
-
-	const excludePlayerIds = players
-		.filter((p) => p.isActive)
-		.map((p) => p.player.id);
+	const excludePlayerIds = currentPlayers
+		.filter((p) => !p.isHero && p.playerId)
+		.map((p) => p.playerId as string);
 
 	return {
-		players,
+		players: currentPlayers,
 		excludePlayerIds,
-		handleAddExisting: (
-			playerId: string,
-			playerName: string,
-			seatPosition: number
-		) => {
-			addMutation.mutate({ playerId, playerName, seatPosition });
+		handleAddExisting: (playerId: string, seatPosition?: number) => {
+			addMutation.mutate({ playerId, seatPosition });
 		},
-		handleAddNew: (
-			name: string,
-			seatPosition: number,
-			memo?: string,
-			tagIds?: string[]
-		) => {
-			addNewMutation.mutate({
-				playerMemo: memo,
-				playerName: name,
-				playerTagIds: tagIds,
-				seatPosition,
-			});
-		},
-		handleAddTemporary: (seatPosition: number) => {
-			addTemporaryMutation.mutate({ seatPosition });
+		handleAddTemporary: (name: string, seatPosition?: number) => {
+			addTemporaryMutation.mutate({ name, seatPosition });
 		},
 		handleRemovePlayer: (playerId: string) => {
 			removeMutation.mutate(playerId);
 		},
-		updateSeatMutation,
 	};
 }

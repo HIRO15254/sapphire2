@@ -1,6 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
 import type { TournamentFormValues } from "@/features/stores/hooks/use-tournaments";
 import { useTournaments } from "@/features/stores/hooks/use-tournaments";
 import { invalidateTargets } from "@/utils/optimistic-update";
@@ -25,16 +24,15 @@ export function useTournamentSceneActions({
 		showArchived: false,
 	});
 
-	const save = async (
-		values: TournamentFormValues,
-		updatedLevels: BlindLevelRow[]
-	) => {
+	const handleSave = async (values: TournamentFormValues) => {
 		setIsSaving(true);
 		try {
-			await trpcClient.tournament.updateWithLevels.mutate({
+			// Phase 3B: tournament.update does not yet support variantId from TournamentFormValues.
+			// Using type assertion until form migration completes.
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			await (trpcClient.tournament.update as any).mutate({
 				id: tournamentId,
 				name: values.name,
-				variant: values.variant,
 				buyIn: values.buyIn ?? null,
 				entryFee: values.entryFee ?? null,
 				startingStack: values.startingStack ?? null,
@@ -42,16 +40,6 @@ export function useTournamentSceneActions({
 				tableSize: values.tableSize ?? null,
 				currencyId: values.currencyId ?? null,
 				memo: values.memo ?? null,
-				tags: values.tags,
-				chipPurchases: values.chipPurchases,
-				blindLevels: updatedLevels.map((l) => ({
-					isBreak: l.isBreak,
-					blind1: l.blind1,
-					blind2: l.blind2,
-					blind3: l.blind3,
-					ante: l.ante,
-					minutes: l.minutes,
-				})),
 			});
 			await invalidateTargets(queryClient, [
 				{
@@ -65,17 +53,12 @@ export function useTournamentSceneActions({
 					}).queryKey,
 				},
 				{
-					queryKey: trpc.blindLevel.listByTournament.queryOptions({
-						tournamentId,
-					}).queryKey,
-				},
-				{
 					queryKey: trpc.tournamentChipPurchase.listByTournament.queryOptions({
 						tournamentId,
 					}).queryKey,
 				},
 				{
-					queryKey: trpc.liveTournamentSession.getById.queryOptions({
+					queryKey: trpc.liveSession.getById.queryOptions({
 						id: sessionId,
 					}).queryKey,
 				},
@@ -83,13 +66,6 @@ export function useTournamentSceneActions({
 		} finally {
 			setIsSaving(false);
 		}
-	};
-
-	const handleSave = async (
-		values: TournamentFormValues,
-		updatedLevels: BlindLevelRow[]
-	) => {
-		await save(values, updatedLevels);
 		setIsEditOpen(false);
 	};
 

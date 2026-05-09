@@ -8,18 +8,14 @@ import {
 	groupEventsForDisplay,
 } from "@/features/live-sessions/utils/session-events-formatters";
 
-type SessionType = "cash_game" | "tournament";
-
 interface UseSessionEventsSceneOptions {
 	refetchInterval?: number;
 	sessionId: string;
-	sessionType: SessionType;
 }
 
 export function useSessionEventsScene({
 	refetchInterval,
 	sessionId,
-	sessionType,
 }: UseSessionEventsSceneOptions) {
 	const [editEvent, setEditEvent] = useState<SessionEvent | null>(null);
 	const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
@@ -33,7 +29,6 @@ export function useSessionEventsScene({
 		isUpdatePending,
 	} = useSessionEvents({
 		sessionId,
-		sessionType,
 		refetchInterval,
 	});
 

@@ -31,14 +31,6 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
-		blindLevel: {
-			listByTournament: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("blindLevel", "listByTournament", input),
-					queryFn: () => Promise.resolve([]),
-				}),
-			},
-		},
 		currency: {
 			list: {
 				queryOptions: () => ({
@@ -94,31 +86,46 @@ describe("useTournamentDetail", () => {
 
 	it("returns seeded tournament data when a valid id is provided", async () => {
 		const qc = createClient();
+		// levels come from tournament.getById.blindLevels (not separate blindLevel router)
 		qc.setQueryData(["tournament", "getById", { id: "t1" }], {
 			id: "t1",
 			name: "Main Event",
+			blindLevels: [{ id: 1, blind1: 100, blind2: 200, isBreak: false, minutes: 15, sortOrder: 0, tournamentId: "t1" }],
 		});
 		qc.setQueryData(
 			["tournamentChipPurchase", "listByTournament", { tournamentId: "t1" }],
 			[{ id: "cp1", name: "Rebuy", cost: 100, chips: 10_000 }]
-		);
-		qc.setQueryData(
-			["blindLevel", "listByTournament", { tournamentId: "t1" }],
-			[{ id: "bl1", blind1: 100, blind2: 200 }]
 		);
 		qc.setQueryData(["currency", "list"], [{ id: "c1", name: "JPY" }]);
 		const { result } = renderHook(() => useTournamentDetail("t1"), {
 			wrapper: makeWrapper(qc),
 		});
 		await waitFor(() => {
-			expect(result.current.tournament).toEqual({
+			expect(result.current.tournament).toMatchObject({
 				id: "t1",
 				name: "Main Event",
 			});
 		});
 		expect(result.current.chipPurchases).toHaveLength(1);
+		// levels sourced from tournament.blindLevels
 		expect(result.current.levels).toHaveLength(1);
 		expect(result.current.currencies).toEqual([{ id: "c1", name: "JPY" }]);
+	});
+
+	it("levels come from tournament.getById.blindLevels (not a separate query)", async () => {
+		const qc = createClient();
+		qc.setQueryData(["tournament", "getById", { id: "t1" }], {
+			id: "t1",
+			blindLevels: [
+				{ id: 1, blind1: 100, blind2: 200, isBreak: false, minutes: 15, sortOrder: 0, tournamentId: "t1" },
+				{ id: 2, blind1: null, blind2: null, isBreak: true, minutes: 5, sortOrder: 1, tournamentId: "t1" },
+			],
+		});
+		const { result } = renderHook(() => useTournamentDetail("t1"), {
+			wrapper: makeWrapper(qc),
+		});
+		await waitFor(() => expect(result.current.tournament).toBeDefined());
+		expect(result.current.levels).toHaveLength(2);
 	});
 
 	it("defaults chipPurchases, levels, currencies to empty arrays when their caches are undefined", () => {
@@ -130,5 +137,17 @@ describe("useTournamentDetail", () => {
 		expect(result.current.chipPurchases).toEqual([]);
 		expect(result.current.levels).toEqual([]);
 		expect(result.current.currencies).toEqual([]);
+	});
+
+	it("isLevelsLoading mirrors isTournamentLoading (levels come from same query)", async () => {
+		const qc = createClient();
+		// No data seeded — both should be loading initially then settle
+		const { result } = renderHook(() => useTournamentDetail("t1"), {
+			wrapper: makeWrapper(qc),
+		});
+		// Both reflect tournament query loading state
+		await waitFor(() => {
+			expect(result.current.isTournamentLoading).toBe(result.current.isLevelsLoading);
+		});
 	});
 });

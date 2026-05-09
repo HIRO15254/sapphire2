@@ -49,7 +49,7 @@ export function SessionEventsScene({
 		isUpdatePending,
 		groups,
 		timeBounds,
-	} = useSessionEventsScene({ sessionId, sessionType, refetchInterval });
+	} = useSessionEventsScene({ sessionId, refetchInterval });
 
 	const placeholderClass = embedded
 		? "flex items-center justify-center py-8"

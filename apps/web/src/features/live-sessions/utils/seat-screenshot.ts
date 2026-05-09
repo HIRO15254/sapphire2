@@ -4,9 +4,7 @@ import {
 } from "@sapphire2/api/routers/ai-extract-sources";
 import { trpcClient } from "@/utils/trpc";
 
-export type SessionParam =
-	| { liveCashGameSessionId: string; liveTournamentSessionId?: never }
-	| { liveCashGameSessionId?: never; liveTournamentSessionId: string };
+export type SessionParam = { sessionId: string };
 
 export type Step = "select-app" | "upload" | "review";
 
@@ -83,42 +81,28 @@ export function applyRowAction(
 	return { ...row, action: nextAction };
 }
 
-export function updateHeroSeatViaClient(
-	sessionParam: SessionParam,
-	heroSeatPosition: number | null
-): Promise<unknown> {
-	if (sessionParam.liveCashGameSessionId !== undefined) {
-		return trpcClient.liveCashGameSession.updateHeroSeat.mutate({
-			id: sessionParam.liveCashGameSessionId,
-			heroSeatPosition,
-		});
-	}
-	if (sessionParam.liveTournamentSessionId !== undefined) {
-		return trpcClient.liveTournamentSession.updateHeroSeat.mutate({
-			id: sessionParam.liveTournamentSessionId,
-			heroSeatPosition,
-		});
-	}
-	throw new Error("Invalid sessionParam: neither cash game nor tournament");
-}
-
 export async function applyRow(
 	row: ReviewRow,
 	sessionParam: SessionParam
 ): Promise<boolean> {
 	try {
 		if (row.action === "hero") {
-			await updateHeroSeatViaClient(sessionParam, row.seatPosition);
+			await trpcClient.sessionEvent.addPlayer.mutate({
+				sessionId: sessionParam.sessionId,
+				isHero: true,
+				seatPosition: row.seatPosition,
+			});
 		} else if (row.action === "existing" && row.existingPlayerId) {
-			await trpcClient.sessionTablePlayer.add.mutate({
-				...sessionParam,
+			await trpcClient.sessionEvent.addPlayer.mutate({
+				sessionId: sessionParam.sessionId,
 				playerId: row.existingPlayerId,
+				isHero: false,
 				seatPosition: row.seatPosition,
 			});
 		} else if (row.action === "new") {
-			await trpcClient.sessionTablePlayer.addNew.mutate({
-				...sessionParam,
-				playerName: row.name.trim(),
+			await trpcClient.sessionEvent.addTemporaryPlayer.mutate({
+				sessionId: sessionParam.sessionId,
+				name: row.name.trim(),
 				seatPosition: row.seatPosition,
 			});
 		}

@@ -53,17 +53,10 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: ({ id }: { id: string }) => ({
-					queryKey: ["cash-session", id],
-				}),
-			},
-		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: ({ id }: { id: string }) => ({
-					queryKey: ["tournament-session", id],
+					queryKey: ["live-session", id],
 				}),
 			},
 		},
@@ -71,6 +64,13 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: (input: unknown) => ({
 					queryKey: ["events", input],
+				}),
+			},
+		},
+		session: {
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: ["session-list", input],
 				}),
 			},
 		},

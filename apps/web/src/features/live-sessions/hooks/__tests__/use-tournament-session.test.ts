@@ -12,7 +12,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 const navigateMock = vi.hoisted(() => vi.fn());
 const trpcMocks = vi.hoisted(() => ({
 	discard: vi.fn(),
-	update: vi.fn(),
+	updateRule: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -21,17 +21,11 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveTournamentSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "getById", input),
+					queryKey: buildKey("liveSession", "getById", input),
 					queryFn: () => Promise.resolve(null),
-				}),
-			},
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
 				}),
 			},
 		},
@@ -39,15 +33,15 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("session", "list", input),
-					queryFn: () => Promise.resolve([]),
+					queryFn: () => Promise.resolve({ items: [] }),
 				}),
 			},
 		},
 	},
 	trpcClient: {
-		liveTournamentSession: {
+		liveSession: {
 			discard: { mutate: trpcMocks.discard },
-			update: { mutate: trpcMocks.update },
+			updateRule: { mutate: trpcMocks.updateRule },
 		},
 	},
 }));
@@ -92,22 +86,22 @@ describe("useTournamentSession", () => {
 
 	it("exposes session data seeded into the cache", async () => {
 		const qc = createClient();
-		qc.setQueryData(["liveTournamentSession", "getById", { id: "t1" }], {
+		qc.setQueryData(["liveSession", "getById", { id: "t1" }], {
 			id: "t1",
-			tournamentId: "tourn-1",
+			kind: "tournament",
 		});
 		const { result } = renderHook(() => useTournamentSession("t1"), {
 			wrapper: makeWrapper(qc),
 		});
 		await waitFor(() => {
-			expect(result.current.session).toEqual({
+			expect(result.current.session).toMatchObject({
 				id: "t1",
-				tournamentId: "tourn-1",
+				kind: "tournament",
 			});
 		});
 	});
 
-	it("discard() calls trpcClient.liveTournamentSession.discard and navigates to /sessions on success", async () => {
+	it("discard() calls liveSession.discard and navigates to /sessions on success", async () => {
 		const qc = createClient();
 		trpcMocks.discard.mockResolvedValue({ id: "t1" });
 		const { result } = renderHook(() => useTournamentSession("t1"), {
@@ -125,9 +119,9 @@ describe("useTournamentSession", () => {
 		});
 	});
 
-	it("updateTimerStartedAt(null) passes null through", async () => {
+	it("updateTimerStartedAt(null) passes null through via liveSession.updateRule", async () => {
 		const qc = createClient();
-		trpcMocks.update.mockResolvedValue({ id: "t1" });
+		trpcMocks.updateRule.mockResolvedValue({ id: "t1" });
 		const { result } = renderHook(() => useTournamentSession("t1"), {
 			wrapper: makeWrapper(qc),
 		});
@@ -136,16 +130,18 @@ describe("useTournamentSession", () => {
 			await Promise.resolve();
 		});
 		await waitFor(() => {
-			expect(trpcMocks.update).toHaveBeenCalledWith({
-				id: "t1",
-				timerStartedAt: null,
-			});
+			expect(trpcMocks.updateRule).toHaveBeenCalledWith(
+				expect.objectContaining({
+					id: "t1",
+					timerStartedAt: null,
+				})
+			);
 		});
 	});
 
-	it("updateTimerStartedAt(Date) converts ms to unix seconds (floored)", async () => {
+	it("updateTimerStartedAt(Date) passes the Date through", async () => {
 		const qc = createClient();
-		trpcMocks.update.mockResolvedValue({ id: "t1" });
+		trpcMocks.updateRule.mockResolvedValue({ id: "t1" });
 		const { result } = renderHook(() => useTournamentSession("t1"), {
 			wrapper: makeWrapper(qc),
 		});
@@ -155,17 +151,19 @@ describe("useTournamentSession", () => {
 			await Promise.resolve();
 		});
 		await waitFor(() => {
-			expect(trpcMocks.update).toHaveBeenCalledWith({
-				id: "t1",
-				timerStartedAt: Math.floor(date.getTime() / 1000),
-			});
+			expect(trpcMocks.updateRule).toHaveBeenCalledWith(
+				expect.objectContaining({
+					id: "t1",
+					timerStartedAt: date,
+				})
+			);
 		});
 	});
 
 	it("flips isUpdatingTimer while the update mutation is in flight", async () => {
 		const qc = createClient();
 		let resolve: ((v: unknown) => void) | undefined;
-		trpcMocks.update.mockImplementation(
+		trpcMocks.updateRule.mockImplementation(
 			() =>
 				new Promise((r) => {
 					resolve = r;

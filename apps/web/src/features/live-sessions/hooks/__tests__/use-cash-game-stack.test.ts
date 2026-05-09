@@ -12,7 +12,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 const navigateMock = vi.hoisted(() => vi.fn());
 const trpcMocks = vi.hoisted(() => ({
 	sessionEventCreate: vi.fn(),
-	complete: vi.fn(),
+	liveSessionComplete: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -21,27 +21,10 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "getById", input),
-				}),
-			},
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "list", input),
-				}),
-			},
-		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "getById", input),
-				}),
-			},
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "list", input),
+					queryKey: buildKey("liveSession", "getById", input),
 				}),
 			},
 		},
@@ -64,8 +47,8 @@ vi.mock("@/utils/trpc", () => ({
 		sessionEvent: {
 			create: { mutate: trpcMocks.sessionEventCreate },
 		},
-		liveCashGameSession: {
-			complete: { mutate: trpcMocks.complete },
+		liveSession: {
+			complete: { mutate: trpcMocks.liveSessionComplete },
 		},
 	},
 }));
@@ -87,18 +70,11 @@ function makeWrapper(client: QueryClient) {
 	};
 }
 
-const sessionKey = ["liveCashGameSession", "getById", { id: "s1" }];
-const eventsKey = ["sessionEvent", "list", { liveCashGameSessionId: "s1" }];
-const activeListKey = [
-	"liveCashGameSession",
-	"list",
-	{ status: "active", limit: 1 },
-];
-const pausedListKey = [
-	"liveCashGameSession",
-	"list",
-	{ status: "paused", limit: 1 },
-];
+// cash_game kind — liveSession.getById is not queried (only for tournament)
+// events list is keyed by sessionId
+const sessionKey = ["liveSession", "getById", { id: "s1" }];
+const eventsKey = ["sessionEvent", "list", { sessionId: "s1" }];
+const sessionListKey = ["session", "list", {}];
 
 describe("useCashGameStack", () => {
 	beforeEach(() => {
@@ -131,7 +107,7 @@ describe("useCashGameStack", () => {
 			});
 			await waitFor(() => {
 				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
-					liveCashGameSessionId: "s1",
+					sessionId: "s1",
 					eventType: "update_stack",
 					payload: { stackAmount: 2500 },
 				});
@@ -184,7 +160,7 @@ describe("useCashGameStack", () => {
 			});
 			await waitFor(() => {
 				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
-					liveCashGameSessionId: "s1",
+					sessionId: "s1",
 					eventType: "chips_add_remove",
 					payload: { amount: 500 },
 				});
@@ -206,7 +182,7 @@ describe("useCashGameStack", () => {
 			});
 			await waitFor(() => {
 				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
-					liveCashGameSessionId: "s1",
+					sessionId: "s1",
 					eventType: "chips_add_remove",
 					payload: { amount: -200 },
 				});
@@ -238,7 +214,7 @@ describe("useCashGameStack", () => {
 			});
 			await waitFor(() => {
 				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
-					liveCashGameSessionId: "s1",
+					sessionId: "s1",
 					eventType: "all_in",
 					payload: { potSize: 1000, trials: 100, equity: 60, wins: 50 },
 				});
@@ -269,7 +245,7 @@ describe("useCashGameStack", () => {
 			});
 			await waitFor(() => {
 				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
-					liveCashGameSessionId: "s1",
+					sessionId: "s1",
 					eventType: "memo",
 					payload: { text: "bad beat" },
 				});
@@ -278,14 +254,13 @@ describe("useCashGameStack", () => {
 	});
 
 	describe("pause (changesStatus)", () => {
-		it("transitions session.status to 'paused' and moves list item", async () => {
+		it("transitions session.status to 'paused' and sends session_pause event", async () => {
 			const qc = createClient();
 			qc.setQueryData(sessionKey, { status: "active", summary: {} });
 			qc.setQueryData(eventsKey, []);
-			qc.setQueryData(activeListKey, {
+			qc.setQueryData(sessionListKey, {
 				items: [{ id: "s1", name: "Cash", status: "active" }],
 			});
-			qc.setQueryData(pausedListKey, { items: [] });
 			trpcMocks.sessionEventCreate.mockResolvedValue({ id: "e1" });
 			const { result } = renderHook(
 				() => useCashGameStack({ sessionId: "s1" }),
@@ -301,16 +276,8 @@ describe("useCashGameStack", () => {
 				}>(sessionKey);
 				expect(session?.status).toBe("paused");
 			});
-			const active = qc.getQueryData<{
-				items: Array<{ id: string }>;
-			}>(activeListKey);
-			const paused = qc.getQueryData<{
-				items: Array<{ id: string }>;
-			}>(pausedListKey);
-			expect(active?.items).toEqual([]);
-			expect(paused?.items).toHaveLength(1);
 			expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
-				liveCashGameSessionId: "s1",
+				sessionId: "s1",
 				eventType: "session_pause",
 				payload: {},
 			});
@@ -318,14 +285,11 @@ describe("useCashGameStack", () => {
 	});
 
 	describe("resume (changesStatus)", () => {
-		it("transitions session.status to 'active'", async () => {
+		it("transitions session.status to 'active' and sends session_resume event", async () => {
 			const qc = createClient();
 			qc.setQueryData(sessionKey, { status: "paused", summary: {} });
 			qc.setQueryData(eventsKey, []);
-			qc.setQueryData(activeListKey, { items: [] });
-			qc.setQueryData(pausedListKey, {
-				items: [{ id: "s1", name: "Cash", status: "paused" }],
-			});
+			qc.setQueryData(sessionListKey, { items: [] });
 			trpcMocks.sessionEventCreate.mockResolvedValue({ id: "e1" });
 			const { result } = renderHook(
 				() => useCashGameStack({ sessionId: "s1" }),
@@ -341,12 +305,8 @@ describe("useCashGameStack", () => {
 				}>(sessionKey);
 				expect(session?.status).toBe("active");
 			});
-			const active = qc.getQueryData<{
-				items: Array<{ id: string }>;
-			}>(activeListKey);
-			expect(active?.items).toHaveLength(1);
 			expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
-				liveCashGameSessionId: "s1",
+				sessionId: "s1",
 				eventType: "session_resume",
 				payload: {},
 			});
@@ -354,9 +314,10 @@ describe("useCashGameStack", () => {
 	});
 
 	describe("complete", () => {
-		it("calls liveCashGameSession.complete and navigates to /sessions on success", async () => {
+		it("calls liveSession.complete with kind=cash_game and navigates to /sessions on success", async () => {
 			const qc = createClient();
-			trpcMocks.complete.mockResolvedValue({ id: "s1" });
+			qc.setQueryData(sessionListKey, { items: [] });
+			trpcMocks.liveSessionComplete.mockResolvedValue({ id: "s1" });
 			const { result } = renderHook(
 				() => useCashGameStack({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
@@ -366,8 +327,9 @@ describe("useCashGameStack", () => {
 				await Promise.resolve();
 			});
 			await waitFor(() => {
-				expect(trpcMocks.complete).toHaveBeenCalledWith({
+				expect(trpcMocks.liveSessionComplete).toHaveBeenCalledWith({
 					id: "s1",
+					kind: "cash_game",
 					finalStack: 9000,
 				});
 			});
@@ -378,8 +340,9 @@ describe("useCashGameStack", () => {
 
 		it("flips isCompletePending during in-flight complete", async () => {
 			const qc = createClient();
+			qc.setQueryData(sessionListKey, { items: [] });
 			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.complete.mockImplementation(
+			trpcMocks.liveSessionComplete.mockImplementation(
 				() =>
 					new Promise((r) => {
 						resolve = r;
@@ -399,7 +362,7 @@ describe("useCashGameStack", () => {
 
 		it("does not navigate on complete failure", async () => {
 			const qc = createClient();
-			trpcMocks.complete.mockRejectedValue(new Error("x"));
+			trpcMocks.liveSessionComplete.mockRejectedValue(new Error("x"));
 			const { result } = renderHook(
 				() => useCashGameStack({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
@@ -408,7 +371,7 @@ describe("useCashGameStack", () => {
 				result.current.complete({ finalStack: 0 });
 				await Promise.resolve();
 			});
-			await waitFor(() => expect(trpcMocks.complete).toHaveBeenCalled());
+			await waitFor(() => expect(trpcMocks.liveSessionComplete).toHaveBeenCalled());
 			await Promise.resolve();
 			expect(navigateMock).not.toHaveBeenCalled();
 		});

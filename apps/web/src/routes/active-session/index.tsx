@@ -280,7 +280,7 @@ function ActiveSessionPage() {
 
 	return (
 		<div className="flex h-[calc(100dvh-4rem)] flex-col p-4 md:p-6">
-			{activeSession.type === "cash_game" ? (
+			{activeSession.kind === "cash_game" ? (
 				<CashGameSession sessionId={activeSession.id} />
 			) : (
 				<TournamentSession sessionId={activeSession.id} />

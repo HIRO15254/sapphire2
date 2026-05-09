@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
 import { trpc } from "@/utils/trpc";
 
 export interface ChipPurchaseRow {
@@ -7,6 +6,14 @@ export interface ChipPurchaseRow {
 	cost: number;
 	id: string;
 	name: string;
+}
+
+export interface BlindLevelRow {
+	id: number;
+	isBreak: boolean;
+	minutes: number | null;
+	sortOrder: number;
+	tournamentId: string;
 }
 
 export function useTournamentDetail(tournamentId: string) {
@@ -20,18 +27,16 @@ export function useTournamentDetail(tournamentId: string) {
 		}),
 		enabled: !!tournamentId,
 	});
-	const levelsQuery = useQuery({
-		...trpc.blindLevel.listByTournament.queryOptions({ tournamentId }),
-		enabled: !!tournamentId,
-	});
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
+
+	const levels = (tournamentQuery.data?.blindLevels ?? []) as BlindLevelRow[];
 
 	return {
 		tournament: tournamentQuery.data,
 		isTournamentLoading: tournamentQuery.isLoading,
 		chipPurchases: (chipPurchasesQuery.data ?? []) as ChipPurchaseRow[],
-		levels: (levelsQuery.data ?? []) as BlindLevelRow[],
-		isLevelsLoading: levelsQuery.isLoading,
+		levels,
+		isLevelsLoading: tournamentQuery.isLoading,
 		currencies: currenciesQuery.data ?? [],
 	};
 }

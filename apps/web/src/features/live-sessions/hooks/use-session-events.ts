@@ -20,25 +20,18 @@ interface SessionSummaryData {
 	[key: string]: unknown;
 }
 
-type SessionType = "cash_game" | "tournament";
-
 export function useSessionEvents({
 	sessionId,
-	sessionType,
 	refetchInterval,
 }: {
 	sessionId: string;
-	sessionType: SessionType;
 	refetchInterval?: number;
 }) {
 	const queryClient = useQueryClient();
 
-	const eventQueryInput =
-		sessionType === "tournament"
-			? { liveTournamentSessionId: sessionId }
-			: { liveCashGameSessionId: sessionId };
-	const eventsQueryOptions =
-		trpc.sessionEvent.list.queryOptions(eventQueryInput);
+	const eventsQueryOptions = trpc.sessionEvent.list.queryOptions({
+		sessionId,
+	});
 	const eventsQuery = useQuery({
 		...eventsQueryOptions,
 		enabled: !!sessionId,
@@ -46,12 +39,9 @@ export function useSessionEvents({
 	});
 	const events = (eventsQuery.data ?? []) as SessionEvent[];
 
-	const sessionKey =
-		sessionType === "tournament"
-			? trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
-					.queryKey
-			: trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
-					.queryKey;
+	const sessionKey = trpc.liveSession.getById.queryOptions({
+		id: sessionId,
+	}).queryKey;
 
 	const applyEventSummaryToSession = (
 		event: SessionEvent,

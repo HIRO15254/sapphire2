@@ -67,12 +67,9 @@ export function useAssignTournament({
 	const invalidateSession = async () => {
 		await invalidateTargets(queryClient, [
 			{
-				queryKey: trpc.liveTournamentSession.getById.queryOptions({
+				queryKey: trpc.liveSession.getById.queryOptions({
 					id: sessionId,
 				}).queryKey,
-			},
-			{
-				queryKey: trpc.liveTournamentSession.list.queryOptions({}).queryKey,
 			},
 			{ queryKey: trpc.session.list.queryOptions({}).queryKey },
 		]);
@@ -80,8 +77,9 @@ export function useAssignTournament({
 
 	const assignMutation = useMutation({
 		mutationFn: (tournamentId: string) =>
-			trpcClient.liveTournamentSession.update.mutate({
+			trpcClient.liveSession.updateRule.mutate({
 				id: sessionId,
+				kind: "tournament",
 				tournamentId,
 			}),
 		onSuccess: async () => {
@@ -119,8 +117,9 @@ export function useAssignTournament({
 				chipPurchases: values.chipPurchases,
 				blindLevels: levelsToPayload(levels),
 			});
-			await trpcClient.liveTournamentSession.update.mutate({
+			await trpcClient.liveSession.updateRule.mutate({
 				id: sessionId,
+				kind: "tournament",
 				tournamentId: created.id,
 			});
 			return created;

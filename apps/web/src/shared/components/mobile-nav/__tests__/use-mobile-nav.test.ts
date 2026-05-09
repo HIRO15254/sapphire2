@@ -165,19 +165,19 @@ describe("useMobileNav", () => {
 			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/active-session" });
 		});
 
-		it("mutationFn hits sessionEvent.create with liveCashGameSessionId for cash_game", async () => {
+		it("mutationFn hits sessionEvent.create with sessionId for cash_game", async () => {
 			const { result } = renderHook(() => useMobileNav());
 			await act(async () => {
 				await result.current.centerAction.onClick();
 			});
 			expect(mocks.sessionEventCreateMutate).toHaveBeenCalledWith({
-				liveCashGameSessionId: "cg-1",
+				sessionId: "cg-1",
 				eventType: "session_resume",
 				payload: {},
 			});
 		});
 
-		it("mutationFn hits sessionEvent.create with liveTournamentSessionId for tournament", async () => {
+		it("mutationFn hits sessionEvent.create with sessionId for tournament", async () => {
 			mocks.activeSession = {
 				id: "tn-1",
 				status: "paused",
@@ -188,7 +188,7 @@ describe("useMobileNav", () => {
 				await result.current.centerAction.onClick();
 			});
 			expect(mocks.sessionEventCreateMutate).toHaveBeenCalledWith({
-				liveTournamentSessionId: "tn-1",
+				sessionId: "tn-1",
 				eventType: "session_resume",
 				payload: {},
 			});

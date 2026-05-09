@@ -25,10 +25,10 @@ vi.mock("@/features/stores/hooks/use-ring-games", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "getById", input),
+					queryKey: buildKey("liveSession", "getById", input),
 				}),
 			},
 		},
@@ -96,7 +96,7 @@ describe("useRingGameSceneActions", () => {
 		expect(result.current.isEditOpen).toBe(false);
 	});
 
-	it("handleUpdate calls update with ringGameId merged into values, invalidates session cache, and closes editor", async () => {
+	it("handleUpdate calls update with ringGameId merged into values, invalidates liveSession cache, and closes editor", async () => {
 		ringGameMocks.update.mockResolvedValue(undefined);
 		const qc = createClient();
 		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
@@ -119,7 +119,7 @@ describe("useRingGameSceneActions", () => {
 		});
 		expect(invalidateSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
-				queryKey: ["liveCashGameSession", "getById", { id: "s1" }],
+				queryKey: ["liveSession", "getById", { id: "s1" }],
 			})
 		);
 		await waitFor(() => {

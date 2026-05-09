@@ -17,24 +17,17 @@ export function parseActiveSessionWidgetConfig(
 	return { sessionType };
 }
 
-interface CashItem {
+interface SessionItem {
 	id: string;
-	latestStackAmount: number | null;
-	ringGameName: string | null;
+	kind: "cash_game" | "tournament";
+	source: string;
 	startedAt: string | Date | null;
-}
-
-interface TournamentItem {
-	id: string;
-	latestStackAmount: number | null;
-	startedAt: string | Date | null;
-	tournamentName: string | null;
+	status: string;
 }
 
 interface UseActiveSessionWidgetResult {
-	cashItems: CashItem[];
 	isLoading: boolean;
-	tournamentItems: TournamentItem[];
+	sessions: SessionItem[];
 }
 
 export function useActiveSessionWidget(
@@ -42,33 +35,31 @@ export function useActiveSessionWidget(
 ): UseActiveSessionWidgetResult {
 	const parsed = parseActiveSessionWidgetConfig(config);
 
-	const cashQuery = useQuery({
-		...trpc.liveCashGameSession.list.queryOptions({
-			status: "active",
-			limit: 5,
-		}),
+	const listQuery = useQuery({
+		...trpc.session.list.queryOptions(
+			parsed.sessionType !== "all" ? { type: parsed.sessionType } : {}
+		),
 		refetchInterval: 5000,
 		refetchIntervalInBackground: false,
-		enabled: parsed.sessionType !== "tournament",
 	});
 
-	const tournamentQuery = useQuery({
-		...trpc.liveTournamentSession.list.queryOptions({
-			status: "active",
-			limit: 5,
-		}),
-		refetchInterval: 5000,
-		refetchIntervalInBackground: false,
-		enabled: parsed.sessionType !== "cash_game",
-	});
+	const isLoading = listQuery.isLoading;
+	const allItems = listQuery.data?.items ?? [];
 
-	const isLoading = cashQuery.isLoading || tournamentQuery.isLoading;
-	const cashItems: CashItem[] =
-		parsed.sessionType === "tournament" ? [] : (cashQuery.data?.items ?? []);
-	const tournamentItems: TournamentItem[] =
-		parsed.sessionType === "cash_game"
-			? []
-			: (tournamentQuery.data?.items ?? []);
+	// Filter to only live active/paused sessions
+	const sessions = allItems
+		.filter(
+			(item) =>
+				item.source === "live" &&
+				(item.status === "active" || item.status === "paused")
+		)
+		.map((item) => ({
+			id: item.id,
+			kind: item.kind as "cash_game" | "tournament",
+			source: item.source,
+			startedAt: item.startedAt,
+			status: item.status,
+		}));
 
-	return { isLoading, cashItems, tournamentItems };
+	return { isLoading, sessions };
 }

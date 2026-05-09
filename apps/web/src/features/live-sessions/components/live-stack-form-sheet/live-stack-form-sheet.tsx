@@ -154,7 +154,7 @@ export function LiveStackFormSheet() {
 		return null;
 	}
 
-	return activeSession.type === "cash_game" ? (
+	return activeSession.kind === "cash_game" ? (
 		<CashGameStackSheet sessionId={activeSession.id} />
 	) : (
 		<TournamentStackSheet sessionId={activeSession.id} />

@@ -10,20 +10,17 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const trpcMocks = vi.hoisted(() => ({
-	add: vi.fn(),
-	addNew: vi.fn(),
-	addTemporary: vi.fn(),
-	remove: vi.fn(),
-	updateSeat: vi.fn(),
+	addPlayer: vi.fn(),
+	addTemporaryPlayer: vi.fn(),
+	removePlayer: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		sessionTablePlayer: {
-			list: {
+		liveSession: {
+			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("sessionTablePlayer", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
+					queryKey: buildKey("liveSession", "getById", input),
 				}),
 			},
 		},
@@ -37,12 +34,10 @@ vi.mock("@/utils/trpc", () => ({
 		},
 	},
 	trpcClient: {
-		sessionTablePlayer: {
-			add: { mutate: trpcMocks.add },
-			addNew: { mutate: trpcMocks.addNew },
-			addTemporary: { mutate: trpcMocks.addTemporary },
-			remove: { mutate: trpcMocks.remove },
-			updateSeat: { mutate: trpcMocks.updateSeat },
+		sessionEvent: {
+			addPlayer: { mutate: trpcMocks.addPlayer },
+			addTemporaryPlayer: { mutate: trpcMocks.addTemporaryPlayer },
+			removePlayer: { mutate: trpcMocks.removePlayer },
 		},
 	},
 }));
@@ -68,12 +63,28 @@ function makeWrapper(client: QueryClient) {
 	};
 }
 
-const cashKey = ["sessionTablePlayer", "list", { liveCashGameSessionId: "s1" }];
-const tournamentKey = [
-	"sessionTablePlayer",
-	"list",
-	{ liveTournamentSessionId: "t1" },
-];
+function sessionKey(id: string) {
+	return buildKey("liveSession", "getById", { id });
+}
+
+function makeSessionData(currentPlayers: Array<{
+	isHero?: boolean;
+	joinedAt?: string;
+	playerId?: string;
+	seatPosition?: number | null;
+}>) {
+	return {
+		id: "s1",
+		kind: "cash_game",
+		status: "active",
+		currentPlayers: currentPlayers.map((p) => ({
+			isHero: p.isHero ?? false,
+			joinedAt: p.joinedAt ?? new Date().toISOString(),
+			playerId: p.playerId,
+			seatPosition: p.seatPosition ?? null,
+		})),
+	};
+}
 
 describe("useTablePlayers", () => {
 	beforeEach(() => {
@@ -85,260 +96,213 @@ describe("useTablePlayers", () => {
 		vi.restoreAllMocks();
 	});
 
-	describe("query key selection", () => {
-		it("uses the liveCashGameSessionId queryKey when cash id is provided", async () => {
+	describe("read path", () => {
+		it("returns empty players when cache has no session data", () => {
 			const qc = createClient();
-			qc.setQueryData(cashKey, {
-				items: [
-					{
-						id: "tp1",
-						seatPosition: 1,
-						isActive: true,
-						joinedAt: "x",
-						leftAt: null,
-						player: {
-							id: "p1",
-							isTemporary: false,
-							memo: null,
-							name: "Alice",
-						},
-					},
-				],
-			});
 			const { result } = renderHook(
-				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				() => useTablePlayers({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
-			await waitFor(() => expect(result.current.players).toHaveLength(1));
-			expect(result.current.players[0]?.player.name).toBe("Alice");
+			expect(result.current.players).toEqual([]);
+			expect(result.current.excludePlayerIds).toEqual([]);
 		});
 
-		it("uses the liveTournamentSessionId queryKey when tournament id is provided", async () => {
+		it("returns currentPlayers from liveSession.getById cache", async () => {
 			const qc = createClient();
-			qc.setQueryData(tournamentKey, {
-				items: [
-					{
-						id: "tp2",
-						seatPosition: 5,
-						isActive: true,
-						joinedAt: "x",
-						leftAt: null,
-						player: {
-							id: "p2",
-							isTemporary: false,
-							memo: null,
-							name: "Bob",
-						},
-					},
-				],
-			});
+			qc.setQueryData(
+				sessionKey("s1"),
+				makeSessionData([
+					{ playerId: "p1", seatPosition: 1 },
+					{ playerId: "p2", seatPosition: 2 },
+				])
+			);
 			const { result } = renderHook(
-				() => useTablePlayers({ liveTournamentSessionId: "t1" }),
+				() => useTablePlayers({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
-			await waitFor(() => expect(result.current.players).toHaveLength(1));
-			expect(result.current.players[0]?.player.name).toBe("Bob");
+			await waitFor(() => expect(result.current.players).toHaveLength(2));
+			expect(result.current.players[0]?.playerId).toBe("p1");
 		});
-	});
 
-	describe("projection (players)", () => {
-		it("marks rows with optimistic- id prefix as isLoading=true", async () => {
+		it("excludePlayerIds lists only non-hero player ids", async () => {
 			const qc = createClient();
-			qc.setQueryData(cashKey, {
-				items: [
-					{
-						id: "optimistic-123",
-						seatPosition: 1,
-						isActive: true,
-						joinedAt: "x",
-						leftAt: null,
-						player: {
-							id: "p1",
-							isTemporary: false,
-							memo: null,
-							name: "Loading",
-						},
-					},
-				],
-			});
-			const { result } = renderHook(
-				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
-				{ wrapper: makeWrapper(qc) }
+			qc.setQueryData(
+				sessionKey("s1"),
+				makeSessionData([
+					{ playerId: "p1", isHero: false },
+					{ playerId: "p2", isHero: true },
+					{ playerId: "p3", isHero: false },
+				])
 			);
-			await waitFor(() => expect(result.current.players).toHaveLength(1));
-			expect(result.current.players[0]?.isLoading).toBe(true);
-		});
-
-		it("excludePlayerIds lists only active player ids", async () => {
-			const qc = createClient();
-			qc.setQueryData(cashKey, {
-				items: [
-					{
-						id: "tp1",
-						seatPosition: 1,
-						isActive: true,
-						joinedAt: "x",
-						leftAt: null,
-						player: {
-							id: "p-active",
-							isTemporary: false,
-							memo: null,
-							name: "A",
-						},
-					},
-					{
-						id: "tp2",
-						seatPosition: 2,
-						isActive: false,
-						joinedAt: "x",
-						leftAt: "y",
-						player: {
-							id: "p-inactive",
-							isTemporary: false,
-							memo: null,
-							name: "B",
-						},
-					},
-				],
-			});
 			const { result } = renderHook(
-				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				() => useTablePlayers({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			await waitFor(() =>
-				expect(result.current.excludePlayerIds).toEqual(["p-active"])
+				expect(result.current.excludePlayerIds).toHaveLength(2)
 			);
+			expect(result.current.excludePlayerIds).toContain("p1");
+			expect(result.current.excludePlayerIds).toContain("p3");
+			expect(result.current.excludePlayerIds).not.toContain("p2");
+		});
+
+		it("excludePlayerIds excludes players with undefined playerId", async () => {
+			const qc = createClient();
+			qc.setQueryData(
+				sessionKey("s1"),
+				makeSessionData([
+					{ playerId: undefined, isHero: false },
+					{ playerId: "p1", isHero: false },
+				])
+			);
+			const { result } = renderHook(
+				() => useTablePlayers({ sessionId: "s1" }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() =>
+				expect(result.current.excludePlayerIds).toHaveLength(1)
+			);
+			expect(result.current.excludePlayerIds[0]).toBe("p1");
 		});
 	});
 
 	describe("handleAddExisting", () => {
-		it("optimistically appends the player and forwards the cash session id to mutate", async () => {
+		it("optimistically appends the player to currentPlayers", async () => {
 			const qc = createClient();
-			qc.setQueryData(cashKey, { items: [] });
+			qc.setQueryData(sessionKey("s1"), makeSessionData([]));
 			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.add.mockImplementation(
+			trpcMocks.addPlayer.mockImplementation(
 				() =>
 					new Promise((r) => {
 						resolve = r;
 					})
 			);
 			const { result } = renderHook(
-				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				() => useTablePlayers({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
-				result.current.handleAddExisting("p1", "Alice", 3);
+				result.current.handleAddExisting("p1", 3);
 			});
 			await waitFor(() => {
-				expect(trpcMocks.add).toHaveBeenCalledWith({
-					liveCashGameSessionId: "s1",
-					playerId: "p1",
-					seatPosition: 3,
-				});
+				const data = qc.getQueryData<{ currentPlayers: unknown[] }>(
+					sessionKey("s1")
+				);
+				expect(data?.currentPlayers).toHaveLength(1);
 			});
-			const data = qc.getQueryData<{
-				items: Array<{
-					id: string;
-					seatPosition: number;
-					player: { name: string };
-				}>;
-			}>(cashKey);
-			expect(data?.items).toHaveLength(1);
-			expect(data?.items[0]?.player.name).toBe("Alice");
-			expect(data?.items[0]?.id.startsWith("optimistic-")).toBe(true);
-			expect(data?.items[0]?.seatPosition).toBe(3);
-			resolve?.({ id: "tp-new" });
+			expect(trpcMocks.addPlayer).toHaveBeenCalledWith({
+				sessionId: "s1",
+				playerId: "p1",
+				isHero: false,
+				seatPosition: 3,
+			});
+			resolve?.({ id: "event-1" });
 		});
-	});
 
-	describe("handleAddNew", () => {
-		it("posts player attrs + tag ids + seat to sessionTablePlayer.addNew", async () => {
+		it("adds player without seat position when not provided", async () => {
 			const qc = createClient();
-			qc.setQueryData(cashKey, { items: [] });
-			trpcMocks.addNew.mockResolvedValue({ id: "tp-new" });
+			qc.setQueryData(sessionKey("s1"), makeSessionData([]));
+			trpcMocks.addPlayer.mockImplementation(() => new Promise(() => undefined));
 			const { result } = renderHook(
-				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				() => useTablePlayers({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
-				result.current.handleAddNew("NewPlayer", 4, "memo", ["tag1"]);
+				result.current.handleAddExisting("p1");
 			});
+			await waitFor(() =>
+				expect(trpcMocks.addPlayer).toHaveBeenCalledWith({
+					sessionId: "s1",
+					playerId: "p1",
+					isHero: false,
+					seatPosition: undefined,
+				})
+			);
+		});
+
+		it("rolls back on error", async () => {
+			const qc = createClient();
+			qc.setQueryData(sessionKey("s1"), makeSessionData([]));
+			trpcMocks.addPlayer.mockRejectedValue(new Error("server error"));
+
+			const { result } = renderHook(
+				() => useTablePlayers({ sessionId: "s1" }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			act(() => {
+				result.current.handleAddExisting("p1", 1);
+			});
+			await waitFor(() => expect(trpcMocks.addPlayer).toHaveBeenCalled());
 			await waitFor(() => {
-				expect(trpcMocks.addNew).toHaveBeenCalledWith({
-					liveCashGameSessionId: "s1",
-					playerName: "NewPlayer",
-					playerMemo: "memo",
-					playerTagIds: ["tag1"],
-					seatPosition: 4,
-				});
+				const data = qc.getQueryData<{ currentPlayers: unknown[] }>(
+					sessionKey("s1")
+				);
+				expect(data?.currentPlayers).toHaveLength(0);
 			});
 		});
 	});
 
 	describe("handleAddTemporary", () => {
-		it("creates an optimistic temporary row with placeholder name and temp-prefixed player id", async () => {
+		it("calls addTemporaryPlayer with name and seatPosition", async () => {
 			const qc = createClient();
-			qc.setQueryData(cashKey, { items: [] });
-			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.addTemporary.mockImplementation(
-				() =>
-					new Promise((r) => {
-						resolve = r;
-					})
+			qc.setQueryData(sessionKey("s1"), makeSessionData([]));
+			trpcMocks.addTemporaryPlayer.mockImplementation(
+				() => new Promise(() => undefined)
 			);
 			const { result } = renderHook(
-				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				() => useTablePlayers({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
-				result.current.handleAddTemporary(6);
+				result.current.handleAddTemporary("TempPlayer", 5);
+			});
+			await waitFor(() =>
+				expect(trpcMocks.addTemporaryPlayer).toHaveBeenCalledWith({
+					sessionId: "s1",
+					name: "TempPlayer",
+					seatPosition: 5,
+				})
+			);
+		});
+
+		it("optimistically appends a temporary player entry to currentPlayers", async () => {
+			const qc = createClient();
+			qc.setQueryData(sessionKey("s1"), makeSessionData([]));
+			trpcMocks.addTemporaryPlayer.mockImplementation(
+				() => new Promise(() => undefined)
+			);
+			const { result } = renderHook(
+				() => useTablePlayers({ sessionId: "s1" }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			act(() => {
+				result.current.handleAddTemporary("Temp", 2);
 			});
 			await waitFor(() => {
-				const data = qc.getQueryData<{
-					items: Array<{
-						id: string;
-						player: { id: string; isTemporary: boolean; name: string };
-					}>;
-				}>(cashKey);
-				expect(data?.items).toHaveLength(1);
-				const row = data?.items[0];
-				expect(row?.player.isTemporary).toBe(true);
-				expect(row?.player.name).toBe("...");
-				expect(row?.player.id.startsWith("temp-")).toBe(true);
+				const data = qc.getQueryData<{ currentPlayers: unknown[] }>(
+					sessionKey("s1")
+				);
+				expect(data?.currentPlayers).toHaveLength(1);
 			});
-			resolve?.({ id: "tp-temp" });
 		});
 	});
 
 	describe("handleRemovePlayer", () => {
-		it("optimistically marks the row inactive with a leftAt timestamp", async () => {
+		it("optimistically removes the player from currentPlayers", async () => {
 			const qc = createClient();
-			qc.setQueryData(cashKey, {
-				items: [
-					{
-						id: "tp1",
-						seatPosition: 1,
-						isActive: true,
-						joinedAt: "x",
-						leftAt: null,
-						player: {
-							id: "p1",
-							isTemporary: false,
-							memo: null,
-							name: "Alice",
-						},
-					},
-				],
-			});
+			qc.setQueryData(
+				sessionKey("s1"),
+				makeSessionData([{ playerId: "p1", seatPosition: 1 }])
+			);
 			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.remove.mockImplementation(
+			trpcMocks.removePlayer.mockImplementation(
 				() =>
 					new Promise((r) => {
 						resolve = r;
 					})
 			);
 			const { result } = renderHook(
-				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				() => useTablePlayers({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			await waitFor(() => expect(result.current.players).toHaveLength(1));
@@ -346,100 +310,56 @@ describe("useTablePlayers", () => {
 				result.current.handleRemovePlayer("p1");
 			});
 			await waitFor(() => {
-				const data = qc.getQueryData<{
-					items: Array<{ isActive: boolean; leftAt: string | null }>;
-				}>(cashKey);
-				expect(data?.items[0]?.isActive).toBe(false);
-				expect(data?.items[0]?.leftAt).not.toBeNull();
+				const data = qc.getQueryData<{ currentPlayers: unknown[] }>(
+					sessionKey("s1")
+				);
+				expect(data?.currentPlayers).toHaveLength(0);
 			});
-			resolve?.({ id: "tp1" });
+			expect(trpcMocks.removePlayer).toHaveBeenCalledWith({
+				sessionId: "s1",
+				playerId: "p1",
+				isHero: false,
+			});
+			resolve?.({ id: "event-2" });
 		});
-	});
 
-	describe("updateSeatMutation (raw mutation exposed)", () => {
-		it("optimistically patches the seatPosition for the player id", async () => {
+		it("rolls back on remove error", async () => {
 			const qc = createClient();
-			qc.setQueryData(cashKey, {
-				items: [
-					{
-						id: "tp1",
-						seatPosition: 1,
-						isActive: true,
-						joinedAt: "x",
-						leftAt: null,
-						player: {
-							id: "p1",
-							isTemporary: false,
-							memo: null,
-							name: "A",
-						},
-					},
-				],
-			});
-			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.updateSeat.mockImplementation(
-				() =>
-					new Promise((r) => {
-						resolve = r;
-					})
+			qc.setQueryData(
+				sessionKey("s1"),
+				makeSessionData([{ playerId: "p1" }])
 			);
+			trpcMocks.removePlayer.mockRejectedValue(new Error("fail"));
 			const { result } = renderHook(
-				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				() => useTablePlayers({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			await waitFor(() => expect(result.current.players).toHaveLength(1));
 			act(() => {
-				result.current.updateSeatMutation.mutate({
-					playerId: "p1",
-					seatPosition: 9,
-				});
+				result.current.handleRemovePlayer("p1");
 			});
+			await waitFor(() => expect(trpcMocks.removePlayer).toHaveBeenCalled());
 			await waitFor(() => {
-				const data = qc.getQueryData<{
-					items: Array<{ seatPosition: number | null }>;
-				}>(cashKey);
-				expect(data?.items[0]?.seatPosition).toBe(9);
+				const data = qc.getQueryData<{ currentPlayers: unknown[] }>(
+					sessionKey("s1")
+				);
+				expect(data?.currentPlayers).toHaveLength(1);
 			});
-			expect(trpcMocks.updateSeat).toHaveBeenCalledWith({
-				liveCashGameSessionId: "s1",
-				playerId: "p1",
-				seatPosition: 9,
-			});
-			resolve?.({ id: "tp1" });
 		});
 	});
 
-	describe("onError rollback", () => {
-		it("rolls back optimistic add when mutation rejects (observed via setQueryData spy)", async () => {
+	describe("uses sessionId-based key (no type discrimination)", () => {
+		it("works with any session type via sessionId only", async () => {
 			const qc = createClient();
-			qc.setQueryData(cashKey, { items: [] });
-			trpcMocks.add.mockRejectedValue(new Error("server error"));
-
-			let snapshotAtRollback: { items: unknown[] } | undefined;
-			const originalSetQueryData = qc.setQueryData.bind(qc);
-			vi.spyOn(qc, "setQueryData").mockImplementation(
-				<T>(key: unknown, updater: unknown) => {
-					const r = originalSetQueryData(
-						key as Parameters<typeof originalSetQueryData>[0],
-						updater as Parameters<typeof originalSetQueryData>[1]
-					) as T;
-					const post = qc.getQueryData<{ items: unknown[] }>(cashKey);
-					if (!snapshotAtRollback && post?.items.length === 0) {
-						snapshotAtRollback = post;
-					}
-					return r;
-				}
+			qc.setQueryData(
+				sessionKey("tournament-sess-1"),
+				makeSessionData([{ playerId: "p1" }])
 			);
-
 			const { result } = renderHook(
-				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				() => useTablePlayers({ sessionId: "tournament-sess-1" }),
 				{ wrapper: makeWrapper(qc) }
 			);
-			act(() => {
-				result.current.handleAddExisting("p1", "A", 1);
-			});
-			await waitFor(() => expect(trpcMocks.add).toHaveBeenCalled());
-			await waitFor(() => expect(snapshotAtRollback?.items).toEqual([]));
+			await waitFor(() => expect(result.current.players).toHaveLength(1));
 		});
 	});
 });

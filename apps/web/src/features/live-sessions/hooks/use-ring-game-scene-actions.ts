@@ -27,7 +27,7 @@ export function useRingGameSceneActions({
 		await update({ id: ringGameId, ...values });
 		await invalidateTargets(queryClient, [
 			{
-				queryKey: trpc.liveCashGameSession.getById.queryOptions({
+				queryKey: trpc.liveSession.getById.queryOptions({
 					id: sessionId,
 				}).queryKey,
 			},

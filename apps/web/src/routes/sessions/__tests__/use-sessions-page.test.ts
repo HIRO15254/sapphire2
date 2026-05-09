@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 interface TestSessionItem {
 	id: string;
-	liveCashGameSessionId: string | null;
-	liveTournamentSessionId: string | null;
+	source?: string;
 	storeId?: string | null;
 }
 
@@ -71,8 +70,7 @@ function buildSession(overrides: Partial<TestSessionItem> = {}) {
 	return {
 		id: "s1",
 		storeId: null,
-		liveCashGameSessionId: null,
-		liveTournamentSessionId: null,
+		source: "manual",
 		...overrides,
 	} as never;
 }
@@ -160,8 +158,7 @@ describe("useSessionsPage", () => {
 				result.current.handleOpenEdit(
 					buildSession({
 						id: "s1",
-						liveCashGameSessionId: null,
-						liveTournamentSessionId: null,
+						source: "manual",
 					})
 				);
 			});
@@ -184,8 +181,7 @@ describe("useSessionsPage", () => {
 				result.current.handleOpenEdit(
 					buildSession({
 						id: "s2",
-						liveCashGameSessionId: "live-1",
-						liveTournamentSessionId: null,
+						source: "live",
 					})
 				);
 			});
@@ -208,8 +204,7 @@ describe("useSessionsPage", () => {
 				result.current.handleOpenEdit(
 					buildSession({
 						id: "s3",
-						liveCashGameSessionId: null,
-						liveTournamentSessionId: "live-tourn",
+						source: "live",
 					})
 				);
 			});

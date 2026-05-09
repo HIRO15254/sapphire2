@@ -7,7 +7,7 @@ import { LiveStackFormSheet } from "./live-stack-form-sheet";
 const mocks = vi.hoisted(() => ({
 	activeSession: null as null | {
 		id: string;
-		type: "cash_game" | "tournament";
+		kind: "cash_game" | "tournament";
 	},
 	chipPurchaseTypes: [] as Array<{ chips: number; cost: number; name: string }>,
 	sessionData: null as null | { tournamentId: string | null },
@@ -30,7 +30,7 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 	useQuery: (options: { queryKey?: unknown[] }) => {
 		const scope = options.queryKey?.[0];
-		if (scope === "liveTournamentSession.getById") {
+		if (scope === "liveSession.getById") {
 			return { data: mocks.sessionData };
 		}
 		if (scope === "tournamentChipPurchase.listByTournament") {
@@ -101,30 +101,24 @@ vi.mock("@/features/live-sessions/components/tournament-complete-form", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: ({ id }: { id: string }) => ({
-					queryKey: ["liveCashGameSession.getById", id],
+					queryKey: ["liveSession.getById", id],
 				}),
-			},
-			list: {
-				queryOptions: () => ({ queryKey: ["liveCashGameSession.list"] }),
-			},
-		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: ({ id }: { id: string }) => ({
-					queryKey: ["liveTournamentSession.getById", id],
-				}),
-			},
-			list: {
-				queryOptions: () => ({ queryKey: ["liveTournamentSession.list"] }),
 			},
 		},
 		sessionEvent: {
 			list: {
 				queryOptions: (input: Record<string, string>) => ({
 					queryKey: ["sessionEvent.list", input],
+				}),
+			},
+		},
+		session: {
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: ["session.list", input],
 				}),
 			},
 		},
@@ -137,10 +131,7 @@ vi.mock("@/utils/trpc", () => ({
 		},
 	},
 	trpcClient: {
-		liveCashGameSession: {
-			complete: { mutate: vi.fn() },
-		},
-		liveTournamentSession: {
+		liveSession: {
 			complete: { mutate: vi.fn() },
 		},
 		sessionEvent: {
@@ -152,7 +143,7 @@ vi.mock("@/utils/trpc", () => ({
 describe("LiveStackFormSheet", () => {
 	it("renders the cash stack dialog and opens the complete flow", async () => {
 		const user = userEvent.setup();
-		mocks.activeSession = { id: "cash-1", type: "cash_game" };
+		mocks.activeSession = { id: "cash-1", kind: "cash_game" };
 
 		render(<LiveStackFormSheet />);
 
@@ -168,7 +159,7 @@ describe("LiveStackFormSheet", () => {
 
 	it("renders the tournament stack dialog and opens the complete flow", async () => {
 		const user = userEvent.setup();
-		mocks.activeSession = { id: "tournament-1", type: "tournament" };
+		mocks.activeSession = { id: "tournament-1", kind: "tournament" };
 		mocks.sessionData = { tournamentId: "tour-1" };
 		mocks.chipPurchaseTypes = [{ chips: 5000, cost: 1000, name: "Rebuy" }];
 

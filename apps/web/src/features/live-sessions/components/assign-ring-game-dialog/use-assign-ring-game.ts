@@ -52,18 +52,18 @@ export function useAssignRingGame({
 	const invalidateSession = () =>
 		invalidateTargets(queryClient, [
 			{
-				queryKey: trpc.liveCashGameSession.getById.queryOptions({
+				queryKey: trpc.liveSession.getById.queryOptions({
 					id: sessionId,
 				}).queryKey,
 			},
-			{ queryKey: trpc.liveCashGameSession.list.queryOptions({}).queryKey },
 			{ queryKey: trpc.session.list.queryOptions({}).queryKey },
 		]);
 
 	const assignMutation = useMutation({
 		mutationFn: (ringGameId: string) =>
-			trpcClient.liveCashGameSession.update.mutate({
+			trpcClient.liveSession.updateRule.mutate({
 				id: sessionId,
+				kind: "cash_game",
 				ringGameId,
 			}),
 		onSuccess: async () => {
@@ -88,8 +88,9 @@ export function useAssignRingGame({
 				storeId,
 				...values,
 			});
-			await trpcClient.liveCashGameSession.update.mutate({
+			await trpcClient.liveSession.updateRule.mutate({
 				id: sessionId,
+				kind: "cash_game",
 				ringGameId: created.id,
 			});
 			return created;

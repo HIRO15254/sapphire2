@@ -24,27 +24,17 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "getById", input),
-				}),
-			},
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "list", input),
+					queryKey: buildKey("liveSession", "getById", input),
 				}),
 			},
 		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "getById", input),
-				}),
-			},
+		session: {
 			list: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "list", input),
+					queryKey: buildKey("session", "list", input),
 				}),
 			},
 		},
@@ -720,62 +710,38 @@ describe("buildOptimisticEvent", () => {
 // ---------------------------------------------------------------------------
 
 describe("getSessionQueryKeys", () => {
-	it("produces cash-game-scoped keys when sessionType is cash_game", () => {
+	it("sessionKey uses liveSession.getById regardless of sessionType", () => {
+		const cashKeys = getSessionQueryKeys("sess-1", "cash_game");
+		const tournKeys = getSessionQueryKeys("sess-1", "tournament");
+		expect(cashKeys.sessionKey).toEqual(["liveSession", "getById", { id: "sess-1" }]);
+		expect(tournKeys.sessionKey).toEqual(["liveSession", "getById", { id: "sess-1" }]);
+	});
+
+	it("eventsKey uses sessionEvent.list with sessionId (not type-specific)", () => {
+		const cashKeys = getSessionQueryKeys("sess-1", "cash_game");
+		const tournKeys = getSessionQueryKeys("t-42", "tournament");
+		expect(cashKeys.eventsKey).toEqual(["sessionEvent", "list", { sessionId: "sess-1" }]);
+		expect(tournKeys.eventsKey).toEqual(["sessionEvent", "list", { sessionId: "t-42" }]);
+	});
+
+	it("activeListKey, pausedListKey, and allListsKey all point to session.list with empty input", () => {
 		const keys = getSessionQueryKeys("sess-1", "cash_game");
-		expect(keys.sessionKey).toEqual([
-			"liveCashGameSession",
-			"getById",
-			{ id: "sess-1" },
-		]);
-		expect(keys.eventsKey).toEqual([
-			"sessionEvent",
-			"list",
-			{ liveCashGameSessionId: "sess-1" },
-		]);
-		expect(keys.activeListKey).toEqual([
-			"liveCashGameSession",
-			"list",
-			{ status: "active", limit: 1 },
-		]);
-		expect(keys.pausedListKey).toEqual([
-			"liveCashGameSession",
-			"list",
-			{ status: "paused", limit: 1 },
-		]);
-		expect(keys.allListsKey).toEqual(["liveCashGameSession", "list", {}]);
+		const expectedListKey = ["session", "list", {}];
+		expect(keys.activeListKey).toEqual(expectedListKey);
+		expect(keys.pausedListKey).toEqual(expectedListKey);
+		expect(keys.allListsKey).toEqual(expectedListKey);
 	});
 
-	it("produces tournament-scoped keys when sessionType is tournament", () => {
-		const keys = getSessionQueryKeys("t-42", "tournament");
-		expect(keys.sessionKey).toEqual([
-			"liveTournamentSession",
-			"getById",
-			{ id: "t-42" },
-		]);
-		expect(keys.eventsKey).toEqual([
-			"sessionEvent",
-			"list",
-			{ liveTournamentSessionId: "t-42" },
-		]);
-		expect(keys.activeListKey).toEqual([
-			"liveTournamentSession",
-			"list",
-			{ status: "active", limit: 1 },
-		]);
-		expect(keys.pausedListKey).toEqual([
-			"liveTournamentSession",
-			"list",
-			{ status: "paused", limit: 1 },
-		]);
-		expect(keys.allListsKey).toEqual(["liveTournamentSession", "list", {}]);
-	});
-
-	it("cash_game and tournament keys never collide for the same id", () => {
-		const cash = getSessionQueryKeys("same-id", "cash_game");
-		const tour = getSessionQueryKeys("same-id", "tournament");
-		expect(cash.sessionKey).not.toEqual(tour.sessionKey);
-		expect(cash.eventsKey).not.toEqual(tour.eventsKey);
-		expect(cash.allListsKey).not.toEqual(tour.allListsKey);
+	it("sessionType parameter is ignored (all keys are type-agnostic)", () => {
+		const cashKeys = getSessionQueryKeys("same-id", "cash_game");
+		const tournKeys = getSessionQueryKeys("same-id", "tournament");
+		// Session and list keys are the same regardless of sessionType when IDs match
+		expect(cashKeys.sessionKey).toEqual(tournKeys.sessionKey);
+		expect(cashKeys.activeListKey).toEqual(tournKeys.activeListKey);
+		// Events key differs by sessionId, not sessionType
+		const cashKeys2 = getSessionQueryKeys("id-a", "cash_game");
+		const cashKeys3 = getSessionQueryKeys("id-b", "cash_game");
+		expect(cashKeys2.eventsKey).not.toEqual(cashKeys3.eventsKey);
 	});
 });
 
@@ -821,11 +787,10 @@ function seedCacheDefaults(
 ) {
 	queryClient.setQueryData<TestSession>(keys.sessionKey, session);
 	queryClient.setQueryData<SessionEvent[]>(keys.eventsKey, existingEvents);
+	// activeListKey === pausedListKey in the new implementation (both point to
+	// session.list), so we only need to seed once.
 	queryClient.setQueryData<TestListData>(keys.activeListKey, {
 		items: [{ id: "sess-1", name: "My Cash Session", status: "active" }],
-	});
-	queryClient.setQueryData<TestListData>(keys.pausedListKey, {
-		items: [],
 	});
 }
 
@@ -999,7 +964,7 @@ describe("createSessionEventMutationOptions", () => {
 	});
 
 	describe("onMutate — changesStatus + session_pause", () => {
-		it("transitions session status to paused and moves session between lists", async () => {
+		it("transitions session status to paused and updates item status in the unified list", async () => {
 			const queryClient = makeQueryClient();
 			const keys = getSessionQueryKeys("sess-1", "cash_game");
 			seedCacheDefaults(
@@ -1023,15 +988,10 @@ describe("createSessionEventMutationOptions", () => {
 			const session = queryClient.getQueryData<TestSession>(keys.sessionKey);
 			expect(session?.status).toBe("paused");
 
-			const activeList = queryClient.getQueryData<TestListData>(
-				keys.activeListKey
-			);
-			const pausedList = queryClient.getQueryData<TestListData>(
-				keys.pausedListKey
-			);
-			expect(activeList?.items).toEqual([]);
-			expect(pausedList?.items).toHaveLength(1);
-			expect(pausedList?.items[0]).toEqual({
+			// activeListKey === pausedListKey — the item is re-prepended with status "paused"
+			const list = queryClient.getQueryData<TestListData>(keys.activeListKey);
+			expect(list?.items).toHaveLength(1);
+			expect(list?.items[0]).toEqual({
 				id: "sess-1",
 				name: "My Cash Session",
 				status: "paused",
@@ -1040,17 +1000,16 @@ describe("createSessionEventMutationOptions", () => {
 	});
 
 	describe("onMutate — changesStatus + session_resume", () => {
-		it("transitions session status to active and moves session between lists", async () => {
+		it("transitions session status to active and updates item status in the unified list", async () => {
 			const queryClient = makeQueryClient();
 			const keys = getSessionQueryKeys("sess-1", "cash_game");
-			// Swap the default: active empty, paused has the item.
 			queryClient.setQueryData<TestSession>(keys.sessionKey, {
 				status: "paused",
 				summary: {},
 			});
 			queryClient.setQueryData<SessionEvent[]>(keys.eventsKey, []);
-			queryClient.setQueryData<TestListData>(keys.activeListKey, { items: [] });
-			queryClient.setQueryData<TestListData>(keys.pausedListKey, {
+			// Seed the unified list with a paused item
+			queryClient.setQueryData<TestListData>(keys.activeListKey, {
 				items: [{ id: "sess-1", name: "Paused Cash", status: "paused" }],
 			});
 
@@ -1068,15 +1027,10 @@ describe("createSessionEventMutationOptions", () => {
 			const session = queryClient.getQueryData<TestSession>(keys.sessionKey);
 			expect(session?.status).toBe("active");
 
-			const activeList = queryClient.getQueryData<TestListData>(
-				keys.activeListKey
-			);
-			const pausedList = queryClient.getQueryData<TestListData>(
-				keys.pausedListKey
-			);
-			expect(pausedList?.items).toEqual([]);
-			expect(activeList?.items).toHaveLength(1);
-			expect(activeList?.items[0]).toEqual({
+			// Item status updated to "active" in the unified list
+			const list = queryClient.getQueryData<TestListData>(keys.activeListKey);
+			expect(list?.items).toHaveLength(1);
+			expect(list?.items[0]).toEqual({
 				id: "sess-1",
 				name: "Paused Cash",
 				status: "active",
@@ -1085,20 +1039,19 @@ describe("createSessionEventMutationOptions", () => {
 	});
 
 	describe("onMutate — changesStatus=false (list moves suppressed)", () => {
-		it("does not touch either list when changesStatus is false", async () => {
+		it("does not touch the list when changesStatus is false", async () => {
 			const queryClient = makeQueryClient();
 			const keys = getSessionQueryKeys("sess-1", "cash_game");
 			const activeInitial = {
 				items: [{ id: "sess-1", name: "Cash", status: "active" }],
 			};
-			const pausedInitial = { items: [] };
 			queryClient.setQueryData<TestSession>(keys.sessionKey, {
 				status: "active",
 				summary: {},
 			});
 			queryClient.setQueryData<SessionEvent[]>(keys.eventsKey, []);
+			// activeListKey === pausedListKey in unified implementation
 			queryClient.setQueryData<TestListData>(keys.activeListKey, activeInitial);
-			queryClient.setQueryData<TestListData>(keys.pausedListKey, pausedInitial);
 
 			const options = createSessionEventMutationOptions({
 				queryClient,
@@ -1111,17 +1064,15 @@ describe("createSessionEventMutationOptions", () => {
 
 			await options.onMutate(undefined);
 
+			// The list should be unchanged since changesStatus is false
 			expect(queryClient.getQueryData(keys.activeListKey)).toEqual(
 				activeInitial
-			);
-			expect(queryClient.getQueryData(keys.pausedListKey)).toEqual(
-				pausedInitial
 			);
 		});
 	});
 
 	describe("onMutate — session not present in source list", () => {
-		it("skips adding to destination when sessionItem is not found in fromKey", async () => {
+		it("skips status update when sessionItem is not found in the unified list", async () => {
 			const queryClient = makeQueryClient();
 			const keys = getSessionQueryKeys("sess-1", "cash_game");
 			queryClient.setQueryData<TestSession>(keys.sessionKey, {
@@ -1129,11 +1080,11 @@ describe("createSessionEventMutationOptions", () => {
 				summary: {},
 			});
 			queryClient.setQueryData<SessionEvent[]>(keys.eventsKey, []);
-			// Active list has a different session; sess-1 is absent.
+			// Unified list has a different session; sess-1 is absent.
+			// activeListKey === pausedListKey so we only seed once.
 			queryClient.setQueryData<TestListData>(keys.activeListKey, {
 				items: [{ id: "other", name: "Other", status: "active" }],
 			});
-			queryClient.setQueryData<TestListData>(keys.pausedListKey, { items: [] });
 
 			const options = createSessionEventMutationOptions({
 				queryClient,
@@ -1146,16 +1097,9 @@ describe("createSessionEventMutationOptions", () => {
 
 			await options.onMutate(undefined);
 
-			const pausedList = queryClient.getQueryData<TestListData>(
-				keys.pausedListKey
-			);
-			// Destination list is never populated because sessionItem is undefined.
-			expect(pausedList?.items).toEqual([]);
-			// Active list is filtered (no-op since sess-1 wasn't there).
-			const activeList = queryClient.getQueryData<TestListData>(
-				keys.activeListKey
-			);
-			expect(activeList?.items).toEqual([
+			// sessionItem not found → filter is a no-op, nothing re-added
+			const list = queryClient.getQueryData<TestListData>(keys.activeListKey);
+			expect(list?.items).toEqual([
 				{ id: "other", name: "Other", status: "active" },
 			]);
 		});
@@ -1168,8 +1112,7 @@ describe("createSessionEventMutationOptions", () => {
 				summary: {},
 			});
 			queryClient.setQueryData<SessionEvent[]>(keys.eventsKey, []);
-			// activeListKey is intentionally NOT seeded.
-			queryClient.setQueryData<TestListData>(keys.pausedListKey, { items: [] });
+			// List is intentionally NOT seeded (fromData undefined).
 
 			const options = createSessionEventMutationOptions({
 				queryClient,
@@ -1181,16 +1124,13 @@ describe("createSessionEventMutationOptions", () => {
 			});
 
 			await expect(options.onMutate(undefined)).resolves.toBeDefined();
+			// No list data seeded → remains undefined, no error thrown
 			expect(queryClient.getQueryData(keys.activeListKey)).toBeUndefined();
-			const pausedList = queryClient.getQueryData<TestListData>(
-				keys.pausedListKey
-			);
-			expect(pausedList?.items).toEqual([]);
 		});
 	});
 
-	describe("onMutate — cancelQueries called for session, events, and both lists", () => {
-		it("invokes cancelQueries for each target queryKey", async () => {
+	describe("onMutate — cancelQueries called for session, events, and list", () => {
+		it("invokes cancelQueries for session, events, activeListKey, and pausedListKey (4 calls; last two share the same unified key)", async () => {
 			const queryClient = makeQueryClient();
 			const keys = getSessionQueryKeys("sess-1", "cash_game");
 			seedCacheDefaults(
@@ -1211,6 +1151,8 @@ describe("createSessionEventMutationOptions", () => {
 
 			await options.onMutate(undefined);
 
+			// 4 calls: sessionKey, eventsKey, activeListKey, pausedListKey
+			// (activeListKey === pausedListKey in the new unified implementation)
 			expect(cancelSpy).toHaveBeenCalledTimes(4);
 			const calls = cancelSpy.mock.calls.map((c) => c[0]);
 			expect(calls).toEqual(
@@ -1218,7 +1160,6 @@ describe("createSessionEventMutationOptions", () => {
 					{ queryKey: keys.sessionKey },
 					{ queryKey: keys.eventsKey },
 					{ queryKey: keys.activeListKey },
-					{ queryKey: keys.pausedListKey },
 				])
 			);
 		});
@@ -1259,20 +1200,19 @@ describe("createSessionEventMutationOptions", () => {
 			expect(queryClient.getQueryData(keys.eventsKey)).toEqual(initialEvents);
 		});
 
-		it("restores list snapshot entries (both active and paused)", async () => {
+		it("restores unified list snapshot after status change", async () => {
 			const queryClient = makeQueryClient();
 			const keys = getSessionQueryKeys("sess-1", "cash_game");
-			const initialActive = {
+			// activeListKey === pausedListKey in unified implementation; seed once.
+			const initialList = {
 				items: [{ id: "sess-1", name: "Cash", status: "active" }],
 			};
-			const initialPaused: TestListData = { items: [] };
 			queryClient.setQueryData<TestSession>(keys.sessionKey, {
 				status: "active",
 				summary: {},
 			});
 			queryClient.setQueryData<SessionEvent[]>(keys.eventsKey, []);
-			queryClient.setQueryData<TestListData>(keys.activeListKey, initialActive);
-			queryClient.setQueryData<TestListData>(keys.pausedListKey, initialPaused);
+			queryClient.setQueryData<TestListData>(keys.activeListKey, initialList);
 
 			const options = createSessionEventMutationOptions({
 				queryClient,
@@ -1284,22 +1224,15 @@ describe("createSessionEventMutationOptions", () => {
 			});
 
 			const context = await options.onMutate(undefined);
-			// List move happened.
+			// Item status updated optimistically to "paused".
 			expect(
-				queryClient.getQueryData<TestListData>(keys.activeListKey)?.items
-			).toEqual([]);
-			expect(
-				queryClient.getQueryData<TestListData>(keys.pausedListKey)?.items
-			).toHaveLength(1);
+				queryClient.getQueryData<TestListData>(keys.activeListKey)?.items?.[0]?.status
+			).toBe("paused");
 
 			options.onError(new Error("rollback"), undefined, context);
 
-			expect(queryClient.getQueryData(keys.activeListKey)).toEqual(
-				initialActive
-			);
-			expect(queryClient.getQueryData(keys.pausedListKey)).toEqual(
-				initialPaused
-			);
+			// List restored to initial state.
+			expect(queryClient.getQueryData(keys.activeListKey)).toEqual(initialList);
 		});
 
 		it("is a no-op when context is undefined", () => {

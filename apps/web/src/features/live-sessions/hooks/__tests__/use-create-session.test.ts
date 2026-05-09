@@ -11,9 +11,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 
 const navigateMock = vi.hoisted(() => vi.fn());
 const trpcMocks = vi.hoisted(() => ({
-	createCash: vi.fn(),
-	createTournament: vi.fn(),
-	sessionEventCreate: vi.fn(),
+	liveSessionCreate: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -22,22 +20,6 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveCashGameSession", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
-				}),
-			},
-		},
-		liveTournamentSession: {
-			list: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("liveTournamentSession", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
-				}),
-			},
-		},
 		session: {
 			list: {
 				queryOptions: (input: unknown) => ({
@@ -80,14 +62,8 @@ vi.mock("@/utils/trpc", () => ({
 		},
 	},
 	trpcClient: {
-		liveCashGameSession: {
-			create: { mutate: trpcMocks.createCash },
-		},
-		liveTournamentSession: {
-			create: { mutate: trpcMocks.createTournament },
-		},
-		sessionEvent: {
-			create: { mutate: trpcMocks.sessionEventCreate },
+		liveSession: {
+			create: { mutate: trpcMocks.liveSessionCreate },
 		},
 	},
 }));
@@ -223,10 +199,10 @@ describe("useCreateSession", () => {
 	});
 
 	describe("createCash", () => {
-		it("forwards the full payload to liveCashGameSession.create and navigates to /active-session on success", async () => {
+		it("forwards payload to liveSession.create with kind=cash_game and navigates to /active-session on success", async () => {
 			const qc = createClient();
 			const onClose = vi.fn();
-			trpcMocks.createCash.mockResolvedValue({ id: "new-1" });
+			trpcMocks.liveSessionCreate.mockResolvedValue({ id: "new-1" });
 			const { result } = renderHook(() => useCreateSession({ onClose }), {
 				wrapper: makeWrapper(qc),
 			});
@@ -241,13 +217,16 @@ describe("useCreateSession", () => {
 				await Promise.resolve();
 			});
 			await waitFor(() => {
-				expect(trpcMocks.createCash).toHaveBeenCalledWith({
-					currencyId: "c1",
-					initialBuyIn: 5000,
-					memo: "note",
-					ringGameId: "rg1",
-					storeId: "s1",
-				});
+				expect(trpcMocks.liveSessionCreate).toHaveBeenCalledWith(
+					expect.objectContaining({
+						kind: "cash_game",
+						buyInAmount: 5000,
+						currencyId: "c1",
+						memo: "note",
+						ringGameId: "rg1",
+						storeId: "s1",
+					})
+				);
 			});
 			await waitFor(() => {
 				expect(onClose).toHaveBeenCalledTimes(1);
@@ -258,7 +237,7 @@ describe("useCreateSession", () => {
 		it("reflects isLoading=true while createCash is in flight", async () => {
 			const qc = createClient();
 			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.createCash.mockImplementation(
+			trpcMocks.liveSessionCreate.mockImplementation(
 				() =>
 					new Promise((r) => {
 						resolve = r;
@@ -278,18 +257,15 @@ describe("useCreateSession", () => {
 	});
 
 	describe("createTournament", () => {
-		it("creates the tournament, then creates an initial update_stack event with startingStack payload", async () => {
+		it("calls liveSession.create with kind=tournament and navigates on success", async () => {
 			const qc = createClient();
 			const onClose = vi.fn();
-			trpcMocks.createTournament.mockResolvedValue({ id: "tr-1" });
-			trpcMocks.sessionEventCreate.mockResolvedValue({ id: "ev-1" });
+			trpcMocks.liveSessionCreate.mockResolvedValue({ id: "tr-1" });
 			const { result } = renderHook(() => useCreateSession({ onClose }), {
 				wrapper: makeWrapper(qc),
 			});
 			await act(async () => {
 				result.current.createTournament({
-					buyIn: 10_000,
-					startingStack: 20_000,
 					currencyId: "c1",
 					storeId: "s1",
 					tournamentId: "tourn-1",
@@ -297,19 +273,14 @@ describe("useCreateSession", () => {
 				await Promise.resolve();
 			});
 			await waitFor(() => {
-				expect(trpcMocks.createTournament).toHaveBeenCalledWith({
-					buyIn: 10_000,
-					currencyId: "c1",
-					storeId: "s1",
-					tournamentId: "tourn-1",
-				});
-			});
-			await waitFor(() => {
-				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
-					liveTournamentSessionId: "tr-1",
-					eventType: "update_stack",
-					payload: { stackAmount: 20_000 },
-				});
+				expect(trpcMocks.liveSessionCreate).toHaveBeenCalledWith(
+					expect.objectContaining({
+						kind: "tournament",
+						currencyId: "c1",
+						storeId: "s1",
+						tournamentId: "tourn-1",
+					})
+				);
 			});
 			await waitFor(() => {
 				expect(onClose).toHaveBeenCalledTimes(1);
@@ -317,25 +288,42 @@ describe("useCreateSession", () => {
 			});
 		});
 
-		it("does not fire navigation / sessionEvent create when createTournament rejects", async () => {
+		it("reflects isLoading=true while createTournament is in flight", async () => {
+			const qc = createClient();
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.liveSessionCreate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(
+				() => useCreateSession({ onClose: vi.fn() }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			act(() => {
+				result.current.createTournament({});
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(true));
+			resolve?.({ id: "tr-1" });
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+		});
+
+		it("does not fire navigation when createTournament rejects", async () => {
 			const qc = createClient();
 			const onClose = vi.fn();
-			trpcMocks.createTournament.mockRejectedValue(new Error("boom"));
+			trpcMocks.liveSessionCreate.mockRejectedValue(new Error("boom"));
 			const { result } = renderHook(() => useCreateSession({ onClose }), {
 				wrapper: makeWrapper(qc),
 			});
 			await act(async () => {
-				result.current.createTournament({
-					buyIn: 10_000,
-					startingStack: 20_000,
-				});
+				result.current.createTournament({});
 				await Promise.resolve();
 			});
 			await waitFor(() => {
-				expect(trpcMocks.createTournament).toHaveBeenCalled();
+				expect(trpcMocks.liveSessionCreate).toHaveBeenCalled();
 			});
 			await Promise.resolve();
-			expect(trpcMocks.sessionEventCreate).not.toHaveBeenCalled();
 			expect(navigateMock).not.toHaveBeenCalled();
 			expect(onClose).not.toHaveBeenCalled();
 		});

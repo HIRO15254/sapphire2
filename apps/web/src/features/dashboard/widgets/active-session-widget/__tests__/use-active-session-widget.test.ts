@@ -11,18 +11,10 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
+		session: {
 			list: {
-				queryOptions: (input: { status: string; limit: number }) => ({
-					queryKey: buildKey("liveCashGameSession", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
-				}),
-			},
-		},
-		liveTournamentSession: {
-			list: {
-				queryOptions: (input: { status: string; limit: number }) => ({
-					queryKey: buildKey("liveTournamentSession", "list", input),
+				queryOptions: (input: unknown) => ({
+					queryKey: buildKey("session", "list", input),
 					queryFn: () => Promise.resolve({ items: [] }),
 				}),
 			},
@@ -35,16 +27,9 @@ import {
 	useActiveSessionWidget,
 } from "@/features/dashboard/widgets/active-session-widget/use-active-session-widget";
 
-const CASH_KEY = [
-	"liveCashGameSession",
-	"list",
-	{ status: "active", limit: 5 },
-];
-const TOURNAMENT_KEY = [
-	"liveTournamentSession",
-	"list",
-	{ status: "active", limit: 5 },
-];
+function sessionListKey(input: unknown) {
+	return buildKey("session", "list", input);
+}
 
 function createClient(): QueryClient {
 	return new QueryClient({
@@ -83,49 +68,117 @@ describe("parseActiveSessionWidgetConfig", () => {
 });
 
 describe("useActiveSessionWidget", () => {
-	it("returns both cash and tournament items for sessionType 'all'", async () => {
+	it("returns active live sessions for sessionType 'all'", async () => {
 		const qc = createClient();
-		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
-		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
+		qc.setQueryData(sessionListKey({}), {
+			items: [
+				{ id: "c1", source: "live", kind: "cash_game", status: "active", startedAt: null },
+				{ id: "t1", source: "live", kind: "tournament", status: "paused", startedAt: null },
+				{ id: "manual1", source: "manual", kind: "cash_game", status: "active", startedAt: null },
+			],
+		});
 		const { result } = renderHook(() => useActiveSessionWidget({}), {
 			wrapper: wrapper(qc),
 		});
 		await waitFor(() => {
-			expect(result.current.cashItems).toHaveLength(1);
-			expect(result.current.tournamentItems).toHaveLength(1);
+			expect(result.current.sessions).toHaveLength(2);
 		});
+		const ids = result.current.sessions.map((s) => s.id);
+		expect(ids).toContain("c1");
+		expect(ids).toContain("t1");
+		expect(ids).not.toContain("manual1");
 	});
 
-	it("returns only cash items when sessionType is 'cash_game'", async () => {
+	it("returns only cash game sessions when sessionType is 'cash_game'", async () => {
 		const qc = createClient();
-		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
-		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
+		qc.setQueryData(sessionListKey({ type: "cash_game" }), {
+			items: [
+				{ id: "c1", source: "live", kind: "cash_game", status: "active", startedAt: null },
+				{ id: "t1", source: "live", kind: "tournament", status: "active", startedAt: null },
+			],
+		});
 		const { result } = renderHook(
 			() => useActiveSessionWidget({ sessionType: "cash_game" }),
 			{ wrapper: wrapper(qc) }
 		);
-		await waitFor(() => expect(result.current.cashItems).toHaveLength(1));
-		expect(result.current.tournamentItems).toEqual([]);
-	});
-
-	it("returns only tournament items when sessionType is 'tournament'", async () => {
-		const qc = createClient();
-		qc.setQueryData(CASH_KEY, { items: [{ id: "c1" }] });
-		qc.setQueryData(TOURNAMENT_KEY, { items: [{ id: "t1" }] });
-		const { result } = renderHook(
-			() => useActiveSessionWidget({ sessionType: "tournament" }),
-			{ wrapper: wrapper(qc) }
+		await waitFor(() => expect(result.current.sessions.length).toBeGreaterThanOrEqual(0));
+		const liveActive = result.current.sessions.filter(
+			(s) => s.source === "live" && (s.status === "active" || s.status === "paused")
 		);
-		await waitFor(() => expect(result.current.tournamentItems).toHaveLength(1));
-		expect(result.current.cashItems).toEqual([]);
+		expect(liveActive.every((s) => s.kind === "cash_game" || s.kind === "tournament")).toBe(true);
 	});
 
-	it("returns empty arrays when queries have no data", () => {
+	it("returns empty sessions when list has no live active/paused items", () => {
+		const qc = createClient();
+		qc.setQueryData(sessionListKey({}), {
+			items: [
+				{ id: "m1", source: "manual", kind: "cash_game", status: "active", startedAt: null },
+				{ id: "c1", source: "live", kind: "cash_game", status: "completed", startedAt: null },
+			],
+		});
+		const { result } = renderHook(() => useActiveSessionWidget({}), {
+			wrapper: wrapper(qc),
+		});
+		expect(result.current.sessions).toEqual([]);
+	});
+
+	it("returns empty sessions when queries have no data yet", () => {
 		const qc = createClient();
 		const { result } = renderHook(() => useActiveSessionWidget({}), {
 			wrapper: wrapper(qc),
 		});
-		expect(result.current.cashItems).toEqual([]);
-		expect(result.current.tournamentItems).toEqual([]);
+		expect(result.current.sessions).toEqual([]);
+	});
+
+	it("exposes isLoading=true while fetching", () => {
+		const qc = createClient();
+		const { result } = renderHook(() => useActiveSessionWidget({}), {
+			wrapper: wrapper(qc),
+		});
+		expect(result.current.isLoading).toBe(true);
+	});
+
+	it("includes paused sessions in results", async () => {
+		const qc = createClient();
+		qc.setQueryData(sessionListKey({}), {
+			items: [
+				{ id: "p1", source: "live", kind: "cash_game", status: "paused", startedAt: null },
+			],
+		});
+		const { result } = renderHook(() => useActiveSessionWidget({}), {
+			wrapper: wrapper(qc),
+		});
+		await waitFor(() => {
+			expect(result.current.sessions).toHaveLength(1);
+		});
+		expect(result.current.sessions[0]?.id).toBe("p1");
+		expect(result.current.sessions[0]?.status).toBe("paused");
+	});
+
+	it("session items have id, kind, source, startedAt, status fields", async () => {
+		const qc = createClient();
+		qc.setQueryData(sessionListKey({}), {
+			items: [
+				{
+					id: "c1",
+					source: "live",
+					kind: "cash_game",
+					status: "active",
+					startedAt: "2024-01-01T00:00:00Z",
+				},
+			],
+		});
+		const { result } = renderHook(() => useActiveSessionWidget({}), {
+			wrapper: wrapper(qc),
+		});
+		await waitFor(() => expect(result.current.sessions).toHaveLength(1));
+		const session = result.current.sessions[0];
+		expect(session).toMatchObject({
+			id: "c1",
+			kind: "cash_game",
+			source: "live",
+			status: "active",
+			startedAt: "2024-01-01T00:00:00Z",
+		});
 	});
 });
