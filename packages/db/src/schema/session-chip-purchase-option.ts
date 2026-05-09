@@ -58,10 +58,7 @@ export const sessionChipPurchaseRecord = sqliteTable(
 			name: "sessionChipPurchaseRecord_pk",
 			columns: [table.sessionId, table.chipPurchaseOptionId],
 		}),
-		check(
-			"sessionChipPurchaseRecord_count_nonneg",
-			sql`${table.count} >= 0`
-		),
+		check("sessionChipPurchaseRecord_count_nonneg", sql`${table.count} >= 0`),
 	]
 );
 

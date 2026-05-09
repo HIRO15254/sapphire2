@@ -126,4 +126,3 @@ describe("RingGame — indexes", () => {
 		expect(uniqueIdxs).toHaveLength(0);
 	});
 });
-
