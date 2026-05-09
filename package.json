@@ -33,6 +33,7 @@
     "db:generate": "bun run --filter @sapphire2/db db:generate",
     "db:migrate:local": "wrangler d1 migrations apply sapphire2-db --local -c apps/server/wrangler.toml",
     "db:migrate:remote": "wrangler d1 migrations apply sapphire2-db --remote -c apps/server/wrangler.toml",
+    "seed:from-export": "bun run scripts/seed-from-export/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=verbose",

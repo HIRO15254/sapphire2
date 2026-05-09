@@ -1,4 +1,5 @@
 import {
+	IconArrowRight,
 	IconBolt,
 	IconCalendar,
 	IconClock,
@@ -366,39 +367,43 @@ export function SessionCard({
 						</p>
 					</div>
 				)}
-				{isLive && (
-					<div className="mt-2 flex items-center gap-2 border-t pt-2">
-						{onViewEvents && (
-							<Button
-								className="px-0"
-								onClick={() =>
-									onViewEvents({
-										sessionId: session.id,
-										sessionType: isTournament ? "tournament" : "cash-game",
-									})
-								}
-								size="xs"
-								type="button"
-								variant="link"
-							>
-								<IconList size={12} />
-								Events
-							</Button>
-						)}
-						{onReopen && session.status === "completed" && (
-							<Button
-								className="px-0"
-								onClick={() => onReopen(session.id)}
-								size="xs"
-								type="button"
-								variant="link"
-							>
-								<IconPlayerPlay size={12} />
-								Reopen
-							</Button>
-						)}
-					</div>
-				)}
+				<div className="mt-2 flex items-center gap-2 border-t pt-2">
+					<Button asChild className="px-0" size="xs" variant="link">
+						<a href={`/sessions/${session.id}`}>
+							<IconArrowRight size={12} />
+							Detail
+						</a>
+					</Button>
+					{isLive && onViewEvents && (
+						<Button
+							className="px-0"
+							onClick={() =>
+								onViewEvents({
+									sessionId: session.id,
+									sessionType: isTournament ? "tournament" : "cash-game",
+								})
+							}
+							size="xs"
+							type="button"
+							variant="link"
+						>
+							<IconList size={12} />
+							Events
+						</Button>
+					)}
+					{isLive && onReopen && session.status === "completed" && (
+						<Button
+							className="px-0"
+							onClick={() => onReopen(session.id)}
+							size="xs"
+							type="button"
+							variant="link"
+						>
+							<IconPlayerPlay size={12} />
+							Reopen
+						</Button>
+					)}
+				</div>
 			</div>
 		</EntityListItem>
 	);
