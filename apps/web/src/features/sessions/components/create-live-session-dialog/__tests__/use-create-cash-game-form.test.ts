@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useCreateCashGameSessionForm } from "@/features/live-sessions/components/create-cash-game-session-form/use-create-cash-game-session-form";
+import { useCreateCashGameForm } from "@/features/sessions/components/create-live-session-dialog/use-create-cash-game-form";
 
 const RING_GAMES = [
 	{
@@ -19,10 +19,10 @@ const RING_GAMES = [
 	},
 ];
 
-describe("useCreateCashGameSessionForm", () => {
+describe("useCreateCashGameForm", () => {
 	it("starts with all selections undefined and empty form values", () => {
 		const { result } = renderHook(() =>
-			useCreateCashGameSessionForm({
+			useCreateCashGameForm({
 				onSubmit: vi.fn(),
 				ringGames: RING_GAMES,
 			})
@@ -39,7 +39,7 @@ describe("useCreateCashGameSessionForm", () => {
 	it("handleStoreChange sets the store, clears ringGameId, resets initialBuyIn and notifies onStoreChange", () => {
 		const onStoreChange = vi.fn();
 		const { result } = renderHook(() =>
-			useCreateCashGameSessionForm({
+			useCreateCashGameForm({
 				onSubmit: vi.fn(),
 				onStoreChange,
 				ringGames: RING_GAMES,
@@ -57,7 +57,7 @@ describe("useCreateCashGameSessionForm", () => {
 
 	it("handleRingGameChange(undefined) is a no-op for form values", () => {
 		const { result } = renderHook(() =>
-			useCreateCashGameSessionForm({
+			useCreateCashGameForm({
 				onSubmit: vi.fn(),
 				ringGames: RING_GAMES,
 			})
@@ -71,7 +71,7 @@ describe("useCreateCashGameSessionForm", () => {
 
 	it("handleRingGameChange seeds initialBuyIn from the ring game's maxBuyIn and locks currency", () => {
 		const { result } = renderHook(() =>
-			useCreateCashGameSessionForm({
+			useCreateCashGameForm({
 				onSubmit: vi.fn(),
 				ringGames: RING_GAMES,
 			})
@@ -87,7 +87,7 @@ describe("useCreateCashGameSessionForm", () => {
 
 	it("handleRingGameChange for a game with null currencyId does not lock currency", () => {
 		const { result } = renderHook(() =>
-			useCreateCashGameSessionForm({
+			useCreateCashGameForm({
 				onSubmit: vi.fn(),
 				ringGames: RING_GAMES,
 			})
@@ -102,7 +102,7 @@ describe("useCreateCashGameSessionForm", () => {
 
 	it("handleCurrencyChange updates selectedCurrencyId", () => {
 		const { result } = renderHook(() =>
-			useCreateCashGameSessionForm({
+			useCreateCashGameForm({
 				onSubmit: vi.fn(),
 				ringGames: RING_GAMES,
 			})
@@ -116,7 +116,7 @@ describe("useCreateCashGameSessionForm", () => {
 	it("submits with parsed initialBuyIn and normalised memo (omitted when blank)", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
-			useCreateCashGameSessionForm({ onSubmit, ringGames: RING_GAMES })
+			useCreateCashGameForm({ onSubmit, ringGames: RING_GAMES })
 		);
 		act(() => {
 			result.current.handleStoreChange("s1");
@@ -138,7 +138,7 @@ describe("useCreateCashGameSessionForm", () => {
 	it("submits memo string only when non-empty", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
-			useCreateCashGameSessionForm({ onSubmit, ringGames: RING_GAMES })
+			useCreateCashGameForm({ onSubmit, ringGames: RING_GAMES })
 		);
 		act(() => {
 			result.current.form.setFieldValue("initialBuyIn", "100");

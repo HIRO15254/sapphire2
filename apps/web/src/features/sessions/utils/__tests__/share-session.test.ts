@@ -13,29 +13,25 @@ function cashSession(
 	overrides: Partial<ShareableSession> = {}
 ): ShareableSession {
 	return {
-		addonCost: null,
+		kind: "cash_game",
 		beforeDeadline: null,
 		bountyPrizes: null,
-		buyIn: 10_000,
+		breakMinutes: null,
+		cashBuyIn: 10_000,
 		cashOut: 15_000,
 		currencyUnit: "JPY",
 		endedAt: null,
-		entryFee: null,
-		evProfitLoss: null,
+		evCashOut: null,
 		placement: null,
 		prizeMoney: null,
-		profitLoss: 5000,
-		rebuyCost: null,
-		rebuyCount: null,
-		ringGameBlind2: 500,
 		ringGameName: "NL2k/5k",
 		sessionDate: "2026-04-22T00:00:00Z",
 		startedAt: null,
 		storeName: "Downtown",
 		totalEntries: null,
 		tournamentBuyIn: null,
+		tournamentEntryFee: null,
 		tournamentName: null,
-		type: "cash_game",
 		...overrides,
 	};
 }
@@ -44,12 +40,15 @@ function tournamentSession(
 	overrides: Partial<ShareableSession> = {}
 ): ShareableSession {
 	return cashSession({
-		type: "tournament",
+		kind: "tournament",
 		ringGameName: null,
-		ringGameBlind2: null,
 		tournamentName: "Weekly 50k GTD",
 		tournamentBuyIn: 10_000,
-		profitLoss: -10_000,
+		tournamentEntryFee: null,
+		// cashOut = 0, cashBuyIn = 10000 → profitLoss for tournament uses tournament fields
+		cashBuyIn: null,
+		cashOut: null,
+		prizeMoney: null,
 		...overrides,
 	});
 }
@@ -57,6 +56,7 @@ function tournamentSession(
 describe("createSessionShareText", () => {
 	describe("cash game", () => {
 		it("includes header, date, store, game name, and profit line", () => {
+			// cashOut (15000) - cashBuyIn (10000) = +5000
 			const text = createSessionShareText(cashSession());
 			expect(text).toContain("📊 Poker Session Result");
 			expect(text).toContain("📅 ");
@@ -71,12 +71,16 @@ describe("createSessionShareText", () => {
 		});
 
 		it("uses 📉 and no '+' prefix for negative PL", () => {
-			const text = createSessionShareText(cashSession({ profitLoss: -3000 }));
+			// cashOut (7000) - cashBuyIn (10000) = -3000
+			const text = createSessionShareText(
+				cashSession({ cashBuyIn: 10_000, cashOut: 7000 })
+			);
 			expect(text).toContain("📉 -3.0K JPY");
 		});
 
-		it("adds EV line when evProfitLoss is present", () => {
-			const text = createSessionShareText(cashSession({ evProfitLoss: 1200 }));
+		it("adds EV line when evCashOut is present", () => {
+			// EV P&L = evCashOut (11200) - cashBuyIn (10000) = +1200
+			const text = createSessionShareText(cashSession({ evCashOut: 11_200 }));
 			expect(text).toContain("(EV: +1.2K JPY)");
 		});
 
@@ -103,6 +107,14 @@ describe("createSessionShareText", () => {
 		it("falls back to 'Cash Game' when ringGameName is null", () => {
 			const text = createSessionShareText(cashSession({ ringGameName: null }));
 			expect(text).toContain("💲 Cash Game");
+		});
+
+		it("shows zero PL when cashBuyIn and cashOut are both null", () => {
+			const text = createSessionShareText(
+				cashSession({ cashBuyIn: null, cashOut: null })
+			);
+			// 0 - 0 = 0 → "+0 JPY"
+			expect(text).toContain("📈 +0 JPY");
 		});
 	});
 
@@ -161,11 +173,11 @@ describe("createSessionShareText", () => {
 		});
 
 		it("prefers prizeMoney addendum over EV/duration (tournament branch)", () => {
+			// prizeMoney (30000) - tournamentBuyIn (10000) = +20000
 			const text = createSessionShareText(
 				tournamentSession({
-					profitLoss: 20_000,
 					prizeMoney: 30_000,
-					evProfitLoss: 12_345, // should be ignored in tournament branch
+					evCashOut: 12_345, // should be ignored in tournament branch
 				})
 			);
 			expect(text).toContain("(Prize: +30.0K JPY)");
@@ -173,31 +185,64 @@ describe("createSessionShareText", () => {
 		});
 
 		it("omits prize addendum when prizeMoney is 0", () => {
-			const text = createSessionShareText(
-				tournamentSession({ profitLoss: 100, prizeMoney: 0 })
-			);
+			// tournamentBuyIn=10000, prizeMoney=100 → P&L = 100-10000 = -9900
+			const text = createSessionShareText(tournamentSession({ prizeMoney: 0 }));
 			expect(text).not.toContain("Prize");
+		});
+
+		it("computes tournament profit loss from prizeMoney minus costs", () => {
+			// prizeMoney (50000) - tournamentBuyIn (10000) - tournamentEntryFee (2000) = +38000
+			const text = createSessionShareText(
+				tournamentSession({
+					prizeMoney: 50_000,
+					tournamentBuyIn: 10_000,
+					tournamentEntryFee: 2000,
+				})
+			);
+			expect(text).toContain("📈 +38.0K JPY");
 		});
 	});
 
 	describe("formatters", () => {
 		it("M tier triggers at >= 1M", () => {
+			// cashOut (1510000) - cashBuyIn (10000) = +1500000
 			const text = createSessionShareText(
-				cashSession({ profitLoss: 1_500_000 })
+				cashSession({ cashBuyIn: 10_000, cashOut: 1_510_000 })
 			);
 			expect(text).toContain("📈 +1.5M JPY");
 		});
 
-		it("empty currency produces 'X k' then space then unit (empty)", () => {
+		it("empty currency produces amount then space then empty unit", () => {
+			// cashOut (10500) - cashBuyIn (10000) = +500
 			const text = createSessionShareText(
-				cashSession({ currencyUnit: null, profitLoss: 500 })
+				cashSession({ currencyUnit: null, cashBuyIn: 10_000, cashOut: 10_500 })
 			);
 			expect(text).toMatch(COMPACT_500);
 		});
 
-		it("integer profitLoss under 1k is rounded to int string", () => {
-			const text = createSessionShareText(cashSession({ profitLoss: 42 }));
+		it("integer PL under 1k is rounded to int string", () => {
+			// cashOut (10042) - cashBuyIn (10000) = +42
+			const text = createSessionShareText(
+				cashSession({ cashBuyIn: 10_000, cashOut: 10_042 })
+			);
 			expect(text).toContain("📈 +42 JPY");
+		});
+
+		it("handles Date objects for sessionDate", () => {
+			const text = createSessionShareText(
+				cashSession({ sessionDate: new Date("2026-04-22T00:00:00Z") })
+			);
+			expect(text).toContain("📅 ");
+		});
+
+		it("handles Date objects for startedAt and endedAt", () => {
+			const text = createSessionShareText(
+				cashSession({
+					startedAt: new Date("2026-04-22T12:00:00Z"),
+					endedAt: new Date("2026-04-22T15:30:00Z"),
+				})
+			);
+			expect(text).toMatch(DURATION_3_5H);
 		});
 	});
 });

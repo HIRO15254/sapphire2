@@ -48,10 +48,15 @@ export function RecentSessionsWidget({ config }: WidgetRenderProps) {
 	return (
 		<div className="flex h-full flex-col gap-1 overflow-auto p-2">
 			{items.map((session) => {
-				const isTournament = session.type === "tournament";
+				const isTournament = session.kind === "tournament";
 				const name = isTournament
 					? (session.tournamentName ?? "Tournament")
 					: (session.ringGameName ?? "Cash Game");
+				const profitLoss = isTournament
+					? (session.prizeMoney ?? 0) -
+						(session.tournamentBuyIn ?? 0) -
+						(session.tournamentEntryFee ?? 0)
+					: (session.cashOut ?? 0) - (session.cashBuyIn ?? 0);
 				return (
 					<Link
 						className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-accent"
@@ -78,9 +83,9 @@ export function RecentSessionsWidget({ config }: WidgetRenderProps) {
 							</div>
 						</div>
 						<span
-							className={`shrink-0 font-semibold text-sm ${profitLossColorClass(session.profitLoss)}`}
+							className={`shrink-0 font-semibold text-sm ${profitLossColorClass(profitLoss)}`}
 						>
-							{formatProfitLoss(session.profitLoss)}
+							{formatProfitLoss(profitLoss)}
 						</span>
 					</Link>
 				);

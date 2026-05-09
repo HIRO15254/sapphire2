@@ -23,12 +23,16 @@ export function parseRecentSessionsWidgetConfig(
 }
 
 interface SessionItem {
+	cashBuyIn: number | null;
+	cashOut: number | null;
 	id: string;
-	profitLoss: number | null;
+	kind: string;
+	prizeMoney: number | null;
 	ringGameName: string | null;
 	sessionDate: string | Date;
+	tournamentBuyIn: number | null;
+	tournamentEntryFee: number | null;
 	tournamentName: string | null;
-	type: string;
 }
 
 interface UseRecentSessionsWidgetResult {
@@ -47,10 +51,20 @@ export function useRecentSessionsWidget(
 		})
 	);
 
-	const items = ((query.data?.items ?? []) as SessionItem[]).slice(
-		0,
-		parsed.limit
-	);
+	const items = (query.data?.items ?? [])
+		.map((item) => ({
+			id: item.id,
+			cashBuyIn: item.cashBuyIn ?? null,
+			cashOut: item.cashOut ?? null,
+			kind: item.kind,
+			prizeMoney: item.prizeMoney ?? null,
+			ringGameName: item.ringGameName ?? null,
+			sessionDate: item.sessionDate,
+			tournamentBuyIn: item.tournamentBuyIn ?? null,
+			tournamentEntryFee: item.tournamentEntryFee ?? null,
+			tournamentName: item.tournamentName ?? null,
+		}))
+		.slice(0, parsed.limit);
 
 	return {
 		isLoading: query.isLoading,

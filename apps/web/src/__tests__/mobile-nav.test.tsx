@@ -15,9 +15,9 @@ vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
-// Mock CreateSessionDialog to avoid trpc/env imports
-vi.mock("@/features/live-sessions/components/create-session-dialog", () => ({
-	CreateSessionDialog: () => null,
+// Mock CreateLiveSessionDialog to avoid trpc/env imports
+vi.mock("@/features/sessions/components/create-live-session-dialog", () => ({
+	CreateLiveSessionDialog: () => null,
 }));
 
 // Mock useStackSheet to avoid provider requirement

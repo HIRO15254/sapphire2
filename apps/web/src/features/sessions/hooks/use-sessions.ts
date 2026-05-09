@@ -61,6 +61,7 @@ export interface SessionItem {
 	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
+	// Cash game detail fields (null for tournament sessions)
 	cashBuyIn: number | null;
 	cashOut: number | null;
 	cashRingGameId: string | null;
@@ -71,6 +72,7 @@ export interface SessionItem {
 	currencyUnit: string | null;
 	endedAt: string | Date | null;
 	evCashOut: number | null;
+	// Core session fields
 	id: string;
 	kind: string;
 	memo: string | null;
@@ -83,8 +85,10 @@ export interface SessionItem {
 	status: string;
 	storeId: string | null;
 	storeName: string | null;
+	// Tags
 	tags: Array<{ id: string; name: string }>;
 	totalEntries: number | null;
+	// Tournament detail fields (null for cash game sessions)
 	tournamentBuyIn: number | null;
 	tournamentEntryFee: number | null;
 	tournamentId: string | null;
@@ -210,35 +214,37 @@ export function buildOptimisticItem(
 	const item: SessionItem = {
 		id: `temp-${Date.now()}`,
 		kind: newSession.type,
+		source: "manual",
+		status: "completed",
 		sessionDate: newSession.sessionDate,
-		cashBuyIn: null,
-		cashOut: null,
-		evCashOut: null,
-		tournamentBuyIn: null,
-		tournamentEntryFee: null,
-		beforeDeadline: null,
-		placement: null,
-		totalEntries: null,
-		prizeMoney: null,
-		bountyPrizes: null,
-		breakMinutes: newSession.breakMinutes ?? null,
 		startedAt: null,
 		endedAt: null,
+		breakMinutes: newSession.breakMinutes ?? null,
 		memo: newSession.memo ?? null,
 		storeId: newSession.storeId ?? null,
 		storeName: null,
-		cashRingGameId: null,
-		ringGameName: null,
-		cashRuleName: null,
-		tournamentId: null,
-		tournamentName: null,
-		tournamentRuleName: null,
 		currencyId: newSession.currencyId ?? null,
 		currencyName: null,
 		currencyUnit: null,
 		createdAt: new Date().toISOString(),
-		source: "manual",
-		status: "completed",
+		// Cash detail (null for tournament)
+		cashBuyIn: null,
+		cashOut: null,
+		evCashOut: null,
+		cashRuleName: null,
+		cashRingGameId: null,
+		ringGameName: null,
+		// Tournament detail (null for cash game)
+		tournamentBuyIn: null,
+		tournamentEntryFee: null,
+		placement: null,
+		totalEntries: null,
+		beforeDeadline: null,
+		prizeMoney: null,
+		bountyPrizes: null,
+		tournamentRuleName: null,
+		tournamentId: null,
+		tournamentName: null,
 		tags: [],
 	};
 	if (newSession.type === "cash_game") {
@@ -253,14 +259,17 @@ export function buildOptimisticItem(
 	return item;
 }
 
+function toIsoString(value: string | Date | null): string | null {
+	if (value === null) {
+		return null;
+	}
+	return typeof value === "string" ? value : value.toISOString();
+}
+
 export function buildEditDefaults(session: SessionItem) {
 	return {
 		type: session.kind as "cash_game" | "tournament",
-		sessionDate: formatDateForInput(
-			typeof session.sessionDate === "string"
-				? session.sessionDate
-				: session.sessionDate.toISOString()
-		),
+		sessionDate: formatDateForInput(toIsoString(session.sessionDate) ?? ""),
 		buyIn: session.cashBuyIn ?? 0,
 		cashOut: session.cashOut ?? 0,
 		evCashOut: session.evCashOut ?? undefined,
@@ -270,24 +279,9 @@ export function buildEditDefaults(session: SessionItem) {
 		placement: session.placement ?? undefined,
 		totalEntries: session.totalEntries ?? undefined,
 		prizeMoney: session.prizeMoney ?? undefined,
-		rebuyCount: undefined as number | undefined,
-		rebuyCost: undefined as number | undefined,
-		addonCost: undefined as number | undefined,
 		bountyPrizes: session.bountyPrizes ?? undefined,
-		startTime: formatTimeFromDate(
-			session.startedAt
-				? typeof session.startedAt === "string"
-					? session.startedAt
-					: session.startedAt.toISOString()
-				: null
-		),
-		endTime: formatTimeFromDate(
-			session.endedAt
-				? typeof session.endedAt === "string"
-					? session.endedAt
-					: session.endedAt.toISOString()
-				: null
-		),
+		startTime: formatTimeFromDate(toIsoString(session.startedAt)),
+		endTime: formatTimeFromDate(toIsoString(session.endedAt)),
 		breakMinutes: session.breakMinutes ?? undefined,
 		memo: session.memo ?? undefined,
 		tagIds: session.tags.map((t) => t.id),

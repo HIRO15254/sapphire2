@@ -12,31 +12,27 @@ vi.mock("@/features/sessions/utils/share-session", () => ({
 import { useSessionCard } from "@/features/sessions/components/session-card/use-session-card";
 import type { ShareableSession } from "@/features/sessions/utils/share-session";
 
-const SESSION = {
-	type: "cash_game",
+const SESSION: ShareableSession = {
+	kind: "cash_game",
 	sessionDate: "2026-04-01",
-	profitLoss: 100,
-	evProfitLoss: null,
+	breakMinutes: null,
+	cashBuyIn: 10_000,
+	cashOut: 15_000,
+	evCashOut: null,
 	startedAt: null,
 	endedAt: null,
 	currencyUnit: "",
 	storeName: null,
 	ringGameName: null,
-	ringGameBlind2: null,
 	tournamentName: null,
 	tournamentBuyIn: null,
-	buyIn: null,
-	cashOut: null,
+	tournamentEntryFee: null,
 	beforeDeadline: null,
 	placement: null,
 	totalEntries: null,
 	prizeMoney: null,
-	addonCost: null,
 	bountyPrizes: null,
-	entryFee: null,
-	rebuyCost: null,
-	rebuyCount: null,
-} satisfies ShareableSession;
+};
 
 describe("useSessionCard", () => {
 	beforeEach(() => {

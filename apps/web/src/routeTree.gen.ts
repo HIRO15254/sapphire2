@@ -21,6 +21,7 @@ import { Route as PlayersIndexRouteImport } from './routes/players/index'
 import { Route as CurrenciesIndexRouteImport } from './routes/currencies/index'
 import { Route as ActiveSessionIndexRouteImport } from './routes/active-session/index'
 import { Route as StoresStoreIdRouteImport } from './routes/stores/$storeId'
+import { Route as SessionsIdRouteImport } from './routes/sessions/$id'
 import { Route as ActiveSessionGameRouteImport } from './routes/active-session/game'
 import { Route as ActiveSessionEventsRouteImport } from './routes/active-session/events'
 import { Route as LiveSessionsSessionTypeSessionIdEventsRouteImport } from './routes/live-sessions/$sessionType/$sessionId/events'
@@ -85,6 +86,11 @@ const StoresStoreIdRoute = StoresStoreIdRouteImport.update({
   path: '/stores/$storeId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SessionsIdRoute = SessionsIdRouteImport.update({
+  id: '/sessions/$id',
+  path: '/sessions/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ActiveSessionGameRoute = ActiveSessionGameRouteImport.update({
   id: '/game',
   path: '/game',
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/active-session/events': typeof ActiveSessionEventsRoute
   '/active-session/game': typeof ActiveSessionGameRoute
+  '/sessions/$id': typeof SessionsIdRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
   '/active-session/': typeof ActiveSessionIndexRoute
   '/currencies/': typeof CurrenciesIndexRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/active-session/events': typeof ActiveSessionEventsRoute
   '/active-session/game': typeof ActiveSessionGameRoute
+  '/sessions/$id': typeof SessionsIdRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
   '/active-session': typeof ActiveSessionIndexRoute
   '/currencies': typeof CurrenciesIndexRoute
@@ -145,6 +153,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/active-session/events': typeof ActiveSessionEventsRoute
   '/active-session/game': typeof ActiveSessionGameRoute
+  '/sessions/$id': typeof SessionsIdRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
   '/active-session/': typeof ActiveSessionIndexRoute
   '/currencies/': typeof CurrenciesIndexRoute
@@ -164,6 +173,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/active-session/events'
     | '/active-session/game'
+    | '/sessions/$id'
     | '/stores/$storeId'
     | '/active-session/'
     | '/currencies/'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/active-session/events'
     | '/active-session/game'
+    | '/sessions/$id'
     | '/stores/$storeId'
     | '/active-session'
     | '/currencies'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/active-session/events'
     | '/active-session/game'
+    | '/sessions/$id'
     | '/stores/$storeId'
     | '/active-session/'
     | '/currencies/'
@@ -213,6 +225,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
+  SessionsIdRoute: typeof SessionsIdRoute
   StoresStoreIdRoute: typeof StoresStoreIdRoute
   CurrenciesIndexRoute: typeof CurrenciesIndexRoute
   PlayersIndexRoute: typeof PlayersIndexRoute
@@ -307,6 +320,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StoresStoreIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sessions/$id': {
+      id: '/sessions/$id'
+      path: '/sessions/$id'
+      fullPath: '/sessions/$id'
+      preLoaderRoute: typeof SessionsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/active-session/game': {
       id: '/active-session/game'
       path: '/game'
@@ -354,6 +374,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
+  SessionsIdRoute: SessionsIdRoute,
   StoresStoreIdRoute: StoresStoreIdRoute,
   CurrenciesIndexRoute: CurrenciesIndexRoute,
   PlayersIndexRoute: PlayersIndexRoute,

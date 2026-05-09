@@ -1,27 +1,23 @@
 export interface ShareableSession {
-	addonCost: number | null;
 	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
-	buyIn: number | null;
+	breakMinutes: number | null;
+	cashBuyIn: number | null;
 	cashOut: number | null;
 	currencyUnit: string | null;
-	endedAt: string | null;
-	entryFee: number | null;
-	evProfitLoss: number | null;
+	endedAt: string | Date | null;
+	evCashOut: number | null;
+	kind: string;
 	placement: number | null;
 	prizeMoney: number | null;
-	profitLoss: number | null;
-	rebuyCost: number | null;
-	rebuyCount: number | null;
-	ringGameBlind2: number | null;
 	ringGameName: string | null;
-	sessionDate: string;
-	startedAt: string | null;
+	sessionDate: string | Date;
+	startedAt: string | Date | null;
 	storeName: string | null;
 	totalEntries: number | null;
 	tournamentBuyIn: number | null;
+	tournamentEntryFee: number | null;
 	tournamentName: string | null;
-	type: string;
 }
 
 function formatCompactNumberForShare(value: number): string {
@@ -40,16 +36,53 @@ function formatOrdinal(n: number): string {
 	return `${n}${suffix[(v - 20) % 10] ?? suffix[v] ?? suffix[0]}`;
 }
 
-function formatDuration(
-	startedAt: string | null,
-	endedAt: string | null
-): string | null {
-	if (!(startedAt && endedAt)) {
+function toDateString(value: string | Date | null): string | null {
+	if (value === null) {
 		return null;
 	}
-	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+	return typeof value === "string" ? value : value.toISOString();
+}
+
+function formatDuration(
+	startedAt: string | Date | null,
+	endedAt: string | Date | null
+): string | null {
+	const start = toDateString(startedAt);
+	const end = toDateString(endedAt);
+	if (!(start && end)) {
+		return null;
+	}
+	const diffMs = new Date(end).getTime() - new Date(start).getTime();
 	const hours = diffMs / (1000 * 60 * 60);
 	return `${hours.toFixed(1)}h`;
+}
+
+function computeCashProfitLoss(session: ShareableSession): number {
+	return (session.cashOut ?? 0) - (session.cashBuyIn ?? 0);
+}
+
+function computeTournamentProfitLoss(session: ShareableSession): number {
+	const income = session.prizeMoney ?? 0;
+	const cost =
+		(session.tournamentBuyIn ?? 0) + (session.tournamentEntryFee ?? 0);
+	return income - cost;
+}
+
+function computeProfitLoss(session: ShareableSession): number {
+	if (session.kind === "tournament") {
+		return computeTournamentProfitLoss(session);
+	}
+	return computeCashProfitLoss(session);
+}
+
+function computeEvProfitLoss(session: ShareableSession): number | null {
+	if (session.kind === "tournament") {
+		return null;
+	}
+	if (session.evCashOut === null) {
+		return null;
+	}
+	return session.evCashOut - (session.cashBuyIn ?? 0);
 }
 
 function buildProfitLossLine(
@@ -62,16 +95,17 @@ function buildProfitLossLine(
 	const baseAmount = formatCompactNumberForShare(profitLoss);
 	let line = `${plIcon} ${plSign}${baseAmount} ${currencyUnit}`;
 
-	if (session.type === "tournament") {
+	if (session.kind === "tournament") {
 		if (session.prizeMoney !== null && session.prizeMoney > 0) {
 			const prize = formatCompactNumberForShare(session.prizeMoney);
 			line += ` (Prize: +${prize} ${currencyUnit})`;
 		}
 	} else {
 		const duration = formatDuration(session.startedAt, session.endedAt);
-		if (session.evProfitLoss !== null) {
-			const evSign = session.evProfitLoss >= 0 ? "+" : "";
-			const evAmount = formatCompactNumberForShare(session.evProfitLoss);
+		const evProfitLoss = computeEvProfitLoss(session);
+		if (evProfitLoss !== null) {
+			const evSign = evProfitLoss >= 0 ? "+" : "";
+			const evAmount = formatCompactNumberForShare(evProfitLoss);
 			line += ` (EV: ${evSign}${evAmount} ${currencyUnit})`;
 		}
 		if (duration) {
@@ -83,15 +117,16 @@ function buildProfitLossLine(
 }
 
 export function createSessionShareText(session: ShareableSession): string {
-	const isTournament = session.type === "tournament";
+	const isTournament = session.kind === "tournament";
 	const gameName = isTournament
 		? session.tournamentName || "Tournament"
 		: session.ringGameName || "Cash Game";
-	const profitLoss = session.profitLoss ?? 0;
+	const profitLoss = computeProfitLoss(session);
 	const plIcon = profitLoss >= 0 ? "📈" : "📉";
 	const plSign = profitLoss >= 0 ? "+" : "";
 	const currencyUnit = session.currencyUnit ?? "";
-	const date = new Date(session.sessionDate).toLocaleDateString("ja-JP");
+	const sessionDateStr = toDateString(session.sessionDate) ?? "";
+	const date = new Date(sessionDateStr).toLocaleDateString("ja-JP");
 	const gameIcon = isTournament ? "🏆" : "💲";
 
 	let text = "📊 Poker Session Result\n";

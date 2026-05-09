@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useCreateTournamentSessionForm } from "@/features/live-sessions/components/create-tournament-session-form/use-create-tournament-session-form";
+import { useCreateTournamentForm } from "@/features/sessions/components/create-live-session-dialog/use-create-tournament-form";
 
 const TOURNAMENTS = [
 	{
@@ -21,10 +21,10 @@ const TOURNAMENTS = [
 	},
 ];
 
-describe("useCreateTournamentSessionForm", () => {
+describe("useCreateTournamentForm", () => {
 	it("initialises with all selections undefined and empty form values", () => {
 		const { result } = renderHook(() =>
-			useCreateTournamentSessionForm({
+			useCreateTournamentForm({
 				onSubmit: vi.fn(),
 				tournaments: TOURNAMENTS,
 			})
@@ -40,7 +40,7 @@ describe("useCreateTournamentSessionForm", () => {
 	it("handleStoreChange sets the store, clears tournamentId, and notifies callback", () => {
 		const onStoreChange = vi.fn();
 		const { result } = renderHook(() =>
-			useCreateTournamentSessionForm({
+			useCreateTournamentForm({
 				onSubmit: vi.fn(),
 				onStoreChange,
 				tournaments: TOURNAMENTS,
@@ -56,7 +56,7 @@ describe("useCreateTournamentSessionForm", () => {
 
 	it("handleTournamentChange seeds buyIn/entryFee/startingStack from the tournament and locks all fields", () => {
 		const { result } = renderHook(() =>
-			useCreateTournamentSessionForm({
+			useCreateTournamentForm({
 				onSubmit: vi.fn(),
 				tournaments: TOURNAMENTS,
 			})
@@ -76,7 +76,7 @@ describe("useCreateTournamentSessionForm", () => {
 
 	it("handleTournamentChange for an all-null tournament does not lock any field", () => {
 		const { result } = renderHook(() =>
-			useCreateTournamentSessionForm({
+			useCreateTournamentForm({
 				onSubmit: vi.fn(),
 				tournaments: TOURNAMENTS,
 			})
@@ -92,7 +92,7 @@ describe("useCreateTournamentSessionForm", () => {
 
 	it("handleTournamentChange(undefined) is a no-op on form values", () => {
 		const { result } = renderHook(() =>
-			useCreateTournamentSessionForm({
+			useCreateTournamentForm({
 				onSubmit: vi.fn(),
 				tournaments: TOURNAMENTS,
 			})
@@ -106,7 +106,7 @@ describe("useCreateTournamentSessionForm", () => {
 	it("rejects submission without buyIn / startingStack", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
-			useCreateTournamentSessionForm({ onSubmit, tournaments: TOURNAMENTS })
+			useCreateTournamentForm({ onSubmit, tournaments: TOURNAMENTS })
 		);
 		await act(async () => {
 			await result.current.form.handleSubmit();
@@ -117,7 +117,7 @@ describe("useCreateTournamentSessionForm", () => {
 	it("submits numeric payload with optional entryFee undefined when blank", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
-			useCreateTournamentSessionForm({ onSubmit, tournaments: TOURNAMENTS })
+			useCreateTournamentForm({ onSubmit, tournaments: TOURNAMENTS })
 		);
 		act(() => {
 			result.current.handleStoreChange("s1");
@@ -143,7 +143,7 @@ describe("useCreateTournamentSessionForm", () => {
 	it("submits timerStartedAt epoch seconds when field holds a valid datetime-local", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
-			useCreateTournamentSessionForm({ onSubmit, tournaments: TOURNAMENTS })
+			useCreateTournamentForm({ onSubmit, tournaments: TOURNAMENTS })
 		);
 		act(() => {
 			result.current.handleTournamentChange("t1");
@@ -158,7 +158,7 @@ describe("useCreateTournamentSessionForm", () => {
 
 	it("handleCurrencyChange updates selectedCurrencyId", () => {
 		const { result } = renderHook(() =>
-			useCreateTournamentSessionForm({
+			useCreateTournamentForm({
 				onSubmit: vi.fn(),
 				tournaments: TOURNAMENTS,
 			})

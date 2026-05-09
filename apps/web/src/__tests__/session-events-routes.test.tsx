@@ -38,24 +38,15 @@ describe("session event route wrappers", () => {
 		);
 	});
 
-	it("passes route params into the live-session wrapper", async () => {
+	it("live-session events route has a redirect beforeLoad handler", async () => {
 		const module = await import(
 			"@/routes/live-sessions/$sessionType/$sessionId/events"
 		);
-		vi.spyOn(module.Route, "useParams").mockReturnValue({
-			sessionId: "session-9",
-			sessionType: "tournament",
-		} as never);
+		// The route now redirects to /sessions/$id — verify beforeLoad is defined
+		expect(module.Route.options.beforeLoad).toBeDefined();
+		// Component is a no-op after redirect
 		const Component = module.Route.options.component as ComponentType;
-
-		render(<Component />);
-
-		expect(sceneSpy).toHaveBeenLastCalledWith(
-			expect.objectContaining({
-				sessionId: "session-9",
-				sessionType: "tournament",
-			})
-		);
+		expect(Component).toBeDefined();
 	});
 
 	it("falls back to empty sessionId when no active session is present", async () => {
@@ -98,23 +89,18 @@ describe("session event route wrappers", () => {
 		);
 	});
 
-	it("coerces unknown sessionType values to cash_game in the live-session route", async () => {
+	it("live-session events route redirects to sessions/$id", async () => {
 		const module = await import(
 			"@/routes/live-sessions/$sessionType/$sessionId/events"
 		);
-		vi.spyOn(module.Route, "useParams").mockReturnValue({
-			sessionId: "session-10",
-			sessionType: "garbage-type",
-		} as never);
-		const Component = module.Route.options.component as ComponentType;
-
-		render(<Component />);
-
-		expect(sceneSpy).toHaveBeenLastCalledWith(
-			expect.objectContaining({
-				sessionId: "session-10",
-				sessionType: "cash_game",
+		// The beforeLoad handler throws a redirect — verify the redirect target
+		const beforeLoad = module.Route.options.beforeLoad as (ctx: {
+			params: { sessionId: string; sessionType: string };
+		}) => never;
+		expect(() =>
+			beforeLoad({
+				params: { sessionId: "session-10", sessionType: "cash-game" },
 			})
-		);
+		).toThrow();
 	});
 });

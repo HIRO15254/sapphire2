@@ -32,22 +32,72 @@ vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
-// Stub heavy child components inside CreateSessionDialog
+// Stub hooks used by inline sub-forms inside CreateSessionDialog
 vi.mock(
-	"@/features/live-sessions/components/create-cash-game-session-form",
+	"@/features/live-sessions/components/create-session-dialog/use-create-cash-game-session-form",
 	() => ({
-		CreateCashGameSessionForm: () => (
-			<div data-testid="cash-game-form">Cash Game Form</div>
-		),
+		useCreateCashGameSessionForm: () => ({
+			form: {
+				Field: ({
+					children,
+				}: {
+					name: string;
+					children: (field: unknown) => unknown;
+				}) =>
+					children({
+						state: { value: "", meta: { errors: [] } },
+						handleBlur: () => undefined,
+						handleChange: () => undefined,
+						name: "field",
+					}),
+				Subscribe: ({ children }: { children: (state: unknown) => unknown }) =>
+					children({ canSubmit: true, isSubmitting: false }),
+				handleSubmit: () => Promise.resolve(),
+			},
+			selectedStoreId: undefined,
+			selectedRingGameId: undefined,
+			selectedRingGame: null,
+			selectedCurrencyId: undefined,
+			isCurrencyLocked: false,
+			handleStoreChange: () => undefined,
+			handleRingGameChange: () => undefined,
+			handleCurrencyChange: () => undefined,
+		}),
 	})
 );
 
 vi.mock(
-	"@/features/live-sessions/components/create-tournament-session-form",
+	"@/features/live-sessions/components/create-session-dialog/use-create-tournament-session-form",
 	() => ({
-		CreateTournamentSessionForm: () => (
-			<div data-testid="tournament-form">Tournament Form</div>
-		),
+		useCreateTournamentSessionForm: () => ({
+			form: {
+				Field: ({
+					children,
+				}: {
+					name: string;
+					children: (field: unknown) => unknown;
+				}) =>
+					children({
+						state: { value: "", meta: { errors: [] } },
+						handleBlur: () => undefined,
+						handleChange: () => undefined,
+						name: "field",
+					}),
+				Subscribe: ({ children }: { children: (state: unknown) => unknown }) =>
+					children({ canSubmit: true, isSubmitting: false }),
+				handleSubmit: () => Promise.resolve(),
+			},
+			selectedStoreId: undefined,
+			selectedTournamentId: undefined,
+			selectedCurrencyId: undefined,
+			isBuyInLocked: false,
+			isEntryFeeLocked: false,
+			isStartingStackLocked: false,
+			isCurrencyLocked: false,
+			handleStoreChange: () => undefined,
+			handleTournamentChange: () => undefined,
+			handleCurrencyChange: () => undefined,
+		}),
 	})
 );
 
@@ -227,7 +277,8 @@ describe("Single-session guard — no active session", () => {
 		const router = createTestRouter(() => <DialogTestPage open />);
 		render(<RouterProvider router={router} />);
 
-		await screen.findByTestId("cash-game-form");
+		// Cash game form renders "Initial Buy-in" label
+		await screen.findByText("Initial Buy-in");
 	});
 
 	it("switches to tournament form when Tournament tab is clicked", async () => {
@@ -238,8 +289,9 @@ describe("Single-session guard — no active session", () => {
 		await screen.findByRole("tab", { name: "Tournament" });
 		await user.click(screen.getByRole("tab", { name: "Tournament" }));
 
-		await screen.findByTestId("tournament-form");
-		expect(screen.queryByTestId("cash-game-form")).not.toBeInTheDocument();
+		// Tournament form renders "Starting Stack" label
+		await screen.findByText("Starting Stack");
+		expect(screen.queryByText("Initial Buy-in")).not.toBeInTheDocument();
 	});
 });
 

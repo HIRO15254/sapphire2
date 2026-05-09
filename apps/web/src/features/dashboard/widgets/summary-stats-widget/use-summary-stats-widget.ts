@@ -71,6 +71,63 @@ interface UseSummaryStatsWidgetResult {
 	summary: SummaryStatsSummary | undefined;
 }
 
+function computeSummaryFromItems(
+	items: Array<{
+		kind: string;
+		cashBuyIn: number | null;
+		cashOut: number | null;
+		evCashOut: number | null;
+		tournamentBuyIn: number | null;
+		tournamentEntryFee: number | null;
+		prizeMoney: number | null;
+	}>
+): SummaryStatsSummary {
+	let totalProfitLoss = 0;
+	let totalEvProfitLoss = 0;
+	let hasEvData = false;
+	let wins = 0;
+
+	for (const item of items) {
+		let pl: number;
+		let evPl: number | null = null;
+
+		if (item.kind === "tournament") {
+			pl =
+				(item.prizeMoney ?? 0) -
+				(item.tournamentBuyIn ?? 0) -
+				(item.tournamentEntryFee ?? 0);
+		} else {
+			pl = (item.cashOut ?? 0) - (item.cashBuyIn ?? 0);
+			if (item.evCashOut !== null) {
+				evPl = item.evCashOut - (item.cashBuyIn ?? 0);
+				hasEvData = true;
+			}
+		}
+
+		totalProfitLoss += pl;
+		totalEvProfitLoss += evPl ?? pl;
+
+		if (pl > 0) {
+			wins += 1;
+		}
+	}
+
+	const totalSessions = items.length;
+	const winRate = totalSessions > 0 ? wins / totalSessions : 0;
+	const avgProfitLoss =
+		totalSessions > 0 ? totalProfitLoss / totalSessions : null;
+	const totalEvDiff = hasEvData ? totalEvProfitLoss - totalProfitLoss : null;
+
+	return {
+		avgProfitLoss,
+		totalEvDiff,
+		totalEvProfitLoss: hasEvData ? totalEvProfitLoss : null,
+		totalProfitLoss,
+		totalSessions,
+		winRate,
+	};
+}
+
 export function useSummaryStatsWidget(
 	config: Record<string, unknown>
 ): UseSummaryStatsWidgetResult {
@@ -87,9 +144,13 @@ export function useSummaryStatsWidget(
 		})
 	);
 
+	const summary: SummaryStatsSummary | undefined = query.data
+		? computeSummaryFromItems(query.data.items)
+		: undefined;
+
 	return {
 		isLoading: query.isLoading,
 		metrics: parsed.metrics,
-		summary: query.data?.summary as SummaryStatsSummary | undefined,
+		summary,
 	};
 }

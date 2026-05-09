@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { CreateSessionDialog } from "@/features/live-sessions/components/create-session-dialog";
+import { CreateLiveSessionDialog } from "@/features/sessions/components/create-live-session-dialog";
 import { cn } from "@/lib/utils";
 import {
 	isActiveItem,
@@ -113,7 +113,7 @@ export function MobileNav() {
 			</nav>
 
 			{!hasActive && (
-				<CreateSessionDialog
+				<CreateLiveSessionDialog
 					onOpenChange={onCreateOpenChange}
 					open={isCreateOpen}
 				/>

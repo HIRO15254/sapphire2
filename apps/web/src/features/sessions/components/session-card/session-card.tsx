@@ -23,99 +23,91 @@ interface SessionCardProps {
 	bbBiMode?: boolean;
 	onDelete: (id: string) => void;
 	onEdit: (session: SessionCardProps["session"]) => void;
-	onReopen?: (liveCashGameSessionId: string) => void;
+	onReopen?: (sessionId: string) => void;
 	onViewEvents?: (input: {
 		sessionId: string;
 		sessionType: "cash-game" | "tournament";
 	}) => void;
 	session: {
-		addonCost: number | null;
 		beforeDeadline: boolean | null;
 		bountyPrizes: number | null;
 		breakMinutes: number | null;
-		buyIn: number | null;
+		cashBuyIn: number | null;
 		cashOut: number | null;
-		createdAt: string;
+		cashRingGameId: string | null;
+		cashRuleName: string | null;
+		createdAt: string | Date;
 		currencyId: string | null;
 		currencyName: string | null;
 		currencyUnit: string | null;
-		endedAt: string | null;
-		entryFee: number | null;
+		endedAt: string | Date | null;
 		evCashOut: number | null;
-		evDiff: number | null;
-		evProfitLoss: number | null;
 		id: string;
-		liveCashGameSessionId: string | null;
-		liveTournamentSessionId: string | null;
+		kind: string;
 		memo: string | null;
 		placement: number | null;
 		prizeMoney: number | null;
-		profitLoss: number | null;
-		rebuyCost: number | null;
-		rebuyCount: number | null;
-		ringGameBlind2: number | null;
-		ringGameId: string | null;
 		ringGameName: string | null;
-		sessionDate: string;
-		startedAt: string | null;
+		sessionDate: string | Date;
+		source: string;
+		startedAt: string | Date | null;
+		status: string;
 		storeId: string | null;
 		storeName: string | null;
 		tags: Array<{ id: string; name: string }>;
 		totalEntries: number | null;
 		tournamentBuyIn: number | null;
+		tournamentEntryFee: number | null;
 		tournamentId: string | null;
 		tournamentName: string | null;
-		type: string;
-		// CTI discriminators — added in Phase 1 DB migration
-		source: string;
-		status: string;
+		tournamentRuleName: string | null;
 	};
 }
 
 function getGameName(session: SessionCardProps["session"]): string {
-	if (session.type === "tournament" && session.tournamentName) {
+	if (session.kind === "tournament" && session.tournamentName) {
 		return session.tournamentName;
 	}
-	if (session.type === "cash_game" && session.ringGameName) {
+	if (session.kind === "cash_game" && session.ringGameName) {
 		return session.ringGameName;
 	}
-	return session.type === "tournament" ? "Tournament" : "Cash Game";
+	return session.kind === "tournament" ? "Tournament" : "Cash Game";
 }
 
-function toBB(value: number, blind2: number | null): number | null {
-	if (blind2 === null || blind2 === 0) {
-		return null;
+function computeCashProfitLoss(session: SessionCardProps["session"]): number {
+	return (session.cashOut ?? 0) - (session.cashBuyIn ?? 0);
+}
+
+function computeTournamentProfitLoss(
+	session: SessionCardProps["session"]
+): number {
+	const income = session.prizeMoney ?? 0;
+	const cost =
+		(session.tournamentBuyIn ?? 0) + (session.tournamentEntryFee ?? 0);
+	return income - cost;
+}
+
+function computeProfitLoss(session: SessionCardProps["session"]): number {
+	if (session.kind === "tournament") {
+		return computeTournamentProfitLoss(session);
 	}
-	return value / blind2;
-}
-
-function computeTotalCost(session: SessionCardProps["session"]): number {
-	return (
-		(session.tournamentBuyIn ?? 0) +
-		(session.entryFee ?? 0) +
-		(session.rebuyCount ?? 0) * (session.rebuyCost ?? 0) +
-		(session.addonCost ?? 0)
-	);
-}
-
-function toBI(profitLoss: number, totalCost: number): number | null {
-	if (totalCost === 0) {
-		return null;
-	}
-	return profitLoss / totalCost;
-}
-
-function formatBBBI(value: number, unit: "BB" | "BI"): string {
-	const decimals = unit === "BI" ? 2 : 1;
-	return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)} ${unit}`;
+	return computeCashProfitLoss(session);
 }
 
 function formatDuration(
-	startedAt: string,
-	endedAt: string,
+	startedAt: string | Date,
+	endedAt: string | Date,
 	breakMinutes?: number | null
 ): string {
-	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+	const startMs =
+		typeof startedAt === "string"
+			? new Date(startedAt).getTime()
+			: startedAt.getTime();
+	const endMs =
+		typeof endedAt === "string"
+			? new Date(endedAt).getTime()
+			: endedAt.getTime();
+	const diffMs = endMs - startMs;
 	const breakMs = (breakMinutes ?? 0) * 60 * 1000;
 	const hours = (diffMs - breakMs) / (1000 * 60 * 60);
 	return `${hours.toFixed(1)}h`;
@@ -130,66 +122,28 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 	);
 }
 
-function formatDetailValue(
-	value: number,
-	blind2: number | null,
-	bbBiMode?: boolean
-): string {
-	if (bbBiMode) {
-		const bb = toBB(value, blind2);
-		if (bb !== null) {
-			return `${bb.toFixed(1)} BB`;
-		}
-	}
-	return formatCompactNumber(value);
-}
-
 function CashGameDetails({
-	bbBiMode,
 	session,
 }: {
-	bbBiMode?: boolean;
 	session: SessionCardProps["session"];
 }) {
 	const rows: Array<{ label: string; value: string }> = [];
-	if (session.buyIn !== null) {
+	if (session.cashBuyIn !== null) {
 		rows.push({
 			label: "Buy-in",
-			value: formatDetailValue(session.buyIn, session.ringGameBlind2, bbBiMode),
+			value: formatCompactNumber(session.cashBuyIn),
 		});
 	}
 	if (session.cashOut !== null) {
 		rows.push({
 			label: "Cash-out",
-			value: formatDetailValue(
-				session.cashOut,
-				session.ringGameBlind2,
-				bbBiMode
-			),
+			value: formatCompactNumber(session.cashOut),
 		});
 	}
 	if (session.evCashOut !== null) {
 		rows.push({
 			label: "EV Cash-out",
-			value: formatDetailValue(
-				session.evCashOut,
-				session.ringGameBlind2,
-				bbBiMode
-			),
-		});
-	}
-	if (session.evProfitLoss !== null) {
-		const evValue = bbBiMode
-			? (() => {
-					const bb = toBB(session.evProfitLoss, session.ringGameBlind2);
-					return bb === null
-						? formatProfitLoss(session.evProfitLoss)
-						: formatBBBI(bb, "BB");
-				})()
-			: formatProfitLoss(session.evProfitLoss);
-		rows.push({
-			label: "EV P&L",
-			value: evValue,
+			value: formatCompactNumber(session.evCashOut),
 		});
 	}
 	if (session.currencyName) {
@@ -226,10 +180,10 @@ function TournamentDetails({
 			value: formatCompactNumber(session.tournamentBuyIn),
 		});
 	}
-	if (session.entryFee !== null && session.entryFee > 0) {
+	if (session.tournamentEntryFee !== null && session.tournamentEntryFee > 0) {
 		rows.push({
 			label: "Entry Fee",
-			value: formatCompactNumber(session.entryFee),
+			value: formatCompactNumber(session.tournamentEntryFee),
 		});
 	}
 	if (session.prizeMoney !== null && session.prizeMoney > 0) {
@@ -242,19 +196,6 @@ function TournamentDetails({
 		rows.push({
 			label: "Bounty",
 			value: formatCompactNumber(session.bountyPrizes),
-		});
-	}
-	if (session.rebuyCount !== null && session.rebuyCount > 0) {
-		const cost = session.rebuyCost ?? 0;
-		rows.push({
-			label: "Rebuy",
-			value: `${session.rebuyCount} × ${formatCompactNumber(cost)}`,
-		});
-	}
-	if (session.addonCost !== null && session.addonCost > 0) {
-		rows.push({
-			label: "Addon",
-			value: formatCompactNumber(session.addonCost),
 		});
 	}
 	if (session.currencyName) {
@@ -279,62 +220,21 @@ function TournamentDetails({
 	);
 }
 
-function getPlDisplay(
-	session: SessionCardProps["session"],
-	profitLoss: number,
-	bbBiMode?: boolean
-): string {
-	if (!bbBiMode) {
-		return formatProfitLoss(profitLoss, { currencyUnit: session.currencyUnit });
-	}
-	if (session.type === "tournament") {
-		const bi = toBI(profitLoss, computeTotalCost(session));
-		return bi === null
-			? formatProfitLoss(profitLoss, { currencyUnit: session.currencyUnit })
-			: formatBBBI(bi, "BI");
-	}
-	const bb = toBB(profitLoss, session.ringGameBlind2);
-	return bb === null
-		? formatProfitLoss(profitLoss, { currencyUnit: session.currencyUnit })
-		: formatBBBI(bb, "BB");
-}
-
-function getEvDisplay(
-	session: SessionCardProps["session"],
-	bbBiMode?: boolean
-): string | null {
-	if (session.type === "tournament" || session.evProfitLoss === null) {
-		return null;
-	}
-	if (!bbBiMode) {
-		return formatProfitLoss(session.evProfitLoss, {
-			currencyUnit: session.currencyUnit,
-		});
-	}
-	const evBB = toBB(session.evProfitLoss, session.ringGameBlind2);
-	return evBB === null
-		? formatProfitLoss(session.evProfitLoss, {
-				currencyUnit: session.currencyUnit,
-			})
-		: formatBBBI(evBB, "BB");
-}
-
 function SessionHeader({
-	bbBiMode,
+	bbBiMode: _bbBiMode,
 	session,
 }: {
 	bbBiMode?: boolean;
 	session: SessionCardProps["session"];
 }) {
-	const profitLoss = session.profitLoss ?? 0;
-	const isTournament = session.type === "tournament";
-	const hasLiveRecording =
-		session.liveCashGameSessionId !== null ||
-		session.liveTournamentSessionId !== null;
-	const plDisplay = getPlDisplay(session, profitLoss, bbBiMode);
+	const profitLoss = computeProfitLoss(session);
+	const isTournament = session.kind === "tournament";
+	const isLive = session.source === "live";
+	const plDisplay = formatProfitLoss(profitLoss, {
+		currencyUnit: session.currencyUnit,
+	});
 	const profitColorClass = profitLossColorClass(profitLoss);
 	const gameName = getGameName(session);
-	const evDisplay = getEvDisplay(session, bbBiMode);
 
 	return (
 		<>
@@ -352,7 +252,7 @@ function SessionHeader({
 								size={16}
 							/>
 						)}
-						{hasLiveRecording && (
+						{isLive && (
 							<IconBolt
 								className="absolute -right-1 -bottom-1 text-green-500 dark:text-green-400"
 								size={10}
@@ -370,7 +270,11 @@ function SessionHeader({
 					<div className="flex items-center gap-3">
 						<span className="flex items-center gap-0.5">
 							<IconCalendar className="shrink-0" size={12} />
-							{formatYmdSlash(session.sessionDate)}
+							{formatYmdSlash(
+								typeof session.sessionDate === "string"
+									? session.sessionDate
+									: session.sessionDate.toISOString()
+							)}
 						</span>
 						{session.startedAt && session.endedAt && (
 							<span className="flex items-center gap-0.5">
@@ -409,20 +313,6 @@ function SessionHeader({
 							{" place"}
 						</span>
 					)}
-				{evDisplay !== null && (
-					<span className="text-[10px] text-muted-foreground">
-						EV{" "}
-						<span
-							className={
-								(session.evProfitLoss ?? 0) >= 0
-									? "text-green-600"
-									: "text-red-600"
-							}
-						>
-							{evDisplay}
-						</span>
-					</span>
-				)}
 			</div>
 		</>
 	);
@@ -437,9 +327,8 @@ export function SessionCard({
 	onViewEvents,
 }: SessionCardProps) {
 	const { isSharing, onShare } = useSessionCard(session);
-	const isTournament = session.type === "tournament";
-	const liveSessionId =
-		session.liveCashGameSessionId ?? session.liveTournamentSessionId;
+	const isTournament = session.kind === "tournament";
+	const isLive = session.source === "live";
 
 	return (
 		<EntityListItem
@@ -468,7 +357,7 @@ export function SessionCard({
 				{isTournament ? (
 					<TournamentDetails session={session} />
 				) : (
-					<CashGameDetails bbBiMode={bbBiMode} session={session} />
+					<CashGameDetails session={session} />
 				)}
 				{session.memo && (
 					<div className="mt-2 border-t pt-2">
@@ -477,14 +366,14 @@ export function SessionCard({
 						</p>
 					</div>
 				)}
-				{liveSessionId && (
+				{isLive && (
 					<div className="mt-2 flex items-center gap-2 border-t pt-2">
 						{onViewEvents && (
 							<Button
 								className="px-0"
 								onClick={() =>
 									onViewEvents({
-										sessionId: liveSessionId,
+										sessionId: session.id,
 										sessionType: isTournament ? "tournament" : "cash-game",
 									})
 								}
@@ -496,10 +385,10 @@ export function SessionCard({
 								Events
 							</Button>
 						)}
-						{onReopen && (
+						{onReopen && session.status === "completed" && (
 							<Button
 								className="px-0"
-								onClick={() => onReopen(liveSessionId)}
+								onClick={() => onReopen(session.id)}
 								size="xs"
 								type="button"
 								variant="link"

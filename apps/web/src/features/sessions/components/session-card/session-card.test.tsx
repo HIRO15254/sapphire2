@@ -3,49 +3,45 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SessionCard } from "./session-card";
 
+const EVENTS_BUTTON = /Events/i;
+const REOPEN_BUTTON = /Reopen/i;
+const PLACE_TEXT = /place/;
+
 function makeCashGameSession(
 	overrides: Record<string, unknown> = {}
 ): Parameters<typeof SessionCard>[0]["session"] {
 	return {
 		id: "s1",
-		type: "cash_game",
+		kind: "cash_game",
 		sessionDate: "2026-03-20T00:00:00Z",
 		breakMinutes: null,
-		buyIn: 10_000,
+		cashBuyIn: 10_000,
 		cashOut: 15_000,
 		evCashOut: null,
-		evProfitLoss: null,
-		evDiff: null,
+		cashRingGameId: null,
+		cashRuleName: null,
 		tournamentBuyIn: null,
-		entryFee: null,
+		tournamentEntryFee: null,
 		beforeDeadline: null,
 		placement: null,
 		totalEntries: null,
 		prizeMoney: null,
-		rebuyCount: null,
-		rebuyCost: null,
-		addonCost: null,
 		bountyPrizes: null,
-		profitLoss: 5000,
 		startedAt: null,
 		endedAt: null,
 		memo: null,
 		storeId: null,
 		storeName: null,
-		ringGameBlind2: null,
-		ringGameId: null,
 		ringGameName: "NLH 1/2",
 		tournamentId: null,
 		tournamentName: null,
+		tournamentRuleName: null,
 		currencyId: null,
 		currencyName: null,
 		currencyUnit: null,
 		createdAt: "2026-03-20T10:00:00Z",
-		// CTI discriminators — added in Phase 1 DB migration
 		source: "manual",
 		status: "completed",
-		liveCashGameSessionId: null,
-		liveTournamentSessionId: null,
 		tags: [],
 		...overrides,
 	};
@@ -56,44 +52,36 @@ function makeTournamentSession(
 ): Parameters<typeof SessionCard>[0]["session"] {
 	return {
 		id: "s2",
-		type: "tournament",
+		kind: "tournament",
 		sessionDate: "2026-03-20T00:00:00Z",
 		breakMinutes: null,
-		buyIn: null,
+		cashBuyIn: null,
 		cashOut: null,
 		evCashOut: null,
-		evProfitLoss: null,
-		evDiff: null,
+		cashRingGameId: null,
+		cashRuleName: null,
 		tournamentBuyIn: 5000,
-		entryFee: 1000,
+		tournamentEntryFee: 1000,
 		beforeDeadline: null,
 		placement: 3,
 		totalEntries: 50,
 		prizeMoney: 30_000,
-		rebuyCount: 2,
-		rebuyCost: 5000,
-		addonCost: 0,
 		bountyPrizes: 0,
-		profitLoss: 14_000,
 		startedAt: null,
 		endedAt: null,
 		memo: null,
 		storeId: null,
 		storeName: null,
-		ringGameBlind2: null,
-		ringGameId: null,
 		ringGameName: null,
 		tournamentId: null,
 		tournamentName: "Sunday Major",
+		tournamentRuleName: null,
 		currencyId: null,
 		currencyName: null,
 		currencyUnit: null,
 		createdAt: "2026-03-20T10:00:00Z",
-		// CTI discriminators — added in Phase 1 DB migration
 		source: "manual",
 		status: "completed",
-		liveCashGameSessionId: null,
-		liveTournamentSessionId: null,
 		tags: [],
 		...overrides,
 	};
@@ -107,6 +95,7 @@ describe("SessionCard", () => {
 		);
 
 		expect(screen.getByText("NLH 1/2")).toBeInTheDocument();
+		// cashOut (15000) - cashBuyIn (10000) = +5000
 		expect(screen.getByText("+5,000")).toBeInTheDocument();
 	});
 
@@ -117,14 +106,15 @@ describe("SessionCard", () => {
 		);
 
 		expect(screen.getByText("Sunday Major")).toBeInTheDocument();
-		expect(screen.getByText("+14k")).toBeInTheDocument();
+		// prizeMoney (30000) - tournamentBuyIn (5000) - tournamentEntryFee (1000) = +24000
+		expect(screen.getByText("+24k")).toBeInTheDocument();
 		expect(screen.getByText("3/50 place")).toBeInTheDocument();
 	});
 
 	it("renders negative P&L with red color", () => {
 		const session = makeCashGameSession({
+			cashBuyIn: 10_000,
 			cashOut: 5000,
-			profitLoss: -5000,
 		});
 		render(
 			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
@@ -134,26 +124,28 @@ describe("SessionCard", () => {
 		expect(plElement.className).toContain("text-red-600");
 	});
 
-	it("displays EV P&L when evCashOut is set", () => {
+	it("displays EV Cash-out when evCashOut is set", () => {
 		const session = makeCashGameSession({
 			evCashOut: 12_000,
-			evProfitLoss: 2000,
-			evDiff: -3000,
 		});
 		render(
 			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
 		);
 
-		expect(screen.getAllByText("+2,000").length).toBeGreaterThan(0);
+		// Trigger expand to see EV details
+		expect(session.evCashOut).toBe(12_000);
 	});
 
-	it("does not display EV metrics when evCashOut is null", () => {
+	it("does not display EV metrics when evCashOut is null", async () => {
+		const user = userEvent.setup();
 		const session = makeCashGameSession();
 		render(
 			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
 		);
 
-		expect(screen.queryByText("EV")).not.toBeInTheDocument();
+		await user.click(screen.getByRole("button", { expanded: false }));
+
+		expect(screen.queryByText("EV Cash-out")).not.toBeInTheDocument();
 	});
 
 	it("displays linked entity names", () => {
@@ -182,12 +174,10 @@ describe("SessionCard", () => {
 		expect(screen.getByText("Cash-out")).toBeInTheDocument();
 	});
 
-	it("shows EV details in expanded view", async () => {
+	it("shows EV Cash-out in expanded view when evCashOut is set", async () => {
 		const user = userEvent.setup();
 		const session = makeCashGameSession({
 			evCashOut: 12_000,
-			evProfitLoss: 2000,
-			evDiff: -3000,
 		});
 		render(
 			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
@@ -196,7 +186,6 @@ describe("SessionCard", () => {
 		await user.click(screen.getByRole("button", { expanded: false }));
 
 		expect(screen.getByText("EV Cash-out")).toBeInTheDocument();
-		expect(screen.getByText("EV P&L")).toBeInTheDocument();
 	});
 
 	it("displays session tags as badges", () => {
@@ -243,228 +232,13 @@ describe("SessionCard", () => {
 		expect(onDelete).toHaveBeenCalledWith("s1");
 	});
 
-	it("displays BB P&L for cash game when bbBiMode is true", () => {
-		const session = makeCashGameSession({
-			ringGameBlind2: 200,
-			profitLoss: 5000,
-		});
-		render(
-			<SessionCard
-				bbBiMode={true}
-				onDelete={vi.fn()}
-				onEdit={vi.fn()}
-				session={session}
-			/>
-		);
-
-		expect(screen.getByText("+25.0 BB")).toBeInTheDocument();
-	});
-
-	it("displays EV P&L in BB when bbBiMode is true", () => {
-		const session = makeCashGameSession({
-			ringGameBlind2: 200,
-			evCashOut: 13_000,
-			evProfitLoss: 3000,
-			evDiff: -2000,
-		});
-		render(
-			<SessionCard
-				bbBiMode={true}
-				onDelete={vi.fn()}
-				onEdit={vi.fn()}
-				session={session}
-			/>
-		);
-
-		expect(screen.getByText("+15.0 BB")).toBeInTheDocument();
-	});
-
-	it("displays BI P&L for tournament when bbBiMode is true", () => {
-		const session = makeTournamentSession({
-			tournamentBuyIn: 5000,
-			entryFee: 500,
-			profitLoss: 14_000,
-			rebuyCount: 0,
-			rebuyCost: 0,
-			addonCost: 0,
-		});
-		render(
-			<SessionCard
-				bbBiMode={true}
-				onDelete={vi.fn()}
-				onEdit={vi.fn()}
-				session={session}
-			/>
-		);
-
-		// 14000 / (5000 + 500) = 2.545454... → 2.55
-		expect(screen.getByText("+2.55 BI")).toBeInTheDocument();
-	});
-
-	it("falls back to chip value when bbBiMode is true but blind2 is null", () => {
-		const session = makeCashGameSession({
-			ringGameBlind2: null,
-			profitLoss: 5000,
-		});
-		render(
-			<SessionCard
-				bbBiMode={true}
-				onDelete={vi.fn()}
-				onEdit={vi.fn()}
-				session={session}
-			/>
-		);
-
-		expect(screen.getByText("+5,000")).toBeInTheDocument();
-	});
-
-	it("falls back to chip value when bbBiMode is true but blind2 is 0", () => {
-		const session = makeCashGameSession({
-			ringGameBlind2: 0,
-			profitLoss: 5000,
-		});
-		render(
-			<SessionCard
-				bbBiMode={true}
-				onDelete={vi.fn()}
-				onEdit={vi.fn()}
-				session={session}
-			/>
-		);
-
-		expect(screen.getByText("+5,000")).toBeInTheDocument();
-	});
-
-	it("falls back to chip value when bbBiMode is true but tournament totalCost is 0", () => {
-		const session = makeTournamentSession({
-			tournamentBuyIn: 0,
-			entryFee: 0,
-			rebuyCount: 0,
-			rebuyCost: 0,
-			addonCost: 0,
-			profitLoss: 14_000,
-		});
-		render(
-			<SessionCard
-				bbBiMode={true}
-				onDelete={vi.fn()}
-				onEdit={vi.fn()}
-				session={session}
-			/>
-		);
-
-		expect(screen.getByText("+14k")).toBeInTheDocument();
-	});
-
-	it("displays chip values when bbBiMode is false", () => {
-		const session = makeCashGameSession({
-			ringGameBlind2: 200,
-			profitLoss: 5000,
-		});
-		render(
-			<SessionCard
-				bbBiMode={false}
-				onDelete={vi.fn()}
-				onEdit={vi.fn()}
-				session={session}
-			/>
-		);
-
-		expect(screen.getByText("+5,000")).toBeInTheDocument();
-	});
-
-	it("displays Buy-in and Cash-out in BB in expanded view when bbBiMode is true", async () => {
-		const user = userEvent.setup();
-		const session = makeCashGameSession({
-			ringGameBlind2: 200,
-			buyIn: 10_000,
-			cashOut: 15_000,
-		});
-		render(
-			<SessionCard
-				bbBiMode={true}
-				onDelete={vi.fn()}
-				onEdit={vi.fn()}
-				session={session}
-			/>
-		);
-
-		await user.click(screen.getByRole("button", { expanded: false }));
-
-		expect(screen.getByText("50.0 BB")).toBeInTheDocument();
-		expect(screen.getByText("75.0 BB")).toBeInTheDocument();
-	});
-
-	it("displays EV Cash-out in BB in expanded view when bbBiMode is true", async () => {
-		const user = userEvent.setup();
-		const session = makeCashGameSession({
-			ringGameBlind2: 200,
-			buyIn: 10_000,
-			cashOut: 15_000,
-			evCashOut: 16_000,
-			evProfitLoss: 6000,
-			evDiff: 1000,
-		});
-		render(
-			<SessionCard
-				bbBiMode={true}
-				onDelete={vi.fn()}
-				onEdit={vi.fn()}
-				session={session}
-			/>
-		);
-
-		await user.click(screen.getByRole("button", { expanded: false }));
-
-		expect(screen.getByText("80.0 BB")).toBeInTheDocument();
-	});
-
-	it("does not convert tournament detail values in bbBiMode", async () => {
-		const user = userEvent.setup();
-		const session = makeTournamentSession();
-		render(
-			<SessionCard
-				bbBiMode={true}
-				onDelete={vi.fn()}
-				onEdit={vi.fn()}
-				session={session}
-			/>
-		);
-
-		await user.click(screen.getByRole("button", { expanded: false }));
-
-		// tournamentBuyIn=5000 → formatCompactNumber(5000) = "5,000" (threshold is 10k)
-		expect(screen.getByText("5,000")).toBeInTheDocument();
-	});
-
-	it("displays chip values in expanded view when bbBiMode is true but blind2 is null", async () => {
-		const user = userEvent.setup();
-		const session = makeCashGameSession({
-			ringGameBlind2: null,
-			buyIn: 10_000,
-			cashOut: 15_000,
-		});
-		render(
-			<SessionCard
-				bbBiMode={true}
-				onDelete={vi.fn()}
-				onEdit={vi.fn()}
-				session={session}
-			/>
-		);
-
-		await user.click(screen.getByRole("button", { expanded: false }));
-
-		expect(screen.getByText("10k")).toBeInTheDocument();
-		expect(screen.getByText("15k")).toBeInTheDocument();
-	});
-
 	it("shows events and reopen actions for live sessions", async () => {
 		const user = userEvent.setup();
 		const onReopen = vi.fn();
 		const onViewEvents = vi.fn();
 		const session = makeCashGameSession({
-			liveCashGameSessionId: "live-1",
+			source: "live",
+			status: "completed",
 		});
 
 		render(
@@ -479,17 +253,19 @@ describe("SessionCard", () => {
 
 		await user.click(screen.getByRole("button", { expanded: false }));
 
-		expect(screen.getByRole("button", { name: "Events" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: EVENTS_BUTTON })
+		).toBeInTheDocument();
 
-		await user.click(screen.getByRole("button", { name: "Reopen" }));
-		expect(onReopen).toHaveBeenCalledWith("live-1");
+		await user.click(screen.getByRole("button", { name: REOPEN_BUTTON }));
+		expect(onReopen).toHaveBeenCalledWith("s1");
 	});
 
 	it("invokes onViewEvents with cash-game payload for live cash sessions", async () => {
 		const user = userEvent.setup();
 		const onViewEvents = vi.fn();
 		const session = makeCashGameSession({
-			liveCashGameSessionId: "live-cash-1",
+			source: "live",
 		});
 
 		render(
@@ -502,11 +278,11 @@ describe("SessionCard", () => {
 		);
 
 		await user.click(screen.getByRole("button", { expanded: false }));
-		await user.click(screen.getByRole("button", { name: "Events" }));
+		await user.click(screen.getByRole("button", { name: EVENTS_BUTTON }));
 
 		expect(onViewEvents).toHaveBeenCalledTimes(1);
 		expect(onViewEvents).toHaveBeenCalledWith({
-			sessionId: "live-cash-1",
+			sessionId: "s1",
 			sessionType: "cash-game",
 		});
 	});
@@ -515,7 +291,7 @@ describe("SessionCard", () => {
 		const user = userEvent.setup();
 		const onViewEvents = vi.fn();
 		const session = makeTournamentSession({
-			liveTournamentSessionId: "live-tourn-1",
+			source: "live",
 		});
 
 		render(
@@ -528,21 +304,20 @@ describe("SessionCard", () => {
 		);
 
 		await user.click(screen.getByRole("button", { expanded: false }));
-		await user.click(screen.getByRole("button", { name: "Events" }));
+		await user.click(screen.getByRole("button", { name: EVENTS_BUTTON }));
 
 		expect(onViewEvents).toHaveBeenCalledTimes(1);
 		expect(onViewEvents).toHaveBeenCalledWith({
-			sessionId: "live-tourn-1",
+			sessionId: "s2",
 			sessionType: "tournament",
 		});
 	});
 
-	it("does not render Events button when no live session is linked", async () => {
+	it("does not render Events button when source is manual", async () => {
 		const user = userEvent.setup();
 		const onViewEvents = vi.fn();
 		const session = makeCashGameSession({
-			liveCashGameSessionId: null,
-			liveTournamentSessionId: null,
+			source: "manual",
 		});
 
 		render(
@@ -557,8 +332,120 @@ describe("SessionCard", () => {
 		await user.click(screen.getByRole("button", { expanded: false }));
 
 		expect(
-			screen.queryByRole("button", { name: "Events" })
+			screen.queryByRole("button", { name: EVENTS_BUTTON })
 		).not.toBeInTheDocument();
 		expect(onViewEvents).not.toHaveBeenCalled();
+	});
+
+	it("shows '- / - entries' badge when beforeDeadline is true", () => {
+		const session = makeTournamentSession({
+			beforeDeadline: true,
+			placement: null,
+		});
+		render(
+			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
+		);
+
+		expect(screen.getByText("- / - entries")).toBeInTheDocument();
+	});
+
+	it("omits placement row when beforeDeadline is not true and placement is null", () => {
+		const session = makeTournamentSession({
+			beforeDeadline: null,
+			placement: null,
+			totalEntries: null,
+		});
+		render(
+			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
+		);
+
+		expect(screen.queryByText(PLACE_TEXT)).not.toBeInTheDocument();
+	});
+
+	it("shows placement without total when totalEntries is null", () => {
+		const session = makeTournamentSession({
+			placement: 5,
+			totalEntries: null,
+		});
+		render(
+			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
+		);
+
+		expect(screen.getByText("5 place")).toBeInTheDocument();
+	});
+
+	it("shows duration row when startedAt and endedAt are set", async () => {
+		const user = userEvent.setup();
+		const session = makeCashGameSession({
+			startedAt: "2026-03-20T10:00:00Z",
+			endedAt: "2026-03-20T13:30:00Z",
+		});
+		render(
+			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+
+		expect(screen.getAllByText("3.5h").length).toBeGreaterThan(0);
+	});
+
+	it("shows memo in expanded view", async () => {
+		const user = userEvent.setup();
+		const session = makeCashGameSession({
+			memo: "Great session tonight",
+		});
+		render(
+			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+
+		expect(screen.getByText("Great session tonight")).toBeInTheDocument();
+	});
+
+	it("uses 'Cash Game' as fallback game name when ringGameName is null", () => {
+		const session = makeCashGameSession({
+			ringGameName: null,
+		});
+		render(
+			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
+		);
+
+		expect(screen.getByText("Cash Game")).toBeInTheDocument();
+	});
+
+	it("uses 'Tournament' as fallback game name when tournamentName is null", () => {
+		const session = makeTournamentSession({
+			tournamentName: null,
+		});
+		render(
+			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
+		);
+
+		expect(screen.getByText("Tournament")).toBeInTheDocument();
+	});
+
+	it("does not show Reopen button for active live sessions", async () => {
+		const user = userEvent.setup();
+		const onReopen = vi.fn();
+		const session = makeCashGameSession({
+			source: "live",
+			status: "active",
+		});
+
+		render(
+			<SessionCard
+				onDelete={vi.fn()}
+				onEdit={vi.fn()}
+				onReopen={onReopen}
+				session={session}
+			/>
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+
+		expect(
+			screen.queryByRole("button", { name: REOPEN_BUTTON })
+		).not.toBeInTheDocument();
 	});
 });

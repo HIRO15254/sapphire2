@@ -1,19 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { SessionEventsScene } from "@/features/live-sessions/components/session-events-scene";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute(
 	"/live-sessions/$sessionType/$sessionId/events"
 )({
-	component: SessionEventsPage,
+	beforeLoad: ({ params }) => {
+		throw redirect({
+			to: "/sessions/$id",
+			params: { id: params.sessionId },
+			replace: true,
+		});
+	},
+	component: () => null,
 });
-
-function SessionEventsPage() {
-	const { sessionId, sessionType } = Route.useParams();
-
-	return (
-		<SessionEventsScene
-			sessionId={sessionId}
-			sessionType={sessionType === "tournament" ? "tournament" : "cash_game"}
-		/>
-	);
-}
