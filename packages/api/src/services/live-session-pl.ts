@@ -1,3 +1,7 @@
+/**
+ * @deprecated Use `packages/api/src/services/session-projection/` instead.
+ * This file will be removed in Phase 4.
+ */
 import type { SessionStatus } from "@sapphire2/db/constants/session-event-types";
 import {
 	allInPayload,
