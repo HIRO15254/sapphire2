@@ -68,13 +68,9 @@ function makeGame(overrides: Partial<RingGame> = {}): RingGame {
 	return {
 		id: "r1",
 		name: "NLH 1/2",
-		variant: "holdem",
+		variantId: null,
 		storeId: STORE_ID,
-		blind1: 1,
-		blind2: 2,
-		blind3: null,
-		ante: null,
-		anteType: "none",
+		blindSets: [],
 		tableSize: 9,
 		minBuyIn: 40,
 		maxBuyIn: 200,
@@ -178,7 +174,7 @@ describe("useRingGames", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
-				result.current.create({ name: "PLO", variant: "plo" });
+				result.current.create({ name: "PLO", variantId: 2 });
 			});
 			await waitFor(() => {
 				const list = qc.getQueryData<RingGame[]>(activeKey);
@@ -200,9 +196,7 @@ describe("useRingGames", () => {
 			await act(async () => {
 				await result.current.create({
 					name: "Mixed",
-					variant: "hold_em",
-					blind1: 5,
-					blind2: 10,
+					variantId: 2,
 					minBuyIn: 200,
 					maxBuyIn: 400,
 				});
@@ -210,11 +204,12 @@ describe("useRingGames", () => {
 			expect(trpcMocks.create).toHaveBeenCalledWith({
 				storeId: STORE_ID,
 				name: "Mixed",
-				variant: "hold_em",
-				blind1: 5,
-				blind2: 10,
+				variantId: 2,
 				minBuyIn: 200,
 				maxBuyIn: 400,
+				tableSize: undefined,
+				currencyId: undefined,
+				memo: undefined,
 			});
 		});
 
@@ -233,7 +228,7 @@ describe("useRingGames", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
-				result.current.create({ name: "X", variant: "holdem" });
+				result.current.create({ name: "X" });
 			});
 			await waitFor(() => expect(result.current.isCreatePending).toBe(true));
 			resolve?.({ id: "x" });
@@ -261,7 +256,6 @@ describe("useRingGames", () => {
 				result.current.update({
 					id: "r1",
 					name: "Renamed",
-					variant: "holdem",
 				});
 			});
 			await waitFor(() => {
@@ -424,9 +418,9 @@ describe("useRingGames", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			await act(async () => {
-				await expect(
-					result.current.create({ name: "X", variant: "holdem" })
-				).rejects.toThrow("boom");
+				await expect(result.current.create({ name: "X" })).rejects.toThrow(
+					"boom"
+				);
 			});
 			expect(activeAtRollback).toEqual(prevActive);
 		});

@@ -13,7 +13,10 @@ const mocks = vi.hoisted(() => ({
 	storeList: vi.fn(),
 	tournamentsByStore: vi.fn(),
 	updateRule: vi.fn(),
-	createWithLevels: vi.fn(),
+	tournamentCreate: vi.fn(),
+	addBlindLevel: vi.fn(),
+	addTag: vi.fn(),
+	cpCreate: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
 }));
@@ -56,7 +59,12 @@ vi.mock("@/utils/trpc", () => ({
 			updateRule: { mutate: mocks.updateRule },
 		},
 		tournament: {
-			createWithLevels: { mutate: mocks.createWithLevels },
+			create: { mutate: mocks.tournamentCreate },
+			addBlindLevel: { mutate: mocks.addBlindLevel },
+			addTag: { mutate: mocks.addTag },
+		},
+		tournamentChipPurchase: {
+			create: { mutate: mocks.cpCreate },
 		},
 	},
 }));
@@ -229,13 +237,14 @@ describe("useAssignTournament", () => {
 			);
 		});
 		expect(mocks.toastError).toHaveBeenCalledWith("Select a store first");
-		expect(mocks.createWithLevels).not.toHaveBeenCalled();
+		expect(mocks.tournamentCreate).not.toHaveBeenCalled();
 	});
 
 	it("handleCreate success chains create + updateRule, toasts, and closes both dialogs", async () => {
 		const qc = createClient();
 		const onOpenChange = vi.fn();
-		mocks.createWithLevels.mockResolvedValue({ id: "new-t" });
+		mocks.tournamentCreate.mockResolvedValue({ id: "new-t" });
+		mocks.addBlindLevel.mockResolvedValue(undefined);
 		mocks.updateRule.mockResolvedValue({ id: "s1" });
 		const { result } = renderHook(
 			() =>
@@ -280,17 +289,19 @@ describe("useAssignTournament", () => {
 				"Tournament created and assigned"
 			)
 		);
-		expect(mocks.createWithLevels).toHaveBeenCalledWith(
+		expect(mocks.tournamentCreate).toHaveBeenCalledWith(
 			expect.objectContaining({
 				storeId: "store-a",
-				blindLevels: [
-					expect.objectContaining({
-						isBreak: false,
-						blind1: 25,
-						blind2: 50,
-						minutes: 20,
-					}),
-				],
+				name: "Main",
+			})
+		);
+		expect(mocks.addBlindLevel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tournamentId: "new-t",
+				levelIndex: 0,
+				isBreak: false,
+				minutes: 20,
+				sortOrder: 0,
 			})
 		);
 		expect(mocks.updateRule).toHaveBeenCalledWith({

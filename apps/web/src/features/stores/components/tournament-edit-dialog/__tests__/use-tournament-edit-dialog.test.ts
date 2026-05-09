@@ -85,7 +85,6 @@ describe("useTournamentEditDialog", () => {
 			startingStack: 10_000,
 			tableSize: 9,
 			chipPurchases: [],
-			variant: "nlh",
 		});
 		expect(result.current.effectiveLevels).toHaveLength(1);
 		expect(result.current.effectiveLevels[0].minutes).toBe(20);

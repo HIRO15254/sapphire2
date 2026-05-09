@@ -7,13 +7,22 @@ import {
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
-export interface RingGame {
+export interface RingGameBlindSet {
 	ante: number | null;
 	anteType: string | null;
-	archivedAt: string | null;
-	blind1: number | null;
-	blind2: number | null;
+	blind1: number;
+	blind2: number;
 	blind3: number | null;
+	blind4: number | null;
+	id: number;
+	limitFormatId: number;
+	ringGameId: string;
+	sortOrder: number;
+}
+
+export interface RingGame {
+	archivedAt: string | null;
+	blindSets: RingGameBlindSet[];
 	createdAt: string;
 	currencyId: string | null;
 	id: string;
@@ -24,7 +33,7 @@ export interface RingGame {
 	storeId: string | null;
 	tableSize: number | null;
 	updatedAt: string;
-	variant: string;
+	variantId: number | null;
 }
 
 export interface RingGameFormValues {
@@ -39,7 +48,8 @@ export interface RingGameFormValues {
 	minBuyIn?: number;
 	name: string;
 	tableSize?: number;
-	variant: string;
+	variant?: string;
+	variantId?: number;
 }
 
 function buildOptimisticRingGame(
@@ -48,12 +58,8 @@ function buildOptimisticRingGame(
 	id: string
 ): RingGame {
 	return {
-		ante: values.ante ?? null,
-		anteType: values.anteType ?? "none",
 		archivedAt: null,
-		blind1: values.blind1 ?? null,
-		blind2: values.blind2 ?? null,
-		blind3: values.blind3 ?? null,
+		blindSets: [],
 		currencyId: values.currencyId ?? null,
 		id,
 		maxBuyIn: values.maxBuyIn ?? null,
@@ -64,7 +70,7 @@ function buildOptimisticRingGame(
 		tableSize: values.tableSize ?? null,
 		createdAt: new Date().toISOString(),
 		updatedAt: new Date().toISOString(),
-		variant: values.variant,
+		variantId: values.variantId ?? null,
 	};
 }
 
@@ -106,7 +112,16 @@ export function useRingGames({ storeId, showArchived }: UseRingGamesOptions) {
 
 	const createMutation = useMutation({
 		mutationFn: (values: RingGameFormValues) =>
-			trpcClient.ringGame.create.mutate({ storeId, ...values }),
+			trpcClient.ringGame.create.mutate({
+				storeId,
+				name: values.name,
+				variantId: values.variantId,
+				minBuyIn: values.minBuyIn,
+				maxBuyIn: values.maxBuyIn,
+				tableSize: values.tableSize,
+				currencyId: values.currencyId,
+				memo: values.memo,
+			}),
 		onMutate: async (values) => {
 			await cancelTargets(queryClient, [
 				{ queryKey: activeQueryOptions.queryKey },
@@ -146,7 +161,16 @@ export function useRingGames({ storeId, showArchived }: UseRingGamesOptions) {
 
 	const updateMutation = useMutation({
 		mutationFn: (values: RingGameFormValues & { id: string }) =>
-			trpcClient.ringGame.update.mutate(values),
+			trpcClient.ringGame.update.mutate({
+				id: values.id,
+				name: values.name,
+				variantId: values.variantId,
+				minBuyIn: values.minBuyIn ?? null,
+				maxBuyIn: values.maxBuyIn ?? null,
+				tableSize: values.tableSize ?? null,
+				currencyId: values.currencyId ?? null,
+				memo: values.memo ?? null,
+			}),
 		onMutate: async (values) => {
 			await cancelTargets(queryClient, [
 				{ queryKey: activeQueryOptions.queryKey },

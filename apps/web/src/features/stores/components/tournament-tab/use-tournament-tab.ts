@@ -15,7 +15,7 @@ function tournamentToInitialFormValues(
 ): TournamentPartialFormValues {
 	return {
 		name: tournament.name,
-		variant: tournament.variant,
+		variantId: tournament.variantId ?? undefined,
 		buyIn: tournament.buyIn ?? undefined,
 		entryFee: tournament.entryFee ?? undefined,
 		startingStack: tournament.startingStack ?? undefined,
@@ -30,17 +30,6 @@ function tournamentToInitialFormValues(
 		memo: tournament.memo ?? undefined,
 		tags: tournament.tags.map((t) => t.name),
 	};
-}
-
-function levelsToPayload(levels: BlindLevelRow[]) {
-	return levels.map((l) => ({
-		isBreak: l.isBreak,
-		blind1: l.blind1,
-		blind2: l.blind2,
-		blind3: l.blind3,
-		ante: l.ante,
-		minutes: l.minutes,
-	}));
 }
 
 interface UseTournamentTabOptions {
@@ -69,7 +58,7 @@ export function useTournamentTab({ storeId }: UseTournamentTabOptions) {
 	} = useTournaments({ storeId, showArchived });
 
 	const editBlindLevelsQuery = useQuery({
-		...trpc.blindLevel.listByTournament.queryOptions({
+		...trpc.tournament.listBlindLevels.queryOptions({
 			tournamentId: editingTournament?.id ?? "",
 		}),
 		enabled: editingTournament !== null,
@@ -97,21 +86,43 @@ export function useTournamentTab({ storeId }: UseTournamentTabOptions) {
 	) => {
 		setIsCreateLoading(true);
 		try {
-			await trpcClient.tournament.createWithLevels.mutate({
+			const { tags, chipPurchases, ...rest } = values;
+			const created = await trpcClient.tournament.create.mutate({
 				storeId,
-				name: values.name,
-				variant: values.variant,
-				buyIn: values.buyIn,
-				entryFee: values.entryFee,
-				startingStack: values.startingStack,
-				bountyAmount: values.bountyAmount,
-				tableSize: values.tableSize,
-				currencyId: values.currencyId,
-				memo: values.memo,
-				tags: values.tags,
-				chipPurchases: values.chipPurchases,
-				blindLevels: levelsToPayload(levels),
+				...rest,
 			});
+			if (tags && tags.length > 0) {
+				await Promise.all(
+					tags.map((name) =>
+						trpcClient.tournament.addTag.mutate({
+							tournamentId: created.id,
+							name,
+						})
+					)
+				);
+			}
+			for (let i = 0; i < levels.length; i++) {
+				const level = levels[i];
+				await trpcClient.tournament.addBlindLevel.mutate({
+					tournamentId: created.id,
+					levelIndex: i,
+					isBreak: level.isBreak,
+					minutes: level.minutes ?? undefined,
+					sortOrder: i,
+				});
+			}
+			if (chipPurchases.length > 0) {
+				await Promise.all(
+					chipPurchases.map((cp) =>
+						trpcClient.tournamentChipPurchase.create.mutate({
+							tournamentId: created.id,
+							name: cp.name,
+							cost: cp.cost,
+							chips: cp.chips,
+						})
+					)
+				);
+			}
 			await invalidateTournamentLists();
 			setIsCreateOpen(false);
 		} finally {
@@ -121,33 +132,41 @@ export function useTournamentTab({ storeId }: UseTournamentTabOptions) {
 
 	const handleUpdate = async (
 		values: TournamentFormValues,
-		levels: BlindLevelRow[]
+		_levels: BlindLevelRow[]
 	) => {
 		if (!editingTournament) {
 			return;
 		}
 		setIsUpdateLoading(true);
 		try {
-			await trpcClient.tournament.updateWithLevels.mutate({
+			const { tags, chipPurchases, ...rest } = values;
+			await trpcClient.tournament.update.mutate({
 				id: editingTournament.id,
-				name: values.name,
-				variant: values.variant,
-				buyIn: values.buyIn ?? null,
-				entryFee: values.entryFee ?? null,
-				startingStack: values.startingStack ?? null,
-				bountyAmount: values.bountyAmount ?? null,
-				tableSize: values.tableSize ?? null,
-				currencyId: values.currencyId ?? null,
-				memo: values.memo ?? null,
-				tags: values.tags,
-				chipPurchases: values.chipPurchases,
-				blindLevels: levelsToPayload(levels),
+				name: rest.name,
+				variantId: rest.variantId ?? null,
+				buyIn: rest.buyIn ?? null,
+				entryFee: rest.entryFee ?? null,
+				startingStack: rest.startingStack ?? null,
+				bountyAmount: rest.bountyAmount ?? null,
+				tableSize: rest.tableSize ?? null,
+				currencyId: rest.currencyId ?? null,
+				memo: rest.memo ?? null,
 			});
+			if (tags !== undefined) {
+				await Promise.all(
+					tags.map((name) =>
+						trpcClient.tournament.addTag.mutate({
+							tournamentId: editingTournament.id,
+							name,
+						})
+					)
+				);
+			}
 			await Promise.all([
 				invalidateTournamentLists(),
 				invalidateTargets(queryClient, [
 					{
-						queryKey: trpc.blindLevel.listByTournament.queryOptions({
+						queryKey: trpc.tournament.listBlindLevels.queryOptions({
 							tournamentId: editingTournament.id,
 						}).queryKey,
 					},
@@ -162,8 +181,22 @@ export function useTournamentTab({ storeId }: UseTournamentTabOptions) {
 	const editInitialFormValues = editingTournament
 		? tournamentToInitialFormValues(editingTournament)
 		: undefined;
-	const editInitialLevels = (editBlindLevelsQuery.data ??
-		[]) as BlindLevelRow[];
+	const editInitialLevels: BlindLevelRow[] = (
+		editBlindLevelsQuery.data ?? []
+	).map((apiLevel) => {
+		const primarySet = apiLevel.blindSets[0];
+		return {
+			id: String(apiLevel.id),
+			tournamentId: apiLevel.tournamentId,
+			level: apiLevel.levelIndex + 1,
+			isBreak: apiLevel.isBreak,
+			blind1: primarySet?.blind1 ?? null,
+			blind2: primarySet?.blind2 ?? null,
+			blind3: primarySet?.blind3 ?? null,
+			ante: primarySet?.ante ?? null,
+			minutes: apiLevel.minutes ?? null,
+		};
+	});
 
 	return {
 		activeTournaments,
@@ -192,10 +225,24 @@ export function useTournamentTab({ storeId }: UseTournamentTabOptions) {
 
 export function useBlindStructureSummary(tournamentId: string) {
 	const levelsQuery = useQuery(
-		trpc.blindLevel.listByTournament.queryOptions({ tournamentId })
+		trpc.tournament.listBlindLevels.queryOptions({ tournamentId })
 	);
+	const levels: BlindLevelRow[] = (levelsQuery.data ?? []).map((apiLevel) => {
+		const primarySet = apiLevel.blindSets[0];
+		return {
+			id: String(apiLevel.id),
+			tournamentId: apiLevel.tournamentId,
+			level: apiLevel.levelIndex + 1,
+			isBreak: apiLevel.isBreak,
+			blind1: primarySet?.blind1 ?? null,
+			blind2: primarySet?.blind2 ?? null,
+			blind3: primarySet?.blind3 ?? null,
+			ante: primarySet?.ante ?? null,
+			minutes: apiLevel.minutes ?? null,
+		};
+	});
 	return {
-		levels: (levelsQuery.data ?? []) as BlindLevelRow[],
+		levels,
 		isLoading: levelsQuery.isLoading,
 	};
 }

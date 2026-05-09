@@ -30,7 +30,9 @@ function buildStackPayload(values: RecordStackValues) {
 	return payload;
 }
 
-type CompleteCashValues = { finalStack: number };
+interface CompleteCashValues {
+	finalStack: number;
+}
 
 type CompleteTournamentValues =
 	| {

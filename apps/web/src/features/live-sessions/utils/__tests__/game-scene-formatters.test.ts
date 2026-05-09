@@ -2,10 +2,30 @@ import { describe, expect, it } from "vitest";
 import {
 	formatAnteSuffix,
 	formatBlindParts,
-	VARIANT_LABELS,
 	variantLabel,
 } from "@/features/live-sessions/utils/game-scene-formatters";
-import type { RingGame } from "@/features/stores/hooks/use-ring-games";
+import type {
+	RingGame,
+	RingGameBlindSet,
+} from "@/features/stores/hooks/use-ring-games";
+
+function makeBlindSet(
+	overrides: Partial<RingGameBlindSet> = {}
+): RingGameBlindSet {
+	return {
+		id: 1,
+		ringGameId: "rg-1",
+		limitFormatId: 1,
+		blind1: 0,
+		blind2: 0,
+		blind3: null,
+		blind4: null,
+		ante: null,
+		anteType: "none",
+		sortOrder: 0,
+		...overrides,
+	};
+}
 
 function ringGame(overrides: Partial<RingGame> = {}): RingGame {
 	return {
@@ -13,15 +33,17 @@ function ringGame(overrides: Partial<RingGame> = {}): RingGame {
 		storeId: "store-1",
 		name: "Test",
 		currencyId: "currency-1",
-		variant: "nlh",
-		blind1: null,
-		blind2: null,
-		blind3: null,
-		ante: null,
-		anteType: "none",
+		variantId: null,
+		blindSets: [],
 		tableSize: 9,
+		minBuyIn: null,
+		maxBuyIn: null,
+		memo: null,
+		archivedAt: null,
+		createdAt: "2026-01-01",
+		updatedAt: "2026-01-01",
 		...overrides,
-	} as RingGame;
+	};
 }
 
 describe("variantLabel", () => {
@@ -34,93 +56,153 @@ describe("variantLabel", () => {
 		expect(variantLabel("mixed")).toBe("MIXED");
 	});
 
-	it("returns empty uppercase for empty string", () => {
+	it("returns empty string for empty string", () => {
 		expect(variantLabel("")).toBe("");
 	});
 
-	it("VARIANT_LABELS exposes known mappings", () => {
-		expect(VARIANT_LABELS.nlh).toBe("NLH");
+	it("returns empty string for null", () => {
+		expect(variantLabel(null)).toBe("");
+	});
+
+	it("returns empty string for undefined", () => {
+		expect(variantLabel(undefined)).toBe("");
 	});
 });
 
 describe("formatBlindParts", () => {
-	it("returns empty string when no blinds are set", () => {
+	it("returns empty string when blindSets is empty", () => {
 		expect(formatBlindParts(ringGame())).toBe("");
 	});
 
-	it("formats blind1 only with trailing '—' placeholder (parts.length > 0 branch)", () => {
-		// Code appends '—' for a missing blind2 whenever blind1 was pushed,
-		// regardless of whether blind3 follows.
-		expect(formatBlindParts(ringGame({ blind1: 100 }))).toBe("100/—");
+	it("returns empty string when blindSets[0] is missing", () => {
+		expect(formatBlindParts(ringGame({ blindSets: [] }))).toBe("");
 	});
 
-	it("formats blind1/blind2", () => {
-		expect(formatBlindParts(ringGame({ blind1: 100, blind2: 200 }))).toBe(
-			"100/200"
-		);
+	it("formats blind1/blind2 from blindSets[0]", () => {
+		expect(
+			formatBlindParts(
+				ringGame({
+					blindSets: [makeBlindSet({ blind1: 100, blind2: 200 })],
+				})
+			)
+		).toBe("100/200");
 	});
 
-	it("inserts '—' when blind2 is missing but blind1 is present", () => {
-		// With blind1 only and blind3 set, blind2 should be '—'.
-		expect(formatBlindParts(ringGame({ blind1: 100, blind3: 300 }))).toBe(
-			"100/—/300"
-		);
+	it("formats blind1/blind2/blind3 from blindSets[0]", () => {
+		expect(
+			formatBlindParts(
+				ringGame({
+					blindSets: [makeBlindSet({ blind1: 100, blind2: 200, blind3: 300 })],
+				})
+			)
+		).toBe("100/200/300");
 	});
 
 	it("uses group formatter across all blinds (compact notation)", () => {
 		expect(
-			formatBlindParts(ringGame({ blind1: 100, blind2: 200, blind3: 10_000 }))
+			formatBlindParts(
+				ringGame({
+					blindSets: [
+						makeBlindSet({ blind1: 100, blind2: 200, blind3: 10_000 }),
+					],
+				})
+			)
 		).toBe("0.1k/0.2k/10k");
 	});
 
-	it("treats 0 as a valid blind value", () => {
-		// blind2 = 0 is !== null, so it should be included.
-		expect(formatBlindParts(ringGame({ blind1: 100, blind2: 0 }))).toBe(
-			"100/0"
-		);
+	it("treats 0 as a valid blind2 value", () => {
+		expect(
+			formatBlindParts(
+				ringGame({
+					blindSets: [makeBlindSet({ blind1: 100, blind2: 0 })],
+				})
+			)
+		).toBe("100/0");
+	});
+
+	it("omits blind3 when null", () => {
+		expect(
+			formatBlindParts(
+				ringGame({
+					blindSets: [makeBlindSet({ blind1: 1, blind2: 2, blind3: null })],
+				})
+			)
+		).toBe("1/2");
 	});
 });
 
 describe("formatAnteSuffix", () => {
 	it("returns empty when anteType is 'none'", () => {
-		expect(formatAnteSuffix(ringGame({ ante: 100, anteType: "none" }))).toBe(
-			""
-		);
+		expect(
+			formatAnteSuffix(
+				ringGame({
+					blindSets: [makeBlindSet({ ante: 100, anteType: "none" })],
+				})
+			)
+		).toBe("");
 	});
 
 	it("returns empty when ante is null", () => {
-		expect(formatAnteSuffix(ringGame({ ante: null, anteType: "bb" }))).toBe("");
+		expect(
+			formatAnteSuffix(
+				ringGame({
+					blindSets: [makeBlindSet({ ante: null, anteType: "bb" })],
+				})
+			)
+		).toBe("");
 	});
 
 	it("returns empty when anteType is null", () => {
 		expect(
 			formatAnteSuffix(
-				ringGame({ ante: 100, anteType: null as unknown as string })
+				ringGame({
+					blindSets: [makeBlindSet({ ante: 100, anteType: null })],
+				})
 			)
 		).toBe("");
 	});
 
+	it("returns empty when blindSets is empty", () => {
+		expect(formatAnteSuffix(ringGame({ blindSets: [] }))).toBe("");
+	});
+
 	it("returns (BBA:x) for bb ante", () => {
-		expect(formatAnteSuffix(ringGame({ ante: 100, anteType: "bb" }))).toBe(
-			"(BBA:100)"
-		);
+		expect(
+			formatAnteSuffix(
+				ringGame({
+					blindSets: [makeBlindSet({ ante: 100, anteType: "bb" })],
+				})
+			)
+		).toBe("(BBA:100)");
 	});
 
 	it("returns (Ante:x) for all ante", () => {
-		expect(formatAnteSuffix(ringGame({ ante: 25, anteType: "all" }))).toBe(
-			"(Ante:25)"
-		);
+		expect(
+			formatAnteSuffix(
+				ringGame({
+					blindSets: [makeBlindSet({ ante: 25, anteType: "all" })],
+				})
+			)
+		).toBe("(Ante:25)");
 	});
 
 	it("returns empty for unknown anteType", () => {
-		expect(formatAnteSuffix(ringGame({ ante: 100, anteType: "unknown" }))).toBe(
-			""
-		);
+		expect(
+			formatAnteSuffix(
+				ringGame({
+					blindSets: [makeBlindSet({ ante: 100, anteType: "unknown" })],
+				})
+			)
+		).toBe("");
 	});
 
 	it("compacts large ante values", () => {
-		expect(formatAnteSuffix(ringGame({ ante: 15_000, anteType: "all" }))).toBe(
-			"(Ante:15k)"
-		);
+		expect(
+			formatAnteSuffix(
+				ringGame({
+					blindSets: [makeBlindSet({ ante: 15_000, anteType: "all" })],
+				})
+			)
+		).toBe("(Ante:15k)");
 	});
 });

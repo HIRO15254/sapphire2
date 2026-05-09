@@ -13,17 +13,6 @@ export interface TournamentListItem {
 	name: string;
 }
 
-function levelsToPayload(levels: BlindLevelRow[]) {
-	return levels.map((l) => ({
-		isBreak: l.isBreak,
-		blind1: l.blind1,
-		blind2: l.blind2,
-		blind3: l.blind3,
-		ante: l.ante,
-		minutes: l.minutes,
-	}));
-}
-
 interface UseAssignTournamentArgs {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
@@ -102,10 +91,10 @@ export function useAssignTournament({
 			values: TournamentFormValues;
 			levels: BlindLevelRow[];
 		}) => {
-			const created = await trpcClient.tournament.createWithLevels.mutate({
+			const created = await trpcClient.tournament.create.mutate({
 				storeId,
 				name: values.name,
-				variant: values.variant,
+				variantId: values.variantId,
 				buyIn: values.buyIn,
 				entryFee: values.entryFee,
 				startingStack: values.startingStack,
@@ -113,10 +102,39 @@ export function useAssignTournament({
 				tableSize: values.tableSize,
 				currencyId: values.currencyId,
 				memo: values.memo,
-				tags: values.tags,
-				chipPurchases: values.chipPurchases,
-				blindLevels: levelsToPayload(levels),
 			});
+			if (values.tags && values.tags.length > 0) {
+				await Promise.all(
+					values.tags.map((name) =>
+						trpcClient.tournament.addTag.mutate({
+							tournamentId: created.id,
+							name,
+						})
+					)
+				);
+			}
+			if (values.chipPurchases.length > 0) {
+				await Promise.all(
+					values.chipPurchases.map((cp) =>
+						trpcClient.tournamentChipPurchase.create.mutate({
+							tournamentId: created.id,
+							name: cp.name,
+							cost: cp.cost,
+							chips: cp.chips,
+						})
+					)
+				);
+			}
+			for (let i = 0; i < levels.length; i++) {
+				const level = levels[i];
+				await trpcClient.tournament.addBlindLevel.mutate({
+					tournamentId: created.id,
+					levelIndex: i,
+					isBreak: level.isBreak,
+					minutes: level.minutes ?? undefined,
+					sortOrder: i,
+				});
+			}
 			await trpcClient.liveSession.updateRule.mutate({
 				id: sessionId,
 				kind: "tournament",

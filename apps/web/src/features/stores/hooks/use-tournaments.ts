@@ -32,7 +32,7 @@ export interface Tournament {
 	tableSize: number | null;
 	tags: { id: string; name: string }[];
 	updatedAt: string;
-	variant: string;
+	variantId: number | null;
 }
 
 export interface ChipPurchaseFormItem {
@@ -52,7 +52,9 @@ export interface TournamentFormValues {
 	startingStack?: number;
 	tableSize?: number;
 	tags?: string[];
-	variant: string;
+	/** @deprecated Use variantId (number) for new API. String variant kept for form compatibility. */
+	variant?: string;
+	variantId?: number;
 }
 
 function buildOptimisticTournament(
@@ -94,7 +96,7 @@ function buildOptimisticTournament(
 			existing?.tags ??
 			[],
 		updatedAt: new Date().toISOString(),
-		variant: values.variant,
+		variantId: values.variantId ?? null,
 	};
 }
 
@@ -179,10 +181,18 @@ export function useTournaments({
 
 	const createMutation = useMutation({
 		mutationFn: async (values: TournamentFormValues) => {
-			const { tags, chipPurchases, ...rest } = values;
+			const { tags, chipPurchases } = values;
 			const created = await trpcClient.tournament.create.mutate({
 				storeId,
-				...rest,
+				name: values.name,
+				variantId: values.variantId,
+				buyIn: values.buyIn,
+				entryFee: values.entryFee,
+				startingStack: values.startingStack,
+				bountyAmount: values.bountyAmount,
+				tableSize: values.tableSize,
+				currencyId: values.currencyId,
+				memo: values.memo,
 			});
 			if (tags && tags.length > 0) {
 				await syncTags(created.id, tags, []);
@@ -235,14 +245,20 @@ export function useTournaments({
 				id: string;
 			}
 		) => {
-			const {
-				tags,
-				existingTags,
-				chipPurchases,
-				existingChipPurchaseIds,
-				...rest
-			} = values;
-			const updated = await trpcClient.tournament.update.mutate(rest);
+			const { tags, existingTags, chipPurchases, existingChipPurchaseIds } =
+				values;
+			const updated = await trpcClient.tournament.update.mutate({
+				id: values.id,
+				name: values.name,
+				variantId: values.variantId ?? null,
+				buyIn: values.buyIn ?? null,
+				entryFee: values.entryFee ?? null,
+				startingStack: values.startingStack ?? null,
+				bountyAmount: values.bountyAmount ?? null,
+				tableSize: values.tableSize ?? null,
+				currencyId: values.currencyId ?? null,
+				memo: values.memo ?? null,
+			});
 			if (tags !== undefined) {
 				await syncTags(values.id, tags, existingTags);
 			}
@@ -367,7 +383,7 @@ export function useTournaments({
 	});
 
 	const createWithLevelsMutation = useMutation({
-		mutationFn: (input: {
+		mutationFn: async (input: {
 			blindLevels: Array<{
 				ante?: number | null;
 				blind1?: number | null;
@@ -377,27 +393,35 @@ export function useTournaments({
 				minutes?: number | null;
 			}>;
 			values: TournamentFormValues;
-		}) =>
-			trpcClient.tournament.createWithLevels.mutate({
+		}) => {
+			const { tags, chipPurchases, ...rest } = input.values;
+			const created = await trpcClient.tournament.create.mutate({
 				storeId,
-				name: input.values.name,
-				variant: input.values.variant,
-				buyIn: input.values.buyIn,
-				entryFee: input.values.entryFee,
-				startingStack: input.values.startingStack,
-				bountyAmount: input.values.bountyAmount,
-				tableSize: input.values.tableSize,
-				currencyId: input.values.currencyId,
-				memo: input.values.memo,
-				tags: input.values.tags,
-				chipPurchases: input.values.chipPurchases,
-				blindLevels: input.blindLevels,
-			}),
+				...rest,
+			});
+			if (tags && tags.length > 0) {
+				await syncTags(created.id, tags, []);
+			}
+			if (chipPurchases.length > 0) {
+				await syncChipPurchases(created.id, chipPurchases, []);
+			}
+			for (let i = 0; i < input.blindLevels.length; i++) {
+				const level = input.blindLevels[i];
+				await trpcClient.tournament.addBlindLevel.mutate({
+					tournamentId: created.id,
+					levelIndex: i,
+					isBreak: level.isBreak,
+					minutes: level.minutes ?? undefined,
+					sortOrder: i,
+				});
+			}
+			return created;
+		},
 		onSettled: invalidateBoth,
 	});
 
 	const updateWithLevelsMutation = useMutation({
-		mutationFn: (input: {
+		mutationFn: async (input: {
 			blindLevels: Array<{
 				ante?: number | null;
 				blind1?: number | null;
@@ -408,26 +432,43 @@ export function useTournaments({
 			}>;
 			id: string;
 			values: TournamentFormValues;
-		}) =>
-			trpcClient.tournament.updateWithLevels.mutate({
+		}) => {
+			const {
+				tags,
+				chipPurchases,
+				existingChipPurchaseIds,
+				existingTags,
+				...rest
+			} = input.values as TournamentFormValues & {
+				existingChipPurchaseIds?: string[];
+				existingTags?: { id: string; name: string }[];
+			};
+			const updated = await trpcClient.tournament.update.mutate({
 				id: input.id,
-				name: input.values.name,
-				variant: input.values.variant,
-				buyIn: input.values.buyIn ?? null,
-				entryFee: input.values.entryFee ?? null,
-				startingStack: input.values.startingStack ?? null,
-				bountyAmount: input.values.bountyAmount ?? null,
-				tableSize: input.values.tableSize ?? null,
-				currencyId: input.values.currencyId ?? null,
-				memo: input.values.memo ?? null,
-				tags: input.values.tags,
-				chipPurchases: input.values.chipPurchases,
-				blindLevels: input.blindLevels,
-			}),
+				name: rest.name,
+				variantId: rest.variantId ?? null,
+				buyIn: rest.buyIn ?? null,
+				entryFee: rest.entryFee ?? null,
+				startingStack: rest.startingStack ?? null,
+				bountyAmount: rest.bountyAmount ?? null,
+				tableSize: rest.tableSize ?? null,
+				currencyId: rest.currencyId ?? null,
+				memo: rest.memo ?? null,
+			});
+			if (tags !== undefined) {
+				await syncTags(input.id, tags, existingTags ?? []);
+			}
+			await syncChipPurchases(
+				input.id,
+				chipPurchases ?? [],
+				existingChipPurchaseIds ?? []
+			);
+			return updated;
+		},
 		onSettled: (_data, _error, variables) => {
 			invalidateBoth();
 			queryClient.invalidateQueries({
-				queryKey: trpc.blindLevel.listByTournament.queryOptions({
+				queryKey: trpc.tournament.listBlindLevels.queryOptions({
 					tournamentId: variables.id,
 				}).queryKey,
 			});

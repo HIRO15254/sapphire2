@@ -14,8 +14,11 @@ const hoisted = vi.hoisted(() => ({
 	archive: vi.fn(),
 	restore: vi.fn(),
 	del: vi.fn(),
-	createWithLevels: vi.fn(),
-	updateWithLevels: vi.fn(),
+	create: vi.fn(),
+	update: vi.fn(),
+	addBlindLevel: vi.fn(),
+	addTag: vi.fn(),
+	createChipPurchase: vi.fn(),
 }));
 
 vi.mock("@/features/stores/hooks/use-tournaments", () => ({
@@ -31,11 +34,9 @@ vi.mock("@/utils/trpc", () => ({
 					queryFn: () => Promise.resolve([]),
 				}),
 			},
-		},
-		blindLevel: {
-			listByTournament: {
+			listBlindLevels: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("blindLevel", "listByTournament", input),
+					queryKey: buildKey("tournament", "listBlindLevels", input),
 					queryFn: () => Promise.resolve([]),
 				}),
 			},
@@ -43,8 +44,13 @@ vi.mock("@/utils/trpc", () => ({
 	},
 	trpcClient: {
 		tournament: {
-			createWithLevels: { mutate: hoisted.createWithLevels },
-			updateWithLevels: { mutate: hoisted.updateWithLevels },
+			create: { mutate: hoisted.create },
+			update: { mutate: hoisted.update },
+			addBlindLevel: { mutate: hoisted.addBlindLevel },
+			addTag: { mutate: hoisted.addTag },
+		},
+		tournamentChipPurchase: {
+			create: { mutate: hoisted.createChipPurchase },
 		},
 	},
 }));
@@ -87,7 +93,7 @@ const TOURNAMENT: Tournament = {
 	id: "t1",
 	storeId: "s1",
 	name: "Main",
-	variant: "nlh",
+	variantId: null,
 	buyIn: 100,
 	entryFee: 10,
 	startingStack: 20_000,
@@ -105,8 +111,11 @@ const TOURNAMENT: Tournament = {
 
 describe("useTournamentTab", () => {
 	beforeEach(() => {
-		hoisted.createWithLevels.mockReset();
-		hoisted.updateWithLevels.mockReset();
+		for (const m of Object.values(hoisted)) {
+			if (typeof m.mockReset === "function") {
+				m.mockReset();
+			}
+		}
 		hoisted.useTournaments.mockReturnValue(baseUseTournamentsStub());
 	});
 
@@ -134,8 +143,8 @@ describe("useTournamentTab", () => {
 		expect(result.current.editInitialFormValues?.name).toBe("Main");
 	});
 
-	it("handleCreate calls trpcClient.tournament.createWithLevels and closes the create dialog", async () => {
-		hoisted.createWithLevels.mockResolvedValue(undefined);
+	it("handleCreate calls tournament.create and closes the create dialog on success", async () => {
+		hoisted.create.mockResolvedValue({ id: "t-new" });
 		const qc = createClient();
 		const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
 			wrapper: wrapper(qc),
@@ -147,33 +156,62 @@ describe("useTournamentTab", () => {
 			await result.current.handleCreate(
 				{
 					name: "Main",
-					variant: "nlh",
 					chipPurchases: [],
 				},
 				[]
 			);
 		});
-		expect(hoisted.createWithLevels).toHaveBeenCalledWith(
-			expect.objectContaining({ storeId: "s1", name: "Main", variant: "nlh" })
+		expect(hoisted.create).toHaveBeenCalledWith(
+			expect.objectContaining({ storeId: "s1", name: "Main" })
 		);
 		await waitFor(() => expect(result.current.isCreateOpen).toBe(false));
 	});
 
 	it("handleCreate clears isCreateLoading even when mutation fails", async () => {
-		hoisted.createWithLevels.mockRejectedValue(new Error("server"));
+		hoisted.create.mockRejectedValue(new Error("server"));
 		const qc = createClient();
 		const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
 			wrapper: wrapper(qc),
 		});
 		await act(async () => {
 			await expect(
-				result.current.handleCreate(
-					{ name: "Main", variant: "nlh", chipPurchases: [] },
-					[]
-				)
+				result.current.handleCreate({ name: "Main", chipPurchases: [] }, [])
 			).rejects.toThrow("server");
 		});
 		expect(result.current.isCreateLoading).toBe(false);
+	});
+
+	it("handleCreate calls addBlindLevel for each level", async () => {
+		hoisted.create.mockResolvedValue({ id: "t-new" });
+		hoisted.addBlindLevel.mockResolvedValue(undefined);
+		const qc = createClient();
+		const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+			wrapper: wrapper(qc),
+		});
+		await act(async () => {
+			await result.current.handleCreate({ name: "T", chipPurchases: [] }, [
+				{
+					id: "l1",
+					tournamentId: "t-new",
+					level: 1,
+					isBreak: false,
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					ante: null,
+					minutes: 20,
+				},
+			]);
+		});
+		expect(hoisted.addBlindLevel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tournamentId: "t-new",
+				levelIndex: 0,
+				isBreak: false,
+				minutes: 20,
+				sortOrder: 0,
+			})
+		);
 	});
 
 	it("handleUpdate is a no-op when no tournament is being edited", async () => {
@@ -182,16 +220,13 @@ describe("useTournamentTab", () => {
 			wrapper: wrapper(qc),
 		});
 		await act(async () => {
-			await result.current.handleUpdate(
-				{ name: "x", variant: "nlh", chipPurchases: [] },
-				[]
-			);
+			await result.current.handleUpdate({ name: "x", chipPurchases: [] }, []);
 		});
-		expect(hoisted.updateWithLevels).not.toHaveBeenCalled();
+		expect(hoisted.update).not.toHaveBeenCalled();
 	});
 
-	it("handleUpdate calls updateWithLevels and clears editingTournament on success", async () => {
-		hoisted.updateWithLevels.mockResolvedValue(undefined);
+	it("handleUpdate calls tournament.update and clears editingTournament on success", async () => {
+		hoisted.update.mockResolvedValue(undefined);
 		const qc = createClient();
 		const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
 			wrapper: wrapper(qc),
@@ -200,15 +235,29 @@ describe("useTournamentTab", () => {
 			result.current.setEditingTournament(TOURNAMENT);
 		});
 		await act(async () => {
-			await result.current.handleUpdate(
-				{ name: "New", variant: "nlh", chipPurchases: [] },
-				[]
-			);
+			await result.current.handleUpdate({ name: "New", chipPurchases: [] }, []);
 		});
-		expect(hoisted.updateWithLevels).toHaveBeenCalledWith(
+		expect(hoisted.update).toHaveBeenCalledWith(
 			expect.objectContaining({ id: "t1", name: "New" })
 		);
 		expect(result.current.editingTournament).toBeNull();
+	});
+
+	it("handleUpdate clears isUpdateLoading even when update fails", async () => {
+		hoisted.update.mockRejectedValue(new Error("fail"));
+		const qc = createClient();
+		const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.setEditingTournament(TOURNAMENT);
+		});
+		await act(async () => {
+			await expect(
+				result.current.handleUpdate({ name: "N", chipPurchases: [] }, [])
+			).rejects.toThrow("fail");
+		});
+		expect(result.current.isUpdateLoading).toBe(false);
 	});
 });
 
@@ -216,19 +265,35 @@ describe("useBlindStructureSummary", () => {
 	it("returns cached levels for the given tournamentId", () => {
 		const qc = createClient();
 		qc.setQueryData(
-			["blindLevel", "listByTournament", { tournamentId: "t1" }],
-			[{ id: "l1", level: 1 }]
+			["tournament", "listBlindLevels", { tournamentId: "t1" }],
+			[
+				{
+					id: 1,
+					tournamentId: "t1",
+					levelIndex: 0,
+					isBreak: false,
+					minutes: 20,
+					sortOrder: 0,
+					blindSets: [{ blind1: 100, blind2: 200, blind3: null, ante: null }],
+				},
+			]
 		);
 		const { result } = renderHook(() => useBlindStructureSummary("t1"), {
-			wrapper: wrapper(qc),
+			wrapper({ children }: { children: ReactNode }) {
+				return createElement(QueryClientProvider, { client: qc }, children);
+			},
 		});
 		expect(result.current.levels).toHaveLength(1);
+		expect(result.current.levels[0]?.blind1).toBe(100);
+		expect(result.current.levels[0]?.level).toBe(1);
 	});
 
 	it("returns empty array when no cache", () => {
 		const qc = createClient();
 		const { result } = renderHook(() => useBlindStructureSummary("t2"), {
-			wrapper: wrapper(qc),
+			wrapper({ children }: { children: ReactNode }) {
+				return createElement(QueryClientProvider, { client: qc }, children);
+			},
 		});
 		expect(result.current.levels).toEqual([]);
 	});

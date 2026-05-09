@@ -173,42 +173,41 @@ function RingGameContent({
 	);
 }
 
-const VARIANT_LABELS: Record<string, string> = {
-	nlh: "NLH",
-};
-
 function formatBlindsLine(
 	game: RingGame,
 	currencyUnit: string | null | undefined
 ): string {
+	const primary = game.blindSets[0];
+	if (!primary) {
+		return "";
+	}
+
 	const fmt = createGroupFormatter([
-		game.blind1,
-		game.blind2,
-		game.blind3,
-		game.ante,
+		primary.blind1,
+		primary.blind2,
+		primary.blind3,
+		primary.ante,
 	]);
 
 	const parts: string[] = [];
-	if (game.blind1 != null) {
-		parts.push(fmt(game.blind1));
-	}
-	if (game.blind2 != null) {
-		parts.push(fmt(game.blind2));
-	} else if (parts.length > 0) {
-		parts.push("—");
-	}
-	if (game.blind3 != null) {
-		parts.push(fmt(game.blind3));
+	parts.push(fmt(primary.blind1));
+	parts.push(fmt(primary.blind2));
+	if (primary.blind3 != null) {
+		parts.push(fmt(primary.blind3));
 	}
 
-	const blindStr = parts.length > 0 ? parts.join("/") : "";
+	const blindStr = parts.join("/");
 
 	let anteStr = "";
-	if (game.ante != null && game.anteType !== "none" && game.anteType != null) {
-		if (game.anteType === "bb") {
-			anteStr = `(BBA:${fmt(game.ante)})`;
-		} else if (game.anteType === "all") {
-			anteStr = `(Ante:${fmt(game.ante)})`;
+	if (
+		primary.ante != null &&
+		primary.anteType !== "none" &&
+		primary.anteType != null
+	) {
+		if (primary.anteType === "bb") {
+			anteStr = `(BBA:${fmt(primary.ante)})`;
+		} else if (primary.anteType === "all") {
+			anteStr = `(Ante:${fmt(primary.ante)})`;
 		}
 	}
 
@@ -244,8 +243,7 @@ function RingGameRow({
 	});
 	const currency = currencies.find((c) => c.id === game.currencyId);
 	const blindLine = formatBlindsLine(game, currency?.unit);
-	const variantLabel =
-		VARIANT_LABELS[game.variant] ?? game.variant.toUpperCase();
+	const variantLabel = game.variantId == null ? "" : String(game.variantId);
 	const fmt = createGroupFormatter([game.minBuyIn, game.maxBuyIn]);
 
 	return (
@@ -483,24 +481,26 @@ export function RingGameTab({
 			>
 				{editingGame && (
 					<RingGameForm
-						defaultValues={{
-							name: editingGame.name,
-							variant: editingGame.variant,
-							blind1: editingGame.blind1 ?? undefined,
-							blind2: editingGame.blind2 ?? undefined,
-							blind3: editingGame.blind3 ?? undefined,
-							ante: editingGame.ante ?? undefined,
-							anteType: (editingGame.anteType ?? undefined) as
-								| "all"
-								| "bb"
-								| "none"
-								| undefined,
-							minBuyIn: editingGame.minBuyIn ?? undefined,
-							maxBuyIn: editingGame.maxBuyIn ?? undefined,
-							tableSize: editingGame.tableSize ?? undefined,
-							currencyId: editingGame.currencyId ?? undefined,
-							memo: editingGame.memo ?? undefined,
-						}}
+						defaultValues={(() => {
+							const primary = editingGame.blindSets[0];
+							return {
+								name: editingGame.name,
+								blind1: primary?.blind1 ?? undefined,
+								blind2: primary?.blind2 ?? undefined,
+								blind3: primary?.blind3 ?? undefined,
+								ante: primary?.ante ?? undefined,
+								anteType: (primary?.anteType ?? undefined) as
+									| "all"
+									| "bb"
+									| "none"
+									| undefined,
+								minBuyIn: editingGame.minBuyIn ?? undefined,
+								maxBuyIn: editingGame.maxBuyIn ?? undefined,
+								tableSize: editingGame.tableSize ?? undefined,
+								currencyId: editingGame.currencyId ?? undefined,
+								memo: editingGame.memo ?? undefined,
+							};
+						})()}
 						isLoading={isUpdatePending}
 						onSubmit={handleUpdate}
 					/>

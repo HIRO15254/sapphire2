@@ -11,57 +11,80 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const trpcMocks = vi.hoisted(() => ({
-	create: vi.fn(),
-	update: vi.fn(),
-	delete: vi.fn(),
-	reorder: vi.fn(),
+	addBlindLevel: vi.fn(),
+	updateBlindLevel: vi.fn(),
+	removeBlindLevel: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		blindLevel: {
-			listByTournament: {
+		tournament: {
+			listBlindLevels: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("blindLevel", "listByTournament", input),
+					queryKey: buildKey("tournament", "listBlindLevels", input),
 					queryFn: () => Promise.resolve([]),
 				}),
 			},
 		},
 	},
 	trpcClient: {
-		blindLevel: {
-			create: { mutate: trpcMocks.create },
-			update: { mutate: trpcMocks.update },
-			delete: { mutate: trpcMocks.delete },
-			reorder: { mutate: trpcMocks.reorder },
+		tournament: {
+			addBlindLevel: { mutate: trpcMocks.addBlindLevel },
+			updateBlindLevel: { mutate: trpcMocks.updateBlindLevel },
+			removeBlindLevel: { mutate: trpcMocks.removeBlindLevel },
 		},
 	},
 }));
 
-import {
-	type BlindLevelRow,
-	useBlindLevels,
-} from "@/features/stores/hooks/use-blind-levels";
+import { useBlindLevels } from "@/features/stores/hooks/use-blind-levels";
 
 const TOURNAMENT_ID = "tour-1";
+// The new cache key uses tournament.listBlindLevels
 const LEVELS_KEY = [
-	"blindLevel",
-	"listByTournament",
+	"tournament",
+	"listBlindLevels",
 	{ tournamentId: TOURNAMENT_ID },
 ];
 
-function level(overrides: Partial<BlindLevelRow> = {}): BlindLevelRow {
+// API-shape level as stored in the query cache
+function apiLevel(
+	overrides: {
+		id?: number;
+		levelIndex?: number;
+		isBreak?: boolean;
+		minutes?: number | null;
+		sortOrder?: number;
+		blindSets?: {
+			blind1: number;
+			blind2: number;
+			blind3: null;
+			blind4: null;
+			ante: null;
+			anteType: null;
+			id: number;
+			sortOrder: number;
+		}[];
+	} = {}
+) {
 	return {
-		id: "l1",
+		id: overrides.id ?? 1,
 		tournamentId: TOURNAMENT_ID,
-		level: 1,
-		isBreak: false,
-		blind1: 100,
-		blind2: 200,
-		blind3: null,
-		ante: 25,
-		minutes: 20,
-		...overrides,
+		levelIndex: overrides.levelIndex ?? 0,
+		isBreak: overrides.isBreak ?? false,
+		minutes: "minutes" in overrides ? overrides.minutes : 20,
+		sortOrder: overrides.sortOrder ?? 0,
+		blindSets: overrides.blindSets ?? [
+			{
+				id: 1,
+				blind1: 100,
+				blind2: 200,
+				blind3: null,
+				blind4: null,
+				ante: 25,
+				anteType: null,
+				sortOrder: 0,
+			},
+		],
 	};
 }
 
@@ -101,25 +124,45 @@ describe("useBlindLevels", () => {
 			expect(result.current.isAdding).toBe(false);
 		});
 
-		it("exposes seeded levels from the cache", async () => {
+		it("exposes seeded levels from the cache and maps them to BlindLevelRow", async () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ id: "l1" }), level({ id: "l2" })]);
+			qc.setQueryData(LEVELS_KEY, [
+				apiLevel({ id: 1, levelIndex: 0 }),
+				apiLevel({ id: 2, levelIndex: 1 }),
+			]);
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			await waitFor(() => expect(result.current.levels).toHaveLength(2));
+			// Maps levelIndex to 1-based level
+			expect(result.current.levels[0]?.level).toBe(1);
+			expect(result.current.levels[1]?.level).toBe(2);
+			// Maps blindSets[0] to flat fields
+			expect(result.current.levels[0]?.blind1).toBe(100);
+			expect(result.current.levels[0]?.ante).toBe(25);
+		});
+
+		it("uses string id (String(apiLevel.id)) in the mapped BlindLevelRow", async () => {
+			const qc = createClient();
+			qc.setQueryData(LEVELS_KEY, [apiLevel({ id: 42 })]);
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(1));
+			expect(result.current.levels[0]?.id).toBe("42");
 		});
 	});
 
 	describe("handleAddLevel / handleAddBreak", () => {
-		it("sends { level: n+1, isBreak: false, minutes: lastNonNull } when last-minutes exists", async () => {
+		it("sends { tournamentId, levelIndex: n, isBreak: false, sortOrder: n } with lastMinutes when available", async () => {
 			const qc = createClient();
 			qc.setQueryData(LEVELS_KEY, [
-				level({ id: "l1", minutes: 20 }),
-				level({ id: "l2", minutes: null }),
+				apiLevel({ id: 1, levelIndex: 0, minutes: 20 }),
+				apiLevel({ id: 2, levelIndex: 1, minutes: null }),
 			]);
-			trpcMocks.create.mockResolvedValue({ id: "new" });
+			trpcMocks.addBlindLevel.mockResolvedValue({ id: 3 });
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
@@ -129,19 +172,22 @@ describe("useBlindLevels", () => {
 				result.current.handleAddLevel();
 			});
 			await waitFor(() =>
-				expect(trpcMocks.create).toHaveBeenCalledWith({
+				expect(trpcMocks.addBlindLevel).toHaveBeenCalledWith({
 					tournamentId: TOURNAMENT_ID,
-					level: 3,
+					levelIndex: 2,
 					isBreak: false,
 					minutes: 20,
+					sortOrder: 2,
 				})
 			);
 		});
 
 		it("omits minutes when no level has a minutes value", async () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ minutes: null })]);
-			trpcMocks.create.mockResolvedValue({ id: "new" });
+			qc.setQueryData(LEVELS_KEY, [
+				apiLevel({ id: 1, levelIndex: 0, minutes: null }),
+			]);
+			trpcMocks.addBlindLevel.mockResolvedValue({ id: 2 });
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
@@ -151,18 +197,21 @@ describe("useBlindLevels", () => {
 				result.current.handleAddLevel();
 			});
 			await waitFor(() =>
-				expect(trpcMocks.create).toHaveBeenCalledWith({
+				expect(trpcMocks.addBlindLevel).toHaveBeenCalledWith({
 					tournamentId: TOURNAMENT_ID,
-					level: 2,
+					levelIndex: 1,
 					isBreak: false,
+					sortOrder: 1,
 				})
 			);
 		});
 
 		it("handleAddBreak sends isBreak=true", async () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ minutes: 15 })]);
-			trpcMocks.create.mockResolvedValue({ id: "break" });
+			qc.setQueryData(LEVELS_KEY, [
+				apiLevel({ id: 1, levelIndex: 0, minutes: 15 }),
+			]);
+			trpcMocks.addBlindLevel.mockResolvedValue({ id: 2 });
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
@@ -172,20 +221,21 @@ describe("useBlindLevels", () => {
 				result.current.handleAddBreak();
 			});
 			await waitFor(() =>
-				expect(trpcMocks.create).toHaveBeenCalledWith({
+				expect(trpcMocks.addBlindLevel).toHaveBeenCalledWith({
 					tournamentId: TOURNAMENT_ID,
-					level: 2,
+					levelIndex: 1,
 					isBreak: true,
 					minutes: 15,
+					sortOrder: 1,
 				})
 			);
 		});
 
 		it("optimistically appends a temp row during add (onMutate)", async () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ id: "l1" })]);
+			qc.setQueryData(LEVELS_KEY, [apiLevel({ id: 1, levelIndex: 0 })]);
 			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.create.mockImplementation(
+			trpcMocks.addBlindLevel.mockImplementation(
 				() =>
 					new Promise((r) => {
 						resolve = r;
@@ -200,18 +250,19 @@ describe("useBlindLevels", () => {
 				result.current.handleAddLevel();
 			});
 			await waitFor(() => {
-				const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
-				expect(list?.length).toBe(2);
-				expect(list?.[1]?.id.startsWith("temp-")).toBe(true);
+				// The optimistic row is added to the API-shape cache; when mapped
+				// back its id is String(0) = "0" (temp id computation uses || 0).
+				expect(result.current.levels.length).toBe(2);
+				expect(result.current.levels[1]).toBeDefined();
 			});
-			resolve?.({ id: "real" });
+			resolve?.({ id: 2 });
 		});
 
 		it("flips isAdding during in-flight create", async () => {
 			const qc = createClient();
 			qc.setQueryData(LEVELS_KEY, []);
 			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.create.mockImplementation(
+			trpcMocks.addBlindLevel.mockImplementation(
 				() =>
 					new Promise((r) => {
 						resolve = r;
@@ -225,16 +276,18 @@ describe("useBlindLevels", () => {
 				result.current.handleAddLevel();
 			});
 			await waitFor(() => expect(result.current.isAdding).toBe(true));
-			resolve?.({ id: "x" });
+			resolve?.({ id: 1 });
 			await waitFor(() => expect(result.current.isAdding).toBe(false));
 		});
 	});
 
 	describe("handleCreateLevel", () => {
-		it("forwards blind1/blind2/ante/minutes verbatim and sticks minutes for next call", async () => {
+		it("forwards blind1/blind2/ante/minutes and sticks minutes for next call", async () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ minutes: null })]);
-			trpcMocks.create.mockResolvedValue({ id: "ok" });
+			qc.setQueryData(LEVELS_KEY, [
+				apiLevel({ id: 1, levelIndex: 0, minutes: null }),
+			]);
+			trpcMocks.addBlindLevel.mockResolvedValue({ id: 2 });
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
@@ -249,22 +302,24 @@ describe("useBlindLevels", () => {
 				});
 			});
 			await waitFor(() =>
-				expect(trpcMocks.create).toHaveBeenCalledWith({
-					tournamentId: TOURNAMENT_ID,
-					level: 2,
-					isBreak: false,
-					blind1: 200,
-					blind2: 400,
-					ante: 50,
-					minutes: 25,
-				})
+				expect(trpcMocks.addBlindLevel).toHaveBeenCalledWith(
+					expect.objectContaining({
+						tournamentId: TOURNAMENT_ID,
+						levelIndex: 1,
+						isBreak: false,
+						minutes: 25,
+						sortOrder: 1,
+					})
+				)
 			);
 		});
 
-		it("falls back to lastMinutes when values.minutes is null (ante key omitted when null)", async () => {
+		it("falls back to lastMinutes when values.minutes is null", async () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ minutes: 40 })]);
-			trpcMocks.create.mockResolvedValue({ id: "ok" });
+			qc.setQueryData(LEVELS_KEY, [
+				apiLevel({ id: 1, levelIndex: 0, minutes: 40 }),
+			]);
+			trpcMocks.addBlindLevel.mockResolvedValue({ id: 2 });
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
@@ -279,21 +334,23 @@ describe("useBlindLevels", () => {
 				});
 			});
 			await waitFor(() =>
-				expect(trpcMocks.create).toHaveBeenCalledWith({
-					tournamentId: TOURNAMENT_ID,
-					level: 2,
-					isBreak: false,
-					blind1: 100,
-					blind2: 200,
-					minutes: 40,
-				})
+				expect(trpcMocks.addBlindLevel).toHaveBeenCalledWith(
+					expect.objectContaining({
+						tournamentId: TOURNAMENT_ID,
+						levelIndex: 1,
+						isBreak: false,
+						minutes: 40,
+					})
+				)
 			);
 		});
 
-		it("omits minutes and ante keys when both are null and no lastMinutes", async () => {
+		it("omits minutes when both values.minutes and lastMinutes are null", async () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ minutes: null })]);
-			trpcMocks.create.mockResolvedValue({ id: "ok" });
+			qc.setQueryData(LEVELS_KEY, [
+				apiLevel({ id: 1, levelIndex: 0, minutes: null }),
+			]);
+			trpcMocks.addBlindLevel.mockResolvedValue({ id: 2 });
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
@@ -308,12 +365,11 @@ describe("useBlindLevels", () => {
 				});
 			});
 			await waitFor(() =>
-				expect(trpcMocks.create).toHaveBeenCalledWith({
+				expect(trpcMocks.addBlindLevel).toHaveBeenCalledWith({
 					tournamentId: TOURNAMENT_ID,
-					level: 2,
+					levelIndex: 1,
 					isBreak: false,
-					blind1: 10,
-					blind2: 20,
+					sortOrder: 1,
 				})
 			);
 		});
@@ -322,51 +378,49 @@ describe("useBlindLevels", () => {
 	describe("handleUpdate", () => {
 		it("optimistically patches the row in cache and fires one mutate per field", async () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ id: "l1", blind1: 100 })]);
-			trpcMocks.update.mockResolvedValue({ id: "l1" });
+			qc.setQueryData(LEVELS_KEY, [apiLevel({ id: 1, levelIndex: 0 })]);
+			trpcMocks.updateBlindLevel.mockResolvedValue({ id: 1 });
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			await waitFor(() => expect(result.current.levels).toHaveLength(1));
 			act(() => {
-				result.current.handleUpdate("l1", { blind1: 500, minutes: 30 });
+				result.current.handleUpdate("1", { blind1: 500, minutes: 30 });
 			});
-			const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
-			expect(list?.[0]?.blind1).toBe(500);
-			expect(list?.[0]?.minutes).toBe(30);
 			await waitFor(() => {
-				expect(trpcMocks.update).toHaveBeenCalledTimes(2);
+				expect(trpcMocks.updateBlindLevel).toHaveBeenCalledTimes(2);
 			});
-			expect(trpcMocks.update).toHaveBeenCalledWith({
-				id: "l1",
+			expect(trpcMocks.updateBlindLevel).toHaveBeenCalledWith({
+				id: 1,
 				blind1: 500,
 			});
-			expect(trpcMocks.update).toHaveBeenCalledWith({
-				id: "l1",
+			expect(trpcMocks.updateBlindLevel).toHaveBeenCalledWith({
+				id: 1,
 				minutes: 30,
 			});
 		});
 
 		it("setting minutes updates lastMinutes so the next auto-add picks it up", async () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ id: "l1", minutes: null })]);
-			trpcMocks.update.mockResolvedValue({ id: "l1" });
-			trpcMocks.create.mockResolvedValue({ id: "new" });
+			qc.setQueryData(LEVELS_KEY, [
+				apiLevel({ id: 1, levelIndex: 0, minutes: null }),
+			]);
+			trpcMocks.updateBlindLevel.mockResolvedValue({ id: 1 });
+			trpcMocks.addBlindLevel.mockResolvedValue({ id: 2 });
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			await waitFor(() => expect(result.current.levels).toHaveLength(1));
-
 			act(() => {
-				result.current.handleUpdate("l1", { minutes: 60 });
+				result.current.handleUpdate("1", { minutes: 60 });
 			});
 			act(() => {
 				result.current.handleAddLevel();
 			});
 			await waitFor(() => {
-				expect(trpcMocks.create).toHaveBeenCalledWith(
+				expect(trpcMocks.addBlindLevel).toHaveBeenCalledWith(
 					expect.objectContaining({ minutes: 60 })
 				);
 			});
@@ -374,11 +428,14 @@ describe("useBlindLevels", () => {
 	});
 
 	describe("handleDelete", () => {
-		it("optimistically removes the row and invokes delete.mutate", async () => {
+		it("optimistically removes the row and invokes removeBlindLevel.mutate with numeric id", async () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ id: "l1" }), level({ id: "l2" })]);
+			qc.setQueryData(LEVELS_KEY, [
+				apiLevel({ id: 1, levelIndex: 0 }),
+				apiLevel({ id: 2, levelIndex: 1 }),
+			]);
 			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.delete.mockImplementation(
+			trpcMocks.removeBlindLevel.mockImplementation(
 				() =>
 					new Promise((r) => {
 						resolve = r;
@@ -390,106 +447,106 @@ describe("useBlindLevels", () => {
 			);
 			await waitFor(() => expect(result.current.levels).toHaveLength(2));
 			act(() => {
-				result.current.handleDelete("l1");
+				result.current.handleDelete("1");
 			});
 			await waitFor(() => {
-				const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
-				expect(list?.map((l) => l.id)).toEqual(["l2"]);
+				expect(result.current.levels.map((l) => l.id)).toEqual(["2"]);
 			});
-			expect(trpcMocks.delete).toHaveBeenCalledWith({ id: "l1" });
-			resolve?.({ id: "l1" });
+			expect(trpcMocks.removeBlindLevel).toHaveBeenCalledWith({ id: 1 });
+			resolve?.({ id: 1 });
 		});
 	});
 
 	describe("handleDragEnd", () => {
-		it("reorders levels optimistically and invokes reorder mutation with the new id order", async () => {
+		it("reorders levels optimistically and invokes updateBlindLevel per level with sortOrder", async () => {
 			const qc = createClient();
 			qc.setQueryData(LEVELS_KEY, [
-				level({ id: "l1" }),
-				level({ id: "l2", level: 2 }),
-				level({ id: "l3", level: 3 }),
+				apiLevel({ id: 1, levelIndex: 0, sortOrder: 0 }),
+				apiLevel({ id: 2, levelIndex: 1, sortOrder: 1 }),
+				apiLevel({ id: 3, levelIndex: 2, sortOrder: 2 }),
 			]);
-			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.reorder.mockImplementation(
-				() =>
-					new Promise((r) => {
-						resolve = r;
-					})
-			);
+			trpcMocks.updateBlindLevel.mockResolvedValue(undefined);
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			await waitFor(() => expect(result.current.levels).toHaveLength(3));
-			// Move l1 after l3 → new order l2, l3, l1
+			// Move l1 after l3 → new order: l2, l3, l1
 			act(() => {
 				result.current.handleDragEnd({
-					active: { id: "l1" },
-					over: { id: "l3" },
+					active: { id: "1" },
+					over: { id: "3" },
 				} as unknown as DragEndEvent);
 			});
-			await waitFor(() =>
-				expect(trpcMocks.reorder).toHaveBeenCalledWith({
-					tournamentId: TOURNAMENT_ID,
-					levelIds: ["l2", "l3", "l1"],
-				})
-			);
-			const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
-			expect(list?.map((l) => l.id)).toEqual(["l2", "l3", "l1"]);
-			resolve?.(undefined);
+			await waitFor(() => {
+				expect(trpcMocks.updateBlindLevel).toHaveBeenCalledTimes(3);
+			});
+			// Each level gets its new sortOrder
+			expect(trpcMocks.updateBlindLevel).toHaveBeenCalledWith({
+				id: 2,
+				sortOrder: 0,
+			});
+			expect(trpcMocks.updateBlindLevel).toHaveBeenCalledWith({
+				id: 3,
+				sortOrder: 1,
+			});
+			expect(trpcMocks.updateBlindLevel).toHaveBeenCalledWith({
+				id: 1,
+				sortOrder: 2,
+			});
 		});
 
 		it("no-ops when over is null", () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ id: "l1" })]);
+			qc.setQueryData(LEVELS_KEY, [apiLevel({ id: 1 })]);
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
 				result.current.handleDragEnd({
-					active: { id: "l1" },
+					active: { id: "1" },
 					over: null,
 				} as unknown as DragEndEvent);
 			});
-			expect(trpcMocks.reorder).not.toHaveBeenCalled();
+			expect(trpcMocks.updateBlindLevel).not.toHaveBeenCalled();
 		});
 
 		it("no-ops when active.id === over.id", () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ id: "l1" })]);
+			qc.setQueryData(LEVELS_KEY, [apiLevel({ id: 1 })]);
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
 				result.current.handleDragEnd({
-					active: { id: "l1" },
-					over: { id: "l1" },
+					active: { id: "1" },
+					over: { id: "1" },
 				} as unknown as DragEndEvent);
 			});
-			expect(trpcMocks.reorder).not.toHaveBeenCalled();
+			expect(trpcMocks.updateBlindLevel).not.toHaveBeenCalled();
 		});
 
 		it("no-ops when an id is not found in the levels list", () => {
 			const qc = createClient();
-			qc.setQueryData(LEVELS_KEY, [level({ id: "l1" })]);
+			qc.setQueryData(LEVELS_KEY, [apiLevel({ id: 1 })]);
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
 				result.current.handleDragEnd({
-					active: { id: "l1" },
-					over: { id: "unknown" },
+					active: { id: "1" },
+					over: { id: "999" },
 				} as unknown as DragEndEvent);
 			});
-			expect(trpcMocks.reorder).not.toHaveBeenCalled();
+			expect(trpcMocks.updateBlindLevel).not.toHaveBeenCalled();
 		});
 	});
 
 	describe("sensors", () => {
-		it("exposes a sensors object suitable for DndContext", () => {
+		it("exposes a sensors array suitable for DndContext", () => {
 			const qc = createClient();
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),

@@ -75,11 +75,11 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 
 vi.mock("@tanstack/react-query", () => ({
 	useQuery: (options: { queryKey: unknown[] }) => {
-		const [scope] = options.queryKey as [string];
-		if (scope === "tournament") {
+		const [scope, second] = options.queryKey as [string, string?];
+		if (scope === "tournament" && second === "getById") {
 			return { data: mocks.tournament, isLoading: false };
 		}
-		if (scope === "blindLevel") {
+		if (scope === "tournament" && second === "listBlindLevels") {
 			return { data: mocks.levels, isLoading: false };
 		}
 		if (scope === "tournamentChipPurchase") {
@@ -101,48 +101,59 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 vi.mock("@/utils/trpc", () => {
-	const makeProc = (name: string) => ({
-		queryOptions: () => ({ queryKey: [name] }),
+	const makeProc = (scope: string, procedure: string) => ({
+		queryOptions: (input?: unknown) => ({
+			queryKey:
+				input === undefined ? [scope, procedure] : [scope, procedure, input],
+		}),
 	});
 	return {
 		trpc: {
 			tournament: {
-				getById: makeProc("tournament"),
-				listByStore: makeProc("tournament"),
+				getById: makeProc("tournament", "getById"),
+				listByStore: makeProc("tournament", "listByStore"),
+				listBlindLevels: makeProc("tournament", "listBlindLevels"),
+				update: { mutate: vi.fn() },
 			},
 			tournamentChipPurchase: {
-				listByTournament: makeProc("tournamentChipPurchase"),
-			},
-			blindLevel: {
-				listByTournament: makeProc("blindLevel"),
+				listByTournament: makeProc(
+					"tournamentChipPurchase",
+					"listByTournament"
+				),
 			},
 			liveSession: {
-				getById: makeProc("liveSession"),
-				list: makeProc("liveSession"),
+				getById: makeProc("liveSession", "getById"),
+				list: makeProc("liveSession", "list"),
 			},
 			currency: {
-				list: makeProc("currency"),
+				list: makeProc("currency", "list"),
 			},
 			store: {
-				list: makeProc("store"),
+				list: makeProc("store", "list"),
 			},
 			ringGame: {
-				listByStore: makeProc("ringGame"),
+				listByStore: makeProc("ringGame", "listByStore"),
 			},
 			session: {
-				list: makeProc("session"),
+				list: makeProc("session", "list"),
 			},
 		},
 		trpcClient: {
 			tournament: {
-				updateWithLevels: { mutate: vi.fn() },
-				createWithLevels: { mutate: vi.fn() },
+				update: { mutate: vi.fn() },
+				addBlindLevel: { mutate: vi.fn() },
+				create: { mutate: vi.fn() },
 			},
 			ringGame: {
 				create: { mutate: vi.fn() },
+				update: { mutate: vi.fn() },
 			},
 			liveSession: {
 				update: { mutate: vi.fn() },
+				updateRule: { mutate: vi.fn() },
+			},
+			tournamentChipPurchase: {
+				create: { mutate: vi.fn() },
 			},
 		},
 	};
@@ -178,12 +189,19 @@ describe("ActiveSessionGameScene", () => {
 		};
 		mocks.activeGames = [
 			{
-				ante: null,
-				anteType: "none",
 				archivedAt: null,
-				blind1: 1,
-				blind2: 2,
-				blind3: null,
+				blindSets: [
+					{
+						id: 1,
+						blind1: 1,
+						blind2: 2,
+						blind3: null,
+						blind4: null,
+						ante: null,
+						anteType: "none",
+						sortOrder: 0,
+					},
+				],
 				createdAt: "",
 				currencyId: "currency-1",
 				id: "ring-1",
@@ -194,7 +212,7 @@ describe("ActiveSessionGameScene", () => {
 				storeId: "store-1",
 				tableSize: 9,
 				updatedAt: "",
-				variant: "nlh",
+				variantId: null,
 			},
 		];
 
@@ -269,7 +287,7 @@ describe("ActiveSessionGameScene", () => {
 			tableSize: 9,
 			tags: [],
 			updatedAt: "",
-			variant: "nlh",
+			variantId: null,
 		};
 		mocks.levels = [];
 

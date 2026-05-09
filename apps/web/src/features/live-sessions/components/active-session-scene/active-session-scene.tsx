@@ -96,29 +96,24 @@ export function useActiveSessionSceneState({
 		excludePlayerIds: tablePlayers.excludePlayerIds,
 		heroSeatPosition: tableInteraction.heroSeatPosition,
 		isSavingPlayer: playerDetail.isSaving,
-		onAddExisting: (playerId, playerName) => {
+		onAddExisting: (playerId, _playerName) => {
 			const seatPosition = tableInteraction.addPlayerSeat;
 			if (seatPosition !== null) {
-				tablePlayers.handleAddExisting(playerId, playerName, seatPosition);
+				tablePlayers.handleAddExisting(playerId, seatPosition);
 			}
 			tableInteraction.setAddPlayerSeat(null);
 		},
-		onAddNew: ({ name, memo, tagIds }) => {
+		onAddNew: ({ name }) => {
 			const seatPosition = tableInteraction.addPlayerSeat;
 			if (seatPosition !== null) {
-				tablePlayers.handleAddNew(
-					name,
-					seatPosition,
-					memo ?? undefined,
-					tagIds
-				);
+				tablePlayers.handleAddTemporary(name, seatPosition);
 			}
 			tableInteraction.setAddPlayerSeat(null);
 		},
 		onAddTemporary: () => {
 			const seatPosition = tableInteraction.addPlayerSeat;
 			if (seatPosition !== null) {
-				tablePlayers.handleAddTemporary(seatPosition);
+				tablePlayers.handleAddTemporary("", seatPosition);
 			}
 			tableInteraction.setAddPlayerSeat(null);
 		},
@@ -143,15 +138,12 @@ export function useActiveSessionSceneState({
 			}
 		},
 		onPlayerSeatTap: tableInteraction.handlePlayerSeatTap,
-		players: tablePlayers.players as TablePlayer[],
+		players: tablePlayers.players as unknown as TablePlayer[],
 		playerSheetOpen: tableInteraction.selectedPlayer !== null,
 		selectedPlayer: playerDetail.player
 			? {
 					id: playerDetail.player.id,
-					isTemporary:
-						tablePlayers.players.find(
-							(p) => p.player.id === tableInteraction.selectedPlayer?.playerId
-						)?.player.isTemporary ?? false,
+					isTemporary: false,
 					memo: playerDetail.player.memo,
 					name: playerDetail.player.name,
 					tags: playerDetail.player.tags ?? [],

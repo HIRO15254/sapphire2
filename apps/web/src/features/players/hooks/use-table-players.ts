@@ -47,8 +47,7 @@ export function useTablePlayers({ sessionId }: UseTablePlayersOptions) {
 		onMutate: async (params) => {
 			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
 			const previous = snapshotQuery(queryClient, playersKey);
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			queryClient.setQueryData(playersKey, (old: any) => {
+			queryClient.setQueryData(playersKey, (old) => {
 				if (!old) {
 					return old;
 				}
@@ -63,7 +62,7 @@ export function useTablePlayers({ sessionId }: UseTablePlayersOptions) {
 							joinedAt: new Date().toISOString(),
 						},
 					],
-				};
+				} as typeof old;
 			});
 			return { previous };
 		},
@@ -85,8 +84,7 @@ export function useTablePlayers({ sessionId }: UseTablePlayersOptions) {
 		onMutate: async (params) => {
 			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
 			const previous = snapshotQuery(queryClient, playersKey);
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			queryClient.setQueryData(playersKey, (old: any) => {
+			queryClient.setQueryData(playersKey, (old) => {
 				if (!old) {
 					return old;
 				}
@@ -101,7 +99,7 @@ export function useTablePlayers({ sessionId }: UseTablePlayersOptions) {
 							joinedAt: new Date().toISOString(),
 						},
 					],
-				};
+				} as typeof old;
 			});
 			return { previous };
 		},
@@ -126,8 +124,7 @@ export function useTablePlayers({ sessionId }: UseTablePlayersOptions) {
 		onMutate: async (playerId) => {
 			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
 			const previous = snapshotQuery(queryClient, playersKey);
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			queryClient.setQueryData(playersKey, (old: any) => {
+			queryClient.setQueryData(playersKey, (old) => {
 				if (!old) {
 					return old;
 				}
@@ -136,7 +133,7 @@ export function useTablePlayers({ sessionId }: UseTablePlayersOptions) {
 					currentPlayers: old.currentPlayers.filter(
 						(p: { playerId?: string }) => p.playerId !== playerId
 					),
-				};
+				} as typeof old;
 			});
 			return { previous };
 		},

@@ -55,7 +55,7 @@ export function TournamentModalContent({
 				<LocalBlindStructureContent
 					onChange={setLocalBlindLevels}
 					value={localBlindLevels}
-					variant={initialFormValues?.variant ?? "nlh"}
+					variant="nlh"
 				/>
 			</TabsContent>
 		</Tabs>

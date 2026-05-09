@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
 			storeId: "store-1",
 			tableSize: 9,
 			tags: [],
-			variant: "nlh",
+			variantId: null,
 		},
 	],
 	archiveMutate: vi.fn(async () => undefined),
@@ -47,15 +47,19 @@ vi.mock("@tanstack/react-query", () => ({
 		},
 	}),
 	useQuery: (options: { queryKey: unknown[] }) => {
-		const [scope, _storeId, archivedFlag] = options.queryKey as [
+		const [scope, second, third] = options.queryKey as [
 			string,
 			string?,
-			string?,
+			unknown?,
 		];
 		if (scope === "tournament") {
+			// Distinguish between tournament list queries and blind level queries
+			if (second === "listBlindLevels") {
+				return { data: [], isLoading: false };
+			}
 			return {
 				data:
-					archivedFlag === "archived"
+					third === "archived"
 						? mocks.archivedTournaments
 						: mocks.activeTournaments,
 				isLoading: false,
@@ -88,13 +92,6 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		blindLevel: {
-			listByTournament: {
-				queryOptions: ({ tournamentId }: { tournamentId: string }) => ({
-					queryKey: ["blindLevel", tournamentId],
-				}),
-			},
-		},
 		currency: {
 			list: {
 				queryOptions: () => ({ queryKey: ["currency"] }),
@@ -116,19 +113,24 @@ vi.mock("@/utils/trpc", () => ({
 					],
 				}),
 			},
+			listBlindLevels: {
+				queryOptions: ({ tournamentId }: { tournamentId: string }) => ({
+					queryKey: ["tournament", "listBlindLevels", { tournamentId }],
+				}),
+			},
 		},
 	},
 	trpcClient: {
 		tournament: {
 			addTag: { mutate: vi.fn(async () => undefined) },
+			addBlindLevel: { mutate: vi.fn(async () => undefined) },
 			archive: { mutate: mocks.archiveMutate },
 			create: { mutate: mocks.createMutate },
-			createWithLevels: { mutate: vi.fn(async () => undefined) },
 			delete: { mutate: mocks.deleteMutate },
 			removeTag: { mutate: vi.fn(async () => undefined) },
 			restore: { mutate: mocks.restoreMutate },
 			update: { mutate: mocks.updateMutate },
-			updateWithLevels: { mutate: vi.fn(async () => undefined) },
+			updateBlindLevel: { mutate: vi.fn(async () => undefined) },
 		},
 		tournamentChipPurchase: {
 			create: { mutate: vi.fn(async () => undefined) },
@@ -166,7 +168,7 @@ describe("TournamentTab", () => {
 				storeId: "store-1",
 				tableSize: 9,
 				tags: [],
-				variant: "nlh",
+				variantId: null,
 			},
 		];
 		mocks.archiveMutate.mockClear();

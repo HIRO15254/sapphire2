@@ -30,7 +30,6 @@ function extractedToCreateFormValues(
 		startingStack: data.startingStack,
 		tableSize: data.tableSize,
 		chipPurchases: data.chipPurchases ?? [],
-		variant: "nlh",
 	};
 }
 
@@ -42,7 +41,6 @@ function mergeExtractedIntoEditFormValues(
 		...base,
 		// Use || so empty strings fall back to the existing value
 		name: data.name || base?.name || "",
-		variant: base?.variant ?? "nlh",
 		...(data.buyIn !== undefined && { buyIn: data.buyIn }),
 		...(data.entryFee !== undefined && { entryFee: data.entryFee }),
 		...(data.startingStack !== undefined && {

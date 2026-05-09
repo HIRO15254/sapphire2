@@ -354,20 +354,25 @@ export function useSessions(filters: SessionFilterValues) {
 	const createMutation = useMutation({
 		mutationFn: (values: SessionFormValues) =>
 			trpcClient.session.create.mutate(
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				buildCreatePayload(values) as any
+				buildCreatePayload(values) as unknown as Parameters<
+					typeof trpcClient.session.create.mutate
+				>[0]
 			),
 		onMutate: async (newSession) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
 			const previous = snapshotQuery(queryClient, sessionListKey);
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			queryClient.setQueryData(sessionListKey, (old: any) => {
+			queryClient.setQueryData(sessionListKey, (old) => {
 				if (!old) {
 					return old;
 				}
 				return {
 					...old,
-					items: [buildOptimisticItem(newSession), ...old.items],
+					items: [
+						buildOptimisticItem(
+							newSession
+						) as unknown as (typeof old.items)[number],
+						...old.items,
+					],
 				};
 			});
 			return { previous };

@@ -4,7 +4,9 @@ import {
 } from "@sapphire2/api/routers/ai-extract-sources";
 import { trpcClient } from "@/utils/trpc";
 
-export type SessionParam = { sessionId: string };
+export interface SessionParam {
+	sessionId: string;
+}
 
 export type Step = "select-app" | "upload" | "review";
 

@@ -8,9 +8,22 @@ export interface ChipPurchaseRow {
 	name: string;
 }
 
+export interface BlindSetRow {
+	ante: number | null;
+	anteType: string | null;
+	blind1: number;
+	blind2: number;
+	blind3: number | null;
+	blind4: number | null;
+	id: number;
+	sortOrder: number;
+}
+
 export interface BlindLevelRow {
+	blindSets: BlindSetRow[];
 	id: number;
 	isBreak: boolean;
+	levelIndex: number;
 	minutes: number | null;
 	sortOrder: number;
 	tournamentId: string;

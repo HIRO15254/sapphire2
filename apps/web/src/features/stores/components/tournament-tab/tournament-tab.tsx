@@ -240,9 +240,11 @@ function TournamentRow({
 						<span className="truncate font-medium text-xs">
 							{tournament.name}
 						</span>
-						<Badge className="px-1 py-0 text-[10px]" variant="secondary">
-							{tournament.variant.toUpperCase()}
-						</Badge>
+						{tournament.variantId != null && (
+							<Badge className="px-1 py-0 text-[10px]" variant="secondary">
+								{tournament.variantId}
+							</Badge>
+						)}
 						{tournament.tableSize != null && (
 							<Badge
 								className={`px-1 py-0 text-[10px] ${getTableSizeClassName(tournament.tableSize)}`}

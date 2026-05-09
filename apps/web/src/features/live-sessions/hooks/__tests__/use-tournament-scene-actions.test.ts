@@ -94,6 +94,7 @@ const ARGS = {
 const FORM_VALUES = {
 	name: "Main Event",
 	buyIn: 10_000,
+	chipPurchases: [] as Array<{ chips: number; cost: number; name: string }>,
 	entryFee: 1000,
 	startingStack: 20_000,
 	bountyAmount: 500,
@@ -170,7 +171,7 @@ describe("useTournamentSceneActions", () => {
 			wrapper: makeWrapper(qc),
 		});
 		await act(async () => {
-			await result.current.handleSave({ name: "X" });
+			await result.current.handleSave({ name: "X", chipPurchases: [] });
 		});
 		expect(trpcMocks.tournamentUpdate).toHaveBeenCalledWith(
 			expect.objectContaining({

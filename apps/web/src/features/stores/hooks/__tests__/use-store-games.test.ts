@@ -95,12 +95,19 @@ describe("useStoreGames", () => {
 					{
 						id: "r1",
 						name: "NLH 1/2",
-						variant: "holdem",
-						blind1: 1,
-						blind2: 2,
-						blind3: null,
-						ante: 0,
-						anteType: "none",
+						variantId: null,
+						blindSets: [
+							{
+								id: 1,
+								blind1: 1,
+								blind2: 2,
+								blind3: null,
+								blind4: null,
+								ante: 0,
+								anteType: "none",
+								sortOrder: 0,
+							},
+						],
 						tableSize: 9,
 						currencyId: "c1",
 						// extraneous properties that must NOT be forwarded
@@ -118,7 +125,7 @@ describe("useStoreGames", () => {
 			expect(result.current.ringGames[0]).toEqual({
 				id: "r1",
 				name: "NLH 1/2",
-				variant: "holdem",
+				variantId: null,
 				blind1: 1,
 				blind2: 2,
 				blind3: null,

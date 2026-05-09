@@ -32,19 +32,17 @@ vi.mock("@/utils/trpc", () => ({
 					queryFn: () => Promise.resolve([]),
 				}),
 			},
+			listBlindLevels: {
+				queryOptions: (input: unknown) => ({
+					queryKey: buildKey("tournament", "listBlindLevels", input),
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
 		},
 		currency: {
 			list: {
 				queryOptions: () => ({
 					queryKey: buildKey("currency", "list", undefined),
-					queryFn: () => Promise.resolve([]),
-				}),
-			},
-		},
-		blindLevel: {
-			listByTournament: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("blindLevel", "listByTournament", input),
 					queryFn: () => Promise.resolve([]),
 				}),
 			},
@@ -59,8 +57,7 @@ vi.mock("@/utils/trpc", () => ({
 			delete: { mutate: trpcMocks.tournamentDelete },
 			addTag: { mutate: trpcMocks.tournamentAddTag },
 			removeTag: { mutate: trpcMocks.tournamentRemoveTag },
-			createWithLevels: { mutate: trpcMocks.createWithLevels },
-			updateWithLevels: { mutate: trpcMocks.updateWithLevels },
+			addBlindLevel: { mutate: trpcMocks.createWithLevels },
 		},
 		tournamentChipPurchase: {
 			create: { mutate: trpcMocks.cpCreate },
@@ -90,7 +87,7 @@ function makeTournament(overrides: Partial<Tournament> = {}): Tournament {
 	return {
 		id: "t1",
 		name: "Main Event",
-		variant: "holdem",
+		variantId: null,
 		storeId: STORE_ID,
 		buyIn: 100,
 		entryFee: 10,
@@ -188,12 +185,13 @@ describe("useTournaments", () => {
 					],
 				});
 			});
-			expect(trpcMocks.tournamentCreate).toHaveBeenCalledWith({
-				storeId: STORE_ID,
-				name: "Bounty Hunter",
-				variant: "holdem",
-				buyIn: 50,
-			});
+			expect(trpcMocks.tournamentCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					storeId: STORE_ID,
+					name: "Bounty Hunter",
+					buyIn: 50,
+				})
+			);
 			expect(trpcMocks.tournamentAddTag).toHaveBeenCalledTimes(2);
 			expect(trpcMocks.tournamentAddTag).toHaveBeenCalledWith({
 				tournamentId: "t-new",
@@ -298,11 +296,12 @@ describe("useTournaments", () => {
 					],
 				});
 			});
-			expect(trpcMocks.tournamentUpdate).toHaveBeenCalledWith({
-				id: "t1",
-				name: "Patched",
-				variant: "holdem",
-			});
+			expect(trpcMocks.tournamentUpdate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					id: "t1",
+					name: "Patched",
+				})
+			);
 			// Tag diffs: add "Added", remove "RemoveMe" (Keep stays).
 			expect(trpcMocks.tournamentAddTag).toHaveBeenCalledWith({
 				tournamentId: "t1",
@@ -437,11 +436,12 @@ describe("useTournaments", () => {
 	});
 
 	describe("createWithLevels and updateWithLevels", () => {
-		it("createWithLevels forwards all values + blindLevels and invalidates both lists", async () => {
+		it("createWithLevels calls tournament.create, addBlindLevel per level, and invalidates both lists", async () => {
 			const qc = createClient();
 			qc.setQueryData(activeKey, []);
 			const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-			trpcMocks.createWithLevels.mockResolvedValue({ id: "t-new" });
+			trpcMocks.tournamentCreate.mockResolvedValue({ id: "t-new" });
+			trpcMocks.createWithLevels.mockResolvedValue(undefined);
 			const { result } = renderHook(
 				() => useTournaments({ storeId: STORE_ID, showArchived: false }),
 				{ wrapper: makeWrapper(qc) }
@@ -450,20 +450,26 @@ describe("useTournaments", () => {
 				await result.current.createWithLevels(
 					{
 						name: "Turbo",
-						variant: "holdem",
 						buyIn: 50,
 						chipPurchases: [],
 					},
 					[{ isBreak: false, blind1: 1, blind2: 2 }]
 				);
 			});
-			expect(trpcMocks.createWithLevels).toHaveBeenCalledWith(
+			expect(trpcMocks.tournamentCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					storeId: STORE_ID,
 					name: "Turbo",
-					variant: "holdem",
 					buyIn: 50,
-					blindLevels: [{ isBreak: false, blind1: 1, blind2: 2 }],
+				})
+			);
+			// addBlindLevel called once per level (trpcMocks.createWithLevels is reused for addBlindLevel)
+			expect(trpcMocks.createWithLevels).toHaveBeenCalledWith(
+				expect.objectContaining({
+					tournamentId: "t-new",
+					levelIndex: 0,
+					isBreak: false,
+					sortOrder: 0,
 				})
 			);
 			const invalidated = invalidateSpy.mock.calls.map(
@@ -474,11 +480,11 @@ describe("useTournaments", () => {
 			);
 		});
 
-		it("updateWithLevels additionally invalidates the blindLevel listByTournament query for the target id", async () => {
+		it("updateWithLevels calls tournament.update and additionally invalidates the listBlindLevels query for the target id", async () => {
 			const qc = createClient();
 			qc.setQueryData(activeKey, [makeTournament({ id: "t1" })]);
 			const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-			trpcMocks.updateWithLevels.mockResolvedValue({ id: "t1" });
+			trpcMocks.tournamentUpdate.mockResolvedValue({ id: "t1" });
 			const { result } = renderHook(
 				() => useTournaments({ storeId: STORE_ID, showArchived: false }),
 				{ wrapper: makeWrapper(qc) }
@@ -488,17 +494,15 @@ describe("useTournaments", () => {
 					"t1",
 					{
 						name: "Renamed",
-						variant: "holdem",
 						chipPurchases: [],
 					},
 					[]
 				);
 			});
-			expect(trpcMocks.updateWithLevels).toHaveBeenCalledWith(
+			expect(trpcMocks.tournamentUpdate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					id: "t1",
 					name: "Renamed",
-					variant: "holdem",
 					buyIn: null,
 					entryFee: null,
 					startingStack: null,
@@ -506,6 +510,7 @@ describe("useTournaments", () => {
 					tableSize: null,
 					currencyId: null,
 					memo: null,
+					variantId: null,
 				})
 			);
 			const keys = invalidateSpy.mock.calls.map(
@@ -513,7 +518,7 @@ describe("useTournaments", () => {
 			);
 			expect(keys).toEqual(
 				expect.arrayContaining([
-					["blindLevel", "listByTournament", { tournamentId: "t1" }],
+					["tournament", "listBlindLevels", { tournamentId: "t1" }],
 				])
 			);
 		});

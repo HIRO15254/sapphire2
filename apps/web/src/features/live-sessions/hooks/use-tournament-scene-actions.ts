@@ -27,10 +27,21 @@ export function useTournamentSceneActions({
 	const handleSave = async (values: TournamentFormValues) => {
 		setIsSaving(true);
 		try {
-			// Phase 3B: tournament.update does not yet support variantId from TournamentFormValues.
-			// Using type assertion until form migration completes.
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			await (trpcClient.tournament.update as any).mutate({
+			await (
+				trpcClient.tournament.update as unknown as {
+					mutate: (args: {
+						id: string;
+						name: string;
+						buyIn: number | null;
+						entryFee: number | null;
+						startingStack: number | null;
+						bountyAmount: number | null;
+						tableSize: number | null;
+						currencyId: string | null;
+						memo: string | null;
+					}) => Promise<unknown>;
+				}
+			).mutate({
 				id: tournamentId,
 				name: values.name,
 				buyIn: values.buyIn ?? null,

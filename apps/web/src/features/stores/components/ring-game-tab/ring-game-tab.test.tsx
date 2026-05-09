@@ -7,12 +7,19 @@ import { RingGameTab } from "./ring-game-tab";
 const mocks = vi.hoisted(() => ({
 	activeGames: [
 		{
-			ante: null,
-			anteType: "none",
 			archivedAt: null,
-			blind1: 1,
-			blind2: 2,
-			blind3: null,
+			blindSets: [
+				{
+					id: 1,
+					blind1: 1,
+					blind2: 2,
+					blind3: null,
+					blind4: null,
+					ante: null,
+					anteType: "none",
+					sortOrder: 0,
+				},
+			],
 			currencyId: "currency-1",
 			id: "game-1",
 			maxBuyIn: 400,
@@ -21,7 +28,7 @@ const mocks = vi.hoisted(() => ({
 			name: "1/2 NLH",
 			storeId: "store-1",
 			tableSize: 9,
-			variant: "nlh",
+			variantId: null,
 		},
 	],
 	archiveMutate: vi.fn(async () => undefined),
@@ -135,12 +142,19 @@ describe("RingGameTab", () => {
 	beforeEach(() => {
 		mocks.activeGames = [
 			{
-				ante: null,
-				anteType: "none",
 				archivedAt: null,
-				blind1: 1,
-				blind2: 2,
-				blind3: null,
+				blindSets: [
+					{
+						id: 1,
+						blind1: 1,
+						blind2: 2,
+						blind3: null,
+						blind4: null,
+						ante: null,
+						anteType: "none",
+						sortOrder: 0,
+					},
+				],
 				currencyId: "currency-1",
 				id: "game-1",
 				maxBuyIn: 400,
@@ -149,7 +163,7 @@ describe("RingGameTab", () => {
 				name: "1/2 NLH",
 				storeId: "store-1",
 				tableSize: 9,
-				variant: "nlh",
+				variantId: null,
 			},
 		];
 		mocks.archiveMutate.mockClear();

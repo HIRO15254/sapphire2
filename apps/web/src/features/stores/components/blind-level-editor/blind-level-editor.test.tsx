@@ -9,25 +9,34 @@ const BLIND_HELPER_PATTERN = /drag levels to reorder the structure/i;
 const BREAK_BUTTON_PATTERN = /break/i;
 const LEVEL_BUTTON_PATTERN = /level/i;
 
-const mocks = vi.hoisted(() => ({
-	blindLevels: [] as Array<{
-		ante: number | null;
-		blind1: number | null;
-		blind2: number | null;
+// API-shape level (matches what trpc.tournament.listBlindLevels returns)
+interface ApiLevel {
+	blindSets: {
+		id: number;
+		blind1: number;
+		blind2: number;
 		blind3: number | null;
-		id: string;
-		isBreak: boolean;
-		level: number;
-		minutes: number | null;
-		tournamentId: string;
-	}>,
-	createMutate: vi.fn(),
-	deleteMutate: vi.fn(),
+		blind4: number | null;
+		ante: number | null;
+		anteType: string | null;
+		sortOrder: number;
+	}[];
+	id: number;
+	isBreak: boolean;
+	levelIndex: number;
+	minutes: number | null;
+	sortOrder: number;
+	tournamentId: string;
+}
+
+const mocks = vi.hoisted(() => ({
+	apiLevels: [] as ApiLevel[],
+	addBlindLevel: vi.fn(),
+	removeBlindLevel: vi.fn(),
 	invalidateQueries: vi.fn(),
 	isLoading: false,
-	reorderMutate: vi.fn(),
 	setQueryData: vi.fn(),
-	updateMutate: vi.fn(),
+	updateBlindLevel: vi.fn(),
 }));
 
 vi.mock("@dnd-kit/core", () => ({
@@ -61,7 +70,7 @@ vi.mock("@tanstack/react-query", () => ({
 		},
 	}),
 	useQuery: () => ({
-		data: mocks.blindLevels,
+		data: mocks.apiLevels,
 		isLoading: mocks.isLoading,
 	}),
 	useQueryClient: () => ({
@@ -95,27 +104,24 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		blindLevel: {
-			listByTournament: {
+		tournament: {
+			listBlindLevels: {
 				queryOptions: ({ tournamentId }: { tournamentId: string }) => ({
-					queryKey: ["blindLevel.listByTournament", tournamentId],
+					queryKey: ["tournament", "listBlindLevels", { tournamentId }],
 				}),
 			},
 		},
 	},
 	trpcClient: {
-		blindLevel: {
-			create: {
-				mutate: (input: unknown) => mocks.createMutate(input),
+		tournament: {
+			addBlindLevel: {
+				mutate: (input: unknown) => mocks.addBlindLevel(input),
 			},
-			delete: {
-				mutate: (input: unknown) => mocks.deleteMutate(input),
+			removeBlindLevel: {
+				mutate: (input: unknown) => mocks.removeBlindLevel(input),
 			},
-			reorder: {
-				mutate: (input: unknown) => mocks.reorderMutate(input),
-			},
-			update: {
-				mutate: (input: unknown) => mocks.updateMutate(input),
+			updateBlindLevel: {
+				mutate: (input: unknown) => mocks.updateBlindLevel(input),
 			},
 		},
 	},
@@ -123,12 +129,11 @@ vi.mock("@/utils/trpc", () => ({
 
 describe("BlindLevelEditor", () => {
 	beforeEach(() => {
-		mocks.blindLevels = [];
+		mocks.apiLevels = [];
 		mocks.isLoading = false;
-		mocks.createMutate.mockReset();
-		mocks.deleteMutate.mockReset();
-		mocks.reorderMutate.mockReset();
-		mocks.updateMutate.mockReset();
+		mocks.addBlindLevel.mockReset();
+		mocks.removeBlindLevel.mockReset();
+		mocks.updateBlindLevel.mockReset();
 		mocks.invalidateQueries.mockReset();
 		mocks.setQueryData.mockReset();
 	});
@@ -182,16 +187,23 @@ describe("BlindLevelEditor", () => {
 			screen.getByRole("button", { name: BREAK_BUTTON_PATTERN })
 		);
 
-		expect(mocks.createMutate).toHaveBeenCalledWith({
-			isBreak: false,
-			level: 1,
-			tournamentId: "tour-1",
-		});
-		expect(mocks.createMutate).toHaveBeenCalledWith({
-			isBreak: true,
-			level: 1,
-			tournamentId: "tour-1",
-		});
+		// New API: addBlindLevel with levelIndex (0-based), isBreak, sortOrder
+		expect(mocks.addBlindLevel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tournamentId: "tour-1",
+				levelIndex: 0,
+				isBreak: false,
+				sortOrder: 0,
+			})
+		);
+		expect(mocks.addBlindLevel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tournamentId: "tour-1",
+				levelIndex: 0,
+				isBreak: true,
+				sortOrder: 0,
+			})
+		);
 	});
 
 	it("creates a new level row with autofill when the new row loses focus", () => {
@@ -209,18 +221,18 @@ describe("BlindLevelEditor", () => {
 		fireEvent.change(smallBlindInput, { target: { value: "100" } });
 		fireEvent.blur(smallBlindInput, { relatedTarget: null });
 
-		expect(mocks.createMutate).toHaveBeenCalledWith({
-			ante: 200,
-			blind1: 100,
-			blind2: 200,
-			isBreak: false,
-			level: 1,
-			tournamentId: "tour-1",
-		});
+		expect(mocks.addBlindLevel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tournamentId: "tour-1",
+				levelIndex: 0,
+				isBreak: false,
+				sortOrder: 0,
+			})
+		);
 	});
 
 	it("shows an empty state message when there are no levels", () => {
-		mocks.blindLevels = [];
+		mocks.apiLevels = [];
 
 		render(
 			<BlindLevelEditor
@@ -250,17 +262,26 @@ describe("BlindLevelEditor", () => {
 
 	it("deletes an existing level", async () => {
 		const user = userEvent.setup();
-		mocks.blindLevels = [
+		mocks.apiLevels = [
 			{
-				ante: 200,
-				blind1: 100,
-				blind2: 200,
-				blind3: null,
-				id: "level-1",
-				isBreak: false,
-				level: 1,
-				minutes: 20,
+				id: 42,
 				tournamentId: "tour-1",
+				levelIndex: 0,
+				isBreak: false,
+				minutes: 20,
+				sortOrder: 0,
+				blindSets: [
+					{
+						id: 1,
+						blind1: 100,
+						blind2: 200,
+						blind3: null,
+						blind4: null,
+						ante: 200,
+						anteType: null,
+						sortOrder: 0,
+					},
+				],
 			},
 		];
 
@@ -275,6 +296,7 @@ describe("BlindLevelEditor", () => {
 
 		await user.click(screen.getByRole("button", { name: "Delete level" }));
 
-		expect(mocks.deleteMutate).toHaveBeenCalledWith({ id: "level-1" });
+		// removeBlindLevel expects numeric id
+		expect(mocks.removeBlindLevel).toHaveBeenCalledWith({ id: 42 });
 	});
 });

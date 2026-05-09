@@ -6,6 +6,7 @@ import { useAssignDialogState } from "@/features/live-sessions/hooks/use-assign-
 import { useLiveSession } from "@/features/live-sessions/hooks/use-live-session";
 import { useRingGameSceneActions } from "@/features/live-sessions/hooks/use-ring-game-scene-actions";
 import {
+	type BlindLevelRow,
 	type ChipPurchaseRow,
 	type TournamentDetail,
 	useTournamentDetail,
@@ -14,11 +15,10 @@ import { useTournamentSceneActions } from "@/features/live-sessions/hooks/use-to
 import {
 	formatAnteSuffix,
 	formatBlindParts,
-	variantLabel,
 } from "@/features/live-sessions/utils/game-scene-formatters";
 import { RingGameForm } from "@/features/stores/components/ring-game-form";
 import { TournamentEditDialog } from "@/features/stores/components/tournament-edit-dialog";
-import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
+import type { BlindLevelRow as StoreBlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
 import type { RingGame } from "@/features/stores/hooks/use-ring-games";
 import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
@@ -100,9 +100,11 @@ function RingGameDetailsCard({
 			<CardHeader>
 				<CardTitle className="flex flex-wrap items-center gap-1.5">
 					<span className="truncate">{game.name}</span>
-					<Badge className="px-1 py-0 text-[10px]" variant="secondary">
-						{variantLabel(game.variant)}
-					</Badge>
+					{game.variantId != null && (
+						<Badge className="px-1 py-0 text-[10px]" variant="secondary">
+							{game.variantId}
+						</Badge>
+					)}
 					{game.tableSize == null ? null : (
 						<Badge
 							className={`px-1 py-0 text-[10px] ${getTableSizeClassName(game.tableSize)}`}
@@ -235,24 +237,26 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 				title="Edit Cash Game"
 			>
 				<RingGameForm
-					defaultValues={{
-						name: ringGame.name,
-						variant: ringGame.variant,
-						blind1: ringGame.blind1 ?? undefined,
-						blind2: ringGame.blind2 ?? undefined,
-						blind3: ringGame.blind3 ?? undefined,
-						ante: ringGame.ante ?? undefined,
-						anteType: (ringGame.anteType ?? undefined) as
-							| "all"
-							| "bb"
-							| "none"
-							| undefined,
-						minBuyIn: ringGame.minBuyIn ?? undefined,
-						maxBuyIn: ringGame.maxBuyIn ?? undefined,
-						tableSize: ringGame.tableSize ?? undefined,
-						currencyId: ringGame.currencyId ?? undefined,
-						memo: ringGame.memo ?? undefined,
-					}}
+					defaultValues={(() => {
+						const primary = ringGame.blindSets[0];
+						return {
+							name: ringGame.name,
+							blind1: primary?.blind1 ?? undefined,
+							blind2: primary?.blind2 ?? undefined,
+							blind3: primary?.blind3 ?? undefined,
+							ante: primary?.ante ?? undefined,
+							anteType: (primary?.anteType ?? undefined) as
+								| "all"
+								| "bb"
+								| "none"
+								| undefined,
+							minBuyIn: ringGame.minBuyIn ?? undefined,
+							maxBuyIn: ringGame.maxBuyIn ?? undefined,
+							tableSize: ringGame.tableSize ?? undefined,
+							currencyId: ringGame.currencyId ?? undefined,
+							memo: ringGame.memo ?? undefined,
+						};
+					})()}
 					isLoading={isUpdatePending}
 					onSubmit={handleUpdate}
 				/>
@@ -297,7 +301,7 @@ function TournamentStructureTable({ levels }: { levels: BlindLevelRow[] }) {
 						return (
 							<TableRow className="bg-muted/30" key={row.id}>
 								<TableCell className="py-0.5 text-center text-muted-foreground">
-									{row.level}
+									{row.levelIndex + 1}
 								</TableCell>
 								<TableCell
 									className="py-0.5 text-center text-muted-foreground"
@@ -311,20 +315,24 @@ function TournamentStructureTable({ levels }: { levels: BlindLevelRow[] }) {
 							</TableRow>
 						);
 					}
-					const fmt = createGroupFormatter([row.blind1, row.blind2, row.ante]);
+					const primary = row.blindSets[0];
+					const blind1 = primary?.blind1 ?? null;
+					const blind2 = primary?.blind2 ?? null;
+					const ante = primary?.ante ?? null;
+					const fmt = createGroupFormatter([blind1, blind2, ante]);
 					return (
 						<TableRow key={row.id}>
 							<TableCell className="py-0.5 text-center text-muted-foreground">
-								{row.level}
+								{row.levelIndex + 1}
 							</TableCell>
 							<TableCell className="py-0.5 text-center">
-								{row.blind1 == null ? "—" : fmt(row.blind1)}
+								{blind1 == null ? "—" : fmt(blind1)}
 							</TableCell>
 							<TableCell className="py-0.5 text-center">
-								{row.blind2 == null ? "—" : fmt(row.blind2)}
+								{blind2 == null ? "—" : fmt(blind2)}
 							</TableCell>
 							<TableCell className="py-0.5 text-center">
-								{row.ante == null ? "—" : fmt(row.ante)}
+								{ante == null ? "—" : fmt(ante)}
 							</TableCell>
 							<TableCell className="py-0.5 text-center text-muted-foreground">
 								{row.minutes ?? "—"}
@@ -356,9 +364,11 @@ function TournamentInfoCard({
 			<CardHeader>
 				<CardTitle className="flex flex-wrap items-center gap-1.5">
 					<span className="truncate">{tournament.name}</span>
-					<Badge className="px-1 py-0 text-[10px]" variant="secondary">
-						{variantLabel(tournament.variant)}
-					</Badge>
+					{tournament.variantId != null && (
+						<Badge className="px-1 py-0 text-[10px]" variant="secondary">
+							{tournament.variantId}
+						</Badge>
+					)}
 					{tournament.tableSize == null ? null : (
 						<Badge
 							className={`px-1 py-0 text-[10px] ${getTableSizeClassName(tournament.tableSize)}`}
@@ -466,13 +476,30 @@ function StructureCard({
 	);
 }
 
+function toStoreBlindLevels(levels: BlindLevelRow[]): StoreBlindLevelRow[] {
+	return levels.map((l) => {
+		const primary = l.blindSets[0];
+		return {
+			id: String(l.id),
+			tournamentId: l.tournamentId,
+			level: l.levelIndex + 1,
+			isBreak: l.isBreak,
+			blind1: primary?.blind1 ?? null,
+			blind2: primary?.blind2 ?? null,
+			blind3: primary?.blind3 ?? null,
+			ante: primary?.ante ?? null,
+			minutes: l.minutes,
+		};
+	});
+}
+
 function toInitialFormValues(
 	tournament: TournamentDetail,
 	chipPurchases: ChipPurchaseRow[]
 ) {
 	return {
 		name: tournament.name,
-		variant: tournament.variant,
+		variantId: tournament.variantId ?? undefined,
 		buyIn: tournament.buyIn ?? undefined,
 		entryFee: tournament.entryFee ?? undefined,
 		startingStack: tournament.startingStack ?? undefined,
@@ -539,7 +566,7 @@ function TournamentDetailsBody({
 
 			<TournamentEditDialog
 				aiMode="edit"
-				initialBlindLevels={levels}
+				initialBlindLevels={toStoreBlindLevels(levels)}
 				initialFormValues={toInitialFormValues(tournament, chipPurchases)}
 				isLoading={isSaving || isUpdateWithLevelsPending}
 				onOpenChange={setIsEditOpen}

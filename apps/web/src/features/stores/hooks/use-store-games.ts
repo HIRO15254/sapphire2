@@ -11,18 +11,21 @@ export function useStoreGames(storeId: string | undefined) {
 		enabled: !!storeId,
 	});
 	return {
-		ringGames: (ringGamesQuery.data ?? []).map((g) => ({
-			id: g.id,
-			name: g.name,
-			variant: g.variant,
-			blind1: g.blind1,
-			blind2: g.blind2,
-			blind3: g.blind3,
-			ante: g.ante,
-			anteType: g.anteType,
-			tableSize: g.tableSize,
-			currencyId: g.currencyId,
-		})),
+		ringGames: (ringGamesQuery.data ?? []).map((g) => {
+			const primarySet = g.blindSets[0];
+			return {
+				id: g.id,
+				name: g.name,
+				variantId: g.variantId,
+				blind1: primarySet?.blind1 ?? null,
+				blind2: primarySet?.blind2 ?? null,
+				blind3: primarySet?.blind3 ?? null,
+				ante: primarySet?.ante ?? null,
+				anteType: primarySet?.anteType ?? null,
+				tableSize: g.tableSize,
+				currencyId: g.currencyId,
+			};
+		}),
 		tournaments: (tournamentsQuery.data ?? []).map((t) => ({
 			id: t.id,
 			name: t.name,
