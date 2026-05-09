@@ -187,7 +187,12 @@ describe("usePokerTableInteraction", () => {
 			qc.setQueryData(sessionKey, {
 				currentPlayers: [
 					{ isHero: true, seatPosition: 5, joinedAt: "2026-01-01" },
-					{ isHero: false, seatPosition: 2, joinedAt: "2026-01-01", playerId: "p1" },
+					{
+						isHero: false,
+						seatPosition: 2,
+						joinedAt: "2026-01-01",
+						playerId: "p1",
+					},
 				],
 			});
 			let resolve: ((v: unknown) => void) | undefined;

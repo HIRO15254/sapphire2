@@ -114,8 +114,18 @@ describe("useActiveSession", () => {
 		const qc = createClient();
 		qc.setQueryData(sessionListKey, {
 			items: [
-				{ id: "cash-active", source: "live", kind: "cash_game", status: "active" },
-				{ id: "cash-paused", source: "live", kind: "cash_game", status: "paused" },
+				{
+					id: "cash-active",
+					source: "live",
+					kind: "cash_game",
+					status: "active",
+				},
+				{
+					id: "cash-paused",
+					source: "live",
+					kind: "cash_game",
+					status: "paused",
+				},
 			],
 		});
 		const { result } = renderHook(() => useActiveSession(), {
@@ -176,7 +186,12 @@ describe("useActiveSession", () => {
 		const qc = createClient();
 		qc.setQueryData(sessionListKey, {
 			items: [
-				{ id: "manual-1", source: "manual", kind: "cash_game", status: "active" },
+				{
+					id: "manual-1",
+					source: "manual",
+					kind: "cash_game",
+					status: "active",
+				},
 			],
 		});
 		const { result } = renderHook(() => useActiveSession(), {
@@ -190,7 +205,12 @@ describe("useActiveSession", () => {
 		const qc = createClient();
 		qc.setQueryData(sessionListKey, {
 			items: [
-				{ id: "completed-1", source: "live", kind: "cash_game", status: "completed" },
+				{
+					id: "completed-1",
+					source: "live",
+					kind: "cash_game",
+					status: "completed",
+				},
 			],
 		});
 		const { result } = renderHook(() => useActiveSession(), {

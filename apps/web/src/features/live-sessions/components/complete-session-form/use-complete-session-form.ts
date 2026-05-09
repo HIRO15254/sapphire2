@@ -5,8 +5,14 @@ import {
 	requiredNumericString,
 } from "@/shared/lib/form-fields";
 
-type TournamentCompleteSubmitValues =
+interface CashCompleteValues {
+	finalStack: number;
+	kind: "cash_game";
+}
+
+type TournamentCompleteValues =
 	| {
+			kind: "tournament";
 			beforeDeadline: false;
 			bountyPrizes: number;
 			placement: number;
@@ -14,10 +20,19 @@ type TournamentCompleteSubmitValues =
 			totalEntries: number;
 	  }
 	| {
+			kind: "tournament";
 			beforeDeadline: true;
 			bountyPrizes: number;
 			prizeMoney: number;
 	  };
+
+export type CompleteSessionValues =
+	| CashCompleteValues
+	| TournamentCompleteValues;
+
+const cashCompleteSchema = z.object({
+	finalStack: requiredNumericString({ integer: true, min: 0 }),
+});
 
 const tournamentCompleteSchema = z
 	.object({
@@ -50,14 +65,41 @@ const tournamentCompleteSchema = z
 		}
 	});
 
-interface UseTournamentCompleteFormOptions {
-	onSubmit: (values: TournamentCompleteSubmitValues) => void;
+interface UseCashCompleteFormOptions {
+	defaultFinalStack?: number;
+	kind: "cash_game";
+	onSubmit: (values: CompleteSessionValues) => void;
 }
 
-export function useTournamentCompleteForm({
-	onSubmit,
-}: UseTournamentCompleteFormOptions) {
-	const form = useForm({
+interface UseTournamentCompleteFormOptions {
+	kind: "tournament";
+	onSubmit: (values: CompleteSessionValues) => void;
+}
+
+type UseCompleteSessionFormOptions =
+	| UseCashCompleteFormOptions
+	| UseTournamentCompleteFormOptions;
+
+export function useCompleteSessionForm(options: UseCompleteSessionFormOptions) {
+	const { kind, onSubmit } = options;
+
+	const defaultFinalStack =
+		kind === "cash_game"
+			? (options as UseCashCompleteFormOptions).defaultFinalStack
+			: undefined;
+
+	const cashForm = useForm({
+		defaultValues: {
+			finalStack:
+				defaultFinalStack === undefined ? "" : String(defaultFinalStack),
+		},
+		onSubmit: ({ value }) => {
+			onSubmit({ kind: "cash_game", finalStack: Number(value.finalStack) });
+		},
+		validators: { onSubmit: cashCompleteSchema },
+	});
+
+	const tournamentForm = useForm({
 		defaultValues: {
 			beforeDeadline: false,
 			placement: "",
@@ -68,12 +110,14 @@ export function useTournamentCompleteForm({
 		onSubmit: ({ value }) => {
 			if (value.beforeDeadline) {
 				onSubmit({
+					kind: "tournament",
 					beforeDeadline: true,
 					prizeMoney: Number(value.prizeMoney),
 					bountyPrizes: value.bountyPrizes ? Number(value.bountyPrizes) : 0,
 				});
 			} else {
 				onSubmit({
+					kind: "tournament",
 					beforeDeadline: false,
 					placement: Number(value.placement),
 					totalEntries: Number(value.totalEntries),
@@ -82,10 +126,8 @@ export function useTournamentCompleteForm({
 				});
 			}
 		},
-		validators: {
-			onSubmit: tournamentCompleteSchema,
-		},
+		validators: { onSubmit: tournamentCompleteSchema },
 	});
 
-	return { form };
+	return { kind, cashForm, tournamentForm };
 }

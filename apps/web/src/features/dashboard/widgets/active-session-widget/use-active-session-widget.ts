@@ -37,7 +37,7 @@ export function useActiveSessionWidget(
 
 	const listQuery = useQuery({
 		...trpc.session.list.queryOptions(
-			parsed.sessionType !== "all" ? { type: parsed.sessionType } : {}
+			parsed.sessionType === "all" ? {} : { type: parsed.sessionType }
 		),
 		refetchInterval: 5000,
 		refetchIntervalInBackground: false,

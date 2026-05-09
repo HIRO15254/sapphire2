@@ -20,12 +20,14 @@ export function useLiveSession(sessionId: string) {
 	const listKey = trpc.session.list.queryOptions({}).queryKey;
 
 	const discardMutation = useMutation({
-		mutationFn: () =>
-			trpcClient.liveSession.discard.mutate({ id: sessionId }),
+		mutationFn: () => trpcClient.liveSession.discard.mutate({ id: sessionId }),
 		onSuccess: async () => {
 			await invalidateTargets(queryClient, [
 				{ queryKey: listKey },
-				{ queryKey: trpc.liveSession.getById.queryOptions({ id: sessionId }).queryKey },
+				{
+					queryKey: trpc.liveSession.getById.queryOptions({ id: sessionId })
+						.queryKey,
+				},
 			]);
 			await navigate({ to: "/sessions" });
 		},

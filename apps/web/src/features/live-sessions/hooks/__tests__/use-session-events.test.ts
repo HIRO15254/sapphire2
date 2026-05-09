@@ -116,10 +116,9 @@ describe("useSessionEvents", () => {
 
 		it("does not fetch when sessionId is empty (enabled gate)", () => {
 			const qc = createClient();
-			const { result } = renderHook(
-				() => useSessionEvents({ sessionId: "" }),
-				{ wrapper: makeWrapper(qc) }
-			);
+			const { result } = renderHook(() => useSessionEvents({ sessionId: "" }), {
+				wrapper: makeWrapper(qc),
+			});
 			expect(result.current.events).toEqual([]);
 		});
 	});

@@ -86,7 +86,8 @@ export function useLiveSessionCreate({ onClose }: { onClose: () => void }) {
 			storeId?: string;
 			timerStartedAt?: Date;
 			tournamentId?: string;
-		}) => trpcClient.liveSession.create.mutate({ kind: "tournament", ...values }),
+		}) =>
+			trpcClient.liveSession.create.mutate({ kind: "tournament", ...values }),
 		onSuccess: async () => {
 			await invalidateTargets(queryClient, [{ queryKey: sessionListKey }]);
 			onClose();

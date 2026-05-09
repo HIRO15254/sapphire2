@@ -37,10 +37,7 @@ export function useTablePlayers({ sessionId }: UseTablePlayersOptions) {
 		sessionQuery.data?.currentPlayers ?? [];
 
 	const addMutation = useMutation({
-		mutationFn: (params: {
-			playerId: string;
-			seatPosition?: number;
-		}) =>
+		mutationFn: (params: { playerId: string; seatPosition?: number }) =>
 			trpcClient.sessionEvent.addPlayer.mutate({
 				sessionId,
 				playerId: params.playerId,

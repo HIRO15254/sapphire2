@@ -90,7 +90,17 @@ describe("useTournamentDetail", () => {
 		qc.setQueryData(["tournament", "getById", { id: "t1" }], {
 			id: "t1",
 			name: "Main Event",
-			blindLevels: [{ id: 1, blind1: 100, blind2: 200, isBreak: false, minutes: 15, sortOrder: 0, tournamentId: "t1" }],
+			blindLevels: [
+				{
+					id: 1,
+					blind1: 100,
+					blind2: 200,
+					isBreak: false,
+					minutes: 15,
+					sortOrder: 0,
+					tournamentId: "t1",
+				},
+			],
 		});
 		qc.setQueryData(
 			["tournamentChipPurchase", "listByTournament", { tournamentId: "t1" }],
@@ -117,8 +127,24 @@ describe("useTournamentDetail", () => {
 		qc.setQueryData(["tournament", "getById", { id: "t1" }], {
 			id: "t1",
 			blindLevels: [
-				{ id: 1, blind1: 100, blind2: 200, isBreak: false, minutes: 15, sortOrder: 0, tournamentId: "t1" },
-				{ id: 2, blind1: null, blind2: null, isBreak: true, minutes: 5, sortOrder: 1, tournamentId: "t1" },
+				{
+					id: 1,
+					blind1: 100,
+					blind2: 200,
+					isBreak: false,
+					minutes: 15,
+					sortOrder: 0,
+					tournamentId: "t1",
+				},
+				{
+					id: 2,
+					blind1: null,
+					blind2: null,
+					isBreak: true,
+					minutes: 5,
+					sortOrder: 1,
+					tournamentId: "t1",
+				},
 			],
 		});
 		const { result } = renderHook(() => useTournamentDetail("t1"), {
@@ -147,7 +173,9 @@ describe("useTournamentDetail", () => {
 		});
 		// Both reflect tournament query loading state
 		await waitFor(() => {
-			expect(result.current.isTournamentLoading).toBe(result.current.isLevelsLoading);
+			expect(result.current.isTournamentLoading).toBe(
+				result.current.isLevelsLoading
+			);
 		});
 	});
 });

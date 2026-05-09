@@ -93,7 +93,10 @@ describe("useCashGameSession", () => {
 			wrapper: makeWrapper(qc),
 		});
 		await waitFor(() => {
-			expect(result.current.session).toMatchObject({ id: "s1", storeId: "store-1" });
+			expect(result.current.session).toMatchObject({
+				id: "s1",
+				storeId: "store-1",
+			});
 		});
 	});
 

@@ -371,7 +371,9 @@ describe("useCashGameStack", () => {
 				result.current.complete({ finalStack: 0 });
 				await Promise.resolve();
 			});
-			await waitFor(() => expect(trpcMocks.liveSessionComplete).toHaveBeenCalled());
+			await waitFor(() =>
+				expect(trpcMocks.liveSessionComplete).toHaveBeenCalled()
+			);
 			await Promise.resolve();
 			expect(navigateMock).not.toHaveBeenCalled();
 		});

@@ -67,12 +67,14 @@ function sessionKey(id: string) {
 	return buildKey("liveSession", "getById", { id });
 }
 
-function makeSessionData(currentPlayers: Array<{
-	isHero?: boolean;
-	joinedAt?: string;
-	playerId?: string;
-	seatPosition?: number | null;
-}>) {
+function makeSessionData(
+	currentPlayers: Array<{
+		isHero?: boolean;
+		joinedAt?: string;
+		playerId?: string;
+		seatPosition?: number | null;
+	}>
+) {
 	return {
 		id: "s1",
 		kind: "cash_game",
@@ -202,7 +204,9 @@ describe("useTablePlayers", () => {
 		it("adds player without seat position when not provided", async () => {
 			const qc = createClient();
 			qc.setQueryData(sessionKey("s1"), makeSessionData([]));
-			trpcMocks.addPlayer.mockImplementation(() => new Promise(() => undefined));
+			trpcMocks.addPlayer.mockImplementation(
+				() => new Promise(() => undefined)
+			);
 			const { result } = renderHook(
 				() => useTablePlayers({ sessionId: "s1" }),
 				{ wrapper: makeWrapper(qc) }
@@ -325,10 +329,7 @@ describe("useTablePlayers", () => {
 
 		it("rolls back on remove error", async () => {
 			const qc = createClient();
-			qc.setQueryData(
-				sessionKey("s1"),
-				makeSessionData([{ playerId: "p1" }])
-			);
+			qc.setQueryData(sessionKey("s1"), makeSessionData([{ playerId: "p1" }]));
 			trpcMocks.removePlayer.mockRejectedValue(new Error("fail"));
 			const { result } = renderHook(
 				() => useTablePlayers({ sessionId: "s1" }),

@@ -1,62 +1,39 @@
 import { useForm } from "@tanstack/react-form";
 import { useEffect } from "react";
 import z from "zod";
-import { requiredNumericString } from "@/shared/lib/form-fields";
 
 const chipPurchaseSchema = z.object({
-	name: z.string().min(1, "Name is required"),
-	cost: requiredNumericString({ integer: true, min: 0 }),
-	chips: requiredNumericString({ integer: true, min: 0 }),
+	chipPurchaseOptionId: z.string().min(1, "Select a chip purchase option"),
 });
 
-function buildDefaults({
-	initialValues,
-	defaultName,
-	defaultCost,
-	defaultChips,
-}: {
-	defaultChips?: number;
-	defaultCost?: number;
-	defaultName?: string;
-	initialValues?: { name: string; cost: number; chips: number };
-}) {
+function buildDefaults({ initialOptionId }: { initialOptionId?: string }) {
 	return {
-		name: initialValues?.name ?? defaultName ?? "",
-		cost: String(initialValues?.cost ?? defaultCost ?? 0),
-		chips: String(initialValues?.chips ?? defaultChips ?? 0),
+		chipPurchaseOptionId: initialOptionId ?? "",
 	};
 }
 
+export interface ChipPurchaseFormOption {
+	chips: number;
+	cost: number;
+	id: number;
+	name: string;
+}
+
 interface UseChipPurchaseFormOptions {
-	defaultChips?: number;
-	defaultCost?: number;
-	defaultName?: string;
-	initialValues?: { name: string; cost: number; chips: number };
-	onSubmit: (purchase: { name: string; cost: number; chips: number }) => void;
+	initialOptionId?: string;
+	onSubmit: (purchase: { chipPurchaseOptionId: string }) => void;
 	open: boolean;
 }
 
 export function useChipPurchaseForm({
-	defaultChips,
-	defaultCost,
-	defaultName,
-	initialValues,
+	initialOptionId,
 	open,
 	onSubmit,
 }: UseChipPurchaseFormOptions) {
 	const form = useForm({
-		defaultValues: buildDefaults({
-			defaultChips,
-			defaultCost,
-			defaultName,
-			initialValues,
-		}),
+		defaultValues: buildDefaults({ initialOptionId }),
 		onSubmit: ({ value }) => {
-			onSubmit({
-				name: value.name,
-				cost: Math.round(Number(value.cost)),
-				chips: Math.round(Number(value.chips)),
-			});
+			onSubmit({ chipPurchaseOptionId: value.chipPurchaseOptionId });
 		},
 		validators: {
 			onSubmit: chipPurchaseSchema,
@@ -65,11 +42,9 @@ export function useChipPurchaseForm({
 
 	useEffect(() => {
 		if (open) {
-			form.reset(
-				buildDefaults({ defaultChips, defaultCost, defaultName, initialValues })
-			);
+			form.reset(buildDefaults({ initialOptionId }));
 		}
-	}, [open, defaultChips, defaultCost, defaultName, initialValues, form]);
+	}, [open, initialOptionId, form]);
 
 	return { form };
 }

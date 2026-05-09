@@ -1,58 +1,47 @@
-import { ChipPurchaseFields } from "@/features/live-sessions/components/event-fields/chip-purchase-fields";
 import { Button } from "@/shared/components/ui/button";
 import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import { Field } from "@/shared/components/ui/field";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import {
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+	SelectWithClear,
+} from "@/shared/components/ui/select";
+import type { ChipPurchaseFormOption } from "./use-chip-purchase-form";
 import { useChipPurchaseForm } from "./use-chip-purchase-form";
 
 interface ChipPurchaseSheetProps {
-	defaultChips?: number;
-	defaultCost?: number;
-	defaultName?: string;
-	initialValues?: { name: string; cost: number; chips: number };
-	onDelete?: () => void;
+	initialOptionId?: string;
 	onOpenChange: (open: boolean) => void;
-	onSubmit: (purchase: { name: string; cost: number; chips: number }) => void;
+	onSubmit: (purchase: { chipPurchaseOptionId: string }) => void;
 	open: boolean;
-	readOnly?: boolean;
-	shortcuts?: Array<{ chips: number; cost: number; name: string }>;
+	options: ChipPurchaseFormOption[];
 }
 
 export function ChipPurchaseSheet({
 	open,
 	onOpenChange,
-	defaultName,
-	defaultCost,
-	defaultChips,
-	initialValues,
+	initialOptionId,
 	onSubmit,
-	onDelete,
-	readOnly = false,
-	shortcuts,
+	options,
 }: ChipPurchaseSheetProps) {
 	const { form } = useChipPurchaseForm({
-		defaultChips,
-		defaultCost,
-		defaultName,
-		initialValues,
+		initialOptionId,
 		open,
-		onSubmit,
+		onSubmit: (values) => {
+			onSubmit(values);
+			onOpenChange(false);
+		},
 	});
-
-	const isEditMode = initialValues !== undefined;
-
-	let title = "Add Chip Purchase";
-	if (readOnly) {
-		title = form.state.values.name || "Chip Purchase";
-	} else if (isEditMode) {
-		title = "Edit Chip Purchase";
-	}
 
 	return (
 		<ResponsiveDialog
-			description="Add, review, or edit a chip purchase entry for this tournament stack."
+			description="Select a chip purchase option for this session."
 			onOpenChange={onOpenChange}
 			open={open}
-			title={title}
+			title="Chip Purchase"
 		>
 			<form
 				className="flex flex-col gap-4"
@@ -62,31 +51,33 @@ export function ChipPurchaseSheet({
 					form.handleSubmit();
 				}}
 			>
-				<form.Field name="name">
-					{(nameField) => (
-						<form.Field name="cost">
-							{(costField) => (
-								<form.Field name="chips">
-									{(chipsField) => (
-										<ChipPurchaseFields
-											chips={chipsField.state.value}
-											chipsError={chipsField.state.meta.errors[0]?.message}
-											cost={costField.state.value}
-											costError={costField.state.meta.errors[0]?.message}
-											name={nameField.state.value}
-											nameError={nameField.state.meta.errors[0]?.message}
-											onChipsChange={(v) => chipsField.handleChange(v)}
-											onCostChange={(v) => costField.handleChange(v)}
-											onNameChange={(v) => nameField.handleChange(v)}
-											readOnly={readOnly}
-											shortcuts={shortcuts}
-										/>
-									)}
-								</form.Field>
-							)}
-						</form.Field>
+				<form.Field name="chipPurchaseOptionId">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Purchase Option"
+							required
+						>
+							<SelectWithClear
+								onValueChange={(v) => field.handleChange(v ?? "")}
+								value={field.state.value}
+							>
+								<SelectTrigger id={field.name}>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{options.map((opt) => (
+										<SelectItem key={opt.id} value={String(opt.id)}>
+											{opt.name} — {opt.cost} / {opt.chips} chips
+										</SelectItem>
+									))}
+								</SelectContent>
+							</SelectWithClear>
+						</Field>
 					)}
 				</form.Field>
+
 				<DialogActionRow>
 					<Button
 						onClick={() => onOpenChange(false)}
@@ -95,16 +86,15 @@ export function ChipPurchaseSheet({
 					>
 						Cancel
 					</Button>
-					{onDelete ? (
-						<Button onClick={onDelete} type="button" variant="destructive">
-							Delete
-						</Button>
-					) : null}
-					{readOnly ? null : (
-						<Button type="submit">
-							{isEditMode ? "Save" : "Add Chip Purchase"}
-						</Button>
-					)}
+					<form.Subscribe
+						selector={(state) => [state.canSubmit, state.isSubmitting]}
+					>
+						{([canSubmit, isSubmitting]) => (
+							<Button disabled={!canSubmit || isSubmitting} type="submit">
+								Add Purchase
+							</Button>
+						)}
+					</form.Subscribe>
 				</DialogActionRow>
 			</form>
 		</ResponsiveDialog>

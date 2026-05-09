@@ -1,4 +1,3 @@
-import { ChipPurchaseSheet } from "@/features/live-sessions/components/chip-purchase-sheet";
 import {
 	StackBadgeRow,
 	StackEditorActionRow,
@@ -8,6 +7,9 @@ import {
 } from "@/features/live-sessions/components/stack-ui";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
+import { Field } from "@/shared/components/ui/field";
+import { Input } from "@/shared/components/ui/input";
+import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { useTournamentStackRecordEditor } from "./use-tournament-stack-record-editor";
 
 interface TournamentStackRecordPayload {
@@ -32,6 +34,106 @@ interface TournamentStackRecordEditorProps {
 		payload: TournamentStackRecordPayload,
 		occurredAt?: number
 	) => void;
+}
+
+interface InlineChipPurchaseSheetProps {
+	initialValues?: { name: string; cost: number; chips: number };
+	onDelete?: () => void;
+	onOpenChange: (open: boolean) => void;
+	onSubmit: (purchase: { name: string; cost: number; chips: number }) => void;
+	open: boolean;
+}
+
+function InlineChipPurchaseSheet({
+	initialValues,
+	onDelete,
+	onOpenChange,
+	onSubmit,
+	open,
+}: InlineChipPurchaseSheetProps) {
+	return (
+		<ResponsiveDialog
+			onOpenChange={onOpenChange}
+			open={open}
+			title={initialValues ? "Edit Chip Purchase" : "Add Chip Purchase"}
+		>
+			<InlineChipPurchaseForm
+				initialValues={initialValues}
+				onCancel={() => onOpenChange(false)}
+				onDelete={onDelete}
+				onSubmit={(values) => {
+					onSubmit(values);
+					onOpenChange(false);
+				}}
+			/>
+		</ResponsiveDialog>
+	);
+}
+
+function InlineChipPurchaseForm({
+	initialValues,
+	onCancel,
+	onDelete,
+	onSubmit,
+}: {
+	initialValues?: { name: string; cost: number; chips: number };
+	onCancel: () => void;
+	onDelete?: () => void;
+	onSubmit: (purchase: { name: string; cost: number; chips: number }) => void;
+}) {
+	return (
+		<div className="flex flex-col gap-3">
+			<form
+				className="flex flex-col gap-3"
+				onSubmit={(e) => {
+					e.preventDefault();
+					const fd = new FormData(e.currentTarget);
+					const name = String(fd.get("name") ?? "").trim();
+					const cost = Number(fd.get("cost") ?? 0);
+					const chips = Number(fd.get("chips") ?? 0);
+					if (!name) {
+						return;
+					}
+					onSubmit({ name, cost, chips });
+				}}
+			>
+				<Field htmlFor="ip-name" label="Name" required>
+					<Input
+						defaultValue={initialValues?.name ?? ""}
+						id="ip-name"
+						name="name"
+					/>
+				</Field>
+				<Field htmlFor="ip-cost" label="Cost" required>
+					<Input
+						defaultValue={String(initialValues?.cost ?? 0)}
+						id="ip-cost"
+						inputMode="numeric"
+						name="cost"
+					/>
+				</Field>
+				<Field htmlFor="ip-chips" label="Chips Received" required>
+					<Input
+						defaultValue={String(initialValues?.chips ?? 0)}
+						id="ip-chips"
+						inputMode="numeric"
+						name="chips"
+					/>
+				</Field>
+				<div className="flex justify-end gap-2">
+					<Button onClick={onCancel} type="button" variant="outline">
+						Cancel
+					</Button>
+					{onDelete && (
+						<Button onClick={onDelete} type="button" variant="destructive">
+							Delete
+						</Button>
+					)}
+					<Button type="submit">{initialValues ? "Save" : "Add"}</Button>
+				</div>
+			</form>
+		</div>
+	);
 }
 
 function ChipPurchaseList({
@@ -189,7 +291,7 @@ export function TournamentStackRecordEditor({
 				saveDisabled={timeError !== null}
 			/>
 
-			<ChipPurchaseSheet
+			<InlineChipPurchaseSheet
 				initialValues={
 					editingPurchase
 						? {

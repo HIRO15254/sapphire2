@@ -713,15 +713,31 @@ describe("getSessionQueryKeys", () => {
 	it("sessionKey uses liveSession.getById regardless of sessionType", () => {
 		const cashKeys = getSessionQueryKeys("sess-1", "cash_game");
 		const tournKeys = getSessionQueryKeys("sess-1", "tournament");
-		expect(cashKeys.sessionKey).toEqual(["liveSession", "getById", { id: "sess-1" }]);
-		expect(tournKeys.sessionKey).toEqual(["liveSession", "getById", { id: "sess-1" }]);
+		expect(cashKeys.sessionKey).toEqual([
+			"liveSession",
+			"getById",
+			{ id: "sess-1" },
+		]);
+		expect(tournKeys.sessionKey).toEqual([
+			"liveSession",
+			"getById",
+			{ id: "sess-1" },
+		]);
 	});
 
 	it("eventsKey uses sessionEvent.list with sessionId (not type-specific)", () => {
 		const cashKeys = getSessionQueryKeys("sess-1", "cash_game");
 		const tournKeys = getSessionQueryKeys("t-42", "tournament");
-		expect(cashKeys.eventsKey).toEqual(["sessionEvent", "list", { sessionId: "sess-1" }]);
-		expect(tournKeys.eventsKey).toEqual(["sessionEvent", "list", { sessionId: "t-42" }]);
+		expect(cashKeys.eventsKey).toEqual([
+			"sessionEvent",
+			"list",
+			{ sessionId: "sess-1" },
+		]);
+		expect(tournKeys.eventsKey).toEqual([
+			"sessionEvent",
+			"list",
+			{ sessionId: "t-42" },
+		]);
 	});
 
 	it("activeListKey, pausedListKey, and allListsKey all point to session.list with empty input", () => {
@@ -1226,7 +1242,8 @@ describe("createSessionEventMutationOptions", () => {
 			const context = await options.onMutate(undefined);
 			// Item status updated optimistically to "paused".
 			expect(
-				queryClient.getQueryData<TestListData>(keys.activeListKey)?.items?.[0]?.status
+				queryClient.getQueryData<TestListData>(keys.activeListKey)?.items?.[0]
+					?.status
 			).toBe("paused");
 
 			options.onError(new Error("rollback"), undefined, context);

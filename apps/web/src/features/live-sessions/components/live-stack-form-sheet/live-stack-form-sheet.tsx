@@ -1,7 +1,5 @@
-import { CashGameCompleteForm } from "@/features/live-sessions/components/cash-game-complete-form";
-import { CashGameStackForm } from "@/features/live-sessions/components/cash-game-stack-form";
-import { TournamentCompleteForm } from "@/features/live-sessions/components/tournament-complete-form";
-import { TournamentStackForm } from "@/features/live-sessions/components/tournament-stack-form";
+import { CompleteSessionForm } from "@/features/live-sessions/components/complete-session-form";
+import { StackForm } from "@/features/live-sessions/components/stack-form";
 import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
 import { useCashGameStack } from "@/features/live-sessions/hooks/use-cash-game-stack";
 import { useTournamentStack } from "@/features/live-sessions/hooks/use-tournament-stack";
@@ -39,8 +37,9 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 				open={stackSheet.isOpen}
 				title="Record Stack"
 			>
-				<CashGameStackForm
+				<StackForm
 					isLoading={isStackPending}
+					kind="cash_game"
 					onAllIn={(values) => addAllIn(values)}
 					onChipAdd={(amount) => addChip(amount)}
 					onChipRemove={(amount) => removeChip(amount)}
@@ -54,7 +53,7 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 						stackSheet.close();
 					}}
 					onSubmit={(values) => {
-						recordStack(values);
+						recordStack({ stackAmount: values.stackAmount });
 						stackSheet.close();
 					}}
 				/>
@@ -65,11 +64,12 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 				open={isCompleteOpen}
 				title="Complete Session"
 			>
-				<CashGameCompleteForm
+				<CompleteSessionForm
 					defaultFinalStack={defaultFinalStack}
 					isLoading={isCompletePending}
+					kind="cash_game"
 					onSubmit={(values) => {
-						complete(values);
+						complete(values as { finalStack: number });
 						setIsCompleteOpen(false);
 						stackSheet.close();
 					}}
@@ -101,9 +101,10 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 				open={stackSheet.isOpen}
 				title="Record Stack"
 			>
-				<TournamentStackForm
+				<StackForm
 					chipPurchaseTypes={chipPurchaseTypes}
 					isLoading={isStackPending}
+					kind="tournament"
 					onComplete={() => {
 						setIsCompleteOpen(true);
 					}}
@@ -134,10 +135,11 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 				open={isCompleteOpen}
 				title="Complete Tournament"
 			>
-				<TournamentCompleteForm
+				<CompleteSessionForm
 					isLoading={isCompletePending}
+					kind="tournament"
 					onSubmit={(values) => {
-						complete(values);
+						complete(values as Parameters<typeof complete>[0]);
 						setIsCompleteOpen(false);
 						stackSheet.close();
 					}}

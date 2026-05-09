@@ -4,32 +4,75 @@ import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { useTournamentCompleteForm } from "./use-tournament-complete-form";
+import type { CompleteSessionValues } from "./use-complete-session-form";
+import { useCompleteSessionForm } from "./use-complete-session-form";
 
-interface TournamentCompleteFormProps {
+interface CompleteSessionFormProps {
+	defaultFinalStack?: number;
 	isLoading: boolean;
-	onSubmit: (
-		values:
-			| {
-					beforeDeadline: false;
-					bountyPrizes: number;
-					placement: number;
-					prizeMoney: number;
-					totalEntries: number;
-			  }
-			| {
-					beforeDeadline: true;
-					bountyPrizes: number;
-					prizeMoney: number;
-			  }
-	) => void;
+	kind: "cash_game" | "tournament";
+	onSubmit: (values: CompleteSessionValues) => void;
 }
 
-export function TournamentCompleteForm({
+export function CompleteSessionForm({
+	defaultFinalStack,
 	isLoading,
+	kind,
 	onSubmit,
-}: TournamentCompleteFormProps) {
-	const { form } = useTournamentCompleteForm({ onSubmit });
+}: CompleteSessionFormProps) {
+	const { cashForm, tournamentForm } = useCompleteSessionForm(
+		kind === "cash_game"
+			? { kind: "cash_game", defaultFinalStack, onSubmit }
+			: { kind: "tournament", onSubmit }
+	);
+
+	if (kind === "cash_game") {
+		return (
+			<form
+				className="flex flex-col gap-4"
+				onSubmit={(e) => {
+					e.preventDefault();
+					e.stopPropagation();
+					cashForm.handleSubmit();
+				}}
+			>
+				<cashForm.Field name="finalStack">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Final Stack"
+							required
+						>
+							<Input
+								id={field.name}
+								inputMode="numeric"
+								name={field.name}
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</cashForm.Field>
+
+				<DialogActionRow>
+					<cashForm.Subscribe
+						selector={(state) => [state.canSubmit, state.isSubmitting]}
+					>
+						{([canSubmit, isSubmitting]) => (
+							<Button
+								disabled={isLoading || !canSubmit || isSubmitting}
+								type="submit"
+							>
+								{isLoading ? "Completing..." : "Complete Session"}
+							</Button>
+						)}
+					</cashForm.Subscribe>
+				</DialogActionRow>
+			</form>
+		);
+	}
 
 	return (
 		<form
@@ -37,11 +80,11 @@ export function TournamentCompleteForm({
 			onSubmit={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
-				form.handleSubmit();
+				tournamentForm.handleSubmit();
 			}}
 		>
 			<div className="flex items-center gap-2">
-				<form.Field name="beforeDeadline">
+				<tournamentForm.Field name="beforeDeadline">
 					{(field) => (
 						<>
 							<Checkbox
@@ -56,14 +99,16 @@ export function TournamentCompleteForm({
 							</Label>
 						</>
 					)}
-				</form.Field>
+				</tournamentForm.Field>
 			</div>
 
-			<form.Subscribe selector={(state) => state.values.beforeDeadline}>
+			<tournamentForm.Subscribe
+				selector={(state) => state.values.beforeDeadline}
+			>
 				{(beforeDeadline) =>
 					!beforeDeadline && (
 						<div className="grid grid-cols-2 gap-2">
-							<form.Field name="placement">
+							<tournamentForm.Field name="placement">
 								{(field) => (
 									<Field
 										error={field.state.meta.errors[0]?.message}
@@ -81,9 +126,9 @@ export function TournamentCompleteForm({
 										/>
 									</Field>
 								)}
-							</form.Field>
+							</tournamentForm.Field>
 
-							<form.Field name="totalEntries">
+							<tournamentForm.Field name="totalEntries">
 								{(field) => (
 									<Field
 										error={field.state.meta.errors[0]?.message}
@@ -101,13 +146,13 @@ export function TournamentCompleteForm({
 										/>
 									</Field>
 								)}
-							</form.Field>
+							</tournamentForm.Field>
 						</div>
 					)
 				}
-			</form.Subscribe>
+			</tournamentForm.Subscribe>
 
-			<form.Field name="prizeMoney">
+			<tournamentForm.Field name="prizeMoney">
 				{(field) => (
 					<Field
 						error={field.state.meta.errors[0]?.message}
@@ -125,9 +170,9 @@ export function TournamentCompleteForm({
 						/>
 					</Field>
 				)}
-			</form.Field>
+			</tournamentForm.Field>
 
-			<form.Field name="bountyPrizes">
+			<tournamentForm.Field name="bountyPrizes">
 				{(field) => (
 					<Field
 						error={field.state.meta.errors[0]?.message}
@@ -144,10 +189,10 @@ export function TournamentCompleteForm({
 						/>
 					</Field>
 				)}
-			</form.Field>
+			</tournamentForm.Field>
 
 			<DialogActionRow>
-				<form.Subscribe
+				<tournamentForm.Subscribe
 					selector={(state) => [state.canSubmit, state.isSubmitting]}
 				>
 					{([canSubmit, isSubmitting]) => (
@@ -158,7 +203,7 @@ export function TournamentCompleteForm({
 							{isLoading ? "Completing..." : "Complete Tournament"}
 						</Button>
 					)}
-				</form.Subscribe>
+				</tournamentForm.Subscribe>
 			</DialogActionRow>
 		</form>
 	);

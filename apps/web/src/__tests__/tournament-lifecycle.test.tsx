@@ -154,7 +154,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-import { TournamentCompleteForm } from "@/features/live-sessions/components/tournament-complete-form";
+import { CompleteSessionForm } from "@/features/live-sessions/components/complete-session-form";
 // biome-ignore lint/performance/noNamespaceImport: required to access named export from route module
 import * as ActiveSessionEventsModule from "@/routes/active-session/events";
 // Pull in route components after all mocks are declared.
@@ -648,9 +648,15 @@ describe("ActiveSessionEventsPage — empty events list", () => {
 // Tests: TournamentCompleteForm — complete dialog fields
 // ---------------------------------------------------------------------------
 
-describe("TournamentCompleteForm — complete dialog fields", () => {
+describe("CompleteSessionForm (tournament) — complete dialog fields", () => {
 	it("renders placement, totalEntries, prizeMoney, and bountyPrizes inputs", () => {
-		render(<TournamentCompleteForm isLoading={false} onSubmit={vi.fn()} />);
+		render(
+			<CompleteSessionForm
+				isLoading={false}
+				kind="tournament"
+				onSubmit={vi.fn()}
+			/>
+		);
 
 		expect(screen.getByLabelText(REGEX_PLACEMENT_LABEL)).toBeInTheDocument();
 		expect(
@@ -663,7 +669,13 @@ describe("TournamentCompleteForm — complete dialog fields", () => {
 	});
 
 	it("renders the 'Complete Tournament' submit button", () => {
-		render(<TournamentCompleteForm isLoading={false} onSubmit={vi.fn()} />);
+		render(
+			<CompleteSessionForm
+				isLoading={false}
+				kind="tournament"
+				onSubmit={vi.fn()}
+			/>
+		);
 
 		expect(
 			screen.getByRole("button", { name: REGEX_COMPLETE_TOURNAMENT })
@@ -671,21 +683,35 @@ describe("TournamentCompleteForm — complete dialog fields", () => {
 	});
 
 	it("disables the button and shows 'Completing...' while loading", () => {
-		render(<TournamentCompleteForm isLoading onSubmit={vi.fn()} />);
+		render(
+			<CompleteSessionForm isLoading kind="tournament" onSubmit={vi.fn()} />
+		);
 
 		const button = screen.getByRole("button", { name: REGEX_COMPLETING });
 		expect(button).toBeDisabled();
 	});
 
 	it("placement input accepts numeric input and is labeled required", () => {
-		render(<TournamentCompleteForm isLoading={false} onSubmit={vi.fn()} />);
+		render(
+			<CompleteSessionForm
+				isLoading={false}
+				kind="tournament"
+				onSubmit={vi.fn()}
+			/>
+		);
 
 		const input = screen.getByLabelText(REGEX_PLACEMENT_LABEL);
 		expect(input).toHaveAttribute("inputMode", "numeric");
 	});
 
 	it("prizeMoney input has default of 0", () => {
-		render(<TournamentCompleteForm isLoading={false} onSubmit={vi.fn()} />);
+		render(
+			<CompleteSessionForm
+				isLoading={false}
+				kind="tournament"
+				onSubmit={vi.fn()}
+			/>
+		);
 
 		const input = screen.getByLabelText(REGEX_PRIZE_MONEY_LABEL);
 		expect(input).toHaveValue("0");

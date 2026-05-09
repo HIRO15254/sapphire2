@@ -3,6 +3,35 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SessionForm } from "./session-form";
 
+// Mock trpc to avoid environment variable errors from VITE_SERVER_URL
+vi.mock("@/utils/trpc", () => ({
+	trpc: {
+		limitFormat: {
+			list: {
+				queryOptions: () => ({ queryKey: ["limitFormat.list"] }),
+			},
+		},
+		liveSession: {
+			getById: {
+				queryOptions: (input: { id: string }) => ({
+					queryKey: ["liveSession.getById", input.id],
+				}),
+			},
+		},
+	},
+	trpcClient: {},
+}));
+
+vi.mock("@tanstack/react-query", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@tanstack/react-query")>();
+	return {
+		...actual,
+		useQuery: () => ({ data: undefined, isLoading: false }),
+		useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+		useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+	};
+});
+
 const BUY_IN_RE = /Buy-in/;
 const SESSION_DATE_RE = /Session Date/;
 const SESSION_TAG = { id: "series", name: "Series" };

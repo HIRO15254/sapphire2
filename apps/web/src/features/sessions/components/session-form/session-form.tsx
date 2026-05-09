@@ -13,7 +13,9 @@ import { TagInput } from "@/shared/components/ui/tag-input";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { CashGameFields } from "../cash-game-fields";
 import { FormAccordion } from "../form-section";
+import { GameRuleSection } from "../game-rule-section";
 import { StoreGameSelectors } from "../link-selectors";
+import { ResultSection } from "../result-section";
 import {
 	TournamentDetailFields,
 	TournamentPrimaryFields,
@@ -29,11 +31,82 @@ export type {
 	TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
 
+export type SessionFormMode =
+	| "manual"
+	| "live-active"
+	| "live-completed"
+	| "live-discarded";
+
+interface LiveSessionData {
+	blindLevels?: Array<{
+		id: number;
+		levelIndex: number;
+		isBreak: boolean;
+		minutes?: number | null;
+		sortOrder: number;
+		blindSets: Array<{
+			id: number;
+			limitFormatId: number;
+			blind1: number;
+			blind2: number;
+			blind3?: number | null;
+			blind4?: number | null;
+			ante?: number | null;
+			anteType?: "none" | "all" | "bb" | null;
+			sortOrder: number;
+		}>;
+	}>;
+	cashBlindSets?: Array<{
+		id: number;
+		limitFormatId: number;
+		blind1: number;
+		blind2: number;
+		blind3?: number | null;
+		blind4?: number | null;
+		ante?: number | null;
+		anteType?: "none" | "all" | "bb" | null;
+		sortOrder: number;
+	}>;
+	cashDetail?: {
+		buyIn?: number | null;
+		cashOut?: number | null;
+		evCashOut?: number | null;
+		ruleName?: string | null;
+		minBuyIn?: number | null;
+		maxBuyIn?: number | null;
+		tableSize?: number | null;
+	} | null;
+	chipPurchaseOptions?: Array<{
+		id: number;
+		name: string;
+		cost: number;
+		chips: number;
+		sortOrder: number;
+	}>;
+	liveSessionId: string;
+	tournamentDetail?: {
+		beforeDeadline?: boolean | null;
+		bountyAmount?: number | null;
+		bountyPrizes?: number | null;
+		buyIn?: number | null;
+		entryFee?: number | null;
+		placement?: number | null;
+		prizeMoney?: number | null;
+		ruleName?: string | null;
+		startingStack?: number | null;
+		tableSize?: number | null;
+		totalEntries?: number | null;
+	} | null;
+}
+
 interface SessionFormProps {
 	currencies?: Array<{ id: string; name: string }>;
 	defaultValues?: SessionFormDefaults;
+	/** @deprecated use `mode` instead */
 	isLiveLinked?: boolean;
 	isLoading?: boolean;
+	liveData?: LiveSessionData;
+	mode?: SessionFormMode;
 	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
 	onStoreChange?: (storeId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
@@ -48,6 +121,8 @@ export function SessionForm({
 	defaultValues,
 	isLiveLinked = false,
 	isLoading = false,
+	liveData,
+	mode = "manual",
 	onCreateTag,
 	onStoreChange,
 	onSubmit,
@@ -56,6 +131,10 @@ export function SessionForm({
 	tags,
 	tournaments,
 }: SessionFormProps) {
+	// Derive effective read-only state from mode
+	const isReadOnly = mode === "live-discarded";
+	// For backward compat: treat isLiveLinked as live-active if no explicit mode
+	const effectiveIsLiveLinked = isLiveLinked || mode !== "manual";
 	const {
 		form,
 		sessionType,
@@ -83,7 +162,7 @@ export function SessionForm({
 		<CashGameFields
 			currencies={currencies}
 			form={form}
-			isLiveLinked={isLiveLinked}
+			isLiveLinked={effectiveIsLiveLinked}
 			onCurrencyChange={setSelectedCurrencyId}
 			selectedCurrencyId={selectedCurrencyId}
 		/>
@@ -91,7 +170,7 @@ export function SessionForm({
 		<TournamentDetailFields
 			currencies={currencies}
 			form={form}
-			isLiveLinked={isLiveLinked}
+			isLiveLinked={effectiveIsLiveLinked}
 			onCurrencyChange={setSelectedCurrencyId}
 			selectedCurrencyId={selectedCurrencyId}
 		/>
@@ -127,6 +206,67 @@ export function SessionForm({
 		</>
 	);
 
+	// For live modes, render a simplified view with rule/result sections
+	if (
+		mode === "live-active" ||
+		mode === "live-completed" ||
+		mode === "live-discarded"
+	) {
+		const liveReadOnly = mode === "live-discarded";
+		const liveSessionId = liveData?.liveSessionId ?? "";
+		const kind = isCashGame ? "cash_game" : "tournament";
+
+		return (
+			<div className="flex flex-col gap-4">
+				{mode === "live-discarded" && (
+					<Alert data-testid="discarded-banner">
+						<AlertDescription>
+							This session was discarded. All data is read-only.
+						</AlertDescription>
+					</Alert>
+				)}
+				{mode === "live-completed" && (
+					<Alert data-testid="completed-banner">
+						<AlertDescription>
+							Session completed. You can still edit the rule snapshot and
+							events.
+						</AlertDescription>
+					</Alert>
+				)}
+
+				<div className="flex flex-col gap-1">
+					<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+						Result
+					</p>
+					<ResultSection
+						cashResult={liveData?.cashDetail}
+						kind={kind}
+						tournamentResult={liveData?.tournamentDetail}
+					/>
+				</div>
+
+				{liveSessionId && (
+					<div className="flex flex-col gap-1">
+						<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+							Game Rules
+						</p>
+						<GameRuleSection
+							blindLevels={liveData?.blindLevels}
+							cashBlindSets={liveData?.cashBlindSets}
+							cashDetail={liveData?.cashDetail}
+							chipPurchaseOptions={liveData?.chipPurchaseOptions}
+							isLive
+							isReadOnly={liveReadOnly}
+							kind={kind}
+							sessionId={liveSessionId}
+							tournamentDetail={liveData?.tournamentDetail}
+						/>
+					</div>
+				)}
+			</div>
+		);
+	}
+
 	return (
 		<form
 			className="flex flex-col gap-2"
@@ -136,7 +276,7 @@ export function SessionForm({
 				form.handleSubmit();
 			}}
 		>
-			{isLiveLinked && (
+			{effectiveIsLiveLinked && (
 				<Alert data-testid="live-linked-banner">
 					<AlertDescription>
 						This session is generated from a live session. Items calculated from
@@ -153,10 +293,10 @@ export function SessionForm({
 					value={sessionType}
 				>
 					<TabsList className="grid w-full grid-cols-2">
-						<TabsTrigger disabled={isLiveLinked} value="cash_game">
+						<TabsTrigger disabled={effectiveIsLiveLinked} value="cash_game">
 							Cash Game
 						</TabsTrigger>
-						<TabsTrigger disabled={isLiveLinked} value="tournament">
+						<TabsTrigger disabled={effectiveIsLiveLinked} value="tournament">
 							Tournament
 						</TabsTrigger>
 					</TabsList>
@@ -168,7 +308,7 @@ export function SessionForm({
 					{(field) => (
 						<Field htmlFor={field.name} label="Session Date" required>
 							<Input
-								disabled={isLiveLinked}
+								disabled={effectiveIsLiveLinked}
 								id={field.name}
 								onBlur={field.handleBlur}
 								onChange={(e) => field.handleChange(e.target.value)}
@@ -184,7 +324,7 @@ export function SessionForm({
 						{(field) => (
 							<Field htmlFor={field.name} label="Start Time">
 								<Input
-									disabled={isLiveLinked}
+									disabled={effectiveIsLiveLinked}
 									id={field.name}
 									onBlur={field.handleBlur}
 									onChange={(e) => field.handleChange(e.target.value)}
@@ -198,7 +338,7 @@ export function SessionForm({
 						{(field) => (
 							<Field htmlFor={field.name} label="End Time">
 								<Input
-									disabled={isLiveLinked}
+									disabled={effectiveIsLiveLinked}
 									id={field.name}
 									onBlur={field.handleBlur}
 									onChange={(e) => field.handleChange(e.target.value)}
@@ -218,7 +358,7 @@ export function SessionForm({
 							label="Break Time (min)"
 						>
 							<Input
-								disabled={isLiveLinked}
+								disabled={effectiveIsLiveLinked}
 								id={field.name}
 								inputMode="numeric"
 								onBlur={field.handleBlur}
@@ -232,7 +372,7 @@ export function SessionForm({
 				<StoreGameSelectors
 					gameLabel={gameLabel}
 					gameOptions={gameOptions}
-					isLiveLinked={isLiveLinked}
+					isLiveLinked={effectiveIsLiveLinked}
 					onGameChange={handleGameChange}
 					onStoreChange={handleStoreChange}
 					selectedGameId={selectedGameId}
@@ -252,7 +392,7 @@ export function SessionForm({
 										required
 									>
 										<Input
-											disabled={isLiveLinked}
+											disabled={effectiveIsLiveLinked}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -271,7 +411,7 @@ export function SessionForm({
 										required
 									>
 										<Input
-											disabled={isLiveLinked}
+											disabled={effectiveIsLiveLinked}
 											id={field.name}
 											inputMode="numeric"
 											onBlur={field.handleBlur}
@@ -286,7 +426,7 @@ export function SessionForm({
 							{(field) => (
 								<Field htmlFor={field.name} label="EV Cash-out">
 									<Input
-										disabled={isLiveLinked}
+										disabled={effectiveIsLiveLinked}
 										id={field.name}
 										inputMode="numeric"
 										onBlur={field.handleBlur}
@@ -302,7 +442,7 @@ export function SessionForm({
 				{!isCashGame && (
 					<TournamentPrimaryFields
 						form={form}
-						isLiveLinked={isLiveLinked}
+						isLiveLinked={effectiveIsLiveLinked}
 						key={`tourney-primary-${selectedGameId ?? "none"}`}
 					/>
 				)}
@@ -323,19 +463,21 @@ export function SessionForm({
 				]}
 			/>
 
-			<form.Subscribe
-				selector={(state) => [state.canSubmit, state.isSubmitting]}
-			>
-				{([canSubmit, isSubmitting]) => (
-					<Button
-						className="mt-2"
-						disabled={isLoading || !canSubmit || isSubmitting}
-						type="submit"
-					>
-						{isLoading ? "Saving..." : "Save"}
-					</Button>
-				)}
-			</form.Subscribe>
+			{!isReadOnly && (
+				<form.Subscribe
+					selector={(state) => [state.canSubmit, state.isSubmitting]}
+				>
+					{([canSubmit, isSubmitting]) => (
+						<Button
+							className="mt-2"
+							disabled={isLoading || !canSubmit || isSubmitting}
+							type="submit"
+						>
+							{isLoading ? "Saving..." : "Save"}
+						</Button>
+					)}
+				</form.Subscribe>
+			)}
 		</form>
 	);
 }

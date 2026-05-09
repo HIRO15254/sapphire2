@@ -674,7 +674,9 @@ describe("useSessions", () => {
 				await Promise.resolve();
 			});
 			await waitFor(() => {
-				expect(trpcMocks.liveSessionReopen).toHaveBeenCalledWith({ id: "live-1" });
+				expect(trpcMocks.liveSessionReopen).toHaveBeenCalledWith({
+					id: "live-1",
+				});
 				expect(routerMocks.navigate).toHaveBeenCalledWith({
 					to: "/active-session",
 				});

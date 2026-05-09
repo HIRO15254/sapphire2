@@ -72,9 +72,27 @@ describe("useActiveSessionWidget", () => {
 		const qc = createClient();
 		qc.setQueryData(sessionListKey({}), {
 			items: [
-				{ id: "c1", source: "live", kind: "cash_game", status: "active", startedAt: null },
-				{ id: "t1", source: "live", kind: "tournament", status: "paused", startedAt: null },
-				{ id: "manual1", source: "manual", kind: "cash_game", status: "active", startedAt: null },
+				{
+					id: "c1",
+					source: "live",
+					kind: "cash_game",
+					status: "active",
+					startedAt: null,
+				},
+				{
+					id: "t1",
+					source: "live",
+					kind: "tournament",
+					status: "paused",
+					startedAt: null,
+				},
+				{
+					id: "manual1",
+					source: "manual",
+					kind: "cash_game",
+					status: "active",
+					startedAt: null,
+				},
 			],
 		});
 		const { result } = renderHook(() => useActiveSessionWidget({}), {
@@ -93,27 +111,56 @@ describe("useActiveSessionWidget", () => {
 		const qc = createClient();
 		qc.setQueryData(sessionListKey({ type: "cash_game" }), {
 			items: [
-				{ id: "c1", source: "live", kind: "cash_game", status: "active", startedAt: null },
-				{ id: "t1", source: "live", kind: "tournament", status: "active", startedAt: null },
+				{
+					id: "c1",
+					source: "live",
+					kind: "cash_game",
+					status: "active",
+					startedAt: null,
+				},
+				{
+					id: "t1",
+					source: "live",
+					kind: "tournament",
+					status: "active",
+					startedAt: null,
+				},
 			],
 		});
 		const { result } = renderHook(
 			() => useActiveSessionWidget({ sessionType: "cash_game" }),
 			{ wrapper: wrapper(qc) }
 		);
-		await waitFor(() => expect(result.current.sessions.length).toBeGreaterThanOrEqual(0));
-		const liveActive = result.current.sessions.filter(
-			(s) => s.source === "live" && (s.status === "active" || s.status === "paused")
+		await waitFor(() =>
+			expect(result.current.sessions.length).toBeGreaterThanOrEqual(0)
 		);
-		expect(liveActive.every((s) => s.kind === "cash_game" || s.kind === "tournament")).toBe(true);
+		const liveActive = result.current.sessions.filter(
+			(s) =>
+				s.source === "live" && (s.status === "active" || s.status === "paused")
+		);
+		expect(
+			liveActive.every((s) => s.kind === "cash_game" || s.kind === "tournament")
+		).toBe(true);
 	});
 
 	it("returns empty sessions when list has no live active/paused items", () => {
 		const qc = createClient();
 		qc.setQueryData(sessionListKey({}), {
 			items: [
-				{ id: "m1", source: "manual", kind: "cash_game", status: "active", startedAt: null },
-				{ id: "c1", source: "live", kind: "cash_game", status: "completed", startedAt: null },
+				{
+					id: "m1",
+					source: "manual",
+					kind: "cash_game",
+					status: "active",
+					startedAt: null,
+				},
+				{
+					id: "c1",
+					source: "live",
+					kind: "cash_game",
+					status: "completed",
+					startedAt: null,
+				},
 			],
 		});
 		const { result } = renderHook(() => useActiveSessionWidget({}), {
@@ -142,7 +189,13 @@ describe("useActiveSessionWidget", () => {
 		const qc = createClient();
 		qc.setQueryData(sessionListKey({}), {
 			items: [
-				{ id: "p1", source: "live", kind: "cash_game", status: "paused", startedAt: null },
+				{
+					id: "p1",
+					source: "live",
+					kind: "cash_game",
+					status: "paused",
+					startedAt: null,
+				},
 			],
 		});
 		const { result } = renderHook(() => useActiveSessionWidget({}), {

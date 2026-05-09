@@ -2,6 +2,7 @@ export type {
 	CashGameFormValues,
 	RingGameOption,
 	SessionFormDefaults,
+	SessionFormMode,
 	SessionFormValues,
 	TournamentFormValues,
 	TournamentOption,
