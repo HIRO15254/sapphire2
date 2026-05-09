@@ -15,7 +15,7 @@ function ActiveSessionEventsPage() {
 			refetchInterval={3000}
 			sessionId={activeSession?.id ?? ""}
 			sessionLoading={isLoading}
-			sessionType={activeSession?.type ?? "cash_game"}
+			sessionType={activeSession?.kind ?? "cash_game"}
 		/>
 	);
 }

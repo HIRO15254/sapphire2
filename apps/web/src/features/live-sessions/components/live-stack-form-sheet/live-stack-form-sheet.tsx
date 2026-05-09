@@ -1,8 +1,7 @@
 import { CompleteSessionForm } from "@/features/live-sessions/components/complete-session-form";
 import { StackForm } from "@/features/live-sessions/components/stack-form";
 import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
-import { useCashGameStack } from "@/features/live-sessions/hooks/use-cash-game-stack";
-import { useTournamentStack } from "@/features/live-sessions/hooks/use-tournament-stack";
+import { useStackRecord } from "@/features/live-sessions/hooks/use-stack-record";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import {
 	useCashGameStackSheet,
@@ -25,10 +24,10 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 		addAllIn,
 		addMemo,
 		pause,
-		complete,
+		completeCash,
 		isStackPending,
 		isCompletePending,
-	} = useCashGameStack({ sessionId });
+	} = useStackRecord({ sessionId, kind: "cash_game" });
 
 	return (
 		<>
@@ -69,7 +68,7 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 					isLoading={isCompletePending}
 					kind="cash_game"
 					onSubmit={(values) => {
-						complete(values as { finalStack: number });
+						completeCash(values as { finalStack: number });
 						setIsCompleteOpen(false);
 						stackSheet.close();
 					}}
@@ -84,15 +83,22 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 		useTournamentStackSheet();
 
 	const {
-		chipPurchaseTypes,
+		chipPurchaseOptions,
 		recordStack,
 		purchaseChips,
 		addMemo,
 		pause,
-		complete,
+		completeTournament,
 		isStackPending,
 		isCompletePending,
-	} = useTournamentStack({ sessionId });
+	} = useStackRecord({ sessionId, kind: "tournament" });
+
+	const chipPurchaseTypes = chipPurchaseOptions.map((o) => ({
+		id: o.id,
+		name: o.name,
+		cost: o.cost,
+		chips: o.chips,
+	}));
 
 	return (
 		<>
@@ -139,7 +145,9 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 					isLoading={isCompletePending}
 					kind="tournament"
 					onSubmit={(values) => {
-						complete(values as Parameters<typeof complete>[0]);
+						completeTournament(
+							values as Parameters<typeof completeTournament>[0]
+						);
 						setIsCompleteOpen(false);
 						stackSheet.close();
 					}}

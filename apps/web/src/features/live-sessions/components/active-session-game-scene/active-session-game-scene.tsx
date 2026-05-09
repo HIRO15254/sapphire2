@@ -3,7 +3,7 @@ import { AssignRingGameDialog } from "@/features/live-sessions/components/assign
 import { AssignTournamentDialog } from "@/features/live-sessions/components/assign-tournament-dialog";
 import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
 import { useAssignDialogState } from "@/features/live-sessions/hooks/use-assign-dialog-state";
-import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
+import { useLiveSession } from "@/features/live-sessions/hooks/use-live-session";
 import { useRingGameSceneActions } from "@/features/live-sessions/hooks/use-ring-game-scene-actions";
 import {
 	type ChipPurchaseRow,
@@ -11,7 +11,6 @@ import {
 	useTournamentDetail,
 } from "@/features/live-sessions/hooks/use-tournament-detail";
 import { useTournamentSceneActions } from "@/features/live-sessions/hooks/use-tournament-scene-actions";
-import { useTournamentSession } from "@/features/live-sessions/hooks/use-tournament-session";
 import {
 	formatAnteSuffix,
 	formatBlindParts,
@@ -169,9 +168,9 @@ function CashGameNotLinked({
 }
 
 function CashGameDetails({ sessionId }: { sessionId: string }) {
-	const { session, ringGames } = useCashGameSession(sessionId);
+	const { session } = useLiveSession(sessionId);
 	const storeId = session?.storeId ?? "";
-	const ringGameId = session?.ringGameId ?? "";
+	const ringGameId = session?.cashDetail?.ringGameId ?? "";
 
 	const {
 		isEditOpen,
@@ -179,6 +178,7 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 		handleUpdate,
 		isUpdatePending,
 		currencies,
+		ringGame,
 	} = useRingGameSceneActions({
 		ringGameId,
 		sessionId,
@@ -197,11 +197,7 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 		);
 	}
 
-	const ringGame = session.ringGameId
-		? ringGames.find((candidate) => candidate.id === session.ringGameId)
-		: undefined;
-
-	if (!(session.ringGameId && ringGame)) {
+	if (!(session.cashDetail?.ringGameId && ringGame)) {
 		return (
 			<CashGameNotLinked
 				sessionId={sessionId}
@@ -586,8 +582,8 @@ function TournamentNotLinked({
 }
 
 function TournamentDetails({ sessionId }: { sessionId: string }) {
-	const { session } = useTournamentSession(sessionId);
-	const tournamentId = session?.tournamentId ?? "";
+	const { session } = useLiveSession(sessionId);
+	const tournamentId = session?.tournamentDetail?.tournamentId ?? "";
 	const storeId = session?.storeId ?? "";
 	const detail = useTournamentDetail(tournamentId);
 
@@ -681,7 +677,7 @@ export function ActiveSessionGameScene() {
 
 	return (
 		<div className="flex flex-col p-4 md:p-6">
-			{activeSession.type === "cash_game" ? (
+			{activeSession.kind === "cash_game" ? (
 				<CashGameDetails sessionId={activeSession.id} />
 			) : (
 				<TournamentDetails sessionId={activeSession.id} />

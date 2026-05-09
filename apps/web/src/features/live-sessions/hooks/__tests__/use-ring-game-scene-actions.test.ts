@@ -13,10 +13,12 @@ const ringGameMocks = vi.hoisted(() => ({
 	update: vi.fn(),
 	isUpdatePending: false,
 	currencies: [] as Array<{ id: string; name: string }>,
+	activeGames: [] as Array<{ id: string }>,
 }));
 
 vi.mock("@/features/stores/hooks/use-ring-games", () => ({
 	useRingGames: () => ({
+		activeGames: ringGameMocks.activeGames,
 		update: ringGameMocks.update,
 		isUpdatePending: ringGameMocks.isUpdatePending,
 		currencies: ringGameMocks.currencies,
@@ -64,6 +66,7 @@ describe("useRingGameSceneActions", () => {
 		ringGameMocks.update.mockReset();
 		ringGameMocks.isUpdatePending = false;
 		ringGameMocks.currencies = [];
+		ringGameMocks.activeGames = [];
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();

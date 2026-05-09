@@ -22,9 +22,9 @@ import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { useActiveSessionScene } from "./use-active-session-scene";
 
-type SessionParam =
-	| { liveCashGameSessionId: string; liveTournamentSessionId?: never }
-	| { liveCashGameSessionId?: never; liveTournamentSessionId: string };
+interface SessionParam {
+	sessionId: string;
+}
 
 interface ActiveSessionSceneProps {
 	discardDescription?: ReactNode;
@@ -78,15 +78,8 @@ export function useActiveSessionSceneState({
 	sessionId,
 	sessionType,
 }: UseActiveSessionSceneStateOptions): ActiveSessionSceneState {
-	const sessionParam: SessionParam =
-		sessionType === "cash_game"
-			? { liveCashGameSessionId: sessionId }
-			: { liveTournamentSessionId: sessionId };
-	const tablePlayers = useTablePlayers(
-		sessionType === "cash_game"
-			? { liveCashGameSessionId: sessionId }
-			: { liveTournamentSessionId: sessionId }
-	);
+	const sessionParam: SessionParam = { sessionId };
+	const tablePlayers = useTablePlayers({ sessionId });
 	const tableInteraction = usePokerTableInteraction(
 		sessionType,
 		sessionId,

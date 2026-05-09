@@ -321,18 +321,38 @@ describe("ActiveSessionPage — active cash game session", () => {
 			if (key === "live-session-getById") {
 				return {
 					id: "cash-001",
+					kind: "cash_game",
+					source: "live",
+					status: "active",
 					storeId: "store-1",
-					ringGameId: null,
-					heroSeatPosition: null,
+					currencyId: null,
 					memo: null,
-					summary: {
-						totalBuyIn: 10_000,
-						cashOut: null,
-						profitLoss: null,
+					startedAt: new Date(),
+					endedAt: null,
+					breakMinutes: null,
+					sessionDate: new Date().toISOString(),
+					userId: "u1",
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+					cashDetail: {
+						sessionId: "cash-001",
+						ringGameId: null,
+						ruleName: "Cash Game",
+						minBuyIn: null,
+						maxBuyIn: null,
+						tableSize: null,
+						variantId: 1,
+						buyIn: 10_000,
+						cashOut: 12_000,
 						evCashOut: null,
-						currentStack: 12_000,
-						addonCount: 0,
 					},
+					tournamentDetail: null,
+					events: [],
+					blindLevels: [],
+					cashBlindSets: [],
+					chipPurchaseOptions: [],
+					chipPurchaseRecords: [],
+					currentPlayers: [],
 				};
 			}
 			return null;
@@ -377,18 +397,43 @@ describe("ActiveSessionPage — active tournament session", () => {
 			if (key === "live-session-getById") {
 				return {
 					id: "tourn-001",
-					tournamentId: null,
-					heroSeatPosition: null,
+					kind: "tournament",
+					source: "live",
+					status: "active",
+					storeId: null,
+					currencyId: null,
 					memo: null,
-					summary: {
+					startedAt: new Date(),
+					endedAt: null,
+					breakMinutes: null,
+					sessionDate: new Date().toISOString(),
+					userId: "u1",
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+					cashDetail: null,
+					tournamentDetail: {
+						sessionId: "tourn-001",
+						tournamentId: null,
+						ruleName: "Tournament",
+						startingStack: null,
+						bountyAmount: null,
+						tableSize: null,
 						buyIn: 10_000,
 						entryFee: 1000,
-						currentStack: 15_000,
-						remainingPlayers: 42,
+						variantId: 1,
+						placement: null,
 						totalEntries: 120,
-						totalChipPurchases: 0,
-						profitLoss: null,
+						beforeDeadline: null,
+						prizeMoney: null,
+						bountyPrizes: null,
+						timerStartedAt: null,
 					},
+					events: [],
+					blindLevels: [],
+					cashBlindSets: [],
+					chipPurchaseOptions: [],
+					chipPurchaseRecords: [],
+					currentPlayers: [],
 				};
 			}
 			return null;
@@ -435,18 +480,43 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 			if (key === "live-session-getById") {
 				return {
 					id: "tourn-002",
-					tournamentId: "t-1",
-					heroSeatPosition: null,
+					kind: "tournament",
+					source: "live",
+					status: "active",
+					storeId: null,
+					currencyId: null,
 					memo: null,
-					summary: {
+					startedAt: new Date(),
+					endedAt: null,
+					breakMinutes: null,
+					sessionDate: new Date().toISOString(),
+					userId: "u1",
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+					cashDetail: null,
+					tournamentDetail: {
+						sessionId: "tourn-002",
+						tournamentId: "t-1",
+						ruleName: "Tournament",
+						startingStack: null,
+						bountyAmount: null,
+						tableSize: null,
 						buyIn: 5000,
 						entryFee: 500,
-						currentStack: 20_000,
-						remainingPlayers: 30,
+						variantId: 1,
+						placement: null,
 						totalEntries: 100,
-						totalChipPurchases: 0,
-						profitLoss: null,
+						beforeDeadline: null,
+						prizeMoney: null,
+						bountyPrizes: null,
+						timerStartedAt: null,
 					},
+					events: [],
+					blindLevels: [],
+					cashBlindSets: [],
+					chipPurchaseOptions: [],
+					chipPurchaseRecords: [],
+					currentPlayers: [],
 				};
 			}
 			return null;
@@ -464,18 +534,43 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 			if (key === "live-session-getById") {
 				return {
 					id: "tourn-002",
-					tournamentId: null,
-					heroSeatPosition: null,
+					kind: "tournament",
+					source: "live",
+					status: "active",
+					storeId: null,
+					currencyId: null,
 					memo: null,
-					summary: {
+					startedAt: new Date(),
+					endedAt: null,
+					breakMinutes: null,
+					sessionDate: new Date().toISOString(),
+					userId: "u1",
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+					cashDetail: null,
+					tournamentDetail: {
+						sessionId: "tourn-002",
+						tournamentId: null,
+						ruleName: "Tournament",
+						startingStack: null,
+						bountyAmount: null,
+						tableSize: null,
 						buyIn: 10_000,
 						entryFee: 1000,
-						currentStack: null,
-						remainingPlayers: null,
+						variantId: 1,
+						placement: null,
 						totalEntries: null,
-						totalChipPurchases: 0,
-						profitLoss: null,
+						beforeDeadline: null,
+						prizeMoney: null,
+						bountyPrizes: null,
+						timerStartedAt: null,
 					},
+					events: [],
+					blindLevels: [],
+					cashBlindSets: [],
+					chipPurchaseOptions: [],
+					chipPurchaseRecords: [],
+					currentPlayers: [],
 				};
 			}
 			return null;
@@ -487,23 +582,48 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 		await screen.findByText("Field/Entry");
 	});
 
-	it("shows Field/Entry with remainingPlayers/totalEntries when provided", async () => {
+	it("shows Field/Entry with totalEntries when provided (remainingPlayers is derived, not stored)", async () => {
 		mockQuery.mockImplementation((key: string) => {
 			if (key === "live-session-getById") {
 				return {
 					id: "tourn-002",
-					tournamentId: null,
-					heroSeatPosition: null,
+					kind: "tournament",
+					source: "live",
+					status: "active",
+					storeId: null,
+					currencyId: null,
 					memo: null,
-					summary: {
+					startedAt: new Date(),
+					endedAt: null,
+					breakMinutes: null,
+					sessionDate: new Date().toISOString(),
+					userId: "u1",
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+					cashDetail: null,
+					tournamentDetail: {
+						sessionId: "tourn-002",
+						tournamentId: null,
+						ruleName: "Tournament",
+						startingStack: null,
+						bountyAmount: null,
+						tableSize: null,
 						buyIn: 0,
 						entryFee: 0,
-						currentStack: 8000,
-						remainingPlayers: 15,
+						variantId: 1,
+						placement: null,
 						totalEntries: 80,
-						totalChipPurchases: 0,
-						profitLoss: null,
+						beforeDeadline: null,
+						prizeMoney: null,
+						bountyPrizes: null,
+						timerStartedAt: null,
 					},
+					events: [],
+					blindLevels: [],
+					cashBlindSets: [],
+					chipPurchaseOptions: [],
+					chipPurchaseRecords: [],
+					currentPlayers: [],
 				};
 			}
 			return null;
@@ -512,7 +632,9 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByText("15/80");
+		// remainingPlayers is no longer stored in the API (derived from events);
+		// totalEntries=80 is stored, so Field/Entry renders as "-/80"
+		await screen.findByText("-/80");
 	});
 });
 
@@ -750,18 +872,43 @@ describe("ActiveSessionPage — reopen flow concept", () => {
 			if (key === "live-session-getById") {
 				return {
 					id: "tourn-005",
-					tournamentId: null,
-					heroSeatPosition: null,
+					kind: "tournament",
+					source: "live",
+					status: "active",
+					storeId: null,
+					currencyId: null,
 					memo: null,
-					summary: {
+					startedAt: new Date(),
+					endedAt: null,
+					breakMinutes: null,
+					sessionDate: new Date().toISOString(),
+					userId: "u1",
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+					cashDetail: null,
+					tournamentDetail: {
+						sessionId: "tourn-005",
+						tournamentId: null,
+						ruleName: "Tournament",
+						startingStack: null,
+						bountyAmount: null,
+						tableSize: null,
 						buyIn: 5000,
 						entryFee: 500,
-						currentStack: 10_000,
-						remainingPlayers: 10,
+						variantId: 1,
+						placement: null,
 						totalEntries: 60,
-						totalChipPurchases: 0,
-						profitLoss: null,
+						beforeDeadline: null,
+						prizeMoney: null,
+						bountyPrizes: null,
+						timerStartedAt: null,
 					},
+					events: [],
+					blindLevels: [],
+					cashBlindSets: [],
+					chipPurchaseOptions: [],
+					chipPurchaseRecords: [],
+					currentPlayers: [],
 				};
 			}
 			return null;

@@ -88,17 +88,10 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
+		liveSession: {
 			getById: {
 				queryOptions: ({ id }: { id: string }) => ({
-					queryKey: ["cash-session", id],
-				}),
-			},
-		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: ({ id }: { id: string }) => ({
-					queryKey: ["tournament-session", id],
+					queryKey: ["live-session", id],
 				}),
 			},
 		},
@@ -118,12 +111,6 @@ vi.mock("@/utils/trpc", () => ({
 		},
 	},
 	trpcClient: {
-		liveCashGameSession: {
-			updateHeroSeat: { mutate: vi.fn() },
-		},
-		liveTournamentSession: {
-			updateHeroSeat: { mutate: vi.fn() },
-		},
 		player: {
 			update: { mutate: vi.fn() },
 		},
@@ -158,7 +145,7 @@ function createState(
 		players: [],
 		playerSheetOpen: false,
 		selectedPlayer: null,
-		sessionParam: { liveCashGameSessionId: "cash-1" },
+		sessionParam: { sessionId: "cash-1" },
 		setAddPlayerSheetOpen: vi.fn(),
 		setPlayerSheetOpen: vi.fn(),
 		waitingForHero: true,

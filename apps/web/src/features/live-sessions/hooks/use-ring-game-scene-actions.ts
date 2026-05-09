@@ -18,10 +18,12 @@ export function useRingGameSceneActions({
 }: UseRingGameSceneActionsArgs) {
 	const queryClient = useQueryClient();
 	const [isEditOpen, setIsEditOpen] = useState(false);
-	const { update, isUpdatePending, currencies } = useRingGames({
+	const { activeGames, update, isUpdatePending, currencies } = useRingGames({
 		storeId,
 		showArchived: false,
 	});
+
+	const ringGame = activeGames.find((g) => g.id === ringGameId);
 
 	const handleUpdate = async (values: RingGameFormValues) => {
 		await update({ id: ringGameId, ...values });
@@ -41,5 +43,6 @@ export function useRingGameSceneActions({
 		handleUpdate,
 		isUpdatePending,
 		currencies,
+		ringGame,
 	};
 }

@@ -122,7 +122,7 @@ vi.mock("@/utils/trpc", () => ({
 		},
 	},
 	trpcClient: {
-		liveCashGameSession: {
+		liveSession: {
 			reopen: { mutate: vi.fn(async () => undefined) },
 		},
 		session: {

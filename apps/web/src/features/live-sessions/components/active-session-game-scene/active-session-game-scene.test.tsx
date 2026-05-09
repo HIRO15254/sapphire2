@@ -6,20 +6,16 @@ import { ActiveSessionGameScene } from "@/features/live-sessions/components/acti
 const mocks = vi.hoisted(() => ({
 	activeSession: null as null | {
 		id: string;
-		type: "cash_game" | "tournament";
+		kind: "cash_game" | "tournament";
 		status: "active" | "paused";
 	},
-	cashSession: null as null | {
+	liveSession: null as null | {
 		id: string;
-		storeId: string;
-		ringGameId: string | null;
+		storeId: string | null;
+		cashDetail: { ringGameId: string | null } | null;
+		tournamentDetail: { tournamentId: string | null } | null;
 	},
-	tournamentSession: null as null | {
-		id: string;
-		storeId: string;
-		tournamentId: string | null;
-	},
-	ringGames: [] as unknown[],
+	activeGames: [] as unknown[],
 	tournament: null as null | Record<string, unknown>,
 	levels: [] as unknown[],
 	chipPurchases: [] as unknown[],
@@ -34,25 +30,19 @@ vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	}),
 }));
 
-vi.mock("@/features/live-sessions/hooks/use-cash-game-session", () => ({
-	useCashGameSession: () => ({
-		session: mocks.cashSession,
-		ringGames: mocks.ringGames,
+vi.mock("@/features/live-sessions/hooks/use-live-session", () => ({
+	useLiveSession: () => ({
+		session: mocks.liveSession,
 		isDiscardPending: false,
 		discard: vi.fn(),
-	}),
-}));
-
-vi.mock("@/features/live-sessions/hooks/use-tournament-session", () => ({
-	useTournamentSession: () => ({
-		session: mocks.tournamentSession,
-		isDiscardPending: false,
-		discard: vi.fn(),
+		isUpdatingTimer: false,
+		updateTimerStartedAt: vi.fn(),
 	}),
 }));
 
 vi.mock("@/features/stores/hooks/use-ring-games", () => ({
 	useRingGames: () => ({
+		activeGames: mocks.activeGames,
 		update: vi.fn(async () => undefined),
 		isUpdatePending: false,
 		currencies: mocks.currencies,
@@ -126,13 +116,9 @@ vi.mock("@/utils/trpc", () => {
 			blindLevel: {
 				listByTournament: makeProc("blindLevel"),
 			},
-			liveCashGameSession: {
-				getById: makeProc("liveCashGameSession"),
-				list: makeProc("liveCashGameSession"),
-			},
-			liveTournamentSession: {
-				getById: makeProc("liveTournamentSession"),
-				list: makeProc("liveTournamentSession"),
+			liveSession: {
+				getById: makeProc("liveSession"),
+				list: makeProc("liveSession"),
 			},
 			currency: {
 				list: makeProc("currency"),
@@ -155,10 +141,7 @@ vi.mock("@/utils/trpc", () => {
 			ringGame: {
 				create: { mutate: vi.fn() },
 			},
-			liveCashGameSession: {
-				update: { mutate: vi.fn() },
-			},
-			liveTournamentSession: {
+			liveSession: {
 				update: { mutate: vi.fn() },
 			},
 		},
@@ -168,9 +151,8 @@ vi.mock("@/utils/trpc", () => {
 describe("ActiveSessionGameScene", () => {
 	beforeEach(() => {
 		mocks.activeSession = null;
-		mocks.cashSession = null;
-		mocks.tournamentSession = null;
-		mocks.ringGames = [];
+		mocks.liveSession = null;
+		mocks.activeGames = [];
 		mocks.tournament = null;
 		mocks.levels = [];
 		mocks.chipPurchases = [];
@@ -185,15 +167,16 @@ describe("ActiveSessionGameScene", () => {
 	it("renders ring game details for a cash game session", () => {
 		mocks.activeSession = {
 			id: "session-1",
-			type: "cash_game",
+			kind: "cash_game",
 			status: "active",
 		};
-		mocks.cashSession = {
+		mocks.liveSession = {
 			id: "session-1",
 			storeId: "store-1",
-			ringGameId: "ring-1",
+			cashDetail: { ringGameId: "ring-1" },
+			tournamentDetail: null,
 		};
-		mocks.ringGames = [
+		mocks.activeGames = [
 			{
 				ante: null,
 				anteType: "none",
@@ -224,13 +207,14 @@ describe("ActiveSessionGameScene", () => {
 	it("shows a fallback when the cash session has no ring game linked", () => {
 		mocks.activeSession = {
 			id: "session-1",
-			type: "cash_game",
+			kind: "cash_game",
 			status: "active",
 		};
-		mocks.cashSession = {
+		mocks.liveSession = {
 			id: "session-1",
 			storeId: "store-1",
-			ringGameId: null,
+			cashDetail: { ringGameId: null },
+			tournamentDetail: null,
 		};
 
 		render(<ActiveSessionGameScene />);
@@ -241,13 +225,14 @@ describe("ActiveSessionGameScene", () => {
 	it("shows a fallback with an assign action when the tournament session has no tournament linked", () => {
 		mocks.activeSession = {
 			id: "session-2",
-			type: "tournament",
+			kind: "tournament",
 			status: "active",
 		};
-		mocks.tournamentSession = {
+		mocks.liveSession = {
 			id: "session-2",
 			storeId: "store-1",
-			tournamentId: null,
+			cashDetail: null,
+			tournamentDetail: { tournamentId: null },
 		};
 
 		render(<ActiveSessionGameScene />);
@@ -260,13 +245,14 @@ describe("ActiveSessionGameScene", () => {
 	it("renders tournament details", () => {
 		mocks.activeSession = {
 			id: "session-2",
-			type: "tournament",
+			kind: "tournament",
 			status: "active",
 		};
-		mocks.tournamentSession = {
+		mocks.liveSession = {
 			id: "session-2",
 			storeId: "store-1",
-			tournamentId: "tour-1",
+			cashDetail: null,
+			tournamentDetail: { tournamentId: "tour-1" },
 		};
 		mocks.tournament = {
 			archivedAt: null,

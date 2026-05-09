@@ -3,11 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		liveCashGameSession: {
-			list: { queryOptions: () => ({ queryKey: ["live-cash"] }) },
-		},
-		liveTournamentSession: {
-			list: { queryOptions: () => ({ queryKey: ["live-tournament"] }) },
+		session: {
+			list: { queryOptions: () => ({ queryKey: ["session-list"] }) },
 		},
 	},
 	trpcClient: {},

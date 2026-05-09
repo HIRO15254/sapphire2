@@ -73,22 +73,6 @@ describe("sessionEvent.list input validation", () => {
 		expectAccepts(sessionEventRouter.list, { sessionId: "gs1" });
 	});
 
-	it("accepts liveCashGameSessionId", async () => {
-		const { sessionEventRouter } = await import("../routers/session-event");
-		const { expectAccepts } = await import("./test-utils");
-		expectAccepts(sessionEventRouter.list, {
-			liveCashGameSessionId: "lcg1",
-		});
-	});
-
-	it("accepts liveTournamentSessionId", async () => {
-		const { sessionEventRouter } = await import("../routers/session-event");
-		const { expectAccepts } = await import("./test-utils");
-		expectAccepts(sessionEventRouter.list, {
-			liveTournamentSessionId: "lt1",
-		});
-	});
-
 	it("accepts empty object (runtime will reject)", async () => {
 		const { sessionEventRouter } = await import("../routers/session-event");
 		const { expectAccepts } = await import("./test-utils");
@@ -99,7 +83,7 @@ describe("sessionEvent.list input validation", () => {
 		const { sessionEventRouter } = await import("../routers/session-event");
 		const { expectRejects } = await import("./test-utils");
 		expectRejects(sessionEventRouter.list, {
-			liveCashGameSessionId: 123,
+			sessionId: 123,
 		});
 	});
 });
@@ -110,7 +94,7 @@ describe("sessionEvent.list input validation", () => {
 
 describe("sessionEvent.create input validation", () => {
 	const baseline = {
-		liveCashGameSessionId: "lcg1",
+		sessionId: "gs1",
 		eventType: "update_stack",
 		payload: { stackAmount: 500 },
 	} as const;
@@ -129,7 +113,7 @@ describe("sessionEvent.create input validation", () => {
 		);
 		for (const eventType of ALL_EVENT_TYPES) {
 			expectAccepts(sessionEventRouter.create, {
-				liveCashGameSessionId: "lcg1",
+				sessionId: "gs1",
 				eventType,
 				payload: {},
 			});
@@ -140,7 +124,7 @@ describe("sessionEvent.create input validation", () => {
 		const { sessionEventRouter } = await import("../routers/session-event");
 		const { expectRejects } = await import("./test-utils");
 		expectRejects(sessionEventRouter.create, {
-			liveCashGameSessionId: "lcg1",
+			sessionId: "gs1",
 			eventType: "totally_made_up_event",
 			payload: {},
 		});
@@ -168,7 +152,7 @@ describe("sessionEvent.create input validation", () => {
 		const { sessionEventRouter } = await import("../routers/session-event");
 		const { expectAccepts } = await import("./test-utils");
 		expectAccepts(sessionEventRouter.create, {
-			liveTournamentSessionId: "lt1",
+			sessionId: "gs1",
 			eventType: "purchase_chips",
 			payload: { chipPurchaseOptionId: "42" },
 		});
@@ -178,7 +162,7 @@ describe("sessionEvent.create input validation", () => {
 		const { sessionEventRouter } = await import("../routers/session-event");
 		const { expectAccepts } = await import("./test-utils");
 		expectAccepts(sessionEventRouter.create, {
-			liveTournamentSessionId: "lt1",
+			sessionId: "gs1",
 			eventType: "update_stack",
 			payload: {
 				stackAmount: 15_000,
@@ -194,7 +178,7 @@ describe("sessionEvent.create input validation", () => {
 		const { sessionEventRouter } = await import("../routers/session-event");
 		const { expectAccepts } = await import("./test-utils");
 		expectAccepts(sessionEventRouter.create, {
-			liveTournamentSessionId: "lt1",
+			sessionId: "gs1",
 			eventType: "session_start",
 			payload: {},
 		});

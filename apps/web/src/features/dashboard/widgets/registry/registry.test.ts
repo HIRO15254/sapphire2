@@ -5,12 +5,6 @@ vi.mock("@/utils/trpc", () => ({
 		session: {
 			list: { queryOptions: () => ({ queryKey: ["session-list"] }) },
 		},
-		liveCashGameSession: {
-			list: { queryOptions: () => ({ queryKey: ["live-cash-list"] }) },
-		},
-		liveTournamentSession: {
-			list: { queryOptions: () => ({ queryKey: ["live-tournament-list"] }) },
-		},
 		currency: {
 			list: { queryOptions: () => ({ queryKey: ["currency-list"] }) },
 		},

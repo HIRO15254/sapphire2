@@ -148,28 +148,9 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
-		liveCashGameSession: {
-			list: {
-				queryOptions: (args?: unknown) => ({
-					queryKey: ["cash-list", args],
-					queryFn: () => mockQuery("cash-list", args),
-				}),
-			},
-		},
-		liveTournamentSession: {
-			list: {
-				queryOptions: (args?: unknown) => ({
-					queryKey: ["tournament-list", args],
-					queryFn: () => mockQuery("tournament-list", args),
-				}),
-			},
-		},
 	},
 	trpcClient: {
-		liveCashGameSession: {
-			create: { mutate: vi.fn() },
-		},
-		liveTournamentSession: {
+		liveSession: {
 			create: { mutate: vi.fn() },
 		},
 		sessionEvent: {

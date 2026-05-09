@@ -131,20 +131,10 @@ async function insertEventAndRecalculate(
 
 const sessionIdInput = z.object({
 	sessionId: z.string().optional(),
-	liveCashGameSessionId: z.string().optional(),
-	liveTournamentSessionId: z.string().optional(),
 });
 
-function resolveSessionId(input: {
-	sessionId?: string;
-	liveCashGameSessionId?: string;
-	liveTournamentSessionId?: string;
-}): string | undefined {
-	return (
-		input.sessionId ??
-		input.liveCashGameSessionId ??
-		input.liveTournamentSessionId
-	);
+function resolveSessionId(input: { sessionId?: string }): string | undefined {
+	return input.sessionId;
 }
 
 export const sessionEventRouter = router({

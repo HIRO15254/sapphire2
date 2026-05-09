@@ -4,12 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		session: { list: { queryOptions: () => ({ queryKey: ["session-list"] }) } },
-		liveCashGameSession: {
-			list: { queryOptions: () => ({ queryKey: ["live-cash"] }) },
-		},
-		liveTournamentSession: {
-			list: { queryOptions: () => ({ queryKey: ["live-tournament"] }) },
-		},
 		currency: {
 			list: { queryOptions: () => ({ queryKey: ["currency-list"] }) },
 		},

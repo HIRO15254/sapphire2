@@ -14,11 +14,9 @@ import {
 // Guard against accidental trpc imports pulling env.
 vi.mock("@/utils/trpc", () => ({
 	trpcClient: {
-		liveCashGameSession: { updateHeroSeat: { mutate: vi.fn() } },
-		liveTournamentSession: { updateHeroSeat: { mutate: vi.fn() } },
-		sessionTablePlayer: {
-			add: { mutate: vi.fn() },
-			addNew: { mutate: vi.fn() },
+		sessionEvent: {
+			addPlayer: { mutate: vi.fn() },
+			addTemporaryPlayer: { mutate: vi.fn() },
 		},
 	},
 }));

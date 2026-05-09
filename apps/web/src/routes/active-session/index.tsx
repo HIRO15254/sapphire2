@@ -8,7 +8,7 @@ import { TournamentTimer } from "@/features/live-sessions/components/tournament-
 import { TournamentTimerDialog } from "@/features/live-sessions/components/tournament-timer-dialog";
 import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
 import { useCashGameCompactSummary } from "@/features/live-sessions/hooks/use-cash-game-compact-summary";
-import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
+import { useLiveSession } from "@/features/live-sessions/hooks/use-live-session";
 import { useTournamentCompactSummary } from "@/features/live-sessions/hooks/use-tournament-compact-summary";
 import type { TournamentBlindLevel } from "@/features/live-sessions/utils/tournament-timer";
 import { cn } from "@/lib/utils";
@@ -87,35 +87,30 @@ function TournamentCompactSummary({
 	);
 }
 
-function buildTournamentSummary(session: {
-	summary: Record<string, unknown>;
-}): {
+function buildTournamentSummary(detail: Record<string, unknown>): {
 	averageStack: number | null;
 	remainingPlayers: number | null;
 	totalEntries: number | null;
 } {
-	const summary = session.summary;
 	return {
-		averageStack:
-			typeof summary.averageStack === "number" ? summary.averageStack : null,
-		remainingPlayers:
-			typeof summary.remainingPlayers === "number"
-				? summary.remainingPlayers
-				: null,
+		averageStack: null,
+		remainingPlayers: null,
 		totalEntries:
-			typeof summary.totalEntries === "number" ? summary.totalEntries : null,
+			typeof detail.totalEntries === "number" ? detail.totalEntries : null,
 	};
 }
 
 function CashGameSession({ sessionId }: { sessionId: string }) {
-	const { session, ringGames, isDiscardPending, discard } =
-		useCashGameSession(sessionId);
+	const { session, isDiscardPending, discard } = useLiveSession(sessionId);
 
-	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
-		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
+		session?.currentPlayers.find((p) => p.isHero)?.seatPosition ?? null;
+	const heroSeat =
+		typeof heroSeatPosition === "number" && heroSeatPosition >= 0
+			? heroSeatPosition
+			: null;
 	const sceneState = useActiveSessionSceneState({
-		heroSeatPosition,
+		heroSeatPosition: heroSeat,
 		sessionId,
 		sessionType: "cash_game",
 	});
@@ -124,22 +119,26 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 		return null;
 	}
 
-	const ringGame = session.ringGameId
-		? ringGames.find((candidate) => candidate.id === session.ringGameId)
-		: undefined;
-	const gameInfo: TableGameInfo = ringGame
+	const detail = session.cashDetail;
+	const cashBlindSet = session.cashBlindSets[0];
+	const gameInfo: TableGameInfo = detail
 		? {
 				blinds:
-					ringGame.blind1 && ringGame.blind2
-						? `${formatCompactNumber(ringGame.blind1)}-${formatCompactNumber(ringGame.blind2)}`
+					cashBlindSet?.blind1 && cashBlindSet?.blind2
+						? `${formatCompactNumber(cashBlindSet.blind1)}-${formatCompactNumber(cashBlindSet.blind2)}`
 						: null,
 				buyInRange:
-					ringGame.minBuyIn && ringGame.maxBuyIn
-						? `MIN ${formatCompactNumber(ringGame.minBuyIn)} - MAX ${formatCompactNumber(ringGame.maxBuyIn)}`
+					detail.minBuyIn && detail.maxBuyIn
+						? `MIN ${formatCompactNumber(detail.minBuyIn)} - MAX ${formatCompactNumber(detail.maxBuyIn)}`
 						: null,
-				name: ringGame.name,
+				name: detail.ruleName,
 			}
 		: {};
+
+	const cashOut = detail?.cashOut ?? null;
+	const evCashOut = detail?.evCashOut ?? null;
+	const evDiff =
+		cashOut !== null && evCashOut !== null ? evCashOut - cashOut : 0;
 
 	return (
 		<ActiveSessionScene
@@ -151,17 +150,14 @@ function CashGameSession({ sessionId }: { sessionId: string }) {
 			summary={
 				<CashGameCompactSummary
 					summary={{
-						currentStack: session.summary.currentStack,
-						evDiff:
-							typeof session.summary.evDiff === "number"
-								? session.summary.evDiff
-								: 0,
+						currentStack: cashOut,
+						evDiff,
 						startedAt: session.startedAt ?? new Date(),
-						totalBuyIn: session.summary.totalBuyIn,
+						totalBuyIn: detail?.buyIn ?? 0,
 					}}
 				/>
 			}
-			tableSize={ringGame?.tableSize ?? null}
+			tableSize={detail?.tableSize ?? null}
 			title="Cash Game"
 		/>
 	);
@@ -180,11 +176,14 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 		handleSubmitTimer,
 	} = useTournamentSessionPage(sessionId);
 
-	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
-		typeof rawHeroSeat === "number" && rawHeroSeat >= 0 ? rawHeroSeat : null;
+		session?.currentPlayers.find((p) => p.isHero)?.seatPosition ?? null;
+	const heroSeat =
+		typeof heroSeatPosition === "number" && heroSeatPosition >= 0
+			? heroSeatPosition
+			: null;
 	const sceneState = useActiveSessionSceneState({
-		heroSeatPosition,
+		heroSeatPosition: heroSeat,
 		sessionId,
 		sessionType: "tournament",
 	});
@@ -193,25 +192,33 @@ function TournamentSession({ sessionId }: { sessionId: string }) {
 		return null;
 	}
 
-	const tournamentSummary = buildTournamentSummary(
-		session as { summary: Record<string, unknown> }
-	);
+	const detail = session.tournamentDetail;
+	const tournamentSummary = buildTournamentSummary(detail ?? {});
 
-	const blindLevels = ((session as { blindLevels?: TournamentBlindLevel[] })
-		.blindLevels ?? []) as TournamentBlindLevel[];
-	const timerStartedAt =
-		(session as { timerStartedAt?: Date | string | number | null })
-			.timerStartedAt ?? null;
+	const blindLevels = session.blindLevels
+		.filter((level) => !level.isBreak && level.blindSets.length > 0)
+		.map((level): TournamentBlindLevel => {
+			const bs = level.blindSets[0];
+			return {
+				ante: bs?.ante ?? null,
+				blind1: bs?.blind1 ?? null,
+				blind2: bs?.blind2 ?? null,
+				blind3: bs?.blind3 ?? null,
+				id: String(level.id),
+				isBreak: false,
+				level: level.levelIndex,
+				minutes: level.minutes ?? null,
+			};
+		});
+	const timerStartedAt = detail?.timerStartedAt ?? null;
 	const hasStructure = blindLevels.length > 0;
-
-	const tableSize =
-		(session as { tableSize?: number | null }).tableSize ?? null;
+	const tableSize = detail?.tableSize ?? null;
 
 	return (
 		<>
 			<ActiveSessionScene
 				gameInfo={{
-					name: session.tournamentId ? "Tournament" : null,
+					name: detail?.ruleName ?? null,
 				}}
 				isDiscardPending={isDiscardPending}
 				memo={session.memo}

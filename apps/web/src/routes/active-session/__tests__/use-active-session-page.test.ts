@@ -10,8 +10,8 @@ const mocks = vi.hoisted(() => ({
 	lastSessionId: null as string | null,
 }));
 
-vi.mock("@/features/live-sessions/hooks/use-tournament-session", () => ({
-	useTournamentSession: (sessionId: string) => {
+vi.mock("@/features/live-sessions/hooks/use-live-session", () => ({
+	useLiveSession: (sessionId: string) => {
 		mocks.lastSessionId = sessionId;
 		return {
 			session: mocks.session,
@@ -35,7 +35,7 @@ describe("useTournamentSessionPage", () => {
 	});
 
 	describe("initial state", () => {
-		it("forwards sessionId into useTournamentSession", () => {
+		it("forwards sessionId into useLiveSession", () => {
 			renderHook(() => useTournamentSessionPage("t-42"));
 			expect(mocks.lastSessionId).toBe("t-42");
 		});

@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useTournamentSession } from "@/features/live-sessions/hooks/use-tournament-session";
+import { useLiveSession } from "@/features/live-sessions/hooks/use-live-session";
 
 export function useTournamentSessionPage(sessionId: string) {
-	const tournamentSession = useTournamentSession(sessionId);
+	const tournamentSession = useLiveSession(sessionId);
 	const [isTimerDialogOpen, setIsTimerDialogOpen] = useState(false);
 
 	const handleOpenTimerDialog = () => {

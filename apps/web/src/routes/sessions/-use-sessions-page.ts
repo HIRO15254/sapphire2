@@ -63,8 +63,8 @@ export function useSessionsPage() {
 		deleteSession(id);
 	};
 
-	const handleReopen = (liveCashGameSessionId: string) => {
-		reopen(liveCashGameSessionId);
+	const handleReopen = (sessionId: string) => {
+		reopen(sessionId);
 	};
 
 	const handleOpenEdit = (session: SessionItem) => {
