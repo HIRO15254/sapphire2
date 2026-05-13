@@ -7,6 +7,10 @@ Companion memory files (auto-loaded):
 - [`.claude/CLAUDE.md`](.claude/CLAUDE.md) — Ultracite / Biome code standards.
 - [`.claude/rules/`](.claude/rules/) — path-scoped rule files; loaded only when files under the matching paths are touched. See the table near the bottom.
 
+Pre-rewrite snapshot (read on demand, not auto-loaded):
+
+- [`docs/archive/web-patterns/`](docs/archive/web-patterns/) — 12-file pattern dictionary of the **previous** `apps/web` implementation, kept as design reference for the in-progress UI rewrite. Start at `00-overview.md`. `.claude/rules/*` is "what to do"; this archive is "what was done and why".
+
 ## Stack
 
 - **Runtime / package manager**: Bun 1.3 (workspaces). Always use `bun`, never `npm` / `yarn` / `pnpm`.
