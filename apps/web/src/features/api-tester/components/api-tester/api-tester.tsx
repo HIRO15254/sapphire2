@@ -1,5 +1,8 @@
+import type { ProcedureField } from "@/features/api-tester/procedures";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { Checkbox } from "@/shared/components/ui/checkbox";
+import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
 	Select,
@@ -11,18 +14,86 @@ import {
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useApiTester } from "./use-api-tester";
 
+function FieldRow({
+	field,
+	value,
+	onChange,
+}: {
+	field: ProcedureField;
+	value: string;
+	onChange: (next: string) => void;
+}) {
+	const id = `field-${field.name}`;
+	const labelText = (
+		<>
+			<span className="font-mono text-xs">{field.name}</span>
+			<span className="ml-2 text-muted-foreground text-xs">{field.kind}</span>
+			{field.required && <span className="ml-1 text-destructive">*</span>}
+			{field.nullable && (
+				<span className="ml-2 text-muted-foreground text-xs">nullable</span>
+			)}
+		</>
+	);
+
+	if (field.kind === "boolean") {
+		const checked = value.trim().toLowerCase() === "true";
+		return (
+			<div className="flex items-center gap-2">
+				<Checkbox
+					checked={checked}
+					id={id}
+					onCheckedChange={(c) => onChange(c ? "true" : "false")}
+				/>
+				<Label htmlFor={id}>{labelText}</Label>
+			</div>
+		);
+	}
+
+	if (field.kind === "json" || field.kind === "stringArray") {
+		return (
+			<div className="flex flex-col gap-1">
+				<Label htmlFor={id}>{labelText}</Label>
+				<Textarea
+					className="min-h-24 font-mono text-xs"
+					id={id}
+					onChange={(e) => onChange(e.target.value)}
+					value={value}
+				/>
+				{field.kind === "stringArray" && (
+					<p className="text-muted-foreground text-xs">
+						One value per line. Blank lines are ignored.
+					</p>
+				)}
+			</div>
+		);
+	}
+
+	return (
+		<div className="flex flex-col gap-1">
+			<Label htmlFor={id}>{labelText}</Label>
+			<Input
+				id={id}
+				inputMode={field.kind === "number" ? "numeric" : "text"}
+				onChange={(e) => onChange(e.target.value)}
+				value={value}
+			/>
+		</div>
+	);
+}
+
 export function ApiTester() {
 	const {
 		options,
 		selectedKey,
 		selectedMeta,
-		input,
-		inputHint,
+		values,
 		isPending,
 		result,
 		resultText,
+		previewInput,
 		handleSelectChange,
-		handleInputChange,
+		handleFieldChange,
+		handleResetFields,
 		handleRun,
 		handleClear,
 	} = useApiTester();
@@ -55,19 +126,42 @@ export function ApiTester() {
 				)}
 			</div>
 
+			{selectedMeta && selectedMeta.fields.length > 0 && (
+				<div className="flex flex-col gap-3 rounded-md border p-3">
+					<div className="flex items-center justify-between">
+						<span className="font-semibold text-sm">Input</span>
+						<Button
+							onClick={handleResetFields}
+							size="xs"
+							type="button"
+							variant="ghost"
+						>
+							Reset
+						</Button>
+					</div>
+					{selectedMeta.fields.map((field) => (
+						<FieldRow
+							field={field}
+							key={field.name}
+							onChange={(next) => handleFieldChange(field.name, next)}
+							value={values[field.name] ?? ""}
+						/>
+					))}
+				</div>
+			)}
+
+			{selectedMeta && selectedMeta.fields.length === 0 && (
+				<p className="text-muted-foreground text-sm">No input required.</p>
+			)}
+
 			<div className="flex flex-col gap-2">
-				<Label htmlFor="input">Input (JSON)</Label>
+				<Label htmlFor="preview">Built input (preview)</Label>
 				<Textarea
-					className="min-h-32 font-mono text-xs"
-					id="input"
-					onChange={(e) => handleInputChange(e.target.value)}
-					value={input}
+					className="min-h-20 font-mono text-xs"
+					id="preview"
+					readOnly
+					value={previewInput}
 				/>
-				{inputHint && (
-					<p className="text-muted-foreground text-xs">
-						Hint: <span className="font-mono">{inputHint}</span>
-					</p>
-				)}
 			</div>
 
 			<div className="flex items-center gap-2">
