@@ -1,4 +1,5 @@
 import {
+	IconBolt,
 	IconBuildingStore,
 	IconCards,
 	IconCategory,
@@ -37,6 +38,12 @@ export const RESOURCE_ITEMS: readonly NavigationItem[] = [
 export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
 	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
+	{
+		to: "/active-session",
+		label: "Active session",
+		icon: IconBolt,
+		matchPaths: ["/active-session"],
+	},
 	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
