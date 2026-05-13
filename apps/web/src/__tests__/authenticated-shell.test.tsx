@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 		(err as Error & { redirectTo?: unknown }).redirectTo = input;
 		return err;
 	}),
+	isDesktop: false,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -27,6 +28,13 @@ vi.mock("@/lib/auth-client", () => ({
 		getSession: mocks.getSession,
 	},
 }));
+
+vi.mock(
+	"@/shared/components/authenticated-shell/use-authenticated-shell",
+	() => ({
+		useAuthenticatedShell: () => ({ isDesktop: mocks.isDesktop }),
+	})
+);
 
 vi.mock("@/shared/components/sidebar-nav", () => ({
 	SidebarNav: () => <div>Sidebar Nav</div>,
@@ -72,7 +80,12 @@ vi.mock("@/features/update-notes/components/update-notes-sheet", () => ({
 }));
 
 describe("AuthenticatedShell", () => {
-	it("renders the authenticated navigation shell", () => {
+	beforeEach(() => {
+		mocks.isDesktop = false;
+	});
+
+	it("renders the authenticated navigation shell on mobile viewports", () => {
+		mocks.isDesktop = false;
 		render(
 			<AuthenticatedShell>
 				<div>Shell Body</div>
@@ -84,6 +97,27 @@ describe("AuthenticatedShell", () => {
 		expect(screen.getByText("Live Stack Sheet")).toBeInTheDocument();
 		expect(screen.getByText("Online Status")).toBeInTheDocument();
 		expect(screen.getByText("Shell Body")).toBeInTheDocument();
+		expect(screen.queryByText("Use on your phone")).not.toBeInTheDocument();
+	});
+
+	it("blocks desktop viewports with the mobile-only empty state", () => {
+		mocks.isDesktop = true;
+		render(
+			<AuthenticatedShell>
+				<div>Shell Body</div>
+			</AuthenticatedShell>
+		);
+
+		expect(screen.getByText("Use on your phone")).toBeInTheDocument();
+		expect(
+			screen.getByText(
+				"This app is optimized for mobile. Open it on a smartphone to continue."
+			)
+		).toBeInTheDocument();
+		expect(screen.queryByText("Sidebar Nav")).not.toBeInTheDocument();
+		expect(screen.queryByText("Mobile Nav")).not.toBeInTheDocument();
+		expect(screen.queryByText("Shell Body")).not.toBeInTheDocument();
+		expect(screen.queryByText("Live Stack Sheet")).not.toBeInTheDocument();
 	});
 });
 
@@ -92,6 +126,7 @@ describe("RootComponent", () => {
 		mocks.getSession.mockReset();
 		mocks.redirect.mockClear();
 		mocks.useLocation.mockReturnValue({ pathname: "/dashboard" });
+		mocks.isDesktop = false;
 	});
 
 	it("renders the authenticated shell away from login", () => {
