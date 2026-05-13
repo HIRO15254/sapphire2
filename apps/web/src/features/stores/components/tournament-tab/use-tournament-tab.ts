@@ -23,6 +23,7 @@ function tournamentToInitialFormValues(
 			name: cp.name,
 			cost: cp.cost,
 			chips: cp.chips,
+			id: cp.id,
 		})),
 		bountyAmount: tournament.bountyAmount ?? undefined,
 		tableSize: tournament.tableSize ?? undefined,
@@ -195,6 +196,7 @@ export function useTournamentTab({ storeId }: UseTournamentTabOptions) {
 			blind3: primarySet?.blind3 ?? null,
 			ante: primarySet?.ante ?? null,
 			minutes: apiLevel.minutes ?? null,
+			blindSetId: primarySet?.id ?? null,
 		};
 	});
 
@@ -239,6 +241,7 @@ export function useBlindStructureSummary(tournamentId: string) {
 			blind3: primarySet?.blind3 ?? null,
 			ante: primarySet?.ante ?? null,
 			minutes: apiLevel.minutes ?? null,
+			blindSetId: primarySet?.id ?? null,
 		};
 	});
 	return {

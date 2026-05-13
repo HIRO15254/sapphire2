@@ -15,6 +15,7 @@ function makeRow(overrides: Partial<BlindLevelRow> = {}): BlindLevelRow {
 		blind3: null,
 		ante: null,
 		minutes: null,
+		blindSetId: null,
 		...overrides,
 	};
 }

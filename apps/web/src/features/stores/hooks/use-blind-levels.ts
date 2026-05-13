@@ -21,6 +21,7 @@ export interface BlindLevelRow {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	blindSetId?: number | null;
 	id: string;
 	isBreak: boolean;
 	level: number;
@@ -39,6 +40,44 @@ interface UseBlindLevelsOptions {
 	tournamentId: string;
 }
 
+const BLIND_FIELDS = new Set(["blind1", "blind2", "blind3", "ante"]);
+const DEFAULT_LIMIT_FORMAT_ID = 1;
+
+async function persistAddLevel(
+	tournamentId: string,
+	newLevel: {
+		ante?: number | null;
+		blind1?: number | null;
+		blind2?: number | null;
+		isBreak: boolean;
+		level: number;
+		minutes?: number | null;
+	}
+) {
+	const insertedLevel = await trpcClient.tournament.addBlindLevel.mutate({
+		tournamentId,
+		levelIndex: newLevel.level - 1,
+		isBreak: newLevel.isBreak,
+		...(newLevel.minutes == null ? {} : { minutes: newLevel.minutes }),
+		sortOrder: newLevel.level - 1,
+	});
+	const hasBlindValues =
+		!newLevel.isBreak &&
+		((newLevel.blind1 != null && newLevel.blind1 > 0) ||
+			(newLevel.blind2 != null && newLevel.blind2 > 0));
+	if (hasBlindValues) {
+		await trpcClient.tournament.addBlindSet.mutate({
+			tournamentBlindLevelId: insertedLevel.id,
+			limitFormatId: DEFAULT_LIMIT_FORMAT_ID,
+			blind1: newLevel.blind1 ?? 0,
+			blind2: newLevel.blind2 ?? 0,
+			...(newLevel.ante == null ? {} : { ante: newLevel.ante }),
+			sortOrder: 0,
+		});
+	}
+	return insertedLevel;
+}
+
 export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 	const queryClient = useQueryClient();
 	const [lastMinutes, setLastMinutes] = useState<number | null>(null);
@@ -49,7 +88,6 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 
 	const levelsQuery = useQuery(levelsQueryOptions);
 
-	// Map API response to the UI BlindLevelRow shape
 	const levels: BlindLevelRow[] = (levelsQuery.data ?? []).map((apiLevel) => {
 		const primarySet = apiLevel.blindSets[0];
 		return {
@@ -62,6 +100,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			blind3: primarySet?.blind3 ?? null,
 			ante: primarySet?.ante ?? null,
 			minutes: apiLevel.minutes ?? null,
+			blindSetId: primarySet?.id ?? null,
 		};
 	});
 
@@ -88,14 +127,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			isBreak: boolean;
 			level: number;
 			minutes?: number | null;
-		}) =>
-			trpcClient.tournament.addBlindLevel.mutate({
-				tournamentId,
-				levelIndex: newLevel.level - 1,
-				isBreak: newLevel.isBreak,
-				...(newLevel.minutes == null ? {} : { minutes: newLevel.minutes }),
-				sortOrder: newLevel.level - 1,
-			}),
+		}) => persistAddLevel(tournamentId, newLevel),
 		onMutate: async (newLevel) => {
 			await cancelTargets(queryClient, [
 				{ queryKey: levelsQueryOptions.queryKey },
@@ -111,6 +143,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 				blind3: null,
 				ante: newLevel.ante ?? null,
 				minutes: newLevel.minutes ?? null,
+				blindSetId: null,
 			};
 			queryClient.setQueryData(
 				levelsQueryOptions.queryKey,
@@ -164,7 +197,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 		},
 	});
 
-	const updateMutation = useMutation({
+	const updateLevelMutation = useMutation({
 		mutationFn: ({
 			id,
 			field,
@@ -177,6 +210,56 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			trpcClient.tournament.updateBlindLevel.mutate({
 				id: Number(id),
 				[field]: value,
+			}),
+		onSettled: () => {
+			invalidateTargets(queryClient, [
+				{ queryKey: levelsQueryOptions.queryKey },
+			]);
+		},
+	});
+
+	const updateBlindSetMutation = useMutation({
+		mutationFn: ({
+			blindSetId,
+			field,
+			value,
+		}: {
+			blindSetId: number;
+			field: string;
+			value: number | null;
+		}) =>
+			trpcClient.tournament.updateBlindSet.mutate({
+				id: blindSetId,
+				[field]: value === null ? undefined : value,
+			}),
+		onSettled: () => {
+			invalidateTargets(queryClient, [
+				{ queryKey: levelsQueryOptions.queryKey },
+			]);
+		},
+	});
+
+	const createBlindSetMutation = useMutation({
+		mutationFn: ({
+			levelId,
+			values,
+		}: {
+			levelId: number;
+			values: {
+				ante?: number | null;
+				blind1: number;
+				blind2: number;
+				blind3?: number | null;
+			};
+		}) =>
+			trpcClient.tournament.addBlindSet.mutate({
+				tournamentBlindLevelId: levelId,
+				limitFormatId: DEFAULT_LIMIT_FORMAT_ID,
+				blind1: values.blind1,
+				blind2: values.blind2,
+				...(values.blind3 == null ? {} : { blind3: values.blind3 }),
+				...(values.ante == null ? {} : { ante: values.ante }),
+				sortOrder: 0,
 			}),
 		onSettled: () => {
 			invalidateTargets(queryClient, [
@@ -262,15 +345,50 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 		deleteMutation.mutate(id);
 	};
 
+	const applyBlindUpdates = (
+		row: BlindLevelRow | undefined,
+		blindUpdates: Record<string, number | null>
+	) => {
+		if (Object.keys(blindUpdates).length === 0) {
+			return;
+		}
+		if (row?.blindSetId == null) {
+			const merged = { ...row, ...blindUpdates };
+			const blind1 = merged.blind1 ?? 0;
+			const blind2 = merged.blind2 ?? 0;
+			if (blind1 > 0 || blind2 > 0) {
+				createBlindSetMutation.mutate({
+					levelId: Number(row?.id ?? 0),
+					values: { blind1, blind2, blind3: merged.blind3, ante: merged.ante },
+				});
+			}
+			return;
+		}
+		for (const [field, value] of Object.entries(blindUpdates)) {
+			updateBlindSetMutation.mutate({
+				blindSetId: row.blindSetId,
+				field,
+				value,
+			});
+		}
+	};
+
 	const handleUpdate = (id: string, updates: Record<string, number | null>) => {
 		queryClient.setQueryData(
 			levelsQueryOptions.queryKey,
 			(old: typeof levelsQuery.data) =>
 				(old ?? []).map((l) => (String(l.id) === id ? { ...l, ...updates } : l))
 		);
+		const row = levels.find((l) => l.id === id);
+		const blindUpdates: Record<string, number | null> = {};
 		for (const [field, value] of Object.entries(updates)) {
-			updateMutation.mutate({ id, field, value });
+			if (BLIND_FIELDS.has(field)) {
+				blindUpdates[field] = value;
+			} else {
+				updateLevelMutation.mutate({ id, field, value });
+			}
 		}
+		applyBlindUpdates(row, blindUpdates);
 		if (updates.minutes != null) {
 			setLastMinutes(updates.minutes);
 		}

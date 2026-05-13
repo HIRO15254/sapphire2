@@ -504,7 +504,7 @@ export const PROCEDURES: ProcedureMeta[] = [
 		router: "tournamentChipPurchase",
 		procedure: "reorder",
 		kind: "mutation",
-		fields: [STR("tournamentId", true), ARR_STR("orderedIds", true)],
+		fields: [STR("tournamentId", true), ARR_STR("ids", true)],
 	},
 
 	{

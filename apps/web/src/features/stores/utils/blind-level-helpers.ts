@@ -60,6 +60,7 @@ export function addLevel(
 			blind3: null,
 			ante: null,
 			minutes: effectiveLastMinutes,
+			blindSetId: null,
 		},
 	];
 }
@@ -99,6 +100,7 @@ export function createLevel(
 			blind3: null,
 			ante: vals.ante,
 			minutes,
+			blindSetId: null,
 		},
 	];
 }

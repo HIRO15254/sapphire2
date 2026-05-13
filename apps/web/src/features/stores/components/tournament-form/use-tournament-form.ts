@@ -8,6 +8,7 @@ import { trpc } from "@/utils/trpc";
 interface ChipPurchaseFormItem {
 	chips: string;
 	cost: string;
+	id?: string;
 	name: string;
 	uid: string;
 }
@@ -34,6 +35,7 @@ const chipPurchaseItemSchema = z.object({
 	cost: z.string(),
 	chips: z.string(),
 	uid: z.string(),
+	id: z.string().optional(),
 });
 
 const tournamentFormSchema = z.object({
@@ -52,7 +54,12 @@ const tournamentFormSchema = z.object({
 
 interface UseTournamentFormOptions {
 	defaultValues?: Omit<TournamentFormValues, "tags" | "chipPurchases"> & {
-		chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
+		chipPurchases?: Array<{
+			chips: number;
+			cost: number;
+			id?: string;
+			name: string;
+		}>;
 		tags?: string[];
 	};
 	onSubmit: (values: TournamentFormValues) => void;
@@ -82,6 +89,7 @@ export function useTournamentForm({
 				cost: String(cp.cost),
 				chips: String(cp.chips),
 				uid: crypto.randomUUID(),
+				...(cp.id ? { id: cp.id } : {}),
 			})) as ChipPurchaseFormItem[],
 		},
 		onSubmit: ({ value }) => {
@@ -95,6 +103,7 @@ export function useTournamentForm({
 					name: cp.name,
 					cost: parseCostInt(cp.cost),
 					chips: parseCostInt(cp.chips),
+					...(cp.id ? { id: cp.id } : {}),
 				})),
 				bountyAmount: parseOptInt(value.bountyAmount),
 				tableSize: parseOptInt(value.tableSize),

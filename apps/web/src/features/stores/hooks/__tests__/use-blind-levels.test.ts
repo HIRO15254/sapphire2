@@ -14,6 +14,8 @@ const trpcMocks = vi.hoisted(() => ({
 	addBlindLevel: vi.fn(),
 	updateBlindLevel: vi.fn(),
 	removeBlindLevel: vi.fn(),
+	addBlindSet: vi.fn(),
+	updateBlindSet: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -32,6 +34,8 @@ vi.mock("@/utils/trpc", () => ({
 			addBlindLevel: { mutate: trpcMocks.addBlindLevel },
 			updateBlindLevel: { mutate: trpcMocks.updateBlindLevel },
 			removeBlindLevel: { mutate: trpcMocks.removeBlindLevel },
+			addBlindSet: { mutate: trpcMocks.addBlindSet },
+			updateBlindSet: { mutate: trpcMocks.updateBlindSet },
 		},
 	},
 }));
@@ -376,10 +380,11 @@ describe("useBlindLevels", () => {
 	});
 
 	describe("handleUpdate", () => {
-		it("optimistically patches the row in cache and fires one mutate per field", async () => {
+		it("routes minutes to updateBlindLevel and blind values to updateBlindSet (when a primary set exists)", async () => {
 			const qc = createClient();
 			qc.setQueryData(LEVELS_KEY, [apiLevel({ id: 1, levelIndex: 0 })]);
 			trpcMocks.updateBlindLevel.mockResolvedValue({ id: 1 });
+			trpcMocks.updateBlindSet.mockResolvedValue({ id: 1 });
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
@@ -389,15 +394,18 @@ describe("useBlindLevels", () => {
 				result.current.handleUpdate("1", { blind1: 500, minutes: 30 });
 			});
 			await waitFor(() => {
-				expect(trpcMocks.updateBlindLevel).toHaveBeenCalledTimes(2);
-			});
-			expect(trpcMocks.updateBlindLevel).toHaveBeenCalledWith({
-				id: 1,
-				blind1: 500,
+				expect(trpcMocks.updateBlindLevel).toHaveBeenCalledTimes(1);
 			});
 			expect(trpcMocks.updateBlindLevel).toHaveBeenCalledWith({
 				id: 1,
 				minutes: 30,
+			});
+			await waitFor(() => {
+				expect(trpcMocks.updateBlindSet).toHaveBeenCalledTimes(1);
+			});
+			expect(trpcMocks.updateBlindSet).toHaveBeenCalledWith({
+				id: 1,
+				blind1: 500,
 			});
 		});
 

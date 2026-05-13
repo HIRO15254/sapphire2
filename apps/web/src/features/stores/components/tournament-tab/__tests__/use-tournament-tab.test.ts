@@ -200,6 +200,7 @@ describe("useTournamentTab", () => {
 					blind3: null,
 					ante: null,
 					minutes: 20,
+					blindSetId: null,
 				},
 			]);
 		});

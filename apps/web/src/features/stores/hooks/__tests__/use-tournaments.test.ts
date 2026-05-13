@@ -21,6 +21,8 @@ const trpcMocks = vi.hoisted(() => ({
 	updateWithLevels: vi.fn(),
 	cpCreate: vi.fn(),
 	cpDelete: vi.fn(),
+	cpUpdate: vi.fn(),
+	cpReorder: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -62,6 +64,8 @@ vi.mock("@/utils/trpc", () => ({
 		tournamentChipPurchase: {
 			create: { mutate: trpcMocks.cpCreate },
 			delete: { mutate: trpcMocks.cpDelete },
+			update: { mutate: trpcMocks.cpUpdate },
+			reorder: { mutate: trpcMocks.cpReorder },
 		},
 	},
 }));
@@ -168,7 +172,8 @@ describe("useTournaments", () => {
 			qc.setQueryData(activeKey, []);
 			trpcMocks.tournamentCreate.mockResolvedValue({ id: "t-new" });
 			trpcMocks.tournamentAddTag.mockResolvedValue(undefined);
-			trpcMocks.cpCreate.mockResolvedValue(undefined);
+			trpcMocks.cpCreate.mockResolvedValue({ id: "new-cp" });
+			trpcMocks.cpReorder.mockResolvedValue(undefined);
 			const { result } = renderHook(
 				() => useTournaments({ storeId: STORE_ID, showArchived: false }),
 				{ wrapper: makeWrapper(qc) }
@@ -276,7 +281,8 @@ describe("useTournaments", () => {
 			trpcMocks.tournamentUpdate.mockResolvedValue({ id: "t1" });
 			trpcMocks.tournamentAddTag.mockResolvedValue(undefined);
 			trpcMocks.tournamentRemoveTag.mockResolvedValue(undefined);
-			trpcMocks.cpCreate.mockResolvedValue(undefined);
+			trpcMocks.cpCreate.mockResolvedValue({ id: "new-cp" });
+			trpcMocks.cpReorder.mockResolvedValue(undefined);
 			trpcMocks.cpDelete.mockResolvedValue(undefined);
 			const { result } = renderHook(
 				() => useTournaments({ storeId: STORE_ID, showArchived: false }),

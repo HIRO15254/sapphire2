@@ -14,7 +14,12 @@ export type TournamentPartialFormValues = Omit<
 	TournamentFormValues,
 	"tags" | "chipPurchases"
 > & {
-	chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
+	chipPurchases?: Array<{
+		chips: number;
+		cost: number;
+		id?: string;
+		name: string;
+	}>;
 	tags?: string[];
 };
 

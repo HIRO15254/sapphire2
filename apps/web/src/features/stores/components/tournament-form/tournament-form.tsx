@@ -22,7 +22,12 @@ const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 interface TournamentFormProps {
 	defaultValues?: Omit<TournamentFormValues, "tags" | "chipPurchases"> & {
-		chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
+		chipPurchases?: Array<{
+			chips: number;
+			cost: number;
+			id?: string;
+			name: string;
+		}>;
 		tags?: string[];
 	};
 	isLoading?: boolean;

@@ -38,6 +38,7 @@ export interface Tournament {
 export interface ChipPurchaseFormItem {
 	chips: number;
 	cost: number;
+	id?: string;
 	name: string;
 }
 
@@ -162,21 +163,43 @@ export function useTournaments({
 		chipPurchases: ChipPurchaseFormItem[],
 		existingIds: string[]
 	) => {
+		const submittedIds = new Set(
+			chipPurchases.map((cp) => cp.id).filter((id): id is string => Boolean(id))
+		);
+		const idsToDelete = existingIds.filter((id) => !submittedIds.has(id));
 		await Promise.all(
-			existingIds.map((id) =>
+			idsToDelete.map((id) =>
 				trpcClient.tournamentChipPurchase.delete.mutate({ id })
 			)
 		);
-		await Promise.all(
-			chipPurchases.map((cp) =>
-				trpcClient.tournamentChipPurchase.create.mutate({
+
+		const finalIds: string[] = [];
+		for (const cp of chipPurchases) {
+			if (cp.id && existingIds.includes(cp.id)) {
+				await trpcClient.tournamentChipPurchase.update.mutate({
+					id: cp.id,
+					name: cp.name,
+					cost: cp.cost,
+					chips: cp.chips,
+				});
+				finalIds.push(cp.id);
+			} else {
+				const created = await trpcClient.tournamentChipPurchase.create.mutate({
 					tournamentId,
 					name: cp.name,
 					cost: cp.cost,
 					chips: cp.chips,
-				})
-			)
-		);
+				});
+				finalIds.push(created.id);
+			}
+		}
+
+		if (finalIds.length > 1) {
+			await trpcClient.tournamentChipPurchase.reorder.mutate({
+				tournamentId,
+				ids: finalIds,
+			});
+		}
 	};
 
 	const createMutation = useMutation({
