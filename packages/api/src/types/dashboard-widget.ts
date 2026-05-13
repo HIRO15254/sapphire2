@@ -8,6 +8,7 @@ export const widgetTypeSchema = z.enum([
 	"recent_sessions",
 	"active_session",
 	"currency_balance",
+	"pnl_graph",
 ]);
 export type WidgetType = z.infer<typeof widgetTypeSchema>;
 
@@ -53,11 +54,56 @@ export const currencyBalanceConfigSchema = z.object({
 });
 export type CurrencyBalanceConfig = z.infer<typeof currencyBalanceConfigSchema>;
 
+export const pnlGraphXAxisSchema = z.enum(["date", "sessionCount", "playTime"]);
+export type PnlGraphXAxis = z.infer<typeof pnlGraphXAxisSchema>;
+
+export const pnlGraphSessionTypeSchema = z.enum([
+	"all",
+	"cash_game",
+	"tournament",
+]);
+export type PnlGraphSessionType = z.infer<typeof pnlGraphSessionTypeSchema>;
+
+export const pnlGraphUnitSchema = z.enum(["currency", "normalized"]);
+export type PnlGraphUnit = z.infer<typeof pnlGraphUnitSchema>;
+
+const pnlGraphFilterFlagsSchema = z
+	.object({
+		xAxis: z.boolean().default(false),
+		dateRange: z.boolean().default(false),
+		sessionType: z.boolean().default(false),
+		unit: z.boolean().default(false),
+		store: z.boolean().default(false),
+		currency: z.boolean().default(false),
+	})
+	.default({
+		xAxis: false,
+		dateRange: false,
+		sessionType: false,
+		unit: false,
+		store: false,
+		currency: false,
+	});
+
+export const pnlGraphConfigSchema = z.object({
+	xAxis: pnlGraphXAxisSchema.default("date"),
+	dateRangeDays: z.number().int().min(1).max(3650).nullable().default(null),
+	sessionType: pnlGraphSessionTypeSchema.default("all"),
+	unit: pnlGraphUnitSchema.default("currency"),
+	storeId: z.string().nullable().default(null),
+	ringGameId: z.string().nullable().default(null),
+	currencyId: z.string().nullable().default(null),
+	showEvCash: z.boolean().default(false),
+	showFilters: pnlGraphFilterFlagsSchema,
+});
+export type PnlGraphConfig = z.infer<typeof pnlGraphConfigSchema>;
+
 export const widgetConfigSchema = z.union([
 	summaryStatsConfigSchema,
 	recentSessionsConfigSchema,
 	activeSessionConfigSchema,
 	currencyBalanceConfigSchema,
+	pnlGraphConfigSchema,
 ]);
 
 const configSchemaByType = {
@@ -65,6 +111,7 @@ const configSchemaByType = {
 	recent_sessions: recentSessionsConfigSchema,
 	active_session: activeSessionConfigSchema,
 	currency_balance: currencyBalanceConfigSchema,
+	pnl_graph: pnlGraphConfigSchema,
 } as const;
 
 export function parseWidgetConfig(

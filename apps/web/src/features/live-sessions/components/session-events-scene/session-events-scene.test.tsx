@@ -122,7 +122,9 @@ describe("SessionEventsScene", () => {
 		render(
 			<SessionEventsScene sessionId="session-3" sessionType="cash_game" />
 		);
-		expect(screen.getByRole("heading", { name: "Events" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: "Timeline" })
+		).toBeInTheDocument();
 	});
 
 	it("hides the page header heading when embedded", () => {
@@ -135,7 +137,7 @@ describe("SessionEventsScene", () => {
 			/>
 		);
 		expect(
-			screen.queryByRole("heading", { name: "Events" })
+			screen.queryByRole("heading", { name: "Timeline" })
 		).not.toBeInTheDocument();
 	});
 

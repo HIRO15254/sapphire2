@@ -150,7 +150,7 @@ export function SessionEventsScene({
 
 	return (
 		<div className={embedded ? "" : "p-4 md:p-6"}>
-			{!embedded && <PageHeader heading="Events" />}
+			{!embedded && <PageHeader heading="Timeline" />}
 			{events.length === 0 ? (
 				<EmptyState
 					className="border-none bg-transparent px-0 py-8"

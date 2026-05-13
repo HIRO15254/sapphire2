@@ -63,11 +63,11 @@ function SessionsPage() {
 							variant="outline"
 						>
 							<IconTags size={16} />
-							Manage Tags
+							Tags
 						</Button>
 						<Button onClick={() => handleCreateDialogOpenChange(true)}>
 							<IconPlus size={16} />
-							New Session
+							New
 						</Button>
 					</>
 				}
@@ -184,7 +184,7 @@ function SessionsPage() {
 					}
 				}}
 				open={viewingEvents !== null}
-				title="Events"
+				title="Timeline"
 			>
 				{viewingEvents && (
 					<SessionEventsScene

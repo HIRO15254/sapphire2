@@ -170,6 +170,119 @@ describe("useStoreGames", () => {
 			});
 		});
 	});
+
+	describe("with includeAll: true", () => {
+		const BASE_RING = {
+			variant: "holdem",
+			blind1: 1,
+			blind2: 2,
+			blind3: null,
+			ante: 0,
+			anteType: "none",
+			tableSize: 9,
+			currencyId: "c1",
+		};
+
+		it("merges active and archived ring games into a single list", async () => {
+			const qc = createClient();
+			qc.setQueryData(
+				["ringGame", "listByStore", { storeId: "store-1" }],
+				[
+					{
+						id: "r-active",
+						name: "Active Game",
+						...BASE_RING,
+						archivedAt: null,
+					},
+				]
+			);
+			qc.setQueryData(
+				[
+					"ringGame",
+					"listByStore",
+					{ storeId: "store-1", includeArchived: true },
+				],
+				[
+					{
+						id: "r-archived",
+						name: "Archived Game",
+						...BASE_RING,
+						archivedAt: "2026-01-01",
+					},
+				]
+			);
+			const { result } = renderHook(
+				() => useStoreGames("store-1", { includeAll: true }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.ringGames).toHaveLength(2));
+			expect(result.current.ringGames.map((g) => g.id)).toEqual(
+				expect.arrayContaining(["r-active", "r-archived"])
+			);
+		});
+
+		it("merges active and archived tournaments into a single list", async () => {
+			const qc = createClient();
+			qc.setQueryData(
+				["tournament", "listByStore", { storeId: "s-1" }],
+				[{ id: "t-active", name: "Active Tourney", buyIn: 100, entryFee: 10 }]
+			);
+			qc.setQueryData(
+				[
+					"tournament",
+					"listByStore",
+					{ storeId: "s-1", includeArchived: true },
+				],
+				[
+					{
+						id: "t-archived",
+						name: "Archived Tourney",
+						buyIn: 200,
+						entryFee: 20,
+					},
+				]
+			);
+			const { result } = renderHook(
+				() => useStoreGames("s-1", { includeAll: true }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.tournaments).toHaveLength(2));
+			expect(result.current.tournaments.map((t) => t.id)).toEqual(
+				expect.arrayContaining(["t-active", "t-archived"])
+			);
+		});
+
+		it("excludes archived games when includeAll is not set", async () => {
+			const qc = createClient();
+			qc.setQueryData(
+				["ringGame", "listByStore", { storeId: "store-2" }],
+				[{ id: "r-only-active", name: "Active", ...BASE_RING }]
+			);
+			qc.setQueryData(
+				[
+					"ringGame",
+					"listByStore",
+					{ storeId: "store-2", includeArchived: true },
+				],
+				[{ id: "r-archived-only", name: "Archived", ...BASE_RING }]
+			);
+			const { result } = renderHook(() => useStoreGames("store-2"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() => expect(result.current.ringGames).toHaveLength(1));
+			expect(result.current.ringGames[0].id).toBe("r-only-active");
+		});
+
+		it("returns empty arrays when storeId is undefined even with includeAll", () => {
+			const qc = createClient();
+			const { result } = renderHook(
+				() => useStoreGames(undefined, { includeAll: true }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			expect(result.current.ringGames).toEqual([]);
+			expect(result.current.tournaments).toEqual([]);
+		});
+	});
 });
 
 describe("useEntityLists", () => {

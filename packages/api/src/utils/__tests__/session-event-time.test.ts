@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { floorToMinute, nextAppendSortOrder } from "../session-event-time";
+import {
+	floorToMinute,
+	nextAppendSortOrder,
+	resolveOccurredAt,
+} from "../session-event-time";
 
 describe("floorToMinute", () => {
 	it("zeroes out seconds and milliseconds", () => {
@@ -45,6 +49,73 @@ function makeMaxSortOrderDb(rows: { maxSortOrder: number | null }[]) {
 		selectSpy,
 	};
 }
+
+describe("resolveOccurredAt", () => {
+	it("returns floored client-supplied seconds when occurredAt is provided", () => {
+		const now = new Date("2026-04-24T12:00:00.000Z");
+		// 2026-04-24T10:30:42Z in unix seconds
+		const supplied = Math.floor(
+			new Date("2026-04-24T10:30:42.123Z").getTime() / 1000
+		);
+		const result = resolveOccurredAt(supplied, now);
+		expect(result.toISOString()).toBe("2026-04-24T10:30:00.000Z");
+	});
+
+	it("falls back to floored now when occurredAt is undefined", () => {
+		const now = new Date("2026-04-24T15:47:33.500Z");
+		const result = resolveOccurredAt(undefined, now);
+		expect(result.toISOString()).toBe("2026-04-24T15:47:00.000Z");
+	});
+
+	it("uses distinct now values for sequential events in different minutes", () => {
+		// Regression: the previous implementation defaulted to sessionDate, so
+		// every event created without an explicit occurredAt collapsed onto the
+		// same timestamp. Each call must use the now passed in.
+		const first = resolveOccurredAt(
+			undefined,
+			new Date("2026-04-24T18:00:10.000Z")
+		);
+		const second = resolveOccurredAt(
+			undefined,
+			new Date("2026-04-24T18:01:20.000Z")
+		);
+		const third = resolveOccurredAt(
+			undefined,
+			new Date("2026-04-24T18:02:30.000Z")
+		);
+		expect([
+			first.toISOString(),
+			second.toISOString(),
+			third.toISOString(),
+		]).toEqual([
+			"2026-04-24T18:00:00.000Z",
+			"2026-04-24T18:01:00.000Z",
+			"2026-04-24T18:02:00.000Z",
+		]);
+	});
+
+	it("does not collapse onto sessionDate when no occurredAt is supplied", () => {
+		// The original bug: any default that ignored `now` made every event share
+		// one timestamp. Guard against a regression by passing a sessionDate-like
+		// value as `now` only when the caller actually wants it.
+		const now = new Date("2026-04-24T22:15:00.000Z");
+		const result = resolveOccurredAt(undefined, now);
+		expect(result.getTime()).toBe(now.getTime());
+	});
+
+	it("treats occurredAt = 0 as a real epoch value, not as missing", () => {
+		const now = new Date("2026-04-24T12:00:00.000Z");
+		const result = resolveOccurredAt(0, now);
+		expect(result.toISOString()).toBe("1970-01-01T00:00:00.000Z");
+	});
+
+	it("does not mutate the supplied now", () => {
+		const now = new Date("2026-04-24T15:47:33.500Z");
+		const original = now.getTime();
+		resolveOccurredAt(undefined, now);
+		expect(now.getTime()).toBe(original);
+	});
+});
 
 describe("nextAppendSortOrder", () => {
 	it("returns 0 when the session has no events", async () => {

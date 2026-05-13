@@ -1,6 +1,7 @@
 import type { TablerIcon } from "@tabler/icons-react";
 import {
 	IconBolt,
+	IconChartLine,
 	IconCoin,
 	IconListDetails,
 	IconReportAnalytics,
@@ -44,6 +45,7 @@ import {
 	CurrencyBalanceEditForm,
 	CurrencyBalanceWidget,
 } from "../currency-balance-widget";
+import { PnlGraphEditForm, PnlGraphWidget } from "../pnl-graph-widget";
 import {
 	RecentSessionsEditForm,
 	RecentSessionsWidget,
@@ -105,6 +107,19 @@ export const widgetRegistry: Record<WidgetType, WidgetRegistryEntry> = {
 			mobile: { w: 3, h: 2 },
 		},
 		minSize: { w: 2, h: 2 },
+	},
+	pnl_graph: {
+		type: "pnl_graph",
+		label: "P&L Graph",
+		description: "Cumulative profit and loss over time, sessions, or play time",
+		icon: IconChartLine,
+		Render: PnlGraphWidget,
+		EditForm: PnlGraphEditForm,
+		defaultSize: {
+			desktop: { w: 6, h: 5 },
+			mobile: { w: 6, h: 4 },
+		},
+		minSize: { w: 3, h: 3 },
 	},
 };
 

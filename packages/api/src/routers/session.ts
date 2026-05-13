@@ -14,7 +14,7 @@ import {
 } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -725,6 +725,107 @@ interface ListItemRaw {
 	type: string;
 }
 
+interface ProfitLossSeriesRow {
+	addonCost: number | null;
+	bountyPrizes: number | null;
+	breakMinutes: number | null;
+	buyIn: number | null;
+	cashOut: number | null;
+	endedAt: Date | null;
+	entryFee: number | null;
+	evCashOut: number | null;
+	id: string;
+	prizeMoney: number | null;
+	rebuyCost: number | null;
+	rebuyCount: number | null;
+	ringGameBlind2: number | null;
+	sessionDate: Date;
+	startedAt: Date | null;
+	tournamentBuyIn: number | null;
+	type: string;
+}
+
+interface CashGameStats {
+	buyInTotal: number | null;
+	evProfitLoss: number | null;
+	profitLoss: number;
+}
+
+function computeCashStats(r: ProfitLossSeriesRow): CashGameStats {
+	if (r.buyIn === null || r.cashOut === null) {
+		return { profitLoss: 0, evProfitLoss: null, buyInTotal: null };
+	}
+	return {
+		profitLoss: computeCashGamePL(r.buyIn, r.cashOut),
+		evProfitLoss:
+			r.evCashOut === null ? null : computeCashGamePL(r.buyIn, r.evCashOut),
+		buyInTotal: r.buyIn,
+	};
+}
+
+interface TournamentStats {
+	buyInTotal: number | null;
+	profitLoss: number;
+}
+
+function computeTournamentStats(r: ProfitLossSeriesRow): TournamentStats {
+	const profitLoss = computeTournamentPL(
+		r.tournamentBuyIn,
+		r.entryFee,
+		r.rebuyCount,
+		r.rebuyCost,
+		r.addonCost,
+		r.prizeMoney,
+		r.bountyPrizes
+	);
+	const total =
+		(r.tournamentBuyIn ?? 0) +
+		(r.entryFee ?? 0) +
+		(r.rebuyCount ?? 0) * (r.rebuyCost ?? 0) +
+		(r.addonCost ?? 0);
+	return { profitLoss, buyInTotal: total === 0 ? null : total };
+}
+
+function computePlayMinutes(r: ProfitLossSeriesRow): number | null {
+	if (!(r.startedAt && r.endedAt)) {
+		return null;
+	}
+	const elapsed = Math.max(
+		0,
+		(r.endedAt.getTime() - r.startedAt.getTime()) / 60_000
+	);
+	return Math.max(0, elapsed - (r.breakMinutes ?? 0));
+}
+
+function toProfitLossSeriesPoint(r: ProfitLossSeriesRow) {
+	const cashStats =
+		r.type === "cash_game"
+			? computeCashStats(r)
+			: ({
+					profitLoss: 0,
+					evProfitLoss: null,
+					buyInTotal: null,
+				} satisfies CashGameStats);
+	const tourneyStats =
+		r.type === "tournament"
+			? computeTournamentStats(r)
+			: ({ profitLoss: 0, buyInTotal: null } satisfies TournamentStats);
+	const profitLoss =
+		r.type === "cash_game" ? cashStats.profitLoss : tourneyStats.profitLoss;
+	const buyInTotal =
+		r.type === "cash_game" ? cashStats.buyInTotal : tourneyStats.buyInTotal;
+	return {
+		id: r.id,
+		type: r.type as "cash_game" | "tournament",
+		sessionDate: Math.floor(r.sessionDate.getTime() / 1000),
+		profitLoss,
+		evProfitLoss: cashStats.evProfitLoss,
+		playMinutes: computePlayMinutes(r),
+		bigBlind: r.ringGameBlind2 ?? null,
+		buyInTotal,
+	};
+}
+
 function enrichItemWithPL<T extends ListItemRaw>(item: T) {
 	let profitLoss: number | null = null;
 	let evProfitLoss: number | null = null;
@@ -1432,6 +1533,80 @@ export const sessionRouter = router({
 			);
 
 			return updated;
+		}),
+
+	// pnl_graph widget — see apps/web/src/features/dashboard/widgets/pnl-graph-widget
+	profitLossSeries: protectedProcedure
+		.input(
+			z.object({
+				type: z.enum(["cash_game", "tournament"]).optional(),
+				storeId: z.string().optional(),
+				ringGameId: z.string().optional(),
+				currencyId: z.string().optional(),
+				dateFrom: z.number().optional(),
+				dateTo: z.number().optional(),
+			})
+		)
+		.query(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const conditions = [eq(gameSession.userId, userId)];
+			if (input.type) {
+				conditions.push(eq(gameSession.kind, input.type));
+			}
+			if (input.storeId) {
+				conditions.push(eq(gameSession.storeId, input.storeId));
+			}
+			if (input.currencyId) {
+				conditions.push(eq(gameSession.currencyId, input.currencyId));
+			}
+			if (input.ringGameId) {
+				conditions.push(eq(sessionCashDetail.ringGameId, input.ringGameId));
+			}
+			if (input.dateFrom !== undefined) {
+				conditions.push(
+					gte(gameSession.sessionDate, new Date(input.dateFrom * 1000))
+				);
+			}
+			if (input.dateTo !== undefined) {
+				conditions.push(
+					lte(gameSession.sessionDate, new Date(input.dateTo * 1000))
+				);
+			}
+
+			const rows = await ctx.db
+				.select({
+					id: gameSession.id,
+					type: gameSession.kind,
+					sessionDate: gameSession.sessionDate,
+					startedAt: gameSession.startedAt,
+					endedAt: gameSession.endedAt,
+					breakMinutes: gameSession.breakMinutes,
+					buyIn: sessionCashDetail.buyIn,
+					cashOut: sessionCashDetail.cashOut,
+					evCashOut: sessionCashDetail.evCashOut,
+					ringGameBlind2: ringGame.blind2,
+					tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
+					entryFee: sessionTournamentDetail.entryFee,
+					rebuyCount: sessionTournamentDetail.rebuyCount,
+					rebuyCost: sessionTournamentDetail.rebuyCost,
+					addonCost: sessionTournamentDetail.addonCost,
+					prizeMoney: sessionTournamentDetail.prizeMoney,
+					bountyPrizes: sessionTournamentDetail.bountyPrizes,
+				})
+				.from(gameSession)
+				.leftJoin(
+					sessionCashDetail,
+					eq(sessionCashDetail.sessionId, gameSession.id)
+				)
+				.leftJoin(ringGame, eq(ringGame.id, sessionCashDetail.ringGameId))
+				.leftJoin(
+					sessionTournamentDetail,
+					eq(sessionTournamentDetail.sessionId, gameSession.id)
+				)
+				.where(and(...conditions))
+				.orderBy(asc(gameSession.sessionDate), asc(gameSession.id));
+
+			return { points: rows.map(toProfitLossSeriesPoint) };
 		}),
 
 	delete: protectedProcedure

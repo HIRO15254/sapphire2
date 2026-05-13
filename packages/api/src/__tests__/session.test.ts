@@ -17,8 +17,50 @@ describe("session router", () => {
 
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.session).sort()).toEqual(
-			["create", "delete", "getById", "list", "update"].sort()
+			[
+				"create",
+				"delete",
+				"getById",
+				"list",
+				"profitLossSeries",
+				"update",
+			].sort()
 		);
+	});
+});
+
+describe("session.profitLossSeries input validation", () => {
+	function getSchema() {
+		return (
+			appRouter.session.profitLossSeries as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+	}
+
+	it("accepts an empty object (all filters optional)", () => {
+		expect(getSchema().safeParse({}).success).toBe(true);
+	});
+
+	it("accepts the full filter combination", () => {
+		expect(
+			getSchema().safeParse({
+				type: "cash_game",
+				storeId: "s1",
+				ringGameId: "rg1",
+				currencyId: "c1",
+				dateFrom: 1_700_000_000,
+				dateTo: 1_800_000_000,
+			}).success
+		).toBe(true);
+	});
+
+	it("rejects an unknown type value", () => {
+		expect(getSchema().safeParse({ type: "spin_and_go" }).success).toBe(false);
+	});
+
+	it("rejects non-numeric dateFrom", () => {
+		expect(getSchema().safeParse({ dateFrom: "today" }).success).toBe(false);
 	});
 });
 

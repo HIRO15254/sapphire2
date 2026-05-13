@@ -212,7 +212,7 @@ describe("SessionsPage", () => {
 
 		render(<Component />);
 
-		await user.click(screen.getAllByRole("button", { name: "New Session" })[0]);
+		await user.click(screen.getAllByRole("button", { name: "New" })[0]);
 
 		expect(
 			screen.getByRole("heading", { name: "New Session" })
@@ -226,7 +226,7 @@ describe("SessionsPage", () => {
 
 		render(<Component />);
 
-		await user.click(screen.getByRole("button", { name: "Manage Tags" }));
+		await user.click(screen.getByRole("button", { name: "Tags" }));
 
 		expect(
 			screen.getByRole("heading", { name: "Manage Tags" })

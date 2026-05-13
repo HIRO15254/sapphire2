@@ -3,6 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SessionCard } from "./session-card";
 
+vi.mock("@/features/live-sessions/components/session-result-chart", () => ({
+	SessionResultChart: () => null,
+}));
+
 function makeCashGameSession(
 	overrides: Record<string, unknown> = {}
 ): Parameters<typeof SessionCard>[0]["session"] {
@@ -479,7 +483,9 @@ describe("SessionCard", () => {
 
 		await user.click(screen.getByRole("button", { expanded: false }));
 
-		expect(screen.getByRole("button", { name: "Events" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Timeline" })
+		).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: "Reopen" }));
 		expect(onReopen).toHaveBeenCalledWith("live-1");
@@ -502,7 +508,7 @@ describe("SessionCard", () => {
 		);
 
 		await user.click(screen.getByRole("button", { expanded: false }));
-		await user.click(screen.getByRole("button", { name: "Events" }));
+		await user.click(screen.getByRole("button", { name: "Timeline" }));
 
 		expect(onViewEvents).toHaveBeenCalledTimes(1);
 		expect(onViewEvents).toHaveBeenCalledWith({
@@ -528,7 +534,7 @@ describe("SessionCard", () => {
 		);
 
 		await user.click(screen.getByRole("button", { expanded: false }));
-		await user.click(screen.getByRole("button", { name: "Events" }));
+		await user.click(screen.getByRole("button", { name: "Timeline" }));
 
 		expect(onViewEvents).toHaveBeenCalledTimes(1);
 		expect(onViewEvents).toHaveBeenCalledWith({
@@ -537,7 +543,7 @@ describe("SessionCard", () => {
 		});
 	});
 
-	it("does not render Events button when no live session is linked", async () => {
+	it("does not render Timeline button when no live session is linked", async () => {
 		const user = userEvent.setup();
 		const onViewEvents = vi.fn();
 		const session = makeCashGameSession({
@@ -557,7 +563,7 @@ describe("SessionCard", () => {
 		await user.click(screen.getByRole("button", { expanded: false }));
 
 		expect(
-			screen.queryByRole("button", { name: "Events" })
+			screen.queryByRole("button", { name: "Timeline" })
 		).not.toBeInTheDocument();
 		expect(onViewEvents).not.toHaveBeenCalled();
 	});
