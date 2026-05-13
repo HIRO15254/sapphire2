@@ -52,6 +52,44 @@ export interface RingGameFormValues {
 	variantId?: number;
 }
 
+async function syncRingGameBlindSet(values: {
+	ante?: number;
+	anteType?: "all" | "bb" | "none";
+	blind1?: number;
+	blind2?: number;
+	blind3?: number;
+	existingBlindSetId?: number;
+	id: string;
+}) {
+	if (values.existingBlindSetId != null) {
+		await trpcClient.ringGame.updateBlindSet.mutate({
+			id: values.existingBlindSetId,
+			blind1: values.blind1 ?? 0,
+			blind2: values.blind2 ?? 0,
+			blind3: values.blind3 ?? null,
+			ante: values.ante ?? null,
+			anteType: values.anteType,
+		});
+		return;
+	}
+	const hasBlindValues =
+		(values.blind1 != null && values.blind1 > 0) ||
+		(values.blind2 != null && values.blind2 > 0);
+	if (!hasBlindValues) {
+		return;
+	}
+	await trpcClient.ringGame.addBlindSet.mutate({
+		ringGameId: values.id,
+		limitFormatId: 1,
+		blind1: values.blind1 ?? 0,
+		blind2: values.blind2 ?? 0,
+		...(values.blind3 == null ? {} : { blind3: values.blind3 }),
+		...(values.ante == null ? {} : { ante: values.ante }),
+		...(values.anteType == null ? {} : { anteType: values.anteType }),
+		sortOrder: 0,
+	});
+}
+
 function buildOptimisticRingGame(
 	storeId: string,
 	values: RingGameFormValues,
@@ -111,8 +149,8 @@ export function useRingGames({ storeId, showArchived }: UseRingGamesOptions) {
 	};
 
 	const createMutation = useMutation({
-		mutationFn: (values: RingGameFormValues) =>
-			trpcClient.ringGame.create.mutate({
+		mutationFn: async (values: RingGameFormValues) => {
+			const created = await trpcClient.ringGame.create.mutate({
 				storeId,
 				name: values.name,
 				variantId: values.variantId,
@@ -121,7 +159,24 @@ export function useRingGames({ storeId, showArchived }: UseRingGamesOptions) {
 				tableSize: values.tableSize,
 				currencyId: values.currencyId,
 				memo: values.memo,
-			}),
+			});
+			const hasBlindValues =
+				(values.blind1 != null && values.blind1 > 0) ||
+				(values.blind2 != null && values.blind2 > 0);
+			if (hasBlindValues) {
+				await trpcClient.ringGame.addBlindSet.mutate({
+					ringGameId: created.id,
+					limitFormatId: 1,
+					blind1: values.blind1 ?? 0,
+					blind2: values.blind2 ?? 0,
+					...(values.blind3 == null ? {} : { blind3: values.blind3 }),
+					...(values.ante == null ? {} : { ante: values.ante }),
+					...(values.anteType == null ? {} : { anteType: values.anteType }),
+					sortOrder: 0,
+				});
+			}
+			return created;
+		},
 		onMutate: async (values) => {
 			await cancelTargets(queryClient, [
 				{ queryKey: activeQueryOptions.queryKey },
@@ -160,8 +215,13 @@ export function useRingGames({ storeId, showArchived }: UseRingGamesOptions) {
 	});
 
 	const updateMutation = useMutation({
-		mutationFn: (values: RingGameFormValues & { id: string }) =>
-			trpcClient.ringGame.update.mutate({
+		mutationFn: async (
+			values: RingGameFormValues & {
+				existingBlindSetId?: number;
+				id: string;
+			}
+		) => {
+			const updated = await trpcClient.ringGame.update.mutate({
 				id: values.id,
 				name: values.name,
 				variantId: values.variantId,
@@ -170,7 +230,10 @@ export function useRingGames({ storeId, showArchived }: UseRingGamesOptions) {
 				tableSize: values.tableSize ?? null,
 				currencyId: values.currencyId ?? null,
 				memo: values.memo ?? null,
-			}),
+			});
+			await syncRingGameBlindSet(values);
+			return updated;
+		},
 		onMutate: async (values) => {
 			await cancelTargets(queryClient, [
 				{ queryKey: activeQueryOptions.queryKey },

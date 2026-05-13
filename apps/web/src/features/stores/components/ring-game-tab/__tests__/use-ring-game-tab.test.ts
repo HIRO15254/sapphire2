@@ -87,7 +87,11 @@ describe("useRingGameTab", () => {
 	it("handleUpdate calls update with the id and clears editingGame on success", async () => {
 		hoisted.update.mockResolvedValue({ id: "g1" });
 		const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
-		const editing = { id: "g1", name: "old" } as RingGame;
+		const editing = {
+			id: "g1",
+			name: "old",
+			blindSets: [],
+		} as unknown as RingGame;
 		act(() => {
 			result.current.setEditingGame(editing);
 		});

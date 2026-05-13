@@ -39,7 +39,12 @@ export function useRingGameTab({ storeId }: UseRingGameTabOptions) {
 		if (!editingGame) {
 			return;
 		}
-		update({ id: editingGame.id, ...values }).then(() => {
+		const existingBlindSetId = editingGame.blindSets[0]?.id;
+		update({
+			id: editingGame.id,
+			...values,
+			...(existingBlindSetId == null ? {} : { existingBlindSetId }),
+		}).then(() => {
 			setEditingGame(null);
 		});
 	};
