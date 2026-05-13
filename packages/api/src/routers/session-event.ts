@@ -26,6 +26,7 @@ import {
 	assertOccurredAtOrdering,
 	floorToMinute,
 	nextAppendSortOrder,
+	resolveOccurredAt,
 } from "../utils/session-event-time";
 
 type DbInstance = Parameters<
@@ -203,7 +204,7 @@ export const sessionEventRouter = router({
 			}
 
 			const userId = ctx.session.user.id;
-			const { sessionType, sessionDate } = await resolveSessionOwnership(
+			const { sessionType } = await resolveSessionOwnership(
 				ctx.db,
 				sessionId,
 				userId
@@ -243,10 +244,7 @@ export const sessionEventRouter = router({
 				input.payload,
 				sessionType
 			);
-			const rawOccurredAt = input.occurredAt
-				? new Date(input.occurredAt * 1000)
-				: sessionDate;
-			const occurredAtDate = floorToMinute(rawOccurredAt);
+			const occurredAtDate = resolveOccurredAt(input.occurredAt, new Date());
 
 			const sortOrder = await nextAppendSortOrder(ctx.db, sessionId);
 
