@@ -6,6 +6,7 @@ import {
 	IconLayoutDashboard,
 	IconList,
 	IconSettings,
+	IconTerminal2,
 	IconUsers,
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
@@ -40,6 +41,7 @@ export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
 	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
+	{ to: "/dev/api-tester", label: "API tester", icon: IconTerminal2 },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
