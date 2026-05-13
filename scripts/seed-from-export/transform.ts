@@ -81,12 +81,10 @@ const PASSTHROUGH_TABLES: [oldTable: string, newTable: string][] = [
 	["store", "store"],
 	["currency", "currency"],
 	["transaction_type", "transaction_type"],
-	["currency_transaction", "currency_transaction"],
 	["player_tag", "player_tag"],
 	["player", "player"],
 	["player_to_player_tag", "player_to_player_tag"],
 	["session_tag", "session_tag"],
-	["tournament_tag", "tournament_tag"],
 	["dashboard_widget", "dashboard_widget"],
 	["update_note_view", "update_note_view"],
 ];
@@ -162,6 +160,22 @@ function emitGameSessions(oldDb: Database, out: string[]): void {
 	out.push(passthroughInsert(rows, "game_session"));
 }
 
+function emitTournamentTags(oldDb: Database, out: string[]): void {
+	const rows = selectAll(oldDb, "tournament_tag");
+	out.push(
+		`-- tournament_tag (${rows.length} rows): depends on tournament, must come after emitTournaments`
+	);
+	out.push(passthroughInsert(rows, "tournament_tag"));
+}
+
+function emitCurrencyTransactions(oldDb: Database, out: string[]): void {
+	const rows = selectAll(oldDb, "currency_transaction");
+	out.push(
+		`-- currency_transaction (${rows.length} rows): may reference game_session, must come after emitGameSessions`
+	);
+	out.push(passthroughInsert(rows, "currency_transaction"));
+}
+
 function emitSessionCashDetails(oldDb: Database, out: string[]): void {
 	const rows = selectAll(oldDb, "session_cash_detail");
 	out.push(
@@ -225,9 +239,11 @@ export function transformAll(oldDb: Database): string {
 
 	emitPassthrough(oldDb, out);
 	emitTournaments(oldDb, out);
+	emitTournamentTags(oldDb, out);
 	emitRingGames(oldDb, out);
 	emitTournamentBlindLevels(oldDb, out);
 	emitGameSessions(oldDb, out);
+	emitCurrencyTransactions(oldDb, out);
 	emitSessionCashDetails(oldDb, out);
 	emitSessionTournamentDetails(oldDb, out);
 	emitSessionEvents(oldDb, out);
