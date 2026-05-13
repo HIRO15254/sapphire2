@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { floorToMinute } from "../session-event-time";
+import { describe, expect, it, vi } from "vitest";
+import { floorToMinute, nextAppendSortOrder } from "../session-event-time";
 
 describe("floorToMinute", () => {
 	it("zeroes out seconds and milliseconds", () => {
@@ -31,5 +31,68 @@ describe("floorToMinute", () => {
 		const a = floorToMinute(new Date("2026-04-24T10:30:05.000Z"));
 		const b = floorToMinute(new Date("2026-04-24T10:30:55.000Z"));
 		expect(a.getTime()).toBe(b.getTime());
+	});
+});
+
+function makeMaxSortOrderDb(rows: { maxSortOrder: number | null }[]) {
+	const whereSpy = vi.fn().mockResolvedValue(rows);
+	const fromSpy = vi.fn().mockReturnValue({ where: whereSpy });
+	const selectSpy = vi.fn().mockReturnValue({ from: fromSpy });
+	return {
+		db: { select: selectSpy },
+		whereSpy,
+		fromSpy,
+		selectSpy,
+	};
+}
+
+describe("nextAppendSortOrder", () => {
+	it("returns 0 when the session has no events", async () => {
+		const { db } = makeMaxSortOrderDb([{ maxSortOrder: null }]);
+		const result = await nextAppendSortOrder(
+			db as unknown as Parameters<typeof nextAppendSortOrder>[0],
+			"session-1"
+		);
+		expect(result).toBe(0);
+	});
+
+	it("returns 0 when select returns an empty array", async () => {
+		const { db } = makeMaxSortOrderDb([]);
+		const result = await nextAppendSortOrder(
+			db as unknown as Parameters<typeof nextAppendSortOrder>[0],
+			"session-1"
+		);
+		expect(result).toBe(0);
+	});
+
+	it("returns max(sortOrder) + 1 when events exist", async () => {
+		const { db } = makeMaxSortOrderDb([{ maxSortOrder: 7 }]);
+		const result = await nextAppendSortOrder(
+			db as unknown as Parameters<typeof nextAppendSortOrder>[0],
+			"session-1"
+		);
+		expect(result).toBe(8);
+	});
+
+	it("treats sortOrder = 0 as a real value (returns 1, not 0)", async () => {
+		const { db } = makeMaxSortOrderDb([{ maxSortOrder: 0 }]);
+		const result = await nextAppendSortOrder(
+			db as unknown as Parameters<typeof nextAppendSortOrder>[0],
+			"session-1"
+		);
+		expect(result).toBe(1);
+	});
+
+	it("calls select().from() exactly once and where() exactly once", async () => {
+		const { db, fromSpy, whereSpy, selectSpy } = makeMaxSortOrderDb([
+			{ maxSortOrder: 3 },
+		]);
+		await nextAppendSortOrder(
+			db as unknown as Parameters<typeof nextAppendSortOrder>[0],
+			"session-1"
+		);
+		expect(selectSpy).toHaveBeenCalledTimes(1);
+		expect(fromSpy).toHaveBeenCalledTimes(1);
+		expect(whereSpy).toHaveBeenCalledTimes(1);
 	});
 });
