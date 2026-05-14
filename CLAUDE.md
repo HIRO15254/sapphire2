@@ -72,6 +72,12 @@ utils/                     truly global helpers (optimistic-update, formatters, 
 
 When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. Promote to `shared/` only when a second feature imports it.
 
+## Release Flow
+
+- **Branches**: `feature → dev → release/vX.Y.Z → main`. `dev` is the default base for PRs; `main` only accepts PRs whose head branch matches `release/v[0-9]+\.[0-9]+\.[0-9]+` (enforced by [`pr-target-guard.yml`](.github/workflows/pr-target-guard.yml) + GitHub Ruleset [`main-release-only.json`](.github/rulesets/main-release-only.json)).
+- **Cutting a release**: `git checkout -b release/vX.Y.Z dev && git push -u origin HEAD`, then `gh pr create --base main`. On merge, [`release.yml`](.github/workflows/release.yml) auto-generates notes via the `/create-update-notes` skill, creates the tag, and publishes the GitHub Release — which in turn fires [`production-deploy.yml`](.github/workflows/production-deploy.yml).
+- **Manual release notes**: invoke `/create-update-notes vX.Y.Z` locally; the skill stays draft-only when used outside CI.
+
 ## Web UI Essentials (cross-cutting)
 
 Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below apply everywhere in `apps/web/` and are worth keeping top of mind:
