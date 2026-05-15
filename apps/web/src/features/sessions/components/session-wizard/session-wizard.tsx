@@ -28,7 +28,7 @@ import { ChipPurchasesInlineTable } from "./chip-purchases-inline-table";
 import {
 	type UseSessionWizardReturn,
 	useSessionWizard,
-	WIZARD_STEPS,
+	type WizardMode,
 	type WizardStep,
 } from "./use-session-wizard";
 
@@ -46,11 +46,20 @@ interface SessionWizardProps {
 	defaultValues?: SessionFormDefaults;
 	isLiveLinked?: boolean;
 	isLoading?: boolean;
+	/**
+	 * "manual" (default) renders all three steps and submits to
+	 * session.create / session.update. "live" drops the Result step
+	 * (because live sessions populate results from events) and labels
+	 * the final action "Start session" — the caller still receives the
+	 * accumulated form values via `onSubmit`.
+	 */
+	mode?: WizardMode;
 	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
 	onStoreChange?: (storeId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
 	ringGames?: RingGameOption[];
 	stores?: Array<{ id: string; name: string }>;
+	submitLabel?: string;
 	tags?: Array<{ id: string; name: string }>;
 	tournaments?: TournamentOption[];
 }
@@ -68,11 +77,17 @@ function stepVariant(
 	return "outline";
 }
 
-function StepperBar({ currentStep }: { currentStep: WizardStep }) {
+function StepperBar({
+	currentStep,
+	steps,
+}: {
+	currentStep: WizardStep;
+	steps: ReadonlyArray<{ key: WizardStep; label: string }>;
+}) {
 	return (
 		<div className="flex items-center gap-2">
-			{WIZARD_STEPS.map((step, idx) => {
-				const stepIdx = WIZARD_STEPS.findIndex((s) => s.key === currentStep);
+			{steps.map((step, idx) => {
+				const stepIdx = steps.findIndex((s) => s.key === currentStep);
 				const isActive = step.key === currentStep;
 				const isDone = idx < stepIdx;
 				return (
@@ -92,7 +107,7 @@ function StepperBar({ currentStep }: { currentStep: WizardStep }) {
 						>
 							{step.label}
 						</span>
-						{idx < WIZARD_STEPS.length - 1 && (
+						{idx < steps.length - 1 && (
 							<span className="mx-1 text-muted-foreground">/</span>
 						)}
 					</div>
@@ -577,21 +592,25 @@ export function SessionWizard({
 	defaultValues,
 	isLiveLinked = false,
 	isLoading = false,
+	mode = "manual",
 	onCreateTag,
 	onStoreChange,
 	onSubmit,
 	ringGames,
 	stores,
+	submitLabel,
 	tags,
 	tournaments,
 }: SessionWizardProps) {
 	const state = useSessionWizard({
 		defaultValues,
+		mode,
 		onStoreChange,
 		onSubmit,
 		ringGames,
 		tournaments,
 	});
+	const finalSubmitLabel = submitLabel ?? (mode === "live" ? "Start" : "Save");
 
 	return (
 		<form
@@ -612,7 +631,7 @@ export function SessionWizard({
 				</Alert>
 			)}
 
-			<StepperBar currentStep={state.currentStep} />
+			<StepperBar currentStep={state.currentStep} steps={state.steps} />
 
 			<div className="flex flex-col gap-3">
 				{state.currentStep === "master" && (
@@ -656,7 +675,7 @@ export function SessionWizard({
 								disabled={isLoading || !canSubmit || isSubmitting}
 								type="submit"
 							>
-								{isLoading ? "Saving..." : "Save"}
+								{isLoading ? `${finalSubmitLabel}...` : finalSubmitLabel}
 							</Button>
 						)}
 					</state.form.Subscribe>

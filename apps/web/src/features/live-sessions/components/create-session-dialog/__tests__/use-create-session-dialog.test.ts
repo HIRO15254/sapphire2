@@ -31,38 +31,15 @@ function setupImpl(overrides: Record<string, unknown> = {}) {
 }
 
 describe("useCreateSessionDialog", () => {
-	it("defaults sessionType to 'cash_game'", () => {
-		setupImpl();
-		const { result } = renderHook(() =>
-			useCreateSessionDialog({ onOpenChange: vi.fn() })
-		);
-		expect(result.current.sessionType).toBe("cash_game");
-	});
-
-	it("setSessionType switches to 'tournament'", () => {
-		setupImpl();
-		const { result } = renderHook(() =>
-			useCreateSessionDialog({ onOpenChange: vi.fn() })
-		);
-		act(() => {
-			result.current.setSessionType("tournament");
-		});
-		expect(result.current.sessionType).toBe("tournament");
-	});
-
-	it("handleReset clears selectedStoreId (via the underlying hook) and resets sessionType", () => {
+	it("handleReset clears the selected store on the underlying hook", () => {
 		const { setSelectedStoreId } = setupImpl();
 		const { result } = renderHook(() =>
 			useCreateSessionDialog({ onOpenChange: vi.fn() })
 		);
 		act(() => {
-			result.current.setSessionType("tournament");
-		});
-		act(() => {
 			result.current.handleReset();
 		});
 		expect(setSelectedStoreId).toHaveBeenCalledWith(undefined);
-		expect(result.current.sessionType).toBe("cash_game");
 	});
 
 	it("wires useCreateSession.onClose -> onOpenChange(false)", () => {
@@ -74,13 +51,85 @@ describe("useCreateSessionDialog", () => {
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 	});
 
-	it("propagates createCash / createTournament / isLoading from the underlying hook", () => {
-		const { createCash, createTournament } = setupImpl({ isLoading: true });
+	it("propagates isLoading from the underlying hook", () => {
+		setupImpl({ isLoading: true });
 		const { result } = renderHook(() =>
 			useCreateSessionDialog({ onOpenChange: vi.fn() })
 		);
 		expect(result.current.isLoading).toBe(true);
-		expect(result.current.createCash).toBe(createCash);
-		expect(result.current.createTournament).toBe(createTournament);
+	});
+
+	it("handleSubmit routes cash_game to createCash with initialBuyIn from buyIn", () => {
+		const { createCash, createTournament } = setupImpl();
+		const { result } = renderHook(() =>
+			useCreateSessionDialog({ onOpenChange: vi.fn() })
+		);
+		act(() => {
+			result.current.handleSubmit({
+				type: "cash_game",
+				sessionDate: "2026-05-15",
+				buyIn: 10_000,
+				cashOut: 0,
+				variant: "nlh",
+				storeId: "store-1",
+				ringGameId: "rg-1",
+				currencyId: "c-1",
+				memo: "starting",
+			});
+		});
+		expect(createCash).toHaveBeenCalledWith({
+			storeId: "store-1",
+			ringGameId: "rg-1",
+			currencyId: "c-1",
+			initialBuyIn: 10_000,
+			memo: "starting",
+		});
+		expect(createTournament).not.toHaveBeenCalled();
+	});
+
+	it("handleSubmit routes tournament to createTournament with startingStack from form", () => {
+		const { createCash, createTournament } = setupImpl();
+		const { result } = renderHook(() =>
+			useCreateSessionDialog({ onOpenChange: vi.fn() })
+		);
+		act(() => {
+			result.current.handleSubmit({
+				type: "tournament",
+				sessionDate: "2026-05-15",
+				tournamentBuyIn: 10_000,
+				entryFee: 1000,
+				startingStack: 20_000,
+				storeId: "store-1",
+				tournamentId: "t-1",
+				currencyId: "c-1",
+			});
+		});
+		expect(createTournament).toHaveBeenCalledWith({
+			storeId: "store-1",
+			tournamentId: "t-1",
+			currencyId: "c-1",
+			buyIn: 10_000,
+			entryFee: 1000,
+			startingStack: 20_000,
+			memo: undefined,
+		});
+		expect(createCash).not.toHaveBeenCalled();
+	});
+
+	it("handleSubmit defaults startingStack to 0 when omitted on the tournament path", () => {
+		const { createTournament } = setupImpl();
+		const { result } = renderHook(() =>
+			useCreateSessionDialog({ onOpenChange: vi.fn() })
+		);
+		act(() => {
+			result.current.handleSubmit({
+				type: "tournament",
+				sessionDate: "2026-05-15",
+				tournamentBuyIn: 10_000,
+			});
+		});
+		expect(createTournament).toHaveBeenCalledWith(
+			expect.objectContaining({ startingStack: 0 })
+		);
 	});
 });
