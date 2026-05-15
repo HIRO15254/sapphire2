@@ -22,7 +22,16 @@ export interface SessionItem {
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
 	buyIn: number | null;
+	// Cash snapshot scalars (used by the wizard edit pre-fill).
+	cashAnte: number | null;
+	cashAnteType: string | null;
+	cashBlind1: number | null;
+	cashBlind3: number | null;
+	cashMaxBuyIn: number | null;
+	cashMinBuyIn: number | null;
 	cashOut: number | null;
+	cashTableSize: number | null;
+	cashVariant: string | null;
 	createdAt: string;
 	currencyId: string | null;
 	currencyName: string | null;
@@ -53,9 +62,14 @@ export interface SessionItem {
 	storeName: string | null;
 	tags: Array<{ id: string; name: string }>;
 	totalEntries: number | null;
+	tournamentBountyAmount: number | null;
 	tournamentBuyIn: number | null;
 	tournamentId: string | null;
 	tournamentName: string | null;
+	// Tournament snapshot scalars (used by the wizard edit pre-fill).
+	tournamentStartingStack: number | null;
+	tournamentTableSize: number | null;
+	tournamentVariant: string | null;
 	type: string;
 }
 
@@ -225,6 +239,18 @@ export function buildOptimisticItem(
 		liveCashGameSessionId: null,
 		liveTournamentSessionId: null,
 		tags: [],
+		cashAnte: null,
+		cashAnteType: null,
+		cashBlind1: null,
+		cashBlind3: null,
+		cashMaxBuyIn: null,
+		cashMinBuyIn: null,
+		cashTableSize: null,
+		cashVariant: null,
+		tournamentBountyAmount: null,
+		tournamentStartingStack: null,
+		tournamentTableSize: null,
+		tournamentVariant: null,
 	};
 	if (newSession.type === "cash_game") {
 		item.buyIn = newSession.buyIn;
@@ -241,6 +267,37 @@ export function buildOptimisticItem(
 		item.beforeDeadline = newSession.beforeDeadline ?? null;
 	}
 	return item;
+}
+
+function cashSnapshotDefaults(session: SessionItem) {
+	if (session.type !== "cash_game") {
+		return {};
+	}
+	return {
+		ruleName: session.ringGameName ?? undefined,
+		variant: session.cashVariant ?? undefined,
+		blind1: session.cashBlind1 ?? undefined,
+		blind2: session.ringGameBlind2 ?? undefined,
+		blind3: session.cashBlind3 ?? undefined,
+		ante: session.cashAnte ?? undefined,
+		anteType: session.cashAnteType ?? undefined,
+		minBuyIn: session.cashMinBuyIn ?? undefined,
+		maxBuyIn: session.cashMaxBuyIn ?? undefined,
+		tableSize: session.cashTableSize ?? undefined,
+	};
+}
+
+function tournamentSnapshotDefaults(session: SessionItem) {
+	if (session.type !== "tournament") {
+		return {};
+	}
+	return {
+		ruleName: session.tournamentName ?? undefined,
+		variant: session.tournamentVariant ?? undefined,
+		tableSize: session.tournamentTableSize ?? undefined,
+		startingStack: session.tournamentStartingStack ?? undefined,
+		bountyAmount: session.tournamentBountyAmount ?? undefined,
+	};
 }
 
 export function buildEditDefaults(session: SessionItem) {
@@ -269,6 +326,11 @@ export function buildEditDefaults(session: SessionItem) {
 		ringGameId: session.ringGameId ?? undefined,
 		tournamentId: session.tournamentId ?? undefined,
 		currencyId: session.currencyId ?? undefined,
+		// Snapshot scalars — pre-fill the Rules step from the frozen detail
+		// columns so editing keeps the same rule shape unless the user
+		// overrides it explicitly.
+		...cashSnapshotDefaults(session),
+		...tournamentSnapshotDefaults(session),
 	};
 }
 

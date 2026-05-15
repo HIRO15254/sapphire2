@@ -183,6 +183,18 @@ function baseSessionItem(overrides: Partial<SessionItem> = {}): SessionItem {
 		tournamentBuyIn: null,
 		tournamentId: null,
 		tournamentName: null,
+		cashAnte: null,
+		cashAnteType: null,
+		cashBlind1: null,
+		cashBlind3: null,
+		cashMaxBuyIn: null,
+		cashMinBuyIn: null,
+		cashTableSize: null,
+		cashVariant: null,
+		tournamentBountyAmount: null,
+		tournamentStartingStack: null,
+		tournamentTableSize: null,
+		tournamentVariant: null,
 		...overrides,
 	};
 }
@@ -405,6 +417,76 @@ describe("pure helpers", () => {
 				})
 			);
 			expect(out.tagIds).toEqual(["t1", "t2"]);
+		});
+
+		it("pre-fills cash rule snapshot from the session row", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({
+					type: "cash_game",
+					ringGameName: "1/2 NLH",
+					cashVariant: "nlh",
+					cashBlind1: 1,
+					ringGameBlind2: 2,
+					cashBlind3: 5,
+					cashAnte: 2,
+					cashAnteType: "all",
+					cashMinBuyIn: 100,
+					cashMaxBuyIn: 400,
+					cashTableSize: 9,
+				})
+			);
+			expect(out.ruleName).toBe("1/2 NLH");
+			expect(out.variant).toBe("nlh");
+			expect(out.blind1).toBe(1);
+			expect(out.blind2).toBe(2);
+			expect(out.blind3).toBe(5);
+			expect(out.ante).toBe(2);
+			expect(out.anteType).toBe("all");
+			expect(out.minBuyIn).toBe(100);
+			expect(out.maxBuyIn).toBe(400);
+			expect(out.tableSize).toBe(9);
+		});
+
+		it("pre-fills tournament rule snapshot from the session row", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({
+					type: "tournament",
+					tournamentName: "Main Event",
+					tournamentVariant: "nlh",
+					tournamentStartingStack: 20_000,
+					tournamentBountyAmount: 500,
+					tournamentTableSize: 9,
+				})
+			);
+			expect(out.ruleName).toBe("Main Event");
+			expect(out.variant).toBe("nlh");
+			expect(out.startingStack).toBe(20_000);
+			expect(out.bountyAmount).toBe(500);
+			expect(out.tableSize).toBe(9);
+		});
+
+		it("leaves cash-only snapshot fields undefined on tournament rows", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({
+					type: "tournament",
+					tournamentName: "Main Event",
+				})
+			);
+			expect(out.blind1).toBeUndefined();
+			expect(out.ante).toBeUndefined();
+			expect(out.minBuyIn).toBeUndefined();
+			expect(out.maxBuyIn).toBeUndefined();
+		});
+
+		it("leaves tournament-only snapshot fields undefined on cash rows", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({
+					type: "cash_game",
+					ringGameName: "1/2 NLH",
+				})
+			);
+			expect(out.startingStack).toBeUndefined();
+			expect(out.bountyAmount).toBeUndefined();
 		});
 	});
 });

@@ -1639,6 +1639,21 @@ export const sessionRouter = router({
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
 					createdAt: gameSession.createdAt,
+					// Cash snapshot scalars used by the edit-mode wizard to
+					// pre-fill the Rules step with the frozen rule.
+					cashVariant: sessionCashDetail.variant,
+					cashBlind1: sessionCashDetail.blind1,
+					cashBlind3: sessionCashDetail.blind3,
+					cashAnte: sessionCashDetail.ante,
+					cashAnteType: sessionCashDetail.anteType,
+					cashMinBuyIn: sessionCashDetail.minBuyIn,
+					cashMaxBuyIn: sessionCashDetail.maxBuyIn,
+					cashTableSize: sessionCashDetail.tableSize,
+					// Tournament snapshot scalars (same role).
+					tournamentVariant: sessionTournamentDetail.variant,
+					tournamentStartingStack: sessionTournamentDetail.startingStack,
+					tournamentBountyAmount: sessionTournamentDetail.bountyAmount,
+					tournamentTableSize: sessionTournamentDetail.tableSize,
 				})
 				.from(gameSession)
 				.leftJoin(
