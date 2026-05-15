@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SessionWizard } from "./session-wizard";
@@ -136,5 +136,63 @@ describe("SessionWizard — master-step pre-fill", () => {
 		// shared hook tests.
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(screen.getByText("Variant")).toBeInTheDocument();
+	});
+});
+
+const START_RE = /Start session/;
+const START_CUSTOM_RE = /Start/;
+
+describe("SessionWizard — live mode", () => {
+	it("renders only Master + Rules steps (drops Result)", () => {
+		render(<SessionWizard mode="live" onSubmit={vi.fn()} stores={[STORE]} />);
+		expect(screen.getByText("Master")).toBeInTheDocument();
+		expect(screen.getByText("Rules")).toBeInTheDocument();
+		expect(screen.queryByText("Result")).not.toBeInTheDocument();
+	});
+
+	it("shows the Start session label on the last step in live mode", async () => {
+		const user = userEvent.setup();
+		render(
+			<SessionWizard
+				mode="live"
+				onSubmit={vi.fn()}
+				stores={[STORE]}
+				submitLabel="Start session"
+			/>
+		);
+		// Advance Master -> Rules (last step in live mode).
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
+		expect(screen.getByRole("button", { name: START_RE })).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: SAVE_RE })
+		).not.toBeInTheDocument();
+	});
+
+	it("defaults to 'Start' label when mode=live and submitLabel is omitted", async () => {
+		const user = userEvent.setup();
+		render(<SessionWizard mode="live" onSubmit={vi.fn()} stores={[STORE]} />);
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
+		expect(
+			screen.getByRole("button", { name: START_CUSTOM_RE })
+		).toBeInTheDocument();
+	});
+
+	it("invokes onSubmit when the Start button is clicked on the rules step", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		render(
+			<SessionWizard
+				defaultValues={{ buyIn: 10_000, cashOut: 0 }}
+				mode="live"
+				onSubmit={onSubmit}
+				stores={[STORE]}
+				submitLabel="Start session"
+			/>
+		);
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
+		await user.click(screen.getByRole("button", { name: START_RE }));
+		await waitFor(() => {
+			expect(onSubmit).toHaveBeenCalled();
+		});
 	});
 });
