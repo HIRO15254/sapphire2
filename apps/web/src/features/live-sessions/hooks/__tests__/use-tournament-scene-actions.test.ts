@@ -9,52 +9,12 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 		: [namespace, procedure, input];
 }
 
-const tournamentHookMocks = vi.hoisted(() => ({
-	isUpdateWithLevelsPending: false,
-}));
-
 const trpcMocks = vi.hoisted(() => ({
-	updateWithLevels: vi.fn(),
-}));
-
-vi.mock("@/features/stores/hooks/use-tournaments", () => ({
-	useTournaments: () => ({
-		isUpdateWithLevelsPending: tournamentHookMocks.isUpdateWithLevelsPending,
-	}),
+	updateSnapshot: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		tournament: {
-			getById: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("tournament", "getById", input),
-				}),
-			},
-			listByStore: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("tournament", "listByStore", input),
-				}),
-			},
-		},
-		blindLevel: {
-			listByTournament: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("blindLevel", "listByTournament", input),
-				}),
-			},
-		},
-		tournamentChipPurchase: {
-			listByTournament: {
-				queryOptions: (input: unknown) => ({
-					queryKey: buildKey(
-						"tournamentChipPurchase",
-						"listByTournament",
-						input
-					),
-				}),
-			},
-		},
 		liveTournamentSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
@@ -64,8 +24,8 @@ vi.mock("@/utils/trpc", () => ({
 		},
 	},
 	trpcClient: {
-		tournament: {
-			updateWithLevels: { mutate: trpcMocks.updateWithLevels },
+		liveTournamentSession: {
+			updateSnapshot: { mutate: trpcMocks.updateSnapshot },
 		},
 	},
 }));
@@ -89,8 +49,6 @@ function makeWrapper(client: QueryClient) {
 
 const ARGS = {
 	sessionId: "s1",
-	storeId: "store-1",
-	tournamentId: "t1",
 };
 
 const FORM_VALUES = {
@@ -132,22 +90,20 @@ const LEVELS = [
 
 describe("useTournamentSceneActions", () => {
 	beforeEach(() => {
-		trpcMocks.updateWithLevels.mockReset();
-		tournamentHookMocks.isUpdateWithLevelsPending = false;
+		trpcMocks.updateSnapshot.mockReset();
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
-	it("starts closed, not saving, and passes through isUpdateWithLevelsPending", () => {
-		tournamentHookMocks.isUpdateWithLevelsPending = true;
+	it("starts closed and not saving", () => {
 		const qc = createClient();
 		const { result } = renderHook(() => useTournamentSceneActions(ARGS), {
 			wrapper: makeWrapper(qc),
 		});
 		expect(result.current.isEditOpen).toBe(false);
 		expect(result.current.isSaving).toBe(false);
-		expect(result.current.isUpdateWithLevelsPending).toBe(true);
+		expect(result.current.isUpdateWithLevelsPending).toBe(false);
 	});
 
 	it("setIsEditOpen toggles isEditOpen", () => {
@@ -165,8 +121,8 @@ describe("useTournamentSceneActions", () => {
 		expect(result.current.isEditOpen).toBe(false);
 	});
 
-	it("handleSave calls updateWithLevels with the full payload and closes editor on success", async () => {
-		trpcMocks.updateWithLevels.mockResolvedValue({ id: "t1" });
+	it("handleSave writes session snapshot fields (not the master) and closes the editor", async () => {
+		trpcMocks.updateSnapshot.mockResolvedValue({ id: "s1" });
 		const qc = createClient();
 		const { result } = renderHook(() => useTournamentSceneActions(ARGS), {
 			wrapper: makeWrapper(qc),
@@ -177,18 +133,15 @@ describe("useTournamentSceneActions", () => {
 		await act(async () => {
 			await result.current.handleSave(FORM_VALUES, LEVELS);
 		});
-		expect(trpcMocks.updateWithLevels).toHaveBeenCalledWith({
-			id: "t1",
-			name: "Main Event",
+		expect(trpcMocks.updateSnapshot).toHaveBeenCalledWith({
+			id: "s1",
+			ruleName: "Main Event",
 			variant: "NLH",
-			buyIn: 10_000,
+			tournamentBuyIn: 10_000,
 			entryFee: 1000,
 			startingStack: 20_000,
 			bountyAmount: null,
 			tableSize: 9,
-			currencyId: "c1",
-			memo: null,
-			tags: ["a"],
 			chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000 }],
 			blindLevels: [
 				{
@@ -213,7 +166,7 @@ describe("useTournamentSceneActions", () => {
 	});
 
 	it("defaults optional form values to null when omitted (?? null branch)", async () => {
-		trpcMocks.updateWithLevels.mockResolvedValue({ id: "t1" });
+		trpcMocks.updateSnapshot.mockResolvedValue({ id: "s1" });
 		const qc = createClient();
 		const { result } = renderHook(() => useTournamentSceneActions(ARGS), {
 			wrapper: makeWrapper(qc),
@@ -229,23 +182,22 @@ describe("useTournamentSceneActions", () => {
 				[]
 			);
 		});
-		expect(trpcMocks.updateWithLevels).toHaveBeenCalledWith(
+		expect(trpcMocks.updateSnapshot).toHaveBeenCalledWith(
 			expect.objectContaining({
-				buyIn: null,
+				tournamentBuyIn: null,
 				entryFee: null,
 				startingStack: null,
 				bountyAmount: null,
 				tableSize: null,
-				currencyId: null,
-				memo: null,
 				blindLevels: [],
+				chipPurchases: [],
 			})
 		);
 	});
 
 	it("flips isSaving to true during save and false afterwards", async () => {
 		let resolve: ((v: unknown) => void) | undefined;
-		trpcMocks.updateWithLevels.mockImplementation(
+		trpcMocks.updateSnapshot.mockImplementation(
 			() =>
 				new Promise((r) => {
 					resolve = r;
@@ -261,15 +213,15 @@ describe("useTournamentSceneActions", () => {
 			savePromise = result.current.handleSave(FORM_VALUES, LEVELS);
 		});
 		await waitFor(() => expect(result.current.isSaving).toBe(true));
-		resolve?.({ id: "t1" });
+		resolve?.({ id: "s1" });
 		await act(async () => {
 			await savePromise;
 		});
 		expect(result.current.isSaving).toBe(false);
 	});
 
-	it("clears isSaving even when updateWithLevels rejects (try/finally branch)", async () => {
-		trpcMocks.updateWithLevels.mockRejectedValue(new Error("nope"));
+	it("clears isSaving even when updateSnapshot rejects", async () => {
+		trpcMocks.updateSnapshot.mockRejectedValue(new Error("nope"));
 		const qc = createClient();
 		const { result } = renderHook(() => useTournamentSceneActions(ARGS), {
 			wrapper: makeWrapper(qc),
@@ -282,8 +234,8 @@ describe("useTournamentSceneActions", () => {
 		expect(result.current.isSaving).toBe(false);
 	});
 
-	it("invalidates the five target caches on success", async () => {
-		trpcMocks.updateWithLevels.mockResolvedValue({ id: "t1" });
+	it("invalidates the live tournament session cache on settled", async () => {
+		trpcMocks.updateSnapshot.mockResolvedValue({ id: "s1" });
 		const qc = createClient();
 		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
 		const { result } = renderHook(() => useTournamentSceneActions(ARGS), {
@@ -294,26 +246,6 @@ describe("useTournamentSceneActions", () => {
 		});
 		const keys = invalidateSpy.mock.calls.map((c) =>
 			JSON.stringify(c[0]?.queryKey ?? [])
-		);
-		expect(keys).toContain(
-			JSON.stringify(["tournament", "getById", { id: "t1" }])
-		);
-		expect(keys).toContain(
-			JSON.stringify([
-				"tournament",
-				"listByStore",
-				{ storeId: "store-1", includeArchived: false },
-			])
-		);
-		expect(keys).toContain(
-			JSON.stringify(["blindLevel", "listByTournament", { tournamentId: "t1" }])
-		);
-		expect(keys).toContain(
-			JSON.stringify([
-				"tournamentChipPurchase",
-				"listByTournament",
-				{ tournamentId: "t1" },
-			])
 		);
 		expect(keys).toContain(
 			JSON.stringify(["liveTournamentSession", "getById", { id: "s1" }])

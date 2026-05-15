@@ -805,6 +805,121 @@ export const liveTournamentSessionRouter = router({
 			};
 		}),
 
+	// Edit the session's frozen rule snapshot — scalar fields on
+	// session_tournament_detail, plus optional full-list replacements of
+	// session_blind_level and session_chip_purchase. The master tournament
+	// is NEVER touched by this mutation. Use it from the live-session edit
+	// dialog to override snapshot data for this session only.
+	updateSnapshot: protectedProcedure
+		.input(
+			z.object({
+				id: z.string(),
+				ruleName: z.string().min(1).optional(),
+				variant: z.string().optional(),
+				tournamentBuyIn: z.number().int().nullable().optional(),
+				entryFee: z.number().int().nullable().optional(),
+				startingStack: z.number().int().nullable().optional(),
+				bountyAmount: z.number().int().nullable().optional(),
+				tableSize: z.number().int().nullable().optional(),
+				blindLevels: z
+					.array(
+						z.object({
+							isBreak: z.boolean(),
+							blind1: z.number().int().nullable().optional(),
+							blind2: z.number().int().nullable().optional(),
+							blind3: z.number().int().nullable().optional(),
+							ante: z.number().int().nullable().optional(),
+							minutes: z.number().int().nullable().optional(),
+						})
+					)
+					.optional(),
+				chipPurchases: z
+					.array(
+						z.object({
+							name: z.string(),
+							cost: z.number().int(),
+							chips: z.number().int(),
+						})
+					)
+					.optional(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await findLiveTournamentSession(ctx.db, input.id, userId);
+
+			const detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> =
+				{};
+			if (input.ruleName !== undefined) {
+				detailUpdate.ruleName = input.ruleName;
+			}
+			if (input.variant !== undefined) {
+				detailUpdate.variant = input.variant;
+			}
+			if (input.tournamentBuyIn !== undefined) {
+				detailUpdate.tournamentBuyIn = input.tournamentBuyIn;
+			}
+			if (input.entryFee !== undefined) {
+				detailUpdate.entryFee = input.entryFee;
+			}
+			if (input.startingStack !== undefined) {
+				detailUpdate.startingStack = input.startingStack;
+			}
+			if (input.bountyAmount !== undefined) {
+				detailUpdate.bountyAmount = input.bountyAmount;
+			}
+			if (input.tableSize !== undefined) {
+				detailUpdate.tableSize = input.tableSize;
+			}
+			if (Object.keys(detailUpdate).length > 0) {
+				await ctx.db
+					.update(sessionTournamentDetail)
+					.set(detailUpdate)
+					.where(eq(sessionTournamentDetail.sessionId, input.id));
+			}
+
+			if (input.blindLevels !== undefined) {
+				await ctx.db
+					.delete(sessionBlindLevel)
+					.where(eq(sessionBlindLevel.sessionId, input.id));
+				if (input.blindLevels.length > 0) {
+					await ctx.db.insert(sessionBlindLevel).values(
+						input.blindLevels.map((l, idx) => ({
+							id: crypto.randomUUID(),
+							sessionId: input.id,
+							level: idx + 1,
+							isBreak: l.isBreak,
+							blind1: l.blind1 ?? null,
+							blind2: l.blind2 ?? null,
+							blind3: l.blind3 ?? null,
+							ante: l.ante ?? null,
+							minutes: l.minutes ?? null,
+						}))
+					);
+				}
+			}
+
+			if (input.chipPurchases !== undefined) {
+				await ctx.db
+					.delete(sessionChipPurchase)
+					.where(eq(sessionChipPurchase.sessionId, input.id));
+				if (input.chipPurchases.length > 0) {
+					await ctx.db.insert(sessionChipPurchase).values(
+						input.chipPurchases.map((p, idx) => ({
+							id: crypto.randomUUID(),
+							sessionId: input.id,
+							name: p.name,
+							cost: p.cost,
+							chips: p.chips,
+							sortOrder: idx,
+						}))
+					);
+				}
+			}
+
+			return { id: input.id };
+		}),
+
 	complete: protectedProcedure
 		.input(
 			z.discriminatedUnion("beforeDeadline", [

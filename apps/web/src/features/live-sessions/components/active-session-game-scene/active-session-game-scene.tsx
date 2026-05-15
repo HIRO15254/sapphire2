@@ -1,6 +1,7 @@
 import { IconEdit } from "@tabler/icons-react";
 import { AssignRingGameDialog } from "@/features/live-sessions/components/assign-ring-game-dialog";
 import { AssignTournamentDialog } from "@/features/live-sessions/components/assign-tournament-dialog";
+import { ModifiedBadge } from "@/features/live-sessions/components/modified-badge";
 import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
 import { useAssignDialogState } from "@/features/live-sessions/hooks/use-assign-dialog-state";
 import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
@@ -22,9 +23,14 @@ import {
 	formatBlindParts,
 	variantLabel,
 } from "@/features/live-sessions/utils/game-scene-formatters";
+import {
+	diffBlindLevels,
+	diffCashSnapshot,
+	diffChipPurchases,
+	diffTournamentSnapshot,
+} from "@/features/live-sessions/utils/snapshot-diff";
 import { RingGameForm } from "@/features/stores/components/ring-game-form";
 import { TournamentEditDialog } from "@/features/stores/components/tournament-edit-dialog";
-import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
 import type { RingGame } from "@/features/stores/hooks/use-ring-games";
 import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
@@ -68,58 +74,117 @@ function GameSceneShell({
 function DetailRow({
 	label,
 	value,
+	badge,
 }: {
 	label: string;
 	value: React.ReactNode;
+	badge?: React.ReactNode;
 }) {
 	return (
 		<div className="flex items-baseline justify-between gap-4 py-1">
 			<span className="text-muted-foreground text-xs">{label}</span>
-			<span className="text-right font-medium text-sm">{value}</span>
+			<span className="flex items-baseline gap-1.5 text-right font-medium text-sm">
+				{badge}
+				{value}
+			</span>
 		</div>
 	);
 }
 
+interface CashSnapshotDisplay {
+	ante: number | null;
+	anteType: string | null;
+	blind1: number | null;
+	blind2: number | null;
+	blind3: number | null;
+	maxBuyIn: number | null;
+	minBuyIn: number | null;
+	ruleName: string;
+	tableSize: number | null;
+	variant: string;
+}
+
+function RingGameCardTitle({
+	snapshot,
+	master,
+	diff,
+}: {
+	snapshot: CashSnapshotDisplay;
+	master: RingGame;
+	diff: import("@/features/live-sessions/utils/snapshot-diff").DiffMap<
+		import("@/features/live-sessions/utils/snapshot-diff").CashDiffField
+	>;
+}) {
+	return (
+		<CardTitle className="flex flex-wrap items-center gap-1.5">
+			<span className="truncate">{snapshot.ruleName}</span>
+			{diff.ruleName ? <ModifiedBadge masterValue={master.name} /> : null}
+			<Badge className="px-1 py-0 text-[10px]" variant="secondary">
+				{variantLabel(snapshot.variant)}
+			</Badge>
+			{diff.variant ? (
+				<ModifiedBadge masterValue={variantLabel(master.variant)} />
+			) : null}
+			{snapshot.tableSize == null ? null : (
+				<Badge
+					className={`px-1 py-0 text-[10px] ${getTableSizeClassName(snapshot.tableSize)}`}
+				>
+					{snapshot.tableSize}-max
+				</Badge>
+			)}
+			{diff.tableSize ? (
+				<ModifiedBadge
+					masterValue={
+						master.tableSize == null ? "—" : String(master.tableSize)
+					}
+				/>
+			) : null}
+		</CardTitle>
+	);
+}
+
 function RingGameDetailsCard({
-	game,
+	snapshot,
+	master,
 	currencyUnit,
 	currencyName,
+	diff,
 }: {
-	game: RingGame;
+	snapshot: CashSnapshotDisplay;
+	master: RingGame;
 	currencyUnit: string | null | undefined;
 	currencyName: string | null | undefined;
+	diff: import("@/features/live-sessions/utils/snapshot-diff").DiffMap<
+		import("@/features/live-sessions/utils/snapshot-diff").CashDiffField
+	>;
 }) {
-	const blindsStr = formatBlindParts(game);
-	const anteStr = formatAnteSuffix(game);
-	const fmt = createGroupFormatter([game.minBuyIn, game.maxBuyIn]);
+	const blindsStr = formatBlindParts(snapshot);
+	const anteStr = formatAnteSuffix(snapshot);
+	const fmt = createGroupFormatter([snapshot.minBuyIn, snapshot.maxBuyIn]);
 	const buyInStr = (() => {
-		if (game.minBuyIn == null && game.maxBuyIn == null) {
+		if (snapshot.minBuyIn == null && snapshot.maxBuyIn == null) {
 			return "—";
 		}
-		const min = game.minBuyIn == null ? "—" : fmt(game.minBuyIn);
-		const max = game.maxBuyIn == null ? "—" : fmt(game.maxBuyIn);
+		const min = snapshot.minBuyIn == null ? "—" : fmt(snapshot.minBuyIn);
+		const max = snapshot.maxBuyIn == null ? "—" : fmt(snapshot.maxBuyIn);
 		return `${min} - ${max}${currencyUnit ? ` ${currencyUnit}` : ""}`;
 	})();
+	const blindsModified =
+		diff.blind1 || diff.blind2 || diff.blind3 || diff.ante || diff.anteType;
+	const buyInModified = diff.minBuyIn || diff.maxBuyIn;
 
 	return (
 		<Card size="sm">
 			<CardHeader>
-				<CardTitle className="flex flex-wrap items-center gap-1.5">
-					<span className="truncate">{game.name}</span>
-					<Badge className="px-1 py-0 text-[10px]" variant="secondary">
-						{variantLabel(game.variant)}
-					</Badge>
-					{game.tableSize == null ? null : (
-						<Badge
-							className={`px-1 py-0 text-[10px] ${getTableSizeClassName(game.tableSize)}`}
-						>
-							{game.tableSize}-max
-						</Badge>
-					)}
-				</CardTitle>
+				<RingGameCardTitle diff={diff} master={master} snapshot={snapshot} />
 			</CardHeader>
 			<CardContent className="divide-y">
 				<DetailRow
+					badge={
+						blindsModified ? (
+							<ModifiedBadge masterValue={formatBlindParts(master) || "—"} />
+						) : null
+					}
 					label="Blinds"
 					value={
 						blindsStr
@@ -127,16 +192,26 @@ function RingGameDetailsCard({
 							: "—"
 					}
 				/>
-				<DetailRow label="Buy-in" value={buyInStr} />
+				<DetailRow
+					badge={
+						buyInModified ? (
+							<ModifiedBadge
+								masterValue={`${master.minBuyIn ?? "—"} - ${master.maxBuyIn ?? "—"}`}
+							/>
+						) : null
+					}
+					label="Buy-in"
+					value={buyInStr}
+				/>
 				<DetailRow
 					label="Table"
-					value={game.tableSize == null ? "—" : `${game.tableSize}-max`}
+					value={snapshot.tableSize == null ? "—" : `${snapshot.tableSize}-max`}
 				/>
 				<DetailRow label="Currency" value={currencyName ?? "—"} />
-				{game.memo ? (
+				{master.memo ? (
 					<div className="py-2">
 						<p className="text-muted-foreground text-xs">Memo</p>
-						<p className="whitespace-pre-wrap text-sm">{game.memo}</p>
+						<p className="whitespace-pre-wrap text-sm">{master.memo}</p>
 					</div>
 				) : null}
 			</CardContent>
@@ -175,8 +250,6 @@ function CashGameNotLinked({
 
 function CashGameDetails({ sessionId }: { sessionId: string }) {
 	const { session, ringGames } = useCashGameSession(sessionId);
-	const storeId = session?.storeId ?? "";
-	const ringGameId = session?.ringGameId ?? "";
 
 	const {
 		isEditOpen,
@@ -185,9 +258,7 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 		isUpdatePending,
 		currencies,
 	} = useRingGameSceneActions({
-		ringGameId,
 		sessionId,
-		storeId,
 	});
 
 	if (!session) {
@@ -206,7 +277,14 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 		? ringGames.find((candidate) => candidate.id === session.ringGameId)
 		: undefined;
 
-	if (!(session.ringGameId && ringGame)) {
+	if (
+		!(
+			session.ringGameId &&
+			ringGame &&
+			session.ruleName != null &&
+			session.variant != null
+		)
+	) {
 		return (
 			<CashGameNotLinked
 				sessionId={sessionId}
@@ -214,6 +292,20 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 			/>
 		);
 	}
+
+	const snapshot: CashSnapshotDisplay = {
+		ruleName: session.ruleName,
+		variant: session.variant,
+		blind1: session.blind1,
+		blind2: session.blind2,
+		blind3: session.blind3,
+		ante: session.ante,
+		anteType: session.anteType,
+		minBuyIn: session.minBuyIn,
+		maxBuyIn: session.maxBuyIn,
+		tableSize: session.tableSize,
+	};
+	const diff = diffCashSnapshot(snapshot, ringGame);
 
 	const currency = currencies.find((c) => c.id === ringGame.currencyId);
 
@@ -235,7 +327,9 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 			<RingGameDetailsCard
 				currencyName={currency?.name}
 				currencyUnit={currency?.unit}
-				game={ringGame}
+				diff={diff}
+				master={ringGame}
+				snapshot={snapshot}
 			/>
 
 			<ResponsiveDialog
@@ -245,20 +339,20 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 			>
 				<RingGameForm
 					defaultValues={{
-						name: ringGame.name,
-						variant: ringGame.variant,
-						blind1: ringGame.blind1 ?? undefined,
-						blind2: ringGame.blind2 ?? undefined,
-						blind3: ringGame.blind3 ?? undefined,
-						ante: ringGame.ante ?? undefined,
-						anteType: (ringGame.anteType ?? undefined) as
+						name: snapshot.ruleName,
+						variant: snapshot.variant,
+						blind1: snapshot.blind1 ?? undefined,
+						blind2: snapshot.blind2 ?? undefined,
+						blind3: snapshot.blind3 ?? undefined,
+						ante: snapshot.ante ?? undefined,
+						anteType: (snapshot.anteType ?? undefined) as
 							| "all"
 							| "bb"
 							| "none"
 							| undefined,
-						minBuyIn: ringGame.minBuyIn ?? undefined,
-						maxBuyIn: ringGame.maxBuyIn ?? undefined,
-						tableSize: ringGame.tableSize ?? undefined,
+						minBuyIn: snapshot.minBuyIn ?? undefined,
+						maxBuyIn: snapshot.maxBuyIn ?? undefined,
+						tableSize: snapshot.tableSize ?? undefined,
 						currencyId: ringGame.currencyId ?? undefined,
 						memo: ringGame.memo ?? undefined,
 					}}
@@ -357,14 +451,22 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 	);
 }
 
+function fmtForBadge(value: number | null): string {
+	return value == null ? "—" : String(value);
+}
+
 function TournamentInfoCard({
 	display,
 	master,
 	currencyName,
+	diff,
 }: {
 	display: SessionTournamentDisplay;
 	master: TournamentDetail;
 	currencyName: string | null | undefined;
+	diff: import("@/features/live-sessions/utils/snapshot-diff").DiffMap<
+		import("@/features/live-sessions/utils/snapshot-diff").TournamentDiffField
+	>;
 }) {
 	const fmt = createGroupFormatter([
 		display.buyIn,
@@ -378,9 +480,13 @@ function TournamentInfoCard({
 			<CardHeader>
 				<CardTitle className="flex flex-wrap items-center gap-1.5">
 					<span className="truncate">{display.ruleName}</span>
+					{diff.ruleName ? <ModifiedBadge masterValue={master.name} /> : null}
 					<Badge className="px-1 py-0 text-[10px]" variant="secondary">
 						{variantLabel(display.variant)}
 					</Badge>
+					{diff.variant ? (
+						<ModifiedBadge masterValue={variantLabel(master.variant)} />
+					) : null}
 					{display.tableSize == null ? null : (
 						<Badge
 							className={`px-1 py-0 text-[10px] ${getTableSizeClassName(display.tableSize)}`}
@@ -388,6 +494,9 @@ function TournamentInfoCard({
 							{display.tableSize}-max
 						</Badge>
 					)}
+					{diff.tableSize ? (
+						<ModifiedBadge masterValue={fmtForBadge(master.tableSize)} />
+					) : null}
 					{master.tags.map((tag) => (
 						<Badge
 							className="px-1 py-0 text-[10px]"
@@ -401,20 +510,40 @@ function TournamentInfoCard({
 			</CardHeader>
 			<CardContent className="divide-y">
 				<DetailRow
+					badge={
+						diff.buyIn ? (
+							<ModifiedBadge masterValue={fmtForBadge(master.buyIn)} />
+						) : null
+					}
 					label="Buy-in"
 					value={display.buyIn == null ? "—" : fmt(display.buyIn)}
 				/>
 				<DetailRow
+					badge={
+						diff.entryFee ? (
+							<ModifiedBadge masterValue={fmtForBadge(master.entryFee)} />
+						) : null
+					}
 					label="Entry Fee"
 					value={display.entryFee == null ? "—" : fmt(display.entryFee)}
 				/>
 				<DetailRow
+					badge={
+						diff.startingStack ? (
+							<ModifiedBadge masterValue={fmtForBadge(master.startingStack)} />
+						) : null
+					}
 					label="Starting Stack"
 					value={
 						display.startingStack == null ? "—" : fmt(display.startingStack)
 					}
 				/>
 				<DetailRow
+					badge={
+						diff.bountyAmount ? (
+							<ModifiedBadge masterValue={fmtForBadge(master.bountyAmount)} />
+						) : null
+					}
 					label="Bounty"
 					value={display.bountyAmount == null ? "—" : fmt(display.bountyAmount)}
 				/>
@@ -432,8 +561,10 @@ function TournamentInfoCard({
 
 function ChipPurchasesCard({
 	chipPurchases,
+	isModified,
 }: {
 	chipPurchases: SessionChipPurchaseRow[];
+	isModified: boolean;
 }) {
 	if (chipPurchases.length === 0) {
 		return null;
@@ -444,7 +575,12 @@ function ChipPurchasesCard({
 	return (
 		<Card size="sm">
 			<CardHeader>
-				<CardTitle>Chip Purchases</CardTitle>
+				<CardTitle className="flex items-center gap-1.5">
+					Chip Purchases
+					{isModified ? (
+						<ModifiedBadge masterValue="differs from master" />
+					) : null}
+				</CardTitle>
 			</CardHeader>
 			<CardContent className="divide-y">
 				{chipPurchases.map((cp) => (
@@ -462,14 +598,21 @@ function ChipPurchasesCard({
 function StructureCard({
 	levels,
 	isLoading,
+	isModified,
 }: {
 	levels: StructureLevel[];
 	isLoading: boolean;
+	isModified: boolean;
 }) {
 	return (
 		<Card size="sm">
 			<CardHeader>
-				<CardTitle>Structure</CardTitle>
+				<CardTitle className="flex items-center gap-1.5">
+					Structure
+					{isModified ? (
+						<ModifiedBadge masterValue="differs from master" />
+					) : null}
+				</CardTitle>
 			</CardHeader>
 			<CardContent>
 				{isLoading ? (
@@ -485,21 +628,25 @@ function StructureCard({
 }
 
 function toInitialFormValues(
-	master: TournamentDetail,
-	masterChipPurchases: Array<{ name: string; cost: number; chips: number }>
+	display: SessionTournamentDisplay,
+	displayChipPurchases: SessionChipPurchaseRow[],
+	master: TournamentDetail
 ) {
+	// Form is populated from the SESSION snapshot so the user edits per-
+	// session overrides. tags / memo / currencyId fall back to master since
+	// they are not part of the rule snapshot.
 	return {
-		name: master.name,
-		variant: master.variant,
-		buyIn: master.buyIn ?? undefined,
-		entryFee: master.entryFee ?? undefined,
-		startingStack: master.startingStack ?? undefined,
-		bountyAmount: master.bountyAmount ?? undefined,
-		tableSize: master.tableSize ?? undefined,
+		name: display.ruleName,
+		variant: display.variant,
+		buyIn: display.buyIn ?? undefined,
+		entryFee: display.entryFee ?? undefined,
+		startingStack: display.startingStack ?? undefined,
+		bountyAmount: display.bountyAmount ?? undefined,
+		tableSize: display.tableSize ?? undefined,
 		currencyId: master.currencyId ?? undefined,
 		memo: master.memo ?? undefined,
 		tags: master.tags.map((t) => t.name),
-		chipPurchases: masterChipPurchases.map((cp) => ({
+		chipPurchases: displayChipPurchases.map((cp) => ({
 			name: cp.name,
 			cost: cp.cost,
 			chips: cp.chips,
@@ -509,26 +656,28 @@ function toInitialFormValues(
 
 function TournamentDetailsBody({
 	sessionId,
-	storeId,
 	display,
 	displayChipPurchases,
 	displayLevels,
 	isLevelsLoading,
 	currencyName,
 	master,
-	masterChipPurchases,
-	masterLevels,
+	diff,
+	levelsModified,
+	chipPurchasesModified,
 }: {
 	sessionId: string;
-	storeId: string;
 	display: SessionTournamentDisplay;
 	displayChipPurchases: SessionChipPurchaseRow[];
 	displayLevels: SessionBlindLevelRow[];
 	isLevelsLoading: boolean;
 	currencyName: string | null | undefined;
 	master: TournamentDetail;
-	masterChipPurchases: Array<{ name: string; cost: number; chips: number }>;
-	masterLevels: BlindLevelRow[];
+	diff: import("@/features/live-sessions/utils/snapshot-diff").DiffMap<
+		import("@/features/live-sessions/utils/snapshot-diff").TournamentDiffField
+	>;
+	levelsModified: boolean;
+	chipPurchasesModified: boolean;
 }) {
 	const {
 		isEditOpen,
@@ -538,8 +687,6 @@ function TournamentDetailsBody({
 		isUpdateWithLevelsPending,
 	} = useTournamentSceneActions({
 		sessionId,
-		storeId,
-		tournamentId: master.id,
 	});
 
 	return (
@@ -559,16 +706,38 @@ function TournamentDetailsBody({
 		>
 			<TournamentInfoCard
 				currencyName={currencyName}
+				diff={diff}
 				display={display}
 				master={master}
 			/>
-			<ChipPurchasesCard chipPurchases={displayChipPurchases} />
-			<StructureCard isLoading={isLevelsLoading} levels={displayLevels} />
+			<ChipPurchasesCard
+				chipPurchases={displayChipPurchases}
+				isModified={chipPurchasesModified}
+			/>
+			<StructureCard
+				isLoading={isLevelsLoading}
+				isModified={levelsModified}
+				levels={displayLevels}
+			/>
 
 			<TournamentEditDialog
 				aiMode="edit"
-				initialBlindLevels={masterLevels}
-				initialFormValues={toInitialFormValues(master, masterChipPurchases)}
+				initialBlindLevels={displayLevels.map((l) => ({
+					ante: l.ante,
+					blind1: l.blind1,
+					blind2: l.blind2,
+					blind3: l.blind3,
+					id: l.id,
+					isBreak: l.isBreak,
+					level: l.level,
+					minutes: l.minutes,
+					tournamentId: master.id,
+				}))}
+				initialFormValues={toInitialFormValues(
+					display,
+					displayChipPurchases,
+					master
+				)}
 				isLoading={isSaving || isUpdateWithLevelsPending}
 				onOpenChange={setIsEditOpen}
 				onSave={handleSave}
@@ -663,19 +832,25 @@ function TournamentDetails({ sessionId }: { sessionId: string }) {
 	const currency = master.currencies.find(
 		(c) => c.id === master.tournament?.currencyId
 	);
+	const diff = diffTournamentSnapshot(snapshot.display, master.tournament);
+	const levelsModified = diffBlindLevels(snapshot.blindLevels, master.levels);
+	const chipPurchasesModified = diffChipPurchases(
+		snapshot.chipPurchases,
+		master.chipPurchases
+	);
 
 	return (
 		<TournamentDetailsBody
+			chipPurchasesModified={chipPurchasesModified}
 			currencyName={currency?.name}
+			diff={diff}
 			display={snapshot.display}
 			displayChipPurchases={snapshot.chipPurchases}
 			displayLevels={snapshot.blindLevels}
 			isLevelsLoading={master.isLevelsLoading}
+			levelsModified={levelsModified}
 			master={master.tournament}
-			masterChipPurchases={master.chipPurchases}
-			masterLevels={master.levels}
 			sessionId={sessionId}
-			storeId={storeId}
 		/>
 	);
 }

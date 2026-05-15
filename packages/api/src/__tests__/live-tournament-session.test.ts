@@ -58,6 +58,7 @@ describe("liveTournamentSession router", () => {
 				"reopen",
 				"update",
 				"updateHeroSeat",
+				"updateSnapshot",
 			].sort()
 		);
 	});
@@ -77,6 +78,7 @@ describe("liveTournamentSession router", () => {
 			"reopen",
 			"discard",
 			"updateHeroSeat",
+			"updateSnapshot",
 		] as const) {
 			const proc = appRouter.liveTournamentSession[name];
 			expectProtected(proc);
@@ -254,5 +256,64 @@ describe("liveTournamentSession.{reopen,discard,getById} input validation", () =
 		expectRejects(appRouter.liveTournamentSession.reopen, {});
 		expectRejects(appRouter.liveTournamentSession.discard, {});
 		expectRejects(appRouter.liveTournamentSession.getById, {});
+	});
+});
+
+describe("liveTournamentSession.updateSnapshot input validation", () => {
+	it("accepts the minimum payload (id only — no-op call)", () => {
+		expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "s1",
+		});
+	});
+
+	it("accepts a full snapshot override payload", () => {
+		expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "s1",
+			ruleName: "Main Event (this session)",
+			variant: "nlh",
+			tournamentBuyIn: 10_000,
+			entryFee: 1000,
+			startingStack: 20_000,
+			bountyAmount: null,
+			tableSize: 9,
+			blindLevels: [
+				{
+					isBreak: false,
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					ante: null,
+					minutes: 15,
+				},
+			],
+			chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000 }],
+		});
+	});
+
+	it("rejects missing id", () => {
+		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+			ruleName: "x",
+		});
+	});
+
+	it("rejects an empty ruleName", () => {
+		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "s1",
+			ruleName: "",
+		});
+	});
+
+	it("rejects a non-integer chip purchase cost", () => {
+		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "s1",
+			chipPurchases: [{ name: "Rebuy", cost: 1.5, chips: 10_000 }],
+		});
+	});
+
+	it("rejects a blind level missing isBreak", () => {
+		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "s1",
+			blindLevels: [{ blind1: 100 }],
+		});
 	});
 });
