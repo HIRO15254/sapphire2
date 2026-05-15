@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { SessionFilterValues } from "@/features/sessions/components/session-filters";
+import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
 import {
 	cancelTargets,
 	invalidateTargets,
@@ -9,53 +10,11 @@ import {
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
-export interface CashGameFormValues {
-	ante?: number;
-	anteType?: string;
-	blind1?: number;
-	blind2?: number;
-	blind3?: number;
-	breakMinutes?: number;
-	buyIn: number;
-	cashOut: number;
-	currencyId?: string;
-	endTime?: string;
-	evCashOut?: number;
-	memo?: string;
-	ringGameId?: string;
-	sessionDate: string;
-	startTime?: string;
-	storeId?: string;
-	tableSize?: number;
-	tagIds?: string[];
-	type: "cash_game";
-	variant: string;
-}
-
-export interface TournamentFormValues {
-	addonCost?: number;
-	beforeDeadline?: boolean;
-	bountyPrizes?: number;
-	breakMinutes?: number;
-	currencyId?: string;
-	endTime?: string;
-	entryFee?: number;
-	memo?: string;
-	placement?: number;
-	prizeMoney?: number;
-	rebuyCost?: number;
-	rebuyCount?: number;
-	sessionDate: string;
-	startTime?: string;
-	storeId?: string;
-	tagIds?: string[];
-	totalEntries?: number;
-	tournamentBuyIn: number;
-	tournamentId?: string;
-	type: "tournament";
-}
-
-export type SessionFormValues = CashGameFormValues | TournamentFormValues;
+export type {
+	CashGameFormValues,
+	SessionFormValues,
+	TournamentFormValues,
+} from "@/features/sessions/utils/session-form-helpers";
 
 export interface SessionItem {
 	addonCost: number | null;
@@ -129,6 +88,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 			buyIn: values.buyIn,
 			cashOut: values.cashOut,
 			evCashOut: values.evCashOut,
+			ruleName: values.ruleName,
 			variant: values.variant,
 			blind1: values.blind1,
 			blind2: values.blind2,
@@ -136,6 +96,8 @@ export function buildCreatePayload(values: SessionFormValues) {
 			ante: values.ante,
 			anteType: values.anteType as "none" | "all" | "bb" | undefined,
 			tableSize: values.tableSize,
+			minBuyIn: values.minBuyIn,
+			maxBuyIn: values.maxBuyIn,
 			ringGameId: values.ringGameId,
 		};
 	}
@@ -152,6 +114,13 @@ export function buildCreatePayload(values: SessionFormValues) {
 		rebuyCost: values.rebuyCost,
 		addonCost: values.addonCost,
 		bountyPrizes: values.bountyPrizes,
+		ruleName: values.ruleName,
+		variant: values.variant,
+		startingStack: values.startingStack,
+		bountyAmount: values.bountyAmount,
+		tableSize: values.tableSize,
+		blindLevels: values.blindLevels,
+		chipPurchases: values.chipPurchases,
 		tournamentId: values.tournamentId,
 	};
 }

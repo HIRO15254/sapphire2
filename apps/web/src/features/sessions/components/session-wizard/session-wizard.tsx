@@ -23,6 +23,8 @@ import {
 	TournamentDetailFields,
 	TournamentPrimaryFields,
 } from "../tournament-fields";
+import { BlindLevelsInlineTable } from "./blind-levels-inline-table";
+import { ChipPurchasesInlineTable } from "./chip-purchases-inline-table";
 import {
 	type UseSessionWizardReturn,
 	useSessionWizard,
@@ -147,6 +149,194 @@ function MasterStepBody({
 	);
 }
 
+function RuleNameField({
+	state,
+	isLiveLinked,
+}: {
+	state: UseSessionWizardReturn;
+	isLiveLinked: boolean;
+}) {
+	return (
+		<state.form.Field name="ruleName">
+			{(field) => (
+				<Field htmlFor={field.name} label="Rule Name">
+					<Input
+						disabled={isLiveLinked}
+						id={field.name}
+						onBlur={field.handleBlur}
+						onChange={(e) => field.handleChange(e.target.value)}
+						value={field.state.value}
+					/>
+				</Field>
+			)}
+		</state.form.Field>
+	);
+}
+
+function CashBuyInBoundsFields({
+	state,
+	isLiveLinked,
+}: {
+	state: UseSessionWizardReturn;
+	isLiveLinked: boolean;
+}) {
+	const { form } = state;
+	return (
+		<div className="grid grid-cols-2 gap-3">
+			<form.Field name="minBuyIn">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Min Buy-in"
+					>
+						<Input
+							disabled={isLiveLinked}
+							id={field.name}
+							inputMode="numeric"
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+			<form.Field name="maxBuyIn">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Max Buy-in"
+					>
+						<Input
+							disabled={isLiveLinked}
+							id={field.name}
+							inputMode="numeric"
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+		</div>
+	);
+}
+
+function TournamentSnapshotScalarFields({
+	state,
+	isLiveLinked,
+}: {
+	state: UseSessionWizardReturn;
+	isLiveLinked: boolean;
+}) {
+	const { form } = state;
+	return (
+		<div className="grid grid-cols-2 gap-3">
+			<form.Field name="startingStack">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Starting Stack"
+					>
+						<Input
+							disabled={isLiveLinked}
+							id={field.name}
+							inputMode="numeric"
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+			<form.Field name="bountyAmount">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Bounty Amount"
+					>
+						<Input
+							disabled={isLiveLinked}
+							id={field.name}
+							inputMode="numeric"
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+		</div>
+	);
+}
+
+function CashRulesStepBody({
+	state,
+	currencies,
+	isLiveLinked,
+}: {
+	state: UseSessionWizardReturn;
+	currencies?: Array<{ id: string; name: string }>;
+	isLiveLinked: boolean;
+}) {
+	return (
+		<>
+			<RuleNameField isLiveLinked={isLiveLinked} state={state} />
+			<CashGameFields
+				currencies={currencies}
+				form={state.form}
+				isLiveLinked={isLiveLinked}
+				onCurrencyChange={state.setSelectedCurrencyId}
+				selectedCurrencyId={state.selectedCurrencyId}
+			/>
+			<CashBuyInBoundsFields isLiveLinked={isLiveLinked} state={state} />
+		</>
+	);
+}
+
+function TournamentRulesStepBody({
+	state,
+	currencies,
+	isLiveLinked,
+}: {
+	state: UseSessionWizardReturn;
+	currencies?: Array<{ id: string; name: string }>;
+	isLiveLinked: boolean;
+}) {
+	return (
+		<>
+			<RuleNameField isLiveLinked={isLiveLinked} state={state} />
+			<TournamentPrimaryFields
+				form={state.form}
+				isLiveLinked={isLiveLinked}
+				key={`tourney-primary-${state.selectedGameId ?? "none"}`}
+			/>
+			<TournamentSnapshotScalarFields
+				isLiveLinked={isLiveLinked}
+				state={state}
+			/>
+			<TournamentDetailFields
+				currencies={currencies}
+				form={state.form}
+				isLiveLinked={isLiveLinked}
+				onCurrencyChange={state.setSelectedCurrencyId}
+				selectedCurrencyId={state.selectedCurrencyId}
+			/>
+			<BlindLevelsInlineTable
+				onChange={state.setBlindLevels}
+				value={state.blindLevels}
+			/>
+			<ChipPurchasesInlineTable
+				onChange={state.setChipPurchases}
+				value={state.chipPurchases}
+			/>
+		</>
+	);
+}
+
 function RulesStepBody({
 	state,
 	currencies,
@@ -158,30 +348,19 @@ function RulesStepBody({
 }) {
 	if (state.isCashGame) {
 		return (
-			<CashGameFields
+			<CashRulesStepBody
 				currencies={currencies}
-				form={state.form}
 				isLiveLinked={isLiveLinked}
-				onCurrencyChange={state.setSelectedCurrencyId}
-				selectedCurrencyId={state.selectedCurrencyId}
+				state={state}
 			/>
 		);
 	}
 	return (
-		<>
-			<TournamentPrimaryFields
-				form={state.form}
-				isLiveLinked={isLiveLinked}
-				key={`tourney-primary-${state.selectedGameId ?? "none"}`}
-			/>
-			<TournamentDetailFields
-				currencies={currencies}
-				form={state.form}
-				isLiveLinked={isLiveLinked}
-				onCurrencyChange={state.setSelectedCurrencyId}
-				selectedCurrencyId={state.selectedCurrencyId}
-			/>
-		</>
+		<TournamentRulesStepBody
+			currencies={currencies}
+			isLiveLinked={isLiveLinked}
+			state={state}
+		/>
 	);
 }
 

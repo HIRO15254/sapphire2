@@ -5,6 +5,8 @@ import {
 	numStrOrEmpty,
 	parseOptInt,
 	type RingGameOption,
+	type SessionBlindLevelInput,
+	type SessionChipPurchaseInput,
 	type SessionFormDefaults,
 	type SessionFormFieldValues,
 	type SessionFormValues,
@@ -18,6 +20,10 @@ interface UseSessionFormStateArgs {
 	onSubmit: (values: SessionFormValues) => void;
 	ringGames?: RingGameOption[];
 	tournaments?: TournamentOption[];
+}
+
+function emptyToUndefined(value: string): string | undefined {
+	return value === "" ? undefined : value;
 }
 
 export function useSessionFormState({
@@ -42,6 +48,12 @@ export function useSessionFormState({
 	const [selectedCurrencyId, setSelectedCurrencyId] = useState<
 		string | undefined
 	>(defaultValues?.currencyId);
+	const [blindLevels, setBlindLevels] = useState<SessionBlindLevelInput[]>(
+		defaultValues?.blindLevels ?? []
+	);
+	const [chipPurchases, setChipPurchases] = useState<
+		SessionChipPurchaseInput[]
+	>(defaultValues?.chipPurchases ?? []);
 
 	const isCashGame = sessionType === "cash_game";
 	const gameOptions = isCashGame ? ringGames : tournaments;
@@ -59,6 +71,7 @@ export function useSessionFormState({
 				memo: value.memo || undefined,
 				storeId: selectedStoreId,
 				currencyId: selectedCurrencyId,
+				ruleName: emptyToUndefined(value.ruleName),
 			};
 
 			if (isCashGame) {
@@ -75,6 +88,8 @@ export function useSessionFormState({
 					ante: value.anteType === "none" ? undefined : parseOptInt(value.ante),
 					anteType: value.anteType || undefined,
 					tableSize: parseOptInt(value.tableSize),
+					minBuyIn: parseOptInt(value.minBuyIn),
+					maxBuyIn: parseOptInt(value.maxBuyIn),
 					ringGameId: selectedGameId,
 				});
 				return;
@@ -96,6 +111,12 @@ export function useSessionFormState({
 				rebuyCost: parseOptInt(value.rebuyCost),
 				addonCost: parseOptInt(value.addonCost),
 				bountyPrizes: parseOptInt(value.bountyPrizes),
+				startingStack: parseOptInt(value.startingStack),
+				bountyAmount: parseOptInt(value.bountyAmount),
+				tableSize: parseOptInt(value.tableSize),
+				variant: value.variant || undefined,
+				blindLevels: blindLevels.length > 0 ? blindLevels : undefined,
+				chipPurchases: chipPurchases.length > 0 ? chipPurchases : undefined,
 				tournamentId: selectedGameId,
 			});
 		},
@@ -124,6 +145,7 @@ export function useSessionFormState({
 			setSelectedCurrencyId(game.currencyId);
 		}
 		applyOverrides({
+			ruleName: game.name,
 			variant: game.variant ?? undefined,
 			blind1: numStrOrEmpty(game.blind1 ?? undefined),
 			blind2: numStrOrEmpty(game.blind2 ?? undefined),
@@ -131,6 +153,8 @@ export function useSessionFormState({
 			ante: numStrOrEmpty(game.ante ?? undefined),
 			anteType: game.anteType ?? undefined,
 			tableSize: game.tableSize?.toString() ?? undefined,
+			minBuyIn: numStrOrEmpty(game.minBuyIn ?? undefined),
+			maxBuyIn: numStrOrEmpty(game.maxBuyIn ?? undefined),
 		});
 	};
 
@@ -140,8 +164,13 @@ export function useSessionFormState({
 			return;
 		}
 		applyOverrides({
+			ruleName: game.name,
 			tournamentBuyIn: numStrOrEmpty(game.buyIn ?? undefined),
 			entryFee: numStrOrEmpty(game.entryFee ?? undefined),
+			startingStack: numStrOrEmpty(game.startingStack ?? undefined),
+			bountyAmount: numStrOrEmpty(game.bountyAmount ?? undefined),
+			tableSize: game.tableSize?.toString() ?? undefined,
+			variant: game.variant ?? undefined,
 		});
 	};
 
@@ -173,6 +202,10 @@ export function useSessionFormState({
 		selectedGameId,
 		selectedCurrencyId,
 		setSelectedCurrencyId,
+		blindLevels,
+		setBlindLevels,
+		chipPurchases,
+		setChipPurchases,
 		handleStoreChange,
 		handleGameChange,
 		gameOptions,

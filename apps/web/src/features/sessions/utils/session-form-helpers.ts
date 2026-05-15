@@ -1,6 +1,21 @@
 import z from "zod";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 
+export interface SessionBlindLevelInput {
+	ante: number | null;
+	blind1: number | null;
+	blind2: number | null;
+	blind3: number | null;
+	isBreak: boolean;
+	minutes: number | null;
+}
+
+export interface SessionChipPurchaseInput {
+	chips: number;
+	cost: number;
+	name: string;
+}
+
 export interface CashGameFormValues {
 	ante?: number;
 	anteType?: string;
@@ -13,8 +28,11 @@ export interface CashGameFormValues {
 	currencyId?: string;
 	endTime?: string;
 	evCashOut?: number;
+	maxBuyIn?: number;
 	memo?: string;
+	minBuyIn?: number;
 	ringGameId?: string;
+	ruleName?: string;
 	sessionDate: string;
 	startTime?: string;
 	storeId?: string;
@@ -27,8 +45,11 @@ export interface CashGameFormValues {
 export interface TournamentFormValues {
 	addonCost?: number;
 	beforeDeadline?: boolean;
+	blindLevels?: SessionBlindLevelInput[];
+	bountyAmount?: number;
 	bountyPrizes?: number;
 	breakMinutes?: number;
+	chipPurchases?: SessionChipPurchaseInput[];
 	currencyId?: string;
 	endTime?: string;
 	entryFee?: number;
@@ -37,14 +58,18 @@ export interface TournamentFormValues {
 	prizeMoney?: number;
 	rebuyCost?: number;
 	rebuyCount?: number;
+	ruleName?: string;
 	sessionDate: string;
+	startingStack?: number;
 	startTime?: string;
 	storeId?: string;
+	tableSize?: number;
 	tagIds?: string[];
 	totalEntries?: number;
 	tournamentBuyIn: number;
 	tournamentId?: string;
 	type: "tournament";
+	variant?: string;
 }
 
 export type SessionFormValues = CashGameFormValues | TournamentFormValues;
@@ -57,16 +82,22 @@ export interface RingGameOption {
 	blind3?: number | null;
 	currencyId?: string | null;
 	id: string;
+	maxBuyIn?: number | null;
+	minBuyIn?: number | null;
 	name: string;
 	tableSize?: number | null;
 	variant?: string | null;
 }
 
 export interface TournamentOption {
+	bountyAmount?: number | null;
 	buyIn?: number | null;
 	entryFee?: number | null;
 	id: string;
 	name: string;
+	startingStack?: number | null;
+	tableSize?: number | null;
+	variant?: string | null;
 }
 
 export interface SessionFormDefaults {
@@ -77,21 +108,28 @@ export interface SessionFormDefaults {
 	blind1?: number;
 	blind2?: number;
 	blind3?: number;
+	blindLevels?: SessionBlindLevelInput[];
+	bountyAmount?: number;
 	bountyPrizes?: number;
 	breakMinutes?: number;
 	buyIn?: number;
 	cashOut?: number;
+	chipPurchases?: SessionChipPurchaseInput[];
 	currencyId?: string;
 	endTime?: string;
 	entryFee?: number;
 	evCashOut?: number;
+	maxBuyIn?: number;
 	memo?: string;
+	minBuyIn?: number;
 	placement?: number;
 	prizeMoney?: number;
 	rebuyCost?: number;
 	rebuyCount?: number;
 	ringGameId?: string;
+	ruleName?: string;
 	sessionDate?: string;
+	startingStack?: number;
 	startTime?: string;
 	storeId?: string;
 	tableSize?: number;
@@ -131,6 +169,7 @@ export const sessionFormSchema = z.object({
 	endTime: z.string(),
 	breakMinutes: optionalNumericString({ integer: true, min: 0 }),
 	memo: z.string(),
+	ruleName: z.string(),
 	buyIn: optionalNumericString({ integer: true, min: 0 }),
 	cashOut: optionalNumericString({ integer: true, min: 0 }),
 	evCashOut: optionalNumericString({ integer: true, min: 0 }),
@@ -141,8 +180,12 @@ export const sessionFormSchema = z.object({
 	ante: optionalNumericString({ integer: true, min: 0 }),
 	anteType: z.string(),
 	tableSize: z.string(),
+	minBuyIn: optionalNumericString({ integer: true, min: 0 }),
+	maxBuyIn: optionalNumericString({ integer: true, min: 0 }),
 	tournamentBuyIn: optionalNumericString({ integer: true, min: 0 }),
 	entryFee: optionalNumericString({ integer: true, min: 0 }),
+	startingStack: optionalNumericString({ integer: true, min: 0 }),
+	bountyAmount: optionalNumericString({ integer: true, min: 0 }),
 	beforeDeadline: z.boolean(),
 	placement: optionalNumericString({ integer: true, min: 1 }),
 	totalEntries: optionalNumericString({ integer: true, min: 1 }),
@@ -160,6 +203,7 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		endTime: defaults?.endTime ?? "",
 		breakMinutes: numStrOrEmpty(defaults?.breakMinutes),
 		memo: defaults?.memo ?? "",
+		ruleName: defaults?.ruleName ?? "",
 		buyIn: numStrOrEmpty(defaults?.buyIn),
 		cashOut: numStrOrEmpty(defaults?.cashOut),
 		evCashOut: numStrOrEmpty(defaults?.evCashOut),
@@ -170,8 +214,12 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		ante: numStrOrEmpty(defaults?.ante),
 		anteType: defaults?.anteType ?? "none",
 		tableSize: defaults?.tableSize?.toString() ?? "",
+		minBuyIn: numStrOrEmpty(defaults?.minBuyIn),
+		maxBuyIn: numStrOrEmpty(defaults?.maxBuyIn),
 		tournamentBuyIn: numStrOrEmpty(defaults?.tournamentBuyIn),
 		entryFee: numStrOrEmpty(defaults?.entryFee),
+		startingStack: numStrOrEmpty(defaults?.startingStack),
+		bountyAmount: numStrOrEmpty(defaults?.bountyAmount),
 		beforeDeadline: defaults?.beforeDeadline === true,
 		placement: numStrOrEmpty(defaults?.placement),
 		totalEntries: numStrOrEmpty(defaults?.totalEntries),
