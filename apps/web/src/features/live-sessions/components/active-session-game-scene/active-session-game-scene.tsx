@@ -6,7 +6,12 @@ import { useAssignDialogState } from "@/features/live-sessions/hooks/use-assign-
 import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
 import { useRingGameSceneActions } from "@/features/live-sessions/hooks/use-ring-game-scene-actions";
 import {
-	type ChipPurchaseRow,
+	type SessionBlindLevelRow,
+	type SessionChipPurchaseRow,
+	type SessionTournamentDisplay,
+	useSessionTournamentStructure,
+} from "@/features/live-sessions/hooks/use-session-tournament-structure";
+import {
 	type TournamentDetail,
 	useTournamentDetail,
 } from "@/features/live-sessions/hooks/use-tournament-detail";
@@ -265,7 +270,18 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 	);
 }
 
-function TournamentStructureTable({ levels }: { levels: BlindLevelRow[] }) {
+interface StructureLevel {
+	ante: number | null;
+	blind1: number | null;
+	blind2: number | null;
+	blind3: number | null;
+	id: string;
+	isBreak: boolean;
+	level: number;
+	minutes: number | null;
+}
+
+function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 	if (levels.length === 0) {
 		return (
 			<p className="py-4 text-center text-muted-foreground text-xs">
@@ -342,35 +358,37 @@ function TournamentStructureTable({ levels }: { levels: BlindLevelRow[] }) {
 }
 
 function TournamentInfoCard({
-	tournament,
+	display,
+	master,
 	currencyName,
 }: {
-	tournament: TournamentDetail;
+	display: SessionTournamentDisplay;
+	master: TournamentDetail;
 	currencyName: string | null | undefined;
 }) {
 	const fmt = createGroupFormatter([
-		tournament.buyIn,
-		tournament.entryFee,
-		tournament.bountyAmount,
-		tournament.startingStack,
+		display.buyIn,
+		display.entryFee,
+		display.bountyAmount,
+		display.startingStack,
 	]);
 
 	return (
 		<Card size="sm">
 			<CardHeader>
 				<CardTitle className="flex flex-wrap items-center gap-1.5">
-					<span className="truncate">{tournament.name}</span>
+					<span className="truncate">{display.ruleName}</span>
 					<Badge className="px-1 py-0 text-[10px]" variant="secondary">
-						{variantLabel(tournament.variant)}
+						{variantLabel(display.variant)}
 					</Badge>
-					{tournament.tableSize == null ? null : (
+					{display.tableSize == null ? null : (
 						<Badge
-							className={`px-1 py-0 text-[10px] ${getTableSizeClassName(tournament.tableSize)}`}
+							className={`px-1 py-0 text-[10px] ${getTableSizeClassName(display.tableSize)}`}
 						>
-							{tournament.tableSize}-max
+							{display.tableSize}-max
 						</Badge>
 					)}
-					{tournament.tags.map((tag) => (
+					{master.tags.map((tag) => (
 						<Badge
 							className="px-1 py-0 text-[10px]"
 							key={tag.id}
@@ -384,31 +402,27 @@ function TournamentInfoCard({
 			<CardContent className="divide-y">
 				<DetailRow
 					label="Buy-in"
-					value={tournament.buyIn == null ? "—" : fmt(tournament.buyIn)}
+					value={display.buyIn == null ? "—" : fmt(display.buyIn)}
 				/>
 				<DetailRow
 					label="Entry Fee"
-					value={tournament.entryFee == null ? "—" : fmt(tournament.entryFee)}
+					value={display.entryFee == null ? "—" : fmt(display.entryFee)}
 				/>
 				<DetailRow
 					label="Starting Stack"
 					value={
-						tournament.startingStack == null
-							? "—"
-							: fmt(tournament.startingStack)
+						display.startingStack == null ? "—" : fmt(display.startingStack)
 					}
 				/>
 				<DetailRow
 					label="Bounty"
-					value={
-						tournament.bountyAmount == null ? "—" : fmt(tournament.bountyAmount)
-					}
+					value={display.bountyAmount == null ? "—" : fmt(display.bountyAmount)}
 				/>
 				<DetailRow label="Currency" value={currencyName ?? "—"} />
-				{tournament.memo ? (
+				{master.memo ? (
 					<div className="py-2">
 						<p className="text-muted-foreground text-xs">Memo</p>
-						<p className="whitespace-pre-wrap text-sm">{tournament.memo}</p>
+						<p className="whitespace-pre-wrap text-sm">{master.memo}</p>
 					</div>
 				) : null}
 			</CardContent>
@@ -419,7 +433,7 @@ function TournamentInfoCard({
 function ChipPurchasesCard({
 	chipPurchases,
 }: {
-	chipPurchases: ChipPurchaseRow[];
+	chipPurchases: SessionChipPurchaseRow[];
 }) {
 	if (chipPurchases.length === 0) {
 		return null;
@@ -449,7 +463,7 @@ function StructureCard({
 	levels,
 	isLoading,
 }: {
-	levels: BlindLevelRow[];
+	levels: StructureLevel[];
 	isLoading: boolean;
 }) {
 	return (
@@ -471,21 +485,21 @@ function StructureCard({
 }
 
 function toInitialFormValues(
-	tournament: TournamentDetail,
-	chipPurchases: ChipPurchaseRow[]
+	master: TournamentDetail,
+	masterChipPurchases: Array<{ name: string; cost: number; chips: number }>
 ) {
 	return {
-		name: tournament.name,
-		variant: tournament.variant,
-		buyIn: tournament.buyIn ?? undefined,
-		entryFee: tournament.entryFee ?? undefined,
-		startingStack: tournament.startingStack ?? undefined,
-		bountyAmount: tournament.bountyAmount ?? undefined,
-		tableSize: tournament.tableSize ?? undefined,
-		currencyId: tournament.currencyId ?? undefined,
-		memo: tournament.memo ?? undefined,
-		tags: tournament.tags.map((t) => t.name),
-		chipPurchases: chipPurchases.map((cp) => ({
+		name: master.name,
+		variant: master.variant,
+		buyIn: master.buyIn ?? undefined,
+		entryFee: master.entryFee ?? undefined,
+		startingStack: master.startingStack ?? undefined,
+		bountyAmount: master.bountyAmount ?? undefined,
+		tableSize: master.tableSize ?? undefined,
+		currencyId: master.currencyId ?? undefined,
+		memo: master.memo ?? undefined,
+		tags: master.tags.map((t) => t.name),
+		chipPurchases: masterChipPurchases.map((cp) => ({
 			name: cp.name,
 			cost: cp.cost,
 			chips: cp.chips,
@@ -496,19 +510,25 @@ function toInitialFormValues(
 function TournamentDetailsBody({
 	sessionId,
 	storeId,
-	tournament,
-	chipPurchases,
-	levels,
+	display,
+	displayChipPurchases,
+	displayLevels,
 	isLevelsLoading,
 	currencyName,
+	master,
+	masterChipPurchases,
+	masterLevels,
 }: {
 	sessionId: string;
 	storeId: string;
-	tournament: TournamentDetail;
-	chipPurchases: ChipPurchaseRow[];
-	levels: BlindLevelRow[];
+	display: SessionTournamentDisplay;
+	displayChipPurchases: SessionChipPurchaseRow[];
+	displayLevels: SessionBlindLevelRow[];
 	isLevelsLoading: boolean;
 	currencyName: string | null | undefined;
+	master: TournamentDetail;
+	masterChipPurchases: Array<{ name: string; cost: number; chips: number }>;
+	masterLevels: BlindLevelRow[];
 }) {
 	const {
 		isEditOpen,
@@ -519,7 +539,7 @@ function TournamentDetailsBody({
 	} = useTournamentSceneActions({
 		sessionId,
 		storeId,
-		tournamentId: tournament.id,
+		tournamentId: master.id,
 	});
 
 	return (
@@ -537,19 +557,23 @@ function TournamentDetailsBody({
 			}
 			title="Tournament"
 		>
-			<TournamentInfoCard currencyName={currencyName} tournament={tournament} />
-			<ChipPurchasesCard chipPurchases={chipPurchases} />
-			<StructureCard isLoading={isLevelsLoading} levels={levels} />
+			<TournamentInfoCard
+				currencyName={currencyName}
+				display={display}
+				master={master}
+			/>
+			<ChipPurchasesCard chipPurchases={displayChipPurchases} />
+			<StructureCard isLoading={isLevelsLoading} levels={displayLevels} />
 
 			<TournamentEditDialog
 				aiMode="edit"
-				initialBlindLevels={levels}
-				initialFormValues={toInitialFormValues(tournament, chipPurchases)}
+				initialBlindLevels={masterLevels}
+				initialFormValues={toInitialFormValues(master, masterChipPurchases)}
 				isLoading={isSaving || isUpdateWithLevelsPending}
 				onOpenChange={setIsEditOpen}
 				onSave={handleSave}
 				open={isEditOpen}
-				resetKey={tournament.id}
+				resetKey={master.id}
 				title="Edit Tournament"
 			/>
 		</GameSceneShell>
@@ -589,7 +613,8 @@ function TournamentDetails({ sessionId }: { sessionId: string }) {
 	const { session } = useTournamentSession(sessionId);
 	const tournamentId = session?.tournamentId ?? "";
 	const storeId = session?.storeId ?? "";
-	const detail = useTournamentDetail(tournamentId);
+	const snapshot = useSessionTournamentStructure(sessionId);
+	const master = useTournamentDetail(tournamentId);
 
 	if (!session) {
 		return (
@@ -623,7 +648,7 @@ function TournamentDetails({ sessionId }: { sessionId: string }) {
 		);
 	}
 
-	if (detail.isTournamentLoading || !detail.tournament) {
+	if (master.isTournamentLoading || !master.tournament || !snapshot.display) {
 		return (
 			<GameSceneShell title="Tournament">
 				<EmptyState
@@ -635,19 +660,22 @@ function TournamentDetails({ sessionId }: { sessionId: string }) {
 		);
 	}
 
-	const currency = detail.currencies.find(
-		(c) => c.id === detail.tournament?.currencyId
+	const currency = master.currencies.find(
+		(c) => c.id === master.tournament?.currencyId
 	);
 
 	return (
 		<TournamentDetailsBody
-			chipPurchases={detail.chipPurchases}
 			currencyName={currency?.name}
-			isLevelsLoading={detail.isLevelsLoading}
-			levels={detail.levels}
+			display={snapshot.display}
+			displayChipPurchases={snapshot.chipPurchases}
+			displayLevels={snapshot.blindLevels}
+			isLevelsLoading={master.isLevelsLoading}
+			master={master.tournament}
+			masterChipPurchases={master.chipPurchases}
+			masterLevels={master.levels}
 			sessionId={sessionId}
 			storeId={storeId}
-			tournament={detail.tournament}
 		/>
 	);
 }

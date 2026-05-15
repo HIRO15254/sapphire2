@@ -110,11 +110,10 @@ const pausedListKey = [
 	"list",
 	{ status: "paused", limit: 1 },
 ];
-const chipPurchaseKey = (tournamentId: string) => [
-	"tournamentChipPurchase",
-	"listByTournament",
-	{ tournamentId },
-];
+// chipPurchases now live on the session snapshot (see
+// `liveTournamentSession.getById.chipPurchases`), so we seed them directly
+// onto the session cache entry rather than fetching from
+// `tournamentChipPurchase.listByTournament`.
 
 describe("useTournamentStack", () => {
 	beforeEach(() => {
@@ -128,17 +127,29 @@ describe("useTournamentStack", () => {
 	});
 
 	describe("chipPurchaseTypes (read-side)", () => {
-		it("projects chipPurchase list from cache when session.tournamentId is present", async () => {
+		it("projects chipPurchase list from session snapshot in cache", async () => {
 			const qc = createClient();
 			qc.setQueryData(sessionKey, {
 				tournamentId: "tourn-1",
 				status: "active",
 				summary: {},
+				chipPurchases: [
+					{
+						id: "cp1",
+						name: "Rebuy",
+						cost: 100,
+						chips: 10_000,
+						sortOrder: 0,
+					},
+					{
+						id: "cp2",
+						name: "Addon",
+						cost: 200,
+						chips: 20_000,
+						sortOrder: 1,
+					},
+				],
 			});
-			qc.setQueryData(chipPurchaseKey("tourn-1"), [
-				{ id: "cp1", name: "Rebuy", cost: 100, chips: 10_000 },
-				{ id: "cp2", name: "Addon", cost: 200, chips: 20_000 },
-			]);
 			const { result } = renderHook(
 				() => useTournamentStack({ sessionId: "t1" }),
 				{ wrapper: makeWrapper(qc) }
@@ -151,7 +162,7 @@ describe("useTournamentStack", () => {
 			});
 		});
 
-		it("returns [] when session is absent or has no tournamentId (enabled gate)", () => {
+		it("returns [] when session is absent or has no chipPurchases snapshot", () => {
 			const qc = createClient();
 			qc.setQueryData(sessionKey, { status: "active", summary: {} });
 			const { result } = renderHook(

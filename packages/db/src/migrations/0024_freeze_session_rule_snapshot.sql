@@ -128,3 +128,73 @@ SET
         (SELECT `variant` FROM `tournament` WHERE `tournament`.`id` = `session_tournament_detail`.`tournament_id`),
         'nlh'
     );
+--> statement-breakpoint
+
+-- ============================================================
+-- session_blind_level / session_chip_purchase: snapshot of the
+-- tournament's blind progression and chip purchase options.
+-- Parent edits to blind_level / tournament_chip_purchase no longer
+-- propagate to past sessions.
+-- ============================================================
+
+CREATE TABLE `session_blind_level` (
+    `id` text PRIMARY KEY NOT NULL,
+    `session_id` text NOT NULL,
+    `level` integer NOT NULL,
+    `is_break` integer DEFAULT 0 NOT NULL,
+    `blind1` integer,
+    `blind2` integer,
+    `blind3` integer,
+    `ante` integer,
+    `minutes` integer,
+    FOREIGN KEY (`session_id`) REFERENCES `game_session`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+
+CREATE INDEX `session_blind_level_session_idx` ON `session_blind_level` (`session_id`);
+--> statement-breakpoint
+
+CREATE TABLE `session_chip_purchase` (
+    `id` text PRIMARY KEY NOT NULL,
+    `session_id` text NOT NULL,
+    `name` text NOT NULL,
+    `cost` integer NOT NULL,
+    `chips` integer NOT NULL,
+    `sort_order` integer DEFAULT 0 NOT NULL,
+    FOREIGN KEY (`session_id`) REFERENCES `game_session`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+
+CREATE INDEX `session_chip_purchase_session_idx` ON `session_chip_purchase` (`session_id`);
+--> statement-breakpoint
+
+-- Backfill: for each existing session_tournament_detail row linked to a
+-- tournament, copy every parent blind_level / tournament_chip_purchase
+-- row across using a fresh hex id. The cross-join INSERT runs the source
+-- query once per (session, level) or (session, purchase) pair.
+
+INSERT INTO `session_blind_level` (`id`, `session_id`, `level`, `is_break`, `blind1`, `blind2`, `blind3`, `ante`, `minutes`)
+SELECT
+    lower(hex(randomblob(16))),
+    std.`session_id`,
+    bl.`level`,
+    bl.`is_break`,
+    bl.`blind1`,
+    bl.`blind2`,
+    bl.`blind3`,
+    bl.`ante`,
+    bl.`minutes`
+FROM `session_tournament_detail` std
+JOIN `blind_level` bl ON bl.`tournament_id` = std.`tournament_id`;
+--> statement-breakpoint
+
+INSERT INTO `session_chip_purchase` (`id`, `session_id`, `name`, `cost`, `chips`, `sort_order`)
+SELECT
+    lower(hex(randomblob(16))),
+    std.`session_id`,
+    tcp.`name`,
+    tcp.`cost`,
+    tcp.`chips`,
+    tcp.`sort_order`
+FROM `session_tournament_detail` std
+JOIN `tournament_chip_purchase` tcp ON tcp.`tournament_id` = std.`tournament_id`;

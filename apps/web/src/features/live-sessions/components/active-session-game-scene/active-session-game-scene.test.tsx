@@ -95,6 +95,29 @@ vi.mock("@tanstack/react-query", () => ({
 		if (scope === "tournamentChipPurchase") {
 			return { data: mocks.chipPurchases, isLoading: false };
 		}
+		if (scope === "liveTournamentSession") {
+			// Mirrors the new snapshot fields returned by
+			// `liveTournamentSession.getById`. The active scene reads the
+			// session-level snapshot for display (name, blinds, chip purchases).
+			const t = mocks.tournament;
+			if (!t) {
+				return { data: undefined, isLoading: false };
+			}
+			return {
+				data: {
+					ruleName: t.name,
+					variant: t.variant,
+					buyIn: t.buyIn,
+					entryFee: t.entryFee,
+					startingStack: t.startingStack,
+					bountyAmount: t.bountyAmount,
+					tableSize: t.tableSize,
+					blindLevels: mocks.levels,
+					chipPurchases: mocks.chipPurchases,
+				},
+				isLoading: false,
+			};
+		}
 		if (scope === "currency") {
 			return { data: mocks.currencies, isLoading: false };
 		}

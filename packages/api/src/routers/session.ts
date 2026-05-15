@@ -1,6 +1,8 @@
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
+import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import {
 	sessionTag,
 	sessionToSessionTag,
@@ -12,7 +14,11 @@ import {
 	store,
 	transactionType,
 } from "@sapphire2/db/schema/store";
-import { tournament } from "@sapphire2/db/schema/tournament";
+import {
+	blindLevel,
+	tournament,
+	tournamentChipPurchase,
+} from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
 import { z } from "zod";
@@ -1061,6 +1067,12 @@ async function applyTournamentDetailUpdate(
 			.insert(sessionTournamentDetail)
 			.values({ sessionId, ...tournUpdate });
 	}
+
+	// Re-snapshot blind levels / chip purchases when the parent link changes.
+	// `null` keeps the existing snapshot (frozen).
+	if (input.tournamentId) {
+		await resnapshotTournamentStructure(db, sessionId, input.tournamentId);
+	}
 }
 
 interface CashRuleSnapshot {
@@ -1272,9 +1284,76 @@ async function insertTournamentSessionDetail(
 		bountyAmount: snapshot.bountyAmount,
 		tableSize: snapshot.tableSize,
 	});
+	if (input.tournamentId) {
+		await snapshotTournamentStructure(db, sessionId, input.tournamentId);
+	}
 }
 
-export { resolveCashRuleSnapshot, resolveTournamentRuleSnapshot };
+async function snapshotTournamentStructure(
+	db: DbInstance,
+	sessionId: string,
+	tournamentId: string
+): Promise<void> {
+	const levels = await db
+		.select()
+		.from(blindLevel)
+		.where(eq(blindLevel.tournamentId, tournamentId))
+		.orderBy(asc(blindLevel.level));
+	if (levels.length > 0) {
+		await db.insert(sessionBlindLevel).values(
+			levels.map((l) => ({
+				id: crypto.randomUUID(),
+				sessionId,
+				level: l.level,
+				isBreak: l.isBreak,
+				blind1: l.blind1,
+				blind2: l.blind2,
+				blind3: l.blind3,
+				ante: l.ante,
+				minutes: l.minutes,
+			}))
+		);
+	}
+
+	const purchases = await db
+		.select()
+		.from(tournamentChipPurchase)
+		.where(eq(tournamentChipPurchase.tournamentId, tournamentId))
+		.orderBy(asc(tournamentChipPurchase.sortOrder));
+	if (purchases.length > 0) {
+		await db.insert(sessionChipPurchase).values(
+			purchases.map((p) => ({
+				id: crypto.randomUUID(),
+				sessionId,
+				name: p.name,
+				cost: p.cost,
+				chips: p.chips,
+				sortOrder: p.sortOrder,
+			}))
+		);
+	}
+}
+
+async function resnapshotTournamentStructure(
+	db: DbInstance,
+	sessionId: string,
+	tournamentId: string
+): Promise<void> {
+	await db
+		.delete(sessionBlindLevel)
+		.where(eq(sessionBlindLevel.sessionId, sessionId));
+	await db
+		.delete(sessionChipPurchase)
+		.where(eq(sessionChipPurchase.sessionId, sessionId));
+	await snapshotTournamentStructure(db, sessionId, tournamentId);
+}
+
+export {
+	resnapshotTournamentStructure,
+	resolveCashRuleSnapshot,
+	resolveTournamentRuleSnapshot,
+	snapshotTournamentStructure,
+};
 
 async function insertSessionTags(
 	db: DbInstance,

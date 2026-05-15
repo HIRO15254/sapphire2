@@ -22,9 +22,17 @@ import {
 import { ringGame, ringGameRelations } from "./schema/ring-game";
 import { gameSession, gameSessionRelations } from "./schema/session";
 import {
+	sessionBlindLevel,
+	sessionBlindLevelRelations,
+} from "./schema/session-blind-level";
+import {
 	sessionCashDetail,
 	sessionCashDetailRelations,
 } from "./schema/session-cash-detail";
+import {
+	sessionChipPurchase,
+	sessionChipPurchaseRelations,
+} from "./schema/session-chip-purchase";
 import { sessionEvent, sessionEventRelations } from "./schema/session-event";
 import {
 	sessionTablePlayer,
@@ -104,6 +112,10 @@ export const schema = {
 	sessionCashDetailRelations,
 	sessionTournamentDetail,
 	sessionTournamentDetailRelations,
+	sessionBlindLevel,
+	sessionBlindLevelRelations,
+	sessionChipPurchase,
+	sessionChipPurchaseRelations,
 	player,
 	playerRelations,
 	playerTag,

@@ -3,11 +3,13 @@ import {
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
 import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
+import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { currency, store } from "@sapphire2/db/schema/store";
-import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -18,7 +20,11 @@ import {
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
-import { resolveTournamentRuleSnapshot } from "./session";
+import {
+	resnapshotTournamentStructure,
+	resolveTournamentRuleSnapshot,
+	snapshotTournamentStructure,
+} from "./session";
 
 const DEFAULT_LIMIT = 20;
 
@@ -579,13 +585,17 @@ export const liveTournamentSessionRouter = router({
 				.from(sessionTablePlayer)
 				.where(eq(sessionTablePlayer.sessionId, input.id));
 
-			const blindLevels = detail?.tournamentId
-				? await ctx.db
-						.select()
-						.from(blindLevel)
-						.where(eq(blindLevel.tournamentId, detail.tournamentId))
-						.orderBy(asc(blindLevel.level))
-				: [];
+			const blindLevels = await ctx.db
+				.select()
+				.from(sessionBlindLevel)
+				.where(eq(sessionBlindLevel.sessionId, input.id))
+				.orderBy(asc(sessionBlindLevel.level));
+
+			const chipPurchases = await ctx.db
+				.select()
+				.from(sessionChipPurchase)
+				.where(eq(sessionChipPurchase.sessionId, input.id))
+				.orderBy(asc(sessionChipPurchase.sortOrder));
 
 			const pl = computeTournamentPLFromEvents(
 				events.map((e) => ({ eventType: e.eventType, payload: e.payload })),
@@ -632,8 +642,16 @@ export const liveTournamentSessionRouter = router({
 				events,
 				tablePlayers,
 				blindLevels,
+				chipPurchases,
 				summary,
 				tableSize: masterData.tableSize,
+				// Snapshot fields from session_tournament_detail. These stay
+				// stable even if the parent tournament is renamed or its
+				// blind/chip structure is edited after session creation.
+				ruleName: detail?.ruleName ?? null,
+				variant: detail?.variant ?? null,
+				startingStack: detail?.startingStack ?? null,
+				bountyAmount: detail?.bountyAmount ?? null,
 			};
 		}),
 
@@ -704,6 +722,10 @@ export const liveTournamentSessionRouter = router({
 				updatedAt: now,
 			});
 
+			if (input.tournamentId) {
+				await snapshotTournamentStructure(ctx.db, id, input.tournamentId);
+			}
+
 			return { id };
 		}),
 
@@ -751,6 +773,16 @@ export const liveTournamentSessionRouter = router({
 				existingDetail,
 				detailUpdate
 			);
+
+			// Re-snapshot blind levels / chip purchases when the parent link
+			// changes to a new tournament. `null` keeps the existing snapshot.
+			if (input.tournamentId) {
+				await resnapshotTournamentStructure(
+					ctx.db,
+					input.id,
+					input.tournamentId
+				);
+			}
 
 			await syncTimerStartedAtEvent(ctx.db, input.id, input.timerStartedAt);
 
