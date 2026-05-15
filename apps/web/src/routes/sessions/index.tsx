@@ -3,8 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { SessionEventsScene } from "@/features/live-sessions/components/session-events-scene";
 import { SessionCard } from "@/features/sessions/components/session-card";
 import { SessionFilters } from "@/features/sessions/components/session-filters";
-import { SessionForm } from "@/features/sessions/components/session-form";
 import { SessionTagManager } from "@/features/sessions/components/session-tag-manager";
+import { SessionWizard } from "@/features/sessions/components/session-wizard";
 import { buildEditDefaults } from "@/features/sessions/hooks/use-sessions";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
@@ -129,7 +129,7 @@ function SessionsPage() {
 				open={isCreateOpen}
 				title="New Session"
 			>
-				<SessionForm
+				<SessionWizard
 					currencies={currencies}
 					isLoading={isCreatePending}
 					onCreateTag={createTag}
@@ -152,7 +152,7 @@ function SessionsPage() {
 				title="Edit Session"
 			>
 				{editingSession && (
-					<SessionForm
+					<SessionWizard
 						currencies={currencies}
 						defaultValues={buildEditDefaults(editingSession)}
 						isLiveLinked={isEditLiveLinked}

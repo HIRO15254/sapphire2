@@ -1,0 +1,493 @@
+import {
+	IconCheck,
+	IconChevronLeft,
+	IconChevronRight,
+} from "@tabler/icons-react";
+import type {
+	RingGameOption,
+	SessionFormDefaults,
+	SessionFormValues,
+	TournamentOption,
+} from "@/features/sessions/utils/session-form-helpers";
+import { Alert, AlertDescription } from "@/shared/components/ui/alert";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
+import { Field } from "@/shared/components/ui/field";
+import { Input } from "@/shared/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+import { TagInput } from "@/shared/components/ui/tag-input";
+import { Textarea } from "@/shared/components/ui/textarea";
+import { CashGameFields } from "../cash-game-fields";
+import { StoreGameSelectors } from "../link-selectors";
+import {
+	TournamentDetailFields,
+	TournamentPrimaryFields,
+} from "../tournament-fields";
+import {
+	type UseSessionWizardReturn,
+	useSessionWizard,
+	WIZARD_STEPS,
+	type WizardStep,
+} from "./use-session-wizard";
+
+export type {
+	CashGameFormValues,
+	RingGameOption,
+	SessionFormDefaults,
+	SessionFormValues,
+	TournamentFormValues,
+	TournamentOption,
+} from "@/features/sessions/utils/session-form-helpers";
+
+interface SessionWizardProps {
+	currencies?: Array<{ id: string; name: string }>;
+	defaultValues?: SessionFormDefaults;
+	isLiveLinked?: boolean;
+	isLoading?: boolean;
+	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
+	onStoreChange?: (storeId: string | undefined) => void;
+	onSubmit: (values: SessionFormValues) => void;
+	ringGames?: RingGameOption[];
+	stores?: Array<{ id: string; name: string }>;
+	tags?: Array<{ id: string; name: string }>;
+	tournaments?: TournamentOption[];
+}
+
+function stepVariant(
+	isActive: boolean,
+	isDone: boolean
+): "default" | "secondary" | "outline" {
+	if (isActive) {
+		return "default";
+	}
+	if (isDone) {
+		return "secondary";
+	}
+	return "outline";
+}
+
+function StepperBar({ currentStep }: { currentStep: WizardStep }) {
+	return (
+		<div className="flex items-center gap-2">
+			{WIZARD_STEPS.map((step, idx) => {
+				const stepIdx = WIZARD_STEPS.findIndex((s) => s.key === currentStep);
+				const isActive = step.key === currentStep;
+				const isDone = idx < stepIdx;
+				return (
+					<div className="flex items-center gap-2" key={step.key}>
+						<Badge
+							className="h-6 w-6 justify-center p-0"
+							variant={stepVariant(isActive, isDone)}
+						>
+							{isDone ? <IconCheck size={12} /> : idx + 1}
+						</Badge>
+						<span
+							className={
+								isActive
+									? "font-medium text-sm"
+									: "text-muted-foreground text-sm"
+							}
+						>
+							{step.label}
+						</span>
+						{idx < WIZARD_STEPS.length - 1 && (
+							<span className="mx-1 text-muted-foreground">/</span>
+						)}
+					</div>
+				);
+			})}
+		</div>
+	);
+}
+
+function MasterStepBody({
+	state,
+	stores,
+	isLiveLinked,
+}: {
+	state: UseSessionWizardReturn;
+	stores?: Array<{ id: string; name: string }>;
+	isLiveLinked: boolean;
+}) {
+	return (
+		<>
+			<Field label="Session Type">
+				<Tabs
+					onValueChange={(value) =>
+						state.setSessionType(value as "cash_game" | "tournament")
+					}
+					value={state.sessionType}
+				>
+					<TabsList className="grid w-full grid-cols-2">
+						<TabsTrigger disabled={isLiveLinked} value="cash_game">
+							Cash Game
+						</TabsTrigger>
+						<TabsTrigger disabled={isLiveLinked} value="tournament">
+							Tournament
+						</TabsTrigger>
+					</TabsList>
+				</Tabs>
+			</Field>
+			<StoreGameSelectors
+				gameLabel={state.gameLabel}
+				gameOptions={state.gameOptions}
+				isLiveLinked={isLiveLinked}
+				onGameChange={state.handleGameChange}
+				onStoreChange={state.handleStoreChange}
+				selectedGameId={state.selectedGameId}
+				selectedStoreId={state.selectedStoreId}
+				stores={stores}
+			/>
+			<p className="text-muted-foreground text-xs">
+				Pick the master rule for this session. The rules in the next step are
+				pre-filled from your selection; you can override them per session. Leave
+				blank to define the rule from scratch.
+			</p>
+		</>
+	);
+}
+
+function RulesStepBody({
+	state,
+	currencies,
+	isLiveLinked,
+}: {
+	state: UseSessionWizardReturn;
+	currencies?: Array<{ id: string; name: string }>;
+	isLiveLinked: boolean;
+}) {
+	if (state.isCashGame) {
+		return (
+			<CashGameFields
+				currencies={currencies}
+				form={state.form}
+				isLiveLinked={isLiveLinked}
+				onCurrencyChange={state.setSelectedCurrencyId}
+				selectedCurrencyId={state.selectedCurrencyId}
+			/>
+		);
+	}
+	return (
+		<>
+			<TournamentPrimaryFields
+				form={state.form}
+				isLiveLinked={isLiveLinked}
+				key={`tourney-primary-${state.selectedGameId ?? "none"}`}
+			/>
+			<TournamentDetailFields
+				currencies={currencies}
+				form={state.form}
+				isLiveLinked={isLiveLinked}
+				onCurrencyChange={state.setSelectedCurrencyId}
+				selectedCurrencyId={state.selectedCurrencyId}
+			/>
+		</>
+	);
+}
+
+function DateTimeFields({
+	state,
+	isLiveLinked,
+}: {
+	state: UseSessionWizardReturn;
+	isLiveLinked: boolean;
+}) {
+	const { form } = state;
+	return (
+		<>
+			<form.Field name="sessionDate">
+				{(field) => (
+					<Field htmlFor={field.name} label="Session Date" required>
+						<Input
+							disabled={isLiveLinked}
+							id={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							type="date"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+			<div className="grid grid-cols-2 gap-3">
+				<form.Field name="startTime">
+					{(field) => (
+						<Field htmlFor={field.name} label="Start Time">
+							<Input
+								disabled={isLiveLinked}
+								id={field.name}
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								type="time"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+				<form.Field name="endTime">
+					{(field) => (
+						<Field htmlFor={field.name} label="End Time">
+							<Input
+								disabled={isLiveLinked}
+								id={field.name}
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								type="time"
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+			</div>
+			<form.Field name="breakMinutes">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Break Time (min)"
+					>
+						<Input
+							disabled={isLiveLinked}
+							id={field.name}
+							inputMode="numeric"
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+		</>
+	);
+}
+
+function CashResultFields({
+	state,
+	isLiveLinked,
+}: {
+	state: UseSessionWizardReturn;
+	isLiveLinked: boolean;
+}) {
+	const { form } = state;
+	return (
+		<>
+			<div className="grid grid-cols-2 gap-3">
+				<form.Field name="buyIn">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Buy-in"
+							required
+						>
+							<Input
+								disabled={isLiveLinked}
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+				<form.Field name="cashOut">
+					{(field) => (
+						<Field
+							error={field.state.meta.errors[0]?.message}
+							htmlFor={field.name}
+							label="Cash-out"
+							required
+						>
+							<Input
+								disabled={isLiveLinked}
+								id={field.name}
+								inputMode="numeric"
+								onBlur={field.handleBlur}
+								onChange={(e) => field.handleChange(e.target.value)}
+								value={field.state.value}
+							/>
+						</Field>
+					)}
+				</form.Field>
+			</div>
+			<form.Field name="evCashOut">
+				{(field) => (
+					<Field htmlFor={field.name} label="EV Cash-out">
+						<Input
+							disabled={isLiveLinked}
+							id={field.name}
+							inputMode="numeric"
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+		</>
+	);
+}
+
+function TagsAndMemo({
+	state,
+	tags,
+	onCreateTag,
+}: {
+	state: UseSessionWizardReturn;
+	tags?: Array<{ id: string; name: string }>;
+	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
+}) {
+	return (
+		<>
+			<Field label="Session Tags">
+				<TagInput
+					availableTags={tags}
+					onAdd={(tag) => state.setSelectedTagIds((prev) => [...prev, tag.id])}
+					onCreateTag={onCreateTag}
+					onRemove={(tag) =>
+						state.setSelectedTagIds((prev) =>
+							prev.filter((id) => id !== tag.id)
+						)
+					}
+					selectedTags={state.selectedTagIds
+						.map((id) => tags?.find((t) => t.id === id))
+						.filter((t): t is { id: string; name: string } => t !== undefined)}
+				/>
+			</Field>
+			<state.form.Field name="memo">
+				{(field) => (
+					<Field htmlFor={field.name} label="Memo">
+						<Textarea
+							id={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</state.form.Field>
+		</>
+	);
+}
+
+function ResultStepBody({
+	state,
+	tags,
+	onCreateTag,
+	isLiveLinked,
+}: {
+	state: UseSessionWizardReturn;
+	tags?: Array<{ id: string; name: string }>;
+	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
+	isLiveLinked: boolean;
+}) {
+	return (
+		<>
+			<DateTimeFields isLiveLinked={isLiveLinked} state={state} />
+			{state.isCashGame ? (
+				<CashResultFields isLiveLinked={isLiveLinked} state={state} />
+			) : null}
+			<TagsAndMemo onCreateTag={onCreateTag} state={state} tags={tags} />
+		</>
+	);
+}
+
+export function SessionWizard({
+	currencies,
+	defaultValues,
+	isLiveLinked = false,
+	isLoading = false,
+	onCreateTag,
+	onStoreChange,
+	onSubmit,
+	ringGames,
+	stores,
+	tags,
+	tournaments,
+}: SessionWizardProps) {
+	const state = useSessionWizard({
+		defaultValues,
+		onStoreChange,
+		onSubmit,
+		ringGames,
+		tournaments,
+	});
+
+	return (
+		<form
+			className="flex flex-col gap-3"
+			onSubmit={(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				state.form.handleSubmit();
+			}}
+		>
+			{isLiveLinked && (
+				<Alert data-testid="live-linked-banner">
+					<AlertDescription>
+						This session is generated from a live session. Items calculated from
+						event history cannot be edited. To modify, edit the events in the
+						live session.
+					</AlertDescription>
+				</Alert>
+			)}
+
+			<StepperBar currentStep={state.currentStep} />
+
+			<div className="flex flex-col gap-3">
+				{state.currentStep === "master" && (
+					<MasterStepBody
+						isLiveLinked={isLiveLinked}
+						state={state}
+						stores={stores}
+					/>
+				)}
+				{state.currentStep === "rules" && (
+					<RulesStepBody
+						currencies={currencies}
+						isLiveLinked={isLiveLinked}
+						state={state}
+					/>
+				)}
+				{state.currentStep === "result" && (
+					<ResultStepBody
+						isLiveLinked={isLiveLinked}
+						onCreateTag={onCreateTag}
+						state={state}
+						tags={tags}
+					/>
+				)}
+			</div>
+
+			<div className="mt-2 flex items-center justify-between gap-2">
+				<Button
+					disabled={state.isFirstStep}
+					onClick={state.goToPrev}
+					type="button"
+					variant="outline"
+				>
+					<IconChevronLeft size={14} />
+					Back
+				</Button>
+				{state.isLastStep ? (
+					<state.form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting]}>
+						{([canSubmit, isSubmitting]) => (
+							<Button
+								disabled={isLoading || !canSubmit || isSubmitting}
+								type="submit"
+							>
+								{isLoading ? "Saving..." : "Save"}
+							</Button>
+						)}
+					</state.form.Subscribe>
+				) : (
+					<Button onClick={state.goToNext} type="button">
+						Next
+						<IconChevronRight size={14} />
+					</Button>
+				)}
+			</div>
+		</form>
+	);
+}
