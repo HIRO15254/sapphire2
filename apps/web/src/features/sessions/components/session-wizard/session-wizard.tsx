@@ -20,8 +20,8 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { CashGameFields } from "../cash-game-fields";
 import { StoreGameSelectors } from "../link-selectors";
 import {
-	TournamentDetailFields,
-	TournamentPrimaryFields,
+	TournamentResultFields,
+	TournamentRuleFields,
 } from "../tournament-fields";
 import { BlindLevelsInlineTable } from "./blind-levels-inline-table";
 import { ChipPurchasesInlineTable } from "./chip-purchases-inline-table";
@@ -324,21 +324,17 @@ function TournamentRulesStepBody({
 	return (
 		<>
 			<RuleNameField isLiveLinked={isLiveLinked} state={state} />
-			<TournamentPrimaryFields
+			<TournamentRuleFields
+				currencies={currencies}
 				form={state.form}
 				isLiveLinked={isLiveLinked}
-				key={`tourney-primary-${state.selectedGameId ?? "none"}`}
+				key={`tourney-rule-${state.selectedGameId ?? "none"}`}
+				onCurrencyChange={state.setSelectedCurrencyId}
+				selectedCurrencyId={state.selectedCurrencyId}
 			/>
 			<TournamentSnapshotScalarFields
 				isLiveLinked={isLiveLinked}
 				state={state}
-			/>
-			<TournamentDetailFields
-				currencies={currencies}
-				form={state.form}
-				isLiveLinked={isLiveLinked}
-				onCurrencyChange={state.setSelectedCurrencyId}
-				selectedCurrencyId={state.selectedCurrencyId}
 			/>
 			<BlindLevelsInlineTable
 				onChange={state.setBlindLevels}
@@ -581,7 +577,9 @@ function ResultStepBody({
 			<DateTimeFields isLiveLinked={isLiveLinked} state={state} />
 			{state.isCashGame ? (
 				<CashResultFields isLiveLinked={isLiveLinked} state={state} />
-			) : null}
+			) : (
+				<TournamentResultFields form={state.form} isLiveLinked={isLiveLinked} />
+			)}
 			<TagsAndMemo onCreateTag={onCreateTag} state={state} tags={tags} />
 		</>
 	);

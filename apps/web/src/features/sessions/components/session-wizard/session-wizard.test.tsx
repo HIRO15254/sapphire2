@@ -177,6 +177,38 @@ describe("SessionWizard — live mode", () => {
 		).toBeInTheDocument();
 	});
 
+	it("keeps tournament result fields out of the Rules step", async () => {
+		const user = userEvent.setup();
+		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		await user.click(screen.getByText("Tournament"));
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
+		// Rules step: rule fields present, result fields absent.
+		expect(document.getElementById("tournamentBuyIn")).toBeInTheDocument();
+		expect(document.getElementById("entryFee")).toBeInTheDocument();
+		expect(document.getElementById("prizeMoney")).not.toBeInTheDocument();
+		expect(document.getElementById("placement")).not.toBeInTheDocument();
+		expect(document.getElementById("rebuyCount")).not.toBeInTheDocument();
+		expect(document.getElementById("bountyPrizes")).not.toBeInTheDocument();
+	});
+
+	it("renders tournament result fields on the Result step", async () => {
+		const user = userEvent.setup();
+		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		await user.click(screen.getByText("Tournament"));
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
+		// Result step: prizeMoney / placement / totalEntries (after toggling
+		// off the registration-close flag, which is unchecked by default) /
+		// rebuy / addon / bounty.
+		expect(document.getElementById("prizeMoney")).toBeInTheDocument();
+		expect(document.getElementById("placement")).toBeInTheDocument();
+		expect(document.getElementById("totalEntries")).toBeInTheDocument();
+		expect(document.getElementById("rebuyCount")).toBeInTheDocument();
+		expect(document.getElementById("rebuyCost")).toBeInTheDocument();
+		expect(document.getElementById("addonCost")).toBeInTheDocument();
+		expect(document.getElementById("bountyPrizes")).toBeInTheDocument();
+	});
+
 	it("invokes onSubmit when the Start button is clicked on the rules step", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();

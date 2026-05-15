@@ -158,6 +158,42 @@ export function useSessionFormState({
 		});
 	};
 
+	const applyTournamentStructure = async (tournamentId: string) => {
+		// blindLevels / chipPurchases live in their own tables on the master.
+		// Fetch them so the Rules step inline editors start with the parent's
+		// shape. Errors are swallowed silently — the wizard still works with
+		// the scalar defaults already applied.
+		// Lazy-loaded so unit tests of pure-state behavior don't drag
+		// @/utils/trpc (and its env-validating import chain) into module
+		// initialization.
+		const { trpcClient } = await import("@/utils/trpc");
+		const [levels, purchases] = await Promise.all([
+			trpcClient.blindLevel.listByTournament
+				.query({ tournamentId })
+				.catch(() => []),
+			trpcClient.tournamentChipPurchase.listByTournament
+				.query({ tournamentId })
+				.catch(() => []),
+		]);
+		setBlindLevels(
+			levels.map((l) => ({
+				isBreak: l.isBreak,
+				blind1: l.blind1,
+				blind2: l.blind2,
+				blind3: l.blind3,
+				ante: l.ante,
+				minutes: l.minutes,
+			}))
+		);
+		setChipPurchases(
+			purchases.map((p) => ({
+				name: p.name,
+				cost: p.cost,
+				chips: p.chips,
+			}))
+		);
+	};
+
 	const applyTournamentDefaults = (gameId: string) => {
 		const game = tournaments?.find((t) => t.id === gameId);
 		if (!game) {
@@ -172,6 +208,8 @@ export function useSessionFormState({
 			tableSize: game.tableSize?.toString() ?? undefined,
 			variant: game.variant ?? undefined,
 		});
+		// Fire-and-forget; React state updates land asynchronously.
+		applyTournamentStructure(gameId).catch(() => undefined);
 	};
 
 	const handleStoreChange = (value: string | undefined) => {

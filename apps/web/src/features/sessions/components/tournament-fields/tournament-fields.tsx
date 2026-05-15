@@ -33,16 +33,25 @@ interface TournamentFieldsProps {
 	isLiveLinked?: boolean;
 }
 
-interface TournamentDetailFieldsProps extends TournamentFieldsProps {
+interface TournamentRuleFieldsProps extends TournamentFieldsProps {
 	currencies?: Array<{ id: string; name: string }>;
 	onCurrencyChange?: (id: string | undefined) => void;
 	selectedCurrencyId?: string;
 }
 
-export function TournamentPrimaryFields({
+/**
+ * Phase B (Rules) tournament fields. Cost-of-entry (buyIn / entryFee) and
+ * the linked currency belong here because they describe the master rule —
+ * how much the session costs to play. Result fields (prizeMoney /
+ * placement / rebuy / addon / bounty) live in TournamentResultFields.
+ */
+export function TournamentRuleFields({
+	currencies,
 	form,
 	isLiveLinked = false,
-}: TournamentFieldsProps) {
+	onCurrencyChange,
+	selectedCurrencyId,
+}: TournamentRuleFieldsProps) {
 	return (
 		<>
 			<div className="grid grid-cols-2 gap-3">
@@ -84,26 +93,44 @@ export function TournamentPrimaryFields({
 					)}
 				</form.Field>
 			</div>
-
-			<form.Field name="prizeMoney">
-				{(field) => (
-					<Field
-						error={field.state.meta.errors[0]?.message}
-						htmlFor={field.name}
-						label="Prize Money"
+			{currencies && currencies.length > 0 && (
+				<Field
+					description="Auto-generates a transaction with the session's P&L."
+					label="Currency"
+				>
+					<SelectWithClear
+						onValueChange={onCurrencyChange}
+						value={selectedCurrencyId}
 					>
-						<Input
-							disabled={isLiveLinked}
-							id={field.name}
-							inputMode="numeric"
-							onBlur={field.handleBlur}
-							onChange={(e) => field.handleChange(e.target.value)}
-							value={field.state.value}
-						/>
-					</Field>
-				)}
-			</form.Field>
+						<SelectTrigger>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{currencies.map((c) => (
+								<SelectItem key={c.id} value={c.id}>
+									{c.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</SelectWithClear>
+				</Field>
+			)}
+		</>
+	);
+}
 
+/**
+ * Phase C (Result) tournament fields. Everything here is a session-level
+ * outcome — prizeMoney / placement / total entries / rebuy / addon /
+ * bounty. The beforeDeadline checkbox discriminates the result kind
+ * (categorical, not a rule).
+ */
+export function TournamentResultFields({
+	form,
+	isLiveLinked = false,
+}: TournamentFieldsProps) {
+	return (
+		<>
 			<div className="flex items-center gap-2">
 				<form.Field name="beforeDeadline">
 					{(field) => (
@@ -168,41 +195,25 @@ export function TournamentPrimaryFields({
 					)
 				}
 			</form.Subscribe>
-		</>
-	);
-}
 
-export function TournamentDetailFields({
-	currencies,
-	form,
-	isLiveLinked = false,
-	onCurrencyChange,
-	selectedCurrencyId,
-}: TournamentDetailFieldsProps) {
-	return (
-		<>
-			{currencies && currencies.length > 0 && (
-				<Field
-					description="Auto-generates a transaction with the session's P&L."
-					label="Currency"
-				>
-					<SelectWithClear
-						onValueChange={onCurrencyChange}
-						value={selectedCurrencyId}
+			<form.Field name="prizeMoney">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Prize Money"
 					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{currencies.map((c) => (
-								<SelectItem key={c.id} value={c.id}>
-									{c.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</SelectWithClear>
-				</Field>
-			)}
+						<Input
+							disabled={isLiveLinked}
+							id={field.name}
+							inputMode="numeric"
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 
 			<div className="grid grid-cols-2 gap-3">
 				<form.Field name="rebuyCount">
