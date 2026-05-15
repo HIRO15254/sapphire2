@@ -315,12 +315,18 @@ const cashGameCreateSchema = z.object({
 	storeId: z.string().optional(),
 	ringGameId: z.string().optional(),
 	currencyId: z.string().optional(),
+	// Snapshot fields — written through to session_cash_detail. When
+	// ringGameId is also provided, these override the parent values; when
+	// no master is referenced they define the rule wholesale.
+	ruleName: z.string().min(1).optional(),
 	variant: z.string().default("nlh"),
 	blind1: z.number().int().optional(),
 	blind2: z.number().int().optional(),
 	blind3: z.number().int().optional(),
 	ante: z.number().int().optional(),
 	anteType: z.enum(["none", "all", "bb"]).optional(),
+	minBuyIn: z.number().int().optional(),
+	maxBuyIn: z.number().int().optional(),
 	tableSize: z.number().int().optional(),
 	startedAt: z.number().optional(),
 	endedAt: z.number().optional(),
@@ -346,6 +352,35 @@ const tournamentCreateSchema = z
 		storeId: z.string().optional(),
 		tournamentId: z.string().optional(),
 		currencyId: z.string().optional(),
+		// Snapshot fields — same role as on the cash schema. Allows manual
+		// sessions (or wizard-driven creation) to declare the rule wholesale
+		// even when no master tournament is referenced.
+		ruleName: z.string().min(1).optional(),
+		variant: z.string().optional(),
+		startingStack: z.number().int().optional(),
+		bountyAmount: z.number().int().optional(),
+		tableSize: z.number().int().optional(),
+		blindLevels: z
+			.array(
+				z.object({
+					isBreak: z.boolean(),
+					blind1: z.number().int().nullable().optional(),
+					blind2: z.number().int().nullable().optional(),
+					blind3: z.number().int().nullable().optional(),
+					ante: z.number().int().nullable().optional(),
+					minutes: z.number().int().nullable().optional(),
+				})
+			)
+			.optional(),
+		chipPurchases: z
+			.array(
+				z.object({
+					name: z.string(),
+					cost: z.number().int(),
+					chips: z.number().int(),
+				})
+			)
+			.optional(),
 		startedAt: z.number().optional(),
 		endedAt: z.number().optional(),
 		breakMinutes: z.number().int().min(0).optional(),
@@ -1094,7 +1129,10 @@ interface CashRuleInput {
 	blind1?: number | null;
 	blind2?: number | null;
 	blind3?: number | null;
+	maxBuyIn?: number | null;
+	minBuyIn?: number | null;
 	ringGameId?: string | null;
+	ruleName?: string;
 	tableSize?: number | null;
 	variant?: string;
 }
@@ -1105,15 +1143,15 @@ function pick<T>(override: T | undefined, fallback: T): T {
 
 function defaultCashSnapshot(input: CashRuleInput): CashRuleSnapshot {
 	return {
-		ruleName: "Untitled",
+		ruleName: input.ruleName ?? "Untitled",
 		variant: input.variant ?? "nlh",
 		blind1: input.blind1 ?? null,
 		blind2: input.blind2 ?? null,
 		blind3: input.blind3 ?? null,
 		ante: input.ante ?? null,
 		anteType: input.anteType ?? null,
-		minBuyIn: null,
-		maxBuyIn: null,
+		minBuyIn: input.minBuyIn ?? null,
+		maxBuyIn: input.maxBuyIn ?? null,
 		tableSize: input.tableSize ?? null,
 	};
 }
@@ -1123,15 +1161,15 @@ function mergeCashSnapshotWithParent(
 	rg: typeof ringGame.$inferSelect
 ): CashRuleSnapshot {
 	return {
-		ruleName: rg.name,
+		ruleName: input.ruleName ?? rg.name,
 		variant: input.variant ?? rg.variant,
 		blind1: pick(input.blind1, rg.blind1),
 		blind2: pick(input.blind2, rg.blind2),
 		blind3: pick(input.blind3, rg.blind3),
 		ante: pick(input.ante, rg.ante),
 		anteType: pick(input.anteType, rg.anteType),
-		minBuyIn: rg.minBuyIn,
-		maxBuyIn: rg.maxBuyIn,
+		minBuyIn: pick(input.minBuyIn, rg.minBuyIn),
+		maxBuyIn: pick(input.maxBuyIn, rg.maxBuyIn),
 		tableSize: pick(input.tableSize, rg.tableSize),
 	};
 }
@@ -1211,22 +1249,29 @@ interface TournamentRuleSnapshot {
 	variant: string;
 }
 
+interface TournamentRuleInput {
+	bountyAmount?: number | null;
+	entryFee?: number | null;
+	ruleName?: string;
+	startingStack?: number | null;
+	tableSize?: number | null;
+	tournamentBuyIn?: number | null;
+	tournamentId?: string | null;
+	variant?: string;
+}
+
 async function resolveTournamentRuleSnapshot(
 	db: DbInstance,
-	input: {
-		tournamentId?: string | null;
-		tournamentBuyIn?: number | null;
-		entryFee?: number | null;
-	}
+	input: TournamentRuleInput
 ): Promise<TournamentRuleSnapshot> {
 	let base: TournamentRuleSnapshot = {
-		ruleName: "Untitled",
-		variant: "nlh",
+		ruleName: input.ruleName ?? "Untitled",
+		variant: input.variant ?? "nlh",
 		tournamentBuyIn: input.tournamentBuyIn ?? null,
 		entryFee: input.entryFee ?? null,
-		startingStack: null,
-		bountyAmount: null,
-		tableSize: null,
+		startingStack: input.startingStack ?? null,
+		bountyAmount: input.bountyAmount ?? null,
+		tableSize: input.tableSize ?? null,
 	};
 	if (input.tournamentId) {
 		const [t] = await db
@@ -1235,8 +1280,8 @@ async function resolveTournamentRuleSnapshot(
 			.where(eq(tournament.id, input.tournamentId));
 		if (t) {
 			base = {
-				ruleName: t.name,
-				variant: t.variant,
+				ruleName: input.ruleName ?? t.name,
+				variant: input.variant ?? t.variant,
 				tournamentBuyIn:
 					input.tournamentBuyIn !== undefined && input.tournamentBuyIn !== null
 						? input.tournamentBuyIn
@@ -1245,9 +1290,9 @@ async function resolveTournamentRuleSnapshot(
 					input.entryFee !== undefined && input.entryFee !== null
 						? input.entryFee
 						: t.entryFee,
-				startingStack: t.startingStack,
-				bountyAmount: t.bountyAmount,
-				tableSize: t.tableSize,
+				startingStack: pick(input.startingStack, t.startingStack),
+				bountyAmount: pick(input.bountyAmount, t.bountyAmount),
+				tableSize: pick(input.tableSize, t.tableSize),
 			};
 		}
 	}
@@ -1264,6 +1309,11 @@ async function insertTournamentSessionDetail(
 		tournamentId: input.tournamentId,
 		tournamentBuyIn: input.tournamentBuyIn,
 		entryFee: input.entryFee,
+		ruleName: input.ruleName,
+		variant: input.variant,
+		startingStack: input.startingStack,
+		bountyAmount: input.bountyAmount,
+		tableSize: input.tableSize,
 	});
 	await db.insert(sessionTournamentDetail).values({
 		sessionId,
@@ -1286,6 +1336,46 @@ async function insertTournamentSessionDetail(
 	});
 	if (input.tournamentId) {
 		await snapshotTournamentStructure(db, sessionId, input.tournamentId);
+	}
+	// Allow callers to override the snapshotted structure with explicit
+	// blind levels / chip purchases. This runs after the parent copy so
+	// the explicit arrays win when both are supplied.
+	if (input.blindLevels !== undefined) {
+		await db
+			.delete(sessionBlindLevel)
+			.where(eq(sessionBlindLevel.sessionId, sessionId));
+		if (input.blindLevels.length > 0) {
+			await db.insert(sessionBlindLevel).values(
+				input.blindLevels.map((l, idx) => ({
+					id: crypto.randomUUID(),
+					sessionId,
+					level: idx + 1,
+					isBreak: l.isBreak,
+					blind1: l.blind1 ?? null,
+					blind2: l.blind2 ?? null,
+					blind3: l.blind3 ?? null,
+					ante: l.ante ?? null,
+					minutes: l.minutes ?? null,
+				}))
+			);
+		}
+	}
+	if (input.chipPurchases !== undefined) {
+		await db
+			.delete(sessionChipPurchase)
+			.where(eq(sessionChipPurchase.sessionId, sessionId));
+		if (input.chipPurchases.length > 0) {
+			await db.insert(sessionChipPurchase).values(
+				input.chipPurchases.map((p, idx) => ({
+					id: crypto.randomUUID(),
+					sessionId,
+					name: p.name,
+					cost: p.cost,
+					chips: p.chips,
+					sortOrder: idx,
+				}))
+			);
+		}
 	}
 }
 
