@@ -20,6 +20,7 @@ import {
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
+import { resolveCashRuleSnapshot } from "./session";
 
 const DEFAULT_LIMIT = 20;
 
@@ -209,7 +210,7 @@ export const liveCashGameSessionRouter = router({
 					storeId: gameSession.storeId,
 					storeName: store.name,
 					ringGameId: sessionCashDetail.ringGameId,
-					ringGameName: ringGame.name,
+					ringGameName: sessionCashDetail.ruleName,
 					currencyId: gameSession.currencyId,
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
@@ -225,7 +226,6 @@ export const liveCashGameSessionRouter = router({
 					eq(sessionCashDetail.sessionId, gameSession.id)
 				)
 				.leftJoin(store, eq(store.id, gameSession.storeId))
-				.leftJoin(ringGame, eq(ringGame.id, sessionCashDetail.ringGameId))
 				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
 				.where(and(...conditions))
 				.orderBy(desc(gameSession.startedAt))
@@ -402,9 +402,22 @@ export const liveCashGameSessionRouter = router({
 				updatedAt: now,
 			});
 
+			const snapshot = await resolveCashRuleSnapshot(ctx.db, {
+				ringGameId: input.ringGameId,
+			});
 			await ctx.db.insert(sessionCashDetail).values({
 				sessionId: id,
 				ringGameId: input.ringGameId ?? null,
+				ruleName: input.ringGameId ? snapshot.ruleName : "Cash Game",
+				variant: snapshot.variant,
+				blind1: snapshot.blind1,
+				blind2: snapshot.blind2,
+				blind3: snapshot.blind3,
+				ante: snapshot.ante,
+				anteType: snapshot.anteType,
+				minBuyIn: snapshot.minBuyIn,
+				maxBuyIn: snapshot.maxBuyIn,
+				tableSize: snapshot.tableSize,
 			});
 
 			await ctx.db.insert(sessionEvent).values({
@@ -481,6 +494,20 @@ export const liveCashGameSessionRouter = router({
 				if (patch.currencyId) {
 					updateData.currencyId = patch.currencyId;
 				}
+
+				const snapshot = await resolveCashRuleSnapshot(ctx.db, {
+					ringGameId: input.ringGameId,
+				});
+				cashDetailUpdate.ruleName = snapshot.ruleName;
+				cashDetailUpdate.variant = snapshot.variant;
+				cashDetailUpdate.blind1 = snapshot.blind1;
+				cashDetailUpdate.blind2 = snapshot.blind2;
+				cashDetailUpdate.blind3 = snapshot.blind3;
+				cashDetailUpdate.ante = snapshot.ante;
+				cashDetailUpdate.anteType = snapshot.anteType;
+				cashDetailUpdate.minBuyIn = snapshot.minBuyIn;
+				cashDetailUpdate.maxBuyIn = snapshot.maxBuyIn;
+				cashDetailUpdate.tableSize = snapshot.tableSize;
 			}
 
 			await ctx.db

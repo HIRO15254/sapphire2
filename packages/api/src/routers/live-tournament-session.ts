@@ -18,6 +18,7 @@ import {
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
+import { resolveTournamentRuleSnapshot } from "./session";
 
 const DEFAULT_LIMIT = 20;
 
@@ -82,16 +83,22 @@ async function assertNoActiveSession(
 	}
 }
 
-async function fetchTournamentMasterData(
-	db: DbInstance,
-	tournamentId: string | null
-): Promise<{
+function detailSnapshotForGetById(
+	detail:
+		| {
+				tournamentBuyIn: number | null;
+				entryFee: number | null;
+				startingStack: number | null;
+				tableSize: number | null;
+		  }
+		| undefined
+): {
 	tournamentBuyIn: number | undefined;
 	entryFee: number | undefined;
 	startingStack: number | undefined;
 	tableSize: number | null;
-}> {
-	if (!tournamentId) {
+} {
+	if (!detail) {
 		return {
 			tournamentBuyIn: undefined,
 			entryFee: undefined,
@@ -99,20 +106,11 @@ async function fetchTournamentMasterData(
 			tableSize: null,
 		};
 	}
-	const [t] = await db
-		.select({
-			buyIn: tournament.buyIn,
-			entryFee: tournament.entryFee,
-			startingStack: tournament.startingStack,
-			tableSize: tournament.tableSize,
-		})
-		.from(tournament)
-		.where(eq(tournament.id, tournamentId));
 	return {
-		tournamentBuyIn: t?.buyIn ?? undefined,
-		entryFee: t?.entryFee ?? undefined,
-		startingStack: t?.startingStack ?? undefined,
-		tableSize: t?.tableSize ?? null,
+		tournamentBuyIn: detail.tournamentBuyIn ?? undefined,
+		entryFee: detail.entryFee ?? undefined,
+		startingStack: detail.startingStack ?? undefined,
+		tableSize: detail.tableSize ?? null,
 	};
 }
 
@@ -284,6 +282,17 @@ async function resolveDetailUpdate(
 		if (patch.currencyId) {
 			patchedUpdateData.currencyId = patch.currencyId;
 		}
+
+		const snapshot = await resolveTournamentRuleSnapshot(db, {
+			tournamentId: input.tournamentId,
+		});
+		detailUpdate.ruleName = snapshot.ruleName;
+		detailUpdate.variant = snapshot.variant;
+		detailUpdate.startingStack = snapshot.startingStack;
+		detailUpdate.bountyAmount = snapshot.bountyAmount;
+		detailUpdate.tableSize = snapshot.tableSize;
+		detailUpdate.tournamentBuyIn = snapshot.tournamentBuyIn;
+		detailUpdate.entryFee = snapshot.entryFee;
 	}
 
 	return { detailUpdate, patchedUpdateData };
@@ -482,8 +491,8 @@ export const liveTournamentSessionRouter = router({
 					storeId: gameSession.storeId,
 					storeName: store.name,
 					tournamentId: sessionTournamentDetail.tournamentId,
-					tournamentName: tournament.name,
-					startingStack: tournament.startingStack,
+					tournamentName: sessionTournamentDetail.ruleName,
+					startingStack: sessionTournamentDetail.startingStack,
 					currencyId: gameSession.currencyId,
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
@@ -499,10 +508,6 @@ export const liveTournamentSessionRouter = router({
 					eq(sessionTournamentDetail.sessionId, gameSession.id)
 				)
 				.leftJoin(store, eq(store.id, gameSession.storeId))
-				.leftJoin(
-					tournament,
-					eq(tournament.id, sessionTournamentDetail.tournamentId)
-				)
 				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
 				.where(and(...conditions))
 				.orderBy(desc(gameSession.startedAt))
@@ -557,10 +562,7 @@ export const liveTournamentSessionRouter = router({
 				.from(sessionTournamentDetail)
 				.where(eq(sessionTournamentDetail.sessionId, input.id));
 
-			const masterData = await fetchTournamentMasterData(
-				ctx.db,
-				detail?.tournamentId ?? null
-			);
+			const masterData = detailSnapshotForGetById(detail);
 
 			const tournamentBuyIn =
 				detail?.tournamentBuyIn ?? masterData.tournamentBuyIn;
@@ -669,15 +671,25 @@ export const liveTournamentSessionRouter = router({
 				updatedAt: now,
 			});
 
+			const snapshot = await resolveTournamentRuleSnapshot(ctx.db, {
+				tournamentId: input.tournamentId,
+				tournamentBuyIn: input.buyIn,
+				entryFee: input.entryFee,
+			});
 			await ctx.db.insert(sessionTournamentDetail).values({
 				sessionId: id,
 				tournamentId: input.tournamentId ?? null,
-				tournamentBuyIn: input.buyIn ?? null,
-				entryFee: input.entryFee ?? null,
+				tournamentBuyIn: snapshot.tournamentBuyIn,
+				entryFee: snapshot.entryFee,
 				timerStartedAt:
 					input.timerStartedAt === undefined
 						? null
 						: new Date(input.timerStartedAt * 1000),
+				ruleName: input.tournamentId ? snapshot.ruleName : "Tournament",
+				variant: snapshot.variant,
+				startingStack: snapshot.startingStack,
+				bountyAmount: snapshot.bountyAmount,
+				tableSize: snapshot.tableSize,
 			});
 
 			await ctx.db.insert(sessionEvent).values({

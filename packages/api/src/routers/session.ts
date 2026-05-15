@@ -73,42 +73,6 @@ function computeTournamentPL(
 	return income - cost;
 }
 
-interface RingGameConfigInput {
-	ante?: number | null;
-	anteType?: "none" | "all" | "bb" | null;
-	blind1?: number | null;
-	blind2?: number | null;
-	blind3?: number | null;
-	tableSize?: number | null;
-	variant?: string;
-}
-
-function buildRingGameUpdateData(
-	input: RingGameConfigInput
-): Record<string, unknown> | null {
-	const keys = [
-		"variant",
-		"blind1",
-		"blind2",
-		"blind3",
-		"ante",
-		"anteType",
-		"tableSize",
-	] as const;
-	const hasUpdate = keys.some((k) => input[k] !== undefined);
-	if (!hasUpdate) {
-		return null;
-	}
-
-	const data: Record<string, unknown> = { updatedAt: new Date() };
-	for (const key of keys) {
-		if (input[key] !== undefined) {
-			data[key] = input[key];
-		}
-	}
-	return data;
-}
-
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "currency" | "ringGame" | "store" | "tournament",
@@ -262,12 +226,7 @@ async function syncCurrencyTransaction(
 	}
 }
 
-export {
-	buildRingGameUpdateData,
-	computeCashGamePL,
-	computeTournamentPL,
-	validateSessionOwnership,
-};
+export { computeCashGamePL, computeTournamentPL, validateSessionOwnership };
 
 const CASH_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"buyIn",
@@ -943,37 +902,63 @@ async function applyCashDetailUpdate(
 	if (input.evCashOut !== undefined) {
 		cashUpdate.evCashOut = input.evCashOut;
 	}
+
+	// Snapshot field overrides — written to detail, never propagated to parent.
+	if (input.variant !== undefined) {
+		cashUpdate.variant = input.variant;
+	}
+	if (input.blind1 !== undefined) {
+		cashUpdate.blind1 = input.blind1;
+	}
+	if (input.blind2 !== undefined) {
+		cashUpdate.blind2 = input.blind2;
+	}
+	if (input.blind3 !== undefined) {
+		cashUpdate.blind3 = input.blind3;
+	}
+	if (input.ante !== undefined) {
+		cashUpdate.ante = input.ante;
+	}
+	if (input.anteType !== undefined) {
+		cashUpdate.anteType = input.anteType;
+	}
+	if (input.tableSize !== undefined) {
+		cashUpdate.tableSize = input.tableSize;
+	}
+
 	if (input.ringGameId !== undefined) {
 		cashUpdate.ringGameId = input.ringGameId;
-	}
-
-	if (Object.keys(cashUpdate).length > 0) {
-		const [existingDetail] = await db
-			.select()
-			.from(sessionCashDetail)
-			.where(eq(sessionCashDetail.sessionId, sessionId));
-		if (existingDetail) {
-			await db
-				.update(sessionCashDetail)
-				.set(cashUpdate)
-				.where(eq(sessionCashDetail.sessionId, sessionId));
-		} else {
-			await db.insert(sessionCashDetail).values({ sessionId, ...cashUpdate });
+		if (input.ringGameId) {
+			// Re-snapshot from the new parent, while letting explicit input
+			// fields override.
+			const snapshot = await resolveCashRuleSnapshot(db, input);
+			cashUpdate.ruleName = snapshot.ruleName;
+			cashUpdate.variant = snapshot.variant;
+			cashUpdate.blind1 = snapshot.blind1;
+			cashUpdate.blind2 = snapshot.blind2;
+			cashUpdate.blind3 = snapshot.blind3;
+			cashUpdate.ante = snapshot.ante;
+			cashUpdate.anteType = snapshot.anteType;
+			cashUpdate.minBuyIn = snapshot.minBuyIn;
+			cashUpdate.maxBuyIn = snapshot.maxBuyIn;
+			cashUpdate.tableSize = snapshot.tableSize;
 		}
 	}
 
-	const rgUpdateData = buildRingGameUpdateData(input);
-	if (rgUpdateData) {
-		const [currentDetail] = await db
-			.select()
-			.from(sessionCashDetail)
+	if (Object.keys(cashUpdate).length === 0) {
+		return;
+	}
+	const [existingDetail] = await db
+		.select()
+		.from(sessionCashDetail)
+		.where(eq(sessionCashDetail.sessionId, sessionId));
+	if (existingDetail) {
+		await db
+			.update(sessionCashDetail)
+			.set(cashUpdate)
 			.where(eq(sessionCashDetail.sessionId, sessionId));
-		if (currentDetail?.ringGameId) {
-			await db
-				.update(ringGame)
-				.set(rgUpdateData)
-				.where(eq(ringGame.id, currentDetail.ringGameId));
-		}
+	} else {
+		await db.insert(sessionCashDetail).values({ sessionId, ...cashUpdate });
 	}
 }
 
@@ -991,26 +976,55 @@ interface TournamentUpdateInput {
 	tournamentId?: string | null;
 }
 
-async function applyTournamentDetailUpdate(
+async function applyTournamentSnapshotUpdate(
 	db: DbInstance,
-	sessionId: string,
+	tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert>,
 	input: TournamentUpdateInput
 ): Promise<void> {
-	const tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> = {};
-	if (input.tournamentId !== undefined) {
-		tournUpdate.tournamentId = input.tournamentId;
+	if (input.tournamentId === undefined) {
+		return;
 	}
-	if (input.tournamentBuyIn !== undefined) {
-		tournUpdate.tournamentBuyIn = input.tournamentBuyIn;
+	tournUpdate.tournamentId = input.tournamentId;
+	if (!input.tournamentId) {
+		return;
 	}
-	if (input.entryFee !== undefined) {
-		tournUpdate.entryFee = input.entryFee;
+	const snapshot = await resolveTournamentRuleSnapshot(db, {
+		tournamentId: input.tournamentId,
+		tournamentBuyIn: input.tournamentBuyIn,
+		entryFee: input.entryFee,
+	});
+	tournUpdate.ruleName = snapshot.ruleName;
+	tournUpdate.variant = snapshot.variant;
+	tournUpdate.startingStack = snapshot.startingStack;
+	tournUpdate.bountyAmount = snapshot.bountyAmount;
+	tournUpdate.tableSize = snapshot.tableSize;
+	if (input.tournamentBuyIn === undefined) {
+		tournUpdate.tournamentBuyIn = snapshot.tournamentBuyIn;
 	}
-	if (input.placement !== undefined) {
-		tournUpdate.placement = input.placement;
+	if (input.entryFee === undefined) {
+		tournUpdate.entryFee = snapshot.entryFee;
 	}
-	if (input.totalEntries !== undefined) {
-		tournUpdate.totalEntries = input.totalEntries;
+}
+
+function applyTournamentScalarUpdates(
+	tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert>,
+	input: TournamentUpdateInput
+): void {
+	const scalarKeys = [
+		"tournamentBuyIn",
+		"entryFee",
+		"placement",
+		"totalEntries",
+		"prizeMoney",
+		"rebuyCount",
+		"rebuyCost",
+		"addonCost",
+		"bountyPrizes",
+	] as const;
+	for (const key of scalarKeys) {
+		if (input[key] !== undefined) {
+			tournUpdate[key] = input[key];
+		}
 	}
 	if (input.beforeDeadline !== undefined) {
 		tournUpdate.beforeDeadline = input.beforeDeadline;
@@ -1019,21 +1033,16 @@ async function applyTournamentDetailUpdate(
 			tournUpdate.totalEntries = null;
 		}
 	}
-	if (input.prizeMoney !== undefined) {
-		tournUpdate.prizeMoney = input.prizeMoney;
-	}
-	if (input.rebuyCount !== undefined) {
-		tournUpdate.rebuyCount = input.rebuyCount;
-	}
-	if (input.rebuyCost !== undefined) {
-		tournUpdate.rebuyCost = input.rebuyCost;
-	}
-	if (input.addonCost !== undefined) {
-		tournUpdate.addonCost = input.addonCost;
-	}
-	if (input.bountyPrizes !== undefined) {
-		tournUpdate.bountyPrizes = input.bountyPrizes;
-	}
+}
+
+async function applyTournamentDetailUpdate(
+	db: DbInstance,
+	sessionId: string,
+	input: TournamentUpdateInput
+): Promise<void> {
+	const tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> = {};
+	await applyTournamentSnapshotUpdate(db, tournUpdate, input);
+	applyTournamentScalarUpdates(tournUpdate, input);
 
 	if (Object.keys(tournUpdate).length === 0) {
 		return;
@@ -1054,6 +1063,84 @@ async function applyTournamentDetailUpdate(
 	}
 }
 
+interface CashRuleSnapshot {
+	ante: number | null;
+	anteType: string | null;
+	blind1: number | null;
+	blind2: number | null;
+	blind3: number | null;
+	maxBuyIn: number | null;
+	minBuyIn: number | null;
+	ruleName: string;
+	tableSize: number | null;
+	variant: string;
+}
+
+interface CashRuleInput {
+	ante?: number | null;
+	anteType?: "none" | "all" | "bb" | null;
+	blind1?: number | null;
+	blind2?: number | null;
+	blind3?: number | null;
+	ringGameId?: string | null;
+	tableSize?: number | null;
+	variant?: string;
+}
+
+function pick<T>(override: T | undefined, fallback: T): T {
+	return override === undefined ? fallback : override;
+}
+
+function defaultCashSnapshot(input: CashRuleInput): CashRuleSnapshot {
+	return {
+		ruleName: "Untitled",
+		variant: input.variant ?? "nlh",
+		blind1: input.blind1 ?? null,
+		blind2: input.blind2 ?? null,
+		blind3: input.blind3 ?? null,
+		ante: input.ante ?? null,
+		anteType: input.anteType ?? null,
+		minBuyIn: null,
+		maxBuyIn: null,
+		tableSize: input.tableSize ?? null,
+	};
+}
+
+function mergeCashSnapshotWithParent(
+	input: CashRuleInput,
+	rg: typeof ringGame.$inferSelect
+): CashRuleSnapshot {
+	return {
+		ruleName: rg.name,
+		variant: input.variant ?? rg.variant,
+		blind1: pick(input.blind1, rg.blind1),
+		blind2: pick(input.blind2, rg.blind2),
+		blind3: pick(input.blind3, rg.blind3),
+		ante: pick(input.ante, rg.ante),
+		anteType: pick(input.anteType, rg.anteType),
+		minBuyIn: rg.minBuyIn,
+		maxBuyIn: rg.maxBuyIn,
+		tableSize: pick(input.tableSize, rg.tableSize),
+	};
+}
+
+async function resolveCashRuleSnapshot(
+	db: DbInstance,
+	input: CashRuleInput
+): Promise<CashRuleSnapshot> {
+	if (!input.ringGameId) {
+		return defaultCashSnapshot(input);
+	}
+	const [rg] = await db
+		.select()
+		.from(ringGame)
+		.where(eq(ringGame.id, input.ringGameId));
+	if (!rg) {
+		return defaultCashSnapshot(input);
+	}
+	return mergeCashSnapshotWithParent(input, rg);
+}
+
 async function insertCashGameSessionDetail(
 	db: DbInstance,
 	sessionId: string,
@@ -1061,23 +1148,27 @@ async function insertCashGameSessionDetail(
 	now: Date
 ): Promise<void> {
 	let ringGameId = input.ringGameId ?? null;
+	const snapshot = await resolveCashRuleSnapshot(db, input);
+
 	if (!ringGameId) {
 		ringGameId = crypto.randomUUID();
+		const derivedName = `${snapshot.variant} ${snapshot.blind1 ?? 0}/${snapshot.blind2 ?? 0}`;
 		await db.insert(ringGame).values({
 			id: ringGameId,
 			storeId: null,
-			name: `${input.variant ?? "nlh"} ${input.blind1 ?? 0}/${input.blind2 ?? 0}`,
-			variant: input.variant ?? "nlh",
-			blind1: input.blind1 ?? null,
-			blind2: input.blind2 ?? null,
-			blind3: input.blind3 ?? null,
-			ante: input.ante ?? null,
-			anteType: input.anteType ?? null,
+			name: derivedName,
+			variant: snapshot.variant,
+			blind1: snapshot.blind1,
+			blind2: snapshot.blind2,
+			blind3: snapshot.blind3,
+			ante: snapshot.ante,
+			anteType: snapshot.anteType,
 			minBuyIn: null,
 			maxBuyIn: null,
-			tableSize: input.tableSize ?? null,
+			tableSize: snapshot.tableSize,
 			updatedAt: now,
 		});
+		snapshot.ruleName = derivedName;
 	}
 	await db.insert(sessionCashDetail).values({
 		sessionId,
@@ -1085,7 +1176,70 @@ async function insertCashGameSessionDetail(
 		buyIn: input.buyIn,
 		cashOut: input.cashOut,
 		evCashOut: input.evCashOut ?? null,
+		ruleName: snapshot.ruleName,
+		variant: snapshot.variant,
+		blind1: snapshot.blind1,
+		blind2: snapshot.blind2,
+		blind3: snapshot.blind3,
+		ante: snapshot.ante,
+		anteType: snapshot.anteType,
+		minBuyIn: snapshot.minBuyIn,
+		maxBuyIn: snapshot.maxBuyIn,
+		tableSize: snapshot.tableSize,
 	});
+}
+
+interface TournamentRuleSnapshot {
+	bountyAmount: number | null;
+	entryFee: number | null;
+	ruleName: string;
+	startingStack: number | null;
+	tableSize: number | null;
+	tournamentBuyIn: number | null;
+	variant: string;
+}
+
+async function resolveTournamentRuleSnapshot(
+	db: DbInstance,
+	input: {
+		tournamentId?: string | null;
+		tournamentBuyIn?: number | null;
+		entryFee?: number | null;
+	}
+): Promise<TournamentRuleSnapshot> {
+	let base: TournamentRuleSnapshot = {
+		ruleName: "Untitled",
+		variant: "nlh",
+		tournamentBuyIn: input.tournamentBuyIn ?? null,
+		entryFee: input.entryFee ?? null,
+		startingStack: null,
+		bountyAmount: null,
+		tableSize: null,
+	};
+	if (input.tournamentId) {
+		const [t] = await db
+			.select()
+			.from(tournament)
+			.where(eq(tournament.id, input.tournamentId));
+		if (t) {
+			base = {
+				ruleName: t.name,
+				variant: t.variant,
+				tournamentBuyIn:
+					input.tournamentBuyIn !== undefined && input.tournamentBuyIn !== null
+						? input.tournamentBuyIn
+						: t.buyIn,
+				entryFee:
+					input.entryFee !== undefined && input.entryFee !== null
+						? input.entryFee
+						: t.entryFee,
+				startingStack: t.startingStack,
+				bountyAmount: t.bountyAmount,
+				tableSize: t.tableSize,
+			};
+		}
+	}
+	return base;
 }
 
 async function insertTournamentSessionDetail(
@@ -1094,11 +1248,16 @@ async function insertTournamentSessionDetail(
 	input: z.infer<typeof tournamentCreateSchema>
 ): Promise<void> {
 	const beforeDeadline = input.beforeDeadline === true;
+	const snapshot = await resolveTournamentRuleSnapshot(db, {
+		tournamentId: input.tournamentId,
+		tournamentBuyIn: input.tournamentBuyIn,
+		entryFee: input.entryFee,
+	});
 	await db.insert(sessionTournamentDetail).values({
 		sessionId,
 		tournamentId: input.tournamentId ?? null,
-		tournamentBuyIn: input.tournamentBuyIn,
-		entryFee: input.entryFee,
+		tournamentBuyIn: snapshot.tournamentBuyIn,
+		entryFee: snapshot.entryFee,
 		beforeDeadline: beforeDeadline ? true : null,
 		placement: beforeDeadline ? null : (input.placement ?? null),
 		totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
@@ -1107,8 +1266,15 @@ async function insertTournamentSessionDetail(
 		rebuyCost: input.rebuyCost ?? null,
 		addonCost: input.addonCost ?? null,
 		bountyPrizes: input.bountyPrizes ?? null,
+		ruleName: snapshot.ruleName,
+		variant: snapshot.variant,
+		startingStack: snapshot.startingStack,
+		bountyAmount: snapshot.bountyAmount,
+		tableSize: snapshot.tableSize,
 	});
 }
+
+export { resolveCashRuleSnapshot, resolveTournamentRuleSnapshot };
 
 async function insertSessionTags(
 	db: DbInstance,
@@ -1296,10 +1462,10 @@ export const sessionRouter = router({
 					storeId: gameSession.storeId,
 					storeName: store.name,
 					ringGameId: sessionCashDetail.ringGameId,
-					ringGameName: ringGame.name,
-					ringGameBlind2: ringGame.blind2,
+					ringGameName: sessionCashDetail.ruleName,
+					ringGameBlind2: sessionCashDetail.blind2,
 					tournamentId: sessionTournamentDetail.tournamentId,
-					tournamentName: tournament.name,
+					tournamentName: sessionTournamentDetail.ruleName,
 					currencyId: gameSession.currencyId,
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
@@ -1315,11 +1481,6 @@ export const sessionRouter = router({
 					eq(sessionTournamentDetail.sessionId, gameSession.id)
 				)
 				.leftJoin(store, eq(store.id, gameSession.storeId))
-				.leftJoin(ringGame, eq(ringGame.id, sessionCashDetail.ringGameId))
-				.leftJoin(
-					tournament,
-					eq(tournament.id, sessionTournamentDetail.tournamentId)
-				)
 				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
 				.where(and(...paginationConditions))
 				.orderBy(desc(gameSession.sessionDate), desc(gameSession.id))
@@ -1584,7 +1745,7 @@ export const sessionRouter = router({
 					buyIn: sessionCashDetail.buyIn,
 					cashOut: sessionCashDetail.cashOut,
 					evCashOut: sessionCashDetail.evCashOut,
-					ringGameBlind2: ringGame.blind2,
+					ringGameBlind2: sessionCashDetail.blind2,
 					tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
 					entryFee: sessionTournamentDetail.entryFee,
 					rebuyCount: sessionTournamentDetail.rebuyCount,
@@ -1598,7 +1759,6 @@ export const sessionRouter = router({
 					sessionCashDetail,
 					eq(sessionCashDetail.sessionId, gameSession.id)
 				)
-				.leftJoin(ringGame, eq(ringGame.id, sessionCashDetail.ringGameId))
 				.leftJoin(
 					sessionTournamentDetail,
 					eq(sessionTournamentDetail.sessionId, gameSession.id)

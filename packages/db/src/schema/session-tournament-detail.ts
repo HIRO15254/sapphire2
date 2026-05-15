@@ -23,6 +23,13 @@ export const sessionTournamentDetail = sqliteTable(
 		addonCost: integer("addon_cost"),
 		bountyPrizes: integer("bounty_prizes"),
 		timerStartedAt: integer("timer_started_at", { mode: "timestamp" }),
+		// Snapshot fields — copied from tournament at session create time and
+		// frozen thereafter. Parent rename / config change does not propagate.
+		ruleName: text("rule_name").notNull().default("Untitled"),
+		variant: text("variant").notNull().default("nlh"),
+		startingStack: integer("starting_stack"),
+		bountyAmount: integer("bounty_amount"),
+		tableSize: integer("table_size"),
 	},
 	(t) => [index("session_tournament_tournament_idx").on(t.tournamentId)]
 );
