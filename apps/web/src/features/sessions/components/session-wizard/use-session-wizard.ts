@@ -5,7 +5,7 @@ import type {
 	SessionFormValues,
 	TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
-import { useSessionFormState } from "../session-form/use-session-form-state";
+import { useSessionFormState } from "./use-session-form-state";
 
 export type WizardStep = "master" | "rules" | "result";
 

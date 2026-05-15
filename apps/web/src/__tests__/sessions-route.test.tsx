@@ -62,8 +62,8 @@ vi.mock("@/features/sessions/components/session-filters", () => ({
 	SessionFilters: () => <div>Session Filters</div>,
 }));
 
-vi.mock("@/features/sessions/components/session-form", () => ({
-	SessionForm: () => <div>Session Form</div>,
+vi.mock("@/features/sessions/components/session-wizard", () => ({
+	SessionWizard: () => <div>Session Wizard</div>,
 }));
 
 vi.mock("@/features/sessions/components/session-tag-manager", () => ({
@@ -217,7 +217,7 @@ describe("SessionsPage", () => {
 		expect(
 			screen.getByRole("heading", { name: "New Session" })
 		).toBeInTheDocument();
-		expect(screen.getByText("Session Form")).toBeInTheDocument();
+		expect(screen.getByText("Session Wizard")).toBeInTheDocument();
 	});
 
 	it("opens the Manage Tags dialog from the page header action", async () => {
