@@ -105,6 +105,7 @@ describe("sessionFormSchema", () => {
 			startingStack: "",
 			bountyAmount: "",
 			beforeDeadline: false,
+			timerStartedAt: "",
 			placement: "",
 			totalEntries: "",
 			prizeMoney: "",

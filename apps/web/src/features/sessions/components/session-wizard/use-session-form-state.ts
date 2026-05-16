@@ -26,6 +26,14 @@ function emptyToUndefined(value: string): string | undefined {
 	return value === "" ? undefined : value;
 }
 
+function timerStringToUnix(value: string): number | undefined {
+	if (value === "") {
+		return undefined;
+	}
+	const ms = new Date(value).getTime();
+	return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
+}
+
 export function useSessionFormState({
 	defaultValues,
 	onStoreChange,
@@ -115,6 +123,7 @@ export function useSessionFormState({
 				bountyAmount: parseOptInt(value.bountyAmount),
 				tableSize: parseOptInt(value.tableSize),
 				variant: value.variant || undefined,
+				timerStartedAt: timerStringToUnix(value.timerStartedAt),
 				blindLevels: blindLevels.length > 0 ? blindLevels : undefined,
 				chipPurchases: chipPurchases.length > 0 ? chipPurchases : undefined,
 				tournamentId: selectedGameId,
@@ -198,6 +207,9 @@ export function useSessionFormState({
 		const game = tournaments?.find((t) => t.id === gameId);
 		if (!game) {
 			return;
+		}
+		if (game.currencyId) {
+			setSelectedCurrencyId(game.currencyId);
 		}
 		applyOverrides({
 			ruleName: game.name,

@@ -65,6 +65,8 @@ export interface TournamentFormValues {
 	storeId?: string;
 	tableSize?: number;
 	tagIds?: string[];
+	/** Unix seconds — when the blind timer started. */
+	timerStartedAt?: number;
 	totalEntries?: number;
 	tournamentBuyIn: number;
 	tournamentId?: string;
@@ -92,6 +94,7 @@ export interface RingGameOption {
 export interface TournamentOption {
 	bountyAmount?: number | null;
 	buyIn?: number | null;
+	currencyId?: string | null;
 	entryFee?: number | null;
 	id: string;
 	name: string;
@@ -134,6 +137,8 @@ export interface SessionFormDefaults {
 	storeId?: string;
 	tableSize?: number;
 	tagIds?: string[];
+	/** `datetime-local` string — when the blind timer started. */
+	timerStartedAt?: string;
 	totalEntries?: number;
 	tournamentBuyIn?: number;
 	tournamentId?: string;
@@ -187,6 +192,7 @@ export const sessionFormSchema = z.object({
 	startingStack: optionalNumericString({ integer: true, min: 0 }),
 	bountyAmount: optionalNumericString({ integer: true, min: 0 }),
 	beforeDeadline: z.boolean(),
+	timerStartedAt: z.string(),
 	placement: optionalNumericString({ integer: true, min: 1 }),
 	totalEntries: optionalNumericString({ integer: true, min: 1 }),
 	prizeMoney: optionalNumericString({ integer: true, min: 0 }),
@@ -221,6 +227,7 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		startingStack: numStrOrEmpty(defaults?.startingStack),
 		bountyAmount: numStrOrEmpty(defaults?.bountyAmount),
 		beforeDeadline: defaults?.beforeDeadline === true,
+		timerStartedAt: defaults?.timerStartedAt ?? "",
 		placement: numStrOrEmpty(defaults?.placement),
 		totalEntries: numStrOrEmpty(defaults?.totalEntries),
 		prizeMoney: numStrOrEmpty(defaults?.prizeMoney),

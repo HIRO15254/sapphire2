@@ -94,10 +94,7 @@ export function TournamentRuleFields({
 				</form.Field>
 			</div>
 			{currencies && currencies.length > 0 && (
-				<Field
-					description="Auto-generates a transaction with the session's P&L."
-					label="Currency"
-				>
+				<Field label="Currency">
 					<SelectWithClear
 						onValueChange={onCurrencyChange}
 						value={selectedCurrencyId}

@@ -179,13 +179,14 @@ describe("SessionWizard — live mode", () => {
 		expect(document.getElementById("buyIn")).toBeInTheDocument();
 	});
 
-	it("shows the session-start summary on the tournament Start step", async () => {
+	it("shows the blind-timer field on the tournament Start step", async () => {
 		const user = userEvent.setup();
 		render(<SessionWizard mode="live" onSubmit={vi.fn()} stores={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
-		expect(screen.getByText("Starting Stack")).toBeInTheDocument();
+		expect(screen.getByText("Blind Timer Start")).toBeInTheDocument();
+		expect(document.getElementById("timerStartedAt")).toBeInTheDocument();
 	});
 
 	it("defaults to 'Start' label when mode=live and submitLabel is omitted", async () => {

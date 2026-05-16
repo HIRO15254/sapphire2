@@ -50,6 +50,7 @@ export function useCreateSessionDialog({
 			// Rules step exposes it via the tournament snapshot scalar.
 			startingStack: values.startingStack ?? 0,
 			memo: values.memo,
+			timerStartedAt: values.timerStartedAt,
 		});
 	};
 

@@ -155,11 +155,6 @@ function MasterStepBody({
 				selectedStoreId={state.selectedStoreId}
 				stores={stores}
 			/>
-			<p className="text-muted-foreground text-xs">
-				Pick the master rule for this session. The rules in the next step are
-				pre-filled from your selection; you can override them per session. Leave
-				blank to define the rule from scratch.
-			</p>
 		</>
 	);
 }
@@ -564,71 +559,43 @@ function TagsAndMemo({
 function CashStartStepBody({ state }: { state: UseSessionWizardReturn }) {
 	const { form } = state;
 	return (
-		<>
-			<form.Field name="buyIn">
-				{(field) => (
-					<Field
-						error={field.state.meta.errors[0]?.message}
-						htmlFor={field.name}
-						label="Initial Buy-in"
-						required
-					>
-						<Input
-							id={field.name}
-							inputMode="numeric"
-							onBlur={field.handleBlur}
-							onChange={(e) => field.handleChange(e.target.value)}
-							value={field.state.value}
-						/>
-					</Field>
-				)}
-			</form.Field>
-			<p className="text-muted-foreground text-xs">
-				The amount you sit down with. It is recorded as the session-start event;
-				later buy-ins are added from the live scene.
-			</p>
-		</>
-	);
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="flex items-baseline justify-between gap-4 py-1">
-			<span className="text-muted-foreground text-xs">{label}</span>
-			<span className="text-right font-medium text-sm">{value}</span>
-		</div>
-	);
-}
-
-function TournamentStartSummary({ state }: { state: UseSessionWizardReturn }) {
-	return (
-		<state.form.Subscribe
-			selector={(s) => ({
-				buyIn: s.values.tournamentBuyIn,
-				entryFee: s.values.entryFee,
-				startingStack: s.values.startingStack,
-			})}
-		>
-			{({ buyIn, entryFee, startingStack }) => (
-				<div className="flex flex-col gap-2">
-					<div className="rounded-md border p-3">
-						<SummaryRow label="Buy-in" value={buyIn || "—"} />
-						<SummaryRow label="Entry Fee" value={entryFee || "—"} />
-						<SummaryRow label="Starting Stack" value={startingStack || "—"} />
-					</div>
-					{startingStack ? (
-						<p className="text-muted-foreground text-xs">
-							The starting stack is recorded as your stack at kickoff.
-						</p>
-					) : (
-						<p className="text-destructive text-xs">
-							Set a starting stack on the Rules step before starting the
-							session.
-						</p>
-					)}
-				</div>
+		<form.Field name="buyIn">
+			{(field) => (
+				<Field
+					error={field.state.meta.errors[0]?.message}
+					htmlFor={field.name}
+					label="Initial Buy-in"
+					required
+				>
+					<Input
+						id={field.name}
+						inputMode="numeric"
+						onBlur={field.handleBlur}
+						onChange={(e) => field.handleChange(e.target.value)}
+						value={field.state.value}
+					/>
+				</Field>
 			)}
-		</state.form.Subscribe>
+		</form.Field>
+	);
+}
+
+function TournamentStartStepBody({ state }: { state: UseSessionWizardReturn }) {
+	const { form } = state;
+	return (
+		<form.Field name="timerStartedAt">
+			{(field) => (
+				<Field htmlFor={field.name} label="Blind Timer Start">
+					<Input
+						id={field.name}
+						onBlur={field.handleBlur}
+						onChange={(e) => field.handleChange(e.target.value)}
+						type="datetime-local"
+						value={field.state.value}
+					/>
+				</Field>
+			)}
+		</form.Field>
 	);
 }
 
@@ -636,7 +603,7 @@ function StartStepBody({ state }: { state: UseSessionWizardReturn }) {
 	return state.isCashGame ? (
 		<CashStartStepBody state={state} />
 	) : (
-		<TournamentStartSummary state={state} />
+		<TournamentStartStepBody state={state} />
 	);
 }
 
