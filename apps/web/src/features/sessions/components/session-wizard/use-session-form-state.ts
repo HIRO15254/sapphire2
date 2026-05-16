@@ -5,7 +5,6 @@ import {
 	numStrOrEmpty,
 	parseOptInt,
 	type RingGameOption,
-	type SessionBlindLevelInput,
 	type SessionChipPurchaseInput,
 	type SessionFormDefaults,
 	type SessionFormFieldValues,
@@ -13,6 +12,8 @@ import {
 	sessionFormSchema,
 	type TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
+import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
+import { toBlindLevelRows, toSessionBlindLevels } from "./blind-level-rows";
 
 interface UseSessionFormStateArgs {
 	defaultValues?: SessionFormDefaults;
@@ -56,8 +57,8 @@ export function useSessionFormState({
 	const [selectedCurrencyId, setSelectedCurrencyId] = useState<
 		string | undefined
 	>(defaultValues?.currencyId);
-	const [blindLevels, setBlindLevels] = useState<SessionBlindLevelInput[]>(
-		defaultValues?.blindLevels ?? []
+	const [blindLevels, setBlindLevels] = useState<BlindLevelRow[]>(
+		toBlindLevelRows(defaultValues?.blindLevels ?? [])
 	);
 	const [chipPurchases, setChipPurchases] = useState<
 		SessionChipPurchaseInput[]
@@ -124,7 +125,10 @@ export function useSessionFormState({
 				tableSize: parseOptInt(value.tableSize),
 				variant: value.variant || undefined,
 				timerStartedAt: timerStringToUnix(value.timerStartedAt),
-				blindLevels: blindLevels.length > 0 ? blindLevels : undefined,
+				blindLevels:
+					blindLevels.length > 0
+						? toSessionBlindLevels(blindLevels)
+						: undefined,
 				chipPurchases: chipPurchases.length > 0 ? chipPurchases : undefined,
 				tournamentId: selectedGameId,
 			});
@@ -185,14 +189,16 @@ export function useSessionFormState({
 				.catch(() => []),
 		]);
 		setBlindLevels(
-			levels.map((l) => ({
-				isBreak: l.isBreak,
-				blind1: l.blind1,
-				blind2: l.blind2,
-				blind3: l.blind3,
-				ante: l.ante,
-				minutes: l.minutes,
-			}))
+			toBlindLevelRows(
+				levels.map((l) => ({
+					isBreak: l.isBreak,
+					blind1: l.blind1,
+					blind2: l.blind2,
+					blind3: l.blind3,
+					ante: l.ante,
+					minutes: l.minutes,
+				}))
+			)
 		);
 		setChipPurchases(
 			purchases.map((p) => ({

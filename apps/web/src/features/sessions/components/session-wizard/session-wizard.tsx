@@ -11,12 +11,18 @@ import {
 	type TournamentOption,
 	tournamentOverriddenFields,
 } from "@/features/sessions/utils/session-form-helpers";
+import { LocalBlindStructureContent } from "@/features/stores/components/blind-level-editor";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@/shared/components/ui/tabs";
 import { TagInput } from "@/shared/components/ui/tag-input";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { CashGameFields } from "../cash-game-fields";
@@ -25,7 +31,6 @@ import {
 	TournamentResultFields,
 	TournamentRuleFields,
 } from "../tournament-fields";
-import { BlindLevelsInlineTable } from "./blind-levels-inline-table";
 import { ChipPurchasesInlineTable } from "./chip-purchases-inline-table";
 import {
 	type UseSessionWizardReturn,
@@ -338,7 +343,7 @@ function CashRulesStepBody({
 	);
 }
 
-function TournamentRulesStepBody({
+function TournamentSettingsTab({
 	state,
 	currencies,
 	isLiveLinked,
@@ -348,8 +353,7 @@ function TournamentRulesStepBody({
 	isLiveLinked: boolean;
 }) {
 	return (
-		<>
-			<MasterOverrideNotice state={state} />
+		<div className="flex flex-col gap-3">
 			<RuleNameField isLiveLinked={isLiveLinked} state={state} />
 			<TournamentRuleFields
 				currencies={currencies}
@@ -363,15 +367,51 @@ function TournamentRulesStepBody({
 				isLiveLinked={isLiveLinked}
 				state={state}
 			/>
-			<BlindLevelsInlineTable
-				onChange={state.setBlindLevels}
-				value={state.blindLevels}
-			/>
 			<ChipPurchasesInlineTable
 				onChange={state.setChipPurchases}
 				value={state.chipPurchases}
 			/>
-		</>
+		</div>
+	);
+}
+
+function TournamentRulesStepBody({
+	state,
+	currencies,
+	isLiveLinked,
+}: {
+	state: UseSessionWizardReturn;
+	currencies?: Array<{ id: string; name: string }>;
+	isLiveLinked: boolean;
+}) {
+	return (
+		<state.form.Subscribe selector={(s) => s.values.variant}>
+			{(variant) => (
+				<>
+					<MasterOverrideNotice state={state} />
+					<Tabs defaultValue="settings">
+						<TabsList className="grid w-full grid-cols-2">
+							<TabsTrigger value="settings">Settings</TabsTrigger>
+							<TabsTrigger value="blinds">Blind Levels</TabsTrigger>
+						</TabsList>
+						<TabsContent value="settings">
+							<TournamentSettingsTab
+								currencies={currencies}
+								isLiveLinked={isLiveLinked}
+								state={state}
+							/>
+						</TabsContent>
+						<TabsContent value="blinds">
+							<LocalBlindStructureContent
+								onChange={state.setBlindLevels}
+								value={state.blindLevels}
+								variant={variant || "nlh"}
+							/>
+						</TabsContent>
+					</Tabs>
+				</>
+			)}
+		</state.form.Subscribe>
 	);
 }
 

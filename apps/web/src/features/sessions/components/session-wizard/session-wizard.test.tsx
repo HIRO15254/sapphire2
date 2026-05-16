@@ -1,6 +1,21 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+
+// LocalBlindStructureContent (reused by the tournament Rules step) pulls in
+// the stores blind-level editor, which transitively imports @/utils/trpc.
+// Stub it so the env-validating import chain is not loaded under jsdom.
+vi.mock("@/utils/trpc", () => ({
+	trpc: {
+		blindLevel: {
+			listByTournament: {
+				queryOptions: () => ({ queryKey: ["blindLevel.listByTournament"] }),
+			},
+		},
+	},
+	trpcClient: {},
+}));
+
 import { SessionWizard } from "./session-wizard";
 
 const STORE = { id: "store-1", name: "My Casino" };
@@ -74,27 +89,27 @@ describe("SessionWizard — tournament mode", () => {
 		expect(document.getElementById("entryFee")).toBeInTheDocument();
 	});
 
-	it("renders Blind Levels and Chip Purchases inline tables on the tournament rules step", async () => {
+	it("splits the tournament Rules step into Settings and Blind Levels tabs", async () => {
 		const user = userEvent.setup();
 		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
-		expect(screen.getByText("Blind Levels")).toBeInTheDocument();
+		expect(screen.getByRole("tab", { name: "Settings" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("tab", { name: "Blind Levels" })
+		).toBeInTheDocument();
+		// Settings tab is active by default — chip purchases live there.
 		expect(screen.getByText("Chip Purchases")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: LEVEL_RE })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: BREAK_RE })).toBeInTheDocument();
 	});
 
-	it("adds a blind level row when the Level button is clicked", async () => {
+	it("reveals the shared blind-structure editor on the Blind Levels tab", async () => {
 		const user = userEvent.setup();
 		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
-		await user.click(screen.getByRole("button", { name: LEVEL_RE }));
-		// SB header + the new row's SB cell makes the SB text appear once for
-		// the header. The row contributes empty inputs; assert one of them
-		// renders by checking the # column.
-		expect(screen.getByText("1")).toBeInTheDocument();
+		await user.click(screen.getByRole("tab", { name: "Blind Levels" }));
+		expect(screen.getByRole("button", { name: LEVEL_RE })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: BREAK_RE })).toBeInTheDocument();
 	});
 });
 
