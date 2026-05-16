@@ -7,7 +7,7 @@ import type {
 } from "@/features/sessions/utils/session-form-helpers";
 import { useSessionFormState } from "./use-session-form-state";
 
-export type WizardStep = "master" | "rules" | "result";
+export type WizardStep = "master" | "rules" | "result" | "start";
 export type WizardMode = "manual" | "live";
 
 const WIZARD_STEPS_MANUAL: ReadonlyArray<{ key: WizardStep; label: string }> = [
@@ -19,6 +19,7 @@ const WIZARD_STEPS_MANUAL: ReadonlyArray<{ key: WizardStep; label: string }> = [
 const WIZARD_STEPS_LIVE: ReadonlyArray<{ key: WizardStep; label: string }> = [
 	{ key: "master", label: "Master" },
 	{ key: "rules", label: "Rules" },
+	{ key: "start", label: "Start" },
 ];
 
 export function wizardStepsForMode(

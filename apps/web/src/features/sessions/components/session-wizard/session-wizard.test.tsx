@@ -143,14 +143,15 @@ const START_RE = /Start session/;
 const START_CUSTOM_RE = /Start/;
 
 describe("SessionWizard — live mode", () => {
-	it("renders only Master + Rules steps (drops Result)", () => {
+	it("renders Master + Rules + Start steps (drops Result)", () => {
 		render(<SessionWizard mode="live" onSubmit={vi.fn()} stores={[STORE]} />);
 		expect(screen.getByText("Master")).toBeInTheDocument();
 		expect(screen.getByText("Rules")).toBeInTheDocument();
+		expect(screen.getByText("Start")).toBeInTheDocument();
 		expect(screen.queryByText("Result")).not.toBeInTheDocument();
 	});
 
-	it("shows the Start session label on the last step in live mode", async () => {
+	it("shows the Start session label on the Start step in live mode", async () => {
 		const user = userEvent.setup();
 		render(
 			<SessionWizard
@@ -160,7 +161,8 @@ describe("SessionWizard — live mode", () => {
 				submitLabel="Start session"
 			/>
 		);
-		// Advance Master -> Rules (last step in live mode).
+		// Advance Master -> Rules -> Start (the last step in live mode).
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(screen.getByRole("button", { name: START_RE })).toBeInTheDocument();
 		expect(
@@ -168,9 +170,28 @@ describe("SessionWizard — live mode", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("renders the Initial Buy-in field on the cash Start step", async () => {
+		const user = userEvent.setup();
+		render(<SessionWizard mode="live" onSubmit={vi.fn()} stores={[STORE]} />);
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
+		expect(screen.getByText("Initial Buy-in")).toBeInTheDocument();
+		expect(document.getElementById("buyIn")).toBeInTheDocument();
+	});
+
+	it("shows the session-start summary on the tournament Start step", async () => {
+		const user = userEvent.setup();
+		render(<SessionWizard mode="live" onSubmit={vi.fn()} stores={[STORE]} />);
+		await user.click(screen.getByText("Tournament"));
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
+		expect(screen.getByText("Starting Stack")).toBeInTheDocument();
+	});
+
 	it("defaults to 'Start' label when mode=live and submitLabel is omitted", async () => {
 		const user = userEvent.setup();
 		render(<SessionWizard mode="live" onSubmit={vi.fn()} stores={[STORE]} />);
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(
 			screen.getByRole("button", { name: START_CUSTOM_RE })
@@ -209,7 +230,7 @@ describe("SessionWizard — live mode", () => {
 		expect(document.getElementById("bountyPrizes")).toBeInTheDocument();
 	});
 
-	it("invokes onSubmit when the Start button is clicked on the rules step", async () => {
+	it("invokes onSubmit when the Start button is clicked on the Start step", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		render(
@@ -221,6 +242,7 @@ describe("SessionWizard — live mode", () => {
 				submitLabel="Start session"
 			/>
 		);
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: START_RE }));
 		await waitFor(() => {
