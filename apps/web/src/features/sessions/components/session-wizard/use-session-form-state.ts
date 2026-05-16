@@ -242,6 +242,16 @@ export function useSessionFormState({
 		}
 	};
 
+	// The master option (ring game / tournament) the user picked on the
+	// Master step, or undefined when defining the rule from scratch. The
+	// Rules step compares against it to surface override badges.
+	const selectedRingGame = isCashGame
+		? ringGames?.find((g) => g.id === selectedGameId)
+		: undefined;
+	const selectedTournament = isCashGame
+		? undefined
+		: tournaments?.find((t) => t.id === selectedGameId);
+
 	return {
 		form,
 		sessionType,
@@ -252,6 +262,8 @@ export function useSessionFormState({
 		selectedGameId,
 		selectedCurrencyId,
 		setSelectedCurrencyId,
+		selectedRingGame,
+		selectedTournament,
 		blindLevels,
 		setBlindLevels,
 		chipPurchases,

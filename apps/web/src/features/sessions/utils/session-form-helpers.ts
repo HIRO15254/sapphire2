@@ -239,3 +239,94 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 }
 
 export type SessionFormFieldValues = ReturnType<typeof buildDefaults>;
+
+/**
+ * Cash-rule field labels whose current form value diverges from the
+ * picked master ring game. Empty when no master is selected or every
+ * rule field still matches the master.
+ */
+export function cashOverriddenFields(
+	values: Pick<
+		SessionFormFieldValues,
+		| "ruleName"
+		| "variant"
+		| "blind1"
+		| "blind2"
+		| "blind3"
+		| "ante"
+		| "anteType"
+		| "minBuyIn"
+		| "maxBuyIn"
+		| "tableSize"
+	>,
+	master: RingGameOption | undefined
+): string[] {
+	if (!master) {
+		return [];
+	}
+	const checks: [string, string, string][] = [
+		["Rule Name", values.ruleName, master.name],
+		["Variant", values.variant, master.variant ?? "nlh"],
+		["SB", values.blind1, numStrOrEmpty(master.blind1 ?? undefined)],
+		["BB", values.blind2, numStrOrEmpty(master.blind2 ?? undefined)],
+		["Straddle", values.blind3, numStrOrEmpty(master.blind3 ?? undefined)],
+		["Ante", values.ante, numStrOrEmpty(master.ante ?? undefined)],
+		["Ante Type", values.anteType, master.anteType ?? "none"],
+		[
+			"Min Buy-in",
+			values.minBuyIn,
+			numStrOrEmpty(master.minBuyIn ?? undefined),
+		],
+		[
+			"Max Buy-in",
+			values.maxBuyIn,
+			numStrOrEmpty(master.maxBuyIn ?? undefined),
+		],
+		["Table Size", values.tableSize, master.tableSize?.toString() ?? ""],
+	];
+	return checks.filter(([, a, b]) => a !== b).map(([label]) => label);
+}
+
+/**
+ * Tournament-rule field labels whose current form value diverges from
+ * the picked master tournament.
+ */
+export function tournamentOverriddenFields(
+	values: Pick<
+		SessionFormFieldValues,
+		| "ruleName"
+		| "variant"
+		| "tournamentBuyIn"
+		| "entryFee"
+		| "startingStack"
+		| "bountyAmount"
+		| "tableSize"
+	>,
+	master: TournamentOption | undefined
+): string[] {
+	if (!master) {
+		return [];
+	}
+	const checks: [string, string, string][] = [
+		["Rule Name", values.ruleName, master.name],
+		["Variant", values.variant, master.variant ?? "nlh"],
+		[
+			"Buy-in",
+			values.tournamentBuyIn,
+			numStrOrEmpty(master.buyIn ?? undefined),
+		],
+		["Entry Fee", values.entryFee, numStrOrEmpty(master.entryFee ?? undefined)],
+		[
+			"Starting Stack",
+			values.startingStack,
+			numStrOrEmpty(master.startingStack ?? undefined),
+		],
+		[
+			"Bounty Amount",
+			values.bountyAmount,
+			numStrOrEmpty(master.bountyAmount ?? undefined),
+		],
+		["Table Size", values.tableSize, master.tableSize?.toString() ?? ""],
+	];
+	return checks.filter(([, a, b]) => a !== b).map(([label]) => label);
+}

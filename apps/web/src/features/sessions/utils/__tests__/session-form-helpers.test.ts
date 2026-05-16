@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	buildDefaults,
+	cashOverriddenFields,
 	getTodayDateString,
 	NONE_VALUE,
 	numStrOrEmpty,
 	parseOptInt,
 	sessionFormSchema,
+	tournamentOverriddenFields,
 } from "@/features/sessions/utils/session-form-helpers";
 
 describe("NONE_VALUE", () => {
@@ -208,5 +210,86 @@ describe("buildDefaults", () => {
 	it("tableSize is stringified when numeric", () => {
 		expect(buildDefaults({ tableSize: 6 }).tableSize).toBe("6");
 		expect(buildDefaults({ tableSize: undefined }).tableSize).toBe("");
+	});
+});
+
+describe("cashOverriddenFields", () => {
+	const MASTER = {
+		id: "rg1",
+		name: "1/2 NLH",
+		variant: "nlh",
+		blind1: 1,
+		blind2: 2,
+		blind3: null,
+		ante: null,
+		anteType: "none",
+		minBuyIn: 100,
+		maxBuyIn: 400,
+		tableSize: 9,
+	};
+
+	it("returns [] when no master is selected", () => {
+		expect(cashOverriddenFields(buildDefaults({}), undefined)).toEqual([]);
+	});
+
+	it("returns [] when every rule field matches the master", () => {
+		const values = buildDefaults({
+			ruleName: "1/2 NLH",
+			variant: "nlh",
+			blind1: 1,
+			blind2: 2,
+			ante: undefined,
+			anteType: "none",
+			minBuyIn: 100,
+			maxBuyIn: 400,
+			tableSize: 9,
+		});
+		expect(cashOverriddenFields(values, MASTER)).toEqual([]);
+	});
+
+	it("lists the labels of fields that diverge from the master", () => {
+		const values = buildDefaults({
+			ruleName: "Deep 1/2",
+			variant: "nlh",
+			blind1: 1,
+			blind2: 3,
+			minBuyIn: 100,
+			maxBuyIn: 400,
+			tableSize: 9,
+		});
+		expect(cashOverriddenFields(values, MASTER)).toEqual(["Rule Name", "BB"]);
+	});
+});
+
+describe("tournamentOverriddenFields", () => {
+	const MASTER = {
+		id: "t1",
+		name: "Main Event",
+		variant: "nlh",
+		buyIn: 10_000,
+		entryFee: 1000,
+		startingStack: 20_000,
+		bountyAmount: null,
+		tableSize: 9,
+	};
+
+	it("returns [] when no master is selected", () => {
+		expect(tournamentOverriddenFields(buildDefaults({}), undefined)).toEqual(
+			[]
+		);
+	});
+
+	it("lists fields that diverge from the master", () => {
+		const values = buildDefaults({
+			ruleName: "Main Event",
+			variant: "nlh",
+			tournamentBuyIn: 10_000,
+			entryFee: 1000,
+			startingStack: 30_000,
+			tableSize: 9,
+		});
+		expect(tournamentOverriddenFields(values, MASTER)).toEqual([
+			"Starting Stack",
+		]);
 	});
 });

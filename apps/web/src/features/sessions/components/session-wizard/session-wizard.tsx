@@ -3,11 +3,13 @@ import {
 	IconChevronLeft,
 	IconChevronRight,
 } from "@tabler/icons-react";
-import type {
-	RingGameOption,
-	SessionFormDefaults,
-	SessionFormValues,
-	TournamentOption,
+import {
+	cashOverriddenFields,
+	type RingGameOption,
+	type SessionFormDefaults,
+	type SessionFormValues,
+	type TournamentOption,
+	tournamentOverriddenFields,
 } from "@/features/sessions/utils/session-form-helpers";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Badge } from "@/shared/components/ui/badge";
@@ -283,6 +285,34 @@ function TournamentSnapshotScalarFields({
 	);
 }
 
+function MasterOverrideNotice({ state }: { state: UseSessionWizardReturn }) {
+	if (!(state.selectedRingGame || state.selectedTournament)) {
+		return null;
+	}
+	return (
+		<state.form.Subscribe selector={(s) => s.values}>
+			{(values) => {
+				const overridden = state.isCashGame
+					? cashOverriddenFields(values, state.selectedRingGame)
+					: tournamentOverriddenFields(values, state.selectedTournament);
+				if (overridden.length === 0) {
+					return null;
+				}
+				return (
+					<Alert>
+						<AlertDescription>
+							<span className="flex flex-wrap items-center gap-1.5">
+								<Badge variant="outline">Overrides master</Badge>
+								{overridden.join(", ")}
+							</span>
+						</AlertDescription>
+					</Alert>
+				);
+			}}
+		</state.form.Subscribe>
+	);
+}
+
 function CashRulesStepBody({
 	state,
 	currencies,
@@ -294,6 +324,7 @@ function CashRulesStepBody({
 }) {
 	return (
 		<>
+			<MasterOverrideNotice state={state} />
 			<RuleNameField isLiveLinked={isLiveLinked} state={state} />
 			<CashGameFields
 				currencies={currencies}
@@ -318,6 +349,7 @@ function TournamentRulesStepBody({
 }) {
 	return (
 		<>
+			<MasterOverrideNotice state={state} />
 			<RuleNameField isLiveLinked={isLiveLinked} state={state} />
 			<TournamentRuleFields
 				currencies={currencies}
