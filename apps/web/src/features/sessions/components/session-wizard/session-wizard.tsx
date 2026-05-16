@@ -3,6 +3,7 @@ import {
 	IconChevronLeft,
 	IconChevronRight,
 } from "@tabler/icons-react";
+import { OverrideLabel } from "@/features/sessions/components/override-label";
 import {
 	cashOverriddenFields,
 	type RingGameOption,
@@ -169,14 +170,21 @@ function MasterStepBody({
 function RuleNameField({
 	state,
 	isLiveLinked,
+	overriddenLabels,
 }: {
 	state: UseSessionWizardReturn;
 	isLiveLinked: boolean;
+	overriddenLabels?: ReadonlySet<string>;
 }) {
 	return (
 		<state.form.Field name="ruleName">
 			{(field) => (
-				<Field htmlFor={field.name} label="Rule Name">
+				<Field
+					htmlFor={field.name}
+					label={
+						<OverrideLabel label="Rule Name" overridden={overriddenLabels} />
+					}
+				>
 					<Input
 						disabled={isLiveLinked}
 						id={field.name}
@@ -193,9 +201,11 @@ function RuleNameField({
 function CashBuyInBoundsFields({
 	state,
 	isLiveLinked,
+	overriddenLabels,
 }: {
 	state: UseSessionWizardReturn;
 	isLiveLinked: boolean;
+	overriddenLabels?: ReadonlySet<string>;
 }) {
 	const { form } = state;
 	return (
@@ -205,7 +215,9 @@ function CashBuyInBoundsFields({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Min Buy-in"
+						label={
+							<OverrideLabel label="Min Buy-in" overridden={overriddenLabels} />
+						}
 					>
 						<Input
 							disabled={isLiveLinked}
@@ -223,7 +235,9 @@ function CashBuyInBoundsFields({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Max Buy-in"
+						label={
+							<OverrideLabel label="Max Buy-in" overridden={overriddenLabels} />
+						}
 					>
 						<Input
 							disabled={isLiveLinked}
@@ -243,9 +257,11 @@ function CashBuyInBoundsFields({
 function TournamentSnapshotScalarFields({
 	state,
 	isLiveLinked,
+	overriddenLabels,
 }: {
 	state: UseSessionWizardReturn;
 	isLiveLinked: boolean;
+	overriddenLabels?: ReadonlySet<string>;
 }) {
 	const { form } = state;
 	return (
@@ -255,7 +271,12 @@ function TournamentSnapshotScalarFields({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Starting Stack"
+						label={
+							<OverrideLabel
+								label="Starting Stack"
+								overridden={overriddenLabels}
+							/>
+						}
 					>
 						<Input
 							disabled={isLiveLinked}
@@ -273,7 +294,12 @@ function TournamentSnapshotScalarFields({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Bounty Amount"
+						label={
+							<OverrideLabel
+								label="Bounty Amount"
+								overridden={overriddenLabels}
+							/>
+						}
 					>
 						<Input
 							disabled={isLiveLinked}
@@ -290,34 +316,6 @@ function TournamentSnapshotScalarFields({
 	);
 }
 
-function MasterOverrideNotice({ state }: { state: UseSessionWizardReturn }) {
-	if (!(state.selectedRingGame || state.selectedTournament)) {
-		return null;
-	}
-	return (
-		<state.form.Subscribe selector={(s) => s.values}>
-			{(values) => {
-				const overridden = state.isCashGame
-					? cashOverriddenFields(values, state.selectedRingGame)
-					: tournamentOverriddenFields(values, state.selectedTournament);
-				if (overridden.length === 0) {
-					return null;
-				}
-				return (
-					<Alert>
-						<AlertDescription>
-							<span className="flex flex-wrap items-center gap-1.5">
-								<Badge variant="outline">Overrides master</Badge>
-								{overridden.join(", ")}
-							</span>
-						</AlertDescription>
-					</Alert>
-				);
-			}}
-		</state.form.Subscribe>
-	);
-}
-
 function CashRulesStepBody({
 	state,
 	currencies,
@@ -328,18 +326,35 @@ function CashRulesStepBody({
 	isLiveLinked: boolean;
 }) {
 	return (
-		<>
-			<MasterOverrideNotice state={state} />
-			<RuleNameField isLiveLinked={isLiveLinked} state={state} />
-			<CashGameFields
-				currencies={currencies}
-				form={state.form}
-				isLiveLinked={isLiveLinked}
-				onCurrencyChange={state.setSelectedCurrencyId}
-				selectedCurrencyId={state.selectedCurrencyId}
-			/>
-			<CashBuyInBoundsFields isLiveLinked={isLiveLinked} state={state} />
-		</>
+		<state.form.Subscribe selector={(s) => s.values}>
+			{(values) => {
+				const overriddenLabels = new Set(
+					cashOverriddenFields(values, state.selectedRingGame)
+				);
+				return (
+					<>
+						<RuleNameField
+							isLiveLinked={isLiveLinked}
+							overriddenLabels={overriddenLabels}
+							state={state}
+						/>
+						<CashGameFields
+							currencies={currencies}
+							form={state.form}
+							isLiveLinked={isLiveLinked}
+							onCurrencyChange={state.setSelectedCurrencyId}
+							overriddenLabels={overriddenLabels}
+							selectedCurrencyId={state.selectedCurrencyId}
+						/>
+						<CashBuyInBoundsFields
+							isLiveLinked={isLiveLinked}
+							overriddenLabels={overriddenLabels}
+							state={state}
+						/>
+					</>
+				);
+			}}
+		</state.form.Subscribe>
 	);
 }
 
@@ -353,25 +368,40 @@ function TournamentSettingsTab({
 	isLiveLinked: boolean;
 }) {
 	return (
-		<div className="flex flex-col gap-3">
-			<RuleNameField isLiveLinked={isLiveLinked} state={state} />
-			<TournamentRuleFields
-				currencies={currencies}
-				form={state.form}
-				isLiveLinked={isLiveLinked}
-				key={`tourney-rule-${state.selectedGameId ?? "none"}`}
-				onCurrencyChange={state.setSelectedCurrencyId}
-				selectedCurrencyId={state.selectedCurrencyId}
-			/>
-			<TournamentSnapshotScalarFields
-				isLiveLinked={isLiveLinked}
-				state={state}
-			/>
-			<ChipPurchasesInlineTable
-				onChange={state.setChipPurchases}
-				value={state.chipPurchases}
-			/>
-		</div>
+		<state.form.Subscribe selector={(s) => s.values}>
+			{(values) => {
+				const overriddenLabels = new Set(
+					tournamentOverriddenFields(values, state.selectedTournament)
+				);
+				return (
+					<div className="flex flex-col gap-3">
+						<RuleNameField
+							isLiveLinked={isLiveLinked}
+							overriddenLabels={overriddenLabels}
+							state={state}
+						/>
+						<TournamentRuleFields
+							currencies={currencies}
+							form={state.form}
+							isLiveLinked={isLiveLinked}
+							key={`tourney-rule-${state.selectedGameId ?? "none"}`}
+							onCurrencyChange={state.setSelectedCurrencyId}
+							overriddenLabels={overriddenLabels}
+							selectedCurrencyId={state.selectedCurrencyId}
+						/>
+						<TournamentSnapshotScalarFields
+							isLiveLinked={isLiveLinked}
+							overriddenLabels={overriddenLabels}
+							state={state}
+						/>
+						<ChipPurchasesInlineTable
+							onChange={state.setChipPurchases}
+							value={state.chipPurchases}
+						/>
+					</div>
+				);
+			}}
+		</state.form.Subscribe>
 	);
 }
 
@@ -388,7 +418,6 @@ function TournamentRulesStepBody({
 		<state.form.Subscribe selector={(s) => s.values.variant}>
 			{(variant) => (
 				<>
-					<MasterOverrideNotice state={state} />
 					<Tabs defaultValue="settings">
 						<TabsList className="grid w-full grid-cols-2">
 							<TabsTrigger value="settings">Settings</TabsTrigger>

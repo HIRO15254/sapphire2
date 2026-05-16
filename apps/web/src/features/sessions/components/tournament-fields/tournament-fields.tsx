@@ -1,4 +1,5 @@
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
+import { OverrideLabel } from "@/features/sessions/components/override-label";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -36,6 +37,8 @@ interface TournamentFieldsProps {
 interface TournamentRuleFieldsProps extends TournamentFieldsProps {
 	currencies?: Array<{ id: string; name: string }>;
 	onCurrencyChange?: (id: string | undefined) => void;
+	/** Field labels that diverge from the picked master tournament. */
+	overriddenLabels?: ReadonlySet<string>;
 	selectedCurrencyId?: string;
 }
 
@@ -50,6 +53,7 @@ export function TournamentRuleFields({
 	form,
 	isLiveLinked = false,
 	onCurrencyChange,
+	overriddenLabels,
 	selectedCurrencyId,
 }: TournamentRuleFieldsProps) {
 	return (
@@ -60,7 +64,9 @@ export function TournamentRuleFields({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="Buy-in"
+							label={
+								<OverrideLabel label="Buy-in" overridden={overriddenLabels} />
+							}
 							required
 						>
 							<Input
@@ -79,7 +85,12 @@ export function TournamentRuleFields({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="Entry Fee"
+							label={
+								<OverrideLabel
+									label="Entry Fee"
+									overridden={overriddenLabels}
+								/>
+							}
 						>
 							<Input
 								disabled={isLiveLinked}
