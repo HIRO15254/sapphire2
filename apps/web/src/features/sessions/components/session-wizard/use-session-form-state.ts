@@ -5,15 +5,19 @@ import {
 	numStrOrEmpty,
 	parseOptInt,
 	type RingGameOption,
-	type SessionChipPurchaseInput,
 	type SessionFormDefaults,
 	type SessionFormFieldValues,
 	type SessionFormValues,
 	sessionFormSchema,
 	type TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
+import type { ChipPurchaseRow } from "@/features/stores/components/chip-purchases-editor";
 import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
 import { toBlindLevelRows, toSessionBlindLevels } from "./blind-level-rows";
+import {
+	toChipPurchaseRows,
+	toSessionChipPurchases,
+} from "./chip-purchase-rows";
 
 interface UseSessionFormStateArgs {
 	defaultValues?: SessionFormDefaults;
@@ -60,9 +64,9 @@ export function useSessionFormState({
 	const [blindLevels, setBlindLevels] = useState<BlindLevelRow[]>(
 		toBlindLevelRows(defaultValues?.blindLevels ?? [])
 	);
-	const [chipPurchases, setChipPurchases] = useState<
-		SessionChipPurchaseInput[]
-	>(defaultValues?.chipPurchases ?? []);
+	const [chipPurchases, setChipPurchases] = useState<ChipPurchaseRow[]>(
+		toChipPurchaseRows(defaultValues?.chipPurchases ?? [])
+	);
 
 	const isCashGame = sessionType === "cash_game";
 	const gameOptions = isCashGame ? ringGames : tournaments;
@@ -129,7 +133,10 @@ export function useSessionFormState({
 					blindLevels.length > 0
 						? toSessionBlindLevels(blindLevels)
 						: undefined,
-				chipPurchases: chipPurchases.length > 0 ? chipPurchases : undefined,
+				chipPurchases:
+					chipPurchases.length > 0
+						? toSessionChipPurchases(chipPurchases)
+						: undefined,
 				tournamentId: selectedGameId,
 			});
 		},
@@ -201,11 +208,13 @@ export function useSessionFormState({
 			)
 		);
 		setChipPurchases(
-			purchases.map((p) => ({
-				name: p.name,
-				cost: p.cost,
-				chips: p.chips,
-			}))
+			toChipPurchaseRows(
+				purchases.map((p) => ({
+					name: p.name,
+					cost: p.cost,
+					chips: p.chips,
+				}))
+			)
 		);
 	};
 

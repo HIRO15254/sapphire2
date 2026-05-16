@@ -13,6 +13,7 @@ import {
 	tournamentOverriddenFields,
 } from "@/features/sessions/utils/session-form-helpers";
 import { LocalBlindStructureContent } from "@/features/stores/components/blind-level-editor";
+import { ChipPurchasesEditor } from "@/features/stores/components/chip-purchases-editor";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -32,7 +33,6 @@ import {
 	TournamentResultFields,
 	TournamentRuleFields,
 } from "../tournament-fields";
-import { ChipPurchasesInlineTable } from "./chip-purchases-inline-table";
 import {
 	type UseSessionWizardReturn,
 	useSessionWizard,
@@ -394,7 +394,7 @@ function TournamentSettingsTab({
 							overriddenLabels={overriddenLabels}
 							state={state}
 						/>
-						<ChipPurchasesInlineTable
+						<ChipPurchasesEditor
 							onChange={state.setChipPurchases}
 							value={state.chipPurchases}
 						/>

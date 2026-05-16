@@ -1,45 +1,45 @@
 import { IconPlus, IconTrash } from "@tabler/icons-react";
-import type { SessionChipPurchaseInput } from "@/features/sessions/utils/session-form-helpers";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 
-interface ChipPurchasesInlineTableProps {
-	onChange: (next: SessionChipPurchaseInput[]) => void;
-	value: SessionChipPurchaseInput[];
+export interface ChipPurchaseRow {
+	chips: string;
+	cost: string;
+	name: string;
+	uid: string;
 }
 
-function parseIntOrZero(value: string): number {
-	if (value === "") {
-		return 0;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) ? parsed : 0;
+interface ChipPurchasesEditorProps {
+	onChange: (next: ChipPurchaseRow[]) => void;
+	value: ChipPurchaseRow[];
 }
 
-export function ChipPurchasesInlineTable({
+/**
+ * Controlled rebuy / add-on editor shared by the Stores tournament form
+ * and the session wizard's Rules step. Each row carries a stable `uid`
+ * so React keys survive edits; numeric cells stay strings (parsed by the
+ * consuming form/schema) per the `inputMode="numeric"` convention.
+ */
+export function ChipPurchasesEditor({
 	value,
 	onChange,
-}: ChipPurchasesInlineTableProps) {
-	const updateAt = (
-		index: number,
-		patch: Partial<SessionChipPurchaseInput>
-	) => {
+}: ChipPurchasesEditorProps) {
+	const updateAt = (index: number, patch: Partial<ChipPurchaseRow>) => {
 		onChange(value.map((row, i) => (i === index ? { ...row, ...patch } : row)));
 	};
 	const removeAt = (index: number) => {
 		onChange(value.filter((_, i) => i !== index));
 	};
 	const addRow = () => {
-		onChange([...value, { name: "", cost: 0, chips: 0 }]);
+		onChange([
+			...value,
+			{ uid: crypto.randomUUID(), name: "", cost: "", chips: "" },
+		]);
 	};
 
 	return (
-		<Field
-			className="rounded-md border p-3"
-			description="Define rebuy or addon options available during play."
-			label="Chip Purchases"
-		>
+		<Field className="rounded-md border p-3" label="Chip Purchases">
 			<Button onClick={addRow} size="xs" type="button" variant="outline">
 				<IconPlus size={12} />
 				Add
@@ -47,45 +47,40 @@ export function ChipPurchasesInlineTable({
 			{value.length > 0 && (
 				<div className="flex flex-col gap-2">
 					{value.map((row, idx) => (
-						// biome-ignore lint/suspicious/noArrayIndexKey: chip purchases carry no stable id; their position IS their identity.
-						<div className="flex items-end gap-2" key={`cp-${idx}`}>
+						<div className="flex items-end gap-2" key={row.uid}>
 							<Field
 								className="flex flex-1 flex-col gap-1"
-								htmlFor={`cp-name-${idx}`}
+								htmlFor={`cp-name-${row.uid}`}
 								label="Name"
 							>
 								<Input
-									id={`cp-name-${idx}`}
+									id={`cp-name-${row.uid}`}
 									onChange={(e) => updateAt(idx, { name: e.target.value })}
 									value={row.name}
 								/>
 							</Field>
 							<Field
 								className="flex w-24 flex-col gap-1"
-								htmlFor={`cp-cost-${idx}`}
+								htmlFor={`cp-cost-${row.uid}`}
 								label="Cost"
 							>
 								<Input
-									id={`cp-cost-${idx}`}
+									id={`cp-cost-${row.uid}`}
 									inputMode="numeric"
-									onChange={(e) =>
-										updateAt(idx, { cost: parseIntOrZero(e.target.value) })
-									}
-									value={row.cost === 0 ? "" : String(row.cost)}
+									onChange={(e) => updateAt(idx, { cost: e.target.value })}
+									value={row.cost}
 								/>
 							</Field>
 							<Field
 								className="flex w-24 flex-col gap-1"
-								htmlFor={`cp-chips-${idx}`}
+								htmlFor={`cp-chips-${row.uid}`}
 								label="Chips"
 							>
 								<Input
-									id={`cp-chips-${idx}`}
+									id={`cp-chips-${row.uid}`}
 									inputMode="numeric"
-									onChange={(e) =>
-										updateAt(idx, { chips: parseIntOrZero(e.target.value) })
-									}
-									value={row.chips === 0 ? "" : String(row.chips)}
+									onChange={(e) => updateAt(idx, { chips: e.target.value })}
+									value={row.chips}
 								/>
 							</Field>
 							<Button
