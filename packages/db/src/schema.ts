@@ -39,10 +39,6 @@ import {
 } from "./schema/session-chip-purchase-result";
 import { sessionEvent, sessionEventRelations } from "./schema/session-event";
 import {
-	sessionTablePlayer,
-	sessionTablePlayerRelations,
-} from "./schema/session-table-player";
-import {
 	sessionTag,
 	sessionTagRelations,
 	sessionToSessionTag,
@@ -110,8 +106,6 @@ export const schema = {
 	sessionToSessionTagRelations,
 	sessionEvent,
 	sessionEventRelations,
-	sessionTablePlayer,
-	sessionTablePlayerRelations,
 	sessionCashDetail,
 	sessionCashDetailRelations,
 	sessionTournamentDetail,

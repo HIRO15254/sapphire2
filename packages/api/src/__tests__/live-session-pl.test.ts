@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	computeBreakMinutesFromEvents,
 	computeCashGamePLFromEvents,
+	computeHeroSeatPositionFromEvents,
+	computeSeatedPlayersFromEvents,
 	computeSessionStateFromEvents,
 	computeTournamentPLFromEvents,
 	getSessionResultTypeId,
@@ -77,6 +79,266 @@ describe("computeSessionStateFromEvents", () => {
 		expect(result.startedAt).toBeNull();
 		expect(result.endedAt).toBeNull();
 		expect(result.status).toBe("active");
+	});
+});
+
+describe("computeSeatedPlayersFromEvents", () => {
+	const at = (iso: string) => new Date(iso);
+	const joinEvent = (occurredAt: string, payload: Record<string, unknown>) => ({
+		eventType: "player_join",
+		occurredAt: at(occurredAt),
+		payload: JSON.stringify(payload),
+	});
+	const leaveEvent = (
+		occurredAt: string,
+		payload: Record<string, unknown>
+	) => ({
+		eventType: "player_leave",
+		occurredAt: at(occurredAt),
+		payload: JSON.stringify(payload),
+	});
+
+	it("returns an empty array when there are no events", () => {
+		expect(computeSeatedPlayersFromEvents([])).toEqual([]);
+	});
+
+	it("returns an empty array when no events touch players", () => {
+		const events = [
+			{
+				eventType: "update_stack",
+				occurredAt: at("2026-01-01T10:00:00Z"),
+				payload: JSON.stringify({ stackAmount: 100 }),
+			},
+		];
+		expect(computeSeatedPlayersFromEvents(events)).toEqual([]);
+	});
+
+	it("marks a player active from a single player_join, seatPosition null when absent", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { playerId: "p1" }),
+		]);
+		expect(result).toEqual([
+			{
+				playerId: "p1",
+				seatPosition: null,
+				isActive: true,
+				joinedAt: at("2026-01-01T10:00:00Z"),
+				leftAt: null,
+				stints: [
+					{
+						joinedAt: at("2026-01-01T10:00:00Z"),
+						leftAt: null,
+						seatPosition: null,
+					},
+				],
+			},
+		]);
+	});
+
+	it("carries the seatPosition from the player_join payload", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { playerId: "p1", seatPosition: 4 }),
+		]);
+		expect(result[0]?.seatPosition).toBe(4);
+	});
+
+	it("carries seatPosition 0 (boundary) without coercing to null", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { playerId: "p1", seatPosition: 0 }),
+		]);
+		expect(result[0]?.seatPosition).toBe(0);
+	});
+
+	it("marks a player inactive after player_leave, retaining seat and joinedAt", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { playerId: "p1", seatPosition: 2 }),
+			leaveEvent("2026-01-01T11:00:00Z", { playerId: "p1" }),
+		]);
+		expect(result).toEqual([
+			{
+				playerId: "p1",
+				seatPosition: 2,
+				isActive: false,
+				joinedAt: at("2026-01-01T10:00:00Z"),
+				leftAt: at("2026-01-01T11:00:00Z"),
+				stints: [
+					{
+						joinedAt: at("2026-01-01T10:00:00Z"),
+						leftAt: at("2026-01-01T11:00:00Z"),
+						seatPosition: 2,
+					},
+				],
+			},
+		]);
+	});
+
+	it("ignores a player_leave with no preceding player_join", () => {
+		const result = computeSeatedPlayersFromEvents([
+			leaveEvent("2026-01-01T11:00:00Z", { playerId: "ghost" }),
+		]);
+		expect(result).toEqual([]);
+	});
+
+	it("reflects the latest stint as the current state on re-join after leaving", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { playerId: "p1", seatPosition: 2 }),
+			leaveEvent("2026-01-01T11:00:00Z", { playerId: "p1" }),
+			joinEvent("2026-01-01T12:00:00Z", { playerId: "p1", seatPosition: 7 }),
+		]);
+		expect(result[0]).toMatchObject({
+			playerId: "p1",
+			seatPosition: 7,
+			isActive: true,
+			joinedAt: at("2026-01-01T12:00:00Z"),
+			leftAt: null,
+		});
+	});
+
+	it("keeps one entry per player but preserves every in/out stint", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { playerId: "p1", seatPosition: 2 }),
+			leaveEvent("2026-01-01T11:00:00Z", { playerId: "p1" }),
+			joinEvent("2026-01-01T12:00:00Z", { playerId: "p1", seatPosition: 7 }),
+			leaveEvent("2026-01-01T13:00:00Z", { playerId: "p1" }),
+		]);
+		expect(result).toHaveLength(1);
+		expect(result[0]?.stints).toEqual([
+			{
+				joinedAt: at("2026-01-01T10:00:00Z"),
+				leftAt: at("2026-01-01T11:00:00Z"),
+				seatPosition: 2,
+			},
+			{
+				joinedAt: at("2026-01-01T12:00:00Z"),
+				leftAt: at("2026-01-01T13:00:00Z"),
+				seatPosition: 7,
+			},
+		]);
+	});
+
+	it("treats the most recent stint as current — inactive after a final leave", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { playerId: "p1", seatPosition: 2 }),
+			leaveEvent("2026-01-01T11:00:00Z", { playerId: "p1" }),
+			joinEvent("2026-01-01T12:00:00Z", { playerId: "p1", seatPosition: 7 }),
+			leaveEvent("2026-01-01T13:00:00Z", { playerId: "p1" }),
+		]);
+		expect(result[0]).toMatchObject({
+			isActive: false,
+			seatPosition: 7,
+			joinedAt: at("2026-01-01T12:00:00Z"),
+			leftAt: at("2026-01-01T13:00:00Z"),
+		});
+	});
+
+	it("leaves an open stint open when only the first of two stints was closed", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { playerId: "p1", seatPosition: 1 }),
+			leaveEvent("2026-01-01T11:00:00Z", { playerId: "p1" }),
+			joinEvent("2026-01-01T12:00:00Z", { playerId: "p1", seatPosition: 3 }),
+		]);
+		expect(result[0]?.stints).toEqual([
+			{
+				joinedAt: at("2026-01-01T10:00:00Z"),
+				leftAt: at("2026-01-01T11:00:00Z"),
+				seatPosition: 1,
+			},
+			{
+				joinedAt: at("2026-01-01T12:00:00Z"),
+				leftAt: null,
+				seatPosition: 3,
+			},
+		]);
+	});
+
+	it("closes the latest open stint, not an already-closed earlier one", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { playerId: "p1" }),
+			leaveEvent("2026-01-01T11:00:00Z", { playerId: "p1" }),
+			joinEvent("2026-01-01T12:00:00Z", { playerId: "p1" }),
+			leaveEvent("2026-01-01T13:00:00Z", { playerId: "p1" }),
+		]);
+		expect(result[0]?.stints[0]?.leftAt).toEqual(at("2026-01-01T11:00:00Z"));
+		expect(result[0]?.stints[1]?.leftAt).toEqual(at("2026-01-01T13:00:00Z"));
+	});
+
+	it("ignores a redundant player_leave when the player has already left", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { playerId: "p1" }),
+			leaveEvent("2026-01-01T11:00:00Z", { playerId: "p1" }),
+			leaveEvent("2026-01-01T12:00:00Z", { playerId: "p1" }),
+		]);
+		expect(result[0]?.stints).toHaveLength(1);
+		expect(result[0]?.stints[0]?.leftAt).toEqual(at("2026-01-01T11:00:00Z"));
+	});
+
+	it("ignores hero events that carry no playerId", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { isHero: true, seatPosition: 3 }),
+			leaveEvent("2026-01-01T11:00:00Z", { isHero: true }),
+		]);
+		expect(result).toEqual([]);
+	});
+
+	it("tracks multiple players independently", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { playerId: "p1", seatPosition: 1 }),
+			joinEvent("2026-01-01T10:05:00Z", { playerId: "p2", seatPosition: 2 }),
+			leaveEvent("2026-01-01T11:00:00Z", { playerId: "p1" }),
+		]);
+		expect(result).toHaveLength(2);
+		expect(result.find((s) => s.playerId === "p1")?.isActive).toBe(false);
+		expect(result.find((s) => s.playerId === "p2")?.isActive).toBe(true);
+	});
+
+	it("skips a player_join whose payload has no playerId and no hero flag", () => {
+		const result = computeSeatedPlayersFromEvents([
+			joinEvent("2026-01-01T10:00:00Z", { seatPosition: 1 }),
+		]);
+		expect(result).toEqual([]);
+	});
+});
+
+describe("computeHeroSeatPositionFromEvents", () => {
+	const ev = (eventType: string, payload: Record<string, unknown>) => ({
+		eventType,
+		payload: JSON.stringify(payload),
+	});
+
+	it("returns null when there are no events", () => {
+		expect(computeHeroSeatPositionFromEvents([])).toBeNull();
+	});
+
+	it("returns null when the hero never joined", () => {
+		const events = [ev("player_join", { playerId: "p1", seatPosition: 3 })];
+		expect(computeHeroSeatPositionFromEvents(events)).toBeNull();
+	});
+
+	it("returns the hero seat from a hero player_join", () => {
+		const events = [ev("player_join", { isHero: true, seatPosition: 6 })];
+		expect(computeHeroSeatPositionFromEvents(events)).toBe(6);
+	});
+
+	it("returns null after the hero leaves", () => {
+		const events = [
+			ev("player_join", { isHero: true, seatPosition: 6 }),
+			ev("player_leave", { isHero: true }),
+		];
+		expect(computeHeroSeatPositionFromEvents(events)).toBeNull();
+	});
+
+	it("reflects the latest hero seat after a leave and re-join", () => {
+		const events = [
+			ev("player_join", { isHero: true, seatPosition: 6 }),
+			ev("player_leave", { isHero: true }),
+			ev("player_join", { isHero: true, seatPosition: 1 }),
+		];
+		expect(computeHeroSeatPositionFromEvents(events)).toBe(1);
+	});
+
+	it("ignores non-hero player events", () => {
+		const events = [ev("player_join", { playerId: "p1", seatPosition: 8 })];
+		expect(computeHeroSeatPositionFromEvents(events)).toBeNull();
 	});
 });
 

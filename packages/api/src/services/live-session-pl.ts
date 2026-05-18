@@ -5,6 +5,7 @@ import {
 	cashSessionStartPayload,
 	chipsAddRemovePayload,
 	playerJoinPayload,
+	playerLeavePayload,
 	purchaseChipsPayload,
 	tournamentSessionEndPayload,
 } from "@sapphire2/db/constants/session-event-types";
@@ -525,6 +526,113 @@ export async function recalculateTournamentSession(
 		effectiveSessionDate,
 		userId
 	);
+}
+
+/** One uninterrupted period a player sat at the table (join → leave). */
+export interface SeatStint {
+	joinedAt: Date;
+	leftAt: Date | null;
+	seatPosition: number | null;
+}
+
+export interface SeatedPlayerState {
+	isActive: boolean;
+	joinedAt: Date;
+	leftAt: Date | null;
+	playerId: string;
+	seatPosition: number | null;
+	/** Every join → leave cycle for this player, oldest first. */
+	stints: SeatStint[];
+}
+
+/**
+ * Close the most recent still-open stint for a player.
+ * A `player_leave` with no open stint (no join, or already left) is a no-op.
+ */
+function closeLatestOpenStint(stints: SeatStint[], leftAt: Date): void {
+	for (let i = stints.length - 1; i >= 0; i--) {
+		const stint = stints[i];
+		if (stint && stint.leftAt === null) {
+			stints[i] = { ...stint, leftAt };
+			return;
+		}
+	}
+}
+
+/** Apply one player_join / player_leave event to the per-player stint map. */
+function applySeatEvent(
+	event: { eventType: string; payload: string; occurredAt: Date },
+	stintsByPlayerId: Map<string, SeatStint[]>
+): void {
+	if (event.eventType === "player_join") {
+		const parsed = playerJoinPayload.safeParse(JSON.parse(event.payload));
+		if (!(parsed.success && parsed.data.playerId)) {
+			return;
+		}
+		const stints = stintsByPlayerId.get(parsed.data.playerId) ?? [];
+		stints.push({
+			joinedAt: event.occurredAt,
+			leftAt: null,
+			seatPosition: parsed.data.seatPosition ?? null,
+		});
+		stintsByPlayerId.set(parsed.data.playerId, stints);
+		return;
+	}
+
+	if (event.eventType === "player_leave") {
+		const parsed = playerLeavePayload.safeParse(JSON.parse(event.payload));
+		if (!(parsed.success && parsed.data.playerId)) {
+			return;
+		}
+		const stints = stintsByPlayerId.get(parsed.data.playerId);
+		if (stints) {
+			closeLatestOpenStint(stints, event.occurredAt);
+		}
+	}
+}
+
+/**
+ * Fold player_join / player_leave events into the seating roster.
+ *
+ * Seated players are no longer stored in a table — they are reconstructed
+ * here from the event log. Only events that carry a `playerId` are folded
+ * (the hero's own seat has no `playerId` and is derived separately by
+ * `computeHeroSeatPositionFromEvents`).
+ *
+ * The same player may join and leave repeatedly within one session. Each
+ * `player_join` opens a new stint; each `player_leave` closes the latest
+ * open one. Every player appears exactly once in the result, but the full
+ * in/out history is preserved on `stints` (oldest first). The top-level
+ * `isActive` / `seatPosition` / `joinedAt` / `leftAt` reflect the most
+ * recent (last) stint — i.e. the player's current state.
+ *
+ * `events` must already be ordered by (occurredAt, sortOrder).
+ */
+export function computeSeatedPlayersFromEvents(
+	events: { eventType: string; payload: string; occurredAt: Date }[]
+): SeatedPlayerState[] {
+	const stintsByPlayerId = new Map<string, SeatStint[]>();
+
+	for (const event of events) {
+		applySeatEvent(event, stintsByPlayerId);
+	}
+
+	const result: SeatedPlayerState[] = [];
+	for (const [playerId, stints] of stintsByPlayerId) {
+		const current = stints.at(-1);
+		if (!current) {
+			continue;
+		}
+		result.push({
+			playerId,
+			seatPosition: current.seatPosition,
+			isActive: current.leftAt === null,
+			joinedAt: current.joinedAt,
+			leftAt: current.leftAt,
+			stints,
+		});
+	}
+	return result;
 }
 
 export function computeHeroSeatPositionFromEvents(

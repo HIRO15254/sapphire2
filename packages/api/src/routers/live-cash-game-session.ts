@@ -8,7 +8,6 @@ import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
-import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { currency, store } from "@sapphire2/db/schema/store";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
@@ -286,11 +285,6 @@ export const liveCashGameSessionRouter = router({
 				.where(eq(sessionEvent.sessionId, input.id))
 				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
-			const tablePlayers = await ctx.db
-				.select()
-				.from(sessionTablePlayer)
-				.where(eq(sessionTablePlayer.sessionId, input.id));
-
 			const mappedEvents = events.map((e) => ({
 				eventType: e.eventType,
 				payload: e.payload,
@@ -317,7 +311,6 @@ export const liveCashGameSessionRouter = router({
 				ringGameId: cashDetail?.ringGameId ?? null,
 				heroSeatPosition,
 				events,
-				tablePlayers,
 				summary,
 				// Snapshot fields from session_cash_detail. Display in the
 				// live scene must read from here so renames / blind edits on
