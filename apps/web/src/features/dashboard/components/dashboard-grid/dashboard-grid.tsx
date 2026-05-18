@@ -6,7 +6,7 @@ import {
 	WIDGET_DRAG_HANDLE_CLASS,
 } from "@/features/dashboard/components/dashboard-widget";
 import { WidgetRenderer } from "@/features/dashboard/components/widget-renderer";
-import type { Device } from "@/features/dashboard/hooks/use-current-device";
+import type { Device } from "@/shared/hooks/use-current-device";
 import type { DashboardWidget as DashboardWidgetRow } from "@/features/dashboard/hooks/use-dashboard-widgets";
 import { GRID_COLS, useDashboardGrid } from "./use-dashboard-grid";
 

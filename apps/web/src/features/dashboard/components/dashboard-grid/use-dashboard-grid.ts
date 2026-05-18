@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Layout } from "react-grid-layout";
-import type { Device } from "@/features/dashboard/hooks/use-current-device";
+import type { Device } from "@/shared/hooks/use-current-device";
 import type { DashboardWidget } from "@/features/dashboard/hooks/use-dashboard-widgets";
 import { getWidgetEntry } from "@/features/dashboard/widgets/registry";
 

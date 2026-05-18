@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
-import type { Device } from "./use-current-device";
+import type { Device } from "@/shared/hooks/use-current-device";
 import type { DashboardWidget } from "./use-dashboard-widgets";
 
 export interface LayoutItem {

@@ -27,6 +27,8 @@ UI copy is **English-only**. Do not put Japanese into user-facing strings (label
 
 Mobile-first dialogs are bottom sheets — use shadcn `Drawer`, not `Dialog`.
 
+When PC and mobile need **entirely different layouts** (not just responsive tweaks), branch at the component level with [`ResponsiveScreen`](apps/web/src/shared/components/responsive-screen/responsive-screen.tsx): pass `desktop` and `mobile` subtrees — only the matched one mounts. Device detection is [`useCurrentDevice`](apps/web/src/shared/hooks/use-current-device.ts) (`DESKTOP_BREAKPOINT` = `min-width: 768px`). Colocate per-feature platform variants in `desktop/` and `mobile/` subfolders. Do not hand-roll `useMediaQuery` branches or raw Tailwind `md:` classes for whole-screen swaps.
+
 ## Icons
 
 Use `@tabler/icons-react` exclusively for new icons. Do not add `lucide-react` imports in new code.

@@ -7,7 +7,7 @@ import {
 	snapshotQuery,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
-import type { Device } from "./use-current-device";
+import type { Device } from "@/shared/hooks/use-current-device";
 
 export type WidgetType =
 	| "summary_stats"
