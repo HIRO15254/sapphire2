@@ -365,7 +365,12 @@ describe("deriveTournamentTimeline", () => {
 			}),
 			event({
 				eventType: "purchase_chips",
-				payload: { name: "Rebuy", cost: 1000, chips: 5000 },
+				payload: {
+					sessionChipPurchaseId: "scp-1",
+					name: "Rebuy",
+					cost: 1000,
+					chips: 5000,
+				},
 				offsetMin: 10,
 			}),
 		];
