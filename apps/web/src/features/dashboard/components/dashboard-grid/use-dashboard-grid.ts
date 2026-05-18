@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import type { Layout } from "react-grid-layout";
-import type { Device } from "@/shared/hooks/use-current-device";
 import type { DashboardWidget } from "@/features/dashboard/hooks/use-dashboard-widgets";
 import { getWidgetEntry } from "@/features/dashboard/widgets/registry";
+import type { Device } from "@/shared/hooks/use-current-device";
 
 export const GRID_COLS: Record<Device, number> = {
 	mobile: 6,

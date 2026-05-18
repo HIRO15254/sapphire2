@@ -6,8 +6,8 @@ import {
 	WIDGET_DRAG_HANDLE_CLASS,
 } from "@/features/dashboard/components/dashboard-widget";
 import { WidgetRenderer } from "@/features/dashboard/components/widget-renderer";
-import type { Device } from "@/shared/hooks/use-current-device";
 import type { DashboardWidget as DashboardWidgetRow } from "@/features/dashboard/hooks/use-dashboard-widgets";
+import type { Device } from "@/shared/hooks/use-current-device";
 import { GRID_COLS, useDashboardGrid } from "./use-dashboard-grid";
 
 const ROW_HEIGHT = 40;
