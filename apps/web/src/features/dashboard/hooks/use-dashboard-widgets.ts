@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
+import type { Device } from "@/shared/hooks/use-current-device";
 import {
 	cancelTargets,
 	invalidateTargets,
@@ -7,7 +8,6 @@ import {
 	snapshotQuery,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
-import type { Device } from "./use-current-device";
 
 export type WidgetType =
 	| "summary_stats"

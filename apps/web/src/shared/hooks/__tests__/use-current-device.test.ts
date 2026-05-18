@@ -12,7 +12,7 @@ vi.mock("@/shared/hooks/use-media-query", () => ({
 import {
 	DESKTOP_BREAKPOINT,
 	useCurrentDevice,
-} from "@/features/dashboard/hooks/use-current-device";
+} from "@/shared/hooks/use-current-device";
 
 describe("useCurrentDevice", () => {
 	beforeEach(() => {
