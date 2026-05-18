@@ -26,10 +26,9 @@ function makeCashGameSession(
 		placement: null,
 		totalEntries: null,
 		prizeMoney: null,
-		rebuyCount: null,
-		rebuyCost: null,
-		addonCost: null,
 		bountyPrizes: null,
+		chipPurchases: [],
+		chipPurchaseCost: 0,
 		profitLoss: 5000,
 		startedAt: null,
 		endedAt: null,
@@ -86,10 +85,9 @@ function makeTournamentSession(
 		placement: 3,
 		totalEntries: 50,
 		prizeMoney: 30_000,
-		rebuyCount: 2,
-		rebuyCost: 5000,
-		addonCost: 0,
 		bountyPrizes: 0,
+		chipPurchases: [],
+		chipPurchaseCost: 0,
 		profitLoss: 14_000,
 		startedAt: null,
 		endedAt: null,
@@ -312,9 +310,6 @@ describe("SessionCard", () => {
 			tournamentBuyIn: 5000,
 			entryFee: 500,
 			profitLoss: 14_000,
-			rebuyCount: 0,
-			rebuyCost: 0,
-			addonCost: 0,
 		});
 		render(
 			<SessionCard
@@ -367,9 +362,6 @@ describe("SessionCard", () => {
 		const session = makeTournamentSession({
 			tournamentBuyIn: 0,
 			entryFee: 0,
-			rebuyCount: 0,
-			rebuyCost: 0,
-			addonCost: 0,
 			profitLoss: 14_000,
 		});
 		render(
@@ -463,6 +455,41 @@ describe("SessionCard", () => {
 
 		// tournamentBuyIn=5000 → formatCompactNumber(5000) = "5,000" (threshold is 10k)
 		expect(screen.getByText("5,000")).toBeInTheDocument();
+	});
+
+	it("renders a detail row per chip purchase with count > 0", async () => {
+		const user = userEvent.setup();
+		const session = makeTournamentSession({
+			chipPurchases: [
+				{
+					id: "cp1",
+					name: "Rebuy",
+					cost: 5000,
+					chips: 10_000,
+					sortOrder: 0,
+					count: 2,
+				},
+				{
+					id: "cp2",
+					name: "Add-on",
+					cost: 3000,
+					chips: 8000,
+					sortOrder: 1,
+					count: 0,
+				},
+			],
+			chipPurchaseCost: 10_000,
+		});
+		render(
+			<SessionCard onDelete={vi.fn()} onEdit={vi.fn()} session={session} />
+		);
+
+		await user.click(screen.getByRole("button", { expanded: false }));
+
+		expect(screen.getByText("Rebuy")).toBeInTheDocument();
+		expect(screen.getByText("2 × 5,000")).toBeInTheDocument();
+		// count 0 purchases are not listed
+		expect(screen.queryByText("Add-on")).not.toBeInTheDocument();
 	});
 
 	it("displays chip values in expanded view when bbBiMode is true but blind2 is null", async () => {

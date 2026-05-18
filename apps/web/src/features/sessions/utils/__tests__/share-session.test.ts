@@ -13,7 +13,6 @@ function cashSession(
 	overrides: Partial<ShareableSession> = {}
 ): ShareableSession {
 	return {
-		addonCost: null,
 		beforeDeadline: null,
 		bountyPrizes: null,
 		buyIn: 10_000,
@@ -25,8 +24,6 @@ function cashSession(
 		placement: null,
 		prizeMoney: null,
 		profitLoss: 5000,
-		rebuyCost: null,
-		rebuyCount: null,
 		ringGameBlind2: 500,
 		ringGameName: "NL2k/5k",
 		sessionDate: "2026-04-22T00:00:00Z",

@@ -21,6 +21,7 @@ import {
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
 import {
+	persistSessionChipPurchases,
 	resnapshotTournamentStructure,
 	resolveTournamentRuleSnapshot,
 	snapshotTournamentStructure,
@@ -611,10 +612,7 @@ export const liveTournamentSessionRouter = router({
 			const summary = {
 				buyIn: tournamentBuyIn ?? null,
 				entryFee: entryFee ?? null,
-				rebuyCount: pl.rebuyCount,
-				rebuyCost: pl.rebuyCost,
-				addonCount: pl.addonCount,
-				addonCost: pl.addonCost,
+				chipPurchaseCost: pl.chipPurchaseCost,
 				placement: pl.placement,
 				totalEntries: stackStats.totalEntries ?? pl.totalEntries,
 				prizeMoney: pl.prizeMoney,
@@ -900,21 +898,15 @@ export const liveTournamentSessionRouter = router({
 			}
 
 			if (input.chipPurchases !== undefined) {
-				await ctx.db
-					.delete(sessionChipPurchase)
-					.where(eq(sessionChipPurchase.sessionId, input.id));
-				if (input.chipPurchases.length > 0) {
-					await ctx.db.insert(sessionChipPurchase).values(
-						input.chipPurchases.map((p, idx) => ({
-							id: crypto.randomUUID(),
-							sessionId: input.id,
-							name: p.name,
-							cost: p.cost,
-							chips: p.chips,
-							sortOrder: idx,
-						}))
-					);
-				}
+				// Editing the live session's rule snapshot. Counts are derived
+				// from purchase_chips events, so each chip purchase is (re)seeded
+				// with a result row at count 0; recalculateTournamentSession
+				// overwrites the counts on completion.
+				await persistSessionChipPurchases(
+					ctx.db,
+					input.id,
+					input.chipPurchases.map((p) => ({ ...p, count: 0 }))
+				);
 			}
 
 			return { id: input.id };

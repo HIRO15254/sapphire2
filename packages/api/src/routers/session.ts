@@ -3,6 +3,7 @@ import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
+import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
 import {
 	sessionTag,
 	sessionToSessionTag,
@@ -64,19 +65,120 @@ function computeCashGamePL(buyIn: number, cashOut: number): number {
 function computeTournamentPL(
 	tournamentBuyIn: number | null,
 	entryFee: number | null,
-	rebuyCount: number | null,
-	rebuyCost: number | null,
-	addonCost: number | null,
+	chipPurchaseCost: number,
 	prizeMoney: number | null,
 	bountyPrizes: number | null
 ): number {
 	const income = (prizeMoney ?? 0) + (bountyPrizes ?? 0);
-	const cost =
-		(tournamentBuyIn ?? 0) +
-		(entryFee ?? 0) +
-		(rebuyCount ?? 0) * (rebuyCost ?? 0) +
-		(addonCost ?? 0);
+	const cost = (tournamentBuyIn ?? 0) + (entryFee ?? 0) + chipPurchaseCost;
 	return income - cost;
+}
+
+interface SessionChipPurchaseWithCount {
+	chips: number;
+	cost: number;
+	count: number;
+	id: string;
+	name: string;
+	sortOrder: number;
+}
+
+/** Σ (cost × count) across a session's chip purchases. */
+function sumChipPurchaseCost(
+	purchases: { cost: number; count: number }[]
+): number {
+	return purchases.reduce((acc, p) => acc + p.cost * p.count, 0);
+}
+
+/**
+ * Batched lookup of chip purchases (with their result counts) for the given
+ * sessions, keyed by session id and ordered by sortOrder. Sessions with no
+ * chip purchases are simply absent from the map.
+ */
+async function getSessionChipPurchaseMap(
+	db: DbInstance,
+	sessionIds: string[]
+): Promise<Map<string, SessionChipPurchaseWithCount[]>> {
+	const map = new Map<string, SessionChipPurchaseWithCount[]>();
+	if (sessionIds.length === 0) {
+		return map;
+	}
+	const rows = await db
+		.select({
+			sessionId: sessionChipPurchase.sessionId,
+			id: sessionChipPurchase.id,
+			name: sessionChipPurchase.name,
+			cost: sessionChipPurchase.cost,
+			chips: sessionChipPurchase.chips,
+			sortOrder: sessionChipPurchase.sortOrder,
+			count: sessionChipPurchaseResult.count,
+		})
+		.from(sessionChipPurchase)
+		.leftJoin(
+			sessionChipPurchaseResult,
+			eq(
+				sessionChipPurchaseResult.sessionChipPurchaseId,
+				sessionChipPurchase.id
+			)
+		)
+		.where(inArray(sessionChipPurchase.sessionId, sessionIds))
+		.orderBy(asc(sessionChipPurchase.sortOrder));
+	for (const r of rows) {
+		const entry: SessionChipPurchaseWithCount = {
+			id: r.id,
+			name: r.name,
+			cost: r.cost,
+			chips: r.chips,
+			sortOrder: r.sortOrder,
+			count: r.count ?? 0,
+		};
+		const existing = map.get(r.sessionId);
+		if (existing) {
+			existing.push(entry);
+		} else {
+			map.set(r.sessionId, [entry]);
+		}
+	}
+	return map;
+}
+
+/**
+ * Delete + reinsert a session's chip purchases together with their result
+ * counts. The session_chip_purchase delete cascades to old result rows, so
+ * only the inserts are added here. Used by both create and update so counts
+ * are always written against the freshly generated purchase ids.
+ */
+async function persistSessionChipPurchases(
+	db: DbInstance,
+	sessionId: string,
+	chipPurchases: {
+		chips: number;
+		cost: number;
+		count: number;
+		name: string;
+	}[]
+): Promise<void> {
+	await db
+		.delete(sessionChipPurchase)
+		.where(eq(sessionChipPurchase.sessionId, sessionId));
+	if (chipPurchases.length === 0) {
+		return;
+	}
+	const rows = chipPurchases.map((p, idx) => ({
+		id: crypto.randomUUID(),
+		sessionId,
+		name: p.name,
+		cost: p.cost,
+		chips: p.chips,
+		sortOrder: idx,
+	}));
+	await db.insert(sessionChipPurchase).values(rows);
+	await db.insert(sessionChipPurchaseResult).values(
+		rows.map((r, idx) => ({
+			sessionChipPurchaseId: r.id,
+			count: chipPurchases[idx]?.count ?? 0,
+		}))
+	);
 }
 
 async function validateEntityOwnership(
@@ -260,9 +362,7 @@ const TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"beforeDeadline",
 	"prizeMoney",
 	"bountyPrizes",
-	"rebuyCount",
-	"rebuyCost",
-	"addonCost",
+	"chipPurchases",
 	"startedAt",
 	"endedAt",
 	"breakMinutes",
@@ -335,6 +435,15 @@ const cashGameCreateSchema = z.object({
 	tagIds: z.array(z.string()).optional(),
 });
 
+// A rule-defined chip purchase plus how many times it was bought (`count`).
+// Shared by session.create and session.update.
+const chipPurchaseInputSchema = z.object({
+	name: z.string(),
+	cost: z.number().int(),
+	chips: z.number().int(),
+	count: z.number().int().min(0).default(0),
+});
+
 const tournamentCreateSchema = z
 	.object({
 		type: z.literal("tournament"),
@@ -345,9 +454,6 @@ const tournamentCreateSchema = z
 		placement: z.number().int().min(1).optional(),
 		totalEntries: z.number().int().min(1).optional(),
 		prizeMoney: z.number().int().min(0).optional(),
-		rebuyCount: z.number().int().min(0).optional(),
-		rebuyCost: z.number().int().min(0).optional(),
-		addonCost: z.number().int().min(0).optional(),
 		bountyPrizes: z.number().int().min(0).optional(),
 		storeId: z.string().optional(),
 		tournamentId: z.string().optional(),
@@ -372,15 +478,7 @@ const tournamentCreateSchema = z
 				})
 			)
 			.optional(),
-		chipPurchases: z
-			.array(
-				z.object({
-					name: z.string(),
-					cost: z.number().int(),
-					chips: z.number().int(),
-				})
-			)
-			.optional(),
+		chipPurchases: z.array(chipPurchaseInputSchema).optional(),
 		startedAt: z.number().optional(),
 		endedAt: z.number().optional(),
 		breakMinutes: z.number().int().min(0).optional(),
@@ -420,16 +518,14 @@ interface SessionSummary {
 }
 
 interface SummarySessionRow {
-	addonCost: number | null;
 	bountyPrizes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
+	chipPurchaseCost: number;
 	entryFee: number | null;
 	evCashOut: number | null;
 	placement: number | null;
 	prizeMoney: number | null;
-	rebuyCost: number | null;
-	rebuyCount: number | null;
 	totalEntries: number | null;
 	type: string;
 }
@@ -441,9 +537,7 @@ function computeSessionPLFromRow(s: SummarySessionRow): number {
 	return computeTournamentPL(
 		s.buyIn,
 		s.entryFee,
-		s.rebuyCount,
-		s.rebuyCost,
-		s.addonCost,
+		s.chipPurchaseCost,
 		s.prizeMoney,
 		s.bountyPrizes
 	);
@@ -577,16 +671,14 @@ async function computeSummary(
 		);
 	}
 
-	const allSessions = await db
+	const rawSessions = await db
 		.select({
+			id: gameSession.id,
 			type: gameSession.kind,
 			buyIn: sessionCashDetail.buyIn,
 			cashOut: sessionCashDetail.cashOut,
 			evCashOut: sessionCashDetail.evCashOut,
 			entryFee: sessionTournamentDetail.entryFee,
-			rebuyCount: sessionTournamentDetail.rebuyCount,
-			rebuyCost: sessionTournamentDetail.rebuyCost,
-			addonCost: sessionTournamentDetail.addonCost,
 			prizeMoney: sessionTournamentDetail.prizeMoney,
 			bountyPrizes: sessionTournamentDetail.bountyPrizes,
 			placement: sessionTournamentDetail.placement,
@@ -603,10 +695,19 @@ async function computeSummary(
 		)
 		.where(and(...conditions));
 
-	const totalSessions = allSessions.length;
+	const totalSessions = rawSessions.length;
 	if (totalSessions === 0) {
 		return EMPTY_SUMMARY;
 	}
+
+	const chipPurchaseMap = await getSessionChipPurchaseMap(
+		db,
+		rawSessions.map((s) => s.id)
+	);
+	const allSessions: SummarySessionRow[] = rawSessions.map((s) => ({
+		...s,
+		chipPurchaseCost: sumChipPurchaseCost(chipPurchaseMap.get(s.id) ?? []),
+	}));
 
 	const agg = aggregateSessions(allSessions);
 	const isTournament = typeFilter === "tournament";
@@ -660,9 +761,7 @@ function _computeCreatePL(input: CreateInput): number {
 	return computeTournamentPL(
 		input.tournamentBuyIn,
 		input.entryFee,
-		input.rebuyCount ?? null,
-		input.rebuyCost ?? null,
-		input.addonCost ?? null,
+		sumChipPurchaseCost(input.chipPurchases ?? []),
 		input.prizeMoney ?? null,
 		input.bountyPrizes ?? null
 	);
@@ -710,34 +809,30 @@ function buildSessionListConditions(userId: string, filters: ListFilters) {
 }
 
 interface ListItemRaw {
-	addonCost: number | null;
 	bountyPrizes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
+	chipPurchaseCost: number;
 	entryFee: number | null;
 	evCashOut: number | null;
 	id: string;
 	prizeMoney: number | null;
-	rebuyCost: number | null;
-	rebuyCount: number | null;
 	source: string;
 	tournamentBuyIn: number | null;
 	type: string;
 }
 
 interface ProfitLossSeriesRow {
-	addonCost: number | null;
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
+	chipPurchaseCost: number;
 	endedAt: Date | null;
 	entryFee: number | null;
 	evCashOut: number | null;
 	id: string;
 	prizeMoney: number | null;
-	rebuyCost: number | null;
-	rebuyCount: number | null;
 	ringGameBlind2: number | null;
 	sessionDate: Date;
 	startedAt: Date | null;
@@ -772,17 +867,12 @@ function computeTournamentStats(r: ProfitLossSeriesRow): TournamentStats {
 	const profitLoss = computeTournamentPL(
 		r.tournamentBuyIn,
 		r.entryFee,
-		r.rebuyCount,
-		r.rebuyCost,
-		r.addonCost,
+		r.chipPurchaseCost,
 		r.prizeMoney,
 		r.bountyPrizes
 	);
 	const total =
-		(r.tournamentBuyIn ?? 0) +
-		(r.entryFee ?? 0) +
-		(r.rebuyCount ?? 0) * (r.rebuyCost ?? 0) +
-		(r.addonCost ?? 0);
+		(r.tournamentBuyIn ?? 0) + (r.entryFee ?? 0) + r.chipPurchaseCost;
 	return { profitLoss, buyInTotal: total === 0 ? null : total };
 }
 
@@ -845,9 +935,7 @@ function enrichItemWithPL<T extends ListItemRaw>(item: T) {
 		profitLoss = computeTournamentPL(
 			item.tournamentBuyIn,
 			item.entryFee,
-			item.rebuyCount,
-			item.rebuyCost,
-			item.addonCost,
+			item.chipPurchaseCost,
 			item.prizeMoney,
 			item.bountyPrizes
 		);
@@ -1004,14 +1092,17 @@ async function applyCashDetailUpdate(
 }
 
 interface TournamentUpdateInput {
-	addonCost?: number | null;
 	beforeDeadline?: boolean | null;
 	bountyPrizes?: number | null;
+	chipPurchases?: {
+		chips: number;
+		cost: number;
+		count: number;
+		name: string;
+	}[];
 	entryFee?: number;
 	placement?: number | null;
 	prizeMoney?: number | null;
-	rebuyCost?: number | null;
-	rebuyCount?: number | null;
 	totalEntries?: number | null;
 	tournamentBuyIn?: number;
 	tournamentId?: string | null;
@@ -1057,9 +1148,6 @@ function applyTournamentScalarUpdates(
 		"placement",
 		"totalEntries",
 		"prizeMoney",
-		"rebuyCount",
-		"rebuyCost",
-		"addonCost",
 		"bountyPrizes",
 	] as const;
 	for (const key of scalarKeys) {
@@ -1085,28 +1173,33 @@ async function applyTournamentDetailUpdate(
 	await applyTournamentSnapshotUpdate(db, tournUpdate, input);
 	applyTournamentScalarUpdates(tournUpdate, input);
 
-	if (Object.keys(tournUpdate).length === 0) {
-		return;
-	}
-	const [existingDetail] = await db
-		.select()
-		.from(sessionTournamentDetail)
-		.where(eq(sessionTournamentDetail.sessionId, sessionId));
-	if (existingDetail) {
-		await db
-			.update(sessionTournamentDetail)
-			.set(tournUpdate)
+	if (Object.keys(tournUpdate).length > 0) {
+		const [existingDetail] = await db
+			.select()
+			.from(sessionTournamentDetail)
 			.where(eq(sessionTournamentDetail.sessionId, sessionId));
-	} else {
-		await db
-			.insert(sessionTournamentDetail)
-			.values({ sessionId, ...tournUpdate });
+		if (existingDetail) {
+			await db
+				.update(sessionTournamentDetail)
+				.set(tournUpdate)
+				.where(eq(sessionTournamentDetail.sessionId, sessionId));
+		} else {
+			await db
+				.insert(sessionTournamentDetail)
+				.values({ sessionId, ...tournUpdate });
+		}
 	}
 
 	// Re-snapshot blind levels / chip purchases when the parent link changes.
 	// `null` keeps the existing snapshot (frozen).
 	if (input.tournamentId) {
 		await resnapshotTournamentStructure(db, sessionId, input.tournamentId);
+	}
+
+	// Explicit chip purchases (with result counts) override the snapshot.
+	// Runs after the re-snapshot so the explicit array wins when both apply.
+	if (input.chipPurchases !== undefined) {
+		await persistSessionChipPurchases(db, sessionId, input.chipPurchases);
 	}
 }
 
@@ -1324,9 +1417,6 @@ async function insertTournamentSessionDetail(
 		placement: beforeDeadline ? null : (input.placement ?? null),
 		totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
 		prizeMoney: input.prizeMoney ?? null,
-		rebuyCount: input.rebuyCount ?? null,
-		rebuyCost: input.rebuyCost ?? null,
-		addonCost: input.addonCost ?? null,
 		bountyPrizes: input.bountyPrizes ?? null,
 		ruleName: snapshot.ruleName,
 		variant: snapshot.variant,
@@ -1361,21 +1451,7 @@ async function insertTournamentSessionDetail(
 		}
 	}
 	if (input.chipPurchases !== undefined) {
-		await db
-			.delete(sessionChipPurchase)
-			.where(eq(sessionChipPurchase.sessionId, sessionId));
-		if (input.chipPurchases.length > 0) {
-			await db.insert(sessionChipPurchase).values(
-				input.chipPurchases.map((p, idx) => ({
-					id: crypto.randomUUID(),
-					sessionId,
-					name: p.name,
-					cost: p.cost,
-					chips: p.chips,
-					sortOrder: idx,
-				}))
-			);
-		}
+		await persistSessionChipPurchases(db, sessionId, input.chipPurchases);
 	}
 }
 
@@ -1411,14 +1487,21 @@ async function snapshotTournamentStructure(
 		.where(eq(tournamentChipPurchase.tournamentId, tournamentId))
 		.orderBy(asc(tournamentChipPurchase.sortOrder));
 	if (purchases.length > 0) {
-		await db.insert(sessionChipPurchase).values(
-			purchases.map((p) => ({
-				id: crypto.randomUUID(),
-				sessionId,
-				name: p.name,
-				cost: p.cost,
-				chips: p.chips,
-				sortOrder: p.sortOrder,
+		const purchaseRows = purchases.map((p) => ({
+			id: crypto.randomUUID(),
+			sessionId,
+			name: p.name,
+			cost: p.cost,
+			chips: p.chips,
+			sortOrder: p.sortOrder,
+		}));
+		await db.insert(sessionChipPurchase).values(purchaseRows);
+		// Every chip purchase starts with a result row (count 0) so the
+		// result table always has a row to update.
+		await db.insert(sessionChipPurchaseResult).values(
+			purchaseRows.map((r) => ({
+				sessionChipPurchaseId: r.id,
+				count: 0,
 			}))
 		);
 	}
@@ -1439,6 +1522,7 @@ async function resnapshotTournamentStructure(
 }
 
 export {
+	persistSessionChipPurchases,
 	resnapshotTournamentStructure,
 	resolveCashRuleSnapshot,
 	resolveTournamentRuleSnapshot,
@@ -1511,13 +1595,11 @@ function computeSessionPLFromDetails(
 		| {
 				tournamentBuyIn: number | null;
 				entryFee: number | null;
-				rebuyCount: number | null;
-				rebuyCost: number | null;
-				addonCost: number | null;
 				prizeMoney: number | null;
 				bountyPrizes: number | null;
 		  }
-		| undefined
+		| undefined,
+	chipPurchaseCost: number
 ): number {
 	if (
 		kind === "cash_game" &&
@@ -1530,9 +1612,7 @@ function computeSessionPLFromDetails(
 		return computeTournamentPL(
 			tournamentDetail.tournamentBuyIn,
 			tournamentDetail.entryFee,
-			tournamentDetail.rebuyCount,
-			tournamentDetail.rebuyCost,
-			tournamentDetail.addonCost,
+			chipPurchaseCost,
 			tournamentDetail.prizeMoney,
 			tournamentDetail.bountyPrizes
 		);
@@ -1620,9 +1700,6 @@ export const sessionRouter = router({
 					totalEntries: sessionTournamentDetail.totalEntries,
 					beforeDeadline: sessionTournamentDetail.beforeDeadline,
 					prizeMoney: sessionTournamentDetail.prizeMoney,
-					rebuyCount: sessionTournamentDetail.rebuyCount,
-					rebuyCost: sessionTournamentDetail.rebuyCost,
-					addonCost: sessionTournamentDetail.addonCost,
 					bountyPrizes: sessionTournamentDetail.bountyPrizes,
 					startedAt: gameSession.startedAt,
 					endedAt: gameSession.endedAt,
@@ -1674,7 +1751,22 @@ export const sessionRouter = router({
 			const items = hasMore ? data.slice(0, PAGE_SIZE) : data;
 			const nextCursor = hasMore ? items.at(-1)?.id : undefined;
 
-			const itemsWithPL = items.map(enrichItemWithPL);
+			// Chip purchases (with result counts) per session — drives the
+			// tournament PL and pre-fills the edit-mode wizard Result step.
+			const chipPurchaseMap = await getSessionChipPurchaseMap(
+				ctx.db,
+				items.map((item) => item.id)
+			);
+			const itemsWithChipPurchases = items.map((item) => {
+				const chipPurchases = chipPurchaseMap.get(item.id) ?? [];
+				return {
+					...item,
+					chipPurchases,
+					chipPurchaseCost: sumChipPurchaseCost(chipPurchases),
+				};
+			});
+
+			const itemsWithPL = itemsWithChipPurchases.map(enrichItemWithPL);
 
 			const sessionIds = itemsWithPL.map((item) => item.id);
 			const tagLinks =
@@ -1721,6 +1813,11 @@ export const sessionRouter = router({
 				.from(sessionTournamentDetail)
 				.where(eq(sessionTournamentDetail.sessionId, input.id));
 
+			const chipPurchaseMap = await getSessionChipPurchaseMap(ctx.db, [
+				input.id,
+			]);
+			const chipPurchases = chipPurchaseMap.get(input.id) ?? [];
+
 			const liveCashGameSessionId =
 				session.source === "live" && session.kind === "cash_game"
 					? session.id
@@ -1737,6 +1834,7 @@ export const sessionRouter = router({
 				liveTournamentSessionId,
 				...cashDetail,
 				...tournamentDetail,
+				chipPurchases,
 			};
 		}),
 
@@ -1758,10 +1856,8 @@ export const sessionRouter = router({
 				totalEntries: z.number().int().min(1).nullable().optional(),
 				beforeDeadline: z.boolean().nullable().optional(),
 				prizeMoney: z.number().int().min(0).nullable().optional(),
-				rebuyCount: z.number().int().min(0).nullable().optional(),
-				rebuyCost: z.number().int().min(0).nullable().optional(),
-				addonCost: z.number().int().min(0).nullable().optional(),
 				bountyPrizes: z.number().int().min(0).nullable().optional(),
+				chipPurchases: z.array(chipPurchaseInputSchema).optional(),
 				startedAt: z.number().nullable().optional(),
 				endedAt: z.number().nullable().optional(),
 				breakMinutes: z.number().int().min(0).nullable().optional(),
@@ -1861,10 +1957,14 @@ export const sessionRouter = router({
 				.from(sessionTournamentDetail)
 				.where(eq(sessionTournamentDetail.sessionId, input.id));
 
+			const updatedChipPurchaseMap = await getSessionChipPurchaseMap(ctx.db, [
+				input.id,
+			]);
 			const pl = computeSessionPLFromDetails(
 				updated.kind,
 				updatedCashDetail,
-				updatedTournamentDetail
+				updatedTournamentDetail,
+				sumChipPurchaseCost(updatedChipPurchaseMap.get(input.id) ?? [])
 			);
 
 			await syncCurrencyTransaction(
@@ -1932,9 +2032,6 @@ export const sessionRouter = router({
 					ringGameBlind2: sessionCashDetail.blind2,
 					tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
 					entryFee: sessionTournamentDetail.entryFee,
-					rebuyCount: sessionTournamentDetail.rebuyCount,
-					rebuyCost: sessionTournamentDetail.rebuyCost,
-					addonCost: sessionTournamentDetail.addonCost,
 					prizeMoney: sessionTournamentDetail.prizeMoney,
 					bountyPrizes: sessionTournamentDetail.bountyPrizes,
 				})
@@ -1950,7 +2047,20 @@ export const sessionRouter = router({
 				.where(and(...conditions))
 				.orderBy(asc(gameSession.sessionDate), asc(gameSession.id));
 
-			return { points: rows.map(toProfitLossSeriesPoint) };
+			const chipPurchaseMap = await getSessionChipPurchaseMap(
+				ctx.db,
+				rows.map((r) => r.id)
+			);
+			const points = rows.map((r) =>
+				toProfitLossSeriesPoint({
+					...r,
+					chipPurchaseCost: sumChipPurchaseCost(
+						chipPurchaseMap.get(r.id) ?? []
+					),
+				})
+			);
+
+			return { points };
 		}),
 
 	delete: protectedProcedure

@@ -224,7 +224,6 @@ describe("SessionWizard — live mode", () => {
 		expect(document.getElementById("entryFee")).toBeInTheDocument();
 		expect(document.getElementById("prizeMoney")).not.toBeInTheDocument();
 		expect(document.getElementById("placement")).not.toBeInTheDocument();
-		expect(document.getElementById("rebuyCount")).not.toBeInTheDocument();
 		expect(document.getElementById("bountyPrizes")).not.toBeInTheDocument();
 	});
 
@@ -236,13 +235,11 @@ describe("SessionWizard — live mode", () => {
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		// Result step: prizeMoney / placement / totalEntries (after toggling
 		// off the registration-close flag, which is unchecked by default) /
-		// rebuy / addon / bounty.
+		// bounty. Chip-purchase counts render only when the Rules step
+		// defined chip purchases.
 		expect(document.getElementById("prizeMoney")).toBeInTheDocument();
 		expect(document.getElementById("placement")).toBeInTheDocument();
 		expect(document.getElementById("totalEntries")).toBeInTheDocument();
-		expect(document.getElementById("rebuyCount")).toBeInTheDocument();
-		expect(document.getElementById("rebuyCost")).toBeInTheDocument();
-		expect(document.getElementById("addonCost")).toBeInTheDocument();
 		expect(document.getElementById("bountyPrizes")).toBeInTheDocument();
 	});
 

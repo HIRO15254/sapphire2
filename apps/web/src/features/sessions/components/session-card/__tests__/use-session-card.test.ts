@@ -31,11 +31,8 @@ const SESSION = {
 	placement: null,
 	totalEntries: null,
 	prizeMoney: null,
-	addonCost: null,
 	bountyPrizes: null,
 	entryFee: null,
-	rebuyCost: null,
-	rebuyCount: null,
 } satisfies ShareableSession;
 
 describe("useSessionCard", () => {

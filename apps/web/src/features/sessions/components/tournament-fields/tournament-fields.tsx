@@ -1,5 +1,6 @@
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
+import type { ChipPurchaseRow } from "@/features/stores/components/chip-purchases-editor";
 import { Checkbox } from "@/shared/components/ui/checkbox";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -40,6 +41,60 @@ interface TournamentRuleFieldsProps extends TournamentFieldsProps {
 	/** Field labels that diverge from the picked master tournament. */
 	overriddenLabels?: ReadonlySet<string>;
 	selectedCurrencyId?: string;
+}
+
+interface TournamentResultFieldsProps extends TournamentFieldsProps {
+	/** Purchase counts (the result) keyed by `ChipPurchaseRow.uid`. */
+	chipPurchaseCounts: Record<string, number>;
+	/** Rule-defined chip purchases from the wizard's Rules step. */
+	chipPurchases: ChipPurchaseRow[];
+	onChipPurchaseCountChange: (uid: string, count: number) => void;
+}
+
+function parseCountInput(value: string): number {
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+/**
+ * One row of the chip-purchase result list: the rule's name + cost on the
+ * left, a numeric purchase-count input, and the derived line cost
+ * (count × cost). Presentational — all state lives in the wizard hook.
+ */
+function ChipPurchaseCountRow({
+	row,
+	count,
+	disabled,
+	onCountChange,
+}: {
+	count: number;
+	disabled: boolean;
+	onCountChange: (count: number) => void;
+	row: ChipPurchaseRow;
+}) {
+	const unitCost = Number.parseInt(row.cost, 10);
+	const cost = Number.isFinite(unitCost) ? unitCost : 0;
+	const lineCost = cost * count;
+	return (
+		<div className="flex items-end gap-2">
+			<Field
+				className="flex flex-1 flex-col gap-1"
+				htmlFor={`cpc-${row.uid}`}
+				label={row.name || "Chip Purchase"}
+			>
+				<Input
+					disabled={disabled}
+					id={`cpc-${row.uid}`}
+					inputMode="numeric"
+					onChange={(e) => onCountChange(parseCountInput(e.target.value))}
+					value={count === 0 ? "" : String(count)}
+				/>
+			</Field>
+			<span className="pb-2 text-muted-foreground text-sm">
+				× {cost} = {lineCost}
+			</span>
+		</div>
+	);
 }
 
 /**
@@ -129,14 +184,19 @@ export function TournamentRuleFields({
 
 /**
  * Phase C (Result) tournament fields. Everything here is a session-level
- * outcome — prizeMoney / placement / total entries / rebuy / addon /
+ * outcome — prizeMoney / placement / total entries / chip-purchase counts /
  * bounty. The beforeDeadline checkbox discriminates the result kind
- * (categorical, not a rule).
+ * (categorical, not a rule). Chip purchase counts are recorded per
+ * rule-defined chip purchase (defined in the Rules step); cost is derived
+ * from the rule, never entered free-form here.
  */
 export function TournamentResultFields({
 	form,
 	isLiveLinked = false,
-}: TournamentFieldsProps) {
+	chipPurchases,
+	chipPurchaseCounts,
+	onChipPurchaseCountChange,
+}: TournamentResultFieldsProps) {
 	return (
 		<>
 			<div className="flex items-center gap-2">
@@ -223,83 +283,42 @@ export function TournamentResultFields({
 				)}
 			</form.Field>
 
-			<div className="grid grid-cols-2 gap-3">
-				<form.Field name="rebuyCount">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Rebuy Count"
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="rebuyCost">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Rebuy Cost"
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-			</div>
+			<form.Field name="bountyPrizes">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Bounty Prizes"
+					>
+						<Input
+							disabled={isLiveLinked}
+							id={field.name}
+							inputMode="numeric"
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 
-			<div className="grid grid-cols-2 gap-3">
-				<form.Field name="addonCost">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Addon Cost"
-						>
-							<Input
+			{chipPurchases.length > 0 && (
+				<Field className="rounded-md border p-3" label="Chip Purchases">
+					<div className="flex flex-col gap-2">
+						{chipPurchases.map((row) => (
+							<ChipPurchaseCountRow
+								count={chipPurchaseCounts[row.uid] ?? 0}
 								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
+								key={row.uid}
+								onCountChange={(count) =>
+									onChipPurchaseCountChange(row.uid, count)
+								}
+								row={row}
 							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="bountyPrizes">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Bounty Prizes"
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-			</div>
+						))}
+					</div>
+				</Field>
+			)}
 		</>
 	);
 }

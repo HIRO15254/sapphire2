@@ -64,9 +64,16 @@ export function useSessionFormState({
 	const [blindLevels, setBlindLevels] = useState<BlindLevelRow[]>(
 		toBlindLevelRows(defaultValues?.blindLevels ?? [])
 	);
-	const [chipPurchases, setChipPurchases] = useState<ChipPurchaseRow[]>(
-		toChipPurchaseRows(defaultValues?.chipPurchases ?? [])
+	const initialChipPurchases = toChipPurchaseRows(
+		defaultValues?.chipPurchases ?? []
 	);
+	const [chipPurchases, setChipPurchases] = useState<ChipPurchaseRow[]>(
+		initialChipPurchases.rows
+	);
+	// Purchase counts (the session result), keyed by `ChipPurchaseRow.uid`.
+	const [chipPurchaseCounts, setChipPurchaseCounts] = useState<
+		Record<string, number>
+	>(initialChipPurchases.counts);
 
 	const isCashGame = sessionType === "cash_game";
 	const gameOptions = isCashGame ? ringGames : tournaments;
@@ -120,9 +127,6 @@ export function useSessionFormState({
 					? undefined
 					: parseOptInt(value.totalEntries),
 				prizeMoney: parseOptInt(value.prizeMoney),
-				rebuyCount: parseOptInt(value.rebuyCount),
-				rebuyCost: parseOptInt(value.rebuyCost),
-				addonCost: parseOptInt(value.addonCost),
 				bountyPrizes: parseOptInt(value.bountyPrizes),
 				startingStack: parseOptInt(value.startingStack),
 				bountyAmount: parseOptInt(value.bountyAmount),
@@ -135,7 +139,7 @@ export function useSessionFormState({
 						: undefined,
 				chipPurchases:
 					chipPurchases.length > 0
-						? toSessionChipPurchases(chipPurchases)
+						? toSessionChipPurchases(chipPurchases, chipPurchaseCounts)
 						: undefined,
 				tournamentId: selectedGameId,
 			});
@@ -207,15 +211,15 @@ export function useSessionFormState({
 				}))
 			)
 		);
-		setChipPurchases(
-			toChipPurchaseRows(
-				purchases.map((p) => ({
-					name: p.name,
-					cost: p.cost,
-					chips: p.chips,
-				}))
-			)
+		const chipRows = toChipPurchaseRows(
+			purchases.map((p) => ({
+				name: p.name,
+				cost: p.cost,
+				chips: p.chips,
+			}))
 		);
+		setChipPurchases(chipRows.rows);
+		setChipPurchaseCounts(chipRows.counts);
 	};
 
 	const applyTournamentDefaults = (gameId: string) => {
@@ -237,6 +241,11 @@ export function useSessionFormState({
 		});
 		// Fire-and-forget; React state updates land asynchronously.
 		applyTournamentStructure(gameId).catch(() => undefined);
+	};
+
+	// Result step — set the purchase count for one chip purchase row.
+	const updateChipPurchaseCount = (uid: string, count: number) => {
+		setChipPurchaseCounts((prev) => ({ ...prev, [uid]: count }));
 	};
 
 	const handleStoreChange = (value: string | undefined) => {
@@ -283,6 +292,9 @@ export function useSessionFormState({
 		setBlindLevels,
 		chipPurchases,
 		setChipPurchases,
+		chipPurchaseCounts,
+		setChipPurchaseCounts,
+		updateChipPurchaseCount,
 		handleStoreChange,
 		handleGameChange,
 		gameOptions,

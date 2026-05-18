@@ -725,7 +725,13 @@ function ResultStepBody({
 			{state.isCashGame ? (
 				<CashResultFields isLiveLinked={isLiveLinked} state={state} />
 			) : (
-				<TournamentResultFields form={state.form} isLiveLinked={isLiveLinked} />
+				<TournamentResultFields
+					chipPurchaseCounts={state.chipPurchaseCounts}
+					chipPurchases={state.chipPurchases}
+					form={state.form}
+					isLiveLinked={isLiveLinked}
+					onChipPurchaseCountChange={state.updateChipPurchaseCount}
+				/>
 			)}
 			<TagsAndMemo onCreateTag={onCreateTag} state={state} tags={tags} />
 		</>

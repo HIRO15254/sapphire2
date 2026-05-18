@@ -30,7 +30,6 @@ interface SessionCardProps {
 		sessionType: "cash-game" | "tournament";
 	}) => void;
 	session: {
-		addonCost: number | null;
 		beforeDeadline: boolean | null;
 		bountyPrizes: number | null;
 		breakMinutes: number | null;
@@ -44,6 +43,15 @@ interface SessionCardProps {
 		cashOut: number | null;
 		cashTableSize: number | null;
 		cashVariant: string | null;
+		chipPurchaseCost: number;
+		chipPurchases: Array<{
+			chips: number;
+			cost: number;
+			count: number;
+			id: string;
+			name: string;
+			sortOrder: number;
+		}>;
 		createdAt: string;
 		currencyId: string | null;
 		currencyName: string | null;
@@ -60,8 +68,6 @@ interface SessionCardProps {
 		placement: number | null;
 		prizeMoney: number | null;
 		profitLoss: number | null;
-		rebuyCost: number | null;
-		rebuyCount: number | null;
 		ringGameBlind2: number | null;
 		ringGameId: string | null;
 		ringGameName: string | null;
@@ -106,8 +112,7 @@ function computeTotalCost(session: SessionCardProps["session"]): number {
 	return (
 		(session.tournamentBuyIn ?? 0) +
 		(session.entryFee ?? 0) +
-		(session.rebuyCount ?? 0) * (session.rebuyCost ?? 0) +
-		(session.addonCost ?? 0)
+		session.chipPurchaseCost
 	);
 }
 
@@ -257,18 +262,13 @@ function TournamentDetails({
 			value: formatCompactNumber(session.bountyPrizes),
 		});
 	}
-	if (session.rebuyCount !== null && session.rebuyCount > 0) {
-		const cost = session.rebuyCost ?? 0;
-		rows.push({
-			label: "Rebuy",
-			value: `${session.rebuyCount} × ${formatCompactNumber(cost)}`,
-		});
-	}
-	if (session.addonCost !== null && session.addonCost > 0) {
-		rows.push({
-			label: "Addon",
-			value: formatCompactNumber(session.addonCost),
-		});
+	for (const cp of session.chipPurchases) {
+		if (cp.count > 0) {
+			rows.push({
+				label: cp.name || "Chip Purchase",
+				value: `${cp.count} × ${formatCompactNumber(cp.cost)}`,
+			});
+		}
 	}
 	if (session.currencyName) {
 		rows.push({ label: "Currency", value: session.currencyName });
