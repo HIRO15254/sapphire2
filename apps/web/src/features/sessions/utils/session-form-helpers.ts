@@ -13,6 +13,8 @@ export interface SessionBlindLevelInput {
 export interface SessionChipPurchaseInput {
 	chips: number;
 	cost: number;
+	/** How many times this chip purchase was bought (the session result). */
+	count: number;
 	name: string;
 }
 
@@ -43,7 +45,6 @@ export interface CashGameFormValues {
 }
 
 export interface TournamentFormValues {
-	addonCost?: number;
 	beforeDeadline?: boolean;
 	blindLevels?: SessionBlindLevelInput[];
 	bountyAmount?: number;
@@ -56,8 +57,6 @@ export interface TournamentFormValues {
 	memo?: string;
 	placement?: number;
 	prizeMoney?: number;
-	rebuyCost?: number;
-	rebuyCount?: number;
 	ruleName?: string;
 	sessionDate: string;
 	startingStack?: number;
@@ -104,7 +103,6 @@ export interface TournamentOption {
 }
 
 export interface SessionFormDefaults {
-	addonCost?: number;
 	ante?: number;
 	anteType?: string;
 	beforeDeadline?: boolean;
@@ -127,8 +125,6 @@ export interface SessionFormDefaults {
 	minBuyIn?: number;
 	placement?: number;
 	prizeMoney?: number;
-	rebuyCost?: number;
-	rebuyCount?: number;
 	ringGameId?: string;
 	ruleName?: string;
 	sessionDate?: string;
@@ -196,9 +192,6 @@ export const sessionFormSchema = z.object({
 	placement: optionalNumericString({ integer: true, min: 1 }),
 	totalEntries: optionalNumericString({ integer: true, min: 1 }),
 	prizeMoney: optionalNumericString({ integer: true, min: 0 }),
-	rebuyCount: optionalNumericString({ integer: true, min: 0 }),
-	rebuyCost: optionalNumericString({ integer: true, min: 0 }),
-	addonCost: optionalNumericString({ integer: true, min: 0 }),
 	bountyPrizes: optionalNumericString({ integer: true, min: 0 }),
 });
 
@@ -231,9 +224,6 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		placement: numStrOrEmpty(defaults?.placement),
 		totalEntries: numStrOrEmpty(defaults?.totalEntries),
 		prizeMoney: numStrOrEmpty(defaults?.prizeMoney),
-		rebuyCount: numStrOrEmpty(defaults?.rebuyCount),
-		rebuyCost: numStrOrEmpty(defaults?.rebuyCost),
-		addonCost: numStrOrEmpty(defaults?.addonCost),
 		bountyPrizes: numStrOrEmpty(defaults?.bountyPrizes),
 	};
 }

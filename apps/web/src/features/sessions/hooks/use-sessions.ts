@@ -17,7 +17,6 @@ export type {
 } from "@/features/sessions/utils/session-form-helpers";
 
 export interface SessionItem {
-	addonCost: number | null;
 	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
@@ -32,6 +31,17 @@ export interface SessionItem {
 	cashOut: number | null;
 	cashTableSize: number | null;
 	cashVariant: string | null;
+	/** Σ cost × count across this session's chip purchases. */
+	chipPurchaseCost: number;
+	/** Rule-defined chip purchases with their result counts. */
+	chipPurchases: Array<{
+		chips: number;
+		cost: number;
+		count: number;
+		id: string;
+		name: string;
+		sortOrder: number;
+	}>;
 	createdAt: string;
 	currencyId: string | null;
 	currencyName: string | null;
@@ -48,8 +58,6 @@ export interface SessionItem {
 	placement: number | null;
 	prizeMoney: number | null;
 	profitLoss: number | null;
-	rebuyCost: number | null;
-	rebuyCount: number | null;
 	ringGameBlind2: number | null;
 	ringGameId: string | null;
 	ringGameName: string | null;
@@ -124,9 +132,6 @@ export function buildCreatePayload(values: SessionFormValues) {
 		placement: values.placement,
 		totalEntries: values.totalEntries,
 		prizeMoney: values.prizeMoney,
-		rebuyCount: values.rebuyCount,
-		rebuyCost: values.rebuyCost,
-		addonCost: values.addonCost,
 		bountyPrizes: values.bountyPrizes,
 		ruleName: values.ruleName,
 		variant: values.variant,
@@ -187,10 +192,8 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		placement: values.placement ?? null,
 		totalEntries: values.totalEntries ?? null,
 		prizeMoney: values.prizeMoney,
-		rebuyCount: values.rebuyCount,
-		rebuyCost: values.rebuyCost,
-		addonCost: values.addonCost,
 		bountyPrizes: values.bountyPrizes,
+		chipPurchases: values.chipPurchases,
 		tournamentId: values.tournamentId ?? null,
 	};
 }
@@ -213,10 +216,9 @@ export function buildOptimisticItem(
 		placement: null,
 		totalEntries: null,
 		prizeMoney: null,
-		rebuyCount: null,
-		rebuyCost: null,
-		addonCost: null,
 		bountyPrizes: null,
+		chipPurchases: [],
+		chipPurchaseCost: 0,
 		breakMinutes: newSession.breakMinutes ?? null,
 		profitLoss: 0,
 		startedAt: null,
@@ -313,10 +315,13 @@ export function buildEditDefaults(session: SessionItem) {
 		placement: session.placement ?? undefined,
 		totalEntries: session.totalEntries ?? undefined,
 		prizeMoney: session.prizeMoney ?? undefined,
-		rebuyCount: session.rebuyCount ?? undefined,
-		rebuyCost: session.rebuyCost ?? undefined,
-		addonCost: session.addonCost ?? undefined,
 		bountyPrizes: session.bountyPrizes ?? undefined,
+		chipPurchases: session.chipPurchases.map((cp) => ({
+			name: cp.name,
+			cost: cp.cost,
+			chips: cp.chips,
+			count: cp.count,
+		})),
 		startTime: formatTimeFromDate(session.startedAt),
 		endTime: formatTimeFromDate(session.endedAt),
 		breakMinutes: session.breakMinutes ?? undefined,

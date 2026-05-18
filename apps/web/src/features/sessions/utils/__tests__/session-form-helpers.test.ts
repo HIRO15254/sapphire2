@@ -111,9 +111,6 @@ describe("sessionFormSchema", () => {
 			placement: "",
 			totalEntries: "",
 			prizeMoney: "",
-			rebuyCount: "",
-			rebuyCost: "",
-			addonCost: "",
 			bountyPrizes: "",
 			...overrides,
 		};

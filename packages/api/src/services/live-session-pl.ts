@@ -10,6 +10,8 @@ import {
 } from "@sapphire2/db/constants/session-event-types";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
+import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
+import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import {
@@ -34,15 +36,15 @@ interface CashGamePLResult {
 }
 
 interface TournamentPLResult {
-	addonCost: number;
-	addonCount: number;
 	beforeDeadline: boolean;
 	bountyPrizes: number | null;
+	/** Σ cost across all purchase_chips events. */
+	chipPurchaseCost: number;
+	/** Purchase count keyed by sessionChipPurchaseId. */
+	chipPurchaseCounts: Map<string, number>;
 	placement: number | null;
 	prizeMoney: number | null;
 	profitLoss: number | null;
-	rebuyCost: number;
-	rebuyCount: number;
 	totalEntries: number | null;
 }
 
@@ -163,7 +165,7 @@ export function computeTournamentPLFromEvents(
 	tournamentBuyIn?: number,
 	tournamentEntryFee?: number
 ): TournamentPLResult {
-	let chipPurchaseCount = 0;
+	const chipPurchaseCounts = new Map<string, number>();
 	let totalChipPurchaseCost = 0;
 	let placement: number | null = null;
 	let totalEntries: number | null = null;
@@ -176,7 +178,10 @@ export function computeTournamentPLFromEvents(
 
 		if (event.eventType === "purchase_chips") {
 			const data = purchaseChipsPayload.parse(parsed);
-			chipPurchaseCount++;
+			chipPurchaseCounts.set(
+				data.sessionChipPurchaseId,
+				(chipPurchaseCounts.get(data.sessionChipPurchaseId) ?? 0) + 1
+			);
 			totalChipPurchaseCost += data.cost;
 		} else if (event.eventType === "session_end") {
 			const result = tournamentSessionEndPayload.safeParse(parsed);
@@ -199,10 +204,8 @@ export function computeTournamentPLFromEvents(
 	const profitLoss = prizeMoney === null ? null : income - cost;
 
 	return {
-		rebuyCount: chipPurchaseCount,
-		rebuyCost: totalChipPurchaseCost,
-		addonCount: 0,
-		addonCost: 0,
+		chipPurchaseCost: totalChipPurchaseCost,
+		chipPurchaseCounts,
 		beforeDeadline,
 		placement,
 		totalEntries,
@@ -398,6 +401,32 @@ async function resolveTournamentBuyInFees(
 	return { tournamentBuyIn, entryFee };
 }
 
+/**
+ * Write the event-derived purchase counts onto session_chip_purchase_result.
+ * Every session_chip_purchase gets a row (count 0 when never bought). Uses an
+ * upsert so it is safe even if a result row was never seeded.
+ */
+async function syncChipPurchaseResults(
+	db: DbInstance,
+	sessionId: string,
+	chipPurchaseCounts: Map<string, number>
+): Promise<void> {
+	const purchases = await db
+		.select({ id: sessionChipPurchase.id })
+		.from(sessionChipPurchase)
+		.where(eq(sessionChipPurchase.sessionId, sessionId));
+	for (const p of purchases) {
+		const count = chipPurchaseCounts.get(p.id) ?? 0;
+		await db
+			.insert(sessionChipPurchaseResult)
+			.values({ sessionChipPurchaseId: p.id, count })
+			.onConflictDoUpdate({
+				target: sessionChipPurchaseResult.sessionChipPurchaseId,
+				set: { count },
+			});
+	}
+}
+
 export async function recalculateTournamentSession(
 	db: DbInstance,
 	sessionId: string,
@@ -470,9 +499,6 @@ export async function recalculateTournamentSession(
 		beforeDeadline: pl.beforeDeadline ? true : null,
 		prizeMoney: pl.prizeMoney,
 		bountyPrizes: pl.bountyPrizes,
-		rebuyCount: pl.rebuyCount,
-		rebuyCost: pl.rebuyCost > 0 ? pl.rebuyCost : null,
-		addonCost: pl.addonCost > 0 ? pl.addonCost : null,
 	};
 
 	if (existingDetail) {
@@ -487,6 +513,9 @@ export async function recalculateTournamentSession(
 			...detailUpdate,
 		});
 	}
+
+	// Sync chip purchase result counts from the purchase_chips events.
+	await syncChipPurchaseResults(db, sessionId, pl.chipPurchaseCounts);
 
 	await syncCurrencyTransaction(
 		db,

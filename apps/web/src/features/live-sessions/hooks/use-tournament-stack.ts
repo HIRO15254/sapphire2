@@ -41,9 +41,11 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 	});
 	// Chip purchase types come from the session-level snapshot so the live
 	// session keeps the addon menu it was created with, even if the parent
-	// tournament's chip purchase rows are edited later.
+	// tournament's chip purchase rows are edited later. `id` is the
+	// session_chip_purchase id — every purchase_chips event links to it.
 	const chipPurchaseTypes = (sessionQuery.data?.chipPurchases ?? []).map(
 		(t) => ({
+			id: t.id,
 			name: t.name,
 			cost: t.cost,
 			chips: t.chips,
@@ -69,13 +71,19 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 	});
 
 	const purchaseChipsMutation = useMutation({
-		mutationFn: (values: { name: string; cost: number; chips: number }) =>
+		mutationFn: (values: {
+			sessionChipPurchaseId: string;
+			name: string;
+			cost: number;
+			chips: number;
+		}) =>
 			trpcClient.sessionEvent.create.mutate({
 				liveTournamentSessionId: sessionId,
 				eventType: "purchase_chips",
 				payload: values,
 			}),
 		...createSessionEventMutationOptions<{
+			sessionChipPurchaseId: string;
 			name: string;
 			cost: number;
 			chips: number;
@@ -170,8 +178,12 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 	return {
 		chipPurchaseTypes,
 		recordStack: (values: RecordStackValues) => stackMutation.mutate(values),
-		purchaseChips: (values: { name: string; cost: number; chips: number }) =>
-			purchaseChipsMutation.mutate(values),
+		purchaseChips: (values: {
+			sessionChipPurchaseId: string;
+			name: string;
+			cost: number;
+			chips: number;
+		}) => purchaseChipsMutation.mutate(values),
 		complete: (
 			values:
 				| {

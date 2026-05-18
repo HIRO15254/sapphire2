@@ -592,6 +592,7 @@ describe("ActiveSessionEventsPage — tournament events display", () => {
 						eventType: "purchase_chips",
 						occurredAt: new Date("2026-04-03T14:00:00"),
 						payload: {
+							sessionChipPurchaseId: "scp-1",
 							name: "Rebuy",
 							cost: 100,
 							chips: 10_000,

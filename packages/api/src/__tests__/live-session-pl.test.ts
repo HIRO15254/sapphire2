@@ -211,11 +211,12 @@ describe("computeCashGamePLFromEvents", () => {
 });
 
 describe("computeTournamentPLFromEvents", () => {
-	it("counts chip purchases from purchase_chips events", () => {
+	it("counts chip purchases per sessionChipPurchaseId from purchase_chips events", () => {
 		const events = [
 			{
 				eventType: "purchase_chips",
 				payload: JSON.stringify({
+					sessionChipPurchaseId: "scp-1",
 					name: "Rebuy",
 					cost: 100,
 					chips: 10_000,
@@ -224,6 +225,16 @@ describe("computeTournamentPLFromEvents", () => {
 			{
 				eventType: "purchase_chips",
 				payload: JSON.stringify({
+					sessionChipPurchaseId: "scp-1",
+					name: "Rebuy",
+					cost: 100,
+					chips: 10_000,
+				}),
+			},
+			{
+				eventType: "purchase_chips",
+				payload: JSON.stringify({
+					sessionChipPurchaseId: "scp-2",
 					name: "Add-on",
 					cost: 50,
 					chips: 5000,
@@ -231,10 +242,16 @@ describe("computeTournamentPLFromEvents", () => {
 			},
 		];
 		const result = computeTournamentPLFromEvents(events);
-		// All chip purchases are consolidated: rebuyCount = total purchase count
-		expect(result.rebuyCount).toBe(2);
-		expect(result.rebuyCost).toBe(150);
+		expect(result.chipPurchaseCounts.get("scp-1")).toBe(2);
+		expect(result.chipPurchaseCounts.get("scp-2")).toBe(1);
+		expect(result.chipPurchaseCost).toBe(250);
 		expect(result.profitLoss).toBeNull();
+	});
+
+	it("returns empty chipPurchaseCounts when there are no purchase_chips events", () => {
+		const result = computeTournamentPLFromEvents([]);
+		expect(result.chipPurchaseCounts.size).toBe(0);
+		expect(result.chipPurchaseCost).toBe(0);
 	});
 
 	it("extracts placement, totalEntries, prizeMoney, and bountyPrizes from session_end", () => {
@@ -262,6 +279,7 @@ describe("computeTournamentPLFromEvents", () => {
 			{
 				eventType: "purchase_chips",
 				payload: JSON.stringify({
+					sessionChipPurchaseId: "scp-1",
 					name: "Rebuy",
 					cost: 100,
 					chips: 10_000,
@@ -298,6 +316,7 @@ describe("computeTournamentPLFromEvents", () => {
 			{
 				eventType: "purchase_chips",
 				payload: JSON.stringify({
+					sessionChipPurchaseId: "scp-1",
 					name: "Rebuy",
 					cost: 100,
 					chips: 10_000,
@@ -306,6 +325,7 @@ describe("computeTournamentPLFromEvents", () => {
 			{
 				eventType: "purchase_chips",
 				payload: JSON.stringify({
+					sessionChipPurchaseId: "scp-2",
 					name: "Add-on",
 					cost: 50,
 					chips: 5000,
@@ -770,7 +790,7 @@ describe("recalculateTournamentSession — completed session, no tournamentId", 
 			kind: "tournament",
 			currencyId: "currency-1",
 		});
-		const existingDetail: unknown[] = [];
+		const existingDetail: Record<string, unknown>[] = [];
 		const existingTransactionType = [
 			{
 				id: "tt-1",
@@ -784,7 +804,8 @@ describe("recalculateTournamentSession — completed session, no tournamentId", 
 			events,
 			[session],
 			existingDetail,
-			[],
+			[], // session_chip_purchase rows (syncChipPurchaseResults)
+			[], // existing currencyTransaction
 			existingTransactionType,
 		]);
 
@@ -837,14 +858,16 @@ describe("recalculateTournamentSession — completed session, no tournamentId", 
 				beforeDeadline: null,
 				prizeMoney: null,
 				bountyPrizes: null,
-				rebuyCount: null,
-				rebuyCost: null,
-				addonCost: null,
 				timerStartedAt: null,
 			},
 		];
 
-		const db = makeChainableDb([events, [session], existingDetail, []]);
+		const db = makeChainableDb([
+			events,
+			[session],
+			existingDetail,
+			[], // session_chip_purchase rows (syncChipPurchaseResults)
+		]);
 
 		await recalculateTournamentSession(
 			db as unknown as Parameters<typeof recalculateTournamentSession>[0],
@@ -898,9 +921,6 @@ describe("recalculateTournamentSession — completed with tournamentId and linke
 				beforeDeadline: null,
 				prizeMoney: null,
 				bountyPrizes: null,
-				rebuyCount: null,
-				rebuyCost: null,
-				addonCost: null,
 				timerStartedAt: null,
 			},
 		];
@@ -912,6 +932,7 @@ describe("recalculateTournamentSession — completed with tournamentId and linke
 			[session],
 			existingDetail,
 			tournamentMaster,
+			[], // session_chip_purchase rows (syncChipPurchaseResults)
 			existingTx,
 		]);
 

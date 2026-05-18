@@ -117,7 +117,12 @@ describe("sessionEvent.create input validation", () => {
 		expectAccepts(appRouter.sessionEvent.create, {
 			liveTournamentSessionId: "lt1",
 			eventType: "purchase_chips",
-			payload: { name: "Rebuy", cost: 100, chips: 10_000 },
+			payload: {
+				sessionChipPurchaseId: "scp-1",
+				name: "Rebuy",
+				cost: 100,
+				chips: 10_000,
+			},
 		});
 	});
 });

@@ -1,5 +1,4 @@
 export interface ShareableSession {
-	addonCost: number | null;
 	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
 	buyIn: number | null;
@@ -11,8 +10,6 @@ export interface ShareableSession {
 	placement: number | null;
 	prizeMoney: number | null;
 	profitLoss: number | null;
-	rebuyCost: number | null;
-	rebuyCount: number | null;
 	ringGameBlind2: number | null;
 	ringGameName: string | null;
 	sessionDate: string;

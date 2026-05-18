@@ -156,8 +156,8 @@ describe("useTournamentStack", () => {
 			);
 			await waitFor(() => {
 				expect(result.current.chipPurchaseTypes).toEqual([
-					{ name: "Rebuy", cost: 100, chips: 10_000 },
-					{ name: "Addon", cost: 200, chips: 20_000 },
+					{ id: "cp1", name: "Rebuy", cost: 100, chips: 10_000 },
+					{ id: "cp2", name: "Addon", cost: 200, chips: 20_000 },
 				]);
 			});
 		});
@@ -208,7 +208,7 @@ describe("useTournamentStack", () => {
 	});
 
 	describe("purchaseChips", () => {
-		it("forwards { name, cost, chips } payload", async () => {
+		it("forwards { sessionChipPurchaseId, name, cost, chips } payload", async () => {
 			const qc = createClient();
 			qc.setQueryData(sessionKey, {
 				tournamentId: "tourn-1",
@@ -223,6 +223,7 @@ describe("useTournamentStack", () => {
 			);
 			await act(async () => {
 				result.current.purchaseChips({
+					sessionChipPurchaseId: "cp1",
 					name: "Rebuy",
 					cost: 100,
 					chips: 10_000,
@@ -233,7 +234,12 @@ describe("useTournamentStack", () => {
 				expect(trpcMocks.sessionEventCreate).toHaveBeenCalledWith({
 					liveTournamentSessionId: "t1",
 					eventType: "purchase_chips",
-					payload: { name: "Rebuy", cost: 100, chips: 10_000 },
+					payload: {
+						sessionChipPurchaseId: "cp1",
+						name: "Rebuy",
+						cost: 100,
+						chips: 10_000,
+					},
 				});
 			});
 		});

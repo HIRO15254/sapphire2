@@ -11,6 +11,8 @@ import { useTournamentStackForm } from "./use-tournament-stack-form";
 interface ChipPurchaseType {
 	chips: number;
 	cost: number;
+	/** The session_chip_purchase id — links a purchase_chips event to the rule. */
+	id: string;
 	name: string;
 }
 
@@ -36,6 +38,7 @@ interface TournamentStackFormProps {
 		chips: number;
 		cost: number;
 		name: string;
+		sessionChipPurchaseId: string;
 	}) => void;
 	onSubmit: (values: TournamentStackFormSubmitValues) => void;
 }
@@ -69,6 +72,7 @@ export function TournamentStackForm({
 		chips: number;
 		cost: number;
 		name: string;
+		sessionChipPurchaseId: string;
 	}) => {
 		onPurchaseChips(values);
 		setChipPurchaseSheetOpen(false);
@@ -231,7 +235,7 @@ export function TournamentStackForm({
 				onOpenChange={setChipPurchaseSheetOpen}
 				onSubmit={handleChipPurchaseSubmit}
 				open={chipPurchaseSheetOpen}
-				shortcuts={chipPurchaseTypes}
+				options={chipPurchaseTypes}
 			/>
 
 			<ResponsiveDialog

@@ -49,12 +49,24 @@ vi.mock("@/features/live-sessions/components/chip-purchase-sheet", () => ({
 		onSubmit,
 		open,
 	}: {
-		onSubmit: (value: { chips: number; cost: number; name: string }) => void;
+		onSubmit: (value: {
+			chips: number;
+			cost: number;
+			name: string;
+			sessionChipPurchaseId: string;
+		}) => void;
 		open: boolean;
 	}) =>
 		open ? (
 			<button
-				onClick={() => onSubmit({ chips: 10_000, cost: 5000, name: "Rebuy" })}
+				onClick={() =>
+					onSubmit({
+						sessionChipPurchaseId: "cp1",
+						chips: 10_000,
+						cost: 5000,
+						name: "Rebuy",
+					})
+				}
 				type="button"
 			>
 				Mock Purchase
@@ -81,8 +93,8 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 }));
 
 const CHIP_PURCHASE_TYPES = [
-	{ name: "Rebuy", cost: 5000, chips: 10_000 },
-	{ name: "Addon", cost: 3000, chips: 8000 },
+	{ id: "cp1", name: "Rebuy", cost: 5000, chips: 10_000 },
+	{ id: "cp2", name: "Addon", cost: 3000, chips: 8000 },
 ];
 
 describe("TournamentStackForm", () => {
@@ -242,6 +254,7 @@ describe("TournamentStackForm", () => {
 		await user.click(screen.getByText("Mock Purchase"));
 
 		expect(onPurchaseChips).toHaveBeenCalledWith({
+			sessionChipPurchaseId: "cp1",
 			chips: 10_000,
 			cost: 5000,
 			name: "Rebuy",

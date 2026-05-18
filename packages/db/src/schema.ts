@@ -33,6 +33,10 @@ import {
 	sessionChipPurchase,
 	sessionChipPurchaseRelations,
 } from "./schema/session-chip-purchase";
+import {
+	sessionChipPurchaseResult,
+	sessionChipPurchaseResultRelations,
+} from "./schema/session-chip-purchase-result";
 import { sessionEvent, sessionEventRelations } from "./schema/session-event";
 import {
 	sessionTablePlayer,
@@ -116,6 +120,8 @@ export const schema = {
 	sessionBlindLevelRelations,
 	sessionChipPurchase,
 	sessionChipPurchaseRelations,
+	sessionChipPurchaseResult,
+	sessionChipPurchaseResultRelations,
 	player,
 	playerRelations,
 	playerTag,

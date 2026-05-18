@@ -1,7 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
-import { assertNoLiveLinkedRestrictedEdits } from "../routers/session";
+import {
+	assertNoLiveLinkedRestrictedEdits,
+	computeTournamentPL,
+} from "../routers/session";
 
 const DERIVED_FIELDS_RE = /Cannot edit fields derived from live session events/;
 const RING_CONFIG_RE = /variant|blind1|blind2/;
@@ -291,6 +294,51 @@ describe("session router input validation", () => {
 		).toBe(true);
 	});
 
+	it("create accepts chipPurchases carrying an explicit count", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				...TOURNAMENT_BASE,
+				chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000, count: 3 }],
+			}).success
+		).toBe(true);
+	});
+
+	it("create rejects a negative chip purchase count", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				...TOURNAMENT_BASE,
+				chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000, count: -1 }],
+			}).success
+		).toBe(false);
+	});
+
+	it("create no longer accepts the legacy rebuyCount field as a real column", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as {
+			safeParse: (v: unknown) => {
+				data?: Record<string, unknown>;
+				success: boolean;
+			};
+		};
+		const parsed = schema.safeParse({ ...TOURNAMENT_BASE, rebuyCount: 5 });
+		expect(parsed.success).toBe(true);
+		// Zod strips the unknown legacy key — it never reaches the DB layer.
+		expect(parsed.data?.rebuyCount).toBeUndefined();
+	});
+
 	it("create rejects a blind level missing isBreak on tournament session", () => {
 		const schema = (
 			appRouter.session.create as unknown as {
@@ -481,5 +529,26 @@ describe("assertNoLiveLinkedRestrictedEdits", () => {
 				memo: "ok",
 			})
 		).not.toThrow();
+	});
+});
+
+describe("computeTournamentPL", () => {
+	it("subtracts buy-in, entry fee, and chip purchase cost from prize income", () => {
+		// income (1000 + 200) - cost (500 + 50 + 300) = 1200 - 850 = 350
+		expect(computeTournamentPL(500, 50, 300, 1000, 200)).toBe(350);
+	});
+
+	it("treats null buy-in / entry fee / prizes as zero", () => {
+		expect(computeTournamentPL(null, null, 0, null, null)).toBe(0);
+	});
+
+	it("returns a loss when chip purchases exceed income", () => {
+		// income 0 - cost (100 + 0 + 250) = -350
+		expect(computeTournamentPL(100, null, 250, null, null)).toBe(-350);
+	});
+
+	it("adds bounty prizes to income", () => {
+		// income (0 + 400) - cost (100 + 0 + 0) = 300
+		expect(computeTournamentPL(100, 0, 0, 0, 400)).toBe(300);
 	});
 });

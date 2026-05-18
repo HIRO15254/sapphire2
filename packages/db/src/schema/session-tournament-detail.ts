@@ -18,9 +18,6 @@ export const sessionTournamentDetail = sqliteTable(
 		totalEntries: integer("total_entries"),
 		beforeDeadline: integer("before_deadline", { mode: "boolean" }),
 		prizeMoney: integer("prize_money"),
-		rebuyCount: integer("rebuy_count"),
-		rebuyCost: integer("rebuy_cost"),
-		addonCost: integer("addon_cost"),
 		bountyPrizes: integer("bounty_prizes"),
 		timerStartedAt: integer("timer_started_at", { mode: "timestamp" }),
 		// Snapshot fields — copied from tournament at session create time and

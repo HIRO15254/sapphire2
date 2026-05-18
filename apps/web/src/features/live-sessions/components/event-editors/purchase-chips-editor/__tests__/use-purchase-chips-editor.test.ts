@@ -91,7 +91,32 @@ describe("usePurchaseChipsEditor", () => {
 			await result.current.form.handleSubmit();
 		});
 		expect(onSubmit).toHaveBeenCalledWith(
-			{ name: "Rebuy", cost: 25, chips: 4000 },
+			{ sessionChipPurchaseId: "", name: "Rebuy", cost: 25, chips: 4000 },
+			expect.any(Number)
+		);
+	});
+
+	it("carries the original sessionChipPurchaseId from the event payload", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			usePurchaseChipsEditor({
+				event: event({
+					sessionChipPurchaseId: "scp-7",
+					name: "Rebuy",
+					cost: 25,
+					chips: 4000,
+				}),
+				isLoading: false,
+				maxTime: null,
+				minTime: null,
+				onSubmit,
+			})
+		);
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionChipPurchaseId: "scp-7" }),
 			expect.any(Number)
 		);
 	});

@@ -17,9 +17,6 @@ describe("SessionTournamentDetail schema — columns", () => {
 				"totalEntries",
 				"beforeDeadline",
 				"prizeMoney",
-				"rebuyCount",
-				"rebuyCost",
-				"addonCost",
 				"bountyPrizes",
 				"timerStartedAt",
 				"ruleName",
@@ -29,6 +26,12 @@ describe("SessionTournamentDetail schema — columns", () => {
 				"tableSize",
 			])
 		);
+	});
+
+	it("no longer has the legacy rebuyCount / rebuyCost / addonCost columns", () => {
+		expect((columns as Record<string, unknown>).rebuyCount).toBeUndefined();
+		expect((columns as Record<string, unknown>).rebuyCost).toBeUndefined();
+		expect((columns as Record<string, unknown>).addonCost).toBeUndefined();
 	});
 
 	it("ruleName and variant are NOT NULL (snapshot is forced on insert)", () => {
@@ -70,9 +73,6 @@ describe("SessionTournamentDetail schema — columns", () => {
 		expect(columns.placement.notNull).toBe(false);
 		expect(columns.totalEntries.notNull).toBe(false);
 		expect(columns.prizeMoney.notNull).toBe(false);
-		expect(columns.rebuyCount.notNull).toBe(false);
-		expect(columns.rebuyCost.notNull).toBe(false);
-		expect(columns.addonCost.notNull).toBe(false);
 		expect(columns.bountyPrizes.notNull).toBe(false);
 	});
 
@@ -92,9 +92,6 @@ describe("SessionTournamentDetail schema — columns", () => {
 		expect(columns.placement.dataType).toBe("number");
 		expect(columns.totalEntries.dataType).toBe("number");
 		expect(columns.prizeMoney.dataType).toBe("number");
-		expect(columns.rebuyCount.dataType).toBe("number");
-		expect(columns.rebuyCost.dataType).toBe("number");
-		expect(columns.addonCost.dataType).toBe("number");
 		expect(columns.bountyPrizes.dataType).toBe("number");
 	});
 });
