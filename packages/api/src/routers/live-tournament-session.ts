@@ -6,7 +6,6 @@ import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
-import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { currency, store } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
@@ -581,11 +580,6 @@ export const liveTournamentSessionRouter = router({
 				.where(eq(sessionEvent.sessionId, input.id))
 				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
-			const tablePlayers = await ctx.db
-				.select()
-				.from(sessionTablePlayer)
-				.where(eq(sessionTablePlayer.sessionId, input.id));
-
 			const blindLevels = await ctx.db
 				.select()
 				.from(sessionBlindLevel)
@@ -638,7 +632,6 @@ export const liveTournamentSessionRouter = router({
 				timerStartedAt: detail?.timerStartedAt ?? null,
 				heroSeatPosition,
 				events,
-				tablePlayers,
 				blindLevels,
 				chipPurchases,
 				summary,
