@@ -13,6 +13,16 @@ const mocks = vi.hoisted(() => ({
 		id: string;
 		storeId: string;
 		ringGameId: string | null;
+		ruleName?: string | null;
+		variant?: string | null;
+		blind1?: number | null;
+		blind2?: number | null;
+		blind3?: number | null;
+		ante?: number | null;
+		anteType?: string | null;
+		minBuyIn?: number | null;
+		maxBuyIn?: number | null;
+		tableSize?: number | null;
 	},
 	tournamentSession: null as null | {
 		id: string;
@@ -95,8 +105,34 @@ vi.mock("@tanstack/react-query", () => ({
 		if (scope === "tournamentChipPurchase") {
 			return { data: mocks.chipPurchases, isLoading: false };
 		}
+		if (scope === "liveTournamentSession") {
+			// Mirrors the new snapshot fields returned by
+			// `liveTournamentSession.getById`. The active scene reads the
+			// session-level snapshot for display (name, blinds, chip purchases).
+			const t = mocks.tournament;
+			if (!t) {
+				return { data: undefined, isLoading: false };
+			}
+			return {
+				data: {
+					ruleName: t.name,
+					variant: t.variant,
+					buyIn: t.buyIn,
+					entryFee: t.entryFee,
+					startingStack: t.startingStack,
+					bountyAmount: t.bountyAmount,
+					tableSize: t.tableSize,
+					blindLevels: mocks.levels,
+					chipPurchases: mocks.chipPurchases,
+				},
+				isLoading: false,
+			};
+		}
 		if (scope === "currency") {
 			return { data: mocks.currencies, isLoading: false };
+		}
+		if (scope === "liveCashGameSession") {
+			return { data: undefined, isLoading: false };
 		}
 		return { data: undefined, isLoading: false };
 	},
@@ -192,6 +228,16 @@ describe("ActiveSessionGameScene", () => {
 			id: "session-1",
 			storeId: "store-1",
 			ringGameId: "ring-1",
+			ruleName: "1/2 NLH",
+			variant: "nlh",
+			blind1: 1,
+			blind2: 2,
+			blind3: null,
+			ante: null,
+			anteType: "none",
+			minBuyIn: 100,
+			maxBuyIn: 400,
+			tableSize: 9,
 		};
 		mocks.ringGames = [
 			{

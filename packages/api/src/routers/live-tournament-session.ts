@@ -3,11 +3,13 @@ import {
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
 import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
+import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { currency, store } from "@sapphire2/db/schema/store";
-import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -18,6 +20,11 @@ import {
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
+import {
+	resnapshotTournamentStructure,
+	resolveTournamentRuleSnapshot,
+	snapshotTournamentStructure,
+} from "./session";
 
 const DEFAULT_LIMIT = 20;
 
@@ -82,16 +89,22 @@ async function assertNoActiveSession(
 	}
 }
 
-async function fetchTournamentMasterData(
-	db: DbInstance,
-	tournamentId: string | null
-): Promise<{
+function detailSnapshotForGetById(
+	detail:
+		| {
+				tournamentBuyIn: number | null;
+				entryFee: number | null;
+				startingStack: number | null;
+				tableSize: number | null;
+		  }
+		| undefined
+): {
 	tournamentBuyIn: number | undefined;
 	entryFee: number | undefined;
 	startingStack: number | undefined;
 	tableSize: number | null;
-}> {
-	if (!tournamentId) {
+} {
+	if (!detail) {
 		return {
 			tournamentBuyIn: undefined,
 			entryFee: undefined,
@@ -99,20 +112,11 @@ async function fetchTournamentMasterData(
 			tableSize: null,
 		};
 	}
-	const [t] = await db
-		.select({
-			buyIn: tournament.buyIn,
-			entryFee: tournament.entryFee,
-			startingStack: tournament.startingStack,
-			tableSize: tournament.tableSize,
-		})
-		.from(tournament)
-		.where(eq(tournament.id, tournamentId));
 	return {
-		tournamentBuyIn: t?.buyIn ?? undefined,
-		entryFee: t?.entryFee ?? undefined,
-		startingStack: t?.startingStack ?? undefined,
-		tableSize: t?.tableSize ?? null,
+		tournamentBuyIn: detail.tournamentBuyIn ?? undefined,
+		entryFee: detail.entryFee ?? undefined,
+		startingStack: detail.startingStack ?? undefined,
+		tableSize: detail.tableSize ?? null,
 	};
 }
 
@@ -284,6 +288,17 @@ async function resolveDetailUpdate(
 		if (patch.currencyId) {
 			patchedUpdateData.currencyId = patch.currencyId;
 		}
+
+		const snapshot = await resolveTournamentRuleSnapshot(db, {
+			tournamentId: input.tournamentId,
+		});
+		detailUpdate.ruleName = snapshot.ruleName;
+		detailUpdate.variant = snapshot.variant;
+		detailUpdate.startingStack = snapshot.startingStack;
+		detailUpdate.bountyAmount = snapshot.bountyAmount;
+		detailUpdate.tableSize = snapshot.tableSize;
+		detailUpdate.tournamentBuyIn = snapshot.tournamentBuyIn;
+		detailUpdate.entryFee = snapshot.entryFee;
 	}
 
 	return { detailUpdate, patchedUpdateData };
@@ -482,8 +497,8 @@ export const liveTournamentSessionRouter = router({
 					storeId: gameSession.storeId,
 					storeName: store.name,
 					tournamentId: sessionTournamentDetail.tournamentId,
-					tournamentName: tournament.name,
-					startingStack: tournament.startingStack,
+					tournamentName: sessionTournamentDetail.ruleName,
+					startingStack: sessionTournamentDetail.startingStack,
 					currencyId: gameSession.currencyId,
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
@@ -499,10 +514,6 @@ export const liveTournamentSessionRouter = router({
 					eq(sessionTournamentDetail.sessionId, gameSession.id)
 				)
 				.leftJoin(store, eq(store.id, gameSession.storeId))
-				.leftJoin(
-					tournament,
-					eq(tournament.id, sessionTournamentDetail.tournamentId)
-				)
 				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
 				.where(and(...conditions))
 				.orderBy(desc(gameSession.startedAt))
@@ -557,10 +568,7 @@ export const liveTournamentSessionRouter = router({
 				.from(sessionTournamentDetail)
 				.where(eq(sessionTournamentDetail.sessionId, input.id));
 
-			const masterData = await fetchTournamentMasterData(
-				ctx.db,
-				detail?.tournamentId ?? null
-			);
+			const masterData = detailSnapshotForGetById(detail);
 
 			const tournamentBuyIn =
 				detail?.tournamentBuyIn ?? masterData.tournamentBuyIn;
@@ -577,13 +585,17 @@ export const liveTournamentSessionRouter = router({
 				.from(sessionTablePlayer)
 				.where(eq(sessionTablePlayer.sessionId, input.id));
 
-			const blindLevels = detail?.tournamentId
-				? await ctx.db
-						.select()
-						.from(blindLevel)
-						.where(eq(blindLevel.tournamentId, detail.tournamentId))
-						.orderBy(asc(blindLevel.level))
-				: [];
+			const blindLevels = await ctx.db
+				.select()
+				.from(sessionBlindLevel)
+				.where(eq(sessionBlindLevel.sessionId, input.id))
+				.orderBy(asc(sessionBlindLevel.level));
+
+			const chipPurchases = await ctx.db
+				.select()
+				.from(sessionChipPurchase)
+				.where(eq(sessionChipPurchase.sessionId, input.id))
+				.orderBy(asc(sessionChipPurchase.sortOrder));
 
 			const pl = computeTournamentPLFromEvents(
 				events.map((e) => ({ eventType: e.eventType, payload: e.payload })),
@@ -630,8 +642,16 @@ export const liveTournamentSessionRouter = router({
 				events,
 				tablePlayers,
 				blindLevels,
+				chipPurchases,
 				summary,
 				tableSize: masterData.tableSize,
+				// Snapshot fields from session_tournament_detail. These stay
+				// stable even if the parent tournament is renamed or its
+				// blind/chip structure is edited after session creation.
+				ruleName: detail?.ruleName ?? null,
+				variant: detail?.variant ?? null,
+				startingStack: detail?.startingStack ?? null,
+				bountyAmount: detail?.bountyAmount ?? null,
 			};
 		}),
 
@@ -669,15 +689,25 @@ export const liveTournamentSessionRouter = router({
 				updatedAt: now,
 			});
 
+			const snapshot = await resolveTournamentRuleSnapshot(ctx.db, {
+				tournamentId: input.tournamentId,
+				tournamentBuyIn: input.buyIn,
+				entryFee: input.entryFee,
+			});
 			await ctx.db.insert(sessionTournamentDetail).values({
 				sessionId: id,
 				tournamentId: input.tournamentId ?? null,
-				tournamentBuyIn: input.buyIn ?? null,
-				entryFee: input.entryFee ?? null,
+				tournamentBuyIn: snapshot.tournamentBuyIn,
+				entryFee: snapshot.entryFee,
 				timerStartedAt:
 					input.timerStartedAt === undefined
 						? null
 						: new Date(input.timerStartedAt * 1000),
+				ruleName: input.tournamentId ? snapshot.ruleName : "Tournament",
+				variant: snapshot.variant,
+				startingStack: snapshot.startingStack,
+				bountyAmount: snapshot.bountyAmount,
+				tableSize: snapshot.tableSize,
 			});
 
 			await ctx.db.insert(sessionEvent).values({
@@ -691,6 +721,10 @@ export const liveTournamentSessionRouter = router({
 				}),
 				updatedAt: now,
 			});
+
+			if (input.tournamentId) {
+				await snapshotTournamentStructure(ctx.db, id, input.tournamentId);
+			}
 
 			return { id };
 		}),
@@ -740,6 +774,16 @@ export const liveTournamentSessionRouter = router({
 				detailUpdate
 			);
 
+			// Re-snapshot blind levels / chip purchases when the parent link
+			// changes to a new tournament. `null` keeps the existing snapshot.
+			if (input.tournamentId) {
+				await resnapshotTournamentStructure(
+					ctx.db,
+					input.id,
+					input.tournamentId
+				);
+			}
+
 			await syncTimerStartedAtEvent(ctx.db, input.id, input.timerStartedAt);
 
 			const [updated] = await ctx.db
@@ -759,6 +803,121 @@ export const liveTournamentSessionRouter = router({
 				entryFee: updatedDetail?.entryFee ?? null,
 				timerStartedAt: updatedDetail?.timerStartedAt ?? null,
 			};
+		}),
+
+	// Edit the session's frozen rule snapshot — scalar fields on
+	// session_tournament_detail, plus optional full-list replacements of
+	// session_blind_level and session_chip_purchase. The master tournament
+	// is NEVER touched by this mutation. Use it from the live-session edit
+	// dialog to override snapshot data for this session only.
+	updateSnapshot: protectedProcedure
+		.input(
+			z.object({
+				id: z.string(),
+				ruleName: z.string().min(1).optional(),
+				variant: z.string().optional(),
+				tournamentBuyIn: z.number().int().nullable().optional(),
+				entryFee: z.number().int().nullable().optional(),
+				startingStack: z.number().int().nullable().optional(),
+				bountyAmount: z.number().int().nullable().optional(),
+				tableSize: z.number().int().nullable().optional(),
+				blindLevels: z
+					.array(
+						z.object({
+							isBreak: z.boolean(),
+							blind1: z.number().int().nullable().optional(),
+							blind2: z.number().int().nullable().optional(),
+							blind3: z.number().int().nullable().optional(),
+							ante: z.number().int().nullable().optional(),
+							minutes: z.number().int().nullable().optional(),
+						})
+					)
+					.optional(),
+				chipPurchases: z
+					.array(
+						z.object({
+							name: z.string(),
+							cost: z.number().int(),
+							chips: z.number().int(),
+						})
+					)
+					.optional(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await findLiveTournamentSession(ctx.db, input.id, userId);
+
+			const detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> =
+				{};
+			if (input.ruleName !== undefined) {
+				detailUpdate.ruleName = input.ruleName;
+			}
+			if (input.variant !== undefined) {
+				detailUpdate.variant = input.variant;
+			}
+			if (input.tournamentBuyIn !== undefined) {
+				detailUpdate.tournamentBuyIn = input.tournamentBuyIn;
+			}
+			if (input.entryFee !== undefined) {
+				detailUpdate.entryFee = input.entryFee;
+			}
+			if (input.startingStack !== undefined) {
+				detailUpdate.startingStack = input.startingStack;
+			}
+			if (input.bountyAmount !== undefined) {
+				detailUpdate.bountyAmount = input.bountyAmount;
+			}
+			if (input.tableSize !== undefined) {
+				detailUpdate.tableSize = input.tableSize;
+			}
+			if (Object.keys(detailUpdate).length > 0) {
+				await ctx.db
+					.update(sessionTournamentDetail)
+					.set(detailUpdate)
+					.where(eq(sessionTournamentDetail.sessionId, input.id));
+			}
+
+			if (input.blindLevels !== undefined) {
+				await ctx.db
+					.delete(sessionBlindLevel)
+					.where(eq(sessionBlindLevel.sessionId, input.id));
+				if (input.blindLevels.length > 0) {
+					await ctx.db.insert(sessionBlindLevel).values(
+						input.blindLevels.map((l, idx) => ({
+							id: crypto.randomUUID(),
+							sessionId: input.id,
+							level: idx + 1,
+							isBreak: l.isBreak,
+							blind1: l.blind1 ?? null,
+							blind2: l.blind2 ?? null,
+							blind3: l.blind3 ?? null,
+							ante: l.ante ?? null,
+							minutes: l.minutes ?? null,
+						}))
+					);
+				}
+			}
+
+			if (input.chipPurchases !== undefined) {
+				await ctx.db
+					.delete(sessionChipPurchase)
+					.where(eq(sessionChipPurchase.sessionId, input.id));
+				if (input.chipPurchases.length > 0) {
+					await ctx.db.insert(sessionChipPurchase).values(
+						input.chipPurchases.map((p, idx) => ({
+							id: crypto.randomUUID(),
+							sessionId: input.id,
+							name: p.name,
+							cost: p.cost,
+							chips: p.chips,
+							sortOrder: idx,
+						}))
+					);
+				}
+			}
+
+			return { id: input.id };
 		}),
 
 	complete: protectedProcedure

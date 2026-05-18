@@ -234,6 +234,77 @@ describe("session router input validation", () => {
 		expect(schema.safeParse({ id: "s1", placement: 0 }).success).toBe(false);
 	});
 
+	it("create accepts cash session with snapshot override fields", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				...CASH_BASE,
+				ruleName: "1/2 NLH (this session)",
+				minBuyIn: 100,
+				maxBuyIn: 400,
+				tableSize: 9,
+			}).success
+		).toBe(true);
+	});
+
+	it("create rejects empty ruleName on cash session", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(schema.safeParse({ ...CASH_BASE, ruleName: "" }).success).toBe(
+			false
+		);
+	});
+
+	it("create accepts tournament session with snapshot override fields and structure arrays", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				...TOURNAMENT_BASE,
+				ruleName: "Main Event (session-only)",
+				variant: "nlh",
+				startingStack: 20_000,
+				bountyAmount: 500,
+				tableSize: 9,
+				blindLevels: [
+					{
+						isBreak: false,
+						blind1: 100,
+						blind2: 200,
+						blind3: null,
+						ante: null,
+						minutes: 15,
+					},
+				],
+				chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000 }],
+			}).success
+		).toBe(true);
+	});
+
+	it("create rejects a blind level missing isBreak on tournament session", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				...TOURNAMENT_BASE,
+				blindLevels: [{ blind1: 100 }],
+			}).success
+		).toBe(false);
+	});
+
 	it("update accepts explicit null clears for nullable link fields", () => {
 		const schema = (
 			appRouter.session.update as unknown as {

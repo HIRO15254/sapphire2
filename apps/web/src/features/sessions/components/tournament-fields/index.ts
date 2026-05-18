@@ -1,4 +1,4 @@
 export {
-	TournamentDetailFields,
-	TournamentPrimaryFields,
+	TournamentResultFields,
+	TournamentRuleFields,
 } from "./tournament-fields";

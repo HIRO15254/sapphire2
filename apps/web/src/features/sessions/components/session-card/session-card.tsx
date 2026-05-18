@@ -35,7 +35,15 @@ interface SessionCardProps {
 		bountyPrizes: number | null;
 		breakMinutes: number | null;
 		buyIn: number | null;
+		cashAnte: number | null;
+		cashAnteType: string | null;
+		cashBlind1: number | null;
+		cashBlind3: number | null;
+		cashMaxBuyIn: number | null;
+		cashMinBuyIn: number | null;
 		cashOut: number | null;
+		cashTableSize: number | null;
+		cashVariant: string | null;
 		createdAt: string;
 		currencyId: string | null;
 		currencyName: string | null;
@@ -63,9 +71,13 @@ interface SessionCardProps {
 		storeName: string | null;
 		tags: Array<{ id: string; name: string }>;
 		totalEntries: number | null;
+		tournamentBountyAmount: number | null;
 		tournamentBuyIn: number | null;
 		tournamentId: string | null;
 		tournamentName: string | null;
+		tournamentStartingStack: number | null;
+		tournamentTableSize: number | null;
+		tournamentVariant: string | null;
 		type: string;
 		// CTI discriminators — added in Phase 1 DB migration
 		source: string;

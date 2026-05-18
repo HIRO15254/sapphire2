@@ -1,48 +1,48 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
 import type { TournamentFormValues } from "@/features/stores/hooks/use-tournaments";
-import { useTournaments } from "@/features/stores/hooks/use-tournaments";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 interface UseTournamentSceneActionsArgs {
 	sessionId: string;
-	storeId: string;
-	tournamentId: string;
 }
 
+/**
+ * Edit a live tournament session's frozen rule snapshot. Writes go to
+ * `session_tournament_detail`, `session_blind_level`, and
+ * `session_chip_purchase` — the master `tournament` row is never touched.
+ * Use this for the live-session edit dialog so per-session overrides do
+ * not leak back into the master template.
+ */
 export function useTournamentSceneActions({
 	sessionId,
-	storeId,
-	tournamentId,
 }: UseTournamentSceneActionsArgs) {
 	const queryClient = useQueryClient();
 	const [isEditOpen, setIsEditOpen] = useState(false);
-	const [isSaving, setIsSaving] = useState(false);
-	const { isUpdateWithLevelsPending } = useTournaments({
-		storeId,
-		showArchived: false,
-	});
 
-	const save = async (
-		values: TournamentFormValues,
-		updatedLevels: BlindLevelRow[]
-	) => {
-		setIsSaving(true);
-		try {
-			await trpcClient.tournament.updateWithLevels.mutate({
-				id: tournamentId,
-				name: values.name,
+	const sessionKey = trpc.liveTournamentSession.getById.queryOptions({
+		id: sessionId,
+	}).queryKey;
+
+	const updateMutation = useMutation({
+		mutationFn: ({
+			values,
+			updatedLevels,
+		}: {
+			values: TournamentFormValues;
+			updatedLevels: BlindLevelRow[];
+		}) =>
+			trpcClient.liveTournamentSession.updateSnapshot.mutate({
+				id: sessionId,
+				ruleName: values.name,
 				variant: values.variant,
-				buyIn: values.buyIn ?? null,
+				tournamentBuyIn: values.buyIn ?? null,
 				entryFee: values.entryFee ?? null,
 				startingStack: values.startingStack ?? null,
 				bountyAmount: values.bountyAmount ?? null,
 				tableSize: values.tableSize ?? null,
-				currencyId: values.currencyId ?? null,
-				memo: values.memo ?? null,
-				tags: values.tags,
 				chipPurchases: values.chipPurchases,
 				blindLevels: updatedLevels.map((l) => ({
 					isBreak: l.isBreak,
@@ -52,44 +52,15 @@ export function useTournamentSceneActions({
 					ante: l.ante,
 					minutes: l.minutes,
 				})),
-			});
-			await invalidateTargets(queryClient, [
-				{
-					queryKey: trpc.tournament.getById.queryOptions({ id: tournamentId })
-						.queryKey,
-				},
-				{
-					queryKey: trpc.tournament.listByStore.queryOptions({
-						storeId,
-						includeArchived: false,
-					}).queryKey,
-				},
-				{
-					queryKey: trpc.blindLevel.listByTournament.queryOptions({
-						tournamentId,
-					}).queryKey,
-				},
-				{
-					queryKey: trpc.tournamentChipPurchase.listByTournament.queryOptions({
-						tournamentId,
-					}).queryKey,
-				},
-				{
-					queryKey: trpc.liveTournamentSession.getById.queryOptions({
-						id: sessionId,
-					}).queryKey,
-				},
-			]);
-		} finally {
-			setIsSaving(false);
-		}
-	};
+			}),
+		onSettled: () => invalidateTargets(queryClient, [{ queryKey: sessionKey }]),
+	});
 
 	const handleSave = async (
 		values: TournamentFormValues,
 		updatedLevels: BlindLevelRow[]
 	) => {
-		await save(values, updatedLevels);
+		await updateMutation.mutateAsync({ values, updatedLevels });
 		setIsEditOpen(false);
 	};
 
@@ -97,7 +68,7 @@ export function useTournamentSceneActions({
 		isEditOpen,
 		setIsEditOpen,
 		handleSave,
-		isSaving,
-		isUpdateWithLevelsPending,
+		isSaving: updateMutation.isPending,
+		isUpdateWithLevelsPending: updateMutation.isPending,
 	};
 }

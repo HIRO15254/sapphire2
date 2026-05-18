@@ -1,7 +1,9 @@
-import { useState } from "react";
 import { useCreateSession } from "@/features/live-sessions/hooks/use-create-session";
-
-type SessionType = "cash_game" | "tournament";
+import type {
+	RingGameOption,
+	SessionFormValues,
+	TournamentOption,
+} from "@/features/sessions/utils/session-form-helpers";
 
 interface UseCreateSessionDialogOptions {
 	onOpenChange: (open: boolean) => void;
@@ -10,8 +12,6 @@ interface UseCreateSessionDialogOptions {
 export function useCreateSessionDialog({
 	onOpenChange,
 }: UseCreateSessionDialogOptions) {
-	const [sessionType, setSessionType] = useState<SessionType>("cash_game");
-
 	const {
 		stores,
 		currencies,
@@ -25,19 +25,42 @@ export function useCreateSessionDialog({
 
 	const handleReset = () => {
 		setSelectedStoreId(undefined);
-		setSessionType("cash_game");
+	};
+
+	const handleSubmit = (values: SessionFormValues) => {
+		if (values.type === "cash_game") {
+			createCash({
+				storeId: values.storeId,
+				ringGameId: values.ringGameId,
+				currencyId: values.currencyId,
+				// The Rules step's buyIn doubles as the live session's initial
+				// buy-in. cashOut is irrelevant at session start.
+				initialBuyIn: values.buyIn,
+				memo: values.memo,
+			});
+			return;
+		}
+		createTournament({
+			storeId: values.storeId,
+			tournamentId: values.tournamentId,
+			currencyId: values.currencyId,
+			buyIn: values.tournamentBuyIn,
+			entryFee: values.entryFee,
+			// startingStack is required by the live mutation; the wizard
+			// Rules step exposes it via the tournament snapshot scalar.
+			startingStack: values.startingStack ?? 0,
+			memo: values.memo,
+			timerStartedAt: values.timerStartedAt,
+		});
 	};
 
 	return {
-		sessionType,
-		setSessionType,
-		stores,
+		stores: stores as Array<{ id: string; name: string }>,
 		currencies,
-		ringGames,
-		tournaments,
+		ringGames: ringGames as RingGameOption[],
+		tournaments: tournaments as TournamentOption[],
 		setSelectedStoreId,
-		createCash,
-		createTournament,
+		handleSubmit,
 		isLoading,
 		handleReset,
 	};

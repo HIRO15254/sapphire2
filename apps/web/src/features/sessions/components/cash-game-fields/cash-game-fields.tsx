@@ -1,4 +1,5 @@
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
+import { OverrideLabel } from "@/features/sessions/components/override-label";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -32,6 +33,8 @@ interface CashGameFieldsProps {
 	form: AnyForm;
 	isLiveLinked?: boolean;
 	onCurrencyChange?: (id: string | undefined) => void;
+	/** Field labels that diverge from the picked master ring game. */
+	overriddenLabels?: ReadonlySet<string>;
 	selectedCurrencyId?: string;
 }
 
@@ -48,15 +51,13 @@ export function CashGameFields({
 	form,
 	isLiveLinked = false,
 	onCurrencyChange,
+	overriddenLabels,
 	selectedCurrencyId,
 }: CashGameFieldsProps) {
 	return (
 		<>
 			{currencies && currencies.length > 0 && (
-				<Field
-					description="Auto-generates a transaction with the session's P&L."
-					label="Currency"
-				>
+				<Field label="Currency">
 					<SelectWithClear
 						onValueChange={onCurrencyChange}
 						value={selectedCurrencyId}
@@ -77,7 +78,12 @@ export function CashGameFields({
 
 			<form.Field name="variant">
 				{(field) => (
-					<Field htmlFor={field.name} label="Variant">
+					<Field
+						htmlFor={field.name}
+						label={
+							<OverrideLabel label="Variant" overridden={overriddenLabels} />
+						}
+					>
 						<Select
 							disabled={isLiveLinked}
 							onValueChange={(v) => field.handleChange(v)}
@@ -100,7 +106,7 @@ export function CashGameFields({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="SB"
+							label={<OverrideLabel label="SB" overridden={overriddenLabels} />}
 						>
 							<Input
 								disabled={isLiveLinked}
@@ -118,7 +124,7 @@ export function CashGameFields({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="BB"
+							label={<OverrideLabel label="BB" overridden={overriddenLabels} />}
 						>
 							<Input
 								disabled={isLiveLinked}
@@ -136,7 +142,9 @@ export function CashGameFields({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="Straddle"
+							label={
+								<OverrideLabel label="Straddle" overridden={overriddenLabels} />
+							}
 						>
 							<Input
 								disabled={isLiveLinked}
@@ -154,7 +162,16 @@ export function CashGameFields({
 			<div className="flex gap-3">
 				<form.Field name="anteType">
 					{(field) => (
-						<Field className="flex-1" htmlFor={field.name} label="Ante Type">
+						<Field
+							className="flex-1"
+							htmlFor={field.name}
+							label={
+								<OverrideLabel
+									label="Ante Type"
+									overridden={overriddenLabels}
+								/>
+							}
+						>
 							<Select
 								disabled={isLiveLinked}
 								onValueChange={(v) => field.handleChange(v)}
@@ -183,7 +200,9 @@ export function CashGameFields({
 									className="flex-1"
 									error={field.state.meta.errors[0]?.message}
 									htmlFor={field.name}
-									label="Ante"
+									label={
+										<OverrideLabel label="Ante" overridden={overriddenLabels} />
+									}
 								>
 									<Input
 										disabled={isLiveLinked || isAnteDisabled}
@@ -202,7 +221,12 @@ export function CashGameFields({
 
 			<form.Field name="tableSize">
 				{(field) => (
-					<Field htmlFor={field.name} label="Table Size">
+					<Field
+						htmlFor={field.name}
+						label={
+							<OverrideLabel label="Table Size" overridden={overriddenLabels} />
+						}
+					>
 						<Select
 							disabled={isLiveLinked}
 							onValueChange={(v) => field.handleChange(v)}

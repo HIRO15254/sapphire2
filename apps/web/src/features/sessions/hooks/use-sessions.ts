@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { SessionFilterValues } from "@/features/sessions/components/session-filters";
+import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
 import {
 	cancelTargets,
 	invalidateTargets,
@@ -9,53 +10,11 @@ import {
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
-export interface CashGameFormValues {
-	ante?: number;
-	anteType?: string;
-	blind1?: number;
-	blind2?: number;
-	blind3?: number;
-	breakMinutes?: number;
-	buyIn: number;
-	cashOut: number;
-	currencyId?: string;
-	endTime?: string;
-	evCashOut?: number;
-	memo?: string;
-	ringGameId?: string;
-	sessionDate: string;
-	startTime?: string;
-	storeId?: string;
-	tableSize?: number;
-	tagIds?: string[];
-	type: "cash_game";
-	variant: string;
-}
-
-export interface TournamentFormValues {
-	addonCost?: number;
-	beforeDeadline?: boolean;
-	bountyPrizes?: number;
-	breakMinutes?: number;
-	currencyId?: string;
-	endTime?: string;
-	entryFee?: number;
-	memo?: string;
-	placement?: number;
-	prizeMoney?: number;
-	rebuyCost?: number;
-	rebuyCount?: number;
-	sessionDate: string;
-	startTime?: string;
-	storeId?: string;
-	tagIds?: string[];
-	totalEntries?: number;
-	tournamentBuyIn: number;
-	tournamentId?: string;
-	type: "tournament";
-}
-
-export type SessionFormValues = CashGameFormValues | TournamentFormValues;
+export type {
+	CashGameFormValues,
+	SessionFormValues,
+	TournamentFormValues,
+} from "@/features/sessions/utils/session-form-helpers";
 
 export interface SessionItem {
 	addonCost: number | null;
@@ -63,7 +22,16 @@ export interface SessionItem {
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
 	buyIn: number | null;
+	// Cash snapshot scalars (used by the wizard edit pre-fill).
+	cashAnte: number | null;
+	cashAnteType: string | null;
+	cashBlind1: number | null;
+	cashBlind3: number | null;
+	cashMaxBuyIn: number | null;
+	cashMinBuyIn: number | null;
 	cashOut: number | null;
+	cashTableSize: number | null;
+	cashVariant: string | null;
 	createdAt: string;
 	currencyId: string | null;
 	currencyName: string | null;
@@ -94,9 +62,14 @@ export interface SessionItem {
 	storeName: string | null;
 	tags: Array<{ id: string; name: string }>;
 	totalEntries: number | null;
+	tournamentBountyAmount: number | null;
 	tournamentBuyIn: number | null;
 	tournamentId: string | null;
 	tournamentName: string | null;
+	// Tournament snapshot scalars (used by the wizard edit pre-fill).
+	tournamentStartingStack: number | null;
+	tournamentTableSize: number | null;
+	tournamentVariant: string | null;
 	type: string;
 }
 
@@ -129,6 +102,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 			buyIn: values.buyIn,
 			cashOut: values.cashOut,
 			evCashOut: values.evCashOut,
+			ruleName: values.ruleName,
 			variant: values.variant,
 			blind1: values.blind1,
 			blind2: values.blind2,
@@ -136,6 +110,8 @@ export function buildCreatePayload(values: SessionFormValues) {
 			ante: values.ante,
 			anteType: values.anteType as "none" | "all" | "bb" | undefined,
 			tableSize: values.tableSize,
+			minBuyIn: values.minBuyIn,
+			maxBuyIn: values.maxBuyIn,
 			ringGameId: values.ringGameId,
 		};
 	}
@@ -152,6 +128,13 @@ export function buildCreatePayload(values: SessionFormValues) {
 		rebuyCost: values.rebuyCost,
 		addonCost: values.addonCost,
 		bountyPrizes: values.bountyPrizes,
+		ruleName: values.ruleName,
+		variant: values.variant,
+		startingStack: values.startingStack,
+		bountyAmount: values.bountyAmount,
+		tableSize: values.tableSize,
+		blindLevels: values.blindLevels,
+		chipPurchases: values.chipPurchases,
 		tournamentId: values.tournamentId,
 	};
 }
@@ -256,6 +239,18 @@ export function buildOptimisticItem(
 		liveCashGameSessionId: null,
 		liveTournamentSessionId: null,
 		tags: [],
+		cashAnte: null,
+		cashAnteType: null,
+		cashBlind1: null,
+		cashBlind3: null,
+		cashMaxBuyIn: null,
+		cashMinBuyIn: null,
+		cashTableSize: null,
+		cashVariant: null,
+		tournamentBountyAmount: null,
+		tournamentStartingStack: null,
+		tournamentTableSize: null,
+		tournamentVariant: null,
 	};
 	if (newSession.type === "cash_game") {
 		item.buyIn = newSession.buyIn;
@@ -272,6 +267,37 @@ export function buildOptimisticItem(
 		item.beforeDeadline = newSession.beforeDeadline ?? null;
 	}
 	return item;
+}
+
+function cashSnapshotDefaults(session: SessionItem) {
+	if (session.type !== "cash_game") {
+		return {};
+	}
+	return {
+		ruleName: session.ringGameName ?? undefined,
+		variant: session.cashVariant ?? undefined,
+		blind1: session.cashBlind1 ?? undefined,
+		blind2: session.ringGameBlind2 ?? undefined,
+		blind3: session.cashBlind3 ?? undefined,
+		ante: session.cashAnte ?? undefined,
+		anteType: session.cashAnteType ?? undefined,
+		minBuyIn: session.cashMinBuyIn ?? undefined,
+		maxBuyIn: session.cashMaxBuyIn ?? undefined,
+		tableSize: session.cashTableSize ?? undefined,
+	};
+}
+
+function tournamentSnapshotDefaults(session: SessionItem) {
+	if (session.type !== "tournament") {
+		return {};
+	}
+	return {
+		ruleName: session.tournamentName ?? undefined,
+		variant: session.tournamentVariant ?? undefined,
+		tableSize: session.tournamentTableSize ?? undefined,
+		startingStack: session.tournamentStartingStack ?? undefined,
+		bountyAmount: session.tournamentBountyAmount ?? undefined,
+	};
 }
 
 export function buildEditDefaults(session: SessionItem) {
@@ -300,6 +326,11 @@ export function buildEditDefaults(session: SessionItem) {
 		ringGameId: session.ringGameId ?? undefined,
 		tournamentId: session.tournamentId ?? undefined,
 		currencyId: session.currencyId ?? undefined,
+		// Snapshot scalars — pre-fill the Rules step from the frozen detail
+		// columns so editing keeps the same rule shape unless the user
+		// overrides it explicitly.
+		...cashSnapshotDefaults(session),
+		...tournamentSnapshotDefaults(session),
 	};
 }
 

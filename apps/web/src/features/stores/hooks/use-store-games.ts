@@ -49,14 +49,21 @@ export function useStoreGames(
 			blind3: g.blind3,
 			ante: g.ante,
 			anteType: g.anteType,
+			minBuyIn: g.minBuyIn,
+			maxBuyIn: g.maxBuyIn,
 			tableSize: g.tableSize,
 			currencyId: g.currencyId,
 		})),
 		tournaments: allTournaments.map((t) => ({
 			id: t.id,
 			name: t.name,
+			variant: t.variant,
 			buyIn: t.buyIn,
 			entryFee: t.entryFee,
+			startingStack: t.startingStack,
+			bountyAmount: t.bountyAmount,
+			tableSize: t.tableSize,
+			currencyId: t.currencyId,
 		})),
 	};
 }

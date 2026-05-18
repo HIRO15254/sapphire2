@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useSessionFormState } from "@/features/sessions/components/session-form/use-session-form-state";
+import { useSessionFormState } from "@/features/sessions/components/session-wizard/use-session-form-state";
 import type {
 	RingGameOption,
 	TournamentOption,

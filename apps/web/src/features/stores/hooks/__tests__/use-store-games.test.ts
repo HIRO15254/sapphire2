@@ -87,7 +87,7 @@ describe("useStoreGames", () => {
 	});
 
 	describe("with storeId", () => {
-		it("projects ring games to a narrow shape with selected fields only", async () => {
+		it("projects ring games with every rule field the wizard pre-fill consumes", async () => {
 			const qc = createClient();
 			qc.setQueryData(
 				["ringGame", "listByStore", { storeId: "store-1" }],
@@ -101,6 +101,8 @@ describe("useStoreGames", () => {
 						blind3: null,
 						ante: 0,
 						anteType: "none",
+						minBuyIn: 100,
+						maxBuyIn: 400,
 						tableSize: 9,
 						currencyId: "c1",
 						// extraneous properties that must NOT be forwarded
@@ -124,12 +126,14 @@ describe("useStoreGames", () => {
 				blind3: null,
 				ante: 0,
 				anteType: "none",
+				minBuyIn: 100,
+				maxBuyIn: 400,
 				tableSize: 9,
 				currencyId: "c1",
 			});
 		});
 
-		it("projects tournaments to a narrow shape (id, name, buyIn, entryFee)", async () => {
+		it("projects tournaments with every rule field the wizard pre-fill consumes", async () => {
 			const qc = createClient();
 			qc.setQueryData(
 				["tournament", "listByStore", { storeId: "s-1" }],
@@ -137,11 +141,16 @@ describe("useStoreGames", () => {
 					{
 						id: "t1",
 						name: "Sunday Major",
+						variant: "holdem",
 						buyIn: 100,
 						entryFee: 10,
-						// extraneous
 						startingStack: 10_000,
+						bountyAmount: 50,
+						tableSize: 9,
+						currencyId: "c1",
+						// extraneous master columns that should NOT leak through
 						storeId: "s-1",
+						archivedAt: null,
 					},
 				]
 			);
@@ -152,8 +161,13 @@ describe("useStoreGames", () => {
 			expect(result.current.tournaments[0]).toEqual({
 				id: "t1",
 				name: "Sunday Major",
+				variant: "holdem",
 				buyIn: 100,
 				entryFee: 10,
+				startingStack: 10_000,
+				bountyAmount: 50,
+				tableSize: 9,
+				currencyId: "c1",
 			});
 		});
 

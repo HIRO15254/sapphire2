@@ -1,6 +1,21 @@
 import z from "zod";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 
+export interface SessionBlindLevelInput {
+	ante: number | null;
+	blind1: number | null;
+	blind2: number | null;
+	blind3: number | null;
+	isBreak: boolean;
+	minutes: number | null;
+}
+
+export interface SessionChipPurchaseInput {
+	chips: number;
+	cost: number;
+	name: string;
+}
+
 export interface CashGameFormValues {
 	ante?: number;
 	anteType?: string;
@@ -13,8 +28,11 @@ export interface CashGameFormValues {
 	currencyId?: string;
 	endTime?: string;
 	evCashOut?: number;
+	maxBuyIn?: number;
 	memo?: string;
+	minBuyIn?: number;
 	ringGameId?: string;
+	ruleName?: string;
 	sessionDate: string;
 	startTime?: string;
 	storeId?: string;
@@ -27,8 +45,11 @@ export interface CashGameFormValues {
 export interface TournamentFormValues {
 	addonCost?: number;
 	beforeDeadline?: boolean;
+	blindLevels?: SessionBlindLevelInput[];
+	bountyAmount?: number;
 	bountyPrizes?: number;
 	breakMinutes?: number;
+	chipPurchases?: SessionChipPurchaseInput[];
 	currencyId?: string;
 	endTime?: string;
 	entryFee?: number;
@@ -37,14 +58,20 @@ export interface TournamentFormValues {
 	prizeMoney?: number;
 	rebuyCost?: number;
 	rebuyCount?: number;
+	ruleName?: string;
 	sessionDate: string;
+	startingStack?: number;
 	startTime?: string;
 	storeId?: string;
+	tableSize?: number;
 	tagIds?: string[];
+	/** Unix seconds — when the blind timer started. */
+	timerStartedAt?: number;
 	totalEntries?: number;
 	tournamentBuyIn: number;
 	tournamentId?: string;
 	type: "tournament";
+	variant?: string;
 }
 
 export type SessionFormValues = CashGameFormValues | TournamentFormValues;
@@ -57,16 +84,23 @@ export interface RingGameOption {
 	blind3?: number | null;
 	currencyId?: string | null;
 	id: string;
+	maxBuyIn?: number | null;
+	minBuyIn?: number | null;
 	name: string;
 	tableSize?: number | null;
 	variant?: string | null;
 }
 
 export interface TournamentOption {
+	bountyAmount?: number | null;
 	buyIn?: number | null;
+	currencyId?: string | null;
 	entryFee?: number | null;
 	id: string;
 	name: string;
+	startingStack?: number | null;
+	tableSize?: number | null;
+	variant?: string | null;
 }
 
 export interface SessionFormDefaults {
@@ -77,25 +111,34 @@ export interface SessionFormDefaults {
 	blind1?: number;
 	blind2?: number;
 	blind3?: number;
+	blindLevels?: SessionBlindLevelInput[];
+	bountyAmount?: number;
 	bountyPrizes?: number;
 	breakMinutes?: number;
 	buyIn?: number;
 	cashOut?: number;
+	chipPurchases?: SessionChipPurchaseInput[];
 	currencyId?: string;
 	endTime?: string;
 	entryFee?: number;
 	evCashOut?: number;
+	maxBuyIn?: number;
 	memo?: string;
+	minBuyIn?: number;
 	placement?: number;
 	prizeMoney?: number;
 	rebuyCost?: number;
 	rebuyCount?: number;
 	ringGameId?: string;
+	ruleName?: string;
 	sessionDate?: string;
+	startingStack?: number;
 	startTime?: string;
 	storeId?: string;
 	tableSize?: number;
 	tagIds?: string[];
+	/** `datetime-local` string — when the blind timer started. */
+	timerStartedAt?: string;
 	totalEntries?: number;
 	tournamentBuyIn?: number;
 	tournamentId?: string;
@@ -131,6 +174,7 @@ export const sessionFormSchema = z.object({
 	endTime: z.string(),
 	breakMinutes: optionalNumericString({ integer: true, min: 0 }),
 	memo: z.string(),
+	ruleName: z.string(),
 	buyIn: optionalNumericString({ integer: true, min: 0 }),
 	cashOut: optionalNumericString({ integer: true, min: 0 }),
 	evCashOut: optionalNumericString({ integer: true, min: 0 }),
@@ -141,9 +185,14 @@ export const sessionFormSchema = z.object({
 	ante: optionalNumericString({ integer: true, min: 0 }),
 	anteType: z.string(),
 	tableSize: z.string(),
+	minBuyIn: optionalNumericString({ integer: true, min: 0 }),
+	maxBuyIn: optionalNumericString({ integer: true, min: 0 }),
 	tournamentBuyIn: optionalNumericString({ integer: true, min: 0 }),
 	entryFee: optionalNumericString({ integer: true, min: 0 }),
+	startingStack: optionalNumericString({ integer: true, min: 0 }),
+	bountyAmount: optionalNumericString({ integer: true, min: 0 }),
 	beforeDeadline: z.boolean(),
+	timerStartedAt: z.string(),
 	placement: optionalNumericString({ integer: true, min: 1 }),
 	totalEntries: optionalNumericString({ integer: true, min: 1 }),
 	prizeMoney: optionalNumericString({ integer: true, min: 0 }),
@@ -160,6 +209,7 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		endTime: defaults?.endTime ?? "",
 		breakMinutes: numStrOrEmpty(defaults?.breakMinutes),
 		memo: defaults?.memo ?? "",
+		ruleName: defaults?.ruleName ?? "",
 		buyIn: numStrOrEmpty(defaults?.buyIn),
 		cashOut: numStrOrEmpty(defaults?.cashOut),
 		evCashOut: numStrOrEmpty(defaults?.evCashOut),
@@ -170,9 +220,14 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		ante: numStrOrEmpty(defaults?.ante),
 		anteType: defaults?.anteType ?? "none",
 		tableSize: defaults?.tableSize?.toString() ?? "",
+		minBuyIn: numStrOrEmpty(defaults?.minBuyIn),
+		maxBuyIn: numStrOrEmpty(defaults?.maxBuyIn),
 		tournamentBuyIn: numStrOrEmpty(defaults?.tournamentBuyIn),
 		entryFee: numStrOrEmpty(defaults?.entryFee),
+		startingStack: numStrOrEmpty(defaults?.startingStack),
+		bountyAmount: numStrOrEmpty(defaults?.bountyAmount),
 		beforeDeadline: defaults?.beforeDeadline === true,
+		timerStartedAt: defaults?.timerStartedAt ?? "",
 		placement: numStrOrEmpty(defaults?.placement),
 		totalEntries: numStrOrEmpty(defaults?.totalEntries),
 		prizeMoney: numStrOrEmpty(defaults?.prizeMoney),
@@ -184,3 +239,94 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 }
 
 export type SessionFormFieldValues = ReturnType<typeof buildDefaults>;
+
+/**
+ * Cash-rule field labels whose current form value diverges from the
+ * picked master ring game. Empty when no master is selected or every
+ * rule field still matches the master.
+ */
+export function cashOverriddenFields(
+	values: Pick<
+		SessionFormFieldValues,
+		| "ruleName"
+		| "variant"
+		| "blind1"
+		| "blind2"
+		| "blind3"
+		| "ante"
+		| "anteType"
+		| "minBuyIn"
+		| "maxBuyIn"
+		| "tableSize"
+	>,
+	master: RingGameOption | undefined
+): string[] {
+	if (!master) {
+		return [];
+	}
+	const checks: [string, string, string][] = [
+		["Rule Name", values.ruleName, master.name],
+		["Variant", values.variant, master.variant ?? "nlh"],
+		["SB", values.blind1, numStrOrEmpty(master.blind1 ?? undefined)],
+		["BB", values.blind2, numStrOrEmpty(master.blind2 ?? undefined)],
+		["Straddle", values.blind3, numStrOrEmpty(master.blind3 ?? undefined)],
+		["Ante", values.ante, numStrOrEmpty(master.ante ?? undefined)],
+		["Ante Type", values.anteType, master.anteType ?? "none"],
+		[
+			"Min Buy-in",
+			values.minBuyIn,
+			numStrOrEmpty(master.minBuyIn ?? undefined),
+		],
+		[
+			"Max Buy-in",
+			values.maxBuyIn,
+			numStrOrEmpty(master.maxBuyIn ?? undefined),
+		],
+		["Table Size", values.tableSize, master.tableSize?.toString() ?? ""],
+	];
+	return checks.filter(([, a, b]) => a !== b).map(([label]) => label);
+}
+
+/**
+ * Tournament-rule field labels whose current form value diverges from
+ * the picked master tournament.
+ */
+export function tournamentOverriddenFields(
+	values: Pick<
+		SessionFormFieldValues,
+		| "ruleName"
+		| "variant"
+		| "tournamentBuyIn"
+		| "entryFee"
+		| "startingStack"
+		| "bountyAmount"
+		| "tableSize"
+	>,
+	master: TournamentOption | undefined
+): string[] {
+	if (!master) {
+		return [];
+	}
+	const checks: [string, string, string][] = [
+		["Rule Name", values.ruleName, master.name],
+		["Variant", values.variant, master.variant ?? "nlh"],
+		[
+			"Buy-in",
+			values.tournamentBuyIn,
+			numStrOrEmpty(master.buyIn ?? undefined),
+		],
+		["Entry Fee", values.entryFee, numStrOrEmpty(master.entryFee ?? undefined)],
+		[
+			"Starting Stack",
+			values.startingStack,
+			numStrOrEmpty(master.startingStack ?? undefined),
+		],
+		[
+			"Bounty Amount",
+			values.bountyAmount,
+			numStrOrEmpty(master.bountyAmount ?? undefined),
+		],
+		["Table Size", values.tableSize, master.tableSize?.toString() ?? ""],
+	];
+	return checks.filter(([, a, b]) => a !== b).map(([label]) => label);
+}

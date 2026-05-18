@@ -1,4 +1,4 @@
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { ChipPurchasesEditor } from "@/features/stores/components/chip-purchases-editor";
 import type { TournamentFormValues } from "@/features/stores/hooks/use-tournaments";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
@@ -140,96 +140,12 @@ export function TournamentForm({
 				)}
 			</form.Field>
 
-			<form.Field mode="array" name="chipPurchases">
+			<form.Field name="chipPurchases">
 				{(field) => (
-					<Field
-						className="rounded-md border p-3"
-						description="Define rebuy or add-on structures used during play."
-						label="Chip Purchases"
-					>
-						<div className="flex items-center justify-between">
-							<Button
-								onClick={() =>
-									field.pushValue({
-										name: "",
-										cost: "0",
-										chips: "0",
-										uid: crypto.randomUUID(),
-									})
-								}
-								size="xs"
-								type="button"
-								variant="outline"
-							>
-								<IconPlus size={12} />
-								Add
-							</Button>
-						</div>
-						{field.state.value.length > 0 && (
-							<div className="flex flex-col gap-2">
-								{field.state.value.map((cp, index) => (
-									<div className="flex items-end gap-2" key={cp.uid}>
-										<form.Field name={`chipPurchases[${index}].name`}>
-											{(sub) => (
-												<Field
-													className="flex flex-1 flex-col gap-1"
-													htmlFor={`cp-name-${index}`}
-													label="Name"
-												>
-													<Input
-														id={`cp-name-${index}`}
-														onChange={(e) => sub.handleChange(e.target.value)}
-														value={sub.state.value}
-													/>
-												</Field>
-											)}
-										</form.Field>
-										<form.Field name={`chipPurchases[${index}].cost`}>
-											{(sub) => (
-												<Field
-													className="flex w-20 flex-col gap-1"
-													htmlFor={`cp-cost-${index}`}
-													label="Cost"
-												>
-													<Input
-														id={`cp-cost-${index}`}
-														inputMode="numeric"
-														onChange={(e) => sub.handleChange(e.target.value)}
-														value={sub.state.value}
-													/>
-												</Field>
-											)}
-										</form.Field>
-										<form.Field name={`chipPurchases[${index}].chips`}>
-											{(sub) => (
-												<Field
-													className="flex w-20 flex-col gap-1"
-													htmlFor={`cp-chips-${index}`}
-													label="Chips"
-												>
-													<Input
-														id={`cp-chips-${index}`}
-														inputMode="numeric"
-														onChange={(e) => sub.handleChange(e.target.value)}
-														value={sub.state.value}
-													/>
-												</Field>
-											)}
-										</form.Field>
-										<Button
-											aria-label="Remove chip purchase"
-											onClick={() => field.removeValue(index)}
-											size="icon-xs"
-											type="button"
-											variant="ghost"
-										>
-											<IconTrash size={12} />
-										</Button>
-									</div>
-								))}
-							</div>
-						)}
-					</Field>
+					<ChipPurchasesEditor
+						onChange={(rows) => field.handleChange(rows)}
+						value={field.state.value}
+					/>
 				)}
 			</form.Field>
 

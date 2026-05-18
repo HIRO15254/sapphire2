@@ -22,8 +22,38 @@ describe("SessionTournamentDetail schema — columns", () => {
 				"addonCost",
 				"bountyPrizes",
 				"timerStartedAt",
+				"ruleName",
+				"variant",
+				"startingStack",
+				"bountyAmount",
+				"tableSize",
 			])
 		);
+	});
+
+	it("ruleName and variant are NOT NULL (snapshot is forced on insert)", () => {
+		expect(columns.ruleName.notNull).toBe(true);
+		expect(columns.variant.notNull).toBe(true);
+	});
+
+	it("ruleName has default 'Untitled' so ADD COLUMN succeeds on existing rows", () => {
+		expect(columns.ruleName.default).toBe("Untitled");
+	});
+
+	it("variant has default 'nlh' so ADD COLUMN succeeds on existing rows", () => {
+		expect(columns.variant.default).toBe("nlh");
+	});
+
+	it("startingStack / bountyAmount / tableSize snapshot columns are nullable", () => {
+		expect(columns.startingStack.notNull).toBe(false);
+		expect(columns.bountyAmount.notNull).toBe(false);
+		expect(columns.tableSize.notNull).toBe(false);
+	});
+
+	it("startingStack / bountyAmount / tableSize have number dataType", () => {
+		expect(columns.startingStack.dataType).toBe("number");
+		expect(columns.bountyAmount.dataType).toBe("number");
+		expect(columns.tableSize.dataType).toBe("number");
 	});
 
 	it("sessionId is primary key (PK=FK)", () => {

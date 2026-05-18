@@ -20,6 +20,7 @@ import {
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
+import { resolveCashRuleSnapshot } from "./session";
 
 const DEFAULT_LIMIT = 20;
 
@@ -209,7 +210,7 @@ export const liveCashGameSessionRouter = router({
 					storeId: gameSession.storeId,
 					storeName: store.name,
 					ringGameId: sessionCashDetail.ringGameId,
-					ringGameName: ringGame.name,
+					ringGameName: sessionCashDetail.ruleName,
 					currencyId: gameSession.currencyId,
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
@@ -225,7 +226,6 @@ export const liveCashGameSessionRouter = router({
 					eq(sessionCashDetail.sessionId, gameSession.id)
 				)
 				.leftJoin(store, eq(store.id, gameSession.storeId))
-				.leftJoin(ringGame, eq(ringGame.id, sessionCashDetail.ringGameId))
 				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
 				.where(and(...conditions))
 				.orderBy(desc(gameSession.startedAt))
@@ -319,6 +319,19 @@ export const liveCashGameSessionRouter = router({
 				events,
 				tablePlayers,
 				summary,
+				// Snapshot fields from session_cash_detail. Display in the
+				// live scene must read from here so renames / blind edits on
+				// the master ring_game never propagate.
+				ruleName: cashDetail?.ruleName ?? null,
+				variant: cashDetail?.variant ?? null,
+				blind1: cashDetail?.blind1 ?? null,
+				blind2: cashDetail?.blind2 ?? null,
+				blind3: cashDetail?.blind3 ?? null,
+				ante: cashDetail?.ante ?? null,
+				anteType: cashDetail?.anteType ?? null,
+				minBuyIn: cashDetail?.minBuyIn ?? null,
+				maxBuyIn: cashDetail?.maxBuyIn ?? null,
+				tableSize: cashDetail?.tableSize ?? null,
 			};
 		}),
 
@@ -402,9 +415,22 @@ export const liveCashGameSessionRouter = router({
 				updatedAt: now,
 			});
 
+			const snapshot = await resolveCashRuleSnapshot(ctx.db, {
+				ringGameId: input.ringGameId,
+			});
 			await ctx.db.insert(sessionCashDetail).values({
 				sessionId: id,
 				ringGameId: input.ringGameId ?? null,
+				ruleName: input.ringGameId ? snapshot.ruleName : "Cash Game",
+				variant: snapshot.variant,
+				blind1: snapshot.blind1,
+				blind2: snapshot.blind2,
+				blind3: snapshot.blind3,
+				ante: snapshot.ante,
+				anteType: snapshot.anteType,
+				minBuyIn: snapshot.minBuyIn,
+				maxBuyIn: snapshot.maxBuyIn,
+				tableSize: snapshot.tableSize,
 			});
 
 			await ctx.db.insert(sessionEvent).values({
@@ -481,6 +507,20 @@ export const liveCashGameSessionRouter = router({
 				if (patch.currencyId) {
 					updateData.currencyId = patch.currencyId;
 				}
+
+				const snapshot = await resolveCashRuleSnapshot(ctx.db, {
+					ringGameId: input.ringGameId,
+				});
+				cashDetailUpdate.ruleName = snapshot.ruleName;
+				cashDetailUpdate.variant = snapshot.variant;
+				cashDetailUpdate.blind1 = snapshot.blind1;
+				cashDetailUpdate.blind2 = snapshot.blind2;
+				cashDetailUpdate.blind3 = snapshot.blind3;
+				cashDetailUpdate.ante = snapshot.ante;
+				cashDetailUpdate.anteType = snapshot.anteType;
+				cashDetailUpdate.minBuyIn = snapshot.minBuyIn;
+				cashDetailUpdate.maxBuyIn = snapshot.maxBuyIn;
+				cashDetailUpdate.tableSize = snapshot.tableSize;
 			}
 
 			await ctx.db
@@ -513,6 +553,71 @@ export const liveCashGameSessionRouter = router({
 				.where(eq(sessionCashDetail.sessionId, input.id));
 
 			return { ...updated, ringGameId: updatedDetail?.ringGameId ?? null };
+		}),
+
+	// Edit the session's frozen rule snapshot on session_cash_detail. The
+	// master ring_game is NEVER touched by this mutation. Use it from the
+	// live-session edit dialog to override snapshot data for this session
+	// only.
+	updateSnapshot: protectedProcedure
+		.input(
+			z.object({
+				id: z.string(),
+				ruleName: z.string().min(1).optional(),
+				variant: z.string().optional(),
+				blind1: z.number().int().nullable().optional(),
+				blind2: z.number().int().nullable().optional(),
+				blind3: z.number().int().nullable().optional(),
+				ante: z.number().int().nullable().optional(),
+				anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
+				minBuyIn: z.number().int().nullable().optional(),
+				maxBuyIn: z.number().int().nullable().optional(),
+				tableSize: z.number().int().nullable().optional(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await findLiveCashGameSession(ctx.db, input.id, userId);
+
+			const detailUpdate: Partial<typeof sessionCashDetail.$inferInsert> = {};
+			if (input.ruleName !== undefined) {
+				detailUpdate.ruleName = input.ruleName;
+			}
+			if (input.variant !== undefined) {
+				detailUpdate.variant = input.variant;
+			}
+			if (input.blind1 !== undefined) {
+				detailUpdate.blind1 = input.blind1;
+			}
+			if (input.blind2 !== undefined) {
+				detailUpdate.blind2 = input.blind2;
+			}
+			if (input.blind3 !== undefined) {
+				detailUpdate.blind3 = input.blind3;
+			}
+			if (input.ante !== undefined) {
+				detailUpdate.ante = input.ante;
+			}
+			if (input.anteType !== undefined) {
+				detailUpdate.anteType = input.anteType;
+			}
+			if (input.minBuyIn !== undefined) {
+				detailUpdate.minBuyIn = input.minBuyIn;
+			}
+			if (input.maxBuyIn !== undefined) {
+				detailUpdate.maxBuyIn = input.maxBuyIn;
+			}
+			if (input.tableSize !== undefined) {
+				detailUpdate.tableSize = input.tableSize;
+			}
+			if (Object.keys(detailUpdate).length === 0) {
+				return { id: input.id };
+			}
+			await ctx.db
+				.update(sessionCashDetail)
+				.set(detailUpdate)
+				.where(eq(sessionCashDetail.sessionId, input.id));
+			return { id: input.id };
 		}),
 
 	complete: protectedProcedure
