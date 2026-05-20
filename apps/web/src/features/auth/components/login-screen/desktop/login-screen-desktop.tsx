@@ -1,105 +1,19 @@
-import type { CSSProperties } from "react";
 import { Lockup } from "@/shared/components/brand";
 import { DiscordIcon } from "@/shared/components/icons/discord";
 import { GoogleIcon } from "@/shared/components/icons/google";
+import { Button } from "@/shared/components/ui/button";
+import { Card } from "@/shared/components/ui/card";
+import { Field } from "@/shared/components/ui/field";
+import { Input } from "@/shared/components/ui/input";
+import { Separator } from "@/shared/components/ui/separator";
 import type { LoginScreenViewProps } from "../use-login-screen";
-
-const fieldWrapper: CSSProperties = {
-	display: "flex",
-	flexDirection: "column",
-	gap: 4,
-};
-
-const labelRow: CSSProperties = {
-	alignItems: "center",
-	color: "var(--foreground)",
-	display: "flex",
-	fontSize: "var(--text-xs)",
-	fontWeight: 500,
-	justifyContent: "space-between",
-};
-
-const inputBase: CSSProperties = {
-	background: "var(--card)",
-	border: "1px solid var(--input)",
-	borderRadius: "var(--radius-sm)",
-	boxSizing: "border-box",
-	color: "var(--foreground)",
-	fontFamily: "var(--font-sans)",
-	fontSize: "var(--text-sm)",
-	height: "var(--input-h-pc)",
-	padding: "0 10px",
-	width: "100%",
-};
-
-const errorStyle: CSSProperties = {
-	color: "var(--destructive)",
-	fontSize: "var(--text-2xs)",
-};
-
-const primaryBtn: CSSProperties = {
-	alignItems: "center",
-	background: "var(--primary)",
-	border: "none",
-	borderRadius: "var(--radius-md)",
-	color: "var(--primary-foreground)",
-	cursor: "pointer",
-	display: "flex",
-	fontFamily: "var(--font-sans)",
-	fontSize: "var(--text-sm)",
-	fontWeight: 500,
-	height: 36,
-	justifyContent: "center",
-	width: "100%",
-};
-
-const oauthBtn: CSSProperties = {
-	alignItems: "center",
-	background: "var(--secondary)",
-	border: "1px solid var(--border)",
-	borderRadius: "var(--radius-md)",
-	color: "var(--secondary-foreground)",
-	cursor: "pointer",
-	display: "inline-flex",
-	fontFamily: "var(--font-sans)",
-	fontSize: "var(--text-sm)",
-	fontWeight: 500,
-	gap: 7,
-	height: "var(--btn-h-pc)",
-	justifyContent: "center",
-	width: "100%",
-};
-
-const link: CSSProperties = {
-	color: "var(--primary)",
-	fontSize: "var(--text-sm)",
-	fontWeight: 500,
-	textDecoration: "none",
-};
-
-const dividerRow: CSSProperties = {
-	alignItems: "center",
-	color: "var(--muted-foreground)",
-	display: "flex",
-	fontSize: "var(--text-2xs)",
-	fontWeight: 500,
-	gap: 8,
-	letterSpacing: "0.06em",
-	textTransform: "uppercase",
-};
-
-const dividerLine: CSSProperties = {
-	background: "var(--border)",
-	flex: 1,
-	height: 1,
-};
 
 function Divider({ children }: { children: string }) {
 	return (
-		<div style={dividerRow}>
-			<span style={dividerLine} />
+		<div className="flex items-center gap-2 font-medium text-[10px] text-muted-foreground uppercase tracking-[0.06em]">
+			<Separator className="flex-1" />
 			<span>{children}</span>
-			<span style={dividerLine} />
+			<Separator className="flex-1" />
 		</div>
 	);
 }
@@ -113,151 +27,87 @@ export function LoginScreenDesktop({
 	onSwitchToSignUp,
 }: LoginScreenViewProps) {
 	const isSignIn = mode === "signin";
-	const heading = isSignIn ? "Sign in to Sapphire2" : "Create your account";
-	const switchPrompt = isSignIn ? "No account?" : "Have an account?";
-	const switchLabel = isSignIn ? "Sign up" : "Sign in";
-	const onSwitch = isSignIn ? onSwitchToSignUp : onSwitchToSignIn;
 
 	return (
-		<div
-			style={{
-				background: "var(--background)",
-				display: "grid",
-				minHeight: "100vh",
-				placeItems: "center",
-				position: "relative",
-				width: "100%",
-			}}
-		>
-			<div
-				style={{
-					alignItems: "center",
-					display: "flex",
-					left: 24,
-					position: "absolute",
-					top: 20,
-				}}
-			>
+		<div className="relative grid min-h-screen w-full place-items-center bg-background">
+			<div className="absolute top-5 left-6 flex items-center">
 				<Lockup size={20} />
 			</div>
-			<div
-				style={{
-					color: "var(--muted-foreground)",
-					fontSize: "var(--text-sm)",
-					position: "absolute",
-					right: 24,
-					top: 20,
-				}}
-			>
-				{switchPrompt}{" "}
-				<button
-					onClick={onSwitch}
-					style={{
-						...link,
-						background: "transparent",
-						border: "none",
-						cursor: "pointer",
-						padding: 0,
-					}}
+			<div className="absolute top-5 right-6 flex items-center gap-1 text-muted-foreground text-xs">
+				<span>{isSignIn ? "No account?" : "Have an account?"}</span>
+				<Button
+					className="h-auto p-0 font-medium no-underline hover:underline"
+					onClick={isSignIn ? onSwitchToSignUp : onSwitchToSignIn}
 					type="button"
+					variant="link"
 				>
-					{switchLabel}
-				</button>
+					{isSignIn ? "Sign up" : "Sign in"}
+				</Button>
 			</div>
 
-			<div
-				style={{
-					background: "var(--card)",
-					border: "1px solid var(--border)",
-					borderRadius: "var(--radius-xl)",
-					display: "flex",
-					flexDirection: "column",
-					gap: 16,
-					padding: "28px 28px 24px",
-					width: 392,
-				}}
-			>
-				<h1
-					style={{
-						fontSize: "var(--text-xl)",
-						fontWeight: 600,
-						letterSpacing: "var(--tracking-tight)",
-						lineHeight: "var(--leading-tight)",
-						margin: 0,
-					}}
-				>
-					{heading}
+			<Card className="w-[392px] gap-4 px-7 pt-7 pb-6">
+				<h1 className="m-0 font-semibold text-xl leading-tight tracking-tight">
+					{isSignIn ? "Sign in to Sapphire2" : "Create your account"}
 				</h1>
 
-				<div
-					style={{
-						display: "grid",
-						gap: 6,
-						gridTemplateColumns: "1fr 1fr",
-					}}
-				>
-					<button onClick={onSignInWithGoogle} style={oauthBtn} type="button">
-						<GoogleIcon height={14} width={14} /> Google
-					</button>
-					<button onClick={onSignInWithDiscord} style={oauthBtn} type="button">
-						<DiscordIcon height={14} width={14} /> Discord
-					</button>
+				<div className="grid grid-cols-2 gap-1.5">
+					<Button
+						onClick={onSignInWithGoogle}
+						type="button"
+						variant="secondary"
+					>
+						<GoogleIcon className="size-3.5" /> Google
+					</Button>
+					<Button
+						onClick={onSignInWithDiscord}
+						type="button"
+						variant="secondary"
+					>
+						<DiscordIcon className="size-3.5" /> Discord
+					</Button>
 				</div>
 
 				<Divider>or with email</Divider>
 
 				<form
+					className="flex flex-col gap-4"
 					onSubmit={(e) => {
 						e.preventDefault();
 						e.stopPropagation();
 						form.handleSubmit();
 					}}
-					style={{ display: "flex", flexDirection: "column", gap: 16 }}
 				>
-					<div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+					<div className="flex flex-col gap-2.5">
 						<form.Field name="email">
 							{(field) => (
-								<div style={fieldWrapper}>
-									<div style={labelRow}>
-										<label htmlFor={field.name}>Email</label>
-									</div>
-									<input
+								<Field
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="Email"
+								>
+									<Input
 										autoComplete="email"
 										id={field.name}
 										name={field.name}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
 										placeholder="you@example.com"
-										style={inputBase}
 										type="email"
 										value={field.state.value}
 									/>
-									{field.state.meta.errors[0]?.message && (
-										<span style={errorStyle}>
-											{field.state.meta.errors[0].message}
-										</span>
-									)}
-								</div>
+								</Field>
 							)}
 						</form.Field>
 
 						<form.Field name="password">
 							{(field) => (
-								<div style={fieldWrapper}>
-									<div style={labelRow}>
-										<label htmlFor={field.name}>Password</label>
-										{!isSignIn && (
-											<span
-												style={{
-													color: "var(--muted-foreground)",
-													fontWeight: 400,
-												}}
-											>
-												At least 8 characters
-											</span>
-										)}
-									</div>
-									<input
+								<Field
+									description={isSignIn ? undefined : "At least 8 characters"}
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="Password"
+								>
+									<Input
 										autoComplete={
 											isSignIn ? "current-password" : "new-password"
 										}
@@ -266,83 +116,63 @@ export function LoginScreenDesktop({
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
 										placeholder={isSignIn ? "Enter your password" : undefined}
-										style={inputBase}
 										type="password"
 										value={field.state.value}
 									/>
-									{field.state.meta.errors[0]?.message && (
-										<span style={errorStyle}>
-											{field.state.meta.errors[0].message}
-										</span>
-									)}
-								</div>
+								</Field>
 							)}
 						</form.Field>
 					</div>
 
 					<form.Subscribe>
 						{(state) => (
-							<button
+							<Button
+								className="w-full"
 								disabled={!state.canSubmit || state.isSubmitting}
-								style={{
-									...primaryBtn,
-									opacity:
-										!state.canSubmit || state.isSubmitting ? 0.7 : undefined,
-								}}
+								size="lg"
 								type="submit"
 							>
 								{state.isSubmitting && isSignIn && "Signing in…"}
 								{state.isSubmitting && !isSignIn && "Creating account…"}
 								{!state.isSubmitting &&
 									(isSignIn ? "Sign in" : "Create account")}
-							</button>
+							</Button>
 						)}
 					</form.Subscribe>
 				</form>
 
 				{!isSignIn && (
-					<p
-						style={{
-							color: "var(--muted-foreground)",
-							fontSize: "var(--text-2xs)",
-							lineHeight: "var(--leading-base)",
-							margin: 0,
-							textAlign: "center",
-						}}
-					>
+					<p className="m-0 text-center text-[10px] text-muted-foreground leading-normal">
 						By creating an account you agree to our{" "}
-						<a href="/terms" style={{ ...link, fontSize: "var(--text-2xs)" }}>
+						<a
+							className="font-medium text-primary no-underline hover:underline"
+							href="/terms"
+						>
 							Terms of Service
 						</a>{" "}
 						and{" "}
-						<a href="/privacy" style={{ ...link, fontSize: "var(--text-2xs)" }}>
+						<a
+							className="font-medium text-primary no-underline hover:underline"
+							href="/privacy"
+						>
 							Privacy Policy
 						</a>
 						.
 					</p>
 				)}
-			</div>
+			</Card>
 
-			<div
-				style={{
-					bottom: 16,
-					color: "var(--muted-foreground)",
-					display: "flex",
-					fontSize: "var(--text-xs)",
-					gap: 16,
-					justifyContent: "center",
-					left: 0,
-					position: "absolute",
-					right: 0,
-				}}
-			>
-				<a href="/terms" style={{ color: "inherit", textDecoration: "none" }}>
+			<div className="absolute right-0 bottom-4 left-0 flex justify-center gap-4 text-muted-foreground text-xs">
+				<a className="text-inherit no-underline hover:underline" href="/terms">
 					Terms
 				</a>
-				<a href="/privacy" style={{ color: "inherit", textDecoration: "none" }}>
+				<a
+					className="text-inherit no-underline hover:underline"
+					href="/privacy"
+				>
 					Privacy
 				</a>
-				<a href="/help" style={{ color: "inherit", textDecoration: "none" }}>
+				<a className="text-inherit no-underline hover:underline" href="/help">
 					Help
 				</a>
 			</div>
