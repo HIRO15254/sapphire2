@@ -246,6 +246,16 @@ export function LoginScreenDesktop({
 								<div style={fieldWrapper}>
 									<div style={labelRow}>
 										<label htmlFor={field.name}>Password</label>
+										{!isSignIn && (
+											<span
+												style={{
+													color: "var(--muted-foreground)",
+													fontWeight: 400,
+												}}
+											>
+												At least 8 characters
+											</span>
+										)}
 									</div>
 									<input
 										autoComplete={
@@ -255,9 +265,7 @@ export function LoginScreenDesktop({
 										name={field.name}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
-										placeholder={
-											isSignIn ? "Enter your password" : "At least 8 characters"
-										}
+										placeholder={isSignIn ? "Enter your password" : undefined}
 										style={inputBase}
 										type="password"
 										value={field.state.value}
