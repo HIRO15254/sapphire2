@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import type { ComponentType } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -30,26 +29,8 @@ vi.mock("@/shared/components/preview-auto-login", () => ({
 	PreviewAutoLogin: () => <div>Preview Auto Login</div>,
 }));
 
-vi.mock("@/shared/components/sign-in-form", () => ({
-	default: ({ onSwitchToSignUp }: { onSwitchToSignUp: () => void }) => (
-		<div>
-			<p>Sign In Form</p>
-			<button onClick={onSwitchToSignUp} type="button">
-				Switch To Sign Up
-			</button>
-		</div>
-	),
-}));
-
-vi.mock("@/shared/components/sign-up-form", () => ({
-	default: ({ onSwitchToSignIn }: { onSwitchToSignIn: () => void }) => (
-		<div>
-			<p>Sign Up Form</p>
-			<button onClick={onSwitchToSignIn} type="button">
-				Switch To Sign In
-			</button>
-		</div>
-	),
+vi.mock("@/features/auth/components/login-screen", () => ({
+	LoginScreen: () => <div>Login Screen</div>,
 }));
 
 let routeModule: typeof import("@/routes/login");
@@ -64,32 +45,11 @@ describe("LoginRoute", () => {
 		mocks.redirect.mockClear();
 	});
 
-	it("renders preview auto login and defaults to sign up", () => {
+	it("mounts the preview auto-login helper and the login screen", () => {
 		const Component = routeModule.Route.options.component as ComponentType;
-
 		render(<Component />);
-
 		expect(screen.getByText("Preview Auto Login")).toBeInTheDocument();
-		expect(screen.getByText("Sign Up Form")).toBeInTheDocument();
-		expect(
-			screen.getByRole("heading", { name: "Create your account." })
-		).toBeInTheDocument();
-	});
-
-	it("switches between sign up and sign in", async () => {
-		const Component = routeModule.Route.options.component as ComponentType;
-		const user = userEvent.setup();
-
-		render(<Component />);
-
-		await user.click(screen.getByRole("button", { name: "Switch To Sign In" }));
-		expect(screen.getByText("Sign In Form")).toBeInTheDocument();
-		expect(
-			screen.getByRole("heading", { name: "Welcome back." })
-		).toBeInTheDocument();
-
-		await user.click(screen.getByRole("button", { name: "Switch To Sign Up" }));
-		expect(screen.getByText("Sign Up Form")).toBeInTheDocument();
+		expect(screen.getByText("Login Screen")).toBeInTheDocument();
 	});
 
 	describe("beforeLoad guard", () => {
@@ -97,7 +57,6 @@ describe("LoginRoute", () => {
 			mocks.getSession.mockResolvedValue({ data: { user: { id: "u1" } } });
 			const beforeLoad = routeModule.Route.options
 				.beforeLoad as () => Promise<unknown>;
-
 			await expect(beforeLoad()).rejects.toThrow("redirect");
 			expect(mocks.redirect).toHaveBeenCalledWith({ to: "/dashboard" });
 		});
@@ -106,7 +65,6 @@ describe("LoginRoute", () => {
 			mocks.getSession.mockResolvedValue({ data: null });
 			const beforeLoad = routeModule.Route.options
 				.beforeLoad as () => Promise<unknown>;
-
 			await expect(beforeLoad()).resolves.toBeUndefined();
 			expect(mocks.redirect).not.toHaveBeenCalled();
 		});
