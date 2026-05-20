@@ -7,9 +7,6 @@ import { Input } from "@/shared/components/ui/input";
 import { Separator } from "@/shared/components/ui/separator";
 import type { LoginScreenViewProps } from "../use-login-screen";
 
-const TOUCH_INPUT = "h-11 text-base";
-const TOUCH_BUTTON = "h-11 text-base";
-
 function Divider({ children }: { children: string }) {
 	return (
 		<div className="flex items-center gap-2.5 font-medium text-[10px] text-muted-foreground uppercase tracking-[0.06em]">
@@ -45,20 +42,18 @@ export function LoginScreenMobile({
 
 				<div className="flex flex-col gap-2.5">
 					<Button
-						className={TOUCH_BUTTON}
 						onClick={onSignInWithGoogle}
 						type="button"
 						variant="secondary"
 					>
-						<GoogleIcon className="size-4" /> {oauthVerb} with Google
+						<GoogleIcon className="size-3.5" /> {oauthVerb} with Google
 					</Button>
 					<Button
-						className={TOUCH_BUTTON}
 						onClick={onSignInWithDiscord}
 						type="button"
 						variant="secondary"
 					>
-						<DiscordIcon className="size-4" /> {oauthVerb} with Discord
+						<DiscordIcon className="size-3.5" /> {oauthVerb} with Discord
 					</Button>
 				</div>
 
@@ -82,7 +77,6 @@ export function LoginScreenMobile({
 								>
 									<Input
 										autoComplete="email"
-										className={TOUCH_INPUT}
 										id={field.name}
 										inputMode="email"
 										name={field.name}
@@ -108,7 +102,6 @@ export function LoginScreenMobile({
 										autoComplete={
 											isSignIn ? "current-password" : "new-password"
 										}
-										className={TOUCH_INPUT}
 										id={field.name}
 										name={field.name}
 										onBlur={field.handleBlur}
@@ -125,7 +118,7 @@ export function LoginScreenMobile({
 					<form.Subscribe>
 						{(state) => (
 							<Button
-								className={`${TOUCH_BUTTON} w-full font-semibold`}
+								className="w-full"
 								disabled={!state.canSubmit || state.isSubmitting}
 								size="lg"
 								type="submit"

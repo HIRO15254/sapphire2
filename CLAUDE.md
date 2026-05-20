@@ -69,7 +69,7 @@ features/<feature>/
 routes/                    TanStack Router tree; page-level hooks live here as `-use-<page>-page.ts`
 shared/
   components/ui/           shadcn primitives (Button, Select, Avatar, Badge, Table, ...)
-  components/              cross-feature composites (PageHeader, AuthenticatedShell, sign-in-form, ...)
+  components/              cross-feature composites (PageHeader, AuthenticatedShell, ...)
   hooks/                   cross-feature hooks (use-media-query, use-online-status, ...)
   lib/                     cross-feature helpers (form-fields, ...)
 utils/                     truly global helpers (optimistic-update, formatters, ...)
@@ -125,7 +125,7 @@ Every code change must be test-driven. The quality bar is set by the comprehensi
 |---|---|---|
 | Pure util / Zod schema / formatter | `web-node` | [`apps/web/src/features/stores/utils/__tests__/blind-level-helpers.test.ts`](apps/web/src/features/stores/utils/__tests__/blind-level-helpers.test.ts), [`apps/web/src/utils/__tests__/format-number.test.ts`](apps/web/src/utils/__tests__/format-number.test.ts) |
 | Simple hook (no tRPC) | `web-dom` | [`apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts`](apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts) |
-| Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/shared/components/sign-in-form/__tests__/use-sign-in.test.ts`](apps/web/src/shared/components/sign-in-form/__tests__/use-sign-in.test.ts) |
+| Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/features/auth/components/login-screen/__tests__/use-login-screen.test.ts`](apps/web/src/features/auth/components/login-screen/__tests__/use-login-screen.test.ts) |
 | tRPC query + mutation hook, simple | `web-dom` | [`apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts`](apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts) |
 | Optimistic flow with real QueryClient | `web-dom` / `web-node` | [`apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts`](apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts) |
 | Route page hook | `web-dom` | [`apps/web/src/routes/__tests__/use-dashboard-page.test.ts`](apps/web/src/routes/__tests__/use-dashboard-page.test.ts) |
