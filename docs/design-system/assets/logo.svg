@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 32" fill="none">
+  <g stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="translate(1 4) scale(0.975)">
+    <path d="M3.604 7.197l7.138 -3.109a.96 .96 0 0 1 1.27 .527l4.924 11.902a1 1 0 0 1 -.514 1.304l-7.137 3.109a.96 .96 0 0 1 -1.271 -.527l-4.924 -11.903a1 1 0 0 1 .514 -1.304z"></path>
+    <path d="M15 4h2a2 2 0 0 1 2 2v6"></path>
+    <path d="M20 7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-7"></path>
+  </g>
+  <text x="36" y="22" font-family="Noto Sans, system-ui, sans-serif" font-size="18" font-weight="600" fill="currentColor" letter-spacing="-0.01em">sapphire<tspan font-family="Noto Sans Mono, ui-monospace, monospace" font-size="14" baseline-shift="2" dx="1">2</tspan></text>
+</svg>

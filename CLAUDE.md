@@ -7,6 +7,11 @@ Companion memory files (auto-loaded):
 - [`.claude/CLAUDE.md`](.claude/CLAUDE.md) — Ultracite / Biome code standards.
 - [`.claude/rules/`](.claude/rules/) — path-scoped rule files; loaded only when files under the matching paths are touched. See the table near the bottom.
 
+Design system reference (read when designing UI):
+
+- [`docs/design-system/README.md`](docs/design-system/README.md) — Sapphire2 DS overview: principles, PC/mobile fork, tokens, density, copy guidelines.
+- [`docs/design-system/colors_and_type.css`](docs/design-system/colors_and_type.css) — canonical token source. The live runtime values live in [`apps/web/src/index.css`](apps/web/src/index.css).
+
 ## Stack
 
 - **Runtime / package manager**: Bun 1.3 (workspaces). Always use `bun`, never `npm` / `yarn` / `pnpm`.

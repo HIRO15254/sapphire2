@@ -234,8 +234,10 @@
 		@apply border-border outline-ring/50;
 	}
 	body {
+		font-size: var(--text-base);
 		font-feature-settings: "cv11", "ss01", "ss03";
 		-webkit-font-smoothing: antialiased;
+		line-height: var(--leading-base);
 		@apply font-sans bg-background text-foreground;
 	}
 	html {
