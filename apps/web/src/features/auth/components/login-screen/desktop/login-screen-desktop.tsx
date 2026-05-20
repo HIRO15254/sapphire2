@@ -227,6 +227,7 @@ export function LoginScreenDesktop({
 										name={field.name}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
+										placeholder="you@example.com"
 										style={inputBase}
 										type="email"
 										value={field.state.value}
@@ -254,6 +255,9 @@ export function LoginScreenDesktop({
 										name={field.name}
 										onBlur={field.handleBlur}
 										onChange={(e) => field.handleChange(e.target.value)}
+										placeholder={
+											isSignIn ? "Enter your password" : "At least 8 characters"
+										}
 										style={inputBase}
 										type="password"
 										value={field.state.value}
