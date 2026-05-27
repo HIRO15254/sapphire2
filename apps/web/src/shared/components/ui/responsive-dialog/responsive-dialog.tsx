@@ -149,20 +149,21 @@ export function ResponsiveDialog({
 			>
 				{primaryAction ? (
 					<>
-						<div className="grid min-h-11 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b px-3">
+						<div className="grid min-h-11 shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b px-2">
 							<button
-								className="justify-self-start whitespace-nowrap rounded-sm px-1 py-2 text-foreground text-sm outline-none hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+								aria-label={cancelLabel}
+								className="inline-flex size-9 items-center justify-center justify-self-start rounded-md text-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40"
 								onClick={() => onOpenChange(false)}
 								type="button"
 							>
-								{cancelLabel}
+								<IconX size={18} />
 							</button>
-							<DrawerTitle className="min-w-0 truncate text-center text-foreground text-sm leading-tight">
+							<DrawerTitle className="min-w-0 truncate text-center font-semibold text-[length:var(--text-sm,0.8125rem)] text-foreground leading-tight">
 								{title}
 							</DrawerTitle>
 							<button
 								className={cn(
-									"justify-self-end whitespace-nowrap rounded-sm px-1 py-2 font-semibold text-sm outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-50",
+									"justify-self-end whitespace-nowrap rounded-sm px-2 py-2 font-semibold text-[length:var(--text-sm,0.8125rem)] outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-50",
 									primaryAction.variant === "destructive"
 										? "text-destructive"
 										: "text-primary"

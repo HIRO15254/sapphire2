@@ -33,7 +33,11 @@ export const currencyRouter = router({
 		.input(
 			z.object({
 				name: z.string().min(1),
-				unit: z.string().optional(),
+				unit: z
+					.string()
+					.max(4)
+					.regex(/^[\x20-\x7e]*$/)
+					.optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -58,7 +62,11 @@ export const currencyRouter = router({
 			z.object({
 				id: z.string(),
 				name: z.string().min(1).optional(),
-				unit: z.string().optional(),
+				unit: z
+					.string()
+					.max(4)
+					.regex(/^[\x20-\x7e]*$/)
+					.optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

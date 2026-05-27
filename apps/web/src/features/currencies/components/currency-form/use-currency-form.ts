@@ -11,9 +11,14 @@ export interface UseCurrencyFormProps {
 	onSubmit: (values: CurrencyFormValues) => void;
 }
 
+const ASCII_PRINTABLE_RE = /^[\x20-\x7e]*$/;
+
 export const currencyFormSchema = z.object({
 	name: z.string().min(1, "Currency name is required"),
-	unit: z.string(),
+	unit: z
+		.string()
+		.max(4, "Up to 4 characters")
+		.regex(ASCII_PRINTABLE_RE, "Half-width characters only"),
 });
 
 export function useCurrencyForm({

@@ -54,12 +54,14 @@ export function CurrencyFormV2({
 			<form.Field name="unit">
 				{(field) => (
 					<Field
+						description="Up to 4 half-width characters."
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Unit"
 					>
 						<Input
 							id={field.name}
+							maxLength={4}
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}

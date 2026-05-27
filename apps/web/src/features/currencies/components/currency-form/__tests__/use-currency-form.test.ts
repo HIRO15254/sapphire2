@@ -64,4 +64,43 @@ describe("useCurrencyForm", () => {
 		});
 		expect(onSubmit).toHaveBeenCalledWith({ name: "Gold", unit: "g" });
 	});
+
+	it("rejects a unit longer than 4 characters", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
+		act(() => {
+			result.current.form.setFieldValue("name", "Gold");
+			result.current.form.setFieldValue("unit", "ABCDE");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("rejects a unit containing multi-byte (non-ASCII) characters", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
+		act(() => {
+			result.current.form.setFieldValue("name", "JPY");
+			result.current.form.setFieldValue("unit", "¥");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("accepts the 4-character boundary", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
+		act(() => {
+			result.current.form.setFieldValue("name", "Pesos");
+			result.current.form.setFieldValue("unit", "MXN$");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith({ name: "Pesos", unit: "MXN$" });
+	});
 });
