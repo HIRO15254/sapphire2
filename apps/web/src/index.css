@@ -40,6 +40,16 @@
 	--sidebar-accent-foreground: oklch(0.15 0.008 250);
 	--sidebar-border: oklch(0.88 0.005 250);
 	--sidebar-ring: oklch(0.45 0.16 250);
+
+	/* Control heights (shadcn / Sapphire 2 convention).
+	   Single source of truth for Button / Input / Select-trigger sizing.
+	   Override under `.theme-v2` (or any future theme) to retune without
+	   forking the components. */
+	--h-control-xs: 1.5rem;
+	--h-control-sm: 2rem;
+	--h-control-md: 2.25rem;
+	--h-control-lg: 2.5rem;
+	--h-control-xl: 3rem;
 }
 
 .dark {
