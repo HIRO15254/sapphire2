@@ -21,6 +21,7 @@ import { Route as PlayersIndexRouteImport } from './routes/players/index'
 import { Route as CurrenciesIndexRouteImport } from './routes/currencies/index'
 import { Route as ActiveSessionIndexRouteImport } from './routes/active-session/index'
 import { Route as StoresStoreIdRouteImport } from './routes/stores/$storeId'
+import { Route as CurrenciesCurrencyIdRouteImport } from './routes/currencies/$currencyId'
 import { Route as ActiveSessionGameRouteImport } from './routes/active-session/game'
 import { Route as ActiveSessionEventsRouteImport } from './routes/active-session/events'
 import { Route as LiveSessionsSessionTypeSessionIdEventsRouteImport } from './routes/live-sessions/$sessionType/$sessionId/events'
@@ -85,6 +86,11 @@ const StoresStoreIdRoute = StoresStoreIdRouteImport.update({
   path: '/stores/$storeId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CurrenciesCurrencyIdRoute = CurrenciesCurrencyIdRouteImport.update({
+  id: '/currencies/$currencyId',
+  path: '/currencies/$currencyId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ActiveSessionGameRoute = ActiveSessionGameRouteImport.update({
   id: '/game',
   path: '/game',
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/active-session/events': typeof ActiveSessionEventsRoute
   '/active-session/game': typeof ActiveSessionGameRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
+  '/currencies/$currencyId': typeof CurrenciesCurrencyIdRoute
   '/active-session/': typeof ActiveSessionIndexRoute
   '/currencies/': typeof CurrenciesIndexRoute
   '/players/': typeof PlayersIndexRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByTo {
   '/active-session/events': typeof ActiveSessionEventsRoute
   '/active-session/game': typeof ActiveSessionGameRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
+  '/currencies/$currencyId': typeof CurrenciesCurrencyIdRoute
   '/active-session': typeof ActiveSessionIndexRoute
   '/currencies': typeof CurrenciesIndexRoute
   '/players': typeof PlayersIndexRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   '/active-session/events': typeof ActiveSessionEventsRoute
   '/active-session/game': typeof ActiveSessionGameRoute
   '/stores/$storeId': typeof StoresStoreIdRoute
+  '/currencies/$currencyId': typeof CurrenciesCurrencyIdRoute
   '/active-session/': typeof ActiveSessionIndexRoute
   '/currencies/': typeof CurrenciesIndexRoute
   '/players/': typeof PlayersIndexRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/active-session/events'
     | '/active-session/game'
     | '/stores/$storeId'
+    | '/currencies/$currencyId'
     | '/active-session/'
     | '/currencies/'
     | '/players/'
@@ -181,6 +191,7 @@ export interface FileRouteTypes {
     | '/active-session/events'
     | '/active-session/game'
     | '/stores/$storeId'
+    | '/currencies/$currencyId'
     | '/active-session'
     | '/currencies'
     | '/players'
@@ -198,6 +209,7 @@ export interface FileRouteTypes {
     | '/active-session/events'
     | '/active-session/game'
     | '/stores/$storeId'
+    | '/currencies/$currencyId'
     | '/active-session/'
     | '/currencies/'
     | '/players/'
@@ -214,6 +226,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   StoresStoreIdRoute: typeof StoresStoreIdRoute
+  CurrenciesCurrencyIdRoute: typeof CurrenciesCurrencyIdRoute
   CurrenciesIndexRoute: typeof CurrenciesIndexRoute
   PlayersIndexRoute: typeof PlayersIndexRoute
   SessionsIndexRoute: typeof SessionsIndexRoute
@@ -307,6 +320,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StoresStoreIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/currencies/$currencyId': {
+      id: '/currencies/$currencyId'
+      path: '/currencies/$currencyId'
+      fullPath: '/currencies/$currencyId'
+      preLoaderRoute: typeof CurrenciesCurrencyIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/active-session/game': {
       id: '/active-session/game'
       path: '/game'
@@ -355,6 +375,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   StoresStoreIdRoute: StoresStoreIdRoute,
+  CurrenciesCurrencyIdRoute: CurrenciesCurrencyIdRoute,
   CurrenciesIndexRoute: CurrenciesIndexRoute,
   PlayersIndexRoute: PlayersIndexRoute,
   SessionsIndexRoute: SessionsIndexRoute,

@@ -225,6 +225,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 
 	return {
 		currencies,
+		isLoading: currenciesQuery.isLoading,
 		allTransactions,
 		txHasMore,
 		isLoadingMore,

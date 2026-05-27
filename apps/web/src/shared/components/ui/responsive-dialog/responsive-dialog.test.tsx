@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ResponsiveDialog } from "./responsive-dialog";
 
@@ -59,5 +60,246 @@ describe("ResponsiveDialog", () => {
 		expect(screen.getByText("No Description")).toBeInTheDocument();
 		expect(screen.queryByText("Desktop description")).not.toBeInTheDocument();
 		expect(screen.getByText("Dialog content")).toBeInTheDocument();
+	});
+
+	describe("primaryAction (desktop)", () => {
+		it("renders Cancel + Save buttons in a footer when primaryAction is set", () => {
+			mockUseMediaQuery.mockReturnValue(true);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ label: "Save" }}
+					title="With action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			expect(
+				screen.getByRole("button", { name: "Cancel" })
+			).toBeInTheDocument();
+			expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+		});
+
+		it("uses the custom cancel label when provided", () => {
+			mockUseMediaQuery.mockReturnValue(true);
+			render(
+				<ResponsiveDialog
+					cancelLabel="Dismiss"
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ label: "Save" }}
+					title="With action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			expect(
+				screen.getByRole("button", { name: "Dismiss" })
+			).toBeInTheDocument();
+		});
+
+		it("calls onOpenChange(false) when Cancel is clicked", async () => {
+			const user = userEvent.setup();
+			mockUseMediaQuery.mockReturnValue(true);
+			const onOpenChange = vi.fn();
+			render(
+				<ResponsiveDialog
+					onOpenChange={onOpenChange}
+					open
+					primaryAction={{ label: "Save" }}
+					title="With action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			await user.click(screen.getByRole("button", { name: "Cancel" }));
+			expect(onOpenChange).toHaveBeenCalledTimes(1);
+			expect(onOpenChange).toHaveBeenCalledWith(false);
+		});
+
+		it("renders Save as a submit button targeting the supplied form id", () => {
+			mockUseMediaQuery.mockReturnValue(true);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ form: "external-form", label: "Save" }}
+					title="With action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			const save = screen.getByRole("button", { name: "Save" });
+			expect(save).toHaveAttribute("type", "submit");
+			expect(save).toHaveAttribute("form", "external-form");
+		});
+
+		it("renders Save as a regular button when no form id is provided", () => {
+			mockUseMediaQuery.mockReturnValue(true);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ label: "Delete", onClick: vi.fn() }}
+					title="With action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			const save = screen.getByRole("button", { name: "Delete" });
+			expect(save).toHaveAttribute("type", "button");
+		});
+
+		it("disables Save when isLoading is true and swaps the label", () => {
+			mockUseMediaQuery.mockReturnValue(true);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ isLoading: true, label: "Save" }}
+					title="With action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			const save = screen.getByRole("button", { name: "Saving..." });
+			expect(save).toBeDisabled();
+		});
+
+		it("uses the custom loadingLabel when provided", () => {
+			mockUseMediaQuery.mockReturnValue(true);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{
+						isLoading: true,
+						label: "Save",
+						loadingLabel: "Working...",
+					}}
+					title="With action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			expect(
+				screen.getByRole("button", { name: "Working..." })
+			).toBeInTheDocument();
+		});
+
+		it("disables Save when the disabled flag is set", () => {
+			mockUseMediaQuery.mockReturnValue(true);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ disabled: true, label: "Save" }}
+					title="With action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+		});
+
+		it("forwards onClick when Save is clicked", async () => {
+			const user = userEvent.setup();
+			mockUseMediaQuery.mockReturnValue(true);
+			const onClick = vi.fn();
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ label: "Delete", onClick }}
+					title="With action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			await user.click(screen.getByRole("button", { name: "Delete" }));
+			expect(onClick).toHaveBeenCalledTimes(1);
+		});
+
+		it("does not render the footer when primaryAction is absent", () => {
+			mockUseMediaQuery.mockReturnValue(true);
+			render(
+				<ResponsiveDialog onOpenChange={vi.fn()} open title="No action">
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			expect(
+				screen.queryByRole("button", { name: "Cancel" })
+			).not.toBeInTheDocument();
+			expect(
+				screen.queryByRole("button", { name: "Save" })
+			).not.toBeInTheDocument();
+		});
+	});
+
+	describe("primaryAction (mobile drawer)", () => {
+		it("renders Cancel top-left and Save top-right, hiding the X close", () => {
+			mockUseMediaQuery.mockReturnValue(false);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ label: "Save" }}
+					title="Mobile action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			expect(
+				screen.getByRole("button", { name: "Cancel" })
+			).toBeInTheDocument();
+			expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+			expect(screen.queryByText("Close")).not.toBeInTheDocument();
+		});
+
+		it("keeps the X close button when primaryAction is absent", () => {
+			mockUseMediaQuery.mockReturnValue(false);
+			render(
+				<ResponsiveDialog onOpenChange={vi.fn()} open title="No action">
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			expect(screen.getByText("Close")).toBeInTheDocument();
+			expect(
+				screen.queryByRole("button", { name: "Cancel" })
+			).not.toBeInTheDocument();
+		});
+
+		it("Save is a submit button when form id is given (mobile)", () => {
+			mockUseMediaQuery.mockReturnValue(false);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ form: "x", label: "Save" }}
+					title="Mobile action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			const save = screen.getByRole("button", { name: "Save" });
+			expect(save).toHaveAttribute("form", "x");
+			expect(save).toHaveAttribute("type", "submit");
+		});
+
+		it("disables Save while loading on mobile", () => {
+			mockUseMediaQuery.mockReturnValue(false);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ isLoading: true, label: "Save" }}
+					title="Mobile action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
+		});
 	});
 });
