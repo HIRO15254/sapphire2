@@ -135,3 +135,97 @@
 		outline: none !important;
 	}
 }
+
+/* =============================================================================
+   Theme v2 — Sapphire 2 Design System (gradual migration scope)
+   Apply `theme-v2` to a subtree (typically a route layout) to opt that subtree
+   into the new design tokens. The legacy theme remains active everywhere else.
+   See .claude/rules/web-theme.md for usage and migration policy.
+   ============================================================================= */
+
+.theme-v2 {
+	--background: hsl(0 0% 100%);
+	--foreground: hsl(222.2 84% 4.9%);
+	--card: hsl(0 0% 100%);
+	--card-foreground: hsl(222.2 84% 4.9%);
+	--popover: hsl(0 0% 100%);
+	--popover-foreground: hsl(222.2 84% 4.9%);
+	--primary: hsl(221.2 83.2% 53.3%);
+	--primary-foreground: hsl(210 40% 98%);
+	--secondary: hsl(210 40% 96.1%);
+	--secondary-foreground: hsl(222.2 47.4% 11.2%);
+	--muted: hsl(210 40% 96.1%);
+	--muted-foreground: hsl(215.4 16.3% 46.9%);
+	--accent: hsl(210 40% 96.1%);
+	--accent-foreground: hsl(222.2 47.4% 11.2%);
+	--destructive: hsl(0 84.2% 60.2%);
+	--destructive-foreground: hsl(210 40% 98%);
+	--success: hsl(142 71% 45%);
+	--success-foreground: hsl(210 40% 98%);
+	--warning: hsl(38 92% 50%);
+	--warning-foreground: hsl(222.2 47.4% 11.2%);
+	--info: hsl(199 89% 48%);
+	--info-foreground: hsl(210 40% 98%);
+	--border: hsl(214.3 31.8% 91.4%);
+	--input: hsl(214.3 31.8% 91.4%);
+	--ring: hsl(221.2 83.2% 53.3%);
+	--chart-1: hsl(221 83% 53%);
+	--chart-2: hsl(199 89% 48%);
+	--chart-3: hsl(262 83% 58%);
+	--chart-4: hsl(142 71% 45%);
+	--chart-5: hsl(38 92% 50%);
+	--radius: 0.5rem;
+	--sidebar: hsl(210 40% 98%);
+	--sidebar-foreground: hsl(222.2 84% 4.9%);
+	--sidebar-primary: hsl(221.2 83.2% 53.3%);
+	--sidebar-primary-foreground: hsl(210 40% 98%);
+	--sidebar-accent: hsl(210 40% 96.1%);
+	--sidebar-accent-foreground: hsl(222.2 47.4% 11.2%);
+	--sidebar-border: hsl(214.3 31.8% 91.4%);
+	--sidebar-ring: hsl(221.2 83.2% 53.3%);
+
+	font-family: var(--font-sans);
+	font-feature-settings: "cv11", "ss01", "ss03";
+}
+
+.dark .theme-v2,
+.theme-v2.dark {
+	--background: hsl(222.2 84% 4.9%);
+	--foreground: hsl(210 40% 98%);
+	--card: hsl(222.2 84% 4.9%);
+	--card-foreground: hsl(210 40% 98%);
+	--popover: hsl(222.2 84% 4.9%);
+	--popover-foreground: hsl(210 40% 98%);
+	--primary: hsl(217.2 91.2% 59.8%);
+	--primary-foreground: hsl(222.2 47.4% 11.2%);
+	--secondary: hsl(217.2 32.6% 17.5%);
+	--secondary-foreground: hsl(210 40% 98%);
+	--muted: hsl(217.2 32.6% 17.5%);
+	--muted-foreground: hsl(215 20.2% 65.1%);
+	--accent: hsl(217.2 32.6% 17.5%);
+	--accent-foreground: hsl(210 40% 98%);
+	--destructive: hsl(0 62.8% 50%);
+	--destructive-foreground: hsl(210 40% 98%);
+	--success: hsl(142 71% 45%);
+	--success-foreground: hsl(210 40% 98%);
+	--warning: hsl(38 92% 50%);
+	--warning-foreground: hsl(222.2 47.4% 11.2%);
+	--info: hsl(199 89% 48%);
+	--info-foreground: hsl(210 40% 98%);
+	--border: hsl(217.2 32.6% 17.5%);
+	--input: hsl(217.2 32.6% 17.5%);
+	--ring: hsl(224.3 76.3% 48%);
+	--chart-1: hsl(217 91% 60%);
+	--chart-2: hsl(199 89% 60%);
+	--chart-3: hsl(262 83% 70%);
+	--chart-4: hsl(142 71% 55%);
+	--chart-5: hsl(38 92% 60%);
+	--sidebar: hsl(222.2 84% 4.9%);
+	--sidebar-foreground: hsl(210 40% 98%);
+	--sidebar-primary: hsl(217.2 91.2% 59.8%);
+	--sidebar-primary-foreground: hsl(222.2 47.4% 11.2%);
+	--sidebar-accent: hsl(217.2 32.6% 17.5%);
+	--sidebar-accent-foreground: hsl(210 40% 98%);
+	--sidebar-border: hsl(217.2 32.6% 17.5%);
+	--sidebar-ring: hsl(224.3 76.3% 48%);
+}
