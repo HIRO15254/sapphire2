@@ -25,7 +25,7 @@ function CurrenciesPage() {
 
 	return (
 		<div className="theme-v2 min-h-full bg-background text-foreground">
-			<div className="mx-auto max-w-3xl p-4 md:p-6">
+			<div className="p-4">
 				<PageHeader
 					actions={
 						<Button onClick={() => setIsCreateOpen(true)} size="sm">

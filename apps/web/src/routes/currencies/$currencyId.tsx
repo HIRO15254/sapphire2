@@ -53,7 +53,7 @@ function CurrencyDetailPage() {
 	if (isLoading) {
 		return (
 			<div className="theme-v2 min-h-full bg-background text-foreground">
-				<div className="mx-auto max-w-3xl p-4 md:p-6">
+				<div className="p-4">
 					<p className="py-16 text-center text-muted-foreground text-sm">
 						Loading currency...
 					</p>
@@ -65,7 +65,7 @@ function CurrencyDetailPage() {
 	if (!currency) {
 		return (
 			<div className="theme-v2 min-h-full bg-background text-foreground">
-				<div className="mx-auto max-w-3xl p-4 md:p-6">
+				<div className="p-4">
 					<PageHeader
 						actions={
 							<Button asChild size="sm" variant="ghost">
@@ -87,7 +87,7 @@ function CurrencyDetailPage() {
 
 	return (
 		<div className="theme-v2 min-h-full bg-background text-foreground">
-			<div className="mx-auto max-w-3xl p-4 md:p-6">
+			<div className="p-4">
 				<PageHeader
 					actions={
 						<Button asChild size="sm" variant="ghost">
@@ -102,7 +102,7 @@ function CurrencyDetailPage() {
 							<span className="truncate">{currency.name}</span>
 							{currency.unit ? (
 								<Badge
-									className="shrink-0 font-mono text-[10px] uppercase"
+									className="shrink-0 font-mono uppercase"
 									variant="outline"
 								>
 									{currency.unit}
@@ -117,7 +117,7 @@ function CurrencyDetailPage() {
 					<p className="t-h1 mt-1 font-mono tabular-nums">
 						{formatCompactNumber(currency.balance)}
 						{currency.unit ? (
-							<span className="ml-2 font-medium font-sans text-base text-muted-foreground">
+							<span className="ml-2 font-medium font-sans text-muted-foreground text-sm">
 								{currency.unit}
 							</span>
 						) : null}
@@ -132,7 +132,7 @@ function CurrencyDetailPage() {
 							size="sm"
 							variant="outline"
 						>
-							<IconPlus size={14} />
+							<IconPlus size={16} />
 							Add transaction
 						</Button>
 					</div>
@@ -152,7 +152,7 @@ function CurrencyDetailPage() {
 						size="sm"
 						variant="outline"
 					>
-						<IconEdit size={14} />
+						<IconEdit size={16} />
 						Edit currency
 					</Button>
 					<Button
@@ -161,7 +161,7 @@ function CurrencyDetailPage() {
 						size="sm"
 						variant="ghost"
 					>
-						<IconTrash size={14} />
+						<IconTrash size={16} />
 						Delete currency
 					</Button>
 				</div>

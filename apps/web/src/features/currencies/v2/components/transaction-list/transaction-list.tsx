@@ -69,7 +69,7 @@ export function TransactionListV2({
 					if (isSessionGenerated) {
 						return (
 							<li
-								className="flex items-center gap-3 px-3 py-2.5 text-sm"
+								className="flex items-center gap-3 px-3 py-3 text-sm"
 								key={tx.id}
 							>
 								<span className="shrink-0 text-muted-foreground text-xs tabular-nums">
@@ -90,7 +90,7 @@ export function TransactionListV2({
 							<button
 								aria-expanded={isExpanded}
 								className={cn(
-									"flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50",
+									"flex w-full items-center gap-3 px-3 py-3 text-left text-sm outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
 									isExpanded && "bg-muted/40"
 								)}
 								onClick={() => (isExpanded ? onCollapse() : onExpand(tx.id))}
