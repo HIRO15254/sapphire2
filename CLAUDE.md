@@ -86,6 +86,7 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 - **Mobile forms are bottom sheets.** Use shadcn `Drawer`, not `Dialog`.
 - **Pages start with [`PageHeader`](apps/web/src/shared/components/page-header/page-header.tsx).** Do not hand-roll titles / action rows.
 - **Logic lives in `useXxx` hooks, not in components.** Components render JSX from destructured hook returns. Verification & full forbidden list: [`.claude/rules/web-hooks-separation.md`](.claude/rules/web-hooks-separation.md).
+- **Theme migration in progress.** Two shadcn/ui themes coexist: the **legacy theme** (default, `:root` / `.dark` in `apps/web/src/index.css`) and **theme v2** (Sapphire 2 Design System, scope class `theme-v2` in the same file). When the user says **"新テーマを使う" / "use the new theme"**, design and apply changes against **v2** — wrap the migrated subtree in `<div className="theme-v2">` and follow the Sapphire 2 design rules. Full migration policy: [`.claude/rules/web-theme.md`](.claude/rules/web-theme.md).
 
 ## Testing
 
@@ -160,6 +161,7 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders, `SelectWithClear` for clearable selects. |
 | `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Table / Badge / Avatar / RadioGroup), mobile = Drawer, tabler-icons. |
 | `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
+| `web-theme.md` | `apps/web/**` | Legacy ↔ v2 theme coexistence; how to opt a subtree into Sapphire 2 tokens via `theme-v2` scope class. |
 
 ## Maintaining This File (Self-Evolution)
 
