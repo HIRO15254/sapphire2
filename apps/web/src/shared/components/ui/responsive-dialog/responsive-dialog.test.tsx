@@ -301,5 +301,77 @@ describe("ResponsiveDialog", () => {
 			);
 			expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
 		});
+
+		it("applies the primary text color to Save by default", () => {
+			mockUseMediaQuery.mockReturnValue(false);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ label: "Save" }}
+					title="Mobile action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			expect(screen.getByRole("button", { name: "Save" })).toHaveClass(
+				"text-primary"
+			);
+		});
+
+		it("applies the destructive text color when variant is destructive", () => {
+			mockUseMediaQuery.mockReturnValue(false);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ label: "Delete", variant: "destructive" }}
+					title="Mobile action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			expect(screen.getByRole("button", { name: "Delete" })).toHaveClass(
+				"text-destructive"
+			);
+		});
+	});
+
+	describe("primaryAction (desktop) — destructive variant", () => {
+		it("renders Save with destructive variant in the desktop footer", () => {
+			mockUseMediaQuery.mockReturnValue(true);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ label: "Delete", variant: "destructive" }}
+					title="With destructive action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			expect(screen.getByRole("button", { name: "Delete" })).toHaveAttribute(
+				"data-variant",
+				"destructive"
+			);
+		});
+
+		it("renders Save with the default variant otherwise", () => {
+			mockUseMediaQuery.mockReturnValue(true);
+			render(
+				<ResponsiveDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ label: "Save" }}
+					title="With action"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			expect(screen.getByRole("button", { name: "Save" })).toHaveAttribute(
+				"data-variant",
+				"default"
+			);
+		});
 	});
 });

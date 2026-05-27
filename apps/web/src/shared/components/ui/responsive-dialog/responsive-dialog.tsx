@@ -21,14 +21,16 @@ import { useMediaQuery } from "@/shared/hooks/use-media-query";
 /**
  * Primary (save) action displayed in the dialog/drawer chrome.
  *
- * When provided, the mobile drawer header switches to an iOS-style
- * `[Cancel]  Title  [Save]` layout — the trailing X-close is removed
- * (Cancel button takes over the dismiss role). On desktop, a sticky
- * footer with the same Cancel/Save pair is added under the body.
+ * When provided, the mobile drawer header renders the Sapphire 2 bottom
+ * sheet toolbar (drag handle + `[Cancel] Title [Confirm]`, iOS pattern),
+ * and the desktop dialog gets a Cancel/Save footer. The X-close affordance
+ * is removed in both cases since Cancel takes over the dismiss role.
  *
- * If `form` is given, the button renders as `type="submit" form={form}`
- * so an external form (one with the matching `id`) is submitted natively
- * — Save can live outside the `<form>` element this way.
+ * `form` opts the primary button into native HTML form submission via the
+ * `form` attribute, so the action can live outside the `<form>` element.
+ *
+ * `variant: "destructive"` colors the primary label with the destructive
+ * token — used for irreversible confirmations (delete, sign out, discard).
  */
 interface PrimaryAction {
 	disabled?: boolean;
@@ -37,6 +39,7 @@ interface PrimaryAction {
 	label: string;
 	loadingLabel?: string;
 	onClick?: () => void;
+	variant?: "default" | "destructive";
 }
 
 interface ResponsiveDialogProps {
@@ -120,6 +123,11 @@ export function ResponsiveDialog({
 								form={primaryAction.form}
 								onClick={primaryAction.onClick}
 								type={primaryAction.form ? "submit" : "button"}
+								variant={
+									primaryAction.variant === "destructive"
+										? "destructive"
+										: "default"
+								}
 							>
 								{getPrimaryLabel(primaryAction)}
 							</Button>
@@ -133,45 +141,55 @@ export function ResponsiveDialog({
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
 			<DrawerContent
-				className={cn(fullHeight && "h-[calc(100svh-2rem)]", contentClassName)}
+				className={cn(
+					"rounded-t-xl",
+					fullHeight && "h-[calc(100svh-2rem)]",
+					contentClassName
+				)}
 			>
-				<DrawerHeader className="relative shrink-0">
-					<div
-						className={cn(
-							"flex items-center gap-2",
-							primaryAction && "justify-center px-12 text-center"
-						)}
-					>
-						<DrawerTitle>{title}</DrawerTitle>
-						{headerAction}
-					</div>
-					<DrawerDescription className={descriptionClassName}>
-						{descriptionContent}
-					</DrawerDescription>
-					{primaryAction ? (
-						<>
-							<Button
-								aria-label={cancelLabel}
-								className="absolute top-2 left-2"
+				{primaryAction ? (
+					<>
+						{/* Drag handle (36×4px) — Sapphire 2 spec, telegraphs dismissibility. */}
+						<div className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35" />
+						<div className="grid min-h-11 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b px-3">
+							<button
+								className="justify-self-start whitespace-nowrap rounded-sm px-1 py-2 text-foreground text-sm outline-none hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
 								onClick={() => onOpenChange(false)}
-								size="icon-sm"
 								type="button"
-								variant="ghost"
 							>
-								<IconX size={16} />
-							</Button>
-							<Button
-								className="absolute top-2 right-2"
+								{cancelLabel}
+							</button>
+							<DrawerTitle className="min-w-0 truncate text-center text-foreground text-sm leading-tight">
+								{title}
+							</DrawerTitle>
+							<button
+								className={cn(
+									"justify-self-end whitespace-nowrap rounded-sm px-1 py-2 font-semibold text-sm outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-50",
+									primaryAction.variant === "destructive"
+										? "text-destructive"
+										: "text-primary"
+								)}
 								disabled={isPrimaryDisabled}
 								form={primaryAction.form}
 								onClick={primaryAction.onClick}
-								size="sm"
 								type={primaryAction.form ? "submit" : "button"}
 							>
 								{getPrimaryLabel(primaryAction)}
-							</Button>
-						</>
-					) : (
+							</button>
+						</div>
+						<DrawerDescription className={descriptionClassName}>
+							{descriptionContent}
+						</DrawerDescription>
+					</>
+				) : (
+					<DrawerHeader className="relative shrink-0">
+						<div className="flex items-center gap-2">
+							<DrawerTitle>{title}</DrawerTitle>
+							{headerAction}
+						</div>
+						<DrawerDescription className={descriptionClassName}>
+							{descriptionContent}
+						</DrawerDescription>
 						<Button
 							className="absolute top-2 right-2"
 							onClick={() => onOpenChange(false)}
@@ -181,8 +199,8 @@ export function ResponsiveDialog({
 							<IconX size={16} />
 							<span className="sr-only">Close</span>
 						</Button>
-					)}
-				</DrawerHeader>
+					</DrawerHeader>
+				)}
 				<div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
 					{children}
 				</div>

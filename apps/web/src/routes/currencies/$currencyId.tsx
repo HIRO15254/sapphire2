@@ -113,13 +113,11 @@ function CurrencyDetailPage() {
 				/>
 
 				<section className="mb-6 rounded-lg border border-border bg-card p-6 text-card-foreground">
-					<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-						Balance
-					</p>
-					<p className="mt-1 font-mono font-semibold text-3xl text-foreground tabular-nums">
+					<p className="t-meta uppercase tracking-wide">Balance</p>
+					<p className="t-h1 mt-1 font-mono tabular-nums">
 						{formatCompactNumber(currency.balance)}
 						{currency.unit ? (
-							<span className="ml-2 font-medium text-base text-muted-foreground">
+							<span className="ml-2 font-medium font-sans text-base text-muted-foreground">
 								{currency.unit}
 							</span>
 						) : null}
@@ -128,9 +126,7 @@ function CurrencyDetailPage() {
 
 				<section className="rounded-lg border border-border bg-card text-card-foreground">
 					<div className="flex items-center justify-between border-border border-b px-4 py-3">
-						<h2 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-							Transactions
-						</h2>
+						<h2 className="t-meta uppercase tracking-wide">Transactions</h2>
 						<Button
 							onClick={() => setIsAddTransactionOpen(true)}
 							size="sm"
@@ -247,6 +243,7 @@ function CurrencyDetailPage() {
 					primaryAction={{
 						label: "Delete",
 						onClick: handleConfirmDelete,
+						variant: "destructive",
 					}}
 					title="Delete this currency?"
 				>

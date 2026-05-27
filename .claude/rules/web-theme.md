@@ -56,6 +56,17 @@ v2 introduces `--success` / `--warning` / `--info` (and their `-foreground` pair
 
 If a v2 component needs these as first-class Tailwind utilities (`bg-success` etc.), extend `@theme inline` in `index.css` **and** add fallback values to `:root` + `.dark` so legacy regions don't break.
 
+v2 also ships the full Sapphire 2 design-token contract inside the `.theme-v2` scope (`apps/web/src/index.css`):
+
+- **Spacing scale** — `--space-px / --space-0_5 … --space-24` (4px grid, capped at 96px per the "tools, not marketing" rule).
+- **Control heights** — `--h-control-xs / sm / md / lg / xl` (24 / 32 / 36 / 40 / 48px). `md` is the shadcn default.
+- **Type scale** — `--text-2xs … --text-6xl` (11px → 48px, denser than marketing scales).
+- **Motion** — `--dur-instant / fast / base / slow` (80/150/200/300ms) and `--ease-out / in-out / spring`.
+- **Font stack** — `--font-sans` resolves to Inter Variable (with `cv11 / ss01 / ss03` feature settings auto-applied) and `--font-mono` resolves to Geist Mono Variable (the JetBrains Mono substitute documented in the bundle's Caveats).
+- **Typography classes** — `t-display / t-h1 … t-h4 / t-body / t-body-sm / t-meta / t-label / t-code / t-kbd`, scoped under `.theme-v2`. Use them for v2 surfaces instead of hand-rolling font / size / weight combos.
+
+These exist only inside the `.theme-v2` cascade; legacy regions are unaffected.
+
 ## Design source-of-truth
 
 The Sapphire 2 Design System handoff bundle drives v2 decisions (colors, radius, typography scale, motion durations, component composition rules — buttons, alerts, cards, sheets, toasts, etc.). When designing a v2 surface:
@@ -65,10 +76,20 @@ The Sapphire 2 Design System handoff bundle drives v2 decisions (colors, radius,
 - **Borders, not shadows**, for structural separation in resting cards. Shadows reserved for floating surfaces.
 - **Sentence case** UI copy, no trailing periods on labels, no emoji in product UI.
 - **Mobile data entry = bottom sheets** (already enforced by [`web-ui.md`](web-ui.md) — `Drawer`, not `Dialog`).
+- **Bottom sheet chrome** (Sapphire 2 spec, implemented in `ResponsiveDialog` when `primaryAction` is set):
+  - 36×4px **drag handle** at the very top, telegraphs dismissibility.
+  - Top toolbar grid: `[Cancel] Title [Confirm]` (`1fr auto 1fr`, 44px min-height).
+  - Cancel: plain text button, foreground color, normal weight.
+  - Confirm: plain text button, **primary blue**, semibold weight — `destructive` token when the action is irreversible (delete / discard).
+  - No bottom button row; the sheet body scrolls under it.
 - Hover/press: background opacity shift only. No scale/translate on tool surfaces.
 - Focus ring: 2px `--ring` (blue) with 2px transparent offset — non-negotiable accessibility primitive.
 
-For anything ambiguous (component composition, spacing, typography mapping to `t-*` classes), refer back to the bundle README (`sapphire-2-design-system/project/README.md`) or `colors_and_type.css` / `components.css`.
+The handoff bundle lives at `/tmp/design/sapphire-2-design-system/sapphire-2-design-system/` when extracted (HTML/CSS/JS prototypes, not production code — recreate visually, do NOT copy markup). The primary references are:
+
+- `project/README.md` — design philosophy, content rules, component composition.
+- `project/colors_and_type.css` — token contract; the v2 block in `apps/web/src/index.css` is a faithful subset.
+- `project/components.css` — plain-CSS primitives (`.btn`, `.card`, `.sheet`, `.toast`, …); use as reference for sizing and spacing.
 
 ## Don'ts
 
