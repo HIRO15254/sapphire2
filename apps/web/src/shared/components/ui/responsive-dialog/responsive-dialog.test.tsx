@@ -237,6 +237,33 @@ describe("ResponsiveDialog", () => {
 		});
 	});
 
+	describe("forceDialog", () => {
+		it("renders the centered Dialog branch even when the viewport is mobile", () => {
+			mockUseMediaQuery.mockReturnValue(false);
+			render(
+				<ResponsiveDialog
+					forceDialog
+					onOpenChange={vi.fn()}
+					open
+					primaryAction={{ label: "Delete", variant: "destructive" }}
+					title="Confirm"
+				>
+					<div>body</div>
+				</ResponsiveDialog>
+			);
+			// Mobile drawer would render a sheet toolbar with the labeled Cancel
+			// + Save buttons; the Dialog branch renders a Cancel/Save FOOTER and
+			// no drawer-style chrome.
+			expect(screen.getByRole("button", { name: "Delete" })).toHaveAttribute(
+				"data-variant",
+				"destructive"
+			);
+			expect(
+				screen.getByRole("button", { name: "Cancel" })
+			).toBeInTheDocument();
+		});
+	});
+
 	describe("primaryAction (mobile drawer)", () => {
 		it("renders Cancel top-left and Save top-right, hiding the X close", () => {
 			mockUseMediaQuery.mockReturnValue(false);

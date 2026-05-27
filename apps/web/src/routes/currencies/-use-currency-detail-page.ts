@@ -15,12 +15,23 @@ export interface CurrencyDetailItem {
 }
 
 export function useCurrencyDetailPage(currencyId: string) {
+	const [isActionsOpen, setIsActionsOpen] = useState(false);
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
 	const [editingTransaction, setEditingTransaction] =
 		useState<Transaction | null>(null);
 	const [confirmingDeleteCurrency, setConfirmingDeleteCurrency] =
 		useState(false);
+
+	const openEditFromActions = () => {
+		setIsActionsOpen(false);
+		setIsEditOpen(true);
+	};
+
+	const openDeleteFromActions = () => {
+		setIsActionsOpen(false);
+		setConfirmingDeleteCurrency(true);
+	};
 
 	const navigate = useNavigate();
 
@@ -90,10 +101,12 @@ export function useCurrencyDetailPage(currencyId: string) {
 		isUpdatePending,
 		isAddTransactionPending,
 		isEditTransactionPending,
+		isActionsOpen,
 		isEditOpen,
 		isAddTransactionOpen,
 		editingTransaction,
 		confirmingDeleteCurrency,
+		setIsActionsOpen,
 		setIsEditOpen,
 		setIsAddTransactionOpen,
 		setEditingTransaction,
@@ -104,5 +117,7 @@ export function useCurrencyDetailPage(currencyId: string) {
 		handleEditTransaction,
 		handleDeleteTransaction,
 		handleLoadMore,
+		openEditFromActions,
+		openDeleteFromActions,
 	};
 }

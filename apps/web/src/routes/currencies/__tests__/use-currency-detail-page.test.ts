@@ -126,10 +126,45 @@ describe("useCurrencyDetailPage", () => {
 	describe("initial dialog/state", () => {
 		it("starts with all dialogs closed and no editing target", () => {
 			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			expect(result.current.isActionsOpen).toBe(false);
 			expect(result.current.isEditOpen).toBe(false);
 			expect(result.current.isAddTransactionOpen).toBe(false);
 			expect(result.current.editingTransaction).toBeNull();
 			expect(result.current.confirmingDeleteCurrency).toBe(false);
+		});
+	});
+
+	describe("actions bottom sheet", () => {
+		it("opens via setIsActionsOpen", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.setIsActionsOpen(true);
+			});
+			expect(result.current.isActionsOpen).toBe(true);
+		});
+
+		it("openEditFromActions closes the actions sheet and opens edit", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.setIsActionsOpen(true);
+			});
+			act(() => {
+				result.current.openEditFromActions();
+			});
+			expect(result.current.isActionsOpen).toBe(false);
+			expect(result.current.isEditOpen).toBe(true);
+		});
+
+		it("openDeleteFromActions closes the actions sheet and opens delete confirm", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.setIsActionsOpen(true);
+			});
+			act(() => {
+				result.current.openDeleteFromActions();
+			});
+			expect(result.current.isActionsOpen).toBe(false);
+			expect(result.current.confirmingDeleteCurrency).toBe(true);
 		});
 	});
 

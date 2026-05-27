@@ -1,5 +1,6 @@
 import {
 	IconArrowLeft,
+	IconDotsVertical,
 	IconEdit,
 	IconPlus,
 	IconTrash,
@@ -23,14 +24,31 @@ const EDIT_CURRENCY_FORM_ID = "currency-edit-form";
 const ADD_TRANSACTION_FORM_ID = "transaction-add-form";
 const EDIT_TRANSACTION_FORM_ID = "transaction-edit-form";
 
-function BackLink() {
+interface TopBarProps {
+	onOpenActions?: () => void;
+}
+
+function TopBar({ onOpenActions }: TopBarProps) {
 	return (
-		<Button asChild className="mb-2 -ml-2" size="sm" variant="ghost">
-			<Link to="/currencies">
-				<IconArrowLeft size={18} />
-				Back
-			</Link>
-		</Button>
+		<div className="mb-2 flex items-center justify-between">
+			<Button asChild className="-ml-2" size="sm" variant="ghost">
+				<Link to="/currencies">
+					<IconArrowLeft size={18} />
+					Back
+				</Link>
+			</Button>
+			{onOpenActions ? (
+				<Button
+					aria-label="More actions"
+					className="-mr-2"
+					onClick={onOpenActions}
+					size="icon-lg"
+					variant="ghost"
+				>
+					<IconDotsVertical size={20} />
+				</Button>
+			) : null}
+		</div>
 	);
 }
 
@@ -45,10 +63,12 @@ function CurrencyDetailPage() {
 		isUpdatePending,
 		isAddTransactionPending,
 		isEditTransactionPending,
+		isActionsOpen,
 		isEditOpen,
 		isAddTransactionOpen,
 		editingTransaction,
 		confirmingDeleteCurrency,
+		setIsActionsOpen,
 		setIsEditOpen,
 		setIsAddTransactionOpen,
 		setEditingTransaction,
@@ -59,6 +79,8 @@ function CurrencyDetailPage() {
 		handleEditTransaction,
 		handleDeleteTransaction,
 		handleLoadMore,
+		openEditFromActions,
+		openDeleteFromActions,
 	} = useCurrencyDetailPage(currencyId);
 
 	if (isLoading) {
@@ -77,7 +99,7 @@ function CurrencyDetailPage() {
 		return (
 			<div className="theme-v2 min-h-full bg-background text-foreground">
 				<div className="p-4">
-					<BackLink />
+					<TopBar />
 					<PageHeader heading="Currency not found" />
 					<p className="py-16 text-center text-muted-foreground text-sm">
 						This currency may have been deleted.
@@ -90,29 +112,8 @@ function CurrencyDetailPage() {
 	return (
 		<div className="theme-v2 min-h-full bg-background text-foreground">
 			<div className="p-4">
-				<BackLink />
+				<TopBar onOpenActions={() => setIsActionsOpen(true)} />
 				<PageHeader
-					actions={
-						<>
-							<Button
-								aria-label="Edit currency"
-								onClick={() => setIsEditOpen(true)}
-								size="icon-lg"
-								variant="outline"
-							>
-								<IconEdit size={18} />
-							</Button>
-							<Button
-								aria-label="Delete currency"
-								className="text-destructive hover:text-destructive"
-								onClick={() => setConfirmingDeleteCurrency(true)}
-								size="icon-lg"
-								variant="ghost"
-							>
-								<IconTrash size={18} />
-							</Button>
-						</>
-					}
 					heading={
 						<span className="flex items-center gap-2">
 							<span className="truncate">{currency.name}</span>
@@ -161,6 +162,37 @@ function CurrencyDetailPage() {
 						transactions={transactions}
 					/>
 				</section>
+
+				<ResponsiveDialog
+					contentClassName="theme-v2"
+					description="Edit or delete this currency."
+					onOpenChange={setIsActionsOpen}
+					open={isActionsOpen}
+					title="Currency actions"
+				>
+					<ul className="flex flex-col gap-1">
+						<li>
+							<button
+								className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-foreground text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40"
+								onClick={openEditFromActions}
+								type="button"
+							>
+								<IconEdit size={18} />
+								Edit currency
+							</button>
+						</li>
+						<li>
+							<button
+								className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-destructive text-sm outline-none hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/40"
+								onClick={openDeleteFromActions}
+								type="button"
+							>
+								<IconTrash size={18} />
+								Delete currency
+							</button>
+						</li>
+					</ul>
+				</ResponsiveDialog>
 
 				<ResponsiveDialog
 					contentClassName="theme-v2"
@@ -234,6 +266,7 @@ function CurrencyDetailPage() {
 
 				<ResponsiveDialog
 					contentClassName="theme-v2"
+					forceDialog
 					onOpenChange={setConfirmingDeleteCurrency}
 					open={confirmingDeleteCurrency}
 					primaryAction={{
