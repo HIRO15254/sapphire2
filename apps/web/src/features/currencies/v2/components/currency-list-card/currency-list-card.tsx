@@ -1,6 +1,5 @@
 import { IconChevronRight } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
-import { Badge } from "@/shared/components/ui/badge";
 import { formatCompactNumber } from "@/utils/format-number";
 
 interface CurrencyListCardProps {
@@ -19,21 +18,16 @@ export function CurrencyListCard({ currency: c }: CurrencyListCardProps) {
 			params={{ currencyId: c.id }}
 			to="/currencies/$currencyId"
 		>
-			<div className="flex min-w-0 flex-1 items-center gap-2">
-				<span className="truncate font-medium text-base text-foreground">
-					{c.name}
-				</span>
-				{c.unit ? (
-					<Badge
-						className="shrink-0 font-mono text-[10px] uppercase"
-						variant="outline"
-					>
-						{c.unit}
-					</Badge>
-				) : null}
-			</div>
+			<span className="min-w-0 flex-1 truncate font-medium text-base text-foreground">
+				{c.name}
+			</span>
 			<span className="shrink-0 font-mono font-semibold text-base text-foreground tabular-nums">
 				{formatCompactNumber(c.balance)}
+				{c.unit ? (
+					<span className="ml-1 font-medium text-muted-foreground text-sm">
+						{c.unit}
+					</span>
+				) : null}
 			</span>
 			<IconChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover/card:translate-x-0.5" />
 		</Link>

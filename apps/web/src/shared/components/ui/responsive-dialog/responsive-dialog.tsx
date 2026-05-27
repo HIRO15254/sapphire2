@@ -151,13 +151,14 @@ export function ResponsiveDialog({
 					{primaryAction ? (
 						<>
 							<Button
+								aria-label={cancelLabel}
 								className="absolute top-2 left-2"
 								onClick={() => onOpenChange(false)}
-								size="sm"
+								size="icon-sm"
 								type="button"
 								variant="ghost"
 							>
-								{cancelLabel}
+								<IconX size={16} />
 							</Button>
 							<Button
 								className="absolute top-2 right-2"

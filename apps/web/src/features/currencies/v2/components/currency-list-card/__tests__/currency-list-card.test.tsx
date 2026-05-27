@@ -32,18 +32,19 @@ describe("CurrencyListCard", () => {
 		expect(screen.getByText("1,234")).toBeInTheDocument();
 	});
 
-	it("renders the unit pill when unit is present", async () => {
-		renderCard({ id: "c1", name: "Chips", unit: "USD", balance: 0 });
-		expect(await screen.findByText("USD")).toBeInTheDocument();
+	it("renders the unit as a suffix to the balance when present", async () => {
+		renderCard({ id: "c1", name: "Chips", unit: "USD", balance: 1234 });
+		expect(await screen.findByText("1,234")).toBeInTheDocument();
+		expect(screen.getByText("USD")).toBeInTheDocument();
 	});
 
-	it("omits the unit pill when unit is null", async () => {
+	it("omits the unit suffix when unit is null", async () => {
 		renderCard({ id: "c1", name: "Chips", unit: null, balance: 0 });
 		expect(await screen.findByText("Chips")).toBeInTheDocument();
 		expect(screen.queryByText("USD")).not.toBeInTheDocument();
 	});
 
-	it("omits the unit pill when unit is the empty string", async () => {
+	it("omits the unit suffix when unit is the empty string", async () => {
 		renderCard({ id: "c1", name: "Chips", unit: "", balance: 0 });
 		expect(await screen.findByText("Chips")).toBeInTheDocument();
 		expect(screen.queryByText("USD")).not.toBeInTheDocument();

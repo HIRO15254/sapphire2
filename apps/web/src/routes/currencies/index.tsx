@@ -33,7 +33,6 @@ function CurrenciesPage() {
 							New currency
 						</Button>
 					}
-					description="Track balances across the chips and accounts you use."
 					heading="Currencies"
 				/>
 
