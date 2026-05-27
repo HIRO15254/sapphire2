@@ -25,6 +25,7 @@ interface TransactionFormV2Props {
 }
 
 interface TypeComboboxProps {
+	"aria-invalid"?: boolean;
 	id?: string;
 	newTypeName: string;
 	onNewTypeNameChange: (name: string) => void;
@@ -34,6 +35,7 @@ interface TypeComboboxProps {
 }
 
 function TypeCombobox({
+	"aria-invalid": ariaInvalid,
 	id,
 	newTypeName,
 	onNewTypeNameChange,
@@ -72,6 +74,7 @@ function TypeCombobox({
 				<div ref={anchorRef}>
 					<Input
 						aria-expanded={shouldShowPopover}
+						aria-invalid={ariaInvalid}
 						autoComplete="off"
 						id={id}
 						onBlur={(e) => {
