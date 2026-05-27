@@ -77,11 +77,13 @@ The Sapphire 2 Design System handoff bundle drives v2 decisions (colors, radius,
 - **Sentence case** UI copy, no trailing periods on labels, no emoji in product UI.
 - **Mobile data entry = bottom sheets** (already enforced by [`web-ui.md`](web-ui.md) — `Drawer`, not `Dialog`).
 - **Bottom sheet chrome** (Sapphire 2 spec, implemented in `ResponsiveDialog` when `primaryAction` is set):
-  - 36×4px **drag handle** at the very top, telegraphs dismissibility.
   - Top toolbar grid: `[Cancel] Title [Confirm]` (`1fr auto 1fr`, 44px min-height).
   - Cancel: plain text button, foreground color, normal weight.
   - Confirm: plain text button, **primary blue**, semibold weight — `destructive` token when the action is irreversible (delete / discard).
   - No bottom button row; the sheet body scrolls under it.
+  - The drag-handle affordance from the bundle is omitted: the drawer is
+    `dismissible={false}` so a handle would mislead — Cancel is the
+    sole dismiss path.
 - Hover/press: background opacity shift only. No scale/translate on tool surfaces.
 - Focus ring: 2px `--ring` (blue) with 2px transparent offset — non-negotiable accessibility primitive.
 

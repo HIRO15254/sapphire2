@@ -22,9 +22,9 @@ import { useMediaQuery } from "@/shared/hooks/use-media-query";
  * Primary (save) action displayed in the dialog/drawer chrome.
  *
  * When provided, the mobile drawer header renders the Sapphire 2 bottom
- * sheet toolbar (drag handle + `[Cancel] Title [Confirm]`, iOS pattern),
- * and the desktop dialog gets a Cancel/Save footer. The X-close affordance
- * is removed in both cases since Cancel takes over the dismiss role.
+ * sheet toolbar (`[Cancel] Title [Confirm]`, iOS pattern), and the desktop
+ * dialog gets a Cancel/Save footer. The X-close affordance is removed in
+ * both cases since Cancel takes over the dismiss role.
  *
  * `form` opts the primary button into native HTML form submission via the
  * `form` attribute, so the action can live outside the `<form>` element.
@@ -149,8 +149,6 @@ export function ResponsiveDialog({
 			>
 				{primaryAction ? (
 					<>
-						{/* Drag handle (36×4px) — Sapphire 2 spec, telegraphs dismissibility. */}
-						<div className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35" />
 						<div className="grid min-h-11 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b px-3">
 							<button
 								className="justify-self-start whitespace-nowrap rounded-sm px-1 py-2 text-foreground text-sm outline-none hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
@@ -201,7 +199,12 @@ export function ResponsiveDialog({
 						</Button>
 					</DrawerHeader>
 				)}
-				<div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+				<div
+					className={cn(
+						"flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]",
+						primaryAction ? "pt-4" : ""
+					)}
+				>
 					{children}
 				</div>
 			</DrawerContent>
