@@ -23,6 +23,17 @@ const EDIT_CURRENCY_FORM_ID = "currency-edit-form";
 const ADD_TRANSACTION_FORM_ID = "transaction-add-form";
 const EDIT_TRANSACTION_FORM_ID = "transaction-edit-form";
 
+function BackLink() {
+	return (
+		<Button asChild className="mb-2 -ml-2" size="sm" variant="ghost">
+			<Link to="/currencies">
+				<IconArrowLeft size={18} />
+				Back
+			</Link>
+		</Button>
+	);
+}
+
 function CurrencyDetailPage() {
 	const { currencyId } = Route.useParams();
 	const {
@@ -66,17 +77,8 @@ function CurrencyDetailPage() {
 		return (
 			<div className="theme-v2 min-h-full bg-background text-foreground">
 				<div className="p-4">
-					<PageHeader
-						actions={
-							<Button asChild size="sm" variant="ghost">
-								<Link to="/currencies">
-									<IconArrowLeft size={16} />
-									Back
-								</Link>
-							</Button>
-						}
-						heading="Currency not found"
-					/>
+					<BackLink />
+					<PageHeader heading="Currency not found" />
 					<p className="py-16 text-center text-muted-foreground text-sm">
 						This currency may have been deleted.
 					</p>
@@ -88,14 +90,28 @@ function CurrencyDetailPage() {
 	return (
 		<div className="theme-v2 min-h-full bg-background text-foreground">
 			<div className="p-4">
+				<BackLink />
 				<PageHeader
 					actions={
-						<Button asChild size="sm" variant="ghost">
-							<Link to="/currencies">
-								<IconArrowLeft size={16} />
-								Back
-							</Link>
-						</Button>
+						<>
+							<Button
+								aria-label="Edit currency"
+								onClick={() => setIsEditOpen(true)}
+								size="icon-lg"
+								variant="outline"
+							>
+								<IconEdit size={18} />
+							</Button>
+							<Button
+								aria-label="Delete currency"
+								className="text-destructive hover:text-destructive"
+								onClick={() => setConfirmingDeleteCurrency(true)}
+								size="icon-lg"
+								variant="ghost"
+							>
+								<IconTrash size={18} />
+							</Button>
+						</>
 					}
 					heading={
 						<span className="flex items-center gap-2">
@@ -126,7 +142,7 @@ function CurrencyDetailPage() {
 
 				<section className="rounded-lg border border-border bg-card text-card-foreground">
 					<div className="flex items-center justify-between border-border border-b px-4 py-3">
-						<h2 className="t-meta uppercase tracking-wide">Transactions</h2>
+						<h2 className="t-h4">Transactions</h2>
 						<Button
 							onClick={() => setIsAddTransactionOpen(true)}
 							size="sm"
@@ -145,26 +161,6 @@ function CurrencyDetailPage() {
 						transactions={transactions}
 					/>
 				</section>
-
-				<div className="mt-6 flex items-center justify-end gap-2">
-					<Button
-						onClick={() => setIsEditOpen(true)}
-						size="sm"
-						variant="outline"
-					>
-						<IconEdit size={16} />
-						Edit currency
-					</Button>
-					<Button
-						className="text-destructive hover:text-destructive"
-						onClick={() => setConfirmingDeleteCurrency(true)}
-						size="sm"
-						variant="ghost"
-					>
-						<IconTrash size={16} />
-						Delete currency
-					</Button>
-				</div>
 
 				<ResponsiveDialog
 					contentClassName="theme-v2"
