@@ -9,6 +9,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CurrencyFormV2 } from "@/features/currencies/v2/components/currency-form";
 import { TransactionFormV2 } from "@/features/currencies/v2/components/transaction-form";
 import { TransactionListV2 } from "@/features/currencies/v2/components/transaction-list";
+import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -24,8 +25,6 @@ import {
 	Drawer,
 	DrawerContent,
 	DrawerDescription,
-	DrawerFooter,
-	DrawerHeader,
 	DrawerTitle,
 } from "@/shared/components/ui/drawer";
 import { formatCompactNumber } from "@/utils/format-number";
@@ -180,9 +179,6 @@ function CurrencyDetailPage() {
 
 				<Drawer onOpenChange={setIsActionsOpen} open={isActionsOpen}>
 					<DrawerContent className="theme-v2 rounded-t-xl">
-						{/* Drag handle — vaul handles the swipe-down dismiss when
-						    `dismissible` is left at its default `true`. Overlay tap
-						    also dismisses. */}
 						<div
 							aria-hidden
 							className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"
@@ -216,136 +212,66 @@ function CurrencyDetailPage() {
 					</DrawerContent>
 				</Drawer>
 
-				<Drawer
-					dismissible={false}
+				<FormSheet
+					contentClassName="theme-v2"
+					formId={EDIT_CURRENCY_FORM_ID}
+					isLoading={isUpdatePending}
 					onOpenChange={setIsEditOpen}
 					open={isEditOpen}
+					title="Edit currency"
 				>
-					<DrawerContent className="theme-v2 rounded-t-xl">
-						<DrawerHeader>
-							<DrawerTitle>Edit currency</DrawerTitle>
-							<DrawerDescription className="sr-only">
-								Edit currency dialog
-							</DrawerDescription>
-						</DrawerHeader>
-						<div className="overflow-y-auto px-4">
-							<CurrencyFormV2
-								defaultValues={{
-									name: currency.name,
-									unit: currency.unit ?? undefined,
-								}}
-								formId={EDIT_CURRENCY_FORM_ID}
-								onSubmit={handleEdit}
-							/>
-						</div>
-						<DrawerFooter className="flex-row justify-end pb-[calc(1rem+env(safe-area-inset-bottom))]">
-							<Button
-								onClick={() => setIsEditOpen(false)}
-								type="button"
-								variant="outline"
-							>
-								Cancel
-							</Button>
-							<Button
-								disabled={isUpdatePending}
-								form={EDIT_CURRENCY_FORM_ID}
-								type="submit"
-							>
-								{isUpdatePending ? "Saving..." : "Save"}
-							</Button>
-						</DrawerFooter>
-					</DrawerContent>
-				</Drawer>
+					<CurrencyFormV2
+						defaultValues={{
+							name: currency.name,
+							unit: currency.unit ?? undefined,
+						}}
+						formId={EDIT_CURRENCY_FORM_ID}
+						onSubmit={handleEdit}
+					/>
+				</FormSheet>
 
-				<Drawer
-					dismissible={false}
+				<FormSheet
+					contentClassName="theme-v2"
+					formId={ADD_TRANSACTION_FORM_ID}
+					isLoading={isAddTransactionPending}
 					onOpenChange={setIsAddTransactionOpen}
 					open={isAddTransactionOpen}
+					title="Add transaction"
 				>
-					<DrawerContent className="theme-v2 rounded-t-xl">
-						<DrawerHeader>
-							<DrawerTitle>Add transaction</DrawerTitle>
-							<DrawerDescription className="sr-only">
-								Add transaction dialog
-							</DrawerDescription>
-						</DrawerHeader>
-						<div className="overflow-y-auto px-4">
-							<TransactionFormV2
-								formId={ADD_TRANSACTION_FORM_ID}
-								onSubmit={handleAddTransaction}
-							/>
-						</div>
-						<DrawerFooter className="flex-row justify-end pb-[calc(1rem+env(safe-area-inset-bottom))]">
-							<Button
-								onClick={() => setIsAddTransactionOpen(false)}
-								type="button"
-								variant="outline"
-							>
-								Cancel
-							</Button>
-							<Button
-								disabled={isAddTransactionPending}
-								form={ADD_TRANSACTION_FORM_ID}
-								type="submit"
-							>
-								{isAddTransactionPending ? "Saving..." : "Save"}
-							</Button>
-						</DrawerFooter>
-					</DrawerContent>
-				</Drawer>
+					<TransactionFormV2
+						formId={ADD_TRANSACTION_FORM_ID}
+						onSubmit={handleAddTransaction}
+					/>
+				</FormSheet>
 
-				<Drawer
-					dismissible={false}
+				<FormSheet
+					contentClassName="theme-v2"
+					formId={EDIT_TRANSACTION_FORM_ID}
+					isLoading={isEditTransactionPending}
 					onOpenChange={(open) => {
 						if (!open) {
 							setEditingTransaction(null);
 						}
 					}}
 					open={editingTransaction !== null}
+					title="Edit transaction"
 				>
-					<DrawerContent className="theme-v2 rounded-t-xl">
-						<DrawerHeader>
-							<DrawerTitle>Edit transaction</DrawerTitle>
-							<DrawerDescription className="sr-only">
-								Edit transaction dialog
-							</DrawerDescription>
-						</DrawerHeader>
-						<div className="overflow-y-auto px-4">
-							{editingTransaction && (
-								<TransactionFormV2
-									defaultValues={{
-										amount: editingTransaction.amount,
-										transactionTypeId:
-											editingTransaction.transactionTypeId ?? "",
-										transactedAt:
-											typeof editingTransaction.transactedAt === "string"
-												? editingTransaction.transactedAt
-												: editingTransaction.transactedAt.toISOString(),
-										memo: editingTransaction.memo ?? undefined,
-									}}
-									formId={EDIT_TRANSACTION_FORM_ID}
-									onSubmit={handleEditTransaction}
-								/>
-							)}
-						</div>
-						<DrawerFooter className="flex-row justify-end pb-[calc(1rem+env(safe-area-inset-bottom))]">
-							<Button
-								onClick={() => setEditingTransaction(null)}
-								type="button"
-								variant="outline"
-							>
-								Cancel
-							</Button>
-							<Button
-								disabled={isEditTransactionPending}
-								form={EDIT_TRANSACTION_FORM_ID}
-								type="submit"
-							>
-								{isEditTransactionPending ? "Saving..." : "Save"}
-							</Button>
-						</DrawerFooter>
-					</DrawerContent>
-				</Drawer>
+					{editingTransaction && (
+						<TransactionFormV2
+							defaultValues={{
+								amount: editingTransaction.amount,
+								transactionTypeId: editingTransaction.transactionTypeId ?? "",
+								transactedAt:
+									typeof editingTransaction.transactedAt === "string"
+										? editingTransaction.transactedAt
+										: editingTransaction.transactedAt.toISOString(),
+								memo: editingTransaction.memo ?? undefined,
+							}}
+							formId={EDIT_TRANSACTION_FORM_ID}
+							onSubmit={handleEditTransaction}
+						/>
+					)}
+				</FormSheet>
 
 				<Dialog
 					onOpenChange={setConfirmingDeleteCurrency}

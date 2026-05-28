@@ -2,16 +2,9 @@ import { IconCoins, IconPlus } from "@tabler/icons-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { CurrencyFormV2 } from "@/features/currencies/v2/components/currency-form";
 import { CurrencyListCard } from "@/features/currencies/v2/components/currency-list-card";
+import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
-import {
-	Drawer,
-	DrawerContent,
-	DrawerDescription,
-	DrawerFooter,
-	DrawerHeader,
-	DrawerTitle,
-} from "@/shared/components/ui/drawer";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { useCurrenciesPage } from "./-use-currencies-page";
 
@@ -63,39 +56,16 @@ function CurrenciesPage() {
 					</div>
 				)}
 
-				<Drawer
-					dismissible={false}
+				<FormSheet
+					contentClassName="theme-v2"
+					formId={CREATE_FORM_ID}
+					isLoading={isCreatePending}
 					onOpenChange={setIsCreateOpen}
 					open={isCreateOpen}
+					title="New currency"
 				>
-					<DrawerContent className="theme-v2 rounded-t-xl">
-						<DrawerHeader>
-							<DrawerTitle>New currency</DrawerTitle>
-							<DrawerDescription className="sr-only">
-								New currency dialog
-							</DrawerDescription>
-						</DrawerHeader>
-						<div className="overflow-y-auto px-4">
-							<CurrencyFormV2 formId={CREATE_FORM_ID} onSubmit={handleCreate} />
-						</div>
-						<DrawerFooter className="flex-row justify-end pb-[calc(1rem+env(safe-area-inset-bottom))]">
-							<Button
-								onClick={() => setIsCreateOpen(false)}
-								type="button"
-								variant="outline"
-							>
-								Cancel
-							</Button>
-							<Button
-								disabled={isCreatePending}
-								form={CREATE_FORM_ID}
-								type="submit"
-							>
-								{isCreatePending ? "Saving..." : "Save"}
-							</Button>
-						</DrawerFooter>
-					</DrawerContent>
-				</Drawer>
+					<CurrencyFormV2 formId={CREATE_FORM_ID} onSubmit={handleCreate} />
+				</FormSheet>
 			</div>
 		</div>
 	);
