@@ -6,6 +6,12 @@ import {
 } from "@/features/currencies/utils/transaction-list-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableRow,
+} from "@/shared/components/ui/table";
 
 interface Transaction {
 	amount: number;
@@ -24,15 +30,18 @@ interface TransactionListV2Props {
 	 * Called when the trailing 3-dots overflow button is tapped on a
 	 * non-session row. The page opens an action sheet (Edit / Delete)
 	 * scoped to the supplied transaction. Session-generated rows are
-	 * read-only and never expose this affordance.
+	 * read-only — the actions cell is still reserved on those rows so
+	 * the amount column stays aligned.
 	 */
 	onOpenActions?: (transaction: Transaction) => void;
 	transactions: Transaction[];
 }
 
 function getAmountClassV2(amount: number): string {
-	return amount >= 0 ? "text-[hsl(var(--success))]" : "text-destructive";
+	return amount >= 0 ? "text-success" : "text-destructive";
 }
+
+const COMPACT_CELL = "px-3 py-1.5 align-middle";
 
 export function TransactionListV2({
 	transactions,
@@ -53,56 +62,61 @@ export function TransactionListV2({
 
 	return (
 		<div className="flex flex-col">
-			<ul className="divide-y divide-border">
-				{transactions.map((tx) => {
-					const amountClass = getAmountClassV2(tx.amount);
-					const amountDisplay = getAmountDisplay(tx.amount, fmt);
-					const dateDisplay = getDateDisplay(tx.transactedAt);
-					const isSessionGenerated = !!tx.sessionId;
-
-					return (
-						<li
-							className="flex items-center gap-3 px-3 py-3 text-sm"
-							key={tx.id}
-						>
-							<span className="shrink-0 text-muted-foreground text-xs tabular-nums">
-								{dateDisplay}
-							</span>
-							{isSessionGenerated ? (
-								<Badge className="shrink-0 text-[10px]" variant="secondary">
-									Session
-								</Badge>
-							) : (
-								<Badge className="shrink-0 text-[10px]" variant="outline">
-									{tx.transactionTypeName}
-								</Badge>
-							)}
-							{tx.memo ? (
-								<span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
-									{tx.memo}
-								</span>
-							) : (
-								<span className="flex-1" />
-							)}
-							<span className="shrink-0 font-mono font-semibold text-sm tabular-nums">
-								<span className={amountClass}>{amountDisplay}</span>
-							</span>
-							{isSessionGenerated || !onOpenActions ? null : (
-								<Button
-									aria-label="Transaction actions"
-									className="-mr-1.5 shrink-0"
-									onClick={() => onOpenActions(tx)}
-									size="icon-sm"
-									type="button"
-									variant="ghost"
+			<Table>
+				<TableBody>
+					{transactions.map((tx) => {
+						const amountClass = getAmountClassV2(tx.amount);
+						const amountDisplay = getAmountDisplay(tx.amount, fmt);
+						const dateDisplay = getDateDisplay(tx.transactedAt);
+						const isSessionGenerated = !!tx.sessionId;
+						return (
+							<TableRow className="hover:bg-transparent" key={tx.id}>
+								<TableCell
+									className={`${COMPACT_CELL} w-px text-muted-foreground text-xs tabular-nums`}
 								>
-									<IconDotsVertical className="size-4" />
-								</Button>
-							)}
-						</li>
-					);
-				})}
-			</ul>
+									{dateDisplay}
+								</TableCell>
+								<TableCell className={`${COMPACT_CELL} w-px`}>
+									{isSessionGenerated ? (
+										<Badge className="shrink-0 text-[10px]" variant="secondary">
+											Session
+										</Badge>
+									) : (
+										<Badge className="shrink-0 text-[10px]" variant="outline">
+											{tx.transactionTypeName}
+										</Badge>
+									)}
+								</TableCell>
+								<TableCell
+									className={`${COMPACT_CELL} max-w-0 truncate text-muted-foreground text-xs`}
+								>
+									{tx.memo ?? ""}
+								</TableCell>
+								<TableCell
+									className={`${COMPACT_CELL} w-px text-right font-mono font-semibold text-sm tabular-nums`}
+								>
+									<span className={amountClass}>{amountDisplay}</span>
+								</TableCell>
+								<TableCell className={`${COMPACT_CELL} w-px pl-0`}>
+									{isSessionGenerated || !onOpenActions ? (
+										<span aria-hidden className="block size-7" />
+									) : (
+										<Button
+											aria-label="Transaction actions"
+											onClick={() => onOpenActions(tx)}
+											size="icon-sm"
+											type="button"
+											variant="ghost"
+										>
+											<IconDotsVertical className="size-4" />
+										</Button>
+									)}
+								</TableCell>
+							</TableRow>
+						);
+					})}
+				</TableBody>
+			</Table>
 			{hasMore ? (
 				<div className="border-border border-t p-2">
 					<Button

@@ -34,9 +34,9 @@ describe("TransactionListV2", () => {
 		expect(screen.getByText("+5,000")).toBeInTheDocument();
 	});
 
-	it("colors positive amounts with the v2 success token", () => {
+	it("colors positive amounts with the success token utility", () => {
 		render(<TransactionListV2 transactions={[regularTransaction]} />);
-		expect(screen.getByText("+5,000").className).toContain("--success");
+		expect(screen.getByText("+5,000")).toHaveClass("text-success");
 	});
 
 	it("colors negative amounts with text-destructive", () => {
