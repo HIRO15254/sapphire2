@@ -62,7 +62,7 @@ v2 also ships the full Sapphire 2 design-token contract inside the `.theme-v2` s
 - **Control heights** — `--h-control-xs / sm / md / lg / xl` (24 / 32 / 36 / 40 / 48px). `md` is the shadcn default.
 - **Type scale** — `--text-2xs … --text-6xl` (11px → 48px, denser than marketing scales).
 - **Motion** — `--dur-instant / fast / base / slow` (80/150/200/300ms) and `--ease-out / in-out / spring`.
-- **Font stack** — `--font-sans` resolves to Inter Variable (with `cv11 / ss01 / ss03` feature settings auto-applied) and `--font-mono` resolves to Geist Mono Variable (the JetBrains Mono substitute documented in the bundle's Caveats).
+- **Font stack** — `--font-sans` resolves to Noto Sans Variable and `--font-mono` resolves to JetBrains Mono Variable (both loaded via `@fontsource-variable/*` in `apps/web/src/index.css`). Legacy theme keeps Inter / Geist Mono.
 - **Typography classes** — `t-display / t-h1 … t-h4 / t-body / t-body-sm / t-meta / t-label / t-code / t-kbd`, scoped under `.theme-v2`. Use them for v2 surfaces instead of hand-rolling font / size / weight combos.
 
 These exist only inside the `.theme-v2` cascade; legacy regions are unaffected.

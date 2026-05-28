@@ -3,6 +3,8 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist-mono";
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/noto-sans";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -198,12 +200,12 @@
 	--sidebar-border: hsl(214.3 31.8% 91.4%);
 	--sidebar-ring: hsl(221.2 83.2% 53.3%);
 
-	/* Typography stack (Sapphire 2: Inter for UI, JetBrains Mono substitute = Geist Mono for code). */
+	/* Typography stack (Sapphire 2: Noto Sans for UI, JetBrains Mono for code). */
 	--font-sans:
-		"Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+		"Noto Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
 		Roboto, "Helvetica Neue", Arial, sans-serif;
 	--font-mono:
-		"Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco,
+		"JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco,
 		Consolas, monospace;
 
 	/* Type scale — dense tool-UI scale, 14px default body. */
@@ -255,7 +257,6 @@
 	--ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
 	font-family: var(--font-sans);
-	font-feature-settings: "cv11", "ss01", "ss03";
 }
 
 .dark .theme-v2,
