@@ -178,19 +178,20 @@ function CurrencyDetailPage() {
 					/>
 				</section>
 
-				<Drawer
-					dismissible={false}
-					onOpenChange={setIsActionsOpen}
-					open={isActionsOpen}
-				>
+				<Drawer onOpenChange={setIsActionsOpen} open={isActionsOpen}>
 					<DrawerContent className="theme-v2 rounded-t-xl">
-						<DrawerHeader>
-							<DrawerTitle>Currency actions</DrawerTitle>
-							<DrawerDescription className="sr-only">
-								Edit or delete this currency.
-							</DrawerDescription>
-						</DrawerHeader>
-						<ul className="flex flex-col gap-1 px-4">
+						{/* Drag handle — vaul handles the swipe-down dismiss when
+						    `dismissible` is left at its default `true`. Overlay tap
+						    also dismisses. */}
+						<div
+							aria-hidden
+							className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"
+						/>
+						<DrawerTitle className="sr-only">Currency actions</DrawerTitle>
+						<DrawerDescription className="sr-only">
+							Edit or delete this currency.
+						</DrawerDescription>
+						<ul className="flex flex-col gap-1 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
 							<li>
 								<button
 									className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-foreground text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40"
@@ -212,15 +213,6 @@ function CurrencyDetailPage() {
 								</button>
 							</li>
 						</ul>
-						<DrawerFooter className="pb-[calc(1rem+env(safe-area-inset-bottom))]">
-							<Button
-								onClick={() => setIsActionsOpen(false)}
-								type="button"
-								variant="outline"
-							>
-								Close
-							</Button>
-						</DrawerFooter>
 					</DrawerContent>
 				</Drawer>
 
