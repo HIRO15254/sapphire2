@@ -1,5 +1,6 @@
 import {
 	type CurrencyFormValues,
+	UNIT_MAX_LENGTH,
 	useCurrencyForm,
 } from "@/features/currencies/components/currency-form/use-currency-form";
 import { Field } from "@/shared/components/ui/field";
@@ -54,14 +55,21 @@ export function CurrencyFormV2({
 			<form.Field name="unit">
 				{(field) => (
 					<Field
-						description="Up to 4 half-width characters."
+						description={
+							<span className="flex items-center justify-between gap-2">
+								<span>Up to {UNIT_MAX_LENGTH} half-width characters.</span>
+								<span className="shrink-0 tabular-nums">
+									{field.state.value.length}/{UNIT_MAX_LENGTH}
+								</span>
+							</span>
+						}
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label="Unit"
 					>
 						<Input
 							id={field.name}
-							maxLength={4}
+							maxLength={UNIT_MAX_LENGTH}
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
