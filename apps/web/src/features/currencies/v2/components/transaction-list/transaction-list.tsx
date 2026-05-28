@@ -63,7 +63,7 @@ export function TransactionListV2({
 	return (
 		<div className="flex flex-col">
 			<Table>
-				<TableBody>
+				<TableBody className="[&_tr]:border-0">
 					{transactions.map((tx) => {
 						const amountClass = getAmountClassV2(tx.amount);
 						const amountDisplay = getAmountDisplay(tx.amount, fmt);
