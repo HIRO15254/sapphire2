@@ -64,7 +64,7 @@ export function FormSheet({
 						type="button"
 						variant="ghost"
 					>
-						<IconX size={18} />
+						<IconX className="size-6" />
 					</Button>
 					<DrawerTitle className="t-h4 min-w-0 truncate text-center">
 						{title}
@@ -78,7 +78,7 @@ export function FormSheet({
 						type="submit"
 						variant="ghost"
 					>
-						<IconCheck size={18} />
+						<IconCheck className="size-6" />
 					</Button>
 				</div>
 				<DrawerDescription className="sr-only">{title}</DrawerDescription>
