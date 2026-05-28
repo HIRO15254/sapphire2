@@ -4,8 +4,15 @@ import { CurrencyFormV2 } from "@/features/currencies/v2/components/currency-for
 import { CurrencyListCard } from "@/features/currencies/v2/components/currency-list-card";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
+import {
+	Drawer,
+	DrawerContent,
+	DrawerDescription,
+	DrawerFooter,
+	DrawerHeader,
+	DrawerTitle,
+} from "@/shared/components/ui/drawer";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { useCurrenciesPage } from "./-use-currencies-page";
 
 export const Route = createFileRoute("/currencies/")({
@@ -56,19 +63,39 @@ function CurrenciesPage() {
 					</div>
 				)}
 
-				<ResponsiveDialog
-					contentClassName="theme-v2"
+				<Drawer
+					dismissible={false}
 					onOpenChange={setIsCreateOpen}
 					open={isCreateOpen}
-					primaryAction={{
-						form: CREATE_FORM_ID,
-						isLoading: isCreatePending,
-						label: "Save",
-					}}
-					title="New currency"
 				>
-					<CurrencyFormV2 formId={CREATE_FORM_ID} onSubmit={handleCreate} />
-				</ResponsiveDialog>
+					<DrawerContent className="theme-v2 rounded-t-xl">
+						<DrawerHeader>
+							<DrawerTitle>New currency</DrawerTitle>
+							<DrawerDescription className="sr-only">
+								New currency dialog
+							</DrawerDescription>
+						</DrawerHeader>
+						<div className="overflow-y-auto px-4">
+							<CurrencyFormV2 formId={CREATE_FORM_ID} onSubmit={handleCreate} />
+						</div>
+						<DrawerFooter className="flex-row justify-end pb-[calc(1rem+env(safe-area-inset-bottom))]">
+							<Button
+								onClick={() => setIsCreateOpen(false)}
+								type="button"
+								variant="outline"
+							>
+								Cancel
+							</Button>
+							<Button
+								disabled={isCreatePending}
+								form={CREATE_FORM_ID}
+								type="submit"
+							>
+								{isCreatePending ? "Saving..." : "Save"}
+							</Button>
+						</DrawerFooter>
+					</DrawerContent>
+				</Drawer>
 			</div>
 		</div>
 	);

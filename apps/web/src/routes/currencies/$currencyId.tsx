@@ -12,7 +12,22 @@ import { TransactionListV2 } from "@/features/currencies/v2/components/transacti
 import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/shared/components/ui/dialog";
+import {
+	Drawer,
+	DrawerContent,
+	DrawerDescription,
+	DrawerFooter,
+	DrawerHeader,
+	DrawerTitle,
+} from "@/shared/components/ui/drawer";
 import { formatCompactNumber } from "@/utils/format-number";
 import { useCurrencyDetailPage } from "./-use-currency-detail-page";
 
@@ -163,124 +178,213 @@ function CurrencyDetailPage() {
 					/>
 				</section>
 
-				<ResponsiveDialog
-					contentClassName="theme-v2"
-					description="Edit or delete this currency."
+				<Drawer
+					dismissible={false}
 					onOpenChange={setIsActionsOpen}
 					open={isActionsOpen}
-					title="Currency actions"
 				>
-					<ul className="flex flex-col gap-1">
-						<li>
-							<button
-								className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-foreground text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40"
-								onClick={openEditFromActions}
+					<DrawerContent className="theme-v2 rounded-t-xl">
+						<DrawerHeader>
+							<DrawerTitle>Currency actions</DrawerTitle>
+							<DrawerDescription className="sr-only">
+								Edit or delete this currency.
+							</DrawerDescription>
+						</DrawerHeader>
+						<ul className="flex flex-col gap-1 px-4">
+							<li>
+								<button
+									className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-foreground text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40"
+									onClick={openEditFromActions}
+									type="button"
+								>
+									<IconEdit size={18} />
+									Edit currency
+								</button>
+							</li>
+							<li>
+								<button
+									className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-destructive text-sm outline-none hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/40"
+									onClick={openDeleteFromActions}
+									type="button"
+								>
+									<IconTrash size={18} />
+									Delete currency
+								</button>
+							</li>
+						</ul>
+						<DrawerFooter className="pb-[calc(1rem+env(safe-area-inset-bottom))]">
+							<Button
+								onClick={() => setIsActionsOpen(false)}
 								type="button"
+								variant="outline"
 							>
-								<IconEdit size={18} />
-								Edit currency
-							</button>
-						</li>
-						<li>
-							<button
-								className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-destructive text-sm outline-none hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/40"
-								onClick={openDeleteFromActions}
-								type="button"
-							>
-								<IconTrash size={18} />
-								Delete currency
-							</button>
-						</li>
-					</ul>
-				</ResponsiveDialog>
+								Close
+							</Button>
+						</DrawerFooter>
+					</DrawerContent>
+				</Drawer>
 
-				<ResponsiveDialog
-					contentClassName="theme-v2"
+				<Drawer
+					dismissible={false}
 					onOpenChange={setIsEditOpen}
 					open={isEditOpen}
-					primaryAction={{
-						form: EDIT_CURRENCY_FORM_ID,
-						isLoading: isUpdatePending,
-						label: "Save",
-					}}
-					title="Edit currency"
 				>
-					<CurrencyFormV2
-						defaultValues={{
-							name: currency.name,
-							unit: currency.unit ?? undefined,
-						}}
-						formId={EDIT_CURRENCY_FORM_ID}
-						onSubmit={handleEdit}
-					/>
-				</ResponsiveDialog>
+					<DrawerContent className="theme-v2 rounded-t-xl">
+						<DrawerHeader>
+							<DrawerTitle>Edit currency</DrawerTitle>
+							<DrawerDescription className="sr-only">
+								Edit currency dialog
+							</DrawerDescription>
+						</DrawerHeader>
+						<div className="overflow-y-auto px-4">
+							<CurrencyFormV2
+								defaultValues={{
+									name: currency.name,
+									unit: currency.unit ?? undefined,
+								}}
+								formId={EDIT_CURRENCY_FORM_ID}
+								onSubmit={handleEdit}
+							/>
+						</div>
+						<DrawerFooter className="flex-row justify-end pb-[calc(1rem+env(safe-area-inset-bottom))]">
+							<Button
+								onClick={() => setIsEditOpen(false)}
+								type="button"
+								variant="outline"
+							>
+								Cancel
+							</Button>
+							<Button
+								disabled={isUpdatePending}
+								form={EDIT_CURRENCY_FORM_ID}
+								type="submit"
+							>
+								{isUpdatePending ? "Saving..." : "Save"}
+							</Button>
+						</DrawerFooter>
+					</DrawerContent>
+				</Drawer>
 
-				<ResponsiveDialog
-					contentClassName="theme-v2"
+				<Drawer
+					dismissible={false}
 					onOpenChange={setIsAddTransactionOpen}
 					open={isAddTransactionOpen}
-					primaryAction={{
-						form: ADD_TRANSACTION_FORM_ID,
-						isLoading: isAddTransactionPending,
-						label: "Save",
-					}}
-					title="Add transaction"
 				>
-					<TransactionFormV2
-						formId={ADD_TRANSACTION_FORM_ID}
-						onSubmit={handleAddTransaction}
-					/>
-				</ResponsiveDialog>
+					<DrawerContent className="theme-v2 rounded-t-xl">
+						<DrawerHeader>
+							<DrawerTitle>Add transaction</DrawerTitle>
+							<DrawerDescription className="sr-only">
+								Add transaction dialog
+							</DrawerDescription>
+						</DrawerHeader>
+						<div className="overflow-y-auto px-4">
+							<TransactionFormV2
+								formId={ADD_TRANSACTION_FORM_ID}
+								onSubmit={handleAddTransaction}
+							/>
+						</div>
+						<DrawerFooter className="flex-row justify-end pb-[calc(1rem+env(safe-area-inset-bottom))]">
+							<Button
+								onClick={() => setIsAddTransactionOpen(false)}
+								type="button"
+								variant="outline"
+							>
+								Cancel
+							</Button>
+							<Button
+								disabled={isAddTransactionPending}
+								form={ADD_TRANSACTION_FORM_ID}
+								type="submit"
+							>
+								{isAddTransactionPending ? "Saving..." : "Save"}
+							</Button>
+						</DrawerFooter>
+					</DrawerContent>
+				</Drawer>
 
-				<ResponsiveDialog
-					contentClassName="theme-v2"
+				<Drawer
+					dismissible={false}
 					onOpenChange={(open) => {
 						if (!open) {
 							setEditingTransaction(null);
 						}
 					}}
 					open={editingTransaction !== null}
-					primaryAction={{
-						form: EDIT_TRANSACTION_FORM_ID,
-						isLoading: isEditTransactionPending,
-						label: "Save",
-					}}
-					title="Edit transaction"
 				>
-					{editingTransaction && (
-						<TransactionFormV2
-							defaultValues={{
-								amount: editingTransaction.amount,
-								transactionTypeId: editingTransaction.transactionTypeId ?? "",
-								transactedAt:
-									typeof editingTransaction.transactedAt === "string"
-										? editingTransaction.transactedAt
-										: editingTransaction.transactedAt.toISOString(),
-								memo: editingTransaction.memo ?? undefined,
-							}}
-							formId={EDIT_TRANSACTION_FORM_ID}
-							onSubmit={handleEditTransaction}
-						/>
-					)}
-				</ResponsiveDialog>
+					<DrawerContent className="theme-v2 rounded-t-xl">
+						<DrawerHeader>
+							<DrawerTitle>Edit transaction</DrawerTitle>
+							<DrawerDescription className="sr-only">
+								Edit transaction dialog
+							</DrawerDescription>
+						</DrawerHeader>
+						<div className="overflow-y-auto px-4">
+							{editingTransaction && (
+								<TransactionFormV2
+									defaultValues={{
+										amount: editingTransaction.amount,
+										transactionTypeId:
+											editingTransaction.transactionTypeId ?? "",
+										transactedAt:
+											typeof editingTransaction.transactedAt === "string"
+												? editingTransaction.transactedAt
+												: editingTransaction.transactedAt.toISOString(),
+										memo: editingTransaction.memo ?? undefined,
+									}}
+									formId={EDIT_TRANSACTION_FORM_ID}
+									onSubmit={handleEditTransaction}
+								/>
+							)}
+						</div>
+						<DrawerFooter className="flex-row justify-end pb-[calc(1rem+env(safe-area-inset-bottom))]">
+							<Button
+								onClick={() => setEditingTransaction(null)}
+								type="button"
+								variant="outline"
+							>
+								Cancel
+							</Button>
+							<Button
+								disabled={isEditTransactionPending}
+								form={EDIT_TRANSACTION_FORM_ID}
+								type="submit"
+							>
+								{isEditTransactionPending ? "Saving..." : "Save"}
+							</Button>
+						</DrawerFooter>
+					</DrawerContent>
+				</Drawer>
 
-				<ResponsiveDialog
-					contentClassName="theme-v2"
-					forceDialog
+				<Dialog
 					onOpenChange={setConfirmingDeleteCurrency}
 					open={confirmingDeleteCurrency}
-					primaryAction={{
-						label: "Delete",
-						onClick: handleConfirmDelete,
-						variant: "destructive",
-					}}
-					title="Delete this currency?"
 				>
-					<p className="text-sm">
-						{currency.name} and all of its transactions will be removed
-						permanently. This cannot be undone.
-					</p>
-				</ResponsiveDialog>
+					<DialogContent className="theme-v2">
+						<DialogHeader>
+							<DialogTitle>Delete this currency?</DialogTitle>
+							<DialogDescription>
+								{currency.name} and all of its transactions will be removed
+								permanently. This cannot be undone.
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter className="flex-row justify-end gap-2">
+							<Button
+								onClick={() => setConfirmingDeleteCurrency(false)}
+								type="button"
+								variant="outline"
+							>
+								Cancel
+							</Button>
+							<Button
+								onClick={handleConfirmDelete}
+								type="button"
+								variant="destructive"
+							>
+								Delete
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
 			</div>
 		</div>
 	);

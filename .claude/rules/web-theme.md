@@ -76,14 +76,11 @@ The Sapphire 2 Design System handoff bundle drives v2 decisions (colors, radius,
 - **Borders, not shadows**, for structural separation in resting cards. Shadows reserved for floating surfaces.
 - **Sentence case** UI copy, no trailing periods on labels, no emoji in product UI.
 - **Mobile data entry = bottom sheets** (already enforced by [`web-ui.md`](web-ui.md) — `Drawer`, not `Dialog`).
-- **Bottom sheet chrome** (Sapphire 2 spec, implemented in `ResponsiveDialog` when `primaryAction` is set):
-  - Top toolbar grid: `[Cancel] Title [Confirm]` (`1fr auto 1fr`, 44px min-height).
-  - Cancel: plain text button, foreground color, normal weight.
-  - Confirm: plain text button, **primary blue**, semibold weight — `destructive` token when the action is irreversible (delete / discard).
-  - No bottom button row; the sheet body scrolls under it.
-  - The drag-handle affordance from the bundle is omitted: the drawer is
-    `dismissible={false}` so a handle would mislead — Cancel is the
-    sole dismiss path.
+- **For v2 surfaces, compose `Drawer` / `Dialog` directly** rather than reaching for `ResponsiveDialog`. v2 is mobile-only — the responsive dual-rendering of `ResponsiveDialog` is unnecessary indirection here. Conventions:
+  - **Form bottom sheet**: `<Drawer dismissible={false}>` + `DrawerHeader` (title + sr-only description) + scrollable body + `DrawerFooter` (right-aligned `[Cancel] [Save]`, with `safe-area-inset-bottom` padding). The Save button submits the external form via the HTML `form={formId}` attribute, so the form component itself doesn't render a submit.
+  - **Destructive confirmation**: `<Dialog>` (centered modal, not a sheet) with `[Cancel] [Delete]` in `DialogFooter`. Bottom sheets are reserved for data entry; one-tap-to-confirm prompts stay in a modal so the affordance is clear.
+  - **Action menu sheet**: `<Drawer>` + `DrawerHeader` + a `<ul>` of menu items (≥44px tap rows, destructive items in `text-destructive`), with a single Close button in `DrawerFooter`.
+  - Scope each portal with `className="theme-v2 rounded-t-xl"` on `DrawerContent` (or `className="theme-v2"` on `DialogContent`) so v2 tokens cascade into the portal subtree.
 - Hover/press: background opacity shift only. No scale/translate on tool surfaces.
 - Focus ring: 2px `--ring` (blue) with 2px transparent offset — non-negotiable accessibility primitive.
 
