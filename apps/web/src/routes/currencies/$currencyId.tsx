@@ -143,30 +143,31 @@ function CurrencyDetailPage() {
 					}
 				/>
 
-				<section className="mb-6 rounded-lg border border-border bg-card p-6 text-card-foreground">
-					<p className="t-meta uppercase tracking-wide">Balance</p>
-					<p className="t-h1 mt-1 font-mono tabular-nums">
+				<section
+					aria-labelledby="balance-label"
+					className="mb-8 flex flex-col items-center gap-1 py-6"
+				>
+					<p className="font-mono font-semibold text-5xl text-foreground tabular-nums">
 						{formatCompactNumber(currency.balance)}
-						{currency.unit ? (
-							<span className="ml-2 font-medium font-sans text-muted-foreground text-sm">
-								{currency.unit}
-							</span>
-						) : null}
+					</p>
+					<p className="t-meta uppercase tracking-wide" id="balance-label">
+						{currency.unit ? `${currency.unit} · Balance` : "Balance"}
 					</p>
 				</section>
 
+				<Button
+					className="mb-6 w-full"
+					onClick={() => setIsAddTransactionOpen(true)}
+					size="lg"
+				>
+					<IconPlus className="size-5" />
+					Add transaction
+				</Button>
+
 				<section className="rounded-lg border border-border bg-card text-card-foreground">
-					<div className="flex items-center justify-between border-border border-b px-4 py-3">
-						<h2 className="t-h4">Transactions</h2>
-						<Button
-							onClick={() => setIsAddTransactionOpen(true)}
-							size="sm"
-							variant="outline"
-						>
-							<IconPlus size={16} />
-							Add transaction
-						</Button>
-					</div>
+					<h2 className="t-h4 border-border border-b px-4 py-3">
+						Transactions
+					</h2>
 					<TransactionListV2
 						hasMore={txHasMore}
 						isLoadingMore={isLoadingMore}
