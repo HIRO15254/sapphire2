@@ -18,7 +18,11 @@ export function useCurrencyDetailPage(currencyId: string) {
 	const [isActionsOpen, setIsActionsOpen] = useState(false);
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
+	const [transactionActionsTarget, setTransactionActionsTarget] =
+		useState<Transaction | null>(null);
 	const [editingTransaction, setEditingTransaction] =
+		useState<Transaction | null>(null);
+	const [pendingDeleteTransaction, setPendingDeleteTransaction] =
 		useState<Transaction | null>(null);
 	const [confirmingDeleteCurrency, setConfirmingDeleteCurrency] =
 		useState(false);
@@ -31,6 +35,32 @@ export function useCurrencyDetailPage(currencyId: string) {
 	const openDeleteFromActions = () => {
 		setIsActionsOpen(false);
 		setConfirmingDeleteCurrency(true);
+	};
+
+	const openTransactionActions = (transaction: Transaction) => {
+		setTransactionActionsTarget(transaction);
+	};
+
+	const closeTransactionActions = () => {
+		setTransactionActionsTarget(null);
+	};
+
+	const openEditFromTransactionActions = () => {
+		if (transactionActionsTarget) {
+			setEditingTransaction(transactionActionsTarget);
+		}
+		setTransactionActionsTarget(null);
+	};
+
+	const openDeleteFromTransactionActions = () => {
+		if (transactionActionsTarget) {
+			setPendingDeleteTransaction(transactionActionsTarget);
+		}
+		setTransactionActionsTarget(null);
+	};
+
+	const cancelDeleteTransaction = () => {
+		setPendingDeleteTransaction(null);
 	};
 
 	const navigate = useNavigate();
@@ -88,8 +118,12 @@ export function useCurrencyDetailPage(currencyId: string) {
 		});
 	};
 
-	const handleDeleteTransaction = (id: string) => {
-		deleteTransaction(id);
+	const handleConfirmDeleteTransaction = () => {
+		if (!pendingDeleteTransaction) {
+			return;
+		}
+		deleteTransaction(pendingDeleteTransaction.id);
+		setPendingDeleteTransaction(null);
 	};
 
 	return {
@@ -104,7 +138,9 @@ export function useCurrencyDetailPage(currencyId: string) {
 		isActionsOpen,
 		isEditOpen,
 		isAddTransactionOpen,
+		transactionActionsTarget,
 		editingTransaction,
+		pendingDeleteTransaction,
 		confirmingDeleteCurrency,
 		setIsActionsOpen,
 		setIsEditOpen,
@@ -115,9 +151,14 @@ export function useCurrencyDetailPage(currencyId: string) {
 		handleConfirmDelete,
 		handleAddTransaction,
 		handleEditTransaction,
-		handleDeleteTransaction,
 		handleLoadMore,
 		openEditFromActions,
 		openDeleteFromActions,
+		openTransactionActions,
+		closeTransactionActions,
+		openEditFromTransactionActions,
+		openDeleteFromTransactionActions,
+		cancelDeleteTransaction,
+		handleConfirmDeleteTransaction,
 	};
 }

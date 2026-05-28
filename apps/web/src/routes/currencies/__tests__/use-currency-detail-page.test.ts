@@ -321,13 +321,92 @@ describe("useCurrencyDetailPage", () => {
 		});
 	});
 
-	describe("handleDeleteTransaction", () => {
-		it("forwards the id to deleteTransaction()", () => {
+	describe("transaction actions flow", () => {
+		it("starts with no actions target", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			expect(result.current.transactionActionsTarget).toBeNull();
+			expect(result.current.pendingDeleteTransaction).toBeNull();
+		});
+
+		it("openTransactionActions sets the target", () => {
 			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
 			act(() => {
-				result.current.handleDeleteTransaction("tx7");
+				result.current.openTransactionActions(editingTxStub);
 			});
-			expect(mocks.deleteTransaction).toHaveBeenCalledWith("tx7");
+			expect(result.current.transactionActionsTarget).toBe(editingTxStub);
+		});
+
+		it("closeTransactionActions clears the target", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.openTransactionActions(editingTxStub);
+			});
+			act(() => {
+				result.current.closeTransactionActions();
+			});
+			expect(result.current.transactionActionsTarget).toBeNull();
+		});
+
+		it("openEditFromTransactionActions promotes the target into editingTransaction", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.openTransactionActions(editingTxStub);
+			});
+			act(() => {
+				result.current.openEditFromTransactionActions();
+			});
+			expect(result.current.editingTransaction).toBe(editingTxStub);
+			expect(result.current.transactionActionsTarget).toBeNull();
+		});
+
+		it("openDeleteFromTransactionActions promotes the target into pendingDeleteTransaction", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.openTransactionActions(editingTxStub);
+			});
+			act(() => {
+				result.current.openDeleteFromTransactionActions();
+			});
+			expect(result.current.pendingDeleteTransaction).toBe(editingTxStub);
+			expect(result.current.transactionActionsTarget).toBeNull();
+		});
+
+		it("cancelDeleteTransaction clears the pending delete target", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.openTransactionActions(editingTxStub);
+			});
+			act(() => {
+				result.current.openDeleteFromTransactionActions();
+			});
+			act(() => {
+				result.current.cancelDeleteTransaction();
+			});
+			expect(result.current.pendingDeleteTransaction).toBeNull();
+			expect(mocks.deleteTransaction).not.toHaveBeenCalled();
+		});
+
+		it("handleConfirmDeleteTransaction deletes the pending target and clears state", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.openTransactionActions(editingTxStub);
+			});
+			act(() => {
+				result.current.openDeleteFromTransactionActions();
+			});
+			act(() => {
+				result.current.handleConfirmDeleteTransaction();
+			});
+			expect(mocks.deleteTransaction).toHaveBeenCalledWith(editingTxStub.id);
+			expect(result.current.pendingDeleteTransaction).toBeNull();
+		});
+
+		it("handleConfirmDeleteTransaction is a no-op without a pending target", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.handleConfirmDeleteTransaction();
+			});
+			expect(mocks.deleteTransaction).not.toHaveBeenCalled();
 		});
 	});
 

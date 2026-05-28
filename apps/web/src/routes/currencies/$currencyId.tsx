@@ -80,7 +80,9 @@ function CurrencyDetailPage() {
 		isActionsOpen,
 		isEditOpen,
 		isAddTransactionOpen,
+		transactionActionsTarget,
 		editingTransaction,
+		pendingDeleteTransaction,
 		confirmingDeleteCurrency,
 		setIsActionsOpen,
 		setIsEditOpen,
@@ -91,10 +93,15 @@ function CurrencyDetailPage() {
 		handleConfirmDelete,
 		handleAddTransaction,
 		handleEditTransaction,
-		handleDeleteTransaction,
 		handleLoadMore,
 		openEditFromActions,
 		openDeleteFromActions,
+		openTransactionActions,
+		closeTransactionActions,
+		openEditFromTransactionActions,
+		openDeleteFromTransactionActions,
+		cancelDeleteTransaction,
+		handleConfirmDeleteTransaction,
 	} = useCurrencyDetailPage(currencyId);
 
 	if (isLoading) {
@@ -171,9 +178,8 @@ function CurrencyDetailPage() {
 					<TransactionListV2
 						hasMore={txHasMore}
 						isLoadingMore={isLoadingMore}
-						onDelete={handleDeleteTransaction}
-						onEdit={setEditingTransaction}
 						onLoadMore={handleLoadMore}
+						onOpenActions={openTransactionActions}
 						transactions={transactions}
 					/>
 				</section>
@@ -207,6 +213,48 @@ function CurrencyDetailPage() {
 								>
 									<IconTrash size={18} />
 									Delete currency
+								</button>
+							</li>
+						</ul>
+					</DrawerContent>
+				</Drawer>
+
+				<Drawer
+					onOpenChange={(open) => {
+						if (!open) {
+							closeTransactionActions();
+						}
+					}}
+					open={transactionActionsTarget !== null}
+				>
+					<DrawerContent className="theme-v2 rounded-t-xl">
+						<div
+							aria-hidden
+							className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"
+						/>
+						<DrawerTitle className="sr-only">Transaction actions</DrawerTitle>
+						<DrawerDescription className="sr-only">
+							Edit or delete this transaction.
+						</DrawerDescription>
+						<ul className="flex flex-col gap-1 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+							<li>
+								<button
+									className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-foreground text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40"
+									onClick={openEditFromTransactionActions}
+									type="button"
+								>
+									<IconEdit size={18} />
+									Edit transaction
+								</button>
+							</li>
+							<li>
+								<button
+									className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-destructive text-sm outline-none hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/40"
+									onClick={openDeleteFromTransactionActions}
+									type="button"
+								>
+									<IconTrash size={18} />
+									Delete transaction
 								</button>
 							</li>
 						</ul>
@@ -296,6 +344,41 @@ function CurrencyDetailPage() {
 							</Button>
 							<Button
 								onClick={handleConfirmDelete}
+								type="button"
+								variant="destructive"
+							>
+								Delete
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+
+				<Dialog
+					onOpenChange={(open) => {
+						if (!open) {
+							cancelDeleteTransaction();
+						}
+					}}
+					open={pendingDeleteTransaction !== null}
+				>
+					<DialogContent className="theme-v2">
+						<DialogHeader>
+							<DialogTitle>Delete this transaction?</DialogTitle>
+							<DialogDescription>
+								This transaction will be removed permanently. This cannot be
+								undone.
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter className="flex-row justify-end gap-2">
+							<Button
+								onClick={cancelDeleteTransaction}
+								type="button"
+								variant="outline"
+							>
+								Cancel
+							</Button>
+							<Button
+								onClick={handleConfirmDeleteTransaction}
 								type="button"
 								variant="destructive"
 							>
