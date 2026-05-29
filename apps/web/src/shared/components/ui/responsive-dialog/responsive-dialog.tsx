@@ -1,5 +1,6 @@
 import { IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import {
 	Dialog,
@@ -19,6 +20,13 @@ import { useMediaQuery } from "@/shared/hooks/use-media-query";
 
 interface ResponsiveDialogProps {
 	children: ReactNode;
+	/**
+	 * Class applied to the portal root (DialogContent / DrawerContent).
+	 * Use this to scope the portal into a theme so its tokens cascade
+	 * into the dialog content, since portals render outside the page's
+	 * theme subtree. See `.claude/rules/web-theme.md`.
+	 */
+	contentClassName?: string;
 	description?: ReactNode;
 	/**
 	 * When true, the mobile Drawer always uses maximum height.
@@ -33,6 +41,7 @@ interface ResponsiveDialogProps {
 
 export function ResponsiveDialog({
 	children,
+	contentClassName,
 	description,
 	fullHeight = false,
 	headerAction,
@@ -47,7 +56,9 @@ export function ResponsiveDialog({
 	if (isDesktop) {
 		return (
 			<Dialog onOpenChange={onOpenChange} open={open}>
-				<DialogContent className="max-h-[85vh] overflow-y-auto">
+				<DialogContent
+					className={cn("max-h-[85vh] overflow-y-auto", contentClassName)}
+				>
 					<DialogHeader>
 						<div className="flex items-center gap-2">
 							<DialogTitle>{title}</DialogTitle>
@@ -66,7 +77,7 @@ export function ResponsiveDialog({
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
 			<DrawerContent
-				className={fullHeight ? "h-[calc(100svh-2rem)]" : undefined}
+				className={cn(fullHeight && "h-[calc(100svh-2rem)]", contentClassName)}
 			>
 				<DrawerHeader className="relative shrink-0">
 					<div className="flex items-center gap-2">

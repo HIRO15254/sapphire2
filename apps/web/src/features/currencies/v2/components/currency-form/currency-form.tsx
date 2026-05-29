@@ -1,26 +1,33 @@
-import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import {
+	type CurrencyFormValues,
+	UNIT_MAX_LENGTH,
+	useCurrencyForm,
+} from "@/features/currencies/components/currency-form/use-currency-form";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import type { CurrencyFormValues } from "./use-currency-form";
-import { UNIT_MAX_LENGTH, useCurrencyForm } from "./use-currency-form";
 
-interface CurrencyFormProps {
+interface CurrencyFormV2Props {
 	defaultValues?: CurrencyFormValues;
-	isLoading?: boolean;
+	/**
+	 * Stable id assigned to the `<form>` element so an external Save button
+	 * (rendered by the surrounding ResponsiveDialog header / footer) can
+	 * submit it via the HTML `form` attribute.
+	 */
+	formId: string;
 	onSubmit: (values: CurrencyFormValues) => void;
 }
 
-export function CurrencyForm({
-	onSubmit,
+export function CurrencyFormV2({
 	defaultValues,
-	isLoading = false,
-}: CurrencyFormProps) {
+	formId,
+	onSubmit,
+}: CurrencyFormV2Props) {
 	const { form } = useCurrencyForm({ defaultValues, onSubmit });
 
 	return (
 		<form
 			className="flex flex-col gap-4"
+			id={formId}
 			onSubmit={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -32,7 +39,7 @@ export function CurrencyForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Currency Name"
+						label="Currency name"
 						required
 					>
 						<Input
@@ -71,20 +78,6 @@ export function CurrencyForm({
 					</Field>
 				)}
 			</form.Field>
-			<DialogActionRow>
-				<form.Subscribe
-					selector={(state) => [state.canSubmit, state.isSubmitting]}
-				>
-					{([canSubmit, isSubmitting]) => (
-						<Button
-							disabled={isLoading || !canSubmit || isSubmitting}
-							type="submit"
-						>
-							{isLoading ? "Saving..." : "Save"}
-						</Button>
-					)}
-				</form.Subscribe>
-			</DialogActionRow>
 		</form>
 	);
 }

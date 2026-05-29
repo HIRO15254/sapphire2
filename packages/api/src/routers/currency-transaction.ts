@@ -7,8 +7,9 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, lt } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
+import { paginate } from "./_pagination";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 export const currencyTransactionRouter = router({
 	listByCurrency: protectedProcedure
@@ -60,11 +61,7 @@ export const currencyTransactionRouter = router({
 				.orderBy(desc(currencyTransaction.transactedAt))
 				.limit(PAGE_SIZE + 1);
 
-			const hasMore = data.length > PAGE_SIZE;
-			const items = hasMore ? data.slice(0, PAGE_SIZE) : data;
-			const nextCursor = hasMore ? items.at(-1)?.id : undefined;
-
-			return { items, nextCursor };
+			return paginate(data, PAGE_SIZE);
 		}),
 
 	create: protectedProcedure

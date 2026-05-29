@@ -56,6 +56,17 @@ v2 introduces `--success` / `--warning` / `--info` (and their `-foreground` pair
 
 If a v2 component needs these as first-class Tailwind utilities (`bg-success` etc.), extend `@theme inline` in `index.css` **and** add fallback values to `:root` + `.dark` so legacy regions don't break.
 
+v2 also ships the full Sapphire 2 design-token contract inside the `.theme-v2` scope (`apps/web/src/index.css`):
+
+- **Spacing scale** — `--space-px / --space-0_5 … --space-24` (4px grid, capped at 96px per the "tools, not marketing" rule).
+- **Control heights** — `--h-control-xs / sm / md / lg / xl` (24 / 32 / 36 / 40 / 48px). `md` is the shadcn default.
+- **Type scale** — `--text-2xs … --text-6xl` (11px → 48px, denser than marketing scales).
+- **Motion** — `--dur-instant / fast / base / slow` (80/150/200/300ms) and `--ease-out / in-out / spring`.
+- **Font stack** — `--font-sans` resolves to Noto Sans Variable and `--font-mono` resolves to JetBrains Mono Variable (both loaded via `@fontsource-variable/*` in `apps/web/src/index.css`). Legacy theme keeps Inter / Geist Mono.
+- **Typography classes** — `t-display / t-h1 … t-h4 / t-body / t-body-sm / t-meta / t-label / t-code / t-kbd`, scoped under `.theme-v2`. Use them for v2 surfaces instead of hand-rolling font / size / weight combos.
+
+These exist only inside the `.theme-v2` cascade; legacy regions are unaffected.
+
 ## Design source-of-truth
 
 The Sapphire 2 Design System handoff bundle drives v2 decisions (colors, radius, typography scale, motion durations, component composition rules — buttons, alerts, cards, sheets, toasts, etc.). When designing a v2 surface:
@@ -65,10 +76,19 @@ The Sapphire 2 Design System handoff bundle drives v2 decisions (colors, radius,
 - **Borders, not shadows**, for structural separation in resting cards. Shadows reserved for floating surfaces.
 - **Sentence case** UI copy, no trailing periods on labels, no emoji in product UI.
 - **Mobile data entry = bottom sheets** (already enforced by [`web-ui.md`](web-ui.md) — `Drawer`, not `Dialog`).
+- **v2 bottom sheets come in two modes — compose `Drawer` / `Dialog` directly, no `ResponsiveDialog`:**
+  - **Form sheet** (data entry): use the shared [`FormSheet`](apps/web/src/shared/components/form-sheet/form-sheet.tsx) component. Opens **full height** (`h-[calc(100svh-2rem)]`), has a header with title, `[X icon] Title [✓ icon]` toolbar (left = cancel, right = submit), `dismissible={false}` — no drag handle, no swipe-down, no overlay-tap close. The Save button submits the external form via the HTML `form={formId}` attribute, so the form component itself never renders a submit. New v2 entry forms should reach for `FormSheet` first.
+  - **Action / menu sheet** (non-data-entry): raw `<Drawer>` (default dismissible) + 36×4 drag handle (`mx-auto h-1 w-9 rounded-full bg-muted-foreground/35`) + sr-only `DrawerTitle` / `DrawerDescription` for a11y. **No visible header**, height collapses to content. Closes via swipe-down on the handle or overlay tap. Used for action menus, share sheets, etc.
+  - **Destructive confirmation**: `<Dialog>` (centered modal, not a sheet) with `[Cancel] [Delete]` in `DialogFooter`. Bottom sheets are reserved for entry / picking; one-tap-to-confirm prompts stay in a modal so the affordance is unambiguous.
+  - Scope each portal with `className="theme-v2 rounded-t-xl"` on `DrawerContent` (or `className="theme-v2"` on `DialogContent`) so v2 tokens cascade into the portal subtree.
 - Hover/press: background opacity shift only. No scale/translate on tool surfaces.
 - Focus ring: 2px `--ring` (blue) with 2px transparent offset — non-negotiable accessibility primitive.
 
-For anything ambiguous (component composition, spacing, typography mapping to `t-*` classes), refer back to the bundle README (`sapphire-2-design-system/project/README.md`) or `colors_and_type.css` / `components.css`.
+The handoff bundle lives at `/tmp/design/sapphire-2-design-system/sapphire-2-design-system/` when extracted (HTML/CSS/JS prototypes, not production code — recreate visually, do NOT copy markup). The primary references are:
+
+- `project/README.md` — design philosophy, content rules, component composition.
+- `project/colors_and_type.css` — token contract; the v2 block in `apps/web/src/index.css` is a faithful subset.
+- `project/components.css` — plain-CSS primitives (`.btn`, `.card`, `.sheet`, `.toast`, …); use as reference for sizing and spacing.
 
 ## Don'ts
 

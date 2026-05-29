@@ -22,6 +22,9 @@ const trpcMocks = vi.hoisted(() => ({
 	txUpdate: vi.fn(),
 	txDelete: vi.fn(),
 	txQuery: vi.fn(),
+	// queryFn used by useQuery(listByCurrency). Per-test override so a
+	// refetch-after-invalidate can return a controlled payload.
+	txListQueryFn: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -41,7 +44,7 @@ vi.mock("@/utils/trpc", () => ({
 					opts?: { enabled?: boolean }
 				) => ({
 					queryKey: buildKey("currencyTransaction", "listByCurrency", input),
-					queryFn: () => Promise.resolve({ items: [], nextCursor: undefined }),
+					queryFn: () => trpcMocks.txListQueryFn(input),
 					enabled: opts?.enabled,
 				}),
 			},
@@ -92,6 +95,10 @@ describe("useCurrencies", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		trpcMocks.txListQueryFn.mockResolvedValue({
+			items: [],
+			nextCursor: undefined,
+		});
 	});
 
 	afterEach(() => {
@@ -345,25 +352,34 @@ describe("useCurrencies", () => {
 			});
 		});
 
-		it("resetTransactionState is called on success (cursor cleared, isLoadingMore=false)", async () => {
-			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
-				items: [
-					{
-						id: "tx1",
-						amount: 100,
-						transactionTypeName: "T",
-						transactedAt: "2026-01-01",
-					},
-				],
-				nextCursor: "cursor-A",
-			});
+		it("the post-invalidate refetch reseeds the list (no manual reset)", async () => {
+			const seed = [
+				{
+					id: "tx1",
+					amount: 100,
+					transactionTypeName: "T",
+					transactedAt: "2026-01-01",
+				},
+			];
+			const refreshed = [
+				...seed,
+				{
+					id: "tx-new",
+					amount: 1,
+					transactionTypeName: "T",
+					transactedAt: "2026-04-01",
+				},
+			];
+			trpcMocks.txListQueryFn
+				.mockResolvedValueOnce({ items: seed, nextCursor: "cursor-A" })
+				.mockResolvedValueOnce({ items: refreshed, nextCursor: undefined });
 			trpcMocks.txCreate.mockResolvedValue({ id: "tx-new" });
 
+			const qc = createClient();
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
 			});
-			await waitFor(() => expect(result.current.txHasMore).toBe(true));
+			await waitFor(() => expect(result.current.allTransactions).toEqual(seed));
 			await act(async () => {
 				await result.current.addTransaction({
 					amount: 1,
@@ -372,8 +388,9 @@ describe("useCurrencies", () => {
 					currencyId: "c1",
 				});
 			});
-			expect(result.current.allTransactions).toEqual([]);
-			expect(result.current.txHasMore).toBe(false);
+			await waitFor(() =>
+				expect(result.current.allTransactions).toEqual(refreshed)
+			);
 			expect(result.current.isLoadingMore).toBe(false);
 		});
 	});
@@ -402,6 +419,179 @@ describe("useCurrencies", () => {
 				transactedAt: "2026-04-02",
 				transactionTypeId: "type-2",
 			});
+		});
+
+		it("optimistically patches the row in allTransactions before the server resolves", async () => {
+			const seed = [
+				{
+					id: "tx1",
+					amount: 100,
+					transactionTypeId: "old-type",
+					transactionTypeName: "Old",
+					transactedAt: "2026-01-01",
+					memo: "before",
+				},
+				{
+					id: "tx2",
+					amount: 50,
+					transactionTypeId: "other",
+					transactionTypeName: "Other",
+					transactedAt: "2026-01-02",
+					memo: null,
+				},
+			];
+			trpcMocks.txListQueryFn.mockResolvedValue({
+				items: seed,
+				nextCursor: undefined,
+			});
+			const qc = createClient();
+			// Block the server response so the assertion sees the optimistic
+			// state, not the post-settle state.
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.txUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() =>
+				expect(result.current.allTransactions).toHaveLength(2)
+			);
+			act(() => {
+				result.current.editTransaction({
+					id: "tx1",
+					amount: 999,
+					memo: "after",
+					transactedAt: "2026-04-02",
+					transactionTypeId: "new-type",
+				});
+			});
+			await waitFor(() => {
+				const patched = result.current.allTransactions.find(
+					(t) => t.id === "tx1"
+				);
+				expect(patched).toMatchObject({
+					id: "tx1",
+					amount: 999,
+					memo: "after",
+					transactedAt: "2026-04-02",
+					transactionTypeId: "new-type",
+				});
+			});
+			// untouched sibling row preserved.
+			expect(
+				result.current.allTransactions.find((t) => t.id === "tx2")
+			).toMatchObject({ id: "tx2", amount: 50 });
+			resolve?.({ id: "tx1" });
+		});
+
+		it("rolls allTransactions back to the pre-mutation snapshot when the server rejects", async () => {
+			const original = [
+				{
+					id: "tx1",
+					amount: 100,
+					transactionTypeId: "old-type",
+					transactionTypeName: "Old",
+					transactedAt: "2026-01-01",
+					memo: "before",
+				},
+			];
+			// The onSettled invalidate triggers a refetch; mirror the rollback
+			// state so the refetch reseeds with the same data the onError
+			// handler is restoring (otherwise the assertion races against
+			// the default empty-items queryFn).
+			trpcMocks.txListQueryFn.mockResolvedValue({
+				items: original,
+				nextCursor: undefined,
+			});
+			const qc = createClient();
+			trpcMocks.txUpdate.mockRejectedValue(new Error("server down"));
+
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() =>
+				expect(result.current.allTransactions).toHaveLength(1)
+			);
+			await act(async () => {
+				await expect(
+					result.current.editTransaction({
+						id: "tx1",
+						amount: 999,
+						memo: "after",
+						transactedAt: "2026-04-02",
+						transactionTypeId: "new-type",
+					})
+				).rejects.toThrow("server down");
+			});
+			// After onError, allTransactions matches the previous snapshot
+			// (not the optimistic patch).
+			expect(result.current.allTransactions[0]).toMatchObject({
+				id: "tx1",
+				amount: 100,
+				memo: "before",
+				transactedAt: "2026-01-01",
+				transactionTypeId: "old-type",
+			});
+		});
+
+		it("concurrent edits each capture their own pre-mutation snapshot (rollback of the failing edit does not undo the succeeding one)", async () => {
+			const row = (amount: number) => ({
+				id: "tx1",
+				amount,
+				transactionTypeId: "T",
+				transactionTypeName: "T",
+				transactedAt: "2026-01-01",
+			});
+			// Three observed refetches: initial (100), post-first-edit
+			// invalidate (200), post-second-edit invalidate (200 again,
+			// since the rollback target IS 200).
+			trpcMocks.txListQueryFn
+				.mockResolvedValueOnce({ items: [row(100)], nextCursor: undefined })
+				.mockResolvedValueOnce({ items: [row(200)], nextCursor: undefined })
+				.mockResolvedValueOnce({ items: [row(200)], nextCursor: undefined });
+			const qc = createClient();
+			// First call succeeds, second call rejects. Second rollback must
+			// restore the snapshot taken AFTER the first optimistic patch —
+			// i.e. it must not blow away the successful first edit.
+			trpcMocks.txUpdate
+				.mockResolvedValueOnce({ id: "tx1" })
+				.mockRejectedValueOnce(new Error("net"));
+
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() =>
+				expect(result.current.allTransactions).toHaveLength(1)
+			);
+			await act(async () => {
+				await result.current.editTransaction({
+					id: "tx1",
+					amount: 200,
+					memo: null,
+					transactedAt: "2026-01-01",
+					transactionTypeId: "T",
+				});
+			});
+			expect(result.current.allTransactions[0]).toMatchObject({ amount: 200 });
+			await act(async () => {
+				await expect(
+					result.current.editTransaction({
+						id: "tx1",
+						amount: 300,
+						memo: null,
+						transactedAt: "2026-01-01",
+						transactionTypeId: "T",
+					})
+				).rejects.toThrow("net");
+			});
+			// Rollback target = state right before the failing edit = 200,
+			// not the original 100.
+			expect(result.current.allTransactions[0]).toMatchObject({ amount: 200 });
 		});
 	});
 
@@ -451,35 +641,51 @@ describe("useCurrencies", () => {
 			resolve?.({ id: "tx1" });
 		});
 
-		it("keeps local state consistent through an error path (optimistic remove + rollback attempted)", async () => {
-			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
-				items: [
-					{
-						id: "tx1",
-						amount: 1,
-						transactionTypeName: "a",
-						transactedAt: "2026-01-01",
-					},
-				],
+		it("rolls allTransactions back to the pre-delete snapshot when the server rejects", async () => {
+			const original = [
+				{
+					id: "tx1",
+					amount: 1,
+					transactionTypeName: "a",
+					transactedAt: "2026-01-01",
+				},
+				{
+					id: "tx2",
+					amount: 2,
+					transactionTypeName: "b",
+					transactedAt: "2026-01-02",
+				},
+			];
+			// Both the initial fetch and the post-error invalidation refetch
+			// should return the original row set — the assertion is "list
+			// matches pre-delete state after the rollback".
+			trpcMocks.txListQueryFn.mockResolvedValue({
+				items: original,
 				nextCursor: undefined,
 			});
-			// Reject without resolving so onSettled refetch is still pending.
+			const qc = createClient();
 			trpcMocks.txDelete.mockRejectedValue(new Error("server down"));
 
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
 			});
 			await waitFor(() =>
-				expect(result.current.allTransactions).toHaveLength(1)
+				expect(result.current.allTransactions).toHaveLength(2)
 			);
-			await act(async () => {
+			act(() => {
 				result.current.deleteTransaction("tx1");
-				// flush microtasks so the mutation mock observes the call.
-				await Promise.resolve();
 			});
+			// The optimistic remove kicks in synchronously…
 			await waitFor(() =>
-				expect(trpcMocks.txDelete).toHaveBeenCalledWith({ id: "tx1" })
+				expect(result.current.allTransactions.map((t) => t.id)).toEqual(["tx2"])
+			);
+			// …and then onError rolls back to both rows once the rejection
+			// propagates.
+			await waitFor(() =>
+				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
+					"tx1",
+					"tx2",
+				])
 			);
 		});
 	});
@@ -650,32 +856,16 @@ describe("useCurrencies", () => {
 		});
 	});
 
-	describe("resetTransactionState", () => {
-		it("clears allTransactions, txHasMore, isLoadingMore", async () => {
+	describe("return shape", () => {
+		it("does not expose resetTransactionState (removed; refetch reseeds list)", () => {
 			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
-				items: [
-					{
-						id: "tx1",
-						amount: 1,
-						transactionTypeName: "a",
-						transactedAt: "2026-01-01",
-					},
-				],
-				nextCursor: "cursor-A",
-			});
-			const { result } = renderHook(() => useCurrencies("c1"), {
+			const { result } = renderHook(() => useCurrencies(null), {
 				wrapper: makeWrapper(qc),
 			});
-			await waitFor(() =>
-				expect(result.current.allTransactions).toHaveLength(1)
-			);
-			act(() => {
-				result.current.resetTransactionState();
-			});
-			expect(result.current.allTransactions).toEqual([]);
-			expect(result.current.txHasMore).toBe(false);
-			expect(result.current.isLoadingMore).toBe(false);
+			expect(
+				(result.current as unknown as { resetTransactionState?: unknown })
+					.resetTransactionState
+			).toBeUndefined();
 		});
 	});
 });

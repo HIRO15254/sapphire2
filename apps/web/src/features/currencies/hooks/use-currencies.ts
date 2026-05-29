@@ -65,13 +65,6 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		}
 	}, [transactionsQuery.data]);
 
-	const resetTransactionState = () => {
-		setAllTransactions([]);
-		setTxCursor(undefined);
-		setTxHasMore(false);
-		setIsLoadingMore(false);
-	};
-
 	const createMutation = useMutation({
 		mutationFn: (values: CurrencyValues) =>
 			trpcClient.currency.create.mutate(values),
@@ -150,9 +143,6 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 				{ queryKey: transactionsQueryOptions.queryKey },
 			]);
 		},
-		onSuccess: () => {
-			resetTransactionState();
-		},
 	});
 
 	const editTransactionMutation = useMutation({
@@ -170,14 +160,37 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 				transactedAt: values.transactedAt,
 				memo: values.memo,
 			}),
+		onMutate: (values) => {
+			// Optimistic update: patch the matching row in-place so the user
+			// sees their edit immediately. The trailing invalidation refetches
+			// page 1 — that's when the (possibly changed) transactionTypeName
+			// catches up. Until then we leave the stale name as-is.
+			const previous = allTransactions;
+			setAllTransactions((prev) =>
+				prev.map((t) =>
+					t.id === values.id
+						? {
+								...t,
+								amount: values.amount,
+								memo: values.memo,
+								transactedAt: values.transactedAt,
+								transactionTypeId: values.transactionTypeId,
+							}
+						: t
+				)
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				setAllTransactions(context.previous);
+			}
+		},
 		onSettled: () => {
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
 				{ queryKey: transactionsQueryOptions.queryKey },
 			]);
-		},
-		onSuccess: () => {
-			resetTransactionState();
 		},
 	});
 
@@ -199,9 +212,6 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 				{ queryKey: currencyListKey },
 				{ queryKey: transactionsQueryOptions.queryKey },
 			]);
-		},
-		onSuccess: () => {
-			resetTransactionState();
 		},
 	});
 
@@ -225,6 +235,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 
 	return {
 		currencies,
+		isLoading: currenciesQuery.isLoading,
 		allTransactions,
 		txHasMore,
 		isLoadingMore,
@@ -232,7 +243,6 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		isUpdatePending: updateMutation.isPending,
 		isAddTransactionPending: addTransactionMutation.isPending,
 		isEditTransactionPending: editTransactionMutation.isPending,
-		resetTransactionState,
 		create: (values: CurrencyValues) => createMutation.mutateAsync(values),
 		update: (values: CurrencyValues & { id: string }) =>
 			updateMutation.mutateAsync(values),

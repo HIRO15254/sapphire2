@@ -56,8 +56,10 @@ describe("currency.create input validation", () => {
 		expectAccepts(appRouter.currency.create, { name: "JPY" });
 	});
 
-	it("accepts optional unit string", () => {
-		expectAccepts(appRouter.currency.create, { name: "JPY", unit: "¥" });
+	it("accepts optional half-width unit (≤4 chars)", () => {
+		expectAccepts(appRouter.currency.create, { name: "USD", unit: "$" });
+		expectAccepts(appRouter.currency.create, { name: "JPY", unit: "JPY" });
+		expectAccepts(appRouter.currency.create, { name: "Chips", unit: "PT" });
 	});
 
 	it("rejects empty name", () => {
@@ -70,6 +72,15 @@ describe("currency.create input validation", () => {
 
 	it("rejects non-string name", () => {
 		expectRejects(appRouter.currency.create, { name: 123 });
+	});
+
+	it("rejects unit longer than 4 characters", () => {
+		expectRejects(appRouter.currency.create, { name: "X", unit: "ABCDE" });
+	});
+
+	it("rejects multi-byte unit (full-width / non-ASCII)", () => {
+		expectRejects(appRouter.currency.create, { name: "JPY", unit: "¥" });
+		expectRejects(appRouter.currency.create, { name: "EUR", unit: "€" });
 	});
 });
 
@@ -92,6 +103,14 @@ describe("currency.update input validation", () => {
 
 	it("rejects missing id", () => {
 		expectRejects(appRouter.currency.update, { name: "USD" });
+	});
+
+	it("rejects unit longer than 4 characters", () => {
+		expectRejects(appRouter.currency.update, { id: "c1", unit: "ABCDE" });
+	});
+
+	it("rejects multi-byte unit", () => {
+		expectRejects(appRouter.currency.update, { id: "c1", unit: "¥" });
 	});
 });
 
