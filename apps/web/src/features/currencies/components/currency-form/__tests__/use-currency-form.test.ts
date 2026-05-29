@@ -103,4 +103,44 @@ describe("useCurrencyForm", () => {
 		});
 		expect(onSubmit).toHaveBeenCalledWith({ name: "Pesos", unit: "MXN$" });
 	});
+
+	it("trims whitespace-only unit to undefined", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
+		act(() => {
+			result.current.form.setFieldValue("name", "Chips");
+			result.current.form.setFieldValue("unit", "    ");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith({ name: "Chips", unit: undefined });
+	});
+
+	it("trims surrounding whitespace before submitting the unit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
+		act(() => {
+			result.current.form.setFieldValue("name", "Gold");
+			result.current.form.setFieldValue("unit", "  g  ");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith({ name: "Gold", unit: "g" });
+	});
+
+	it("accepts ' AB ' (4-char post-trim) at the length boundary", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
+		act(() => {
+			result.current.form.setFieldValue("name", "X");
+			// pre-trim length 6, post-trim length 2 → must pass max(4)
+			result.current.form.setFieldValue("unit", "  AB  ");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith({ name: "X", unit: "AB" });
+	});
 });

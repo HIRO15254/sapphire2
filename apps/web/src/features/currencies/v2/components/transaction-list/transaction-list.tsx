@@ -99,7 +99,7 @@ export function TransactionListV2({
 								</TableCell>
 								<TableCell className={`${COMPACT_CELL} w-px pl-0`}>
 									{isSessionGenerated || !onOpenActions ? (
-										<span aria-hidden className="block size-7" />
+										<span aria-hidden className="block size-8" />
 									) : (
 										<Button
 											aria-label="Transaction actions"

@@ -22,6 +22,9 @@ const trpcMocks = vi.hoisted(() => ({
 	txUpdate: vi.fn(),
 	txDelete: vi.fn(),
 	txQuery: vi.fn(),
+	// queryFn used by useQuery(listByCurrency). Per-test override so a
+	// refetch-after-invalidate can return a controlled payload.
+	txListQueryFn: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -41,7 +44,7 @@ vi.mock("@/utils/trpc", () => ({
 					opts?: { enabled?: boolean }
 				) => ({
 					queryKey: buildKey("currencyTransaction", "listByCurrency", input),
-					queryFn: () => Promise.resolve({ items: [], nextCursor: undefined }),
+					queryFn: () => trpcMocks.txListQueryFn(input),
 					enabled: opts?.enabled,
 				}),
 			},
@@ -92,6 +95,10 @@ describe("useCurrencies", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		trpcMocks.txListQueryFn.mockResolvedValue({
+			items: [],
+			nextCursor: undefined,
+		});
 	});
 
 	afterEach(() => {
@@ -345,25 +352,36 @@ describe("useCurrencies", () => {
 			});
 		});
 
-		it("resetTransactionState is called on success (cursor cleared, isLoadingMore=false)", async () => {
-			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
-				items: [
-					{
-						id: "tx1",
-						amount: 100,
-						transactionTypeName: "T",
-						transactedAt: "2026-01-01",
-					},
-				],
-				nextCursor: "cursor-A",
-			});
+		it("the post-invalidate refetch reseeds the list (no manual reset)", async () => {
+			const seed = [
+				{
+					id: "tx1",
+					amount: 100,
+					transactionTypeName: "T",
+					transactedAt: "2026-01-01",
+				},
+			];
+			const refreshed = [
+				...seed,
+				{
+					id: "tx-new",
+					amount: 1,
+					transactionTypeName: "T",
+					transactedAt: "2026-04-01",
+				},
+			];
+			trpcMocks.txListQueryFn
+				.mockResolvedValueOnce({ items: seed, nextCursor: "cursor-A" })
+				.mockResolvedValueOnce({ items: refreshed, nextCursor: undefined });
 			trpcMocks.txCreate.mockResolvedValue({ id: "tx-new" });
 
+			const qc = createClient();
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
 			});
-			await waitFor(() => expect(result.current.txHasMore).toBe(true));
+			await waitFor(() =>
+				expect(result.current.allTransactions).toEqual(seed)
+			);
 			await act(async () => {
 				await result.current.addTransaction({
 					amount: 1,
@@ -372,8 +390,9 @@ describe("useCurrencies", () => {
 					currencyId: "c1",
 				});
 			});
-			expect(result.current.allTransactions).toEqual([]);
-			expect(result.current.txHasMore).toBe(false);
+			await waitFor(() =>
+				expect(result.current.allTransactions).toEqual(refreshed)
+			);
 			expect(result.current.isLoadingMore).toBe(false);
 		});
 	});
@@ -650,32 +669,16 @@ describe("useCurrencies", () => {
 		});
 	});
 
-	describe("resetTransactionState", () => {
-		it("clears allTransactions, txHasMore, isLoadingMore", async () => {
+	describe("return shape", () => {
+		it("does not expose resetTransactionState (removed; refetch reseeds list)", () => {
 			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
-				items: [
-					{
-						id: "tx1",
-						amount: 1,
-						transactionTypeName: "a",
-						transactedAt: "2026-01-01",
-					},
-				],
-				nextCursor: "cursor-A",
-			});
-			const { result } = renderHook(() => useCurrencies("c1"), {
+			const { result } = renderHook(() => useCurrencies(null), {
 				wrapper: makeWrapper(qc),
 			});
-			await waitFor(() =>
-				expect(result.current.allTransactions).toHaveLength(1)
-			);
-			act(() => {
-				result.current.resetTransactionState();
-			});
-			expect(result.current.allTransactions).toEqual([]);
-			expect(result.current.txHasMore).toBe(false);
-			expect(result.current.isLoadingMore).toBe(false);
+			expect(
+				(result.current as unknown as { resetTransactionState?: unknown })
+					.resetTransactionState
+			).toBeUndefined();
 		});
 	});
 });

@@ -136,6 +136,22 @@ describe("TransactionListV2", () => {
 		expect(screen.getByRole("button", { name: "Loading..." })).toBeDisabled();
 	});
 
+	it("reserves the same width on session rows as the action button takes on editable rows so the amount column stays aligned", () => {
+		// The 3-dots IconButton uses size="icon-sm" which renders at
+		// --h-control-sm = 2rem = 32px = size-8. The placeholder span on
+		// session rows must match so the right-edge of the amount column
+		// is identical across both row types.
+		const { container } = render(
+			<TransactionListV2
+				onOpenActions={vi.fn()}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		const placeholder = container.querySelector("span[aria-hidden]");
+		expect(placeholder).not.toBeNull();
+		expect(placeholder?.className).toMatch(/(^| )size-8( |$)/);
+	});
+
 	it("calls onLoadMore when the Load more button is clicked", async () => {
 		const user = userEvent.setup();
 		const onLoadMore = vi.fn();

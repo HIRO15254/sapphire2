@@ -65,13 +65,6 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		}
 	}, [transactionsQuery.data]);
 
-	const resetTransactionState = () => {
-		setAllTransactions([]);
-		setTxCursor(undefined);
-		setTxHasMore(false);
-		setIsLoadingMore(false);
-	};
-
 	const createMutation = useMutation({
 		mutationFn: (values: CurrencyValues) =>
 			trpcClient.currency.create.mutate(values),
@@ -250,7 +243,6 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		isUpdatePending: updateMutation.isPending,
 		isAddTransactionPending: addTransactionMutation.isPending,
 		isEditTransactionPending: editTransactionMutation.isPending,
-		resetTransactionState,
 		create: (values: CurrencyValues) => createMutation.mutateAsync(values),
 		update: (values: CurrencyValues & { id: string }) =>
 			updateMutation.mutateAsync(values),
