@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useCurrencyForm } from "@/features/currencies/components/currency-form/use-currency-form";
+import { useCurrencyForm } from "@/features/currencies/v2/components/currency-form/use-currency-form";
 
 describe("useCurrencyForm", () => {
 	it("starts with empty name and unit when no defaults", () => {

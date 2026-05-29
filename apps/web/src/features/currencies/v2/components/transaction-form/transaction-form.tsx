@@ -1,7 +1,3 @@
-import {
-	type TransactionFormValues,
-	useTransactionForm,
-} from "@/features/currencies/components/transaction-form/use-transaction-form";
 import { useTypeCombobox } from "@/features/currencies/hooks/use-type-combobox";
 import {
 	Command,
@@ -17,6 +13,10 @@ import {
 	PopoverContent,
 } from "@/shared/components/ui/popover";
 import { Textarea } from "@/shared/components/ui/textarea";
+import {
+	type TransactionFormValues,
+	useTransactionForm,
+} from "./use-transaction-form";
 
 interface TransactionFormV2Props {
 	defaultValues?: TransactionFormValues;

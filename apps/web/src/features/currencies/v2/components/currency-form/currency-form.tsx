@@ -1,10 +1,10 @@
+import { Field } from "@/shared/components/ui/field";
+import { Input } from "@/shared/components/ui/input";
 import {
 	type CurrencyFormValues,
 	UNIT_MAX_LENGTH,
 	useCurrencyForm,
-} from "@/features/currencies/components/currency-form/use-currency-form";
-import { Field } from "@/shared/components/ui/field";
-import { Input } from "@/shared/components/ui/input";
+} from "./use-currency-form";
 
 interface CurrencyFormV2Props {
 	defaultValues?: CurrencyFormValues;

@@ -44,16 +44,6 @@ function buildSchema() {
 		});
 }
 
-export function getButtonLabel(isCreatingType: boolean, isLoading: boolean) {
-	if (isCreatingType) {
-		return "Creating type...";
-	}
-	if (isLoading) {
-		return "Saving...";
-	}
-	return "Save";
-}
-
 export function useTransactionForm({
 	defaultValues,
 	onSubmit,
