@@ -379,9 +379,7 @@ describe("useCurrencies", () => {
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
 			});
-			await waitFor(() =>
-				expect(result.current.allTransactions).toEqual(seed)
-			);
+			await waitFor(() => expect(result.current.allTransactions).toEqual(seed));
 			await act(async () => {
 				await result.current.addTransaction({
 					amount: 1,

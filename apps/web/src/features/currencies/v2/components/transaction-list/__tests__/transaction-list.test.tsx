@@ -3,6 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TransactionListV2 } from "@/features/currencies/v2/components/transaction-list";
 
+// Class-presence matcher for `size-8` (whole-word, single tailwind class).
+const SIZE_8_CLASS = /(^| )size-8( |$)/;
+
 const regularTransaction = {
 	id: "tx1",
 	amount: 5000,
@@ -149,7 +152,7 @@ describe("TransactionListV2", () => {
 		);
 		const placeholder = container.querySelector("span[aria-hidden]");
 		expect(placeholder).not.toBeNull();
-		expect(placeholder?.className).toMatch(/(^| )size-8( |$)/);
+		expect(placeholder?.className).toMatch(SIZE_8_CLASS);
 	});
 
 	it("calls onLoadMore when the Load more button is clicked", async () => {
