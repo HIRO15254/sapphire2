@@ -10,10 +10,9 @@ vi.mock("@/features/currencies/hooks/use-transaction-types", () => ({
 }));
 
 import {
-	getButtonLabel,
 	NEW_TYPE_VALUE,
 	useTransactionForm,
-} from "@/features/currencies/components/transaction-form/use-transaction-form";
+} from "@/features/currencies/v2/components/transaction-form/use-transaction-form";
 
 const TYPES = [
 	{ id: "t1", name: "Deposit" },
@@ -21,21 +20,6 @@ const TYPES = [
 ];
 
 const TODAY_ISO_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-describe("getButtonLabel", () => {
-	it("returns 'Creating type...' when isCreatingType is true regardless of isLoading", () => {
-		expect(getButtonLabel(true, false)).toBe("Creating type...");
-		expect(getButtonLabel(true, true)).toBe("Creating type...");
-	});
-
-	it("returns 'Saving...' when only isLoading", () => {
-		expect(getButtonLabel(false, true)).toBe("Saving...");
-	});
-
-	it("returns 'Save' when neither flag is set", () => {
-		expect(getButtonLabel(false, false)).toBe("Save");
-	});
-});
 
 describe("useTransactionForm", () => {
 	const createType = vi.fn();
