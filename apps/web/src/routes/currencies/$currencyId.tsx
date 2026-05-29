@@ -11,7 +11,6 @@ import { TransactionFormV2 } from "@/features/currencies/v2/components/transacti
 import { TransactionListV2 } from "@/features/currencies/v2/components/transaction-list";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
-import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import {
 	Dialog,
@@ -134,32 +133,20 @@ function CurrencyDetailPage() {
 		<div className="theme-v2 min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<TopBar onOpenActions={() => setIsActionsOpen(true)} />
-				<PageHeader
-					heading={
-						<span className="flex items-center gap-2">
-							<span className="truncate">{currency.name}</span>
-							{currency.unit ? (
-								<Badge
-									className="shrink-0 font-mono uppercase"
-									variant="outline"
-								>
-									{currency.unit}
-								</Badge>
-							) : null}
-						</span>
-					}
-				/>
+				<PageHeader heading={currency.name} />
 
 				<section
-					aria-labelledby="balance-label"
-					className="mb-8 flex flex-col items-center gap-1 py-6"
+					aria-label="Balance"
+					className="mb-6 flex items-baseline justify-center gap-2 py-3"
 				>
-					<p className="font-mono font-semibold text-5xl text-foreground tabular-nums">
+					<p className="font-mono font-semibold text-3xl text-foreground tabular-nums">
 						{formatCompactNumber(currency.balance)}
 					</p>
-					<p className="t-meta uppercase tracking-wide" id="balance-label">
-						{currency.unit ? `${currency.unit} · Balance` : "Balance"}
-					</p>
+					{currency.unit ? (
+						<span className="t-meta uppercase tracking-wide">
+							{currency.unit}
+						</span>
+					) : null}
 				</section>
 
 				<Button
