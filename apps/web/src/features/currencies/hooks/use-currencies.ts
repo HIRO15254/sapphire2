@@ -1,10 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import {
 	cancelTargets,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateInfiniteQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -38,32 +43,29 @@ export interface Transaction {
 }
 
 export function useCurrencies(expandedCurrencyId: string | null) {
-	const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
-	const [txCursor, setTxCursor] = useState<string | undefined>(undefined);
-	const [txHasMore, setTxHasMore] = useState(false);
-	const [isLoadingMore, setIsLoadingMore] = useState(false);
-
 	const queryClient = useQueryClient();
 	const currencyListKey = trpc.currency.list.queryOptions().queryKey;
 
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
 
-	const transactionsQueryOptions =
-		trpc.currencyTransaction.listByCurrency.queryOptions(
+	// All loaded pages live in a single infinite-query cache entry. A refetch
+	// (focus / reconnect / staleTime / invalidate / remount) re-fetches every
+	// loaded page, so load-more results never roll back to page 1.
+	const transactionsInfiniteOptions =
+		trpc.currencyTransaction.listByCurrency.infiniteQueryOptions(
 			{ currencyId: expandedCurrencyId ?? "" },
-			{ enabled: expandedCurrencyId !== null }
+			{
+				enabled: expandedCurrencyId !== null,
+				getNextPageParam: (lastPage) => lastPage.nextCursor,
+			}
 		);
 
-	const transactionsQuery = useQuery(transactionsQueryOptions);
+	const transactionsQuery = useInfiniteQuery(transactionsInfiniteOptions);
+	const transactionsKey = transactionsInfiniteOptions.queryKey;
 
-	useEffect(() => {
-		if (transactionsQuery.data) {
-			setAllTransactions(transactionsQuery.data.items);
-			setTxCursor(transactionsQuery.data.nextCursor);
-			setTxHasMore(transactionsQuery.data.nextCursor !== undefined);
-		}
-	}, [transactionsQuery.data]);
+	const allTransactions: Transaction[] =
+		transactionsQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
 	const createMutation = useMutation({
 		mutationFn: (values: CurrencyValues) =>
@@ -140,7 +142,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		onSettled: () => {
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
-				{ queryKey: transactionsQueryOptions.queryKey },
+				{ queryKey: transactionsKey },
 			]);
 		},
 	});
@@ -160,36 +162,38 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 				transactedAt: values.transactedAt,
 				memo: values.memo,
 			}),
-		onMutate: (values) => {
-			// Optimistic update: patch the matching row in-place so the user
-			// sees their edit immediately. The trailing invalidation refetches
-			// page 1 — that's when the (possibly changed) transactionTypeName
-			// catches up. Until then we leave the stale name as-is.
-			const previous = allTransactions;
-			setAllTransactions((prev) =>
-				prev.map((t) =>
-					t.id === values.id
-						? {
-								...t,
-								amount: values.amount,
-								memo: values.memo,
-								transactedAt: values.transactedAt,
-								transactionTypeId: values.transactionTypeId,
-							}
-						: t
-				)
+		onMutate: async (values) => {
+			// Optimistic update against the infinite cache so the edit survives
+			// the trailing invalidation's refetch (and any focus / reconnect /
+			// staleTime refetch). The refetch is when the (possibly changed)
+			// transactionTypeName catches up; until then the stale name stays.
+			await cancelTargets(queryClient, [{ queryKey: transactionsKey }]);
+			const previous = snapshotQuery(queryClient, transactionsKey);
+			updateInfiniteQueryItems<Transaction>(
+				queryClient,
+				transactionsKey,
+				(items) =>
+					items.map((t) =>
+						t.id === values.id
+							? {
+									...t,
+									amount: values.amount,
+									memo: values.memo,
+									transactedAt: values.transactedAt,
+									transactionTypeId: values.transactionTypeId,
+								}
+							: t
+					)
 			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				setAllTransactions(context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
-				{ queryKey: transactionsQueryOptions.queryKey },
+				{ queryKey: transactionsKey },
 			]);
 		},
 	});
@@ -197,39 +201,37 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 	const deleteTransactionMutation = useMutation({
 		mutationFn: (id: string) =>
 			trpcClient.currencyTransaction.delete.mutate({ id }),
-		onMutate: (id) => {
-			const previous = allTransactions;
-			setAllTransactions((prev) => prev.filter((t) => t.id !== id));
+		onMutate: async (id) => {
+			await cancelTargets(queryClient, [{ queryKey: transactionsKey }]);
+			const previous = snapshotQuery(queryClient, transactionsKey);
+			updateInfiniteQueryItems<Transaction>(
+				queryClient,
+				transactionsKey,
+				(items) => items.filter((t) => t.id !== id)
+			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				setAllTransactions(context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
-				{ queryKey: transactionsQueryOptions.queryKey },
+				{ queryKey: transactionsKey },
 			]);
 		},
 	});
 
-	const handleLoadMore = async () => {
-		if (!(expandedCurrencyId && txCursor) || isLoadingMore) {
-			return;
-		}
-		setIsLoadingMore(true);
-		try {
-			const result = await trpcClient.currencyTransaction.listByCurrency.query({
-				currencyId: expandedCurrencyId,
-				cursor: txCursor,
-			});
-			setAllTransactions((prev) => [...prev, ...result.items]);
-			setTxCursor(result.nextCursor);
-			setTxHasMore(result.nextCursor !== undefined);
-		} finally {
-			setIsLoadingMore(false);
+	// Load-more is now `fetchNextPage`. The zero-arg wrapper keeps the button's
+	// click event out of `FetchNextPageOptions`, and the guard makes it a no-op
+	// when there is no next page (otherwise React Query would re-fetch page 1)
+	// or while a page is already in flight.
+	const fetchNextPage = () => {
+		if (
+			transactionsQuery.hasNextPage &&
+			!transactionsQuery.isFetchingNextPage
+		) {
+			transactionsQuery.fetchNextPage();
 		}
 	};
 
@@ -237,8 +239,8 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		currencies,
 		isLoading: currenciesQuery.isLoading,
 		allTransactions,
-		txHasMore,
-		isLoadingMore,
+		hasNextPage: transactionsQuery.hasNextPage,
+		isFetchingNextPage: transactionsQuery.isFetchingNextPage,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		isAddTransactionPending: addTransactionMutation.isPending,
@@ -259,6 +261,6 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		deleteTransaction: (id: string) => {
 			deleteTransactionMutation.mutate(id);
 		},
-		handleLoadMore,
+		fetchNextPage,
 	};
 }

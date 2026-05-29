@@ -71,8 +71,8 @@ function CurrencyDetailPage() {
 		currency,
 		isLoading,
 		transactions,
-		txHasMore,
-		isLoadingMore,
+		hasNextPage,
+		isFetchingNextPage,
 		isUpdatePending,
 		isAddTransactionPending,
 		isEditTransactionPending,
@@ -92,7 +92,7 @@ function CurrencyDetailPage() {
 		handleConfirmDelete,
 		handleAddTransaction,
 		handleEditTransaction,
-		handleLoadMore,
+		fetchNextPage,
 		openEditFromActions,
 		openDeleteFromActions,
 		openTransactionActions,
@@ -163,9 +163,9 @@ function CurrencyDetailPage() {
 						Transactions
 					</h2>
 					<TransactionListV2
-						hasMore={txHasMore}
-						isLoadingMore={isLoadingMore}
-						onLoadMore={handleLoadMore}
+						hasMore={hasNextPage}
+						isLoadingMore={isFetchingNextPage}
+						onLoadMore={fetchNextPage}
 						onOpenActions={openTransactionActions}
 						transactions={transactions}
 					/>
