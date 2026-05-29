@@ -11,6 +11,7 @@ import {
 	IconX,
 } from "@tabler/icons-react";
 import { EditorContent } from "@tiptap/react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Separator } from "@/shared/components/ui/separator";
@@ -25,7 +26,15 @@ interface RichTextEditorProps {
 	onChange: (html: string) => void;
 }
 
-const TOGGLE_ITEM_CLASS = "size-[var(--h-control-sm)] px-0";
+// A plain, conventional editor toolbar: borderless ghost icon buttons packed
+// together (not individually boxed), with a high-contrast active state that
+// stays legible in dark mode — active = blue tint + blue icon via `--primary`.
+const TOGGLE_ITEM_CLASS = cn(
+	"size-[var(--h-control-sm)] border-transparent bg-transparent px-0 text-muted-foreground shadow-none",
+	"hover:bg-muted hover:text-foreground dark:border-transparent dark:bg-transparent dark:hover:bg-muted",
+	"data-[state=on]:border-transparent data-[state=on]:bg-primary/15 data-[state=on]:text-primary data-[state=on]:shadow-none",
+	"dark:data-[state=on]:bg-primary/25 dark:data-[state=on]:text-primary"
+);
 
 export function RichTextEditor({
 	initialContent,
@@ -52,9 +61,9 @@ export function RichTextEditor({
 
 	return (
 		<div className="w-full rounded-lg border border-input bg-transparent text-base outline-none transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 md:text-sm dark:bg-input/30">
-			<div className="flex flex-wrap items-center gap-1 border-input border-b p-1.5">
+			<div className="flex flex-wrap items-center gap-0.5 border-input border-b p-1">
 				<ToggleGroup
-					className="flex-wrap gap-1"
+					className="flex-wrap gap-0.5"
 					onValueChange={onFormatsChange}
 					type="multiple"
 					value={activeFormats}
@@ -73,7 +82,6 @@ export function RichTextEditor({
 					>
 						<IconItalic size={16} />
 					</ToggleGroupItem>
-					<Separator className="mx-0.5 h-5" orientation="vertical" />
 					<ToggleGroupItem
 						aria-label="Heading 2"
 						className={TOGGLE_ITEM_CLASS}
@@ -88,7 +96,6 @@ export function RichTextEditor({
 					>
 						<IconH3 size={16} />
 					</ToggleGroupItem>
-					<Separator className="mx-0.5 h-5" orientation="vertical" />
 					<ToggleGroupItem
 						aria-label="Bullet list"
 						className={TOGGLE_ITEM_CLASS}
@@ -104,14 +111,19 @@ export function RichTextEditor({
 						<IconListNumbers size={16} />
 					</ToggleGroupItem>
 				</ToggleGroup>
-				<Separator className="mx-0.5 h-5" orientation="vertical" />
+				<Separator className="mx-1 h-5" orientation="vertical" />
 				<Button
 					aria-label="Link"
 					aria-pressed={linkActive}
+					className={cn(
+						"size-[var(--h-control-sm)] text-muted-foreground",
+						linkActive &&
+							"bg-primary/15 text-primary hover:bg-primary/15 hover:text-primary dark:bg-primary/25 dark:hover:bg-primary/25"
+					)}
 					onClick={openLinkInput}
 					size="icon-sm"
 					type="button"
-					variant={linkActive ? "secondary" : "ghost"}
+					variant="ghost"
 				>
 					<IconLink size={16} />
 				</Button>
