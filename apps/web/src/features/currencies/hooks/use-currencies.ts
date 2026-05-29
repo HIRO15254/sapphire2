@@ -9,6 +9,7 @@ import {
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export interface CurrencyValues {
+	description?: string | null;
 	name: string;
 	unit?: string;
 }
@@ -21,6 +22,7 @@ export interface TransactionValues {
 }
 
 export interface CurrencyItem {
+	description?: string | null;
 	id: string;
 	name: string;
 	unit?: string | null;
@@ -83,6 +85,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 						id: `temp-${Date.now()}`,
 						name: newCurrency.name,
 						unit: newCurrency.unit ?? null,
+						description: newCurrency.description ?? null,
 						balance: 0,
 					},
 				];

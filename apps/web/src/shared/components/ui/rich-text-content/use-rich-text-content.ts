@@ -1,5 +1,10 @@
 import { useEffect, useRef } from "react";
 
+/**
+ * Tags the rich-text editor (`StarterKit` + `Link`) can emit. Anything else is
+ * unwrapped so stored HTML can be rendered without `dangerouslySetInnerHTML`
+ * exposing untrusted markup.
+ */
 const ALLOWED_TAGS = new Set([
 	"P",
 	"H2",
@@ -45,7 +50,7 @@ function sanitizeHtml(html: string): string {
 	return doc.body.innerHTML;
 }
 
-export function useSafeHtml(html: string) {
+export function useRichTextContent(html: string) {
 	const ref = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {

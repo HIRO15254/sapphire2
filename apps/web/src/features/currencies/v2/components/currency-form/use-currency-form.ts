@@ -2,6 +2,7 @@ import { useForm } from "@tanstack/react-form";
 import z from "zod";
 
 export interface CurrencyFormValues {
+	description?: string | null;
 	name: string;
 	unit?: string;
 }
@@ -26,6 +27,7 @@ export const currencyFormSchema = z.object({
 		.trim()
 		.max(UNIT_MAX_LENGTH, `Up to ${UNIT_MAX_LENGTH} characters`)
 		.regex(ASCII_PRINTABLE_RE, "Half-width characters only"),
+	description: z.string().max(50_000).nullable(),
 });
 
 export function useCurrencyForm({
@@ -36,12 +38,14 @@ export function useCurrencyForm({
 		defaultValues: {
 			name: defaultValues?.name ?? "",
 			unit: defaultValues?.unit ?? "",
+			description: defaultValues?.description ?? (null as string | null),
 		},
 		onSubmit: ({ value }) => {
 			const trimmedUnit = value.unit.trim();
 			onSubmit({
 				name: value.name,
 				unit: trimmedUnit ? trimmedUnit : undefined,
+				description: value.description,
 			});
 		},
 		validators: {

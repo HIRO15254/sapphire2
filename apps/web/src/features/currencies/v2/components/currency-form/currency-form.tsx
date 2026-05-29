@@ -1,5 +1,6 @@
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import { RichTextEditor } from "@/shared/components/ui/rich-text-editor";
 import {
 	type CurrencyFormValues,
 	UNIT_MAX_LENGTH,
@@ -74,6 +75,16 @@ export function CurrencyFormV2({
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
 							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+			<form.Field name="description">
+				{(field) => (
+					<Field label="Description">
+						<RichTextEditor
+							initialContent={field.state.value ?? undefined}
+							onChange={(html) => field.handleChange(html || null)}
 						/>
 					</Field>
 				)}

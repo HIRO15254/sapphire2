@@ -26,6 +26,7 @@ import {
 	DrawerDescription,
 	DrawerTitle,
 } from "@/shared/components/ui/drawer";
+import { RichTextContent } from "@/shared/components/ui/rich-text-content";
 import { formatCompactNumber } from "@/utils/format-number";
 import { useCurrencyDetailPage } from "./-use-currency-detail-page";
 
@@ -149,6 +150,18 @@ function CurrencyDetailPage() {
 					) : null}
 				</section>
 
+				{currency.description ? (
+					<section className="mb-6 rounded-lg border border-border bg-card text-card-foreground">
+						<h2 className="t-h4 border-border border-b px-4 py-3">
+							Description
+						</h2>
+						<RichTextContent
+							className="px-4 py-3 text-sm"
+							html={currency.description}
+						/>
+					</section>
+				) : null}
+
 				<Button
 					className="mb-6 w-full"
 					onClick={() => setIsAddTransactionOpen(true)}
@@ -260,6 +273,7 @@ function CurrencyDetailPage() {
 						defaultValues={{
 							name: currency.name,
 							unit: currency.unit ?? undefined,
+							description: currency.description ?? null,
 						}}
 						formId={EDIT_CURRENCY_FORM_ID}
 						onSubmit={handleEdit}

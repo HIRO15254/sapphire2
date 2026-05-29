@@ -9,6 +9,7 @@ import { useCurrencies } from "@/features/currencies/hooks/use-currencies";
 
 export interface CurrencyDetailItem {
 	balance: number;
+	description?: string | null;
 	id: string;
 	name: string;
 	unit?: string | null;

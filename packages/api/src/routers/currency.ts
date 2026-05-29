@@ -14,6 +14,7 @@ export const currencyRouter = router({
 				userId: currency.userId,
 				name: currency.name,
 				unit: currency.unit,
+				description: currency.description,
 				createdAt: currency.createdAt,
 				updatedAt: currency.updatedAt,
 				balance: sql<number>`COALESCE(SUM(${currencyTransaction.amount}), 0)`,
@@ -38,6 +39,7 @@ export const currencyRouter = router({
 					.max(4)
 					.regex(/^[\x20-\x7e]*$/)
 					.optional(),
+				description: z.string().max(50_000).optional().nullable(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -48,6 +50,7 @@ export const currencyRouter = router({
 				userId,
 				name: input.name,
 				unit: input.unit ?? null,
+				description: input.description ?? null,
 				updatedAt: new Date(),
 			});
 			const [created] = await ctx.db
@@ -67,6 +70,7 @@ export const currencyRouter = router({
 					.max(4)
 					.regex(/^[\x20-\x7e]*$/)
 					.optional(),
+				description: z.string().max(50_000).optional().nullable(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -95,6 +99,9 @@ export const currencyRouter = router({
 				.set({
 					...(input.name === undefined ? {} : { name: input.name }),
 					...(input.unit === undefined ? {} : { unit: input.unit }),
+					...(input.description === undefined
+						? {}
+						: { description: input.description }),
 					updatedAt: new Date(),
 				})
 				.where(eq(currency.id, input.id));

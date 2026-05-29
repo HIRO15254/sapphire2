@@ -183,6 +183,25 @@ describe("useCurrencyDetailPage", () => {
 			});
 		});
 
+		it("forwards the rich-text description to update()", async () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			await act(async () => {
+				result.current.handleEdit({
+					name: "USD2",
+					unit: "$",
+					description: "<p>memo</p>",
+				});
+				await Promise.resolve();
+				await Promise.resolve();
+			});
+			expect(mocks.update).toHaveBeenCalledWith({
+				id: "c1",
+				name: "USD2",
+				unit: "$",
+				description: "<p>memo</p>",
+			});
+		});
+
 		it("closes the edit dialog on success", async () => {
 			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
 			act(() => {
