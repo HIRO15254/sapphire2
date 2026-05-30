@@ -137,6 +137,38 @@ describe("useTypeCombobox", () => {
 			act(() => result.current.handleInputChange("   "));
 			expect(result.current.canCreate).toBe(false);
 		});
+
+		it("canCreate is false when input exactly matches a reserved name (case-sensitive)", () => {
+			const { result } = renderHook(() =>
+				useTypeCombobox(defaults({ reservedNames: ["Session Result"] }))
+			);
+			act(() => result.current.handleInputChange("Session Result"));
+			expect(result.current.canCreate).toBe(false);
+		});
+
+		it("canCreate is false when input matches a reserved name case-insensitively", () => {
+			const { result } = renderHook(() =>
+				useTypeCombobox(defaults({ reservedNames: ["Session Result"] }))
+			);
+			act(() => result.current.handleInputChange("session result"));
+			expect(result.current.canCreate).toBe(false);
+		});
+
+		it("canCreate is true for non-reserved input that has no exact match", () => {
+			const { result } = renderHook(() =>
+				useTypeCombobox(defaults({ reservedNames: ["Session Result"] }))
+			);
+			act(() => result.current.handleInputChange("Brand New"));
+			expect(result.current.canCreate).toBe(true);
+		});
+
+		it("canCreate is true when reservedNames is empty and input matches nothing", () => {
+			const { result } = renderHook(() =>
+				useTypeCombobox(defaults({ reservedNames: [] }))
+			);
+			act(() => result.current.handleInputChange("Anything"));
+			expect(result.current.canCreate).toBe(true);
+		});
 	});
 
 	describe("handleSelect", () => {
@@ -243,6 +275,26 @@ describe("useTypeCombobox", () => {
 			);
 			act(() => result.current.handleKeyDown("Enter"));
 			expect(onTypeChange).not.toHaveBeenCalled();
+		});
+
+		it("Enter with reserved name input does not trigger create", () => {
+			const onTypeChange = vi.fn();
+			const onNewTypeNameChange = vi.fn();
+			const { result } = renderHook(() =>
+				useTypeCombobox(
+					defaults({
+						onTypeChange,
+						onNewTypeNameChange,
+						reservedNames: ["Session Result"],
+					})
+				)
+			);
+			act(() => result.current.handleInputChange("Session Result"));
+			act(() => result.current.handleKeyDown("Enter"));
+			expect(onTypeChange).toHaveBeenCalledTimes(1);
+			expect(onTypeChange).toHaveBeenCalledWith("");
+			expect(onNewTypeNameChange).toHaveBeenCalledTimes(1);
+			expect(onNewTypeNameChange).toHaveBeenCalledWith("");
 		});
 
 		it("Escape closes the popover", () => {

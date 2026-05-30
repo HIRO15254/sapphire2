@@ -44,11 +44,17 @@ function buildSchema() {
 		});
 }
 
+const RESERVED_TYPE_NAMES = ["Session Result"] as const;
+
 export function useTransactionForm({
 	defaultValues,
 	onSubmit,
 }: UseTransactionFormProps) {
-	const { types, createType, isCreatingType } = useTransactionTypes();
+	const { types: allTypes, createType, isCreatingType } = useTransactionTypes();
+	const types = allTypes.filter(
+		(t) =>
+			!RESERVED_TYPE_NAMES.some((r) => r.toLowerCase() === t.name.toLowerCase())
+	);
 
 	const form = useForm({
 		defaultValues: {
@@ -79,5 +85,10 @@ export function useTransactionForm({
 		},
 	});
 
-	return { form, types, isCreatingType };
+	return {
+		form,
+		types,
+		isCreatingType,
+		reservedTypeNames: RESERVED_TYPE_NAMES,
+	};
 }
