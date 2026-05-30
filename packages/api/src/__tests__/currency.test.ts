@@ -90,6 +90,13 @@ describe("currency.create input validation", () => {
 		});
 	});
 
+	it("accepts a null description (no description set)", () => {
+		expectAccepts(appRouter.currency.create, {
+			name: "Chips",
+			description: null,
+		});
+	});
+
 	it("accepts a description at the 50,000-character boundary", () => {
 		expectAccepts(appRouter.currency.create, {
 			name: "Chips",
