@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
 	addTransaction: vi.fn(),
 	editTransaction: vi.fn(),
 	deleteTransaction: vi.fn(),
-	handleLoadMore: vi.fn(),
+	fetchNextPage: vi.fn(),
 	navigate: vi.fn(),
 	lastExpandedId: null as string | null,
 	currencies: [] as Array<{
@@ -26,8 +26,8 @@ const mocks = vi.hoisted(() => ({
 		balance: number;
 	}>,
 	allTransactions: [] as Transaction[],
-	txHasMore: false,
-	isLoadingMore: false,
+	hasNextPage: false,
+	isFetchingNextPage: false,
 	isLoading: false,
 	isUpdatePending: false,
 	isAddTransactionPending: false,
@@ -41,20 +41,19 @@ vi.mock("@/features/currencies/hooks/use-currencies", () => ({
 			currencies: mocks.currencies,
 			isLoading: mocks.isLoading,
 			allTransactions: mocks.allTransactions,
-			txHasMore: mocks.txHasMore,
-			isLoadingMore: mocks.isLoadingMore,
+			hasNextPage: mocks.hasNextPage,
+			isFetchingNextPage: mocks.isFetchingNextPage,
 			isCreatePending: false,
 			isUpdatePending: mocks.isUpdatePending,
 			isAddTransactionPending: mocks.isAddTransactionPending,
 			isEditTransactionPending: mocks.isEditTransactionPending,
-			resetTransactionState: vi.fn(),
 			create: vi.fn(),
 			update: mocks.update,
 			delete: mocks.del,
 			addTransaction: mocks.addTransaction,
 			editTransaction: mocks.editTransaction,
 			deleteTransaction: mocks.deleteTransaction,
-			handleLoadMore: mocks.handleLoadMore,
+			fetchNextPage: mocks.fetchNextPage,
 		};
 	},
 }));
@@ -87,13 +86,13 @@ describe("useCurrencyDetailPage", () => {
 		mocks.addTransaction.mockReset().mockResolvedValue({ id: "tx-new" });
 		mocks.editTransaction.mockReset().mockResolvedValue({ id: "tx-1" });
 		mocks.deleteTransaction.mockReset();
-		mocks.handleLoadMore.mockReset();
+		mocks.fetchNextPage.mockReset();
 		mocks.navigate.mockReset();
 		mocks.lastExpandedId = null;
 		mocks.currencies = [currencyC1];
 		mocks.allTransactions = [];
-		mocks.txHasMore = false;
-		mocks.isLoadingMore = false;
+		mocks.hasNextPage = false;
+		mocks.isFetchingNextPage = false;
 		mocks.isLoading = false;
 		mocks.isUpdatePending = false;
 		mocks.isAddTransactionPending = false;
@@ -429,10 +428,10 @@ describe("useCurrencyDetailPage", () => {
 		});
 	});
 
-	describe("handleLoadMore passthrough", () => {
+	describe("fetchNextPage passthrough", () => {
 		it("is the same reference returned from the inner hook", () => {
 			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
-			expect(result.current.handleLoadMore).toBe(mocks.handleLoadMore);
+			expect(result.current.fetchNextPage).toBe(mocks.fetchNextPage);
 		});
 	});
 });

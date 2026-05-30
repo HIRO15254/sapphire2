@@ -66,6 +66,34 @@ export function snapshotQueries<TData = unknown>(
 	};
 }
 
+/**
+ * Optimistically rewrite the items of every page in a `useInfiniteQuery`
+ * cache entry. The page envelope (`nextCursor`, `pageParams`, …) is preserved;
+ * only `page.items` is mapped through `updateItems`. Use for edit (`.map`) and
+ * delete (`.filter`) flows so the change lives in the cache and survives the
+ * next refetch instead of an in-memory list that gets wiped.
+ */
+export function updateInfiniteQueryItems<TItem>(
+	queryClient: QueryClient,
+	queryKey: QueryKey,
+	updateItems: (items: TItem[]) => TItem[]
+): void {
+	queryClient.setQueryData<{
+		pageParams: unknown[];
+		pages: { items: TItem[] }[];
+	}>(
+		queryKey,
+		(old) =>
+			old && {
+				...old,
+				pages: old.pages.map((page) => ({
+					...page,
+					items: updateItems(page.items),
+				})),
+			}
+	);
+}
+
 export function restoreSnapshots(
 	queryClient: QueryClient,
 	snapshots: Array<OptimisticSnapshot | null | undefined>

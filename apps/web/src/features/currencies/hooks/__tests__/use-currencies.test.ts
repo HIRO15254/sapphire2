@@ -4,8 +4,9 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
-// Mocks for trpc. queryOptions builds a stable queryKey so the real QueryClient
-// can seed and read data predictably.
+// Mocks for trpc. infiniteQueryOptions builds a stable queryKey + a queryFn
+// that forwards { currencyId, cursor } to txListQueryFn, so the real
+// QueryClient can drive useInfiniteQuery, seed pages, and refetch predictably.
 // ---------------------------------------------------------------------------
 
 function buildKey(namespace: string, procedure: string, input: unknown) {
@@ -21,9 +22,9 @@ const trpcMocks = vi.hoisted(() => ({
 	txCreate: vi.fn(),
 	txUpdate: vi.fn(),
 	txDelete: vi.fn(),
-	txQuery: vi.fn(),
-	// queryFn used by useQuery(listByCurrency). Per-test override so a
-	// refetch-after-invalidate can return a controlled payload.
+	// queryFn used by useInfiniteQuery(listByCurrency). Called with
+	// { currencyId, cursor } per page; per-test override controls each page /
+	// refetch payload.
 	txListQueryFn: vi.fn(),
 }));
 
@@ -39,12 +40,28 @@ vi.mock("@/utils/trpc", () => ({
 		},
 		currencyTransaction: {
 			listByCurrency: {
-				queryOptions: (
+				infiniteQueryOptions: (
 					input: { currencyId: string },
-					opts?: { enabled?: boolean }
+					opts?: {
+						enabled?: boolean;
+						getNextPageParam?: (lastPage: {
+							items: unknown[];
+							nextCursor?: string;
+						}) => string | undefined;
+						initialCursor?: string;
+					}
 				) => ({
-					queryKey: buildKey("currencyTransaction", "listByCurrency", input),
-					queryFn: () => trpcMocks.txListQueryFn(input),
+					queryKey: buildKey("currencyTransaction", "listByCurrency", {
+						currencyId: input.currencyId,
+						type: "infinite",
+					}),
+					queryFn: ({ pageParam }: { pageParam?: string }) =>
+						trpcMocks.txListQueryFn({
+							currencyId: input.currencyId,
+							cursor: pageParam,
+						}),
+					initialPageParam: opts?.initialCursor,
+					getNextPageParam: opts?.getNextPageParam,
 					enabled: opts?.enabled,
 				}),
 			},
@@ -60,7 +77,6 @@ vi.mock("@/utils/trpc", () => ({
 			create: { mutate: trpcMocks.txCreate },
 			update: { mutate: trpcMocks.txUpdate },
 			delete: { mutate: trpcMocks.txDelete },
-			listByCurrency: { query: trpcMocks.txQuery },
 		},
 	},
 }));
@@ -69,11 +85,30 @@ import { useCurrencies } from "@/features/currencies/hooks/use-currencies";
 
 const TEMP_ID_PATTERN = /^temp-/;
 const CURRENCY_KEY = ["currency", "list"];
-const txKey = (currencyId: string) => [
+const txInfiniteKey = (currencyId: string) => [
 	"currencyTransaction",
 	"listByCurrency",
-	{ currencyId },
+	{ currencyId, type: "infinite" },
 ];
+
+interface TxRow {
+	amount: number;
+	id: string;
+	memo?: string | null;
+	transactedAt: string;
+	transactionTypeId?: string;
+	transactionTypeName: string;
+}
+
+/** Build a seeded infinite-cache entry from one or more pages. */
+function seedPages(pages: { items: TxRow[]; nextCursor?: string }[]) {
+	return {
+		pages,
+		pageParams: pages.map((_, i) =>
+			i === 0 ? undefined : pages[i - 1]?.nextCursor
+		),
+	};
+}
 
 function createClient(): QueryClient {
 	return new QueryClient({
@@ -113,12 +148,18 @@ describe("useCurrencies", () => {
 			});
 			expect(result.current.currencies).toEqual([]);
 			expect(result.current.allTransactions).toEqual([]);
-			expect(result.current.txHasMore).toBe(false);
-			expect(result.current.isLoadingMore).toBe(false);
+			expect(result.current.hasNextPage).toBe(false);
+			expect(result.current.isFetchingNextPage).toBe(false);
 			expect(result.current.isCreatePending).toBe(false);
 			expect(result.current.isUpdatePending).toBe(false);
 			expect(result.current.isAddTransactionPending).toBe(false);
 			expect(result.current.isEditTransactionPending).toBe(false);
+		});
+
+		it("does not fetch transactions when expandedCurrencyId is null (query disabled)", () => {
+			const qc = createClient();
+			renderHook(() => useCurrencies(null), { wrapper: makeWrapper(qc) });
+			expect(trpcMocks.txListQueryFn).not.toHaveBeenCalled();
 		});
 
 		it("exposes currencies seeded into the cache", async () => {
@@ -134,49 +175,84 @@ describe("useCurrencies", () => {
 		});
 	});
 
-	describe("expanded currency syncs transactions", () => {
-		it("syncs allTransactions from listByCurrency cache when expandedCurrencyId is set", async () => {
+	describe("expanded currency loads transactions", () => {
+		it("flattens all pages into allTransactions and reflects a next cursor", async () => {
 			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
-				items: [
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([
 					{
-						id: "tx1",
-						amount: 100,
-						transactionTypeName: "Deposit",
-						transactedAt: "2026-01-01",
+						items: [
+							{
+								id: "tx1",
+								amount: 100,
+								transactionTypeName: "Deposit",
+								transactedAt: "2026-01-01",
+							},
+						],
+						nextCursor: "cursor-A",
 					},
-				],
-				nextCursor: "cursor-A",
-			});
+				])
+			);
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
 			});
 			await waitFor(() =>
 				expect(result.current.allTransactions).toHaveLength(1)
 			);
-			expect(result.current.txHasMore).toBe(true);
+			expect(result.current.hasNextPage).toBe(true);
 		});
 
-		it("sets txHasMore to false when nextCursor is undefined", async () => {
+		it("sets hasNextPage to false when the last page has no cursor", async () => {
 			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([
+					{
+						items: [
+							{
+								id: "tx1",
+								amount: 100,
+								transactionTypeName: "Deposit",
+								transactedAt: "2026-01-01",
+							},
+						],
+						nextCursor: undefined,
+					},
+				])
+			);
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() =>
+				expect(result.current.allTransactions).toHaveLength(1)
+			);
+			expect(result.current.hasNextPage).toBe(false);
+		});
+
+		it("fetches page 1 via the queryFn with no cursor when nothing is seeded", async () => {
+			trpcMocks.txListQueryFn.mockResolvedValue({
 				items: [
 					{
 						id: "tx1",
-						amount: 100,
-						transactionTypeName: "Deposit",
+						amount: 5,
+						transactionTypeName: "T",
 						transactedAt: "2026-01-01",
 					},
 				],
 				nextCursor: undefined,
 			});
+			const qc = createClient();
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
 			});
 			await waitFor(() =>
 				expect(result.current.allTransactions).toHaveLength(1)
 			);
-			expect(result.current.txHasMore).toBe(false);
+			expect(trpcMocks.txListQueryFn).toHaveBeenCalledWith({
+				currencyId: "c1",
+				cursor: undefined,
+			});
 		});
 	});
 
@@ -407,7 +483,7 @@ describe("useCurrencies", () => {
 			});
 		});
 
-		it("the post-invalidate refetch reseeds the list (no manual reset)", async () => {
+		it("the post-invalidate refetch reseeds all pages (no manual reset)", async () => {
 			const seed = [
 				{
 					id: "tx1",
@@ -426,7 +502,7 @@ describe("useCurrencies", () => {
 				},
 			];
 			trpcMocks.txListQueryFn
-				.mockResolvedValueOnce({ items: seed, nextCursor: "cursor-A" })
+				.mockResolvedValueOnce({ items: seed, nextCursor: undefined })
 				.mockResolvedValueOnce({ items: refreshed, nextCursor: undefined });
 			trpcMocks.txCreate.mockResolvedValue({ id: "tx-new" });
 
@@ -446,7 +522,37 @@ describe("useCurrencies", () => {
 			await waitFor(() =>
 				expect(result.current.allTransactions).toEqual(refreshed)
 			);
-			expect(result.current.isLoadingMore).toBe(false);
+			expect(result.current.isFetchingNextPage).toBe(false);
+		});
+
+		it("toggles isAddTransactionPending across the mutation lifecycle", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, []);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.txCreate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.addTransaction({
+					amount: 1,
+					transactedAt: "2026-04-01",
+					transactionTypeId: "t",
+					currencyId: "c1",
+				});
+			});
+			await waitFor(() =>
+				expect(result.current.isAddTransactionPending).toBe(true)
+			);
+			resolve?.({ id: "tx-new" });
+			await waitFor(() =>
+				expect(result.current.isAddTransactionPending).toBe(false)
+			);
 		});
 	});
 
@@ -476,7 +582,117 @@ describe("useCurrencies", () => {
 			});
 		});
 
-		it("optimistically patches the row in allTransactions before the server resolves", async () => {
+		it("toggles isEditTransactionPending across the mutation lifecycle", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, []);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.txUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.editTransaction({
+					id: "tx1",
+					amount: 1,
+					memo: null,
+					transactedAt: "2026-01-01",
+					transactionTypeId: "t",
+				});
+			});
+			await waitFor(() =>
+				expect(result.current.isEditTransactionPending).toBe(true)
+			);
+			resolve?.({ id: "tx1" });
+			await waitFor(() =>
+				expect(result.current.isEditTransactionPending).toBe(false)
+			);
+		});
+
+		it("optimistically patches a row that lives on a later page (multi-page cache)", async () => {
+			const qc = createClient();
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([
+					{
+						items: [
+							{
+								id: "tx1",
+								amount: 1,
+								transactionTypeId: "t",
+								transactionTypeName: "T",
+								transactedAt: "2026-01-02",
+								memo: null,
+							},
+						],
+						nextCursor: "tx1",
+					},
+					{
+						items: [
+							{
+								id: "tx2",
+								amount: 2,
+								transactionTypeId: "t",
+								transactionTypeName: "T",
+								transactedAt: "2026-01-01",
+								memo: "before",
+							},
+						],
+						nextCursor: undefined,
+					},
+				])
+			);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.txUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() =>
+				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
+					"tx1",
+					"tx2",
+				])
+			);
+			act(() => {
+				result.current.editTransaction({
+					id: "tx2",
+					amount: 999,
+					memo: "after",
+					transactedAt: "2026-01-01",
+					transactionTypeId: "t",
+				});
+			});
+			await waitFor(() =>
+				expect(
+					result.current.allTransactions.find((t) => t.id === "tx2")
+				).toMatchObject({ amount: 999, memo: "after" })
+			);
+			// The patch lands on page 2 of the cache; page 1 stays untouched.
+			const cached = qc.getQueryData<{
+				pages: { items: TxRow[] }[];
+			}>(txInfiniteKey("c1"));
+			expect(cached?.pages[1]?.items[0]).toMatchObject({
+				id: "tx2",
+				amount: 999,
+			});
+			expect(cached?.pages[0]?.items[0]).toMatchObject({
+				id: "tx1",
+				amount: 1,
+			});
+			resolve?.({ id: "tx2" });
+		});
+
+		it("optimistically patches the row in the infinite cache before the server resolves", async () => {
 			const seed = [
 				{
 					id: "tx1",
@@ -537,6 +753,13 @@ describe("useCurrencies", () => {
 					transactionTypeId: "new-type",
 				});
 			});
+			// The optimistic write lives in the cache, not local state.
+			const cached = qc.getQueryData<{
+				pages: { items: TxRow[] }[];
+			}>(txInfiniteKey("c1"));
+			expect(cached?.pages[0]?.items.find((t) => t.id === "tx1")).toMatchObject(
+				{ amount: 999 }
+			);
 			// untouched sibling row preserved.
 			expect(
 				result.current.allTransactions.find((t) => t.id === "tx2")
@@ -544,7 +767,7 @@ describe("useCurrencies", () => {
 			resolve?.({ id: "tx1" });
 		});
 
-		it("rolls allTransactions back to the pre-mutation snapshot when the server rejects", async () => {
+		it("rolls the cache back to the pre-mutation snapshot when the server rejects", async () => {
 			const original = [
 				{
 					id: "tx1",
@@ -556,9 +779,8 @@ describe("useCurrencies", () => {
 				},
 			];
 			// The onSettled invalidate triggers a refetch; mirror the rollback
-			// state so the refetch reseeds with the same data the onError
-			// handler is restoring (otherwise the assertion races against
-			// the default empty-items queryFn).
+			// state so the refetch reseeds with the same data the onError handler
+			// restores (otherwise the assertion races the default empty queryFn).
 			trpcMocks.txListQueryFn.mockResolvedValue({
 				items: original,
 				nextCursor: undefined,
@@ -602,17 +824,17 @@ describe("useCurrencies", () => {
 				transactionTypeName: "T",
 				transactedAt: "2026-01-01",
 			});
-			// Three observed refetches: initial (100), post-first-edit
-			// invalidate (200), post-second-edit invalidate (200 again,
-			// since the rollback target IS 200).
+			// Three observed refetches: initial (100), post-first-edit invalidate
+			// (200), post-second-edit invalidate (200 again, since the rollback
+			// target IS 200).
 			trpcMocks.txListQueryFn
 				.mockResolvedValueOnce({ items: [row(100)], nextCursor: undefined })
 				.mockResolvedValueOnce({ items: [row(200)], nextCursor: undefined })
 				.mockResolvedValueOnce({ items: [row(200)], nextCursor: undefined });
 			const qc = createClient();
 			// First call succeeds, second call rejects. Second rollback must
-			// restore the snapshot taken AFTER the first optimistic patch —
-			// i.e. it must not blow away the successful first edit.
+			// restore the snapshot taken AFTER the first optimistic patch — i.e.
+			// it must not blow away the successful first edit.
 			trpcMocks.txUpdate
 				.mockResolvedValueOnce({ id: "tx1" })
 				.mockRejectedValueOnce(new Error("net"));
@@ -632,7 +854,9 @@ describe("useCurrencies", () => {
 					transactionTypeId: "T",
 				});
 			});
-			expect(result.current.allTransactions[0]).toMatchObject({ amount: 200 });
+			await waitFor(() =>
+				expect(result.current.allTransactions[0]).toMatchObject({ amount: 200 })
+			);
 			await act(async () => {
 				await expect(
 					result.current.editTransaction({
@@ -646,30 +870,37 @@ describe("useCurrencies", () => {
 			});
 			// Rollback target = state right before the failing edit = 200,
 			// not the original 100.
-			expect(result.current.allTransactions[0]).toMatchObject({ amount: 200 });
+			await waitFor(() =>
+				expect(result.current.allTransactions[0]).toMatchObject({ amount: 200 })
+			);
 		});
 	});
 
-	describe("deleteTransaction (local optimistic on state)", () => {
-		it("optimistically removes the transaction from allTransactions", async () => {
+	describe("deleteTransaction (optimistic on the infinite cache)", () => {
+		it("optimistically removes the transaction from the cache", async () => {
 			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
-				items: [
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([
 					{
-						id: "tx1",
-						amount: 1,
-						transactionTypeName: "a",
-						transactedAt: "2026-01-01",
+						items: [
+							{
+								id: "tx1",
+								amount: 1,
+								transactionTypeName: "a",
+								transactedAt: "2026-01-01",
+							},
+							{
+								id: "tx2",
+								amount: 2,
+								transactionTypeName: "b",
+								transactedAt: "2026-01-02",
+							},
+						],
+						nextCursor: undefined,
 					},
-					{
-						id: "tx2",
-						amount: 2,
-						transactionTypeName: "b",
-						transactedAt: "2026-01-02",
-					},
-				],
-				nextCursor: undefined,
-			});
+				])
+			);
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.txDelete.mockImplementation(
 				() =>
@@ -687,7 +918,7 @@ describe("useCurrencies", () => {
 			act(() => {
 				result.current.deleteTransaction("tx1");
 			});
-			// Optimistic local filter happens synchronously in onMutate.
+			// Optimistic cache filter happens in onMutate.
 			await waitFor(() => {
 				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
 					"tx2",
@@ -696,7 +927,7 @@ describe("useCurrencies", () => {
 			resolve?.({ id: "tx1" });
 		});
 
-		it("rolls allTransactions back to the pre-delete snapshot when the server rejects", async () => {
+		it("rolls the cache back to the pre-delete snapshot when the server rejects", async () => {
 			const original = [
 				{
 					id: "tx1",
@@ -712,14 +943,22 @@ describe("useCurrencies", () => {
 				},
 			];
 			// Both the initial fetch and the post-error invalidation refetch
-			// should return the original row set — the assertion is "list
-			// matches pre-delete state after the rollback".
+			// return the original rows — the assertion is "list matches pre-delete
+			// state after the rollback".
 			trpcMocks.txListQueryFn.mockResolvedValue({
 				items: original,
 				nextCursor: undefined,
 			});
 			const qc = createClient();
-			trpcMocks.txDelete.mockRejectedValue(new Error("server down"));
+			// Block the delete so the optimistic-remove state is observable
+			// before the rejection rolls it back.
+			let reject: ((reason: unknown) => void) | undefined;
+			trpcMocks.txDelete.mockImplementation(
+				() =>
+					new Promise((_resolve, r) => {
+						reject = r;
+					})
+			);
 
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
@@ -730,12 +969,13 @@ describe("useCurrencies", () => {
 			act(() => {
 				result.current.deleteTransaction("tx1");
 			});
-			// The optimistic remove kicks in synchronously…
+			// The optimistic remove kicks in while the delete is still in flight…
 			await waitFor(() =>
 				expect(result.current.allTransactions.map((t) => t.id)).toEqual(["tx2"])
 			);
 			// …and then onError rolls back to both rows once the rejection
 			// propagates.
+			reject?.(new Error("server down"));
 			await waitFor(() =>
 				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
 					"tx1",
@@ -743,59 +983,130 @@ describe("useCurrencies", () => {
 				])
 			);
 		});
+
+		it("removes a row that lives on a later page, leaving page 1 intact (multi-page cache)", async () => {
+			const qc = createClient();
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([
+					{
+						items: [
+							{
+								id: "tx1",
+								amount: 1,
+								transactionTypeName: "a",
+								transactedAt: "2026-01-02",
+							},
+						],
+						nextCursor: "tx1",
+					},
+					{
+						items: [
+							{
+								id: "tx2",
+								amount: 2,
+								transactionTypeName: "b",
+								transactedAt: "2026-01-01",
+							},
+						],
+						nextCursor: undefined,
+					},
+				])
+			);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.txDelete.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() =>
+				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
+					"tx1",
+					"tx2",
+				])
+			);
+			act(() => {
+				result.current.deleteTransaction("tx2");
+			});
+			// Only tx2 (page 2) is removed; the page envelope is preserved.
+			await waitFor(() =>
+				expect(result.current.allTransactions.map((t) => t.id)).toEqual(["tx1"])
+			);
+			const cached = qc.getQueryData<{
+				pages: { items: TxRow[] }[];
+			}>(txInfiniteKey("c1"));
+			expect(cached?.pages).toHaveLength(2);
+			expect(cached?.pages[1]?.items).toEqual([]);
+			resolve?.({ id: "tx2" });
+		});
 	});
 
-	describe("handleLoadMore", () => {
-		it("no-ops when expandedCurrencyId is null", async () => {
+	describe("fetchNextPage", () => {
+		it("no-ops when expandedCurrencyId is null", () => {
 			const qc = createClient();
 			const { result } = renderHook(() => useCurrencies(null), {
 				wrapper: makeWrapper(qc),
 			});
-			await act(async () => {
-				await result.current.handleLoadMore();
+			act(() => {
+				result.current.fetchNextPage();
 			});
-			expect(trpcMocks.txQuery).not.toHaveBeenCalled();
+			expect(trpcMocks.txListQueryFn).not.toHaveBeenCalled();
 		});
 
-		it("no-ops when there is no cursor", async () => {
+		it("no-ops when there is no next page (no cursor)", async () => {
 			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
-				items: [
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([
 					{
-						id: "tx1",
-						amount: 1,
-						transactionTypeName: "a",
-						transactedAt: "2026-01-01",
+						items: [
+							{
+								id: "tx1",
+								amount: 1,
+								transactionTypeName: "a",
+								transactedAt: "2026-01-01",
+							},
+						],
+						nextCursor: undefined,
 					},
-				],
-				nextCursor: undefined,
-			});
+				])
+			);
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
 			});
 			await waitFor(() =>
 				expect(result.current.allTransactions).toHaveLength(1)
 			);
-			await act(async () => {
-				await result.current.handleLoadMore();
+			act(() => {
+				result.current.fetchNextPage();
 			});
-			expect(trpcMocks.txQuery).not.toHaveBeenCalled();
+			expect(trpcMocks.txListQueryFn).not.toHaveBeenCalled();
 		});
 
-		it("appends items and updates cursor when the query returns a new page", async () => {
+		it("fetches the next page with the last cursor and appends items", async () => {
 			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
-				items: [
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([
 					{
-						id: "tx1",
-						amount: 1,
-						transactionTypeName: "a",
-						transactedAt: "2026-01-01",
+						items: [
+							{
+								id: "tx1",
+								amount: 1,
+								transactionTypeName: "a",
+								transactedAt: "2026-01-01",
+							},
+						],
+						nextCursor: "cursor-A",
 					},
-				],
-				nextCursor: "cursor-A",
-			});
-			trpcMocks.txQuery.mockResolvedValue({
+				])
+			);
+			trpcMocks.txListQueryFn.mockResolvedValue({
 				items: [
 					{
 						id: "tx2",
@@ -809,82 +1120,75 @@ describe("useCurrencies", () => {
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
 			});
-			await waitFor(() => expect(result.current.txHasMore).toBe(true));
-			await act(async () => {
-				await result.current.handleLoadMore();
+			await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+			act(() => {
+				result.current.fetchNextPage();
 			});
-			expect(trpcMocks.txQuery).toHaveBeenCalledWith({
+			await waitFor(() =>
+				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
+					"tx1",
+					"tx2",
+				])
+			);
+			expect(trpcMocks.txListQueryFn).toHaveBeenCalledWith({
 				currencyId: "c1",
 				cursor: "cursor-A",
 			});
-			expect(result.current.allTransactions.map((t) => t.id)).toEqual([
-				"tx1",
-				"tx2",
-			]);
-			expect(result.current.txHasMore).toBe(true);
+			expect(result.current.hasNextPage).toBe(true);
 		});
 
-		it("sets txHasMore to false when the next page has no cursor", async () => {
+		it("sets hasNextPage to false when the next page has no cursor", async () => {
 			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
-				items: [
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([
 					{
-						id: "tx1",
-						amount: 1,
-						transactionTypeName: "a",
-						transactedAt: "2026-01-01",
+						items: [
+							{
+								id: "tx1",
+								amount: 1,
+								transactionTypeName: "a",
+								transactedAt: "2026-01-01",
+							},
+						],
+						nextCursor: "cursor-A",
 					},
-				],
-				nextCursor: "cursor-A",
-			});
-			trpcMocks.txQuery.mockResolvedValue({
+				])
+			);
+			trpcMocks.txListQueryFn.mockResolvedValue({
 				items: [],
 				nextCursor: undefined,
 			});
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
 			});
-			await waitFor(() => expect(result.current.txHasMore).toBe(true));
-			await act(async () => {
-				await result.current.handleLoadMore();
+			await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+			act(() => {
+				result.current.fetchNextPage();
 			});
-			expect(result.current.txHasMore).toBe(false);
+			await waitFor(() => expect(result.current.hasNextPage).toBe(false));
 		});
 
-		it("clears isLoadingMore in finally even if the query throws", async () => {
+		it("toggles isFetchingNextPage while the page is in flight", async () => {
 			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
-				items: [
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([
 					{
-						id: "tx1",
-						amount: 1,
-						transactionTypeName: "a",
-						transactedAt: "2026-01-01",
+						items: [
+							{
+								id: "tx1",
+								amount: 1,
+								transactionTypeName: "a",
+								transactedAt: "2026-01-01",
+							},
+						],
+						nextCursor: "cursor-A",
 					},
-				],
-				nextCursor: "cursor-A",
-			});
-			trpcMocks.txQuery.mockRejectedValue(new Error("network"));
-			const { result } = renderHook(() => useCurrencies("c1"), {
-				wrapper: makeWrapper(qc),
-			});
-			await waitFor(() => expect(result.current.txHasMore).toBe(true));
-			await act(async () => {
-				await expect(result.current.handleLoadMore()).rejects.toThrow(
-					"network"
-				);
-			});
-			expect(result.current.isLoadingMore).toBe(false);
-		});
-
-		it("is guarded against re-entry after isLoadingMore has propagated through a re-render", async () => {
-			const qc = createClient();
-			qc.setQueryData(txKey("c1"), {
-				items: [],
-				nextCursor: "cursor-A",
-			});
+				])
+			);
 			let resolve: ((v: unknown) => void) | undefined;
-			trpcMocks.txQuery.mockImplementation(
+			trpcMocks.txListQueryFn.mockImplementation(
 				() =>
 					new Promise((r) => {
 						resolve = r;
@@ -893,30 +1197,152 @@ describe("useCurrencies", () => {
 			const { result } = renderHook(() => useCurrencies("c1"), {
 				wrapper: makeWrapper(qc),
 			});
-			await waitFor(() => expect(result.current.txHasMore).toBe(true));
+			await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+			act(() => {
+				result.current.fetchNextPage();
+			});
+			await waitFor(() => expect(result.current.isFetchingNextPage).toBe(true));
+			resolve?.({ items: [], nextCursor: undefined });
+			await waitFor(() =>
+				expect(result.current.isFetchingNextPage).toBe(false)
+			);
+		});
+
+		it("resets isFetchingNextPage and keeps the loaded page when the fetch errors", async () => {
+			const qc = createClient();
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([
+					{
+						items: [
+							{
+								id: "tx1",
+								amount: 1,
+								transactionTypeName: "a",
+								transactedAt: "2026-01-01",
+							},
+						],
+						nextCursor: "cursor-A",
+					},
+				])
+			);
+			trpcMocks.txListQueryFn.mockRejectedValue(new Error("network"));
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+			act(() => {
+				result.current.fetchNextPage();
+			});
+			await waitFor(() =>
+				expect(result.current.isFetchingNextPage).toBe(false)
+			);
+			expect(result.current.allTransactions.map((t) => t.id)).toEqual(["tx1"]);
+		});
+
+		it("is guarded against re-entry while a fetch is in flight", async () => {
+			const qc = createClient();
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([{ items: [], nextCursor: "cursor-A" }])
+			);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.txListQueryFn.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() => expect(result.current.hasNextPage).toBe(true));
 
 			act(() => {
-				result.current.handleLoadMore();
+				result.current.fetchNextPage();
 			});
-			// Wait until the state update propagates and the next render sees
-			// isLoadingMore=true; then a subsequent call must be a no-op.
-			await waitFor(() => expect(result.current.isLoadingMore).toBe(true));
-			await act(async () => {
-				await result.current.handleLoadMore();
+			await waitFor(() => expect(result.current.isFetchingNextPage).toBe(true));
+			act(() => {
+				result.current.fetchNextPage();
 			});
-			expect(trpcMocks.txQuery).toHaveBeenCalledTimes(1);
+			expect(trpcMocks.txListQueryFn).toHaveBeenCalledTimes(1);
 
 			resolve?.({ items: [], nextCursor: undefined });
-			await waitFor(() => expect(result.current.isLoadingMore).toBe(false));
+			await waitFor(() =>
+				expect(result.current.isFetchingNextPage).toBe(false)
+			);
+		});
+	});
+
+	describe("infinite cache survives refetch (regression for the rollback bug)", () => {
+		it("keeps all loaded pages after an invalidate/refetch instead of collapsing to page 1", async () => {
+			const page1 = [
+				{
+					id: "tx1",
+					amount: 1,
+					transactionTypeName: "a",
+					transactedAt: "2026-01-01",
+				},
+			];
+			const page2 = [
+				{
+					id: "tx2",
+					amount: 2,
+					transactionTypeName: "b",
+					transactedAt: "2026-01-02",
+				},
+			];
+			// cursor-aware queryFn so every page refetches correctly.
+			trpcMocks.txListQueryFn.mockImplementation(
+				({ cursor }: { cursor?: string }) =>
+					cursor === "cursor-A"
+						? Promise.resolve({ items: page2, nextCursor: undefined })
+						: Promise.resolve({ items: page1, nextCursor: "cursor-A" })
+			);
+			const qc = createClient();
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+
+			await waitFor(() =>
+				expect(result.current.allTransactions.map((t) => t.id)).toEqual(["tx1"])
+			);
+			act(() => {
+				result.current.fetchNextPage();
+			});
+			await waitFor(() =>
+				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
+					"tx1",
+					"tx2",
+				])
+			);
+
+			// Simulate a focus / reconnect / addTransaction-driven refetch.
+			await act(async () => {
+				await qc.invalidateQueries({ queryKey: txInfiniteKey("c1") });
+			});
+
+			// Both pages survive — the bug would have collapsed this to ["tx1"].
+			await waitFor(() =>
+				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
+					"tx1",
+					"tx2",
+				])
+			);
 		});
 	});
 
 	describe("return shape", () => {
-		it("does not expose resetTransactionState (removed; refetch reseeds list)", () => {
+		it("exposes fetchNextPage and not the removed handleLoadMore / resetTransactionState", () => {
 			const qc = createClient();
 			const { result } = renderHook(() => useCurrencies(null), {
 				wrapper: makeWrapper(qc),
 			});
+			expect(typeof result.current.fetchNextPage).toBe("function");
+			expect(
+				(result.current as unknown as { handleLoadMore?: unknown })
+					.handleLoadMore
+			).toBeUndefined();
 			expect(
 				(result.current as unknown as { resetTransactionState?: unknown })
 					.resetTransactionState
