@@ -162,7 +162,7 @@ describe("useTypeCombobox", () => {
 			expect(result.current.canCreate).toBe(true);
 		});
 
-		it("canCreate is false when reservedNames is empty and input matches nothing", () => {
+		it("canCreate is true when reservedNames is empty and input matches nothing", () => {
 			const { result } = renderHook(() =>
 				useTypeCombobox(defaults({ reservedNames: [] }))
 			);
