@@ -6,6 +6,7 @@ interface UseTypeComboboxProps {
 	newTypeName: string;
 	onNewTypeNameChange: (name: string) => void;
 	onTypeChange: (id: string) => void;
+	reservedNames?: readonly string[];
 	typeId: string;
 	types: { id: string; name: string }[];
 }
@@ -14,6 +15,7 @@ export function useTypeCombobox({
 	newTypeName,
 	onNewTypeNameChange,
 	onTypeChange,
+	reservedNames,
 	typeId,
 	types,
 }: UseTypeComboboxProps) {
@@ -48,7 +50,11 @@ export function useTypeCombobox({
 	const exactMatch = types.find(
 		(t) => t.name.toLowerCase() === normalizedInput.toLowerCase()
 	);
-	const canCreate = Boolean(normalizedInput && !exactMatch);
+	const isReserved =
+		reservedNames?.some(
+			(n) => n.toLowerCase() === normalizedInput.toLowerCase()
+		) ?? false;
+	const canCreate = Boolean(normalizedInput && !exactMatch && !isReserved);
 	const shouldShowPopover =
 		isOpen && (types.length > 0 || Boolean(normalizedInput));
 

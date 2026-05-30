@@ -33,11 +33,31 @@ describe("useTransactionForm", () => {
 		});
 	});
 
+	it("exposes types from useTransactionTypes with Session Result filtered out", () => {
+		hoisted.useTransactionTypes.mockReturnValue({
+			types: [...TYPES, { id: "t-sr", name: "Session Result" }],
+			createType,
+			isCreatingType: false,
+		});
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useTransactionForm({ onSubmit }));
+		expect(result.current.types).toEqual(TYPES);
+		expect(result.current.types.map((t) => t.name)).not.toContain(
+			"Session Result"
+		);
+	});
+
 	it("exposes the list of types from useTransactionTypes", () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() => useTransactionForm({ onSubmit }));
 		expect(result.current.types).toEqual(TYPES);
 		expect(result.current.isCreatingType).toBe(false);
+	});
+
+	it("returns reservedTypeNames containing 'Session Result'", () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useTransactionForm({ onSubmit }));
+		expect(result.current.reservedTypeNames).toContain("Session Result");
 	});
 
 	it("defaults transactedAt to today's ISO date when no defaults provided", () => {

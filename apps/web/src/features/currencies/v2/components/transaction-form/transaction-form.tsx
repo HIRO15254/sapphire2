@@ -30,6 +30,7 @@ interface TypeComboboxProps {
 	newTypeName: string;
 	onNewTypeNameChange: (name: string) => void;
 	onTypeChange: (id: string) => void;
+	reservedNames?: readonly string[];
 	typeId: string;
 	types: { id: string; name: string }[];
 }
@@ -40,6 +41,7 @@ function TypeCombobox({
 	newTypeName,
 	onNewTypeNameChange,
 	onTypeChange,
+	reservedNames,
 	typeId,
 	types,
 }: TypeComboboxProps) {
@@ -60,6 +62,7 @@ function TypeCombobox({
 		newTypeName,
 		onNewTypeNameChange,
 		onTypeChange,
+		reservedNames,
 		typeId,
 		types,
 	});
@@ -141,7 +144,10 @@ export function TransactionFormV2({
 	formId,
 	onSubmit,
 }: TransactionFormV2Props) {
-	const { form, types } = useTransactionForm({ defaultValues, onSubmit });
+	const { form, types, reservedTypeNames } = useTransactionForm({
+		defaultValues,
+		onSubmit,
+	});
 
 	return (
 		<form
@@ -168,6 +174,7 @@ export function TransactionFormV2({
 									newTypeName={newTypeField.state.value}
 									onNewTypeNameChange={newTypeField.handleChange}
 									onTypeChange={typeField.handleChange}
+									reservedNames={reservedTypeNames}
 									typeId={typeField.state.value}
 									types={types}
 								/>
