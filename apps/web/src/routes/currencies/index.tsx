@@ -21,6 +21,7 @@ function CurrenciesPage() {
 		isCreatePending,
 		setIsCreateOpen,
 		handleCreate,
+		handleToggleFavorite,
 	} = useCurrenciesPage();
 
 	return (
@@ -51,7 +52,11 @@ function CurrenciesPage() {
 				) : (
 					<div className="flex flex-col gap-2">
 						{currencies.map((c) => (
-							<CurrencyListCard currency={c} key={c.id} />
+							<CurrencyListCard
+								currency={c}
+								key={c.id}
+								onToggleFavorite={() => handleToggleFavorite(c.id)}
+							/>
 						))}
 					</div>
 				)}

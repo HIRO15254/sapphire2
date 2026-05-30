@@ -11,6 +11,7 @@ export interface CurrencyDetailItem {
 	balance: number;
 	description?: string | null;
 	id: string;
+	isFavorite: boolean;
 	name: string;
 	unit?: string | null;
 }
@@ -36,6 +37,11 @@ export function useCurrencyDetailPage(currencyId: string) {
 	const openDeleteFromActions = () => {
 		setIsActionsOpen(false);
 		setConfirmingDeleteCurrency(true);
+	};
+
+	const handleToggleFavorite = () => {
+		setIsActionsOpen(false);
+		toggleFavorite(currencyId);
 	};
 
 	const openTransactionActions = (transaction: Transaction) => {
@@ -80,6 +86,7 @@ export function useCurrencyDetailPage(currencyId: string) {
 		addTransaction,
 		editTransaction,
 		deleteTransaction,
+		toggleFavorite,
 		fetchNextPage,
 	} = useCurrencies(currencyId);
 
@@ -155,6 +162,7 @@ export function useCurrencyDetailPage(currencyId: string) {
 		fetchNextPage,
 		openEditFromActions,
 		openDeleteFromActions,
+		handleToggleFavorite,
 		openTransactionActions,
 		closeTransactionActions,
 		openEditFromTransactionActions,

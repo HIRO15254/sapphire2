@@ -29,6 +29,7 @@ export interface TransactionValues {
 export interface CurrencyItem {
 	description?: string | null;
 	id: string;
+	isFavorite: boolean;
 	name: string;
 	unit?: string | null;
 }
@@ -88,6 +89,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 						name: newCurrency.name,
 						unit: newCurrency.unit ?? null,
 						description: newCurrency.description ?? null,
+						isFavorite: false,
 						balance: 0,
 					},
 				];
@@ -225,6 +227,25 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		},
 	});
 
+	const toggleFavoriteMutation = useMutation({
+		mutationFn: (id: string) =>
+			trpcClient.currency.toggleFavorite.mutate({ id }),
+		onMutate: async (id) => {
+			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
+			const previous = snapshotQuery(queryClient, currencyListKey);
+			queryClient.setQueryData(currencyListKey, (old) =>
+				old?.map((c) => (c.id === id ? { ...c, isFavorite: !c.isFavorite } : c))
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
+		},
+		onSettled: () => {
+			invalidateTargets(queryClient, [{ queryKey: currencyListKey }]);
+		},
+	});
+
 	// Load-more is now `fetchNextPage`. The zero-arg wrapper keeps the button's
 	// click event out of `FetchNextPageOptions`, and the guard makes it a no-op
 	// when there is no next page (otherwise React Query would re-fetch page 1)
@@ -248,6 +269,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		isUpdatePending: updateMutation.isPending,
 		isAddTransactionPending: addTransactionMutation.isPending,
 		isEditTransactionPending: editTransactionMutation.isPending,
+		isToggleFavoritePending: toggleFavoriteMutation.isPending,
 		create: (values: CurrencyValues) => createMutation.mutateAsync(values),
 		update: (values: CurrencyValues & { id: string }) =>
 			updateMutation.mutateAsync(values),
@@ -264,6 +286,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		deleteTransaction: (id: string) => {
 			deleteTransactionMutation.mutate(id);
 		},
+		toggleFavorite: (id: string) => toggleFavoriteMutation.mutateAsync(id),
 		fetchNextPage,
 	};
 }

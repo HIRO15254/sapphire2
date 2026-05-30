@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 	addTransaction: vi.fn(),
 	editTransaction: vi.fn(),
 	deleteTransaction: vi.fn(),
+	toggleFavorite: vi.fn(),
 	fetchNextPage: vi.fn(),
 	navigate: vi.fn(),
 	lastExpandedId: null as string | null,
@@ -47,12 +48,14 @@ vi.mock("@/features/currencies/hooks/use-currencies", () => ({
 			isUpdatePending: mocks.isUpdatePending,
 			isAddTransactionPending: mocks.isAddTransactionPending,
 			isEditTransactionPending: mocks.isEditTransactionPending,
+			isToggleFavoritePending: false,
 			create: vi.fn(),
 			update: mocks.update,
 			delete: mocks.del,
 			addTransaction: mocks.addTransaction,
 			editTransaction: mocks.editTransaction,
 			deleteTransaction: mocks.deleteTransaction,
+			toggleFavorite: mocks.toggleFavorite,
 			fetchNextPage: mocks.fetchNextPage,
 		};
 	},
@@ -86,6 +89,7 @@ describe("useCurrencyDetailPage", () => {
 		mocks.addTransaction.mockReset().mockResolvedValue({ id: "tx-new" });
 		mocks.editTransaction.mockReset().mockResolvedValue({ id: "tx-1" });
 		mocks.deleteTransaction.mockReset();
+		mocks.toggleFavorite.mockReset().mockResolvedValue(undefined);
 		mocks.fetchNextPage.mockReset();
 		mocks.navigate.mockReset();
 		mocks.lastExpandedId = null;
@@ -432,6 +436,29 @@ describe("useCurrencyDetailPage", () => {
 		it("is the same reference returned from the inner hook", () => {
 			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
 			expect(result.current.fetchNextPage).toBe(mocks.fetchNextPage);
+		});
+	});
+
+	describe("handleToggleFavorite", () => {
+		it("calls toggleFavorite with the currencyId", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.handleToggleFavorite();
+			});
+			expect(mocks.toggleFavorite).toHaveBeenCalledTimes(1);
+			expect(mocks.toggleFavorite).toHaveBeenCalledWith("c1");
+		});
+
+		it("closes the actions drawer when called", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.setIsActionsOpen(true);
+			});
+			expect(result.current.isActionsOpen).toBe(true);
+			act(() => {
+				result.current.handleToggleFavorite();
+			});
+			expect(result.current.isActionsOpen).toBe(false);
 		});
 	});
 });

@@ -19,6 +19,10 @@ const trpcMocks = vi.hoisted(() => ({
 	currencyCreate: vi.fn(),
 	currencyUpdate: vi.fn(),
 	currencyDelete: vi.fn(),
+	currencyToggleFavorite: vi.fn(),
+	// queryFn used by useQuery(currency.list). Per-test override controls refetch
+	// payloads (needed for rollback assertions that survive the onSettled refetch).
+	currencyListQueryFn: vi.fn(),
 	txCreate: vi.fn(),
 	txUpdate: vi.fn(),
 	txDelete: vi.fn(),
@@ -34,7 +38,7 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: () => ({
 					queryKey: buildKey("currency", "list", undefined),
-					queryFn: () => Promise.resolve([]),
+					queryFn: () => trpcMocks.currencyListQueryFn(),
 				}),
 			},
 		},
@@ -72,6 +76,7 @@ vi.mock("@/utils/trpc", () => ({
 			create: { mutate: trpcMocks.currencyCreate },
 			update: { mutate: trpcMocks.currencyUpdate },
 			delete: { mutate: trpcMocks.currencyDelete },
+			toggleFavorite: { mutate: trpcMocks.currencyToggleFavorite },
 		},
 		currencyTransaction: {
 			create: { mutate: trpcMocks.txCreate },
@@ -130,10 +135,12 @@ describe("useCurrencies", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		trpcMocks.currencyListQueryFn.mockResolvedValue([]);
 		trpcMocks.txListQueryFn.mockResolvedValue({
 			items: [],
 			nextCursor: undefined,
 		});
+		trpcMocks.currencyToggleFavorite.mockResolvedValue({ id: "c1" });
 	});
 
 	afterEach(() => {
@@ -1347,6 +1354,116 @@ describe("useCurrencies", () => {
 				(result.current as unknown as { resetTransactionState?: unknown })
 					.resetTransactionState
 			).toBeUndefined();
+		});
+	});
+
+	describe("toggleFavorite (楽観的更新)", () => {
+		it("flips isFavorite from false to true in the cache immediately", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{ id: "c1", name: "Chips", unit: null, balance: 0, isFavorite: false },
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.currencyToggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("c1");
+			});
+			await waitFor(() => {
+				const list =
+					qc.getQueryData<Array<{ id: string; isFavorite: boolean }>>(
+						CURRENCY_KEY
+					);
+				expect(list?.[0]?.isFavorite).toBe(true);
+			});
+			resolve?.({ id: "c1" });
+		});
+
+		it("flips isFavorite from true to false in the cache immediately", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{ id: "c1", name: "Chips", unit: null, balance: 0, isFavorite: true },
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.currencyToggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("c1");
+			});
+			await waitFor(() => {
+				const list =
+					qc.getQueryData<Array<{ id: string; isFavorite: boolean }>>(
+						CURRENCY_KEY
+					);
+				expect(list?.[0]?.isFavorite).toBe(false);
+			});
+			resolve?.({ id: "c1" });
+		});
+
+		it("rolls back to the pre-toggle state when the server rejects", async () => {
+			const original = [
+				{ id: "c1", name: "Chips", unit: null, balance: 0, isFavorite: false },
+			];
+			// The post-error onSettled invalidation triggers a refetch; mirror the
+			// rollback state so the refetch reseeds with the same data onError restores.
+			trpcMocks.currencyListQueryFn.mockResolvedValue(original);
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, original);
+			trpcMocks.currencyToggleFavorite.mockRejectedValue(
+				new Error("server error")
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				await expect(result.current.toggleFavorite("c1")).rejects.toThrow(
+					"server error"
+				);
+			});
+			await waitFor(() =>
+				expect(result.current.currencies[0]?.isFavorite).toBe(false)
+			);
+		});
+
+		it("isToggleFavoritePending flips true during in-flight mutation", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{ id: "c1", name: "Chips", unit: null, balance: 0, isFavorite: false },
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.currencyToggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("c1");
+			});
+			await waitFor(() =>
+				expect(result.current.isToggleFavoritePending).toBe(true)
+			);
+			resolve?.({ id: "c1" });
+			await waitFor(() =>
+				expect(result.current.isToggleFavoritePending).toBe(false)
+			);
 		});
 	});
 });

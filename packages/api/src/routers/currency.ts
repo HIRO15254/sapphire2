@@ -1,6 +1,6 @@
 import { currency, currencyTransaction } from "@sapphire2/db/schema/store";
 import { TRPCError } from "@trpc/server";
-import { eq, sql } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -15,6 +15,7 @@ export const currencyRouter = router({
 				name: currency.name,
 				unit: currency.unit,
 				description: currency.description,
+				isFavorite: currency.isFavorite,
 				createdAt: currency.createdAt,
 				updatedAt: currency.updatedAt,
 				balance: sql<number>`COALESCE(SUM(${currencyTransaction.amount}), 0)`,
@@ -25,7 +26,8 @@ export const currencyRouter = router({
 				eq(currencyTransaction.currencyId, currency.id)
 			)
 			.where(eq(currency.userId, userId))
-			.groupBy(currency.id);
+			.groupBy(currency.id)
+			.orderBy(desc(currency.isFavorite), asc(currency.createdAt));
 
 		return currencies;
 	}),
@@ -138,5 +140,40 @@ export const currencyRouter = router({
 
 			await ctx.db.delete(currency).where(eq(currency.id, input.id));
 			return { success: true };
+		}),
+
+	toggleFavorite: protectedProcedure
+		.input(z.object({ id: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const [found] = await ctx.db
+				.select()
+				.from(currency)
+				.where(eq(currency.id, input.id));
+
+			if (!found) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Currency not found",
+				});
+			}
+
+			if (found.userId !== userId) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "You do not own this currency",
+				});
+			}
+
+			await ctx.db
+				.update(currency)
+				.set({ isFavorite: !found.isFavorite, updatedAt: new Date() })
+				.where(eq(currency.id, input.id));
+
+			const [updated] = await ctx.db
+				.select()
+				.from(currency)
+				.where(eq(currency.id, input.id));
+			return updated;
 		}),
 });
