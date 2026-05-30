@@ -82,6 +82,34 @@ describe("currency.create input validation", () => {
 		expectRejects(appRouter.currency.create, { name: "JPY", unit: "¥" });
 		expectRejects(appRouter.currency.create, { name: "EUR", unit: "€" });
 	});
+
+	it("accepts an optional rich-text description", () => {
+		expectAccepts(appRouter.currency.create, {
+			name: "Chips",
+			description: "<p>Weekday game chips</p>",
+		});
+	});
+
+	it("accepts a null description (no description set)", () => {
+		expectAccepts(appRouter.currency.create, {
+			name: "Chips",
+			description: null,
+		});
+	});
+
+	it("accepts a description at the 50,000-character boundary", () => {
+		expectAccepts(appRouter.currency.create, {
+			name: "Chips",
+			description: "a".repeat(50_000),
+		});
+	});
+
+	it("rejects a description longer than 50,000 characters", () => {
+		expectRejects(appRouter.currency.create, {
+			name: "Chips",
+			description: "a".repeat(50_001),
+		});
+	});
 });
 
 describe("currency.update input validation", () => {
@@ -111,6 +139,24 @@ describe("currency.update input validation", () => {
 
 	it("rejects multi-byte unit", () => {
 		expectRejects(appRouter.currency.update, { id: "c1", unit: "¥" });
+	});
+
+	it("accepts id + description", () => {
+		expectAccepts(appRouter.currency.update, {
+			id: "c1",
+			description: "<p>Updated</p>",
+		});
+	});
+
+	it("accepts id + null description (clearing it)", () => {
+		expectAccepts(appRouter.currency.update, { id: "c1", description: null });
+	});
+
+	it("rejects a description longer than 50,000 characters", () => {
+		expectRejects(appRouter.currency.update, {
+			id: "c1",
+			description: "a".repeat(50_001),
+		});
 	});
 });
 

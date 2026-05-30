@@ -31,6 +31,8 @@ export const currency = sqliteTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		unit: text("unit"),
+		// Optional rich-text description, stored as sanitized HTML (SA2-25).
+		description: text("description"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),

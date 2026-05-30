@@ -3,10 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import { useCurrencyForm } from "@/features/currencies/v2/components/currency-form/use-currency-form";
 
 describe("useCurrencyForm", () => {
-	it("starts with empty name and unit when no defaults", () => {
+	it("starts with empty name and unit and null description when no defaults", () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
-		expect(result.current.form.state.values).toEqual({ name: "", unit: "" });
+		expect(result.current.form.state.values).toEqual({
+			name: "",
+			unit: "",
+			description: null,
+		});
 	});
 
 	it("seeds the form from defaultValues", () => {
@@ -14,13 +18,26 @@ describe("useCurrencyForm", () => {
 		const { result } = renderHook(() =>
 			useCurrencyForm({
 				onSubmit,
-				defaultValues: { name: "Chips", unit: "pt" },
+				defaultValues: {
+					name: "Chips",
+					unit: "pt",
+					description: "<p>note</p>",
+				},
 			})
 		);
 		expect(result.current.form.state.values).toEqual({
 			name: "Chips",
 			unit: "pt",
+			description: "<p>note</p>",
 		});
+	});
+
+	it("defaults description to null when defaultValues omits it", () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useCurrencyForm({ onSubmit, defaultValues: { name: "Chips" } })
+		);
+		expect(result.current.form.state.values.description).toBeNull();
 	});
 
 	it("falls back unit to empty string when defaultValues.unit is undefined", () => {
@@ -49,7 +66,11 @@ describe("useCurrencyForm", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(onSubmit).toHaveBeenCalledWith({ name: "Gold", unit: undefined });
+		expect(onSubmit).toHaveBeenCalledWith({
+			name: "Gold",
+			unit: undefined,
+			description: null,
+		});
 	});
 
 	it("submits with unit preserved when unit is non-empty", async () => {
@@ -62,7 +83,11 @@ describe("useCurrencyForm", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(onSubmit).toHaveBeenCalledWith({ name: "Gold", unit: "g" });
+		expect(onSubmit).toHaveBeenCalledWith({
+			name: "Gold",
+			unit: "g",
+			description: null,
+		});
 	});
 
 	it("rejects a unit longer than 4 characters", async () => {
@@ -101,7 +126,11 @@ describe("useCurrencyForm", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(onSubmit).toHaveBeenCalledWith({ name: "Pesos", unit: "MXN$" });
+		expect(onSubmit).toHaveBeenCalledWith({
+			name: "Pesos",
+			unit: "MXN$",
+			description: null,
+		});
 	});
 
 	it("trims whitespace-only unit to undefined", async () => {
@@ -114,7 +143,11 @@ describe("useCurrencyForm", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(onSubmit).toHaveBeenCalledWith({ name: "Chips", unit: undefined });
+		expect(onSubmit).toHaveBeenCalledWith({
+			name: "Chips",
+			unit: undefined,
+			description: null,
+		});
 	});
 
 	it("trims surrounding whitespace before submitting the unit", async () => {
@@ -127,7 +160,11 @@ describe("useCurrencyForm", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(onSubmit).toHaveBeenCalledWith({ name: "Gold", unit: "g" });
+		expect(onSubmit).toHaveBeenCalledWith({
+			name: "Gold",
+			unit: "g",
+			description: null,
+		});
 	});
 
 	it("accepts ' AB ' (4-char post-trim) at the length boundary", async () => {
@@ -141,6 +178,48 @@ describe("useCurrencyForm", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(onSubmit).toHaveBeenCalledWith({ name: "X", unit: "AB" });
+		expect(onSubmit).toHaveBeenCalledWith({
+			name: "X",
+			unit: "AB",
+			description: null,
+		});
+	});
+
+	it("submits the rich-text description html as-is", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useCurrencyForm({ onSubmit }));
+		act(() => {
+			result.current.form.setFieldValue("name", "Chips");
+			result.current.form.setFieldValue(
+				"description",
+				"<p>Weekday game chips</p>"
+			);
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith({
+			name: "Chips",
+			unit: undefined,
+			description: "<p>Weekday game chips</p>",
+		});
+	});
+
+	it("seeds the description and submits it back unchanged when untouched", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useCurrencyForm({
+				onSubmit,
+				defaultValues: { name: "Chips", description: "<p>kept</p>" },
+			})
+		);
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith({
+			name: "Chips",
+			unit: undefined,
+			description: "<p>kept</p>",
+		});
 	});
 });

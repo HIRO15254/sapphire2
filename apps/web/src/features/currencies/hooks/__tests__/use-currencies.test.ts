@@ -232,6 +232,38 @@ describe("useCurrencies", () => {
 			});
 		});
 
+		it("forwards the rich-text description and carries it on the temp row", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{ id: "c1", name: "Chips", unit: null, balance: 0 },
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.currencyCreate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.create({ name: "Gold", description: "<p>shiny</p>" });
+			});
+			await waitFor(() => {
+				const list =
+					qc.getQueryData<Array<{ id: string; description: string | null }>>(
+						CURRENCY_KEY
+					);
+				expect(list?.[1]?.description).toBe("<p>shiny</p>");
+			});
+			expect(trpcMocks.currencyCreate).toHaveBeenCalledWith({
+				name: "Gold",
+				description: "<p>shiny</p>",
+			});
+			resolve?.({ id: "c2" });
+		});
+
 		it("onMutate: no-op when cache is undefined (old === undefined)", async () => {
 			const qc = createClient();
 			trpcMocks.currencyCreate.mockResolvedValue({ id: "new" });
@@ -294,6 +326,29 @@ describe("useCurrencies", () => {
 				expect(list?.[0]?.name).toBe("Renamed");
 			});
 			resolve?.({ id: "c1" });
+		});
+
+		it("forwards the rich-text description to the update mutation", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{ id: "c1", name: "Chips", unit: null, description: null },
+			]);
+			trpcMocks.currencyUpdate.mockResolvedValue({ id: "c1" });
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				await result.current.update({
+					id: "c1",
+					name: "Chips",
+					description: "<p>new</p>",
+				});
+			});
+			expect(trpcMocks.currencyUpdate).toHaveBeenCalledWith({
+				id: "c1",
+				name: "Chips",
+				description: "<p>new</p>",
+			});
 		});
 	});
 

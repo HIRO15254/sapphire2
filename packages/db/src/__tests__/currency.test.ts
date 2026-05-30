@@ -14,6 +14,7 @@ describe("Currency schema", () => {
 		expect(columns.userId).toBeDefined();
 		expect(columns.name).toBeDefined();
 		expect(columns.unit).toBeDefined();
+		expect(columns.description).toBeDefined();
 		expect(columns.createdAt).toBeDefined();
 		expect(columns.updatedAt).toBeDefined();
 	});
@@ -36,6 +37,11 @@ describe("Currency schema", () => {
 	it("unit is nullable", () => {
 		const columns = getTableColumns(currency);
 		expect(columns.unit.notNull).toBe(false);
+	});
+
+	it("description is nullable", () => {
+		const columns = getTableColumns(currency);
+		expect(columns.description.notNull).toBe(false);
 	});
 });
 
@@ -163,10 +169,11 @@ describe("Currency schema — FKs and indexes", () => {
 		expect(config.primaryKeys).toHaveLength(0);
 	});
 
-	it("uses sqlite text type for name and unit", () => {
+	it("uses sqlite text type for name, unit and description", () => {
 		const columns = getTableColumns(currency);
 		expect(columns.name.dataType).toBe("string");
 		expect(columns.unit.dataType).toBe("string");
+		expect(columns.description.dataType).toBe("string");
 	});
 });
 

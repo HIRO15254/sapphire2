@@ -2,12 +2,7 @@ import { IconNote } from "@tabler/icons-react";
 import { ColorBadge } from "@/features/players/components/color-badge";
 import type { PlayerItem } from "@/features/players/hooks/use-players";
 import { EntityListItem } from "@/shared/components/management/entity-list-item";
-import { useSafeHtml } from "./use-player-card";
-
-function SafeHtml({ className, html }: { className?: string; html: string }) {
-	const { ref } = useSafeHtml(html);
-	return <div className={className} ref={ref} />;
-}
+import { RichTextContent } from "@/shared/components/ui/rich-text-content";
 
 interface PlayerCardProps {
 	onDelete: (id: string) => void;
@@ -45,10 +40,7 @@ export function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
 			}
 		>
 			{player.memo ? (
-				<SafeHtml
-					className="prose prose-sm dark:prose-invert max-w-none text-xs [&_*:first-child]:mt-0 [&_h2]:mt-4 [&_h2]:mb-1 [&_h2]:font-semibold [&_h2]:text-lg [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:font-semibold [&_h3]:text-base [&_li]:my-0 [&_li_p]:my-0 [&_ol]:my-1 [&_ol]:pl-5 [&_p]:my-1 [&_ul]:my-1 [&_ul]:pl-5"
-					html={player.memo}
-				/>
+				<RichTextContent className="text-xs" html={player.memo} />
 			) : (
 				<p className="text-muted-foreground text-xs">No memo yet.</p>
 			)}
