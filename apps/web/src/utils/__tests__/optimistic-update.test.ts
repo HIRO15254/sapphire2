@@ -296,5 +296,44 @@ describe("optimistic-update helpers", () => {
 			const updater = lastSetQueryDataUpdater(queryClient);
 			expect(updater(undefined)).toBeUndefined();
 		});
+
+		it("handles an empty pages array without calling the updater", () => {
+			const queryClient = createQueryClientMock();
+			const updateItems = vi.fn((items: InfiniteItem[]) => items);
+
+			updateInfiniteQueryItems<InfiniteItem>(queryClient, ["tx"], updateItems);
+
+			const updater = lastSetQueryDataUpdater(queryClient);
+			expect(updater({ pageParams: [], pages: [] })).toEqual({
+				pageParams: [],
+				pages: [],
+			});
+			expect(updateItems).not.toHaveBeenCalled();
+		});
+
+		it("can empty a page entirely (delete the only row on a page)", () => {
+			const queryClient = createQueryClientMock();
+
+			updateInfiniteQueryItems<InfiniteItem>(queryClient, ["tx"], (items) =>
+				items.filter((t) => t.id !== "tx2")
+			);
+
+			const updater = lastSetQueryDataUpdater(queryClient);
+			const old: InfiniteCache = {
+				pageParams: [undefined, "tx1"],
+				pages: [
+					{ items: [{ id: "tx1", amount: 1 }], nextCursor: "tx1" },
+					{ items: [{ id: "tx2", amount: 2 }], nextCursor: undefined },
+				],
+			};
+
+			expect(updater(old)).toEqual({
+				pageParams: [undefined, "tx1"],
+				pages: [
+					{ items: [{ id: "tx1", amount: 1 }], nextCursor: "tx1" },
+					{ items: [], nextCursor: undefined },
+				],
+			});
+		});
 	});
 });

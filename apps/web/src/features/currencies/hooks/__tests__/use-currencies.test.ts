@@ -469,6 +469,36 @@ describe("useCurrencies", () => {
 			);
 			expect(result.current.isFetchingNextPage).toBe(false);
 		});
+
+		it("toggles isAddTransactionPending across the mutation lifecycle", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, []);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.txCreate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.addTransaction({
+					amount: 1,
+					transactedAt: "2026-04-01",
+					transactionTypeId: "t",
+					currencyId: "c1",
+				});
+			});
+			await waitFor(() =>
+				expect(result.current.isAddTransactionPending).toBe(true)
+			);
+			resolve?.({ id: "tx-new" });
+			await waitFor(() =>
+				expect(result.current.isAddTransactionPending).toBe(false)
+			);
+		});
 	});
 
 	describe("editTransaction", () => {
@@ -495,6 +525,116 @@ describe("useCurrencies", () => {
 				transactedAt: "2026-04-02",
 				transactionTypeId: "type-2",
 			});
+		});
+
+		it("toggles isEditTransactionPending across the mutation lifecycle", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, []);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.txUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.editTransaction({
+					id: "tx1",
+					amount: 1,
+					memo: null,
+					transactedAt: "2026-01-01",
+					transactionTypeId: "t",
+				});
+			});
+			await waitFor(() =>
+				expect(result.current.isEditTransactionPending).toBe(true)
+			);
+			resolve?.({ id: "tx1" });
+			await waitFor(() =>
+				expect(result.current.isEditTransactionPending).toBe(false)
+			);
+		});
+
+		it("optimistically patches a row that lives on a later page (multi-page cache)", async () => {
+			const qc = createClient();
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([
+					{
+						items: [
+							{
+								id: "tx1",
+								amount: 1,
+								transactionTypeId: "t",
+								transactionTypeName: "T",
+								transactedAt: "2026-01-02",
+								memo: null,
+							},
+						],
+						nextCursor: "tx1",
+					},
+					{
+						items: [
+							{
+								id: "tx2",
+								amount: 2,
+								transactionTypeId: "t",
+								transactionTypeName: "T",
+								transactedAt: "2026-01-01",
+								memo: "before",
+							},
+						],
+						nextCursor: undefined,
+					},
+				])
+			);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.txUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() =>
+				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
+					"tx1",
+					"tx2",
+				])
+			);
+			act(() => {
+				result.current.editTransaction({
+					id: "tx2",
+					amount: 999,
+					memo: "after",
+					transactedAt: "2026-01-01",
+					transactionTypeId: "t",
+				});
+			});
+			await waitFor(() =>
+				expect(
+					result.current.allTransactions.find((t) => t.id === "tx2")
+				).toMatchObject({ amount: 999, memo: "after" })
+			);
+			// The patch lands on page 2 of the cache; page 1 stays untouched.
+			const cached = qc.getQueryData<{
+				pages: { items: TxRow[] }[];
+			}>(txInfiniteKey("c1"));
+			expect(cached?.pages[1]?.items[0]).toMatchObject({
+				id: "tx2",
+				amount: 999,
+			});
+			expect(cached?.pages[0]?.items[0]).toMatchObject({
+				id: "tx1",
+				amount: 1,
+			});
+			resolve?.({ id: "tx2" });
 		});
 
 		it("optimistically patches the row in the infinite cache before the server resolves", async () => {
@@ -787,6 +927,67 @@ describe("useCurrencies", () => {
 					"tx2",
 				])
 			);
+		});
+
+		it("removes a row that lives on a later page, leaving page 1 intact (multi-page cache)", async () => {
+			const qc = createClient();
+			qc.setQueryData(
+				txInfiniteKey("c1"),
+				seedPages([
+					{
+						items: [
+							{
+								id: "tx1",
+								amount: 1,
+								transactionTypeName: "a",
+								transactedAt: "2026-01-02",
+							},
+						],
+						nextCursor: "tx1",
+					},
+					{
+						items: [
+							{
+								id: "tx2",
+								amount: 2,
+								transactionTypeName: "b",
+								transactedAt: "2026-01-01",
+							},
+						],
+						nextCursor: undefined,
+					},
+				])
+			);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.txDelete.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+
+			const { result } = renderHook(() => useCurrencies("c1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() =>
+				expect(result.current.allTransactions.map((t) => t.id)).toEqual([
+					"tx1",
+					"tx2",
+				])
+			);
+			act(() => {
+				result.current.deleteTransaction("tx2");
+			});
+			// Only tx2 (page 2) is removed; the page envelope is preserved.
+			await waitFor(() =>
+				expect(result.current.allTransactions.map((t) => t.id)).toEqual(["tx1"])
+			);
+			const cached = qc.getQueryData<{
+				pages: { items: TxRow[] }[];
+			}>(txInfiniteKey("c1"));
+			expect(cached?.pages).toHaveLength(2);
+			expect(cached?.pages[1]?.items).toEqual([]);
+			resolve?.({ id: "tx2" });
 		});
 	});
 
