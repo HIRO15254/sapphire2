@@ -137,7 +137,18 @@ function CurrencyDetailPage() {
 		<div className="theme-v2 min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<TopBar onOpenActions={() => setIsActionsOpen(true)} />
-				<PageHeader heading={currency.name} />
+				<PageHeader
+					heading={
+						<span className="flex items-center gap-2">
+							{currency.isFavorite ? (
+								<IconStarFilled className="size-5 shrink-0 text-yellow-500" />
+							) : (
+								<IconStar className="size-5 shrink-0 text-muted-foreground" />
+							)}
+							{currency.name}
+						</span>
+					}
+				/>
 
 				<section
 					aria-label="Balance"
