@@ -237,20 +237,19 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 				if (!old) {
 					return old;
 				}
-				const target = old.find((c) => c.id === id);
-				if (!target) {
-					return old;
-				}
-				const nowFavorite = !target.isFavorite;
-				const updated = { ...target, isFavorite: nowFavorite };
-				const others = old.filter((c) => c.id !== id);
-				const otherFavs = others.filter((c) => c.isFavorite);
-				const otherNonFavs = others.filter((c) => !c.isFavorite);
-				// Mirror server-side ORDER BY is_favorite DESC, created_at ASC:
-				// newly-favorited items go to the front, newly-un-favorited to the end.
-				return nowFavorite
-					? [updated, ...otherFavs, ...otherNonFavs]
-					: [...otherFavs, ...otherNonFavs, updated];
+				const toggled = old.map((c) =>
+					c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
+				);
+				// Stable sort by isFavorite DESC mirrors the server's
+				// ORDER BY is_favorite DESC, created_at ASC. The cache is already
+				// in server order, so stability preserves the createdAt sub-order
+				// within each group — the toggled item lands at the correct boundary.
+				return [...toggled].sort((a, b) => {
+					if (a.isFavorite === b.isFavorite) {
+						return 0;
+					}
+					return a.isFavorite ? -1 : 1;
+				});
 			});
 			return { previous };
 		},

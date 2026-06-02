@@ -1496,7 +1496,10 @@ describe("useCurrencies", () => {
 			resolve?.({ id: "c3" });
 		});
 
-		it("moves the toggled currency behind non-favorites when un-favoriting", async () => {
+		it("preserves creation-date order when un-favoriting (stable sort)", async () => {
+			// Server ORDER BY is_favorite DESC, created_at ASC. Cache is already in
+			// server order, so a stable isFavorite sort keeps c1 before c2 — the
+			// same result the server would return if c1 was created first.
 			const qc = createClient();
 			qc.setQueryData(CURRENCY_KEY, [
 				{ id: "c1", name: "Fav", unit: null, balance: 0, isFavorite: true },
@@ -1517,8 +1520,8 @@ describe("useCurrencies", () => {
 			});
 			await waitFor(() => {
 				expect(result.current.currencies.map((c) => c.id)).toEqual([
-					"c2",
 					"c1",
+					"c2",
 				]);
 			});
 			resolve?.({ id: "c1" });
