@@ -1361,7 +1361,14 @@ describe("useCurrencies", () => {
 		it("flips isFavorite from false to true in the cache immediately", async () => {
 			const qc = createClient();
 			qc.setQueryData(CURRENCY_KEY, [
-				{ id: "c1", name: "Chips", unit: null, balance: 0, isFavorite: false },
+				{
+					id: "c1",
+					name: "Chips",
+					unit: null,
+					balance: 0,
+					isFavorite: false,
+					createdAt: "2024-01-01T00:00:00.000Z",
+				},
 			]);
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.currencyToggleFavorite.mockImplementation(
@@ -1389,7 +1396,14 @@ describe("useCurrencies", () => {
 		it("flips isFavorite from true to false in the cache immediately", async () => {
 			const qc = createClient();
 			qc.setQueryData(CURRENCY_KEY, [
-				{ id: "c1", name: "Chips", unit: null, balance: 0, isFavorite: true },
+				{
+					id: "c1",
+					name: "Chips",
+					unit: null,
+					balance: 0,
+					isFavorite: true,
+					createdAt: "2024-01-01T00:00:00.000Z",
+				},
 			]);
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.currencyToggleFavorite.mockImplementation(
@@ -1416,7 +1430,14 @@ describe("useCurrencies", () => {
 
 		it("rolls back to the pre-toggle state when the server rejects", async () => {
 			const original = [
-				{ id: "c1", name: "Chips", unit: null, balance: 0, isFavorite: false },
+				{
+					id: "c1",
+					name: "Chips",
+					unit: null,
+					balance: 0,
+					isFavorite: false,
+					createdAt: "2024-01-01T00:00:00.000Z",
+				},
 			];
 			// The post-error onSettled invalidation triggers a refetch; mirror the
 			// rollback state so the refetch reseeds with the same data onError restores.
@@ -1442,7 +1463,14 @@ describe("useCurrencies", () => {
 		it("isToggleFavoritePending flips true during in-flight mutation", async () => {
 			const qc = createClient();
 			qc.setQueryData(CURRENCY_KEY, [
-				{ id: "c1", name: "Chips", unit: null, balance: 0, isFavorite: false },
+				{
+					id: "c1",
+					name: "Chips",
+					unit: null,
+					balance: 0,
+					isFavorite: false,
+					createdAt: "2024-01-01T00:00:00.000Z",
+				},
 			]);
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.currencyToggleFavorite.mockImplementation(
@@ -1466,12 +1494,39 @@ describe("useCurrencies", () => {
 			);
 		});
 
-		it("moves the toggled currency to the front when favoriting", async () => {
+		it("places favorited currency at its createdAt position among existing favorites", async () => {
+			// c2 (T3) was non-fav, chronologically between c1(T1) and c3(T4).
+			// After favoriting, sort should interleave it: [c1, c2, c3].
+			// A naive "always move to front/end" or stable sort would give [c1, c3, c2].
+			const T1 = "2024-01-01T00:00:00.000Z";
+			const T3 = "2024-03-01T00:00:00.000Z";
+			const T4 = "2024-04-01T00:00:00.000Z";
 			const qc = createClient();
 			qc.setQueryData(CURRENCY_KEY, [
-				{ id: "c1", name: "Chips", unit: null, balance: 0, isFavorite: false },
-				{ id: "c2", name: "Points", unit: null, balance: 0, isFavorite: false },
-				{ id: "c3", name: "Gold", unit: null, balance: 0, isFavorite: false },
+				{
+					id: "c1",
+					name: "Alpha",
+					unit: null,
+					balance: 0,
+					isFavorite: true,
+					createdAt: T1,
+				},
+				{
+					id: "c3",
+					name: "Gamma",
+					unit: null,
+					balance: 0,
+					isFavorite: true,
+					createdAt: T4,
+				},
+				{
+					id: "c2",
+					name: "Beta",
+					unit: null,
+					balance: 0,
+					isFavorite: false,
+					createdAt: T3,
+				},
 			]);
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.currencyToggleFavorite.mockImplementation(
@@ -1484,26 +1539,51 @@ describe("useCurrencies", () => {
 				wrapper: makeWrapper(qc),
 			});
 			act(() => {
-				result.current.toggleFavorite("c3");
+				result.current.toggleFavorite("c2");
 			});
 			await waitFor(() => {
 				expect(result.current.currencies.map((c) => c.id)).toEqual([
-					"c3",
 					"c1",
 					"c2",
+					"c3",
 				]);
 			});
-			resolve?.({ id: "c3" });
+			resolve?.({ id: "c2" });
 		});
 
-		it("preserves creation-date order when un-favoriting (stable sort)", async () => {
-			// Server ORDER BY is_favorite DESC, created_at ASC. Cache is already in
-			// server order, so a stable isFavorite sort keeps c1 before c2 — the
-			// same result the server would return if c1 was created first.
+		it("places un-favorited currency at its createdAt position among non-favorites", async () => {
+			// c1 (T2) was fav, chronologically between c2(T1) and c3(T3).
+			// After un-favoriting, sort should interleave it: [c2, c1, c3].
+			// A stable sort would keep c1 before c2 since it was first in the array.
+			const T1 = "2024-01-01T00:00:00.000Z";
+			const T2 = "2024-02-01T00:00:00.000Z";
+			const T3 = "2024-03-01T00:00:00.000Z";
 			const qc = createClient();
 			qc.setQueryData(CURRENCY_KEY, [
-				{ id: "c1", name: "Fav", unit: null, balance: 0, isFavorite: true },
-				{ id: "c2", name: "Normal", unit: null, balance: 0, isFavorite: false },
+				{
+					id: "c1",
+					name: "Fav",
+					unit: null,
+					balance: 0,
+					isFavorite: true,
+					createdAt: T2,
+				},
+				{
+					id: "c2",
+					name: "Old",
+					unit: null,
+					balance: 0,
+					isFavorite: false,
+					createdAt: T1,
+				},
+				{
+					id: "c3",
+					name: "New",
+					unit: null,
+					balance: 0,
+					isFavorite: false,
+					createdAt: T3,
+				},
 			]);
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.currencyToggleFavorite.mockImplementation(
@@ -1520,8 +1600,9 @@ describe("useCurrencies", () => {
 			});
 			await waitFor(() => {
 				expect(result.current.currencies.map((c) => c.id)).toEqual([
-					"c1",
 					"c2",
+					"c1",
+					"c3",
 				]);
 			});
 			resolve?.({ id: "c1" });

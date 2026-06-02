@@ -27,6 +27,7 @@ export interface TransactionValues {
 }
 
 export interface CurrencyItem {
+	createdAt: Date | string;
 	description?: string | null;
 	id: string;
 	isFavorite: boolean;
@@ -90,6 +91,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 						unit: newCurrency.unit ?? null,
 						description: newCurrency.description ?? null,
 						isFavorite: false,
+						createdAt: new Date().toISOString(),
 						balance: 0,
 					},
 				];
@@ -240,15 +242,14 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 				const toggled = old.map((c) =>
 					c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
 				);
-				// Stable sort by isFavorite DESC mirrors the server's
-				// ORDER BY is_favorite DESC, created_at ASC. The cache is already
-				// in server order, so stability preserves the createdAt sub-order
-				// within each group — the toggled item lands at the correct boundary.
+				// Exact replica of server ORDER BY is_favorite DESC, created_at ASC.
 				return [...toggled].sort((a, b) => {
-					if (a.isFavorite === b.isFavorite) {
-						return 0;
+					if (a.isFavorite !== b.isFavorite) {
+						return a.isFavorite ? -1 : 1;
 					}
-					return a.isFavorite ? -1 : 1;
+					return (
+						new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+					);
 				});
 			});
 			return { previous };
