@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
 		name: string;
 		unit?: string | null;
 		balance: number;
+		isFavorite: boolean;
+		createdAt: string;
 	}>,
 	allTransactions: [] as Transaction[],
 	hasNextPage: false,
@@ -72,6 +74,8 @@ const currencyC1 = {
 	name: "USD",
 	unit: "$",
 	balance: 1000,
+	isFavorite: false,
+	createdAt: "2024-01-01T00:00:00.000Z",
 };
 
 const editingTxStub: Transaction = {
@@ -123,6 +127,18 @@ describe("useCurrencyDetailPage", () => {
 			mocks.isLoading = true;
 			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
 			expect(result.current.isLoading).toBe(true);
+		});
+
+		it("currency.isFavorite is false for a non-favorited currency", () => {
+			mocks.currencies = [{ ...currencyC1, isFavorite: false }];
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			expect(result.current.currency?.isFavorite).toBe(false);
+		});
+
+		it("currency.isFavorite is true for a favorited currency", () => {
+			mocks.currencies = [{ ...currencyC1, isFavorite: true }];
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			expect(result.current.currency?.isFavorite).toBe(true);
 		});
 	});
 

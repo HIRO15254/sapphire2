@@ -288,12 +288,18 @@ describe("useCurrencies", () => {
 			await waitFor(() => {
 				const list =
 					qc.getQueryData<
-						Array<{ id: string; name: string; unit: string | null }>
+						Array<{
+							id: string;
+							name: string;
+							unit: string | null;
+							isFavorite: boolean;
+						}>
 					>(CURRENCY_KEY);
 				expect(list).toHaveLength(2);
 				expect(list?.[1]?.name).toBe("Gold");
 				expect(list?.[1]?.unit).toBe("g");
 				expect(list?.[1]?.id).toMatch(TEMP_ID_PATTERN);
+				expect(list?.[1]?.isFavorite).toBe(false);
 			});
 			resolve?.({ id: "c2" });
 		});

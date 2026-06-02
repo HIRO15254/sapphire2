@@ -5,7 +5,12 @@ const mocks = vi.hoisted(() => ({
 	create: vi.fn(),
 	toggleFavorite: vi.fn(),
 	lastExpandedId: null as string | null,
-	currencies: [] as Array<{ id: string; name: string; unit?: string | null }>,
+	currencies: [] as Array<{
+		id: string;
+		name: string;
+		unit?: string | null;
+		isFavorite: boolean;
+	}>,
 	isCreatePending: false,
 }));
 
@@ -58,11 +63,15 @@ describe("useCurrenciesPage", () => {
 			expect(mocks.lastExpandedId).toBeNull();
 		});
 
-		it("exposes the currencies list straight through", () => {
-			mocks.currencies = [{ id: "c1", name: "USD", unit: "$" }];
+		it("exposes the currencies list straight through including isFavorite", () => {
+			mocks.currencies = [
+				{ id: "c1", name: "USD", unit: "$", isFavorite: true },
+				{ id: "c2", name: "JPY", unit: null, isFavorite: false },
+			];
 			const { result } = renderHook(() => useCurrenciesPage());
 			expect(result.current.currencies).toEqual([
-				{ id: "c1", name: "USD", unit: "$" },
+				{ id: "c1", name: "USD", unit: "$", isFavorite: true },
+				{ id: "c2", name: "JPY", unit: null, isFavorite: false },
 			]);
 		});
 
