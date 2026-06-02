@@ -233,9 +233,25 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
 			const previous = snapshotQuery(queryClient, currencyListKey);
-			queryClient.setQueryData(currencyListKey, (old) =>
-				old?.map((c) => (c.id === id ? { ...c, isFavorite: !c.isFavorite } : c))
-			);
+			queryClient.setQueryData(currencyListKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				const target = old.find((c) => c.id === id);
+				if (!target) {
+					return old;
+				}
+				const nowFavorite = !target.isFavorite;
+				const updated = { ...target, isFavorite: nowFavorite };
+				const others = old.filter((c) => c.id !== id);
+				const otherFavs = others.filter((c) => c.isFavorite);
+				const otherNonFavs = others.filter((c) => !c.isFavorite);
+				// Mirror server-side ORDER BY is_favorite DESC, created_at ASC:
+				// newly-favorited items go to the front, newly-un-favorited to the end.
+				return nowFavorite
+					? [updated, ...otherFavs, ...otherNonFavs]
+					: [...otherFavs, ...otherNonFavs, updated];
+			});
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {

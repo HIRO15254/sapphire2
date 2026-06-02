@@ -1465,5 +1465,63 @@ describe("useCurrencies", () => {
 				expect(result.current.isToggleFavoritePending).toBe(false)
 			);
 		});
+
+		it("moves the toggled currency to the front when favoriting", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{ id: "c1", name: "Chips", unit: null, balance: 0, isFavorite: false },
+				{ id: "c2", name: "Points", unit: null, balance: 0, isFavorite: false },
+				{ id: "c3", name: "Gold", unit: null, balance: 0, isFavorite: false },
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.currencyToggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("c3");
+			});
+			await waitFor(() => {
+				expect(result.current.currencies.map((c) => c.id)).toEqual([
+					"c3",
+					"c1",
+					"c2",
+				]);
+			});
+			resolve?.({ id: "c3" });
+		});
+
+		it("moves the toggled currency behind non-favorites when un-favoriting", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{ id: "c1", name: "Fav", unit: null, balance: 0, isFavorite: true },
+				{ id: "c2", name: "Normal", unit: null, balance: 0, isFavorite: false },
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.currencyToggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("c1");
+			});
+			await waitFor(() => {
+				expect(result.current.currencies.map((c) => c.id)).toEqual([
+					"c2",
+					"c1",
+				]);
+			});
+			resolve?.({ id: "c1" });
+		});
 	});
 });

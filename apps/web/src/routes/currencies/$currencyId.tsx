@@ -140,11 +140,22 @@ function CurrencyDetailPage() {
 				<PageHeader
 					heading={
 						<span className="flex items-center gap-2">
-							{currency.isFavorite ? (
-								<IconStarFilled className="size-5 shrink-0 text-yellow-500" />
-							) : (
-								<IconStar className="size-5 shrink-0 text-muted-foreground" />
-							)}
+							<button
+								aria-label={
+									currency.isFavorite
+										? "Remove from favorites"
+										: "Add to favorites"
+								}
+								className="-m-1.5 shrink-0 rounded p-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+								onClick={handleToggleFavorite}
+								type="button"
+							>
+								{currency.isFavorite ? (
+									<IconStarFilled className="size-5 text-yellow-500" />
+								) : (
+									<IconStar className="size-5" />
+								)}
+							</button>
 							{currency.name}
 						</span>
 					}
