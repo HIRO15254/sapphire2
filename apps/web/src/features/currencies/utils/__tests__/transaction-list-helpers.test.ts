@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildGroupFormatter,
-	getAmountClass,
+	getAmountColorClass,
 	getAmountDisplay,
 	getDateDisplay,
 	groupTransactionsByDate,
@@ -72,17 +72,17 @@ describe("buildGroupFormatter", () => {
 	});
 });
 
-describe("getAmountClass", () => {
-	it("green for positive", () => {
-		expect(getAmountClass(1)).toBe("text-green-600");
+describe("getAmountColorClass", () => {
+	it("uses the success token for a positive amount", () => {
+		expect(getAmountColorClass(1)).toBe("text-success");
 	});
 
-	it("green for zero (treated as non-negative)", () => {
-		expect(getAmountClass(0)).toBe("text-green-600");
+	it("uses the success token for zero (treated as non-negative)", () => {
+		expect(getAmountColorClass(0)).toBe("text-success");
 	});
 
-	it("red for negative", () => {
-		expect(getAmountClass(-1)).toBe("text-red-600");
+	it("uses the destructive token for a negative amount", () => {
+		expect(getAmountColorClass(-1)).toBe("text-destructive");
 	});
 });
 

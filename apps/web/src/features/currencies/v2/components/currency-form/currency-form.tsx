@@ -11,8 +11,8 @@ interface CurrencyFormV2Props {
 	defaultValues?: CurrencyFormValues;
 	/**
 	 * Stable id assigned to the `<form>` element so an external Save button
-	 * (rendered by the surrounding ResponsiveDialog header / footer) can
-	 * submit it via the HTML `form` attribute.
+	 * (rendered by the surrounding FormSheet toolbar) can submit it via the
+	 * HTML `form` attribute.
 	 */
 	formId: string;
 	onSubmit: (values: CurrencyFormValues) => void;

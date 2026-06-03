@@ -2,6 +2,7 @@ import { IconDotsVertical, IconReceipt } from "@tabler/icons-react";
 import { Fragment } from "react";
 import {
 	buildGroupFormatter,
+	getAmountColorClass,
 	getAmountDisplay,
 	groupTransactionsByDate,
 } from "@/features/currencies/utils/transaction-list-helpers";
@@ -41,10 +42,6 @@ interface TransactionListV2Props {
 	transactions: Transaction[];
 }
 
-function getAmountClassV2(amount: number): string {
-	return amount >= 0 ? "text-success" : "text-destructive";
-}
-
 const COMPACT_CELL = "px-3 py-1.5 align-middle";
 const COLUMN_COUNT = 4;
 
@@ -60,7 +57,7 @@ function TransactionRow({
 	transaction,
 }: TransactionRowProps) {
 	const tx = transaction;
-	const amountClass = getAmountClassV2(tx.amount);
+	const amountClass = getAmountColorClass(tx.amount);
 	const amountDisplay = getAmountDisplay(tx.amount, fmt);
 	const isSessionGenerated = !!tx.sessionId;
 
