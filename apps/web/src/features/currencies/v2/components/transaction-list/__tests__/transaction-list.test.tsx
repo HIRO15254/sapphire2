@@ -168,4 +168,45 @@ describe("TransactionListV2", () => {
 		await user.click(screen.getByRole("button", { name: "Load more" }));
 		expect(onLoadMore).toHaveBeenCalledTimes(1);
 	});
+
+	it("renders a single date header for transactions on the same day", () => {
+		render(
+			<TransactionListV2
+				transactions={[
+					{
+						...regularTransaction,
+						id: "a",
+						transactedAt: "2026-03-20T10:00:00",
+					},
+					{
+						...regularTransaction,
+						id: "b",
+						transactedAt: "2026-03-20T18:00:00",
+					},
+				]}
+			/>
+		);
+		expect(screen.getAllByText("2026/03/20")).toHaveLength(1);
+	});
+
+	it("renders a separate date header per distinct day", () => {
+		render(
+			<TransactionListV2
+				transactions={[
+					{
+						...regularTransaction,
+						id: "a",
+						transactedAt: "2026-03-20T10:00:00",
+					},
+					{
+						...regularTransaction,
+						id: "b",
+						transactedAt: "2026-03-19T10:00:00",
+					},
+				]}
+			/>
+		);
+		expect(screen.getByText("2026/03/20")).toBeInTheDocument();
+		expect(screen.getByText("2026/03/19")).toBeInTheDocument();
+	});
 });

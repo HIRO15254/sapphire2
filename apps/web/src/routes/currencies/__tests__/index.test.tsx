@@ -47,6 +47,7 @@ interface MockState {
 	handleCreate: ReturnType<typeof vi.fn>;
 	isCreateOpen: boolean;
 	isCreatePending: boolean;
+	isLoading: boolean;
 	setIsCreateOpen: ReturnType<typeof vi.fn>;
 }
 
@@ -55,6 +56,7 @@ function setMockState(overrides: Partial<MockState> = {}): MockState {
 		currencies: [],
 		isCreateOpen: false,
 		isCreatePending: false,
+		isLoading: false,
 		setIsCreateOpen: vi.fn(),
 		handleCreate: vi.fn(),
 		...overrides,
@@ -74,6 +76,21 @@ describe("CurrenciesPage (route /currencies/)", () => {
 		expect(
 			screen.getByRole("heading", { name: "Currencies" })
 		).toBeInTheDocument();
+	});
+
+	it("shows the loading skeleton (and no empty state / cards) while isLoading", () => {
+		setMockState({ isLoading: true, currencies: [] });
+		render(<CurrenciesPage />);
+		expect(screen.getByTestId("currency-list-skeleton")).toBeInTheDocument();
+		expect(screen.queryByText("No currencies yet")).not.toBeInTheDocument();
+	});
+
+	it("does not show the skeleton once loading has finished", () => {
+		setMockState({ isLoading: false, currencies: [] });
+		render(<CurrenciesPage />);
+		expect(
+			screen.queryByTestId("currency-list-skeleton")
+		).not.toBeInTheDocument();
 	});
 
 	it("renders the empty state heading + CTA when there are no currencies", () => {

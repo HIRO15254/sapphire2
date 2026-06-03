@@ -5,7 +5,7 @@ import { useCurrencies } from "@/features/currencies/hooks/use-currencies";
 export function useCurrenciesPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-	const { currencies, isCreatePending, create, toggleFavorite } =
+	const { currencies, isLoading, isCreatePending, create, toggleFavorite } =
 		useCurrencies(null);
 
 	const handleCreate = (values: CurrencyValues) => {
@@ -20,6 +20,7 @@ export function useCurrenciesPage() {
 
 	return {
 		currencies,
+		isLoading,
 		isCreateOpen,
 		isCreatePending,
 		setIsCreateOpen,

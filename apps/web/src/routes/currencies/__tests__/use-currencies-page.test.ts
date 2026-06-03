@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 		isFavorite: boolean;
 	}>,
 	isCreatePending: false,
+	isLoading: false,
 }));
 
 vi.mock("@/features/currencies/hooks/use-currencies", () => ({
@@ -19,7 +20,7 @@ vi.mock("@/features/currencies/hooks/use-currencies", () => ({
 		mocks.lastExpandedId = expandedId;
 		return {
 			currencies: mocks.currencies,
-			isLoading: false,
+			isLoading: mocks.isLoading,
 			allTransactions: [],
 			txHasMore: false,
 			isLoadingMore: false,
@@ -50,6 +51,7 @@ describe("useCurrenciesPage", () => {
 		mocks.lastExpandedId = "sentinel";
 		mocks.currencies = [];
 		mocks.isCreatePending = false;
+		mocks.isLoading = false;
 	});
 
 	describe("initial state", () => {
@@ -79,6 +81,18 @@ describe("useCurrenciesPage", () => {
 			mocks.isCreatePending = true;
 			const { result } = renderHook(() => useCurrenciesPage());
 			expect(result.current.isCreatePending).toBe(true);
+		});
+
+		it("forwards isLoading=true from the data hook", () => {
+			mocks.isLoading = true;
+			const { result } = renderHook(() => useCurrenciesPage());
+			expect(result.current.isLoading).toBe(true);
+		});
+
+		it("forwards isLoading=false from the data hook", () => {
+			mocks.isLoading = false;
+			const { result } = renderHook(() => useCurrenciesPage());
+			expect(result.current.isLoading).toBe(false);
 		});
 	});
 
