@@ -84,8 +84,18 @@ describe("CurrencyDescription", () => {
 		expect(
 			screen.getByRole("button", { name: SHOW_LESS_RE })
 		).toBeInTheDocument();
-		const body = screen.getByTestId("currency-description-body");
-		expect(body.style.maxHeight).toBe("");
+		// Expanded clamps to the measured content height (animatable), not "none".
+		expect(screen.getByTestId("currency-description-body")).toHaveStyle({
+			maxHeight: `${TALL}px`,
+		});
+	});
+
+	it("animates the body height with a max-height transition", () => {
+		mockScrollHeight = TALL;
+		render(<CurrencyDescription html="<p>long</p>" />);
+		expect(screen.getByTestId("currency-description-body").className).toContain(
+			"transition-[max-height]"
+		);
 	});
 
 	it("collapses again when 'Show less' is clicked", async () => {

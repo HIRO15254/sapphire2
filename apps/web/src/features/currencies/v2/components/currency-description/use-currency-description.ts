@@ -13,6 +13,7 @@ export function useCurrencyDescription() {
 	const contentRef = useRef<HTMLDivElement>(null);
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [isOverflowing, setIsOverflowing] = useState(false);
+	const [contentHeight, setContentHeight] = useState(0);
 
 	useEffect(() => {
 		const el = contentRef.current;
@@ -20,6 +21,7 @@ export function useCurrencyDescription() {
 			return;
 		}
 		const measure = () => {
+			setContentHeight(el.scrollHeight);
 			setIsOverflowing(el.scrollHeight > DESCRIPTION_COLLAPSED_MAX_PX);
 		};
 		measure();
@@ -28,11 +30,16 @@ export function useCurrencyDescription() {
 		return () => observer.disconnect();
 	}, []);
 
+	// Expanding to the measured pixel height (instead of removing the cap) keeps
+	// `max-height` animatable in both directions; the collapsed state caps at the
+	// fixed clamp height.
+	const maxHeight = isExpanded ? contentHeight : DESCRIPTION_COLLAPSED_MAX_PX;
+
 	return {
-		collapsedMaxPx: DESCRIPTION_COLLAPSED_MAX_PX,
 		contentRef,
 		isExpanded,
 		isOverflowing,
+		maxHeight,
 		toggle: () => setIsExpanded((value) => !value),
 	};
 }

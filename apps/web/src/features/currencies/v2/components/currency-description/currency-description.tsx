@@ -8,7 +8,7 @@ interface CurrencyDescriptionProps {
 }
 
 export function CurrencyDescription({ html }: CurrencyDescriptionProps) {
-	const { collapsedMaxPx, contentRef, isExpanded, isOverflowing, toggle } =
+	const { contentRef, isExpanded, isOverflowing, maxHeight, toggle } =
 		useCurrencyDescription();
 	const showFade = isOverflowing && !isExpanded;
 
@@ -17,10 +17,10 @@ export function CurrencyDescription({ html }: CurrencyDescriptionProps) {
 			<h2 className="t-h4 border-border border-b px-4 py-3">Description</h2>
 			<div className="relative">
 				<div
-					className="overflow-hidden"
+					className="overflow-hidden transition-[max-height] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
 					data-testid="currency-description-body"
 					ref={contentRef}
-					style={{ maxHeight: isExpanded ? undefined : collapsedMaxPx }}
+					style={{ maxHeight }}
 				>
 					<RichTextContent className="px-4 py-3 text-sm" html={html} />
 				</div>
