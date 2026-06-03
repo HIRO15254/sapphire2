@@ -30,6 +30,20 @@ describe("TransactionListV2", () => {
 		expect(screen.getByText("No transactions yet")).toBeInTheDocument();
 	});
 
+	it("renders skeleton placeholders (and no empty state) while isLoading", () => {
+		render(<TransactionListV2 isLoading transactions={[]} />);
+		expect(screen.getByTestId("transaction-list-skeleton")).toBeInTheDocument();
+		expect(screen.queryByText("No transactions yet")).not.toBeInTheDocument();
+	});
+
+	it("shows the empty state (not the skeleton) once loading has finished", () => {
+		render(<TransactionListV2 transactions={[]} />);
+		expect(
+			screen.queryByTestId("transaction-list-skeleton")
+		).not.toBeInTheDocument();
+		expect(screen.getByText("No transactions yet")).toBeInTheDocument();
+	});
+
 	it("renders the type badge, date, and signed amount", () => {
 		render(<TransactionListV2 transactions={[regularTransaction]} />);
 		expect(screen.getByText("Purchase")).toBeInTheDocument();
@@ -167,5 +181,46 @@ describe("TransactionListV2", () => {
 		);
 		await user.click(screen.getByRole("button", { name: "Load more" }));
 		expect(onLoadMore).toHaveBeenCalledTimes(1);
+	});
+
+	it("renders a single date header for transactions on the same day", () => {
+		render(
+			<TransactionListV2
+				transactions={[
+					{
+						...regularTransaction,
+						id: "a",
+						transactedAt: "2026-03-20T10:00:00",
+					},
+					{
+						...regularTransaction,
+						id: "b",
+						transactedAt: "2026-03-20T18:00:00",
+					},
+				]}
+			/>
+		);
+		expect(screen.getAllByText("2026/03/20")).toHaveLength(1);
+	});
+
+	it("renders a separate date header per distinct day", () => {
+		render(
+			<TransactionListV2
+				transactions={[
+					{
+						...regularTransaction,
+						id: "a",
+						transactedAt: "2026-03-20T10:00:00",
+					},
+					{
+						...regularTransaction,
+						id: "b",
+						transactedAt: "2026-03-19T10:00:00",
+					},
+				]}
+			/>
+		);
+		expect(screen.getByText("2026/03/20")).toBeInTheDocument();
+		expect(screen.getByText("2026/03/19")).toBeInTheDocument();
 	});
 });

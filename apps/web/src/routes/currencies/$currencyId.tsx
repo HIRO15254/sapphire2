@@ -8,6 +8,9 @@ import {
 	IconTrash,
 } from "@tabler/icons-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { CurrencyBalanceHero } from "@/features/currencies/v2/components/currency-balance-hero";
+import { CurrencyDescription } from "@/features/currencies/v2/components/currency-description";
+import { CurrencyDetailSkeleton } from "@/features/currencies/v2/components/currency-detail-skeleton";
 import { CurrencyFormV2 } from "@/features/currencies/v2/components/currency-form";
 import { TransactionFormV2 } from "@/features/currencies/v2/components/transaction-form";
 import { TransactionListV2 } from "@/features/currencies/v2/components/transaction-list";
@@ -28,8 +31,6 @@ import {
 	DrawerDescription,
 	DrawerTitle,
 } from "@/shared/components/ui/drawer";
-import { RichTextContent } from "@/shared/components/ui/rich-text-content";
-import { formatCompactNumber } from "@/utils/format-number";
 import { useCurrencyDetailPage } from "./-use-currency-detail-page";
 
 export const Route = createFileRoute("/currencies/$currencyId")({
@@ -74,6 +75,7 @@ function CurrencyDetailPage() {
 		currency,
 		isLoading,
 		transactions,
+		isTransactionsLoading,
 		hasNextPage,
 		isFetchingNextPage,
 		isUpdatePending,
@@ -111,9 +113,7 @@ function CurrencyDetailPage() {
 		return (
 			<div className="theme-v2 min-h-full bg-background text-foreground">
 				<div className="p-4">
-					<p className="py-16 text-center text-muted-foreground text-sm">
-						Loading currency...
-					</p>
+					<CurrencyDetailSkeleton />
 				</div>
 			</div>
 		);
@@ -161,30 +161,10 @@ function CurrencyDetailPage() {
 					}
 				/>
 
-				<section
-					aria-label="Balance"
-					className="mb-6 flex items-baseline justify-center gap-2 py-3"
-				>
-					<p className="font-mono font-semibold text-3xl text-foreground tabular-nums">
-						{formatCompactNumber(currency.balance)}
-					</p>
-					{currency.unit ? (
-						<span className="t-meta uppercase tracking-wide">
-							{currency.unit}
-						</span>
-					) : null}
-				</section>
+				<CurrencyBalanceHero balance={currency.balance} unit={currency.unit} />
 
 				{currency.description ? (
-					<section className="mb-6 rounded-lg border border-border bg-card text-card-foreground">
-						<h2 className="t-h4 border-border border-b px-4 py-3">
-							Description
-						</h2>
-						<RichTextContent
-							className="px-4 py-3 text-sm"
-							html={currency.description}
-						/>
-					</section>
+					<CurrencyDescription html={currency.description} />
 				) : null}
 
 				<Button
@@ -202,6 +182,7 @@ function CurrencyDetailPage() {
 					</h2>
 					<TransactionListV2
 						hasMore={hasNextPage}
+						isLoading={isTransactionsLoading}
 						isLoadingMore={isFetchingNextPage}
 						onLoadMore={fetchNextPage}
 						onOpenActions={openTransactionActions}
