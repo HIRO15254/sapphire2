@@ -19,6 +19,10 @@ const trpcMocks = vi.hoisted(() => ({
 	currencyCreate: vi.fn(),
 	currencyUpdate: vi.fn(),
 	currencyDelete: vi.fn(),
+	currencyToggleFavorite: vi.fn(),
+	// queryFn used by useQuery(currency.list). Per-test override controls refetch
+	// payloads (needed for rollback assertions that survive the onSettled refetch).
+	currencyListQueryFn: vi.fn(),
 	txCreate: vi.fn(),
 	txUpdate: vi.fn(),
 	txDelete: vi.fn(),
@@ -34,7 +38,7 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: () => ({
 					queryKey: buildKey("currency", "list", undefined),
-					queryFn: () => Promise.resolve([]),
+					queryFn: () => trpcMocks.currencyListQueryFn(),
 				}),
 			},
 		},
@@ -72,6 +76,7 @@ vi.mock("@/utils/trpc", () => ({
 			create: { mutate: trpcMocks.currencyCreate },
 			update: { mutate: trpcMocks.currencyUpdate },
 			delete: { mutate: trpcMocks.currencyDelete },
+			toggleFavorite: { mutate: trpcMocks.currencyToggleFavorite },
 		},
 		currencyTransaction: {
 			create: { mutate: trpcMocks.txCreate },
@@ -130,10 +135,12 @@ describe("useCurrencies", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		trpcMocks.currencyListQueryFn.mockResolvedValue([]);
 		trpcMocks.txListQueryFn.mockResolvedValue({
 			items: [],
 			nextCursor: undefined,
 		});
+		trpcMocks.currencyToggleFavorite.mockResolvedValue({ id: "c1" });
 	});
 
 	afterEach(() => {
@@ -281,12 +288,18 @@ describe("useCurrencies", () => {
 			await waitFor(() => {
 				const list =
 					qc.getQueryData<
-						Array<{ id: string; name: string; unit: string | null }>
+						Array<{
+							id: string;
+							name: string;
+							unit: string | null;
+							isFavorite: boolean;
+						}>
 					>(CURRENCY_KEY);
 				expect(list).toHaveLength(2);
 				expect(list?.[1]?.name).toBe("Gold");
 				expect(list?.[1]?.unit).toBe("g");
 				expect(list?.[1]?.id).toMatch(TEMP_ID_PATTERN);
+				expect(list?.[1]?.isFavorite).toBe(false);
 			});
 			resolve?.({ id: "c2" });
 		});
@@ -1347,6 +1360,258 @@ describe("useCurrencies", () => {
 				(result.current as unknown as { resetTransactionState?: unknown })
 					.resetTransactionState
 			).toBeUndefined();
+		});
+	});
+
+	describe("toggleFavorite (楽観的更新)", () => {
+		it("flips isFavorite from false to true in the cache immediately", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{
+					id: "c1",
+					name: "Chips",
+					unit: null,
+					balance: 0,
+					isFavorite: false,
+					createdAt: "2024-01-01T00:00:00.000Z",
+				},
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.currencyToggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("c1");
+			});
+			await waitFor(() => {
+				const list =
+					qc.getQueryData<Array<{ id: string; isFavorite: boolean }>>(
+						CURRENCY_KEY
+					);
+				expect(list?.[0]?.isFavorite).toBe(true);
+			});
+			resolve?.({ id: "c1" });
+		});
+
+		it("flips isFavorite from true to false in the cache immediately", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{
+					id: "c1",
+					name: "Chips",
+					unit: null,
+					balance: 0,
+					isFavorite: true,
+					createdAt: "2024-01-01T00:00:00.000Z",
+				},
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.currencyToggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("c1");
+			});
+			await waitFor(() => {
+				const list =
+					qc.getQueryData<Array<{ id: string; isFavorite: boolean }>>(
+						CURRENCY_KEY
+					);
+				expect(list?.[0]?.isFavorite).toBe(false);
+			});
+			resolve?.({ id: "c1" });
+		});
+
+		it("rolls back to the pre-toggle state when the server rejects", async () => {
+			const original = [
+				{
+					id: "c1",
+					name: "Chips",
+					unit: null,
+					balance: 0,
+					isFavorite: false,
+					createdAt: "2024-01-01T00:00:00.000Z",
+				},
+			];
+			// The post-error onSettled invalidation triggers a refetch; mirror the
+			// rollback state so the refetch reseeds with the same data onError restores.
+			trpcMocks.currencyListQueryFn.mockResolvedValue(original);
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, original);
+			trpcMocks.currencyToggleFavorite.mockRejectedValue(
+				new Error("server error")
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				await expect(result.current.toggleFavorite("c1")).rejects.toThrow(
+					"server error"
+				);
+			});
+			await waitFor(() =>
+				expect(result.current.currencies[0]?.isFavorite).toBe(false)
+			);
+		});
+
+		it("isToggleFavoritePending flips true during in-flight mutation", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{
+					id: "c1",
+					name: "Chips",
+					unit: null,
+					balance: 0,
+					isFavorite: false,
+					createdAt: "2024-01-01T00:00:00.000Z",
+				},
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.currencyToggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("c1");
+			});
+			await waitFor(() =>
+				expect(result.current.isToggleFavoritePending).toBe(true)
+			);
+			resolve?.({ id: "c1" });
+			await waitFor(() =>
+				expect(result.current.isToggleFavoritePending).toBe(false)
+			);
+		});
+
+		it("places favorited currency at its createdAt position among existing favorites", async () => {
+			// c2 (T3) was non-fav, chronologically between c1(T1) and c3(T4).
+			// After favoriting, sort should interleave it: [c1, c2, c3].
+			// A naive "always move to front/end" or stable sort would give [c1, c3, c2].
+			const T1 = "2024-01-01T00:00:00.000Z";
+			const T3 = "2024-03-01T00:00:00.000Z";
+			const T4 = "2024-04-01T00:00:00.000Z";
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{
+					id: "c1",
+					name: "Alpha",
+					unit: null,
+					balance: 0,
+					isFavorite: true,
+					createdAt: T1,
+				},
+				{
+					id: "c3",
+					name: "Gamma",
+					unit: null,
+					balance: 0,
+					isFavorite: true,
+					createdAt: T4,
+				},
+				{
+					id: "c2",
+					name: "Beta",
+					unit: null,
+					balance: 0,
+					isFavorite: false,
+					createdAt: T3,
+				},
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.currencyToggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("c2");
+			});
+			await waitFor(() => {
+				expect(result.current.currencies.map((c) => c.id)).toEqual([
+					"c1",
+					"c2",
+					"c3",
+				]);
+			});
+			resolve?.({ id: "c2" });
+		});
+
+		it("places un-favorited currency at its createdAt position among non-favorites", async () => {
+			// c1 (T2) was fav, chronologically between c2(T1) and c3(T3).
+			// After un-favoriting, sort should interleave it: [c2, c1, c3].
+			// A stable sort would keep c1 before c2 since it was first in the array.
+			const T1 = "2024-01-01T00:00:00.000Z";
+			const T2 = "2024-02-01T00:00:00.000Z";
+			const T3 = "2024-03-01T00:00:00.000Z";
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{
+					id: "c1",
+					name: "Fav",
+					unit: null,
+					balance: 0,
+					isFavorite: true,
+					createdAt: T2,
+				},
+				{
+					id: "c2",
+					name: "Old",
+					unit: null,
+					balance: 0,
+					isFavorite: false,
+					createdAt: T1,
+				},
+				{
+					id: "c3",
+					name: "New",
+					unit: null,
+					balance: 0,
+					isFavorite: false,
+					createdAt: T3,
+				},
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.currencyToggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("c1");
+			});
+			await waitFor(() => {
+				expect(result.current.currencies.map((c) => c.id)).toEqual([
+					"c2",
+					"c1",
+					"c3",
+				]);
+			});
+			resolve?.({ id: "c1" });
 		});
 	});
 });

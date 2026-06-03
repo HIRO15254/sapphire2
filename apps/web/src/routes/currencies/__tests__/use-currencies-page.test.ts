@@ -3,8 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	create: vi.fn(),
+	toggleFavorite: vi.fn(),
 	lastExpandedId: null as string | null,
-	currencies: [] as Array<{ id: string; name: string; unit?: string | null }>,
+	currencies: [] as Array<{
+		id: string;
+		name: string;
+		unit?: string | null;
+		isFavorite: boolean;
+	}>,
 	isCreatePending: false,
 }));
 
@@ -21,6 +27,7 @@ vi.mock("@/features/currencies/hooks/use-currencies", () => ({
 			isUpdatePending: false,
 			isAddTransactionPending: false,
 			isEditTransactionPending: false,
+			isToggleFavoritePending: false,
 			resetTransactionState: vi.fn(),
 			create: mocks.create,
 			update: vi.fn(),
@@ -28,6 +35,7 @@ vi.mock("@/features/currencies/hooks/use-currencies", () => ({
 			addTransaction: vi.fn(),
 			editTransaction: vi.fn(),
 			deleteTransaction: vi.fn(),
+			toggleFavorite: mocks.toggleFavorite,
 			handleLoadMore: vi.fn(),
 		};
 	},
@@ -38,6 +46,7 @@ import { useCurrenciesPage } from "@/routes/currencies/-use-currencies-page";
 describe("useCurrenciesPage", () => {
 	beforeEach(() => {
 		mocks.create.mockReset().mockResolvedValue({ id: "new" });
+		mocks.toggleFavorite.mockReset().mockResolvedValue(undefined);
 		mocks.lastExpandedId = "sentinel";
 		mocks.currencies = [];
 		mocks.isCreatePending = false;
@@ -54,11 +63,15 @@ describe("useCurrenciesPage", () => {
 			expect(mocks.lastExpandedId).toBeNull();
 		});
 
-		it("exposes the currencies list straight through", () => {
-			mocks.currencies = [{ id: "c1", name: "USD", unit: "$" }];
+		it("exposes the currencies list straight through including isFavorite", () => {
+			mocks.currencies = [
+				{ id: "c1", name: "USD", unit: "$", isFavorite: true },
+				{ id: "c2", name: "JPY", unit: null, isFavorite: false },
+			];
 			const { result } = renderHook(() => useCurrenciesPage());
 			expect(result.current.currencies).toEqual([
-				{ id: "c1", name: "USD", unit: "$" },
+				{ id: "c1", name: "USD", unit: "$", isFavorite: true },
+				{ id: "c2", name: "JPY", unit: null, isFavorite: false },
 			]);
 		});
 
@@ -123,6 +136,17 @@ describe("useCurrenciesPage", () => {
 				await Promise.resolve();
 			});
 			expect(mocks.create).toHaveBeenCalledWith({ name: "JPY" });
+		});
+	});
+
+	describe("handleToggleFavorite", () => {
+		it("delegates to toggleFavorite with the correct id", () => {
+			const { result } = renderHook(() => useCurrenciesPage());
+			act(() => {
+				result.current.handleToggleFavorite("c42");
+			});
+			expect(mocks.toggleFavorite).toHaveBeenCalledTimes(1);
+			expect(mocks.toggleFavorite).toHaveBeenCalledWith("c42");
 		});
 	});
 });

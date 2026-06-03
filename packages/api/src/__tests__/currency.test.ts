@@ -30,8 +30,12 @@ describe("currency router", () => {
 
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.currency).sort()).toEqual(
-			["create", "delete", "list", "update"].sort()
+			["create", "delete", "list", "toggleFavorite", "update"].sort()
 		);
+	});
+
+	it("has toggleFavorite procedure", () => {
+		expect(appRouter.currency.toggleFavorite).toBeDefined();
 	});
 
 	it("list is a protected query", () => {
@@ -48,6 +52,11 @@ describe("currency router", () => {
 			expectProtected(proc);
 			expectType(proc, "mutation");
 		}
+	});
+
+	it("toggleFavorite is a protected mutation", () => {
+		expectProtected(appRouter.currency.toggleFavorite);
+		expectType(appRouter.currency.toggleFavorite, "mutation");
 	});
 });
 
@@ -171,6 +180,20 @@ describe("currency.delete input validation", () => {
 
 	it("rejects non-string id", () => {
 		expectRejects(appRouter.currency.delete, { id: 42 });
+	});
+});
+
+describe("currency.toggleFavorite input validation", () => {
+	it("accepts a valid id", () => {
+		expectAccepts(appRouter.currency.toggleFavorite, { id: "c1" });
+	});
+
+	it("rejects missing id", () => {
+		expectRejects(appRouter.currency.toggleFavorite, {});
+	});
+
+	it("rejects non-string id", () => {
+		expectRejects(appRouter.currency.toggleFavorite, { id: 42 });
 	});
 });
 

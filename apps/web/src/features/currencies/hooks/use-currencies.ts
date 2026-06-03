@@ -27,8 +27,10 @@ export interface TransactionValues {
 }
 
 export interface CurrencyItem {
+	createdAt: Date | string;
 	description?: string | null;
 	id: string;
+	isFavorite: boolean;
 	name: string;
 	unit?: string | null;
 }
@@ -88,6 +90,8 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 						name: newCurrency.name,
 						unit: newCurrency.unit ?? null,
 						description: newCurrency.description ?? null,
+						isFavorite: false,
+						createdAt: new Date().toISOString(),
 						balance: 0,
 					},
 				];
@@ -225,6 +229,39 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		},
 	});
 
+	const toggleFavoriteMutation = useMutation({
+		mutationFn: (id: string) =>
+			trpcClient.currency.toggleFavorite.mutate({ id }),
+		onMutate: async (id) => {
+			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
+			const previous = snapshotQuery(queryClient, currencyListKey);
+			queryClient.setQueryData(currencyListKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				const toggled = old.map((c) =>
+					c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
+				);
+				// Exact replica of server ORDER BY is_favorite DESC, created_at ASC.
+				return [...toggled].sort((a, b) => {
+					if (a.isFavorite !== b.isFavorite) {
+						return a.isFavorite ? -1 : 1;
+					}
+					return (
+						new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+					);
+				});
+			});
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
+		},
+		onSettled: () => {
+			invalidateTargets(queryClient, [{ queryKey: currencyListKey }]);
+		},
+	});
+
 	// Load-more is now `fetchNextPage`. The zero-arg wrapper keeps the button's
 	// click event out of `FetchNextPageOptions`, and the guard makes it a no-op
 	// when there is no next page (otherwise React Query would re-fetch page 1)
@@ -248,6 +285,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		isUpdatePending: updateMutation.isPending,
 		isAddTransactionPending: addTransactionMutation.isPending,
 		isEditTransactionPending: editTransactionMutation.isPending,
+		isToggleFavoritePending: toggleFavoriteMutation.isPending,
 		create: (values: CurrencyValues) => createMutation.mutateAsync(values),
 		update: (values: CurrencyValues & { id: string }) =>
 			updateMutation.mutateAsync(values),
@@ -264,6 +302,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		deleteTransaction: (id: string) => {
 			deleteTransactionMutation.mutate(id);
 		},
+		toggleFavorite: (id: string) => toggleFavoriteMutation.mutateAsync(id),
 		fetchNextPage,
 	};
 }

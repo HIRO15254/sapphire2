@@ -3,6 +3,8 @@ import {
 	IconDotsVertical,
 	IconEdit,
 	IconPlus,
+	IconStar,
+	IconStarFilled,
 	IconTrash,
 } from "@tabler/icons-react";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -96,6 +98,7 @@ function CurrencyDetailPage() {
 		fetchNextPage,
 		openEditFromActions,
 		openDeleteFromActions,
+		handleToggleFavorite,
 		openTransactionActions,
 		closeTransactionActions,
 		openEditFromTransactionActions,
@@ -134,7 +137,29 @@ function CurrencyDetailPage() {
 		<div className="theme-v2 min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<TopBar onOpenActions={() => setIsActionsOpen(true)} />
-				<PageHeader heading={currency.name} />
+				<PageHeader
+					heading={
+						<span className="flex items-center gap-2">
+							<button
+								aria-label={
+									currency.isFavorite
+										? "Remove from favorites"
+										: "Add to favorites"
+								}
+								className="-m-1.5 shrink-0 rounded p-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+								onClick={handleToggleFavorite}
+								type="button"
+							>
+								{currency.isFavorite ? (
+									<IconStarFilled className="size-5 text-yellow-500" />
+								) : (
+									<IconStar className="size-5" />
+								)}
+							</button>
+							{currency.name}
+						</span>
+					}
+				/>
 
 				<section
 					aria-label="Balance"
@@ -195,6 +220,22 @@ function CurrencyDetailPage() {
 							Edit or delete this currency.
 						</DrawerDescription>
 						<ul className="flex flex-col gap-1 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+							<li>
+								<button
+									className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-foreground text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40"
+									onClick={handleToggleFavorite}
+									type="button"
+								>
+									{currency.isFavorite ? (
+										<IconStarFilled className="text-yellow-500" size={18} />
+									) : (
+										<IconStar size={18} />
+									)}
+									{currency.isFavorite
+										? "Remove from favorites"
+										: "Add to favorites"}
+								</button>
+							</li>
 							<li>
 								<button
 									className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-foreground text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/40"
