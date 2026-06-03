@@ -30,6 +30,20 @@ describe("TransactionListV2", () => {
 		expect(screen.getByText("No transactions yet")).toBeInTheDocument();
 	});
 
+	it("renders skeleton placeholders (and no empty state) while isLoading", () => {
+		render(<TransactionListV2 isLoading transactions={[]} />);
+		expect(screen.getByTestId("transaction-list-skeleton")).toBeInTheDocument();
+		expect(screen.queryByText("No transactions yet")).not.toBeInTheDocument();
+	});
+
+	it("shows the empty state (not the skeleton) once loading has finished", () => {
+		render(<TransactionListV2 transactions={[]} />);
+		expect(
+			screen.queryByTestId("transaction-list-skeleton")
+		).not.toBeInTheDocument();
+		expect(screen.getByText("No transactions yet")).toBeInTheDocument();
+	});
+
 	it("renders the type badge, date, and signed amount", () => {
 		render(<TransactionListV2 transactions={[regularTransaction]} />);
 		expect(screen.getByText("Purchase")).toBeInTheDocument();

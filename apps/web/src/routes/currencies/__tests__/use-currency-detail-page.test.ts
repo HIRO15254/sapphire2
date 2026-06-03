@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
 	hasNextPage: false,
 	isFetchingNextPage: false,
 	isLoading: false,
+	isTransactionsLoading: false,
 	isUpdatePending: false,
 	isAddTransactionPending: false,
 	isEditTransactionPending: false,
@@ -44,6 +45,7 @@ vi.mock("@/features/currencies/hooks/use-currencies", () => ({
 			currencies: mocks.currencies,
 			isLoading: mocks.isLoading,
 			allTransactions: mocks.allTransactions,
+			isTransactionsLoading: mocks.isTransactionsLoading,
 			hasNextPage: mocks.hasNextPage,
 			isFetchingNextPage: mocks.isFetchingNextPage,
 			isCreatePending: false,
@@ -102,6 +104,7 @@ describe("useCurrencyDetailPage", () => {
 		mocks.hasNextPage = false;
 		mocks.isFetchingNextPage = false;
 		mocks.isLoading = false;
+		mocks.isTransactionsLoading = false;
 		mocks.isUpdatePending = false;
 		mocks.isAddTransactionPending = false;
 		mocks.isEditTransactionPending = false;
@@ -127,6 +130,18 @@ describe("useCurrencyDetailPage", () => {
 			mocks.isLoading = true;
 			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
 			expect(result.current.isLoading).toBe(true);
+		});
+
+		it("forwards the transactions loading flag from the inner hook", () => {
+			mocks.isTransactionsLoading = true;
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			expect(result.current.isTransactionsLoading).toBe(true);
+		});
+
+		it("transactions loading flag is false when the inner hook is settled", () => {
+			mocks.isTransactionsLoading = false;
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			expect(result.current.isTransactionsLoading).toBe(false);
 		});
 
 		it("currency.isFavorite is false for a non-favorited currency", () => {

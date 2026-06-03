@@ -7,6 +7,7 @@ import {
 } from "@/features/currencies/utils/transaction-list-helpers";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -25,6 +26,8 @@ interface Transaction {
 
 interface TransactionListV2Props {
 	hasMore?: boolean;
+	/** Initial transactions fetch is in flight (no rows yet). */
+	isLoading?: boolean;
 	isLoadingMore?: boolean;
 	onLoadMore?: () => void;
 	/**
@@ -107,11 +110,29 @@ export function TransactionListV2({
 	transactions,
 	onOpenActions,
 	hasMore,
+	isLoading,
 	isLoadingMore,
 	onLoadMore,
 }: TransactionListV2Props) {
 	const fmt = buildGroupFormatter(transactions);
 	const groups = groupTransactionsByDate(transactions);
+
+	if (isLoading && transactions.length === 0) {
+		return (
+			<div
+				className="flex flex-col gap-3 p-4"
+				data-testid="transaction-list-skeleton"
+			>
+				{Array.from({ length: 4 }, (_, i) => i).map((i) => (
+					<div className="flex items-center gap-3" key={i}>
+						<Skeleton className="h-4 w-16 shrink-0" />
+						<Skeleton className="h-4 flex-1" />
+						<Skeleton className="h-4 w-14 shrink-0" />
+					</div>
+				))}
+			</div>
+		);
+	}
 
 	if (transactions.length === 0) {
 		return (

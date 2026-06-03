@@ -75,6 +75,7 @@ function CurrencyDetailPage() {
 		currency,
 		isLoading,
 		transactions,
+		isTransactionsLoading,
 		hasNextPage,
 		isFetchingNextPage,
 		isUpdatePending,
@@ -189,6 +190,7 @@ function CurrencyDetailPage() {
 					</h2>
 					<TransactionListV2
 						hasMore={hasNextPage}
+						isLoading={isTransactionsLoading}
 						isLoadingMore={isFetchingNextPage}
 						onLoadMore={fetchNextPage}
 						onOpenActions={openTransactionActions}

@@ -279,6 +279,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		currencies,
 		isLoading: currenciesQuery.isLoading,
 		allTransactions,
+		isTransactionsLoading: transactionsQuery.isLoading,
 		hasNextPage: transactionsQuery.hasNextPage,
 		isFetchingNextPage: transactionsQuery.isFetchingNextPage,
 		isCreatePending: createMutation.isPending,
