@@ -20,7 +20,9 @@ vi.mock(
 
 // The CurrencyListCard renders a TanStack Router <Link>, which needs a
 // router context — replace it with a stub that just shows the name so
-// the component test doesn't require a real router.
+// the component test doesn't require a real router. CurrencyListCardSkeleton
+// is exported from the same module and is consumed by the real
+// CurrencyListSkeleton rendered while loading, so it must be stubbed too.
 vi.mock(
 	"@/features/currencies/v2/pages/currencies-page/currency-list-card",
 	() => ({
@@ -29,6 +31,7 @@ vi.mock(
 		}: {
 			currency: { id: string; name: string };
 		}) => <div data-currency-id={currency.id}>{currency.name}</div>,
+		CurrencyListCardSkeleton: () => <div data-testid="card-skeleton-stub" />,
 	})
 );
 

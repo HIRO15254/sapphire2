@@ -1,4 +1,4 @@
-import { Skeleton } from "@/shared/components/ui/skeleton";
+import { CurrencyListCardSkeleton } from "../currency-list-card";
 
 interface CurrencyListSkeletonProps {
 	count?: number;
@@ -6,6 +6,12 @@ interface CurrencyListSkeletonProps {
 
 const DEFAULT_COUNT = 5;
 
+/**
+ * Page-level loading composition for the currencies list: stacks N card-shaped
+ * skeletons. The per-card shape lives with the card it mirrors
+ * (`CurrencyListCardSkeleton`), so this wrapper carries no card layout of its
+ * own — only the list container (count, spacing, aria-hidden).
+ */
 export function CurrencyListSkeleton({
 	count = DEFAULT_COUNT,
 }: CurrencyListSkeletonProps) {
@@ -16,15 +22,7 @@ export function CurrencyListSkeleton({
 			data-testid="currency-list-skeleton"
 		>
 			{Array.from({ length: count }, (_, i) => i).map((i) => (
-				<div
-					className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
-					key={i}
-				>
-					<Skeleton className="size-4 shrink-0 rounded" />
-					<Skeleton className="h-4 flex-1" />
-					<Skeleton className="h-4 w-16 shrink-0" />
-					<Skeleton className="size-3.5 shrink-0 rounded" />
-				</div>
+				<CurrencyListCardSkeleton key={i} />
 			))}
 		</div>
 	);
