@@ -41,7 +41,7 @@ rg '\b(useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutatio
 
 > `**/pages/**` covers page components that have been lifted out of route files
 > into a feature `pages/` folder (the route file keeps only `createFileRoute`
-> wiring + `Route.useParams()`). Reference: `features/currencies/v2/pages/`.
+> wiring + `Route.useParams()`). Reference: `features/currencies/pages/`.
 
 ## Reference implementations
 

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CurrencyDetailPage } from "@/features/currencies/v2/pages/currency-detail-page";
+import { CurrencyDetailPage } from "@/features/currencies/pages/currency-detail-page";
 
 export const Route = createFileRoute("/currencies/$currencyId")({
 	component: CurrencyDetailRoute,
