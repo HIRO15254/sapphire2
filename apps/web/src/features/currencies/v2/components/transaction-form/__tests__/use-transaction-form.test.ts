@@ -12,7 +12,7 @@ vi.mock("@/features/currencies/hooks/use-transaction-types", () => ({
 import {
 	NEW_TYPE_VALUE,
 	useTransactionForm,
-} from "@/features/currencies/v2/pages/currency-detail-page/transaction-form/use-transaction-form";
+} from "@/features/currencies/v2/components/transaction-form/use-transaction-form";
 
 const TYPES = [
 	{ id: "t1", name: "Deposit" },

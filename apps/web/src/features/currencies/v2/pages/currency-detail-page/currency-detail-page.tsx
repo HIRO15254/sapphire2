@@ -4,6 +4,7 @@ import { CurrencyFormV2 } from "@/features/currencies/v2/components/currency-for
 import { DeleteCurrencyDialog } from "@/features/currencies/v2/components/delete-currency-dialog";
 import { DeleteTransactionDialog } from "@/features/currencies/v2/components/delete-transaction-dialog";
 import { TransactionActionsDrawer } from "@/features/currencies/v2/components/transaction-actions-drawer";
+import { TransactionFormV2 } from "@/features/currencies/v2/components/transaction-form";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
@@ -11,7 +12,6 @@ import { CurrencyBalanceHero } from "./currency-balance-hero";
 import { CurrencyDescription } from "./currency-description";
 import { CurrencyDetailSkeleton } from "./currency-detail-skeleton";
 import { TopBar } from "./top-bar";
-import { TransactionFormV2 } from "./transaction-form";
 import { TransactionListV2 } from "./transaction-list";
 import { useCurrencyDetailPage } from "./use-currency-detail-page";
 

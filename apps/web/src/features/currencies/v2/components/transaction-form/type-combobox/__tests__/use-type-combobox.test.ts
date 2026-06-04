@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useTypeCombobox } from "@/features/currencies/v2/pages/currency-detail-page/transaction-form/type-combobox/use-type-combobox";
+import { useTypeCombobox } from "@/features/currencies/v2/components/transaction-form/type-combobox/use-type-combobox";
 
 const TYPES = [
 	{ id: "type-deposit", name: "Deposit" },
