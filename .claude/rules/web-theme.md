@@ -56,16 +56,7 @@ v2 introduces `--success` / `--warning` / `--info` (and their `-foreground` pair
 
 If a v2 component needs these as first-class Tailwind utilities (`bg-success` etc.), extend `@theme inline` in `index.css` **and** add fallback values to `:root` + `.dark` so legacy regions don't break.
 
-v2 also ships the full Sapphire 2 design-token contract inside the `.theme-v2` scope (`apps/web/src/index.css`):
-
-- **Spacing scale** — `--space-px / --space-0_5 … --space-24` (4px grid, capped at 96px per the "tools, not marketing" rule).
-- **Control heights** — `--h-control-xs / sm / md / lg / xl` (24 / 32 / 36 / 40 / 48px). `md` is the shadcn default.
-- **Type scale** — `--text-2xs … --text-6xl` (11px → 48px, denser than marketing scales).
-- **Motion** — `--dur-instant / fast / base / slow` (80/150/200/300ms) and `--ease-out / in-out / spring`.
-- **Font stack** — `--font-sans` resolves to Noto Sans Variable and `--font-mono` resolves to JetBrains Mono Variable (both loaded via `@fontsource-variable/*` in `apps/web/src/index.css`). Legacy theme keeps Inter / Geist Mono.
-- **Typography classes** — `t-display / t-h1 … t-h4 / t-body / t-body-sm / t-meta / t-label / t-code / t-kbd`, scoped under `.theme-v2`. Use them for v2 surfaces instead of hand-rolling font / size / weight combos.
-
-These exist only inside the `.theme-v2` cascade; legacy regions are unaffected.
+v2 also ships the full Sapphire 2 design-token contract inside the `.theme-v2` scope — **the `.theme-v2` block in `apps/web/src/index.css` is the source of truth** for the exact variable names and values. Categories: spacing (`--space-*`, 4px grid), control heights (`--h-control-*`), type scale (`--text-*`), motion (`--dur-*` / `--ease-*`), font stack (`--font-sans` = Noto Sans, `--font-mono` = JetBrains Mono; legacy keeps Inter / Geist Mono), and typography classes (`t-display / t-h1 … t-h4 / t-body / t-meta / t-label / t-code / t-kbd` — use these for v2 surfaces instead of hand-rolling font/size/weight combos). All exist only inside the `.theme-v2` cascade; legacy regions are unaffected.
 
 ## Design source-of-truth
 

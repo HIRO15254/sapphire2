@@ -4,7 +4,6 @@ This file is loaded into every Claude Code session for this repo. Keep it concis
 
 Companion memory files (auto-loaded):
 
-- [`.claude/CLAUDE.md`](.claude/CLAUDE.md) — Ultracite / Biome code standards.
 - [`.claude/rules/`](.claude/rules/) — path-scoped rule files; loaded only when files under the matching paths are touched. See the table near the bottom.
 
 ## Communication
@@ -20,7 +19,7 @@ Companion memory files (auto-loaded):
 - **DB**: Cloudflare D1 (SQLite) via Drizzle ORM. Migrations in `packages/db/src/migrations`.
 - **Validation**: Zod (workspace catalog). Import as `import z from "zod"` (default import) — a Vite bundler issue breaks the namespace import.
 - **Tests**: Vitest + Testing Library (jsdom).
-- **Lint / format**: Ultracite (Biome preset). Details: [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
+- **Lint / format**: Ultracite (Biome preset) — its defaults are the code standard; run via `bun run lint` / `bun run fix`.
 - **Icons**: `@tabler/icons-react` only. Do not add `lucide-react` imports in new code.
 
 ## Commands
