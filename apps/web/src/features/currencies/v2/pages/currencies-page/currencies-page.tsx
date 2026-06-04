@@ -1,11 +1,11 @@
 import { IconCoins, IconPlus } from "@tabler/icons-react";
 import { CurrencyFormV2 } from "@/features/currencies/v2/components/currency-form";
-import { CurrencyListCard } from "@/features/currencies/v2/components/currency-list-card";
-import { CurrencyListSkeleton } from "@/features/currencies/v2/components/currency-list-skeleton";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
+import { CurrencyListCard } from "./currency-list-card";
+import { CurrencyListSkeleton } from "./currency-list-skeleton";
 import { useCurrenciesPage } from "./use-currencies-page";
 
 const CREATE_FORM_ID = "currency-create-form";

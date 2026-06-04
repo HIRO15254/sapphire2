@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { CurrencyBalanceHero } from "@/features/currencies/v2/components/currency-balance-hero";
+import { CurrencyBalanceHero } from "@/features/currencies/v2/pages/currency-detail-page/currency-balance-hero";
 
 describe("CurrencyBalanceHero", () => {
 	it("renders the Balance label and the compact value", () => {

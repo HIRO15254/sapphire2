@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { CurrencyDetailSkeleton } from "@/features/currencies/v2/components/currency-detail-skeleton";
+import { CurrencyDetailSkeleton } from "@/features/currencies/v2/pages/currency-detail-page/currency-detail-skeleton";
 
 describe("CurrencyDetailSkeleton", () => {
 	it("renders the skeleton scaffold", () => {

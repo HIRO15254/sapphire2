@@ -15,7 +15,7 @@ vi.mock("@/features/currencies/hooks/use-transaction-types", () => ({
 	useTransactionTypes: hoisted.useTransactionTypes,
 }));
 
-import { TransactionFormV2 } from "@/features/currencies/v2/components/transaction-form";
+import { TransactionFormV2 } from "@/features/currencies/v2/pages/currency-detail-page/transaction-form";
 
 describe("TransactionFormV2", () => {
 	beforeEach(() => {

@@ -21,13 +21,16 @@ vi.mock(
 // The CurrencyListCard renders a TanStack Router <Link>, which needs a
 // router context — replace it with a stub that just shows the name so
 // the component test doesn't require a real router.
-vi.mock("@/features/currencies/v2/components/currency-list-card", () => ({
-	CurrencyListCard: ({
-		currency,
-	}: {
-		currency: { id: string; name: string };
-	}) => <div data-currency-id={currency.id}>{currency.name}</div>,
-}));
+vi.mock(
+	"@/features/currencies/v2/pages/currencies-page/currency-list-card",
+	() => ({
+		CurrencyListCard: ({
+			currency,
+		}: {
+			currency: { id: string; name: string };
+		}) => <div data-currency-id={currency.id}>{currency.name}</div>,
+	})
+);
 
 // Same for CurrencyFormV2 — the FormSheet body is opaque to this test,
 // so we can stub it.

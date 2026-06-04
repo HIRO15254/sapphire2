@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { CurrencyListSkeleton } from "@/features/currencies/v2/components/currency-list-skeleton";
+import { CurrencyListSkeleton } from "@/features/currencies/v2/pages/currencies-page/currency-list-skeleton";
 
 function countSkeletonRows(): number {
 	// Each placeholder row is a direct child of the wrapper.

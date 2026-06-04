@@ -1,18 +1,18 @@
 import { IconPlus, IconStar, IconStarFilled } from "@tabler/icons-react";
-import { CurrencyBalanceHero } from "@/features/currencies/v2/components/currency-balance-hero";
-import { CurrencyDescription } from "@/features/currencies/v2/components/currency-description";
-import { CurrencyDetailSkeleton } from "@/features/currencies/v2/components/currency-detail-skeleton";
 import { CurrencyFormV2 } from "@/features/currencies/v2/components/currency-form";
-import { TransactionFormV2 } from "@/features/currencies/v2/components/transaction-form";
-import { TransactionListV2 } from "@/features/currencies/v2/components/transaction-list";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { CurrencyActionsDrawer } from "./currency-actions-drawer";
+import { CurrencyBalanceHero } from "./currency-balance-hero";
+import { CurrencyDescription } from "./currency-description";
+import { CurrencyDetailSkeleton } from "./currency-detail-skeleton";
 import { DeleteCurrencyDialog } from "./delete-currency-dialog";
 import { DeleteTransactionDialog } from "./delete-transaction-dialog";
 import { TopBar } from "./top-bar";
 import { TransactionActionsDrawer } from "./transaction-actions-drawer";
+import { TransactionFormV2 } from "./transaction-form";
+import { TransactionListV2 } from "./transaction-list";
 import { useCurrencyDetailPage } from "./use-currency-detail-page";
 
 const EDIT_CURRENCY_FORM_ID = "currency-edit-form";

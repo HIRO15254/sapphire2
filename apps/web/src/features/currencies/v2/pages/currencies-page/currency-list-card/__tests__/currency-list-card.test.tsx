@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { CurrencyListCard } from "@/features/currencies/v2/components/currency-list-card";
+import { CurrencyListCard } from "@/features/currencies/v2/pages/currencies-page/currency-list-card";
 
 // biome-ignore lint/suspicious/noEmptyBlockStatements: test helper
 const noop = () => {};

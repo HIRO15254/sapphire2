@@ -40,37 +40,46 @@ vi.mock(
 // Heavy children are stubbed so this test exercises the page component's own
 // markup/wiring, not theirs (each has its own colocated test). Stubs expose the
 // callbacks they receive as buttons so the prop wiring is observable.
-vi.mock("@/features/currencies/v2/components/currency-balance-hero", () => ({
-	CurrencyBalanceHero: ({
-		balance,
-		unit,
-	}: {
-		balance: number;
-		unit?: string | null;
-	}) => (
-		<div
-			data-balance={balance}
-			data-testid="balance-hero-stub"
-			data-unit={unit ?? ""}
-		>
-			balance-hero
-		</div>
-	),
-}));
+vi.mock(
+	"@/features/currencies/v2/pages/currency-detail-page/currency-balance-hero",
+	() => ({
+		CurrencyBalanceHero: ({
+			balance,
+			unit,
+		}: {
+			balance: number;
+			unit?: string | null;
+		}) => (
+			<div
+				data-balance={balance}
+				data-testid="balance-hero-stub"
+				data-unit={unit ?? ""}
+			>
+				balance-hero
+			</div>
+		),
+	})
+);
 
-vi.mock("@/features/currencies/v2/components/currency-description", () => ({
-	CurrencyDescription: ({ html }: { html: string }) => (
-		<div data-html={html} data-testid="description-stub">
-			description
-		</div>
-	),
-}));
+vi.mock(
+	"@/features/currencies/v2/pages/currency-detail-page/currency-description",
+	() => ({
+		CurrencyDescription: ({ html }: { html: string }) => (
+			<div data-html={html} data-testid="description-stub">
+				description
+			</div>
+		),
+	})
+);
 
-vi.mock("@/features/currencies/v2/components/currency-detail-skeleton", () => ({
-	CurrencyDetailSkeleton: () => (
-		<div data-testid="detail-skeleton-stub">skeleton</div>
-	),
-}));
+vi.mock(
+	"@/features/currencies/v2/pages/currency-detail-page/currency-detail-skeleton",
+	() => ({
+		CurrencyDetailSkeleton: () => (
+			<div data-testid="detail-skeleton-stub">skeleton</div>
+		),
+	})
+);
 
 vi.mock("@/features/currencies/v2/components/currency-form", () => ({
 	CurrencyFormV2: ({
@@ -91,56 +100,62 @@ vi.mock("@/features/currencies/v2/components/currency-form", () => ({
 	),
 }));
 
-vi.mock("@/features/currencies/v2/components/transaction-form", () => ({
-	TransactionFormV2: ({
-		defaultValues,
-		onSubmit,
-	}: {
-		defaultValues?: { amount?: number };
-		onSubmit: (values: {
-			amount: number;
-			transactedAt: string;
-			transactionTypeId: string;
-		}) => void;
-	}) => (
-		<div
-			data-default-amount={String(defaultValues?.amount ?? "")}
-			data-testid="transaction-form-stub"
-		>
-			<button
-				onClick={() =>
-					onSubmit({
-						amount: 5,
-						transactedAt: "2026-01-01",
-						transactionTypeId: "t1",
-					})
-				}
-				type="button"
+vi.mock(
+	"@/features/currencies/v2/pages/currency-detail-page/transaction-form",
+	() => ({
+		TransactionFormV2: ({
+			defaultValues,
+			onSubmit,
+		}: {
+			defaultValues?: { amount?: number };
+			onSubmit: (values: {
+				amount: number;
+				transactedAt: string;
+				transactionTypeId: string;
+			}) => void;
+		}) => (
+			<div
+				data-default-amount={String(defaultValues?.amount ?? "")}
+				data-testid="transaction-form-stub"
 			>
-				stub-submit-transaction
-			</button>
-		</div>
-	),
-}));
+				<button
+					onClick={() =>
+						onSubmit({
+							amount: 5,
+							transactedAt: "2026-01-01",
+							transactionTypeId: "t1",
+						})
+					}
+					type="button"
+				>
+					stub-submit-transaction
+				</button>
+			</div>
+		),
+	})
+);
 
-vi.mock("@/features/currencies/v2/components/transaction-list", () => ({
-	TransactionListV2: ({
-		onLoadMore,
-		onOpenActions,
-	}: {
-		onLoadMore?: () => void;
-		onOpenActions?: (tx: { id: string }) => void;
-	}) => (
-		<div data-testid="transaction-list-stub">
-			<button onClick={() => onOpenActions?.({ id: "tx-row" })} type="button">
-				stub-open-tx-actions
-			</button>
-			<button onClick={() => onLoadMore?.()} type="button">
-				stub-load-more
-			</button>
-		</div>
-	),
-}));
+vi.mock(
+	"@/features/currencies/v2/pages/currency-detail-page/transaction-list",
+	() => ({
+		TransactionListV2: ({
+			onLoadMore,
+			onOpenActions,
+		}: {
+			onLoadMore?: () => void;
+			onOpenActions?: (tx: { id: string }) => void;
+		}) => (
+			<div data-testid="transaction-list-stub">
+				<button onClick={() => onOpenActions?.({ id: "tx-row" })} type="button">
+					stub-open-tx-actions
+				</button>
+				<button onClick={() => onLoadMore?.()} type="button">
+					stub-load-more
+				</button>
+			</div>
+		),
+	})
+);
 
 import { CurrencyDetailPage } from "@/features/currencies/v2/pages/currency-detail-page/currency-detail-page";
 

@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { CurrencyDescription } from "@/features/currencies/v2/components/currency-description";
-import { DESCRIPTION_COLLAPSED_MAX_PX } from "@/features/currencies/v2/components/currency-description/use-currency-description";
+import { CurrencyDescription } from "@/features/currencies/v2/pages/currency-detail-page/currency-description";
+import { DESCRIPTION_COLLAPSED_MAX_PX } from "@/features/currencies/v2/pages/currency-detail-page/currency-description/use-currency-description";
 
 // jsdom reports scrollHeight as 0; override it so the overflow measurement in
 // the hook can be driven deterministically per test.

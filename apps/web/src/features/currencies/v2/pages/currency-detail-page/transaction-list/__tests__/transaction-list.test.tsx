@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { TransactionListV2 } from "@/features/currencies/v2/components/transaction-list";
+import { TransactionListV2 } from "@/features/currencies/v2/pages/currency-detail-page/transaction-list";
 
 // Class-presence matcher for `size-8` (whole-word, single tailwind class).
 const SIZE_8_CLASS = /(^| )size-8( |$)/;
