@@ -7,6 +7,11 @@ Companion memory files (auto-loaded):
 - [`.claude/CLAUDE.md`](.claude/CLAUDE.md) — Ultracite / Biome code standards.
 - [`.claude/rules/`](.claude/rules/) — path-scoped rule files; loaded only when files under the matching paths are touched. See the table near the bottom.
 
+## Communication
+
+- **Think in English, reply in Japanese.** Internal reasoning is in English; every document presented to the user (chat replies, proposals, explanations) is written in Japanese.
+- This is orthogonal to code conventions: UI copy stays English-only ([`.claude/rules/web-ui.md`](.claude/rules/web-ui.md)), and code identifiers / comments / commit messages / PR descriptions follow their existing rules.
+
 ## Stack
 
 - **Runtime / package manager**: Bun 1.3 (workspaces). Always use `bun`, never `npm` / `yarn` / `pnpm`.
@@ -72,7 +77,7 @@ shared/
 utils/                     truly global helpers (optimistic-update, formatters, ...)
 ```
 
-When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. **New pages follow the `pages/<page>/` pattern**: the route file stays thin (`createFileRoute` + `Route.useParams()` only) and delegates to a page component in `features/<feature>/pages/<page>/`, colocated with its `use-<page>-page.ts` hook. A page's single-use subcomponents live in child folders under that page; a list component owns its own loading / empty / data switch and binds its skeleton's shape to the card it mirrors; `FormSheet` is composed at the page level around a bare form component. `features/currencies/` is the reference implementation — older features (`players`, `sessions`) still keep page hooks in `routes/**/-use-<page>-page.ts` and are migrated to this layout as they are touched. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it.
+When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. **New pages follow the `pages/<page>/` pattern**: the route file stays thin (`createFileRoute` + `Route.useParams()` only) and delegates to a page component in `features/<feature>/pages/<page>/`, colocated with its `use-<page>-page.ts` hook. Extract a subcomponent into a child folder once the parent component file exceeds 300 lines (or earlier when a part is single-use but self-contained); a page's single-use subcomponents live in child folders under that page; a list component owns its own loading / empty / data switch and binds its skeleton's shape to the card it mirrors; `FormSheet` is composed at the page level around a bare form component. `features/currencies/` is the reference implementation — older features (`players`, `sessions`) still keep page hooks in `routes/**/-use-<page>-page.ts` and are migrated to this layout as they are touched. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it.
 
 ## Release Flow
 
