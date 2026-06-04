@@ -69,7 +69,7 @@ vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => mocks.navigate,
 }));
 
-import { useCurrencyDetailPage } from "@/routes/currencies/-use-currency-detail-page";
+import { useCurrencyDetailPage } from "@/features/currencies/v2/pages/currency-detail-page/use-currency-detail-page";
 
 const currencyC1 = {
 	id: "c1",

@@ -1,24 +1,26 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const NEW_CURRENCY_RE = /New currency/i;
 
-// Hoisted mock for the page hook so we can drive the index page's
-// state (open/closed sheet, currency list, pending flag) without
-// spinning up TanStack Query / a real router.
+// Hoisted mock for the page hook so we can drive the page's state
+// (open/closed sheet, currency list, pending flag) without spinning up
+// TanStack Query / a real router.
 const hoisted = vi.hoisted(() => ({
 	useCurrenciesPage: vi.fn(),
 }));
 
-vi.mock("@/routes/currencies/-use-currencies-page", () => ({
-	useCurrenciesPage: hoisted.useCurrenciesPage,
-}));
+vi.mock(
+	"@/features/currencies/v2/pages/currencies-page/use-currencies-page",
+	() => ({
+		useCurrenciesPage: hoisted.useCurrenciesPage,
+	})
+);
 
 // The CurrencyListCard renders a TanStack Router <Link>, which needs a
 // router context — replace it with a stub that just shows the name so
-// the route test doesn't require a real router.
+// the component test doesn't require a real router.
 vi.mock("@/features/currencies/v2/components/currency-list-card", () => ({
 	CurrencyListCard: ({
 		currency,
@@ -27,15 +29,13 @@ vi.mock("@/features/currencies/v2/components/currency-list-card", () => ({
 	}) => <div data-currency-id={currency.id}>{currency.name}</div>,
 }));
 
-// Same for CurrencyFormV2 — the FormSheet body is opaque to the route
-// test, so we can stub it.
+// Same for CurrencyFormV2 — the FormSheet body is opaque to this test,
+// so we can stub it.
 vi.mock("@/features/currencies/v2/components/currency-form", () => ({
 	CurrencyFormV2: () => <div data-testid="currency-form-stub" />,
 }));
 
-import { Route } from "@/routes/currencies/index";
-
-const CurrenciesPage = Route.options.component as () => ReactElement;
+import { CurrenciesPage } from "@/features/currencies/v2/pages/currencies-page/currencies-page";
 
 interface MockState {
 	currencies: {
@@ -65,7 +65,7 @@ function setMockState(overrides: Partial<MockState> = {}): MockState {
 	return state;
 }
 
-describe("CurrenciesPage (route /currencies/)", () => {
+describe("CurrenciesPage", () => {
 	beforeEach(() => {
 		hoisted.useCurrenciesPage.mockReset();
 	});

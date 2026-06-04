@@ -1,15 +1,17 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentType, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
-// The detail route component owns a lot of conditional rendering (loading /
+// The detail page component owns a lot of conditional rendering (loading /
 // not-found / loaded), three FormSheets, two action drawers, and two delete
 // dialogs. We drive all of that through the page hook, which is mocked here so
 // the component's own wiring (which handler each control fires, what mounts
 // when) is the thing under test — the hook's logic is covered separately in
-// use-currency-detail-page.test.ts.
+// use-currency-detail-page.test.ts. The component takes `currencyId` as a prop
+// (the route file reads the param and passes it down), so no router param mock
+// is needed; only `Link` (used by TopBar) is stubbed.
 // ---------------------------------------------------------------------------
 
 const BACK_RE = /back/i;
@@ -18,13 +20,7 @@ const DELETE_GOLD_HINT_RE = /Gold and all of its transactions will be removed/i;
 const ADD_FAV_RE = "Add to favorites";
 const REMOVE_FAV_RE = "Remove from favorites";
 
-const routeParamsMock = vi.hoisted(() => vi.fn(() => ({ currencyId: "c1" })));
-
 vi.mock("@tanstack/react-router", () => ({
-	createFileRoute: () => (options: { component: ComponentType }) => ({
-		options,
-		useParams: () => routeParamsMock(),
-	}),
 	Link: ({ children, to }: { children: ReactNode; to: string }) => (
 		<a href={to}>{children}</a>
 	),
@@ -34,11 +30,14 @@ const hoisted = vi.hoisted(() => ({
 	useCurrencyDetailPage: vi.fn(),
 }));
 
-vi.mock("@/routes/currencies/-use-currency-detail-page", () => ({
-	useCurrencyDetailPage: hoisted.useCurrencyDetailPage,
-}));
+vi.mock(
+	"@/features/currencies/v2/pages/currency-detail-page/use-currency-detail-page",
+	() => ({
+		useCurrencyDetailPage: hoisted.useCurrencyDetailPage,
+	})
+);
 
-// Heavy children are stubbed so this test exercises the route component's own
+// Heavy children are stubbed so this test exercises the page component's own
 // markup/wiring, not theirs (each has its own colocated test). Stubs expose the
 // callbacks they receive as buttons so the prop wiring is observable.
 vi.mock("@/features/currencies/v2/components/currency-balance-hero", () => ({
@@ -143,9 +142,11 @@ vi.mock("@/features/currencies/v2/components/transaction-list", () => ({
 	),
 }));
 
-import { Route } from "@/routes/currencies/$currencyId";
+import { CurrencyDetailPage } from "@/features/currencies/v2/pages/currency-detail-page/currency-detail-page";
 
-const Component = Route.options.component as ComponentType;
+function Component() {
+	return <CurrencyDetailPage currencyId="c1" />;
+}
 
 const currencyC1 = {
 	balance: 1000,
@@ -228,10 +229,9 @@ function setState(
 	return state;
 }
 
-describe("CurrencyDetailPage (route /currencies/$currencyId)", () => {
+describe("CurrencyDetailPage", () => {
 	beforeEach(() => {
 		hoisted.useCurrencyDetailPage.mockReset();
-		routeParamsMock.mockReturnValue({ currencyId: "c1" });
 	});
 
 	describe("loading state", () => {
@@ -243,10 +243,9 @@ describe("CurrencyDetailPage (route /currencies/$currencyId)", () => {
 			expect(screen.queryByTestId("balance-hero-stub")).not.toBeInTheDocument();
 		});
 
-		it("passes the route param straight to the page hook", () => {
-			routeParamsMock.mockReturnValue({ currencyId: "c99" });
+		it("passes the currencyId prop straight to the page hook", () => {
 			setState({ isLoading: true });
-			render(<Component />);
+			render(<CurrencyDetailPage currencyId="c99" />);
 			expect(hoisted.useCurrencyDetailPage).toHaveBeenCalledWith("c99");
 		});
 	});

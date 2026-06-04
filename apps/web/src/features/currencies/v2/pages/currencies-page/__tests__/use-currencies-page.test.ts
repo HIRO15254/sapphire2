@@ -41,7 +41,7 @@ vi.mock("@/features/currencies/hooks/use-currencies", () => ({
 	},
 }));
 
-import { useCurrenciesPage } from "@/routes/currencies/-use-currencies-page";
+import { useCurrenciesPage } from "@/features/currencies/v2/pages/currencies-page/use-currencies-page";
 
 describe("useCurrenciesPage", () => {
 	beforeEach(() => {
