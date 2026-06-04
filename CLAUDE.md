@@ -57,7 +57,7 @@ packages/
 
 ```text
 features/<feature>/
-  components/<component>/  reusable (multi-page) component: <component>.tsx + use-<component>.ts + index.ts
+  components/<component>/  shared component judged likely to be reused across pages: <component>.tsx + use-<component>.ts + index.ts
   pages/<page>/            page component + use-<page>-page.ts + index.ts + __tests__ (route file stays thin)
     <subcomponent>/        single-use child of this page → its own folder + index.ts
   hooks/                   cross-component data hooks (use-players.ts, use-currencies.ts, ...)
@@ -72,7 +72,7 @@ shared/
 utils/                     truly global helpers (optimistic-update, formatters, ...)
 ```
 
-When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. **New pages follow the `pages/<page>/` pattern**: the route file stays thin (`createFileRoute` + `Route.useParams()` only) and delegates to a page component in `features/<feature>/pages/<page>/`, colocated with its `use-<page>-page.ts` hook. A page's single-use subcomponents live in child folders under that page; a list component owns its own loading / empty / data switch and binds its skeleton's shape to the card it mirrors; `FormSheet` is composed at the page level around a bare form component. `features/currencies/` is the reference implementation — older features (`players`, `sessions`) still keep page hooks in `routes/**/-use-<page>-page.ts` and are migrated to this layout as they are touched. Promote a subcomponent from a page folder to `components/` only when a second page imports it, and to `shared/` only when a second feature imports it.
+When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. **New pages follow the `pages/<page>/` pattern**: the route file stays thin (`createFileRoute` + `Route.useParams()` only) and delegates to a page component in `features/<feature>/pages/<page>/`, colocated with its `use-<page>-page.ts` hook. A page's single-use subcomponents live in child folders under that page; a list component owns its own loading / empty / data switch and binds its skeleton's shape to the card it mirrors; `FormSheet` is composed at the page level around a bare form component. `features/currencies/` is the reference implementation — older features (`players`, `sessions`) still keep page hooks in `routes/**/-use-<page>-page.ts` and are migrated to this layout as they are touched. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it.
 
 ## Release Flow
 
