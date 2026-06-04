@@ -1,11 +1,9 @@
-import { IconCoins, IconPlus } from "@tabler/icons-react";
+import { IconPlus } from "@tabler/icons-react";
 import { CurrencyFormV2 } from "@/features/currencies/v2/components/currency-form";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
-import { EmptyState } from "@/shared/components/ui/empty-state";
-import { CurrencyListCard } from "./currency-list-card";
-import { CurrencyListSkeleton } from "./currency-list-skeleton";
+import { CurrencyList } from "./currency-list";
 import { useCurrenciesPage } from "./use-currencies-page";
 
 const CREATE_FORM_ID = "currency-create-form";
@@ -34,40 +32,12 @@ export function CurrenciesPage() {
 					heading="Currencies"
 				/>
 
-				{(() => {
-					if (isLoading) {
-						return <CurrencyListSkeleton />;
-					}
-					if (currencies.length === 0) {
-						return (
-							<EmptyState
-								action={
-									<Button
-										onClick={() => setIsCreateOpen(true)}
-										variant="outline"
-									>
-										<IconPlus size={16} />
-										New currency
-									</Button>
-								}
-								description="Create your first currency to start tracking balances."
-								heading="No currencies yet"
-								icon={<IconCoins size={48} />}
-							/>
-						);
-					}
-					return (
-						<div className="flex flex-col gap-2">
-							{currencies.map((c) => (
-								<CurrencyListCard
-									currency={c}
-									key={c.id}
-									onToggleFavorite={() => handleToggleFavorite(c.id)}
-								/>
-							))}
-						</div>
-					);
-				})()}
+				<CurrencyList
+					currencies={currencies}
+					isLoading={isLoading}
+					onCreate={() => setIsCreateOpen(true)}
+					onToggleFavorite={handleToggleFavorite}
+				/>
 
 				<FormSheet
 					contentClassName="theme-v2"
