@@ -147,6 +147,7 @@ export function usePlayers(filterTagIds: string[]) {
 	return {
 		players,
 		availableTags,
+		isLoading: playersQuery.isLoading,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		create: (values: PlayerFormValues) => createMutation.mutateAsync(values),
