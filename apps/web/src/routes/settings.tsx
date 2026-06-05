@@ -15,43 +15,45 @@ function SettingsComponent() {
 	const navigate = useNavigate();
 
 	return (
-		<div className="p-4 md:p-6">
-			<PageHeader
-				actions={
-					<Button
-						onClick={() => {
-							authClient.signOut({
-								fetchOptions: {
-									onSuccess: () => {
-										navigate({ to: "/" });
+		<div className="theme-v2 min-h-full bg-background text-foreground">
+			<div className="p-4">
+				<PageHeader
+					actions={
+						<Button
+							onClick={() => {
+								authClient.signOut({
+									fetchOptions: {
+										onSuccess: () => {
+											navigate({ to: "/" });
+										},
 									},
-								},
-							});
-						}}
-						variant="destructive"
+								});
+							}}
+							variant="destructive"
+						>
+							<IconLogout size={16} />
+							Sign Out
+						</Button>
+					}
+					description="Manage login methods and account preferences."
+					heading="Settings"
+				/>
+
+				<div className="space-y-6">
+					<PageSection
+						description="Choose a light or dark theme, or follow your system setting."
+						heading="Appearance"
 					>
-						<IconLogout size={16} />
-						Sign Out
-					</Button>
-				}
-				description="Manage login methods and account preferences."
-				heading="Settings"
-			/>
+						<ThemeSetting />
+					</PageSection>
 
-			<div className="space-y-6">
-				<PageSection
-					description="Choose a light or dark theme, or follow your system setting."
-					heading="Appearance"
-				>
-					<ThemeSetting />
-				</PageSection>
-
-				<PageSection
-					description="Connect social providers or add an email and password login."
-					heading="Linked Accounts"
-				>
-					<LinkedAccounts />
-				</PageSection>
+					<PageSection
+						description="Connect social providers or add an email and password login."
+						heading="Linked Accounts"
+					>
+						<LinkedAccounts />
+					</PageSection>
+				</div>
 			</div>
 		</div>
 	);
