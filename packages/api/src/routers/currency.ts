@@ -1,4 +1,4 @@
-import { currency, currencyTransaction } from "@sapphire2/db/schema/store";
+import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
 import { TRPCError } from "@trpc/server";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";

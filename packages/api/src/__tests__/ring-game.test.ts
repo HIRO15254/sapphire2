@@ -13,8 +13,8 @@ describe("ringGame router", () => {
 		expect(appRouter.ringGame).toBeDefined();
 	});
 
-	it("has listByStore procedure", () => {
-		expect(appRouter.ringGame.listByStore).toBeDefined();
+	it("has listByRoom procedure", () => {
+		expect(appRouter.ringGame.listByRoom).toBeDefined();
 	});
 
 	it("has create procedure", () => {
@@ -39,13 +39,13 @@ describe("ringGame router", () => {
 
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.ringGame).sort()).toEqual(
-			["archive", "create", "delete", "listByStore", "restore", "update"].sort()
+			["archive", "create", "delete", "listByRoom", "restore", "update"].sort()
 		);
 	});
 
-	it("listByStore is a protected query", () => {
-		expectProtected(appRouter.ringGame.listByStore);
-		expectType(appRouter.ringGame.listByStore, "query");
+	it("listByRoom is a protected query", () => {
+		expectProtected(appRouter.ringGame.listByRoom);
+		expectType(appRouter.ringGame.listByRoom, "query");
 	});
 
 	it("all mutations are protected mutations", () => {
@@ -63,39 +63,39 @@ describe("ringGame router", () => {
 	});
 });
 
-describe("ringGame.listByStore input validation", () => {
-	it("accepts storeId only", () => {
-		expectAccepts(appRouter.ringGame.listByStore, { storeId: "s1" });
+describe("ringGame.listByRoom input validation", () => {
+	it("accepts roomId only", () => {
+		expectAccepts(appRouter.ringGame.listByRoom, { roomId: "s1" });
 	});
 
 	it("accepts includeArchived: true/false", () => {
-		expectAccepts(appRouter.ringGame.listByStore, {
-			storeId: "s1",
+		expectAccepts(appRouter.ringGame.listByRoom, {
+			roomId: "s1",
 			includeArchived: true,
 		});
-		expectAccepts(appRouter.ringGame.listByStore, {
-			storeId: "s1",
+		expectAccepts(appRouter.ringGame.listByRoom, {
+			roomId: "s1",
 			includeArchived: false,
 		});
 	});
 
-	it("rejects missing storeId", () => {
-		expectRejects(appRouter.ringGame.listByStore, {});
+	it("rejects missing roomId", () => {
+		expectRejects(appRouter.ringGame.listByRoom, {});
 	});
 
 	it("rejects non-boolean includeArchived", () => {
-		expectRejects(appRouter.ringGame.listByStore, {
-			storeId: "s1",
+		expectRejects(appRouter.ringGame.listByRoom, {
+			roomId: "s1",
 			includeArchived: "yes",
 		});
 	});
 });
 
 describe("ringGame.create input validation", () => {
-	it("accepts minimal valid payload (storeId + name), variant defaults to nlh", () => {
+	it("accepts minimal valid payload (roomId + name), variant defaults to nlh", () => {
 		const schema = getInputSchema(appRouter.ringGame.create);
 		const parsed = schema.safeParse({
-			storeId: "s1",
+			roomId: "s1",
 			name: "1/2 NLH",
 		}) as unknown as { success: true; data: { variant: string } };
 		expect(parsed.success).toBe(true);
@@ -105,7 +105,7 @@ describe("ringGame.create input validation", () => {
 	it("accepts all anteType values", () => {
 		for (const anteType of ["none", "all", "bb"] as const) {
 			expectAccepts(appRouter.ringGame.create, {
-				storeId: "s1",
+				roomId: "s1",
 				name: "game",
 				anteType,
 			});
@@ -114,19 +114,19 @@ describe("ringGame.create input validation", () => {
 
 	it("rejects unknown anteType", () => {
 		expectRejects(appRouter.ringGame.create, {
-			storeId: "s1",
+			roomId: "s1",
 			name: "game",
 			anteType: "double",
 		});
 	});
 
 	it("rejects empty name", () => {
-		expectRejects(appRouter.ringGame.create, { storeId: "s1", name: "" });
+		expectRejects(appRouter.ringGame.create, { roomId: "s1", name: "" });
 	});
 
 	it("rejects non-integer blind1", () => {
 		expectRejects(appRouter.ringGame.create, {
-			storeId: "s1",
+			roomId: "s1",
 			name: "g",
 			blind1: 1.5,
 		});

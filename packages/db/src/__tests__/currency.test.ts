@@ -5,7 +5,7 @@ import {
 	currency,
 	currencyTransaction,
 	transactionType,
-} from "../schema/store";
+} from "../schema/currency";
 
 describe("Currency schema", () => {
 	it("has required columns", () => {

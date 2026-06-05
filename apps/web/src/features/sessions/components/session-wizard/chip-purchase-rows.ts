@@ -1,5 +1,5 @@
+import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
 import type { SessionChipPurchaseInput } from "@/features/sessions/utils/session-form-helpers";
-import type { ChipPurchaseRow } from "@/features/stores/components/chip-purchases-editor";
 
 function parseIntOrZero(value: string): number {
 	const parsed = Number.parseInt(value, 10);
@@ -13,7 +13,7 @@ function parseIntOrZero(value: string): number {
  * stable `uid`, so each row gets a fresh uuid; numeric cells become
  * strings to satisfy the `inputMode="numeric"` text inputs. `count` is
  * kept out of `ChipPurchaseRow` because that type is shared with the
- * Stores tournament form, where a result count is meaningless.
+ * Rooms tournament form, where a result count is meaningless.
  */
 export function toChipPurchaseRows(
 	purchases: Array<{

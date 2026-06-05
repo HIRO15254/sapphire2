@@ -175,8 +175,8 @@ function baseSessionItem(overrides: Partial<SessionItem> = {}): SessionItem {
 		ringGameId: null,
 		ringGameName: null,
 		startedAt: null,
-		storeId: null,
-		storeName: null,
+		roomId: null,
+		roomName: null,
 		tags: [],
 		totalEntries: null,
 		tournamentBuyIn: null,
@@ -230,10 +230,10 @@ describe("pure helpers", () => {
 			expect(
 				filtersToListInput({
 					type: "cash_game",
-					storeId: "s",
+					roomId: "s",
 					currencyId: "c",
 				})
-			).toMatchObject({ type: "cash_game", storeId: "s", currencyId: "c" });
+			).toMatchObject({ type: "cash_game", roomId: "s", currencyId: "c" });
 		});
 
 		it("converts dateFrom to seconds since epoch (day start)", () => {
@@ -311,7 +311,7 @@ describe("pure helpers", () => {
 				...cashValues(),
 				id: "s1",
 			}) as Record<string, unknown>;
-			expect(out.storeId).toBeNull();
+			expect(out.roomId).toBeNull();
 			expect(out.currencyId).toBeNull();
 			expect(out.ringGameId).toBeNull();
 			expect(out.evCashOut).toBeNull();
@@ -330,16 +330,16 @@ describe("pure helpers", () => {
 
 		it("retains provided link fields", () => {
 			const out = buildUpdatePayload({
-				...cashValues({ storeId: "store-1", currencyId: "cur-1" }),
+				...cashValues({ roomId: "room-1", currencyId: "cur-1" }),
 				id: "s1",
 			});
-			expect(out.storeId).toBe("store-1");
+			expect(out.roomId).toBe("room-1");
 			expect(out.currencyId).toBe("cur-1");
 		});
 	});
 
 	describe("buildLiveLinkedUpdatePayload", () => {
-		it("returns only id/memo/tagIds/storeId/currencyId with nulls for missing links", () => {
+		it("returns only id/memo/tagIds/roomId/currencyId with nulls for missing links", () => {
 			const out = buildLiveLinkedUpdatePayload({
 				...cashValues({ memo: "note", tagIds: ["t1"] }),
 				id: "s1",
@@ -348,17 +348,17 @@ describe("pure helpers", () => {
 				id: "s1",
 				memo: "note",
 				tagIds: ["t1"],
-				storeId: null,
+				roomId: null,
 				currencyId: null,
 			});
 		});
 
-		it("preserves provided storeId / currencyId", () => {
+		it("preserves provided roomId / currencyId", () => {
 			const out = buildLiveLinkedUpdatePayload({
-				...cashValues({ storeId: "st", currencyId: "cu" }),
+				...cashValues({ roomId: "st", currencyId: "cu" }),
 				id: "s1",
 			});
-			expect(out.storeId).toBe("st");
+			expect(out.roomId).toBe("st");
 			expect(out.currencyId).toBe("cu");
 		});
 	});

@@ -8,6 +8,14 @@ import {
 	verification,
 } from "./schema/auth";
 import {
+	currency,
+	currencyRelations,
+	currencyTransaction,
+	currencyTransactionRelations,
+	transactionType,
+	transactionTypeRelations,
+} from "./schema/currency";
+import {
 	dashboardWidget,
 	dashboardWidgetRelations,
 } from "./schema/dashboard-widget";
@@ -20,6 +28,7 @@ import {
 	playerToPlayerTagRelations,
 } from "./schema/player";
 import { ringGame, ringGameRelations } from "./schema/ring-game";
+import { room, roomRelations } from "./schema/room";
 import { gameSession, gameSessionRelations } from "./schema/session";
 import {
 	sessionBlindLevel,
@@ -49,16 +58,6 @@ import {
 	sessionTournamentDetailRelations,
 } from "./schema/session-tournament-detail";
 import {
-	currency,
-	currencyRelations,
-	currencyTransaction,
-	currencyTransactionRelations,
-	store,
-	storeRelations,
-	transactionType,
-	transactionTypeRelations,
-} from "./schema/store";
-import {
 	blindLevel,
 	blindLevelRelations,
 	tournament,
@@ -80,8 +79,8 @@ export const schema = {
 	user,
 	userRelations,
 	verification,
-	store,
-	storeRelations,
+	room,
+	roomRelations,
 	currency,
 	currencyRelations,
 	transactionType,

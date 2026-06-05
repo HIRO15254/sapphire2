@@ -17,12 +17,12 @@ vi.mock("@/utils/trpc", () => ({
 		currency: {
 			list: { queryOptions: () => ({ queryKey: ["currency-list"] }) },
 		},
-		store: {
-			list: { queryOptions: () => ({ queryKey: ["store-list"] }) },
+		room: {
+			list: { queryOptions: () => ({ queryKey: ["room-list"] }) },
 		},
 		ringGame: {
-			listByStore: {
-				queryOptions: () => ({ queryKey: ["ring-game-list-by-store"] }),
+			listByRoom: {
+				queryOptions: () => ({ queryKey: ["ring-game-list-by-room"] }),
 			},
 		},
 		dashboardWidget: {

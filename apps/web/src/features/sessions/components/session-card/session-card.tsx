@@ -73,8 +73,8 @@ interface SessionCardProps {
 		ringGameName: string | null;
 		sessionDate: string;
 		startedAt: string | null;
-		storeId: string | null;
-		storeName: string | null;
+		roomId: string | null;
+		roomName: string | null;
 		tags: Array<{ id: string; name: string }>;
 		totalEntries: number | null;
 		tournamentBountyAmount: number | null;
@@ -396,10 +396,10 @@ function SessionHeader({
 							</span>
 						)}
 					</div>
-					{session.storeName && (
+					{session.roomName && (
 						<div className="flex items-center gap-0.5">
 							<IconMapPin className="shrink-0" size={12} />
-							<span className="truncate">{session.storeName}</span>
+							<span className="truncate">{session.roomName}</span>
 						</div>
 					)}
 				</div>

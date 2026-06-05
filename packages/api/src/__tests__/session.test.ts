@@ -49,7 +49,7 @@ describe("session.profitLossSeries input validation", () => {
 		expect(
 			getSchema().safeParse({
 				type: "cash_game",
-				storeId: "s1",
+				roomId: "s1",
 				ringGameId: "rg1",
 				currencyId: "c1",
 				dateFrom: 1_700_000_000,
@@ -183,7 +183,7 @@ describe("session router input validation", () => {
 			schema.safeParse({
 				cursor: "s1",
 				type: "cash_game",
-				storeId: "st1",
+				roomId: "st1",
 				currencyId: "c1",
 				dateFrom: 1,
 				dateTo: 2,
@@ -362,7 +362,7 @@ describe("session router input validation", () => {
 		expect(
 			schema.safeParse({
 				id: "s1",
-				storeId: null,
+				roomId: null,
 				ringGameId: null,
 				tournamentId: null,
 				currencyId: null,
@@ -466,10 +466,10 @@ describe("assertNoLiveLinkedRestrictedEdits", () => {
 		).not.toThrow();
 	});
 
-	it("allows storeId and currencyId edits on live-linked session", () => {
+	it("allows roomId and currencyId edits on live-linked session", () => {
 		expect(() =>
 			assertNoLiveLinkedRestrictedEdits(liveCashSession, {
-				storeId: "store-1",
+				roomId: "room-1",
 				currencyId: "currency-1",
 			})
 		).not.toThrow();

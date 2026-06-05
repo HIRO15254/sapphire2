@@ -3,6 +3,8 @@ import {
 	IconChevronLeft,
 	IconChevronRight,
 } from "@tabler/icons-react";
+import { LocalBlindStructureContent } from "@/features/rooms/components/blind-level-editor";
+import { ChipPurchasesEditor } from "@/features/rooms/components/chip-purchases-editor";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
 import {
 	cashOverriddenFields,
@@ -12,8 +14,6 @@ import {
 	type TournamentOption,
 	tournamentOverriddenFields,
 } from "@/features/sessions/utils/session-form-helpers";
-import { LocalBlindStructureContent } from "@/features/stores/components/blind-level-editor";
-import { ChipPurchasesEditor } from "@/features/stores/components/chip-purchases-editor";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -28,7 +28,7 @@ import {
 import { TagInput } from "@/shared/components/ui/tag-input";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { CashGameFields } from "../cash-game-fields";
-import { StoreGameSelectors } from "../link-selectors";
+import { RoomGameSelectors } from "../link-selectors";
 import {
 	TournamentResultFields,
 	TournamentRuleFields,
@@ -63,10 +63,10 @@ interface SessionWizardProps {
 	 */
 	mode?: WizardMode;
 	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
-	onStoreChange?: (storeId: string | undefined) => void;
+	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
 	ringGames?: RingGameOption[];
-	stores?: Array<{ id: string; name: string }>;
+	rooms?: Array<{ id: string; name: string }>;
 	submitLabel?: string;
 	tags?: Array<{ id: string; name: string }>;
 	tournaments?: TournamentOption[];
@@ -127,11 +127,11 @@ function StepperBar({
 
 function MasterStepBody({
 	state,
-	stores,
+	rooms,
 	isLiveLinked,
 }: {
 	state: UseSessionWizardReturn;
-	stores?: Array<{ id: string; name: string }>;
+	rooms?: Array<{ id: string; name: string }>;
 	isLiveLinked: boolean;
 }) {
 	return (
@@ -153,15 +153,15 @@ function MasterStepBody({
 					</TabsList>
 				</Tabs>
 			</Field>
-			<StoreGameSelectors
+			<RoomGameSelectors
 				gameLabel={state.gameLabel}
 				gameOptions={state.gameOptions}
 				isLiveLinked={isLiveLinked}
 				onGameChange={state.handleGameChange}
-				onStoreChange={state.handleStoreChange}
+				onRoomChange={state.handleRoomChange}
+				rooms={rooms}
 				selectedGameId={state.selectedGameId}
-				selectedStoreId={state.selectedStoreId}
-				stores={stores}
+				selectedRoomId={state.selectedRoomId}
 			/>
 		</>
 	);
@@ -745,10 +745,10 @@ export function SessionWizard({
 	isLoading = false,
 	mode = "manual",
 	onCreateTag,
-	onStoreChange,
+	onRoomChange,
 	onSubmit,
 	ringGames,
-	stores,
+	rooms,
 	submitLabel,
 	tags,
 	tournaments,
@@ -756,7 +756,7 @@ export function SessionWizard({
 	const state = useSessionWizard({
 		defaultValues,
 		mode,
-		onStoreChange,
+		onRoomChange,
 		onSubmit,
 		ringGames,
 		tournaments,
@@ -788,8 +788,8 @@ export function SessionWizard({
 				{state.currentStep === "master" && (
 					<MasterStepBody
 						isLiveLinked={isLiveLinked}
+						rooms={rooms}
 						state={state}
-						stores={stores}
 					/>
 				)}
 				{state.currentStep === "rules" && (

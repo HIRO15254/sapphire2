@@ -2,7 +2,7 @@ import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { RingGameFormValues } from "@/features/stores/hooks/use-ring-games";
+import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -17,35 +17,35 @@ interface UseAssignRingGameOptions {
 	onClose: () => void;
 	open: boolean;
 	sessionId: string;
-	sessionStoreId: string | null;
+	sessionRoomId: string | null;
 }
 
 export function useAssignRingGame({
 	onClose,
 	open,
 	sessionId,
-	sessionStoreId,
+	sessionRoomId,
 }: UseAssignRingGameOptions) {
 	const queryClient = useQueryClient();
 	const [mode, setMode] = useState<Mode>("existing");
-	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>(
-		sessionStoreId ?? undefined
+	const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>(
+		sessionRoomId ?? undefined
 	);
 
-	const storesQuery = useQuery({
-		...trpc.store.list.queryOptions(),
+	const roomsQuery = useQuery({
+		...trpc.room.list.queryOptions(),
 		enabled: open,
 	});
-	const stores = storesQuery.data ?? [];
+	const rooms = roomsQuery.data ?? [];
 
-	const effectiveStoreId = sessionStoreId ?? selectedStoreId;
+	const effectiveRoomId = sessionRoomId ?? selectedRoomId;
 
 	const ringGamesQuery = useQuery({
-		...trpc.ringGame.listByStore.queryOptions({
-			storeId: effectiveStoreId ?? "",
+		...trpc.ringGame.listByRoom.queryOptions({
+			roomId: effectiveRoomId ?? "",
 			includeArchived: false,
 		}),
-		enabled: open && !!effectiveStoreId,
+		enabled: open && !!effectiveRoomId,
 	});
 	const ringGames = (ringGamesQuery.data ?? []) as RingGameListItem[];
 
@@ -78,14 +78,14 @@ export function useAssignRingGame({
 
 	const createAndAssignMutation = useMutation({
 		mutationFn: async ({
-			storeId,
+			roomId,
 			values,
 		}: {
-			storeId: string;
+			roomId: string;
 			values: RingGameFormValues;
 		}) => {
 			const created = await trpcClient.ringGame.create.mutate({
-				storeId,
+				roomId,
 				...values,
 			});
 			await trpcClient.liveCashGameSession.update.mutate({
@@ -99,8 +99,8 @@ export function useAssignRingGame({
 				invalidateSession(),
 				invalidateTargets(queryClient, [
 					{
-						queryKey: trpc.ringGame.listByStore.queryOptions({
-							storeId: effectiveStoreId ?? "",
+						queryKey: trpc.ringGame.listByRoom.queryOptions({
+							roomId: effectiveRoomId ?? "",
 						}).queryKey,
 					},
 				]),
@@ -124,11 +124,11 @@ export function useAssignRingGame({
 	});
 
 	const handleCreate = (values: RingGameFormValues) => {
-		if (!effectiveStoreId) {
-			toast.error("Select a store first");
+		if (!effectiveRoomId) {
+			toast.error("Select a room first");
 			return;
 		}
-		createAndAssignMutation.mutate({ storeId: effectiveStoreId, values });
+		createAndAssignMutation.mutate({ roomId: effectiveRoomId, values });
 	};
 
 	const isAssignPending = assignMutation.isPending;
@@ -138,10 +138,10 @@ export function useAssignRingGame({
 	return {
 		mode,
 		setMode,
-		stores,
-		selectedStoreId,
-		setSelectedStoreId,
-		effectiveStoreId,
+		rooms,
+		selectedRoomId,
+		setSelectedRoomId,
+		effectiveRoomId,
 		ringGames,
 		selectForm,
 		handleCreate,

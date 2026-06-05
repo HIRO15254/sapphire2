@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 	sessionTags: [] as Array<{ id: string; name: string }>,
 	sessions: [] as Array<{ id: string; type: string }>,
 	setQueryData: vi.fn(),
-	stores: [] as Array<{ id: string; name: string }>,
+	rooms: [] as Array<{ id: string; name: string }>,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -33,8 +33,8 @@ vi.mock("@tanstack/react-query", () => ({
 		if (scope === "session-tag-list") {
 			return { data: mocks.sessionTags, isLoading: false };
 		}
-		if (scope === "store-list") {
-			return { data: mocks.stores, isLoading: false };
+		if (scope === "room-list") {
+			return { data: mocks.rooms, isLoading: false };
 		}
 		if (scope === "currency-list") {
 			return { data: mocks.currencies, isLoading: false };
@@ -96,7 +96,7 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 		ringGame: {
-			listByStore: {
+			listByRoom: {
 				queryOptions: () => ({ queryKey: ["ring-game-list"] }),
 			},
 		},
@@ -110,13 +110,13 @@ vi.mock("@/utils/trpc", () => ({
 				queryOptions: () => ({ queryKey: ["session-tag-list"] }),
 			},
 		},
-		store: {
+		room: {
 			list: {
-				queryOptions: () => ({ queryKey: ["store-list"] }),
+				queryOptions: () => ({ queryKey: ["room-list"] }),
 			},
 		},
 		tournament: {
-			listByStore: {
+			listByRoom: {
 				queryOptions: () => ({ queryKey: ["tournament-list"] }),
 			},
 		},
@@ -147,7 +147,7 @@ describe("SessionsPage", () => {
 		mocks.currencies = [];
 		mocks.sessionTags = [];
 		mocks.sessions = [];
-		mocks.stores = [];
+		mocks.rooms = [];
 	});
 
 	it("renders the empty state", () => {

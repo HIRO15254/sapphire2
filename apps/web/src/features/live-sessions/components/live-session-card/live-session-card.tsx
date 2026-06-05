@@ -9,7 +9,7 @@ interface LiveSessionCardProps {
 		id: string;
 		type: "cash_game" | "tournament";
 		status: "active" | "paused" | "completed";
-		storeName: string | null;
+		roomName: string | null;
 		gameName: string | null;
 		currencyName: string | null;
 		startedAt: string;
@@ -106,9 +106,9 @@ export function LiveSessionCard({ session, onClick }: LiveSessionCardProps) {
 								{session.gameName}
 							</span>
 						)}
-						{session.storeName && (
+						{session.roomName && (
 							<span className="text-muted-foreground text-xs">
-								{session.storeName}
+								{session.roomName}
 							</span>
 						)}
 					</div>

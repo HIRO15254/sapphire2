@@ -1,4 +1,4 @@
-import { TournamentEditDialog } from "@/features/stores/components/tournament-edit-dialog";
+import { TournamentEditDialog } from "@/features/rooms/components/tournament-edit-dialog";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
@@ -21,37 +21,37 @@ interface AssignTournamentDialogProps {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	sessionId: string;
-	sessionStoreId: string | null;
+	sessionRoomId: string | null;
 }
 
-function StoreSelectField({
+function RoomSelectField({
 	onChange,
-	stores,
+	rooms,
 	value,
 }: {
 	onChange: (value: string) => void;
-	stores: { id: string; name: string }[];
+	rooms: { id: string; name: string }[];
 	value: string | undefined;
 }) {
-	if (stores.length === 0) {
+	if (rooms.length === 0) {
 		return (
-			<Field className="mb-4" label="Store" required>
+			<Field className="mb-4" label="Room" required>
 				<EmptyState
 					className="px-4 py-8"
-					description="Create a store first."
-					heading="No stores available"
+					description="Create a room first."
+					heading="No rooms available"
 				/>
 			</Field>
 		);
 	}
 	return (
-		<Field className="mb-4" label="Store" required>
+		<Field className="mb-4" label="Room" required>
 			<Select onValueChange={onChange} value={value}>
 				<SelectTrigger>
 					<SelectValue />
 				</SelectTrigger>
 				<SelectContent>
-					{stores.map((s) => (
+					{rooms.map((s) => (
 						<SelectItem key={s.id} value={s.id}>
 							{s.name}
 						</SelectItem>
@@ -63,21 +63,21 @@ function StoreSelectField({
 }
 
 function TournamentPickerField({
-	effectiveStoreId,
+	effectiveRoomId,
 	onChange,
 	tournaments,
 	value,
 }: {
-	effectiveStoreId: string | undefined;
+	effectiveRoomId: string | undefined;
 	onChange: (value: string) => void;
 	tournaments: TournamentListItem[];
 	value: string | undefined;
 }) {
-	if (!effectiveStoreId) {
+	if (!effectiveRoomId) {
 		return (
 			<Field label="Tournament" required>
 				<p className="text-muted-foreground text-sm">
-					Please select a store first.
+					Please select a room first.
 				</p>
 			</Field>
 		);
@@ -115,42 +115,42 @@ export function AssignTournamentDialog({
 	onOpenChange,
 	open,
 	sessionId,
-	sessionStoreId,
+	sessionRoomId,
 }: AssignTournamentDialogProps) {
 	const {
 		mode,
 		setMode,
-		selectedStoreId,
+		selectedRoomId,
 		selectedTournamentId,
 		setSelectedTournamentId,
 		isCreateDialogOpen,
 		setIsCreateDialogOpen,
-		stores,
+		rooms,
 		tournaments,
-		effectiveStoreId,
+		effectiveRoomId,
 		isAssignPending,
 		isCreatePending,
 		isBusy,
-		handleStoreChange,
+		handleRoomChange,
 		handleAssign,
 		handleCreate,
 	} = useAssignTournament({
 		onOpenChange,
 		open,
 		sessionId,
-		sessionStoreId,
+		sessionRoomId,
 	});
 
 	const renderExistingTab = () => (
 		<div className="flex flex-col gap-4">
 			<TournamentPickerField
-				effectiveStoreId={effectiveStoreId}
+				effectiveRoomId={effectiveRoomId}
 				onChange={(value) => setSelectedTournamentId(value)}
 				tournaments={tournaments}
 				value={selectedTournamentId}
 			/>
 			<Button
-				disabled={isBusy || !(effectiveStoreId && selectedTournamentId)}
+				disabled={isBusy || !(effectiveRoomId && selectedTournamentId)}
 				onClick={handleAssign}
 				type="button"
 			>
@@ -160,10 +160,10 @@ export function AssignTournamentDialog({
 	);
 
 	const renderCreateTab = () => {
-		if (!effectiveStoreId) {
+		if (!effectiveRoomId) {
 			return (
 				<p className="text-muted-foreground text-sm">
-					Please select a store first.
+					Please select a room first.
 				</p>
 			);
 		}
@@ -202,11 +202,11 @@ export function AssignTournamentDialog({
 					</TabsList>
 				</Tabs>
 
-				{sessionStoreId ? null : (
-					<StoreSelectField
-						onChange={handleStoreChange}
-						stores={stores}
-						value={selectedStoreId}
+				{sessionRoomId ? null : (
+					<RoomSelectField
+						onChange={handleRoomChange}
+						rooms={rooms}
+						value={selectedRoomId}
 					/>
 				)}
 

@@ -29,7 +29,7 @@ function SessionsPage() {
 		editingSession,
 		filters,
 		bbBiMode,
-		stores,
+		rooms,
 		currencies,
 		createGames,
 		editGames,
@@ -38,8 +38,8 @@ function SessionsPage() {
 		setIsTagManagerOpen,
 		setFilters,
 		setBbBiMode,
-		setSelectedStoreId,
-		setEditStoreId,
+		setSelectedRoomId,
+		setEditRoomId,
 		handleCreate,
 		handleUpdate,
 		handleDelete,
@@ -79,7 +79,7 @@ function SessionsPage() {
 					currencies={currencies}
 					filters={filters}
 					onFiltersChange={setFilters}
-					stores={stores}
+					rooms={rooms}
 				/>
 				<div className="flex items-center gap-1.5">
 					<Label className="text-xs" htmlFor="bb-bi-switch">
@@ -133,10 +133,10 @@ function SessionsPage() {
 					currencies={currencies}
 					isLoading={isCreatePending}
 					onCreateTag={createTag}
-					onStoreChange={setSelectedStoreId}
+					onRoomChange={setSelectedRoomId}
 					onSubmit={handleCreate}
 					ringGames={createGames.ringGames}
-					stores={stores}
+					rooms={rooms}
 					tags={availableTags}
 					tournaments={createGames.tournaments}
 				/>
@@ -158,10 +158,10 @@ function SessionsPage() {
 						isLiveLinked={isEditLiveLinked}
 						isLoading={isUpdatePending}
 						onCreateTag={createTag}
-						onStoreChange={setEditStoreId}
+						onRoomChange={setEditRoomId}
 						onSubmit={handleUpdate}
 						ringGames={editGames.ringGames}
-						stores={stores}
+						rooms={rooms}
 						tags={availableTags}
 						tournaments={editGames.tournaments}
 					/>

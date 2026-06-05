@@ -108,9 +108,9 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 		ringGame: {
-			listByStore: {
-				queryOptions: (args: { storeId: string }) => ({
-					queryKey: ["ring-games", args.storeId],
+			listByRoom: {
+				queryOptions: (args: { roomId: string }) => ({
+					queryKey: ["ring-games", args.roomId],
 					queryFn: () => mockQuery("ring-games", args),
 				}),
 			},
@@ -335,7 +335,7 @@ describe("ActiveSessionPage — active cash game session", () => {
 			if (key === "cash-getById") {
 				return {
 					id: "cash-001",
-					storeId: "store-1",
+					roomId: "room-1",
 					ringGameId: null,
 					heroSeatPosition: null,
 					memo: null,

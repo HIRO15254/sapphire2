@@ -32,7 +32,7 @@ function RouteComponent() {
 						<li>
 							Use email/password or connected Google and Discord accounts.
 						</li>
-						<li>Keep players, sessions, stores, and settings in one place.</li>
+						<li>Keep players, sessions, rooms, and settings in one place.</li>
 					</ul>
 				</PageSection>
 			}

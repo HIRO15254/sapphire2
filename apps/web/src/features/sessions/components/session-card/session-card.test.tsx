@@ -33,8 +33,8 @@ function makeCashGameSession(
 		startedAt: null,
 		endedAt: null,
 		memo: null,
-		storeId: null,
-		storeName: null,
+		roomId: null,
+		roomName: null,
 		ringGameBlind2: null,
 		ringGameId: null,
 		ringGameName: "NLH 1/2",
@@ -92,8 +92,8 @@ function makeTournamentSession(
 		startedAt: null,
 		endedAt: null,
 		memo: null,
-		storeId: null,
-		storeName: null,
+		roomId: null,
+		roomName: null,
 		ringGameBlind2: null,
 		ringGameId: null,
 		ringGameName: null,
@@ -184,7 +184,7 @@ describe("SessionCard", () => {
 
 	it("displays linked entity names", () => {
 		const session = makeCashGameSession({
-			storeName: "Poker Palace",
+			roomName: "Poker Palace",
 			currencyName: "USD",
 		});
 		render(
