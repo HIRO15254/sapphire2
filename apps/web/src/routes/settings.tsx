@@ -39,17 +39,11 @@ function SettingsComponent() {
 				/>
 
 				<div className="space-y-6">
-					<PageSection
-						description="Choose a light or dark theme, or follow your system setting."
-						heading="Appearance"
-					>
+					<PageSection heading="Appearance">
 						<ThemeSetting />
 					</PageSection>
 
-					<PageSection
-						description="Connect social providers or add an email and password login."
-						heading="Linked Accounts"
-					>
+					<PageSection heading="Linked Accounts">
 						<LinkedAccounts />
 					</PageSection>
 				</div>

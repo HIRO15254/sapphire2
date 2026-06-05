@@ -85,11 +85,6 @@ describe("SettingsComponent", () => {
 		render(<Component />);
 
 		expect(screen.getByText("Linked Accounts Content")).toBeInTheDocument();
-		expect(
-			screen.getByText(
-				"Connect social providers or add an email and password login."
-			)
-		).toBeInTheDocument();
 	});
 
 	it("forwards the fetchOptions.onSuccess wiring so navigate fires exactly once per success", async () => {
