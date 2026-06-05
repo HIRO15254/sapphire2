@@ -1,9 +1,9 @@
+import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import type { SessionBlindLevelInput } from "@/features/sessions/utils/session-form-helpers";
-import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
 
 /**
  * Adapt the wizard's blind-level snapshot to the `BlindLevelRow` shape
- * the shared store editor (`LocalBlindStructureContent`) expects. The
+ * the shared room editor (`LocalBlindStructureContent`) expects. The
  * editor needs a stable `id` per row for drag-and-drop reordering, so
  * each row gets a fresh uuid; `level` is the 1-based position and
  * `tournamentId` is irrelevant for the local (uncommitted) editor.

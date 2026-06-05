@@ -34,7 +34,7 @@ export const WIZARD_STEPS = WIZARD_STEPS_MANUAL;
 interface UseSessionWizardArgs {
 	defaultValues?: SessionFormDefaults;
 	mode?: WizardMode;
-	onStoreChange?: (storeId: string | undefined) => void;
+	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
 	ringGames?: RingGameOption[];
 	tournaments?: TournamentOption[];

@@ -152,7 +152,7 @@ describe("usePokerTableInteraction", () => {
 			resolve?.({ id: "s1" });
 		});
 
-		it("when hero seat is set, stores the tapped seat in addPlayerSeat without calling mutation", () => {
+		it("when hero seat is set, rooms the tapped seat in addPlayerSeat without calling mutation", () => {
 			const qc = createClient();
 			const { result } = renderHook(
 				() => usePokerTableInteraction("cash_game", "s1", 3),

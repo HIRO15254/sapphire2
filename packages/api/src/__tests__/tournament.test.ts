@@ -13,8 +13,8 @@ describe("tournament router", () => {
 		expect(appRouter.tournament).toBeDefined();
 	});
 
-	it("has listByStore procedure", () => {
-		expect(appRouter.tournament.listByStore).toBeDefined();
+	it("has listByRoom procedure", () => {
+		expect(appRouter.tournament.listByRoom).toBeDefined();
 	});
 
 	it("has getById procedure", () => {
@@ -58,7 +58,7 @@ describe("tournament router", () => {
 				"createWithLevels",
 				"delete",
 				"getById",
-				"listByStore",
+				"listByRoom",
 				"removeTag",
 				"restore",
 				"update",
@@ -67,9 +67,9 @@ describe("tournament router", () => {
 		);
 	});
 
-	it("listByStore / getById are protected queries", () => {
-		expectProtected(appRouter.tournament.listByStore);
-		expectType(appRouter.tournament.listByStore, "query");
+	it("listByRoom / getById are protected queries", () => {
+		expectProtected(appRouter.tournament.listByRoom);
+		expectType(appRouter.tournament.listByRoom, "query");
 		expectProtected(appRouter.tournament.getById);
 		expectType(appRouter.tournament.getById, "query");
 	});
@@ -93,20 +93,20 @@ describe("tournament router", () => {
 	});
 });
 
-describe("tournament.listByStore input validation", () => {
-	it("accepts storeId only", () => {
-		expectAccepts(appRouter.tournament.listByStore, { storeId: "s1" });
+describe("tournament.listByRoom input validation", () => {
+	it("accepts roomId only", () => {
+		expectAccepts(appRouter.tournament.listByRoom, { roomId: "s1" });
 	});
 
 	it("accepts includeArchived flag", () => {
-		expectAccepts(appRouter.tournament.listByStore, {
-			storeId: "s1",
+		expectAccepts(appRouter.tournament.listByRoom, {
+			roomId: "s1",
 			includeArchived: true,
 		});
 	});
 
-	it("rejects missing storeId", () => {
-		expectRejects(appRouter.tournament.listByStore, {});
+	it("rejects missing roomId", () => {
+		expectRejects(appRouter.tournament.listByRoom, {});
 	});
 });
 
@@ -114,7 +114,7 @@ describe("tournament.create input validation", () => {
 	it("accepts minimal payload with default variant", () => {
 		const schema = getInputSchema(appRouter.tournament.create);
 		const parsed = schema.safeParse({
-			storeId: "s1",
+			roomId: "s1",
 			name: "Main Event",
 		}) as unknown as { success: true; data: { variant: string } };
 		expect(parsed.success).toBe(true);
@@ -123,7 +123,7 @@ describe("tournament.create input validation", () => {
 
 	it("accepts full numeric configuration", () => {
 		expectAccepts(appRouter.tournament.create, {
-			storeId: "s1",
+			roomId: "s1",
 			name: "ME",
 			buyIn: 100_000,
 			entryFee: 10_000,
@@ -135,20 +135,20 @@ describe("tournament.create input validation", () => {
 
 	it("rejects empty name", () => {
 		expectRejects(appRouter.tournament.create, {
-			storeId: "s1",
+			roomId: "s1",
 			name: "",
 		});
 	});
 
 	it("rejects non-integer buyIn", () => {
 		expectRejects(appRouter.tournament.create, {
-			storeId: "s1",
+			roomId: "s1",
 			name: "ME",
 			buyIn: 100.5,
 		});
 	});
 
-	it("rejects missing storeId", () => {
+	it("rejects missing roomId", () => {
 		expectRejects(appRouter.tournament.create, { name: "ME" });
 	});
 });
@@ -186,14 +186,14 @@ describe("tournament.update input validation", () => {
 describe("tournament.createWithLevels input validation", () => {
 	it("accepts minimal payload (no levels)", () => {
 		expectAccepts(appRouter.tournament.createWithLevels, {
-			storeId: "s1",
+			roomId: "s1",
 			name: "Series",
 		});
 	});
 
 	it("accepts a full level + chip purchases structure", () => {
 		expectAccepts(appRouter.tournament.createWithLevels, {
-			storeId: "s1",
+			roomId: "s1",
 			name: "Series",
 			tags: ["weekly"],
 			chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000 }],
@@ -206,7 +206,7 @@ describe("tournament.createWithLevels input validation", () => {
 
 	it("rejects a chipPurchase with non-integer cost", () => {
 		expectRejects(appRouter.tournament.createWithLevels, {
-			storeId: "s1",
+			roomId: "s1",
 			name: "Series",
 			chipPurchases: [{ name: "Rebuy", cost: 100.5, chips: 10_000 }],
 		});
@@ -214,7 +214,7 @@ describe("tournament.createWithLevels input validation", () => {
 
 	it("rejects a blindLevel missing isBreak", () => {
 		expectRejects(appRouter.tournament.createWithLevels, {
-			storeId: "s1",
+			roomId: "s1",
 			name: "Series",
 			blindLevels: [{ blind1: 100 }],
 		});

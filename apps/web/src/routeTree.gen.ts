@@ -15,12 +15,12 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ActiveSessionRouteImport } from './routes/active-session'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as StoresIndexRouteImport } from './routes/stores/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
+import { Route as RoomsIndexRouteImport } from './routes/rooms/index'
 import { Route as PlayersIndexRouteImport } from './routes/players/index'
 import { Route as CurrenciesIndexRouteImport } from './routes/currencies/index'
 import { Route as ActiveSessionIndexRouteImport } from './routes/active-session/index'
-import { Route as StoresStoreIdRouteImport } from './routes/stores/$storeId'
+import { Route as RoomsRoomIdRouteImport } from './routes/rooms/$roomId'
 import { Route as CurrenciesCurrencyIdRouteImport } from './routes/currencies/$currencyId'
 import { Route as ActiveSessionGameRouteImport } from './routes/active-session/game'
 import { Route as ActiveSessionEventsRouteImport } from './routes/active-session/events'
@@ -56,14 +56,14 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StoresIndexRoute = StoresIndexRouteImport.update({
-  id: '/stores/',
-  path: '/stores/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SessionsIndexRoute = SessionsIndexRouteImport.update({
   id: '/sessions/',
   path: '/sessions/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoomsIndexRoute = RoomsIndexRouteImport.update({
+  id: '/rooms/',
+  path: '/rooms/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlayersIndexRoute = PlayersIndexRouteImport.update({
@@ -81,9 +81,9 @@ const ActiveSessionIndexRoute = ActiveSessionIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ActiveSessionRoute,
 } as any)
-const StoresStoreIdRoute = StoresStoreIdRouteImport.update({
-  id: '/stores/$storeId',
-  path: '/stores/$storeId',
+const RoomsRoomIdRoute = RoomsRoomIdRouteImport.update({
+  id: '/rooms/$roomId',
+  path: '/rooms/$roomId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CurrenciesCurrencyIdRoute = CurrenciesCurrencyIdRouteImport.update({
@@ -117,13 +117,13 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/active-session/events': typeof ActiveSessionEventsRoute
   '/active-session/game': typeof ActiveSessionGameRoute
-  '/stores/$storeId': typeof StoresStoreIdRoute
   '/currencies/$currencyId': typeof CurrenciesCurrencyIdRoute
+  '/rooms/$roomId': typeof RoomsRoomIdRoute
   '/active-session/': typeof ActiveSessionIndexRoute
   '/currencies/': typeof CurrenciesIndexRoute
   '/players/': typeof PlayersIndexRoute
+  '/rooms/': typeof RoomsIndexRoute
   '/sessions/': typeof SessionsIndexRoute
-  '/stores/': typeof StoresIndexRoute
   '/live-sessions/$sessionType/$sessionId/events': typeof LiveSessionsSessionTypeSessionIdEventsRoute
 }
 export interface FileRoutesByTo {
@@ -134,13 +134,13 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/active-session/events': typeof ActiveSessionEventsRoute
   '/active-session/game': typeof ActiveSessionGameRoute
-  '/stores/$storeId': typeof StoresStoreIdRoute
   '/currencies/$currencyId': typeof CurrenciesCurrencyIdRoute
+  '/rooms/$roomId': typeof RoomsRoomIdRoute
   '/active-session': typeof ActiveSessionIndexRoute
   '/currencies': typeof CurrenciesIndexRoute
   '/players': typeof PlayersIndexRoute
+  '/rooms': typeof RoomsIndexRoute
   '/sessions': typeof SessionsIndexRoute
-  '/stores': typeof StoresIndexRoute
   '/live-sessions/$sessionType/$sessionId/events': typeof LiveSessionsSessionTypeSessionIdEventsRoute
 }
 export interface FileRoutesById {
@@ -153,13 +153,13 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/active-session/events': typeof ActiveSessionEventsRoute
   '/active-session/game': typeof ActiveSessionGameRoute
-  '/stores/$storeId': typeof StoresStoreIdRoute
   '/currencies/$currencyId': typeof CurrenciesCurrencyIdRoute
+  '/rooms/$roomId': typeof RoomsRoomIdRoute
   '/active-session/': typeof ActiveSessionIndexRoute
   '/currencies/': typeof CurrenciesIndexRoute
   '/players/': typeof PlayersIndexRoute
+  '/rooms/': typeof RoomsIndexRoute
   '/sessions/': typeof SessionsIndexRoute
-  '/stores/': typeof StoresIndexRoute
   '/live-sessions/$sessionType/$sessionId/events': typeof LiveSessionsSessionTypeSessionIdEventsRoute
 }
 export interface FileRouteTypes {
@@ -173,13 +173,13 @@ export interface FileRouteTypes {
     | '/settings'
     | '/active-session/events'
     | '/active-session/game'
-    | '/stores/$storeId'
     | '/currencies/$currencyId'
+    | '/rooms/$roomId'
     | '/active-session/'
     | '/currencies/'
     | '/players/'
+    | '/rooms/'
     | '/sessions/'
-    | '/stores/'
     | '/live-sessions/$sessionType/$sessionId/events'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -190,13 +190,13 @@ export interface FileRouteTypes {
     | '/settings'
     | '/active-session/events'
     | '/active-session/game'
-    | '/stores/$storeId'
     | '/currencies/$currencyId'
+    | '/rooms/$roomId'
     | '/active-session'
     | '/currencies'
     | '/players'
+    | '/rooms'
     | '/sessions'
-    | '/stores'
     | '/live-sessions/$sessionType/$sessionId/events'
   id:
     | '__root__'
@@ -208,13 +208,13 @@ export interface FileRouteTypes {
     | '/settings'
     | '/active-session/events'
     | '/active-session/game'
-    | '/stores/$storeId'
     | '/currencies/$currencyId'
+    | '/rooms/$roomId'
     | '/active-session/'
     | '/currencies/'
     | '/players/'
+    | '/rooms/'
     | '/sessions/'
-    | '/stores/'
     | '/live-sessions/$sessionType/$sessionId/events'
   fileRoutesById: FileRoutesById
 }
@@ -225,12 +225,12 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
-  StoresStoreIdRoute: typeof StoresStoreIdRoute
   CurrenciesCurrencyIdRoute: typeof CurrenciesCurrencyIdRoute
+  RoomsRoomIdRoute: typeof RoomsRoomIdRoute
   CurrenciesIndexRoute: typeof CurrenciesIndexRoute
   PlayersIndexRoute: typeof PlayersIndexRoute
+  RoomsIndexRoute: typeof RoomsIndexRoute
   SessionsIndexRoute: typeof SessionsIndexRoute
-  StoresIndexRoute: typeof StoresIndexRoute
   LiveSessionsSessionTypeSessionIdEventsRoute: typeof LiveSessionsSessionTypeSessionIdEventsRoute
 }
 
@@ -278,18 +278,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/stores/': {
-      id: '/stores/'
-      path: '/stores'
-      fullPath: '/stores/'
-      preLoaderRoute: typeof StoresIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/sessions/': {
       id: '/sessions/'
       path: '/sessions'
       fullPath: '/sessions/'
       preLoaderRoute: typeof SessionsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rooms/': {
+      id: '/rooms/'
+      path: '/rooms'
+      fullPath: '/rooms/'
+      preLoaderRoute: typeof RoomsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/players/': {
@@ -313,11 +313,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActiveSessionIndexRouteImport
       parentRoute: typeof ActiveSessionRoute
     }
-    '/stores/$storeId': {
-      id: '/stores/$storeId'
-      path: '/stores/$storeId'
-      fullPath: '/stores/$storeId'
-      preLoaderRoute: typeof StoresStoreIdRouteImport
+    '/rooms/$roomId': {
+      id: '/rooms/$roomId'
+      path: '/rooms/$roomId'
+      fullPath: '/rooms/$roomId'
+      preLoaderRoute: typeof RoomsRoomIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/currencies/$currencyId': {
@@ -374,12 +374,12 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
-  StoresStoreIdRoute: StoresStoreIdRoute,
   CurrenciesCurrencyIdRoute: CurrenciesCurrencyIdRoute,
+  RoomsRoomIdRoute: RoomsRoomIdRoute,
   CurrenciesIndexRoute: CurrenciesIndexRoute,
   PlayersIndexRoute: PlayersIndexRoute,
+  RoomsIndexRoute: RoomsIndexRoute,
   SessionsIndexRoute: SessionsIndexRoute,
-  StoresIndexRoute: StoresIndexRoute,
   LiveSessionsSessionTypeSessionIdEventsRoute:
     LiveSessionsSessionTypeSessionIdEventsRoute,
 }

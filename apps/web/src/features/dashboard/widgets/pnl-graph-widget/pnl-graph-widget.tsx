@@ -99,11 +99,11 @@ type InlineFiltersProps = Pick<
 	| "onChangeCurrencyId"
 	| "onChangeDateRangeDays"
 	| "onChangeSessionType"
-	| "onChangeStoreId"
+	| "onChangeRoomId"
 	| "onChangeUnit"
 	| "onChangeXAxis"
 	| "state"
-	| "stores"
+	| "rooms"
 > & {
 	flags: InlineHandlers["parsed"]["showFilters"];
 };
@@ -116,7 +116,7 @@ function InlineFilters(props: InlineFiltersProps) {
 			{flags.dateRange ? <DateRangeInput {...props} /> : null}
 			{flags.sessionType ? <SessionTypeSelect {...props} /> : null}
 			{flags.unit ? <UnitSelect {...props} /> : null}
-			{flags.store ? <StoreSelect {...props} /> : null}
+			{flags.room ? <RoomSelect {...props} /> : null}
 			{flags.currency ? <CurrencySelect {...props} /> : null}
 		</div>
 	);
@@ -208,22 +208,22 @@ function UnitSelect({
 	);
 }
 
-function StoreSelect({
-	onChangeStoreId,
+function RoomSelect({
+	onChangeRoomId,
 	state,
-	stores,
-}: Pick<InlineFiltersProps, "onChangeStoreId" | "state" | "stores">) {
+	rooms,
+}: Pick<InlineFiltersProps, "onChangeRoomId" | "state" | "rooms">) {
 	return (
 		<Select
-			onValueChange={(v) => onChangeStoreId(v === ALL_VALUE ? null : v)}
-			value={state.storeId ?? ALL_VALUE}
+			onValueChange={(v) => onChangeRoomId(v === ALL_VALUE ? null : v)}
+			value={state.roomId ?? ALL_VALUE}
 		>
 			<SelectTrigger className="h-8 w-auto text-xs">
 				<SelectValue />
 			</SelectTrigger>
 			<SelectContent>
-				<SelectItem value={ALL_VALUE}>All stores</SelectItem>
-				{stores.map((s) => (
+				<SelectItem value={ALL_VALUE}>All rooms</SelectItem>
+				{rooms.map((s) => (
 					<SelectItem key={s.id} value={s.id}>
 						{s.name}
 					</SelectItem>
@@ -267,7 +267,7 @@ export function PnlGraphWidget({ config }: WidgetRenderProps) {
 		flags.dateRange ||
 		flags.sessionType ||
 		flags.unit ||
-		flags.store ||
+		flags.room ||
 		flags.currency;
 	const dualSeries = state.unit === "normalized" && state.sessionType === "all";
 
@@ -300,7 +300,7 @@ export function PnlGraphEditForm({
 	onCancel,
 	onSave,
 }: WidgetEditProps) {
-	const { form, stores, ringGames, currencies } = usePnlGraphEditForm({
+	const { form, rooms, ringGames, currencies } = usePnlGraphEditForm({
 		config,
 		onSave,
 	});
@@ -412,9 +412,9 @@ export function PnlGraphEditForm({
 				)}
 			</form.Field>
 
-			<form.Field name="storeId">
+			<form.Field name="roomId">
 				{(field) => (
-					<Field htmlFor={field.name} label="Store">
+					<Field htmlFor={field.name} label="Room">
 						<Select
 							onValueChange={(value) => field.handleChange(value)}
 							value={field.state.value}
@@ -423,8 +423,8 @@ export function PnlGraphEditForm({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value={NONE_VALUE}>(All stores)</SelectItem>
-								{stores.map((s) => (
+								<SelectItem value={NONE_VALUE}>(All rooms)</SelectItem>
+								{rooms.map((s) => (
 									<SelectItem key={s.id} value={s.id}>
 										{s.name}
 									</SelectItem>
@@ -435,9 +435,9 @@ export function PnlGraphEditForm({
 				)}
 			</form.Field>
 
-			<form.Subscribe selector={(s) => s.values.storeId}>
-				{(storeId) =>
-					storeId === NONE_VALUE ? null : (
+			<form.Subscribe selector={(s) => s.values.roomId}>
+				{(roomId) =>
+					roomId === NONE_VALUE ? null : (
 						<form.Field name="ringGameId">
 							{(field) => (
 								<Field htmlFor={field.name} label="Ring Game">
@@ -526,7 +526,7 @@ export function PnlGraphEditForm({
 						label="Session Type"
 					/>
 					<EditFormToggle fieldName="showUnit" form={form} label="Unit" />
-					<EditFormToggle fieldName="showStore" form={form} label="Store" />
+					<EditFormToggle fieldName="showRoom" form={form} label="Room" />
 					<EditFormToggle
 						fieldName="showCurrency"
 						form={form}
@@ -559,7 +559,7 @@ interface EditFormToggleProps {
 		| "showDateRange"
 		| "showSessionType"
 		| "showUnit"
-		| "showStore"
+		| "showRoom"
 		| "showCurrency";
 	form: ReturnType<typeof usePnlGraphEditForm>["form"];
 	label: string;

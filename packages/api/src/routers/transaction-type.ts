@@ -2,7 +2,7 @@ import { DEFAULT_TRANSACTION_TYPES } from "@sapphire2/db/constants";
 import {
 	currencyTransaction,
 	transactionType,
-} from "@sapphire2/db/schema/store";
+} from "@sapphire2/db/schema/currency";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";

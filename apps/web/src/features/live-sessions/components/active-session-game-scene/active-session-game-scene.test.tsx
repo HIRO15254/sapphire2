@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 	},
 	cashSession: null as null | {
 		id: string;
-		storeId: string;
+		roomId: string;
 		ringGameId: string | null;
 		ruleName?: string | null;
 		variant?: string | null;
@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
 	},
 	tournamentSession: null as null | {
 		id: string;
-		storeId: string;
+		roomId: string;
 		tournamentId: string | null;
 	},
 	ringGames: [] as unknown[],
@@ -61,7 +61,7 @@ vi.mock("@/features/live-sessions/hooks/use-tournament-session", () => ({
 	}),
 }));
 
-vi.mock("@/features/stores/hooks/use-ring-games", () => ({
+vi.mock("@/features/rooms/hooks/use-ring-games", () => ({
 	useRingGames: () => ({
 		update: vi.fn(async () => undefined),
 		isUpdatePending: false,
@@ -69,17 +69,17 @@ vi.mock("@/features/stores/hooks/use-ring-games", () => ({
 	}),
 }));
 
-vi.mock("@/features/stores/hooks/use-tournaments", () => ({
+vi.mock("@/features/rooms/hooks/use-tournaments", () => ({
 	useTournaments: () => ({
 		isUpdateWithLevelsPending: false,
 	}),
 }));
 
-vi.mock("@/features/stores/components/ring-game-form", () => ({
+vi.mock("@/features/rooms/components/ring-game-form", () => ({
 	RingGameForm: () => <div data-testid="ring-game-form" />,
 }));
 
-vi.mock("@/features/stores/components/tournament-edit-dialog", () => ({
+vi.mock("@/features/rooms/components/tournament-edit-dialog", () => ({
 	TournamentEditDialog: () => <div data-testid="tournament-edit-dialog" />,
 }));
 
@@ -154,7 +154,7 @@ vi.mock("@/utils/trpc", () => {
 		trpc: {
 			tournament: {
 				getById: makeProc("tournament"),
-				listByStore: makeProc("tournament"),
+				listByRoom: makeProc("tournament"),
 			},
 			tournamentChipPurchase: {
 				listByTournament: makeProc("tournamentChipPurchase"),
@@ -173,11 +173,11 @@ vi.mock("@/utils/trpc", () => {
 			currency: {
 				list: makeProc("currency"),
 			},
-			store: {
-				list: makeProc("store"),
+			room: {
+				list: makeProc("room"),
 			},
 			ringGame: {
-				listByStore: makeProc("ringGame"),
+				listByRoom: makeProc("ringGame"),
 			},
 			session: {
 				list: makeProc("session"),
@@ -226,7 +226,7 @@ describe("ActiveSessionGameScene", () => {
 		};
 		mocks.cashSession = {
 			id: "session-1",
-			storeId: "store-1",
+			roomId: "room-1",
 			ringGameId: "ring-1",
 			ruleName: "1/2 NLH",
 			variant: "nlh",
@@ -254,7 +254,7 @@ describe("ActiveSessionGameScene", () => {
 				memo: "deep stack",
 				minBuyIn: 100,
 				name: "1/2 NLH",
-				storeId: "store-1",
+				roomId: "room-1",
 				tableSize: 9,
 				updatedAt: "",
 				variant: "nlh",
@@ -275,7 +275,7 @@ describe("ActiveSessionGameScene", () => {
 		};
 		mocks.cashSession = {
 			id: "session-1",
-			storeId: "store-1",
+			roomId: "room-1",
 			ringGameId: null,
 		};
 
@@ -292,7 +292,7 @@ describe("ActiveSessionGameScene", () => {
 		};
 		mocks.tournamentSession = {
 			id: "session-2",
-			storeId: "store-1",
+			roomId: "room-1",
 			tournamentId: null,
 		};
 
@@ -311,7 +311,7 @@ describe("ActiveSessionGameScene", () => {
 		};
 		mocks.tournamentSession = {
 			id: "session-2",
-			storeId: "store-1",
+			roomId: "room-1",
 			tournamentId: "tour-1",
 		};
 		mocks.tournament = {
@@ -325,7 +325,7 @@ describe("ActiveSessionGameScene", () => {
 			memo: null,
 			name: "Weekly Deepstack",
 			startingStack: 20_000,
-			storeId: "store-1",
+			roomId: "room-1",
 			tableSize: 9,
 			tags: [],
 			updatedAt: "",

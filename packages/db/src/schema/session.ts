@@ -7,8 +7,9 @@ import {
 	text,
 } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
+import { currency, currencyTransaction } from "./currency";
+import { room } from "./room";
 import { sessionToSessionTag } from "./session-tag";
-import { currency, currencyTransaction, store } from "./store";
 
 export const gameSession = sqliteTable(
 	"game_session",
@@ -25,7 +26,7 @@ export const gameSession = sqliteTable(
 		endedAt: integer("ended_at", { mode: "timestamp" }),
 		breakMinutes: integer("break_minutes"),
 		memo: text("memo"),
-		storeId: text("store_id").references(() => store.id, {
+		roomId: text("room_id").references(() => room.id, {
 			onDelete: "set null",
 		}),
 		currencyId: text("currency_id").references(() => currency.id, {
@@ -41,7 +42,7 @@ export const gameSession = sqliteTable(
 	(t) => [
 		index("session_user_kind_status_idx").on(t.userId, t.kind, t.status),
 		index("session_user_date_idx").on(t.userId, t.sessionDate),
-		index("session_store_idx").on(t.storeId),
+		index("session_room_idx").on(t.roomId),
 		index("session_currency_idx").on(t.currencyId),
 		check(
 			"session_manual_completed_check",
@@ -55,9 +56,9 @@ export const gameSessionRelations = relations(gameSession, ({ one, many }) => ({
 		fields: [gameSession.userId],
 		references: [user.id],
 	}),
-	store: one(store, {
-		fields: [gameSession.storeId],
-		references: [store.id],
+	room: one(room, {
+		fields: [gameSession.roomId],
+		references: [room.id],
 	}),
 	currency: one(currency, {
 		fields: [gameSession.currencyId],

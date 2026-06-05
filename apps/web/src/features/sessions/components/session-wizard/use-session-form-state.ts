@@ -1,5 +1,7 @@
 import { useForm } from "@tanstack/react-form";
 import { useState } from "react";
+import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
+import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	buildDefaults,
 	numStrOrEmpty,
@@ -11,8 +13,6 @@ import {
 	sessionFormSchema,
 	type TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
-import type { ChipPurchaseRow } from "@/features/stores/components/chip-purchases-editor";
-import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
 import { toBlindLevelRows, toSessionBlindLevels } from "./blind-level-rows";
 import {
 	toChipPurchaseRows,
@@ -21,7 +21,7 @@ import {
 
 interface UseSessionFormStateArgs {
 	defaultValues?: SessionFormDefaults;
-	onStoreChange?: (storeId: string | undefined) => void;
+	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
 	ringGames?: RingGameOption[];
 	tournaments?: TournamentOption[];
@@ -41,7 +41,7 @@ function timerStringToUnix(value: string): number | undefined {
 
 export function useSessionFormState({
 	defaultValues,
-	onStoreChange,
+	onRoomChange,
 	onSubmit,
 	ringGames,
 	tournaments,
@@ -52,8 +52,8 @@ export function useSessionFormState({
 	const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
 		defaultValues?.tagIds ?? []
 	);
-	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>(
-		defaultValues?.storeId
+	const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>(
+		defaultValues?.roomId
 	);
 	const [selectedGameId, setSelectedGameId] = useState<string | undefined>(
 		defaultValues?.ringGameId ?? defaultValues?.tournamentId
@@ -89,7 +89,7 @@ export function useSessionFormState({
 				breakMinutes: parseOptInt(value.breakMinutes),
 				tagIds: selectedTagIds,
 				memo: value.memo || undefined,
-				storeId: selectedStoreId,
+				roomId: selectedRoomId,
 				currencyId: selectedCurrencyId,
 				ruleName: emptyToUndefined(value.ruleName),
 			};
@@ -248,10 +248,10 @@ export function useSessionFormState({
 		setChipPurchaseCounts((prev) => ({ ...prev, [uid]: count }));
 	};
 
-	const handleStoreChange = (value: string | undefined) => {
-		setSelectedStoreId(value);
+	const handleRoomChange = (value: string | undefined) => {
+		setSelectedRoomId(value);
 		setSelectedGameId(undefined);
-		onStoreChange?.(value);
+		onRoomChange?.(value);
 	};
 
 	const handleGameChange = (value: string | undefined) => {
@@ -282,7 +282,7 @@ export function useSessionFormState({
 		setSessionType,
 		selectedTagIds,
 		setSelectedTagIds,
-		selectedStoreId,
+		selectedRoomId,
 		selectedGameId,
 		selectedCurrencyId,
 		setSelectedCurrencyId,
@@ -295,7 +295,7 @@ export function useSessionFormState({
 		chipPurchaseCounts,
 		setChipPurchaseCounts,
 		updateChipPurchaseCount,
-		handleStoreChange,
+		handleRoomChange,
 		handleGameChange,
 		gameOptions,
 		gameLabel,

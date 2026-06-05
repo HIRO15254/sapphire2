@@ -4,11 +4,12 @@ import {
 	chipsAddRemovePayload,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
+import { currency } from "@sapphire2/db/schema/currency";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
+import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
-import { currency, store } from "@sapphire2/db/schema/store";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -120,11 +121,11 @@ async function resolveRingGameAssignment(
 	db: DbInstance,
 	ringGameId: string,
 	userId: string,
-	currentStoreId: string | null,
+	currentRoomId: string | null,
 	currentCurrencyId: string | null
 ): Promise<{
 	ringGameId: string;
-	storeId?: string;
+	roomId?: string;
 	currencyId?: string;
 }> {
 	const [foundRingGame] = await db
@@ -139,12 +140,12 @@ async function resolveRingGameAssignment(
 		});
 	}
 
-	if (foundRingGame.storeId) {
-		const [foundStore] = await db
+	if (foundRingGame.roomId) {
+		const [foundRoom] = await db
 			.select()
-			.from(store)
-			.where(eq(store.id, foundRingGame.storeId));
-		if (!foundStore || foundStore.userId !== userId) {
+			.from(room)
+			.where(eq(room.id, foundRingGame.roomId));
+		if (!foundRoom || foundRoom.userId !== userId) {
 			throw new TRPCError({
 				code: "FORBIDDEN",
 				message: "You do not own this ring game",
@@ -153,21 +154,21 @@ async function resolveRingGameAssignment(
 	}
 
 	if (
-		currentStoreId &&
-		foundRingGame.storeId &&
-		currentStoreId !== foundRingGame.storeId
+		currentRoomId &&
+		foundRingGame.roomId &&
+		currentRoomId !== foundRingGame.roomId
 	) {
 		throw new TRPCError({
 			code: "BAD_REQUEST",
-			message: "Ring game belongs to a different store than the session",
+			message: "Ring game belongs to a different room than the session",
 		});
 	}
 
-	const patch: { ringGameId: string; storeId?: string; currencyId?: string } = {
+	const patch: { ringGameId: string; roomId?: string; currencyId?: string } = {
 		ringGameId,
 	};
-	if (!currentStoreId && foundRingGame.storeId) {
-		patch.storeId = foundRingGame.storeId;
+	if (!currentRoomId && foundRingGame.roomId) {
+		patch.roomId = foundRingGame.roomId;
 	}
 	if (!currentCurrencyId && foundRingGame.currencyId) {
 		patch.currencyId = foundRingGame.currencyId;
@@ -206,8 +207,8 @@ export const liveCashGameSessionRouter = router({
 					id: gameSession.id,
 					userId: gameSession.userId,
 					status: gameSession.status,
-					storeId: gameSession.storeId,
-					storeName: store.name,
+					roomId: gameSession.roomId,
+					roomName: room.name,
 					ringGameId: sessionCashDetail.ringGameId,
 					ringGameName: sessionCashDetail.ruleName,
 					currencyId: gameSession.currencyId,
@@ -224,7 +225,7 @@ export const liveCashGameSessionRouter = router({
 					sessionCashDetail,
 					eq(sessionCashDetail.sessionId, gameSession.id)
 				)
-				.leftJoin(store, eq(store.id, gameSession.storeId))
+				.leftJoin(room, eq(room.id, gameSession.roomId))
 				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
 				.where(and(...conditions))
 				.orderBy(desc(gameSession.startedAt))
@@ -331,7 +332,7 @@ export const liveCashGameSessionRouter = router({
 	create: protectedProcedure
 		.input(
 			z.object({
-				storeId: z.string().optional(),
+				roomId: z.string().optional(),
 				ringGameId: z.string().optional(),
 				currencyId: z.string().optional(),
 				memo: z.string().optional(),
@@ -400,7 +401,7 @@ export const liveCashGameSessionRouter = router({
 				kind: "cash_game",
 				status: "active",
 				source: "live",
-				storeId: input.storeId ?? null,
+				roomId: input.roomId ?? null,
 				currencyId: input.currencyId ?? null,
 				startedAt: now,
 				memo: input.memo ?? null,
@@ -444,7 +445,7 @@ export const liveCashGameSessionRouter = router({
 			z.object({
 				id: z.string(),
 				memo: z.string().nullable().optional(),
-				storeId: z.string().nullable().optional(),
+				roomId: z.string().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
 				ringGameId: z.string().nullable().optional(),
 			})
@@ -465,8 +466,8 @@ export const liveCashGameSessionRouter = router({
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;
 			}
-			if (input.storeId !== undefined) {
-				updateData.storeId = input.storeId;
+			if (input.roomId !== undefined) {
+				updateData.roomId = input.roomId;
 			}
 			if (input.currencyId !== undefined) {
 				updateData.currencyId = input.currencyId;
@@ -478,10 +479,8 @@ export const liveCashGameSessionRouter = router({
 			if (input.ringGameId === null) {
 				cashDetailUpdate.ringGameId = null;
 			} else if (input.ringGameId !== undefined) {
-				const resolvedStoreId =
-					updateData.storeId === undefined
-						? existing.storeId
-						: updateData.storeId;
+				const resolvedRoomId =
+					updateData.roomId === undefined ? existing.roomId : updateData.roomId;
 				const resolvedCurrencyId =
 					updateData.currencyId === undefined
 						? existing.currencyId
@@ -490,12 +489,12 @@ export const liveCashGameSessionRouter = router({
 					ctx.db,
 					input.ringGameId,
 					userId,
-					resolvedStoreId,
+					resolvedRoomId,
 					resolvedCurrencyId
 				);
 				cashDetailUpdate.ringGameId = patch.ringGameId;
-				if (patch.storeId) {
-					updateData.storeId = patch.storeId;
+				if (patch.roomId) {
+					updateData.roomId = patch.roomId;
 				}
 				if (patch.currencyId) {
 					updateData.currencyId = patch.currencyId;

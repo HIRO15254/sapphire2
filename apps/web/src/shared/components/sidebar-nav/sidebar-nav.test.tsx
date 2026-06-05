@@ -26,7 +26,7 @@ function createTestRouter(initialPath: string) {
 	const routes = [
 		"/dashboard",
 		"/sessions",
-		"/stores",
+		"/rooms",
 		"/players",
 		"/currencies",
 		"/settings",
@@ -51,7 +51,7 @@ describe("SidebarNav", () => {
 
 		expect(await screen.findByText("Sessions")).toBeInTheDocument();
 		expect(screen.getByText("Dashboard")).toBeInTheDocument();
-		expect(screen.getByText("Stores")).toBeInTheDocument();
+		expect(screen.getByText("Rooms")).toBeInTheDocument();
 		expect(screen.getByText("Players")).toBeInTheDocument();
 		expect(screen.getByText("Currencies")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
@@ -60,12 +60,10 @@ describe("SidebarNav", () => {
 	});
 
 	it("highlights the active item", async () => {
-		const router = createTestRouter("/stores");
+		const router = createTestRouter("/rooms");
 		render(<RouterProvider router={router} />);
 
-		const storesLink = await screen.findByText("Stores");
-		expect(storesLink.closest("a")?.className).toContain(
-			"text-sidebar-primary"
-		);
+		const roomsLink = await screen.findByText("Rooms");
+		expect(roomsLink.closest("a")?.className).toContain("text-sidebar-primary");
 	});
 });

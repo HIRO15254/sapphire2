@@ -125,7 +125,7 @@ Every code change must be test-driven. The quality bar is set by the comprehensi
 
 | Target | Project | Reference implementation |
 |---|---|---|
-| Pure util / Zod schema / formatter | `web-node` | [`apps/web/src/features/stores/utils/__tests__/blind-level-helpers.test.ts`](apps/web/src/features/stores/utils/__tests__/blind-level-helpers.test.ts), [`apps/web/src/utils/__tests__/format-number.test.ts`](apps/web/src/utils/__tests__/format-number.test.ts) |
+| Pure util / Zod schema / formatter | `web-node` | [`apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts`](apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts), [`apps/web/src/utils/__tests__/format-number.test.ts`](apps/web/src/utils/__tests__/format-number.test.ts) |
 | Simple hook (no tRPC) | `web-dom` | [`apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts`](apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts) |
 | Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/shared/components/sign-in-form/__tests__/use-sign-in.test.ts`](apps/web/src/shared/components/sign-in-form/__tests__/use-sign-in.test.ts) |
 | tRPC query + mutation hook, simple | `web-dom` | [`apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts`](apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts) |

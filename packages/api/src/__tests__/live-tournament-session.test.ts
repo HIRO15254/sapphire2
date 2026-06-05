@@ -116,7 +116,7 @@ describe("liveTournamentSession.create input validation", () => {
 
 	it("accepts full payload", () => {
 		expectAccepts(appRouter.liveTournamentSession.create, {
-			storeId: "s1",
+			roomId: "s1",
 			tournamentId: "tn1",
 			currencyId: "c1",
 			buyIn: 10_000,

@@ -9,16 +9,16 @@ import {
 	purchaseChipsPayload,
 	tournamentSessionEndPayload,
 } from "@sapphire2/db/constants/session-event-types";
+import {
+	currencyTransaction,
+	transactionType,
+} from "@sapphire2/db/schema/currency";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
-import {
-	currencyTransaction,
-	transactionType,
-} from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { and, asc, eq } from "drizzle-orm";
 import type { protectedProcedure } from "../index";

@@ -1,12 +1,13 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { currency, store } from "./store";
+import { currency } from "./currency";
+import { room } from "./room";
 
 export const ringGame = sqliteTable(
 	"ring_game",
 	{
 		id: text("id").primaryKey(),
-		storeId: text("store_id").references(() => store.id, {
+		roomId: text("room_id").references(() => room.id, {
 			onDelete: "cascade",
 		}),
 		name: text("name").notNull(),
@@ -31,13 +32,13 @@ export const ringGame = sqliteTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [index("ringGame_storeId_idx").on(table.storeId)]
+	(table) => [index("ringGame_roomId_idx").on(table.roomId)]
 );
 
 export const ringGameRelations = relations(ringGame, ({ one }) => ({
-	store: one(store, {
-		fields: [ringGame.storeId],
-		references: [store.id],
+	room: one(room, {
+		fields: [ringGame.roomId],
+		references: [room.id],
 	}),
 	currency: one(currency, {
 		fields: [ringGame.currencyId],

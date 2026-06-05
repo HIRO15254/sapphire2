@@ -13,33 +13,33 @@ vi.mock("@/features/live-sessions/hooks/use-create-session", () => ({
 import { useCreateSessionDialog } from "@/features/live-sessions/components/create-session-dialog/use-create-session-dialog";
 
 function setupImpl(overrides: Record<string, unknown> = {}) {
-	const setSelectedStoreId = vi.fn();
+	const setSelectedRoomId = vi.fn();
 	const createCash = vi.fn();
 	const createTournament = vi.fn();
 	hooks.useCreateSessionImpl.mockImplementation(() => ({
-		stores: [],
+		rooms: [],
 		currencies: [],
 		ringGames: [],
 		tournaments: [],
-		setSelectedStoreId,
+		setSelectedRoomId,
 		createCash,
 		createTournament,
 		isLoading: false,
 		...overrides,
 	}));
-	return { setSelectedStoreId, createCash, createTournament };
+	return { setSelectedRoomId, createCash, createTournament };
 }
 
 describe("useCreateSessionDialog", () => {
-	it("handleReset clears the selected store on the underlying hook", () => {
-		const { setSelectedStoreId } = setupImpl();
+	it("handleReset clears the selected room on the underlying hook", () => {
+		const { setSelectedRoomId } = setupImpl();
 		const { result } = renderHook(() =>
 			useCreateSessionDialog({ onOpenChange: vi.fn() })
 		);
 		act(() => {
 			result.current.handleReset();
 		});
-		expect(setSelectedStoreId).toHaveBeenCalledWith(undefined);
+		expect(setSelectedRoomId).toHaveBeenCalledWith(undefined);
 	});
 
 	it("wires useCreateSession.onClose -> onOpenChange(false)", () => {
@@ -71,14 +71,14 @@ describe("useCreateSessionDialog", () => {
 				buyIn: 10_000,
 				cashOut: 0,
 				variant: "nlh",
-				storeId: "store-1",
+				roomId: "room-1",
 				ringGameId: "rg-1",
 				currencyId: "c-1",
 				memo: "starting",
 			});
 		});
 		expect(createCash).toHaveBeenCalledWith({
-			storeId: "store-1",
+			roomId: "room-1",
 			ringGameId: "rg-1",
 			currencyId: "c-1",
 			initialBuyIn: 10_000,
@@ -99,13 +99,13 @@ describe("useCreateSessionDialog", () => {
 				tournamentBuyIn: 10_000,
 				entryFee: 1000,
 				startingStack: 20_000,
-				storeId: "store-1",
+				roomId: "room-1",
 				tournamentId: "t-1",
 				currencyId: "c-1",
 			});
 		});
 		expect(createTournament).toHaveBeenCalledWith({
-			storeId: "store-1",
+			roomId: "room-1",
 			tournamentId: "t-1",
 			currencyId: "c-1",
 			buyIn: 10_000,

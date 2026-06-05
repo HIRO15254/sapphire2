@@ -1,1 +1,1 @@
-export { StoreGameSelectors } from "./link-selectors";
+export { RoomGameSelectors } from "./link-selectors";

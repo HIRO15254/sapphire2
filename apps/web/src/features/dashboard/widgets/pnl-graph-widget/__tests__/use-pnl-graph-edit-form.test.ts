@@ -5,10 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		store: {
+		room: {
 			list: {
 				queryOptions: () => ({
-					queryKey: ["store", "list"],
+					queryKey: ["room", "list"],
 					queryFn: () => Promise.resolve([]),
 				}),
 			},
@@ -22,9 +22,9 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 		ringGame: {
-			listByStore: {
-				queryOptions: (input: { storeId: string }, opts?: unknown) => ({
-					queryKey: ["ringGame", "listByStore", input],
+			listByRoom: {
+				queryOptions: (input: { roomId: string }, opts?: unknown) => ({
+					queryKey: ["ringGame", "listByRoom", input],
 					queryFn: () => Promise.resolve([]),
 					...((opts as object) ?? {}),
 				}),
@@ -63,7 +63,7 @@ describe("usePnlGraphEditForm", () => {
 		expect(v.dateRangeDays).toBe("");
 		expect(v.sessionType).toBe("all");
 		expect(v.unit).toBe("currency");
-		expect(v.storeId).toBe("__none__");
+		expect(v.roomId).toBe("__none__");
 		expect(v.ringGameId).toBe("__none__");
 		expect(v.currencyId).toBe("__none__");
 		expect(v.showXAxis).toBe(false);
@@ -81,7 +81,7 @@ describe("usePnlGraphEditForm", () => {
 						dateRangeDays: 30,
 						sessionType: "tournament",
 						unit: "normalized",
-						storeId: "s1",
+						roomId: "s1",
 						ringGameId: "rg1",
 						currencyId: "c1",
 						showFilters: { xAxis: true, unit: true },
@@ -95,7 +95,7 @@ describe("usePnlGraphEditForm", () => {
 		expect(v.dateRangeDays).toBe("30");
 		expect(v.sessionType).toBe("tournament");
 		expect(v.unit).toBe("normalized");
-		expect(v.storeId).toBe("s1");
+		expect(v.roomId).toBe("s1");
 		expect(v.ringGameId).toBe("rg1");
 		expect(v.currencyId).toBe("c1");
 		expect(v.showXAxis).toBe(true);
@@ -113,7 +113,7 @@ describe("usePnlGraphEditForm", () => {
 			result.current.form.setFieldValue("dateRangeDays", "14");
 			result.current.form.setFieldValue("sessionType", "cash_game");
 			result.current.form.setFieldValue("unit", "normalized");
-			result.current.form.setFieldValue("storeId", "store-7");
+			result.current.form.setFieldValue("roomId", "room-7");
 			result.current.form.setFieldValue("ringGameId", "rg-9");
 			result.current.form.setFieldValue("currencyId", "__none__");
 			result.current.form.setFieldValue("showEvCash", true);
@@ -129,7 +129,7 @@ describe("usePnlGraphEditForm", () => {
 			dateRangeDays: 14,
 			sessionType: "cash_game",
 			unit: "normalized",
-			storeId: "store-7",
+			roomId: "room-7",
 			ringGameId: "rg-9",
 			currencyId: null,
 			showEvCash: true,
@@ -138,7 +138,7 @@ describe("usePnlGraphEditForm", () => {
 				dateRange: false,
 				sessionType: false,
 				unit: true,
-				store: false,
+				room: false,
 				currency: false,
 			},
 		});

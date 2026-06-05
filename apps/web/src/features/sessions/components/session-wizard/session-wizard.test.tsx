@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 // LocalBlindStructureContent (reused by the tournament Rules step) pulls in
-// the stores blind-level editor, which transitively imports @/utils/trpc.
+// the rooms blind-level editor, which transitively imports @/utils/trpc.
 // Stub it so the env-validating import chain is not loaded under jsdom.
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
@@ -18,7 +18,7 @@ vi.mock("@/utils/trpc", () => ({
 
 import { SessionWizard } from "./session-wizard";
 
-const STORE = { id: "store-1", name: "My Casino" };
+const STORE = { id: "room-1", name: "My Casino" };
 const RING_GAME = {
 	id: "rg-1",
 	name: "1/2 NLH",
@@ -35,7 +35,7 @@ const BREAK_RE = /Break/;
 
 describe("SessionWizard — step gating", () => {
 	it("starts on the master step with type tabs and a Next button", () => {
-		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		expect(screen.getByText("Master")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: NEXT_RE })).toBeInTheDocument();
 		expect(
@@ -44,14 +44,14 @@ describe("SessionWizard — step gating", () => {
 	});
 
 	it("disables Back on the first step", () => {
-		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		const back = screen.getByRole("button", { name: BACK_RE });
 		expect(back).toBeDisabled();
 	});
 
 	it("advances master → rules → result via Next", async () => {
 		const user = userEvent.setup();
-		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 
 		// Master shows the session-type tabs
 		expect(screen.getByText("Cash Game")).toBeInTheDocument();
@@ -72,7 +72,7 @@ describe("SessionWizard — step gating", () => {
 
 	it("Back returns to the previous step without losing field values", async () => {
 		const user = userEvent.setup();
-		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: BACK_RE }));
 		expect(screen.getByText("Cash Game")).toBeInTheDocument();
@@ -82,7 +82,7 @@ describe("SessionWizard — step gating", () => {
 describe("SessionWizard — tournament mode", () => {
 	it("renders tournament rules on the rules step when type is tournament", async () => {
 		const user = userEvent.setup();
-		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(document.getElementById("tournamentBuyIn")).toBeInTheDocument();
@@ -91,7 +91,7 @@ describe("SessionWizard — tournament mode", () => {
 
 	it("splits the tournament Rules step into Settings and Blind Levels tabs", async () => {
 		const user = userEvent.setup();
-		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(screen.getByRole("tab", { name: "Settings" })).toBeInTheDocument();
@@ -104,7 +104,7 @@ describe("SessionWizard — tournament mode", () => {
 
 	it("reveals the shared blind-structure editor on the Blind Levels tab", async () => {
 		const user = userEvent.setup();
-		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("tab", { name: "Blind Levels" }));
@@ -116,7 +116,7 @@ describe("SessionWizard — tournament mode", () => {
 describe("SessionWizard — snapshot scalar fields", () => {
 	it("renders ruleName + min/maxBuyIn on the cash rules step", async () => {
 		const user = userEvent.setup();
-		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(screen.getByLabelText("Rule Name")).toBeInTheDocument();
 		expect(screen.getByLabelText("Min Buy-in")).toBeInTheDocument();
@@ -125,7 +125,7 @@ describe("SessionWizard — snapshot scalar fields", () => {
 
 	it("renders ruleName + startingStack + bountyAmount on the tournament rules step", async () => {
 		const user = userEvent.setup();
-		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(screen.getByLabelText("Rule Name")).toBeInTheDocument();
@@ -141,11 +141,11 @@ describe("SessionWizard — master-step pre-fill", () => {
 			<SessionWizard
 				onSubmit={vi.fn()}
 				ringGames={[RING_GAME]}
-				stores={[STORE]}
+				rooms={[STORE]}
 			/>
 		);
 
-		// Wizard owns store selection; the form options surface once a store
+		// Wizard owns room selection; the form options surface once a room
 		// is picked. Hop to the rules step and inspect that the cash-rule
 		// fields render — the deeper pre-fill behavior is covered by the
 		// shared hook tests.
@@ -159,7 +159,7 @@ const START_CUSTOM_RE = /Start/;
 
 describe("SessionWizard — live mode", () => {
 	it("renders Master + Rules + Start steps (drops Result)", () => {
-		render(<SessionWizard mode="live" onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard mode="live" onSubmit={vi.fn()} rooms={[STORE]} />);
 		expect(screen.getByText("Master")).toBeInTheDocument();
 		expect(screen.getByText("Rules")).toBeInTheDocument();
 		expect(screen.getByText("Start")).toBeInTheDocument();
@@ -172,7 +172,7 @@ describe("SessionWizard — live mode", () => {
 			<SessionWizard
 				mode="live"
 				onSubmit={vi.fn()}
-				stores={[STORE]}
+				rooms={[STORE]}
 				submitLabel="Start session"
 			/>
 		);
@@ -187,7 +187,7 @@ describe("SessionWizard — live mode", () => {
 
 	it("renders the Initial Buy-in field on the cash Start step", async () => {
 		const user = userEvent.setup();
-		render(<SessionWizard mode="live" onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard mode="live" onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(screen.getByText("Initial Buy-in")).toBeInTheDocument();
@@ -196,7 +196,7 @@ describe("SessionWizard — live mode", () => {
 
 	it("shows the blind-timer field on the tournament Start step", async () => {
 		const user = userEvent.setup();
-		render(<SessionWizard mode="live" onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard mode="live" onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
@@ -206,7 +206,7 @@ describe("SessionWizard — live mode", () => {
 
 	it("defaults to 'Start' label when mode=live and submitLabel is omitted", async () => {
 		const user = userEvent.setup();
-		render(<SessionWizard mode="live" onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard mode="live" onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(
@@ -216,7 +216,7 @@ describe("SessionWizard — live mode", () => {
 
 	it("keeps tournament result fields out of the Rules step", async () => {
 		const user = userEvent.setup();
-		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		// Rules step: rule fields present, result fields absent.
@@ -229,7 +229,7 @@ describe("SessionWizard — live mode", () => {
 
 	it("renders tournament result fields on the Result step", async () => {
 		const user = userEvent.setup();
-		render(<SessionWizard onSubmit={vi.fn()} stores={[STORE]} />);
+		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
@@ -251,7 +251,7 @@ describe("SessionWizard — live mode", () => {
 				defaultValues={{ buyIn: 10_000, cashOut: 0 }}
 				mode="live"
 				onSubmit={onSubmit}
-				stores={[STORE]}
+				rooms={[STORE]}
 				submitLabel="Start session"
 			/>
 		);

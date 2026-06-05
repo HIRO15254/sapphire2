@@ -73,7 +73,7 @@ const pnlGraphFilterFlagsSchema = z
 		dateRange: z.boolean().default(false),
 		sessionType: z.boolean().default(false),
 		unit: z.boolean().default(false),
-		store: z.boolean().default(false),
+		room: z.boolean().default(false),
 		currency: z.boolean().default(false),
 	})
 	.default({
@@ -81,7 +81,7 @@ const pnlGraphFilterFlagsSchema = z
 		dateRange: false,
 		sessionType: false,
 		unit: false,
-		store: false,
+		room: false,
 		currency: false,
 	});
 
@@ -90,7 +90,7 @@ export const pnlGraphConfigSchema = z.object({
 	dateRangeDays: z.number().int().min(1).max(3650).nullable().default(null),
 	sessionType: pnlGraphSessionTypeSchema.default("all"),
 	unit: pnlGraphUnitSchema.default("currency"),
-	storeId: z.string().nullable().default(null),
+	roomId: z.string().nullable().default(null),
 	ringGameId: z.string().nullable().default(null),
 	currencyId: z.string().nullable().default(null),
 	showEvCash: z.boolean().default(false),

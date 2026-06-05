@@ -2,12 +2,13 @@ import {
 	tournamentSessionEndPayload,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
+import { currency } from "@sapphire2/db/schema/currency";
+import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
-import { currency, store } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
@@ -222,7 +223,7 @@ function computeStackStats(
 
 function buildLiveSessionUpdateData(input: {
 	memo?: string | null;
-	storeId?: string | null;
+	roomId?: string | null;
 	currencyId?: string | null;
 }): Partial<typeof gameSession.$inferInsert> {
 	const updateData: Partial<typeof gameSession.$inferInsert> = {
@@ -231,8 +232,8 @@ function buildLiveSessionUpdateData(input: {
 	if (input.memo !== undefined) {
 		updateData.memo = input.memo;
 	}
-	if (input.storeId !== undefined) {
-		updateData.storeId = input.storeId;
+	if (input.roomId !== undefined) {
+		updateData.roomId = input.roomId;
 	}
 	if (input.currencyId !== undefined) {
 		updateData.currencyId = input.currencyId;
@@ -247,7 +248,7 @@ async function resolveDetailUpdate(
 		timerStartedAt?: number | null;
 	},
 	updateData: Partial<typeof gameSession.$inferInsert>,
-	existing: { storeId: string | null; currencyId: string | null },
+	existing: { roomId: string | null; currencyId: string | null },
 	userId: string
 ): Promise<{
 	detailUpdate: Partial<typeof sessionTournamentDetail.$inferInsert>;
@@ -266,10 +267,10 @@ async function resolveDetailUpdate(
 	if (input.tournamentId === null) {
 		detailUpdate.tournamentId = null;
 	} else if (input.tournamentId !== undefined) {
-		const resolvedStoreId =
-			patchedUpdateData.storeId === undefined
-				? existing.storeId
-				: patchedUpdateData.storeId;
+		const resolvedRoomId =
+			patchedUpdateData.roomId === undefined
+				? existing.roomId
+				: patchedUpdateData.roomId;
 		const resolvedCurrencyId =
 			patchedUpdateData.currencyId === undefined
 				? existing.currencyId
@@ -278,12 +279,12 @@ async function resolveDetailUpdate(
 			db,
 			input.tournamentId,
 			userId,
-			resolvedStoreId,
+			resolvedRoomId,
 			resolvedCurrencyId
 		);
 		detailUpdate.tournamentId = patch.tournamentId;
-		if (patch.storeId) {
-			patchedUpdateData.storeId = patch.storeId;
+		if (patch.roomId) {
+			patchedUpdateData.roomId = patch.roomId;
 		}
 		if (patch.currencyId) {
 			patchedUpdateData.currencyId = patch.currencyId;
@@ -366,11 +367,11 @@ async function resolveTournamentAssignment(
 	db: DbInstance,
 	tournamentId: string,
 	userId: string,
-	currentStoreId: string | null,
+	currentRoomId: string | null,
 	currentCurrencyId: string | null
 ): Promise<{
 	tournamentId: string;
-	storeId?: string;
+	roomId?: string;
 	currencyId?: string;
 }> {
 	const [foundTournament] = await db
@@ -385,31 +386,31 @@ async function resolveTournamentAssignment(
 		});
 	}
 
-	const [foundStore] = await db
+	const [foundRoom] = await db
 		.select()
-		.from(store)
-		.where(eq(store.id, foundTournament.storeId));
-	if (!foundStore || foundStore.userId !== userId) {
+		.from(room)
+		.where(eq(room.id, foundTournament.roomId));
+	if (!foundRoom || foundRoom.userId !== userId) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message: "You do not own this tournament",
 		});
 	}
 
-	if (currentStoreId && currentStoreId !== foundTournament.storeId) {
+	if (currentRoomId && currentRoomId !== foundTournament.roomId) {
 		throw new TRPCError({
 			code: "BAD_REQUEST",
-			message: "Tournament belongs to a different store than the session",
+			message: "Tournament belongs to a different room than the session",
 		});
 	}
 
 	const patch: {
 		tournamentId: string;
-		storeId?: string;
+		roomId?: string;
 		currencyId?: string;
 	} = { tournamentId };
-	if (!currentStoreId) {
-		patch.storeId = foundTournament.storeId;
+	if (!currentRoomId) {
+		patch.roomId = foundTournament.roomId;
 	}
 	if (!currentCurrencyId && foundTournament.currencyId) {
 		patch.currencyId = foundTournament.currencyId;
@@ -494,8 +495,8 @@ export const liveTournamentSessionRouter = router({
 					id: gameSession.id,
 					userId: gameSession.userId,
 					status: gameSession.status,
-					storeId: gameSession.storeId,
-					storeName: store.name,
+					roomId: gameSession.roomId,
+					roomName: room.name,
 					tournamentId: sessionTournamentDetail.tournamentId,
 					tournamentName: sessionTournamentDetail.ruleName,
 					startingStack: sessionTournamentDetail.startingStack,
@@ -513,7 +514,7 @@ export const liveTournamentSessionRouter = router({
 					sessionTournamentDetail,
 					eq(sessionTournamentDetail.sessionId, gameSession.id)
 				)
-				.leftJoin(store, eq(store.id, gameSession.storeId))
+				.leftJoin(room, eq(room.id, gameSession.roomId))
 				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
 				.where(and(...conditions))
 				.orderBy(desc(gameSession.startedAt))
@@ -649,7 +650,7 @@ export const liveTournamentSessionRouter = router({
 	create: protectedProcedure
 		.input(
 			z.object({
-				storeId: z.string().optional(),
+				roomId: z.string().optional(),
 				tournamentId: z.string().optional(),
 				currencyId: z.string().optional(),
 				buyIn: z.number().int().min(0).optional(),
@@ -672,7 +673,7 @@ export const liveTournamentSessionRouter = router({
 				kind: "tournament",
 				status: "active",
 				source: "live",
-				storeId: input.storeId ?? null,
+				roomId: input.roomId ?? null,
 				currencyId: input.currencyId ?? null,
 				startedAt: now,
 				memo: input.memo ?? null,
@@ -725,7 +726,7 @@ export const liveTournamentSessionRouter = router({
 			z.object({
 				id: z.string(),
 				memo: z.string().nullable().optional(),
-				storeId: z.string().nullable().optional(),
+				roomId: z.string().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
 				tournamentId: z.string().nullable().optional(),
 				timerStartedAt: z.number().int().nullable().optional(),

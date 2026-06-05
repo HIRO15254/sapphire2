@@ -52,12 +52,12 @@ function HomeComponent() {
 				>
 					<ul className="space-y-2 text-muted-foreground text-sm">
 						<li>Track live and historical sessions in one place.</li>
-						<li>Manage stores, currencies, players, and shared tags.</li>
+						<li>Manage rooms, currencies, players, and shared tags.</li>
 						<li>Jump straight into live session tools after sign in.</li>
 					</ul>
 				</PageSection>
 			}
-			description="A lightweight public entry point for session tracking, store management, and live play workflows."
+			description="A lightweight public entry point for session tracking, room management, and live play workflows."
 			eyebrow="Session Tracking"
 			title="sapphire2 keeps your poker operations in sync."
 		>

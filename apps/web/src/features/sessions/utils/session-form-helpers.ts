@@ -34,10 +34,10 @@ export interface CashGameFormValues {
 	memo?: string;
 	minBuyIn?: number;
 	ringGameId?: string;
+	roomId?: string;
 	ruleName?: string;
 	sessionDate: string;
 	startTime?: string;
-	storeId?: string;
 	tableSize?: number;
 	tagIds?: string[];
 	type: "cash_game";
@@ -57,11 +57,11 @@ export interface TournamentFormValues {
 	memo?: string;
 	placement?: number;
 	prizeMoney?: number;
+	roomId?: string;
 	ruleName?: string;
 	sessionDate: string;
 	startingStack?: number;
 	startTime?: string;
-	storeId?: string;
 	tableSize?: number;
 	tagIds?: string[];
 	/** Unix seconds — when the blind timer started. */
@@ -126,11 +126,11 @@ export interface SessionFormDefaults {
 	placement?: number;
 	prizeMoney?: number;
 	ringGameId?: string;
+	roomId?: string;
 	ruleName?: string;
 	sessionDate?: string;
 	startingStack?: number;
 	startTime?: string;
-	storeId?: string;
 	tableSize?: number;
 	tagIds?: string[];
 	/** `datetime-local` string — when the blind timer started. */

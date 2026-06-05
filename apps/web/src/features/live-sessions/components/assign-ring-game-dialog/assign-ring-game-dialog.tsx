@@ -1,4 +1,4 @@
-import { RingGameForm } from "@/features/stores/components/ring-game-form";
+import { RingGameForm } from "@/features/rooms/components/ring-game-form";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
@@ -17,7 +17,7 @@ interface AssignRingGameDialogProps {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	sessionId: string;
-	sessionStoreId: string | null;
+	sessionRoomId: string | null;
 }
 
 interface RingGameListItem {
@@ -25,34 +25,34 @@ interface RingGameListItem {
 	name: string;
 }
 
-function StoreSelectField({
+function RoomSelectField({
 	onChange,
-	stores,
+	rooms,
 	value,
 }: {
 	onChange: (value: string) => void;
-	stores: { id: string; name: string }[];
+	rooms: { id: string; name: string }[];
 	value: string | undefined;
 }) {
-	if (stores.length === 0) {
+	if (rooms.length === 0) {
 		return (
-			<Field className="mb-4" label="Store" required>
+			<Field className="mb-4" label="Room" required>
 				<EmptyState
 					className="px-4 py-8"
-					description="Create a store first."
-					heading="No stores available"
+					description="Create a room first."
+					heading="No rooms available"
 				/>
 			</Field>
 		);
 	}
 	return (
-		<Field className="mb-4" label="Store" required>
+		<Field className="mb-4" label="Room" required>
 			<Select onValueChange={onChange} value={value}>
 				<SelectTrigger>
 					<SelectValue />
 				</SelectTrigger>
 				<SelectContent>
-					{stores.map((s) => (
+					{rooms.map((s) => (
 						<SelectItem key={s.id} value={s.id}>
 							{s.name}
 						</SelectItem>
@@ -64,21 +64,21 @@ function StoreSelectField({
 }
 
 function RingGamePickerField({
-	effectiveStoreId,
+	effectiveRoomId,
 	onChange,
 	ringGames,
 	value,
 }: {
-	effectiveStoreId: string | undefined;
+	effectiveRoomId: string | undefined;
 	onChange: (value: string) => void;
 	ringGames: RingGameListItem[];
 	value: string;
 }) {
-	if (!effectiveStoreId) {
+	if (!effectiveRoomId) {
 		return (
 			<Field label="Ring Game" required>
 				<p className="text-muted-foreground text-sm">
-					Please select a store first.
+					Please select a room first.
 				</p>
 			</Field>
 		);
@@ -116,15 +116,15 @@ export function AssignRingGameDialog({
 	onOpenChange,
 	open,
 	sessionId,
-	sessionStoreId,
+	sessionRoomId,
 }: AssignRingGameDialogProps) {
 	const {
 		mode,
 		setMode,
-		stores,
-		selectedStoreId,
-		setSelectedStoreId,
-		effectiveStoreId,
+		rooms,
+		selectedRoomId,
+		setSelectedRoomId,
+		effectiveRoomId,
 		ringGames,
 		selectForm,
 		handleCreate,
@@ -135,7 +135,7 @@ export function AssignRingGameDialog({
 		onClose: () => onOpenChange(false),
 		open,
 		sessionId,
-		sessionStoreId,
+		sessionRoomId,
 	});
 
 	const renderExistingTab = () => (
@@ -150,7 +150,7 @@ export function AssignRingGameDialog({
 			<selectForm.Field name="ringGameId">
 				{(field) => (
 					<RingGamePickerField
-						effectiveStoreId={effectiveStoreId}
+						effectiveRoomId={effectiveRoomId}
 						onChange={(value) => field.handleChange(value)}
 						ringGames={ringGames}
 						value={field.state.value}
@@ -163,7 +163,7 @@ export function AssignRingGameDialog({
 					<Button
 						disabled={
 							isBusy ||
-							!effectiveStoreId ||
+							!effectiveRoomId ||
 							!state.values.ringGameId ||
 							state.isSubmitting
 						}
@@ -177,10 +177,10 @@ export function AssignRingGameDialog({
 	);
 
 	const renderCreateTab = () => {
-		if (!effectiveStoreId) {
+		if (!effectiveRoomId) {
 			return (
 				<p className="text-muted-foreground text-sm">
-					Please select a store first.
+					Please select a room first.
 				</p>
 			);
 		}
@@ -209,11 +209,11 @@ export function AssignRingGameDialog({
 				</TabsList>
 			</Tabs>
 
-			{sessionStoreId ? null : (
-				<StoreSelectField
-					onChange={(value) => setSelectedStoreId(value)}
-					stores={stores}
-					value={selectedStoreId}
+			{sessionRoomId ? null : (
+				<RoomSelectField
+					onChange={(value) => setSelectedRoomId(value)}
+					rooms={rooms}
+					value={selectedRoomId}
 				/>
 			)}
 

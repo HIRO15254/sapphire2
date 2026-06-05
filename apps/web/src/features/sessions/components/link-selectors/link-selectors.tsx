@@ -8,43 +8,43 @@ import {
 	SelectWithClear,
 } from "@/shared/components/ui/select";
 
-interface StoreGameSelectorProps {
+interface RoomGameSelectorProps {
 	gameLabel: string;
 	gameOptions?: Array<{ id: string; name: string }>;
 	isLiveLinked?: boolean;
 	onGameChange: (value: string | undefined) => void;
-	onStoreChange: (value: string | undefined) => void;
+	onRoomChange: (value: string | undefined) => void;
+	rooms?: Array<{ id: string; name: string }>;
 	selectedGameId: string | undefined;
-	selectedStoreId: string | undefined;
-	stores?: Array<{ id: string; name: string }>;
+	selectedRoomId: string | undefined;
 }
 
-export function StoreGameSelectors({
+export function RoomGameSelectors({
 	gameLabel,
 	gameOptions,
 	isLiveLinked = false,
 	onGameChange,
-	onStoreChange,
+	onRoomChange,
 	selectedGameId,
-	selectedStoreId,
-	stores,
-}: StoreGameSelectorProps) {
-	if (!stores || stores.length === 0) {
+	selectedRoomId,
+	rooms,
+}: RoomGameSelectorProps) {
+	if (!rooms || rooms.length === 0) {
 		return null;
 	}
 
 	const hasGameOptions =
-		selectedStoreId && gameOptions && gameOptions.length > 0;
+		selectedRoomId && gameOptions && gameOptions.length > 0;
 
 	return (
 		<>
-			<Field label="Store">
-				<SelectWithClear onValueChange={onStoreChange} value={selectedStoreId}>
+			<Field label="Room">
+				<SelectWithClear onValueChange={onRoomChange} value={selectedRoomId}>
 					<SelectTrigger>
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						{stores.map((s) => (
+						{rooms.map((s) => (
 							<SelectItem key={s.id} value={s.id}>
 								{s.name}
 							</SelectItem>
@@ -53,7 +53,7 @@ export function StoreGameSelectors({
 				</SelectWithClear>
 			</Field>
 
-			{selectedStoreId && (
+			{selectedRoomId && (
 				<Field label={gameLabel}>
 					{hasGameOptions ? (
 						<SelectWithClear
