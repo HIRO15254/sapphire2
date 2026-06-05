@@ -1,6 +1,6 @@
 import { room } from "@sapphire2/db/schema/room";
 import { TRPCError } from "@trpc/server";
-import { eq, sql } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -19,13 +19,15 @@ export const roomRouter = router({
 				userId: room.userId,
 				name: room.name,
 				memo: room.memo,
+				isFavorite: room.isFavorite,
 				createdAt: room.createdAt,
 				updatedAt: room.updatedAt,
 				ringGameCount: sql<number>`(SELECT COUNT(*) FROM ring_game WHERE ring_game.room_id = room.id AND ring_game.archived_at IS NULL)`,
 				tournamentCount: sql<number>`(SELECT COUNT(*) FROM tournament WHERE tournament.room_id = room.id AND tournament.archived_at IS NULL)`,
 			})
 			.from(room)
-			.where(eq(room.userId, userId));
+			.where(eq(room.userId, userId))
+			.orderBy(desc(room.isFavorite), asc(room.createdAt));
 	}),
 
 	getById: protectedProcedure
@@ -133,5 +135,37 @@ export const roomRouter = router({
 
 			await ctx.db.delete(room).where(eq(room.id, input.id));
 			return { success: true };
+		}),
+
+	toggleFavorite: protectedProcedure
+		.input(z.object({ id: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const [found] = await ctx.db
+				.select()
+				.from(room)
+				.where(eq(room.id, input.id));
+
+			if (!found) {
+				throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
+			}
+
+			if (found.userId !== userId) {
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "You do not own this room",
+				});
+			}
+
+			await ctx.db
+				.update(room)
+				.set({ isFavorite: !found.isFavorite, updatedAt: new Date() })
+				.where(eq(room.id, input.id));
+
+			const [updated] = await ctx.db
+				.select()
+				.from(room)
+				.where(eq(room.id, input.id));
+			return updated;
 		}),
 });

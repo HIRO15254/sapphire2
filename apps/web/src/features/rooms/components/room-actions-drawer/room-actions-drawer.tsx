@@ -1,4 +1,9 @@
-import { IconEdit, IconTrash } from "@tabler/icons-react";
+import {
+	IconEdit,
+	IconStar,
+	IconStarFilled,
+	IconTrash,
+} from "@tabler/icons-react";
 import {
 	Drawer,
 	DrawerContent,
@@ -12,20 +17,24 @@ const DESTRUCTIVE_ITEM =
 	"flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-destructive text-sm outline-none hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/40";
 
 interface RoomActionsDrawerProps {
+	isFavorite: boolean;
 	onDelete: () => void;
 	onEdit: () => void;
 	onOpenChange: (open: boolean) => void;
+	onToggleFavorite: () => void;
 	open: boolean;
 }
 
 /**
  * V2 action sheet for the room detail page header overflow, mirroring
- * `CurrencyActionsDrawer`: Edit / Delete the room itself.
+ * `CurrencyActionsDrawer`: Favorite / Edit / Delete the room itself.
  */
 export function RoomActionsDrawer({
+	isFavorite,
 	onDelete,
 	onEdit,
 	onOpenChange,
+	onToggleFavorite,
 	open,
 }: RoomActionsDrawerProps) {
 	return (
@@ -40,6 +49,20 @@ export function RoomActionsDrawer({
 					Edit or delete this room.
 				</DrawerDescription>
 				<ul className="flex flex-col gap-1 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+					<li>
+						<button
+							className={NEUTRAL_ITEM}
+							onClick={onToggleFavorite}
+							type="button"
+						>
+							{isFavorite ? (
+								<IconStarFilled className="text-yellow-500" size={18} />
+							) : (
+								<IconStar size={18} />
+							)}
+							{isFavorite ? "Remove from favorites" : "Add to favorites"}
+						</button>
+					</li>
 					<li>
 						<button className={NEUTRAL_ITEM} onClick={onEdit} type="button">
 							<IconEdit size={18} />

@@ -5,6 +5,7 @@ import { RoomListCard, RoomListCardSkeleton } from "../room-list-card";
 
 interface RoomListItem {
 	id: string;
+	isFavorite: boolean;
 	memo?: string | null;
 	name: string;
 	ringGameCount: number;
@@ -16,6 +17,7 @@ interface RoomListProps {
 	isLoading: boolean;
 	/** Open the create sheet — wired to the empty-state CTA. */
 	onCreate: () => void;
+	onToggleFavorite: (id: string) => void;
 	rooms: RoomListItem[];
 }
 
@@ -27,7 +29,12 @@ const SKELETON_COUNT = 5;
  * decides what to render. The loading branch stacks the card-bound
  * `RoomListCardSkeleton`.
  */
-export function RoomList({ rooms, isLoading, onCreate }: RoomListProps) {
+export function RoomList({
+	rooms,
+	isLoading,
+	onCreate,
+	onToggleFavorite,
+}: RoomListProps) {
 	if (isLoading) {
 		return (
 			<div
@@ -61,7 +68,11 @@ export function RoomList({ rooms, isLoading, onCreate }: RoomListProps) {
 	return (
 		<div className="flex flex-col gap-2">
 			{rooms.map((room) => (
-				<RoomListCard key={room.id} room={room} />
+				<RoomListCard
+					key={room.id}
+					onToggleFavorite={() => onToggleFavorite(room.id)}
+					room={room}
+				/>
 			))}
 		</div>
 	);

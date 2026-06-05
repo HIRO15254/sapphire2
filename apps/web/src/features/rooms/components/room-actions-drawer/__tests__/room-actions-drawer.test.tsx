@@ -9,16 +9,19 @@ function setup(
 	const onDelete = vi.fn();
 	const onEdit = vi.fn();
 	const onOpenChange = vi.fn();
+	const onToggleFavorite = vi.fn();
 	render(
 		<RoomActionsDrawer
+			isFavorite={false}
 			onDelete={onDelete}
 			onEdit={onEdit}
 			onOpenChange={onOpenChange}
+			onToggleFavorite={onToggleFavorite}
 			open
 			{...props}
 		/>
 	);
-	return { onDelete, onEdit, onOpenChange };
+	return { onDelete, onEdit, onOpenChange, onToggleFavorite };
 }
 
 describe("RoomActionsDrawer", () => {
@@ -26,6 +29,23 @@ describe("RoomActionsDrawer", () => {
 		setup();
 		expect(screen.getByText("Edit room")).toBeInTheDocument();
 		expect(screen.getByText("Delete room")).toBeInTheDocument();
+	});
+
+	it("renders 'Add to favorites' when isFavorite is false", () => {
+		setup({ isFavorite: false });
+		expect(screen.getByText("Add to favorites")).toBeInTheDocument();
+	});
+
+	it("renders 'Remove from favorites' when isFavorite is true", () => {
+		setup({ isFavorite: true });
+		expect(screen.getByText("Remove from favorites")).toBeInTheDocument();
+	});
+
+	it("calls onToggleFavorite when the favorite item is clicked", async () => {
+		const user = userEvent.setup();
+		const { onToggleFavorite } = setup({ isFavorite: false });
+		await user.click(screen.getByText("Add to favorites"));
+		expect(onToggleFavorite).toHaveBeenCalledTimes(1);
 	});
 
 	it("calls onEdit when Edit room is clicked", async () => {

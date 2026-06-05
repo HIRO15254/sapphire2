@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	create: vi.fn(),
+	toggleFavorite: vi.fn(),
 	rooms: [] as Array<{
 		id: string;
 		memo?: string | null;
@@ -20,9 +21,11 @@ vi.mock("@/features/rooms/hooks/use-rooms", () => ({
 		isLoading: mocks.isLoading,
 		isCreatePending: mocks.isCreatePending,
 		isUpdatePending: false,
+		isToggleFavoritePending: false,
 		create: mocks.create,
 		update: vi.fn(),
 		delete: vi.fn(),
+		toggleFavorite: mocks.toggleFavorite,
 	}),
 }));
 
@@ -31,6 +34,7 @@ import { useRoomsPage } from "@/features/rooms/pages/rooms-page/use-rooms-page";
 describe("useRoomsPage", () => {
 	beforeEach(() => {
 		mocks.create.mockReset().mockResolvedValue({ id: "new" });
+		mocks.toggleFavorite.mockReset().mockResolvedValue({ id: "s1" });
 		mocks.rooms = [];
 		mocks.isCreatePending = false;
 		mocks.isLoading = false;
@@ -149,6 +153,25 @@ describe("useRoomsPage", () => {
 			expect(mocks.create).toHaveBeenCalledWith({ name: "Bad" });
 			expect(result.current.isCreateOpen).toBe(true);
 			process.off("unhandledRejection", unhandled);
+		});
+	});
+
+	describe("handleToggleFavorite", () => {
+		it("calls toggleFavorite with the given room id", () => {
+			const { result } = renderHook(() => useRoomsPage());
+			act(() => {
+				result.current.handleToggleFavorite("s1");
+			});
+			expect(mocks.toggleFavorite).toHaveBeenCalledTimes(1);
+			expect(mocks.toggleFavorite).toHaveBeenCalledWith("s1");
+		});
+
+		it("passes different ids through unchanged", () => {
+			const { result } = renderHook(() => useRoomsPage());
+			act(() => {
+				result.current.handleToggleFavorite("abc-123");
+			});
+			expect(mocks.toggleFavorite).toHaveBeenCalledWith("abc-123");
 		});
 	});
 });

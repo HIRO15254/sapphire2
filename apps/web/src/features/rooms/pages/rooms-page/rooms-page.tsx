@@ -16,6 +16,7 @@ export function RoomsPage() {
 		isCreatePending,
 		setIsCreateOpen,
 		handleCreate,
+		handleToggleFavorite,
 	} = useRoomsPage();
 
 	return (
@@ -34,6 +35,7 @@ export function RoomsPage() {
 				<RoomList
 					isLoading={isLoading}
 					onCreate={() => setIsCreateOpen(true)}
+					onToggleFavorite={handleToggleFavorite}
 					rooms={rooms}
 				/>
 

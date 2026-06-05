@@ -32,6 +32,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 		setIsActionsOpen,
 		setIsEditOpen,
 		setConfirmingDelete,
+		handleToggleFavorite,
 		openEditFromActions,
 		openDeleteFromActions,
 		handleEdit,
@@ -82,9 +83,11 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 				</Tabs>
 
 				<RoomActionsDrawer
+					isFavorite={room.isFavorite}
 					onDelete={openDeleteFromActions}
 					onEdit={openEditFromActions}
 					onOpenChange={setIsActionsOpen}
+					onToggleFavorite={handleToggleFavorite}
 					open={isActionsOpen}
 				/>
 

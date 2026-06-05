@@ -19,10 +19,12 @@ vi.mock("@/features/rooms/pages/rooms-page/room-list", () => ({
 		rooms,
 		isLoading,
 		onCreate,
+		onToggleFavorite,
 	}: {
 		rooms: { id: string }[];
 		isLoading: boolean;
 		onCreate: () => void;
+		onToggleFavorite: (id: string) => void;
 	}) => (
 		<div
 			data-count={rooms.length}
@@ -31,6 +33,9 @@ vi.mock("@/features/rooms/pages/rooms-page/room-list", () => ({
 		>
 			<button onClick={onCreate} type="button">
 				stub-create
+			</button>
+			<button onClick={() => onToggleFavorite("s1")} type="button">
+				stub-toggle-fav
 			</button>
 		</div>
 	),
@@ -44,6 +49,7 @@ import { RoomsPage } from "@/features/rooms/pages/rooms-page/rooms-page";
 
 interface MockState {
 	handleCreate: ReturnType<typeof vi.fn>;
+	handleToggleFavorite: ReturnType<typeof vi.fn>;
 	isCreateOpen: boolean;
 	isCreatePending: boolean;
 	isLoading: boolean;
@@ -64,6 +70,7 @@ function setMockState(overrides: Partial<MockState> = {}): MockState {
 		isLoading: false,
 		setIsCreateOpen: vi.fn(),
 		handleCreate: vi.fn(),
+		handleToggleFavorite: vi.fn(),
 		...overrides,
 	};
 	hoisted.useRoomsPage.mockReturnValue(state);
@@ -138,5 +145,14 @@ describe("RoomsPage", () => {
 		setMockState({ isCreateOpen: true, isCreatePending: true });
 		render(<RoomsPage />);
 		expect(screen.getByLabelText("Save")).toBeDisabled();
+	});
+
+	it("calls handleToggleFavorite when RoomList's onToggleFavorite fires", async () => {
+		const user = userEvent.setup();
+		const state = setMockState();
+		render(<RoomsPage />);
+		await user.click(screen.getByRole("button", { name: "stub-toggle-fav" }));
+		expect(state.handleToggleFavorite).toHaveBeenCalledTimes(1);
+		expect(state.handleToggleFavorite).toHaveBeenCalledWith("s1");
 	});
 });

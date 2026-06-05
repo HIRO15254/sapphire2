@@ -31,13 +31,18 @@ vi.mock("@/features/rooms/components/room-actions-drawer", () => ({
 		open,
 		onDelete,
 		onEdit,
+		onToggleFavorite,
 	}: {
 		onDelete: () => void;
 		onEdit: () => void;
+		onToggleFavorite: () => void;
 		open: boolean;
 	}) =>
 		open ? (
 			<div data-testid="room-actions">
+				<button onClick={onToggleFavorite} type="button">
+					drawer-toggle-fav
+				</button>
 				<button onClick={onEdit} type="button">
 					drawer-edit
 				</button>
@@ -73,13 +78,14 @@ interface State {
 	confirmingDelete: boolean;
 	handleConfirmDelete: ReturnType<typeof vi.fn>;
 	handleEdit: ReturnType<typeof vi.fn>;
+	handleToggleFavorite: ReturnType<typeof vi.fn>;
 	isActionsOpen: boolean;
 	isEditOpen: boolean;
 	isLoading: boolean;
 	isUpdatePending: boolean;
 	openDeleteFromActions: ReturnType<typeof vi.fn>;
 	openEditFromActions: ReturnType<typeof vi.fn>;
-	room: { memo?: string | null; name: string } | null;
+	room: { isFavorite?: boolean; memo?: string | null; name: string } | null;
 	setConfirmingDelete: ReturnType<typeof vi.fn>;
 	setIsActionsOpen: ReturnType<typeof vi.fn>;
 	setIsEditOpen: ReturnType<typeof vi.fn>;
@@ -87,7 +93,7 @@ interface State {
 
 function setState(overrides: Partial<State> = {}): State {
 	const state: State = {
-		room: { name: "Akiba", memo: "late nights" },
+		room: { name: "Akiba", memo: "late nights", isFavorite: false },
 		isLoading: false,
 		isUpdatePending: false,
 		isActionsOpen: false,
@@ -96,6 +102,7 @@ function setState(overrides: Partial<State> = {}): State {
 		setIsActionsOpen: vi.fn(),
 		setIsEditOpen: vi.fn(),
 		setConfirmingDelete: vi.fn(),
+		handleToggleFavorite: vi.fn(),
 		openEditFromActions: vi.fn(),
 		openDeleteFromActions: vi.fn(),
 		handleEdit: vi.fn(),
@@ -154,6 +161,14 @@ describe("RoomDetailPage", () => {
 		expect(state.openEditFromActions).toHaveBeenCalledTimes(1);
 		await user.click(screen.getByRole("button", { name: "drawer-delete" }));
 		expect(state.openDeleteFromActions).toHaveBeenCalledTimes(1);
+	});
+
+	it("wires the actions drawer toggle-favorite button to handleToggleFavorite", async () => {
+		const user = userEvent.setup();
+		const state = setState({ isActionsOpen: true });
+		render(<RoomDetailPage roomId="s1" />);
+		await user.click(screen.getByRole("button", { name: "drawer-toggle-fav" }));
+		expect(state.handleToggleFavorite).toHaveBeenCalledTimes(1);
 	});
 
 	it("mounts the edit form when the edit sheet is open", () => {
