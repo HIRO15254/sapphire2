@@ -16,7 +16,8 @@ This repository is built on Cloudflare Workers + D1 architecture.
 |-------------|---------|-------------|
 | **Local** | `bun run dev` | `wrangler dev` (local Workers simulation) |
 | **Preview** | PR opened | Isolated Worker + Pages + D1 database per PR |
-| **Production** | master push | Deploy Worker + Pages after CI passes |
+| **Dev** | Push to `dev` | Persistent dev environment (`sapphire2-api-dev`) |
+| **Production** | GitHub Release published | Deploy Worker + Pages after CI passes |
 
 ## 2. Prerequisites
 
@@ -165,7 +166,7 @@ Update the `PAGES_PROJECT` variable in `preview-deploy.yml`.
 
 ### Production Deployment
 
-Automated via `.github/workflows/production-deploy.yml`. On master push: CI → migration → Worker deploy → Pages deploy.
+Automated via `.github/workflows/production-deploy.yml`, triggered when a GitHub Release is published: CI → migration → Worker deploy → Pages deploy. Releases follow the `feature → dev → release/vX.Y.Z → main` flow; merging the release PR into `main` publishes the Release (`release.yml`).
 
 Uses `concurrency` for sequential execution. Deployment is skipped if CI fails.
 
@@ -180,7 +181,7 @@ Uses `concurrency` for sequential execution. Deployment is skipped if CI fails.
 
 ### Production
 
-1. Push to master (or merge a PR)
+1. Publish a GitHub Release (merge a `release/*` PR into `main`)
 2. Check "Production Deploy" in the Actions tab
 3. Access the Worker URL and Pages URL
 
@@ -244,10 +245,18 @@ PR close/merge
   +-> Delete Worker -> Delete D1 database -> Update PR comment
 ```
 
-### Production Deploy (on master push)
+### Dev Deploy (on push to `dev`)
 
 ```
-push to master
+push to dev
+  |
+  +-> CI -> Migration -> Worker deploy (sapphire2-api-dev) -> Pages deploy (dev)
+```
+
+### Production Deploy (on GitHub Release published)
+
+```
+GitHub Release published
   |
   +-> CI (type check, lint, test)
         |

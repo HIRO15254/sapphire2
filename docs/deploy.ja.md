@@ -16,7 +16,8 @@
 |------|---------|------|
 | **ローカル** | `bun run dev` | `wrangler dev`（Workers ローカルシミュレーション） |
 | **プレビュー** | PR オープン | PR ごとに独立した Worker + Pages + D1 データベース |
-| **本番** | master push | CI 通過後に Worker + Pages をデプロイ |
+| **dev** | `dev` への push | 常設の dev 環境（`sapphire2-api-dev`） |
+| **本番** | GitHub Release 公開 | CI 通過後に Worker + Pages をデプロイ |
 
 ## 2. 前提条件
 
@@ -165,7 +166,7 @@ npx wrangler pages project create sapphire2-web
 
 ### 本番デプロイ
 
-`.github/workflows/production-deploy.yml` により自動化済み。master push 時に CI → マイグレーション → Worker デプロイ → Pages デプロイ。
+`.github/workflows/production-deploy.yml` により自動化済み。GitHub Release 公開時に CI → マイグレーション → Worker デプロイ → Pages デプロイ。リリースは `feature → dev → release/vX.Y.Z → main` のフローで行い、release PR を `main` にマージすると Release が公開される（`release.yml`）。
 
 `concurrency` 設定により直列実行。CI 失敗時はデプロイをスキップ。
 
@@ -180,7 +181,7 @@ npx wrangler pages project create sapphire2-web
 
 ### 本番
 
-1. master に push（または PR をマージ）
+1. GitHub Release を公開（`release/*` PR を `main` にマージ）
 2. Actions タブで「Production Deploy」を確認
 3. Worker URL と Pages URL にアクセス
 
@@ -244,10 +245,18 @@ PR close/merge
   +-> Worker 削除 -> D1 データベース削除 -> PR コメント更新
 ```
 
-### 本番デプロイ（master push 時）
+### dev デプロイ（`dev` への push 時）
 
 ```
-push to master
+push to dev
+  |
+  +-> CI -> マイグレーション -> Worker デプロイ (sapphire2-api-dev) -> Pages デプロイ (dev)
+```
+
+### 本番デプロイ（GitHub Release 公開時）
+
+```
+GitHub Release published
   |
   +-> CI (型チェック, lint, テスト)
         |
