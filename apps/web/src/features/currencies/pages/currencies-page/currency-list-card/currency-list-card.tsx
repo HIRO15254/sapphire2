@@ -23,7 +23,7 @@ export function CurrencyListCard({
 }: CurrencyListCardProps) {
 	return (
 		<Link
-			className="flex h-12 items-center gap-3 rounded-lg border border-border bg-card px-4 text-card-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+			className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-card-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 			params={{ currencyId: c.id }}
 			to="/currencies/$currencyId"
 		>
