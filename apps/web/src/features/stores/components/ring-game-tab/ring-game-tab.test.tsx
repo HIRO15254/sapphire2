@@ -1,192 +1,253 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type ReactNode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { RingGameTab } from "./ring-game-tab";
+import type { RingGame } from "@/features/stores/hooks/use-ring-games";
 
-const mocks = vi.hoisted(() => ({
-	activeGames: [
-		{
-			ante: null,
-			anteType: "none",
-			archivedAt: null,
-			blind1: 1,
-			blind2: 2,
-			blind3: null,
-			currencyId: "currency-1",
-			id: "game-1",
-			maxBuyIn: 400,
-			memo: "weekday deep stack",
-			minBuyIn: 100,
-			name: "1/2 NLH",
-			storeId: "store-1",
-			tableSize: 9,
-			variant: "nlh",
-		},
-	],
-	archiveMutate: vi.fn(async () => undefined),
-	archivedGames: [] as unknown[],
-	createMutate: vi.fn(async () => undefined),
-	currencies: [{ id: "currency-1", name: "USD", unit: "$" }],
-	deleteMutate: vi.fn(async () => undefined),
-	invalidateQueries: vi.fn(),
-	restoreMutate: vi.fn(async () => undefined),
-	updateMutate: vi.fn(async () => undefined),
+const hoisted = vi.hoisted(() => ({
+	useRingGameTab: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-query", () => ({
-	useMutation: (options: {
-		mutationFn: (arg: unknown) => Promise<unknown> | unknown;
-		onSettled?: () => void;
-		onSuccess?: () => void;
-	}) => ({
-		isPending: false,
-		mutate: async (arg: unknown) => {
-			await options.mutationFn(arg);
-			await options.onSuccess?.();
-			await options.onSettled?.();
-		},
-	}),
-	useQuery: (options: { queryKey: unknown[] }) => {
-		const [scope, _storeId, archivedFlag] = options.queryKey as [
-			string,
-			string?,
-			string?,
-		];
-		if (scope === "ringGame") {
-			return {
-				data:
-					archivedFlag === "archived" ? mocks.archivedGames : mocks.activeGames,
-				isLoading: false,
-			};
-		}
-		if (scope === "currency") {
-			return { data: mocks.currencies, isLoading: false };
-		}
-		return { data: [], isLoading: false };
-	},
-	useQueryClient: () => ({
-		invalidateQueries: mocks.invalidateQueries,
-	}),
+vi.mock("./use-ring-game-tab", () => ({
+	useRingGameTab: hoisted.useRingGameTab,
 }));
 
 vi.mock("@/features/stores/components/ring-game-form", () => ({
 	RingGameForm: () => <div data-testid="ring-game-form" />,
 }));
 
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
+vi.mock("@/shared/components/form-sheet", () => ({
+	FormSheet: ({
 		children,
 		open,
+		title,
 	}: {
-		children: ReactNode;
+		children: React.ReactNode;
 		open: boolean;
-	}) => (open ? <div>{children}</div> : null),
+		title: string;
+	}) => (open ? <div data-sheet={title}>{children}</div> : null),
 }));
 
-vi.mock("@/utils/trpc", () => ({
-	trpc: {
-		currency: {
-			list: {
-				queryOptions: () => ({ queryKey: ["currency"] }),
-			},
-		},
-		ringGame: {
-			listByStore: {
-				queryOptions: ({
-					includeArchived,
-					storeId,
-				}: {
-					includeArchived?: boolean;
-					storeId: string;
-				}) => ({
-					queryKey: [
-						"ringGame",
-						storeId,
-						includeArchived ? "archived" : "active",
-					],
-				}),
-			},
-		},
-	},
-	trpcClient: {
-		ringGame: {
-			archive: { mutate: mocks.archiveMutate },
-			create: { mutate: mocks.createMutate },
-			delete: { mutate: mocks.deleteMutate },
-			restore: { mutate: mocks.restoreMutate },
-			update: { mutate: mocks.updateMutate },
-		},
-	},
+vi.mock("@/features/stores/components/game-actions-drawer", () => ({
+	GameActionsDrawer: ({
+		open,
+		isArchived,
+		onArchive,
+		onDelete,
+		onEdit,
+		onRestore,
+	}: {
+		isArchived: boolean;
+		onArchive: () => void;
+		onDelete: () => void;
+		onEdit: () => void;
+		onRestore: () => void;
+		open: boolean;
+	}) =>
+		open ? (
+			<div data-archived={String(isArchived)} data-testid="game-actions">
+				<button onClick={onEdit} type="button">
+					drawer-edit
+				</button>
+				<button onClick={onArchive} type="button">
+					drawer-archive
+				</button>
+				<button onClick={onRestore} type="button">
+					drawer-restore
+				</button>
+				<button onClick={onDelete} type="button">
+					drawer-delete
+				</button>
+			</div>
+		) : null,
 }));
 
-function Harness() {
-	const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
-	return (
-		<RingGameTab
-			expandedGameId={expandedGameId}
-			onToggleGame={setExpandedGameId}
-			storeId="store-1"
-		/>
-	);
+vi.mock("@/features/stores/components/delete-game-dialog", () => ({
+	DeleteGameDialog: ({ open, name }: { name: string; open: boolean }) =>
+		open ? <div data-testid="delete-dialog">{name}</div> : null,
+}));
+
+import { RingGameTab } from "./ring-game-tab";
+
+const baseGame = (overrides: Partial<RingGame> = {}): RingGame =>
+	({
+		ante: null,
+		anteType: "none",
+		archivedAt: null,
+		blind1: 1,
+		blind2: 2,
+		blind3: null,
+		createdAt: "",
+		currencyId: "currency-1",
+		id: "game-1",
+		maxBuyIn: 400,
+		memo: null,
+		minBuyIn: 100,
+		name: "1/2 NLH",
+		storeId: "store-1",
+		tableSize: 9,
+		updatedAt: "",
+		variant: "nlh",
+		...overrides,
+	}) as RingGame;
+
+interface TabState {
+	actionsTarget: RingGame | null;
+	activeGames: RingGame[];
+	activeLoading: boolean;
+	archivedGames: RingGame[];
+	archivedLoading: boolean;
+	cancelDelete: ReturnType<typeof vi.fn>;
+	closeActions: ReturnType<typeof vi.fn>;
+	currencies: { id: string; name: string; unit?: string | null }[];
+	editingGame: RingGame | null;
+	handleArchiveFromActions: ReturnType<typeof vi.fn>;
+	handleConfirmDelete: ReturnType<typeof vi.fn>;
+	handleCreate: ReturnType<typeof vi.fn>;
+	handleRestoreFromActions: ReturnType<typeof vi.fn>;
+	handleUpdate: ReturnType<typeof vi.fn>;
+	isCreateOpen: boolean;
+	isCreatePending: boolean;
+	isUpdatePending: boolean;
+	openActions: ReturnType<typeof vi.fn>;
+	openDeleteFromActions: ReturnType<typeof vi.fn>;
+	openEditFromActions: ReturnType<typeof vi.fn>;
+	pendingDelete: RingGame | null;
+	setEditingGame: ReturnType<typeof vi.fn>;
+	setIsCreateOpen: ReturnType<typeof vi.fn>;
+	showArchived: boolean;
+	toggleArchived: ReturnType<typeof vi.fn>;
+}
+
+function setState(overrides: Partial<TabState> = {}): TabState {
+	const state: TabState = {
+		showArchived: false,
+		toggleArchived: vi.fn(),
+		isCreateOpen: false,
+		setIsCreateOpen: vi.fn(),
+		editingGame: null,
+		setEditingGame: vi.fn(),
+		actionsTarget: null,
+		pendingDelete: null,
+		activeGames: [],
+		archivedGames: [],
+		currencies: [{ id: "currency-1", name: "USD", unit: "$" }],
+		activeLoading: false,
+		archivedLoading: false,
+		isCreatePending: false,
+		isUpdatePending: false,
+		handleCreate: vi.fn(),
+		handleUpdate: vi.fn(),
+		openActions: vi.fn(),
+		closeActions: vi.fn(),
+		openEditFromActions: vi.fn(),
+		openDeleteFromActions: vi.fn(),
+		handleArchiveFromActions: vi.fn(),
+		handleRestoreFromActions: vi.fn(),
+		cancelDelete: vi.fn(),
+		handleConfirmDelete: vi.fn(),
+		...overrides,
+	};
+	hoisted.useRingGameTab.mockReturnValue(state);
+	return state;
 }
 
 describe("RingGameTab", () => {
 	beforeEach(() => {
-		mocks.activeGames = [
-			{
-				ante: null,
-				anteType: "none",
-				archivedAt: null,
-				blind1: 1,
-				blind2: 2,
-				blind3: null,
-				currencyId: "currency-1",
-				id: "game-1",
-				maxBuyIn: 400,
-				memo: "weekday deep stack",
-				minBuyIn: 100,
-				name: "1/2 NLH",
-				storeId: "store-1",
-				tableSize: 9,
-				variant: "nlh",
-			},
-		];
-		mocks.archiveMutate.mockClear();
+		hoisted.useRingGameTab.mockReset();
 	});
 
-	it("expands a game row and archives it", async () => {
-		const user = userEvent.setup();
+	it("renders the section heading", () => {
+		setState();
+		render(<RingGameTab storeId="store-1" />);
+		expect(
+			screen.getByRole("heading", { name: "Cash games" })
+		).toBeInTheDocument();
+	});
 
-		render(<Harness />);
-
-		await user.click(screen.getByText("1/2 NLH"));
-		expect(screen.getByText("weekday deep stack")).toBeInTheDocument();
-
-		await user.click(screen.getByLabelText("Archive cash game"));
-
-		await waitFor(() => {
-			expect(mocks.archiveMutate).toHaveBeenCalledWith({ id: "game-1" });
+	it("renders a row per active game", () => {
+		setState({
+			activeGames: [baseGame(), baseGame({ id: "g2", name: "5/10" })],
 		});
+		render(<RingGameTab storeId="store-1" />);
+		expect(screen.getByText("1/2 NLH")).toBeInTheDocument();
+		expect(screen.getByText("5/10")).toBeInTheDocument();
 	});
 
-	it("shows the empty state when there are no cash games", () => {
-		mocks.activeGames = [];
-
-		render(<Harness />);
-
+	it("shows the empty state when there are no active games and archived is hidden", () => {
+		setState({ activeGames: [] });
+		render(<RingGameTab storeId="store-1" />);
 		expect(screen.getByText("No cash games yet.")).toBeInTheDocument();
 	});
 
-	it("still renders the header controls and empty state when archived list is also empty", () => {
-		mocks.activeGames = [];
-		mocks.archivedGames = [];
+	it("renders skeletons (not the empty state) while loading", () => {
+		setState({ activeLoading: true });
+		render(<RingGameTab storeId="store-1" />);
+		expect(screen.queryByText("No cash games yet.")).not.toBeInTheDocument();
+	});
 
-		render(<Harness />);
+	it("opens the create sheet when the add button is clicked", async () => {
+		const user = userEvent.setup();
+		const state = setState();
+		render(<RingGameTab storeId="store-1" />);
+		await user.click(screen.getByRole("button", { name: "Add cash game" }));
+		expect(state.setIsCreateOpen).toHaveBeenCalledWith(true);
+	});
 
-		// Primary create control / or any header action is present (fallback
-		// check: 'New' create button or + add) — the empty-state message must
-		// be shown.
-		expect(screen.getByText("No cash games yet.")).toBeInTheDocument();
+	it("toggles the archived view from the header control", async () => {
+		const user = userEvent.setup();
+		const state = setState();
+		render(<RingGameTab storeId="store-1" />);
+		await user.click(
+			screen.getByRole("button", { name: "Show archived cash games" })
+		);
+		expect(state.toggleArchived).toHaveBeenCalledTimes(1);
+	});
+
+	it("opens the actions drawer for a row via its overflow button", async () => {
+		const user = userEvent.setup();
+		const game = baseGame();
+		const state = setState({ activeGames: [game] });
+		render(<RingGameTab storeId="store-1" />);
+		await user.click(
+			screen.getByRole("button", { name: "Actions for 1/2 NLH" })
+		);
+		expect(state.openActions).toHaveBeenCalledWith(game);
+	});
+
+	it("wires the actions drawer to the hook handlers when a target is set", async () => {
+		const user = userEvent.setup();
+		const state = setState({ actionsTarget: baseGame() });
+		render(<RingGameTab storeId="store-1" />);
+		expect(screen.getByTestId("game-actions")).toHaveAttribute(
+			"data-archived",
+			"false"
+		);
+		await user.click(screen.getByRole("button", { name: "drawer-archive" }));
+		expect(state.handleArchiveFromActions).toHaveBeenCalledTimes(1);
+		await user.click(screen.getByRole("button", { name: "drawer-delete" }));
+		expect(state.openDeleteFromActions).toHaveBeenCalledTimes(1);
+	});
+
+	it("marks the actions drawer as archived when the target is archived", () => {
+		setState({ actionsTarget: baseGame({ archivedAt: "2026-01-01" }) });
+		render(<RingGameTab storeId="store-1" />);
+		expect(screen.getByTestId("game-actions")).toHaveAttribute(
+			"data-archived",
+			"true"
+		);
+	});
+
+	it("mounts the create form inside the sheet when open", () => {
+		setState({ isCreateOpen: true });
+		render(<RingGameTab storeId="store-1" />);
+		expect(screen.getByTestId("ring-game-form")).toBeInTheDocument();
+	});
+
+	it("shows the delete dialog with the pending game name", () => {
+		setState({ pendingDelete: baseGame({ name: "Doomed game" }) });
+		render(<RingGameTab storeId="store-1" />);
+		expect(screen.getByTestId("delete-dialog")).toHaveTextContent(
+			"Doomed game"
+		);
 	});
 });

@@ -1,5 +1,4 @@
 export {
-	BlindLevelEditor,
 	BlindStructureContent,
 	LocalBlindStructureContent,
 } from "./blind-level-editor";

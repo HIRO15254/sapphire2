@@ -16,6 +16,8 @@ export interface StoreItem {
 	id: string;
 	memo?: string | null;
 	name: string;
+	ringGameCount: number;
+	tournamentCount: number;
 }
 
 export function useStores() {
@@ -42,6 +44,8 @@ export function useStores() {
 						id: `temp-${Date.now()}`,
 						name: newStore.name,
 						memo: newStore.memo ?? null,
+						ringGameCount: 0,
+						tournamentCount: 0,
 					},
 				];
 			});
@@ -94,6 +98,7 @@ export function useStores() {
 
 	return {
 		stores,
+		isLoading: storesQuery.isLoading,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		create: (values: StoreValues) => createMutation.mutateAsync(values),

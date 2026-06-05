@@ -49,10 +49,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-import {
-	useBlindStructureSummary,
-	useTournamentTab,
-} from "@/features/stores/components/tournament-tab/use-tournament-tab";
+import { useTournamentTab } from "@/features/stores/components/tournament-tab/use-tournament-tab";
 import type { Tournament } from "@/features/stores/hooks/use-tournaments";
 
 function createClient(): QueryClient {
@@ -105,8 +102,15 @@ const TOURNAMENT: Tournament = {
 
 describe("useTournamentTab", () => {
 	beforeEach(() => {
-		hoisted.createWithLevels.mockReset();
-		hoisted.updateWithLevels.mockReset();
+		for (const m of [
+			hoisted.createWithLevels,
+			hoisted.updateWithLevels,
+			hoisted.archive,
+			hoisted.restore,
+			hoisted.del,
+		]) {
+			m.mockReset();
+		}
 		hoisted.useTournaments.mockReturnValue(baseUseTournamentsStub());
 	});
 
@@ -210,26 +214,98 @@ describe("useTournamentTab", () => {
 		);
 		expect(result.current.editingTournament).toBeNull();
 	});
-});
 
-describe("useBlindStructureSummary", () => {
-	it("returns cached levels for the given tournamentId", () => {
+	it("toggleArchived flips showArchived back and forth", () => {
 		const qc = createClient();
-		qc.setQueryData(
-			["blindLevel", "listByTournament", { tournamentId: "t1" }],
-			[{ id: "l1", level: 1 }]
-		);
-		const { result } = renderHook(() => useBlindStructureSummary("t1"), {
+		const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
 			wrapper: wrapper(qc),
 		});
-		expect(result.current.levels).toHaveLength(1);
+		act(() => result.current.toggleArchived());
+		expect(result.current.showArchived).toBe(true);
+		act(() => result.current.toggleArchived());
+		expect(result.current.showArchived).toBe(false);
 	});
 
-	it("returns empty array when no cache", () => {
-		const qc = createClient();
-		const { result } = renderHook(() => useBlindStructureSummary("t2"), {
-			wrapper: wrapper(qc),
+	describe("action drawer", () => {
+		it("openActions sets the target; closeActions clears it", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			act(() => result.current.openActions(TOURNAMENT));
+			expect(result.current.actionsTarget).toBe(TOURNAMENT);
+			act(() => result.current.closeActions());
+			expect(result.current.actionsTarget).toBeNull();
 		});
-		expect(result.current.levels).toEqual([]);
+
+		it("openEditFromActions moves the target into editingTournament", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			act(() => result.current.openActions(TOURNAMENT));
+			act(() => result.current.openEditFromActions());
+			expect(result.current.editingTournament).toBe(TOURNAMENT);
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("handleArchiveFromActions archives the target id and closes the drawer", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			act(() => result.current.openActions(TOURNAMENT));
+			act(() => result.current.handleArchiveFromActions());
+			expect(hoisted.archive).toHaveBeenCalledWith("t1");
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("handleRestoreFromActions restores the target id and closes the drawer", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			act(() => result.current.openActions(TOURNAMENT));
+			act(() => result.current.handleRestoreFromActions());
+			expect(hoisted.restore).toHaveBeenCalledWith("t1");
+			expect(result.current.actionsTarget).toBeNull();
+		});
+	});
+
+	describe("delete confirmation", () => {
+		it("openDeleteFromActions promotes the target to pendingDelete", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			act(() => result.current.openActions(TOURNAMENT));
+			act(() => result.current.openDeleteFromActions());
+			expect(result.current.pendingDelete).toBe(TOURNAMENT);
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("handleConfirmDelete deletes the pending id and clears it", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			act(() => result.current.openActions(TOURNAMENT));
+			act(() => result.current.openDeleteFromActions());
+			act(() => result.current.handleConfirmDelete());
+			expect(hoisted.del).toHaveBeenCalledWith("t1");
+			expect(result.current.pendingDelete).toBeNull();
+		});
+
+		it("cancelDelete clears the pending target without deleting", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			act(() => result.current.openActions(TOURNAMENT));
+			act(() => result.current.openDeleteFromActions());
+			act(() => result.current.cancelDelete());
+			expect(result.current.pendingDelete).toBeNull();
+			expect(hoisted.del).not.toHaveBeenCalled();
+		});
 	});
 });

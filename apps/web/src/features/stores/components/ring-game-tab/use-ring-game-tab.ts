@@ -13,6 +13,8 @@ export function useRingGameTab({ storeId }: UseRingGameTabOptions) {
 	const [showArchived, setShowArchived] = useState(false);
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 	const [editingGame, setEditingGame] = useState<RingGame | null>(null);
+	const [actionsTarget, setActionsTarget] = useState<RingGame | null>(null);
+	const [pendingDelete, setPendingDelete] = useState<RingGame | null>(null);
 
 	const {
 		activeGames,
@@ -29,6 +31,8 @@ export function useRingGameTab({ storeId }: UseRingGameTabOptions) {
 		delete: deleteGame,
 	} = useRingGames({ storeId, showArchived });
 
+	const toggleArchived = () => setShowArchived((prev) => !prev);
+
 	const handleCreate = (values: RingGameFormValues) => {
 		create(values).then(() => {
 			setIsCreateOpen(false);
@@ -44,13 +48,56 @@ export function useRingGameTab({ storeId }: UseRingGameTabOptions) {
 		});
 	};
 
+	const openActions = (game: RingGame) => setActionsTarget(game);
+	const closeActions = () => setActionsTarget(null);
+
+	const openEditFromActions = () => {
+		if (actionsTarget) {
+			setEditingGame(actionsTarget);
+		}
+		setActionsTarget(null);
+	};
+
+	const openDeleteFromActions = () => {
+		if (actionsTarget) {
+			setPendingDelete(actionsTarget);
+		}
+		setActionsTarget(null);
+	};
+
+	const handleArchiveFromActions = () => {
+		if (actionsTarget) {
+			archive(actionsTarget.id);
+		}
+		setActionsTarget(null);
+	};
+
+	const handleRestoreFromActions = () => {
+		if (actionsTarget) {
+			restore(actionsTarget.id);
+		}
+		setActionsTarget(null);
+	};
+
+	const cancelDelete = () => setPendingDelete(null);
+
+	const handleConfirmDelete = () => {
+		if (!pendingDelete) {
+			return;
+		}
+		deleteGame(pendingDelete.id);
+		setPendingDelete(null);
+	};
+
 	return {
 		showArchived,
-		setShowArchived,
+		toggleArchived,
 		isCreateOpen,
 		setIsCreateOpen,
 		editingGame,
 		setEditingGame,
+		actionsTarget,
+		pendingDelete,
 		activeGames,
 		archivedGames,
 		currencies,
@@ -58,10 +105,15 @@ export function useRingGameTab({ storeId }: UseRingGameTabOptions) {
 		archivedLoading,
 		isCreatePending,
 		isUpdatePending,
-		archive,
-		restore,
-		deleteGame,
 		handleCreate,
 		handleUpdate,
+		openActions,
+		closeActions,
+		openEditFromActions,
+		openDeleteFromActions,
+		handleArchiveFromActions,
+		handleRestoreFromActions,
+		cancelDelete,
+		handleConfirmDelete,
 	};
 }

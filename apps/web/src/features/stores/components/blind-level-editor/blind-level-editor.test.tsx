@@ -2,9 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BlindLevelEditor } from "./blind-level-editor";
+import { BlindStructureContent } from "./blind-level-editor";
 
-const BLIND_DESCRIPTION_PATTERN = /manage blind levels, breaks, and ordering/i;
 const BLIND_HELPER_PATTERN = /drag levels to reorder the structure/i;
 const BREAK_BUTTON_PATTERN = /break/i;
 const LEVEL_BUTTON_PATTERN = /level/i;
@@ -72,27 +71,6 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
-		children,
-		description,
-		open,
-		title,
-	}: {
-		children: ReactNode;
-		description?: ReactNode;
-		open: boolean;
-		title: string;
-	}) =>
-		open ? (
-			<div>
-				<h2>{title}</h2>
-				{description ? <p>{description}</p> : null}
-				{children}
-			</div>
-		) : null,
-}));
-
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		blindLevel: {
@@ -121,7 +99,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-describe("BlindLevelEditor", () => {
+describe("BlindStructureContent", () => {
 	beforeEach(() => {
 		mocks.blindLevels = [];
 		mocks.isLoading = false;
@@ -133,32 +111,16 @@ describe("BlindLevelEditor", () => {
 		mocks.setQueryData.mockReset();
 	});
 
-	it("renders helper text and dialog description", () => {
-		render(
-			<BlindLevelEditor
-				onOpenChange={vi.fn()}
-				open
-				tournamentId="tour-1"
-				variant="nlh"
-			/>
-		);
+	it("renders the reorder helper text", () => {
+		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
 
-		expect(screen.getByText("Blind Structure")).toBeInTheDocument();
-		expect(screen.getByText(BLIND_DESCRIPTION_PATTERN)).toBeInTheDocument();
 		expect(screen.getByText(BLIND_HELPER_PATTERN)).toBeInTheDocument();
 	});
 
 	it("shows the loading state", () => {
 		mocks.isLoading = true;
 
-		render(
-			<BlindLevelEditor
-				onOpenChange={vi.fn()}
-				open
-				tournamentId="tour-1"
-				variant="nlh"
-			/>
-		);
+		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
 
 		expect(screen.getByText("Loading levels...")).toBeInTheDocument();
 	});
@@ -166,14 +128,7 @@ describe("BlindLevelEditor", () => {
 	it("adds a level and a break from the header actions", async () => {
 		const user = userEvent.setup();
 
-		render(
-			<BlindLevelEditor
-				onOpenChange={vi.fn()}
-				open
-				tournamentId="tour-1"
-				variant="nlh"
-			/>
-		);
+		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
 
 		await user.click(
 			screen.getByRole("button", { name: LEVEL_BUTTON_PATTERN })
@@ -195,14 +150,7 @@ describe("BlindLevelEditor", () => {
 	});
 
 	it("creates a new level row with autofill when the new row loses focus", () => {
-		render(
-			<BlindLevelEditor
-				onOpenChange={vi.fn()}
-				open
-				tournamentId="tour-1"
-				variant="nlh"
-			/>
-		);
+		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
 
 		const numberInputs = screen.getAllByRole("spinbutton");
 		const smallBlindInput = numberInputs[0];
@@ -219,33 +167,15 @@ describe("BlindLevelEditor", () => {
 		});
 	});
 
-	it("shows an empty state message when there are no levels", () => {
+	it("renders the editor table when there are no levels", () => {
 		mocks.blindLevels = [];
 
-		render(
-			<BlindLevelEditor
-				onOpenChange={vi.fn()}
-				open
-				tournamentId="tour-1"
-				variant="nlh"
-			/>
-		);
+		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
 
-		// The editor renders table headers + empty new-row; loading text is
-		// absent because isLoading=false. At least the description is present.
-		expect(screen.getByText(BLIND_DESCRIPTION_PATTERN)).toBeInTheDocument();
-	});
-
-	it("does not render any rows when open=false (dialog hidden)", () => {
-		render(
-			<BlindLevelEditor
-				onOpenChange={vi.fn()}
-				open={false}
-				tournamentId="tour-1"
-				variant="nlh"
-			/>
-		);
-		expect(screen.queryByText("Blind Structure")).not.toBeInTheDocument();
+		// Loading text is absent because isLoading=false; the helper text and the
+		// empty new-row table are present.
+		expect(screen.getByText(BLIND_HELPER_PATTERN)).toBeInTheDocument();
+		expect(screen.queryByText("Loading levels...")).not.toBeInTheDocument();
 	});
 
 	it("deletes an existing level", async () => {
@@ -264,14 +194,7 @@ describe("BlindLevelEditor", () => {
 			},
 		];
 
-		render(
-			<BlindLevelEditor
-				onOpenChange={vi.fn()}
-				open
-				tournamentId="tour-1"
-				variant="nlh"
-			/>
-		);
+		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
 
 		await user.click(screen.getByRole("button", { name: "Delete level" }));
 

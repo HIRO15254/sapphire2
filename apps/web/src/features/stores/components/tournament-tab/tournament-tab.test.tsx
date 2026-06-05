@@ -1,223 +1,237 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type ReactNode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Tournament } from "@/features/stores/hooks/use-tournaments";
+
+const hoisted = vi.hoisted(() => ({
+	useTournamentTab: vi.fn(),
+}));
+
+vi.mock("./use-tournament-tab", () => ({
+	useTournamentTab: hoisted.useTournamentTab,
+}));
+
+vi.mock("@/features/stores/components/tournament-form-sheet", () => ({
+	TournamentFormSheet: ({ open, title }: { open: boolean; title: string }) =>
+		open ? <div data-testid="tournament-sheet">{title}</div> : null,
+}));
+
+vi.mock("@/features/stores/components/game-actions-drawer", () => ({
+	GameActionsDrawer: ({
+		open,
+		isArchived,
+		onArchive,
+		onDelete,
+		onEdit,
+		onRestore,
+	}: {
+		isArchived: boolean;
+		onArchive: () => void;
+		onDelete: () => void;
+		onEdit: () => void;
+		onRestore: () => void;
+		open: boolean;
+	}) =>
+		open ? (
+			<div data-archived={String(isArchived)} data-testid="game-actions">
+				<button onClick={onEdit} type="button">
+					drawer-edit
+				</button>
+				<button onClick={onArchive} type="button">
+					drawer-archive
+				</button>
+				<button onClick={onRestore} type="button">
+					drawer-restore
+				</button>
+				<button onClick={onDelete} type="button">
+					drawer-delete
+				</button>
+			</div>
+		) : null,
+}));
+
+vi.mock("@/features/stores/components/delete-game-dialog", () => ({
+	DeleteGameDialog: ({ open, name }: { name: string; open: boolean }) =>
+		open ? <div data-testid="delete-dialog">{name}</div> : null,
+}));
+
 import { TournamentTab } from "./tournament-tab";
 
-const mocks = vi.hoisted(() => ({
-	activeTournaments: [
-		{
-			archivedAt: null,
-			blindLevelCount: 0,
-			bountyAmount: null,
-			buyIn: 10_000,
-			chipPurchases: [],
-			currencyId: "currency-1",
-			entryFee: 1000,
-			id: "tournament-1",
-			memo: "two day structure",
-			name: "Sunday Major",
-			startingStack: 20_000,
-			storeId: "store-1",
-			tableSize: 9,
-			tags: [],
-			variant: "nlh",
-		},
-	],
-	archiveMutate: vi.fn(async () => undefined),
-	archivedTournaments: [] as unknown[],
-	createMutate: vi.fn(async () => undefined),
-	deleteMutate: vi.fn(async () => undefined),
-	invalidateQueries: vi.fn(),
-	restoreMutate: vi.fn(async () => undefined),
-	updateMutate: vi.fn(async () => undefined),
-}));
+const LEVELS_RE = /12 levels/;
 
-vi.mock("@tanstack/react-query", () => ({
-	useMutation: (options: {
-		mutationFn: (arg: unknown) => Promise<unknown> | unknown;
-		onSettled?: () => void;
-		onSuccess?: () => void;
-	}) => ({
-		isPending: false,
-		mutate: async (arg: unknown) => {
-			await options.mutationFn(arg);
-			await options.onSuccess?.();
-			await options.onSettled?.();
-		},
-	}),
-	useQuery: (options: { queryKey: unknown[] }) => {
-		const [scope, _storeId, archivedFlag] = options.queryKey as [
-			string,
-			string?,
-			string?,
-		];
-		if (scope === "tournament") {
-			return {
-				data:
-					archivedFlag === "archived"
-						? mocks.archivedTournaments
-						: mocks.activeTournaments,
-				isLoading: false,
-			};
-		}
-		return { data: [], isLoading: false };
-	},
-	useQueryClient: () => ({
-		invalidateQueries: mocks.invalidateQueries,
-	}),
-}));
+const baseTournament = (overrides: Partial<Tournament> = {}): Tournament =>
+	({
+		archivedAt: null,
+		blindLevelCount: 0,
+		bountyAmount: null,
+		buyIn: 10_000,
+		chipPurchases: [],
+		createdAt: "",
+		currencyId: "currency-1",
+		entryFee: 1000,
+		id: "tournament-1",
+		memo: null,
+		name: "Sunday Major",
+		startingStack: 20_000,
+		storeId: "store-1",
+		tableSize: 9,
+		tags: [],
+		updatedAt: "",
+		variant: "nlh",
+		...overrides,
+	}) as Tournament;
 
-vi.mock("@/features/stores/components/tournament-form", () => ({
-	TournamentForm: () => <div data-testid="tournament-form" />,
-}));
+interface TabState {
+	actionsTarget: Tournament | null;
+	activeLoading: boolean;
+	activeTournaments: Tournament[];
+	archivedLoading: boolean;
+	archivedTournaments: Tournament[];
+	cancelDelete: ReturnType<typeof vi.fn>;
+	closeActions: ReturnType<typeof vi.fn>;
+	currencies: { id: string; name: string; unit?: string | null }[];
+	editBlindLevelsLoading: boolean;
+	editInitialFormValues: undefined;
+	editInitialLevels: never[];
+	editingTournament: Tournament | null;
+	handleArchiveFromActions: ReturnType<typeof vi.fn>;
+	handleConfirmDelete: ReturnType<typeof vi.fn>;
+	handleCreate: ReturnType<typeof vi.fn>;
+	handleRestoreFromActions: ReturnType<typeof vi.fn>;
+	handleUpdate: ReturnType<typeof vi.fn>;
+	isCreateLoading: boolean;
+	isCreateOpen: boolean;
+	isUpdateLoading: boolean;
+	openActions: ReturnType<typeof vi.fn>;
+	openDeleteFromActions: ReturnType<typeof vi.fn>;
+	openEditFromActions: ReturnType<typeof vi.fn>;
+	pendingDelete: Tournament | null;
+	setEditingTournament: ReturnType<typeof vi.fn>;
+	setIsCreateOpen: ReturnType<typeof vi.fn>;
+	showArchived: boolean;
+	toggleArchived: ReturnType<typeof vi.fn>;
+}
 
-vi.mock("@/features/stores/components/blind-level-editor", () => ({
-	LocalBlindStructureContent: () => <div>Blind structure content</div>,
-}));
-
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
-		children,
-		open,
-	}: {
-		children: ReactNode;
-		open: boolean;
-	}) => (open ? <div>{children}</div> : null),
-}));
-
-vi.mock("@/utils/trpc", () => ({
-	trpc: {
-		blindLevel: {
-			listByTournament: {
-				queryOptions: ({ tournamentId }: { tournamentId: string }) => ({
-					queryKey: ["blindLevel", tournamentId],
-				}),
-			},
-		},
-		currency: {
-			list: {
-				queryOptions: () => ({ queryKey: ["currency"] }),
-			},
-		},
-		tournament: {
-			listByStore: {
-				queryOptions: ({
-					includeArchived,
-					storeId,
-				}: {
-					includeArchived?: boolean;
-					storeId: string;
-				}) => ({
-					queryKey: [
-						"tournament",
-						storeId,
-						includeArchived ? "archived" : "active",
-					],
-				}),
-			},
-		},
-	},
-	trpcClient: {
-		tournament: {
-			addTag: { mutate: vi.fn(async () => undefined) },
-			archive: { mutate: mocks.archiveMutate },
-			create: { mutate: mocks.createMutate },
-			createWithLevels: { mutate: vi.fn(async () => undefined) },
-			delete: { mutate: mocks.deleteMutate },
-			removeTag: { mutate: vi.fn(async () => undefined) },
-			restore: { mutate: mocks.restoreMutate },
-			update: { mutate: mocks.updateMutate },
-			updateWithLevels: { mutate: vi.fn(async () => undefined) },
-		},
-		tournamentChipPurchase: {
-			create: { mutate: vi.fn(async () => undefined) },
-			delete: { mutate: vi.fn(async () => undefined) },
-		},
-	},
-}));
-
-function Harness() {
-	const [expandedGameId, setExpandedGameId] = useState<string | null>(null);
-	return (
-		<TournamentTab
-			expandedGameId={expandedGameId}
-			onToggleGame={setExpandedGameId}
-			storeId="store-1"
-		/>
-	);
+function setState(overrides: Partial<TabState> = {}): TabState {
+	const state: TabState = {
+		activeTournaments: [],
+		archivedTournaments: [],
+		currencies: [],
+		activeLoading: false,
+		archivedLoading: false,
+		showArchived: false,
+		toggleArchived: vi.fn(),
+		isCreateOpen: false,
+		setIsCreateOpen: vi.fn(),
+		editingTournament: null,
+		setEditingTournament: vi.fn(),
+		actionsTarget: null,
+		pendingDelete: null,
+		isCreateLoading: false,
+		isUpdateLoading: false,
+		editBlindLevelsLoading: false,
+		editInitialFormValues: undefined,
+		editInitialLevels: [],
+		handleCreate: vi.fn(),
+		handleUpdate: vi.fn(),
+		openActions: vi.fn(),
+		closeActions: vi.fn(),
+		openEditFromActions: vi.fn(),
+		openDeleteFromActions: vi.fn(),
+		handleArchiveFromActions: vi.fn(),
+		handleRestoreFromActions: vi.fn(),
+		cancelDelete: vi.fn(),
+		handleConfirmDelete: vi.fn(),
+		...overrides,
+	};
+	hoisted.useTournamentTab.mockReturnValue(state);
+	return state;
 }
 
 describe("TournamentTab", () => {
 	beforeEach(() => {
-		mocks.activeTournaments = [
-			{
-				archivedAt: null,
-				blindLevelCount: 0,
-				bountyAmount: null,
-				buyIn: 10_000,
-				chipPurchases: [],
-				currencyId: "currency-1",
-				entryFee: 1000,
-				id: "tournament-1",
-				memo: "two day structure",
-				name: "Sunday Major",
-				startingStack: 20_000,
-				storeId: "store-1",
-				tableSize: 9,
-				tags: [],
-				variant: "nlh",
-			},
-		];
-		mocks.archiveMutate.mockClear();
+		hoisted.useTournamentTab.mockReset();
 	});
 
-	it("expands a tournament row and archives it", async () => {
-		const user = userEvent.setup();
+	it("renders the section heading", () => {
+		setState();
+		render(<TournamentTab storeId="store-1" />);
+		expect(
+			screen.getByRole("heading", { name: "Tournaments" })
+		).toBeInTheDocument();
+	});
 
-		render(<Harness />);
-
-		await user.click(screen.getByText("Sunday Major"));
-		expect(screen.getByText("two day structure")).toBeInTheDocument();
-
-		await user.click(screen.getByLabelText("Archive tournament"));
-
-		await waitFor(() => {
-			expect(mocks.archiveMutate).toHaveBeenCalledWith({
-				id: "tournament-1",
-			});
+	it("renders a row per active tournament with its level count", () => {
+		setState({
+			activeTournaments: [baseTournament({ blindLevelCount: 12 })],
 		});
+		render(<TournamentTab storeId="store-1" />);
+		expect(screen.getByText("Sunday Major")).toBeInTheDocument();
+		expect(screen.getByText(LEVELS_RE)).toBeInTheDocument();
 	});
 
-	it("opens edit modal with Details and Structure tabs", async () => {
+	it("shows the empty state when there are no active tournaments", () => {
+		setState({ activeTournaments: [] });
+		render(<TournamentTab storeId="store-1" />);
+		expect(screen.getByText("No tournaments yet.")).toBeInTheDocument();
+	});
+
+	it("opens the create sheet when the add button is clicked", async () => {
 		const user = userEvent.setup();
-
-		render(<Harness />);
-
-		await user.click(screen.getByText("Sunday Major"));
-		await user.click(screen.getByLabelText("Edit tournament"));
-
-		expect(screen.getByText("Details")).toBeInTheDocument();
-		expect(screen.getByText("Structure")).toBeInTheDocument();
-		expect(screen.getByTestId("tournament-form")).toBeInTheDocument();
+		const state = setState();
+		render(<TournamentTab storeId="store-1" />);
+		await user.click(screen.getByRole("button", { name: "Add tournament" }));
+		expect(state.setIsCreateOpen).toHaveBeenCalledWith(true);
 	});
 
-	it("shows the empty state when there are no tournaments", () => {
-		mocks.activeTournaments = [];
-
-		render(<Harness />);
-
-		expect(screen.getByText("No tournaments yet.")).toBeInTheDocument();
+	it("toggles the archived view from the header control", async () => {
+		const user = userEvent.setup();
+		const state = setState();
+		render(<TournamentTab storeId="store-1" />);
+		await user.click(
+			screen.getByRole("button", { name: "Show archived tournaments" })
+		);
+		expect(state.toggleArchived).toHaveBeenCalledTimes(1);
 	});
 
-	it("remains empty and does not fire mutations when both lists are empty", () => {
-		mocks.activeTournaments = [];
-		mocks.archivedTournaments = [];
+	it("opens the actions drawer for a row via its overflow button", async () => {
+		const user = userEvent.setup();
+		const t = baseTournament();
+		const state = setState({ activeTournaments: [t] });
+		render(<TournamentTab storeId="store-1" />);
+		await user.click(
+			screen.getByRole("button", { name: "Actions for Sunday Major" })
+		);
+		expect(state.openActions).toHaveBeenCalledWith(t);
+	});
 
-		render(<Harness />);
+	it("wires the actions drawer to the hook handlers when a target is set", async () => {
+		const user = userEvent.setup();
+		const state = setState({ actionsTarget: baseTournament() });
+		render(<TournamentTab storeId="store-1" />);
+		await user.click(screen.getByRole("button", { name: "drawer-edit" }));
+		expect(state.openEditFromActions).toHaveBeenCalledTimes(1);
+		await user.click(screen.getByRole("button", { name: "drawer-delete" }));
+		expect(state.openDeleteFromActions).toHaveBeenCalledTimes(1);
+	});
 
-		expect(screen.getByText("No tournaments yet.")).toBeInTheDocument();
-		expect(mocks.archiveMutate).not.toHaveBeenCalled();
-		expect(mocks.deleteMutate).not.toHaveBeenCalled();
+	it("opens the create tournament sheet when isCreateOpen is true", () => {
+		setState({ isCreateOpen: true });
+		render(<TournamentTab storeId="store-1" />);
+		expect(screen.getByText("Add tournament")).toBeInTheDocument();
+	});
+
+	it("opens the edit tournament sheet when a tournament is being edited", () => {
+		setState({ editingTournament: baseTournament() });
+		render(<TournamentTab storeId="store-1" />);
+		expect(screen.getByText("Edit tournament")).toBeInTheDocument();
+	});
+
+	it("shows the delete dialog with the pending tournament name", () => {
+		setState({ pendingDelete: baseTournament({ name: "Doomed Series" }) });
+		render(<TournamentTab storeId="store-1" />);
+		expect(screen.getByTestId("delete-dialog")).toHaveTextContent(
+			"Doomed Series"
+		);
 	});
 });

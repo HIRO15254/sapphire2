@@ -1,13 +1,30 @@
+import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { store } from "@sapphire2/db/schema/store";
+import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
 export const storeRouter = router({
 	list: protectedProcedure.query(({ ctx }) => {
 		const userId = ctx.session.user.id;
-		return ctx.db.select().from(store).where(eq(store.userId, userId));
+		// Active (non-archived) game counts via correlated subqueries so the list
+		// card can show them without an N+1 query per store. Joining both child
+		// tables at once would multiply rows and corrupt the counts.
+		return ctx.db
+			.select({
+				id: store.id,
+				userId: store.userId,
+				name: store.name,
+				memo: store.memo,
+				createdAt: store.createdAt,
+				updatedAt: store.updatedAt,
+				ringGameCount: sql<number>`(SELECT COUNT(*) FROM ${ringGame} WHERE ${ringGame.storeId} = ${store.id} AND ${ringGame.archivedAt} IS NULL)`,
+				tournamentCount: sql<number>`(SELECT COUNT(*) FROM ${tournament} WHERE ${tournament.storeId} = ${store.id} AND ${tournament.archivedAt} IS NULL)`,
+			})
+			.from(store)
+			.where(eq(store.userId, userId));
 	}),
 
 	getById: protectedProcedure

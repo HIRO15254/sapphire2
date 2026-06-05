@@ -1,560 +1,238 @@
 import {
 	IconArchive,
 	IconArchiveOff,
-	IconEdit,
+	IconDotsVertical,
 	IconPlus,
-	IconTrash,
-	IconX,
 } from "@tabler/icons-react";
-import { TournamentEditDialog } from "@/features/stores/components/tournament-edit-dialog";
-import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
-import { useTournamentRow } from "@/features/stores/hooks/use-tournament-row";
+import { DeleteGameDialog } from "@/features/stores/components/delete-game-dialog";
+import { GameActionsDrawer } from "@/features/stores/components/game-actions-drawer";
+import { TournamentFormSheet } from "@/features/stores/components/tournament-form-sheet";
 import type { Tournament } from "@/features/stores/hooks/use-tournaments";
-import {
-	ExpandableItem,
-	ExpandableItemList,
-} from "@/shared/components/management/expandable-item-list";
-import { ManagementSectionHeader } from "@/shared/components/management/management-section-header";
-import { ManagementSectionState } from "@/shared/components/management/management-section-state";
+import { formatTournamentBuyIn } from "@/features/stores/utils/game-format";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/shared/components/ui/table";
-import {
-	createGroupFormatter,
-	formatCompactNumber,
-} from "@/utils/format-number";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
-import {
-	useBlindStructureSummary,
-	useTournamentTab,
-} from "./use-tournament-tab";
+import { useTournamentTab } from "./use-tournament-tab";
 
-interface TournamentTabProps {
-	expandedGameId: string | null;
-	onToggleGame: (id: string | null) => void;
-	storeId: string;
-}
+const CREATE_FORM_ID = "tournament-create-form";
+const EDIT_FORM_ID = "tournament-edit-form";
 
-interface TournamentActionHandlers {
-	onArchive: (id: string) => void;
-	onDelete: (id: string) => void;
-	onEdit: (tournament: Tournament) => void;
-	onRestore: (id: string) => void;
-}
-
-interface TournamentListProps extends TournamentActionHandlers {
-	currencies: { id: string; name: string; unit?: string | null }[];
-	expandedGameId: string | null;
-	isArchived: boolean;
-	onToggleGame: (id: string | null) => void;
-	tournaments: Tournament[];
-}
-
-function TournamentList({
-	tournaments,
-	currencies,
-	expandedGameId,
-	isArchived,
-	onToggleGame,
-	...handlers
-}: TournamentListProps) {
-	if (tournaments.length === 0) {
-		return null;
-	}
-
-	return (
-		<ExpandableItemList
-			onValueChange={onToggleGame}
-			value={
-				tournaments.some((tournament) => tournament.id === expandedGameId)
-					? expandedGameId
-					: null
-			}
-		>
-			{tournaments.map((t) => (
-				<TournamentRow
-					currencies={currencies}
-					expanded={expandedGameId === t.id}
-					isArchived={isArchived}
-					key={t.id}
-					tournament={t}
-					{...handlers}
-				/>
-			))}
-		</ExpandableItemList>
-	);
-}
-
-interface ArchivedTournamentSectionProps extends TournamentActionHandlers {
-	currencies: { id: string; name: string; unit?: string | null }[];
-	expandedGameId: string | null;
-	isLoading: boolean;
-	onToggleGame: (id: string | null) => void;
-	tournaments: Tournament[];
-}
-
-function ArchivedTournamentSection({
-	tournaments,
-	currencies,
-	expandedGameId,
-	isLoading,
-	onToggleGame,
-	...handlers
-}: ArchivedTournamentSectionProps) {
-	if (isLoading) {
-		return <ManagementSectionState>Loading archived...</ManagementSectionState>;
-	}
-
-	if (tournaments.length === 0) {
-		return (
-			<ManagementSectionState>No archived tournaments.</ManagementSectionState>
-		);
-	}
-
-	return (
-		<div className="mt-1 border-t border-dashed pt-1">
-			<TournamentList
-				currencies={currencies}
-				expandedGameId={expandedGameId}
-				isArchived
-				onToggleGame={onToggleGame}
-				tournaments={tournaments}
-				{...handlers}
-			/>
-		</div>
-	);
-}
-
-interface TournamentContentProps extends TournamentActionHandlers {
-	activeTournaments: Tournament[];
-	archivedLoading: boolean;
-	archivedTournaments: Tournament[];
-	currencies: { id: string; name: string; unit?: string | null }[];
-	expandedGameId: string | null;
-	isLoading: boolean;
-	onToggleGame: (id: string | null) => void;
-	showArchived: boolean;
-}
-
-function TournamentContent({
-	activeTournaments,
-	archivedLoading,
-	archivedTournaments,
-	currencies,
-	expandedGameId,
-	isLoading,
-	onToggleGame,
-	showArchived,
-	...handlers
-}: TournamentContentProps) {
-	if (isLoading) {
-		return (
-			<ManagementSectionState className="py-2 text-xs">
-				Loading...
-			</ManagementSectionState>
-		);
-	}
-
-	return (
-		<>
-			{activeTournaments.length === 0 && !showArchived && (
-				<ManagementSectionState>No tournaments yet.</ManagementSectionState>
-			)}
-			<TournamentList
-				currencies={currencies}
-				expandedGameId={expandedGameId}
-				isArchived={false}
-				onToggleGame={onToggleGame}
-				tournaments={activeTournaments}
-				{...handlers}
-			/>
-			{showArchived && (
-				<ArchivedTournamentSection
-					currencies={currencies}
-					expandedGameId={expandedGameId}
-					isLoading={archivedLoading}
-					onToggleGame={onToggleGame}
-					tournaments={archivedTournaments}
-					{...handlers}
-				/>
-			)}
-		</>
-	);
-}
-
-function formatBuyInShort(
-	t: Tournament,
-	currencyUnit: string | null | undefined
-): string {
-	if (t.buyIn == null) {
-		return "";
-	}
-	const fmt = createGroupFormatter([t.buyIn, t.entryFee]);
-	const unitStr = currencyUnit ? ` ${currencyUnit}` : "";
-	if (t.entryFee != null) {
-		return `${fmt(t.buyIn)}+${fmt(t.entryFee)}${unitStr}`;
-	}
-	return `${fmt(t.buyIn)}${unitStr}`;
+interface CurrencyOption {
+	id: string;
+	name: string;
+	unit?: string | null;
 }
 
 interface TournamentRowProps {
-	currencies: { id: string; name: string; unit?: string | null }[];
-	expanded: boolean;
-	isArchived: boolean;
-	onArchive: (id: string) => void;
-	onDelete: (id: string) => void;
-	onEdit: (tournament: Tournament) => void;
-	onRestore: (id: string) => void;
+	currencies: CurrencyOption[];
+	onOpenActions: (tournament: Tournament) => void;
 	tournament: Tournament;
 }
 
 function TournamentRow({
 	tournament,
 	currencies,
-	expanded,
-	isArchived,
-	onArchive,
-	onDelete,
-	onEdit,
-	onRestore,
+	onOpenActions,
 }: TournamentRowProps) {
-	const { confirmingDelete, setConfirmingDelete } = useTournamentRow({
-		expanded,
-	});
 	const currency = currencies.find((c) => c.id === tournament.currencyId);
-	const buyInStr = formatBuyInShort(tournament, currency?.unit);
+	const buyIn = formatTournamentBuyIn(tournament, currency?.unit);
+	const isArchived = tournament.archivedAt != null;
+	const meta = [
+		buyIn,
+		tournament.blindLevelCount > 0
+			? `${tournament.blindLevelCount} levels`
+			: "",
+	]
+		.filter(Boolean)
+		.join(" · ");
 
 	return (
-		<ExpandableItem
-			contentClassName="pl-2 pb-2"
-			summary={
-				<div className="min-w-0 flex-1">
-					<div className="flex flex-wrap items-center gap-1">
-						<span className="truncate font-medium text-xs">
-							{tournament.name}
-						</span>
-						<Badge className="px-1 py-0 text-[10px]" variant="secondary">
-							{tournament.variant.toUpperCase()}
-						</Badge>
-						{tournament.tableSize != null && (
-							<Badge
-								className={`px-1 py-0 text-[10px] ${getTableSizeClassName(tournament.tableSize)}`}
-							>
-								{tournament.tableSize}-max
-							</Badge>
-						)}
-						{tournament.tags.map((tag) => (
-							<Badge
-								className="px-1 py-0 text-[10px]"
-								key={tag.id}
-								variant="outline"
-							>
-								{tag.name}
-							</Badge>
-						))}
-						{buyInStr && (
-							<span className="text-[11px] text-muted-foreground">
-								{buyInStr}
-							</span>
-						)}
-					</div>
-				</div>
-			}
-			value={tournament.id}
+		<div
+			className={cn(
+				"flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-card-foreground",
+				isArchived && "opacity-60"
+			)}
 		>
-			<TournamentDetail
-				confirmingDelete={confirmingDelete}
-				isArchived={isArchived}
-				onArchive={onArchive}
-				onDelete={onDelete}
-				onEdit={onEdit}
-				onRestore={onRestore}
-				setConfirmingDelete={setConfirmingDelete}
-				tournament={tournament}
-			/>
-		</ExpandableItem>
-	);
-}
-
-interface TournamentDetailProps {
-	confirmingDelete: boolean;
-	isArchived: boolean;
-	onArchive: (id: string) => void;
-	onDelete: (id: string) => void;
-	onEdit: (tournament: Tournament) => void;
-	onRestore: (id: string) => void;
-	setConfirmingDelete: (v: boolean) => void;
-	tournament: Tournament;
-}
-
-function TournamentDetail({
-	tournament,
-	isArchived,
-	confirmingDelete,
-	setConfirmingDelete,
-	onArchive,
-	onDelete,
-	onEdit,
-	onRestore,
-}: TournamentDetailProps) {
-	const fmt = createGroupFormatter([tournament.bountyAmount]);
-
-	const details: string[] = [];
-	if (tournament.startingStack != null) {
-		details.push(`Stack: ${formatCompactNumber(tournament.startingStack)}`);
-	}
-	for (const cp of tournament.chipPurchases) {
-		details.push(`${cp.name}: ${cp.cost}`);
-	}
-	if (tournament.bountyAmount != null) {
-		details.push(`Bounty: ${fmt(tournament.bountyAmount)}`);
-	}
-
-	return (
-		<div className="pb-2 pl-2">
-			{details.length > 0 && (
-				<p className="text-[11px] text-muted-foreground">
-					{details.join(" / ")}
-				</p>
-			)}
-
-			{tournament.memo && (
-				<p className="whitespace-pre-wrap text-[11px] text-muted-foreground">
-					{tournament.memo}
-				</p>
-			)}
-
-			{tournament.blindLevelCount > 0 && (
-				<div className="mt-1">
-					<BlindStructureSummary tournamentId={tournament.id} />
+			<div className="min-w-0 flex-1">
+				<div className="flex flex-wrap items-center gap-1.5">
+					<span className="truncate font-medium text-sm">
+						{tournament.name}
+					</span>
+					<Badge variant="secondary">{tournament.variant.toUpperCase()}</Badge>
+					{tournament.tableSize == null ? null : (
+						<Badge className={getTableSizeClassName(tournament.tableSize)}>
+							{tournament.tableSize}-max
+						</Badge>
+					)}
+					{tournament.tags.map((tag) => (
+						<Badge key={tag.id} variant="outline">
+							{tag.name}
+						</Badge>
+					))}
+					{isArchived ? <Badge variant="outline">Archived</Badge> : null}
 				</div>
-			)}
-
-			<TournamentActions
-				confirmingDelete={confirmingDelete}
-				isArchived={isArchived}
-				onArchive={onArchive}
-				onDelete={onDelete}
-				onEdit={onEdit}
-				onRestore={onRestore}
-				setConfirmingDelete={setConfirmingDelete}
-				tournament={tournament}
-			/>
-		</div>
-	);
-}
-
-interface TournamentActionsProps {
-	confirmingDelete: boolean;
-	isArchived: boolean;
-	onArchive: (id: string) => void;
-	onDelete: (id: string) => void;
-	onEdit: (tournament: Tournament) => void;
-	onRestore: (id: string) => void;
-	setConfirmingDelete: (v: boolean) => void;
-	tournament: Tournament;
-}
-
-function TournamentActions({
-	tournament,
-	isArchived,
-	confirmingDelete,
-	setConfirmingDelete,
-	onArchive,
-	onDelete,
-	onEdit,
-	onRestore,
-}: TournamentActionsProps) {
-	if (confirmingDelete) {
-		return (
-			<div className="mt-1 flex items-center justify-end gap-1">
-				<span className="text-[10px] text-destructive">Delete?</span>
-				<Button
-					aria-label="Confirm delete"
-					className="text-destructive hover:text-destructive"
-					onClick={() => {
-						onDelete(tournament.id);
-						setConfirmingDelete(false);
-					}}
-					size="icon-xs"
-					type="button"
-					variant="ghost"
-				>
-					<IconTrash size={12} />
-				</Button>
-				<Button
-					aria-label="Cancel delete"
-					onClick={() => setConfirmingDelete(false)}
-					size="icon-xs"
-					type="button"
-					variant="ghost"
-				>
-					<IconX size={12} />
-				</Button>
+				{meta ? (
+					<p className="mt-0.5 truncate text-muted-foreground text-xs">
+						{meta}
+					</p>
+				) : null}
 			</div>
-		);
-	}
-
-	return (
-		<div className="mt-1 flex items-center justify-end gap-1">
 			<Button
-				aria-label="Edit tournament"
-				onClick={() => onEdit(tournament)}
-				size="icon-xs"
-				type="button"
+				aria-label={`Actions for ${tournament.name}`}
+				onClick={() => onOpenActions(tournament)}
+				size="icon-sm"
 				variant="ghost"
 			>
-				<IconEdit size={12} />
-			</Button>
-			{isArchived ? (
-				<Button
-					aria-label="Restore tournament"
-					onClick={() => onRestore(tournament.id)}
-					size="icon-xs"
-					type="button"
-					variant="ghost"
-				>
-					<IconArchiveOff size={12} />
-				</Button>
-			) : (
-				<Button
-					aria-label="Archive tournament"
-					onClick={() => onArchive(tournament.id)}
-					size="icon-xs"
-					type="button"
-					variant="ghost"
-				>
-					<IconArchive size={12} />
-				</Button>
-			)}
-			<Button
-				aria-label="Delete tournament"
-				onClick={() => setConfirmingDelete(true)}
-				size="icon-xs"
-				type="button"
-				variant="ghost"
-			>
-				<IconTrash size={12} />
+				<IconDotsVertical className="size-4" />
 			</Button>
 		</div>
 	);
 }
 
-function BlindStructureSummary({ tournamentId }: { tournamentId: string }) {
-	const { levels, isLoading } = useBlindStructureSummary(tournamentId);
-
-	if (isLoading) {
-		return (
-			<p className="py-1 text-center text-muted-foreground text-xs">
-				Loading levels...
-			</p>
-		);
-	}
-
-	if (levels.length === 0) {
-		return (
-			<p className="py-1 text-center text-muted-foreground text-xs">
-				No blind levels yet.
-			</p>
-		);
-	}
-
+function TournamentListSkeleton() {
 	return (
-		<Table className="table-fixed text-[10px]">
-			<TableHeader>
-				<TableRow>
-					<TableHead className="h-auto w-6 pb-0.5 text-center font-medium text-muted-foreground">
-						#
-					</TableHead>
-					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
-						SB
-					</TableHead>
-					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
-						BB
-					</TableHead>
-					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
-						Ante
-					</TableHead>
-					<TableHead className="h-auto w-8 pb-0.5 text-center font-medium text-muted-foreground">
-						Min
-					</TableHead>
-				</TableRow>
-			</TableHeader>
-			<TableBody>
-				{levels.map((row: BlindLevelRow) => {
-					if (row.isBreak) {
-						return (
-							<TableRow className="bg-muted/30" key={row.id}>
-								<TableCell className="py-0.5 text-center text-muted-foreground">
-									{row.level}
-								</TableCell>
-								<TableCell
-									className="py-0.5 text-center text-muted-foreground"
-									colSpan={3}
-								>
-									Break
-								</TableCell>
-								<TableCell className="py-0.5 text-center text-muted-foreground">
-									{row.minutes ?? "—"}
-								</TableCell>
-							</TableRow>
-						);
-					}
-					const fmt = createGroupFormatter([row.blind1, row.blind2, row.ante]);
-					return (
-						<TableRow key={row.id}>
-							<TableCell className="py-0.5 text-center text-muted-foreground">
-								{row.level}
-							</TableCell>
-							<TableCell className="py-0.5 text-center">
-								{row.blind1 == null ? "—" : fmt(row.blind1)}
-							</TableCell>
-							<TableCell className="py-0.5 text-center">
-								{row.blind2 == null ? "—" : fmt(row.blind2)}
-							</TableCell>
-							<TableCell className="py-0.5 text-center">
-								{row.ante == null ? "—" : fmt(row.ante)}
-							</TableCell>
-							<TableCell className="py-0.5 text-center text-muted-foreground">
-								{row.minutes ?? "—"}
-							</TableCell>
-						</TableRow>
-					);
-				})}
-			</TableBody>
-		</Table>
+		<div aria-hidden className="flex flex-col gap-2">
+			{Array.from({ length: 3 }, (_, i) => i).map((i) => (
+				<div
+					className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
+					key={i}
+				>
+					<div className="min-w-0 flex-1 space-y-1.5">
+						<Skeleton className="h-4 w-1/3" />
+						<Skeleton className="h-3 w-1/2" />
+					</div>
+					<Skeleton className="size-8 shrink-0 rounded-md" />
+				</div>
+			))}
+		</div>
 	);
 }
 
-// ---- Main tab component ----
+interface TournamentListProps {
+	currencies: CurrencyOption[];
+	onOpenActions: (tournament: Tournament) => void;
+	tournaments: Tournament[];
+}
 
-export function TournamentTab({
-	storeId,
-	expandedGameId,
-	onToggleGame,
-}: TournamentTabProps) {
+function TournamentList({
+	tournaments,
+	currencies,
+	onOpenActions,
+}: TournamentListProps) {
+	return (
+		<div className="flex flex-col gap-2">
+			{tournaments.map((tournament) => (
+				<TournamentRow
+					currencies={currencies}
+					key={tournament.id}
+					onOpenActions={onOpenActions}
+					tournament={tournament}
+				/>
+			))}
+		</div>
+	);
+}
+
+interface ArchivedTournamentsProps {
+	currencies: CurrencyOption[];
+	isLoading: boolean;
+	onOpenActions: (tournament: Tournament) => void;
+	tournaments: Tournament[];
+}
+
+function ArchivedTournaments({
+	tournaments,
+	currencies,
+	isLoading,
+	onOpenActions,
+}: ArchivedTournamentsProps) {
+	if (isLoading) {
+		return <TournamentListSkeleton />;
+	}
+	if (tournaments.length === 0) {
+		return (
+			<p className="py-2 text-center text-muted-foreground text-xs">
+				No archived tournaments.
+			</p>
+		);
+	}
+	return (
+		<TournamentList
+			currencies={currencies}
+			onOpenActions={onOpenActions}
+			tournaments={tournaments}
+		/>
+	);
+}
+
+interface TournamentContentProps {
+	activeLoading: boolean;
+	activeTournaments: Tournament[];
+	archivedLoading: boolean;
+	archivedTournaments: Tournament[];
+	currencies: CurrencyOption[];
+	onOpenActions: (tournament: Tournament) => void;
+	showArchived: boolean;
+}
+
+function TournamentContent({
+	activeLoading,
+	activeTournaments,
+	archivedLoading,
+	archivedTournaments,
+	currencies,
+	onOpenActions,
+	showArchived,
+}: TournamentContentProps) {
+	if (activeLoading) {
+		return <TournamentListSkeleton />;
+	}
+	return (
+		<>
+			{activeTournaments.length === 0 && !showArchived ? (
+				<p className="py-6 text-center text-muted-foreground text-sm">
+					No tournaments yet.
+				</p>
+			) : null}
+			{activeTournaments.length > 0 ? (
+				<TournamentList
+					currencies={currencies}
+					onOpenActions={onOpenActions}
+					tournaments={activeTournaments}
+				/>
+			) : null}
+			{showArchived ? (
+				<div className="mt-1 flex flex-col gap-2 border-border border-t border-dashed pt-3">
+					<p className="t-meta uppercase tracking-wide">Archived</p>
+					<ArchivedTournaments
+						currencies={currencies}
+						isLoading={archivedLoading}
+						onOpenActions={onOpenActions}
+						tournaments={archivedTournaments}
+					/>
+				</div>
+			) : null}
+		</>
+	);
+}
+
+export function TournamentTab({ storeId }: { storeId: string }) {
 	const {
 		activeTournaments,
 		archivedTournaments,
 		currencies,
 		activeLoading,
 		archivedLoading,
-		archive,
-		restore,
-		deleteTournament,
 		showArchived,
-		setShowArchived,
+		toggleArchived,
 		isCreateOpen,
 		setIsCreateOpen,
 		editingTournament,
 		setEditingTournament,
+		actionsTarget,
+		pendingDelete,
 		isCreateLoading,
 		isUpdateLoading,
 		editBlindLevelsLoading,
@@ -562,68 +240,72 @@ export function TournamentTab({
 		editInitialLevels,
 		handleCreate,
 		handleUpdate,
+		openActions,
+		closeActions,
+		openEditFromActions,
+		openDeleteFromActions,
+		handleArchiveFromActions,
+		handleRestoreFromActions,
+		cancelDelete,
+		handleConfirmDelete,
 	} = useTournamentTab({ storeId });
 
 	return (
-		<div>
-			<ManagementSectionHeader
-				action={
-					<Button
-						onClick={() => setIsCreateOpen(true)}
-						size="icon-xs"
-						variant="ghost"
-					>
-						<IconPlus size={12} />
-					</Button>
-				}
-				controls={
+		<div className="flex flex-col gap-3">
+			<div className="flex items-center justify-between">
+				<h3 className="t-h4">Tournaments</h3>
+				<div className="flex items-center gap-1">
 					<Button
 						aria-label={
 							showArchived
 								? "Hide archived tournaments"
 								: "Show archived tournaments"
 						}
-						onClick={() => setShowArchived((prev) => !prev)}
-						size="icon-xs"
+						onClick={toggleArchived}
+						size="icon-sm"
 						variant="ghost"
 					>
 						{showArchived ? (
-							<IconArchiveOff className="text-muted-foreground" size={12} />
+							<IconArchiveOff className="size-4 text-muted-foreground" />
 						) : (
-							<IconArchive className="text-muted-foreground" size={12} />
+							<IconArchive className="size-4 text-muted-foreground" />
 						)}
 					</Button>
-				}
-				heading="Tournaments"
-			/>
+					<Button
+						aria-label="Add tournament"
+						onClick={() => setIsCreateOpen(true)}
+						size="icon-sm"
+						variant="ghost"
+					>
+						<IconPlus className="size-4" />
+					</Button>
+				</div>
+			</div>
 
 			<TournamentContent
+				activeLoading={activeLoading}
 				activeTournaments={activeTournaments}
 				archivedLoading={archivedLoading}
 				archivedTournaments={archivedTournaments}
 				currencies={currencies}
-				expandedGameId={expandedGameId}
-				isLoading={activeLoading}
-				onArchive={archive}
-				onDelete={deleteTournament}
-				onEdit={setEditingTournament}
-				onRestore={restore}
-				onToggleGame={onToggleGame}
+				onOpenActions={openActions}
 				showArchived={showArchived}
 			/>
 
-			<TournamentEditDialog
+			<TournamentFormSheet
 				aiMode="create"
+				formId={CREATE_FORM_ID}
 				initialBlindLevels={[]}
 				isLoading={isCreateLoading}
 				onOpenChange={setIsCreateOpen}
 				onSave={handleCreate}
 				open={isCreateOpen}
-				title="Add Tournament"
+				title="Add tournament"
 			/>
 
-			<TournamentEditDialog
+			<TournamentFormSheet
 				aiMode="edit"
+				formId={EDIT_FORM_ID}
 				initialBlindLevels={editInitialLevels}
 				initialFormValues={editInitialFormValues}
 				isInitializing={editBlindLevelsLoading}
@@ -636,7 +318,34 @@ export function TournamentTab({
 				onSave={handleUpdate}
 				open={editingTournament !== null}
 				resetKey={editingTournament?.id}
-				title="Edit Tournament"
+				title="Edit tournament"
+			/>
+
+			<GameActionsDrawer
+				isArchived={actionsTarget?.archivedAt != null}
+				label="tournament"
+				onArchive={handleArchiveFromActions}
+				onDelete={openDeleteFromActions}
+				onEdit={openEditFromActions}
+				onOpenChange={(open) => {
+					if (!open) {
+						closeActions();
+					}
+				}}
+				onRestore={handleRestoreFromActions}
+				open={actionsTarget !== null}
+			/>
+
+			<DeleteGameDialog
+				label="tournament"
+				name={pendingDelete?.name ?? ""}
+				onConfirm={handleConfirmDelete}
+				onOpenChange={(open) => {
+					if (!open) {
+						cancelDelete();
+					}
+				}}
+				open={pendingDelete !== null}
 			/>
 		</div>
 	);
