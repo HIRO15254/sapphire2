@@ -3,25 +3,6 @@ import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 import { gameSession } from "./session";
 
-export const store = sqliteTable(
-	"store",
-	{
-		id: text("id").primaryKey(),
-		userId: text("user_id")
-			.notNull()
-			.references(() => user.id, { onDelete: "cascade" }),
-		name: text("name").notNull(),
-		memo: text("memo"),
-		createdAt: integer("created_at", { mode: "timestamp" })
-			.default(sql`(unixepoch())`)
-			.notNull(),
-		updatedAt: integer("updated_at", { mode: "timestamp" })
-			.$onUpdate(() => /* @__PURE__ */ new Date())
-			.notNull(),
-	},
-	(table) => [index("store_userId_idx").on(table.userId)]
-);
-
 export const currency = sqliteTable(
 	"currency",
 	{
@@ -89,13 +70,6 @@ export const currencyTransaction = sqliteTable(
 		index("currencyTransaction_sessionId_idx").on(table.sessionId),
 	]
 );
-
-export const storeRelations = relations(store, ({ one }) => ({
-	user: one(user, {
-		fields: [store.userId],
-		references: [user.id],
-	}),
-}));
 
 export const currencyRelations = relations(currency, ({ one, many }) => ({
 	user: one(user, {
