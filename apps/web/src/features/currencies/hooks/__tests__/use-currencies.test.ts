@@ -436,7 +436,48 @@ describe("useCurrencies", () => {
 			expect(trpcMocks.currencyUpdate).toHaveBeenCalledWith({
 				id: "c1",
 				name: "Chips",
+				unit: null,
 				description: "<p>new</p>",
+			});
+		});
+
+		it("sends an explicit null unit to the server when the unit is cleared", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{ id: "c1", name: "Chips", unit: "$", description: null },
+			]);
+			trpcMocks.currencyUpdate.mockResolvedValue({ id: "c1" });
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				await result.current.update({ id: "c1", name: "Chips" });
+			});
+			expect(trpcMocks.currencyUpdate).toHaveBeenCalledWith({
+				id: "c1",
+				name: "Chips",
+				unit: null,
+				description: undefined,
+			});
+		});
+
+		it("forwards a set unit unchanged to the server", async () => {
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{ id: "c1", name: "Chips", unit: null, description: null },
+			]);
+			trpcMocks.currencyUpdate.mockResolvedValue({ id: "c1" });
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				await result.current.update({ id: "c1", name: "Chips", unit: "pt" });
+			});
+			expect(trpcMocks.currencyUpdate).toHaveBeenCalledWith({
+				id: "c1",
+				name: "Chips",
+				unit: "pt",
+				description: undefined,
 			});
 		});
 	});

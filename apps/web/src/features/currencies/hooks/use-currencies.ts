@@ -107,8 +107,15 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 	});
 
 	const updateMutation = useMutation({
+		// Send an explicit `null` for a cleared unit so the server overwrites it
+		// rather than treating the omitted (undefined) key as "leave unchanged".
 		mutationFn: (values: CurrencyValues & { id: string }) =>
-			trpcClient.currency.update.mutate(values),
+			trpcClient.currency.update.mutate({
+				id: values.id,
+				name: values.name,
+				unit: values.unit ?? null,
+				description: values.description,
+			}),
 		onMutate: async (updated) => {
 			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
 			const previous = snapshotQuery(queryClient, currencyListKey);

@@ -134,6 +134,10 @@ describe("currency.update input validation", () => {
 		expectAccepts(appRouter.currency.update, { id: "c1", unit: "$" });
 	});
 
+	it("accepts unit cleared to null", () => {
+		expectAccepts(appRouter.currency.update, { id: "c1", unit: null });
+	});
+
 	it("rejects empty name when provided", () => {
 		expectRejects(appRouter.currency.update, { id: "c1", name: "" });
 	});
