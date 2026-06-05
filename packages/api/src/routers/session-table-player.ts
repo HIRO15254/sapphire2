@@ -1,11 +1,11 @@
 import { playerJoinPayload } from "@sapphire2/db/constants/session-event-types";
 import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
+import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
-import { store } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray } from "drizzle-orm";
@@ -55,17 +55,17 @@ async function fetchSessionContext(
 	db: DbInstance,
 	sessionId: string,
 	sessionType: "cash_game" | "tournament"
-): Promise<{ storeName: string | null; gameName: string | null }> {
-	let storeName: string | null = null;
+): Promise<{ roomName: string | null; gameName: string | null }> {
+	let roomName: string | null = null;
 	let gameName: string | null = null;
-	let storeId: string | null = null;
+	let roomId: string | null = null;
 
 	const [session] = await db
-		.select({ storeId: gameSession.storeId })
+		.select({ roomId: gameSession.roomId })
 		.from(gameSession)
 		.where(eq(gameSession.id, sessionId));
 
-	storeId = session?.storeId ?? null;
+	roomId = session?.roomId ?? null;
 
 	if (sessionType === "cash_game") {
 		const [cashDetail] = await db
@@ -103,15 +103,15 @@ async function fetchSessionContext(
 		}
 	}
 
-	if (storeId) {
-		const [storeRow] = await db
-			.select({ name: store.name })
-			.from(store)
-			.where(eq(store.id, storeId));
-		storeName = storeRow?.name ?? null;
+	if (roomId) {
+		const [roomRow] = await db
+			.select({ name: room.name })
+			.from(room)
+			.where(eq(room.id, roomId));
+		roomName = roomRow?.name ?? null;
 	}
 
-	return { storeName, gameName };
+	return { roomName, gameName };
 }
 
 /**
@@ -460,7 +460,7 @@ export const sessionTablePlayerRouter = router({
 				userId
 			);
 
-			const { storeName, gameName } = await fetchSessionContext(
+			const { roomName, gameName } = await fetchSessionContext(
 				ctx.db,
 				sessionId,
 				sessionType
@@ -471,8 +471,8 @@ export const sessionTablePlayerRouter = router({
 			const mm = String(now.getUTCMinutes()).padStart(2, "0");
 			const dateStr = now.toISOString().slice(0, 10);
 			const memoLines = [`Joined: ${dateStr} ${hh}:${mm}`];
-			if (storeName) {
-				memoLines.push(`Store: ${storeName}`);
+			if (roomName) {
+				memoLines.push(`Room: ${roomName}`);
 			}
 			if (gameName) {
 				memoLines.push(`Game: ${gameName}`);

@@ -1,4 +1,10 @@
+import {
+	currency,
+	currencyTransaction,
+	transactionType,
+} from "@sapphire2/db/schema/currency";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
+import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
@@ -9,12 +15,6 @@ import {
 	sessionToSessionTag,
 } from "@sapphire2/db/schema/session-tag";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
-import {
-	currency,
-	currencyTransaction,
-	store,
-	transactionType,
-} from "@sapphire2/db/schema/store";
 import {
 	blindLevel,
 	tournament,
@@ -183,19 +183,19 @@ async function persistSessionChipPurchases(
 
 async function validateEntityOwnership(
 	db: DbInstance,
-	entityType: "currency" | "ringGame" | "store" | "tournament",
+	entityType: "currency" | "ringGame" | "room" | "tournament",
 	entityId: string,
 	userId: string
 ) {
-	if (entityType === "store") {
-		const [found] = await db.select().from(store).where(eq(store.id, entityId));
+	if (entityType === "room") {
+		const [found] = await db.select().from(room).where(eq(room.id, entityId));
 		if (!found) {
-			throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+			throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
 		}
 		if (found.userId !== userId) {
 			throw new TRPCError({
 				code: "FORBIDDEN",
-				message: "You do not own this store",
+				message: "You do not own this room",
 			});
 		}
 	} else if (entityType === "ringGame") {
@@ -412,7 +412,7 @@ const cashGameCreateSchema = z.object({
 	buyIn: z.number().int().min(0),
 	cashOut: z.number().int().min(0),
 	evCashOut: z.number().int().min(0).optional(),
-	storeId: z.string().optional(),
+	roomId: z.string().optional(),
 	ringGameId: z.string().optional(),
 	currencyId: z.string().optional(),
 	// Snapshot fields — written through to session_cash_detail. When
@@ -455,7 +455,7 @@ const tournamentCreateSchema = z
 		totalEntries: z.number().int().min(1).optional(),
 		prizeMoney: z.number().int().min(0).optional(),
 		bountyPrizes: z.number().int().min(0).optional(),
-		storeId: z.string().optional(),
+		roomId: z.string().optional(),
 		tournamentId: z.string().optional(),
 		currencyId: z.string().optional(),
 		// Snapshot fields — same role as on the cash schema. Allows manual
@@ -645,7 +645,7 @@ async function computeSummary(
 		currencyId?: string;
 		dateFrom?: number;
 		dateTo?: number;
-		storeId?: string;
+		roomId?: string;
 		type?: "cash_game" | "tournament";
 	},
 	typeFilter?: "cash_game" | "tournament"
@@ -654,8 +654,8 @@ async function computeSummary(
 	if (filters.type) {
 		conditions.push(eq(gameSession.kind, filters.type));
 	}
-	if (filters.storeId) {
-		conditions.push(eq(gameSession.storeId, filters.storeId));
+	if (filters.roomId) {
+		conditions.push(eq(gameSession.roomId, filters.roomId));
 	}
 	if (filters.currencyId) {
 		conditions.push(eq(gameSession.currencyId, filters.currencyId));
@@ -736,8 +736,8 @@ async function validateCreateLinks(
 	input: CreateInput,
 	userId: string
 ) {
-	if (input.storeId) {
-		await validateEntityOwnership(db, "store", input.storeId, userId);
+	if (input.roomId) {
+		await validateEntityOwnership(db, "room", input.roomId, userId);
 	}
 	if (input.currencyId) {
 		await validateEntityOwnership(db, "currency", input.currencyId, userId);
@@ -776,7 +776,7 @@ interface ListFilters {
 	cursor?: string;
 	dateFrom?: number;
 	dateTo?: number;
-	storeId?: string;
+	roomId?: string;
 	type?: "cash_game" | "tournament";
 }
 
@@ -785,8 +785,8 @@ function buildSessionListConditions(userId: string, filters: ListFilters) {
 	if (filters.type) {
 		conditions.push(eq(gameSession.kind, filters.type));
 	}
-	if (filters.storeId) {
-		conditions.push(eq(gameSession.storeId, filters.storeId));
+	if (filters.roomId) {
+		conditions.push(eq(gameSession.roomId, filters.roomId));
 	}
 	if (filters.currencyId) {
 		conditions.push(eq(gameSession.currencyId, filters.currencyId));
@@ -965,9 +965,9 @@ interface UpdateInput {
 	currencyId?: string | null;
 	endedAt?: number | null;
 	memo?: string | null;
+	roomId?: string | null;
 	sessionDate?: number;
 	startedAt?: number | null;
-	storeId?: string | null;
 }
 
 function buildSessionUpdateFields(
@@ -979,8 +979,8 @@ function buildSessionUpdateFields(
 	if (input.sessionDate !== undefined) {
 		update.sessionDate = new Date(input.sessionDate * 1000);
 	}
-	if (input.storeId !== undefined) {
-		update.storeId = input.storeId;
+	if (input.roomId !== undefined) {
+		update.roomId = input.roomId;
 	}
 	if (input.currencyId !== undefined) {
 		update.currencyId = input.currencyId;
@@ -1298,7 +1298,7 @@ async function insertCashGameSessionDetail(
 		const derivedName = `${snapshot.variant} ${snapshot.blind1 ?? 0}/${snapshot.blind2 ?? 0}`;
 		await db.insert(ringGame).values({
 			id: ringGameId,
-			storeId: null,
+			roomId: null,
 			name: derivedName,
 			variant: snapshot.variant,
 			blind1: snapshot.blind1,
@@ -1555,7 +1555,7 @@ async function selectCreatedSession(db: DbInstance, id: string) {
 			endedAt: gameSession.endedAt,
 			breakMinutes: gameSession.breakMinutes,
 			memo: gameSession.memo,
-			storeId: gameSession.storeId,
+			roomId: gameSession.roomId,
 			currencyId: gameSession.currencyId,
 			createdAt: gameSession.createdAt,
 			updatedAt: gameSession.updatedAt,
@@ -1642,7 +1642,7 @@ export const sessionRouter = router({
 				endedAt: timestampToDate(input.endedAt),
 				breakMinutes: input.breakMinutes ?? null,
 				memo: input.memo ?? null,
-				storeId: input.storeId ?? null,
+				roomId: input.roomId ?? null,
 				currencyId: input.currencyId ?? null,
 				updatedAt: now,
 			});
@@ -1671,7 +1671,7 @@ export const sessionRouter = router({
 			z.object({
 				cursor: z.string().optional(),
 				type: z.enum(["cash_game", "tournament"]).optional(),
-				storeId: z.string().optional(),
+				roomId: z.string().optional(),
 				currencyId: z.string().optional(),
 				dateFrom: z.number().optional(),
 				dateTo: z.number().optional(),
@@ -1705,8 +1705,8 @@ export const sessionRouter = router({
 					endedAt: gameSession.endedAt,
 					breakMinutes: gameSession.breakMinutes,
 					memo: gameSession.memo,
-					storeId: gameSession.storeId,
-					storeName: store.name,
+					roomId: gameSession.roomId,
+					roomName: room.name,
 					ringGameId: sessionCashDetail.ringGameId,
 					ringGameName: sessionCashDetail.ruleName,
 					ringGameBlind2: sessionCashDetail.blind2,
@@ -1741,7 +1741,7 @@ export const sessionRouter = router({
 					sessionTournamentDetail,
 					eq(sessionTournamentDetail.sessionId, gameSession.id)
 				)
-				.leftJoin(store, eq(store.id, gameSession.storeId))
+				.leftJoin(room, eq(room.id, gameSession.roomId))
 				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
 				.where(and(...paginationConditions))
 				.orderBy(desc(gameSession.sessionDate), desc(gameSession.id))
@@ -1843,7 +1843,7 @@ export const sessionRouter = router({
 			z.object({
 				id: z.string(),
 				sessionDate: z.number().optional(),
-				storeId: z.string().nullable().optional(),
+				roomId: z.string().nullable().optional(),
 				ringGameId: z.string().nullable().optional(),
 				tournamentId: z.string().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
@@ -1881,8 +1881,8 @@ export const sessionRouter = router({
 				input
 			);
 
-			if (input.storeId) {
-				await validateEntityOwnership(ctx.db, "store", input.storeId, userId);
+			if (input.roomId) {
+				await validateEntityOwnership(ctx.db, "room", input.roomId, userId);
 			}
 			if (input.currencyId) {
 				await validateEntityOwnership(
@@ -1985,7 +1985,7 @@ export const sessionRouter = router({
 		.input(
 			z.object({
 				type: z.enum(["cash_game", "tournament"]).optional(),
-				storeId: z.string().optional(),
+				roomId: z.string().optional(),
 				ringGameId: z.string().optional(),
 				currencyId: z.string().optional(),
 				dateFrom: z.number().optional(),
@@ -1998,8 +1998,8 @@ export const sessionRouter = router({
 			if (input.type) {
 				conditions.push(eq(gameSession.kind, input.type));
 			}
-			if (input.storeId) {
-				conditions.push(eq(gameSession.storeId, input.storeId));
+			if (input.roomId) {
+				conditions.push(eq(gameSession.roomId, input.roomId));
 			}
 			if (input.currencyId) {
 				conditions.push(eq(gameSession.currencyId, input.currencyId));

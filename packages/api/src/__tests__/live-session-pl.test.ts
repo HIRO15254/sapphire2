@@ -758,7 +758,7 @@ function makeGameSession(overrides: Record<string, unknown> = {}) {
 		endedAt: null,
 		breakMinutes: null,
 		memo: null,
-		storeId: null,
+		roomId: null,
 		currencyId: "currency-1",
 		heroSeatPosition: null,
 		createdAt: new Date("2024-01-01T10:00:00Z"),

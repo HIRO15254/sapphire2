@@ -8,6 +8,14 @@ import {
 	verification,
 } from "./schema/auth";
 import {
+	currency,
+	currencyRelations,
+	currencyTransaction,
+	currencyTransactionRelations,
+	transactionType,
+	transactionTypeRelations,
+} from "./schema/currency";
+import {
 	dashboardWidget,
 	dashboardWidgetRelations,
 } from "./schema/dashboard-widget";
@@ -19,14 +27,6 @@ import {
 	playerToPlayerTag,
 	playerToPlayerTagRelations,
 } from "./schema/player";
-import {
-	currency,
-	currencyRelations,
-	currencyTransaction,
-	currencyTransactionRelations,
-	transactionType,
-	transactionTypeRelations,
-} from "./schema/currency";
 import { ringGame, ringGameRelations } from "./schema/ring-game";
 import { room, roomRelations } from "./schema/room";
 import { gameSession, gameSessionRelations } from "./schema/session";

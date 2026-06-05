@@ -1,4 +1,4 @@
-import { store } from "@sapphire2/db/schema/store";
+import { room } from "@sapphire2/db/schema/room";
 import {
 	blindLevel,
 	tournament,
@@ -10,23 +10,23 @@ import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
-async function validateStoreOwnership(
+async function validateRoomOwnership(
 	db: Parameters<
 		Parameters<typeof protectedProcedure.query>[0]
 	>[0]["ctx"]["db"],
-	storeId: string,
+	roomId: string,
 	userId: string
 ) {
-	const [found] = await db.select().from(store).where(eq(store.id, storeId));
+	const [found] = await db.select().from(room).where(eq(room.id, roomId));
 
 	if (!found) {
-		throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+		throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
 	}
 
 	if (found.userId !== userId) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
-			message: "You do not own this store",
+			message: "You do not own this room",
 		});
 	}
 
@@ -52,22 +52,22 @@ async function validateTournamentOwnership(
 		});
 	}
 
-	await validateStoreOwnership(db, found.storeId, userId);
+	await validateRoomOwnership(db, found.roomId, userId);
 
 	return found;
 }
 
 export const tournamentRouter = router({
-	listByStore: protectedProcedure
+	listByRoom: protectedProcedure
 		.input(
 			z.object({
-				storeId: z.string(),
+				roomId: z.string(),
 				includeArchived: z.boolean().optional(),
 			})
 		)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateStoreOwnership(ctx.db, input.storeId, userId);
+			await validateRoomOwnership(ctx.db, input.roomId, userId);
 
 			const condition = input.includeArchived
 				? isNotNull(tournament.archivedAt)
@@ -76,7 +76,7 @@ export const tournamentRouter = router({
 			const tournaments = await ctx.db
 				.select()
 				.from(tournament)
-				.where(and(eq(tournament.storeId, input.storeId), condition));
+				.where(and(eq(tournament.roomId, input.roomId), condition));
 
 			const results = await Promise.all(
 				tournaments.map(async (t) => {
@@ -141,7 +141,7 @@ export const tournamentRouter = router({
 	create: protectedProcedure
 		.input(
 			z.object({
-				storeId: z.string(),
+				roomId: z.string(),
 				name: z.string().min(1),
 				variant: z.string().default("nlh"),
 				buyIn: z.number().int().optional(),
@@ -155,12 +155,12 @@ export const tournamentRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateStoreOwnership(ctx.db, input.storeId, userId);
+			await validateRoomOwnership(ctx.db, input.roomId, userId);
 
 			const id = crypto.randomUUID();
 			await ctx.db.insert(tournament).values({
 				id,
-				storeId: input.storeId,
+				roomId: input.roomId,
 				name: input.name,
 				variant: input.variant,
 				buyIn: input.buyIn ?? null,
@@ -289,7 +289,7 @@ export const tournamentRouter = router({
 	createWithLevels: protectedProcedure
 		.input(
 			z.object({
-				storeId: z.string(),
+				roomId: z.string(),
 				name: z.string().min(1),
 				variant: z.string().default("nlh"),
 				buyIn: z.number().int().optional(),
@@ -325,12 +325,12 @@ export const tournamentRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateStoreOwnership(ctx.db, input.storeId, userId);
+			await validateRoomOwnership(ctx.db, input.roomId, userId);
 
 			const id = crypto.randomUUID();
 			await ctx.db.insert(tournament).values({
 				id,
-				storeId: input.storeId,
+				roomId: input.roomId,
 				name: input.name,
 				variant: input.variant,
 				buyIn: input.buyIn ?? null,

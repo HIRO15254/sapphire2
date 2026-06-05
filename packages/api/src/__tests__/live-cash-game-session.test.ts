@@ -136,7 +136,7 @@ describe("liveCashGameSession.create input validation", () => {
 
 	it("accepts all optional link fields", () => {
 		expectAccepts(appRouter.liveCashGameSession.create, {
-			storeId: "s1",
+			roomId: "s1",
 			ringGameId: "rg1",
 			currencyId: "c1",
 			memo: "session memo",
@@ -163,7 +163,7 @@ describe("liveCashGameSession.update input validation", () => {
 	it("accepts explicit null clears for link fields", () => {
 		expectAccepts(appRouter.liveCashGameSession.update, {
 			id: "s1",
-			storeId: null,
+			roomId: null,
 			currencyId: null,
 			ringGameId: null,
 			memo: null,
