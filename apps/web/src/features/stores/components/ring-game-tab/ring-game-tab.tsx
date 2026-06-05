@@ -244,35 +244,14 @@ export function RingGameTab({ storeId }: { storeId: string }) {
 
 	return (
 		<div className="flex flex-col gap-3">
-			<div className="flex items-center justify-between">
-				<h3 className="t-h4">Cash games</h3>
-				<div className="flex items-center gap-1">
-					<Button
-						aria-label={
-							showArchived
-								? "Hide archived cash games"
-								: "Show archived cash games"
-						}
-						onClick={toggleArchived}
-						size="icon-sm"
-						variant="ghost"
-					>
-						{showArchived ? (
-							<IconArchiveOff className="size-4 text-muted-foreground" />
-						) : (
-							<IconArchive className="size-4 text-muted-foreground" />
-						)}
-					</Button>
-					<Button
-						aria-label="Add cash game"
-						onClick={() => setIsCreateOpen(true)}
-						size="icon-sm"
-						variant="ghost"
-					>
-						<IconPlus className="size-4" />
-					</Button>
-				</div>
-			</div>
+			<Button
+				className="w-full"
+				onClick={() => setIsCreateOpen(true)}
+				size="lg"
+			>
+				<IconPlus className="size-5" />
+				Add cash game
+			</Button>
 
 			<RingGameContent
 				activeGames={activeGames}
@@ -283,6 +262,20 @@ export function RingGameTab({ storeId }: { storeId: string }) {
 				onOpenActions={openActions}
 				showArchived={showArchived}
 			/>
+
+			<Button
+				className="self-center text-muted-foreground"
+				onClick={toggleArchived}
+				size="sm"
+				variant="ghost"
+			>
+				{showArchived ? (
+					<IconArchiveOff className="size-4" />
+				) : (
+					<IconArchive className="size-4" />
+				)}
+				{showArchived ? "Hide archived" : "Show archived"}
+			</Button>
 
 			<FormSheet
 				contentClassName="theme-v2"

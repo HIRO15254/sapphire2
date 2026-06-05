@@ -252,35 +252,14 @@ export function TournamentTab({ storeId }: { storeId: string }) {
 
 	return (
 		<div className="flex flex-col gap-3">
-			<div className="flex items-center justify-between">
-				<h3 className="t-h4">Tournaments</h3>
-				<div className="flex items-center gap-1">
-					<Button
-						aria-label={
-							showArchived
-								? "Hide archived tournaments"
-								: "Show archived tournaments"
-						}
-						onClick={toggleArchived}
-						size="icon-sm"
-						variant="ghost"
-					>
-						{showArchived ? (
-							<IconArchiveOff className="size-4 text-muted-foreground" />
-						) : (
-							<IconArchive className="size-4 text-muted-foreground" />
-						)}
-					</Button>
-					<Button
-						aria-label="Add tournament"
-						onClick={() => setIsCreateOpen(true)}
-						size="icon-sm"
-						variant="ghost"
-					>
-						<IconPlus className="size-4" />
-					</Button>
-				</div>
-			</div>
+			<Button
+				className="w-full"
+				onClick={() => setIsCreateOpen(true)}
+				size="lg"
+			>
+				<IconPlus className="size-5" />
+				Add tournament
+			</Button>
 
 			<TournamentContent
 				activeLoading={activeLoading}
@@ -291,6 +270,20 @@ export function TournamentTab({ storeId }: { storeId: string }) {
 				onOpenActions={openActions}
 				showArchived={showArchived}
 			/>
+
+			<Button
+				className="self-center text-muted-foreground"
+				onClick={toggleArchived}
+				size="sm"
+				variant="ghost"
+			>
+				{showArchived ? (
+					<IconArchiveOff className="size-4" />
+				) : (
+					<IconArchive className="size-4" />
+				)}
+				{showArchived ? "Hide archived" : "Show archived"}
+			</Button>
 
 			<TournamentFormSheet
 				aiMode="create"

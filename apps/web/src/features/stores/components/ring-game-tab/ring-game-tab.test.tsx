@@ -156,11 +156,15 @@ describe("RingGameTab", () => {
 		hoisted.useRingGameTab.mockReset();
 	});
 
-	it("renders the section heading", () => {
+	it("renders the add control without a redundant section heading", () => {
 		setState();
 		render(<RingGameTab storeId="store-1" />);
+		// The enclosing tab already names the section, so no in-panel heading.
 		expect(
-			screen.getByRole("heading", { name: "Cash games" })
+			screen.queryByRole("heading", { name: "Cash games" })
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Add cash game" })
 		).toBeInTheDocument();
 	});
 
@@ -193,13 +197,11 @@ describe("RingGameTab", () => {
 		expect(state.setIsCreateOpen).toHaveBeenCalledWith(true);
 	});
 
-	it("toggles the archived view from the header control", async () => {
+	it("toggles the archived view from the disclosure control", async () => {
 		const user = userEvent.setup();
 		const state = setState();
 		render(<RingGameTab storeId="store-1" />);
-		await user.click(
-			screen.getByRole("button", { name: "Show archived cash games" })
-		);
+		await user.click(screen.getByRole("button", { name: "Show archived" }));
 		expect(state.toggleArchived).toHaveBeenCalledTimes(1);
 	});
 

@@ -153,11 +153,15 @@ describe("TournamentTab", () => {
 		hoisted.useTournamentTab.mockReset();
 	});
 
-	it("renders the section heading", () => {
+	it("renders the add control without a redundant section heading", () => {
 		setState();
 		render(<TournamentTab storeId="store-1" />);
+		// The enclosing tab already names the section, so no in-panel heading.
 		expect(
-			screen.getByRole("heading", { name: "Tournaments" })
+			screen.queryByRole("heading", { name: "Tournaments" })
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Add tournament" })
 		).toBeInTheDocument();
 	});
 
@@ -184,13 +188,11 @@ describe("TournamentTab", () => {
 		expect(state.setIsCreateOpen).toHaveBeenCalledWith(true);
 	});
 
-	it("toggles the archived view from the header control", async () => {
+	it("toggles the archived view from the disclosure control", async () => {
 		const user = userEvent.setup();
 		const state = setState();
 		render(<TournamentTab storeId="store-1" />);
-		await user.click(
-			screen.getByRole("button", { name: "Show archived tournaments" })
-		);
+		await user.click(screen.getByRole("button", { name: "Show archived" }));
 		expect(state.toggleArchived).toHaveBeenCalledTimes(1);
 	});
 
@@ -218,7 +220,10 @@ describe("TournamentTab", () => {
 	it("opens the create tournament sheet when isCreateOpen is true", () => {
 		setState({ isCreateOpen: true });
 		render(<TournamentTab storeId="store-1" />);
-		expect(screen.getByText("Add tournament")).toBeInTheDocument();
+		// The add button also reads "Add tournament", so assert on the sheet itself.
+		expect(screen.getByTestId("tournament-sheet")).toHaveTextContent(
+			"Add tournament"
+		);
 	});
 
 	it("opens the edit tournament sheet when a tournament is being edited", () => {

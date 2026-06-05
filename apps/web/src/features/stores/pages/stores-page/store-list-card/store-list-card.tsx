@@ -1,4 +1,8 @@
-import { IconCards, IconChevronRight, IconTrophy } from "@tabler/icons-react";
+import {
+	IconChevronRight,
+	IconPokerChip,
+	IconTrophy,
+} from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
 
 interface StoreListCardProps {
@@ -34,7 +38,7 @@ export function StoreListCard({ store }: StoreListCardProps) {
 					className="flex items-center gap-1"
 					role="img"
 				>
-					<IconCards aria-hidden className="size-3.5" />
+					<IconPokerChip aria-hidden className="size-3.5" />
 					{store.ringGameCount}
 				</span>
 				<span
