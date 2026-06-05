@@ -22,7 +22,7 @@ export function PageSection({
 		>
 			<div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 				<div className="space-y-1">
-					<h2 className="font-semibold text-lg">{heading}</h2>
+					<h2 className="t-h4 font-semibold text-lg">{heading}</h2>
 					{description ? (
 						<p className="text-muted-foreground text-sm">{description}</p>
 					) : null}
