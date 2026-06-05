@@ -270,6 +270,37 @@ describe("useRingGames", () => {
 			});
 			resolve?.({ id: "r1" });
 		});
+
+		it("maps cleared optional fields to explicit null so the server clears them", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, [makeGame({ id: "r1" })]);
+			qc.setQueryData(archivedKey, []);
+			trpcMocks.update.mockResolvedValue({ id: "r1" });
+			const { result } = renderHook(
+				() => useRingGames({ storeId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await act(async () => {
+				await result.current.update({ id: "r1", name: "G", variant: "nlh" });
+			});
+			expect(trpcMocks.update).toHaveBeenCalledWith(
+				expect.objectContaining({
+					id: "r1",
+					name: "G",
+					variant: "nlh",
+					blind1: null,
+					blind2: null,
+					blind3: null,
+					ante: null,
+					anteType: null,
+					minBuyIn: null,
+					maxBuyIn: null,
+					tableSize: null,
+					currencyId: null,
+					memo: null,
+				})
+			);
+		});
 	});
 
 	describe("archive", () => {

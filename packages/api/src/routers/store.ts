@@ -1,6 +1,4 @@
-import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { store } from "@sapphire2/db/schema/store";
-import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -10,8 +8,11 @@ export const storeRouter = router({
 	list: protectedProcedure.query(({ ctx }) => {
 		const userId = ctx.session.user.id;
 		// Active (non-archived) game counts via correlated subqueries so the list
-		// card can show them without an N+1 query per store. Joining both child
-		// tables at once would multiply rows and corrupt the counts.
+		// card can show them without an N+1 query per store. The column refs are
+		// written as literal qualified names — interpolating Drizzle column
+		// objects into a raw `sql` subquery renders them *unqualified*
+		// (`store_id`/`id`), which inside the child-table FROM resolves to that
+		// table's own columns and silently yields 0.
 		return ctx.db
 			.select({
 				id: store.id,
@@ -20,8 +21,8 @@ export const storeRouter = router({
 				memo: store.memo,
 				createdAt: store.createdAt,
 				updatedAt: store.updatedAt,
-				ringGameCount: sql<number>`(SELECT COUNT(*) FROM ${ringGame} WHERE ${ringGame.storeId} = ${store.id} AND ${ringGame.archivedAt} IS NULL)`,
-				tournamentCount: sql<number>`(SELECT COUNT(*) FROM ${tournament} WHERE ${tournament.storeId} = ${store.id} AND ${tournament.archivedAt} IS NULL)`,
+				ringGameCount: sql<number>`(SELECT COUNT(*) FROM ring_game WHERE ring_game.store_id = store.id AND ring_game.archived_at IS NULL)`,
+				tournamentCount: sql<number>`(SELECT COUNT(*) FROM tournament WHERE tournament.store_id = store.id AND tournament.archived_at IS NULL)`,
 			})
 			.from(store)
 			.where(eq(store.userId, userId));
@@ -74,7 +75,9 @@ export const storeRouter = router({
 			z.object({
 				id: z.string(),
 				name: z.string().min(1).optional(),
-				memo: z.string().optional(),
+				// Nullable so an explicit `null` clears the memo. `undefined`
+				// (key omitted) still means "leave unchanged".
+				memo: z.string().nullable().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

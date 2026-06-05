@@ -245,6 +245,40 @@ describe("useStores", () => {
 			resolve?.({ id: "s2" });
 		});
 
+		it("sends an explicit null memo to the server when memo is cleared", async () => {
+			const qc = createClient();
+			qc.setQueryData(STORE_KEY, [{ id: "s1", name: "Main", memo: "old" }]);
+			trpcMocks.update.mockResolvedValue({ id: "s1" });
+			const { result } = renderHook(() => useStores(), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				await result.current.update({ id: "s1", name: "Main" });
+			});
+			expect(trpcMocks.update).toHaveBeenCalledWith({
+				id: "s1",
+				name: "Main",
+				memo: null,
+			});
+		});
+
+		it("forwards a set memo unchanged to the server", async () => {
+			const qc = createClient();
+			qc.setQueryData(STORE_KEY, [{ id: "s1", name: "Main", memo: null }]);
+			trpcMocks.update.mockResolvedValue({ id: "s1" });
+			const { result } = renderHook(() => useStores(), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				await result.current.update({ id: "s1", name: "Main", memo: "kept" });
+			});
+			expect(trpcMocks.update).toHaveBeenCalledWith({
+				id: "s1",
+				name: "Main",
+				memo: "kept",
+			});
+		});
+
 		it("rolls back on update error (observed via setQueryData spy)", async () => {
 			const qc = createClient();
 			const prev = [{ id: "s1", name: "Main", memo: null }];

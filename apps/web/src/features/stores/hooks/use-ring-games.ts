@@ -145,8 +145,25 @@ export function useRingGames({ storeId, showArchived }: UseRingGamesOptions) {
 	});
 
 	const updateMutation = useMutation({
+		// Map cleared (undefined) fields to explicit `null` so the server clears
+		// them. The update procedure leaves `undefined` keys untouched, so a
+		// JSON-dropped undefined would otherwise make "clear a field" a no-op.
 		mutationFn: (values: RingGameFormValues & { id: string }) =>
-			trpcClient.ringGame.update.mutate(values),
+			trpcClient.ringGame.update.mutate({
+				id: values.id,
+				name: values.name,
+				variant: values.variant,
+				blind1: values.blind1 ?? null,
+				blind2: values.blind2 ?? null,
+				blind3: values.blind3 ?? null,
+				ante: values.ante ?? null,
+				anteType: values.anteType ?? null,
+				minBuyIn: values.minBuyIn ?? null,
+				maxBuyIn: values.maxBuyIn ?? null,
+				tableSize: values.tableSize ?? null,
+				currencyId: values.currencyId ?? null,
+				memo: values.memo ?? null,
+			}),
 		onMutate: async (values) => {
 			await cancelTargets(queryClient, [
 				{ queryKey: activeQueryOptions.queryKey },

@@ -8,6 +8,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* shadcn Tabs / Separator primitives are authored against `data-horizontal` /
+   `data-vertical` variants, but Radix only sets `data-orientation`. Without
+   these aliases the variants compile to `[data-horizontal]` (never present),
+   so Tabs lose their `flex-col` / height / active-indicator styling. */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
+
 :root {
 	--background: oklch(0.97 0.005 250);
 	--foreground: oklch(0.15 0.008 250);

@@ -60,8 +60,14 @@ export function useStores() {
 	});
 
 	const updateMutation = useMutation({
+		// Send an explicit `null` for a cleared memo so the server overwrites it
+		// rather than treating the omitted (undefined) key as "leave unchanged".
 		mutationFn: (values: StoreValues & { id: string }) =>
-			trpcClient.store.update.mutate(values),
+			trpcClient.store.update.mutate({
+				id: values.id,
+				name: values.name,
+				memo: values.memo ?? null,
+			}),
 		onMutate: async (updated) => {
 			await cancelTargets(queryClient, [{ queryKey: storeListKey }]);
 			const previous = snapshotQuery(queryClient, storeListKey);
