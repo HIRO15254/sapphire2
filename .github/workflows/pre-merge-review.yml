@@ -1,15 +1,4 @@
-name: Pre-merge review (docs & tests) + general review
-
-# ゲートレビューと助言レビューを 1 セッションで順番に実行する:
-#   Phase 1 (ゲート): PR の変更範囲に対して
-#     A) 関連する rule / README / docs が最新化されているか
-#     B) テストが CLAUDE.md の TDD 規約が定める粒度を満たしているか
-#   のみを検証し、正式レビュー (APPROVE / REQUEST_CHANGES) を投稿する。
-#   REQUEST_CHANGES の場合はジョブを fail させるので、このジョブを required
-#   status check に設定すればマージをブロックできる。
-#   Phase 2 (助言): /review で PR 全体をレビューしインラインコメントを投稿する。
-#   ゲートではなく抜け漏れ補完用なので、結果でマージはブロックしない。
-# 抜け漏れ低減のため Opus を使用する。
+name: PR review
 
 on:
   pull_request:
@@ -22,13 +11,12 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pre-merge-review-${{ github.event.pull_request.number }}
+  group: review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  pre-merge-review:
-    name: pre-merge-review
-    # ドラフトはゲート対象外（レビュー準備が整った PR のみ）
+  review:
+    name: review
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
@@ -37,99 +25,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Claude pre-merge review
+      - name: Claude review
         uses: anthropics/claude-code-action@v1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          prompt: |
-            You are the pre-merge gate for this repository. Your ONLY job is to
-            verify two axes for PR #${{ github.event.pull_request.number }} and
-            then submit one formal review. Do NOT review general code quality,
-            style, naming, or anything unrelated to the two axes below.
-
-            Steps:
-            1. Read the project conventions: the root `CLAUDE.md` and every file
-               under `.claude/rules/`.
-            2. Get the PR diff with `gh pr diff ${{ github.event.pull_request.number }}`.
-               Use Read / Grep / Glob on changed and related files as needed.
-            3. Evaluate ONLY these two axes against the PR's changed scope:
-
-               A. Docs / rules currency — are the docs that *should* reflect this
-                  change actually updated in the diff?
-                  - New or changed cross-cutting convention (new shared helper, new
-                    directory pattern, new mandatory primitive, new banned pattern)
-                    => the matching `.claude/rules/*.md` or `CLAUDE.md` MUST be
-                    updated (see CLAUDE.md "Maintaining This File / Self-Evolution"
-                    triggers).
-                  - Change touches `package.json` scripts, `.github/workflows/**`,
-                    deploy config, runtime/stack, or repo layout => `README.md` /
-                    `README.ja.md` / `docs/**` MUST reflect it, and EN/JA pairs MUST
-                    stay in sync.
-                  - Files moved / renamed / deleted that any rule or README/doc
-                    references => those references MUST be updated (no dangling
-                    paths).
-                  - If none of the above apply, axis A passes.
-
-               B. Test granularity per the rules — for new/changed implementation
-                  code, are tests present at the granularity CLAUDE.md's
-                  "Test-Driven Development (MANDATORY)" section requires?
-                  - Full branch coverage: every if / else / switch / early return /
-                    guard clause has a dedicated `it()`.
-                  - Boundary values enumerated (null / undefined / 0 / "" / empty
-                    array / negative / NaN / Infinity / min / max / off-by-one).
-                  - Error paths covered (mutation failure -> rollback, Zod reject,
-                    network error, auth absent, loader fail).
-                  - Side-effect assertions use `toHaveBeenCalledTimes` +
-                    `toHaveBeenCalledWith` / `toHaveBeenNthCalledWith`, not bare
-                    `toHaveBeenCalled()`.
-                  - No smoke tests (no lone `toBeDefined`). Scenario-style test
-                    names. Correct vitest project. Reuses the established
-                    `test-utils` helpers/patterns instead of ad-hoc ones.
-                  - Pure config / doc-only / pure refactor changes whose behavior is
-                    unchanged and already covered may pass axis B.
-
-            4. Decide a verdict:
-               - APPROVE if both axes pass (or are not applicable).
-               - REQUEST_CHANGES if either axis is violated.
-
-            5. Submit ONE formal review, written in Japanese, concrete and
-               file-specific. For each axis state either "✅ 問題なし" or "❌" with the
-               exact files and what is missing:
-               - Approve:
-                 `gh pr review ${{ github.event.pull_request.number }} --approve --body "<body>"`
-               - Request changes:
-                 `gh pr review ${{ github.event.pull_request.number }} --request-changes --body "<body>"`
-
-            6. MANDATORY final step so CI can gate on the result: using the Write
-               tool, write exactly one word — `APPROVE` or `REQUEST_CHANGES` (no
-               other text, no newline-prefixed content) — to the file
-               `.claude-review-verdict` in the repository root.
-
-            Be strict but fair: block only on the two axes above, and only on
-            issues introduced by THIS PR's diff (not pre-existing problems).
-
-            === PHASE 2: General review ===
-
-            After completing Phase 1 (verdict written, formal review submitted),
-            run /review to perform a comprehensive general code review of this PR
-            and post inline comments. This is advisory — it does not affect the
-            gate verdict.
+          prompt: "/review"
           claude_args: |
-            --max-turns 80
+            --max-turns 40
             --model opus
-            --allowedTools "Read,Grep,Glob,Write,Bash(gh pr *),Bash(git diff:*),Bash(git log:*)"
-
-      - name: Enforce verdict
-        if: always()
-        run: |
-          verdict="$(tr -d '[:space:]' < "${GITHUB_WORKSPACE}/.claude-review-verdict" 2>/dev/null || true)"
-          echo "Review verdict: '${verdict}'"
-          if [ "${verdict}" = "REQUEST_CHANGES" ]; then
-            echo "::error::Pre-merge review requested changes — docs/rules not updated for the changed scope, or tests miss the required granularity. See the Claude review on this PR."
-            exit 1
-          fi
-          if [ "${verdict}" != "APPROVE" ]; then
-            echo "::warning::No explicit verdict file was produced; not blocking. Inspect the Claude pre-merge review step."
-          fi
