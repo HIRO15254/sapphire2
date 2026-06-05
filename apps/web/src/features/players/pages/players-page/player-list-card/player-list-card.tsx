@@ -26,7 +26,7 @@ export function PlayerListCard({ player }: PlayerListCardProps) {
 
 	return (
 		<Link
-			className="flex h-14 items-center gap-2 rounded-lg border border-border bg-card px-4 text-card-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+			className="flex h-12 items-center gap-2 rounded-lg border border-border bg-card px-4 text-card-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 			params={{ playerId: player.id }}
 			to="/players/$playerId"
 		>

@@ -6,7 +6,7 @@ describe("PlayerListCardSkeleton", () => {
 	it("mirrors the card surface (fixed-height bordered card row)", () => {
 		const { container } = render(<PlayerListCardSkeleton />);
 		const row = container.firstElementChild;
-		expect(row).toHaveClass("h-14", "rounded-lg", "border", "bg-card");
+		expect(row).toHaveClass("h-12", "rounded-lg", "border", "bg-card");
 	});
 
 	it("renders animated placeholder bars for name, tag, and chevron", () => {
