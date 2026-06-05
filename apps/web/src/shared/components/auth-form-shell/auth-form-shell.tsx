@@ -30,16 +30,16 @@ export function AuthFormShell({
 	title,
 }: AuthFormShellProps) {
 	return (
-		<div className="w-full rounded-2xl border bg-card/95 p-6 shadow-sm backdrop-blur sm:p-8">
+		<div className="w-full rounded-2xl border bg-card/95 p-6 backdrop-blur sm:p-8">
 			<div className="mb-6 space-y-2 text-center">
 				{eyebrow ? (
 					<p className="font-medium text-primary text-xs uppercase tracking-[0.24em]">
 						{eyebrow}
 					</p>
 				) : null}
-				<h1 className="font-bold text-3xl">{title}</h1>
+				<h1 className="t-h2">{title}</h1>
 				{description ? (
-					<p className="text-balance text-muted-foreground text-sm">
+					<p className="t-body text-balance text-muted-foreground">
 						{description}
 					</p>
 				) : null}
