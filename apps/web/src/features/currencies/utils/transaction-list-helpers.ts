@@ -13,8 +13,14 @@ export function buildGroupFormatter(transactions: TransactionDisplayItem[]) {
 	return createGroupFormatter(transactions.map((tx) => tx.amount));
 }
 
-export function getAmountClass(amount: number): string {
-	return amount >= 0 ? "text-green-600" : "text-red-600";
+/**
+ * Signed-amount color. A transaction amount is a P/L delta, so a credit
+ * (`>= 0`) reads as `success` and a debit as `destructive` — the v2 semantic
+ * tokens used across the currency surface. (Contrast with a *balance*, a
+ * holding, where only deficits are flagged — see `getBalanceColorClass`.)
+ */
+export function getAmountColorClass(amount: number): string {
+	return amount >= 0 ? "text-success" : "text-destructive";
 }
 
 export function getAmountDisplay(

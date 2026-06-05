@@ -4,8 +4,12 @@ This file is loaded into every Claude Code session for this repo. Keep it concis
 
 Companion memory files (auto-loaded):
 
-- [`.claude/CLAUDE.md`](.claude/CLAUDE.md) — Ultracite / Biome code standards.
 - [`.claude/rules/`](.claude/rules/) — path-scoped rule files; loaded only when files under the matching paths are touched. See the table near the bottom.
+
+## Communication
+
+- **Think in English, reply in Japanese.** Internal reasoning is in English; every document presented to the user (chat replies, proposals, explanations) is written in Japanese.
+- This is orthogonal to code conventions: UI copy stays English-only ([`.claude/rules/web-ui.md`](.claude/rules/web-ui.md)), and code identifiers / comments / commit messages / PR descriptions follow their existing rules.
 
 ## Stack
 
@@ -15,7 +19,7 @@ Companion memory files (auto-loaded):
 - **DB**: Cloudflare D1 (SQLite) via Drizzle ORM. Migrations in `packages/db/src/migrations`.
 - **Validation**: Zod (workspace catalog). Import as `import z from "zod"` (default import) — a Vite bundler issue breaks the namespace import.
 - **Tests**: Vitest + Testing Library (jsdom).
-- **Lint / format**: Ultracite (Biome preset). Details: [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
+- **Lint / format**: Ultracite (Biome preset) — its defaults are the code standard; run via `bun run lint` / `bun run fix`.
 - **Icons**: `@tabler/icons-react` only. Do not add `lucide-react` imports in new code.
 
 ## Commands
@@ -57,11 +61,13 @@ packages/
 
 ```text
 features/<feature>/
-  components/<component>/  <component>.tsx + use-<component>.ts + index.ts (colocated)
+  components/<component>/  shared component judged likely to be reused across pages: <component>.tsx + use-<component>.ts + index.ts
+  pages/<page>/            page component + use-<page>-page.ts + index.ts + __tests__ (route file stays thin)
+    <subcomponent>/        single-use child of this page → its own folder + index.ts
   hooks/                   cross-component data hooks (use-players.ts, use-currencies.ts, ...)
   utils/                   feature-local pure helpers
   __tests__/               feature-local tests
-routes/                    TanStack Router tree; page-level hooks live here as `-use-<page>-page.ts`
+routes/                    TanStack Router tree; route files delegate to features/<feature>/pages/<page>
 shared/
   components/ui/           shadcn primitives (Button, Select, Avatar, Badge, Table, ...)
   components/              cross-feature composites (PageHeader, AuthenticatedShell, sign-in-form, ...)
@@ -70,7 +76,7 @@ shared/
 utils/                     truly global helpers (optimistic-update, formatters, ...)
 ```
 
-When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. Promote to `shared/` only when a second feature imports it.
+When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. **New pages follow the `pages/<page>/` pattern**: the route file stays thin (`createFileRoute` + `Route.useParams()` only) and delegates to a page component in `features/<feature>/pages/<page>/`, colocated with its `use-<page>-page.ts` hook. Extract a subcomponent into a child folder once the parent component file exceeds 300 lines (or earlier when a part is single-use but self-contained); a page's single-use subcomponents live in child folders under that page; a list component owns its own loading / empty / data switch and binds its skeleton's shape to the card it mirrors; `FormSheet` is composed at the page level around a bare form component. `features/currencies/` is the reference implementation — older features (`players`, `sessions`) still keep page hooks in `routes/**/-use-<page>-page.ts` and are migrated to this layout as they are touched. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it.
 
 ## Release Flow
 
@@ -124,7 +130,7 @@ Every code change must be test-driven. The quality bar is set by the comprehensi
 | Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/shared/components/sign-in-form/__tests__/use-sign-in.test.ts`](apps/web/src/shared/components/sign-in-form/__tests__/use-sign-in.test.ts) |
 | tRPC query + mutation hook, simple | `web-dom` | [`apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts`](apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts) |
 | Optimistic flow with real QueryClient | `web-dom` / `web-node` | [`apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts`](apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts) |
-| Route page hook | `web-dom` | [`apps/web/src/routes/__tests__/use-dashboard-page.test.ts`](apps/web/src/routes/__tests__/use-dashboard-page.test.ts) |
+| Route page hook | `web-dom` | [`apps/web/src/routes/players/__tests__/use-players-page.test.ts`](apps/web/src/routes/players/__tests__/use-players-page.test.ts) |
 | API router (Zod + procedure enumeration) | `api` | [`packages/api/src/__tests__/player.test.ts`](packages/api/src/__tests__/player.test.ts) (uses [`packages/api/src/__tests__/test-utils.ts`](packages/api/src/__tests__/test-utils.ts) helpers: `getInputSchema`, `expectAccepts`, `expectRejects`, `expectProtected`, `expectType`) |
 | DB schema constraint | `db` | [`packages/db/src/__tests__/session-schema.test.ts`](packages/db/src/__tests__/session-schema.test.ts) (uses `getTableConfig` for FKs, indexes, `onDelete` policies) |
 | Shared test helpers (web) | — | [`apps/web/src/__tests__/test-utils.tsx`](apps/web/src/__tests__/test-utils.tsx) (`createTestQueryClient`, `withQueryClient`, `renderWithQueryClient`, `createTrpcMock`, `createToastMock`, `createAuthClientMock`) |

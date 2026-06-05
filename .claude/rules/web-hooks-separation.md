@@ -36,8 +36,12 @@ Components and route pages under `apps/web/src` **must not call React builtin or
 This check must return 0 hits:
 
 ```sh
-rg '\b(useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutation|useQueryClient|useReducer|useDeferredValue|useTransition|useLayoutEffect|useIsMutating)\b' 'apps/web/src/**/components/**/*.tsx' 'apps/web/src/routes/**/*.tsx' -g '!**/__tests__/**' -g '!**/*.test.tsx'
+rg '\b(useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutation|useQueryClient|useReducer|useDeferredValue|useTransition|useLayoutEffect|useIsMutating)\b' 'apps/web/src/**/components/**/*.tsx' 'apps/web/src/**/pages/**/*.tsx' 'apps/web/src/routes/**/*.tsx' -g '!**/__tests__/**' -g '!**/*.test.tsx'
 ```
+
+> `**/pages/**` covers page components that have been lifted out of route files
+> into a feature `pages/` folder (the route file keeps only `createFileRoute`
+> wiring + `Route.useParams()`). Reference: `features/currencies/pages/`.
 
 ## Reference implementations
 

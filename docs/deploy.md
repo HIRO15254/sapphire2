@@ -16,7 +16,8 @@ This repository is built on Cloudflare Workers + D1 architecture.
 |-------------|---------|-------------|
 | **Local** | `bun run dev` | `wrangler dev` (local Workers simulation) |
 | **Preview** | PR opened | Isolated Worker + Pages + D1 database per PR |
-| **Production** | master push | Deploy Worker + Pages after CI passes |
+| **Dev** | Push to `dev` | Persistent dev environment (`sapphire2-api-dev`) |
+| **Production** | GitHub Release published | Deploy Worker + Pages after CI passes |
 
 ## 2. Prerequisites
 
@@ -104,30 +105,7 @@ npx wrangler pages project create sapphire2-web
    - Local: `http://localhost:8787/api/auth/callback/discord`
    - Production: `https://<your-worker>.workers.dev/api/auth/callback/discord`
 
-## 6. GitHub App Setup (for Bot-authored PRs)
-
-The speckit workflow agents (spec-writer, plan-writer, implementer) create PRs via a GitHub App so that the PR author is a bot, allowing the developer to self-review.
-
-### 6.1 Create GitHub App
-
-1. GitHub > **Settings** > **Developer settings** > **GitHub Apps** > **New GitHub App**
-2. Configure:
-   - **Name**: `sapphire2-bot` (or any name)
-   - **Homepage URL**: Your repository URL
-   - **Webhook**: Uncheck **Active** (not needed)
-   - **Permissions**:
-     - Repository > **Contents**: Read & write
-     - Repository > **Pull requests**: Read & write
-     - Repository > **Issues**: Read & write
-   - **Where can this GitHub App be installed?**: Only on this account
-3. After creation, note the **App ID**
-4. Generate and download a **Private key**
-
-### 6.2 Install the App
-
-GitHub App settings > **Install App** > Select the repository
-
-## 7. GitHub Secrets Configuration
+## 6. GitHub Secrets Configuration
 
 ### Repository Variables
 
@@ -136,7 +114,6 @@ Add via **Settings > Secrets and variables > Actions > Variables tab > New repos
 | Variable Name | Source | Description |
 |---|---|---|
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | Workers & Pages overview page |
-| `BOT_APP_ID` | GitHub App | App ID from the GitHub App settings page |
 
 ### Repository Secrets
 
@@ -148,7 +125,6 @@ Add via **Settings > Secrets and variables > Actions > Secrets tab > New reposit
 |---|---|---|
 | `CLOUDFLARE_API_TOKEN` | Cloudflare | Token with Workers/Pages/D1 edit permissions |
 | `BETTER_AUTH_SECRET` | Self-generated | `openssl rand -base64 32` (32+ characters) |
-| `BOT_PRIVATE_KEY` | GitHub App | Private key (PEM format) downloaded from App settings |
 
 #### OAuth (Google/Discord)
 
@@ -175,7 +151,7 @@ Add via **Settings > Secrets and variables > Actions > Secrets tab > New reposit
 
 > Set `PRODUCTION_API_URL` / `PRODUCTION_WEB_URL` after the first deployment using the actual URLs. Use custom domains if available.
 
-## 8. Customization
+## 7. Customization
 
 ### Changing the Worker Name
 
@@ -190,11 +166,11 @@ Update the `PAGES_PROJECT` variable in `preview-deploy.yml`.
 
 ### Production Deployment
 
-Automated via `.github/workflows/production-deploy.yml`. On master push: CI → migration → Worker deploy → Pages deploy.
+Automated via `.github/workflows/production-deploy.yml`, triggered when a GitHub Release is published: CI → migration → Worker deploy → Pages deploy. Releases follow the `feature → dev → release/vX.Y.Z → main` flow; merging the release PR into `main` publishes the Release (`release.yml`).
 
 Uses `concurrency` for sequential execution. Deployment is skipped if CI fails.
 
-## 9. Verification
+## 8. Verification
 
 ### Preview
 
@@ -205,11 +181,11 @@ Uses `concurrency` for sequential execution. Deployment is skipped if CI fails.
 
 ### Production
 
-1. Push to master (or merge a PR)
+1. Publish a GitHub Release (merge a `release/*` PR into `main`)
 2. Check "Production Deploy" in the Actions tab
 3. Access the Worker URL and Pages URL
 
-## 10. Troubleshooting
+## 9. Troubleshooting
 
 ### `CLOUDFLARE_API_TOKEN` Permission Error
 
@@ -243,7 +219,7 @@ Error: A project with this name does not exist
 
 Create the project first: `npx wrangler pages project create sapphire2-web`
 
-## 11. Architecture
+## 10. Architecture
 
 ### Preview Deploy (on PR open)
 
@@ -269,10 +245,18 @@ PR close/merge
   +-> Delete Worker -> Delete D1 database -> Update PR comment
 ```
 
-### Production Deploy (on master push)
+### Dev Deploy (on push to `dev`)
 
 ```
-push to master
+push to dev
+  |
+  +-> CI -> Migration -> Worker deploy (sapphire2-api-dev) -> Pages deploy (dev)
+```
+
+### Production Deploy (on GitHub Release published)
+
+```
+GitHub Release published
   |
   +-> CI (type check, lint, test)
         |
