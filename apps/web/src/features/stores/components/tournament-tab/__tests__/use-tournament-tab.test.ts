@@ -270,6 +270,36 @@ describe("useTournamentTab", () => {
 			expect(hoisted.restore).toHaveBeenCalledWith("t1");
 			expect(result.current.actionsTarget).toBeNull();
 		});
+
+		it("openEditFromActions is a no-op when no target is set", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			act(() => result.current.openEditFromActions());
+			expect(result.current.editingTournament).toBeNull();
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("handleArchiveFromActions is a no-op when no target is set", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			act(() => result.current.handleArchiveFromActions());
+			expect(hoisted.archive).not.toHaveBeenCalled();
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("handleRestoreFromActions is a no-op when no target is set", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			act(() => result.current.handleRestoreFromActions());
+			expect(hoisted.restore).not.toHaveBeenCalled();
+			expect(result.current.actionsTarget).toBeNull();
+		});
 	});
 
 	describe("delete confirmation", () => {
@@ -281,6 +311,16 @@ describe("useTournamentTab", () => {
 			act(() => result.current.openActions(TOURNAMENT));
 			act(() => result.current.openDeleteFromActions());
 			expect(result.current.pendingDelete).toBe(TOURNAMENT);
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("openDeleteFromActions is a no-op when no target is set", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useTournamentTab({ storeId: "s1" }), {
+				wrapper: wrapper(qc),
+			});
+			act(() => result.current.openDeleteFromActions());
+			expect(result.current.pendingDelete).toBeNull();
 			expect(result.current.actionsTarget).toBeNull();
 		});
 

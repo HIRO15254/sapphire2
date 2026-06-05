@@ -146,6 +146,34 @@ describe("useRingGameTab", () => {
 			expect(hoisted.restore).toHaveBeenCalledWith("g1");
 			expect(result.current.actionsTarget).toBeNull();
 		});
+
+		it("openEditFromActions is a no-op when no target is set", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.openEditFromActions());
+			expect(result.current.editingGame).toBeNull();
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("openDeleteFromActions is a no-op when no target is set", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.openDeleteFromActions());
+			expect(result.current.pendingDelete).toBeNull();
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("handleArchiveFromActions is a no-op when no target is set", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.handleArchiveFromActions());
+			expect(hoisted.archive).not.toHaveBeenCalled();
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("handleRestoreFromActions is a no-op when no target is set", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.handleRestoreFromActions());
+			expect(hoisted.restore).not.toHaveBeenCalled();
+			expect(result.current.actionsTarget).toBeNull();
+		});
 	});
 
 	describe("delete confirmation", () => {
