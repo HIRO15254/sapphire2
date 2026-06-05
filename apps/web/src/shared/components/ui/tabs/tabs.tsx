@@ -12,7 +12,7 @@ function Tabs({
 	return (
 		<TabsPrimitive.Root
 			className={cn(
-				"group/tabs flex gap-2 data-horizontal:flex-col",
+				"group/tabs flex gap-1 data-horizontal:flex-col",
 				className
 			)}
 			data-orientation={orientation}
@@ -60,9 +60,9 @@ function TabsTrigger({
 	return (
 		<TabsPrimitive.Trigger
 			className={cn(
-				"relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-1.5 py-0.5 font-medium text-foreground/60 text-sm transition-all hover:text-foreground focus-visible:border-ring focus-visible:outline-1 focus-visible:outline-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start group-data-[variant=default]/tabs-list:data-active:shadow-sm group-data-[variant=line]/tabs-list:data-active:shadow-none dark:text-muted-foreground dark:hover:text-foreground [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+				"relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-1.5 py-0.5 font-medium text-foreground/60 text-sm transition-all duration-200 ease-out hover:text-foreground focus-visible:border-ring focus-visible:outline-1 focus-visible:outline-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 group-data-vertical/tabs:w-full group-data-vertical/tabs:justify-start group-data-[variant=default]/tabs-list:data-active:shadow-sm group-data-[variant=line]/tabs-list:data-active:shadow-none dark:text-muted-foreground dark:hover:text-foreground [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
 				"group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent",
-				"data-active:bg-background data-active:text-foreground group-data-[variant=default]/tabs-list:data-active:border-foreground/20",
+				"data-active:bg-background dark:data-active:bg-foreground/15 data-active:text-foreground group-data-[variant=default]/tabs-list:data-active:border-foreground/20",
 				"after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-horizontal/tabs:after:inset-x-0 group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-right-1 group-data-horizontal/tabs:after:bottom-[-5px] group-data-horizontal/tabs:after:h-0.5 group-data-vertical/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
 				className
 			)}
@@ -78,7 +78,10 @@ function TabsContent({
 }: React.ComponentProps<typeof TabsPrimitive.Content>) {
 	return (
 		<TabsPrimitive.Content
-			className={cn("flex-1 text-sm outline-none", className)}
+			className={cn(
+				"flex-1 text-sm outline-none data-active:fade-in-0 data-active:animate-in data-active:duration-200",
+				className
+			)}
 			data-slot="tabs-content"
 			{...props}
 		/>
