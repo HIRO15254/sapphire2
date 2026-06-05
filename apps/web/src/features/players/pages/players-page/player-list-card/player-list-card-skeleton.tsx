@@ -2,19 +2,17 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 
 /**
  * Loading placeholder for a single {@link PlayerListCard}. Colocated with the
- * card so the skeleton's shape (name · tags · chevron) and its fixed height are
- * maintained next to the real layout it mimics — changing the card's row shape
- * and its skeleton happens in one place. The list-level wrapper just stacks N
- * of these.
+ * card so the skeleton's shape (name · tag · chevron on one row) and its fixed
+ * height are maintained next to the real layout it mimics — changing the card's
+ * row shape and its skeleton happens in one place. The list-level wrapper just
+ * stacks N of these.
  */
 export function PlayerListCardSkeleton() {
 	return (
-		<div className="flex h-16 items-center gap-3 rounded-lg border border-border bg-card px-4">
-			<div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
-				<Skeleton className="h-4 w-1/2" />
-				<Skeleton className="h-4 w-1/3" />
-			</div>
-			<Skeleton className="size-3.5 shrink-0 rounded" />
+		<div className="flex h-14 items-center gap-2 rounded-lg border border-border bg-card px-4">
+			<Skeleton className="h-4 w-32" />
+			<Skeleton className="h-5 w-10 shrink-0 rounded-full" />
+			<Skeleton className="ml-auto size-3.5 shrink-0 rounded" />
 		</div>
 	);
 }

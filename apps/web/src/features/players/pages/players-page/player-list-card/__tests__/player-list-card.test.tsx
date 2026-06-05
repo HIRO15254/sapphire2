@@ -8,6 +8,8 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { PlayerListCard } from "@/features/players/pages/players-page/player-list-card";
 
+const OVERFLOW_RE = /^\+\d+$/;
+
 function renderCard(
 	player: React.ComponentProps<typeof PlayerListCard>["player"]
 ) {
@@ -25,10 +27,13 @@ function renderCard(
 	return render(<RouterProvider router={router} />);
 }
 
+function tag(id: string, name: string) {
+	return { id, name, color: "blue" };
+}
+
 const basePlayer = {
 	id: "p1",
 	name: "Alice",
-	memo: null as string | null,
 	tags: [] as Array<{ color: string; id: string; name: string }>,
 };
 
@@ -38,34 +43,51 @@ describe("PlayerListCard", () => {
 		expect(await screen.findByText("Alice")).toBeInTheDocument();
 	});
 
-	it("renders each tag name", async () => {
+	it("renders every tag inline when within the visible limit", async () => {
 		renderCard({
 			...basePlayer,
-			tags: [
-				{ id: "vip", name: "VIP", color: "blue" },
-				{ id: "reg", name: "Regular", color: "red" },
-			],
+			tags: [tag("vip", "VIP"), tag("reg", "Regular")],
 		});
 		await screen.findByText("Alice");
 		expect(screen.getByText("VIP")).toBeInTheDocument();
 		expect(screen.getByText("Regular")).toBeInTheDocument();
+		expect(screen.queryByText(OVERFLOW_RE)).not.toBeInTheDocument();
 	});
 
-	it("shows the memo indicator when a memo is present", async () => {
-		renderCard({ ...basePlayer, memo: "Tough regular" });
-		expect(await screen.findByLabelText("Has memo")).toBeInTheDocument();
-	});
-
-	it("omits the memo indicator when memo is null", async () => {
-		renderCard({ ...basePlayer, memo: null });
+	it("collapses tags beyond the limit into a +N badge", async () => {
+		renderCard({
+			...basePlayer,
+			tags: [
+				tag("vip", "VIP"),
+				tag("reg", "Regular"),
+				tag("fish", "Fish"),
+				tag("whale", "Whale"),
+			],
+		});
 		await screen.findByText("Alice");
-		expect(screen.queryByLabelText("Has memo")).not.toBeInTheDocument();
+		// First two tags stay visible, the remaining two collapse to "+2".
+		expect(screen.getByText("VIP")).toBeInTheDocument();
+		expect(screen.getByText("Regular")).toBeInTheDocument();
+		expect(screen.getByText("+2")).toBeInTheDocument();
+		expect(screen.queryByText("Fish")).not.toBeInTheDocument();
+		expect(screen.queryByText("Whale")).not.toBeInTheDocument();
 	});
 
-	it("omits the memo indicator when memo is an empty string", async () => {
-		renderCard({ ...basePlayer, memo: "" });
+	it("shows +1 when exactly one tag overflows", async () => {
+		renderCard({
+			...basePlayer,
+			tags: [tag("vip", "VIP"), tag("reg", "Regular"), tag("fish", "Fish")],
+		});
 		await screen.findByText("Alice");
-		expect(screen.queryByLabelText("Has memo")).not.toBeInTheDocument();
+		expect(screen.getByText("+1")).toBeInTheDocument();
+		expect(screen.queryByText("Fish")).not.toBeInTheDocument();
+	});
+
+	it("renders no tag cluster when the player has no tags", async () => {
+		renderCard(basePlayer);
+		await screen.findByText("Alice");
+		expect(screen.queryByText("VIP")).not.toBeInTheDocument();
+		expect(screen.queryByText(OVERFLOW_RE)).not.toBeInTheDocument();
 	});
 
 	it("links to the player's detail route with the id param", async () => {
@@ -74,21 +96,19 @@ describe("PlayerListCard", () => {
 		expect(link).toHaveAttribute("href", "/players/p42");
 	});
 
-	it("keeps a fixed row height regardless of tags or memo", async () => {
+	it("keeps a fixed single-row height regardless of tags", async () => {
 		renderCard(basePlayer);
 		const bare = await screen.findByRole("link");
-		expect(bare).toHaveClass("h-16");
+		expect(bare).toHaveClass("h-14");
 
 		renderCard({
 			...basePlayer,
-			memo: "<p>note</p>",
-			tags: [{ id: "vip", name: "VIP", color: "blue" }],
+			tags: [tag("vip", "VIP"), tag("reg", "Regular"), tag("fish", "Fish")],
 		});
 		const links = await screen.findAllByRole("link");
-		// Every card row carries the same fixed-height class, with or without
-		// tags/memo — the row never grows to fit its content.
+		// Every card row carries the same fixed-height class, with or without tags.
 		for (const link of links) {
-			expect(link).toHaveClass("h-16");
+			expect(link).toHaveClass("h-14");
 		}
 	});
 });
