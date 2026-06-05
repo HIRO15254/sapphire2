@@ -11,10 +11,10 @@ interface PlayerListItem {
 }
 
 interface PlayerListProps {
-	/** A tag filter is active — changes the empty-state copy and hides the CTA. */
-	isFiltered: boolean;
 	/** Initial players fetch is in flight (no rows yet). */
 	isLoading: boolean;
+	/** A search term is active — changes the empty-state copy and hides the CTA. */
+	isSearching: boolean;
 	/** Open the create sheet — wired to the empty-state CTA. */
 	onCreate: () => void;
 	players: PlayerListItem[];
@@ -25,12 +25,12 @@ const SKELETON_COUNT = 5;
 /**
  * Owns the list surface's loading / empty / data switch, mirroring
  * `StoreList` / `CurrencyList`: the consumer passes `isLoading` + `players` and
- * the component decides what to render. The empty branch splits on `isFiltered`
- * so a tag filter that matches nothing reads differently from an empty account.
+ * the component decides what to render. The empty branch splits on `isSearching`
+ * so a search that matches nothing reads differently from an empty account.
  */
 export function PlayerList({
-	isFiltered,
 	isLoading,
+	isSearching,
 	onCreate,
 	players,
 }: PlayerListProps) {
@@ -49,11 +49,11 @@ export function PlayerList({
 	}
 
 	if (players.length === 0) {
-		if (isFiltered) {
+		if (isSearching) {
 			return (
 				<EmptyState
-					description="Try changing the selected tags."
-					heading="No players match the selected filters"
+					description="Try a different name or tag."
+					heading="No players match your search"
 					icon={<IconUsers size={48} />}
 				/>
 			);

@@ -3,8 +3,8 @@ import { PlayerFormV2 } from "@/features/players/components/player-form";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
-import { PlayerFilter } from "./player-filter";
 import { PlayerList } from "./player-list";
+import { PlayerSearch } from "./player-search";
 import { usePlayersPage } from "./use-players-page";
 
 const CREATE_FORM_ID = "player-create-form";
@@ -16,9 +16,10 @@ export function PlayersPage() {
 		isLoading,
 		isCreateOpen,
 		isCreatePending,
-		filterTagIds,
+		search,
+		isSearching,
 		setIsCreateOpen,
-		toggleFilterTag,
+		setSearch,
 		handleCreate,
 		createTag,
 	} = usePlayersPage();
@@ -36,15 +37,11 @@ export function PlayersPage() {
 					heading="Players"
 				/>
 
-				<PlayerFilter
-					availableTags={availableTags}
-					onToggle={toggleFilterTag}
-					selectedTagIds={filterTagIds}
-				/>
+				<PlayerSearch onChange={setSearch} value={search} />
 
 				<PlayerList
-					isFiltered={filterTagIds.length > 0}
 					isLoading={isLoading}
+					isSearching={isSearching}
 					onCreate={() => setIsCreateOpen(true)}
 					players={players}
 				/>

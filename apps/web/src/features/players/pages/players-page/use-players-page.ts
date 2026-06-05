@@ -2,9 +2,13 @@ import { useState } from "react";
 import type { PlayerFormValues } from "@/features/players/components/player-form";
 import { usePlayers } from "@/features/players/hooks/use-players";
 
+// The list is fully loaded client-side, so search filters the fetched players
+// rather than re-querying — no server `tagIds` filter is needed.
+const NO_TAG_FILTER: string[] = [];
+
 export function usePlayersPage() {
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
-	const [filterTagIds, setFilterTagIds] = useState<string[]>([]);
+	const [search, setSearch] = useState("");
 
 	const {
 		players,
@@ -13,7 +17,18 @@ export function usePlayersPage() {
 		isCreatePending,
 		create,
 		createTag,
-	} = usePlayers(filterTagIds);
+	} = usePlayers(NO_TAG_FILTER);
+
+	const normalizedSearch = search.trim().toLowerCase();
+	const filteredPlayers = normalizedSearch
+		? players.filter(
+				(player) =>
+					player.name.toLowerCase().includes(normalizedSearch) ||
+					player.tags.some((tag) =>
+						tag.name.toLowerCase().includes(normalizedSearch)
+					)
+			)
+		: players;
 
 	const handleCreate = (values: PlayerFormValues) => {
 		create(values).then(() => {
@@ -21,23 +36,16 @@ export function usePlayersPage() {
 		});
 	};
 
-	const toggleFilterTag = (tagId: string) => {
-		setFilterTagIds((prev) =>
-			prev.includes(tagId)
-				? prev.filter((id) => id !== tagId)
-				: [...prev, tagId]
-		);
-	};
-
 	return {
-		players,
+		players: filteredPlayers,
 		availableTags,
 		isLoading,
 		isCreateOpen,
 		isCreatePending,
-		filterTagIds,
+		search,
+		isSearching: normalizedSearch.length > 0,
 		setIsCreateOpen,
-		toggleFilterTag,
+		setSearch,
 		handleCreate,
 		createTag,
 	};

@@ -16,18 +16,18 @@ vi.mock("@/features/players/pages/players-page/player-list", () => ({
 	PlayerList: ({
 		players,
 		isLoading,
-		isFiltered,
+		isSearching,
 		onCreate,
 	}: {
 		players: { id: string }[];
 		isLoading: boolean;
-		isFiltered: boolean;
+		isSearching: boolean;
 		onCreate: () => void;
 	}) => (
 		<div
 			data-count={players.length}
-			data-filtered={String(isFiltered)}
 			data-loading={String(isLoading)}
+			data-searching={String(isSearching)}
 			data-testid="player-list-stub"
 		>
 			<button onClick={onCreate} type="button">
@@ -37,18 +37,18 @@ vi.mock("@/features/players/pages/players-page/player-list", () => ({
 	),
 }));
 
-vi.mock("@/features/players/pages/players-page/player-filter", () => ({
-	PlayerFilter: ({
-		availableTags,
-		selectedTagIds,
+vi.mock("@/features/players/pages/players-page/player-search", () => ({
+	PlayerSearch: ({
+		onChange,
+		value,
 	}: {
-		availableTags: { id: string }[];
-		selectedTagIds: string[];
+		onChange: (value: string) => void;
+		value: string;
 	}) => (
-		<div
-			data-selected={selectedTagIds.join(",")}
-			data-tags={availableTags.length}
-			data-testid="player-filter-stub"
+		<input
+			aria-label="player-search-stub"
+			onChange={(event) => onChange(event.target.value)}
+			value={value}
 		/>
 	),
 }));
@@ -62,14 +62,15 @@ import { PlayersPage } from "@/features/players/pages/players-page/players-page"
 interface MockState {
 	availableTags: { color: string; id: string; name: string }[];
 	createTag: ReturnType<typeof vi.fn>;
-	filterTagIds: string[];
 	handleCreate: ReturnType<typeof vi.fn>;
 	isCreateOpen: boolean;
 	isCreatePending: boolean;
 	isLoading: boolean;
+	isSearching: boolean;
 	players: { id: string; name: string }[];
+	search: string;
 	setIsCreateOpen: ReturnType<typeof vi.fn>;
-	toggleFilterTag: ReturnType<typeof vi.fn>;
+	setSearch: ReturnType<typeof vi.fn>;
 }
 
 function setMockState(overrides: Partial<MockState> = {}): MockState {
@@ -79,9 +80,10 @@ function setMockState(overrides: Partial<MockState> = {}): MockState {
 		isLoading: false,
 		isCreateOpen: false,
 		isCreatePending: false,
-		filterTagIds: [],
+		isSearching: false,
+		search: "",
 		setIsCreateOpen: vi.fn(),
-		toggleFilterTag: vi.fn(),
+		setSearch: vi.fn(),
 		handleCreate: vi.fn(),
 		createTag: vi.fn(),
 		...overrides,
@@ -126,24 +128,28 @@ describe("PlayersPage", () => {
 		);
 	});
 
-	it("marks PlayerList as filtered when a tag is selected", () => {
-		setMockState({ filterTagIds: ["vip"] });
+	it("forwards isSearching to PlayerList", () => {
+		setMockState({ isSearching: true });
 		render(<PlayersPage />);
 		expect(screen.getByTestId("player-list-stub")).toHaveAttribute(
-			"data-filtered",
+			"data-searching",
 			"true"
 		);
 	});
 
-	it("forwards availableTags and selectedTagIds to PlayerFilter", () => {
-		setMockState({
-			availableTags: [{ id: "vip", name: "VIP", color: "blue" }],
-			filterTagIds: ["vip"],
-		});
+	it("renders the search box bound to the current search value", () => {
+		setMockState({ search: "vip" });
 		render(<PlayersPage />);
-		const filter = screen.getByTestId("player-filter-stub");
-		expect(filter).toHaveAttribute("data-tags", "1");
-		expect(filter).toHaveAttribute("data-selected", "vip");
+		expect(screen.getByLabelText("player-search-stub")).toHaveValue("vip");
+	});
+
+	it("calls setSearch when the search box changes", async () => {
+		const user = userEvent.setup();
+		const state = setMockState();
+		render(<PlayersPage />);
+		await user.type(screen.getByLabelText("player-search-stub"), "a");
+		expect(state.setSearch).toHaveBeenCalledTimes(1);
+		expect(state.setSearch).toHaveBeenCalledWith("a");
 	});
 
 	it("opens the create sheet when the header 'New player' button is clicked", async () => {

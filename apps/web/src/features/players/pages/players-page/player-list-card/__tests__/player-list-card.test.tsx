@@ -73,4 +73,22 @@ describe("PlayerListCard", () => {
 		const link = await screen.findByRole("link");
 		expect(link).toHaveAttribute("href", "/players/p42");
 	});
+
+	it("keeps a fixed row height regardless of tags or memo", async () => {
+		renderCard(basePlayer);
+		const bare = await screen.findByRole("link");
+		expect(bare).toHaveClass("h-16");
+
+		renderCard({
+			...basePlayer,
+			memo: "<p>note</p>",
+			tags: [{ id: "vip", name: "VIP", color: "blue" }],
+		});
+		const links = await screen.findAllByRole("link");
+		// Every card row carries the same fixed-height class, with or without
+		// tags/memo — the row never grows to fit its content.
+		for (const link of links) {
+			expect(link).toHaveClass("h-16");
+		}
+	});
 });

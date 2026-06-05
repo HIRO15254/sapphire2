@@ -22,8 +22,8 @@ describe("PlayerList", () => {
 		it("renders the skeleton stack when isLoading is true", () => {
 			render(
 				<PlayerList
-					isFiltered={false}
 					isLoading
+					isSearching={false}
 					onCreate={vi.fn()}
 					players={[]}
 				/>
@@ -35,8 +35,8 @@ describe("PlayerList", () => {
 		it("does not render cards or empty state while loading", () => {
 			render(
 				<PlayerList
-					isFiltered={false}
 					isLoading
+					isSearching={false}
 					onCreate={vi.fn()}
 					players={[makePlayer("p1", "Alice")]}
 				/>
@@ -50,8 +50,8 @@ describe("PlayerList", () => {
 		it("shows the 'No players yet' empty state with a create CTA", () => {
 			render(
 				<PlayerList
-					isFiltered={false}
 					isLoading={false}
+					isSearching={false}
 					onCreate={vi.fn()}
 					players={[]}
 				/>
@@ -67,8 +67,8 @@ describe("PlayerList", () => {
 			const onCreate = vi.fn();
 			render(
 				<PlayerList
-					isFiltered={false}
 					isLoading={false}
+					isSearching={false}
 					onCreate={onCreate}
 					players={[]}
 				/>
@@ -78,18 +78,18 @@ describe("PlayerList", () => {
 		});
 	});
 
-	describe("empty branch (filtered)", () => {
+	describe("empty branch (searching)", () => {
 		it("shows the no-match empty state without a CTA", () => {
 			render(
 				<PlayerList
-					isFiltered
 					isLoading={false}
+					isSearching
 					onCreate={vi.fn()}
 					players={[]}
 				/>
 			);
 			expect(
-				screen.getByText("No players match the selected filters")
+				screen.getByText("No players match your search")
 			).toBeInTheDocument();
 			expect(
 				screen.queryByRole("button", { name: NEW_PLAYER_RE })
@@ -101,8 +101,8 @@ describe("PlayerList", () => {
 		it("renders one card per player", () => {
 			render(
 				<PlayerList
-					isFiltered={false}
 					isLoading={false}
+					isSearching={false}
 					onCreate={vi.fn()}
 					players={[makePlayer("p1", "Alice"), makePlayer("p2", "Bob")]}
 				/>
@@ -116,15 +116,15 @@ describe("PlayerList", () => {
 		it("does not render the empty state when players are present", () => {
 			render(
 				<PlayerList
-					isFiltered={false}
 					isLoading={false}
+					isSearching={false}
 					onCreate={vi.fn()}
 					players={[makePlayer("p1", "Alice")]}
 				/>
 			);
 			expect(screen.queryByText("No players yet")).not.toBeInTheDocument();
 			expect(
-				screen.queryByText("No players match the selected filters")
+				screen.queryByText("No players match your search")
 			).not.toBeInTheDocument();
 		});
 	});

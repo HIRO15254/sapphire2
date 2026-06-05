@@ -1,21 +1,26 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+interface MockPlayer {
+	id: string;
+	memo?: string | null;
+	name: string;
+	tags: Array<{ color: string; id: string; name: string }>;
+}
+
 const mocks = vi.hoisted(() => ({
 	usePlayers: vi.fn(),
 	create: vi.fn(),
 	createTag: vi.fn(),
-	players: [] as Array<{ id: string; name: string }>,
+	players: [] as MockPlayer[],
 	availableTags: [] as Array<{ color: string; id: string; name: string }>,
 	isLoading: false,
 	isCreatePending: false,
-	lastFilterTagIds: [] as string[],
 }));
 
 vi.mock("@/features/players/hooks/use-players", () => ({
 	usePlayers: (filterTagIds: string[]) => {
 		mocks.usePlayers(filterTagIds);
-		mocks.lastFilterTagIds = filterTagIds;
 		return {
 			players: mocks.players,
 			availableTags: mocks.availableTags,
@@ -32,6 +37,16 @@ vi.mock("@/features/players/hooks/use-players", () => ({
 
 import { usePlayersPage } from "@/features/players/pages/players-page/use-players-page";
 
+function player(
+	id: string,
+	name: string,
+	tags: MockPlayer["tags"] = []
+): MockPlayer {
+	return { id, name, memo: null, tags };
+}
+
+const VIP = { id: "vip", name: "VIP", color: "blue" };
+
 describe("usePlayersPage", () => {
 	beforeEach(() => {
 		mocks.usePlayers.mockReset();
@@ -45,37 +60,87 @@ describe("usePlayersPage", () => {
 		mocks.availableTags = [];
 		mocks.isLoading = false;
 		mocks.isCreatePending = false;
-		mocks.lastFilterTagIds = [];
 	});
 
 	describe("initial state", () => {
-		it("has the create sheet closed and no active filter", () => {
+		it("has the create sheet closed, an empty search, and isSearching false", () => {
 			const { result } = renderHook(() => usePlayersPage());
 			expect(result.current.isCreateOpen).toBe(false);
-			expect(result.current.filterTagIds).toEqual([]);
+			expect(result.current.search).toBe("");
+			expect(result.current.isSearching).toBe(false);
 		});
 
-		it("forwards players and availableTags straight through", () => {
-			mocks.players = [{ id: "p1", name: "Alice" }];
-			mocks.availableTags = [{ id: "vip", name: "VIP", color: "blue" }];
-			const { result } = renderHook(() => usePlayersPage());
-			expect(result.current.players).toEqual([{ id: "p1", name: "Alice" }]);
-			expect(result.current.availableTags).toEqual([
-				{ id: "vip", name: "VIP", color: "blue" },
-			]);
-		});
-
-		it("forwards isLoading and isCreatePending", () => {
+		it("forwards availableTags, isLoading, and isCreatePending", () => {
+			mocks.availableTags = [VIP];
 			mocks.isLoading = true;
 			mocks.isCreatePending = true;
 			const { result } = renderHook(() => usePlayersPage());
+			expect(result.current.availableTags).toEqual([VIP]);
 			expect(result.current.isLoading).toBe(true);
 			expect(result.current.isCreatePending).toBe(true);
 		});
 
-		it("passes the empty filter to usePlayers initially", () => {
+		it("queries usePlayers without a server tag filter", () => {
 			renderHook(() => usePlayersPage());
 			expect(mocks.usePlayers).toHaveBeenLastCalledWith([]);
+		});
+
+		it("returns every player when no search term is set", () => {
+			mocks.players = [player("p1", "Alice"), player("p2", "Bob")];
+			const { result } = renderHook(() => usePlayersPage());
+			expect(result.current.players.map((p) => p.id)).toEqual(["p1", "p2"]);
+		});
+	});
+
+	describe("search filtering", () => {
+		it("matches by player name (case-insensitive, substring)", () => {
+			mocks.players = [player("p1", "Alice"), player("p2", "Bob")];
+			const { result } = renderHook(() => usePlayersPage());
+			act(() => result.current.setSearch("ali"));
+			expect(result.current.players.map((p) => p.id)).toEqual(["p1"]);
+			expect(result.current.isSearching).toBe(true);
+		});
+
+		it("matches by tag name when the name does not match", () => {
+			mocks.players = [player("p1", "Alice", [VIP]), player("p2", "Bob", [])];
+			const { result } = renderHook(() => usePlayersPage());
+			act(() => result.current.setSearch("vip"));
+			expect(result.current.players.map((p) => p.id)).toEqual(["p1"]);
+		});
+
+		it("returns the union of name and tag matches", () => {
+			mocks.players = [
+				player("p1", "Alice", [VIP]),
+				player("p2", "Vivian", []),
+				player("p3", "Bob", []),
+			];
+			const { result } = renderHook(() => usePlayersPage());
+			// "vi" matches the VIP tag on p1 and the name "Vivian" on p2.
+			act(() => result.current.setSearch("vi"));
+			expect(result.current.players.map((p) => p.id)).toEqual(["p1", "p2"]);
+		});
+
+		it("ignores surrounding whitespace and is not case-sensitive", () => {
+			mocks.players = [player("p1", "Alice")];
+			const { result } = renderHook(() => usePlayersPage());
+			act(() => result.current.setSearch("  ALICE  "));
+			expect(result.current.players.map((p) => p.id)).toEqual(["p1"]);
+		});
+
+		it("treats a whitespace-only term as no search", () => {
+			mocks.players = [player("p1", "Alice"), player("p2", "Bob")];
+			const { result } = renderHook(() => usePlayersPage());
+			act(() => result.current.setSearch("   "));
+			expect(result.current.players.map((p) => p.id)).toEqual(["p1", "p2"]);
+			expect(result.current.isSearching).toBe(false);
+		});
+
+		it("returns an empty list when nothing matches", () => {
+			mocks.players = [player("p1", "Alice")];
+			const { result } = renderHook(() => usePlayersPage());
+			act(() => result.current.setSearch("zzz"));
+			expect(result.current.players).toEqual([]);
+			expect(result.current.isSearching).toBe(true);
 		});
 	});
 
@@ -91,34 +156,6 @@ describe("usePlayersPage", () => {
 			act(() => result.current.setIsCreateOpen(true));
 			act(() => result.current.setIsCreateOpen(false));
 			expect(result.current.isCreateOpen).toBe(false);
-		});
-	});
-
-	describe("toggleFilterTag", () => {
-		it("adds a tag id that is not selected", () => {
-			const { result } = renderHook(() => usePlayersPage());
-			act(() => result.current.toggleFilterTag("vip"));
-			expect(result.current.filterTagIds).toEqual(["vip"]);
-		});
-
-		it("removes a tag id that is already selected", () => {
-			const { result } = renderHook(() => usePlayersPage());
-			act(() => result.current.toggleFilterTag("vip"));
-			act(() => result.current.toggleFilterTag("vip"));
-			expect(result.current.filterTagIds).toEqual([]);
-		});
-
-		it("accumulates multiple distinct tag ids", () => {
-			const { result } = renderHook(() => usePlayersPage());
-			act(() => result.current.toggleFilterTag("vip"));
-			act(() => result.current.toggleFilterTag("reg"));
-			expect(result.current.filterTagIds).toEqual(["vip", "reg"]);
-		});
-
-		it("re-runs usePlayers with the updated filter", () => {
-			const { result } = renderHook(() => usePlayersPage());
-			act(() => result.current.toggleFilterTag("vip"));
-			expect(mocks.usePlayers).toHaveBeenLastCalledWith(["vip"]);
 		});
 	});
 
