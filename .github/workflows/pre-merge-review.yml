@@ -1,16 +1,15 @@
 name: Pre-merge review (docs & tests) + general review
 
-# 2 系統の AI レビューを走らせる:
-#   1) pre-merge-review (ゲート): PR の変更範囲に対して
-#        A) 関連する rule / README / docs が最新化されているか
-#        B) テストが CLAUDE.md の TDD 規約が定める粒度を満たしているか
-#      のみを検証し、正式レビュー (APPROVE / REQUEST_CHANGES) を投稿する。
-#      REQUEST_CHANGES の場合はジョブを fail させるので、このジョブを required
-#      status check に設定すればマージをブロックできる。
-#   2) general-review (助言): 組込み `/review` で PR 全体をレビューしインライン
-#      コメントを投稿する。ゲートではなく抜け漏れ補完用なので、結果でマージは
-#      ブロックしない。
-# 抜け漏れ低減のため、いずれも Opus を使用する。
+# ゲートレビューと助言レビューを 1 セッションで順番に実行する:
+#   Phase 1 (ゲート): PR の変更範囲に対して
+#     A) 関連する rule / README / docs が最新化されているか
+#     B) テストが CLAUDE.md の TDD 規約が定める粒度を満たしているか
+#   のみを検証し、正式レビュー (APPROVE / REQUEST_CHANGES) を投稿する。
+#   REQUEST_CHANGES の場合はジョブを fail させるので、このジョブを required
+#   status check に設定すればマージをブロックできる。
+#   Phase 2 (助言): /review で PR 全体をレビューしインラインコメントを投稿する。
+#   ゲートではなく抜け漏れ補完用なので、結果でマージはブロックしない。
+# 抜け漏れ低減のため Opus を使用する。
 
 on:
   pull_request:
@@ -110,8 +109,15 @@ jobs:
 
             Be strict but fair: block only on the two axes above, and only on
             issues introduced by THIS PR's diff (not pre-existing problems).
+
+            === PHASE 2: General review ===
+
+            After completing Phase 1 (verdict written, formal review submitted),
+            run /review to perform a comprehensive general code review of this PR
+            and post inline comments. This is advisory — it does not affect the
+            gate verdict.
           claude_args: |
-            --max-turns 40
+            --max-turns 80
             --model opus
             --allowedTools "Read,Grep,Glob,Write,Bash(gh pr *),Bash(git diff:*),Bash(git log:*)"
 
@@ -127,27 +133,3 @@ jobs:
           if [ "${verdict}" != "APPROVE" ]; then
             echo "::warning::No explicit verdict file was produced; not blocking. Inspect the Claude pre-merge review step."
           fi
-
-  general-review:
-    name: general-review
-    # 助言レビュー。ドラフトは対象外（準備が整った PR のみ）。
-    if: github.event.pull_request.draft == false
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      # 組込み `/review` で PR 全体をレビューしインラインコメントを投稿する。
-      # ゲートではないので verdict ファイルは書かず、結果でマージはブロックしない。
-      - name: Claude general review
-        uses: anthropics/claude-code-action@v1
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          prompt: "/review"
-          claude_args: |
-            --max-turns 40
-            --model opus
