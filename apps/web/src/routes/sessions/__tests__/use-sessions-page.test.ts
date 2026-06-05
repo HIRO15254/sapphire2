@@ -5,7 +5,7 @@ interface TestSessionItem {
 	id: string;
 	liveCashGameSessionId: string | null;
 	liveTournamentSessionId: string | null;
-	storeId?: string | null;
+	roomId?: string | null;
 }
 
 const mocks = vi.hoisted(() => ({
@@ -15,13 +15,13 @@ const mocks = vi.hoisted(() => ({
 	reopen: vi.fn(),
 	createTag: vi.fn(),
 	lastFilters: null as Record<string, unknown> | null,
-	lastCreateGamesStoreId: null as string | undefined | null,
-	lastEditGamesStoreId: null as string | undefined | null,
+	lastCreateGamesRoomId: null as string | undefined | null,
+	lastEditGamesRoomId: null as string | undefined | null,
 	lastEditIncludeAll: null as boolean | null,
 	lastCalledSlot: "create" as "create" | "edit",
 	sessions: [] as Record<string, unknown>[],
 	availableTags: [] as Array<{ id: string; name: string }>,
-	stores: [] as Array<{ id: string; name: string }>,
+	rooms: [] as Array<{ id: string; name: string }>,
 	currencies: [] as Array<{ id: string; name: string }>,
 	isCreatePending: false,
 	isUpdatePending: false,
@@ -44,22 +44,22 @@ vi.mock("@/features/sessions/hooks/use-sessions", () => ({
 	},
 }));
 
-vi.mock("@/features/stores/hooks/use-store-games", () => ({
+vi.mock("@/features/rooms/hooks/use-room-games", () => ({
 	useEntityLists: () => ({
-		stores: mocks.stores,
+		rooms: mocks.rooms,
 		currencies: mocks.currencies,
 	}),
-	useStoreGames: (
-		storeId: string | undefined,
+	useRoomGames: (
+		roomId: string | undefined,
 		options?: { includeAll?: boolean }
 	) => {
-		// useSessionsPage calls useStoreGames twice per render (create + edit
+		// useSessionsPage calls useRoomGames twice per render (create + edit
 		// slots). Track each by alternating the slot name.
 		if (mocks.lastCalledSlot === "create") {
-			mocks.lastCreateGamesStoreId = storeId;
+			mocks.lastCreateGamesRoomId = roomId;
 			mocks.lastCalledSlot = "edit";
 		} else {
-			mocks.lastEditGamesStoreId = storeId;
+			mocks.lastEditGamesRoomId = roomId;
 			mocks.lastEditIncludeAll = options?.includeAll ?? false;
 			mocks.lastCalledSlot = "create";
 		}
@@ -75,7 +75,7 @@ import { useSessionsPage } from "@/routes/sessions/-use-sessions-page";
 function buildSession(overrides: Partial<TestSessionItem> = {}) {
 	return {
 		id: "s1",
-		storeId: null,
+		roomId: null,
 		liveCashGameSessionId: null,
 		liveTournamentSessionId: null,
 		...overrides,
@@ -90,13 +90,13 @@ describe("useSessionsPage", () => {
 		mocks.reopen.mockReset();
 		mocks.createTag.mockReset();
 		mocks.lastFilters = null;
-		mocks.lastCreateGamesStoreId = null;
-		mocks.lastEditGamesStoreId = null;
+		mocks.lastCreateGamesRoomId = null;
+		mocks.lastEditGamesRoomId = null;
 		mocks.lastEditIncludeAll = null;
 		mocks.lastCalledSlot = "create";
 		mocks.sessions = [];
 		mocks.availableTags = [];
-		mocks.stores = [];
+		mocks.rooms = [];
 		mocks.currencies = [];
 		mocks.isCreatePending = false;
 		mocks.isUpdatePending = false;
@@ -119,11 +119,11 @@ describe("useSessionsPage", () => {
 			expect(mocks.lastFilters).toEqual({});
 		});
 
-		it("surfaces stores and currencies from useEntityLists", () => {
-			mocks.stores = [{ id: "s1", name: "Akiba" }];
+		it("surfaces rooms and currencies from useEntityLists", () => {
+			mocks.rooms = [{ id: "s1", name: "Akiba" }];
 			mocks.currencies = [{ id: "c1", name: "USD" }];
 			const { result } = renderHook(() => useSessionsPage());
-			expect(result.current.stores).toEqual(mocks.stores);
+			expect(result.current.rooms).toEqual(mocks.rooms);
 			expect(result.current.currencies).toEqual(mocks.currencies);
 		});
 	});
@@ -132,18 +132,18 @@ describe("useSessionsPage", () => {
 		it("creates and closes the dialog on success", async () => {
 			const { result } = renderHook(() => useSessionsPage());
 			act(() => {
-				result.current.setSelectedStoreId("store-1");
+				result.current.setSelectedRoomId("room-1");
 			});
 			await act(async () => {
 				result.current.handleCreate({
-					storeId: "store-1",
+					roomId: "room-1",
 					kind: "cash_game",
 				} as never);
 				await Promise.resolve();
 				await Promise.resolve();
 			});
 			expect(mocks.create).toHaveBeenCalledWith({
-				storeId: "store-1",
+				roomId: "room-1",
 				kind: "cash_game",
 			});
 			const { result: r2 } = renderHook(() => useSessionsPage());
@@ -155,7 +155,7 @@ describe("useSessionsPage", () => {
 		it("is a no-op when editingSession is null", () => {
 			const { result } = renderHook(() => useSessionsPage());
 			act(() => {
-				result.current.handleUpdate({ storeId: "x" } as never);
+				result.current.handleUpdate({ roomId: "x" } as never);
 			});
 			expect(mocks.update).not.toHaveBeenCalled();
 		});
@@ -172,14 +172,14 @@ describe("useSessionsPage", () => {
 				);
 			});
 			await act(async () => {
-				result.current.handleUpdate({ storeId: "store-1" } as never);
+				result.current.handleUpdate({ roomId: "room-1" } as never);
 				await Promise.resolve();
 				await Promise.resolve();
 			});
 			expect(mocks.update).toHaveBeenCalledWith({
 				id: "s1",
 				isLiveLinked: false,
-				storeId: "store-1",
+				roomId: "room-1",
 			});
 			await waitFor(() => expect(result.current.editingSession).toBeNull());
 		});
@@ -197,14 +197,14 @@ describe("useSessionsPage", () => {
 			});
 			expect(result.current.isEditLiveLinked).toBe(true);
 			await act(async () => {
-				result.current.handleUpdate({ storeId: "store-1" } as never);
+				result.current.handleUpdate({ roomId: "room-1" } as never);
 				await Promise.resolve();
 				await Promise.resolve();
 			});
 			expect(mocks.update).toHaveBeenCalledWith({
 				id: "s2",
 				isLiveLinked: true,
-				storeId: "store-1",
+				roomId: "room-1",
 			});
 		});
 
@@ -221,14 +221,14 @@ describe("useSessionsPage", () => {
 			});
 			expect(result.current.isEditLiveLinked).toBe(true);
 			await act(async () => {
-				result.current.handleUpdate({ storeId: "x" } as never);
+				result.current.handleUpdate({ roomId: "x" } as never);
 				await Promise.resolve();
 				await Promise.resolve();
 			});
 			expect(mocks.update).toHaveBeenCalledWith({
 				id: "s3",
 				isLiveLinked: true,
-				storeId: "x",
+				roomId: "x",
 			});
 		});
 	});
@@ -254,16 +254,16 @@ describe("useSessionsPage", () => {
 	});
 
 	describe("handleOpenEdit / handleCloseEdit", () => {
-		it("handleOpenEdit sets editStoreId from the session.storeId", () => {
+		it("handleOpenEdit sets editRoomId from the session.roomId", () => {
 			const { result } = renderHook(() => useSessionsPage());
 			act(() => {
 				result.current.handleOpenEdit(
-					buildSession({ id: "s1", storeId: "store-5" })
+					buildSession({ id: "s1", roomId: "room-5" })
 				);
 			});
 			expect(result.current.editingSession?.id).toBe("s1");
-			// editStoreId is not exposed directly on the return — but setEditStoreId is.
-			// The hook drives useStoreGames via editStoreId; we can assert set via
+			// editRoomId is not exposed directly on the return — but setEditRoomId is.
+			// The hook drives useRoomGames via editRoomId; we can assert set via
 			// handleCloseEdit clearing it to undefined.
 			act(() => {
 				result.current.handleCloseEdit();
@@ -271,45 +271,43 @@ describe("useSessionsPage", () => {
 			expect(result.current.editingSession).toBeNull();
 		});
 
-		it("handleOpenEdit falls back to undefined when storeId is nullish", () => {
+		it("handleOpenEdit falls back to undefined when roomId is nullish", () => {
 			const { result } = renderHook(() => useSessionsPage());
 			act(() => {
-				result.current.handleOpenEdit(
-					buildSession({ id: "s1", storeId: null })
-				);
+				result.current.handleOpenEdit(buildSession({ id: "s1", roomId: null }));
 			});
 			expect(result.current.editingSession?.id).toBe("s1");
 		});
 	});
 
 	describe("edit games use includeAll", () => {
-		it("passes includeAll: true to useStoreGames for the edit slot", () => {
+		it("passes includeAll: true to useRoomGames for the edit slot", () => {
 			renderHook(() => useSessionsPage());
-			// The edit slot is the second call to useStoreGames each render cycle.
+			// The edit slot is the second call to useRoomGames each render cycle.
 			expect(mocks.lastEditIncludeAll).toBe(true);
 		});
 	});
 
 	describe("handleCreateDialogOpenChange", () => {
-		it("sets isCreateOpen to true and leaves selectedStoreId intact", () => {
+		it("sets isCreateOpen to true and leaves selectedRoomId intact", () => {
 			const { result } = renderHook(() => useSessionsPage());
 			act(() => {
-				result.current.setSelectedStoreId("pre-selected");
+				result.current.setSelectedRoomId("pre-selected");
 			});
 			act(() => {
 				result.current.handleCreateDialogOpenChange(true);
 			});
 			expect(result.current.isCreateOpen).toBe(true);
-			// selectedStoreId is internal; not reset on open.
+			// selectedRoomId is internal; not reset on open.
 		});
 
-		it("clears selectedStoreId when dialog is closed", () => {
+		it("clears selectedRoomId when dialog is closed", () => {
 			const { result } = renderHook(() => useSessionsPage());
 			act(() => {
 				result.current.handleCreateDialogOpenChange(true);
 			});
 			act(() => {
-				result.current.setSelectedStoreId("store-x");
+				result.current.setSelectedRoomId("room-x");
 			});
 			act(() => {
 				result.current.handleCreateDialogOpenChange(false);

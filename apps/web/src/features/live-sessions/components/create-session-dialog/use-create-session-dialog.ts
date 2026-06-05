@@ -13,24 +13,24 @@ export function useCreateSessionDialog({
 	onOpenChange,
 }: UseCreateSessionDialogOptions) {
 	const {
-		stores,
+		rooms,
 		currencies,
 		ringGames,
 		tournaments,
-		setSelectedStoreId,
+		setSelectedRoomId,
 		createCash,
 		createTournament,
 		isLoading,
 	} = useCreateSession({ onClose: () => onOpenChange(false) });
 
 	const handleReset = () => {
-		setSelectedStoreId(undefined);
+		setSelectedRoomId(undefined);
 	};
 
 	const handleSubmit = (values: SessionFormValues) => {
 		if (values.type === "cash_game") {
 			createCash({
-				storeId: values.storeId,
+				roomId: values.roomId,
 				ringGameId: values.ringGameId,
 				currencyId: values.currencyId,
 				// The Rules step's buyIn doubles as the live session's initial
@@ -41,7 +41,7 @@ export function useCreateSessionDialog({
 			return;
 		}
 		createTournament({
-			storeId: values.storeId,
+			roomId: values.roomId,
 			tournamentId: values.tournamentId,
 			currencyId: values.currencyId,
 			buyIn: values.tournamentBuyIn,
@@ -55,11 +55,11 @@ export function useCreateSessionDialog({
 	};
 
 	return {
-		stores: stores as Array<{ id: string; name: string }>,
+		rooms: rooms as Array<{ id: string; name: string }>,
 		currencies,
 		ringGames: ringGames as RingGameOption[],
 		tournaments: tournaments as TournamentOption[],
-		setSelectedStoreId,
+		setSelectedRoomId,
 		handleSubmit,
 		isLoading,
 		handleReset,

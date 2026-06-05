@@ -29,9 +29,9 @@ import {
 	diffChipPurchases,
 	diffTournamentSnapshot,
 } from "@/features/live-sessions/utils/snapshot-diff";
-import { RingGameForm } from "@/features/stores/components/ring-game-form";
-import { TournamentEditDialog } from "@/features/stores/components/tournament-edit-dialog";
-import type { RingGame } from "@/features/stores/hooks/use-ring-games";
+import { RingGameForm } from "@/features/rooms/components/ring-game-form";
+import { TournamentEditDialog } from "@/features/rooms/components/tournament-edit-dialog";
+import type { RingGame } from "@/features/rooms/hooks/use-ring-games";
 import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -221,10 +221,10 @@ function RingGameDetailsCard({
 
 function CashGameNotLinked({
 	sessionId,
-	sessionStoreId,
+	sessionRoomId,
 }: {
 	sessionId: string;
-	sessionStoreId: string | null;
+	sessionRoomId: string | null;
 }) {
 	const { isAssignOpen, setIsAssignOpen } = useAssignDialogState();
 	return (
@@ -242,7 +242,7 @@ function CashGameNotLinked({
 				onOpenChange={setIsAssignOpen}
 				open={isAssignOpen}
 				sessionId={sessionId}
-				sessionStoreId={sessionStoreId}
+				sessionRoomId={sessionRoomId}
 			/>
 		</GameSceneShell>
 	);
@@ -288,7 +288,7 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 		return (
 			<CashGameNotLinked
 				sessionId={sessionId}
-				sessionStoreId={session.storeId ?? null}
+				sessionRoomId={session.roomId ?? null}
 			/>
 		);
 	}
@@ -751,10 +751,10 @@ function TournamentDetailsBody({
 
 function TournamentNotLinked({
 	sessionId,
-	sessionStoreId,
+	sessionRoomId,
 }: {
 	sessionId: string;
-	sessionStoreId: string | null;
+	sessionRoomId: string | null;
 }) {
 	const { isAssignOpen, setIsAssignOpen } = useAssignDialogState();
 	return (
@@ -772,7 +772,7 @@ function TournamentNotLinked({
 				onOpenChange={setIsAssignOpen}
 				open={isAssignOpen}
 				sessionId={sessionId}
-				sessionStoreId={sessionStoreId}
+				sessionRoomId={sessionRoomId}
 			/>
 		</GameSceneShell>
 	);
@@ -781,7 +781,7 @@ function TournamentNotLinked({
 function TournamentDetails({ sessionId }: { sessionId: string }) {
 	const { session } = useTournamentSession(sessionId);
 	const tournamentId = session?.tournamentId ?? "";
-	const storeId = session?.storeId ?? "";
+	const roomId = session?.roomId ?? "";
 	const snapshot = useSessionTournamentStructure(sessionId);
 	const master = useTournamentDetail(tournamentId);
 
@@ -801,12 +801,12 @@ function TournamentDetails({ sessionId }: { sessionId: string }) {
 		return (
 			<TournamentNotLinked
 				sessionId={sessionId}
-				sessionStoreId={session.storeId ?? null}
+				sessionRoomId={session.roomId ?? null}
 			/>
 		);
 	}
 
-	if (!storeId) {
+	if (!roomId) {
 		return (
 			<GameSceneShell title="Tournament">
 				<EmptyState

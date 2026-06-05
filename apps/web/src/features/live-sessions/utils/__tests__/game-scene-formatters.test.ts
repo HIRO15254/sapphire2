@@ -5,12 +5,12 @@ import {
 	VARIANT_LABELS,
 	variantLabel,
 } from "@/features/live-sessions/utils/game-scene-formatters";
-import type { RingGame } from "@/features/stores/hooks/use-ring-games";
+import type { RingGame } from "@/features/rooms/hooks/use-ring-games";
 
 function ringGame(overrides: Partial<RingGame> = {}): RingGame {
 	return {
 		id: "rg-1",
-		storeId: "store-1",
+		roomId: "room-1",
 		name: "Test",
 		currencyId: "currency-1",
 		variant: "nlh",

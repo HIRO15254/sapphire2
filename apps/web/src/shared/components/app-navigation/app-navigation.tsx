@@ -29,7 +29,7 @@ export interface NavigationCenterAction {
 }
 
 export const RESOURCE_ITEMS: readonly NavigationItem[] = [
-	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
+	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
 ] as const;
@@ -37,7 +37,7 @@ export const RESOURCE_ITEMS: readonly NavigationItem[] = [
 export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
 	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
-	{ to: "/stores", label: "Stores", icon: IconBuildingStore },
+	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
@@ -52,7 +52,7 @@ const RESOURCES_NAV_ITEM: NavigationItem = {
 	to: "/resources",
 	label: "Resources",
 	icon: IconCategory,
-	matchPaths: ["/stores", "/players", "/currencies"],
+	matchPaths: ["/rooms", "/players", "/currencies"],
 };
 
 const NORMAL_RIGHT_ITEMS: readonly NavigationItem[] = [

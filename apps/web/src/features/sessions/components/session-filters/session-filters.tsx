@@ -14,7 +14,7 @@ export interface SessionFilterValues {
 	currencyId?: string;
 	dateFrom?: string;
 	dateTo?: string;
-	storeId?: string;
+	roomId?: string;
 	type?: "cash_game" | "tournament";
 }
 
@@ -22,14 +22,14 @@ interface SessionFiltersProps {
 	currencies: Array<{ id: string; name: string }>;
 	filters: SessionFilterValues;
 	onFiltersChange: (filters: SessionFilterValues) => void;
-	stores: Array<{ id: string; name: string }>;
+	rooms: Array<{ id: string; name: string }>;
 }
 
 export function SessionFilters({
 	currencies,
 	filters,
 	onFiltersChange,
-	stores,
+	rooms,
 }: SessionFiltersProps) {
 	const {
 		activeCount,
@@ -72,18 +72,18 @@ export function SessionFilters({
 				</SelectWithClear>
 			</Field>
 
-			<Field label="Store">
+			<Field label="Room">
 				<SelectWithClear
-					onValueChange={(value) => updateDraft({ storeId: value })}
-					value={draft.storeId}
+					onValueChange={(value) => updateDraft({ roomId: value })}
+					value={draft.roomId}
 				>
-					<SelectTrigger aria-label="Store" className="w-full">
+					<SelectTrigger aria-label="Room" className="w-full">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						{stores.map((store) => (
-							<SelectItem key={store.id} value={store.id}>
-								{store.name}
+						{rooms.map((room) => (
+							<SelectItem key={room.id} value={room.id}>
+								{room.name}
 							</SelectItem>
 						))}
 					</SelectContent>

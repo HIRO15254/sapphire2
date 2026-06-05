@@ -12,11 +12,11 @@ export function CreateSessionDialog({
 	onOpenChange,
 }: CreateSessionDialogProps) {
 	const {
-		stores,
+		rooms,
 		currencies,
 		ringGames,
 		tournaments,
-		setSelectedStoreId,
+		setSelectedRoomId,
 		handleSubmit,
 		isLoading,
 		handleReset,
@@ -37,10 +37,10 @@ export function CreateSessionDialog({
 				currencies={currencies}
 				isLoading={isLoading}
 				mode="live"
-				onStoreChange={setSelectedStoreId}
+				onRoomChange={setSelectedRoomId}
 				onSubmit={handleSubmit}
 				ringGames={ringGames}
-				stores={stores}
+				rooms={rooms}
 				submitLabel="Start session"
 				tournaments={tournaments}
 			/>

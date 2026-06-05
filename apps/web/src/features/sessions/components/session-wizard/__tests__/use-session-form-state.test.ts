@@ -58,18 +58,18 @@ describe("useSessionFormState", () => {
 		expect(result.current.gameOptions).toEqual(TOURNAMENTS);
 	});
 
-	it("handleStoreChange updates selectedStoreId, clears selectedGameId, and notifies callback", () => {
+	it("handleRoomChange updates selectedRoomId, clears selectedGameId, and notifies callback", () => {
 		const onSubmit = vi.fn();
-		const onStoreChange = vi.fn();
+		const onRoomChange = vi.fn();
 		const { result } = renderHook(() =>
-			useSessionFormState({ onSubmit, onStoreChange })
+			useSessionFormState({ onSubmit, onRoomChange })
 		);
 		act(() => {
-			result.current.handleStoreChange("s1");
+			result.current.handleRoomChange("s1");
 		});
-		expect(result.current.selectedStoreId).toBe("s1");
+		expect(result.current.selectedRoomId).toBe("s1");
 		expect(result.current.selectedGameId).toBeUndefined();
-		expect(onStoreChange).toHaveBeenCalledWith("s1");
+		expect(onRoomChange).toHaveBeenCalledWith("s1");
 	});
 
 	it("handleGameChange(undefined) is a no-op on field overrides", () => {

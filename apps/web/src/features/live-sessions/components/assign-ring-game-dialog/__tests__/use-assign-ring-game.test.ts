@@ -10,8 +10,8 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const mocks = vi.hoisted(() => ({
-	storeList: vi.fn(),
-	ringGamesByStore: vi.fn(),
+	roomList: vi.fn(),
+	ringGamesByRoom: vi.fn(),
 	updateCashSession: vi.fn(),
 	createRingGame: vi.fn(),
 	toastSuccess: vi.fn(),
@@ -20,19 +20,19 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		store: {
+		room: {
 			list: {
 				queryOptions: () => ({
-					queryKey: buildKey("store", "list", undefined),
-					queryFn: () => mocks.storeList(),
+					queryKey: buildKey("room", "list", undefined),
+					queryFn: () => mocks.roomList(),
 				}),
 			},
 		},
 		ringGame: {
-			listByStore: {
+			listByRoom: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("ringGame", "listByStore", input),
-					queryFn: () => mocks.ringGamesByStore(input),
+					queryKey: buildKey("ringGame", "listByRoom", input),
+					queryFn: () => mocks.ringGamesByRoom(input),
 				}),
 			},
 		},
@@ -97,7 +97,7 @@ describe("useAssignRingGame", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("defaults mode='existing' and effectiveStoreId comes from sessionStoreId when present", () => {
+	it("defaults mode='existing' and effectiveRoomId comes from sessionRoomId when present", () => {
 		const qc = createClient();
 		const { result } = renderHook(
 			() =>
@@ -105,16 +105,16 @@ describe("useAssignRingGame", () => {
 					onClose: vi.fn(),
 					open: false,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
 		expect(result.current.mode).toBe("existing");
-		expect(result.current.effectiveStoreId).toBe("store-a");
+		expect(result.current.effectiveRoomId).toBe("room-a");
 		expect(result.current.isBusy).toBe(false);
 	});
 
-	it("falls back to selectedStoreId when sessionStoreId is null", () => {
+	it("falls back to selectedRoomId when sessionRoomId is null", () => {
 		const qc = createClient();
 		const { result } = renderHook(
 			() =>
@@ -122,14 +122,14 @@ describe("useAssignRingGame", () => {
 					onClose: vi.fn(),
 					open: false,
 					sessionId: "s1",
-					sessionStoreId: null,
+					sessionRoomId: null,
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
 		act(() => {
-			result.current.setSelectedStoreId("s-store");
+			result.current.setSelectedRoomId("s-room");
 		});
-		expect(result.current.effectiveStoreId).toBe("s-store");
+		expect(result.current.effectiveRoomId).toBe("s-room");
 	});
 
 	it("selectForm submits nothing when ringGameId is empty", async () => {
@@ -141,7 +141,7 @@ describe("useAssignRingGame", () => {
 					onClose,
 					open: true,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -162,7 +162,7 @@ describe("useAssignRingGame", () => {
 					onClose,
 					open: true,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -189,7 +189,7 @@ describe("useAssignRingGame", () => {
 					onClose: vi.fn(),
 					open: true,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -204,7 +204,7 @@ describe("useAssignRingGame", () => {
 		);
 	});
 
-	it("handleCreate without effectiveStoreId surfaces a toast and does not call the mutation", () => {
+	it("handleCreate without effectiveRoomId surfaces a toast and does not call the mutation", () => {
 		const qc = createClient();
 		const { result } = renderHook(
 			() =>
@@ -212,7 +212,7 @@ describe("useAssignRingGame", () => {
 					onClose: vi.fn(),
 					open: true,
 					sessionId: "s1",
-					sessionStoreId: null,
+					sessionRoomId: null,
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -229,7 +229,7 @@ describe("useAssignRingGame", () => {
 				currencyId: "c1",
 			});
 		});
-		expect(mocks.toastError).toHaveBeenCalledWith("Select a store first");
+		expect(mocks.toastError).toHaveBeenCalledWith("Select a room first");
 		expect(mocks.createRingGame).not.toHaveBeenCalled();
 	});
 
@@ -244,7 +244,7 @@ describe("useAssignRingGame", () => {
 					onClose,
 					open: true,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -281,7 +281,7 @@ describe("useAssignRingGame", () => {
 					onClose: vi.fn(),
 					open: true,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -308,7 +308,7 @@ describe("useAssignRingGame", () => {
 					onClose: vi.fn(),
 					open: false,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);

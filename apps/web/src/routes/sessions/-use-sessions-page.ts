@@ -1,14 +1,14 @@
 import { useState } from "react";
+import {
+	useEntityLists,
+	useRoomGames,
+} from "@/features/rooms/hooks/use-room-games";
 import type { SessionFilterValues } from "@/features/sessions/components/session-filters";
 import type {
 	SessionFormValues,
 	SessionItem,
 } from "@/features/sessions/hooks/use-sessions";
 import { useSessions } from "@/features/sessions/hooks/use-sessions";
-import {
-	useEntityLists,
-	useStoreGames,
-} from "@/features/stores/hooks/use-store-games";
 
 type ViewingEventsState = {
 	sessionId: string;
@@ -21,8 +21,8 @@ export function useSessionsPage() {
 	const [editingSession, setEditingSession] = useState<SessionItem | null>(
 		null
 	);
-	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>();
-	const [editStoreId, setEditStoreId] = useState<string | undefined>();
+	const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>();
+	const [editRoomId, setEditRoomId] = useState<string | undefined>();
 	const [filters, setFilters] = useState<SessionFilterValues>({});
 	const [bbBiMode, setBbBiMode] = useState(false);
 	const [viewingEvents, setViewingEvents] = useState<ViewingEventsState>(null);
@@ -39,9 +39,9 @@ export function useSessionsPage() {
 		createTag,
 	} = useSessions(filters);
 
-	const { stores, currencies } = useEntityLists();
-	const createGames = useStoreGames(selectedStoreId);
-	const editGames = useStoreGames(editStoreId, { includeAll: true });
+	const { rooms, currencies } = useEntityLists();
+	const createGames = useRoomGames(selectedRoomId);
+	const editGames = useRoomGames(editRoomId, { includeAll: true });
 
 	const handleCreate = (values: SessionFormValues) => {
 		create(values).then(() => {
@@ -71,18 +71,18 @@ export function useSessionsPage() {
 
 	const handleOpenEdit = (session: SessionItem) => {
 		setEditingSession(session);
-		setEditStoreId(session.storeId ?? undefined);
+		setEditRoomId(session.roomId ?? undefined);
 	};
 
 	const handleCloseEdit = () => {
 		setEditingSession(null);
-		setEditStoreId(undefined);
+		setEditRoomId(undefined);
 	};
 
 	const handleCreateDialogOpenChange = (open: boolean) => {
 		setIsCreateOpen(open);
 		if (!open) {
-			setSelectedStoreId(undefined);
+			setSelectedRoomId(undefined);
 		}
 	};
 
@@ -118,7 +118,7 @@ export function useSessionsPage() {
 		editingSession,
 		filters,
 		bbBiMode,
-		stores,
+		rooms,
 		currencies,
 		createGames,
 		editGames,
@@ -127,8 +127,8 @@ export function useSessionsPage() {
 		setIsTagManagerOpen,
 		setFilters,
 		setBbBiMode,
-		setSelectedStoreId,
-		setEditStoreId,
+		setSelectedRoomId,
+		setEditRoomId,
 		handleCreate,
 		handleUpdate,
 		handleDelete,

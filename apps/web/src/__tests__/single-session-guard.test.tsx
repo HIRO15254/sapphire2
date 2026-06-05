@@ -51,11 +51,11 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
-		store: {
+		room: {
 			list: {
 				queryOptions: () => ({
-					queryKey: ["stores"],
-					queryFn: () => mockQuery("stores"),
+					queryKey: ["rooms"],
+					queryFn: () => mockQuery("rooms"),
 				}),
 			},
 		},
@@ -68,17 +68,17 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 		ringGame: {
-			listByStore: {
-				queryOptions: (args: { storeId: string }) => ({
-					queryKey: ["ring-games", args.storeId],
+			listByRoom: {
+				queryOptions: (args: { roomId: string }) => ({
+					queryKey: ["ring-games", args.roomId],
 					queryFn: () => mockQuery("ring-games", args),
 				}),
 			},
 		},
 		tournament: {
-			listByStore: {
-				queryOptions: (args: { storeId: string }) => ({
-					queryKey: ["tournaments", args.storeId],
+			listByRoom: {
+				queryOptions: (args: { roomId: string }) => ({
+					queryKey: ["tournaments", args.roomId],
 					queryFn: () => mockQuery("tournaments", args),
 				}),
 			},

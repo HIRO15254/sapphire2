@@ -7,7 +7,7 @@ function filters(
 ): SessionFilterValues {
 	return {
 		type: undefined,
-		storeId: undefined,
+		roomId: undefined,
 		currencyId: undefined,
 		dateFrom: undefined,
 		dateTo: undefined,
@@ -22,7 +22,7 @@ describe("countActiveFilters", () => {
 
 	it("counts each present field individually", () => {
 		expect(countActiveFilters(filters({ type: "cash_game" }))).toBe(1);
-		expect(countActiveFilters(filters({ storeId: "store-1" }))).toBe(1);
+		expect(countActiveFilters(filters({ roomId: "room-1" }))).toBe(1);
 		expect(countActiveFilters(filters({ currencyId: "jpy" }))).toBe(1);
 		expect(countActiveFilters(filters({ dateFrom: "2026-01-01" }))).toBe(1);
 		expect(countActiveFilters(filters({ dateTo: "2026-02-01" }))).toBe(1);
@@ -33,7 +33,7 @@ describe("countActiveFilters", () => {
 			countActiveFilters(
 				filters({
 					type: "tournament",
-					storeId: "store-1",
+					roomId: "room-1",
 					currencyId: "usd",
 					dateFrom: "2026-01-01",
 					dateTo: "2026-02-01",
@@ -47,7 +47,7 @@ describe("countActiveFilters", () => {
 			countActiveFilters(
 				filters({
 					type: "" as unknown as SessionFilterValues["type"],
-					storeId: "",
+					roomId: "",
 					currencyId: "",
 					dateFrom: "",
 					dateTo: "",

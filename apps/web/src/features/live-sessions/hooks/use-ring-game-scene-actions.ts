@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { RingGameFormValues } from "@/features/stores/hooks/use-ring-games";
+import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 

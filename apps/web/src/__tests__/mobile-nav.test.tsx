@@ -67,7 +67,7 @@ function createTestRouter(initialPath: string) {
 		"/",
 		"/dashboard",
 		"/resources",
-		"/stores",
+		"/rooms",
 		"/currencies",
 		"/sessions",
 		"/live-sessions",

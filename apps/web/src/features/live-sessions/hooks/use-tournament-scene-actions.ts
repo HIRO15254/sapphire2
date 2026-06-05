@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
-import type { TournamentFormValues } from "@/features/stores/hooks/use-tournaments";
+import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
+import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 

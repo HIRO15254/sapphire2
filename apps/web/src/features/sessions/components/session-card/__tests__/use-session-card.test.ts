@@ -20,7 +20,7 @@ const SESSION = {
 	startedAt: null,
 	endedAt: null,
 	currencyUnit: "",
-	storeName: null,
+	roomName: null,
 	ringGameName: null,
 	ringGameBlind2: null,
 	tournamentName: null,

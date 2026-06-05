@@ -61,13 +61,13 @@ export interface SessionItem {
 	ringGameBlind2: number | null;
 	ringGameId: string | null;
 	ringGameName: string | null;
+	roomId: string | null;
+	roomName: string | null;
 	sessionDate: string;
 	// CTI fields — always present from session.list since Phase 1 DB migration
 	source: string;
 	startedAt: string | null;
 	status: string;
-	storeId: string | null;
-	storeName: string | null;
 	tags: Array<{ id: string; name: string }>;
 	totalEntries: number | null;
 	tournamentBountyAmount: number | null;
@@ -100,7 +100,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 		breakMinutes: values.breakMinutes,
 		memo: values.memo,
 		tagIds: values.tagIds,
-		storeId: values.storeId,
+		roomId: values.roomId,
 		currencyId: values.currencyId,
 	};
 	if (values.type === "cash_game") {
@@ -151,7 +151,7 @@ export function buildLiveLinkedUpdatePayload(
 		id: values.id,
 		memo: values.memo,
 		tagIds: values.tagIds,
-		storeId: values.storeId ?? null,
+		roomId: values.roomId ?? null,
 		currencyId: values.currencyId ?? null,
 	};
 }
@@ -165,7 +165,7 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		breakMinutes: values.breakMinutes ?? null,
 		memo: values.memo,
 		tagIds: values.tagIds,
-		storeId: values.storeId ?? null,
+		roomId: values.roomId ?? null,
 		currencyId: values.currencyId ?? null,
 	};
 	if (values.type === "cash_game") {
@@ -224,8 +224,8 @@ export function buildOptimisticItem(
 		startedAt: null,
 		endedAt: null,
 		memo: newSession.memo ?? null,
-		storeId: newSession.storeId ?? null,
-		storeName: null,
+		roomId: newSession.roomId ?? null,
+		roomName: null,
 		ringGameId: null,
 		ringGameBlind2: null,
 		ringGameName: null,
@@ -327,7 +327,7 @@ export function buildEditDefaults(session: SessionItem) {
 		breakMinutes: session.breakMinutes ?? undefined,
 		memo: session.memo ?? undefined,
 		tagIds: session.tags.map((t) => t.id),
-		storeId: session.storeId ?? undefined,
+		roomId: session.roomId ?? undefined,
 		ringGameId: session.ringGameId ?? undefined,
 		tournamentId: session.tournamentId ?? undefined,
 		currencyId: session.currencyId ?? undefined,
@@ -342,7 +342,7 @@ export function buildEditDefaults(session: SessionItem) {
 export function filtersToListInput(filters: SessionFilterValues) {
 	return {
 		type: filters.type,
-		storeId: filters.storeId,
+		roomId: filters.roomId,
 		currencyId: filters.currencyId,
 		dateFrom: filters.dateFrom
 			? Math.floor(new Date(filters.dateFrom).getTime() / 1000)

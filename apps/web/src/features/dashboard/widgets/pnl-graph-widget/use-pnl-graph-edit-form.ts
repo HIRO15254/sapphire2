@@ -24,7 +24,7 @@ const editFormSchema = z.object({
 		]
 	),
 	unit: z.enum(PNL_GRAPH_UNIT_VALUES as [PnlGraphUnit, ...PnlGraphUnit[]]),
-	storeId: z.string(),
+	roomId: z.string(),
 	ringGameId: z.string(),
 	currencyId: z.string(),
 	showEvCash: z.boolean(),
@@ -32,7 +32,7 @@ const editFormSchema = z.object({
 	showDateRange: z.boolean(),
 	showSessionType: z.boolean(),
 	showUnit: z.boolean(),
-	showStore: z.boolean(),
+	showRoom: z.boolean(),
 	showCurrency: z.boolean(),
 });
 
@@ -41,10 +41,10 @@ const NONE_VALUE = "__none__";
 interface RingGameItem {
 	id: string;
 	name: string;
-	storeId?: string | null;
+	roomId?: string | null;
 }
 
-interface StoreItem {
+interface RoomItem {
 	id: string;
 	name: string;
 }
@@ -64,16 +64,16 @@ export function usePnlGraphEditForm({
 	onSave,
 }: UsePnlGraphEditFormOptions) {
 	const parsed = parsePnlGraphWidgetConfig(config);
-	const storesQuery = useQuery(trpc.store.list.queryOptions());
+	const roomsQuery = useQuery(trpc.room.list.queryOptions());
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const ringGamesQuery = useQuery(
-		trpc.ringGame.listByStore.queryOptions(
-			{ storeId: parsed.storeId ?? "" },
-			{ enabled: parsed.storeId !== null }
+		trpc.ringGame.listByRoom.queryOptions(
+			{ roomId: parsed.roomId ?? "" },
+			{ enabled: parsed.roomId !== null }
 		)
 	);
 
-	const stores = (storesQuery.data ?? []) as StoreItem[];
+	const rooms = (roomsQuery.data ?? []) as RoomItem[];
 	const ringGames = (ringGamesQuery.data ?? []) as RingGameItem[];
 	const currencies = (currenciesQuery.data ?? []) as CurrencyItem[];
 
@@ -84,7 +84,7 @@ export function usePnlGraphEditForm({
 				parsed.dateRangeDays === null ? "" : String(parsed.dateRangeDays),
 			sessionType: parsed.sessionType,
 			unit: parsed.unit,
-			storeId: parsed.storeId ?? NONE_VALUE,
+			roomId: parsed.roomId ?? NONE_VALUE,
 			ringGameId: parsed.ringGameId ?? NONE_VALUE,
 			currencyId: parsed.currencyId ?? NONE_VALUE,
 			showEvCash: parsed.showEvCash,
@@ -92,7 +92,7 @@ export function usePnlGraphEditForm({
 			showDateRange: parsed.showFilters.dateRange,
 			showSessionType: parsed.showFilters.sessionType,
 			showUnit: parsed.showFilters.unit,
-			showStore: parsed.showFilters.store,
+			showRoom: parsed.showFilters.room,
 			showCurrency: parsed.showFilters.currency,
 		},
 		onSubmit: async ({ value }) => {
@@ -102,7 +102,7 @@ export function usePnlGraphEditForm({
 				dateRangeDays: trimmed === "" ? null : Number.parseInt(trimmed, 10),
 				sessionType: value.sessionType,
 				unit: value.unit,
-				storeId: value.storeId === NONE_VALUE ? null : value.storeId,
+				roomId: value.roomId === NONE_VALUE ? null : value.roomId,
 				ringGameId: value.ringGameId === NONE_VALUE ? null : value.ringGameId,
 				currencyId: value.currencyId === NONE_VALUE ? null : value.currencyId,
 				showEvCash: value.showEvCash,
@@ -111,7 +111,7 @@ export function usePnlGraphEditForm({
 					dateRange: value.showDateRange,
 					sessionType: value.showSessionType,
 					unit: value.showUnit,
-					store: value.showStore,
+					room: value.showRoom,
 					currency: value.showCurrency,
 				},
 			});
@@ -124,6 +124,6 @@ export function usePnlGraphEditForm({
 		form,
 		NONE_VALUE,
 		ringGames,
-		stores,
+		rooms,
 	};
 }
