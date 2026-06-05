@@ -21,7 +21,7 @@ export function PublicPageShell({
 	title,
 }: PublicPageShellProps) {
 	return (
-		<div className="min-h-screen bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/0.14),_transparent_40%),linear-gradient(to_bottom,_hsl(var(--background)),_hsl(var(--muted)/0.3))]">
+		<div className="theme-v2 min-h-screen bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/0.14),_transparent_40%),linear-gradient(to_bottom,_hsl(var(--background)),_hsl(var(--muted)/0.3))]">
 			<div
 				className={cn(
 					"mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center gap-10 px-4 py-10 sm:px-6 lg:px-8",
@@ -36,9 +36,7 @@ export function PublicPageShell({
 									{eyebrow}
 								</p>
 							) : null}
-							<h1 className="max-w-2xl font-bold text-4xl tracking-tight sm:text-5xl">
-								{title}
-							</h1>
+							<h1 className="t-display max-w-2xl">{title}</h1>
 							<p className="max-w-2xl text-balance text-lg text-muted-foreground">
 								{description}
 							</p>

@@ -34,8 +34,6 @@ export default function SignUpForm({
 
 	return (
 		<AuthFormShell
-			description="Create your account to start tracking sessions, players, and rooms."
-			eyebrow="New Account"
 			onSwitchMode={onSwitchToSignIn}
 			providerActions={providerActions}
 			switchLabel="Already have an account? Sign In"
