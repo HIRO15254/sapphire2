@@ -29,6 +29,11 @@ interface TournamentEditDialogProps {
 	title: string;
 }
 
+/**
+ * Legacy ResponsiveDialog tournament create/edit surface, retained for the
+ * live-sessions consumers. The V2 stores flow uses
+ * {@link import("../tournament-form-sheet").TournamentFormSheet} instead.
+ */
 export function TournamentEditDialog({
 	aiMode,
 	initialBlindLevels,

@@ -54,6 +54,8 @@ export function useTournamentTab({ storeId }: UseTournamentTabOptions) {
 	const [editingTournament, setEditingTournament] = useState<Tournament | null>(
 		null
 	);
+	const [actionsTarget, setActionsTarget] = useState<Tournament | null>(null);
+	const [pendingDelete, setPendingDelete] = useState<Tournament | null>(null);
 	const [isCreateLoading, setIsCreateLoading] = useState(false);
 	const [isUpdateLoading, setIsUpdateLoading] = useState(false);
 
@@ -159,6 +161,49 @@ export function useTournamentTab({ storeId }: UseTournamentTabOptions) {
 		}
 	};
 
+	const toggleArchived = () => setShowArchived((prev) => !prev);
+
+	const openActions = (tournament: Tournament) => setActionsTarget(tournament);
+	const closeActions = () => setActionsTarget(null);
+
+	const openEditFromActions = () => {
+		if (actionsTarget) {
+			setEditingTournament(actionsTarget);
+		}
+		setActionsTarget(null);
+	};
+
+	const openDeleteFromActions = () => {
+		if (actionsTarget) {
+			setPendingDelete(actionsTarget);
+		}
+		setActionsTarget(null);
+	};
+
+	const handleArchiveFromActions = () => {
+		if (actionsTarget) {
+			archive(actionsTarget.id);
+		}
+		setActionsTarget(null);
+	};
+
+	const handleRestoreFromActions = () => {
+		if (actionsTarget) {
+			restore(actionsTarget.id);
+		}
+		setActionsTarget(null);
+	};
+
+	const cancelDelete = () => setPendingDelete(null);
+
+	const handleConfirmDelete = () => {
+		if (!pendingDelete) {
+			return;
+		}
+		deleteTournament(pendingDelete.id);
+		setPendingDelete(null);
+	};
+
 	const editInitialFormValues = editingTournament
 		? tournamentToInitialFormValues(editingTournament)
 		: undefined;
@@ -171,15 +216,14 @@ export function useTournamentTab({ storeId }: UseTournamentTabOptions) {
 		currencies,
 		activeLoading,
 		archivedLoading,
-		archive,
-		restore,
-		deleteTournament,
 		showArchived,
-		setShowArchived,
+		toggleArchived,
 		isCreateOpen,
 		setIsCreateOpen,
 		editingTournament,
 		setEditingTournament,
+		actionsTarget,
+		pendingDelete,
 		isCreateLoading,
 		isUpdateLoading,
 		editBlindLevelsLoading: editBlindLevelsQuery.isLoading,
@@ -187,15 +231,13 @@ export function useTournamentTab({ storeId }: UseTournamentTabOptions) {
 		editInitialLevels,
 		handleCreate,
 		handleUpdate,
-	};
-}
-
-export function useBlindStructureSummary(tournamentId: string) {
-	const levelsQuery = useQuery(
-		trpc.blindLevel.listByTournament.queryOptions({ tournamentId })
-	);
-	return {
-		levels: (levelsQuery.data ?? []) as BlindLevelRow[],
-		isLoading: levelsQuery.isLoading,
+		openActions,
+		closeActions,
+		openEditFromActions,
+		openDeleteFromActions,
+		handleArchiveFromActions,
+		handleRestoreFromActions,
+		cancelDelete,
+		handleConfirmDelete,
 	};
 }

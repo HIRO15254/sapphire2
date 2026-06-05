@@ -25,6 +25,13 @@ type AnteType = "all" | "bb" | "none";
 
 interface RingGameFormProps {
 	defaultValues?: RingGameFormValues;
+	/**
+	 * When set, the `<form>` gets this id and renders no submit button — the
+	 * surrounding FormSheet toolbar submits it via the HTML `form` attribute
+	 * (V2 stores flow). When omitted, the form renders its own Save button
+	 * (legacy ResponsiveDialog consumers, e.g. live-sessions).
+	 */
+	formId?: string;
 	isLoading?: boolean;
 	onSubmit: (values: RingGameFormValues) => void;
 }
@@ -40,6 +47,7 @@ const ANTE_TYPES = [
 export function RingGameForm({
 	onSubmit,
 	defaultValues,
+	formId,
 	isLoading = false,
 }: RingGameFormProps) {
 	const { form, currencies } = useRingGameForm({ defaultValues, onSubmit });
@@ -54,6 +62,7 @@ export function RingGameForm({
 	return (
 		<form
 			className="flex flex-col gap-4"
+			id={formId}
 			onSubmit={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -298,18 +307,20 @@ export function RingGameForm({
 				)}
 			</form.Field>
 
-			<form.Subscribe
-				selector={(state) => [state.canSubmit, state.isSubmitting]}
-			>
-				{([canSubmit, isSubmitting]) => (
-					<Button
-						disabled={isLoading || !canSubmit || isSubmitting}
-						type="submit"
-					>
-						{isLoading ? "Saving..." : "Save"}
-					</Button>
-				)}
-			</form.Subscribe>
+			{formId ? null : (
+				<form.Subscribe
+					selector={(state) => [state.canSubmit, state.isSubmitting]}
+				>
+					{([canSubmit, isSubmitting]) => (
+						<Button
+							disabled={isLoading || !canSubmit || isSubmitting}
+							type="submit"
+						>
+							{isLoading ? "Saving..." : "Save"}
+						</Button>
+					)}
+				</form.Subscribe>
+			)}
 		</form>
 	);
 }

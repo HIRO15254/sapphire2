@@ -25,7 +25,6 @@ import { useSortableLevelRow } from "@/features/stores/hooks/use-sortable-level-
 import type { NewLevelValues } from "@/features/stores/utils/blind-level-helpers";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import {
 	Table,
 	TableBody,
@@ -42,13 +41,6 @@ const GAME_VARIANTS = {
 		blindLabels: { blind1: "SB", blind2: "BB", blind3: "Straddle" },
 	},
 } as const;
-
-interface BlindLevelEditorProps {
-	onOpenChange: (open: boolean) => void;
-	open: boolean;
-	tournamentId: string;
-	variant: string;
-}
 
 const BLIND_LEVEL_INPUT_CLASS =
 	"h-8 w-full rounded border-0 bg-transparent text-center text-sm outline-none placeholder:text-muted-foreground/40 focus:bg-accent focus:ring-1 focus:ring-ring";
@@ -520,24 +512,5 @@ export function LocalBlindStructureContent({
 			levels={value}
 			sensors={sensors}
 		/>
-	);
-}
-
-export function BlindLevelEditor({
-	tournamentId,
-	variant,
-	open,
-	onOpenChange,
-}: BlindLevelEditorProps) {
-	return (
-		<ResponsiveDialog
-			description="Manage blind levels, breaks, and ordering for this tournament structure."
-			fullHeight
-			onOpenChange={onOpenChange}
-			open={open}
-			title="Blind Structure"
-		>
-			<BlindStructureContent tournamentId={tournamentId} variant={variant} />
-		</ResponsiveDialog>
 	);
 }

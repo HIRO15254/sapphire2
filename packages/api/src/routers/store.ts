@@ -1,13 +1,31 @@
 import { store } from "@sapphire2/db/schema/store";
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
 export const storeRouter = router({
 	list: protectedProcedure.query(({ ctx }) => {
 		const userId = ctx.session.user.id;
-		return ctx.db.select().from(store).where(eq(store.userId, userId));
+		// Active (non-archived) game counts via correlated subqueries so the list
+		// card can show them without an N+1 query per store. The column refs are
+		// written as literal qualified names — interpolating Drizzle column
+		// objects into a raw `sql` subquery renders them *unqualified*
+		// (`store_id`/`id`), which inside the child-table FROM resolves to that
+		// table's own columns and silently yields 0.
+		return ctx.db
+			.select({
+				id: store.id,
+				userId: store.userId,
+				name: store.name,
+				memo: store.memo,
+				createdAt: store.createdAt,
+				updatedAt: store.updatedAt,
+				ringGameCount: sql<number>`(SELECT COUNT(*) FROM ring_game WHERE ring_game.store_id = store.id AND ring_game.archived_at IS NULL)`,
+				tournamentCount: sql<number>`(SELECT COUNT(*) FROM tournament WHERE tournament.store_id = store.id AND tournament.archived_at IS NULL)`,
+			})
+			.from(store)
+			.where(eq(store.userId, userId));
 	}),
 
 	getById: protectedProcedure
@@ -57,7 +75,9 @@ export const storeRouter = router({
 			z.object({
 				id: z.string(),
 				name: z.string().min(1).optional(),
-				memo: z.string().optional(),
+				// Nullable so an explicit `null` clears the memo. `undefined`
+				// (key omitted) still means "leave unchanged".
+				memo: z.string().nullable().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

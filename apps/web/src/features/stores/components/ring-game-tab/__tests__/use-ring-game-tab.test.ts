@@ -34,41 +34,43 @@ function gamesStub(activeGames: RingGame[]) {
 	};
 }
 
+const game = (id: string, name = "1/2") => ({ id, name }) as RingGame;
+
 describe("useRingGameTab", () => {
 	beforeEach(() => {
-		hoisted.create.mockReset();
-		hoisted.update.mockReset();
+		for (const m of [
+			hoisted.create,
+			hoisted.update,
+			hoisted.archive,
+			hoisted.restore,
+			hoisted.del,
+		]) {
+			m.mockReset();
+		}
 		hoisted.useRingGames.mockReturnValue(gamesStub([]));
 	});
 
-	it("starts with showArchived=false, dialogs closed, editingGame=null", () => {
+	it("starts with showArchived=false, sheet closed, no targets", () => {
 		const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
 		expect(result.current.showArchived).toBe(false);
 		expect(result.current.isCreateOpen).toBe(false);
 		expect(result.current.editingGame).toBeNull();
+		expect(result.current.actionsTarget).toBeNull();
+		expect(result.current.pendingDelete).toBeNull();
 	});
 
-	it("setShowArchived / setIsCreateOpen / setEditingGame transitions", () => {
+	it("toggleArchived flips showArchived back and forth", () => {
 		const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
-		act(() => {
-			result.current.setShowArchived(true);
-			result.current.setIsCreateOpen(true);
-		});
+		act(() => result.current.toggleArchived());
 		expect(result.current.showArchived).toBe(true);
-		expect(result.current.isCreateOpen).toBe(true);
-		const game = { id: "g1", name: "1/2" } as RingGame;
-		act(() => {
-			result.current.setEditingGame(game);
-		});
-		expect(result.current.editingGame).toBe(game);
+		act(() => result.current.toggleArchived());
+		expect(result.current.showArchived).toBe(false);
 	});
 
-	it("handleCreate calls create and closes the create dialog on success", async () => {
+	it("handleCreate calls create and closes the create sheet on success", async () => {
 		hoisted.create.mockResolvedValue({ id: "g-new" });
 		const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
-		act(() => {
-			result.current.setIsCreateOpen(true);
-		});
+		act(() => result.current.setIsCreateOpen(true));
 		act(() => {
 			result.current.handleCreate({ name: "n", variant: "nlh" });
 		});
@@ -87,10 +89,7 @@ describe("useRingGameTab", () => {
 	it("handleUpdate calls update with the id and clears editingGame on success", async () => {
 		hoisted.update.mockResolvedValue({ id: "g1" });
 		const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
-		const editing = { id: "g1", name: "old" } as RingGame;
-		act(() => {
-			result.current.setEditingGame(editing);
-		});
+		act(() => result.current.setEditingGame(game("g1", "old")));
 		act(() => {
 			result.current.handleUpdate({ name: "new", variant: "nlh" });
 		});
@@ -99,6 +98,108 @@ describe("useRingGameTab", () => {
 			id: "g1",
 			name: "new",
 			variant: "nlh",
+		});
+	});
+
+	describe("action drawer", () => {
+		it("openActions sets the target; closeActions clears it", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			const g = game("g1");
+			act(() => result.current.openActions(g));
+			expect(result.current.actionsTarget).toBe(g);
+			act(() => result.current.closeActions());
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("openEditFromActions moves the target into editingGame and closes the drawer", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			const g = game("g1");
+			act(() => result.current.openActions(g));
+			act(() => result.current.openEditFromActions());
+			expect(result.current.editingGame).toBe(g);
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("openDeleteFromActions moves the target into pendingDelete and closes the drawer", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			const g = game("g1");
+			act(() => result.current.openActions(g));
+			act(() => result.current.openDeleteFromActions());
+			expect(result.current.pendingDelete).toBe(g);
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("handleArchiveFromActions archives the target id and closes the drawer", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.openActions(game("g1")));
+			act(() => result.current.handleArchiveFromActions());
+			expect(hoisted.archive).toHaveBeenCalledTimes(1);
+			expect(hoisted.archive).toHaveBeenCalledWith("g1");
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("handleRestoreFromActions restores the target id and closes the drawer", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.openActions(game("g1")));
+			act(() => result.current.handleRestoreFromActions());
+			expect(hoisted.restore).toHaveBeenCalledTimes(1);
+			expect(hoisted.restore).toHaveBeenCalledWith("g1");
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("openEditFromActions is a no-op when no target is set", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.openEditFromActions());
+			expect(result.current.editingGame).toBeNull();
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("openDeleteFromActions is a no-op when no target is set", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.openDeleteFromActions());
+			expect(result.current.pendingDelete).toBeNull();
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("handleArchiveFromActions is a no-op when no target is set", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.handleArchiveFromActions());
+			expect(hoisted.archive).not.toHaveBeenCalled();
+			expect(result.current.actionsTarget).toBeNull();
+		});
+
+		it("handleRestoreFromActions is a no-op when no target is set", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.handleRestoreFromActions());
+			expect(hoisted.restore).not.toHaveBeenCalled();
+			expect(result.current.actionsTarget).toBeNull();
+		});
+	});
+
+	describe("delete confirmation", () => {
+		it("handleConfirmDelete deletes the pending id and clears it", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.openActions(game("g1")));
+			act(() => result.current.openDeleteFromActions());
+			act(() => result.current.handleConfirmDelete());
+			expect(hoisted.del).toHaveBeenCalledTimes(1);
+			expect(hoisted.del).toHaveBeenCalledWith("g1");
+			expect(result.current.pendingDelete).toBeNull();
+		});
+
+		it("handleConfirmDelete is a no-op when nothing is pending", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.handleConfirmDelete());
+			expect(hoisted.del).not.toHaveBeenCalled();
+		});
+
+		it("cancelDelete clears the pending target without deleting", () => {
+			const { result } = renderHook(() => useRingGameTab({ storeId: "s1" }));
+			act(() => result.current.openActions(game("g1")));
+			act(() => result.current.openDeleteFromActions());
+			act(() => result.current.cancelDelete());
+			expect(result.current.pendingDelete).toBeNull();
+			expect(hoisted.del).not.toHaveBeenCalled();
 		});
 	});
 });

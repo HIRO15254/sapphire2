@@ -108,6 +108,10 @@ describe("store.update input validation", () => {
 		expectAccepts(appRouter.store.update, { id: "s1", memo: "new memo" });
 	});
 
+	it("accepts memo cleared to null", () => {
+		expectAccepts(appRouter.store.update, { id: "s1", memo: null });
+	});
+
 	it("rejects empty name when provided", () => {
 		expectRejects(appRouter.store.update, { id: "s1", name: "" });
 	});

@@ -88,4 +88,23 @@ describe("RingGameForm", () => {
 
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
+
+	it("renders its own Save button when no formId is given (legacy consumers)", () => {
+		const { container } = render(<RingGameForm onSubmit={vi.fn()} />);
+		expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+		expect(container.querySelector("form")).not.toHaveAttribute("id");
+	});
+
+	it("omits the Save button and tags the form with the id when formId is given", () => {
+		const { container } = render(
+			<RingGameForm formId="ring-game-create-form" onSubmit={vi.fn()} />
+		);
+		expect(container.querySelector("form")).toHaveAttribute(
+			"id",
+			"ring-game-create-form"
+		);
+		expect(
+			screen.queryByRole("button", { name: "Save" })
+		).not.toBeInTheDocument();
+	});
 });

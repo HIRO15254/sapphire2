@@ -1,4 +1,3 @@
-import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -7,20 +6,22 @@ import { useStoreForm } from "./use-store-form";
 
 interface StoreFormProps {
 	defaultValues?: StoreFormValues;
-	isLoading?: boolean;
+	/**
+	 * Stable id assigned to the `<form>` element so an external Save button
+	 * (rendered by the surrounding FormSheet toolbar) can submit it via the
+	 * HTML `form` attribute.
+	 */
+	formId: string;
 	onSubmit: (values: StoreFormValues) => void;
 }
 
-export function StoreForm({
-	onSubmit,
-	defaultValues,
-	isLoading = false,
-}: StoreFormProps) {
+export function StoreForm({ onSubmit, defaultValues, formId }: StoreFormProps) {
 	const { form } = useStoreForm({ onSubmit, defaultValues });
 
 	return (
 		<form
 			className="flex flex-col gap-4"
+			id={formId}
 			onSubmit={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -32,7 +33,7 @@ export function StoreForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Store Name"
+						label="Store name"
 						required
 					>
 						<Input
@@ -58,18 +59,6 @@ export function StoreForm({
 					</Field>
 				)}
 			</form.Field>
-			<form.Subscribe
-				selector={(state) => [state.canSubmit, state.isSubmitting]}
-			>
-				{([canSubmit, isSubmitting]) => (
-					<Button
-						disabled={isLoading || !canSubmit || isSubmitting}
-						type="submit"
-					>
-						{isLoading ? "Saving..." : "Save"}
-					</Button>
-				)}
-			</form.Subscribe>
 		</form>
 	);
 }

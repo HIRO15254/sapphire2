@@ -25,6 +25,13 @@ interface TournamentFormProps {
 		chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
 		tags?: string[];
 	};
+	/**
+	 * When set, the `<form>` gets this id and renders no submit button — the
+	 * surrounding FormSheet toolbar submits it via the HTML `form` attribute
+	 * (V2 stores flow). When omitted, the form renders its own Save button
+	 * (legacy ResponsiveDialog consumers, e.g. live-sessions).
+	 */
+	formId?: string;
 	isLoading?: boolean;
 	onSubmit: (values: TournamentFormValues) => void;
 }
@@ -32,6 +39,7 @@ interface TournamentFormProps {
 export function TournamentForm({
 	onSubmit,
 	defaultValues,
+	formId,
 	isLoading = false,
 }: TournamentFormProps) {
 	const { form, currencies } = useTournamentForm({ defaultValues, onSubmit });
@@ -39,6 +47,7 @@ export function TournamentForm({
 	return (
 		<form
 			className="flex flex-col gap-4"
+			id={formId}
 			onSubmit={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -252,18 +261,20 @@ export function TournamentForm({
 				)}
 			</form.Field>
 
-			<form.Subscribe
-				selector={(state) => [state.canSubmit, state.isSubmitting]}
-			>
-				{([canSubmit, isSubmitting]) => (
-					<Button
-						disabled={isLoading || !canSubmit || isSubmitting}
-						type="submit"
-					>
-						{isLoading ? "Saving..." : "Save"}
-					</Button>
-				)}
-			</form.Subscribe>
+			{formId ? null : (
+				<form.Subscribe
+					selector={(state) => [state.canSubmit, state.isSubmitting]}
+				>
+					{([canSubmit, isSubmitting]) => (
+						<Button
+							disabled={isLoading || !canSubmit || isSubmitting}
+							type="submit"
+						>
+							{isLoading ? "Saving..." : "Save"}
+						</Button>
+					)}
+				</form.Subscribe>
+			)}
 		</form>
 	);
 }
