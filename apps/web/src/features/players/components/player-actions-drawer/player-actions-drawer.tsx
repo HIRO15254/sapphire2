@@ -20,7 +20,7 @@ interface PlayerActionsDrawerProps {
 
 /**
  * V2 action sheet for the player detail page header overflow, mirroring
- * `StoreActionsDrawer`: Edit / Delete the player itself.
+ * `RoomActionsDrawer`: Edit / Delete the player itself.
  */
 export function PlayerActionsDrawer({
 	onDelete,

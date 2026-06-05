@@ -24,7 +24,7 @@ const SKELETON_COUNT = 5;
 
 /**
  * Owns the list surface's loading / empty / data switch, mirroring
- * `StoreList` / `CurrencyList`: the consumer passes `isLoading` + `players` and
+ * `RoomList` / `CurrencyList`: the consumer passes `isLoading` + `players` and
  * the component decides what to render. The empty branch splits on `isSearching`
  * so a search that matches nothing reads differently from an empty account.
  */
