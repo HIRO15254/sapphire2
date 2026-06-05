@@ -35,7 +35,6 @@ function SettingsComponent() {
 							Sign Out
 						</Button>
 					}
-					description="Manage login methods and account preferences."
 					heading="Settings"
 				/>
 

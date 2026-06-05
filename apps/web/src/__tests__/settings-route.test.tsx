@@ -50,9 +50,6 @@ describe("SettingsComponent", () => {
 		expect(
 			screen.getByRole("heading", { name: "Settings" })
 		).toBeInTheDocument();
-		expect(
-			screen.getByText("Manage login methods and account preferences.")
-		).toBeInTheDocument();
 		expect(screen.getByText("Linked Accounts")).toBeInTheDocument();
 	});
 
