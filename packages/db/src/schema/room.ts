@@ -11,6 +11,9 @@ export const room = sqliteTable(
 			.references(() => user.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		memo: text("memo"),
+		isFavorite: integer("is_favorite", { mode: "boolean" })
+			.notNull()
+			.default(false),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),

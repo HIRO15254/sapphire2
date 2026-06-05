@@ -5,12 +5,18 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import { RoomListCard } from "@/features/rooms/pages/rooms-page/room-list-card";
 
-function renderCard(room: React.ComponentProps<typeof RoomListCard>["room"]) {
+function renderCard(
+	room: React.ComponentProps<typeof RoomListCard>["room"],
+	onToggleFavorite = vi.fn()
+) {
 	const rootRoute = createRootRoute({
-		component: () => <RoomListCard room={room} />,
+		component: () => (
+			<RoomListCard onToggleFavorite={onToggleFavorite} room={room} />
+		),
 	});
 	const detailRoute = createRoute({
 		getParentRoute: () => rootRoute,
@@ -20,12 +26,16 @@ function renderCard(room: React.ComponentProps<typeof RoomListCard>["room"]) {
 	const router = createRouter({
 		routeTree: rootRoute.addChildren([detailRoute]),
 	});
-	return render(<RouterProvider router={router} />);
+	return {
+		rendered: render(<RouterProvider router={router} />),
+		onToggleFavorite,
+	};
 }
 
 const baseRoom = {
 	id: "s1",
 	name: "Akiba Casino",
+	isFavorite: false,
 	memo: null as string | null,
 	ringGameCount: 0,
 	tournamentCount: 0,
@@ -71,5 +81,34 @@ describe("RoomListCard", () => {
 		renderCard({ ...baseRoom, id: "s42" });
 		const link = await screen.findByRole("link");
 		expect(link).toHaveAttribute("href", "/rooms/s42");
+	});
+
+	it("renders the 'Add to favorites' button when isFavorite is false", async () => {
+		renderCard({ ...baseRoom, isFavorite: false });
+		await screen.findByText("Akiba Casino");
+		expect(screen.getByLabelText("Add to favorites")).toBeInTheDocument();
+	});
+
+	it("renders the 'Remove from favorites' button when isFavorite is true", async () => {
+		renderCard({ ...baseRoom, isFavorite: true });
+		await screen.findByText("Akiba Casino");
+		expect(screen.getByLabelText("Remove from favorites")).toBeInTheDocument();
+	});
+
+	it("calls onToggleFavorite when the star button is clicked", async () => {
+		const user = userEvent.setup();
+		const { onToggleFavorite } = renderCard({ ...baseRoom, isFavorite: false });
+		await screen.findByText("Akiba Casino");
+		await user.click(screen.getByLabelText("Add to favorites"));
+		expect(onToggleFavorite).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not navigate when the star button is clicked (e.preventDefault)", async () => {
+		const user = userEvent.setup();
+		renderCard({ ...baseRoom, isFavorite: false });
+		await screen.findByText("Akiba Casino");
+		const starBtn = screen.getByLabelText("Add to favorites");
+		await user.click(starBtn);
+		expect(screen.queryByText("detail")).not.toBeInTheDocument();
 	});
 });

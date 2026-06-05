@@ -34,7 +34,7 @@ describe("room router", () => {
 
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.room).sort()).toEqual(
-			["create", "delete", "getById", "list", "update"].sort()
+			["create", "delete", "getById", "list", "toggleFavorite", "update"].sort()
 		);
 	});
 
@@ -45,11 +45,12 @@ describe("room router", () => {
 		expectType(appRouter.room.getById, "query");
 	});
 
-	it("create / update / delete are protected mutations", () => {
+	it("create / update / delete / toggleFavorite are protected mutations", () => {
 		for (const proc of [
 			appRouter.room.create,
 			appRouter.room.update,
 			appRouter.room.delete,
+			appRouter.room.toggleFavorite,
 		]) {
 			expectProtected(proc);
 			expectType(proc, "mutation");
@@ -128,5 +129,19 @@ describe("room.delete input validation", () => {
 
 	it("rejects missing id", () => {
 		expectRejects(appRouter.room.delete, {});
+	});
+});
+
+describe("room.toggleFavorite input validation", () => {
+	it("accepts valid id", () => {
+		expectAccepts(appRouter.room.toggleFavorite, { id: "r1" });
+	});
+
+	it("rejects missing id", () => {
+		expectRejects(appRouter.room.toggleFavorite, {});
+	});
+
+	it("rejects non-string id", () => {
+		expectRejects(appRouter.room.toggleFavorite, { id: 123 });
 	});
 });

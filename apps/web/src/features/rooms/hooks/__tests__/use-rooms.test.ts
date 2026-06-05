@@ -13,6 +13,7 @@ const trpcMocks = vi.hoisted(() => ({
 	create: vi.fn(),
 	update: vi.fn(),
 	delete: vi.fn(),
+	toggleFavorite: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -31,6 +32,7 @@ vi.mock("@/utils/trpc", () => ({
 			create: { mutate: trpcMocks.create },
 			update: { mutate: trpcMocks.update },
 			delete: { mutate: trpcMocks.delete },
+			toggleFavorite: { mutate: trpcMocks.toggleFavorite },
 		},
 	},
 }));
@@ -60,6 +62,7 @@ describe("useRooms", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		trpcMocks.toggleFavorite.mockResolvedValue({ id: "s1" });
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -74,6 +77,7 @@ describe("useRooms", () => {
 			expect(result.current.rooms).toEqual([]);
 			expect(result.current.isCreatePending).toBe(false);
 			expect(result.current.isUpdatePending).toBe(false);
+			expect(result.current.isToggleFavoritePending).toBe(false);
 		});
 
 		it("exposes seeded rooms from the cache", async () => {
@@ -398,6 +402,190 @@ describe("useRooms", () => {
 			});
 			await waitFor(() => expect(trpcMocks.delete).toHaveBeenCalled());
 			await waitFor(() => expect(snapshotAtRollback).toEqual(prev));
+		});
+	});
+
+	describe("toggleFavorite (optimistic)", () => {
+		const CREATED_AT = "2024-01-01T00:00:00.000Z";
+
+		it("flips isFavorite on the matching room and re-sorts favorites first", async () => {
+			const qc = createClient();
+			qc.setQueryData(STORE_KEY, [
+				{
+					id: "s1",
+					name: "Main",
+					memo: null,
+					isFavorite: false,
+					createdAt: CREATED_AT,
+				},
+				{
+					id: "s2",
+					name: "Branch",
+					memo: null,
+					isFavorite: false,
+					createdAt: "2024-01-02T00:00:00.000Z",
+				},
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.toggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useRooms(), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("s2");
+			});
+			await waitFor(() => {
+				const list =
+					qc.getQueryData<Array<{ id: string; isFavorite: boolean }>>(
+						STORE_KEY
+					);
+				expect(list?.[0]?.id).toBe("s2");
+				expect(list?.[0]?.isFavorite).toBe(true);
+				expect(list?.[1]?.id).toBe("s1");
+				expect(list?.[1]?.isFavorite).toBe(false);
+			});
+			resolve?.({ id: "s2" });
+		});
+
+		it("sorts equal-favorite items by createdAt ascending", async () => {
+			const qc = createClient();
+			qc.setQueryData(STORE_KEY, [
+				{
+					id: "s1",
+					name: "Main",
+					memo: null,
+					isFavorite: true,
+					createdAt: "2024-01-02T00:00:00.000Z",
+				},
+				{
+					id: "s2",
+					name: "Branch",
+					memo: null,
+					isFavorite: false,
+					createdAt: "2024-01-01T00:00:00.000Z",
+				},
+				{
+					id: "s3",
+					name: "Third",
+					memo: null,
+					isFavorite: false,
+					createdAt: "2024-01-03T00:00:00.000Z",
+				},
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.toggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useRooms(), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("s3");
+			});
+			// Check the optimistic sort while the mutation is in-flight.
+			await waitFor(() => {
+				const list = qc.getQueryData<Array<{ id: string }>>(STORE_KEY);
+				expect(list?.map((r) => r.id)).toEqual(["s1", "s3", "s2"]);
+			});
+			resolve?.({ id: "s3" });
+		});
+
+		it("skips optimistic update when cache is undefined (onMutate no-op branch)", async () => {
+			const qc = createClient();
+			trpcMocks.toggleFavorite.mockResolvedValue({ id: "s1" });
+			const { result } = renderHook(() => useRooms(), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				await result.current.toggleFavorite("s1");
+			});
+			expect(trpcMocks.toggleFavorite).toHaveBeenCalledWith({ id: "s1" });
+		});
+
+		it("flips isToggleFavoritePending to true while in-flight", async () => {
+			const qc = createClient();
+			qc.setQueryData(STORE_KEY, [
+				{
+					id: "s1",
+					name: "Main",
+					memo: null,
+					isFavorite: false,
+					createdAt: CREATED_AT,
+				},
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.toggleFavorite.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useRooms(), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.toggleFavorite("s1");
+			});
+			await waitFor(() =>
+				expect(result.current.isToggleFavoritePending).toBe(true)
+			);
+			resolve?.({ id: "s1" });
+			await waitFor(() =>
+				expect(result.current.isToggleFavoritePending).toBe(false)
+			);
+		});
+
+		it("restores the cache when toggleFavorite fails (observed via setQueryData spy)", async () => {
+			const qc = createClient();
+			const prev = [
+				{
+					id: "s1",
+					name: "Main",
+					memo: null,
+					isFavorite: false,
+					createdAt: CREATED_AT,
+				},
+			];
+			qc.setQueryData(STORE_KEY, prev);
+			trpcMocks.toggleFavorite.mockRejectedValue(new Error("fail"));
+
+			let snapshotAtRollback: typeof prev | undefined;
+			const originalSetQueryData = qc.setQueryData.bind(qc);
+			vi.spyOn(qc, "setQueryData").mockImplementation(
+				<T>(key: unknown, updater: unknown) => {
+					const r = originalSetQueryData(
+						key as Parameters<typeof originalSetQueryData>[0],
+						updater as Parameters<typeof originalSetQueryData>[1]
+					) as T;
+					const post = qc.getQueryData<typeof prev>(STORE_KEY);
+					if (
+						!snapshotAtRollback &&
+						post?.length === 1 &&
+						post[0]?.isFavorite === false
+					) {
+						snapshotAtRollback = post;
+					}
+					return r;
+				}
+			);
+
+			const { result } = renderHook(() => useRooms(), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				await expect(result.current.toggleFavorite("s1")).rejects.toThrow(
+					"fail"
+				);
+			});
+			expect(snapshotAtRollback).toEqual(prev);
 		});
 	});
 });

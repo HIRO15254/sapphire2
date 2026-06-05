@@ -5,6 +5,7 @@ const hoisted = vi.hoisted(() => ({
 	navigate: vi.fn(),
 	update: vi.fn(),
 	del: vi.fn(),
+	toggleFavorite: vi.fn(),
 	rooms: [] as Array<{
 		id: string;
 		memo?: string | null;
@@ -26,9 +27,11 @@ vi.mock("@/features/rooms/hooks/use-rooms", () => ({
 		isLoading: hoisted.isLoading,
 		isUpdatePending: hoisted.isUpdatePending,
 		isCreatePending: false,
+		isToggleFavoritePending: false,
 		create: vi.fn(),
 		update: hoisted.update,
 		delete: hoisted.del,
+		toggleFavorite: hoisted.toggleFavorite,
 	}),
 }));
 
@@ -47,6 +50,7 @@ describe("useRoomDetailPage", () => {
 		hoisted.navigate.mockReset();
 		hoisted.update.mockReset().mockResolvedValue({ id: "s1" });
 		hoisted.del.mockReset();
+		hoisted.toggleFavorite.mockReset().mockResolvedValue({ id: "s1" });
 		hoisted.rooms = [];
 		hoisted.isLoading = false;
 		hoisted.isUpdatePending = false;
@@ -116,5 +120,20 @@ describe("useRoomDetailPage", () => {
 		expect(hoisted.del).toHaveBeenCalledWith("s1");
 		expect(result.current.confirmingDelete).toBe(false);
 		expect(hoisted.navigate).toHaveBeenCalledWith({ to: "/rooms" });
+	});
+
+	it("handleToggleFavorite closes the actions drawer and calls toggleFavorite with the room id", () => {
+		const { result } = renderHook(() => useRoomDetailPage("s1"));
+		act(() => result.current.setIsActionsOpen(true));
+		act(() => result.current.handleToggleFavorite());
+		expect(result.current.isActionsOpen).toBe(false);
+		expect(hoisted.toggleFavorite).toHaveBeenCalledTimes(1);
+		expect(hoisted.toggleFavorite).toHaveBeenCalledWith("s1");
+	});
+
+	it("handleToggleFavorite uses the correct roomId passed to the hook", () => {
+		const { result } = renderHook(() => useRoomDetailPage("room-42"));
+		act(() => result.current.handleToggleFavorite());
+		expect(hoisted.toggleFavorite).toHaveBeenCalledWith("room-42");
 	});
 });

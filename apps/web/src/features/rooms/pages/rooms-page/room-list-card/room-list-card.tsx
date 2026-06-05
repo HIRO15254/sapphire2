@@ -1,13 +1,17 @@
 import {
 	IconChevronRight,
 	IconPokerChip,
+	IconStar,
+	IconStarFilled,
 	IconTrophy,
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
 
 interface RoomListCardProps {
+	onToggleFavorite: () => void;
 	room: {
 		id: string;
+		isFavorite: boolean;
 		memo?: string | null;
 		name: string;
 		ringGameCount: number;
@@ -15,13 +19,30 @@ interface RoomListCardProps {
 	};
 }
 
-export function RoomListCard({ room }: RoomListCardProps) {
+export function RoomListCard({ room, onToggleFavorite }: RoomListCardProps) {
 	return (
 		<Link
 			className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-card-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 			params={{ roomId: room.id }}
 			to="/rooms/$roomId"
 		>
+			<button
+				aria-label={
+					room.isFavorite ? "Remove from favorites" : "Add to favorites"
+				}
+				className="-m-1.5 shrink-0 rounded p-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+				onClick={(e) => {
+					e.preventDefault();
+					onToggleFavorite();
+				}}
+				type="button"
+			>
+				{room.isFavorite ? (
+					<IconStarFilled className="size-4 text-yellow-500" />
+				) : (
+					<IconStar className="size-4" />
+				)}
+			</button>
 			<div className="min-w-0 flex-1">
 				<p className="truncate font-medium text-foreground text-sm">
 					{room.name}

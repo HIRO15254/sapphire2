@@ -15,9 +15,15 @@ export function useRoomDetailPage(roomId: string) {
 		isUpdatePending,
 		update,
 		delete: deleteRoom,
+		toggleFavorite,
 	} = useRooms();
 
 	const room = rooms.find((s) => s.id === roomId) ?? null;
+
+	const handleToggleFavorite = () => {
+		setIsActionsOpen(false);
+		toggleFavorite(roomId);
+	};
 
 	const openEditFromActions = () => {
 		setIsActionsOpen(false);
@@ -51,6 +57,7 @@ export function useRoomDetailPage(roomId: string) {
 		setIsActionsOpen,
 		setIsEditOpen,
 		setConfirmingDelete,
+		handleToggleFavorite,
 		openEditFromActions,
 		openDeleteFromActions,
 		handleEdit,

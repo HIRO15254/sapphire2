@@ -13,7 +13,9 @@ export interface RoomValues {
 }
 
 export interface RoomItem {
+	createdAt: Date | string;
 	id: string;
+	isFavorite: boolean;
 	memo?: string | null;
 	name: string;
 	ringGameCount: number;
@@ -44,6 +46,8 @@ export function useRooms() {
 						id: `temp-${Date.now()}`,
 						name: newRoom.name,
 						memo: newRoom.memo ?? null,
+						isFavorite: false,
+						createdAt: new Date().toISOString(),
 						ringGameCount: 0,
 						tournamentCount: 0,
 					},
@@ -102,16 +106,50 @@ export function useRooms() {
 		},
 	});
 
+	const toggleFavoriteMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.room.toggleFavorite.mutate({ id }),
+		onMutate: async (id) => {
+			await cancelTargets(queryClient, [{ queryKey: roomListKey }]);
+			const previous = snapshotQuery(queryClient, roomListKey);
+			queryClient.setQueryData(roomListKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				const toggled = old.map((r) =>
+					r.id === id ? { ...r, isFavorite: !r.isFavorite } : r
+				);
+				// Exact replica of server ORDER BY is_favorite DESC, created_at ASC.
+				return [...toggled].sort((a, b) => {
+					if (a.isFavorite !== b.isFavorite) {
+						return a.isFavorite ? -1 : 1;
+					}
+					return (
+						new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+					);
+				});
+			});
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
+		},
+		onSettled: () => {
+			invalidateTargets(queryClient, [{ queryKey: roomListKey }]);
+		},
+	});
+
 	return {
 		rooms,
 		isLoading: roomsQuery.isLoading,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
+		isToggleFavoritePending: toggleFavoriteMutation.isPending,
 		create: (values: RoomValues) => createMutation.mutateAsync(values),
 		update: (values: RoomValues & { id: string }) =>
 			updateMutation.mutateAsync(values),
 		delete: (id: string) => {
 			deleteMutation.mutate(id);
 		},
+		toggleFavorite: (id: string) => toggleFavoriteMutation.mutateAsync(id),
 	};
 }
