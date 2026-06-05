@@ -1,3 +1,4 @@
+import { IconStar, IconStarFilled } from "@tabler/icons-react";
 import { DeleteRoomDialog } from "@/features/rooms/components/delete-room-dialog";
 import { RingGameTab } from "@/features/rooms/components/ring-game-tab";
 import { RoomActionsDrawer } from "@/features/rooms/components/room-actions-drawer";
@@ -67,7 +68,28 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 		<div className="theme-v2 min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<TopBar onOpenActions={() => setIsActionsOpen(true)} />
-				<PageHeader description={room.memo ?? undefined} heading={room.name} />
+				<PageHeader
+					description={room.memo ?? undefined}
+					heading={
+						<span className="flex items-center gap-2">
+							<button
+								aria-label={
+									room.isFavorite ? "Remove from favorites" : "Add to favorites"
+								}
+								className="-m-1.5 shrink-0 rounded p-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+								onClick={handleToggleFavorite}
+								type="button"
+							>
+								{room.isFavorite ? (
+									<IconStarFilled className="size-5 text-yellow-500" />
+								) : (
+									<IconStar className="size-5" />
+								)}
+							</button>
+							{room.name}
+						</span>
+					}
+				/>
 
 				<Tabs defaultValue="ring-games">
 					<TabsList className="w-full">

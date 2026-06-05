@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const ROOM_NAME_RE = /Akiba/;
+
 const hoisted = vi.hoisted(() => ({
 	useRoomDetailPage: vi.fn(),
 }));
@@ -135,8 +137,32 @@ describe("RoomDetailPage", () => {
 	it("renders the room name and memo in the header", () => {
 		setState();
 		render(<RoomDetailPage roomId="s1" />);
-		expect(screen.getByRole("heading", { name: "Akiba" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: ROOM_NAME_RE })
+		).toBeInTheDocument();
 		expect(screen.getByText("late nights")).toBeInTheDocument();
+	});
+
+	it("renders the 'Add to favorites' star button in the header when isFavorite is false", () => {
+		setState({ room: { name: "Akiba", memo: null, isFavorite: false } });
+		render(<RoomDetailPage roomId="s1" />);
+		expect(screen.getByLabelText("Add to favorites")).toBeInTheDocument();
+	});
+
+	it("renders the 'Remove from favorites' star button in the header when isFavorite is true", () => {
+		setState({ room: { name: "Akiba", memo: null, isFavorite: true } });
+		render(<RoomDetailPage roomId="s1" />);
+		expect(screen.getByLabelText("Remove from favorites")).toBeInTheDocument();
+	});
+
+	it("calls handleToggleFavorite when the header star button is clicked", async () => {
+		const user = userEvent.setup();
+		const state = setState({
+			room: { name: "Akiba", memo: null, isFavorite: false },
+		});
+		render(<RoomDetailPage roomId="s1" />);
+		await user.click(screen.getByLabelText("Add to favorites"));
+		expect(state.handleToggleFavorite).toHaveBeenCalledTimes(1);
 	});
 
 	it("renders the cash-games tab content with the room id", () => {
