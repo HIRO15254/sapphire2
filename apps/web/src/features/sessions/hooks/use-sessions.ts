@@ -1,12 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { SessionFilterValues } from "@/features/sessions/components/session-filters";
 import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
 import {
 	cancelTargets,
 	invalidateTargets,
+	prependInfiniteQueryItem,
 	restoreSnapshots,
 	snapshotQuery,
+	updateInfiniteQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -376,10 +383,20 @@ export function useSessions(filters: SessionFilterValues) {
 	const navigate = useNavigate();
 
 	const listInput = filtersToListInput(filters);
-	const sessionListKey = trpc.session.list.queryOptions(listInput).queryKey;
+	const sessionListOptions = trpc.session.list.infiniteQueryOptions(listInput, {
+		getNextPageParam: (lastPage) => lastPage.nextCursor,
+	});
+	const sessionListKey = sessionListOptions.queryKey;
 
-	const sessionsQuery = useQuery(trpc.session.list.queryOptions(listInput));
-	const sessions = sessionsQuery.data?.items ?? [];
+	const sessionsQuery = useInfiniteQuery(sessionListOptions);
+	const sessions =
+		sessionsQuery.data?.pages.flatMap((page) => page.items) ?? [];
+
+	const fetchNextPage = () => {
+		if (sessionsQuery.hasNextPage && !sessionsQuery.isFetchingNextPage) {
+			sessionsQuery.fetchNextPage();
+		}
+	};
 
 	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions());
 	const availableTags = tagsQuery.data ?? [];
@@ -404,15 +421,11 @@ export function useSessions(filters: SessionFilterValues) {
 		onMutate: async (newSession) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
 			const previous = snapshotQuery(queryClient, sessionListKey);
-			queryClient.setQueryData(sessionListKey, (old) => {
-				if (!old) {
-					return old;
-				}
-				return {
-					...old,
-					items: [buildOptimisticItem(newSession), ...old.items],
-				};
-			});
+			prependInfiniteQueryItem<SessionItem>(
+				queryClient,
+				sessionListKey,
+				buildOptimisticItem(newSession)
+			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
@@ -435,13 +448,11 @@ export function useSessions(filters: SessionFilterValues) {
 		onMutate: async (updated) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
 			const previous = snapshotQuery(queryClient, sessionListKey);
-			queryClient.setQueryData(sessionListKey, (old) => {
-				if (!old) {
-					return old;
-				}
-				return {
-					...old,
-					items: old.items.map((s) =>
+			updateInfiniteQueryItems<SessionItem>(
+				queryClient,
+				sessionListKey,
+				(items) =>
+					items.map((s) =>
 						s.id === updated.id
 							? {
 									...s,
@@ -449,9 +460,8 @@ export function useSessions(filters: SessionFilterValues) {
 									memo: updated.memo ?? null,
 								}
 							: s
-					),
-				};
-			});
+					)
+			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
@@ -467,12 +477,11 @@ export function useSessions(filters: SessionFilterValues) {
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
 			const previous = snapshotQuery(queryClient, sessionListKey);
-			queryClient.setQueryData(sessionListKey, (old) => {
-				if (!old) {
-					return old;
-				}
-				return { ...old, items: old.items.filter((s) => s.id !== id) };
-			});
+			updateInfiniteQueryItems<SessionItem>(
+				queryClient,
+				sessionListKey,
+				(items) => items.filter((s) => s.id !== id)
+			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
@@ -515,6 +524,9 @@ export function useSessions(filters: SessionFilterValues) {
 		sessions,
 		availableTags,
 		isLoading: sessionsQuery.isLoading,
+		hasNextPage: sessionsQuery.hasNextPage,
+		isFetchingNextPage: sessionsQuery.isFetchingNextPage,
+		fetchNextPage,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		create: (values: SessionFormValues) => createMutation.mutateAsync(values),
