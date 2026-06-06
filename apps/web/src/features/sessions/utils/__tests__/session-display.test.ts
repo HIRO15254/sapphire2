@@ -4,6 +4,7 @@ import {
 	buildSessionMetaRows,
 	buildTournamentStatRows,
 	formatSessionDuration,
+	formatSessionPlDisplay,
 	getSessionGameName,
 	isLiveSession,
 } from "@/features/sessions/utils/session-display";
@@ -343,5 +344,83 @@ describe("buildSessionMetaRows", () => {
 				(r) => r.label === "Duration"
 			)
 		).toBeUndefined();
+	});
+});
+
+describe("formatSessionPlDisplay", () => {
+	const cash = {
+		type: "cash_game",
+		currencyUnit: "$",
+		profitLoss: 1200,
+		ringGameBlind2: 200,
+		tournamentBuyIn: null,
+		entryFee: null,
+		chipPurchaseCost: 0,
+	};
+	const tournament = {
+		type: "tournament",
+		currencyUnit: "$",
+		profitLoss: 10_000,
+		ringGameBlind2: null,
+		tournamentBuyIn: 5000,
+		entryFee: 0,
+		chipPurchaseCost: 0,
+	};
+
+	it("shows the currency P&L when the toggle is off", () => {
+		expect(formatSessionPlDisplay(cash, false)).toBe("+1,200 $");
+	});
+
+	it("converts cash-game P&L to big blinds when the toggle is on", () => {
+		// 1200 / 200 = 6.0 BB
+		expect(formatSessionPlDisplay(cash, true)).toBe("+6.0 BB");
+	});
+
+	it("renders a negative BB value with a minus sign", () => {
+		expect(formatSessionPlDisplay({ ...cash, profitLoss: -400 }, true)).toBe(
+			"-2.0 BB"
+		);
+	});
+
+	it("falls back to currency for a cash game with no big blind", () => {
+		expect(
+			formatSessionPlDisplay({ ...cash, ringGameBlind2: null }, true)
+		).toBe("+1,200 $");
+	});
+
+	it("falls back to currency for a cash game with a zero big blind", () => {
+		expect(formatSessionPlDisplay({ ...cash, ringGameBlind2: 0 }, true)).toBe(
+			"+1,200 $"
+		);
+	});
+
+	it("converts tournament P&L to buy-ins with two decimals when the toggle is on", () => {
+		// 10000 / 5000 = 2.00 BI
+		expect(formatSessionPlDisplay(tournament, true)).toBe("+2.00 BI");
+	});
+
+	it("includes entry fee and chip purchases in the tournament BI base", () => {
+		// 10000 / (5000 + 1000 + 4000) = 1.00 BI
+		expect(
+			formatSessionPlDisplay(
+				{ ...tournament, entryFee: 1000, chipPurchaseCost: 4000 },
+				true
+			)
+		).toBe("+1.00 BI");
+	});
+
+	it("falls back to currency for a tournament with zero total cost", () => {
+		expect(
+			formatSessionPlDisplay(
+				{ ...tournament, tournamentBuyIn: 0, entryFee: 0, chipPurchaseCost: 0 },
+				true
+			)
+		).toBe("+10k $");
+	});
+
+	it("treats a null P&L as zero", () => {
+		expect(formatSessionPlDisplay({ ...cash, profitLoss: null }, true)).toBe(
+			"+0.0 BB"
+		);
 	});
 });

@@ -194,3 +194,66 @@ export function buildSessionMetaRows(session: MetaInput): StatRow[] {
 	}
 	return rows;
 }
+
+interface PlDisplayInput {
+	chipPurchaseCost: number;
+	currencyUnit: string | null;
+	entryFee: number | null;
+	profitLoss: number | null;
+	ringGameBlind2: number | null;
+	tournamentBuyIn: number | null;
+	type: string;
+}
+
+function toBB(value: number, blind2: number | null): number | null {
+	if (blind2 === null || blind2 === 0) {
+		return null;
+	}
+	return value / blind2;
+}
+
+/** Total tournament cost (buy-in + entry fee + chip purchases) used as the BI base. */
+function computeTotalCost(session: PlDisplayInput): number {
+	return (
+		(session.tournamentBuyIn ?? 0) +
+		(session.entryFee ?? 0) +
+		session.chipPurchaseCost
+	);
+}
+
+function toBI(profitLoss: number, totalCost: number): number | null {
+	if (totalCost === 0) {
+		return null;
+	}
+	return profitLoss / totalCost;
+}
+
+function formatBBBI(value: number, unit: "BB" | "BI"): string {
+	const decimals = unit === "BI" ? 2 : 1;
+	return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)} ${unit}`;
+}
+
+/**
+ * P&L display string honoring the BB/BI toggle. When off, the raw currency P&L
+ * is shown. When on, cash games render in big blinds (P&L ÷ BB) and tournaments
+ * in buy-ins (P&L ÷ total cost); either falls back to the currency figure when
+ * the divisor is unavailable.
+ */
+export function formatSessionPlDisplay(
+	session: PlDisplayInput,
+	bbBiMode: boolean
+): string {
+	const profitLoss = session.profitLoss ?? 0;
+	const currency = formatProfitLoss(profitLoss, {
+		currencyUnit: session.currencyUnit,
+	});
+	if (!bbBiMode) {
+		return currency;
+	}
+	if (session.type === "tournament") {
+		const bi = toBI(profitLoss, computeTotalCost(session));
+		return bi === null ? currency : formatBBBI(bi, "BI");
+	}
+	const bb = toBB(profitLoss, session.ringGameBlind2);
+	return bb === null ? currency : formatBBBI(bb, "BB");
+}

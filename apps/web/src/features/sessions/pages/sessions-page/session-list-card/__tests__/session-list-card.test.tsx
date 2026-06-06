@@ -14,21 +14,25 @@ import {
 const OVERFLOW_RE = /^\+\d+$/;
 
 const baseSession: SessionListCardItem = {
+	chipPurchaseCost: 0,
 	currencyUnit: null,
+	entryFee: null,
 	id: "s1",
 	profitLoss: 1200,
+	ringGameBlind2: 200,
 	ringGameName: "1/2 NLH",
 	roomName: "Aria",
 	sessionDate: "2026-01-15",
 	source: "manual",
 	tags: [],
+	tournamentBuyIn: null,
 	tournamentName: null,
 	type: "cash_game",
 };
 
-function renderCard(session: SessionListCardItem) {
+function renderCard(session: SessionListCardItem, bbBiMode = false) {
 	const rootRoute = createRootRoute({
-		component: () => <SessionListCard session={session} />,
+		component: () => <SessionListCard bbBiMode={bbBiMode} session={session} />,
 	});
 	const detailRoute = createRoute({
 		getParentRoute: () => rootRoute,
@@ -84,6 +88,31 @@ describe("SessionListCard", () => {
 		renderCard({ ...baseSession, profitLoss: null });
 		await screen.findByText("1/2 NLH");
 		expect(screen.getByText("+0")).toBeInTheDocument();
+	});
+
+	it("renders cash-game P&L in big blinds when BB/BI mode is on", async () => {
+		// 1200 / 200 = 6.0 BB
+		renderCard(baseSession, true);
+		await screen.findByText("1/2 NLH");
+		expect(screen.getByText("+6.0 BB")).toBeInTheDocument();
+	});
+
+	it("renders tournament P&L in buy-ins when BB/BI mode is on", async () => {
+		renderCard(
+			{
+				...baseSession,
+				type: "tournament",
+				ringGameName: null,
+				tournamentName: "Sunday Major",
+				profitLoss: 10_000,
+				ringGameBlind2: null,
+				tournamentBuyIn: 5000,
+			},
+			true
+		);
+		await screen.findByText("Sunday Major");
+		// 10000 / 5000 = 2.00 BI
+		expect(screen.getByText("+2.00 BI")).toBeInTheDocument();
 	});
 
 	it("shows the date and room separated by a middot", async () => {

@@ -14,22 +14,30 @@ function makeSession(
 	overrides: Partial<SessionListCardItem> & { id: string }
 ): SessionListCardItem {
 	return {
+		chipPurchaseCost: 0,
 		currencyUnit: null,
+		entryFee: null,
 		profitLoss: 0,
+		ringGameBlind2: null,
 		ringGameName: "1/2 NLH",
 		roomName: null,
 		sessionDate: "2026-01-15",
 		source: "manual",
 		tags: [],
+		tournamentBuyIn: null,
 		tournamentName: null,
 		type: "cash_game",
 		...overrides,
 	};
 }
 
-function renderList(props: React.ComponentProps<typeof SessionList>) {
+function renderList(
+	props: Omit<React.ComponentProps<typeof SessionList>, "bbBiMode"> & {
+		bbBiMode?: boolean;
+	}
+) {
 	const rootRoute = createRootRoute({
-		component: () => <SessionList {...props} />,
+		component: () => <SessionList bbBiMode={false} {...props} />,
 	});
 	const detailRoute = createRoute({
 		getParentRoute: () => rootRoute,

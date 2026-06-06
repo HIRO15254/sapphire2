@@ -5,6 +5,8 @@ import { SessionTagManager } from "@/features/sessions/components/session-tag-ma
 import { SessionWizard } from "@/features/sessions/components/session-wizard";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
+import { Label } from "@/shared/components/ui/label";
+import { Switch } from "@/shared/components/ui/switch";
 import { SessionList } from "./session-list";
 import { useSessionsPage } from "./use-sessions-page";
 
@@ -17,10 +19,12 @@ export function SessionsPage() {
 		isCreateOpen,
 		isTagManagerOpen,
 		filters,
+		bbBiMode,
 		rooms,
 		currencies,
 		createGames,
 		setFilters,
+		setBbBiMode,
 		setIsTagManagerOpen,
 		setSelectedRoomId,
 		handleCreate,
@@ -51,16 +55,27 @@ export function SessionsPage() {
 					heading="Sessions"
 				/>
 
-				<div className="mb-4">
+				<div className="mb-4 flex flex-wrap items-center gap-3">
 					<SessionFilters
 						currencies={currencies}
 						filters={filters}
 						onFiltersChange={setFilters}
 						rooms={rooms}
 					/>
+					<div className="flex items-center gap-1.5">
+						<Label className="text-xs" htmlFor="bb-bi-switch">
+							BB/BI
+						</Label>
+						<Switch
+							checked={bbBiMode}
+							id="bb-bi-switch"
+							onCheckedChange={setBbBiMode}
+						/>
+					</div>
 				</div>
 
 				<SessionList
+					bbBiMode={bbBiMode}
 					isLoading={isLoading}
 					onCreate={() => handleCreateOpenChange(true)}
 					sessions={sessions}

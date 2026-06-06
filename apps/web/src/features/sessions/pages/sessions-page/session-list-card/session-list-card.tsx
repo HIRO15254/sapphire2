@@ -6,30 +6,34 @@ import {
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
 import {
+	formatSessionPlDisplay,
 	getSessionGameName,
 	isLiveSession,
 } from "@/features/sessions/utils/session-display";
 import { Badge } from "@/shared/components/ui/badge";
 import { formatYmdSlash } from "@/utils/format-number";
-import {
-	formatProfitLoss,
-	profitLossColorClass,
-} from "@/utils/format-profit-loss";
+import { profitLossColorClass } from "@/utils/format-profit-loss";
 
 export interface SessionListCardItem {
+	chipPurchaseCost: number;
 	currencyUnit: string | null;
+	entryFee: number | null;
 	id: string;
 	profitLoss: number | null;
+	ringGameBlind2: number | null;
 	ringGameName: string | null;
 	roomName: string | null;
 	sessionDate: string;
 	source: string;
 	tags: Array<{ id: string; name: string }>;
+	tournamentBuyIn: number | null;
 	tournamentName: string | null;
 	type: string;
 }
 
 interface SessionListCardProps {
+	/** When on, P&L renders in big blinds (cash) / buy-ins (tournament). */
+	bbBiMode: boolean;
 	session: SessionListCardItem;
 }
 
@@ -38,14 +42,14 @@ const MAX_VISIBLE_TAGS = 2;
 
 /**
  * v2 list row for a past session. The whole card is a link to the detail page;
- * a live-recorded session carries a small bolt over its type icon. P&L is
- * pinned right and colored, mirroring the currency list card layout.
+ * a live-recorded session carries a small bolt over its type icon. The type
+ * icon keeps its pre-v2 accent (trophy = yellow, chip = blue). P&L is pinned
+ * right, colored by sign, and respects the BB/BI toggle.
  */
-export function SessionListCard({ session }: SessionListCardProps) {
+export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 	const isTournament = session.type === "tournament";
 	const live = isLiveSession(session);
 	const gameName = getSessionGameName(session);
-	const profitLoss = session.profitLoss ?? 0;
 	const visibleTags = session.tags.slice(0, MAX_VISIBLE_TAGS);
 	const overflowCount = session.tags.length - visibleTags.length;
 
@@ -57,9 +61,15 @@ export function SessionListCard({ session }: SessionListCardProps) {
 		>
 			<span className="relative shrink-0">
 				{isTournament ? (
-					<IconTrophy aria-hidden className="size-5 text-muted-foreground" />
+					<IconTrophy
+						aria-hidden
+						className="size-5 text-yellow-500 dark:text-yellow-400"
+					/>
 				) : (
-					<IconPokerChip aria-hidden className="size-5 text-muted-foreground" />
+					<IconPokerChip
+						aria-hidden
+						className="size-5 text-blue-500 dark:text-blue-400"
+					/>
 				)}
 				{live ? (
 					<IconBolt
@@ -93,10 +103,10 @@ export function SessionListCard({ session }: SessionListCardProps) {
 
 			<span
 				className={`shrink-0 font-mono font-semibold text-sm tabular-nums ${profitLossColorClass(
-					profitLoss
+					session.profitLoss ?? 0
 				)}`}
 			>
-				{formatProfitLoss(profitLoss, { currencyUnit: session.currencyUnit })}
+				{formatSessionPlDisplay(session, bbBiMode)}
 			</span>
 			<IconChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
 		</Link>

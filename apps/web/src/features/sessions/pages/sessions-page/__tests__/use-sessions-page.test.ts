@@ -99,6 +99,32 @@ describe("useSessionsPage", () => {
 			const { result } = renderHook(() => useSessionsPage());
 			expect(result.current.isCreatePending).toBe(true);
 		});
+
+		it("starts with BB/BI mode off", () => {
+			const { result } = renderHook(() => useSessionsPage());
+			expect(result.current.bbBiMode).toBe(false);
+		});
+	});
+
+	describe("setBbBiMode", () => {
+		it("toggles BB/BI mode on", () => {
+			const { result } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.setBbBiMode(true);
+			});
+			expect(result.current.bbBiMode).toBe(true);
+		});
+
+		it("toggles BB/BI mode back off", () => {
+			const { result } = renderHook(() => useSessionsPage());
+			act(() => {
+				result.current.setBbBiMode(true);
+			});
+			act(() => {
+				result.current.setBbBiMode(false);
+			});
+			expect(result.current.bbBiMode).toBe(false);
+		});
 	});
 
 	describe("setFilters", () => {

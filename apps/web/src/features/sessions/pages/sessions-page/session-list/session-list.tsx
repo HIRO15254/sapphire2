@@ -8,6 +8,8 @@ import {
 } from "../session-list-card";
 
 interface SessionListProps {
+	/** When on, each card's P&L renders in big blinds / buy-ins. */
+	bbBiMode: boolean;
 	/** Initial sessions fetch is in flight (no rows yet). */
 	isLoading: boolean;
 	/** Open the create sheet — wired to the empty-state CTA. */
@@ -23,6 +25,7 @@ const SKELETON_COUNT = 6;
  * decides what to render. The loading branch stacks the card-bound skeleton.
  */
 export function SessionList({
+	bbBiMode,
 	isLoading,
 	onCreate,
 	sessions,
@@ -60,7 +63,11 @@ export function SessionList({
 	return (
 		<div className="flex flex-col gap-2">
 			{sessions.map((session) => (
-				<SessionListCard key={session.id} session={session} />
+				<SessionListCard
+					bbBiMode={bbBiMode}
+					key={session.id}
+					session={session}
+				/>
 			))}
 		</div>
 	);

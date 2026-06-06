@@ -18,6 +18,7 @@ export function useSessionsPage() {
 	const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
 	const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>();
 	const [filters, setFilters] = useState<SessionFilterValues>({});
+	const [bbBiMode, setBbBiMode] = useState(false);
 
 	const {
 		sessions,
@@ -53,10 +54,12 @@ export function useSessionsPage() {
 		isCreateOpen,
 		isTagManagerOpen,
 		filters,
+		bbBiMode,
 		rooms,
 		currencies,
 		createGames,
 		setFilters,
+		setBbBiMode,
 		setIsTagManagerOpen,
 		setSelectedRoomId,
 		handleCreate,
