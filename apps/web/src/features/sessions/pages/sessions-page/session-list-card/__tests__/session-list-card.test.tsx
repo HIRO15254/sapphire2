@@ -133,6 +133,12 @@ describe("SessionListCard", () => {
 		expect(screen.getByTestId("live-indicator")).toBeInTheDocument();
 	});
 
+	it("colors the live indicator with the green success token", async () => {
+		renderCard({ ...baseSession, source: "live" });
+		await screen.findByText("1/2 NLH");
+		expect(screen.getByTestId("live-indicator")).toHaveClass("text-success");
+	});
+
 	it("hides the live indicator for a manual session", async () => {
 		renderCard(baseSession);
 		await screen.findByText("1/2 NLH");

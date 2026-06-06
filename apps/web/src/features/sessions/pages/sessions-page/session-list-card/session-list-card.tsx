@@ -73,7 +73,7 @@ export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 				)}
 				{live ? (
 					<IconBolt
-						className="absolute -right-1 -bottom-1 size-3 text-[hsl(var(--success))]"
+						className="absolute -right-1 -bottom-1 size-3 text-success"
 						data-testid="live-indicator"
 					/>
 				) : null}
