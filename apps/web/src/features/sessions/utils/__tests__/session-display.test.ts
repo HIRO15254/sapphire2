@@ -4,7 +4,9 @@ import {
 	buildSessionMetaRows,
 	buildTournamentStatRows,
 	formatSessionDuration,
+	formatSessionEvDisplay,
 	formatSessionPlDisplay,
+	formatTournamentPlacement,
 	getSessionGameName,
 	isLiveSession,
 } from "@/features/sessions/utils/session-display";
@@ -422,5 +424,82 @@ describe("formatSessionPlDisplay", () => {
 		expect(formatSessionPlDisplay({ ...cash, profitLoss: null }, true)).toBe(
 			"+0.0 BB"
 		);
+	});
+});
+
+describe("formatSessionEvDisplay", () => {
+	const cash = {
+		type: "cash_game",
+		currencyUnit: "$",
+		evProfitLoss: 800,
+		ringGameBlind2: 200,
+	};
+
+	it("returns null for a tournament", () => {
+		expect(
+			formatSessionEvDisplay({ ...cash, type: "tournament" }, false)
+		).toBeNull();
+	});
+
+	it("returns null when no EV was recorded", () => {
+		expect(
+			formatSessionEvDisplay({ ...cash, evProfitLoss: null }, false)
+		).toBeNull();
+	});
+
+	it("shows the currency EV when the toggle is off", () => {
+		expect(formatSessionEvDisplay(cash, false)).toBe("+800 $");
+	});
+
+	it("converts EV to big blinds when the toggle is on", () => {
+		// 800 / 200 = 4.0 BB
+		expect(formatSessionEvDisplay(cash, true)).toBe("+4.0 BB");
+	});
+
+	it("falls back to currency when there is no big blind", () => {
+		expect(
+			formatSessionEvDisplay({ ...cash, ringGameBlind2: null }, true)
+		).toBe("+800 $");
+	});
+
+	it("renders a negative EV with a minus sign", () => {
+		expect(formatSessionEvDisplay({ ...cash, evProfitLoss: -200 }, false)).toBe(
+			"-200 $"
+		);
+	});
+});
+
+describe("formatTournamentPlacement", () => {
+	const base = {
+		type: "tournament",
+		beforeDeadline: false,
+		placement: 3,
+		totalEntries: 120,
+	};
+
+	it("returns null for a cash game", () => {
+		expect(
+			formatTournamentPlacement({ ...base, type: "cash_game" })
+		).toBeNull();
+	});
+
+	it("shows placement over total entries", () => {
+		expect(formatTournamentPlacement(base)).toBe("3/120 place");
+	});
+
+	it("omits the total when it is null", () => {
+		expect(formatTournamentPlacement({ ...base, totalEntries: null })).toBe(
+			"3 place"
+		);
+	});
+
+	it("shows a pending result before the deadline", () => {
+		expect(formatTournamentPlacement({ ...base, beforeDeadline: true })).toBe(
+			"- / - entries"
+		);
+	});
+
+	it("returns null when placement is unset and not pending", () => {
+		expect(formatTournamentPlacement({ ...base, placement: null })).toBeNull();
 	});
 });

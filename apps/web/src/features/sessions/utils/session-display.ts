@@ -257,3 +257,61 @@ export function formatSessionPlDisplay(
 	const bb = toBB(profitLoss, session.ringGameBlind2);
 	return bb === null ? currency : formatBBBI(bb, "BB");
 }
+
+interface EvDisplayInput {
+	currencyUnit: string | null;
+	evProfitLoss: number | null;
+	ringGameBlind2: number | null;
+	type: string;
+}
+
+/**
+ * The EV-adjusted P&L string for a cash game's result line, honoring the BB/BI
+ * toggle. Returns `null` for tournaments or when no EV cash-out was recorded so
+ * the card can drop the line entirely.
+ */
+export function formatSessionEvDisplay(
+	session: EvDisplayInput,
+	bbBiMode: boolean
+): string | null {
+	if (session.type === "tournament" || session.evProfitLoss === null) {
+		return null;
+	}
+	const currency = formatProfitLoss(session.evProfitLoss, {
+		currencyUnit: session.currencyUnit,
+	});
+	if (!bbBiMode) {
+		return currency;
+	}
+	const evBB = toBB(session.evProfitLoss, session.ringGameBlind2);
+	return evBB === null ? currency : formatBBBI(evBB, "BB");
+}
+
+interface PlacementInput {
+	beforeDeadline: boolean | null;
+	placement: number | null;
+	totalEntries: number | null;
+	type: string;
+}
+
+/**
+ * Placement string for a tournament's result line, e.g. `3/120 place`. Before
+ * the deadline (final standings not yet known) it shows `- / - entries`. Cash
+ * games and unranked tournaments return `null`.
+ */
+export function formatTournamentPlacement(
+	session: PlacementInput
+): string | null {
+	if (session.type !== "tournament") {
+		return null;
+	}
+	if (session.beforeDeadline === true) {
+		return "- / - entries";
+	}
+	if (session.placement === null) {
+		return null;
+	}
+	const entries =
+		session.totalEntries === null ? "" : `/${session.totalEntries}`;
+	return `${session.placement}${entries} place`;
+}
