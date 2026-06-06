@@ -514,6 +514,7 @@ export function useSessions(filters: SessionFilterValues) {
 	return {
 		sessions,
 		availableTags,
+		isLoading: sessionsQuery.isLoading,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		create: (values: SessionFormValues) => createMutation.mutateAsync(values),

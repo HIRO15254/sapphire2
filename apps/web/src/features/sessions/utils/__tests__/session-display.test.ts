@@ -1,0 +1,347 @@
+import { describe, expect, it } from "vitest";
+import {
+	buildCashStatRows,
+	buildSessionMetaRows,
+	buildTournamentStatRows,
+	formatSessionDuration,
+	getSessionGameName,
+	isLiveSession,
+} from "@/features/sessions/utils/session-display";
+
+describe("getSessionGameName", () => {
+	it("returns the tournament rule name for a named tournament", () => {
+		expect(
+			getSessionGameName({
+				type: "tournament",
+				tournamentName: "Sunday Major",
+				ringGameName: null,
+			})
+		).toBe("Sunday Major");
+	});
+
+	it("returns the ring game rule name for a named cash game", () => {
+		expect(
+			getSessionGameName({
+				type: "cash_game",
+				tournamentName: null,
+				ringGameName: "1/2 NLH",
+			})
+		).toBe("1/2 NLH");
+	});
+
+	it("falls back to 'Tournament' when a tournament has no rule name", () => {
+		expect(
+			getSessionGameName({
+				type: "tournament",
+				tournamentName: null,
+				ringGameName: null,
+			})
+		).toBe("Tournament");
+	});
+
+	it("falls back to 'Cash game' when a cash game has no rule name", () => {
+		expect(
+			getSessionGameName({
+				type: "cash_game",
+				tournamentName: null,
+				ringGameName: null,
+			})
+		).toBe("Cash game");
+	});
+
+	it("ignores a ring game name on a tournament session", () => {
+		expect(
+			getSessionGameName({
+				type: "tournament",
+				tournamentName: null,
+				ringGameName: "1/2 NLH",
+			})
+		).toBe("Tournament");
+	});
+
+	it("ignores a tournament name on a cash game session", () => {
+		expect(
+			getSessionGameName({
+				type: "cash_game",
+				tournamentName: "Sunday Major",
+				ringGameName: null,
+			})
+		).toBe("Cash game");
+	});
+});
+
+describe("isLiveSession", () => {
+	it("is true when source is 'live'", () => {
+		expect(isLiveSession({ source: "live" })).toBe(true);
+	});
+
+	it("is false when source is 'manual'", () => {
+		expect(isLiveSession({ source: "manual" })).toBe(false);
+	});
+
+	it("is false for any other source value", () => {
+		expect(isLiveSession({ source: "" })).toBe(false);
+	});
+});
+
+describe("formatSessionDuration", () => {
+	it("returns null when startedAt is missing", () => {
+		expect(formatSessionDuration(null, "2026-01-01T12:00:00")).toBeNull();
+	});
+
+	it("returns null when endedAt is missing", () => {
+		expect(formatSessionDuration("2026-01-01T10:00:00", null)).toBeNull();
+	});
+
+	it("returns null when both bounds are missing", () => {
+		expect(formatSessionDuration(null, null)).toBeNull();
+	});
+
+	it("formats a 2-hour span as '2.0h'", () => {
+		expect(
+			formatSessionDuration("2026-01-01T10:00:00", "2026-01-01T12:00:00")
+		).toBe("2.0h");
+	});
+
+	it("subtracts break minutes from the played duration", () => {
+		expect(
+			formatSessionDuration("2026-01-01T10:00:00", "2026-01-01T12:00:00", 30)
+		).toBe("1.5h");
+	});
+
+	it("treats undefined break minutes as zero", () => {
+		expect(
+			formatSessionDuration("2026-01-01T10:00:00", "2026-01-01T11:00:00")
+		).toBe("1.0h");
+	});
+
+	it("rounds to one decimal place", () => {
+		expect(
+			formatSessionDuration("2026-01-01T10:00:00", "2026-01-01T10:40:00")
+		).toBe("0.7h");
+	});
+});
+
+describe("buildCashStatRows", () => {
+	const full = {
+		buyIn: 10_000,
+		cashOut: 13_500,
+		evCashOut: 12_000,
+		evProfitLoss: 2000,
+	};
+
+	it("includes buy-in and cash-out when both are present", () => {
+		const rows = buildCashStatRows({
+			...full,
+			evCashOut: null,
+			evProfitLoss: null,
+		});
+		expect(rows).toEqual([
+			{ label: "Buy-in", value: "10k" },
+			{ label: "Cash-out", value: "13.5k" },
+		]);
+	});
+
+	it("omits buy-in when it is null", () => {
+		const rows = buildCashStatRows({ ...full, buyIn: null });
+		expect(rows.find((r) => r.label === "Buy-in")).toBeUndefined();
+	});
+
+	it("omits cash-out when it is null", () => {
+		const rows = buildCashStatRows({ ...full, cashOut: null });
+		expect(rows.find((r) => r.label === "Cash-out")).toBeUndefined();
+	});
+
+	it("includes EV cash-out only when present", () => {
+		expect(
+			buildCashStatRows({ ...full }).find((r) => r.label === "EV cash-out")
+		).toEqual({ label: "EV cash-out", value: "12k" });
+		expect(
+			buildCashStatRows({ ...full, evCashOut: null }).find(
+				(r) => r.label === "EV cash-out"
+			)
+		).toBeUndefined();
+	});
+
+	it("formats EV P&L with a sign and omits it when null", () => {
+		expect(
+			buildCashStatRows({ ...full }).find((r) => r.label === "EV P&L")
+		).toEqual({ label: "EV P&L", value: "+2,000" });
+		expect(
+			buildCashStatRows({ ...full, evProfitLoss: null }).find(
+				(r) => r.label === "EV P&L"
+			)
+		).toBeUndefined();
+	});
+
+	it("returns an empty array when every value is null", () => {
+		expect(
+			buildCashStatRows({
+				buyIn: null,
+				cashOut: null,
+				evCashOut: null,
+				evProfitLoss: null,
+			})
+		).toEqual([]);
+	});
+});
+
+describe("buildTournamentStatRows", () => {
+	const base = {
+		bountyPrizes: 0,
+		chipPurchases: [] as Array<{
+			cost: number;
+			count: number;
+			id: string;
+			name: string;
+		}>,
+		entryFee: 0,
+		placement: null,
+		prizeMoney: 0,
+		totalEntries: null,
+		tournamentBuyIn: 5000,
+	};
+
+	it("always includes the buy-in when present", () => {
+		expect(buildTournamentStatRows(base)).toEqual([
+			{ label: "Buy-in", value: "5,000" },
+		]);
+	});
+
+	it("drops zero-valued entry fee, prize, and bounty", () => {
+		const rows = buildTournamentStatRows(base);
+		expect(rows.find((r) => r.label === "Entry fee")).toBeUndefined();
+		expect(rows.find((r) => r.label === "Prize")).toBeUndefined();
+		expect(rows.find((r) => r.label === "Bounty")).toBeUndefined();
+	});
+
+	it("includes positive entry fee, prize, and bounty", () => {
+		const rows = buildTournamentStatRows({
+			...base,
+			entryFee: 500,
+			prizeMoney: 20_000,
+			bountyPrizes: 1500,
+		});
+		expect(rows.find((r) => r.label === "Entry fee")).toEqual({
+			label: "Entry fee",
+			value: "500",
+		});
+		expect(rows.find((r) => r.label === "Prize")).toEqual({
+			label: "Prize",
+			value: "20k",
+		});
+		expect(rows.find((r) => r.label === "Bounty")).toEqual({
+			label: "Bounty",
+			value: "1,500",
+		});
+	});
+
+	it("renders each purchased chip-purchase row as count × cost", () => {
+		const rows = buildTournamentStatRows({
+			...base,
+			chipPurchases: [
+				{ id: "cp1", name: "Re-entry", cost: 5000, count: 2 },
+				{ id: "cp2", name: "Add-on", cost: 1000, count: 0 },
+			],
+		});
+		expect(rows.find((r) => r.label === "Re-entry")).toEqual({
+			label: "Re-entry",
+			value: "2 × 5,000",
+		});
+		expect(rows.find((r) => r.label === "Add-on")).toBeUndefined();
+	});
+
+	it("falls back to 'Chip purchase' for an unnamed purchase", () => {
+		const rows = buildTournamentStatRows({
+			...base,
+			chipPurchases: [{ id: "cp1", name: "", cost: 5000, count: 1 }],
+		});
+		expect(rows.find((r) => r.label === "Chip purchase")).toEqual({
+			label: "Chip purchase",
+			value: "1 × 5,000",
+		});
+	});
+
+	it("shows placement without total entries as a bare number", () => {
+		const rows = buildTournamentStatRows({ ...base, placement: 3 });
+		expect(rows.find((r) => r.label === "Placement")).toEqual({
+			label: "Placement",
+			value: "3",
+		});
+	});
+
+	it("shows placement over total entries when both are present", () => {
+		const rows = buildTournamentStatRows({
+			...base,
+			placement: 3,
+			totalEntries: 120,
+		});
+		expect(rows.find((r) => r.label === "Placement")).toEqual({
+			label: "Placement",
+			value: "3 / 120",
+		});
+	});
+
+	it("omits placement when null", () => {
+		expect(
+			buildTournamentStatRows(base).find((r) => r.label === "Placement")
+		).toBeUndefined();
+	});
+});
+
+describe("buildSessionMetaRows", () => {
+	const base = {
+		breakMinutes: null,
+		currencyName: null,
+		endedAt: null,
+		roomName: null,
+		sessionDate: "2026-01-15",
+		startedAt: null,
+	};
+
+	it("always includes the formatted date first", () => {
+		const rows = buildSessionMetaRows(base);
+		expect(rows[0]).toEqual({ label: "Date", value: "2026/01/15" });
+	});
+
+	it("omits room, currency, and duration when absent", () => {
+		expect(buildSessionMetaRows(base)).toEqual([
+			{ label: "Date", value: "2026/01/15" },
+		]);
+	});
+
+	it("includes the room when set", () => {
+		expect(
+			buildSessionMetaRows({ ...base, roomName: "Aria" }).find(
+				(r) => r.label === "Room"
+			)
+		).toEqual({ label: "Room", value: "Aria" });
+	});
+
+	it("includes the currency when set", () => {
+		expect(
+			buildSessionMetaRows({ ...base, currencyName: "USD" }).find(
+				(r) => r.label === "Currency"
+			)
+		).toEqual({ label: "Currency", value: "USD" });
+	});
+
+	it("includes the played duration when both timestamps are present", () => {
+		expect(
+			buildSessionMetaRows({
+				...base,
+				startedAt: "2026-01-15T10:00:00",
+				endedAt: "2026-01-15T13:00:00",
+				breakMinutes: 30,
+			}).find((r) => r.label === "Duration")
+		).toEqual({ label: "Duration", value: "2.5h" });
+	});
+
+	it("omits duration when only one timestamp is present", () => {
+		expect(
+			buildSessionMetaRows({ ...base, startedAt: "2026-01-15T10:00:00" }).find(
+				(r) => r.label === "Duration"
+			)
+		).toBeUndefined();
+	});
+});
