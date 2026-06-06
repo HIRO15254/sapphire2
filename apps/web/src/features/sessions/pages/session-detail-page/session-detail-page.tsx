@@ -14,10 +14,11 @@ import {
 } from "@/features/sessions/utils/session-display";
 import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
-import { LiveSessionPanel } from "./live-session-panel";
+import { LiveResultChart } from "./live-result-chart";
 import { SessionDetailSkeleton } from "./session-detail-skeleton";
 import { SessionPlHero } from "./session-pl-hero";
 import { SessionStatList } from "./session-stat-list";
+import { SessionTimeline } from "./session-timeline";
 import { TopBar } from "./top-bar";
 import { useSessionDetailPage } from "./use-session-detail-page";
 
@@ -110,23 +111,31 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 			/>
 
 			<SessionPlHero
+				chart={
+					live ? (
+						<LiveResultChart
+							liveSessionId={session.id}
+							sessionType={isTournament ? "tournament" : "cash_game"}
+						/>
+					) : undefined
+				}
 				currencyUnit={session.currencyUnit}
 				evProfitLoss={session.evProfitLoss}
 				profitLoss={session.profitLoss}
 			/>
-
-			{live ? (
-				<LiveSessionPanel
-					liveSessionId={session.id}
-					sessionType={isTournament ? "tournament" : "cash_game"}
-				/>
-			) : null}
 
 			<SessionStatList
 				rows={statRows}
 				title={isTournament ? "Tournament" : "Cash game"}
 			/>
 			<SessionStatList rows={metaRows} title="Details" />
+
+			{live ? (
+				<SessionTimeline
+					liveSessionId={session.id}
+					sessionType={isTournament ? "tournament" : "cash_game"}
+				/>
+			) : null}
 
 			{session.tags.length > 0 ? (
 				<div className="mb-4 flex flex-wrap gap-1">

@@ -17,9 +17,16 @@ vi.mock("@/features/sessions/pages/session-detail-page/top-bar", () => ({
 }));
 
 vi.mock(
-	"@/features/sessions/pages/session-detail-page/live-session-panel",
+	"@/features/sessions/pages/session-detail-page/live-result-chart",
 	() => ({
-		LiveSessionPanel: () => <div data-testid="live-panel" />,
+		LiveResultChart: () => <div data-testid="live-result-chart" />,
+	})
+);
+
+vi.mock(
+	"@/features/sessions/pages/session-detail-page/session-timeline",
+	() => ({
+		SessionTimeline: () => <div data-testid="session-timeline" />,
 	})
 );
 
@@ -129,10 +136,11 @@ describe("SessionDetailPage", () => {
 		expect(screen.getByText("+1,500 $")).toBeInTheDocument();
 	});
 
-	it("labels a manual session with the Manual badge and hides the live panel", () => {
+	it("labels a manual session with the Manual badge and hides the chart + timeline", () => {
 		renderPage();
 		expect(screen.getByText("Manual")).toBeInTheDocument();
-		expect(screen.queryByTestId("live-panel")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("live-result-chart")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("session-timeline")).not.toBeInTheDocument();
 	});
 
 	it("renders the cash-game financial rows for a manual cash session", () => {
@@ -154,7 +162,7 @@ describe("SessionDetailPage", () => {
 		expect(screen.getByText("Profit")).toBeInTheDocument();
 	});
 
-	it("labels a live session with the Live badge and shows the live panel", () => {
+	it("labels a live session with the Live badge and shows the chart + timeline", () => {
 		mocks.state = {
 			...mocks.state,
 			session: liveCashSession,
@@ -163,6 +171,40 @@ describe("SessionDetailPage", () => {
 		};
 		renderPage();
 		expect(screen.getByText("Live")).toBeInTheDocument();
-		expect(screen.getByTestId("live-panel")).toBeInTheDocument();
+		expect(screen.getByTestId("live-result-chart")).toBeInTheDocument();
+		expect(screen.getByTestId("session-timeline")).toBeInTheDocument();
+	});
+
+	it("composites the chart into the P&L card, above the game info", () => {
+		mocks.state = {
+			...mocks.state,
+			session: liveCashSession,
+			isLiveLinked: true,
+			canReopen: true,
+		};
+		renderPage();
+		const chart = screen.getByTestId("live-result-chart");
+		const gameHeading = screen.getByRole("heading", { name: "Cash game" });
+		// The chart sits inside the P&L card, which precedes the game info.
+		// Neither node contains the other, so the position is exactly FOLLOWING.
+		expect(chart.compareDocumentPosition(gameHeading)).toBe(
+			Node.DOCUMENT_POSITION_FOLLOWING
+		);
+	});
+
+	it("places the game and session info above the timeline for a live session", () => {
+		mocks.state = {
+			...mocks.state,
+			session: liveCashSession,
+			isLiveLinked: true,
+			canReopen: true,
+		};
+		renderPage();
+		const details = screen.getByRole("heading", { name: "Details" });
+		const timeline = screen.getByTestId("session-timeline");
+		// The timeline is a sibling section after the Details card.
+		expect(details.compareDocumentPosition(timeline)).toBe(
+			Node.DOCUMENT_POSITION_FOLLOWING
+		);
 	});
 });

@@ -47,4 +47,20 @@ describe("SessionPlHero", () => {
 		render(<SessionPlHero currencyUnit={null} profitLoss={1500} />);
 		expect(screen.queryByText(EV_PREFIX)).not.toBeInTheDocument();
 	});
+
+	it("renders the chart slot inside the card when provided", () => {
+		render(
+			<SessionPlHero
+				chart={<div data-testid="chart-slot" />}
+				currencyUnit={null}
+				profitLoss={1500}
+			/>
+		);
+		expect(screen.getByTestId("chart-slot")).toBeInTheDocument();
+	});
+
+	it("omits the chart region when no chart is provided", () => {
+		render(<SessionPlHero currencyUnit={null} profitLoss={1500} />);
+		expect(screen.queryByTestId("chart-slot")).not.toBeInTheDocument();
+	});
 });
