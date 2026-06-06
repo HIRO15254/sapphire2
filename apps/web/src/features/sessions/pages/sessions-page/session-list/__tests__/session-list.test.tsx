@@ -14,16 +14,22 @@ function makeSession(
 	overrides: Partial<SessionListCardItem> & { id: string }
 ): SessionListCardItem {
 	return {
+		breakMinutes: null,
 		chipPurchaseCost: 0,
 		currencyUnit: null,
+		endedAt: null,
 		entryFee: null,
+		evProfitLoss: null,
+		placement: null,
 		profitLoss: 0,
 		ringGameBlind2: null,
 		ringGameName: "1/2 NLH",
 		roomName: null,
 		sessionDate: "2026-01-15",
 		source: "manual",
+		startedAt: null,
 		tags: [],
+		totalEntries: null,
 		tournamentBuyIn: null,
 		tournamentName: null,
 		type: "cash_game",

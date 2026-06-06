@@ -4,7 +4,9 @@ import {
 	buildSessionMetaRows,
 	buildTournamentStatRows,
 	formatSessionDuration,
+	formatSessionEvDisplay,
 	formatSessionPlDisplay,
+	formatTournamentResult,
 	getSessionGameName,
 	isLiveSession,
 } from "@/features/sessions/utils/session-display";
@@ -422,5 +424,75 @@ describe("formatSessionPlDisplay", () => {
 		expect(formatSessionPlDisplay({ ...cash, profitLoss: null }, true)).toBe(
 			"+0.0 BB"
 		);
+	});
+});
+
+describe("formatTournamentResult", () => {
+	const base = { type: "tournament", placement: 3, totalEntries: 120 };
+
+	it("returns placement over total entries when both are present", () => {
+		expect(formatTournamentResult(base)).toBe("3 / 120");
+	});
+
+	it("returns a bare placement when total entries is null", () => {
+		expect(formatTournamentResult({ ...base, totalEntries: null })).toBe("3");
+	});
+
+	it("returns null when placement is null", () => {
+		expect(formatTournamentResult({ ...base, placement: null })).toBeNull();
+	});
+
+	it("returns null for a cash game even with a placement value", () => {
+		expect(formatTournamentResult({ ...base, type: "cash_game" })).toBeNull();
+	});
+
+	it("renders a first-place finish", () => {
+		expect(formatTournamentResult({ ...base, placement: 1 })).toBe("1 / 120");
+	});
+});
+
+describe("formatSessionEvDisplay", () => {
+	const cash = {
+		type: "cash_game",
+		currencyUnit: "$",
+		profitLoss: 1200,
+		evProfitLoss: 800,
+		ringGameBlind2: 200,
+		tournamentBuyIn: null,
+		entryFee: null,
+		chipPurchaseCost: 0,
+	};
+
+	it("returns null for a tournament session", () => {
+		expect(
+			formatSessionEvDisplay({ ...cash, type: "tournament" }, false)
+		).toBeNull();
+	});
+
+	it("returns null when no EV P&L was recorded", () => {
+		expect(
+			formatSessionEvDisplay({ ...cash, evProfitLoss: null }, false)
+		).toBeNull();
+	});
+
+	it("shows the currency EV P&L when the toggle is off", () => {
+		expect(formatSessionEvDisplay(cash, false)).toBe("+800 $");
+	});
+
+	it("converts EV P&L to big blinds when the toggle is on", () => {
+		// 800 / 200 = 4.0 BB
+		expect(formatSessionEvDisplay(cash, true)).toBe("+4.0 BB");
+	});
+
+	it("renders a negative EV with a minus sign", () => {
+		expect(formatSessionEvDisplay({ ...cash, evProfitLoss: -400 }, false)).toBe(
+			"-400 $"
+		);
+	});
+
+	it("falls back to currency when the big blind is unavailable", () => {
+		expect(
+			formatSessionEvDisplay({ ...cash, ringGameBlind2: null }, true)
+		).toBe("+800 $");
 	});
 });

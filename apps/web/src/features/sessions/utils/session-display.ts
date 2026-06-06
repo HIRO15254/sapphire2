@@ -195,6 +195,29 @@ export function buildSessionMetaRows(session: MetaInput): StatRow[] {
 	return rows;
 }
 
+interface TournamentResultInput {
+	placement: number | null;
+	totalEntries: number | null;
+	type: string;
+}
+
+/**
+ * Secondary result line for a tournament list row: placement over total
+ * entries (e.g. "3 / 120"), or a bare placement when the field size is
+ * unknown. Returns `null` for cash games or unrecorded placements so the card
+ * omits the second result line entirely.
+ */
+export function formatTournamentResult(
+	session: TournamentResultInput
+): string | null {
+	if (session.type !== "tournament" || session.placement === null) {
+		return null;
+	}
+	return session.totalEntries === null
+		? `${session.placement}`
+		: `${session.placement} / ${session.totalEntries}`;
+}
+
 interface PlDisplayInput {
 	chipPurchaseCost: number;
 	currencyUnit: string | null;
@@ -234,26 +257,55 @@ function formatBBBI(value: number, unit: "BB" | "BI"): string {
 }
 
 /**
- * P&L display string honoring the BB/BI toggle. When off, the raw currency P&L
- * is shown. When on, cash games render in big blinds (P&L ÷ BB) and tournaments
- * in buy-ins (P&L ÷ total cost); either falls back to the currency figure when
- * the divisor is unavailable.
+ * Core value formatter honoring the BB/BI toggle, shared by the realized P&L
+ * and the EV figure. When off, the raw currency amount is shown. When on, cash
+ * games render in big blinds (value ÷ BB) and tournaments in buy-ins (value ÷
+ * total cost); either falls back to the currency figure when the divisor is
+ * unavailable.
  */
-export function formatSessionPlDisplay(
+function formatPlValue(
+	value: number,
 	session: PlDisplayInput,
 	bbBiMode: boolean
 ): string {
-	const profitLoss = session.profitLoss ?? 0;
-	const currency = formatProfitLoss(profitLoss, {
+	const currency = formatProfitLoss(value, {
 		currencyUnit: session.currencyUnit,
 	});
 	if (!bbBiMode) {
 		return currency;
 	}
 	if (session.type === "tournament") {
-		const bi = toBI(profitLoss, computeTotalCost(session));
+		const bi = toBI(value, computeTotalCost(session));
 		return bi === null ? currency : formatBBBI(bi, "BI");
 	}
-	const bb = toBB(profitLoss, session.ringGameBlind2);
+	const bb = toBB(value, session.ringGameBlind2);
 	return bb === null ? currency : formatBBBI(bb, "BB");
+}
+
+/** Realized P&L display string honoring the BB/BI toggle. */
+export function formatSessionPlDisplay(
+	session: PlDisplayInput,
+	bbBiMode: boolean
+): string {
+	return formatPlValue(session.profitLoss ?? 0, session, bbBiMode);
+}
+
+interface EvDisplayInput extends PlDisplayInput {
+	evProfitLoss: number | null;
+}
+
+/**
+ * Secondary EV figure for a cash-game list row, honoring the BB/BI toggle.
+ * Returns `null` for tournaments or when no EV cash-out was recorded, so the
+ * result section omits the second line. Live cash games carry an EV P&L; manual
+ * entries only have one when the user logged an EV cash-out.
+ */
+export function formatSessionEvDisplay(
+	session: EvDisplayInput,
+	bbBiMode: boolean
+): string | null {
+	if (session.type !== "cash_game" || session.evProfitLoss === null) {
+		return null;
+	}
+	return formatPlValue(session.evProfitLoss, session, bbBiMode);
 }
