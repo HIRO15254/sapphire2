@@ -495,4 +495,30 @@ describe("formatSessionEvDisplay", () => {
 			formatSessionEvDisplay({ ...cash, ringGameBlind2: null }, true)
 		).toBe("+800 $");
 	});
+
+	it("rounds a fractional EV to whole units to match the P&L precision", () => {
+		expect(
+			formatSessionEvDisplay({ ...cash, evProfitLoss: 812.7 }, false)
+		).toBe("+813 $");
+	});
+
+	it("rounds a fractional negative EV toward the nearest integer", () => {
+		expect(
+			formatSessionEvDisplay({ ...cash, evProfitLoss: -812.7 }, false)
+		).toBe("-813 $");
+	});
+
+	it("rounds the EV before the big-blind conversion", () => {
+		// round(812.7) = 813 → 813 / 200 = 4.065 → "4.1 BB"
+		expect(formatSessionEvDisplay({ ...cash, evProfitLoss: 812.7 }, true)).toBe(
+			"+4.1 BB"
+		);
+	});
+
+	it("keeps EV aligned with the P&L in the compact-thousands tier", () => {
+		// round(13,480.6) = 13,481 → 13.481k → "13.5k"
+		expect(
+			formatSessionEvDisplay({ ...cash, evProfitLoss: 13_480.6 }, false)
+		).toBe("+13.5k $");
+	});
 });

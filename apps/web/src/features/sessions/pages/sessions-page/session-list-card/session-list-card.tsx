@@ -160,7 +160,9 @@ export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 				) : null}
 				{evDisplay ? (
 					<span
-						className="font-mono text-muted-foreground text-xs tabular-nums"
+						className={`font-mono text-xs tabular-nums ${profitLossColorClass(
+							Math.round(session.evProfitLoss ?? 0)
+						)}`}
 						data-testid="ev-result"
 					>
 						EV {evDisplay}

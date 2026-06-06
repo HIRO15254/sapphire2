@@ -299,6 +299,11 @@ interface EvDisplayInput extends PlDisplayInput {
  * Returns `null` for tournaments or when no EV cash-out was recorded, so the
  * result section omits the second line. Live cash games carry an EV P&L; manual
  * entries only have one when the user logged an EV cash-out.
+ *
+ * The realized P&L is always whole chips, but the EV can be fractional (live
+ * all-in equity), so the value is rounded to the nearest integer before
+ * formatting — that keeps the EV's displayed precision aligned with the P&L's
+ * in the card. In BB/BI mode both figures already share a fixed decimal count.
  */
 export function formatSessionEvDisplay(
 	session: EvDisplayInput,
@@ -307,5 +312,5 @@ export function formatSessionEvDisplay(
 	if (session.type !== "cash_game" || session.evProfitLoss === null) {
 		return null;
 	}
-	return formatPlValue(session.evProfitLoss, session, bbBiMode);
+	return formatPlValue(Math.round(session.evProfitLoss), session, bbBiMode);
 }

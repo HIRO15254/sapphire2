@@ -185,6 +185,18 @@ describe("SessionListCard", () => {
 		expect(screen.queryByTestId("ev-result")).not.toBeInTheDocument();
 	});
 
+	it("colors a winning EV figure green", async () => {
+		renderCard({ ...baseSession, evProfitLoss: 800 });
+		await screen.findByText("1/2 NLH");
+		expect(screen.getByTestId("ev-result")).toHaveClass("text-green-600");
+	});
+
+	it("colors a losing EV figure red", async () => {
+		renderCard({ ...baseSession, evProfitLoss: -800 });
+		await screen.findByText("1/2 NLH");
+		expect(screen.getByTestId("ev-result")).toHaveClass("text-red-600");
+	});
+
 	it("does not show an EV row for a tournament", async () => {
 		renderCard({ ...baseTournament, evProfitLoss: 800 });
 		await screen.findByText("Sunday Major");
