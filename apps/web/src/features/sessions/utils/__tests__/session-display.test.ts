@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+	buildCashRuleRows,
 	buildCashStatRows,
 	buildSessionMetaRows,
+	buildTournamentRuleRows,
 	buildTournamentStatRows,
 	formatSessionDuration,
 	formatSessionEvDisplay,
@@ -125,67 +127,149 @@ describe("formatSessionDuration", () => {
 	});
 });
 
-describe("buildCashStatRows", () => {
-	const full = {
-		buyIn: 10_000,
-		cashOut: 13_500,
-		evCashOut: 12_000,
-		evProfitLoss: 2000,
+describe("buildCashRuleRows", () => {
+	const base = {
+		cashAnte: null,
+		cashAnteType: null,
+		cashBlind1: 1,
+		cashBlind3: null,
+		cashTableSize: null,
+		cashVariant: "nlh",
+		ringGameBlind2: 2,
 	};
 
-	it("includes buy-in and cash-out when both are present", () => {
-		const rows = buildCashStatRows({
-			...full,
-			evCashOut: null,
-			evProfitLoss: null,
+	it("renders variant, blinds, and table size", () => {
+		expect(buildCashRuleRows({ ...base, cashTableSize: 6 })).toEqual([
+			{ label: "Variant", value: "NLH" },
+			{ label: "Blinds", value: "1/2" },
+			{ label: "Table", value: "6-max" },
+		]);
+	});
+
+	it("appends a straddle to the blinds when present", () => {
+		expect(
+			buildCashRuleRows({ ...base, cashBlind3: 5 }).find(
+				(r) => r.label === "Blinds"
+			)
+		).toEqual({ label: "Blinds", value: "1/2/5" });
+	});
+
+	it("appends the ante suffix to the blinds row", () => {
+		expect(
+			buildCashRuleRows({ ...base, cashAnte: 2, cashAnteType: "bb" }).find(
+				(r) => r.label === "Blinds"
+			)
+		).toEqual({ label: "Blinds", value: "1/2 (BBA:2)" });
+	});
+
+	it("omits the blinds row when no blinds are recorded", () => {
+		const rows = buildCashRuleRows({
+			...base,
+			cashBlind1: null,
+			ringGameBlind2: null,
 		});
-		expect(rows).toEqual([
+		expect(rows.find((r) => r.label === "Blinds")).toBeUndefined();
+	});
+
+	it("omits the variant row when no variant is set", () => {
+		expect(
+			buildCashRuleRows({ ...base, cashVariant: null }).find(
+				(r) => r.label === "Variant"
+			)
+		).toBeUndefined();
+	});
+
+	it("returns an empty array when no rule data is recorded", () => {
+		expect(
+			buildCashRuleRows({
+				cashAnte: null,
+				cashAnteType: null,
+				cashBlind1: null,
+				cashBlind3: null,
+				cashTableSize: null,
+				cashVariant: null,
+				ringGameBlind2: null,
+			})
+		).toEqual([]);
+	});
+});
+
+describe("buildCashStatRows", () => {
+	it("includes buy-in and cash-out when both are present", () => {
+		expect(buildCashStatRows({ buyIn: 10_000, cashOut: 13_500 })).toEqual([
 			{ label: "Buy-in", value: "10k" },
 			{ label: "Cash-out", value: "13.5k" },
 		]);
 	});
 
 	it("omits buy-in when it is null", () => {
-		const rows = buildCashStatRows({ ...full, buyIn: null });
+		const rows = buildCashStatRows({ buyIn: null, cashOut: 13_500 });
 		expect(rows.find((r) => r.label === "Buy-in")).toBeUndefined();
 	});
 
 	it("omits cash-out when it is null", () => {
-		const rows = buildCashStatRows({ ...full, cashOut: null });
+		const rows = buildCashStatRows({ buyIn: 10_000, cashOut: null });
 		expect(rows.find((r) => r.label === "Cash-out")).toBeUndefined();
 	});
 
-	it("includes EV cash-out only when present", () => {
-		expect(
-			buildCashStatRows({ ...full }).find((r) => r.label === "EV cash-out")
-		).toEqual({ label: "EV cash-out", value: "12k" });
-		expect(
-			buildCashStatRows({ ...full, evCashOut: null }).find(
-				(r) => r.label === "EV cash-out"
-			)
-		).toBeUndefined();
-	});
-
-	it("formats EV P&L with a sign and omits it when null", () => {
-		expect(
-			buildCashStatRows({ ...full }).find((r) => r.label === "EV P&L")
-		).toEqual({ label: "EV P&L", value: "+2,000" });
-		expect(
-			buildCashStatRows({ ...full, evProfitLoss: null }).find(
-				(r) => r.label === "EV P&L"
-			)
-		).toBeUndefined();
+	it("never includes EV rows (EV lives in the P&L hero card)", () => {
+		const rows = buildCashStatRows({ buyIn: 10_000, cashOut: 13_500 });
+		expect(rows.map((r) => r.label)).toEqual(["Buy-in", "Cash-out"]);
 	});
 
 	it("returns an empty array when every value is null", () => {
+		expect(buildCashStatRows({ buyIn: null, cashOut: null })).toEqual([]);
+	});
+});
+
+describe("buildTournamentRuleRows", () => {
+	const base = {
+		entryFee: 0,
+		tournamentBuyIn: 5000,
+		tournamentStartingStack: null,
+		tournamentTableSize: null,
+		tournamentVariant: null,
+	};
+
+	it("includes the buy-in when present", () => {
 		expect(
-			buildCashStatRows({
-				buyIn: null,
-				cashOut: null,
-				evCashOut: null,
-				evProfitLoss: null,
+			buildTournamentRuleRows(base).find((r) => r.label === "Buy-in")
+		).toEqual({ label: "Buy-in", value: "5,000" });
+	});
+
+	it("drops a zero entry fee but includes a positive one", () => {
+		expect(
+			buildTournamentRuleRows(base).find((r) => r.label === "Entry fee")
+		).toBeUndefined();
+		expect(
+			buildTournamentRuleRows({ ...base, entryFee: 500 }).find(
+				(r) => r.label === "Entry fee"
+			)
+		).toEqual({ label: "Entry fee", value: "500" });
+	});
+
+	it("renders variant, starting stack, and table size when present", () => {
+		expect(
+			buildTournamentRuleRows({
+				...base,
+				tournamentVariant: "nlh",
+				tournamentStartingStack: 20_000,
+				tournamentTableSize: 9,
 			})
-		).toEqual([]);
+		).toEqual([
+			{ label: "Variant", value: "NLH" },
+			{ label: "Buy-in", value: "5,000" },
+			{ label: "Starting stack", value: "20k" },
+			{ label: "Table", value: "9-max" },
+		]);
+	});
+
+	it("omits the buy-in when null", () => {
+		expect(
+			buildTournamentRuleRows({ ...base, tournamentBuyIn: null }).find(
+				(r) => r.label === "Buy-in"
+			)
+		).toBeUndefined();
 	});
 });
 
@@ -198,36 +282,32 @@ describe("buildTournamentStatRows", () => {
 			id: string;
 			name: string;
 		}>,
-		entryFee: 0,
 		placement: null,
 		prizeMoney: 0,
 		totalEntries: null,
-		tournamentBuyIn: 5000,
 	};
 
-	it("always includes the buy-in when present", () => {
-		expect(buildTournamentStatRows(base)).toEqual([
-			{ label: "Buy-in", value: "5,000" },
-		]);
+	it("returns an empty array when there is no result data", () => {
+		expect(buildTournamentStatRows(base)).toEqual([]);
 	});
 
-	it("drops zero-valued entry fee, prize, and bounty", () => {
-		const rows = buildTournamentStatRows(base);
+	it("never includes buy-in or entry fee (those are rule data)", () => {
+		const rows = buildTournamentStatRows({ ...base, prizeMoney: 20_000 });
+		expect(rows.find((r) => r.label === "Buy-in")).toBeUndefined();
 		expect(rows.find((r) => r.label === "Entry fee")).toBeUndefined();
+	});
+
+	it("drops zero-valued prize and bounty", () => {
+		const rows = buildTournamentStatRows(base);
 		expect(rows.find((r) => r.label === "Prize")).toBeUndefined();
 		expect(rows.find((r) => r.label === "Bounty")).toBeUndefined();
 	});
 
-	it("includes positive entry fee, prize, and bounty", () => {
+	it("includes positive prize and bounty", () => {
 		const rows = buildTournamentStatRows({
 			...base,
-			entryFee: 500,
 			prizeMoney: 20_000,
 			bountyPrizes: 1500,
-		});
-		expect(rows.find((r) => r.label === "Entry fee")).toEqual({
-			label: "Entry fee",
-			value: "500",
 		});
 		expect(rows.find((r) => r.label === "Prize")).toEqual({
 			label: "Prize",

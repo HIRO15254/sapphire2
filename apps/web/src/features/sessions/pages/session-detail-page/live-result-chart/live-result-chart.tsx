@@ -16,13 +16,10 @@ export function LiveResultChart({
 	sessionType,
 }: LiveResultChartProps) {
 	return (
-		<>
-			<h3 className="t-meta mb-2 text-left text-muted-foreground">Result</h3>
-			<SessionResultChart
-				enabled
-				liveSessionId={liveSessionId}
-				sessionType={sessionType}
-			/>
-		</>
+		<SessionResultChart
+			enabled
+			liveSessionId={liveSessionId}
+			sessionType={sessionType}
+		/>
 	);
 }

@@ -76,12 +76,22 @@ const manualCashSession = {
 	buyIn: 10_000,
 	cashOut: 11_500,
 	evCashOut: null,
+	cashVariant: "nlh",
+	cashBlind1: 1,
+	ringGameBlind2: 2,
+	cashBlind3: null,
+	cashAnte: null,
+	cashAnteType: null,
+	cashTableSize: 6,
 	tournamentBuyIn: null,
 	entryFee: null,
 	prizeMoney: null,
 	bountyPrizes: null,
 	placement: null,
 	totalEntries: null,
+	tournamentStartingStack: null,
+	tournamentTableSize: null,
+	tournamentVariant: null,
 	chipPurchases: [],
 	startedAt: null,
 	endedAt: null,
@@ -143,13 +153,19 @@ describe("SessionDetailPage", () => {
 		expect(screen.queryByTestId("session-timeline")).not.toBeInTheDocument();
 	});
 
-	it("renders the cash-game financial rows for a manual cash session", () => {
+	it("renders the Result section with buy-in and cash-out for a manual cash session", () => {
 		renderPage();
-		expect(
-			screen.getByRole("heading", { name: "Cash game" })
-		).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "Result" })).toBeInTheDocument();
 		expect(screen.getByText("Buy-in")).toBeInTheDocument();
 		expect(screen.getByText("Cash-out")).toBeInTheDocument();
+	});
+
+	it("renders the Rule section with the cash game's variant and blinds", () => {
+		renderPage();
+		expect(screen.getByRole("heading", { name: "Rule" })).toBeInTheDocument();
+		expect(screen.getByText("Variant")).toBeInTheDocument();
+		expect(screen.getByText("Blinds")).toBeInTheDocument();
+		expect(screen.getByText("NLH")).toBeInTheDocument();
 	});
 
 	it("renders the memo when present", () => {
@@ -171,6 +187,8 @@ describe("SessionDetailPage", () => {
 		};
 		renderPage();
 		expect(screen.getByText("Live")).toBeInTheDocument();
+		// The Live badge is colored with the green success token.
+		expect(screen.getByText("Live")).toHaveClass("bg-success");
 		expect(screen.getByTestId("live-result-chart")).toBeInTheDocument();
 		expect(screen.getByTestId("session-timeline")).toBeInTheDocument();
 	});
@@ -184,10 +202,10 @@ describe("SessionDetailPage", () => {
 		};
 		renderPage();
 		const chart = screen.getByTestId("live-result-chart");
-		const gameHeading = screen.getByRole("heading", { name: "Cash game" });
-		// The chart sits inside the P&L card, which precedes the game info.
+		const ruleHeading = screen.getByRole("heading", { name: "Rule" });
+		// The chart sits inside the P&L card, which precedes the Rule section.
 		// Neither node contains the other, so the position is exactly FOLLOWING.
-		expect(chart.compareDocumentPosition(gameHeading)).toBe(
+		expect(chart.compareDocumentPosition(ruleHeading)).toBe(
 			Node.DOCUMENT_POSITION_FOLLOWING
 		);
 	});

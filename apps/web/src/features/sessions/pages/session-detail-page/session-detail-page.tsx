@@ -6,8 +6,10 @@ import { SessionFormSheet } from "@/features/sessions/components/session-form-sh
 import { SessionWizard } from "@/features/sessions/components/session-wizard";
 import { buildEditDefaults } from "@/features/sessions/hooks/use-sessions";
 import {
+	buildCashRuleRows,
 	buildCashStatRows,
 	buildSessionMetaRows,
+	buildTournamentRuleRows,
 	buildTournamentStatRows,
 	getSessionGameName,
 	isLiveSession,
@@ -82,7 +84,10 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 
 	const isTournament = session.type === "tournament";
 	const live = isLiveSession(session);
-	const statRows = isTournament
+	const ruleRows = isTournament
+		? buildTournamentRuleRows(session)
+		: buildCashRuleRows(session);
+	const resultRows = isTournament
 		? buildTournamentStatRows(session)
 		: buildCashStatRows(session);
 	const metaRows = buildSessionMetaRows(session);
@@ -96,7 +101,12 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 						<span className="min-w-0 truncate">
 							{getSessionGameName(session)}
 						</span>
-						<Badge variant={live ? "default" : "secondary"}>
+						<Badge
+							className={
+								live ? "bg-success text-[var(--success-foreground)]" : undefined
+							}
+							variant={live ? "default" : "secondary"}
+						>
 							{live ? (
 								<>
 									<IconBolt size={12} />
@@ -124,10 +134,8 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 				profitLoss={session.profitLoss}
 			/>
 
-			<SessionStatList
-				rows={statRows}
-				title={isTournament ? "Tournament" : "Cash game"}
-			/>
+			<SessionStatList rows={ruleRows} title="Rule" />
+			<SessionStatList rows={resultRows} title="Result" />
 			<SessionStatList rows={metaRows} title="Details" />
 
 			{live ? (
