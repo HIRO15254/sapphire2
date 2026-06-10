@@ -15,6 +15,9 @@ export function SessionsPage() {
 		sessions,
 		availableTags,
 		isLoading,
+		hasNextPage,
+		isFetchingNextPage,
+		fetchNextPage,
 		isCreatePending,
 		isCreateOpen,
 		isTagManagerOpen,
@@ -76,8 +79,11 @@ export function SessionsPage() {
 
 				<SessionList
 					bbBiMode={bbBiMode}
+					hasNextPage={hasNextPage}
+					isFetchingNextPage={isFetchingNextPage}
 					isLoading={isLoading}
 					onCreate={() => handleCreateOpenChange(true)}
+					onLoadMore={fetchNextPage}
 					sessions={sessions}
 				/>
 

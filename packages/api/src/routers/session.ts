@@ -21,7 +21,7 @@ import {
 	tournamentChipPurchase,
 } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -780,6 +780,42 @@ interface ListFilters {
 	type?: "cash_game" | "tournament";
 }
 
+/**
+ * Composite keyset cursor for the session list. The list orders by
+ * `sessionDate DESC, id DESC`, so paginating on `id` alone is wrong — id order
+ * is unrelated to date order, which made the second page drop or duplicate
+ * rows (and stop early, so "Load more" only worked once). The cursor therefore
+ * encodes both the date (epoch ms) and the id as `"<ms>_<id>"`.
+ */
+export function encodeSessionCursor(row: {
+	id: string;
+	sessionDate: Date;
+}): string {
+	return `${row.sessionDate.getTime()}_${row.id}`;
+}
+
+/**
+ * Parse an {@link encodeSessionCursor} value back into its date + id. Returns
+ * `null` for a malformed cursor (missing separator, empty / non-integer
+ * timestamp, or empty id) so the caller treats it as "no cursor" instead of
+ * crashing. Splits on the first separator only, so ids containing `_` survive.
+ */
+export function parseSessionCursor(
+	cursor: string
+): { id: string; sessionDate: Date } | null {
+	const separator = cursor.indexOf("_");
+	if (separator === -1) {
+		return null;
+	}
+	const rawMs = cursor.slice(0, separator);
+	const id = cursor.slice(separator + 1);
+	const ms = Number(rawMs);
+	if (rawMs === "" || id === "" || !Number.isInteger(ms)) {
+		return null;
+	}
+	return { id, sessionDate: new Date(ms) };
+}
+
 function buildSessionListConditions(userId: string, filters: ListFilters) {
 	const conditions = [eq(gameSession.userId, userId)];
 	if (filters.type) {
@@ -803,7 +839,21 @@ function buildSessionListConditions(userId: string, filters: ListFilters) {
 	}
 	const paginationConditions = [...conditions];
 	if (filters.cursor) {
-		paginationConditions.push(lt(gameSession.id, filters.cursor));
+		const parsed = parseSessionCursor(filters.cursor);
+		if (parsed) {
+			// Keyset must match the (sessionDate DESC, id DESC) ordering: take
+			// rows strictly after the cursor in that order.
+			const keyset = or(
+				lt(gameSession.sessionDate, parsed.sessionDate),
+				and(
+					eq(gameSession.sessionDate, parsed.sessionDate),
+					lt(gameSession.id, parsed.id)
+				)
+			);
+			if (keyset) {
+				paginationConditions.push(keyset);
+			}
+		}
 	}
 	return { conditions, paginationConditions };
 }
@@ -1807,7 +1857,9 @@ export const sessionRouter = router({
 
 			const hasMore = data.length > PAGE_SIZE;
 			const items = hasMore ? data.slice(0, PAGE_SIZE) : data;
-			const nextCursor = hasMore ? items.at(-1)?.id : undefined;
+			const last = items.at(-1);
+			const nextCursor =
+				hasMore && last ? encodeSessionCursor(last) : undefined;
 
 			const itemsWithTags = await enrichSessionRows(ctx.db, items);
 

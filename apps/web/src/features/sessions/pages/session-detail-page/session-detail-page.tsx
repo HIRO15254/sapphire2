@@ -6,18 +6,21 @@ import { SessionFormSheet } from "@/features/sessions/components/session-form-sh
 import { SessionWizard } from "@/features/sessions/components/session-wizard";
 import { buildEditDefaults } from "@/features/sessions/hooks/use-sessions";
 import {
+	buildCashRuleRows,
 	buildCashStatRows,
 	buildSessionMetaRows,
+	buildTournamentRuleRows,
 	buildTournamentStatRows,
 	getSessionGameName,
 	isLiveSession,
 } from "@/features/sessions/utils/session-display";
 import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
-import { LiveSessionPanel } from "./live-session-panel";
+import { LiveResultChart } from "./live-result-chart";
 import { SessionDetailSkeleton } from "./session-detail-skeleton";
 import { SessionPlHero } from "./session-pl-hero";
 import { SessionStatList } from "./session-stat-list";
+import { SessionTimeline } from "./session-timeline";
 import { TopBar } from "./top-bar";
 import { useSessionDetailPage } from "./use-session-detail-page";
 
@@ -81,7 +84,10 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 
 	const isTournament = session.type === "tournament";
 	const live = isLiveSession(session);
-	const statRows = isTournament
+	const ruleRows = isTournament
+		? buildTournamentRuleRows(session)
+		: buildCashRuleRows(session);
+	const resultRows = isTournament
 		? buildTournamentStatRows(session)
 		: buildCashStatRows(session);
 	const metaRows = buildSessionMetaRows(session);
@@ -95,7 +101,12 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 						<span className="min-w-0 truncate">
 							{getSessionGameName(session)}
 						</span>
-						<Badge variant={live ? "default" : "secondary"}>
+						<Badge
+							className={
+								live ? "bg-success text-[var(--success-foreground)]" : undefined
+							}
+							variant={live ? "default" : "secondary"}
+						>
 							{live ? (
 								<>
 									<IconBolt size={12} />
@@ -110,23 +121,29 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 			/>
 
 			<SessionPlHero
+				chart={
+					live ? (
+						<LiveResultChart
+							liveSessionId={session.id}
+							sessionType={isTournament ? "tournament" : "cash_game"}
+						/>
+					) : undefined
+				}
 				currencyUnit={session.currencyUnit}
 				evProfitLoss={session.evProfitLoss}
 				profitLoss={session.profitLoss}
 			/>
 
+			<SessionStatList rows={ruleRows} title="Rule" />
+			<SessionStatList rows={resultRows} title="Result" />
+			<SessionStatList rows={metaRows} title="Details" />
+
 			{live ? (
-				<LiveSessionPanel
+				<SessionTimeline
 					liveSessionId={session.id}
 					sessionType={isTournament ? "tournament" : "cash_game"}
 				/>
 			) : null}
-
-			<SessionStatList
-				rows={statRows}
-				title={isTournament ? "Tournament" : "Cash game"}
-			/>
-			<SessionStatList rows={metaRows} title="Details" />
 
 			{session.tags.length > 0 ? (
 				<div className="mb-4 flex flex-wrap gap-1">

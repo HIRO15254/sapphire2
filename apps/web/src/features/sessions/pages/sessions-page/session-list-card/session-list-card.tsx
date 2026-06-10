@@ -12,7 +12,7 @@ import {
 	formatSessionDuration,
 	formatSessionEvDisplay,
 	formatSessionPlDisplay,
-	formatTournamentPlacement,
+	formatTournamentResult,
 	getSessionGameName,
 	isLiveSession,
 } from "@/features/sessions/utils/session-display";
@@ -21,7 +21,6 @@ import { formatYmdSlash } from "@/utils/format-number";
 import { profitLossColorClass } from "@/utils/format-profit-loss";
 
 export interface SessionListCardItem {
-	beforeDeadline: boolean | null;
 	breakMinutes: number | null;
 	chipPurchaseCost: number;
 	currencyUnit: string | null;
@@ -54,12 +53,13 @@ interface SessionListCardProps {
 const MAX_VISIBLE_TAGS = 2;
 
 /**
- * v2 list row for a past session. The whole card links to the detail page; a
- * live-recorded session carries a small green bolt over its type icon (trophy =
- * yellow, chip = blue). Subtext stacks two lines — date + played duration, then
- * the venue — each with a leading icon. The result column shows the colored
- * P&L plus a secondary line: EV for cash games that recorded one, placement for
- * tournaments. P&L / EV respect the BB/BI toggle.
+ * v2 list row for a past session. The whole card is a link to the detail page;
+ * a live-recorded session carries a small green bolt over its type icon. The
+ * type icon keeps its pre-v2 accent (trophy = yellow, chip = blue). The subtext
+ * stacks two rows — date + played duration, then the room — each icon-led. The
+ * result column is right-pinned: the P&L (colored by sign, BB/BI-aware) on top,
+ * and a secondary line below — placement / field for tournaments, EV for cash
+ * games that logged one.
  */
 export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 	const isTournament = session.type === "tournament";
@@ -72,16 +72,16 @@ export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 		session.endedAt,
 		session.breakMinutes
 	);
-	const placement = formatTournamentPlacement(session);
+	const tournamentResult = formatTournamentResult(session);
 	const evDisplay = formatSessionEvDisplay(session, bbBiMode);
 
 	return (
 		<Link
-			className="flex items-start gap-3 rounded-lg border border-border bg-card px-4 py-3 text-card-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+			className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-card-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 			params={{ sessionId: session.id }}
 			to="/sessions/$sessionId"
 		>
-			<span className="relative shrink-0 pt-0.5">
+			<span className="relative shrink-0">
 				{isTournament ? (
 					<IconTrophy
 						aria-hidden
@@ -95,13 +95,13 @@ export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 				)}
 				{live ? (
 					<IconBolt
-						className="absolute -right-1 -bottom-1 size-3 text-green-500 dark:text-green-400"
+						className="absolute -right-1 -bottom-1 size-3 text-success"
 						data-testid="live-indicator"
 					/>
 				) : null}
 			</span>
 
-			<div className="min-w-0 flex-1">
+			<div className="flex min-w-0 flex-1 flex-col gap-1">
 				<div className="flex min-w-0 items-center gap-1.5">
 					<span className="min-w-0 truncate font-medium text-foreground text-sm">
 						{gameName}
@@ -117,29 +117,32 @@ export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 						</Badge>
 					) : null}
 				</div>
-				<div className="mt-1 flex flex-col gap-0.5 text-muted-foreground text-xs">
-					<div className="flex items-center gap-3">
-						<span className="flex items-center gap-0.5">
-							<IconCalendar className="shrink-0" size={12} />
-							{formatYmdSlash(session.sessionDate)}
+
+				<div className="flex items-center gap-3 text-muted-foreground text-xs">
+					<span className="inline-flex items-center gap-1">
+						<IconCalendar aria-hidden className="size-3.5 shrink-0" />
+						{formatYmdSlash(session.sessionDate)}
+					</span>
+					{duration ? (
+						<span
+							className="inline-flex items-center gap-1"
+							data-testid="session-duration"
+						>
+							<IconClock aria-hidden className="size-3.5 shrink-0" />
+							{duration}
 						</span>
-						{duration ? (
-							<span className="flex items-center gap-0.5">
-								<IconClock className="shrink-0" size={12} />
-								{duration}
-							</span>
-						) : null}
-					</div>
-					{session.roomName ? (
-						<div className="flex items-center gap-0.5">
-							<IconMapPin className="shrink-0" size={12} />
-							<span className="truncate">{session.roomName}</span>
-						</div>
 					) : null}
 				</div>
+
+				{session.roomName ? (
+					<div className="flex min-w-0 items-center gap-1 text-muted-foreground text-xs">
+						<IconMapPin aria-hidden className="size-3.5 shrink-0" />
+						<span className="truncate">{session.roomName}</span>
+					</div>
+				) : null}
 			</div>
 
-			<div className="flex shrink-0 flex-col items-end">
+			<div className="flex shrink-0 flex-col items-end gap-0.5">
 				<span
 					className={`font-mono font-semibold text-sm tabular-nums ${profitLossColorClass(
 						session.profitLoss ?? 0
@@ -147,19 +150,26 @@ export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 				>
 					{formatSessionPlDisplay(session, bbBiMode)}
 				</span>
-				{placement ? (
-					<span className="text-[10px] text-muted-foreground">{placement}</span>
+				{tournamentResult ? (
+					<span
+						className="font-mono text-muted-foreground text-xs tabular-nums"
+						data-testid="tournament-result"
+					>
+						{tournamentResult}
+					</span>
 				) : null}
 				{evDisplay ? (
-					<span className="text-[10px] text-muted-foreground">
-						EV{" "}
-						<span className={profitLossColorClass(session.evProfitLoss ?? 0)}>
-							{evDisplay}
-						</span>
+					<span
+						className={`font-mono text-xs tabular-nums ${profitLossColorClass(
+							Math.round(session.evProfitLoss ?? 0)
+						)}`}
+						data-testid="ev-result"
+					>
+						EV {evDisplay}
 					</span>
 				) : null}
 			</div>
-			<IconChevronRight className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+			<IconChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
 		</Link>
 	);
 }

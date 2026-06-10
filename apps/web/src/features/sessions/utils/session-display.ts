@@ -1,3 +1,8 @@
+import {
+	formatAnteSuffix,
+	formatBlindParts,
+	variantLabel,
+} from "@/features/live-sessions/utils/game-scene-formatters";
 import { formatCompactNumber, formatYmdSlash } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
 
@@ -56,16 +61,59 @@ export function formatSessionDuration(
 	return `${hours.toFixed(1)}h`;
 }
 
-interface CashStatInput {
-	buyIn: number | null;
-	cashOut: number | null;
-	evCashOut: number | null;
-	evProfitLoss: number | null;
+interface CashRuleInput {
+	cashAnte: number | null;
+	cashAnteType: string | null;
+	cashBlind1: number | null;
+	cashBlind3: number | null;
+	cashTableSize: number | null;
+	cashVariant: string | null;
+	ringGameBlind2: number | null;
 }
 
 /**
- * Financial rows for a cash-game session detail. Each amount is omitted when
- * its source value is `null`, so the detail card never renders an empty row.
+ * Game-rule rows for a cash-game session detail (the "Rule" section): variant,
+ * blinds (+ ante), and table size. Each row is omitted when its source value is
+ * absent, so the section never shows an empty row (and is dropped entirely when
+ * no rule data was recorded).
+ */
+export function buildCashRuleRows(session: CashRuleInput): StatRow[] {
+	const rows: StatRow[] = [];
+	if (session.cashVariant) {
+		rows.push({ label: "Variant", value: variantLabel(session.cashVariant) });
+	}
+	const blinds = formatBlindParts({
+		ante: session.cashAnte,
+		anteType: session.cashAnteType,
+		blind1: session.cashBlind1,
+		blind2: session.ringGameBlind2,
+		blind3: session.cashBlind3,
+	});
+	if (blinds) {
+		const ante = formatAnteSuffix({
+			ante: session.cashAnte,
+			anteType: session.cashAnteType,
+			blind1: session.cashBlind1,
+			blind2: session.ringGameBlind2,
+			blind3: session.cashBlind3,
+		});
+		rows.push({ label: "Blinds", value: ante ? `${blinds} ${ante}` : blinds });
+	}
+	if (session.cashTableSize != null) {
+		rows.push({ label: "Table", value: `${session.cashTableSize}-max` });
+	}
+	return rows;
+}
+
+interface CashStatInput {
+	buyIn: number | null;
+	cashOut: number | null;
+}
+
+/**
+ * Result rows for a cash-game session detail (the "Result" section): the
+ * recorded buy-in and cash-out. EV figures live in the P&L hero card, not here.
+ * Each amount is omitted when its source value is `null`.
  */
 export function buildCashStatRows(session: CashStatInput): StatRow[] {
 	const rows: StatRow[] = [];
@@ -78,17 +126,52 @@ export function buildCashStatRows(session: CashStatInput): StatRow[] {
 			value: formatCompactNumber(session.cashOut),
 		});
 	}
-	if (session.evCashOut !== null) {
+	return rows;
+}
+
+interface TournamentRuleInput {
+	entryFee: number | null;
+	tournamentBuyIn: number | null;
+	tournamentStartingStack: number | null;
+	tournamentTableSize: number | null;
+	tournamentVariant: string | null;
+}
+
+/**
+ * Game-rule rows for a tournament session detail (the "Rule" section): variant,
+ * buy-in / entry fee, starting stack, and table size. Zero-valued entry fee is
+ * dropped; other rows are omitted when absent.
+ */
+export function buildTournamentRuleRows(
+	session: TournamentRuleInput
+): StatRow[] {
+	const rows: StatRow[] = [];
+	if (session.tournamentVariant) {
 		rows.push({
-			label: "EV cash-out",
-			value: formatCompactNumber(session.evCashOut),
+			label: "Variant",
+			value: variantLabel(session.tournamentVariant),
 		});
 	}
-	if (session.evProfitLoss !== null) {
+	if (session.tournamentBuyIn != null) {
 		rows.push({
-			label: "EV P&L",
-			value: formatProfitLoss(session.evProfitLoss),
+			label: "Buy-in",
+			value: formatCompactNumber(session.tournamentBuyIn),
 		});
+	}
+	if (session.entryFee != null && session.entryFee > 0) {
+		rows.push({
+			label: "Entry fee",
+			value: formatCompactNumber(session.entryFee),
+		});
+	}
+	if (session.tournamentStartingStack != null) {
+		rows.push({
+			label: "Starting stack",
+			value: formatCompactNumber(session.tournamentStartingStack),
+		});
+	}
+	if (session.tournamentTableSize != null) {
+		rows.push({ label: "Table", value: `${session.tournamentTableSize}-max` });
 	}
 	return rows;
 }
@@ -101,34 +184,22 @@ interface TournamentStatInput {
 		id: string;
 		name: string;
 	}>;
-	entryFee: number | null;
 	placement: number | null;
 	prizeMoney: number | null;
 	totalEntries: number | null;
-	tournamentBuyIn: number | null;
 }
 
 /**
- * Financial + result rows for a tournament session detail. Zero-valued fees /
- * prizes are treated as "not applicable" and dropped; chip purchases only
- * appear when at least one was bought.
+ * Result rows for a tournament session detail (the "Result" section): prize,
+ * bounty, chip purchases (re-entries / add-ons), and the final placement.
+ * Buy-in / entry fee are game-rule data and live in {@link buildTournamentRuleRows}.
+ * Zero-valued prizes are dropped; chip purchases only appear when at least one
+ * was bought.
  */
 export function buildTournamentStatRows(
 	session: TournamentStatInput
 ): StatRow[] {
 	const rows: StatRow[] = [];
-	if (session.tournamentBuyIn !== null) {
-		rows.push({
-			label: "Buy-in",
-			value: formatCompactNumber(session.tournamentBuyIn),
-		});
-	}
-	if (session.entryFee !== null && session.entryFee > 0) {
-		rows.push({
-			label: "Entry fee",
-			value: formatCompactNumber(session.entryFee),
-		});
-	}
 	if (session.prizeMoney !== null && session.prizeMoney > 0) {
 		rows.push({
 			label: "Prize",
@@ -195,6 +266,29 @@ export function buildSessionMetaRows(session: MetaInput): StatRow[] {
 	return rows;
 }
 
+interface TournamentResultInput {
+	placement: number | null;
+	totalEntries: number | null;
+	type: string;
+}
+
+/**
+ * Secondary result line for a tournament list row: placement over total
+ * entries (e.g. "3 / 120"), or a bare placement when the field size is
+ * unknown. Returns `null` for cash games or unrecorded placements so the card
+ * omits the second result line entirely.
+ */
+export function formatTournamentResult(
+	session: TournamentResultInput
+): string | null {
+	if (session.type !== "tournament" || session.placement === null) {
+		return null;
+	}
+	return session.totalEntries === null
+		? `${session.placement}`
+		: `${session.placement} / ${session.totalEntries}`;
+}
+
 interface PlDisplayInput {
 	chipPurchaseCost: number;
 	currencyUnit: string | null;
@@ -234,84 +328,60 @@ function formatBBBI(value: number, unit: "BB" | "BI"): string {
 }
 
 /**
- * P&L display string honoring the BB/BI toggle. When off, the raw currency P&L
- * is shown. When on, cash games render in big blinds (P&L ÷ BB) and tournaments
- * in buy-ins (P&L ÷ total cost); either falls back to the currency figure when
- * the divisor is unavailable.
+ * Core value formatter honoring the BB/BI toggle, shared by the realized P&L
+ * and the EV figure. When off, the raw currency amount is shown. When on, cash
+ * games render in big blinds (value ÷ BB) and tournaments in buy-ins (value ÷
+ * total cost); either falls back to the currency figure when the divisor is
+ * unavailable.
  */
-export function formatSessionPlDisplay(
+function formatPlValue(
+	value: number,
 	session: PlDisplayInput,
 	bbBiMode: boolean
 ): string {
-	const profitLoss = session.profitLoss ?? 0;
-	const currency = formatProfitLoss(profitLoss, {
+	const currency = formatProfitLoss(value, {
 		currencyUnit: session.currencyUnit,
 	});
 	if (!bbBiMode) {
 		return currency;
 	}
 	if (session.type === "tournament") {
-		const bi = toBI(profitLoss, computeTotalCost(session));
+		const bi = toBI(value, computeTotalCost(session));
 		return bi === null ? currency : formatBBBI(bi, "BI");
 	}
-	const bb = toBB(profitLoss, session.ringGameBlind2);
+	const bb = toBB(value, session.ringGameBlind2);
 	return bb === null ? currency : formatBBBI(bb, "BB");
 }
 
-interface EvDisplayInput {
-	currencyUnit: string | null;
+/** Realized P&L display string honoring the BB/BI toggle. */
+export function formatSessionPlDisplay(
+	session: PlDisplayInput,
+	bbBiMode: boolean
+): string {
+	return formatPlValue(session.profitLoss ?? 0, session, bbBiMode);
+}
+
+interface EvDisplayInput extends PlDisplayInput {
 	evProfitLoss: number | null;
-	ringGameBlind2: number | null;
-	type: string;
 }
 
 /**
- * The EV-adjusted P&L string for a cash game's result line, honoring the BB/BI
- * toggle. Returns `null` for tournaments or when no EV cash-out was recorded so
- * the card can drop the line entirely.
+ * Secondary EV figure for a cash-game list row, honoring the BB/BI toggle.
+ * Returns `null` for tournaments or when no EV cash-out was recorded, so the
+ * result section omits the second line. Live cash games carry an EV P&L; manual
+ * entries only have one when the user logged an EV cash-out.
+ *
+ * The realized P&L is always whole chips, but the EV can be fractional (live
+ * all-in equity), so the value is rounded to the nearest integer before
+ * formatting — that keeps the EV's displayed precision aligned with the P&L's
+ * in the card. In BB/BI mode both figures already share a fixed decimal count.
  */
 export function formatSessionEvDisplay(
 	session: EvDisplayInput,
 	bbBiMode: boolean
 ): string | null {
-	if (session.type === "tournament" || session.evProfitLoss === null) {
+	if (session.type !== "cash_game" || session.evProfitLoss === null) {
 		return null;
 	}
-	const currency = formatProfitLoss(session.evProfitLoss, {
-		currencyUnit: session.currencyUnit,
-	});
-	if (!bbBiMode) {
-		return currency;
-	}
-	const evBB = toBB(session.evProfitLoss, session.ringGameBlind2);
-	return evBB === null ? currency : formatBBBI(evBB, "BB");
-}
-
-interface PlacementInput {
-	beforeDeadline: boolean | null;
-	placement: number | null;
-	totalEntries: number | null;
-	type: string;
-}
-
-/**
- * Placement string for a tournament's result line, e.g. `3/120 place`. Before
- * the deadline (final standings not yet known) it shows `- / - entries`. Cash
- * games and unranked tournaments return `null`.
- */
-export function formatTournamentPlacement(
-	session: PlacementInput
-): string | null {
-	if (session.type !== "tournament") {
-		return null;
-	}
-	if (session.beforeDeadline === true) {
-		return "- / - entries";
-	}
-	if (session.placement === null) {
-		return null;
-	}
-	const entries =
-		session.totalEntries === null ? "" : `/${session.totalEntries}`;
-	return `${session.placement}${entries} place`;
+	return formatPlValue(Math.round(session.evProfitLoss), session, bbBiMode);
 }

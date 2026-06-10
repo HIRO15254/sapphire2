@@ -10,10 +10,16 @@ import {
 interface SessionListProps {
 	/** When on, each card's P&L renders in big blinds / buy-ins. */
 	bbBiMode: boolean;
+	/** Another page of sessions is available to fetch. */
+	hasNextPage: boolean;
+	/** A `Load more` fetch is in flight. */
+	isFetchingNextPage: boolean;
 	/** Initial sessions fetch is in flight (no rows yet). */
 	isLoading: boolean;
 	/** Open the create sheet — wired to the empty-state CTA. */
 	onCreate: () => void;
+	/** Fetch the next page of sessions. */
+	onLoadMore: () => void;
 	sessions: SessionListCardItem[];
 }
 
@@ -26,8 +32,11 @@ const SKELETON_COUNT = 6;
  */
 export function SessionList({
 	bbBiMode,
+	hasNextPage,
+	isFetchingNextPage,
 	isLoading,
 	onCreate,
+	onLoadMore,
 	sessions,
 }: SessionListProps) {
 	if (isLoading) {
@@ -69,6 +78,17 @@ export function SessionList({
 					session={session}
 				/>
 			))}
+			{hasNextPage ? (
+				<Button
+					className="mt-1 w-full"
+					disabled={isFetchingNextPage}
+					onClick={onLoadMore}
+					size="sm"
+					variant="ghost"
+				>
+					{isFetchingNextPage ? "Loading..." : "Load more"}
+				</Button>
+			) : null}
 		</div>
 	);
 }

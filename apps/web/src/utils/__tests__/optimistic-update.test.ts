@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	cancelTargets,
 	invalidateTargets,
+	prependInfiniteQueryItem,
 	restoreSnapshots,
 	snapshotQueries,
 	snapshotQuery,
@@ -333,6 +334,71 @@ describe("optimistic-update helpers", () => {
 					{ items: [{ id: "tx1", amount: 1 }], nextCursor: "tx1" },
 					{ items: [], nextCursor: undefined },
 				],
+			});
+		});
+	});
+
+	describe("prependInfiniteQueryItem", () => {
+		it("prepends the item to the first page only and preserves the envelope", () => {
+			const queryClient = createQueryClientMock();
+
+			prependInfiniteQueryItem<InfiniteItem>(queryClient, ["tx"], {
+				id: "new",
+				amount: 7,
+			});
+
+			expect(queryClient.setQueryData).toHaveBeenCalledTimes(1);
+			expect(vi.mocked(queryClient.setQueryData).mock.calls[0]?.[0]).toEqual([
+				"tx",
+			]);
+			const updater = lastSetQueryDataUpdater(queryClient);
+			const old: InfiniteCache = {
+				pageParams: [undefined, "tx2"],
+				pages: [
+					{ items: [{ id: "tx1", amount: 1 }], nextCursor: "tx1" },
+					{ items: [{ id: "tx2", amount: 2 }], nextCursor: undefined },
+				],
+			};
+
+			expect(updater(old)).toEqual({
+				pageParams: [undefined, "tx2"],
+				pages: [
+					{
+						items: [
+							{ id: "new", amount: 7 },
+							{ id: "tx1", amount: 1 },
+						],
+						nextCursor: "tx1",
+					},
+					{ items: [{ id: "tx2", amount: 2 }], nextCursor: undefined },
+				],
+			});
+		});
+
+		it("returns undefined (no-op) when the cache entry is empty", () => {
+			const queryClient = createQueryClientMock();
+
+			prependInfiniteQueryItem<InfiniteItem>(queryClient, ["tx"], {
+				id: "new",
+				amount: 7,
+			});
+
+			const updater = lastSetQueryDataUpdater(queryClient);
+			expect(updater(undefined)).toBeUndefined();
+		});
+
+		it("leaves an empty pages array untouched rather than fabricating a page", () => {
+			const queryClient = createQueryClientMock();
+
+			prependInfiniteQueryItem<InfiniteItem>(queryClient, ["tx"], {
+				id: "new",
+				amount: 7,
+			});
+
+			const updater = lastSetQueryDataUpdater(queryClient);
+			expect(updater({ pageParams: [], pages: [] })).toEqual({
+				pageParams: [],
+				pages: [],
 			});
 		});
 	});

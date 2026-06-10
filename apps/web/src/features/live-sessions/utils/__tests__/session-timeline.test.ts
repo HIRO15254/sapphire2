@@ -76,7 +76,7 @@ describe("deriveCashGameTimeline", () => {
 		expect(points[1]).toEqual({ t: 30 * 60_000, pl: 2000, evPl: 2000 });
 	});
 
-	it("chips_add_remove (positive) leaves pl unchanged but increases buy-in basis", () => {
+	it("does not plot chips_add_remove (positive); folds it into the next stack record's basis", () => {
 		const events = [
 			event({
 				eventType: "session_start",
@@ -100,13 +100,14 @@ describe("deriveCashGameTimeline", () => {
 			}),
 		];
 		const points = deriveCashGameTimeline(events);
-		// At chips_add_remove(+): stack=17000 (was 12000 + 5000), totalBuyIn=15000 → pl unchanged at 2000
-		expect(points[2]).toEqual({ t: 31 * 60_000, pl: 2000, evPl: 2000 });
-		// Subsequent update_stack repeats the same pl when stack matches totalBuyIn shift
-		expect(points[3]).toEqual({ t: 32 * 60_000, pl: 2000, evPl: 2000 });
+		// start + two stack records only — the rebuy is not its own point.
+		expect(points).toHaveLength(3);
+		expect(points.map((p) => p.t)).toEqual([0, 30 * 60_000, 32 * 60_000]);
+		// At @32: stack=17000, totalBuyIn=15000 → pl = 2000 (rebuy folded into basis)
+		expect(points[2]).toEqual({ t: 32 * 60_000, pl: 2000, evPl: 2000 });
 	});
 
-	it("chips_add_remove (negative) accumulates chipRemoveTotal so pl is stable", () => {
+	it("does not plot chips_add_remove (negative); folds chipRemoveTotal into the next stack record", () => {
 		const events = [
 			event({
 				eventType: "session_start",
@@ -123,13 +124,19 @@ describe("deriveCashGameTimeline", () => {
 				payload: { amount: -3000 },
 				offsetMin: 31,
 			}),
+			event({
+				eventType: "update_stack",
+				payload: { stackAmount: 9000 },
+				offsetMin: 32,
+			}),
 		];
 		const points = deriveCashGameTimeline(events);
-		// stack=9000, chipRemoveTotal=3000, totalBuyIn=10000 → pl = 9000 + 3000 - 10000 = 2000
-		expect(points[2]).toEqual({ t: 31 * 60_000, pl: 2000, evPl: 2000 });
+		expect(points).toHaveLength(3);
+		// @32: stack=9000, chipRemoveTotal=3000, totalBuyIn=10000 → pl = 9000 + 3000 - 10000 = 2000
+		expect(points[2]).toEqual({ t: 32 * 60_000, pl: 2000, evPl: 2000 });
 	});
 
-	it("all_in adds positive evDiff when wins underperform equity", () => {
+	it("does not plot all_in; folds its evDiff into the next stack record", () => {
 		const events = [
 			event({
 				eventType: "session_start",
@@ -142,12 +149,20 @@ describe("deriveCashGameTimeline", () => {
 				payload: { potSize: 1000, trials: 1, equity: 60, wins: 0 },
 				offsetMin: 5,
 			}),
+			event({
+				eventType: "update_stack",
+				payload: { stackAmount: 10_000 },
+				offsetMin: 10,
+			}),
 		];
 		const points = deriveCashGameTimeline(events);
-		expect(points[1]).toEqual({ t: 5 * 60_000, pl: 0, evPl: 600 });
+		// start + the stack record only — the all-in is not its own point.
+		expect(points).toHaveLength(2);
+		// @10: stack=10000, totalBuyIn=10000 → pl=0, evPl = 0 + 600 = 600
+		expect(points[1]).toEqual({ t: 10 * 60_000, pl: 0, evPl: 600 });
 	});
 
-	it("multiple all_in events accumulate evDiff", () => {
+	it("accumulates multiple all_in evDiffs into the next stack record", () => {
 		const events = [
 			event({
 				eventType: "session_start",
@@ -164,10 +179,16 @@ describe("deriveCashGameTimeline", () => {
 				payload: { potSize: 500, trials: 1, equity: 50, wins: 1 },
 				offsetMin: 10,
 			}),
+			event({
+				eventType: "update_stack",
+				payload: { stackAmount: 10_000 },
+				offsetMin: 15,
+			}),
 		];
 		const points = deriveCashGameTimeline(events);
 		// 1st: +600. 2nd: 500*0.5 - 500*1 = -250 → cumulative evDiff = 350
-		expect(points[2]?.evPl).toBe(350);
+		expect(points).toHaveLength(2);
+		expect(points[1]?.evPl).toBe(350);
 	});
 
 	it("session_end snapshots final pl matching computeCashGamePLFromEvents", () => {
@@ -196,6 +217,8 @@ describe("deriveCashGameTimeline", () => {
 		const points = deriveCashGameTimeline(events);
 		const finalServer = computeCashGamePLFromEvents(events.map(toServerEvent));
 		const last = points.at(-1);
+		// Plotted at the recorded session_end time, not the last stack record.
+		expect(last?.t).toBe(60 * 60_000);
 		expect(last?.pl).toBe(finalServer.profitLoss);
 		expect(last?.evPl).toBe((finalServer.profitLoss ?? 0) + finalServer.evDiff);
 	});
@@ -261,7 +284,7 @@ describe("deriveTournamentTimeline", () => {
 		expect(deriveTournamentTimeline(events)).toEqual([]);
 	});
 
-	it("first update_stack establishes the starting stack and emits null averageStack until totalEntries arrives", () => {
+	it("plots the start point at the starting stack taken from the first stack record", () => {
 		const events = [
 			event({
 				eventType: "session_start",
@@ -276,11 +299,25 @@ describe("deriveTournamentTimeline", () => {
 		];
 		const points = deriveTournamentTimeline(events);
 		expect(points).toHaveLength(2);
+		// Start point sits at t=0 with the starting stack (not zero).
+		expect(points[0]).toEqual({ t: 0, stack: 10_000, averageStack: null });
 		expect(points[1]).toEqual({
 			t: 5 * 60_000,
 			stack: 10_000,
 			averageStack: null,
 		});
+	});
+
+	it("plots the start point at zero stack when no stack was ever recorded", () => {
+		const events = [
+			event({
+				eventType: "session_start",
+				payload: {},
+				offsetMin: 0,
+			}),
+		];
+		const points = deriveTournamentTimeline(events);
+		expect(points).toEqual([{ t: 0, stack: 0, averageStack: null }]);
 	});
 
 	it("computes averageStack = startingStack * totalEntries / remainingPlayers when both are present", () => {
@@ -351,7 +388,7 @@ describe("deriveTournamentTimeline", () => {
 		});
 	});
 
-	it("purchase_chips adds chips to running stack", () => {
+	it("does not plot purchase_chips on its own; it is folded into the next stack record", () => {
 		const events = [
 			event({
 				eventType: "session_start",
@@ -373,13 +410,17 @@ describe("deriveTournamentTimeline", () => {
 				},
 				offsetMin: 10,
 			}),
+			event({
+				eventType: "update_stack",
+				payload: { stackAmount: 16_000 },
+				offsetMin: 15,
+			}),
 		];
 		const points = deriveTournamentTimeline(events);
-		expect(points[2]).toEqual({
-			t: 10 * 60_000,
-			stack: 15_000,
-			averageStack: null,
-		});
+		// start + two stack records; the purchase itself is not a point.
+		expect(points).toHaveLength(3);
+		expect(points.map((p) => p.t)).toEqual([0, 5 * 60_000, 15 * 60_000]);
+		expect(points.at(-1)?.stack).toBe(16_000);
 	});
 
 	it("ignores unrelated event types (memo, pause, resume, player_join)", () => {

@@ -12,11 +12,8 @@ import {
 } from "@/features/sessions/pages/sessions-page/session-list-card";
 
 const OVERFLOW_RE = /^\+\d+$/;
-const DURATION_RE = /h$/;
-const EV_PREFIX = /^EV/;
 
 const baseSession: SessionListCardItem = {
-	beforeDeadline: null,
 	breakMinutes: null,
 	chipPurchaseCost: 0,
 	currencyUnit: null,
@@ -37,6 +34,14 @@ const baseSession: SessionListCardItem = {
 	tournamentBuyIn: null,
 	tournamentName: null,
 	type: "cash_game",
+};
+
+const baseTournament: SessionListCardItem = {
+	...baseSession,
+	type: "tournament",
+	ringGameName: null,
+	tournamentName: "Sunday Major",
+	tournamentBuyIn: 5000,
 };
 
 function renderCard(session: SessionListCardItem, bbBiMode = false) {
@@ -124,65 +129,90 @@ describe("SessionListCard", () => {
 		expect(screen.getByText("+2.00 BI")).toBeInTheDocument();
 	});
 
-	it("shows the date and room on separate subtext lines", async () => {
+	it("shows the date and room on separate subtext rows", async () => {
 		renderCard(baseSession);
 		await screen.findByText("1/2 NLH");
 		expect(screen.getByText("2026/01/15")).toBeInTheDocument();
 		expect(screen.getByText("Aria")).toBeInTheDocument();
 	});
 
-	it("omits the room line when no room is set", async () => {
+	it("omits the room row when no room is set", async () => {
 		renderCard({ ...baseSession, roomName: null });
 		await screen.findByText("1/2 NLH");
 		expect(screen.getByText("2026/01/15")).toBeInTheDocument();
 		expect(screen.queryByText("Aria")).not.toBeInTheDocument();
 	});
 
-	it("shows the played duration when both timestamps are present", async () => {
+	it("shows the played duration when start and end timestamps are present", async () => {
 		renderCard({
 			...baseSession,
-			startedAt: "2026-01-15T19:00:00",
-			endedAt: "2026-01-15T22:00:00",
+			startedAt: "2026-01-15T10:00:00",
+			endedAt: "2026-01-15T13:30:00",
 		});
 		await screen.findByText("1/2 NLH");
-		expect(screen.getByText("3.0h")).toBeInTheDocument();
+		expect(screen.getByTestId("session-duration")).toHaveTextContent("3.5h");
 	});
 
 	it("omits the duration when timestamps are missing", async () => {
 		renderCard(baseSession);
 		await screen.findByText("1/2 NLH");
-		expect(screen.queryByText(DURATION_RE)).not.toBeInTheDocument();
+		expect(screen.queryByTestId("session-duration")).not.toBeInTheDocument();
 	});
 
-	it("shows the EV result line for a cash game with a recorded EV", async () => {
-		renderCard({ ...baseSession, evProfitLoss: 800, currencyUnit: "$" });
+	it("shows placement over total entries for a tournament", async () => {
+		renderCard({ ...baseTournament, placement: 3, totalEntries: 120 });
+		await screen.findByText("Sunday Major");
+		expect(screen.getByTestId("tournament-result")).toHaveTextContent(
+			"3 / 120"
+		);
+	});
+
+	it("omits the tournament result when no placement is recorded", async () => {
+		renderCard(baseTournament);
+		await screen.findByText("Sunday Major");
+		expect(screen.queryByTestId("tournament-result")).not.toBeInTheDocument();
+	});
+
+	it("shows the EV figure for a cash game with an EV record", async () => {
+		renderCard({ ...baseSession, currencyUnit: "$", evProfitLoss: 800 });
 		await screen.findByText("1/2 NLH");
-		expect(screen.getByText("+800 $")).toBeInTheDocument();
+		expect(screen.getByTestId("ev-result")).toHaveTextContent("EV +800 $");
 	});
 
-	it("hides the EV line for a cash game without an EV", async () => {
+	it("omits the EV row when no EV was recorded", async () => {
 		renderCard(baseSession);
 		await screen.findByText("1/2 NLH");
-		expect(screen.queryByText(EV_PREFIX)).not.toBeInTheDocument();
+		expect(screen.queryByTestId("ev-result")).not.toBeInTheDocument();
 	});
 
-	it("shows the placement result line for a tournament", async () => {
-		renderCard({
-			...baseSession,
-			type: "tournament",
-			ringGameName: null,
-			tournamentName: "Sunday Major",
-			placement: 3,
-			totalEntries: 120,
-		});
+	it("colors a winning EV figure green", async () => {
+		renderCard({ ...baseSession, evProfitLoss: 800 });
+		await screen.findByText("1/2 NLH");
+		expect(screen.getByTestId("ev-result")).toHaveClass("text-green-600");
+	});
+
+	it("colors a losing EV figure red", async () => {
+		renderCard({ ...baseSession, evProfitLoss: -800 });
+		await screen.findByText("1/2 NLH");
+		expect(screen.getByTestId("ev-result")).toHaveClass("text-red-600");
+	});
+
+	it("does not show an EV row for a tournament", async () => {
+		renderCard({ ...baseTournament, evProfitLoss: 800 });
 		await screen.findByText("Sunday Major");
-		expect(screen.getByText("3/120 place")).toBeInTheDocument();
+		expect(screen.queryByTestId("ev-result")).not.toBeInTheDocument();
 	});
 
 	it("shows the live indicator for a live-recorded session", async () => {
 		renderCard({ ...baseSession, source: "live" });
 		await screen.findByText("1/2 NLH");
 		expect(screen.getByTestId("live-indicator")).toBeInTheDocument();
+	});
+
+	it("colors the live indicator with the green success token", async () => {
+		renderCard({ ...baseSession, source: "live" });
+		await screen.findByText("1/2 NLH");
+		expect(screen.getByTestId("live-indicator")).toHaveClass("text-success");
 	});
 
 	it("hides the live indicator for a manual session", async () => {
