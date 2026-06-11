@@ -48,13 +48,16 @@ If a portal-heavy screen is hard to scope, escalate the v2 class to `<html>` on 
 
 ## Tokens v2 adds (not present in legacy)
 
-v2 introduces `--success` / `--warning` / `--info` (and their `-foreground` pairs) inside the `.theme-v2` scope only. Outside the scope these are undefined — use them only inside v2 regions, via arbitrary values:
+v2 ships `--success` / `--warning` / `--info` (and their `-foreground` pairs). **These tokens already include the `hsl()` wrapper** (`--success: hsl(142 71% 45%)`), so reference them as `var(--token)` directly — **never** `hsl(var(--token))`, which expands to the invalid `hsl(hsl(…))` and silently falls back to the inherited color (the bug that left the session-list live icon rendering white).
+
+- **`--success`** is the exception that is fully promoted: defined in `:root` + `.dark` (same value) **and** registered in `@theme inline` (`--color-success: var(--success)`). Use the first-class utilities **`text-success` / `bg-success` / `border-success`** — they resolve everywhere, legacy or v2.
+- **`--warning` / `--info`** live in the `.theme-v2` scope only and are **not** registered as `--color-*`. Use them inside v2 regions via arbitrary values referencing the var directly:
 
 ```tsx
-<span className="bg-[hsl(var(--success))] text-[hsl(var(--success-foreground))]">…</span>
+<span className="bg-[var(--warning)] text-[var(--warning-foreground)]">…</span>
 ```
 
-If a v2 component needs these as first-class Tailwind utilities (`bg-success` etc.), extend `@theme inline` in `index.css` **and** add fallback values to `:root` + `.dark` so legacy regions don't break.
+To promote `--warning` / `--info` to first-class utilities (`bg-warning` etc.), register them in `@theme inline` in `index.css` **and** add values to `:root` + `.dark` so legacy regions don't break — mirror how `--success` is wired.
 
 v2 also ships the full Sapphire 2 design-token contract inside the `.theme-v2` scope — **the `.theme-v2` block in `apps/web/src/index.css` is the source of truth** for the exact variable names and values. Categories: spacing (`--space-*`, 4px grid), control heights (`--h-control-*`), type scale (`--text-*`), motion (`--dur-*` / `--ease-*`), font stack (`--font-sans` = Noto Sans, `--font-mono` = JetBrains Mono; legacy keeps Inter / Geist Mono), and typography classes (`t-display / t-h1 … t-h4 / t-body / t-meta / t-label / t-code / t-kbd` — use these for v2 surfaces instead of hand-rolling font/size/weight combos). All exist only inside the `.theme-v2` cascade; legacy regions are unaffected.
 
