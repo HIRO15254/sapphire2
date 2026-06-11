@@ -29,7 +29,7 @@ const RING_GAME = {
 const NEXT_RE = /Next/;
 const BACK_RE = /Back/;
 const SAVE_RE = /Save/;
-const SESSION_DATE_RE = /Session Date/;
+const SESSION_DATE_RE = /Session date/;
 const LEVEL_RE = /Level/;
 const BREAK_RE = /Break/;
 
@@ -54,7 +54,7 @@ describe("SessionWizard — step gating", () => {
 		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 
 		// Master shows the session-type tabs
-		expect(screen.getByText("Cash Game")).toBeInTheDocument();
+		expect(screen.getByText("Cash game")).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		// Rules step: cash variant field shows up
@@ -75,7 +75,7 @@ describe("SessionWizard — step gating", () => {
 		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: BACK_RE }));
-		expect(screen.getByText("Cash Game")).toBeInTheDocument();
+		expect(screen.getByText("Cash game")).toBeInTheDocument();
 	});
 });
 
@@ -89,25 +89,25 @@ describe("SessionWizard — tournament mode", () => {
 		expect(document.getElementById("entryFee")).toBeInTheDocument();
 	});
 
-	it("splits the tournament Rules step into Settings and Blind Levels tabs", async () => {
+	it("splits the tournament Rules step into Settings and Blind levels tabs", async () => {
 		const user = userEvent.setup();
 		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(screen.getByRole("tab", { name: "Settings" })).toBeInTheDocument();
 		expect(
-			screen.getByRole("tab", { name: "Blind Levels" })
+			screen.getByRole("tab", { name: "Blind levels" })
 		).toBeInTheDocument();
 		// Settings tab is active by default — chip purchases live there.
 		expect(screen.getByText("Chip Purchases")).toBeInTheDocument();
 	});
 
-	it("reveals the shared blind-structure editor on the Blind Levels tab", async () => {
+	it("reveals the shared blind-structure editor on the Blind levels tab", async () => {
 		const user = userEvent.setup();
 		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
-		await user.click(screen.getByRole("tab", { name: "Blind Levels" }));
+		await user.click(screen.getByRole("tab", { name: "Blind levels" }));
 		expect(screen.getByRole("button", { name: LEVEL_RE })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: BREAK_RE })).toBeInTheDocument();
 	});
@@ -118,9 +118,9 @@ describe("SessionWizard — snapshot scalar fields", () => {
 		const user = userEvent.setup();
 		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
-		expect(screen.getByLabelText("Rule Name")).toBeInTheDocument();
-		expect(screen.getByLabelText("Min Buy-in")).toBeInTheDocument();
-		expect(screen.getByLabelText("Max Buy-in")).toBeInTheDocument();
+		expect(screen.getByLabelText("Rule name")).toBeInTheDocument();
+		expect(screen.getByLabelText("Min buy-in")).toBeInTheDocument();
+		expect(screen.getByLabelText("Max buy-in")).toBeInTheDocument();
 	});
 
 	it("renders ruleName + startingStack + bountyAmount on the tournament rules step", async () => {
@@ -128,9 +128,9 @@ describe("SessionWizard — snapshot scalar fields", () => {
 		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
-		expect(screen.getByLabelText("Rule Name")).toBeInTheDocument();
-		expect(screen.getByLabelText("Starting Stack")).toBeInTheDocument();
-		expect(screen.getByLabelText("Bounty Amount")).toBeInTheDocument();
+		expect(screen.getByLabelText("Rule name")).toBeInTheDocument();
+		expect(screen.getByLabelText("Starting stack")).toBeInTheDocument();
+		expect(screen.getByLabelText("Bounty amount")).toBeInTheDocument();
 	});
 });
 
@@ -185,12 +185,12 @@ describe("SessionWizard — live mode", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("renders the Initial Buy-in field on the cash Start step", async () => {
+	it("renders the Initial buy-in field on the cash Start step", async () => {
 		const user = userEvent.setup();
 		render(<SessionWizard mode="live" onSubmit={vi.fn()} rooms={[STORE]} />);
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
-		expect(screen.getByText("Initial Buy-in")).toBeInTheDocument();
+		expect(screen.getByText("Initial buy-in")).toBeInTheDocument();
 		expect(document.getElementById("buyIn")).toBeInTheDocument();
 	});
 
@@ -200,7 +200,7 @@ describe("SessionWizard — live mode", () => {
 		await user.click(screen.getByText("Tournament"));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
-		expect(screen.getByText("Blind Timer Start")).toBeInTheDocument();
+		expect(screen.getByText("Blind timer start")).toBeInTheDocument();
 		expect(document.getElementById("timerStartedAt")).toBeInTheDocument();
 	});
 

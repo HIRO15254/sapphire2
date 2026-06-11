@@ -152,7 +152,7 @@ describe("BlindStructureContent", () => {
 	it("creates a new level row with autofill when the new row loses focus", () => {
 		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
 
-		const numberInputs = screen.getAllByRole("spinbutton");
+		const numberInputs = screen.getAllByRole("textbox");
 		const smallBlindInput = numberInputs[0];
 		fireEvent.change(smallBlindInput, { target: { value: "100" } });
 		fireEvent.blur(smallBlindInput, { relatedTarget: null });
@@ -199,5 +199,52 @@ describe("BlindStructureContent", () => {
 		await user.click(screen.getByRole("button", { name: "Delete level" }));
 
 		expect(mocks.deleteMutate).toHaveBeenCalledWith({ id: "level-1" });
+	});
+
+	it("renders numeric cells as text inputs with a numeric input mode", () => {
+		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+
+		const inputs = screen.getAllByRole("textbox");
+		expect(inputs.length).toBeGreaterThan(0);
+		for (const input of inputs) {
+			expect(input).toHaveAttribute("type", "text");
+			expect(input).toHaveAttribute("inputmode", "numeric");
+		}
+	});
+
+	it("updates a break's minutes from typed digits and maps empty text to null", () => {
+		mocks.blindLevels = [
+			{
+				ante: null,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				id: "break-1",
+				isBreak: true,
+				level: 1,
+				minutes: 10,
+				tournamentId: "tour-1",
+			},
+		];
+
+		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+
+		// First textbox is the break row's minutes cell (empty new-level row follows).
+		const minutesInput = screen.getAllByRole("textbox")[0];
+		fireEvent.change(minutesInput, { target: { value: "15" } });
+		fireEvent.blur(minutesInput);
+		expect(mocks.updateMutate).toHaveBeenCalledTimes(1);
+		expect(mocks.updateMutate).toHaveBeenCalledWith({
+			id: "break-1",
+			minutes: 15,
+		});
+
+		fireEvent.change(minutesInput, { target: { value: "" } });
+		fireEvent.blur(minutesInput);
+		expect(mocks.updateMutate).toHaveBeenCalledTimes(2);
+		expect(mocks.updateMutate).toHaveBeenLastCalledWith({
+			id: "break-1",
+			minutes: null,
+		});
 	});
 });

@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MobileNav } from "../shared/components/mobile-nav";
+import { MobileNav } from "@/shared/components/authenticated-shell/mobile-nav";
 
 // Mock useActiveSession to control nav mode
 const mockUseActiveSession = vi.fn();

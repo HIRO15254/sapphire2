@@ -16,13 +16,13 @@ interface SessionFormSheetProps {
 }
 
 /**
- * v2 full-height bottom sheet for the session wizard and tag manager.
+ * Full-height bottom sheet for the session wizard and tag manager.
  *
  * Unlike the shared {@link FormSheet}, this sheet has no `[✓]` submit button:
  * the {@link SessionWizard} drives its own multi-step navigation and final
- * submit, and the tag manager mutates inline. It still opens full height,
+ * submit, and the tag manager mutates inline. It still opens full height and
  * stays non-dismissible (so a stray swipe never discards in-progress wizard
- * input), and scopes the portal to `theme-v2`.
+ * input).
  */
 export function SessionFormSheet({
 	children,
@@ -32,7 +32,7 @@ export function SessionFormSheet({
 }: SessionFormSheetProps) {
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
-			<DrawerContent className="theme-v2 flex h-[calc(100svh-2rem)] flex-col rounded-t-xl">
+			<DrawerContent className="flex h-[calc(100svh-2rem)] flex-col rounded-t-xl">
 				<div className="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b px-2 py-1.5">
 					<Button
 						aria-label="Close"

@@ -1,8 +1,8 @@
 import { IconPlus, IconTags } from "@tabler/icons-react";
 import { SessionFilters } from "@/features/sessions/components/session-filters";
 import { SessionFormSheet } from "@/features/sessions/components/session-form-sheet";
-import { SessionTagManager } from "@/features/sessions/components/session-tag-manager";
 import { SessionWizard } from "@/features/sessions/components/session-wizard";
+import { SessionTagManager } from "@/features/sessions/pages/sessions-page/session-tag-manager";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
@@ -36,7 +36,7 @@ export function SessionsPage() {
 	} = useSessionsPage();
 
 	return (
-		<div className="theme-v2 min-h-full bg-background text-foreground">
+		<div className="min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<PageHeader
 					actions={

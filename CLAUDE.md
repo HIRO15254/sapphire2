@@ -70,13 +70,13 @@ features/<feature>/
 routes/                    TanStack Router tree; route files delegate to features/<feature>/pages/<page>
 shared/
   components/ui/           shadcn primitives (Button, Select, Avatar, Badge, Table, ...)
-  components/              cross-feature composites (PageHeader, AuthenticatedShell, sign-in-form, ...)
+  components/              cross-feature composites (PageHeader, AuthenticatedShell, FormSheet, ...)
   hooks/                   cross-feature hooks (use-media-query, use-online-status, ...)
   lib/                     cross-feature helpers (form-fields, ...)
 utils/                     truly global helpers (optimistic-update, formatters, ...)
 ```
 
-When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. **New pages follow the `pages/<page>/` pattern**: the route file stays thin (`createFileRoute` + `Route.useParams()` only) and delegates to a page component in `features/<feature>/pages/<page>/`, colocated with its `use-<page>-page.ts` hook. Extract a subcomponent into a child folder once the parent component file exceeds 300 lines (or earlier when a part is single-use but self-contained); a page's single-use subcomponents live in child folders under that page; a list component owns its own loading / empty / data switch and binds its skeleton's shape to the card it mirrors; `FormSheet` is composed at the page level around a bare form component. `features/currencies/`, `features/players/`, and `features/sessions/` are the reference implementations — a few remaining routes (e.g. `active-session`) still keep page hooks in `routes/**/-use-<page>-page.ts` and are migrated to this layout as they are touched. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it.
+When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. **Every page follows the `pages/<page>/` pattern**: the route file stays thin (`createFileRoute` + `Route.useParams()` only) and delegates to a page component in `features/<feature>/pages/<page>/`, colocated with its `use-<page>-page.ts` hook. Extract a subcomponent into a child folder once the parent component file exceeds 300 lines (or earlier when a part is single-use but self-contained); a list component owns its own loading / empty / data switch and binds its skeleton's shape to the card it mirrors; `FormSheet` is composed at the page level around a bare form component. **Placement follows consumers**: a component used by exactly one page lives in that page's child folders; a component used by exactly one parent component lives in a child folder of that parent (its hook colocates the same way); only components designed as generic building blocks stay in `components/` / `shared/` while they happen to have a single consumer. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it. `features/currencies/`, `features/players/`, `features/sessions/`, and `features/live-sessions/pages/active-session-page/` are the reference implementations.
 
 ## Release Flow
 
@@ -92,7 +92,7 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 - **Mobile forms are bottom sheets.** Use shadcn `Drawer`, not `Dialog`.
 - **Pages start with [`PageHeader`](apps/web/src/shared/components/page-header/page-header.tsx).** Do not hand-roll titles / action rows.
 - **Logic lives in `useXxx` hooks, not in components.** Components render JSX from destructured hook returns. Verification & full forbidden list: [`.claude/rules/web-hooks-separation.md`](.claude/rules/web-hooks-separation.md).
-- **Theme migration in progress.** Two shadcn/ui themes coexist: the **legacy theme** (default, `:root` / `.dark` in `apps/web/src/index.css`) and **theme v2** (Sapphire 2 Design System, scope class `theme-v2` in the same file). When the user says **"新テーマを使う" / "use the new theme"**, design and apply changes against **v2** — wrap the migrated subtree in `<div className="theme-v2">` and follow the Sapphire 2 design rules. Full migration policy: [`.claude/rules/web-theme.md`](.claude/rules/web-theme.md).
+- **Single theme: Sapphire 2 Design System.** Tokens live in `apps/web/src/index.css` (`:root` / `.dark`) and apply app-wide — there is no legacy theme and no `theme-v2` scope class. Color tokens include the `hsl()` wrapper: reference them as `var(--token)`, never `hsl(var(--token))`. Design rules: [`.claude/rules/web-theme.md`](.claude/rules/web-theme.md).
 
 ## Testing
 
@@ -127,10 +127,10 @@ Every code change must be test-driven. The quality bar is set by the comprehensi
 |---|---|---|
 | Pure util / Zod schema / formatter | `web-node` | [`apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts`](apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts), [`apps/web/src/utils/__tests__/format-number.test.ts`](apps/web/src/utils/__tests__/format-number.test.ts) |
 | Simple hook (no tRPC) | `web-dom` | [`apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts`](apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts) |
-| Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/shared/components/sign-in-form/__tests__/use-sign-in.test.ts`](apps/web/src/shared/components/sign-in-form/__tests__/use-sign-in.test.ts) |
+| Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/features/auth/pages/login-page/sign-in-form/__tests__/use-sign-in.test.ts`](apps/web/src/features/auth/pages/login-page/sign-in-form/__tests__/use-sign-in.test.ts) |
 | tRPC query + mutation hook, simple | `web-dom` | [`apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts`](apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts) |
 | Optimistic flow with real QueryClient | `web-dom` / `web-node` | [`apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts`](apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts) |
-| Route page hook | `web-dom` | [`apps/web/src/routes/active-session/__tests__/use-active-session-page.test.ts`](apps/web/src/routes/active-session/__tests__/use-active-session-page.test.ts) (route-local), [`apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts`](apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts) (`pages/` layout) |
+| Page hook / page subcomponent view hook | `web-dom` | [`apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts`](apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts), [`apps/web/src/features/live-sessions/pages/active-session-page/tournament-session/__tests__/use-tournament-session-view.test.ts`](apps/web/src/features/live-sessions/pages/active-session-page/tournament-session/__tests__/use-tournament-session-view.test.ts) |
 | API router (Zod + procedure enumeration) | `api` | [`packages/api/src/__tests__/player.test.ts`](packages/api/src/__tests__/player.test.ts) (uses [`packages/api/src/__tests__/test-utils.ts`](packages/api/src/__tests__/test-utils.ts) helpers: `getInputSchema`, `expectAccepts`, `expectRejects`, `expectProtected`, `expectType`) |
 | DB schema constraint | `db` | [`packages/db/src/__tests__/session-schema.test.ts`](packages/db/src/__tests__/session-schema.test.ts) (uses `getTableConfig` for FKs, indexes, `onDelete` policies) |
 | Shared test helpers (web) | — | [`apps/web/src/__tests__/test-utils.tsx`](apps/web/src/__tests__/test-utils.tsx) (`createTestQueryClient`, `withQueryClient`, `renderWithQueryClient`, `createTrpcMock`, `createToastMock`, `createAuthClientMock`) |
@@ -167,7 +167,7 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders, `SelectWithClear` for clearable selects. |
 | `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Table / Badge / Avatar / RadioGroup), mobile = Drawer, tabler-icons. |
 | `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
-| `web-theme.md` | `apps/web/**` | Legacy ↔ v2 theme coexistence; how to opt a subtree into Sapphire 2 tokens via `theme-v2` scope class. |
+| `web-theme.md` | `apps/web/**` | Sapphire 2 Design System (single theme): token format, semantic colors, typography roles, sheet patterns. |
 
 ## Maintaining This File (Self-Evolution)
 

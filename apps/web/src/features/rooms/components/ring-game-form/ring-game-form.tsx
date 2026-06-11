@@ -1,5 +1,4 @@
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
-import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -10,6 +9,7 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { BlindFields } from "./blind-fields";
 import { useRingGameForm } from "./use-ring-game-form";
 
 const GAME_VARIANTS = {
@@ -26,13 +26,11 @@ type AnteType = "all" | "bb" | "none";
 interface RingGameFormProps {
 	defaultValues?: RingGameFormValues;
 	/**
-	 * When set, the `<form>` gets this id and renders no submit button — the
-	 * surrounding FormSheet toolbar submits it via the HTML `form` attribute
-	 * (V2 rooms flow). When omitted, the form renders its own Save button
-	 * (legacy ResponsiveDialog consumers, e.g. live-sessions).
+	 * Stable id assigned to the `<form>` element so an external Save button
+	 * (e.g. the surrounding FormSheet toolbar) can submit it via the HTML
+	 * `form` attribute. The form renders no submit button of its own.
 	 */
-	formId?: string;
-	isLoading?: boolean;
+	formId: string;
 	onSubmit: (values: RingGameFormValues) => void;
 }
 
@@ -48,7 +46,6 @@ export function RingGameForm({
 	onSubmit,
 	defaultValues,
 	formId,
-	isLoading = false,
 }: RingGameFormProps) {
 	const { form, currencies } = useRingGameForm({ defaultValues, onSubmit });
 
@@ -109,59 +106,7 @@ export function RingGameForm({
 				)}
 			</form.Field>
 
-			<div className="grid grid-cols-3 gap-3">
-				<form.Field name="blind1">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label={blindLabels.blind1}
-						>
-							<Input
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="blind2">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label={blindLabels.blind2}
-						>
-							<Input
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="blind3">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label={blindLabels.blind3}
-						>
-							<Input
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-			</div>
+			<BlindFields blindLabels={blindLabels} form={form} />
 
 			<div className="flex gap-3">
 				<form.Field name="anteType">
@@ -306,21 +251,6 @@ export function RingGameForm({
 					</Field>
 				)}
 			</form.Field>
-
-			{formId ? null : (
-				<form.Subscribe
-					selector={(state) => [state.canSubmit, state.isSubmitting]}
-				>
-					{([canSubmit, isSubmitting]) => (
-						<Button
-							disabled={isLoading || !canSubmit || isSubmitting}
-							type="submit"
-						>
-							{isLoading ? "Saving..." : "Save"}
-						</Button>
-					)}
-				</form.Subscribe>
-			)}
 		</form>
 	);
 }

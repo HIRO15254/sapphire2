@@ -9,6 +9,15 @@ export interface NewLevelValues {
 	minutes: number | null;
 }
 
+/** Parse a numeric cell input; empty or non-numeric text maps to null. */
+export function parseIntOrNull(value: string): number | null {
+	if (!value) {
+		return null;
+	}
+	const parsed = Number.parseInt(value, 10);
+	return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function getEffectiveLastMinutes(
 	lastMinutes: number | null,
 	levels: BlindLevelRow[]

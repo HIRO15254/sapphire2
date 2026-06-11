@@ -1,10 +1,10 @@
 import { IconPlus, IconStar, IconStarFilled } from "@tabler/icons-react";
-import { CurrencyActionsDrawer } from "@/features/currencies/components/currency-actions-drawer";
 import { CurrencyFormV2 } from "@/features/currencies/components/currency-form";
-import { DeleteCurrencyDialog } from "@/features/currencies/components/delete-currency-dialog";
-import { DeleteTransactionDialog } from "@/features/currencies/components/delete-transaction-dialog";
-import { TransactionActionsDrawer } from "@/features/currencies/components/transaction-actions-drawer";
-import { TransactionFormV2 } from "@/features/currencies/components/transaction-form";
+import { CurrencyActionsDrawer } from "@/features/currencies/pages/currency-detail-page/currency-actions-drawer";
+import { DeleteCurrencyDialog } from "@/features/currencies/pages/currency-detail-page/delete-currency-dialog";
+import { DeleteTransactionDialog } from "@/features/currencies/pages/currency-detail-page/delete-transaction-dialog";
+import { TransactionActionsDrawer } from "@/features/currencies/pages/currency-detail-page/transaction-actions-drawer";
+import { TransactionFormV2 } from "@/features/currencies/pages/currency-detail-page/transaction-form";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
@@ -64,7 +64,7 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 
 	if (isLoading) {
 		return (
-			<div className="theme-v2 min-h-full bg-background text-foreground">
+			<div className="min-h-full bg-background text-foreground">
 				<div className="p-4">
 					<CurrencyDetailSkeleton />
 				</div>
@@ -74,7 +74,7 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 
 	if (!currency) {
 		return (
-			<div className="theme-v2 min-h-full bg-background text-foreground">
+			<div className="min-h-full bg-background text-foreground">
 				<div className="p-4">
 					<TopBar />
 					<PageHeader heading="Currency not found" />
@@ -87,7 +87,7 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 	}
 
 	return (
-		<div className="theme-v2 min-h-full bg-background text-foreground">
+		<div className="min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<TopBar onOpenActions={() => setIsActionsOpen(true)} />
 				<PageHeader
@@ -160,7 +160,6 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 				/>
 
 				<FormSheet
-					contentClassName="theme-v2"
 					formId={EDIT_CURRENCY_FORM_ID}
 					isLoading={isUpdatePending}
 					onOpenChange={setIsEditOpen}
@@ -179,7 +178,6 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 				</FormSheet>
 
 				<FormSheet
-					contentClassName="theme-v2"
 					formId={ADD_TRANSACTION_FORM_ID}
 					isLoading={isAddTransactionPending}
 					onOpenChange={setIsAddTransactionOpen}
@@ -193,7 +191,6 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 				</FormSheet>
 
 				<FormSheet
-					contentClassName="theme-v2"
 					formId={EDIT_TRANSACTION_FORM_ID}
 					isLoading={isEditTransactionPending}
 					onOpenChange={(open) => {

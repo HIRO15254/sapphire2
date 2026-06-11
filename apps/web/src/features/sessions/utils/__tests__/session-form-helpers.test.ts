@@ -254,7 +254,7 @@ describe("cashOverriddenFields", () => {
 			maxBuyIn: 400,
 			tableSize: 9,
 		});
-		expect(cashOverriddenFields(values, MASTER)).toEqual(["Rule Name", "BB"]);
+		expect(cashOverriddenFields(values, MASTER)).toEqual(["Rule name", "BB"]);
 	});
 });
 
@@ -286,7 +286,7 @@ describe("tournamentOverriddenFields", () => {
 			tableSize: 9,
 		});
 		expect(tournamentOverriddenFields(values, MASTER)).toEqual([
-			"Starting Stack",
+			"Starting stack",
 		]);
 	});
 });

@@ -79,18 +79,14 @@ vi.mock("@/features/rooms/components/ring-game-form", () => ({
 	RingGameForm: () => <div data-testid="ring-game-form" />,
 }));
 
-vi.mock("@/features/rooms/components/tournament-edit-dialog", () => ({
-	TournamentEditDialog: () => <div data-testid="tournament-edit-dialog" />,
+vi.mock("@/features/rooms/components/tournament-form-sheet", () => ({
+	TournamentFormSheet: () => <div data-testid="tournament-form-sheet" />,
 }));
 
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
-		children,
-		open,
-	}: {
-		children: ReactNode;
-		open: boolean;
-	}) => (open ? <div>{children}</div> : null),
+// Stand-in for the v2 FormSheet hosting the ring game edit form.
+vi.mock("@/shared/components/form-sheet", () => ({
+	FormSheet: ({ children, open }: { children: ReactNode; open: boolean }) =>
+		open ? <div>{children}</div> : null,
 }));
 
 vi.mock("@tanstack/react-query", () => ({

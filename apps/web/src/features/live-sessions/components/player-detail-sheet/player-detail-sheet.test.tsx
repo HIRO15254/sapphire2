@@ -7,20 +7,27 @@ import { PlayerDetailSheet } from "./player-detail-sheet";
 const VIP_TAG = { color: "blue", id: "vip", name: "VIP" };
 const REG_TAG = { color: "red", id: "reg", name: "Regular" };
 
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
+// Stand-in for the v2 FormSheet: renders the title, the body, and the
+// toolbar Save button that submits the inner form via the `form` attribute.
+vi.mock("@/shared/components/form-sheet", () => ({
+	FormSheet: ({
 		children,
+		formId,
 		open,
 		title,
 	}: {
 		children: ReactNode;
+		formId: string;
 		open: boolean;
-		title: ReactNode;
+		title: string;
 	}) =>
 		open ? (
 			<div>
 				<h2>{title}</h2>
 				{children}
+				<button aria-label="Save" form={formId} type="submit">
+					Save
+				</button>
 			</div>
 		) : null,
 }));
@@ -112,10 +119,32 @@ describe("PlayerDetailSheet", () => {
 		await user.click(screen.getByText("Regular"));
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
+		expect(onSave).toHaveBeenCalledTimes(1);
 		expect(onSave).toHaveBeenCalledWith({
 			memo: "Initial note updated",
 			name: "Alice",
 			tagIds: ["vip", "reg"],
 		});
+	});
+
+	it("calls onRemove when 'Remove from table' is clicked", async () => {
+		const user = userEvent.setup();
+		const onRemove = vi.fn();
+
+		render(
+			<PlayerDetailSheet
+				availableTags={[]}
+				isSaving={false}
+				onOpenChange={vi.fn()}
+				onRemove={onRemove}
+				onSave={vi.fn()}
+				open
+				player={{ id: "p1", memo: null, name: "Alice", tags: [] }}
+			/>
+		);
+
+		await user.click(screen.getByRole("button", { name: "Remove from table" }));
+
+		expect(onRemove).toHaveBeenCalledTimes(1);
 	});
 });

@@ -1,5 +1,5 @@
 import { IconPlus } from "@tabler/icons-react";
-import { PlayerFormV2 } from "@/features/players/components/player-form";
+import { PlayerForm } from "@/features/players/components/player-form";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
@@ -25,7 +25,7 @@ export function PlayersPage() {
 	} = usePlayersPage();
 
 	return (
-		<div className="theme-v2 min-h-full bg-background text-foreground">
+		<div className="min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<PageHeader
 					actions={
@@ -47,14 +47,13 @@ export function PlayersPage() {
 				/>
 
 				<FormSheet
-					contentClassName="theme-v2"
 					formId={CREATE_FORM_ID}
 					isLoading={isCreatePending}
 					onOpenChange={setIsCreateOpen}
 					open={isCreateOpen}
 					title="New player"
 				>
-					<PlayerFormV2
+					<PlayerForm
 						availableTags={availableTags}
 						formId={CREATE_FORM_ID}
 						onCreateTag={createTag}

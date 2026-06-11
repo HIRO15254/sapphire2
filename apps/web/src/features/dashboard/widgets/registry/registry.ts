@@ -32,7 +32,13 @@ export interface WidgetRenderProps {
 
 export interface WidgetEditProps {
 	config: Record<string, unknown>;
-	onCancel: () => void;
+	/**
+	 * Stable id assigned to the `<form>` element so the surrounding
+	 * `FormSheet` toolbar's Save button can submit it via the HTML `form`
+	 * attribute. Edit forms render no submit button of their own — see
+	 * `.claude/rules/web-theme.md`.
+	 */
+	formId: string;
 	onSave: (nextConfig: Record<string, unknown>) => Promise<unknown> | undefined;
 	widgetId: string;
 }

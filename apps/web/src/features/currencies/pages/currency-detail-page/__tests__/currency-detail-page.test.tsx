@@ -100,37 +100,40 @@ vi.mock("@/features/currencies/components/currency-form", () => ({
 	),
 }));
 
-vi.mock("@/features/currencies/components/transaction-form", () => ({
-	TransactionFormV2: ({
-		defaultValues,
-		onSubmit,
-	}: {
-		defaultValues?: { amount?: number };
-		onSubmit: (values: {
-			amount: number;
-			transactedAt: string;
-			transactionTypeId: string;
-		}) => void;
-	}) => (
-		<div
-			data-default-amount={String(defaultValues?.amount ?? "")}
-			data-testid="transaction-form-stub"
-		>
-			<button
-				onClick={() =>
-					onSubmit({
-						amount: 5,
-						transactedAt: "2026-01-01",
-						transactionTypeId: "t1",
-					})
-				}
-				type="button"
+vi.mock(
+	"@/features/currencies/pages/currency-detail-page/transaction-form",
+	() => ({
+		TransactionFormV2: ({
+			defaultValues,
+			onSubmit,
+		}: {
+			defaultValues?: { amount?: number };
+			onSubmit: (values: {
+				amount: number;
+				transactedAt: string;
+				transactionTypeId: string;
+			}) => void;
+		}) => (
+			<div
+				data-default-amount={String(defaultValues?.amount ?? "")}
+				data-testid="transaction-form-stub"
 			>
-				stub-submit-transaction
-			</button>
-		</div>
-	),
-}));
+				<button
+					onClick={() =>
+						onSubmit({
+							amount: 5,
+							transactedAt: "2026-01-01",
+							transactionTypeId: "t1",
+						})
+					}
+					type="button"
+				>
+					stub-submit-transaction
+				</button>
+			</div>
+		),
+	})
+);
 
 vi.mock(
 	"@/features/currencies/pages/currency-detail-page/transaction-list",

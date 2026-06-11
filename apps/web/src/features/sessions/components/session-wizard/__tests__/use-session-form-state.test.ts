@@ -37,7 +37,7 @@ describe("useSessionFormState", () => {
 		);
 		expect(result.current.sessionType).toBe("cash_game");
 		expect(result.current.isCashGame).toBe(true);
-		expect(result.current.gameLabel).toBe("Cash Game");
+		expect(result.current.gameLabel).toBe("Cash game");
 		expect(result.current.gameOptions).toEqual(RING_GAMES);
 	});
 

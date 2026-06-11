@@ -6,6 +6,7 @@ import {
 	createLevel,
 	deleteLevel,
 	getEffectiveLastMinutes,
+	parseIntOrNull,
 	reorderLevels,
 	updateLevel,
 } from "@/features/rooms/utils/blind-level-helpers";
@@ -233,5 +234,43 @@ describe("createLevel", () => {
 			null
 		);
 		expect(result[0]?.isBreak).toBe(false);
+	});
+});
+
+describe("parseIntOrNull", () => {
+	it("returns null for the empty string", () => {
+		expect(parseIntOrNull("")).toBeNull();
+	});
+
+	it("returns null for non-numeric text", () => {
+		expect(parseIntOrNull("abc")).toBeNull();
+	});
+
+	it("parses plain digits", () => {
+		expect(parseIntOrNull("200")).toBe(200);
+	});
+
+	it("parses a negative integer", () => {
+		expect(parseIntOrNull("-5")).toBe(-5);
+	});
+
+	it("parses 0", () => {
+		expect(parseIntOrNull("0")).toBe(0);
+	});
+
+	it("truncates decimal text to the integer part", () => {
+		expect(parseIntOrNull("12.9")).toBe(12);
+	});
+
+	it("parses a leading-digits string and ignores the trailing text", () => {
+		expect(parseIntOrNull("42abc")).toBe(42);
+	});
+
+	it("returns null for a whitespace-only string", () => {
+		expect(parseIntOrNull("  ")).toBeNull();
+	});
+
+	it("returns null for 'Infinity' (parseInt yields NaN)", () => {
+		expect(parseIntOrNull("Infinity")).toBeNull();
 	});
 });

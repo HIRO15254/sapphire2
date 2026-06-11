@@ -1,6 +1,6 @@
 import { IconSparkles } from "@tabler/icons-react";
 import { LocalBlindStructureContent } from "@/features/rooms/components/blind-level-editor";
-import { TournamentForm } from "@/features/rooms/components/tournament-form";
+import { TournamentForm } from "@/features/rooms/components/tournament-modal-content/tournament-form";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
 import { Badge } from "@/shared/components/ui/badge";
@@ -22,16 +22,11 @@ export type TournamentPartialFormValues = Omit<
 };
 
 interface TournamentModalContentProps {
-	/**
-	 * Form id shared with the surrounding FormSheet's Save button (V2). When
-	 * omitted, the inner form renders its own Save button (legacy consumers).
-	 */
-	formId?: string;
+	/** Form id shared with the surrounding FormSheet's Save button. */
+	formId: string;
 	initialBlindLevels: BlindLevelRow[];
 	initialFormValues?: TournamentPartialFormValues;
-	/** Drives the legacy in-form Save button when no `formId` is supplied. */
-	isLoading?: boolean;
-	/** Opens the AI auto-fill sheet (V2 body button). Omitted disables it. */
+	/** Opens the AI auto-fill sheet (body button). Omitted disables it. */
 	onOpenAi?: () => void;
 	onSave: (
 		values: TournamentFormValues,
@@ -43,7 +38,6 @@ export function TournamentModalContent({
 	formId,
 	initialBlindLevels,
 	initialFormValues,
-	isLoading = false,
 	onOpenAi,
 	onSave,
 }: TournamentModalContentProps) {
@@ -77,7 +71,6 @@ export function TournamentModalContent({
 					<TournamentForm
 						defaultValues={initialFormValues}
 						formId={formId}
-						isLoading={isLoading}
 						onSubmit={(values) => onSave(values, localBlindLevels)}
 					/>
 				</TabsContent>

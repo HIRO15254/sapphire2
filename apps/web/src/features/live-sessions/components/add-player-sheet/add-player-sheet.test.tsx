@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { AddPlayerSheet } from "./add-player-sheet";
 
@@ -23,24 +22,6 @@ vi.mock("@tanstack/react-query", () => ({
 	useQuery: () => ({
 		data: mocks.players,
 	}),
-}));
-
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
-		children,
-		open,
-		title,
-	}: {
-		children: ReactNode;
-		open: boolean;
-		title: string;
-	}) =>
-		open ? (
-			<div>
-				<h2>{title}</h2>
-				{children}
-			</div>
-		) : null,
 }));
 
 vi.mock("@/utils/trpc", () => ({

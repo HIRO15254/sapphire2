@@ -10,7 +10,7 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock window.matchMedia for ResponsiveDialog (uses useMediaQuery)
+// Mock window.matchMedia for components that use useMediaQuery
 Object.defineProperty(window, "matchMedia", {
 	writable: true,
 	value: vi.fn().mockImplementation((query: string) => ({
@@ -201,7 +201,7 @@ describe("Single-session guard — no active session", () => {
 		const router = createTestRouter(() => <DialogTestPage open />);
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("New Session");
+		await screen.findByRole("heading", { name: "New Session" });
 		await screen.findByTestId("session-wizard");
 	});
 });

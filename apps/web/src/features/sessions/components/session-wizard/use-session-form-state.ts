@@ -77,7 +77,7 @@ export function useSessionFormState({
 
 	const isCashGame = sessionType === "cash_game";
 	const gameOptions = isCashGame ? ringGames : tournaments;
-	const gameLabel = isCashGame ? "Cash Game" : "Tournament";
+	const gameLabel = isCashGame ? "Cash game" : "Tournament";
 
 	const form = useForm({
 		defaultValues: buildDefaults(defaultValues),

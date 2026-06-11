@@ -10,7 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as SearchRouteImport } from './routes/search'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ActiveSessionRouteImport } from './routes/active-session'
@@ -31,11 +30,6 @@ import { Route as LiveSessionsSessionTypeSessionIdEventsRouteImport } from './ro
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SearchRoute = SearchRouteImport.update({
-  id: '/search',
-  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -125,7 +119,6 @@ export interface FileRoutesByFullPath {
   '/active-session': typeof ActiveSessionRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
-  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/active-session/events': typeof ActiveSessionEventsRoute
   '/active-session/game': typeof ActiveSessionGameRoute
@@ -144,7 +137,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
-  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/active-session/events': typeof ActiveSessionEventsRoute
   '/active-session/game': typeof ActiveSessionGameRoute
@@ -165,7 +157,6 @@ export interface FileRoutesById {
   '/active-session': typeof ActiveSessionRouteWithChildren
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
-  '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/active-session/events': typeof ActiveSessionEventsRoute
   '/active-session/game': typeof ActiveSessionGameRoute
@@ -187,7 +178,6 @@ export interface FileRouteTypes {
     | '/active-session'
     | '/dashboard'
     | '/login'
-    | '/search'
     | '/settings'
     | '/active-session/events'
     | '/active-session/game'
@@ -206,7 +196,6 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/login'
-    | '/search'
     | '/settings'
     | '/active-session/events'
     | '/active-session/game'
@@ -226,7 +215,6 @@ export interface FileRouteTypes {
     | '/active-session'
     | '/dashboard'
     | '/login'
-    | '/search'
     | '/settings'
     | '/active-session/events'
     | '/active-session/game'
@@ -247,7 +235,6 @@ export interface RootRouteChildren {
   ActiveSessionRoute: typeof ActiveSessionRouteWithChildren
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
-  SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   CurrenciesCurrencyIdRoute: typeof CurrenciesCurrencyIdRoute
   PlayersPlayerIdRoute: typeof PlayersPlayerIdRoute
@@ -267,13 +254,6 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/search': {
-      id: '/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -412,7 +392,6 @@ const rootRouteChildren: RootRouteChildren = {
   ActiveSessionRoute: ActiveSessionRouteWithChildren,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
-  SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   CurrenciesCurrencyIdRoute: CurrenciesCurrencyIdRoute,
   PlayersPlayerIdRoute: PlayersPlayerIdRoute,

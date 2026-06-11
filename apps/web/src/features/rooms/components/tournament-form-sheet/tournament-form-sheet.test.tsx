@@ -3,20 +3,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TournamentFormSheet } from "./tournament-form-sheet";
 
 const hoisted = vi.hoisted(() => ({
-	useTournamentEditDialog: vi.fn(),
+	useTournamentFormSheet: vi.fn(),
 }));
 
-vi.mock("@/features/rooms/components/tournament-edit-dialog", () => ({
-	useTournamentEditDialog: hoisted.useTournamentEditDialog,
+vi.mock("./use-tournament-form-sheet", () => ({
+	useTournamentFormSheet: hoisted.useTournamentFormSheet,
 }));
 
 vi.mock("@/features/rooms/components/tournament-modal-content", () => ({
 	TournamentModalContent: () => <div data-testid="modal-content" />,
 }));
 
-vi.mock("@/features/rooms/components/ai-extract-input", () => ({
-	AiExtractInput: () => <div data-testid="ai-extract" />,
-}));
+vi.mock(
+	"@/features/rooms/components/tournament-form-sheet/ai-extract-input",
+	() => ({
+		AiExtractInput: () => <div data-testid="ai-extract" />,
+	})
+);
 
 vi.mock("@/shared/components/form-sheet", () => ({
 	FormSheet: ({
@@ -46,7 +49,7 @@ vi.mock("@/shared/components/ui/drawer", () => ({
 }));
 
 function setHook(overrides: Record<string, unknown> = {}) {
-	hoisted.useTournamentEditDialog.mockReturnValue({
+	hoisted.useTournamentFormSheet.mockReturnValue({
 		aiSheetOpen: false,
 		setAiSheetOpen: vi.fn(),
 		aiKey: 0,
@@ -75,7 +78,7 @@ function renderSheet(props: Record<string, unknown> = {}) {
 
 describe("TournamentFormSheet", () => {
 	beforeEach(() => {
-		hoisted.useTournamentEditDialog.mockReset();
+		hoisted.useTournamentFormSheet.mockReset();
 		setHook();
 	});
 

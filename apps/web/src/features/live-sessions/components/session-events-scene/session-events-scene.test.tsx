@@ -41,8 +41,10 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
+// Stand-in for the v2 full-height sheet hosting the event editors (each
+// editor drives its own Save button).
+vi.mock("@/features/sessions/components/session-form-sheet", () => ({
+	SessionFormSheet: ({
 		children,
 		open,
 	}: {

@@ -1,6 +1,5 @@
 import { IconCheck, IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import {
 	Drawer,
@@ -11,12 +10,6 @@ import {
 
 interface FormSheetProps {
 	children: ReactNode;
-	/**
-	 * Optional override applied to the portal root (DrawerContent). Pass
-	 * `theme-v2` (or another scope class) so the portal subtree inherits
-	 * the right tokens — see `.claude/rules/web-theme.md`.
-	 */
-	contentClassName?: string;
 	/**
 	 * Stable id of the form that the confirm button submits via the HTML
 	 * `form` attribute. Lets Save live in the drawer chrome instead of
@@ -43,7 +36,6 @@ interface FormSheetProps {
  */
 export function FormSheet({
 	children,
-	contentClassName,
 	formId,
 	isLoading = false,
 	onOpenChange,
@@ -52,9 +44,7 @@ export function FormSheet({
 }: FormSheetProps) {
 	return (
 		<Drawer dismissible={false} onOpenChange={onOpenChange} open={open}>
-			<DrawerContent
-				className={cn("h-[calc(100svh-2rem)] rounded-t-xl", contentClassName)}
-			>
+			<DrawerContent className="h-[calc(100svh-2rem)] rounded-t-xl">
 				<div className="grid shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b px-2 py-1.5">
 					<Button
 						aria-label="Cancel"

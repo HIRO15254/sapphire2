@@ -21,23 +21,29 @@ vi.mock("@/features/players/pages/player-detail-page/top-bar", () => ({
 	),
 }));
 
-vi.mock("@/features/players/components/player-actions-drawer", () => ({
-	PlayerActionsDrawer: ({ open }: { open: boolean }) =>
-		open ? <div data-testid="actions-drawer" /> : null,
-}));
+vi.mock(
+	"@/features/players/pages/player-detail-page/player-actions-drawer",
+	() => ({
+		PlayerActionsDrawer: ({ open }: { open: boolean }) =>
+			open ? <div data-testid="actions-drawer" /> : null,
+	})
+);
 
-vi.mock("@/features/players/components/delete-player-dialog", () => ({
-	DeletePlayerDialog: ({
-		open,
-		playerName,
-	}: {
-		open: boolean;
-		playerName: string;
-	}) => (open ? <div data-testid="delete-dialog">{playerName}</div> : null),
-}));
+vi.mock(
+	"@/features/players/pages/player-detail-page/delete-player-dialog",
+	() => ({
+		DeletePlayerDialog: ({
+			open,
+			playerName,
+		}: {
+			open: boolean;
+			playerName: string;
+		}) => (open ? <div data-testid="delete-dialog">{playerName}</div> : null),
+	})
+);
 
 vi.mock("@/features/players/components/player-form", () => ({
-	PlayerFormV2: () => <div data-testid="player-form-stub" />,
+	PlayerForm: () => <div data-testid="player-form-stub" />,
 }));
 
 vi.mock("@/shared/components/ui/rich-text-content", () => ({

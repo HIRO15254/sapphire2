@@ -1,26 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ChipPurchaseSheet } from "./chip-purchase-sheet";
-
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
-		children,
-		open,
-		title,
-	}: {
-		children: ReactNode;
-		open: boolean;
-		title: string;
-	}) =>
-		open ? (
-			<div>
-				<h2>{title}</h2>
-				{children}
-			</div>
-		) : null,
-}));
 
 const OPTIONS = [
 	{ id: "cp1", name: "Rebuy", cost: 2000, chips: 15_000 },

@@ -1,13 +1,8 @@
 import { useRef } from "react";
-import type { NewLevelValues } from "@/features/rooms/utils/blind-level-helpers";
-
-function parseIntOrNull(value: string): number | null {
-	if (!value) {
-		return null;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isNaN(parsed) ? null : parsed;
-}
+import {
+	type NewLevelValues,
+	parseIntOrNull,
+} from "@/features/rooms/utils/blind-level-helpers";
 
 interface UseEmptyRowOptions {
 	onCreateLevel: (values: NewLevelValues) => void;

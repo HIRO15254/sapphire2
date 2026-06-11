@@ -1,5 +1,5 @@
+import { SessionFormSheet } from "@/features/sessions/components/session-form-sheet";
 import { SessionWizard } from "@/features/sessions/components/session-wizard";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { useCreateSessionDialog } from "./use-create-session-dialog";
 
 interface CreateSessionDialogProps {
@@ -7,6 +7,11 @@ interface CreateSessionDialogProps {
 	open: boolean;
 }
 
+/**
+ * V2 full-height sheet for starting a live session. The SessionWizard drives
+ * its own multi-step navigation and final submit, so the sheet has no check
+ * button of its own.
+ */
 export function CreateSessionDialog({
 	open,
 	onOpenChange,
@@ -23,7 +28,7 @@ export function CreateSessionDialog({
 	} = useCreateSessionDialog({ onOpenChange });
 
 	return (
-		<ResponsiveDialog
+		<SessionFormSheet
 			onOpenChange={(o) => {
 				onOpenChange(o);
 				if (!o) {
@@ -44,6 +49,6 @@ export function CreateSessionDialog({
 				submitLabel="Start session"
 				tournaments={tournaments}
 			/>
-		</ResponsiveDialog>
+		</SessionFormSheet>
 	);
 }

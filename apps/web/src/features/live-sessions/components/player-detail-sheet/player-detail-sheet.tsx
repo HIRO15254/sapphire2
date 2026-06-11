@@ -1,8 +1,10 @@
 import type { PlayerFormValues } from "@/features/players/components/player-form";
 import { PlayerForm } from "@/features/players/components/player-form";
+import { FormSheet } from "@/shared/components/form-sheet";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+
+const PLAYER_DETAIL_FORM_ID = "player-detail-form";
 
 interface TagWithColor {
 	color: string;
@@ -27,6 +29,11 @@ interface PlayerDetailSheetProps {
 	} | null;
 }
 
+/**
+ * V2 form sheet for editing a seated player. The FormSheet toolbar's check
+ * button submits the inner PlayerForm via `formId`; the destructive
+ * "Remove from table" action stays in the body below the form.
+ */
 export function PlayerDetailSheet({
 	availableTags,
 	isTemporary = false,
@@ -38,47 +45,42 @@ export function PlayerDetailSheet({
 	open,
 	player,
 }: PlayerDetailSheetProps) {
-	const titleNode = (
-		<span className="flex items-center gap-2">
-			{player?.name ?? "Player"}
-			{isTemporary && (
-				<Badge
-					className="border-orange-200 bg-orange-50 text-[10px] text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-400"
-					variant="outline"
-				>
-					Temp
-				</Badge>
-			)}
-		</span>
-	);
-
 	return (
-		<ResponsiveDialog
-			fullHeight
+		<FormSheet
+			formId={PLAYER_DETAIL_FORM_ID}
+			isLoading={isSaving}
 			onOpenChange={onOpenChange}
 			open={open}
-			title={titleNode}
+			title={player?.name ?? "Player"}
 		>
-			<PlayerForm
-				availableTags={availableTags}
-				defaultMemo={player?.memo}
-				defaultTags={player?.tags ?? []}
-				defaultValues={{ name: player?.name ?? "" }}
-				isLoading={isSaving}
-				key={player?.id ?? "empty"}
-				leadingActions={
-					<Button
-						className="border-destructive text-destructive hover:bg-destructive/10"
-						onClick={onRemove}
-						type="button"
+			<div className="flex flex-col gap-4">
+				{isTemporary ? (
+					<Badge
+						className="self-start border-warning/40 bg-warning/10 text-[10px] text-warning"
 						variant="outline"
 					>
-						Remove from table
-					</Button>
-				}
-				onCreateTag={onCreateTag}
-				onSubmit={onSave}
-			/>
-		</ResponsiveDialog>
+						Temp
+					</Badge>
+				) : null}
+				<PlayerForm
+					availableTags={availableTags}
+					defaultMemo={player?.memo}
+					defaultTags={player?.tags ?? []}
+					defaultValues={{ name: player?.name ?? "" }}
+					formId={PLAYER_DETAIL_FORM_ID}
+					key={player?.id ?? "empty"}
+					onCreateTag={onCreateTag}
+					onSubmit={onSave}
+				/>
+				<Button
+					className="border-destructive text-destructive hover:bg-destructive/10"
+					onClick={onRemove}
+					type="button"
+					variant="outline"
+				>
+					Remove from table
+				</Button>
+			</div>
+		</FormSheet>
 	);
 }

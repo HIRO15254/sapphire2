@@ -1,8 +1,9 @@
 import { AllInFields } from "@/features/live-sessions/components/event-fields/all-in-fields";
+import { FormSheet } from "@/shared/components/form-sheet";
 import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { useAllInForm } from "./use-all-in-form";
+
+const ALL_IN_FORM_ID = "all-in-form";
 
 interface AllIn {
 	equity: number;
@@ -19,6 +20,11 @@ interface AllInBottomSheetProps {
 	open: boolean;
 }
 
+/**
+ * V2 form sheet for capturing an all-in spot. The FormSheet toolbar submits
+ * the inner form via `formId`; the optional destructive Delete action stays
+ * in the body below the fields.
+ */
 export function AllInBottomSheet({
 	open,
 	onOpenChange,
@@ -31,14 +37,15 @@ export function AllInBottomSheet({
 	const isEditMode = initialValues !== undefined;
 
 	return (
-		<ResponsiveDialog
-			description="Capture the pot size, equity, and result for an all-in spot."
+		<FormSheet
+			formId={ALL_IN_FORM_ID}
 			onOpenChange={onOpenChange}
 			open={open}
 			title={isEditMode ? "Edit All-in" : "Add All-in"}
 		>
 			<form
 				className="flex flex-col gap-4"
+				id={ALL_IN_FORM_ID}
 				onSubmit={(e) => {
 					e.preventDefault();
 					e.stopPropagation();
@@ -81,22 +88,12 @@ export function AllInBottomSheet({
 						</form.Field>
 					)}
 				</form.Field>
-				<DialogActionRow>
-					<Button
-						onClick={() => onOpenChange(false)}
-						type="button"
-						variant="outline"
-					>
-						Cancel
+				{onDelete ? (
+					<Button onClick={onDelete} type="button" variant="destructive">
+						Delete
 					</Button>
-					{onDelete ? (
-						<Button onClick={onDelete} type="button" variant="destructive">
-							Delete
-						</Button>
-					) : null}
-					<Button type="submit">{isEditMode ? "Save" : "Add All-in"}</Button>
-				</DialogActionRow>
+				) : null}
 			</form>
-		</ResponsiveDialog>
+		</FormSheet>
 	);
 }

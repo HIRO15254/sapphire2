@@ -1,9 +1,9 @@
 import { IconStar, IconStarFilled } from "@tabler/icons-react";
-import { DeleteRoomDialog } from "@/features/rooms/components/delete-room-dialog";
-import { RingGameTab } from "@/features/rooms/components/ring-game-tab";
-import { RoomActionsDrawer } from "@/features/rooms/components/room-actions-drawer";
 import { RoomForm } from "@/features/rooms/components/room-form";
-import { TournamentTab } from "@/features/rooms/components/tournament-tab";
+import { DeleteRoomDialog } from "@/features/rooms/pages/room-detail-page/delete-room-dialog";
+import { RingGameTab } from "@/features/rooms/pages/room-detail-page/ring-game-tab";
+import { RoomActionsDrawer } from "@/features/rooms/pages/room-detail-page/room-actions-drawer";
+import { TournamentTab } from "@/features/rooms/pages/room-detail-page/tournament-tab";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import {
@@ -42,7 +42,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 
 	if (isLoading) {
 		return (
-			<div className="theme-v2 min-h-full bg-background text-foreground">
+			<div className="min-h-full bg-background text-foreground">
 				<div className="p-4">
 					<RoomDetailSkeleton />
 				</div>
@@ -52,7 +52,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 
 	if (!room) {
 		return (
-			<div className="theme-v2 min-h-full bg-background text-foreground">
+			<div className="min-h-full bg-background text-foreground">
 				<div className="p-4">
 					<TopBar />
 					<PageHeader heading="Room not found" />
@@ -65,7 +65,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 	}
 
 	return (
-		<div className="theme-v2 min-h-full bg-background text-foreground">
+		<div className="min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<TopBar onOpenActions={() => setIsActionsOpen(true)} />
 				<PageHeader
@@ -114,7 +114,6 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 				/>
 
 				<FormSheet
-					contentClassName="theme-v2"
 					formId={EDIT_STORE_FORM_ID}
 					isLoading={isUpdatePending}
 					onOpenChange={setIsEditOpen}

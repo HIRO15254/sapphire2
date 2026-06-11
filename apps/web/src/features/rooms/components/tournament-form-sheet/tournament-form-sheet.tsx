@@ -1,5 +1,4 @@
-import { AiExtractInput } from "@/features/rooms/components/ai-extract-input";
-import { useTournamentEditDialog } from "@/features/rooms/components/tournament-edit-dialog";
+import { AiExtractInput } from "@/features/rooms/components/tournament-form-sheet/ai-extract-input";
 import {
 	TournamentModalContent,
 	type TournamentPartialFormValues,
@@ -13,8 +12,10 @@ import {
 	DrawerDescription,
 	DrawerTitle,
 } from "@/shared/components/ui/drawer";
-
-type TournamentFormSheetMode = "create" | "edit";
+import {
+	type TournamentFormSheetMode,
+	useTournamentFormSheet,
+} from "./use-tournament-form-sheet";
 
 interface TournamentFormSheetProps {
 	aiMode?: TournamentFormSheetMode;
@@ -38,8 +39,8 @@ interface TournamentFormSheetProps {
  * V2 create/edit sheet for a tournament. Wraps {@link TournamentModalContent}
  * (Details / Structure tabs) in a {@link FormSheet} whose Save button submits
  * the inner form via `formId`. The AI auto-fill lives in a sibling action
- * Drawer since FormSheet has no header-action slot. Reuses the AI/reset state
- * from {@link useTournamentEditDialog}.
+ * Drawer since FormSheet has no header-action slot. The AI/reset state lives
+ * in {@link useTournamentFormSheet}.
  */
 export function TournamentFormSheet({
 	aiMode,
@@ -62,7 +63,7 @@ export function TournamentFormSheet({
 		effectiveLevels,
 		contentKey,
 		handleAiExtracted,
-	} = useTournamentEditDialog({
+	} = useTournamentFormSheet({
 		aiMode,
 		initialBlindLevels,
 		initialFormValues,
@@ -74,7 +75,7 @@ export function TournamentFormSheet({
 		<>
 			{aiMode ? (
 				<Drawer onOpenChange={setAiSheetOpen} open={aiSheetOpen}>
-					<DrawerContent className="theme-v2 rounded-t-xl">
+					<DrawerContent className="rounded-t-xl">
 						<div
 							aria-hidden
 							className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"
@@ -93,7 +94,6 @@ export function TournamentFormSheet({
 			) : null}
 
 			<FormSheet
-				contentClassName="theme-v2"
 				formId={formId}
 				isLoading={isLoading}
 				onOpenChange={onOpenChange}

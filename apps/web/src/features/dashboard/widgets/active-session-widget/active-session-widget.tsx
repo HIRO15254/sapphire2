@@ -4,8 +4,6 @@ import type {
 	WidgetEditProps,
 	WidgetRenderProps,
 } from "@/features/dashboard/widgets/registry";
-import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import {
 	Select,
@@ -118,14 +116,15 @@ export function ActiveSessionWidget({ config }: WidgetRenderProps) {
 
 export function ActiveSessionEditForm({
 	config,
+	formId,
 	onSave,
-	onCancel,
 }: WidgetEditProps) {
 	const { form } = useActiveSessionEditForm({ config, onSave });
 
 	return (
 		<form
 			className="flex flex-col gap-4"
+			id={formId}
 			onSubmit={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -153,20 +152,6 @@ export function ActiveSessionEditForm({
 					</Field>
 				)}
 			</form.Field>
-			<DialogActionRow>
-				<Button onClick={onCancel} type="button" variant="outline">
-					Cancel
-				</Button>
-				<form.Subscribe
-					selector={(state) => [state.canSubmit, state.isSubmitting]}
-				>
-					{([canSubmit, isSubmitting]) => (
-						<Button disabled={!canSubmit || isSubmitting} type="submit">
-							{isSubmitting ? "Saving..." : "Save"}
-						</Button>
-					)}
-				</form.Subscribe>
-			</DialogActionRow>
 		</form>
 	);
 }
