@@ -1,0 +1,209 @@
+import { IconBolt } from "@tabler/icons-react";
+import type { ReactNode } from "react";
+import { DeleteSessionDialog } from "@/features/sessions/components/delete-session-dialog";
+import { SessionActionsDrawer } from "@/features/sessions/components/session-actions-drawer";
+import { SessionFormSheet } from "@/features/sessions/components/session-form-sheet";
+import { SessionWizard } from "@/features/sessions/components/session-wizard";
+import { buildEditDefaults } from "@/features/sessions/hooks/use-sessions";
+import {
+	buildCashRuleRows,
+	buildCashStatRows,
+	buildSessionMetaRows,
+	buildTournamentRuleRows,
+	buildTournamentStatRows,
+	getSessionGameName,
+	isLiveSession,
+} from "@/features/sessions/utils/session-display";
+import { PageHeader } from "@/shared/components/page-header";
+import { Badge } from "@/shared/components/ui/badge";
+import { LiveResultChart } from "./live-result-chart";
+import { SessionDetailSkeleton } from "./session-detail-skeleton";
+import { SessionPlHero } from "./session-pl-hero";
+import { SessionStatList } from "./session-stat-list";
+import { SessionTimeline } from "./session-timeline";
+import { TopBar } from "./top-bar";
+import { useSessionDetailPage } from "./use-session-detail-page";
+
+interface SessionDetailPageProps {
+	sessionId: string;
+}
+
+function PageShell({ children }: { children: ReactNode }) {
+	return (
+		<div className="theme-v2 min-h-full bg-background text-foreground">
+			<div className="p-4">{children}</div>
+		</div>
+	);
+}
+
+export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
+	const {
+		session,
+		availableTags,
+		isLoading,
+		isUpdatePending,
+		isLiveLinked,
+		canReopen,
+		rooms,
+		currencies,
+		editGames,
+		isActionsOpen,
+		isEditOpen,
+		confirmingDelete,
+		setIsActionsOpen,
+		setIsEditOpen,
+		setConfirmingDelete,
+		setEditRoomId,
+		openEditFromActions,
+		openDeleteFromActions,
+		handleEdit,
+		handleConfirmDelete,
+		handleReopen,
+		createTag,
+	} = useSessionDetailPage(sessionId);
+
+	if (isLoading) {
+		return (
+			<PageShell>
+				<SessionDetailSkeleton />
+			</PageShell>
+		);
+	}
+
+	if (!session) {
+		return (
+			<PageShell>
+				<TopBar />
+				<PageHeader heading="Session not found" />
+				<p className="py-16 text-center text-muted-foreground text-sm">
+					This session may have been deleted.
+				</p>
+			</PageShell>
+		);
+	}
+
+	const isTournament = session.type === "tournament";
+	const live = isLiveSession(session);
+	const ruleRows = isTournament
+		? buildTournamentRuleRows(session)
+		: buildCashRuleRows(session);
+	const resultRows = isTournament
+		? buildTournamentStatRows(session)
+		: buildCashStatRows(session);
+	const metaRows = buildSessionMetaRows(session);
+
+	return (
+		<PageShell>
+			<TopBar onOpenActions={() => setIsActionsOpen(true)} />
+			<PageHeader
+				heading={
+					<span className="flex flex-wrap items-center gap-2">
+						<span className="min-w-0 truncate">
+							{getSessionGameName(session)}
+						</span>
+						<Badge
+							className={
+								live ? "bg-success text-[var(--success-foreground)]" : undefined
+							}
+							variant={live ? "default" : "secondary"}
+						>
+							{live ? (
+								<>
+									<IconBolt size={12} />
+									Live
+								</>
+							) : (
+								"Manual"
+							)}
+						</Badge>
+					</span>
+				}
+			/>
+
+			<SessionPlHero
+				chart={
+					live ? (
+						<LiveResultChart
+							liveSessionId={session.id}
+							sessionType={isTournament ? "tournament" : "cash_game"}
+						/>
+					) : undefined
+				}
+				currencyUnit={session.currencyUnit}
+				evProfitLoss={session.evProfitLoss}
+				profitLoss={session.profitLoss}
+			/>
+
+			<SessionStatList rows={ruleRows} title="Rule" />
+			<SessionStatList rows={resultRows} title="Result" />
+			<SessionStatList rows={metaRows} title="Details" />
+
+			{live ? (
+				<SessionTimeline
+					liveSessionId={session.id}
+					sessionType={isTournament ? "tournament" : "cash_game"}
+				/>
+			) : null}
+
+			{session.tags.length > 0 ? (
+				<div className="mb-4 flex flex-wrap gap-1">
+					{session.tags.map((tag) => (
+						<Badge key={tag.id} variant="outline">
+							{tag.name}
+						</Badge>
+					))}
+				</div>
+			) : null}
+
+			{session.memo ? (
+				<section
+					aria-label="Memo"
+					className="mb-4 rounded-lg border border-border bg-card px-4 py-3 text-card-foreground"
+				>
+					<p className="whitespace-pre-wrap text-muted-foreground text-sm">
+						{session.memo}
+					</p>
+				</section>
+			) : null}
+
+			<SessionActionsDrawer
+				canReopen={canReopen}
+				onDelete={openDeleteFromActions}
+				onEdit={openEditFromActions}
+				onOpenChange={setIsActionsOpen}
+				onReopen={handleReopen}
+				open={isActionsOpen}
+			/>
+
+			<SessionFormSheet
+				onOpenChange={(open) => {
+					if (!open) {
+						setIsEditOpen(false);
+					}
+				}}
+				open={isEditOpen}
+				title="Edit session"
+			>
+				<SessionWizard
+					currencies={currencies}
+					defaultValues={buildEditDefaults(session)}
+					isLiveLinked={isLiveLinked}
+					isLoading={isUpdatePending}
+					onCreateTag={createTag}
+					onRoomChange={setEditRoomId}
+					onSubmit={handleEdit}
+					ringGames={editGames.ringGames}
+					rooms={rooms}
+					tags={availableTags}
+					tournaments={editGames.tournaments}
+				/>
+			</SessionFormSheet>
+
+			<DeleteSessionDialog
+				onConfirm={handleConfirmDelete}
+				onOpenChange={setConfirmingDelete}
+				open={confirmingDelete}
+			/>
+		</PageShell>
+	);
+}

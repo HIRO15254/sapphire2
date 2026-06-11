@@ -24,6 +24,7 @@ export default defineConfig({
 			"src/shared/lib/**/__tests__/*.test.ts",
 			"src/features/currencies/utils/__tests__/*.test.ts",
 			"src/features/live-sessions/utils/__tests__/*.test.ts",
+			"src/features/sessions/utils/__tests__/session-display.test.ts",
 			"src/features/sessions/utils/__tests__/session-filters-helpers.test.ts",
 			"src/features/sessions/utils/__tests__/session-form-helpers.test.ts",
 			"src/features/stores/utils/__tests__/*.test.ts",

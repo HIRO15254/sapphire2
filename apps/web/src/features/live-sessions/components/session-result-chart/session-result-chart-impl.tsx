@@ -13,6 +13,8 @@ import { formatCompactNumber } from "@/utils/format-number";
 
 const COLOR_CASH = "oklch(0.62 0.21 250)";
 const COLOR_TOURNAMENT = "oklch(0.75 0.16 70)";
+// EV P&L is drawn in orange to distinguish it from the realized P&L line.
+const COLOR_EV = "oklch(0.72 0.18 50)";
 
 interface SeriesMeta {
 	color: string;
@@ -23,7 +25,7 @@ interface SeriesMeta {
 
 const CASH_SERIES: SeriesMeta[] = [
 	{ name: "P&L", dataKey: "pl", color: COLOR_CASH, dashed: false },
-	{ name: "EV P&L", dataKey: "evPl", color: COLOR_CASH, dashed: true },
+	{ name: "EV P&L", dataKey: "evPl", color: COLOR_EV, dashed: true },
 ];
 
 const TOURNAMENT_SERIES: SeriesMeta[] = [

@@ -45,7 +45,7 @@ rg '\b(useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutatio
 
 ## Reference implementations
 
-- Route page pair (route-local hook): [`routes/sessions/-use-sessions-page.ts`](apps/web/src/routes/sessions/-use-sessions-page.ts) + [`routes/sessions/index.tsx`](apps/web/src/routes/sessions/index.tsx).
+- Route page pair (route-local hook): [`routes/active-session/-use-active-session-page.ts`](apps/web/src/routes/active-session/-use-active-session-page.ts) + [`routes/active-session/index.tsx`](apps/web/src/routes/active-session/index.tsx).
 - Feature `pages/` layout (logic lifted out of the route file): [`features/players/pages/players-page/`](apps/web/src/features/players/pages/players-page/) — the route file is just `createFileRoute` wiring, the page component consumes [`use-players-page.ts`](apps/web/src/features/players/pages/players-page/use-players-page.ts).
 - Component + hook (colocated): [`use-player-form.ts`](apps/web/src/features/players/components/player-form/use-player-form.ts) + [`player-form.tsx`](apps/web/src/features/players/components/player-form/player-form.tsx).
 - Cross-component data hook: [`use-currencies.ts`](apps/web/src/features/currencies/hooks/use-currencies.ts), [`use-cash-game-session.ts`](apps/web/src/features/live-sessions/hooks/use-cash-game-session.ts).

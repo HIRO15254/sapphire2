@@ -4,6 +4,8 @@ import { appRouter } from "../routers";
 import {
 	assertNoLiveLinkedRestrictedEdits,
 	computeTournamentPL,
+	encodeSessionCursor,
+	parseSessionCursor,
 } from "../routers/session";
 
 const DERIVED_FIELDS_RE = /Cannot edit fields derived from live session events/;
@@ -198,6 +200,46 @@ describe("session router input validation", () => {
 			}
 		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
 		expect(schema.safeParse({ type: "hybrid" }).success).toBe(false);
+	});
+
+	describe("session list cursor (composite keyset)", () => {
+		it("encodes a row as <epochMs>_<id>", () => {
+			expect(
+				encodeSessionCursor({ id: "s1", sessionDate: new Date(1000) })
+			).toBe("1000_s1");
+		});
+
+		it("round-trips an encoded cursor back to its date and id", () => {
+			const cursor = encodeSessionCursor({
+				id: "abc",
+				sessionDate: new Date(1_700_000_000_000),
+			});
+			const parsed = parseSessionCursor(cursor);
+			expect(parsed?.id).toBe("abc");
+			expect(parsed?.sessionDate.getTime()).toBe(1_700_000_000_000);
+		});
+
+		it("preserves underscores in the id (splits on the first separator only)", () => {
+			const parsed = parseSessionCursor("1000_a_b_c");
+			expect(parsed?.id).toBe("a_b_c");
+			expect(parsed?.sessionDate.getTime()).toBe(1000);
+		});
+
+		it("returns null when the separator is missing", () => {
+			expect(parseSessionCursor("12345")).toBeNull();
+		});
+
+		it("returns null for a non-integer timestamp", () => {
+			expect(parseSessionCursor("abc_s1")).toBeNull();
+		});
+
+		it("returns null for an empty timestamp", () => {
+			expect(parseSessionCursor("_s1")).toBeNull();
+		});
+
+		it("returns null for an empty id", () => {
+			expect(parseSessionCursor("1000_")).toBeNull();
+		});
 	});
 
 	it("getById accepts {id}", () => {

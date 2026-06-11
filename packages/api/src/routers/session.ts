@@ -21,7 +21,7 @@ import {
 	tournamentChipPurchase,
 } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -780,6 +780,42 @@ interface ListFilters {
 	type?: "cash_game" | "tournament";
 }
 
+/**
+ * Composite keyset cursor for the session list. The list orders by
+ * `sessionDate DESC, id DESC`, so paginating on `id` alone is wrong — id order
+ * is unrelated to date order, which made the second page drop or duplicate
+ * rows (and stop early, so "Load more" only worked once). The cursor therefore
+ * encodes both the date (epoch ms) and the id as `"<ms>_<id>"`.
+ */
+export function encodeSessionCursor(row: {
+	id: string;
+	sessionDate: Date;
+}): string {
+	return `${row.sessionDate.getTime()}_${row.id}`;
+}
+
+/**
+ * Parse an {@link encodeSessionCursor} value back into its date + id. Returns
+ * `null` for a malformed cursor (missing separator, empty / non-integer
+ * timestamp, or empty id) so the caller treats it as "no cursor" instead of
+ * crashing. Splits on the first separator only, so ids containing `_` survive.
+ */
+export function parseSessionCursor(
+	cursor: string
+): { id: string; sessionDate: Date } | null {
+	const separator = cursor.indexOf("_");
+	if (separator === -1) {
+		return null;
+	}
+	const rawMs = cursor.slice(0, separator);
+	const id = cursor.slice(separator + 1);
+	const ms = Number(rawMs);
+	if (rawMs === "" || id === "" || !Number.isInteger(ms)) {
+		return null;
+	}
+	return { id, sessionDate: new Date(ms) };
+}
+
 function buildSessionListConditions(userId: string, filters: ListFilters) {
 	const conditions = [eq(gameSession.userId, userId)];
 	if (filters.type) {
@@ -803,7 +839,21 @@ function buildSessionListConditions(userId: string, filters: ListFilters) {
 	}
 	const paginationConditions = [...conditions];
 	if (filters.cursor) {
-		paginationConditions.push(lt(gameSession.id, filters.cursor));
+		const parsed = parseSessionCursor(filters.cursor);
+		if (parsed) {
+			// Keyset must match the (sessionDate DESC, id DESC) ordering: take
+			// rows strictly after the cursor in that order.
+			const keyset = or(
+				lt(gameSession.sessionDate, parsed.sessionDate),
+				and(
+					eq(gameSession.sessionDate, parsed.sessionDate),
+					lt(gameSession.id, parsed.id)
+				)
+			);
+			if (keyset) {
+				paginationConditions.push(keyset);
+			}
+		}
 	}
 	return { conditions, paginationConditions };
 }
@@ -954,6 +1004,122 @@ function enrichItemWithPL<T extends ListItemRaw>(item: T) {
 		evProfitLoss,
 		evDiff,
 	};
+}
+
+/**
+ * Shared SELECT for an enriched session row (aliased fields + the cash /
+ * tournament snapshot scalars). Used by both `list` (paginated) and `getById`
+ * (single id) so the detail page receives exactly the same shape as a list
+ * item — display logic and the edit-wizard pre-fill both rely on these aliases.
+ */
+function selectEnrichedSessionRows(db: DbInstance) {
+	return db
+		.select({
+			id: gameSession.id,
+			type: gameSession.kind,
+			sessionDate: gameSession.sessionDate,
+			source: gameSession.source,
+			status: gameSession.status,
+			buyIn: sessionCashDetail.buyIn,
+			cashOut: sessionCashDetail.cashOut,
+			evCashOut: sessionCashDetail.evCashOut,
+			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
+			entryFee: sessionTournamentDetail.entryFee,
+			placement: sessionTournamentDetail.placement,
+			totalEntries: sessionTournamentDetail.totalEntries,
+			beforeDeadline: sessionTournamentDetail.beforeDeadline,
+			prizeMoney: sessionTournamentDetail.prizeMoney,
+			bountyPrizes: sessionTournamentDetail.bountyPrizes,
+			startedAt: gameSession.startedAt,
+			endedAt: gameSession.endedAt,
+			breakMinutes: gameSession.breakMinutes,
+			memo: gameSession.memo,
+			roomId: gameSession.roomId,
+			roomName: room.name,
+			ringGameId: sessionCashDetail.ringGameId,
+			ringGameName: sessionCashDetail.ruleName,
+			ringGameBlind2: sessionCashDetail.blind2,
+			tournamentId: sessionTournamentDetail.tournamentId,
+			tournamentName: sessionTournamentDetail.ruleName,
+			currencyId: gameSession.currencyId,
+			currencyName: currency.name,
+			currencyUnit: currency.unit,
+			createdAt: gameSession.createdAt,
+			// Cash snapshot scalars used by the edit-mode wizard to
+			// pre-fill the Rules step with the frozen rule.
+			cashVariant: sessionCashDetail.variant,
+			cashBlind1: sessionCashDetail.blind1,
+			cashBlind3: sessionCashDetail.blind3,
+			cashAnte: sessionCashDetail.ante,
+			cashAnteType: sessionCashDetail.anteType,
+			cashMinBuyIn: sessionCashDetail.minBuyIn,
+			cashMaxBuyIn: sessionCashDetail.maxBuyIn,
+			cashTableSize: sessionCashDetail.tableSize,
+			// Tournament snapshot scalars (same role).
+			tournamentVariant: sessionTournamentDetail.variant,
+			tournamentStartingStack: sessionTournamentDetail.startingStack,
+			tournamentBountyAmount: sessionTournamentDetail.bountyAmount,
+			tournamentTableSize: sessionTournamentDetail.tableSize,
+		})
+		.from(gameSession)
+		.leftJoin(
+			sessionCashDetail,
+			eq(sessionCashDetail.sessionId, gameSession.id)
+		)
+		.leftJoin(
+			sessionTournamentDetail,
+			eq(sessionTournamentDetail.sessionId, gameSession.id)
+		)
+		.leftJoin(room, eq(room.id, gameSession.roomId))
+		.leftJoin(currency, eq(currency.id, gameSession.currencyId));
+}
+
+/**
+ * Attaches chip purchases (+ their summed cost), profit/loss, the live-session
+ * id discriminators, and tag links to raw session rows from
+ * {@link selectEnrichedSessionRows}.
+ */
+async function enrichSessionRows<
+	T extends Omit<ListItemRaw, "chipPurchaseCost"> & { id: string },
+>(db: DbInstance, rows: T[]) {
+	const chipPurchaseMap = await getSessionChipPurchaseMap(
+		db,
+		rows.map((row) => row.id)
+	);
+	const withChipPurchases = rows.map((item) => {
+		const chipPurchases = chipPurchaseMap.get(item.id) ?? [];
+		return {
+			...item,
+			chipPurchases,
+			chipPurchaseCost: sumChipPurchaseCost(chipPurchases),
+		};
+	});
+
+	const withPL = withChipPurchases.map(enrichItemWithPL);
+
+	const sessionIds = withPL.map((item) => item.id);
+	const tagLinks =
+		sessionIds.length > 0
+			? await db
+					.select({
+						sessionId: sessionToSessionTag.sessionId,
+						tagId: sessionTag.id,
+						tagName: sessionTag.name,
+					})
+					.from(sessionToSessionTag)
+					.innerJoin(
+						sessionTag,
+						eq(sessionTag.id, sessionToSessionTag.sessionTagId)
+					)
+					.where(inArray(sessionToSessionTag.sessionId, sessionIds))
+			: [];
+
+	return withPL.map((item) => ({
+		...item,
+		tags: tagLinks
+			.filter((tl) => tl.sessionId === item.id)
+			.map((tl) => ({ id: tl.tagId, name: tl.tagName })),
+	}));
 }
 
 // ---------------------------------------------------------------------------
@@ -1684,113 +1850,18 @@ export const sessionRouter = router({
 				input
 			);
 
-			const data = await ctx.db
-				.select({
-					id: gameSession.id,
-					type: gameSession.kind,
-					sessionDate: gameSession.sessionDate,
-					source: gameSession.source,
-					status: gameSession.status,
-					buyIn: sessionCashDetail.buyIn,
-					cashOut: sessionCashDetail.cashOut,
-					evCashOut: sessionCashDetail.evCashOut,
-					tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
-					entryFee: sessionTournamentDetail.entryFee,
-					placement: sessionTournamentDetail.placement,
-					totalEntries: sessionTournamentDetail.totalEntries,
-					beforeDeadline: sessionTournamentDetail.beforeDeadline,
-					prizeMoney: sessionTournamentDetail.prizeMoney,
-					bountyPrizes: sessionTournamentDetail.bountyPrizes,
-					startedAt: gameSession.startedAt,
-					endedAt: gameSession.endedAt,
-					breakMinutes: gameSession.breakMinutes,
-					memo: gameSession.memo,
-					roomId: gameSession.roomId,
-					roomName: room.name,
-					ringGameId: sessionCashDetail.ringGameId,
-					ringGameName: sessionCashDetail.ruleName,
-					ringGameBlind2: sessionCashDetail.blind2,
-					tournamentId: sessionTournamentDetail.tournamentId,
-					tournamentName: sessionTournamentDetail.ruleName,
-					currencyId: gameSession.currencyId,
-					currencyName: currency.name,
-					currencyUnit: currency.unit,
-					createdAt: gameSession.createdAt,
-					// Cash snapshot scalars used by the edit-mode wizard to
-					// pre-fill the Rules step with the frozen rule.
-					cashVariant: sessionCashDetail.variant,
-					cashBlind1: sessionCashDetail.blind1,
-					cashBlind3: sessionCashDetail.blind3,
-					cashAnte: sessionCashDetail.ante,
-					cashAnteType: sessionCashDetail.anteType,
-					cashMinBuyIn: sessionCashDetail.minBuyIn,
-					cashMaxBuyIn: sessionCashDetail.maxBuyIn,
-					cashTableSize: sessionCashDetail.tableSize,
-					// Tournament snapshot scalars (same role).
-					tournamentVariant: sessionTournamentDetail.variant,
-					tournamentStartingStack: sessionTournamentDetail.startingStack,
-					tournamentBountyAmount: sessionTournamentDetail.bountyAmount,
-					tournamentTableSize: sessionTournamentDetail.tableSize,
-				})
-				.from(gameSession)
-				.leftJoin(
-					sessionCashDetail,
-					eq(sessionCashDetail.sessionId, gameSession.id)
-				)
-				.leftJoin(
-					sessionTournamentDetail,
-					eq(sessionTournamentDetail.sessionId, gameSession.id)
-				)
-				.leftJoin(room, eq(room.id, gameSession.roomId))
-				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
+			const data = await selectEnrichedSessionRows(ctx.db)
 				.where(and(...paginationConditions))
 				.orderBy(desc(gameSession.sessionDate), desc(gameSession.id))
 				.limit(PAGE_SIZE + 1);
 
 			const hasMore = data.length > PAGE_SIZE;
 			const items = hasMore ? data.slice(0, PAGE_SIZE) : data;
-			const nextCursor = hasMore ? items.at(-1)?.id : undefined;
+			const last = items.at(-1);
+			const nextCursor =
+				hasMore && last ? encodeSessionCursor(last) : undefined;
 
-			// Chip purchases (with result counts) per session — drives the
-			// tournament PL and pre-fills the edit-mode wizard Result step.
-			const chipPurchaseMap = await getSessionChipPurchaseMap(
-				ctx.db,
-				items.map((item) => item.id)
-			);
-			const itemsWithChipPurchases = items.map((item) => {
-				const chipPurchases = chipPurchaseMap.get(item.id) ?? [];
-				return {
-					...item,
-					chipPurchases,
-					chipPurchaseCost: sumChipPurchaseCost(chipPurchases),
-				};
-			});
-
-			const itemsWithPL = itemsWithChipPurchases.map(enrichItemWithPL);
-
-			const sessionIds = itemsWithPL.map((item) => item.id);
-			const tagLinks =
-				sessionIds.length > 0
-					? await ctx.db
-							.select({
-								sessionId: sessionToSessionTag.sessionId,
-								tagId: sessionTag.id,
-								tagName: sessionTag.name,
-							})
-							.from(sessionToSessionTag)
-							.innerJoin(
-								sessionTag,
-								eq(sessionTag.id, sessionToSessionTag.sessionTagId)
-							)
-							.where(inArray(sessionToSessionTag.sessionId, sessionIds))
-					: [];
-
-			const itemsWithTags = itemsWithPL.map((item) => ({
-				...item,
-				tags: tagLinks
-					.filter((tl) => tl.sessionId === item.id)
-					.map((tl) => ({ id: tl.tagId, name: tl.tagName })),
-			}));
+			const itemsWithTags = await enrichSessionRows(ctx.db, items);
 
 			const summary = await computeSummary(ctx.db, userId, input, input.type);
 
@@ -1801,41 +1872,23 @@ export const sessionRouter = router({
 		.input(z.object({ id: z.string() }))
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const session = await validateSessionOwnership(ctx.db, input.id, userId);
+			// Ownership guard — throws NOT_FOUND when the session is missing or
+			// belongs to another user.
+			await validateSessionOwnership(ctx.db, input.id, userId);
 
-			const [cashDetail] = await ctx.db
-				.select()
-				.from(sessionCashDetail)
-				.where(eq(sessionCashDetail.sessionId, input.id));
+			const rows = await selectEnrichedSessionRows(ctx.db).where(
+				and(eq(gameSession.id, input.id), eq(gameSession.userId, userId))
+			);
+			const [enriched] = await enrichSessionRows(ctx.db, rows);
 
-			const [tournamentDetail] = await ctx.db
-				.select()
-				.from(sessionTournamentDetail)
-				.where(eq(sessionTournamentDetail.sessionId, input.id));
+			if (!enriched) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Session not found",
+				});
+			}
 
-			const chipPurchaseMap = await getSessionChipPurchaseMap(ctx.db, [
-				input.id,
-			]);
-			const chipPurchases = chipPurchaseMap.get(input.id) ?? [];
-
-			const liveCashGameSessionId =
-				session.source === "live" && session.kind === "cash_game"
-					? session.id
-					: null;
-			const liveTournamentSessionId =
-				session.source === "live" && session.kind === "tournament"
-					? session.id
-					: null;
-
-			return {
-				...session,
-				type: session.kind,
-				liveCashGameSessionId,
-				liveTournamentSessionId,
-				...cashDetail,
-				...tournamentDetail,
-				chipPurchases,
-			};
+			return enriched;
 		}),
 
 	update: protectedProcedure
