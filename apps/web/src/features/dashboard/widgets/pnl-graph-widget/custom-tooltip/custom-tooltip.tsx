@@ -1,7 +1,10 @@
 import { formatCompactNumber } from "@/utils/format-number";
 import type { PnlGraphXAxis } from "../aggregate-pnl-points";
 
-function formatTooltipLabel(value: number, xAxis: PnlGraphXAxis): string {
+export function formatTooltipLabel(
+	value: number,
+	xAxis: PnlGraphXAxis
+): string {
 	if (xAxis === "date") {
 		return new Date(value).toISOString().slice(0, 10);
 	}

@@ -12,6 +12,16 @@ vi.mock("@/features/dashboard/widgets/registry", () => ({
 	getWidgetEntry: mocks.getWidgetEntry,
 }));
 
+function createDeferred() {
+	let resolve!: (value: unknown) => void;
+	let reject!: (reason: unknown) => void;
+	const promise = new Promise((res, rej) => {
+		resolve = res;
+		reject = rej;
+	});
+	return { promise, resolve, reject };
+}
+
 function StubEditForm({ config, formId, onSave }: WidgetEditProps) {
 	return (
 		<form
@@ -87,10 +97,100 @@ describe("WidgetEditDialog", () => {
 		await waitFor(() => {
 			expect(onSave).toHaveBeenCalledTimes(1);
 		});
-		expect(onSave).toHaveBeenCalledWith({ currencyId: "c1", saved: true });
-		await waitFor(() => {
-			expect(onOpenChange).toHaveBeenCalledWith(false);
+		expect(onSave).toHaveBeenNthCalledWith(1, {
+			currencyId: "c1",
+			saved: true,
 		});
+		await waitFor(() => {
+			expect(onOpenChange).toHaveBeenCalledTimes(1);
+		});
+		expect(onOpenChange).toHaveBeenNthCalledWith(1, false);
+	});
+
+	it("disables Save while onSave is unresolved and re-enables it after resolve", async () => {
+		const user = userEvent.setup();
+		const onOpenChange = vi.fn();
+		const deferred = createDeferred();
+		const onSave = vi.fn().mockReturnValue(deferred.promise);
+		mocks.getWidgetEntry.mockReturnValue({
+			label: "Currency Balance",
+			EditForm: StubEditForm,
+		});
+
+		render(
+			<WidgetEditDialog
+				config={{ currencyId: "c1" }}
+				onOpenChange={onOpenChange}
+				onSave={onSave}
+				open
+				type="currency_balance"
+				widgetId="w1"
+			/>
+		);
+
+		await user.click(screen.getByLabelText("Save"));
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("Save")).toBeDisabled();
+		});
+		expect(onSave).toHaveBeenCalledTimes(1);
+		expect(onSave).toHaveBeenNthCalledWith(1, {
+			currencyId: "c1",
+			saved: true,
+		});
+		// Sheet must not close before the save settles.
+		expect(onOpenChange).not.toHaveBeenCalled();
+
+		// A second click while pending must not trigger a second save.
+		await user.click(screen.getByLabelText("Save"));
+		expect(onSave).toHaveBeenCalledTimes(1);
+
+		deferred.resolve(undefined);
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("Save")).toBeEnabled();
+		});
+		expect(onOpenChange).toHaveBeenCalledTimes(1);
+		expect(onOpenChange).toHaveBeenNthCalledWith(1, false);
+	});
+
+	it("keeps the sheet open and re-enables Save when onSave rejects", async () => {
+		const user = userEvent.setup();
+		const onOpenChange = vi.fn();
+		const deferred = createDeferred();
+		const onSave = vi.fn().mockReturnValue(deferred.promise);
+		mocks.getWidgetEntry.mockReturnValue({
+			label: "Currency Balance",
+			EditForm: StubEditForm,
+		});
+
+		render(
+			<WidgetEditDialog
+				config={{ currencyId: "c1" }}
+				onOpenChange={onOpenChange}
+				onSave={onSave}
+				open
+				type="currency_balance"
+				widgetId="w1"
+			/>
+		);
+
+		await user.click(screen.getByLabelText("Save"));
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("Save")).toBeDisabled();
+		});
+
+		deferred.reject(new Error("save failed"));
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("Save")).toBeEnabled();
+		});
+		// The sheet stays open so the user can retry; closing on a failed
+		// save would silently discard their edits.
+		expect(onOpenChange).not.toHaveBeenCalled();
+		expect(screen.getByTestId("stub-edit-form")).toBeInTheDocument();
+		expect(onSave).toHaveBeenCalledTimes(1);
 	});
 
 	it("requests close when the toolbar Cancel button is clicked", async () => {

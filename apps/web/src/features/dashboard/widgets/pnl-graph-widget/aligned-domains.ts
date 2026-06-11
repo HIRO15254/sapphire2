@@ -6,7 +6,7 @@ export interface ChartPoint {
 	x: number;
 }
 
-function computeAlignedDomain(
+export function computeAlignedDomain(
 	min: number,
 	max: number,
 	negFrac: number

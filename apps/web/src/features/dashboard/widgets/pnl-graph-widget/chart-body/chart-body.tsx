@@ -1,21 +1,14 @@
 import { lazy, Suspense } from "react";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import type { ChartPoint } from "../aligned-domains";
 import type { PnlGraphXAxis } from "../use-pnl-graph-widget";
 
 const PnlGraphChart = lazy(() => import("../pnl-graph-chart"));
 
-interface AggregatedPoint {
-	cashCumulative?: number;
-	cumulative?: number;
-	evCashCumulative?: number;
-	tournamentCumulative?: number;
-	x: number;
-}
-
 interface ChartBodyProps {
 	dual: boolean;
 	isLoading: boolean;
-	points: AggregatedPoint[];
+	points: ChartPoint[];
 	showEvCash: boolean;
 	xAxisType: PnlGraphXAxis;
 }

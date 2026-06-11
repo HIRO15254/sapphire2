@@ -1,6 +1,7 @@
 import type { WidgetType } from "@/features/dashboard/hooks/use-dashboard-widgets";
 import { getWidgetEntry } from "@/features/dashboard/widgets/registry";
 import { FormSheet } from "@/shared/components/form-sheet";
+import { useWidgetEditDialog } from "./use-widget-edit-dialog";
 
 const WIDGET_EDIT_FORM_ID = "widget-edit-form";
 
@@ -21,6 +22,10 @@ export function WidgetEditDialog({
 	config,
 	onSave,
 }: WidgetEditDialogProps) {
+	const { isSaving, onFormSave } = useWidgetEditDialog({
+		onOpenChange,
+		onSave,
+	});
 	const entry = getWidgetEntry(type);
 	const EditForm = entry?.EditForm;
 	const title = entry?.label ?? "Widget";
@@ -28,6 +33,7 @@ export function WidgetEditDialog({
 	return (
 		<FormSheet
 			formId={WIDGET_EDIT_FORM_ID}
+			isLoading={isSaving}
 			onOpenChange={onOpenChange}
 			open={open}
 			title={`Edit ${title}`}
@@ -36,10 +42,7 @@ export function WidgetEditDialog({
 				<EditForm
 					config={config}
 					formId={WIDGET_EDIT_FORM_ID}
-					onSave={async (next) => {
-						await onSave(next);
-						onOpenChange(false);
-					}}
+					onSave={onFormSave}
 					widgetId={widgetId}
 				/>
 			) : (
