@@ -71,8 +71,26 @@ describe("useTournamentSessionView", () => {
 			});
 		});
 
-		it("normalizes a negative or missing hero seat to null", () => {
+		it("passes through a zero hero seat (lower boundary)", () => {
+			mocks.session = { id: "t1", memo: null, heroSeatPosition: 0 };
+			renderHook(() => useTournamentSessionView("t-1"));
+			expect(mocks.lastSceneOptions?.heroSeatPosition).toBe(0);
+		});
+
+		it("normalizes a negative hero seat to null", () => {
 			mocks.session = { id: "t1", memo: null, heroSeatPosition: -2 };
+			renderHook(() => useTournamentSessionView("t-1"));
+			expect(mocks.lastSceneOptions?.heroSeatPosition).toBeNull();
+		});
+
+		it("normalizes a missing hero seat to null", () => {
+			mocks.session = { id: "t1", memo: null };
+			renderHook(() => useTournamentSessionView("t-1"));
+			expect(mocks.lastSceneOptions?.heroSeatPosition).toBeNull();
+		});
+
+		it("normalizes a non-numeric hero seat to null", () => {
+			mocks.session = { id: "t1", memo: null, heroSeatPosition: "3" };
 			renderHook(() => useTournamentSessionView("t-1"));
 			expect(mocks.lastSceneOptions?.heroSeatPosition).toBeNull();
 		});

@@ -18,9 +18,6 @@ import {
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { useTagManager } from "./use-tag-manager";
 
-const CREATE_FORM_ID = "tag-create-form";
-const EDIT_FORM_ID = "tag-edit-form";
-
 interface TagManagerProps<TTag extends { id: string; name: string }> {
 	deleteError?: React.ReactNode;
 	emptyDescription?: React.ReactNode;
@@ -63,7 +60,9 @@ export function TagManager<TTag extends { id: string; name: string }>({
 	renderEditForm,
 }: TagManagerProps<TTag>) {
 	const {
+		createFormId,
 		deletingTag,
+		editFormId,
 		editingTag,
 		isCreateOpen,
 		onCloseCreate,
@@ -124,7 +123,7 @@ export function TagManager<TTag extends { id: string; name: string }>({
 			)}
 
 			<FormSheet
-				formId={CREATE_FORM_ID}
+				formId={createFormId}
 				isLoading={isCreatePending}
 				onOpenChange={(open) => {
 					if (!open) {
@@ -134,11 +133,11 @@ export function TagManager<TTag extends { id: string; name: string }>({
 				open={isCreateOpen}
 				title={`New ${noun}`}
 			>
-				{renderCreateForm(CREATE_FORM_ID, onCloseCreate)}
+				{renderCreateForm(createFormId, onCloseCreate)}
 			</FormSheet>
 
 			<FormSheet
-				formId={EDIT_FORM_ID}
+				formId={editFormId}
 				isLoading={isEditPending}
 				onOpenChange={(open) => {
 					if (!open) {
@@ -148,7 +147,7 @@ export function TagManager<TTag extends { id: string; name: string }>({
 				open={editingTag !== null}
 				title={`Edit ${noun}`}
 			>
-				{editingTag && renderEditForm(editingTag, EDIT_FORM_ID, onCloseEdit)}
+				{editingTag && renderEditForm(editingTag, editFormId, onCloseEdit)}
 			</FormSheet>
 
 			<Dialog

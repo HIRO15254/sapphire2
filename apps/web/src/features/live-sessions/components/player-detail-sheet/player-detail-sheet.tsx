@@ -56,7 +56,7 @@ export function PlayerDetailSheet({
 			<div className="flex flex-col gap-4">
 				{isTemporary ? (
 					<Badge
-						className="self-start border-orange-200 bg-orange-50 text-[10px] text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-400"
+						className="self-start border-warning/40 bg-warning/10 text-[10px] text-warning"
 						variant="outline"
 					>
 						Temp

@@ -61,7 +61,7 @@ function LevelProgressBar({
 			<div
 				className={cn(
 					"h-full bg-primary transition-[width] duration-1000 ease-linear",
-					isBreak && "bg-amber-500"
+					isBreak && "bg-warning"
 				)}
 				style={{ width: `${progress * 100}%` }}
 			/>
@@ -92,8 +92,7 @@ function ActiveTimer({
 		<button
 			className={cn(
 				"flex w-full flex-col overflow-hidden rounded-md border text-left transition-colors hover:bg-muted/40",
-				isBreak &&
-					"border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/40",
+				isBreak && "border-warning/40 bg-warning/10",
 				isFinished && "border-muted bg-muted/40"
 			)}
 			onClick={onEditTimer}
@@ -104,7 +103,7 @@ function ActiveTimer({
 					<span
 						className={cn(
 							"truncate font-bold text-base tabular-nums leading-tight",
-							isBreak && "text-amber-800 dark:text-amber-200",
+							isBreak && "text-warning",
 							isFinished && "text-muted-foreground"
 						)}
 					>
@@ -118,13 +117,13 @@ function ActiveTimer({
 				</div>
 				<div className="flex items-center gap-2">
 					<IconClock
-						className={cn("text-muted-foreground", isBreak && "text-amber-600")}
+						className={cn("text-muted-foreground", isBreak && "text-warning")}
 						size={16}
 					/>
 					<span
 						className={cn(
 							"font-mono font-semibold text-sm tabular-nums",
-							isBreak && "text-amber-700 dark:text-amber-300",
+							isBreak && "text-warning",
 							isFinished && "text-muted-foreground"
 						)}
 					>
