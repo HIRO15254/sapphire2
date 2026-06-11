@@ -12,13 +12,13 @@ vi.mock("@/features/rooms/pages/room-detail-page/use-room-detail-page", () => ({
 	useRoomDetailPage: hoisted.useRoomDetailPage,
 }));
 
-vi.mock("@/features/rooms/components/ring-game-tab", () => ({
+vi.mock("@/features/rooms/pages/room-detail-page/ring-game-tab", () => ({
 	RingGameTab: ({ roomId }: { roomId: string }) => (
 		<div data-testid="ring-game-tab">{roomId}</div>
 	),
 }));
 
-vi.mock("@/features/rooms/components/tournament-tab", () => ({
+vi.mock("@/features/rooms/pages/room-detail-page/tournament-tab", () => ({
 	TournamentTab: ({ roomId }: { roomId: string }) => (
 		<div data-testid="tournament-tab">{roomId}</div>
 	),
@@ -28,7 +28,7 @@ vi.mock("@/features/rooms/components/room-form", () => ({
 	RoomForm: () => <div data-testid="room-form" />,
 }));
 
-vi.mock("@/features/rooms/components/room-actions-drawer", () => ({
+vi.mock("@/features/rooms/pages/room-detail-page/room-actions-drawer", () => ({
 	RoomActionsDrawer: ({
 		open,
 		onDelete,
@@ -55,7 +55,7 @@ vi.mock("@/features/rooms/components/room-actions-drawer", () => ({
 		) : null,
 }));
 
-vi.mock("@/features/rooms/components/delete-room-dialog", () => ({
+vi.mock("@/features/rooms/pages/room-detail-page/delete-room-dialog", () => ({
 	DeleteRoomDialog: ({
 		open,
 		roomName,

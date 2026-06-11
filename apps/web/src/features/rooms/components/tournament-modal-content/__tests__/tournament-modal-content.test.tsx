@@ -11,11 +11,14 @@ vi.mock("../use-tournament-modal-content", () => ({
 	useTournamentModalContent: hoisted.useTournamentModalContent,
 }));
 
-vi.mock("@/features/rooms/components/tournament-form", () => ({
-	TournamentForm: ({ formId }: { formId: string }) => (
-		<div data-form-id={formId} data-testid="tournament-form" />
-	),
-}));
+vi.mock(
+	"@/features/rooms/components/tournament-modal-content/tournament-form",
+	() => ({
+		TournamentForm: ({ formId }: { formId: string }) => (
+			<div data-form-id={formId} data-testid="tournament-form" />
+		),
+	})
+);
 
 vi.mock("@/features/rooms/components/blind-level-editor", () => ({
 	LocalBlindStructureContent: () => <div data-testid="blind-structure" />,

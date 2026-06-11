@@ -1,7 +1,7 @@
 import { ColorBadge } from "@/features/players/components/color-badge";
-import { DeletePlayerDialog } from "@/features/players/components/delete-player-dialog";
-import { PlayerActionsDrawer } from "@/features/players/components/player-actions-drawer";
 import { PlayerForm } from "@/features/players/components/player-form";
+import { DeletePlayerDialog } from "@/features/players/pages/player-detail-page/delete-player-dialog";
+import { PlayerActionsDrawer } from "@/features/players/pages/player-detail-page/player-actions-drawer";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { RichTextContent } from "@/shared/components/ui/rich-text-content";

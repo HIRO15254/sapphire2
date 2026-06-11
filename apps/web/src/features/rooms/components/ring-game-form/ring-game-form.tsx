@@ -9,6 +9,7 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { BlindFields } from "./blind-fields";
 import { useRingGameForm } from "./use-ring-game-form";
 
 const GAME_VARIANTS = {
@@ -105,59 +106,7 @@ export function RingGameForm({
 				)}
 			</form.Field>
 
-			<div className="grid grid-cols-3 gap-3">
-				<form.Field name="blind1">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label={blindLabels.blind1}
-						>
-							<Input
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="blind2">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label={blindLabels.blind2}
-						>
-							<Input
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="blind3">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label={blindLabels.blind3}
-						>
-							<Input
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-			</div>
+			<BlindFields blindLabels={blindLabels} form={form} />
 
 			<div className="flex gap-3">
 				<form.Field name="anteType">

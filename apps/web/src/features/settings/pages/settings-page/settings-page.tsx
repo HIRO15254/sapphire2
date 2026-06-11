@@ -1,8 +1,8 @@
 import { IconLogout } from "@tabler/icons-react";
-import { LinkedAccounts } from "@/shared/components/linked-accounts";
+import { LinkedAccounts } from "@/features/settings/pages/settings-page/linked-accounts";
+import { ThemeSetting } from "@/features/settings/pages/settings-page/theme-setting";
 import { PageHeader } from "@/shared/components/page-header";
 import { PageSection } from "@/shared/components/page-section";
-import { ThemeSetting } from "@/shared/components/theme-setting";
 import { Button } from "@/shared/components/ui/button";
 import { useSettingsPage } from "./use-settings-page";
 

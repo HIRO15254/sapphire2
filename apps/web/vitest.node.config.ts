@@ -22,12 +22,15 @@ export default defineConfig({
 		include: [
 			"src/utils/__tests__/*.test.ts",
 			"src/shared/lib/**/__tests__/*.test.ts",
-			"src/features/currencies/utils/__tests__/*.test.ts",
-			"src/features/live-sessions/utils/__tests__/*.test.ts",
-			"src/features/sessions/utils/__tests__/session-display.test.ts",
-			"src/features/sessions/utils/__tests__/session-filters-helpers.test.ts",
-			"src/features/sessions/utils/__tests__/session-form-helpers.test.ts",
-			"src/features/stores/utils/__tests__/*.test.ts",
+			// All feature-local pure-helper tests. Per-feature enumeration kept
+			// silently dropping new features (rooms utils were never running).
+			"src/features/**/utils/__tests__/*.test.ts",
+		],
+		exclude: [
+			"**/node_modules/**",
+			"**/.git/**",
+			// Touches navigator/clipboard — runs in the web-dom project instead.
+			"src/features/sessions/utils/__tests__/share-session.test.ts",
 		],
 		globals: true,
 		isolate: false,

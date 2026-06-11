@@ -1,9 +1,9 @@
 import { IconStar, IconStarFilled } from "@tabler/icons-react";
-import { DeleteRoomDialog } from "@/features/rooms/components/delete-room-dialog";
-import { RingGameTab } from "@/features/rooms/components/ring-game-tab";
-import { RoomActionsDrawer } from "@/features/rooms/components/room-actions-drawer";
 import { RoomForm } from "@/features/rooms/components/room-form";
-import { TournamentTab } from "@/features/rooms/components/tournament-tab";
+import { DeleteRoomDialog } from "@/features/rooms/pages/room-detail-page/delete-room-dialog";
+import { RingGameTab } from "@/features/rooms/pages/room-detail-page/ring-game-tab";
+import { RoomActionsDrawer } from "@/features/rooms/pages/room-detail-page/room-actions-drawer";
+import { TournamentTab } from "@/features/rooms/pages/room-detail-page/tournament-tab";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import {

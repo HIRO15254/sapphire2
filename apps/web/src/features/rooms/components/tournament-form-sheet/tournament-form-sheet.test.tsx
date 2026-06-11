@@ -14,9 +14,12 @@ vi.mock("@/features/rooms/components/tournament-modal-content", () => ({
 	TournamentModalContent: () => <div data-testid="modal-content" />,
 }));
 
-vi.mock("@/features/rooms/components/ai-extract-input", () => ({
-	AiExtractInput: () => <div data-testid="ai-extract" />,
-}));
+vi.mock(
+	"@/features/rooms/components/tournament-form-sheet/ai-extract-input",
+	() => ({
+		AiExtractInput: () => <div data-testid="ai-extract" />,
+	})
+);
 
 vi.mock("@/shared/components/form-sheet", () => ({
 	FormSheet: ({

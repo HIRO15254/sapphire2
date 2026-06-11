@@ -1,10 +1,10 @@
 import { IconBolt } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { DeleteSessionDialog } from "@/features/sessions/components/delete-session-dialog";
-import { SessionActionsDrawer } from "@/features/sessions/components/session-actions-drawer";
 import { SessionFormSheet } from "@/features/sessions/components/session-form-sheet";
 import { SessionWizard } from "@/features/sessions/components/session-wizard";
 import { buildEditDefaults } from "@/features/sessions/hooks/use-sessions";
+import { DeleteSessionDialog } from "@/features/sessions/pages/session-detail-page/delete-session-dialog";
+import { SessionActionsDrawer } from "@/features/sessions/pages/session-detail-page/session-actions-drawer";
 import {
 	buildCashRuleRows,
 	buildCashStatRows,

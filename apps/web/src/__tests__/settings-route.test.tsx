@@ -15,7 +15,7 @@ vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => mocks.navigate,
 }));
 
-vi.mock("@/shared/components/linked-accounts", () => ({
+vi.mock("@/features/settings/pages/settings-page/linked-accounts", () => ({
 	LinkedAccounts: () => <div>Linked Accounts Content</div>,
 }));
 

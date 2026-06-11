@@ -1,6 +1,6 @@
 import { IconSparkles } from "@tabler/icons-react";
 import { LocalBlindStructureContent } from "@/features/rooms/components/blind-level-editor";
-import { TournamentForm } from "@/features/rooms/components/tournament-form";
+import { TournamentForm } from "@/features/rooms/components/tournament-modal-content/tournament-form";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
 import { Badge } from "@/shared/components/ui/badge";

@@ -1,8 +1,8 @@
+import { PreviewAutoLogin } from "@/features/auth/pages/login-page/preview-auto-login";
+import SignInForm from "@/features/auth/pages/login-page/sign-in-form";
+import SignUpForm from "@/features/auth/pages/login-page/sign-up-form";
 import { PageSection } from "@/shared/components/page-section";
-import { PreviewAutoLogin } from "@/shared/components/preview-auto-login";
 import { PublicPageShell } from "@/shared/components/public-page-shell";
-import SignInForm from "@/shared/components/sign-in-form";
-import SignUpForm from "@/shared/components/sign-up-form";
 import { useLoginPage } from "./use-login-page";
 
 export function LoginPage() {

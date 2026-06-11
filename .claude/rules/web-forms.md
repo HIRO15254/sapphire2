@@ -22,4 +22,4 @@ All forms in `apps/web` are built with [`@tanstack/react-form`](https://tanstack
 
 - [`use-player-form.ts`](apps/web/src/features/players/components/player-form/use-player-form.ts) + [`player-form.tsx`](apps/web/src/features/players/components/player-form/player-form.tsx).
 - [`use-session-form-state.ts`](apps/web/src/features/sessions/components/session-wizard/use-session-form-state.ts) + [`session-wizard.tsx`](apps/web/src/features/sessions/components/session-wizard/session-wizard.tsx).
-- [`use-sign-in.ts`](apps/web/src/shared/components/sign-in-form/use-sign-in.ts) + [`sign-in-form.tsx`](apps/web/src/shared/components/sign-in-form/sign-in-form.tsx).
+- [`use-sign-in.ts`](apps/web/src/features/auth/pages/login-page/sign-in-form/use-sign-in.ts) + [`sign-in-form.tsx`](apps/web/src/features/auth/pages/login-page/sign-in-form/sign-in-form.tsx).

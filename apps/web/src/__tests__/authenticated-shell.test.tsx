@@ -36,11 +36,11 @@ vi.mock(
 	})
 );
 
-vi.mock("@/shared/components/sidebar-nav", () => ({
+vi.mock("@/shared/components/authenticated-shell/sidebar-nav", () => ({
 	SidebarNav: () => <div>Sidebar Nav</div>,
 }));
 
-vi.mock("@/shared/components/mobile-nav", () => ({
+vi.mock("@/shared/components/authenticated-shell/mobile-nav", () => ({
 	MobileNav: () => <div>Mobile Nav</div>,
 }));
 
@@ -48,7 +48,7 @@ vi.mock("@/features/live-sessions/components/live-stack-form-sheet", () => ({
 	LiveStackFormSheet: () => <div>Live Stack Sheet</div>,
 }));
 
-vi.mock("@/shared/components/online-status-bar", () => ({
+vi.mock("@/shared/components/authenticated-shell/online-status-bar", () => ({
 	OnlineStatusBar: () => <div>Online Status</div>,
 }));
 

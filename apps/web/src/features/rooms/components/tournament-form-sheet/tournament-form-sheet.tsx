@@ -1,4 +1,4 @@
-import { AiExtractInput } from "@/features/rooms/components/ai-extract-input";
+import { AiExtractInput } from "@/features/rooms/components/tournament-form-sheet/ai-extract-input";
 import {
 	TournamentModalContent,
 	type TournamentPartialFormValues,
