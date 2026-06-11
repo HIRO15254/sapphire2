@@ -1,10 +1,8 @@
-import type { ReactNode } from "react";
 import { PlayerTagInput } from "@/features/players/components/player-tag-input";
-import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { RichTextEditor } from "@/shared/components/ui/rich-text-editor";
+import type { PlayerFormValues } from "./use-player-form";
 import { usePlayerForm } from "./use-player-form";
 
 interface TagWithColor {
@@ -13,19 +11,18 @@ interface TagWithColor {
 	name: string;
 }
 
-export interface PlayerFormValues {
-	memo?: string | null;
-	name: string;
-	tagIds?: string[];
-}
-
 interface PlayerFormProps {
 	availableTags?: TagWithColor[];
 	defaultMemo?: string | null;
 	defaultTags?: TagWithColor[];
 	defaultValues?: { name: string };
-	isLoading?: boolean;
-	leadingActions?: ReactNode;
+	/**
+	 * Stable id assigned to the `<form>` element so an external Save button
+	 * (rendered by the surrounding FormSheet toolbar) can submit it via the
+	 * HTML `form` attribute. The form therefore renders no submit button of
+	 * its own — see `.claude/rules/web-theme.md`.
+	 */
+	formId: string;
 	onCreateTag?: (name: string) => Promise<TagWithColor>;
 	onSubmit: (values: PlayerFormValues) => void;
 }
@@ -35,8 +32,7 @@ export function PlayerForm({
 	defaultMemo,
 	defaultTags,
 	defaultValues,
-	isLoading = false,
-	leadingActions,
+	formId,
 	onCreateTag,
 	onSubmit,
 }: PlayerFormProps) {
@@ -50,6 +46,7 @@ export function PlayerForm({
 	return (
 		<form
 			className="flex flex-col gap-4"
+			id={formId}
 			onSubmit={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -61,7 +58,7 @@ export function PlayerForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Player Name"
+						label="Player name"
 						required
 					>
 						<Input
@@ -105,28 +102,6 @@ export function PlayerForm({
 					</Field>
 				)}
 			</form.Field>
-
-			<form.Subscribe>
-				{(state) => {
-					const saveButton = (
-						<Button
-							disabled={isLoading || !state.canSubmit || state.isSubmitting}
-							type="submit"
-						>
-							{isLoading || state.isSubmitting ? "Saving..." : "Save"}
-						</Button>
-					);
-
-					return leadingActions ? (
-						<DialogActionRow>
-							{leadingActions}
-							{saveButton}
-						</DialogActionRow>
-					) : (
-						saveButton
-					);
-				}}
-			</form.Subscribe>
 		</form>
 	);
 }

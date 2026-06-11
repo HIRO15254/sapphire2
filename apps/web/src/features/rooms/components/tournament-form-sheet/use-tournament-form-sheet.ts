@@ -1,6 +1,5 @@
 import type { ExtractedTournamentData } from "@sapphire2/api/routers/ai-extract";
 import { useEffect, useState } from "react";
-import type { TournamentEditDialogMode } from "@/features/rooms/components/tournament-edit-dialog";
 import type { TournamentPartialFormValues } from "@/features/rooms/components/tournament-modal-content";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 
@@ -53,21 +52,23 @@ function mergeExtractedIntoEditFormValues(
 	};
 }
 
-interface UseTournamentEditDialogOptions {
-	aiMode?: TournamentEditDialogMode;
+export type TournamentFormSheetMode = "create" | "edit";
+
+interface UseTournamentFormSheetOptions {
+	aiMode?: TournamentFormSheetMode;
 	initialBlindLevels: BlindLevelRow[];
 	initialFormValues?: TournamentPartialFormValues;
 	open: boolean;
 	resetKey?: string;
 }
 
-export function useTournamentEditDialog({
+export function useTournamentFormSheet({
 	aiMode,
 	initialBlindLevels,
 	initialFormValues,
 	open,
 	resetKey,
-}: UseTournamentEditDialogOptions) {
+}: UseTournamentFormSheetOptions) {
 	const [aiSheetOpen, setAiSheetOpen] = useState(false);
 	const [aiFormValues, setAiFormValues] = useState<
 		TournamentPartialFormValues | undefined

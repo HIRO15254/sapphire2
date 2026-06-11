@@ -1,8 +1,13 @@
-import { TournamentEditDialog } from "@/features/rooms/components/tournament-edit-dialog";
+import { TournamentFormSheet } from "@/features/rooms/components/tournament-form-sheet";
 import { Button } from "@/shared/components/ui/button";
+import {
+	Drawer,
+	DrawerContent,
+	DrawerDescription,
+	DrawerTitle,
+} from "@/shared/components/ui/drawer";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import {
 	Select,
 	SelectContent,
@@ -16,6 +21,8 @@ import {
 	type TournamentListItem,
 	useAssignTournament,
 } from "./use-assign-tournament";
+
+const CREATE_TOURNAMENT_FORM_ID = "assign-tournament-create-form";
 
 interface AssignTournamentDialogProps {
 	onOpenChange: (open: boolean) => void;
@@ -182,39 +189,53 @@ export function AssignTournamentDialog({
 
 	return (
 		<>
-			<ResponsiveDialog
+			<Drawer
 				onOpenChange={(o) => {
 					if (!isBusy) {
 						onOpenChange(o);
 					}
 				}}
 				open={open}
-				title="Assign Tournament"
 			>
-				<Tabs
-					className="mb-4"
-					onValueChange={(value) => setMode(value as AssignTournamentMode)}
-					value={mode}
-				>
-					<TabsList className="grid w-full grid-cols-2">
-						<TabsTrigger value="existing">Select existing</TabsTrigger>
-						<TabsTrigger value="create">Create new</TabsTrigger>
-					</TabsList>
-				</Tabs>
-
-				{sessionRoomId ? null : (
-					<RoomSelectField
-						onChange={handleRoomChange}
-						rooms={rooms}
-						value={selectedRoomId}
+				<DrawerContent className="rounded-t-xl">
+					<div
+						aria-hidden
+						className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"
 					/>
-				)}
+					<DrawerTitle className="t-h4 px-4 pt-1">
+						Assign Tournament
+					</DrawerTitle>
+					<DrawerDescription className="sr-only">
+						Select an existing tournament or create a new one for this session.
+					</DrawerDescription>
+					<div className="overflow-y-auto px-4 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+						<Tabs
+							className="mb-4"
+							onValueChange={(value) => setMode(value as AssignTournamentMode)}
+							value={mode}
+						>
+							<TabsList className="grid w-full grid-cols-2">
+								<TabsTrigger value="existing">Select existing</TabsTrigger>
+								<TabsTrigger value="create">Create new</TabsTrigger>
+							</TabsList>
+						</Tabs>
 
-				{mode === "existing" ? renderExistingTab() : renderCreateTab()}
-			</ResponsiveDialog>
+						{sessionRoomId ? null : (
+							<RoomSelectField
+								onChange={handleRoomChange}
+								rooms={rooms}
+								value={selectedRoomId}
+							/>
+						)}
 
-			<TournamentEditDialog
+						{mode === "existing" ? renderExistingTab() : renderCreateTab()}
+					</div>
+				</DrawerContent>
+			</Drawer>
+
+			<TournamentFormSheet
 				aiMode="create"
+				formId={CREATE_TOURNAMENT_FORM_ID}
 				initialBlindLevels={[]}
 				isLoading={isCreatePending}
 				onOpenChange={setIsCreateDialogOpen}

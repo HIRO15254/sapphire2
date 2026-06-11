@@ -37,7 +37,7 @@ vi.mock("@/features/players/components/delete-player-dialog", () => ({
 }));
 
 vi.mock("@/features/players/components/player-form", () => ({
-	PlayerFormV2: () => <div data-testid="player-form-stub" />,
+	PlayerForm: () => <div data-testid="player-form-stub" />,
 }));
 
 vi.mock("@/shared/components/ui/rich-text-content", () => ({

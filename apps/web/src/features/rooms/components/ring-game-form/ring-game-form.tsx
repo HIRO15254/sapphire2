@@ -1,5 +1,4 @@
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
-import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -26,13 +25,11 @@ type AnteType = "all" | "bb" | "none";
 interface RingGameFormProps {
 	defaultValues?: RingGameFormValues;
 	/**
-	 * When set, the `<form>` gets this id and renders no submit button — the
-	 * surrounding FormSheet toolbar submits it via the HTML `form` attribute
-	 * (V2 rooms flow). When omitted, the form renders its own Save button
-	 * (legacy ResponsiveDialog consumers, e.g. live-sessions).
+	 * Stable id assigned to the `<form>` element so an external Save button
+	 * (e.g. the surrounding FormSheet toolbar) can submit it via the HTML
+	 * `form` attribute. The form renders no submit button of its own.
 	 */
-	formId?: string;
-	isLoading?: boolean;
+	formId: string;
 	onSubmit: (values: RingGameFormValues) => void;
 }
 
@@ -48,7 +45,6 @@ export function RingGameForm({
 	onSubmit,
 	defaultValues,
 	formId,
-	isLoading = false,
 }: RingGameFormProps) {
 	const { form, currencies } = useRingGameForm({ defaultValues, onSubmit });
 
@@ -306,21 +302,6 @@ export function RingGameForm({
 					</Field>
 				)}
 			</form.Field>
-
-			{formId ? null : (
-				<form.Subscribe
-					selector={(state) => [state.canSubmit, state.isSubmitting]}
-				>
-					{([canSubmit, isSubmitting]) => (
-						<Button
-							disabled={isLoading || !canSubmit || isSubmitting}
-							type="submit"
-						>
-							{isLoading ? "Saving..." : "Save"}
-						</Button>
-					)}
-				</form.Subscribe>
-			)}
 		</form>
 	);
 }

@@ -1,6 +1,5 @@
 import { ChipPurchasesEditor } from "@/features/rooms/components/chip-purchases-editor";
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
-import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -26,13 +25,11 @@ interface TournamentFormProps {
 		tags?: string[];
 	};
 	/**
-	 * When set, the `<form>` gets this id and renders no submit button — the
-	 * surrounding FormSheet toolbar submits it via the HTML `form` attribute
-	 * (V2 rooms flow). When omitted, the form renders its own Save button
-	 * (legacy ResponsiveDialog consumers, e.g. live-sessions).
+	 * Stable id assigned to the `<form>` element so an external Save button
+	 * (e.g. the surrounding FormSheet toolbar) can submit it via the HTML
+	 * `form` attribute. The form renders no submit button of its own.
 	 */
-	formId?: string;
-	isLoading?: boolean;
+	formId: string;
 	onSubmit: (values: TournamentFormValues) => void;
 }
 
@@ -40,7 +37,6 @@ export function TournamentForm({
 	onSubmit,
 	defaultValues,
 	formId,
-	isLoading = false,
 }: TournamentFormProps) {
 	const { form, currencies } = useTournamentForm({ defaultValues, onSubmit });
 
@@ -260,21 +256,6 @@ export function TournamentForm({
 					</Field>
 				)}
 			</form.Field>
-
-			{formId ? null : (
-				<form.Subscribe
-					selector={(state) => [state.canSubmit, state.isSubmitting]}
-				>
-					{([canSubmit, isSubmitting]) => (
-						<Button
-							disabled={isLoading || !canSubmit || isSubmitting}
-							type="submit"
-						>
-							{isLoading ? "Saving..." : "Save"}
-						</Button>
-					)}
-				</form.Subscribe>
-			)}
 		</form>
 	);
 }

@@ -15,6 +15,7 @@ import {
 	type SessionParam,
 	SOURCE_APP_ENTRIES,
 } from "@/features/live-sessions/utils/seat-screenshot";
+import { SessionFormSheet } from "@/features/sessions/components/session-form-sheet";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -31,7 +32,6 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "@/shared/components/ui/popover";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { useSeatFromScreenshot } from "./use-seat-from-screenshot";
 
 interface SeatFromScreenshotSheetProps {
@@ -236,15 +236,13 @@ export function SeatFromScreenshotSheet({
 	};
 
 	return (
-		<ResponsiveDialog
-			description="Seat players extracted from a screenshot in bulk."
-			fullHeight={step === "review"}
+		<SessionFormSheet
 			onOpenChange={onOpenChange}
 			open={open}
 			title="Seat from screenshot"
 		>
 			{renderStep()}
-		</ResponsiveDialog>
+		</SessionFormSheet>
 	);
 }
 

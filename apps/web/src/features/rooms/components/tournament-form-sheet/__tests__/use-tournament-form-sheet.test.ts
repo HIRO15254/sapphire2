@@ -1,7 +1,7 @@
 import type { ExtractedTournamentData } from "@sapphire2/api/routers/ai-extract";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { useTournamentEditDialog } from "@/features/rooms/components/tournament-edit-dialog/use-tournament-edit-dialog";
+import { useTournamentFormSheet } from "@/features/rooms/components/tournament-form-sheet/use-tournament-form-sheet";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 
 function row(partial: Partial<BlindLevelRow>): BlindLevelRow {
@@ -19,12 +19,12 @@ function row(partial: Partial<BlindLevelRow>): BlindLevelRow {
 	};
 }
 
-describe("useTournamentEditDialog", () => {
+describe("useTournamentFormSheet", () => {
 	it("exposes initial values when open but no AI extraction has happened", () => {
 		const initialBlindLevels: BlindLevelRow[] = [row({ level: 1 })];
 		const initialFormValues = { name: "Main", variant: "nlh" };
 		const { result } = renderHook(() =>
-			useTournamentEditDialog({
+			useTournamentFormSheet({
 				initialBlindLevels,
 				initialFormValues,
 				open: true,
@@ -39,7 +39,7 @@ describe("useTournamentEditDialog", () => {
 
 	it("honors resetKey in contentKey", () => {
 		const { result } = renderHook(() =>
-			useTournamentEditDialog({
+			useTournamentFormSheet({
 				initialBlindLevels: [],
 				open: true,
 				resetKey: "my-reset",
@@ -50,7 +50,7 @@ describe("useTournamentEditDialog", () => {
 
 	it("handleAiExtracted in create mode: replaces form values from scratch and bumps aiKey", () => {
 		const { result } = renderHook(() =>
-			useTournamentEditDialog({
+			useTournamentFormSheet({
 				aiMode: "create",
 				initialBlindLevels: [],
 				open: true,
@@ -96,7 +96,7 @@ describe("useTournamentEditDialog", () => {
 			row({ id: "l1", level: 1, minutes: 15 }),
 		];
 		const { result } = renderHook(() =>
-			useTournamentEditDialog({
+			useTournamentFormSheet({
 				aiMode: "edit",
 				initialBlindLevels,
 				initialFormValues: { name: "Orig", variant: "nlh", buyIn: 10 },
@@ -125,7 +125,7 @@ describe("useTournamentEditDialog", () => {
 	it("closes AI sheet and resets effective values when open goes from true to false", () => {
 		const { result, rerender } = renderHook(
 			({ open }: { open: boolean }) =>
-				useTournamentEditDialog({
+				useTournamentFormSheet({
 					initialBlindLevels: [],
 					initialFormValues: { name: "x", variant: "nlh" },
 					open,
@@ -149,7 +149,7 @@ describe("useTournamentEditDialog", () => {
 
 	it("setAiSheetOpen toggles the ai sheet", () => {
 		const { result } = renderHook(() =>
-			useTournamentEditDialog({ initialBlindLevels: [], open: true })
+			useTournamentFormSheet({ initialBlindLevels: [], open: true })
 		);
 		act(() => {
 			result.current.setAiSheetOpen(true);

@@ -54,7 +54,7 @@ vi.mock("@/features/players/pages/players-page/player-search", () => ({
 }));
 
 vi.mock("@/features/players/components/player-form", () => ({
-	PlayerFormV2: () => <div data-testid="player-form-stub" />,
+	PlayerForm: () => <div data-testid="player-form-stub" />,
 }));
 
 import { PlayersPage } from "@/features/players/pages/players-page/players-page";

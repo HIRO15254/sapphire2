@@ -30,8 +30,9 @@ import {
 	diffTournamentSnapshot,
 } from "@/features/live-sessions/utils/snapshot-diff";
 import { RingGameForm } from "@/features/rooms/components/ring-game-form";
-import { TournamentEditDialog } from "@/features/rooms/components/tournament-edit-dialog";
+import { TournamentFormSheet } from "@/features/rooms/components/tournament-form-sheet";
 import type { RingGame } from "@/features/rooms/hooks/use-ring-games";
+import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
@@ -42,7 +43,6 @@ import {
 	CardTitle,
 } from "@/shared/components/ui/card";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import {
 	Table,
 	TableBody,
@@ -53,6 +53,9 @@ import {
 } from "@/shared/components/ui/table";
 import { createGroupFormatter } from "@/utils/format-number";
 import { getTableSizeClassName } from "@/utils/table-size-colors";
+
+const EDIT_RING_GAME_FORM_ID = "edit-ring-game-form";
+const EDIT_TOURNAMENT_FORM_ID = "edit-tournament-form";
 
 function GameSceneShell({
 	children,
@@ -332,7 +335,9 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 				snapshot={snapshot}
 			/>
 
-			<ResponsiveDialog
+			<FormSheet
+				formId={EDIT_RING_GAME_FORM_ID}
+				isLoading={isUpdatePending}
 				onOpenChange={setIsEditOpen}
 				open={isEditOpen}
 				title="Edit Cash Game"
@@ -356,10 +361,10 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 						currencyId: ringGame.currencyId ?? undefined,
 						memo: ringGame.memo ?? undefined,
 					}}
-					isLoading={isUpdatePending}
+					formId={EDIT_RING_GAME_FORM_ID}
 					onSubmit={handleUpdate}
 				/>
-			</ResponsiveDialog>
+			</FormSheet>
 		</GameSceneShell>
 	);
 }
@@ -720,8 +725,9 @@ function TournamentDetailsBody({
 				levels={displayLevels}
 			/>
 
-			<TournamentEditDialog
+			<TournamentFormSheet
 				aiMode="edit"
+				formId={EDIT_TOURNAMENT_FORM_ID}
 				initialBlindLevels={displayLevels.map((l) => ({
 					ante: l.ante,
 					blind1: l.blind1,

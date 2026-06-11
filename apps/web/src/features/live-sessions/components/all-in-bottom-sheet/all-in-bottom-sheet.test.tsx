@@ -1,37 +1,25 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { AllInBottomSheet } from "./all-in-bottom-sheet";
-
-beforeAll(() => {
-	Object.defineProperty(window, "matchMedia", {
-		writable: true,
-		value: vi.fn().mockImplementation((query: string) => ({
-			matches: false,
-			media: query,
-			onchange: null,
-			addListener: vi.fn(),
-			removeListener: vi.fn(),
-			addEventListener: vi.fn(),
-			removeEventListener: vi.fn(),
-			dispatchEvent: vi.fn(),
-		})),
-	});
-});
 
 const POT_SIZE_LABEL_PATTERN = /pot size/i;
 const TRIALS_LABEL_PATTERN = /trials/i;
 const EQUITY_LABEL_PATTERN = /equity %/i;
 const WINS_LABEL_PATTERN = /wins/i;
 
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
+// Stand-in for the v2 FormSheet: renders the title, the body, and the
+// toolbar Save button that submits the inner form via the `form` attribute.
+vi.mock("@/shared/components/form-sheet", () => ({
+	FormSheet: ({
 		children,
+		formId,
 		open,
 		title,
 	}: {
 		children: ReactNode;
+		formId: string;
 		open: boolean;
 		title: string;
 	}) =>
@@ -39,12 +27,15 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 			<div>
 				<h2>{title}</h2>
 				{children}
+				<button aria-label="Save" form={formId} type="submit">
+					Save
+				</button>
 			</div>
 		) : null,
 }));
 
 describe("AllInBottomSheet", () => {
-	it("submits create-mode values with the add label", async () => {
+	it("submits create-mode values via the sheet Save button", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 
@@ -63,8 +54,9 @@ describe("AllInBottomSheet", () => {
 		await user.type(screen.getByLabelText(EQUITY_LABEL_PATTERN), "25");
 		await user.clear(screen.getByLabelText(WINS_LABEL_PATTERN));
 		await user.type(screen.getByLabelText(WINS_LABEL_PATTERN), "0.5");
-		await user.click(screen.getByRole("button", { name: "Add All-in" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
+		expect(onSubmit).toHaveBeenCalledTimes(1);
 		expect(onSubmit).toHaveBeenCalledWith({
 			equity: 25,
 			potSize: 1200,
@@ -73,11 +65,13 @@ describe("AllInBottomSheet", () => {
 		});
 	});
 
-	it("shows edit-mode actions including delete", () => {
+	it("shows edit-mode title and delete action and calls onDelete", async () => {
+		const user = userEvent.setup();
+		const onDelete = vi.fn();
 		render(
 			<AllInBottomSheet
 				initialValues={{ equity: 40, potSize: 900, trials: 3, wins: 1 }}
-				onDelete={vi.fn()}
+				onDelete={onDelete}
 				onOpenChange={vi.fn()}
 				onSubmit={vi.fn()}
 				open
@@ -86,8 +80,17 @@ describe("AllInBottomSheet", () => {
 
 		expect(screen.getByText("Edit All-in")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
 		expect(screen.getByDisplayValue("900")).toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+		expect(onDelete).toHaveBeenCalledTimes(1);
+	});
+
+	it("renders no delete action when onDelete is not provided", () => {
+		render(<AllInBottomSheet onOpenChange={vi.fn()} onSubmit={vi.fn()} open />);
+		expect(
+			screen.queryByRole("button", { name: "Delete" })
+		).not.toBeInTheDocument();
 	});
 
 	it("resets fields to initial values when opened", () => {

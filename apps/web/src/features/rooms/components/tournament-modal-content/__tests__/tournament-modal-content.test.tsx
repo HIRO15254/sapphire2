@@ -12,8 +12,8 @@ vi.mock("../use-tournament-modal-content", () => ({
 }));
 
 vi.mock("@/features/rooms/components/tournament-form", () => ({
-	TournamentForm: ({ formId }: { formId?: string }) => (
-		<div data-form-id={formId ?? ""} data-testid="tournament-form" />
+	TournamentForm: ({ formId }: { formId: string }) => (
+		<div data-form-id={formId} data-testid="tournament-form" />
 	),
 }));
 
@@ -32,7 +32,13 @@ beforeEach(() => {
 
 describe("TournamentModalContent", () => {
 	it("does not render the AI auto-fill button when onOpenAi is undefined", () => {
-		render(<TournamentModalContent initialBlindLevels={[]} onSave={vi.fn()} />);
+		render(
+			<TournamentModalContent
+				formId="tournament-test-form"
+				initialBlindLevels={[]}
+				onSave={vi.fn()}
+			/>
+		);
 		expect(
 			screen.queryByRole("button", { name: AI_BUTTON_RE })
 		).not.toBeInTheDocument();
@@ -43,6 +49,7 @@ describe("TournamentModalContent", () => {
 		const onOpenAi = vi.fn();
 		render(
 			<TournamentModalContent
+				formId="tournament-test-form"
 				initialBlindLevels={[]}
 				onOpenAi={onOpenAi}
 				onSave={vi.fn()}
