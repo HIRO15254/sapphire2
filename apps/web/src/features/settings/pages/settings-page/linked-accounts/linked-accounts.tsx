@@ -130,7 +130,7 @@ export function LinkedAccounts() {
 					className="min-h-14"
 					title={
 						<span className="flex items-center gap-2">
-							Email / Password
+							Email / password
 							{hasCredential ? (
 								<Badge
 									className="border-green-500 text-green-600"

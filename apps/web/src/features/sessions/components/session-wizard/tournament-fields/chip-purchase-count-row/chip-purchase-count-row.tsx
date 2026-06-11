@@ -31,7 +31,7 @@ export function ChipPurchaseCountRow({
 			<Field
 				className="flex flex-1 flex-col gap-1"
 				htmlFor={`cpc-${row.uid}`}
-				label={row.name || "Chip Purchase"}
+				label={row.name || "Chip purchase"}
 			>
 				<Input
 					disabled={disabled}

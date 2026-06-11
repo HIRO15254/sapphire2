@@ -255,24 +255,24 @@ export function cashOverriddenFields(
 		return [];
 	}
 	const checks: [string, string, string][] = [
-		["Rule Name", values.ruleName, master.name],
+		["Rule name", values.ruleName, master.name],
 		["Variant", values.variant, master.variant ?? "nlh"],
 		["SB", values.blind1, numStrOrEmpty(master.blind1 ?? undefined)],
 		["BB", values.blind2, numStrOrEmpty(master.blind2 ?? undefined)],
 		["Straddle", values.blind3, numStrOrEmpty(master.blind3 ?? undefined)],
 		["Ante", values.ante, numStrOrEmpty(master.ante ?? undefined)],
-		["Ante Type", values.anteType, master.anteType ?? "none"],
+		["Ante type", values.anteType, master.anteType ?? "none"],
 		[
-			"Min Buy-in",
+			"Min buy-in",
 			values.minBuyIn,
 			numStrOrEmpty(master.minBuyIn ?? undefined),
 		],
 		[
-			"Max Buy-in",
+			"Max buy-in",
 			values.maxBuyIn,
 			numStrOrEmpty(master.maxBuyIn ?? undefined),
 		],
-		["Table Size", values.tableSize, master.tableSize?.toString() ?? ""],
+		["Table size", values.tableSize, master.tableSize?.toString() ?? ""],
 	];
 	return checks.filter(([, a, b]) => a !== b).map(([label]) => label);
 }
@@ -298,25 +298,25 @@ export function tournamentOverriddenFields(
 		return [];
 	}
 	const checks: [string, string, string][] = [
-		["Rule Name", values.ruleName, master.name],
+		["Rule name", values.ruleName, master.name],
 		["Variant", values.variant, master.variant ?? "nlh"],
 		[
 			"Buy-in",
 			values.tournamentBuyIn,
 			numStrOrEmpty(master.buyIn ?? undefined),
 		],
-		["Entry Fee", values.entryFee, numStrOrEmpty(master.entryFee ?? undefined)],
+		["Entry fee", values.entryFee, numStrOrEmpty(master.entryFee ?? undefined)],
 		[
-			"Starting Stack",
+			"Starting stack",
 			values.startingStack,
 			numStrOrEmpty(master.startingStack ?? undefined),
 		],
 		[
-			"Bounty Amount",
+			"Bounty amount",
 			values.bountyAmount,
 			numStrOrEmpty(master.bountyAmount ?? undefined),
 		],
-		["Table Size", values.tableSize, master.tableSize?.toString() ?? ""],
+		["Table size", values.tableSize, master.tableSize?.toString() ?? ""],
 	];
 	return checks.filter(([, a, b]) => a !== b).map(([label]) => label);
 }

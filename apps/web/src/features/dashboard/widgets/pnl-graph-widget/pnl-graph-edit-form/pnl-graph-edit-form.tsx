@@ -41,7 +41,7 @@ export function PnlGraphEditForm({ config, formId, onSave }: WidgetEditProps) {
 		>
 			<form.Field name="xAxis">
 				{(field) => (
-					<Field htmlFor={field.name} label="X Axis">
+					<Field htmlFor={field.name} label="X axis">
 						<Select
 							onValueChange={(value) =>
 								field.handleChange(value as PnlGraphXAxis)
@@ -71,7 +71,7 @@ export function PnlGraphEditForm({ config, formId, onSave }: WidgetEditProps) {
 						description="Leave empty to use all-time data."
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Date Range (days)"
+						label="Date range (days)"
 					>
 						<Input
 							id={field.name}
@@ -86,7 +86,7 @@ export function PnlGraphEditForm({ config, formId, onSave }: WidgetEditProps) {
 
 			<form.Field name="sessionType">
 				{(field) => (
-					<Field htmlFor={field.name} label="Session Type">
+					<Field htmlFor={field.name} label="Session type">
 						<Select
 							onValueChange={(value) =>
 								field.handleChange(value as PnlGraphSessionType)
@@ -165,7 +165,7 @@ export function PnlGraphEditForm({ config, formId, onSave }: WidgetEditProps) {
 					roomId === NONE_VALUE ? null : (
 						<form.Field name="ringGameId">
 							{(field) => (
-								<Field htmlFor={field.name} label="Ring Game">
+								<Field htmlFor={field.name} label="Ring game">
 									<Select
 										onValueChange={(value) => field.handleChange(value)}
 										value={field.state.value}
@@ -239,16 +239,16 @@ export function PnlGraphEditForm({ config, formId, onSave }: WidgetEditProps) {
 
 			<Field label="Show in widget">
 				<div className="grid grid-cols-2 gap-2">
-					<EditFormToggle fieldName="showXAxis" form={form} label="X Axis" />
+					<EditFormToggle fieldName="showXAxis" form={form} label="X axis" />
 					<EditFormToggle
 						fieldName="showDateRange"
 						form={form}
-						label="Date Range"
+						label="Date range"
 					/>
 					<EditFormToggle
 						fieldName="showSessionType"
 						form={form}
-						label="Session Type"
+						label="Session type"
 					/>
 					<EditFormToggle fieldName="showUnit" form={form} label="Unit" />
 					<EditFormToggle fieldName="showRoom" form={form} label="Room" />

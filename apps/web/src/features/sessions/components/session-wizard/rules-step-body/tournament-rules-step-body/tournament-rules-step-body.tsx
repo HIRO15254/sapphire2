@@ -33,7 +33,7 @@ function TournamentSnapshotScalarFields({
 						htmlFor={field.name}
 						label={
 							<OverrideLabel
-								label="Starting Stack"
+								label="Starting stack"
 								overridden={overriddenLabels}
 							/>
 						}
@@ -56,7 +56,7 @@ function TournamentSnapshotScalarFields({
 						htmlFor={field.name}
 						label={
 							<OverrideLabel
-								label="Bounty Amount"
+								label="Bounty amount"
 								overridden={overriddenLabels}
 							/>
 						}
@@ -139,7 +139,7 @@ export function TournamentRulesStepBody({
 					<Tabs defaultValue="settings">
 						<TabsList className="grid w-full grid-cols-2">
 							<TabsTrigger value="settings">Settings</TabsTrigger>
-							<TabsTrigger value="blinds">Blind Levels</TabsTrigger>
+							<TabsTrigger value="blinds">Blind levels</TabsTrigger>
 						</TabsList>
 						<TabsContent value="settings">
 							<TournamentSettingsTab

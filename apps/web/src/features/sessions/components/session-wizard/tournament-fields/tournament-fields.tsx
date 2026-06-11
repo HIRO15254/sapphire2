@@ -97,7 +97,7 @@ export function TournamentRuleFields({
 							htmlFor={field.name}
 							label={
 								<OverrideLabel
-									label="Entry Fee"
+									label="Entry fee"
 									overridden={overriddenLabels}
 								/>
 							}
@@ -201,7 +201,7 @@ export function TournamentResultFields({
 									<Field
 										error={field.state.meta.errors[0]?.message}
 										htmlFor={field.name}
-										label="Total Entries"
+										label="Total entries"
 									>
 										<Input
 											disabled={isLiveLinked}
@@ -224,7 +224,7 @@ export function TournamentResultFields({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Prize Money"
+						label="Prize money"
 					>
 						<Input
 							disabled={isLiveLinked}
@@ -243,7 +243,7 @@ export function TournamentResultFields({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Bounty Prizes"
+						label="Bounty prizes"
 					>
 						<Input
 							disabled={isLiveLinked}
@@ -258,7 +258,7 @@ export function TournamentResultFields({
 			</form.Field>
 
 			{chipPurchases.length > 0 && (
-				<Field className="rounded-md border p-3" label="Chip Purchases">
+				<Field className="rounded-md border p-3" label="Chip purchases">
 					<div className="flex flex-col gap-2">
 						{chipPurchases.map((row) => (
 							<ChipPurchaseCountRow

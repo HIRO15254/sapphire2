@@ -7,17 +7,17 @@ import type {
 export const X_AXIS_LABEL: Record<PnlGraphXAxis, string> = {
 	date: "Date",
 	sessionCount: "Session #",
-	playTime: "Play Time (h)",
+	playTime: "Play time (h)",
 };
 
 export const SESSION_TYPE_LABEL: Record<PnlGraphSessionType, string> = {
 	all: "All",
-	cash_game: "Cash Game",
+	cash_game: "Cash game",
 	tournament: "Tournament",
 };
 
 export const UNIT_LABEL: Record<PnlGraphUnit, string> = {
-	currency: "Actual Value",
+	currency: "Actual value",
 	normalized: "Normalized (BB / BI)",
 };
 

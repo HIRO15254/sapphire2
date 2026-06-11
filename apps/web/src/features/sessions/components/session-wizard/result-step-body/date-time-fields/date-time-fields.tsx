@@ -14,7 +14,7 @@ export function DateTimeFields({
 		<>
 			<form.Field name="sessionDate">
 				{(field) => (
-					<Field htmlFor={field.name} label="Session Date" required>
+					<Field htmlFor={field.name} label="Session date" required>
 						<Input
 							disabled={isLiveLinked}
 							id={field.name}
@@ -29,7 +29,7 @@ export function DateTimeFields({
 			<div className="grid grid-cols-2 gap-3">
 				<form.Field name="startTime">
 					{(field) => (
-						<Field htmlFor={field.name} label="Start Time">
+						<Field htmlFor={field.name} label="Start time">
 							<Input
 								disabled={isLiveLinked}
 								id={field.name}
@@ -43,7 +43,7 @@ export function DateTimeFields({
 				</form.Field>
 				<form.Field name="endTime">
 					{(field) => (
-						<Field htmlFor={field.name} label="End Time">
+						<Field htmlFor={field.name} label="End time">
 							<Input
 								disabled={isLiveLinked}
 								id={field.name}
@@ -61,7 +61,7 @@ export function DateTimeFields({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Break Time (min)"
+						label="Break time (min)"
 					>
 						<Input
 							disabled={isLiveLinked}

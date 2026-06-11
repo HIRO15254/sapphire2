@@ -39,9 +39,9 @@ interface CashGameFieldsProps {
 }
 
 const ANTE_TYPES = [
-	{ value: "none", label: "No Ante" },
-	{ value: "bb", label: "BB Ante" },
-	{ value: "all", label: "All Ante" },
+	{ value: "none", label: "No ante" },
+	{ value: "bb", label: "BB ante" },
+	{ value: "all", label: "All ante" },
 ] as const;
 
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
@@ -167,7 +167,7 @@ export function CashGameFields({
 							htmlFor={field.name}
 							label={
 								<OverrideLabel
-									label="Ante Type"
+									label="Ante type"
 									overridden={overriddenLabels}
 								/>
 							}
@@ -224,7 +224,7 @@ export function CashGameFields({
 					<Field
 						htmlFor={field.name}
 						label={
-							<OverrideLabel label="Table Size" overridden={overriddenLabels} />
+							<OverrideLabel label="Table size" overridden={overriddenLabels} />
 						}
 					>
 						<Select

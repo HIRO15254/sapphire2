@@ -14,7 +14,7 @@ export function MasterStepBody({
 }) {
 	return (
 		<>
-			<Field label="Session Type">
+			<Field label="Session type">
 				<Tabs
 					onValueChange={(value) =>
 						state.setSessionType(value as "cash_game" | "tournament")
@@ -23,7 +23,7 @@ export function MasterStepBody({
 				>
 					<TabsList className="grid w-full grid-cols-2">
 						<TabsTrigger disabled={isLiveLinked} value="cash_game">
-							Cash Game
+							Cash game
 						</TabsTrigger>
 						<TabsTrigger disabled={isLiveLinked} value="tournament">
 							Tournament

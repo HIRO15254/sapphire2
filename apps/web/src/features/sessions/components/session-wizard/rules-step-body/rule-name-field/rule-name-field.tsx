@@ -18,7 +18,7 @@ export function RuleNameField({
 				<Field
 					htmlFor={field.name}
 					label={
-						<OverrideLabel label="Rule Name" overridden={overriddenLabels} />
+						<OverrideLabel label="Rule name" overridden={overriddenLabels} />
 					}
 				>
 					<Input

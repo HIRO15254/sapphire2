@@ -16,7 +16,7 @@ export function SettingsPage() {
 					actions={
 						<Button onClick={onSignOut} variant="destructive">
 							<IconLogout size={16} />
-							Sign Out
+							Sign out
 						</Button>
 					}
 					heading="Settings"
@@ -27,7 +27,7 @@ export function SettingsPage() {
 						<ThemeSetting />
 					</PageSection>
 
-					<PageSection heading="Linked Accounts">
+					<PageSection heading="Linked accounts">
 						<LinkedAccounts />
 					</PageSection>
 				</div>

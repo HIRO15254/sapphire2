@@ -14,7 +14,7 @@ export function TagsAndMemo({
 }) {
 	return (
 		<>
-			<Field label="Session Tags">
+			<Field label="Session tags">
 				<TagInput
 					availableTags={tags}
 					onAdd={(tag) => state.setSelectedTagIds((prev) => [...prev, tag.id])}

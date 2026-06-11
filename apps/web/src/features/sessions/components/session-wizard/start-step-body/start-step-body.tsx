@@ -10,7 +10,7 @@ function CashStartStepBody({ state }: { state: UseSessionWizardReturn }) {
 				<Field
 					error={field.state.meta.errors[0]?.message}
 					htmlFor={field.name}
-					label="Initial Buy-in"
+					label="Initial buy-in"
 					required
 				>
 					<Input
@@ -31,7 +31,7 @@ function TournamentStartStepBody({ state }: { state: UseSessionWizardReturn }) {
 	return (
 		<form.Field name="timerStartedAt">
 			{(field) => (
-				<Field htmlFor={field.name} label="Blind Timer Start">
+				<Field htmlFor={field.name} label="Blind timer start">
 					<Input
 						id={field.name}
 						onBlur={field.handleBlur}

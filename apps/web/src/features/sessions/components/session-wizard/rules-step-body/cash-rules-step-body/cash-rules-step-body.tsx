@@ -24,7 +24,7 @@ function CashBuyInBoundsFields({
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label={
-							<OverrideLabel label="Min Buy-in" overridden={overriddenLabels} />
+							<OverrideLabel label="Min buy-in" overridden={overriddenLabels} />
 						}
 					>
 						<Input
@@ -44,7 +44,7 @@ function CashBuyInBoundsFields({
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
 						label={
-							<OverrideLabel label="Max Buy-in" overridden={overriddenLabels} />
+							<OverrideLabel label="Max buy-in" overridden={overriddenLabels} />
 						}
 					>
 						<Input

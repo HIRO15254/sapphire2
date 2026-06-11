@@ -50,7 +50,7 @@ describe("LinkedAccounts", () => {
 
 		render(<LinkedAccounts />);
 
-		await screen.findByText("Email / Password");
+		await screen.findByText("Email / password");
 		expect(screen.getByRole("button", { name: "Set password" })).toBeVisible();
 		expect(screen.getByRole("button", { name: "Unlink" })).toBeDisabled();
 
@@ -76,7 +76,7 @@ describe("LinkedAccounts", () => {
 
 		render(<LinkedAccounts />);
 
-		await screen.findByText("Email / Password");
+		await screen.findByText("Email / password");
 		expect(screen.queryByLabelText(NEW_PASSWORD_RE)).not.toBeInTheDocument();
 	});
 
@@ -90,7 +90,7 @@ describe("LinkedAccounts", () => {
 
 		render(<LinkedAccounts />);
 
-		await screen.findByText("Email / Password");
+		await screen.findByText("Email / password");
 		await user.click(screen.getByRole("button", { name: "Set password" }));
 
 		await user.type(screen.getByLabelText(NEW_PASSWORD_RE), "supersecret1");

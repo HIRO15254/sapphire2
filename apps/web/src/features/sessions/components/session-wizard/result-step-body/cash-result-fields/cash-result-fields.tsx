@@ -54,7 +54,7 @@ export function CashResultFields({
 			</div>
 			<form.Field name="evCashOut">
 				{(field) => (
-					<Field htmlFor={field.name} label="EV Cash-out">
+					<Field htmlFor={field.name} label="EV cash-out">
 						<Input
 							disabled={isLiveLinked}
 							id={field.name}
