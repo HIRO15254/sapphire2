@@ -31,7 +31,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          prompt: "/review"
+          prompt: |
+            /review
+
+            After completing the review, always post a comment on this PR summarizing the findings.
+            If no issues were found, post a comment confirming the review passed with no problems (e.g. "LGTM" with a brief summary).
           claude_args: |
             --max-turns 40
             --model opus
