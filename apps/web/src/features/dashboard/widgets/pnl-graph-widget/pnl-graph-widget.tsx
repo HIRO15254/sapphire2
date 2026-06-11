@@ -3,9 +3,7 @@ import type {
 	WidgetEditProps,
 	WidgetRenderProps,
 } from "@/features/dashboard/widgets/registry";
-import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -295,11 +293,7 @@ export function PnlGraphWidget({ config }: WidgetRenderProps) {
 	);
 }
 
-export function PnlGraphEditForm({
-	config,
-	onCancel,
-	onSave,
-}: WidgetEditProps) {
+export function PnlGraphEditForm({ config, formId, onSave }: WidgetEditProps) {
 	const { form, rooms, ringGames, currencies } = usePnlGraphEditForm({
 		config,
 		onSave,
@@ -308,6 +302,7 @@ export function PnlGraphEditForm({
 	return (
 		<form
 			className="flex flex-col gap-4"
+			id={formId}
 			onSubmit={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -534,21 +529,6 @@ export function PnlGraphEditForm({
 					/>
 				</div>
 			</Field>
-
-			<DialogActionRow>
-				<Button onClick={onCancel} type="button" variant="outline">
-					Cancel
-				</Button>
-				<form.Subscribe
-					selector={(state) => [state.canSubmit, state.isSubmitting]}
-				>
-					{([canSubmit, isSubmitting]) => (
-						<Button disabled={!canSubmit || isSubmitting} type="submit">
-							{isSubmitting ? "Saving..." : "Save"}
-						</Button>
-					)}
-				</form.Subscribe>
-			</DialogActionRow>
 		</form>
 	);
 }

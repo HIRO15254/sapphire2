@@ -1,6 +1,8 @@
 import type { WidgetType } from "@/features/dashboard/hooks/use-dashboard-widgets";
 import { getWidgetEntry } from "@/features/dashboard/widgets/registry";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { FormSheet } from "@/shared/components/form-sheet";
+
+const WIDGET_EDIT_FORM_ID = "widget-edit-form";
 
 interface WidgetEditDialogProps {
 	config: Record<string, unknown>;
@@ -21,11 +23,11 @@ export function WidgetEditDialog({
 }: WidgetEditDialogProps) {
 	const entry = getWidgetEntry(type);
 	const EditForm = entry?.EditForm;
-	const title = entry?.label ?? "Edit Widget";
+	const title = entry?.label ?? "Widget";
 
 	return (
-		<ResponsiveDialog
-			description="Update widget settings"
+		<FormSheet
+			formId={WIDGET_EDIT_FORM_ID}
 			onOpenChange={onOpenChange}
 			open={open}
 			title={`Edit ${title}`}
@@ -33,7 +35,7 @@ export function WidgetEditDialog({
 			{EditForm ? (
 				<EditForm
 					config={config}
-					onCancel={() => onOpenChange(false)}
+					formId={WIDGET_EDIT_FORM_ID}
 					onSave={async (next) => {
 						await onSave(next);
 						onOpenChange(false);
@@ -45,6 +47,6 @@ export function WidgetEditDialog({
 					This widget has no configurable settings.
 				</div>
 			)}
-		</ResponsiveDialog>
+		</FormSheet>
 	);
 }

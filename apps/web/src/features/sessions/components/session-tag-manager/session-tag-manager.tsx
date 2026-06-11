@@ -17,24 +17,26 @@ export function SessionTagManager() {
 		<TagManager
 			emptyDescription="Create tags when recording sessions."
 			emptyHeading="No session tags yet"
+			isCreatePending={isCreatePending}
 			isDeletePending={isDeletePending}
+			isEditPending={isUpdatePending}
 			onDelete={deleteTag}
-			renderCreateForm={(onClose) => (
+			renderCreateForm={(formId, onClose) => (
 				<TagNameForm
-					isLoading={isCreatePending}
+					formId={formId}
 					onSubmit={(name) => create(name).then(onClose)}
 				/>
 			)}
 			renderDeleteDescription={(tag) => (
-				<p className="text-sm">
+				<>
 					Are you sure you want to delete the tag &ldquo;{tag.name}&rdquo;? This
 					will remove it from all sessions.
-				</p>
+				</>
 			)}
-			renderEditForm={(tag, onClose) => (
+			renderEditForm={(tag, formId, onClose) => (
 				<TagNameForm
 					defaultName={tag.name}
-					isLoading={isUpdatePending}
+					formId={formId}
 					onSubmit={(name) => update({ id: tag.id, name }).then(onClose)}
 				/>
 			)}

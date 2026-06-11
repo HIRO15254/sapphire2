@@ -1,5 +1,4 @@
 import type * as React from "react";
-import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { useTagNameForm } from "./use-tag-name-form";
@@ -7,12 +6,18 @@ import { useTagNameForm } from "./use-tag-name-form";
 export function TagNameForm({
 	children,
 	defaultName,
-	isLoading,
+	formId,
 	onSubmit,
 }: {
 	children?: React.ReactNode;
 	defaultName?: string;
-	isLoading?: boolean;
+	/**
+	 * Stable id assigned to the `<form>` element so the surrounding
+	 * `FormSheet` toolbar's Save button can submit it via the HTML `form`
+	 * attribute. The form renders no submit button of its own — see
+	 * `.claude/rules/web-theme.md`.
+	 */
+	formId: string;
 	onSubmit: (name: string) => void;
 }) {
 	const { form } = useTagNameForm({ defaultName, onSubmit });
@@ -20,6 +25,7 @@ export function TagNameForm({
 	return (
 		<form
 			className="flex flex-col gap-4"
+			id={formId}
 			onSubmit={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -31,7 +37,7 @@ export function TagNameForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Tag Name"
+						label="Tag name"
 						required
 					>
 						<Input
@@ -45,18 +51,6 @@ export function TagNameForm({
 				)}
 			</form.Field>
 			{children}
-			<form.Subscribe
-				selector={(state) => [state.canSubmit, state.isSubmitting]}
-			>
-				{([canSubmit, isSubmitting]) => (
-					<Button
-						disabled={isLoading || !canSubmit || isSubmitting}
-						type="submit"
-					>
-						{isLoading ? "Saving..." : "Save"}
-					</Button>
-				)}
-			</form.Subscribe>
 		</form>
 	);
 }

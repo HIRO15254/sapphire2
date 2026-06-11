@@ -1,4 +1,5 @@
 import { IconLink, IconUnlink } from "@tabler/icons-react";
+import { FormSheet } from "@/shared/components/form-sheet";
 import {
 	ManagementList,
 	ManagementListItem,
@@ -8,11 +9,11 @@ import { DiscordIcon } from "../icons/discord";
 import { GoogleIcon } from "../icons/google";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { DialogActionRow } from "../ui/dialog-action-row";
 import { Field } from "../ui/field";
 import { Input } from "../ui/input";
-import { ResponsiveDialog } from "../ui/responsive-dialog";
 import { useLinkedAccounts } from "./use-linked-accounts";
+
+const SET_PASSWORD_FORM_ID = "set-password-form";
 
 const PROVIDERS = [
 	{ id: "google", label: "Google", icon: <GoogleIcon className="h-4 w-4" /> },
@@ -23,93 +24,72 @@ const PROVIDERS = [
 	},
 ] as const;
 
-function SetPasswordDialog({
+function SetPasswordForm({
+	formId,
 	onOpenChange,
 	onSuccess,
-	open,
 }: {
+	formId: string;
 	onOpenChange: (open: boolean) => void;
 	onSuccess: () => void;
-	open: boolean;
 }) {
 	const { form } = useSetPasswordForm({ onOpenChange, onSuccess });
 
 	return (
-		<ResponsiveDialog
-			description="Create an email and password login in addition to any linked social accounts."
-			onOpenChange={onOpenChange}
-			open={open}
-			title="Set Password"
+		<form
+			className="flex flex-col gap-4"
+			id={formId}
+			onSubmit={(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				form.handleSubmit();
+			}}
 		>
-			<form
-				className="space-y-4"
-				onSubmit={(event) => {
-					event.preventDefault();
-					event.stopPropagation();
-					form.handleSubmit();
-				}}
-			>
-				<form.Field name="newPassword">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="New Password"
-							required
-						>
-							<Input
-								id={field.name}
-								name={field.name}
-								onBlur={field.handleBlur}
-								onChange={(event) => field.handleChange(event.target.value)}
-								type="password"
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
+			<p className="text-muted-foreground text-sm">
+				Create an email and password login in addition to any linked social
+				accounts.
+			</p>
 
-				<form.Field name="confirmPassword">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label="Confirm Password"
-							required
-						>
-							<Input
-								id={field.name}
-								name={field.name}
-								onBlur={field.handleBlur}
-								onChange={(event) => field.handleChange(event.target.value)}
-								type="password"
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
+			<form.Field name="newPassword">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="New password"
+						required
+					>
+						<Input
+							id={field.name}
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(event) => field.handleChange(event.target.value)}
+							type="password"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 
-				<form.Subscribe>
-					{(state) => (
-						<DialogActionRow>
-							<Button
-								onClick={() => onOpenChange(false)}
-								type="button"
-								variant="outline"
-							>
-								Cancel
-							</Button>
-							<Button
-								disabled={!state.canSubmit || state.isSubmitting}
-								type="submit"
-							>
-								{state.isSubmitting ? "Setting..." : "Set Password"}
-							</Button>
-						</DialogActionRow>
-					)}
-				</form.Subscribe>
-			</form>
-		</ResponsiveDialog>
+			<form.Field name="confirmPassword">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Confirm password"
+						required
+					>
+						<Input
+							id={field.name}
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(event) => field.handleChange(event.target.value)}
+							type="password"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
+		</form>
 	);
 }
 
@@ -143,7 +123,7 @@ export function LinkedAccounts() {
 								size="sm"
 								variant="outline"
 							>
-								Set Password
+								Set password
 							</Button>
 						)
 					}
@@ -218,11 +198,18 @@ export function LinkedAccounts() {
 				</p>
 			) : null}
 
-			<SetPasswordDialog
+			<FormSheet
+				formId={SET_PASSWORD_FORM_ID}
 				onOpenChange={onSetPasswordOpenChange}
-				onSuccess={fetchAccounts}
 				open={isSetPasswordOpen}
-			/>
+				title="Set password"
+			>
+				<SetPasswordForm
+					formId={SET_PASSWORD_FORM_ID}
+					onOpenChange={onSetPasswordOpenChange}
+					onSuccess={fetchAccounts}
+				/>
+			</FormSheet>
 		</div>
 	);
 }

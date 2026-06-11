@@ -1,8 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LinkedAccounts } from "./linked-accounts";
+
+const NEW_PASSWORD_RE = /New password/;
+const CONFIRM_PASSWORD_RE = /Confirm password/;
 
 const mocks = vi.hoisted(() => ({
 	fetchSetPassword: vi.fn(),
@@ -11,24 +13,6 @@ const mocks = vi.hoisted(() => ({
 	toastError: vi.fn(),
 	toastSuccess: vi.fn(),
 	unlinkAccount: vi.fn(),
-}));
-
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
-		children,
-		open,
-		title,
-	}: {
-		children: ReactNode;
-		open: boolean;
-		title: string;
-	}) =>
-		open ? (
-			<div>
-				<h2>{title}</h2>
-				{children}
-			</div>
-		) : null,
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -67,14 +51,66 @@ describe("LinkedAccounts", () => {
 		render(<LinkedAccounts />);
 
 		await screen.findByText("Email / Password");
-		expect(screen.getByRole("button", { name: "Set Password" })).toBeVisible();
+		expect(screen.getByRole("button", { name: "Set password" })).toBeVisible();
 		expect(screen.getByRole("button", { name: "Unlink" })).toBeDisabled();
 
-		await user.click(screen.getByRole("button", { name: "Set Password" }));
+		await user.click(screen.getByRole("button", { name: "Set password" }));
 
-		expect(
-			screen.getByRole("heading", { name: "Set Password" })
-		).toBeInTheDocument();
+		// FormSheet renders the title in the sheet toolbar plus an sr-only
+		// description, and the password fields inside the sheet body.
+		expect(screen.getAllByText("Set password").length).toBeGreaterThanOrEqual(
+			1
+		);
+		expect(screen.getByLabelText(NEW_PASSWORD_RE)).toBeInTheDocument();
+		expect(screen.getByLabelText(CONFIRM_PASSWORD_RE)).toBeInTheDocument();
+		expect(screen.getByLabelText("Save")).toHaveAttribute(
+			"form",
+			"set-password-form"
+		);
+	});
+
+	it("does not render the set password sheet body until opened", async () => {
+		mocks.listAccounts.mockResolvedValue({
+			data: [{ accountId: "google-1", id: "1", providerId: "google" }],
+		});
+
+		render(<LinkedAccounts />);
+
+		await screen.findByText("Email / Password");
+		expect(screen.queryByLabelText(NEW_PASSWORD_RE)).not.toBeInTheDocument();
+	});
+
+	it("submits the new password via the FormSheet Save button and reloads accounts", async () => {
+		const user = userEvent.setup();
+
+		mocks.listAccounts.mockResolvedValue({
+			data: [{ accountId: "google-1", id: "1", providerId: "google" }],
+		});
+		mocks.fetchSetPassword.mockResolvedValue({ error: null });
+
+		render(<LinkedAccounts />);
+
+		await screen.findByText("Email / Password");
+		await user.click(screen.getByRole("button", { name: "Set password" }));
+
+		await user.type(screen.getByLabelText(NEW_PASSWORD_RE), "supersecret1");
+		await user.type(screen.getByLabelText(CONFIRM_PASSWORD_RE), "supersecret1");
+		await user.click(screen.getByLabelText("Save"));
+
+		await waitFor(() => {
+			expect(mocks.fetchSetPassword).toHaveBeenCalledTimes(1);
+		});
+		expect(mocks.fetchSetPassword).toHaveBeenCalledWith("/set-password", {
+			method: "POST",
+			body: { newPassword: "supersecret1" },
+		});
+		expect(mocks.toastSuccess).toHaveBeenCalledWith(
+			"Password set successfully"
+		);
+		// onSuccess refetches the account list (initial load + refresh).
+		await waitFor(() => {
+			expect(mocks.listAccounts).toHaveBeenCalledTimes(2);
+		});
 	});
 
 	it("allows unlinking a provider when another login method is available", async () => {

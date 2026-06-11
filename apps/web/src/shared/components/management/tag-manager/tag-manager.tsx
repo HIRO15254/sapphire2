@@ -1,26 +1,48 @@
 import { IconEdit, IconPlus, IconTrash } from "@tabler/icons-react";
 import type * as React from "react";
+import { FormSheet } from "@/shared/components/form-sheet";
 import {
 	ManagementList,
 	ManagementListItem,
 } from "@/shared/components/management/management-list";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/shared/components/ui/dialog";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { useTagManager } from "./use-tag-manager";
+
+const CREATE_FORM_ID = "tag-create-form";
+const EDIT_FORM_ID = "tag-edit-form";
 
 interface TagManagerProps<TTag extends { id: string; name: string }> {
 	deleteError?: React.ReactNode;
 	emptyDescription?: React.ReactNode;
 	emptyHeading?: React.ReactNode;
+	isCreatePending?: boolean;
 	isDeletePending?: boolean;
+	isEditPending?: boolean;
 	noun?: string;
 	onDelete: (id: string) => Promise<unknown>;
-	renderCreateForm: (onClose: () => void) => React.ReactNode;
+	/**
+	 * Renders the create form body. The form must set `id={formId}` on its
+	 * `<form>` element and render no submit button — the surrounding
+	 * `FormSheet` toolbar submits it via the HTML `form` attribute.
+	 */
+	renderCreateForm: (formId: string, onClose: () => void) => React.ReactNode;
 	renderDeleteDescription: (tag: TTag) => React.ReactNode;
-	renderEditForm: (tag: TTag, onClose: () => void) => React.ReactNode;
+	/** Same `formId` contract as `renderCreateForm`. */
+	renderEditForm: (
+		tag: TTag,
+		formId: string,
+		onClose: () => void
+	) => React.ReactNode;
 	renderTagLabel?: (tag: TTag) => React.ReactNode;
 	tags: TTag[];
 }
@@ -30,7 +52,9 @@ export function TagManager<TTag extends { id: string; name: string }>({
 	deleteError,
 	emptyDescription,
 	emptyHeading = "No tags yet",
+	isCreatePending = false,
 	isDeletePending = false,
+	isEditPending = false,
 	noun = "tag",
 	onDelete,
 	renderTagLabel,
@@ -58,7 +82,7 @@ export function TagManager<TTag extends { id: string; name: string }>({
 				</p>
 				<Button onClick={onOpenCreate} size="sm">
 					<IconPlus size={16} />
-					New {noun.charAt(0).toUpperCase() + noun.slice(1)}
+					New {noun}
 				</Button>
 			</div>
 
@@ -99,68 +123,76 @@ export function TagManager<TTag extends { id: string; name: string }>({
 				</ManagementList>
 			)}
 
-			<ResponsiveDialog
+			<FormSheet
+				formId={CREATE_FORM_ID}
+				isLoading={isCreatePending}
 				onOpenChange={(open) => {
 					if (!open) {
 						onCloseCreate();
 					}
 				}}
 				open={isCreateOpen}
-				title={`New ${noun.charAt(0).toUpperCase() + noun.slice(1)}`}
+				title={`New ${noun}`}
 			>
-				{renderCreateForm(onCloseCreate)}
-			</ResponsiveDialog>
+				{renderCreateForm(CREATE_FORM_ID, onCloseCreate)}
+			</FormSheet>
 
-			<ResponsiveDialog
+			<FormSheet
+				formId={EDIT_FORM_ID}
+				isLoading={isEditPending}
 				onOpenChange={(open) => {
 					if (!open) {
 						onCloseEdit();
 					}
 				}}
 				open={editingTag !== null}
-				title={`Edit ${noun.charAt(0).toUpperCase() + noun.slice(1)}`}
+				title={`Edit ${noun}`}
 			>
-				{editingTag && renderEditForm(editingTag, onCloseEdit)}
-			</ResponsiveDialog>
+				{editingTag && renderEditForm(editingTag, EDIT_FORM_ID, onCloseEdit)}
+			</FormSheet>
 
-			<ResponsiveDialog
+			<Dialog
 				onOpenChange={(open) => {
 					if (!open) {
 						onCloseDelete();
 					}
 				}}
 				open={deletingTag !== null}
-				title={`Delete ${noun.charAt(0).toUpperCase() + noun.slice(1)}`}
 			>
-				{deletingTag && (
-					<div className="flex flex-col gap-4">
-						{renderDeleteDescription(deletingTag)}
-						{deleteError ? (
-							<Alert variant="destructive">
-								<AlertDescription>{deleteError}</AlertDescription>
-							</Alert>
-						) : null}
-						<DialogActionRow>
-							<Button onClick={onCloseDelete} variant="outline">
-								Cancel
-							</Button>
-							<Button
-								disabled={isDeletePending}
-								onClick={() =>
-									onDelete(deletingTag.id)
-										.then(() => onCloseDelete())
-										.catch(() => {
-											// Error handled by caller via deleteError prop
-										})
-								}
-								variant="destructive"
-							>
-								{isDeletePending ? "Deleting..." : "Delete"}
-							</Button>
-						</DialogActionRow>
-					</div>
-				)}
-			</ResponsiveDialog>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Delete {noun}?</DialogTitle>
+						<DialogDescription>
+							{deletingTag ? renderDeleteDescription(deletingTag) : null}
+						</DialogDescription>
+					</DialogHeader>
+					{deleteError ? (
+						<Alert variant="destructive">
+							<AlertDescription>{deleteError}</AlertDescription>
+						</Alert>
+					) : null}
+					<DialogFooter className="flex-row justify-end gap-2">
+						<Button onClick={onCloseDelete} type="button" variant="outline">
+							Cancel
+						</Button>
+						<Button
+							disabled={isDeletePending}
+							onClick={() =>
+								deletingTag &&
+								onDelete(deletingTag.id)
+									.then(() => onCloseDelete())
+									.catch(() => {
+										// Error handled by caller via deleteError prop
+									})
+							}
+							type="button"
+							variant="destructive"
+						>
+							{isDeletePending ? "Deleting..." : "Delete"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }
