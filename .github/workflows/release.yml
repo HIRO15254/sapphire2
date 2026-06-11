@@ -36,49 +36,45 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved version: $VERSION"
 
-      - name: Run Claude Code to draft release notes and publish release
+      - name: Generate release notes with Claude
         uses: anthropics/claude-code-action@v1
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           additional_permissions: |
             actions: read
           prompt: |
-            You are running headlessly in CI to publish a sapphire2 release.
+            You are running headlessly in CI to generate release notes for a sapphire2 release.
 
-            Inputs from environment:
-            - RELEASE_VERSION: the new version tag, e.g. `v1.5.0`
-            - PR_NUMBER: the merged release PR number
-            - REPO: the GitHub repo in `owner/name` form
+            The new version is: $RELEASE_VERSION
 
-            Execute these steps in order. There is no interactive user; do not ask
-            questions. If anything fails, surface the error and stop.
+            Execute these steps in order. There is no interactive user; do not ask questions.
+            If anything fails, surface the error and stop.
 
-            1. Invoke the `/create-update-notes` skill with `$RELEASE_VERSION` as the
-               argument. Follow its Execution Flow steps 1–6 verbatim, but apply
-               these CI overrides:
+            1. Invoke the `/create-update-notes` skill with `$RELEASE_VERSION` as the argument.
+               Follow its Execution Flow steps 1–6 verbatim, but apply these CI overrides:
                  - Skip step 7 entirely (no interactive review round-trip).
                  - In step 8, do NOT print the final block to the user; instead write
                    only the Markdown body (without the surrounding ```markdown fence)
                    to `/tmp/release-notes.md`.
-               The skill's "must never publish" rule is explicitly waived for this
-               CI invocation — publishing is required and is handled below.
+               The skill's "must never publish" rule is explicitly waived for this CI invocation.
 
-            2. Create and publish the GitHub Release. This creates the git tag
-               automatically:
-                 gh release create "$RELEASE_VERSION" \
-                   --repo "$REPO" \
-                   --title "$RELEASE_VERSION" \
-                   --notes-file /tmp/release-notes.md \
-                   --target main
+            Stop after writing /tmp/release-notes.md. Do NOT run any gh commands.
 
-            3. Capture the release URL from gh and post a comment on the merged PR:
-                 RELEASE_URL=$(gh release view "$RELEASE_VERSION" --repo "$REPO" --json url --jq .url)
-                 gh pr comment "$PR_NUMBER" --repo "$REPO" \
-                   --body "Released as **$RELEASE_VERSION** → $RELEASE_URL"
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh release create "$RELEASE_VERSION" \
+            --repo "$REPO" \
+            --title "$RELEASE_VERSION" \
+            --notes-file /tmp/release-notes.md \
+            --target main
 
-            Stop after step 3. Do not modify any files in the repo.
+          RELEASE_URL=$(gh release view "$RELEASE_VERSION" --repo "$REPO" --json url --jq .url)
+          gh pr comment "$PR_NUMBER" --repo "$REPO" \
+            --body "Released as **$RELEASE_VERSION** → $RELEASE_URL"
