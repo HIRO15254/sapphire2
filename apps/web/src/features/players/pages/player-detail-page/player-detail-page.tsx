@@ -36,7 +36,7 @@ export function PlayerDetailPage({ playerId }: PlayerDetailPageProps) {
 
 	if (isLoading) {
 		return (
-			<div className="theme-v2 min-h-full bg-background text-foreground">
+			<div className="min-h-full bg-background text-foreground">
 				<div className="p-4">
 					<PlayerDetailSkeleton />
 				</div>
@@ -46,7 +46,7 @@ export function PlayerDetailPage({ playerId }: PlayerDetailPageProps) {
 
 	if (!player) {
 		return (
-			<div className="theme-v2 min-h-full bg-background text-foreground">
+			<div className="min-h-full bg-background text-foreground">
 				<div className="p-4">
 					<TopBar />
 					<PageHeader heading="Player not found" />
@@ -59,7 +59,7 @@ export function PlayerDetailPage({ playerId }: PlayerDetailPageProps) {
 	}
 
 	return (
-		<div className="theme-v2 min-h-full bg-background text-foreground">
+		<div className="min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<TopBar onOpenActions={() => setIsActionsOpen(true)} />
 				<PageHeader heading={player.name} />
@@ -90,7 +90,6 @@ export function PlayerDetailPage({ playerId }: PlayerDetailPageProps) {
 				/>
 
 				<FormSheet
-					contentClassName="theme-v2"
 					formId={EDIT_PLAYER_FORM_ID}
 					isLoading={isSaving}
 					onOpenChange={setIsEditOpen}

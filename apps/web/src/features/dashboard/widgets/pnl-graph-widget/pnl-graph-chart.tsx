@@ -11,8 +11,8 @@ import {
 import { formatCompactNumber } from "@/utils/format-number";
 import type { PnlGraphXAxis } from "./aggregate-pnl-points";
 
-const COLOR_CASH = "oklch(0.62 0.21 250)";
-const COLOR_TOURNAMENT = "oklch(0.75 0.16 70)";
+const COLOR_CASH = "var(--chart-1)";
+const COLOR_TOURNAMENT = "var(--chart-5)";
 const COLOR_PRIMARY = "var(--color-primary)";
 
 function formatXTick(value: number, xAxis: PnlGraphXAxis): string {

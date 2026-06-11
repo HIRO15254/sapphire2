@@ -30,7 +30,7 @@ interface SessionDetailPageProps {
 
 function PageShell({ children }: { children: ReactNode }) {
 	return (
-		<div className="theme-v2 min-h-full bg-background text-foreground">
+		<div className="min-h-full bg-background text-foreground">
 			<div className="p-4">{children}</div>
 		</div>
 	);
@@ -103,7 +103,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 						</span>
 						<Badge
 							className={
-								live ? "bg-success text-[var(--success-foreground)]" : undefined
+								live ? "bg-success text-success-foreground" : undefined
 							}
 							variant={live ? "default" : "secondary"}
 						>

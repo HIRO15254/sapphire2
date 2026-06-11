@@ -34,10 +34,9 @@ interface SessionFiltersProps {
 }
 
 /**
- * v2 session filter sheet. A trigger button (with an active-count badge) opens
- * a `theme-v2`-scoped bottom `Drawer` holding the type / room / currency / date
- * draft fields and a Reset / Apply row. Replaces the legacy
- * `FilterDialogShell` + `ResponsiveDialog` so the portal renders with v2 tokens.
+ * Session filter sheet. A trigger button (with an active-count badge) opens
+ * a bottom `Drawer` holding the type / room / currency / date draft fields
+ * and a Reset / Apply row.
  */
 export function SessionFilters({
 	currencies,
@@ -75,7 +74,7 @@ export function SessionFilters({
 			</Button>
 
 			<Drawer onOpenChange={onOpenChange} open={isOpen}>
-				<DrawerContent className="theme-v2 rounded-t-xl">
+				<DrawerContent className="rounded-t-xl">
 					<div
 						aria-hidden
 						className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"
@@ -100,7 +99,7 @@ export function SessionFilters({
 								<SelectTrigger aria-label="Type" className="w-full">
 									<SelectValue />
 								</SelectTrigger>
-								<SelectContent className="theme-v2">
+								<SelectContent>
 									<SelectItem value="cash_game">Cash game</SelectItem>
 									<SelectItem value="tournament">Tournament</SelectItem>
 								</SelectContent>
@@ -115,7 +114,7 @@ export function SessionFilters({
 								<SelectTrigger aria-label="Room" className="w-full">
 									<SelectValue />
 								</SelectTrigger>
-								<SelectContent className="theme-v2">
+								<SelectContent>
 									{rooms.map((room) => (
 										<SelectItem key={room.id} value={room.id}>
 											{room.name}
@@ -133,7 +132,7 @@ export function SessionFilters({
 								<SelectTrigger aria-label="Currency" className="w-full">
 									<SelectValue />
 								</SelectTrigger>
-								<SelectContent className="theme-v2">
+								<SelectContent>
 									{currencies.map((currency) => (
 										<SelectItem key={currency.id} value={currency.id}>
 											{currency.name}

@@ -36,7 +36,6 @@ function SetPasswordDialog({
 
 	return (
 		<ResponsiveDialog
-			contentClassName="theme-v2"
 			description="Create an email and password login in addition to any linked social accounts."
 			onOpenChange={onOpenChange}
 			open={open}

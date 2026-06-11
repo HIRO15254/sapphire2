@@ -11,10 +11,10 @@ import {
 } from "recharts";
 import { formatCompactNumber } from "@/utils/format-number";
 
-const COLOR_CASH = "oklch(0.62 0.21 250)";
-const COLOR_TOURNAMENT = "oklch(0.75 0.16 70)";
-// EV P&L is drawn in orange to distinguish it from the realized P&L line.
-const COLOR_EV = "oklch(0.72 0.18 50)";
+const COLOR_CASH = "var(--chart-1)";
+const COLOR_TOURNAMENT = "var(--chart-5)";
+// EV P&L is drawn in amber to distinguish it from the realized P&L line.
+const COLOR_EV = "var(--chart-5)";
 
 interface SeriesMeta {
 	color: string;

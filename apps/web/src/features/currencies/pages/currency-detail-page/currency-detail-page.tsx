@@ -64,7 +64,7 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 
 	if (isLoading) {
 		return (
-			<div className="theme-v2 min-h-full bg-background text-foreground">
+			<div className="min-h-full bg-background text-foreground">
 				<div className="p-4">
 					<CurrencyDetailSkeleton />
 				</div>
@@ -74,7 +74,7 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 
 	if (!currency) {
 		return (
-			<div className="theme-v2 min-h-full bg-background text-foreground">
+			<div className="min-h-full bg-background text-foreground">
 				<div className="p-4">
 					<TopBar />
 					<PageHeader heading="Currency not found" />
@@ -87,7 +87,7 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 	}
 
 	return (
-		<div className="theme-v2 min-h-full bg-background text-foreground">
+		<div className="min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<TopBar onOpenActions={() => setIsActionsOpen(true)} />
 				<PageHeader
@@ -160,7 +160,6 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 				/>
 
 				<FormSheet
-					contentClassName="theme-v2"
 					formId={EDIT_CURRENCY_FORM_ID}
 					isLoading={isUpdatePending}
 					onOpenChange={setIsEditOpen}
@@ -179,7 +178,6 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 				</FormSheet>
 
 				<FormSheet
-					contentClassName="theme-v2"
 					formId={ADD_TRANSACTION_FORM_ID}
 					isLoading={isAddTransactionPending}
 					onOpenChange={setIsAddTransactionOpen}
@@ -193,7 +191,6 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 				</FormSheet>
 
 				<FormSheet
-					contentClassName="theme-v2"
 					formId={EDIT_TRANSACTION_FORM_ID}
 					isLoading={isEditTransactionPending}
 					onOpenChange={(open) => {

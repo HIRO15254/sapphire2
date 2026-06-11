@@ -28,7 +28,7 @@ export function DeletePlayerDialog({
 }: DeletePlayerDialogProps) {
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className="theme-v2">
+			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Delete this player?</DialogTitle>
 					<DialogDescription>

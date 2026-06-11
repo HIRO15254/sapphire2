@@ -28,7 +28,7 @@ export function DeleteRoomDialog({
 }: DeleteRoomDialogProps) {
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className="theme-v2">
+			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Delete this room?</DialogTitle>
 					<DialogDescription>

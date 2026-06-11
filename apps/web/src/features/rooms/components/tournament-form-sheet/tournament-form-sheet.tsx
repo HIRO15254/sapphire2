@@ -74,7 +74,7 @@ export function TournamentFormSheet({
 		<>
 			{aiMode ? (
 				<Drawer onOpenChange={setAiSheetOpen} open={aiSheetOpen}>
-					<DrawerContent className="theme-v2 rounded-t-xl">
+					<DrawerContent className="rounded-t-xl">
 						<div
 							aria-hidden
 							className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"
@@ -93,7 +93,6 @@ export function TournamentFormSheet({
 			) : null}
 
 			<FormSheet
-				contentClassName="theme-v2"
 				formId={formId}
 				isLoading={isLoading}
 				onOpenChange={onOpenChange}

@@ -21,7 +21,7 @@ export function PublicPageShell({
 	title,
 }: PublicPageShellProps) {
 	return (
-		<div className="theme-v2 min-h-screen bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/0.14),_transparent_40%),linear-gradient(to_bottom,_hsl(var(--background)),_hsl(var(--muted)/0.3))]">
+		<div className="min-h-screen bg-[radial-gradient(circle_at_top,_color-mix(in_oklab,var(--primary)_14%,transparent),transparent_40%),linear-gradient(to_bottom,var(--background),color-mix(in_oklab,var(--muted)_30%,transparent))]">
 			<div
 				className={cn(
 					"mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center gap-10 px-4 py-10 sm:px-6 lg:px-8",

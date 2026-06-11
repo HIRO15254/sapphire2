@@ -278,7 +278,6 @@ export function RingGameTab({ roomId }: { roomId: string }) {
 			</Button>
 
 			<FormSheet
-				contentClassName="theme-v2"
 				formId={CREATE_FORM_ID}
 				isLoading={isCreatePending}
 				onOpenChange={setIsCreateOpen}
@@ -289,7 +288,6 @@ export function RingGameTab({ roomId }: { roomId: string }) {
 			</FormSheet>
 
 			<FormSheet
-				contentClassName="theme-v2"
 				formId={EDIT_FORM_ID}
 				isLoading={isUpdatePending}
 				onOpenChange={(open) => {

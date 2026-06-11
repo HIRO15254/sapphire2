@@ -36,7 +36,7 @@ export function SessionsPage() {
 	} = useSessionsPage();
 
 	return (
-		<div className="theme-v2 min-h-full bg-background text-foreground">
+		<div className="min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<PageHeader
 					actions={

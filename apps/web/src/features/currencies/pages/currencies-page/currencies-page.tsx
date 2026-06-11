@@ -20,7 +20,7 @@ export function CurrenciesPage() {
 	} = useCurrenciesPage();
 
 	return (
-		<div className="theme-v2 min-h-full bg-background text-foreground">
+		<div className="min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<PageHeader
 					actions={
@@ -40,7 +40,6 @@ export function CurrenciesPage() {
 				/>
 
 				<FormSheet
-					contentClassName="theme-v2"
 					formId={CREATE_FORM_ID}
 					isLoading={isCreatePending}
 					onOpenChange={setIsCreateOpen}

@@ -42,7 +42,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 
 	if (isLoading) {
 		return (
-			<div className="theme-v2 min-h-full bg-background text-foreground">
+			<div className="min-h-full bg-background text-foreground">
 				<div className="p-4">
 					<RoomDetailSkeleton />
 				</div>
@@ -52,7 +52,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 
 	if (!room) {
 		return (
-			<div className="theme-v2 min-h-full bg-background text-foreground">
+			<div className="min-h-full bg-background text-foreground">
 				<div className="p-4">
 					<TopBar />
 					<PageHeader heading="Room not found" />
@@ -65,7 +65,7 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 	}
 
 	return (
-		<div className="theme-v2 min-h-full bg-background text-foreground">
+		<div className="min-h-full bg-background text-foreground">
 			<div className="p-4">
 				<TopBar onOpenActions={() => setIsActionsOpen(true)} />
 				<PageHeader
@@ -114,7 +114,6 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 				/>
 
 				<FormSheet
-					contentClassName="theme-v2"
 					formId={EDIT_STORE_FORM_ID}
 					isLoading={isUpdatePending}
 					onOpenChange={setIsEditOpen}

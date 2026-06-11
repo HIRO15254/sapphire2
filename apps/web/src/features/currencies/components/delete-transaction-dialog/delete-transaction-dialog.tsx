@@ -28,7 +28,7 @@ export function DeleteTransactionDialog({
 			}}
 			open={open}
 		>
-			<DialogContent className="theme-v2">
+			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Delete this transaction?</DialogTitle>
 					<DialogDescription>

@@ -1,163 +1,19 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist-mono";
 @import "@fontsource-variable/jetbrains-mono";
 @import "@fontsource-variable/noto-sans";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
-:root {
-	--background: oklch(0.97 0.005 250);
-	--foreground: oklch(0.15 0.008 250);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.15 0.008 250);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.15 0.008 250);
-	--primary: oklch(0.45 0.16 250);
-	--primary-foreground: oklch(0.98 0 0);
-	--secondary: oklch(0.93 0.005 250);
-	--secondary-foreground: oklch(0.15 0.008 250);
-	--muted: oklch(0.93 0.005 250);
-	--muted-foreground: oklch(0.45 0 0);
-	--accent: oklch(0.93 0.005 250);
-	--accent-foreground: oklch(0.15 0.008 250);
-	--destructive: oklch(0.58 0.22 27);
-	--success: hsl(142 71% 45%);
-	--border: oklch(0.88 0.005 250);
-	--input: oklch(0.88 0.005 250);
-	--ring: oklch(0.45 0.16 250);
-	--chart-1: oklch(0.55 0.18 250);
-	--chart-2: oklch(0.5 0.15 240);
-	--chart-3: oklch(0.45 0.12 260);
-	--chart-4: oklch(0.4 0.1 270);
-	--chart-5: oklch(0.6 0.16 230);
-	--radius: 0.45rem;
-	--sidebar: oklch(0.95 0.005 250);
-	--sidebar-foreground: oklch(0.15 0.008 250);
-	--sidebar-primary: oklch(0.45 0.16 250);
-	--sidebar-primary-foreground: oklch(0.98 0 0);
-	--sidebar-accent: oklch(0.93 0.005 250);
-	--sidebar-accent-foreground: oklch(0.15 0.008 250);
-	--sidebar-border: oklch(0.88 0.005 250);
-	--sidebar-ring: oklch(0.45 0.16 250);
-
-	/* Control heights (shadcn / Sapphire 2 convention).
-	   Single source of truth for Button / Input / Select-trigger sizing.
-	   Override under `.theme-v2` (or any future theme) to retune without
-	   forking the components. */
-	--h-control-xs: 1.5rem;
-	--h-control-sm: 2rem;
-	--h-control-md: 2.25rem;
-	--h-control-lg: 2.5rem;
-	--h-control-xl: 3rem;
-}
-
-.dark {
-	--background: oklch(0.14 0.008 250);
-	--foreground: oklch(0.85 0 0);
-	--card: oklch(0.19 0.008 250);
-	--card-foreground: oklch(0.85 0 0);
-	--popover: oklch(0.19 0.008 250);
-	--popover-foreground: oklch(0.85 0 0);
-	--primary: oklch(0.72 0.16 250);
-	--primary-foreground: oklch(0.14 0.008 250);
-	--secondary: oklch(0.22 0.008 250);
-	--secondary-foreground: oklch(0.85 0 0);
-	--muted: oklch(0.22 0.008 250);
-	--muted-foreground: oklch(0.55 0 0);
-	--accent: oklch(0.25 0.008 250);
-	--accent-foreground: oklch(0.85 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	--success: hsl(142 71% 45%);
-	--border: oklch(1 0 0 / 8%);
-	--input: oklch(1 0 0 / 12%);
-	--ring: oklch(0.72 0.16 250);
-	--chart-1: oklch(0.72 0.18 250);
-	--chart-2: oklch(0.62 0.15 240);
-	--chart-3: oklch(0.52 0.12 260);
-	--chart-4: oklch(0.42 0.1 270);
-	--chart-5: oklch(0.77 0.16 230);
-	--sidebar: oklch(0.16 0.008 250);
-	--sidebar-foreground: oklch(0.85 0 0);
-	--sidebar-primary: oklch(0.72 0.16 250);
-	--sidebar-primary-foreground: oklch(0.14 0.008 250);
-	--sidebar-accent: oklch(0.22 0.008 250);
-	--sidebar-accent-foreground: oklch(0.85 0 0);
-	--sidebar-border: oklch(1 0 0 / 8%);
-	--sidebar-ring: oklch(0.72 0.16 250);
-}
-
-@theme inline {
-	--color-sidebar-ring: var(--sidebar-ring);
-	--color-sidebar-border: var(--sidebar-border);
-	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-	--color-sidebar-accent: var(--sidebar-accent);
-	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-	--color-sidebar-primary: var(--sidebar-primary);
-	--color-sidebar-foreground: var(--sidebar-foreground);
-	--color-sidebar: var(--sidebar);
-	--color-chart-5: var(--chart-5);
-	--color-chart-4: var(--chart-4);
-	--color-chart-3: var(--chart-3);
-	--color-chart-2: var(--chart-2);
-	--color-chart-1: var(--chart-1);
-	--color-ring: var(--ring);
-	--color-input: var(--input);
-	--color-border: var(--border);
-	--color-destructive: var(--destructive);
-	--color-success: var(--success);
-	--color-accent-foreground: var(--accent-foreground);
-	--color-accent: var(--accent);
-	--color-muted-foreground: var(--muted-foreground);
-	--color-muted: var(--muted);
-	--color-secondary-foreground: var(--secondary-foreground);
-	--color-secondary: var(--secondary);
-	--color-primary-foreground: var(--primary-foreground);
-	--color-primary: var(--primary);
-	--color-popover-foreground: var(--popover-foreground);
-	--color-popover: var(--popover);
-	--color-card-foreground: var(--card-foreground);
-	--color-card: var(--card);
-	--color-foreground: var(--foreground);
-	--color-background: var(--background);
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
-	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
-	--radius-2xl: calc(var(--radius) + 8px);
-	--radius-3xl: calc(var(--radius) + 12px);
-	--radius-4xl: calc(var(--radius) + 16px);
-	--font-mono: "Geist Mono Variable", monospace;
-}
-
-@layer base {
-	* {
-		@apply border-border outline-ring/50;
-	}
-	body {
-		@apply font-mono bg-background text-foreground;
-	}
-	html {
-		@apply font-mono;
-	}
-	.recharts-wrapper,
-	.recharts-wrapper *,
-	.recharts-surface,
-	.recharts-surface * {
-		outline: none !important;
-	}
-}
-
 /* =============================================================================
-   Theme v2 — Sapphire 2 Design System (gradual migration scope)
-   Apply `theme-v2` to a subtree (typically a route layout) to opt that subtree
-   into the new design tokens. The legacy theme remains active everywhere else.
-   See .claude/rules/web-theme.md for usage and migration policy.
+   Sapphire 2 Design System — the single app theme.
+   Token values come from the design handoff bundle (colors_and_type.css).
+   See .claude/rules/web-theme.md for the design contract.
    ============================================================================= */
 
-.theme-v2 {
+:root {
 	--background: hsl(0 0% 100%);
 	--foreground: hsl(222.2 84% 4.9%);
 	--card: hsl(0 0% 100%);
@@ -238,7 +94,8 @@
 	--space-20: 5rem;
 	--space-24: 6rem;
 
-	/* Control heights — shadcn convention. md = 36px default. */
+	/* Control heights (shadcn / Sapphire 2 convention). md = 36px default.
+	   Single source of truth for Button / Input / Select-trigger sizing. */
 	--h-control-xs: 1.5rem;
 	--h-control-sm: 2rem;
 	--h-control-md: 2.25rem;
@@ -253,12 +110,9 @@
 	--ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 	--ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 	--ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-
-	font-family: var(--font-sans);
 }
 
-.dark .theme-v2,
-.theme-v2.dark {
+.dark {
 	--background: hsl(222.2 84% 4.9%);
 	--foreground: hsl(210 40% 98%);
 	--card: hsl(222.2 84% 4.9%);
@@ -299,82 +153,155 @@
 	--sidebar-ring: hsl(224.3 76.3% 48%);
 }
 
+@theme inline {
+	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar: var(--sidebar);
+	--color-chart-5: var(--chart-5);
+	--color-chart-4: var(--chart-4);
+	--color-chart-3: var(--chart-3);
+	--color-chart-2: var(--chart-2);
+	--color-chart-1: var(--chart-1);
+	--color-ring: var(--ring);
+	--color-input: var(--input);
+	--color-border: var(--border);
+	--color-destructive-foreground: var(--destructive-foreground);
+	--color-destructive: var(--destructive);
+	--color-success-foreground: var(--success-foreground);
+	--color-success: var(--success);
+	--color-warning-foreground: var(--warning-foreground);
+	--color-warning: var(--warning);
+	--color-info-foreground: var(--info-foreground);
+	--color-info: var(--info);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-accent: var(--accent);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-muted: var(--muted);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-secondary: var(--secondary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary: var(--primary);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-popover: var(--popover);
+	--color-card-foreground: var(--card-foreground);
+	--color-card: var(--card);
+	--color-foreground: var(--foreground);
+	--color-background: var(--background);
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+	--radius-2xl: calc(var(--radius) + 8px);
+	--radius-3xl: calc(var(--radius) + 12px);
+	--radius-4xl: calc(var(--radius) + 16px);
+	--font-sans:
+		"Noto Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+		Roboto, "Helvetica Neue", Arial, sans-serif;
+	--font-mono:
+		"JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco,
+		Consolas, monospace;
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply font-sans bg-background text-foreground;
+	}
+	html {
+		@apply font-sans;
+	}
+	.recharts-wrapper,
+	.recharts-wrapper *,
+	.recharts-surface,
+	.recharts-surface * {
+		outline: none !important;
+	}
+}
+
 /* Typography roles from the design bundle (colors_and_type.css §5).
-   Scoped to .theme-v2 so the legacy theme is untouched. */
-.theme-v2 .t-display {
+   Tokens already include the hsl() wrapper, so reference them as
+   var(--token) directly — never hsl(var(--token)). */
+.t-display {
 	font-family: var(--font-sans);
 	font-size: var(--text-5xl);
 	font-weight: 600;
 	line-height: 1.2;
 	letter-spacing: -0.02em;
 }
-.theme-v2 .t-h1 {
+.t-h1 {
 	font-family: var(--font-sans);
 	font-size: var(--text-4xl);
 	font-weight: 600;
 	line-height: 1.2;
 	letter-spacing: -0.02em;
 }
-.theme-v2 .t-h2 {
+.t-h2 {
 	font-family: var(--font-sans);
 	font-size: var(--text-3xl);
 	font-weight: 600;
 	line-height: 1.35;
 	letter-spacing: -0.01em;
 }
-.theme-v2 .t-h3 {
+.t-h3 {
 	font-family: var(--font-sans);
 	font-size: var(--text-2xl);
 	font-weight: 600;
 	line-height: 1.35;
 }
-.theme-v2 .t-h4 {
+.t-h4 {
 	font-family: var(--font-sans);
 	font-size: var(--text-xl);
 	font-weight: 600;
 	line-height: 1.35;
 }
-.theme-v2 .t-body {
+.t-body {
 	font-family: var(--font-sans);
 	font-size: var(--text-base);
 	font-weight: 400;
 	line-height: 1.5;
 }
-.theme-v2 .t-body-sm {
+.t-body-sm {
 	font-family: var(--font-sans);
 	font-size: var(--text-sm);
 	font-weight: 400;
 	line-height: 1.5;
 }
-.theme-v2 .t-meta {
+.t-meta {
 	font-family: var(--font-sans);
 	font-size: var(--text-xs);
 	font-weight: 400;
 	line-height: 1.5;
-	color: hsl(var(--muted-foreground));
+	color: var(--muted-foreground);
 }
-.theme-v2 .t-label {
+.t-label {
 	font-family: var(--font-sans);
 	font-size: var(--text-sm);
 	font-weight: 500;
 	line-height: 1.35;
 }
-.theme-v2 .t-code {
+.t-code {
 	padding: 0.1em 0.35em;
 	font-family: var(--font-mono);
 	font-size: 0.85em;
-	background: hsl(var(--muted));
+	background: var(--muted);
 	border-radius: 4px;
 }
-.theme-v2 .t-kbd {
+.t-kbd {
 	padding: 3px 6px;
 	font-family: var(--font-mono);
 	font-size: var(--text-2xs);
 	font-weight: 500;
 	line-height: 1;
-	color: hsl(var(--muted-foreground));
-	background: hsl(var(--muted));
-	border: 1px solid hsl(var(--border));
+	color: var(--muted-foreground);
+	background: var(--muted);
+	border: 1px solid var(--border);
 	border-bottom-width: 2px;
 	border-radius: 4px;
 }

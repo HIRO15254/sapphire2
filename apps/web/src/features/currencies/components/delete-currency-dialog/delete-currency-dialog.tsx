@@ -23,7 +23,7 @@ export function DeleteCurrencyDialog({
 }: DeleteCurrencyDialogProps) {
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className="theme-v2">
+			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Delete this currency?</DialogTitle>
 					<DialogDescription>

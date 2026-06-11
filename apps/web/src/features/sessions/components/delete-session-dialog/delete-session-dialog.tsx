@@ -26,7 +26,7 @@ export function DeleteSessionDialog({
 }: DeleteSessionDialogProps) {
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className="theme-v2">
+			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Delete this session?</DialogTitle>
 					<DialogDescription>
