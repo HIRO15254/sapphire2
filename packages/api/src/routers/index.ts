@@ -9,11 +9,11 @@ import { liveTournamentSessionRouter } from "./live-tournament-session";
 import { playerRouter } from "./player";
 import { playerTagRouter } from "./player-tag";
 import { ringGameRouter } from "./ring-game";
+import { roomRouter } from "./room";
 import { sessionRouter } from "./session";
 import { sessionEventRouter } from "./session-event";
 import { sessionTablePlayerRouter } from "./session-table-player";
 import { sessionTagRouter } from "./session-tag";
-import { storeRouter } from "./store";
 import { tournamentRouter } from "./tournament";
 import { tournamentChipPurchaseRouter } from "./tournament-chip-purchase";
 import { transactionTypeRouter } from "./transaction-type";
@@ -30,7 +30,7 @@ export const appRouter = router({
 		};
 	}),
 	aiExtract: aiExtractRouter,
-	store: storeRouter,
+	room: roomRouter,
 	transactionType: transactionTypeRouter,
 	currency: currencyRouter,
 	currencyTransaction: currencyTransactionRouter,

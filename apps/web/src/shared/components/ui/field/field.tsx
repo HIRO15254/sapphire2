@@ -1,13 +1,42 @@
-import type * as React from "react";
+import {
+	type AriaAttributes,
+	type ComponentProps,
+	cloneElement,
+	isValidElement,
+	type ReactElement,
+	type ReactNode,
+} from "react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/shared/components/ui/label";
 
-interface FieldProps extends React.ComponentProps<"div"> {
-	description?: React.ReactNode;
-	error?: React.ReactNode;
+interface FieldProps extends ComponentProps<"div"> {
+	description?: ReactNode;
+	error?: ReactNode;
 	htmlFor?: string;
-	label?: React.ReactNode;
+	label?: ReactNode;
 	required?: boolean;
+}
+
+/**
+ * When `error` is set, inject `aria-invalid` onto the single input-like
+ * child. The shared Input / Textarea / Select trigger classes already
+ * include `aria-invalid:border-destructive aria-invalid:ring-3 ...`, so
+ * the red border / ring kicks in automatically. Falls back to the
+ * untouched children when the child isn't a single React element
+ * (multi-input fields handle their own invalid state).
+ *
+ * NB: we deliberately use `isValidElement` directly on `children` rather
+ * than `Children.toArray` — the latter auto-assigns synthetic keys and
+ * causes the wrapped input to unmount/remount whenever the error flips,
+ * dropping focus and DOM state mid-typing.
+ */
+function withInvalid(children: ReactNode, invalid: boolean): ReactNode {
+	if (!(invalid && isValidElement(children))) {
+		return children;
+	}
+	return cloneElement(children as ReactElement<AriaAttributes>, {
+		"aria-invalid": true,
+	});
 }
 
 function Field({
@@ -27,7 +56,7 @@ function Field({
 					{label}
 				</FieldLabel>
 			) : null}
-			{children}
+			{withInvalid(children, !!error)}
 			{description ? <FieldDescription>{description}</FieldDescription> : null}
 			{error ? <FieldError>{error}</FieldError> : null}
 		</div>
@@ -39,7 +68,7 @@ function FieldLabel({
 	className,
 	required = false,
 	...props
-}: React.ComponentProps<typeof Label> & {
+}: ComponentProps<typeof Label> & {
 	required?: boolean;
 }) {
 	return (
@@ -50,13 +79,13 @@ function FieldLabel({
 	);
 }
 
-function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
+function FieldDescription({ className, ...props }: ComponentProps<"p">) {
 	return (
 		<p className={cn("text-muted-foreground text-xs", className)} {...props} />
 	);
 }
 
-function FieldError({ className, ...props }: React.ComponentProps<"p">) {
+function FieldError({ className, ...props }: ComponentProps<"p">) {
 	return <p className={cn("text-destructive text-sm", className)} {...props} />;
 }
 

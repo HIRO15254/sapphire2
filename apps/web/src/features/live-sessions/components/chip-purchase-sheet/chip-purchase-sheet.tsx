@@ -1,112 +1,91 @@
-import { ChipPurchaseFields } from "@/features/live-sessions/components/event-fields/chip-purchase-fields";
 import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { useChipPurchaseForm } from "./use-chip-purchase-form";
+import {
+	Drawer,
+	DrawerContent,
+	DrawerDescription,
+	DrawerTitle,
+} from "@/shared/components/ui/drawer";
+import { formatCompactNumber } from "@/utils/format-number";
 
-interface ChipPurchaseSheetProps {
-	defaultChips?: number;
-	defaultCost?: number;
-	defaultName?: string;
-	initialValues?: { name: string; cost: number; chips: number };
-	onDelete?: () => void;
-	onOpenChange: (open: boolean) => void;
-	onSubmit: (purchase: { name: string; cost: number; chips: number }) => void;
-	open: boolean;
-	readOnly?: boolean;
-	shortcuts?: Array<{ chips: number; cost: number; name: string }>;
+export interface ChipPurchaseOption {
+	chips: number;
+	cost: number;
+	/** The session_chip_purchase id this purchase links to. */
+	id: string;
+	name: string;
 }
 
+interface ChipPurchaseSheetProps {
+	onOpenChange: (open: boolean) => void;
+	onSubmit: (purchase: {
+		chips: number;
+		cost: number;
+		name: string;
+		sessionChipPurchaseId: string;
+	}) => void;
+	open: boolean;
+	/** Rule-defined chip purchases for this session to pick from. */
+	options: ChipPurchaseOption[];
+}
+
+/**
+ * V2 action sheet for recording a chip purchase during a live tournament.
+ * The user picks one of the session's rule-defined chip purchases; name /
+ * cost / chips come from the rule and the event links to it via its id.
+ * There is no free-form entry — chip purchases are defined in the session
+ * rules.
+ */
 export function ChipPurchaseSheet({
 	open,
 	onOpenChange,
-	defaultName,
-	defaultCost,
-	defaultChips,
-	initialValues,
 	onSubmit,
-	onDelete,
-	readOnly = false,
-	shortcuts,
+	options,
 }: ChipPurchaseSheetProps) {
-	const { form } = useChipPurchaseForm({
-		defaultChips,
-		defaultCost,
-		defaultName,
-		initialValues,
-		open,
-		onSubmit,
-	});
-
-	const isEditMode = initialValues !== undefined;
-
-	let title = "Add Chip Purchase";
-	if (readOnly) {
-		title = form.state.values.name || "Chip Purchase";
-	} else if (isEditMode) {
-		title = "Edit Chip Purchase";
-	}
-
 	return (
-		<ResponsiveDialog
-			description="Add, review, or edit a chip purchase entry for this tournament stack."
-			onOpenChange={onOpenChange}
-			open={open}
-			title={title}
-		>
-			<form
-				className="flex flex-col gap-4"
-				onSubmit={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					form.handleSubmit();
-				}}
-			>
-				<form.Field name="name">
-					{(nameField) => (
-						<form.Field name="cost">
-							{(costField) => (
-								<form.Field name="chips">
-									{(chipsField) => (
-										<ChipPurchaseFields
-											chips={chipsField.state.value}
-											chipsError={chipsField.state.meta.errors[0]?.message}
-											cost={costField.state.value}
-											costError={costField.state.meta.errors[0]?.message}
-											name={nameField.state.value}
-											nameError={nameField.state.meta.errors[0]?.message}
-											onChipsChange={(v) => chipsField.handleChange(v)}
-											onCostChange={(v) => costField.handleChange(v)}
-											onNameChange={(v) => nameField.handleChange(v)}
-											readOnly={readOnly}
-											shortcuts={shortcuts}
-										/>
-									)}
-								</form.Field>
-							)}
-						</form.Field>
+		<Drawer onOpenChange={onOpenChange} open={open}>
+			<DrawerContent className="rounded-t-xl">
+				<div
+					aria-hidden
+					className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"
+				/>
+				<DrawerTitle className="sr-only">Add Chip Purchase</DrawerTitle>
+				<DrawerDescription className="sr-only">
+					Pick a chip purchase defined in this tournament's rules.
+				</DrawerDescription>
+				<div className="overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+					{options.length === 0 ? (
+						<p className="text-muted-foreground text-sm">
+							No chip purchases are defined for this tournament. Add them to the
+							session rules first.
+						</p>
+					) : (
+						<div className="flex flex-col gap-2">
+							{options.map((option) => (
+								<Button
+									className="h-auto justify-between py-3"
+									key={option.id}
+									onClick={() =>
+										onSubmit({
+											sessionChipPurchaseId: option.id,
+											name: option.name,
+											cost: option.cost,
+											chips: option.chips,
+										})
+									}
+									type="button"
+									variant="outline"
+								>
+									<span className="font-medium">{option.name}</span>
+									<span className="text-muted-foreground text-sm">
+										{formatCompactNumber(option.cost)} →{" "}
+										{formatCompactNumber(option.chips)} chips
+									</span>
+								</Button>
+							))}
+						</div>
 					)}
-				</form.Field>
-				<DialogActionRow>
-					<Button
-						onClick={() => onOpenChange(false)}
-						type="button"
-						variant="outline"
-					>
-						Cancel
-					</Button>
-					{onDelete ? (
-						<Button onClick={onDelete} type="button" variant="destructive">
-							Delete
-						</Button>
-					) : null}
-					{readOnly ? null : (
-						<Button type="submit">
-							{isEditMode ? "Save" : "Add Chip Purchase"}
-						</Button>
-					)}
-				</DialogActionRow>
-			</form>
-		</ResponsiveDialog>
+				</div>
+			</DrawerContent>
+		</Drawer>
 	);
 }

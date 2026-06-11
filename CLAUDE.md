@@ -4,8 +4,12 @@ This file is loaded into every Claude Code session for this repo. Keep it concis
 
 Companion memory files (auto-loaded):
 
-- [`.claude/CLAUDE.md`](.claude/CLAUDE.md) — Ultracite / Biome code standards.
 - [`.claude/rules/`](.claude/rules/) — path-scoped rule files; loaded only when files under the matching paths are touched. See the table near the bottom.
+
+## Communication
+
+- **Think in English, reply in Japanese.** Internal reasoning is in English; every document presented to the user (chat replies, proposals, explanations) is written in Japanese.
+- This is orthogonal to code conventions: UI copy stays English-only ([`.claude/rules/web-ui.md`](.claude/rules/web-ui.md)), and code identifiers / comments / commit messages / PR descriptions follow their existing rules.
 
 ## Stack
 
@@ -15,7 +19,7 @@ Companion memory files (auto-loaded):
 - **DB**: Cloudflare D1 (SQLite) via Drizzle ORM. Migrations in `packages/db/src/migrations`.
 - **Validation**: Zod (workspace catalog). Import as `import z from "zod"` (default import) — a Vite bundler issue breaks the namespace import.
 - **Tests**: Vitest + Testing Library (jsdom).
-- **Lint / format**: Ultracite (Biome preset). Details: [`.claude/CLAUDE.md`](.claude/CLAUDE.md).
+- **Lint / format**: Ultracite (Biome preset) — its defaults are the code standard; run via `bun run lint` / `bun run fix`.
 - **Icons**: `@tabler/icons-react` only. Do not add `lucide-react` imports in new code.
 
 ## Commands
@@ -57,20 +61,28 @@ packages/
 
 ```text
 features/<feature>/
-  components/<component>/  <component>.tsx + use-<component>.ts + index.ts (colocated)
+  components/<component>/  shared component judged likely to be reused across pages: <component>.tsx + use-<component>.ts + index.ts
+  pages/<page>/            page component + use-<page>-page.ts + index.ts + __tests__ (route file stays thin)
+    <subcomponent>/        single-use child of this page → its own folder + index.ts
   hooks/                   cross-component data hooks (use-players.ts, use-currencies.ts, ...)
   utils/                   feature-local pure helpers
   __tests__/               feature-local tests
-routes/                    TanStack Router tree; page-level hooks live here as `-use-<page>-page.ts`
+routes/                    TanStack Router tree; route files delegate to features/<feature>/pages/<page>
 shared/
   components/ui/           shadcn primitives (Button, Select, Avatar, Badge, Table, ...)
-  components/              cross-feature composites (PageHeader, AuthenticatedShell, sign-in-form, ...)
+  components/              cross-feature composites (PageHeader, AuthenticatedShell, FormSheet, ...)
   hooks/                   cross-feature hooks (use-media-query, use-online-status, ...)
   lib/                     cross-feature helpers (form-fields, ...)
 utils/                     truly global helpers (optimistic-update, formatters, ...)
 ```
 
-When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. Promote to `shared/` only when a second feature imports it.
+When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. **Every page follows the `pages/<page>/` pattern**: the route file stays thin (`createFileRoute` + `Route.useParams()` only) and delegates to a page component in `features/<feature>/pages/<page>/`, colocated with its `use-<page>-page.ts` hook. Extract a subcomponent into a child folder once the parent component file exceeds 300 lines (or earlier when a part is single-use but self-contained); a list component owns its own loading / empty / data switch and binds its skeleton's shape to the card it mirrors; `FormSheet` is composed at the page level around a bare form component. **Placement follows consumers**: a component used by exactly one page lives in that page's child folders; a component used by exactly one parent component lives in a child folder of that parent (its hook colocates the same way); only components designed as generic building blocks stay in `components/` / `shared/` while they happen to have a single consumer. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it. `features/currencies/`, `features/players/`, `features/sessions/`, and `features/live-sessions/pages/active-session-page/` are the reference implementations.
+
+## Release Flow
+
+- **Branches**: `feature → dev → release/vX.Y.Z → main`. `dev` is the default base for PRs; `main` only accepts PRs whose head branch matches `release/v[0-9]+\.[0-9]+\.[0-9]+` (enforced by [`pr-target-guard.yml`](.github/workflows/pr-target-guard.yml) + GitHub Ruleset [`main-release-only.json`](.github/rulesets/main-release-only.json)).
+- **Cutting a release**: `git checkout -b release/vX.Y.Z dev && git push -u origin HEAD`, then `gh pr create --base main`. On merge, [`release.yml`](.github/workflows/release.yml) auto-generates notes via the `/create-update-notes` skill, creates the tag, and publishes the GitHub Release — which in turn fires [`production-deploy.yml`](.github/workflows/production-deploy.yml).
+- **Manual release notes**: invoke `/create-update-notes vX.Y.Z` locally; the skill stays draft-only when used outside CI.
 
 ## Web UI Essentials (cross-cutting)
 
@@ -80,6 +92,7 @@ Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below appl
 - **Mobile forms are bottom sheets.** Use shadcn `Drawer`, not `Dialog`.
 - **Pages start with [`PageHeader`](apps/web/src/shared/components/page-header/page-header.tsx).** Do not hand-roll titles / action rows.
 - **Logic lives in `useXxx` hooks, not in components.** Components render JSX from destructured hook returns. Verification & full forbidden list: [`.claude/rules/web-hooks-separation.md`](.claude/rules/web-hooks-separation.md).
+- **Single theme: Sapphire 2 Design System.** Tokens live in `apps/web/src/index.css` (`:root` / `.dark`) and apply app-wide — there is no legacy theme and no `theme-v2` scope class. Color tokens include the `hsl()` wrapper: reference them as `var(--token)`, never `hsl(var(--token))`. Design rules: [`.claude/rules/web-theme.md`](.claude/rules/web-theme.md).
 
 ## Testing
 
@@ -112,12 +125,12 @@ Every code change must be test-driven. The quality bar is set by the comprehensi
 
 | Target | Project | Reference implementation |
 |---|---|---|
-| Pure util / Zod schema / formatter | `web-node` | [`apps/web/src/features/stores/utils/__tests__/blind-level-helpers.test.ts`](apps/web/src/features/stores/utils/__tests__/blind-level-helpers.test.ts), [`apps/web/src/utils/__tests__/format-number.test.ts`](apps/web/src/utils/__tests__/format-number.test.ts) |
+| Pure util / Zod schema / formatter | `web-node` | [`apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts`](apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts), [`apps/web/src/utils/__tests__/format-number.test.ts`](apps/web/src/utils/__tests__/format-number.test.ts) |
 | Simple hook (no tRPC) | `web-dom` | [`apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts`](apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts) |
-| Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/shared/components/sign-in-form/__tests__/use-sign-in.test.ts`](apps/web/src/shared/components/sign-in-form/__tests__/use-sign-in.test.ts) |
+| Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/features/auth/pages/login-page/sign-in-form/__tests__/use-sign-in.test.ts`](apps/web/src/features/auth/pages/login-page/sign-in-form/__tests__/use-sign-in.test.ts) |
 | tRPC query + mutation hook, simple | `web-dom` | [`apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts`](apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts) |
 | Optimistic flow with real QueryClient | `web-dom` / `web-node` | [`apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts`](apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts) |
-| Route page hook | `web-dom` | [`apps/web/src/routes/__tests__/use-dashboard-page.test.ts`](apps/web/src/routes/__tests__/use-dashboard-page.test.ts) |
+| Page hook / page subcomponent view hook | `web-dom` | [`apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts`](apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts), [`apps/web/src/features/live-sessions/pages/active-session-page/tournament-session/__tests__/use-tournament-session-view.test.ts`](apps/web/src/features/live-sessions/pages/active-session-page/tournament-session/__tests__/use-tournament-session-view.test.ts) |
 | API router (Zod + procedure enumeration) | `api` | [`packages/api/src/__tests__/player.test.ts`](packages/api/src/__tests__/player.test.ts) (uses [`packages/api/src/__tests__/test-utils.ts`](packages/api/src/__tests__/test-utils.ts) helpers: `getInputSchema`, `expectAccepts`, `expectRejects`, `expectProtected`, `expectType`) |
 | DB schema constraint | `db` | [`packages/db/src/__tests__/session-schema.test.ts`](packages/db/src/__tests__/session-schema.test.ts) (uses `getTableConfig` for FKs, indexes, `onDelete` policies) |
 | Shared test helpers (web) | — | [`apps/web/src/__tests__/test-utils.tsx`](apps/web/src/__tests__/test-utils.tsx) (`createTestQueryClient`, `withQueryClient`, `renderWithQueryClient`, `createTrpcMock`, `createToastMock`, `createAuthClientMock`) |
@@ -154,6 +167,7 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders, `SelectWithClear` for clearable selects. |
 | `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Table / Badge / Avatar / RadioGroup), mobile = Drawer, tabler-icons. |
 | `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
+| `web-theme.md` | `apps/web/**` | Sapphire 2 Design System (single theme): token format, semantic colors, typography roles, sheet patterns. |
 
 ## Maintaining This File (Self-Evolution)
 

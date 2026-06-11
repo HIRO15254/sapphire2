@@ -9,18 +9,8 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 		: [namespace, procedure, input];
 }
 
-const ringGameMocks = vi.hoisted(() => ({
-	update: vi.fn(),
-	isUpdatePending: false,
-	currencies: [] as Array<{ id: string; name: string }>,
-}));
-
-vi.mock("@/features/stores/hooks/use-ring-games", () => ({
-	useRingGames: () => ({
-		update: ringGameMocks.update,
-		isUpdatePending: ringGameMocks.isUpdatePending,
-		currencies: ringGameMocks.currencies,
-	}),
+const trpcMocks = vi.hoisted(() => ({
+	updateSnapshot: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -32,8 +22,17 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		currency: {
+			list: {
+				queryOptions: () => ({ queryKey: ["currency", "list"] }),
+			},
+		},
 	},
-	trpcClient: {},
+	trpcClient: {
+		liveCashGameSession: {
+			updateSnapshot: { mutate: trpcMocks.updateSnapshot },
+		},
+	},
 }));
 
 import { useRingGameSceneActions } from "@/features/live-sessions/hooks/use-ring-game-scene-actions";
@@ -54,30 +53,25 @@ function makeWrapper(client: QueryClient) {
 }
 
 const ARGS = {
-	ringGameId: "rg1",
 	sessionId: "s1",
-	storeId: "store-1",
 };
 
 describe("useRingGameSceneActions", () => {
 	beforeEach(() => {
-		ringGameMocks.update.mockReset();
-		ringGameMocks.isUpdatePending = false;
-		ringGameMocks.currencies = [];
+		trpcMocks.updateSnapshot.mockReset();
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
-	it("starts with isEditOpen=false and exposes pass-through state from useRingGames", () => {
-		ringGameMocks.currencies = [{ id: "c1", name: "JPY" }];
-		ringGameMocks.isUpdatePending = true;
+	it("starts with isEditOpen=false and exposes the currencies list", () => {
 		const qc = createClient();
+		qc.setQueryData(["currency", "list"], [{ id: "c1", name: "JPY" }]);
 		const { result } = renderHook(() => useRingGameSceneActions(ARGS), {
 			wrapper: makeWrapper(qc),
 		});
 		expect(result.current.isEditOpen).toBe(false);
-		expect(result.current.isUpdatePending).toBe(true);
+		expect(result.current.isUpdatePending).toBe(false);
 		expect(result.current.currencies).toEqual([{ id: "c1", name: "JPY" }]);
 	});
 
@@ -96,8 +90,8 @@ describe("useRingGameSceneActions", () => {
 		expect(result.current.isEditOpen).toBe(false);
 	});
 
-	it("handleUpdate calls update with ringGameId merged into values, invalidates session cache, and closes editor", async () => {
-		ringGameMocks.update.mockResolvedValue(undefined);
+	it("handleUpdate writes snapshot fields (not the master), invalidates session cache, and closes editor", async () => {
+		trpcMocks.updateSnapshot.mockResolvedValue({ id: "s1" });
 		const qc = createClient();
 		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
 		const { result } = renderHook(() => useRingGameSceneActions(ARGS), {
@@ -110,12 +104,22 @@ describe("useRingGameSceneActions", () => {
 			await result.current.handleUpdate({
 				name: "NL500",
 				variant: "nlh",
+				blind1: 2,
+				blind2: 5,
 			});
 		});
-		expect(ringGameMocks.update).toHaveBeenCalledWith({
-			id: "rg1",
-			name: "NL500",
+		expect(trpcMocks.updateSnapshot).toHaveBeenCalledWith({
+			id: "s1",
+			ruleName: "NL500",
 			variant: "nlh",
+			blind1: 2,
+			blind2: 5,
+			blind3: null,
+			ante: null,
+			anteType: null,
+			minBuyIn: null,
+			maxBuyIn: null,
+			tableSize: null,
 		});
 		expect(invalidateSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -128,7 +132,7 @@ describe("useRingGameSceneActions", () => {
 	});
 
 	it("does not close the editor when update rejects (error propagates, editor stays open)", async () => {
-		ringGameMocks.update.mockRejectedValue(new Error("fail"));
+		trpcMocks.updateSnapshot.mockRejectedValue(new Error("fail"));
 		const qc = createClient();
 		const { result } = renderHook(() => useRingGameSceneActions(ARGS), {
 			wrapper: makeWrapper(qc),

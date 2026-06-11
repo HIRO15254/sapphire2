@@ -1,14 +1,20 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import {
 	cancelTargets,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateInfiniteQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export interface CurrencyValues {
+	description?: string | null;
 	name: string;
 	unit?: string;
 }
@@ -21,7 +27,10 @@ export interface TransactionValues {
 }
 
 export interface CurrencyItem {
+	createdAt: Date | string;
+	description?: string | null;
 	id: string;
+	isFavorite: boolean;
 	name: string;
 	unit?: string | null;
 }
@@ -38,39 +47,29 @@ export interface Transaction {
 }
 
 export function useCurrencies(expandedCurrencyId: string | null) {
-	const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
-	const [txCursor, setTxCursor] = useState<string | undefined>(undefined);
-	const [txHasMore, setTxHasMore] = useState(false);
-	const [isLoadingMore, setIsLoadingMore] = useState(false);
-
 	const queryClient = useQueryClient();
 	const currencyListKey = trpc.currency.list.queryOptions().queryKey;
 
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
 
-	const transactionsQueryOptions =
-		trpc.currencyTransaction.listByCurrency.queryOptions(
+	// All loaded pages live in a single infinite-query cache entry. A refetch
+	// (focus / reconnect / staleTime / invalidate / remount) re-fetches every
+	// loaded page, so load-more results never roll back to page 1.
+	const transactionsInfiniteOptions =
+		trpc.currencyTransaction.listByCurrency.infiniteQueryOptions(
 			{ currencyId: expandedCurrencyId ?? "" },
-			{ enabled: expandedCurrencyId !== null }
+			{
+				enabled: expandedCurrencyId !== null,
+				getNextPageParam: (lastPage) => lastPage.nextCursor,
+			}
 		);
 
-	const transactionsQuery = useQuery(transactionsQueryOptions);
+	const transactionsQuery = useInfiniteQuery(transactionsInfiniteOptions);
+	const transactionsKey = transactionsInfiniteOptions.queryKey;
 
-	useEffect(() => {
-		if (transactionsQuery.data) {
-			setAllTransactions(transactionsQuery.data.items);
-			setTxCursor(transactionsQuery.data.nextCursor);
-			setTxHasMore(transactionsQuery.data.nextCursor !== undefined);
-		}
-	}, [transactionsQuery.data]);
-
-	const resetTransactionState = () => {
-		setAllTransactions([]);
-		setTxCursor(undefined);
-		setTxHasMore(false);
-		setIsLoadingMore(false);
-	};
+	const allTransactions: Transaction[] =
+		transactionsQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
 	const createMutation = useMutation({
 		mutationFn: (values: CurrencyValues) =>
@@ -90,6 +89,9 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 						id: `temp-${Date.now()}`,
 						name: newCurrency.name,
 						unit: newCurrency.unit ?? null,
+						description: newCurrency.description ?? null,
+						isFavorite: false,
+						createdAt: new Date().toISOString(),
 						balance: 0,
 					},
 				];
@@ -105,8 +107,15 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 	});
 
 	const updateMutation = useMutation({
+		// Send an explicit `null` for a cleared unit so the server overwrites it
+		// rather than treating the omitted (undefined) key as "leave unchanged".
 		mutationFn: (values: CurrencyValues & { id: string }) =>
-			trpcClient.currency.update.mutate(values),
+			trpcClient.currency.update.mutate({
+				id: values.id,
+				name: values.name,
+				unit: values.unit ?? null,
+				description: values.description,
+			}),
 		onMutate: async (updated) => {
 			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
 			const previous = snapshotQuery(queryClient, currencyListKey);
@@ -147,11 +156,8 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		onSettled: () => {
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
-				{ queryKey: transactionsQueryOptions.queryKey },
+				{ queryKey: transactionsKey },
 			]);
-		},
-		onSuccess: () => {
-			resetTransactionState();
 		},
 	});
 
@@ -170,69 +176,124 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 				transactedAt: values.transactedAt,
 				memo: values.memo,
 			}),
+		onMutate: async (values) => {
+			// Optimistic update against the infinite cache so the edit survives
+			// the trailing invalidation's refetch (and any focus / reconnect /
+			// staleTime refetch). The refetch is when the (possibly changed)
+			// transactionTypeName catches up; until then the stale name stays.
+			await cancelTargets(queryClient, [{ queryKey: transactionsKey }]);
+			const previous = snapshotQuery(queryClient, transactionsKey);
+			updateInfiniteQueryItems<Transaction>(
+				queryClient,
+				transactionsKey,
+				(items) =>
+					items.map((t) =>
+						t.id === values.id
+							? {
+									...t,
+									amount: values.amount,
+									memo: values.memo,
+									transactedAt: values.transactedAt,
+									transactionTypeId: values.transactionTypeId,
+								}
+							: t
+					)
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
+		},
 		onSettled: () => {
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
-				{ queryKey: transactionsQueryOptions.queryKey },
+				{ queryKey: transactionsKey },
 			]);
-		},
-		onSuccess: () => {
-			resetTransactionState();
 		},
 	});
 
 	const deleteTransactionMutation = useMutation({
 		mutationFn: (id: string) =>
 			trpcClient.currencyTransaction.delete.mutate({ id }),
-		onMutate: (id) => {
-			const previous = allTransactions;
-			setAllTransactions((prev) => prev.filter((t) => t.id !== id));
+		onMutate: async (id) => {
+			await cancelTargets(queryClient, [{ queryKey: transactionsKey }]);
+			const previous = snapshotQuery(queryClient, transactionsKey);
+			updateInfiniteQueryItems<Transaction>(
+				queryClient,
+				transactionsKey,
+				(items) => items.filter((t) => t.id !== id)
+			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
-			if (context?.previous) {
-				setAllTransactions(context.previous);
-			}
+			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
 			invalidateTargets(queryClient, [
 				{ queryKey: currencyListKey },
-				{ queryKey: transactionsQueryOptions.queryKey },
+				{ queryKey: transactionsKey },
 			]);
-		},
-		onSuccess: () => {
-			resetTransactionState();
 		},
 	});
 
-	const handleLoadMore = async () => {
-		if (!(expandedCurrencyId && txCursor) || isLoadingMore) {
-			return;
-		}
-		setIsLoadingMore(true);
-		try {
-			const result = await trpcClient.currencyTransaction.listByCurrency.query({
-				currencyId: expandedCurrencyId,
-				cursor: txCursor,
+	const toggleFavoriteMutation = useMutation({
+		mutationFn: (id: string) =>
+			trpcClient.currency.toggleFavorite.mutate({ id }),
+		onMutate: async (id) => {
+			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
+			const previous = snapshotQuery(queryClient, currencyListKey);
+			queryClient.setQueryData(currencyListKey, (old) => {
+				if (!old) {
+					return old;
+				}
+				const toggled = old.map((c) =>
+					c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
+				);
+				// Exact replica of server ORDER BY is_favorite DESC, created_at ASC.
+				return [...toggled].sort((a, b) => {
+					if (a.isFavorite !== b.isFavorite) {
+						return a.isFavorite ? -1 : 1;
+					}
+					return (
+						new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+					);
+				});
 			});
-			setAllTransactions((prev) => [...prev, ...result.items]);
-			setTxCursor(result.nextCursor);
-			setTxHasMore(result.nextCursor !== undefined);
-		} finally {
-			setIsLoadingMore(false);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
+		},
+		onSettled: () => {
+			invalidateTargets(queryClient, [{ queryKey: currencyListKey }]);
+		},
+	});
+
+	// Load-more is now `fetchNextPage`. The zero-arg wrapper keeps the button's
+	// click event out of `FetchNextPageOptions`, and the guard makes it a no-op
+	// when there is no next page (otherwise React Query would re-fetch page 1)
+	// or while a page is already in flight.
+	const fetchNextPage = () => {
+		if (
+			transactionsQuery.hasNextPage &&
+			!transactionsQuery.isFetchingNextPage
+		) {
+			transactionsQuery.fetchNextPage();
 		}
 	};
 
 	return {
 		currencies,
+		isLoading: currenciesQuery.isLoading,
 		allTransactions,
-		txHasMore,
-		isLoadingMore,
+		isTransactionsLoading: transactionsQuery.isLoading,
+		hasNextPage: transactionsQuery.hasNextPage,
+		isFetchingNextPage: transactionsQuery.isFetchingNextPage,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		isAddTransactionPending: addTransactionMutation.isPending,
 		isEditTransactionPending: editTransactionMutation.isPending,
-		resetTransactionState,
+		isToggleFavoritePending: toggleFavoriteMutation.isPending,
 		create: (values: CurrencyValues) => createMutation.mutateAsync(values),
 		update: (values: CurrencyValues & { id: string }) =>
 			updateMutation.mutateAsync(values),
@@ -249,6 +310,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		deleteTransaction: (id: string) => {
 			deleteTransactionMutation.mutate(id);
 		},
-		handleLoadMore,
+		toggleFavorite: (id: string) => toggleFavoriteMutation.mutateAsync(id),
+		fetchNextPage,
 	};
 }

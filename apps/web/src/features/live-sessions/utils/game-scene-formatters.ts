@@ -1,4 +1,3 @@
-import type { RingGame } from "@/features/stores/hooks/use-ring-games";
 import { createGroupFormatter } from "@/utils/format-number";
 
 export const VARIANT_LABELS: Record<string, string> = {
@@ -9,7 +8,15 @@ export function variantLabel(variant: string): string {
 	return VARIANT_LABELS[variant] ?? variant.toUpperCase();
 }
 
-export function formatBlindParts(game: RingGame): string {
+interface BlindFields {
+	ante: number | null;
+	anteType?: string | null;
+	blind1: number | null;
+	blind2: number | null;
+	blind3: number | null;
+}
+
+export function formatBlindParts(game: BlindFields): string {
 	const fmt = createGroupFormatter([
 		game.blind1,
 		game.blind2,
@@ -31,7 +38,7 @@ export function formatBlindParts(game: RingGame): string {
 	return parts.join("/");
 }
 
-export function formatAnteSuffix(game: RingGame): string {
+export function formatAnteSuffix(game: BlindFields): string {
 	if (game.ante == null || game.anteType == null || game.anteType === "none") {
 		return "";
 	}

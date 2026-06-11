@@ -115,6 +115,31 @@ export function usePlayerDetail(playerId: string | null) {
 		},
 	});
 
+	const deleteMutation = useMutation({
+		mutationFn: (id: string) => trpcClient.player.delete.mutate({ id }),
+		onMutate: async (id) => {
+			await cancelTargets(queryClient, [
+				{ filters: { queryKey: playerListKey } },
+			]);
+			const previousLists = snapshotQueries(queryClient, {
+				queryKey: playerListKey,
+			});
+			queryClient.setQueriesData<PlayerListItemWithTags[]>(
+				{ queryKey: playerListKey },
+				(old) => old?.filter((player) => player.id !== id)
+			);
+			return { previousLists };
+		},
+		onError: (_error, _variables, context) => {
+			restoreSnapshots(queryClient, [context?.previousLists]);
+		},
+		onSettled: () => {
+			invalidateTargets(queryClient, [
+				{ filters: { queryKey: playerListKey } },
+			]);
+		},
+	});
+
 	const createTagMutation = useMutation({
 		mutationFn: (name: string) => trpcClient.playerTag.create.mutate({ name }),
 		onMutate: async (name) => {
@@ -148,6 +173,9 @@ export function usePlayerDetail(playerId: string | null) {
 			const createdTag = await createTagMutation.mutateAsync(name);
 			return createdTag as PlayerTagWithColor;
 		},
+		deletePlayer: deleteMutation.mutate,
+		isDeleting: deleteMutation.isPending,
+		isLoading: playerQuery.isLoading,
 		isSaving: updateMutation.isPending,
 		player: playerQuery.data ?? null,
 		updatePlayer: updateMutation.mutate,

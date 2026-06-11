@@ -1,8 +1,13 @@
-import { RingGameForm } from "@/features/stores/components/ring-game-form";
+import { RingGameForm } from "@/features/rooms/components/ring-game-form";
 import { Button } from "@/shared/components/ui/button";
+import {
+	Drawer,
+	DrawerContent,
+	DrawerDescription,
+	DrawerTitle,
+} from "@/shared/components/ui/drawer";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { Field } from "@/shared/components/ui/field";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import {
 	Select,
 	SelectContent,
@@ -13,11 +18,13 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { useAssignRingGame } from "./use-assign-ring-game";
 
+const CREATE_RING_GAME_FORM_ID = "assign-ring-game-create-form";
+
 interface AssignRingGameDialogProps {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	sessionId: string;
-	sessionStoreId: string | null;
+	sessionRoomId: string | null;
 }
 
 interface RingGameListItem {
@@ -25,34 +32,34 @@ interface RingGameListItem {
 	name: string;
 }
 
-function StoreSelectField({
+function RoomSelectField({
 	onChange,
-	stores,
+	rooms,
 	value,
 }: {
 	onChange: (value: string) => void;
-	stores: { id: string; name: string }[];
+	rooms: { id: string; name: string }[];
 	value: string | undefined;
 }) {
-	if (stores.length === 0) {
+	if (rooms.length === 0) {
 		return (
-			<Field className="mb-4" label="Store" required>
+			<Field className="mb-4" label="Room" required>
 				<EmptyState
 					className="px-4 py-8"
-					description="Create a store first."
-					heading="No stores available"
+					description="Create a room first."
+					heading="No rooms available"
 				/>
 			</Field>
 		);
 	}
 	return (
-		<Field className="mb-4" label="Store" required>
+		<Field className="mb-4" label="Room" required>
 			<Select onValueChange={onChange} value={value}>
 				<SelectTrigger>
 					<SelectValue />
 				</SelectTrigger>
 				<SelectContent>
-					{stores.map((s) => (
+					{rooms.map((s) => (
 						<SelectItem key={s.id} value={s.id}>
 							{s.name}
 						</SelectItem>
@@ -64,21 +71,21 @@ function StoreSelectField({
 }
 
 function RingGamePickerField({
-	effectiveStoreId,
+	effectiveRoomId,
 	onChange,
 	ringGames,
 	value,
 }: {
-	effectiveStoreId: string | undefined;
+	effectiveRoomId: string | undefined;
 	onChange: (value: string) => void;
 	ringGames: RingGameListItem[];
 	value: string;
 }) {
-	if (!effectiveStoreId) {
+	if (!effectiveRoomId) {
 		return (
 			<Field label="Ring Game" required>
 				<p className="text-muted-foreground text-sm">
-					Please select a store first.
+					Please select a room first.
 				</p>
 			</Field>
 		);
@@ -116,15 +123,15 @@ export function AssignRingGameDialog({
 	onOpenChange,
 	open,
 	sessionId,
-	sessionStoreId,
+	sessionRoomId,
 }: AssignRingGameDialogProps) {
 	const {
 		mode,
 		setMode,
-		stores,
-		selectedStoreId,
-		setSelectedStoreId,
-		effectiveStoreId,
+		rooms,
+		selectedRoomId,
+		setSelectedRoomId,
+		effectiveRoomId,
 		ringGames,
 		selectForm,
 		handleCreate,
@@ -135,7 +142,7 @@ export function AssignRingGameDialog({
 		onClose: () => onOpenChange(false),
 		open,
 		sessionId,
-		sessionStoreId,
+		sessionRoomId,
 	});
 
 	const renderExistingTab = () => (
@@ -150,7 +157,7 @@ export function AssignRingGameDialog({
 			<selectForm.Field name="ringGameId">
 				{(field) => (
 					<RingGamePickerField
-						effectiveStoreId={effectiveStoreId}
+						effectiveRoomId={effectiveRoomId}
 						onChange={(value) => field.handleChange(value)}
 						ringGames={ringGames}
 						value={field.state.value}
@@ -163,7 +170,7 @@ export function AssignRingGameDialog({
 					<Button
 						disabled={
 							isBusy ||
-							!effectiveStoreId ||
+							!effectiveRoomId ||
 							!state.values.ringGameId ||
 							state.isSubmitting
 						}
@@ -177,47 +184,67 @@ export function AssignRingGameDialog({
 	);
 
 	const renderCreateTab = () => {
-		if (!effectiveStoreId) {
+		if (!effectiveRoomId) {
 			return (
 				<p className="text-muted-foreground text-sm">
-					Please select a store first.
+					Please select a room first.
 				</p>
 			);
 		}
-		return <RingGameForm isLoading={isCreatePending} onSubmit={handleCreate} />;
+		return (
+			<div className="flex flex-col gap-4">
+				<RingGameForm
+					formId={CREATE_RING_GAME_FORM_ID}
+					onSubmit={handleCreate}
+				/>
+				<Button disabled={isBusy} form={CREATE_RING_GAME_FORM_ID} type="submit">
+					{isCreatePending ? "Saving..." : "Save"}
+				</Button>
+			</div>
+		);
 	};
 
 	return (
-		<ResponsiveDialog
-			fullHeight={mode === "create"}
+		<Drawer
 			onOpenChange={(o) => {
 				if (!isBusy) {
 					onOpenChange(o);
 				}
 			}}
 			open={open}
-			title="Assign Ring Game"
 		>
-			<Tabs
-				className="mb-4"
-				onValueChange={(value) => setMode(value as "existing" | "create")}
-				value={mode}
-			>
-				<TabsList className="grid w-full grid-cols-2">
-					<TabsTrigger value="existing">Select existing</TabsTrigger>
-					<TabsTrigger value="create">Create new</TabsTrigger>
-				</TabsList>
-			</Tabs>
-
-			{sessionStoreId ? null : (
-				<StoreSelectField
-					onChange={(value) => setSelectedStoreId(value)}
-					stores={stores}
-					value={selectedStoreId}
+			<DrawerContent className="rounded-t-xl">
+				<div
+					aria-hidden
+					className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"
 				/>
-			)}
+				<DrawerTitle className="t-h4 px-4 pt-1">Assign Ring Game</DrawerTitle>
+				<DrawerDescription className="sr-only">
+					Select an existing ring game or create a new one for this session.
+				</DrawerDescription>
+				<div className="overflow-y-auto px-4 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+					<Tabs
+						className="mb-4"
+						onValueChange={(value) => setMode(value as "existing" | "create")}
+						value={mode}
+					>
+						<TabsList className="grid w-full grid-cols-2">
+							<TabsTrigger value="existing">Select existing</TabsTrigger>
+							<TabsTrigger value="create">Create new</TabsTrigger>
+						</TabsList>
+					</Tabs>
 
-			{mode === "existing" ? renderExistingTab() : renderCreateTab()}
-		</ResponsiveDialog>
+					{sessionRoomId ? null : (
+						<RoomSelectField
+							onChange={(value) => setSelectedRoomId(value)}
+							rooms={rooms}
+							value={selectedRoomId}
+						/>
+					)}
+
+					{mode === "existing" ? renderExistingTab() : renderCreateTab()}
+				</div>
+			</DrawerContent>
+		</Drawer>
 	);
 }

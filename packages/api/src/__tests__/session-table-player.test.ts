@@ -340,6 +340,49 @@ describe("insertPlayerJoinEvent (write-side ordering contract)", () => {
 			playerId: "player-xyz",
 		});
 	});
+
+	it("omits seatPosition from the payload when not provided", async () => {
+		const { db, valuesSpy } = makeInsertEventDb(2);
+		await insertPlayerJoinEvent(
+			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
+			"session-1",
+			"player-xyz"
+		);
+		const inserted = firstInsertedRow(valuesSpy);
+		expect(JSON.parse(inserted.payload as string)).not.toHaveProperty(
+			"seatPosition"
+		);
+	});
+
+	it("serializes the seatPosition into the payload when provided", async () => {
+		const { db, valuesSpy } = makeInsertEventDb(2);
+		await insertPlayerJoinEvent(
+			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
+			"session-1",
+			"player-xyz",
+			5
+		);
+		const inserted = firstInsertedRow(valuesSpy);
+		expect(JSON.parse(inserted.payload as string)).toEqual({
+			playerId: "player-xyz",
+			seatPosition: 5,
+		});
+	});
+
+	it("serializes seatPosition 0 (boundary) into the payload", async () => {
+		const { db, valuesSpy } = makeInsertEventDb(2);
+		await insertPlayerJoinEvent(
+			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
+			"session-1",
+			"player-xyz",
+			0
+		);
+		const inserted = firstInsertedRow(valuesSpy);
+		expect(JSON.parse(inserted.payload as string)).toEqual({
+			playerId: "player-xyz",
+			seatPosition: 0,
+		});
+	});
 });
 
 describe("insertPlayerLeaveEvent (write-side ordering contract)", () => {

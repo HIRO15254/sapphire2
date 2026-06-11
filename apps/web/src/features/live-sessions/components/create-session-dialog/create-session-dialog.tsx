@@ -1,7 +1,5 @@
-import { CreateCashGameSessionForm } from "@/features/live-sessions/components/create-cash-game-session-form";
-import { CreateTournamentSessionForm } from "@/features/live-sessions/components/create-tournament-session-form";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
+import { SessionFormSheet } from "@/features/sessions/components/session-form-sheet";
+import { SessionWizard } from "@/features/sessions/components/session-wizard";
 import { useCreateSessionDialog } from "./use-create-session-dialog";
 
 interface CreateSessionDialogProps {
@@ -9,26 +7,28 @@ interface CreateSessionDialogProps {
 	open: boolean;
 }
 
+/**
+ * V2 full-height sheet for starting a live session. The SessionWizard drives
+ * its own multi-step navigation and final submit, so the sheet has no check
+ * button of its own.
+ */
 export function CreateSessionDialog({
 	open,
 	onOpenChange,
 }: CreateSessionDialogProps) {
 	const {
-		sessionType,
-		setSessionType,
-		stores,
+		rooms,
 		currencies,
 		ringGames,
 		tournaments,
-		setSelectedStoreId,
-		createCash,
-		createTournament,
+		setSelectedRoomId,
+		handleSubmit,
 		isLoading,
 		handleReset,
 	} = useCreateSessionDialog({ onOpenChange });
 
 	return (
-		<ResponsiveDialog
+		<SessionFormSheet
 			onOpenChange={(o) => {
 				onOpenChange(o);
 				if (!o) {
@@ -38,39 +38,17 @@ export function CreateSessionDialog({
 			open={open}
 			title="New Session"
 		>
-			{/* Session type selector */}
-			<Tabs
-				className="mb-4"
-				onValueChange={(value) =>
-					setSessionType(value as "cash_game" | "tournament")
-				}
-				value={sessionType}
-			>
-				<TabsList className="grid w-full grid-cols-2">
-					<TabsTrigger value="cash_game">Cash Game</TabsTrigger>
-					<TabsTrigger value="tournament">Tournament</TabsTrigger>
-				</TabsList>
-			</Tabs>
-
-			{sessionType === "cash_game" ? (
-				<CreateCashGameSessionForm
-					currencies={currencies}
-					isLoading={isLoading}
-					onStoreChange={setSelectedStoreId}
-					onSubmit={(values) => createCash(values)}
-					ringGames={ringGames}
-					stores={stores}
-				/>
-			) : (
-				<CreateTournamentSessionForm
-					currencies={currencies}
-					isLoading={isLoading}
-					onStoreChange={setSelectedStoreId}
-					onSubmit={(values) => createTournament(values)}
-					stores={stores}
-					tournaments={tournaments}
-				/>
-			)}
-		</ResponsiveDialog>
+			<SessionWizard
+				currencies={currencies}
+				isLoading={isLoading}
+				mode="live"
+				onRoomChange={setSelectedRoomId}
+				onSubmit={handleSubmit}
+				ringGames={ringGames}
+				rooms={rooms}
+				submitLabel="Start session"
+				tournaments={tournaments}
+			/>
+		</SessionFormSheet>
 	);
 }

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
+import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { trpc } from "@/utils/trpc";
 
 export interface ChipPurchaseRow {

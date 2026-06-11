@@ -30,14 +30,16 @@ sapphire2/
 │   ├── config/         # Shared TypeScript config
 │   ├── db/             # Drizzle ORM schema and migrations
 │   └── env/            # Environment variable validation (Zod)
+├── .claude/            # Claude Code config (rules, agents, skills); CLAUDE.md is at repo root
 ├── docs/
 │   ├── deploy.md       # Deployment guide (EN)
 │   └── deploy.ja.md    # Deployment guide (JA)
 └── .github/workflows/
-    ├── ci.yml              # PR checks (type check, lint, test)
-    ├── preview-deploy.yml  # PR preview environment
-    ├── preview-cleanup.yml # Cleanup on PR close
-    └── production-deploy.yml # Production deploy on push to master
+    ├── ci.yml               # PR checks (type check, lint, test)
+    ├── preview-deploy.yml   # Per-PR preview environment
+    ├── preview-cleanup.yml  # Cleanup on PR close
+    ├── dev-deploy.yml       # Dev environment deploy on push to `dev`
+    └── production-deploy.yml # Production deploy on GitHub Release
 ```
 
 ## Getting Started
@@ -94,11 +96,11 @@ bun run dev
 | `bun run dev:web` | Start web app only |
 | `bun run dev:server` | Start API server only (`wrangler dev`) |
 | `bun run check-types` | TypeScript type check across all packages |
-| `bun run db:push` | Push schema changes to database |
 | `bun run db:generate` | Generate migration files |
-| `bun run db:migrate` | Run database migrations |
+| `bun run db:migrate:local` | Apply migrations to the local D1 database |
+| `bun run db:migrate:remote` | Apply migrations to the remote D1 database |
 | `bun run db:studio` | Open Drizzle Studio |
-| `bun run check` | Run linting and formatting check |
+| `bun run lint` | Lint & format check (Ultracite) |
 | `bun run fix` | Auto-fix linting and formatting |
 | `bun run test` | Run tests |
 | `bun run test:watch` | Run tests in watch mode |
@@ -108,6 +110,7 @@ bun run dev
 The project deploys to **Cloudflare Workers** (API) + **Cloudflare Pages** (Web) + **Cloudflare D1** (DB).
 
 - **Preview**: Automatically created per PR (Worker + Pages + D1 database)
-- **Production**: Automatically deployed on push to `master`
+- **Dev**: Persistent dev environment, deployed on push to `dev`
+- **Production**: Deployed automatically when a GitHub Release is published
 
 See [docs/deploy.md](docs/deploy.md) for detailed setup instructions.

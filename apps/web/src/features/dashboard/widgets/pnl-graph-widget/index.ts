@@ -3,7 +3,8 @@ export {
 	aggregatePnlPoints,
 	type PnlSeriesPoint,
 } from "./aggregate-pnl-points";
-export { PnlGraphEditForm, PnlGraphWidget } from "./pnl-graph-widget";
+export { PnlGraphEditForm } from "./pnl-graph-edit-form";
+export { PnlGraphWidget } from "./pnl-graph-widget";
 export {
 	PNL_GRAPH_SESSION_TYPE_VALUES,
 	PNL_GRAPH_UNIT_VALUES,

@@ -5,17 +5,14 @@ import {
 	isValidEventTypeForSessionType,
 	LIFECYCLE_EVENT_TYPES,
 	MANUAL_CREATE_BLOCKED_EVENT_TYPES,
-	playerJoinPayload,
-	playerLeavePayload,
 	type SessionEventType,
 	validateEventPayload,
 } from "@sapphire2/db/constants/session-event-types";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
-import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
@@ -75,61 +72,6 @@ async function resolveSessionOwnership(
 		status: session.status,
 		sessionDate: session.sessionDate,
 	};
-}
-
-async function handlePlayerJoinSideEffect(
-	db: DbInstance,
-	sessionId: string,
-	validatedPayload: unknown
-) {
-	const parsed = playerJoinPayload.parse(validatedPayload);
-	if (!parsed.playerId) {
-		return;
-	}
-	const now = new Date();
-	const cond = and(
-		eq(sessionTablePlayer.sessionId, sessionId),
-		eq(sessionTablePlayer.playerId, parsed.playerId)
-	);
-
-	const [existing] = await db.select().from(sessionTablePlayer).where(cond);
-
-	if (existing) {
-		await db
-			.update(sessionTablePlayer)
-			.set({ isActive: 1, joinedAt: now, updatedAt: now })
-			.where(eq(sessionTablePlayer.id, existing.id));
-	} else {
-		await db.insert(sessionTablePlayer).values({
-			id: crypto.randomUUID(),
-			sessionId,
-			playerId: parsed.playerId,
-			isActive: 1,
-			joinedAt: now,
-			updatedAt: now,
-		});
-	}
-}
-
-async function handlePlayerLeaveSideEffect(
-	db: DbInstance,
-	sessionId: string,
-	validatedPayload: unknown
-) {
-	const parsed = playerLeavePayload.parse(validatedPayload);
-	if (!parsed.playerId) {
-		return;
-	}
-	const now = new Date();
-	await db
-		.update(sessionTablePlayer)
-		.set({ isActive: 0, leftAt: now, updatedAt: now })
-		.where(
-			and(
-				eq(sessionTablePlayer.sessionId, sessionId),
-				eq(sessionTablePlayer.playerId, parsed.playerId)
-			)
-		);
 }
 
 async function recalculateSession(
@@ -266,12 +208,6 @@ export const sessionEventRouter = router({
 				updatedAt: new Date(),
 			});
 
-			if (eventType === "player_join") {
-				await handlePlayerJoinSideEffect(ctx.db, sessionId, validatedPayload);
-			} else if (eventType === "player_leave") {
-				await handlePlayerLeaveSideEffect(ctx.db, sessionId, validatedPayload);
-			}
-
 			await recalculateSession(ctx.db, sessionId, sessionType, userId);
 
 			const [created] = await ctx.db
@@ -399,21 +335,6 @@ export const sessionEventRouter = router({
 				event.sessionId,
 				userId
 			);
-
-			if (event.eventType === "player_join") {
-				const parsed = playerJoinPayload.parse(JSON.parse(event.payload));
-				if (!parsed.playerId) {
-					return { success: true as const };
-				}
-				await ctx.db
-					.delete(sessionTablePlayer)
-					.where(
-						and(
-							eq(sessionTablePlayer.sessionId, event.sessionId),
-							eq(sessionTablePlayer.playerId, parsed.playerId)
-						)
-					);
-			}
 
 			await ctx.db.delete(sessionEvent).where(eq(sessionEvent.id, input.id));
 

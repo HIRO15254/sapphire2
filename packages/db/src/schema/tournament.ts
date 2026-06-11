@@ -1,15 +1,16 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import { currency, store } from "./store";
+import { currency } from "./currency";
+import { room } from "./room";
 import { tournamentTag } from "./tournament-tag";
 
 export const tournament = sqliteTable(
 	"tournament",
 	{
 		id: text("id").primaryKey(),
-		storeId: text("store_id")
+		roomId: text("room_id")
 			.notNull()
-			.references(() => store.id, { onDelete: "cascade" }),
+			.references(() => room.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		variant: text("variant").notNull().default("nlh"),
 		buyIn: integer("buy_in"),
@@ -29,7 +30,7 @@ export const tournament = sqliteTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [index("tournament_storeId_idx").on(table.storeId)]
+	(table) => [index("tournament_roomId_idx").on(table.roomId)]
 );
 
 export const blindLevel = sqliteTable(
@@ -68,9 +69,9 @@ export const tournamentChipPurchase = sqliteTable(
 );
 
 export const tournamentRelations = relations(tournament, ({ one, many }) => ({
-	store: one(store, {
-		fields: [tournament.storeId],
-		references: [store.id],
+	room: one(room, {
+		fields: [tournament.roomId],
+		references: [room.id],
 	}),
 	currency: one(currency, {
 		fields: [tournament.currencyId],

@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
 	ActiveSessionScene,
@@ -64,27 +63,6 @@ vi.mock(
 			open ? <div>Seat from screenshot sheet</div> : null,
 	})
 );
-
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
-		children,
-		description,
-		open,
-		title,
-	}: {
-		children: ReactNode;
-		description?: ReactNode;
-		open: boolean;
-		title: string;
-	}) =>
-		open ? (
-			<div>
-				<h2>{title}</h2>
-				{description}
-				{children}
-			</div>
-		) : null,
-}));
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
@@ -203,15 +181,11 @@ describe("ActiveSessionScene", () => {
 		expect(screen.queryByText("Discard Session")).not.toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: "Discard" }));
-		const discardButtons = screen.getAllByRole("button", { name: "Discard" });
-		const confirmDiscardButton = discardButtons[1];
-		expect(confirmDiscardButton).toBeDefined();
-		if (!confirmDiscardButton) {
-			throw new Error("Expected discard confirmation button");
-		}
-		await user.click(confirmDiscardButton);
+		// The centered Dialog is modal: Radix hides the page content behind the
+		// overlay, so the only accessible "Discard" button is the confirm one.
+		await user.click(screen.getByRole("button", { name: "Discard" }));
 
-		expect(onDiscard).toHaveBeenCalled();
+		expect(onDiscard).toHaveBeenCalledTimes(1);
 	});
 
 	it("keeps the add-player and player-detail connections wired through the scene", async () => {

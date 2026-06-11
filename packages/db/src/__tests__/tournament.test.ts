@@ -12,7 +12,7 @@ describe("Tournament schema", () => {
 	it("has required columns", () => {
 		const columns = getTableColumns(tournament);
 		expect(columns.id).toBeDefined();
-		expect(columns.storeId).toBeDefined();
+		expect(columns.roomId).toBeDefined();
 		expect(columns.name).toBeDefined();
 		expect(columns.variant).toBeDefined();
 		expect(columns.buyIn).toBeDefined();
@@ -42,9 +42,9 @@ describe("Tournament schema", () => {
 		expect(columns.id.primary).toBe(true);
 	});
 
-	it("storeId is not null", () => {
+	it("roomId is not null", () => {
 		const columns = getTableColumns(tournament);
-		expect(columns.storeId.notNull).toBe(true);
+		expect(columns.roomId.notNull).toBe(true);
 	});
 
 	it("name is not null", () => {
@@ -200,8 +200,8 @@ describe("Tournament — FKs, indexes, and defaults", () => {
 			fk.reference().columns.some((c) => c.name === columnName)
 		);
 
-	it("storeId FK cascades on store deletion", () => {
-		expect(fkByColumn("store_id")?.onDelete).toBe("cascade");
+	it("roomId FK cascades on room deletion", () => {
+		expect(fkByColumn("room_id")?.onDelete).toBe("cascade");
 	});
 
 	it("currencyId FK uses set null", () => {
@@ -212,9 +212,9 @@ describe("Tournament — FKs, indexes, and defaults", () => {
 		expect(config.foreignKeys).toHaveLength(2);
 	});
 
-	it("has storeId index", () => {
+	it("has roomId index", () => {
 		const idxNames = config.indexes.map((i) => i.config.name);
-		expect(idxNames).toContain("tournament_storeId_idx");
+		expect(idxNames).toContain("tournament_roomId_idx");
 	});
 
 	it("variant defaults to nlh", () => {

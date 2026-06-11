@@ -12,6 +12,12 @@ interface UseTablePlayersOptions {
 	liveTournamentSessionId?: string;
 }
 
+interface TablePlayerStint {
+	joinedAt: string;
+	leftAt: string | null;
+	seatPosition: number | null;
+}
+
 interface TablePlayerItem {
 	id: string;
 	isActive: boolean;
@@ -24,6 +30,7 @@ interface TablePlayerItem {
 		name: string;
 	};
 	seatPosition: number | null;
+	stints: TablePlayerStint[];
 }
 
 interface TablePlayerData {
@@ -82,6 +89,7 @@ export function useTablePlayers({
 							joinedAt: new Date().toISOString(),
 							leftAt: null,
 							seatPosition: params.seatPosition,
+							stints: [],
 						},
 					],
 				};
@@ -132,6 +140,7 @@ export function useTablePlayers({
 							joinedAt: new Date().toISOString(),
 							leftAt: null,
 							seatPosition: params.seatPosition,
+							stints: [],
 						},
 					],
 				};
@@ -177,6 +186,7 @@ export function useTablePlayers({
 							joinedAt: new Date().toISOString(),
 							leftAt: null,
 							seatPosition: params.seatPosition,
+							stints: [],
 						},
 					],
 				};

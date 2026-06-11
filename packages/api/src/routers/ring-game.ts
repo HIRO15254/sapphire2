@@ -1,27 +1,27 @@
 import { ringGame } from "@sapphire2/db/schema/ring-game";
-import { store } from "@sapphire2/db/schema/store";
+import { room } from "@sapphire2/db/schema/room";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
-async function validateStoreOwnership(
+async function validateRoomOwnership(
 	db: Parameters<
 		Parameters<typeof protectedProcedure.query>[0]
 	>[0]["ctx"]["db"],
-	storeId: string,
+	roomId: string,
 	userId: string
 ) {
-	const [found] = await db.select().from(store).where(eq(store.id, storeId));
+	const [found] = await db.select().from(room).where(eq(room.id, roomId));
 
 	if (!found) {
-		throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+		throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
 	}
 
 	if (found.userId !== userId) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
-			message: "You do not own this store",
+			message: "You do not own this room",
 		});
 	}
 
@@ -47,24 +47,24 @@ async function validateRingGameOwnership(
 		});
 	}
 
-	if (found.storeId) {
-		await validateStoreOwnership(db, found.storeId, userId);
+	if (found.roomId) {
+		await validateRoomOwnership(db, found.roomId, userId);
 	}
 
 	return found;
 }
 
 export const ringGameRouter = router({
-	listByStore: protectedProcedure
+	listByRoom: protectedProcedure
 		.input(
 			z.object({
-				storeId: z.string(),
+				roomId: z.string(),
 				includeArchived: z.boolean().optional(),
 			})
 		)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateStoreOwnership(ctx.db, input.storeId, userId);
+			await validateRoomOwnership(ctx.db, input.roomId, userId);
 
 			const condition = input.includeArchived
 				? isNotNull(ringGame.archivedAt)
@@ -73,13 +73,13 @@ export const ringGameRouter = router({
 			return ctx.db
 				.select()
 				.from(ringGame)
-				.where(and(eq(ringGame.storeId, input.storeId), condition));
+				.where(and(eq(ringGame.roomId, input.roomId), condition));
 		}),
 
 	create: protectedProcedure
 		.input(
 			z.object({
-				storeId: z.string(),
+				roomId: z.string(),
 				name: z.string().min(1),
 				variant: z.string().default("nlh"),
 				blind1: z.number().int().optional(),
@@ -96,12 +96,12 @@ export const ringGameRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateStoreOwnership(ctx.db, input.storeId, userId);
+			await validateRoomOwnership(ctx.db, input.roomId, userId);
 
 			const id = crypto.randomUUID();
 			await ctx.db.insert(ringGame).values({
 				id,
-				storeId: input.storeId,
+				roomId: input.roomId,
 				name: input.name,
 				variant: input.variant,
 				blind1: input.blind1 ?? null,

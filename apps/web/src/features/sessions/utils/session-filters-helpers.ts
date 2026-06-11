@@ -5,7 +5,7 @@ export function countActiveFilters(filters: SessionFilterValues): number {
 	if (filters.type) {
 		count++;
 	}
-	if (filters.storeId) {
+	if (filters.roomId) {
 		count++;
 	}
 	if (filters.currencyId) {

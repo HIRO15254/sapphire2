@@ -1,4 +1,4 @@
-import { store } from "@sapphire2/db/schema/store";
+import { room } from "@sapphire2/db/schema/room";
 import {
 	tournament,
 	tournamentChipPurchase,
@@ -27,19 +27,19 @@ async function validateTournamentOwnership(
 		});
 	}
 
-	const [foundStore] = await db
+	const [foundRoom] = await db
 		.select()
-		.from(store)
-		.where(eq(store.id, found.storeId));
+		.from(room)
+		.where(eq(room.id, found.roomId));
 
-	if (!foundStore) {
-		throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+	if (!foundRoom) {
+		throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
 	}
 
-	if (foundStore.userId !== userId) {
+	if (foundRoom.userId !== userId) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
-			message: "You do not own this store",
+			message: "You do not own this room",
 		});
 	}
 

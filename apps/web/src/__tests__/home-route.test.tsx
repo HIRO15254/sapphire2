@@ -1,164 +1,187 @@
-import { render, screen } from "@testing-library/react";
-import type { ComponentType } from "react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-	healthCheck: {
-		data: { ok: true } as null | { ok: boolean },
-		isLoading: false,
-	},
-	session: null as null | { user: { name: string } },
-}));
-
-vi.mock("@tanstack/react-router", () => ({
-	Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
-		<a href={to}>{children}</a>
-	),
-	createFileRoute: () => (options: { component: ComponentType }) => ({
-		options,
+	getSession: vi.fn(),
+	redirect: vi.fn((input: unknown) => {
+		const err = new Error("redirect");
+		(err as Error & { redirectTo?: unknown }).redirectTo = input;
+		return err;
 	}),
 }));
 
-vi.mock("@tanstack/react-query", () => ({
-	useQuery: () => mocks.healthCheck,
+vi.mock("@tanstack/react-router", () => ({
+	HeadContent: () => null,
+	Outlet: () => null,
+	createFileRoute:
+		() => (options: { beforeLoad?: unknown; component: unknown }) => ({
+			options,
+		}),
+	createRootRouteWithContext: () => (options: unknown) => options,
+	redirect: mocks.redirect,
+	useLocation: () => ({ pathname: "/" }),
 }));
 
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
-		useSession: () => ({
-			data: mocks.session,
-		}),
+		getSession: mocks.getSession,
 	},
 }));
 
-vi.mock("@/utils/trpc", () => ({
-	trpc: {
-		healthCheck: {
-			queryOptions: () => ({ queryKey: ["health-check"] }),
-		},
-	},
+// __root.tsx value imports — stubbed so the test does not load the full shell.
+vi.mock("@/shared/components/authenticated-shell", () => ({
+	AuthenticatedShell: () => null,
+}));
+vi.mock("@/shared/components/theme-provider", () => ({
+	ThemeProvider: () => null,
+}));
+vi.mock("@/shared/components/ui/sonner", () => ({
+	Toaster: () => null,
 }));
 
-let routeModule: typeof import("@/routes/index");
+interface SessionResult {
+	data: { user: { id: string } } | null;
+}
 
-describe("HomeRoute", () => {
+type RootBeforeLoad = (ctx: {
+	location: { pathname: string };
+}) => Promise<{ session: SessionResult | null } | undefined>;
+
+type IndexBeforeLoad = (ctx: {
+	context: { session: SessionResult | null };
+}) => unknown;
+
+let rootBeforeLoad: RootBeforeLoad;
+let indexBeforeLoad: IndexBeforeLoad;
+
+/**
+ * Simulates a single "/" navigation the way TanStack Router runs it: the root
+ * guard's beforeLoad first (its return value merges into router context), then
+ * the index route's beforeLoad with that merged context. Returns the thrown
+ * redirect error.
+ */
+async function navigateToHome(): Promise<Error & { redirectTo?: unknown }> {
+	let contextPatch: { session: SessionResult | null } | undefined;
+	try {
+		contextPatch = await rootBeforeLoad({ location: { pathname: "/" } });
+	} catch (err) {
+		// Root guard redirected (signed-out) — the index route never runs.
+		return err as Error & { redirectTo?: unknown };
+	}
+	try {
+		await indexBeforeLoad({
+			context: { session: contextPatch?.session ?? null },
+		});
+	} catch (err) {
+		return err as Error & { redirectTo?: unknown };
+	}
+	throw new Error("expected the root-path dispatch to redirect");
+}
+
+describe("HomeRoute dispatch", () => {
 	beforeAll(async () => {
-		routeModule = await import("@/routes/index");
+		const rootModule = await import("@/routes/__root");
+		const indexModule = await import("@/routes/index");
+		rootBeforeLoad = (
+			rootModule.Route as unknown as { beforeLoad: RootBeforeLoad }
+		).beforeLoad;
+		indexBeforeLoad = (
+			indexModule.Route as unknown as {
+				options: { beforeLoad: IndexBeforeLoad };
+			}
+		).options.beforeLoad;
 	});
 
 	beforeEach(() => {
-		mocks.healthCheck.data = { ok: true };
-		mocks.healthCheck.isLoading = false;
-		mocks.session = null;
+		mocks.getSession.mockReset();
+		mocks.redirect.mockClear();
 	});
 
-	it("renders signed-out CTA links to login", () => {
-		const Component = routeModule.Route.options.component as ComponentType;
+	it("redirects a signed-in user hitting / to /dashboard", async () => {
+		mocks.getSession.mockResolvedValue({ data: { user: { id: "u1" } } });
 
-		render(<Component />);
+		const err = await navigateToHome();
 
-		expect(
-			screen.getByRole("heading", {
-				name: "sapphire2 keeps your poker operations in sync.",
-			})
-		).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "Get Started" })).toHaveAttribute(
-			"href",
-			"/login"
-		);
-		expect(screen.getByRole("link", { name: "Sign In" })).toHaveAttribute(
-			"href",
-			"/login"
-		);
-		expect(screen.getByText("API: Connected")).toBeInTheDocument();
+		expect(err.redirectTo).toEqual({ to: "/dashboard" });
+		expect(mocks.redirect).toHaveBeenCalledTimes(1);
+		expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/dashboard" });
 	});
 
-	it("renders dashboard CTA when a session exists", () => {
-		const Component = routeModule.Route.options.component as ComponentType;
-		mocks.session = { user: { name: "Hiro" } };
+	it("sends a signed-out user hitting / to /login through the root guard", async () => {
+		mocks.getSession.mockResolvedValue({ data: null });
 
-		render(<Component />);
+		const err = await navigateToHome();
 
-		expect(
-			screen.getByRole("link", { name: "Open Dashboard" })
-		).toHaveAttribute("href", "/dashboard");
-		expect(
-			screen.getByRole("link", { name: "Go to Dashboard" })
-		).toHaveAttribute("href", "/dashboard");
-		expect(
-			screen.getByText("Signed in as Hiro. Continue where you left off.")
-		).toBeInTheDocument();
+		expect(err.redirectTo).toEqual({ to: "/login" });
+		expect(mocks.redirect).toHaveBeenCalledTimes(1);
+		expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/login" });
 	});
 
-	it("shows loading and disconnected states", () => {
-		const Component = routeModule.Route.options.component as ComponentType;
-		mocks.healthCheck.isLoading = true;
-		mocks.healthCheck.data = null;
+	it("fetches the session exactly once per / navigation when signed in", async () => {
+		mocks.getSession.mockResolvedValue({ data: { user: { id: "u1" } } });
 
-		const { rerender } = render(<Component />);
+		await navigateToHome();
 
-		expect(screen.getByText("API: Checking...")).toBeInTheDocument();
-
-		mocks.healthCheck.isLoading = false;
-		mocks.healthCheck.data = null;
-		rerender(<Component />);
-
-		expect(screen.getByText("API: Disconnected")).toBeInTheDocument();
+		expect(mocks.getSession).toHaveBeenCalledTimes(1);
 	});
 
-	it("describes connectivity state with the connected description", () => {
-		const Component = routeModule.Route.options.component as ComponentType;
-		mocks.healthCheck.data = { ok: true };
-		mocks.healthCheck.isLoading = false;
+	it("fetches the session exactly once per / navigation when signed out", async () => {
+		mocks.getSession.mockResolvedValue({ data: null });
 
-		render(<Component />);
+		await navigateToHome();
 
-		expect(screen.getByText("Everything looks ready.")).toBeInTheDocument();
+		expect(mocks.getSession).toHaveBeenCalledTimes(1);
 	});
 
-	it("describes connectivity state with the disconnected description", () => {
-		const Component = routeModule.Route.options.component as ComponentType;
-		mocks.healthCheck.data = null;
-		mocks.healthCheck.isLoading = false;
+	describe("index beforeLoad branch coverage (reads context, never re-fetches)", () => {
+		it("dispatches to /dashboard when context carries a session with data", async () => {
+			await expect(async () =>
+				indexBeforeLoad({
+					context: { session: { data: { user: { id: "u1" } } } },
+				})
+			).rejects.toThrow("redirect");
 
-		render(<Component />);
+			expect(mocks.redirect).toHaveBeenCalledTimes(1);
+			expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/dashboard" });
+			expect(mocks.getSession).not.toHaveBeenCalled();
+		});
 
-		expect(
-			screen.getByText("Server connection is unavailable right now.")
-		).toBeInTheDocument();
+		it("dispatches to /login when context carries no session", async () => {
+			await expect(async () =>
+				indexBeforeLoad({ context: { session: null } })
+			).rejects.toThrow("redirect");
+
+			expect(mocks.redirect).toHaveBeenCalledTimes(1);
+			expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/login" });
+			expect(mocks.getSession).not.toHaveBeenCalled();
+		});
+
+		it("dispatches to /login when the context session has null data", async () => {
+			await expect(async () =>
+				indexBeforeLoad({ context: { session: { data: null } } })
+			).rejects.toThrow("redirect");
+
+			expect(mocks.redirect).toHaveBeenCalledTimes(1);
+			expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/login" });
+			expect(mocks.getSession).not.toHaveBeenCalled();
+		});
 	});
 
-	it("describes connectivity state with the checking description while loading", () => {
-		const Component = routeModule.Route.options.component as ComponentType;
-		mocks.healthCheck.data = null;
-		mocks.healthCheck.isLoading = true;
+	describe("root guard context contract", () => {
+		it("returns the fetched session into router context for guarded paths", async () => {
+			const session = { data: { user: { id: "u1" } } };
+			mocks.getSession.mockResolvedValue(session);
 
-		render(<Component />);
+			await expect(
+				rootBeforeLoad({ location: { pathname: "/" } })
+			).resolves.toEqual({ session });
+			expect(mocks.getSession).toHaveBeenCalledTimes(1);
+		});
 
-		expect(
-			screen.getByText("Checking server connectivity before you continue.")
-		).toBeInTheDocument();
-	});
-
-	it("hides the Sign In link when a session exists", () => {
-		const Component = routeModule.Route.options.component as ComponentType;
-		mocks.session = { user: { name: "Hiro" } };
-
-		render(<Component />);
-
-		expect(screen.queryByRole("link", { name: "Sign In" })).toBeNull();
-	});
-
-	it("falls back to 'your account' wording when session has no username", () => {
-		const Component = routeModule.Route.options.component as ComponentType;
-		// userName resolves to null; the page uses "your account" as fallback text
-		mocks.session = { user: { name: "" } };
-
-		render(<Component />);
-
-		// When name is empty string, userName is "" (falsy), so fallback kicks in
-		expect(
-			screen.getByText("Signed in as . Continue where you left off.")
-		).toBeInTheDocument();
+		it("returns a null session for /login without fetching", async () => {
+			await expect(
+				rootBeforeLoad({ location: { pathname: "/login" } })
+			).resolves.toEqual({ session: null });
+			expect(mocks.getSession).not.toHaveBeenCalled();
+		});
 	});
 });

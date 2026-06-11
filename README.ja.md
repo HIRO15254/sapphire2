@@ -30,14 +30,16 @@ sapphire2/
 │   ├── config/         # 共有 TypeScript 設定
 │   ├── db/             # Drizzle ORM スキーマとマイグレーション
 │   └── env/            # 環境変数バリデーション (Zod)
+├── .claude/            # Claude Code 設定 (rules, agents, skills); CLAUDE.md はリポジトリ直下
 ├── docs/
 │   ├── deploy.md       # デプロイガイド (EN)
 │   └── deploy.ja.md    # デプロイガイド (JA)
 └── .github/workflows/
-    ├── ci.yml              # PR チェック (型チェック, lint, テスト)
-    ├── preview-deploy.yml  # PR プレビュー環境
-    ├── preview-cleanup.yml # PR クローズ時クリーンアップ
-    └── production-deploy.yml # master push 時の本番デプロイ
+    ├── ci.yml               # PR チェック (型チェック, lint, テスト)
+    ├── preview-deploy.yml   # PR ごとのプレビュー環境
+    ├── preview-cleanup.yml  # PR クローズ時クリーンアップ
+    ├── dev-deploy.yml       # `dev` への push 時の dev 環境デプロイ
+    └── production-deploy.yml # GitHub Release 公開時の本番デプロイ
 ```
 
 ## はじめかた
@@ -94,11 +96,11 @@ bun run dev
 | `bun run dev:web` | Web アプリのみ起動 |
 | `bun run dev:server` | API サーバーのみ起動 (`wrangler dev`) |
 | `bun run check-types` | 全パッケージの TypeScript 型チェック |
-| `bun run db:push` | スキーマ変更をデータベースに反映 |
 | `bun run db:generate` | マイグレーションファイルを生成 |
-| `bun run db:migrate` | マイグレーションを実行 |
+| `bun run db:migrate:local` | ローカル D1 にマイグレーションを適用 |
+| `bun run db:migrate:remote` | リモート D1 にマイグレーションを適用 |
 | `bun run db:studio` | Drizzle Studio を開く |
-| `bun run check` | リンティングとフォーマットのチェック |
+| `bun run lint` | リント & フォーマットチェック (Ultracite) |
 | `bun run fix` | リンティングとフォーマットの自動修正 |
 | `bun run test` | テスト実行 |
 | `bun run test:watch` | テスト実行（監視モード） |
@@ -108,6 +110,7 @@ bun run dev
 **Cloudflare Workers**（API）+ **Cloudflare Pages**（Web）+ **Cloudflare D1**（DB）にデプロイします。
 
 - **プレビュー**: PR ごとに自動作成（Worker + Pages + D1 データベース）
-- **本番**: `master` への push で自動デプロイ
+- **dev**: 常設の dev 環境。`dev` への push で自動デプロイ
+- **本番**: GitHub Release の公開で自動デプロイ
 
 詳細なセットアップ手順は [docs/deploy.ja.md](docs/deploy.ja.md) を参照してください。

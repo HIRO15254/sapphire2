@@ -1,16 +1,19 @@
 import { ChipPurchaseSheet } from "@/features/live-sessions/components/chip-purchase-sheet";
 import { MemoFields } from "@/features/live-sessions/components/event-fields/memo-fields";
 import { StackNumberField } from "@/features/live-sessions/components/stack-ui";
+import { FormSheet } from "@/shared/components/form-sheet";
 import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Label } from "@/shared/components/ui/label";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { useTournamentStackForm } from "./use-tournament-stack-form";
+
+const MEMO_FORM_ID = "tournament-memo-form";
 
 interface ChipPurchaseType {
 	chips: number;
 	cost: number;
+	/** The session_chip_purchase id — links a purchase_chips event to the rule. */
+	id: string;
 	name: string;
 }
 
@@ -28,7 +31,12 @@ interface TournamentStackFormSubmitValues {
 
 interface TournamentStackFormProps {
 	chipPurchaseTypes?: ChipPurchaseType[];
-	isLoading: boolean;
+	/**
+	 * Stable id assigned to the stack `<form>` element so the surrounding
+	 * FormSheet toolbar can submit it via the HTML `form` attribute. The form
+	 * renders no submit button of its own.
+	 */
+	formId: string;
 	onComplete: () => void;
 	onMemo: (text: string) => void;
 	onPause: () => void;
@@ -36,13 +44,14 @@ interface TournamentStackFormProps {
 		chips: number;
 		cost: number;
 		name: string;
+		sessionChipPurchaseId: string;
 	}) => void;
 	onSubmit: (values: TournamentStackFormSubmitValues) => void;
 }
 
 export function TournamentStackForm({
 	chipPurchaseTypes = [],
-	isLoading,
+	formId,
 	onComplete,
 	onMemo,
 	onPause,
@@ -69,6 +78,7 @@ export function TournamentStackForm({
 		chips: number;
 		cost: number;
 		name: string;
+		sessionChipPurchaseId: string;
 	}) => {
 		onPurchaseChips(values);
 		setChipPurchaseSheetOpen(false);
@@ -78,6 +88,7 @@ export function TournamentStackForm({
 		<div className="flex flex-col gap-4">
 			<form
 				className="flex flex-col gap-3"
+				id={formId}
 				onSubmit={(e) => {
 					e.preventDefault();
 					e.stopPropagation();
@@ -185,10 +196,6 @@ export function TournamentStackForm({
 						)}
 					</>
 				)}
-
-				<Button className="w-full" disabled={isLoading} type="submit">
-					{isLoading ? "..." : "Update"}
-				</Button>
 			</form>
 
 			<div className="-mx-4 border-t" />
@@ -231,16 +238,18 @@ export function TournamentStackForm({
 				onOpenChange={setChipPurchaseSheetOpen}
 				onSubmit={handleChipPurchaseSubmit}
 				open={chipPurchaseSheetOpen}
-				shortcuts={chipPurchaseTypes}
+				options={chipPurchaseTypes}
 			/>
 
-			<ResponsiveDialog
+			<FormSheet
+				formId={MEMO_FORM_ID}
 				onOpenChange={setMemoSheetOpen}
 				open={memoSheetOpen}
 				title="Add Memo"
 			>
 				<form
 					className="flex flex-col gap-4"
+					id={MEMO_FORM_ID}
 					onSubmit={(e) => {
 						e.preventDefault();
 						e.stopPropagation();
@@ -255,18 +264,8 @@ export function TournamentStackForm({
 							/>
 						)}
 					</memoForm.Field>
-					<DialogActionRow>
-						<Button
-							onClick={() => setMemoSheetOpen(false)}
-							type="button"
-							variant="outline"
-						>
-							Cancel
-						</Button>
-						<Button type="submit">Add Memo</Button>
-					</DialogActionRow>
 				</form>
-			</ResponsiveDialog>
+			</FormSheet>
 		</div>
 	);
 }
