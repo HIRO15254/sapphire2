@@ -1,17 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SessionEventsScene } from "@/features/live-sessions/components/session-events-scene";
+import { SessionEventsPage } from "@/features/live-sessions/pages/session-events-page";
 
 export const Route = createFileRoute(
 	"/live-sessions/$sessionType/$sessionId/events"
 )({
-	component: SessionEventsPage,
+	component: SessionEventsRoute,
 });
 
-function SessionEventsPage() {
+function SessionEventsRoute() {
 	const { sessionId, sessionType } = Route.useParams();
 
 	return (
-		<SessionEventsScene
+		<SessionEventsPage
 			sessionId={sessionId}
 			sessionType={sessionType === "tournament" ? "tournament" : "cash_game"}
 		/>
