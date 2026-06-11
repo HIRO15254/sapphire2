@@ -171,7 +171,7 @@ describe("Root route beforeLoad guard", () => {
 
 		await expect(
 			beforeLoad({ location: { pathname: "/login" } })
-		).resolves.toBeUndefined();
+		).resolves.toEqual({ session: null });
 		expect(mocks.getSession).not.toHaveBeenCalled();
 		expect(mocks.redirect).not.toHaveBeenCalled();
 	});
@@ -187,14 +187,16 @@ describe("Root route beforeLoad guard", () => {
 		expect(mocks.redirect).toHaveBeenCalledWith({ to: "/login" });
 	});
 
-	it("allows the request to continue when a session exists", async () => {
-		mocks.getSession.mockResolvedValue({ data: { user: { id: "u1" } } });
+	it("allows the request to continue and exposes the session in context", async () => {
+		const session = { data: { user: { id: "u1" } } };
+		mocks.getSession.mockResolvedValue(session);
 		const { Route } = await import("../routes/__root");
 		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
 
 		await expect(
 			beforeLoad({ location: { pathname: "/dashboard" } })
-		).resolves.toBeUndefined();
+		).resolves.toEqual({ session });
+		expect(mocks.getSession).toHaveBeenCalledTimes(1);
 		expect(mocks.redirect).not.toHaveBeenCalled();
 	});
 });

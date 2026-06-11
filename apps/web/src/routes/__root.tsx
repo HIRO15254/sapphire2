@@ -23,12 +23,15 @@ export interface RouterAppContext {
 export const Route = createRootRouteWithContext<RouterAppContext>()({
 	beforeLoad: async ({ location }) => {
 		if (location.pathname === "/login") {
-			return;
+			return { session: null };
 		}
 		const session = await authClient.getSession();
 		if (!session.data) {
 			throw redirect({ to: "/login" });
 		}
+		// Merge the fetched session into router context so child routes
+		// (e.g. the "/" dispatch) can read it without a second round-trip.
+		return { session };
 	},
 	component: RootComponent,
 	head: () => ({

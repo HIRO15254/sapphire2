@@ -1,14 +1,17 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { authClient } from "@/lib/auth-client";
 
 /**
  * The public landing page was removed — the root path only dispatches:
  * signed-in users land on the dashboard, everyone else on the login page.
+ *
+ * The session is read from router context (fetched once by __root's
+ * beforeLoad guard) instead of calling getSession again; the guard has
+ * already redirected signed-out users to /login, so the /login branch here
+ * is a typed fallback for that invariant.
  */
 export const Route = createFileRoute("/")({
-	beforeLoad: async () => {
-		const session = await authClient.getSession();
-		throw redirect({ to: session.data ? "/dashboard" : "/login" });
+	beforeLoad: ({ context }) => {
+		throw redirect({ to: context.session?.data ? "/dashboard" : "/login" });
 	},
 	component: () => null,
 });
