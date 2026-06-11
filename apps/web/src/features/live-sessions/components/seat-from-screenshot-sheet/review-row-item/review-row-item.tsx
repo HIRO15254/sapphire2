@@ -6,7 +6,7 @@ import type {
 } from "@/features/live-sessions/utils/seat-screenshot";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/shared/components/ui/badge";
-import { SeatCombobox } from "../seat-combobox";
+import { SeatCombobox } from "./seat-combobox";
 
 const ACTION_BADGE_VARIANT: Record<RowAction, "default" | "secondary"> = {
 	hero: "default",
