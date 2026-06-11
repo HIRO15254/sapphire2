@@ -16,7 +16,7 @@ import { CustomTooltip, type TooltipPayloadItem } from "./custom-tooltip";
 
 const COLOR_CASH = "var(--chart-1)";
 const COLOR_TOURNAMENT = "var(--chart-5)";
-const COLOR_PRIMARY = "var(--color-primary)";
+const COLOR_PRIMARY = "var(--primary)";
 
 function formatXTick(value: number, xAxis: PnlGraphXAxis): string {
 	if (xAxis === "date") {

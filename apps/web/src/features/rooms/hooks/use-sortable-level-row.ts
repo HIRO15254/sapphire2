@@ -1,13 +1,6 @@
 import { useRef } from "react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
-
-function parseIntOrNull(value: string): number | null {
-	if (!value) {
-		return null;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isNaN(parsed) ? null : parsed;
-}
+import { parseIntOrNull } from "@/features/rooms/utils/blind-level-helpers";
 
 interface UseSortableLevelRowOptions {
 	onUpdate: (id: string, updates: Record<string, number | null>) => void;

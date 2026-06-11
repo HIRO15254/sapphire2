@@ -233,6 +233,7 @@ describe("BlindStructureContent", () => {
 		const minutesInput = screen.getAllByRole("textbox")[0];
 		fireEvent.change(minutesInput, { target: { value: "15" } });
 		fireEvent.blur(minutesInput);
+		expect(mocks.updateMutate).toHaveBeenCalledTimes(1);
 		expect(mocks.updateMutate).toHaveBeenCalledWith({
 			id: "break-1",
 			minutes: 15,
@@ -240,6 +241,7 @@ describe("BlindStructureContent", () => {
 
 		fireEvent.change(minutesInput, { target: { value: "" } });
 		fireEvent.blur(minutesInput);
+		expect(mocks.updateMutate).toHaveBeenCalledTimes(2);
 		expect(mocks.updateMutate).toHaveBeenLastCalledWith({
 			id: "break-1",
 			minutes: null,

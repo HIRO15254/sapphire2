@@ -265,4 +265,12 @@ describe("parseIntOrNull", () => {
 	it("parses a leading-digits string and ignores the trailing text", () => {
 		expect(parseIntOrNull("42abc")).toBe(42);
 	});
+
+	it("returns null for a whitespace-only string", () => {
+		expect(parseIntOrNull("  ")).toBeNull();
+	});
+
+	it("returns null for 'Infinity' (parseInt yields NaN)", () => {
+		expect(parseIntOrNull("Infinity")).toBeNull();
+	});
 });

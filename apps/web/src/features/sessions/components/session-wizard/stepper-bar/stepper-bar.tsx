@@ -22,10 +22,10 @@ export function StepperBar({
 	currentStep: WizardStep;
 	steps: ReadonlyArray<{ key: WizardStep; label: string }>;
 }) {
+	const stepIdx = steps.findIndex((s) => s.key === currentStep);
 	return (
 		<div className="flex items-center gap-2">
 			{steps.map((step, idx) => {
-				const stepIdx = steps.findIndex((s) => s.key === currentStep);
 				const isActive = step.key === currentStep;
 				const isDone = idx < stepIdx;
 				return (
