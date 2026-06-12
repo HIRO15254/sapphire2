@@ -612,7 +612,7 @@ function sortBreakdownRows(
 	groupBy: BreakdownGroupBy
 ): BreakdownRow[] {
 	if (CHRONOLOGICAL_DIMS.has(groupBy)) {
-		// dayOfWeek / hour / year are numeric keys; month is "YYYY-MM" lexical.
+		// dayOfWeek / length / year are numeric keys; month is "YYYY-MM" lexical.
 		const numeric = groupBy !== "month";
 		return [...rows].sort((a, b) => {
 			if (numeric) {

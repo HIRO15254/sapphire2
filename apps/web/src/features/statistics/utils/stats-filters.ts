@@ -75,24 +75,26 @@ function startOfUtcYearSec(nowSec: number): number {
 
 /**
  * Translate the selected period into a concrete `{ dateFrom?, dateTo? }` window
- * in Unix seconds. Relative windows snap their lower bound to the start of the
- * UTC day so the value (and therefore the query key) only changes once a day,
- * not on every render.
+ * in Unix seconds. Relative windows snap their bounds to UTC day boundaries so
+ * the value (and therefore the query key) only changes once a day, not on every
+ * render. The upper bound is the end of today so future-dated sessions are
+ * excluded from "last N days" / YTD windows.
  */
 export function resolveDateRange(
 	filters: Pick<StatsFilters, "from" | "period" | "to">,
 	nowSec: number = Math.floor(Date.now() / 1000)
 ): { dateFrom?: number; dateTo?: number } {
 	const dayStart = startOfUtcDaySec(nowSec);
+	const dayEnd = dayStart + DAY_SECONDS;
 	switch (filters.period) {
 		case "7d":
-			return { dateFrom: dayStart - 7 * DAY_SECONDS };
+			return { dateFrom: dayStart - 7 * DAY_SECONDS, dateTo: dayEnd };
 		case "30d":
-			return { dateFrom: dayStart - 30 * DAY_SECONDS };
+			return { dateFrom: dayStart - 30 * DAY_SECONDS, dateTo: dayEnd };
 		case "90d":
-			return { dateFrom: dayStart - 90 * DAY_SECONDS };
+			return { dateFrom: dayStart - 90 * DAY_SECONDS, dateTo: dayEnd };
 		case "ytd":
-			return { dateFrom: startOfUtcYearSec(nowSec) };
+			return { dateFrom: startOfUtcYearSec(nowSec), dateTo: dayEnd };
 		case "custom": {
 			const range: { dateFrom?: number; dateTo?: number } = {};
 			if (filters.from !== undefined) {

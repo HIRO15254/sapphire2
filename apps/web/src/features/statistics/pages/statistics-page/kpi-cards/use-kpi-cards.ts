@@ -100,6 +100,55 @@ function buildNetCards(
 	];
 }
 
+interface TournamentSummary {
+	avgPlacement: number | null;
+	avgRoi: number | null;
+	itmRate: number | null;
+	roi: number | null;
+}
+
+/**
+ * Tournament cards. Avg ROI (mean of per-session ROI %) is currency-agnostic
+ * and always shown; the aggregate ROI sums raw currency amounts, so it only
+ * appears when a single currency is pinned. ITM / placement are count-based.
+ */
+function buildTournamentCards(
+	ctx: StatsSectionContext,
+	summary: TournamentSummary
+): KpiCard[] {
+	const cards: KpiCard[] = [
+		{
+			key: "avgRoi",
+			label: "Avg ROI",
+			value: formatPercent(summary.avgRoi),
+			trend: trendDirection(summary.avgRoi),
+		},
+	];
+	if (ctx.statsInput.currencyId) {
+		cards.push({
+			key: "roi",
+			label: "ROI",
+			value: formatPercent(summary.roi),
+			trend: trendDirection(summary.roi),
+		});
+	}
+	cards.push(
+		{
+			key: "itm",
+			label: "ITM",
+			value: formatPercent(summary.itmRate),
+			trend: null,
+		},
+		{
+			key: "placement",
+			label: "Avg place",
+			value: formatFixed(summary.avgPlacement),
+			trend: null,
+		}
+	);
+	return cards;
+}
+
 /**
  * Builds the headline KPI card set from `stats.summary`. The card set depends
  * on the game-type filter: "all" shows only the metrics shared by cash and
@@ -169,26 +218,7 @@ export function useKpiCards(ctx: StatsSectionContext): UseKpiCardsResult {
 	}
 
 	if (ctx.type === "tournament") {
-		cards.push(
-			{
-				key: "roi",
-				label: "ROI",
-				value: formatPercent(summary.roi),
-				trend: trendDirection(summary.roi),
-			},
-			{
-				key: "itm",
-				label: "ITM",
-				value: formatPercent(summary.itmRate),
-				trend: null,
-			},
-			{
-				key: "placement",
-				label: "Avg place",
-				value: formatFixed(summary.avgPlacement),
-				trend: null,
-			}
-		);
+		cards.push(...buildTournamentCards(ctx, summary));
 	}
 
 	return { cards, isPending: false, isError: query.isError };

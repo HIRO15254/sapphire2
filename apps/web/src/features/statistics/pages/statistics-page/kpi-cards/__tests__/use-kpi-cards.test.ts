@@ -24,6 +24,7 @@ import { useKpiCards } from "@/features/statistics/pages/statistics-page/kpi-car
 interface Summary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
+	avgRoi: number | null;
 	bbPerHour: number | null;
 	cashEvDiffNormalized: number | null;
 	cashNormalizedProfitLoss: number | null;
@@ -55,6 +56,7 @@ function summary(overrides: Partial<Summary> = {}): Summary {
 		hourlyRate: 150,
 		bbPerHour: 3,
 		roi: 25,
+		avgRoi: 30,
 		itmRate: 40,
 		avgPlacement: 12.5,
 		totalPrizeMoney: 5000,
@@ -130,16 +132,35 @@ describe("useKpiCards", () => {
 		expect(hourly?.value).toBe("+150 USD/h");
 	});
 
-	it("adds ROI, ITM, and placement cards for tournament", async () => {
+	it("adds Avg ROI, ROI, ITM, and placement cards for tournament when a currency is selected", async () => {
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		const result = await renderLoadedKpi(ctx({ type: "tournament" }));
 		const byKey = Object.fromEntries(
 			result.current.cards.map((c) => [c.key, c])
 		);
+		expect(byKey.avgRoi.value).toBe("30.0%");
 		expect(byKey.roi.value).toBe("25.0%");
 		expect(byKey.itm.value).toBe("40.0%");
 		expect(byKey.placement.value).toBe("12.5");
 		expect(result.current.cards.map((c) => c.key)).not.toContain("evDiff");
+	});
+
+	it("hides the aggregate ROI card for tournament when no currency is selected", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
+		const result = await renderLoadedKpi(
+			ctx({
+				type: "tournament",
+				statsInput: { normalized: true },
+				normalized: true,
+			})
+		);
+		const keys = result.current.cards.map((c) => c.key);
+		expect(keys).toContain("avgRoi");
+		expect(keys).not.toContain("roi");
+		const byKey = Object.fromEntries(
+			result.current.cards.map((c) => [c.key, c])
+		);
+		expect(byKey.avgRoi.value).toBe("30.0%");
 	});
 
 	it("uses the cash bb total and bb/hr when normalized for cash", async () => {

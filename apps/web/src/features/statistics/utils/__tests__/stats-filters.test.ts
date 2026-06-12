@@ -80,27 +80,31 @@ describe("resolveDateRange", () => {
 		expect(resolveDateRange(filters({ period: "all" }), NOW_SEC)).toEqual({});
 	});
 
-	it("snaps the 7d lower bound to start of UTC day minus 7 days", () => {
+	it("snaps the 7d window to [start of UTC day minus 7 days, end of today]", () => {
 		expect(resolveDateRange(filters({ period: "7d" }), NOW_SEC)).toEqual({
 			dateFrom: START_OF_DAY - 7 * DAY,
+			dateTo: START_OF_DAY + DAY,
 		});
 	});
 
-	it("snaps the 30d lower bound to start of UTC day minus 30 days", () => {
+	it("snaps the 30d window with an end-of-today upper bound", () => {
 		expect(resolveDateRange(filters({ period: "30d" }), NOW_SEC)).toEqual({
 			dateFrom: START_OF_DAY - 30 * DAY,
+			dateTo: START_OF_DAY + DAY,
 		});
 	});
 
-	it("snaps the 90d lower bound to start of UTC day minus 90 days", () => {
+	it("snaps the 90d window with an end-of-today upper bound", () => {
 		expect(resolveDateRange(filters({ period: "90d" }), NOW_SEC)).toEqual({
 			dateFrom: START_OF_DAY - 90 * DAY,
+			dateTo: START_OF_DAY + DAY,
 		});
 	});
 
-	it("uses Jan 1 (UTC) of the current year for ytd", () => {
+	it("uses Jan 1 (UTC) of the current year for ytd, capped at end of today", () => {
 		expect(resolveDateRange(filters({ period: "ytd" }), NOW_SEC)).toEqual({
 			dateFrom: Math.floor(Date.UTC(2026, 0, 1) / 1000),
+			dateTo: START_OF_DAY + DAY,
 		});
 	});
 
@@ -171,7 +175,7 @@ describe("filtersToStatsInput", () => {
 			NOW_SEC
 		);
 		expect(input.dateFrom).toBe(START_OF_DAY - 7 * DAY);
-		expect(input.dateTo).toBeUndefined();
+		expect(input.dateTo).toBe(START_OF_DAY + DAY);
 	});
 });
 
