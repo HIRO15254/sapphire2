@@ -29,29 +29,25 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # track_progress lets the action itself create a single tracking comment
+          # on the PR and keep it updated with the review results. Posting is handled
+          # by the action (using GITHUB_TOKEN), not by Claude — so a summary comment
+          # is always posted. The previous approach made Claude write
+          # /tmp/review-summary.md and a later step posted it, which silently skipped
+          # the comment whenever Claude did not produce the file.
+          track_progress: true
           prompt: |
             /review
 
-            After completing the review, write a Markdown summary of your findings
-            to `/tmp/review-summary.md` (no surrounding code fence). If no issues were
-            found, write a short confirmation that the review passed with no problems
-            (e.g. "LGTM" with a brief summary).
+            Post specific issues as inline comments on the relevant lines. End the
+            session with a Markdown summary of your findings grouped by severity, or,
+            if there were none, a short confirmation that the review passed with no
+            problems (e.g. "LGTM" with a brief summary).
 
-            Do NOT run any gh commands and do NOT try to post a comment yourself —
-            posting is handled by a later workflow step that reads /tmp/review-summary.md.
+            The tracking comment on this PR is created and updated automatically from
+            this session, so do NOT run `gh pr comment` to post the top-level summary
+            yourself — just make the summary your final message.
           claude_args: |
             --max-turns 40
             --model opus
-
-      - name: Post review summary comment
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          if [ -s /tmp/review-summary.md ]; then
-            gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file /tmp/review-summary.md
-          else
-            echo "::warning::Claude did not produce /tmp/review-summary.md; skipping comment."
-          fi
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*)"
