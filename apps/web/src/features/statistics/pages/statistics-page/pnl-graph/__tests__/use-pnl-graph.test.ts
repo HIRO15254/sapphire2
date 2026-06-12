@@ -46,7 +46,6 @@ function ctx(
 		statsInput: { normalized: false, currencyId: "c1" },
 		enabled: true,
 		normalized: false,
-		normalizationUnit: null,
 		currencyUnit: "USD",
 		type: "all",
 		...overrides,

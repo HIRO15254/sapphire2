@@ -2,20 +2,16 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
 	filtersToStatsInput,
 	isCurrencyScopeValid,
-	normalizationUnit,
 	type StatsFilters,
 	type StatsQueryInput,
-	statsDisplayUnit,
 } from "@/features/statistics/utils/stats-filters";
 
 export interface UseStatsFiltersResult {
 	filters: StatsFilters;
 	isScopeValid: boolean;
-	normalizationUnit: "bb" | "bi" | null;
 	normalized: boolean;
 	setFilters: (patch: Partial<StatsFilters>) => void;
 	statsInput: StatsQueryInput;
-	unitFor: (currencyUnit: string | null | undefined) => string | null;
 }
 
 /**
@@ -37,8 +33,6 @@ export function useStatsFilters(): UseStatsFiltersResult {
 		setFilters,
 		statsInput: filtersToStatsInput(filters),
 		normalized: filters.norm !== "off",
-		normalizationUnit: normalizationUnit(filters.norm),
 		isScopeValid: isCurrencyScopeValid(filters),
-		unitFor: (currencyUnit) => statsDisplayUnit(filters.norm, currencyUnit),
 	};
 }

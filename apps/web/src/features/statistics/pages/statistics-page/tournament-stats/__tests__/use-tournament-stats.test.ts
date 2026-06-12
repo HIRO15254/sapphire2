@@ -36,9 +36,9 @@ interface Summary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
 	bbPerHour: number | null;
+	cashNormalizedProfitLoss: number | null;
 	hourlyRate: number | null;
 	itmRate: number | null;
-	normalizedProfitLoss: number | null;
 	roi: number | null;
 	totalEvDiff: number | null;
 	totalEvProfitLoss: number | null;
@@ -46,6 +46,7 @@ interface Summary {
 	totalPrizeMoney: number | null;
 	totalProfitLoss: number;
 	totalSessions: number;
+	tournamentNormalizedProfitLoss: number | null;
 	winRate: number;
 }
 
@@ -71,7 +72,8 @@ function summary(overrides: Partial<Summary> = {}): Summary {
 	return {
 		totalSessions: 8,
 		totalProfitLoss: 2000,
-		normalizedProfitLoss: 4,
+		cashNormalizedProfitLoss: null,
+		tournamentNormalizedProfitLoss: 4,
 		totalEvProfitLoss: null,
 		totalEvDiff: null,
 		winRate: 50,
@@ -126,7 +128,6 @@ function ctx(
 		statsInput: { normalized: false, currencyId: "c1" },
 		enabled: true,
 		normalized: false,
-		normalizationUnit: null,
 		currencyUnit: "USD",
 		type: "all",
 		...overrides,
@@ -277,7 +278,7 @@ describe("useTournamentStats", () => {
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		trpcMocks.highlightsQueryFn.mockResolvedValue(highlights());
 		const result = await renderLoadedTournament(
-			ctx({ normalized: true, normalizationUnit: "bi", currencyUnit: "USD" })
+			ctx({ normalized: true, currencyUnit: "USD" })
 		);
 		const prize = result.current.view?.metrics.find((m) => m.key === "prize");
 		expect(prize?.value).toBe("+5,000 USD");
@@ -288,7 +289,7 @@ describe("useTournamentStats", () => {
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		trpcMocks.highlightsQueryFn.mockResolvedValue(highlights());
 		const result = await renderLoadedTournament(
-			ctx({ normalized: true, normalizationUnit: "bi", currencyUnit: null })
+			ctx({ normalized: true, currencyUnit: null })
 		);
 		const net = result.current.view?.metrics.find((m) => m.key === "net");
 		expect(net?.value).toBe("+4 bi");
@@ -351,7 +352,7 @@ describe("useTournamentStats", () => {
 			})
 		);
 		const result = await renderLoadedTournament(
-			ctx({ normalized: true, normalizationUnit: "bi", currencyUnit: null })
+			ctx({ normalized: true, currencyUnit: null })
 		);
 		const best = result.current.view?.bestSession;
 		expect(best?.value).toBe("+6 bi");

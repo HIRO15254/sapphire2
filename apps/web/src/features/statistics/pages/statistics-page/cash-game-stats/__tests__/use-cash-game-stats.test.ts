@@ -36,9 +36,9 @@ interface Summary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
 	bbPerHour: number | null;
+	cashNormalizedProfitLoss: number | null;
 	hourlyRate: number | null;
 	itmRate: number | null;
-	normalizedProfitLoss: number | null;
 	roi: number | null;
 	totalEvDiff: number | null;
 	totalEvProfitLoss: number | null;
@@ -46,6 +46,7 @@ interface Summary {
 	totalPrizeMoney: number | null;
 	totalProfitLoss: number;
 	totalSessions: number;
+	tournamentNormalizedProfitLoss: number | null;
 	winRate: number;
 }
 
@@ -71,7 +72,8 @@ function summary(overrides: Partial<Summary> = {}): Summary {
 	return {
 		totalSessions: 10,
 		totalProfitLoss: 1500,
-		normalizedProfitLoss: 30,
+		cashNormalizedProfitLoss: 30,
+		tournamentNormalizedProfitLoss: null,
 		totalEvProfitLoss: 1800,
 		totalEvDiff: 300,
 		winRate: 60,
@@ -126,7 +128,6 @@ function ctx(
 		statsInput: { normalized: false, currencyId: "c1" },
 		enabled: true,
 		normalized: false,
-		normalizationUnit: null,
 		currencyUnit: "USD",
 		type: "all",
 		...overrides,
@@ -254,7 +255,7 @@ describe("useCashGameStats", () => {
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		trpcMocks.highlightsQueryFn.mockResolvedValue(highlights());
 		const result = await renderLoadedCash(
-			ctx({ normalized: true, normalizationUnit: "bb", currencyUnit: null })
+			ctx({ normalized: true, currencyUnit: null })
 		);
 		const byKey = Object.fromEntries(
 			(result.current.view?.metrics ?? []).map((m) => [m.key, m])
@@ -281,7 +282,7 @@ describe("useCashGameStats", () => {
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary({ bbPerHour: null }));
 		trpcMocks.highlightsQueryFn.mockResolvedValue(highlights());
 		const result = await renderLoadedCash(
-			ctx({ normalized: true, normalizationUnit: "bb", currencyUnit: null })
+			ctx({ normalized: true, currencyUnit: null })
 		);
 		const hourly = result.current.view?.metrics.find((m) => m.key === "hourly");
 		expect(hourly?.value).toBe("—");
@@ -354,7 +355,7 @@ describe("useCashGameStats", () => {
 			})
 		);
 		const result = await renderLoadedCash(
-			ctx({ normalized: true, normalizationUnit: "bb", currencyUnit: null })
+			ctx({ normalized: true, currencyUnit: null })
 		);
 		const best = result.current.view?.bestSession;
 		expect(best?.value).toBe("+24 bb");
@@ -381,7 +382,7 @@ describe("useCashGameStats", () => {
 			})
 		);
 		const result = await renderLoadedCash(
-			ctx({ normalized: true, normalizationUnit: "bb", currencyUnit: null })
+			ctx({ normalized: true, currencyUnit: null })
 		);
 		const best = result.current.view?.bestSession;
 		expect(best?.value).toBe("—");

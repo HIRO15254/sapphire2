@@ -430,20 +430,22 @@ describe("breakdownKeyLabel", () => {
 
 describe("breakdownStats", () => {
 	it("returns an empty array for no rows", () => {
-		expect(breakdownStats([], "type", { normalized: false })).toEqual([]);
+		expect(breakdownStats([], "type")).toEqual([]);
 	});
 
-	it("aggregates sessions, profitLoss, winRate and playMinutes per group", () => {
+	it("aggregates sessions, currency profitLoss, normalized sums, winRate and playMinutes per group", () => {
 		const rows = [
-			cashRow({ id: "a", profitLoss: 100, playMinutes: 60 }),
-			cashRow({ id: "b", profitLoss: -40, playMinutes: 30 }),
+			cashRow({ id: "a", profitLoss: 100, playMinutes: 60, bigBlind: 2 }),
+			cashRow({ id: "b", profitLoss: -40, playMinutes: 30, bigBlind: 2 }),
 		];
-		const [group] = breakdownStats(rows, "type", { normalized: false });
+		const [group] = breakdownStats(rows, "type");
 		expect(group).toEqual({
 			key: "cash_game",
 			label: "Cash game",
 			sessions: 2,
 			profitLoss: 60,
+			cashNormalizedProfitLoss: 30, // 50 + (-20)
+			tournamentNormalizedProfitLoss: null,
 			winRate: 50,
 			playMinutes: 90,
 		});
@@ -454,31 +456,50 @@ describe("breakdownStats", () => {
 			cashRow({ id: "a", blind1: 1, blind2: 2 }),
 			tournamentRow({ id: "t" }),
 		];
-		const groups = breakdownStats(rows, "stakes", { normalized: false });
+		const groups = breakdownStats(rows, "stakes");
 		expect(groups).toHaveLength(1);
 		expect(groups[0]?.key).toBe("1/2");
 		expect(groups[0]?.sessions).toBe(1);
 	});
 
-	it("sums normalized display values while treating non-normalizable rows as 0 but still a session", () => {
+	it("keeps cash (bb) and tournament (bi) normalized sums apart within a mixed group", () => {
 		const rows = [
-			cashRow({ id: "a", profitLoss: 100, bigBlind: 2 }), // norm 50
-			cashRow({ id: "b", profitLoss: 100, bigBlind: null }), // norm null -> 0
+			cashRow({
+				id: "a",
+				roomId: "R",
+				roomName: "R",
+				profitLoss: 100,
+				bigBlind: 2,
+			}), // bb 50
+			tournamentRow({
+				id: "t",
+				roomId: "R",
+				roomName: "R",
+				profitLoss: 300,
+				buyInTotal: 100,
+			}), // bi 3
 		];
-		const [group] = breakdownStats(rows, "type", { normalized: true });
-		expect(group?.profitLoss).toBe(50);
+		const [group] = breakdownStats(rows, "room");
 		expect(group?.sessions).toBe(2);
+		expect(group?.profitLoss).toBe(400); // currency 100 + 300
+		expect(group?.cashNormalizedProfitLoss).toBe(50);
+		expect(group?.tournamentNormalizedProfitLoss).toBe(3);
 	});
 
-	it("computes winRate from currency sign even when normalized is true", () => {
+	it("reports null normalized sums when a group has no normalizable rows of that type", () => {
+		const rows = [cashRow({ id: "a", profitLoss: 100, bigBlind: null })];
+		const [group] = breakdownStats(rows, "type");
+		expect(group?.sessions).toBe(1);
+		expect(group?.cashNormalizedProfitLoss).toBeNull();
+		expect(group?.tournamentNormalizedProfitLoss).toBeNull();
+	});
+
+	it("computes winRate from currency sign", () => {
 		const rows = [
-			// Currency PL positive (a win).
 			cashRow({ id: "a", profitLoss: 100, bigBlind: 2 }),
-			// Currency PL negative; normalized value is also negative.
 			cashRow({ id: "b", profitLoss: -50, bigBlind: 2 }),
 		];
-		const [group] = breakdownStats(rows, "type", { normalized: true });
-		// 1 of 2 rows has currency PL > 0.
+		const [group] = breakdownStats(rows, "type");
 		expect(group?.winRate).toBe(50);
 	});
 
@@ -488,7 +509,7 @@ describe("breakdownStats", () => {
 			cashRow({ id: "b", sessionDate: EPOCH_NOV_2023 }), // Tuesday -> 2
 			cashRow({ id: "c", sessionDate: EPOCH_JAN_2024 }), // Monday -> 1
 		];
-		const groups = breakdownStats(rows, "dayOfWeek", { normalized: false });
+		const groups = breakdownStats(rows, "dayOfWeek");
 		expect(groups.map((g) => g.key)).toEqual(["0", "1", "2"]);
 	});
 
@@ -497,7 +518,7 @@ describe("breakdownStats", () => {
 			cashRow({ id: "a", sessionDate: EPOCH_JAN_2024 }), // 2024-01
 			cashRow({ id: "b", sessionDate: EPOCH_NOV_2023 }), // 2023-11
 		];
-		const groups = breakdownStats(rows, "month", { normalized: false });
+		const groups = breakdownStats(rows, "month");
 		expect(groups.map((g) => g.key)).toEqual(["2023-11", "2024-01"]);
 	});
 
@@ -512,7 +533,7 @@ describe("breakdownStats", () => {
 			cashRow({ id: "c1", roomId: "C", roomName: "C", profitLoss: 10 }),
 			cashRow({ id: "c2", roomId: "C", roomName: "C", profitLoss: 10 }),
 		];
-		const groups = breakdownStats(rows, "room", { normalized: false });
+		const groups = breakdownStats(rows, "room");
 		// C and B both have 2 sessions; C has higher PL → first. A has 1 → last.
 		expect(groups.map((g) => g.key)).toEqual(["C", "B", "A"]);
 	});
@@ -522,7 +543,7 @@ describe("breakdownStats", () => {
 			cashRow({ id: "z", roomId: "Z", roomName: "Zeta", profitLoss: 10 }),
 			cashRow({ id: "a", roomId: "A", roomName: "Alpha", profitLoss: 10 }),
 		];
-		const groups = breakdownStats(rows, "room", { normalized: false });
+		const groups = breakdownStats(rows, "room");
 		// Same sessions (1) and same PL (10) → label ascending: Alpha before Zeta.
 		expect(groups.map((g) => g.label)).toEqual(["Alpha", "Zeta"]);
 	});
@@ -534,12 +555,13 @@ describe("breakdownStats", () => {
 
 describe("summarizeStats", () => {
 	it("returns a zeroed/null summary for no rows", () => {
-		const summary = summarizeStats([], { normalized: false });
+		const summary = summarizeStats([]);
 		expect(summary.totalSessions).toBe(0);
 		expect(summary.totalProfitLoss).toBe(0);
 		expect(summary.winRate).toBe(0);
 		expect(summary.totalPlayMinutes).toBe(0);
-		expect(summary.normalizedProfitLoss).toBeNull();
+		expect(summary.cashNormalizedProfitLoss).toBeNull();
+		expect(summary.tournamentNormalizedProfitLoss).toBeNull();
 		expect(summary.totalEvProfitLoss).toBeNull();
 		expect(summary.totalEvDiff).toBeNull();
 		expect(summary.avgProfitLoss).toBeNull();
@@ -556,7 +578,7 @@ describe("summarizeStats", () => {
 			cashRow({ id: "a", profitLoss: 100, playMinutes: 60, bigBlind: 2 }),
 			cashRow({ id: "b", profitLoss: -40, playMinutes: 60, bigBlind: 2 }),
 		];
-		const summary = summarizeStats(rows, { normalized: false });
+		const summary = summarizeStats(rows);
 		expect(summary.totalSessions).toBe(2);
 		expect(summary.totalProfitLoss).toBe(60);
 		expect(summary.winRate).toBe(50);
@@ -564,21 +586,23 @@ describe("summarizeStats", () => {
 		expect(summary.totalPlayMinutes).toBe(120);
 	});
 
-	it("sums normalizedSessionValue across normalizable rows", () => {
+	it("sums cash bb into cashNormalizedProfitLoss and tournament bi into tournamentNormalizedProfitLoss separately", () => {
 		const rows = [
-			cashRow({ id: "a", profitLoss: 100, bigBlind: 2 }), // 50
-			cashRow({ id: "b", profitLoss: 50, bigBlind: 5 }), // 10
+			cashRow({ id: "a", profitLoss: 100, bigBlind: 2 }), // bb 50
+			cashRow({ id: "b", profitLoss: 50, bigBlind: 5 }), // bb 10
+			tournamentRow({ id: "t", profitLoss: 300, buyInTotal: 100 }), // bi 3
 		];
-		expect(
-			summarizeStats(rows, { normalized: false }).normalizedProfitLoss
-		).toBe(60);
+		const summary = summarizeStats(rows);
+		expect(summary.cashNormalizedProfitLoss).toBe(60);
+		expect(summary.tournamentNormalizedProfitLoss).toBe(3);
 	});
 
-	it("returns null normalizedProfitLoss when no row is normalizable", () => {
-		const rows = [cashRow({ profitLoss: 100, bigBlind: null })];
-		expect(
-			summarizeStats(rows, { normalized: false }).normalizedProfitLoss
-		).toBeNull();
+	it("returns null normalized figures when no row of that type is normalizable", () => {
+		const summary = summarizeStats([
+			cashRow({ profitLoss: 100, bigBlind: null }),
+		]);
+		expect(summary.cashNormalizedProfitLoss).toBeNull();
+		expect(summary.tournamentNormalizedProfitLoss).toBeNull();
 	});
 
 	it("computes cash hourlyRate from cash play time", () => {
@@ -586,7 +610,7 @@ describe("summarizeStats", () => {
 			cashRow({ id: "a", profitLoss: 120, playMinutes: 60, bigBlind: 2 }),
 		];
 		// 120 over 1 hour → 120/hr.
-		expect(summarizeStats(rows, { normalized: false }).hourlyRate).toBe(120);
+		expect(summarizeStats(rows).hourlyRate).toBe(120);
 	});
 
 	it("computes bbPerHour from cash bb won over cash hours", () => {
@@ -594,19 +618,19 @@ describe("summarizeStats", () => {
 			cashRow({ id: "a", profitLoss: 100, playMinutes: 60, bigBlind: 2 }),
 		];
 		// 50 bb over 1 hour → 50 bb/hr.
-		expect(summarizeStats(rows, { normalized: false }).bbPerHour).toBe(50);
+		expect(summarizeStats(rows).bbPerHour).toBe(50);
 	});
 
 	it("returns null hourlyRate and bbPerHour when there is no cash play time", () => {
 		const rows = [cashRow({ playMinutes: null })];
-		const summary = summarizeStats(rows, { normalized: false });
+		const summary = summarizeStats(rows);
 		expect(summary.hourlyRate).toBeNull();
 		expect(summary.bbPerHour).toBeNull();
 	});
 
 	it("excludes tournament rows from hourlyRate / bbPerHour", () => {
 		const rows = [tournamentRow({ playMinutes: 120, profitLoss: 500 })];
-		const summary = summarizeStats(rows, { normalized: false });
+		const summary = summarizeStats(rows);
 		expect(summary.hourlyRate).toBeNull();
 		expect(summary.bbPerHour).toBeNull();
 	});
@@ -621,14 +645,14 @@ describe("summarizeStats", () => {
 				bigBlind: 2,
 			}),
 		];
-		const summary = summarizeStats(rows, { normalized: false });
+		const summary = summarizeStats(rows);
 		expect(summary.totalEvProfitLoss).toBe(120);
 		expect(summary.totalEvDiff).toBe(20);
 	});
 
 	it("returns null ev metrics when no cash row has ev", () => {
 		const rows = [cashRow({ evProfitLoss: null, evDiff: null })];
-		const summary = summarizeStats(rows, { normalized: false });
+		const summary = summarizeStats(rows);
 		expect(summary.totalEvProfitLoss).toBeNull();
 		expect(summary.totalEvDiff).toBeNull();
 	});
@@ -652,7 +676,7 @@ describe("summarizeStats", () => {
 				bountyPrizes: 0,
 			}),
 		];
-		const summary = summarizeStats(rows, { normalized: false });
+		const summary = summarizeStats(rows);
 		// invested 200, prize 500 → (500-200)/200*100 = 150
 		expect(summary.roi).toBe(150);
 		// 1 of 2 in the money
@@ -665,7 +689,7 @@ describe("summarizeStats", () => {
 
 	it("returns null roi when no tournament has invested amount", () => {
 		const rows = [tournamentRow({ buyInTotal: null, prizeMoney: 100 })];
-		expect(summarizeStats(rows, { normalized: false }).roi).toBeNull();
+		expect(summarizeStats(rows).roi).toBeNull();
 	});
 
 	it("includes bounty prizes in itm detection and totalPrizeMoney", () => {
@@ -678,19 +702,19 @@ describe("summarizeStats", () => {
 				bountyPrizes: 200,
 			}),
 		];
-		const summary = summarizeStats(rows, { normalized: false });
+		const summary = summarizeStats(rows);
 		expect(summary.itmRate).toBe(100);
 		expect(summary.totalPrizeMoney).toBe(200);
 	});
 
 	it("returns null avgPlacement when no tournament has a placement", () => {
 		const rows = [tournamentRow({ placement: null })];
-		expect(summarizeStats(rows, { normalized: false }).avgPlacement).toBeNull();
+		expect(summarizeStats(rows).avgPlacement).toBeNull();
 	});
 
 	it("returns null tournament metrics when there are only cash rows", () => {
 		const rows = [cashRow()];
-		const summary = summarizeStats(rows, { normalized: false });
+		const summary = summarizeStats(rows);
 		expect(summary.roi).toBeNull();
 		expect(summary.itmRate).toBeNull();
 		expect(summary.avgPlacement).toBeNull();
@@ -710,7 +734,7 @@ describe("summarizeStats", () => {
 				playMinutes: 120,
 			}),
 		];
-		const summary = summarizeStats(rows, { normalized: false });
+		const summary = summarizeStats(rows);
 		expect(summary.totalSessions).toBe(2);
 		expect(summary.totalProfitLoss).toBe(500);
 		expect(summary.winRate).toBe(100);

@@ -22,11 +22,13 @@ vi.mock("@/utils/trpc", () => ({
 import { useBreakdownSection } from "@/features/statistics/pages/statistics-page/breakdown-section/use-breakdown-section";
 
 interface BreakdownRow {
+	cashNormalizedProfitLoss: number | null;
 	key: string;
 	label: string;
 	playMinutes: number;
 	profitLoss: number;
 	sessions: number;
+	tournamentNormalizedProfitLoss: number | null;
 	winRate: number;
 }
 
@@ -36,6 +38,8 @@ function breakdownRow(overrides: Partial<BreakdownRow> = {}): BreakdownRow {
 		label: "WSOP",
 		sessions: 5,
 		profitLoss: 1500,
+		cashNormalizedProfitLoss: null,
+		tournamentNormalizedProfitLoss: null,
 		winRate: 60,
 		playMinutes: 600,
 		...overrides,
@@ -49,7 +53,6 @@ function ctx(
 		statsInput: { normalized: false, currencyId: "c1" },
 		enabled: true,
 		normalized: false,
-		normalizationUnit: null,
 		currencyUnit: "USD",
 		type: "all",
 		...overrides,
@@ -200,20 +203,37 @@ describe("useBreakdownSection", () => {
 		expect(row.netColor).toBe("");
 	});
 
-	it("renders the normalized unit in netText when normalized", async () => {
+	it("exposes separate bb and bi columns when normalized for all types", async () => {
 		trpcMocks.breakdownQueryFn.mockReset();
 		trpcMocks.breakdownQueryFn.mockResolvedValue({
-			groups: [breakdownRow({ profitLoss: 30 })],
+			groups: [
+				breakdownRow({
+					cashNormalizedProfitLoss: 30,
+					tournamentNormalizedProfitLoss: 3,
+				}),
+			],
 		});
 		const { result } = await renderLoadedBreakdown(
-			ctx({
-				type: "cash_game",
-				normalized: true,
-				normalizationUnit: "bb",
-				currencyUnit: null,
-			})
+			ctx({ type: "all", normalized: true, currencyUnit: null })
 		);
-		expect(result.current.rows[0].netText).toBe("+30 bb");
+		expect(result.current.normalized).toBe(true);
+		expect(result.current.showCashColumn).toBe(true);
+		expect(result.current.showTournamentColumn).toBe(true);
+		expect(result.current.rows[0].cashText).toBe("+30 bb");
+		expect(result.current.rows[0].tournamentText).toBe("+3 bi");
+	});
+
+	it("hides the bi column when no group has a tournament figure", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({
+			groups: [breakdownRow({ cashNormalizedProfitLoss: 30 })],
+		});
+		const { result } = await renderLoadedBreakdown(
+			ctx({ type: "cash_game", normalized: true, currencyUnit: null })
+		);
+		expect(result.current.showCashColumn).toBe(true);
+		expect(result.current.showTournamentColumn).toBe(false);
+		expect(result.current.rows[0].tournamentText).toBe("—");
 	});
 
 	it("returns no rows when the server omits all groups", async () => {

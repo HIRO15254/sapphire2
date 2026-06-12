@@ -12,12 +12,12 @@ export const STATS_PERIODS = [
 ] as const;
 export type StatsPeriod = (typeof STATS_PERIODS)[number];
 
-// Normalization is a single concept across the feature: "off" shows currency
-// amounts (a currency must be selected), "bb" / "bi" show big-blind /
-// buy-in-normalized values. The server normalizes cash sessions by big blind
-// and tournament sessions by buy-in regardless of the bb/bi label — the label
-// only drives the unit shown in the UI.
-export const STATS_NORMALIZATIONS = ["off", "bb", "bi"] as const;
+// Normalization is a single mode. "off" shows currency amounts (a currency
+// must be selected); "normalized" shows big-blind (cash) and buy-in
+// (tournament) normalized values SIMULTANEOUSLY. BB and BI live on different
+// scales and must never be summed together, so any view that mixes cash and
+// tournament sessions presents the two units side by side rather than combined.
+export const STATS_NORMALIZATIONS = ["off", "normalized"] as const;
 export type StatsNormalization = (typeof STATS_NORMALIZATIONS)[number];
 
 export const STATS_TYPES = ["all", "cash_game", "tournament"] as const;
@@ -132,25 +132,27 @@ export function isCurrencyScopeValid(
 	return filters.norm !== "off" || Boolean(filters.currency);
 }
 
-/** The unit a normalized value is shown in, or null when showing currency. */
-export function normalizationUnit(
-	norm: StatsNormalization
-): "bb" | "bi" | null {
-	if (norm === "bb") {
-		return "bb";
-	}
-	if (norm === "bi") {
-		return "bi";
-	}
-	return null;
+/**
+ * The normalized unit for a given game type: cash → "bb", tournament → "bi".
+ * Used only when normalization is on.
+ */
+export function normalizedUnitForType(
+	type: "cash_game" | "tournament"
+): "bb" | "bi" {
+	return type === "cash_game" ? "bb" : "bi";
 }
 
-/** Resolve the unit suffix shown for monetary values given the filter state. */
-export function statsDisplayUnit(
+/**
+ * The unit suffix for a value that aggregates a single game type, given the
+ * filter state: the currency unit when normalization is off, otherwise the
+ * type's normalized unit (bb / bi).
+ */
+export function statsUnitFor(
 	norm: StatsNormalization,
+	type: "cash_game" | "tournament",
 	currencyUnit: string | null | undefined
 ): string | null {
-	return normalizationUnit(norm) ?? currencyUnit ?? null;
+	return norm === "off" ? (currencyUnit ?? null) : normalizedUnitForType(type);
 }
 
 // ── Custom-range date <input type="date"> conversion ─────────────────────────

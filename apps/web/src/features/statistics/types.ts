@@ -1,6 +1,7 @@
-import type {
-	StatsQueryInput,
-	StatsType,
+import {
+	type StatsQueryInput,
+	type StatsType,
+	statsUnitFor,
 } from "@/features/statistics/utils/stats-filters";
 
 export type {
@@ -18,14 +19,22 @@ export interface StatsSectionContext {
 	currencyUnit: string | null;
 	/** Whether the currency scope is valid — queries stay disabled otherwise. */
 	enabled: boolean;
-	/** "bb" / "bi" when normalized, else null. */
-	normalizationUnit: "bb" | "bi" | null;
 	normalized: boolean;
 	statsInput: StatsQueryInput;
 	type: StatsType;
 }
 
-/** The unit suffix to render monetary values with for the current scope. */
-export function statsValueUnit(ctx: StatsSectionContext): string | null {
-	return ctx.normalized ? ctx.normalizationUnit : ctx.currencyUnit;
+/**
+ * The unit suffix for a value aggregating a single game type: the currency unit
+ * when not normalized, otherwise "bb" (cash) / "bi" (tournament). Mixed-type
+ * aggregates must never share a unit — callers render cash and tournament
+ * figures separately instead.
+ */
+export function unitForType(
+	ctx: StatsSectionContext,
+	type: "cash_game" | "tournament"
+): string | null {
+	return ctx.normalized
+		? statsUnitFor("normalized", type, ctx.currencyUnit)
+		: ctx.currencyUnit;
 }

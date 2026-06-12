@@ -5,8 +5,16 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 
 export function BreakdownSection({ ctx }: { ctx: StatsSectionContext }) {
-	const { tabs, activeTab, setActiveTab, rows, isPending } =
-		useBreakdownSection(ctx);
+	const {
+		tabs,
+		activeTab,
+		setActiveTab,
+		rows,
+		isPending,
+		normalized,
+		showCashColumn,
+		showTournamentColumn,
+	} = useBreakdownSection(ctx);
 
 	return (
 		<div className="space-y-3">
@@ -29,7 +37,12 @@ export function BreakdownSection({ ctx }: { ctx: StatsSectionContext }) {
 			{isPending ? (
 				<Skeleton className="h-48 rounded-xl" />
 			) : (
-				<BreakdownTable rows={rows} />
+				<BreakdownTable
+					normalized={normalized}
+					rows={rows}
+					showCashColumn={showCashColumn}
+					showTournamentColumn={showTournamentColumn}
+				/>
 			)}
 		</div>
 	);

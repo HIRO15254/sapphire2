@@ -307,9 +307,12 @@ export interface StatsSummary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
 	bbPerHour: number | null;
+	// Cash sessions normalized to big blinds (bb). Null when no normalizable
+	// cash sessions. Never combined with the tournament (bi) figure — the two
+	// units live on different scales.
+	cashNormalizedProfitLoss: number | null;
 	hourlyRate: number | null;
 	itmRate: number | null;
-	normalizedProfitLoss: number | null;
 	roi: number | null;
 	totalEvDiff: number | null;
 	totalEvProfitLoss: number | null;
@@ -317,13 +320,16 @@ export interface StatsSummary {
 	totalPrizeMoney: number | null;
 	totalProfitLoss: number;
 	totalSessions: number;
+	// Tournament sessions normalized to buy-ins (bi). Null when none.
+	tournamentNormalizedProfitLoss: number | null;
 	winRate: number;
 }
 
 const EMPTY_SUMMARY: StatsSummary = {
 	totalSessions: 0,
 	totalProfitLoss: 0,
-	normalizedProfitLoss: null,
+	cashNormalizedProfitLoss: null,
+	tournamentNormalizedProfitLoss: null,
 	totalEvProfitLoss: null,
 	totalEvDiff: null,
 	winRate: 0,
@@ -346,12 +352,12 @@ interface SummaryAccumulator {
 	evDiffSum: number;
 	evSum: number;
 	itmCount: number;
-	normalizedCount: number;
-	normalizedSum: number;
 	placementCount: number;
 	placementSum: number;
 	totalPlayMinutes: number;
 	totalProfitLoss: number;
+	tournamentBiCount: number;
+	tournamentBiSum: number;
 	tournamentCount: number;
 	tournamentInvested: number;
 	tournamentPrize: number;
@@ -394,15 +400,14 @@ function accumulateTournament(
 		acc.placementSum += row.placement;
 		acc.placementCount += 1;
 	}
+	const bi = normalizedSessionValue(row);
+	if (bi !== null) {
+		acc.tournamentBiSum += bi;
+		acc.tournamentBiCount += 1;
+	}
 }
 
-export function summarizeStats(
-	rows: StatsSessionRow[],
-	// `normalized` is accepted for a uniform call signature with breakdownStats;
-	// the summary surfaces both raw (`totalProfitLoss`) and normalized
-	// (`normalizedProfitLoss`) figures unconditionally, so the flag is unused.
-	_options: { normalized: boolean }
-): StatsSummary {
+export function summarizeStats(rows: StatsSessionRow[]): StatsSummary {
 	if (rows.length === 0) {
 		return { ...EMPTY_SUMMARY };
 	}
@@ -411,8 +416,6 @@ export function summarizeStats(
 		totalProfitLoss: 0,
 		winCount: 0,
 		totalPlayMinutes: 0,
-		normalizedSum: 0,
-		normalizedCount: 0,
 		evSum: 0,
 		evDiffSum: 0,
 		evCount: 0,
@@ -420,6 +423,8 @@ export function summarizeStats(
 		cashPlayMinutes: 0,
 		cashBbSum: 0,
 		cashBbCount: 0,
+		tournamentBiSum: 0,
+		tournamentBiCount: 0,
 		tournamentCount: 0,
 		tournamentInvested: 0,
 		tournamentPrize: 0,
@@ -435,11 +440,6 @@ export function summarizeStats(
 			acc.winCount += 1;
 		}
 		acc.totalPlayMinutes += row.playMinutes ?? 0;
-		const norm = normalizedSessionValue(row);
-		if (norm !== null) {
-			acc.normalizedSum += norm;
-			acc.normalizedCount += 1;
-		}
 		if (row.type === "cash_game") {
 			accumulateCash(row, acc);
 		} else {
@@ -455,7 +455,9 @@ export function summarizeStats(
 	return {
 		totalSessions,
 		totalProfitLoss: acc.totalProfitLoss,
-		normalizedProfitLoss: acc.normalizedCount > 0 ? acc.normalizedSum : null,
+		cashNormalizedProfitLoss: acc.cashBbCount > 0 ? acc.cashBbSum : null,
+		tournamentNormalizedProfitLoss:
+			acc.tournamentBiCount > 0 ? acc.tournamentBiSum : null,
 		totalEvProfitLoss: acc.evCount > 0 ? acc.evSum : null,
 		totalEvDiff: acc.evCount > 0 ? acc.evDiffSum : null,
 		winRate: (acc.winCount / totalSessions) * 100,
@@ -486,11 +488,16 @@ export function summarizeStats(
 // ---------------------------------------------------------------------------
 
 export interface BreakdownRow {
+	// Cash sessions in this group normalized to bb (null when none). Kept apart
+	// from the tournament (bi) figure — the two units must never be summed.
+	cashNormalizedProfitLoss: number | null;
 	key: string;
 	label: string;
 	playMinutes: number;
+	/** Currency profit/loss for the group (used when normalization is off). */
 	profitLoss: number;
 	sessions: number;
+	tournamentNormalizedProfitLoss: number | null;
 	winRate: number;
 }
 
@@ -543,11 +550,15 @@ export function breakdownKeyLabel(
 }
 
 interface BreakdownAccumulator {
+	cashNormCount: number;
+	cashNormSum: number;
 	key: string;
 	label: string;
 	playMinutes: number;
 	profitLoss: number;
 	sessions: number;
+	tournamentNormCount: number;
+	tournamentNormSum: number;
 	winCount: number;
 }
 
@@ -584,10 +595,34 @@ function sortBreakdownRows(
 	});
 }
 
+function accumulateBreakdownRow(
+	group: BreakdownAccumulator,
+	row: StatsSessionRow
+): void {
+	group.sessions += 1;
+	// Currency profit/loss is always tracked; the normalized (bb / bi) sums are
+	// kept per game type so cash and tournament are never combined.
+	group.profitLoss += row.profitLoss;
+	const norm = normalizedSessionValue(row);
+	if (norm !== null) {
+		if (row.type === "cash_game") {
+			group.cashNormSum += norm;
+			group.cashNormCount += 1;
+		} else {
+			group.tournamentNormSum += norm;
+			group.tournamentNormCount += 1;
+		}
+	}
+	// A win is always currency-sign positive, regardless of normalization.
+	if (row.profitLoss > 0) {
+		group.winCount += 1;
+	}
+	group.playMinutes += row.playMinutes ?? 0;
+}
+
 export function breakdownStats(
 	rows: StatsSessionRow[],
-	groupBy: BreakdownGroupBy,
-	{ normalized }: { normalized: boolean }
+	groupBy: BreakdownGroupBy
 ): BreakdownRow[] {
 	const groups = new Map<string, BreakdownAccumulator>();
 
@@ -603,20 +638,16 @@ export function breakdownStats(
 				label: keyLabel.label,
 				sessions: 0,
 				profitLoss: 0,
+				cashNormSum: 0,
+				cashNormCount: 0,
+				tournamentNormSum: 0,
+				tournamentNormCount: 0,
 				winCount: 0,
 				playMinutes: 0,
 			};
 			groups.set(keyLabel.key, group);
 		}
-		group.sessions += 1;
-		// Null normalized values contribute 0 to the sum but still count as a
-		// session.
-		group.profitLoss += sessionDisplayValue(row, normalized) ?? 0;
-		// A win is always currency-sign positive, regardless of normalized.
-		if (row.profitLoss > 0) {
-			group.winCount += 1;
-		}
-		group.playMinutes += row.playMinutes ?? 0;
+		accumulateBreakdownRow(group, row);
 	}
 
 	const result: BreakdownRow[] = [...groups.values()].map((g) => ({
@@ -624,6 +655,9 @@ export function breakdownStats(
 		label: g.label,
 		sessions: g.sessions,
 		profitLoss: g.profitLoss,
+		cashNormalizedProfitLoss: g.cashNormCount > 0 ? g.cashNormSum : null,
+		tournamentNormalizedProfitLoss:
+			g.tournamentNormCount > 0 ? g.tournamentNormSum : null,
 		winRate: (g.winCount / g.sessions) * 100,
 		playMinutes: g.playMinutes,
 	}));
@@ -796,7 +830,7 @@ export const statsRouter = router({
 		.query(async ({ ctx, input }) => {
 			assertCurrencyScope(input);
 			const rows = await fetchStatsRows(ctx.db, ctx.session.user.id, input);
-			return summarizeStats(rows, { normalized: input.normalized });
+			return summarizeStats(rows);
 		}),
 
 	breakdown: protectedProcedure
@@ -804,11 +838,7 @@ export const statsRouter = router({
 		.query(async ({ ctx, input }) => {
 			assertCurrencyScope(input);
 			const rows = await fetchStatsRows(ctx.db, ctx.session.user.id, input);
-			return {
-				groups: breakdownStats(rows, input.groupBy, {
-					normalized: input.normalized,
-				}),
-			};
+			return { groups: breakdownStats(rows, input.groupBy) };
 		}),
 
 	highlights: protectedProcedure

@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import {
 	type StatsSectionContext,
-	statsValueUnit,
+	unitForType,
 } from "@/features/statistics/types";
 import {
 	formatFixed,
 	formatPercent,
+	formatScopedProfitLoss,
 } from "@/features/statistics/utils/format-stats";
 import { formatYmdSlash } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
@@ -59,14 +60,14 @@ function buildSessionRow(
 	if (!session) {
 		return null;
 	}
-	const unit = statsValueUnit(ctx);
+	const unit = unitForType(ctx, "tournament");
 	const amount = ctx.normalized
 		? session.normalizedProfitLoss
 		: session.profitLoss;
 	return {
 		id: session.id,
 		amount,
-		value: formatProfitLoss(amount, { currencyUnit: unit }),
+		value: formatScopedProfitLoss(amount, { normalized: ctx.normalized, unit }),
 		dateText: formatYmdSlash(new Date(session.date * 1000)),
 	};
 }
@@ -102,9 +103,9 @@ export function useTournamentStats(
 		return { isPending: false, isEmpty: true, view: null };
 	}
 
-	const unit = statsValueUnit(ctx);
+	const unit = unitForType(ctx, "tournament");
 	const net = ctx.normalized
-		? summary.normalizedProfitLoss
+		? summary.tournamentNormalizedProfitLoss
 		: summary.totalProfitLoss;
 
 	const metrics: TournamentMetric[] = [
@@ -141,7 +142,7 @@ export function useTournamentStats(
 		{
 			key: "net",
 			label: "Net",
-			value: formatProfitLoss(net, { currencyUnit: unit }),
+			value: formatScopedProfitLoss(net, { normalized: ctx.normalized, unit }),
 			amount: net,
 			isProfitLoss: true,
 		},

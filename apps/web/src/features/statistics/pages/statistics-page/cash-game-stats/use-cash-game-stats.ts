@@ -1,8 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import {
 	type StatsSectionContext,
-	statsValueUnit,
+	unitForType,
 } from "@/features/statistics/types";
+import {
+	formatScopedProfitLoss,
+	formatStatAmount,
+} from "@/features/statistics/utils/format-stats";
 import { formatYmdSlash } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
 import { trpc } from "@/utils/trpc";
@@ -48,13 +52,6 @@ interface HighlightSession {
 	type: "cash_game" | "tournament";
 }
 
-function formatRate(value: number | null, unit: string | null): string {
-	if (value == null) {
-		return "—";
-	}
-	return `${formatProfitLoss(value, { currencyUnit: unit })}/h`;
-}
-
 function buildSessionRow(
 	session: HighlightSession | null,
 	ctx: StatsSectionContext
@@ -62,14 +59,14 @@ function buildSessionRow(
 	if (!session) {
 		return null;
 	}
-	const unit = statsValueUnit(ctx);
+	const unit = unitForType(ctx, "cash_game");
 	const amount = ctx.normalized
 		? session.normalizedProfitLoss
 		: session.profitLoss;
 	return {
 		id: session.id,
 		amount,
-		value: formatProfitLoss(amount, { currencyUnit: unit }),
+		value: formatScopedProfitLoss(amount, { normalized: ctx.normalized, unit }),
 		dateText: formatYmdSlash(new Date(session.date * 1000)),
 	};
 }
@@ -103,23 +100,26 @@ export function useCashGameStats(
 		return { isPending: false, isEmpty: true, view: null };
 	}
 
-	const unit = statsValueUnit(ctx);
+	const unit = unitForType(ctx, "cash_game");
 	const net = ctx.normalized
-		? summary.normalizedProfitLoss
+		? summary.cashNormalizedProfitLoss
 		: summary.totalProfitLoss;
 
 	const hourly: CashGameMetric = ctx.normalized
 		? {
 				key: "hourly",
 				label: "BB / hr",
-				value: formatRate(summary.bbPerHour, "bb"),
+				value: formatStatAmount(summary.bbPerHour, "bb/h", { decimals: 2 }),
 				amount: summary.bbPerHour,
 				isProfitLoss: true,
 			}
 		: {
 				key: "hourly",
 				label: "Hourly rate",
-				value: formatRate(summary.hourlyRate, ctx.currencyUnit),
+				value:
+					summary.hourlyRate == null
+						? "—"
+						: `${formatProfitLoss(summary.hourlyRate, { currencyUnit: ctx.currencyUnit })}/h`,
 				amount: summary.hourlyRate,
 				isProfitLoss: true,
 			};
@@ -138,7 +138,7 @@ export function useCashGameStats(
 		{
 			key: "net",
 			label: "Net",
-			value: formatProfitLoss(net, { currencyUnit: unit }),
+			value: formatScopedProfitLoss(net, { normalized: ctx.normalized, unit }),
 			amount: net,
 			isProfitLoss: true,
 		},

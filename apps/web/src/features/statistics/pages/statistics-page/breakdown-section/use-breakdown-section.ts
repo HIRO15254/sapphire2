@@ -1,12 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-	type StatsSectionContext,
-	statsValueUnit,
-} from "@/features/statistics/types";
+import type { StatsSectionContext } from "@/features/statistics/types";
 import {
 	formatMinutes,
 	formatPercent,
+	formatStatAmount,
 } from "@/features/statistics/utils/format-stats";
 import {
 	formatProfitLoss,
@@ -27,22 +25,34 @@ export interface BreakdownTab {
 	value: BreakdownGroupBy;
 }
 
-/** A single breakdown table row, fully formatted for rendering. */
+/**
+ * A single breakdown table row, fully formatted for rendering. `netText` is the
+ * currency value (shown when normalization is off); `cashText` (bb) and
+ * `tournamentText` (bi) are the normalized values, kept apart because bb and bi
+ * are on different scales and must never be combined.
+ */
 export interface BreakdownViewRow {
+	cashColor: string;
+	cashText: string;
 	key: string;
 	label: string;
 	netColor: string;
 	netText: string;
 	playTimeText: string;
 	sessions: number;
+	tournamentColor: string;
+	tournamentText: string;
 	winRateText: string;
 }
 
 export interface UseBreakdownSectionResult {
 	activeTab: BreakdownGroupBy;
 	isPending: boolean;
+	normalized: boolean;
 	rows: BreakdownViewRow[];
 	setActiveTab: (tab: BreakdownGroupBy) => void;
+	showCashColumn: boolean;
+	showTournamentColumn: boolean;
 	tabs: BreakdownTab[];
 }
 
@@ -66,6 +76,39 @@ function availableTabs(ctx: StatsSectionContext): BreakdownTab[] {
 			? ["room", "stakes", "dayOfWeek", "hour", "month"]
 			: ["room", "dayOfWeek", "hour", "month"];
 	return values.map((value) => ({ value, label: TAB_LABELS[value] }));
+}
+
+interface BreakdownGroup {
+	cashNormalizedProfitLoss: number | null;
+	key: string;
+	label: string;
+	playMinutes: number;
+	profitLoss: number;
+	sessions: number;
+	tournamentNormalizedProfitLoss: number | null;
+	winRate: number;
+}
+
+function toViewRow(
+	group: BreakdownGroup,
+	currencyUnit: string | null
+): BreakdownViewRow {
+	return {
+		key: group.key,
+		label: group.label,
+		sessions: group.sessions,
+		netText: formatProfitLoss(group.profitLoss, { currencyUnit }),
+		netColor: profitLossColorClass(group.profitLoss),
+		cashText: formatStatAmount(group.cashNormalizedProfitLoss, "bb"),
+		cashColor: profitLossColorClass(group.cashNormalizedProfitLoss),
+		tournamentText: formatStatAmount(
+			group.tournamentNormalizedProfitLoss,
+			"bi"
+		),
+		tournamentColor: profitLossColorClass(group.tournamentNormalizedProfitLoss),
+		winRateText: formatPercent(group.winRate),
+		playTimeText: formatMinutes(group.playMinutes),
+	};
 }
 
 /**
@@ -92,22 +135,25 @@ export function useBreakdownSection(
 		)
 	);
 
-	const unit = statsValueUnit(ctx);
-	const rows: BreakdownViewRow[] = (query.data?.groups ?? []).map((group) => ({
-		key: group.key,
-		label: group.label,
-		sessions: group.sessions,
-		netText: formatProfitLoss(group.profitLoss, { currencyUnit: unit }),
-		netColor: profitLossColorClass(group.profitLoss),
-		winRateText: formatPercent(group.winRate),
-		playTimeText: formatMinutes(group.playMinutes),
-	}));
+	const groups = (query.data?.groups ?? []) as BreakdownGroup[];
+	const rows = groups.map((group) => toViewRow(group, ctx.currencyUnit));
+
+	// In normalized mode bb / bi are separate columns; hide a column when no
+	// group has a value for it (e.g. a cash-only scope has no bi figures).
+	const showCashColumn =
+		ctx.normalized && groups.some((g) => g.cashNormalizedProfitLoss !== null);
+	const showTournamentColumn =
+		ctx.normalized &&
+		groups.some((g) => g.tournamentNormalizedProfitLoss !== null);
 
 	return {
 		tabs,
 		activeTab,
 		setActiveTab: setSelectedTab,
 		rows,
+		normalized: ctx.normalized,
+		showCashColumn,
+		showTournamentColumn,
 		isPending: ctx.enabled && query.isPending,
 	};
 }

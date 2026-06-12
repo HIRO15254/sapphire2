@@ -25,9 +25,9 @@ interface Summary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
 	bbPerHour: number | null;
+	cashNormalizedProfitLoss: number | null;
 	hourlyRate: number | null;
 	itmRate: number | null;
-	normalizedProfitLoss: number | null;
 	roi: number | null;
 	totalEvDiff: number | null;
 	totalEvProfitLoss: number | null;
@@ -35,6 +35,7 @@ interface Summary {
 	totalPrizeMoney: number | null;
 	totalProfitLoss: number;
 	totalSessions: number;
+	tournamentNormalizedProfitLoss: number | null;
 	winRate: number;
 }
 
@@ -42,7 +43,8 @@ function summary(overrides: Partial<Summary> = {}): Summary {
 	return {
 		totalSessions: 10,
 		totalProfitLoss: 1500,
-		normalizedProfitLoss: 30,
+		cashNormalizedProfitLoss: 30,
+		tournamentNormalizedProfitLoss: 5,
 		totalEvProfitLoss: 1800,
 		totalEvDiff: 300,
 		winRate: 60,
@@ -65,7 +67,6 @@ function ctx(
 		statsInput: { normalized: false, currencyId: "c1" },
 		enabled: true,
 		normalized: false,
-		normalizationUnit: null,
 		currencyUnit: "USD",
 		type: "all",
 		...overrides,
@@ -140,23 +141,37 @@ describe("useKpiCards", () => {
 		expect(result.current.cards.map((c) => c.key)).not.toContain("evDiff");
 	});
 
-	it("uses the normalized total and bb unit when normalized", async () => {
+	it("uses the cash bb total and bb/hr when normalized for cash", async () => {
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		const result = await renderLoadedKpi(
-			ctx({
-				type: "cash_game",
-				normalized: true,
-				normalizationUnit: "bb",
-				currencyUnit: null,
-			})
+			ctx({ type: "cash_game", normalized: true, currencyUnit: null })
 		);
 		const byKey = Object.fromEntries(
 			result.current.cards.map((c) => [c.key, c])
 		);
+		expect(byKey.net.label).toBe("Net (BB)");
 		expect(byKey.net.value).toBe("+30 bb");
 		expect(byKey.bbPerHour).toBeDefined();
 		expect(byKey.bbPerHour.value).toBe("+3 bb/h");
 		expect(byKey.hourly).toBeUndefined();
+	});
+
+	it("splits net into separate BB (cash) and BI (tournament) cards when normalized for all types", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(
+			summary({
+				cashNormalizedProfitLoss: 30,
+				tournamentNormalizedProfitLoss: 5,
+			})
+		);
+		const result = await renderLoadedKpi(
+			ctx({ type: "all", normalized: true, currencyUnit: null })
+		);
+		const byKey = Object.fromEntries(
+			result.current.cards.map((c) => [c.key, c])
+		);
+		expect(byKey.net).toBeUndefined();
+		expect(byKey.netCash.value).toBe("+30 bb");
+		expect(byKey.netTournament.value).toBe("+5 bi");
 	});
 
 	it("renders em dash for a null EV diff", async () => {

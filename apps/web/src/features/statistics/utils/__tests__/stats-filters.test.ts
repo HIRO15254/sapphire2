@@ -4,11 +4,11 @@ import {
 	epochSecToDateInput,
 	filtersToStatsInput,
 	isCurrencyScopeValid,
-	normalizationUnit,
+	normalizedUnitForType,
 	parseStatsSearch,
 	resolveDateRange,
 	type StatsFilters,
-	statsDisplayUnit,
+	statsUnitFor,
 } from "@/features/statistics/utils/stats-filters";
 
 function filters(overrides: Partial<StatsFilters> = {}): StatsFilters {
@@ -38,14 +38,14 @@ describe("parseStatsSearch", () => {
 		expect(
 			parseStatsSearch({
 				period: "30d",
-				norm: "bb",
+				norm: "normalized",
 				type: "cash_game",
 				currency: "c1",
 				room: "r1",
 			})
 		).toEqual({
 			period: "30d",
-			norm: "bb",
+			norm: "normalized",
 			type: "cash_game",
 			currency: "c1",
 			room: "r1",
@@ -67,7 +67,7 @@ describe("parseStatsSearch", () => {
 	});
 
 	it("rejects an unknown normalization mode", () => {
-		expect(() => parseStatsSearch({ norm: "sats" })).toThrow();
+		expect(() => parseStatsSearch({ norm: "bb" })).toThrow();
 	});
 
 	it("rejects an unknown type", () => {
@@ -150,18 +150,15 @@ describe("filtersToStatsInput", () => {
 		expect(input.roomId).toBe("r1");
 	});
 
-	it("sets normalized true for bb and bi modes", () => {
+	it("sets normalized true for the normalized mode", () => {
 		expect(
-			filtersToStatsInput(filters({ norm: "bb" }), NOW_SEC).normalized
-		).toBe(true);
-		expect(
-			filtersToStatsInput(filters({ norm: "bi" }), NOW_SEC).normalized
+			filtersToStatsInput(filters({ norm: "normalized" }), NOW_SEC).normalized
 		).toBe(true);
 	});
 
 	it("treats an empty-string currency / room as undefined", () => {
 		const input = filtersToStatsInput(
-			filters({ currency: "", room: "", norm: "bb" }),
+			filters({ currency: "", room: "", norm: "normalized" }),
 			NOW_SEC
 		);
 		expect(input.currencyId).toBeUndefined();
@@ -191,36 +188,33 @@ describe("isCurrencyScopeValid", () => {
 	});
 
 	it("is valid when normalization is on regardless of currency", () => {
-		expect(isCurrencyScopeValid({ norm: "bb", currency: undefined })).toBe(
-			true
-		);
-		expect(isCurrencyScopeValid({ norm: "bi", currency: undefined })).toBe(
-			true
-		);
+		expect(
+			isCurrencyScopeValid({ norm: "normalized", currency: undefined })
+		).toBe(true);
 	});
 });
 
-describe("normalizationUnit", () => {
-	it("maps bb / bi to their unit and off to null", () => {
-		expect(normalizationUnit("bb")).toBe("bb");
-		expect(normalizationUnit("bi")).toBe("bi");
-		expect(normalizationUnit("off")).toBeNull();
+describe("normalizedUnitForType", () => {
+	it("maps cash to bb and tournament to bi", () => {
+		expect(normalizedUnitForType("cash_game")).toBe("bb");
+		expect(normalizedUnitForType("tournament")).toBe("bi");
 	});
 });
 
-describe("statsDisplayUnit", () => {
-	it("prefers the normalization unit over the currency unit", () => {
-		expect(statsDisplayUnit("bb", "USD")).toBe("bb");
-		expect(statsDisplayUnit("bi", "USD")).toBe("bi");
-	});
-
-	it("falls back to the currency unit when normalization is off", () => {
-		expect(statsDisplayUnit("off", "USD")).toBe("USD");
+describe("statsUnitFor", () => {
+	it("uses the currency unit when normalization is off", () => {
+		expect(statsUnitFor("off", "cash_game", "USD")).toBe("USD");
+		expect(statsUnitFor("off", "tournament", "USD")).toBe("USD");
 	});
 
 	it("returns null when off and no currency unit is available", () => {
-		expect(statsDisplayUnit("off", null)).toBeNull();
-		expect(statsDisplayUnit("off", undefined)).toBeNull();
+		expect(statsUnitFor("off", "cash_game", null)).toBeNull();
+		expect(statsUnitFor("off", "cash_game", undefined)).toBeNull();
+	});
+
+	it("uses the type's normalized unit when normalized", () => {
+		expect(statsUnitFor("normalized", "cash_game", "USD")).toBe("bb");
+		expect(statsUnitFor("normalized", "tournament", "USD")).toBe("bi");
 	});
 });
 

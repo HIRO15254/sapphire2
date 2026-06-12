@@ -88,7 +88,6 @@ function ctx(
 		statsInput: { normalized: false, currencyId: "c1" },
 		enabled: true,
 		normalized: false,
-		normalizationUnit: null,
 		currencyUnit: "USD",
 		type: "all",
 		...overrides,
@@ -148,24 +147,34 @@ describe("useHighlightsSection", () => {
 		expect(result.current.worst?.valueText).toBe("-800 USD");
 	});
 
-	it("formats best/worst session with the normalized value and bb unit when normalized", async () => {
+	it("formats each highlight in its own normalized unit (cash bb, tournament bi) when normalized", async () => {
 		trpcMocks.highlightsQueryFn.mockReset();
 		trpcMocks.highlightsQueryFn.mockResolvedValue(highlights());
 		const result = await renderLoaded(
-			ctx({ normalized: true, normalizationUnit: "bb", currencyUnit: null })
+			ctx({ normalized: true, currencyUnit: null })
 		);
+		// best is a cash session → bb; worst is a tournament session → bi.
 		expect(result.current.best?.valueText).toBe("+30 bb");
-		expect(result.current.worst?.valueText).toBe("-16 bb");
+		expect(result.current.worst?.valueText).toBe("-16 bi");
 	});
 
-	it("formats best/worst session with the bi unit when normalized to bi", async () => {
+	it("uses the bi unit for a tournament highlight when normalized", async () => {
 		trpcMocks.highlightsQueryFn.mockReset();
-		trpcMocks.highlightsQueryFn.mockResolvedValue(highlights());
-		const result = await renderLoaded(
-			ctx({ normalized: true, normalizationUnit: "bi", currencyUnit: null })
+		trpcMocks.highlightsQueryFn.mockResolvedValue(
+			highlights({
+				bestSession: {
+					id: "best-1",
+					date: BEST_DATE,
+					profitLoss: 900,
+					normalizedProfitLoss: 9,
+					type: "tournament",
+				},
+			})
 		);
-		expect(result.current.best?.valueText).toBe("+30 bi");
-		expect(result.current.worst?.valueText).toBe("-16 bi");
+		const result = await renderLoaded(
+			ctx({ normalized: true, currencyUnit: null })
+		);
+		expect(result.current.best?.valueText).toBe("+9 bi");
 	});
 
 	it("colors a positive best value as profit and a negative worst value as loss", async () => {

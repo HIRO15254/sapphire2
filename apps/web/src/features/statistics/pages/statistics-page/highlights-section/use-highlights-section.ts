@@ -1,14 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import {
 	type StatsSectionContext,
-	statsValueUnit,
+	unitForType,
 } from "@/features/statistics/types";
-import { formatMinutes } from "@/features/statistics/utils/format-stats";
-import { formatYmdSlash } from "@/utils/format-number";
 import {
-	formatProfitLoss,
-	profitLossColorClass,
-} from "@/utils/format-profit-loss";
+	formatMinutes,
+	formatScopedProfitLoss,
+} from "@/features/statistics/utils/format-stats";
+import { formatYmdSlash } from "@/utils/format-number";
+import { profitLossColorClass } from "@/utils/format-profit-loss";
 import { trpc } from "@/utils/trpc";
 
 export interface HighlightSessionCard {
@@ -69,25 +69,30 @@ export function useHighlightsSection(
 		};
 	}
 
-	const unit = statsValueUnit(ctx);
-
 	const toSessionCard = (
 		session: {
 			id: string;
 			date: number;
 			profitLoss: number;
 			normalizedProfitLoss: number | null;
+			type: "cash_game" | "tournament";
 		} | null
 	): HighlightSessionCard | null => {
 		if (!session) {
 			return null;
 		}
+		// Each highlight is a single session, so its unit is unambiguous: bb for a
+		// cash session, bi for a tournament (currency when not normalized).
+		const unit = unitForType(ctx, session.type);
 		const value = ctx.normalized
 			? session.normalizedProfitLoss
 			: session.profitLoss;
 		return {
 			id: session.id,
-			valueText: formatProfitLoss(value, { currencyUnit: unit }),
+			valueText: formatScopedProfitLoss(value, {
+				normalized: ctx.normalized,
+				unit,
+			}),
 			valueColor: profitLossColorClass(value),
 			dateText: dateLabel(session.date),
 		};

@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import {
-	type StatsSectionContext,
-	statsValueUnit,
-} from "@/features/statistics/types";
+import type { StatsSectionContext } from "@/features/statistics/types";
 import {
 	formatFixed,
 	formatMinutes,
 	formatPercent,
+	formatScopedProfitLoss,
+	formatStatAmount,
 	type TrendDirection,
 	trendDirection,
 } from "@/features/statistics/utils/format-stats";
@@ -26,18 +25,86 @@ export interface UseKpiCardsResult {
 	isPending: boolean;
 }
 
-function formatRate(value: number | null, unit: string | null): string {
-	if (value == null) {
-		return "—";
+interface NetSummary {
+	cashNormalizedProfitLoss: number | null;
+	totalProfitLoss: number;
+	tournamentNormalizedProfitLoss: number | null;
+}
+
+function netCard(
+	key: string,
+	label: string,
+	value: number | null,
+	unit: string | null,
+	normalized: boolean
+): KpiCard {
+	return {
+		key,
+		label,
+		value: formatScopedProfitLoss(value, { normalized, unit }),
+		trend: trendDirection(value),
+	};
+}
+
+/**
+ * Net P&L cards. BB (cash) and BI (tournament) live on different scales and can
+ * never be summed, so normalized mode shows a single typed card for a single
+ * game type and TWO separate cards (BB + BI) when the type filter is "all".
+ */
+function buildNetCards(
+	ctx: StatsSectionContext,
+	summary: NetSummary
+): KpiCard[] {
+	if (!ctx.normalized) {
+		return [
+			netCard(
+				"net",
+				"Net P&L",
+				summary.totalProfitLoss,
+				ctx.currencyUnit,
+				false
+			),
+		];
 	}
-	return `${formatProfitLoss(value, { currencyUnit: unit })}/h`;
+	if (ctx.type === "cash_game") {
+		return [
+			netCard("net", "Net (BB)", summary.cashNormalizedProfitLoss, "bb", true),
+		];
+	}
+	if (ctx.type === "tournament") {
+		return [
+			netCard(
+				"net",
+				"Net (BI)",
+				summary.tournamentNormalizedProfitLoss,
+				"bi",
+				true
+			),
+		];
+	}
+	return [
+		netCard(
+			"netCash",
+			"Net (BB)",
+			summary.cashNormalizedProfitLoss,
+			"bb",
+			true
+		),
+		netCard(
+			"netTournament",
+			"Net (BI)",
+			summary.tournamentNormalizedProfitLoss,
+			"bi",
+			true
+		),
+	];
 }
 
 /**
  * Builds the headline KPI card set from `stats.summary`. The card set depends
  * on the game-type filter: "all" shows only the metrics shared by cash and
  * tournaments; cash adds EV diff + hourly; tournaments add ROI / ITM / placing.
- * Normalized mode swaps monetary units to bb / bi and hourly to bb/hr.
+ * Normalized mode shows bb (cash) and bi (tournament) figures separately.
  */
 export function useKpiCards(ctx: StatsSectionContext): UseKpiCardsResult {
 	const query = useQuery(
@@ -53,18 +120,8 @@ export function useKpiCards(ctx: StatsSectionContext): UseKpiCardsResult {
 		};
 	}
 
-	const unit = statsValueUnit(ctx);
-	const net = ctx.normalized
-		? summary.normalizedProfitLoss
-		: summary.totalProfitLoss;
-
 	const cards: KpiCard[] = [
-		{
-			key: "net",
-			label: "Net P&L",
-			value: formatProfitLoss(net, { currencyUnit: unit }),
-			trend: trendDirection(net),
-		},
+		...buildNetCards(ctx, summary),
 		{
 			key: "sessions",
 			label: "Sessions",
@@ -99,13 +156,16 @@ export function useKpiCards(ctx: StatsSectionContext): UseKpiCardsResult {
 				? {
 						key: "bbPerHour",
 						label: "BB / hr",
-						value: formatRate(summary.bbPerHour, "bb"),
+						value: formatStatAmount(summary.bbPerHour, "bb/h", { decimals: 2 }),
 						trend: trendDirection(summary.bbPerHour),
 					}
 				: {
 						key: "hourly",
 						label: "Hourly",
-						value: formatRate(summary.hourlyRate, ctx.currencyUnit),
+						value:
+							summary.hourlyRate == null
+								? "—"
+								: `${formatProfitLoss(summary.hourlyRate, { currencyUnit: ctx.currencyUnit })}/h`,
 						trend: trendDirection(summary.hourlyRate),
 					}
 		);

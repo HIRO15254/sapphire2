@@ -9,9 +9,65 @@ import {
 	TableRow,
 } from "@/shared/components/ui/table";
 
-const COLUMN_COUNT = 5;
+interface ValueColumn {
+	color: (row: BreakdownViewRow) => string;
+	header: string;
+	text: (row: BreakdownViewRow) => string;
+}
 
-export function BreakdownTable({ rows }: { rows: BreakdownViewRow[] }) {
+interface BreakdownTableProps {
+	normalized: boolean;
+	rows: BreakdownViewRow[];
+	showCashColumn: boolean;
+	showTournamentColumn: boolean;
+}
+
+/**
+ * The value columns shown for the current scope: a single currency "Net" column
+ * when normalization is off, otherwise separate "BB" (cash) and "BI"
+ * (tournament) columns — never a combined figure.
+ */
+function valueColumnsFor({
+	normalized,
+	showCashColumn,
+	showTournamentColumn,
+}: Omit<BreakdownTableProps, "rows">): ValueColumn[] {
+	if (!normalized) {
+		return [
+			{ header: "Net", text: (r) => r.netText, color: (r) => r.netColor },
+		];
+	}
+	const columns: ValueColumn[] = [];
+	if (showCashColumn) {
+		columns.push({
+			header: "BB",
+			text: (r) => r.cashText,
+			color: (r) => r.cashColor,
+		});
+	}
+	if (showTournamentColumn) {
+		columns.push({
+			header: "BI",
+			text: (r) => r.tournamentText,
+			color: (r) => r.tournamentColor,
+		});
+	}
+	return columns;
+}
+
+export function BreakdownTable({
+	rows,
+	normalized,
+	showCashColumn,
+	showTournamentColumn,
+}: BreakdownTableProps) {
+	const valueColumns = valueColumnsFor({
+		normalized,
+		showCashColumn,
+		showTournamentColumn,
+	});
+	const columnCount = valueColumns.length + 3;
+
 	return (
 		<div className="overflow-x-auto">
 			<Table>
@@ -19,7 +75,11 @@ export function BreakdownTable({ rows }: { rows: BreakdownViewRow[] }) {
 					<TableRow>
 						<TableHead>Group</TableHead>
 						<TableHead className="text-right">Sessions</TableHead>
-						<TableHead className="text-right">Net</TableHead>
+						{valueColumns.map((column) => (
+							<TableHead className="text-right" key={column.header}>
+								{column.header}
+							</TableHead>
+						))}
 						<TableHead className="text-right">Win rate</TableHead>
 						<TableHead className="text-right">Play time</TableHead>
 					</TableRow>
@@ -29,7 +89,7 @@ export function BreakdownTable({ rows }: { rows: BreakdownViewRow[] }) {
 						<TableRow>
 							<TableCell
 								className="text-center text-muted-foreground"
-								colSpan={COLUMN_COUNT}
+								colSpan={columnCount}
 							>
 								No data
 							</TableCell>
@@ -41,14 +101,17 @@ export function BreakdownTable({ rows }: { rows: BreakdownViewRow[] }) {
 								<TableCell className="text-right tabular-nums">
 									{row.sessions}
 								</TableCell>
-								<TableCell
-									className={cn(
-										"text-right font-mono tabular-nums",
-										row.netColor
-									)}
-								>
-									{row.netText}
-								</TableCell>
+								{valueColumns.map((column) => (
+									<TableCell
+										className={cn(
+											"text-right font-mono tabular-nums",
+											column.color(row)
+										)}
+										key={column.header}
+									>
+										{column.text(row)}
+									</TableCell>
+								))}
 								<TableCell className="text-right tabular-nums">
 									{row.winRateText}
 								</TableCell>

@@ -15,8 +15,7 @@ export interface UseStatisticsPageResult {
  * section a single {@link StatsSectionContext}. Sections run their own queries.
  */
 export function useStatisticsPage(): UseStatisticsPageResult {
-	const { filters, statsInput, normalized, normalizationUnit, isScopeValid } =
-		useStatsFilters();
+	const { filters, statsInput, normalized, isScopeValid } = useStatsFilters();
 	const { currencies } = useStatsReferenceData();
 
 	const currencyUnit = normalized
@@ -28,7 +27,6 @@ export function useStatisticsPage(): UseStatisticsPageResult {
 			statsInput,
 			enabled: isScopeValid,
 			normalized,
-			normalizationUnit,
 			currencyUnit,
 			type: filters.type,
 		},

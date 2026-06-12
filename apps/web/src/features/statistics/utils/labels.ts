@@ -15,8 +15,7 @@ export const STATS_PERIOD_LABEL: Record<StatsPeriod, string> = {
 
 export const STATS_NORMALIZATION_LABEL: Record<StatsNormalization, string> = {
 	off: "Currency",
-	bb: "BB",
-	bi: "BI",
+	normalized: "BB / BI",
 };
 
 export const STATS_TYPE_LABEL: Record<StatsType, string> = {
