@@ -1,20 +1,12 @@
+import { IconDotsVertical } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import {
+	ActionsDrawer,
+	type ActionsDrawerItem,
+} from "@/features/live-sessions/components/actions-drawer";
 import { AddPlayerSheet } from "@/features/live-sessions/components/add-player-sheet";
 import { PlayerDetailSheet } from "@/features/live-sessions/components/player-detail-sheet";
-import {
-	PokerTable,
-	type TableGameInfo,
-	type TablePlayer,
-} from "@/features/live-sessions/components/poker-table";
 import { SeatFromScreenshotSheet } from "@/features/live-sessions/components/seat-from-screenshot-sheet";
-import type { PlayerFormValues } from "@/features/players/components/player-form";
-import type {
-	PlayerDetailData,
-	PlayerTagWithColor,
-} from "@/features/players/hooks/use-player-detail";
-import { usePlayerDetail } from "@/features/players/hooks/use-player-detail";
-import { usePokerTableInteraction } from "@/features/players/hooks/use-poker-table-interaction";
-import { useTablePlayers } from "@/features/players/hooks/use-table-players";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -25,163 +17,25 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/shared/components/ui/dialog";
+import { GameSettingsSheet } from "./game-settings-sheet";
+import { HistorySection } from "./history-section";
+import { PlayerList } from "./player-list";
 import { useActiveSessionScene } from "./use-active-session-scene";
-
-type SessionParam =
-	| { liveCashGameSessionId: string; liveTournamentSessionId?: never }
-	| { liveCashGameSessionId?: never; liveTournamentSessionId: string };
+import type { ActiveSessionSceneState } from "./use-active-session-scene-state";
 
 interface ActiveSessionSceneProps {
 	discardDescription?: ReactNode;
-	gameInfo?: TableGameInfo;
+	/** Session-type-specific entries appended to the "+" event menu. */
+	eventMenuExtraItems: ActionsDrawerItem[];
 	isDiscardPending: boolean;
 	memo?: string | null;
 	onDiscard: () => void;
+	onEndSession: () => void;
+	onPause: () => void;
 	state: ActiveSessionSceneState;
 	summary: ReactNode;
-	tableSize?: number | null;
 	title: string;
 	topSlot?: ReactNode;
-}
-
-interface UseActiveSessionSceneStateOptions {
-	heroSeatPosition: number | null;
-	sessionId: string;
-	sessionType: "cash_game" | "tournament";
-}
-
-export interface ActiveSessionSceneState {
-	addPlayerSheetOpen: boolean;
-	availableTags: PlayerTagWithColor[];
-	createTag: (name: string) => Promise<PlayerTagWithColor>;
-	excludePlayerIds: string[];
-	heroSeatPosition: number | null;
-	isSavingPlayer: boolean;
-	onAddExisting: (playerId: string, playerName: string) => void;
-	onAddNew: (values: {
-		memo?: string | null;
-		name: string;
-		tagIds?: string[];
-	}) => void;
-	onAddTemporary: () => void;
-	onEmptySeatTap: (seatPosition: number) => void;
-	onHeroSeatTap: () => void;
-	onPlayerRemove: () => void;
-	onPlayerSave: (values: PlayerFormValues) => void;
-	onPlayerSeatTap: (player: TablePlayer, seatPosition: number) => void;
-	playerSheetOpen: boolean;
-	players: TablePlayer[];
-	selectedPlayer: (PlayerDetailData & { isTemporary: boolean }) | null;
-	sessionParam: SessionParam;
-	setAddPlayerSheetOpen: (open: boolean) => void;
-	setPlayerSheetOpen: (open: boolean) => void;
-	waitingForHero: boolean;
-}
-
-export function useActiveSessionSceneState({
-	heroSeatPosition,
-	sessionId,
-	sessionType,
-}: UseActiveSessionSceneStateOptions): ActiveSessionSceneState {
-	const sessionParam: SessionParam =
-		sessionType === "cash_game"
-			? { liveCashGameSessionId: sessionId }
-			: { liveTournamentSessionId: sessionId };
-	const tablePlayers = useTablePlayers(
-		sessionType === "cash_game"
-			? { liveCashGameSessionId: sessionId }
-			: { liveTournamentSessionId: sessionId }
-	);
-	const tableInteraction = usePokerTableInteraction(
-		sessionType,
-		sessionId,
-		heroSeatPosition
-	);
-	const playerDetail = usePlayerDetail(
-		tableInteraction.selectedPlayer?.playerId ?? null
-	);
-
-	return {
-		addPlayerSheetOpen: tableInteraction.addPlayerSeat !== null,
-		availableTags: playerDetail.availableTags,
-		createTag: playerDetail.createTag,
-		excludePlayerIds: tablePlayers.excludePlayerIds,
-		heroSeatPosition: tableInteraction.heroSeatPosition,
-		isSavingPlayer: playerDetail.isSaving,
-		onAddExisting: (playerId, playerName) => {
-			const seatPosition = tableInteraction.addPlayerSeat;
-			if (seatPosition !== null) {
-				tablePlayers.handleAddExisting(playerId, playerName, seatPosition);
-			}
-			tableInteraction.setAddPlayerSeat(null);
-		},
-		onAddNew: ({ name, memo, tagIds }) => {
-			const seatPosition = tableInteraction.addPlayerSeat;
-			if (seatPosition !== null) {
-				tablePlayers.handleAddNew(
-					name,
-					seatPosition,
-					memo ?? undefined,
-					tagIds
-				);
-			}
-			tableInteraction.setAddPlayerSeat(null);
-		},
-		onAddTemporary: () => {
-			const seatPosition = tableInteraction.addPlayerSeat;
-			if (seatPosition !== null) {
-				tablePlayers.handleAddTemporary(seatPosition);
-			}
-			tableInteraction.setAddPlayerSeat(null);
-		},
-		onEmptySeatTap: tableInteraction.handleEmptySeatTap,
-		onHeroSeatTap: tableInteraction.handleHeroSeatTap,
-		onPlayerRemove: () => {
-			if (tableInteraction.selectedPlayer) {
-				tablePlayers.handleRemovePlayer(
-					tableInteraction.selectedPlayer.playerId
-				);
-				tableInteraction.setSelectedPlayer(null);
-			}
-		},
-		onPlayerSave: (values) => {
-			if (tableInteraction.selectedPlayer) {
-				playerDetail.updatePlayer({
-					id: tableInteraction.selectedPlayer.playerId,
-					memo: values.memo,
-					name: values.name,
-					tagIds: values.tagIds,
-				});
-			}
-		},
-		onPlayerSeatTap: tableInteraction.handlePlayerSeatTap,
-		players: tablePlayers.players as TablePlayer[],
-		playerSheetOpen: tableInteraction.selectedPlayer !== null,
-		selectedPlayer: playerDetail.player
-			? {
-					id: playerDetail.player.id,
-					isTemporary:
-						tablePlayers.players.find(
-							(p) => p.player.id === tableInteraction.selectedPlayer?.playerId
-						)?.player.isTemporary ?? false,
-					memo: playerDetail.player.memo,
-					name: playerDetail.player.name,
-					tags: playerDetail.player.tags ?? [],
-				}
-			: null,
-		sessionParam,
-		setAddPlayerSheetOpen: (open) => {
-			if (!open) {
-				tableInteraction.setAddPlayerSeat(null);
-			}
-		},
-		setPlayerSheetOpen: (open) => {
-			if (!open) {
-				tableInteraction.setSelectedPlayer(null);
-			}
-		},
-		waitingForHero: tableInteraction.waitingForHero,
-	};
 }
 
 function DiscardDialog({
@@ -229,38 +83,45 @@ function DiscardDialog({
 	);
 }
 
+/**
+ * Single-page active-session scene (SA2-59): a display-only status summary on
+ * top, the lightweight seated-player list, and the collapsed event history.
+ * All event recording is consolidated into the "+" menu opened from the
+ * bottom-nav center button; session lifecycle actions live in the header
+ * overflow menu.
+ */
 export function ActiveSessionScene({
 	discardDescription = "This will permanently delete this session and all its events.",
-	gameInfo,
+	eventMenuExtraItems,
 	isDiscardPending,
 	memo,
 	onDiscard,
+	onEndSession,
+	onPause,
 	state,
 	summary,
-	tableSize,
 	title,
 	topSlot,
 }: ActiveSessionSceneProps) {
-	const {
-		isDiscardOpen,
-		setIsDiscardOpen,
-		isScanSheetOpen,
-		setIsScanSheetOpen,
-		occupiedSeatPositions,
-	} = useActiveSessionScene({ players: state.players });
+	const scene = useActiveSessionScene({
+		eventMenuExtraItems,
+		onEndSession,
+		onPause,
+		state,
+	});
 
 	return (
 		<>
 			<PageHeader
 				actions={
 					<Button
-						className="text-destructive hover:text-destructive"
-						onClick={() => setIsDiscardOpen(true)}
-						size="sm"
+						aria-label="Session actions"
+						onClick={scene.onOpenSessionMenu}
+						size="icon-sm"
 						type="button"
 						variant="ghost"
 					>
-						Discard
+						<IconDotsVertical size={20} />
 					</Button>
 				}
 				heading={title}
@@ -274,19 +135,46 @@ export function ActiveSessionScene({
 				<p className="mt-1 text-muted-foreground text-xs">{memo}</p>
 			) : null}
 
-			<div className="mt-3 min-h-0 flex-1">
-				<PokerTable
-					gameInfo={gameInfo}
-					heroSeatPosition={state.heroSeatPosition}
-					onEmptySeatTap={state.onEmptySeatTap}
-					onHeroSeatTap={state.onHeroSeatTap}
-					onPlayerSeatTap={state.onPlayerSeatTap}
-					onScanPlayers={() => setIsScanSheetOpen(true)}
+			<div className="mt-4">
+				<PlayerList
+					onAddPlayer={state.onOpenAddPlayer}
+					onPlayerTap={state.onPlayerTap}
+					onScanPlayers={() => scene.setIsScanSheetOpen(true)}
 					players={state.players}
-					tableSize={tableSize}
-					waitingForHero={state.waitingForHero}
 				/>
 			</div>
+
+			<div className="mt-4">
+				<HistorySection
+					sessionId={scene.sessionId}
+					sessionType={scene.sessionType}
+				/>
+			</div>
+
+			<ActionsDrawer
+				description="Record a stack, player or session event."
+				items={scene.eventMenuItems}
+				onOpenChange={scene.setEventMenuOpen}
+				open={scene.isEventMenuOpen}
+				title="Record event"
+			/>
+
+			<ActionsDrawer
+				description="Pause, end, configure or discard this session."
+				items={scene.sessionMenuItems}
+				onOpenChange={scene.setIsSessionMenuOpen}
+				open={scene.isSessionMenuOpen}
+				title="Session actions"
+			/>
+
+			<ActionsDrawer
+				description="Pick a player to view or edit their notes and tags."
+				emptyMessage="No players seated yet."
+				items={scene.playerPickerItems}
+				onOpenChange={scene.setIsPlayerPickerOpen}
+				open={scene.isPlayerPickerOpen}
+				title="Players"
+			/>
 
 			<AddPlayerSheet
 				availableTags={state.availableTags}
@@ -313,17 +201,22 @@ export function ActiveSessionScene({
 
 			<SeatFromScreenshotSheet
 				heroSeatPosition={state.heroSeatPosition}
-				occupiedSeatPositions={occupiedSeatPositions}
-				onOpenChange={setIsScanSheetOpen}
-				open={isScanSheetOpen}
+				occupiedSeatPositions={state.occupiedSeatPositions}
+				onOpenChange={scene.setIsScanSheetOpen}
+				open={scene.isScanSheetOpen}
 				sessionParam={state.sessionParam}
+			/>
+
+			<GameSettingsSheet
+				onOpenChange={scene.setIsGameSettingsOpen}
+				open={scene.isGameSettingsOpen}
 			/>
 
 			<DiscardDialog
 				description={discardDescription}
-				isOpen={isDiscardOpen}
+				isOpen={scene.isDiscardOpen}
 				isPending={isDiscardPending}
-				onClose={() => setIsDiscardOpen(false)}
+				onClose={() => scene.setIsDiscardOpen(false)}
 				onConfirm={onDiscard}
 			/>
 		</>

@@ -60,7 +60,7 @@ export function useTablePlayers({
 		mutationFn: (params: {
 			playerId: string;
 			playerName: string;
-			seatPosition: number;
+			seatPosition?: number;
 		}) =>
 			trpcClient.sessionTablePlayer.add.mutate({
 				...sessionParam,
@@ -88,7 +88,7 @@ export function useTablePlayers({
 							isActive: true,
 							joinedAt: new Date().toISOString(),
 							leftAt: null,
-							seatPosition: params.seatPosition,
+							seatPosition: params.seatPosition ?? null,
 							stints: [],
 						},
 					],
@@ -109,7 +109,7 @@ export function useTablePlayers({
 			playerMemo?: string;
 			playerName: string;
 			playerTagIds?: string[];
-			seatPosition: number;
+			seatPosition?: number;
 		}) =>
 			trpcClient.sessionTablePlayer.addNew.mutate({
 				...sessionParam,
@@ -139,7 +139,7 @@ export function useTablePlayers({
 							isActive: true,
 							joinedAt: new Date().toISOString(),
 							leftAt: null,
-							seatPosition: params.seatPosition,
+							seatPosition: params.seatPosition ?? null,
 							stints: [],
 						},
 					],
@@ -159,7 +159,7 @@ export function useTablePlayers({
 	});
 
 	const addTemporaryMutation = useMutation({
-		mutationFn: (params: { seatPosition: number }) =>
+		mutationFn: (params: { seatPosition?: number }) =>
 			trpcClient.sessionTablePlayer.addTemporary.mutate({
 				...sessionParam,
 				seatPosition: params.seatPosition,
@@ -185,7 +185,7 @@ export function useTablePlayers({
 							isActive: true,
 							joinedAt: new Date().toISOString(),
 							leftAt: null,
-							seatPosition: params.seatPosition,
+							seatPosition: params.seatPosition ?? null,
 							stints: [],
 						},
 					],
@@ -286,13 +286,13 @@ export function useTablePlayers({
 		handleAddExisting: (
 			playerId: string,
 			playerName: string,
-			seatPosition: number
+			seatPosition?: number
 		) => {
 			addMutation.mutate({ playerId, playerName, seatPosition });
 		},
 		handleAddNew: (
 			name: string,
-			seatPosition: number,
+			seatPosition?: number,
 			memo?: string,
 			tagIds?: string[]
 		) => {
@@ -303,7 +303,7 @@ export function useTablePlayers({
 				seatPosition,
 			});
 		},
-		handleAddTemporary: (seatPosition: number) => {
+		handleAddTemporary: (seatPosition?: number) => {
 			addTemporaryMutation.mutate({ seatPosition });
 		},
 		handleRemovePlayer: (playerId: string) => {

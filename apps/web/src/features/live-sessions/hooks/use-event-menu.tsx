@@ -15,11 +15,7 @@ const EventMenuContext = createContext<EventMenuContextValue | null>(null);
  * context so the bottom-nav center button can open the menu rendered by the
  * active-session page.
  */
-export function EventMenuProvider({
-	children,
-}: {
-	children: React.ReactNode;
-}) {
+export function EventMenuProvider({ children }: { children: React.ReactNode }) {
 	const [isOpen, setIsOpen] = useState(false);
 
 	return (
