@@ -53,13 +53,17 @@ vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
 	useStackSheet: () => mocks.stackSheet,
 }));
 
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
+// Stand-in for the v2 FormSheet: renders the title, the body, and the
+// toolbar Save button that submits the inner form via the `form` attribute.
+vi.mock("@/shared/components/form-sheet", () => ({
+	FormSheet: ({
 		children,
+		formId,
 		open,
 		title,
 	}: {
 		children: ReactNode;
+		formId: string;
 		open: boolean;
 		title: string;
 	}) =>
@@ -67,6 +71,9 @@ vi.mock("@/shared/components/ui/responsive-dialog", () => ({
 			<div>
 				<h2>{title}</h2>
 				{children}
+				<button aria-label={`Save ${title}`} form={formId} type="submit">
+					Save
+				</button>
 			</div>
 		) : null,
 }));

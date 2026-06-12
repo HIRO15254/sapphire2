@@ -1,18 +1,21 @@
-import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { useCashGameCompleteForm } from "./use-cash-game-complete-form";
 
 interface CashGameCompleteFormProps {
 	defaultFinalStack?: number;
-	isLoading: boolean;
+	/**
+	 * Stable id assigned to the `<form>` element so the surrounding FormSheet
+	 * toolbar can submit it via the HTML `form` attribute. The form renders no
+	 * submit button of its own.
+	 */
+	formId: string;
 	onSubmit: (values: { finalStack: number }) => void;
 }
 
 export function CashGameCompleteForm({
 	defaultFinalStack,
-	isLoading,
+	formId,
 	onSubmit,
 }: CashGameCompleteFormProps) {
 	const { form } = useCashGameCompleteForm({ defaultFinalStack, onSubmit });
@@ -20,6 +23,7 @@ export function CashGameCompleteForm({
 	return (
 		<form
 			className="flex flex-col gap-4"
+			id={formId}
 			onSubmit={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -45,21 +49,6 @@ export function CashGameCompleteForm({
 					</Field>
 				)}
 			</form.Field>
-
-			<DialogActionRow>
-				<form.Subscribe
-					selector={(state) => [state.canSubmit, state.isSubmitting]}
-				>
-					{([canSubmit, isSubmitting]) => (
-						<Button
-							disabled={isLoading || !canSubmit || isSubmitting}
-							type="submit"
-						>
-							{isLoading ? "Completing..." : "Complete Session"}
-						</Button>
-					)}
-				</form.Subscribe>
-			</DialogActionRow>
 		</form>
 	);
 }

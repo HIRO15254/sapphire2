@@ -46,10 +46,10 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
-		store: {
+		room: {
 			list: {
 				queryOptions: () => ({
-					queryKey: buildKey("store", "list", undefined),
+					queryKey: buildKey("room", "list", undefined),
 					queryFn: () => Promise.resolve([]),
 				}),
 			},
@@ -63,17 +63,17 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 		ringGame: {
-			listByStore: {
+			listByRoom: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("ringGame", "listByStore", input),
+					queryKey: buildKey("ringGame", "listByRoom", input),
 					queryFn: () => Promise.resolve([]),
 				}),
 			},
 		},
 		tournament: {
-			listByStore: {
+			listByRoom: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("tournament", "listByStore", input),
+					queryKey: buildKey("tournament", "listByRoom", input),
 					queryFn: () => Promise.resolve([]),
 				}),
 			},
@@ -121,25 +121,25 @@ describe("useCreateSession", () => {
 	});
 
 	describe("initial state", () => {
-		it("exposes empty arrays and undefined selectedStoreId by default", () => {
+		it("exposes empty arrays and undefined selectedRoomId by default", () => {
 			const qc = createClient();
 			const onClose = vi.fn();
 			const { result } = renderHook(() => useCreateSession({ onClose }), {
 				wrapper: makeWrapper(qc),
 			});
-			expect(result.current.stores).toEqual([]);
+			expect(result.current.rooms).toEqual([]);
 			expect(result.current.currencies).toEqual([]);
 			expect(result.current.ringGames).toEqual([]);
 			expect(result.current.tournaments).toEqual([]);
-			expect(result.current.selectedStoreId).toBeUndefined();
+			expect(result.current.selectedRoomId).toBeUndefined();
 			expect(result.current.isLoading).toBe(false);
 		});
 
-		it("projects stores to {id,name} and currencies to {id,name}", async () => {
+		it("projects rooms to {id,name} and currencies to {id,name}", async () => {
 			const qc = createClient();
 			qc.setQueryData(
-				["store", "list"],
-				[{ id: "s1", name: "Store 1", extra: "ignored" }]
+				["room", "list"],
+				[{ id: "s1", name: "Room 1", extra: "ignored" }]
 			);
 			qc.setQueryData(
 				["currency", "list"],
@@ -150,17 +150,17 @@ describe("useCreateSession", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			await waitFor(() => {
-				expect(result.current.stores).toEqual([{ id: "s1", name: "Store 1" }]);
+				expect(result.current.rooms).toEqual([{ id: "s1", name: "Room 1" }]);
 				expect(result.current.currencies).toEqual([{ id: "c1", name: "JPY" }]);
 			});
 		});
 	});
 
-	describe("setSelectedStoreId", () => {
-		it("enables ringGames + tournaments queries when a store is selected, projecting rows", async () => {
+	describe("setSelectedRoomId", () => {
+		it("enables ringGames + tournaments queries when a room is selected, projecting rows", async () => {
 			const qc = createClient();
 			qc.setQueryData(
-				["ringGame", "listByStore", { storeId: "s1" }],
+				["ringGame", "listByRoom", { roomId: "s1" }],
 				[
 					{
 						id: "rg1",
@@ -173,11 +173,7 @@ describe("useCreateSession", () => {
 				]
 			);
 			qc.setQueryData(
-				[
-					"tournament",
-					"listByStore",
-					{ storeId: "s1", includeArchived: false },
-				],
+				["tournament", "listByRoom", { roomId: "s1", includeArchived: false }],
 				[
 					{
 						id: "t1",
@@ -196,7 +192,7 @@ describe("useCreateSession", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			act(() => {
-				result.current.setSelectedStoreId("s1");
+				result.current.setSelectedRoomId("s1");
 			});
 			await waitFor(() => {
 				expect(result.current.ringGames).toEqual([
@@ -236,7 +232,7 @@ describe("useCreateSession", () => {
 					initialBuyIn: 5000,
 					memo: "note",
 					ringGameId: "rg1",
-					storeId: "s1",
+					roomId: "s1",
 				});
 				await Promise.resolve();
 			});
@@ -246,7 +242,7 @@ describe("useCreateSession", () => {
 					initialBuyIn: 5000,
 					memo: "note",
 					ringGameId: "rg1",
-					storeId: "s1",
+					roomId: "s1",
 				});
 			});
 			await waitFor(() => {
@@ -291,7 +287,7 @@ describe("useCreateSession", () => {
 					buyIn: 10_000,
 					startingStack: 20_000,
 					currencyId: "c1",
-					storeId: "s1",
+					roomId: "s1",
 					tournamentId: "tourn-1",
 				});
 				await Promise.resolve();
@@ -300,7 +296,7 @@ describe("useCreateSession", () => {
 				expect(trpcMocks.createTournament).toHaveBeenCalledWith({
 					buyIn: 10_000,
 					currencyId: "c1",
-					storeId: "s1",
+					roomId: "s1",
 					tournamentId: "tourn-1",
 				});
 			});

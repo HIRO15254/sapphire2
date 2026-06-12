@@ -3,10 +3,31 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	cancelTargets,
 	invalidateTargets,
+	prependInfiniteQueryItem,
 	restoreSnapshots,
 	snapshotQueries,
 	snapshotQuery,
+	updateInfiniteQueryItems,
 } from "../optimistic-update";
+
+interface InfiniteItem {
+	amount: number;
+	id: string;
+}
+interface InfiniteCache {
+	pageParams: unknown[];
+	pages: { items: InfiniteItem[]; nextCursor?: string }[];
+}
+
+/** Pull the updater callback handed to `setQueryData` out of the spy. */
+function lastSetQueryDataUpdater(
+	queryClient: QueryClient
+): (old: InfiniteCache | undefined) => InfiniteCache | undefined {
+	const calls = vi.mocked(queryClient.setQueryData).mock.calls;
+	return calls.at(-1)?.[1] as (
+		old: InfiniteCache | undefined
+	) => InfiniteCache | undefined;
+}
 
 function createQueryClientMock() {
 	return {
@@ -191,5 +212,194 @@ describe("optimistic-update helpers", () => {
 
 		expect(queryClient.cancelQueries).not.toHaveBeenCalled();
 		expect(queryClient.invalidateQueries).not.toHaveBeenCalled();
+	});
+
+	describe("updateInfiniteQueryItems", () => {
+		it("maps items across every page and preserves each page's nextCursor", () => {
+			const queryClient = createQueryClientMock();
+
+			updateInfiniteQueryItems<InfiniteItem>(queryClient, ["tx"], (items) =>
+				items.map((t) => (t.id === "tx3" ? { ...t, amount: 999 } : t))
+			);
+
+			expect(queryClient.setQueryData).toHaveBeenCalledTimes(1);
+			expect(vi.mocked(queryClient.setQueryData).mock.calls[0]?.[0]).toEqual([
+				"tx",
+			]);
+			const updater = lastSetQueryDataUpdater(queryClient);
+			const old: InfiniteCache = {
+				pageParams: [undefined, "tx2"],
+				pages: [
+					{
+						items: [
+							{ id: "tx1", amount: 1 },
+							{ id: "tx2", amount: 2 },
+						],
+						nextCursor: "tx2",
+					},
+					{ items: [{ id: "tx3", amount: 3 }], nextCursor: undefined },
+				],
+			};
+
+			expect(updater(old)).toEqual({
+				pageParams: [undefined, "tx2"],
+				pages: [
+					{
+						items: [
+							{ id: "tx1", amount: 1 },
+							{ id: "tx2", amount: 2 },
+						],
+						nextCursor: "tx2",
+					},
+					{ items: [{ id: "tx3", amount: 999 }], nextCursor: undefined },
+				],
+			});
+		});
+
+		it("filters items across every page (delete) while keeping page structure", () => {
+			const queryClient = createQueryClientMock();
+
+			updateInfiniteQueryItems<InfiniteItem>(queryClient, ["tx"], (items) =>
+				items.filter((t) => t.id !== "tx2")
+			);
+
+			const updater = lastSetQueryDataUpdater(queryClient);
+			const old: InfiniteCache = {
+				pageParams: [undefined, "tx2"],
+				pages: [
+					{
+						items: [
+							{ id: "tx1", amount: 1 },
+							{ id: "tx2", amount: 2 },
+						],
+						nextCursor: "tx2",
+					},
+					{ items: [{ id: "tx3", amount: 3 }], nextCursor: undefined },
+				],
+			};
+
+			expect(updater(old)).toEqual({
+				pageParams: [undefined, "tx2"],
+				pages: [
+					{ items: [{ id: "tx1", amount: 1 }], nextCursor: "tx2" },
+					{ items: [{ id: "tx3", amount: 3 }], nextCursor: undefined },
+				],
+			});
+		});
+
+		it("returns undefined (no-op) when the cache entry is empty", () => {
+			const queryClient = createQueryClientMock();
+
+			updateInfiniteQueryItems<InfiniteItem>(queryClient, ["tx"], (items) =>
+				items.map((t) => ({ ...t, amount: 0 }))
+			);
+
+			const updater = lastSetQueryDataUpdater(queryClient);
+			expect(updater(undefined)).toBeUndefined();
+		});
+
+		it("handles an empty pages array without calling the updater", () => {
+			const queryClient = createQueryClientMock();
+			const updateItems = vi.fn((items: InfiniteItem[]) => items);
+
+			updateInfiniteQueryItems<InfiniteItem>(queryClient, ["tx"], updateItems);
+
+			const updater = lastSetQueryDataUpdater(queryClient);
+			expect(updater({ pageParams: [], pages: [] })).toEqual({
+				pageParams: [],
+				pages: [],
+			});
+			expect(updateItems).not.toHaveBeenCalled();
+		});
+
+		it("can empty a page entirely (delete the only row on a page)", () => {
+			const queryClient = createQueryClientMock();
+
+			updateInfiniteQueryItems<InfiniteItem>(queryClient, ["tx"], (items) =>
+				items.filter((t) => t.id !== "tx2")
+			);
+
+			const updater = lastSetQueryDataUpdater(queryClient);
+			const old: InfiniteCache = {
+				pageParams: [undefined, "tx1"],
+				pages: [
+					{ items: [{ id: "tx1", amount: 1 }], nextCursor: "tx1" },
+					{ items: [{ id: "tx2", amount: 2 }], nextCursor: undefined },
+				],
+			};
+
+			expect(updater(old)).toEqual({
+				pageParams: [undefined, "tx1"],
+				pages: [
+					{ items: [{ id: "tx1", amount: 1 }], nextCursor: "tx1" },
+					{ items: [], nextCursor: undefined },
+				],
+			});
+		});
+	});
+
+	describe("prependInfiniteQueryItem", () => {
+		it("prepends the item to the first page only and preserves the envelope", () => {
+			const queryClient = createQueryClientMock();
+
+			prependInfiniteQueryItem<InfiniteItem>(queryClient, ["tx"], {
+				id: "new",
+				amount: 7,
+			});
+
+			expect(queryClient.setQueryData).toHaveBeenCalledTimes(1);
+			expect(vi.mocked(queryClient.setQueryData).mock.calls[0]?.[0]).toEqual([
+				"tx",
+			]);
+			const updater = lastSetQueryDataUpdater(queryClient);
+			const old: InfiniteCache = {
+				pageParams: [undefined, "tx2"],
+				pages: [
+					{ items: [{ id: "tx1", amount: 1 }], nextCursor: "tx1" },
+					{ items: [{ id: "tx2", amount: 2 }], nextCursor: undefined },
+				],
+			};
+
+			expect(updater(old)).toEqual({
+				pageParams: [undefined, "tx2"],
+				pages: [
+					{
+						items: [
+							{ id: "new", amount: 7 },
+							{ id: "tx1", amount: 1 },
+						],
+						nextCursor: "tx1",
+					},
+					{ items: [{ id: "tx2", amount: 2 }], nextCursor: undefined },
+				],
+			});
+		});
+
+		it("returns undefined (no-op) when the cache entry is empty", () => {
+			const queryClient = createQueryClientMock();
+
+			prependInfiniteQueryItem<InfiniteItem>(queryClient, ["tx"], {
+				id: "new",
+				amount: 7,
+			});
+
+			const updater = lastSetQueryDataUpdater(queryClient);
+			expect(updater(undefined)).toBeUndefined();
+		});
+
+		it("leaves an empty pages array untouched rather than fabricating a page", () => {
+			const queryClient = createQueryClientMock();
+
+			prependInfiniteQueryItem<InfiniteItem>(queryClient, ["tx"], {
+				id: "new",
+				amount: 7,
+			});
+
+			const updater = lastSetQueryDataUpdater(queryClient);
+			expect(updater({ pageParams: [], pages: [] })).toEqual({
+				pageParams: [],
+				pages: [],
+			});
+		});
 	});
 });

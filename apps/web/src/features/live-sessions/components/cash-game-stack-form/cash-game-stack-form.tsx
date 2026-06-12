@@ -5,13 +5,19 @@ import {
 	StackNumberField,
 	StackPrimaryRow,
 } from "@/features/live-sessions/components/stack-ui";
+import { FormSheet } from "@/shared/components/form-sheet";
 import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { useCashGameStackForm } from "./use-cash-game-stack-form";
 
+const MEMO_FORM_ID = "cash-game-memo-form";
+
 interface CashGameStackFormProps {
-	isLoading: boolean;
+	/**
+	 * Stable id assigned to the stack `<form>` element so the surrounding
+	 * FormSheet toolbar can submit it via the HTML `form` attribute. The form
+	 * renders no submit button of its own.
+	 */
+	formId: string;
 	onAllIn: (values: {
 		potSize: number;
 		trials: number;
@@ -27,7 +33,7 @@ interface CashGameStackFormProps {
 }
 
 export function CashGameStackForm({
-	isLoading,
+	formId,
 	onAllIn,
 	onChipAdd,
 	onChipRemove,
@@ -80,6 +86,7 @@ export function CashGameStackForm({
 	return (
 		<div className="flex flex-col gap-4">
 			<form
+				id={formId}
 				onSubmit={(e) => {
 					e.preventDefault();
 					e.stopPropagation();
@@ -104,9 +111,6 @@ export function CashGameStackForm({
 							/>
 						)}
 					</stackForm.Field>
-					<Button disabled={isLoading} size="sm" type="submit">
-						{isLoading ? "..." : "Update"}
-					</Button>
 				</StackPrimaryRow>
 			</form>
 
@@ -178,13 +182,15 @@ export function CashGameStackForm({
 				open={removeBottomSheetOpen}
 			/>
 
-			<ResponsiveDialog
+			<FormSheet
+				formId={MEMO_FORM_ID}
 				onOpenChange={setMemoBottomSheetOpen}
 				open={memoBottomSheetOpen}
 				title="Add Memo"
 			>
 				<form
 					className="flex flex-col gap-4"
+					id={MEMO_FORM_ID}
 					onSubmit={(e) => {
 						e.preventDefault();
 						e.stopPropagation();
@@ -199,18 +205,8 @@ export function CashGameStackForm({
 							/>
 						)}
 					</memoForm.Field>
-					<DialogActionRow>
-						<Button
-							onClick={() => setMemoBottomSheetOpen(false)}
-							type="button"
-							variant="outline"
-						>
-							Cancel
-						</Button>
-						<Button type="submit">Add Memo</Button>
-					</DialogActionRow>
 				</form>
-			</ResponsiveDialog>
+			</FormSheet>
 		</div>
 	);
 }

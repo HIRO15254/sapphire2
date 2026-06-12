@@ -10,6 +10,9 @@ interface Tag {
 const vipTag: Tag = { id: "tag-vip", name: "VIP" };
 const banTag: Tag = { id: "tag-ban", name: "Banned" };
 
+const CREATE_FORM_ID_PATTERN = /tag-create$/;
+const EDIT_FORM_ID_PATTERN = /tag-edit$/;
+
 describe("useTagManager", () => {
 	it("starts with all dialogs closed", () => {
 		const { result } = renderHook(() => useTagManager<Tag>());
@@ -66,5 +69,36 @@ describe("useTagManager", () => {
 		act(() => result.current.onStartEdit(vipTag));
 		expect(result.current.isCreateOpen).toBe(true);
 		expect(result.current.editingTag).toBe(vipTag);
+	});
+
+	describe("form ids", () => {
+		it("returns non-empty create and edit form ids that differ from each other", () => {
+			const { result } = renderHook(() => useTagManager<Tag>());
+			expect(result.current.createFormId).toMatch(CREATE_FORM_ID_PATTERN);
+			expect(result.current.editFormId).toMatch(EDIT_FORM_ID_PATTERN);
+			expect(result.current.createFormId).not.toBe(result.current.editFormId);
+		});
+
+		it("two simultaneously-rendered instances produce distinct form ids", () => {
+			const { result } = renderHook(() => ({
+				first: useTagManager<Tag>(),
+				second: useTagManager<Tag>(),
+			}));
+			expect(result.current.first.createFormId).not.toBe(
+				result.current.second.createFormId
+			);
+			expect(result.current.first.editFormId).not.toBe(
+				result.current.second.editFormId
+			);
+		});
+
+		it("keeps form ids stable across re-renders", () => {
+			const { result, rerender } = renderHook(() => useTagManager<Tag>());
+			const createFormId = result.current.createFormId;
+			const editFormId = result.current.editFormId;
+			rerender();
+			expect(result.current.createFormId).toBe(createFormId);
+			expect(result.current.editFormId).toBe(editFormId);
+		});
 	});
 });

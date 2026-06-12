@@ -10,10 +10,13 @@ import {
 } from "recharts";
 import { formatCompactNumber } from "@/utils/format-number";
 import type { PnlGraphXAxis } from "./aggregate-pnl-points";
+import { alignedDualDomains, type ChartPoint } from "./aligned-domains";
+import { CustomLegend, type LegendItem } from "./custom-legend";
+import { CustomTooltip, type TooltipPayloadItem } from "./custom-tooltip";
 
-const COLOR_CASH = "oklch(0.62 0.21 250)";
-const COLOR_TOURNAMENT = "oklch(0.75 0.16 70)";
-const COLOR_PRIMARY = "var(--color-primary)";
+const COLOR_CASH = "var(--chart-1)";
+const COLOR_TOURNAMENT = "var(--chart-5)";
+const COLOR_PRIMARY = "var(--primary)";
 
 function formatXTick(value: number, xAxis: PnlGraphXAxis): string {
 	if (xAxis === "date") {
@@ -28,150 +31,11 @@ function formatXTick(value: number, xAxis: PnlGraphXAxis): string {
 	return formatCompactNumber(value);
 }
 
-function formatTooltipLabel(value: number, xAxis: PnlGraphXAxis): string {
-	if (xAxis === "date") {
-		return new Date(value).toISOString().slice(0, 10);
-	}
-	if (xAxis === "playTime") {
-		return `${value.toFixed(1)} h`;
-	}
-	return `Session ${value}`;
-}
-
-interface ChartPoint {
-	cashCumulative?: number;
-	cumulative?: number;
-	evCashCumulative?: number;
-	tournamentCumulative?: number;
-	x: number;
-}
-
-interface TooltipPayloadItem {
-	color?: string;
-	dataKey?: string | number;
-	name?: string | number;
-	value?: number | string | (number | string)[];
-}
-
-interface CustomTooltipProps {
-	active?: boolean;
-	label?: number | string;
-	payload?: readonly TooltipPayloadItem[];
-	xAxis: PnlGraphXAxis;
-}
-
-function CustomTooltip({ active, label, payload, xAxis }: CustomTooltipProps) {
-	if (!(active && payload) || payload.length === 0) {
-		return null;
-	}
-	return (
-		<div className="rounded-md border border-border bg-popover px-2 py-1 text-popover-foreground text-xs shadow-md">
-			{typeof label === "number" ? (
-				<div className="text-muted-foreground">
-					{formatTooltipLabel(label, xAxis)}
-				</div>
-			) : null}
-			{payload.map((item) => (
-				<div
-					className="flex items-center gap-2"
-					key={String(item.dataKey ?? item.name)}
-				>
-					<span
-						className="inline-block h-2 w-2 rounded-full"
-						style={{ backgroundColor: item.color }}
-					/>
-					<span className="text-muted-foreground">
-						{String(item.name ?? "")}
-					</span>
-					<span className="font-medium tabular-nums">
-						{typeof item.value === "number"
-							? formatCompactNumber(item.value)
-							: ""}
-					</span>
-				</div>
-			))}
-		</div>
-	);
-}
-
-function computeAlignedDomain(
-	min: number,
-	max: number,
-	negFrac: number
-): [number, number] {
-	if (min === 0 && max === 0) {
-		return [-1, 1];
-	}
-	if (negFrac === 0) {
-		return [0, max || 1];
-	}
-	if (negFrac === 1) {
-		return [min || -1, 0];
-	}
-	const candidateMin = (-max * negFrac) / (1 - negFrac);
-	if (candidateMin <= min) {
-		return [candidateMin, max];
-	}
-	const newMax = (-min * (1 - negFrac)) / negFrac;
-	return [min, newMax];
-}
-
-interface ScanResult {
-	bbMax: number;
-	bbMin: number;
-	biMax: number;
-	biMin: number;
-}
-
-function scanDualValues(points: ChartPoint[]): ScanResult {
-	let bbMin = 0;
-	let bbMax = 0;
-	let biMin = 0;
-	let biMax = 0;
-	for (const p of points) {
-		if (typeof p.cashCumulative === "number") {
-			bbMin = Math.min(bbMin, p.cashCumulative);
-			bbMax = Math.max(bbMax, p.cashCumulative);
-		}
-		if (typeof p.evCashCumulative === "number") {
-			bbMin = Math.min(bbMin, p.evCashCumulative);
-			bbMax = Math.max(bbMax, p.evCashCumulative);
-		}
-		if (typeof p.tournamentCumulative === "number") {
-			biMin = Math.min(biMin, p.tournamentCumulative);
-			biMax = Math.max(biMax, p.tournamentCumulative);
-		}
-	}
-	return { bbMin, bbMax, biMin, biMax };
-}
-
-function alignedDualDomains(points: ChartPoint[]): {
-	bb: [number, number];
-	bi: [number, number];
-} {
-	const { bbMin, bbMax, biMin, biMax } = scanDualValues(points);
-	const bbRange = bbMax - bbMin || 1;
-	const biRange = biMax - biMin || 1;
-	const bbNegFrac = -bbMin / bbRange;
-	const biNegFrac = -biMin / biRange;
-	const negFrac = Math.max(bbNegFrac, biNegFrac);
-	return {
-		bb: computeAlignedDomain(bbMin, bbMax, negFrac),
-		bi: computeAlignedDomain(biMin, biMax, negFrac),
-	};
-}
-
 interface PnlGraphChartProps {
 	dual: boolean;
 	points: ChartPoint[];
 	showEvCash: boolean;
 	xAxisType: PnlGraphXAxis;
-}
-
-interface LegendItem {
-	color: string;
-	dashed: boolean;
-	value: string;
 }
 
 function legendItemsFor(
@@ -200,35 +64,6 @@ function legendItemsFor(
 		items.push({ value: "EV (cash)", color: singleColor, dashed: true });
 	}
 	return items;
-}
-
-function CustomLegend({ items }: { items: LegendItem[] }) {
-	return (
-		<div className="flex flex-wrap items-center justify-center gap-3 pt-1 text-[11px]">
-			{items.map((item) => (
-				<div className="flex items-center gap-1.5" key={item.value}>
-					<svg
-						aria-hidden="true"
-						className="shrink-0"
-						height={6}
-						viewBox="0 0 14 6"
-						width={14}
-					>
-						<line
-							stroke={item.color}
-							strokeDasharray={item.dashed ? "3 2" : undefined}
-							strokeWidth={2}
-							x1={0}
-							x2={14}
-							y1={3}
-							y2={3}
-						/>
-					</svg>
-					<span className="text-foreground">{item.value}</span>
-				</div>
-			))}
-		</div>
-	);
 }
 
 export default function PnlGraphChart({

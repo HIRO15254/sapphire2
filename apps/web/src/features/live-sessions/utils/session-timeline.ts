@@ -90,7 +90,8 @@ export function deriveCashGameTimeline(
 				acc.chipRemoveTotal += -data.amount;
 				acc.stack -= -data.amount;
 			}
-			points.push(cashPoint(t, acc));
+			// Not a stack record: only update the running basis. The change is
+			// reflected at the next update_stack / session_end point.
 			continue;
 		}
 		if (e.eventType === "all_in") {
@@ -98,7 +99,8 @@ export function deriveCashGameTimeline(
 			acc.evDiff +=
 				data.potSize * (data.equity / 100) -
 				(data.potSize / data.trials) * data.wins;
-			points.push(cashPoint(t, acc));
+			// Not a stack record: only accumulate evDiff. Reflected at the next
+			// update_stack / session_end point.
 			continue;
 		}
 		if (e.eventType === "session_end") {
@@ -186,12 +188,35 @@ function applyTournamentSessionEnd(acc: TournamentAcc, payload: unknown): void {
 	}
 }
 
+/**
+ * The tournament's starting stack, taken from the first recorded stack. The
+ * create flow logs the starting stack as the first `update_stack`, so the start
+ * point can plot at the starting stack rather than at zero. `null` when no stack
+ * was ever recorded.
+ */
+function findTournamentStartingStack(
+	events: TimelineEvent[],
+	startIndex: number
+): number | null {
+	for (let i = startIndex; i < events.length; i++) {
+		if (events[i].eventType === "update_stack") {
+			return updateStackPayload.parse(events[i].payload).stackAmount;
+		}
+	}
+	return null;
+}
+
 function applyTournamentEvent(
 	acc: TournamentAcc,
 	eventType: string,
-	payload: unknown
+	payload: unknown,
+	startingStack: number | null
 ): boolean {
 	if (eventType === "session_start") {
+		// Tournament start counts as recording a stack equal to the starting
+		// stack, so the curve begins at the starting stack rather than zero.
+		acc.startingStack = startingStack;
+		acc.stack = startingStack ?? 0;
 		return true;
 	}
 	if (eventType === "update_stack") {
@@ -199,8 +224,10 @@ function applyTournamentEvent(
 		return true;
 	}
 	if (eventType === "purchase_chips") {
+		// Not a stack record: fold the chips into the running stack so they are
+		// reflected at the next update_stack point, but don't plot the purchase.
 		acc.stack += purchaseChipsPayload.parse(payload).chips;
-		return true;
+		return false;
 	}
 	if (eventType === "session_end") {
 		applyTournamentSessionEnd(acc, payload);
@@ -217,6 +244,7 @@ export function deriveTournamentTimeline(
 		return [];
 	}
 	const anchor = toMs(events[startIndex].occurredAt);
+	const startingStack = findTournamentStartingStack(events, startIndex);
 	const acc: TournamentAcc = {
 		stack: 0,
 		startingStack: null,
@@ -228,7 +256,12 @@ export function deriveTournamentTimeline(
 
 	for (let i = startIndex; i < events.length; i++) {
 		const e = events[i];
-		const handled = applyTournamentEvent(acc, e.eventType, e.payload);
+		const handled = applyTournamentEvent(
+			acc,
+			e.eventType,
+			e.payload,
+			startingStack
+		);
 		if (handled) {
 			points.push(tournamentPoint(toMs(e.occurredAt) - anchor, acc));
 		}

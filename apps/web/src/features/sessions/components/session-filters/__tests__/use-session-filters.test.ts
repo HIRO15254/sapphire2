@@ -19,7 +19,7 @@ describe("useSessionFilters", () => {
 		const onFiltersChange = vi.fn();
 		const filters: SessionFilterValues = {
 			type: "cash_game",
-			storeId: "s1",
+			roomId: "s1",
 			dateFrom: "2026-01-01",
 		};
 		const { result } = renderHook(() =>
@@ -36,7 +36,7 @@ describe("useSessionFilters", () => {
 			{ initialProps: { filters: { type: "cash_game" } } }
 		);
 		act(() => {
-			result.current.updateDraft({ storeId: "s1" });
+			result.current.updateDraft({ roomId: "s1" });
 		});
 		rerender({ filters: { type: "tournament" } });
 		act(() => {
@@ -55,15 +55,15 @@ describe("useSessionFilters", () => {
 			})
 		);
 		act(() => {
-			result.current.updateDraft({ storeId: "s1" });
+			result.current.updateDraft({ roomId: "s1" });
 		});
-		expect(result.current.draft).toEqual({ type: "cash_game", storeId: "s1" });
+		expect(result.current.draft).toEqual({ type: "cash_game", roomId: "s1" });
 		act(() => {
 			result.current.updateDraft({ dateFrom: "2026-01-01" });
 		});
 		expect(result.current.draft).toEqual({
 			type: "cash_game",
-			storeId: "s1",
+			roomId: "s1",
 			dateFrom: "2026-01-01",
 		});
 	});
@@ -88,7 +88,7 @@ describe("useSessionFilters", () => {
 		const onFiltersChange = vi.fn();
 		const { result } = renderHook(() =>
 			useSessionFilters({
-				filters: { type: "cash_game", storeId: "s1" },
+				filters: { type: "cash_game", roomId: "s1" },
 				onFiltersChange,
 			})
 		);

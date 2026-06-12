@@ -19,7 +19,7 @@ describe("GameSession schema — columns", () => {
 				"endedAt",
 				"breakMinutes",
 				"memo",
-				"storeId",
+				"roomId",
 				"currencyId",
 				"createdAt",
 				"updatedAt",
@@ -62,7 +62,7 @@ describe("GameSession schema — columns", () => {
 		expect(columns.endedAt.notNull).toBe(false);
 		expect(columns.breakMinutes.notNull).toBe(false);
 		expect(columns.memo.notNull).toBe(false);
-		expect(columns.storeId.notNull).toBe(false);
+		expect(columns.roomId.notNull).toBe(false);
 		expect(columns.currencyId.notNull).toBe(false);
 	});
 
@@ -118,8 +118,8 @@ describe("GameSession — FK cascade policies", () => {
 		expect(fkByColumn("user_id")?.onDelete).toBe("cascade");
 	});
 
-	it("storeId FK uses set null (history preserved when store removed)", () => {
-		expect(fkByColumn("store_id")?.onDelete).toBe("set null");
+	it("roomId FK uses set null (history preserved when room removed)", () => {
+		expect(fkByColumn("room_id")?.onDelete).toBe("set null");
 	});
 
 	it("currencyId FK uses set null", () => {
@@ -149,8 +149,8 @@ describe("GameSession — indexes", () => {
 		expect(idxNames).toContain("session_user_date_idx");
 	});
 
-	it("has session_store_idx", () => {
-		expect(idxNames).toContain("session_store_idx");
+	it("has session_room_idx", () => {
+		expect(idxNames).toContain("session_room_idx");
 	});
 
 	it("has session_currency_idx", () => {

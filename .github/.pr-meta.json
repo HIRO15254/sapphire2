@@ -1,6 +1,0 @@
-{
-  "ready_for_review": true,
-  "issue_number": 2,
-  "labels_add": ["wf:impl-review"],
-  "labels_remove": ["wf:implementing"]
-}

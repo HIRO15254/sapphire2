@@ -69,10 +69,9 @@ export function StackRecordEditor({
 				id="edit-stackAmount"
 				inputMode="numeric"
 				label="Stack Amount"
-				min={0}
 				onChange={setStackAmount}
 				required
-				type="number"
+				type="text"
 				value={stackAmount}
 			/>
 

@@ -8,6 +8,14 @@ import {
 	verification,
 } from "./schema/auth";
 import {
+	currency,
+	currencyRelations,
+	currencyTransaction,
+	currencyTransactionRelations,
+	transactionType,
+	transactionTypeRelations,
+} from "./schema/currency";
+import {
 	dashboardWidget,
 	dashboardWidgetRelations,
 } from "./schema/dashboard-widget";
@@ -20,16 +28,25 @@ import {
 	playerToPlayerTagRelations,
 } from "./schema/player";
 import { ringGame, ringGameRelations } from "./schema/ring-game";
+import { room, roomRelations } from "./schema/room";
 import { gameSession, gameSessionRelations } from "./schema/session";
+import {
+	sessionBlindLevel,
+	sessionBlindLevelRelations,
+} from "./schema/session-blind-level";
 import {
 	sessionCashDetail,
 	sessionCashDetailRelations,
 } from "./schema/session-cash-detail";
-import { sessionEvent, sessionEventRelations } from "./schema/session-event";
 import {
-	sessionTablePlayer,
-	sessionTablePlayerRelations,
-} from "./schema/session-table-player";
+	sessionChipPurchase,
+	sessionChipPurchaseRelations,
+} from "./schema/session-chip-purchase";
+import {
+	sessionChipPurchaseResult,
+	sessionChipPurchaseResultRelations,
+} from "./schema/session-chip-purchase-result";
+import { sessionEvent, sessionEventRelations } from "./schema/session-event";
 import {
 	sessionTag,
 	sessionTagRelations,
@@ -40,16 +57,6 @@ import {
 	sessionTournamentDetail,
 	sessionTournamentDetailRelations,
 } from "./schema/session-tournament-detail";
-import {
-	currency,
-	currencyRelations,
-	currencyTransaction,
-	currencyTransactionRelations,
-	store,
-	storeRelations,
-	transactionType,
-	transactionTypeRelations,
-} from "./schema/store";
 import {
 	blindLevel,
 	blindLevelRelations,
@@ -72,8 +79,8 @@ export const schema = {
 	user,
 	userRelations,
 	verification,
-	store,
-	storeRelations,
+	room,
+	roomRelations,
 	currency,
 	currencyRelations,
 	transactionType,
@@ -98,12 +105,16 @@ export const schema = {
 	sessionToSessionTagRelations,
 	sessionEvent,
 	sessionEventRelations,
-	sessionTablePlayer,
-	sessionTablePlayerRelations,
 	sessionCashDetail,
 	sessionCashDetailRelations,
 	sessionTournamentDetail,
 	sessionTournamentDetailRelations,
+	sessionBlindLevel,
+	sessionBlindLevelRelations,
+	sessionChipPurchase,
+	sessionChipPurchaseRelations,
+	sessionChipPurchaseResult,
+	sessionChipPurchaseResultRelations,
 	player,
 	playerRelations,
 	playerTag,

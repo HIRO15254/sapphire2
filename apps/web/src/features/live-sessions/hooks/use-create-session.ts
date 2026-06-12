@@ -4,45 +4,55 @@ import { useState } from "react";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
-function useStoreRingGames(storeId: string | undefined) {
+function useRoomRingGames(roomId: string | undefined) {
 	const ringGamesQuery = useQuery({
-		...trpc.ringGame.listByStore.queryOptions({ storeId: storeId ?? "" }),
-		enabled: !!storeId,
+		...trpc.ringGame.listByRoom.queryOptions({ roomId: roomId ?? "" }),
+		enabled: !!roomId,
 	});
 	return (ringGamesQuery.data ?? []).map((g) => ({
 		id: g.id,
 		name: g.name,
+		variant: g.variant,
+		blind1: g.blind1,
+		blind2: g.blind2,
+		blind3: g.blind3,
+		ante: g.ante,
+		anteType: g.anteType,
 		minBuyIn: g.minBuyIn,
 		maxBuyIn: g.maxBuyIn,
+		tableSize: g.tableSize,
 		currencyId: g.currencyId,
 	}));
 }
 
-function useStoreTournaments(storeId: string | undefined) {
+function useRoomTournaments(roomId: string | undefined) {
 	const tournamentsQuery = useQuery({
-		...trpc.tournament.listByStore.queryOptions({
-			storeId: storeId ?? "",
+		...trpc.tournament.listByRoom.queryOptions({
+			roomId: roomId ?? "",
 			includeArchived: false,
 		}),
-		enabled: !!storeId,
+		enabled: !!roomId,
 	});
 	return (tournamentsQuery.data ?? []).map((t) => ({
 		id: t.id,
 		name: t.name,
+		variant: t.variant,
 		buyIn: t.buyIn,
 		entryFee: t.entryFee,
 		startingStack: t.startingStack,
+		bountyAmount: t.bountyAmount,
+		tableSize: t.tableSize,
 		currencyId: t.currencyId,
 	}));
 }
 
 export function useCreateSession({ onClose }: { onClose: () => void }) {
-	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>();
+	const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
-	const storesQuery = useQuery(trpc.store.list.queryOptions());
-	const stores = (storesQuery.data ?? []).map((s) => ({
+	const roomsQuery = useQuery(trpc.room.list.queryOptions());
+	const rooms = (roomsQuery.data ?? []).map((s) => ({
 		id: s.id,
 		name: s.name,
 	}));
@@ -53,8 +63,8 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 		name: c.name,
 	}));
 
-	const ringGames = useStoreRingGames(selectedStoreId);
-	const tournaments = useStoreTournaments(selectedStoreId);
+	const ringGames = useRoomRingGames(selectedRoomId);
+	const tournaments = useRoomTournaments(selectedRoomId);
 
 	const cashListKey = trpc.liveCashGameSession.list.queryOptions({}).queryKey;
 	const tournamentListKey = trpc.liveTournamentSession.list.queryOptions(
@@ -69,7 +79,7 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			initialBuyIn: number;
 			memo?: string;
 			ringGameId?: string;
-			storeId?: string;
+			roomId?: string;
 		}) => trpcClient.liveCashGameSession.create.mutate(values),
 		onSuccess: async () => {
 			await invalidateTargets(queryClient, [
@@ -88,7 +98,7 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			entryFee?: number;
 			memo?: string;
 			startingStack: number;
-			storeId?: string;
+			roomId?: string;
 			timerStartedAt?: number;
 			tournamentId?: string;
 		}) => {
@@ -119,18 +129,18 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 		createCashMutation.isPending || createTournamentMutation.isPending;
 
 	return {
-		stores,
+		rooms,
 		currencies,
 		ringGames,
 		tournaments,
-		selectedStoreId,
-		setSelectedStoreId,
+		selectedRoomId,
+		setSelectedRoomId,
 		createCash: (values: {
 			currencyId?: string;
 			initialBuyIn: number;
 			memo?: string;
 			ringGameId?: string;
-			storeId?: string;
+			roomId?: string;
 		}) => createCashMutation.mutate(values),
 		createTournament: (values: {
 			buyIn: number;
@@ -138,7 +148,7 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			entryFee?: number;
 			memo?: string;
 			startingStack: number;
-			storeId?: string;
+			roomId?: string;
 			timerStartedAt?: number;
 			tournamentId?: string;
 		}) => createTournamentMutation.mutate(values),

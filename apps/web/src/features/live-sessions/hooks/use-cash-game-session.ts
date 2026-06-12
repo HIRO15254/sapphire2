@@ -15,10 +15,10 @@ export function useCashGameSession(sessionId: string) {
 	const session = sessionQuery.data;
 
 	const ringGameQuery = useQuery({
-		...trpc.ringGame.listByStore.queryOptions({
-			storeId: session?.storeId ?? "",
+		...trpc.ringGame.listByRoom.queryOptions({
+			roomId: session?.roomId ?? "",
 		}),
-		enabled: !!session?.storeId,
+		enabled: !!session?.roomId,
 	});
 
 	const discardMutation = useMutation({

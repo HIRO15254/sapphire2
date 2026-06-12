@@ -5,7 +5,7 @@ import {
 	currency,
 	currencyTransaction,
 	transactionType,
-} from "../schema/store";
+} from "../schema/currency";
 
 describe("Currency schema", () => {
 	it("has required columns", () => {
@@ -14,8 +14,25 @@ describe("Currency schema", () => {
 		expect(columns.userId).toBeDefined();
 		expect(columns.name).toBeDefined();
 		expect(columns.unit).toBeDefined();
+		expect(columns.description).toBeDefined();
+		expect(columns.isFavorite).toBeDefined();
 		expect(columns.createdAt).toBeDefined();
 		expect(columns.updatedAt).toBeDefined();
+	});
+
+	it("isFavorite is not null", () => {
+		const columns = getTableColumns(currency);
+		expect(columns.isFavorite.notNull).toBe(true);
+	});
+
+	it("isFavorite has a default value of false", () => {
+		const columns = getTableColumns(currency);
+		expect(columns.isFavorite.hasDefault).toBe(true);
+	});
+
+	it("isFavorite uses boolean mode (stored as integer)", () => {
+		const columns = getTableColumns(currency);
+		expect(columns.isFavorite.dataType).toBe("boolean");
 	});
 
 	it("id is primary key", () => {
@@ -36,6 +53,11 @@ describe("Currency schema", () => {
 	it("unit is nullable", () => {
 		const columns = getTableColumns(currency);
 		expect(columns.unit.notNull).toBe(false);
+	});
+
+	it("description is nullable", () => {
+		const columns = getTableColumns(currency);
+		expect(columns.description.notNull).toBe(false);
 	});
 });
 
@@ -163,10 +185,11 @@ describe("Currency schema — FKs and indexes", () => {
 		expect(config.primaryKeys).toHaveLength(0);
 	});
 
-	it("uses sqlite text type for name and unit", () => {
+	it("uses sqlite text type for name, unit and description", () => {
 		const columns = getTableColumns(currency);
 		expect(columns.name.dataType).toBe("string");
 		expect(columns.unit.dataType).toBe("string");
+		expect(columns.description.dataType).toBe("string");
 	});
 });
 

@@ -5,17 +5,20 @@ import {
 	cashSessionStartPayload,
 	chipsAddRemovePayload,
 	playerJoinPayload,
+	playerLeavePayload,
 	purchaseChipsPayload,
 	tournamentSessionEndPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import { gameSession } from "@sapphire2/db/schema/session";
-import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
-import { sessionEvent } from "@sapphire2/db/schema/session-event";
-import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import {
 	currencyTransaction,
 	transactionType,
-} from "@sapphire2/db/schema/store";
+} from "@sapphire2/db/schema/currency";
+import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
+import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
+import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
+import { sessionEvent } from "@sapphire2/db/schema/session-event";
+import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { and, asc, eq } from "drizzle-orm";
 import type { protectedProcedure } from "../index";
@@ -34,15 +37,15 @@ interface CashGamePLResult {
 }
 
 interface TournamentPLResult {
-	addonCost: number;
-	addonCount: number;
 	beforeDeadline: boolean;
 	bountyPrizes: number | null;
+	/** Σ cost across all purchase_chips events. */
+	chipPurchaseCost: number;
+	/** Purchase count keyed by sessionChipPurchaseId. */
+	chipPurchaseCounts: Map<string, number>;
 	placement: number | null;
 	prizeMoney: number | null;
 	profitLoss: number | null;
-	rebuyCost: number;
-	rebuyCount: number;
 	totalEntries: number | null;
 }
 
@@ -163,7 +166,7 @@ export function computeTournamentPLFromEvents(
 	tournamentBuyIn?: number,
 	tournamentEntryFee?: number
 ): TournamentPLResult {
-	let chipPurchaseCount = 0;
+	const chipPurchaseCounts = new Map<string, number>();
 	let totalChipPurchaseCost = 0;
 	let placement: number | null = null;
 	let totalEntries: number | null = null;
@@ -176,7 +179,10 @@ export function computeTournamentPLFromEvents(
 
 		if (event.eventType === "purchase_chips") {
 			const data = purchaseChipsPayload.parse(parsed);
-			chipPurchaseCount++;
+			chipPurchaseCounts.set(
+				data.sessionChipPurchaseId,
+				(chipPurchaseCounts.get(data.sessionChipPurchaseId) ?? 0) + 1
+			);
 			totalChipPurchaseCost += data.cost;
 		} else if (event.eventType === "session_end") {
 			const result = tournamentSessionEndPayload.safeParse(parsed);
@@ -199,10 +205,8 @@ export function computeTournamentPLFromEvents(
 	const profitLoss = prizeMoney === null ? null : income - cost;
 
 	return {
-		rebuyCount: chipPurchaseCount,
-		rebuyCost: totalChipPurchaseCost,
-		addonCount: 0,
-		addonCost: 0,
+		chipPurchaseCost: totalChipPurchaseCost,
+		chipPurchaseCounts,
 		beforeDeadline,
 		placement,
 		totalEntries,
@@ -398,6 +402,32 @@ async function resolveTournamentBuyInFees(
 	return { tournamentBuyIn, entryFee };
 }
 
+/**
+ * Write the event-derived purchase counts onto session_chip_purchase_result.
+ * Every session_chip_purchase gets a row (count 0 when never bought). Uses an
+ * upsert so it is safe even if a result row was never seeded.
+ */
+async function syncChipPurchaseResults(
+	db: DbInstance,
+	sessionId: string,
+	chipPurchaseCounts: Map<string, number>
+): Promise<void> {
+	const purchases = await db
+		.select({ id: sessionChipPurchase.id })
+		.from(sessionChipPurchase)
+		.where(eq(sessionChipPurchase.sessionId, sessionId));
+	for (const p of purchases) {
+		const count = chipPurchaseCounts.get(p.id) ?? 0;
+		await db
+			.insert(sessionChipPurchaseResult)
+			.values({ sessionChipPurchaseId: p.id, count })
+			.onConflictDoUpdate({
+				target: sessionChipPurchaseResult.sessionChipPurchaseId,
+				set: { count },
+			});
+	}
+}
+
 export async function recalculateTournamentSession(
 	db: DbInstance,
 	sessionId: string,
@@ -470,9 +500,6 @@ export async function recalculateTournamentSession(
 		beforeDeadline: pl.beforeDeadline ? true : null,
 		prizeMoney: pl.prizeMoney,
 		bountyPrizes: pl.bountyPrizes,
-		rebuyCount: pl.rebuyCount,
-		rebuyCost: pl.rebuyCost > 0 ? pl.rebuyCost : null,
-		addonCost: pl.addonCost > 0 ? pl.addonCost : null,
 	};
 
 	if (existingDetail) {
@@ -488,6 +515,9 @@ export async function recalculateTournamentSession(
 		});
 	}
 
+	// Sync chip purchase result counts from the purchase_chips events.
+	await syncChipPurchaseResults(db, sessionId, pl.chipPurchaseCounts);
+
 	await syncCurrencyTransaction(
 		db,
 		sessionId,
@@ -496,6 +526,113 @@ export async function recalculateTournamentSession(
 		effectiveSessionDate,
 		userId
 	);
+}
+
+/** One uninterrupted period a player sat at the table (join → leave). */
+export interface SeatStint {
+	joinedAt: Date;
+	leftAt: Date | null;
+	seatPosition: number | null;
+}
+
+export interface SeatedPlayerState {
+	isActive: boolean;
+	joinedAt: Date;
+	leftAt: Date | null;
+	playerId: string;
+	seatPosition: number | null;
+	/** Every join → leave cycle for this player, oldest first. */
+	stints: SeatStint[];
+}
+
+/**
+ * Close the most recent still-open stint for a player.
+ * A `player_leave` with no open stint (no join, or already left) is a no-op.
+ */
+function closeLatestOpenStint(stints: SeatStint[], leftAt: Date): void {
+	for (let i = stints.length - 1; i >= 0; i--) {
+		const stint = stints[i];
+		if (stint && stint.leftAt === null) {
+			stints[i] = { ...stint, leftAt };
+			return;
+		}
+	}
+}
+
+/** Apply one player_join / player_leave event to the per-player stint map. */
+function applySeatEvent(
+	event: { eventType: string; payload: string; occurredAt: Date },
+	stintsByPlayerId: Map<string, SeatStint[]>
+): void {
+	if (event.eventType === "player_join") {
+		const parsed = playerJoinPayload.safeParse(JSON.parse(event.payload));
+		if (!(parsed.success && parsed.data.playerId)) {
+			return;
+		}
+		const stints = stintsByPlayerId.get(parsed.data.playerId) ?? [];
+		stints.push({
+			joinedAt: event.occurredAt,
+			leftAt: null,
+			seatPosition: parsed.data.seatPosition ?? null,
+		});
+		stintsByPlayerId.set(parsed.data.playerId, stints);
+		return;
+	}
+
+	if (event.eventType === "player_leave") {
+		const parsed = playerLeavePayload.safeParse(JSON.parse(event.payload));
+		if (!(parsed.success && parsed.data.playerId)) {
+			return;
+		}
+		const stints = stintsByPlayerId.get(parsed.data.playerId);
+		if (stints) {
+			closeLatestOpenStint(stints, event.occurredAt);
+		}
+	}
+}
+
+/**
+ * Fold player_join / player_leave events into the seating roster.
+ *
+ * Seated players are no longer stored in a table — they are reconstructed
+ * here from the event log. Only events that carry a `playerId` are folded
+ * (the hero's own seat has no `playerId` and is derived separately by
+ * `computeHeroSeatPositionFromEvents`).
+ *
+ * The same player may join and leave repeatedly within one session. Each
+ * `player_join` opens a new stint; each `player_leave` closes the latest
+ * open one. Every player appears exactly once in the result, but the full
+ * in/out history is preserved on `stints` (oldest first). The top-level
+ * `isActive` / `seatPosition` / `joinedAt` / `leftAt` reflect the most
+ * recent (last) stint — i.e. the player's current state.
+ *
+ * `events` must already be ordered by (occurredAt, sortOrder).
+ */
+export function computeSeatedPlayersFromEvents(
+	events: { eventType: string; payload: string; occurredAt: Date }[]
+): SeatedPlayerState[] {
+	const stintsByPlayerId = new Map<string, SeatStint[]>();
+
+	for (const event of events) {
+		applySeatEvent(event, stintsByPlayerId);
+	}
+
+	const result: SeatedPlayerState[] = [];
+	for (const [playerId, stints] of stintsByPlayerId) {
+		const current = stints.at(-1);
+		if (!current) {
+			continue;
+		}
+		result.push({
+			playerId,
+			seatPosition: current.seatPosition,
+			isActive: current.leftAt === null,
+			joinedAt: current.joinedAt,
+			leftAt: current.leftAt,
+			stints,
+		});
+	}
+	return result;
 }
 
 export function computeHeroSeatPositionFromEvents(

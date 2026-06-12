@@ -1,5 +1,4 @@
 export interface ShareableSession {
-	addonCost: number | null;
 	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
 	buyIn: number | null;
@@ -11,13 +10,11 @@ export interface ShareableSession {
 	placement: number | null;
 	prizeMoney: number | null;
 	profitLoss: number | null;
-	rebuyCost: number | null;
-	rebuyCount: number | null;
 	ringGameBlind2: number | null;
 	ringGameName: string | null;
+	roomName: string | null;
 	sessionDate: string;
 	startedAt: string | null;
-	storeName: string | null;
 	totalEntries: number | null;
 	tournamentBuyIn: number | null;
 	tournamentName: string | null;
@@ -97,8 +94,8 @@ export function createSessionShareText(session: ShareableSession): string {
 	let text = "📊 Poker Session Result\n";
 	text += `\n📅 ${date}\n`;
 
-	if (session.storeName) {
-		text += `📍 ${session.storeName}\n`;
+	if (session.roomName) {
+		text += `📍 ${session.roomName}\n`;
 	}
 
 	text += `\n${gameIcon} ${gameName}\n`;

@@ -216,12 +216,14 @@ describe("payload schemas", () => {
 	});
 
 	describe("purchaseChipsPayload", () => {
-		it("accepts valid name, cost, chips", () => {
+		it("accepts valid sessionChipPurchaseId, name, cost, chips", () => {
 			const result = purchaseChipsPayload.parse({
+				sessionChipPurchaseId: "scp-1",
 				name: "Rebuy",
 				cost: 100,
 				chips: 5000,
 			});
+			expect(result.sessionChipPurchaseId).toBe("scp-1");
 			expect(result.name).toBe("Rebuy");
 			expect(result.chips).toBe(5000);
 		});
@@ -666,21 +668,53 @@ describe("payload schema edge cases", () => {
 	});
 
 	describe("purchaseChipsPayload", () => {
+		it("rejects missing sessionChipPurchaseId", () => {
+			expect(() =>
+				purchaseChipsPayload.parse({ name: "Rebuy", cost: 1, chips: 1 })
+			).toThrow();
+		});
+
+		it("rejects empty sessionChipPurchaseId", () => {
+			expect(() =>
+				purchaseChipsPayload.parse({
+					sessionChipPurchaseId: "",
+					name: "Rebuy",
+					cost: 1,
+					chips: 1,
+				})
+			).toThrow();
+		});
+
 		it("rejects empty name", () => {
 			expect(() =>
-				purchaseChipsPayload.parse({ name: "", cost: 1, chips: 1 })
+				purchaseChipsPayload.parse({
+					sessionChipPurchaseId: "scp-1",
+					name: "",
+					cost: 1,
+					chips: 1,
+				})
 			).toThrow();
 		});
 
 		it("rejects negative cost", () => {
 			expect(() =>
-				purchaseChipsPayload.parse({ name: "Rebuy", cost: -1, chips: 100 })
+				purchaseChipsPayload.parse({
+					sessionChipPurchaseId: "scp-1",
+					name: "Rebuy",
+					cost: -1,
+					chips: 100,
+				})
 			).toThrow();
 		});
 
 		it("rejects negative chips", () => {
 			expect(() =>
-				purchaseChipsPayload.parse({ name: "Rebuy", cost: 1, chips: -1 })
+				purchaseChipsPayload.parse({
+					sessionChipPurchaseId: "scp-1",
+					name: "Rebuy",
+					cost: 1,
+					chips: -1,
+				})
 			).toThrow();
 		});
 	});
@@ -723,6 +757,7 @@ describe("validateEventPayload — extra dispatch paths", () => {
 
 	it("validates purchase_chips via general map", () => {
 		const result = validateEventPayload("purchase_chips", {
+			sessionChipPurchaseId: "scp-1",
 			name: "Addon",
 			cost: 50,
 			chips: 5000,

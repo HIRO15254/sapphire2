@@ -17,13 +17,46 @@ describe("SessionTournamentDetail schema — columns", () => {
 				"totalEntries",
 				"beforeDeadline",
 				"prizeMoney",
-				"rebuyCount",
-				"rebuyCost",
-				"addonCost",
 				"bountyPrizes",
 				"timerStartedAt",
+				"ruleName",
+				"variant",
+				"startingStack",
+				"bountyAmount",
+				"tableSize",
 			])
 		);
+	});
+
+	it("no longer has the legacy rebuyCount / rebuyCost / addonCost columns", () => {
+		expect((columns as Record<string, unknown>).rebuyCount).toBeUndefined();
+		expect((columns as Record<string, unknown>).rebuyCost).toBeUndefined();
+		expect((columns as Record<string, unknown>).addonCost).toBeUndefined();
+	});
+
+	it("ruleName and variant are NOT NULL (snapshot is forced on insert)", () => {
+		expect(columns.ruleName.notNull).toBe(true);
+		expect(columns.variant.notNull).toBe(true);
+	});
+
+	it("ruleName has default 'Untitled' so ADD COLUMN succeeds on existing rows", () => {
+		expect(columns.ruleName.default).toBe("Untitled");
+	});
+
+	it("variant has default 'nlh' so ADD COLUMN succeeds on existing rows", () => {
+		expect(columns.variant.default).toBe("nlh");
+	});
+
+	it("startingStack / bountyAmount / tableSize snapshot columns are nullable", () => {
+		expect(columns.startingStack.notNull).toBe(false);
+		expect(columns.bountyAmount.notNull).toBe(false);
+		expect(columns.tableSize.notNull).toBe(false);
+	});
+
+	it("startingStack / bountyAmount / tableSize have number dataType", () => {
+		expect(columns.startingStack.dataType).toBe("number");
+		expect(columns.bountyAmount.dataType).toBe("number");
+		expect(columns.tableSize.dataType).toBe("number");
 	});
 
 	it("sessionId is primary key (PK=FK)", () => {
@@ -40,9 +73,6 @@ describe("SessionTournamentDetail schema — columns", () => {
 		expect(columns.placement.notNull).toBe(false);
 		expect(columns.totalEntries.notNull).toBe(false);
 		expect(columns.prizeMoney.notNull).toBe(false);
-		expect(columns.rebuyCount.notNull).toBe(false);
-		expect(columns.rebuyCost.notNull).toBe(false);
-		expect(columns.addonCost.notNull).toBe(false);
 		expect(columns.bountyPrizes.notNull).toBe(false);
 	});
 
@@ -62,9 +92,6 @@ describe("SessionTournamentDetail schema — columns", () => {
 		expect(columns.placement.dataType).toBe("number");
 		expect(columns.totalEntries.dataType).toBe("number");
 		expect(columns.prizeMoney.dataType).toBe("number");
-		expect(columns.rebuyCount.dataType).toBe("number");
-		expect(columns.rebuyCost.dataType).toBe("number");
-		expect(columns.addonCost.dataType).toBe("number");
 		expect(columns.bountyPrizes.dataType).toBe("number");
 	});
 });

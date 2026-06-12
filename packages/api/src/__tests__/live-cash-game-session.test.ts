@@ -59,6 +59,7 @@ describe("liveCashGameSession router", () => {
 				"reopen",
 				"update",
 				"updateHeroSeat",
+				"updateSnapshot",
 			].sort()
 		);
 	});
@@ -78,6 +79,7 @@ describe("liveCashGameSession router", () => {
 			"reopen",
 			"discard",
 			"updateHeroSeat",
+			"updateSnapshot",
 		] as const) {
 			const proc = appRouter.liveCashGameSession[name];
 			expectProtected(proc);
@@ -134,7 +136,7 @@ describe("liveCashGameSession.create input validation", () => {
 
 	it("accepts all optional link fields", () => {
 		expectAccepts(appRouter.liveCashGameSession.create, {
-			storeId: "s1",
+			roomId: "s1",
 			ringGameId: "rg1",
 			currencyId: "c1",
 			memo: "session memo",
@@ -161,7 +163,7 @@ describe("liveCashGameSession.update input validation", () => {
 	it("accepts explicit null clears for link fields", () => {
 		expectAccepts(appRouter.liveCashGameSession.update, {
 			id: "s1",
-			storeId: null,
+			roomId: null,
 			currencyId: null,
 			ringGameId: null,
 			memo: null,
@@ -254,5 +256,54 @@ describe("liveCashGameSession.{reopen,discard,getById} input validation", () => 
 
 	it("getById rejects missing id", () => {
 		expectRejects(appRouter.liveCashGameSession.getById, {});
+	});
+});
+
+describe("liveCashGameSession.updateSnapshot input validation", () => {
+	it("accepts the minimum payload (id only — no-op call)", () => {
+		expectAccepts(appRouter.liveCashGameSession.updateSnapshot, { id: "s1" });
+	});
+
+	it("accepts a full snapshot override payload", () => {
+		expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {
+			id: "s1",
+			ruleName: "1/2 NLH (this session)",
+			variant: "nlh",
+			blind1: 1,
+			blind2: 2,
+			blind3: null,
+			ante: 5,
+			anteType: "all",
+			minBuyIn: 100,
+			maxBuyIn: 400,
+			tableSize: 9,
+		});
+	});
+
+	it("rejects missing id", () => {
+		expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
+			ruleName: "x",
+		});
+	});
+
+	it("rejects an empty ruleName", () => {
+		expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
+			id: "s1",
+			ruleName: "",
+		});
+	});
+
+	it("rejects an unknown anteType value", () => {
+		expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
+			id: "s1",
+			anteType: "weird",
+		});
+	});
+
+	it("rejects a non-integer blind1", () => {
+		expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
+			id: "s1",
+			blind1: 1.5,
+		});
 	});
 });

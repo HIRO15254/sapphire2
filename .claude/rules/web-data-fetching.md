@@ -15,8 +15,13 @@ Use [`apps/web/src/utils/optimistic-update.ts`](apps/web/src/utils/optimistic-up
 - `cancelTargets` — cancel in-flight queries on the same keys.
 - `restoreSnapshots` — call from `onError`.
 - `invalidateTargets` — call from `onSettled` with an array of targets.
+- `updateInfiniteQueryItems` — optimistically `map` (edit) / `filter` (delete) the items of every page in a `useInfiniteQuery` cache entry while preserving the page envelope. Pair with `snapshotQuery` + `restoreSnapshots` for rollback. Reference: [`use-currencies.ts`](apps/web/src/features/currencies/hooks/use-currencies.ts) (`editTransaction` / `deleteTransaction`).
 
 **Do not** hand-roll `queryClient.setQueryData` + `invalidateQueries` chains, even inside hooks. If a case is not covered by the helpers, extend the helpers instead of bypassing them.
+
+## Paginated lists use `useInfiniteQuery`
+
+For cursor-paginated tRPC procedures (`{ items, nextCursor }`), drive the list with `trpc.<proc>.infiniteQueryOptions(input, { getNextPageParam: (last) => last.nextCursor })` + `useInfiniteQuery` — not `useQuery` plus a local-state accumulator. Keeping every page in one cache entry means a focus / reconnect / `staleTime` / invalidate / remount refetch re-fetches all loaded pages instead of collapsing back to page 1, and `fetchNextPage()` replaces hand-rolled load-more (`txCursor` / `isLoadingMore` state). Reference: [`use-currencies.ts`](apps/web/src/features/currencies/hooks/use-currencies.ts).
 
 ## Mutation hook shape
 

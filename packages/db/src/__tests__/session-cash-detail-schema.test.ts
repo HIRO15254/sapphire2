@@ -14,6 +14,16 @@ describe("SessionCashDetail schema — columns", () => {
 				"buyIn",
 				"cashOut",
 				"evCashOut",
+				"ruleName",
+				"variant",
+				"blind1",
+				"blind2",
+				"blind3",
+				"ante",
+				"anteType",
+				"minBuyIn",
+				"maxBuyIn",
+				"tableSize",
 			])
 		);
 	});
@@ -40,6 +50,41 @@ describe("SessionCashDetail schema — columns", () => {
 
 	it("ringGameId is string type", () => {
 		expect(columns.ringGameId.dataType).toBe("string");
+	});
+
+	it("ruleName and variant are NOT NULL (snapshot is forced on insert)", () => {
+		expect(columns.ruleName.notNull).toBe(true);
+		expect(columns.variant.notNull).toBe(true);
+	});
+
+	it("ruleName has default 'Untitled' so ADD COLUMN succeeds on existing rows", () => {
+		expect(columns.ruleName.default).toBe("Untitled");
+	});
+
+	it("variant has default 'nlh' so ADD COLUMN succeeds on existing rows", () => {
+		expect(columns.variant.default).toBe("nlh");
+	});
+
+	it("blind / ante / size snapshot columns are nullable", () => {
+		expect(columns.blind1.notNull).toBe(false);
+		expect(columns.blind2.notNull).toBe(false);
+		expect(columns.blind3.notNull).toBe(false);
+		expect(columns.ante.notNull).toBe(false);
+		expect(columns.anteType.notNull).toBe(false);
+		expect(columns.minBuyIn.notNull).toBe(false);
+		expect(columns.maxBuyIn.notNull).toBe(false);
+		expect(columns.tableSize.notNull).toBe(false);
+	});
+
+	it("blind / ante / size snapshot columns have number/string dataType", () => {
+		expect(columns.blind1.dataType).toBe("number");
+		expect(columns.blind2.dataType).toBe("number");
+		expect(columns.blind3.dataType).toBe("number");
+		expect(columns.ante.dataType).toBe("number");
+		expect(columns.anteType.dataType).toBe("string");
+		expect(columns.minBuyIn.dataType).toBe("number");
+		expect(columns.maxBuyIn.dataType).toBe("number");
+		expect(columns.tableSize.dataType).toBe("number");
 	});
 });
 

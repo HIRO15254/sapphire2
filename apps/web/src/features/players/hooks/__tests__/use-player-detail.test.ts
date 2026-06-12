@@ -11,6 +11,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 
 const trpcMocks = vi.hoisted(() => ({
 	playerUpdate: vi.fn(),
+	playerDelete: vi.fn(),
 	tagCreate: vi.fn(),
 }));
 
@@ -42,6 +43,7 @@ vi.mock("@/utils/trpc", () => ({
 	trpcClient: {
 		player: {
 			update: { mutate: trpcMocks.playerUpdate },
+			delete: { mutate: trpcMocks.playerDelete },
 		},
 		playerTag: {
 			create: { mutate: trpcMocks.tagCreate },
@@ -125,6 +127,39 @@ describe("usePlayerDetail", () => {
 				wrapper: makeWrapper(qc),
 			});
 			await waitFor(() => expect(result.current.availableTags).toHaveLength(1));
+		});
+	});
+
+	describe("isLoading", () => {
+		it("is false when the query is disabled (playerId=null)", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => usePlayerDetail(null), {
+				wrapper: makeWrapper(qc),
+			});
+			expect(result.current.isLoading).toBe(false);
+		});
+
+		it("starts true while the getById query is in flight", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => usePlayerDetail("p1"), {
+				wrapper: makeWrapper(qc),
+			});
+			expect(result.current.isLoading).toBe(true);
+		});
+
+		it("is false once the player is seeded in the cache", async () => {
+			const qc = createClient();
+			qc.setQueryData(playerKey("p1"), {
+				id: "p1",
+				name: "Alice",
+				memo: null,
+				tags: [],
+			} satisfies PlayerDetailData);
+			const { result } = renderHook(() => usePlayerDetail("p1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() => expect(result.current.player?.name).toBe("Alice"));
+			expect(result.current.isLoading).toBe(false);
 		});
 	});
 
@@ -297,6 +332,89 @@ describe("usePlayerDetail", () => {
 			expect(created?.id).toBe("tag-1");
 			expect(created?.name).toBe("NewTag");
 			expect(created?.color).toBe("red");
+		});
+	});
+
+	describe("deletePlayer (optimistic)", () => {
+		it("calls the delete mutation with the player id", async () => {
+			const qc = createClient();
+			qc.setQueryData(PLAYER_LIST_KEY, []);
+			trpcMocks.playerDelete.mockResolvedValue({ id: "p1" });
+			const { result } = renderHook(() => usePlayerDetail("p1"), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				result.current.deletePlayer("p1");
+				await Promise.resolve();
+			});
+			expect(trpcMocks.playerDelete).toHaveBeenCalledTimes(1);
+			expect(trpcMocks.playerDelete).toHaveBeenCalledWith({ id: "p1" });
+		});
+
+		it("optimistically removes the player from the list cache", async () => {
+			const qc = createClient();
+			qc.setQueryData(PLAYER_LIST_KEY, [
+				{ id: "p1", name: "Alice", memo: null, tags: [] },
+				{ id: "p2", name: "Bob", memo: null, tags: [] },
+			] satisfies PlayerListItemWithTags[]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.playerDelete.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => usePlayerDetail("p1"), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.deletePlayer("p1");
+			});
+			await waitFor(() => {
+				const list = qc.getQueryData<PlayerListItemWithTags[]>(PLAYER_LIST_KEY);
+				expect(list?.map((p) => p.id)).toEqual(["p2"]);
+			});
+			resolve?.({ id: "p1" });
+		});
+
+		it("restores the list cache when the delete mutation rejects", async () => {
+			const qc = createClient();
+			qc.setQueryData(PLAYER_LIST_KEY, [
+				{ id: "p1", name: "Alice", memo: null, tags: [] },
+				{ id: "p2", name: "Bob", memo: null, tags: [] },
+			] satisfies PlayerListItemWithTags[]);
+			trpcMocks.playerDelete.mockRejectedValue(new Error("boom"));
+			const { result } = renderHook(() => usePlayerDetail("p1"), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.deletePlayer("p1");
+			});
+			await waitFor(() => {
+				const list = qc.getQueryData<PlayerListItemWithTags[]>(PLAYER_LIST_KEY);
+				expect(list?.map((p) => p.id)).toEqual(["p1", "p2"]);
+			});
+		});
+
+		it("flips isDeleting during the in-flight delete", async () => {
+			const qc = createClient();
+			qc.setQueryData(PLAYER_LIST_KEY, []);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.playerDelete.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => usePlayerDetail("p1"), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.deletePlayer("p1");
+			});
+			await waitFor(() => expect(result.current.isDeleting).toBe(true));
+			resolve?.({ id: "p1" });
+			await waitFor(() => expect(result.current.isDeleting).toBe(false));
 		});
 	});
 });

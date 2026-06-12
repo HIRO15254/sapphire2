@@ -35,9 +35,9 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 		ringGame: {
-			listByStore: {
+			listByRoom: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("ringGame", "listByStore", input),
+					queryKey: buildKey("ringGame", "listByRoom", input),
 					queryFn: () => Promise.resolve([]),
 				}),
 			},
@@ -96,26 +96,26 @@ describe("useCashGameSession", () => {
 		expect(result.current.isDiscardPending).toBe(false);
 	});
 
-	it("exposes session from cache and ringGames scoped by storeId", async () => {
+	it("exposes session from cache and ringGames scoped by roomId", async () => {
 		const qc = createClient();
 		qc.setQueryData(["liveCashGameSession", "getById", { id: "s1" }], {
 			id: "s1",
-			storeId: "store-1",
+			roomId: "room-1",
 		});
 		qc.setQueryData(
-			["ringGame", "listByStore", { storeId: "store-1" }],
+			["ringGame", "listByRoom", { roomId: "room-1" }],
 			[{ id: "rg1", name: "NL200" }]
 		);
 		const { result } = renderHook(() => useCashGameSession("s1"), {
 			wrapper: makeWrapper(qc),
 		});
 		await waitFor(() => {
-			expect(result.current.session).toEqual({ id: "s1", storeId: "store-1" });
+			expect(result.current.session).toEqual({ id: "s1", roomId: "room-1" });
 		});
 		expect(result.current.ringGames).toHaveLength(1);
 	});
 
-	it("does not load ringGames when session.storeId is absent (enabled gate)", async () => {
+	it("does not load ringGames when session.roomId is absent (enabled gate)", async () => {
 		const qc = createClient();
 		qc.setQueryData(["liveCashGameSession", "getById", { id: "s1" }], {
 			id: "s1",

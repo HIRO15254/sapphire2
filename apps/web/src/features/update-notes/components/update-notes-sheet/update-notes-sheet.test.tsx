@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { UpdateNotesSheet } from "./update-notes-sheet";
 
@@ -63,24 +64,6 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
-		children,
-		title,
-		open,
-	}: {
-		children: React.ReactNode;
-		title: string;
-		open: boolean;
-	}) =>
-		open ? (
-			<div data-testid="dialog">
-				<h2>{title}</h2>
-				{children}
-			</div>
-		) : null,
-}));
-
 vi.mock("@/shared/components/ui/accordion", () => ({
 	Accordion: ({ children }: { children: React.ReactNode }) => (
 		<div data-testid="accordion">{children}</div>
@@ -103,16 +86,16 @@ vi.mock("@/shared/components/ui/badge", () => ({
 }));
 
 describe("UpdateNotesSheet", () => {
-	it("renders the dialog with title when open", () => {
+	it("renders the drawer with the Update notes title when open", () => {
 		mocks.sheetState.isOpen = true;
 		render(<UpdateNotesSheet />);
-		expect(screen.getByText("Update Notes")).toBeInTheDocument();
+		expect(screen.getByText("Update notes")).toBeInTheDocument();
 	});
 
 	it("does not render when closed", () => {
 		mocks.sheetState.isOpen = false;
 		render(<UpdateNotesSheet />);
-		expect(screen.queryByTestId("dialog")).not.toBeInTheDocument();
+		expect(screen.queryByText("Update notes")).not.toBeInTheDocument();
 	});
 
 	it("renders accordion items for update notes", () => {
@@ -160,10 +143,22 @@ describe("UpdateNotesSheet", () => {
 		).toBeInTheDocument();
 	});
 
-	it("does not render dialog content when isOpen=false even if viewedList is populated", () => {
+	it("does not render drawer content when isOpen=false even if viewedList is populated", () => {
 		mocks.sheetState.isOpen = false;
 		mocks.viewedList = [{ id: "1", version: "1.0.0", viewedAt: new Date() }];
 		render(<UpdateNotesSheet />);
-		expect(screen.queryByText("Update Notes")).not.toBeInTheDocument();
+		expect(screen.queryByText("Update notes")).not.toBeInTheDocument();
+	});
+
+	it("requests close via setIsOpen(false) when Escape is pressed", async () => {
+		const user = userEvent.setup();
+		mocks.sheetState.isOpen = true;
+		mocks.sheetState.setIsOpen.mockClear();
+		render(<UpdateNotesSheet />);
+
+		await user.keyboard("{Escape}");
+
+		expect(mocks.sheetState.setIsOpen).toHaveBeenCalledTimes(1);
+		expect(mocks.sheetState.setIsOpen).toHaveBeenCalledWith(false);
 	});
 });

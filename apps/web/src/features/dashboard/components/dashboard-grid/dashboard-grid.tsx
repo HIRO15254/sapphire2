@@ -4,8 +4,8 @@ import GridLayout, { type Layout } from "react-grid-layout";
 import {
 	DashboardWidget,
 	WIDGET_DRAG_HANDLE_CLASS,
-} from "@/features/dashboard/components/dashboard-widget";
-import { WidgetRenderer } from "@/features/dashboard/components/widget-renderer";
+} from "@/features/dashboard/components/dashboard-grid/dashboard-widget";
+import { WidgetRenderer } from "@/features/dashboard/components/dashboard-grid/widget-renderer";
 import type { Device } from "@/features/dashboard/hooks/use-current-device";
 import type { DashboardWidget as DashboardWidgetRow } from "@/features/dashboard/hooks/use-dashboard-widgets";
 import { GRID_COLS, useDashboardGrid } from "./use-dashboard-grid";

@@ -1,10 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ActiveSessionGameScene } from "@/features/live-sessions/components/active-session-game-scene";
+import { ActiveSessionGamePage } from "@/features/live-sessions/pages/active-session-game-page";
 
 export const Route = createFileRoute("/active-session/game")({
 	component: ActiveSessionGamePage,
 });
-
-function ActiveSessionGamePage() {
-	return <ActiveSessionGameScene />;
-}

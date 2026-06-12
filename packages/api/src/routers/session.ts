@@ -1,20 +1,27 @@
+import {
+	currency,
+	currencyTransaction,
+	transactionType,
+} from "@sapphire2/db/schema/currency";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
+import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
+import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
+import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
 import {
 	sessionTag,
 	sessionToSessionTag,
 } from "@sapphire2/db/schema/session-tag";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import {
-	currency,
-	currencyTransaction,
-	store,
-	transactionType,
-} from "@sapphire2/db/schema/store";
-import { tournament } from "@sapphire2/db/schema/tournament";
+	blindLevel,
+	tournament,
+	tournamentChipPurchase,
+} from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gte, inArray, lt, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -58,72 +65,137 @@ function computeCashGamePL(buyIn: number, cashOut: number): number {
 function computeTournamentPL(
 	tournamentBuyIn: number | null,
 	entryFee: number | null,
-	rebuyCount: number | null,
-	rebuyCost: number | null,
-	addonCost: number | null,
+	chipPurchaseCost: number,
 	prizeMoney: number | null,
 	bountyPrizes: number | null
 ): number {
 	const income = (prizeMoney ?? 0) + (bountyPrizes ?? 0);
-	const cost =
-		(tournamentBuyIn ?? 0) +
-		(entryFee ?? 0) +
-		(rebuyCount ?? 0) * (rebuyCost ?? 0) +
-		(addonCost ?? 0);
+	const cost = (tournamentBuyIn ?? 0) + (entryFee ?? 0) + chipPurchaseCost;
 	return income - cost;
 }
 
-interface RingGameConfigInput {
-	ante?: number | null;
-	anteType?: "none" | "all" | "bb" | null;
-	blind1?: number | null;
-	blind2?: number | null;
-	blind3?: number | null;
-	tableSize?: number | null;
-	variant?: string;
+interface SessionChipPurchaseWithCount {
+	chips: number;
+	cost: number;
+	count: number;
+	id: string;
+	name: string;
+	sortOrder: number;
 }
 
-function buildRingGameUpdateData(
-	input: RingGameConfigInput
-): Record<string, unknown> | null {
-	const keys = [
-		"variant",
-		"blind1",
-		"blind2",
-		"blind3",
-		"ante",
-		"anteType",
-		"tableSize",
-	] as const;
-	const hasUpdate = keys.some((k) => input[k] !== undefined);
-	if (!hasUpdate) {
-		return null;
-	}
+/** Σ (cost × count) across a session's chip purchases. */
+function sumChipPurchaseCost(
+	purchases: { cost: number; count: number }[]
+): number {
+	return purchases.reduce((acc, p) => acc + p.cost * p.count, 0);
+}
 
-	const data: Record<string, unknown> = { updatedAt: new Date() };
-	for (const key of keys) {
-		if (input[key] !== undefined) {
-			data[key] = input[key];
+/**
+ * Batched lookup of chip purchases (with their result counts) for the given
+ * sessions, keyed by session id and ordered by sortOrder. Sessions with no
+ * chip purchases are simply absent from the map.
+ */
+async function getSessionChipPurchaseMap(
+	db: DbInstance,
+	sessionIds: string[]
+): Promise<Map<string, SessionChipPurchaseWithCount[]>> {
+	const map = new Map<string, SessionChipPurchaseWithCount[]>();
+	if (sessionIds.length === 0) {
+		return map;
+	}
+	const rows = await db
+		.select({
+			sessionId: sessionChipPurchase.sessionId,
+			id: sessionChipPurchase.id,
+			name: sessionChipPurchase.name,
+			cost: sessionChipPurchase.cost,
+			chips: sessionChipPurchase.chips,
+			sortOrder: sessionChipPurchase.sortOrder,
+			count: sessionChipPurchaseResult.count,
+		})
+		.from(sessionChipPurchase)
+		.leftJoin(
+			sessionChipPurchaseResult,
+			eq(
+				sessionChipPurchaseResult.sessionChipPurchaseId,
+				sessionChipPurchase.id
+			)
+		)
+		.where(inArray(sessionChipPurchase.sessionId, sessionIds))
+		.orderBy(asc(sessionChipPurchase.sortOrder));
+	for (const r of rows) {
+		const entry: SessionChipPurchaseWithCount = {
+			id: r.id,
+			name: r.name,
+			cost: r.cost,
+			chips: r.chips,
+			sortOrder: r.sortOrder,
+			count: r.count ?? 0,
+		};
+		const existing = map.get(r.sessionId);
+		if (existing) {
+			existing.push(entry);
+		} else {
+			map.set(r.sessionId, [entry]);
 		}
 	}
-	return data;
+	return map;
+}
+
+/**
+ * Delete + reinsert a session's chip purchases together with their result
+ * counts. The session_chip_purchase delete cascades to old result rows, so
+ * only the inserts are added here. Used by both create and update so counts
+ * are always written against the freshly generated purchase ids.
+ */
+async function persistSessionChipPurchases(
+	db: DbInstance,
+	sessionId: string,
+	chipPurchases: {
+		chips: number;
+		cost: number;
+		count: number;
+		name: string;
+	}[]
+): Promise<void> {
+	await db
+		.delete(sessionChipPurchase)
+		.where(eq(sessionChipPurchase.sessionId, sessionId));
+	if (chipPurchases.length === 0) {
+		return;
+	}
+	const rows = chipPurchases.map((p, idx) => ({
+		id: crypto.randomUUID(),
+		sessionId,
+		name: p.name,
+		cost: p.cost,
+		chips: p.chips,
+		sortOrder: idx,
+	}));
+	await db.insert(sessionChipPurchase).values(rows);
+	await db.insert(sessionChipPurchaseResult).values(
+		rows.map((r, idx) => ({
+			sessionChipPurchaseId: r.id,
+			count: chipPurchases[idx]?.count ?? 0,
+		}))
+	);
 }
 
 async function validateEntityOwnership(
 	db: DbInstance,
-	entityType: "currency" | "ringGame" | "store" | "tournament",
+	entityType: "currency" | "ringGame" | "room" | "tournament",
 	entityId: string,
 	userId: string
 ) {
-	if (entityType === "store") {
-		const [found] = await db.select().from(store).where(eq(store.id, entityId));
+	if (entityType === "room") {
+		const [found] = await db.select().from(room).where(eq(room.id, entityId));
 		if (!found) {
-			throw new TRPCError({ code: "NOT_FOUND", message: "Store not found" });
+			throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
 		}
 		if (found.userId !== userId) {
 			throw new TRPCError({
 				code: "FORBIDDEN",
-				message: "You do not own this store",
+				message: "You do not own this room",
 			});
 		}
 	} else if (entityType === "ringGame") {
@@ -262,12 +334,7 @@ async function syncCurrencyTransaction(
 	}
 }
 
-export {
-	buildRingGameUpdateData,
-	computeCashGamePL,
-	computeTournamentPL,
-	validateSessionOwnership,
-};
+export { computeCashGamePL, computeTournamentPL, validateSessionOwnership };
 
 const CASH_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"buyIn",
@@ -295,9 +362,7 @@ const TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"beforeDeadline",
 	"prizeMoney",
 	"bountyPrizes",
-	"rebuyCount",
-	"rebuyCost",
-	"addonCost",
+	"chipPurchases",
 	"startedAt",
 	"endedAt",
 	"breakMinutes",
@@ -347,21 +412,36 @@ const cashGameCreateSchema = z.object({
 	buyIn: z.number().int().min(0),
 	cashOut: z.number().int().min(0),
 	evCashOut: z.number().int().min(0).optional(),
-	storeId: z.string().optional(),
+	roomId: z.string().optional(),
 	ringGameId: z.string().optional(),
 	currencyId: z.string().optional(),
+	// Snapshot fields — written through to session_cash_detail. When
+	// ringGameId is also provided, these override the parent values; when
+	// no master is referenced they define the rule wholesale.
+	ruleName: z.string().min(1).optional(),
 	variant: z.string().default("nlh"),
 	blind1: z.number().int().optional(),
 	blind2: z.number().int().optional(),
 	blind3: z.number().int().optional(),
 	ante: z.number().int().optional(),
 	anteType: z.enum(["none", "all", "bb"]).optional(),
+	minBuyIn: z.number().int().optional(),
+	maxBuyIn: z.number().int().optional(),
 	tableSize: z.number().int().optional(),
 	startedAt: z.number().optional(),
 	endedAt: z.number().optional(),
 	breakMinutes: z.number().int().min(0).optional(),
 	memo: z.string().optional(),
 	tagIds: z.array(z.string()).optional(),
+});
+
+// A rule-defined chip purchase plus how many times it was bought (`count`).
+// Shared by session.create and session.update.
+const chipPurchaseInputSchema = z.object({
+	name: z.string(),
+	cost: z.number().int(),
+	chips: z.number().int(),
+	count: z.number().int().min(0).default(0),
 });
 
 const tournamentCreateSchema = z
@@ -374,13 +454,31 @@ const tournamentCreateSchema = z
 		placement: z.number().int().min(1).optional(),
 		totalEntries: z.number().int().min(1).optional(),
 		prizeMoney: z.number().int().min(0).optional(),
-		rebuyCount: z.number().int().min(0).optional(),
-		rebuyCost: z.number().int().min(0).optional(),
-		addonCost: z.number().int().min(0).optional(),
 		bountyPrizes: z.number().int().min(0).optional(),
-		storeId: z.string().optional(),
+		roomId: z.string().optional(),
 		tournamentId: z.string().optional(),
 		currencyId: z.string().optional(),
+		// Snapshot fields — same role as on the cash schema. Allows manual
+		// sessions (or wizard-driven creation) to declare the rule wholesale
+		// even when no master tournament is referenced.
+		ruleName: z.string().min(1).optional(),
+		variant: z.string().optional(),
+		startingStack: z.number().int().optional(),
+		bountyAmount: z.number().int().optional(),
+		tableSize: z.number().int().optional(),
+		blindLevels: z
+			.array(
+				z.object({
+					isBreak: z.boolean(),
+					blind1: z.number().int().nullable().optional(),
+					blind2: z.number().int().nullable().optional(),
+					blind3: z.number().int().nullable().optional(),
+					ante: z.number().int().nullable().optional(),
+					minutes: z.number().int().nullable().optional(),
+				})
+			)
+			.optional(),
+		chipPurchases: z.array(chipPurchaseInputSchema).optional(),
 		startedAt: z.number().optional(),
 		endedAt: z.number().optional(),
 		breakMinutes: z.number().int().min(0).optional(),
@@ -420,16 +518,14 @@ interface SessionSummary {
 }
 
 interface SummarySessionRow {
-	addonCost: number | null;
 	bountyPrizes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
+	chipPurchaseCost: number;
 	entryFee: number | null;
 	evCashOut: number | null;
 	placement: number | null;
 	prizeMoney: number | null;
-	rebuyCost: number | null;
-	rebuyCount: number | null;
 	totalEntries: number | null;
 	type: string;
 }
@@ -441,9 +537,7 @@ function computeSessionPLFromRow(s: SummarySessionRow): number {
 	return computeTournamentPL(
 		s.buyIn,
 		s.entryFee,
-		s.rebuyCount,
-		s.rebuyCost,
-		s.addonCost,
+		s.chipPurchaseCost,
 		s.prizeMoney,
 		s.bountyPrizes
 	);
@@ -551,7 +645,7 @@ async function computeSummary(
 		currencyId?: string;
 		dateFrom?: number;
 		dateTo?: number;
-		storeId?: string;
+		roomId?: string;
 		type?: "cash_game" | "tournament";
 	},
 	typeFilter?: "cash_game" | "tournament"
@@ -560,8 +654,8 @@ async function computeSummary(
 	if (filters.type) {
 		conditions.push(eq(gameSession.kind, filters.type));
 	}
-	if (filters.storeId) {
-		conditions.push(eq(gameSession.storeId, filters.storeId));
+	if (filters.roomId) {
+		conditions.push(eq(gameSession.roomId, filters.roomId));
 	}
 	if (filters.currencyId) {
 		conditions.push(eq(gameSession.currencyId, filters.currencyId));
@@ -577,16 +671,14 @@ async function computeSummary(
 		);
 	}
 
-	const allSessions = await db
+	const rawSessions = await db
 		.select({
+			id: gameSession.id,
 			type: gameSession.kind,
 			buyIn: sessionCashDetail.buyIn,
 			cashOut: sessionCashDetail.cashOut,
 			evCashOut: sessionCashDetail.evCashOut,
 			entryFee: sessionTournamentDetail.entryFee,
-			rebuyCount: sessionTournamentDetail.rebuyCount,
-			rebuyCost: sessionTournamentDetail.rebuyCost,
-			addonCost: sessionTournamentDetail.addonCost,
 			prizeMoney: sessionTournamentDetail.prizeMoney,
 			bountyPrizes: sessionTournamentDetail.bountyPrizes,
 			placement: sessionTournamentDetail.placement,
@@ -603,10 +695,19 @@ async function computeSummary(
 		)
 		.where(and(...conditions));
 
-	const totalSessions = allSessions.length;
+	const totalSessions = rawSessions.length;
 	if (totalSessions === 0) {
 		return EMPTY_SUMMARY;
 	}
+
+	const chipPurchaseMap = await getSessionChipPurchaseMap(
+		db,
+		rawSessions.map((s) => s.id)
+	);
+	const allSessions: SummarySessionRow[] = rawSessions.map((s) => ({
+		...s,
+		chipPurchaseCost: sumChipPurchaseCost(chipPurchaseMap.get(s.id) ?? []),
+	}));
 
 	const agg = aggregateSessions(allSessions);
 	const isTournament = typeFilter === "tournament";
@@ -635,8 +736,8 @@ async function validateCreateLinks(
 	input: CreateInput,
 	userId: string
 ) {
-	if (input.storeId) {
-		await validateEntityOwnership(db, "store", input.storeId, userId);
+	if (input.roomId) {
+		await validateEntityOwnership(db, "room", input.roomId, userId);
 	}
 	if (input.currencyId) {
 		await validateEntityOwnership(db, "currency", input.currencyId, userId);
@@ -660,9 +761,7 @@ function _computeCreatePL(input: CreateInput): number {
 	return computeTournamentPL(
 		input.tournamentBuyIn,
 		input.entryFee,
-		input.rebuyCount ?? null,
-		input.rebuyCost ?? null,
-		input.addonCost ?? null,
+		sumChipPurchaseCost(input.chipPurchases ?? []),
 		input.prizeMoney ?? null,
 		input.bountyPrizes ?? null
 	);
@@ -677,8 +776,44 @@ interface ListFilters {
 	cursor?: string;
 	dateFrom?: number;
 	dateTo?: number;
-	storeId?: string;
+	roomId?: string;
 	type?: "cash_game" | "tournament";
+}
+
+/**
+ * Composite keyset cursor for the session list. The list orders by
+ * `sessionDate DESC, id DESC`, so paginating on `id` alone is wrong — id order
+ * is unrelated to date order, which made the second page drop or duplicate
+ * rows (and stop early, so "Load more" only worked once). The cursor therefore
+ * encodes both the date (epoch ms) and the id as `"<ms>_<id>"`.
+ */
+export function encodeSessionCursor(row: {
+	id: string;
+	sessionDate: Date;
+}): string {
+	return `${row.sessionDate.getTime()}_${row.id}`;
+}
+
+/**
+ * Parse an {@link encodeSessionCursor} value back into its date + id. Returns
+ * `null` for a malformed cursor (missing separator, empty / non-integer
+ * timestamp, or empty id) so the caller treats it as "no cursor" instead of
+ * crashing. Splits on the first separator only, so ids containing `_` survive.
+ */
+export function parseSessionCursor(
+	cursor: string
+): { id: string; sessionDate: Date } | null {
+	const separator = cursor.indexOf("_");
+	if (separator === -1) {
+		return null;
+	}
+	const rawMs = cursor.slice(0, separator);
+	const id = cursor.slice(separator + 1);
+	const ms = Number(rawMs);
+	if (rawMs === "" || id === "" || !Number.isInteger(ms)) {
+		return null;
+	}
+	return { id, sessionDate: new Date(ms) };
 }
 
 function buildSessionListConditions(userId: string, filters: ListFilters) {
@@ -686,8 +821,8 @@ function buildSessionListConditions(userId: string, filters: ListFilters) {
 	if (filters.type) {
 		conditions.push(eq(gameSession.kind, filters.type));
 	}
-	if (filters.storeId) {
-		conditions.push(eq(gameSession.storeId, filters.storeId));
+	if (filters.roomId) {
+		conditions.push(eq(gameSession.roomId, filters.roomId));
 	}
 	if (filters.currencyId) {
 		conditions.push(eq(gameSession.currencyId, filters.currencyId));
@@ -704,40 +839,50 @@ function buildSessionListConditions(userId: string, filters: ListFilters) {
 	}
 	const paginationConditions = [...conditions];
 	if (filters.cursor) {
-		paginationConditions.push(lt(gameSession.id, filters.cursor));
+		const parsed = parseSessionCursor(filters.cursor);
+		if (parsed) {
+			// Keyset must match the (sessionDate DESC, id DESC) ordering: take
+			// rows strictly after the cursor in that order.
+			const keyset = or(
+				lt(gameSession.sessionDate, parsed.sessionDate),
+				and(
+					eq(gameSession.sessionDate, parsed.sessionDate),
+					lt(gameSession.id, parsed.id)
+				)
+			);
+			if (keyset) {
+				paginationConditions.push(keyset);
+			}
+		}
 	}
 	return { conditions, paginationConditions };
 }
 
 interface ListItemRaw {
-	addonCost: number | null;
 	bountyPrizes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
+	chipPurchaseCost: number;
 	entryFee: number | null;
 	evCashOut: number | null;
 	id: string;
 	prizeMoney: number | null;
-	rebuyCost: number | null;
-	rebuyCount: number | null;
 	source: string;
 	tournamentBuyIn: number | null;
 	type: string;
 }
 
 interface ProfitLossSeriesRow {
-	addonCost: number | null;
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
+	chipPurchaseCost: number;
 	endedAt: Date | null;
 	entryFee: number | null;
 	evCashOut: number | null;
 	id: string;
 	prizeMoney: number | null;
-	rebuyCost: number | null;
-	rebuyCount: number | null;
 	ringGameBlind2: number | null;
 	sessionDate: Date;
 	startedAt: Date | null;
@@ -772,17 +917,12 @@ function computeTournamentStats(r: ProfitLossSeriesRow): TournamentStats {
 	const profitLoss = computeTournamentPL(
 		r.tournamentBuyIn,
 		r.entryFee,
-		r.rebuyCount,
-		r.rebuyCost,
-		r.addonCost,
+		r.chipPurchaseCost,
 		r.prizeMoney,
 		r.bountyPrizes
 	);
 	const total =
-		(r.tournamentBuyIn ?? 0) +
-		(r.entryFee ?? 0) +
-		(r.rebuyCount ?? 0) * (r.rebuyCost ?? 0) +
-		(r.addonCost ?? 0);
+		(r.tournamentBuyIn ?? 0) + (r.entryFee ?? 0) + r.chipPurchaseCost;
 	return { profitLoss, buyInTotal: total === 0 ? null : total };
 }
 
@@ -845,9 +985,7 @@ function enrichItemWithPL<T extends ListItemRaw>(item: T) {
 		profitLoss = computeTournamentPL(
 			item.tournamentBuyIn,
 			item.entryFee,
-			item.rebuyCount,
-			item.rebuyCost,
-			item.addonCost,
+			item.chipPurchaseCost,
 			item.prizeMoney,
 			item.bountyPrizes
 		);
@@ -868,6 +1006,122 @@ function enrichItemWithPL<T extends ListItemRaw>(item: T) {
 	};
 }
 
+/**
+ * Shared SELECT for an enriched session row (aliased fields + the cash /
+ * tournament snapshot scalars). Used by both `list` (paginated) and `getById`
+ * (single id) so the detail page receives exactly the same shape as a list
+ * item — display logic and the edit-wizard pre-fill both rely on these aliases.
+ */
+function selectEnrichedSessionRows(db: DbInstance) {
+	return db
+		.select({
+			id: gameSession.id,
+			type: gameSession.kind,
+			sessionDate: gameSession.sessionDate,
+			source: gameSession.source,
+			status: gameSession.status,
+			buyIn: sessionCashDetail.buyIn,
+			cashOut: sessionCashDetail.cashOut,
+			evCashOut: sessionCashDetail.evCashOut,
+			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
+			entryFee: sessionTournamentDetail.entryFee,
+			placement: sessionTournamentDetail.placement,
+			totalEntries: sessionTournamentDetail.totalEntries,
+			beforeDeadline: sessionTournamentDetail.beforeDeadline,
+			prizeMoney: sessionTournamentDetail.prizeMoney,
+			bountyPrizes: sessionTournamentDetail.bountyPrizes,
+			startedAt: gameSession.startedAt,
+			endedAt: gameSession.endedAt,
+			breakMinutes: gameSession.breakMinutes,
+			memo: gameSession.memo,
+			roomId: gameSession.roomId,
+			roomName: room.name,
+			ringGameId: sessionCashDetail.ringGameId,
+			ringGameName: sessionCashDetail.ruleName,
+			ringGameBlind2: sessionCashDetail.blind2,
+			tournamentId: sessionTournamentDetail.tournamentId,
+			tournamentName: sessionTournamentDetail.ruleName,
+			currencyId: gameSession.currencyId,
+			currencyName: currency.name,
+			currencyUnit: currency.unit,
+			createdAt: gameSession.createdAt,
+			// Cash snapshot scalars used by the edit-mode wizard to
+			// pre-fill the Rules step with the frozen rule.
+			cashVariant: sessionCashDetail.variant,
+			cashBlind1: sessionCashDetail.blind1,
+			cashBlind3: sessionCashDetail.blind3,
+			cashAnte: sessionCashDetail.ante,
+			cashAnteType: sessionCashDetail.anteType,
+			cashMinBuyIn: sessionCashDetail.minBuyIn,
+			cashMaxBuyIn: sessionCashDetail.maxBuyIn,
+			cashTableSize: sessionCashDetail.tableSize,
+			// Tournament snapshot scalars (same role).
+			tournamentVariant: sessionTournamentDetail.variant,
+			tournamentStartingStack: sessionTournamentDetail.startingStack,
+			tournamentBountyAmount: sessionTournamentDetail.bountyAmount,
+			tournamentTableSize: sessionTournamentDetail.tableSize,
+		})
+		.from(gameSession)
+		.leftJoin(
+			sessionCashDetail,
+			eq(sessionCashDetail.sessionId, gameSession.id)
+		)
+		.leftJoin(
+			sessionTournamentDetail,
+			eq(sessionTournamentDetail.sessionId, gameSession.id)
+		)
+		.leftJoin(room, eq(room.id, gameSession.roomId))
+		.leftJoin(currency, eq(currency.id, gameSession.currencyId));
+}
+
+/**
+ * Attaches chip purchases (+ their summed cost), profit/loss, the live-session
+ * id discriminators, and tag links to raw session rows from
+ * {@link selectEnrichedSessionRows}.
+ */
+async function enrichSessionRows<
+	T extends Omit<ListItemRaw, "chipPurchaseCost"> & { id: string },
+>(db: DbInstance, rows: T[]) {
+	const chipPurchaseMap = await getSessionChipPurchaseMap(
+		db,
+		rows.map((row) => row.id)
+	);
+	const withChipPurchases = rows.map((item) => {
+		const chipPurchases = chipPurchaseMap.get(item.id) ?? [];
+		return {
+			...item,
+			chipPurchases,
+			chipPurchaseCost: sumChipPurchaseCost(chipPurchases),
+		};
+	});
+
+	const withPL = withChipPurchases.map(enrichItemWithPL);
+
+	const sessionIds = withPL.map((item) => item.id);
+	const tagLinks =
+		sessionIds.length > 0
+			? await db
+					.select({
+						sessionId: sessionToSessionTag.sessionId,
+						tagId: sessionTag.id,
+						tagName: sessionTag.name,
+					})
+					.from(sessionToSessionTag)
+					.innerJoin(
+						sessionTag,
+						eq(sessionTag.id, sessionToSessionTag.sessionTagId)
+					)
+					.where(inArray(sessionToSessionTag.sessionId, sessionIds))
+			: [];
+
+	return withPL.map((item) => ({
+		...item,
+		tags: tagLinks
+			.filter((tl) => tl.sessionId === item.id)
+			.map((tl) => ({ id: tl.tagId, name: tl.tagName })),
+	}));
+}
+
 // ---------------------------------------------------------------------------
 // update helpers
 // ---------------------------------------------------------------------------
@@ -877,9 +1131,9 @@ interface UpdateInput {
 	currencyId?: string | null;
 	endedAt?: number | null;
 	memo?: string | null;
+	roomId?: string | null;
 	sessionDate?: number;
 	startedAt?: number | null;
-	storeId?: string | null;
 }
 
 function buildSessionUpdateFields(
@@ -891,8 +1145,8 @@ function buildSessionUpdateFields(
 	if (input.sessionDate !== undefined) {
 		update.sessionDate = new Date(input.sessionDate * 1000);
 	}
-	if (input.storeId !== undefined) {
-		update.storeId = input.storeId;
+	if (input.roomId !== undefined) {
+		update.roomId = input.roomId;
 	}
 	if (input.currencyId !== undefined) {
 		update.currencyId = input.currencyId;
@@ -943,74 +1197,129 @@ async function applyCashDetailUpdate(
 	if (input.evCashOut !== undefined) {
 		cashUpdate.evCashOut = input.evCashOut;
 	}
+
+	// Snapshot field overrides — written to detail, never propagated to parent.
+	if (input.variant !== undefined) {
+		cashUpdate.variant = input.variant;
+	}
+	if (input.blind1 !== undefined) {
+		cashUpdate.blind1 = input.blind1;
+	}
+	if (input.blind2 !== undefined) {
+		cashUpdate.blind2 = input.blind2;
+	}
+	if (input.blind3 !== undefined) {
+		cashUpdate.blind3 = input.blind3;
+	}
+	if (input.ante !== undefined) {
+		cashUpdate.ante = input.ante;
+	}
+	if (input.anteType !== undefined) {
+		cashUpdate.anteType = input.anteType;
+	}
+	if (input.tableSize !== undefined) {
+		cashUpdate.tableSize = input.tableSize;
+	}
+
 	if (input.ringGameId !== undefined) {
 		cashUpdate.ringGameId = input.ringGameId;
-	}
-
-	if (Object.keys(cashUpdate).length > 0) {
-		const [existingDetail] = await db
-			.select()
-			.from(sessionCashDetail)
-			.where(eq(sessionCashDetail.sessionId, sessionId));
-		if (existingDetail) {
-			await db
-				.update(sessionCashDetail)
-				.set(cashUpdate)
-				.where(eq(sessionCashDetail.sessionId, sessionId));
-		} else {
-			await db.insert(sessionCashDetail).values({ sessionId, ...cashUpdate });
+		if (input.ringGameId) {
+			// Re-snapshot from the new parent, while letting explicit input
+			// fields override.
+			const snapshot = await resolveCashRuleSnapshot(db, input);
+			cashUpdate.ruleName = snapshot.ruleName;
+			cashUpdate.variant = snapshot.variant;
+			cashUpdate.blind1 = snapshot.blind1;
+			cashUpdate.blind2 = snapshot.blind2;
+			cashUpdate.blind3 = snapshot.blind3;
+			cashUpdate.ante = snapshot.ante;
+			cashUpdate.anteType = snapshot.anteType;
+			cashUpdate.minBuyIn = snapshot.minBuyIn;
+			cashUpdate.maxBuyIn = snapshot.maxBuyIn;
+			cashUpdate.tableSize = snapshot.tableSize;
 		}
 	}
 
-	const rgUpdateData = buildRingGameUpdateData(input);
-	if (rgUpdateData) {
-		const [currentDetail] = await db
-			.select()
-			.from(sessionCashDetail)
+	if (Object.keys(cashUpdate).length === 0) {
+		return;
+	}
+	const [existingDetail] = await db
+		.select()
+		.from(sessionCashDetail)
+		.where(eq(sessionCashDetail.sessionId, sessionId));
+	if (existingDetail) {
+		await db
+			.update(sessionCashDetail)
+			.set(cashUpdate)
 			.where(eq(sessionCashDetail.sessionId, sessionId));
-		if (currentDetail?.ringGameId) {
-			await db
-				.update(ringGame)
-				.set(rgUpdateData)
-				.where(eq(ringGame.id, currentDetail.ringGameId));
-		}
+	} else {
+		await db.insert(sessionCashDetail).values({ sessionId, ...cashUpdate });
 	}
 }
 
 interface TournamentUpdateInput {
-	addonCost?: number | null;
 	beforeDeadline?: boolean | null;
 	bountyPrizes?: number | null;
+	chipPurchases?: {
+		chips: number;
+		cost: number;
+		count: number;
+		name: string;
+	}[];
 	entryFee?: number;
 	placement?: number | null;
 	prizeMoney?: number | null;
-	rebuyCost?: number | null;
-	rebuyCount?: number | null;
 	totalEntries?: number | null;
 	tournamentBuyIn?: number;
 	tournamentId?: string | null;
 }
 
-async function applyTournamentDetailUpdate(
+async function applyTournamentSnapshotUpdate(
 	db: DbInstance,
-	sessionId: string,
+	tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert>,
 	input: TournamentUpdateInput
 ): Promise<void> {
-	const tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> = {};
-	if (input.tournamentId !== undefined) {
-		tournUpdate.tournamentId = input.tournamentId;
+	if (input.tournamentId === undefined) {
+		return;
 	}
-	if (input.tournamentBuyIn !== undefined) {
-		tournUpdate.tournamentBuyIn = input.tournamentBuyIn;
+	tournUpdate.tournamentId = input.tournamentId;
+	if (!input.tournamentId) {
+		return;
 	}
-	if (input.entryFee !== undefined) {
-		tournUpdate.entryFee = input.entryFee;
+	const snapshot = await resolveTournamentRuleSnapshot(db, {
+		tournamentId: input.tournamentId,
+		tournamentBuyIn: input.tournamentBuyIn,
+		entryFee: input.entryFee,
+	});
+	tournUpdate.ruleName = snapshot.ruleName;
+	tournUpdate.variant = snapshot.variant;
+	tournUpdate.startingStack = snapshot.startingStack;
+	tournUpdate.bountyAmount = snapshot.bountyAmount;
+	tournUpdate.tableSize = snapshot.tableSize;
+	if (input.tournamentBuyIn === undefined) {
+		tournUpdate.tournamentBuyIn = snapshot.tournamentBuyIn;
 	}
-	if (input.placement !== undefined) {
-		tournUpdate.placement = input.placement;
+	if (input.entryFee === undefined) {
+		tournUpdate.entryFee = snapshot.entryFee;
 	}
-	if (input.totalEntries !== undefined) {
-		tournUpdate.totalEntries = input.totalEntries;
+}
+
+function applyTournamentScalarUpdates(
+	tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert>,
+	input: TournamentUpdateInput
+): void {
+	const scalarKeys = [
+		"tournamentBuyIn",
+		"entryFee",
+		"placement",
+		"totalEntries",
+		"prizeMoney",
+		"bountyPrizes",
+	] as const;
+	for (const key of scalarKeys) {
+		if (input[key] !== undefined) {
+			tournUpdate[key] = input[key];
+		}
 	}
 	if (input.beforeDeadline !== undefined) {
 		tournUpdate.beforeDeadline = input.beforeDeadline;
@@ -1019,39 +1328,126 @@ async function applyTournamentDetailUpdate(
 			tournUpdate.totalEntries = null;
 		}
 	}
-	if (input.prizeMoney !== undefined) {
-		tournUpdate.prizeMoney = input.prizeMoney;
-	}
-	if (input.rebuyCount !== undefined) {
-		tournUpdate.rebuyCount = input.rebuyCount;
-	}
-	if (input.rebuyCost !== undefined) {
-		tournUpdate.rebuyCost = input.rebuyCost;
-	}
-	if (input.addonCost !== undefined) {
-		tournUpdate.addonCost = input.addonCost;
-	}
-	if (input.bountyPrizes !== undefined) {
-		tournUpdate.bountyPrizes = input.bountyPrizes;
+}
+
+async function applyTournamentDetailUpdate(
+	db: DbInstance,
+	sessionId: string,
+	input: TournamentUpdateInput
+): Promise<void> {
+	const tournUpdate: Partial<typeof sessionTournamentDetail.$inferInsert> = {};
+	await applyTournamentSnapshotUpdate(db, tournUpdate, input);
+	applyTournamentScalarUpdates(tournUpdate, input);
+
+	if (Object.keys(tournUpdate).length > 0) {
+		const [existingDetail] = await db
+			.select()
+			.from(sessionTournamentDetail)
+			.where(eq(sessionTournamentDetail.sessionId, sessionId));
+		if (existingDetail) {
+			await db
+				.update(sessionTournamentDetail)
+				.set(tournUpdate)
+				.where(eq(sessionTournamentDetail.sessionId, sessionId));
+		} else {
+			await db
+				.insert(sessionTournamentDetail)
+				.values({ sessionId, ...tournUpdate });
+		}
 	}
 
-	if (Object.keys(tournUpdate).length === 0) {
-		return;
+	// Re-snapshot blind levels / chip purchases when the parent link changes.
+	// `null` keeps the existing snapshot (frozen).
+	if (input.tournamentId) {
+		await resnapshotTournamentStructure(db, sessionId, input.tournamentId);
 	}
-	const [existingDetail] = await db
+
+	// Explicit chip purchases (with result counts) override the snapshot.
+	// Runs after the re-snapshot so the explicit array wins when both apply.
+	if (input.chipPurchases !== undefined) {
+		await persistSessionChipPurchases(db, sessionId, input.chipPurchases);
+	}
+}
+
+interface CashRuleSnapshot {
+	ante: number | null;
+	anteType: string | null;
+	blind1: number | null;
+	blind2: number | null;
+	blind3: number | null;
+	maxBuyIn: number | null;
+	minBuyIn: number | null;
+	ruleName: string;
+	tableSize: number | null;
+	variant: string;
+}
+
+interface CashRuleInput {
+	ante?: number | null;
+	anteType?: "none" | "all" | "bb" | null;
+	blind1?: number | null;
+	blind2?: number | null;
+	blind3?: number | null;
+	maxBuyIn?: number | null;
+	minBuyIn?: number | null;
+	ringGameId?: string | null;
+	ruleName?: string;
+	tableSize?: number | null;
+	variant?: string;
+}
+
+function pick<T>(override: T | undefined, fallback: T): T {
+	return override === undefined ? fallback : override;
+}
+
+function defaultCashSnapshot(input: CashRuleInput): CashRuleSnapshot {
+	return {
+		ruleName: input.ruleName ?? "Untitled",
+		variant: input.variant ?? "nlh",
+		blind1: input.blind1 ?? null,
+		blind2: input.blind2 ?? null,
+		blind3: input.blind3 ?? null,
+		ante: input.ante ?? null,
+		anteType: input.anteType ?? null,
+		minBuyIn: input.minBuyIn ?? null,
+		maxBuyIn: input.maxBuyIn ?? null,
+		tableSize: input.tableSize ?? null,
+	};
+}
+
+function mergeCashSnapshotWithParent(
+	input: CashRuleInput,
+	rg: typeof ringGame.$inferSelect
+): CashRuleSnapshot {
+	return {
+		ruleName: input.ruleName ?? rg.name,
+		variant: input.variant ?? rg.variant,
+		blind1: pick(input.blind1, rg.blind1),
+		blind2: pick(input.blind2, rg.blind2),
+		blind3: pick(input.blind3, rg.blind3),
+		ante: pick(input.ante, rg.ante),
+		anteType: pick(input.anteType, rg.anteType),
+		minBuyIn: pick(input.minBuyIn, rg.minBuyIn),
+		maxBuyIn: pick(input.maxBuyIn, rg.maxBuyIn),
+		tableSize: pick(input.tableSize, rg.tableSize),
+	};
+}
+
+async function resolveCashRuleSnapshot(
+	db: DbInstance,
+	input: CashRuleInput
+): Promise<CashRuleSnapshot> {
+	if (!input.ringGameId) {
+		return defaultCashSnapshot(input);
+	}
+	const [rg] = await db
 		.select()
-		.from(sessionTournamentDetail)
-		.where(eq(sessionTournamentDetail.sessionId, sessionId));
-	if (existingDetail) {
-		await db
-			.update(sessionTournamentDetail)
-			.set(tournUpdate)
-			.where(eq(sessionTournamentDetail.sessionId, sessionId));
-	} else {
-		await db
-			.insert(sessionTournamentDetail)
-			.values({ sessionId, ...tournUpdate });
+		.from(ringGame)
+		.where(eq(ringGame.id, input.ringGameId));
+	if (!rg) {
+		return defaultCashSnapshot(input);
 	}
+	return mergeCashSnapshotWithParent(input, rg);
 }
 
 async function insertCashGameSessionDetail(
@@ -1061,23 +1457,27 @@ async function insertCashGameSessionDetail(
 	now: Date
 ): Promise<void> {
 	let ringGameId = input.ringGameId ?? null;
+	const snapshot = await resolveCashRuleSnapshot(db, input);
+
 	if (!ringGameId) {
 		ringGameId = crypto.randomUUID();
+		const derivedName = `${snapshot.variant} ${snapshot.blind1 ?? 0}/${snapshot.blind2 ?? 0}`;
 		await db.insert(ringGame).values({
 			id: ringGameId,
-			storeId: null,
-			name: `${input.variant ?? "nlh"} ${input.blind1 ?? 0}/${input.blind2 ?? 0}`,
-			variant: input.variant ?? "nlh",
-			blind1: input.blind1 ?? null,
-			blind2: input.blind2 ?? null,
-			blind3: input.blind3 ?? null,
-			ante: input.ante ?? null,
-			anteType: input.anteType ?? null,
+			roomId: null,
+			name: derivedName,
+			variant: snapshot.variant,
+			blind1: snapshot.blind1,
+			blind2: snapshot.blind2,
+			blind3: snapshot.blind3,
+			ante: snapshot.ante,
+			anteType: snapshot.anteType,
 			minBuyIn: null,
 			maxBuyIn: null,
-			tableSize: input.tableSize ?? null,
+			tableSize: snapshot.tableSize,
 			updatedAt: now,
 		});
+		snapshot.ruleName = derivedName;
 	}
 	await db.insert(sessionCashDetail).values({
 		sessionId,
@@ -1085,7 +1485,77 @@ async function insertCashGameSessionDetail(
 		buyIn: input.buyIn,
 		cashOut: input.cashOut,
 		evCashOut: input.evCashOut ?? null,
+		ruleName: snapshot.ruleName,
+		variant: snapshot.variant,
+		blind1: snapshot.blind1,
+		blind2: snapshot.blind2,
+		blind3: snapshot.blind3,
+		ante: snapshot.ante,
+		anteType: snapshot.anteType,
+		minBuyIn: snapshot.minBuyIn,
+		maxBuyIn: snapshot.maxBuyIn,
+		tableSize: snapshot.tableSize,
 	});
+}
+
+interface TournamentRuleSnapshot {
+	bountyAmount: number | null;
+	entryFee: number | null;
+	ruleName: string;
+	startingStack: number | null;
+	tableSize: number | null;
+	tournamentBuyIn: number | null;
+	variant: string;
+}
+
+interface TournamentRuleInput {
+	bountyAmount?: number | null;
+	entryFee?: number | null;
+	ruleName?: string;
+	startingStack?: number | null;
+	tableSize?: number | null;
+	tournamentBuyIn?: number | null;
+	tournamentId?: string | null;
+	variant?: string;
+}
+
+async function resolveTournamentRuleSnapshot(
+	db: DbInstance,
+	input: TournamentRuleInput
+): Promise<TournamentRuleSnapshot> {
+	let base: TournamentRuleSnapshot = {
+		ruleName: input.ruleName ?? "Untitled",
+		variant: input.variant ?? "nlh",
+		tournamentBuyIn: input.tournamentBuyIn ?? null,
+		entryFee: input.entryFee ?? null,
+		startingStack: input.startingStack ?? null,
+		bountyAmount: input.bountyAmount ?? null,
+		tableSize: input.tableSize ?? null,
+	};
+	if (input.tournamentId) {
+		const [t] = await db
+			.select()
+			.from(tournament)
+			.where(eq(tournament.id, input.tournamentId));
+		if (t) {
+			base = {
+				ruleName: input.ruleName ?? t.name,
+				variant: input.variant ?? t.variant,
+				tournamentBuyIn:
+					input.tournamentBuyIn !== undefined && input.tournamentBuyIn !== null
+						? input.tournamentBuyIn
+						: t.buyIn,
+				entryFee:
+					input.entryFee !== undefined && input.entryFee !== null
+						? input.entryFee
+						: t.entryFee,
+				startingStack: pick(input.startingStack, t.startingStack),
+				bountyAmount: pick(input.bountyAmount, t.bountyAmount),
+				tableSize: pick(input.tableSize, t.tableSize),
+			};
+		}
+	}
+	return base;
 }
 
 async function insertTournamentSessionDetail(
@@ -1094,21 +1564,136 @@ async function insertTournamentSessionDetail(
 	input: z.infer<typeof tournamentCreateSchema>
 ): Promise<void> {
 	const beforeDeadline = input.beforeDeadline === true;
+	const snapshot = await resolveTournamentRuleSnapshot(db, {
+		tournamentId: input.tournamentId,
+		tournamentBuyIn: input.tournamentBuyIn,
+		entryFee: input.entryFee,
+		ruleName: input.ruleName,
+		variant: input.variant,
+		startingStack: input.startingStack,
+		bountyAmount: input.bountyAmount,
+		tableSize: input.tableSize,
+	});
 	await db.insert(sessionTournamentDetail).values({
 		sessionId,
 		tournamentId: input.tournamentId ?? null,
-		tournamentBuyIn: input.tournamentBuyIn,
-		entryFee: input.entryFee,
+		tournamentBuyIn: snapshot.tournamentBuyIn,
+		entryFee: snapshot.entryFee,
 		beforeDeadline: beforeDeadline ? true : null,
 		placement: beforeDeadline ? null : (input.placement ?? null),
 		totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
 		prizeMoney: input.prizeMoney ?? null,
-		rebuyCount: input.rebuyCount ?? null,
-		rebuyCost: input.rebuyCost ?? null,
-		addonCost: input.addonCost ?? null,
 		bountyPrizes: input.bountyPrizes ?? null,
+		ruleName: snapshot.ruleName,
+		variant: snapshot.variant,
+		startingStack: snapshot.startingStack,
+		bountyAmount: snapshot.bountyAmount,
+		tableSize: snapshot.tableSize,
 	});
+	if (input.tournamentId) {
+		await snapshotTournamentStructure(db, sessionId, input.tournamentId);
+	}
+	// Allow callers to override the snapshotted structure with explicit
+	// blind levels / chip purchases. This runs after the parent copy so
+	// the explicit arrays win when both are supplied.
+	if (input.blindLevels !== undefined) {
+		await db
+			.delete(sessionBlindLevel)
+			.where(eq(sessionBlindLevel.sessionId, sessionId));
+		if (input.blindLevels.length > 0) {
+			await db.insert(sessionBlindLevel).values(
+				input.blindLevels.map((l, idx) => ({
+					id: crypto.randomUUID(),
+					sessionId,
+					level: idx + 1,
+					isBreak: l.isBreak,
+					blind1: l.blind1 ?? null,
+					blind2: l.blind2 ?? null,
+					blind3: l.blind3 ?? null,
+					ante: l.ante ?? null,
+					minutes: l.minutes ?? null,
+				}))
+			);
+		}
+	}
+	if (input.chipPurchases !== undefined) {
+		await persistSessionChipPurchases(db, sessionId, input.chipPurchases);
+	}
 }
+
+async function snapshotTournamentStructure(
+	db: DbInstance,
+	sessionId: string,
+	tournamentId: string
+): Promise<void> {
+	const levels = await db
+		.select()
+		.from(blindLevel)
+		.where(eq(blindLevel.tournamentId, tournamentId))
+		.orderBy(asc(blindLevel.level));
+	if (levels.length > 0) {
+		await db.insert(sessionBlindLevel).values(
+			levels.map((l) => ({
+				id: crypto.randomUUID(),
+				sessionId,
+				level: l.level,
+				isBreak: l.isBreak,
+				blind1: l.blind1,
+				blind2: l.blind2,
+				blind3: l.blind3,
+				ante: l.ante,
+				minutes: l.minutes,
+			}))
+		);
+	}
+
+	const purchases = await db
+		.select()
+		.from(tournamentChipPurchase)
+		.where(eq(tournamentChipPurchase.tournamentId, tournamentId))
+		.orderBy(asc(tournamentChipPurchase.sortOrder));
+	if (purchases.length > 0) {
+		const purchaseRows = purchases.map((p) => ({
+			id: crypto.randomUUID(),
+			sessionId,
+			name: p.name,
+			cost: p.cost,
+			chips: p.chips,
+			sortOrder: p.sortOrder,
+		}));
+		await db.insert(sessionChipPurchase).values(purchaseRows);
+		// Every chip purchase starts with a result row (count 0) so the
+		// result table always has a row to update.
+		await db.insert(sessionChipPurchaseResult).values(
+			purchaseRows.map((r) => ({
+				sessionChipPurchaseId: r.id,
+				count: 0,
+			}))
+		);
+	}
+}
+
+async function resnapshotTournamentStructure(
+	db: DbInstance,
+	sessionId: string,
+	tournamentId: string
+): Promise<void> {
+	await db
+		.delete(sessionBlindLevel)
+		.where(eq(sessionBlindLevel.sessionId, sessionId));
+	await db
+		.delete(sessionChipPurchase)
+		.where(eq(sessionChipPurchase.sessionId, sessionId));
+	await snapshotTournamentStructure(db, sessionId, tournamentId);
+}
+
+export {
+	persistSessionChipPurchases,
+	resnapshotTournamentStructure,
+	resolveCashRuleSnapshot,
+	resolveTournamentRuleSnapshot,
+	snapshotTournamentStructure,
+};
 
 async function insertSessionTags(
 	db: DbInstance,
@@ -1136,7 +1721,7 @@ async function selectCreatedSession(db: DbInstance, id: string) {
 			endedAt: gameSession.endedAt,
 			breakMinutes: gameSession.breakMinutes,
 			memo: gameSession.memo,
-			storeId: gameSession.storeId,
+			roomId: gameSession.roomId,
 			currencyId: gameSession.currencyId,
 			createdAt: gameSession.createdAt,
 			updatedAt: gameSession.updatedAt,
@@ -1176,13 +1761,11 @@ function computeSessionPLFromDetails(
 		| {
 				tournamentBuyIn: number | null;
 				entryFee: number | null;
-				rebuyCount: number | null;
-				rebuyCost: number | null;
-				addonCost: number | null;
 				prizeMoney: number | null;
 				bountyPrizes: number | null;
 		  }
-		| undefined
+		| undefined,
+	chipPurchaseCost: number
 ): number {
 	if (
 		kind === "cash_game" &&
@@ -1195,9 +1778,7 @@ function computeSessionPLFromDetails(
 		return computeTournamentPL(
 			tournamentDetail.tournamentBuyIn,
 			tournamentDetail.entryFee,
-			tournamentDetail.rebuyCount,
-			tournamentDetail.rebuyCost,
-			tournamentDetail.addonCost,
+			chipPurchaseCost,
 			tournamentDetail.prizeMoney,
 			tournamentDetail.bountyPrizes
 		);
@@ -1227,7 +1808,7 @@ export const sessionRouter = router({
 				endedAt: timestampToDate(input.endedAt),
 				breakMinutes: input.breakMinutes ?? null,
 				memo: input.memo ?? null,
-				storeId: input.storeId ?? null,
+				roomId: input.roomId ?? null,
 				currencyId: input.currencyId ?? null,
 				updatedAt: now,
 			});
@@ -1256,7 +1837,7 @@ export const sessionRouter = router({
 			z.object({
 				cursor: z.string().optional(),
 				type: z.enum(["cash_game", "tournament"]).optional(),
-				storeId: z.string().optional(),
+				roomId: z.string().optional(),
 				currencyId: z.string().optional(),
 				dateFrom: z.number().optional(),
 				dateTo: z.number().optional(),
@@ -1269,91 +1850,18 @@ export const sessionRouter = router({
 				input
 			);
 
-			const data = await ctx.db
-				.select({
-					id: gameSession.id,
-					type: gameSession.kind,
-					sessionDate: gameSession.sessionDate,
-					source: gameSession.source,
-					status: gameSession.status,
-					buyIn: sessionCashDetail.buyIn,
-					cashOut: sessionCashDetail.cashOut,
-					evCashOut: sessionCashDetail.evCashOut,
-					tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
-					entryFee: sessionTournamentDetail.entryFee,
-					placement: sessionTournamentDetail.placement,
-					totalEntries: sessionTournamentDetail.totalEntries,
-					beforeDeadline: sessionTournamentDetail.beforeDeadline,
-					prizeMoney: sessionTournamentDetail.prizeMoney,
-					rebuyCount: sessionTournamentDetail.rebuyCount,
-					rebuyCost: sessionTournamentDetail.rebuyCost,
-					addonCost: sessionTournamentDetail.addonCost,
-					bountyPrizes: sessionTournamentDetail.bountyPrizes,
-					startedAt: gameSession.startedAt,
-					endedAt: gameSession.endedAt,
-					breakMinutes: gameSession.breakMinutes,
-					memo: gameSession.memo,
-					storeId: gameSession.storeId,
-					storeName: store.name,
-					ringGameId: sessionCashDetail.ringGameId,
-					ringGameName: ringGame.name,
-					ringGameBlind2: ringGame.blind2,
-					tournamentId: sessionTournamentDetail.tournamentId,
-					tournamentName: tournament.name,
-					currencyId: gameSession.currencyId,
-					currencyName: currency.name,
-					currencyUnit: currency.unit,
-					createdAt: gameSession.createdAt,
-				})
-				.from(gameSession)
-				.leftJoin(
-					sessionCashDetail,
-					eq(sessionCashDetail.sessionId, gameSession.id)
-				)
-				.leftJoin(
-					sessionTournamentDetail,
-					eq(sessionTournamentDetail.sessionId, gameSession.id)
-				)
-				.leftJoin(store, eq(store.id, gameSession.storeId))
-				.leftJoin(ringGame, eq(ringGame.id, sessionCashDetail.ringGameId))
-				.leftJoin(
-					tournament,
-					eq(tournament.id, sessionTournamentDetail.tournamentId)
-				)
-				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
+			const data = await selectEnrichedSessionRows(ctx.db)
 				.where(and(...paginationConditions))
 				.orderBy(desc(gameSession.sessionDate), desc(gameSession.id))
 				.limit(PAGE_SIZE + 1);
 
 			const hasMore = data.length > PAGE_SIZE;
 			const items = hasMore ? data.slice(0, PAGE_SIZE) : data;
-			const nextCursor = hasMore ? items.at(-1)?.id : undefined;
+			const last = items.at(-1);
+			const nextCursor =
+				hasMore && last ? encodeSessionCursor(last) : undefined;
 
-			const itemsWithPL = items.map(enrichItemWithPL);
-
-			const sessionIds = itemsWithPL.map((item) => item.id);
-			const tagLinks =
-				sessionIds.length > 0
-					? await ctx.db
-							.select({
-								sessionId: sessionToSessionTag.sessionId,
-								tagId: sessionTag.id,
-								tagName: sessionTag.name,
-							})
-							.from(sessionToSessionTag)
-							.innerJoin(
-								sessionTag,
-								eq(sessionTag.id, sessionToSessionTag.sessionTagId)
-							)
-							.where(inArray(sessionToSessionTag.sessionId, sessionIds))
-					: [];
-
-			const itemsWithTags = itemsWithPL.map((item) => ({
-				...item,
-				tags: tagLinks
-					.filter((tl) => tl.sessionId === item.id)
-					.map((tl) => ({ id: tl.tagId, name: tl.tagName })),
-			}));
+			const itemsWithTags = await enrichSessionRows(ctx.db, items);
 
 			const summary = await computeSummary(ctx.db, userId, input, input.type);
 
@@ -1364,35 +1872,23 @@ export const sessionRouter = router({
 		.input(z.object({ id: z.string() }))
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const session = await validateSessionOwnership(ctx.db, input.id, userId);
+			// Ownership guard — throws NOT_FOUND when the session is missing or
+			// belongs to another user.
+			await validateSessionOwnership(ctx.db, input.id, userId);
 
-			const [cashDetail] = await ctx.db
-				.select()
-				.from(sessionCashDetail)
-				.where(eq(sessionCashDetail.sessionId, input.id));
+			const rows = await selectEnrichedSessionRows(ctx.db).where(
+				and(eq(gameSession.id, input.id), eq(gameSession.userId, userId))
+			);
+			const [enriched] = await enrichSessionRows(ctx.db, rows);
 
-			const [tournamentDetail] = await ctx.db
-				.select()
-				.from(sessionTournamentDetail)
-				.where(eq(sessionTournamentDetail.sessionId, input.id));
+			if (!enriched) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Session not found",
+				});
+			}
 
-			const liveCashGameSessionId =
-				session.source === "live" && session.kind === "cash_game"
-					? session.id
-					: null;
-			const liveTournamentSessionId =
-				session.source === "live" && session.kind === "tournament"
-					? session.id
-					: null;
-
-			return {
-				...session,
-				type: session.kind,
-				liveCashGameSessionId,
-				liveTournamentSessionId,
-				...cashDetail,
-				...tournamentDetail,
-			};
+			return enriched;
 		}),
 
 	update: protectedProcedure
@@ -1400,7 +1896,7 @@ export const sessionRouter = router({
 			z.object({
 				id: z.string(),
 				sessionDate: z.number().optional(),
-				storeId: z.string().nullable().optional(),
+				roomId: z.string().nullable().optional(),
 				ringGameId: z.string().nullable().optional(),
 				tournamentId: z.string().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
@@ -1413,10 +1909,8 @@ export const sessionRouter = router({
 				totalEntries: z.number().int().min(1).nullable().optional(),
 				beforeDeadline: z.boolean().nullable().optional(),
 				prizeMoney: z.number().int().min(0).nullable().optional(),
-				rebuyCount: z.number().int().min(0).nullable().optional(),
-				rebuyCost: z.number().int().min(0).nullable().optional(),
-				addonCost: z.number().int().min(0).nullable().optional(),
 				bountyPrizes: z.number().int().min(0).nullable().optional(),
+				chipPurchases: z.array(chipPurchaseInputSchema).optional(),
 				startedAt: z.number().nullable().optional(),
 				endedAt: z.number().nullable().optional(),
 				breakMinutes: z.number().int().min(0).nullable().optional(),
@@ -1440,8 +1934,8 @@ export const sessionRouter = router({
 				input
 			);
 
-			if (input.storeId) {
-				await validateEntityOwnership(ctx.db, "store", input.storeId, userId);
+			if (input.roomId) {
+				await validateEntityOwnership(ctx.db, "room", input.roomId, userId);
 			}
 			if (input.currencyId) {
 				await validateEntityOwnership(
@@ -1516,10 +2010,14 @@ export const sessionRouter = router({
 				.from(sessionTournamentDetail)
 				.where(eq(sessionTournamentDetail.sessionId, input.id));
 
+			const updatedChipPurchaseMap = await getSessionChipPurchaseMap(ctx.db, [
+				input.id,
+			]);
 			const pl = computeSessionPLFromDetails(
 				updated.kind,
 				updatedCashDetail,
-				updatedTournamentDetail
+				updatedTournamentDetail,
+				sumChipPurchaseCost(updatedChipPurchaseMap.get(input.id) ?? [])
 			);
 
 			await syncCurrencyTransaction(
@@ -1540,7 +2038,7 @@ export const sessionRouter = router({
 		.input(
 			z.object({
 				type: z.enum(["cash_game", "tournament"]).optional(),
-				storeId: z.string().optional(),
+				roomId: z.string().optional(),
 				ringGameId: z.string().optional(),
 				currencyId: z.string().optional(),
 				dateFrom: z.number().optional(),
@@ -1553,8 +2051,8 @@ export const sessionRouter = router({
 			if (input.type) {
 				conditions.push(eq(gameSession.kind, input.type));
 			}
-			if (input.storeId) {
-				conditions.push(eq(gameSession.storeId, input.storeId));
+			if (input.roomId) {
+				conditions.push(eq(gameSession.roomId, input.roomId));
 			}
 			if (input.currencyId) {
 				conditions.push(eq(gameSession.currencyId, input.currencyId));
@@ -1584,12 +2082,9 @@ export const sessionRouter = router({
 					buyIn: sessionCashDetail.buyIn,
 					cashOut: sessionCashDetail.cashOut,
 					evCashOut: sessionCashDetail.evCashOut,
-					ringGameBlind2: ringGame.blind2,
+					ringGameBlind2: sessionCashDetail.blind2,
 					tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
 					entryFee: sessionTournamentDetail.entryFee,
-					rebuyCount: sessionTournamentDetail.rebuyCount,
-					rebuyCost: sessionTournamentDetail.rebuyCost,
-					addonCost: sessionTournamentDetail.addonCost,
 					prizeMoney: sessionTournamentDetail.prizeMoney,
 					bountyPrizes: sessionTournamentDetail.bountyPrizes,
 				})
@@ -1598,7 +2093,6 @@ export const sessionRouter = router({
 					sessionCashDetail,
 					eq(sessionCashDetail.sessionId, gameSession.id)
 				)
-				.leftJoin(ringGame, eq(ringGame.id, sessionCashDetail.ringGameId))
 				.leftJoin(
 					sessionTournamentDetail,
 					eq(sessionTournamentDetail.sessionId, gameSession.id)
@@ -1606,7 +2100,20 @@ export const sessionRouter = router({
 				.where(and(...conditions))
 				.orderBy(asc(gameSession.sessionDate), asc(gameSession.id));
 
-			return { points: rows.map(toProfitLossSeriesPoint) };
+			const chipPurchaseMap = await getSessionChipPurchaseMap(
+				ctx.db,
+				rows.map((r) => r.id)
+			);
+			const points = rows.map((r) =>
+				toProfitLossSeriesPoint({
+					...r,
+					chipPurchaseCost: sumChipPurchaseCost(
+						chipPurchaseMap.get(r.id) ?? []
+					),
+				})
+			);
+
+			return { points };
 		}),
 
 	delete: protectedProcedure
