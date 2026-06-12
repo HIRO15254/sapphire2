@@ -11,20 +11,20 @@ import {
 } from "@/features/statistics/utils/format-stats";
 
 describe("formatMinutes", () => {
-	it("formats hours and minutes together", () => {
-		expect(formatMinutes(90)).toBe("1h 30m");
+	it("formats as decimal hours", () => {
+		expect(formatMinutes(336)).toBe("5.6h");
 	});
 
-	it("omits minutes when the total is a whole hour", () => {
+	it("trims the trailing .0 for whole hours", () => {
 		expect(formatMinutes(120)).toBe("2h");
 	});
 
-	it("omits hours when under an hour", () => {
-		expect(formatMinutes(45)).toBe("45m");
+	it("formats a sub-hour total as a decimal", () => {
+		expect(formatMinutes(45)).toBe("0.8h");
 	});
 
-	it("rounds fractional minutes", () => {
-		expect(formatMinutes(90.6)).toBe("1h 31m");
+	it("rounds to one decimal place", () => {
+		expect(formatMinutes(95)).toBe("1.6h");
 	});
 
 	it("returns 0h for zero, negative, null, and undefined", () => {

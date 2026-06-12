@@ -3,7 +3,6 @@ import { useState } from "react";
 import type { StatsSectionContext } from "@/features/statistics/types";
 import {
 	formatMinutes,
-	formatPercent,
 	formatStatAmount,
 } from "@/features/statistics/utils/format-stats";
 import {
@@ -17,7 +16,7 @@ export type BreakdownGroupBy =
 	| "room"
 	| "stakes"
 	| "dayOfWeek"
-	| "hour"
+	| "length"
 	| "month";
 
 export interface BreakdownTab {
@@ -42,7 +41,6 @@ export interface BreakdownViewRow {
 	sessions: number;
 	tournamentColor: string;
 	tournamentText: string;
-	winRateText: string;
 }
 
 export interface UseBreakdownSectionResult {
@@ -60,7 +58,7 @@ const TAB_LABELS: Record<BreakdownGroupBy, string> = {
 	room: "Room",
 	stakes: "Stakes",
 	dayOfWeek: "Day of week",
-	hour: "Hour",
+	length: "Length",
 	month: "Month",
 };
 
@@ -73,8 +71,8 @@ const TAB_LABELS: Record<BreakdownGroupBy, string> = {
 function availableTabs(ctx: StatsSectionContext): BreakdownTab[] {
 	const values: BreakdownGroupBy[] =
 		ctx.type === "cash_game"
-			? ["room", "stakes", "dayOfWeek", "hour", "month"]
-			: ["room", "dayOfWeek", "hour", "month"];
+			? ["room", "stakes", "dayOfWeek", "length", "month"]
+			: ["room", "dayOfWeek", "length", "month"];
 	return values.map((value) => ({ value, label: TAB_LABELS[value] }));
 }
 
@@ -86,7 +84,6 @@ interface BreakdownGroup {
 	profitLoss: number;
 	sessions: number;
 	tournamentNormalizedProfitLoss: number | null;
-	winRate: number;
 }
 
 function toViewRow(
@@ -106,7 +103,6 @@ function toViewRow(
 			"bi"
 		),
 		tournamentColor: profitLossColorClass(group.tournamentNormalizedProfitLoss),
-		winRateText: formatPercent(group.winRate),
 		playTimeText: formatMinutes(group.playMinutes),
 	};
 }

@@ -134,22 +134,19 @@ export function useKpiCards(ctx: StatsSectionContext): UseKpiCardsResult {
 			value: formatMinutes(summary.totalPlayMinutes),
 			trend: null,
 		},
-		{
-			key: "winRate",
-			label: "Win rate",
-			value: formatPercent(summary.winRate),
-			trend: null,
-		},
 	];
 
 	if (ctx.type === "cash_game") {
+		const evDiff = ctx.normalized
+			? summary.cashEvDiffNormalized
+			: summary.totalEvDiff;
 		cards.push({
 			key: "evDiff",
 			label: "EV diff",
-			value: formatProfitLoss(summary.totalEvDiff, {
-				currencyUnit: ctx.currencyUnit,
-			}),
-			trend: trendDirection(summary.totalEvDiff),
+			value: ctx.normalized
+				? formatStatAmount(evDiff, "bb")
+				: formatProfitLoss(evDiff, { currencyUnit: ctx.currencyUnit }),
+			trend: trendDirection(evDiff),
 		});
 		cards.push(
 			ctx.normalized

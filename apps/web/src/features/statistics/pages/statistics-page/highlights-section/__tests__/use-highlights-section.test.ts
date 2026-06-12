@@ -239,7 +239,7 @@ describe("useHighlightsSection", () => {
 		trpcMocks.highlightsQueryFn.mockReset();
 		trpcMocks.highlightsQueryFn.mockResolvedValue(highlights());
 		const result = await renderLoaded(ctx());
-		expect(result.current.longest?.durationText).toBe("10h 15m");
+		expect(result.current.longest?.durationText).toBe("10.3h");
 		expect(result.current.longest?.dateText).toBe("2024/03/10");
 		expect(result.current.longest?.id).toBe("long-1");
 	});

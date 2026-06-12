@@ -1,9 +1,3 @@
-import {
-	IconClock,
-	IconFlame,
-	IconTrendingDown,
-	IconTrendingUp,
-} from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import {
@@ -32,7 +26,7 @@ function SessionHighlightCard({
 	label: string;
 }) {
 	return (
-		<Card className="gap-1 px-4 py-3" size="sm">
+		<Card className="gap-1 px-3 py-2.5" size="sm">
 			<CardLabel>{label}</CardLabel>
 			<Link
 				className="flex flex-col gap-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -41,7 +35,7 @@ function SessionHighlightCard({
 			>
 				<span
 					className={cn(
-						"font-mono font-semibold text-2xl tabular-nums",
+						"font-mono font-semibold text-lg tabular-nums",
 						card.valueColor
 					)}
 				>
@@ -55,15 +49,14 @@ function SessionHighlightCard({
 
 function LongestHighlightCard({ card }: { card: LongestSessionCard }) {
 	return (
-		<Card className="gap-1 px-4 py-3" size="sm">
+		<Card className="gap-1 px-3 py-2.5" size="sm">
 			<CardLabel>Longest session</CardLabel>
 			<Link
 				className="flex flex-col gap-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 				params={{ sessionId: card.id }}
 				to="/sessions/$sessionId"
 			>
-				<span className="flex items-center gap-1.5 font-mono font-semibold text-2xl tabular-nums">
-					<IconClock className="size-4 text-muted-foreground" />
+				<span className="font-mono font-semibold text-lg tabular-nums">
 					{card.durationText}
 				</span>
 				<span className="t-meta text-muted-foreground">{card.dateText}</span>
@@ -72,20 +65,11 @@ function LongestHighlightCard({ card }: { card: LongestSessionCard }) {
 	);
 }
 
-function StreakCard({
-	label,
-	value,
-	icon,
-}: {
-	icon: ReactNode;
-	label: string;
-	value: number;
-}) {
+function StreakCard({ label, value }: { label: string; value: number }) {
 	return (
-		<Card className="gap-1 px-4 py-3" size="sm">
+		<Card className="gap-1 px-3 py-2.5" size="sm">
 			<CardLabel>{label}</CardLabel>
-			<span className="flex items-center gap-1.5 font-mono font-semibold text-2xl tabular-nums">
-				{icon}
+			<span className="font-mono font-semibold text-lg tabular-nums">
 				{value}
 			</span>
 		</Card>
@@ -107,9 +91,9 @@ export function HighlightsSection({ ctx }: { ctx: StatsSectionContext }) {
 
 	if (isPending) {
 		return (
-			<div className="grid grid-cols-2 gap-3">
+			<div className="grid grid-cols-3 gap-2">
 				{["a", "b", "c", "d", "e", "f", "g"].map((k) => (
-					<Skeleton className="h-[72px] rounded-xl" key={k} />
+					<Skeleton className="h-[60px] rounded-xl" key={k} />
 				))}
 			</div>
 		);
@@ -120,30 +104,14 @@ export function HighlightsSection({ ctx }: { ctx: StatsSectionContext }) {
 	}
 
 	return (
-		<div className="grid grid-cols-2 gap-3">
+		<div className="grid grid-cols-3 gap-2">
 			{best && <SessionHighlightCard card={best} label="Best session" />}
 			{worst && <SessionHighlightCard card={worst} label="Worst session" />}
 			{longest && <LongestHighlightCard card={longest} />}
-			<StreakCard
-				icon={<IconFlame className="size-4 text-success" />}
-				label="Current win streak"
-				value={currentWinStreak}
-			/>
-			<StreakCard
-				icon={<IconFlame className="size-4 text-destructive" />}
-				label="Current lose streak"
-				value={currentLoseStreak}
-			/>
-			<StreakCard
-				icon={<IconTrendingUp className="size-4 text-success" />}
-				label="Max win streak"
-				value={maxWinStreak}
-			/>
-			<StreakCard
-				icon={<IconTrendingDown className="size-4 text-destructive" />}
-				label="Max lose streak"
-				value={maxLoseStreak}
-			/>
+			<StreakCard label="Current win streak" value={currentWinStreak} />
+			<StreakCard label="Current lose streak" value={currentLoseStreak} />
+			<StreakCard label="Max win streak" value={maxWinStreak} />
+			<StreakCard label="Max lose streak" value={maxLoseStreak} />
 		</div>
 	);
 }

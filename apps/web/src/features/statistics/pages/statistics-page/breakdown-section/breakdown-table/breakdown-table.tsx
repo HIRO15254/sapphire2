@@ -66,7 +66,7 @@ export function BreakdownTable({
 		showCashColumn,
 		showTournamentColumn,
 	});
-	const columnCount = valueColumns.length + 3;
+	const columnCount = valueColumns.length + 2;
 
 	return (
 		<div className="overflow-x-auto">
@@ -80,7 +80,6 @@ export function BreakdownTable({
 								{column.header}
 							</TableHead>
 						))}
-						<TableHead className="text-right">Win rate</TableHead>
 						<TableHead className="text-right">Play time</TableHead>
 					</TableRow>
 				</TableHeader>
@@ -112,9 +111,6 @@ export function BreakdownTable({
 										{column.text(row)}
 									</TableCell>
 								))}
-								<TableCell className="text-right tabular-nums">
-									{row.winRateText}
-								</TableCell>
 								<TableCell className="text-right tabular-nums">
 									{row.playTimeText}
 								</TableCell>

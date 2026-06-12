@@ -1,19 +1,14 @@
 import { formatProfitLoss } from "@/utils/format-profit-loss";
 
-/** Format a minute total as "1h 30m" / "45m" / "2h". Non-positive → "0h". */
+/**
+ * Format a minute total as decimal hours, e.g. "5.6h" / "2h" / "0.8h". The
+ * trailing ".0" is trimmed. Non-positive / nullish → "0h".
+ */
 export function formatMinutes(totalMinutes: number | null | undefined): string {
 	if (totalMinutes == null || totalMinutes <= 0) {
 		return "0h";
 	}
-	const hours = Math.floor(totalMinutes / 60);
-	const minutes = Math.round(totalMinutes % 60);
-	if (hours === 0) {
-		return `${minutes}m`;
-	}
-	if (minutes === 0) {
-		return `${hours}h`;
-	}
-	return `${hours}h ${minutes}m`;
+	return `${trimZeros((totalMinutes / 60).toFixed(1))}h`;
 }
 
 /** Format a percentage value (already 0–100), or "—" when null/undefined. */

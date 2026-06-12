@@ -1,4 +1,8 @@
-import { IconAlertTriangle, IconChevronDown } from "@tabler/icons-react";
+import {
+	IconAlertTriangle,
+	IconCheck,
+	IconChevronDown,
+} from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import {
 	type StatsFilterSheet,
@@ -37,27 +41,36 @@ const SHEET_TITLE: Record<StatsFilterSheet, string> = {
 function FilterChip({
 	label,
 	value,
+	active,
 	invalid,
 	onClick,
 }: {
+	active?: boolean;
 	invalid?: boolean;
 	label: string;
 	onClick: () => void;
 	value: string;
 }) {
+	let chipClass = "";
+	if (invalid) {
+		chipClass = "border-destructive text-destructive";
+	} else if (active) {
+		chipClass = "border-primary/60 bg-primary/10 text-primary";
+	}
 	return (
 		<Button
-			className={cn(
-				"shrink-0 gap-1.5",
-				invalid ? "border-destructive text-destructive" : ""
-			)}
+			className={cn("shrink-0 gap-1.5", chipClass)}
 			onClick={onClick}
 			size="sm"
 			type="button"
 			variant="outline"
 		>
-			<span className="text-muted-foreground">{label}:</span>
-			<span className="font-medium">{value}</span>
+			<span
+				className={cn(active ? "text-primary/70" : "text-muted-foreground")}
+			>
+				{label}:
+			</span>
+			<span className="font-semibold">{value}</span>
 			<IconChevronDown size={14} />
 		</Button>
 	);
@@ -73,17 +86,31 @@ function OptionRadioList({
 	value: string;
 }) {
 	return (
-		<RadioGroup onValueChange={onChange} value={value}>
+		<RadioGroup className="gap-1" onValueChange={onChange} value={value}>
 			{options.map((option) => {
 				const id = `stats-filter-option-${option.value}`;
+				const selected = option.value === value;
 				return (
 					<label
-						className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-muted"
+						className={cn(
+							"flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2.5 hover:bg-muted",
+							selected && "bg-primary/10"
+						)}
 						htmlFor={id}
 						key={option.value}
 					>
-						<RadioGroupItem id={id} value={option.value} />
-						<span className="font-medium text-sm">{option.label}</span>
+						<span className="flex items-center gap-3">
+							<RadioGroupItem id={id} value={option.value} />
+							<span
+								className={cn(
+									"font-medium text-sm",
+									selected && "text-primary"
+								)}
+							>
+								{option.label}
+							</span>
+						</span>
+						{selected ? <IconCheck className="size-4 text-primary" /> : null}
 					</label>
 				);
 			})}
@@ -151,27 +178,32 @@ export function StatsFilterBar() {
 		<div className="sticky top-0 z-20 border-border border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
 			<div className="flex gap-2 overflow-x-auto px-4 py-3">
 				<FilterChip
+					active={filters.period !== "all"}
 					label="Period"
 					onClick={() => openSheet("period")}
 					value={STATS_PERIOD_LABEL[filters.period]}
 				/>
 				<FilterChip
+					active={filters.norm !== "off"}
 					label="Normalize"
 					onClick={() => openSheet("norm")}
 					value={STATS_NORMALIZATION_LABEL[filters.norm]}
 				/>
 				<FilterChip
+					active={filters.type !== "all"}
 					label="Type"
 					onClick={() => openSheet("type")}
 					value={STATS_TYPE_LABEL[filters.type]}
 				/>
 				<FilterChip
+					active={Boolean(filters.currency)}
 					invalid={!isScopeValid}
 					label="Currency"
 					onClick={() => openSheet("currency")}
 					value={currentCurrencyName ?? "Select"}
 				/>
 				<FilterChip
+					active={Boolean(filters.room)}
 					label="Room"
 					onClick={() => openSheet("room")}
 					value={currentRoomName ?? "All rooms"}
@@ -285,11 +317,22 @@ export function StatsFilterBar() {
 				title={SHEET_TITLE.room}
 			>
 				<button
-					className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-muted"
+					className={cn(
+						"flex cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-muted",
+						filters.room ? "" : "bg-primary/10"
+					)}
 					onClick={() => onRoomChange(undefined)}
 					type="button"
 				>
-					<span className="font-medium text-sm">All rooms</span>
+					<span
+						className={cn(
+							"font-medium text-sm",
+							filters.room ? "" : "text-primary"
+						)}
+					>
+						All rooms
+					</span>
+					{filters.room ? null : <IconCheck className="size-4 text-primary" />}
 				</button>
 				<OptionRadioList
 					onChange={onRoomChange}

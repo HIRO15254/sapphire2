@@ -44,7 +44,7 @@ export const breakdownGroupByEnum = z.enum([
 	"stakes",
 	"type",
 	"dayOfWeek",
-	"hour",
+	"length",
 	"month",
 	"year",
 ]);
@@ -307,6 +307,9 @@ export interface StatsSummary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
 	bbPerHour: number | null;
+	// EV diff (actual − EV) of cash sessions normalized to big blinds (bb).
+	// Null when no normalizable cash session has EV data.
+	cashEvDiffNormalized: number | null;
 	// Cash sessions normalized to big blinds (bb). Null when no normalizable
 	// cash sessions. Never combined with the tournament (bi) figure — the two
 	// units live on different scales.
@@ -329,6 +332,7 @@ const EMPTY_SUMMARY: StatsSummary = {
 	totalSessions: 0,
 	totalProfitLoss: 0,
 	cashNormalizedProfitLoss: null,
+	cashEvDiffNormalized: null,
 	tournamentNormalizedProfitLoss: null,
 	totalEvProfitLoss: null,
 	totalEvDiff: null,
@@ -346,6 +350,8 @@ const EMPTY_SUMMARY: StatsSummary = {
 interface SummaryAccumulator {
 	cashBbCount: number;
 	cashBbSum: number;
+	cashEvDiffBbCount: number;
+	cashEvDiffBbSum: number;
 	cashPL: number;
 	cashPlayMinutes: number;
 	evCount: number;
@@ -376,6 +382,10 @@ function accumulateCash(row: StatsSessionRow, acc: SummaryAccumulator): void {
 	}
 	if (row.evDiff !== null) {
 		acc.evDiffSum += row.evDiff;
+		if (row.bigBlind && row.bigBlind > 0) {
+			acc.cashEvDiffBbSum += row.evDiff / row.bigBlind;
+			acc.cashEvDiffBbCount += 1;
+		}
 	}
 	const bb = normalizedSessionValue(row);
 	if (bb !== null) {
@@ -423,6 +433,8 @@ export function summarizeStats(rows: StatsSessionRow[]): StatsSummary {
 		cashPlayMinutes: 0,
 		cashBbSum: 0,
 		cashBbCount: 0,
+		cashEvDiffBbSum: 0,
+		cashEvDiffBbCount: 0,
 		tournamentBiSum: 0,
 		tournamentBiCount: 0,
 		tournamentCount: 0,
@@ -456,6 +468,8 @@ export function summarizeStats(rows: StatsSessionRow[]): StatsSummary {
 		totalSessions,
 		totalProfitLoss: acc.totalProfitLoss,
 		cashNormalizedProfitLoss: acc.cashBbCount > 0 ? acc.cashBbSum : null,
+		cashEvDiffNormalized:
+			acc.cashEvDiffBbCount > 0 ? acc.cashEvDiffBbSum : null,
 		tournamentNormalizedProfitLoss:
 			acc.tournamentBiCount > 0 ? acc.tournamentBiSum : null,
 		totalEvProfitLoss: acc.evCount > 0 ? acc.evSum : null,
@@ -510,8 +524,9 @@ const TYPE_LABELS: Record<StatsSessionRow["type"], string> = {
 
 /**
  * Maps a row to its grouping key + label for the given dimension. Returns null
- * to EXCLUDE the row from the grouping (e.g. tournaments have no stakes).
- * dayOfWeek / hour / month / year buckets use UTC consistently.
+ * to EXCLUDE the row from the grouping (e.g. tournaments have no stakes, and a
+ * session with no recorded duration has no length bucket). dayOfWeek / month /
+ * year buckets use UTC consistently; length buckets by whole hours of duration.
  */
 export function breakdownKeyLabel(
 	row: StatsSessionRow,
@@ -530,15 +545,18 @@ export function breakdownKeyLabel(
 		const label = stakesLabel(row);
 		return { key: label, label };
 	}
+	if (groupBy === "length") {
+		if (row.playMinutes === null) {
+			return null;
+		}
+		const bucket = Math.floor(row.playMinutes / 60);
+		return { key: String(bucket), label: `${bucket}~${bucket + 1}h` };
+	}
 
 	const date = new Date(row.sessionDate * 1000);
 	if (groupBy === "dayOfWeek") {
 		const day = date.getUTCDay();
 		return { key: String(day), label: DAY_LABELS[day] ?? String(day) };
-	}
-	if (groupBy === "hour") {
-		const hour = date.getUTCHours();
-		return { key: String(hour), label: `${hour}:00` };
 	}
 	if (groupBy === "month") {
 		const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -564,7 +582,7 @@ interface BreakdownAccumulator {
 
 const CHRONOLOGICAL_DIMS: ReadonlySet<BreakdownGroupBy> = new Set([
 	"dayOfWeek",
-	"hour",
+	"length",
 	"month",
 	"year",
 ]);

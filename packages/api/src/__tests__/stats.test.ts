@@ -179,7 +179,7 @@ describe("stats.breakdown input validation", () => {
 			"stakes",
 			"type",
 			"dayOfWeek",
-			"hour",
+			"length",
 			"month",
 			"year",
 		]) {
@@ -393,16 +393,24 @@ describe("breakdownKeyLabel", () => {
 		).toEqual({ key: "0", label: "Sun" });
 	});
 
-	it("buckets hour by UTC hour", () => {
-		expect(
-			breakdownKeyLabel(cashRow({ sessionDate: EPOCH_NOV_2023 }), "hour")
-		).toEqual({ key: "22", label: "22:00" });
+	it("buckets length by whole hours of session duration", () => {
+		expect(breakdownKeyLabel(cashRow({ playMinutes: 150 }), "length")).toEqual({
+			key: "2",
+			label: "2~3h",
+		});
 	});
 
-	it("buckets the midnight UTC hour as 0:00", () => {
+	it("buckets a sub-hour session into the 0~1h length bucket", () => {
+		expect(breakdownKeyLabel(cashRow({ playMinutes: 45 }), "length")).toEqual({
+			key: "0",
+			label: "0~1h",
+		});
+	});
+
+	it("excludes a session with no recorded duration from length grouping", () => {
 		expect(
-			breakdownKeyLabel(cashRow({ sessionDate: EPOCH_JAN_2024 }), "hour")
-		).toEqual({ key: "0", label: "0:00" });
+			breakdownKeyLabel(cashRow({ playMinutes: null }), "length")
+		).toBeNull();
 	});
 
 	it("buckets month as zero-padded YYYY-MM in UTC", () => {
@@ -648,6 +656,8 @@ describe("summarizeStats", () => {
 		const summary = summarizeStats(rows);
 		expect(summary.totalEvProfitLoss).toBe(120);
 		expect(summary.totalEvDiff).toBe(20);
+		// 20 / bigBlind 2 = 10 bb.
+		expect(summary.cashEvDiffNormalized).toBe(10);
 	});
 
 	it("returns null ev metrics when no cash row has ev", () => {
@@ -655,6 +665,21 @@ describe("summarizeStats", () => {
 		const summary = summarizeStats(rows);
 		expect(summary.totalEvProfitLoss).toBeNull();
 		expect(summary.totalEvDiff).toBeNull();
+		expect(summary.cashEvDiffNormalized).toBeNull();
+	});
+
+	it("returns null cashEvDiffNormalized when ev rows have no big blind", () => {
+		const rows = [
+			cashRow({
+				profitLoss: 100,
+				evProfitLoss: 120,
+				evDiff: 20,
+				bigBlind: null,
+			}),
+		];
+		const summary = summarizeStats(rows);
+		expect(summary.totalEvDiff).toBe(20);
+		expect(summary.cashEvDiffNormalized).toBeNull();
 	});
 
 	it("computes tournament roi, itmRate, avgPlacement and totalPrizeMoney", () => {

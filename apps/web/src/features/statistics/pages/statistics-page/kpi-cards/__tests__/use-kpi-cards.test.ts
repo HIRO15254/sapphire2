@@ -25,6 +25,7 @@ interface Summary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
 	bbPerHour: number | null;
+	cashEvDiffNormalized: number | null;
 	cashNormalizedProfitLoss: number | null;
 	hourlyRate: number | null;
 	itmRate: number | null;
@@ -44,6 +45,7 @@ function summary(overrides: Partial<Summary> = {}): Summary {
 		totalSessions: 10,
 		totalProfitLoss: 1500,
 		cashNormalizedProfitLoss: 30,
+		cashEvDiffNormalized: 6,
 		tournamentNormalizedProfitLoss: 5,
 		totalEvProfitLoss: 1800,
 		totalEvDiff: 300,
@@ -101,7 +103,6 @@ describe("useKpiCards", () => {
 			"net",
 			"sessions",
 			"playTime",
-			"winRate",
 		]);
 	});
 
@@ -115,7 +116,7 @@ describe("useKpiCards", () => {
 		expect(byKey.net.trend).toBe("up");
 		expect(byKey.sessions.value).toBe("10");
 		expect(byKey.playTime.value).toBe("10h");
-		expect(byKey.winRate.value).toBe("60.0%");
+		expect(byKey.winRate).toBeUndefined();
 	});
 
 	it("adds EV diff and hourly cards for cash game", async () => {
@@ -154,6 +155,8 @@ describe("useKpiCards", () => {
 		expect(byKey.bbPerHour).toBeDefined();
 		expect(byKey.bbPerHour.value).toBe("+3 bb/h");
 		expect(byKey.hourly).toBeUndefined();
+		// EV diff carries the bb unit when normalized.
+		expect(byKey.evDiff.value).toBe("+6 bb");
 	});
 
 	it("splits net into separate BB (cash) and BI (tournament) cards when normalized for all types", async () => {

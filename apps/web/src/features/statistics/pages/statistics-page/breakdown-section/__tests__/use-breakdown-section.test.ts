@@ -29,7 +29,6 @@ interface BreakdownRow {
 	profitLoss: number;
 	sessions: number;
 	tournamentNormalizedProfitLoss: number | null;
-	winRate: number;
 }
 
 function breakdownRow(overrides: Partial<BreakdownRow> = {}): BreakdownRow {
@@ -40,7 +39,6 @@ function breakdownRow(overrides: Partial<BreakdownRow> = {}): BreakdownRow {
 		profitLoss: 1500,
 		cashNormalizedProfitLoss: null,
 		tournamentNormalizedProfitLoss: null,
-		winRate: 60,
 		playMinutes: 600,
 		...overrides,
 	};
@@ -91,20 +89,20 @@ describe("useBreakdownSection", () => {
 		expect(lastGroupBy()).toBe("room");
 	});
 
-	it("offers room, day of week, hour, and month tabs for the 'all' type", async () => {
+	it("offers room, day of week, length, and month tabs for the 'all' type", async () => {
 		trpcMocks.breakdownQueryFn.mockReset();
 		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });
 		const { result } = await renderLoadedBreakdown(ctx({ type: "all" }));
 		expect(result.current.tabs.map((t) => t.value)).toEqual([
 			"room",
 			"dayOfWeek",
-			"hour",
+			"length",
 			"month",
 		]);
 		expect(result.current.tabs.map((t) => t.label)).toEqual([
 			"Room",
 			"Day of week",
-			"Hour",
+			"Length",
 			"Month",
 		]);
 	});
@@ -117,7 +115,7 @@ describe("useBreakdownSection", () => {
 			"room",
 			"stakes",
 			"dayOfWeek",
-			"hour",
+			"length",
 			"month",
 		]);
 		const stakes = result.current.tabs.find((t) => t.value === "stakes");
@@ -177,7 +175,6 @@ describe("useBreakdownSection", () => {
 		expect(row.sessions).toBe(5);
 		expect(row.netText).toBe("+1,500 USD");
 		expect(row.netColor).toBe("text-green-600 dark:text-green-400");
-		expect(row.winRateText).toBe("60.0%");
 		expect(row.playTimeText).toBe("10h");
 	});
 

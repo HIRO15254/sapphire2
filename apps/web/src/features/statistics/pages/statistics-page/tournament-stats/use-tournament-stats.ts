@@ -8,7 +8,6 @@ import {
 	formatPercent,
 	formatScopedProfitLoss,
 } from "@/features/statistics/utils/format-stats";
-import { formatYmdSlash } from "@/utils/format-number";
 import { formatProfitLoss } from "@/utils/format-profit-loss";
 import { trpc } from "@/utils/trpc";
 
@@ -26,50 +25,14 @@ export interface TournamentMetric {
 	value: string;
 }
 
-export interface TournamentSessionRow {
-	amount: number | null;
-	dateText: string;
-	id: string;
-	value: string;
-}
-
 export interface TournamentStatsView {
-	bestSession: TournamentSessionRow | null;
 	metrics: TournamentMetric[];
-	worstSession: TournamentSessionRow | null;
 }
 
 export interface UseTournamentStatsResult {
 	isEmpty: boolean;
 	isPending: boolean;
 	view: TournamentStatsView | null;
-}
-
-interface HighlightSession {
-	date: number;
-	id: string;
-	normalizedProfitLoss: number | null;
-	profitLoss: number;
-	type: "cash_game" | "tournament";
-}
-
-function buildSessionRow(
-	session: HighlightSession | null,
-	ctx: StatsSectionContext
-): TournamentSessionRow | null {
-	if (!session) {
-		return null;
-	}
-	const unit = unitForType(ctx, "tournament");
-	const amount = ctx.normalized
-		? session.normalizedProfitLoss
-		: session.profitLoss;
-	return {
-		id: session.id,
-		amount,
-		value: formatScopedProfitLoss(amount, { normalized: ctx.normalized, unit }),
-		dateText: formatYmdSlash(new Date(session.date * 1000)),
-	};
 }
 
 /**
@@ -86,17 +49,14 @@ export function useTournamentStats(
 	const summaryQuery = useQuery(
 		trpc.stats.summary.queryOptions(input, { enabled: ctx.enabled })
 	);
-	const highlightsQuery = useQuery(
-		trpc.stats.highlights.queryOptions(input, { enabled: ctx.enabled })
-	);
 
 	const summary = summaryQuery.data;
-	const highlights = highlightsQuery.data;
-	const isPending =
-		ctx.enabled && (summaryQuery.isPending || highlightsQuery.isPending);
-
-	if (!(summary && highlights)) {
-		return { isPending, isEmpty: false, view: null };
+	if (!summary) {
+		return {
+			isPending: ctx.enabled && summaryQuery.isPending,
+			isEmpty: false,
+			view: null,
+		};
 	}
 
 	if (summary.totalSessions === 0) {
@@ -148,13 +108,5 @@ export function useTournamentStats(
 		},
 	];
 
-	return {
-		isPending: false,
-		isEmpty: false,
-		view: {
-			metrics,
-			bestSession: buildSessionRow(highlights.bestSession, ctx),
-			worstSession: buildSessionRow(highlights.worstSession, ctx),
-		},
-	};
+	return { isPending: false, isEmpty: false, view: { metrics } };
 }
