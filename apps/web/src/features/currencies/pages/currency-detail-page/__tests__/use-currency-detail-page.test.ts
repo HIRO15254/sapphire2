@@ -470,6 +470,28 @@ describe("useCurrencyDetailPage", () => {
 		});
 	});
 
+	describe("handleNavigateToSession", () => {
+		it("navigates to the session detail page with the given sessionId", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.handleNavigateToSession("session-abc");
+			});
+			expect(mocks.navigate).toHaveBeenCalledTimes(1);
+			expect(mocks.navigate).toHaveBeenCalledWith({
+				to: "/sessions/$sessionId",
+				params: { sessionId: "session-abc" },
+			});
+		});
+
+		it("does not navigate when called without a sessionId", () => {
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			act(() => {
+				result.current.handleNavigateToSession("");
+			});
+			expect(mocks.navigate).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("handleToggleFavorite", () => {
 		it("calls toggleFavorite with the currencyId", () => {
 			const { result } = renderHook(() => useCurrencyDetailPage("c1"));

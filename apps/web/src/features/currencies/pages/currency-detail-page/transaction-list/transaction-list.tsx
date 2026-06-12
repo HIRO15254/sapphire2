@@ -20,6 +20,8 @@ interface TransactionListV2Props {
 	isLoading?: boolean;
 	isLoadingMore?: boolean;
 	onLoadMore?: () => void;
+	/** Called when a session-generated row is clicked. Navigates to the session detail page. */
+	onNavigateToSession?: (sessionId: string) => void;
 	/**
 	 * Called when the trailing 3-dots overflow button is tapped on a
 	 * non-session row. The page opens an action sheet (Edit / Delete)
@@ -35,6 +37,7 @@ const COLUMN_COUNT = 4;
 
 export function TransactionListV2({
 	transactions,
+	onNavigateToSession,
 	onOpenActions,
 	hasMore,
 	isLoading,
@@ -88,6 +91,7 @@ export function TransactionListV2({
 								<TransactionRow
 									fmt={fmt}
 									key={tx.id}
+									onNavigateToSession={onNavigateToSession}
 									onOpenActions={onOpenActions}
 									transaction={tx}
 								/>
