@@ -33,7 +33,7 @@ export interface UsePnlGraphResult {
  * otherwise.
  */
 export function usePnlGraph(ctx: StatsSectionContext): UsePnlGraphResult {
-	const [xAxis, setXAxisState] = useState<PnlGraphXAxis>("date");
+	const [xAxis, setXAxisState] = useState<PnlGraphXAxis>("playTime");
 	const [showEvCash, setShowEvCash] = useState(false);
 
 	const unit: PnlGraphUnit = ctx.normalized ? "normalized" : "currency";

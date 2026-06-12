@@ -68,10 +68,10 @@ const day1 = Math.floor(new Date("2026-04-01T03:00:00Z").getTime() / 1000);
 const day2 = Math.floor(new Date("2026-04-02T03:00:00Z").getTime() / 1000);
 
 describe("usePnlGraph", () => {
-	it("defaults the x-axis to 'date'", async () => {
+	it("defaults the x-axis to 'playTime'", async () => {
 		trpcMocks.seriesQueryFn.mockResolvedValue({ points: [] });
 		const result = await renderLoaded(ctx());
-		expect(result.current.xAxis).toBe("date");
+		expect(result.current.xAxis).toBe("playTime");
 	});
 
 	it("defaults the EV-cash toggle to false", async () => {
