@@ -93,13 +93,13 @@ describe("LoginRoute", () => {
 	});
 
 	describe("beforeLoad guard", () => {
-		it("redirects to /dashboard when a session already exists", async () => {
+		it("redirects to /statistics when a session already exists", async () => {
 			mocks.getSession.mockResolvedValue({ data: { user: { id: "u1" } } });
 			const beforeLoad = routeModule.Route.options
 				.beforeLoad as () => Promise<unknown>;
 
 			await expect(beforeLoad()).rejects.toThrow("redirect");
-			expect(mocks.redirect).toHaveBeenCalledWith({ to: "/dashboard" });
+			expect(mocks.redirect).toHaveBeenCalledWith({ to: "/statistics" });
 		});
 
 		it("does not redirect when there is no session", async () => {
