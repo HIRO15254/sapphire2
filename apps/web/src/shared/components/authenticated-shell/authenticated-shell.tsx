@@ -1,6 +1,7 @@
 import { IconDeviceMobile } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { LiveStackFormSheet } from "@/features/live-sessions/components/live-stack-form-sheet";
+import { EventMenuProvider } from "@/features/live-sessions/hooks/use-event-menu";
 import { SessionFormProvider } from "@/features/live-sessions/hooks/use-session-form";
 import { StackSheetProvider } from "@/features/live-sessions/hooks/use-stack-sheet";
 import {
@@ -32,7 +33,8 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 	return (
 		<SessionFormProvider>
 			<StackSheetProvider>
-				<UpdateNotesProvider>
+				<EventMenuProvider>
+					<UpdateNotesProvider>
 					<div className="min-h-svh bg-background">
 						<SidebarNav />
 						<div className="flex h-svh flex-col md:ml-56">
@@ -41,11 +43,12 @@ export function AuthenticatedShell({ children }: { children: ReactNode }) {
 								{children}
 							</div>
 						</div>
-						<MobileNav />
-						<LiveStackFormSheet />
-						<UpdateNotesSheet />
-					</div>
-				</UpdateNotesProvider>
+							<MobileNav />
+							<LiveStackFormSheet />
+							<UpdateNotesSheet />
+						</div>
+					</UpdateNotesProvider>
+				</EventMenuProvider>
 			</StackSheetProvider>
 		</SessionFormProvider>
 	);

@@ -3,13 +3,15 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
-import { useStackSheet } from "@/features/live-sessions/hooks/use-stack-sheet";
+import { useEventMenu } from "@/features/live-sessions/hooks/use-event-menu";
 import { createSessionEventMutationOptions } from "@/features/live-sessions/utils/optimistic-session-event";
 import {
 	getMobileNavigationItems,
 	type NavigationCenterAction,
 } from "@/shared/components/app-navigation";
 import { trpcClient } from "@/utils/trpc";
+
+const ACTIVE_SESSION_PATH = "/active-session";
 
 interface UseMobileNavResult {
 	activeSession: ReturnType<typeof useActiveSession>["activeSession"];
@@ -28,14 +30,11 @@ export function useMobileNav(): UseMobileNavResult {
 	});
 	const navigate = useNavigate();
 	const { activeSession, hasActive } = useActiveSession();
-	const stackSheet = useStackSheet();
+	const eventMenu = useEventMenu();
 	const queryClient = useQueryClient();
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 
-	const isPaused = activeSession?.status === "paused";
-	const { leftItems, rightItems } = getMobileNavigationItems(
-		hasActive && !isPaused
-	);
+	const { leftItems, rightItems } = getMobileNavigationItems();
 
 	const optimisticOptions = activeSession
 		? createSessionEventMutationOptions({
@@ -66,6 +65,10 @@ export function useMobileNav(): UseMobileNavResult {
 		...optimisticOptions,
 	});
 
+	const isOnActiveSessionPage =
+		pathname === ACTIVE_SESSION_PATH ||
+		pathname.startsWith(`${ACTIVE_SESSION_PATH}/`);
+
 	let centerAction: NavigationCenterAction;
 	if (hasActive && activeSession?.status === "paused") {
 		centerAction = {
@@ -73,15 +76,24 @@ export function useMobileNav(): UseMobileNavResult {
 			label: "Resume",
 			onClick: () => {
 				resumeMutation.mutate();
-				navigate({ to: "/active-session" });
+				navigate({ to: ACTIVE_SESSION_PATH });
+			},
+			tone: "live" as const,
+		};
+	} else if (hasActive && !isOnActiveSessionPage) {
+		centerAction = {
+			icon: IconBolt,
+			label: "Live",
+			onClick: () => {
+				navigate({ to: ACTIVE_SESSION_PATH });
 			},
 			tone: "live" as const,
 		};
 	} else if (hasActive) {
 		centerAction = {
-			icon: IconBolt,
-			label: "Stack",
-			onClick: () => stackSheet.open(),
+			icon: IconPlus,
+			label: "Record",
+			onClick: () => eventMenu.open(),
 			tone: "live" as const,
 		};
 	} else {

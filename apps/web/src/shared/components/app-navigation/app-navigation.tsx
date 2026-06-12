@@ -4,8 +4,6 @@ import {
 	IconCategory,
 	IconChartBar,
 	IconCoins,
-	IconHome,
-	IconList,
 	IconSettings,
 	IconUsers,
 } from "@tabler/icons-react";
@@ -61,21 +59,6 @@ const NORMAL_RIGHT_ITEMS: readonly NavigationItem[] = [
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
-const LIVE_LEFT_ITEMS: readonly NavigationItem[] = [
-	{ to: "/active-session/events", label: "Timeline", icon: IconList },
-	{ to: "/active-session/game", label: "Game", icon: IconCards },
-] as const;
-
-const LIVE_RIGHT_ITEMS: readonly NavigationItem[] = [
-	{
-		to: "/active-session",
-		label: "Overview",
-		icon: IconHome,
-		exact: true,
-	},
-	{ to: "/settings", label: "Settings", icon: IconSettings },
-] as const;
-
 export const NORMAL_NAV_ITEMS: readonly NavigationItem[] = [
 	...NORMAL_LEFT_ITEMS,
 	...NORMAL_RIGHT_ITEMS,
@@ -105,13 +88,11 @@ export function isActiveItem(
 	return false;
 }
 
-export function getMobileNavigationItems(hasActive: boolean): {
+export function getMobileNavigationItems(): {
 	leftItems: readonly NavigationItem[];
 	rightItems: readonly NavigationItem[];
 } {
-	return hasActive
-		? { leftItems: LIVE_LEFT_ITEMS, rightItems: LIVE_RIGHT_ITEMS }
-		: { leftItems: NORMAL_LEFT_ITEMS, rightItems: NORMAL_RIGHT_ITEMS };
+	return { leftItems: NORMAL_LEFT_ITEMS, rightItems: NORMAL_RIGHT_ITEMS };
 }
 
 export function MobileNavItem({

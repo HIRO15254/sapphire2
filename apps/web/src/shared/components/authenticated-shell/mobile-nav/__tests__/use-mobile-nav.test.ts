@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type ActiveSession = {
 	id: string;
-	status: "live" | "paused";
+	status: "active" | "paused";
 	type: "cash_game" | "tournament";
 } | null;
 
@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 	navigate: vi.fn(),
 	activeSession: null as ActiveSession,
 	hasActive: false,
-	stackOpen: vi.fn(),
+	eventMenuOpen: vi.fn(),
 	mutate: vi.fn(),
 	sessionEventCreateMutate: vi.fn(),
 	leftItems: [{ id: "left" }],
@@ -49,8 +49,8 @@ vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	}),
 }));
 
-vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
-	useStackSheet: () => ({ open: mocks.stackOpen }),
+vi.mock("@/features/live-sessions/hooks/use-event-menu", () => ({
+	useEventMenu: () => ({ open: mocks.eventMenuOpen }),
 }));
 
 vi.mock("@/features/live-sessions/utils/optimistic-session-event", () => ({
@@ -58,10 +58,9 @@ vi.mock("@/features/live-sessions/utils/optimistic-session-event", () => ({
 }));
 
 vi.mock("@/shared/components/app-navigation", () => ({
-	getMobileNavigationItems: (active: boolean) => ({
+	getMobileNavigationItems: () => ({
 		leftItems: mocks.leftItems,
 		rightItems: mocks.rightItems,
-		active,
 	}),
 }));
 
@@ -81,7 +80,7 @@ describe("useMobileNav", () => {
 		mocks.navigate.mockReset();
 		mocks.activeSession = null;
 		mocks.hasActive = false;
-		mocks.stackOpen.mockReset();
+		mocks.eventMenuOpen.mockReset();
 		mocks.mutate.mockReset();
 		mocks.sessionEventCreateMutate.mockReset();
 	});
@@ -94,6 +93,14 @@ describe("useMobileNav", () => {
 		expect(result.current.rightItems).toBe(mocks.rightItems);
 		expect(result.current.activeSession).toBeNull();
 		expect(result.current.hasActive).toBe(false);
+	});
+
+	it("keeps the normal nav items even while a session is live", () => {
+		mocks.hasActive = true;
+		mocks.activeSession = { id: "cg-1", status: "active", type: "cash_game" };
+		const { result } = renderHook(() => useMobileNav());
+		expect(result.current.leftItems).toBe(mocks.leftItems);
+		expect(result.current.rightItems).toBe(mocks.rightItems);
 	});
 
 	describe("centerAction — no active session", () => {
@@ -116,28 +123,84 @@ describe("useMobileNav", () => {
 			act(() => result.current.onCreateOpenChange(false));
 			expect(result.current.isCreateOpen).toBe(false);
 		});
+
+		it("shows 'New' even on the active-session path when no session exists", () => {
+			mocks.pathname = "/active-session";
+			const { result } = renderHook(() => useMobileNav());
+			expect(result.current.centerAction.label).toBe("New");
+		});
 	});
 
-	describe("centerAction — active session (live)", () => {
+	describe("centerAction — active session, off the active-session page", () => {
 		beforeEach(() => {
 			mocks.hasActive = true;
 			mocks.activeSession = {
 				id: "cg-1",
-				status: "live",
+				status: "active",
 				type: "cash_game",
 			};
+			mocks.pathname = "/sessions";
 		});
 
-		it("shows 'Stack' with live tone", () => {
+		it("shows 'Live' with live tone", () => {
 			const { result } = renderHook(() => useMobileNav());
-			expect(result.current.centerAction.label).toBe("Stack");
+			expect(result.current.centerAction.label).toBe("Live");
 			expect(result.current.centerAction.tone).toBe("live");
 		});
 
-		it("'Stack' onClick opens the stack sheet", () => {
+		it("'Live' onClick navigates to /active-session", () => {
 			const { result } = renderHook(() => useMobileNav());
 			act(() => result.current.centerAction.onClick());
-			expect(mocks.stackOpen).toHaveBeenCalledTimes(1);
+			expect(mocks.navigate).toHaveBeenCalledTimes(1);
+			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/active-session" });
+		});
+
+		it("'Live' onClick does not open the event menu", () => {
+			const { result } = renderHook(() => useMobileNav());
+			act(() => result.current.centerAction.onClick());
+			expect(mocks.eventMenuOpen).not.toHaveBeenCalled();
+		});
+
+		it("a similarly-prefixed path (/active-sessions) still counts as off-page", () => {
+			mocks.pathname = "/active-sessions";
+			const { result } = renderHook(() => useMobileNav());
+			expect(result.current.centerAction.label).toBe("Live");
+		});
+	});
+
+	describe("centerAction — active session, on the active-session page", () => {
+		beforeEach(() => {
+			mocks.hasActive = true;
+			mocks.activeSession = {
+				id: "cg-1",
+				status: "active",
+				type: "cash_game",
+			};
+			mocks.pathname = "/active-session";
+		});
+
+		it("shows 'Record' with live tone", () => {
+			const { result } = renderHook(() => useMobileNav());
+			expect(result.current.centerAction.label).toBe("Record");
+			expect(result.current.centerAction.tone).toBe("live");
+		});
+
+		it("'Record' onClick opens the event menu exactly once", () => {
+			const { result } = renderHook(() => useMobileNav());
+			act(() => result.current.centerAction.onClick());
+			expect(mocks.eventMenuOpen).toHaveBeenCalledTimes(1);
+		});
+
+		it("'Record' onClick does not navigate", () => {
+			const { result } = renderHook(() => useMobileNav());
+			act(() => result.current.centerAction.onClick());
+			expect(mocks.navigate).not.toHaveBeenCalled();
+		});
+
+		it("treats /active-session sub-paths as on-page", () => {
+			mocks.pathname = "/active-session/anything";
+			const { result } = renderHook(() => useMobileNav());
+			expect(result.current.centerAction.label).toBe("Record");
 		});
 	});
 
@@ -156,6 +219,12 @@ describe("useMobileNav", () => {
 			const { result } = renderHook(() => useMobileNav());
 			expect(result.current.centerAction.label).toBe("Resume");
 			expect(result.current.centerAction.tone).toBe("live");
+		});
+
+		it("shows 'Resume' even while on the active-session page", () => {
+			mocks.pathname = "/active-session";
+			const { result } = renderHook(() => useMobileNav());
+			expect(result.current.centerAction.label).toBe("Resume");
 		});
 
 		it("'Resume' onClick triggers the mutation and navigates", () => {
@@ -192,28 +261,6 @@ describe("useMobileNav", () => {
 				eventType: "session_resume",
 				payload: {},
 			});
-		});
-	});
-
-	describe("getMobileNavigationItems integration", () => {
-		it("passes active=false when session is paused", async () => {
-			const navMock = await import("@/shared/components/app-navigation");
-			const spy = vi.spyOn(navMock, "getMobileNavigationItems");
-			mocks.hasActive = true;
-			mocks.activeSession = { id: "x", status: "paused", type: "cash_game" };
-			renderHook(() => useMobileNav());
-			expect(spy).toHaveBeenCalledWith(false);
-			spy.mockRestore();
-		});
-
-		it("passes active=true when session is live", async () => {
-			const navMock = await import("@/shared/components/app-navigation");
-			const spy = vi.spyOn(navMock, "getMobileNavigationItems");
-			mocks.hasActive = true;
-			mocks.activeSession = { id: "x", status: "live", type: "cash_game" };
-			renderHook(() => useMobileNav());
-			expect(spy).toHaveBeenCalledWith(true);
-			spy.mockRestore();
 		});
 	});
 });
