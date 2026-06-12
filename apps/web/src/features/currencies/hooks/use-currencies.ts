@@ -4,6 +4,10 @@ import {
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
+
+export type { Transaction } from "@/features/currencies/utils/types";
+
+import type { Transaction } from "@/features/currencies/utils/types";
 import {
 	cancelTargets,
 	invalidateTargets,
@@ -12,9 +16,6 @@ import {
 	updateInfiniteQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
-import type { Transaction } from "@/features/currencies/utils/types";
-
-export type { Transaction };
 
 export interface CurrencyValues {
 	description?: string | null;

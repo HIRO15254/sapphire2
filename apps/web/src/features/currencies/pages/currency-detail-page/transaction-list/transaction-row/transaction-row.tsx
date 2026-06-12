@@ -1,9 +1,9 @@
 import { IconChevronRight, IconDotsVertical } from "@tabler/icons-react";
-import type { Transaction } from "@/features/currencies/utils/types";
 import {
 	getAmountColorClass,
 	getAmountDisplay,
 } from "@/features/currencies/utils/transaction-list-helpers";
+import type { Transaction } from "@/features/currencies/utils/types";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { TableCell, TableRow } from "@/shared/components/ui/table";

@@ -482,7 +482,6 @@ describe("useCurrencyDetailPage", () => {
 				params: { sessionId: "session-abc" },
 			});
 		});
-
 	});
 
 	describe("handleToggleFavorite", () => {
