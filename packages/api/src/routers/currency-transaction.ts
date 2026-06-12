@@ -3,6 +3,9 @@ import {
 	currencyTransaction,
 	transactionType,
 } from "@sapphire2/db/schema/currency";
+import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
+import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -53,6 +56,9 @@ export const currencyTransactionRouter = router({
 					transactionTypeId: currencyTransaction.transactionTypeId,
 					transactionTypeName: transactionType.name,
 					sessionId: currencyTransaction.sessionId,
+					sessionName: sql<
+						string | null
+					>`CASE WHEN ${gameSession.kind} = 'cash_game' THEN ${sessionCashDetail.ruleName} WHEN ${gameSession.kind} = 'tournament' THEN ${sessionTournamentDetail.ruleName} ELSE NULL END`,
 					amount: currencyTransaction.amount,
 					transactedAt: currencyTransaction.transactedAt,
 					memo: currencyTransaction.memo,
@@ -62,6 +68,18 @@ export const currencyTransactionRouter = router({
 				.innerJoin(
 					transactionType,
 					eq(transactionType.id, currencyTransaction.transactionTypeId)
+				)
+				.leftJoin(
+					gameSession,
+					eq(gameSession.id, currencyTransaction.sessionId)
+				)
+				.leftJoin(
+					sessionCashDetail,
+					eq(sessionCashDetail.sessionId, gameSession.id)
+				)
+				.leftJoin(
+					sessionTournamentDetail,
+					eq(sessionTournamentDetail.sessionId, gameSession.id)
 				)
 				.where(and(...conditions))
 				.orderBy(
