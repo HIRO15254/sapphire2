@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { BlindLevelRow } from "@/features/stores/hooks/use-blind-levels";
-import type { TournamentFormValues } from "@/features/stores/hooks/use-tournaments";
+import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
+import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -28,39 +28,39 @@ interface UseAssignTournamentArgs {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	sessionId: string;
-	sessionStoreId: string | null;
+	sessionRoomId: string | null;
 }
 
 export function useAssignTournament({
 	onOpenChange,
 	open,
 	sessionId,
-	sessionStoreId,
+	sessionRoomId,
 }: UseAssignTournamentArgs) {
 	const queryClient = useQueryClient();
 	const [mode, setMode] = useState<AssignTournamentMode>("existing");
-	const [selectedStoreId, setSelectedStoreId] = useState<string | undefined>(
-		sessionStoreId ?? undefined
+	const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>(
+		sessionRoomId ?? undefined
 	);
 	const [selectedTournamentId, setSelectedTournamentId] = useState<
 		string | undefined
 	>(undefined);
 	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
-	const storesQuery = useQuery({
-		...trpc.store.list.queryOptions(),
+	const roomsQuery = useQuery({
+		...trpc.room.list.queryOptions(),
 		enabled: open,
 	});
-	const stores = storesQuery.data ?? [];
+	const rooms = roomsQuery.data ?? [];
 
-	const effectiveStoreId = sessionStoreId ?? selectedStoreId;
+	const effectiveRoomId = sessionRoomId ?? selectedRoomId;
 
 	const tournamentsQuery = useQuery({
-		...trpc.tournament.listByStore.queryOptions({
-			storeId: effectiveStoreId ?? "",
+		...trpc.tournament.listByRoom.queryOptions({
+			roomId: effectiveRoomId ?? "",
 			includeArchived: false,
 		}),
-		enabled: open && !!effectiveStoreId,
+		enabled: open && !!effectiveRoomId,
 	});
 	const tournaments = (tournamentsQuery.data ?? []) as TournamentListItem[];
 
@@ -96,16 +96,16 @@ export function useAssignTournament({
 
 	const createAndAssignMutation = useMutation({
 		mutationFn: async ({
-			storeId,
+			roomId,
 			values,
 			levels,
 		}: {
-			storeId: string;
+			roomId: string;
 			values: TournamentFormValues;
 			levels: BlindLevelRow[];
 		}) => {
 			const created = await trpcClient.tournament.createWithLevels.mutate({
-				storeId,
+				roomId,
 				name: values.name,
 				variant: values.variant,
 				buyIn: values.buyIn,
@@ -130,8 +130,8 @@ export function useAssignTournament({
 				invalidateSession(),
 				invalidateTargets(queryClient, [
 					{
-						queryKey: trpc.tournament.listByStore.queryOptions({
-							storeId: effectiveStoreId ?? "",
+						queryKey: trpc.tournament.listByRoom.queryOptions({
+							roomId: effectiveRoomId ?? "",
 							includeArchived: false,
 						}).queryKey,
 					},
@@ -150,8 +150,8 @@ export function useAssignTournament({
 	const isCreatePending = createAndAssignMutation.isPending;
 	const isBusy = isAssignPending || isCreatePending;
 
-	const handleStoreChange = (value: string) => {
-		setSelectedStoreId(value);
+	const handleRoomChange = (value: string) => {
+		setSelectedRoomId(value);
 		setSelectedTournamentId(undefined);
 	};
 
@@ -166,12 +166,12 @@ export function useAssignTournament({
 		values: TournamentFormValues,
 		levels: BlindLevelRow[]
 	) => {
-		if (!effectiveStoreId) {
-			toast.error("Select a store first");
+		if (!effectiveRoomId) {
+			toast.error("Select a room first");
 			return;
 		}
 		await createAndAssignMutation.mutateAsync({
-			storeId: effectiveStoreId,
+			roomId: effectiveRoomId,
 			values,
 			levels,
 		});
@@ -180,18 +180,18 @@ export function useAssignTournament({
 	return {
 		mode,
 		setMode,
-		selectedStoreId,
+		selectedRoomId,
 		selectedTournamentId,
 		setSelectedTournamentId,
 		isCreateDialogOpen,
 		setIsCreateDialogOpen,
-		stores,
+		rooms,
 		tournaments,
-		effectiveStoreId,
+		effectiveRoomId,
 		isAssignPending,
 		isCreatePending,
 		isBusy,
-		handleStoreChange,
+		handleRoomChange,
 		handleAssign,
 		handleCreate,
 	};

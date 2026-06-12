@@ -7,6 +7,7 @@ import {
 	LIFECYCLE_EVENTS,
 } from "@/features/live-sessions/utils/session-events-formatters";
 import { toTimeInputValue } from "@/features/live-sessions/utils/stack-editor-time";
+import { SessionFormSheet } from "@/features/sessions/components/session-form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import {
 	Accordion,
@@ -16,7 +17,6 @@ import {
 } from "@/shared/components/ui/accordion";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
 import { useSessionEventsScene } from "./use-session-events-scene";
 
 type SessionType = "cash_game" | "tournament";
@@ -193,7 +193,7 @@ export function SessionEventsScene({
 					})}
 				</div>
 			)}
-			<ResponsiveDialog
+			<SessionFormSheet
 				onOpenChange={(open) => {
 					if (!open) {
 						setEditEvent(null);
@@ -223,7 +223,7 @@ export function SessionEventsScene({
 						sessionType={sessionType}
 					/>
 				) : null}
-			</ResponsiveDialog>
+			</SessionFormSheet>
 		</div>
 	);
 }

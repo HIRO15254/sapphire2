@@ -10,7 +10,7 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock window.matchMedia for ResponsiveDialog (uses useMediaQuery)
+// Mock window.matchMedia for components that use useMediaQuery
 Object.defineProperty(window, "matchMedia", {
 	writable: true,
 	value: vi.fn().mockImplementation((query: string) => ({
@@ -108,9 +108,9 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 		ringGame: {
-			listByStore: {
-				queryOptions: (args: { storeId: string }) => ({
-					queryKey: ["ring-games", args.storeId],
+			listByRoom: {
+				queryOptions: (args: { roomId: string }) => ({
+					queryKey: ["ring-games", args.roomId],
 					queryFn: () => mockQuery("ring-games", args),
 				}),
 			},
@@ -189,7 +189,6 @@ const REGEX_TOTAL_ENTRIES_LABEL = /total entries/i;
 const REGEX_PRIZE_MONEY_LABEL = /prize money/i;
 const REGEX_BOUNTY_PRIZES_LABEL = /bounty prizes/i;
 const REGEX_COMPLETE_TOURNAMENT = /complete tournament/i;
-const REGEX_COMPLETING = /completing/i;
 
 // ---------------------------------------------------------------------------
 // Browser API polyfills required by Radix UI (dialogs, sheets, popovers)
@@ -335,7 +334,7 @@ describe("ActiveSessionPage — active cash game session", () => {
 			if (key === "cash-getById") {
 				return {
 					id: "cash-001",
-					storeId: "store-1",
+					roomId: "room-1",
 					ringGameId: null,
 					heroSeatPosition: null,
 					memo: null,
@@ -592,6 +591,7 @@ describe("ActiveSessionEventsPage — tournament events display", () => {
 						eventType: "purchase_chips",
 						occurredAt: new Date("2026-04-03T14:00:00"),
 						payload: {
+							sessionChipPurchaseId: "scp-1",
 							name: "Rebuy",
 							cost: 100,
 							chips: 10_000,
@@ -664,7 +664,12 @@ describe("ActiveSessionEventsPage — empty events list", () => {
 
 describe("TournamentCompleteForm — complete dialog fields", () => {
 	it("renders placement, totalEntries, prizeMoney, and bountyPrizes inputs", () => {
-		render(<TournamentCompleteForm isLoading={false} onSubmit={vi.fn()} />);
+		render(
+			<TournamentCompleteForm
+				formId="tournament-complete-form-test"
+				onSubmit={vi.fn()}
+			/>
+		);
 
 		expect(screen.getByLabelText(REGEX_PLACEMENT_LABEL)).toBeInTheDocument();
 		expect(
@@ -676,30 +681,41 @@ describe("TournamentCompleteForm — complete dialog fields", () => {
 		).toBeInTheDocument();
 	});
 
-	it("renders the 'Complete Tournament' submit button", () => {
-		render(<TournamentCompleteForm isLoading={false} onSubmit={vi.fn()} />);
+	it("renders no submit button of its own and tags the form with the formId", () => {
+		render(
+			<TournamentCompleteForm
+				formId="tournament-complete-form-test"
+				onSubmit={vi.fn()}
+			/>
+		);
 
 		expect(
-			screen.getByRole("button", { name: REGEX_COMPLETE_TOURNAMENT })
-		).toBeInTheDocument();
-	});
-
-	it("disables the button and shows 'Completing...' while loading", () => {
-		render(<TournamentCompleteForm isLoading onSubmit={vi.fn()} />);
-
-		const button = screen.getByRole("button", { name: REGEX_COMPLETING });
-		expect(button).toBeDisabled();
+			screen.queryByRole("button", { name: REGEX_COMPLETE_TOURNAMENT })
+		).not.toBeInTheDocument();
+		const form = document.getElementById("tournament-complete-form-test");
+		expect(form).not.toBeNull();
+		expect(form?.tagName).toBe("FORM");
 	});
 
 	it("placement input accepts numeric input and is labeled required", () => {
-		render(<TournamentCompleteForm isLoading={false} onSubmit={vi.fn()} />);
+		render(
+			<TournamentCompleteForm
+				formId="tournament-complete-form-test"
+				onSubmit={vi.fn()}
+			/>
+		);
 
 		const input = screen.getByLabelText(REGEX_PLACEMENT_LABEL);
 		expect(input).toHaveAttribute("inputMode", "numeric");
 	});
 
 	it("prizeMoney input has default of 0", () => {
-		render(<TournamentCompleteForm isLoading={false} onSubmit={vi.fn()} />);
+		render(
+			<TournamentCompleteForm
+				formId="tournament-complete-form-test"
+				onSubmit={vi.fn()}
+			/>
+		);
 
 		const input = screen.getByLabelText(REGEX_PRIZE_MONEY_LABEL);
 		expect(input).toHaveValue("0");

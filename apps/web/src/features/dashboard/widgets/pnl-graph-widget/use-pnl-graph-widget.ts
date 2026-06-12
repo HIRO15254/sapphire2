@@ -19,8 +19,8 @@ export type {
 export interface PnlGraphFilterFlags {
 	currency: boolean;
 	dateRange: boolean;
+	room: boolean;
 	sessionType: boolean;
-	store: boolean;
 	unit: boolean;
 	xAxis: boolean;
 }
@@ -29,10 +29,10 @@ export interface PnlGraphParsedConfig {
 	currencyId: string | null;
 	dateRangeDays: number | null;
 	ringGameId: string | null;
+	roomId: string | null;
 	sessionType: PnlGraphSessionType;
 	showEvCash: boolean;
 	showFilters: PnlGraphFilterFlags;
-	storeId: string | null;
 	unit: PnlGraphUnit;
 	xAxis: PnlGraphXAxis;
 }
@@ -54,7 +54,7 @@ const DEFAULT_FLAGS: PnlGraphFilterFlags = {
 	dateRange: false,
 	sessionType: false,
 	unit: false,
-	store: false,
+	room: false,
 	currency: false,
 };
 
@@ -80,7 +80,7 @@ function parseFlags(value: unknown): PnlGraphFilterFlags {
 		dateRange: raw.dateRange === true,
 		sessionType: raw.sessionType === true,
 		unit: raw.unit === true,
-		store: raw.store === true,
+		room: raw.room === true,
 		currency: raw.currency === true,
 	};
 }
@@ -100,7 +100,7 @@ export function parsePnlGraphWidgetConfig(
 			"all"
 		),
 		unit: parseEnum(raw.unit, PNL_GRAPH_UNIT_VALUES, "currency"),
-		storeId: parseStringOrNull(raw.storeId),
+		roomId: parseStringOrNull(raw.roomId),
 		ringGameId: parseStringOrNull(raw.ringGameId),
 		currencyId: parseStringOrNull(raw.currencyId),
 		showEvCash: raw.showEvCash === true,
@@ -112,9 +112,9 @@ export interface PnlGraphRuntimeState {
 	currencyId: string | null;
 	dateRangeDays: number | null;
 	ringGameId: string | null;
+	roomId: string | null;
 	sessionType: PnlGraphSessionType;
 	showEvCash: boolean;
-	storeId: string | null;
 	unit: PnlGraphUnit;
 	xAxis: PnlGraphXAxis;
 }
@@ -125,7 +125,7 @@ function configToState(parsed: PnlGraphParsedConfig): PnlGraphRuntimeState {
 		dateRangeDays: parsed.dateRangeDays,
 		sessionType: parsed.sessionType,
 		unit: parsed.unit,
-		storeId: parsed.storeId,
+		roomId: parsed.roomId,
 		ringGameId: parsed.ringGameId,
 		currencyId: parsed.currencyId,
 		showEvCash: parsed.showEvCash,
@@ -150,16 +150,16 @@ interface UsePnlGraphWidgetResult {
 	onChangeCurrencyId: (value: string | null) => void;
 	onChangeDateRangeDays: (value: number | null) => void;
 	onChangeRingGameId: (value: string | null) => void;
+	onChangeRoomId: (value: string | null) => void;
 	onChangeSessionType: (value: PnlGraphSessionType) => void;
-	onChangeStoreId: (value: string | null) => void;
 	onChangeUnit: (value: PnlGraphUnit) => void;
 	onChangeXAxis: (value: PnlGraphXAxis) => void;
 	parsed: PnlGraphParsedConfig;
 	points: AggregatedPoint[];
 	rawPoints: PnlSeriesPoint[];
+	rooms: PnlGraphSelectOption[];
 	skippedCount: number;
 	state: PnlGraphRuntimeState;
-	stores: PnlGraphSelectOption[];
 }
 
 export function usePnlGraphWidget(
@@ -178,16 +178,16 @@ export function usePnlGraphWidget(
 	const query = useQuery(
 		trpc.session.profitLossSeries.queryOptions({
 			type: effectiveTypeFilter(state),
-			storeId: state.storeId ?? undefined,
+			roomId: state.roomId ?? undefined,
 			ringGameId: state.ringGameId ?? undefined,
 			currencyId: state.currencyId ?? undefined,
 			dateFrom,
 		})
 	);
 
-	const storesQuery = useQuery(
-		trpc.store.list.queryOptions(undefined, {
-			enabled: parsed.showFilters.store,
+	const roomsQuery = useQuery(
+		trpc.room.list.queryOptions(undefined, {
+			enabled: parsed.showFilters.room,
 		})
 	);
 	const currenciesQuery = useQuery(
@@ -205,7 +205,7 @@ export function usePnlGraphWidget(
 		showEvCash: state.showEvCash,
 	});
 
-	const stores = (storesQuery.data ?? []) as PnlGraphSelectOption[];
+	const rooms = (roomsQuery.data ?? []) as PnlGraphSelectOption[];
 	const currencies = (currenciesQuery.data ?? []) as PnlGraphSelectOption[];
 
 	return {
@@ -220,7 +220,7 @@ export function usePnlGraphWidget(
 			setState((s) => ({ ...s, ringGameId: value })),
 		onChangeSessionType: (value) =>
 			setState((s) => ({ ...s, sessionType: value })),
-		onChangeStoreId: (value) => setState((s) => ({ ...s, storeId: value })),
+		onChangeRoomId: (value) => setState((s) => ({ ...s, roomId: value })),
 		onChangeUnit: (value) => setState((s) => ({ ...s, unit: value })),
 		onChangeXAxis: (value) => setState((s) => ({ ...s, xAxis: value })),
 		parsed,
@@ -228,6 +228,6 @@ export function usePnlGraphWidget(
 		rawPoints,
 		skippedCount: aggregated.skippedCount,
 		state,
-		stores,
+		rooms,
 	};
 }

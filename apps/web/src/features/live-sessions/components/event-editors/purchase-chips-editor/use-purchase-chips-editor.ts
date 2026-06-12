@@ -42,6 +42,12 @@ export function usePurchaseChipsEditor({
 			const occurredAt = toOccurredAtTimestamp(event.occurredAt, value.time);
 			onSubmit(
 				{
+					// Carry the original chip purchase link — editing only
+					// changes the denormalized name/cost/chips and the time.
+					sessionChipPurchaseId:
+						typeof payload.sessionChipPurchaseId === "string"
+							? payload.sessionChipPurchaseId
+							: "",
 					name: value.name,
 					cost: Math.round(Number(value.cost)),
 					chips: Math.round(Number(value.chips)),

@@ -1,13 +1,16 @@
-import { Button } from "@/shared/components/ui/button";
 import { Checkbox } from "@/shared/components/ui/checkbox";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { useTournamentCompleteForm } from "./use-tournament-complete-form";
 
 interface TournamentCompleteFormProps {
-	isLoading: boolean;
+	/**
+	 * Stable id assigned to the `<form>` element so the surrounding FormSheet
+	 * toolbar can submit it via the HTML `form` attribute. The form renders no
+	 * submit button of its own.
+	 */
+	formId: string;
 	onSubmit: (
 		values:
 			| {
@@ -26,7 +29,7 @@ interface TournamentCompleteFormProps {
 }
 
 export function TournamentCompleteForm({
-	isLoading,
+	formId,
 	onSubmit,
 }: TournamentCompleteFormProps) {
 	const { form } = useTournamentCompleteForm({ onSubmit });
@@ -34,6 +37,7 @@ export function TournamentCompleteForm({
 	return (
 		<form
 			className="flex flex-col gap-4"
+			id={formId}
 			onSubmit={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -145,21 +149,6 @@ export function TournamentCompleteForm({
 					</Field>
 				)}
 			</form.Field>
-
-			<DialogActionRow>
-				<form.Subscribe
-					selector={(state) => [state.canSubmit, state.isSubmitting]}
-				>
-					{([canSubmit, isSubmitting]) => (
-						<Button
-							disabled={isLoading || !canSubmit || isSubmitting}
-							type="submit"
-						>
-							{isLoading ? "Completing..." : "Complete Tournament"}
-						</Button>
-					)}
-				</form.Subscribe>
-			</DialogActionRow>
 		</form>
 	);
 }

@@ -26,11 +26,11 @@ vi.mock("@/lib/auth-client", () => ({
 	},
 }));
 
-vi.mock("@/shared/components/preview-auto-login", () => ({
+vi.mock("@/features/auth/pages/login-page/preview-auto-login", () => ({
 	PreviewAutoLogin: () => <div>Preview Auto Login</div>,
 }));
 
-vi.mock("@/shared/components/sign-in-form", () => ({
+vi.mock("@/features/auth/pages/login-page/sign-in-form", () => ({
 	default: ({ onSwitchToSignUp }: { onSwitchToSignUp: () => void }) => (
 		<div>
 			<p>Sign In Form</p>
@@ -41,7 +41,7 @@ vi.mock("@/shared/components/sign-in-form", () => ({
 	),
 }));
 
-vi.mock("@/shared/components/sign-up-form", () => ({
+vi.mock("@/features/auth/pages/login-page/sign-up-form", () => ({
 	default: ({ onSwitchToSignIn }: { onSwitchToSignIn: () => void }) => (
 		<div>
 			<p>Sign Up Form</p>

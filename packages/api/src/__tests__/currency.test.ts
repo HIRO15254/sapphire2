@@ -30,8 +30,12 @@ describe("currency router", () => {
 
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.currency).sort()).toEqual(
-			["create", "delete", "list", "update"].sort()
+			["create", "delete", "list", "toggleFavorite", "update"].sort()
 		);
+	});
+
+	it("has toggleFavorite procedure", () => {
+		expect(appRouter.currency.toggleFavorite).toBeDefined();
 	});
 
 	it("list is a protected query", () => {
@@ -49,6 +53,11 @@ describe("currency router", () => {
 			expectType(proc, "mutation");
 		}
 	});
+
+	it("toggleFavorite is a protected mutation", () => {
+		expectProtected(appRouter.currency.toggleFavorite);
+		expectType(appRouter.currency.toggleFavorite, "mutation");
+	});
 });
 
 describe("currency.create input validation", () => {
@@ -56,8 +65,10 @@ describe("currency.create input validation", () => {
 		expectAccepts(appRouter.currency.create, { name: "JPY" });
 	});
 
-	it("accepts optional unit string", () => {
-		expectAccepts(appRouter.currency.create, { name: "JPY", unit: "¥" });
+	it("accepts optional half-width unit (≤4 chars)", () => {
+		expectAccepts(appRouter.currency.create, { name: "USD", unit: "$" });
+		expectAccepts(appRouter.currency.create, { name: "JPY", unit: "JPY" });
+		expectAccepts(appRouter.currency.create, { name: "Chips", unit: "PT" });
 	});
 
 	it("rejects empty name", () => {
@@ -70,6 +81,43 @@ describe("currency.create input validation", () => {
 
 	it("rejects non-string name", () => {
 		expectRejects(appRouter.currency.create, { name: 123 });
+	});
+
+	it("rejects unit longer than 4 characters", () => {
+		expectRejects(appRouter.currency.create, { name: "X", unit: "ABCDE" });
+	});
+
+	it("rejects multi-byte unit (full-width / non-ASCII)", () => {
+		expectRejects(appRouter.currency.create, { name: "JPY", unit: "¥" });
+		expectRejects(appRouter.currency.create, { name: "EUR", unit: "€" });
+	});
+
+	it("accepts an optional rich-text description", () => {
+		expectAccepts(appRouter.currency.create, {
+			name: "Chips",
+			description: "<p>Weekday game chips</p>",
+		});
+	});
+
+	it("accepts a null description (no description set)", () => {
+		expectAccepts(appRouter.currency.create, {
+			name: "Chips",
+			description: null,
+		});
+	});
+
+	it("accepts a description at the 50,000-character boundary", () => {
+		expectAccepts(appRouter.currency.create, {
+			name: "Chips",
+			description: "a".repeat(50_000),
+		});
+	});
+
+	it("rejects a description longer than 50,000 characters", () => {
+		expectRejects(appRouter.currency.create, {
+			name: "Chips",
+			description: "a".repeat(50_001),
+		});
 	});
 });
 
@@ -86,12 +134,42 @@ describe("currency.update input validation", () => {
 		expectAccepts(appRouter.currency.update, { id: "c1", unit: "$" });
 	});
 
+	it("accepts unit cleared to null", () => {
+		expectAccepts(appRouter.currency.update, { id: "c1", unit: null });
+	});
+
 	it("rejects empty name when provided", () => {
 		expectRejects(appRouter.currency.update, { id: "c1", name: "" });
 	});
 
 	it("rejects missing id", () => {
 		expectRejects(appRouter.currency.update, { name: "USD" });
+	});
+
+	it("rejects unit longer than 4 characters", () => {
+		expectRejects(appRouter.currency.update, { id: "c1", unit: "ABCDE" });
+	});
+
+	it("rejects multi-byte unit", () => {
+		expectRejects(appRouter.currency.update, { id: "c1", unit: "¥" });
+	});
+
+	it("accepts id + description", () => {
+		expectAccepts(appRouter.currency.update, {
+			id: "c1",
+			description: "<p>Updated</p>",
+		});
+	});
+
+	it("accepts id + null description (clearing it)", () => {
+		expectAccepts(appRouter.currency.update, { id: "c1", description: null });
+	});
+
+	it("rejects a description longer than 50,000 characters", () => {
+		expectRejects(appRouter.currency.update, {
+			id: "c1",
+			description: "a".repeat(50_001),
+		});
 	});
 });
 
@@ -106,6 +184,20 @@ describe("currency.delete input validation", () => {
 
 	it("rejects non-string id", () => {
 		expectRejects(appRouter.currency.delete, { id: 42 });
+	});
+});
+
+describe("currency.toggleFavorite input validation", () => {
+	it("accepts a valid id", () => {
+		expectAccepts(appRouter.currency.toggleFavorite, { id: "c1" });
+	});
+
+	it("rejects missing id", () => {
+		expectRejects(appRouter.currency.toggleFavorite, {});
+	});
+
+	it("rejects non-string id", () => {
+		expectRejects(appRouter.currency.toggleFavorite, { id: 42 });
 	});
 });
 

@@ -15,7 +15,7 @@ vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => mocks.navigate,
 }));
 
-vi.mock("@/shared/components/linked-accounts", () => ({
+vi.mock("@/features/settings/pages/settings-page/linked-accounts", () => ({
 	LinkedAccounts: () => <div>Linked Accounts Content</div>,
 }));
 
@@ -50,10 +50,7 @@ describe("SettingsComponent", () => {
 		expect(
 			screen.getByRole("heading", { name: "Settings" })
 		).toBeInTheDocument();
-		expect(
-			screen.getByText("Manage login methods and account preferences.")
-		).toBeInTheDocument();
-		expect(screen.getByText("Linked Accounts")).toBeInTheDocument();
+		expect(screen.getByText("Linked accounts")).toBeInTheDocument();
 	});
 
 	it("signs out from the page header action", async () => {
@@ -62,7 +59,7 @@ describe("SettingsComponent", () => {
 
 		render(<Component />);
 
-		await user.click(screen.getByRole("button", { name: "Sign Out" }));
+		await user.click(screen.getByRole("button", { name: "Sign out" }));
 
 		expect(mocks.signOut).toHaveBeenCalledOnce();
 		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/" });
@@ -76,7 +73,7 @@ describe("SettingsComponent", () => {
 
 		render(<Component />);
 
-		await user.click(screen.getByRole("button", { name: "Sign Out" }));
+		await user.click(screen.getByRole("button", { name: "Sign out" }));
 
 		expect(mocks.signOut).toHaveBeenCalledOnce();
 		expect(mocks.navigate).not.toHaveBeenCalled();
@@ -88,11 +85,6 @@ describe("SettingsComponent", () => {
 		render(<Component />);
 
 		expect(screen.getByText("Linked Accounts Content")).toBeInTheDocument();
-		expect(
-			screen.getByText(
-				"Connect social providers or add an email and password login."
-			)
-		).toBeInTheDocument();
 	});
 
 	it("forwards the fetchOptions.onSuccess wiring so navigate fires exactly once per success", async () => {
@@ -101,8 +93,8 @@ describe("SettingsComponent", () => {
 
 		render(<Component />);
 
-		await user.click(screen.getByRole("button", { name: "Sign Out" }));
-		await user.click(screen.getByRole("button", { name: "Sign Out" }));
+		await user.click(screen.getByRole("button", { name: "Sign out" }));
+		await user.click(screen.getByRole("button", { name: "Sign out" }));
 
 		expect(mocks.signOut).toHaveBeenCalledTimes(2);
 		expect(mocks.navigate).toHaveBeenCalledTimes(2);

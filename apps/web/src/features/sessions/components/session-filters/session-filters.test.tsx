@@ -31,9 +31,9 @@ beforeAll(() => {
 	});
 });
 
-const stores = [
-	{ id: "store1", name: "Poker Palace" },
-	{ id: "store2", name: "Card Club" },
+const rooms = [
+	{ id: "room1", name: "Poker Palace" },
+	{ id: "room2", name: "Card Club" },
 ];
 
 const currencies = [
@@ -48,7 +48,7 @@ describe("SessionFilters", () => {
 				currencies={currencies}
 				filters={{}}
 				onFiltersChange={vi.fn()}
-				stores={stores}
+				rooms={rooms}
 			/>
 		);
 
@@ -59,9 +59,9 @@ describe("SessionFilters", () => {
 		render(
 			<SessionFilters
 				currencies={currencies}
-				filters={{ type: "cash_game", storeId: "store1" }}
+				filters={{ type: "cash_game", roomId: "room1" }}
 				onFiltersChange={vi.fn()}
-				stores={stores}
+				rooms={rooms}
 			/>
 		);
 
@@ -74,7 +74,7 @@ describe("SessionFilters", () => {
 				currencies={currencies}
 				filters={{}}
 				onFiltersChange={vi.fn()}
-				stores={stores}
+				rooms={rooms}
 			/>
 		);
 
@@ -88,14 +88,14 @@ describe("SessionFilters", () => {
 				currencies={currencies}
 				filters={{}}
 				onFiltersChange={vi.fn()}
-				stores={stores}
+				rooms={rooms}
 			/>
 		);
 
 		await user.click(screen.getByText("Filter"));
 
 		expect(screen.getByText("Type")).toBeInTheDocument();
-		expect(screen.getByText("Store")).toBeInTheDocument();
+		expect(screen.getByText("Room")).toBeInTheDocument();
 		expect(screen.getByText("Currency")).toBeInTheDocument();
 		expect(screen.getByText("Date Range")).toBeInTheDocument();
 	});
@@ -108,7 +108,7 @@ describe("SessionFilters", () => {
 				currencies={currencies}
 				filters={{ type: "cash_game" }}
 				onFiltersChange={onFiltersChange}
-				stores={stores}
+				rooms={rooms}
 			/>
 		);
 
@@ -124,30 +124,30 @@ describe("SessionFilters", () => {
 				currencies={currencies}
 				filters={{
 					type: "cash_game",
-					storeId: "store1",
+					roomId: "room1",
 					currencyId: "cur1",
 					dateFrom: "2026-04-01",
 				}}
 				onFiltersChange={vi.fn()}
-				stores={stores}
+				rooms={rooms}
 			/>
 		);
 		expect(screen.getByText("4")).toBeInTheDocument();
 	});
 
-	it("renders with empty stores and currencies lists without crashing", async () => {
+	it("renders with empty rooms and currencies lists without crashing", async () => {
 		const user = userEvent.setup();
 		render(
 			<SessionFilters
 				currencies={[]}
 				filters={{}}
 				onFiltersChange={vi.fn()}
-				stores={[]}
+				rooms={[]}
 			/>
 		);
 		await user.click(screen.getByText("Filter"));
-		// The dialog still renders all labels; store/currency selects are empty.
-		expect(screen.getByText("Store")).toBeInTheDocument();
+		// The dialog still renders all labels; room/currency selects are empty.
+		expect(screen.getByText("Room")).toBeInTheDocument();
 		expect(screen.getByText("Currency")).toBeInTheDocument();
 	});
 
@@ -160,14 +160,14 @@ describe("SessionFilters", () => {
 				currencies={currencies}
 				filters={{}}
 				onFiltersChange={onFiltersChange}
-				stores={stores}
+				rooms={rooms}
 			/>
 		);
 
 		await user.click(screen.getByText("Filter"));
 		await user.click(screen.getByLabelText("Type"));
 		await user.click(screen.getByText("Tournament"));
-		await user.click(screen.getByLabelText("Store"));
+		await user.click(screen.getByLabelText("Room"));
 		await user.click(screen.getByText("Poker Palace"));
 		await user.click(screen.getByLabelText("Currency"));
 		await user.click(screen.getByText("Points"));
@@ -179,7 +179,7 @@ describe("SessionFilters", () => {
 			currencyId: "cur2",
 			dateFrom: "2026-04-01",
 			dateTo: "2026-04-30",
-			storeId: "store1",
+			roomId: "room1",
 			type: "tournament",
 		});
 	}, 20_000);

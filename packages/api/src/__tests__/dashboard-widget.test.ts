@@ -217,7 +217,7 @@ describe("widget config parsing", () => {
 			sessionType: string;
 			showEvCash: boolean;
 			showFilters: Record<string, boolean>;
-			storeId: string | null;
+			roomId: string | null;
 			unit: string;
 			xAxis: string;
 		};
@@ -225,7 +225,7 @@ describe("widget config parsing", () => {
 		expect(parsed.dateRangeDays).toBeNull();
 		expect(parsed.sessionType).toBe("all");
 		expect(parsed.unit).toBe("currency");
-		expect(parsed.storeId).toBeNull();
+		expect(parsed.roomId).toBeNull();
 		expect(parsed.ringGameId).toBeNull();
 		expect(parsed.currencyId).toBeNull();
 		expect(parsed.showEvCash).toBe(false);
@@ -240,7 +240,7 @@ describe("widget config parsing", () => {
 				dateRangeDays: 30,
 				sessionType: "cash_game",
 				unit: "normalized",
-				storeId: "s1",
+				roomId: "s1",
 				ringGameId: "rg1",
 				currencyId: "c1",
 				showFilters: { xAxis: true, unit: true },
@@ -248,13 +248,13 @@ describe("widget config parsing", () => {
 		) as {
 			ringGameId: string | null;
 			showFilters: Record<string, boolean>;
-			storeId: string | null;
+			roomId: string | null;
 			unit: string;
 			xAxis: string;
 		};
 		expect(parsed.xAxis).toBe("playTime");
 		expect(parsed.unit).toBe("normalized");
-		expect(parsed.storeId).toBe("s1");
+		expect(parsed.roomId).toBe("s1");
 		expect(parsed.ringGameId).toBe("rg1");
 		expect(parsed.showFilters.xAxis).toBe(true);
 		expect(parsed.showFilters.unit).toBe(true);

@@ -1,0 +1,57 @@
+name: PR review
+
+on:
+  pull_request:
+    branches: [dev, main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: review
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Claude review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            /review
+
+            After completing the review, write a Markdown summary of your findings
+            to `/tmp/review-summary.md` (no surrounding code fence). If no issues were
+            found, write a short confirmation that the review passed with no problems
+            (e.g. "LGTM" with a brief summary).
+
+            Do NOT run any gh commands and do NOT try to post a comment yourself —
+            posting is handled by a later workflow step that reads /tmp/review-summary.md.
+          claude_args: |
+            --max-turns 40
+            --model opus
+
+      - name: Post review summary comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -s /tmp/review-summary.md ]; then
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file /tmp/review-summary.md
+          else
+            echo "::warning::Claude did not produce /tmp/review-summary.md; skipping comment."
+          fi

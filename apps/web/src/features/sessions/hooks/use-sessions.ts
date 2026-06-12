@@ -1,69 +1,54 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { SessionFilterValues } from "@/features/sessions/components/session-filters";
+import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
 import {
 	cancelTargets,
 	invalidateTargets,
+	prependInfiniteQueryItem,
 	restoreSnapshots,
 	snapshotQuery,
+	updateInfiniteQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
-export interface CashGameFormValues {
-	ante?: number;
-	anteType?: string;
-	blind1?: number;
-	blind2?: number;
-	blind3?: number;
-	breakMinutes?: number;
-	buyIn: number;
-	cashOut: number;
-	currencyId?: string;
-	endTime?: string;
-	evCashOut?: number;
-	memo?: string;
-	ringGameId?: string;
-	sessionDate: string;
-	startTime?: string;
-	storeId?: string;
-	tableSize?: number;
-	tagIds?: string[];
-	type: "cash_game";
-	variant: string;
-}
-
-export interface TournamentFormValues {
-	addonCost?: number;
-	beforeDeadline?: boolean;
-	bountyPrizes?: number;
-	breakMinutes?: number;
-	currencyId?: string;
-	endTime?: string;
-	entryFee?: number;
-	memo?: string;
-	placement?: number;
-	prizeMoney?: number;
-	rebuyCost?: number;
-	rebuyCount?: number;
-	sessionDate: string;
-	startTime?: string;
-	storeId?: string;
-	tagIds?: string[];
-	totalEntries?: number;
-	tournamentBuyIn: number;
-	tournamentId?: string;
-	type: "tournament";
-}
-
-export type SessionFormValues = CashGameFormValues | TournamentFormValues;
+export type {
+	CashGameFormValues,
+	SessionFormValues,
+	TournamentFormValues,
+} from "@/features/sessions/utils/session-form-helpers";
 
 export interface SessionItem {
-	addonCost: number | null;
 	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
 	buyIn: number | null;
+	// Cash snapshot scalars (used by the wizard edit pre-fill).
+	cashAnte: number | null;
+	cashAnteType: string | null;
+	cashBlind1: number | null;
+	cashBlind3: number | null;
+	cashMaxBuyIn: number | null;
+	cashMinBuyIn: number | null;
 	cashOut: number | null;
+	cashTableSize: number | null;
+	cashVariant: string | null;
+	/** Σ cost × count across this session's chip purchases. */
+	chipPurchaseCost: number;
+	/** Rule-defined chip purchases with their result counts. */
+	chipPurchases: Array<{
+		chips: number;
+		cost: number;
+		count: number;
+		id: string;
+		name: string;
+		sortOrder: number;
+	}>;
 	createdAt: string;
 	currencyId: string | null;
 	currencyName: string | null;
@@ -80,23 +65,26 @@ export interface SessionItem {
 	placement: number | null;
 	prizeMoney: number | null;
 	profitLoss: number | null;
-	rebuyCost: number | null;
-	rebuyCount: number | null;
 	ringGameBlind2: number | null;
 	ringGameId: string | null;
 	ringGameName: string | null;
+	roomId: string | null;
+	roomName: string | null;
 	sessionDate: string;
 	// CTI fields — always present from session.list since Phase 1 DB migration
 	source: string;
 	startedAt: string | null;
 	status: string;
-	storeId: string | null;
-	storeName: string | null;
 	tags: Array<{ id: string; name: string }>;
 	totalEntries: number | null;
+	tournamentBountyAmount: number | null;
 	tournamentBuyIn: number | null;
 	tournamentId: string | null;
 	tournamentName: string | null;
+	// Tournament snapshot scalars (used by the wizard edit pre-fill).
+	tournamentStartingStack: number | null;
+	tournamentTableSize: number | null;
+	tournamentVariant: string | null;
 	type: string;
 }
 
@@ -119,7 +107,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 		breakMinutes: values.breakMinutes,
 		memo: values.memo,
 		tagIds: values.tagIds,
-		storeId: values.storeId,
+		roomId: values.roomId,
 		currencyId: values.currencyId,
 	};
 	if (values.type === "cash_game") {
@@ -129,6 +117,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 			buyIn: values.buyIn,
 			cashOut: values.cashOut,
 			evCashOut: values.evCashOut,
+			ruleName: values.ruleName,
 			variant: values.variant,
 			blind1: values.blind1,
 			blind2: values.blind2,
@@ -136,6 +125,8 @@ export function buildCreatePayload(values: SessionFormValues) {
 			ante: values.ante,
 			anteType: values.anteType as "none" | "all" | "bb" | undefined,
 			tableSize: values.tableSize,
+			minBuyIn: values.minBuyIn,
+			maxBuyIn: values.maxBuyIn,
 			ringGameId: values.ringGameId,
 		};
 	}
@@ -148,10 +139,14 @@ export function buildCreatePayload(values: SessionFormValues) {
 		placement: values.placement,
 		totalEntries: values.totalEntries,
 		prizeMoney: values.prizeMoney,
-		rebuyCount: values.rebuyCount,
-		rebuyCost: values.rebuyCost,
-		addonCost: values.addonCost,
 		bountyPrizes: values.bountyPrizes,
+		ruleName: values.ruleName,
+		variant: values.variant,
+		startingStack: values.startingStack,
+		bountyAmount: values.bountyAmount,
+		tableSize: values.tableSize,
+		blindLevels: values.blindLevels,
+		chipPurchases: values.chipPurchases,
 		tournamentId: values.tournamentId,
 	};
 }
@@ -163,7 +158,7 @@ export function buildLiveLinkedUpdatePayload(
 		id: values.id,
 		memo: values.memo,
 		tagIds: values.tagIds,
-		storeId: values.storeId ?? null,
+		roomId: values.roomId ?? null,
 		currencyId: values.currencyId ?? null,
 	};
 }
@@ -177,7 +172,7 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		breakMinutes: values.breakMinutes ?? null,
 		memo: values.memo,
 		tagIds: values.tagIds,
-		storeId: values.storeId ?? null,
+		roomId: values.roomId ?? null,
 		currencyId: values.currencyId ?? null,
 	};
 	if (values.type === "cash_game") {
@@ -204,10 +199,8 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		placement: values.placement ?? null,
 		totalEntries: values.totalEntries ?? null,
 		prizeMoney: values.prizeMoney,
-		rebuyCount: values.rebuyCount,
-		rebuyCost: values.rebuyCost,
-		addonCost: values.addonCost,
 		bountyPrizes: values.bountyPrizes,
+		chipPurchases: values.chipPurchases,
 		tournamentId: values.tournamentId ?? null,
 	};
 }
@@ -230,17 +223,16 @@ export function buildOptimisticItem(
 		placement: null,
 		totalEntries: null,
 		prizeMoney: null,
-		rebuyCount: null,
-		rebuyCost: null,
-		addonCost: null,
 		bountyPrizes: null,
+		chipPurchases: [],
+		chipPurchaseCost: 0,
 		breakMinutes: newSession.breakMinutes ?? null,
 		profitLoss: 0,
 		startedAt: null,
 		endedAt: null,
 		memo: newSession.memo ?? null,
-		storeId: newSession.storeId ?? null,
-		storeName: null,
+		roomId: newSession.roomId ?? null,
+		roomName: null,
 		ringGameId: null,
 		ringGameBlind2: null,
 		ringGameName: null,
@@ -256,6 +248,18 @@ export function buildOptimisticItem(
 		liveCashGameSessionId: null,
 		liveTournamentSessionId: null,
 		tags: [],
+		cashAnte: null,
+		cashAnteType: null,
+		cashBlind1: null,
+		cashBlind3: null,
+		cashMaxBuyIn: null,
+		cashMinBuyIn: null,
+		cashTableSize: null,
+		cashVariant: null,
+		tournamentBountyAmount: null,
+		tournamentStartingStack: null,
+		tournamentTableSize: null,
+		tournamentVariant: null,
 	};
 	if (newSession.type === "cash_game") {
 		item.buyIn = newSession.buyIn;
@@ -274,6 +278,37 @@ export function buildOptimisticItem(
 	return item;
 }
 
+function cashSnapshotDefaults(session: SessionItem) {
+	if (session.type !== "cash_game") {
+		return {};
+	}
+	return {
+		ruleName: session.ringGameName ?? undefined,
+		variant: session.cashVariant ?? undefined,
+		blind1: session.cashBlind1 ?? undefined,
+		blind2: session.ringGameBlind2 ?? undefined,
+		blind3: session.cashBlind3 ?? undefined,
+		ante: session.cashAnte ?? undefined,
+		anteType: session.cashAnteType ?? undefined,
+		minBuyIn: session.cashMinBuyIn ?? undefined,
+		maxBuyIn: session.cashMaxBuyIn ?? undefined,
+		tableSize: session.cashTableSize ?? undefined,
+	};
+}
+
+function tournamentSnapshotDefaults(session: SessionItem) {
+	if (session.type !== "tournament") {
+		return {};
+	}
+	return {
+		ruleName: session.tournamentName ?? undefined,
+		variant: session.tournamentVariant ?? undefined,
+		tableSize: session.tournamentTableSize ?? undefined,
+		startingStack: session.tournamentStartingStack ?? undefined,
+		bountyAmount: session.tournamentBountyAmount ?? undefined,
+	};
+}
+
 export function buildEditDefaults(session: SessionItem) {
 	return {
 		type: session.type as "cash_game" | "tournament",
@@ -287,26 +322,34 @@ export function buildEditDefaults(session: SessionItem) {
 		placement: session.placement ?? undefined,
 		totalEntries: session.totalEntries ?? undefined,
 		prizeMoney: session.prizeMoney ?? undefined,
-		rebuyCount: session.rebuyCount ?? undefined,
-		rebuyCost: session.rebuyCost ?? undefined,
-		addonCost: session.addonCost ?? undefined,
 		bountyPrizes: session.bountyPrizes ?? undefined,
+		chipPurchases: session.chipPurchases.map((cp) => ({
+			name: cp.name,
+			cost: cp.cost,
+			chips: cp.chips,
+			count: cp.count,
+		})),
 		startTime: formatTimeFromDate(session.startedAt),
 		endTime: formatTimeFromDate(session.endedAt),
 		breakMinutes: session.breakMinutes ?? undefined,
 		memo: session.memo ?? undefined,
 		tagIds: session.tags.map((t) => t.id),
-		storeId: session.storeId ?? undefined,
+		roomId: session.roomId ?? undefined,
 		ringGameId: session.ringGameId ?? undefined,
 		tournamentId: session.tournamentId ?? undefined,
 		currencyId: session.currencyId ?? undefined,
+		// Snapshot scalars — pre-fill the Rules step from the frozen detail
+		// columns so editing keeps the same rule shape unless the user
+		// overrides it explicitly.
+		...cashSnapshotDefaults(session),
+		...tournamentSnapshotDefaults(session),
 	};
 }
 
 export function filtersToListInput(filters: SessionFilterValues) {
 	return {
 		type: filters.type,
-		storeId: filters.storeId,
+		roomId: filters.roomId,
 		currencyId: filters.currencyId,
 		dateFrom: filters.dateFrom
 			? Math.floor(new Date(filters.dateFrom).getTime() / 1000)
@@ -340,10 +383,20 @@ export function useSessions(filters: SessionFilterValues) {
 	const navigate = useNavigate();
 
 	const listInput = filtersToListInput(filters);
-	const sessionListKey = trpc.session.list.queryOptions(listInput).queryKey;
+	const sessionListOptions = trpc.session.list.infiniteQueryOptions(listInput, {
+		getNextPageParam: (lastPage) => lastPage.nextCursor,
+	});
+	const sessionListKey = sessionListOptions.queryKey;
 
-	const sessionsQuery = useQuery(trpc.session.list.queryOptions(listInput));
-	const sessions = sessionsQuery.data?.items ?? [];
+	const sessionsQuery = useInfiniteQuery(sessionListOptions);
+	const sessions =
+		sessionsQuery.data?.pages.flatMap((page) => page.items) ?? [];
+
+	const fetchNextPage = () => {
+		if (sessionsQuery.hasNextPage && !sessionsQuery.isFetchingNextPage) {
+			sessionsQuery.fetchNextPage();
+		}
+	};
 
 	const tagsQuery = useQuery(trpc.sessionTag.list.queryOptions());
 	const availableTags = tagsQuery.data ?? [];
@@ -368,15 +421,11 @@ export function useSessions(filters: SessionFilterValues) {
 		onMutate: async (newSession) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
 			const previous = snapshotQuery(queryClient, sessionListKey);
-			queryClient.setQueryData(sessionListKey, (old) => {
-				if (!old) {
-					return old;
-				}
-				return {
-					...old,
-					items: [buildOptimisticItem(newSession), ...old.items],
-				};
-			});
+			prependInfiniteQueryItem<SessionItem>(
+				queryClient,
+				sessionListKey,
+				buildOptimisticItem(newSession)
+			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
@@ -399,13 +448,11 @@ export function useSessions(filters: SessionFilterValues) {
 		onMutate: async (updated) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
 			const previous = snapshotQuery(queryClient, sessionListKey);
-			queryClient.setQueryData(sessionListKey, (old) => {
-				if (!old) {
-					return old;
-				}
-				return {
-					...old,
-					items: old.items.map((s) =>
+			updateInfiniteQueryItems<SessionItem>(
+				queryClient,
+				sessionListKey,
+				(items) =>
+					items.map((s) =>
 						s.id === updated.id
 							? {
 									...s,
@@ -413,9 +460,8 @@ export function useSessions(filters: SessionFilterValues) {
 									memo: updated.memo ?? null,
 								}
 							: s
-					),
-				};
-			});
+					)
+			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
@@ -431,12 +477,11 @@ export function useSessions(filters: SessionFilterValues) {
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionListKey }]);
 			const previous = snapshotQuery(queryClient, sessionListKey);
-			queryClient.setQueryData(sessionListKey, (old) => {
-				if (!old) {
-					return old;
-				}
-				return { ...old, items: old.items.filter((s) => s.id !== id) };
-			});
+			updateInfiniteQueryItems<SessionItem>(
+				queryClient,
+				sessionListKey,
+				(items) => items.filter((s) => s.id !== id)
+			);
 			return { previous };
 		},
 		onError: (_err, _vars, context) => {
@@ -478,6 +523,10 @@ export function useSessions(filters: SessionFilterValues) {
 	return {
 		sessions,
 		availableTags,
+		isLoading: sessionsQuery.isLoading,
+		hasNextPage: sessionsQuery.hasNextPage,
+		isFetchingNextPage: sessionsQuery.isFetchingNextPage,
+		fetchNextPage,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		create: (values: SessionFormValues) => createMutation.mutateAsync(values),

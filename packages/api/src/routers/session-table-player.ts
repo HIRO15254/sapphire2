@@ -1,20 +1,17 @@
-import {
-	playerJoinPayload,
-	playerLeavePayload,
-} from "@sapphire2/db/constants/session-event-types";
+import { playerJoinPayload } from "@sapphire2/db/constants/session-event-types";
 import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
+import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
-import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
-import { store } from "@sapphire2/db/schema/store";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
+import { computeSeatedPlayersFromEvents } from "../services/live-session-pl";
 import {
 	floorToMinute,
 	nextAppendSortOrder,
@@ -58,17 +55,17 @@ async function fetchSessionContext(
 	db: DbInstance,
 	sessionId: string,
 	sessionType: "cash_game" | "tournament"
-): Promise<{ storeName: string | null; gameName: string | null }> {
-	let storeName: string | null = null;
+): Promise<{ roomName: string | null; gameName: string | null }> {
+	let roomName: string | null = null;
 	let gameName: string | null = null;
-	let storeId: string | null = null;
+	let roomId: string | null = null;
 
 	const [session] = await db
-		.select({ storeId: gameSession.storeId })
+		.select({ roomId: gameSession.roomId })
 		.from(gameSession)
 		.where(eq(gameSession.id, sessionId));
 
-	storeId = session?.storeId ?? null;
+	roomId = session?.roomId ?? null;
 
 	if (sessionType === "cash_game") {
 		const [cashDetail] = await db
@@ -106,24 +103,49 @@ async function fetchSessionContext(
 		}
 	}
 
-	if (storeId) {
-		const [storeRow] = await db
-			.select({ name: store.name })
-			.from(store)
-			.where(eq(store.id, storeId));
-		storeName = storeRow?.name ?? null;
+	if (roomId) {
+		const [roomRow] = await db
+			.select({ name: room.name })
+			.from(room)
+			.where(eq(room.id, roomId));
+		roomName = roomRow?.name ?? null;
 	}
 
-	return { storeName, gameName };
+	return { roomName, gameName };
+}
+
+/**
+ * Fetch the session's events ordered for event-sourced state derivation.
+ * Seated-player state is no longer persisted in a table — every read folds
+ * the player_join / player_leave event stream instead.
+ */
+function fetchSeatEvents(db: DbInstance, sessionId: string) {
+	return db
+		.select({
+			id: sessionEvent.id,
+			eventType: sessionEvent.eventType,
+			payload: sessionEvent.payload,
+			occurredAt: sessionEvent.occurredAt,
+			sortOrder: sessionEvent.sortOrder,
+		})
+		.from(sessionEvent)
+		.where(eq(sessionEvent.sessionId, sessionId))
+		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 }
 
 export async function insertPlayerJoinEvent(
 	db: DbInstance,
 	sessionId: string,
-	playerId: string
+	playerId: string,
+	seatPosition?: number
 ) {
 	const now = new Date();
 	const sortOrder = await nextAppendSortOrder(db, sessionId);
+
+	const payload: { playerId: string; seatPosition?: number } = { playerId };
+	if (seatPosition !== undefined) {
+		payload.seatPosition = seatPosition;
+	}
 
 	await db.insert(sessionEvent).values({
 		id: crypto.randomUUID(),
@@ -131,7 +153,7 @@ export async function insertPlayerJoinEvent(
 		eventType: "player_join",
 		occurredAt: floorToMinute(now),
 		sortOrder,
-		payload: JSON.stringify({ playerId }),
+		payload: JSON.stringify(payload),
 		updatedAt: now,
 	});
 }
@@ -155,64 +177,27 @@ export async function insertPlayerLeaveEvent(
 	});
 }
 
-interface RecoveredSeatState {
-	isActive: boolean;
-	lastJoinedAt: Date | null;
-	lastLeftAt: Date | null;
-}
-
-async function recoverSeatStateFromEvents(db: DbInstance, sessionId: string) {
-	const events = await db
-		.select({
-			eventType: sessionEvent.eventType,
-			payload: sessionEvent.payload,
-			occurredAt: sessionEvent.occurredAt,
-			sortOrder: sessionEvent.sortOrder,
-		})
-		.from(sessionEvent)
-		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
-
-	const stateByPlayerId = new Map<string, RecoveredSeatState>();
-
-	for (const event of events) {
-		if (event.eventType === "player_join") {
-			const parsed = playerJoinPayload.safeParse(JSON.parse(event.payload));
-			const playerId = parsed.success ? parsed.data.playerId : undefined;
-			if (!playerId) {
-				continue;
-			}
-			stateByPlayerId.set(playerId, {
-				isActive: true,
-				lastJoinedAt: event.occurredAt,
-				lastLeftAt: null,
-			});
-			continue;
-		}
-
-		if (event.eventType === "player_leave") {
-			const parsed = playerLeavePayload.safeParse(JSON.parse(event.payload));
-			const playerId = parsed.success ? parsed.data.playerId : undefined;
-			if (!playerId) {
-				continue;
-			}
-			const current = stateByPlayerId.get(playerId);
-			stateByPlayerId.set(playerId, {
-				isActive: false,
-				lastJoinedAt: current?.lastJoinedAt ?? null,
-				lastLeftAt: event.occurredAt,
-			});
-		}
-	}
-
-	return stateByPlayerId;
-}
-
 const sessionIdInput = z.object({
 	sessionId: z.string().optional(),
 	liveCashGameSessionId: z.string().optional(),
 	liveTournamentSessionId: z.string().optional(),
 });
+
+function requireSessionId(input: {
+	sessionId?: string;
+	liveCashGameSessionId?: string;
+	liveTournamentSessionId?: string;
+}): string {
+	const sessionId = resolveSessionId(input);
+	if (!sessionId) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message:
+				"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
+		});
+	}
+	return sessionId;
+}
 
 export const sessionTablePlayerRouter = router({
 	list: protectedProcedure
@@ -222,59 +207,72 @@ export const sessionTablePlayerRouter = router({
 			})
 		)
 		.query(async ({ ctx, input }) => {
-			const sessionId = resolveSessionId(input);
-
-			if (!sessionId) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
-				});
-			}
-
+			const sessionId = requireSessionId(input);
 			const userId = ctx.session.user.id;
 			await resolveSessionOwnership(ctx.db, sessionId, userId);
 
-			const rows = await ctx.db
+			const events = await fetchSeatEvents(ctx.db, sessionId);
+			const seated = computeSeatedPlayersFromEvents(events);
+
+			if (seated.length === 0) {
+				return { items: [] };
+			}
+
+			const playerRows = await ctx.db
 				.select({
-					id: sessionTablePlayer.id,
-					isActive: sessionTablePlayer.isActive,
-					joinedAt: sessionTablePlayer.joinedAt,
-					leftAt: sessionTablePlayer.leftAt,
-					seatPosition: sessionTablePlayer.seatPosition,
-					playerId: player.id,
-					playerName: player.name,
-					playerMemo: player.memo,
-					playerIsTemporary: player.isTemporary,
+					id: player.id,
+					name: player.name,
+					memo: player.memo,
+					isTemporary: player.isTemporary,
 				})
-				.from(sessionTablePlayer)
-				.innerJoin(player, eq(player.id, sessionTablePlayer.playerId))
-				.where(eq(sessionTablePlayer.sessionId, sessionId))
-				.orderBy(asc(sessionTablePlayer.joinedAt));
+				.from(player)
+				.where(
+					inArray(
+						player.id,
+						seated.map((s) => s.playerId)
+					)
+				);
+			const playerById = new Map(playerRows.map((p) => [p.id, p]));
 
-			const recoveredSeatState = await recoverSeatStateFromEvents(
-				ctx.db,
-				sessionId
-			);
-
-			const items = rows.map((row) => {
-				const recovered = recoveredSeatState.get(row.playerId);
-				const isActive = recovered?.isActive ?? row.isActive === 1;
-
-				return {
-					id: row.id,
-					player: {
-						id: row.playerId,
-						isTemporary: row.playerIsTemporary,
-						memo: row.playerMemo,
-						name: row.playerName,
-					},
-					isActive,
-					joinedAt: recovered?.lastJoinedAt ?? row.joinedAt,
-					leftAt: recovered?.lastLeftAt ?? row.leftAt ?? null,
-					seatPosition: row.seatPosition ?? null,
+			const items: {
+				id: string;
+				player: {
+					id: string;
+					isTemporary: boolean;
+					memo: string | null;
+					name: string;
 				};
-			});
+				isActive: boolean;
+				joinedAt: Date;
+				leftAt: Date | null;
+				seatPosition: number | null;
+				stints: {
+					joinedAt: Date;
+					leftAt: Date | null;
+					seatPosition: number | null;
+				}[];
+			}[] = [];
+			for (const state of seated) {
+				const foundPlayer = playerById.get(state.playerId);
+				if (!foundPlayer) {
+					continue;
+				}
+				items.push({
+					id: state.playerId,
+					player: {
+						id: foundPlayer.id,
+						isTemporary: foundPlayer.isTemporary,
+						memo: foundPlayer.memo,
+						name: foundPlayer.name,
+					},
+					isActive: state.isActive,
+					joinedAt: state.joinedAt,
+					leftAt: state.leftAt,
+					seatPosition: state.seatPosition,
+					stints: state.stints,
+				});
+			}
+			items.sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime());
 
 			return {
 				items: input.activeOnly ? items.filter((item) => item.isActive) : items,
@@ -289,16 +287,7 @@ export const sessionTablePlayerRouter = router({
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
-			const sessionId = resolveSessionId(input);
-
-			if (!sessionId) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
-				});
-			}
-
+			const sessionId = requireSessionId(input);
 			const { playerId, seatPosition } = input;
 			const userId = ctx.session.user.id;
 			await resolveSessionOwnership(ctx.db, sessionId, userId);
@@ -311,61 +300,21 @@ export const sessionTablePlayerRouter = router({
 				throw new TRPCError({ code: "NOT_FOUND", message: "Player not found" });
 			}
 
-			const [existing] = await ctx.db
-				.select()
-				.from(sessionTablePlayer)
-				.where(
-					and(
-						eq(sessionTablePlayer.sessionId, sessionId),
-						eq(sessionTablePlayer.playerId, playerId)
-					)
-				);
-
-			const recoveredSeatState = await recoverSeatStateFromEvents(
-				ctx.db,
-				sessionId
+			const events = await fetchSeatEvents(ctx.db, sessionId);
+			const seated = computeSeatedPlayersFromEvents(events);
+			const isActive = seated.some(
+				(s) => s.playerId === playerId && s.isActive
 			);
-			const isActiveByEvent =
-				recoveredSeatState.get(playerId)?.isActive ?? false;
-
-			if (isActiveByEvent) {
+			if (isActive) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "Player is already active in this session",
 				});
 			}
 
-			const now = new Date();
-			let tablePlayerId: string;
+			await insertPlayerJoinEvent(ctx.db, sessionId, playerId, seatPosition);
 
-			if (existing) {
-				tablePlayerId = existing.id;
-				await ctx.db
-					.update(sessionTablePlayer)
-					.set({
-						isActive: 1,
-						joinedAt: now,
-						leftAt: null,
-						updatedAt: now,
-						...(seatPosition !== undefined && { seatPosition }),
-					})
-					.where(eq(sessionTablePlayer.id, existing.id));
-			} else {
-				tablePlayerId = crypto.randomUUID();
-				await ctx.db.insert(sessionTablePlayer).values({
-					id: tablePlayerId,
-					sessionId,
-					playerId,
-					isActive: 1,
-					joinedAt: now,
-					updatedAt: now,
-					...(seatPosition !== undefined && { seatPosition }),
-				});
-			}
-
-			await insertPlayerJoinEvent(ctx.db, sessionId, playerId);
-
-			return { id: tablePlayerId };
+			return { id: playerId, playerId };
 		}),
 
 	addNew: protectedProcedure
@@ -378,16 +327,7 @@ export const sessionTablePlayerRouter = router({
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
-			const sessionId = resolveSessionId(input);
-
-			if (!sessionId) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
-				});
-			}
-
+			const sessionId = requireSessionId(input);
 			const { seatPosition } = input;
 			const userId = ctx.session.user.id;
 			await resolveSessionOwnership(ctx.db, sessionId, userId);
@@ -412,20 +352,9 @@ export const sessionTablePlayerRouter = router({
 				);
 			}
 
-			const tablePlayerId = crypto.randomUUID();
-			await ctx.db.insert(sessionTablePlayer).values({
-				id: tablePlayerId,
-				isActive: 1,
-				joinedAt: now,
-				sessionId,
-				playerId,
-				updatedAt: now,
-				...(seatPosition !== undefined && { seatPosition }),
-			});
+			await insertPlayerJoinEvent(ctx.db, sessionId, playerId, seatPosition);
 
-			await insertPlayerJoinEvent(ctx.db, sessionId, playerId);
-
-			return { id: tablePlayerId, playerId };
+			return { id: playerId, playerId };
 		}),
 
 	updateSeat: protectedProcedure
@@ -436,44 +365,54 @@ export const sessionTablePlayerRouter = router({
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
-			const sessionId = resolveSessionId(input);
-
-			if (!sessionId) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
-				});
-			}
-
-			const { playerId } = input;
+			const sessionId = requireSessionId(input);
+			const { playerId, seatPosition } = input;
 			const userId = ctx.session.user.id;
 			await resolveSessionOwnership(ctx.db, sessionId, userId);
 
-			const [existing] = await ctx.db
-				.select()
-				.from(sessionTablePlayer)
-				.where(
-					and(
-						eq(sessionTablePlayer.sessionId, sessionId),
-						eq(sessionTablePlayer.playerId, playerId)
-					)
-				);
-
-			if (!existing) {
+			const events = await fetchSeatEvents(ctx.db, sessionId);
+			const seated = computeSeatedPlayersFromEvents(events);
+			const isActive = seated.some(
+				(s) => s.playerId === playerId && s.isActive
+			);
+			if (!isActive) {
 				throw new TRPCError({
 					code: "NOT_FOUND",
 					message: "Player not found in session",
 				});
 			}
 
-			const now = new Date();
-			await ctx.db
-				.update(sessionTablePlayer)
-				.set({ seatPosition: input.seatPosition, updatedAt: now })
-				.where(eq(sessionTablePlayer.id, existing.id));
+			// The seat lives on the player's most recent player_join event.
+			// Patching that event keeps the seat fully event-sourced.
+			let joinEventId: string | undefined;
+			for (const event of events) {
+				if (event.eventType !== "player_join") {
+					continue;
+				}
+				const parsed = playerJoinPayload.safeParse(JSON.parse(event.payload));
+				if (parsed.success && parsed.data.playerId === playerId) {
+					joinEventId = event.id;
+				}
+			}
+			if (!joinEventId) {
+				throw new TRPCError({
+					code: "NOT_FOUND",
+					message: "Player not found in session",
+				});
+			}
 
-			return { id: existing.id };
+			const payload: { playerId: string; seatPosition?: number } = {
+				playerId,
+			};
+			if (seatPosition !== null) {
+				payload.seatPosition = seatPosition;
+			}
+			await ctx.db
+				.update(sessionEvent)
+				.set({ payload: JSON.stringify(payload), updatedAt: new Date() })
+				.where(eq(sessionEvent.id, joinEventId));
+
+			return { id: playerId, playerId };
 		}),
 
 	remove: protectedProcedure
@@ -483,60 +422,26 @@ export const sessionTablePlayerRouter = router({
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
-			const sessionId = resolveSessionId(input);
-
-			if (!sessionId) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
-				});
-			}
-
+			const sessionId = requireSessionId(input);
 			const { playerId } = input;
 			const userId = ctx.session.user.id;
 			await resolveSessionOwnership(ctx.db, sessionId, userId);
 
-			const [existing] = await ctx.db
-				.select()
-				.from(sessionTablePlayer)
-				.where(
-					and(
-						eq(sessionTablePlayer.sessionId, sessionId),
-						eq(sessionTablePlayer.playerId, playerId)
-					)
-				);
-
-			if (!existing) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Player not found in session",
-				});
-			}
-
-			const recoveredSeatState = await recoverSeatStateFromEvents(
-				ctx.db,
-				sessionId
+			const events = await fetchSeatEvents(ctx.db, sessionId);
+			const seated = computeSeatedPlayersFromEvents(events);
+			const isActive = seated.some(
+				(s) => s.playerId === playerId && s.isActive
 			);
-			const isActiveByEvent =
-				recoveredSeatState.get(playerId)?.isActive ?? false;
-
-			if (!isActiveByEvent) {
+			if (!isActive) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
 					message: "Player is not active in this session",
 				});
 			}
 
-			const now = new Date();
-			await ctx.db
-				.update(sessionTablePlayer)
-				.set({ isActive: 0, leftAt: now, updatedAt: now })
-				.where(eq(sessionTablePlayer.id, existing.id));
-
 			await insertPlayerLeaveEvent(ctx.db, sessionId, playerId);
 
-			return { id: existing.id };
+			return { id: playerId, playerId };
 		}),
 
 	addTemporary: protectedProcedure
@@ -546,16 +451,7 @@ export const sessionTablePlayerRouter = router({
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
-			const sessionId = resolveSessionId(input);
-
-			if (!sessionId) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message:
-						"Exactly one of liveCashGameSessionId or liveTournamentSessionId must be specified",
-				});
-			}
-
+			const sessionId = requireSessionId(input);
 			const { seatPosition } = input;
 			const userId = ctx.session.user.id;
 			const { sessionType } = await resolveSessionOwnership(
@@ -564,7 +460,7 @@ export const sessionTablePlayerRouter = router({
 				userId
 			);
 
-			const { storeName, gameName } = await fetchSessionContext(
+			const { roomName, gameName } = await fetchSessionContext(
 				ctx.db,
 				sessionId,
 				sessionType
@@ -575,8 +471,8 @@ export const sessionTablePlayerRouter = router({
 			const mm = String(now.getUTCMinutes()).padStart(2, "0");
 			const dateStr = now.toISOString().slice(0, 10);
 			const memoLines = [`Joined: ${dateStr} ${hh}:${mm}`];
-			if (storeName) {
-				memoLines.push(`Store: ${storeName}`);
+			if (roomName) {
+				memoLines.push(`Room: ${roomName}`);
 			}
 			if (gameName) {
 				memoLines.push(`Game: ${gameName}`);
@@ -598,19 +494,8 @@ export const sessionTablePlayerRouter = router({
 				userId,
 			});
 
-			const tablePlayerId = crypto.randomUUID();
-			await ctx.db.insert(sessionTablePlayer).values({
-				id: tablePlayerId,
-				isActive: 1,
-				joinedAt: now,
-				sessionId,
-				playerId,
-				updatedAt: now,
-				...(seatPosition !== undefined && { seatPosition }),
-			});
+			await insertPlayerJoinEvent(ctx.db, sessionId, playerId, seatPosition);
 
-			await insertPlayerJoinEvent(ctx.db, sessionId, playerId);
-
-			return { id: tablePlayerId, playerId };
+			return { id: playerId, playerId };
 		}),
 });

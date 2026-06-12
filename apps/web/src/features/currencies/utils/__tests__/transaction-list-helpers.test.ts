@@ -1,11 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildGroupFormatter,
-	getAmountClass,
+	getAmountColorClass,
 	getAmountDisplay,
 	getDateDisplay,
+	groupTransactionsByDate,
 	type TransactionDisplayItem,
 } from "@/features/currencies/utils/transaction-list-helpers";
+
+function tx(
+	id: string,
+	transactedAt: string | Date,
+	overrides: Partial<TransactionDisplayItem> = {}
+): TransactionDisplayItem {
+	return {
+		id,
+		amount: 100,
+		transactionTypeName: "Deposit",
+		transactedAt,
+		...overrides,
+	};
+}
 
 const YMD_MARCH_5 = /^2026\/03\/05$/;
 
@@ -57,17 +72,17 @@ describe("buildGroupFormatter", () => {
 	});
 });
 
-describe("getAmountClass", () => {
-	it("green for positive", () => {
-		expect(getAmountClass(1)).toBe("text-green-600");
+describe("getAmountColorClass", () => {
+	it("uses the success token for a positive amount", () => {
+		expect(getAmountColorClass(1)).toBe("text-success");
 	});
 
-	it("green for zero (treated as non-negative)", () => {
-		expect(getAmountClass(0)).toBe("text-green-600");
+	it("uses the success token for zero (treated as non-negative)", () => {
+		expect(getAmountColorClass(0)).toBe("text-success");
 	});
 
-	it("red for negative", () => {
-		expect(getAmountClass(-1)).toBe("text-red-600");
+	it("uses the destructive token for a negative amount", () => {
+		expect(getAmountColorClass(-1)).toBe("text-destructive");
 	});
 });
 
@@ -105,5 +120,65 @@ describe("getDateDisplay", () => {
 	it("formats ISO string input", () => {
 		// Date-only ISO normalizes in UTC; assert it matches Y/MM/DD shape.
 		expect(getDateDisplay("2026-03-05T12:00:00")).toMatch(YMD_MARCH_5);
+	});
+});
+
+describe("groupTransactionsByDate", () => {
+	it("returns an empty array for no transactions", () => {
+		expect(groupTransactionsByDate([])).toEqual([]);
+	});
+
+	it("returns a single group for one transaction", () => {
+		const groups = groupTransactionsByDate([tx("1", "2026-03-20T10:00:00")]);
+		expect(groups).toHaveLength(1);
+		expect(groups[0].label).toBe("2026/03/20");
+		expect(groups[0].items.map((t) => t.id)).toEqual(["1"]);
+	});
+
+	it("merges multiple transactions on the same day into one group", () => {
+		const groups = groupTransactionsByDate([
+			tx("1", "2026-03-20T10:00:00"),
+			tx("2", "2026-03-20T18:00:00"),
+			tx("3", "2026-03-20T23:00:00"),
+		]);
+		expect(groups).toHaveLength(1);
+		expect(groups[0].items.map((t) => t.id)).toEqual(["1", "2", "3"]);
+	});
+
+	it("splits different days into separate groups, preserving order", () => {
+		const groups = groupTransactionsByDate([
+			tx("1", "2026-03-20T10:00:00"),
+			tx("2", "2026-03-19T10:00:00"),
+		]);
+		expect(groups.map((g) => g.label)).toEqual(["2026/03/20", "2026/03/19"]);
+		expect(groups.map((g) => g.items.length)).toEqual([1, 1]);
+	});
+
+	it("keeps a re-appearing date as its own group (only consecutive rows merge)", () => {
+		const groups = groupTransactionsByDate([
+			tx("1", "2026-03-20T10:00:00"),
+			tx("2", "2026-03-19T10:00:00"),
+			tx("3", "2026-03-20T09:00:00"),
+		]);
+		expect(groups).toHaveLength(3);
+		expect(groups.map((g) => g.label)).toEqual([
+			"2026/03/20",
+			"2026/03/19",
+			"2026/03/20",
+		]);
+		expect(groups.map((g) => g.key)).toEqual([
+			"2026/03/20-0",
+			"2026/03/19-1",
+			"2026/03/20-2",
+		]);
+	});
+
+	it("groups Date-object inputs the same as ISO strings", () => {
+		const groups = groupTransactionsByDate([
+			tx("1", new Date(2026, 2, 20, 10)),
+			tx("2", new Date(2026, 2, 20, 20)),
+		]);
+		expect(groups).toHaveLength(1);
+		expect(groups[0].label).toBe("2026/03/20");
 	});
 });

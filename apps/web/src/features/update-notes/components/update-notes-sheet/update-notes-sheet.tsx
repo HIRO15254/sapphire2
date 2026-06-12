@@ -7,7 +7,12 @@ import {
 	AccordionTrigger,
 } from "@/shared/components/ui/accordion";
 import { Badge } from "@/shared/components/ui/badge";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import {
+	Drawer,
+	DrawerContent,
+	DrawerDescription,
+	DrawerTitle,
+} from "@/shared/components/ui/drawer";
 import { useUpdateNotesSheet } from "./use-update-notes-sheet";
 
 export function UpdateNotesSheet() {
@@ -15,42 +20,52 @@ export function UpdateNotesSheet() {
 	const { viewedVersions, handleAccordionChange } = useUpdateNotesViewed();
 
 	return (
-		<ResponsiveDialog
-			onOpenChange={setIsOpen}
-			open={isOpen}
-			title="Update Notes"
-		>
-			{UPDATE_NOTES.length === 0 ? (
-				<p className="py-4 text-center text-muted-foreground text-sm">
-					No update notes available.
-				</p>
-			) : (
-				<Accordion onValueChange={handleAccordionChange} type="multiple">
-					{UPDATE_NOTES.map((note) => (
-						<AccordionItem key={note.version} value={note.version}>
-							<AccordionTrigger>
-								<div className="flex items-center gap-2">
-									<span className="font-semibold">{note.version}</span>
-									<span className="text-muted-foreground text-xs">
-										{note.releasedAt}
-									</span>
-									{!viewedVersions.has(note.version) && (
-										<Badge variant="default">NEW</Badge>
-									)}
-								</div>
-							</AccordionTrigger>
-							<AccordionContent>
-								<p className="mb-2 font-medium">{note.title}</p>
-								<ul className="list-disc space-y-1 pl-4 text-muted-foreground">
-									{note.changes.map((change) => (
-										<li key={change}>{change}</li>
-									))}
-								</ul>
-							</AccordionContent>
-						</AccordionItem>
-					))}
-				</Accordion>
-			)}
-		</ResponsiveDialog>
+		<Drawer onOpenChange={setIsOpen} open={isOpen}>
+			<DrawerContent className="max-h-[85svh] rounded-t-xl">
+				<div
+					aria-hidden
+					className="mx-auto mt-2 mb-1 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/35"
+				/>
+				<div className="px-4">
+					<DrawerTitle className="t-h4">Update notes</DrawerTitle>
+					<DrawerDescription className="sr-only">
+						Release notes for recent updates.
+					</DrawerDescription>
+				</div>
+				<div className="flex-1 overflow-y-auto px-4 pt-1 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+					{UPDATE_NOTES.length === 0 ? (
+						<p className="py-4 text-center text-muted-foreground text-sm">
+							No update notes available.
+						</p>
+					) : (
+						<Accordion onValueChange={handleAccordionChange} type="multiple">
+							{UPDATE_NOTES.map((note) => (
+								<AccordionItem key={note.version} value={note.version}>
+									<AccordionTrigger>
+										<div className="flex items-center gap-2">
+											<span className="font-semibold">{note.version}</span>
+											<span className="text-muted-foreground text-xs">
+												{note.releasedAt}
+											</span>
+											{!viewedVersions.has(note.version) && (
+												<Badge variant="default">NEW</Badge>
+											)}
+										</div>
+									</AccordionTrigger>
+									<AccordionContent>
+										<p className="mb-2 font-medium">{note.title}</p>
+										<ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+											{note.changes.map((change) => (
+												<li key={change}>{change}</li>
+											))}
+										</ul>
+									</AccordionContent>
+								</AccordionItem>
+							))}
+						</Accordion>
+					)}
+				</div>
+			</DrawerContent>
+		</Drawer>
 	);
 }

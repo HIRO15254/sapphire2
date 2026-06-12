@@ -4,12 +4,12 @@ import {
 	chipsAddRemovePayload,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
+import { currency } from "@sapphire2/db/schema/currency";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
+import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
-import { sessionTablePlayer } from "@sapphire2/db/schema/session-table-player";
-import { currency, store } from "@sapphire2/db/schema/store";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -20,6 +20,7 @@ import {
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
+import { resolveCashRuleSnapshot } from "./session";
 
 const DEFAULT_LIMIT = 20;
 
@@ -120,11 +121,11 @@ async function resolveRingGameAssignment(
 	db: DbInstance,
 	ringGameId: string,
 	userId: string,
-	currentStoreId: string | null,
+	currentRoomId: string | null,
 	currentCurrencyId: string | null
 ): Promise<{
 	ringGameId: string;
-	storeId?: string;
+	roomId?: string;
 	currencyId?: string;
 }> {
 	const [foundRingGame] = await db
@@ -139,12 +140,12 @@ async function resolveRingGameAssignment(
 		});
 	}
 
-	if (foundRingGame.storeId) {
-		const [foundStore] = await db
+	if (foundRingGame.roomId) {
+		const [foundRoom] = await db
 			.select()
-			.from(store)
-			.where(eq(store.id, foundRingGame.storeId));
-		if (!foundStore || foundStore.userId !== userId) {
+			.from(room)
+			.where(eq(room.id, foundRingGame.roomId));
+		if (!foundRoom || foundRoom.userId !== userId) {
 			throw new TRPCError({
 				code: "FORBIDDEN",
 				message: "You do not own this ring game",
@@ -153,21 +154,21 @@ async function resolveRingGameAssignment(
 	}
 
 	if (
-		currentStoreId &&
-		foundRingGame.storeId &&
-		currentStoreId !== foundRingGame.storeId
+		currentRoomId &&
+		foundRingGame.roomId &&
+		currentRoomId !== foundRingGame.roomId
 	) {
 		throw new TRPCError({
 			code: "BAD_REQUEST",
-			message: "Ring game belongs to a different store than the session",
+			message: "Ring game belongs to a different room than the session",
 		});
 	}
 
-	const patch: { ringGameId: string; storeId?: string; currencyId?: string } = {
+	const patch: { ringGameId: string; roomId?: string; currencyId?: string } = {
 		ringGameId,
 	};
-	if (!currentStoreId && foundRingGame.storeId) {
-		patch.storeId = foundRingGame.storeId;
+	if (!currentRoomId && foundRingGame.roomId) {
+		patch.roomId = foundRingGame.roomId;
 	}
 	if (!currentCurrencyId && foundRingGame.currencyId) {
 		patch.currencyId = foundRingGame.currencyId;
@@ -206,10 +207,10 @@ export const liveCashGameSessionRouter = router({
 					id: gameSession.id,
 					userId: gameSession.userId,
 					status: gameSession.status,
-					storeId: gameSession.storeId,
-					storeName: store.name,
+					roomId: gameSession.roomId,
+					roomName: room.name,
 					ringGameId: sessionCashDetail.ringGameId,
-					ringGameName: ringGame.name,
+					ringGameName: sessionCashDetail.ruleName,
 					currencyId: gameSession.currencyId,
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
@@ -224,8 +225,7 @@ export const liveCashGameSessionRouter = router({
 					sessionCashDetail,
 					eq(sessionCashDetail.sessionId, gameSession.id)
 				)
-				.leftJoin(store, eq(store.id, gameSession.storeId))
-				.leftJoin(ringGame, eq(ringGame.id, sessionCashDetail.ringGameId))
+				.leftJoin(room, eq(room.id, gameSession.roomId))
 				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
 				.where(and(...conditions))
 				.orderBy(desc(gameSession.startedAt))
@@ -286,11 +286,6 @@ export const liveCashGameSessionRouter = router({
 				.where(eq(sessionEvent.sessionId, input.id))
 				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
 
-			const tablePlayers = await ctx.db
-				.select()
-				.from(sessionTablePlayer)
-				.where(eq(sessionTablePlayer.sessionId, input.id));
-
 			const mappedEvents = events.map((e) => ({
 				eventType: e.eventType,
 				payload: e.payload,
@@ -317,15 +312,27 @@ export const liveCashGameSessionRouter = router({
 				ringGameId: cashDetail?.ringGameId ?? null,
 				heroSeatPosition,
 				events,
-				tablePlayers,
 				summary,
+				// Snapshot fields from session_cash_detail. Display in the
+				// live scene must read from here so renames / blind edits on
+				// the master ring_game never propagate.
+				ruleName: cashDetail?.ruleName ?? null,
+				variant: cashDetail?.variant ?? null,
+				blind1: cashDetail?.blind1 ?? null,
+				blind2: cashDetail?.blind2 ?? null,
+				blind3: cashDetail?.blind3 ?? null,
+				ante: cashDetail?.ante ?? null,
+				anteType: cashDetail?.anteType ?? null,
+				minBuyIn: cashDetail?.minBuyIn ?? null,
+				maxBuyIn: cashDetail?.maxBuyIn ?? null,
+				tableSize: cashDetail?.tableSize ?? null,
 			};
 		}),
 
 	create: protectedProcedure
 		.input(
 			z.object({
-				storeId: z.string().optional(),
+				roomId: z.string().optional(),
 				ringGameId: z.string().optional(),
 				currencyId: z.string().optional(),
 				memo: z.string().optional(),
@@ -394,7 +401,7 @@ export const liveCashGameSessionRouter = router({
 				kind: "cash_game",
 				status: "active",
 				source: "live",
-				storeId: input.storeId ?? null,
+				roomId: input.roomId ?? null,
 				currencyId: input.currencyId ?? null,
 				startedAt: now,
 				memo: input.memo ?? null,
@@ -402,9 +409,22 @@ export const liveCashGameSessionRouter = router({
 				updatedAt: now,
 			});
 
+			const snapshot = await resolveCashRuleSnapshot(ctx.db, {
+				ringGameId: input.ringGameId,
+			});
 			await ctx.db.insert(sessionCashDetail).values({
 				sessionId: id,
 				ringGameId: input.ringGameId ?? null,
+				ruleName: input.ringGameId ? snapshot.ruleName : "Cash Game",
+				variant: snapshot.variant,
+				blind1: snapshot.blind1,
+				blind2: snapshot.blind2,
+				blind3: snapshot.blind3,
+				ante: snapshot.ante,
+				anteType: snapshot.anteType,
+				minBuyIn: snapshot.minBuyIn,
+				maxBuyIn: snapshot.maxBuyIn,
+				tableSize: snapshot.tableSize,
 			});
 
 			await ctx.db.insert(sessionEvent).values({
@@ -425,7 +445,7 @@ export const liveCashGameSessionRouter = router({
 			z.object({
 				id: z.string(),
 				memo: z.string().nullable().optional(),
-				storeId: z.string().nullable().optional(),
+				roomId: z.string().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
 				ringGameId: z.string().nullable().optional(),
 			})
@@ -446,8 +466,8 @@ export const liveCashGameSessionRouter = router({
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;
 			}
-			if (input.storeId !== undefined) {
-				updateData.storeId = input.storeId;
+			if (input.roomId !== undefined) {
+				updateData.roomId = input.roomId;
 			}
 			if (input.currencyId !== undefined) {
 				updateData.currencyId = input.currencyId;
@@ -459,10 +479,8 @@ export const liveCashGameSessionRouter = router({
 			if (input.ringGameId === null) {
 				cashDetailUpdate.ringGameId = null;
 			} else if (input.ringGameId !== undefined) {
-				const resolvedStoreId =
-					updateData.storeId === undefined
-						? existing.storeId
-						: updateData.storeId;
+				const resolvedRoomId =
+					updateData.roomId === undefined ? existing.roomId : updateData.roomId;
 				const resolvedCurrencyId =
 					updateData.currencyId === undefined
 						? existing.currencyId
@@ -471,16 +489,30 @@ export const liveCashGameSessionRouter = router({
 					ctx.db,
 					input.ringGameId,
 					userId,
-					resolvedStoreId,
+					resolvedRoomId,
 					resolvedCurrencyId
 				);
 				cashDetailUpdate.ringGameId = patch.ringGameId;
-				if (patch.storeId) {
-					updateData.storeId = patch.storeId;
+				if (patch.roomId) {
+					updateData.roomId = patch.roomId;
 				}
 				if (patch.currencyId) {
 					updateData.currencyId = patch.currencyId;
 				}
+
+				const snapshot = await resolveCashRuleSnapshot(ctx.db, {
+					ringGameId: input.ringGameId,
+				});
+				cashDetailUpdate.ruleName = snapshot.ruleName;
+				cashDetailUpdate.variant = snapshot.variant;
+				cashDetailUpdate.blind1 = snapshot.blind1;
+				cashDetailUpdate.blind2 = snapshot.blind2;
+				cashDetailUpdate.blind3 = snapshot.blind3;
+				cashDetailUpdate.ante = snapshot.ante;
+				cashDetailUpdate.anteType = snapshot.anteType;
+				cashDetailUpdate.minBuyIn = snapshot.minBuyIn;
+				cashDetailUpdate.maxBuyIn = snapshot.maxBuyIn;
+				cashDetailUpdate.tableSize = snapshot.tableSize;
 			}
 
 			await ctx.db
@@ -513,6 +545,71 @@ export const liveCashGameSessionRouter = router({
 				.where(eq(sessionCashDetail.sessionId, input.id));
 
 			return { ...updated, ringGameId: updatedDetail?.ringGameId ?? null };
+		}),
+
+	// Edit the session's frozen rule snapshot on session_cash_detail. The
+	// master ring_game is NEVER touched by this mutation. Use it from the
+	// live-session edit dialog to override snapshot data for this session
+	// only.
+	updateSnapshot: protectedProcedure
+		.input(
+			z.object({
+				id: z.string(),
+				ruleName: z.string().min(1).optional(),
+				variant: z.string().optional(),
+				blind1: z.number().int().nullable().optional(),
+				blind2: z.number().int().nullable().optional(),
+				blind3: z.number().int().nullable().optional(),
+				ante: z.number().int().nullable().optional(),
+				anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
+				minBuyIn: z.number().int().nullable().optional(),
+				maxBuyIn: z.number().int().nullable().optional(),
+				tableSize: z.number().int().nullable().optional(),
+			})
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await findLiveCashGameSession(ctx.db, input.id, userId);
+
+			const detailUpdate: Partial<typeof sessionCashDetail.$inferInsert> = {};
+			if (input.ruleName !== undefined) {
+				detailUpdate.ruleName = input.ruleName;
+			}
+			if (input.variant !== undefined) {
+				detailUpdate.variant = input.variant;
+			}
+			if (input.blind1 !== undefined) {
+				detailUpdate.blind1 = input.blind1;
+			}
+			if (input.blind2 !== undefined) {
+				detailUpdate.blind2 = input.blind2;
+			}
+			if (input.blind3 !== undefined) {
+				detailUpdate.blind3 = input.blind3;
+			}
+			if (input.ante !== undefined) {
+				detailUpdate.ante = input.ante;
+			}
+			if (input.anteType !== undefined) {
+				detailUpdate.anteType = input.anteType;
+			}
+			if (input.minBuyIn !== undefined) {
+				detailUpdate.minBuyIn = input.minBuyIn;
+			}
+			if (input.maxBuyIn !== undefined) {
+				detailUpdate.maxBuyIn = input.maxBuyIn;
+			}
+			if (input.tableSize !== undefined) {
+				detailUpdate.tableSize = input.tableSize;
+			}
+			if (Object.keys(detailUpdate).length === 0) {
+				return { id: input.id };
+			}
+			await ctx.db
+				.update(sessionCashDetail)
+				.set(detailUpdate)
+				.where(eq(sessionCashDetail.sessionId, input.id));
+			return { id: input.id };
 		}),
 
 	complete: protectedProcedure

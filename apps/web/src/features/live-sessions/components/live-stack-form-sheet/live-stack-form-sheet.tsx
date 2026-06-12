@@ -5,11 +5,16 @@ import { TournamentStackForm } from "@/features/live-sessions/components/tournam
 import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
 import { useCashGameStack } from "@/features/live-sessions/hooks/use-cash-game-stack";
 import { useTournamentStack } from "@/features/live-sessions/hooks/use-tournament-stack";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import { FormSheet } from "@/shared/components/form-sheet";
 import {
 	useCashGameStackSheet,
 	useTournamentStackSheet,
 } from "./use-live-stack-form-sheet";
+
+const CASH_STACK_FORM_ID = "cash-game-stack-form";
+const CASH_COMPLETE_FORM_ID = "cash-game-complete-form";
+const TOURNAMENT_STACK_FORM_ID = "tournament-stack-form";
+const TOURNAMENT_COMPLETE_FORM_ID = "tournament-complete-form";
 
 function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 	const {
@@ -34,13 +39,15 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 
 	return (
 		<>
-			<ResponsiveDialog
+			<FormSheet
+				formId={CASH_STACK_FORM_ID}
+				isLoading={isStackPending}
 				onOpenChange={stackSheet.setIsOpen}
 				open={stackSheet.isOpen}
 				title="Record Stack"
 			>
 				<CashGameStackForm
-					isLoading={isStackPending}
+					formId={CASH_STACK_FORM_ID}
 					onAllIn={(values) => addAllIn(values)}
 					onChipAdd={(amount) => addChip(amount)}
 					onChipRemove={(amount) => removeChip(amount)}
@@ -58,23 +65,25 @@ function CashGameStackSheet({ sessionId }: { sessionId: string }) {
 						stackSheet.close();
 					}}
 				/>
-			</ResponsiveDialog>
+			</FormSheet>
 
-			<ResponsiveDialog
+			<FormSheet
+				formId={CASH_COMPLETE_FORM_ID}
+				isLoading={isCompletePending}
 				onOpenChange={setIsCompleteOpen}
 				open={isCompleteOpen}
 				title="Complete Session"
 			>
 				<CashGameCompleteForm
 					defaultFinalStack={defaultFinalStack}
-					isLoading={isCompletePending}
+					formId={CASH_COMPLETE_FORM_ID}
 					onSubmit={(values) => {
 						complete(values);
 						setIsCompleteOpen(false);
 						stackSheet.close();
 					}}
 				/>
-			</ResponsiveDialog>
+			</FormSheet>
 		</>
 	);
 }
@@ -96,14 +105,16 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 
 	return (
 		<>
-			<ResponsiveDialog
+			<FormSheet
+				formId={TOURNAMENT_STACK_FORM_ID}
+				isLoading={isStackPending}
 				onOpenChange={stackSheet.setIsOpen}
 				open={stackSheet.isOpen}
 				title="Record Stack"
 			>
 				<TournamentStackForm
 					chipPurchaseTypes={chipPurchaseTypes}
-					isLoading={isStackPending}
+					formId={TOURNAMENT_STACK_FORM_ID}
 					onComplete={() => {
 						setIsCompleteOpen(true);
 					}}
@@ -127,22 +138,24 @@ function TournamentStackSheet({ sessionId }: { sessionId: string }) {
 						stackSheet.close();
 					}}
 				/>
-			</ResponsiveDialog>
+			</FormSheet>
 
-			<ResponsiveDialog
+			<FormSheet
+				formId={TOURNAMENT_COMPLETE_FORM_ID}
+				isLoading={isCompletePending}
 				onOpenChange={setIsCompleteOpen}
 				open={isCompleteOpen}
 				title="Complete Tournament"
 			>
 				<TournamentCompleteForm
-					isLoading={isCompletePending}
+					formId={TOURNAMENT_COMPLETE_FORM_ID}
 					onSubmit={(values) => {
 						complete(values);
 						setIsCompleteOpen(false);
 						stackSheet.close();
 					}}
 				/>
-			</ResponsiveDialog>
+			</FormSheet>
 		</>
 	);
 }

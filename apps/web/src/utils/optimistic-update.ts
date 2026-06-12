@@ -66,6 +66,61 @@ export function snapshotQueries<TData = unknown>(
 	};
 }
 
+/**
+ * Optimistically rewrite the items of every page in a `useInfiniteQuery`
+ * cache entry. The page envelope (`nextCursor`, `pageParams`, …) is preserved;
+ * only `page.items` is mapped through `updateItems`. Use for edit (`.map`) and
+ * delete (`.filter`) flows so the change lives in the cache and survives the
+ * next refetch instead of an in-memory list that gets wiped.
+ */
+export function updateInfiniteQueryItems<TItem>(
+	queryClient: QueryClient,
+	queryKey: QueryKey,
+	updateItems: (items: TItem[]) => TItem[]
+): void {
+	queryClient.setQueryData<{
+		pageParams: unknown[];
+		pages: { items: TItem[] }[];
+	}>(
+		queryKey,
+		(old) =>
+			old && {
+				...old,
+				pages: old.pages.map((page) => ({
+					...page,
+					items: updateItems(page.items),
+				})),
+			}
+	);
+}
+
+/**
+ * Optimistically prepend a single item to the first page of a
+ * `useInfiniteQuery` cache entry, preserving the page envelope. Use for create
+ * flows where the new row sorts to the top of the list. No-ops when the cache
+ * is empty or unfetched (the create's `onSettled` invalidate then populates
+ * it), so it never fabricates a page out of nothing.
+ */
+export function prependInfiniteQueryItem<TItem>(
+	queryClient: QueryClient,
+	queryKey: QueryKey,
+	item: TItem
+): void {
+	queryClient.setQueryData<{
+		pageParams: unknown[];
+		pages: { items: TItem[] }[];
+	}>(queryKey, (old) => {
+		if (!old || old.pages.length === 0) {
+			return old;
+		}
+		const [first, ...rest] = old.pages;
+		return {
+			...old,
+			pages: [{ ...first, items: [item, ...first.items] }, ...rest],
+		};
+	});
+}
+
 export function restoreSnapshots(
 	queryClient: QueryClient,
 	snapshots: Array<OptimisticSnapshot | null | undefined>

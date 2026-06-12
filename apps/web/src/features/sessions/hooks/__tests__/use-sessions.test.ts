@@ -37,13 +37,20 @@ vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		session: {
 			list: {
-				queryOptions: (input: unknown) => ({
+				infiniteQueryOptions: (
+					input: unknown,
+					opts: {
+						getNextPageParam: (lastPage: { nextCursor?: string }) => unknown;
+					}
+				) => ({
 					queryKey: buildKey("session", "list", input),
 					queryFn: () =>
 						Promise.resolve({
 							items: [] as SessionItem[],
 							nextCursor: undefined,
 						}),
+					initialPageParam: undefined,
+					getNextPageParam: opts.getNextPageParam,
 				}),
 			},
 		},
@@ -114,6 +121,17 @@ function listKeyForFilters(filters: ReturnType<typeof filtersToListInput>) {
 	return buildKey("session", "list", filters);
 }
 
+/** Wrap rows in the single-page `useInfiniteQuery` cache envelope. */
+function infiniteCache(items: SessionItem[], nextCursor?: string) {
+	return { pageParams: [undefined], pages: [{ items, nextCursor }] };
+}
+
+/** Read the flattened first-page items out of an infinite-query cache entry. */
+function firstPageItems(qc: QueryClient, key: ReturnType<typeof buildKey>) {
+	return qc.getQueryData<{ pages: { items: SessionItem[] }[] }>(key)?.pages[0]
+		?.items;
+}
+
 const TAG_LIST_KEY = buildKey("sessionTag", "list", undefined);
 
 // Example SessionFormValues
@@ -146,12 +164,13 @@ function baseSessionItem(overrides: Partial<SessionItem> = {}): SessionItem {
 		id: "s1",
 		type: "cash_game",
 		sessionDate: "2026-04-01T00:00:00Z",
-		addonCost: null,
 		beforeDeadline: null,
 		bountyPrizes: null,
 		breakMinutes: null,
 		buyIn: 10_000,
 		cashOut: 15_000,
+		chipPurchases: [],
+		chipPurchaseCost: 0,
 		createdAt: "2026-04-01T00:00:00Z",
 		// CTI discriminators — added in Phase 1 DB migration
 		source: "manual",
@@ -170,19 +189,29 @@ function baseSessionItem(overrides: Partial<SessionItem> = {}): SessionItem {
 		placement: null,
 		prizeMoney: null,
 		profitLoss: 5000,
-		rebuyCost: null,
-		rebuyCount: null,
 		ringGameBlind2: null,
 		ringGameId: null,
 		ringGameName: null,
 		startedAt: null,
-		storeId: null,
-		storeName: null,
+		roomId: null,
+		roomName: null,
 		tags: [],
 		totalEntries: null,
 		tournamentBuyIn: null,
 		tournamentId: null,
 		tournamentName: null,
+		cashAnte: null,
+		cashAnteType: null,
+		cashBlind1: null,
+		cashBlind3: null,
+		cashMaxBuyIn: null,
+		cashMinBuyIn: null,
+		cashTableSize: null,
+		cashVariant: null,
+		tournamentBountyAmount: null,
+		tournamentStartingStack: null,
+		tournamentTableSize: null,
+		tournamentVariant: null,
 		...overrides,
 	};
 }
@@ -219,10 +248,10 @@ describe("pure helpers", () => {
 			expect(
 				filtersToListInput({
 					type: "cash_game",
-					storeId: "s",
+					roomId: "s",
 					currencyId: "c",
 				})
-			).toMatchObject({ type: "cash_game", storeId: "s", currencyId: "c" });
+			).toMatchObject({ type: "cash_game", roomId: "s", currencyId: "c" });
 		});
 
 		it("converts dateFrom to seconds since epoch (day start)", () => {
@@ -300,7 +329,7 @@ describe("pure helpers", () => {
 				...cashValues(),
 				id: "s1",
 			}) as Record<string, unknown>;
-			expect(out.storeId).toBeNull();
+			expect(out.roomId).toBeNull();
 			expect(out.currencyId).toBeNull();
 			expect(out.ringGameId).toBeNull();
 			expect(out.evCashOut).toBeNull();
@@ -319,16 +348,16 @@ describe("pure helpers", () => {
 
 		it("retains provided link fields", () => {
 			const out = buildUpdatePayload({
-				...cashValues({ storeId: "store-1", currencyId: "cur-1" }),
+				...cashValues({ roomId: "room-1", currencyId: "cur-1" }),
 				id: "s1",
 			});
-			expect(out.storeId).toBe("store-1");
+			expect(out.roomId).toBe("room-1");
 			expect(out.currencyId).toBe("cur-1");
 		});
 	});
 
 	describe("buildLiveLinkedUpdatePayload", () => {
-		it("returns only id/memo/tagIds/storeId/currencyId with nulls for missing links", () => {
+		it("returns only id/memo/tagIds/roomId/currencyId with nulls for missing links", () => {
 			const out = buildLiveLinkedUpdatePayload({
 				...cashValues({ memo: "note", tagIds: ["t1"] }),
 				id: "s1",
@@ -337,17 +366,17 @@ describe("pure helpers", () => {
 				id: "s1",
 				memo: "note",
 				tagIds: ["t1"],
-				storeId: null,
+				roomId: null,
 				currencyId: null,
 			});
 		});
 
-		it("preserves provided storeId / currencyId", () => {
+		it("preserves provided roomId / currencyId", () => {
 			const out = buildLiveLinkedUpdatePayload({
-				...cashValues({ storeId: "st", currencyId: "cu" }),
+				...cashValues({ roomId: "st", currencyId: "cu" }),
 				id: "s1",
 			});
-			expect(out.storeId).toBe("st");
+			expect(out.roomId).toBe("st");
 			expect(out.currencyId).toBe("cu");
 		});
 	});
@@ -406,6 +435,76 @@ describe("pure helpers", () => {
 			);
 			expect(out.tagIds).toEqual(["t1", "t2"]);
 		});
+
+		it("pre-fills cash rule snapshot from the session row", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({
+					type: "cash_game",
+					ringGameName: "1/2 NLH",
+					cashVariant: "nlh",
+					cashBlind1: 1,
+					ringGameBlind2: 2,
+					cashBlind3: 5,
+					cashAnte: 2,
+					cashAnteType: "all",
+					cashMinBuyIn: 100,
+					cashMaxBuyIn: 400,
+					cashTableSize: 9,
+				})
+			);
+			expect(out.ruleName).toBe("1/2 NLH");
+			expect(out.variant).toBe("nlh");
+			expect(out.blind1).toBe(1);
+			expect(out.blind2).toBe(2);
+			expect(out.blind3).toBe(5);
+			expect(out.ante).toBe(2);
+			expect(out.anteType).toBe("all");
+			expect(out.minBuyIn).toBe(100);
+			expect(out.maxBuyIn).toBe(400);
+			expect(out.tableSize).toBe(9);
+		});
+
+		it("pre-fills tournament rule snapshot from the session row", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({
+					type: "tournament",
+					tournamentName: "Main Event",
+					tournamentVariant: "nlh",
+					tournamentStartingStack: 20_000,
+					tournamentBountyAmount: 500,
+					tournamentTableSize: 9,
+				})
+			);
+			expect(out.ruleName).toBe("Main Event");
+			expect(out.variant).toBe("nlh");
+			expect(out.startingStack).toBe(20_000);
+			expect(out.bountyAmount).toBe(500);
+			expect(out.tableSize).toBe(9);
+		});
+
+		it("leaves cash-only snapshot fields undefined on tournament rows", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({
+					type: "tournament",
+					tournamentName: "Main Event",
+				})
+			);
+			expect(out.blind1).toBeUndefined();
+			expect(out.ante).toBeUndefined();
+			expect(out.minBuyIn).toBeUndefined();
+			expect(out.maxBuyIn).toBeUndefined();
+		});
+
+		it("leaves tournament-only snapshot fields undefined on cash rows", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({
+					type: "cash_game",
+					ringGameName: "1/2 NLH",
+				})
+			);
+			expect(out.startingStack).toBeUndefined();
+			expect(out.bountyAmount).toBeUndefined();
+		});
 	});
 });
 
@@ -425,10 +524,7 @@ describe("useSessions", () => {
 		it("returns sessions from the list cache and tags from the tags cache", async () => {
 			const qc = createClient();
 			const listKey = listKeyForFilters(filtersToListInput({}));
-			qc.setQueryData(listKey, {
-				items: [baseSessionItem({ id: "s1" })],
-				nextCursor: undefined,
-			});
+			qc.setQueryData(listKey, infiniteCache([baseSessionItem({ id: "s1" })]));
 			qc.setQueryData(TAG_LIST_KEY, [{ id: "tag-1", name: "series" }]);
 
 			const { result } = renderHook(() => useSessions({}), {
@@ -478,10 +574,7 @@ describe("useSessions", () => {
 		it("optimistically prepends an optimistic item to the list during mutation", async () => {
 			const qc = createClient();
 			const listKey = listKeyForFilters(filtersToListInput({}));
-			qc.setQueryData(listKey, {
-				items: [baseSessionItem({ id: "s1" })],
-				nextCursor: undefined,
-			});
+			qc.setQueryData(listKey, infiniteCache([baseSessionItem({ id: "s1" })]));
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.sessionCreate.mockImplementation(
 				() =>
@@ -497,20 +590,20 @@ describe("useSessions", () => {
 				result.current.create(cashValues({ buyIn: 1000, cashOut: 2000 }));
 			});
 			await waitFor(() => {
-				const data = qc.getQueryData<{ items: SessionItem[] }>(listKey);
-				expect(data?.items).toHaveLength(2);
-				expect(data?.items[0]?.id).toMatch(TEMP_ID_PATTERN);
-				expect(data?.items[1]?.id).toBe("s1");
+				const items = firstPageItems(qc, listKey);
+				expect(items).toHaveLength(2);
+				expect(items?.[0]?.id).toMatch(TEMP_ID_PATTERN);
+				expect(items?.[1]?.id).toBe("s1");
 			});
 			resolve?.({ id: "real" });
 		});
 
 		it("passes the built payload through buildCreatePayload", async () => {
 			const qc = createClient();
-			qc.setQueryData(listKeyForFilters(filtersToListInput({})), {
-				items: [] as SessionItem[],
-				nextCursor: undefined,
-			});
+			qc.setQueryData(
+				listKeyForFilters(filtersToListInput({})),
+				infiniteCache([])
+			);
 			trpcMocks.sessionCreate.mockResolvedValue({ id: "real" });
 			const { result } = renderHook(() => useSessions({}), {
 				wrapper: makeWrapper(qc),
@@ -544,10 +637,10 @@ describe("useSessions", () => {
 	describe("update", () => {
 		it("routes through buildUpdatePayload by default", async () => {
 			const qc = createClient();
-			qc.setQueryData(listKeyForFilters(filtersToListInput({})), {
-				items: [baseSessionItem({ id: "s1" })],
-				nextCursor: undefined,
-			});
+			qc.setQueryData(
+				listKeyForFilters(filtersToListInput({})),
+				infiniteCache([baseSessionItem({ id: "s1" })])
+			);
 			trpcMocks.sessionUpdate.mockResolvedValue({ id: "s1" });
 			const { result } = renderHook(() => useSessions({}), {
 				wrapper: makeWrapper(qc),
@@ -565,10 +658,10 @@ describe("useSessions", () => {
 
 		it("routes through buildLiveLinkedUpdatePayload when isLiveLinked=true", async () => {
 			const qc = createClient();
-			qc.setQueryData(listKeyForFilters(filtersToListInput({})), {
-				items: [baseSessionItem({ id: "s1" })],
-				nextCursor: undefined,
-			});
+			qc.setQueryData(
+				listKeyForFilters(filtersToListInput({})),
+				infiniteCache([baseSessionItem({ id: "s1" })])
+			);
 			trpcMocks.sessionUpdate.mockResolvedValue({ id: "s1" });
 			const { result } = renderHook(() => useSessions({}), {
 				wrapper: makeWrapper(qc),
@@ -593,17 +686,17 @@ describe("useSessions", () => {
 		it("optimistically patches sessionDate + memo on matching item", async () => {
 			const qc = createClient();
 			const listKey = listKeyForFilters(filtersToListInput({}));
-			qc.setQueryData(listKey, {
-				items: [
+			qc.setQueryData(
+				listKey,
+				infiniteCache([
 					baseSessionItem({
 						id: "s1",
 						sessionDate: "2026-01-01",
 						memo: "old",
 					}),
 					baseSessionItem({ id: "s2", sessionDate: "2026-01-01", memo: null }),
-				],
-				nextCursor: undefined,
-			});
+				])
+			);
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.sessionUpdate.mockImplementation(
 				() =>
@@ -622,11 +715,11 @@ describe("useSessions", () => {
 				});
 			});
 			await waitFor(() => {
-				const data = qc.getQueryData<{ items: SessionItem[] }>(listKey);
-				expect(data?.items[0]?.sessionDate).toBe("2026-05-05");
-				expect(data?.items[0]?.memo).toBe("new");
+				const items = firstPageItems(qc, listKey);
+				expect(items?.[0]?.sessionDate).toBe("2026-05-05");
+				expect(items?.[0]?.memo).toBe("new");
 				// Untouched sibling preserved.
-				expect(data?.items[1]?.memo).toBeNull();
+				expect(items?.[1]?.memo).toBeNull();
 			});
 			resolve?.({ id: "s1" });
 		});
@@ -636,10 +729,13 @@ describe("useSessions", () => {
 		it("optimistically removes the item from the list", async () => {
 			const qc = createClient();
 			const listKey = listKeyForFilters(filtersToListInput({}));
-			qc.setQueryData(listKey, {
-				items: [baseSessionItem({ id: "s1" }), baseSessionItem({ id: "s2" })],
-				nextCursor: undefined,
-			});
+			qc.setQueryData(
+				listKey,
+				infiniteCache([
+					baseSessionItem({ id: "s1" }),
+					baseSessionItem({ id: "s2" }),
+				])
+			);
 			let resolve: ((v: unknown) => void) | undefined;
 			trpcMocks.sessionDelete.mockImplementation(
 				() =>
@@ -655,8 +751,7 @@ describe("useSessions", () => {
 				result.current.delete("s1");
 			});
 			await waitFor(() => {
-				const data = qc.getQueryData<{ items: SessionItem[] }>(listKey);
-				expect(data?.items.map((s) => s.id)).toEqual(["s2"]);
+				expect(firstPageItems(qc, listKey)?.map((s) => s.id)).toEqual(["s2"]);
 			});
 			resolve?.({ id: "s1" });
 		});
@@ -665,10 +760,10 @@ describe("useSessions", () => {
 	describe("reopen", () => {
 		it("forwards the live session id and navigates to /active-session on success", async () => {
 			const qc = createClient();
-			qc.setQueryData(listKeyForFilters(filtersToListInput({})), {
-				items: [] as SessionItem[],
-				nextCursor: undefined,
-			});
+			qc.setQueryData(
+				listKeyForFilters(filtersToListInput({})),
+				infiniteCache([])
+			);
 			trpcMocks.liveCashReopen.mockResolvedValue(undefined);
 
 			const { result } = renderHook(() => useSessions({}), {
@@ -688,10 +783,10 @@ describe("useSessions", () => {
 
 		it("does not navigate when reopen mutation fails", async () => {
 			const qc = createClient();
-			qc.setQueryData(listKeyForFilters(filtersToListInput({})), {
-				items: [] as SessionItem[],
-				nextCursor: undefined,
-			});
+			qc.setQueryData(
+				listKeyForFilters(filtersToListInput({})),
+				infiniteCache([])
+			);
 			trpcMocks.liveCashReopen.mockRejectedValue(new Error("500"));
 			const { result } = renderHook(() => useSessions({}), {
 				wrapper: makeWrapper(qc),
@@ -708,13 +803,51 @@ describe("useSessions", () => {
 		});
 	});
 
+	describe("pagination", () => {
+		it("flattens every loaded page into one sessions array and exposes hasNextPage", async () => {
+			const qc = createClient();
+			const listKey = listKeyForFilters(filtersToListInput({}));
+			qc.setQueryData(listKey, {
+				pageParams: [undefined, "s1"],
+				pages: [
+					{ items: [baseSessionItem({ id: "s1" })], nextCursor: "s1" },
+					{ items: [baseSessionItem({ id: "s2" })], nextCursor: "s2" },
+				],
+			});
+			const { result } = renderHook(() => useSessions({}), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() => {
+				expect(result.current.sessions.map((s) => s.id)).toEqual(["s1", "s2"]);
+			});
+			expect(result.current.hasNextPage).toBe(true);
+			expect(result.current.isFetchingNextPage).toBe(false);
+		});
+
+		it("reports hasNextPage=false when the last page has no cursor", async () => {
+			const qc = createClient();
+			const listKey = listKeyForFilters(filtersToListInput({}));
+			qc.setQueryData(listKey, infiniteCache([baseSessionItem({ id: "s1" })]));
+			const { result } = renderHook(() => useSessions({}), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() => expect(result.current.sessions).toHaveLength(1));
+			expect(result.current.hasNextPage).toBe(false);
+			// Guard branch: calling fetchNextPage with no next page is a safe no-op.
+			act(() => {
+				result.current.fetchNextPage();
+			});
+			expect(result.current.sessions).toHaveLength(1);
+		});
+	});
+
 	describe("pending flags", () => {
 		it("flips isCreatePending / isUpdatePending during in-flight mutations", async () => {
 			const qc = createClient();
-			qc.setQueryData(listKeyForFilters(filtersToListInput({})), {
-				items: [baseSessionItem({ id: "s1" })],
-				nextCursor: undefined,
-			});
+			qc.setQueryData(
+				listKeyForFilters(filtersToListInput({})),
+				infiniteCache([baseSessionItem({ id: "s1" })])
+			);
 			let resolveC: ((v: unknown) => void) | undefined;
 			let resolveU: ((v: unknown) => void) | undefined;
 			trpcMocks.sessionCreate.mockImplementation(

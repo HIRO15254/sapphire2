@@ -145,6 +145,36 @@ describe("usePlayers", () => {
 		});
 	});
 
+	describe("isLoading", () => {
+		it("starts true while the players query is in flight", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => usePlayers([]), {
+				wrapper: makeWrapper(qc),
+			});
+			expect(result.current.isLoading).toBe(true);
+		});
+
+		it("settles to false once the players query resolves", async () => {
+			const qc = createClient();
+			const { result } = renderHook(() => usePlayers([]), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+		});
+
+		it("is false immediately when the cache is already seeded", async () => {
+			const qc = createClient();
+			qc.setQueryData(PLAYER_LIST_ALL_KEY, [makePlayer({ id: "p1" })]);
+			const { result } = renderHook(() => usePlayers([]), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() =>
+				expect(result.current.players.map((p) => p.id)).toEqual(["p1"])
+			);
+			expect(result.current.isLoading).toBe(false);
+		});
+	});
+
 	describe("create (optimistic)", () => {
 		it("appends a temp player with resolved tags during in-flight create", async () => {
 			const qc = createClient();

@@ -11,12 +11,22 @@ const mocks = vi.hoisted(() => ({
 	},
 	cashSession: null as null | {
 		id: string;
-		storeId: string;
+		roomId: string;
 		ringGameId: string | null;
+		ruleName?: string | null;
+		variant?: string | null;
+		blind1?: number | null;
+		blind2?: number | null;
+		blind3?: number | null;
+		ante?: number | null;
+		anteType?: string | null;
+		minBuyIn?: number | null;
+		maxBuyIn?: number | null;
+		tableSize?: number | null;
 	},
 	tournamentSession: null as null | {
 		id: string;
-		storeId: string;
+		roomId: string;
 		tournamentId: string | null;
 	},
 	ringGames: [] as unknown[],
@@ -51,7 +61,7 @@ vi.mock("@/features/live-sessions/hooks/use-tournament-session", () => ({
 	}),
 }));
 
-vi.mock("@/features/stores/hooks/use-ring-games", () => ({
+vi.mock("@/features/rooms/hooks/use-ring-games", () => ({
 	useRingGames: () => ({
 		update: vi.fn(async () => undefined),
 		isUpdatePending: false,
@@ -59,28 +69,24 @@ vi.mock("@/features/stores/hooks/use-ring-games", () => ({
 	}),
 }));
 
-vi.mock("@/features/stores/hooks/use-tournaments", () => ({
+vi.mock("@/features/rooms/hooks/use-tournaments", () => ({
 	useTournaments: () => ({
 		isUpdateWithLevelsPending: false,
 	}),
 }));
 
-vi.mock("@/features/stores/components/ring-game-form", () => ({
+vi.mock("@/features/rooms/components/ring-game-form", () => ({
 	RingGameForm: () => <div data-testid="ring-game-form" />,
 }));
 
-vi.mock("@/features/stores/components/tournament-edit-dialog", () => ({
-	TournamentEditDialog: () => <div data-testid="tournament-edit-dialog" />,
+vi.mock("@/features/rooms/components/tournament-form-sheet", () => ({
+	TournamentFormSheet: () => <div data-testid="tournament-form-sheet" />,
 }));
 
-vi.mock("@/shared/components/ui/responsive-dialog", () => ({
-	ResponsiveDialog: ({
-		children,
-		open,
-	}: {
-		children: ReactNode;
-		open: boolean;
-	}) => (open ? <div>{children}</div> : null),
+// Stand-in for the v2 FormSheet hosting the ring game edit form.
+vi.mock("@/shared/components/form-sheet", () => ({
+	FormSheet: ({ children, open }: { children: ReactNode; open: boolean }) =>
+		open ? <div>{children}</div> : null,
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -95,8 +101,34 @@ vi.mock("@tanstack/react-query", () => ({
 		if (scope === "tournamentChipPurchase") {
 			return { data: mocks.chipPurchases, isLoading: false };
 		}
+		if (scope === "liveTournamentSession") {
+			// Mirrors the new snapshot fields returned by
+			// `liveTournamentSession.getById`. The active scene reads the
+			// session-level snapshot for display (name, blinds, chip purchases).
+			const t = mocks.tournament;
+			if (!t) {
+				return { data: undefined, isLoading: false };
+			}
+			return {
+				data: {
+					ruleName: t.name,
+					variant: t.variant,
+					buyIn: t.buyIn,
+					entryFee: t.entryFee,
+					startingStack: t.startingStack,
+					bountyAmount: t.bountyAmount,
+					tableSize: t.tableSize,
+					blindLevels: mocks.levels,
+					chipPurchases: mocks.chipPurchases,
+				},
+				isLoading: false,
+			};
+		}
 		if (scope === "currency") {
 			return { data: mocks.currencies, isLoading: false };
+		}
+		if (scope === "liveCashGameSession") {
+			return { data: undefined, isLoading: false };
 		}
 		return { data: undefined, isLoading: false };
 	},
@@ -118,7 +150,7 @@ vi.mock("@/utils/trpc", () => {
 		trpc: {
 			tournament: {
 				getById: makeProc("tournament"),
-				listByStore: makeProc("tournament"),
+				listByRoom: makeProc("tournament"),
 			},
 			tournamentChipPurchase: {
 				listByTournament: makeProc("tournamentChipPurchase"),
@@ -137,11 +169,11 @@ vi.mock("@/utils/trpc", () => {
 			currency: {
 				list: makeProc("currency"),
 			},
-			store: {
-				list: makeProc("store"),
+			room: {
+				list: makeProc("room"),
 			},
 			ringGame: {
-				listByStore: makeProc("ringGame"),
+				listByRoom: makeProc("ringGame"),
 			},
 			session: {
 				list: makeProc("session"),
@@ -190,8 +222,18 @@ describe("ActiveSessionGameScene", () => {
 		};
 		mocks.cashSession = {
 			id: "session-1",
-			storeId: "store-1",
+			roomId: "room-1",
 			ringGameId: "ring-1",
+			ruleName: "1/2 NLH",
+			variant: "nlh",
+			blind1: 1,
+			blind2: 2,
+			blind3: null,
+			ante: null,
+			anteType: "none",
+			minBuyIn: 100,
+			maxBuyIn: 400,
+			tableSize: 9,
 		};
 		mocks.ringGames = [
 			{
@@ -208,7 +250,7 @@ describe("ActiveSessionGameScene", () => {
 				memo: "deep stack",
 				minBuyIn: 100,
 				name: "1/2 NLH",
-				storeId: "store-1",
+				roomId: "room-1",
 				tableSize: 9,
 				updatedAt: "",
 				variant: "nlh",
@@ -229,7 +271,7 @@ describe("ActiveSessionGameScene", () => {
 		};
 		mocks.cashSession = {
 			id: "session-1",
-			storeId: "store-1",
+			roomId: "room-1",
 			ringGameId: null,
 		};
 
@@ -246,7 +288,7 @@ describe("ActiveSessionGameScene", () => {
 		};
 		mocks.tournamentSession = {
 			id: "session-2",
-			storeId: "store-1",
+			roomId: "room-1",
 			tournamentId: null,
 		};
 
@@ -265,7 +307,7 @@ describe("ActiveSessionGameScene", () => {
 		};
 		mocks.tournamentSession = {
 			id: "session-2",
-			storeId: "store-1",
+			roomId: "room-1",
 			tournamentId: "tour-1",
 		};
 		mocks.tournament = {
@@ -279,7 +321,7 @@ describe("ActiveSessionGameScene", () => {
 			memo: null,
 			name: "Weekly Deepstack",
 			startingStack: 20_000,
-			storeId: "store-1",
+			roomId: "room-1",
 			tableSize: 9,
 			tags: [],
 			updatedAt: "",

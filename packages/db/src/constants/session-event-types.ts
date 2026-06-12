@@ -97,7 +97,12 @@ export const allInPayload = z.object({
 });
 
 // Tournament event payloads
+//
+// `sessionChipPurchaseId` links the event to the rule-defined chip purchase
+// (a `session_chip_purchase` row). name / cost / chips are kept as a
+// denormalized snapshot for display and PL math even if the rule changes.
 export const purchaseChipsPayload = z.object({
+	sessionChipPurchaseId: z.string().min(1),
 	name: z.string().min(1),
 	cost: z.number().int().min(0),
 	chips: z.number().int().min(0),

@@ -1,6 +1,11 @@
 {
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  "permissions": {
+    "allow": [
+      "Bash(gh release create*)",
+      "Bash(gh release view*)",
+      "Bash(gh pr comment*)",
+      "Bash(gh pr review*)"
+    ]
   },
   "hooks": {
     "Stop": [

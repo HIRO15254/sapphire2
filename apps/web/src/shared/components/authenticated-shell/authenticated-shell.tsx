@@ -7,9 +7,9 @@ import {
 	UpdateNotesProvider,
 	UpdateNotesSheet,
 } from "@/features/update-notes/components/update-notes-sheet";
-import { MobileNav } from "@/shared/components/mobile-nav";
-import { OnlineStatusBar } from "@/shared/components/online-status-bar";
-import { SidebarNav } from "@/shared/components/sidebar-nav";
+import { MobileNav } from "@/shared/components/authenticated-shell/mobile-nav";
+import { OnlineStatusBar } from "@/shared/components/authenticated-shell/online-status-bar";
+import { SidebarNav } from "@/shared/components/authenticated-shell/sidebar-nav";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { useAuthenticatedShell } from "./use-authenticated-shell";
 

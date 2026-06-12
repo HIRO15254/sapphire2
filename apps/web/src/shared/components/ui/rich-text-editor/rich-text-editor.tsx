@@ -11,8 +11,14 @@ import {
 	IconX,
 } from "@tabler/icons-react";
 import { EditorContent } from "@tiptap/react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { Separator } from "@/shared/components/ui/separator";
+import {
+	ToggleGroup,
+	ToggleGroupItem,
+} from "@/shared/components/ui/toggle-group";
 import { useRichTextEditor } from "./use-rich-text-editor";
 
 interface RichTextEditorProps {
@@ -20,15 +26,27 @@ interface RichTextEditorProps {
 	onChange: (html: string) => void;
 }
 
+// A plain, conventional editor toolbar: borderless ghost icon buttons packed
+// together (not individually boxed), with a high-contrast active state that
+// stays legible in dark mode — active = blue tint + blue icon via `--primary`.
+const TOGGLE_ITEM_CLASS = cn(
+	"size-[var(--h-control-sm)] border-transparent bg-transparent px-0 text-muted-foreground shadow-none",
+	"hover:bg-muted hover:text-foreground dark:border-transparent dark:bg-transparent dark:hover:bg-muted",
+	"data-[state=on]:border-transparent data-[state=on]:bg-primary/15 data-[state=on]:text-primary data-[state=on]:shadow-none",
+	"dark:data-[state=on]:bg-primary/25 dark:data-[state=on]:text-primary"
+);
+
 export function RichTextEditor({
 	initialContent,
 	onChange,
 }: RichTextEditorProps) {
 	const {
+		activeFormats,
 		applyLink,
 		cancelLinkInput,
 		editor,
 		linkUrl,
+		onFormatsChange,
 		onLinkUrlChange,
 		openLinkInput,
 		removeLink,
@@ -39,69 +57,83 @@ export function RichTextEditor({
 		return null;
 	}
 
+	const linkActive = editor.isActive("link");
+
 	return (
-		<div className="flex flex-col gap-2">
-			<div className="flex flex-wrap gap-1 rounded-md border p-1">
-				<ToolbarButton
-					active={editor.isActive("bold")}
-					label="Bold"
-					onClick={() => editor.chain().focus().toggleBold().run()}
+		<div className="w-full rounded-lg border border-input bg-transparent text-base outline-none transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 md:text-sm dark:bg-input/30">
+			<div className="flex flex-wrap items-center gap-0.5 border-input border-b p-1">
+				<ToggleGroup
+					className="flex-wrap gap-0.5"
+					onValueChange={onFormatsChange}
+					type="multiple"
+					value={activeFormats}
 				>
-					<IconBold size={16} />
-				</ToolbarButton>
-				<ToolbarButton
-					active={editor.isActive("italic")}
-					label="Italic"
-					onClick={() => editor.chain().focus().toggleItalic().run()}
-				>
-					<IconItalic size={16} />
-				</ToolbarButton>
-				<ToolbarButton
-					active={editor.isActive("heading", { level: 2 })}
-					label="Heading 2"
-					onClick={() =>
-						editor.chain().focus().toggleHeading({ level: 2 }).run()
-					}
-				>
-					<IconH2 size={16} />
-				</ToolbarButton>
-				<ToolbarButton
-					active={editor.isActive("heading", { level: 3 })}
-					label="Heading 3"
-					onClick={() =>
-						editor.chain().focus().toggleHeading({ level: 3 }).run()
-					}
-				>
-					<IconH3 size={16} />
-				</ToolbarButton>
-				<ToolbarButton
-					active={editor.isActive("bulletList")}
-					label="Bullet list"
-					onClick={() => editor.chain().focus().toggleBulletList().run()}
-				>
-					<IconList size={16} />
-				</ToolbarButton>
-				<ToolbarButton
-					active={editor.isActive("orderedList")}
-					label="Ordered list"
-					onClick={() => editor.chain().focus().toggleOrderedList().run()}
-				>
-					<IconListNumbers size={16} />
-				</ToolbarButton>
-				<ToolbarButton
-					active={editor.isActive("link")}
-					label="Link"
+					<ToggleGroupItem
+						aria-label="Bold"
+						className={TOGGLE_ITEM_CLASS}
+						value="bold"
+					>
+						<IconBold size={16} />
+					</ToggleGroupItem>
+					<ToggleGroupItem
+						aria-label="Italic"
+						className={TOGGLE_ITEM_CLASS}
+						value="italic"
+					>
+						<IconItalic size={16} />
+					</ToggleGroupItem>
+					<ToggleGroupItem
+						aria-label="Heading 2"
+						className={TOGGLE_ITEM_CLASS}
+						value="h2"
+					>
+						<IconH2 size={16} />
+					</ToggleGroupItem>
+					<ToggleGroupItem
+						aria-label="Heading 3"
+						className={TOGGLE_ITEM_CLASS}
+						value="h3"
+					>
+						<IconH3 size={16} />
+					</ToggleGroupItem>
+					<ToggleGroupItem
+						aria-label="Bullet list"
+						className={TOGGLE_ITEM_CLASS}
+						value="bulletList"
+					>
+						<IconList size={16} />
+					</ToggleGroupItem>
+					<ToggleGroupItem
+						aria-label="Ordered list"
+						className={TOGGLE_ITEM_CLASS}
+						value="orderedList"
+					>
+						<IconListNumbers size={16} />
+					</ToggleGroupItem>
+				</ToggleGroup>
+				<Separator className="mx-1 h-5" orientation="vertical" />
+				<Button
+					aria-label="Link"
+					aria-pressed={linkActive}
+					className={cn(
+						"size-[var(--h-control-sm)] text-muted-foreground",
+						linkActive &&
+							"bg-primary/15 text-primary hover:bg-primary/15 hover:text-primary dark:bg-primary/25 dark:hover:bg-primary/25"
+					)}
 					onClick={openLinkInput}
+					size="icon-sm"
+					type="button"
+					variant="ghost"
 				>
 					<IconLink size={16} />
-				</ToolbarButton>
+				</Button>
 			</div>
 
 			{showLinkInput && (
-				<div className="flex items-center gap-2 rounded-md border p-2">
+				<div className="flex items-center gap-1 border-input border-b p-2">
 					<Input
 						autoFocus
-						className="h-8 flex-1"
+						className="h-[var(--h-control-sm)] flex-1"
 						onChange={(e) => onLinkUrlChange(e.target.value)}
 						onKeyDown={(e) => {
 							if (e.key === "Enter") {
@@ -112,24 +144,23 @@ export function RichTextEditor({
 								cancelLinkInput();
 							}
 						}}
-						placeholder="https://example.com"
 						type="url"
 						value={linkUrl}
 					/>
 					<Button
 						aria-label="Apply link"
 						onClick={applyLink}
-						size="sm"
+						size="icon-sm"
 						type="button"
 						variant="ghost"
 					>
 						<IconCheck size={16} />
 					</Button>
-					{editor.isActive("link") && (
+					{linkActive && (
 						<Button
 							aria-label="Remove link"
 							onClick={removeLink}
-							size="sm"
+							size="icon-sm"
 							type="button"
 							variant="ghost"
 						>
@@ -139,7 +170,7 @@ export function RichTextEditor({
 					<Button
 						aria-label="Cancel"
 						onClick={cancelLinkInput}
-						size="sm"
+						size="icon-sm"
 						type="button"
 						variant="ghost"
 					>
@@ -148,37 +179,10 @@ export function RichTextEditor({
 				</div>
 			)}
 
-			<div className="min-h-[120px] rounded-md border p-3 focus-within:ring-2 focus-within:ring-ring">
-				<EditorContent
-					className="prose prose-sm dark:prose-invert max-w-none [&_.tiptap]:outline-none [&_.tiptap_*:first-child]:mt-0 [&_.tiptap_blockquote]:my-1 [&_.tiptap_h2]:mt-4 [&_.tiptap_h2]:mb-1 [&_.tiptap_h2]:font-semibold [&_.tiptap_h2]:text-lg [&_.tiptap_h3]:mt-3 [&_.tiptap_h3]:mb-1 [&_.tiptap_h3]:font-semibold [&_.tiptap_h3]:text-base [&_.tiptap_li]:my-0 [&_.tiptap_li_p]:my-0 [&_.tiptap_ol]:my-1 [&_.tiptap_ol]:pl-5 [&_.tiptap_p]:my-1 [&_.tiptap_ul]:my-1 [&_.tiptap_ul]:pl-5"
-					editor={editor}
-				/>
-			</div>
+			<EditorContent
+				className="prose prose-sm dark:prose-invert max-w-none [&_.tiptap]:min-h-[120px] [&_.tiptap]:px-3 [&_.tiptap]:py-2 [&_.tiptap]:outline-none [&_.tiptap_*:first-child]:mt-0 [&_.tiptap_blockquote]:my-1 [&_.tiptap_h2]:mt-4 [&_.tiptap_h2]:mb-1 [&_.tiptap_h2]:font-semibold [&_.tiptap_h2]:text-lg [&_.tiptap_h3]:mt-3 [&_.tiptap_h3]:mb-1 [&_.tiptap_h3]:font-semibold [&_.tiptap_h3]:text-base [&_.tiptap_li]:my-0 [&_.tiptap_li_p]:my-0 [&_.tiptap_ol]:my-1 [&_.tiptap_ol]:pl-5 [&_.tiptap_p]:my-1 [&_.tiptap_ul]:my-1 [&_.tiptap_ul]:pl-5"
+				editor={editor}
+			/>
 		</div>
-	);
-}
-
-function ToolbarButton({
-	active,
-	children,
-	label,
-	onClick,
-}: {
-	active: boolean;
-	children: React.ReactNode;
-	label: string;
-	onClick: () => void;
-}) {
-	return (
-		<Button
-			aria-label={label}
-			aria-pressed={active}
-			onClick={onClick}
-			size="sm"
-			type="button"
-			variant={active ? "secondary" : "ghost"}
-		>
-			{children}
-		</Button>
 	);
 }

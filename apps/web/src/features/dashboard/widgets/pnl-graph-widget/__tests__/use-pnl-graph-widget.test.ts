@@ -7,7 +7,7 @@ interface CapturedInput {
 	currencyId?: string;
 	dateFrom?: number;
 	ringGameId?: string;
-	storeId?: string;
+	roomId?: string;
 	type?: string;
 }
 
@@ -26,10 +26,10 @@ vi.mock("@/utils/trpc", () => ({
 				},
 			},
 		},
-		store: {
+		room: {
 			list: {
 				queryOptions: (_input?: undefined, opts?: { enabled?: boolean }) => ({
-					queryKey: ["store", "list"],
+					queryKey: ["room", "list"],
 					queryFn: () => Promise.resolve([]),
 					...(opts ?? {}),
 				}),
@@ -74,7 +74,7 @@ describe("parsePnlGraphWidgetConfig", () => {
 		expect(parsed.dateRangeDays).toBeNull();
 		expect(parsed.sessionType).toBe("all");
 		expect(parsed.unit).toBe("currency");
-		expect(parsed.storeId).toBeNull();
+		expect(parsed.roomId).toBeNull();
 		expect(parsed.ringGameId).toBeNull();
 		expect(parsed.currencyId).toBeNull();
 		expect(parsed.showEvCash).toBe(false);
@@ -83,7 +83,7 @@ describe("parsePnlGraphWidgetConfig", () => {
 			dateRange: false,
 			sessionType: false,
 			unit: false,
-			store: false,
+			room: false,
 			currency: false,
 		});
 	});
@@ -141,9 +141,9 @@ describe("parsePnlGraphWidgetConfig", () => {
 	});
 
 	it("preserves string ids and treats empty string as null", () => {
-		expect(parsePnlGraphWidgetConfig({ storeId: "s1" }).storeId).toBe("s1");
-		expect(parsePnlGraphWidgetConfig({ storeId: "" }).storeId).toBeNull();
-		expect(parsePnlGraphWidgetConfig({ storeId: 5 }).storeId).toBeNull();
+		expect(parsePnlGraphWidgetConfig({ roomId: "s1" }).roomId).toBe("s1");
+		expect(parsePnlGraphWidgetConfig({ roomId: "" }).roomId).toBeNull();
+		expect(parsePnlGraphWidgetConfig({ roomId: 5 }).roomId).toBeNull();
 	});
 
 	it("parses showFilters flags strictly via boolean equality", () => {
@@ -153,7 +153,7 @@ describe("parsePnlGraphWidgetConfig", () => {
 				dateRange: "yes",
 				sessionType: 1,
 				unit: false,
-				store: null,
+				room: null,
 				currency: true,
 			},
 		});
@@ -162,7 +162,7 @@ describe("parsePnlGraphWidgetConfig", () => {
 			dateRange: false,
 			sessionType: false,
 			unit: false,
-			store: false,
+			room: false,
 			currency: true,
 		});
 	});
@@ -175,7 +175,7 @@ describe("parsePnlGraphWidgetConfig", () => {
 			dateRange: false,
 			sessionType: false,
 			unit: false,
-			store: false,
+			room: false,
 			currency: false,
 		});
 	});
@@ -195,12 +195,12 @@ describe("usePnlGraphWidget", () => {
 		const { view } = setup({
 			xAxis: "sessionCount",
 			sessionType: "tournament",
-			storeId: "store-1",
+			roomId: "room-1",
 			currencyId: "cur-1",
 		});
 		expect(view.result.current.state.xAxis).toBe("sessionCount");
 		expect(view.result.current.state.sessionType).toBe("tournament");
-		expect(view.result.current.state.storeId).toBe("store-1");
+		expect(view.result.current.state.roomId).toBe("room-1");
 		expect(view.result.current.state.currencyId).toBe("cur-1");
 	});
 
@@ -225,8 +225,8 @@ describe("usePnlGraphWidget", () => {
 	});
 
 	it("passes optional filters when set", () => {
-		setup({ storeId: "s1", ringGameId: "rg1", currencyId: "c1" });
-		expect(captured.lastInput?.storeId).toBe("s1");
+		setup({ roomId: "s1", ringGameId: "rg1", currencyId: "c1" });
+		expect(captured.lastInput?.roomId).toBe("s1");
 		expect(captured.lastInput?.ringGameId).toBe("rg1");
 		expect(captured.lastInput?.currencyId).toBe("c1");
 	});
@@ -276,7 +276,7 @@ describe("usePnlGraphWidget", () => {
 				"profitLossSeries",
 				{
 					type: undefined,
-					storeId: undefined,
+					roomId: undefined,
 					ringGameId: undefined,
 					currencyId: undefined,
 					dateFrom: undefined,
@@ -302,8 +302,8 @@ describe("usePnlGraphWidget", () => {
 		expect(view.result.current.state.unit).toBe("normalized");
 		act(() => view.result.current.onChangeSessionType("cash_game"));
 		expect(view.result.current.state.sessionType).toBe("cash_game");
-		act(() => view.result.current.onChangeStoreId("s2"));
-		expect(view.result.current.state.storeId).toBe("s2");
+		act(() => view.result.current.onChangeRoomId("s2"));
+		expect(view.result.current.state.roomId).toBe("s2");
 		act(() => view.result.current.onChangeRingGameId("rg2"));
 		expect(view.result.current.state.ringGameId).toBe("rg2");
 		act(() => view.result.current.onChangeCurrencyId("c2"));
@@ -342,7 +342,7 @@ describe("usePnlGraphWidget", () => {
 				"profitLossSeries",
 				{
 					type: undefined,
-					storeId: undefined,
+					roomId: undefined,
 					ringGameId: undefined,
 					currencyId: undefined,
 					dateFrom: undefined,

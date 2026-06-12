@@ -7,7 +7,7 @@ describe("RingGame schema", () => {
 	it("has required columns", () => {
 		const columns = getTableColumns(ringGame);
 		expect(columns.id).toBeDefined();
-		expect(columns.storeId).toBeDefined();
+		expect(columns.roomId).toBeDefined();
 		expect(columns.name).toBeDefined();
 		expect(columns.variant).toBeDefined();
 		expect(columns.blind1).toBeDefined();
@@ -35,9 +35,9 @@ describe("RingGame schema", () => {
 		expect(columns.id.primary).toBe(true);
 	});
 
-	it("storeId is nullable", () => {
+	it("roomId is nullable", () => {
 		const columns = getTableColumns(ringGame);
-		expect(columns.storeId.notNull).toBe(false);
+		expect(columns.roomId.notNull).toBe(false);
 	});
 
 	it("name is not null", () => {
@@ -120,8 +120,8 @@ describe("RingGame — FK cascade policies", () => {
 			fk.reference().columns.some((c) => c.name === columnName)
 		);
 
-	it("storeId FK cascades on store deletion", () => {
-		expect(fkByColumn("store_id")?.onDelete).toBe("cascade");
+	it("roomId FK cascades on room deletion", () => {
+		expect(fkByColumn("room_id")?.onDelete).toBe("cascade");
 	});
 
 	it("currencyId FK uses set null", () => {
@@ -137,11 +137,11 @@ describe("RingGame — indexes", () => {
 	const config = getTableConfig(ringGame);
 	const idxNames = config.indexes.map((i) => i.config.name);
 
-	it("has storeId index for per-store ring-game listing", () => {
-		expect(idxNames).toContain("ringGame_storeId_idx");
+	it("has roomId index for per-room ring-game listing", () => {
+		expect(idxNames).toContain("ringGame_roomId_idx");
 	});
 
-	it("has no unique indexes (ring games can share names within a store)", () => {
+	it("has no unique indexes (ring games can share names within a room)", () => {
 		const uniqueIdxs = config.indexes.filter(
 			(i) => (i.config as unknown as { unique: boolean }).unique === true
 		);

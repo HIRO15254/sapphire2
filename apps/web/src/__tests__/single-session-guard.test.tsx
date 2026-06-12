@@ -7,11 +7,10 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock window.matchMedia for ResponsiveDialog (uses useMediaQuery)
+// Mock window.matchMedia for components that use useMediaQuery
 Object.defineProperty(window, "matchMedia", {
 	writable: true,
 	value: vi.fn().mockImplementation((query: string) => ({
@@ -32,24 +31,10 @@ vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
-// Stub heavy child components inside CreateSessionDialog
-vi.mock(
-	"@/features/live-sessions/components/create-cash-game-session-form",
-	() => ({
-		CreateCashGameSessionForm: () => (
-			<div data-testid="cash-game-form">Cash Game Form</div>
-		),
-	})
-);
-
-vi.mock(
-	"@/features/live-sessions/components/create-tournament-session-form",
-	() => ({
-		CreateTournamentSessionForm: () => (
-			<div data-testid="tournament-form">Tournament Form</div>
-		),
-	})
-);
+// Stub the heavy wizard child inside CreateSessionDialog.
+vi.mock("@/features/sessions/components/session-wizard", () => ({
+	SessionWizard: () => <div data-testid="session-wizard">Session Wizard</div>,
+}));
 
 // vi.hoisted ensures these are available when the vi.mock factory runs
 const { mockQuery } = vi.hoisted(() => ({
@@ -66,11 +51,11 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
-		store: {
+		room: {
 			list: {
 				queryOptions: () => ({
-					queryKey: ["stores"],
-					queryFn: () => mockQuery("stores"),
+					queryKey: ["rooms"],
+					queryFn: () => mockQuery("rooms"),
 				}),
 			},
 		},
@@ -83,17 +68,17 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 		ringGame: {
-			listByStore: {
-				queryOptions: (args: { storeId: string }) => ({
-					queryKey: ["ring-games", args.storeId],
+			listByRoom: {
+				queryOptions: (args: { roomId: string }) => ({
+					queryKey: ["ring-games", args.roomId],
 					queryFn: () => mockQuery("ring-games", args),
 				}),
 			},
 		},
 		tournament: {
-			listByStore: {
-				queryOptions: (args: { storeId: string }) => ({
-					queryKey: ["tournaments", args.storeId],
+			listByRoom: {
+				queryOptions: (args: { roomId: string }) => ({
+					queryKey: ["tournaments", args.roomId],
 					queryFn: () => mockQuery("tournaments", args),
 				}),
 			},
@@ -212,34 +197,12 @@ describe("Single-session guard — no active session", () => {
 		await screen.findByText("No active session");
 	});
 
-	it("renders CreateSessionDialog with Cash Game tab by default when opened", async () => {
+	it("renders the wizard inside CreateSessionDialog when opened", async () => {
 		const router = createTestRouter(() => <DialogTestPage open />);
 		render(<RouterProvider router={router} />);
 
-		// The dialog title should be visible
-		await screen.findByText("New Session");
-		// Both type switcher tabs should be present
-		expect(screen.getByRole("tab", { name: "Cash Game" })).toBeInTheDocument();
-		expect(screen.getByRole("tab", { name: "Tournament" })).toBeInTheDocument();
-	});
-
-	it("renders cash game form by default in CreateSessionDialog", async () => {
-		const router = createTestRouter(() => <DialogTestPage open />);
-		render(<RouterProvider router={router} />);
-
-		await screen.findByTestId("cash-game-form");
-	});
-
-	it("switches to tournament form when Tournament tab is clicked", async () => {
-		const user = userEvent.setup();
-		const router = createTestRouter(() => <DialogTestPage open />);
-		render(<RouterProvider router={router} />);
-
-		await screen.findByRole("tab", { name: "Tournament" });
-		await user.click(screen.getByRole("tab", { name: "Tournament" }));
-
-		await screen.findByTestId("tournament-form");
-		expect(screen.queryByTestId("cash-game-form")).not.toBeInTheDocument();
+		await screen.findByRole("heading", { name: "New Session" });
+		await screen.findByTestId("session-wizard");
 	});
 });
 

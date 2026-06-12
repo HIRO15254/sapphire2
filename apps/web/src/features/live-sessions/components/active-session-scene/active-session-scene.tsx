@@ -1,4 +1,3 @@
-import { IconAlertTriangle } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { AddPlayerSheet } from "@/features/live-sessions/components/add-player-sheet";
 import { PlayerDetailSheet } from "@/features/live-sessions/components/player-detail-sheet";
@@ -18,8 +17,14 @@ import { usePokerTableInteraction } from "@/features/players/hooks/use-poker-tab
 import { useTablePlayers } from "@/features/players/hooks/use-table-players";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
-import { DialogActionRow } from "@/shared/components/ui/dialog-action-row";
-import { ResponsiveDialog } from "@/shared/components/ui/responsive-dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/shared/components/ui/dialog";
 import { useActiveSessionScene } from "./use-active-session-scene";
 
 type SessionParam =
@@ -193,22 +198,20 @@ function DiscardDialog({
 	onConfirm: () => void;
 }) {
 	return (
-		<ResponsiveDialog
-			description={description}
+		<Dialog
 			onOpenChange={(open) => {
 				if (!open) {
 					onClose();
 				}
 			}}
 			open={isOpen}
-			title="Discard Session"
 		>
-			<div className="flex flex-col gap-4">
-				<div className="flex items-start gap-3 text-destructive">
-					<IconAlertTriangle className="mt-0.5 shrink-0" size={20} />
-					<p className="text-sm">{description}</p>
-				</div>
-				<DialogActionRow>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Discard Session</DialogTitle>
+					<DialogDescription>{description}</DialogDescription>
+				</DialogHeader>
+				<DialogFooter className="flex-row justify-end gap-2">
 					<Button onClick={onClose} type="button" variant="outline">
 						Cancel
 					</Button>
@@ -220,9 +223,9 @@ function DiscardDialog({
 					>
 						{isPending ? "Discarding..." : "Discard"}
 					</Button>
-				</DialogActionRow>
-			</div>
-		</ResponsiveDialog>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
 	);
 }
 

@@ -2,13 +2,14 @@ import {
 	currency,
 	currencyTransaction,
 	transactionType,
-} from "@sapphire2/db/schema/store";
+} from "@sapphire2/db/schema/currency";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
+import { paginate } from "./_pagination";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 export const currencyTransactionRouter = router({
 	listByCurrency: protectedProcedure
@@ -36,7 +37,13 @@ export const currencyTransactionRouter = router({
 
 			const conditions = [eq(currencyTransaction.currencyId, input.currencyId)];
 			if (input.cursor) {
-				conditions.push(lt(currencyTransaction.id, input.cursor));
+				// The cursor is the previous page's last row id, but rows are
+				// ordered by transactedAt (desc). Comparing the (transactedAt, id)
+				// tuple against the cursor row keeps paging aligned with the visible
+				// order — comparing the random-UUID id alone skips/duplicates rows.
+				conditions.push(
+					sql`(${currencyTransaction.transactedAt}, ${currencyTransaction.id}) < (SELECT transacted_at, id FROM currency_transaction WHERE id = ${input.cursor})`
+				);
 			}
 
 			const data = await ctx.db
@@ -57,14 +64,13 @@ export const currencyTransactionRouter = router({
 					eq(transactionType.id, currencyTransaction.transactionTypeId)
 				)
 				.where(and(...conditions))
-				.orderBy(desc(currencyTransaction.transactedAt))
+				.orderBy(
+					desc(currencyTransaction.transactedAt),
+					desc(currencyTransaction.id)
+				)
 				.limit(PAGE_SIZE + 1);
 
-			const hasMore = data.length > PAGE_SIZE;
-			const items = hasMore ? data.slice(0, PAGE_SIZE) : data;
-			const nextCursor = hasMore ? items.at(-1)?.id : undefined;
-
-			return { items, nextCursor };
+			return paginate(data, PAGE_SIZE);
 		}),
 
 	create: protectedProcedure

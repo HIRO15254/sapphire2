@@ -1,0 +1,239 @@
+name: Dev Deploy
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: dev-deploy
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+  WORKER_NAME: sapphire2-api-dev
+  PAGES_PROJECT: sapphire2-web
+  PAGES_BRANCH: dev
+  D1_DB_NAME: sapphire2-db-dev
+  SOURCE_D1_DB_NAME: sapphire2-db
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Type check
+        run: bun run check-types
+      - name: Lint
+        run: bun run check
+      - name: Test
+        run: bun run test:ci
+
+  setup:
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      dev_api_url: ${{ steps.vars.outputs.dev_api_url }}
+      dev_web_url: ${{ steps.vars.outputs.dev_web_url }}
+    steps:
+      - name: Resolve Cloudflare subdomains
+        id: vars
+        run: |
+          WORKERS_SUBDOMAIN=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result.subdomain')
+
+          PAGES_DOMAIN=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/${PAGES_PROJECT}" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -r '.result.subdomain')
+
+          echo "dev_api_url=https://${WORKER_NAME}.${WORKERS_SUBDOMAIN}.workers.dev" >> "$GITHUB_OUTPUT"
+          echo "dev_web_url=https://${PAGES_BRANCH}.${PAGES_DOMAIN}" >> "$GITHUB_OUTPUT"
+
+  d1-recreate:
+    needs: setup
+    runs-on: ubuntu-latest
+    outputs:
+      d1_database_id: ${{ steps.recreate.outputs.d1_database_id }}
+    steps:
+      - name: Drop and recreate dev D1 database
+        id: recreate
+        run: |
+          EXISTING_ID=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r ".result[] | select(.name == \"${D1_DB_NAME}\") | .uuid")
+
+          if [ -n "$EXISTING_ID" ]; then
+            STATUS=$(curl -s -o /tmp/d1-delete.json -w "%{http_code}" -X DELETE \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database/${EXISTING_ID}" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "404" ]; then
+              echo "Deleted existing dev D1 database: ${EXISTING_ID}"
+            else
+              echo "Failed to delete dev D1 database ${EXISTING_ID} (HTTP ${STATUS})"
+              cat /tmp/d1-delete.json
+              exit 1
+            fi
+          else
+            echo "No existing dev D1 database found"
+          fi
+
+          NEW_ID=$(curl -sf -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"${D1_DB_NAME}\"}" \
+            | jq -r '.result.uuid')
+          echo "Created dev D1 database: $NEW_ID"
+          echo "d1_database_id=${NEW_ID}" >> "$GITHUB_OUTPUT"
+
+  db-migrate:
+    needs: [setup, d1-recreate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+
+      # Dev DB is recreated every deploy, so we always run the full
+      # stash → base-migrate → seed-from-master → restore → migrate-rest
+      # flow (mirrors preview-deploy.yml's `is_new_db == 'true'` path).
+      - name: Stash unreleased migrations
+        working-directory: apps/server
+        run: |
+          MIGRATIONS_DIR="../../packages/db/src/migrations"
+          JOURNAL="$MIGRATIONS_DIR/meta/_journal.json"
+
+          LAST_APPLIED=$(bunx wrangler d1 execute "${SOURCE_D1_DB_NAME}" --remote --json \
+            --command="SELECT name FROM d1_migrations ORDER BY id DESC LIMIT 1" \
+            | jq -r '.[0].results[0].name // empty')
+
+          if [ -z "$LAST_APPLIED" ]; then
+            echo "Master DB has no applied migrations; nothing to stash"
+            exit 0
+          fi
+          echo "Master DB is at migration: $LAST_APPLIED"
+
+          mkdir -p /tmp/stashed-migration
+          cp "$JOURNAL" /tmp/stashed-migration/_journal.json.bak
+
+          STASHED_TAGS=()
+          for f in "$MIGRATIONS_DIR"/[0-9]*_*.sql; do
+            base=$(basename "$f")
+            if [[ "$base" > "$LAST_APPLIED" ]]; then
+              tag="${base%.sql}"
+              echo "Stashing $tag (newer than master)"
+              mv "$f" /tmp/stashed-migration/
+              STASHED_TAGS+=("$tag")
+            fi
+          done
+
+          if [ ${#STASHED_TAGS[@]} -gt 0 ]; then
+            tags_json=$(printf '%s\n' "${STASHED_TAGS[@]}" | jq -R . | jq -s .)
+            jq --argjson tags "$tags_json" \
+              '.entries |= map(select(.tag as $t | $tags | index($t) | not))' \
+              "$JOURNAL" > /tmp/_journal.json.new
+            mv /tmp/_journal.json.new "$JOURNAL"
+          fi
+
+      - name: Configure wrangler for dev database
+        working-directory: apps/server
+        run: |
+          sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-recreate.outputs.d1_database_id }}\"/" wrangler.toml
+          sed -i "s/database_name = \".*\"/database_name = \"${D1_DB_NAME}\"/" wrangler.toml
+
+      - name: Apply base migrations to dev database
+        working-directory: apps/server
+        run: |
+          bunx wrangler d1 migrations apply "${D1_DB_NAME}" --remote
+
+      - name: Seed dev database from master DB
+        working-directory: apps/server
+        run: |
+          echo "Exporting data from: ${SOURCE_D1_DB_NAME}"
+          git checkout wrangler.toml
+          bunx wrangler d1 export "${SOURCE_D1_DB_NAME}" --remote --no-schema --output=dump.sql
+
+          # Remove d1_migrations rows (already populated by `migrations apply`)
+          sed -i '/INSERT INTO.*d1_migrations/d' dump.sql
+
+          sed -i '1i PRAGMA foreign_keys = OFF;' dump.sql
+          echo 'PRAGMA foreign_keys = ON;' >> dump.sql
+
+          sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-recreate.outputs.d1_database_id }}\"/" wrangler.toml
+          sed -i "s/database_name = \".*\"/database_name = \"${D1_DB_NAME}\"/" wrangler.toml
+          bunx wrangler d1 execute "${D1_DB_NAME}" --remote --file=dump.sql
+
+      - name: Restore and apply stashed migrations
+        working-directory: apps/server
+        run: |
+          MIGRATIONS_DIR="../../packages/db/src/migrations"
+          JOURNAL="$MIGRATIONS_DIR/meta/_journal.json"
+          if compgen -G "/tmp/stashed-migration/[0-9]*_*.sql" > /dev/null; then
+            mv /tmp/stashed-migration/[0-9]*_*.sql "$MIGRATIONS_DIR/"
+          fi
+          if [ -f /tmp/stashed-migration/_journal.json.bak ]; then
+            mv /tmp/stashed-migration/_journal.json.bak "$JOURNAL"
+          fi
+          bunx wrangler d1 migrations apply "${D1_DB_NAME}" --remote
+
+  deploy-api:
+    needs: [setup, d1-recreate, db-migrate]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+
+      - name: Deploy Worker
+        working-directory: apps/server
+        run: |
+          sed -i "s/database_id = \".*\"/database_id = \"${{ needs.d1-recreate.outputs.d1_database_id }}\"/" wrangler.toml
+          sed -i "s/database_name = \".*\"/database_name = \"${D1_DB_NAME}\"/" wrangler.toml
+          bunx wrangler deploy \
+            --name "${WORKER_NAME}" \
+            --var BETTER_AUTH_URL:"${{ needs.setup.outputs.dev_api_url }}" \
+            --var CORS_ORIGIN:"${{ needs.setup.outputs.dev_web_url }}" \
+            --var NODE_ENV:production
+
+      - name: Set Worker secrets
+        working-directory: apps/server
+        run: |
+          echo "${{ secrets.BETTER_AUTH_SECRET }}" | bunx wrangler secret put BETTER_AUTH_SECRET --name "${WORKER_NAME}"
+          echo "${{ secrets.GOOGLE_CLIENT_ID }}" | bunx wrangler secret put GOOGLE_CLIENT_ID --name "${WORKER_NAME}"
+          echo "${{ secrets.GOOGLE_CLIENT_SECRET }}" | bunx wrangler secret put GOOGLE_CLIENT_SECRET --name "${WORKER_NAME}"
+          echo "${{ secrets.DISCORD_CLIENT_ID }}" | bunx wrangler secret put DISCORD_CLIENT_ID --name "${WORKER_NAME}"
+          echo "${{ secrets.DISCORD_CLIENT_SECRET }}" | bunx wrangler secret put DISCORD_CLIENT_SECRET --name "${WORKER_NAME}"
+          echo "${{ secrets.ANTHROPIC_API_KEY }}" | bunx wrangler secret put ANTHROPIC_API_KEY --name "${WORKER_NAME}"
+
+  deploy-web:
+    needs: [setup, deploy-api]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+
+      - name: Build web
+        run: bun run --filter web build
+        env:
+          VITE_SERVER_URL: ${{ needs.setup.outputs.dev_api_url }}
+
+      - name: Deploy to Cloudflare Pages
+        run: |
+          bunx wrangler pages deploy apps/web/dist \
+            --project-name "${PAGES_PROJECT}" \
+            --branch "${PAGES_BRANCH}"

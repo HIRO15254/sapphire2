@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { PlayerForm } from "./player-form";
 
 const VIP_TAG = { color: "blue", id: "vip", name: "VIP" };
-const SAVING_BUTTON_PATTERN = /Saving\.\.\./i;
+const FORM_ID = "player-form-test";
+const SAVE_RE = /save/i;
 
 vi.mock("@/shared/components/ui/rich-text-editor", () => ({
 	RichTextEditor: ({
@@ -22,19 +23,52 @@ vi.mock("@/shared/components/ui/rich-text-editor", () => ({
 	),
 }));
 
+// The form renders no submit button of its own — the surrounding FormSheet
+// owns Save and submits via the `form` attribute. Mirror that with an external
+// button so the test exercises the `id={formId}` wiring.
+function renderForm(props: Partial<React.ComponentProps<typeof PlayerForm>>) {
+	const onSubmit = props.onSubmit ?? vi.fn();
+	render(
+		<>
+			<PlayerForm formId={FORM_ID} onSubmit={onSubmit} {...props} />
+			<button form={FORM_ID} type="submit">
+				submit-trigger
+			</button>
+		</>
+	);
+	return { onSubmit };
+}
+
 describe("PlayerForm", () => {
-	it("submits selected tag ids without changing the payload shape", async () => {
+	it("assigns the formId to the rendered form element", () => {
+		renderForm({});
+		const form = document.getElementById(FORM_ID);
+		expect(form).not.toBeNull();
+		expect(form?.tagName).toBe("FORM");
+	});
+
+	it("renders no submit button of its own", () => {
+		renderForm({});
+		expect(
+			screen.queryByRole("button", { name: SAVE_RE })
+		).not.toBeInTheDocument();
+		// Only the external test button exists.
+		expect(
+			screen.getByRole("button", { name: "submit-trigger" })
+		).toBeInTheDocument();
+	});
+
+	it("submits name, memo, and selected tag ids via the external Save button", async () => {
 		const user = userEvent.setup();
-		const onSubmit = vi.fn();
+		const { onSubmit } = renderForm({ availableTags: [VIP_TAG] });
 
-		render(<PlayerForm availableTags={[VIP_TAG]} onSubmit={onSubmit} />);
-
-		await user.type(screen.getByLabelText("Player Name *"), "Alice");
+		await user.type(screen.getByLabelText("Player name *"), "Alice");
 		await user.type(screen.getByLabelText("Memo"), "Tough regular");
 		await user.click(screen.getByLabelText("Search player tags"));
 		await user.click(screen.getByText("VIP"));
-		await user.click(screen.getByRole("button", { name: "Save" }));
+		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
 
+		expect(onSubmit).toHaveBeenCalledTimes(1);
 		expect(onSubmit).toHaveBeenCalledWith({
 			memo: "Tough regular",
 			name: "Alice",
@@ -42,25 +76,21 @@ describe("PlayerForm", () => {
 		});
 	});
 
-	it("does not call onSubmit when the player name is empty (Zod onSubmit validation)", async () => {
+	it("does not call onSubmit when the name is empty (Zod onSubmit validation)", async () => {
 		const user = userEvent.setup();
-		const onSubmit = vi.fn();
+		const { onSubmit } = renderForm({ availableTags: [VIP_TAG] });
 
-		render(<PlayerForm availableTags={[VIP_TAG]} onSubmit={onSubmit} />);
-
-		await user.click(screen.getByRole("button", { name: "Save" }));
+		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
 
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("submits with tagIds undefined and memo null when only the name is typed", async () => {
+	it("submits tagIds undefined and memo null when only the name is typed", async () => {
 		const user = userEvent.setup();
-		const onSubmit = vi.fn();
+		const { onSubmit } = renderForm({});
 
-		render(<PlayerForm onSubmit={onSubmit} />);
-
-		await user.type(screen.getByLabelText("Player Name *"), "Solo");
-		await user.click(screen.getByRole("button", { name: "Save" }));
+		await user.type(screen.getByLabelText("Player name *"), "Solo");
+		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
 
 		expect(onSubmit).toHaveBeenCalledWith({
 			memo: null,
@@ -69,11 +99,15 @@ describe("PlayerForm", () => {
 		});
 	});
 
-	it("shows a disabled Saving... button while isLoading=true", () => {
-		render(
-			<PlayerForm availableTags={[VIP_TAG]} isLoading onSubmit={vi.fn()} />
-		);
-		const button = screen.getByRole("button", { name: SAVING_BUTTON_PATTERN });
-		expect(button).toBeDisabled();
+	it("omits the tags field when availableTags is not provided", () => {
+		renderForm({});
+		expect(
+			screen.queryByLabelText("Search player tags")
+		).not.toBeInTheDocument();
+	});
+
+	it("prefills the name from defaultValues", () => {
+		renderForm({ defaultValues: { name: "Carol" } });
+		expect(screen.getByLabelText("Player name *")).toHaveValue("Carol");
 	});
 });

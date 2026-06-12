@@ -13,7 +13,6 @@ function cashSession(
 	overrides: Partial<ShareableSession> = {}
 ): ShareableSession {
 	return {
-		addonCost: null,
 		beforeDeadline: null,
 		bountyPrizes: null,
 		buyIn: 10_000,
@@ -25,13 +24,11 @@ function cashSession(
 		placement: null,
 		prizeMoney: null,
 		profitLoss: 5000,
-		rebuyCost: null,
-		rebuyCount: null,
 		ringGameBlind2: 500,
 		ringGameName: "NL2k/5k",
 		sessionDate: "2026-04-22T00:00:00Z",
 		startedAt: null,
-		storeName: "Downtown",
+		roomName: "Downtown",
 		totalEntries: null,
 		tournamentBuyIn: null,
 		tournamentName: null,
@@ -56,7 +53,7 @@ function tournamentSession(
 
 describe("createSessionShareText", () => {
 	describe("cash game", () => {
-		it("includes header, date, store, game name, and profit line", () => {
+		it("includes header, date, room, game name, and profit line", () => {
 			const text = createSessionShareText(cashSession());
 			expect(text).toContain("📊 Poker Session Result");
 			expect(text).toContain("📅 ");
@@ -65,8 +62,8 @@ describe("createSessionShareText", () => {
 			expect(text).toContain("📈 +5.0K JPY");
 		});
 
-		it("omits store line when storeName is null", () => {
-			const text = createSessionShareText(cashSession({ storeName: null }));
+		it("omits room line when roomName is null", () => {
+			const text = createSessionShareText(cashSession({ roomName: null }));
 			expect(text).not.toContain("📍");
 		});
 

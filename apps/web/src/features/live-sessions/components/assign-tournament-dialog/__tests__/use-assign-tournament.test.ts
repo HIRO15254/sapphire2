@@ -10,8 +10,8 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const mocks = vi.hoisted(() => ({
-	storeList: vi.fn(),
-	tournamentsByStore: vi.fn(),
+	roomList: vi.fn(),
+	tournamentsByRoom: vi.fn(),
 	updateTournament: vi.fn(),
 	createWithLevels: vi.fn(),
 	toastSuccess: vi.fn(),
@@ -20,19 +20,19 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
-		store: {
+		room: {
 			list: {
 				queryOptions: () => ({
-					queryKey: buildKey("store", "list", undefined),
-					queryFn: () => mocks.storeList(),
+					queryKey: buildKey("room", "list", undefined),
+					queryFn: () => mocks.roomList(),
 				}),
 			},
 		},
 		tournament: {
-			listByStore: {
+			listByRoom: {
 				queryOptions: (input: unknown) => ({
-					queryKey: buildKey("tournament", "listByStore", input),
-					queryFn: () => mocks.tournamentsByStore(input),
+					queryKey: buildKey("tournament", "listByRoom", input),
+					queryFn: () => mocks.tournamentsByRoom(input),
 				}),
 			},
 		},
@@ -97,7 +97,7 @@ describe("useAssignTournament", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("defaults mode='existing' and effectiveStoreId is sessionStoreId when present", () => {
+	it("defaults mode='existing' and effectiveRoomId is sessionRoomId when present", () => {
 		const qc = createClient();
 		const { result } = renderHook(
 			() =>
@@ -105,16 +105,16 @@ describe("useAssignTournament", () => {
 					onOpenChange: vi.fn(),
 					open: false,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
 		expect(result.current.mode).toBe("existing");
-		expect(result.current.effectiveStoreId).toBe("store-a");
+		expect(result.current.effectiveRoomId).toBe("room-a");
 		expect(result.current.isBusy).toBe(false);
 	});
 
-	it("handleStoreChange updates selectedStoreId and clears selectedTournamentId", () => {
+	it("handleRoomChange updates selectedRoomId and clears selectedTournamentId", () => {
 		const qc = createClient();
 		const { result } = renderHook(
 			() =>
@@ -122,15 +122,15 @@ describe("useAssignTournament", () => {
 					onOpenChange: vi.fn(),
 					open: false,
 					sessionId: "s1",
-					sessionStoreId: null,
+					sessionRoomId: null,
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
 		act(() => {
 			result.current.setSelectedTournamentId("t1");
-			result.current.handleStoreChange("st2");
+			result.current.handleRoomChange("st2");
 		});
-		expect(result.current.selectedStoreId).toBe("st2");
+		expect(result.current.selectedRoomId).toBe("st2");
 		expect(result.current.selectedTournamentId).toBeUndefined();
 	});
 
@@ -142,7 +142,7 @@ describe("useAssignTournament", () => {
 					onOpenChange: vi.fn(),
 					open: true,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -162,7 +162,7 @@ describe("useAssignTournament", () => {
 					onOpenChange,
 					open: true,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -189,7 +189,7 @@ describe("useAssignTournament", () => {
 					onOpenChange: vi.fn(),
 					open: true,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -202,7 +202,7 @@ describe("useAssignTournament", () => {
 		await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith("bad"));
 	});
 
-	it("handleCreate without effectiveStoreId toasts error and does not call create", async () => {
+	it("handleCreate without effectiveRoomId toasts error and does not call create", async () => {
 		const qc = createClient();
 		const { result } = renderHook(
 			() =>
@@ -210,7 +210,7 @@ describe("useAssignTournament", () => {
 					onOpenChange: vi.fn(),
 					open: true,
 					sessionId: "s1",
-					sessionStoreId: null,
+					sessionRoomId: null,
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -230,7 +230,7 @@ describe("useAssignTournament", () => {
 				[]
 			);
 		});
-		expect(mocks.toastError).toHaveBeenCalledWith("Select a store first");
+		expect(mocks.toastError).toHaveBeenCalledWith("Select a room first");
 		expect(mocks.createWithLevels).not.toHaveBeenCalled();
 	});
 
@@ -245,7 +245,7 @@ describe("useAssignTournament", () => {
 					onOpenChange,
 					open: true,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);
@@ -284,7 +284,7 @@ describe("useAssignTournament", () => {
 		);
 		expect(mocks.createWithLevels).toHaveBeenCalledWith(
 			expect.objectContaining({
-				storeId: "store-a",
+				roomId: "room-a",
 				blindLevels: [
 					expect.objectContaining({
 						isBreak: false,
@@ -311,7 +311,7 @@ describe("useAssignTournament", () => {
 					onOpenChange: vi.fn(),
 					open: false,
 					sessionId: "s1",
-					sessionStoreId: "store-a",
+					sessionRoomId: "room-a",
 				}),
 			{ wrapper: makeWrapper(qc) }
 		);

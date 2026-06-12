@@ -1,7 +1,12 @@
 import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
-import { assertNoLiveLinkedRestrictedEdits } from "../routers/session";
+import {
+	assertNoLiveLinkedRestrictedEdits,
+	computeTournamentPL,
+	encodeSessionCursor,
+	parseSessionCursor,
+} from "../routers/session";
 
 const DERIVED_FIELDS_RE = /Cannot edit fields derived from live session events/;
 const RING_CONFIG_RE = /variant|blind1|blind2/;
@@ -46,7 +51,7 @@ describe("session.profitLossSeries input validation", () => {
 		expect(
 			getSchema().safeParse({
 				type: "cash_game",
-				storeId: "s1",
+				roomId: "s1",
 				ringGameId: "rg1",
 				currencyId: "c1",
 				dateFrom: 1_700_000_000,
@@ -180,7 +185,7 @@ describe("session router input validation", () => {
 			schema.safeParse({
 				cursor: "s1",
 				type: "cash_game",
-				storeId: "st1",
+				roomId: "st1",
 				currencyId: "c1",
 				dateFrom: 1,
 				dateTo: 2,
@@ -195,6 +200,46 @@ describe("session router input validation", () => {
 			}
 		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
 		expect(schema.safeParse({ type: "hybrid" }).success).toBe(false);
+	});
+
+	describe("session list cursor (composite keyset)", () => {
+		it("encodes a row as <epochMs>_<id>", () => {
+			expect(
+				encodeSessionCursor({ id: "s1", sessionDate: new Date(1000) })
+			).toBe("1000_s1");
+		});
+
+		it("round-trips an encoded cursor back to its date and id", () => {
+			const cursor = encodeSessionCursor({
+				id: "abc",
+				sessionDate: new Date(1_700_000_000_000),
+			});
+			const parsed = parseSessionCursor(cursor);
+			expect(parsed?.id).toBe("abc");
+			expect(parsed?.sessionDate.getTime()).toBe(1_700_000_000_000);
+		});
+
+		it("preserves underscores in the id (splits on the first separator only)", () => {
+			const parsed = parseSessionCursor("1000_a_b_c");
+			expect(parsed?.id).toBe("a_b_c");
+			expect(parsed?.sessionDate.getTime()).toBe(1000);
+		});
+
+		it("returns null when the separator is missing", () => {
+			expect(parseSessionCursor("12345")).toBeNull();
+		});
+
+		it("returns null for a non-integer timestamp", () => {
+			expect(parseSessionCursor("abc_s1")).toBeNull();
+		});
+
+		it("returns null for an empty timestamp", () => {
+			expect(parseSessionCursor("_s1")).toBeNull();
+		});
+
+		it("returns null for an empty id", () => {
+			expect(parseSessionCursor("1000_")).toBeNull();
+		});
 	});
 
 	it("getById accepts {id}", () => {
@@ -234,6 +279,122 @@ describe("session router input validation", () => {
 		expect(schema.safeParse({ id: "s1", placement: 0 }).success).toBe(false);
 	});
 
+	it("create accepts cash session with snapshot override fields", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				...CASH_BASE,
+				ruleName: "1/2 NLH (this session)",
+				minBuyIn: 100,
+				maxBuyIn: 400,
+				tableSize: 9,
+			}).success
+		).toBe(true);
+	});
+
+	it("create rejects empty ruleName on cash session", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(schema.safeParse({ ...CASH_BASE, ruleName: "" }).success).toBe(
+			false
+		);
+	});
+
+	it("create accepts tournament session with snapshot override fields and structure arrays", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				...TOURNAMENT_BASE,
+				ruleName: "Main Event (session-only)",
+				variant: "nlh",
+				startingStack: 20_000,
+				bountyAmount: 500,
+				tableSize: 9,
+				blindLevels: [
+					{
+						isBreak: false,
+						blind1: 100,
+						blind2: 200,
+						blind3: null,
+						ante: null,
+						minutes: 15,
+					},
+				],
+				chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000 }],
+			}).success
+		).toBe(true);
+	});
+
+	it("create accepts chipPurchases carrying an explicit count", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				...TOURNAMENT_BASE,
+				chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000, count: 3 }],
+			}).success
+		).toBe(true);
+	});
+
+	it("create rejects a negative chip purchase count", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				...TOURNAMENT_BASE,
+				chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000, count: -1 }],
+			}).success
+		).toBe(false);
+	});
+
+	it("create no longer accepts the legacy rebuyCount field as a real column", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as {
+			safeParse: (v: unknown) => {
+				data?: Record<string, unknown>;
+				success: boolean;
+			};
+		};
+		const parsed = schema.safeParse({ ...TOURNAMENT_BASE, rebuyCount: 5 });
+		expect(parsed.success).toBe(true);
+		// Zod strips the unknown legacy key — it never reaches the DB layer.
+		expect(parsed.data?.rebuyCount).toBeUndefined();
+	});
+
+	it("create rejects a blind level missing isBreak on tournament session", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				...TOURNAMENT_BASE,
+				blindLevels: [{ blind1: 100 }],
+			}).success
+		).toBe(false);
+	});
+
 	it("update accepts explicit null clears for nullable link fields", () => {
 		const schema = (
 			appRouter.session.update as unknown as {
@@ -243,7 +404,7 @@ describe("session router input validation", () => {
 		expect(
 			schema.safeParse({
 				id: "s1",
-				storeId: null,
+				roomId: null,
 				ringGameId: null,
 				tournamentId: null,
 				currencyId: null,
@@ -347,10 +508,10 @@ describe("assertNoLiveLinkedRestrictedEdits", () => {
 		).not.toThrow();
 	});
 
-	it("allows storeId and currencyId edits on live-linked session", () => {
+	it("allows roomId and currencyId edits on live-linked session", () => {
 		expect(() =>
 			assertNoLiveLinkedRestrictedEdits(liveCashSession, {
-				storeId: "store-1",
+				roomId: "room-1",
 				currencyId: "currency-1",
 			})
 		).not.toThrow();
@@ -410,5 +571,26 @@ describe("assertNoLiveLinkedRestrictedEdits", () => {
 				memo: "ok",
 			})
 		).not.toThrow();
+	});
+});
+
+describe("computeTournamentPL", () => {
+	it("subtracts buy-in, entry fee, and chip purchase cost from prize income", () => {
+		// income (1000 + 200) - cost (500 + 50 + 300) = 1200 - 850 = 350
+		expect(computeTournamentPL(500, 50, 300, 1000, 200)).toBe(350);
+	});
+
+	it("treats null buy-in / entry fee / prizes as zero", () => {
+		expect(computeTournamentPL(null, null, 0, null, null)).toBe(0);
+	});
+
+	it("returns a loss when chip purchases exceed income", () => {
+		// income 0 - cost (100 + 0 + 250) = -350
+		expect(computeTournamentPL(100, null, 250, null, null)).toBe(-350);
+	});
+
+	it("adds bounty prizes to income", () => {
+		// income (0 + 400) - cost (100 + 0 + 0) = 300
+		expect(computeTournamentPL(100, 0, 0, 0, 400)).toBe(300);
 	});
 });
