@@ -61,6 +61,11 @@ export function useTournamentStats(
 	const avg = ratio(net, summary.totalSessions);
 	const scoped = (value: number | null): string =>
 		formatScopedProfitLoss(value, { normalized, unit });
+	// Aggregate ROI and Total prize sum raw currency amounts, so they are only
+	// meaningful when a single currency is pinned. Without one (e.g. the default
+	// normalized scope) they would blend currencies, so they are hidden and only
+	// the currency-agnostic Avg ROI (mean of per-session ROI %) is shown.
+	const currencySelected = Boolean(ctx.statsInput.currencyId);
 
 	const rows: StatRow[] = [
 		{
@@ -94,11 +99,23 @@ export function useTournamentStats(
 			valueColor: "",
 		},
 		{
+			key: "avgRoi",
+			label: "Avg ROI",
+			value: formatPercent(summary.avgRoi),
+			valueColor: profitLossColorClass(summary.avgRoi),
+		},
+	];
+
+	if (currencySelected) {
+		rows.push({
 			key: "roi",
 			label: "ROI",
 			value: formatPercent(summary.roi),
 			valueColor: profitLossColorClass(summary.roi),
-		},
+		});
+	}
+
+	rows.push(
 		{
 			key: "itm",
 			label: "ITM rate",
@@ -110,13 +127,10 @@ export function useTournamentStats(
 			label: "Avg placement",
 			value: formatFixed(summary.avgPlacement),
 			valueColor: "",
-		},
-	];
+		}
+	);
 
-	// Total prize is a raw currency amount, so it is only meaningful in currency
-	// mode — under normalization (where a currency may not even be selected) it
-	// would sum face values across currencies, so it is hidden.
-	if (!normalized) {
+	if (currencySelected) {
 		rows.push({
 			key: "prize",
 			label: "Total prize",

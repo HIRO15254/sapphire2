@@ -24,6 +24,7 @@ import { useTournamentStats } from "@/features/statistics/pages/statistics-page/
 interface Summary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
+	avgRoi: number | null;
 	bbPerHour: number | null;
 	cashEvDiffNormalized: number | null;
 	cashNormalizedProfitLoss: number | null;
@@ -55,6 +56,7 @@ function summary(overrides: Partial<Summary> = {}): Summary {
 		hourlyRate: null,
 		bbPerHour: null,
 		roi: 25,
+		avgRoi: 30,
 		itmRate: 40,
 		avgPlacement: 12.5,
 		totalPrizeMoney: 5000,
@@ -62,6 +64,7 @@ function summary(overrides: Partial<Summary> = {}): Summary {
 	};
 }
 
+/** Default context: a single currency is selected (currency mode). */
 function ctx(
 	overrides: Partial<StatsSectionContext> = {}
 ): StatsSectionContext {
@@ -72,6 +75,17 @@ function ctx(
 		currencyUnit: "USD",
 		type: "all",
 		...overrides,
+	};
+}
+
+/** Context with no currency selected (the normalized, cross-currency scope). */
+function noCurrencyCtx(): StatsSectionContext {
+	return {
+		statsInput: { normalized: true },
+		enabled: true,
+		normalized: true,
+		currencyUnit: null,
+		type: "all",
 	};
 }
 
@@ -121,7 +135,7 @@ describe("useTournamentStats", () => {
 		expect(result.current.rows).toEqual([]);
 	});
 
-	it("lists the tournament stat rows with currency units when not normalized", async () => {
+	it("lists every row including aggregate ROI and total prize when a currency is selected", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		const result = await renderLoadedTournament(ctx());
@@ -131,6 +145,7 @@ describe("useTournamentStats", () => {
 			"avg",
 			"winRate",
 			"playTime",
+			"avgRoi",
 			"roi",
 			"itm",
 			"placement",
@@ -142,33 +157,51 @@ describe("useTournamentStats", () => {
 		expect(byKey.avg.value).toBe("+250 USD");
 		expect(byKey.winRate.value).toBe("50.0%");
 		expect(byKey.playTime.value).toBe("12h");
+		expect(byKey.avgRoi.value).toBe("30.0%");
 		expect(byKey.roi.value).toBe("25.0%");
 		expect(byKey.itm.value).toBe("40.0%");
 		expect(byKey.placement.value).toBe("12.5");
 		expect(byKey.prize.value).toBe("+5,000 USD");
 	});
 
-	it("switches net and avg to bi units and hides total prize when normalized", async () => {
+	it("shows only Avg ROI (hides aggregate ROI and total prize) when no currency is selected", async () => {
+		trpcMocks.summaryQueryFn.mockReset();
+		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
+		const result = await renderLoadedTournament(noCurrencyCtx());
+		const keys = result.current.rows.map((r) => r.key);
+		expect(keys).toContain("avgRoi");
+		expect(keys).not.toContain("roi");
+		expect(keys).not.toContain("prize");
+		const byKey = rowsByKey(result);
+		expect(byKey.avgRoi.value).toBe("30.0%");
+		// Net stays normalized to bi in this scope.
+		expect(byKey.net.value).toBe("+4 bi");
+	});
+
+	it("still shows aggregate ROI and total prize while normalized when a currency is selected", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		const result = await renderLoadedTournament(
-			ctx({ normalized: true, currencyUnit: null })
+			ctx({
+				statsInput: { normalized: true, currencyId: "c1" },
+				normalized: true,
+				currencyUnit: "USD",
+			})
 		);
 		const byKey = rowsByKey(result);
 		expect(byKey.net.value).toBe("+4 bi");
-		expect(byKey.avg.value).toBe("+0.5 bi");
-		// Total prize is a raw currency amount → hidden under normalization.
-		expect(byKey.prize).toBeUndefined();
-		expect(result.current.rows.map((r) => r.key)).not.toContain("prize");
+		expect(byKey.roi.value).toBe("25.0%");
+		expect(byKey.prize.value).toBe("+5,000 USD");
 	});
 
-	it("renders em dashes for null ROI / ITM / placement", async () => {
+	it("renders em dashes for null Avg ROI / ROI / ITM / placement", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(
-			summary({ roi: null, itmRate: null, avgPlacement: null })
+			summary({ roi: null, avgRoi: null, itmRate: null, avgPlacement: null })
 		);
 		const result = await renderLoadedTournament(ctx());
 		const byKey = rowsByKey(result);
+		expect(byKey.avgRoi.value).toBe("—");
 		expect(byKey.roi.value).toBe("—");
 		expect(byKey.itm.value).toBe("—");
 		expect(byKey.placement.value).toBe("—");

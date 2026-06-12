@@ -712,6 +712,26 @@ describe("summarizeStats", () => {
 		expect(summarizeStats(rows).roi).toBeNull();
 	});
 
+	it("averages per-session ROI for avgRoi (distinct from aggregate roi)", () => {
+		const rows = [
+			// (300-100)/100*100 = 200
+			tournamentRow({ id: "a", buyInTotal: 100, prizeMoney: 300 }),
+			// (100-200)/200*100 = -50
+			tournamentRow({ id: "b", buyInTotal: 200, prizeMoney: 100 }),
+		];
+		const summary = summarizeStats(rows);
+		// mean(200, -50) = 75
+		expect(summary.avgRoi).toBe(75);
+		// aggregate: (400-300)/300*100 ≈ 33.33 — different from avgRoi
+		expect(summary.roi).toBeCloseTo(33.333_33, 4);
+	});
+
+	it("excludes sessions with no investment from avgRoi and returns null when none invest", () => {
+		expect(
+			summarizeStats([tournamentRow({ buyInTotal: null })]).avgRoi
+		).toBeNull();
+	});
+
 	it("includes bounty prizes in itm detection and totalPrizeMoney", () => {
 		const rows = [
 			tournamentRow({

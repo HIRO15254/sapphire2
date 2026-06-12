@@ -306,6 +306,9 @@ export function stakesLabel(row: StatsSessionRow): string {
 export interface StatsSummary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
+	// Mean of per-session ROI %. Currency-agnostic (each session's ROI is a
+	// ratio), so it is safe across currencies — unlike the aggregate `roi`.
+	avgRoi: number | null;
 	bbPerHour: number | null;
 	// EV diff (actual − EV) of cash sessions normalized to big blinds (bb).
 	// Null when no normalizable cash session has EV data.
@@ -342,6 +345,7 @@ const EMPTY_SUMMARY: StatsSummary = {
 	hourlyRate: null,
 	bbPerHour: null,
 	roi: null,
+	avgRoi: null,
 	itmRate: null,
 	avgPlacement: null,
 	totalPrizeMoney: null,
@@ -360,6 +364,8 @@ interface SummaryAccumulator {
 	itmCount: number;
 	placementCount: number;
 	placementSum: number;
+	roiPctCount: number;
+	roiPctSum: number;
 	totalPlayMinutes: number;
 	totalProfitLoss: number;
 	tournamentBiCount: number;
@@ -399,10 +405,16 @@ function accumulateTournament(
 	acc: SummaryAccumulator
 ): void {
 	acc.tournamentCount += 1;
-	acc.tournamentInvested += row.buyInTotal ?? 0;
+	const invested = row.buyInTotal ?? 0;
+	acc.tournamentInvested += invested;
 	const prize = (row.prizeMoney ?? 0) + (row.bountyPrizes ?? 0);
 	acc.tournamentPrize += prize;
 	acc.tournamentPrizeMoneyAndBounty += prize;
+	// Per-session ROI %, averaged later — a ratio, so safe to mix currencies.
+	if (invested > 0) {
+		acc.roiPctSum += ((prize - invested) / invested) * 100;
+		acc.roiPctCount += 1;
+	}
 	if (prize > 0) {
 		acc.itmCount += 1;
 	}
@@ -415,6 +427,47 @@ function accumulateTournament(
 		acc.tournamentBiSum += bi;
 		acc.tournamentBiCount += 1;
 	}
+}
+
+function buildSummary(
+	acc: SummaryAccumulator,
+	totalSessions: number
+): StatsSummary {
+	// We do not track hand counts, so there is no bb/100 metric — `bbPerHour`
+	// (sum of bb won / cash play hours) is provided as the rate proxy instead.
+	const cashHours = acc.cashPlayMinutes / 60;
+	return {
+		totalSessions,
+		totalProfitLoss: acc.totalProfitLoss,
+		cashNormalizedProfitLoss: acc.cashBbCount > 0 ? acc.cashBbSum : null,
+		cashEvDiffNormalized:
+			acc.cashEvDiffBbCount > 0 ? acc.cashEvDiffBbSum : null,
+		tournamentNormalizedProfitLoss:
+			acc.tournamentBiCount > 0 ? acc.tournamentBiSum : null,
+		totalEvProfitLoss: acc.evCount > 0 ? acc.evSum : null,
+		totalEvDiff: acc.evCount > 0 ? acc.evDiffSum : null,
+		winRate: (acc.winCount / totalSessions) * 100,
+		avgProfitLoss: acc.totalProfitLoss / totalSessions,
+		totalPlayMinutes: acc.totalPlayMinutes,
+		hourlyRate: cashHours > 0 ? acc.cashPL / cashHours : null,
+		bbPerHour:
+			cashHours > 0 && acc.cashBbCount > 0 ? acc.cashBbSum / cashHours : null,
+		roi:
+			acc.tournamentInvested > 0
+				? ((acc.tournamentPrize - acc.tournamentInvested) /
+						acc.tournamentInvested) *
+					100
+				: null,
+		avgRoi: acc.roiPctCount > 0 ? acc.roiPctSum / acc.roiPctCount : null,
+		itmRate:
+			acc.tournamentCount > 0
+				? (acc.itmCount / acc.tournamentCount) * 100
+				: null,
+		avgPlacement:
+			acc.placementCount > 0 ? acc.placementSum / acc.placementCount : null,
+		totalPrizeMoney:
+			acc.tournamentCount > 0 ? acc.tournamentPrizeMoneyAndBounty : null,
+	};
 }
 
 export function summarizeStats(rows: StatsSessionRow[]): StatsSummary {
@@ -443,6 +496,8 @@ export function summarizeStats(rows: StatsSessionRow[]): StatsSummary {
 		itmCount: 0,
 		placementSum: 0,
 		placementCount: 0,
+		roiPctSum: 0,
+		roiPctCount: 0,
 		tournamentPrizeMoneyAndBounty: 0,
 	};
 
@@ -459,42 +514,7 @@ export function summarizeStats(rows: StatsSessionRow[]): StatsSummary {
 		}
 	}
 
-	const totalSessions = rows.length;
-	// We do not track hand counts, so there is no bb/100 metric — `bbPerHour`
-	// (sum of bb won / cash play hours) is provided as the rate proxy instead.
-	const cashHours = acc.cashPlayMinutes / 60;
-
-	return {
-		totalSessions,
-		totalProfitLoss: acc.totalProfitLoss,
-		cashNormalizedProfitLoss: acc.cashBbCount > 0 ? acc.cashBbSum : null,
-		cashEvDiffNormalized:
-			acc.cashEvDiffBbCount > 0 ? acc.cashEvDiffBbSum : null,
-		tournamentNormalizedProfitLoss:
-			acc.tournamentBiCount > 0 ? acc.tournamentBiSum : null,
-		totalEvProfitLoss: acc.evCount > 0 ? acc.evSum : null,
-		totalEvDiff: acc.evCount > 0 ? acc.evDiffSum : null,
-		winRate: (acc.winCount / totalSessions) * 100,
-		avgProfitLoss: acc.totalProfitLoss / totalSessions,
-		totalPlayMinutes: acc.totalPlayMinutes,
-		hourlyRate: cashHours > 0 ? acc.cashPL / cashHours : null,
-		bbPerHour:
-			cashHours > 0 && acc.cashBbCount > 0 ? acc.cashBbSum / cashHours : null,
-		roi:
-			acc.tournamentInvested > 0
-				? ((acc.tournamentPrize - acc.tournamentInvested) /
-						acc.tournamentInvested) *
-					100
-				: null,
-		itmRate:
-			acc.tournamentCount > 0
-				? (acc.itmCount / acc.tournamentCount) * 100
-				: null,
-		avgPlacement:
-			acc.placementCount > 0 ? acc.placementSum / acc.placementCount : null,
-		totalPrizeMoney:
-			acc.tournamentCount > 0 ? acc.tournamentPrizeMoneyAndBounty : null,
-	};
+	return buildSummary(acc, rows.length);
 }
 
 // ---------------------------------------------------------------------------

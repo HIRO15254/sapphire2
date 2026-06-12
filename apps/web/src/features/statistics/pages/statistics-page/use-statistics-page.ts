@@ -18,9 +18,11 @@ export function useStatisticsPage(): UseStatisticsPageResult {
 	const { filters, statsInput, normalized, isScopeValid } = useStatsFilters();
 	const { currencies } = useStatsReferenceData();
 
-	const currencyUnit = normalized
-		? null
-		: (currencies.find((c) => c.id === filters.currency)?.unit ?? null);
+	// Always resolve the selected currency's unit; normalized values pick bb / bi
+	// via `unitForType`, but currency-only figures (e.g. total prize) still need
+	// the real unit even while normalization is on.
+	const currencyUnit =
+		currencies.find((c) => c.id === filters.currency)?.unit ?? null;
 
 	return {
 		ctx: {
