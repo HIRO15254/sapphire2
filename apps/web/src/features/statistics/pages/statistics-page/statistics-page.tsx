@@ -62,10 +62,10 @@ function colorClass(
 	}
 }
 
-type MetricDef = {
+interface MetricDef {
 	key: keyof StatisticsSummary;
 	label: string;
-};
+}
 
 const BASE_METRICS: MetricDef[] = [
 	{ key: "totalSessions", label: "Sessions" },
@@ -122,6 +122,28 @@ function SkeletonGrid() {
 	);
 }
 
+function TabContent({
+	isLoading,
+	metrics,
+	summary,
+}: {
+	isLoading: boolean;
+	metrics: MetricDef[];
+	summary: StatisticsSummary | undefined;
+}) {
+	if (isLoading) {
+		return <SkeletonGrid />;
+	}
+	if (!summary || summary.totalSessions === 0) {
+		return (
+			<div className="flex h-32 items-center justify-center text-muted-foreground text-sm">
+				No sessions yet
+			</div>
+		);
+	}
+	return <MetricsGrid metrics={metrics} summary={summary} />;
+}
+
 export function StatisticsPage() {
 	const { isLoading, sessionType, setSessionType, summary } =
 		useStatisticsPage();
@@ -146,15 +168,11 @@ export function StatisticsPage() {
 					</TabsList>
 
 					<TabsContent value={sessionType}>
-						{isLoading ? (
-							<SkeletonGrid />
-						) : !summary || summary.totalSessions === 0 ? (
-							<div className="flex h-32 items-center justify-center text-muted-foreground text-sm">
-								No sessions yet
-							</div>
-						) : (
-							<MetricsGrid metrics={metrics} summary={summary} />
-						)}
+						<TabContent
+							isLoading={isLoading}
+							metrics={metrics}
+							summary={summary}
+						/>
 					</TabsContent>
 				</Tabs>
 			</div>
