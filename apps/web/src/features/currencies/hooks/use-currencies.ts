@@ -12,6 +12,9 @@ import {
 	updateInfiniteQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
+import type { Transaction } from "@/features/currencies/utils/types";
+
+export type { Transaction };
 
 export interface CurrencyValues {
 	description?: string | null;
@@ -33,19 +36,6 @@ export interface CurrencyItem {
 	isFavorite: boolean;
 	name: string;
 	unit?: string | null;
-}
-
-export interface Transaction {
-	amount: number;
-	createdAt?: Date | string;
-	currencyId?: string;
-	id: string;
-	memo?: string | null;
-	sessionId?: string | null;
-	sessionName?: string | null;
-	transactedAt: Date | string;
-	transactionTypeId?: string;
-	transactionTypeName: string;
 }
 
 export function useCurrencies(expandedCurrencyId: string | null) {

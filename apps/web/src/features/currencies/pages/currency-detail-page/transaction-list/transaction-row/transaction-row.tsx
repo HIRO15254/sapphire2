@@ -1,4 +1,5 @@
 import { IconChevronRight, IconDotsVertical } from "@tabler/icons-react";
+import type { Transaction } from "@/features/currencies/utils/types";
 import {
 	getAmountColorClass,
 	getAmountDisplay,
@@ -6,16 +7,6 @@ import {
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { TableCell, TableRow } from "@/shared/components/ui/table";
-
-export interface Transaction {
-	amount: number;
-	id: string;
-	memo?: string | null;
-	sessionId?: string | null;
-	sessionName?: string | null;
-	transactedAt: Date | string;
-	transactionTypeName: string;
-}
 
 const COMPACT_CELL = "px-3 py-1.5 align-middle";
 
@@ -75,8 +66,7 @@ export function TransactionRow({
 	const amountClass = getAmountColorClass(tx.amount);
 	const amountDisplay = getAmountDisplay(tx.amount, fmt);
 	const isSessionGenerated = !!tx.sessionId;
-	const isNavigable =
-		isSessionGenerated && !!onNavigateToSession && !!tx.sessionId;
+	const isNavigable = isSessionGenerated && !!onNavigateToSession;
 
 	const handleRowClick = isNavigable
 		? () => {

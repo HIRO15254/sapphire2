@@ -136,9 +136,6 @@ export function useCurrencyDetailPage(currencyId: string) {
 	};
 
 	const handleNavigateToSession = (sessionId: string) => {
-		if (!sessionId) {
-			return;
-		}
 		navigate({ to: "/sessions/$sessionId", params: { sessionId } });
 	};
 

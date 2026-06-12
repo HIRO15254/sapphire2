@@ -483,13 +483,6 @@ describe("useCurrencyDetailPage", () => {
 			});
 		});
 
-		it("does not navigate when called without a sessionId", () => {
-			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
-			act(() => {
-				result.current.handleNavigateToSession("");
-			});
-			expect(mocks.navigate).not.toHaveBeenCalled();
-		});
 	});
 
 	describe("handleToggleFavorite", () => {
