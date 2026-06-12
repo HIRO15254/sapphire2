@@ -2,8 +2,9 @@ import {
 	IconBuildingStore,
 	IconCards,
 	IconCategory,
+	IconChartBar,
 	IconCoins,
-	IconLayoutDashboard,
+	IconHome,
 	IconList,
 	IconSettings,
 	IconUsers,
@@ -35,8 +36,8 @@ export const RESOURCE_ITEMS: readonly NavigationItem[] = [
 ] as const;
 
 export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
-	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
+	{ to: "/statistics", label: "Statistics", icon: IconChartBar },
 	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
@@ -44,8 +45,8 @@ export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
 ] as const;
 
 const NORMAL_LEFT_ITEMS: readonly NavigationItem[] = [
-	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
+	{ to: "/statistics", label: "Statistics", icon: IconChartBar },
 ] as const;
 
 const RESOURCES_NAV_ITEM: NavigationItem = {
@@ -69,7 +70,7 @@ const LIVE_RIGHT_ITEMS: readonly NavigationItem[] = [
 	{
 		to: "/active-session",
 		label: "Overview",
-		icon: IconLayoutDashboard,
+		icon: IconHome,
 		exact: true,
 	},
 	{ to: "/settings", label: "Settings", icon: IconSettings },

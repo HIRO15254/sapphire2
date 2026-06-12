@@ -11,7 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as StatisticsRouteImport } from './routes/statistics'
 import { Route as ActiveSessionRouteImport } from './routes/active-session'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
@@ -37,9 +37,9 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const StatisticsRoute = StatisticsRouteImport.update({
+  id: '/statistics',
+  path: '/statistics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ActiveSessionRoute = ActiveSessionRouteImport.update({
@@ -117,7 +117,7 @@ const LiveSessionsSessionTypeSessionIdEventsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/active-session': typeof ActiveSessionRouteWithChildren
-  '/dashboard': typeof DashboardRoute
+  '/statistics': typeof StatisticsRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/active-session/events': typeof ActiveSessionEventsRoute
@@ -135,7 +135,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
+  '/statistics': typeof StatisticsRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/active-session/events': typeof ActiveSessionEventsRoute
@@ -155,7 +155,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/active-session': typeof ActiveSessionRouteWithChildren
-  '/dashboard': typeof DashboardRoute
+  '/statistics': typeof StatisticsRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/active-session/events': typeof ActiveSessionEventsRoute
@@ -176,7 +176,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/active-session'
-    | '/dashboard'
+    | '/statistics'
     | '/login'
     | '/settings'
     | '/active-session/events'
@@ -194,7 +194,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/dashboard'
+    | '/statistics'
     | '/login'
     | '/settings'
     | '/active-session/events'
@@ -213,7 +213,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/active-session'
-    | '/dashboard'
+    | '/statistics'
     | '/login'
     | '/settings'
     | '/active-session/events'
@@ -233,7 +233,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActiveSessionRoute: typeof ActiveSessionRouteWithChildren
-  DashboardRoute: typeof DashboardRoute
+  StatisticsRoute: typeof StatisticsRoute
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
   CurrenciesCurrencyIdRoute: typeof CurrenciesCurrencyIdRoute
@@ -263,11 +263,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
+    '/statistics': {
+      id: '/statistics'
+      path: '/statistics'
+      fullPath: '/statistics'
+      preLoaderRoute: typeof StatisticsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/active-session': {
@@ -390,7 +390,7 @@ const ActiveSessionRouteWithChildren = ActiveSessionRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActiveSessionRoute: ActiveSessionRouteWithChildren,
-  DashboardRoute: DashboardRoute,
+  StatisticsRoute: StatisticsRoute,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
   CurrenciesCurrencyIdRoute: CurrenciesCurrencyIdRoute,

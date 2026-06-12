@@ -23,7 +23,7 @@ export function useSignUp() {
 				},
 				{
 					onSuccess: () => {
-						navigate({ to: "/dashboard" });
+						navigate({ to: "/statistics" });
 						toast.success("Sign up successful");
 					},
 					onError: (error) => {
@@ -44,7 +44,7 @@ export function useSignUp() {
 	const onSignInWithGoogle = async () => {
 		const result = await authClient.signIn.social({
 			provider: "google",
-			callbackURL: `${window.location.origin}/dashboard`,
+			callbackURL: `${window.location.origin}/statistics`,
 		});
 		if (result.error) {
 			toast.error(result.error.message || "Google sign up unavailable");
@@ -54,7 +54,7 @@ export function useSignUp() {
 	const onSignInWithDiscord = async () => {
 		const result = await authClient.signIn.social({
 			provider: "discord",
-			callbackURL: `${window.location.origin}/dashboard`,
+			callbackURL: `${window.location.origin}/statistics`,
 		});
 		if (result.error) {
 			toast.error(result.error.message || "Discord sign up unavailable");

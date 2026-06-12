@@ -30,7 +30,7 @@ function createTestRouter(initialPath: string) {
 	});
 
 	const routes = [
-		"/dashboard",
+		"/statistics",
 		"/sessions",
 		"/rooms",
 		"/players",
@@ -56,7 +56,7 @@ describe("SidebarNav", () => {
 		render(<RouterProvider router={router} />);
 
 		expect(await screen.findByText("Sessions")).toBeInTheDocument();
-		expect(screen.getByText("Dashboard")).toBeInTheDocument();
+		expect(screen.getByText("Statistics")).toBeInTheDocument();
 		expect(screen.getByText("Rooms")).toBeInTheDocument();
 		expect(screen.getByText("Players")).toBeInTheDocument();
 		expect(screen.getByText("Currencies")).toBeInTheDocument();

@@ -96,14 +96,14 @@ describe("HomeRoute dispatch", () => {
 		mocks.redirect.mockClear();
 	});
 
-	it("redirects a signed-in user hitting / to /dashboard", async () => {
+	it("redirects a signed-in user hitting / to /statistics", async () => {
 		mocks.getSession.mockResolvedValue({ data: { user: { id: "u1" } } });
 
 		const err = await navigateToHome();
 
-		expect(err.redirectTo).toEqual({ to: "/dashboard" });
+		expect(err.redirectTo).toEqual({ to: "/statistics" });
 		expect(mocks.redirect).toHaveBeenCalledTimes(1);
-		expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/dashboard" });
+		expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/statistics" });
 	});
 
 	it("sends a signed-out user hitting / to /login through the root guard", async () => {
@@ -133,7 +133,7 @@ describe("HomeRoute dispatch", () => {
 	});
 
 	describe("index beforeLoad branch coverage (reads context, never re-fetches)", () => {
-		it("dispatches to /dashboard when context carries a session with data", async () => {
+		it("dispatches to /statistics when context carries a session with data", async () => {
 			await expect(async () =>
 				indexBeforeLoad({
 					context: { session: { data: { user: { id: "u1" } } } },
@@ -141,7 +141,7 @@ describe("HomeRoute dispatch", () => {
 			).rejects.toThrow("redirect");
 
 			expect(mocks.redirect).toHaveBeenCalledTimes(1);
-			expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/dashboard" });
+			expect(mocks.redirect).toHaveBeenNthCalledWith(1, { to: "/statistics" });
 			expect(mocks.getSession).not.toHaveBeenCalled();
 		});
 

@@ -87,9 +87,9 @@ describe("useMobileNav", () => {
 	});
 
 	it("exposes pathname, left/right items, activeSession, hasActive", () => {
-		mocks.pathname = "/dashboard";
+		mocks.pathname = "/statistics";
 		const { result } = renderHook(() => useMobileNav());
-		expect(result.current.pathname).toBe("/dashboard");
+		expect(result.current.pathname).toBe("/statistics");
 		expect(result.current.leftItems).toBe(mocks.leftItems);
 		expect(result.current.rightItems).toBe(mocks.rightItems);
 		expect(result.current.activeSession).toBeNull();
