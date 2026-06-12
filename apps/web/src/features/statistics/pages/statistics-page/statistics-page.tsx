@@ -2,7 +2,6 @@ import { IconChartHistogram } from "@tabler/icons-react";
 import { StatsFilterBar } from "@/features/statistics/components/stats-filter-bar";
 import { BreakdownSection } from "@/features/statistics/pages/statistics-page/breakdown-section";
 import { CashGameStats } from "@/features/statistics/pages/statistics-page/cash-game-stats";
-import { HighlightsSection } from "@/features/statistics/pages/statistics-page/highlights-section";
 import { KpiCards } from "@/features/statistics/pages/statistics-page/kpi-cards";
 import { PnlGraph } from "@/features/statistics/pages/statistics-page/pnl-graph";
 import { TournamentStats } from "@/features/statistics/pages/statistics-page/tournament-stats";
@@ -28,7 +27,6 @@ export function StatisticsPage() {
 						<BreakdownSection ctx={ctx} />
 						{showCashBlock ? <CashGameStats ctx={ctx} /> : null}
 						{showTournamentBlock ? <TournamentStats ctx={ctx} /> : null}
-						<HighlightsSection ctx={ctx} />
 					</>
 				) : (
 					<EmptyState

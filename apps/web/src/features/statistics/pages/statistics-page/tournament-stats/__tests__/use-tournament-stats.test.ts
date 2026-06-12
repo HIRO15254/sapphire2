@@ -125,25 +125,19 @@ describe("useTournamentStats", () => {
 		expect(result.current.view).toBeNull();
 	});
 
-	it("formats ROI, ITM, placement, prize, and net cards", async () => {
+	it("shows only ROI, ITM, and net cards", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		const result = await renderLoadedTournament(ctx());
 		const byKey = metricsByKey(result);
 		expect(byKey.roi.value).toBe("25.0%");
 		expect(byKey.itm.value).toBe("40.0%");
-		expect(byKey.placement.value).toBe("12.5");
-		expect(byKey.prize.value).toBe("+5,000 USD");
 		expect(byKey.net.value).toBe("+2,000 USD");
-	});
-
-	it("keeps total prize in currency units even when normalized", async () => {
-		trpcMocks.summaryQueryFn.mockReset();
-		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
-		const result = await renderLoadedTournament(
-			ctx({ normalized: true, currencyUnit: "USD" })
-		);
-		expect(metricsByKey(result).prize.value).toBe("+5,000 USD");
+		expect(result.current.view?.metrics.map((m) => m.key)).toEqual([
+			"roi",
+			"itm",
+			"net",
+		]);
 	});
 
 	it("switches the net card to the bi unit when normalized", async () => {
@@ -157,22 +151,15 @@ describe("useTournamentStats", () => {
 		expect(net.amount).toBe(4);
 	});
 
-	it("renders em dashes for null ROI / ITM / placement / prize", async () => {
+	it("renders em dashes for null ROI / ITM", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(
-			summary({
-				roi: null,
-				itmRate: null,
-				avgPlacement: null,
-				totalPrizeMoney: null,
-			})
+			summary({ roi: null, itmRate: null })
 		);
 		const result = await renderLoadedTournament(ctx());
 		const byKey = metricsByKey(result);
 		expect(byKey.roi.value).toBe("—");
 		expect(byKey.itm.value).toBe("—");
-		expect(byKey.placement.value).toBe("—");
-		expect(byKey.prize.value).toBe("—");
 	});
 
 	it("preserves a negative net amount for coloring", async () => {

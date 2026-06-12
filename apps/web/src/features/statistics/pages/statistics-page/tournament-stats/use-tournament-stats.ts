@@ -4,11 +4,9 @@ import {
 	unitForType,
 } from "@/features/statistics/types";
 import {
-	formatFixed,
 	formatPercent,
 	formatScopedProfitLoss,
 } from "@/features/statistics/utils/format-stats";
-import { formatProfitLoss } from "@/utils/format-profit-loss";
 import { trpc } from "@/utils/trpc";
 
 /**
@@ -82,22 +80,6 @@ export function useTournamentStats(
 			value: formatPercent(summary.itmRate),
 			amount: summary.itmRate,
 			isProfitLoss: false,
-		},
-		{
-			key: "placement",
-			label: "Avg placement",
-			value: formatFixed(summary.avgPlacement),
-			amount: summary.avgPlacement,
-			isProfitLoss: false,
-		},
-		{
-			key: "prize",
-			label: "Total prize",
-			value: formatProfitLoss(summary.totalPrizeMoney, {
-				currencyUnit: ctx.currencyUnit,
-			}),
-			amount: summary.totalPrizeMoney,
-			isProfitLoss: true,
 		},
 		{
 			key: "net",

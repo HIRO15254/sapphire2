@@ -5,8 +5,6 @@ import {
 	assertCurrencyScope,
 	breakdownKeyLabel,
 	breakdownStats,
-	computeHighlights,
-	computeStreaks,
 	normalizedSessionValue,
 	type StatsSessionRow,
 	sessionDisplayValue,
@@ -89,7 +87,6 @@ describe("stats router structure", () => {
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.stats).sort()).toEqual([
 			"breakdown",
-			"highlights",
 			"profitLossSeries",
 			"summary",
 		]);
@@ -99,7 +96,6 @@ describe("stats router structure", () => {
 		for (const proc of [
 			appRouter.stats.summary,
 			appRouter.stats.breakdown,
-			appRouter.stats.highlights,
 			appRouter.stats.profitLossSeries,
 		]) {
 			expectProtected(proc);
@@ -124,7 +120,6 @@ describe("stats shared filter input validation", () => {
 
 	for (const [name, proc] of [
 		["summary", appRouter.stats.summary],
-		["highlights", appRouter.stats.highlights],
 		["profitLossSeries", appRouter.stats.profitLossSeries],
 	] as const) {
 		describe(`stats.${name}`, () => {
@@ -768,193 +763,5 @@ describe("summarizeStats", () => {
 		expect(summary.hourlyRate).toBe(100);
 		// Tournament-only roi: (500-100)/100*100 = 400.
 		expect(summary.roi).toBe(400);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// computeStreaks
-// ---------------------------------------------------------------------------
-
-describe("computeStreaks", () => {
-	function row(id: string, sessionDate: number, profitLoss: number) {
-		return cashRow({ id, sessionDate, profitLoss });
-	}
-
-	it("returns all-zero streaks for no rows", () => {
-		expect(computeStreaks([])).toEqual({
-			currentWinStreak: 0,
-			currentLoseStreak: 0,
-			maxWinStreak: 0,
-			maxLoseStreak: 0,
-		});
-	});
-
-	it("counts a pure winning sequence", () => {
-		const rows = [row("a", 1, 10), row("b", 2, 20), row("c", 3, 30)];
-		expect(computeStreaks(rows)).toEqual({
-			currentWinStreak: 3,
-			currentLoseStreak: 0,
-			maxWinStreak: 3,
-			maxLoseStreak: 0,
-		});
-	});
-
-	it("counts a pure losing sequence", () => {
-		const rows = [row("a", 1, -10), row("b", 2, -20)];
-		expect(computeStreaks(rows)).toEqual({
-			currentWinStreak: 0,
-			currentLoseStreak: 2,
-			maxWinStreak: 0,
-			maxLoseStreak: 2,
-		});
-	});
-
-	it("tracks max streaks across an alternating sequence", () => {
-		const rows = [
-			row("a", 1, 10),
-			row("b", 2, -5),
-			row("c", 3, 10),
-			row("d", 4, -5),
-		];
-		const result = computeStreaks(rows);
-		expect(result.maxWinStreak).toBe(1);
-		expect(result.maxLoseStreak).toBe(1);
-		// Last session is a loss → current win 0, current lose 1.
-		expect(result.currentWinStreak).toBe(0);
-		expect(result.currentLoseStreak).toBe(1);
-	});
-
-	it("resets the running streak on a break-even (PL === 0) session", () => {
-		const rows = [
-			row("a", 1, 10),
-			row("b", 2, 10),
-			row("c", 3, 0),
-			row("d", 4, 10),
-		];
-		const result = computeStreaks(rows);
-		// Best run was 2 before the zero, then 1 after.
-		expect(result.maxWinStreak).toBe(2);
-		expect(result.currentWinStreak).toBe(1);
-	});
-
-	it("returns a zero current streak when the last session is break-even", () => {
-		const rows = [row("a", 1, 10), row("b", 2, 0)];
-		const result = computeStreaks(rows);
-		expect(result.currentWinStreak).toBe(0);
-		expect(result.currentLoseStreak).toBe(0);
-		expect(result.maxWinStreak).toBe(1);
-	});
-
-	it("computes current streak from the last session backward", () => {
-		const rows = [row("a", 1, -10), row("b", 2, 10), row("c", 3, 10)];
-		const result = computeStreaks(rows);
-		// Trailing two wins → current win 2; overall max win is also 2.
-		expect(result.currentWinStreak).toBe(2);
-		expect(result.currentLoseStreak).toBe(0);
-		expect(result.maxWinStreak).toBe(2);
-		expect(result.maxLoseStreak).toBe(1);
-	});
-
-	it("orders by (sessionDate, id) before computing", () => {
-		// Supplied out of order; chronological order is a(+10) → b(+10) → c(-5).
-		const rows = [row("c", 3, -5), row("a", 1, 10), row("b", 2, 10)];
-		const result = computeStreaks(rows);
-		expect(result.maxWinStreak).toBe(2);
-		expect(result.currentLoseStreak).toBe(1);
-		expect(result.currentWinStreak).toBe(0);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// computeHighlights
-// ---------------------------------------------------------------------------
-
-describe("computeHighlights", () => {
-	it("returns all nulls for no rows", () => {
-		expect(computeHighlights([])).toEqual({
-			bestSession: null,
-			worstSession: null,
-			longestSession: null,
-		});
-	});
-
-	it("selects best and worst by currency profitLoss", () => {
-		const rows = [
-			cashRow({ id: "a", profitLoss: 100, bigBlind: 2 }),
-			cashRow({ id: "b", profitLoss: -50, bigBlind: 5 }),
-			cashRow({ id: "c", profitLoss: 30, bigBlind: 2 }),
-		];
-		const { bestSession, worstSession } = computeHighlights(rows);
-		expect(bestSession).toEqual({
-			id: "a",
-			date: EPOCH_NOV_2023,
-			profitLoss: 100,
-			normalizedProfitLoss: 50,
-			type: "cash_game",
-		});
-		expect(worstSession).toEqual({
-			id: "b",
-			date: EPOCH_NOV_2023,
-			profitLoss: -50,
-			normalizedProfitLoss: -10,
-			type: "cash_game",
-		});
-	});
-
-	it("includes a null normalizedProfitLoss when the best row is not normalizable", () => {
-		const rows = [cashRow({ id: "a", profitLoss: 100, bigBlind: null })];
-		const { bestSession } = computeHighlights(rows);
-		expect(bestSession?.normalizedProfitLoss).toBeNull();
-	});
-
-	it("keeps the first row when best/worst values tie", () => {
-		const rows = [
-			cashRow({ id: "first", profitLoss: 100 }),
-			cashRow({ id: "second", profitLoss: 100 }),
-		];
-		const { bestSession, worstSession } = computeHighlights(rows);
-		expect(bestSession?.id).toBe("first");
-		expect(worstSession?.id).toBe("first");
-	});
-
-	it("selects the longest session by max playMinutes", () => {
-		const rows = [
-			cashRow({ id: "a", playMinutes: 60 }),
-			cashRow({ id: "b", playMinutes: 180 }),
-			cashRow({ id: "c", playMinutes: 90 }),
-		];
-		expect(computeHighlights(rows).longestSession).toEqual({
-			id: "b",
-			date: EPOCH_NOV_2023,
-			playMinutes: 180,
-		});
-	});
-
-	it("ignores rows with null playMinutes when selecting the longest", () => {
-		const rows = [
-			cashRow({ id: "a", playMinutes: null }),
-			cashRow({ id: "b", playMinutes: 45 }),
-		];
-		expect(computeHighlights(rows).longestSession?.id).toBe("b");
-	});
-
-	it("returns a null longestSession when no row has playMinutes", () => {
-		const rows = [
-			cashRow({ id: "a", playMinutes: null }),
-			cashRow({ id: "b", playMinutes: null }),
-		];
-		expect(computeHighlights(rows).longestSession).toBeNull();
-	});
-
-	it("treats a zero-minute session as a valid longest when it is the only timed row", () => {
-		const rows = [
-			cashRow({ id: "a", playMinutes: null }),
-			cashRow({ id: "b", playMinutes: 0 }),
-		];
-		expect(computeHighlights(rows).longestSession).toEqual({
-			id: "b",
-			date: EPOCH_NOV_2023,
-			playMinutes: 0,
-		});
 	});
 });
