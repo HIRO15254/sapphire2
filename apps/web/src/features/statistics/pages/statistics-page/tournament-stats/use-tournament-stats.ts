@@ -1,44 +1,36 @@
 import { useQuery } from "@tanstack/react-query";
+import type { StatRow } from "@/features/statistics/pages/statistics-page/stat-table";
 import {
 	type StatsSectionContext,
 	unitForType,
 } from "@/features/statistics/types";
 import {
+	formatFixed,
+	formatMinutes,
 	formatPercent,
 	formatScopedProfitLoss,
 } from "@/features/statistics/utils/format-stats";
+import {
+	formatProfitLoss,
+	profitLossColorClass,
+} from "@/utils/format-profit-loss";
 import { trpc } from "@/utils/trpc";
-
-/**
- * One metric card in the tournament block. `amount` carries the raw signed
- * value (or null) so the component can color P&L cards without re-parsing the
- * formatted string. `isProfitLoss` flags monetary cards — ROI / ITM / placement
- * stay neutral.
- */
-export interface TournamentMetric {
-	amount: number | null;
-	isProfitLoss: boolean;
-	key: string;
-	label: string;
-	value: string;
-}
-
-export interface TournamentStatsView {
-	metrics: TournamentMetric[];
-}
 
 export interface UseTournamentStatsResult {
 	isEmpty: boolean;
 	isPending: boolean;
-	view: TournamentStatsView | null;
+	rows: StatRow[];
+}
+
+function ratio(value: number | null, count: number): number | null {
+	return value === null || count === 0 ? null : value / count;
 }
 
 /**
- * Tournament-specific stat block. Always queries with the type forced to
+ * Tournament-specific stat table. Always queries with the type forced to
  * `tournament` so it stays game-specific even when the global type filter is
- * "all". Avg-finish-%, final-table-rate, total-bounty and max-cash are omitted —
- * the stats router does not expose those fields yet. Prize money is always a
- * currency amount, so it stays in currency units even when normalized.
+ * "all". Prize money is always a currency amount, so it stays in currency units
+ * even when normalized.
  */
 export function useTournamentStats(
 	ctx: StatsSectionContext
@@ -53,42 +45,81 @@ export function useTournamentStats(
 		return {
 			isPending: ctx.enabled && summaryQuery.isPending,
 			isEmpty: false,
-			view: null,
+			rows: [],
 		};
 	}
 
 	if (summary.totalSessions === 0) {
-		return { isPending: false, isEmpty: true, view: null };
+		return { isPending: false, isEmpty: true, rows: [] };
 	}
 
+	const { normalized } = ctx;
 	const unit = unitForType(ctx, "tournament");
-	const net = ctx.normalized
+	const net = normalized
 		? summary.tournamentNormalizedProfitLoss
 		: summary.totalProfitLoss;
+	const avg = ratio(net, summary.totalSessions);
+	const scoped = (value: number | null): string =>
+		formatScopedProfitLoss(value, { normalized, unit });
 
-	const metrics: TournamentMetric[] = [
+	const rows: StatRow[] = [
+		{
+			key: "sessions",
+			label: "Sessions",
+			value: String(summary.totalSessions),
+			valueColor: "",
+		},
+		{
+			key: "net",
+			label: "Net P&L",
+			value: scoped(net),
+			valueColor: profitLossColorClass(net),
+		},
+		{
+			key: "avg",
+			label: "Avg P&L",
+			value: scoped(avg),
+			valueColor: profitLossColorClass(avg),
+		},
+		{
+			key: "winRate",
+			label: "Win rate",
+			value: formatPercent(summary.winRate),
+			valueColor: "",
+		},
+		{
+			key: "playTime",
+			label: "Play time",
+			value: formatMinutes(summary.totalPlayMinutes),
+			valueColor: "",
+		},
 		{
 			key: "roi",
 			label: "ROI",
 			value: formatPercent(summary.roi),
-			amount: summary.roi,
-			isProfitLoss: false,
+			valueColor: profitLossColorClass(summary.roi),
 		},
 		{
 			key: "itm",
 			label: "ITM rate",
 			value: formatPercent(summary.itmRate),
-			amount: summary.itmRate,
-			isProfitLoss: false,
+			valueColor: "",
 		},
 		{
-			key: "net",
-			label: "Net",
-			value: formatScopedProfitLoss(net, { normalized: ctx.normalized, unit }),
-			amount: net,
-			isProfitLoss: true,
+			key: "placement",
+			label: "Avg placement",
+			value: formatFixed(summary.avgPlacement),
+			valueColor: "",
+		},
+		{
+			key: "prize",
+			label: "Total prize",
+			value: formatProfitLoss(summary.totalPrizeMoney, {
+				currencyUnit: ctx.currencyUnit,
+			}),
+			valueColor: "",
 		},
 	];
 
-	return { isPending: false, isEmpty: false, view: { metrics } };
+	return { isPending: false, isEmpty: false, rows };
 }

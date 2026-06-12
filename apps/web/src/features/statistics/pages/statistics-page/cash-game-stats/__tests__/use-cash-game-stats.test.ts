@@ -87,12 +87,8 @@ async function renderLoadedCash(context: StatsSectionContext) {
 	return view.result;
 }
 
-function metricsByKey(result: {
-	current: ReturnType<typeof useCashGameStats>;
-}) {
-	return Object.fromEntries(
-		(result.current.view?.metrics ?? []).map((m) => [m.key, m])
-	);
+function rowsByKey(result: { current: ReturnType<typeof useCashGameStats> }) {
+	return Object.fromEntries(result.current.rows.map((r) => [r.key, r]));
 }
 
 function lastSummaryInput(): { type?: unknown } | undefined {
@@ -107,7 +103,7 @@ describe("useCashGameStats", () => {
 		const { result } = renderCash(ctx({ enabled: false }));
 		expect(result.current.isPending).toBe(false);
 		expect(result.current.isEmpty).toBe(false);
-		expect(result.current.view).toBeNull();
+		expect(result.current.rows).toEqual([]);
 		expect(trpcMocks.summaryQueryFn).not.toHaveBeenCalled();
 	});
 
@@ -146,71 +142,69 @@ describe("useCashGameStats", () => {
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary({ totalSessions: 0 }));
 		const result = await renderLoadedCash(ctx());
 		expect(result.current.isEmpty).toBe(true);
-		expect(result.current.view).toBeNull();
+		expect(result.current.rows).toEqual([]);
 	});
 
-	it("formats the metric cards with the currency unit when not normalized", async () => {
+	it("lists the cash stat rows with currency units when not normalized", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		const result = await renderLoadedCash(ctx());
-		const byKey = metricsByKey(result);
+		expect(result.current.rows.map((r) => r.key)).toEqual([
+			"sessions",
+			"net",
+			"avg",
+			"winRate",
+			"playTime",
+			"hourly",
+			"evDiff",
+		]);
+		const byKey = rowsByKey(result);
+		expect(byKey.sessions.value).toBe("10");
+		expect(byKey.net.value).toBe("+1,500 USD");
+		expect(byKey.avg.value).toBe("+150 USD");
+		expect(byKey.winRate.value).toBe("60.0%");
+		expect(byKey.playTime.value).toBe("10h");
 		expect(byKey.hourly.label).toBe("Hourly rate");
 		expect(byKey.hourly.value).toBe("+150 USD/h");
 		expect(byKey.evDiff.value).toBe("+300 USD");
-		expect(byKey.net.value).toBe("+1,500 USD");
-		expect(result.current.view?.metrics.map((m) => m.key)).toEqual([
-			"hourly",
-			"evDiff",
-			"net",
-		]);
 	});
 
-	it("switches net, hourly, and EV diff to bb units when normalized", async () => {
+	it("switches net, avg, hourly, and EV diff to bb units when normalized", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		const result = await renderLoadedCash(
 			ctx({ normalized: true, currencyUnit: null })
 		);
-		const byKey = metricsByKey(result);
+		const byKey = rowsByKey(result);
+		expect(byKey.net.value).toBe("+30 bb");
+		expect(byKey.avg.value).toBe("+3 bb");
 		expect(byKey.hourly.label).toBe("BB / hr");
 		expect(byKey.hourly.value).toBe("+3 bb/h");
 		expect(byKey.evDiff.value).toBe("+6 bb");
-		expect(byKey.net.value).toBe("+30 bb");
 	});
 
 	it("renders an em dash for a null hourly rate", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary({ hourlyRate: null }));
 		const result = await renderLoadedCash(ctx());
-		expect(metricsByKey(result).hourly.value).toBe("—");
-	});
-
-	it("renders an em dash for a null bb/hr when normalized", async () => {
-		trpcMocks.summaryQueryFn.mockReset();
-		trpcMocks.summaryQueryFn.mockResolvedValue(summary({ bbPerHour: null }));
-		const result = await renderLoadedCash(
-			ctx({ normalized: true, currencyUnit: null })
-		);
-		expect(metricsByKey(result).hourly.value).toBe("—");
+		expect(rowsByKey(result).hourly.value).toBe("—");
 	});
 
 	it("renders an em dash for a null EV diff", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary({ totalEvDiff: null }));
 		const result = await renderLoadedCash(ctx());
-		const evDiff = metricsByKey(result).evDiff;
-		expect(evDiff.value).toBe("—");
-		expect(evDiff.amount).toBeNull();
+		expect(rowsByKey(result).evDiff.value).toBe("—");
 	});
 
-	it("preserves a negative net amount for coloring", async () => {
+	it("colors a negative net with the destructive class", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(
 			summary({ totalProfitLoss: -500 })
 		);
 		const result = await renderLoadedCash(ctx());
-		const net = metricsByKey(result).net;
+		const net = rowsByKey(result).net;
 		expect(net.value).toBe("-500 USD");
-		expect(net.amount).toBe(-500);
+		expect(net.valueColor).toBe("text-red-600 dark:text-red-400");
 	});
 });

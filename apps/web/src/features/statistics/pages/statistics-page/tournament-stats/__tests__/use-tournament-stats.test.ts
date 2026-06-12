@@ -87,12 +87,8 @@ async function renderLoadedTournament(context: StatsSectionContext) {
 	return view.result;
 }
 
-function metricsByKey(result: {
-	current: ReturnType<typeof useTournamentStats>;
-}) {
-	return Object.fromEntries(
-		(result.current.view?.metrics ?? []).map((m) => [m.key, m])
-	);
+function rowsByKey(result: { current: ReturnType<typeof useTournamentStats> }) {
+	return Object.fromEntries(result.current.rows.map((r) => [r.key, r]));
 }
 
 function lastSummaryInput(): { type?: unknown } | undefined {
@@ -106,7 +102,7 @@ describe("useTournamentStats", () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		const { result } = renderTournament(ctx({ enabled: false }));
 		expect(result.current.isPending).toBe(false);
-		expect(result.current.view).toBeNull();
+		expect(result.current.rows).toEqual([]);
 		expect(trpcMocks.summaryQueryFn).not.toHaveBeenCalled();
 	});
 
@@ -122,54 +118,68 @@ describe("useTournamentStats", () => {
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary({ totalSessions: 0 }));
 		const result = await renderLoadedTournament(ctx());
 		expect(result.current.isEmpty).toBe(true);
-		expect(result.current.view).toBeNull();
+		expect(result.current.rows).toEqual([]);
 	});
 
-	it("shows only ROI, ITM, and net cards", async () => {
+	it("lists the tournament stat rows with currency units when not normalized", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		const result = await renderLoadedTournament(ctx());
-		const byKey = metricsByKey(result);
-		expect(byKey.roi.value).toBe("25.0%");
-		expect(byKey.itm.value).toBe("40.0%");
-		expect(byKey.net.value).toBe("+2,000 USD");
-		expect(result.current.view?.metrics.map((m) => m.key)).toEqual([
+		expect(result.current.rows.map((r) => r.key)).toEqual([
+			"sessions",
+			"net",
+			"avg",
+			"winRate",
+			"playTime",
 			"roi",
 			"itm",
-			"net",
+			"placement",
+			"prize",
 		]);
+		const byKey = rowsByKey(result);
+		expect(byKey.sessions.value).toBe("8");
+		expect(byKey.net.value).toBe("+2,000 USD");
+		expect(byKey.avg.value).toBe("+250 USD");
+		expect(byKey.winRate.value).toBe("50.0%");
+		expect(byKey.playTime.value).toBe("12h");
+		expect(byKey.roi.value).toBe("25.0%");
+		expect(byKey.itm.value).toBe("40.0%");
+		expect(byKey.placement.value).toBe("12.5");
+		expect(byKey.prize.value).toBe("+5,000 USD");
 	});
 
-	it("switches the net card to the bi unit when normalized", async () => {
+	it("switches net and avg to bi units but keeps prize in currency when normalized", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		const result = await renderLoadedTournament(
-			ctx({ normalized: true, currencyUnit: null })
+			ctx({ normalized: true, currencyUnit: "USD" })
 		);
-		const net = metricsByKey(result).net;
-		expect(net.value).toBe("+4 bi");
-		expect(net.amount).toBe(4);
+		const byKey = rowsByKey(result);
+		expect(byKey.net.value).toBe("+4 bi");
+		expect(byKey.avg.value).toBe("+0.5 bi");
+		expect(byKey.prize.value).toBe("+5,000 USD");
 	});
 
-	it("renders em dashes for null ROI / ITM", async () => {
+	it("renders em dashes for null ROI / ITM / placement", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(
-			summary({ roi: null, itmRate: null })
+			summary({ roi: null, itmRate: null, avgPlacement: null })
 		);
 		const result = await renderLoadedTournament(ctx());
-		const byKey = metricsByKey(result);
+		const byKey = rowsByKey(result);
 		expect(byKey.roi.value).toBe("—");
 		expect(byKey.itm.value).toBe("—");
+		expect(byKey.placement.value).toBe("—");
 	});
 
-	it("preserves a negative net amount for coloring", async () => {
+	it("colors a negative net with the destructive class", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(
 			summary({ totalProfitLoss: -750 })
 		);
 		const result = await renderLoadedTournament(ctx());
-		const net = metricsByKey(result).net;
+		const net = rowsByKey(result).net;
 		expect(net.value).toBe("-750 USD");
-		expect(net.amount).toBe(-750);
+		expect(net.valueColor).toBe("text-red-600 dark:text-red-400");
 	});
 });

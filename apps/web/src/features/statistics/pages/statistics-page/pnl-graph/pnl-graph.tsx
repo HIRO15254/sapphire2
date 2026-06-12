@@ -33,7 +33,12 @@ export function PnlGraph({ ctx }: { ctx: StatsSectionContext }) {
 					value={xAxis}
 				>
 					{X_AXIS_VALUES.map((value) => (
-						<ToggleGroupItem key={value} size="sm" value={value}>
+						<ToggleGroupItem
+							className="data-[state=on]:border-primary data-[state=on]:bg-primary/10 data-[state=on]:text-primary"
+							key={value}
+							size="sm"
+							value={value}
+						>
 							{X_AXIS_LABEL[value]}
 						</ToggleGroupItem>
 					))}

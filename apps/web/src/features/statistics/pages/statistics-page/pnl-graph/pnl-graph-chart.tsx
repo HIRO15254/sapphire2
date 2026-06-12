@@ -9,7 +9,6 @@ import {
 	YAxis,
 } from "recharts";
 import type { PnlGraphXAxis } from "@/features/statistics/utils/aggregate-pnl-points";
-import { formatCompactNumber } from "@/utils/format-number";
 import { alignedDualDomains, type ChartPoint } from "./aligned-domains";
 import { CustomLegend, type LegendItem } from "./custom-legend";
 import { CustomTooltip, type TooltipPayloadItem } from "./custom-tooltip";
@@ -18,6 +17,16 @@ const COLOR_CASH = "var(--chart-1)";
 const COLOR_TOURNAMENT = "var(--chart-5)";
 const COLOR_PRIMARY = "var(--primary)";
 
+// Both axes render values to 3 significant figures with k / M compaction.
+const AXIS_NUMBER_FORMAT = new Intl.NumberFormat("en-US", {
+	notation: "compact",
+	maximumSignificantDigits: 3,
+});
+
+function formatAxisValue(value: number): string {
+	return AXIS_NUMBER_FORMAT.format(value);
+}
+
 function formatXTick(value: number, xAxis: PnlGraphXAxis): string {
 	if (xAxis === "date") {
 		const d = new Date(value);
@@ -25,10 +34,7 @@ function formatXTick(value: number, xAxis: PnlGraphXAxis): string {
 		const day = String(d.getUTCDate()).padStart(2, "0");
 		return `${month}/${day}`;
 	}
-	if (xAxis === "playTime") {
-		return value.toFixed(1);
-	}
-	return formatCompactNumber(value);
+	return formatAxisValue(value);
 }
 
 interface PnlGraphChartProps {
@@ -96,7 +102,7 @@ export default function PnlGraphChart({
 							<YAxis
 								domain={dualDomains.bb}
 								tick={{ fontSize: 10 }}
-								tickFormatter={(v: number) => formatCompactNumber(v)}
+								tickFormatter={(v: number) => formatAxisValue(v)}
 								width={50}
 								yAxisId="bb"
 							/>
@@ -104,7 +110,7 @@ export default function PnlGraphChart({
 								domain={dualDomains.bi}
 								orientation="right"
 								tick={{ fontSize: 10 }}
-								tickFormatter={(v: number) => formatCompactNumber(v)}
+								tickFormatter={(v: number) => formatAxisValue(v)}
 								width={50}
 								yAxisId="bi"
 							/>
@@ -112,7 +118,7 @@ export default function PnlGraphChart({
 					) : (
 						<YAxis
 							tick={{ fontSize: 10 }}
-							tickFormatter={(v: number) => formatCompactNumber(v)}
+							tickFormatter={(v: number) => formatAxisValue(v)}
 							width={50}
 						/>
 					)}

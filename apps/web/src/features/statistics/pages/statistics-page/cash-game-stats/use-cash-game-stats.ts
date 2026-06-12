@@ -1,41 +1,33 @@
 import { useQuery } from "@tanstack/react-query";
+import type { StatRow } from "@/features/statistics/pages/statistics-page/stat-table";
 import {
 	type StatsSectionContext,
 	unitForType,
 } from "@/features/statistics/types";
 import {
+	formatMinutes,
+	formatPercent,
 	formatScopedProfitLoss,
 	formatStatAmount,
 } from "@/features/statistics/utils/format-stats";
-import { formatProfitLoss } from "@/utils/format-profit-loss";
+import {
+	formatProfitLoss,
+	profitLossColorClass,
+} from "@/utils/format-profit-loss";
 import { trpc } from "@/utils/trpc";
-
-/**
- * One metric card in the cash-game block. `amount` carries the raw signed value
- * (or null for an em-dash card) so the component can pick the P&L color without
- * re-parsing the formatted string. `isProfitLoss` flags monetary cards whose
- * sign should be colored — non-monetary cards stay neutral.
- */
-export interface CashGameMetric {
-	amount: number | null;
-	isProfitLoss: boolean;
-	key: string;
-	label: string;
-	value: string;
-}
-
-export interface CashGameStatsView {
-	metrics: CashGameMetric[];
-}
 
 export interface UseCashGameStatsResult {
 	isEmpty: boolean;
 	isPending: boolean;
-	view: CashGameStatsView | null;
+	rows: StatRow[];
+}
+
+function ratio(value: number | null, count: number): number | null {
+	return value === null || count === 0 ? null : value / count;
 }
 
 /**
- * Cash-game-specific stat block. The block always queries with the type forced
+ * Cash-game-specific stat table. The block always queries with the type forced
  * to `cash_game` so it stays game-specific even when the global type filter is
  * "all". bb/100 is intentionally omitted — hands are not tracked.
  */
@@ -52,60 +44,86 @@ export function useCashGameStats(
 		return {
 			isPending: ctx.enabled && summaryQuery.isPending,
 			isEmpty: false,
-			view: null,
+			rows: [],
 		};
 	}
 
 	if (summary.totalSessions === 0) {
-		return { isPending: false, isEmpty: true, view: null };
+		return { isPending: false, isEmpty: true, rows: [] };
 	}
 
+	const { normalized } = ctx;
 	const unit = unitForType(ctx, "cash_game");
-	const net = ctx.normalized
+	const net = normalized
 		? summary.cashNormalizedProfitLoss
 		: summary.totalProfitLoss;
-	const evDiff = ctx.normalized
+	const avg = ratio(net, summary.totalSessions);
+	const evDiff = normalized
 		? summary.cashEvDiffNormalized
 		: summary.totalEvDiff;
 
-	const hourly: CashGameMetric = ctx.normalized
+	const scoped = (value: number | null): string =>
+		formatScopedProfitLoss(value, { normalized, unit });
+	const hourly: { text: string; amount: number | null } = normalized
 		? {
-				key: "hourly",
-				label: "BB / hr",
-				value: formatStatAmount(summary.bbPerHour, "bb/h", { decimals: 2 }),
+				text: formatStatAmount(summary.bbPerHour, "bb/h", { decimals: 2 }),
 				amount: summary.bbPerHour,
-				isProfitLoss: true,
 			}
 		: {
-				key: "hourly",
-				label: "Hourly rate",
-				value:
+				text:
 					summary.hourlyRate == null
 						? "—"
 						: `${formatProfitLoss(summary.hourlyRate, { currencyUnit: ctx.currencyUnit })}/h`,
 				amount: summary.hourlyRate,
-				isProfitLoss: true,
 			};
+	const evDiffText = normalized
+		? formatStatAmount(evDiff, "bb")
+		: formatProfitLoss(evDiff, { currencyUnit: ctx.currencyUnit });
 
-	const metrics: CashGameMetric[] = [
-		hourly,
+	const rows: StatRow[] = [
 		{
-			key: "evDiff",
-			label: "EV diff",
-			value: ctx.normalized
-				? formatStatAmount(evDiff, "bb")
-				: formatProfitLoss(evDiff, { currencyUnit: ctx.currencyUnit }),
-			amount: evDiff,
-			isProfitLoss: true,
+			key: "sessions",
+			label: "Sessions",
+			value: String(summary.totalSessions),
+			valueColor: "",
 		},
 		{
 			key: "net",
-			label: "Net",
-			value: formatScopedProfitLoss(net, { normalized: ctx.normalized, unit }),
-			amount: net,
-			isProfitLoss: true,
+			label: "Net P&L",
+			value: scoped(net),
+			valueColor: profitLossColorClass(net),
+		},
+		{
+			key: "avg",
+			label: "Avg P&L",
+			value: scoped(avg),
+			valueColor: profitLossColorClass(avg),
+		},
+		{
+			key: "winRate",
+			label: "Win rate",
+			value: formatPercent(summary.winRate),
+			valueColor: "",
+		},
+		{
+			key: "playTime",
+			label: "Play time",
+			value: formatMinutes(summary.totalPlayMinutes),
+			valueColor: "",
+		},
+		{
+			key: "hourly",
+			label: normalized ? "BB / hr" : "Hourly rate",
+			value: hourly.text,
+			valueColor: profitLossColorClass(hourly.amount),
+		},
+		{
+			key: "evDiff",
+			label: "EV diff",
+			value: evDiffText,
+			valueColor: profitLossColorClass(evDiff),
 		},
 	];
 
-	return { isPending: false, isEmpty: false, view: { metrics } };
+	return { isPending: false, isEmpty: false, rows };
 }
