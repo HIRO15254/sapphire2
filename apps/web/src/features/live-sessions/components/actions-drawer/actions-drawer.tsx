@@ -13,6 +13,12 @@ const DESTRUCTIVE_ITEM =
 
 export interface ActionsDrawerItem {
 	icon: ComponentType<{ size?: number }>;
+	/**
+	 * Stable React key. Required when labels can repeat (e.g. a player picker
+	 * with two seatless same-named players); falls back to `label` for menus
+	 * whose labels are unique by construction.
+	 */
+	key?: string;
 	label: string;
 	onSelect: () => void;
 	tone?: "default" | "destructive";
@@ -58,7 +64,7 @@ export function ActionsDrawer({
 				) : (
 					<ul className="flex flex-col gap-1 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
 						{items.map((item) => (
-							<li key={item.label}>
+							<li key={item.key ?? item.label}>
 								<button
 									className={
 										item.tone === "destructive"

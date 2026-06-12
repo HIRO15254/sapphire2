@@ -132,6 +132,10 @@ export function useActiveSessionScene({
 	const playerPickerItems: ActionsDrawerItem[] = state.players.map(
 		(player) => ({
 			icon: IconUser,
+			// Seated players collapse to one row per session_table_player; the
+			// table-player id is the stable key (names repeat — temp players are
+			// all "Anonymous" and seatless, so the label is not unique).
+			key: player.id,
 			label:
 				player.seatPosition === null
 					? player.name

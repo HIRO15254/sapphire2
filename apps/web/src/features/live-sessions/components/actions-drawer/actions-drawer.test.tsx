@@ -66,6 +66,29 @@ describe("ActionsDrawer", () => {
 		expect(first).not.toHaveBeenCalled();
 	});
 
+	it("emits no duplicate-key warning for same-label items with distinct keys", () => {
+		// Two seatless players named "Anonymous" share a label; the row key must
+		// come from the stable `key`, not the duplicated label, or React logs a
+		// "same key" error (and risks mis-reconciling on later list changes).
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {
+			// swallow
+		});
+		setup({
+			items: [
+				{ icon: IconBolt, key: "p-1", label: "Anonymous", onSelect: vi.fn() },
+				{ icon: IconBolt, key: "p-2", label: "Anonymous", onSelect: vi.fn() },
+			],
+		});
+		expect(screen.getAllByRole("button", { name: "Anonymous" })).toHaveLength(
+			2
+		);
+		const warned = errorSpy.mock.calls.some((args) =>
+			String(args[0]).includes("same key")
+		);
+		errorSpy.mockRestore();
+		expect(warned).toBe(false);
+	});
+
 	it("styles destructive items with the destructive text color", () => {
 		setup({
 			items: [
