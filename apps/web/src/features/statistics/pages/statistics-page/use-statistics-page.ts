@@ -5,6 +5,8 @@ import type { StatsSectionContext } from "@/features/statistics/types";
 export interface UseStatisticsPageResult {
 	ctx: StatsSectionContext;
 	isScopeValid: boolean;
+	showCashBlock: boolean;
+	showTournamentBlock: boolean;
 }
 
 /**
@@ -31,5 +33,8 @@ export function useStatisticsPage(): UseStatisticsPageResult {
 			type: filters.type,
 		},
 		isScopeValid,
+		// The game-specific blocks show for their type or when "all" is selected.
+		showCashBlock: filters.type !== "tournament",
+		showTournamentBlock: filters.type !== "cash_game",
 	};
 }

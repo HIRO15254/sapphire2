@@ -1,12 +1,18 @@
 import { IconChartHistogram } from "@tabler/icons-react";
 import { StatsFilterBar } from "@/features/statistics/components/stats-filter-bar";
+import { BreakdownSection } from "@/features/statistics/pages/statistics-page/breakdown-section";
+import { CashGameStats } from "@/features/statistics/pages/statistics-page/cash-game-stats";
+import { HighlightsSection } from "@/features/statistics/pages/statistics-page/highlights-section";
 import { KpiCards } from "@/features/statistics/pages/statistics-page/kpi-cards";
+import { PnlGraph } from "@/features/statistics/pages/statistics-page/pnl-graph";
+import { TournamentStats } from "@/features/statistics/pages/statistics-page/tournament-stats";
 import { useStatisticsPage } from "@/features/statistics/pages/statistics-page/use-statistics-page";
 import { PageHeader } from "@/shared/components/page-header";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 
 export function StatisticsPage() {
-	const { ctx, isScopeValid } = useStatisticsPage();
+	const { ctx, isScopeValid, showCashBlock, showTournamentBlock } =
+		useStatisticsPage();
 
 	return (
 		<div className="min-h-full bg-background text-foreground">
@@ -16,7 +22,14 @@ export function StatisticsPage() {
 			<StatsFilterBar />
 			<div className="space-y-6 p-4">
 				{isScopeValid ? (
-					<KpiCards ctx={ctx} />
+					<>
+						<KpiCards ctx={ctx} />
+						<PnlGraph ctx={ctx} />
+						<BreakdownSection ctx={ctx} />
+						{showCashBlock ? <CashGameStats ctx={ctx} /> : null}
+						{showTournamentBlock ? <TournamentStats ctx={ctx} /> : null}
+						<HighlightsSection ctx={ctx} />
+					</>
 				) : (
 					<EmptyState
 						description="Select a currency, or enable BB / BI normalization to combine results across currencies."

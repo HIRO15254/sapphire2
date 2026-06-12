@@ -1,6 +1,10 @@
 import type {
-	StatsNormalization,
 	StatsQueryInput,
+	StatsType,
+} from "@/features/statistics/utils/stats-filters";
+
+export type {
+	StatsNormalization,
 	StatsType,
 } from "@/features/statistics/utils/stats-filters";
 
@@ -20,8 +24,6 @@ export interface StatsSectionContext {
 	statsInput: StatsQueryInput;
 	type: StatsType;
 }
-
-export type { StatsNormalization, StatsType };
 
 /** The unit suffix to render monetary values with for the current scope. */
 export function statsValueUnit(ctx: StatsSectionContext): string | null {

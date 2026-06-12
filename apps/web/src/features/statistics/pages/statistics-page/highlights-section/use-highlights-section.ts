@@ -76,7 +76,7 @@ export function useHighlightsSection(
 			id: string;
 			date: number;
 			profitLoss: number;
-			normalizedProfitLoss: number;
+			normalizedProfitLoss: number | null;
 		} | null
 	): HighlightSessionCard | null => {
 		if (!session) {

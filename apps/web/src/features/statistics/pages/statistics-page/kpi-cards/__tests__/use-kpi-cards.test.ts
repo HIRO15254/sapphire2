@@ -21,7 +21,7 @@ vi.mock("@/utils/trpc", () => ({
 
 import { useKpiCards } from "@/features/statistics/pages/statistics-page/kpi-cards/use-kpi-cards";
 
-type Summary = {
+interface Summary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
 	bbPerHour: number | null;
@@ -36,7 +36,7 @@ type Summary = {
 	totalProfitLoss: number;
 	totalSessions: number;
 	winRate: number;
-};
+}
 
 function summary(overrides: Partial<Summary> = {}): Summary {
 	return {
