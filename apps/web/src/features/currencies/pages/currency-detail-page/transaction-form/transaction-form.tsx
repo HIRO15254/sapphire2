@@ -1,6 +1,5 @@
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import { Textarea } from "@/shared/components/ui/textarea";
 import { TypeCombobox } from "./type-combobox";
 import {
 	type TransactionFormValues,
@@ -99,7 +98,7 @@ export function TransactionFormV2({
 			<form.Field name="memo">
 				{(field) => (
 					<Field htmlFor={field.name} label="Memo">
-						<Textarea
+						<Input
 							id={field.name}
 							name={field.name}
 							onBlur={field.handleBlur}
