@@ -148,16 +148,18 @@ describe("useTournamentStats", () => {
 		expect(byKey.prize.value).toBe("+5,000 USD");
 	});
 
-	it("switches net and avg to bi units but keeps prize in currency when normalized", async () => {
+	it("switches net and avg to bi units and hides total prize when normalized", async () => {
 		trpcMocks.summaryQueryFn.mockReset();
 		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
 		const result = await renderLoadedTournament(
-			ctx({ normalized: true, currencyUnit: "USD" })
+			ctx({ normalized: true, currencyUnit: null })
 		);
 		const byKey = rowsByKey(result);
 		expect(byKey.net.value).toBe("+4 bi");
 		expect(byKey.avg.value).toBe("+0.5 bi");
-		expect(byKey.prize.value).toBe("+5,000 USD");
+		// Total prize is a raw currency amount → hidden under normalization.
+		expect(byKey.prize).toBeUndefined();
+		expect(result.current.rows.map((r) => r.key)).not.toContain("prize");
 	});
 
 	it("renders em dashes for null ROI / ITM / placement", async () => {

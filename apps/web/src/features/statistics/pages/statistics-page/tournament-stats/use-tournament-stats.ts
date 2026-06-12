@@ -111,15 +111,21 @@ export function useTournamentStats(
 			value: formatFixed(summary.avgPlacement),
 			valueColor: "",
 		},
-		{
+	];
+
+	// Total prize is a raw currency amount, so it is only meaningful in currency
+	// mode — under normalization (where a currency may not even be selected) it
+	// would sum face values across currencies, so it is hidden.
+	if (!normalized) {
+		rows.push({
 			key: "prize",
 			label: "Total prize",
 			value: formatProfitLoss(summary.totalPrizeMoney, {
 				currencyUnit: ctx.currencyUnit,
 			}),
 			valueColor: "",
-		},
-	];
+		});
+	}
 
 	return { isPending: false, isEmpty: false, rows };
 }
