@@ -29,7 +29,7 @@ describe("parseStatsSearch", () => {
 	it("applies defaults for an empty search object", () => {
 		expect(parseStatsSearch({})).toEqual({
 			period: "all",
-			norm: "off",
+			norm: "normalized",
 			type: "all",
 		});
 	});

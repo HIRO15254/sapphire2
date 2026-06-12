@@ -34,7 +34,9 @@ export const statsSearchSchema = z.object({
 	from: z.coerce.number().int().optional(),
 	to: z.coerce.number().int().optional(),
 	currency: z.string().optional(),
-	norm: z.enum(STATS_NORMALIZATIONS).default("off"),
+	// Default to normalized (BB / BI) so the page shows data without first
+	// requiring a single-currency selection.
+	norm: z.enum(STATS_NORMALIZATIONS).default("normalized"),
 	type: z.enum(STATS_TYPES).default("all"),
 	room: z.string().optional(),
 });
