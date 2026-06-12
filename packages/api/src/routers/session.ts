@@ -334,7 +334,13 @@ async function syncCurrencyTransaction(
 	}
 }
 
-export { computeCashGamePL, computeTournamentPL, validateSessionOwnership };
+export {
+	computeCashGamePL,
+	computeTournamentPL,
+	getSessionChipPurchaseMap,
+	sumChipPurchaseCost,
+	validateSessionOwnership,
+};
 
 const CASH_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"buyIn",
@@ -935,6 +941,93 @@ function computePlayMinutes(r: ProfitLossSeriesRow): number | null {
 		(r.endedAt.getTime() - r.startedAt.getTime()) / 60_000
 	);
 	return Math.max(0, elapsed - (r.breakMinutes ?? 0));
+}
+
+interface ProfitLossSeriesFilters {
+	currencyId?: string;
+	dateFrom?: number;
+	dateTo?: number;
+	ringGameId?: string;
+	roomId?: string;
+	type?: "cash_game" | "tournament";
+}
+
+/**
+ * Shared body of the `profitLossSeries` resolver. Extracted so both
+ * `session.profitLossSeries` (which keeps its `ringGameId` filter) and the
+ * stats router can reuse the exact same selection + point mapping, keeping the
+ * point shape identical across both surfaces.
+ */
+export async function fetchProfitLossSeries(
+	db: DbInstance,
+	userId: string,
+	input: ProfitLossSeriesFilters
+) {
+	const conditions = [eq(gameSession.userId, userId)];
+	if (input.type) {
+		conditions.push(eq(gameSession.kind, input.type));
+	}
+	if (input.roomId) {
+		conditions.push(eq(gameSession.roomId, input.roomId));
+	}
+	if (input.currencyId) {
+		conditions.push(eq(gameSession.currencyId, input.currencyId));
+	}
+	if (input.ringGameId) {
+		conditions.push(eq(sessionCashDetail.ringGameId, input.ringGameId));
+	}
+	if (input.dateFrom !== undefined) {
+		conditions.push(
+			gte(gameSession.sessionDate, new Date(input.dateFrom * 1000))
+		);
+	}
+	if (input.dateTo !== undefined) {
+		conditions.push(
+			lte(gameSession.sessionDate, new Date(input.dateTo * 1000))
+		);
+	}
+
+	const rows = await db
+		.select({
+			id: gameSession.id,
+			type: gameSession.kind,
+			sessionDate: gameSession.sessionDate,
+			startedAt: gameSession.startedAt,
+			endedAt: gameSession.endedAt,
+			breakMinutes: gameSession.breakMinutes,
+			buyIn: sessionCashDetail.buyIn,
+			cashOut: sessionCashDetail.cashOut,
+			evCashOut: sessionCashDetail.evCashOut,
+			ringGameBlind2: sessionCashDetail.blind2,
+			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
+			entryFee: sessionTournamentDetail.entryFee,
+			prizeMoney: sessionTournamentDetail.prizeMoney,
+			bountyPrizes: sessionTournamentDetail.bountyPrizes,
+		})
+		.from(gameSession)
+		.leftJoin(
+			sessionCashDetail,
+			eq(sessionCashDetail.sessionId, gameSession.id)
+		)
+		.leftJoin(
+			sessionTournamentDetail,
+			eq(sessionTournamentDetail.sessionId, gameSession.id)
+		)
+		.where(and(...conditions))
+		.orderBy(asc(gameSession.sessionDate), asc(gameSession.id));
+
+	const chipPurchaseMap = await getSessionChipPurchaseMap(
+		db,
+		rows.map((r) => r.id)
+	);
+	const points = rows.map((r) =>
+		toProfitLossSeriesPoint({
+			...r,
+			chipPurchaseCost: sumChipPurchaseCost(chipPurchaseMap.get(r.id) ?? []),
+		})
+	);
+
+	return { points };
 }
 
 function toProfitLossSeriesPoint(r: ProfitLossSeriesRow) {
@@ -2045,76 +2138,9 @@ export const sessionRouter = router({
 				dateTo: z.number().optional(),
 			})
 		)
-		.query(async ({ ctx, input }) => {
-			const userId = ctx.session.user.id;
-			const conditions = [eq(gameSession.userId, userId)];
-			if (input.type) {
-				conditions.push(eq(gameSession.kind, input.type));
-			}
-			if (input.roomId) {
-				conditions.push(eq(gameSession.roomId, input.roomId));
-			}
-			if (input.currencyId) {
-				conditions.push(eq(gameSession.currencyId, input.currencyId));
-			}
-			if (input.ringGameId) {
-				conditions.push(eq(sessionCashDetail.ringGameId, input.ringGameId));
-			}
-			if (input.dateFrom !== undefined) {
-				conditions.push(
-					gte(gameSession.sessionDate, new Date(input.dateFrom * 1000))
-				);
-			}
-			if (input.dateTo !== undefined) {
-				conditions.push(
-					lte(gameSession.sessionDate, new Date(input.dateTo * 1000))
-				);
-			}
-
-			const rows = await ctx.db
-				.select({
-					id: gameSession.id,
-					type: gameSession.kind,
-					sessionDate: gameSession.sessionDate,
-					startedAt: gameSession.startedAt,
-					endedAt: gameSession.endedAt,
-					breakMinutes: gameSession.breakMinutes,
-					buyIn: sessionCashDetail.buyIn,
-					cashOut: sessionCashDetail.cashOut,
-					evCashOut: sessionCashDetail.evCashOut,
-					ringGameBlind2: sessionCashDetail.blind2,
-					tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
-					entryFee: sessionTournamentDetail.entryFee,
-					prizeMoney: sessionTournamentDetail.prizeMoney,
-					bountyPrizes: sessionTournamentDetail.bountyPrizes,
-				})
-				.from(gameSession)
-				.leftJoin(
-					sessionCashDetail,
-					eq(sessionCashDetail.sessionId, gameSession.id)
-				)
-				.leftJoin(
-					sessionTournamentDetail,
-					eq(sessionTournamentDetail.sessionId, gameSession.id)
-				)
-				.where(and(...conditions))
-				.orderBy(asc(gameSession.sessionDate), asc(gameSession.id));
-
-			const chipPurchaseMap = await getSessionChipPurchaseMap(
-				ctx.db,
-				rows.map((r) => r.id)
-			);
-			const points = rows.map((r) =>
-				toProfitLossSeriesPoint({
-					...r,
-					chipPurchaseCost: sumChipPurchaseCost(
-						chipPurchaseMap.get(r.id) ?? []
-					),
-				})
-			);
-
-			return { points };
-		}),
+		.query(({ ctx, input }) =>
+			fetchProfitLossSeries(ctx.db, ctx.session.user.id, input)
+		),
 
 	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))

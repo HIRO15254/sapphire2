@@ -13,6 +13,7 @@ import { sessionRouter } from "./session";
 import { sessionEventRouter } from "./session-event";
 import { sessionTablePlayerRouter } from "./session-table-player";
 import { sessionTagRouter } from "./session-tag";
+import { statsRouter } from "./stats";
 import { tournamentRouter } from "./tournament";
 import { tournamentChipPurchaseRouter } from "./tournament-chip-purchase";
 import { transactionTypeRouter } from "./transaction-type";
@@ -38,6 +39,7 @@ export const appRouter = router({
 	blindLevel: blindLevelRouter,
 	tournamentChipPurchase: tournamentChipPurchaseRouter,
 	session: sessionRouter,
+	stats: statsRouter,
 	sessionEvent: sessionEventRouter,
 	sessionTag: sessionTagRouter,
 	player: playerRouter,
