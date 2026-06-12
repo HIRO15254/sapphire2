@@ -16,10 +16,6 @@ import {
 	transactionTypeRelations,
 } from "./schema/currency";
 import {
-	dashboardWidget,
-	dashboardWidgetRelations,
-} from "./schema/dashboard-widget";
-import {
 	player,
 	playerRelations,
 	playerTag,
@@ -123,6 +119,4 @@ export const schema = {
 	playerToPlayerTagRelations,
 	updateNoteView,
 	updateNoteViewRelations,
-	dashboardWidget,
-	dashboardWidgetRelations,
 };

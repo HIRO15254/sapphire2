@@ -65,7 +65,7 @@ function createTestRouter(initialPath: string) {
 
 	const routes = [
 		"/",
-		"/dashboard",
+		"/statistics",
 		"/resources",
 		"/rooms",
 		"/currencies",
@@ -118,7 +118,7 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 		render(<RouterProvider router={router} />);
 
 		await screen.findByText("Sessions");
-		expect(screen.getByText("Dashboard")).toBeInTheDocument();
+		expect(screen.getByText("Statistics")).toBeInTheDocument();
 		expect(screen.getByText("Resources")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
 		expect(screen.getByText("New")).toBeInTheDocument();
@@ -168,12 +168,12 @@ describe("MobileNav - Paused Session Mode", () => {
 		expect(buttons).toHaveLength(2);
 	});
 
-	it("displays normal mode nav items (Dashboard, Sessions, Resources, Settings)", async () => {
+	it("displays normal mode nav items (Sessions, Statistics, Resources, Settings)", async () => {
 		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
 
 		await screen.findByText("Sessions");
-		expect(screen.getByText("Dashboard")).toBeInTheDocument();
+		expect(screen.getByText("Statistics")).toBeInTheDocument();
 		expect(screen.getByText("Resources")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
 	});
@@ -190,7 +190,7 @@ describe("MobileNav - Paused Session Mode", () => {
 		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("Dashboard");
+		await screen.findByText("Statistics");
 		expect(screen.queryByText("Timeline")).not.toBeInTheDocument();
 		expect(screen.queryByText("Game")).not.toBeInTheDocument();
 		expect(screen.queryByText("Overview")).not.toBeInTheDocument();
