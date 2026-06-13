@@ -32,25 +32,20 @@ vi.mock(
 	})
 );
 
-vi.mock("@/features/players/components/player-tag-input", () => ({
-	PlayerTagInput: () => <div data-testid="tag-input" />,
-}));
-
 import { EmptySeatEditor } from "@/features/live-sessions/components/active-session-scene/seat-list/empty-seat-editor";
 
 const REGEX_NINA = /Nina/;
 const REGEX_CREATE = /^Create /;
+const REGEX_TEMP = /Temp/;
 
 function setup(
 	overrides: Partial<React.ComponentProps<typeof EmptySeatEditor>> = {}
 ) {
 	const props: React.ComponentProps<typeof EmptySeatEditor> = {
-		availableTags: [],
 		excludePlayerIds: ["p-seated"],
 		onAddExisting: vi.fn(),
 		onAddNew: vi.fn(),
 		onAddTemporary: vi.fn(),
-		onCreateTag: vi.fn(),
 		...overrides,
 	};
 	render(<EmptySeatEditor {...props} />);
@@ -60,7 +55,6 @@ function setup(
 describe("EmptySeatEditor", () => {
 	beforeEach(() => {
 		mocks.search.search = "";
-		mocks.search.selectedTagIds = [];
 		mocks.search.filteredPlayers = [];
 		mocks.search.setSearch.mockReset();
 		mocks.useAddPlayerSearchSpy.mockReset();
@@ -74,51 +68,7 @@ describe("EmptySeatEditor", () => {
 		});
 	});
 
-	it("shows the empty-players hint when there is no search and no matches", () => {
-		setup();
-		expect(screen.getByText("No available players")).toBeInTheDocument();
-	});
-
-	it("'Add temporary player' invokes onAddTemporary", async () => {
-		const user = userEvent.setup();
-		const props = setup();
-		await user.click(
-			screen.getByRole("button", { name: "Add temporary player" })
-		);
-		expect(props.onAddTemporary).toHaveBeenCalledTimes(1);
-	});
-
-	it("hides the create button when the search is empty", () => {
-		setup();
-		expect(screen.queryByText(REGEX_CREATE)).not.toBeInTheDocument();
-	});
-
-	it("'Create' seats a brand-new player with the trimmed search and selected tags", async () => {
-		const user = userEvent.setup();
-		mocks.search.search = "  Nina  ";
-		mocks.search.selectedTagIds = ["t1"];
-		const props = setup();
-		await user.click(screen.getByRole("button", { name: 'Create "Nina"' }));
-		expect(props.onAddNew).toHaveBeenCalledTimes(1);
-		expect(props.onAddNew).toHaveBeenCalledWith({
-			name: "Nina",
-			tagIds: ["t1"],
-		});
-	});
-
-	it("'Create' omits tagIds when none are selected", async () => {
-		const user = userEvent.setup();
-		mocks.search.search = "Nina";
-		mocks.search.selectedTagIds = [];
-		const props = setup();
-		await user.click(screen.getByRole("button", { name: 'Create "Nina"' }));
-		expect(props.onAddNew).toHaveBeenCalledWith({
-			name: "Nina",
-			tagIds: undefined,
-		});
-	});
-
-	it("selecting a filtered player seats that existing player", async () => {
+	it("lists available players immediately for one-tap seating", async () => {
 		const user = userEvent.setup();
 		mocks.search.filteredPlayers = [
 			{ id: "p-9", memo: null, name: "Nina", tags: [] },
@@ -127,5 +77,43 @@ describe("EmptySeatEditor", () => {
 		await user.click(screen.getByRole("button", { name: REGEX_NINA }));
 		expect(props.onAddExisting).toHaveBeenCalledTimes(1);
 		expect(props.onAddExisting).toHaveBeenCalledWith("p-9", "Nina");
+	});
+
+	it("shows the empty-players hint when there is no search and no matches", () => {
+		setup();
+		expect(screen.getByText("No available players")).toBeInTheDocument();
+	});
+
+	it("'Temp' seats a temporary player in one tap", async () => {
+		const user = userEvent.setup();
+		const props = setup();
+		await user.click(screen.getByRole("button", { name: REGEX_TEMP }));
+		expect(props.onAddTemporary).toHaveBeenCalledTimes(1);
+	});
+
+	it("hides the create button when the search is empty", () => {
+		setup();
+		expect(screen.queryByText(REGEX_CREATE)).not.toBeInTheDocument();
+	});
+
+	it("'Create' seats a brand-new player with the trimmed search text", async () => {
+		const user = userEvent.setup();
+		mocks.search.search = "  Nina  ";
+		const props = setup();
+		await user.click(screen.getByRole("button", { name: 'Create "Nina"' }));
+		expect(props.onAddNew).toHaveBeenCalledTimes(1);
+		expect(props.onAddNew).toHaveBeenCalledWith({ name: "Nina" });
+	});
+
+	it("typing in the search forwards to the search hook", async () => {
+		const user = userEvent.setup();
+		setup();
+		await user.type(screen.getByLabelText("Search players"), "N");
+		expect(mocks.search.setSearch).toHaveBeenCalledWith("N");
+	});
+
+	it("renders no tag-filter input (seating stays one purpose)", () => {
+		setup();
+		expect(screen.queryByText("Tags")).not.toBeInTheDocument();
 	});
 });

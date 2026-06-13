@@ -271,6 +271,7 @@ export function useTablePlayers({
 		player: {
 			id: item.player.id,
 			isTemporary: item.player.isTemporary,
+			memo: item.player.memo ?? null,
 			name: item.player.name,
 		},
 		seatPosition: item.seatPosition ?? null,

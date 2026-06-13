@@ -8,8 +8,6 @@ function makeState(
 	overrides: Partial<ActiveSessionSceneState> = {}
 ): ActiveSessionSceneState {
 	return {
-		availableTags: [],
-		createTag: vi.fn(),
 		excludePlayerIds: [],
 		heroSeatPosition: null,
 		occupiedSeatPositions: new Set<number>(),

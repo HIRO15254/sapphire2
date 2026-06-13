@@ -135,9 +135,7 @@ export function ActiveSessionScene({
 
 			<div className="mt-4">
 				<SeatList
-					availableTags={state.availableTags}
 					excludePlayerIds={state.excludePlayerIds}
-					onCreateTag={state.createTag}
 					onRemovePlayer={state.onRemovePlayer}
 					onScanPlayers={() => scene.setIsScanSheetOpen(true)}
 					onSeatExisting={state.onSeatExisting}

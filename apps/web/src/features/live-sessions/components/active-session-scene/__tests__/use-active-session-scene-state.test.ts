@@ -5,7 +5,12 @@ interface MockTablePlayer {
 	id: string;
 	isActive: boolean;
 	isLoading: boolean;
-	player: { id: string; isTemporary: boolean; name: string };
+	player: {
+		id: string;
+		isTemporary: boolean;
+		memo: string | null;
+		name: string;
+	};
 	seatPosition: number | null;
 }
 
@@ -85,7 +90,7 @@ function makePlayer(overrides: Partial<MockTablePlayer> = {}): MockTablePlayer {
 		id: "tp-1",
 		isActive: true,
 		isLoading: false,
-		player: { id: "p-1", isTemporary: false, name: "Alice" },
+		player: { id: "p-1", isTemporary: false, memo: null, name: "Alice" },
 		seatPosition: null,
 		...overrides,
 	};
@@ -225,13 +230,13 @@ describe("useActiveSessionSceneState", () => {
 				makePlayer({ seatPosition: 2 }),
 				makePlayer({
 					id: "tp-2",
-					player: { id: "p-2", isTemporary: false, name: "Bob" },
+					player: { id: "p-2", isTemporary: false, memo: null, name: "Bob" },
 					seatPosition: 4,
 				}),
 				makePlayer({
 					id: "tp-3",
 					isActive: false,
-					player: { id: "p-3", isTemporary: false, name: "Gone" },
+					player: { id: "p-3", isTemporary: false, memo: null, name: "Gone" },
 					seatPosition: 1,
 				}),
 			];
@@ -291,16 +296,27 @@ describe("useActiveSessionSceneState", () => {
 		});
 	});
 
-	describe("tag catalog passthrough", () => {
-		it("exposes availableTags / createTag from the tag catalog and excludePlayerIds", () => {
+	describe("passthrough", () => {
+		it("exposes excludePlayerIds for the empty-seat search", () => {
 			mocks.tablePlayers.excludePlayerIds = ["p-1"];
 			const { result } = renderState();
-			expect(result.current.availableTags).toBe(
-				mocks.playerDetail.availableTags
-			);
-			expect(result.current.createTag).toBe(mocks.playerDetail.createTag);
 			expect(result.current.excludePlayerIds).toEqual(["p-1"]);
-			expect(mocks.usePlayerDetailSpy).toHaveBeenCalledWith(null);
+		});
+
+		it("passes the player's memo through to the seat entry", () => {
+			mocks.tablePlayers.players = [
+				makePlayer({
+					player: {
+						id: "p-1",
+						isTemporary: false,
+						memo: "<p>note</p>",
+						name: "Alice",
+					},
+					seatPosition: 0,
+				}),
+			];
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.seats[0]?.player?.memo).toBe("<p>note</p>");
 		});
 	});
 });

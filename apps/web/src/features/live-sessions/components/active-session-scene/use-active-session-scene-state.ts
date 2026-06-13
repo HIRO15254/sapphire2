@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { PlayerTagWithColor } from "@/features/players/hooks/use-player-detail";
-import { usePlayerDetail } from "@/features/players/hooks/use-player-detail";
 import { useTablePlayers } from "@/features/players/hooks/use-table-players";
 import { trpc } from "@/utils/trpc";
 
@@ -19,6 +18,8 @@ export interface SeatPlayer {
 	/** True while the row only exists as an optimistic cache entry. */
 	isLoading: boolean;
 	isTemporary: boolean;
+	/** Rich-text (HTML) memo; render via memoExcerpt for the row summary. */
+	memo: string | null;
 	name: string;
 	playerId: string;
 	seatPosition: number | null;
@@ -42,8 +43,6 @@ interface UseActiveSessionSceneStateOptions {
 }
 
 export interface ActiveSessionSceneState {
-	availableTags: PlayerTagWithColor[];
-	createTag: (name: string) => Promise<PlayerTagWithColor>;
 	excludePlayerIds: string[];
 	heroSeatPosition: number | null;
 	occupiedSeatPositions: Set<number>;
@@ -94,9 +93,6 @@ export function useActiveSessionSceneState({
 			? { liveCashGameSessionId: sessionId }
 			: { liveTournamentSessionId: sessionId };
 	const tablePlayers = useTablePlayers(sessionParam);
-	// Player detail with no selection still resolves the tag catalog + createTag
-	// used by the empty-seat editor when creating a brand-new player.
-	const playerDetail = usePlayerDetail(null);
 
 	const playerListQuery = useQuery(trpc.player.list.queryOptions());
 	const tagsByPlayerId = useMemo(() => {
@@ -113,6 +109,7 @@ export function useActiveSessionSceneState({
 			id: p.id,
 			isLoading: p.isLoading,
 			isTemporary: p.player.isTemporary,
+			memo: p.player.memo,
 			name: p.player.name,
 			playerId: p.player.id,
 			seatPosition: p.seatPosition,
@@ -148,8 +145,6 @@ export function useActiveSessionSceneState({
 	}
 
 	return {
-		availableTags: playerDetail.availableTags,
-		createTag: playerDetail.createTag,
 		excludePlayerIds: tablePlayers.excludePlayerIds,
 		heroSeatPosition,
 		occupiedSeatPositions,

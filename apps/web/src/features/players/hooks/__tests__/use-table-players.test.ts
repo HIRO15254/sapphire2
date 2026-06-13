@@ -211,6 +211,59 @@ describe("useTablePlayers", () => {
 		});
 	});
 
+	describe("player mapping", () => {
+		it("passes the player's memo through for the seat list", async () => {
+			const qc = createClient();
+			qc.setQueryData(cashKey, {
+				items: [
+					{
+						id: "tp1",
+						seatPosition: 1,
+						isActive: true,
+						joinedAt: "x",
+						leftAt: null,
+						player: {
+							id: "p1",
+							isTemporary: false,
+							memo: "<p>note</p>",
+							name: "Alice",
+						},
+					},
+				],
+			});
+			const { result } = renderHook(
+				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() =>
+				expect(result.current.players[0]?.player.memo).toBe("<p>note</p>")
+			);
+		});
+
+		it("defaults a missing memo to null", async () => {
+			const qc = createClient();
+			qc.setQueryData(cashKey, {
+				items: [
+					{
+						id: "tp1",
+						seatPosition: 1,
+						isActive: true,
+						joinedAt: "x",
+						leftAt: null,
+						player: { id: "p1", isTemporary: false, name: "Alice" },
+					},
+				],
+			});
+			const { result } = renderHook(
+				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() =>
+				expect(result.current.players[0]?.player.memo).toBeNull()
+			);
+		});
+	});
+
 	describe("handleAddExisting", () => {
 		it("optimistically appends the player and forwards the cash session id to mutate", async () => {
 			const qc = createClient();

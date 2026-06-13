@@ -1,9 +1,10 @@
-import { IconCamera, IconChevronDown } from "@tabler/icons-react";
+import { IconCamera, IconChevronDown, IconLogout } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import type {
 	SeatEntry,
 	SeatPlayer,
 } from "@/features/live-sessions/components/active-session-scene/use-active-session-scene-state";
+import { memoExcerpt } from "@/features/live-sessions/utils/memo-excerpt";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
 import { Badge } from "@/shared/components/ui/badge";
@@ -12,16 +13,8 @@ import { EmptySeatEditor } from "./empty-seat-editor";
 import { OccupiedSeatEditor } from "./occupied-seat-editor";
 import { useSeatList } from "./use-seat-list";
 
-interface TagWithColor {
-	color: string;
-	id: string;
-	name: string;
-}
-
 interface SeatListProps {
-	availableTags: TagWithColor[];
 	excludePlayerIds: string[];
-	onCreateTag: (name: string) => Promise<TagWithColor>;
 	onRemovePlayer: (playerId: string) => void;
 	onScanPlayers: () => void;
 	onSeatExisting: (
@@ -44,54 +37,63 @@ function SeatRowShell({
 	label,
 	onToggle,
 	summary,
+	trailingAction,
 }: {
 	children?: ReactNode;
 	isExpanded: boolean;
 	label: string;
 	onToggle?: () => void;
 	summary: ReactNode;
+	trailingAction?: ReactNode;
 }) {
 	return (
 		<li className="border-border border-b last:border-b-0">
-			{onToggle ? (
-				<button
-					aria-expanded={isExpanded}
-					className="flex w-full items-center gap-3 px-4 py-2.5 text-left outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/40"
-					onClick={onToggle}
-					type="button"
-				>
-					<span className="w-12 shrink-0 text-muted-foreground text-xs">
-						{label}
-					</span>
-					<span className="min-w-0 flex-1">{summary}</span>
-					<IconChevronDown
-						className={cn(
-							"shrink-0 text-muted-foreground transition-transform",
-							isExpanded && "rotate-180"
-						)}
-						size={16}
-					/>
-				</button>
-			) : (
-				<div className="flex w-full items-center gap-3 px-4 py-2.5 text-left">
-					<span className="w-12 shrink-0 text-muted-foreground text-xs">
-						{label}
-					</span>
-					<span className="min-w-0 flex-1">{summary}</span>
-				</div>
-			)}
+			<div className="flex items-center">
+				{onToggle ? (
+					<button
+						aria-expanded={isExpanded}
+						className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/40"
+						onClick={onToggle}
+						type="button"
+					>
+						<span className="w-12 shrink-0 text-muted-foreground text-xs">
+							{label}
+						</span>
+						<span className="min-w-0 flex-1">{summary}</span>
+						<IconChevronDown
+							className={cn(
+								"shrink-0 text-muted-foreground transition-transform",
+								isExpanded && "rotate-180"
+							)}
+							size={16}
+						/>
+					</button>
+				) : (
+					<div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left">
+						<span className="w-12 shrink-0 text-muted-foreground text-xs">
+							{label}
+						</span>
+						<span className="min-w-0 flex-1">{summary}</span>
+					</div>
+				)}
+				{trailingAction ? (
+					<span className="shrink-0 pr-2">{trailingAction}</span>
+				) : null}
+			</div>
 			{isExpanded ? <div className="px-4 pt-1 pb-3">{children}</div> : null}
 		</li>
 	);
 }
 
 function PlayerSummary({ player }: { player: SeatPlayer }) {
+	const excerpt = memoExcerpt(player.memo);
+
 	return (
 		<span className="flex items-center gap-2">
 			<Avatar size="sm">
 				<AvatarFallback>{player.name.slice(0, 1).toUpperCase()}</AvatarFallback>
 			</Avatar>
-			<span className="min-w-0">
+			<span className="min-w-0 flex-1">
 				<span className="flex items-center gap-1.5">
 					<span className="truncate font-medium text-sm">{player.name}</span>
 					{player.isTemporary ? (
@@ -102,18 +104,19 @@ function PlayerSummary({ player }: { player: SeatPlayer }) {
 							Temp
 						</Badge>
 					) : null}
+					{player.tags.map((tag) => (
+						<Badge
+							key={tag.id}
+							style={{ borderColor: tag.color, color: tag.color }}
+							variant="outline"
+						>
+							{tag.name}
+						</Badge>
+					))}
 				</span>
-				{player.tags.length > 0 ? (
-					<span className="mt-0.5 flex flex-wrap gap-1">
-						{player.tags.map((tag) => (
-							<Badge
-								key={tag.id}
-								style={{ borderColor: tag.color, color: tag.color }}
-								variant="outline"
-							>
-								{tag.name}
-							</Badge>
-						))}
+				{excerpt ? (
+					<span className="mt-0.5 line-clamp-1 text-muted-foreground text-xs">
+						{excerpt}
 					</span>
 				) : null}
 			</span>
@@ -122,16 +125,13 @@ function PlayerSummary({ player }: { player: SeatPlayer }) {
 }
 
 /**
- * All-seats player list for the active-session page. Renders one row per seat
- * defined by the game (empty seats included); tapping a row expands it inline
- * to seat a player or edit an occupied player's notes / tags — no modal. Hero
- * seat shows "You" and players without a valid seat fall into an "Unseated"
- * group below.
+ * Speed-first all-seats list (SA2-59): every seat from the game definition is a
+ * row. Notes and tags are readable with zero taps (memo excerpt on the row),
+ * leaving is one tap (row-level unseat button), and seating / editing happens
+ * inline by expanding the row — never through a modal.
  */
 export function SeatList({
-	availableTags,
 	excludePlayerIds,
-	onCreateTag,
 	onRemovePlayer,
 	onScanPlayers,
 	onSeatExisting,
@@ -141,6 +141,22 @@ export function SeatList({
 	unseatedPlayers,
 }: SeatListProps) {
 	const { collapse, expandedKey, onToggle } = useSeatList();
+
+	const unseatButton = (player: SeatPlayer) => (
+		<Button
+			aria-label={`Unseat ${player.name}`}
+			className="text-muted-foreground hover:text-destructive"
+			onClick={() => {
+				onRemovePlayer(player.playerId);
+				collapse();
+			}}
+			size="icon-sm"
+			type="button"
+			variant="ghost"
+		>
+			<IconLogout size={16} />
+		</Button>
+	);
 
 	return (
 		<section className="rounded-lg border border-border bg-card text-card-foreground">
@@ -186,21 +202,12 @@ export function SeatList({
 									<span className="text-muted-foreground text-sm">Empty</span>
 								)
 							}
+							trailingAction={seat.player ? unseatButton(seat.player) : null}
 						>
 							{seat.player ? (
-								<OccupiedSeatEditor
-									onRemove={() => {
-										if (seat.player) {
-											onRemovePlayer(seat.player.playerId);
-										}
-										collapse();
-									}}
-									onSaved={collapse}
-									playerId={seat.player.playerId}
-								/>
+								<OccupiedSeatEditor playerId={seat.player.playerId} />
 							) : (
 								<EmptySeatEditor
-									availableTags={availableTags}
 									excludePlayerIds={excludePlayerIds}
 									onAddExisting={(playerId, playerName) => {
 										onSeatExisting(seat.seatPosition, playerId, playerName);
@@ -214,7 +221,6 @@ export function SeatList({
 										onSeatTemporary(seat.seatPosition);
 										collapse();
 									}}
-									onCreateTag={onCreateTag}
 								/>
 							)}
 						</SeatRowShell>
@@ -231,15 +237,9 @@ export function SeatList({
 							label="Unseated"
 							onToggle={() => onToggle(key)}
 							summary={<PlayerSummary player={player} />}
+							trailingAction={unseatButton(player)}
 						>
-							<OccupiedSeatEditor
-								onRemove={() => {
-									onRemovePlayer(player.playerId);
-									collapse();
-								}}
-								onSaved={collapse}
-								playerId={player.playerId}
-							/>
+							<OccupiedSeatEditor playerId={player.playerId} />
 						</SeatRowShell>
 					);
 				})}

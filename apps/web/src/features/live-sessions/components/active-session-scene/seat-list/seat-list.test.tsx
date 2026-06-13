@@ -32,24 +32,8 @@ vi.mock("./empty-seat-editor", () => ({
 }));
 
 vi.mock("./occupied-seat-editor", () => ({
-	OccupiedSeatEditor: ({
-		onRemove,
-		onSaved,
-		playerId,
-	}: {
-		onRemove: () => void;
-		onSaved: () => void;
-		playerId: string;
-	}) => (
-		<div data-testid="occupied-editor">
-			<span>editing:{playerId}</span>
-			<button onClick={onSaved} type="button">
-				save
-			</button>
-			<button onClick={onRemove} type="button">
-				leave
-			</button>
-		</div>
+	OccupiedSeatEditor: ({ playerId }: { playerId: string }) => (
+		<div data-testid="occupied-editor">editing:{playerId}</div>
 	),
 }));
 
@@ -60,12 +44,14 @@ const REGEX_SEAT_2 = /Seat 2/;
 const REGEX_SEAT_3 = /Seat 3/;
 const REGEX_SEAT_N = /^Seat \d/;
 const REGEX_UNSEATED = /Unseated/;
+const REGEX_UNSEAT = /^Unseat /;
 
 function makePlayer(overrides: Partial<SeatPlayer> = {}): SeatPlayer {
 	return {
 		id: "tp-1",
 		isLoading: false,
 		isTemporary: false,
+		memo: null,
 		name: "Alice",
 		playerId: "p-1",
 		seatPosition: 0,
@@ -86,9 +72,7 @@ function makeSeats(
 
 function setup(overrides: Partial<React.ComponentProps<typeof SeatList>> = {}) {
 	const props: React.ComponentProps<typeof SeatList> = {
-		availableTags: [],
 		excludePlayerIds: [],
-		onCreateTag: vi.fn(),
 		onRemovePlayer: vi.fn(),
 		onScanPlayers: vi.fn(),
 		onSeatExisting: vi.fn(),
@@ -125,7 +109,43 @@ describe("SeatList", () => {
 		expect(screen.getByText("Empty")).toBeInTheDocument();
 	});
 
-	it("renders the hero seat as 'You' and makes it non-expandable", () => {
+	it("shows the memo excerpt on the row with zero taps", () => {
+		setup({
+			seats: makeSeats([
+				{
+					seatPosition: 0,
+					player: makePlayer({ memo: "<p>calls <b>too much</b></p>" }),
+				},
+			]),
+		});
+		expect(screen.getByText("calls too much")).toBeInTheDocument();
+	});
+
+	it("shows tag badges on the row with zero taps", () => {
+		setup({
+			seats: makeSeats([
+				{
+					seatPosition: 0,
+					player: makePlayer({
+						tags: [{ color: "#f00", id: "t1", name: "Fish" }],
+					}),
+				},
+			]),
+		});
+		expect(screen.getByText("Fish")).toBeInTheDocument();
+	});
+
+	it("unseats an occupied player with a single tap on the row action", async () => {
+		const user = userEvent.setup();
+		const props = setup({
+			seats: makeSeats([{ seatPosition: 0, player: makePlayer() }]),
+		});
+		await user.click(screen.getByRole("button", { name: "Unseat Alice" }));
+		expect(props.onRemovePlayer).toHaveBeenCalledTimes(1);
+		expect(props.onRemovePlayer).toHaveBeenCalledWith("p-1");
+	});
+
+	it("renders the hero seat as 'You' with no expand and no unseat", () => {
 		setup({
 			seats: makeSeats([
 				{ seatPosition: 0, isHero: true },
@@ -133,9 +153,9 @@ describe("SeatList", () => {
 			]),
 		});
 		expect(screen.getByText("You")).toBeInTheDocument();
-		// Only seat 2 is expandable; the hero row renders no button.
 		const rows = screen.getAllByRole("button", { name: REGEX_SEAT_N });
 		expect(rows).toHaveLength(1);
+		expect(screen.queryByLabelText(REGEX_UNSEAT)).not.toBeInTheDocument();
 	});
 
 	it("expands an empty seat inline and seats an existing player at that seat", async () => {
@@ -146,7 +166,6 @@ describe("SeatList", () => {
 		expect(screen.getByTestId("empty-editor")).toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: "seat-existing" }));
 		expect(props.onSeatExisting).toHaveBeenCalledWith(2, "p-9", "Nina");
-		// Collapses after seating.
 		expect(screen.queryByTestId("empty-editor")).not.toBeInTheDocument();
 	});
 
@@ -166,16 +185,16 @@ describe("SeatList", () => {
 		expect(props.onSeatTemporary).toHaveBeenCalledWith(1);
 	});
 
-	it("expands an occupied seat to its editor and leaves the table", async () => {
+	it("expands an occupied seat to its inline editor", async () => {
 		const user = userEvent.setup();
-		const props = setup({
-			seats: makeSeats([{ seatPosition: 0, player: makePlayer() }]),
+		setup({
+			seats: makeSeats([
+				{ seatPosition: 0, player: makePlayer({ playerId: "p-77" }) },
+			]),
 		});
 		await user.click(screen.getByRole("button", { name: REGEX_SEAT_1 }));
-		expect(screen.getByText("editing:p-1")).toBeInTheDocument();
-		await user.click(screen.getByRole("button", { name: "leave" }));
-		expect(props.onRemovePlayer).toHaveBeenCalledWith("p-1");
-		expect(screen.queryByTestId("occupied-editor")).not.toBeInTheDocument();
+		const editor = screen.getByTestId("occupied-editor");
+		expect(within(editor).getByText("editing:p-77")).toBeInTheDocument();
 	});
 
 	it("expanding one row collapses any other open row", async () => {
@@ -189,7 +208,7 @@ describe("SeatList", () => {
 		expect(screen.getAllByTestId("empty-editor")).toHaveLength(1);
 	});
 
-	it("renders unseated players in their own group", async () => {
+	it("renders unseated players with their own one-tap unseat action", async () => {
 		const user = userEvent.setup();
 		const props = setup({
 			seats: makeSeats([{ seatPosition: 0 }]),
@@ -204,9 +223,25 @@ describe("SeatList", () => {
 		});
 		expect(screen.getByText("Unseated")).toBeInTheDocument();
 		expect(screen.getByText("Zoe")).toBeInTheDocument();
-		await user.click(screen.getByRole("button", { name: REGEX_UNSEATED }));
-		await user.click(screen.getByRole("button", { name: "leave" }));
+		await user.click(screen.getByRole("button", { name: "Unseat Zoe" }));
 		expect(props.onRemovePlayer).toHaveBeenCalledWith("p-x");
+	});
+
+	it("expands an unseated player to its inline editor", async () => {
+		const user = userEvent.setup();
+		setup({
+			seats: makeSeats([{ seatPosition: 0 }]),
+			unseatedPlayers: [
+				makePlayer({
+					id: "tp-x",
+					name: "Zoe",
+					playerId: "p-x",
+					seatPosition: null,
+				}),
+			],
+		});
+		await user.click(screen.getByRole("button", { name: REGEX_UNSEATED }));
+		expect(screen.getByText("editing:p-x")).toBeInTheDocument();
 	});
 
 	it("'Seat from screenshot' triggers onScanPlayers", async () => {
@@ -216,17 +251,5 @@ describe("SeatList", () => {
 			screen.getByRole("button", { name: "Seat from screenshot" })
 		);
 		expect(props.onScanPlayers).toHaveBeenCalledTimes(1);
-	});
-
-	it("passes the expanded occupied player's id to its editor", async () => {
-		const user = userEvent.setup();
-		setup({
-			seats: makeSeats([
-				{ seatPosition: 0, player: makePlayer({ playerId: "p-77" }) },
-			]),
-		});
-		await user.click(screen.getByRole("button", { name: REGEX_SEAT_1 }));
-		const editor = screen.getByTestId("occupied-editor");
-		expect(within(editor).getByText("editing:p-77")).toBeInTheDocument();
 	});
 });
