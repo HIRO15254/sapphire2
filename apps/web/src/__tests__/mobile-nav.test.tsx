@@ -20,12 +20,12 @@ vi.mock("@/features/live-sessions/components/create-session-dialog", () => ({
 	CreateSessionDialog: () => null,
 }));
 
-// Mock useEventMenu to avoid provider requirement
-const mockEventMenuOpen = vi.fn();
-vi.mock("@/features/live-sessions/hooks/use-event-menu", () => ({
-	useEventMenu: () => ({
+// Mock useStackSheet to avoid provider requirement
+const mockStackOpen = vi.fn();
+vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
+	useStackSheet: () => ({
 		isOpen: false,
-		open: mockEventMenuOpen,
+		open: mockStackOpen,
 		close: vi.fn(),
 		setIsOpen: vi.fn(),
 	}),
@@ -197,7 +197,7 @@ describe("MobileNav - Active Session Mode", () => {
 			hasActive: true,
 			isLoading: false,
 		});
-		mockEventMenuOpen.mockReset();
+		mockStackOpen.mockReset();
 	});
 
 	it("keeps the normal nav items while a session is live", async () => {
@@ -225,14 +225,14 @@ describe("MobileNav - Active Session Mode", () => {
 		render(<RouterProvider router={router} />);
 
 		await screen.findByText("Live");
-		expect(screen.queryByText("Record")).not.toBeInTheDocument();
+		expect(screen.queryByText("Stack")).not.toBeInTheDocument();
 	});
 
-	it("shows 'Record' on the center button on the active-session page", async () => {
+	it("shows 'Stack' on the center button on the active-session page", async () => {
 		const router = createTestRouter("/active-session");
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("Record");
+		await screen.findByText("Stack");
 		expect(screen.queryByText("Live")).not.toBeInTheDocument();
 	});
 

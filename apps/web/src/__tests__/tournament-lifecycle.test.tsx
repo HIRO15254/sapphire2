@@ -188,7 +188,6 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 import { TournamentCompleteForm } from "@/features/live-sessions/components/tournament-complete-form";
-import { EventMenuProvider } from "@/features/live-sessions/hooks/use-event-menu";
 import { StackSheetProvider } from "@/features/live-sessions/hooks/use-stack-sheet";
 // Pull in the route component after all mocks are declared.
 // biome-ignore lint/performance/noNamespaceImport: required to access named export from route module
@@ -234,9 +233,7 @@ beforeEach(() => {
 function TestProviders({ children }: { children: ReactNode }) {
 	return (
 		<QueryClientProvider client={testQueryClient}>
-			<StackSheetProvider>
-				<EventMenuProvider>{children}</EventMenuProvider>
-			</StackSheetProvider>
+			<StackSheetProvider>{children}</StackSheetProvider>
 		</QueryClientProvider>
 	);
 }

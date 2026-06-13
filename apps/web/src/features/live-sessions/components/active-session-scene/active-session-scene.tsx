@@ -152,28 +152,11 @@ export function ActiveSessionScene({
 			</div>
 
 			<ActionsDrawer
-				description="Record a stack, player or session event."
-				items={scene.eventMenuItems}
-				onOpenChange={scene.setEventMenuOpen}
-				open={scene.isEventMenuOpen}
-				title="Record event"
-			/>
-
-			<ActionsDrawer
-				description="Pause, end, configure or discard this session."
+				description="Record an event, pause, end, configure or discard this session."
 				items={scene.sessionMenuItems}
 				onOpenChange={scene.setIsSessionMenuOpen}
 				open={scene.isSessionMenuOpen}
 				title="Session actions"
-			/>
-
-			<ActionsDrawer
-				description="Pick a player to view or edit their notes and tags."
-				emptyMessage="No players seated yet."
-				items={scene.playerPickerItems}
-				onOpenChange={scene.setIsPlayerPickerOpen}
-				open={scene.isPlayerPickerOpen}
-				title="Players"
 			/>
 
 			<AddPlayerSheet

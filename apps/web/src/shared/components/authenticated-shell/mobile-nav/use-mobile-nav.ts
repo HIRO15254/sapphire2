@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
-import { useEventMenu } from "@/features/live-sessions/hooks/use-event-menu";
+import { useStackSheet } from "@/features/live-sessions/hooks/use-stack-sheet";
 import { createSessionEventMutationOptions } from "@/features/live-sessions/utils/optimistic-session-event";
 import {
 	getMobileNavigationItems,
@@ -30,7 +30,7 @@ export function useMobileNav(): UseMobileNavResult {
 	});
 	const navigate = useNavigate();
 	const { activeSession, hasActive } = useActiveSession();
-	const eventMenu = useEventMenu();
+	const stackSheet = useStackSheet();
 	const queryClient = useQueryClient();
 	const [isCreateOpen, setIsCreateOpen] = useState(false);
 
@@ -91,9 +91,9 @@ export function useMobileNav(): UseMobileNavResult {
 		};
 	} else if (hasActive) {
 		centerAction = {
-			icon: IconPlus,
-			label: "Record",
-			onClick: () => eventMenu.open(),
+			icon: IconBolt,
+			label: "Stack",
+			onClick: () => stackSheet.open(),
 			tone: "live" as const,
 		};
 	} else {

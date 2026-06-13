@@ -2,31 +2,8 @@ import { IconCoin } from "@tabler/icons-react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ActiveSessionSceneState } from "./use-active-session-scene-state";
-
-const mocks = vi.hoisted(() => ({
-	eventMenu: {
-		isOpen: false,
-		open: vi.fn(),
-		close: vi.fn(),
-		setIsOpen: vi.fn(),
-	},
-	stackSheet: {
-		isOpen: false,
-		open: vi.fn(),
-		close: vi.fn(),
-		setIsOpen: vi.fn(),
-	},
-}));
-
-vi.mock("@/features/live-sessions/hooks/use-event-menu", () => ({
-	useEventMenu: () => mocks.eventMenu,
-}));
-
-vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
-	useStackSheet: () => mocks.stackSheet,
-}));
 
 vi.mock("@/features/live-sessions/components/add-player-sheet", () => ({
 	AddPlayerSheet: ({ open }: { open: boolean }) =>
@@ -116,12 +93,6 @@ function setup(
 }
 
 describe("ActiveSessionScene", () => {
-	beforeEach(() => {
-		mocks.eventMenu.isOpen = false;
-		mocks.eventMenu.close.mockReset();
-		mocks.stackSheet.open.mockReset();
-	});
-
 	it("renders the title, summary, memo, player list and history", () => {
 		setup({ memo: "Session memo" });
 		expect(screen.getByText("Cash Game")).toBeInTheDocument();
@@ -188,27 +159,18 @@ describe("ActiveSessionScene", () => {
 		expect(screen.getByText("Game settings sheet")).toBeInTheDocument();
 	});
 
-	it("shows the '+' event menu (with extra items) while the shared state is open", () => {
-		mocks.eventMenu.isOpen = true;
+	it("lists the type-specific event actions inside the header session menu", async () => {
+		const user = userEvent.setup();
+		const allIn = vi.fn();
 		setup({
 			eventMenuExtraItems: [
-				{ icon: IconCoin, label: "All-in", onSelect: vi.fn() },
+				{ icon: IconCoin, label: "All-in", onSelect: allIn },
 			],
 		});
-		expect(screen.getByText("Record stack")).toBeInTheDocument();
-		expect(screen.getByText("Player notes & tags")).toBeInTheDocument();
-		expect(screen.getByText("Seat player")).toBeInTheDocument();
-		expect(screen.getByText("Seat from screenshot")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Session actions" }));
 		expect(screen.getByText("All-in")).toBeInTheDocument();
-	});
-
-	it("'Record stack' in the event menu opens the stack sheet", async () => {
-		const user = userEvent.setup();
-		mocks.eventMenu.isOpen = true;
-		setup();
-		await user.click(screen.getByRole("button", { name: "Record stack" }));
-		expect(mocks.stackSheet.open).toHaveBeenCalledTimes(1);
-		expect(mocks.eventMenu.close).toHaveBeenCalledTimes(1);
+		await user.click(screen.getByRole("button", { name: "All-in" }));
+		expect(allIn).toHaveBeenCalledTimes(1);
 	});
 
 	it("tapping a player row reports the playerId", async () => {
