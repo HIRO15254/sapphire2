@@ -3,7 +3,6 @@ import {
 	IconUserPlus,
 	IconUserQuestion,
 } from "@tabler/icons-react";
-import { Badge } from "@/shared/components/ui/badge";
 import {
 	Command,
 	CommandEmpty,
@@ -16,6 +15,7 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "@/shared/components/ui/popover";
+import { PlayerTagBadges } from "../player-tag-badges";
 import { useEmptySeatEditor } from "./use-empty-seat-editor";
 
 interface EmptySeatEditorProps {
@@ -128,26 +128,11 @@ export function EmptySeatEditor({
 									onSelect={() => onSelectExisting(player)}
 									value={player.id}
 								>
-									<span className="min-w-0 flex-1">
-										<span className="truncate font-medium text-sm">
+									<span className="flex min-w-0 flex-1 items-center gap-2">
+										<span className="min-w-0 shrink truncate font-medium text-sm">
 											{player.name}
 										</span>
-										{player.tags.length > 0 ? (
-											<span className="mt-0.5 flex flex-wrap gap-1">
-												{player.tags.map((tag) => (
-													<Badge
-														key={tag.id}
-														style={{
-															borderColor: tag.color,
-															color: tag.color,
-														}}
-														variant="outline"
-													>
-														{tag.name}
-													</Badge>
-												))}
-											</span>
-										) : null}
+										<PlayerTagBadges tags={player.tags} />
 									</span>
 								</CommandItem>
 							))}

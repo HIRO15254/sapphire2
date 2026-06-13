@@ -41,6 +41,19 @@ vi.mock("@/shared/components/ui/popover", () => ({
 	),
 }));
 
+vi.mock(
+	"@/features/live-sessions/components/active-session-scene/seat-list/player-tag-badges",
+	() => ({
+		PlayerTagBadges: ({ tags }: { tags: { id: string; name: string }[] }) => (
+			<span>
+				{tags.map((t) => (
+					<span key={t.id}>{t.name}</span>
+				))}
+			</span>
+		),
+	})
+);
+
 vi.mock("@/shared/components/ui/command", () => ({
 	Command: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 	CommandList: ({ children }: { children: ReactNode }) => <ul>{children}</ul>,

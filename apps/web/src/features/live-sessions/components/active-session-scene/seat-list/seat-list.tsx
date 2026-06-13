@@ -11,6 +11,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { EmptySeatEditor } from "./empty-seat-editor";
 import { OccupiedSeatEditor } from "./occupied-seat-editor";
+import { PlayerTagBadges } from "./player-tag-badges";
 import { useSeatList } from "./use-seat-list";
 
 interface SeatListProps {
@@ -95,24 +96,18 @@ function PlayerSummary({ player }: { player: SeatPlayer }) {
 			</Avatar>
 			<span className="min-w-0 flex-1">
 				<span className="flex items-center gap-1.5">
-					<span className="truncate font-medium text-sm">{player.name}</span>
+					<span className="min-w-0 shrink truncate font-medium text-sm">
+						{player.name}
+					</span>
 					{player.isTemporary ? (
 						<Badge
-							className="border-warning/40 bg-warning/10 text-[10px] text-warning"
+							className="shrink-0 border-warning/40 bg-warning/10 text-[10px] text-warning"
 							variant="outline"
 						>
 							Temp
 						</Badge>
 					) : null}
-					{player.tags.map((tag) => (
-						<Badge
-							key={tag.id}
-							style={{ borderColor: tag.color, color: tag.color }}
-							variant="outline"
-						>
-							{tag.name}
-						</Badge>
-					))}
+					<PlayerTagBadges tags={player.tags} />
 				</span>
 				{excerpt ? (
 					<span className="mt-0.5 line-clamp-1 text-muted-foreground text-xs">

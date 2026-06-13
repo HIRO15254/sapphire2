@@ -37,6 +37,16 @@ vi.mock("./occupied-seat-editor", () => ({
 	),
 }));
 
+vi.mock("./player-tag-badges", () => ({
+	PlayerTagBadges: ({ tags }: { tags: { id: string; name: string }[] }) => (
+		<span>
+			{tags.map((t) => (
+				<span key={t.id}>{t.name}</span>
+			))}
+		</span>
+	),
+}));
+
 import { SeatList } from "@/features/live-sessions/components/active-session-scene/seat-list";
 
 const REGEX_SEAT_1 = /Seat 1/;
