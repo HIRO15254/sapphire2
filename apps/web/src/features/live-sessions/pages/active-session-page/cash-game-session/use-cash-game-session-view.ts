@@ -1,7 +1,14 @@
+import {
+	IconCirclePlus,
+	IconCoin,
+	IconNote,
+	IconSquareRoundedMinus,
+} from "@tabler/icons-react";
+import { useState } from "react";
+import type { ActionsDrawerItem } from "@/features/live-sessions/components/actions-drawer";
 import { useActiveSessionSceneState } from "@/features/live-sessions/components/active-session-scene";
-import type { TableGameInfo } from "@/features/live-sessions/components/poker-table";
 import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game-session";
-import { formatCompactNumber } from "@/utils/format-number";
+import { useCashGameStack } from "@/features/live-sessions/hooks/use-cash-game-stack";
 
 export interface CashGameCompactSummaryData {
 	currentStack: number | null;
@@ -12,12 +19,19 @@ export interface CashGameCompactSummaryData {
 
 /**
  * View model for the cash-game branch of the active-session page: joins the
- * live session with its ring game, normalizes the hero seat for the scene
- * state, and prepares the table game info + compact summary inputs.
+ * live session with the scene state, prepares the display-only summary, and
+ * owns the type-specific event sheets (all-in / chips / memo / complete)
+ * reachable from the "+" event menu and the header session menu.
  */
 export function useCashGameSessionView(sessionId: string) {
-	const { session, ringGames, isDiscardPending, discard } =
-		useCashGameSession(sessionId);
+	const { session, isDiscardPending, discard } = useCashGameSession(sessionId);
+	const stack = useCashGameStack({ sessionId });
+
+	const [isAllInOpen, setIsAllInOpen] = useState(false);
+	const [isAddChipsOpen, setIsAddChipsOpen] = useState(false);
+	const [isRemoveChipsOpen, setIsRemoveChipsOpen] = useState(false);
+	const [isMemoOpen, setIsMemoOpen] = useState(false);
+	const [isCompleteOpen, setIsCompleteOpen] = useState(false);
 
 	const rawHeroSeat = session?.heroSeatPosition;
 	const heroSeatPosition =
@@ -26,24 +40,8 @@ export function useCashGameSessionView(sessionId: string) {
 		heroSeatPosition,
 		sessionId,
 		sessionType: "cash_game",
+		tableSize: session?.tableSize ?? null,
 	});
-
-	const ringGame = session?.ringGameId
-		? ringGames.find((candidate) => candidate.id === session.ringGameId)
-		: undefined;
-	const gameInfo: TableGameInfo = ringGame
-		? {
-				blinds:
-					ringGame.blind1 && ringGame.blind2
-						? `${formatCompactNumber(ringGame.blind1)}-${formatCompactNumber(ringGame.blind2)}`
-						: null,
-				buyInRange:
-					ringGame.minBuyIn && ringGame.maxBuyIn
-						? `MIN ${formatCompactNumber(ringGame.minBuyIn)} - MAX ${formatCompactNumber(ringGame.maxBuyIn)}`
-						: null,
-				name: ringGame.name,
-			}
-		: {};
 
 	const summary: CashGameCompactSummaryData | null = session
 		? {
@@ -57,13 +55,74 @@ export function useCashGameSessionView(sessionId: string) {
 			}
 		: null;
 
+	const eventMenuExtraItems: ActionsDrawerItem[] = [
+		{
+			icon: IconCoin,
+			label: "All-in",
+			onSelect: () => setIsAllInOpen(true),
+		},
+		{
+			icon: IconCirclePlus,
+			label: "Add chips",
+			onSelect: () => setIsAddChipsOpen(true),
+		},
+		{
+			icon: IconSquareRoundedMinus,
+			label: "Remove chips",
+			onSelect: () => setIsRemoveChipsOpen(true),
+		},
+		{
+			icon: IconNote,
+			label: "Memo",
+			onSelect: () => setIsMemoOpen(true),
+		},
+	];
+
 	return {
+		defaultFinalStack: summary?.currentStack ?? undefined,
 		discard,
-		gameInfo,
+		eventMenuExtraItems,
+		handleAddChipsSubmit: (values: { amount: number }) => {
+			stack.addChip(values.amount);
+			setIsAddChipsOpen(false);
+		},
+		handleAllInSubmit: (values: {
+			equity: number;
+			potSize: number;
+			trials: number;
+			wins: number;
+		}) => {
+			stack.addAllIn(values);
+			setIsAllInOpen(false);
+		},
+		handleCompleteSubmit: (values: { finalStack: number }) => {
+			stack.complete(values);
+			setIsCompleteOpen(false);
+		},
+		handleMemoSubmit: (text: string) => {
+			stack.addMemo(text);
+			setIsMemoOpen(false);
+		},
+		handleRemoveChipsSubmit: (values: { amount: number }) => {
+			stack.removeChip(values.amount);
+			setIsRemoveChipsOpen(false);
+		},
+		isAddChipsOpen,
+		isAllInOpen,
+		isCompleteOpen,
+		isCompletePending: stack.isCompletePending,
 		isDiscardPending,
+		isMemoOpen,
+		isRemoveChipsOpen,
+		onEndSession: () => setIsCompleteOpen(true),
+		onPause: () => stack.pause(),
 		sceneState,
 		session: session ?? null,
+		setIsAddChipsOpen,
+		setIsAllInOpen,
+		setIsCompleteOpen,
+		setIsMemoOpen,
+		setIsRemoveChipsOpen,
 		summary,
-		tableSize: ringGame?.tableSize ?? null,
 	};
 }
