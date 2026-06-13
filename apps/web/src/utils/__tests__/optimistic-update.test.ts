@@ -8,6 +8,8 @@ import {
 	snapshotQueries,
 	snapshotQuery,
 	updateInfiniteQueryItems,
+	updateQueryEntity,
+	updateQueryItems,
 } from "../optimistic-update";
 
 interface InfiniteItem {
@@ -400,6 +402,171 @@ describe("optimistic-update helpers", () => {
 				pageParams: [],
 				pages: [],
 			});
+		});
+	});
+
+	describe("updateQueryEntity", () => {
+		interface Entity {
+			heroSeat: number | null;
+			name: string;
+		}
+
+		/** Pull the updater handed to `setQueryData`, typed for a single entity. */
+		function entityUpdater(
+			queryClient: QueryClient
+		): (old: Entity | null | undefined) => Entity | null | undefined {
+			const calls = vi.mocked(queryClient.setQueryData).mock.calls;
+			return calls.at(-1)?.[1] as (
+				old: Entity | null | undefined
+			) => Entity | null | undefined;
+		}
+
+		it("shallow-merges a static partial into the existing entity", () => {
+			const queryClient = createQueryClientMock();
+
+			updateQueryEntity<Entity>(queryClient, ["session", "s1"], {
+				heroSeat: 4,
+			});
+
+			expect(queryClient.setQueryData).toHaveBeenCalledTimes(1);
+			expect(vi.mocked(queryClient.setQueryData).mock.calls[0]?.[0]).toEqual([
+				"session",
+				"s1",
+			]);
+			const updater = entityUpdater(queryClient);
+			expect(updater({ heroSeat: 1, name: "Alice" })).toEqual({
+				heroSeat: 4,
+				name: "Alice",
+			});
+		});
+
+		it("merges a partial of null to clear a field", () => {
+			const queryClient = createQueryClientMock();
+
+			updateQueryEntity<Entity>(queryClient, ["session", "s1"], {
+				heroSeat: null,
+			});
+
+			const updater = entityUpdater(queryClient);
+			expect(updater({ heroSeat: 9, name: "Alice" })).toEqual({
+				heroSeat: null,
+				name: "Alice",
+			});
+		});
+
+		it("derives the patch from the current entity when patch is a function", () => {
+			const queryClient = createQueryClientMock();
+
+			updateQueryEntity<Entity>(queryClient, ["session", "s1"], (entity) => ({
+				name: `${entity.name} (edited)`,
+			}));
+
+			const updater = entityUpdater(queryClient);
+			expect(updater({ heroSeat: 2, name: "Bob" })).toEqual({
+				heroSeat: 2,
+				name: "Bob (edited)",
+			});
+		});
+
+		it("returns undefined (no-op) when the cache entry is unfetched", () => {
+			const queryClient = createQueryClientMock();
+			const patch = vi.fn(() => ({ name: "never" }));
+
+			updateQueryEntity<Entity>(queryClient, ["session", "s1"], patch);
+
+			const updater = entityUpdater(queryClient);
+			expect(updater(undefined)).toBeUndefined();
+			expect(patch).not.toHaveBeenCalled();
+		});
+
+		it("returns null (no-op) when the cache entry is explicitly null", () => {
+			const queryClient = createQueryClientMock();
+			const patch = vi.fn(() => ({ name: "never" }));
+
+			updateQueryEntity<Entity>(queryClient, ["session", "s1"], patch);
+
+			const updater = entityUpdater(queryClient);
+			expect(updater(null)).toBeNull();
+			expect(patch).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("updateQueryItems", () => {
+		interface Item {
+			amount: number;
+			id: string;
+		}
+
+		/** Pull the updater handed to `setQueryData`, typed for a plain array. */
+		function itemsUpdater(
+			queryClient: QueryClient
+		): (old: Item[] | undefined) => Item[] | undefined {
+			const calls = vi.mocked(queryClient.setQueryData).mock.calls;
+			return calls.at(-1)?.[1] as (
+				old: Item[] | undefined
+			) => Item[] | undefined;
+		}
+
+		it("maps one matching item by id and leaves the rest untouched (edit)", () => {
+			const queryClient = createQueryClientMock();
+
+			updateQueryItems<Item>(queryClient, ["events"], (items) =>
+				items.map((item) => (item.id === "e2" ? { ...item, amount: 99 } : item))
+			);
+
+			expect(queryClient.setQueryData).toHaveBeenCalledTimes(1);
+			expect(vi.mocked(queryClient.setQueryData).mock.calls[0]?.[0]).toEqual([
+				"events",
+			]);
+			const updater = itemsUpdater(queryClient);
+			expect(
+				updater([
+					{ id: "e1", amount: 1 },
+					{ id: "e2", amount: 2 },
+				])
+			).toEqual([
+				{ id: "e1", amount: 1 },
+				{ id: "e2", amount: 99 },
+			]);
+		});
+
+		it("filters a matching item out (delete)", () => {
+			const queryClient = createQueryClientMock();
+
+			updateQueryItems<Item>(queryClient, ["events"], (items) =>
+				items.filter((item) => item.id !== "e1")
+			);
+
+			const updater = itemsUpdater(queryClient);
+			expect(
+				updater([
+					{ id: "e1", amount: 1 },
+					{ id: "e2", amount: 2 },
+				])
+			).toEqual([{ id: "e2", amount: 2 }]);
+		});
+
+		it("maps an empty array to an empty array without fabricating rows", () => {
+			const queryClient = createQueryClientMock();
+			const updateItems = vi.fn((items: Item[]) => items);
+
+			updateQueryItems<Item>(queryClient, ["events"], updateItems);
+
+			const updater = itemsUpdater(queryClient);
+			expect(updater([])).toEqual([]);
+			expect(updateItems).toHaveBeenCalledTimes(1);
+			expect(updateItems).toHaveBeenCalledWith([]);
+		});
+
+		it("returns undefined (no-op) when the cache entry is unfetched", () => {
+			const queryClient = createQueryClientMock();
+			const updateItems = vi.fn((items: Item[]) => items);
+
+			updateQueryItems<Item>(queryClient, ["events"], updateItems);
+
+			const updater = itemsUpdater(queryClient);
+			expect(updater(undefined)).toBeUndefined();
+			expect(updateItems).not.toHaveBeenCalled();
 		});
 	});
 });

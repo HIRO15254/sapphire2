@@ -8,6 +8,7 @@ import {
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateQueryEntity,
 } from "@/utils/optimistic-update";
 import { trpc } from "@/utils/trpc";
 
@@ -124,9 +125,9 @@ export function useActiveSessionSceneState({
 		onMutate: async (seatPosition: number | null) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionKey }]);
 			const previous = snapshotQuery(queryClient, sessionKey);
-			queryClient.setQueryData<SessionHeroSeat | null>(sessionKey, (old) =>
-				old ? { ...old, heroSeatPosition: seatPosition } : old
-			);
+			updateQueryEntity<SessionHeroSeat>(queryClient, sessionKey, {
+				heroSeatPosition: seatPosition,
+			});
 			return { previous };
 		},
 		onError: (_error, _variables, context) => {
