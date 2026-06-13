@@ -1,5 +1,6 @@
 import type { FocusEvent } from "react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
+import type { PlayerTagWithColor } from "@/features/players/hooks/use-player-detail";
 import { usePlayerDetail } from "@/features/players/hooks/use-player-detail";
 
 interface UseOccupiedSeatEditorOptions {
@@ -7,42 +8,35 @@ interface UseOccupiedSeatEditorOptions {
 }
 
 /**
- * Speed-first inline editing of a seated player: tag chips toggle-save on tap,
- * name and memo auto-save on blur — no Save button, every write optimistic via
- * `usePlayerDetail.updatePlayer`.
+ * Speed-first inline editing of a seated player: tags use the shared tag picker
+ * (add / remove / create) and persist optimistically; name and memo auto-save
+ * on blur — no Save button, every write goes through `usePlayerDetail`.
  */
 export function useOccupiedSeatEditor({
 	playerId,
 }: UseOccupiedSeatEditorOptions) {
 	const { availableTags, createTag, isSaving, player, updatePlayer } =
 		usePlayerDetail(playerId);
-	const [newTagName, setNewTagName] = useState("");
 	// Latest memo html from the editor; null = untouched this session.
 	const memoDraft = useRef<string | null>(null);
 
-	const selectedTagIds = new Set(player?.tags.map((tag) => tag.id) ?? []);
+	const currentTagIds = () => player?.tags.map((tag) => tag.id) ?? [];
 
-	const onToggleTag = (tagId: string) => {
+	const onAddTag = (tag: PlayerTagWithColor) => {
+		if (!player || player.tags.some((t) => t.id === tag.id)) {
+			return;
+		}
+		updatePlayer({ id: playerId, tagIds: [...currentTagIds(), tag.id] });
+	};
+
+	const onRemoveTag = (tag: PlayerTagWithColor) => {
 		if (!player) {
 			return;
 		}
-		const tagIds = selectedTagIds.has(tagId)
-			? player.tags.filter((tag) => tag.id !== tagId).map((tag) => tag.id)
-			: [...player.tags.map((tag) => tag.id), tagId];
-		updatePlayer({ id: playerId, tagIds });
-	};
-
-	const onCreateTag = async () => {
-		const trimmed = newTagName.trim();
-		if (!(trimmed && player)) {
-			return;
-		}
-		const created = await createTag(trimmed);
 		updatePlayer({
 			id: playerId,
-			tagIds: [...player.tags.map((tag) => tag.id), created.id],
+			tagIds: currentTagIds().filter((id) => id !== tag.id),
 		});
-		setNewTagName("");
 	};
 
 	const onNameBlur = (value: string) => {
@@ -75,16 +69,14 @@ export function useOccupiedSeatEditor({
 
 	return {
 		availableTags,
+		createTag,
 		isSaving,
-		isTagSelected: (tagId: string) => selectedTagIds.has(tagId),
-		newTagName,
-		onCreateTag,
+		onAddTag,
 		onMemoBlur,
 		onMemoChange,
 		onMemoContainerBlur,
 		onNameBlur,
-		onToggleTag,
+		onRemoveTag,
 		player,
-		setNewTagName,
 	};
 }

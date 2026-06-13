@@ -5,8 +5,8 @@ import type { PlayerDetailData } from "@/features/players/hooks/use-player-detai
 const mocks = vi.hoisted(() => ({
 	detail: {
 		availableTags: [
-			{ color: "#111111", id: "t1", name: "Fish" },
-			{ color: "#222222", id: "t2", name: "Reg" },
+			{ color: "gray", id: "t1", name: "Fish" },
+			{ color: "red", id: "t2", name: "Reg" },
 		],
 		createTag: vi.fn(),
 		isSaving: false,
@@ -32,7 +32,7 @@ function makeDetailPlayer(
 		id: "p-1",
 		memo: "<p>old</p>",
 		name: "Alice",
-		tags: [{ color: "#111111", id: "t1", name: "Fish" }],
+		tags: [{ color: "gray", id: "t1", name: "Fish" }],
 		...overrides,
 	};
 }
@@ -51,20 +51,14 @@ describe("useOccupiedSeatEditor", () => {
 		expect(mocks.usePlayerDetailSpy).toHaveBeenCalledWith("p-1");
 	});
 
-	describe("tag toggling (instant save)", () => {
-		it("marks the player's current tags as selected", () => {
+	describe("tag picker wiring", () => {
+		it("onAddTag appends the tag id to the player's tags and saves", () => {
 			const { result } = renderHook(() =>
 				useOccupiedSeatEditor({ playerId: "p-1" })
 			);
-			expect(result.current.isTagSelected("t1")).toBe(true);
-			expect(result.current.isTagSelected("t2")).toBe(false);
-		});
-
-		it("toggling an unselected tag saves the player with it added", () => {
-			const { result } = renderHook(() =>
-				useOccupiedSeatEditor({ playerId: "p-1" })
+			act(() =>
+				result.current.onAddTag({ color: "red", id: "t2", name: "Reg" })
 			);
-			act(() => result.current.onToggleTag("t2"));
 			expect(mocks.detail.updatePlayer).toHaveBeenCalledTimes(1);
 			expect(mocks.detail.updatePlayer).toHaveBeenCalledWith({
 				id: "p-1",
@@ -72,59 +66,48 @@ describe("useOccupiedSeatEditor", () => {
 			});
 		});
 
-		it("toggling a selected tag saves the player with it removed", () => {
+		it("onAddTag ignores a tag the player already has", () => {
 			const { result } = renderHook(() =>
 				useOccupiedSeatEditor({ playerId: "p-1" })
 			);
-			act(() => result.current.onToggleTag("t1"));
+			act(() =>
+				result.current.onAddTag({ color: "gray", id: "t1", name: "Fish" })
+			);
+			expect(mocks.detail.updatePlayer).not.toHaveBeenCalled();
+		});
+
+		it("onRemoveTag drops the tag id and saves", () => {
+			const { result } = renderHook(() =>
+				useOccupiedSeatEditor({ playerId: "p-1" })
+			);
+			act(() =>
+				result.current.onRemoveTag({ color: "gray", id: "t1", name: "Fish" })
+			);
 			expect(mocks.detail.updatePlayer).toHaveBeenCalledWith({
 				id: "p-1",
 				tagIds: [],
 			});
 		});
 
-		it("ignores toggles before the player detail has loaded", () => {
+		it("exposes createTag for the picker's create flow", () => {
+			const { result } = renderHook(() =>
+				useOccupiedSeatEditor({ playerId: "p-1" })
+			);
+			expect(result.current.createTag).toBe(mocks.detail.createTag);
+		});
+
+		it("ignores tag changes before the player detail has loaded", () => {
 			mocks.detail.player = null;
 			const { result } = renderHook(() =>
 				useOccupiedSeatEditor({ playerId: "p-1" })
 			);
-			act(() => result.current.onToggleTag("t1"));
+			act(() =>
+				result.current.onAddTag({ color: "red", id: "t2", name: "Reg" })
+			);
+			act(() =>
+				result.current.onRemoveTag({ color: "gray", id: "t1", name: "Fish" })
+			);
 			expect(mocks.detail.updatePlayer).not.toHaveBeenCalled();
-		});
-	});
-
-	describe("new tag creation", () => {
-		it("creates the tag and assigns it to the player, then clears the input", async () => {
-			mocks.detail.createTag.mockResolvedValue({
-				color: "#333333",
-				id: "t-new",
-				name: "Whale",
-			});
-			const { result } = renderHook(() =>
-				useOccupiedSeatEditor({ playerId: "p-1" })
-			);
-			act(() => result.current.setNewTagName(" Whale "));
-			await act(async () => {
-				await result.current.onCreateTag();
-			});
-			expect(mocks.detail.createTag).toHaveBeenCalledTimes(1);
-			expect(mocks.detail.createTag).toHaveBeenCalledWith("Whale");
-			expect(mocks.detail.updatePlayer).toHaveBeenCalledWith({
-				id: "p-1",
-				tagIds: ["t1", "t-new"],
-			});
-			expect(result.current.newTagName).toBe("");
-		});
-
-		it("does nothing for an empty new-tag name", async () => {
-			const { result } = renderHook(() =>
-				useOccupiedSeatEditor({ playerId: "p-1" })
-			);
-			act(() => result.current.setNewTagName("   "));
-			await act(async () => {
-				await result.current.onCreateTag();
-			});
-			expect(mocks.detail.createTag).not.toHaveBeenCalled();
 		});
 	});
 

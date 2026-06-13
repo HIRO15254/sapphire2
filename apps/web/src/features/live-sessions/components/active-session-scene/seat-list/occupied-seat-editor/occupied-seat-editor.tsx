@@ -1,6 +1,5 @@
-import { IconLoader2, IconPlus } from "@tabler/icons-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/shared/components/ui/button";
+import { IconLoader2 } from "@tabler/icons-react";
+import { PlayerTagInput } from "@/features/players/components/player-tag-input";
 import { Input } from "@/shared/components/ui/input";
 import { RichTextEditor } from "@/shared/components/ui/rich-text-editor";
 import { useOccupiedSeatEditor } from "./use-occupied-seat-editor";
@@ -10,23 +9,22 @@ interface OccupiedSeatEditorProps {
 }
 
 /**
- * Speed-first inline editor for an occupied seat: tag chips toggle and save on
- * a single tap, name and memo auto-save when focus leaves the field. There is
- * no Save button — every change is written optimistically as it happens.
+ * Speed-first inline editor for an occupied seat: tags use the shared tag
+ * picker (matching the Players form), name and memo auto-save when focus leaves
+ * the field. There is no Save button — every change is written optimistically
+ * as it happens.
  */
 export function OccupiedSeatEditor({ playerId }: OccupiedSeatEditorProps) {
 	const {
 		availableTags,
+		createTag,
 		isSaving,
-		isTagSelected,
-		newTagName,
-		onCreateTag,
+		onAddTag,
 		onMemoChange,
 		onMemoContainerBlur,
 		onNameBlur,
-		onToggleTag,
+		onRemoveTag,
 		player,
-		setNewTagName,
 	} = useOccupiedSeatEditor({ playerId });
 
 	if (!player) {
@@ -53,51 +51,13 @@ export function OccupiedSeatEditor({ playerId }: OccupiedSeatEditorProps) {
 				) : null}
 			</div>
 
-			<div className="flex flex-wrap items-center gap-1.5">
-				{availableTags.map((tag) => {
-					const selected = isTagSelected(tag.id);
-					return (
-						<button
-							aria-pressed={selected}
-							className={cn(
-								"rounded-full border px-2.5 py-1 font-medium text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/40",
-								!selected && "opacity-60"
-							)}
-							key={tag.id}
-							onClick={() => onToggleTag(tag.id)}
-							style={
-								selected
-									? {
-											backgroundColor: tag.color,
-											borderColor: tag.color,
-											color: "white",
-										}
-									: { borderColor: tag.color, color: tag.color }
-							}
-							type="button"
-						>
-							{tag.name}
-						</button>
-					);
-				})}
-				<span className="flex items-center gap-1">
-					<Input
-						aria-label="New tag name"
-						className="h-7 w-24 text-xs"
-						onChange={(e) => setNewTagName(e.target.value)}
-						value={newTagName}
-					/>
-					<Button
-						aria-label="Create tag"
-						onClick={onCreateTag}
-						size="icon-xs"
-						type="button"
-						variant="ghost"
-					>
-						<IconPlus size={14} />
-					</Button>
-				</span>
-			</div>
+			<PlayerTagInput
+				availableTags={availableTags}
+				onAdd={onAddTag}
+				onCreateTag={createTag}
+				onRemove={onRemoveTag}
+				selectedTags={player.tags}
+			/>
 
 			{/* Blur capture (focusout) for auto-save, not a pointer/keyboard interaction —
 			    the editable surface inside RichTextEditor stays fully interactive. */}

@@ -6,8 +6,8 @@ import type { PlayerDetailData } from "@/features/players/hooks/use-player-detai
 const mocks = vi.hoisted(() => ({
 	detail: {
 		availableTags: [
-			{ color: "#111111", id: "t1", name: "Fish" },
-			{ color: "#222222", id: "t2", name: "Reg" },
+			{ color: "gray", id: "t1", name: "Fish" },
+			{ color: "red", id: "t2", name: "Reg" },
 		],
 		createTag: vi.fn(),
 		isSaving: false,
@@ -18,6 +18,33 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/features/players/hooks/use-player-detail", () => ({
 	usePlayerDetail: () => mocks.detail,
+}));
+
+// The shared tag picker is exercised elsewhere; here assert the seat editor
+// wires it to the player's tags and handlers.
+vi.mock("@/features/players/components/player-tag-input", () => ({
+	PlayerTagInput: ({
+		onAdd,
+		onRemove,
+		selectedTags,
+	}: {
+		onAdd: (tag: { color: string; id: string; name: string }) => void;
+		onRemove: (tag: { color: string; id: string; name: string }) => void;
+		selectedTags: { color: string; id: string; name: string }[];
+	}) => (
+		<div data-testid="tag-input">
+			<span>selected:{selectedTags.map((t) => t.name).join(",")}</span>
+			<button
+				onClick={() => onAdd({ color: "red", id: "t2", name: "Reg" })}
+				type="button"
+			>
+				add-tag
+			</button>
+			<button onClick={() => onRemove(selectedTags[0])} type="button">
+				remove-tag
+			</button>
+		</div>
+	),
 }));
 
 vi.mock("@/shared/components/ui/rich-text-editor", () => ({
@@ -40,7 +67,7 @@ describe("OccupiedSeatEditor", () => {
 			id: "p-1",
 			memo: "<p>old</p>",
 			name: "Alice",
-			tags: [{ color: "#111111", id: "t1", name: "Fish" }],
+			tags: [{ color: "gray", id: "t1", name: "Fish" }],
 		};
 		mocks.detail.isSaving = false;
 		mocks.detail.updatePlayer.mockReset();
@@ -71,53 +98,28 @@ describe("OccupiedSeatEditor", () => {
 		});
 	});
 
-	it("marks the player's tags as pressed chips", () => {
+	it("passes the player's tags to the shared tag picker", () => {
 		render(<OccupiedSeatEditor playerId="p-1" />);
-		expect(screen.getByRole("button", { name: "Fish" })).toHaveAttribute(
-			"aria-pressed",
-			"true"
-		);
-		expect(screen.getByRole("button", { name: "Reg" })).toHaveAttribute(
-			"aria-pressed",
-			"false"
-		);
+		expect(screen.getByTestId("tag-input")).toHaveTextContent("selected:Fish");
 	});
 
-	it("tapping an unselected tag chip saves it instantly", async () => {
+	it("adding a tag from the picker saves the player with it", async () => {
 		const user = userEvent.setup();
 		render(<OccupiedSeatEditor playerId="p-1" />);
-		await user.click(screen.getByRole("button", { name: "Reg" }));
-		expect(mocks.detail.updatePlayer).toHaveBeenCalledTimes(1);
+		await user.click(screen.getByRole("button", { name: "add-tag" }));
 		expect(mocks.detail.updatePlayer).toHaveBeenCalledWith({
 			id: "p-1",
 			tagIds: ["t1", "t2"],
 		});
 	});
 
-	it("tapping a selected tag chip removes it instantly", async () => {
+	it("removing a tag from the picker saves the player without it", async () => {
 		const user = userEvent.setup();
 		render(<OccupiedSeatEditor playerId="p-1" />);
-		await user.click(screen.getByRole("button", { name: "Fish" }));
+		await user.click(screen.getByRole("button", { name: "remove-tag" }));
 		expect(mocks.detail.updatePlayer).toHaveBeenCalledWith({
 			id: "p-1",
 			tagIds: [],
-		});
-	});
-
-	it("creates and assigns a brand-new tag from the inline input", async () => {
-		const user = userEvent.setup();
-		mocks.detail.createTag.mockResolvedValue({
-			color: "#333333",
-			id: "t-new",
-			name: "Whale",
-		});
-		render(<OccupiedSeatEditor playerId="p-1" />);
-		await user.type(screen.getByLabelText("New tag name"), "Whale");
-		await user.click(screen.getByRole("button", { name: "Create tag" }));
-		expect(mocks.detail.createTag).toHaveBeenCalledWith("Whale");
-		expect(mocks.detail.updatePlayer).toHaveBeenCalledWith({
-			id: "p-1",
-			tagIds: ["t1", "t-new"],
 		});
 	});
 
