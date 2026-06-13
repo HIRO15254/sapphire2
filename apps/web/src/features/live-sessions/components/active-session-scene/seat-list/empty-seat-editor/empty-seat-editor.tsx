@@ -139,10 +139,11 @@ export function EmptySeatEditor({
 			{heroAvailable ? (
 				<Button
 					aria-label="Seat hero here"
-					className="shrink-0 border-amber-500 bg-amber-500 text-white hover:bg-amber-600 dark:bg-amber-500 dark:hover:bg-amber-600"
+					className="shrink-0 border-amber-500 text-amber-600 hover:bg-amber-500/10 hover:text-amber-600 dark:text-amber-500"
 					onClick={onHero}
 					size="icon-sm"
 					type="button"
+					variant="outline"
 				>
 					<IconUser size={18} />
 				</Button>
@@ -153,7 +154,7 @@ export function EmptySeatEditor({
 				onClick={onTemporary}
 				size="icon-sm"
 				type="button"
-				variant="ghost"
+				variant="outline"
 			>
 				<IconUserQuestion size={18} />
 			</Button>
