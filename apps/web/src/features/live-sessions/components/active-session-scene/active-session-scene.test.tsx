@@ -5,14 +5,21 @@ import type React from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { ActiveSessionSceneState } from "./use-active-session-scene-state";
 
-vi.mock("@/features/live-sessions/components/add-player-sheet", () => ({
-	AddPlayerSheet: ({ open }: { open: boolean }) =>
-		open ? <div>Add player sheet</div> : null,
-}));
-
-vi.mock("@/features/live-sessions/components/player-detail-sheet", () => ({
-	PlayerDetailSheet: ({ open }: { open: boolean }) =>
-		open ? <div>Player detail sheet</div> : null,
+vi.mock("./seat-list", () => ({
+	SeatList: ({
+		onScanPlayers,
+		seats,
+	}: {
+		onScanPlayers: () => void;
+		seats: { seatPosition: number }[];
+	}) => (
+		<div data-testid="seat-list">
+			<span>seats:{seats.length}</span>
+			<button onClick={onScanPlayers} type="button">
+				scan
+			</button>
+		</div>
+	),
 }));
 
 vi.mock(
@@ -44,32 +51,23 @@ vi.mock("./history-section", () => ({
 
 import { ActiveSessionScene } from "./active-session-scene";
 
-const REGEX_ALICE = /Alice/;
-
 function makeState(
 	overrides: Partial<ActiveSessionSceneState> = {}
 ): ActiveSessionSceneState {
 	return {
-		addPlayerSheetOpen: false,
 		availableTags: [],
 		createTag: vi.fn(),
 		excludePlayerIds: [],
 		heroSeatPosition: null,
-		isSavingPlayer: false,
 		occupiedSeatPositions: new Set<number>(),
-		onAddExisting: vi.fn(),
-		onAddNew: vi.fn(),
-		onAddTemporary: vi.fn(),
-		onOpenAddPlayer: vi.fn(),
-		onPlayerRemove: vi.fn(),
-		onPlayerSave: vi.fn(),
-		onPlayerTap: vi.fn(),
-		players: [],
-		playerSheetOpen: false,
-		selectedPlayer: null,
+		onRemovePlayer: vi.fn(),
+		onSeatExisting: vi.fn(),
+		onSeatNew: vi.fn(),
+		onSeatTemporary: vi.fn(),
+		seats: [],
 		sessionParam: { liveCashGameSessionId: "s-1" },
-		setAddPlayerSheetOpen: vi.fn(),
-		setPlayerSheetOpen: vi.fn(),
+		tableSize: 9,
+		unseatedPlayers: [],
 		...overrides,
 	};
 }
@@ -93,12 +91,12 @@ function setup(
 }
 
 describe("ActiveSessionScene", () => {
-	it("renders the title, summary, memo, player list and history", () => {
+	it("renders the title, summary, memo, seat list and history", () => {
 		setup({ memo: "Session memo" });
 		expect(screen.getByText("Cash Game")).toBeInTheDocument();
 		expect(screen.getByTestId("summary")).toBeInTheDocument();
 		expect(screen.getByText("Session memo")).toBeInTheDocument();
-		expect(screen.getByText("Players")).toBeInTheDocument();
+		expect(screen.getByTestId("seat-list")).toBeInTheDocument();
 		expect(screen.getByTestId("history-section")).toHaveTextContent(
 			"cash_game:s-1"
 		);
@@ -173,52 +171,26 @@ describe("ActiveSessionScene", () => {
 		expect(allIn).toHaveBeenCalledTimes(1);
 	});
 
-	it("tapping a player row reports the playerId", async () => {
-		const user = userEvent.setup();
-		const state = makeState({
-			players: [
-				{
-					id: "tp-1",
-					isLoading: false,
-					isTemporary: false,
-					name: "Alice",
-					playerId: "p-1",
-					seatPosition: 0,
-					tags: [],
-				},
-			],
+	it("renders the seat list with the seats from state", () => {
+		setup({
+			state: makeState({
+				seats: [
+					{ isHero: false, player: null, seatPosition: 0 },
+					{ isHero: false, player: null, seatPosition: 1 },
+				],
+			}),
 		});
-		setup({ state });
-		await user.click(screen.getByRole("button", { name: REGEX_ALICE }));
-		expect(state.onPlayerTap).toHaveBeenCalledTimes(1);
-		expect(state.onPlayerTap).toHaveBeenCalledWith("p-1");
+		expect(screen.getByTestId("seat-list")).toHaveTextContent("seats:2");
 	});
 
-	it("the 'Add player' list action opens the add-player sheet", async () => {
-		const user = userEvent.setup();
-		const state = makeState();
-		setup({ state });
-		await user.click(screen.getByRole("button", { name: "Add player" }));
-		expect(state.onOpenAddPlayer).toHaveBeenCalledTimes(1);
-	});
-
-	it("the scan list action opens the screenshot sheet", async () => {
+	it("the seat list scan action opens the screenshot sheet", async () => {
 		const user = userEvent.setup();
 		setup();
-		await user.click(
-			screen.getByRole("button", { name: "Seat from screenshot" })
-		);
+		expect(
+			screen.queryByText("Seat from screenshot sheet")
+		).not.toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "scan" }));
 		expect(screen.getByText("Seat from screenshot sheet")).toBeInTheDocument();
-	});
-
-	it("renders the player detail sheet when a player is selected", () => {
-		setup({ state: makeState({ playerSheetOpen: true }) });
-		expect(screen.getByText("Player detail sheet")).toBeInTheDocument();
-	});
-
-	it("renders the add player sheet when open", () => {
-		setup({ state: makeState({ addPlayerSheetOpen: true }) });
-		expect(screen.getByText("Add player sheet")).toBeInTheDocument();
 	});
 
 	it("derives the tournament history props from the session param", () => {

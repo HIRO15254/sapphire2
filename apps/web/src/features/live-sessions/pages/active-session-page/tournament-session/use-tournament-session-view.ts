@@ -63,6 +63,7 @@ export function useTournamentSessionView(sessionId: string) {
 		heroSeatPosition,
 		sessionId,
 		sessionType: "tournament",
+		tableSize: (session as { tableSize?: number | null })?.tableSize ?? null,
 	});
 
 	const tournamentSummary: TournamentSummaryData | null = session

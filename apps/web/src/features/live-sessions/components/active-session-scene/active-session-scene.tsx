@@ -4,8 +4,6 @@ import {
 	ActionsDrawer,
 	type ActionsDrawerItem,
 } from "@/features/live-sessions/components/actions-drawer";
-import { AddPlayerSheet } from "@/features/live-sessions/components/add-player-sheet";
-import { PlayerDetailSheet } from "@/features/live-sessions/components/player-detail-sheet";
 import { SeatFromScreenshotSheet } from "@/features/live-sessions/components/seat-from-screenshot-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
@@ -19,13 +17,13 @@ import {
 } from "@/shared/components/ui/dialog";
 import { GameSettingsSheet } from "./game-settings-sheet";
 import { HistorySection } from "./history-section";
-import { PlayerList } from "./player-list";
+import { SeatList } from "./seat-list";
 import { useActiveSessionScene } from "./use-active-session-scene";
 import type { ActiveSessionSceneState } from "./use-active-session-scene-state";
 
 interface ActiveSessionSceneProps {
 	discardDescription?: ReactNode;
-	/** Session-type-specific entries appended to the "+" event menu. */
+	/** Session-type-specific event actions shown in the header "…" menu. */
 	eventMenuExtraItems: ActionsDrawerItem[];
 	isDiscardPending: boolean;
 	memo?: string | null;
@@ -136,11 +134,17 @@ export function ActiveSessionScene({
 			) : null}
 
 			<div className="mt-4">
-				<PlayerList
-					onAddPlayer={state.onOpenAddPlayer}
-					onPlayerTap={state.onPlayerTap}
+				<SeatList
+					availableTags={state.availableTags}
+					excludePlayerIds={state.excludePlayerIds}
+					onCreateTag={state.createTag}
+					onRemovePlayer={state.onRemovePlayer}
 					onScanPlayers={() => scene.setIsScanSheetOpen(true)}
-					players={state.players}
+					onSeatExisting={state.onSeatExisting}
+					onSeatNew={state.onSeatNew}
+					onSeatTemporary={state.onSeatTemporary}
+					seats={state.seats}
+					unseatedPlayers={state.unseatedPlayers}
 				/>
 			</div>
 
@@ -157,29 +161,6 @@ export function ActiveSessionScene({
 				onOpenChange={scene.setIsSessionMenuOpen}
 				open={scene.isSessionMenuOpen}
 				title="Session actions"
-			/>
-
-			<AddPlayerSheet
-				availableTags={state.availableTags}
-				excludePlayerIds={state.excludePlayerIds}
-				onAddExisting={state.onAddExisting}
-				onAddNew={state.onAddNew}
-				onAddTemporary={state.onAddTemporary}
-				onCreateTag={state.createTag}
-				onOpenChange={state.setAddPlayerSheetOpen}
-				open={state.addPlayerSheetOpen}
-			/>
-
-			<PlayerDetailSheet
-				availableTags={state.availableTags}
-				isSaving={state.isSavingPlayer}
-				isTemporary={state.selectedPlayer?.isTemporary ?? false}
-				onCreateTag={state.createTag}
-				onOpenChange={state.setPlayerSheetOpen}
-				onRemove={state.onPlayerRemove}
-				onSave={state.onPlayerSave}
-				open={state.playerSheetOpen}
-				player={state.selectedPlayer}
 			/>
 
 			<SeatFromScreenshotSheet

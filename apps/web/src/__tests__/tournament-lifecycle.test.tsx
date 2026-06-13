@@ -50,18 +50,17 @@ vi.mock("@/features/players/hooks/use-table-players", () => ({
 // ---------------------------------------------------------------------------
 // Mock: heavy UI sub-components that would require additional providers
 // ---------------------------------------------------------------------------
-vi.mock("@/features/live-sessions/components/add-player-sheet", () => ({
-	AddPlayerSheet: () => null,
-}));
-
-vi.mock("@/features/live-sessions/components/player-detail-sheet", () => ({
-	PlayerDetailSheet: () => null,
-}));
-
 vi.mock(
 	"@/features/live-sessions/components/seat-from-screenshot-sheet",
 	() => ({
 		SeatFromScreenshotSheet: () => null,
+	})
+);
+
+vi.mock(
+	"@/features/live-sessions/components/active-session-scene/seat-list",
+	() => ({
+		SeatList: () => <div data-testid="seat-list" />,
 	})
 );
 
@@ -352,12 +351,11 @@ describe("ActiveSessionPage — active cash game session", () => {
 		expect(screen.queryByText("Discard")).not.toBeInTheDocument();
 	});
 
-	it("renders the seated player list with its empty state", async () => {
+	it("renders the seat list", async () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByText("Players");
-		expect(screen.getByText("No players seated yet.")).toBeInTheDocument();
+		await screen.findByTestId("seat-list");
 	});
 
 	it("renders the collapsed history section without mounting the timeline", async () => {
@@ -417,11 +415,11 @@ describe("ActiveSessionPage — active tournament session", () => {
 		await screen.findByRole("button", { name: "Session actions" });
 	});
 
-	it("renders the seated player list", async () => {
+	it("renders the seat list", async () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByText("Players");
+		await screen.findByTestId("seat-list");
 	});
 });
 

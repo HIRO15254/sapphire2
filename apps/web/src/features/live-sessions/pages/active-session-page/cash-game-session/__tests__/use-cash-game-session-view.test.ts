@@ -91,12 +91,13 @@ describe("useCashGameSessionView", () => {
 
 	describe("scene state wiring", () => {
 		it("passes a normalized hero seat to the scene state for a valid seat", () => {
-			mocks.session = makeSession({ heroSeatPosition: 3 });
+			mocks.session = makeSession({ heroSeatPosition: 3, tableSize: 6 });
 			renderHook(() => useCashGameSessionView("cg-1"));
 			expect(mocks.lastSceneOptions).toEqual({
 				heroSeatPosition: 3,
 				sessionId: "cg-1",
 				sessionType: "cash_game",
+				tableSize: 6,
 			});
 		});
 

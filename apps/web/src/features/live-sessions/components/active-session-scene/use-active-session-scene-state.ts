@@ -1,101 +1,114 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import type { PlayerFormValues } from "@/features/players/components/player-form";
-import type {
-	PlayerDetailData,
-	PlayerTagWithColor,
-} from "@/features/players/hooks/use-player-detail";
+import { useMemo } from "react";
+import type { PlayerTagWithColor } from "@/features/players/hooks/use-player-detail";
 import { usePlayerDetail } from "@/features/players/hooks/use-player-detail";
 import { useTablePlayers } from "@/features/players/hooks/use-table-players";
 import { trpc } from "@/utils/trpc";
-import type { PlayerListItem } from "./player-list";
+
+const DEFAULT_SEAT_COUNT = 9;
+const MIN_SEAT_COUNT = 2;
+const MAX_SEAT_COUNT = 10;
 
 export type SessionParam =
 	| { liveCashGameSessionId: string; liveTournamentSessionId?: never }
 	| { liveCashGameSessionId?: never; liveTournamentSessionId: string };
 
+export interface SeatPlayer {
+	/** session_table_player row id. */
+	id: string;
+	/** True while the row only exists as an optimistic cache entry. */
+	isLoading: boolean;
+	isTemporary: boolean;
+	name: string;
+	playerId: string;
+	seatPosition: number | null;
+	tags: PlayerTagWithColor[];
+}
+
+export interface SeatEntry {
+	/** True when this seat is the hero's seat (the user, not an opponent). */
+	isHero: boolean;
+	player: SeatPlayer | null;
+	/** 0-based seat index. Display as `seatPosition + 1`. */
+	seatPosition: number;
+}
+
 interface UseActiveSessionSceneStateOptions {
 	heroSeatPosition: number | null;
 	sessionId: string;
 	sessionType: "cash_game" | "tournament";
+	/** Seat count from the game definition; falls back to 9 when unknown. */
+	tableSize: number | null;
 }
 
 export interface ActiveSessionSceneState {
-	addPlayerSheetOpen: boolean;
 	availableTags: PlayerTagWithColor[];
 	createTag: (name: string) => Promise<PlayerTagWithColor>;
 	excludePlayerIds: string[];
 	heroSeatPosition: number | null;
-	isSavingPlayer: boolean;
 	occupiedSeatPositions: Set<number>;
-	onAddExisting: (playerId: string, playerName: string) => void;
-	onAddNew: (values: {
-		memo?: string | null;
-		name: string;
-		tagIds?: string[];
-	}) => void;
-	onAddTemporary: () => void;
-	onOpenAddPlayer: () => void;
-	onPlayerRemove: () => void;
-	onPlayerSave: (values: PlayerFormValues) => void;
-	onPlayerTap: (playerId: string) => void;
-	playerSheetOpen: boolean;
-	players: PlayerListItem[];
-	selectedPlayer: (PlayerDetailData & { isTemporary: boolean }) | null;
+	onRemovePlayer: (playerId: string) => void;
+	onSeatExisting: (
+		seatPosition: number,
+		playerId: string,
+		playerName: string
+	) => void;
+	onSeatNew: (
+		seatPosition: number,
+		values: { memo?: string | null; name: string; tagIds?: string[] }
+	) => void;
+	onSeatTemporary: (seatPosition: number) => void;
+	seats: SeatEntry[];
 	sessionParam: SessionParam;
-	setAddPlayerSheetOpen: (open: boolean) => void;
-	setPlayerSheetOpen: (open: boolean) => void;
+	tableSize: number;
+	unseatedPlayers: SeatPlayer[];
 }
 
-function comparePlayers(a: PlayerListItem, b: PlayerListItem): number {
-	if (a.seatPosition !== null && b.seatPosition !== null) {
-		return a.seatPosition - b.seatPosition;
+export function resolveSeatCount(tableSize: number | null): number {
+	if (
+		typeof tableSize === "number" &&
+		tableSize >= MIN_SEAT_COUNT &&
+		tableSize <= MAX_SEAT_COUNT
+	) {
+		return tableSize;
 	}
-	if (a.seatPosition !== null) {
-		return -1;
-	}
-	if (b.seatPosition !== null) {
-		return 1;
-	}
-	return a.name.localeCompare(b.name);
+	return DEFAULT_SEAT_COUNT;
 }
 
 /**
- * Data/state layer for the active-session scene: seated-player list (with tag
- * badges joined from the player list), add-player sheet, and player detail
- * (memo / tags / leave) selection. Seats are optional — players join without
- * one unless screenshot seating assigned it.
+ * Data/state layer for the active-session seat list: resolves the seat count
+ * from the game definition, places active table players into their seats
+ * (joining tag badges from the player list), and exposes seat-targeted add /
+ * leave handlers. Inline memo/tag editing of an occupied seat is owned by the
+ * seat editor's own hook (`usePlayerDetail`), so this layer stays purely about
+ * seating.
  */
 export function useActiveSessionSceneState({
 	heroSeatPosition,
 	sessionId,
 	sessionType,
+	tableSize,
 }: UseActiveSessionSceneStateOptions): ActiveSessionSceneState {
 	const sessionParam: SessionParam =
 		sessionType === "cash_game"
 			? { liveCashGameSessionId: sessionId }
 			: { liveTournamentSessionId: sessionId };
-	const tablePlayers = useTablePlayers(
-		sessionType === "cash_game"
-			? { liveCashGameSessionId: sessionId }
-			: { liveTournamentSessionId: sessionId }
-	);
-	const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-	const [addPlayerSheetOpen, setAddPlayerSheetOpen] = useState(false);
-	const playerDetail = usePlayerDetail(selectedPlayerId);
+	const tablePlayers = useTablePlayers(sessionParam);
+	// Player detail with no selection still resolves the tag catalog + createTag
+	// used by the empty-seat editor when creating a brand-new player.
+	const playerDetail = usePlayerDetail(null);
 
 	const playerListQuery = useQuery(trpc.player.list.queryOptions());
 	const tagsByPlayerId = useMemo(() => {
-		const map = new Map<string, PlayerListItem["tags"]>();
+		const map = new Map<string, PlayerTagWithColor[]>();
 		for (const p of playerListQuery.data ?? []) {
 			map.set(p.id, p.tags);
 		}
 		return map;
 	}, [playerListQuery.data]);
 
-	const activeTablePlayers = tablePlayers.players.filter((p) => p.isActive);
-
-	const players: PlayerListItem[] = activeTablePlayers
+	const activePlayers: SeatPlayer[] = tablePlayers.players
+		.filter((p) => p.isActive)
 		.map((p) => ({
 			id: p.id,
 			isLoading: p.isLoading,
@@ -104,75 +117,57 @@ export function useActiveSessionSceneState({
 			playerId: p.player.id,
 			seatPosition: p.seatPosition,
 			tags: tagsByPlayerId.get(p.player.id) ?? [],
-		}))
-		.sort(comparePlayers);
+		}));
+
+	const seatCount = resolveSeatCount(tableSize);
+
+	const seats: SeatEntry[] = [];
+	for (let i = 0; i < seatCount; i++) {
+		const isHero = heroSeatPosition === i;
+		seats.push({
+			isHero,
+			seatPosition: i,
+			player: isHero
+				? null
+				: (activePlayers.find((p) => p.seatPosition === i) ?? null),
+		});
+	}
+
+	const unseatedPlayers = activePlayers.filter(
+		(p) =>
+			p.seatPosition === null ||
+			p.seatPosition >= seatCount ||
+			p.seatPosition === heroSeatPosition
+	);
 
 	const occupiedSeatPositions = new Set<number>();
-	for (const p of activeTablePlayers) {
+	for (const p of activePlayers) {
 		if (typeof p.seatPosition === "number") {
 			occupiedSeatPositions.add(p.seatPosition);
 		}
 	}
 
 	return {
-		addPlayerSheetOpen,
 		availableTags: playerDetail.availableTags,
 		createTag: playerDetail.createTag,
 		excludePlayerIds: tablePlayers.excludePlayerIds,
 		heroSeatPosition,
-		isSavingPlayer: playerDetail.isSaving,
 		occupiedSeatPositions,
-		onAddExisting: (playerId, playerName) => {
-			tablePlayers.handleAddExisting(playerId, playerName, undefined);
-			setAddPlayerSheetOpen(false);
+		onRemovePlayer: (playerId) => {
+			tablePlayers.handleRemovePlayer(playerId);
 		},
-		onAddNew: ({ name, memo, tagIds }) => {
-			tablePlayers.handleAddNew(name, undefined, memo ?? undefined, tagIds);
-			setAddPlayerSheetOpen(false);
+		onSeatExisting: (seatPosition, playerId, playerName) => {
+			tablePlayers.handleAddExisting(playerId, playerName, seatPosition);
 		},
-		onAddTemporary: () => {
-			tablePlayers.handleAddTemporary();
-			setAddPlayerSheetOpen(false);
+		onSeatNew: (seatPosition, { name, memo, tagIds }) => {
+			tablePlayers.handleAddNew(name, seatPosition, memo ?? undefined, tagIds);
 		},
-		onOpenAddPlayer: () => setAddPlayerSheetOpen(true),
-		onPlayerRemove: () => {
-			if (selectedPlayerId) {
-				tablePlayers.handleRemovePlayer(selectedPlayerId);
-				setSelectedPlayerId(null);
-			}
+		onSeatTemporary: (seatPosition) => {
+			tablePlayers.handleAddTemporary(seatPosition);
 		},
-		onPlayerSave: (values) => {
-			if (selectedPlayerId) {
-				playerDetail.updatePlayer({
-					id: selectedPlayerId,
-					memo: values.memo,
-					name: values.name,
-					tagIds: values.tagIds,
-				});
-			}
-		},
-		onPlayerTap: (playerId) => setSelectedPlayerId(playerId),
-		players,
-		playerSheetOpen: selectedPlayerId !== null,
-		selectedPlayer: playerDetail.player
-			? {
-					id: playerDetail.player.id,
-					isTemporary:
-						activeTablePlayers.find((p) => p.player.id === selectedPlayerId)
-							?.player.isTemporary ?? false,
-					memo: playerDetail.player.memo,
-					name: playerDetail.player.name,
-					tags: playerDetail.player.tags ?? [],
-				}
-			: null,
+		seats,
 		sessionParam,
-		setAddPlayerSheetOpen: (open) => {
-			setAddPlayerSheetOpen(open);
-		},
-		setPlayerSheetOpen: (open) => {
-			if (!open) {
-				setSelectedPlayerId(null);
-			}
-		},
+		tableSize: seatCount,
+		unseatedPlayers,
 	};
 }

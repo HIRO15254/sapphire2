@@ -8,26 +8,19 @@ function makeState(
 	overrides: Partial<ActiveSessionSceneState> = {}
 ): ActiveSessionSceneState {
 	return {
-		addPlayerSheetOpen: false,
 		availableTags: [],
 		createTag: vi.fn(),
 		excludePlayerIds: [],
 		heroSeatPosition: null,
-		isSavingPlayer: false,
 		occupiedSeatPositions: new Set<number>(),
-		onAddExisting: vi.fn(),
-		onAddNew: vi.fn(),
-		onAddTemporary: vi.fn(),
-		onOpenAddPlayer: vi.fn(),
-		onPlayerRemove: vi.fn(),
-		onPlayerSave: vi.fn(),
-		onPlayerTap: vi.fn(),
-		players: [],
-		playerSheetOpen: false,
-		selectedPlayer: null,
+		onRemovePlayer: vi.fn(),
+		onSeatExisting: vi.fn(),
+		onSeatNew: vi.fn(),
+		onSeatTemporary: vi.fn(),
+		seats: [],
 		sessionParam: { liveCashGameSessionId: "s-1" },
-		setAddPlayerSheetOpen: vi.fn(),
-		setPlayerSheetOpen: vi.fn(),
+		tableSize: 9,
+		unseatedPlayers: [],
 		...overrides,
 	};
 }

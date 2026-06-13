@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 interface MockTablePlayer {
@@ -22,12 +22,7 @@ const mocks = vi.hoisted(() => ({
 	playerDetail: {
 		availableTags: [{ color: "#123456", id: "t1", name: "Fish" }],
 		createTag: vi.fn(),
-		player: null as {
-			id: string;
-			memo: string | null;
-			name: string;
-			tags: { color: string; id: string; name: string }[];
-		} | null,
+		player: null,
 		isSaving: false,
 		updatePlayer: vi.fn(),
 	},
@@ -59,9 +54,7 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		player: {
-			list: {
-				queryOptions: () => ({ queryKey: ["player", "list"] }),
-			},
+			list: { queryOptions: () => ({ queryKey: ["player", "list"] }) },
 		},
 	},
 }));
@@ -73,6 +66,7 @@ function renderState(
 		heroSeatPosition: number | null;
 		sessionId: string;
 		sessionType: "cash_game" | "tournament";
+		tableSize: number | null;
 	}> = {}
 ) {
 	return renderHook(() =>
@@ -80,6 +74,7 @@ function renderState(
 			heroSeatPosition: null,
 			sessionId: "s-1",
 			sessionType: "cash_game",
+			tableSize: 6,
 			...overrides,
 		})
 	);
@@ -106,8 +101,6 @@ describe("useActiveSessionSceneState", () => {
 		mocks.tablePlayers.handleRemovePlayer.mockReset();
 		mocks.useTablePlayersSpy.mockReset();
 		mocks.usePlayerDetailSpy.mockReset();
-		mocks.playerDetail.player = null;
-		mocks.playerDetail.updatePlayer.mockReset();
 		mocks.playerList = [];
 	});
 
@@ -127,264 +120,187 @@ describe("useActiveSessionSceneState", () => {
 			expect(result.current.sessionParam).toEqual({
 				liveTournamentSessionId: "s-1",
 			});
-			expect(mocks.useTablePlayersSpy).toHaveBeenCalledWith({
-				liveTournamentSessionId: "s-1",
-			});
 		});
 	});
 
-	describe("players list", () => {
-		it("excludes players who already left", () => {
+	describe("seat count resolution", () => {
+		it("uses the game-defined table size when within 2..10", () => {
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.tableSize).toBe(6);
+			expect(result.current.seats).toHaveLength(6);
+		});
+
+		it("falls back to 9 seats when table size is null", () => {
+			const { result } = renderState({ tableSize: null });
+			expect(result.current.tableSize).toBe(9);
+			expect(result.current.seats).toHaveLength(9);
+		});
+
+		it("falls back to 9 seats when table size is out of range", () => {
+			const { result } = renderState({ tableSize: 25 });
+			expect(result.current.tableSize).toBe(9);
+		});
+
+		it("numbers seats from 0 in ascending order", () => {
+			const { result } = renderState({ tableSize: 3 });
+			expect(result.current.seats.map((s) => s.seatPosition)).toEqual([
+				0, 1, 2,
+			]);
+		});
+	});
+
+	describe("seat placement", () => {
+		it("places an active player into their seat", () => {
+			mocks.tablePlayers.players = [makePlayer({ seatPosition: 2 })];
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.seats[2]?.player?.name).toBe("Alice");
+			expect(result.current.seats[0]?.player).toBeNull();
+		});
+
+		it("leaves a seat empty when no active player occupies it", () => {
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.seats.every((s) => s.player === null)).toBe(true);
+		});
+
+		it("ignores players who already left", () => {
 			mocks.tablePlayers.players = [
-				makePlayer(),
-				makePlayer({
-					id: "tp-2",
-					isActive: false,
-					player: { id: "p-2", isTemporary: false, name: "Gone" },
-				}),
+				makePlayer({ isActive: false, seatPosition: 1 }),
 			];
-			const { result } = renderState();
-			expect(result.current.players.map((p) => p.name)).toEqual(["Alice"]);
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.seats[1]?.player).toBeNull();
 		});
 
 		it("joins tag badges from the player list by playerId", () => {
-			mocks.tablePlayers.players = [makePlayer()];
+			mocks.tablePlayers.players = [makePlayer({ seatPosition: 0 })];
 			mocks.playerList = [
 				{ id: "p-1", tags: [{ color: "#f00", id: "t9", name: "Whale" }] },
 			];
-			const { result } = renderState();
-			expect(result.current.players[0]?.tags).toEqual([
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.seats[0]?.player?.tags).toEqual([
 				{ color: "#f00", id: "t9", name: "Whale" },
 			]);
 		});
 
-		it("defaults to no tags when the player is not in the player list", () => {
-			mocks.tablePlayers.players = [makePlayer()];
-			const { result } = renderState();
-			expect(result.current.players[0]?.tags).toEqual([]);
+		it("marks the hero seat and never seats a player there", () => {
+			mocks.tablePlayers.players = [makePlayer({ seatPosition: 3 })];
+			const { result } = renderState({ tableSize: 6, heroSeatPosition: 3 });
+			expect(result.current.seats[3]?.isHero).toBe(true);
+			expect(result.current.seats[3]?.player).toBeNull();
 		});
+	});
 
-		it("sorts seated players by seat ascending, seatless players last by name", () => {
-			mocks.tablePlayers.players = [
-				makePlayer({
-					id: "tp-z",
-					player: { id: "p-z", isTemporary: false, name: "Zed" },
-					seatPosition: null,
-				}),
-				makePlayer({
-					id: "tp-5",
-					player: { id: "p-5", isTemporary: false, name: "Eve" },
-					seatPosition: 5,
-				}),
-				makePlayer({
-					id: "tp-0",
-					player: { id: "p-0", isTemporary: false, name: "Ann" },
-					seatPosition: 0,
-				}),
-				makePlayer({
-					id: "tp-b",
-					player: { id: "p-b", isTemporary: false, name: "Bob" },
-					seatPosition: null,
-				}),
-			];
-			const { result } = renderState();
-			expect(result.current.players.map((p) => p.name)).toEqual([
-				"Ann",
-				"Eve",
-				"Bob",
-				"Zed",
+	describe("unseated players", () => {
+		it("collects seatless active players", () => {
+			mocks.tablePlayers.players = [makePlayer({ seatPosition: null })];
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.unseatedPlayers.map((p) => p.name)).toEqual([
+				"Alice",
 			]);
 		});
 
-		it("collects occupied seats of active players only", () => {
+		it("collects players seated beyond the seat count", () => {
+			mocks.tablePlayers.players = [makePlayer({ seatPosition: 8 })];
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.unseatedPlayers).toHaveLength(1);
+		});
+
+		it("collects a player displaced by the hero seat", () => {
+			mocks.tablePlayers.players = [makePlayer({ seatPosition: 2 })];
+			const { result } = renderState({ tableSize: 6, heroSeatPosition: 2 });
+			expect(result.current.unseatedPlayers.map((p) => p.playerId)).toEqual([
+				"p-1",
+			]);
+		});
+
+		it("excludes seated players from the unseated list", () => {
+			mocks.tablePlayers.players = [makePlayer({ seatPosition: 1 })];
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.unseatedPlayers).toHaveLength(0);
+		});
+	});
+
+	describe("occupiedSeatPositions", () => {
+		it("collects seats of active players for the screenshot sheet", () => {
 			mocks.tablePlayers.players = [
 				makePlayer({ seatPosition: 2 }),
 				makePlayer({
 					id: "tp-2",
-					isActive: false,
-					player: { id: "p-2", isTemporary: false, name: "Gone" },
+					player: { id: "p-2", isTemporary: false, name: "Bob" },
 					seatPosition: 4,
 				}),
 				makePlayer({
 					id: "tp-3",
-					player: { id: "p-3", isTemporary: false, name: "Nul" },
-					seatPosition: null,
+					isActive: false,
+					player: { id: "p-3", isTemporary: false, name: "Gone" },
+					seatPosition: 1,
 				}),
 			];
-			const { result } = renderState();
-			expect(result.current.occupiedSeatPositions).toEqual(new Set([2]));
+			const { result } = renderState({ tableSize: 6 });
+			expect(result.current.occupiedSeatPositions).toEqual(new Set([2, 4]));
 		});
 	});
 
-	describe("add player sheet", () => {
-		it("opens via onOpenAddPlayer and closes via setAddPlayerSheetOpen", () => {
+	describe("seating handlers", () => {
+		it("onSeatExisting adds the player at the given seat", () => {
 			const { result } = renderState();
-			expect(result.current.addPlayerSheetOpen).toBe(false);
-			act(() => result.current.onOpenAddPlayer());
-			expect(result.current.addPlayerSheetOpen).toBe(true);
-			act(() => result.current.setAddPlayerSheetOpen(false));
-			expect(result.current.addPlayerSheetOpen).toBe(false);
-		});
-
-		it("onAddExisting seats the player without a seat and closes the sheet", () => {
-			const { result } = renderState();
-			act(() => result.current.onOpenAddPlayer());
-			act(() => result.current.onAddExisting("p-9", "Nina"));
+			result.current.onSeatExisting(3, "p-9", "Nina");
 			expect(mocks.tablePlayers.handleAddExisting).toHaveBeenCalledTimes(1);
 			expect(mocks.tablePlayers.handleAddExisting).toHaveBeenCalledWith(
 				"p-9",
 				"Nina",
-				undefined
+				3
 			);
-			expect(result.current.addPlayerSheetOpen).toBe(false);
 		});
 
-		it("onAddNew forwards name / memo / tagIds without a seat and closes the sheet", () => {
+		it("onSeatNew forwards name / memo / tagIds with the seat", () => {
 			const { result } = renderState();
-			act(() => result.current.onOpenAddPlayer());
-			act(() =>
-				result.current.onAddNew({
-					memo: "note",
-					name: "Nina",
-					tagIds: ["t1"],
-				})
-			);
-			expect(mocks.tablePlayers.handleAddNew).toHaveBeenCalledTimes(1);
+			result.current.onSeatNew(2, {
+				memo: "note",
+				name: "Nina",
+				tagIds: ["t1"],
+			});
 			expect(mocks.tablePlayers.handleAddNew).toHaveBeenCalledWith(
 				"Nina",
-				undefined,
+				2,
 				"note",
 				["t1"]
 			);
-			expect(result.current.addPlayerSheetOpen).toBe(false);
 		});
 
-		it("onAddNew converts a null memo to undefined", () => {
+		it("onSeatNew converts a null memo to undefined", () => {
 			const { result } = renderState();
-			act(() => result.current.onAddNew({ memo: null, name: "Nina" }));
+			result.current.onSeatNew(2, { memo: null, name: "Nina" });
 			expect(mocks.tablePlayers.handleAddNew).toHaveBeenCalledWith(
 				"Nina",
-				undefined,
+				2,
 				undefined,
 				undefined
 			);
 		});
 
-		it("onAddTemporary seats a temp player and closes the sheet", () => {
+		it("onSeatTemporary seats a temp player at the given seat", () => {
 			const { result } = renderState();
-			act(() => result.current.onOpenAddPlayer());
-			act(() => result.current.onAddTemporary());
-			expect(mocks.tablePlayers.handleAddTemporary).toHaveBeenCalledTimes(1);
-			expect(result.current.addPlayerSheetOpen).toBe(false);
-		});
-	});
-
-	describe("player detail sheet", () => {
-		it("onPlayerTap selects the player and opens the sheet", () => {
-			const { result } = renderState();
-			expect(result.current.playerSheetOpen).toBe(false);
-			act(() => result.current.onPlayerTap("p-1"));
-			expect(result.current.playerSheetOpen).toBe(true);
-			expect(mocks.usePlayerDetailSpy).toHaveBeenLastCalledWith("p-1");
+			result.current.onSeatTemporary(5);
+			expect(mocks.tablePlayers.handleAddTemporary).toHaveBeenCalledWith(5);
 		});
 
-		it("setPlayerSheetOpen(false) clears the selection", () => {
+		it("onRemovePlayer removes the player by id", () => {
 			const { result } = renderState();
-			act(() => result.current.onPlayerTap("p-1"));
-			act(() => result.current.setPlayerSheetOpen(false));
-			expect(result.current.playerSheetOpen).toBe(false);
-			expect(mocks.usePlayerDetailSpy).toHaveBeenLastCalledWith(null);
-		});
-
-		it("derives selectedPlayer from the detail query and table temp flag", () => {
-			mocks.tablePlayers.players = [
-				makePlayer({
-					player: { id: "p-1", isTemporary: true, name: "Temp guy" },
-				}),
-			];
-			mocks.playerDetail.player = {
-				id: "p-1",
-				memo: "memo",
-				name: "Temp guy",
-				tags: [],
-			};
-			const { result } = renderState();
-			act(() => result.current.onPlayerTap("p-1"));
-			expect(result.current.selectedPlayer).toEqual({
-				id: "p-1",
-				isTemporary: true,
-				memo: "memo",
-				name: "Temp guy",
-				tags: [],
-			});
-		});
-
-		it("selectedPlayer is null while the detail query has no data", () => {
-			const { result } = renderState();
-			act(() => result.current.onPlayerTap("p-1"));
-			expect(result.current.selectedPlayer).toBeNull();
-		});
-
-		it("onPlayerSave updates the selected player", () => {
-			mocks.playerDetail.player = {
-				id: "p-1",
-				memo: null,
-				name: "Alice",
-				tags: [],
-			};
-			const { result } = renderState();
-			act(() => result.current.onPlayerTap("p-1"));
-			act(() =>
-				result.current.onPlayerSave({
-					memo: "m",
-					name: "Alice2",
-					tagIds: ["t1"],
-				})
-			);
-			expect(mocks.playerDetail.updatePlayer).toHaveBeenCalledTimes(1);
-			expect(mocks.playerDetail.updatePlayer).toHaveBeenCalledWith({
-				id: "p-1",
-				memo: "m",
-				name: "Alice2",
-				tagIds: ["t1"],
-			});
-		});
-
-		it("onPlayerSave without a selection is a no-op", () => {
-			const { result } = renderState();
-			act(() =>
-				result.current.onPlayerSave({ memo: null, name: "X", tagIds: [] })
-			);
-			expect(mocks.playerDetail.updatePlayer).not.toHaveBeenCalled();
-		});
-
-		it("onPlayerRemove unseats the selected player and closes the sheet", () => {
-			const { result } = renderState();
-			act(() => result.current.onPlayerTap("p-1"));
-			act(() => result.current.onPlayerRemove());
-			expect(mocks.tablePlayers.handleRemovePlayer).toHaveBeenCalledTimes(1);
+			result.current.onRemovePlayer("p-1");
 			expect(mocks.tablePlayers.handleRemovePlayer).toHaveBeenCalledWith("p-1");
-			expect(result.current.playerSheetOpen).toBe(false);
-		});
-
-		it("onPlayerRemove without a selection is a no-op", () => {
-			const { result } = renderState();
-			act(() => result.current.onPlayerRemove());
-			expect(mocks.tablePlayers.handleRemovePlayer).not.toHaveBeenCalled();
 		});
 	});
 
-	describe("passthrough", () => {
-		it("exposes availableTags, createTag, isSavingPlayer, excludePlayerIds and heroSeatPosition", () => {
+	describe("tag catalog passthrough", () => {
+		it("exposes availableTags / createTag from the tag catalog and excludePlayerIds", () => {
 			mocks.tablePlayers.excludePlayerIds = ["p-1"];
-			const { result } = renderState({ heroSeatPosition: 4 });
+			const { result } = renderState();
 			expect(result.current.availableTags).toBe(
 				mocks.playerDetail.availableTags
 			);
 			expect(result.current.createTag).toBe(mocks.playerDetail.createTag);
-			expect(result.current.isSavingPlayer).toBe(false);
 			expect(result.current.excludePlayerIds).toEqual(["p-1"]);
-			expect(result.current.heroSeatPosition).toBe(4);
+			expect(mocks.usePlayerDetailSpy).toHaveBeenCalledWith(null);
 		});
 	});
 });

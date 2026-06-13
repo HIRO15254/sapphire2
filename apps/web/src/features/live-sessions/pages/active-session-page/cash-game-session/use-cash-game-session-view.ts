@@ -40,6 +40,7 @@ export function useCashGameSessionView(sessionId: string) {
 		heroSeatPosition,
 		sessionId,
 		sessionType: "cash_game",
+		tableSize: session?.tableSize ?? null,
 	});
 
 	const summary: CashGameCompactSummaryData | null = session

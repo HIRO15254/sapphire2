@@ -94,12 +94,18 @@ describe("useTournamentSessionView", () => {
 
 	describe("scene state wiring", () => {
 		it("passes a normalized hero seat for a valid seat", () => {
-			mocks.session = { id: "t1", memo: null, heroSeatPosition: 4 };
+			mocks.session = {
+				id: "t1",
+				memo: null,
+				heroSeatPosition: 4,
+				tableSize: 8,
+			};
 			renderHook(() => useTournamentSessionView("t-1"));
 			expect(mocks.lastSceneOptions).toEqual({
 				heroSeatPosition: 4,
 				sessionId: "t-1",
 				sessionType: "tournament",
+				tableSize: 8,
 			});
 		});
 
