@@ -123,24 +123,26 @@ describe("EmptySeatEditor", () => {
 		expect(mocks.state.setOpen).toHaveBeenCalledWith(true);
 	});
 
-	it("seats a temporary player from the Temp button beside the field", async () => {
+	it("seats a temporary player from the Temp icon beside the field", async () => {
 		const user = userEvent.setup();
 		setup();
-		await user.click(screen.getByRole("button", { name: "Temp" }));
+		await user.click(
+			screen.getByRole("button", { name: "Seat temporary player" })
+		);
 		expect(mocks.state.onTemporary).toHaveBeenCalledTimes(1);
 	});
 
-	it("seats the hero from the Hero button when hero seating is available", async () => {
+	it("seats the hero from the Hero icon when hero seating is available", async () => {
 		const user = userEvent.setup();
 		setup({ heroAvailable: true });
-		await user.click(screen.getByRole("button", { name: "Hero" }));
+		await user.click(screen.getByRole("button", { name: "Seat hero here" }));
 		expect(mocks.state.onHero).toHaveBeenCalledTimes(1);
 	});
 
-	it("hides the Hero button when a hero seat already exists", () => {
+	it("hides the Hero icon when a hero seat already exists", () => {
 		setup({ heroAvailable: false });
 		expect(
-			screen.queryByRole("button", { name: "Hero" })
+			screen.queryByRole("button", { name: "Seat hero here" })
 		).not.toBeInTheDocument();
 	});
 
@@ -190,7 +192,9 @@ describe("EmptySeatEditor", () => {
 		mocks.state.matches = [];
 		setup();
 		expect(screen.queryByText("No matching players")).not.toBeInTheDocument();
-		// The quick-action buttons stay available even with the dropdown closed.
-		expect(screen.getByRole("button", { name: "Temp" })).toBeInTheDocument();
+		// The quick-action icons stay available even with the dropdown closed.
+		expect(
+			screen.getByRole("button", { name: "Seat temporary player" })
+		).toBeInTheDocument();
 	});
 });
