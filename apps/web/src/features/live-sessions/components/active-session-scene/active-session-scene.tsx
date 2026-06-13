@@ -143,6 +143,7 @@ export function ActiveSessionScene({
 					onSeatHero={state.onSeatHero}
 					onSeatNew={state.onSeatNew}
 					onSeatTemporary={state.onSeatTemporary}
+					onUnseatHero={state.onUnseatHero}
 					seats={state.seats}
 					unseatedPlayers={state.unseatedPlayers}
 				/>

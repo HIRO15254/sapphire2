@@ -31,6 +31,7 @@ interface SeatListProps {
 		values: { name: string; tagIds?: string[] }
 	) => void;
 	onSeatTemporary: (seatPosition: number) => void;
+	onUnseatHero: () => void;
 	seats: SeatEntry[];
 	unseatedPlayers: SeatPlayer[];
 }
@@ -138,6 +139,7 @@ export function SeatList({
 	onSeatHero,
 	onSeatNew,
 	onSeatTemporary,
+	onUnseatHero,
 	seats,
 	unseatedPlayers,
 }: SeatListProps) {
@@ -184,7 +186,21 @@ export function SeatList({
 								key={key}
 								label={label}
 								summary={
-									<span className="font-medium text-primary text-sm">You</span>
+									<span className="font-medium text-amber-600 text-sm dark:text-amber-500">
+										You
+									</span>
+								}
+								trailingAction={
+									<Button
+										aria-label="Unseat hero"
+										className="text-muted-foreground hover:text-destructive"
+										onClick={onUnseatHero}
+										size="icon-sm"
+										type="button"
+										variant="ghost"
+									>
+										<IconLogout size={16} />
+									</Button>
 								}
 							/>
 						);

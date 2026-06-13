@@ -67,6 +67,7 @@ export interface ActiveSessionSceneState {
 		values: { memo?: string | null; name: string; tagIds?: string[] }
 	) => void;
 	onSeatTemporary: (seatPosition: number) => void;
+	onUnseatHero: () => void;
 	seats: SeatEntry[];
 	sessionParam: SessionParam;
 	tableSize: number;
@@ -118,9 +119,9 @@ export function useActiveSessionSceneState({
 					.queryKey;
 
 	const heroSeatMutation = useMutation({
-		mutationFn: (seatPosition: number) =>
+		mutationFn: (seatPosition: number | null) =>
 			updateHeroSeatViaClient(sessionParam, seatPosition),
-		onMutate: async (seatPosition) => {
+		onMutate: async (seatPosition: number | null) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionKey }]);
 			const previous = snapshotQuery(queryClient, sessionKey);
 			queryClient.setQueryData<SessionHeroSeat | null>(sessionKey, (old) =>
@@ -205,6 +206,9 @@ export function useActiveSessionSceneState({
 		},
 		onSeatTemporary: (seatPosition) => {
 			tablePlayers.handleAddTemporary(seatPosition);
+		},
+		onUnseatHero: () => {
+			heroSeatMutation.mutate(null);
 		},
 		seats,
 		sessionParam,

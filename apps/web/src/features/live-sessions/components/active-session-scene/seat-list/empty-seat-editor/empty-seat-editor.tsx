@@ -138,25 +138,24 @@ export function EmptySeatEditor({
 
 			{heroAvailable ? (
 				<Button
-					aria-label="Seat hero here"
-					className="shrink-0"
+					className="h-8 shrink-0 gap-1.5 border-amber-500 bg-amber-500 text-white hover:bg-amber-600 dark:bg-amber-500 dark:hover:bg-amber-600"
 					onClick={onHero}
-					size="icon-sm"
+					size="sm"
 					type="button"
-					variant="ghost"
 				>
-					<IconUser size={18} />
+					<IconUser size={14} />
+					Hero
 				</Button>
 			) : null}
 			<Button
-				aria-label="Seat temporary player"
-				className="shrink-0"
+				className="h-8 shrink-0 gap-1.5"
 				onClick={onTemporary}
-				size="icon-sm"
+				size="sm"
 				type="button"
-				variant="ghost"
+				variant="outline"
 			>
-				<IconUserQuestion size={18} />
+				<IconUserQuestion size={14} />
+				Temp
 			</Button>
 		</div>
 	);

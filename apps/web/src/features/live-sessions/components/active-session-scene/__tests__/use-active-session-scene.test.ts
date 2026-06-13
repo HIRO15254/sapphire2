@@ -17,6 +17,7 @@ function makeState(
 		onSeatHero: vi.fn(),
 		onSeatNew: vi.fn(),
 		onSeatTemporary: vi.fn(),
+		onUnseatHero: vi.fn(),
 		seats: [],
 		sessionParam: { liveCashGameSessionId: "s-1" },
 		tableSize: 9,

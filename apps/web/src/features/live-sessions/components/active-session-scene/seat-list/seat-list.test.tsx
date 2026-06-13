@@ -95,6 +95,7 @@ function setup(overrides: Partial<React.ComponentProps<typeof SeatList>> = {}) {
 		onSeatHero: vi.fn(),
 		onSeatNew: vi.fn(),
 		onSeatTemporary: vi.fn(),
+		onUnseatHero: vi.fn(),
 		seats: makeSeats([
 			{ seatPosition: 0 },
 			{ seatPosition: 1 },
@@ -163,7 +164,7 @@ describe("SeatList", () => {
 		expect(props.onRemovePlayer).toHaveBeenCalledWith("p-1");
 	});
 
-	it("renders the hero seat as 'You' with no expand button and no seater", () => {
+	it("renders the hero seat as 'You' with no expand button or inline seater", () => {
 		setup({
 			seats: makeSeats([
 				{ seatPosition: 0, isHero: true },
@@ -174,10 +175,18 @@ describe("SeatList", () => {
 		// Only the occupied seat is an expandable button; the hero row is static.
 		const rows = screen.getAllByRole("button", { name: REGEX_SEAT_N });
 		expect(rows).toHaveLength(1);
-		// The hero row has no inline seater and no unseat action.
 		expect(
 			screen.getByRole("button", { name: REGEX_SEAT_N })
 		).toHaveTextContent("Seat 2");
+	});
+
+	it("unseats the hero from the hero row's unseat action", async () => {
+		const user = userEvent.setup();
+		const props = setup({
+			seats: makeSeats([{ seatPosition: 0, isHero: true }]),
+		});
+		await user.click(screen.getByRole("button", { name: "Unseat hero" }));
+		expect(props.onUnseatHero).toHaveBeenCalledTimes(1);
 	});
 
 	it("seats an existing player at the empty seat with no expand step", async () => {

@@ -342,6 +342,16 @@ describe("useActiveSessionSceneState", () => {
 				4
 			);
 		});
+
+		it("onUnseatHero clears the hero seat via the session client", () => {
+			const { result } = renderState({ sessionType: "cash_game" });
+			result.current.onUnseatHero();
+			expect(mocks.updateHeroSeat).toHaveBeenCalledTimes(1);
+			expect(mocks.updateHeroSeat).toHaveBeenCalledWith(
+				{ liveCashGameSessionId: "s-1" },
+				null
+			);
+		});
 	});
 
 	describe("heroAvailable", () => {
