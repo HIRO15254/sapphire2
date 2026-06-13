@@ -1,4 +1,5 @@
 import { IconChevronRight, IconDotsVertical } from "@tabler/icons-react";
+import type { KeyboardEvent } from "react";
 import {
 	getAmountColorClass,
 	getAmountDisplay,
@@ -68,22 +69,39 @@ export function TransactionRow({
 	const isSessionGenerated = !!tx.sessionId;
 	const isNavigable = isSessionGenerated && !!onNavigateToSession;
 
-	const handleRowClick = isNavigable
-		? () => {
-				if (onNavigateToSession && tx.sessionId) {
-					onNavigateToSession(tx.sessionId);
+	const navigateToSession = () => {
+		if (onNavigateToSession && tx.sessionId) {
+			onNavigateToSession(tx.sessionId);
+		}
+	};
+
+	const handleRowClick = isNavigable ? navigateToSession : undefined;
+
+	const handleRowKeyDown = isNavigable
+		? (event: KeyboardEvent<HTMLTableRowElement>) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					navigateToSession();
 				}
 			}
 		: undefined;
 
 	return (
 		<TableRow
+			aria-label={
+				isNavigable
+					? `View session${tx.sessionName ? ` ${tx.sessionName}` : ""}`
+					: undefined
+			}
 			className={
 				isNavigable
 					? "cursor-pointer hover:bg-muted/50"
 					: "hover:bg-transparent"
 			}
 			onClick={handleRowClick}
+			onKeyDown={handleRowKeyDown}
+			role={isNavigable ? "button" : undefined}
+			tabIndex={isNavigable ? 0 : undefined}
 		>
 			<TableCell className={`${COMPACT_CELL} w-px`}>
 				{isSessionGenerated ? (

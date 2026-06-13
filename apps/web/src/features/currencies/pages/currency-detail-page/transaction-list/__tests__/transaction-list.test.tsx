@@ -5,6 +5,8 @@ import { TransactionListV2 } from "@/features/currencies/pages/currency-detail-p
 
 // Class-presence matcher for `size-8` (whole-word, single tailwind class).
 const SIZE_8_CLASS = /(^| )size-8( |$)/;
+// Accessible-name matcher for the row-level "View session" navigation button.
+const VIEW_SESSION_NAME = /view session/i;
 
 const regularTransaction = {
 	id: "tx1",
@@ -276,6 +278,106 @@ describe("TransactionListV2", () => {
 			/>
 		);
 		expect(screen.getAllByText("2026/03/20")).toHaveLength(1);
+	});
+
+	it("marks navigable session rows as a keyboard-operable button with an accessible name", () => {
+		render(
+			<TransactionListV2
+				onNavigateToSession={vi.fn()}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		expect(
+			screen.getByRole("button", { name: "View session NLH 1/2" })
+		).toBeInTheDocument();
+	});
+
+	it("falls back to a generic label when a navigable session row has no name", () => {
+		render(
+			<TransactionListV2
+				onNavigateToSession={vi.fn()}
+				transactions={[{ ...sessionTransaction, sessionName: null }]}
+			/>
+		);
+		expect(
+			screen.getByRole("button", { name: "View session" })
+		).toBeInTheDocument();
+	});
+
+	it("makes the navigable session row focusable with tabIndex 0", () => {
+		render(
+			<TransactionListV2
+				onNavigateToSession={vi.fn()}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		expect(
+			screen.getByRole("button", { name: "View session NLH 1/2" })
+		).toHaveAttribute("tabindex", "0");
+	});
+
+	it("navigates with the sessionId when Enter is pressed on a focused session row", async () => {
+		const user = userEvent.setup();
+		const onNavigateToSession = vi.fn();
+		render(
+			<TransactionListV2
+				onNavigateToSession={onNavigateToSession}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		screen.getByRole("button", { name: "View session NLH 1/2" }).focus();
+		await user.keyboard("{Enter}");
+		expect(onNavigateToSession).toHaveBeenCalledTimes(1);
+		expect(onNavigateToSession).toHaveBeenCalledWith("session-1");
+	});
+
+	it("navigates with the sessionId when Space is pressed on a focused session row", async () => {
+		const user = userEvent.setup();
+		const onNavigateToSession = vi.fn();
+		render(
+			<TransactionListV2
+				onNavigateToSession={onNavigateToSession}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		screen.getByRole("button", { name: "View session NLH 1/2" }).focus();
+		await user.keyboard("[Space]");
+		expect(onNavigateToSession).toHaveBeenCalledTimes(1);
+		expect(onNavigateToSession).toHaveBeenCalledWith("session-1");
+	});
+
+	it("ignores unrelated keys on a focused session row", async () => {
+		const user = userEvent.setup();
+		const onNavigateToSession = vi.fn();
+		render(
+			<TransactionListV2
+				onNavigateToSession={onNavigateToSession}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		screen.getByRole("button", { name: "View session NLH 1/2" }).focus();
+		await user.keyboard("{Escape}");
+		await user.keyboard("a");
+		expect(onNavigateToSession).not.toHaveBeenCalled();
+	});
+
+	it("does not expose a navigation button on regular (non-session) rows", () => {
+		render(
+			<TransactionListV2
+				onNavigateToSession={vi.fn()}
+				transactions={[regularTransaction]}
+			/>
+		);
+		expect(
+			screen.queryByRole("button", { name: VIEW_SESSION_NAME })
+		).not.toBeInTheDocument();
+	});
+
+	it("does not expose a navigation button when onNavigateToSession is not provided", () => {
+		render(<TransactionListV2 transactions={[sessionTransaction]} />);
+		expect(
+			screen.queryByRole("button", { name: VIEW_SESSION_NAME })
+		).not.toBeInTheDocument();
 	});
 
 	it("renders a separate date header per distinct day", () => {
