@@ -56,10 +56,12 @@ function makeState(
 ): ActiveSessionSceneState {
 	return {
 		excludePlayerIds: [],
+		heroAvailable: true,
 		heroSeatPosition: null,
 		occupiedSeatPositions: new Set<number>(),
 		onRemovePlayer: vi.fn(),
 		onSeatExisting: vi.fn(),
+		onSeatHero: vi.fn(),
 		onSeatNew: vi.fn(),
 		onSeatTemporary: vi.fn(),
 		seats: [],

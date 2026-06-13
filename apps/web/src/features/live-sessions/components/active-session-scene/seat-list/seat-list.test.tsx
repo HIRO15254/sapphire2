@@ -9,15 +9,19 @@ import type {
 
 vi.mock("./empty-seat-editor", () => ({
 	EmptySeatEditor: ({
+		heroAvailable,
 		onAddExisting,
 		onAddNew,
 		onAddTemporary,
+		onSeatHero,
 	}: {
+		heroAvailable: boolean;
 		onAddExisting: (id: string, name: string) => void;
 		onAddNew: (values: { name: string }) => void;
 		onAddTemporary: () => void;
+		onSeatHero: () => void;
 	}) => (
-		<div data-testid="empty-editor">
+		<div data-hero-available={heroAvailable} data-testid="empty-editor">
 			<button onClick={() => onAddExisting("p-9", "Nina")} type="button">
 				seat-existing
 			</button>
@@ -26,6 +30,9 @@ vi.mock("./empty-seat-editor", () => ({
 			</button>
 			<button onClick={onAddTemporary} type="button">
 				seat-temp
+			</button>
+			<button onClick={onSeatHero} type="button">
+				seat-hero
 			</button>
 		</div>
 	),
@@ -81,9 +88,11 @@ function makeSeats(
 function setup(overrides: Partial<React.ComponentProps<typeof SeatList>> = {}) {
 	const props: React.ComponentProps<typeof SeatList> = {
 		excludePlayerIds: [],
+		heroAvailable: true,
 		onRemovePlayer: vi.fn(),
 		onScanPlayers: vi.fn(),
 		onSeatExisting: vi.fn(),
+		onSeatHero: vi.fn(),
 		onSeatNew: vi.fn(),
 		onSeatTemporary: vi.fn(),
 		seats: makeSeats([
@@ -192,6 +201,21 @@ describe("SeatList", () => {
 		const props = setup({ seats: makeSeats([{ seatPosition: 1 }]) });
 		await user.click(screen.getByRole("button", { name: "seat-temp" }));
 		expect(props.onSeatTemporary).toHaveBeenCalledWith(1);
+	});
+
+	it("seats the hero at the empty seat", async () => {
+		const user = userEvent.setup();
+		const props = setup({ seats: makeSeats([{ seatPosition: 1 }]) });
+		await user.click(screen.getByRole("button", { name: "seat-hero" }));
+		expect(props.onSeatHero).toHaveBeenCalledWith(1);
+	});
+
+	it("forwards heroAvailability to the empty-seat editor", () => {
+		setup({ heroAvailable: false, seats: makeSeats([{ seatPosition: 1 }]) });
+		expect(screen.getByTestId("empty-editor")).toHaveAttribute(
+			"data-hero-available",
+			"false"
+		);
 	});
 
 	it("expands an occupied seat to its inline editor", async () => {

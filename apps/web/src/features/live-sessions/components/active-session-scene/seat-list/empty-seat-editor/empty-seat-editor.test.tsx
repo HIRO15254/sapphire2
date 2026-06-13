@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 		contentWidth: undefined as number | undefined,
 		matches: [] as PlayerOption[],
 		onCreate: vi.fn(),
+		onHero: vi.fn(),
 		onSelectExisting: vi.fn(),
 		onTemporary: vi.fn(),
 		open: true,
@@ -83,9 +84,11 @@ function setup(
 ) {
 	const props: React.ComponentProps<typeof EmptySeatEditor> = {
 		excludePlayerIds: [],
+		heroAvailable: true,
 		onAddExisting: vi.fn(),
 		onAddNew: vi.fn(),
 		onAddTemporary: vi.fn(),
+		onSeatHero: vi.fn(),
 		...overrides,
 	};
 	render(<EmptySeatEditor {...props} />);
@@ -100,6 +103,7 @@ describe("EmptySeatEditor", () => {
 		mocks.state.query = "";
 		mocks.state.trimmed = "";
 		mocks.state.onCreate.mockReset();
+		mocks.state.onHero.mockReset();
 		mocks.state.onSelectExisting.mockReset();
 		mocks.state.onTemporary.mockReset();
 		mocks.state.setOpen.mockReset();
@@ -119,13 +123,32 @@ describe("EmptySeatEditor", () => {
 		expect(mocks.state.setOpen).toHaveBeenCalledWith(true);
 	});
 
-	it("always offers a temporary-player option in the dropdown", async () => {
+	it("seats a temporary player from the icon beside the field", async () => {
 		const user = userEvent.setup();
 		setup();
 		await user.click(
-			screen.getByRole("button", { name: "Add temporary player" })
+			screen.getByRole("button", { name: "Seat temporary player" })
 		);
 		expect(mocks.state.onTemporary).toHaveBeenCalledTimes(1);
+	});
+
+	it("seats the hero from the icon when hero seating is available", async () => {
+		const user = userEvent.setup();
+		setup({ heroAvailable: true });
+		await user.click(screen.getByRole("button", { name: "Seat hero here" }));
+		expect(mocks.state.onHero).toHaveBeenCalledTimes(1);
+	});
+
+	it("hides the hero icon when a hero seat already exists", () => {
+		setup({ heroAvailable: false });
+		expect(
+			screen.queryByRole("button", { name: "Seat hero here" })
+		).not.toBeInTheDocument();
+	});
+
+	it("does not offer temporary seating inside the dropdown anymore", () => {
+		setup();
+		expect(screen.queryByText("Add temporary player")).not.toBeInTheDocument();
 	});
 
 	it("hides the create option when there is nothing to create", () => {
@@ -164,11 +187,14 @@ describe("EmptySeatEditor", () => {
 		expect(screen.getByText("No matching players")).toBeInTheDocument();
 	});
 
-	it("renders no dropdown when closed", () => {
+	it("renders no dropdown content when closed", () => {
 		mocks.state.open = false;
+		mocks.state.matches = [];
 		setup();
+		expect(screen.queryByText("No matching players")).not.toBeInTheDocument();
+		// The quick-action icons stay available even with the dropdown closed.
 		expect(
-			screen.queryByRole("button", { name: "Add temporary player" })
-		).not.toBeInTheDocument();
+			screen.getByRole("button", { name: "Seat temporary player" })
+		).toBeInTheDocument();
 	});
 });

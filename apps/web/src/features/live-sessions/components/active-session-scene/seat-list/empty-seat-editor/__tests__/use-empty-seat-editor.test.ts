@@ -38,6 +38,7 @@ function render(
 		onAddExisting: vi.fn(),
 		onAddNew: vi.fn(),
 		onAddTemporary: vi.fn(),
+		onSeatHero: vi.fn(),
 		...overrides,
 	};
 	return { options, ...renderHook(() => useEmptySeatEditor(options)) };
@@ -137,6 +138,16 @@ describe("useEmptySeatEditor", () => {
 			act(() => result.current.setQuery("x"));
 			act(() => result.current.onTemporary());
 			expect(options.onAddTemporary).toHaveBeenCalledTimes(1);
+			expect(result.current.query).toBe("");
+			expect(result.current.open).toBe(false);
+		});
+
+		it("onHero claims the seat for the hero and resets", () => {
+			const { options, result } = render();
+			act(() => result.current.setQuery("x"));
+			act(() => result.current.setOpen(true));
+			act(() => result.current.onHero());
+			expect(options.onSeatHero).toHaveBeenCalledTimes(1);
 			expect(result.current.query).toBe("");
 			expect(result.current.open).toBe(false);
 		});

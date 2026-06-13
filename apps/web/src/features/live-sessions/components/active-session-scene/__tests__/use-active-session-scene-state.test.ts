@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
 		id: string;
 		tags: { color: string; id: string; name: string }[];
 	}>,
+	updateHeroSeat: vi.fn(),
 }));
 
 vi.mock("@/features/players/hooks/use-table-players", () => ({
@@ -54,12 +55,48 @@ vi.mock("@/features/players/hooks/use-player-detail", () => ({
 
 vi.mock("@tanstack/react-query", () => ({
 	useQuery: () => ({ data: mocks.playerList }),
+	useQueryClient: () => ({
+		cancelQueries: vi.fn(),
+		getQueryData: vi.fn(),
+		setQueryData: vi.fn(),
+		invalidateQueries: vi.fn(),
+	}),
+	useMutation: (options: { mutationFn: (input: unknown) => unknown }) => ({
+		mutate: (input: unknown) => options.mutationFn(input),
+		isPending: false,
+	}),
+}));
+
+vi.mock("@/features/live-sessions/utils/seat-screenshot", () => ({
+	updateHeroSeatViaClient: (sessionParam: unknown, seatPosition: unknown) =>
+		mocks.updateHeroSeat(sessionParam, seatPosition),
+}));
+
+vi.mock("@/utils/optimistic-update", () => ({
+	cancelTargets: vi.fn(),
+	invalidateTargets: vi.fn(),
+	restoreSnapshots: vi.fn(),
+	snapshotQuery: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		player: {
 			list: { queryOptions: () => ({ queryKey: ["player", "list"] }) },
+		},
+		liveCashGameSession: {
+			getById: {
+				queryOptions: ({ id }: { id: string }) => ({
+					queryKey: ["cash-session", id],
+				}),
+			},
+		},
+		liveTournamentSession: {
+			getById: {
+				queryOptions: ({ id }: { id: string }) => ({
+					queryKey: ["tournament-session", id],
+				}),
+			},
 		},
 	},
 }));
@@ -107,6 +144,7 @@ describe("useActiveSessionSceneState", () => {
 		mocks.useTablePlayersSpy.mockReset();
 		mocks.usePlayerDetailSpy.mockReset();
 		mocks.playerList = [];
+		mocks.updateHeroSeat.mockReset();
 	});
 
 	describe("session param", () => {
@@ -293,6 +331,28 @@ describe("useActiveSessionSceneState", () => {
 			const { result } = renderState();
 			result.current.onRemovePlayer("p-1");
 			expect(mocks.tablePlayers.handleRemovePlayer).toHaveBeenCalledWith("p-1");
+		});
+
+		it("onSeatHero updates the hero seat via the session client", () => {
+			const { result } = renderState({ sessionType: "cash_game" });
+			result.current.onSeatHero(4);
+			expect(mocks.updateHeroSeat).toHaveBeenCalledTimes(1);
+			expect(mocks.updateHeroSeat).toHaveBeenCalledWith(
+				{ liveCashGameSessionId: "s-1" },
+				4
+			);
+		});
+	});
+
+	describe("heroAvailable", () => {
+		it("is true when no hero seat is set", () => {
+			const { result } = renderState({ heroSeatPosition: null });
+			expect(result.current.heroAvailable).toBe(true);
+		});
+
+		it("is false once a hero seat exists", () => {
+			const { result } = renderState({ heroSeatPosition: 2 });
+			expect(result.current.heroAvailable).toBe(false);
 		});
 	});
 

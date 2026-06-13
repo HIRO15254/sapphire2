@@ -16,6 +16,8 @@ import { useSeatList } from "./use-seat-list";
 
 interface SeatListProps {
 	excludePlayerIds: string[];
+	/** True when a seat may still be claimed as the hero seat. */
+	heroAvailable: boolean;
 	onRemovePlayer: (playerId: string) => void;
 	onScanPlayers: () => void;
 	onSeatExisting: (
@@ -23,6 +25,7 @@ interface SeatListProps {
 		playerId: string,
 		playerName: string
 	) => void;
+	onSeatHero: (seatPosition: number) => void;
 	onSeatNew: (
 		seatPosition: number,
 		values: { name: string; tagIds?: string[] }
@@ -128,9 +131,11 @@ function PlayerSummary({ player }: { player: SeatPlayer }) {
  */
 export function SeatList({
 	excludePlayerIds,
+	heroAvailable,
 	onRemovePlayer,
 	onScanPlayers,
 	onSeatExisting,
+	onSeatHero,
 	onSeatNew,
 	onSeatTemporary,
 	seats,
@@ -196,6 +201,7 @@ export function SeatList({
 									<div className="min-w-0 flex-1">
 										<EmptySeatEditor
 											excludePlayerIds={excludePlayerIds}
+											heroAvailable={heroAvailable}
 											onAddExisting={(playerId, playerName) =>
 												onSeatExisting(seat.seatPosition, playerId, playerName)
 											}
@@ -203,6 +209,7 @@ export function SeatList({
 												onSeatNew(seat.seatPosition, values)
 											}
 											onAddTemporary={() => onSeatTemporary(seat.seatPosition)}
+											onSeatHero={() => onSeatHero(seat.seatPosition)}
 										/>
 									</div>
 								</div>

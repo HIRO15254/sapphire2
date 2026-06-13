@@ -1,7 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { updateHeroSeatViaClient } from "@/features/live-sessions/utils/seat-screenshot";
 import type { PlayerTagWithColor } from "@/features/players/hooks/use-player-detail";
 import { useTablePlayers } from "@/features/players/hooks/use-table-players";
+import {
+	cancelTargets,
+	invalidateTargets,
+	restoreSnapshots,
+	snapshotQuery,
+} from "@/utils/optimistic-update";
 import { trpc } from "@/utils/trpc";
 
 const DEFAULT_SEAT_COUNT = 9;
@@ -44,6 +51,8 @@ interface UseActiveSessionSceneStateOptions {
 
 export interface ActiveSessionSceneState {
 	excludePlayerIds: string[];
+	/** True when no hero seat is set yet, so a seat may be claimed as the hero. */
+	heroAvailable: boolean;
 	heroSeatPosition: number | null;
 	occupiedSeatPositions: Set<number>;
 	onRemovePlayer: (playerId: string) => void;
@@ -52,6 +61,7 @@ export interface ActiveSessionSceneState {
 		playerId: string,
 		playerName: string
 	) => void;
+	onSeatHero: (seatPosition: number) => void;
 	onSeatNew: (
 		seatPosition: number,
 		values: { memo?: string | null; name: string; tagIds?: string[] }
@@ -61,6 +71,11 @@ export interface ActiveSessionSceneState {
 	sessionParam: SessionParam;
 	tableSize: number;
 	unseatedPlayers: SeatPlayer[];
+}
+
+interface SessionHeroSeat {
+	heroSeatPosition?: number | null;
+	[key: string]: unknown;
 }
 
 export function resolveSeatCount(tableSize: number | null): number {
@@ -93,6 +108,33 @@ export function useActiveSessionSceneState({
 			? { liveCashGameSessionId: sessionId }
 			: { liveTournamentSessionId: sessionId };
 	const tablePlayers = useTablePlayers(sessionParam);
+	const queryClient = useQueryClient();
+
+	const sessionKey =
+		sessionType === "cash_game"
+			? trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
+					.queryKey
+			: trpc.liveTournamentSession.getById.queryOptions({ id: sessionId })
+					.queryKey;
+
+	const heroSeatMutation = useMutation({
+		mutationFn: (seatPosition: number) =>
+			updateHeroSeatViaClient(sessionParam, seatPosition),
+		onMutate: async (seatPosition) => {
+			await cancelTargets(queryClient, [{ queryKey: sessionKey }]);
+			const previous = snapshotQuery(queryClient, sessionKey);
+			queryClient.setQueryData<SessionHeroSeat | null>(sessionKey, (old) =>
+				old ? { ...old, heroSeatPosition: seatPosition } : old
+			);
+			return { previous };
+		},
+		onError: (_error, _variables, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
+		},
+		onSettled: () => {
+			invalidateTargets(queryClient, [{ queryKey: sessionKey }]);
+		},
+	});
 
 	const playerListQuery = useQuery(trpc.player.list.queryOptions());
 	const tagsByPlayerId = useMemo(() => {
@@ -146,6 +188,7 @@ export function useActiveSessionSceneState({
 
 	return {
 		excludePlayerIds: tablePlayers.excludePlayerIds,
+		heroAvailable: heroSeatPosition === null,
 		heroSeatPosition,
 		occupiedSeatPositions,
 		onRemovePlayer: (playerId) => {
@@ -153,6 +196,9 @@ export function useActiveSessionSceneState({
 		},
 		onSeatExisting: (seatPosition, playerId, playerName) => {
 			tablePlayers.handleAddExisting(playerId, playerName, seatPosition);
+		},
+		onSeatHero: (seatPosition) => {
+			heroSeatMutation.mutate(seatPosition);
 		},
 		onSeatNew: (seatPosition, { name, memo, tagIds }) => {
 			tablePlayers.handleAddNew(name, seatPosition, memo ?? undefined, tagIds);

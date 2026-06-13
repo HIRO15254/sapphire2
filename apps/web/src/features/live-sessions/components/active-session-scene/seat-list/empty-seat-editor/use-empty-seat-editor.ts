@@ -14,19 +14,22 @@ interface UseEmptySeatEditorOptions {
 	onAddExisting: (playerId: string, playerName: string) => void;
 	onAddNew: (values: { name: string }) => void;
 	onAddTemporary: () => void;
+	onSeatHero: () => void;
 }
 
 /**
  * Drives the always-on empty-seat combobox: fetches the full player catalog
  * (shared cache key — no extra request) and filters it client-side by player
- * name OR tag name so a single text field searches both. The dropdown lets the
- * user seat an existing player, create one by name, or seat a temporary player.
+ * name OR tag name so a single text field searches both. Hero and temporary
+ * seating are quick-action icons beside the field; the dropdown handles
+ * existing-player selection and create-by-name.
  */
 export function useEmptySeatEditor({
 	excludePlayerIds,
 	onAddExisting,
 	onAddNew,
 	onAddTemporary,
+	onSeatHero,
 }: UseEmptySeatEditorOptions) {
 	const [query, setQuery] = useState("");
 	const [open, setOpen] = useState(false);
@@ -51,6 +54,11 @@ export function useEmptySeatEditor({
 	);
 	const trimmed = query.trim();
 
+	const reset = () => {
+		setQuery("");
+		setOpen(false);
+	};
+
 	return {
 		anchorRef,
 		canCreate: trimmed.length > 0,
@@ -61,18 +69,19 @@ export function useEmptySeatEditor({
 				return;
 			}
 			onAddNew({ name: trimmed });
-			setQuery("");
-			setOpen(false);
+			reset();
+		},
+		onHero: () => {
+			onSeatHero();
+			reset();
 		},
 		onSelectExisting: (player: PlayerOption) => {
 			onAddExisting(player.id, player.name);
-			setQuery("");
-			setOpen(false);
+			reset();
 		},
 		onTemporary: () => {
 			onAddTemporary();
-			setQuery("");
-			setOpen(false);
+			reset();
 		},
 		open,
 		query,
