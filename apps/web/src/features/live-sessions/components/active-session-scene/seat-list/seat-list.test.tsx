@@ -164,14 +164,14 @@ describe("SeatList", () => {
 		expect(props.onRemovePlayer).toHaveBeenCalledWith("p-1");
 	});
 
-	it("renders the hero seat as 'You' with no expand button or inline seater", () => {
+	it("renders the hero seat as 'Hero' with no expand button or inline seater", () => {
 		setup({
 			seats: makeSeats([
 				{ seatPosition: 0, isHero: true },
 				{ seatPosition: 1, player: makePlayer() },
 			]),
 		});
-		expect(screen.getByText("You")).toBeInTheDocument();
+		expect(screen.getByText("Hero")).toBeInTheDocument();
 		// Only the occupied seat is an expandable button; the hero row is static.
 		const rows = screen.getAllByRole("button", { name: REGEX_SEAT_N });
 		expect(rows).toHaveLength(1);

@@ -186,9 +186,7 @@ export function SeatList({
 								key={key}
 								label={label}
 								summary={
-									<span className="font-medium text-amber-600 text-sm dark:text-amber-500">
-										You
-									</span>
+									<span className="font-medium text-sm text-warning">Hero</span>
 								}
 								trailingAction={
 									<Button

@@ -139,7 +139,7 @@ export function EmptySeatEditor({
 			{heroAvailable ? (
 				<Button
 					aria-label="Seat hero here"
-					className="shrink-0 border-amber-500 text-amber-600 hover:bg-amber-500/10 hover:text-amber-600 dark:text-amber-500"
+					className="shrink-0 border-warning text-warning hover:bg-warning/10 hover:text-warning"
 					onClick={onHero}
 					size="icon-sm"
 					type="button"
