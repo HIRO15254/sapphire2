@@ -5,6 +5,7 @@ import {
 	restoreSnapshots,
 	snapshotQueries,
 	snapshotQuery,
+	updateQueryEntity,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -75,16 +76,11 @@ export function usePlayerDetail(playerId: string | null) {
 					: (tagsQuery.data ?? []).filter((tag) =>
 							values.tagIds?.includes(tag.id)
 						);
-			queryClient.setQueryData<PlayerDetailData | null>(playerKey, (old) =>
-				old
-					? {
-							...old,
-							memo: values.memo ?? old.memo,
-							name: values.name ?? old.name,
-							tags: nextTags as PlayerTagWithColor[],
-						}
-					: old
-			);
+			updateQueryEntity<PlayerDetailData>(queryClient, playerKey, (old) => ({
+				memo: values.memo ?? old.memo,
+				name: values.name ?? old.name,
+				tags: nextTags as PlayerTagWithColor[],
+			}));
 			queryClient.setQueriesData<PlayerListItemWithTags[]>(
 				{ queryKey: playerListKey },
 				(old) =>

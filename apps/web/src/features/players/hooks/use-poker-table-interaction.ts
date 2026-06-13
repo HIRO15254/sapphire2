@@ -7,6 +7,7 @@ import {
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateQueryEntity,
 } from "@/utils/optimistic-update";
 import { trpcClient } from "@/utils/trpc";
 
@@ -53,9 +54,9 @@ export function usePokerTableInteraction(
 		onMutate: async (nextSeatPosition) => {
 			await cancelTargets(queryClient, [{ queryKey: sessionKey }]);
 			const previousSession = snapshotQuery(queryClient, sessionKey);
-			queryClient.setQueryData<SessionDetailWithHeroSeat>(sessionKey, (old) =>
-				old ? { ...old, heroSeatPosition: nextSeatPosition } : old
-			);
+			updateQueryEntity<SessionDetailWithHeroSeat>(queryClient, sessionKey, {
+				heroSeatPosition: nextSeatPosition,
+			});
 			const previousSeat =
 				localHeroSeat === undefined ? heroSeatPosition : localHeroSeat;
 			setLocalHeroSeat(nextSeatPosition);

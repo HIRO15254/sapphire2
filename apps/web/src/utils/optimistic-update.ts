@@ -95,6 +95,48 @@ export function updateInfiniteQueryItems<TItem>(
 }
 
 /**
+ * Optimistically patch a single-entity query cache entry — one object, not a
+ * list — by shallow-merging `patch` into the existing value. No-ops when the
+ * cache is empty / unfetched (`undefined` or `null`) so it never fabricates an
+ * entity out of nothing; the mutation's `onSettled` invalidate then populates
+ * it. `patch` is a partial object, or a function of the current entity for
+ * patches whose new fields depend on the previous value. The single-object
+ * analog of `updateQueryItems`; use for "edit one field on the detail object"
+ * optimistic flows and pair with `snapshotQuery` + `restoreSnapshots` for
+ * rollback.
+ */
+export function updateQueryEntity<TEntity extends object>(
+	queryClient: QueryClient,
+	queryKey: QueryKey,
+	patch: Partial<TEntity> | ((entity: TEntity) => Partial<TEntity>)
+): void {
+	queryClient.setQueryData<TEntity>(queryKey, (old) => {
+		if (!old) {
+			return old;
+		}
+		return { ...old, ...(typeof patch === "function" ? patch(old) : patch) };
+	});
+}
+
+/**
+ * Optimistically rewrite a plain-array query cache entry (`TItem[]`, not an
+ * infinite query) by mapping the whole array through `updateItems`. Use `.map`
+ * for edit and `.filter` for delete. No-ops when the cache is empty / unfetched
+ * so it never fabricates a list out of nothing. The single-query analog of
+ * `updateInfiniteQueryItems`; pair with `snapshotQuery` + `restoreSnapshots`
+ * for rollback.
+ */
+export function updateQueryItems<TItem>(
+	queryClient: QueryClient,
+	queryKey: QueryKey,
+	updateItems: (items: TItem[]) => TItem[]
+): void {
+	queryClient.setQueryData<TItem[]>(queryKey, (old) =>
+		old ? updateItems(old) : old
+	);
+}
+
+/**
  * Optimistically prepend a single item to the first page of a
  * `useInfiniteQuery` cache entry, preserving the page envelope. Use for create
  * flows where the new row sorts to the top of the list. No-ops when the cache
