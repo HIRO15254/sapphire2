@@ -1,6 +1,5 @@
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import { Textarea } from "@/shared/components/ui/textarea";
 import { TypeCombobox } from "./type-combobox";
 import {
 	type TransactionFormValues,
@@ -33,6 +32,25 @@ export function TransactionFormV2({
 				form.handleSubmit();
 			}}
 		>
+			<form.Field name="transactedAt">
+				{(field) => (
+					<Field
+						error={field.state.meta.errors[0]?.message}
+						htmlFor={field.name}
+						label="Date"
+						required
+					>
+						<Input
+							id={field.name}
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							type="date"
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 			<form.Field name="transactionTypeId">
 				{(typeField) => (
 					<form.Field name="newTypeName">
@@ -57,6 +75,19 @@ export function TransactionFormV2({
 					</form.Field>
 				)}
 			</form.Field>
+			<form.Field name="memo">
+				{(field) => (
+					<Field htmlFor={field.name} label="Memo">
+						<Input
+							id={field.name}
+							name={field.name}
+							onBlur={field.handleBlur}
+							onChange={(e) => field.handleChange(e.target.value)}
+							value={field.state.value}
+						/>
+					</Field>
+				)}
+			</form.Field>
 			<form.Field name="amount">
 				{(field) => (
 					<Field
@@ -69,38 +100,6 @@ export function TransactionFormV2({
 						<Input
 							id={field.name}
 							inputMode="numeric"
-							name={field.name}
-							onBlur={field.handleBlur}
-							onChange={(e) => field.handleChange(e.target.value)}
-							value={field.state.value}
-						/>
-					</Field>
-				)}
-			</form.Field>
-			<form.Field name="transactedAt">
-				{(field) => (
-					<Field
-						error={field.state.meta.errors[0]?.message}
-						htmlFor={field.name}
-						label="Date"
-						required
-					>
-						<Input
-							id={field.name}
-							name={field.name}
-							onBlur={field.handleBlur}
-							onChange={(e) => field.handleChange(e.target.value)}
-							type="date"
-							value={field.state.value}
-						/>
-					</Field>
-				)}
-			</form.Field>
-			<form.Field name="memo">
-				{(field) => (
-					<Field htmlFor={field.name} label="Memo">
-						<Textarea
-							id={field.name}
 							name={field.name}
 							onBlur={field.handleBlur}
 							onChange={(e) => field.handleChange(e.target.value)}
