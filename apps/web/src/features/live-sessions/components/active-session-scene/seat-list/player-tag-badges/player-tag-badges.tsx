@@ -19,9 +19,7 @@ interface PlayerTagBadgesProps {
  * (width is measured, not a fixed count).
  */
 export function PlayerTagBadges({ tags }: PlayerTagBadgesProps) {
-	const { containerRef, ghostRef, visibleCount } = usePlayerTagBadges(
-		tags.length
-	);
+	const { containerRef, ghostRef, visibleCount } = usePlayerTagBadges(tags);
 
 	if (tags.length === 0) {
 		return null;
