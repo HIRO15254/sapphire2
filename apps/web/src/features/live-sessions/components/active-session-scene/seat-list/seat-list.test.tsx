@@ -41,10 +41,8 @@ import { SeatList } from "@/features/live-sessions/components/active-session-sce
 
 const REGEX_SEAT_1 = /Seat 1/;
 const REGEX_SEAT_2 = /Seat 2/;
-const REGEX_SEAT_3 = /Seat 3/;
 const REGEX_SEAT_N = /^Seat \d/;
 const REGEX_UNSEATED = /Unseated/;
-const REGEX_UNSEAT = /^Unseat /;
 
 function makePlayer(overrides: Partial<SeatPlayer> = {}): SeatPlayer {
 	return {
@@ -98,7 +96,7 @@ describe("SeatList", () => {
 		expect(screen.getByText("Seat 3")).toBeInTheDocument();
 	});
 
-	it("shows occupied seats with the player name and empty seats as Empty", () => {
+	it("shows occupied seats with the player name and empty seats with the inline seater", () => {
 		setup({
 			seats: makeSeats([
 				{ seatPosition: 0, player: makePlayer() },
@@ -106,7 +104,8 @@ describe("SeatList", () => {
 			]),
 		});
 		expect(screen.getByText("Alice")).toBeInTheDocument();
-		expect(screen.getByText("Empty")).toBeInTheDocument();
+		// The empty seat renders its always-on seater inline (no "Empty"/expand).
+		expect(screen.getByTestId("empty-editor")).toBeInTheDocument();
 	});
 
 	it("shows the memo excerpt on the row with zero taps", () => {
@@ -145,42 +144,42 @@ describe("SeatList", () => {
 		expect(props.onRemovePlayer).toHaveBeenCalledWith("p-1");
 	});
 
-	it("renders the hero seat as 'You' with no expand and no unseat", () => {
+	it("renders the hero seat as 'You' with no expand button and no seater", () => {
 		setup({
 			seats: makeSeats([
 				{ seatPosition: 0, isHero: true },
-				{ seatPosition: 1 },
+				{ seatPosition: 1, player: makePlayer() },
 			]),
 		});
 		expect(screen.getByText("You")).toBeInTheDocument();
+		// Only the occupied seat is an expandable button; the hero row is static.
 		const rows = screen.getAllByRole("button", { name: REGEX_SEAT_N });
 		expect(rows).toHaveLength(1);
-		expect(screen.queryByLabelText(REGEX_UNSEAT)).not.toBeInTheDocument();
+		// The hero row has no inline seater and no unseat action.
+		expect(
+			screen.getByRole("button", { name: REGEX_SEAT_N })
+		).toHaveTextContent("Seat 2");
 	});
 
-	it("expands an empty seat inline and seats an existing player at that seat", async () => {
+	it("seats an existing player at the empty seat with no expand step", async () => {
 		const user = userEvent.setup();
 		const props = setup({ seats: makeSeats([{ seatPosition: 2 }]) });
-		expect(screen.queryByTestId("empty-editor")).not.toBeInTheDocument();
-		await user.click(screen.getByRole("button", { name: REGEX_SEAT_3 }));
+		// The inline seater is present immediately — no expansion needed.
 		expect(screen.getByTestId("empty-editor")).toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: "seat-existing" }));
 		expect(props.onSeatExisting).toHaveBeenCalledWith(2, "p-9", "Nina");
-		expect(screen.queryByTestId("empty-editor")).not.toBeInTheDocument();
 	});
 
-	it("seats a new player at the expanded seat", async () => {
+	it("seats a new player at the empty seat", async () => {
 		const user = userEvent.setup();
 		const props = setup({ seats: makeSeats([{ seatPosition: 1 }]) });
-		await user.click(screen.getByRole("button", { name: REGEX_SEAT_2 }));
 		await user.click(screen.getByRole("button", { name: "seat-new" }));
 		expect(props.onSeatNew).toHaveBeenCalledWith(1, { name: "New" });
 	});
 
-	it("seats a temporary player at the expanded seat", async () => {
+	it("seats a temporary player at the empty seat", async () => {
 		const user = userEvent.setup();
 		const props = setup({ seats: makeSeats([{ seatPosition: 1 }]) });
-		await user.click(screen.getByRole("button", { name: REGEX_SEAT_2 }));
 		await user.click(screen.getByRole("button", { name: "seat-temp" }));
 		expect(props.onSeatTemporary).toHaveBeenCalledWith(1);
 	});
@@ -197,15 +196,22 @@ describe("SeatList", () => {
 		expect(within(editor).getByText("editing:p-77")).toBeInTheDocument();
 	});
 
-	it("expanding one row collapses any other open row", async () => {
+	it("expanding one occupied row collapses any other open row", async () => {
 		const user = userEvent.setup();
 		setup({
-			seats: makeSeats([{ seatPosition: 0 }, { seatPosition: 1 }]),
+			seats: makeSeats([
+				{ seatPosition: 0, player: makePlayer({ playerId: "p-a" }) },
+				{
+					seatPosition: 1,
+					player: makePlayer({ id: "tp-b", name: "Bob", playerId: "p-b" }),
+				},
+			]),
 		});
 		await user.click(screen.getByRole("button", { name: REGEX_SEAT_1 }));
-		expect(screen.getAllByTestId("empty-editor")).toHaveLength(1);
+		expect(screen.getAllByTestId("occupied-editor")).toHaveLength(1);
 		await user.click(screen.getByRole("button", { name: REGEX_SEAT_2 }));
-		expect(screen.getAllByTestId("empty-editor")).toHaveLength(1);
+		expect(screen.getAllByTestId("occupied-editor")).toHaveLength(1);
+		expect(screen.getByText("editing:p-b")).toBeInTheDocument();
 	});
 
 	it("renders unseated players with their own one-tap unseat action", async () => {

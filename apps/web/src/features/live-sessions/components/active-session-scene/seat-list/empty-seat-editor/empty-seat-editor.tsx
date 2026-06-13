@@ -1,8 +1,21 @@
-import { IconPlus, IconSearch, IconUserQuestion } from "@tabler/icons-react";
-import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
+import {
+	IconSearch,
+	IconUserPlus,
+	IconUserQuestion,
+} from "@tabler/icons-react";
 import { Badge } from "@/shared/components/ui/badge";
-import { Button } from "@/shared/components/ui/button";
+import {
+	Command,
+	CommandEmpty,
+	CommandItem,
+	CommandList,
+} from "@/shared/components/ui/command";
 import { Input } from "@/shared/components/ui/input";
+import {
+	Popover,
+	PopoverAnchor,
+	PopoverContent,
+} from "@/shared/components/ui/popover";
 import { useEmptySeatEditor } from "./use-empty-seat-editor";
 
 interface EmptySeatEditorProps {
@@ -13,10 +26,10 @@ interface EmptySeatEditorProps {
 }
 
 /**
- * Speed-first inline seating for an empty seat: available players are listed
- * immediately (one tap to seat), with search to narrow, a one-tap temporary
- * player, and create-by-name. Tags/memo are edited after seating, inline on
- * the occupied row.
+ * Always-on combobox for seating an empty seat: the search field is shown
+ * inline on the row (no expansion). Typing filters players by name or tag, and
+ * the dropdown lets the user seat an existing player, create one by name, or
+ * seat a temporary player — each in a single tap.
  */
 export function EmptySeatEditor({
 	excludePlayerIds,
@@ -25,100 +38,123 @@ export function EmptySeatEditor({
 	onAddTemporary,
 }: EmptySeatEditorProps) {
 	const {
-		filteredPlayers,
-		handleAddExisting,
-		handleCreateNew,
-		search,
-		setSearch,
-	} = useEmptySeatEditor({ excludePlayerIds, onAddExisting, onAddNew });
-
-	const trimmed = search.trim();
+		anchorRef,
+		canCreate,
+		contentWidth,
+		matches,
+		onCreate,
+		onSelectExisting,
+		onTemporary,
+		open,
+		query,
+		setOpen,
+		setQuery,
+		trimmed,
+	} = useEmptySeatEditor({
+		excludePlayerIds,
+		onAddExisting,
+		onAddNew,
+		onAddTemporary,
+	});
 
 	return (
-		<div className="flex flex-col gap-2">
-			<div className="flex items-center gap-2">
-				<div className="relative flex-1">
+		<Popover modal={false} onOpenChange={setOpen} open={open}>
+			<PopoverAnchor asChild>
+				<div className="relative" ref={anchorRef}>
 					<IconSearch
-						className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
+						className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
 						size={16}
 					/>
 					<Input
-						aria-label="Search players"
+						aria-expanded={open}
+						aria-label="Search or seat a player"
+						autoComplete="off"
 						className="h-8 pl-9"
-						onChange={(e) => setSearch(e.target.value)}
-						value={search}
+						onChange={(e) => {
+							setQuery(e.target.value);
+							setOpen(true);
+						}}
+						onFocus={() => setOpen(true)}
+						role="combobox"
+						value={query}
 					/>
 				</div>
-				<Button
-					className="h-8 shrink-0 gap-1.5"
-					onClick={onAddTemporary}
-					size="sm"
-					type="button"
-					variant="outline"
+			</PopoverAnchor>
+			{open ? (
+				<PopoverContent
+					align="start"
+					className="p-0"
+					onOpenAutoFocus={(e) => e.preventDefault()}
+					onPointerDownOutside={(e) => {
+						if (anchorRef.current?.contains(e.target as Node | null)) {
+							e.preventDefault();
+						}
+					}}
+					style={contentWidth ? { width: contentWidth } : undefined}
 				>
-					<IconUserQuestion size={14} />
-					Temp
-				</Button>
-			</div>
-
-			{trimmed ? (
-				<Button
-					className="h-8 w-full justify-start gap-2 px-2"
-					onClick={handleCreateNew}
-					size="sm"
-					type="button"
-					variant="ghost"
-				>
-					<IconPlus className="shrink-0 text-muted-foreground" size={14} />
-					<span className="truncate font-medium text-sm">
-						Create "{trimmed}"
-					</span>
-				</Button>
-			) : null}
-
-			{filteredPlayers.length === 0 && trimmed === "" ? (
-				<p className="px-2 py-1 text-muted-foreground text-sm">
-					No available players
-				</p>
-			) : (
-				<ul className="flex max-h-56 flex-col overflow-y-auto">
-					{filteredPlayers.map((p) => (
-						<li key={p.id}>
-							<button
-								className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/40"
-								onClick={() => handleAddExisting(p.id, p.name)}
-								type="button"
+					<Command shouldFilter={false}>
+						<CommandList className="max-h-64 overflow-y-auto overscroll-contain">
+							{canCreate ? (
+								<CommandItem
+									onMouseDown={(e) => e.preventDefault()}
+									onSelect={onCreate}
+									value="__create__"
+								>
+									<IconUserPlus
+										className="mr-2 shrink-0 text-muted-foreground"
+										size={16}
+									/>
+									Create "{trimmed}"
+								</CommandItem>
+							) : null}
+							<CommandItem
+								onMouseDown={(e) => e.preventDefault()}
+								onSelect={onTemporary}
+								value="__temp__"
 							>
-								<Avatar size="sm">
-									<AvatarFallback>
-										{p.name.slice(0, 1).toUpperCase()}
-									</AvatarFallback>
-								</Avatar>
-								<span className="min-w-0 flex-1">
-									<span className="truncate font-medium text-sm">{p.name}</span>
-									{p.tags.length > 0 ? (
-										<span className="mt-0.5 flex flex-wrap gap-1">
-											{p.tags.map((tag) => (
-												<Badge
-													key={tag.id}
-													style={{ borderColor: tag.color, color: tag.color }}
-													variant="outline"
-												>
-													{tag.name}
-												</Badge>
-											))}
-										</span>
-									) : null}
-								</span>
-								<IconPlus
-									className="shrink-0 text-muted-foreground"
+								<IconUserQuestion
+									className="mr-2 shrink-0 text-muted-foreground"
 									size={16}
 								/>
-							</button>
-						</li>
-					))}
-				</ul>
-			)}
-		</div>
+								Add temporary player
+							</CommandItem>
+							{matches.length === 0 ? (
+								<CommandEmpty>No matching players</CommandEmpty>
+							) : null}
+							{matches.map((player) => (
+								<CommandItem
+									key={player.id}
+									onMouseDown={(e) => e.preventDefault()}
+									onSelect={() => onSelectExisting(player)}
+									value={player.id}
+								>
+									<span className="min-w-0 flex-1">
+										<span className="truncate font-medium text-sm">
+											{player.name}
+										</span>
+										{player.tags.length > 0 ? (
+											<span className="mt-0.5 flex flex-wrap gap-1">
+												{player.tags.map((tag) => (
+													<Badge
+														key={tag.id}
+														style={{
+															borderColor: tag.color,
+															color: tag.color,
+														}}
+														variant="outline"
+													>
+														{tag.name}
+													</Badge>
+												))}
+											</span>
+										) : null}
+									</span>
+								</CommandItem>
+							))}
+						</CommandList>
+					</Command>
+				</PopoverContent>
+			) : null}
+		</Popover>
 	);
 }

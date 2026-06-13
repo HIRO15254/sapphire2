@@ -127,8 +127,9 @@ function PlayerSummary({ player }: { player: SeatPlayer }) {
 /**
  * Speed-first all-seats list (SA2-59): every seat from the game definition is a
  * row. Notes and tags are readable with zero taps (memo excerpt on the row),
- * leaving is one tap (row-level unseat button), and seating / editing happens
- * inline by expanding the row — never through a modal.
+ * leaving is one tap (row-level unseat button), empty seats carry an always-on
+ * search/seat combobox inline, and an occupied row expands in place to edit
+ * notes / tags — never through a modal.
  */
 export function SeatList({
 	excludePlayerIds,
@@ -188,6 +189,31 @@ export function SeatList({
 							/>
 						);
 					}
+					if (!seat.player) {
+						// Empty seats are always seatable inline — the search combobox is
+						// shown on the row itself, with no expand step.
+						return (
+							<li className="border-border border-b last:border-b-0" key={key}>
+								<div className="flex items-center gap-3 px-4 py-2">
+									<span className="w-12 shrink-0 text-muted-foreground text-xs">
+										{label}
+									</span>
+									<div className="min-w-0 flex-1">
+										<EmptySeatEditor
+											excludePlayerIds={excludePlayerIds}
+											onAddExisting={(playerId, playerName) =>
+												onSeatExisting(seat.seatPosition, playerId, playerName)
+											}
+											onAddNew={(values) =>
+												onSeatNew(seat.seatPosition, values)
+											}
+											onAddTemporary={() => onSeatTemporary(seat.seatPosition)}
+										/>
+									</div>
+								</div>
+							</li>
+						);
+					}
 					const isExpanded = expandedKey === key;
 					return (
 						<SeatRowShell
@@ -195,34 +221,10 @@ export function SeatList({
 							key={key}
 							label={label}
 							onToggle={() => onToggle(key)}
-							summary={
-								seat.player ? (
-									<PlayerSummary player={seat.player} />
-								) : (
-									<span className="text-muted-foreground text-sm">Empty</span>
-								)
-							}
-							trailingAction={seat.player ? unseatButton(seat.player) : null}
+							summary={<PlayerSummary player={seat.player} />}
+							trailingAction={unseatButton(seat.player)}
 						>
-							{seat.player ? (
-								<OccupiedSeatEditor playerId={seat.player.playerId} />
-							) : (
-								<EmptySeatEditor
-									excludePlayerIds={excludePlayerIds}
-									onAddExisting={(playerId, playerName) => {
-										onSeatExisting(seat.seatPosition, playerId, playerName);
-										collapse();
-									}}
-									onAddNew={(values) => {
-										onSeatNew(seat.seatPosition, values);
-										collapse();
-									}}
-									onAddTemporary={() => {
-										onSeatTemporary(seat.seatPosition);
-										collapse();
-									}}
-								/>
-							)}
+							<OccupiedSeatEditor playerId={seat.player.playerId} />
 						</SeatRowShell>
 					);
 				})}
