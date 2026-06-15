@@ -68,6 +68,7 @@ export function LiveSessionForm({
 						<RulesStepBody
 							currencies={currencies}
 							isLiveLinked={false}
+							showOverrides={false}
 							state={state}
 						/>
 					</AccordionContent>

@@ -56,18 +56,19 @@ describe("LiveSessionForm", () => {
 		expect(container.querySelector("form#live-form")).not.toBeNull();
 	});
 
-	it("auto-expands the rules section when no master is selected", () => {
+	it("keeps the rules section collapsed by default", () => {
 		renderForm();
 		const trigger = screen.getByRole("button", { name: CUSTOMIZE_RE });
-		expect(trigger).toHaveAttribute("aria-expanded", "true");
-		expect(screen.getByLabelText("Rule name")).toBeInTheDocument();
+		expect(trigger).toHaveAttribute("aria-expanded", "false");
+		expect(screen.queryByLabelText("Rule name")).not.toBeInTheDocument();
 	});
 
-	it("collapses the rules section when Customize rules is toggled off", async () => {
+	it("reveals the rule fields when Customize rules is expanded", async () => {
 		const user = userEvent.setup();
 		renderForm();
 		const trigger = screen.getByRole("button", { name: CUSTOMIZE_RE });
 		await user.click(trigger);
-		expect(trigger).toHaveAttribute("aria-expanded", "false");
+		expect(trigger).toHaveAttribute("aria-expanded", "true");
+		expect(await screen.findByLabelText("Rule name")).toBeInTheDocument();
 	});
 });

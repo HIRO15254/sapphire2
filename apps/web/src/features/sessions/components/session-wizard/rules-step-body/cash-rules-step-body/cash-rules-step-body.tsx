@@ -66,17 +66,19 @@ export function CashRulesStepBody({
 	state,
 	currencies,
 	isLiveLinked,
+	showOverrides = true,
 }: {
 	state: UseSessionWizardReturn;
 	currencies?: Array<{ id: string; name: string }>;
 	isLiveLinked: boolean;
+	showOverrides?: boolean;
 }) {
 	return (
 		<state.form.Subscribe selector={(s) => s.values}>
 			{(values) => {
-				const overriddenLabels = new Set(
-					cashOverriddenFields(values, state.selectedRingGame)
-				);
+				const overriddenLabels = showOverrides
+					? new Set(cashOverriddenFields(values, state.selectedRingGame))
+					: undefined;
 				return (
 					<>
 						<RuleNameField

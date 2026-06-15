@@ -39,29 +39,22 @@ function renderForm(onSubmit = vi.fn()) {
 }
 
 describe("useLiveSessionForm — rule disclosure", () => {
-	it("opens the rules section by default when no master is selected", () => {
+	it("keeps the rules section collapsed by default", () => {
 		const { result } = renderForm();
-		expect(result.current.rulesOpen).toBe(true);
+		expect(result.current.rulesOpen).toBe(false);
 		expect(result.current.rulesSummary).toBeUndefined();
 	});
 
-	it("collapses the rules section once a master supplies the rules", () => {
+	it("stays collapsed by default even after a master is selected", () => {
 		const { result } = renderForm();
 		act(() => result.current.state.handleGameChange(RING_GAME.id));
 		expect(result.current.rulesOpen).toBe(false);
 		expect(result.current.rulesSummary).toBe("1/2 NLH");
 	});
 
-	it("pins the rules section open after a manual toggle, even with a master", () => {
+	it("opens when toggled on and closes again when toggled off", () => {
 		const { result } = renderForm();
-		act(() => result.current.state.handleGameChange(RING_GAME.id));
-		expect(result.current.rulesOpen).toBe(false);
 		act(() => result.current.setRulesOpen(true));
-		expect(result.current.rulesOpen).toBe(true);
-	});
-
-	it("pins the rules section closed after a manual toggle with no master", () => {
-		const { result } = renderForm();
 		expect(result.current.rulesOpen).toBe(true);
 		act(() => result.current.setRulesOpen(false));
 		expect(result.current.rulesOpen).toBe(false);

@@ -34,12 +34,10 @@ export function useLiveSessionForm({
 		tournaments,
 	});
 
-	// Progressive disclosure: rule overrides stay collapsed when a master (ring
-	// game / tournament) supplies them, and auto-open when none is selected (the
-	// rules must then be defined from scratch). A manual toggle pins the state.
-	const [manualRulesOpen, setManualRulesOpen] = useState<boolean | null>(null);
-	const rulesOpen = manualRulesOpen ?? !state.selectedGameId;
-	const setRulesOpen = (open: boolean) => setManualRulesOpen(open);
+	// Progressive disclosure: rule overrides stay collapsed by default — a
+	// session that keeps the master's rules starts without opening them. The
+	// user expands the section only to tweak the rules.
+	const [rulesOpen, setRulesOpen] = useState(false);
 
 	const selectedMaster = state.isCashGame
 		? state.selectedRingGame
