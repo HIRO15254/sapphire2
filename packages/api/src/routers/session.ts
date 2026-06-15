@@ -2126,7 +2126,7 @@ export const sessionRouter = router({
 			return updated;
 		}),
 
-	// pnl_graph widget — see apps/web/src/features/dashboard/widgets/pnl-graph-widget
+	// profit/loss time series — shared by the statistics page and the stats router
 	profitLossSeries: protectedProcedure
 		.input(
 			z.object({

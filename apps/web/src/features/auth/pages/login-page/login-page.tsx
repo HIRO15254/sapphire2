@@ -16,7 +16,7 @@ export function LoginPage() {
 					heading="Why sign in here"
 				>
 					<ul className="space-y-2 text-muted-foreground text-sm">
-						<li>Resume your dashboard and current live-session flow.</li>
+						<li>Resume your statistics and current live-session flow.</li>
 						<li>
 							Use email/password or connected Google and Discord accounts.
 						</li>
