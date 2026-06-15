@@ -1,5 +1,3 @@
-import { IconAdjustments } from "@tabler/icons-react";
-import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import type { UseSessionWizardReturn } from "../use-session-wizard";
@@ -43,17 +41,6 @@ export function MasterStepBody({
 				selectedGameId={state.selectedGameId}
 				selectedRoomId={state.selectedRoomId}
 			/>
-			{state.canCustomizeRules && (
-				<Button
-					className="self-start"
-					onClick={state.customizeRules}
-					type="button"
-					variant="outline"
-				>
-					<IconAdjustments size={16} />
-					Customize rules
-				</Button>
-			)}
 		</>
 	);
 }

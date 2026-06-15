@@ -1,6 +1,8 @@
-import { SessionFormSheet } from "@/features/sessions/components/session-form-sheet";
-import { SessionWizard } from "@/features/sessions/components/session-wizard";
+import { FormSheet } from "@/shared/components/form-sheet";
+import { LiveSessionForm } from "./live-session-form";
 import { useCreateSessionDialog } from "./use-create-session-dialog";
+
+const LIVE_SESSION_FORM_ID = "live-session-form";
 
 interface CreateSessionDialogProps {
 	onOpenChange: (open: boolean) => void;
@@ -8,9 +10,10 @@ interface CreateSessionDialogProps {
 }
 
 /**
- * V2 full-height sheet for starting a live session. The SessionWizard drives
- * its own multi-step navigation and final submit, so the sheet has no check
- * button of its own.
+ * Full-height bottom sheet for starting a live session. Single-screen form
+ * (no wizard steps): the FormSheet toolbar's ✓ submits the live form via its
+ * `form` id, and rule overrides live behind a collapsed "Customize rules"
+ * section, so a session that keeps the master's rules starts in one tap.
  */
 export function CreateSessionDialog({
 	open,
@@ -28,7 +31,9 @@ export function CreateSessionDialog({
 	} = useCreateSessionDialog({ onOpenChange });
 
 	return (
-		<SessionFormSheet
+		<FormSheet
+			formId={LIVE_SESSION_FORM_ID}
+			isLoading={isLoading}
 			onOpenChange={(o) => {
 				onOpenChange(o);
 				if (!o) {
@@ -38,17 +43,15 @@ export function CreateSessionDialog({
 			open={open}
 			title="Start Live Session"
 		>
-			<SessionWizard
+			<LiveSessionForm
 				currencies={currencies}
-				isLoading={isLoading}
-				mode="live"
+				formId={LIVE_SESSION_FORM_ID}
 				onRoomChange={setSelectedRoomId}
 				onSubmit={handleSubmit}
 				ringGames={ringGames}
 				rooms={rooms}
-				submitLabel="Start session"
 				tournaments={tournaments}
 			/>
-		</SessionFormSheet>
+		</FormSheet>
 	);
 }

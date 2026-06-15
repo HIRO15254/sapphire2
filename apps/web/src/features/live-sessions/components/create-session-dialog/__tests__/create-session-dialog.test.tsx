@@ -13,11 +13,14 @@ vi.mock(
 	})
 );
 
-// The wizard pulls in the whole session form (and trpc) — stub it; this test
-// only asserts the sheet chrome (title) the dialog wraps it in.
-vi.mock("@/features/sessions/components/session-wizard", () => ({
-	SessionWizard: () => <div data-testid="session-wizard" />,
-}));
+// The live form pulls in the session form fields (and trpc) — stub it; this
+// test only asserts the sheet chrome (title) the dialog wraps it in.
+vi.mock(
+	"@/features/live-sessions/components/create-session-dialog/live-session-form",
+	() => ({
+		LiveSessionForm: () => <div data-testid="live-session-form" />,
+	})
+);
 
 import { CreateSessionDialog } from "@/features/live-sessions/components/create-session-dialog/create-session-dialog";
 
@@ -35,17 +38,17 @@ function setup() {
 }
 
 describe("CreateSessionDialog", () => {
-	it("titles the sheet 'Start Live Session' when open", () => {
+	it("titles the sheet 'Start Live Session' and renders the live form when open", () => {
 		setup();
 		render(<CreateSessionDialog onOpenChange={vi.fn()} open={true} />);
 		// Title renders as both the visible DrawerTitle and an sr-only description.
 		expect(screen.getAllByText("Start Live Session").length).toBeGreaterThan(0);
-		expect(screen.getByTestId("session-wizard")).toBeInTheDocument();
+		expect(screen.getByTestId("live-session-form")).toBeInTheDocument();
 	});
 
 	it("renders nothing while closed", () => {
 		setup();
 		render(<CreateSessionDialog onOpenChange={vi.fn()} open={false} />);
-		expect(screen.queryByTestId("session-wizard")).not.toBeInTheDocument();
+		expect(screen.queryByTestId("live-session-form")).not.toBeInTheDocument();
 	});
 });
