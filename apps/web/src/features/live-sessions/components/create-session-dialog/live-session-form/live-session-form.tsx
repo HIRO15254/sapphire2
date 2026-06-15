@@ -64,7 +64,7 @@ export function LiveSessionForm({
 							)}
 						</span>
 					</AccordionTrigger>
-					<AccordionContent>
+					<AccordionContent className="flex flex-col gap-4">
 						<RulesStepBody
 							currencies={currencies}
 							isLiveLinked={false}

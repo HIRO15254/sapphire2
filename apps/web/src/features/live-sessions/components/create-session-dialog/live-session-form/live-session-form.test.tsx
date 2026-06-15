@@ -71,4 +71,15 @@ describe("LiveSessionForm", () => {
 		expect(trigger).toHaveAttribute("aria-expanded", "true");
 		expect(await screen.findByLabelText("Rule name")).toBeInTheDocument();
 	});
+
+	it("spaces the expanded rule fields like the rest of the form (gap-4)", async () => {
+		const user = userEvent.setup();
+		const { container } = renderForm();
+		await user.click(screen.getByRole("button", { name: CUSTOMIZE_RE }));
+		await screen.findByLabelText("Rule name");
+		const content = container.querySelector(
+			'[data-slot="accordion-content"] > div'
+		);
+		expect(content?.className).toContain("gap-4");
+	});
 });
