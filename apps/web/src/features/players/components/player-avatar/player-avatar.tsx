@@ -27,7 +27,7 @@ export function PlayerAvatar({
 				className={cn(
 					isHero && "bg-amber-500/80 text-white",
 					!isHero && isTemporary && "bg-zinc-700 text-white/80",
-					!(isHero || isTemporary) && "bg-slate-500 text-white"
+					!(isHero || isTemporary) && "bg-gray-500 text-white"
 				)}
 			>
 				{isTemporary ? <IconUserQuestion size={16} /> : <IconUser size={16} />}
