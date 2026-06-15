@@ -82,9 +82,10 @@ jobs:
             echo "::error::Claude produced no structured output; cannot build release notes"
             exit 1
           fi
-          # jq -e fails on both invalid JSON and a null/empty release_notes, so a
-          # bad payload still surfaces the dump below instead of only jq's stderr.
-          if ! BODY=$(printf '%s' "$STRUCTURED_OUTPUT" | jq -er '.release_notes // empty'); then
+          # jq -e fails on invalid JSON and a null/missing release_notes; the
+          # extra -z check also rejects an empty-string body ("" // empty is ""),
+          # so a bad payload surfaces the dump below instead of publishing empty.
+          if ! BODY=$(printf '%s' "$STRUCTURED_OUTPUT" | jq -er '.release_notes // empty') || [ -z "$BODY" ]; then
             echo "::error::structured output had no usable release_notes (invalid JSON or empty body)"
             echo "structured_output was: $STRUCTURED_OUTPUT"
             exit 1
