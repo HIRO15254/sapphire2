@@ -25,7 +25,7 @@ export function usePreviewAutoLogin(): void {
 
 		authClient.signIn.email({ email, password }).then((result) => {
 			if (result.data) {
-				navigate({ to: "/dashboard" });
+				navigate({ to: "/statistics" });
 			}
 		});
 	}, [navigate]);

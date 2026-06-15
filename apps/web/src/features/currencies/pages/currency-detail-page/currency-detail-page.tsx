@@ -60,6 +60,7 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 		openDeleteFromTransactionActions,
 		cancelDeleteTransaction,
 		handleConfirmDeleteTransaction,
+		handleNavigateToSession,
 	} = useCurrencyDetailPage(currencyId);
 
 	if (isLoading) {
@@ -138,6 +139,7 @@ export function CurrencyDetailPage({ currencyId }: CurrencyDetailPageProps) {
 						isLoading={isTransactionsLoading}
 						isLoadingMore={isFetchingNextPage}
 						onLoadMore={fetchNextPage}
+						onNavigateToSession={handleNavigateToSession}
 						onOpenActions={openTransactionActions}
 						transactions={transactions}
 					/>

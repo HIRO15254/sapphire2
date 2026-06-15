@@ -7,6 +7,8 @@ const TYPES = [
 	{ id: "t2", name: "Withdrawal" },
 ];
 
+const REQUIRED_ASTERISK_SUFFIX = /\s*\*$/;
+
 const hoisted = vi.hoisted(() => ({
 	useTransactionTypes: vi.fn(),
 }));
@@ -32,6 +34,25 @@ describe("TransactionFormV2", () => {
 		expect(screen.getByText("Amount")).toBeInTheDocument();
 		expect(screen.getByText("Date")).toBeInTheDocument();
 		expect(screen.getByText("Memo")).toBeInTheDocument();
+	});
+
+	it("renders the fields in the order Date, Type, Memo, Amount", () => {
+		const { container } = render(
+			<TransactionFormV2 formId="x" onSubmit={vi.fn()} />
+		);
+		const labels = [...container.querySelectorAll("label")].map((label) =>
+			label.textContent?.replace(REQUIRED_ASTERISK_SUFFIX, "")
+		);
+		expect(labels).toEqual(["Date", "Type", "Memo", "Amount"]);
+	});
+
+	it("renders Memo as a single-line text input, not a textarea", () => {
+		const { container } = render(
+			<TransactionFormV2 formId="x" onSubmit={vi.fn()} />
+		);
+		const memo = screen.getByLabelText("Memo");
+		expect(memo.tagName).toBe("INPUT");
+		expect(container.querySelector("textarea")).toBeNull();
 	});
 
 	it("assigns the supplied formId to the <form> element so an external Save button can submit it", () => {

@@ -1,59 +1,25 @@
+import { IconCoin } from "@tabler/icons-react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type React from "react";
 import { describe, expect, it, vi } from "vitest";
-import {
-	ActiveSessionScene,
-	type ActiveSessionSceneState,
-} from "./active-session-scene";
+import type { ActiveSessionSceneState } from "./use-active-session-scene-state";
 
-vi.mock("@/features/live-sessions/components/poker-table", () => ({
-	PokerTable: ({
-		onEmptySeatTap,
-		onPlayerSeatTap,
+vi.mock("./seat-list", () => ({
+	SeatList: ({
+		onScanPlayers,
+		seats,
 	}: {
-		onEmptySeatTap: (seatPosition: number) => void;
-		onPlayerSeatTap: (
-			player: {
-				id: string;
-				isActive: boolean;
-				player: { id: string; name: string };
-				seatPosition: number | null;
-			},
-			seatPosition: number
-		) => void;
+		onScanPlayers: () => void;
+		seats: { seatPosition: number }[];
 	}) => (
-		<div>
-			<button onClick={() => onEmptySeatTap(3)} type="button">
-				Tap empty seat
-			</button>
-			<button
-				onClick={() =>
-					onPlayerSeatTap(
-						{
-							id: "table-player-1",
-							isActive: true,
-							player: { id: "player-1", name: "Alice" },
-							seatPosition: 1,
-						},
-						1
-					)
-				}
-				type="button"
-			>
-				Tap player seat
+		<div data-testid="seat-list">
+			<span>seats:{seats.length}</span>
+			<button onClick={onScanPlayers} type="button">
+				scan
 			</button>
 		</div>
 	),
-}));
-
-vi.mock("@/features/live-sessions/components/add-player-sheet", () => ({
-	AddPlayerSheet: ({ open }: { open: boolean }) =>
-		open ? <div>Add player sheet</div> : null,
-}));
-
-vi.mock("@/features/live-sessions/components/player-detail-sheet", () => ({
-	PlayerDetailSheet: ({ open }: { open: boolean }) =>
-		open ? <div>Player detail sheet</div> : null,
 }));
 
 vi.mock(
@@ -64,168 +30,179 @@ vi.mock(
 	})
 );
 
-vi.mock("@/utils/trpc", () => ({
-	trpc: {
-		liveCashGameSession: {
-			getById: {
-				queryOptions: ({ id }: { id: string }) => ({
-					queryKey: ["cash-session", id],
-				}),
-			},
-		},
-		liveTournamentSession: {
-			getById: {
-				queryOptions: ({ id }: { id: string }) => ({
-					queryKey: ["tournament-session", id],
-				}),
-			},
-		},
-		player: {
-			getById: {
-				queryOptions: ({ id }: { id: string }) => ({
-					queryKey: ["player", id],
-				}),
-			},
-		},
-		playerTag: {
-			list: {
-				queryOptions: () => ({
-					queryKey: ["player-tags"],
-				}),
-			},
-		},
-	},
-	trpcClient: {
-		liveCashGameSession: {
-			updateHeroSeat: { mutate: vi.fn() },
-		},
-		liveTournamentSession: {
-			updateHeroSeat: { mutate: vi.fn() },
-		},
-		player: {
-			update: { mutate: vi.fn() },
-		},
-		playerTag: {
-			create: { mutate: vi.fn() },
-		},
-	},
+vi.mock("./game-settings-sheet", () => ({
+	GameSettingsSheet: ({ open }: { open: boolean }) =>
+		open ? <div>Game settings sheet</div> : null,
 }));
 
-function createState(
+vi.mock("./history-section", () => ({
+	HistorySection: ({
+		sessionId,
+		sessionType,
+	}: {
+		sessionId: string;
+		sessionType: string;
+	}) => (
+		<div data-testid="history-section">
+			{sessionType}:{sessionId}
+		</div>
+	),
+}));
+
+import { ActiveSessionScene } from "./active-session-scene";
+
+function makeState(
 	overrides: Partial<ActiveSessionSceneState> = {}
 ): ActiveSessionSceneState {
 	return {
-		addPlayerSheetOpen: false,
-		availableTags: [],
-		createTag: vi.fn(async () => ({
-			color: "blue",
-			id: "tag-1",
-			name: "VIP",
-		})),
 		excludePlayerIds: [],
+		heroAvailable: true,
 		heroSeatPosition: null,
-		isSavingPlayer: false,
-		onAddExisting: vi.fn(),
-		onAddNew: vi.fn(),
-		onAddTemporary: vi.fn(),
-		onEmptySeatTap: vi.fn(),
-		onHeroSeatTap: vi.fn(),
-		onPlayerRemove: vi.fn(),
-		onPlayerSave: vi.fn(),
-		onPlayerSeatTap: vi.fn(),
-		players: [],
-		playerSheetOpen: false,
-		selectedPlayer: null,
-		sessionParam: { liveCashGameSessionId: "cash-1" },
-		setAddPlayerSheetOpen: vi.fn(),
-		setPlayerSheetOpen: vi.fn(),
-		waitingForHero: true,
+		occupiedSeatPositions: new Set<number>(),
+		onRemovePlayer: vi.fn(),
+		onSeatExisting: vi.fn(),
+		onSeatHero: vi.fn(),
+		onSeatNew: vi.fn(),
+		onSeatTemporary: vi.fn(),
+		onUnseatHero: vi.fn(),
+		seats: [],
+		sessionParam: { liveCashGameSessionId: "s-1" },
+		tableSize: 9,
+		unseatedPlayers: [],
 		...overrides,
 	};
 }
 
+function setup(
+	overrides: Partial<React.ComponentProps<typeof ActiveSessionScene>> = {}
+) {
+	const props: React.ComponentProps<typeof ActiveSessionScene> = {
+		eventMenuExtraItems: [],
+		isDiscardPending: false,
+		onDiscard: vi.fn(),
+		onEndSession: vi.fn(),
+		onPause: vi.fn(),
+		state: makeState(),
+		summary: <div data-testid="summary" />,
+		title: "Cash Game",
+		...overrides,
+	};
+	render(<ActiveSessionScene {...props} />);
+	return props;
+}
+
 describe("ActiveSessionScene", () => {
-	it("renders the session title and summary content", () => {
-		render(
-			<ActiveSessionScene
-				isDiscardPending={false}
-				onDiscard={vi.fn()}
-				state={createState()}
-				summary={<div>Cash summary</div>}
-				title="Cash Game"
-			/>
-		);
-
+	it("renders the title, summary, memo, seat list and history", () => {
+		setup({ memo: "Session memo" });
 		expect(screen.getByText("Cash Game")).toBeInTheDocument();
-		expect(screen.getByText("Cash summary")).toBeInTheDocument();
+		expect(screen.getByTestId("summary")).toBeInTheDocument();
+		expect(screen.getByText("Session memo")).toBeInTheDocument();
+		expect(screen.getByTestId("seat-list")).toBeInTheDocument();
+		expect(screen.getByTestId("history-section")).toHaveTextContent(
+			"cash_game:s-1"
+		);
 	});
 
-	it("opens and closes the discard dialog and confirms discard", async () => {
+	it("renders no memo paragraph when memo is null", () => {
+		setup({ memo: null });
+		expect(screen.queryByText("Session memo")).not.toBeInTheDocument();
+	});
+
+	it("renders the topSlot above the summary when given", () => {
+		setup({ topSlot: <div data-testid="top-slot" /> });
+		expect(screen.getByTestId("top-slot")).toBeInTheDocument();
+	});
+
+	it("opens the session menu from the header overflow button", async () => {
 		const user = userEvent.setup();
-		const onDiscard = vi.fn();
+		setup();
+		expect(screen.queryByText("Pause session")).not.toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Session actions" }));
+		expect(screen.getByText("Pause session")).toBeInTheDocument();
+		expect(screen.getByText("End session")).toBeInTheDocument();
+		expect(screen.getByText("Game settings")).toBeInTheDocument();
+		expect(screen.getByText("Discard session")).toBeInTheDocument();
+	});
 
-		render(
-			<ActiveSessionScene
-				isDiscardPending={false}
-				onDiscard={onDiscard}
-				state={createState()}
-				summary={<div>Tournament summary</div>}
-				title="Tournament"
-			/>
-		);
+	it("'Pause session' invokes onPause once", async () => {
+		const user = userEvent.setup();
+		const props = setup();
+		await user.click(screen.getByRole("button", { name: "Session actions" }));
+		await user.click(screen.getByRole("button", { name: "Pause session" }));
+		expect(props.onPause).toHaveBeenCalledTimes(1);
+	});
 
-		await user.click(screen.getByRole("button", { name: "Discard" }));
+	it("'End session' invokes onEndSession once", async () => {
+		const user = userEvent.setup();
+		const props = setup();
+		await user.click(screen.getByRole("button", { name: "Session actions" }));
+		await user.click(screen.getByRole("button", { name: "End session" }));
+		expect(props.onEndSession).toHaveBeenCalledTimes(1);
+	});
+
+	it("'Discard session' opens the confirm dialog and confirming discards", async () => {
+		const user = userEvent.setup();
+		const props = setup();
+		await user.click(screen.getByRole("button", { name: "Session actions" }));
+		await user.click(screen.getByRole("button", { name: "Discard session" }));
 		expect(screen.getByText("Discard Session")).toBeInTheDocument();
-
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
-		expect(screen.queryByText("Discard Session")).not.toBeInTheDocument();
-
 		await user.click(screen.getByRole("button", { name: "Discard" }));
-		// The centered Dialog is modal: Radix hides the page content behind the
-		// overlay, so the only accessible "Discard" button is the confirm one.
-		await user.click(screen.getByRole("button", { name: "Discard" }));
-
-		expect(onDiscard).toHaveBeenCalledTimes(1);
+		expect(props.onDiscard).toHaveBeenCalledTimes(1);
 	});
 
-	it("keeps the add-player and player-detail connections wired through the scene", async () => {
+	it("'Game settings' opens the game settings sheet", async () => {
 		const user = userEvent.setup();
-		const state = createState({
-			addPlayerSheetOpen: true,
-			onEmptySeatTap: vi.fn(),
-			onPlayerSeatTap: vi.fn(),
-			playerSheetOpen: true,
-			selectedPlayer: {
-				id: "player-1",
-				isTemporary: false,
-				memo: null,
-				name: "Alice",
-				tags: [],
-			},
+		setup();
+		await user.click(screen.getByRole("button", { name: "Session actions" }));
+		await user.click(screen.getByRole("button", { name: "Game settings" }));
+		expect(screen.getByText("Game settings sheet")).toBeInTheDocument();
+	});
+
+	it("lists the type-specific event actions inside the header session menu", async () => {
+		const user = userEvent.setup();
+		const allIn = vi.fn();
+		setup({
+			eventMenuExtraItems: [
+				{ icon: IconCoin, label: "All-in", onSelect: allIn },
+			],
 		});
+		await user.click(screen.getByRole("button", { name: "Session actions" }));
+		expect(screen.getByText("All-in")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "All-in" }));
+		expect(allIn).toHaveBeenCalledTimes(1);
+	});
 
-		render(
-			<ActiveSessionScene
-				isDiscardPending={false}
-				onDiscard={vi.fn()}
-				state={state}
-				summary={<div>Scene summary</div>}
-				title="Cash Game"
-			/>
-		);
-
-		expect(screen.getByText("Add player sheet")).toBeInTheDocument();
-		expect(screen.getByText("Player detail sheet")).toBeInTheDocument();
-
-		await user.click(screen.getByRole("button", { name: "Tap empty seat" }));
-		await user.click(screen.getByRole("button", { name: "Tap player seat" }));
-
-		expect(state.onEmptySeatTap).toHaveBeenCalledWith(3);
-		expect(state.onPlayerSeatTap).toHaveBeenCalledWith(
-			expect.objectContaining({
-				player: { id: "player-1", name: "Alice" },
+	it("renders the seat list with the seats from state", () => {
+		setup({
+			state: makeState({
+				seats: [
+					{ isHero: false, player: null, seatPosition: 0 },
+					{ isHero: false, player: null, seatPosition: 1 },
+				],
 			}),
-			1
+		});
+		expect(screen.getByTestId("seat-list")).toHaveTextContent("seats:2");
+	});
+
+	it("the seat list scan action opens the screenshot sheet", async () => {
+		const user = userEvent.setup();
+		setup();
+		expect(
+			screen.queryByText("Seat from screenshot sheet")
+		).not.toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "scan" }));
+		expect(screen.getByText("Seat from screenshot sheet")).toBeInTheDocument();
+	});
+
+	it("derives the tournament history props from the session param", () => {
+		setup({
+			state: makeState({
+				sessionParam: { liveTournamentSessionId: "t-9" },
+			}),
+			title: "Tournament",
+		});
+		expect(screen.getByTestId("history-section")).toHaveTextContent(
+			"tournament:t-9"
 		);
 	});
 });

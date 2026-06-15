@@ -21,7 +21,7 @@ export function useSignIn() {
 				},
 				{
 					onSuccess: () => {
-						navigate({ to: "/dashboard" });
+						navigate({ to: "/statistics" });
 						toast.success("Sign in successful");
 					},
 					onError: (error) => {
@@ -41,7 +41,7 @@ export function useSignIn() {
 	const onSignInWithGoogle = async () => {
 		const result = await authClient.signIn.social({
 			provider: "google",
-			callbackURL: `${window.location.origin}/dashboard`,
+			callbackURL: `${window.location.origin}/statistics`,
 		});
 		if (result.error) {
 			toast.error(result.error.message || "Google sign in unavailable");
@@ -51,7 +51,7 @@ export function useSignIn() {
 	const onSignInWithDiscord = async () => {
 		const result = await authClient.signIn.social({
 			provider: "discord",
-			callbackURL: `${window.location.origin}/dashboard`,
+			callbackURL: `${window.location.origin}/statistics`,
 		});
 		if (result.error) {
 			toast.error(result.error.message || "Discord sign in unavailable");

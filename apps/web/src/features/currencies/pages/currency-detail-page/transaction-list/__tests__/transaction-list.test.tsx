@@ -5,6 +5,8 @@ import { TransactionListV2 } from "@/features/currencies/pages/currency-detail-p
 
 // Class-presence matcher for `size-8` (whole-word, single tailwind class).
 const SIZE_8_CLASS = /(^| )size-8( |$)/;
+// Accessible-name matcher for the row-level "View session" navigation button.
+const VIEW_SESSION_NAME = /view session/i;
 
 const regularTransaction = {
 	id: "tx1",
@@ -12,6 +14,7 @@ const regularTransaction = {
 	transactionTypeName: "Purchase",
 	transactedAt: "2026-03-20T10:00:00Z",
 	sessionId: null,
+	sessionName: null,
 	memo: "Regular transaction",
 };
 
@@ -21,6 +24,7 @@ const sessionTransaction = {
 	transactionTypeName: "Session Result",
 	transactedAt: "2026-03-20T12:00:00Z",
 	sessionId: "session-1",
+	sessionName: "NLH 1/2",
 	memo: null,
 };
 
@@ -153,11 +157,11 @@ describe("TransactionListV2", () => {
 		expect(screen.getByRole("button", { name: "Loading..." })).toBeDisabled();
 	});
 
-	it("reserves the same width on session rows as the action button takes on editable rows so the amount column stays aligned", () => {
+	it("reserves the same width on session rows as the action button takes on editable rows so the amount column stays aligned (no onNavigateToSession)", () => {
 		// The 3-dots IconButton uses size="icon-sm" which renders at
 		// --h-control-sm = 2rem = 32px = size-8. The placeholder span on
-		// session rows must match so the right-edge of the amount column
-		// is identical across both row types.
+		// session rows without a navigation handler must match so the right-edge
+		// of the amount column is identical across both row types.
 		const { container } = render(
 			<TransactionListV2
 				onOpenActions={vi.fn()}
@@ -167,6 +171,79 @@ describe("TransactionListV2", () => {
 		const placeholder = container.querySelector("span[aria-hidden]");
 		expect(placeholder).not.toBeNull();
 		expect(placeholder?.className).toMatch(SIZE_8_CLASS);
+	});
+
+	it("displays the session name in the memo column for session-generated rows", () => {
+		render(<TransactionListV2 transactions={[sessionTransaction]} />);
+		expect(screen.getByText("NLH 1/2")).toBeInTheDocument();
+	});
+
+	it("does not show the session name for regular (non-session) rows", () => {
+		render(<TransactionListV2 transactions={[regularTransaction]} />);
+		expect(screen.queryByText("NLH 1/2")).not.toBeInTheDocument();
+	});
+
+	it("shows an empty memo cell when sessionName is null for a session row", () => {
+		render(
+			<TransactionListV2
+				transactions={[{ ...sessionTransaction, sessionName: null }]}
+			/>
+		);
+		// Session row should not show the regular memo or any session name
+		expect(screen.queryByText("Regular transaction")).not.toBeInTheDocument();
+	});
+
+	it("shows a chevron indicator on session rows when onNavigateToSession is provided", () => {
+		const { container } = render(
+			<TransactionListV2
+				onNavigateToSession={vi.fn()}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		// The chevron span preserves size-8 alignment like the action button
+		const chevronSpan = container.querySelector("span[aria-hidden]");
+		expect(chevronSpan).not.toBeNull();
+		expect(chevronSpan?.className).toMatch(SIZE_8_CLASS);
+	});
+
+	it("does not show the placeholder span on session rows when onNavigateToSession is provided", () => {
+		const { container } = render(
+			<TransactionListV2
+				onNavigateToSession={vi.fn()}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		// Only one aria-hidden span (the chevron) should exist, not the plain placeholder
+		const spans = container.querySelectorAll("span[aria-hidden]");
+		expect(spans).toHaveLength(1);
+	});
+
+	it("calls onNavigateToSession with the sessionId when a session row is clicked", async () => {
+		const user = userEvent.setup();
+		const onNavigateToSession = vi.fn();
+		render(
+			<TransactionListV2
+				onNavigateToSession={onNavigateToSession}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		// Click on the session name text (inside the row)
+		await user.click(screen.getByText("NLH 1/2"));
+		expect(onNavigateToSession).toHaveBeenCalledTimes(1);
+		expect(onNavigateToSession).toHaveBeenCalledWith("session-1");
+	});
+
+	it("does not call onNavigateToSession when a regular transaction row is clicked", async () => {
+		const user = userEvent.setup();
+		const onNavigateToSession = vi.fn();
+		render(
+			<TransactionListV2
+				onNavigateToSession={onNavigateToSession}
+				transactions={[regularTransaction]}
+			/>
+		);
+		await user.click(screen.getByText("Regular transaction"));
+		expect(onNavigateToSession).not.toHaveBeenCalled();
 	});
 
 	it("calls onLoadMore when the Load more button is clicked", async () => {
@@ -201,6 +278,106 @@ describe("TransactionListV2", () => {
 			/>
 		);
 		expect(screen.getAllByText("2026/03/20")).toHaveLength(1);
+	});
+
+	it("marks navigable session rows as a keyboard-operable button with an accessible name", () => {
+		render(
+			<TransactionListV2
+				onNavigateToSession={vi.fn()}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		expect(
+			screen.getByRole("button", { name: "View session NLH 1/2" })
+		).toBeInTheDocument();
+	});
+
+	it("falls back to a generic label when a navigable session row has no name", () => {
+		render(
+			<TransactionListV2
+				onNavigateToSession={vi.fn()}
+				transactions={[{ ...sessionTransaction, sessionName: null }]}
+			/>
+		);
+		expect(
+			screen.getByRole("button", { name: "View session" })
+		).toBeInTheDocument();
+	});
+
+	it("makes the navigable session row focusable with tabIndex 0", () => {
+		render(
+			<TransactionListV2
+				onNavigateToSession={vi.fn()}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		expect(
+			screen.getByRole("button", { name: "View session NLH 1/2" })
+		).toHaveAttribute("tabindex", "0");
+	});
+
+	it("navigates with the sessionId when Enter is pressed on a focused session row", async () => {
+		const user = userEvent.setup();
+		const onNavigateToSession = vi.fn();
+		render(
+			<TransactionListV2
+				onNavigateToSession={onNavigateToSession}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		screen.getByRole("button", { name: "View session NLH 1/2" }).focus();
+		await user.keyboard("{Enter}");
+		expect(onNavigateToSession).toHaveBeenCalledTimes(1);
+		expect(onNavigateToSession).toHaveBeenCalledWith("session-1");
+	});
+
+	it("navigates with the sessionId when Space is pressed on a focused session row", async () => {
+		const user = userEvent.setup();
+		const onNavigateToSession = vi.fn();
+		render(
+			<TransactionListV2
+				onNavigateToSession={onNavigateToSession}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		screen.getByRole("button", { name: "View session NLH 1/2" }).focus();
+		await user.keyboard("[Space]");
+		expect(onNavigateToSession).toHaveBeenCalledTimes(1);
+		expect(onNavigateToSession).toHaveBeenCalledWith("session-1");
+	});
+
+	it("ignores unrelated keys on a focused session row", async () => {
+		const user = userEvent.setup();
+		const onNavigateToSession = vi.fn();
+		render(
+			<TransactionListV2
+				onNavigateToSession={onNavigateToSession}
+				transactions={[sessionTransaction]}
+			/>
+		);
+		screen.getByRole("button", { name: "View session NLH 1/2" }).focus();
+		await user.keyboard("{Escape}");
+		await user.keyboard("a");
+		expect(onNavigateToSession).not.toHaveBeenCalled();
+	});
+
+	it("does not expose a navigation button on regular (non-session) rows", () => {
+		render(
+			<TransactionListV2
+				onNavigateToSession={vi.fn()}
+				transactions={[regularTransaction]}
+			/>
+		);
+		expect(
+			screen.queryByRole("button", { name: VIEW_SESSION_NAME })
+		).not.toBeInTheDocument();
+	});
+
+	it("does not expose a navigation button when onNavigateToSession is not provided", () => {
+		render(<TransactionListV2 transactions={[sessionTransaction]} />);
+		expect(
+			screen.queryByRole("button", { name: VIEW_SESSION_NAME })
+		).not.toBeInTheDocument();
 	});
 
 	it("renders a separate date header per distinct day", () => {

@@ -338,7 +338,7 @@ describe("useSessionEvents", () => {
 			});
 		});
 
-		it("handles an empty cache gracefully (updater defaults to [])", async () => {
+		it("handles an empty cache gracefully (query backfills [])", async () => {
 			const qc = createClient();
 			trpcMocks.delete.mockResolvedValue({ id: "e1" });
 			const { result } = renderHook(

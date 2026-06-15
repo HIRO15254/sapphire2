@@ -5,7 +5,7 @@ import { RootComponent } from "../routes/__root";
 import { AuthenticatedShell } from "../shared/components/authenticated-shell";
 
 const mocks = vi.hoisted(() => ({
-	useLocation: vi.fn(() => ({ pathname: "/dashboard" })),
+	useLocation: vi.fn(() => ({ pathname: "/statistics" })),
 	getSession: vi.fn(),
 	redirect: vi.fn((input: unknown) => {
 		const err = new Error("redirect");
@@ -125,7 +125,7 @@ describe("RootComponent", () => {
 	beforeEach(() => {
 		mocks.getSession.mockReset();
 		mocks.redirect.mockClear();
-		mocks.useLocation.mockReturnValue({ pathname: "/dashboard" });
+		mocks.useLocation.mockReturnValue({ pathname: "/statistics" });
 		mocks.isDesktop = false;
 	});
 
@@ -146,7 +146,7 @@ describe("RootComponent", () => {
 	});
 
 	it("renders the head content and toaster wrapper always", () => {
-		mocks.useLocation.mockReturnValue({ pathname: "/dashboard" });
+		mocks.useLocation.mockReturnValue({ pathname: "/statistics" });
 
 		render(<RootComponent />);
 
@@ -182,7 +182,7 @@ describe("Root route beforeLoad guard", () => {
 		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
 
 		await expect(
-			beforeLoad({ location: { pathname: "/dashboard" } })
+			beforeLoad({ location: { pathname: "/statistics" } })
 		).rejects.toThrow("redirect");
 		expect(mocks.redirect).toHaveBeenCalledWith({ to: "/login" });
 	});
@@ -194,7 +194,7 @@ describe("Root route beforeLoad guard", () => {
 		const beforeLoad = (Route as unknown as RouteWithBeforeLoad).beforeLoad;
 
 		await expect(
-			beforeLoad({ location: { pathname: "/dashboard" } })
+			beforeLoad({ location: { pathname: "/statistics" } })
 		).resolves.toEqual({ session });
 		expect(mocks.getSession).toHaveBeenCalledTimes(1);
 		expect(mocks.redirect).not.toHaveBeenCalled();

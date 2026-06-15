@@ -1,15 +1,5 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-interface MockRingGame {
-	blind1: number | null;
-	blind2: number | null;
-	id: string;
-	maxBuyIn: number | null;
-	minBuyIn: number | null;
-	name: string | null;
-	tableSize: number | null;
-}
 
 const mocks = vi.hoisted(() => ({
 	session: null as Record<string, unknown> | null,
@@ -17,8 +7,21 @@ const mocks = vi.hoisted(() => ({
 	isDiscardPending: false,
 	discard: vi.fn(),
 	lastSessionId: null as string | null,
-	sceneState: { scene: "table" },
+	sceneState: { scene: "list" },
 	lastSceneOptions: null as Record<string, unknown> | null,
+	stack: {
+		recordStack: vi.fn(),
+		addChip: vi.fn(),
+		removeChip: vi.fn(),
+		addAllIn: vi.fn(),
+		addMemo: vi.fn(),
+		pause: vi.fn(),
+		resume: vi.fn(),
+		complete: vi.fn(),
+		isStackPending: false,
+		isCompletePending: false,
+	},
+	lastStackOptions: null as Record<string, unknown> | null,
 }));
 
 vi.mock("@/features/live-sessions/hooks/use-cash-game-session", () => ({
@@ -30,6 +33,13 @@ vi.mock("@/features/live-sessions/hooks/use-cash-game-session", () => ({
 			isDiscardPending: mocks.isDiscardPending,
 			discard: mocks.discard,
 		};
+	},
+}));
+
+vi.mock("@/features/live-sessions/hooks/use-cash-game-stack", () => ({
+	useCashGameStack: (options: Record<string, unknown>) => {
+		mocks.lastStackOptions = options;
+		return mocks.stack;
 	},
 }));
 
@@ -56,19 +66,6 @@ function makeSession(
 	};
 }
 
-function makeRingGame(overrides: Partial<MockRingGame> = {}): MockRingGame {
-	return {
-		blind1: 100,
-		blind2: 200,
-		id: "rg-1",
-		maxBuyIn: 30_000,
-		minBuyIn: 10_000,
-		name: "Main game",
-		tableSize: 9,
-		...overrides,
-	};
-}
-
 describe("useCashGameSessionView", () => {
 	beforeEach(() => {
 		mocks.session = null;
@@ -77,21 +74,30 @@ describe("useCashGameSessionView", () => {
 		mocks.discard.mockReset();
 		mocks.lastSessionId = null;
 		mocks.lastSceneOptions = null;
+		mocks.lastStackOptions = null;
+		for (const fn of Object.values(mocks.stack)) {
+			if (typeof fn === "function") {
+				(fn as ReturnType<typeof vi.fn>).mockReset();
+			}
+		}
+		mocks.stack.isCompletePending = false;
 	});
 
-	it("forwards sessionId into useCashGameSession", () => {
+	it("forwards sessionId into useCashGameSession and useCashGameStack", () => {
 		renderHook(() => useCashGameSessionView("cg-42"));
 		expect(mocks.lastSessionId).toBe("cg-42");
+		expect(mocks.lastStackOptions).toEqual({ sessionId: "cg-42" });
 	});
 
 	describe("scene state wiring", () => {
 		it("passes a normalized hero seat to the scene state for a valid seat", () => {
-			mocks.session = makeSession({ heroSeatPosition: 3 });
+			mocks.session = makeSession({ heroSeatPosition: 3, tableSize: 6 });
 			renderHook(() => useCashGameSessionView("cg-1"));
 			expect(mocks.lastSceneOptions).toEqual({
 				heroSeatPosition: 3,
 				sessionId: "cg-1",
 				sessionType: "cash_game",
+				tableSize: 6,
 			});
 		});
 
@@ -128,49 +134,6 @@ describe("useCashGameSessionView", () => {
 		});
 	});
 
-	describe("gameInfo", () => {
-		it("is empty when the session has no ring game", () => {
-			mocks.session = makeSession({ ringGameId: null });
-			mocks.ringGames = [makeRingGame()];
-			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			expect(result.current.gameInfo).toEqual({});
-			expect(result.current.tableSize).toBeNull();
-		});
-
-		it("is empty when the referenced ring game is not in the list", () => {
-			mocks.session = makeSession({ ringGameId: "rg-missing" });
-			mocks.ringGames = [makeRingGame({ id: "rg-1" })];
-			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			expect(result.current.gameInfo).toEqual({});
-		});
-
-		it("formats blinds and buy-in range from the matched ring game", () => {
-			mocks.session = makeSession({ ringGameId: "rg-1" });
-			mocks.ringGames = [makeRingGame()];
-			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			expect(result.current.gameInfo).toEqual({
-				blinds: "100-200",
-				buyInRange: "MIN 10k - MAX 30k",
-				name: "Main game",
-			});
-			expect(result.current.tableSize).toBe(9);
-		});
-
-		it("leaves blinds null when either blind is missing", () => {
-			mocks.session = makeSession({ ringGameId: "rg-1" });
-			mocks.ringGames = [makeRingGame({ blind2: null })];
-			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			expect(result.current.gameInfo.blinds).toBeNull();
-		});
-
-		it("leaves buyInRange null when either bound is missing", () => {
-			mocks.session = makeSession({ ringGameId: "rg-1" });
-			mocks.ringGames = [makeRingGame({ minBuyIn: null })];
-			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
-			expect(result.current.gameInfo.buyInRange).toBeNull();
-		});
-	});
-
 	describe("summary", () => {
 		it("builds the compact summary from the session", () => {
 			const startedAt = new Date("2026-06-01T10:00:00Z");
@@ -199,6 +162,126 @@ describe("useCashGameSessionView", () => {
 			const startedAt = result.current.summary?.startedAt;
 			expect(startedAt).toBeInstanceOf(Date);
 			expect((startedAt as Date).getTime()).toBeGreaterThanOrEqual(before);
+		});
+	});
+
+	describe("event menu extra items", () => {
+		it("lists All-in / Add chips / Remove chips / Memo in that order", () => {
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.eventMenuExtraItems.map((i) => i.label)).toEqual([
+				"All-in",
+				"Add chips",
+				"Remove chips",
+				"Memo",
+			]);
+		});
+
+		it("'All-in' opens the all-in sheet", () => {
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.isAllInOpen).toBe(false);
+			act(() => result.current.eventMenuExtraItems[0]?.onSelect());
+			expect(result.current.isAllInOpen).toBe(true);
+		});
+
+		it("'Add chips' opens the add-chips sheet", () => {
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			act(() => result.current.eventMenuExtraItems[1]?.onSelect());
+			expect(result.current.isAddChipsOpen).toBe(true);
+		});
+
+		it("'Remove chips' opens the remove-chips sheet", () => {
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			act(() => result.current.eventMenuExtraItems[2]?.onSelect());
+			expect(result.current.isRemoveChipsOpen).toBe(true);
+		});
+
+		it("'Memo' opens the memo sheet", () => {
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			act(() => result.current.eventMenuExtraItems[3]?.onSelect());
+			expect(result.current.isMemoOpen).toBe(true);
+		});
+	});
+
+	describe("event submissions", () => {
+		it("handleAllInSubmit records the all-in and closes the sheet", () => {
+			const values = { potSize: 900, trials: 1, equity: 50, wins: 1 };
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			act(() => result.current.eventMenuExtraItems[0]?.onSelect());
+			act(() => result.current.handleAllInSubmit(values));
+			expect(mocks.stack.addAllIn).toHaveBeenCalledTimes(1);
+			expect(mocks.stack.addAllIn).toHaveBeenCalledWith(values);
+			expect(result.current.isAllInOpen).toBe(false);
+		});
+
+		it("handleAddChipsSubmit records the addon amount and closes the sheet", () => {
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			act(() => result.current.eventMenuExtraItems[1]?.onSelect());
+			act(() => result.current.handleAddChipsSubmit({ amount: 300 }));
+			expect(mocks.stack.addChip).toHaveBeenCalledTimes(1);
+			expect(mocks.stack.addChip).toHaveBeenCalledWith(300);
+			expect(result.current.isAddChipsOpen).toBe(false);
+		});
+
+		it("handleRemoveChipsSubmit records the removal and closes the sheet", () => {
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			act(() => result.current.eventMenuExtraItems[2]?.onSelect());
+			act(() => result.current.handleRemoveChipsSubmit({ amount: 200 }));
+			expect(mocks.stack.removeChip).toHaveBeenCalledTimes(1);
+			expect(mocks.stack.removeChip).toHaveBeenCalledWith(200);
+			expect(result.current.isRemoveChipsOpen).toBe(false);
+		});
+
+		it("handleMemoSubmit records the memo and closes the sheet", () => {
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			act(() => result.current.eventMenuExtraItems[3]?.onSelect());
+			act(() => result.current.handleMemoSubmit("note"));
+			expect(mocks.stack.addMemo).toHaveBeenCalledTimes(1);
+			expect(mocks.stack.addMemo).toHaveBeenCalledWith("note");
+			expect(result.current.isMemoOpen).toBe(false);
+		});
+	});
+
+	describe("session lifecycle", () => {
+		it("onPause pauses the session", () => {
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			act(() => result.current.onPause());
+			expect(mocks.stack.pause).toHaveBeenCalledTimes(1);
+		});
+
+		it("onEndSession opens the complete sheet", () => {
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.isCompleteOpen).toBe(false);
+			act(() => result.current.onEndSession());
+			expect(result.current.isCompleteOpen).toBe(true);
+		});
+
+		it("handleCompleteSubmit completes the session and closes the sheet", () => {
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			act(() => result.current.onEndSession());
+			act(() => result.current.handleCompleteSubmit({ finalStack: 2500 }));
+			expect(mocks.stack.complete).toHaveBeenCalledTimes(1);
+			expect(mocks.stack.complete).toHaveBeenCalledWith({ finalStack: 2500 });
+			expect(result.current.isCompleteOpen).toBe(false);
+		});
+
+		it("defaults the final stack to the current stack", () => {
+			mocks.session = makeSession();
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.defaultFinalStack).toBe(1500);
+		});
+
+		it("leaves the final stack undefined when the current stack is null", () => {
+			mocks.session = makeSession({
+				summary: { currentStack: null, evDiff: 0, totalBuyIn: 1000 },
+			});
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.defaultFinalStack).toBeUndefined();
+		});
+
+		it("exposes isCompletePending from the stack hook", () => {
+			mocks.stack.isCompletePending = true;
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.isCompletePending).toBe(true);
 		});
 	});
 
