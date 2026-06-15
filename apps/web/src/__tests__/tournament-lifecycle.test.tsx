@@ -42,6 +42,7 @@ vi.mock("@/features/players/hooks/use-table-players", () => ({
 		excludePlayerIds: [],
 		handleAddExisting: vi.fn(),
 		handleAddNew: vi.fn(),
+		handleAddTemporary: vi.fn(),
 		handleRemovePlayer: vi.fn(),
 	}),
 }));
@@ -49,24 +50,30 @@ vi.mock("@/features/players/hooks/use-table-players", () => ({
 // ---------------------------------------------------------------------------
 // Mock: heavy UI sub-components that would require additional providers
 // ---------------------------------------------------------------------------
-vi.mock("@/features/live-sessions/components/poker-table", () => ({
-	PokerTable: () => <div data-testid="poker-table" />,
-}));
-
-vi.mock("@/features/live-sessions/components/add-player-sheet", () => ({
-	AddPlayerSheet: () => null,
-}));
-
-vi.mock("@/features/live-sessions/components/player-detail-sheet", () => ({
-	PlayerDetailSheet: () => null,
-}));
-
 vi.mock(
 	"@/features/live-sessions/components/seat-from-screenshot-sheet",
 	() => ({
 		SeatFromScreenshotSheet: () => null,
 	})
 );
+
+vi.mock(
+	"@/features/live-sessions/components/active-session-scene/seat-list",
+	() => ({
+		SeatList: () => <div data-testid="seat-list" />,
+	})
+);
+
+vi.mock(
+	"@/features/live-sessions/components/active-session-game-scene",
+	() => ({
+		ActiveSessionGameScene: () => null,
+	})
+);
+
+vi.mock("@/features/live-sessions/components/session-events-scene", () => ({
+	SessionEventsScene: () => <div data-testid="events-scene" />,
+}));
 
 // ---------------------------------------------------------------------------
 // Mock: tRPC client and proxy
@@ -104,6 +111,14 @@ vi.mock("@/utils/trpc", () => ({
 				queryOptions: (args?: unknown) => ({
 					queryKey: ["tournament-list", args],
 					queryFn: () => mockQuery("tournament-list", args),
+				}),
+			},
+		},
+		session: {
+			list: {
+				queryOptions: (args?: unknown) => ({
+					queryKey: ["session-list", args],
+					queryFn: () => mockQuery("session-list", args),
 				}),
 			},
 		},
@@ -148,10 +163,12 @@ vi.mock("@/utils/trpc", () => ({
 	},
 	trpcClient: {
 		liveCashGameSession: {
+			complete: { mutate: vi.fn() },
 			discard: { mutate: vi.fn() },
 			updateHeroSeat: { mutate: vi.fn() },
 		},
 		liveTournamentSession: {
+			complete: { mutate: vi.fn() },
 			discard: { mutate: vi.fn() },
 			updateHeroSeat: { mutate: vi.fn() },
 		},
@@ -162,6 +179,7 @@ vi.mock("@/utils/trpc", () => ({
 			create: { mutate: vi.fn() },
 		},
 		sessionEvent: {
+			create: { mutate: vi.fn() },
 			update: { mutate: vi.fn() },
 			delete: { mutate: vi.fn() },
 		},
@@ -169,44 +187,25 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 import { TournamentCompleteForm } from "@/features/live-sessions/components/tournament-complete-form";
+import { StackSheetProvider } from "@/features/live-sessions/hooks/use-stack-sheet";
+// Pull in the route component after all mocks are declared.
 // biome-ignore lint/performance/noNamespaceImport: required to access named export from route module
-import * as ActiveSessionEventsModule from "@/routes/active-session/events";
-// Pull in route components after all mocks are declared.
-// biome-ignore lint/performance/noNamespaceImport: required to access named export from route module
-import * as ActiveSessionModule from "@/routes/active-session/index";
+import * as ActiveSessionModule from "@/routes/active-session";
 
 const ActiveSessionPage = ActiveSessionModule.Route.options
-	.component as React.ComponentType;
-
-const ActiveSessionEventsPage = ActiveSessionEventsModule.Route.options
-	.component as React.ComponentType;
+	.component as () => ReactNode;
 
 // Top-level regex literals (required by lint/performance/useTopLevelRegex)
-const REGEX_STACK_15000 = /Stack: 15,000/;
-const REGEX_REBUY = /Rebuy/;
 const REGEX_PLACEMENT_LABEL = /placement/i;
 const REGEX_TOTAL_ENTRIES_LABEL = /total entries/i;
 const REGEX_PRIZE_MONEY_LABEL = /prize money/i;
 const REGEX_BOUNTY_PRIZES_LABEL = /bounty prizes/i;
 const REGEX_COMPLETE_TOURNAMENT = /complete tournament/i;
+const REGEX_HISTORY = /History/;
 
 // ---------------------------------------------------------------------------
 // Browser API polyfills required by Radix UI (dialogs, sheets, popovers)
 // ---------------------------------------------------------------------------
-
-Object.defineProperty(window, "matchMedia", {
-	writable: true,
-	value: (query: string) => ({
-		matches: false,
-		media: query,
-		onchange: null,
-		addListener: vi.fn(),
-		removeListener: vi.fn(),
-		addEventListener: vi.fn(),
-		removeEventListener: vi.fn(),
-		dispatchEvent: vi.fn(),
-	}),
-});
 
 if (!window.ResizeObserver) {
 	window.ResizeObserver = class ResizeObserver {
@@ -230,19 +229,21 @@ beforeEach(() => {
 	});
 });
 
-function TestQueryProvider({ children }: { children: ReactNode }) {
+function TestProviders({ children }: { children: ReactNode }) {
 	return (
 		<QueryClientProvider client={testQueryClient}>
-			{children}
+			<StackSheetProvider>{children}</StackSheetProvider>
 		</QueryClientProvider>
 	);
 }
 
-function renderWithProviders(router: any) {
+function renderWithProviders(router: unknown) {
 	return render(
-		<TestQueryProvider>
-			<RouterProvider router={router} />
-		</TestQueryProvider>
+		<TestProviders>
+			<RouterProvider
+				router={router as Parameters<typeof RouterProvider>[0]["router"]}
+			/>
+		</TestProviders>
 	);
 }
 
@@ -250,9 +251,10 @@ function renderWithProviders(router: any) {
 // Router factory helpers
 // ---------------------------------------------------------------------------
 
-type AnyComponent = any;
-
-function createTestRouter(Component: AnyComponent, path = "/active-session") {
+function createTestRouter(
+	Component: () => ReactNode,
+	path = "/active-session"
+) {
 	const rootRoute = createRootRoute({ component: Component });
 	const indexRoute = createRoute({
 		getParentRoute: () => rootRoute,
@@ -266,26 +268,8 @@ function createTestRouter(Component: AnyComponent, path = "/active-session") {
 	});
 }
 
-function createEventsRouter() {
-	const rootRoute = createRootRoute({
-		component: () => <ActiveSessionEventsPage />,
-	});
-	const eventsRoute = createRoute({
-		getParentRoute: () => rootRoute,
-		path: "/active-session/events",
-		component: ActiveSessionEventsPage as any,
-	});
-	const routeTree = rootRoute.addChildren([eventsRoute]);
-	return createRouter({
-		routeTree,
-		history: createMemoryHistory({
-			initialEntries: ["/active-session/events"],
-		}),
-	});
-}
-
 // ---------------------------------------------------------------------------
-// Tests: Active session overview page — session state
+// Tests: Active session page — session state
 // ---------------------------------------------------------------------------
 
 describe("ActiveSessionPage — no active session", () => {
@@ -359,18 +343,27 @@ describe("ActiveSessionPage — active cash game session", () => {
 		await screen.findByText("Cash Game");
 	});
 
-	it("renders Discard button", async () => {
+	it("renders the session actions overflow button instead of an inline Discard", async () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByText("Discard");
+		await screen.findByRole("button", { name: "Session actions" });
+		expect(screen.queryByText("Discard")).not.toBeInTheDocument();
 	});
 
-	it("renders the poker table", async () => {
+	it("renders the seat list", async () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByTestId("poker-table");
+		await screen.findByTestId("seat-list");
+	});
+
+	it("renders the collapsed history section without mounting the timeline", async () => {
+		const router = createTestRouter(ActiveSessionPage);
+		renderWithProviders(router);
+
+		await screen.findByRole("button", { name: REGEX_HISTORY });
+		expect(screen.queryByTestId("events-scene")).not.toBeInTheDocument();
 	});
 });
 
@@ -415,18 +408,18 @@ describe("ActiveSessionPage — active tournament session", () => {
 		await screen.findByText("Tournament");
 	});
 
-	it("renders Discard button", async () => {
+	it("renders the session actions overflow button", async () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByText("Discard");
+		await screen.findByRole("button", { name: "Session actions" });
 	});
 
-	it("renders the poker table for tournament", async () => {
+	it("renders the seat list", async () => {
 		const router = createTestRouter(ActiveSessionPage);
 		renderWithProviders(router);
 
-		await screen.findByTestId("poker-table");
+		await screen.findByTestId("seat-list");
 	});
 });
 
@@ -526,135 +519,6 @@ describe("ActiveSessionPage — tournament summary labels", () => {
 		renderWithProviders(router);
 
 		await screen.findByText("15/80");
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Tests: Events page
-// ---------------------------------------------------------------------------
-
-describe("ActiveSessionEventsPage — no active session", () => {
-	beforeEach(() => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: null,
-			hasActive: false,
-			isLoading: false,
-		});
-	});
-
-	it("shows 'No active session' on the events page", async () => {
-		const router = createEventsRouter();
-		renderWithProviders(router);
-
-		await screen.findByText("No active session");
-	});
-});
-
-describe("ActiveSessionEventsPage — loading state", () => {
-	beforeEach(() => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: null,
-			hasActive: false,
-			isLoading: true,
-		});
-	});
-
-	it("shows loading indicator on the events page", async () => {
-		const router = createEventsRouter();
-		renderWithProviders(router);
-
-		await screen.findByText("Loading...");
-	});
-});
-
-describe("ActiveSessionEventsPage — tournament events display", () => {
-	beforeEach(() => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "tourn-003", type: "tournament" },
-			hasActive: true,
-			isLoading: false,
-		});
-
-		mockQuery.mockImplementation((key: string) => {
-			if (key === "events") {
-				return [
-					{
-						id: "evt-1",
-						eventType: "update_stack",
-						occurredAt: new Date("2026-04-03T10:00:00"),
-						payload: {
-							stackAmount: 15_000,
-						},
-					},
-					{
-						id: "evt-2",
-						eventType: "purchase_chips",
-						occurredAt: new Date("2026-04-03T14:00:00"),
-						payload: {
-							sessionChipPurchaseId: "scp-1",
-							name: "Rebuy",
-							cost: 100,
-							chips: 10_000,
-						},
-					},
-				];
-			}
-			return null;
-		});
-	});
-
-	it("renders Timeline heading", async () => {
-		const router = createEventsRouter();
-		renderWithProviders(router);
-
-		await screen.findByRole("heading", { name: "Timeline" });
-	});
-
-	it("renders update_stack events with 'Stack Update' label", async () => {
-		const router = createEventsRouter();
-		renderWithProviders(router);
-
-		await screen.findByText("Stack Update");
-	});
-
-	it("renders purchase_chips events with 'Purchase Chips' label", async () => {
-		const router = createEventsRouter();
-		renderWithProviders(router);
-
-		await screen.findByText("Purchase Chips");
-	});
-
-	it("shows the stack amount in the update_stack payload summary", async () => {
-		const router = createEventsRouter();
-		renderWithProviders(router);
-
-		await screen.findByText(REGEX_STACK_15000);
-	});
-
-	it("shows purchase chips details in the payload summary", async () => {
-		const router = createEventsRouter();
-		renderWithProviders(router);
-
-		await screen.findByText(REGEX_REBUY);
-	});
-});
-
-describe("ActiveSessionEventsPage — empty events list", () => {
-	beforeEach(() => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "tourn-004", type: "tournament" },
-			hasActive: true,
-			isLoading: false,
-		});
-
-		mockQuery.mockReturnValue([]);
-	});
-
-	it("shows empty state message when there are no events", async () => {
-		const router = createEventsRouter();
-		renderWithProviders(router);
-
-		await screen.findByText("No events recorded yet.");
 	});
 });
 

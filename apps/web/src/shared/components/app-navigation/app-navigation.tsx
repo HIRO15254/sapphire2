@@ -2,9 +2,8 @@ import {
 	IconBuildingStore,
 	IconCards,
 	IconCategory,
+	IconChartBar,
 	IconCoins,
-	IconLayoutDashboard,
-	IconList,
 	IconSettings,
 	IconUsers,
 } from "@tabler/icons-react";
@@ -35,8 +34,8 @@ export const RESOURCE_ITEMS: readonly NavigationItem[] = [
 ] as const;
 
 export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
-	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
+	{ to: "/statistics", label: "Statistics", icon: IconChartBar },
 	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
@@ -44,8 +43,8 @@ export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
 ] as const;
 
 const NORMAL_LEFT_ITEMS: readonly NavigationItem[] = [
-	{ to: "/dashboard", label: "Dashboard", icon: IconLayoutDashboard },
 	{ to: "/sessions", label: "Sessions", icon: IconCards },
+	{ to: "/statistics", label: "Statistics", icon: IconChartBar },
 ] as const;
 
 const RESOURCES_NAV_ITEM: NavigationItem = {
@@ -57,21 +56,6 @@ const RESOURCES_NAV_ITEM: NavigationItem = {
 
 const NORMAL_RIGHT_ITEMS: readonly NavigationItem[] = [
 	RESOURCES_NAV_ITEM,
-	{ to: "/settings", label: "Settings", icon: IconSettings },
-] as const;
-
-const LIVE_LEFT_ITEMS: readonly NavigationItem[] = [
-	{ to: "/active-session/events", label: "Timeline", icon: IconList },
-	{ to: "/active-session/game", label: "Game", icon: IconCards },
-] as const;
-
-const LIVE_RIGHT_ITEMS: readonly NavigationItem[] = [
-	{
-		to: "/active-session",
-		label: "Overview",
-		icon: IconLayoutDashboard,
-		exact: true,
-	},
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
@@ -104,13 +88,11 @@ export function isActiveItem(
 	return false;
 }
 
-export function getMobileNavigationItems(hasActive: boolean): {
+export function getMobileNavigationItems(): {
 	leftItems: readonly NavigationItem[];
 	rightItems: readonly NavigationItem[];
 } {
-	return hasActive
-		? { leftItems: LIVE_LEFT_ITEMS, rightItems: LIVE_RIGHT_ITEMS }
-		: { leftItems: NORMAL_LEFT_ITEMS, rightItems: NORMAL_RIGHT_ITEMS };
+	return { leftItems: NORMAL_LEFT_ITEMS, rightItems: NORMAL_RIGHT_ITEMS };
 }
 
 export function MobileNavItem({

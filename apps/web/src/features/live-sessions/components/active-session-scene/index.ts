@@ -1,6 +1,9 @@
-export type { ActiveSessionSceneState } from "./active-session-scene";
-export {
-	ActiveSessionScene,
-	useActiveSessionSceneState,
-} from "./active-session-scene";
+export { ActiveSessionScene } from "./active-session-scene";
 export { useActiveSessionScene } from "./use-active-session-scene";
+export type {
+	ActiveSessionSceneState,
+	SeatEntry,
+	SeatPlayer,
+	SessionParam,
+} from "./use-active-session-scene-state";
+export { useActiveSessionSceneState } from "./use-active-session-scene-state";

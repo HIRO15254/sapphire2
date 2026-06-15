@@ -5,6 +5,7 @@ import {
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -99,10 +100,11 @@ export function useSessionEvents({
 			);
 			const previousSession = snapshotQuery(queryClient, sessionKey);
 			const targetEvent = events.find((event) => event.id === args.id);
-			queryClient.setQueryData<SessionEvent[]>(
+			updateQueryItems<SessionEvent>(
+				queryClient,
 				eventsQueryOptions.queryKey,
 				(old) =>
-					old?.map((event) =>
+					old.map((event) =>
 						event.id === args.id
 							? {
 									...event,
@@ -112,7 +114,7 @@ export function useSessionEvents({
 									payload: args.payload ?? event.payload,
 								}
 							: event
-					) ?? []
+					)
 			);
 			if (targetEvent && args.payload) {
 				applyEventSummaryToSession(targetEvent, args.payload, args.occurredAt);
@@ -142,9 +144,10 @@ export function useSessionEvents({
 				eventsQueryOptions.queryKey
 			);
 			const previousSession = snapshotQuery(queryClient, sessionKey);
-			queryClient.setQueryData<SessionEvent[]>(
+			updateQueryItems<SessionEvent>(
+				queryClient,
 				eventsQueryOptions.queryKey,
-				(old) => old?.filter((event) => event.id !== id) ?? []
+				(old) => old.filter((event) => event.id !== id)
 			);
 			return { previousEvents, previousSession };
 		},

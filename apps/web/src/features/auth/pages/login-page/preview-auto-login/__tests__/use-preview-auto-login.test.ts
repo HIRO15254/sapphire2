@@ -78,14 +78,14 @@ describe("usePreviewAutoLogin", () => {
 		});
 	});
 
-	it("navigates to /dashboard when signIn returns data", async () => {
+	it("navigates to /statistics when signIn returns data", async () => {
 		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
 		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
 		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = "preview-pass";
 		mocks.signInEmail.mockResolvedValue({ data: { user: { id: "u1" } } });
 		renderHook(() => usePreviewAutoLogin());
 		await waitFor(() =>
-			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/dashboard" })
+			expect(mocks.navigate).toHaveBeenCalledWith({ to: "/statistics" })
 		);
 	});
 

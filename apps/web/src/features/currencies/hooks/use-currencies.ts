@@ -4,6 +4,10 @@ import {
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
+
+export type { Transaction } from "@/features/currencies/utils/types";
+
+import type { Transaction } from "@/features/currencies/utils/types";
 import {
 	cancelTargets,
 	invalidateTargets,
@@ -33,17 +37,6 @@ export interface CurrencyItem {
 	isFavorite: boolean;
 	name: string;
 	unit?: string | null;
-}
-
-export interface Transaction {
-	amount: number;
-	createdAt?: Date | string;
-	currencyId?: string;
-	id: string;
-	memo?: string | null;
-	transactedAt: Date | string;
-	transactionTypeId?: string;
-	transactionTypeName: string;
 }
 
 export function useCurrencies(expandedCurrencyId: string | null) {

@@ -211,6 +211,59 @@ describe("useTablePlayers", () => {
 		});
 	});
 
+	describe("player mapping", () => {
+		it("passes the player's memo through for the seat list", async () => {
+			const qc = createClient();
+			qc.setQueryData(cashKey, {
+				items: [
+					{
+						id: "tp1",
+						seatPosition: 1,
+						isActive: true,
+						joinedAt: "x",
+						leftAt: null,
+						player: {
+							id: "p1",
+							isTemporary: false,
+							memo: "<p>note</p>",
+							name: "Alice",
+						},
+					},
+				],
+			});
+			const { result } = renderHook(
+				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() =>
+				expect(result.current.players[0]?.player.memo).toBe("<p>note</p>")
+			);
+		});
+
+		it("defaults a missing memo to null", async () => {
+			const qc = createClient();
+			qc.setQueryData(cashKey, {
+				items: [
+					{
+						id: "tp1",
+						seatPosition: 1,
+						isActive: true,
+						joinedAt: "x",
+						leftAt: null,
+						player: { id: "p1", isTemporary: false, name: "Alice" },
+					},
+				],
+			});
+			const { result } = renderHook(
+				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() =>
+				expect(result.current.players[0]?.player.memo).toBeNull()
+			);
+		});
+	});
+
 	describe("handleAddExisting", () => {
 		it("optimistically appends the player and forwards the cash session id to mutate", async () => {
 			const qc = createClient();
@@ -249,6 +302,37 @@ describe("useTablePlayers", () => {
 			expect(data?.items[0]?.seatPosition).toBe(3);
 			resolve?.({ id: "tp-new" });
 		});
+
+		it("adds without a seat: omits seatPosition from mutate and caches it as null", async () => {
+			const qc = createClient();
+			qc.setQueryData(cashKey, { items: [] });
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.add.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(
+				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			act(() => {
+				result.current.handleAddExisting("p1", "Alice");
+			});
+			await waitFor(() => {
+				expect(trpcMocks.add).toHaveBeenCalledWith({
+					liveCashGameSessionId: "s1",
+					playerId: "p1",
+					seatPosition: undefined,
+				});
+			});
+			const data = qc.getQueryData<{
+				items: Array<{ seatPosition: number | null }>;
+			}>(cashKey);
+			expect(data?.items[0]?.seatPosition).toBeNull();
+			resolve?.({ id: "tp-new" });
+		});
 	});
 
 	describe("handleAddNew", () => {
@@ -270,6 +354,28 @@ describe("useTablePlayers", () => {
 					playerMemo: "memo",
 					playerTagIds: ["tag1"],
 					seatPosition: 4,
+				});
+			});
+		});
+
+		it("posts without a seat when seatPosition is omitted", async () => {
+			const qc = createClient();
+			qc.setQueryData(cashKey, { items: [] });
+			trpcMocks.addNew.mockResolvedValue({ id: "tp-new" });
+			const { result } = renderHook(
+				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			act(() => {
+				result.current.handleAddNew("NewPlayer", undefined, "memo", ["tag1"]);
+			});
+			await waitFor(() => {
+				expect(trpcMocks.addNew).toHaveBeenCalledWith({
+					liveCashGameSessionId: "s1",
+					playerName: "NewPlayer",
+					playerMemo: "memo",
+					playerTagIds: ["tag1"],
+					seatPosition: undefined,
 				});
 			});
 		});
@@ -306,6 +412,36 @@ describe("useTablePlayers", () => {
 				expect(row?.player.name).toBe("...");
 				expect(row?.player.id.startsWith("temp-")).toBe(true);
 			});
+			resolve?.({ id: "tp-temp" });
+		});
+
+		it("creates a seatless temporary row when no seat is given", async () => {
+			const qc = createClient();
+			qc.setQueryData(cashKey, { items: [] });
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.addTemporary.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(
+				() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			act(() => {
+				result.current.handleAddTemporary();
+			});
+			await waitFor(() => {
+				expect(trpcMocks.addTemporary).toHaveBeenCalledWith({
+					liveCashGameSessionId: "s1",
+					seatPosition: undefined,
+				});
+			});
+			const data = qc.getQueryData<{
+				items: Array<{ seatPosition: number | null }>;
+			}>(cashKey);
+			expect(data?.items[0]?.seatPosition).toBeNull();
 			resolve?.({ id: "tp-temp" });
 		});
 	});

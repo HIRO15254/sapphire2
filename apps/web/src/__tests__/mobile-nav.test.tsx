@@ -21,10 +21,11 @@ vi.mock("@/features/live-sessions/components/create-session-dialog", () => ({
 }));
 
 // Mock useStackSheet to avoid provider requirement
+const mockStackOpen = vi.fn();
 vi.mock("@/features/live-sessions/hooks/use-stack-sheet", () => ({
 	useStackSheet: () => ({
 		isOpen: false,
-		open: vi.fn(),
+		open: mockStackOpen,
 		close: vi.fn(),
 		setIsOpen: vi.fn(),
 	}),
@@ -65,7 +66,7 @@ function createTestRouter(initialPath: string) {
 
 	const routes = [
 		"/",
-		"/dashboard",
+		"/statistics",
 		"/resources",
 		"/rooms",
 		"/currencies",
@@ -73,8 +74,6 @@ function createTestRouter(initialPath: string) {
 		"/live-sessions",
 		"/live-sessions/$sessionType/$sessionId/events",
 		"/active-session",
-		"/active-session/events",
-		"/active-session/game",
 		"/players",
 		"/settings",
 	].map((path) =>
@@ -118,7 +117,7 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 		render(<RouterProvider router={router} />);
 
 		await screen.findByText("Sessions");
-		expect(screen.getByText("Dashboard")).toBeInTheDocument();
+		expect(screen.getByText("Statistics")).toBeInTheDocument();
 		expect(screen.getByText("Resources")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
 		expect(screen.getByText("New")).toBeInTheDocument();
@@ -168,12 +167,12 @@ describe("MobileNav - Paused Session Mode", () => {
 		expect(buttons).toHaveLength(2);
 	});
 
-	it("displays normal mode nav items (Dashboard, Sessions, Resources, Settings)", async () => {
+	it("displays normal mode nav items (Sessions, Statistics, Resources, Settings)", async () => {
 		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
 
 		await screen.findByText("Sessions");
-		expect(screen.getByText("Dashboard")).toBeInTheDocument();
+		expect(screen.getByText("Statistics")).toBeInTheDocument();
 		expect(screen.getByText("Resources")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
 	});
@@ -185,71 +184,67 @@ describe("MobileNav - Paused Session Mode", () => {
 		await screen.findByText("Resume");
 		expect(screen.getByText("Resume")).toBeInTheDocument();
 	});
+});
 
-	it("does not display live session nav items (Timeline, Game, Overview)", async () => {
+describe("MobileNav - Active Session Mode", () => {
+	beforeEach(() => {
+		mockUseActiveSession.mockReturnValue({
+			activeSession: {
+				id: "session-123",
+				type: "cash_game",
+				status: "active",
+			},
+			hasActive: true,
+			isLoading: false,
+		});
+		mockStackOpen.mockReset();
+	});
+
+	it("keeps the normal nav items while a session is live", async () => {
 		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("Dashboard");
+		await screen.findByText("Sessions");
+		expect(screen.getByText("Statistics")).toBeInTheDocument();
+		expect(screen.getByText("Resources")).toBeInTheDocument();
+		expect(screen.getByText("Settings")).toBeInTheDocument();
+	});
+
+	it("does not display the retired live session nav items (Timeline, Game, Overview)", async () => {
+		const router = createTestRouter("/sessions");
+		render(<RouterProvider router={router} />);
+
+		await screen.findByText("Statistics");
 		expect(screen.queryByText("Timeline")).not.toBeInTheDocument();
 		expect(screen.queryByText("Game")).not.toBeInTheDocument();
 		expect(screen.queryByText("Overview")).not.toBeInTheDocument();
 	});
-});
 
-describe("MobileNav - Live Session Mode (active session)", () => {
-	beforeEach(() => {
-		mockUseActiveSession.mockReturnValue({
-			activeSession: { id: "session-123", type: "cash_game", status: "active" },
-			hasActive: true,
-			isLoading: false,
-		});
-	});
-
-	it("renders 4 nav links and 1 center button", async () => {
-		const router = createTestRouter(
-			"/live-sessions/cash-game/session-123/events"
-		);
+	it("shows 'Live' on the center button when off the active-session page", async () => {
+		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
 
-		const links = await screen.findAllByRole("link");
-		expect(links).toHaveLength(4);
-
-		const centerButton = screen.getByRole("button");
-		expect(centerButton).toBeInTheDocument();
+		await screen.findByText("Live");
+		expect(screen.queryByText("Stack")).not.toBeInTheDocument();
 	});
 
-	it("displays live mode labels with dynamic events link", async () => {
-		const router = createTestRouter(
-			"/live-sessions/cash-game/session-123/events"
-		);
-		render(<RouterProvider router={router} />);
-
-		await screen.findByText("Timeline");
-		expect(screen.getByText("Game")).toBeInTheDocument();
-		expect(screen.getByText("Overview")).toBeInTheDocument();
-		expect(screen.getByText("Settings")).toBeInTheDocument();
-		expect(screen.getByText("Stack")).toBeInTheDocument();
-	});
-
-	it("renders a Game link pointing to /active-session/game", async () => {
+	it("shows 'Stack' on the center button on the active-session page", async () => {
 		const router = createTestRouter("/active-session");
 		render(<RouterProvider router={router} />);
 
-		const gameLink = await screen.findByText("Game");
-		const anchor = gameLink.closest("a");
-		expect(anchor?.getAttribute("href")).toBe("/active-session/game");
+		await screen.findByText("Stack");
+		expect(screen.queryByText("Live")).not.toBeInTheDocument();
 	});
 
 	it("center button has green styling in live mode", async () => {
-		const router = createTestRouter(
-			"/live-sessions/cash-game/session-123/events"
-		);
+		const router = createTestRouter("/sessions");
 		render(<RouterProvider router={router} />);
 
-		await screen.findByText("Stack");
-		const centerButton = screen.getByRole("button");
-		const greenDiv = centerButton.querySelector("div");
+		await screen.findByText("Live");
+		const centerButton = screen
+			.getAllByRole("button")
+			.find((b) => b.textContent?.includes("Live"));
+		const greenDiv = centerButton?.querySelector("div");
 		expect(greenDiv?.className).toContain("bg-green");
 	});
 });

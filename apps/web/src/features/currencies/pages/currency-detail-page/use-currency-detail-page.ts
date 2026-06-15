@@ -135,6 +135,10 @@ export function useCurrencyDetailPage(currencyId: string) {
 		setPendingDeleteTransaction(null);
 	};
 
+	const handleNavigateToSession = (sessionId: string) => {
+		navigate({ to: "/sessions/$sessionId", params: { sessionId } });
+	};
+
 	return {
 		currency,
 		isLoading,
@@ -171,5 +175,6 @@ export function useCurrencyDetailPage(currencyId: string) {
 		openDeleteFromTransactionActions,
 		cancelDeleteTransaction,
 		handleConfirmDeleteTransaction,
+		handleNavigateToSession,
 	};
 }

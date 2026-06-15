@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 /**
  * The public landing page was removed — the root path only dispatches:
- * signed-in users land on the dashboard, everyone else on the login page.
+ * signed-in users land on the statistics page, everyone else on the login page.
  *
  * The session is read from router context (fetched once by __root's
  * beforeLoad guard) instead of calling getSession again; the guard has
@@ -11,7 +11,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
  */
 export const Route = createFileRoute("/")({
 	beforeLoad: ({ context }) => {
-		throw redirect({ to: context.session?.data ? "/dashboard" : "/login" });
+		throw redirect({ to: context.session?.data ? "/statistics" : "/login" });
 	},
 	component: () => null,
 });

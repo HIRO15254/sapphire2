@@ -140,9 +140,11 @@ vi.mock(
 	() => ({
 		TransactionListV2: ({
 			onLoadMore,
+			onNavigateToSession,
 			onOpenActions,
 		}: {
 			onLoadMore?: () => void;
+			onNavigateToSession?: (sessionId: string) => void;
 			onOpenActions?: (tx: { id: string }) => void;
 		}) => (
 			<div data-testid="transaction-list-stub">
@@ -151,6 +153,12 @@ vi.mock(
 				</button>
 				<button onClick={() => onLoadMore?.()} type="button">
 					stub-load-more
+				</button>
+				<button
+					onClick={() => onNavigateToSession?.("session-xyz")}
+					type="button"
+				>
+					stub-navigate-to-session
 				</button>
 			</div>
 		),
@@ -233,6 +241,7 @@ function baseState() {
 		openDeleteFromTransactionActions: vi.fn(),
 		cancelDeleteTransaction: vi.fn(),
 		handleConfirmDeleteTransaction: vi.fn(),
+		handleNavigateToSession: vi.fn(),
 	};
 }
 
@@ -388,6 +397,17 @@ describe("CurrencyDetailPage", () => {
 			render(<Component />);
 			await user.click(screen.getByRole("button", { name: "stub-load-more" }));
 			expect(state.fetchNextPage).toHaveBeenCalledTimes(1);
+		});
+
+		it("wires the transaction list onNavigateToSession to handleNavigateToSession", async () => {
+			const user = userEvent.setup();
+			const state = setState();
+			render(<Component />);
+			await user.click(
+				screen.getByRole("button", { name: "stub-navigate-to-session" })
+			);
+			expect(state.handleNavigateToSession).toHaveBeenCalledTimes(1);
+			expect(state.handleNavigateToSession).toHaveBeenCalledWith("session-xyz");
 		});
 	});
 

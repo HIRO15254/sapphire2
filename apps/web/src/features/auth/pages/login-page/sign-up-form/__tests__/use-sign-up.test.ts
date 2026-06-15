@@ -118,7 +118,7 @@ describe("useSignUp", () => {
 		);
 	});
 
-	it("on success: navigates to /dashboard and toasts success", async () => {
+	it("on success: navigates to /statistics and toasts success", async () => {
 		mocks.signUpEmail.mockImplementation((_credentials, callbacks) => {
 			callbacks?.onSuccess?.();
 			return Promise.resolve();
@@ -132,7 +132,7 @@ describe("useSignUp", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/dashboard" });
+		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/statistics" });
 		expect(mocks.toastSuccess).toHaveBeenCalledWith("Sign up successful");
 	});
 
