@@ -1,3 +1,4 @@
+import { IconPlayerPlayFilled } from "@tabler/icons-react";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -104,13 +105,18 @@ describe("useMobileNav", () => {
 	});
 
 	describe("centerAction — no active session", () => {
-		it("shows 'New' with accent tone when no session", () => {
+		it("shows 'Start' with accent tone when no session", () => {
 			const { result } = renderHook(() => useMobileNav());
-			expect(result.current.centerAction.label).toBe("New");
+			expect(result.current.centerAction.label).toBe("Start");
 			expect(result.current.centerAction.tone).toBe("accent");
 		});
 
-		it("'New' onClick opens the create dialog", () => {
+		it("uses the filled player-play icon for 'Start'", () => {
+			const { result } = renderHook(() => useMobileNav());
+			expect(result.current.centerAction.icon).toBe(IconPlayerPlayFilled);
+		});
+
+		it("'Start' onClick opens the create dialog", () => {
 			const { result } = renderHook(() => useMobileNav());
 			expect(result.current.isCreateOpen).toBe(false);
 			act(() => result.current.centerAction.onClick());
@@ -124,10 +130,10 @@ describe("useMobileNav", () => {
 			expect(result.current.isCreateOpen).toBe(false);
 		});
 
-		it("shows 'New' even on the active-session path when no session exists", () => {
+		it("shows 'Start' even on the active-session path when no session exists", () => {
 			mocks.pathname = "/active-session";
 			const { result } = renderHook(() => useMobileNav());
-			expect(result.current.centerAction.label).toBe("New");
+			expect(result.current.centerAction.label).toBe("Start");
 		});
 	});
 

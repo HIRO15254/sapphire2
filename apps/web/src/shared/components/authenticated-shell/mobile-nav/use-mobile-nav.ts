@@ -1,4 +1,8 @@
-import { IconBolt, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
+import {
+	IconBolt,
+	IconPlayerPlay,
+	IconPlayerPlayFilled,
+} from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
@@ -98,8 +102,8 @@ export function useMobileNav(): UseMobileNavResult {
 		};
 	} else {
 		centerAction = {
-			icon: IconPlus,
-			label: "New",
+			icon: IconPlayerPlayFilled,
+			label: "Start",
 			onClick: () => setIsCreateOpen(true),
 			tone: "accent" as const,
 		};

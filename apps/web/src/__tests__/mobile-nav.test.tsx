@@ -120,7 +120,7 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 		expect(screen.getByText("Statistics")).toBeInTheDocument();
 		expect(screen.getByText("Resources")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
-		expect(screen.getByText("New")).toBeInTheDocument();
+		expect(screen.getByText("Start")).toBeInTheDocument();
 	});
 
 	it("highlights the active navigation item", async () => {

@@ -201,7 +201,7 @@ describe("Single-session guard — no active session", () => {
 		const router = createTestRouter(() => <DialogTestPage open />);
 		render(<RouterProvider router={router} />);
 
-		await screen.findByRole("heading", { name: "New Session" });
+		await screen.findByRole("heading", { name: "Start Live Session" });
 		await screen.findByTestId("session-wizard");
 	});
 });

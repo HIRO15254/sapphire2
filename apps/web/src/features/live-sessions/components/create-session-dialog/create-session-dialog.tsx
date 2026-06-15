@@ -36,7 +36,7 @@ export function CreateSessionDialog({
 				}
 			}}
 			open={open}
-			title="New Session"
+			title="Start Live Session"
 		>
 			<SessionWizard
 				currencies={currencies}
