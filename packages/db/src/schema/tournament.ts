@@ -1,4 +1,5 @@
 import { relations, sql } from "drizzle-orm";
+import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { currency } from "./currency";
 import { room } from "./room";
@@ -22,6 +23,20 @@ export const tournament = sqliteTable(
 			onDelete: "set null",
 		}),
 		memo: text("memo"),
+		// Multi-day chaining (lightweight model): each Day is one tournament rule.
+		// These flags + the optional self-link describe how a rule connects to the
+		// previous / next day; the actual per-session linkage lives on
+		// session_tournament_detail.previousSessionId.
+		hasNextDay: integer("has_next_day", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		hasPreviousDay: integer("has_previous_day", { mode: "boolean" })
+			.notNull()
+			.default(false),
+		nextDayTournamentId: text("next_day_tournament_id").references(
+			(): AnySQLiteColumn => tournament.id,
+			{ onDelete: "set null" }
+		),
 		archivedAt: integer("archived_at", { mode: "timestamp" }),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)

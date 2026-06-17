@@ -24,6 +24,9 @@ describe("SessionTournamentDetail schema — columns", () => {
 				"startingStack",
 				"bountyAmount",
 				"tableSize",
+				"result",
+				"previousSessionId",
+				"bagStack",
 			])
 		);
 	});
@@ -111,13 +114,44 @@ describe("SessionTournamentDetail — FK cascade policies", () => {
 		expect(fkByColumn("tournament_id")?.onDelete).toBe("set null");
 	});
 
-	it("has exactly 2 foreign keys", () => {
-		expect(config.foreignKeys).toHaveLength(2);
+	it("previousSessionId FK uses set null (link survives the linked session's removal)", () => {
+		expect(fkByColumn("previous_session_id")?.onDelete).toBe("set null");
+	});
+
+	it("previousSessionId FK references game_session.id", () => {
+		const fk = fkByColumn("previous_session_id");
+		expect(fk?.reference().foreignColumns.map((c) => c.name)).toEqual(["id"]);
+	});
+
+	it("has exactly 3 foreign keys (session, tournament, previous-session link)", () => {
+		expect(config.foreignKeys).toHaveLength(3);
 	});
 
 	it("sessionId FK references game_session.id", () => {
 		const fk = fkByColumn("session_id");
 		expect(fk?.reference().foreignColumns.map((c) => c.name)).toEqual(["id"]);
+	});
+});
+
+describe("SessionTournamentDetail — multi-day promote/link columns", () => {
+	const columns = getTableColumns(sessionTournamentDetail);
+
+	it("result is a nullable text column ('promoted' | 'finished')", () => {
+		expect(columns.result.dataType).toBe("string");
+		expect(columns.result.notNull).toBe(false);
+		expect(columns.result.name).toBe("result");
+	});
+
+	it("previousSessionId is a nullable text column", () => {
+		expect(columns.previousSessionId.dataType).toBe("string");
+		expect(columns.previousSessionId.notNull).toBe(false);
+		expect(columns.previousSessionId.name).toBe("previous_session_id");
+	});
+
+	it("bagStack is a nullable integer (carried into the next day's starting stack)", () => {
+		expect(columns.bagStack.dataType).toBe("number");
+		expect(columns.bagStack.notNull).toBe(false);
+		expect(columns.bagStack.name).toBe("bag_stack");
 	});
 });
 
@@ -129,11 +163,23 @@ describe("SessionTournamentDetail — indexes", () => {
 		expect(idxNames).toContain("session_tournament_tournament_idx");
 	});
 
-	it("has no unique indexes", () => {
+	it("has exactly 1 unique index (a promote is consumed by at most one next-day session)", () => {
 		const uniqueIdxs = config.indexes.filter(
 			(i) => (i.config as unknown as { unique: boolean }).unique === true
 		);
-		expect(uniqueIdxs).toHaveLength(0);
+		expect(uniqueIdxs).toHaveLength(1);
+	});
+
+	it("the unique index guards previous_session_id", () => {
+		const uniqueIdx = config.indexes.find(
+			(i) => (i.config as unknown as { unique: boolean }).unique === true
+		);
+		expect(uniqueIdx?.config.name).toBe(
+			"session_tournament_previous_session_unique"
+		);
+		expect(
+			uniqueIdx?.config.columns.map((c) => (c as { name: string }).name)
+		).toEqual(["previous_session_id"]);
 	});
 });
 

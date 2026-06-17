@@ -25,6 +25,9 @@ describe("Tournament schema", () => {
 		expect(columns.archivedAt).toBeDefined();
 		expect(columns.createdAt).toBeDefined();
 		expect(columns.updatedAt).toBeDefined();
+		expect(columns.hasNextDay).toBeDefined();
+		expect(columns.hasPreviousDay).toBeDefined();
+		expect(columns.nextDayTournamentId).toBeDefined();
 	});
 
 	it("no longer has rebuy/addon columns", () => {
@@ -208,8 +211,8 @@ describe("Tournament — FKs, indexes, and defaults", () => {
 		expect(fkByColumn("currency_id")?.onDelete).toBe("set null");
 	});
 
-	it("has exactly 2 foreign keys", () => {
-		expect(config.foreignKeys).toHaveLength(2);
+	it("has exactly 3 foreign keys (room, currency, self next-day)", () => {
+		expect(config.foreignKeys).toHaveLength(3);
 	});
 
 	it("has roomId index", () => {
@@ -339,5 +342,49 @@ describe("TournamentChipPurchase — FKs, indexes, and defaults", () => {
 		expect(columns.chips.dataType).toBe("number");
 		expect(columns.cost.notNull).toBe(true);
 		expect(columns.chips.notNull).toBe(true);
+	});
+});
+
+describe("Tournament — multi-day chaining columns", () => {
+	const config = getTableConfig(tournament);
+	const columns = getTableColumns(tournament);
+	const fkByColumn = (columnName: string) =>
+		config.foreignKeys.find((fk) =>
+			fk.reference().columns.some((c) => c.name === columnName)
+		);
+
+	it("hasNextDay is a not-null boolean defaulting to false", () => {
+		expect(columns.hasNextDay.dataType).toBe("boolean");
+		expect(columns.hasNextDay.notNull).toBe(true);
+		expect(columns.hasNextDay.hasDefault).toBe(true);
+		expect(columns.hasNextDay.default).toBe(false);
+	});
+
+	it("hasPreviousDay is a not-null boolean defaulting to false", () => {
+		expect(columns.hasPreviousDay.dataType).toBe("boolean");
+		expect(columns.hasPreviousDay.notNull).toBe(true);
+		expect(columns.hasPreviousDay.hasDefault).toBe(true);
+		expect(columns.hasPreviousDay.default).toBe(false);
+	});
+
+	it("nextDayTournamentId is a nullable text column (optional link)", () => {
+		expect(columns.nextDayTournamentId.dataType).toBe("string");
+		expect(columns.nextDayTournamentId.notNull).toBe(false);
+	});
+
+	it("nextDayTournamentId self-references tournament.id", () => {
+		const fk = fkByColumn("next_day_tournament_id");
+		expect(fk?.reference().foreignTable).toBe(tournament);
+		expect(fk?.reference().foreignColumns.map((c) => c.name)).toEqual(["id"]);
+	});
+
+	it("nextDayTournamentId FK uses set null (deleting the next-day rule unlinks)", () => {
+		expect(fkByColumn("next_day_tournament_id")?.onDelete).toBe("set null");
+	});
+
+	it("uses snake_case db column names", () => {
+		expect(columns.hasNextDay.name).toBe("has_next_day");
+		expect(columns.hasPreviousDay.name).toBe("has_previous_day");
+		expect(columns.nextDayTournamentId.name).toBe("next_day_tournament_id");
 	});
 });
