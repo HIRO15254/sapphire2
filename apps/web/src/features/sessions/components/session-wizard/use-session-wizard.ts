@@ -64,6 +64,33 @@ export function useSessionWizard(args: UseSessionWizardArgs) {
 		}
 	};
 
+	/**
+	 * Wraps `form.handleSubmit` with a live-mode guard: if the wizard is on
+	 * the "start" step, the session type is cash, and the buyIn field is empty,
+	 * the submit is aborted and a "Required" error is placed on the buyIn field
+	 * instead of submitting a session with buyIn = 0.
+	 *
+	 * When buyIn is non-empty, any manually-placed "Required" error from a prior
+	 * failed attempt is cleared so that `isValid` resets to `true` before
+	 * `form.handleSubmit()` checks `canSubmit`.
+	 */
+	const handleFormSubmit = () => {
+		if (mode === "live" && currentStep === "start" && formState.isCashGame) {
+			if (formState.form.getFieldValue("buyIn") === "") {
+				formState.form.setFieldMeta("buyIn", (prev) => ({
+					...prev,
+					errorMap: { ...prev?.errorMap, onSubmit: [{ message: "Required" }] },
+				}));
+				return;
+			}
+			formState.form.setFieldMeta("buyIn", (prev) => ({
+				...prev,
+				errorMap: { ...prev?.errorMap, onSubmit: undefined },
+			}));
+		}
+		formState.form.handleSubmit();
+	};
+
 	return {
 		...formState,
 		mode,
@@ -75,6 +102,7 @@ export function useSessionWizard(args: UseSessionWizardArgs) {
 		isLastStep,
 		goToNext,
 		goToPrev,
+		handleFormSubmit,
 	};
 }
 

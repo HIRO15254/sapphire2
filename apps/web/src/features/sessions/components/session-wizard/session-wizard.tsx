@@ -77,7 +77,7 @@ export function SessionWizard({
 			onSubmit={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
-				state.form.handleSubmit();
+				state.handleFormSubmit();
 			}}
 		>
 			{isLiveLinked && (
