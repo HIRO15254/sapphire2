@@ -74,6 +74,19 @@ describe("mergeExtractedTournamentData", () => {
 			expect(result.buyIn).toBe(50);
 		});
 
+		it("applies an explicit zero over an existing value (freeroll)", () => {
+			const result = mergeExtractedTournamentData(
+				{ buyIn: 0 },
+				base({ buyIn: 10 })
+			);
+			expect(result.buyIn).toBe(0);
+		});
+
+		it("applies an explicit zero over an empty base (freeroll)", () => {
+			const result = mergeExtractedTournamentData({ entryFee: 0 }, base());
+			expect(result.entryFee).toBe(0);
+		});
+
 		it("keeps the base value when extracted number is undefined", () => {
 			const result = mergeExtractedTournamentData(
 				{ buyIn: undefined },
@@ -82,12 +95,9 @@ describe("mergeExtractedTournamentData", () => {
 			expect(result.buyIn).toBe(10);
 		});
 
-		it("keeps the base value when extracted number is zero", () => {
-			const result = mergeExtractedTournamentData(
-				{ buyIn: 0 },
-				base({ buyIn: 10 })
-			);
-			expect(result.buyIn).toBe(10);
+		it("leaves the field undefined when extracted is undefined and base has none", () => {
+			const result = mergeExtractedTournamentData({ buyIn: undefined }, base());
+			expect(result.buyIn).toBeUndefined();
 		});
 
 		it("keeps the base value when extracted number is negative", () => {
@@ -112,11 +122,6 @@ describe("mergeExtractedTournamentData", () => {
 				base({ tableSize: 9 })
 			);
 			expect(result.tableSize).toBe(9);
-		});
-
-		it("leaves the field undefined when neither extracted nor base provide it", () => {
-			const result = mergeExtractedTournamentData({ buyIn: 0 }, base());
-			expect(result.buyIn).toBeUndefined();
 		});
 
 		it("applies all four numeric fields independently", () => {

@@ -7,11 +7,11 @@ function hasText(value: string | null | undefined): value is string {
 	return typeof value === "string" && value.trim() !== "";
 }
 
-// 数値の「空白扱い」: undefined / null / 非有限(NaN, Infinity) / 0以下 は無視して
-// 既存値を保持する。AI はプロンプト上ゼロ埋めしない約束だが、万一 0 を返しても
-// 既存の入力を消さないよう保険として 0 以下も無視する。
+// 数値の「空白扱い」: undefined / null / 非有限(NaN, Infinity) / 負数 は無視して
+// 既存値を保持する。明示的な 0（フリーロールの buyIn / entryFee 等）は空白とは
+// 区別し、有効な値として適用する（SA2-77）。
 function isMeaningfulNumber(value: number | null | undefined): value is number {
-	return typeof value === "number" && Number.isFinite(value) && value > 0;
+	return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 /**
