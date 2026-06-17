@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+	aggregateTournamentFlights,
 	computeBreakMinutesFromEvents,
 	computeCashGamePLFromEvents,
 	computeHeroSeatPositionFromEvents,
 	computeSeatedPlayersFromEvents,
 	computeSessionStateFromEvents,
 	computeTournamentPLFromEvents,
+	type FlightSessionInput,
 	getSessionResultTypeId,
 	recalculateCashGameSession,
 	recalculateTournamentSession,
@@ -1395,5 +1397,219 @@ describe("getSessionResultTypeId", () => {
 		>;
 		expect(insertedValues.name).toBe("Session Result");
 		expect(insertedValues.userId).toBe("user-1");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// aggregateTournamentFlights tests (1 Flight chain aggregation)
+// ---------------------------------------------------------------------------
+
+function makeFlightSession(
+	overrides: Partial<FlightSessionInput> & { sessionId: string }
+): FlightSessionInput {
+	return {
+		previousSessionId: null,
+		result: null,
+		buyIn: null,
+		entryFee: null,
+		chipPurchaseCost: 0,
+		prizeMoney: null,
+		bountyPrizes: null,
+		placement: null,
+		totalEntries: null,
+		...overrides,
+	};
+}
+
+describe("aggregateTournamentFlights", () => {
+	it("returns an empty array for no sessions", () => {
+		expect(aggregateTournamentFlights([])).toEqual([]);
+	});
+
+	it("treats a lone finished session as a complete single-day flight", () => {
+		const flights = aggregateTournamentFlights([
+			makeFlightSession({
+				sessionId: "s1",
+				result: "finished",
+				buyIn: 10_000,
+				entryFee: 1000,
+				chipPurchaseCost: 500,
+				prizeMoney: 30_000,
+				bountyPrizes: 2000,
+				placement: 1,
+				totalEntries: 50,
+			}),
+		]);
+		expect(flights).toHaveLength(1);
+		expect(flights[0]).toEqual({
+			headSessionId: "s1",
+			sessionIds: ["s1"],
+			totalCost: 11_500,
+			prizeMoney: 30_000,
+			bountyPrizes: 2000,
+			placement: 1,
+			totalEntries: 50,
+			// (30000 + 2000) - 11500 = 20500
+			profitLoss: 20_500,
+			isComplete: true,
+		});
+	});
+
+	it("treats a lone promoted session as an incomplete flight (null result)", () => {
+		const flights = aggregateTournamentFlights([
+			makeFlightSession({
+				sessionId: "s1",
+				result: "promoted",
+				buyIn: 10_000,
+				entryFee: 1000,
+			}),
+		]);
+		expect(flights).toHaveLength(1);
+		expect(flights[0].totalCost).toBe(11_000);
+		expect(flights[0].prizeMoney).toBeNull();
+		expect(flights[0].profitLoss).toBeNull();
+		expect(flights[0].isComplete).toBe(false);
+	});
+
+	it("merges a Day1→Day2 chain into one flight summing cost and taking the tail result", () => {
+		const sessions = [
+			makeFlightSession({
+				sessionId: "day1",
+				result: "promoted",
+				buyIn: 10_000,
+				entryFee: 1000,
+				chipPurchaseCost: 0,
+			}),
+			makeFlightSession({
+				sessionId: "day2",
+				previousSessionId: "day1",
+				result: "finished",
+				// Day2 carries the bag — no buy-in
+				buyIn: null,
+				entryFee: null,
+				chipPurchaseCost: 0,
+				prizeMoney: 100_000,
+				bountyPrizes: 0,
+				placement: 2,
+				totalEntries: 200,
+			}),
+		];
+		const flights = aggregateTournamentFlights(sessions);
+		expect(flights).toHaveLength(1);
+		expect(flights[0].headSessionId).toBe("day1");
+		expect(flights[0].sessionIds).toEqual(["day1", "day2"]);
+		expect(flights[0].totalCost).toBe(11_000);
+		expect(flights[0].prizeMoney).toBe(100_000);
+		expect(flights[0].placement).toBe(2);
+		expect(flights[0].totalEntries).toBe(200);
+		// 100000 - 11000 = 89000
+		expect(flights[0].profitLoss).toBe(89_000);
+		expect(flights[0].isComplete).toBe(true);
+	});
+
+	it("chains three days regardless of input order", () => {
+		const sessions = [
+			makeFlightSession({
+				sessionId: "day3",
+				previousSessionId: "day2",
+				result: "finished",
+				prizeMoney: 5000,
+				bountyPrizes: 0,
+				placement: 9,
+				totalEntries: 300,
+			}),
+			makeFlightSession({
+				sessionId: "day1",
+				result: "promoted",
+				buyIn: 20_000,
+				entryFee: 2000,
+			}),
+			makeFlightSession({
+				sessionId: "day2",
+				previousSessionId: "day1",
+				result: "promoted",
+				chipPurchaseCost: 1000,
+			}),
+		];
+		const flights = aggregateTournamentFlights(sessions);
+		expect(flights).toHaveLength(1);
+		expect(flights[0].sessionIds).toEqual(["day1", "day2", "day3"]);
+		// 22000 + 1000 + 0 = 23000
+		expect(flights[0].totalCost).toBe(23_000);
+		expect(flights[0].prizeMoney).toBe(5000);
+		// 5000 - 23000 = -18000
+		expect(flights[0].profitLoss).toBe(-18_000);
+		expect(flights[0].isComplete).toBe(true);
+	});
+
+	it("keeps a busted re-entry as its own flight, separate from the chain", () => {
+		const sessions = [
+			makeFlightSession({
+				sessionId: "bust",
+				result: "finished",
+				buyIn: 10_000,
+				prizeMoney: 0,
+				bountyPrizes: 0,
+				placement: 180,
+				totalEntries: 200,
+			}),
+			makeFlightSession({
+				sessionId: "day1",
+				result: "promoted",
+				buyIn: 10_000,
+			}),
+			makeFlightSession({
+				sessionId: "day2",
+				previousSessionId: "day1",
+				result: "finished",
+				prizeMoney: 50_000,
+				bountyPrizes: 0,
+				placement: 3,
+				totalEntries: 200,
+			}),
+		];
+		const flights = aggregateTournamentFlights(sessions);
+		expect(flights).toHaveLength(2);
+		const byHead = new Map(flights.map((f) => [f.headSessionId, f]));
+		expect(byHead.get("bust")?.sessionIds).toEqual(["bust"]);
+		expect(byHead.get("bust")?.profitLoss).toBe(-10_000);
+		expect(byHead.get("day1")?.sessionIds).toEqual(["day1", "day2"]);
+		expect(byHead.get("day1")?.profitLoss).toBe(40_000);
+	});
+
+	it("treats a link pointing outside the set as a head", () => {
+		const flights = aggregateTournamentFlights([
+			makeFlightSession({
+				sessionId: "day2",
+				previousSessionId: "missing-day1",
+				result: "finished",
+				prizeMoney: 1000,
+				bountyPrizes: 0,
+				placement: 1,
+				totalEntries: 10,
+			}),
+		]);
+		expect(flights).toHaveLength(1);
+		expect(flights[0].headSessionId).toBe("day2");
+		expect(flights[0].sessionIds).toEqual(["day2"]);
+	});
+
+	it("does not loop forever on a cyclic link (defensive)", () => {
+		const flights = aggregateTournamentFlights([
+			makeFlightSession({
+				sessionId: "a",
+				previousSessionId: "b",
+				result: "promoted",
+			}),
+			makeFlightSession({
+				sessionId: "b",
+				previousSessionId: "a",
+				result: "promoted",
+			}),
+		]);
+		// A pure cycle has no head; nothing is emitted rather than hanging.
+		expect(Array.isArray(flights)).toBe(true);
+		const totalSessions = flights.flatMap((f) => f.sessionIds);
+		expect(totalSessions.length).toBeLessThanOrEqual(2);
 	});
 });

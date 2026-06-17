@@ -224,6 +224,126 @@ function parseTournamentSessionEnd(payload: unknown): TournamentEndInfo {
 	};
 }
 
+/**
+ * One tournament session reduced to the fields needed to aggregate a multi-day
+ * chain into a single "flight". `chipPurchaseCost` is the Σ from this session's
+ * purchase_chips events.
+ */
+export interface FlightSessionInput {
+	bountyPrizes: number | null;
+	buyIn: number | null;
+	chipPurchaseCost: number;
+	entryFee: number | null;
+	placement: number | null;
+	previousSessionId: string | null;
+	prizeMoney: number | null;
+	result: "promoted" | "finished" | null;
+	sessionId: string;
+	totalEntries: number | null;
+}
+
+/** A multi-day chain collapsed to a single result row. */
+export interface AggregatedFlight {
+	bountyPrizes: number | null;
+	headSessionId: string;
+	/** True once the tail session finished (placement / prize known). */
+	isComplete: boolean;
+	placement: number | null;
+	prizeMoney: number | null;
+	profitLoss: number | null;
+	/** Chain order, head → tail. */
+	sessionIds: string[];
+	totalCost: number;
+	totalEntries: number | null;
+}
+
+function walkFlightChain(
+	head: FlightSessionInput,
+	successorByPrev: Map<string, FlightSessionInput>
+): FlightSessionInput[] {
+	const chain: FlightSessionInput[] = [];
+	const visited = new Set<string>();
+	let current: FlightSessionInput | undefined = head;
+	while (current && !visited.has(current.sessionId)) {
+		visited.add(current.sessionId);
+		chain.push(current);
+		current = successorByPrev.get(current.sessionId);
+	}
+	return chain;
+}
+
+function buildAggregatedFlight(chain: FlightSessionInput[]): AggregatedFlight {
+	const head = chain[0];
+	const tail = chain.at(-1) as FlightSessionInput;
+	const totalCost = chain.reduce(
+		(acc, s) => acc + (s.buyIn ?? 0) + (s.entryFee ?? 0) + s.chipPurchaseCost,
+		0
+	);
+	const sessionIds = chain.map((s) => s.sessionId);
+
+	if (tail.result === "finished") {
+		const income = (tail.prizeMoney ?? 0) + (tail.bountyPrizes ?? 0);
+		return {
+			headSessionId: head.sessionId,
+			sessionIds,
+			totalCost,
+			prizeMoney: tail.prizeMoney,
+			bountyPrizes: tail.bountyPrizes,
+			placement: tail.placement,
+			totalEntries: tail.totalEntries,
+			profitLoss: income - totalCost,
+			isComplete: true,
+		};
+	}
+
+	return {
+		headSessionId: head.sessionId,
+		sessionIds,
+		totalCost,
+		prizeMoney: null,
+		bountyPrizes: null,
+		placement: null,
+		totalEntries: null,
+		profitLoss: null,
+		isComplete: false,
+	};
+}
+
+/**
+ * Collapse multi-day tournament chains into "flights". Sessions are linked by
+ * `previousSessionId`; each chain (head → tail) becomes one AggregatedFlight
+ * whose cost is the sum across the chain and whose result is taken from the
+ * tail (the last day). A session whose `previousSessionId` is null or points
+ * outside the input set starts a chain; busted re-entries that were never
+ * promoted simply form their own single-session flights. A pure cycle (no
+ * head) is dropped rather than looped over.
+ */
+export function aggregateTournamentFlights(
+	sessions: FlightSessionInput[]
+): AggregatedFlight[] {
+	const byId = new Map<string, FlightSessionInput>();
+	for (const s of sessions) {
+		byId.set(s.sessionId, s);
+	}
+
+	const successorByPrev = new Map<string, FlightSessionInput>();
+	for (const s of sessions) {
+		if (s.previousSessionId !== null && byId.has(s.previousSessionId)) {
+			successorByPrev.set(s.previousSessionId, s);
+		}
+	}
+
+	const flights: AggregatedFlight[] = [];
+	for (const s of sessions) {
+		const isHead =
+			s.previousSessionId === null || !byId.has(s.previousSessionId);
+		if (isHead) {
+			flights.push(buildAggregatedFlight(walkFlightChain(s, successorByPrev)));
+		}
+	}
+	return flights;
+}
+
 export function computeTournamentPLFromEvents(
 	events: { eventType: string; payload: string }[],
 	tournamentBuyIn?: number,
