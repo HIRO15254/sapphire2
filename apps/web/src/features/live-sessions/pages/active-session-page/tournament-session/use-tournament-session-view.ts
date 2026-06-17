@@ -24,6 +24,10 @@ type TournamentCompleteValues =
 			beforeDeadline: true;
 			bountyPrizes: number;
 			prizeMoney: number;
+	  }
+	| {
+			bagStack: number;
+			result: "promoted";
 	  };
 
 function buildTournamentSummary(
@@ -73,6 +77,12 @@ export function useTournamentSessionView(sessionId: string) {
 			)
 		: null;
 
+	const canPromote =
+		(session as { hasNextDay?: boolean } | undefined)?.hasNextDay ?? false;
+	const currentStack =
+		(session as { summary?: { currentStack?: number | null } } | undefined)
+			?.summary?.currentStack ?? null;
+
 	const blindLevels = ((session as { blindLevels?: TournamentBlindLevel[] })
 		?.blindLevels ?? []) as TournamentBlindLevel[];
 	const timerStartedAt =
@@ -110,7 +120,9 @@ export function useTournamentSessionView(sessionId: string) {
 	return {
 		...tournamentSession,
 		blindLevels,
+		canPromote,
 		chipPurchaseTypes: stack.chipPurchaseTypes,
+		defaultBagStack: currentStack,
 		eventMenuExtraItems,
 		handleBuyChipsSubmit: (values: {
 			chips: number;

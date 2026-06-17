@@ -13,7 +13,9 @@ const COMPLETE_FORM_ID = "tournament-end-session-form";
 export function TournamentSession({ sessionId }: { sessionId: string }) {
 	const {
 		blindLevels,
+		canPromote,
 		chipPurchaseTypes,
+		defaultBagStack,
 		discard,
 		eventMenuExtraItems,
 		handleBuyChipsSubmit,
@@ -108,6 +110,8 @@ export function TournamentSession({ sessionId }: { sessionId: string }) {
 				title="Complete Tournament"
 			>
 				<TournamentCompleteForm
+					canPromote={canPromote}
+					defaultBagStack={defaultBagStack}
 					formId={COMPLETE_FORM_ID}
 					onSubmit={handleCompleteSubmit}
 				/>

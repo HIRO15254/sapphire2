@@ -17,6 +17,24 @@ interface RecordStackValues {
 	totalEntries?: number | null;
 }
 
+type TournamentCompleteValues =
+	| {
+			beforeDeadline: false;
+			bountyPrizes: number;
+			placement: number;
+			prizeMoney: number;
+			totalEntries: number;
+	  }
+	| {
+			beforeDeadline: true;
+			bountyPrizes: number;
+			prizeMoney: number;
+	  }
+	| {
+			result: "promoted";
+			bagStack: number;
+	  };
+
 function buildStackPayload(values: RecordStackValues) {
 	const payload: Record<string, unknown> = { stackAmount: values.stackAmount };
 	if (values.remainingPlayers !== undefined) {
@@ -147,21 +165,7 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 	});
 
 	const completeMutation = useMutation({
-		mutationFn: (
-			values:
-				| {
-						beforeDeadline: false;
-						bountyPrizes: number;
-						placement: number;
-						prizeMoney: number;
-						totalEntries: number;
-				  }
-				| {
-						beforeDeadline: true;
-						bountyPrizes: number;
-						prizeMoney: number;
-				  }
-		) =>
+		mutationFn: (values: TournamentCompleteValues) =>
 			trpcClient.liveTournamentSession.complete.mutate({
 				id: sessionId,
 				...values,
@@ -184,21 +188,8 @@ export function useTournamentStack({ sessionId }: { sessionId: string }) {
 			cost: number;
 			chips: number;
 		}) => purchaseChipsMutation.mutate(values),
-		complete: (
-			values:
-				| {
-						beforeDeadline: false;
-						bountyPrizes: number;
-						placement: number;
-						prizeMoney: number;
-						totalEntries: number;
-				  }
-				| {
-						beforeDeadline: true;
-						bountyPrizes: number;
-						prizeMoney: number;
-				  }
-		) => completeMutation.mutate(values),
+		complete: (values: TournamentCompleteValues) =>
+			completeMutation.mutate(values),
 		addMemo: (text: string) => memoMutation.mutate(text),
 		pause: () => pauseMutation.mutate(),
 		resume: () => resumeMutation.mutate(),

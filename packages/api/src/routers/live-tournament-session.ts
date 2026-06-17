@@ -666,6 +666,18 @@ export const liveTournamentSessionRouter = router({
 				.from(sessionTournamentDetail)
 				.where(eq(sessionTournamentDetail.sessionId, input.id));
 
+			// Surface the linked rule's day-chaining flags so the client can
+			// offer Promote (hasNextDay) / link (hasPreviousDay) affordances.
+			const [rule] = detail?.tournamentId
+				? await ctx.db
+						.select({
+							hasNextDay: tournament.hasNextDay,
+							hasPreviousDay: tournament.hasPreviousDay,
+						})
+						.from(tournament)
+						.where(eq(tournament.id, detail.tournamentId))
+				: [];
+
 			const masterData = detailSnapshotForGetById(detail);
 
 			const tournamentBuyIn =
@@ -741,6 +753,12 @@ export const liveTournamentSessionRouter = router({
 				variant: detail?.variant ?? null,
 				startingStack: detail?.startingStack ?? null,
 				bountyAmount: detail?.bountyAmount ?? null,
+				// Multi-day chaining state.
+				hasNextDay: rule?.hasNextDay ?? false,
+				hasPreviousDay: rule?.hasPreviousDay ?? false,
+				previousSessionId: detail?.previousSessionId ?? null,
+				result: detail?.result ?? null,
+				bagStack: detail?.bagStack ?? null,
 			};
 		}),
 
