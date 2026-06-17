@@ -181,6 +181,10 @@ function applyTournamentUpdateStack(
 
 function applyTournamentSessionEnd(acc: TournamentAcc, payload: unknown): void {
 	const data = tournamentSessionEndPayload.parse(payload);
+	// A promote end carries no placement / entries — nothing to plot here.
+	if ("result" in data) {
+		return;
+	}
 	if (data.beforeDeadline === false) {
 		acc.totalEntries = data.totalEntries;
 		acc.stack =

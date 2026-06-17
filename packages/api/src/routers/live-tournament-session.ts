@@ -1,4 +1,5 @@
 import {
+	tournamentPromoteEndPayload,
 	tournamentSessionEndPayload,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
@@ -431,7 +432,7 @@ async function getNextEventSortOrder(
 	return latest ? (latest.sortOrder ?? 0) + 1 : 0;
 }
 
-type CompleteInput =
+type CompleteFinishInput =
 	| {
 			id: string;
 			beforeDeadline: false;
@@ -447,7 +448,7 @@ type CompleteInput =
 			bountyPrizes: number;
 	  };
 
-function buildTournamentEndPayload(input: CompleteInput) {
+function buildTournamentEndPayload(input: CompleteFinishInput) {
 	if (input.beforeDeadline === false) {
 		return tournamentSessionEndPayload.parse({
 			beforeDeadline: false,
@@ -462,6 +463,40 @@ function buildTournamentEndPayload(input: CompleteInput) {
 		prizeMoney: input.prizeMoney,
 		bountyPrizes: input.bountyPrizes,
 	});
+}
+
+/**
+ * A session may only be promoted when its linked tournament rule declares a
+ * next day. Ad-hoc sessions (no tournamentId) and single-day rules cannot
+ * promote.
+ */
+async function assertCanPromote(
+	db: DbInstance,
+	sessionId: string
+): Promise<void> {
+	const [detail] = await db
+		.select({ tournamentId: sessionTournamentDetail.tournamentId })
+		.from(sessionTournamentDetail)
+		.where(eq(sessionTournamentDetail.sessionId, sessionId));
+
+	if (!detail?.tournamentId) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Only a session linked to a tournament rule can be promoted",
+		});
+	}
+
+	const [rule] = await db
+		.select({ hasNextDay: tournament.hasNextDay })
+		.from(tournament)
+		.where(eq(tournament.id, detail.tournamentId));
+
+	if (!rule?.hasNextDay) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "This tournament rule has no next day to promote to",
+		});
+	}
 }
 
 export const liveTournamentSessionRouter = router({
@@ -908,7 +943,7 @@ export const liveTournamentSessionRouter = router({
 
 	complete: protectedProcedure
 		.input(
-			z.discriminatedUnion("beforeDeadline", [
+			z.union([
 				z.object({
 					id: z.string(),
 					beforeDeadline: z.literal(false),
@@ -923,6 +958,11 @@ export const liveTournamentSessionRouter = router({
 					prizeMoney: z.number().int().min(0),
 					bountyPrizes: z.number().int().min(0),
 				}),
+				z.object({
+					id: z.string(),
+					result: z.literal("promoted"),
+					bagStack: z.number().int().min(0),
+				}),
 			])
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -936,9 +976,19 @@ export const liveTournamentSessionRouter = router({
 				});
 			}
 
+			let endPayload: unknown;
+			if ("result" in input) {
+				await assertCanPromote(ctx.db, input.id);
+				endPayload = tournamentPromoteEndPayload.parse({
+					result: "promoted",
+					bagStack: input.bagStack,
+				});
+			} else {
+				endPayload = buildTournamentEndPayload(input);
+			}
+
 			const now = new Date();
 			const nextSortOrder = await getNextEventSortOrder(ctx.db, input.id);
-			const endPayload = buildTournamentEndPayload(input);
 
 			await ctx.db.insert(sessionEvent).values({
 				id: crypto.randomUUID(),

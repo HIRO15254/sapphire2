@@ -37,6 +37,8 @@ interface CashGamePLResult {
 }
 
 interface TournamentPLResult {
+	/** Chip count bagged when promoted to the next day; null otherwise. */
+	bagStack: number | null;
 	beforeDeadline: boolean;
 	bountyPrizes: number | null;
 	/** Σ cost across all purchase_chips events. */
@@ -46,6 +48,8 @@ interface TournamentPLResult {
 	placement: number | null;
 	prizeMoney: number | null;
 	profitLoss: number | null;
+	/** How the session_end concluded: promoted to next day, finished, or none. */
+	result: "promoted" | "finished" | null;
 	totalEntries: number | null;
 }
 
@@ -161,6 +165,65 @@ export function computeCashGamePLFromEvents(
 	};
 }
 
+interface TournamentEndInfo {
+	bagStack: number | null;
+	beforeDeadline: boolean;
+	bountyPrizes: number | null;
+	placement: number | null;
+	prizeMoney: number | null;
+	result: "promoted" | "finished" | null;
+	totalEntries: number | null;
+}
+
+const EMPTY_TOURNAMENT_END: TournamentEndInfo = {
+	bagStack: null,
+	beforeDeadline: false,
+	bountyPrizes: null,
+	placement: null,
+	prizeMoney: null,
+	result: null,
+	totalEntries: null,
+};
+
+/**
+ * Interpret a tournament session_end payload as either a promote (advance to
+ * the next day, carrying a bagged stack) or a finish (placement / prize).
+ * Returns the neutral EMPTY_TOURNAMENT_END when the payload does not parse.
+ */
+function parseTournamentSessionEnd(payload: unknown): TournamentEndInfo {
+	const parsed = tournamentSessionEndPayload.safeParse(payload);
+	if (!parsed.success) {
+		return EMPTY_TOURNAMENT_END;
+	}
+	if ("result" in parsed.data) {
+		return {
+			...EMPTY_TOURNAMENT_END,
+			result: "promoted",
+			bagStack: parsed.data.bagStack,
+		};
+	}
+	if (parsed.data.beforeDeadline === false) {
+		return {
+			bagStack: null,
+			beforeDeadline: false,
+			bountyPrizes: parsed.data.bountyPrizes,
+			placement: parsed.data.placement,
+			prizeMoney: parsed.data.prizeMoney,
+			result: "finished",
+			totalEntries: parsed.data.totalEntries,
+		};
+	}
+	return {
+		bagStack: null,
+		beforeDeadline: true,
+		bountyPrizes: parsed.data.bountyPrizes,
+		placement: null,
+		prizeMoney: parsed.data.prizeMoney,
+		result: "finished",
+		totalEntries: null,
+	};
+}
+
 export function computeTournamentPLFromEvents(
 	events: { eventType: string; payload: string }[],
 	tournamentBuyIn?: number,
@@ -168,11 +231,7 @@ export function computeTournamentPLFromEvents(
 ): TournamentPLResult {
 	const chipPurchaseCounts = new Map<string, number>();
 	let totalChipPurchaseCost = 0;
-	let placement: number | null = null;
-	let totalEntries: number | null = null;
-	let prizeMoney: number | null = null;
-	let bountyPrizes: number | null = null;
-	let beforeDeadline = false;
+	let end: TournamentEndInfo = EMPTY_TOURNAMENT_END;
 
 	for (const event of events) {
 		const parsed = JSON.parse(event.payload);
@@ -185,24 +244,33 @@ export function computeTournamentPLFromEvents(
 			);
 			totalChipPurchaseCost += data.cost;
 		} else if (event.eventType === "session_end") {
-			const result = tournamentSessionEndPayload.safeParse(parsed);
-			if (result.success) {
-				prizeMoney = result.data.prizeMoney;
-				bountyPrizes = result.data.bountyPrizes;
-				if (result.data.beforeDeadline === false) {
-					placement = result.data.placement;
-					totalEntries = result.data.totalEntries;
-				} else {
-					beforeDeadline = true;
-				}
-			}
+			end = parseTournamentSessionEnd(parsed);
 		}
 	}
 
+	const {
+		result,
+		bagStack,
+		placement,
+		totalEntries,
+		prizeMoney,
+		bountyPrizes,
+	} = end;
+	const beforeDeadline = end.beforeDeadline;
 	const income = (prizeMoney ?? 0) + (bountyPrizes ?? 0);
 	const cost =
 		(tournamentBuyIn ?? 0) + (tournamentEntryFee ?? 0) + totalChipPurchaseCost;
-	const profitLoss = prizeMoney === null ? null : income - cost;
+	// A promote realizes its cost (buy-in / fees / chip purchases) as a loss now;
+	// the chain's prize is booked on the tail finished session. A finished
+	// session books income − cost. No session_end ⇒ still in progress ⇒ null.
+	let profitLoss: number | null;
+	if (result === "promoted") {
+		profitLoss = cost === 0 ? 0 : -cost;
+	} else if (result === "finished") {
+		profitLoss = income - cost;
+	} else {
+		profitLoss = null;
+	}
 
 	return {
 		chipPurchaseCost: totalChipPurchaseCost,
@@ -213,6 +281,8 @@ export function computeTournamentPLFromEvents(
 		prizeMoney,
 		bountyPrizes,
 		profitLoss,
+		result,
+		bagStack,
 	};
 }
 
@@ -500,6 +570,8 @@ export async function recalculateTournamentSession(
 		beforeDeadline: pl.beforeDeadline ? true : null,
 		prizeMoney: pl.prizeMoney,
 		bountyPrizes: pl.bountyPrizes,
+		result: pl.result,
+		bagStack: pl.bagStack,
 	};
 
 	if (existingDetail) {

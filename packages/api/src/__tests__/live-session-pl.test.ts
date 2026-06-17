@@ -608,6 +608,69 @@ describe("computeTournamentPLFromEvents", () => {
 		const result = computeTournamentPLFromEvents(events, 200, 20);
 		expect(result.profitLoss).toBe(830);
 	});
+
+	it("leaves result and bagStack null when there is no session_end", () => {
+		const result = computeTournamentPLFromEvents([]);
+		expect(result.result).toBeNull();
+		expect(result.bagStack).toBeNull();
+	});
+
+	it("marks a finishing session_end with result 'finished'", () => {
+		const events = [
+			{
+				eventType: "session_end",
+				payload: JSON.stringify({
+					beforeDeadline: false,
+					placement: 1,
+					totalEntries: 10,
+					prizeMoney: 500,
+					bountyPrizes: 0,
+				}),
+			},
+		];
+		const result = computeTournamentPLFromEvents(events, 100, 0);
+		expect(result.result).toBe("finished");
+		expect(result.bagStack).toBeNull();
+	});
+
+	it("treats a promote session_end as a realized cost (profitLoss = -cost)", () => {
+		const events = [
+			{
+				eventType: "purchase_chips",
+				payload: JSON.stringify({
+					sessionChipPurchaseId: "scp-1",
+					name: "Rebuy",
+					cost: 100,
+					chips: 10_000,
+				}),
+			},
+			{
+				eventType: "session_end",
+				payload: JSON.stringify({ result: "promoted", bagStack: 120_000 }),
+			},
+		];
+		const result = computeTournamentPLFromEvents(events, 200, 20);
+		expect(result.result).toBe("promoted");
+		expect(result.bagStack).toBe(120_000);
+		expect(result.placement).toBeNull();
+		expect(result.totalEntries).toBeNull();
+		expect(result.prizeMoney).toBeNull();
+		expect(result.bountyPrizes).toBeNull();
+		// cost = 200 + 20 + 100 = 320; a promote realizes that cost as a loss
+		expect(result.profitLoss).toBe(-320);
+	});
+
+	it("treats a promote with no buy-in / fees as zero profitLoss", () => {
+		const events = [
+			{
+				eventType: "session_end",
+				payload: JSON.stringify({ result: "promoted", bagStack: 50_000 }),
+			},
+		];
+		const result = computeTournamentPLFromEvents(events);
+		expect(result.result).toBe("promoted");
+		expect(result.profitLoss).toBe(0);
+	});
 });
 
 describe("computeBreakMinutesFromEvents", () => {
@@ -1211,6 +1274,82 @@ describe("recalculateTournamentSession — completed with tournamentId and linke
 		expect(txUpdate).toBeDefined();
 		// profitLoss = 500 - (10000 + 1000) = -10500
 		expect(txUpdate?.[0].amount).toBe(-10_500);
+	});
+});
+
+describe("recalculateTournamentSession — promoted session", () => {
+	it("records result='promoted' + bagStack and a realized-cost currency transaction", async () => {
+		const startedAt = new Date("2024-01-01T10:00:00Z");
+		const endedAt = new Date("2024-01-01T14:00:00Z");
+		const events = [
+			makeSessionEvent("session_start", { timerStartedAt: null }, startedAt, 0),
+			makeSessionEvent(
+				"session_end",
+				{ result: "promoted", bagStack: 120_000 },
+				endedAt,
+				1
+			),
+		];
+		const session = makeGameSession({
+			kind: "tournament",
+			currencyId: "currency-1",
+		});
+		const existingDetail = [
+			{
+				sessionId: "session-1",
+				tournamentId: null,
+				tournamentBuyIn: 30_000,
+				entryFee: 0,
+				placement: null,
+				totalEntries: null,
+				beforeDeadline: null,
+				prizeMoney: null,
+				bountyPrizes: null,
+				timerStartedAt: null,
+				result: null,
+				bagStack: null,
+			},
+		];
+		const existingTransactionType = [
+			{
+				id: "tt-1",
+				name: "Session Result",
+				userId: "user-1",
+				updatedAt: new Date(),
+			},
+		];
+
+		const db = makeChainableDb([
+			events,
+			[session],
+			existingDetail,
+			[], // session_chip_purchase rows (syncChipPurchaseResults)
+			[], // existing currencyTransaction
+			existingTransactionType,
+		]);
+
+		await recalculateTournamentSession(
+			db as unknown as Parameters<typeof recalculateTournamentSession>[0],
+			"session-1",
+			"user-1"
+		);
+
+		const updateSetCalls = db._updateChain.set.mock.calls as [
+			Record<string, unknown>,
+		][];
+		const detailUpdate = updateSetCalls.find(([arg]) => "bagStack" in arg);
+		expect(detailUpdate).toBeDefined();
+		expect(detailUpdate?.[0].result).toBe("promoted");
+		expect(detailUpdate?.[0].bagStack).toBe(120_000);
+		expect(detailUpdate?.[0].placement).toBeNull();
+		expect(detailUpdate?.[0].prizeMoney).toBeNull();
+
+		const txInsert = db._insertChain.values.mock.calls.find(
+			(args: unknown[]) => "amount" in (args[0] as Record<string, unknown>)
+		);
+		expect(txInsert).toBeDefined();
+		// realized cost = buyIn 30000 + entryFee 0 = 30000 → loss of -30000
+		expect((txInsert?.[0] as Record<string, unknown>).amount).toBe(-30_000);
 	});
 });
 

@@ -54,7 +54,7 @@ export const cashSessionEndPayload = z.object({
 	cashOutAmount: z.number().int().min(0),
 });
 
-export const tournamentSessionEndPayload = z.discriminatedUnion(
+export const tournamentFinishEndPayload = z.discriminatedUnion(
 	"beforeDeadline",
 	[
 		z.object({
@@ -71,6 +71,21 @@ export const tournamentSessionEndPayload = z.discriminatedUnion(
 		}),
 	]
 );
+
+// Multi-day chaining: a session whose tournament rule has a next day can end by
+// being promoted instead of finishing with a placement. `bagStack` is the chip
+// count carried into the next day's starting stack.
+export const tournamentPromoteEndPayload = z.object({
+	result: z.literal("promoted"),
+	bagStack: z.number().int().min(0),
+});
+
+// session_end for a tournament is either a finish (placement / prize) or a
+// promote (advance to the next day). Both shapes are accepted here.
+export const tournamentSessionEndPayload = z.union([
+	tournamentFinishEndPayload,
+	tournamentPromoteEndPayload,
+]);
 
 // Pause/Resume payloads
 export const sessionPausePayload = z.object({});

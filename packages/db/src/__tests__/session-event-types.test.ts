@@ -19,6 +19,7 @@ import {
 	purchaseChipsPayload,
 	SESSION_STATUSES,
 	TOURNAMENT_EVENT_TYPES,
+	tournamentPromoteEndPayload,
 	tournamentSessionEndPayload,
 	tournamentSessionStartPayload,
 	updateStackPayload,
@@ -179,6 +180,48 @@ describe("payload schemas", () => {
 				bountyPrizes: 0,
 			});
 			expect(result.beforeDeadline).toBe(true);
+		});
+
+		it("accepts a promote end (result: 'promoted' with bagStack)", () => {
+			const result = tournamentSessionEndPayload.parse({
+				result: "promoted",
+				bagStack: 120_000,
+			});
+			expect(result).toEqual({ result: "promoted", bagStack: 120_000 });
+		});
+
+		it("rejects a promote end with a negative bagStack", () => {
+			expect(() =>
+				tournamentSessionEndPayload.parse({ result: "promoted", bagStack: -1 })
+			).toThrow();
+		});
+
+		it("rejects a promote end with an unknown result literal", () => {
+			expect(() =>
+				tournamentSessionEndPayload.parse({ result: "busted", bagStack: 0 })
+			).toThrow();
+		});
+	});
+
+	describe("tournamentPromoteEndPayload", () => {
+		it("accepts a zero bagStack (boundary)", () => {
+			const result = tournamentPromoteEndPayload.parse({
+				result: "promoted",
+				bagStack: 0,
+			});
+			expect(result.bagStack).toBe(0);
+		});
+
+		it("rejects a non-integer bagStack", () => {
+			expect(() =>
+				tournamentPromoteEndPayload.parse({ result: "promoted", bagStack: 1.5 })
+			).toThrow();
+		});
+
+		it("rejects a missing result literal", () => {
+			expect(() =>
+				tournamentPromoteEndPayload.parse({ bagStack: 100 })
+			).toThrow();
 		});
 	});
 

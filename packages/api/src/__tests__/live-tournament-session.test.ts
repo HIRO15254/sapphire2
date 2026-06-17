@@ -210,6 +210,44 @@ describe("liveTournamentSession.complete input validation (discriminated union)"
 			bountyPrizes: 0,
 		});
 	});
+
+	it("accepts a promote branch (result: 'promoted' with bagStack)", () => {
+		expectAccepts(appRouter.liveTournamentSession.complete, {
+			id: "s1",
+			result: "promoted",
+			bagStack: 120_000,
+		});
+	});
+
+	it("accepts a promote with a zero bagStack (boundary)", () => {
+		expectAccepts(appRouter.liveTournamentSession.complete, {
+			id: "s1",
+			result: "promoted",
+			bagStack: 0,
+		});
+	});
+
+	it("rejects a promote with a negative bagStack", () => {
+		expectRejects(appRouter.liveTournamentSession.complete, {
+			id: "s1",
+			result: "promoted",
+			bagStack: -1,
+		});
+	});
+
+	it("rejects a promote missing bagStack", () => {
+		expectRejects(appRouter.liveTournamentSession.complete, {
+			id: "s1",
+			result: "promoted",
+		});
+	});
+
+	it("rejects a promote missing id", () => {
+		expectRejects(appRouter.liveTournamentSession.complete, {
+			result: "promoted",
+			bagStack: 100,
+		});
+	});
 });
 
 describe("liveTournamentSession.updateHeroSeat input validation", () => {
