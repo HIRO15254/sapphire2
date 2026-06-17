@@ -419,6 +419,68 @@ async function resolveTournamentAssignment(
 	return patch;
 }
 
+/**
+ * Validate a next-day link for a session being created and return the bagged
+ * stack to carry into the new day. The new session must be linked to a rule
+ * declaring a previous day; the target must exist, be owned by the user, be
+ * `promoted`, and not already consumed by another session.
+ */
+async function resolvePreviousSessionLink(
+	db: DbInstance,
+	previousSessionId: string,
+	userId: string,
+	currentTournamentId: string | undefined
+): Promise<number | null> {
+	if (!currentTournamentId) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Linking a previous day requires a tournament rule",
+		});
+	}
+
+	const [rule] = await db
+		.select({ hasPreviousDay: tournament.hasPreviousDay })
+		.from(tournament)
+		.where(eq(tournament.id, currentTournamentId));
+	if (!rule?.hasPreviousDay) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "This tournament rule has no previous day",
+		});
+	}
+
+	// Existence + ownership (throws NOT_FOUND otherwise).
+	await findLiveTournamentSession(db, previousSessionId, userId);
+
+	const [prevDetail] = await db
+		.select({
+			result: sessionTournamentDetail.result,
+			bagStack: sessionTournamentDetail.bagStack,
+		})
+		.from(sessionTournamentDetail)
+		.where(eq(sessionTournamentDetail.sessionId, previousSessionId));
+	if (prevDetail?.result !== "promoted") {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "The linked session has not been promoted",
+		});
+	}
+
+	const [consumer] = await db
+		.select({ sessionId: sessionTournamentDetail.sessionId })
+		.from(sessionTournamentDetail)
+		.where(eq(sessionTournamentDetail.previousSessionId, previousSessionId))
+		.limit(1);
+	if (consumer) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "This promoted session is already linked to another day",
+		});
+	}
+
+	return prevDetail.bagStack ?? null;
+}
+
 async function getNextEventSortOrder(
 	db: DbInstance,
 	sessionId: string
@@ -692,12 +754,24 @@ export const liveTournamentSessionRouter = router({
 				entryFee: z.number().int().min(0).optional(),
 				memo: z.string().optional(),
 				timerStartedAt: z.number().int().optional(),
+				previousSessionId: z.string().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 
 			await assertNoActiveSession(ctx.db, userId);
+
+			// Multi-day link: validate before creating anything and carry the
+			// bagged stack into the new day's starting stack.
+			const linkedBagStack = input.previousSessionId
+				? await resolvePreviousSessionLink(
+						ctx.db,
+						input.previousSessionId,
+						userId,
+						input.tournamentId
+					)
+				: null;
 
 			const id = crypto.randomUUID();
 			const now = new Date();
@@ -732,9 +806,11 @@ export const liveTournamentSessionRouter = router({
 						: new Date(input.timerStartedAt * 1000),
 				ruleName: input.tournamentId ? snapshot.ruleName : "Tournament",
 				variant: snapshot.variant,
-				startingStack: snapshot.startingStack,
+				// A linked day starts from the bagged stack, not the rule's stack.
+				startingStack: linkedBagStack ?? snapshot.startingStack,
 				bountyAmount: snapshot.bountyAmount,
 				tableSize: snapshot.tableSize,
+				previousSessionId: input.previousSessionId ?? null,
 			});
 
 			await ctx.db.insert(sessionEvent).values({
@@ -748,6 +824,20 @@ export const liveTournamentSessionRouter = router({
 				}),
 				updatedAt: now,
 			});
+
+			// Seed the current stack with the carried-over bag so the live view
+			// opens at the bagged stack rather than zero.
+			if (linkedBagStack !== null) {
+				await ctx.db.insert(sessionEvent).values({
+					id: crypto.randomUUID(),
+					sessionId: id,
+					eventType: "update_stack",
+					occurredAt: floorToMinute(now),
+					sortOrder: 1,
+					payload: JSON.stringify({ stackAmount: linkedBagStack }),
+					updatedAt: now,
+				});
+			}
 
 			if (input.tournamentId) {
 				await snapshotTournamentStructure(ctx.db, id, input.tournamentId);

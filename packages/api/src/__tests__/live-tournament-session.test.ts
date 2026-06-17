@@ -5,6 +5,7 @@ import {
 	expectProtected,
 	expectRejects,
 	expectType,
+	getInputSchema,
 } from "./test-utils";
 
 describe("liveTournamentSession router", () => {
@@ -137,6 +138,25 @@ describe("liveTournamentSession.create input validation", () => {
 	it("rejects non-integer timerStartedAt", () => {
 		expectRejects(appRouter.liveTournamentSession.create, {
 			timerStartedAt: 1.5,
+		});
+	});
+
+	it("parses previousSessionId for a next-day link", () => {
+		const schema = getInputSchema(appRouter.liveTournamentSession.create);
+		const parsed = schema.safeParse({
+			tournamentId: "tn-day2",
+			previousSessionId: "day1-session",
+		}) as unknown as {
+			success: true;
+			data: { previousSessionId?: string };
+		};
+		expect(parsed.success).toBe(true);
+		expect(parsed.data.previousSessionId).toBe("day1-session");
+	});
+
+	it("rejects a non-string previousSessionId", () => {
+		expectRejects(appRouter.liveTournamentSession.create, {
+			previousSessionId: 123,
 		});
 	});
 });
