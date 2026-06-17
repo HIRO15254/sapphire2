@@ -254,19 +254,26 @@ describe("pure helpers", () => {
 			).toMatchObject({ type: "cash_game", roomId: "s", currencyId: "c" });
 		});
 
-		it("converts dateFrom to seconds since epoch (day start)", () => {
-			const out = filtersToListInput({ dateFrom: "2026-04-01" });
-			expect(typeof out.dateFrom).toBe("number");
+		it("leaves the date range unset for the default (all) period", () => {
+			const out = filtersToListInput({});
+			expect(out.dateFrom).toBeUndefined();
 			expect(out.dateTo).toBeUndefined();
 		});
 
-		it("appends T23:59:59 when converting dateTo", () => {
-			const out = filtersToListInput({ dateTo: "2026-04-01" });
-			const withStart = filtersToListInput({ dateFrom: "2026-04-01" });
-			// dateTo (end of day) must be greater than dateFrom (start of day) for same date.
-			expect((out.dateTo as number) > (withStart.dateFrom as number)).toBe(
-				true
-			);
+		it("passes a custom period's from/to bounds straight through", () => {
+			const from = Math.floor(Date.UTC(2026, 3, 1, 0, 0, 0) / 1000);
+			const to = Math.floor(Date.UTC(2026, 3, 30, 23, 59, 59) / 1000);
+			const out = filtersToListInput({ period: "custom", from, to });
+			expect(out.dateFrom).toBe(from);
+			expect(out.dateTo).toBe(to);
+		});
+
+		it("resolves a relative period into a numeric, day-bounded range", () => {
+			const out = filtersToListInput({ period: "30d" });
+			expect(typeof out.dateFrom).toBe("number");
+			expect(typeof out.dateTo).toBe("number");
+			// End of today is strictly after the start of the 30-day window.
+			expect((out.dateTo as number) > (out.dateFrom as number)).toBe(true);
 		});
 	});
 

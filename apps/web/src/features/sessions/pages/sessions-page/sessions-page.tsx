@@ -1,12 +1,10 @@
 import { IconPlus, IconTags } from "@tabler/icons-react";
-import { SessionFilters } from "@/features/sessions/components/session-filters";
+import { SessionFilterBar } from "@/features/sessions/components/session-filter-bar";
 import { SessionFormSheet } from "@/features/sessions/components/session-form-sheet";
 import { SessionWizard } from "@/features/sessions/components/session-wizard";
 import { SessionTagManager } from "@/features/sessions/pages/sessions-page/session-tag-manager";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
-import { Label } from "@/shared/components/ui/label";
-import { Switch } from "@/shared/components/ui/switch";
 import { SessionList } from "./session-list";
 import { useSessionsPage } from "./use-sessions-page";
 
@@ -37,7 +35,7 @@ export function SessionsPage() {
 
 	return (
 		<div className="min-h-full bg-background text-foreground">
-			<div className="p-4">
+			<div className="px-4 pt-4">
 				<PageHeader
 					actions={
 						<>
@@ -57,26 +55,18 @@ export function SessionsPage() {
 					}
 					heading="Sessions"
 				/>
+			</div>
 
-				<div className="mb-4 flex flex-wrap items-center gap-3">
-					<SessionFilters
-						currencies={currencies}
-						filters={filters}
-						onFiltersChange={setFilters}
-						rooms={rooms}
-					/>
-					<div className="flex items-center gap-1.5">
-						<Label className="text-xs" htmlFor="bb-bi-switch">
-							BB/BI
-						</Label>
-						<Switch
-							checked={bbBiMode}
-							id="bb-bi-switch"
-							onCheckedChange={setBbBiMode}
-						/>
-					</div>
-				</div>
+			<SessionFilterBar
+				bbBiMode={bbBiMode}
+				currencies={currencies}
+				filters={filters}
+				onBbBiModeChange={setBbBiMode}
+				onFiltersChange={setFilters}
+				rooms={rooms}
+			/>
 
+			<div className="p-4">
 				<SessionList
 					bbBiMode={bbBiMode}
 					hasNextPage={hasNextPage}
