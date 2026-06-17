@@ -385,3 +385,48 @@ export function formatSessionEvDisplay(
 	}
 	return formatPlValue(Math.round(session.evProfitLoss), session, bbBiMode);
 }
+
+export interface FlightSummary {
+	bountyPrizes: number | null;
+	dayCount: number;
+	placement: number | null;
+	prizeMoney: number | null;
+	profitLoss: number | null;
+	totalCost: number;
+	totalEntries: number | null;
+}
+
+/**
+ * Stat rows for the "Multi-day flight" section: the linked chain combined into
+ * one flight (total cost across days, the final placement / prize from the last
+ * day, and the combined P/L).
+ */
+export function buildFlightStatRows(
+	flight: FlightSummary,
+	currencyUnit: string | null
+): StatRow[] {
+	const rows: StatRow[] = [
+		{ label: "Days", value: String(flight.dayCount) },
+		{ label: "Total cost", value: formatCompactNumber(flight.totalCost) },
+	];
+	if (flight.placement !== null) {
+		rows.push({
+			label: "Final placement",
+			value:
+				flight.totalEntries === null
+					? String(flight.placement)
+					: `${flight.placement} / ${flight.totalEntries}`,
+		});
+	}
+	if (flight.prizeMoney !== null) {
+		rows.push({
+			label: "Prize",
+			value: formatCompactNumber(flight.prizeMoney),
+		});
+	}
+	rows.push({
+		label: "Combined P/L",
+		value: formatProfitLoss(flight.profitLoss, { currencyUnit }),
+	});
+	return rows;
+}

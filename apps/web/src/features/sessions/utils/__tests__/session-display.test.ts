@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildCashRuleRows,
 	buildCashStatRows,
+	buildFlightStatRows,
 	buildSessionMetaRows,
 	buildTournamentRuleRows,
 	buildTournamentStatRows,
@@ -600,5 +601,63 @@ describe("formatSessionEvDisplay", () => {
 		expect(
 			formatSessionEvDisplay({ ...cash, evProfitLoss: 13_480.6 }, false)
 		).toBe("+13.5k $");
+	});
+});
+
+describe("buildFlightStatRows", () => {
+	const completeFlight = {
+		bountyPrizes: 0,
+		dayCount: 2,
+		placement: 3,
+		prizeMoney: 100_000,
+		profitLoss: 89_000,
+		totalCost: 11_000,
+		totalEntries: 200,
+	};
+
+	it("renders day count, total cost, placement, prize and combined P/L", () => {
+		const rows = buildFlightStatRows(completeFlight, "$");
+		expect(rows).toEqual([
+			{ label: "Days", value: "2" },
+			{ label: "Total cost", value: "11k" },
+			{ label: "Final placement", value: "3 / 200" },
+			{ label: "Prize", value: "100k" },
+			{ label: "Combined P/L", value: "+89k $" },
+		]);
+	});
+
+	it("omits placement and prize for an in-progress flight and shows P/L as em dash", () => {
+		const rows = buildFlightStatRows(
+			{
+				bountyPrizes: null,
+				dayCount: 2,
+				placement: null,
+				prizeMoney: null,
+				profitLoss: null,
+				totalCost: 11_000,
+				totalEntries: null,
+			},
+			"$"
+		);
+		expect(rows.map((r) => r.label)).toEqual([
+			"Days",
+			"Total cost",
+			"Combined P/L",
+		]);
+		expect(rows.at(-1)).toEqual({ label: "Combined P/L", value: "—" });
+	});
+
+	it("shows placement without entries when totalEntries is null", () => {
+		const rows = buildFlightStatRows(
+			{ ...completeFlight, totalEntries: null },
+			null
+		);
+		const placementRow = rows.find((r) => r.label === "Final placement");
+		expect(placementRow?.value).toBe("3");
+	});
+
+	it("formats combined P/L without a unit when currencyUnit is null", () => {
+		const rows = buildFlightStatRows(completeFlight, null);
+		expect(rows.at(-1)).toEqual({ label: "Combined P/L", value: "+89k" });
 	});
 });

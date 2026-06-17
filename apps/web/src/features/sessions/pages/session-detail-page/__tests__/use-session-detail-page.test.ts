@@ -18,10 +18,15 @@ const mocks = vi.hoisted(() => ({
 	} | null,
 	isLoading: false,
 	isUpdatePending: false,
+	flight: null as unknown,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => mocks.navigate,
+}));
+
+vi.mock("@/features/sessions/hooks/use-session-flight", () => ({
+	useSessionFlight: () => mocks.flight,
 }));
 
 vi.mock("@/features/sessions/hooks/use-session-detail", () => ({

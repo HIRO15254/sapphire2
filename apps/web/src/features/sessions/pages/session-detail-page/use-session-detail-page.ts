@@ -5,6 +5,7 @@ import {
 	useRoomGames,
 } from "@/features/rooms/hooks/use-room-games";
 import { useSessionDetail } from "@/features/sessions/hooks/use-session-detail";
+import { useSessionFlight } from "@/features/sessions/hooks/use-session-flight";
 import type { SessionFormValues } from "@/features/sessions/hooks/use-sessions";
 
 /**
@@ -33,6 +34,7 @@ export function useSessionDetailPage(sessionId: string) {
 
 	const { rooms, currencies } = useEntityLists();
 	const editGames = useRoomGames(editRoomId, { includeAll: true });
+	const flight = useSessionFlight(session?.liveTournamentSessionId ?? null);
 
 	const isLiveLinked =
 		session !== null &&
@@ -78,6 +80,7 @@ export function useSessionDetailPage(sessionId: string) {
 
 	return {
 		session,
+		flight,
 		availableTags,
 		isLoading,
 		isUpdatePending,

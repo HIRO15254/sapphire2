@@ -8,6 +8,7 @@ import { SessionActionsDrawer } from "@/features/sessions/pages/session-detail-p
 import {
 	buildCashRuleRows,
 	buildCashStatRows,
+	buildFlightStatRows,
 	buildSessionMetaRows,
 	buildTournamentRuleRows,
 	buildTournamentStatRows,
@@ -39,6 +40,7 @@ function PageShell({ children }: { children: ReactNode }) {
 export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 	const {
 		session,
+		flight,
 		availableTags,
 		isLoading,
 		isUpdatePending,
@@ -136,6 +138,12 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 
 			<SessionStatList rows={ruleRows} title="Rule" />
 			<SessionStatList rows={resultRows} title="Result" />
+			{flight ? (
+				<SessionStatList
+					rows={buildFlightStatRows(flight, session.currencyUnit)}
+					title="Multi-day flight"
+				/>
+			) : null}
 			<SessionStatList rows={metaRows} title="Details" />
 
 			{live ? (

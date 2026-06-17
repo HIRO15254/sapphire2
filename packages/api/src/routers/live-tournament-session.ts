@@ -16,8 +16,10 @@ import { and, asc, desc, eq, isNotNull, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
+	aggregateTournamentFlights,
 	computeHeroSeatPositionFromEvents,
 	computeTournamentPLFromEvents,
+	type FlightSessionInput,
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
@@ -481,6 +483,75 @@ async function resolvePreviousSessionLink(
 	return prevDetail.bagStack ?? null;
 }
 
+/**
+ * Walk the multi-day chain that contains `sessionId` (back to the head via
+ * previousSessionId, then forward), turning each session into a
+ * FlightSessionInput. chipPurchaseCost is derived from each session's events.
+ */
+async function collectFlightChain(
+	db: DbInstance,
+	sessionId: string
+): Promise<FlightSessionInput[]> {
+	const loadDetail = async (id: string) => {
+		const [detail] = await db
+			.select()
+			.from(sessionTournamentDetail)
+			.where(eq(sessionTournamentDetail.sessionId, id));
+		return detail;
+	};
+
+	// Back to the head.
+	let headId = sessionId;
+	for (let guard = 0; guard < 100; guard++) {
+		const detail = await loadDetail(headId);
+		if (!detail?.previousSessionId) {
+			break;
+		}
+		headId = detail.previousSessionId;
+	}
+
+	// Forward from the head, collecting the chain.
+	const chain: FlightSessionInput[] = [];
+	let cursor: string | null = headId;
+	for (let guard = 0; cursor && guard < 100; guard++) {
+		const detail = await loadDetail(cursor);
+		if (!detail) {
+			break;
+		}
+		const events = await db
+			.select({
+				eventType: sessionEvent.eventType,
+				payload: sessionEvent.payload,
+			})
+			.from(sessionEvent)
+			.where(eq(sessionEvent.sessionId, cursor));
+		const pl = computeTournamentPLFromEvents(
+			events,
+			detail.tournamentBuyIn ?? undefined,
+			detail.entryFee ?? undefined
+		);
+		chain.push({
+			sessionId: cursor,
+			previousSessionId: detail.previousSessionId,
+			result: detail.result as "promoted" | "finished" | null,
+			buyIn: detail.tournamentBuyIn,
+			entryFee: detail.entryFee,
+			chipPurchaseCost: pl.chipPurchaseCost,
+			prizeMoney: detail.prizeMoney,
+			bountyPrizes: detail.bountyPrizes,
+			placement: detail.placement,
+			totalEntries: detail.totalEntries,
+		});
+		const [next] = await db
+			.select({ sessionId: sessionTournamentDetail.sessionId })
+			.from(sessionTournamentDetail)
+			.where(eq(sessionTournamentDetail.previousSessionId, cursor));
+		cursor = next?.sessionId ?? null;
+	}
+
+	return chain;
+}
+
 async function getNextEventSortOrder(
 	db: DbInstance,
 	sessionId: string
@@ -691,6 +762,27 @@ export const liveTournamentSessionRouter = router({
 
 		return promoted.filter((row) => !consumedIds.has(row.id));
 	}),
+
+	// The aggregated "1 Flight" view of the multi-day chain containing this
+	// session. Returns null for a single-day session (no chain to combine).
+	getFlight: protectedProcedure
+		.input(z.object({ id: z.string() }))
+		.query(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await findLiveTournamentSession(ctx.db, input.id, userId);
+
+			const chain = await collectFlightChain(ctx.db, input.id);
+			if (chain.length <= 1) {
+				return null;
+			}
+
+			const flights = aggregateTournamentFlights(chain);
+			const flight = flights.find((f) => f.sessionIds.includes(input.id));
+			if (!flight) {
+				return null;
+			}
+			return { ...flight, dayCount: flight.sessionIds.length };
+		}),
 
 	getById: protectedProcedure
 		.input(z.object({ id: z.string() }))

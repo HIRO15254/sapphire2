@@ -55,6 +55,7 @@ describe("liveTournamentSession router", () => {
 				"create",
 				"discard",
 				"getById",
+				"getFlight",
 				"list",
 				"listPromotable",
 				"reopen",
@@ -65,13 +66,20 @@ describe("liveTournamentSession router", () => {
 		);
 	});
 
-	it("list / getById / listPromotable are protected queries", () => {
+	it("list / getById / listPromotable / getFlight are protected queries", () => {
 		expectProtected(appRouter.liveTournamentSession.list);
 		expectType(appRouter.liveTournamentSession.list, "query");
 		expectProtected(appRouter.liveTournamentSession.getById);
 		expectType(appRouter.liveTournamentSession.getById, "query");
 		expectProtected(appRouter.liveTournamentSession.listPromotable);
 		expectType(appRouter.liveTournamentSession.listPromotable, "query");
+		expectProtected(appRouter.liveTournamentSession.getFlight);
+		expectType(appRouter.liveTournamentSession.getFlight, "query");
+	});
+
+	it("getFlight requires an id", () => {
+		expectAccepts(appRouter.liveTournamentSession.getFlight, { id: "s1" });
+		expectRejects(appRouter.liveTournamentSession.getFlight, {});
 	});
 
 	it("all mutations are protected mutations", () => {
