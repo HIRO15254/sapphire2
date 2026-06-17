@@ -57,6 +57,7 @@ function setHook(overrides: Record<string, unknown> = {}) {
 		effectiveLevels: [],
 		contentKey: "tournament-0",
 		handleAiExtracted: vi.fn(),
+		registerLiveValues: vi.fn(),
 		...overrides,
 	});
 }

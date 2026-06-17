@@ -48,10 +48,9 @@ describe("useTournamentFormSheet", () => {
 		expect(result.current.contentKey).toBe("my-reset-0");
 	});
 
-	it("handleAiExtracted in create mode: replaces form values from scratch and bumps aiKey", () => {
+	it("handleAiExtracted merges extracted data over initial values and bumps aiKey", () => {
 		const { result } = renderHook(() =>
 			useTournamentFormSheet({
-				aiMode: "create",
 				initialBlindLevels: [],
 				open: true,
 			})
@@ -84,20 +83,18 @@ describe("useTournamentFormSheet", () => {
 			entryFee: 5,
 			startingStack: 10_000,
 			tableSize: 9,
-			chipPurchases: [],
 			variant: "nlh",
 		});
 		expect(result.current.effectiveLevels).toHaveLength(1);
 		expect(result.current.effectiveLevels[0].minutes).toBe(20);
 	});
 
-	it("handleAiExtracted in edit mode: merges extracted over base, falls back to initial levels when empty", () => {
+	it("handleAiExtracted merges extracted over base, falls back to initial levels when empty", () => {
 		const initialBlindLevels: BlindLevelRow[] = [
 			row({ id: "l1", level: 1, minutes: 15 }),
 		];
 		const { result } = renderHook(() =>
 			useTournamentFormSheet({
-				aiMode: "edit",
 				initialBlindLevels,
 				initialFormValues: { name: "Orig", variant: "nlh", buyIn: 10 },
 				open: true,
@@ -120,6 +117,62 @@ describe("useTournamentFormSheet", () => {
 		});
 		// blindLevels extracted is empty -> falls back to initial
 		expect(result.current.effectiveLevels[0].id).toBe("l1");
+	});
+
+	it("merges over the registered live form values, not just the initial values", () => {
+		const { result } = renderHook(() =>
+			useTournamentFormSheet({
+				initialBlindLevels: [],
+				initialFormValues: { name: "Initial", variant: "nlh" },
+				open: true,
+			})
+		);
+		// Simulate the form reporting the values the user has typed in-session.
+		act(() => {
+			result.current.registerLiveValues(() => ({
+				name: "User Typed",
+				variant: "plo",
+				buyIn: 200,
+			}));
+		});
+		const extracted: ExtractedTournamentData = {
+			name: "",
+			buyIn: undefined,
+			startingStack: 8000,
+			blindLevels: [],
+			chipPurchases: [],
+		};
+		act(() => {
+			result.current.handleAiExtracted(extracted);
+		});
+		// Blank AI name/buyIn must not wipe the user's in-session input.
+		expect(result.current.effectiveFormValues).toMatchObject({
+			name: "User Typed",
+			variant: "plo",
+			buyIn: 200,
+			startingStack: 8000,
+		});
+	});
+
+	it("falls back to initial values when no live getter is registered", () => {
+		const { result } = renderHook(() =>
+			useTournamentFormSheet({
+				initialBlindLevels: [],
+				initialFormValues: { name: "Initial", variant: "nlh", buyIn: 30 },
+				open: true,
+			})
+		);
+		act(() => {
+			result.current.handleAiExtracted({
+				name: "",
+				blindLevels: [],
+				chipPurchases: [],
+			});
+		});
+		expect(result.current.effectiveFormValues).toMatchObject({
+			name: "Initial",
+			buyIn: 30,
+		});
 	});
 
 	it("closes AI sheet and resets effective values when open goes from true to false", () => {
