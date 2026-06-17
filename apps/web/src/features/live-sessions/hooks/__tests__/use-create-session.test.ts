@@ -37,6 +37,16 @@ vi.mock("@/utils/trpc", () => ({
 					queryFn: () => Promise.resolve({ items: [] }),
 				}),
 			},
+			listPromotable: {
+				queryOptions: () => ({
+					queryKey: buildKey(
+						"liveTournamentSession",
+						"listPromotable",
+						undefined
+					),
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
 		},
 		session: {
 			list: {
@@ -311,6 +321,38 @@ describe("useCreateSession", () => {
 				expect(onClose).toHaveBeenCalledTimes(1);
 				expect(navigateMock).toHaveBeenCalledWith({ to: "/active-session" });
 			});
+		});
+
+		it("skips the manual update_stack when linking a previous day (server seeds the bag)", async () => {
+			const qc = createClient();
+			const onClose = vi.fn();
+			trpcMocks.createTournament.mockResolvedValue({ id: "tr-2" });
+			trpcMocks.sessionEventCreate.mockResolvedValue({ id: "ev-2" });
+			const { result } = renderHook(() => useCreateSession({ onClose }), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				result.current.createTournament({
+					buyIn: 0,
+					startingStack: 20_000,
+					roomId: "s1",
+					tournamentId: "tourn-day2",
+					previousSessionId: "day1-session",
+				});
+				await Promise.resolve();
+			});
+			await waitFor(() => {
+				expect(trpcMocks.createTournament).toHaveBeenCalledWith({
+					buyIn: 0,
+					roomId: "s1",
+					tournamentId: "tourn-day2",
+					previousSessionId: "day1-session",
+				});
+			});
+			await waitFor(() => {
+				expect(onClose).toHaveBeenCalledTimes(1);
+			});
+			expect(trpcMocks.sessionEventCreate).not.toHaveBeenCalled();
 		});
 
 		it("does not fire navigation / sessionEvent create when createTournament rejects", async () => {

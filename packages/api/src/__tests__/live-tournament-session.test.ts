@@ -56,6 +56,7 @@ describe("liveTournamentSession router", () => {
 				"discard",
 				"getById",
 				"list",
+				"listPromotable",
 				"reopen",
 				"update",
 				"updateHeroSeat",
@@ -64,11 +65,13 @@ describe("liveTournamentSession router", () => {
 		);
 	});
 
-	it("list / getById are protected queries", () => {
+	it("list / getById / listPromotable are protected queries", () => {
 		expectProtected(appRouter.liveTournamentSession.list);
 		expectType(appRouter.liveTournamentSession.list, "query");
 		expectProtected(appRouter.liveTournamentSession.getById);
 		expectType(appRouter.liveTournamentSession.getById, "query");
+		expectProtected(appRouter.liveTournamentSession.listPromotable);
+		expectType(appRouter.liveTournamentSession.listPromotable, "query");
 	});
 
 	it("all mutations are protected mutations", () => {

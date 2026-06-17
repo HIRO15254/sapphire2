@@ -5,6 +5,7 @@ import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	buildDefaults,
 	numStrOrEmpty,
+	type PromotableSessionOption,
 	parseOptInt,
 	type RingGameOption,
 	type SessionFormDefaults,
@@ -23,6 +24,7 @@ interface UseSessionFormStateArgs {
 	defaultValues?: SessionFormDefaults;
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
+	promotableSessions?: PromotableSessionOption[];
 	ringGames?: RingGameOption[];
 	tournaments?: TournamentOption[];
 }
@@ -43,6 +45,7 @@ export function useSessionFormState({
 	defaultValues,
 	onRoomChange,
 	onSubmit,
+	promotableSessions,
 	ringGames,
 	tournaments,
 }: UseSessionFormStateArgs) {
@@ -142,6 +145,7 @@ export function useSessionFormState({
 						? toSessionChipPurchases(chipPurchases, chipPurchaseCounts)
 						: undefined,
 				tournamentId: selectedGameId,
+				previousSessionId: emptyToUndefined(value.previousSessionId),
 			});
 		},
 		validators: {
@@ -300,5 +304,6 @@ export function useSessionFormState({
 		gameOptions,
 		gameLabel,
 		isCashGame,
+		promotableSessions,
 	};
 }

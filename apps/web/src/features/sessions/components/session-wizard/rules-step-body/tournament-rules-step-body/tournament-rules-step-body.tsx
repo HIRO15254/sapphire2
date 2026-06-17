@@ -5,6 +5,13 @@ import { tournamentOverriddenFields } from "@/features/sessions/utils/session-fo
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+	SelectWithClear,
+} from "@/shared/components/ui/select";
+import {
 	Tabs,
 	TabsContent,
 	TabsList,
@@ -91,8 +98,39 @@ function TournamentSettingsTab({
 				const overriddenLabels = new Set(
 					tournamentOverriddenFields(values, state.selectedTournament)
 				);
+				const promotable = state.promotableSessions ?? [];
+				const showPreviousDayLink =
+					state.selectedTournament?.hasPreviousDay === true &&
+					promotable.length > 0;
 				return (
 					<div className="flex flex-col gap-3">
+						{showPreviousDayLink && (
+							<state.form.Field name="previousSessionId">
+								{(field) => (
+									<Field
+										htmlFor={field.name}
+										label="Continue from a previous day"
+									>
+										<SelectWithClear
+											onValueChange={(v) => field.handleChange(v ?? "")}
+											value={field.state.value || undefined}
+										>
+											<SelectTrigger className="w-full" id={field.name}>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												{promotable.map((s) => (
+													<SelectItem key={s.id} value={s.id}>
+														{s.ruleName}
+														{s.bagStack == null ? "" : ` (bag ${s.bagStack})`}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</SelectWithClear>
+									</Field>
+								)}
+							</state.form.Field>
+						)}
 						<RuleNameField
 							isLiveLinked={isLiveLinked}
 							overriddenLabels={overriddenLabels}

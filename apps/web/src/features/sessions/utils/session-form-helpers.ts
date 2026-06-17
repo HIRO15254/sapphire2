@@ -56,6 +56,8 @@ export interface TournamentFormValues {
 	entryFee?: number;
 	memo?: string;
 	placement?: number;
+	/** Promoted prior-day session this live session continues from. */
+	previousSessionId?: string;
 	prizeMoney?: number;
 	roomId?: string;
 	ruleName?: string;
@@ -95,11 +97,20 @@ export interface TournamentOption {
 	buyIn?: number | null;
 	currencyId?: string | null;
 	entryFee?: number | null;
+	/** Rule declares a previous day → offer to link a promoted session. */
+	hasPreviousDay?: boolean | null;
 	id: string;
 	name: string;
 	startingStack?: number | null;
 	tableSize?: number | null;
 	variant?: string | null;
+}
+
+/** A promoted prior-day session offered as a next-day link target. */
+export interface PromotableSessionOption {
+	bagStack: number | null;
+	id: string;
+	ruleName: string;
 }
 
 export interface SessionFormDefaults {
@@ -193,6 +204,7 @@ export const sessionFormSchema = z.object({
 	totalEntries: optionalNumericString({ integer: true, min: 1 }),
 	prizeMoney: optionalNumericString({ integer: true, min: 0 }),
 	bountyPrizes: optionalNumericString({ integer: true, min: 0 }),
+	previousSessionId: z.string(),
 });
 
 export function buildDefaults(defaults: SessionFormDefaults | undefined) {
@@ -225,6 +237,7 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		totalEntries: numStrOrEmpty(defaults?.totalEntries),
 		prizeMoney: numStrOrEmpty(defaults?.prizeMoney),
 		bountyPrizes: numStrOrEmpty(defaults?.bountyPrizes),
+		previousSessionId: "",
 	};
 }
 

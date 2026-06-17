@@ -12,7 +12,7 @@ import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, max, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
@@ -654,6 +654,43 @@ export const liveTournamentSessionRouter = router({
 
 			return { items: enrichedItems, nextCursor };
 		}),
+
+	// Promoted sessions that have not yet been consumed by a next-day link.
+	// Used by the create flow to offer a "continue from a previous day" choice.
+	listPromotable: protectedProcedure.query(async ({ ctx }) => {
+		const userId = ctx.session.user.id;
+
+		const promoted = await ctx.db
+			.select({
+				id: gameSession.id,
+				ruleName: sessionTournamentDetail.ruleName,
+				bagStack: sessionTournamentDetail.bagStack,
+				tournamentId: sessionTournamentDetail.tournamentId,
+				sessionDate: gameSession.sessionDate,
+			})
+			.from(gameSession)
+			.innerJoin(
+				sessionTournamentDetail,
+				eq(sessionTournamentDetail.sessionId, gameSession.id)
+			)
+			.where(
+				and(
+					eq(gameSession.userId, userId),
+					eq(gameSession.kind, "tournament"),
+					eq(gameSession.source, "live"),
+					eq(sessionTournamentDetail.result, "promoted")
+				)
+			)
+			.orderBy(desc(gameSession.sessionDate));
+
+		const consumed = await ctx.db
+			.select({ previousSessionId: sessionTournamentDetail.previousSessionId })
+			.from(sessionTournamentDetail)
+			.where(isNotNull(sessionTournamentDetail.previousSessionId));
+		const consumedIds = new Set(consumed.map((c) => c.previousSessionId));
+
+		return promoted.filter((row) => !consumedIds.has(row.id));
+	}),
 
 	getById: protectedProcedure
 		.input(z.object({ id: z.string() }))

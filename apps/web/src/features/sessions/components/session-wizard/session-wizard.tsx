@@ -1,5 +1,6 @@
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import type {
+	PromotableSessionOption,
 	RingGameOption,
 	SessionFormDefaults,
 	SessionFormValues,
@@ -39,6 +40,7 @@ interface SessionWizardProps {
 	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
+	promotableSessions?: PromotableSessionOption[];
 	ringGames?: RingGameOption[];
 	rooms?: Array<{ id: string; name: string }>;
 	submitLabel?: string;
@@ -55,6 +57,7 @@ export function SessionWizard({
 	onCreateTag,
 	onRoomChange,
 	onSubmit,
+	promotableSessions,
 	ringGames,
 	rooms,
 	submitLabel,
@@ -66,6 +69,7 @@ export function SessionWizard({
 		mode,
 		onRoomChange,
 		onSubmit,
+		promotableSessions,
 		ringGames,
 		tournaments,
 	});

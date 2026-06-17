@@ -43,6 +43,18 @@ function useRoomTournaments(roomId: string | undefined) {
 		bountyAmount: t.bountyAmount,
 		tableSize: t.tableSize,
 		currencyId: t.currencyId,
+		hasPreviousDay: t.hasPreviousDay,
+	}));
+}
+
+function usePromotableSessions() {
+	const promotableQuery = useQuery(
+		trpc.liveTournamentSession.listPromotable.queryOptions()
+	);
+	return (promotableQuery.data ?? []).map((s) => ({
+		id: s.id,
+		ruleName: s.ruleName,
+		bagStack: s.bagStack,
 	}));
 }
 
@@ -65,6 +77,7 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 
 	const ringGames = useRoomRingGames(selectedRoomId);
 	const tournaments = useRoomTournaments(selectedRoomId);
+	const promotableSessions = usePromotableSessions();
 
 	const cashListKey = trpc.liveCashGameSession.list.queryOptions({}).queryKey;
 	const tournamentListKey = trpc.liveTournamentSession.list.queryOptions(
@@ -97,6 +110,7 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			currencyId?: string;
 			entryFee?: number;
 			memo?: string;
+			previousSessionId?: string;
 			startingStack: number;
 			roomId?: string;
 			timerStartedAt?: number;
@@ -105,14 +119,17 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			const { startingStack, ...createValues } = values;
 			const result =
 				await trpcClient.liveTournamentSession.create.mutate(createValues);
-			// Create initial update_stack with starting stack
-			await trpcClient.sessionEvent.create.mutate({
-				liveTournamentSessionId: result.id,
-				eventType: "update_stack",
-				payload: {
-					stackAmount: startingStack,
-				},
-			});
+			// When linking a previous day the server seeds the starting stack from
+			// the carried-over bag, so only seed it here for a fresh entry.
+			if (!values.previousSessionId) {
+				await trpcClient.sessionEvent.create.mutate({
+					liveTournamentSessionId: result.id,
+					eventType: "update_stack",
+					payload: {
+						stackAmount: startingStack,
+					},
+				});
+			}
 			return result;
 		},
 		onSuccess: async () => {
@@ -133,6 +150,7 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 		currencies,
 		ringGames,
 		tournaments,
+		promotableSessions,
 		selectedRoomId,
 		setSelectedRoomId,
 		createCash: (values: {
@@ -147,6 +165,7 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			currencyId?: string;
 			entryFee?: number;
 			memo?: string;
+			previousSessionId?: string;
 			startingStack: number;
 			roomId?: string;
 			timerStartedAt?: number;

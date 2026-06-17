@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type {
+	PromotableSessionOption,
 	RingGameOption,
 	SessionFormDefaults,
 	SessionFormValues,
@@ -36,6 +37,7 @@ interface UseSessionWizardArgs {
 	mode?: WizardMode;
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
+	promotableSessions?: PromotableSessionOption[];
 	ringGames?: RingGameOption[];
 	tournaments?: TournamentOption[];
 }

@@ -17,6 +17,7 @@ export function useCreateSessionDialog({
 		currencies,
 		ringGames,
 		tournaments,
+		promotableSessions,
 		setSelectedRoomId,
 		createCash,
 		createTournament,
@@ -51,6 +52,7 @@ export function useCreateSessionDialog({
 			startingStack: values.startingStack ?? 0,
 			memo: values.memo,
 			timerStartedAt: values.timerStartedAt,
+			previousSessionId: values.previousSessionId,
 		});
 	};
 
@@ -59,6 +61,7 @@ export function useCreateSessionDialog({
 		currencies,
 		ringGames: ringGames as RingGameOption[],
 		tournaments: tournaments as TournamentOption[],
+		promotableSessions,
 		setSelectedRoomId,
 		handleSubmit,
 		isLoading,

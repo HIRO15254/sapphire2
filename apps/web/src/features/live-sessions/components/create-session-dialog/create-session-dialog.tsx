@@ -21,6 +21,7 @@ export function CreateSessionDialog({
 		currencies,
 		ringGames,
 		tournaments,
+		promotableSessions,
 		setSelectedRoomId,
 		handleSubmit,
 		isLoading,
@@ -44,6 +45,7 @@ export function CreateSessionDialog({
 				mode="live"
 				onRoomChange={setSelectedRoomId}
 				onSubmit={handleSubmit}
+				promotableSessions={promotableSessions}
 				ringGames={ringGames}
 				rooms={rooms}
 				submitLabel="Start session"
