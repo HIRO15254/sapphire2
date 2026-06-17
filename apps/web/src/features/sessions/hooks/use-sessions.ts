@@ -5,7 +5,7 @@ import {
 	useQueryClient,
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import type { SessionFilterValues } from "@/features/sessions/components/session-filters";
+import type { SessionFilterValues } from "@/features/sessions/utils/session-filters-helpers";
 import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
 import {
 	cancelTargets,

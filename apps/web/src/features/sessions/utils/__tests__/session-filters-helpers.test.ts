@@ -1,58 +1,39 @@
 import { describe, expect, it } from "vitest";
-import type { SessionFilterValues } from "@/features/sessions/components/session-filters";
-import { countActiveFilters } from "@/features/sessions/utils/session-filters-helpers";
+import {
+	formatDateRangeLabel,
+	SESSION_TYPE_LABEL,
+	SESSION_TYPE_VALUES,
+} from "@/features/sessions/utils/session-filters-helpers";
 
-function filters(
-	overrides: Partial<SessionFilterValues> = {}
-): SessionFilterValues {
-	return {
-		type: undefined,
-		roomId: undefined,
-		currencyId: undefined,
-		dateFrom: undefined,
-		dateTo: undefined,
-		...overrides,
-	} as SessionFilterValues;
-}
+describe("SESSION_TYPE_LABEL", () => {
+	it("labels every type value", () => {
+		expect(SESSION_TYPE_VALUES).toEqual(["all", "cash_game", "tournament"]);
+		expect(SESSION_TYPE_LABEL.all).toBe("All");
+		expect(SESSION_TYPE_LABEL.cash_game).toBe("Cash");
+		expect(SESSION_TYPE_LABEL.tournament).toBe("Tournament");
+	});
+});
 
-describe("countActiveFilters", () => {
-	it("returns 0 for an empty filter object", () => {
-		expect(countActiveFilters(filters())).toBe(0);
+describe("formatDateRangeLabel", () => {
+	it("joins both bounds with a tilde", () => {
+		expect(formatDateRangeLabel("2026-04-01", "2026-04-30")).toBe(
+			"2026-04-01 ~ 2026-04-30"
+		);
 	});
 
-	it("counts each present field individually", () => {
-		expect(countActiveFilters(filters({ type: "cash_game" }))).toBe(1);
-		expect(countActiveFilters(filters({ roomId: "room-1" }))).toBe(1);
-		expect(countActiveFilters(filters({ currencyId: "jpy" }))).toBe(1);
-		expect(countActiveFilters(filters({ dateFrom: "2026-01-01" }))).toBe(1);
-		expect(countActiveFilters(filters({ dateTo: "2026-02-01" }))).toBe(1);
+	it("renders an open-ended upper bound when only `from` is set", () => {
+		expect(formatDateRangeLabel("2026-04-01", undefined)).toBe("2026-04-01 ~");
 	});
 
-	it("returns 5 when every field is set", () => {
-		expect(
-			countActiveFilters(
-				filters({
-					type: "tournament",
-					roomId: "room-1",
-					currencyId: "usd",
-					dateFrom: "2026-01-01",
-					dateTo: "2026-02-01",
-				})
-			)
-		).toBe(5);
+	it("renders an open-ended lower bound when only `to` is set", () => {
+		expect(formatDateRangeLabel(undefined, "2026-04-30")).toBe("~ 2026-04-30");
 	});
 
-	it("does not count empty strings as active", () => {
-		expect(
-			countActiveFilters(
-				filters({
-					type: "" as unknown as SessionFilterValues["type"],
-					roomId: "",
-					currencyId: "",
-					dateFrom: "",
-					dateTo: "",
-				})
-			)
-		).toBe(0);
+	it("falls back to `All dates` when neither bound is set", () => {
+		expect(formatDateRangeLabel(undefined, undefined)).toBe("All dates");
+	});
+
+	it("treats empty strings as unset", () => {
+		expect(formatDateRangeLabel("", "")).toBe("All dates");
 	});
 });
