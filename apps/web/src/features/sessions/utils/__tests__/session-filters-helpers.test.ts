@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-	formatDateRangeLabel,
+	SESSION_PERIOD_LABEL,
+	SESSION_PERIODS,
 	SESSION_TYPE_LABEL,
 	SESSION_TYPE_VALUES,
 } from "@/features/sessions/utils/session-filters-helpers";
+import { STATS_PERIOD_LABEL } from "@/features/statistics/utils/labels";
+import { STATS_PERIODS } from "@/features/statistics/utils/stats-filters";
 
 describe("SESSION_TYPE_LABEL", () => {
 	it("labels every type value", () => {
@@ -14,26 +17,15 @@ describe("SESSION_TYPE_LABEL", () => {
 	});
 });
 
-describe("formatDateRangeLabel", () => {
-	it("joins both bounds with a tilde", () => {
-		expect(formatDateRangeLabel("2026-04-01", "2026-04-30")).toBe(
-			"2026-04-01 ~ 2026-04-30"
-		);
+describe("session Period domain", () => {
+	it("reuses the statistics period presets and labels verbatim", () => {
+		expect(SESSION_PERIODS).toBe(STATS_PERIODS);
+		expect(SESSION_PERIOD_LABEL).toBe(STATS_PERIOD_LABEL);
 	});
 
-	it("renders an open-ended upper bound when only `from` is set", () => {
-		expect(formatDateRangeLabel("2026-04-01", undefined)).toBe("2026-04-01 ~");
-	});
-
-	it("renders an open-ended lower bound when only `to` is set", () => {
-		expect(formatDateRangeLabel(undefined, "2026-04-30")).toBe("~ 2026-04-30");
-	});
-
-	it("falls back to `All dates` when neither bound is set", () => {
-		expect(formatDateRangeLabel(undefined, undefined)).toBe("All dates");
-	});
-
-	it("treats empty strings as unset", () => {
-		expect(formatDateRangeLabel("", "")).toBe("All dates");
+	it("exposes a label for every preset", () => {
+		for (const period of SESSION_PERIODS) {
+			expect(SESSION_PERIOD_LABEL[period]).toBeTruthy();
+		}
 	});
 });

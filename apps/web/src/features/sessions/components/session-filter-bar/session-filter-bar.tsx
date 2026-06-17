@@ -1,9 +1,11 @@
 import {
-	formatDateRangeLabel,
+	SESSION_PERIOD_LABEL,
+	SESSION_PERIODS,
 	SESSION_TYPE_LABEL,
 	SESSION_TYPE_VALUES,
 	type SessionFilterValues,
 } from "@/features/sessions/utils/session-filters-helpers";
+import { epochSecToDateInput } from "@/features/statistics/utils/stats-filters";
 import {
 	FilterAllOption,
 	FilterChip,
@@ -28,18 +30,19 @@ interface SessionFilterBarProps {
 }
 
 const SHEET_TITLE: Record<SessionFilterSheet, string> = {
+	period: "Period",
 	type: "Type",
+	display: "Display",
 	room: "Room",
 	currency: "Currency",
-	date: "Date range",
-	display: "Display",
 };
 
 /**
  * The sessions list filter header — the Notion-style chip bar shared with the
  * statistics page (`web-theme.md` hybrid picker pattern). Replaces the old
  * "Filter" drawer button + standalone BB/BI switch: each dimension is a chip
- * that opens a bottom sheet, applied immediately.
+ * that opens a bottom sheet, applied immediately. The Period chip reuses the
+ * statistics preset windows + custom range.
  */
 export function SessionFilterBar(props: SessionFilterBarProps) {
 	const {
@@ -52,12 +55,12 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 		currencies,
 		currentRoomName,
 		currentCurrencyName,
+		onPeriodChange,
+		onFromChange,
+		onToChange,
 		onTypeChange,
 		onRoomChange,
 		onCurrencyChange,
-		onDateFromChange,
-		onDateToChange,
-		onClearDates,
 		onDisplayChange,
 	} = useSessionFilterBar(props);
 
@@ -67,14 +70,28 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 		}
 	};
 
+	const period = filters.period ?? "all";
+
 	return (
 		<>
 			<FilterChipBar>
+				<FilterChip
+					active={period !== "all"}
+					label="Period"
+					onClick={() => openSheet("period")}
+					value={SESSION_PERIOD_LABEL[period]}
+				/>
 				<FilterChip
 					active={filters.type != null}
 					label="Type"
 					onClick={() => openSheet("type")}
 					value={SESSION_TYPE_LABEL[filters.type ?? "all"]}
+				/>
+				<FilterChip
+					active={bbBiMode}
+					label="Display"
+					onClick={() => openSheet("display")}
+					value={bbBiMode ? "BB · BI" : "Currency"}
 				/>
 				<FilterChip
 					active={Boolean(filters.roomId)}
@@ -88,19 +105,54 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 					onClick={() => openSheet("currency")}
 					value={currentCurrencyName ?? "All currencies"}
 				/>
-				<FilterChip
-					active={Boolean(filters.dateFrom || filters.dateTo)}
-					label="Date"
-					onClick={() => openSheet("date")}
-					value={formatDateRangeLabel(filters.dateFrom, filters.dateTo)}
-				/>
-				<FilterChip
-					active={bbBiMode}
-					label="Display"
-					onClick={() => openSheet("display")}
-					value={bbBiMode ? "BB · BI" : "Currency"}
-				/>
 			</FilterChipBar>
+
+			<FilterSheet
+				onOpenChange={handleOpenChange}
+				open={activeSheet === "period"}
+				title={SHEET_TITLE.period}
+			>
+				<FilterOptionList
+					idPrefix="session-period"
+					onChange={onPeriodChange}
+					options={SESSION_PERIODS.map((p) => ({
+						value: p,
+						label: SESSION_PERIOD_LABEL[p],
+					}))}
+					value={period}
+				/>
+				{filters.period === "custom" ? (
+					<div className="mt-2 flex flex-col gap-2 border-border border-t pt-3">
+						<label className="flex flex-col gap-1">
+							<span className="t-meta text-muted-foreground uppercase tracking-wide">
+								From
+							</span>
+							<input
+								className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+								onChange={(event) => onFromChange(event.target.value)}
+								type="date"
+								value={epochSecToDateInput(filters.from)}
+							/>
+						</label>
+						<label className="flex flex-col gap-1">
+							<span className="t-meta text-muted-foreground uppercase tracking-wide">
+								To
+							</span>
+							<input
+								className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+								onChange={(event) => onToChange(event.target.value)}
+								type="date"
+								value={epochSecToDateInput(filters.to)}
+							/>
+						</label>
+						<DrawerClose asChild>
+							<Button className="mt-1" type="button">
+								Done
+							</Button>
+						</DrawerClose>
+					</div>
+				) : null}
+			</FilterSheet>
 
 			<FilterSheet
 				onOpenChange={handleOpenChange}
@@ -115,6 +167,22 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 						label: SESSION_TYPE_LABEL[t],
 					}))}
 					value={filters.type ?? "all"}
+				/>
+			</FilterSheet>
+
+			<FilterSheet
+				onOpenChange={handleOpenChange}
+				open={activeSheet === "display"}
+				title={SHEET_TITLE.display}
+			>
+				<FilterOptionList
+					idPrefix="session-display"
+					onChange={onDisplayChange}
+					options={[
+						{ value: "currency", label: "Currency" },
+						{ value: "normalized", label: "BB / BI" },
+					]}
+					value={bbBiMode ? "normalized" : "currency"}
 				/>
 			</FilterSheet>
 
@@ -151,70 +219,6 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 					onChange={onCurrencyChange}
 					options={currencies.map((c) => ({ value: c.id, label: c.name }))}
 					value={filters.currencyId ?? ""}
-				/>
-			</FilterSheet>
-
-			<FilterSheet
-				onOpenChange={handleOpenChange}
-				open={activeSheet === "date"}
-				title={SHEET_TITLE.date}
-			>
-				<div className="flex flex-col gap-3">
-					<label className="flex flex-col gap-1">
-						<span className="t-meta text-muted-foreground uppercase tracking-wide">
-							From
-						</span>
-						<input
-							aria-label="Date from"
-							className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-							onChange={(event) => onDateFromChange(event.target.value)}
-							type="date"
-							value={filters.dateFrom ?? ""}
-						/>
-					</label>
-					<label className="flex flex-col gap-1">
-						<span className="t-meta text-muted-foreground uppercase tracking-wide">
-							To
-						</span>
-						<input
-							aria-label="Date to"
-							className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-							onChange={(event) => onDateToChange(event.target.value)}
-							type="date"
-							value={filters.dateTo ?? ""}
-						/>
-					</label>
-					<div className="flex gap-2 pt-1">
-						<Button
-							className="flex-1"
-							onClick={onClearDates}
-							type="button"
-							variant="outline"
-						>
-							Clear
-						</Button>
-						<DrawerClose asChild>
-							<Button className="flex-1" type="button">
-								Done
-							</Button>
-						</DrawerClose>
-					</div>
-				</div>
-			</FilterSheet>
-
-			<FilterSheet
-				onOpenChange={handleOpenChange}
-				open={activeSheet === "display"}
-				title={SHEET_TITLE.display}
-			>
-				<FilterOptionList
-					idPrefix="session-display"
-					onChange={onDisplayChange}
-					options={[
-						{ value: "currency", label: "Currency" },
-						{ value: "normalized", label: "BB / BI" },
-					]}
-					value={bbBiMode ? "normalized" : "currency"}
 				/>
 			</FilterSheet>
 		</>

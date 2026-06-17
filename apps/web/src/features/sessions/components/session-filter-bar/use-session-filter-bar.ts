@@ -1,10 +1,14 @@
 import { useState } from "react";
-import type { SessionFilterValues } from "@/features/sessions/utils/session-filters-helpers";
+import type {
+	SessionFilterValues,
+	SessionPeriod,
+} from "@/features/sessions/utils/session-filters-helpers";
+import { dateInputToEpochSec } from "@/features/statistics/utils/stats-filters";
 
 export type SessionFilterSheet =
 	| "currency"
-	| "date"
 	| "display"
+	| "period"
 	| "room"
 	| "type";
 
@@ -21,8 +25,9 @@ export interface UseSessionFilterBarProps {
  * Drives the sessions chip filter bar, mirroring `useStatsFilterBar`: owns which
  * bottom sheet is open and exposes change handlers that apply each pick
  * immediately (no draft / Apply step — the list refetches off the live filter
- * state). The type / room / currency handlers close the sheet on pick; the date
- * handlers keep it open so both bounds can be set before dismissing.
+ * state). The type / room / currency handlers close the sheet on pick; the
+ * period handler keeps the sheet open on `custom` so both date bounds can be set
+ * before dismissing.
  */
 export function useSessionFilterBar({
 	bbBiMode,
@@ -57,6 +62,20 @@ export function useSessionFilterBar({
 		currencies,
 		currentRoomName,
 		currentCurrencyName,
+		onPeriodChange: (value: string) => {
+			if (!value) {
+				return;
+			}
+			patch({ period: value as SessionPeriod });
+			// Keep the sheet open on "custom" so the date inputs can be used.
+			if (value !== "custom") {
+				closeSheet();
+			}
+		},
+		onFromChange: (value: string) =>
+			patch({ from: dateInputToEpochSec(value) }),
+		onToChange: (value: string) =>
+			patch({ to: dateInputToEpochSec(value, true) }),
 		onTypeChange: (value: string) => {
 			patch({
 				type:
@@ -70,13 +89,6 @@ export function useSessionFilterBar({
 		},
 		onCurrencyChange: (value: string | undefined) => {
 			patch({ currencyId: value || undefined });
-			closeSheet();
-		},
-		onDateFromChange: (value: string) =>
-			patch({ dateFrom: value || undefined }),
-		onDateToChange: (value: string) => patch({ dateTo: value || undefined }),
-		onClearDates: () => {
-			patch({ dateFrom: undefined, dateTo: undefined });
 			closeSheet();
 		},
 		onDisplayChange: (value: string) => {

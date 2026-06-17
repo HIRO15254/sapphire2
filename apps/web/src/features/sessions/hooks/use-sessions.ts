@@ -7,6 +7,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import type { SessionFilterValues } from "@/features/sessions/utils/session-filters-helpers";
 import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
+import { resolveDateRange } from "@/features/statistics/utils/stats-filters";
 import {
 	cancelTargets,
 	invalidateTargets,
@@ -347,16 +348,19 @@ export function buildEditDefaults(session: SessionItem) {
 }
 
 export function filtersToListInput(filters: SessionFilterValues) {
+	// Reuse the statistics period resolver: preset windows snap to UTC day
+	// boundaries, `custom` passes the from/to bounds straight through (SA2-74).
+	const range = resolveDateRange({
+		period: filters.period ?? "all",
+		from: filters.from,
+		to: filters.to,
+	});
 	return {
 		type: filters.type,
 		roomId: filters.roomId,
 		currencyId: filters.currencyId,
-		dateFrom: filters.dateFrom
-			? Math.floor(new Date(filters.dateFrom).getTime() / 1000)
-			: undefined,
-		dateTo: filters.dateTo
-			? Math.floor(new Date(`${filters.dateTo}T23:59:59`).getTime() / 1000)
-			: undefined,
+		dateFrom: range.dateFrom,
+		dateTo: range.dateTo,
 	};
 }
 

@@ -56,8 +56,8 @@ describe("useSessionFilterBar", () => {
 		it("openSheet switches between sheets", () => {
 			const { result } = setup();
 			act(() => result.current.openSheet("type"));
-			act(() => result.current.openSheet("date"));
-			expect(result.current.activeSheet).toBe("date");
+			act(() => result.current.openSheet("period"));
+			expect(result.current.activeSheet).toBe("period");
 		});
 
 		it("closeSheet clears the active sheet", () => {
@@ -139,42 +139,67 @@ describe("useSessionFilterBar", () => {
 		});
 	});
 
-	describe("date handlers", () => {
-		it("onDateFromChange patches the lower bound without closing", () => {
+	describe("onPeriodChange", () => {
+		it("patches a preset period and closes the sheet", () => {
 			const { result, onFiltersChange } = setup();
-			act(() => result.current.openSheet("date"));
-			act(() => result.current.onDateFromChange("2026-04-01"));
-			expect(onFiltersChange).toHaveBeenCalledWith({ dateFrom: "2026-04-01" });
-			expect(result.current.activeSheet).toBe("date");
-		});
-
-		it("onDateToChange patches the upper bound without closing", () => {
-			const { result, onFiltersChange } = setup();
-			act(() => result.current.openSheet("date"));
-			act(() => result.current.onDateToChange("2026-04-30"));
-			expect(onFiltersChange).toHaveBeenCalledWith({ dateTo: "2026-04-30" });
-			expect(result.current.activeSheet).toBe("date");
-		});
-
-		it("clears a bound when its input is emptied", () => {
-			const { result, onFiltersChange } = setup({
-				filters: { dateFrom: "2026-04-01" },
-			});
-			act(() => result.current.onDateFromChange(""));
-			expect(onFiltersChange).toHaveBeenCalledWith({ dateFrom: undefined });
-		});
-
-		it("onClearDates wipes both bounds and closes the sheet", () => {
-			const { result, onFiltersChange } = setup({
-				filters: { dateFrom: "2026-04-01", dateTo: "2026-04-30" },
-			});
-			act(() => result.current.openSheet("date"));
-			act(() => result.current.onClearDates());
-			expect(onFiltersChange).toHaveBeenCalledWith({
-				dateFrom: undefined,
-				dateTo: undefined,
-			});
+			act(() => result.current.openSheet("period"));
+			act(() => result.current.onPeriodChange("30d"));
+			expect(onFiltersChange).toHaveBeenCalledTimes(1);
+			expect(onFiltersChange).toHaveBeenCalledWith({ period: "30d" });
 			expect(result.current.activeSheet).toBeNull();
+		});
+
+		it("keeps the sheet open on custom for date entry", () => {
+			const { result, onFiltersChange } = setup();
+			act(() => result.current.openSheet("period"));
+			act(() => result.current.onPeriodChange("custom"));
+			expect(onFiltersChange).toHaveBeenCalledWith({ period: "custom" });
+			expect(result.current.activeSheet).toBe("period");
+		});
+
+		it("ignores an empty value", () => {
+			const { result, onFiltersChange } = setup();
+			act(() => result.current.openSheet("period"));
+			act(() => result.current.onPeriodChange(""));
+			expect(onFiltersChange).not.toHaveBeenCalled();
+			expect(result.current.activeSheet).toBe("period");
+		});
+	});
+
+	describe("custom date bounds", () => {
+		it("onFromChange converts the lower bound to start-of-day epoch without closing", () => {
+			const { result, onFiltersChange } = setup({
+				filters: { period: "custom" },
+			});
+			act(() => result.current.openSheet("period"));
+			act(() => result.current.onFromChange("2026-04-01"));
+			expect(onFiltersChange).toHaveBeenCalledWith({
+				period: "custom",
+				from: Math.floor(Date.UTC(2026, 3, 1, 0, 0, 0) / 1000),
+			});
+			expect(result.current.activeSheet).toBe("period");
+		});
+
+		it("onToChange converts the upper bound to end-of-day epoch", () => {
+			const { result, onFiltersChange } = setup({
+				filters: { period: "custom" },
+			});
+			act(() => result.current.onToChange("2026-04-30"));
+			expect(onFiltersChange).toHaveBeenCalledWith({
+				period: "custom",
+				to: Math.floor(Date.UTC(2026, 3, 30, 23, 59, 59) / 1000),
+			});
+		});
+
+		it("clears a bound for an empty / malformed value", () => {
+			const { result, onFiltersChange } = setup({
+				filters: { period: "custom", from: 100 },
+			});
+			act(() => result.current.onFromChange(""));
+			expect(onFiltersChange).toHaveBeenCalledWith({
+				period: "custom",
+				from: undefined,
+			});
 		});
 	});
 

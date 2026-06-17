@@ -1,8 +1,23 @@
+import { STATS_PERIOD_LABEL } from "@/features/statistics/utils/labels";
+import {
+	STATS_PERIODS,
+	type StatsPeriod,
+} from "@/features/statistics/utils/stats-filters";
+
+// The sessions list reuses the statistics Period domain (preset windows +
+// custom range) so the two filter headers behave identically (SA2-74).
+export type SessionPeriod = StatsPeriod;
+export const SESSION_PERIODS = STATS_PERIODS;
+export const SESSION_PERIOD_LABEL = STATS_PERIOD_LABEL;
+
 export interface SessionFilterValues {
 	currencyId?: string;
-	dateFrom?: string;
-	dateTo?: string;
+	/** Custom-range lower bound, Unix seconds. Only used when `period` is `custom`. */
+	from?: number;
+	period?: SessionPeriod;
 	roomId?: string;
+	/** Custom-range upper bound, Unix seconds. Only used when `period` is `custom`. */
+	to?: number;
 	type?: "cash_game" | "tournament";
 }
 
@@ -14,23 +29,3 @@ export const SESSION_TYPE_LABEL: Record<SessionTypeValue, string> = {
 	cash_game: "Cash",
 	tournament: "Tournament",
 };
-
-/**
- * The chip value for the date-range filter: a compact `from ~ to` summary,
- * `from ~` / `~ to` for a one-sided bound, or `All dates` when unset.
- */
-export function formatDateRangeLabel(
-	dateFrom?: string,
-	dateTo?: string
-): string {
-	if (dateFrom && dateTo) {
-		return `${dateFrom} ~ ${dateTo}`;
-	}
-	if (dateFrom) {
-		return `${dateFrom} ~`;
-	}
-	if (dateTo) {
-		return `~ ${dateTo}`;
-	}
-	return "All dates";
-}
