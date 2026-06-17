@@ -100,6 +100,22 @@ describe("mergeExtractedTournamentData", () => {
 			expect(result.buyIn).toBeUndefined();
 		});
 
+		it("ignores explicit zero for startingStack (never a valid freeroll field)", () => {
+			const result = mergeExtractedTournamentData(
+				{ startingStack: 0 },
+				base({ startingStack: 20_000 })
+			);
+			expect(result.startingStack).toBe(20_000);
+		});
+
+		it("ignores explicit zero for tableSize (never a valid freeroll field)", () => {
+			const result = mergeExtractedTournamentData(
+				{ tableSize: 0 },
+				base({ tableSize: 9 })
+			);
+			expect(result.tableSize).toBe(9);
+		});
+
 		it("keeps the base value when extracted number is negative", () => {
 			const result = mergeExtractedTournamentData(
 				{ startingStack: -5 },
