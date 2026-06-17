@@ -126,6 +126,7 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 					<div className="mt-2 flex flex-col gap-3 border-border border-t pt-3">
 						<FilterDateRange
 							from={epochSecToDateInput(filters.from)}
+							idPrefix="session-period"
 							onFromChange={onFromChange}
 							onToChange={onToChange}
 							to={epochSecToDateInput(filters.to)}

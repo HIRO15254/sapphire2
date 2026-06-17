@@ -53,4 +53,31 @@ describe("FilterDateRange", () => {
 		expect(onToChange).toHaveBeenCalledTimes(1);
 		expect(onToChange).toHaveBeenCalledWith("2026-05-09");
 	});
+
+	it("defaults the input ids to the `filter-date` prefix", () => {
+		render(
+			<FilterDateRange
+				from=""
+				onFromChange={vi.fn()}
+				onToChange={vi.fn()}
+				to=""
+			/>
+		);
+		expect(screen.getByLabelText("From").id).toBe("filter-date-from");
+		expect(screen.getByLabelText("To").id).toBe("filter-date-to");
+	});
+
+	it("namespaces the input ids with a custom idPrefix", () => {
+		render(
+			<FilterDateRange
+				from=""
+				idPrefix="session-period"
+				onFromChange={vi.fn()}
+				onToChange={vi.fn()}
+				to=""
+			/>
+		);
+		expect(screen.getByLabelText("From").id).toBe("session-period-from");
+		expect(screen.getByLabelText("To").id).toBe("session-period-to");
+	});
 });
