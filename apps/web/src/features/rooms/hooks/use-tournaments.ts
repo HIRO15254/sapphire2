@@ -24,9 +24,12 @@ export interface Tournament {
 	createdAt: string;
 	currencyId: string | null;
 	entryFee: number | null;
+	hasNextDay: boolean;
+	hasPreviousDay: boolean;
 	id: string;
 	memo: string | null;
 	name: string;
+	nextDayTournamentId: string | null;
 	roomId: string;
 	startingStack: number | null;
 	tableSize: number | null;
@@ -76,6 +79,11 @@ function buildOptimisticTournament(
 			})) ?? [],
 		currencyId: values.currencyId ?? null,
 		entryFee: values.entryFee ?? null,
+		// Day-chaining flags are not edited via this form yet (T3.1); preserve the
+		// existing values on update and default to a single-day rule on create.
+		hasNextDay: existing?.hasNextDay ?? false,
+		hasPreviousDay: existing?.hasPreviousDay ?? false,
+		nextDayTournamentId: existing?.nextDayTournamentId ?? null,
 		id,
 		memo: values.memo ?? null,
 		name: values.name,

@@ -105,6 +105,9 @@ function makeTournament(overrides: Partial<Tournament> = {}): Tournament {
 		tags: [],
 		createdAt: "2026-01-01",
 		updatedAt: "2026-01-01",
+		hasNextDay: false,
+		hasPreviousDay: false,
+		nextDayTournamentId: null,
 		...overrides,
 	};
 }

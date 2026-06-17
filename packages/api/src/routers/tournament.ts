@@ -57,6 +57,46 @@ async function validateTournamentOwnership(
 	return found;
 }
 
+/**
+ * Validate a next-day link target: it must exist, live in the same room as the
+ * linking tournament (same room ⇒ same owner, already verified upstream), and
+ * not point back at the tournament itself.
+ */
+async function validateNextDayLink(
+	db: Parameters<
+		Parameters<typeof protectedProcedure.query>[0]
+	>[0]["ctx"]["db"],
+	nextDayTournamentId: string,
+	roomId: string,
+	currentTournamentId?: string
+) {
+	if (currentTournamentId && nextDayTournamentId === currentTournamentId) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "A tournament cannot be its own next day",
+		});
+	}
+
+	const [next] = await db
+		.select()
+		.from(tournament)
+		.where(eq(tournament.id, nextDayTournamentId));
+
+	if (!next) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Next-day tournament not found",
+		});
+	}
+
+	if (next.roomId !== roomId) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Next-day tournament must belong to the same room",
+		});
+	}
+}
+
 export const tournamentRouter = router({
 	listByRoom: protectedProcedure
 		.input(
@@ -151,11 +191,22 @@ export const tournamentRouter = router({
 				tableSize: z.number().int().optional(),
 				currencyId: z.string().optional(),
 				memo: z.string().optional(),
+				hasNextDay: z.boolean().optional(),
+				hasPreviousDay: z.boolean().optional(),
+				nextDayTournamentId: z.string().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateRoomOwnership(ctx.db, input.roomId, userId);
+
+			if (input.nextDayTournamentId) {
+				await validateNextDayLink(
+					ctx.db,
+					input.nextDayTournamentId,
+					input.roomId
+				);
+			}
 
 			const id = crypto.randomUUID();
 			await ctx.db.insert(tournament).values({
@@ -170,6 +221,9 @@ export const tournamentRouter = router({
 				tableSize: input.tableSize ?? null,
 				currencyId: input.currencyId ?? null,
 				memo: input.memo ?? null,
+				hasNextDay: input.hasNextDay ?? false,
+				hasPreviousDay: input.hasPreviousDay ?? false,
+				nextDayTournamentId: input.nextDayTournamentId ?? null,
 				updatedAt: new Date(),
 			});
 
@@ -193,6 +247,9 @@ export const tournamentRouter = router({
 				tableSize: z.number().int().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
 				memo: z.string().nullable().optional(),
+				hasNextDay: z.boolean().optional(),
+				hasPreviousDay: z.boolean().optional(),
+				nextDayTournamentId: z.string().nullable().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -226,6 +283,23 @@ export const tournamentRouter = router({
 			}
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;
+			}
+			if (input.hasNextDay !== undefined) {
+				updateData.hasNextDay = input.hasNextDay;
+			}
+			if (input.hasPreviousDay !== undefined) {
+				updateData.hasPreviousDay = input.hasPreviousDay;
+			}
+			if (input.nextDayTournamentId !== undefined) {
+				if (input.nextDayTournamentId !== null) {
+					await validateNextDayLink(
+						ctx.db,
+						input.nextDayTournamentId,
+						found.roomId,
+						input.id
+					);
+				}
+				updateData.nextDayTournamentId = input.nextDayTournamentId;
 			}
 
 			await ctx.db
@@ -299,6 +373,9 @@ export const tournamentRouter = router({
 				tableSize: z.number().int().optional(),
 				currencyId: z.string().optional(),
 				memo: z.string().optional(),
+				hasNextDay: z.boolean().optional(),
+				hasPreviousDay: z.boolean().optional(),
+				nextDayTournamentId: z.string().optional(),
 				tags: z.array(z.string()).optional(),
 				chipPurchases: z
 					.array(
@@ -327,6 +404,14 @@ export const tournamentRouter = router({
 			const userId = ctx.session.user.id;
 			await validateRoomOwnership(ctx.db, input.roomId, userId);
 
+			if (input.nextDayTournamentId) {
+				await validateNextDayLink(
+					ctx.db,
+					input.nextDayTournamentId,
+					input.roomId
+				);
+			}
+
 			const id = crypto.randomUUID();
 			await ctx.db.insert(tournament).values({
 				id,
@@ -340,6 +425,9 @@ export const tournamentRouter = router({
 				tableSize: input.tableSize ?? null,
 				currencyId: input.currencyId ?? null,
 				memo: input.memo ?? null,
+				hasNextDay: input.hasNextDay ?? false,
+				hasPreviousDay: input.hasPreviousDay ?? false,
+				nextDayTournamentId: input.nextDayTournamentId ?? null,
 				updatedAt: new Date(),
 			});
 
@@ -394,6 +482,9 @@ export const tournamentRouter = router({
 				tableSize: z.number().int().nullable().optional(),
 				currencyId: z.string().nullable().optional(),
 				memo: z.string().nullable().optional(),
+				hasNextDay: z.boolean().optional(),
+				hasPreviousDay: z.boolean().optional(),
+				nextDayTournamentId: z.string().nullable().optional(),
 				tags: z.array(z.string()).optional(),
 				chipPurchases: z
 					.array(
@@ -447,6 +538,23 @@ export const tournamentRouter = router({
 			}
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;
+			}
+			if (input.hasNextDay !== undefined) {
+				updateData.hasNextDay = input.hasNextDay;
+			}
+			if (input.hasPreviousDay !== undefined) {
+				updateData.hasPreviousDay = input.hasPreviousDay;
+			}
+			if (input.nextDayTournamentId !== undefined) {
+				if (input.nextDayTournamentId !== null) {
+					await validateNextDayLink(
+						ctx.db,
+						input.nextDayTournamentId,
+						found.roomId,
+						input.id
+					);
+				}
+				updateData.nextDayTournamentId = input.nextDayTournamentId;
 			}
 
 			await ctx.db

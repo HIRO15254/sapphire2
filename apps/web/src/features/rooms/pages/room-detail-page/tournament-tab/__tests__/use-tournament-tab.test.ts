@@ -98,6 +98,9 @@ const TOURNAMENT: Tournament = {
 	blindLevelCount: 0,
 	createdAt: "",
 	updatedAt: "",
+	hasNextDay: false,
+	hasPreviousDay: false,
+	nextDayTournamentId: null,
 };
 
 describe("useTournamentTab", () => {

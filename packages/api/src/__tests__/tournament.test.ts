@@ -240,6 +240,84 @@ describe("tournament.updateWithLevels input validation", () => {
 	});
 });
 
+describe("tournament day-chaining input validation", () => {
+	it("create parses hasNextDay / hasPreviousDay / nextDayTournamentId", () => {
+		const schema = getInputSchema(appRouter.tournament.create);
+		const parsed = schema.safeParse({
+			roomId: "s1",
+			name: "Day 1A",
+			hasNextDay: true,
+			hasPreviousDay: false,
+			nextDayTournamentId: "tn-day2",
+		}) as unknown as {
+			success: true;
+			data: {
+				hasNextDay?: boolean;
+				hasPreviousDay?: boolean;
+				nextDayTournamentId?: string;
+			};
+		};
+		expect(parsed.success).toBe(true);
+		expect(parsed.data.hasNextDay).toBe(true);
+		expect(parsed.data.hasPreviousDay).toBe(false);
+		expect(parsed.data.nextDayTournamentId).toBe("tn-day2");
+	});
+
+	it("create rejects a non-boolean hasNextDay", () => {
+		expectRejects(appRouter.tournament.create, {
+			roomId: "s1",
+			name: "Day 1A",
+			hasNextDay: "yes",
+		});
+	});
+
+	it("update parses nextDayTournamentId cleared to null", () => {
+		const schema = getInputSchema(appRouter.tournament.update);
+		const parsed = schema.safeParse({
+			id: "tn1",
+			hasNextDay: false,
+			nextDayTournamentId: null,
+		}) as unknown as {
+			success: true;
+			data: { hasNextDay?: boolean; nextDayTournamentId?: string | null };
+		};
+		expect(parsed.success).toBe(true);
+		expect(parsed.data.hasNextDay).toBe(false);
+		expect(parsed.data.nextDayTournamentId).toBeNull();
+	});
+
+	it("createWithLevels parses day-chaining fields", () => {
+		const schema = getInputSchema(appRouter.tournament.createWithLevels);
+		const parsed = schema.safeParse({
+			roomId: "s1",
+			name: "Day 1A",
+			hasPreviousDay: true,
+			blindLevels: [{ isBreak: false, blind1: 100, blind2: 200 }],
+		}) as unknown as {
+			success: true;
+			data: { hasPreviousDay?: boolean };
+		};
+		expect(parsed.success).toBe(true);
+		expect(parsed.data.hasPreviousDay).toBe(true);
+	});
+
+	it("updateWithLevels parses day-chaining fields", () => {
+		const schema = getInputSchema(appRouter.tournament.updateWithLevels);
+		const parsed = schema.safeParse({
+			id: "tn1",
+			hasNextDay: true,
+			nextDayTournamentId: "tn-day2",
+			blindLevels: [{ isBreak: false }],
+		}) as unknown as {
+			success: true;
+			data: { hasNextDay?: boolean; nextDayTournamentId?: string | null };
+		};
+		expect(parsed.success).toBe(true);
+		expect(parsed.data.hasNextDay).toBe(true);
+		expect(parsed.data.nextDayTournamentId).toBe("tn-day2");
+	});
+});
+
 describe("tournament.addTag input validation", () => {
 	it("accepts a valid tag payload", () => {
 		expectAccepts(appRouter.tournament.addTag, {
