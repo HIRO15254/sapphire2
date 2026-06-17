@@ -273,7 +273,8 @@ function walkFlightChain(
 }
 
 function buildAggregatedFlight(chain: FlightSessionInput[]): AggregatedFlight {
-	const head = chain[0];
+	// chain is always non-empty: walkFlightChain pushes the head first.
+	const head = chain[0] as FlightSessionInput;
 	const tail = chain.at(-1) as FlightSessionInput;
 	const totalCost = chain.reduce(
 		(acc, s) => acc + (s.buyIn ?? 0) + (s.entryFee ?? 0) + s.chipPurchaseCost,
