@@ -80,17 +80,21 @@ function TournamentSettingsTab({
 	state,
 	currencies,
 	isLiveLinked,
+	showOverrides,
 }: {
 	state: UseSessionWizardReturn;
 	currencies?: Array<{ id: string; name: string }>;
 	isLiveLinked: boolean;
+	showOverrides: boolean;
 }) {
 	return (
 		<state.form.Subscribe selector={(s) => s.values}>
 			{(values) => {
-				const overriddenLabels = new Set(
-					tournamentOverriddenFields(values, state.selectedTournament)
-				);
+				const overriddenLabels = showOverrides
+					? new Set(
+							tournamentOverriddenFields(values, state.selectedTournament)
+						)
+					: undefined;
 				return (
 					<div className="flex flex-col gap-3">
 						<RuleNameField
@@ -127,10 +131,12 @@ export function TournamentRulesStepBody({
 	state,
 	currencies,
 	isLiveLinked,
+	showOverrides = true,
 }: {
 	state: UseSessionWizardReturn;
 	currencies?: Array<{ id: string; name: string }>;
 	isLiveLinked: boolean;
+	showOverrides?: boolean;
 }) {
 	return (
 		<state.form.Subscribe selector={(s) => s.values.variant}>
@@ -145,6 +151,7 @@ export function TournamentRulesStepBody({
 							<TournamentSettingsTab
 								currencies={currencies}
 								isLiveLinked={isLiveLinked}
+								showOverrides={showOverrides}
 								state={state}
 							/>
 						</TabsContent>
