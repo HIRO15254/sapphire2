@@ -18,6 +18,7 @@ import {
 	FilterAllOption,
 	FilterChip,
 	FilterChipBar,
+	FilterDateRange,
 	FilterOptionList,
 	FilterSheet,
 } from "@/shared/components/filter-chip-bar";
@@ -120,29 +121,13 @@ export function StatsFilterBar() {
 					value={filters.period}
 				/>
 				{filters.period === "custom" ? (
-					<div className="mt-2 flex flex-col gap-2 border-border border-t pt-3">
-						<label className="flex flex-col gap-1">
-							<span className="t-meta text-muted-foreground uppercase tracking-wide">
-								From
-							</span>
-							<input
-								className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-								onChange={(e) => onFromChange(e.target.value)}
-								type="date"
-								value={epochSecToDateInput(filters.from)}
-							/>
-						</label>
-						<label className="flex flex-col gap-1">
-							<span className="t-meta text-muted-foreground uppercase tracking-wide">
-								To
-							</span>
-							<input
-								className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-								onChange={(e) => onToChange(e.target.value)}
-								type="date"
-								value={epochSecToDateInput(filters.to)}
-							/>
-						</label>
+					<div className="mt-2 flex flex-col gap-3 border-border border-t pt-3">
+						<FilterDateRange
+							from={epochSecToDateInput(filters.from)}
+							onFromChange={onFromChange}
+							onToChange={onToChange}
+							to={epochSecToDateInput(filters.to)}
+						/>
 						<DrawerClose asChild>
 							<Button className="mt-1" type="button" variant="default">
 								Done
