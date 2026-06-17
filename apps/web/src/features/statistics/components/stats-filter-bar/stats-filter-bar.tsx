@@ -5,13 +5,10 @@ import {
 } from "@/features/statistics/components/stats-filter-bar/use-stats-filter-bar";
 import {
 	STATS_NORMALIZATION_LABEL,
-	STATS_PERIOD_LABEL,
 	STATS_TYPE_LABEL,
 } from "@/features/statistics/utils/labels";
 import {
-	epochSecToDateInput,
 	STATS_NORMALIZATIONS,
-	STATS_PERIODS,
 	STATS_TYPES,
 } from "@/features/statistics/utils/stats-filters";
 import {
@@ -24,6 +21,11 @@ import {
 } from "@/shared/components/filter-chip-bar";
 import { Button } from "@/shared/components/ui/button";
 import { DrawerClose } from "@/shared/components/ui/drawer";
+import {
+	epochSecToDateInput,
+	PERIOD_LABEL,
+	PERIODS,
+} from "@/shared/lib/period-filter";
 
 const SHEET_TITLE: Record<StatsFilterSheet, string> = {
 	period: "Period",
@@ -78,7 +80,7 @@ export function StatsFilterBar() {
 					active={filters.period !== "all"}
 					label="Period"
 					onClick={() => openSheet("period")}
-					value={STATS_PERIOD_LABEL[filters.period]}
+					value={PERIOD_LABEL[filters.period]}
 				/>
 				<FilterChip
 					active={filters.norm !== "off"}
@@ -114,9 +116,9 @@ export function StatsFilterBar() {
 			>
 				<FilterOptionList
 					onChange={onPeriodChange}
-					options={STATS_PERIODS.map((p) => ({
+					options={PERIODS.map((p) => ({
 						value: p,
-						label: STATS_PERIOD_LABEL[p],
+						label: PERIOD_LABEL[p],
 					}))}
 					value={filters.period}
 				/>

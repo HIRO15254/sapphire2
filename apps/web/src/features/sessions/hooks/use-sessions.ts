@@ -7,7 +7,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import type { SessionFilterValues } from "@/features/sessions/utils/session-filters-helpers";
 import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
-import { resolveDateRange } from "@/features/statistics/utils/stats-filters";
+import { resolveDateRange } from "@/shared/lib/period-filter";
 import {
 	cancelTargets,
 	invalidateTargets,

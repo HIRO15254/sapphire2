@@ -1,11 +1,12 @@
 import {
+	SESSION_DISPLAY_LABEL,
+	SESSION_DISPLAY_VALUES,
 	SESSION_PERIOD_LABEL,
 	SESSION_PERIODS,
 	SESSION_TYPE_LABEL,
 	SESSION_TYPE_VALUES,
 	type SessionFilterValues,
 } from "@/features/sessions/utils/session-filters-helpers";
-import { epochSecToDateInput } from "@/features/statistics/utils/stats-filters";
 import {
 	FilterAllOption,
 	FilterChip,
@@ -16,6 +17,7 @@ import {
 } from "@/shared/components/filter-chip-bar";
 import { Button } from "@/shared/components/ui/button";
 import { DrawerClose } from "@/shared/components/ui/drawer";
+import { epochSecToDateInput } from "@/shared/lib/period-filter";
 import {
 	type SessionFilterSheet,
 	useSessionFilterBar,
@@ -92,7 +94,7 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 					active={bbBiMode}
 					label="Display"
 					onClick={() => openSheet("display")}
-					value={bbBiMode ? "BB · BI" : "Currency"}
+					value={SESSION_DISPLAY_LABEL[bbBiMode ? "normalized" : "currency"]}
 				/>
 				<FilterChip
 					active={Boolean(filters.roomId)}
@@ -164,10 +166,10 @@ export function SessionFilterBar(props: SessionFilterBarProps) {
 				<FilterOptionList
 					idPrefix="session-display"
 					onChange={onDisplayChange}
-					options={[
-						{ value: "currency", label: "Currency" },
-						{ value: "normalized", label: "BB / BI" },
-					]}
+					options={SESSION_DISPLAY_VALUES.map((value) => ({
+						value,
+						label: SESSION_DISPLAY_LABEL[value],
+					}))}
 					value={bbBiMode ? "normalized" : "currency"}
 				/>
 			</FilterSheet>

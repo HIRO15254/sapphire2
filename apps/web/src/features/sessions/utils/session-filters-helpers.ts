@@ -1,14 +1,10 @@
-import { STATS_PERIOD_LABEL } from "@/features/statistics/utils/labels";
-import {
-	STATS_PERIODS,
-	type StatsPeriod,
-} from "@/features/statistics/utils/stats-filters";
+import { PERIOD_LABEL, PERIODS, type Period } from "@/shared/lib/period-filter";
 
-// The sessions list reuses the statistics Period domain (preset windows +
-// custom range) so the two filter headers behave identically (SA2-74).
-export type SessionPeriod = StatsPeriod;
-export const SESSION_PERIODS = STATS_PERIODS;
-export const SESSION_PERIOD_LABEL = STATS_PERIOD_LABEL;
+// The sessions list reuses the shared Period domain (preset windows + custom
+// range) so its filter header behaves identically to statistics (SA2-74).
+export type SessionPeriod = Period;
+export const SESSION_PERIODS = PERIODS;
+export const SESSION_PERIOD_LABEL = PERIOD_LABEL;
 
 export interface SessionFilterValues {
 	currencyId?: string;
@@ -28,4 +24,15 @@ export const SESSION_TYPE_LABEL: Record<SessionTypeValue, string> = {
 	all: "All",
 	cash_game: "Cash",
 	tournament: "Tournament",
+};
+
+// Display mode = how a session's P&L is shown: raw currency vs BB/BI normalized.
+// One label map drives both the chip and the sheet options so the wording can't
+// drift (mirrors statistics' single STATS_NORMALIZATION_LABEL).
+export const SESSION_DISPLAY_VALUES = ["currency", "normalized"] as const;
+export type SessionDisplayValue = (typeof SESSION_DISPLAY_VALUES)[number];
+
+export const SESSION_DISPLAY_LABEL: Record<SessionDisplayValue, string> = {
+	currency: "Currency",
+	normalized: "BB / BI",
 };

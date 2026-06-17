@@ -3,7 +3,7 @@ import type {
 	SessionFilterValues,
 	SessionPeriod,
 } from "@/features/sessions/utils/session-filters-helpers";
-import { dateInputToEpochSec } from "@/features/statistics/utils/stats-filters";
+import { dateInputToEpochSec } from "@/shared/lib/period-filter";
 
 export type SessionFilterSheet =
 	| "currency"

@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+	SESSION_DISPLAY_LABEL,
+	SESSION_DISPLAY_VALUES,
 	SESSION_PERIOD_LABEL,
 	SESSION_PERIODS,
 	SESSION_TYPE_LABEL,
 	SESSION_TYPE_VALUES,
 } from "@/features/sessions/utils/session-filters-helpers";
-import { STATS_PERIOD_LABEL } from "@/features/statistics/utils/labels";
-import { STATS_PERIODS } from "@/features/statistics/utils/stats-filters";
+import { PERIOD_LABEL, PERIODS } from "@/shared/lib/period-filter";
 
 describe("SESSION_TYPE_LABEL", () => {
 	it("labels every type value", () => {
@@ -18,14 +19,22 @@ describe("SESSION_TYPE_LABEL", () => {
 });
 
 describe("session Period domain", () => {
-	it("reuses the statistics period presets and labels verbatim", () => {
-		expect(SESSION_PERIODS).toBe(STATS_PERIODS);
-		expect(SESSION_PERIOD_LABEL).toBe(STATS_PERIOD_LABEL);
+	it("reuses the shared period presets and labels verbatim", () => {
+		expect(SESSION_PERIODS).toBe(PERIODS);
+		expect(SESSION_PERIOD_LABEL).toBe(PERIOD_LABEL);
 	});
 
 	it("exposes a label for every preset", () => {
 		for (const period of SESSION_PERIODS) {
 			expect(SESSION_PERIOD_LABEL[period]).toBeTruthy();
 		}
+	});
+});
+
+describe("SESSION_DISPLAY_LABEL", () => {
+	it("labels both display modes with the same wording the chip uses", () => {
+		expect(SESSION_DISPLAY_VALUES).toEqual(["currency", "normalized"]);
+		expect(SESSION_DISPLAY_LABEL.currency).toBe("Currency");
+		expect(SESSION_DISPLAY_LABEL.normalized).toBe("BB / BI");
 	});
 });
