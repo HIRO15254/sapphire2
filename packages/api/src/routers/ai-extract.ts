@@ -258,7 +258,7 @@ export const aiExtractRouter = router({
 
 			contentBlocks.push({
 				type: "text",
-				text: "上記のコンテンツからポーカートーナメントの構造データを抽出してください。各フィールドはソースに明確に記載されている場合のみ返してください。推測・空文字列・ゼロ埋めは行わず、不明なフィールドは省略してください。",
+				text: "上記からポーカートーナメントのデータを抽出してください。ソースに明示された値のみ返し、不明なフィールドは省略してください。",
 			});
 
 			const response = await client.messages.create({
@@ -268,7 +268,7 @@ export const aiExtractRouter = router({
 					{
 						name: "extract_tournament_data",
 						description:
-							"ポーカートーナメントの構造データを抽出する。ソースに明示されているフィールドのみを含めること。不明・未記載のフィールドは省略する（空文字列・0・null は返さない）。",
+							"ポーカートーナメントの構造データを抽出する。明示されているフィールドのみ含める。不明・未記載は省略（空文字列・null 不可）。",
 						input_schema: TOOL_INPUT_SCHEMA,
 					},
 				],
