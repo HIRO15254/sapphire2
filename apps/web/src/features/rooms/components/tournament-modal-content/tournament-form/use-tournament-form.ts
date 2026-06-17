@@ -48,6 +48,9 @@ const tournamentFormSchema = z.object({
 	memo: z.string(),
 	tags: z.array(z.string()),
 	chipPurchases: z.array(chipPurchaseItemSchema),
+	hasNextDay: z.boolean(),
+	hasPreviousDay: z.boolean(),
+	nextDayTournamentId: z.string(),
 });
 
 interface UseTournamentFormOptions {
@@ -83,6 +86,9 @@ export function useTournamentForm({
 				chips: String(cp.chips),
 				uid: crypto.randomUUID(),
 			})) as ChipPurchaseFormItem[],
+			hasNextDay: defaultValues?.hasNextDay ?? false,
+			hasPreviousDay: defaultValues?.hasPreviousDay ?? false,
+			nextDayTournamentId: defaultValues?.nextDayTournamentId ?? "",
 		},
 		onSubmit: ({ value }) => {
 			onSubmit({
@@ -101,6 +107,9 @@ export function useTournamentForm({
 				currencyId: value.currencyId || undefined,
 				memo: value.memo ? value.memo : undefined,
 				tags: value.tags,
+				hasNextDay: value.hasNextDay,
+				hasPreviousDay: value.hasPreviousDay,
+				nextDayTournamentId: value.nextDayTournamentId || undefined,
 			});
 		},
 		validators: {

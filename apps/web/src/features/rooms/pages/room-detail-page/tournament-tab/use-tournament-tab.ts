@@ -29,6 +29,9 @@ function tournamentToInitialFormValues(
 		currencyId: tournament.currencyId ?? undefined,
 		memo: tournament.memo ?? undefined,
 		tags: tournament.tags.map((t) => t.name),
+		hasNextDay: tournament.hasNextDay,
+		hasPreviousDay: tournament.hasPreviousDay,
+		nextDayTournamentId: tournament.nextDayTournamentId ?? undefined,
 	};
 }
 

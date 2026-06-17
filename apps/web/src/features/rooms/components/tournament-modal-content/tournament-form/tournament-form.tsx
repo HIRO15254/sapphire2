@@ -9,6 +9,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/shared/components/ui/select";
+import { Switch } from "@/shared/components/ui/switch";
 import { TagInput } from "@/shared/components/ui/tag-input";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useTournamentForm } from "./use-tournament-form";
@@ -216,6 +217,37 @@ export function TournamentForm({
 					</Field>
 				)}
 			</form.Field>
+
+			<div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+				<form.Field name="hasPreviousDay">
+					{(field) => (
+						<div className="flex items-center justify-between gap-3">
+							<label className="t-label" htmlFor={field.name}>
+								Continues from a previous day
+							</label>
+							<Switch
+								checked={field.state.value}
+								id={field.name}
+								onCheckedChange={(checked) => field.handleChange(checked)}
+							/>
+						</div>
+					)}
+				</form.Field>
+				<form.Field name="hasNextDay">
+					{(field) => (
+						<div className="flex items-center justify-between gap-3">
+							<label className="t-label" htmlFor={field.name}>
+								Advances to a next day
+							</label>
+							<Switch
+								checked={field.state.value}
+								id={field.name}
+								onCheckedChange={(checked) => field.handleChange(checked)}
+							/>
+						</div>
+					)}
+				</form.Field>
+			</div>
 
 			<form.Field name="memo">
 				{(field) => (

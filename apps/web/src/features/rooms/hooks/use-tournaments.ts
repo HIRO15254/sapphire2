@@ -50,8 +50,11 @@ export interface TournamentFormValues {
 	chipPurchases: ChipPurchaseFormItem[];
 	currencyId?: string;
 	entryFee?: number;
+	hasNextDay?: boolean;
+	hasPreviousDay?: boolean;
 	memo?: string;
 	name: string;
+	nextDayTournamentId?: string;
 	startingStack?: number;
 	tableSize?: number;
 	tags?: string[];
@@ -397,6 +400,9 @@ export function useTournaments({
 				tableSize: input.values.tableSize,
 				currencyId: input.values.currencyId,
 				memo: input.values.memo,
+				hasNextDay: input.values.hasNextDay,
+				hasPreviousDay: input.values.hasPreviousDay,
+				nextDayTournamentId: input.values.nextDayTournamentId,
 				tags: input.values.tags,
 				chipPurchases: input.values.chipPurchases,
 				blindLevels: input.blindLevels,
@@ -428,6 +434,9 @@ export function useTournaments({
 				tableSize: input.values.tableSize ?? null,
 				currencyId: input.values.currencyId ?? null,
 				memo: input.values.memo ?? null,
+				hasNextDay: input.values.hasNextDay,
+				hasPreviousDay: input.values.hasPreviousDay,
+				nextDayTournamentId: input.values.nextDayTournamentId ?? null,
 				tags: input.values.tags,
 				chipPurchases: input.values.chipPurchases,
 				blindLevels: input.blindLevels,

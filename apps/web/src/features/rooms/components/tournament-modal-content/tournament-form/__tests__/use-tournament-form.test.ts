@@ -149,6 +149,88 @@ describe("useTournamentForm", () => {
 		);
 	});
 
+	it("defaults day-chaining fields to off", () => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useTournamentForm({ onSubmit }), {
+			wrapper: wrapper(qc),
+		});
+		expect(result.current.form.state.values.hasNextDay).toBe(false);
+		expect(result.current.form.state.values.hasPreviousDay).toBe(false);
+		expect(result.current.form.state.values.nextDayTournamentId).toBe("");
+	});
+
+	it("seeds day-chaining fields from defaultValues", () => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const { result } = renderHook(
+			() =>
+				useTournamentForm({
+					onSubmit,
+					defaultValues: {
+						name: "Day 1A",
+						variant: "nlh",
+						hasNextDay: true,
+						hasPreviousDay: true,
+						nextDayTournamentId: "tn-day2",
+					},
+				}),
+			{ wrapper: wrapper(qc) }
+		);
+		expect(result.current.form.state.values.hasNextDay).toBe(true);
+		expect(result.current.form.state.values.hasPreviousDay).toBe(true);
+		expect(result.current.form.state.values.nextDayTournamentId).toBe(
+			"tn-day2"
+		);
+	});
+
+	it("submits day-chaining flags and collapses an empty nextDayTournamentId", async () => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useTournamentForm({ onSubmit }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.form.setFieldValue("name", "Day 1A");
+			result.current.form.setFieldValue("hasNextDay", true);
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				hasNextDay: true,
+				hasPreviousDay: false,
+				nextDayTournamentId: undefined,
+			})
+		);
+	});
+
+	it("submits nextDayTournamentId when one is selected", async () => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const { result } = renderHook(
+			() =>
+				useTournamentForm({
+					onSubmit,
+					defaultValues: { name: "Day 1A", variant: "nlh", hasNextDay: true },
+				}),
+			{ wrapper: wrapper(qc) }
+		);
+		act(() => {
+			result.current.form.setFieldValue("nextDayTournamentId", "tn-day2");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				hasNextDay: true,
+				nextDayTournamentId: "tn-day2",
+			})
+		);
+	});
+
 	it("exposes the currency list from cache", () => {
 		const qc = createClient();
 		qc.setQueryData(["currency", "list"], [{ id: "c1", name: "Chips" }]);
