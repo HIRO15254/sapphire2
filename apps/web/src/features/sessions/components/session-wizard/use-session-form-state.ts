@@ -41,6 +41,33 @@ function timerStringToUnix(value: string): number | undefined {
 	return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
 }
 
+/**
+ * The result-kind fields of a tournament submit. A promoted Day1 carries a bag
+ * and has no placement / prize; otherwise the finish fields apply (with a
+ * before-deadline early finish dropping placement / entries).
+ */
+function tournamentResultSubmitFields(value: SessionFormFieldValues): {
+	result?: "promoted";
+	bagStack?: number;
+	beforeDeadline?: boolean;
+	placement?: number;
+	totalEntries?: number;
+	prizeMoney?: number;
+	bountyPrizes?: number;
+} {
+	if (value.promote === true) {
+		return { result: "promoted", bagStack: parseOptInt(value.bagStack) };
+	}
+	const beforeDeadline = value.beforeDeadline === true;
+	return {
+		beforeDeadline,
+		placement: beforeDeadline ? undefined : parseOptInt(value.placement),
+		totalEntries: beforeDeadline ? undefined : parseOptInt(value.totalEntries),
+		prizeMoney: parseOptInt(value.prizeMoney),
+		bountyPrizes: parseOptInt(value.bountyPrizes),
+	};
+}
+
 export function useSessionFormState({
 	defaultValues,
 	onRoomChange,
@@ -118,19 +145,12 @@ export function useSessionFormState({
 				return;
 			}
 
-			const beforeDeadline = value.beforeDeadline === true;
 			onSubmit({
 				...common,
 				type: "tournament",
 				tournamentBuyIn: Number(value.tournamentBuyIn),
 				entryFee: parseOptInt(value.entryFee),
-				beforeDeadline,
-				placement: beforeDeadline ? undefined : parseOptInt(value.placement),
-				totalEntries: beforeDeadline
-					? undefined
-					: parseOptInt(value.totalEntries),
-				prizeMoney: parseOptInt(value.prizeMoney),
-				bountyPrizes: parseOptInt(value.bountyPrizes),
+				...tournamentResultSubmitFields(value),
 				startingStack: parseOptInt(value.startingStack),
 				bountyAmount: parseOptInt(value.bountyAmount),
 				tableSize: parseOptInt(value.tableSize),

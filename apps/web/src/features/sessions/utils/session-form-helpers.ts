@@ -45,6 +45,8 @@ export interface CashGameFormValues {
 }
 
 export interface TournamentFormValues {
+	/** Chip count bagged when recording a promoted Day1. */
+	bagStack?: number;
 	beforeDeadline?: boolean;
 	blindLevels?: SessionBlindLevelInput[];
 	bountyAmount?: number;
@@ -59,6 +61,8 @@ export interface TournamentFormValues {
 	/** Promoted prior-day session this live session continues from. */
 	previousSessionId?: string;
 	prizeMoney?: number;
+	/** How the day concluded — 'promoted' (advanced) or 'finished'. */
+	result?: "promoted" | "finished";
 	roomId?: string;
 	ruleName?: string;
 	sessionDate: string;
@@ -116,6 +120,7 @@ export interface PromotableSessionOption {
 export interface SessionFormDefaults {
 	ante?: number;
 	anteType?: string;
+	bagStack?: number;
 	beforeDeadline?: boolean;
 	blind1?: number;
 	blind2?: number;
@@ -136,6 +141,7 @@ export interface SessionFormDefaults {
 	minBuyIn?: number;
 	placement?: number;
 	prizeMoney?: number;
+	result?: "promoted" | "finished";
 	ringGameId?: string;
 	roomId?: string;
 	ruleName?: string;
@@ -205,6 +211,8 @@ export const sessionFormSchema = z.object({
 	prizeMoney: optionalNumericString({ integer: true, min: 0 }),
 	bountyPrizes: optionalNumericString({ integer: true, min: 0 }),
 	previousSessionId: z.string(),
+	promote: z.boolean(),
+	bagStack: optionalNumericString({ integer: true, min: 0 }),
 });
 
 export function buildDefaults(defaults: SessionFormDefaults | undefined) {
@@ -238,6 +246,8 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		prizeMoney: numStrOrEmpty(defaults?.prizeMoney),
 		bountyPrizes: numStrOrEmpty(defaults?.bountyPrizes),
 		previousSessionId: "",
+		promote: defaults?.result === "promoted",
+		bagStack: numStrOrEmpty(defaults?.bagStack),
 	};
 }
 

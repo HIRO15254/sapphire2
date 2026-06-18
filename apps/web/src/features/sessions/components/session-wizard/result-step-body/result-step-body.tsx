@@ -9,11 +9,13 @@ export function ResultStepBody({
 	tags,
 	onCreateTag,
 	isLiveLinked,
+	allowPromote = false,
 }: {
 	state: UseSessionWizardReturn;
 	tags?: Array<{ id: string; name: string }>;
 	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
 	isLiveLinked: boolean;
+	allowPromote?: boolean;
 }) {
 	return (
 		<>
@@ -22,6 +24,7 @@ export function ResultStepBody({
 				<CashResultFields isLiveLinked={isLiveLinked} state={state} />
 			) : (
 				<TournamentResultFields
+					allowPromote={allowPromote}
 					chipPurchaseCounts={state.chipPurchaseCounts}
 					chipPurchases={state.chipPurchases}
 					form={state.form}

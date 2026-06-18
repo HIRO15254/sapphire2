@@ -113,6 +113,8 @@ describe("sessionFormSchema", () => {
 			prizeMoney: "",
 			bountyPrizes: "",
 			previousSessionId: "",
+			promote: false,
+			bagStack: "",
 			...overrides,
 		};
 	}

@@ -44,6 +44,10 @@ vi.mock("@/features/rooms/hooks/use-room-games", () => ({
 	},
 }));
 
+vi.mock("@/features/sessions/hooks/use-promotable-sessions", () => ({
+	usePromotableSessions: () => [],
+}));
+
 import { useSessionsPage } from "@/features/sessions/pages/sessions-page/use-sessions-page";
 
 const cashValues: SessionFormValues = {

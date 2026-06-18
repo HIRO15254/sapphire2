@@ -24,6 +24,7 @@ export function SessionsPage() {
 		rooms,
 		currencies,
 		createGames,
+		promotableSessions,
 		setFilters,
 		setBbBiMode,
 		setIsTagManagerOpen,
@@ -83,11 +84,13 @@ export function SessionsPage() {
 					title="New session"
 				>
 					<SessionWizard
+						allowPromote
 						currencies={currencies}
 						isLoading={isCreatePending}
 						onCreateTag={createTag}
 						onRoomChange={setSelectedRoomId}
 						onSubmit={handleCreate}
+						promotableSessions={promotableSessions}
 						ringGames={createGames.ringGames}
 						rooms={rooms}
 						tags={availableTags}

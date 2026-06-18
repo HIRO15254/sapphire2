@@ -64,6 +64,7 @@ export function useRoomGames(
 			bountyAmount: t.bountyAmount,
 			tableSize: t.tableSize,
 			currencyId: t.currencyId,
+			hasPreviousDay: t.hasPreviousDay,
 		})),
 	};
 }

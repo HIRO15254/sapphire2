@@ -34,7 +34,9 @@ export function useSessionDetailPage(sessionId: string) {
 
 	const { rooms, currencies } = useEntityLists();
 	const editGames = useRoomGames(editRoomId, { includeAll: true });
-	const flight = useSessionFlight(session?.liveTournamentSessionId ?? null);
+	const flight = useSessionFlight(
+		session?.type === "tournament" ? session.id : null
+	);
 
 	const isLiveLinked =
 		session !== null &&

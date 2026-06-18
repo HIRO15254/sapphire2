@@ -25,6 +25,8 @@ export type {
 } from "@/features/sessions/utils/session-form-helpers";
 
 interface SessionWizardProps {
+	/** Offer a "Promote to next day" result — only for recording a fresh day. */
+	allowPromote?: boolean;
 	currencies?: Array<{ id: string; name: string }>;
 	defaultValues?: SessionFormDefaults;
 	isLiveLinked?: boolean;
@@ -49,6 +51,7 @@ interface SessionWizardProps {
 }
 
 export function SessionWizard({
+	allowPromote = false,
 	currencies,
 	defaultValues,
 	isLiveLinked = false,
@@ -113,6 +116,7 @@ export function SessionWizard({
 				)}
 				{state.currentStep === "result" && (
 					<ResultStepBody
+						allowPromote={allowPromote}
 						isLiveLinked={isLiveLinked}
 						onCreateTag={onCreateTag}
 						state={state}

@@ -3,6 +3,7 @@ import {
 	useEntityLists,
 	useRoomGames,
 } from "@/features/rooms/hooks/use-room-games";
+import { usePromotableSessions } from "@/features/sessions/hooks/use-promotable-sessions";
 import type { SessionFormValues } from "@/features/sessions/hooks/use-sessions";
 import { useSessions } from "@/features/sessions/hooks/use-sessions";
 import type { SessionFilterValues } from "@/features/sessions/utils/session-filters-helpers";
@@ -34,6 +35,8 @@ export function useSessionsPage() {
 
 	const { rooms, currencies } = useEntityLists();
 	const createGames = useRoomGames(selectedRoomId);
+	// Promoted, unconsumed sessions that a recorded next day can link back to.
+	const promotableSessions = usePromotableSessions();
 
 	const handleCreate = (values: SessionFormValues) => {
 		create(values).then(() => {
@@ -64,6 +67,7 @@ export function useSessionsPage() {
 		rooms,
 		currencies,
 		createGames,
+		promotableSessions,
 		setFilters,
 		setBbBiMode,
 		setIsTagManagerOpen,

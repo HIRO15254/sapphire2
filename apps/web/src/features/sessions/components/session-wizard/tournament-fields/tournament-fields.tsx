@@ -45,6 +45,8 @@ interface TournamentRuleFieldsProps extends TournamentFieldsProps {
 }
 
 interface TournamentResultFieldsProps extends TournamentFieldsProps {
+	/** Offer "Promote to next day" — only when recording a fresh (past) day. */
+	allowPromote?: boolean;
 	/** Purchase counts (the result) keyed by `ChipPurchaseRow.uid`. */
 	chipPurchaseCounts: Record<string, number>;
 	/** Rule-defined chip purchases from the wizard's Rules step. */
@@ -146,6 +148,70 @@ export function TournamentRuleFields({
  * from the rule, never entered free-form here.
  */
 export function TournamentResultFields({
+	allowPromote = false,
+	form,
+	isLiveLinked = false,
+	chipPurchases,
+	chipPurchaseCounts,
+	onChipPurchaseCountChange,
+}: TournamentResultFieldsProps) {
+	return (
+		<>
+			{allowPromote && (
+				<div className="flex items-center gap-2">
+					<form.Field name="promote">
+						{(field) => (
+							<>
+								<Checkbox
+									checked={field.state.value === true}
+									id={field.name}
+									onCheckedChange={(checked) =>
+										field.handleChange(checked === true)
+									}
+								/>
+								<Label htmlFor={field.name}>Promote to next day</Label>
+							</>
+						)}
+					</form.Field>
+				</div>
+			)}
+
+			<form.Subscribe selector={(state) => state.values.promote === true}>
+				{(promote) =>
+					promote ? (
+						<form.Field name="bagStack">
+							{(field) => (
+								<Field
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={field.name}
+									label="Bag stack"
+								>
+									<Input
+										id={field.name}
+										inputMode="numeric"
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
+					) : (
+						<TournamentFinishResultFields
+							chipPurchaseCounts={chipPurchaseCounts}
+							chipPurchases={chipPurchases}
+							form={form}
+							isLiveLinked={isLiveLinked}
+							onChipPurchaseCountChange={onChipPurchaseCountChange}
+						/>
+					)
+				}
+			</form.Subscribe>
+		</>
+	);
+}
+
+function TournamentFinishResultFields({
 	form,
 	isLiveLinked = false,
 	chipPurchases,
