@@ -17,10 +17,12 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import {
 	aggregateTournamentFlights,
+	assertOwnedTournamentSession,
 	computeHeroSeatPositionFromEvents,
 	computeTournamentPLFromEvents,
 	type FlightSessionInput,
 	recalculateTournamentSession,
+	resolvePromotedLinkTarget,
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
 import {
@@ -451,36 +453,8 @@ async function resolvePreviousSessionLink(
 		});
 	}
 
-	// Existence + ownership (throws NOT_FOUND otherwise).
-	await findLiveTournamentSession(db, previousSessionId, userId);
-
-	const [prevDetail] = await db
-		.select({
-			result: sessionTournamentDetail.result,
-			bagStack: sessionTournamentDetail.bagStack,
-		})
-		.from(sessionTournamentDetail)
-		.where(eq(sessionTournamentDetail.sessionId, previousSessionId));
-	if (prevDetail?.result !== "promoted") {
-		throw new TRPCError({
-			code: "BAD_REQUEST",
-			message: "The linked session has not been promoted",
-		});
-	}
-
-	const [consumer] = await db
-		.select({ sessionId: sessionTournamentDetail.sessionId })
-		.from(sessionTournamentDetail)
-		.where(eq(sessionTournamentDetail.previousSessionId, previousSessionId))
-		.limit(1);
-	if (consumer) {
-		throw new TRPCError({
-			code: "BAD_REQUEST",
-			message: "This promoted session is already linked to another day",
-		});
-	}
-
-	return prevDetail.bagStack ?? null;
+	// The link target may be a live OR a manually recorded promoted session.
+	return resolvePromotedLinkTarget(db, previousSessionId, userId);
 }
 
 /**
@@ -748,7 +722,6 @@ export const liveTournamentSessionRouter = router({
 				and(
 					eq(gameSession.userId, userId),
 					eq(gameSession.kind, "tournament"),
-					eq(gameSession.source, "live"),
 					eq(sessionTournamentDetail.result, "promoted")
 				)
 			)
@@ -769,7 +742,7 @@ export const liveTournamentSessionRouter = router({
 		.input(z.object({ id: z.string() }))
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await findLiveTournamentSession(ctx.db, input.id, userId);
+			await assertOwnedTournamentSession(ctx.db, input.id, userId);
 
 			const chain = await collectFlightChain(ctx.db, input.id);
 			if (chain.length <= 1) {

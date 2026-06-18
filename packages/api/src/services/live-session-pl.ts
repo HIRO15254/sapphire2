@@ -20,12 +20,76 @@ import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-pur
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
+import { TRPCError } from "@trpc/server";
 import { and, asc, eq } from "drizzle-orm";
 import type { protectedProcedure } from "../index";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
+
+/**
+ * Assert the session exists, is a tournament, and is owned by the user. Source
+ * (live / manual) does not matter — multi-day chains can mix live and manually
+ * recorded days.
+ */
+export async function assertOwnedTournamentSession(
+	db: DbInstance,
+	sessionId: string,
+	userId: string
+): Promise<void> {
+	const [found] = await db
+		.select({ userId: gameSession.userId, kind: gameSession.kind })
+		.from(gameSession)
+		.where(eq(gameSession.id, sessionId));
+	if (!found || found.kind !== "tournament" || found.userId !== userId) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Tournament session not found",
+		});
+	}
+}
+
+/**
+ * Validate that `previousSessionId` is a promoted, unconsumed tournament session
+ * owned by the user (any source), and return its bagged stack to carry forward.
+ * Shared by the live `create` link and the manual `session.create` link.
+ */
+export async function resolvePromotedLinkTarget(
+	db: DbInstance,
+	previousSessionId: string,
+	userId: string
+): Promise<number | null> {
+	await assertOwnedTournamentSession(db, previousSessionId, userId);
+
+	const [detail] = await db
+		.select({
+			result: sessionTournamentDetail.result,
+			bagStack: sessionTournamentDetail.bagStack,
+		})
+		.from(sessionTournamentDetail)
+		.where(eq(sessionTournamentDetail.sessionId, previousSessionId));
+	if (detail?.result !== "promoted") {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "The linked session has not been promoted",
+		});
+	}
+
+	const [consumer] = await db
+		.select({ sessionId: sessionTournamentDetail.sessionId })
+		.from(sessionTournamentDetail)
+		.where(eq(sessionTournamentDetail.previousSessionId, previousSessionId))
+		.limit(1);
+	if (consumer) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "This promoted session is already linked to another day",
+		});
+	}
+
+	return detail.bagStack ?? null;
+}
 
 interface CashGamePLResult {
 	addonTotal: number;

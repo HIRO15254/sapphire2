@@ -141,6 +141,56 @@ describe("session router input validation", () => {
 		).toBe(true);
 	});
 
+	it("create accepts a promoted tournament Day1 with bagStack and previousSessionId", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as {
+			safeParse: (v: unknown) => {
+				success: boolean;
+				data?: {
+					result?: string;
+					bagStack?: number;
+					previousSessionId?: string;
+				};
+			};
+		};
+		const parsed = schema.safeParse({
+			...TOURNAMENT_BASE,
+			result: "promoted",
+			bagStack: 120_000,
+			previousSessionId: "day0-session",
+		});
+		expect(parsed.success).toBe(true);
+		expect(parsed.data?.result).toBe("promoted");
+		expect(parsed.data?.bagStack).toBe(120_000);
+		expect(parsed.data?.previousSessionId).toBe("day0-session");
+	});
+
+	it("create rejects a negative bagStack", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({ ...TOURNAMENT_BASE, result: "promoted", bagStack: -1 })
+				.success
+		).toBe(false);
+	});
+
+	it("create rejects an unknown result literal", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({ ...TOURNAMENT_BASE, result: "busted" }).success
+		).toBe(false);
+	});
+
 	it("create rejects unknown discriminator type", () => {
 		const schema = (
 			appRouter.session.create as unknown as {

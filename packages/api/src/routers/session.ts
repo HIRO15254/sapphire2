@@ -24,6 +24,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gte, inArray, lt, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
+import { resolvePromotedLinkTarget } from "../services/live-session-pl";
 
 const PAGE_SIZE = 20;
 
@@ -461,6 +462,12 @@ const tournamentCreateSchema = z
 		totalEntries: z.number().int().min(1).optional(),
 		prizeMoney: z.number().int().min(0).optional(),
 		bountyPrizes: z.number().int().min(0).optional(),
+		// Multi-day chaining for post-hoc recording: a Day1 can be recorded as
+		// `promoted` (advanced, with a bagged stack) and a later day can link to
+		// a promoted session via `previousSessionId`.
+		result: z.enum(["promoted", "finished"]).optional(),
+		bagStack: z.number().int().min(0).optional(),
+		previousSessionId: z.string().optional(),
 		roomId: z.string().optional(),
 		tournamentId: z.string().optional(),
 		currencyId: z.string().optional(),
@@ -764,12 +771,15 @@ function _computeCreatePL(input: CreateInput): number {
 	if (input.type === "cash_game") {
 		return computeCashGamePL(input.buyIn, input.cashOut);
 	}
+	// A promoted (Day1 advanced) session has no prize yet — its realized P/L is
+	// the cost it sunk, booked as a loss. The chain's prize lands on the tail.
+	const promoted = input.result === "promoted";
 	return computeTournamentPL(
 		input.tournamentBuyIn,
 		input.entryFee,
 		sumChipPurchaseCost(input.chipPurchases ?? []),
-		input.prizeMoney ?? null,
-		input.bountyPrizes ?? null
+		promoted ? null : (input.prizeMoney ?? null),
+		promoted ? null : (input.bountyPrizes ?? null)
 	);
 }
 
@@ -1651,12 +1661,55 @@ async function resolveTournamentRuleSnapshot(
 	return base;
 }
 
+/**
+ * Result-related detail fields for a manual tournament session. A `promoted`
+ * Day1 carries a bag and has no placement / prize; otherwise it's a finished
+ * session (with or without a registration-deadline early finish).
+ */
+function buildTournamentResultFields(
+	input: z.infer<typeof tournamentCreateSchema>
+): {
+	beforeDeadline: true | null;
+	placement: number | null;
+	totalEntries: number | null;
+	prizeMoney: number | null;
+	bountyPrizes: number | null;
+	result: "promoted" | "finished";
+	bagStack: number | null;
+} {
+	if (input.result === "promoted") {
+		return {
+			beforeDeadline: null,
+			placement: null,
+			totalEntries: null,
+			prizeMoney: null,
+			bountyPrizes: null,
+			result: "promoted",
+			bagStack: input.bagStack ?? null,
+		};
+	}
+	const beforeDeadline = input.beforeDeadline === true;
+	return {
+		beforeDeadline: beforeDeadline ? true : null,
+		placement: beforeDeadline ? null : (input.placement ?? null),
+		totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
+		prizeMoney: input.prizeMoney ?? null,
+		bountyPrizes: input.bountyPrizes ?? null,
+		result: "finished",
+		bagStack: null,
+	};
+}
+
 async function insertTournamentSessionDetail(
 	db: DbInstance,
 	sessionId: string,
-	input: z.infer<typeof tournamentCreateSchema>
+	input: z.infer<typeof tournamentCreateSchema>,
+	userId: string
 ): Promise<void> {
-	const beforeDeadline = input.beforeDeadline === true;
+	// A later day may link a promoted session (live or manual).
+	if (input.previousSessionId) {
+		await resolvePromotedLinkTarget(db, input.previousSessionId, userId);
+	}
 	const snapshot = await resolveTournamentRuleSnapshot(db, {
 		tournamentId: input.tournamentId,
 		tournamentBuyIn: input.tournamentBuyIn,
@@ -1672,16 +1725,13 @@ async function insertTournamentSessionDetail(
 		tournamentId: input.tournamentId ?? null,
 		tournamentBuyIn: snapshot.tournamentBuyIn,
 		entryFee: snapshot.entryFee,
-		beforeDeadline: beforeDeadline ? true : null,
-		placement: beforeDeadline ? null : (input.placement ?? null),
-		totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
-		prizeMoney: input.prizeMoney ?? null,
-		bountyPrizes: input.bountyPrizes ?? null,
 		ruleName: snapshot.ruleName,
 		variant: snapshot.variant,
 		startingStack: snapshot.startingStack,
 		bountyAmount: snapshot.bountyAmount,
 		tableSize: snapshot.tableSize,
+		previousSessionId: input.previousSessionId ?? null,
+		...buildTournamentResultFields(input),
 	});
 	if (input.tournamentId) {
 		await snapshotTournamentStructure(db, sessionId, input.tournamentId);
@@ -1909,7 +1959,7 @@ export const sessionRouter = router({
 			if (input.type === "cash_game") {
 				await insertCashGameSessionDetail(ctx.db, id, input, now);
 			} else {
-				await insertTournamentSessionDetail(ctx.db, id, input);
+				await insertTournamentSessionDetail(ctx.db, id, input, userId);
 			}
 
 			await insertSessionTags(ctx.db, id, input.tagIds);
