@@ -31,10 +31,15 @@ vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
 	useActiveSession: () => mockUseActiveSession(),
 }));
 
-// Stub the heavy wizard child inside CreateSessionDialog.
-vi.mock("@/features/sessions/components/session-wizard", () => ({
-	SessionWizard: () => <div data-testid="session-wizard">Session Wizard</div>,
-}));
+// Stub the heavy live form child inside CreateSessionDialog.
+vi.mock(
+	"@/features/live-sessions/components/create-session-dialog/live-session-form",
+	() => ({
+		LiveSessionForm: () => (
+			<div data-testid="live-session-form">Live Session Form</div>
+		),
+	})
+);
 
 // vi.hoisted ensures these are available when the vi.mock factory runs
 const { mockQuery } = vi.hoisted(() => ({
@@ -96,6 +101,12 @@ vi.mock("@/utils/trpc", () => ({
 				queryOptions: (args?: unknown) => ({
 					queryKey: ["tournament-list", args],
 					queryFn: () => mockQuery("tournament-list", args),
+				}),
+			},
+			listPromotable: {
+				queryOptions: () => ({
+					queryKey: ["promotable"],
+					queryFn: () => mockQuery("promotable"),
 				}),
 			},
 		},
@@ -201,8 +212,8 @@ describe("Single-session guard — no active session", () => {
 		const router = createTestRouter(() => <DialogTestPage open />);
 		render(<RouterProvider router={router} />);
 
-		await screen.findByRole("heading", { name: "New Session" });
-		await screen.findByTestId("session-wizard");
+		await screen.findByRole("heading", { name: "Start Live Session" });
+		await screen.findByTestId("live-session-form");
 	});
 });
 

@@ -112,6 +112,7 @@ describe("sessionFormSchema", () => {
 			totalEntries: "",
 			prizeMoney: "",
 			bountyPrizes: "",
+			previousSessionId: "",
 			...overrides,
 		};
 	}

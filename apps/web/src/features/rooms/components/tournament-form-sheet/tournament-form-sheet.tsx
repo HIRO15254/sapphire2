@@ -63,8 +63,8 @@ export function TournamentFormSheet({
 		effectiveLevels,
 		contentKey,
 		handleAiExtracted,
+		registerLiveValues,
 	} = useTournamentFormSheet({
-		aiMode,
 		initialBlindLevels,
 		initialFormValues,
 		open,
@@ -111,6 +111,7 @@ export function TournamentFormSheet({
 						initialFormValues={effectiveFormValues}
 						key={contentKey}
 						onOpenAi={aiMode ? () => setAiSheetOpen(true) : undefined}
+						onRegisterLiveValues={aiMode ? registerLiveValues : undefined}
 						onSave={onSave}
 					/>
 				)}

@@ -31,6 +31,16 @@ interface TournamentFormProps {
 	 * `form` attribute. The form renders no submit button of its own.
 	 */
 	formId: string;
+	/**
+	 * Registers a getter for the form's current values so AI auto-fill can
+	 * merge over what the user has already entered.
+	 */
+	onRegisterLiveValues?: (
+		getter: () => Omit<TournamentFormValues, "tags" | "chipPurchases"> & {
+			chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
+			tags?: string[];
+		}
+	) => void;
 	onSubmit: (values: TournamentFormValues) => void;
 }
 
@@ -38,8 +48,13 @@ export function TournamentForm({
 	onSubmit,
 	defaultValues,
 	formId,
+	onRegisterLiveValues,
 }: TournamentFormProps) {
-	const { form, currencies } = useTournamentForm({ defaultValues, onSubmit });
+	const { form, currencies } = useTournamentForm({
+		defaultValues,
+		onRegisterLiveValues,
+		onSubmit,
+	});
 
 	return (
 		<form

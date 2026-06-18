@@ -1,6 +1,8 @@
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import z from "zod";
+import type { TournamentPartialFormValues } from "@/features/rooms/components/tournament-modal-content";
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 import { trpc } from "@/utils/trpc";
@@ -10,6 +12,43 @@ interface ChipPurchaseFormItem {
 	cost: string;
 	name: string;
 	uid: string;
+}
+
+interface TournamentFormStateValues {
+	bountyAmount: string;
+	buyIn: string;
+	chipPurchases: ChipPurchaseFormItem[];
+	currencyId: string;
+	entryFee: string;
+	memo: string;
+	name: string;
+	startingStack: string;
+	tableSize: string;
+	tags: string[];
+	variant: string;
+}
+
+// フォームの内部値（すべて文字列）を AI merge のベースとなる部分値へ変換する。
+function formValuesToPartial(
+	value: TournamentFormStateValues
+): TournamentPartialFormValues {
+	return {
+		name: value.name,
+		variant: value.variant || "nlh",
+		buyIn: parseOptInt(value.buyIn),
+		entryFee: parseOptInt(value.entryFee),
+		startingStack: parseOptInt(value.startingStack),
+		bountyAmount: parseOptInt(value.bountyAmount),
+		tableSize: parseOptInt(value.tableSize),
+		currencyId: value.currencyId || undefined,
+		memo: value.memo || undefined,
+		tags: value.tags,
+		chipPurchases: value.chipPurchases.map((cp) => ({
+			name: cp.name,
+			cost: parseCostInt(cp.cost),
+			chips: parseCostInt(cp.chips),
+		})),
+	};
 }
 
 function numStrOrEmpty(value: number | undefined): string {
@@ -58,11 +97,13 @@ interface UseTournamentFormOptions {
 		chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
 		tags?: string[];
 	};
+	onRegisterLiveValues?: (getter: () => TournamentPartialFormValues) => void;
 	onSubmit: (values: TournamentFormValues) => void;
 }
 
 export function useTournamentForm({
 	defaultValues,
+	onRegisterLiveValues,
 	onSubmit,
 }: UseTournamentFormOptions) {
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
@@ -116,6 +157,10 @@ export function useTournamentForm({
 			onSubmit: tournamentFormSchema,
 		},
 	});
+
+	useEffect(() => {
+		onRegisterLiveValues?.(() => formValuesToPartial(form.state.values));
+	}, [onRegisterLiveValues, form]);
 
 	return { form, currencies };
 }

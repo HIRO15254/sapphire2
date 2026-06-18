@@ -5,13 +5,12 @@ import {
 	type StatsRoomOption,
 	useStatsReferenceData,
 } from "@/features/statistics/hooks/use-stats-reference-data";
-import {
-	dateInputToEpochSec,
-	type StatsFilters,
-	type StatsNormalization,
-	type StatsPeriod,
-	type StatsType,
+import type {
+	StatsFilters,
+	StatsNormalization,
+	StatsType,
 } from "@/features/statistics/utils/stats-filters";
+import { dateInputToEpochSec, type Period } from "@/shared/lib/period-filter";
 
 export type StatsFilterSheet = "currency" | "norm" | "period" | "room" | "type";
 
@@ -71,7 +70,7 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 			if (!value) {
 				return;
 			}
-			setFilters({ period: value as StatsPeriod });
+			setFilters({ period: value as Period });
 			// Keep the sheet open on "custom" so the date inputs can be used.
 			if (value !== "custom") {
 				closeSheet();

@@ -231,6 +231,52 @@ describe("useTournamentForm", () => {
 		);
 	});
 
+	it("registers a getter returning the current form values mapped to numbers", () => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		let getter: (() => Record<string, unknown>) | undefined;
+		const onRegisterLiveValues = vi.fn((fn: () => Record<string, unknown>) => {
+			getter = fn;
+		});
+		const { result } = renderHook(
+			() => useTournamentForm({ onSubmit, onRegisterLiveValues }),
+			{ wrapper: wrapper(qc) }
+		);
+		expect(onRegisterLiveValues).toHaveBeenCalledTimes(1);
+		act(() => {
+			result.current.form.setFieldValue("name", "Live Name");
+			result.current.form.setFieldValue("buyIn", "150");
+			result.current.form.setFieldValue("tableSize", "8");
+		});
+		const snapshot = getter?.();
+		expect(snapshot).toMatchObject({
+			name: "Live Name",
+			variant: "nlh",
+			buyIn: 150,
+			tableSize: 8,
+		});
+	});
+
+	it("maps blank numeric form fields to undefined in the registered getter", () => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		let getter: (() => Record<string, unknown>) | undefined;
+		const onRegisterLiveValues = (fn: () => Record<string, unknown>) => {
+			getter = fn;
+		};
+		renderHook(() => useTournamentForm({ onSubmit, onRegisterLiveValues }), {
+			wrapper: wrapper(qc),
+		});
+		const snapshot = getter?.();
+		expect(snapshot).toMatchObject({
+			name: "",
+			buyIn: undefined,
+			entryFee: undefined,
+			startingStack: undefined,
+			tableSize: undefined,
+		});
+	});
+
 	it("exposes the currency list from cache", () => {
 		const qc = createClient();
 		qc.setQueryData(["currency", "list"], [{ id: "c1", name: "Chips" }]);
