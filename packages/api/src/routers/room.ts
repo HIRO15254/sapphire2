@@ -22,6 +22,8 @@ export const roomRouter = router({
 				isFavorite: room.isFavorite,
 				createdAt: room.createdAt,
 				updatedAt: room.updatedAt,
+				latitude: room.latitude,
+				longitude: room.longitude,
 				ringGameCount: sql<number>`(SELECT COUNT(*) FROM ring_game WHERE ring_game.room_id = room.id AND ring_game.archived_at IS NULL)`,
 				tournamentCount: sql<number>`(SELECT COUNT(*) FROM tournament WHERE tournament.room_id = room.id AND tournament.archived_at IS NULL)`,
 			})
@@ -54,7 +56,14 @@ export const roomRouter = router({
 		}),
 
 	create: protectedProcedure
-		.input(z.object({ name: z.string().min(1), memo: z.string().optional() }))
+		.input(
+			z.object({
+				name: z.string().min(1),
+				memo: z.string().optional(),
+				latitude: z.number().min(-90).max(90).nullable().optional(),
+				longitude: z.number().min(-180).max(180).nullable().optional(),
+			})
+		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const id = crypto.randomUUID();
@@ -63,6 +72,8 @@ export const roomRouter = router({
 				userId,
 				name: input.name,
 				memo: input.memo ?? null,
+				latitude: input.latitude ?? null,
+				longitude: input.longitude ?? null,
 				updatedAt: new Date(),
 			});
 			const [created] = await ctx.db.select().from(room).where(eq(room.id, id));
@@ -77,6 +88,10 @@ export const roomRouter = router({
 				// Nullable so an explicit `null` clears the memo. `undefined`
 				// (key omitted) still means "leave unchanged".
 				memo: z.string().nullable().optional(),
+				// Geographic coordinates. Nullable so an explicit `null` clears the
+				// location; `undefined` leaves it unchanged (same pattern as memo).
+				latitude: z.number().min(-90).max(90).nullable().optional(),
+				longitude: z.number().min(-180).max(180).nullable().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -102,6 +117,10 @@ export const roomRouter = router({
 				.set({
 					...(input.name === undefined ? {} : { name: input.name }),
 					...(input.memo === undefined ? {} : { memo: input.memo }),
+					...(input.latitude === undefined ? {} : { latitude: input.latitude }),
+					...(input.longitude === undefined
+						? {}
+						: { longitude: input.longitude }),
 					updatedAt: new Date(),
 				})
 				.where(eq(room.id, input.id));

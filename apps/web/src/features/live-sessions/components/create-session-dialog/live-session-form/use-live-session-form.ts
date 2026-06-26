@@ -8,6 +8,7 @@ import type {
 } from "@/features/sessions/utils/session-form-helpers";
 
 interface UseLiveSessionFormArgs {
+	defaultRoomId?: string;
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
 	ringGames?: RingGameOption[];
@@ -21,6 +22,7 @@ interface UseLiveSessionFormArgs {
  * laid out on one screen with the rule overrides behind a collapsible.
  */
 export function useLiveSessionForm({
+	defaultRoomId,
 	onRoomChange,
 	onSubmit,
 	ringGames,
@@ -28,6 +30,7 @@ export function useLiveSessionForm({
 }: UseLiveSessionFormArgs) {
 	const state = useSessionWizard({
 		mode: "live",
+		defaultRoomId,
 		onRoomChange,
 		onSubmit,
 		ringGames,

@@ -124,6 +124,8 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 						defaultValues={{
 							name: room.name,
 							memo: room.memo ?? undefined,
+							latitude: room.latitude,
+							longitude: room.longitude,
 						}}
 						formId={EDIT_STORE_FORM_ID}
 						onSubmit={handleEdit}

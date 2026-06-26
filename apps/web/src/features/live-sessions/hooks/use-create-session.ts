@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { findNearestRoom } from "@/features/live-sessions/utils/geo";
+import { useGeolocation } from "@/shared/hooks/use-geolocation";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -46,16 +48,63 @@ function useRoomTournaments(roomId: string | undefined) {
 	}));
 }
 
-export function useCreateSession({ onClose }: { onClose: () => void }) {
+export function useCreateSession({
+	onClose,
+	open = false,
+}: {
+	onClose: () => void;
+	open?: boolean;
+}) {
 	const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
+	// Request the device location when the dialog opens so we can default the
+	// room to whichever one the user is physically nearest.
+	const { coords } = useGeolocation({ enabled: open });
+
+	const roomListKey = trpc.room.list.queryOptions().queryKey;
 	const roomsQuery = useQuery(trpc.room.list.queryOptions());
 	const rooms = (roomsQuery.data ?? []).map((s) => ({
 		id: s.id,
 		name: s.name,
 	}));
+
+	// The geolocation-nearest room (within the default radius), used as the
+	// form's default room selection. `undefined` when location is unavailable or
+	// no room with coordinates is in range.
+	const nearestRoomId = useMemo(() => {
+		if (!coords) {
+			return;
+		}
+		return findNearestRoom(
+			coords,
+			(roomsQuery.data ?? []).map((s) => ({
+				id: s.id,
+				latitude: s.latitude ?? null,
+				longitude: s.longitude ?? null,
+			}))
+		)?.id;
+	}, [coords, roomsQuery.data]);
+
+	// Record the device's coordinates onto the room a session is started at, so
+	// future starts can default to it. Fire-and-forget: a failed location write
+	// must never block starting the session.
+	const recordRoomLocation = (roomId: string | undefined) => {
+		if (!(coords && roomId)) {
+			return;
+		}
+		trpcClient.room.update
+			.mutate({
+				id: roomId,
+				latitude: coords.latitude,
+				longitude: coords.longitude,
+			})
+			.then(() => invalidateTargets(queryClient, [{ queryKey: roomListKey }]))
+			.catch(() => {
+				// Swallow — the session has already started successfully.
+			});
+	};
 
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = (currenciesQuery.data ?? []).map((c) => ({
@@ -81,7 +130,8 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			ringGameId?: string;
 			roomId?: string;
 		}) => trpcClient.liveCashGameSession.create.mutate(values),
-		onSuccess: async () => {
+		onSuccess: async (_data, variables) => {
+			recordRoomLocation(variables.roomId);
 			await invalidateTargets(queryClient, [
 				{ queryKey: cashListKey },
 				{ queryKey: sessionListKey },
@@ -115,7 +165,8 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 			});
 			return result;
 		},
-		onSuccess: async () => {
+		onSuccess: async (_data, variables) => {
+			recordRoomLocation(variables.roomId);
 			await invalidateTargets(queryClient, [
 				{ queryKey: tournamentListKey },
 				{ queryKey: sessionListKey },
@@ -135,6 +186,7 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 		tournaments,
 		selectedRoomId,
 		setSelectedRoomId,
+		nearestRoomId,
 		createCash: (values: {
 			currencyId?: string;
 			initialBuyIn: number;

@@ -16,6 +16,8 @@ import { useLiveSessionForm } from "./use-live-session-form";
 
 interface LiveSessionFormProps {
 	currencies?: Array<{ id: string; name: string }>;
+	/** Geolocation-nearest room to pre-select as the default. */
+	defaultRoomId?: string;
 	/** Stable id the FormSheet toolbar's submit button targets via `form`. */
 	formId: string;
 	onRoomChange?: (roomId: string | undefined) => void;
@@ -33,6 +35,7 @@ interface LiveSessionFormProps {
  */
 export function LiveSessionForm({
 	currencies,
+	defaultRoomId,
 	formId,
 	onRoomChange,
 	onSubmit,
@@ -41,7 +44,13 @@ export function LiveSessionForm({
 	tournaments,
 }: LiveSessionFormProps) {
 	const { state, rulesOpen, setRulesOpen, rulesSummary, onFormSubmit } =
-		useLiveSessionForm({ onRoomChange, onSubmit, ringGames, tournaments });
+		useLiveSessionForm({
+			defaultRoomId,
+			onRoomChange,
+			onSubmit,
+			ringGames,
+			tournaments,
+		});
 
 	return (
 		<form className="flex flex-col gap-4" id={formId} onSubmit={onFormSubmit}>
