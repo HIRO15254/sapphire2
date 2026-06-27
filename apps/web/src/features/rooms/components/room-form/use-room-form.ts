@@ -1,7 +1,5 @@
 import { useForm } from "@tanstack/react-form";
-import { useEffect } from "react";
 import z from "zod";
-import { useGeolocation } from "@/shared/hooks/use-geolocation";
 import {
 	optionalNumericString,
 	parseOptionalNumber,
@@ -47,8 +45,6 @@ function coordToField(value: number | null | undefined): string {
 }
 
 export function useRoomForm({ onSubmit, defaultValues }: UseRoomFormOptions) {
-	const { request, coords, status } = useGeolocation({ enabled: false });
-
 	const form = useForm({
 		defaultValues: {
 			name: defaultValues?.name ?? "",
@@ -69,14 +65,14 @@ export function useRoomForm({ onSubmit, defaultValues }: UseRoomFormOptions) {
 		},
 	});
 
-	// A captured GPS fix lands asynchronously; mirror it into the editable
-	// lat/lng fields so the user sees (and can adjust) the captured coordinates.
-	useEffect(() => {
-		if (coords) {
-			form.setFieldValue("latitude", String(coords.latitude));
-			form.setFieldValue("longitude", String(coords.longitude));
-		}
-	}, [coords, form]);
+	// Coordinates are set as a pair from the LocationPicker (search / link / GPS),
+	// never typed by hand. `null` clears both.
+	const setCoords = (
+		coords: { latitude: number; longitude: number } | null
+	) => {
+		form.setFieldValue("latitude", coords ? String(coords.latitude) : "");
+		form.setFieldValue("longitude", coords ? String(coords.longitude) : "");
+	};
 
-	return { form, captureLocation: request, locationStatus: status };
+	return { form, setCoords };
 }
