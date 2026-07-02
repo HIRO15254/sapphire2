@@ -15,8 +15,10 @@ export const sessionCashDetail = sqliteTable(
 		buyIn: integer("buy_in"),
 		cashOut: integer("cash_out"),
 		evCashOut: integer("ev_cash_out"),
-		// Snapshot fields — copied from ring_game at session create time and
-		// frozen thereafter. Parent rename / blind change does not propagate.
+		// Snapshot fields — copied from ring_game at session create time.
+		// Blind / rule changes on the parent stay frozen (SA2-95), but
+		// `ruleName` is cascade-updated by ringGame.update whenever the
+		// parent is still linked, so a rename does propagate.
 		ruleName: text("rule_name").notNull().default("Untitled"),
 		variant: text("variant").notNull().default("nlh"),
 		blind1: integer("blind1"),

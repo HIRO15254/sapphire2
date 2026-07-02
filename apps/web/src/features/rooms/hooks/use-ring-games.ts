@@ -196,7 +196,15 @@ export function useRingGames({ roomId, showArchived }: UseRingGamesOptions) {
 				context?.previousArchived,
 			]);
 		},
-		onSettled: invalidateBoth,
+		onSettled: () => {
+			invalidateBoth();
+			// A rename cascades to already-linked sessions' displayed name
+			// server-side (SA2-95); refresh the lists that show it.
+			invalidateTargets(queryClient, [
+				{ queryKey: trpc.session.list.queryKey() },
+				{ queryKey: trpc.liveCashGameSession.list.queryOptions({}).queryKey },
+			]);
+		},
 	});
 
 	const archiveMutation = useMutation({

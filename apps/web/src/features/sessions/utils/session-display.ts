@@ -24,9 +24,10 @@ interface GameNameInput {
 }
 
 /**
- * Resolves the display name for a session, preferring the frozen rule name and
- * falling back to a generic label per game type. Sentence case per the v2
- * design contract.
+ * Resolves the display name for a session, preferring the session's rule name
+ * (kept in sync with the linked ring_game / tournament's name on rename; see
+ * SA2-95) and falling back to a generic label per game type. Sentence case
+ * per the v2 design contract.
  */
 export function getSessionGameName(session: GameNameInput): string {
 	if (session.type === "tournament" && session.tournamentName) {

@@ -20,8 +20,11 @@ export const sessionTournamentDetail = sqliteTable(
 		prizeMoney: integer("prize_money"),
 		bountyPrizes: integer("bounty_prizes"),
 		timerStartedAt: integer("timer_started_at", { mode: "timestamp" }),
-		// Snapshot fields — copied from tournament at session create time and
-		// frozen thereafter. Parent rename / config change does not propagate.
+		// Snapshot fields — copied from tournament at session create time.
+		// Blind / rule changes on the parent stay frozen (SA2-95), but
+		// `ruleName` is cascade-updated by tournament.update /
+		// updateWithLevels whenever the parent is still linked, so a rename
+		// does propagate.
 		ruleName: text("rule_name").notNull().default("Untitled"),
 		variant: text("variant").notNull().default("nlh"),
 		startingStack: integer("starting_stack"),

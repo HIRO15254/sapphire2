@@ -1,4 +1,5 @@
 import { room } from "@sapphire2/db/schema/room";
+import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import {
 	blindLevel,
 	tournament,
@@ -233,6 +234,16 @@ export const tournamentRouter = router({
 				.set(updateData)
 				.where(eq(tournament.id, input.id));
 
+			// A rename must keep already-linked sessions' displayed name in
+			// sync (SA2-95); other frozen snapshot fields (blinds, variant,
+			// ...) intentionally stay untouched.
+			if (input.name !== undefined) {
+				await ctx.db
+					.update(sessionTournamentDetail)
+					.set({ ruleName: input.name })
+					.where(eq(sessionTournamentDetail.tournamentId, input.id));
+			}
+
 			const [updated] = await ctx.db
 				.select()
 				.from(tournament)
@@ -453,6 +464,16 @@ export const tournamentRouter = router({
 				.update(tournament)
 				.set(updateData)
 				.where(eq(tournament.id, input.id));
+
+			// A rename must keep already-linked sessions' displayed name in
+			// sync (SA2-95); other frozen snapshot fields (blinds, variant,
+			// ...) intentionally stay untouched.
+			if (input.name !== undefined) {
+				await ctx.db
+					.update(sessionTournamentDetail)
+					.set({ ruleName: input.name })
+					.where(eq(sessionTournamentDetail.tournamentId, input.id));
+			}
 
 			if (input.tags !== undefined) {
 				await ctx.db

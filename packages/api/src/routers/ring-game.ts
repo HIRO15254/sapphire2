@@ -1,5 +1,6 @@
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
+import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
@@ -188,6 +189,16 @@ export const ringGameRouter = router({
 				.update(ringGame)
 				.set(updateData)
 				.where(eq(ringGame.id, input.id));
+
+			// A rename must keep already-linked sessions' displayed name in
+			// sync (SA2-95); other frozen snapshot fields (blinds, variant,
+			// ...) intentionally stay untouched.
+			if (input.name !== undefined) {
+				await ctx.db
+					.update(sessionCashDetail)
+					.set({ ruleName: input.name })
+					.where(eq(sessionCashDetail.ringGameId, input.id));
+			}
 
 			const [updated] = await ctx.db
 				.select()

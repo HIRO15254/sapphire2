@@ -35,6 +35,19 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		session: {
+			list: {
+				queryKey: () => buildKey("session", "list", undefined),
+			},
+		},
+		liveCashGameSession: {
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: buildKey("liveCashGameSession", "list", input),
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
 	},
 	trpcClient: {
 		ringGame: {
@@ -300,6 +313,31 @@ describe("useRingGames", () => {
 					memo: null,
 				})
 			);
+		});
+
+		it("invalidates session.list and liveCashGameSession.list so a rename shows up there (SA2-95)", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, [makeGame({ id: "r1" })]);
+			qc.setQueryData(archivedKey, []);
+			const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+			trpcMocks.update.mockResolvedValue({ id: "r1" });
+			const { result } = renderHook(
+				() => useRingGames({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await act(async () => {
+				await result.current.update({
+					id: "r1",
+					name: "Renamed",
+					variant: "nlh",
+				});
+			});
+			expect(invalidateSpy).toHaveBeenCalledWith({
+				queryKey: ["session", "list"],
+			});
+			expect(invalidateSpy).toHaveBeenCalledWith({
+				queryKey: ["liveCashGameSession", "list", {}],
+			});
 		});
 	});
 

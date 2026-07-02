@@ -153,6 +153,12 @@ export function useTournamentTab({ roomId }: UseTournamentTabOptions) {
 							tournamentId: editingTournament.id,
 						}).queryKey,
 					},
+					// A rename cascades to already-linked sessions' displayed
+					// name server-side (SA2-95); refresh the lists that show it.
+					{ queryKey: trpc.session.list.queryKey() },
+					{
+						queryKey: trpc.liveTournamentSession.list.queryOptions({}).queryKey,
+					},
 				]),
 			]);
 			setEditingTournament(null);

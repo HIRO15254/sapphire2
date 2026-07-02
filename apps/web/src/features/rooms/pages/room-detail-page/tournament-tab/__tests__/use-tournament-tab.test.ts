@@ -40,6 +40,19 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		session: {
+			list: {
+				queryKey: () => buildKey("session", "list", undefined),
+			},
+		},
+		liveTournamentSession: {
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: buildKey("liveTournamentSession", "list", input),
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
 	},
 	trpcClient: {
 		tournament: {
@@ -213,6 +226,30 @@ describe("useTournamentTab", () => {
 			expect.objectContaining({ id: "t1", name: "New" })
 		);
 		expect(result.current.editingTournament).toBeNull();
+	});
+
+	it("handleUpdate invalidates session.list and liveTournamentSession.list so a rename shows up there (SA2-95)", async () => {
+		hoisted.updateWithLevels.mockResolvedValue(undefined);
+		const qc = createClient();
+		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+		const { result } = renderHook(() => useTournamentTab({ roomId: "s1" }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.setEditingTournament(TOURNAMENT);
+		});
+		await act(async () => {
+			await result.current.handleUpdate(
+				{ name: "New", variant: "nlh", chipPurchases: [] },
+				[]
+			);
+		});
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["session", "list"],
+		});
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["liveTournamentSession", "list", {}],
+		});
 	});
 
 	it("toggleArchived flips showArchived back and forth", () => {
