@@ -181,6 +181,44 @@ async function persistSessionChipPurchases(
 	);
 }
 
+/**
+ * Delete + reinsert a session's blind level structure. Used by both create
+ * (explicit override of the master snapshot) and update (session-wizard edits
+ * to a session's own blind structure) so the array is always written fresh.
+ */
+async function persistSessionBlindLevels(
+	db: DbInstance,
+	sessionId: string,
+	blindLevels: {
+		ante?: number | null;
+		blind1?: number | null;
+		blind2?: number | null;
+		blind3?: number | null;
+		isBreak: boolean;
+		minutes?: number | null;
+	}[]
+): Promise<void> {
+	await db
+		.delete(sessionBlindLevel)
+		.where(eq(sessionBlindLevel.sessionId, sessionId));
+	if (blindLevels.length === 0) {
+		return;
+	}
+	await db.insert(sessionBlindLevel).values(
+		blindLevels.map((l, idx) => ({
+			id: crypto.randomUUID(),
+			sessionId,
+			level: idx + 1,
+			isBreak: l.isBreak,
+			blind1: l.blind1 ?? null,
+			blind2: l.blind2 ?? null,
+			blind3: l.blind3 ?? null,
+			ante: l.ante ?? null,
+			minutes: l.minutes ?? null,
+		}))
+	);
+}
+
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "currency" | "ringGame" | "room" | "tournament",
@@ -374,6 +412,11 @@ const TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"breakMinutes",
 	"sessionDate",
 	"tournamentId",
+	"variant",
+	"startingStack",
+	"bountyAmount",
+	"tableSize",
+	"blindLevels",
 ] as const;
 
 export function assertNoLiveLinkedRestrictedEdits(
@@ -1362,6 +1405,15 @@ async function applyCashDetailUpdate(
 
 interface TournamentUpdateInput {
 	beforeDeadline?: boolean | null;
+	blindLevels?: {
+		ante?: number | null;
+		blind1?: number | null;
+		blind2?: number | null;
+		blind3?: number | null;
+		isBreak: boolean;
+		minutes?: number | null;
+	}[];
+	bountyAmount?: number | null;
 	bountyPrizes?: number | null;
 	chipPurchases?: {
 		chips: number;
@@ -1372,9 +1424,12 @@ interface TournamentUpdateInput {
 	entryFee?: number;
 	placement?: number | null;
 	prizeMoney?: number | null;
+	startingStack?: number | null;
+	tableSize?: number | null;
 	totalEntries?: number | null;
 	tournamentBuyIn?: number;
 	tournamentId?: string | null;
+	variant?: string;
 }
 
 async function applyTournamentSnapshotUpdate(
@@ -1393,6 +1448,10 @@ async function applyTournamentSnapshotUpdate(
 		tournamentId: input.tournamentId,
 		tournamentBuyIn: input.tournamentBuyIn,
 		entryFee: input.entryFee,
+		variant: input.variant,
+		startingStack: input.startingStack,
+		bountyAmount: input.bountyAmount,
+		tableSize: input.tableSize,
 	});
 	tournUpdate.ruleName = snapshot.ruleName;
 	tournUpdate.variant = snapshot.variant;
@@ -1423,6 +1482,22 @@ function applyTournamentScalarUpdates(
 		if (input[key] !== undefined) {
 			tournUpdate[key] = input[key];
 		}
+	}
+	// Snapshot field overrides — written to detail, never propagated to
+	// parent. Assigned individually (rather than via `scalarKeys`) since
+	// `variant` is a string while the rest are nullable numbers, which the
+	// generic keyed loop above can't type-check across.
+	if (input.variant !== undefined) {
+		tournUpdate.variant = input.variant;
+	}
+	if (input.startingStack !== undefined) {
+		tournUpdate.startingStack = input.startingStack;
+	}
+	if (input.bountyAmount !== undefined) {
+		tournUpdate.bountyAmount = input.bountyAmount;
+	}
+	if (input.tableSize !== undefined) {
+		tournUpdate.tableSize = input.tableSize;
 	}
 	if (input.beforeDeadline !== undefined) {
 		tournUpdate.beforeDeadline = input.beforeDeadline;
@@ -1465,8 +1540,12 @@ async function applyTournamentDetailUpdate(
 		await resnapshotTournamentStructure(db, sessionId, input.tournamentId);
 	}
 
-	// Explicit chip purchases (with result counts) override the snapshot.
-	// Runs after the re-snapshot so the explicit array wins when both apply.
+	// Explicit blind levels / chip purchases (with result counts) override the
+	// snapshot. Runs after the re-snapshot so the explicit arrays win when both
+	// apply.
+	if (input.blindLevels !== undefined) {
+		await persistSessionBlindLevels(db, sessionId, input.blindLevels);
+	}
 	if (input.chipPurchases !== undefined) {
 		await persistSessionChipPurchases(db, sessionId, input.chipPurchases);
 	}
@@ -1700,24 +1779,7 @@ async function insertTournamentSessionDetail(
 	// blind levels / chip purchases. This runs after the parent copy so
 	// the explicit arrays win when both are supplied.
 	if (input.blindLevels !== undefined) {
-		await db
-			.delete(sessionBlindLevel)
-			.where(eq(sessionBlindLevel.sessionId, sessionId));
-		if (input.blindLevels.length > 0) {
-			await db.insert(sessionBlindLevel).values(
-				input.blindLevels.map((l, idx) => ({
-					id: crypto.randomUUID(),
-					sessionId,
-					level: idx + 1,
-					isBreak: l.isBreak,
-					blind1: l.blind1 ?? null,
-					blind2: l.blind2 ?? null,
-					blind3: l.blind3 ?? null,
-					ante: l.ante ?? null,
-					minutes: l.minutes ?? null,
-				}))
-			);
-		}
+		await persistSessionBlindLevels(db, sessionId, input.blindLevels);
 	}
 	if (input.chipPurchases !== undefined) {
 		await persistSessionChipPurchases(db, sessionId, input.chipPurchases);
@@ -2013,6 +2075,20 @@ export const sessionRouter = router({
 				beforeDeadline: z.boolean().nullable().optional(),
 				prizeMoney: z.number().int().min(0).nullable().optional(),
 				bountyPrizes: z.number().int().min(0).nullable().optional(),
+				startingStack: z.number().int().nullable().optional(),
+				bountyAmount: z.number().int().nullable().optional(),
+				blindLevels: z
+					.array(
+						z.object({
+							isBreak: z.boolean(),
+							blind1: z.number().int().nullable().optional(),
+							blind2: z.number().int().nullable().optional(),
+							blind3: z.number().int().nullable().optional(),
+							ante: z.number().int().nullable().optional(),
+							minutes: z.number().int().nullable().optional(),
+						})
+					)
+					.optional(),
 				chipPurchases: z.array(chipPurchaseInputSchema).optional(),
 				startedAt: z.number().nullable().optional(),
 				endedAt: z.number().nullable().optional(),

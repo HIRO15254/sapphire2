@@ -427,6 +427,56 @@ describe("session router input validation", () => {
 		).toBe(true);
 	});
 
+	it("update accepts and retains tournament snapshot override fields and blind level structure", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as {
+			safeParse: (v: unknown) => {
+				data?: Record<string, unknown>;
+				success: boolean;
+			};
+		};
+		const input = {
+			id: "s1",
+			variant: "nlh",
+			startingStack: 20_000,
+			bountyAmount: 500,
+			tableSize: 9,
+			blindLevels: [
+				{
+					isBreak: false,
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					ante: null,
+					minutes: 15,
+				},
+			],
+		};
+		const parsed = schema.safeParse(input);
+		expect(parsed.success).toBe(true);
+		// Guards against Zod silently stripping these as unknown keys.
+		expect(parsed.data?.startingStack).toBe(20_000);
+		expect(parsed.data?.bountyAmount).toBe(500);
+		expect(parsed.data?.blindLevels).toEqual(input.blindLevels);
+	});
+
+	it("update rejects a blind level missing isBreak", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				id: "s1",
+				blindLevels: [{ blind1: 100 }],
+			}).success
+		).toBe(false);
+	});
+
 	it("delete rejects missing id", () => {
 		const schema = (
 			appRouter.session.delete as unknown as {
@@ -515,6 +565,27 @@ describe("assertNoLiveLinkedRestrictedEdits", () => {
 				tournamentId: "some-other-tournament",
 			})
 		).toThrow(TOURNAMENT_ID_RE);
+	});
+
+	it("rejects rule-snapshot / blind-structure edits on live-linked tournament session", () => {
+		expect(() =>
+			assertNoLiveLinkedRestrictedEdits(liveTournamentSession, {
+				variant: "plo",
+				startingStack: 20_000,
+				bountyAmount: 500,
+				tableSize: 9,
+				blindLevels: [
+					{
+						isBreak: false,
+						blind1: 100,
+						blind2: 200,
+						blind3: null,
+						ante: null,
+						minutes: 15,
+					},
+				],
+			})
+		).toThrow(TRPCError);
 	});
 
 	it("allows memo edit on live-linked session", () => {

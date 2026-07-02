@@ -201,6 +201,11 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		totalEntries: values.totalEntries ?? null,
 		prizeMoney: values.prizeMoney,
 		bountyPrizes: values.bountyPrizes,
+		variant: values.variant,
+		startingStack: values.startingStack ?? null,
+		bountyAmount: values.bountyAmount ?? null,
+		tableSize: values.tableSize ?? null,
+		blindLevels: values.blindLevels,
 		chipPurchases: values.chipPurchases,
 		tournamentId: values.tournamentId ?? null,
 	};

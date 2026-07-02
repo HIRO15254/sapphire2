@@ -361,6 +361,34 @@ describe("pure helpers", () => {
 			expect(out.roomId).toBe("room-1");
 			expect(out.currencyId).toBe("cur-1");
 		});
+
+		it("includes tournament snapshot overrides and blind levels", () => {
+			const blindLevels = [
+				{
+					ante: null,
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					isBreak: false,
+					minutes: 15,
+				},
+			];
+			const out = buildUpdatePayload({
+				...tournamentValues({
+					variant: "nlh",
+					startingStack: 20_000,
+					bountyAmount: 500,
+					tableSize: 9,
+					blindLevels,
+				}),
+				id: "s1",
+			}) as Record<string, unknown>;
+			expect(out.variant).toBe("nlh");
+			expect(out.startingStack).toBe(20_000);
+			expect(out.bountyAmount).toBe(500);
+			expect(out.tableSize).toBe(9);
+			expect(out.blindLevels).toEqual(blindLevels);
+		});
 	});
 
 	describe("buildLiveLinkedUpdatePayload", () => {
