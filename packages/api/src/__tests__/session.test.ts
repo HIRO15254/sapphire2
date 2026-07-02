@@ -203,26 +203,41 @@ describe("session router input validation", () => {
 	});
 
 	describe("session list cursor (composite keyset)", () => {
-		it("encodes a row as <epochMs>_<id>", () => {
+		it("encodes a row as <epochMs>_<id>, using startedAt when present", () => {
 			expect(
-				encodeSessionCursor({ id: "s1", sessionDate: new Date(1000) })
+				encodeSessionCursor({
+					id: "s1",
+					sessionDate: new Date(1000),
+					startedAt: new Date(2000),
+				})
+			).toBe("2000_s1");
+		});
+
+		it("falls back to sessionDate when startedAt is null", () => {
+			expect(
+				encodeSessionCursor({
+					id: "s1",
+					sessionDate: new Date(1000),
+					startedAt: null,
+				})
 			).toBe("1000_s1");
 		});
 
-		it("round-trips an encoded cursor back to its date and id", () => {
+		it("round-trips an encoded cursor back to its sort key and id", () => {
 			const cursor = encodeSessionCursor({
 				id: "abc",
-				sessionDate: new Date(1_700_000_000_000),
+				sessionDate: new Date(1_600_000_000_000),
+				startedAt: new Date(1_700_000_000_000),
 			});
 			const parsed = parseSessionCursor(cursor);
 			expect(parsed?.id).toBe("abc");
-			expect(parsed?.sessionDate.getTime()).toBe(1_700_000_000_000);
+			expect(parsed?.sortKey.getTime()).toBe(1_700_000_000_000);
 		});
 
 		it("preserves underscores in the id (splits on the first separator only)", () => {
 			const parsed = parseSessionCursor("1000_a_b_c");
 			expect(parsed?.id).toBe("a_b_c");
-			expect(parsed?.sessionDate.getTime()).toBe(1000);
+			expect(parsed?.sortKey.getTime()).toBe(1000);
 		});
 
 		it("returns null when the separator is missing", () => {

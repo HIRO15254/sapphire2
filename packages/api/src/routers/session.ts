@@ -21,7 +21,7 @@ import {
 	tournamentChipPurchase,
 } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gte, inArray, lt, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -787,28 +787,43 @@ interface ListFilters {
 }
 
 /**
+ * The list orders sessions by the moment they actually started, not by the
+ * (date-only) `sessionDate` field: `sessionDate` has no time component, so
+ * same-day sessions used to tie-break on `id` (a random UUID) and came out in
+ * a seemingly arbitrary order. `startedAt` is optional (older / quick-add
+ * sessions may not have one), so it falls back to `sessionDate`.
+ */
+function sessionOrderKeySql() {
+	return sql`coalesce(${gameSession.startedAt}, ${gameSession.sessionDate})`;
+}
+
+/**
  * Composite keyset cursor for the session list. The list orders by
- * `sessionDate DESC, id DESC`, so paginating on `id` alone is wrong — id order
- * is unrelated to date order, which made the second page drop or duplicate
- * rows (and stop early, so "Load more" only worked once). The cursor therefore
- * encodes both the date (epoch ms) and the id as `"<ms>_<id>"`.
+ * `sessionOrderKey DESC, id DESC`, so paginating on `id` alone is wrong — id
+ * order is unrelated to that order, which made the second page drop or
+ * duplicate rows (and stop early, so "Load more" only worked once). The
+ * cursor therefore encodes both the order key (epoch ms) and the id as
+ * `"<ms>_<id>"`.
  */
 export function encodeSessionCursor(row: {
 	id: string;
 	sessionDate: Date;
+	startedAt: Date | null;
 }): string {
-	return `${row.sessionDate.getTime()}_${row.id}`;
+	const sortKey = row.startedAt ?? row.sessionDate;
+	return `${sortKey.getTime()}_${row.id}`;
 }
 
 /**
- * Parse an {@link encodeSessionCursor} value back into its date + id. Returns
- * `null` for a malformed cursor (missing separator, empty / non-integer
- * timestamp, or empty id) so the caller treats it as "no cursor" instead of
- * crashing. Splits on the first separator only, so ids containing `_` survive.
+ * Parse an {@link encodeSessionCursor} value back into its order key + id.
+ * Returns `null` for a malformed cursor (missing separator, empty /
+ * non-integer timestamp, or empty id) so the caller treats it as "no cursor"
+ * instead of crashing. Splits on the first separator only, so ids containing
+ * `_` survive.
  */
 export function parseSessionCursor(
 	cursor: string
-): { id: string; sessionDate: Date } | null {
+): { id: string; sortKey: Date } | null {
 	const separator = cursor.indexOf("_");
 	if (separator === -1) {
 		return null;
@@ -819,7 +834,7 @@ export function parseSessionCursor(
 	if (rawMs === "" || id === "" || !Number.isInteger(ms)) {
 		return null;
 	}
-	return { id, sessionDate: new Date(ms) };
+	return { id, sortKey: new Date(ms) };
 }
 
 function buildSessionListConditions(userId: string, filters: ListFilters) {
@@ -847,18 +862,13 @@ function buildSessionListConditions(userId: string, filters: ListFilters) {
 	if (filters.cursor) {
 		const parsed = parseSessionCursor(filters.cursor);
 		if (parsed) {
-			// Keyset must match the (sessionDate DESC, id DESC) ordering: take
-			// rows strictly after the cursor in that order.
-			const keyset = or(
-				lt(gameSession.sessionDate, parsed.sessionDate),
-				and(
-					eq(gameSession.sessionDate, parsed.sessionDate),
-					lt(gameSession.id, parsed.id)
-				)
-			);
-			if (keyset) {
-				paginationConditions.push(keyset);
-			}
+			// Keyset must match the (sessionOrderKey DESC, id DESC) ordering:
+			// take rows strictly after the cursor in that order. The order key
+			// is stored in seconds (sqlite "timestamp" mode), so the cursor's ms
+			// value is floored to seconds before comparing.
+			const cursorSeconds = Math.floor(parsed.sortKey.getTime() / 1000);
+			const keyset = sql`(${sessionOrderKeySql()} < ${cursorSeconds}) or (${sessionOrderKeySql()} = ${cursorSeconds} and ${gameSession.id} < ${parsed.id})`;
+			paginationConditions.push(keyset);
 		}
 	}
 	return { conditions, paginationConditions };
@@ -1014,7 +1024,7 @@ export async function fetchProfitLossSeries(
 			eq(sessionTournamentDetail.sessionId, gameSession.id)
 		)
 		.where(and(...conditions))
-		.orderBy(asc(gameSession.sessionDate), asc(gameSession.id));
+		.orderBy(asc(sessionOrderKeySql()), asc(gameSession.id));
 
 	const chipPurchaseMap = await getSessionChipPurchaseMap(
 		db,
@@ -1945,7 +1955,7 @@ export const sessionRouter = router({
 
 			const data = await selectEnrichedSessionRows(ctx.db)
 				.where(and(...paginationConditions))
-				.orderBy(desc(gameSession.sessionDate), desc(gameSession.id))
+				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))
 				.limit(PAGE_SIZE + 1);
 
 			const hasMore = data.length > PAGE_SIZE;
