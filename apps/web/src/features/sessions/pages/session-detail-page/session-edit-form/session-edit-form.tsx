@@ -1,6 +1,5 @@
 import { RoomGameSelectors } from "@/features/sessions/components/session-wizard/master-step-body/link-selectors";
 import { ResultStepBody } from "@/features/sessions/components/session-wizard/result-step-body";
-import { TagsAndMemo } from "@/features/sessions/components/session-wizard/result-step-body/tags-and-memo";
 import { RulesStepBody } from "@/features/sessions/components/session-wizard/rules-step-body";
 import type {
 	RingGameOption,
@@ -8,18 +7,9 @@ import type {
 	SessionFormValues,
 	TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
-import { Field } from "@/shared/components/ui/field";
-import {
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-	SelectWithClear,
-} from "@/shared/components/ui/select";
-import {
-	type UseSessionEditFormReturn,
-	useSessionEditForm,
-} from "./use-session-edit-form";
+import { Alert, AlertDescription } from "@/shared/components/ui/alert";
+import { InputGroup } from "@/shared/components/ui/input-group";
+import { useSessionEditForm } from "./use-session-edit-form";
 
 interface SessionEditFormProps {
 	currencies?: Array<{ id: string; name: string }>;
@@ -27,10 +17,10 @@ interface SessionEditFormProps {
 	/** Stable id linking the sheet's confirm button to this form. */
 	formId: string;
 	/**
-	 * `true` when the session was recorded live. Live sessions derive every
-	 * result / rule / time field from their event history, so the edit sheet
-	 * only exposes the metadata `session.update` accepts for them (room,
-	 * currency, tags, memo).
+	 * `true` when the session was recorded live. Manual and live sessions share
+	 * the exact same form layout; for live sessions the fields derived from the
+	 * event history are disabled (only room, currency, tags and memo — the
+	 * metadata `session.update` accepts for a live session — stay editable).
 	 */
 	isLiveLinked?: boolean;
 	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
@@ -42,71 +32,13 @@ interface SessionEditFormProps {
 	tournaments?: TournamentOption[];
 }
 
-function LiveLinkedFields({
-	state,
-	rooms,
-	currencies,
-	tags,
-	onCreateTag,
-}: {
-	state: UseSessionEditFormReturn["state"];
-	rooms?: Array<{ id: string; name: string }>;
-	currencies?: Array<{ id: string; name: string }>;
-	tags?: Array<{ id: string; name: string }>;
-	onCreateTag?: (name: string) => Promise<{ id: string; name: string }>;
-}) {
-	return (
-		<>
-			{rooms && rooms.length > 0 && (
-				<Field label="Room">
-					<SelectWithClear
-						onValueChange={state.handleRoomChange}
-						value={state.selectedRoomId}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{rooms.map((room) => (
-								<SelectItem key={room.id} value={room.id}>
-									{room.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</SelectWithClear>
-				</Field>
-			)}
-			{currencies && currencies.length > 0 && (
-				<Field label="Currency">
-					<SelectWithClear
-						onValueChange={state.setSelectedCurrencyId}
-						value={state.selectedCurrencyId}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{currencies.map((currency) => (
-								<SelectItem key={currency.id} value={currency.id}>
-									{currency.name}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</SelectWithClear>
-				</Field>
-			)}
-			<TagsAndMemo onCreateTag={onCreateTag} state={state} tags={tags} />
-		</>
-	);
-}
-
 /**
  * Single-screen post-edit form for a completed session, rendered inside the
  * shared `FormSheet` (its `[✓]` button submits this form via `form={formId}`).
- * Replaces the reused create wizard for the edit flow: manual sessions expose
- * every editable field on one scroll (no stepper, no master pre-fill walk),
- * live-recorded sessions expose only the metadata their `session.update`
- * accepts.
+ * Manual and live-recorded sessions use one shared structure — the wizard's
+ * Master / Rules / Result field bodies grouped as `InputGroup` sections (no
+ * stepper). For a live session the event-derived fields render disabled rather
+ * than being hidden, so the form reads the same either way.
  */
 export function SessionEditForm({
 	currencies,
@@ -131,7 +63,7 @@ export function SessionEditForm({
 
 	return (
 		<form
-			className="flex flex-col gap-3"
+			className="flex flex-col gap-4"
 			id={formId}
 			onSubmit={(e) => {
 				e.preventDefault();
@@ -139,39 +71,46 @@ export function SessionEditForm({
 				state.form.handleSubmit();
 			}}
 		>
-			{isLiveLinked ? (
-				<LiveLinkedFields
-					currencies={currencies}
-					onCreateTag={onCreateTag}
+			{isLiveLinked && (
+				<Alert data-testid="live-linked-banner">
+					<AlertDescription>
+						This session is generated from a live session. Items calculated from
+						event history cannot be edited. To modify them, edit the events in
+						the live session.
+					</AlertDescription>
+				</Alert>
+			)}
+
+			<InputGroup label="Master">
+				<RoomGameSelectors
+					gameLabel={state.gameLabel}
+					gameOptions={state.gameOptions}
+					isLiveLinked={isLiveLinked}
+					onGameChange={state.handleGameChange}
+					onRoomChange={state.handleRoomChange}
 					rooms={rooms}
+					selectedGameId={state.selectedGameId}
+					selectedRoomId={state.selectedRoomId}
+				/>
+			</InputGroup>
+
+			<InputGroup label="Rules">
+				<RulesStepBody
+					currencies={currencies}
+					isLiveLinked={isLiveLinked}
+					showOverrides={false}
+					state={state}
+				/>
+			</InputGroup>
+
+			<InputGroup label="Result">
+				<ResultStepBody
+					isLiveLinked={isLiveLinked}
+					onCreateTag={onCreateTag}
 					state={state}
 					tags={tags}
 				/>
-			) : (
-				<>
-					<RoomGameSelectors
-						gameLabel={state.gameLabel}
-						gameOptions={state.gameOptions}
-						onGameChange={state.handleGameChange}
-						onRoomChange={state.handleRoomChange}
-						rooms={rooms}
-						selectedGameId={state.selectedGameId}
-						selectedRoomId={state.selectedRoomId}
-					/>
-					<RulesStepBody
-						currencies={currencies}
-						isLiveLinked={false}
-						showOverrides={false}
-						state={state}
-					/>
-					<ResultStepBody
-						isLiveLinked={false}
-						onCreateTag={onCreateTag}
-						state={state}
-						tags={tags}
-					/>
-				</>
-			)}
+			</InputGroup>
 		</form>
 	);
 }
