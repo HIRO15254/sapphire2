@@ -177,6 +177,35 @@ describe("SessionEventsScene", () => {
 		});
 	});
 
+	it("hides per-event edit and delete affordances when read-only", () => {
+		mocks.events = [
+			{
+				eventType: "chips_add_remove",
+				id: "event-ro",
+				occurredAt: "2026-04-03T10:00:00.000Z",
+				payload: { amount: 5000, type: "add" },
+			},
+		];
+
+		render(
+			<SessionEventsScene
+				embedded
+				readOnly
+				sessionId="session-ro"
+				sessionType="cash_game"
+			/>
+		);
+
+		expect(
+			screen.queryByLabelText("Edit Chips Add/Remove")
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByLabelText("Delete Chips Add/Remove")
+		).not.toBeInTheDocument();
+		// The event itself still renders — only editing is removed.
+		expect(screen.getByText("Chips Add/Remove")).toBeInTheDocument();
+	});
+
 	it("updates a purchase chips event from the shared scene", async () => {
 		const user = userEvent.setup();
 		mocks.events = [

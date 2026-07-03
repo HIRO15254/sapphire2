@@ -6,7 +6,10 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { SessionFilterValues } from "@/features/sessions/utils/session-filters-helpers";
-import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
+import type {
+	SessionBlindLevelInput,
+	SessionFormValues,
+} from "@/features/sessions/utils/session-form-helpers";
 import { resolveDateRange } from "@/shared/lib/period-filter";
 import {
 	cancelTargets,
@@ -26,6 +29,12 @@ export type {
 
 export interface SessionItem {
 	beforeDeadline: boolean | null;
+	/**
+	 * Tournament blind structure (empty for cash / structureless sessions).
+	 * Optional because a response from an older API build — or a cached
+	 * pre-migration entry — can omit it; consumers must tolerate `undefined`.
+	 */
+	blindLevels?: SessionBlindLevelInput[];
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
 	buyIn: number | null;
@@ -172,6 +181,7 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		endedAt: timeToUnix(values.sessionDate, values.endTime) ?? null,
 		breakMinutes: values.breakMinutes ?? null,
 		memo: values.memo,
+		ruleName: values.ruleName,
 		tagIds: values.tagIds,
 		roomId: values.roomId ?? null,
 		currencyId: values.currencyId ?? null,
@@ -189,6 +199,8 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 			ante: values.ante,
 			anteType: values.anteType as "none" | "all" | "bb" | undefined,
 			tableSize: values.tableSize,
+			minBuyIn: values.minBuyIn ?? null,
+			maxBuyIn: values.maxBuyIn ?? null,
 			ringGameId: values.ringGameId ?? null,
 		};
 	}
@@ -230,6 +242,7 @@ export function buildOptimisticItem(
 		totalEntries: null,
 		prizeMoney: null,
 		bountyPrizes: null,
+		blindLevels: [],
 		chipPurchases: [],
 		chipPurchaseCost: 0,
 		breakMinutes: newSession.breakMinutes ?? null,
@@ -334,6 +347,17 @@ export function buildEditDefaults(session: SessionItem) {
 			cost: cp.cost,
 			chips: cp.chips,
 			count: cp.count,
+		})),
+		// Tournament blind structure — hydrate the Rules-step editor from the
+		// session's own frozen levels so editing keeps (and can amend) the
+		// saved structure instead of starting blank.
+		blindLevels: (session.blindLevels ?? []).map((level) => ({
+			isBreak: level.isBreak,
+			blind1: level.blind1,
+			blind2: level.blind2,
+			blind3: level.blind3,
+			ante: level.ante,
+			minutes: level.minutes,
 		})),
 		startTime: formatTimeFromDate(session.startedAt),
 		endTime: formatTimeFromDate(session.endedAt),

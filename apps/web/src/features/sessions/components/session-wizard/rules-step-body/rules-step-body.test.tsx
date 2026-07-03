@@ -72,3 +72,33 @@ describe("RulesStepBody — override badges", () => {
 		expect(screen.queryByText("Modified")).not.toBeInTheDocument();
 	});
 });
+
+describe("RulesStepBody — live-linked tournament editors", () => {
+	function renderTournamentRules(isLiveLinked: boolean) {
+		const { result } = renderHook(() =>
+			useSessionWizard({ mode: "manual", onSubmit: vi.fn() })
+		);
+		act(() => result.current.setSessionType("tournament"));
+		render(
+			<RulesStepBody
+				currencies={[]}
+				isLiveLinked={isLiveLinked}
+				showOverrides={false}
+				state={result.current}
+			/>
+		);
+	}
+
+	// The chip-purchase catalog and blind structure are event-derived for live
+	// sessions (session.update rejects them), so the unified edit form must
+	// disable them — done via a `disabled` fieldset wrapper.
+	it("disables the chip purchase catalog when live-linked", () => {
+		renderTournamentRules(true);
+		expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+	});
+
+	it("keeps the chip purchase catalog editable when not live-linked", () => {
+		renderTournamentRules(false);
+		expect(screen.getByRole("button", { name: "Add" })).not.toBeDisabled();
+	});
+});

@@ -30,9 +30,12 @@ vi.mock(
 	})
 );
 
-vi.mock("@/features/sessions/components/session-wizard", () => ({
-	SessionWizard: () => <div data-testid="session-wizard" />,
-}));
+vi.mock(
+	"@/features/sessions/pages/session-detail-page/session-edit-form",
+	() => ({
+		SessionEditForm: () => <div data-testid="session-edit-form" />,
+	})
+);
 
 vi.mock("@/features/sessions/hooks/use-sessions", () => ({
 	buildEditDefaults: () => ({}),

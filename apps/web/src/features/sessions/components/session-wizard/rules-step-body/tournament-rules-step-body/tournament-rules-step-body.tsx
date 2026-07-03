@@ -116,10 +116,18 @@ function TournamentSettingsTab({
 							overriddenLabels={overriddenLabels}
 							state={state}
 						/>
-						<ChipPurchasesEditor
-							onChange={state.setChipPurchases}
-							value={state.chipPurchases}
-						/>
+						{/* The catalog is derived from event history for live sessions
+						    and rejected by session.update; a disabled fieldset natively
+						    disables every control inside (no-op when not live-linked). */}
+						<fieldset
+							className="m-0 min-w-0 border-0 p-0"
+							disabled={isLiveLinked}
+						>
+							<ChipPurchasesEditor
+								onChange={state.setChipPurchases}
+								value={state.chipPurchases}
+							/>
+						</fieldset>
 					</div>
 				);
 			}}
@@ -156,11 +164,18 @@ export function TournamentRulesStepBody({
 							/>
 						</TabsContent>
 						<TabsContent value="blinds">
-							<LocalBlindStructureContent
-								onChange={state.setBlindLevels}
-								value={state.blindLevels}
-								variant={variant || "nlh"}
-							/>
+							{/* Blind structure is event-derived for live sessions and
+							    rejected by session.update; disable it there. */}
+							<fieldset
+								className="m-0 min-w-0 border-0 p-0"
+								disabled={isLiveLinked}
+							>
+								<LocalBlindStructureContent
+									onChange={state.setBlindLevels}
+									value={state.blindLevels}
+									variant={variant || "nlh"}
+								/>
+							</fieldset>
 						</TabsContent>
 					</Tabs>
 				</>
