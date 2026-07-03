@@ -6,7 +6,10 @@ import {
 } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import type { SessionFilterValues } from "@/features/sessions/utils/session-filters-helpers";
-import type { SessionFormValues } from "@/features/sessions/utils/session-form-helpers";
+import type {
+	SessionBlindLevelInput,
+	SessionFormValues,
+} from "@/features/sessions/utils/session-form-helpers";
 import { resolveDateRange } from "@/shared/lib/period-filter";
 import {
 	cancelTargets,
@@ -26,6 +29,8 @@ export type {
 
 export interface SessionItem {
 	beforeDeadline: boolean | null;
+	/** Tournament blind structure (empty for cash / structureless sessions). */
+	blindLevels: SessionBlindLevelInput[];
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
 	buyIn: number | null;
@@ -230,6 +235,7 @@ export function buildOptimisticItem(
 		totalEntries: null,
 		prizeMoney: null,
 		bountyPrizes: null,
+		blindLevels: [],
 		chipPurchases: [],
 		chipPurchaseCost: 0,
 		breakMinutes: newSession.breakMinutes ?? null,
@@ -334,6 +340,17 @@ export function buildEditDefaults(session: SessionItem) {
 			cost: cp.cost,
 			chips: cp.chips,
 			count: cp.count,
+		})),
+		// Tournament blind structure — hydrate the Rules-step editor from the
+		// session's own frozen levels so editing keeps (and can amend) the
+		// saved structure instead of starting blank.
+		blindLevels: session.blindLevels.map((level) => ({
+			isBreak: level.isBreak,
+			blind1: level.blind1,
+			blind2: level.blind2,
+			blind3: level.blind3,
+			ante: level.ante,
+			minutes: level.minutes,
 		})),
 		startTime: formatTimeFromDate(session.startedAt),
 		endTime: formatTimeFromDate(session.endedAt),

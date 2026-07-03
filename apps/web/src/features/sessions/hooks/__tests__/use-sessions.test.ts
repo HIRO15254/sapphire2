@@ -169,6 +169,7 @@ function baseSessionItem(overrides: Partial<SessionItem> = {}): SessionItem {
 		breakMinutes: null,
 		buyIn: 10_000,
 		cashOut: 15_000,
+		blindLevels: [],
 		chipPurchases: [],
 		chipPurchaseCost: 0,
 		createdAt: "2026-04-01T00:00:00Z",
@@ -448,6 +449,11 @@ describe("pure helpers", () => {
 			const out = buildOptimisticItem(cashValues());
 			expect(out.id).toMatch(TEMP_ID_PATTERN);
 		});
+
+		it("starts with an empty blind structure", () => {
+			const out = buildOptimisticItem(cashValues());
+			expect(out.blindLevels).toEqual([]);
+		});
 	});
 
 	describe("buildEditDefaults", () => {
@@ -515,6 +521,58 @@ describe("pure helpers", () => {
 			expect(out.startingStack).toBe(20_000);
 			expect(out.bountyAmount).toBe(500);
 			expect(out.tableSize).toBe(9);
+		});
+
+		it("pre-fills the tournament blind structure from the session row", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({
+					type: "tournament",
+					tournamentName: "Main Event",
+					blindLevels: [
+						{
+							isBreak: false,
+							blind1: 100,
+							blind2: 200,
+							blind3: null,
+							ante: 25,
+							minutes: 20,
+						},
+						{
+							isBreak: true,
+							blind1: null,
+							blind2: null,
+							blind3: null,
+							ante: null,
+							minutes: 10,
+						},
+					],
+				})
+			);
+			expect(out.blindLevels).toEqual([
+				{
+					isBreak: false,
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					ante: 25,
+					minutes: 20,
+				},
+				{
+					isBreak: true,
+					blind1: null,
+					blind2: null,
+					blind3: null,
+					ante: null,
+					minutes: 10,
+				},
+			]);
+		});
+
+		it("maps an empty blind structure to an empty array", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({ type: "tournament", blindLevels: [] })
+			);
+			expect(out.blindLevels).toEqual([]);
 		});
 
 		it("leaves cash-only snapshot fields undefined on tournament rows", () => {

@@ -142,6 +142,61 @@ async function getSessionChipPurchaseMap(
 	return map;
 }
 
+interface SessionBlindLevelRow {
+	ante: number | null;
+	blind1: number | null;
+	blind2: number | null;
+	blind3: number | null;
+	isBreak: boolean;
+	minutes: number | null;
+}
+
+/**
+ * Batched lookup of a session's own blind structure, keyed by session id and
+ * ordered by level. Mirrors {@link getSessionChipPurchaseMap} so `getById` /
+ * `list` can hydrate the post-edit sheet's blind-structure editor from the
+ * frozen session levels. Sessions with no structure are absent from the map.
+ */
+async function getSessionBlindLevelMap(
+	db: DbInstance,
+	sessionIds: string[]
+): Promise<Map<string, SessionBlindLevelRow[]>> {
+	const map = new Map<string, SessionBlindLevelRow[]>();
+	if (sessionIds.length === 0) {
+		return map;
+	}
+	const rows = await db
+		.select({
+			sessionId: sessionBlindLevel.sessionId,
+			isBreak: sessionBlindLevel.isBreak,
+			blind1: sessionBlindLevel.blind1,
+			blind2: sessionBlindLevel.blind2,
+			blind3: sessionBlindLevel.blind3,
+			ante: sessionBlindLevel.ante,
+			minutes: sessionBlindLevel.minutes,
+		})
+		.from(sessionBlindLevel)
+		.where(inArray(sessionBlindLevel.sessionId, sessionIds))
+		.orderBy(asc(sessionBlindLevel.level));
+	for (const r of rows) {
+		const entry: SessionBlindLevelRow = {
+			isBreak: r.isBreak,
+			blind1: r.blind1,
+			blind2: r.blind2,
+			blind3: r.blind3,
+			ante: r.ante,
+			minutes: r.minutes,
+		};
+		const existing = map.get(r.sessionId);
+		if (existing) {
+			existing.push(entry);
+		} else {
+			map.set(r.sessionId, [entry]);
+		}
+	}
+	return map;
+}
+
 /**
  * Delete + reinsert a session's chip purchases together with their result
  * counts. The session_chip_purchase delete cascades to old result rows, so
@@ -1232,14 +1287,16 @@ function selectEnrichedSessionRows(db: DbInstance) {
 async function enrichSessionRows<
 	T extends Omit<ListItemRaw, "chipPurchaseCost"> & { id: string },
 >(db: DbInstance, rows: T[]) {
-	const chipPurchaseMap = await getSessionChipPurchaseMap(
-		db,
-		rows.map((row) => row.id)
-	);
+	const detailSessionIds = rows.map((row) => row.id);
+	const [chipPurchaseMap, blindLevelMap] = await Promise.all([
+		getSessionChipPurchaseMap(db, detailSessionIds),
+		getSessionBlindLevelMap(db, detailSessionIds),
+	]);
 	const withChipPurchases = rows.map((item) => {
 		const chipPurchases = chipPurchaseMap.get(item.id) ?? [];
 		return {
 			...item,
+			blindLevels: blindLevelMap.get(item.id) ?? [],
 			chipPurchases,
 			chipPurchaseCost: sumChipPurchaseCost(chipPurchases),
 		};

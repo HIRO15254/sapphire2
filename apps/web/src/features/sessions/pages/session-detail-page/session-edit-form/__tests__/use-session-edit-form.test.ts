@@ -141,6 +141,49 @@ describe("useSessionEditForm", () => {
 		);
 	});
 
+	it("hydrates the tournament blind structure from defaultValues and round-trips it on submit", async () => {
+		const onSubmit = vi.fn();
+		const blindLevels = [
+			{
+				isBreak: false,
+				blind1: 100,
+				blind2: 200,
+				blind3: null,
+				ante: 25,
+				minutes: 20,
+			},
+			{
+				isBreak: true,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				ante: null,
+				minutes: 10,
+			},
+		];
+		const { result } = renderHook(() =>
+			useSessionEditForm({
+				onSubmit,
+				defaultValues: {
+					type: "tournament",
+					sessionDate: "2026-04-10",
+					tournamentBuyIn: 100,
+					beforeDeadline: false,
+					blindLevels,
+				},
+				tournaments: TOURNAMENTS,
+			})
+		);
+		expect(result.current.state.blindLevels).toHaveLength(2);
+		await act(async () => {
+			await result.current.state.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ type: "tournament", blindLevels })
+		);
+	});
+
 	it("handleRoomChange clears the selected game and notifies the caller", () => {
 		const onSubmit = vi.fn();
 		const onRoomChange = vi.fn();
