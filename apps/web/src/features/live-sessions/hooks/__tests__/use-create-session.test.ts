@@ -553,7 +553,9 @@ describe("useCreateSession", () => {
 
 			expect(result.current.locationPrompt.open).toBe(false);
 			expect(trpcMocks.roomUpdate).not.toHaveBeenCalled();
-			await waitFor(() => expect(trpcMocks.createCash).toHaveBeenCalledTimes(1));
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledTimes(1)
+			);
 		});
 
 		it("does not open the prompt when the room already has coordinates", async () => {
@@ -569,7 +571,9 @@ describe("useCreateSession", () => {
 			});
 
 			expect(result.current.locationPrompt.open).toBe(false);
-			await waitFor(() => expect(trpcMocks.createCash).toHaveBeenCalledTimes(1));
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledTimes(1)
+			);
 		});
 
 		it("does not open the prompt when no device fix is available", async () => {
@@ -585,7 +589,9 @@ describe("useCreateSession", () => {
 			});
 
 			expect(result.current.locationPrompt.open).toBe(false);
-			await waitFor(() => expect(trpcMocks.createCash).toHaveBeenCalledTimes(1));
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledTimes(1)
+			);
 		});
 
 		it("does not open the prompt when the chosen room is not in the list", async () => {
@@ -601,7 +607,9 @@ describe("useCreateSession", () => {
 			});
 
 			expect(result.current.locationPrompt.open).toBe(false);
-			await waitFor(() => expect(trpcMocks.createCash).toHaveBeenCalledTimes(1));
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledTimes(1)
+			);
 		});
 
 		it("prompts for a tournament start too, then saves before starting", async () => {
