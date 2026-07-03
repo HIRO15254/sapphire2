@@ -63,7 +63,6 @@ export function useCreateSession({
 	// room to whichever one the user is physically nearest.
 	const { coords } = useGeolocation({ enabled: open });
 
-	const roomListKey = trpc.room.list.queryOptions().queryKey;
 	const roomsQuery = useQuery(trpc.room.list.queryOptions());
 	const rooms = (roomsQuery.data ?? []).map((s) => ({
 		id: s.id,
@@ -86,25 +85,6 @@ export function useCreateSession({
 			}))
 		)?.id;
 	}, [coords, roomsQuery.data]);
-
-	// Record the device's coordinates onto the room a session is started at, so
-	// future starts can default to it. Fire-and-forget: a failed location write
-	// must never block starting the session.
-	const recordRoomLocation = (roomId: string | undefined) => {
-		if (!(coords && roomId)) {
-			return;
-		}
-		trpcClient.room.update
-			.mutate({
-				id: roomId,
-				latitude: coords.latitude,
-				longitude: coords.longitude,
-			})
-			.then(() => invalidateTargets(queryClient, [{ queryKey: roomListKey }]))
-			.catch(() => {
-				// Swallow — the session has already started successfully.
-			});
-	};
 
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = (currenciesQuery.data ?? []).map((c) => ({
@@ -130,8 +110,7 @@ export function useCreateSession({
 			ringGameId?: string;
 			roomId?: string;
 		}) => trpcClient.liveCashGameSession.create.mutate(values),
-		onSuccess: async (_data, variables) => {
-			recordRoomLocation(variables.roomId);
+		onSuccess: async () => {
 			await invalidateTargets(queryClient, [
 				{ queryKey: cashListKey },
 				{ queryKey: sessionListKey },
@@ -165,8 +144,7 @@ export function useCreateSession({
 			});
 			return result;
 		},
-		onSuccess: async (_data, variables) => {
-			recordRoomLocation(variables.roomId);
+		onSuccess: async () => {
 			await invalidateTargets(queryClient, [
 				{ queryKey: tournamentListKey },
 				{ queryKey: sessionListKey },
