@@ -36,10 +36,16 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved version: $VERSION"
 
+      # Capture the notes via the action's structured output instead of asking
+      # Claude to write a file. A headless run does not reliably produce a
+      # /tmp file, which silently left the publish step with no notes — the same
+      # failure mode pre-merge-review.yml hit (it solved it via track_progress;
+      # here we use structured output). --json-schema forces the result onto
+      # steps.<id>.outputs.structured_output, the officially documented
+      # machine-readable channel.
       - name: Generate release notes with Claude
+        id: notes
         uses: anthropics/claude-code-action@v1
-        env:
-          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           additional_permissions: |
@@ -47,20 +53,46 @@ jobs:
           prompt: |
             You are running headlessly in CI to generate release notes for a sapphire2 release.
 
-            The new version is: $RELEASE_VERSION
+            The new version is: ${{ steps.version.outputs.version }}
 
             Execute these steps in order. There is no interactive user; do not ask questions.
             If anything fails, surface the error and stop.
 
-            1. Invoke the `/create-update-notes` skill with `$RELEASE_VERSION` as the argument.
+            1. Invoke the `/create-update-notes` skill with `${{ steps.version.outputs.version }}` as the argument.
                Follow its Execution Flow steps 1–6 verbatim, but apply these CI overrides:
                  - Skip step 7 entirely (no interactive review round-trip).
-                 - In step 8, do NOT print the final block to the user; instead write
-                   only the Markdown body (without the surrounding ```markdown fence)
-                   to `/tmp/release-notes.md`.
+                 - Skip step 8's "print to the user" behavior; do NOT emit a fenced
+                   ```markdown block and do NOT write any file.
                The skill's "must never publish" rule is explicitly waived for this CI invocation.
 
-            Stop after writing /tmp/release-notes.md. Do NOT run any gh commands.
+            2. Return the result as structured output: a single JSON object whose
+               `release_notes` field holds ONLY the Markdown body (the same content
+               that would normally go inside the ```markdown fence — no fence, no
+               surrounding commentary, no tag/title or exclusion list).
+
+            Do NOT run any gh commands and do NOT create the release yourself.
+          claude_args: |
+            --json-schema '{"type":"object","properties":{"release_notes":{"type":"string"}},"required":["release_notes"]}'
+
+      - name: Write release notes to file
+        env:
+          STRUCTURED_OUTPUT: ${{ steps.notes.outputs.structured_output }}
+        run: |
+          if [ -z "$STRUCTURED_OUTPUT" ]; then
+            echo "::error::Claude produced no structured output; cannot build release notes"
+            exit 1
+          fi
+          # jq -e fails on invalid JSON and a null/missing release_notes; the
+          # extra -z check also rejects an empty-string body ("" // empty is ""),
+          # so a bad payload surfaces the dump below instead of publishing empty.
+          if ! BODY=$(printf '%s' "$STRUCTURED_OUTPUT" | jq -er '.release_notes // empty') || [ -z "$BODY" ]; then
+            echo "::error::structured output had no usable release_notes (invalid JSON or empty body)"
+            echo "structured_output was: $STRUCTURED_OUTPUT"
+            exit 1
+          fi
+          printf '%s\n' "$BODY" > /tmp/release-notes.md
+          echo "--- Generated release notes ---"
+          cat /tmp/release-notes.md
 
       - name: Publish GitHub Release
         env:

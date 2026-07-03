@@ -3,9 +3,9 @@ import {
 	useEntityLists,
 	useRoomGames,
 } from "@/features/rooms/hooks/use-room-games";
-import type { SessionFilterValues } from "@/features/sessions/components/session-filters";
 import type { SessionFormValues } from "@/features/sessions/hooks/use-sessions";
 import { useSessions } from "@/features/sessions/hooks/use-sessions";
+import type { SessionFilterValues } from "@/features/sessions/utils/session-filters-helpers";
 
 /**
  * Page hook for the v2 sessions list. Owns the filter state, the create sheet

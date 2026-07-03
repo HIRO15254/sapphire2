@@ -1,5 +1,5 @@
 import { useForm } from "@tanstack/react-form";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
@@ -20,6 +20,13 @@ import {
 } from "./chip-purchase-rows";
 
 interface UseSessionFormStateArgs {
+	/**
+	 * Room to pre-select as the default (e.g. the geolocation-nearest room).
+	 * Applied only while the user hasn't picked a room — never overrides a
+	 * manual choice. Resolves asynchronously, so it seeds via an effect rather
+	 * than `defaultValues`.
+	 */
+	defaultRoomId?: string;
 	defaultValues?: SessionFormDefaults;
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
@@ -40,6 +47,7 @@ function timerStringToUnix(value: string): number | undefined {
 }
 
 export function useSessionFormState({
+	defaultRoomId,
 	defaultValues,
 	onRoomChange,
 	onSubmit,
@@ -248,11 +256,29 @@ export function useSessionFormState({
 		setChipPurchaseCounts((prev) => ({ ...prev, [uid]: count }));
 	};
 
+	// Tracks whether the user has actively chosen a room. Once true, the
+	// geolocation default must not override their choice.
+	const userPickedRoomRef = useRef(false);
+
 	const handleRoomChange = (value: string | undefined) => {
+		userPickedRoomRef.current = true;
 		setSelectedRoomId(value);
 		setSelectedGameId(undefined);
 		onRoomChange?.(value);
 	};
+
+	// Seed the geolocation-suggested room as the default. Fires only while the
+	// user hasn't picked a room and none is selected yet, so a manual choice (or
+	// an explicit clear) always wins, and a later suggestion never yanks the
+	// current selection.
+	useEffect(() => {
+		if (!defaultRoomId || userPickedRoomRef.current || selectedRoomId) {
+			return;
+		}
+		setSelectedRoomId(defaultRoomId);
+		setSelectedGameId(undefined);
+		onRoomChange?.(defaultRoomId);
+	}, [defaultRoomId, selectedRoomId, onRoomChange]);
 
 	const handleGameChange = (value: string | undefined) => {
 		setSelectedGameId(value);

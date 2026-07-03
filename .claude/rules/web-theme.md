@@ -25,7 +25,7 @@ Typography roles are global classes — `t-display / t-h1 … t-h4 / t-body / t-
 
 ## Design rules
 
-- Color philosophy: **blue-600 primary in light, blue-500 in dark**. Neutrals = slate only.
+- Color philosophy: **blue-600 primary in light, blue-500 in dark**. Neutrals = Tailwind **gray** scale only (no slate — neutrals must not read as bluish; SA2-71).
 - **Radius 8px base**; all other radii derive from `--radius`.
 - **Borders, not shadows**, for structural separation in resting cards. Shadows reserved for floating surfaces.
 - **Sentence case** UI copy, no trailing periods on labels, no emoji in product UI.

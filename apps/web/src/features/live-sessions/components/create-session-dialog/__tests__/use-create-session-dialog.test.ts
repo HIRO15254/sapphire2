@@ -24,6 +24,13 @@ function setupImpl(overrides: Record<string, unknown> = {}) {
 		setSelectedRoomId,
 		createCash,
 		createTournament,
+		locationPrompt: {
+			open: false,
+			roomName: "",
+			onSave: vi.fn(),
+			onSkip: vi.fn(),
+			onOpenChange: vi.fn(),
+		},
 		isLoading: false,
 		...overrides,
 	}));
@@ -49,6 +56,21 @@ describe("useCreateSessionDialog", () => {
 		expect(lastArgs).toBeDefined();
 		lastArgs?.onClose();
 		expect(onOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("propagates the underlying hook's locationPrompt", () => {
+		const locationPrompt = {
+			open: true,
+			roomName: "Room 1",
+			onSave: vi.fn(),
+			onSkip: vi.fn(),
+			onOpenChange: vi.fn(),
+		};
+		setupImpl({ locationPrompt });
+		const { result } = renderHook(() =>
+			useCreateSessionDialog({ onOpenChange: vi.fn() })
+		);
+		expect(result.current.locationPrompt).toBe(locationPrompt);
 	});
 
 	it("propagates isLoading from the underlying hook", () => {

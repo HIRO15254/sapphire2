@@ -5,6 +5,7 @@ import { currencyRouter } from "./currency";
 import { currencyTransactionRouter } from "./currency-transaction";
 import { liveCashGameSessionRouter } from "./live-cash-game-session";
 import { liveTournamentSessionRouter } from "./live-tournament-session";
+import { locationRouter } from "./location";
 import { playerRouter } from "./player";
 import { playerTagRouter } from "./player-tag";
 import { ringGameRouter } from "./ring-game";
@@ -30,6 +31,7 @@ export const appRouter = router({
 		};
 	}),
 	aiExtract: aiExtractRouter,
+	location: locationRouter,
 	room: roomRouter,
 	transactionType: transactionTypeRouter,
 	currency: currencyRouter,

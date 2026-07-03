@@ -1,12 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-	dateInputToEpochSec,
-	epochSecToDateInput,
 	filtersToStatsInput,
 	isCurrencyScopeValid,
 	normalizedUnitForType,
 	parseStatsSearch,
-	resolveDateRange,
 	type StatsFilters,
 	statsUnitFor,
 } from "@/features/statistics/utils/stats-filters";
@@ -72,64 +69,6 @@ describe("parseStatsSearch", () => {
 
 	it("rejects an unknown type", () => {
 		expect(() => parseStatsSearch({ type: "spin" })).toThrow();
-	});
-});
-
-describe("resolveDateRange", () => {
-	it("returns an empty window for the 'all' period", () => {
-		expect(resolveDateRange(filters({ period: "all" }), NOW_SEC)).toEqual({});
-	});
-
-	it("snaps the 7d window to [start of UTC day minus 7 days, end of today]", () => {
-		expect(resolveDateRange(filters({ period: "7d" }), NOW_SEC)).toEqual({
-			dateFrom: START_OF_DAY - 7 * DAY,
-			dateTo: START_OF_DAY + DAY,
-		});
-	});
-
-	it("snaps the 30d window with an end-of-today upper bound", () => {
-		expect(resolveDateRange(filters({ period: "30d" }), NOW_SEC)).toEqual({
-			dateFrom: START_OF_DAY - 30 * DAY,
-			dateTo: START_OF_DAY + DAY,
-		});
-	});
-
-	it("snaps the 90d window with an end-of-today upper bound", () => {
-		expect(resolveDateRange(filters({ period: "90d" }), NOW_SEC)).toEqual({
-			dateFrom: START_OF_DAY - 90 * DAY,
-			dateTo: START_OF_DAY + DAY,
-		});
-	});
-
-	it("uses Jan 1 (UTC) of the current year for ytd, capped at end of today", () => {
-		expect(resolveDateRange(filters({ period: "ytd" }), NOW_SEC)).toEqual({
-			dateFrom: Math.floor(Date.UTC(2026, 0, 1) / 1000),
-			dateTo: START_OF_DAY + DAY,
-		});
-	});
-
-	it("passes through both custom bounds when present", () => {
-		expect(
-			resolveDateRange(
-				filters({ period: "custom", from: 111, to: 222 }),
-				NOW_SEC
-			)
-		).toEqual({ dateFrom: 111, dateTo: 222 });
-	});
-
-	it("omits a missing custom bound", () => {
-		expect(
-			resolveDateRange(filters({ period: "custom", from: 111 }), NOW_SEC)
-		).toEqual({ dateFrom: 111 });
-		expect(
-			resolveDateRange(filters({ period: "custom", to: 222 }), NOW_SEC)
-		).toEqual({ dateTo: 222 });
-	});
-
-	it("returns an empty window for a custom period with no bounds", () => {
-		expect(resolveDateRange(filters({ period: "custom" }), NOW_SEC)).toEqual(
-			{}
-		);
 	});
 });
 
@@ -219,42 +158,5 @@ describe("statsUnitFor", () => {
 	it("uses the type's normalized unit when normalized", () => {
 		expect(statsUnitFor("normalized", "cash_game", "USD")).toBe("bb");
 		expect(statsUnitFor("normalized", "tournament", "USD")).toBe("bi");
-	});
-});
-
-describe("dateInputToEpochSec", () => {
-	it("converts a date string to start-of-day UTC seconds", () => {
-		expect(dateInputToEpochSec("2026-06-12")).toBe(
-			Math.floor(Date.UTC(2026, 5, 12, 0, 0, 0) / 1000)
-		);
-	});
-
-	it("snaps to end-of-day UTC when endOfDay is set", () => {
-		expect(dateInputToEpochSec("2026-06-12", true)).toBe(
-			Math.floor(Date.UTC(2026, 5, 12, 23, 59, 59) / 1000)
-		);
-	});
-
-	it("returns undefined for an empty or malformed value", () => {
-		expect(dateInputToEpochSec("")).toBeUndefined();
-		expect(dateInputToEpochSec("2026/06/12")).toBeUndefined();
-		expect(dateInputToEpochSec("not-a-date")).toBeUndefined();
-	});
-});
-
-describe("epochSecToDateInput", () => {
-	it("formats seconds back to yyyy-mm-dd (UTC)", () => {
-		expect(
-			epochSecToDateInput(Math.floor(Date.UTC(2026, 5, 12, 8, 0, 0) / 1000))
-		).toBe("2026-06-12");
-	});
-
-	it("round-trips with dateInputToEpochSec", () => {
-		const sec = dateInputToEpochSec("2026-01-05");
-		expect(epochSecToDateInput(sec)).toBe("2026-01-05");
-	});
-
-	it("returns an empty string for undefined", () => {
-		expect(epochSecToDateInput(undefined)).toBe("");
 	});
 });

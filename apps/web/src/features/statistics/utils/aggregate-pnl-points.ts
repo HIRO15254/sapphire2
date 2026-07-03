@@ -13,6 +13,14 @@ export interface PnlSeriesPoint {
 	playMinutes: number | null;
 	profitLoss: number;
 	sessionDate: number;
+	/**
+	 * Chronological order key (unix seconds) — the session's actual start time
+	 * when known, falling back to the date-only `sessionDate`. `sessionDate`
+	 * itself has no time component, so same-day sessions all share the same
+	 * value; sorting by it alone left same-day ordering to fall back to `id`
+	 * (effectively random) instead of actual play order (SA2-98).
+	 */
+	sortKey: number;
 	type: "cash_game" | "tournament";
 }
 
@@ -108,7 +116,7 @@ function originX(
 
 function sortPoints(points: PnlSeriesPoint[]): PnlSeriesPoint[] {
 	return [...points].sort(
-		(a, b) => a.sessionDate - b.sessionDate || a.id.localeCompare(b.id)
+		(a, b) => a.sortKey - b.sortKey || a.id.localeCompare(b.id)
 	);
 }
 

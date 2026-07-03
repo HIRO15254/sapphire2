@@ -14,10 +14,29 @@ const trpcMocks = vi.hoisted(() => ({
 	createCash: vi.fn(),
 	createTournament: vi.fn(),
 	sessionEventCreate: vi.fn(),
+	roomUpdate: vi.fn(),
 }));
+const geoMock = vi.hoisted(() => ({
+	coords: null as { latitude: number; longitude: number } | null,
+}));
+const toastMock = vi.hoisted(() => ({
+	success: vi.fn(),
+	error: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({ toast: toastMock }));
 
 vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => navigateMock,
+}));
+
+vi.mock("@/shared/hooks/use-geolocation", () => ({
+	useGeolocation: () => ({
+		coords: geoMock.coords,
+		status: "idle",
+		error: null,
+		request: vi.fn(),
+	}),
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -89,6 +108,9 @@ vi.mock("@/utils/trpc", () => ({
 		sessionEvent: {
 			create: { mutate: trpcMocks.sessionEventCreate },
 		},
+		room: {
+			update: { mutate: trpcMocks.roomUpdate },
+		},
 	},
 }));
 
@@ -115,6 +137,9 @@ describe("useCreateSession", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		toastMock.success.mockReset();
+		toastMock.error.mockReset();
+		geoMock.coords = null;
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -334,6 +359,361 @@ describe("useCreateSession", () => {
 			expect(trpcMocks.sessionEventCreate).not.toHaveBeenCalled();
 			expect(navigateMock).not.toHaveBeenCalled();
 			expect(onClose).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("nearestRoomId (geolocation default)", () => {
+		function seedRooms(qc: QueryClient) {
+			qc.setQueryData(
+				["room", "list"],
+				[
+					{
+						id: "osaka",
+						name: "Osaka",
+						latitude: 34.6937,
+						longitude: 135.5023,
+					},
+					{
+						id: "tokyo",
+						name: "Tokyo",
+						latitude: 35.6812,
+						longitude: 139.7671,
+					},
+				]
+			);
+		}
+
+		it("resolves to the closest in-range room when coords are available", async () => {
+			geoMock.coords = { latitude: 35.6812, longitude: 139.7671 };
+			const qc = createClient();
+			seedRooms(qc);
+			const { result } = renderHook(
+				() => useCreateSession({ onClose: vi.fn(), open: true }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.nearestRoomId).toBe("tokyo"));
+		});
+
+		it("is undefined when location is unavailable", async () => {
+			geoMock.coords = null;
+			const qc = createClient();
+			seedRooms(qc);
+			const { result } = renderHook(
+				() => useCreateSession({ onClose: vi.fn(), open: true }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(2));
+			expect(result.current.nearestRoomId).toBeUndefined();
+		});
+
+		it("is undefined when no room is within the radius", async () => {
+			geoMock.coords = { latitude: 35.6812, longitude: 139.7671 };
+			const qc = createClient();
+			qc.setQueryData(
+				["room", "list"],
+				[
+					{
+						id: "osaka",
+						name: "Osaka",
+						latitude: 34.6937,
+						longitude: 135.5023,
+					},
+				]
+			);
+			const { result } = renderHook(
+				() => useCreateSession({ onClose: vi.fn(), open: true }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+			expect(result.current.nearestRoomId).toBeUndefined();
+		});
+
+		it("ignores rooms without coordinates", async () => {
+			geoMock.coords = { latitude: 35.6812, longitude: 139.7671 };
+			const qc = createClient();
+			qc.setQueryData(
+				["room", "list"],
+				[{ id: "no-coords", name: "Legacy", latitude: null, longitude: null }]
+			);
+			const { result } = renderHook(
+				() => useCreateSession({ onClose: vi.fn(), open: true }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+			expect(result.current.nearestRoomId).toBeUndefined();
+		});
+	});
+
+	describe("locationPrompt (SA2-100 save room location)", () => {
+		const COORDS = { latitude: 35.6812, longitude: 139.7671 };
+
+		function seedRoom(
+			qc: QueryClient,
+			room: { latitude: number | null; longitude: number | null }
+		) {
+			qc.setQueryData(
+				["room", "list"],
+				[{ id: "s1", name: "Room 1", ...room }]
+			);
+		}
+
+		function renderReady(qc: QueryClient, onClose = vi.fn()) {
+			const view = renderHook(() => useCreateSession({ onClose, open: true }), {
+				wrapper: makeWrapper(qc),
+			});
+			return view;
+		}
+
+		it("is closed with an empty room name by default", () => {
+			const qc = createClient();
+			const { result } = renderReady(qc);
+			expect(result.current.locationPrompt.open).toBe(false);
+			expect(result.current.locationPrompt.roomName).toBe("");
+		});
+
+		it("opens the prompt instead of starting when the room has no coordinates and a fix is available", async () => {
+			geoMock.coords = COORDS;
+			const qc = createClient();
+			seedRoom(qc, { latitude: null, longitude: null });
+			const { result } = renderReady(qc);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+
+			act(() => {
+				result.current.createCash({ initialBuyIn: 5000, roomId: "s1" });
+			});
+
+			expect(result.current.locationPrompt.open).toBe(true);
+			expect(result.current.locationPrompt.roomName).toBe("Room 1");
+			expect(trpcMocks.createCash).not.toHaveBeenCalled();
+		});
+
+		it("starts the session without saving when the prompt is skipped", async () => {
+			geoMock.coords = COORDS;
+			const qc = createClient();
+			seedRoom(qc, { latitude: null, longitude: null });
+			trpcMocks.createCash.mockResolvedValue({ id: "c-1" });
+			const { result } = renderReady(qc);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+
+			act(() => {
+				result.current.createCash({ initialBuyIn: 5000, roomId: "s1" });
+			});
+			act(() => {
+				result.current.locationPrompt.onSkip();
+			});
+
+			expect(result.current.locationPrompt.open).toBe(false);
+			expect(trpcMocks.roomUpdate).not.toHaveBeenCalled();
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledWith({
+					initialBuyIn: 5000,
+					roomId: "s1",
+				})
+			);
+		});
+
+		it("saves the current location to the room then starts the session", async () => {
+			geoMock.coords = COORDS;
+			const qc = createClient();
+			seedRoom(qc, { latitude: null, longitude: null });
+			trpcMocks.createCash.mockResolvedValue({ id: "c-1" });
+			trpcMocks.roomUpdate.mockResolvedValue({ id: "s1" });
+			const { result } = renderReady(qc);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+
+			act(() => {
+				result.current.createCash({ initialBuyIn: 5000, roomId: "s1" });
+			});
+			act(() => {
+				result.current.locationPrompt.onSave();
+			});
+
+			expect(result.current.locationPrompt.open).toBe(false);
+			await waitFor(() =>
+				expect(trpcMocks.roomUpdate).toHaveBeenCalledWith({
+					id: "s1",
+					latitude: COORDS.latitude,
+					longitude: COORDS.longitude,
+				})
+			);
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledWith({
+					initialBuyIn: 5000,
+					roomId: "s1",
+				})
+			);
+			await waitFor(() =>
+				expect(toastMock.success).toHaveBeenCalledWith("Room location saved")
+			);
+			expect(toastMock.success).toHaveBeenCalledTimes(1);
+			expect(toastMock.error).not.toHaveBeenCalled();
+		});
+
+		it("toasts an error but still starts the session when the location save fails", async () => {
+			geoMock.coords = COORDS;
+			const qc = createClient();
+			seedRoom(qc, { latitude: null, longitude: null });
+			trpcMocks.createCash.mockResolvedValue({ id: "c-1" });
+			trpcMocks.roomUpdate.mockRejectedValue(new Error("network"));
+			const { result } = renderReady(qc);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+
+			act(() => {
+				result.current.createCash({ initialBuyIn: 5000, roomId: "s1" });
+			});
+			act(() => {
+				result.current.locationPrompt.onSave();
+			});
+
+			await waitFor(() =>
+				expect(toastMock.error).toHaveBeenCalledWith(
+					"Couldn't save room location"
+				)
+			);
+			expect(toastMock.error).toHaveBeenCalledTimes(1);
+			expect(toastMock.success).not.toHaveBeenCalled();
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledWith({
+					initialBuyIn: 5000,
+					roomId: "s1",
+				})
+			);
+		});
+
+		it("does not toast when the prompt is skipped without saving", async () => {
+			geoMock.coords = COORDS;
+			const qc = createClient();
+			seedRoom(qc, { latitude: null, longitude: null });
+			trpcMocks.createCash.mockResolvedValue({ id: "c-1" });
+			const { result } = renderReady(qc);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+
+			act(() => {
+				result.current.createCash({ initialBuyIn: 5000, roomId: "s1" });
+			});
+			act(() => {
+				result.current.locationPrompt.onSkip();
+			});
+
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledTimes(1)
+			);
+			expect(toastMock.success).not.toHaveBeenCalled();
+			expect(toastMock.error).not.toHaveBeenCalled();
+		});
+
+		it("treats a dismissal (onOpenChange false) as a skip", async () => {
+			geoMock.coords = COORDS;
+			const qc = createClient();
+			seedRoom(qc, { latitude: null, longitude: null });
+			trpcMocks.createCash.mockResolvedValue({ id: "c-1" });
+			const { result } = renderReady(qc);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+
+			act(() => {
+				result.current.createCash({ initialBuyIn: 5000, roomId: "s1" });
+			});
+			act(() => {
+				result.current.locationPrompt.onOpenChange(false);
+			});
+
+			expect(result.current.locationPrompt.open).toBe(false);
+			expect(trpcMocks.roomUpdate).not.toHaveBeenCalled();
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledTimes(1)
+			);
+		});
+
+		it("does not open the prompt when the room already has coordinates", async () => {
+			geoMock.coords = COORDS;
+			const qc = createClient();
+			seedRoom(qc, { latitude: 35.68, longitude: 139.76 });
+			trpcMocks.createCash.mockResolvedValue({ id: "c-1" });
+			const { result } = renderReady(qc);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+
+			act(() => {
+				result.current.createCash({ initialBuyIn: 5000, roomId: "s1" });
+			});
+
+			expect(result.current.locationPrompt.open).toBe(false);
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledTimes(1)
+			);
+		});
+
+		it("does not open the prompt when no device fix is available", async () => {
+			geoMock.coords = null;
+			const qc = createClient();
+			seedRoom(qc, { latitude: null, longitude: null });
+			trpcMocks.createCash.mockResolvedValue({ id: "c-1" });
+			const { result } = renderReady(qc);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+
+			act(() => {
+				result.current.createCash({ initialBuyIn: 5000, roomId: "s1" });
+			});
+
+			expect(result.current.locationPrompt.open).toBe(false);
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledTimes(1)
+			);
+		});
+
+		it("does not open the prompt when the chosen room is not in the list", async () => {
+			geoMock.coords = COORDS;
+			const qc = createClient();
+			seedRoom(qc, { latitude: null, longitude: null });
+			trpcMocks.createCash.mockResolvedValue({ id: "c-1" });
+			const { result } = renderReady(qc);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+
+			act(() => {
+				result.current.createCash({ initialBuyIn: 5000, roomId: "missing" });
+			});
+
+			expect(result.current.locationPrompt.open).toBe(false);
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledTimes(1)
+			);
+		});
+
+		it("prompts for a tournament start too, then saves before starting", async () => {
+			geoMock.coords = COORDS;
+			const qc = createClient();
+			seedRoom(qc, { latitude: null, longitude: null });
+			trpcMocks.createTournament.mockResolvedValue({ id: "t-1" });
+			trpcMocks.sessionEventCreate.mockResolvedValue({ id: "ev-1" });
+			trpcMocks.roomUpdate.mockResolvedValue({ id: "s1" });
+			const { result } = renderReady(qc);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+
+			act(() => {
+				result.current.createTournament({
+					buyIn: 10_000,
+					startingStack: 20_000,
+					roomId: "s1",
+				});
+			});
+			expect(result.current.locationPrompt.open).toBe(true);
+			expect(trpcMocks.createTournament).not.toHaveBeenCalled();
+
+			act(() => {
+				result.current.locationPrompt.onSave();
+			});
+			await waitFor(() =>
+				expect(trpcMocks.roomUpdate).toHaveBeenCalledWith({
+					id: "s1",
+					latitude: COORDS.latitude,
+					longitude: COORDS.longitude,
+				})
+			);
+			await waitFor(() =>
+				expect(trpcMocks.createTournament).toHaveBeenCalledWith({
+					buyIn: 10_000,
+					roomId: "s1",
+				})
+			);
 		});
 	});
 });

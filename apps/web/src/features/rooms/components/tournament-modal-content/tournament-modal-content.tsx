@@ -28,6 +28,11 @@ interface TournamentModalContentProps {
 	initialFormValues?: TournamentPartialFormValues;
 	/** Opens the AI auto-fill sheet (body button). Omitted disables it. */
 	onOpenAi?: () => void;
+	/**
+	 * Registers a getter that returns the form's current values so AI auto-fill
+	 * merges over what the user has already entered instead of overwriting it.
+	 */
+	onRegisterLiveValues?: (getter: () => TournamentPartialFormValues) => void;
 	onSave: (
 		values: TournamentFormValues,
 		levels: BlindLevelRow[]
@@ -39,6 +44,7 @@ export function TournamentModalContent({
 	initialBlindLevels,
 	initialFormValues,
 	onOpenAi,
+	onRegisterLiveValues,
 	onSave,
 }: TournamentModalContentProps) {
 	const { localBlindLevels, setLocalBlindLevels } = useTournamentModalContent({
@@ -71,6 +77,7 @@ export function TournamentModalContent({
 					<TournamentForm
 						defaultValues={initialFormValues}
 						formId={formId}
+						onRegisterLiveValues={onRegisterLiveValues}
 						onSubmit={(values) => onSave(values, localBlindLevels)}
 					/>
 				</TabsContent>

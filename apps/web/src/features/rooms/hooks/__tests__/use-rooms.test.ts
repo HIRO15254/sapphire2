@@ -158,6 +158,49 @@ describe("useRooms", () => {
 			}
 		});
 
+		it("forwards latitude/longitude to the server and the optimistic row", async () => {
+			const qc = createClient();
+			qc.setQueryData(STORE_KEY, [
+				{ id: "s1", name: "Main", memo: null, latitude: null, longitude: null },
+			]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.create.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => useRooms(), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.create({
+					name: "Geo Room",
+					latitude: 35.6812,
+					longitude: 139.7671,
+				});
+			});
+			await waitFor(() => {
+				const list =
+					qc.getQueryData<
+						Array<{
+							id: string;
+							latitude: number | null;
+							longitude: number | null;
+						}>
+					>(STORE_KEY);
+				const temp = list?.find((s) => s.id.startsWith("temp-"));
+				expect(temp?.latitude).toBe(35.6812);
+				expect(temp?.longitude).toBe(139.7671);
+			});
+			expect(trpcMocks.create).toHaveBeenCalledWith({
+				name: "Geo Room",
+				latitude: 35.6812,
+				longitude: 139.7671,
+			});
+			resolve?.({ id: "s2" });
+		});
+
 		it("flips isCreatePending to true while the mutation is in-flight", async () => {
 			const qc = createClient();
 			qc.setQueryData(STORE_KEY, []);
@@ -263,6 +306,8 @@ describe("useRooms", () => {
 				id: "s1",
 				name: "Main",
 				memo: null,
+				latitude: null,
+				longitude: null,
 			});
 		});
 
@@ -280,6 +325,34 @@ describe("useRooms", () => {
 				id: "s1",
 				name: "Main",
 				memo: "kept",
+				latitude: null,
+				longitude: null,
+			});
+		});
+
+		it("forwards updated coordinates to the server", async () => {
+			const qc = createClient();
+			qc.setQueryData(STORE_KEY, [
+				{ id: "s1", name: "Main", memo: null, latitude: null, longitude: null },
+			]);
+			trpcMocks.update.mockResolvedValue({ id: "s1" });
+			const { result } = renderHook(() => useRooms(), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				await result.current.update({
+					id: "s1",
+					name: "Main",
+					latitude: 12.5,
+					longitude: -34.25,
+				});
+			});
+			expect(trpcMocks.update).toHaveBeenCalledWith({
+				id: "s1",
+				name: "Main",
+				memo: null,
+				latitude: 12.5,
+				longitude: -34.25,
 			});
 		});
 

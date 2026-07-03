@@ -94,6 +94,24 @@ describe("room.create input validation", () => {
 			memo: 123,
 		});
 	});
+
+	it("accepts name + coordinates", () => {
+		expectAccepts(appRouter.room.create, {
+			name: "Casino Tokyo",
+			latitude: 35.6812,
+			longitude: 139.7671,
+		});
+	});
+
+	it("rejects out-of-range coordinates", () => {
+		expectRejects(appRouter.room.create, { name: "x", latitude: 91 });
+		expectRejects(appRouter.room.create, { name: "x", longitude: -181 });
+	});
+
+	it("rejects a single coordinate without its pair", () => {
+		expectRejects(appRouter.room.create, { name: "x", latitude: 35.6 });
+		expectRejects(appRouter.room.create, { name: "x", longitude: 139.7 });
+	});
 });
 
 describe("room.update input validation", () => {
@@ -119,6 +137,72 @@ describe("room.update input validation", () => {
 
 	it("rejects missing id", () => {
 		expectRejects(appRouter.room.update, { name: "x" });
+	});
+
+	it("accepts latitude + longitude", () => {
+		expectAccepts(appRouter.room.update, {
+			id: "r1",
+			latitude: 35.6812,
+			longitude: 139.7671,
+		});
+	});
+
+	it("accepts latitude/longitude cleared to null", () => {
+		expectAccepts(appRouter.room.update, {
+			id: "r1",
+			latitude: null,
+			longitude: null,
+		});
+	});
+
+	it("accepts boundary coordinates", () => {
+		expectAccepts(appRouter.room.update, {
+			id: "r1",
+			latitude: -90,
+			longitude: -180,
+		});
+		expectAccepts(appRouter.room.update, {
+			id: "r1",
+			latitude: 90,
+			longitude: 180,
+		});
+	});
+
+	it("rejects latitude above 90", () => {
+		expectRejects(appRouter.room.update, { id: "r1", latitude: 90.1 });
+	});
+
+	it("rejects latitude below -90", () => {
+		expectRejects(appRouter.room.update, { id: "r1", latitude: -90.1 });
+	});
+
+	it("rejects longitude above 180", () => {
+		expectRejects(appRouter.room.update, { id: "r1", longitude: 180.1 });
+	});
+
+	it("rejects longitude below -180", () => {
+		expectRejects(appRouter.room.update, { id: "r1", longitude: -180.1 });
+	});
+
+	it("rejects non-numeric latitude", () => {
+		expectRejects(appRouter.room.update, { id: "r1", latitude: "35.6" });
+	});
+
+	it("rejects non-numeric longitude", () => {
+		expectRejects(appRouter.room.update, { id: "r1", longitude: "139.7" });
+	});
+
+	it("rejects a single coordinate without its pair", () => {
+		expectRejects(appRouter.room.update, { id: "r1", latitude: 35.6 });
+		expectRejects(appRouter.room.update, { id: "r1", longitude: 139.7 });
+	});
+
+	it("rejects one coordinate cleared while the other is set", () => {
+		expectRejects(appRouter.room.update, {
+			id: "r1",
+			latitude: 35.6,
+			longitude: null,
+		});
 	});
 });
 

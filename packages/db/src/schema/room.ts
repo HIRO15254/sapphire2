@@ -1,5 +1,11 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	real,
+	sqliteTable,
+	text,
+} from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 
 export const room = sqliteTable(
@@ -14,6 +20,11 @@ export const room = sqliteTable(
 		isFavorite: integer("is_favorite", { mode: "boolean" })
 			.notNull()
 			.default(false),
+		// Geographic coordinates of the room, used to default-select the nearest
+		// room when starting a live session. Nullable: existing/unset rooms have
+		// no location, and (0, 0) is a valid coordinate so it can't mean "unset".
+		latitude: real("latitude"),
+		longitude: real("longitude"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.default(sql`(unixepoch())`)
 			.notNull(),

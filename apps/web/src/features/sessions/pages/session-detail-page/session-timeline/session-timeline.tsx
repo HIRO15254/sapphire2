@@ -8,7 +8,9 @@ interface SessionTimelineProps {
 /**
  * Recorded-session event timeline, shown below the game / session info on the
  * detail page. Reuses the live-session events scene so a recorded session shows
- * the same timeline it had during play. Manual sessions never render it.
+ * the same timeline it had during play. Read-only here — events are edited from
+ * the session edit sheet's Events section, not this card. Manual sessions never
+ * render it.
  */
 export function SessionTimeline({
 	liveSessionId,
@@ -20,6 +22,7 @@ export function SessionTimeline({
 			<div className="px-4 py-3">
 				<SessionEventsScene
 					embedded
+					readOnly
 					sessionId={liveSessionId}
 					sessionType={sessionType}
 				/>

@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
 	assertNoLiveLinkedRestrictedEdits,
+	chunkForInsert,
 	computeTournamentPL,
 	encodeSessionCursor,
+	type ProfitLossSeriesRow,
 	parseSessionCursor,
+	toProfitLossSeriesPoint,
 } from "../routers/session";
 
 const DERIVED_FIELDS_RE = /Cannot edit fields derived from live session events/;
@@ -14,6 +17,43 @@ const SESSION_DATE_RE = /sessionDate/;
 const PLACEMENT_RE = /placement/;
 const PRIZE_MONEY_RE = /prizeMoney/;
 const TOURNAMENT_ID_RE = /tournamentId/;
+
+describe("chunkForInsert", () => {
+	it("keeps each chunk under D1's 100 bound-parameter cap for 9-column rows", () => {
+		// A 14-level blind structure (9 columns) would bind 126 params in one
+		// INSERT — over D1's cap of 100. It must split into <=11-row chunks.
+		const rows = Array.from({ length: 14 }, (_, i) => i);
+		const chunks = chunkForInsert(rows, 9);
+		expect(chunks).toHaveLength(2);
+		expect(chunks[0]).toHaveLength(11);
+		expect(chunks[1]).toHaveLength(3);
+		for (const chunk of chunks) {
+			expect(chunk.length * 9).toBeLessThanOrEqual(100);
+		}
+		expect(chunks.flat()).toEqual(rows);
+	});
+
+	it("returns a single chunk when the batch fits under the cap", () => {
+		const rows = Array.from({ length: 11 }, (_, i) => i);
+		expect(chunkForInsert(rows, 9)).toEqual([rows]);
+	});
+
+	it("returns no chunks for an empty batch", () => {
+		expect(chunkForInsert([], 9)).toEqual([]);
+	});
+
+	it("chunks wide rows more aggressively than narrow rows", () => {
+		const rows = Array.from({ length: 60 }, (_, i) => i);
+		// 2 columns -> up to 50 rows/chunk; 6 columns -> up to 16 rows/chunk.
+		expect(chunkForInsert(rows, 2)[0]).toHaveLength(50);
+		expect(chunkForInsert(rows, 6)[0]).toHaveLength(16);
+	});
+
+	it("falls back to one row per chunk when a single row already fills the cap", () => {
+		const rows = [1, 2, 3];
+		expect(chunkForInsert(rows, 200)).toEqual([[1], [2], [3]]);
+	});
+});
 
 describe("session router", () => {
 	it("appRouter has session namespace", () => {
@@ -203,26 +243,41 @@ describe("session router input validation", () => {
 	});
 
 	describe("session list cursor (composite keyset)", () => {
-		it("encodes a row as <epochMs>_<id>", () => {
+		it("encodes a row as <epochMs>_<id>, using startedAt when present", () => {
 			expect(
-				encodeSessionCursor({ id: "s1", sessionDate: new Date(1000) })
+				encodeSessionCursor({
+					id: "s1",
+					sessionDate: new Date(1000),
+					startedAt: new Date(2000),
+				})
+			).toBe("2000_s1");
+		});
+
+		it("falls back to sessionDate when startedAt is null", () => {
+			expect(
+				encodeSessionCursor({
+					id: "s1",
+					sessionDate: new Date(1000),
+					startedAt: null,
+				})
 			).toBe("1000_s1");
 		});
 
-		it("round-trips an encoded cursor back to its date and id", () => {
+		it("round-trips an encoded cursor back to its sort key and id", () => {
 			const cursor = encodeSessionCursor({
 				id: "abc",
-				sessionDate: new Date(1_700_000_000_000),
+				sessionDate: new Date(1_600_000_000_000),
+				startedAt: new Date(1_700_000_000_000),
 			});
 			const parsed = parseSessionCursor(cursor);
 			expect(parsed?.id).toBe("abc");
-			expect(parsed?.sessionDate.getTime()).toBe(1_700_000_000_000);
+			expect(parsed?.sortKey.getTime()).toBe(1_700_000_000_000);
 		});
 
 		it("preserves underscores in the id (splits on the first separator only)", () => {
 			const parsed = parseSessionCursor("1000_a_b_c");
 			expect(parsed?.id).toBe("a_b_c");
-			expect(parsed?.sessionDate.getTime()).toBe(1000);
+			expect(parsed?.sortKey.getTime()).toBe(1000);
 		});
 
 		it("returns null when the separator is missing", () => {
@@ -239,6 +294,56 @@ describe("session router input validation", () => {
 
 		it("returns null for an empty id", () => {
 			expect(parseSessionCursor("1000_")).toBeNull();
+		});
+	});
+
+	describe("toProfitLossSeriesPoint sortKey (SA2-98)", () => {
+		function row(overrides: Partial<ProfitLossSeriesRow>): ProfitLossSeriesRow {
+			return {
+				bountyPrizes: null,
+				breakMinutes: null,
+				buyIn: null,
+				cashOut: null,
+				chipPurchaseCost: 0,
+				endedAt: null,
+				entryFee: null,
+				evCashOut: null,
+				id: "s1",
+				prizeMoney: null,
+				ringGameBlind2: null,
+				sessionDate: new Date(1_700_000_000_000),
+				startedAt: null,
+				tournamentBuyIn: null,
+				type: "cash_game",
+				...overrides,
+			};
+		}
+
+		it("uses startedAt (in seconds) as sortKey when present", () => {
+			const point = toProfitLossSeriesPoint(
+				row({
+					sessionDate: new Date(1_700_000_000_000),
+					startedAt: new Date(1_700_003_600_000),
+				})
+			);
+			expect(point.sortKey).toBe(1_700_003_600);
+		});
+
+		it("falls back to sessionDate (in seconds) as sortKey when startedAt is null", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ sessionDate: new Date(1_700_000_000_000), startedAt: null })
+			);
+			expect(point.sortKey).toBe(1_700_000_000);
+		});
+
+		it("keeps sessionDate (date-only) unchanged even when startedAt differs", () => {
+			const point = toProfitLossSeriesPoint(
+				row({
+					sessionDate: new Date(1_700_000_000_000),
+					startedAt: new Date(1_700_003_600_000),
+				})
+			);
+			expect(point.sessionDate).toBe(1_700_000_000);
 		});
 	});
 
@@ -277,6 +382,39 @@ describe("session router input validation", () => {
 			}
 		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
 		expect(schema.safeParse({ id: "s1", placement: 0 }).success).toBe(false);
+	});
+
+	it("update accepts and retains an edited rule name", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as {
+			safeParse: (v: unknown) => {
+				data?: { ruleName?: string };
+				success: boolean;
+			};
+		};
+		const parsed = schema.safeParse({ id: "s1", ruleName: "My 1/2 NLH" });
+		expect(parsed.success).toBe(true);
+		expect(parsed.data?.ruleName).toBe("My 1/2 NLH");
+	});
+
+	it("update accepts and retains cash min/max buy-in", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as {
+			safeParse: (v: unknown) => {
+				data?: { maxBuyIn?: number; minBuyIn?: number };
+				success: boolean;
+			};
+		};
+		const parsed = schema.safeParse({ id: "s1", minBuyIn: 100, maxBuyIn: 500 });
+		expect(parsed.success).toBe(true);
+		expect(parsed.data?.minBuyIn).toBe(100);
+		expect(parsed.data?.maxBuyIn).toBe(500);
 	});
 
 	it("create accepts cash session with snapshot override fields", () => {
@@ -412,6 +550,56 @@ describe("session router input validation", () => {
 		).toBe(true);
 	});
 
+	it("update accepts and retains tournament snapshot override fields and blind level structure", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as {
+			safeParse: (v: unknown) => {
+				data?: Record<string, unknown>;
+				success: boolean;
+			};
+		};
+		const input = {
+			id: "s1",
+			variant: "nlh",
+			startingStack: 20_000,
+			bountyAmount: 500,
+			tableSize: 9,
+			blindLevels: [
+				{
+					isBreak: false,
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					ante: null,
+					minutes: 15,
+				},
+			],
+		};
+		const parsed = schema.safeParse(input);
+		expect(parsed.success).toBe(true);
+		// Guards against Zod silently stripping these as unknown keys.
+		expect(parsed.data?.startingStack).toBe(20_000);
+		expect(parsed.data?.bountyAmount).toBe(500);
+		expect(parsed.data?.blindLevels).toEqual(input.blindLevels);
+	});
+
+	it("update rejects a blind level missing isBreak", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({
+				id: "s1",
+				blindLevels: [{ blind1: 100 }],
+			}).success
+		).toBe(false);
+	});
+
 	it("delete rejects missing id", () => {
 		const schema = (
 			appRouter.session.delete as unknown as {
@@ -478,6 +666,24 @@ describe("assertNoLiveLinkedRestrictedEdits", () => {
 		).toThrow(SESSION_DATE_RE);
 	});
 
+	it("rejects ruleName / min-max buy-in edits on live-linked cash session", () => {
+		expect(() =>
+			assertNoLiveLinkedRestrictedEdits(liveCashSession, {
+				ruleName: "renamed",
+				minBuyIn: 10_000,
+				maxBuyIn: 50_000,
+			})
+		).toThrow(DERIVED_FIELDS_RE);
+	});
+
+	it("rejects ruleName edit on live-linked tournament session", () => {
+		expect(() =>
+			assertNoLiveLinkedRestrictedEdits(liveTournamentSession, {
+				ruleName: "renamed",
+			})
+		).toThrow(DERIVED_FIELDS_RE);
+	});
+
 	it("rejects placement edit on live-linked tournament session", () => {
 		expect(() =>
 			assertNoLiveLinkedRestrictedEdits(liveTournamentSession, {
@@ -500,6 +706,27 @@ describe("assertNoLiveLinkedRestrictedEdits", () => {
 				tournamentId: "some-other-tournament",
 			})
 		).toThrow(TOURNAMENT_ID_RE);
+	});
+
+	it("rejects rule-snapshot / blind-structure edits on live-linked tournament session", () => {
+		expect(() =>
+			assertNoLiveLinkedRestrictedEdits(liveTournamentSession, {
+				variant: "plo",
+				startingStack: 20_000,
+				bountyAmount: 500,
+				tableSize: 9,
+				blindLevels: [
+					{
+						isBreak: false,
+						blind1: 100,
+						blind2: 200,
+						blind3: null,
+						ante: null,
+						minutes: 15,
+					},
+				],
+			})
+		).toThrow(TRPCError);
 	});
 
 	it("allows memo edit on live-linked session", () => {

@@ -169,6 +169,7 @@ function baseSessionItem(overrides: Partial<SessionItem> = {}): SessionItem {
 		breakMinutes: null,
 		buyIn: 10_000,
 		cashOut: 15_000,
+		blindLevels: [],
 		chipPurchases: [],
 		chipPurchaseCost: 0,
 		createdAt: "2026-04-01T00:00:00Z",
@@ -254,19 +255,26 @@ describe("pure helpers", () => {
 			).toMatchObject({ type: "cash_game", roomId: "s", currencyId: "c" });
 		});
 
-		it("converts dateFrom to seconds since epoch (day start)", () => {
-			const out = filtersToListInput({ dateFrom: "2026-04-01" });
-			expect(typeof out.dateFrom).toBe("number");
+		it("leaves the date range unset for the default (all) period", () => {
+			const out = filtersToListInput({});
+			expect(out.dateFrom).toBeUndefined();
 			expect(out.dateTo).toBeUndefined();
 		});
 
-		it("appends T23:59:59 when converting dateTo", () => {
-			const out = filtersToListInput({ dateTo: "2026-04-01" });
-			const withStart = filtersToListInput({ dateFrom: "2026-04-01" });
-			// dateTo (end of day) must be greater than dateFrom (start of day) for same date.
-			expect((out.dateTo as number) > (withStart.dateFrom as number)).toBe(
-				true
-			);
+		it("passes a custom period's from/to bounds straight through", () => {
+			const from = Math.floor(Date.UTC(2026, 3, 1, 0, 0, 0) / 1000);
+			const to = Math.floor(Date.UTC(2026, 3, 30, 23, 59, 59) / 1000);
+			const out = filtersToListInput({ period: "custom", from, to });
+			expect(out.dateFrom).toBe(from);
+			expect(out.dateTo).toBe(to);
+		});
+
+		it("resolves a relative period into a numeric, day-bounded range", () => {
+			const out = filtersToListInput({ period: "30d" });
+			expect(typeof out.dateFrom).toBe("number");
+			expect(typeof out.dateTo).toBe("number");
+			// End of today is strictly after the start of the 30-day window.
+			expect((out.dateTo as number) > (out.dateFrom as number)).toBe(true);
 		});
 	});
 
@@ -354,6 +362,56 @@ describe("pure helpers", () => {
 			expect(out.roomId).toBe("room-1");
 			expect(out.currencyId).toBe("cur-1");
 		});
+
+		it("forwards the edited rule name for cash and tournament", () => {
+			const cash = buildUpdatePayload({
+				...cashValues({ ruleName: "My 1/2 NLH" }),
+				id: "s1",
+			}) as Record<string, unknown>;
+			expect(cash.ruleName).toBe("My 1/2 NLH");
+			const tourney = buildUpdatePayload({
+				...tournamentValues({ ruleName: "Weekly Deepstack" }),
+				id: "s1",
+			}) as Record<string, unknown>;
+			expect(tourney.ruleName).toBe("Weekly Deepstack");
+		});
+
+		it("forwards cash min/max buy-in edits", () => {
+			const out = buildUpdatePayload({
+				...cashValues({ minBuyIn: 100, maxBuyIn: 500 }),
+				id: "s1",
+			}) as Record<string, unknown>;
+			expect(out.minBuyIn).toBe(100);
+			expect(out.maxBuyIn).toBe(500);
+		});
+
+		it("includes tournament snapshot overrides and blind levels", () => {
+			const blindLevels = [
+				{
+					ante: null,
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					isBreak: false,
+					minutes: 15,
+				},
+			];
+			const out = buildUpdatePayload({
+				...tournamentValues({
+					variant: "nlh",
+					startingStack: 20_000,
+					bountyAmount: 500,
+					tableSize: 9,
+					blindLevels,
+				}),
+				id: "s1",
+			}) as Record<string, unknown>;
+			expect(out.variant).toBe("nlh");
+			expect(out.startingStack).toBe(20_000);
+			expect(out.bountyAmount).toBe(500);
+			expect(out.tableSize).toBe(9);
+			expect(out.blindLevels).toEqual(blindLevels);
+		});
 	});
 
 	describe("buildLiveLinkedUpdatePayload", () => {
@@ -412,6 +470,11 @@ describe("pure helpers", () => {
 		it("id is a synthetic temp-* marker", () => {
 			const out = buildOptimisticItem(cashValues());
 			expect(out.id).toMatch(TEMP_ID_PATTERN);
+		});
+
+		it("starts with an empty blind structure", () => {
+			const out = buildOptimisticItem(cashValues());
+			expect(out.blindLevels).toEqual([]);
 		});
 	});
 
@@ -480,6 +543,68 @@ describe("pure helpers", () => {
 			expect(out.startingStack).toBe(20_000);
 			expect(out.bountyAmount).toBe(500);
 			expect(out.tableSize).toBe(9);
+		});
+
+		it("pre-fills the tournament blind structure from the session row", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({
+					type: "tournament",
+					tournamentName: "Main Event",
+					blindLevels: [
+						{
+							isBreak: false,
+							blind1: 100,
+							blind2: 200,
+							blind3: null,
+							ante: 25,
+							minutes: 20,
+						},
+						{
+							isBreak: true,
+							blind1: null,
+							blind2: null,
+							blind3: null,
+							ante: null,
+							minutes: 10,
+						},
+					],
+				})
+			);
+			expect(out.blindLevels).toEqual([
+				{
+					isBreak: false,
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					ante: 25,
+					minutes: 20,
+				},
+				{
+					isBreak: true,
+					blind1: null,
+					blind2: null,
+					blind3: null,
+					ante: null,
+					minutes: 10,
+				},
+			]);
+		});
+
+		it("maps an empty blind structure to an empty array", () => {
+			const out = buildEditDefaults(
+				baseSessionItem({ type: "tournament", blindLevels: [] })
+			);
+			expect(out.blindLevels).toEqual([]);
+		});
+
+		it("tolerates a session whose blindLevels field is absent (stale response)", () => {
+			// A getById response served by an older API build (or a cached
+			// pre-migration entry) can omit blindLevels entirely; buildEditDefaults
+			// must not throw when the field is undefined.
+			const session = baseSessionItem({ type: "tournament" });
+			session.blindLevels = undefined;
+			expect(() => buildEditDefaults(session)).not.toThrow();
+			expect(buildEditDefaults(session).blindLevels).toEqual([]);
 		});
 
 		it("leaves cash-only snapshot fields undefined on tournament rows", () => {

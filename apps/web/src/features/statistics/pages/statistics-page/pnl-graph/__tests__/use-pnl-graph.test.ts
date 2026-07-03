@@ -35,6 +35,7 @@ function seriesPoint(
 		evProfitLoss: null,
 		playMinutes: null,
 		type: "cash_game",
+		sortKey: overrides.sessionDate,
 		...overrides,
 	};
 }
@@ -220,6 +221,32 @@ describe("usePnlGraph", () => {
 		act(() => result.current.setShowEvCash(true));
 		const last = result.current.points.at(-1);
 		expect(last?.evCashCumulative).toBeUndefined();
+	});
+
+	it("orders same-day sessions by sortKey (actual start time), not id (SA2-98)", async () => {
+		const morning = day1 + 3 * 60 * 60;
+		const evening = day1 + 22 * 60 * 60;
+		trpcMocks.seriesQueryFn.mockResolvedValue({
+			points: [
+				seriesPoint({
+					id: "z",
+					profitLoss: 100,
+					sessionDate: day1,
+					sortKey: morning,
+				}),
+				seriesPoint({
+					id: "a",
+					profitLoss: -30,
+					sessionDate: day1,
+					sortKey: evening,
+				}),
+			],
+		});
+		const result = await renderLoaded(ctx());
+		act(() => result.current.setXAxis("sessionCount"));
+		expect(result.current.points.map((p) => p.cumulative)).toEqual([
+			0, 100, 70,
+		]);
 	});
 
 	it("reports an empty graph when the series has no usable points", async () => {

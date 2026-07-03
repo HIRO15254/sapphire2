@@ -16,6 +16,7 @@ interface Env {
 	DISCORD_CLIENT_SECRET?: string;
 	GOOGLE_CLIENT_ID?: string;
 	GOOGLE_CLIENT_SECRET?: string;
+	GOOGLE_MAPS_API_KEY?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -76,7 +77,8 @@ app.use("/trpc/*", (c, next) => {
 	const contextFactory = createContextFactory(
 		auth,
 		db,
-		c.env.ANTHROPIC_API_KEY
+		c.env.ANTHROPIC_API_KEY,
+		c.env.GOOGLE_MAPS_API_KEY
 	);
 	const middleware = trpcServer({
 		router: appRouter,

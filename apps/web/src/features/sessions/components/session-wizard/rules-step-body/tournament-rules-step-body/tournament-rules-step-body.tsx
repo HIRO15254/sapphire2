@@ -80,17 +80,21 @@ function TournamentSettingsTab({
 	state,
 	currencies,
 	isLiveLinked,
+	showOverrides,
 }: {
 	state: UseSessionWizardReturn;
 	currencies?: Array<{ id: string; name: string }>;
 	isLiveLinked: boolean;
+	showOverrides: boolean;
 }) {
 	return (
 		<state.form.Subscribe selector={(s) => s.values}>
 			{(values) => {
-				const overriddenLabels = new Set(
-					tournamentOverriddenFields(values, state.selectedTournament)
-				);
+				const overriddenLabels = showOverrides
+					? new Set(
+							tournamentOverriddenFields(values, state.selectedTournament)
+						)
+					: undefined;
 				return (
 					<div className="flex flex-col gap-3">
 						<RuleNameField
@@ -112,10 +116,18 @@ function TournamentSettingsTab({
 							overriddenLabels={overriddenLabels}
 							state={state}
 						/>
-						<ChipPurchasesEditor
-							onChange={state.setChipPurchases}
-							value={state.chipPurchases}
-						/>
+						{/* The catalog is derived from event history for live sessions
+						    and rejected by session.update; a disabled fieldset natively
+						    disables every control inside (no-op when not live-linked). */}
+						<fieldset
+							className="m-0 min-w-0 border-0 p-0"
+							disabled={isLiveLinked}
+						>
+							<ChipPurchasesEditor
+								onChange={state.setChipPurchases}
+								value={state.chipPurchases}
+							/>
+						</fieldset>
 					</div>
 				);
 			}}
@@ -127,10 +139,12 @@ export function TournamentRulesStepBody({
 	state,
 	currencies,
 	isLiveLinked,
+	showOverrides = true,
 }: {
 	state: UseSessionWizardReturn;
 	currencies?: Array<{ id: string; name: string }>;
 	isLiveLinked: boolean;
+	showOverrides?: boolean;
 }) {
 	return (
 		<state.form.Subscribe selector={(s) => s.values.variant}>
@@ -145,15 +159,23 @@ export function TournamentRulesStepBody({
 							<TournamentSettingsTab
 								currencies={currencies}
 								isLiveLinked={isLiveLinked}
+								showOverrides={showOverrides}
 								state={state}
 							/>
 						</TabsContent>
 						<TabsContent value="blinds">
-							<LocalBlindStructureContent
-								onChange={state.setBlindLevels}
-								value={state.blindLevels}
-								variant={variant || "nlh"}
-							/>
+							{/* Blind structure is event-derived for live sessions and
+							    rejected by session.update; disable it there. */}
+							<fieldset
+								className="m-0 min-w-0 border-0 p-0"
+								disabled={isLiveLinked}
+							>
+								<LocalBlindStructureContent
+									onChange={state.setBlindLevels}
+									value={state.blindLevels}
+									variant={variant || "nlh"}
+								/>
+							</fieldset>
 						</TabsContent>
 					</Tabs>
 				</>

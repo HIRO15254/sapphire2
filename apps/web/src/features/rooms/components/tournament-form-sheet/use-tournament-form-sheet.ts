@@ -1,7 +1,8 @@
 import type { ExtractedTournamentData } from "@sapphire2/api/routers/ai-extract";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TournamentPartialFormValues } from "@/features/rooms/components/tournament-modal-content";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
+import { mergeExtractedTournamentData } from "@/features/rooms/utils/merge-extracted-tournament-data";
 
 function extractedToBlindLevels(
 	data: ExtractedTournamentData
@@ -19,43 +20,9 @@ function extractedToBlindLevels(
 	}));
 }
 
-function extractedToCreateFormValues(
-	data: ExtractedTournamentData
-): TournamentPartialFormValues {
-	return {
-		name: data.name ?? "",
-		buyIn: data.buyIn,
-		entryFee: data.entryFee,
-		startingStack: data.startingStack,
-		tableSize: data.tableSize,
-		chipPurchases: data.chipPurchases ?? [],
-		variant: "nlh",
-	};
-}
-
-function mergeExtractedIntoEditFormValues(
-	data: ExtractedTournamentData,
-	base: TournamentPartialFormValues | undefined
-): TournamentPartialFormValues {
-	return {
-		...base,
-		// Use || so empty strings fall back to the existing value
-		name: data.name || base?.name || "",
-		variant: base?.variant ?? "nlh",
-		...(data.buyIn !== undefined && { buyIn: data.buyIn }),
-		...(data.entryFee !== undefined && { entryFee: data.entryFee }),
-		...(data.startingStack !== undefined && {
-			startingStack: data.startingStack,
-		}),
-		...(data.tableSize !== undefined && { tableSize: data.tableSize }),
-		...(data.chipPurchases?.length && { chipPurchases: data.chipPurchases }),
-	};
-}
-
 export type TournamentFormSheetMode = "create" | "edit";
 
 interface UseTournamentFormSheetOptions {
-	aiMode?: TournamentFormSheetMode;
 	initialBlindLevels: BlindLevelRow[];
 	initialFormValues?: TournamentPartialFormValues;
 	open: boolean;
@@ -63,7 +30,6 @@ interface UseTournamentFormSheetOptions {
 }
 
 export function useTournamentFormSheet({
-	aiMode,
 	initialBlindLevels,
 	initialFormValues,
 	open,
@@ -76,6 +42,19 @@ export function useTournamentFormSheet({
 	const [aiBlindLevels, setAiBlindLevels] = useState<BlindLevelRow[]>([]);
 	const [aiKey, setAiKey] = useState(0);
 
+	// 現在フォームに入力されている値を AI 抽出時に取得するための getter。
+	// AI が空白を返しても既にユーザーが入力済みの情報を上書きしないよう、
+	// initialFormValues ではなく「現在のフォーム値」を merge のベースに使う（SA2-77）。
+	const liveValuesGetterRef = useRef<
+		(() => TournamentPartialFormValues) | null
+	>(null);
+	const registerLiveValues = useCallback(
+		(getter: () => TournamentPartialFormValues) => {
+			liveValuesGetterRef.current = getter;
+		},
+		[]
+	);
+
 	useEffect(() => {
 		if (!open) {
 			setAiFormValues(undefined);
@@ -86,18 +65,12 @@ export function useTournamentFormSheet({
 	}, [open]);
 
 	const handleAiExtracted = (data: ExtractedTournamentData) => {
+		const base = liveValuesGetterRef.current?.() ?? initialFormValues;
 		const extractedLevels = extractedToBlindLevels(data);
-		if (aiMode === "create") {
-			setAiFormValues(extractedToCreateFormValues(data));
-			setAiBlindLevels(extractedLevels);
-		} else {
-			setAiFormValues(
-				mergeExtractedIntoEditFormValues(data, initialFormValues)
-			);
-			setAiBlindLevels(
-				extractedLevels.length > 0 ? extractedLevels : initialBlindLevels
-			);
-		}
+		setAiFormValues(mergeExtractedTournamentData(data, base));
+		setAiBlindLevels(
+			extractedLevels.length > 0 ? extractedLevels : initialBlindLevels
+		);
 		setAiKey((k) => k + 1);
 		setAiSheetOpen(false);
 	};
@@ -114,5 +87,6 @@ export function useTournamentFormSheet({
 		effectiveLevels,
 		contentKey,
 		handleAiExtracted,
+		registerLiveValues,
 	};
 }

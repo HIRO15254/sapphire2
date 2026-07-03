@@ -24,6 +24,12 @@ type SessionType = "cash_game" | "tournament";
 interface SessionEventsSceneProps {
 	embedded?: boolean;
 	emptySessionMessage?: string;
+	/**
+	 * Render the timeline as a display-only card — no per-event edit / delete
+	 * affordances and no edit sheet. The recorded-session detail page uses this
+	 * so events are edited from the session edit sheet, not the timeline card.
+	 */
+	readOnly?: boolean;
 	refetchInterval?: number;
 	sessionId: string;
 	sessionLoading?: boolean;
@@ -33,6 +39,7 @@ interface SessionEventsSceneProps {
 export function SessionEventsScene({
 	embedded = false,
 	emptySessionMessage = "No active session",
+	readOnly = false,
 	refetchInterval,
 	sessionId,
 	sessionLoading = false,
@@ -90,58 +97,61 @@ export function SessionEventsScene({
 								</p>
 							) : null}
 						</div>
-						<div className="flex shrink-0 items-center gap-1">
-							{canDelete && confirmingDeleteId === event.id ? (
-								<>
-									<span className="text-destructive text-xs">Delete?</span>
-									<Button
-										aria-label="Confirm delete"
-										className="text-destructive hover:text-destructive"
-										onClick={() => {
-											deleteEvent(event.id);
-											setConfirmingDeleteId(null);
-										}}
-										size="icon-xs"
-										type="button"
-										variant="ghost"
-									>
-										<IconTrash size={14} />
-									</Button>
-									<Button
-										aria-label="Cancel delete"
-										onClick={() => setConfirmingDeleteId(null)}
-										size="icon-xs"
-										type="button"
-										variant="ghost"
-									>
-										<IconX size={14} />
-									</Button>
-								</>
-							) : (
-								<>
-									<Button
-										aria-label={`Edit ${formatEventLabel(event.eventType)}`}
-										onClick={() => setEditEvent(event)}
-										size="icon-xs"
-										variant="ghost"
-									>
-										<IconPencil size={14} />
-									</Button>
-									{canDelete && (
+						{!readOnly && (
+							<div className="flex shrink-0 items-center gap-1">
+								{canDelete && confirmingDeleteId === event.id ? (
+									<>
+										<span className="text-destructive text-xs">Delete?</span>
 										<Button
-											aria-label={`Delete ${formatEventLabel(event.eventType)}`}
+											aria-label="Confirm delete"
 											className="text-destructive hover:text-destructive"
-											onClick={() => setConfirmingDeleteId(event.id)}
+											onClick={() => {
+												deleteEvent(event.id);
+												setConfirmingDeleteId(null);
+											}}
 											size="icon-xs"
 											type="button"
 											variant="ghost"
 										>
 											<IconTrash size={14} />
 										</Button>
-									)}
-								</>
-							)}
-						</div>
+										<Button
+											aria-label="Cancel delete"
+											onClick={() => setConfirmingDeleteId(null)}
+											size="icon-xs"
+											type="button"
+											variant="ghost"
+										>
+											<IconX size={14} />
+										</Button>
+									</>
+								) : (
+									<>
+										<Button
+											aria-label={`Edit ${formatEventLabel(event.eventType)}`}
+											onClick={() => setEditEvent(event)}
+											size="icon-xs"
+											type="button"
+											variant="ghost"
+										>
+											<IconPencil size={14} />
+										</Button>
+										{canDelete && (
+											<Button
+												aria-label={`Delete ${formatEventLabel(event.eventType)}`}
+												className="text-destructive hover:text-destructive"
+												onClick={() => setConfirmingDeleteId(event.id)}
+												size="icon-xs"
+												type="button"
+												variant="ghost"
+											>
+												<IconTrash size={14} />
+											</Button>
+										)}
+									</>
+								)}
+							</div>
+						)}
 					</div>
 				</div>
 			</div>
@@ -193,37 +203,39 @@ export function SessionEventsScene({
 					})}
 				</div>
 			)}
-			<SessionFormSheet
-				onOpenChange={(open) => {
-					if (!open) {
-						setEditEvent(null);
-					}
-				}}
-				open={editEvent !== null}
-				title={`Edit ${editEvent ? formatEventLabel(editEvent.eventType) : ""}`}
-			>
-				{editEvent ? (
-					<EventEditor
-						event={editEvent}
-						isLoading={isUpdatePending}
-						maxTime={timeBounds.maxTime}
-						minTime={timeBounds.minTime}
-						onSubmit={(payload, occurredAt) =>
-							update({
-								id: editEvent.id,
-								payload,
-								occurredAt,
-							}).then(() => setEditEvent(null))
+			{!readOnly && (
+				<SessionFormSheet
+					onOpenChange={(open) => {
+						if (!open) {
+							setEditEvent(null);
 						}
-						onTimeUpdate={(occurredAt) =>
-							update({ id: editEvent.id, occurredAt }).then(() =>
-								setEditEvent(null)
-							)
-						}
-						sessionType={sessionType}
-					/>
-				) : null}
-			</SessionFormSheet>
+					}}
+					open={editEvent !== null}
+					title={`Edit ${editEvent ? formatEventLabel(editEvent.eventType) : ""}`}
+				>
+					{editEvent ? (
+						<EventEditor
+							event={editEvent}
+							isLoading={isUpdatePending}
+							maxTime={timeBounds.maxTime}
+							minTime={timeBounds.minTime}
+							onSubmit={(payload, occurredAt) =>
+								update({
+									id: editEvent.id,
+									payload,
+									occurredAt,
+								}).then(() => setEditEvent(null))
+							}
+							onTimeUpdate={(occurredAt) =>
+								update({ id: editEvent.id, occurredAt }).then(() =>
+									setEditEvent(null)
+								)
+							}
+							sessionType={sessionType}
+						/>
+					) : null}
+				</SessionFormSheet>
+			)}
 		</div>
 	);
 }
