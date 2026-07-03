@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { findNearestRoom } from "@/features/live-sessions/utils/geo";
 import { useGeolocation } from "@/shared/hooks/use-geolocation";
 import { invalidateTargets } from "@/utils/optimistic-update";
@@ -102,8 +103,15 @@ export function useCreateSession({
 	const updateRoomLocationMutation = useMutation({
 		mutationFn: (vars: { id: string; latitude: number; longitude: number }) =>
 			trpcClient.room.update.mutate(vars),
-		onSuccess: () =>
-			invalidateTargets(queryClient, [{ queryKey: roomListKey }]),
+		onSuccess: async () => {
+			await invalidateTargets(queryClient, [{ queryKey: roomListKey }]);
+			toast.success("Room location saved");
+		},
+		// The save is fire-and-forget so the session start stays snappy; surface a
+		// toast on failure so a persistently failing save isn't silently swallowed.
+		onError: () => {
+			toast.error("Couldn't save room location");
+		},
 	});
 
 	// Runs the session starter now, or — when the target room lacks coordinates

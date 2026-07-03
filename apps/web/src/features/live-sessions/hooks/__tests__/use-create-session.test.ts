@@ -19,6 +19,12 @@ const trpcMocks = vi.hoisted(() => ({
 const geoMock = vi.hoisted(() => ({
 	coords: null as { latitude: number; longitude: number } | null,
 }));
+const toastMock = vi.hoisted(() => ({
+	success: vi.fn(),
+	error: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({ toast: toastMock }));
 
 vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => navigateMock,
@@ -131,6 +137,8 @@ describe("useCreateSession", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		toastMock.success.mockReset();
+		toastMock.error.mockReset();
 		geoMock.coords = null;
 	});
 	afterEach(() => {
@@ -534,6 +542,64 @@ describe("useCreateSession", () => {
 					roomId: "s1",
 				})
 			);
+			await waitFor(() =>
+				expect(toastMock.success).toHaveBeenCalledWith("Room location saved")
+			);
+			expect(toastMock.success).toHaveBeenCalledTimes(1);
+			expect(toastMock.error).not.toHaveBeenCalled();
+		});
+
+		it("toasts an error but still starts the session when the location save fails", async () => {
+			geoMock.coords = COORDS;
+			const qc = createClient();
+			seedRoom(qc, { latitude: null, longitude: null });
+			trpcMocks.createCash.mockResolvedValue({ id: "c-1" });
+			trpcMocks.roomUpdate.mockRejectedValue(new Error("network"));
+			const { result } = renderReady(qc);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+
+			act(() => {
+				result.current.createCash({ initialBuyIn: 5000, roomId: "s1" });
+			});
+			act(() => {
+				result.current.locationPrompt.onSave();
+			});
+
+			await waitFor(() =>
+				expect(toastMock.error).toHaveBeenCalledWith(
+					"Couldn't save room location"
+				)
+			);
+			expect(toastMock.error).toHaveBeenCalledTimes(1);
+			expect(toastMock.success).not.toHaveBeenCalled();
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledWith({
+					initialBuyIn: 5000,
+					roomId: "s1",
+				})
+			);
+		});
+
+		it("does not toast when the prompt is skipped without saving", async () => {
+			geoMock.coords = COORDS;
+			const qc = createClient();
+			seedRoom(qc, { latitude: null, longitude: null });
+			trpcMocks.createCash.mockResolvedValue({ id: "c-1" });
+			const { result } = renderReady(qc);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+
+			act(() => {
+				result.current.createCash({ initialBuyIn: 5000, roomId: "s1" });
+			});
+			act(() => {
+				result.current.locationPrompt.onSkip();
+			});
+
+			await waitFor(() =>
+				expect(trpcMocks.createCash).toHaveBeenCalledTimes(1)
+			);
+			expect(toastMock.success).not.toHaveBeenCalled();
+			expect(toastMock.error).not.toHaveBeenCalled();
 		});
 
 		it("treats a dismissal (onOpenChange false) as a skip", async () => {
