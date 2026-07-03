@@ -23,6 +23,7 @@ export function useCreateSessionDialog({
 		nearestRoomId,
 		createCash,
 		createTournament,
+		locationPrompt,
 		isLoading,
 	} = useCreateSession({ onClose: () => onOpenChange(false), open });
 
@@ -65,6 +66,7 @@ export function useCreateSessionDialog({
 		setSelectedRoomId,
 		defaultRoomId: nearestRoomId,
 		handleSubmit,
+		locationPrompt,
 		isLoading,
 		handleReset,
 	};
