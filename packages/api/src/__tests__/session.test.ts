@@ -666,6 +666,24 @@ describe("assertNoLiveLinkedRestrictedEdits", () => {
 		).toThrow(SESSION_DATE_RE);
 	});
 
+	it("rejects ruleName / min-max buy-in edits on live-linked cash session", () => {
+		expect(() =>
+			assertNoLiveLinkedRestrictedEdits(liveCashSession, {
+				ruleName: "renamed",
+				minBuyIn: 10_000,
+				maxBuyIn: 50_000,
+			})
+		).toThrow(DERIVED_FIELDS_RE);
+	});
+
+	it("rejects ruleName edit on live-linked tournament session", () => {
+		expect(() =>
+			assertNoLiveLinkedRestrictedEdits(liveTournamentSession, {
+				ruleName: "renamed",
+			})
+		).toThrow(DERIVED_FIELDS_RE);
+	});
+
 	it("rejects placement edit on live-linked tournament session", () => {
 		expect(() =>
 			assertNoLiveLinkedRestrictedEdits(liveTournamentSession, {

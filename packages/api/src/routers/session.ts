@@ -466,12 +466,15 @@ const CASH_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"breakMinutes",
 	"sessionDate",
 	"ringGameId",
+	"ruleName",
 	"variant",
 	"blind1",
 	"blind2",
 	"blind3",
 	"ante",
 	"anteType",
+	"minBuyIn",
+	"maxBuyIn",
 	"tableSize",
 ] as const;
 
@@ -489,6 +492,7 @@ const TOURNAMENT_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"breakMinutes",
 	"sessionDate",
 	"tournamentId",
+	"ruleName",
 	"variant",
 	"startingStack",
 	"bountyAmount",
