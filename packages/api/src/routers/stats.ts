@@ -317,6 +317,12 @@ export interface StatsSummary {
 	// cash sessions. Never combined with the tournament (bi) figure — the two
 	// units live on different scales.
 	cashNormalizedProfitLoss: number | null;
+	// Count of cash sessions with no recorded big blind (e.g. a manually
+	// logged session with no stakes entered) — excluded from
+	// `cashNormalizedProfitLoss` / `bbPerHour` because their P&L can't be
+	// converted to bb units. Lets the UI flag when the bb figure undercounts
+	// `totalSessions`.
+	cashUnnormalizedSessions: number;
 	hourlyRate: number | null;
 	itmRate: number | null;
 	roi: number | null;
@@ -328,6 +334,11 @@ export interface StatsSummary {
 	totalSessions: number;
 	// Tournament sessions normalized to buy-ins (bi). Null when none.
 	tournamentNormalizedProfitLoss: number | null;
+	// Count of tournament sessions with no recorded investment (buy-in +
+	// entry fee + chip purchases all zero) — excluded from
+	// `tournamentNormalizedProfitLoss` for the same reason as
+	// `cashUnnormalizedSessions`.
+	tournamentUnnormalizedSessions: number;
 	winRate: number;
 }
 
@@ -335,8 +346,10 @@ const EMPTY_SUMMARY: StatsSummary = {
 	totalSessions: 0,
 	totalProfitLoss: 0,
 	cashNormalizedProfitLoss: null,
+	cashUnnormalizedSessions: 0,
 	cashEvDiffNormalized: null,
 	tournamentNormalizedProfitLoss: null,
+	tournamentUnnormalizedSessions: 0,
 	totalEvProfitLoss: null,
 	totalEvDiff: null,
 	winRate: 0,
@@ -358,6 +371,7 @@ interface SummaryAccumulator {
 	cashEvDiffBbSum: number;
 	cashPL: number;
 	cashPlayMinutes: number;
+	cashUnnormalizedSessions: number;
 	evCount: number;
 	evDiffSum: number;
 	evSum: number;
@@ -374,6 +388,7 @@ interface SummaryAccumulator {
 	tournamentInvested: number;
 	tournamentPrize: number;
 	tournamentPrizeMoneyAndBounty: number;
+	tournamentUnnormalizedSessions: number;
 	winCount: number;
 }
 
@@ -394,7 +409,9 @@ function accumulateCash(row: StatsSessionRow, acc: SummaryAccumulator): void {
 		}
 	}
 	const bb = normalizedSessionValue(row);
-	if (bb !== null) {
+	if (bb === null) {
+		acc.cashUnnormalizedSessions += 1;
+	} else {
 		acc.cashBbSum += bb;
 		acc.cashBbCount += 1;
 	}
@@ -423,7 +440,9 @@ function accumulateTournament(
 		acc.placementCount += 1;
 	}
 	const bi = normalizedSessionValue(row);
-	if (bi !== null) {
+	if (bi === null) {
+		acc.tournamentUnnormalizedSessions += 1;
+	} else {
 		acc.tournamentBiSum += bi;
 		acc.tournamentBiCount += 1;
 	}
@@ -440,10 +459,12 @@ function buildSummary(
 		totalSessions,
 		totalProfitLoss: acc.totalProfitLoss,
 		cashNormalizedProfitLoss: acc.cashBbCount > 0 ? acc.cashBbSum : null,
+		cashUnnormalizedSessions: acc.cashUnnormalizedSessions,
 		cashEvDiffNormalized:
 			acc.cashEvDiffBbCount > 0 ? acc.cashEvDiffBbSum : null,
 		tournamentNormalizedProfitLoss:
 			acc.tournamentBiCount > 0 ? acc.tournamentBiSum : null,
+		tournamentUnnormalizedSessions: acc.tournamentUnnormalizedSessions,
 		totalEvProfitLoss: acc.evCount > 0 ? acc.evSum : null,
 		totalEvDiff: acc.evCount > 0 ? acc.evDiffSum : null,
 		winRate: (acc.winCount / totalSessions) * 100,
@@ -486,10 +507,12 @@ export function summarizeStats(rows: StatsSessionRow[]): StatsSummary {
 		cashPlayMinutes: 0,
 		cashBbSum: 0,
 		cashBbCount: 0,
+		cashUnnormalizedSessions: 0,
 		cashEvDiffBbSum: 0,
 		cashEvDiffBbCount: 0,
 		tournamentBiSum: 0,
 		tournamentBiCount: 0,
+		tournamentUnnormalizedSessions: 0,
 		tournamentCount: 0,
 		tournamentInvested: 0,
 		tournamentPrize: 0,

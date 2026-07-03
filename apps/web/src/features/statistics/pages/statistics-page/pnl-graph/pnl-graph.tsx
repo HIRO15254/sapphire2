@@ -20,6 +20,7 @@ export function PnlGraph({ ctx }: { ctx: StatsSectionContext }) {
 		setShowEvCash,
 		evToggleAvailable,
 		points,
+		skippedCount,
 		dual,
 		isPending,
 	} = usePnlGraph(ctx);
@@ -68,6 +69,12 @@ export function PnlGraph({ ctx }: { ctx: StatsSectionContext }) {
 					xAxisType={xAxis}
 				/>
 			</div>
+			{skippedCount > 0 && (
+				<p className="t-meta text-muted-foreground">
+					{skippedCount} session{skippedCount === 1 ? "" : "s"} not shown (no
+					stakes / buy-in recorded)
+				</p>
+			)}
 		</div>
 	);
 }

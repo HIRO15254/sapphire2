@@ -13,6 +13,8 @@ import { formatProfitLoss } from "@/utils/format-profit-loss";
 import { trpc } from "@/utils/trpc";
 
 export interface KpiCard {
+	/** Small muted note under the value — e.g. sessions excluded from a normalized total. */
+	hint?: string;
 	key: string;
 	label: string;
 	trend: TrendDirection;
@@ -100,6 +102,38 @@ function buildNetCards(
 	];
 }
 
+interface UnnormalizedSummary {
+	cashUnnormalizedSessions: number;
+	tournamentUnnormalizedSessions: number;
+}
+
+/**
+ * Note for the "Sessions" card when some sessions can't be converted to bb /
+ * bi units (e.g. a manually logged session with no stakes or buy-in
+ * recorded) — otherwise they'd silently disappear from the normalized Net /
+ * BB-per-hour figures while still counting toward the session total.
+ */
+function unnormalizedHint(
+	ctx: StatsSectionContext,
+	summary: UnnormalizedSummary
+): string | undefined {
+	if (!ctx.normalized) {
+		return undefined;
+	}
+	const parts: string[] = [];
+	if (ctx.type !== "tournament" && summary.cashUnnormalizedSessions > 0) {
+		parts.push(
+			`${summary.cashUnnormalizedSessions} excluded from BB total (no stakes)`
+		);
+	}
+	if (ctx.type !== "cash_game" && summary.tournamentUnnormalizedSessions > 0) {
+		parts.push(
+			`${summary.tournamentUnnormalizedSessions} excluded from BI total (no buy-in)`
+		);
+	}
+	return parts.length > 0 ? parts.join(", ") : undefined;
+}
+
 interface TournamentSummary {
 	avgPlacement: number | null;
 	avgRoi: number | null;
@@ -176,6 +210,7 @@ export function useKpiCards(ctx: StatsSectionContext): UseKpiCardsResult {
 			label: "Sessions",
 			value: String(summary.totalSessions),
 			trend: null,
+			hint: unnormalizedHint(ctx, summary),
 		},
 		{
 			key: "playTime",

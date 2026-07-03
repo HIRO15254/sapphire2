@@ -22,6 +22,9 @@ function KpiCardItem({ card }: { card: KpiCard }) {
 			>
 				{card.value}
 			</span>
+			{card.hint && (
+				<span className="t-meta text-muted-foreground">{card.hint}</span>
+			)}
 		</Card>
 	);
 }

@@ -19,6 +19,10 @@ export interface UsePnlGraphResult {
 	setShowEvCash: (value: boolean) => void;
 	setXAxis: (value: PnlGraphXAxis) => void;
 	showEvCash: boolean;
+	/** Sessions dropped from the chart because they can't be normalized (no
+	 * stakes / buy-in recorded) — 0 in currency mode, since raw P&L never
+	 * requires a denominator. */
+	skippedCount: number;
 	unit: PnlGraphUnit;
 	xAxis: PnlGraphXAxis;
 }
@@ -48,7 +52,7 @@ export function usePnlGraph(ctx: StatsSectionContext): UsePnlGraphResult {
 	);
 	const rawPoints = query.data?.points ?? [];
 
-	const { points } = aggregatePnlPoints({
+	const { points, skippedCount } = aggregatePnlPoints({
 		rawPoints,
 		xAxis,
 		unit,
@@ -69,6 +73,7 @@ export function usePnlGraph(ctx: StatsSectionContext): UsePnlGraphResult {
 		setShowEvCash,
 		evToggleAvailable,
 		points,
+		skippedCount,
 		dual,
 		unit,
 		isPending: ctx.enabled && query.isPending,

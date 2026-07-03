@@ -574,6 +574,8 @@ describe("summarizeStats", () => {
 		expect(summary.itmRate).toBeNull();
 		expect(summary.avgPlacement).toBeNull();
 		expect(summary.totalPrizeMoney).toBeNull();
+		expect(summary.cashUnnormalizedSessions).toBe(0);
+		expect(summary.tournamentUnnormalizedSessions).toBe(0);
 	});
 
 	it("computes totals, winRate and avg for a set of cash rows", () => {
@@ -606,6 +608,36 @@ describe("summarizeStats", () => {
 		]);
 		expect(summary.cashNormalizedProfitLoss).toBeNull();
 		expect(summary.tournamentNormalizedProfitLoss).toBeNull();
+	});
+
+	it("counts cash rows missing bigBlind as cashUnnormalizedSessions", () => {
+		const rows = [
+			cashRow({ id: "a", bigBlind: 2 }),
+			cashRow({ id: "b", bigBlind: null }),
+			cashRow({ id: "c", bigBlind: 0 }),
+		];
+		const summary = summarizeStats(rows);
+		expect(summary.cashUnnormalizedSessions).toBe(2);
+		expect(summary.tournamentUnnormalizedSessions).toBe(0);
+	});
+
+	it("counts tournament rows missing buyInTotal as tournamentUnnormalizedSessions", () => {
+		const rows = [
+			tournamentRow({ id: "a", buyInTotal: 100 }),
+			tournamentRow({ id: "b", buyInTotal: null }),
+			tournamentRow({ id: "c", buyInTotal: 0 }),
+		];
+		const summary = summarizeStats(rows);
+		expect(summary.tournamentUnnormalizedSessions).toBe(2);
+		expect(summary.cashUnnormalizedSessions).toBe(0);
+	});
+
+	it("keeps cashUnnormalizedSessions at 0 when every cash row is normalizable", () => {
+		const rows = [
+			cashRow({ id: "a", bigBlind: 2 }),
+			cashRow({ id: "b", bigBlind: 5 }),
+		];
+		expect(summarizeStats(rows).cashUnnormalizedSessions).toBe(0);
 	});
 
 	it("computes cash hourlyRate from cash play time", () => {

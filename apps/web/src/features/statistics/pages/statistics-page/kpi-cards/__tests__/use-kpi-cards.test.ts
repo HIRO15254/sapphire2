@@ -28,6 +28,7 @@ interface Summary {
 	bbPerHour: number | null;
 	cashEvDiffNormalized: number | null;
 	cashNormalizedProfitLoss: number | null;
+	cashUnnormalizedSessions: number;
 	hourlyRate: number | null;
 	itmRate: number | null;
 	roi: number | null;
@@ -38,6 +39,7 @@ interface Summary {
 	totalProfitLoss: number;
 	totalSessions: number;
 	tournamentNormalizedProfitLoss: number | null;
+	tournamentUnnormalizedSessions: number;
 	winRate: number;
 }
 
@@ -46,8 +48,10 @@ function summary(overrides: Partial<Summary> = {}): Summary {
 		totalSessions: 10,
 		totalProfitLoss: 1500,
 		cashNormalizedProfitLoss: 30,
+		cashUnnormalizedSessions: 0,
 		cashEvDiffNormalized: 6,
 		tournamentNormalizedProfitLoss: 5,
+		tournamentUnnormalizedSessions: 0,
 		totalEvProfitLoss: 1800,
 		totalEvDiff: 300,
 		winRate: 60,
@@ -214,5 +218,63 @@ describe("useKpiCards", () => {
 		const net = result.current.cards.find((c) => c.key === "net");
 		expect(net?.value).toBe("-500 USD");
 		expect(net?.trend).toBe("down");
+	});
+
+	it("leaves the sessions card without a hint when nothing is unnormalized", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(summary());
+		const result = await renderLoadedKpi(
+			ctx({ type: "all", normalized: true, currencyUnit: null })
+		);
+		const sessions = result.current.cards.find((c) => c.key === "sessions");
+		expect(sessions?.hint).toBeUndefined();
+	});
+
+	it("does not add a hint when normalization is off, even with unnormalized sessions", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(
+			summary({ cashUnnormalizedSessions: 2 })
+		);
+		const result = await renderLoadedKpi(
+			ctx({ type: "all", normalized: false })
+		);
+		const sessions = result.current.cards.find((c) => c.key === "sessions");
+		expect(sessions?.hint).toBeUndefined();
+	});
+
+	it("hints at cash sessions missing stakes when normalized for cash", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(
+			summary({ cashUnnormalizedSessions: 2 })
+		);
+		const result = await renderLoadedKpi(
+			ctx({ type: "cash_game", normalized: true, currencyUnit: null })
+		);
+		const sessions = result.current.cards.find((c) => c.key === "sessions");
+		expect(sessions?.hint).toBe("2 excluded from BB total (no stakes)");
+	});
+
+	it("hints at tournaments missing buy-in when normalized for tournament", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(
+			summary({ tournamentUnnormalizedSessions: 1 })
+		);
+		const result = await renderLoadedKpi(
+			ctx({ type: "tournament", normalized: true, currencyUnit: null })
+		);
+		const sessions = result.current.cards.find((c) => c.key === "sessions");
+		expect(sessions?.hint).toBe("1 excluded from BI total (no buy-in)");
+	});
+
+	it("combines cash and tournament hints for the 'all' type", async () => {
+		trpcMocks.summaryQueryFn.mockResolvedValue(
+			summary({
+				cashUnnormalizedSessions: 2,
+				tournamentUnnormalizedSessions: 1,
+			})
+		);
+		const result = await renderLoadedKpi(
+			ctx({ type: "all", normalized: true, currencyUnit: null })
+		);
+		const sessions = result.current.cards.find((c) => c.key === "sessions");
+		expect(sessions?.hint).toBe(
+			"2 excluded from BB total (no stakes), 1 excluded from BI total (no buy-in)"
+		);
 	});
 });

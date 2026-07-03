@@ -244,4 +244,57 @@ describe("usePnlGraph", () => {
 		expect(result.current.isEmpty).toBe(true);
 		expect(trpcMocks.seriesQueryFn).not.toHaveBeenCalled();
 	});
+
+	it("reports skippedCount as 0 when every point is normalizable", async () => {
+		trpcMocks.seriesQueryFn.mockResolvedValue({
+			points: [
+				seriesPoint({
+					id: "a",
+					profitLoss: 100,
+					sessionDate: day1,
+					bigBlind: 2,
+				}),
+			],
+		});
+		const result = await renderLoaded(ctx({ normalized: true }));
+		expect(result.current.skippedCount).toBe(0);
+	});
+
+	it("reports skippedCount for cash points with no big blind when normalized", async () => {
+		trpcMocks.seriesQueryFn.mockResolvedValue({
+			points: [
+				seriesPoint({
+					id: "a",
+					profitLoss: 100,
+					sessionDate: day1,
+					bigBlind: null,
+				}),
+				seriesPoint({
+					id: "b",
+					profitLoss: 50,
+					sessionDate: day2,
+					bigBlind: 2,
+				}),
+			],
+		});
+		const result = await renderLoaded(
+			ctx({ normalized: true, type: "cash_game" })
+		);
+		expect(result.current.skippedCount).toBe(1);
+	});
+
+	it("keeps skippedCount at 0 in currency mode since every point has a profitLoss", async () => {
+		trpcMocks.seriesQueryFn.mockResolvedValue({
+			points: [
+				seriesPoint({
+					id: "a",
+					profitLoss: 100,
+					sessionDate: day1,
+					bigBlind: null,
+				}),
+			],
+		});
+		const result = await renderLoaded(ctx({ normalized: false }));
+		expect(result.current.skippedCount).toBe(0);
+	});
 });
