@@ -8,6 +8,7 @@ import {
 	encodeSessionCursor,
 	type ProfitLossSeriesRow,
 	parseSessionCursor,
+	selectInChunks,
 	toProfitLossSeriesPoint,
 } from "../routers/session";
 
@@ -52,6 +53,66 @@ describe("chunkForInsert", () => {
 	it("falls back to one row per chunk when a single row already fills the cap", () => {
 		const rows = [1, 2, 3];
 		expect(chunkForInsert(rows, 200)).toEqual([[1], [2], [3]]);
+	});
+});
+
+describe("selectInChunks", () => {
+	it("splits an id list over D1's cap so every WHERE IN stays <=100 params", async () => {
+		// 101 session ids in a single `inArray` binds 101 params — over D1's cap
+		// of 100 — and D1 rejects the statement at runtime (the SA2 chip-purchase
+		// batched lookup outage). The lookup must run in <=100-id chunks.
+		const ids = Array.from({ length: 101 }, (_, i) => `s${i}`);
+		const chunkSizes: number[] = [];
+		const rows = await selectInChunks(ids, (chunk) => {
+			chunkSizes.push(chunk.length);
+			return Promise.resolve(chunk.map((id) => ({ id })));
+		});
+		expect(chunkSizes).toEqual([100, 1]);
+		for (const size of chunkSizes) {
+			expect(size).toBeLessThanOrEqual(100);
+		}
+		// Rows are concatenated across chunks, preserving order.
+		expect(rows).toHaveLength(101);
+		expect(rows[0]).toEqual({ id: "s0" });
+		expect(rows.at(-1)).toEqual({ id: "s100" });
+	});
+
+	it("runs a single query when the id list fits under the cap", async () => {
+		const ids = Array.from({ length: 100 }, (_, i) => `s${i}`);
+		let calls = 0;
+		const rows = await selectInChunks(ids, (chunk) => {
+			calls += 1;
+			return Promise.resolve(chunk.map((id) => ({ id })));
+		});
+		expect(calls).toBe(1);
+		expect(rows).toHaveLength(100);
+	});
+
+	it("never issues a query for an empty id list", async () => {
+		let calls = 0;
+		const rows = await selectInChunks<string, { id: string }>([], (chunk) => {
+			calls += 1;
+			return Promise.resolve(chunk.map((id) => ({ id })));
+		});
+		expect(calls).toBe(0);
+		expect(rows).toEqual([]);
+	});
+
+	it("flattens multi-row results from each chunk in chunk order", async () => {
+		const ids = Array.from({ length: 150 }, (_, i) => i);
+		const rows = await selectInChunks(ids, (chunk) =>
+			Promise.resolve(
+				chunk.flatMap((id) => [
+					{ id, n: 0 },
+					{ id, n: 1 },
+				])
+			)
+		);
+		// 2 rows per id, chunked as [100, 50], concatenated in order.
+		expect(rows).toHaveLength(300);
+		expect(rows[0]).toEqual({ id: 0, n: 0 });
+		expect(rows[1]).toEqual({ id: 0, n: 1 });
+		expect(rows.at(-1)).toEqual({ id: 149, n: 1 });
 	});
 });
 
