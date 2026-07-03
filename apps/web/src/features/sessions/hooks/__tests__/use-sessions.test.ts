@@ -575,6 +575,16 @@ describe("pure helpers", () => {
 			expect(out.blindLevels).toEqual([]);
 		});
 
+		it("tolerates a session whose blindLevels field is absent (stale response)", () => {
+			// A getById response served by an older API build (or a cached
+			// pre-migration entry) can omit blindLevels entirely; buildEditDefaults
+			// must not throw when the field is undefined.
+			const session = baseSessionItem({ type: "tournament" });
+			session.blindLevels = undefined;
+			expect(() => buildEditDefaults(session)).not.toThrow();
+			expect(buildEditDefaults(session).blindLevels).toEqual([]);
+		});
+
 		it("leaves cash-only snapshot fields undefined on tournament rows", () => {
 			const out = buildEditDefaults(
 				baseSessionItem({

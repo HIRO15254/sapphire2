@@ -29,8 +29,12 @@ export type {
 
 export interface SessionItem {
 	beforeDeadline: boolean | null;
-	/** Tournament blind structure (empty for cash / structureless sessions). */
-	blindLevels: SessionBlindLevelInput[];
+	/**
+	 * Tournament blind structure (empty for cash / structureless sessions).
+	 * Optional because a response from an older API build — or a cached
+	 * pre-migration entry — can omit it; consumers must tolerate `undefined`.
+	 */
+	blindLevels?: SessionBlindLevelInput[];
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
 	buyIn: number | null;
@@ -344,7 +348,7 @@ export function buildEditDefaults(session: SessionItem) {
 		// Tournament blind structure — hydrate the Rules-step editor from the
 		// session's own frozen levels so editing keeps (and can amend) the
 		// saved structure instead of starting blank.
-		blindLevels: session.blindLevels.map((level) => ({
+		blindLevels: (session.blindLevels ?? []).map((level) => ({
 			isBreak: level.isBreak,
 			blind1: level.blind1,
 			blind2: level.blind2,
