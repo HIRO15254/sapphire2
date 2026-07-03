@@ -1927,7 +1927,7 @@ async function snapshotTournamentStructure(
 			chips: p.chips,
 			sortOrder: p.sortOrder,
 		}));
-		for (const chunk of chunkForInsert(purchaseRows, 5)) {
+		for (const chunk of chunkForInsert(purchaseRows, 6)) {
 			await db.insert(sessionChipPurchase).values(chunk);
 		}
 		// Every chip purchase starts with a result row (count 0) so the
