@@ -193,6 +193,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 					defaultValues={buildEditDefaults(session)}
 					formId={EDIT_FORM_ID}
 					isLiveLinked={isLiveLinked}
+					liveSessionId={isLiveLinked ? session.id : undefined}
 					onCreateTag={createTag}
 					onRoomChange={setEditRoomId}
 					onSubmit={handleEdit}

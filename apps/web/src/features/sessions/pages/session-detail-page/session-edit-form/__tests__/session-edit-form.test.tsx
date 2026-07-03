@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 // The manual branch renders the tournament rule bodies, which transitively
@@ -66,17 +66,26 @@ describe("SessionEditForm", () => {
 			}
 		});
 
-		it("renders the same fields regardless of live-linked state", () => {
+		it("renders the always-visible Master/Result fields regardless of live-linked state", () => {
 			for (const isLiveLinked of [false, true]) {
 				const { unmount } = renderForm({ isLiveLinked });
 				expect(screen.getByLabelText(BUY_IN_LABEL)).toBeInTheDocument();
 				expect(screen.getByLabelText(SESSION_DATE_LABEL)).toBeInTheDocument();
 				expect(screen.getByText("Room")).toBeInTheDocument();
-				expect(screen.getByText("Currency")).toBeInTheDocument();
 				expect(screen.getByText("Session tags")).toBeInTheDocument();
 				expect(screen.getByLabelText("Memo")).toBeInTheDocument();
 				unmount();
 			}
+		});
+
+		it("keeps the Rules section collapsed until expanded", () => {
+			renderForm({ isLiveLinked: false });
+			// Rule fields (and the currency selector) live in the collapsed section.
+			expect(screen.queryByText("Variant")).not.toBeInTheDocument();
+			expect(screen.queryByText("Currency")).not.toBeInTheDocument();
+			fireEvent.click(screen.getByRole("button", { name: "Rules" }));
+			expect(screen.getByText("Variant")).toBeInTheDocument();
+			expect(screen.getByText("Currency")).toBeInTheDocument();
 		});
 
 		it("renders no wizard navigation buttons in either mode", () => {
@@ -118,6 +127,20 @@ describe("SessionEditForm", () => {
 			renderForm({ isLiveLinked: true });
 			expect(screen.getByLabelText("Memo")).not.toBeDisabled();
 		});
+
+		it("shows the Events section when a live session id is provided", () => {
+			renderForm({ isLiveLinked: true, liveSessionId: "live-1" });
+			expect(
+				screen.getByRole("button", { name: "Events" })
+			).toBeInTheDocument();
+		});
+
+		it("hides the Events section when no live session id is available", () => {
+			renderForm({ isLiveLinked: true });
+			expect(
+				screen.queryByRole("button", { name: "Events" })
+			).not.toBeInTheDocument();
+		});
 	});
 
 	describe("manual session", () => {
@@ -125,6 +148,13 @@ describe("SessionEditForm", () => {
 			renderForm({ isLiveLinked: false });
 			expect(
 				screen.queryByTestId("live-linked-banner")
+			).not.toBeInTheDocument();
+		});
+
+		it("never shows the Events section even with a live session id", () => {
+			renderForm({ isLiveLinked: false, liveSessionId: "live-1" });
+			expect(
+				screen.queryByRole("button", { name: "Events" })
 			).not.toBeInTheDocument();
 		});
 
