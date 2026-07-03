@@ -1,10 +1,9 @@
 import { IconBolt } from "@tabler/icons-react";
 import type { ReactNode } from "react";
-import { SessionFormSheet } from "@/features/sessions/components/session-form-sheet";
-import { SessionWizard } from "@/features/sessions/components/session-wizard";
 import { buildEditDefaults } from "@/features/sessions/hooks/use-sessions";
 import { DeleteSessionDialog } from "@/features/sessions/pages/session-detail-page/delete-session-dialog";
 import { SessionActionsDrawer } from "@/features/sessions/pages/session-detail-page/session-actions-drawer";
+import { SessionEditForm } from "@/features/sessions/pages/session-detail-page/session-edit-form";
 import {
 	buildCashRuleRows,
 	buildCashStatRows,
@@ -14,6 +13,7 @@ import {
 	getSessionGameName,
 	isLiveSession,
 } from "@/features/sessions/utils/session-display";
+import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Badge } from "@/shared/components/ui/badge";
 import { LiveResultChart } from "./live-result-chart";
@@ -23,6 +23,8 @@ import { SessionStatList } from "./session-stat-list";
 import { SessionTimeline } from "./session-timeline";
 import { TopBar } from "./top-bar";
 import { useSessionDetailPage } from "./use-session-detail-page";
+
+const EDIT_FORM_ID = "session-edit-form";
 
 interface SessionDetailPageProps {
 	sessionId: string;
@@ -175,7 +177,9 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 				open={isActionsOpen}
 			/>
 
-			<SessionFormSheet
+			<FormSheet
+				formId={EDIT_FORM_ID}
+				isLoading={isUpdatePending}
 				onOpenChange={(open) => {
 					if (!open) {
 						setIsEditOpen(false);
@@ -184,11 +188,11 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 				open={isEditOpen}
 				title="Edit session"
 			>
-				<SessionWizard
+				<SessionEditForm
 					currencies={currencies}
 					defaultValues={buildEditDefaults(session)}
+					formId={EDIT_FORM_ID}
 					isLiveLinked={isLiveLinked}
-					isLoading={isUpdatePending}
 					onCreateTag={createTag}
 					onRoomChange={setEditRoomId}
 					onSubmit={handleEdit}
@@ -197,7 +201,7 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 					tags={availableTags}
 					tournaments={editGames.tournaments}
 				/>
-			</SessionFormSheet>
+			</FormSheet>
 
 			<DeleteSessionDialog
 				onConfirm={handleConfirmDelete}
