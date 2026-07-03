@@ -15,7 +15,9 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write
-      actions: read
+      # write (includes read) — the "Trigger production deploy" step dispatches
+      # production-deploy.yml via `gh workflow run`, which needs actions: write.
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -110,3 +112,18 @@ jobs:
           RELEASE_URL=$(gh release view "$RELEASE_VERSION" --repo "$REPO" --json url --jq .url)
           gh pr comment "$PR_NUMBER" --repo "$REPO" \
             --body "Released as **$RELEASE_VERSION** → $RELEASE_URL"
+
+      # A Release published with the default GITHUB_TOKEN does not emit a
+      # `release: published` event that starts production-deploy.yml (GitHub's
+      # recursive-run guard). workflow_dispatch is exempt from that guard, so we
+      # explicitly kick the production deploy here. Deploy the tag we just cut so
+      # the deployed tree matches the Release exactly.
+      - name: Trigger production deploy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh workflow run production-deploy.yml \
+            --repo "$REPO" \
+            --ref "$RELEASE_VERSION"

@@ -3,6 +3,14 @@ name: Production Deploy
 on:
   release:
     types: [published]
+  # Manual / programmatic trigger. release.yml dispatches this after publishing
+  # the Release, because a Release published with the default GITHUB_TOKEN does
+  # NOT emit a `release: published` event that can start another workflow
+  # (GitHub's recursive-run guard). workflow_dispatch is exempt from that guard,
+  # so it fires even when invoked with GITHUB_TOKEN. Checkout uses the dispatched
+  # ref (github.ref), so `gh workflow run production-deploy.yml --ref <tag|main>`
+  # deploys that ref — this is also the "Run workflow" button for manual redeploys.
+  workflow_dispatch:
 
 concurrency:
   group: production-deploy
