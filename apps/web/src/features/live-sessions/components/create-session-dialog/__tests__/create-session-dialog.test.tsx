@@ -32,6 +32,13 @@ function setup() {
 		tournaments: [],
 		setSelectedRoomId: vi.fn(),
 		handleSubmit: vi.fn(),
+		locationPrompt: {
+			open: false,
+			roomName: "",
+			onSave: vi.fn(),
+			onSkip: vi.fn(),
+			onOpenChange: vi.fn(),
+		},
 		isLoading: false,
 		handleReset: vi.fn(),
 	});

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { findNearestRoom } from "@/features/live-sessions/utils/geo";
 import { useGeolocation } from "@/shared/hooks/use-geolocation";
 import { invalidateTargets } from "@/utils/optimistic-update";
@@ -25,6 +26,25 @@ function useRoomRingGames(roomId: string | undefined) {
 		tableSize: g.tableSize,
 		currencyId: g.currencyId,
 	}));
+}
+
+interface CreateCashValues {
+	currencyId?: string;
+	initialBuyIn: number;
+	memo?: string;
+	ringGameId?: string;
+	roomId?: string;
+}
+
+interface CreateTournamentValues {
+	buyIn: number;
+	currencyId?: string;
+	entryFee?: number;
+	memo?: string;
+	roomId?: string;
+	startingStack: number;
+	timerStartedAt?: number;
+	tournamentId?: string;
 }
 
 function useRoomTournaments(roomId: string | undefined) {
@@ -69,6 +89,76 @@ export function useCreateSession({
 		name: s.name,
 	}));
 
+	const roomListKey = trpc.room.list.queryOptions().queryKey;
+
+	// When the chosen room has no saved coordinates, we offer to stamp the
+	// device's current location onto it (SA2-100). Hold the pending session
+	// starter and the target room while the confirmation prompt is open.
+	const [pendingStart, setPendingStart] = useState<(() => void) | null>(null);
+	const [promptRoom, setPromptRoom] = useState<{
+		id: string;
+		name: string;
+	} | null>(null);
+
+	const updateRoomLocationMutation = useMutation({
+		mutationFn: (vars: { id: string; latitude: number; longitude: number }) =>
+			trpcClient.room.update.mutate(vars),
+		onSuccess: async () => {
+			await invalidateTargets(queryClient, [{ queryKey: roomListKey }]);
+			toast.success("Room location saved");
+		},
+		// The save is fire-and-forget so the session start stays snappy; surface a
+		// toast on failure so a persistently failing save isn't silently swallowed.
+		onError: () => {
+			toast.error("Couldn't save room location");
+		},
+	});
+
+	// Runs the session starter now, or — when the target room lacks coordinates
+	// and we have a device fix — defers it behind the "save location?" prompt.
+	const startOrPrompt = (roomId: string | undefined, run: () => void) => {
+		const targetRoom = (roomsQuery.data ?? []).find((r) => r.id === roomId);
+		if (
+			coords &&
+			targetRoom &&
+			targetRoom.latitude == null &&
+			targetRoom.longitude == null
+		) {
+			setPendingStart(() => run);
+			setPromptRoom({ id: targetRoom.id, name: targetRoom.name });
+			return;
+		}
+		run();
+	};
+
+	const closePrompt = () => {
+		setPromptRoom(null);
+		setPendingStart(null);
+	};
+
+	// Dismiss / "Not now": start the session without touching the room.
+	const handleLocationSkip = () => {
+		const run = pendingStart;
+		closePrompt();
+		run?.();
+	};
+
+	// "Save location": fire-and-forget the room update so session start stays
+	// snappy, then start the session immediately.
+	const handleLocationSave = () => {
+		const run = pendingStart;
+		const target = promptRoom;
+		closePrompt();
+		if (target && coords) {
+			updateRoomLocationMutation.mutate({
+				id: target.id,
+				latitude: coords.latitude,
+				longitude: coords.longitude,
+			});
+		}
+		run?.();
+	};
+
 	// The geolocation-nearest room (within the default radius), used as the
 	// form's default room selection. `undefined` when location is unavailable or
 	// no room with coordinates is in range.
@@ -103,13 +193,8 @@ export function useCreateSession({
 	const sessionListKey = trpc.session.list.queryOptions({}).queryKey;
 
 	const createCashMutation = useMutation({
-		mutationFn: (values: {
-			currencyId?: string;
-			initialBuyIn: number;
-			memo?: string;
-			ringGameId?: string;
-			roomId?: string;
-		}) => trpcClient.liveCashGameSession.create.mutate(values),
+		mutationFn: (values: CreateCashValues) =>
+			trpcClient.liveCashGameSession.create.mutate(values),
 		onSuccess: async () => {
 			await invalidateTargets(queryClient, [
 				{ queryKey: cashListKey },
@@ -121,16 +206,7 @@ export function useCreateSession({
 	});
 
 	const createTournamentMutation = useMutation({
-		mutationFn: async (values: {
-			buyIn: number;
-			currencyId?: string;
-			entryFee?: number;
-			memo?: string;
-			startingStack: number;
-			roomId?: string;
-			timerStartedAt?: number;
-			tournamentId?: string;
-		}) => {
+		mutationFn: async (values: CreateTournamentValues) => {
 			const { startingStack, ...createValues } = values;
 			const result =
 				await trpcClient.liveTournamentSession.create.mutate(createValues);
@@ -165,23 +241,23 @@ export function useCreateSession({
 		selectedRoomId,
 		setSelectedRoomId,
 		nearestRoomId,
-		createCash: (values: {
-			currencyId?: string;
-			initialBuyIn: number;
-			memo?: string;
-			ringGameId?: string;
-			roomId?: string;
-		}) => createCashMutation.mutate(values),
-		createTournament: (values: {
-			buyIn: number;
-			currencyId?: string;
-			entryFee?: number;
-			memo?: string;
-			startingStack: number;
-			roomId?: string;
-			timerStartedAt?: number;
-			tournamentId?: string;
-		}) => createTournamentMutation.mutate(values),
+		createCash: (values: CreateCashValues) =>
+			startOrPrompt(values.roomId, () => createCashMutation.mutate(values)),
+		createTournament: (values: CreateTournamentValues) =>
+			startOrPrompt(values.roomId, () =>
+				createTournamentMutation.mutate(values)
+			),
+		locationPrompt: {
+			open: promptRoom !== null,
+			roomName: promptRoom?.name ?? "",
+			onSave: handleLocationSave,
+			onSkip: handleLocationSkip,
+			onOpenChange: (nextOpen: boolean) => {
+				if (!nextOpen) {
+					handleLocationSkip();
+				}
+			},
+		},
 		isLoading,
 	};
 }
