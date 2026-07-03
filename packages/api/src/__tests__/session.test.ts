@@ -384,6 +384,22 @@ describe("session router input validation", () => {
 		expect(schema.safeParse({ id: "s1", placement: 0 }).success).toBe(false);
 	});
 
+	it("update accepts and retains an edited rule name", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as {
+			safeParse: (v: unknown) => {
+				data?: { ruleName?: string };
+				success: boolean;
+			};
+		};
+		const parsed = schema.safeParse({ id: "s1", ruleName: "My 1/2 NLH" });
+		expect(parsed.success).toBe(true);
+		expect(parsed.data?.ruleName).toBe("My 1/2 NLH");
+	});
+
 	it("create accepts cash session with snapshot override fields", () => {
 		const schema = (
 			appRouter.session.create as unknown as {

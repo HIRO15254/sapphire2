@@ -363,6 +363,19 @@ describe("pure helpers", () => {
 			expect(out.currencyId).toBe("cur-1");
 		});
 
+		it("forwards the edited rule name for cash and tournament", () => {
+			const cash = buildUpdatePayload({
+				...cashValues({ ruleName: "My 1/2 NLH" }),
+				id: "s1",
+			}) as Record<string, unknown>;
+			expect(cash.ruleName).toBe("My 1/2 NLH");
+			const tourney = buildUpdatePayload({
+				...tournamentValues({ ruleName: "Weekly Deepstack" }),
+				id: "s1",
+			}) as Record<string, unknown>;
+			expect(tourney.ruleName).toBe("Weekly Deepstack");
+		});
+
 		it("includes tournament snapshot overrides and blind levels", () => {
 			const blindLevels = [
 				{

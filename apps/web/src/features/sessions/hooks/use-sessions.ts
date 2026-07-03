@@ -181,6 +181,7 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 		endedAt: timeToUnix(values.sessionDate, values.endTime) ?? null,
 		breakMinutes: values.breakMinutes ?? null,
 		memo: values.memo,
+		ruleName: values.ruleName,
 		tagIds: values.tagIds,
 		roomId: values.roomId ?? null,
 		currencyId: values.currencyId ?? null,

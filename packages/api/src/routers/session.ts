@@ -1407,6 +1407,7 @@ interface CashUpdateInput {
 	cashOut?: number;
 	evCashOut?: number | null;
 	ringGameId?: string | null;
+	ruleName?: string;
 	tableSize?: number | null;
 	variant?: string;
 }
@@ -1428,6 +1429,9 @@ async function applyCashDetailUpdate(
 	}
 
 	// Snapshot field overrides — written to detail, never propagated to parent.
+	if (input.ruleName !== undefined) {
+		cashUpdate.ruleName = input.ruleName;
+	}
 	if (input.variant !== undefined) {
 		cashUpdate.variant = input.variant;
 	}
@@ -1507,6 +1511,7 @@ interface TournamentUpdateInput {
 	entryFee?: number;
 	placement?: number | null;
 	prizeMoney?: number | null;
+	ruleName?: string;
 	startingStack?: number | null;
 	tableSize?: number | null;
 	totalEntries?: number | null;
@@ -1531,6 +1536,7 @@ async function applyTournamentSnapshotUpdate(
 		tournamentId: input.tournamentId,
 		tournamentBuyIn: input.tournamentBuyIn,
 		entryFee: input.entryFee,
+		ruleName: input.ruleName,
 		variant: input.variant,
 		startingStack: input.startingStack,
 		bountyAmount: input.bountyAmount,
@@ -1570,6 +1576,9 @@ function applyTournamentScalarUpdates(
 	// parent. Assigned individually (rather than via `scalarKeys`) since
 	// `variant` is a string while the rest are nullable numbers, which the
 	// generic keyed loop above can't type-check across.
+	if (input.ruleName !== undefined) {
+		tournUpdate.ruleName = input.ruleName;
+	}
 	if (input.variant !== undefined) {
 		tournUpdate.variant = input.variant;
 	}
@@ -2182,6 +2191,7 @@ export const sessionRouter = router({
 				endedAt: z.number().nullable().optional(),
 				breakMinutes: z.number().int().min(0).nullable().optional(),
 				memo: z.string().nullable().optional(),
+				ruleName: z.string().optional(),
 				variant: z.string().optional(),
 				blind1: z.number().int().nullable().optional(),
 				blind2: z.number().int().nullable().optional(),
