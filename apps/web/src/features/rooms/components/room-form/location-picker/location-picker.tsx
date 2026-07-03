@@ -5,8 +5,13 @@ import {
 	IconX,
 } from "@tabler/icons-react";
 import { Button } from "@/shared/components/ui/button";
-import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@/shared/components/ui/tabs";
 import type { Coords } from "./use-location-picker";
 import { useLocationPicker } from "./use-location-picker";
 
@@ -50,95 +55,111 @@ export function LocationPicker({
 
 	return (
 		<div className="flex flex-col gap-3">
-			<Field label="Search a place">
-				<div className="flex gap-2">
-					<Input
-						onChange={(e) => setQuery(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key === "Enter") {
-								e.preventDefault();
-								handleSearch();
-							}
-						}}
-						value={query}
-					/>
-					<Button
-						disabled={isSearching || query.trim() === ""}
-						onClick={handleSearch}
-						type="button"
-						variant="outline"
-					>
-						<IconSearch size={16} />
-						Search
-					</Button>
-				</div>
-			</Field>
-			{searchError && <p className="text-destructive text-sm">{searchError}</p>}
-			{results.length > 0 && (
-				<ul className="flex flex-col gap-1">
-					{results.map((result) => (
-						<li key={`${result.latitude},${result.longitude}`}>
-							<button
-								className="flex w-full flex-col items-start rounded-md border border-border px-3 py-2 text-left hover:bg-muted"
-								onClick={() => pickResult(result)}
-								type="button"
-							>
-								<span className="t-body-sm font-medium">{result.name}</span>
-								{result.address && (
-									<span className="text-muted-foreground text-xs">
-										{result.address}
-									</span>
-								)}
-							</button>
-						</li>
-					))}
-				</ul>
-			)}
+			<span className="t-label text-muted-foreground">Location</span>
+			<Tabs defaultValue="search">
+				<TabsList className="w-full">
+					<TabsTrigger value="search">Search</TabsTrigger>
+					<TabsTrigger value="link">Link</TabsTrigger>
+					<TabsTrigger value="gps">Current</TabsTrigger>
+				</TabsList>
 
-			<Field label="Google Maps link">
-				<div className="flex gap-2">
-					<Input
-						inputMode="url"
-						onChange={(e) => setLink(e.target.value)}
-						value={link}
-					/>
-					<Button
-						disabled={isResolving || link.trim() === ""}
-						onClick={handleResolveLink}
-						type="button"
-						variant="outline"
-					>
-						<IconMapPin size={16} />
-						Set from link
-					</Button>
-				</div>
-			</Field>
-			{resolveError && (
-				<p className="text-destructive text-sm">{resolveError}</p>
-			)}
+				<TabsContent className="flex flex-col gap-2 pt-1" value="search">
+					<div className="flex gap-2">
+						<Input
+							aria-label="Search a place"
+							onChange={(e) => setQuery(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") {
+									e.preventDefault();
+									handleSearch();
+								}
+							}}
+							value={query}
+						/>
+						<Button
+							disabled={isSearching || query.trim() === ""}
+							onClick={handleSearch}
+							type="button"
+							variant="outline"
+						>
+							<IconSearch size={16} />
+							Search
+						</Button>
+					</div>
+					{searchError && (
+						<p className="text-destructive text-sm">{searchError}</p>
+					)}
+					{results.length > 0 && (
+						<ul className="flex flex-col gap-1">
+							{results.map((result) => (
+								<li key={`${result.latitude},${result.longitude}`}>
+									<button
+										className="flex w-full flex-col items-start rounded-md border border-border px-3 py-2 text-left hover:bg-muted"
+										onClick={() => pickResult(result)}
+										type="button"
+									>
+										<span className="t-body-sm font-medium">{result.name}</span>
+										{result.address && (
+											<span className="text-muted-foreground text-xs">
+												{result.address}
+											</span>
+										)}
+									</button>
+								</li>
+							))}
+						</ul>
+					)}
+				</TabsContent>
 
-			<div className="flex flex-wrap items-center gap-2">
-				<Button
-					onClick={captureLocation}
-					size="sm"
-					type="button"
-					variant="outline"
+				<TabsContent className="flex flex-col gap-2 pt-1" value="link">
+					<div className="flex gap-2">
+						<Input
+							aria-label="Google Maps link"
+							inputMode="url"
+							onChange={(e) => setLink(e.target.value)}
+							value={link}
+						/>
+						<Button
+							disabled={isResolving || link.trim() === ""}
+							onClick={handleResolveLink}
+							type="button"
+							variant="outline"
+						>
+							<IconMapPin size={16} />
+							Set
+						</Button>
+					</div>
+					{resolveError && (
+						<p className="text-destructive text-sm">{resolveError}</p>
+					)}
+				</TabsContent>
+
+				<TabsContent
+					className="flex flex-wrap items-center gap-2 pt-1"
+					value="gps"
 				>
-					<IconCurrentLocation size={16} />
-					Use current location
-				</Button>
-				{gpsMessage && (
-					<span
-						className={
-							gpsStatus === "prompting"
-								? "text-muted-foreground text-sm"
-								: "text-destructive text-sm"
-						}
+					<Button
+						onClick={captureLocation}
+						size="sm"
+						type="button"
+						variant="outline"
 					>
-						{gpsMessage}
-					</span>
-				)}
-			</div>
+						<IconCurrentLocation size={16} />
+						Use current location
+					</Button>
+					{gpsMessage && (
+						<span
+							className={
+								gpsStatus === "prompting"
+									? "text-muted-foreground text-sm"
+									: "text-destructive text-sm"
+							}
+						>
+							{gpsMessage}
+						</span>
+					)}
+				</TabsContent>
+			</Tabs>
 
 			{hasLocation && latitude !== null && longitude !== null && (
 				<div className="flex flex-wrap items-center gap-2 text-sm">
