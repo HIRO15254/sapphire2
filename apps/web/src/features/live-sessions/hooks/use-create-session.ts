@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { findNearestRoom } from "@/features/live-sessions/utils/geo";
+import { useGeolocation } from "@/shared/hooks/use-geolocation";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -46,16 +48,43 @@ function useRoomTournaments(roomId: string | undefined) {
 	}));
 }
 
-export function useCreateSession({ onClose }: { onClose: () => void }) {
+export function useCreateSession({
+	onClose,
+	open = false,
+}: {
+	onClose: () => void;
+	open?: boolean;
+}) {
 	const [selectedRoomId, setSelectedRoomId] = useState<string | undefined>();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+
+	// Request the device location when the dialog opens so we can default the
+	// room to whichever one the user is physically nearest.
+	const { coords } = useGeolocation({ enabled: open });
 
 	const roomsQuery = useQuery(trpc.room.list.queryOptions());
 	const rooms = (roomsQuery.data ?? []).map((s) => ({
 		id: s.id,
 		name: s.name,
 	}));
+
+	// The geolocation-nearest room (within the default radius), used as the
+	// form's default room selection. `undefined` when location is unavailable or
+	// no room with coordinates is in range.
+	const nearestRoomId = useMemo(() => {
+		if (!coords) {
+			return;
+		}
+		return findNearestRoom(
+			coords,
+			(roomsQuery.data ?? []).map((s) => ({
+				id: s.id,
+				latitude: s.latitude ?? null,
+				longitude: s.longitude ?? null,
+			}))
+		)?.id;
+	}, [coords, roomsQuery.data]);
 
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = (currenciesQuery.data ?? []).map((c) => ({
@@ -135,6 +164,7 @@ export function useCreateSession({ onClose }: { onClose: () => void }) {
 		tournaments,
 		selectedRoomId,
 		setSelectedRoomId,
+		nearestRoomId,
 		createCash: (values: {
 			currencyId?: string;
 			initialBuyIn: number;

@@ -7,10 +7,12 @@ import type {
 
 interface UseCreateSessionDialogOptions {
 	onOpenChange: (open: boolean) => void;
+	open?: boolean;
 }
 
 export function useCreateSessionDialog({
 	onOpenChange,
+	open,
 }: UseCreateSessionDialogOptions) {
 	const {
 		rooms,
@@ -18,10 +20,11 @@ export function useCreateSessionDialog({
 		ringGames,
 		tournaments,
 		setSelectedRoomId,
+		nearestRoomId,
 		createCash,
 		createTournament,
 		isLoading,
-	} = useCreateSession({ onClose: () => onOpenChange(false) });
+	} = useCreateSession({ onClose: () => onOpenChange(false), open });
 
 	const handleReset = () => {
 		setSelectedRoomId(undefined);
@@ -60,6 +63,7 @@ export function useCreateSessionDialog({
 		ringGames: ringGames as RingGameOption[],
 		tournaments: tournaments as TournamentOption[],
 		setSelectedRoomId,
+		defaultRoomId: nearestRoomId,
 		handleSubmit,
 		isLoading,
 		handleReset,

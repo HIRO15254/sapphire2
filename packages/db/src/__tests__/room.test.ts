@@ -96,3 +96,30 @@ describe("Room schema — constraints", () => {
 		expect(columns.memo.dataType).toBe("string");
 	});
 });
+
+describe("Room schema — location", () => {
+	it("defines latitude and longitude columns", () => {
+		const columns = getTableColumns(room);
+		expect(columns.latitude).toBeDefined();
+		expect(columns.longitude).toBeDefined();
+	});
+
+	it("latitude and longitude are nullable", () => {
+		const columns = getTableColumns(room);
+		expect(columns.latitude.notNull).toBe(false);
+		expect(columns.longitude.notNull).toBe(false);
+	});
+
+	it("latitude and longitude are stored as real (number) columns", () => {
+		const columns = getTableColumns(room);
+		// drizzle `real()` reports its dataType as "number", not "real".
+		expect(columns.latitude.dataType).toBe("number");
+		expect(columns.longitude.dataType).toBe("number");
+	});
+
+	it("latitude and longitude have no default (unset stays null)", () => {
+		const columns = getTableColumns(room);
+		expect(columns.latitude.hasDefault).toBe(false);
+		expect(columns.longitude.hasDefault).toBe(false);
+	});
+});

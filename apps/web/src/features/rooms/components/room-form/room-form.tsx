@@ -1,11 +1,17 @@
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { LocationPicker } from "./location-picker";
 import type { RoomFormValues } from "./use-room-form";
 import { useRoomForm } from "./use-room-form";
 
 interface RoomFormProps {
-	defaultValues?: RoomFormValues;
+	defaultValues?: {
+		latitude?: number | null;
+		longitude?: number | null;
+		memo?: string;
+		name: string;
+	};
 	/**
 	 * Stable id assigned to the `<form>` element so an external Save button
 	 * (rendered by the surrounding FormSheet toolbar) can submit it via the
@@ -15,8 +21,12 @@ interface RoomFormProps {
 	onSubmit: (values: RoomFormValues) => void;
 }
 
+function fieldToCoord(value: string): number | null {
+	return value.trim() === "" ? null : Number(value);
+}
+
 export function RoomForm({ onSubmit, defaultValues, formId }: RoomFormProps) {
-	const { form } = useRoomForm({ onSubmit, defaultValues });
+	const { form, setCoords } = useRoomForm({ onSubmit, defaultValues });
 
 	return (
 		<form
@@ -59,6 +69,21 @@ export function RoomForm({ onSubmit, defaultValues, formId }: RoomFormProps) {
 					</Field>
 				)}
 			</form.Field>
+			<form.Subscribe
+				selector={(state) => ({
+					latitude: state.values.latitude,
+					longitude: state.values.longitude,
+				})}
+			>
+				{({ latitude, longitude }) => (
+					<LocationPicker
+						initialQuery={defaultValues?.name}
+						latitude={fieldToCoord(latitude)}
+						longitude={fieldToCoord(longitude)}
+						onCoordsChange={setCoords}
+					/>
+				)}
+			</form.Subscribe>
 		</form>
 	);
 }

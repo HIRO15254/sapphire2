@@ -15,9 +15,21 @@ const trpcMocks = vi.hoisted(() => ({
 	createTournament: vi.fn(),
 	sessionEventCreate: vi.fn(),
 }));
+const geoMock = vi.hoisted(() => ({
+	coords: null as { latitude: number; longitude: number } | null,
+}));
 
 vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => navigateMock,
+}));
+
+vi.mock("@/shared/hooks/use-geolocation", () => ({
+	useGeolocation: () => ({
+		coords: geoMock.coords,
+		status: "idle",
+		error: null,
+		request: vi.fn(),
+	}),
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -115,6 +127,7 @@ describe("useCreateSession", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		geoMock.coords = null;
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -334,6 +347,88 @@ describe("useCreateSession", () => {
 			expect(trpcMocks.sessionEventCreate).not.toHaveBeenCalled();
 			expect(navigateMock).not.toHaveBeenCalled();
 			expect(onClose).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("nearestRoomId (geolocation default)", () => {
+		function seedRooms(qc: QueryClient) {
+			qc.setQueryData(
+				["room", "list"],
+				[
+					{
+						id: "osaka",
+						name: "Osaka",
+						latitude: 34.6937,
+						longitude: 135.5023,
+					},
+					{
+						id: "tokyo",
+						name: "Tokyo",
+						latitude: 35.6812,
+						longitude: 139.7671,
+					},
+				]
+			);
+		}
+
+		it("resolves to the closest in-range room when coords are available", async () => {
+			geoMock.coords = { latitude: 35.6812, longitude: 139.7671 };
+			const qc = createClient();
+			seedRooms(qc);
+			const { result } = renderHook(
+				() => useCreateSession({ onClose: vi.fn(), open: true }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.nearestRoomId).toBe("tokyo"));
+		});
+
+		it("is undefined when location is unavailable", async () => {
+			geoMock.coords = null;
+			const qc = createClient();
+			seedRooms(qc);
+			const { result } = renderHook(
+				() => useCreateSession({ onClose: vi.fn(), open: true }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(2));
+			expect(result.current.nearestRoomId).toBeUndefined();
+		});
+
+		it("is undefined when no room is within the radius", async () => {
+			geoMock.coords = { latitude: 35.6812, longitude: 139.7671 };
+			const qc = createClient();
+			qc.setQueryData(
+				["room", "list"],
+				[
+					{
+						id: "osaka",
+						name: "Osaka",
+						latitude: 34.6937,
+						longitude: 135.5023,
+					},
+				]
+			);
+			const { result } = renderHook(
+				() => useCreateSession({ onClose: vi.fn(), open: true }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+			expect(result.current.nearestRoomId).toBeUndefined();
+		});
+
+		it("ignores rooms without coordinates", async () => {
+			geoMock.coords = { latitude: 35.6812, longitude: 139.7671 };
+			const qc = createClient();
+			qc.setQueryData(
+				["room", "list"],
+				[{ id: "no-coords", name: "Legacy", latitude: null, longitude: null }]
+			);
+			const { result } = renderHook(
+				() => useCreateSession({ onClose: vi.fn(), open: true }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.rooms).toHaveLength(1));
+			expect(result.current.nearestRoomId).toBeUndefined();
 		});
 	});
 });

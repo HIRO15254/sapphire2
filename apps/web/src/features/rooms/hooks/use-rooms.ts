@@ -8,6 +8,8 @@ import {
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export interface RoomValues {
+	latitude?: number;
+	longitude?: number;
 	memo?: string;
 	name: string;
 }
@@ -16,6 +18,8 @@ export interface RoomItem {
 	createdAt: Date | string;
 	id: string;
 	isFavorite: boolean;
+	latitude?: number | null;
+	longitude?: number | null;
 	memo?: string | null;
 	name: string;
 	ringGameCount: number;
@@ -46,6 +50,8 @@ export function useRooms() {
 						id: `temp-${Date.now()}`,
 						name: newRoom.name,
 						memo: newRoom.memo ?? null,
+						latitude: newRoom.latitude ?? null,
+						longitude: newRoom.longitude ?? null,
 						isFavorite: false,
 						createdAt: new Date().toISOString(),
 						ringGameCount: 0,
@@ -64,13 +70,15 @@ export function useRooms() {
 	});
 
 	const updateMutation = useMutation({
-		// Send an explicit `null` for a cleared memo so the server overwrites it
+		// Send an explicit `null` for cleared fields so the server overwrites them
 		// rather than treating the omitted (undefined) key as "leave unchanged".
 		mutationFn: (values: RoomValues & { id: string }) =>
 			trpcClient.room.update.mutate({
 				id: values.id,
 				name: values.name,
 				memo: values.memo ?? null,
+				latitude: values.latitude ?? null,
+				longitude: values.longitude ?? null,
 			}),
 		onMutate: async (updated) => {
 			await cancelTargets(queryClient, [{ queryKey: roomListKey }]);

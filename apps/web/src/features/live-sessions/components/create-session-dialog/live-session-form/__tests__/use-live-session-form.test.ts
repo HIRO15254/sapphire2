@@ -61,6 +61,64 @@ describe("useLiveSessionForm — rule disclosure", () => {
 	});
 });
 
+describe("useLiveSessionForm — geolocation default room", () => {
+	it("seeds the room selection from defaultRoomId", async () => {
+		const onRoomChange = vi.fn();
+		const { result } = renderHook(() =>
+			useLiveSessionForm({
+				defaultRoomId: "room-near",
+				onRoomChange,
+				onSubmit: vi.fn(),
+				ringGames: [RING_GAME],
+			})
+		);
+		await waitFor(() =>
+			expect(result.current.state.selectedRoomId).toBe("room-near")
+		);
+		expect(onRoomChange).toHaveBeenCalledWith("room-near");
+	});
+
+	it("does not override a room the user already picked", async () => {
+		const { result } = renderHook(
+			({ defaultRoomId }) =>
+				useLiveSessionForm({
+					defaultRoomId,
+					onSubmit: vi.fn(),
+					ringGames: [RING_GAME],
+				}),
+			{ initialProps: { defaultRoomId: undefined as string | undefined } }
+		);
+
+		act(() => result.current.state.handleRoomChange("room-manual"));
+		expect(result.current.state.selectedRoomId).toBe("room-manual");
+
+		// A geolocation suggestion that arrives afterwards must not clobber it.
+		await waitFor(() =>
+			expect(result.current.state.selectedRoomId).toBe("room-manual")
+		);
+	});
+
+	it("does not re-seed after the user clears the selection", async () => {
+		const { result } = renderHook(() =>
+			useLiveSessionForm({
+				defaultRoomId: "room-near",
+				onSubmit: vi.fn(),
+				ringGames: [RING_GAME],
+			})
+		);
+		await waitFor(() =>
+			expect(result.current.state.selectedRoomId).toBe("room-near")
+		);
+
+		act(() => result.current.state.handleRoomChange(undefined));
+		expect(result.current.state.selectedRoomId).toBeUndefined();
+		// Clearing is a deliberate user action — the default must stay cleared.
+		await waitFor(() =>
+			expect(result.current.state.selectedRoomId).toBeUndefined()
+		);
+	});
+});
+
 describe("useLiveSessionForm — submit", () => {
 	it("prevents default, stops propagation and routes shaped cash values to onSubmit", async () => {
 		const onSubmit = vi.fn();

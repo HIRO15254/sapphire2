@@ -32,6 +32,7 @@ export function wizardStepsForMode(
 export const WIZARD_STEPS = WIZARD_STEPS_MANUAL;
 
 interface UseSessionWizardArgs {
+	defaultRoomId?: string;
 	defaultValues?: SessionFormDefaults;
 	mode?: WizardMode;
 	onRoomChange?: (roomId: string | undefined) => void;

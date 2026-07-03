@@ -25,10 +25,11 @@ export function CreateSessionDialog({
 		ringGames,
 		tournaments,
 		setSelectedRoomId,
+		defaultRoomId,
 		handleSubmit,
 		isLoading,
 		handleReset,
-	} = useCreateSessionDialog({ onOpenChange });
+	} = useCreateSessionDialog({ onOpenChange, open });
 
 	return (
 		<FormSheet
@@ -45,6 +46,7 @@ export function CreateSessionDialog({
 		>
 			<LiveSessionForm
 				currencies={currencies}
+				defaultRoomId={defaultRoomId}
 				formId={LIVE_SESSION_FORM_ID}
 				onRoomChange={setSelectedRoomId}
 				onSubmit={handleSubmit}

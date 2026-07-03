@@ -3,6 +3,7 @@ import { RoomForm } from "@/features/rooms/components/room-form";
 import { DeleteRoomDialog } from "@/features/rooms/pages/room-detail-page/delete-room-dialog";
 import { RingGameTab } from "@/features/rooms/pages/room-detail-page/ring-game-tab";
 import { RoomActionsDrawer } from "@/features/rooms/pages/room-detail-page/room-actions-drawer";
+import { RoomLocationLink } from "@/features/rooms/pages/room-detail-page/room-location-link";
 import { TournamentTab } from "@/features/rooms/pages/room-detail-page/tournament-tab";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
@@ -91,6 +92,8 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 					}
 				/>
 
+				<RoomLocationLink latitude={room.latitude} longitude={room.longitude} />
+
 				<Tabs defaultValue="ring-games">
 					<TabsList className="w-full">
 						<TabsTrigger value="ring-games">Cash games</TabsTrigger>
@@ -124,6 +127,8 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 						defaultValues={{
 							name: room.name,
 							memo: room.memo ?? undefined,
+							latitude: room.latitude,
+							longitude: room.longitude,
 						}}
 						formId={EDIT_STORE_FORM_ID}
 						onSubmit={handleEdit}
