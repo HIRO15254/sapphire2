@@ -376,6 +376,15 @@ describe("pure helpers", () => {
 			expect(tourney.ruleName).toBe("Weekly Deepstack");
 		});
 
+		it("forwards cash min/max buy-in edits", () => {
+			const out = buildUpdatePayload({
+				...cashValues({ minBuyIn: 100, maxBuyIn: 500 }),
+				id: "s1",
+			}) as Record<string, unknown>;
+			expect(out.minBuyIn).toBe(100);
+			expect(out.maxBuyIn).toBe(500);
+		});
+
 		it("includes tournament snapshot overrides and blind levels", () => {
 			const blindLevels = [
 				{

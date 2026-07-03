@@ -1406,6 +1406,8 @@ interface CashUpdateInput {
 	buyIn?: number;
 	cashOut?: number;
 	evCashOut?: number | null;
+	maxBuyIn?: number | null;
+	minBuyIn?: number | null;
 	ringGameId?: string | null;
 	ruleName?: string;
 	tableSize?: number | null;
@@ -1452,6 +1454,12 @@ async function applyCashDetailUpdate(
 	}
 	if (input.tableSize !== undefined) {
 		cashUpdate.tableSize = input.tableSize;
+	}
+	if (input.minBuyIn !== undefined) {
+		cashUpdate.minBuyIn = input.minBuyIn;
+	}
+	if (input.maxBuyIn !== undefined) {
+		cashUpdate.maxBuyIn = input.maxBuyIn;
 	}
 
 	if (input.ringGameId !== undefined) {
@@ -2199,6 +2207,8 @@ export const sessionRouter = router({
 				ante: z.number().int().nullable().optional(),
 				anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
 				tableSize: z.number().int().nullable().optional(),
+				minBuyIn: z.number().int().nullable().optional(),
+				maxBuyIn: z.number().int().nullable().optional(),
 				tagIds: z.array(z.string()).optional(),
 			})
 		)

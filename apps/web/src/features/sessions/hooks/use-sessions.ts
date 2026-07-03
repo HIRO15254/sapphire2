@@ -199,6 +199,8 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 			ante: values.ante,
 			anteType: values.anteType as "none" | "all" | "bb" | undefined,
 			tableSize: values.tableSize,
+			minBuyIn: values.minBuyIn ?? null,
+			maxBuyIn: values.maxBuyIn ?? null,
 			ringGameId: values.ringGameId ?? null,
 		};
 	}

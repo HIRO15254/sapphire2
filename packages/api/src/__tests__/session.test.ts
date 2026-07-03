@@ -400,6 +400,23 @@ describe("session router input validation", () => {
 		expect(parsed.data?.ruleName).toBe("My 1/2 NLH");
 	});
 
+	it("update accepts and retains cash min/max buy-in", () => {
+		const schema = (
+			appRouter.session.update as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as {
+			safeParse: (v: unknown) => {
+				data?: { maxBuyIn?: number; minBuyIn?: number };
+				success: boolean;
+			};
+		};
+		const parsed = schema.safeParse({ id: "s1", minBuyIn: 100, maxBuyIn: 500 });
+		expect(parsed.success).toBe(true);
+		expect(parsed.data?.minBuyIn).toBe(100);
+		expect(parsed.data?.maxBuyIn).toBe(500);
+	});
+
 	it("create accepts cash session with snapshot override fields", () => {
 		const schema = (
 			appRouter.session.create as unknown as {
