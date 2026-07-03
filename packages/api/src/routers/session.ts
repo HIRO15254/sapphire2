@@ -931,7 +931,7 @@ interface ListItemRaw {
 	type: string;
 }
 
-interface ProfitLossSeriesRow {
+export interface ProfitLossSeriesRow {
 	bountyPrizes: number | null;
 	breakMinutes: number | null;
 	buyIn: number | null;
@@ -1083,7 +1083,7 @@ export async function fetchProfitLossSeries(
 	return { points };
 }
 
-function toProfitLossSeriesPoint(r: ProfitLossSeriesRow) {
+export function toProfitLossSeriesPoint(r: ProfitLossSeriesRow) {
 	const cashStats =
 		r.type === "cash_game"
 			? computeCashStats(r)
@@ -1104,6 +1104,10 @@ function toProfitLossSeriesPoint(r: ProfitLossSeriesRow) {
 		id: r.id,
 		type: r.type as "cash_game" | "tournament",
 		sessionDate: Math.floor(r.sessionDate.getTime() / 1000),
+		// Chronological order key: sessionDate has no time component, so same-day
+		// sessions need startedAt to sort by actual play order (SA2-98). Mirrors
+		// the DB query's own `sessionOrderKeySql()` ordering.
+		sortKey: Math.floor((r.startedAt ?? r.sessionDate).getTime() / 1000),
 		profitLoss,
 		evProfitLoss: cashStats.evProfitLoss,
 		playMinutes: computePlayMinutes(r),
