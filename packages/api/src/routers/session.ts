@@ -92,6 +92,26 @@ export function chunkForInsert<T>(rows: T[], columnsPerRow: number): T[][] {
 	return chunks;
 }
 
+/**
+ * Run a `WHERE ... IN (ids)` SELECT in chunks so no single statement exceeds
+ * D1's 100 bound-parameter cap. A one-column `IN` binds one param per id, so a
+ * batched lookup across >100 sessions (e.g. the chip-purchase / blind-level
+ * maps below) overflows exactly like a wide multi-row INSERT — hence the reuse
+ * of {@link chunkForInsert} with a single "column". Rows from every chunk are
+ * concatenated in chunk order; callers bucket by id afterward, and because each
+ * id lands in exactly one chunk, per-id ordering (sortOrder / level) survives.
+ */
+export async function selectInChunks<Id, Row>(
+	ids: Id[],
+	run: (chunk: Id[]) => Promise<Row[]>
+): Promise<Row[]> {
+	const rows: Row[] = [];
+	for (const chunk of chunkForInsert(ids, 1)) {
+		rows.push(...(await run(chunk)));
+	}
+	return rows;
+}
+
 interface SessionChipPurchaseWithCount {
 	chips: number;
 	cost: number;
@@ -121,26 +141,28 @@ async function getSessionChipPurchaseMap(
 	if (sessionIds.length === 0) {
 		return map;
 	}
-	const rows = await db
-		.select({
-			sessionId: sessionChipPurchase.sessionId,
-			id: sessionChipPurchase.id,
-			name: sessionChipPurchase.name,
-			cost: sessionChipPurchase.cost,
-			chips: sessionChipPurchase.chips,
-			sortOrder: sessionChipPurchase.sortOrder,
-			count: sessionChipPurchaseResult.count,
-		})
-		.from(sessionChipPurchase)
-		.leftJoin(
-			sessionChipPurchaseResult,
-			eq(
-				sessionChipPurchaseResult.sessionChipPurchaseId,
-				sessionChipPurchase.id
+	const rows = await selectInChunks(sessionIds, (chunk) =>
+		db
+			.select({
+				sessionId: sessionChipPurchase.sessionId,
+				id: sessionChipPurchase.id,
+				name: sessionChipPurchase.name,
+				cost: sessionChipPurchase.cost,
+				chips: sessionChipPurchase.chips,
+				sortOrder: sessionChipPurchase.sortOrder,
+				count: sessionChipPurchaseResult.count,
+			})
+			.from(sessionChipPurchase)
+			.leftJoin(
+				sessionChipPurchaseResult,
+				eq(
+					sessionChipPurchaseResult.sessionChipPurchaseId,
+					sessionChipPurchase.id
+				)
 			)
-		)
-		.where(inArray(sessionChipPurchase.sessionId, sessionIds))
-		.orderBy(asc(sessionChipPurchase.sortOrder));
+			.where(inArray(sessionChipPurchase.sessionId, chunk))
+			.orderBy(asc(sessionChipPurchase.sortOrder))
+	);
 	for (const r of rows) {
 		const entry: SessionChipPurchaseWithCount = {
 			id: r.id,
@@ -183,19 +205,21 @@ async function getSessionBlindLevelMap(
 	if (sessionIds.length === 0) {
 		return map;
 	}
-	const rows = await db
-		.select({
-			sessionId: sessionBlindLevel.sessionId,
-			isBreak: sessionBlindLevel.isBreak,
-			blind1: sessionBlindLevel.blind1,
-			blind2: sessionBlindLevel.blind2,
-			blind3: sessionBlindLevel.blind3,
-			ante: sessionBlindLevel.ante,
-			minutes: sessionBlindLevel.minutes,
-		})
-		.from(sessionBlindLevel)
-		.where(inArray(sessionBlindLevel.sessionId, sessionIds))
-		.orderBy(asc(sessionBlindLevel.level));
+	const rows = await selectInChunks(sessionIds, (chunk) =>
+		db
+			.select({
+				sessionId: sessionBlindLevel.sessionId,
+				isBreak: sessionBlindLevel.isBreak,
+				blind1: sessionBlindLevel.blind1,
+				blind2: sessionBlindLevel.blind2,
+				blind3: sessionBlindLevel.blind3,
+				ante: sessionBlindLevel.ante,
+				minutes: sessionBlindLevel.minutes,
+			})
+			.from(sessionBlindLevel)
+			.where(inArray(sessionBlindLevel.sessionId, chunk))
+			.orderBy(asc(sessionBlindLevel.level))
+	);
 	for (const r of rows) {
 		const entry: SessionBlindLevelRow = {
 			isBreak: r.isBreak,
@@ -1331,21 +1355,20 @@ async function enrichSessionRows<
 	const withPL = withChipPurchases.map(enrichItemWithPL);
 
 	const sessionIds = withPL.map((item) => item.id);
-	const tagLinks =
-		sessionIds.length > 0
-			? await db
-					.select({
-						sessionId: sessionToSessionTag.sessionId,
-						tagId: sessionTag.id,
-						tagName: sessionTag.name,
-					})
-					.from(sessionToSessionTag)
-					.innerJoin(
-						sessionTag,
-						eq(sessionTag.id, sessionToSessionTag.sessionTagId)
-					)
-					.where(inArray(sessionToSessionTag.sessionId, sessionIds))
-			: [];
+	const tagLinks = await selectInChunks(sessionIds, (chunk) =>
+		db
+			.select({
+				sessionId: sessionToSessionTag.sessionId,
+				tagId: sessionTag.id,
+				tagName: sessionTag.name,
+			})
+			.from(sessionToSessionTag)
+			.innerJoin(
+				sessionTag,
+				eq(sessionTag.id, sessionToSessionTag.sessionTagId)
+			)
+			.where(inArray(sessionToSessionTag.sessionId, chunk))
+	);
 
 	return withPL.map((item) => ({
 		...item,
