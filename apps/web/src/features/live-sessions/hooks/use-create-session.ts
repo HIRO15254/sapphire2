@@ -185,13 +185,8 @@ export function useCreateSession({
 	const sessionListKey = trpc.session.list.queryOptions({}).queryKey;
 
 	const createCashMutation = useMutation({
-		mutationFn: (values: {
-			currencyId?: string;
-			initialBuyIn: number;
-			memo?: string;
-			ringGameId?: string;
-			roomId?: string;
-		}) => trpcClient.liveCashGameSession.create.mutate(values),
+		mutationFn: (values: CreateCashValues) =>
+			trpcClient.liveCashGameSession.create.mutate(values),
 		onSuccess: async () => {
 			await invalidateTargets(queryClient, [
 				{ queryKey: cashListKey },
@@ -203,16 +198,7 @@ export function useCreateSession({
 	});
 
 	const createTournamentMutation = useMutation({
-		mutationFn: async (values: {
-			buyIn: number;
-			currencyId?: string;
-			entryFee?: number;
-			memo?: string;
-			startingStack: number;
-			roomId?: string;
-			timerStartedAt?: number;
-			tournamentId?: string;
-		}) => {
+		mutationFn: async (values: CreateTournamentValues) => {
 			const { startingStack, ...createValues } = values;
 			const result =
 				await trpcClient.liveTournamentSession.create.mutate(createValues);
