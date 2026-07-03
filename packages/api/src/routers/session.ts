@@ -74,6 +74,24 @@ function computeTournamentPL(
 	return income - cost;
 }
 
+/**
+ * Cloudflare D1 rejects any query with more than 100 bound parameters. A
+ * multi-row `INSERT` binds `columnsPerRow × rowCount` parameters, so a large
+ * batch (e.g. a 14-level blind structure at 9 columns = 126 params) overflows
+ * a single statement and fails at runtime. Split the rows so every INSERT
+ * stays under the cap.
+ */
+const D1_MAX_BOUND_PARAMS = 100;
+
+export function chunkForInsert<T>(rows: T[], columnsPerRow: number): T[][] {
+	const perChunk = Math.max(1, Math.floor(D1_MAX_BOUND_PARAMS / columnsPerRow));
+	const chunks: T[][] = [];
+	for (let i = 0; i < rows.length; i += perChunk) {
+		chunks.push(rows.slice(i, i + perChunk));
+	}
+	return chunks;
+}
+
 interface SessionChipPurchaseWithCount {
 	chips: number;
 	cost: number;
@@ -227,13 +245,16 @@ async function persistSessionChipPurchases(
 		chips: p.chips,
 		sortOrder: idx,
 	}));
-	await db.insert(sessionChipPurchase).values(rows);
-	await db.insert(sessionChipPurchaseResult).values(
-		rows.map((r, idx) => ({
-			sessionChipPurchaseId: r.id,
-			count: chipPurchases[idx]?.count ?? 0,
-		}))
-	);
+	for (const chunk of chunkForInsert(rows, 6)) {
+		await db.insert(sessionChipPurchase).values(chunk);
+	}
+	const resultRows = rows.map((r, idx) => ({
+		sessionChipPurchaseId: r.id,
+		count: chipPurchases[idx]?.count ?? 0,
+	}));
+	for (const chunk of chunkForInsert(resultRows, 2)) {
+		await db.insert(sessionChipPurchaseResult).values(chunk);
+	}
 }
 
 /**
@@ -259,19 +280,20 @@ async function persistSessionBlindLevels(
 	if (blindLevels.length === 0) {
 		return;
 	}
-	await db.insert(sessionBlindLevel).values(
-		blindLevels.map((l, idx) => ({
-			id: crypto.randomUUID(),
-			sessionId,
-			level: idx + 1,
-			isBreak: l.isBreak,
-			blind1: l.blind1 ?? null,
-			blind2: l.blind2 ?? null,
-			blind3: l.blind3 ?? null,
-			ante: l.ante ?? null,
-			minutes: l.minutes ?? null,
-		}))
-	);
+	const rows = blindLevels.map((l, idx) => ({
+		id: crypto.randomUUID(),
+		sessionId,
+		level: idx + 1,
+		isBreak: l.isBreak,
+		blind1: l.blind1 ?? null,
+		blind2: l.blind2 ?? null,
+		blind3: l.blind3 ?? null,
+		ante: l.ante ?? null,
+		minutes: l.minutes ?? null,
+	}));
+	for (const chunk of chunkForInsert(rows, 9)) {
+		await db.insert(sessionBlindLevel).values(chunk);
+	}
 }
 
 async function validateEntityOwnership(
@@ -1858,19 +1880,20 @@ async function snapshotTournamentStructure(
 		.where(eq(blindLevel.tournamentId, tournamentId))
 		.orderBy(asc(blindLevel.level));
 	if (levels.length > 0) {
-		await db.insert(sessionBlindLevel).values(
-			levels.map((l) => ({
-				id: crypto.randomUUID(),
-				sessionId,
-				level: l.level,
-				isBreak: l.isBreak,
-				blind1: l.blind1,
-				blind2: l.blind2,
-				blind3: l.blind3,
-				ante: l.ante,
-				minutes: l.minutes,
-			}))
-		);
+		const levelRows = levels.map((l) => ({
+			id: crypto.randomUUID(),
+			sessionId,
+			level: l.level,
+			isBreak: l.isBreak,
+			blind1: l.blind1,
+			blind2: l.blind2,
+			blind3: l.blind3,
+			ante: l.ante,
+			minutes: l.minutes,
+		}));
+		for (const chunk of chunkForInsert(levelRows, 9)) {
+			await db.insert(sessionBlindLevel).values(chunk);
+		}
 	}
 
 	const purchases = await db
@@ -1887,15 +1910,18 @@ async function snapshotTournamentStructure(
 			chips: p.chips,
 			sortOrder: p.sortOrder,
 		}));
-		await db.insert(sessionChipPurchase).values(purchaseRows);
+		for (const chunk of chunkForInsert(purchaseRows, 5)) {
+			await db.insert(sessionChipPurchase).values(chunk);
+		}
 		// Every chip purchase starts with a result row (count 0) so the
 		// result table always has a row to update.
-		await db.insert(sessionChipPurchaseResult).values(
-			purchaseRows.map((r) => ({
-				sessionChipPurchaseId: r.id,
-				count: 0,
-			}))
-		);
+		const resultRows = purchaseRows.map((r) => ({
+			sessionChipPurchaseId: r.id,
+			count: 0,
+		}));
+		for (const chunk of chunkForInsert(resultRows, 2)) {
+			await db.insert(sessionChipPurchaseResult).values(chunk);
+		}
 	}
 }
 
@@ -1927,9 +1953,10 @@ async function insertSessionTags(
 	tagIds: string[] | undefined
 ): Promise<void> {
 	if (tagIds && tagIds.length > 0) {
-		await db
-			.insert(sessionToSessionTag)
-			.values(tagIds.map((tagId) => ({ sessionId, sessionTagId: tagId })));
+		const rows = tagIds.map((tagId) => ({ sessionId, sessionTagId: tagId }));
+		for (const chunk of chunkForInsert(rows, 2)) {
+			await db.insert(sessionToSessionTag).values(chunk);
+		}
 	}
 }
 
@@ -2219,12 +2246,13 @@ export const sessionRouter = router({
 					.delete(sessionToSessionTag)
 					.where(eq(sessionToSessionTag.sessionId, input.id));
 				if (input.tagIds.length > 0) {
-					await ctx.db.insert(sessionToSessionTag).values(
-						input.tagIds.map((tagId) => ({
-							sessionId: input.id,
-							sessionTagId: tagId,
-						}))
-					);
+					const tagRows = input.tagIds.map((tagId) => ({
+						sessionId: input.id,
+						sessionTagId: tagId,
+					}));
+					for (const chunk of chunkForInsert(tagRows, 2)) {
+						await ctx.db.insert(sessionToSessionTag).values(chunk);
+					}
 				}
 			}
 

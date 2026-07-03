@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
 	assertNoLiveLinkedRestrictedEdits,
+	chunkForInsert,
 	computeTournamentPL,
 	encodeSessionCursor,
 	type ProfitLossSeriesRow,
@@ -16,6 +17,43 @@ const SESSION_DATE_RE = /sessionDate/;
 const PLACEMENT_RE = /placement/;
 const PRIZE_MONEY_RE = /prizeMoney/;
 const TOURNAMENT_ID_RE = /tournamentId/;
+
+describe("chunkForInsert", () => {
+	it("keeps each chunk under D1's 100 bound-parameter cap for 9-column rows", () => {
+		// A 14-level blind structure (9 columns) would bind 126 params in one
+		// INSERT — over D1's cap of 100. It must split into <=11-row chunks.
+		const rows = Array.from({ length: 14 }, (_, i) => i);
+		const chunks = chunkForInsert(rows, 9);
+		expect(chunks).toHaveLength(2);
+		expect(chunks[0]).toHaveLength(11);
+		expect(chunks[1]).toHaveLength(3);
+		for (const chunk of chunks) {
+			expect(chunk.length * 9).toBeLessThanOrEqual(100);
+		}
+		expect(chunks.flat()).toEqual(rows);
+	});
+
+	it("returns a single chunk when the batch fits under the cap", () => {
+		const rows = Array.from({ length: 11 }, (_, i) => i);
+		expect(chunkForInsert(rows, 9)).toEqual([rows]);
+	});
+
+	it("returns no chunks for an empty batch", () => {
+		expect(chunkForInsert([], 9)).toEqual([]);
+	});
+
+	it("chunks wide rows more aggressively than narrow rows", () => {
+		const rows = Array.from({ length: 60 }, (_, i) => i);
+		// 2 columns -> up to 50 rows/chunk; 6 columns -> up to 16 rows/chunk.
+		expect(chunkForInsert(rows, 2)[0]).toHaveLength(50);
+		expect(chunkForInsert(rows, 6)[0]).toHaveLength(16);
+	});
+
+	it("falls back to one row per chunk when a single row already fills the cap", () => {
+		const rows = [1, 2, 3];
+		expect(chunkForInsert(rows, 200)).toEqual([[1], [2], [3]]);
+	});
+});
 
 describe("session router", () => {
 	it("appRouter has session namespace", () => {
