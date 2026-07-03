@@ -51,6 +51,7 @@ function makeWrapper(client: QueryClient) {
 
 function renderPicker(
 	props: {
+		initialQuery?: string;
 		latitude?: number | null;
 		longitude?: number | null;
 		onCoordsChange?: (
@@ -62,6 +63,7 @@ function renderPicker(
 	const utils = renderHook(
 		() =>
 			useLocationPicker({
+				initialQuery: props.initialQuery,
 				latitude: props.latitude ?? null,
 				longitude: props.longitude ?? null,
 				onCoordsChange,
@@ -163,8 +165,36 @@ describe("useLocationPicker", () => {
 			const { result, onCoordsChange } = renderPicker();
 			act(() => result.current.setLink("https://maps.app.goo.gl/x"));
 			act(() => result.current.handleResolveLink());
-			await waitFor(() => expect(result.current.resolveError).toBe("bad link"));
+			await waitFor(() => expect(result.current.linkError).toBe("bad link"));
 			expect(onCoordsChange).not.toHaveBeenCalled();
+		});
+
+		it("marks a non-Google-Maps URL invalid and blocks resolution", () => {
+			const { result } = renderPicker();
+			act(() => result.current.setLink("https://example.com/maps"));
+			expect(result.current.isLinkValid).toBe(false);
+			expect(result.current.linkError).toBe("Enter a valid Google Maps URL");
+			act(() => result.current.handleResolveLink());
+			expect(trpcMocks.resolveLink).not.toHaveBeenCalled();
+		});
+
+		it("accepts a valid Google Maps URL", () => {
+			const { result } = renderPicker();
+			act(() => result.current.setLink("https://maps.app.goo.gl/abc"));
+			expect(result.current.isLinkValid).toBe(true);
+			expect(result.current.linkError).toBeNull();
+		});
+	});
+
+	describe("initial query", () => {
+		it("seeds the search box with the provided initial query", () => {
+			const { result } = renderPicker({ initialQuery: "Casino Tokyo" });
+			expect(result.current.query).toBe("Casino Tokyo");
+		});
+
+		it("defaults to an empty query when none is provided", () => {
+			const { result } = renderPicker();
+			expect(result.current.query).toBe("");
 		});
 	});
 

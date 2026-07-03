@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useGeolocation } from "@/shared/hooks/use-geolocation";
 import { trpcClient } from "@/utils/trpc";
+import { isGoogleMapsUrl } from "./maps-url";
 
 export interface Coords {
 	latitude: number;
@@ -16,22 +17,25 @@ interface PlaceResult {
 }
 
 interface UseLocationPickerArgs {
+	initialQuery?: string;
 	latitude: number | null;
 	longitude: number | null;
 	onCoordsChange: (coords: Coords | null) => void;
 }
 
 /**
- * Drives the room location picker: place-name search, Google Maps link paste
+ * Drives the room location picker: place-name search, Google Maps URL paste
  * and device GPS, all funnelling into a single `onCoordsChange`. The canonical
  * coordinates live in the parent form; this hook only sets them.
  */
 export function useLocationPicker({
+	initialQuery,
 	latitude,
 	longitude,
 	onCoordsChange,
 }: UseLocationPickerArgs) {
-	const [query, setQuery] = useState("");
+	// Seed the search box with the room name so the user can search in one tap.
+	const [query, setQuery] = useState(initialQuery ?? "");
 	const [link, setLink] = useState("");
 
 	// Keep the latest callback in a ref so the GPS effect fires only on a new
@@ -77,16 +81,24 @@ export function useLocationPicker({
 		setQuery("");
 	};
 
+	const linkTrimmed = link.trim();
+	const isLinkValid = linkTrimmed !== "" && isGoogleMapsUrl(linkTrimmed);
+	// Client-side validation first (invalid URL), then any server rejection.
+	const linkError =
+		linkTrimmed !== "" && !isGoogleMapsUrl(linkTrimmed)
+			? "Enter a valid Google Maps URL"
+			: (resolveMutation.error?.message ?? null);
+
 	const handleResolveLink = () => {
-		const trimmed = link.trim();
-		if (trimmed) {
-			resolveMutation.mutate(trimmed, {
-				onSuccess: (coords) => {
-					onCoordsChange(coords);
-					setLink("");
-				},
-			});
+		if (!isLinkValid) {
+			return;
 		}
+		resolveMutation.mutate(linkTrimmed, {
+			onSuccess: (coords) => {
+				onCoordsChange(coords);
+				setLink("");
+			},
+		});
 	};
 
 	const clearLocation = () => {
@@ -105,7 +117,8 @@ export function useLocationPicker({
 		pickResult,
 		handleResolveLink,
 		isResolving: resolveMutation.isPending,
-		resolveError: resolveMutation.error?.message ?? null,
+		isLinkValid,
+		linkError,
 		captureLocation,
 		gpsStatus,
 		clearLocation,

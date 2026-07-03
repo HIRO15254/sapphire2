@@ -16,6 +16,7 @@ import type { Coords } from "./use-location-picker";
 import { useLocationPicker } from "./use-location-picker";
 
 interface LocationPickerProps {
+	initialQuery?: string;
 	latitude: number | null;
 	longitude: number | null;
 	onCoordsChange: (coords: Coords | null) => void;
@@ -28,6 +29,7 @@ const GPS_STATUS_MESSAGE: Partial<Record<string, string>> = {
 };
 
 export function LocationPicker({
+	initialQuery,
 	latitude,
 	longitude,
 	onCoordsChange,
@@ -44,12 +46,13 @@ export function LocationPicker({
 		pickResult,
 		handleResolveLink,
 		isResolving,
-		resolveError,
+		isLinkValid,
+		linkError,
 		captureLocation,
 		gpsStatus,
 		clearLocation,
 		hasLocation,
-	} = useLocationPicker({ latitude, longitude, onCoordsChange });
+	} = useLocationPicker({ initialQuery, latitude, longitude, onCoordsChange });
 
 	const gpsMessage = GPS_STATUS_MESSAGE[gpsStatus];
 
@@ -59,7 +62,7 @@ export function LocationPicker({
 			<Tabs defaultValue="search">
 				<TabsList className="w-full">
 					<TabsTrigger value="search">Search</TabsTrigger>
-					<TabsTrigger value="link">Link</TabsTrigger>
+					<TabsTrigger value="link">URL</TabsTrigger>
 					<TabsTrigger value="gps">Current</TabsTrigger>
 				</TabsList>
 
@@ -114,13 +117,13 @@ export function LocationPicker({
 				<TabsContent className="flex flex-col gap-2 pt-1" value="link">
 					<div className="flex gap-2">
 						<Input
-							aria-label="Google Maps link"
+							aria-label="Google Maps URL"
 							inputMode="url"
 							onChange={(e) => setLink(e.target.value)}
 							value={link}
 						/>
 						<Button
-							disabled={isResolving || link.trim() === ""}
+							disabled={isResolving || !isLinkValid}
 							onClick={handleResolveLink}
 							type="button"
 							variant="outline"
@@ -129,9 +132,7 @@ export function LocationPicker({
 							Set
 						</Button>
 					</div>
-					{resolveError && (
-						<p className="text-destructive text-sm">{resolveError}</p>
-					)}
+					{linkError && <p className="text-destructive text-sm">{linkError}</p>}
 				</TabsContent>
 
 				<TabsContent

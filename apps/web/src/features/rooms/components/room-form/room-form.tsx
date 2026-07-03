@@ -77,6 +77,7 @@ export function RoomForm({ onSubmit, defaultValues, formId }: RoomFormProps) {
 			>
 				{({ latitude, longitude }) => (
 					<LocationPicker
+						initialQuery={defaultValues?.name}
 						latitude={fieldToCoord(latitude)}
 						longitude={fieldToCoord(longitude)}
 						onCoordsChange={setCoords}

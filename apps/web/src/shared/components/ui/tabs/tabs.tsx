@@ -1,6 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { Tabs as TabsPrimitive } from "radix-ui";
 import type * as React from "react";
+import { Children } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -29,10 +30,12 @@ const tabsListVariants = cva(
 			variant: {
 				// The active state is a single `::after` "pill" that slides to the
 				// active trigger (translateX) rather than cross-fading per trigger.
-				// Tuned for the app's two equal-width tabs (every default TabsList is
-				// `w-full` / `grid-cols-2`). Hidden in the vertical orientation.
+				// Works for any tab count: `TabsList` sets `--tabs-count` from its
+				// child count, so the pill width is `1 / N` and each active trigger
+				// shifts it by whole multiples of its own width. Hidden in the
+				// vertical orientation.
 				default:
-					"relative bg-muted after:absolute after:inset-y-[3px] after:left-[3px] after:z-0 after:w-[calc((100%-6px)/2)] after:rounded-md after:border after:border-foreground/20 after:bg-background after:shadow-sm after:transition-transform after:duration-200 after:ease-out after:content-[''] has-[>[data-slot=tabs-trigger]:nth-child(2)[data-state=active]]:after:translate-x-full group-data-vertical/tabs:after:hidden dark:after:bg-foreground/15",
+					"relative bg-muted after:absolute after:inset-y-[3px] after:left-[3px] after:z-0 after:w-[calc((100%-6px)/var(--tabs-count,2))] after:rounded-md after:border after:border-foreground/20 after:bg-background after:shadow-sm after:transition-transform after:duration-200 after:ease-out after:content-[''] has-[>[data-slot=tabs-trigger]:nth-child(2)[data-state=active]]:after:translate-x-full has-[>[data-slot=tabs-trigger]:nth-child(3)[data-state=active]]:after:translate-x-[200%] has-[>[data-slot=tabs-trigger]:nth-child(4)[data-state=active]]:after:translate-x-[300%] has-[>[data-slot=tabs-trigger]:nth-child(5)[data-state=active]]:after:translate-x-[400%] group-data-vertical/tabs:after:hidden dark:after:bg-foreground/15",
 				line: "gap-1 bg-transparent",
 			},
 		},
@@ -45,16 +48,24 @@ const tabsListVariants = cva(
 function TabsList({
 	className,
 	variant = "default",
+	children,
+	style,
 	...props
 }: React.ComponentProps<typeof TabsPrimitive.List> &
 	VariantProps<typeof tabsListVariants>) {
+	// Drives the sliding-pill width (`1 / N`) so the default variant renders
+	// correctly for any number of tabs, not just two.
+	const count = Children.toArray(children).length;
 	return (
 		<TabsPrimitive.List
 			className={cn(tabsListVariants({ variant }), className)}
 			data-slot="tabs-list"
 			data-variant={variant}
+			style={{ ...style, "--tabs-count": count } as React.CSSProperties}
 			{...props}
-		/>
+		>
+			{children}
+		</TabsPrimitive.List>
 	);
 }
 

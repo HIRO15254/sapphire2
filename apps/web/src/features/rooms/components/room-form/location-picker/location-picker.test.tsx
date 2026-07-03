@@ -35,7 +35,8 @@ function baseState(overrides: Record<string, unknown> = {}) {
 		pickResult: vi.fn(),
 		handleResolveLink: vi.fn(),
 		isResolving: false,
-		resolveError: null,
+		isLinkValid: false,
+		linkError: null,
 		captureLocation: vi.fn(),
 		gpsStatus: "idle",
 		clearLocation: vi.fn(),
@@ -66,7 +67,7 @@ describe("LocationPicker", () => {
 	it("renders search, link and current-location tabs", () => {
 		renderPicker();
 		expect(screen.getByRole("tab", { name: "Search" })).toBeInTheDocument();
-		expect(screen.getByRole("tab", { name: "Link" })).toBeInTheDocument();
+		expect(screen.getByRole("tab", { name: "URL" })).toBeInTheDocument();
 		expect(screen.getByRole("tab", { name: "Current" })).toBeInTheDocument();
 	});
 
