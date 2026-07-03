@@ -96,6 +96,14 @@ describe("isGoogleMapsUrl", () => {
 	it("rejects lookalike hosts", () => {
 		expect(isGoogleMapsUrl("https://google.com.evil.com/maps")).toBe(false);
 		expect(isGoogleMapsUrl("https://evil-google.com/maps")).toBe(false);
+		// `google` as a subdomain of another registrable domain.
+		expect(isGoogleMapsUrl("https://google.evil.com/maps")).toBe(false);
+		expect(isGoogleMapsUrl("https://google.evil.co/maps")).toBe(false);
+	});
+
+	it("accepts co / com second-level ccTLDs", () => {
+		expect(isGoogleMapsUrl("https://www.google.com.au/maps")).toBe(true);
+		expect(isGoogleMapsUrl("https://google.de/maps")).toBe(true);
 	});
 
 	it("rejects malformed urls", () => {

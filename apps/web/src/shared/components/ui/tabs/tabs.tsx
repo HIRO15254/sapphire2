@@ -30,9 +30,10 @@ const tabsListVariants = cva(
 			variant: {
 				// The active state is a single `::after` "pill" that slides to the
 				// active trigger (translateX) rather than cross-fading per trigger.
-				// Works for any tab count: `TabsList` sets `--tabs-count` from its
-				// child count, so the pill width is `1 / N` and each active trigger
-				// shifts it by whole multiples of its own width. Hidden in the
+				// `TabsList` sets `--tabs-count` from its child count so the pill
+				// width is `1 / N`; the per-child translate offsets are enumerated up
+				// to the 5th tab (enough for every current TabsList — extend the
+				// `nth-child` rules if a 6+ tab list is ever added). Hidden in the
 				// vertical orientation.
 				default:
 					"relative bg-muted after:absolute after:inset-y-[3px] after:left-[3px] after:z-0 after:w-[calc((100%-6px)/var(--tabs-count,2))] after:rounded-md after:border after:border-foreground/20 after:bg-background after:shadow-sm after:transition-transform after:duration-200 after:ease-out after:content-[''] has-[>[data-slot=tabs-trigger]:nth-child(2)[data-state=active]]:after:translate-x-full has-[>[data-slot=tabs-trigger]:nth-child(3)[data-state=active]]:after:translate-x-[200%] has-[>[data-slot=tabs-trigger]:nth-child(4)[data-state=active]]:after:translate-x-[300%] has-[>[data-slot=tabs-trigger]:nth-child(5)[data-state=active]]:after:translate-x-[400%] group-data-vertical/tabs:after:hidden dark:after:bg-foreground/15",

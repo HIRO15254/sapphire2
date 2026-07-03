@@ -25,6 +25,7 @@ describe("isGoogleMapsUrl", () => {
 	it("rejects lookalike hosts", () => {
 		expect(isGoogleMapsUrl("https://google.com.evil.com/maps")).toBe(false);
 		expect(isGoogleMapsUrl("https://evil-google.com")).toBe(false);
+		expect(isGoogleMapsUrl("https://google.evil.com/maps")).toBe(false);
 	});
 
 	it("rejects non-URL strings", () => {

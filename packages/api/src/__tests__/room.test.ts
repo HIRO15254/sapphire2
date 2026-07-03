@@ -107,6 +107,11 @@ describe("room.create input validation", () => {
 		expectRejects(appRouter.room.create, { name: "x", latitude: 91 });
 		expectRejects(appRouter.room.create, { name: "x", longitude: -181 });
 	});
+
+	it("rejects a single coordinate without its pair", () => {
+		expectRejects(appRouter.room.create, { name: "x", latitude: 35.6 });
+		expectRejects(appRouter.room.create, { name: "x", longitude: 139.7 });
+	});
 });
 
 describe("room.update input validation", () => {
@@ -185,6 +190,19 @@ describe("room.update input validation", () => {
 
 	it("rejects non-numeric longitude", () => {
 		expectRejects(appRouter.room.update, { id: "r1", longitude: "139.7" });
+	});
+
+	it("rejects a single coordinate without its pair", () => {
+		expectRejects(appRouter.room.update, { id: "r1", latitude: 35.6 });
+		expectRejects(appRouter.room.update, { id: "r1", longitude: 139.7 });
+	});
+
+	it("rejects one coordinate cleared while the other is set", () => {
+		expectRejects(appRouter.room.update, {
+			id: "r1",
+			latitude: 35.6,
+			longitude: null,
+		});
 	});
 });
 

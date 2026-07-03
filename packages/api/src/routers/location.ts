@@ -6,10 +6,13 @@ import { protectedProcedure, router } from "../index";
 // redirect), so they are an exact allowlist — this bounds the SSRF surface.
 const SHORT_MAPS_HOSTS = new Set(["maps.app.goo.gl", "goo.gl"]);
 
-// `google.<tld>` or `*.google.<tld>` (incl. `google.co.jp`). The label before
-// the TLD must be exactly `google`, anchored at both ends, so lookalikes like
-// `google.com.evil.com` or `evil-google.com` are rejected.
-const GOOGLE_HOST_RE = /^([a-z0-9-]+\.)*google\.[a-z]{2,}(\.[a-z]{2,})?$/;
+// `google.<tld>` or `*.google.<tld>`, where `google` is the registrable label
+// immediately followed by the TLD: a gTLD (`com`), a 2-letter ccTLD (`google.de`)
+// or a `co`/`com` second-level ccTLD (`google.co.jp`, `google.com.au`). This
+// rejects lookalikes such as `evil-google.com`, `google.com.evil.com` AND
+// `google.evil.com` (where `google` would be a subdomain of `evil.com`).
+const GOOGLE_HOST_RE =
+	/^([a-z0-9-]+\.)*google\.(com|[a-z]{2}|(?:co|com)\.[a-z]{2})$/;
 
 function hostnameOf(rawUrl: string): string | null {
 	try {

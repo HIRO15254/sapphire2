@@ -4,6 +4,24 @@ import { asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
+// Coordinates move as a pair: latitude and longitude must both be omitted
+// (leave unchanged), both `null` (cleared) or both numbers (set). Mirrors the
+// web form's `.refine`, so a direct tRPC call can't persist a half-set location.
+function coordinatesPaired(value: {
+	latitude?: number | null;
+	longitude?: number | null;
+}): boolean {
+	return (
+		(value.latitude === undefined) === (value.longitude === undefined) &&
+		(value.latitude === null) === (value.longitude === null)
+	);
+}
+
+const COORDINATES_PAIRED_ISSUE = {
+	message: "latitude and longitude must be set or cleared together",
+	path: ["longitude"],
+};
+
 export const roomRouter = router({
 	list: protectedProcedure.query(({ ctx }) => {
 		const userId = ctx.session.user.id;
@@ -57,12 +75,14 @@ export const roomRouter = router({
 
 	create: protectedProcedure
 		.input(
-			z.object({
-				name: z.string().min(1),
-				memo: z.string().optional(),
-				latitude: z.number().min(-90).max(90).nullable().optional(),
-				longitude: z.number().min(-180).max(180).nullable().optional(),
-			})
+			z
+				.object({
+					name: z.string().min(1),
+					memo: z.string().optional(),
+					latitude: z.number().min(-90).max(90).nullable().optional(),
+					longitude: z.number().min(-180).max(180).nullable().optional(),
+				})
+				.refine(coordinatesPaired, COORDINATES_PAIRED_ISSUE)
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
@@ -82,17 +102,19 @@ export const roomRouter = router({
 
 	update: protectedProcedure
 		.input(
-			z.object({
-				id: z.string(),
-				name: z.string().min(1).optional(),
-				// Nullable so an explicit `null` clears the memo. `undefined`
-				// (key omitted) still means "leave unchanged".
-				memo: z.string().nullable().optional(),
-				// Geographic coordinates. Nullable so an explicit `null` clears the
-				// location; `undefined` leaves it unchanged (same pattern as memo).
-				latitude: z.number().min(-90).max(90).nullable().optional(),
-				longitude: z.number().min(-180).max(180).nullable().optional(),
-			})
+			z
+				.object({
+					id: z.string(),
+					name: z.string().min(1).optional(),
+					// Nullable so an explicit `null` clears the memo. `undefined`
+					// (key omitted) still means "leave unchanged".
+					memo: z.string().nullable().optional(),
+					// Geographic coordinates. Nullable so an explicit `null` clears the
+					// location; `undefined` leaves it unchanged (same pattern as memo).
+					latitude: z.number().min(-90).max(90).nullable().optional(),
+					longitude: z.number().min(-180).max(180).nullable().optional(),
+				})
+				.refine(coordinatesPaired, COORDINATES_PAIRED_ISSUE)
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
