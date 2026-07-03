@@ -5,7 +5,9 @@ import {
 	assertNoLiveLinkedRestrictedEdits,
 	computeTournamentPL,
 	encodeSessionCursor,
+	type ProfitLossSeriesRow,
 	parseSessionCursor,
+	toProfitLossSeriesPoint,
 } from "../routers/session";
 
 const DERIVED_FIELDS_RE = /Cannot edit fields derived from live session events/;
@@ -254,6 +256,56 @@ describe("session router input validation", () => {
 
 		it("returns null for an empty id", () => {
 			expect(parseSessionCursor("1000_")).toBeNull();
+		});
+	});
+
+	describe("toProfitLossSeriesPoint sortKey (SA2-98)", () => {
+		function row(overrides: Partial<ProfitLossSeriesRow>): ProfitLossSeriesRow {
+			return {
+				bountyPrizes: null,
+				breakMinutes: null,
+				buyIn: null,
+				cashOut: null,
+				chipPurchaseCost: 0,
+				endedAt: null,
+				entryFee: null,
+				evCashOut: null,
+				id: "s1",
+				prizeMoney: null,
+				ringGameBlind2: null,
+				sessionDate: new Date(1_700_000_000_000),
+				startedAt: null,
+				tournamentBuyIn: null,
+				type: "cash_game",
+				...overrides,
+			};
+		}
+
+		it("uses startedAt (in seconds) as sortKey when present", () => {
+			const point = toProfitLossSeriesPoint(
+				row({
+					sessionDate: new Date(1_700_000_000_000),
+					startedAt: new Date(1_700_003_600_000),
+				})
+			);
+			expect(point.sortKey).toBe(1_700_003_600);
+		});
+
+		it("falls back to sessionDate (in seconds) as sortKey when startedAt is null", () => {
+			const point = toProfitLossSeriesPoint(
+				row({ sessionDate: new Date(1_700_000_000_000), startedAt: null })
+			);
+			expect(point.sortKey).toBe(1_700_000_000);
+		});
+
+		it("keeps sessionDate (date-only) unchanged even when startedAt differs", () => {
+			const point = toProfitLossSeriesPoint(
+				row({
+					sessionDate: new Date(1_700_000_000_000),
+					startedAt: new Date(1_700_003_600_000),
+				})
+			);
+			expect(point.sessionDate).toBe(1_700_000_000);
 		});
 	});
 

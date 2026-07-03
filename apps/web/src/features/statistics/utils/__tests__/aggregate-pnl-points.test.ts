@@ -17,6 +17,7 @@ function point(
 		evProfitLoss: null,
 		playMinutes: null,
 		type: "cash_game",
+		sortKey: overrides.sessionDate,
 		...overrides,
 	};
 }
@@ -92,6 +93,41 @@ describe("aggregatePnlPoints", () => {
 				],
 			});
 			expect(result.points.map((p) => p.cumulative)).toEqual([0, 100, 150]);
+		});
+
+		it("orders same-day sessions by sortKey (actual start time), not by id (SA2-98)", () => {
+			// sessionDate is date-only, so both sessions share the same calendar
+			// day; "z" sorts after "a" lexically but started first chronologically.
+			const day = Math.floor(new Date("2026-04-01T00:00:00Z").getTime() / 1000);
+			const morning = Math.floor(
+				new Date("2026-04-01T03:00:00Z").getTime() / 1000
+			);
+			const evening = Math.floor(
+				new Date("2026-04-01T22:00:00Z").getTime() / 1000
+			);
+			const result = aggregatePnlPoints({
+				...baseOptions,
+				xAxis: "sessionCount",
+				rawPoints: [
+					point({
+						id: "z",
+						profitLoss: 100,
+						sessionDate: day,
+						sortKey: morning,
+					}),
+					point({
+						id: "a",
+						profitLoss: -30,
+						sessionDate: day,
+						sortKey: evening,
+					}),
+				],
+			});
+			expect(result.points).toEqual([
+				{ x: 0, cumulative: 0 },
+				{ x: 1, cumulative: 100 },
+				{ x: 2, cumulative: 70 },
+			]);
 		});
 	});
 
