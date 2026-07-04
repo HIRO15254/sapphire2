@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+concurrency:
+  group: preview-deploy-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -56,29 +60,52 @@ jobs:
         id: resolve
         run: |
           DB_NAME="${{ needs.setup.outputs.d1_db_name }}"
+          API="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database"
 
-          # Check if database already exists
-          EXISTING_ID=$(curl -sf \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            | jq -r ".result[] | select(.name == \"${DB_NAME}\") | .uuid")
+          # Resolve an existing DB id by exact name. The list endpoint is
+          # paginated and also accepts a `name` filter, so pass a large per_page
+          # plus the name filter, then still select by exact name to guard
+          # against prefix matches.
+          resolve_id() {
+            curl -sf "${API}?per_page=1000&name=${DB_NAME}" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              | jq -r ".result[] | select(.name == \"${DB_NAME}\") | .uuid" \
+              | head -n1
+          }
 
-          if [ -n "$EXISTING_ID" ]; then
-            echo "Reusing existing D1 database: $EXISTING_ID"
-            echo "d1_database_id=${EXISTING_ID}" >> "$GITHUB_OUTPUT"
-            echo "is_new_db=false" >> "$GITHUB_OUTPUT"
-          else
-            # Create new database
-            NEW_ID=$(curl -sf -X POST \
-              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database" \
+          DB_ID=$(resolve_id || true)
+          IS_NEW=false
+
+          if [ -z "$DB_ID" ]; then
+            # No existing DB found — create it. Capture the full response so a
+            # duplicate-name error (7502) or an empty uuid does not silently
+            # leave DB_ID blank and break the migrate job downstream.
+            CREATE_RESP=$(curl -s -X POST "${API}" \
               -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "{\"name\": \"${DB_NAME}\"}" \
-              | jq -r '.result.uuid')
-            echo "Created D1 database: $NEW_ID"
-            echo "d1_database_id=${NEW_ID}" >> "$GITHUB_OUTPUT"
-            echo "is_new_db=true" >> "$GITHUB_OUTPUT"
+              -d "{\"name\": \"${DB_NAME}\"}")
+            DB_ID=$(echo "$CREATE_RESP" | jq -r '.result.uuid // empty')
+            if [ -n "$DB_ID" ]; then
+              IS_NEW=true
+              echo "Created D1 database: $DB_ID"
+            else
+              # Create returned no id — most likely the DB already exists but the
+              # list lookup raced/paginated past it. Re-resolve after a delay.
+              echo "Create returned no id; re-resolving. Response: $CREATE_RESP"
+              sleep 3
+              DB_ID=$(resolve_id || true)
+            fi
+          else
+            echo "Reusing existing D1 database: $DB_ID"
           fi
+
+          if [ -z "$DB_ID" ]; then
+            echo "::error::Could not resolve or create D1 database ${DB_NAME}"
+            exit 1
+          fi
+
+          echo "d1_database_id=${DB_ID}" >> "$GITHUB_OUTPUT"
+          echo "is_new_db=${IS_NEW}" >> "$GITHUB_OUTPUT"
 
   db-migrate:
     needs: [setup, d1-setup]
