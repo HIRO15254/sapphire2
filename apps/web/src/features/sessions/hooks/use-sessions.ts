@@ -393,11 +393,16 @@ export function filtersToListInput(filters: SessionFilterValues) {
 	};
 }
 
+// sessionDate is stored/returned as UTC midnight and the create/update payloads
+// re-encode a date-only string as UTC midnight, so the edit form must read back
+// the UTC calendar day. Local getters shift the day back one for users west of
+// UTC, and saving that value drifts the stored date one day earlier on every
+// edit (SA2-145).
 export function formatDateForInput(date: string): string {
 	const d = new Date(date);
-	const year = d.getFullYear();
-	const month = String(d.getMonth() + 1).padStart(2, "0");
-	const day = String(d.getDate()).padStart(2, "0");
+	const year = d.getUTCFullYear();
+	const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+	const day = String(d.getUTCDate()).padStart(2, "0");
 	return `${year}-${month}-${day}`;
 }
 

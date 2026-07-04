@@ -6,7 +6,26 @@ import {
 } from "@/utils/format-number";
 
 const B_SUFFIX = /B$/;
-const YMD_SHAPE = /^2026\/06\/1[45]$/;
+
+// SA2-145: sessionDate is a UTC-midnight ISO string, so formatYmdSlash must
+// read UTC calendar fields. Node/Bun re-reads process.env.TZ on every Date
+// operation; restore the original TZ so this file (web-node, isolate:false)
+// cannot leak a zone into sibling pure-util test files.
+const ORIGINAL_TZ = process.env.TZ;
+const TZ_WEST = "America/Los_Angeles"; // UTC-8/-7 — reproduces the bug
+const TZ_EAST = "Asia/Tokyo"; // UTC+9
+function withTz<T>(tz: string, fn: () => T): T {
+	process.env.TZ = tz;
+	try {
+		return fn();
+	} finally {
+		if (ORIGINAL_TZ === undefined) {
+			process.env.TZ = undefined;
+		} else {
+			process.env.TZ = ORIGINAL_TZ;
+		}
+	}
+}
 
 describe("formatCompactNumber", () => {
 	describe("below the 10k threshold", () => {
@@ -188,28 +207,45 @@ describe("createGroupFormatter", () => {
 });
 
 describe("formatYmdSlash", () => {
-	it("formats a Date as Y/MM/DD", () => {
-		expect(formatYmdSlash(new Date(2026, 3, 5))).toBe("2026/04/05");
+	it("formats a UTC Date as Y/MM/DD", () => {
+		expect(formatYmdSlash(new Date(Date.UTC(2026, 3, 5)))).toBe("2026/04/05");
 	});
 
 	it("zero-pads single-digit months and days", () => {
-		expect(formatYmdSlash(new Date(2026, 0, 1))).toBe("2026/01/01");
-		expect(formatYmdSlash(new Date(2026, 8, 9))).toBe("2026/09/09");
+		expect(formatYmdSlash(new Date(Date.UTC(2026, 0, 1)))).toBe("2026/01/01");
+		expect(formatYmdSlash(new Date(Date.UTC(2026, 8, 9)))).toBe("2026/09/09");
 	});
 
-	it("parses a YYYY-MM-DD string (local interpretation)", () => {
-		// JS Date parses 'YYYY-MM-DD' as UTC, but we output local date fields.
-		// Pin to a value that resolves the same in any timezone we run in:
-		const iso = "2026-06-15T09:00:00";
-		const result = formatYmdSlash(iso);
-		expect(result).toMatch(YMD_SHAPE);
+	it("parses a UTC-midnight ISO string to its UTC calendar day", () => {
+		expect(formatYmdSlash("2026-06-15T00:00:00Z")).toBe("2026/06/15");
 	});
 
 	it("formats December 31 without off-by-one", () => {
-		expect(formatYmdSlash(new Date(2026, 11, 31))).toBe("2026/12/31");
+		expect(formatYmdSlash(new Date(Date.UTC(2026, 11, 31)))).toBe("2026/12/31");
 	});
 
 	it("handles a pre-epoch date", () => {
-		expect(formatYmdSlash(new Date(1969, 6, 20))).toBe("1969/07/20");
+		expect(formatYmdSlash(new Date(Date.UTC(1969, 6, 20)))).toBe("1969/07/20");
+	});
+
+	// SA2-145: the session-list card and detail meta row must show the UTC
+	// calendar day the user saved, not the local rendering of UTC midnight.
+	it("keeps the UTC calendar day at the UTC-midnight boundary west of UTC", () => {
+		expect(withTz(TZ_WEST, () => formatYmdSlash("2026-04-22T00:00:00Z"))).toBe(
+			"2026/04/22"
+		);
+	});
+
+	it("keeps the UTC calendar day at the UTC-midnight boundary east of UTC", () => {
+		expect(withTz(TZ_EAST, () => formatYmdSlash("2026-04-22T00:00:00Z"))).toBe(
+			"2026/04/22"
+		);
+	});
+
+	it("renders the same day west-of-UTC, east-of-UTC, and in UTC", () => {
+		const iso = "2026-01-01T00:00:00Z";
+		expect(withTz(TZ_WEST, () => formatYmdSlash(iso))).toBe("2026/01/01");
+		expect(withTz(TZ_EAST, () => formatYmdSlash(iso))).toBe("2026/01/01");
+		expect(withTz("UTC", () => formatYmdSlash(iso))).toBe("2026/01/01");
 	});
 });

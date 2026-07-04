@@ -9,6 +9,25 @@ const DURATION_3_5H = /\/ 3\.5h/;
 const ANY_DURATION = /\d+\.\dh/;
 const COMPACT_500 = /📈 \+500 \n/;
 
+// SA2-145: the shared text's 📅 line must show the UTC calendar day the user
+// saved (sessionDate is a UTC-midnight ISO string). Node/Bun re-reads
+// process.env.TZ on each Date op; restore the original zone after each case.
+const ORIGINAL_TZ = process.env.TZ;
+const TZ_WEST = "America/Los_Angeles"; // UTC-8/-7 — reproduces the bug
+const TZ_EAST = "Asia/Tokyo"; // UTC+9
+function withTz<T>(tz: string, fn: () => T): T {
+	process.env.TZ = tz;
+	try {
+		return fn();
+	} finally {
+		if (ORIGINAL_TZ === undefined) {
+			process.env.TZ = undefined;
+		} else {
+			process.env.TZ = ORIGINAL_TZ;
+		}
+	}
+}
+
 function cashSession(
 	overrides: Partial<ShareableSession> = {}
 ): ShareableSession {
@@ -60,6 +79,25 @@ describe("createSessionShareText", () => {
 			expect(text).toContain("📍 Downtown");
 			expect(text).toContain("💲 NL2k/5k");
 			expect(text).toContain("📈 +5.0K JPY");
+		});
+
+		// SA2-145: the 📅 date must not roll back a day west of UTC.
+		it("renders the UTC calendar day west of UTC (no off-by-one)", () => {
+			const text = withTz(TZ_WEST, () =>
+				createSessionShareText(
+					cashSession({ sessionDate: "2026-04-22T00:00:00Z" })
+				)
+			);
+			expect(text).toContain("📅 2026/4/22");
+		});
+
+		it("renders the same UTC calendar day east of UTC", () => {
+			const text = withTz(TZ_EAST, () =>
+				createSessionShareText(
+					cashSession({ sessionDate: "2026-04-22T00:00:00Z" })
+				)
+			);
+			expect(text).toContain("📅 2026/4/22");
 		});
 
 		it("omits room line when roomName is null", () => {
