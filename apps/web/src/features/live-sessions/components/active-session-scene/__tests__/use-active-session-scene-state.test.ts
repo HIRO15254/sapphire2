@@ -1,3 +1,4 @@
+import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/session-event-types";
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -181,6 +182,17 @@ describe("useActiveSessionSceneState", () => {
 
 		it("falls back to 9 seats when table size is out of range", () => {
 			const { result } = renderState({ tableSize: 25 });
+			expect(result.current.tableSize).toBe(9);
+		});
+
+		it("accepts a table size at the shared MAX_SEAT_POSITION-derived maximum", () => {
+			const { result } = renderState({ tableSize: MAX_SEAT_POSITION + 1 });
+			expect(result.current.tableSize).toBe(MAX_SEAT_POSITION + 1);
+			expect(result.current.seats).toHaveLength(MAX_SEAT_POSITION + 1);
+		});
+
+		it("falls back to 9 seats when table size exceeds the shared maximum by one", () => {
+			const { result } = renderState({ tableSize: MAX_SEAT_POSITION + 2 });
 			expect(result.current.tableSize).toBe(9);
 		});
 
