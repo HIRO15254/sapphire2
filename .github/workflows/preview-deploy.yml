@@ -89,9 +89,20 @@ jobs:
               IS_NEW=true
               echo "Created D1 database: $DB_ID"
             else
-              # Create returned no id — most likely the DB already exists but the
-              # list lookup raced/paginated past it. Re-resolve after a delay.
-              echo "Create returned no id; re-resolving. Response: $CREATE_RESP"
+              # Create returned no id. Distinguish the cause so the downstream
+              # seed step (gated on is_new_db) still runs when appropriate:
+              #   - duplicate-name (7502): the DB already existed -> not new,
+              #     the seed was already applied on its first deploy, skip it.
+              #   - any other transient failure: the DB may have just been
+              #     created but the response was unparseable -> treat as new so
+              #     the seed runs and the preview DB is not left empty.
+              if echo "$CREATE_RESP" | jq -e '.errors[]? | select(.code == 7502)' >/dev/null 2>&1; then
+                echo "DB already exists (7502); re-resolving id. Response: $CREATE_RESP"
+                IS_NEW=false
+              else
+                echo "Create returned no id (transient?); re-resolving id, treating as new. Response: $CREATE_RESP"
+                IS_NEW=true
+              fi
               sleep 3
               DB_ID=$(resolve_id || true)
             fi
