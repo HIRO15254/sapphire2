@@ -359,6 +359,19 @@ async function validateEntityOwnership(
 				message: "Tournament not found",
 			});
 		}
+		// A tournament has no userId of its own; ownership is derived from its
+		// room. Without this check a caller could pass another user's
+		// tournamentId to snapshot their blind structure / chip purchases (IDOR).
+		const [foundRoom] = await db
+			.select()
+			.from(room)
+			.where(eq(room.id, found.roomId));
+		if (!foundRoom || foundRoom.userId !== userId) {
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "You do not own this tournament",
+			});
+		}
 	} else if (entityType === "currency") {
 		const [found] = await db
 			.select()
@@ -478,6 +491,7 @@ export {
 	computeTournamentPL,
 	getSessionChipPurchaseMap,
 	sumChipPurchaseCost,
+	validateEntityOwnership,
 	validateSessionOwnership,
 };
 

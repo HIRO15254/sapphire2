@@ -10,7 +10,9 @@ import {
 	parseSessionCursor,
 	selectInChunks,
 	toProfitLossSeriesPoint,
+	validateEntityOwnership,
 } from "../routers/session";
+import { createChainableMockDb } from "./test-utils";
 
 const DERIVED_FIELDS_RE = /Cannot edit fields derived from live session events/;
 const RING_CONFIG_RE = /variant|blind1|blind2/;
@@ -880,5 +882,71 @@ describe("computeTournamentPL", () => {
 	it("adds bounty prizes to income", () => {
 		// income (0 + 400) - cost (100 + 0 + 0) = 300
 		expect(computeTournamentPL(100, 0, 0, 0, 400)).toBe(300);
+	});
+});
+
+describe("validateEntityOwnership (tournament branch)", () => {
+	const CALLER = "user-1";
+	const OTHER = "user-2";
+	const TOURNAMENT_ID = "tn-1";
+	const ROOM_ID = "room-1";
+
+	function mockDbFor(opts: {
+		tournament?: Record<string, unknown>[];
+		room?: Record<string, unknown>[];
+	}) {
+		return createChainableMockDb({
+			select: {
+				tournament: opts.tournament ?? [],
+				room: opts.room ?? [],
+			},
+		});
+	}
+
+	it("resolves when the tournament's room is owned by the caller", async () => {
+		const { db, selectedTables } = mockDbFor({
+			tournament: [{ id: TOURNAMENT_ID, roomId: ROOM_ID }],
+			room: [{ id: ROOM_ID, userId: CALLER }],
+		});
+		await expect(
+			validateEntityOwnership(db, "tournament", TOURNAMENT_ID, CALLER)
+		).resolves.toBeUndefined();
+		// The room must be read to confirm ownership.
+		expect(selectedTables).toEqual(["tournament", "room"]);
+	});
+
+	it("throws FORBIDDEN when the tournament's room belongs to another user", async () => {
+		const { db } = mockDbFor({
+			tournament: [{ id: TOURNAMENT_ID, roomId: ROOM_ID }],
+			room: [{ id: ROOM_ID, userId: OTHER }],
+		});
+		await expect(
+			validateEntityOwnership(db, "tournament", TOURNAMENT_ID, CALLER)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this tournament",
+		});
+	});
+
+	it("throws NOT_FOUND when the tournament does not exist", async () => {
+		const { db, selectedTables } = mockDbFor({ tournament: [] });
+		await expect(
+			validateEntityOwnership(db, "tournament", "missing", CALLER)
+		).rejects.toMatchObject({
+			code: "NOT_FOUND",
+			message: "Tournament not found",
+		});
+		// Must short-circuit before reading the room.
+		expect(selectedTables).toEqual(["tournament"]);
+	});
+
+	it("throws FORBIDDEN when the tournament's room row is missing", async () => {
+		const { db } = mockDbFor({
+			tournament: [{ id: TOURNAMENT_ID, roomId: ROOM_ID }],
+			room: [],
+		});
+		await expect(
+			validateEntityOwnership(db, "tournament", TOURNAMENT_ID, CALLER)
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
 });
