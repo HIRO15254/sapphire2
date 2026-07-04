@@ -286,7 +286,7 @@ async function persistSessionChipPurchases(
  * (explicit override of the master snapshot) and update (session-wizard edits
  * to a session's own blind structure) so the array is always written fresh.
  */
-async function persistSessionBlindLevels(
+export async function persistSessionBlindLevels(
 	db: DbInstance,
 	sessionId: string,
 	blindLevels: {
