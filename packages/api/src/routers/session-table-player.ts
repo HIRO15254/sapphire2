@@ -1,4 +1,7 @@
-import { playerJoinPayload } from "@sapphire2/db/constants/session-event-types";
+import {
+	MAX_SEAT_POSITION,
+	playerJoinPayload,
+} from "@sapphire2/db/constants/session-event-types";
 import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
@@ -283,7 +286,7 @@ export const sessionTablePlayerRouter = router({
 		.input(
 			sessionIdInput.extend({
 				playerId: z.string().min(1),
-				seatPosition: z.number().int().min(0).max(8).optional(),
+				seatPosition: z.number().int().min(0).max(MAX_SEAT_POSITION).optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -323,7 +326,7 @@ export const sessionTablePlayerRouter = router({
 				playerMemo: z.string().optional(),
 				playerName: z.string().min(1),
 				playerTagIds: z.array(z.string()).optional(),
-				seatPosition: z.number().int().min(0).max(8).optional(),
+				seatPosition: z.number().int().min(0).max(MAX_SEAT_POSITION).optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -361,7 +364,7 @@ export const sessionTablePlayerRouter = router({
 		.input(
 			sessionIdInput.extend({
 				playerId: z.string().min(1),
-				seatPosition: z.number().int().min(0).max(8).nullable(),
+				seatPosition: z.number().int().min(0).max(MAX_SEAT_POSITION).nullable(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -447,7 +450,7 @@ export const sessionTablePlayerRouter = router({
 	addTemporary: protectedProcedure
 		.input(
 			sessionIdInput.extend({
-				seatPosition: z.number().int().min(0).max(8).optional(),
+				seatPosition: z.number().int().min(0).max(MAX_SEAT_POSITION).optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
