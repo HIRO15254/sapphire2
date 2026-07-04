@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TZ_EAST, TZ_WEST, withTz } from "@/__tests__/tz";
 import {
 	createSessionShareText,
 	type ShareableSession,
@@ -8,6 +9,10 @@ import {
 const DURATION_3_5H = /\/ 3\.5h/;
 const ANY_DURATION = /\d+\.\dh/;
 const COMPACT_500 = /📈 \+500 \n/;
+
+// SA2-145: the shared text's 📅 line must show the UTC calendar day the user
+// saved (sessionDate is a UTC-midnight ISO string). `withTz` (shared helper)
+// drives a deterministic zone per case and restores the host zone afterwards.
 
 function cashSession(
 	overrides: Partial<ShareableSession> = {}
@@ -60,6 +65,25 @@ describe("createSessionShareText", () => {
 			expect(text).toContain("📍 Downtown");
 			expect(text).toContain("💲 NL2k/5k");
 			expect(text).toContain("📈 +5.0K JPY");
+		});
+
+		// SA2-145: the 📅 date must not roll back a day west of UTC.
+		it("renders the UTC calendar day west of UTC (no off-by-one)", () => {
+			const text = withTz(TZ_WEST, () =>
+				createSessionShareText(
+					cashSession({ sessionDate: "2026-04-22T00:00:00Z" })
+				)
+			);
+			expect(text).toContain("📅 2026/4/22");
+		});
+
+		it("renders the same UTC calendar day east of UTC", () => {
+			const text = withTz(TZ_EAST, () =>
+				createSessionShareText(
+					cashSession({ sessionDate: "2026-04-22T00:00:00Z" })
+				)
+			);
+			expect(text).toContain("📅 2026/4/22");
 		});
 
 		it("omits room line when roomName is null", () => {
