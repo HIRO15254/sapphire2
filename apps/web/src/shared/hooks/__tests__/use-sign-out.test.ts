@@ -52,11 +52,12 @@ describe("useSignOut", () => {
 		expect(mocks.navigate).not.toHaveBeenCalled();
 	});
 
-	it("on success clears the persisted cache before navigating home", () => {
+	it("on success clears the persisted cache before navigating home", async () => {
+		mocks.clearPersistedQueryCache.mockResolvedValue(undefined);
 		const { result } = renderHook(() => useSignOut());
 		result.current.onSignOut();
 
-		getFetchOptions().onSuccess();
+		await getFetchOptions().onSuccess();
 
 		expect(mocks.clearPersistedQueryCache).toHaveBeenCalledTimes(1);
 		expect(mocks.navigate).toHaveBeenCalledTimes(1);
@@ -66,13 +67,58 @@ describe("useSignOut", () => {
 		).toBeLessThan(mocks.navigate.mock.invocationCallOrder[0]);
 	});
 
+	it("does not navigate until the persisted cache clear resolves", async () => {
+		let resolveClear: () => void = () => {
+			// overwritten synchronously below
+		};
+		mocks.clearPersistedQueryCache.mockReturnValue(
+			new Promise<void>((resolve) => {
+				resolveClear = resolve;
+			})
+		);
+		const { result } = renderHook(() => useSignOut());
+		result.current.onSignOut();
+
+		const pendingSuccess = getFetchOptions().onSuccess();
+		await Promise.resolve();
+		expect(mocks.navigate).not.toHaveBeenCalled();
+
+		resolveClear();
+		await pendingSuccess;
+
+		expect(mocks.navigate).toHaveBeenCalledTimes(1);
+	});
+
+	it("still navigates home when the persisted cache clear rejects on success", async () => {
+		mocks.clearPersistedQueryCache.mockRejectedValue(new Error("idb error"));
+		const { result } = renderHook(() => useSignOut());
+		result.current.onSignOut();
+
+		await expect(getFetchOptions().onSuccess()).resolves.toBeUndefined();
+
+		expect(mocks.navigate).toHaveBeenCalledTimes(1);
+	});
+
 	it("on error still clears the persisted cache and does not navigate", () => {
+		mocks.clearPersistedQueryCache.mockResolvedValue(undefined);
 		const { result } = renderHook(() => useSignOut());
 		result.current.onSignOut();
 
 		getFetchOptions().onError();
 
 		expect(mocks.clearPersistedQueryCache).toHaveBeenCalledTimes(1);
+		expect(mocks.navigate).not.toHaveBeenCalled();
+	});
+
+	it("does not throw when the persisted cache clear rejects on error", async () => {
+		mocks.clearPersistedQueryCache.mockRejectedValue(new Error("idb error"));
+		const { result } = renderHook(() => useSignOut());
+		result.current.onSignOut();
+
+		expect(() => getFetchOptions().onError()).not.toThrow();
+		await Promise.resolve();
+		await Promise.resolve();
+
 		expect(mocks.navigate).not.toHaveBeenCalled();
 	});
 });

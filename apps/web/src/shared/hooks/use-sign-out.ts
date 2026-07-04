@@ -17,12 +17,17 @@ export function useSignOut() {
 	const onSignOut = () => {
 		authClient.signOut({
 			fetchOptions: {
-				onSuccess: () => {
-					clearPersistedQueryCache();
+				onSuccess: async () => {
+					await clearPersistedQueryCache().catch(() => {
+						// Clearing the cache is best-effort: a failed IndexedDB delete
+						// must not block the user from being navigated away.
+					});
 					navigate({ to: "/" });
 				},
 				onError: () => {
-					clearPersistedQueryCache();
+					clearPersistedQueryCache().catch(() => {
+						// Same best-effort rationale as the success path above.
+					});
 				},
 			},
 		});

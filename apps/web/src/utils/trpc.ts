@@ -55,9 +55,9 @@ export const persister = createAsyncStoragePersister({
  * `persister.removeClient()` deletes the persisted `sapphire2-query-cache` store
  * so nothing can be rehydrated on the next load.
  */
-export function clearPersistedQueryCache() {
+export function clearPersistedQueryCache(): Promise<void> {
 	queryClient.clear();
-	return persister.removeClient();
+	return Promise.resolve(persister.removeClient());
 }
 
 export const trpcClient = createTRPCClient<AppRouter>({
