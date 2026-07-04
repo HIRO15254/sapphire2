@@ -6,6 +6,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	navigate: vi.fn(),
 	signOut: vi.fn(),
+	clearPersistedQueryCache: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -25,6 +26,10 @@ vi.mock("@/lib/auth-client", () => ({
 	},
 }));
 
+vi.mock("@/utils/trpc", () => ({
+	clearPersistedQueryCache: mocks.clearPersistedQueryCache,
+}));
+
 let routeModule: typeof import("@/routes/settings");
 
 describe("SettingsComponent", () => {
@@ -35,6 +40,7 @@ describe("SettingsComponent", () => {
 	beforeEach(() => {
 		mocks.navigate.mockReset();
 		mocks.signOut.mockReset();
+		mocks.clearPersistedQueryCache.mockReset();
 		mocks.signOut.mockImplementation(
 			(options?: { fetchOptions?: { onSuccess?: () => void } }) => {
 				options?.fetchOptions?.onSuccess?.();
@@ -62,7 +68,11 @@ describe("SettingsComponent", () => {
 		await user.click(screen.getByRole("button", { name: "Sign out" }));
 
 		expect(mocks.signOut).toHaveBeenCalledOnce();
+		expect(mocks.clearPersistedQueryCache).toHaveBeenCalledTimes(1);
 		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/" });
+		expect(
+			mocks.clearPersistedQueryCache.mock.invocationCallOrder[0]
+		).toBeLessThan(mocks.navigate.mock.invocationCallOrder[0]);
 	});
 
 	it("does not navigate when signOut does not call onSuccess", async () => {
