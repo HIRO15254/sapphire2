@@ -383,6 +383,9 @@ describe("persistSessionBlindLevels chunking (SA2-115)", () => {
 		expect(deleteWhere).toHaveBeenCalledTimes(1);
 		// 12 rows -> 11 + 1 => two INSERT statements.
 		expect(insert).toHaveBeenCalledTimes(2);
+		expect(del.mock.invocationCallOrder[0]).toBeLessThan(
+			insert.mock.invocationCallOrder[0]
+		);
 		expect(values).toHaveBeenCalledTimes(2);
 		const [firstChunk, secondChunk] = insertedChunks(values);
 		expect(firstChunk).toHaveLength(MAX_ROWS_PER_INSERT);
