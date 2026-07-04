@@ -8,6 +8,7 @@ vi.mock("@/shared/hooks/use-elapsed-time", () => ({
 import { useCashGameCompactSummary } from "@/features/live-sessions/pages/active-session-page/cash-game-compact-summary/use-cash-game-compact-summary";
 
 const BASE_INPUT = {
+	chipRemoveTotal: 0,
 	currentStack: 0,
 	evDiff: 0,
 	startedAt: new Date("2026-01-01T00:00:00Z"),
@@ -73,6 +74,7 @@ describe("useCashGameCompactSummary", () => {
 	it("computes evPL separately from displayPL when evDiff != 0 and shows when different", () => {
 		const { result } = renderHook(() =>
 			useCashGameCompactSummary({
+				chipRemoveTotal: 0,
 				currentStack: 12_000,
 				evDiff: 500,
 				startedAt: new Date(),
@@ -89,6 +91,7 @@ describe("useCashGameCompactSummary", () => {
 	it("hides evPL when evDiff is 0 (computation branch gates)", () => {
 		const { result } = renderHook(() =>
 			useCashGameCompactSummary({
+				chipRemoveTotal: 0,
 				currentStack: 12_000,
 				evDiff: 0,
 				startedAt: new Date(),
@@ -108,6 +111,7 @@ describe("useCashGameCompactSummary", () => {
 		// So when evDiff != 0 and evPL is not null, showEvPL must be true.
 		const { result } = renderHook(() =>
 			useCashGameCompactSummary({
+				chipRemoveTotal: 0,
 				currentStack: 1,
 				evDiff: 1,
 				startedAt: new Date(),
@@ -115,6 +119,64 @@ describe("useCashGameCompactSummary", () => {
 			})
 		);
 		expect(result.current.showEvPL).toBe(true);
+	});
+
+	it("adds chipRemoveTotal to displayPL (issue scenario: 400 + 300 - 500 = 200)", () => {
+		// SA2-124: header P/L must match the server / chart formula
+		// stack + chipRemoveTotal - totalBuyIn. Without chipRemoveTotal the
+		// header would show 400 - 500 = -100, contradicting the chart's +200.
+		const { result } = renderHook(() =>
+			useCashGameCompactSummary({
+				...BASE_INPUT,
+				chipRemoveTotal: 300,
+				currentStack: 400,
+				evDiff: 0,
+				totalBuyIn: 500,
+			})
+		);
+		expect(result.current.displayPL).toBe(200);
+	});
+
+	it("adds chipRemoveTotal to evPL as well (400 + 300 + 100 - 500 = 300)", () => {
+		const { result } = renderHook(() =>
+			useCashGameCompactSummary({
+				...BASE_INPUT,
+				chipRemoveTotal: 300,
+				currentStack: 400,
+				evDiff: 100,
+				totalBuyIn: 500,
+			})
+		);
+		expect(result.current.displayPL).toBe(200);
+		expect(result.current.evPL).toBe(300);
+		expect(result.current.showEvPL).toBe(true);
+	});
+
+	it("keeps displayPL as currentStack - totalBuyIn when chipRemoveTotal is 0", () => {
+		const { result } = renderHook(() =>
+			useCashGameCompactSummary({
+				...BASE_INPUT,
+				chipRemoveTotal: 0,
+				currentStack: 400,
+				evDiff: 0,
+				totalBuyIn: 500,
+			})
+		);
+		expect(result.current.displayPL).toBe(-100);
+	});
+
+	it("returns null displayPL even when chipRemoveTotal is positive but currentStack is null", () => {
+		const { result } = renderHook(() =>
+			useCashGameCompactSummary({
+				...BASE_INPUT,
+				chipRemoveTotal: 300,
+				currentStack: null,
+				evDiff: 200,
+				totalBuyIn: 500,
+			})
+		);
+		expect(result.current.displayPL).toBeNull();
+		expect(result.current.evPL).toBeNull();
 	});
 
 	it("formats totalBuyIn via formatCompactNumber (0 → '0')", () => {

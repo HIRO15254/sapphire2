@@ -61,7 +61,12 @@ function makeSession(
 		memo: null,
 		ringGameId: null,
 		startedAt: new Date("2026-06-01T10:00:00Z"),
-		summary: { currentStack: 1500, evDiff: 50, totalBuyIn: 1000 },
+		summary: {
+			chipRemoveTotal: 0,
+			currentStack: 1500,
+			evDiff: 50,
+			totalBuyIn: 1000,
+		},
 		...overrides,
 	};
 }
@@ -140,6 +145,7 @@ describe("useCashGameSessionView", () => {
 			mocks.session = makeSession({ startedAt });
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
 			expect(result.current.summary).toEqual({
+				chipRemoveTotal: 0,
 				currentStack: 1500,
 				evDiff: 50,
 				startedAt,
@@ -153,6 +159,32 @@ describe("useCashGameSessionView", () => {
 			});
 			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
 			expect(result.current.summary?.evDiff).toBe(0);
+		});
+
+		it("threads chipRemoveTotal from the session summary (SA2-124)", () => {
+			mocks.session = makeSession({
+				summary: {
+					chipRemoveTotal: 300,
+					currentStack: 400,
+					evDiff: 0,
+					totalBuyIn: 500,
+				},
+			});
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.summary?.chipRemoveTotal).toBe(300);
+		});
+
+		it("coerces a non-numeric chipRemoveTotal to 0", () => {
+			mocks.session = makeSession({
+				summary: {
+					chipRemoveTotal: undefined,
+					currentStack: 1500,
+					evDiff: 0,
+					totalBuyIn: 1000,
+				},
+			});
+			const { result } = renderHook(() => useCashGameSessionView("cg-1"));
+			expect(result.current.summary?.chipRemoveTotal).toBe(0);
 		});
 
 		it("falls back to now when startedAt is missing", () => {

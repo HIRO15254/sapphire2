@@ -296,6 +296,7 @@ export const liveCashGameSessionRouter = router({
 			const summary = {
 				totalBuyIn: s.totalBuyIn,
 				cashOut: s.cashOut,
+				chipRemoveTotal: pl.chipRemoveTotal,
 				profitLoss: pl.profitLoss,
 				evCashOut: pl.evCashOut,
 				evDiff: pl.evDiff,
