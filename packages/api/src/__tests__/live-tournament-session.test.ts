@@ -384,7 +384,6 @@ describe("liveTournamentSession.updateSnapshot input validation", () => {
 	});
 });
 
-<<<<<<< HEAD
 // Regression guard for SA2-115: updateSnapshot re-seeds blind levels via the
 // shared persistSessionBlindLevels helper, which DELETEs then re-INSERTs. D1
 // rejects any statement binding >100 params, so a 9-column blind row must be
