@@ -21,7 +21,7 @@ import {
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
-import { resolveCashRuleSnapshot } from "./session";
+import { resolveCashRuleSnapshot, validateLiveLinkOwnership } from "./session";
 
 const DEFAULT_LIMIT = 20;
 
@@ -395,6 +395,8 @@ export const liveCashGameSessionRouter = router({
 				}
 			}
 
+			await validateLiveLinkOwnership(ctx.db, input, userId);
+
 			const id = crypto.randomUUID();
 
 			await ctx.db.insert(gameSession).values({
@@ -464,6 +466,8 @@ export const liveCashGameSessionRouter = router({
 			const updateData: Partial<typeof gameSession.$inferInsert> = {
 				updatedAt: new Date(),
 			};
+
+			await validateLiveLinkOwnership(ctx.db, input, userId);
 
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;

@@ -918,6 +918,26 @@ async function validateCreateLinks(
 	}
 }
 
+/**
+ * Ownership guard for the room / currency links shared by the live cash-game
+ * and live-tournament routers. A falsy value (undefined = omitted, null =
+ * clear, "" = empty) skips validation; a provided id must exist AND belong to
+ * the caller, else validateEntityOwnership throws NOT_FOUND / FORBIDDEN.
+ * Prevents IDOR on the money-ledger links (SA2-102).
+ */
+export async function validateLiveLinkOwnership(
+	db: DbInstance,
+	input: { currencyId?: string | null; roomId?: string | null },
+	userId: string
+) {
+	if (input.roomId) {
+		await validateEntityOwnership(db, "room", input.roomId, userId);
+	}
+	if (input.currencyId) {
+		await validateEntityOwnership(db, "currency", input.currencyId, userId);
+	}
+}
+
 // ---------------------------------------------------------------------------
 // create helpers
 // ---------------------------------------------------------------------------

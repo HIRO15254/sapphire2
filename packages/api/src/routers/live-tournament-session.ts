@@ -28,6 +28,7 @@ import {
 	resolveTournamentRuleSnapshot,
 	snapshotTournamentStructure,
 	validateEntityOwnership,
+	validateLiveLinkOwnership,
 } from "./session";
 
 const DEFAULT_LIMIT = 20;
@@ -667,6 +668,7 @@ export const liveTournamentSessionRouter = router({
 
 			await assertNoActiveSession(ctx.db, userId);
 
+			await validateLiveLinkOwnership(ctx.db, input, userId);
 			// Validate tournament ownership before reading its structure so a
 			// caller cannot snapshot another user's blind levels / chip purchases
 			// via snapshotTournamentStructure (IDOR).
@@ -759,6 +761,8 @@ export const liveTournamentSessionRouter = router({
 				.select()
 				.from(sessionTournamentDetail)
 				.where(eq(sessionTournamentDetail.sessionId, input.id));
+
+			await validateLiveLinkOwnership(ctx.db, input, userId);
 
 			const baseUpdateData = buildLiveSessionUpdateData(input);
 			const { detailUpdate, patchedUpdateData } = await resolveDetailUpdate(
