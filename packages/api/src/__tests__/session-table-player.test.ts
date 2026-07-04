@@ -88,7 +88,7 @@ describe("sessionTablePlayer.add input validation", () => {
 		});
 	});
 
-	it("accepts seat position in range [0, 8]", () => {
+	it("accepts seat position in range [0, 9]", () => {
 		expectAccepts(appRouter.sessionTablePlayer.add, {
 			liveCashGameSessionId: "lcg1",
 			playerId: "p1",
@@ -101,11 +101,19 @@ describe("sessionTablePlayer.add input validation", () => {
 		});
 	});
 
+	it("accepts seat position 9 (last seat of a 10-max table)", () => {
+		expectAccepts(appRouter.sessionTablePlayer.add, {
+			liveCashGameSessionId: "lcg1",
+			playerId: "p1",
+			seatPosition: 9,
+		});
+	});
+
 	it("rejects seat position out of range", () => {
 		expectRejects(appRouter.sessionTablePlayer.add, {
 			liveCashGameSessionId: "lcg1",
 			playerId: "p1",
-			seatPosition: 9,
+			seatPosition: 10,
 		});
 		expectRejects(appRouter.sessionTablePlayer.add, {
 			liveCashGameSessionId: "lcg1",
@@ -160,11 +168,19 @@ describe("sessionTablePlayer.addNew input validation", () => {
 		});
 	});
 
-	it("rejects seat position > 8", () => {
-		expectRejects(appRouter.sessionTablePlayer.addNew, {
+	it("accepts seat position 9 (last seat of a 10-max table)", () => {
+		expectAccepts(appRouter.sessionTablePlayer.addNew, {
 			liveCashGameSessionId: "lcg1",
 			playerName: "Guest",
 			seatPosition: 9,
+		});
+	});
+
+	it("rejects seat position > 9", () => {
+		expectRejects(appRouter.sessionTablePlayer.addNew, {
+			liveCashGameSessionId: "lcg1",
+			playerName: "Guest",
+			seatPosition: 10,
 		});
 	});
 });
@@ -191,11 +207,19 @@ describe("sessionTablePlayer.updateSeat input validation", () => {
 		});
 	});
 
-	it("rejects seat position out of [0, 8]", () => {
-		expectRejects(appRouter.sessionTablePlayer.updateSeat, {
+	it("accepts seat position 9 (last seat of a 10-max table)", () => {
+		expectAccepts(appRouter.sessionTablePlayer.updateSeat, {
 			liveCashGameSessionId: "lcg1",
 			playerId: "p1",
 			seatPosition: 9,
+		});
+	});
+
+	it("rejects seat position out of [0, 9]", () => {
+		expectRejects(appRouter.sessionTablePlayer.updateSeat, {
+			liveCashGameSessionId: "lcg1",
+			playerId: "p1",
+			seatPosition: 10,
 		});
 	});
 
@@ -237,10 +261,17 @@ describe("sessionTablePlayer.addTemporary input validation", () => {
 		});
 	});
 
-	it("rejects seat position > 8", () => {
-		expectRejects(appRouter.sessionTablePlayer.addTemporary, {
+	it("accepts seat position 9 (last seat of a 10-max table)", () => {
+		expectAccepts(appRouter.sessionTablePlayer.addTemporary, {
 			liveCashGameSessionId: "lcg1",
 			seatPosition: 9,
+		});
+	});
+
+	it("rejects seat position > 9", () => {
+		expectRejects(appRouter.sessionTablePlayer.addTemporary, {
+			liveCashGameSessionId: "lcg1",
+			seatPosition: 10,
 		});
 	});
 });

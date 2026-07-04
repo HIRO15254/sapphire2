@@ -1,4 +1,5 @@
 import {
+	MAX_SEAT_POSITION,
 	tournamentSessionEndPayload,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
@@ -975,7 +976,12 @@ export const liveTournamentSessionRouter = router({
 		.input(
 			z.object({
 				id: z.string(),
-				heroSeatPosition: z.number().int().min(0).max(8).nullable(),
+				heroSeatPosition: z
+					.number()
+					.int()
+					.min(0)
+					.max(MAX_SEAT_POSITION)
+					.nullable(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

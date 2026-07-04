@@ -39,6 +39,16 @@ export const MANUAL_CREATE_BLOCKED_EVENT_TYPES: readonly string[] = [
 	"session_end",
 ] as const;
 
+// --- Seat bounds ---
+//
+// Seats are 0-indexed. A 10-max table (the largest `tableSize` selectable in
+// the ring-game / tournament / cash-game forms) therefore uses seat positions
+// 0–9, so the last valid seat is 9. Every server-side `seatPosition` /
+// `heroSeatPosition` bound derives from this single constant so the client's
+// `MAX_SEAT_COUNT` (10) and the server's validation can never drift apart
+// again (SA2-131).
+export const MAX_SEAT_POSITION = 9;
+
 // --- Payload Zod schemas ---
 
 // Lifecycle payloads
@@ -133,7 +143,7 @@ export const updateStackPayload = z.object({
 export const playerJoinPayload = z.object({
 	playerId: z.string().min(1).optional(),
 	isHero: z.boolean().default(false),
-	seatPosition: z.number().int().min(0).max(8).optional(),
+	seatPosition: z.number().int().min(0).max(MAX_SEAT_POSITION).optional(),
 });
 
 export const playerLeavePayload = z.object({

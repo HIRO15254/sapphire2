@@ -214,6 +214,13 @@ describe("liveCashGameSession.updateHeroSeat input validation", () => {
 		});
 	});
 
+	it("accepts heroSeatPosition 9 (last seat of a 10-max table)", () => {
+		expectAccepts(appRouter.liveCashGameSession.updateHeroSeat, {
+			id: "s1",
+			heroSeatPosition: 9,
+		});
+	});
+
 	it("accepts heroSeatPosition: null (hero stands up)", () => {
 		expectAccepts(appRouter.liveCashGameSession.updateHeroSeat, {
 			id: "s1",
@@ -221,10 +228,10 @@ describe("liveCashGameSession.updateHeroSeat input validation", () => {
 		});
 	});
 
-	it("rejects seat position outside [0, 8]", () => {
+	it("rejects seat position outside [0, 9]", () => {
 		expectRejects(appRouter.liveCashGameSession.updateHeroSeat, {
 			id: "s1",
-			heroSeatPosition: 9,
+			heroSeatPosition: 10,
 		});
 		expectRejects(appRouter.liveCashGameSession.updateHeroSeat, {
 			id: "s1",

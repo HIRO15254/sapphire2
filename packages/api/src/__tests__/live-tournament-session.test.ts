@@ -272,6 +272,13 @@ describe("liveTournamentSession.updateHeroSeat input validation", () => {
 		});
 	});
 
+	it("accepts heroSeatPosition 9 (last seat of a 10-max table)", () => {
+		expectAccepts(appRouter.liveTournamentSession.updateHeroSeat, {
+			id: "s1",
+			heroSeatPosition: 9,
+		});
+	});
+
 	it("accepts heroSeatPosition: null", () => {
 		expectAccepts(appRouter.liveTournamentSession.updateHeroSeat, {
 			id: "s1",
@@ -279,10 +286,10 @@ describe("liveTournamentSession.updateHeroSeat input validation", () => {
 		});
 	});
 
-	it("rejects seat > 8", () => {
+	it("rejects seat > 9", () => {
 		expectRejects(appRouter.liveTournamentSession.updateHeroSeat, {
 			id: "s1",
-			heroSeatPosition: 9,
+			heroSeatPosition: 10,
 		});
 	});
 });

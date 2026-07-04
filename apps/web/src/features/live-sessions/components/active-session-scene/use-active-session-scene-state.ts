@@ -1,3 +1,4 @@
+import { MAX_SEAT_POSITION } from "@sapphire2/db/constants/session-event-types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { updateHeroSeatViaClient } from "@/features/live-sessions/utils/seat-screenshot";
@@ -14,7 +15,7 @@ import { trpc } from "@/utils/trpc";
 
 const DEFAULT_SEAT_COUNT = 9;
 const MIN_SEAT_COUNT = 2;
-const MAX_SEAT_COUNT = 10;
+const MAX_SEAT_COUNT = MAX_SEAT_POSITION + 1;
 
 export type SessionParam =
 	| { liveCashGameSessionId: string; liveTournamentSessionId?: never }

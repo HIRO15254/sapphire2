@@ -2,6 +2,7 @@ import {
 	cashSessionEndPayload,
 	cashSessionStartPayload,
 	chipsAddRemovePayload,
+	MAX_SEAT_POSITION,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
 import { currency } from "@sapphire2/db/schema/currency";
@@ -788,7 +789,12 @@ export const liveCashGameSessionRouter = router({
 		.input(
 			z.object({
 				id: z.string(),
-				heroSeatPosition: z.number().int().min(0).max(8).nullable(),
+				heroSeatPosition: z
+					.number()
+					.int()
+					.min(0)
+					.max(MAX_SEAT_POSITION)
+					.nullable(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
