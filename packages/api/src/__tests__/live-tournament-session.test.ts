@@ -1,11 +1,59 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { appRouter } from "../routers";
+import { persistSessionBlindLevels } from "../routers/session";
 import {
 	expectAccepts,
 	expectProtected,
 	expectRejects,
 	expectType,
 } from "./test-utils";
+
+const BLIND_LEVEL_COLUMNS = 9;
+const MAX_ROWS_PER_INSERT = Math.floor(100 / BLIND_LEVEL_COLUMNS); // 11
+
+interface BlindLevelInput {
+	ante?: number | null;
+	blind1?: number | null;
+	blind2?: number | null;
+	blind3?: number | null;
+	isBreak: boolean;
+	minutes?: number | null;
+}
+
+interface InsertedRow {
+	level: number;
+	sessionId: string;
+}
+
+function makeBlindLevels(count: number): BlindLevelInput[] {
+	return Array.from({ length: count }, (_, i) => ({
+		isBreak: false,
+		blind1: (i + 1) * 100,
+		blind2: (i + 1) * 200,
+		blind3: null,
+		ante: null,
+		minutes: 15,
+	}));
+}
+
+function createBlindLevelMockDb() {
+	const deleteWhere = vi.fn().mockResolvedValue(undefined);
+	const del = vi.fn(() => ({ where: deleteWhere }));
+	const values = vi.fn().mockResolvedValue(undefined);
+	const insert = vi.fn(() => ({ values }));
+	return {
+		db: { delete: del, insert } as never,
+		del,
+		deleteWhere,
+		insert,
+		values,
+	};
+}
+
+/** The row array passed to each `.values()` call, in call order. */
+function insertedChunks(values: ReturnType<typeof vi.fn>): InsertedRow[][] {
+	return values.mock.calls.map((call) => call[0] as InsertedRow[]);
+}
 
 describe("liveTournamentSession router", () => {
 	it("appRouter has liveTournamentSession namespace", () => {
@@ -315,5 +363,92 @@ describe("liveTournamentSession.updateSnapshot input validation", () => {
 			id: "s1",
 			blindLevels: [{ blind1: 100 }],
 		});
+	});
+});
+
+// Regression guard for SA2-115: updateSnapshot re-seeds blind levels via the
+// shared persistSessionBlindLevels helper, which DELETEs then re-INSERTs. D1
+// rejects any statement binding >100 params, so a 9-column blind row must be
+// chunked at 11 rows/INSERT. A single unchunked INSERT of >=12 levels (>=108
+// params) would throw at runtime AFTER the DELETE already committed, wiping the
+// session's blind structure permanently.
+describe("persistSessionBlindLevels chunking (SA2-115)", () => {
+	it("splits >11 blind levels into multiple INSERTs each within D1's 100-param cap", async () => {
+		const { db, del, deleteWhere, insert, values } = createBlindLevelMockDb();
+
+		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(12));
+
+		// DELETE runs exactly once before any INSERT.
+		expect(del).toHaveBeenCalledTimes(1);
+		expect(deleteWhere).toHaveBeenCalledTimes(1);
+		// 12 rows -> 11 + 1 => two INSERT statements.
+		expect(insert).toHaveBeenCalledTimes(2);
+		expect(del.mock.invocationCallOrder[0]).toBeLessThan(
+			insert.mock.invocationCallOrder[0]
+		);
+		expect(values).toHaveBeenCalledTimes(2);
+		const [firstChunk, secondChunk] = insertedChunks(values);
+		expect(firstChunk).toHaveLength(MAX_ROWS_PER_INSERT);
+		expect(secondChunk).toHaveLength(12 - MAX_ROWS_PER_INSERT);
+		// Every INSERT stays under the 100 bound-parameter cap.
+		for (const chunk of insertedChunks(values)) {
+			expect(chunk.length * BLIND_LEVEL_COLUMNS).toBeLessThanOrEqual(100);
+		}
+	});
+
+	it("inserts every level exactly once, in ascending level order across chunks", async () => {
+		const { db, values } = createBlindLevelMockDb();
+
+		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(23));
+
+		const allRows = insertedChunks(values).flat();
+		expect(allRows).toHaveLength(23);
+		expect(allRows.map((r) => r.level)).toEqual(
+			Array.from({ length: 23 }, (_, i) => i + 1)
+		);
+		for (const row of allRows) {
+			expect(row.sessionId).toBe("sess-1");
+		}
+	});
+
+	it("keeps a single INSERT for exactly 11 levels (chunk boundary)", async () => {
+		const { db, insert, values } = createBlindLevelMockDb();
+
+		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(11));
+
+		expect(insert).toHaveBeenCalledTimes(1);
+		expect(values).toHaveBeenCalledTimes(1);
+		expect(insertedChunks(values).flat()).toHaveLength(11);
+	});
+
+	it("splits into two INSERTs for 12 levels (one over the boundary)", async () => {
+		const { db, insert, values } = createBlindLevelMockDb();
+
+		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(12));
+
+		expect(insert).toHaveBeenCalledTimes(2);
+		expect(values).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps a single INSERT for the small-N case (behavior unchanged)", async () => {
+		const { db, del, insert, values } = createBlindLevelMockDb();
+
+		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(5));
+
+		expect(del).toHaveBeenCalledTimes(1);
+		expect(insert).toHaveBeenCalledTimes(1);
+		expect(values).toHaveBeenCalledTimes(1);
+		expect(insertedChunks(values).flat()).toHaveLength(5);
+	});
+
+	it("DELETEs only and issues no INSERT for an empty blind-level list", async () => {
+		const { db, del, deleteWhere, insert, values } = createBlindLevelMockDb();
+
+		await persistSessionBlindLevels(db, "sess-1", []);
+
+		expect(del).toHaveBeenCalledTimes(1);
+		expect(deleteWhere).toHaveBeenCalledTimes(1);
+		expect(insert).not.toHaveBeenCalled();
+		expect(values).not.toHaveBeenCalled();
 	});
 });

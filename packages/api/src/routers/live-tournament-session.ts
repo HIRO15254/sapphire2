@@ -21,6 +21,7 @@ import {
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
 import {
+	persistSessionBlindLevels,
 	persistSessionChipPurchases,
 	resnapshotTournamentStructure,
 	resolveTournamentRuleSnapshot,
@@ -871,24 +872,12 @@ export const liveTournamentSessionRouter = router({
 			}
 
 			if (input.blindLevels !== undefined) {
-				await ctx.db
-					.delete(sessionBlindLevel)
-					.where(eq(sessionBlindLevel.sessionId, input.id));
-				if (input.blindLevels.length > 0) {
-					await ctx.db.insert(sessionBlindLevel).values(
-						input.blindLevels.map((l, idx) => ({
-							id: crypto.randomUUID(),
-							sessionId: input.id,
-							level: idx + 1,
-							isBreak: l.isBreak,
-							blind1: l.blind1 ?? null,
-							blind2: l.blind2 ?? null,
-							blind3: l.blind3 ?? null,
-							ante: l.ante ?? null,
-							minutes: l.minutes ?? null,
-						}))
-					);
-				}
+				// Reuse the shared helper so the DELETE + re-INSERT is chunked
+				// under D1's 100 bound-parameter cap (9 columns/row => 11 rows
+				// max per INSERT). A single unchunked INSERT of >=12 levels
+				// overflows and throws AFTER the DELETE commits, permanently
+				// wiping the session's blind structure (SA2-115).
+				await persistSessionBlindLevels(ctx.db, input.id, input.blindLevels);
 			}
 
 			if (input.chipPurchases !== undefined) {
