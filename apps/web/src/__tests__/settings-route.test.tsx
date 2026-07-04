@@ -41,6 +41,7 @@ describe("SettingsComponent", () => {
 		mocks.navigate.mockReset();
 		mocks.signOut.mockReset();
 		mocks.clearPersistedQueryCache.mockReset();
+		mocks.clearPersistedQueryCache.mockResolvedValue(undefined);
 		mocks.signOut.mockImplementation(
 			(options?: { fetchOptions?: { onSuccess?: () => void } }) => {
 				options?.fetchOptions?.onSuccess?.();
