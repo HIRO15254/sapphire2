@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { t } from "../index";
 import { appRouter } from "../routers";
 import { persistSessionBlindLevels } from "../routers/session";
 import {
+	createChainableMockDb,
 	expectAccepts,
 	expectProtected,
 	expectRejects,
@@ -53,6 +55,15 @@ function createBlindLevelMockDb() {
 /** The row array passed to each `.values()` call, in call order. */
 function insertedChunks(values: ReturnType<typeof vi.fn>): InsertedRow[][] {
 	return values.mock.calls.map((call) => call[0] as InsertedRow[]);
+}
+
+const createCaller = t.createCallerFactory(appRouter);
+
+function callerFor(db: unknown, userId: string) {
+	return createCaller({
+		session: { user: { id: userId } },
+		db,
+	} as never);
 }
 
 describe("liveTournamentSession router", () => {
@@ -373,6 +384,7 @@ describe("liveTournamentSession.updateSnapshot input validation", () => {
 	});
 });
 
+<<<<<<< HEAD
 // Regression guard for SA2-115: updateSnapshot re-seeds blind levels via the
 // shared persistSessionBlindLevels helper, which DELETEs then re-INSERTs. D1
 // rejects any statement binding >100 params, so a 9-column blind row must be
@@ -457,5 +469,111 @@ describe("persistSessionBlindLevels chunking (SA2-115)", () => {
 		expect(deleteWhere).toHaveBeenCalledTimes(1);
 		expect(insert).not.toHaveBeenCalled();
 		expect(values).not.toHaveBeenCalled();
+	});
+});
+
+describe("liveTournamentSession.create tournament ownership (IDOR guard)", () => {
+	const CALLER = "user-1";
+	const OTHER = "user-2";
+	const TOURNAMENT_ID = "tn-1";
+	const ROOM_ID = "room-1";
+
+	function mockDb(opts: {
+		tournament?: Record<string, unknown>[];
+		room?: Record<string, unknown>[];
+		blindLevels?: Record<string, unknown>[];
+		chipPurchases?: Record<string, unknown>[];
+	}) {
+		return createChainableMockDb({
+			select: {
+				// no session is currently active
+				game_session: [],
+				tournament: opts.tournament ?? [],
+				room: opts.room ?? [],
+				blind_level: opts.blindLevels ?? [],
+				tournament_chip_purchase: opts.chipPurchases ?? [],
+			},
+		});
+	}
+
+	it("creates the session and snapshots the structure when the caller owns the tournament", async () => {
+		const { db, inserted, selectedTables } = mockDb({
+			tournament: [
+				{
+					id: TOURNAMENT_ID,
+					roomId: ROOM_ID,
+					name: "Main Event",
+					variant: "nlh",
+					buyIn: 10_000,
+					entryFee: 1000,
+					startingStack: 20_000,
+					bountyAmount: null,
+					tableSize: 9,
+					currencyId: null,
+				},
+			],
+			room: [{ id: ROOM_ID, userId: CALLER }],
+			blindLevels: [
+				{ level: 1, isBreak: false, blind1: 100, blind2: 200, minutes: 15 },
+			],
+		});
+
+		const result = await callerFor(db, CALLER).liveTournamentSession.create({
+			tournamentId: TOURNAMENT_ID,
+		});
+
+		expect(typeof result.id).toBe("string");
+		// The room must be read to confirm tournament ownership.
+		expect(selectedTables).toContain("room");
+		// The session and its structure snapshot were persisted.
+		expect(inserted.game_session).toHaveLength(1);
+		expect(inserted.session_tournament_detail).toHaveLength(1);
+		expect(inserted.session_blind_level).toHaveLength(1);
+	});
+
+	it("throws FORBIDDEN and writes nothing when the tournament belongs to another user", async () => {
+		const { db, inserted } = mockDb({
+			tournament: [{ id: TOURNAMENT_ID, roomId: ROOM_ID }],
+			room: [{ id: ROOM_ID, userId: OTHER }],
+		});
+
+		await expect(
+			callerFor(db, CALLER).liveTournamentSession.create({
+				tournamentId: TOURNAMENT_ID,
+			})
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this tournament",
+		});
+		// The guard runs before any write, so nothing is persisted.
+		expect(inserted.game_session).toBeUndefined();
+		expect(inserted.session_blind_level).toBeUndefined();
+	});
+
+	it("throws NOT_FOUND and writes nothing when the tournament does not exist", async () => {
+		const { db, inserted } = mockDb({ tournament: [] });
+
+		await expect(
+			callerFor(db, CALLER).liveTournamentSession.create({
+				tournamentId: "missing",
+			})
+		).rejects.toMatchObject({
+			code: "NOT_FOUND",
+			message: "Tournament not found",
+		});
+		expect(inserted.game_session).toBeUndefined();
+	});
+
+	it("skips tournament ownership validation when tournamentId is omitted", async () => {
+		const { db, inserted, selectedTables } = mockDb({});
+
+		const result = await callerFor(db, CALLER).liveTournamentSession.create({});
+
+		expect(typeof result.id).toBe("string");
+		// No tournament / room lookups happen without a tournamentId.
+		expect(selectedTables).not.toContain("tournament");
+		expect(selectedTables).not.toContain("room");
+		expect(inserted.game_session).toHaveLength(1);
+		expect(inserted.session_blind_level).toBeUndefined();
 	});
 });

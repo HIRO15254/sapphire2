@@ -27,6 +27,7 @@ import {
 	resnapshotTournamentStructure,
 	resolveTournamentRuleSnapshot,
 	snapshotTournamentStructure,
+	validateEntityOwnership,
 } from "./session";
 
 const DEFAULT_LIMIT = 20;
@@ -665,6 +666,18 @@ export const liveTournamentSessionRouter = router({
 			const userId = ctx.session.user.id;
 
 			await assertNoActiveSession(ctx.db, userId);
+
+			// Validate tournament ownership before reading its structure so a
+			// caller cannot snapshot another user's blind levels / chip purchases
+			// via snapshotTournamentStructure (IDOR).
+			if (input.tournamentId) {
+				await validateEntityOwnership(
+					ctx.db,
+					"tournament",
+					input.tournamentId,
+					userId
+				);
+			}
 
 			const id = crypto.randomUUID();
 			const now = new Date();
