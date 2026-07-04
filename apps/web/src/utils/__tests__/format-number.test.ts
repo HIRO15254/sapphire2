@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TZ_EAST, TZ_WEST, withTz } from "@/__tests__/tz";
 import {
 	createGroupFormatter,
 	formatCompactNumber,
@@ -8,24 +9,8 @@ import {
 const B_SUFFIX = /B$/;
 
 // SA2-145: sessionDate is a UTC-midnight ISO string, so formatYmdSlash must
-// read UTC calendar fields. Node/Bun re-reads process.env.TZ on every Date
-// operation; restore the original TZ so this file (web-node, isolate:false)
-// cannot leak a zone into sibling pure-util test files.
-const ORIGINAL_TZ = process.env.TZ;
-const TZ_WEST = "America/Los_Angeles"; // UTC-8/-7 — reproduces the bug
-const TZ_EAST = "Asia/Tokyo"; // UTC+9
-function withTz<T>(tz: string, fn: () => T): T {
-	process.env.TZ = tz;
-	try {
-		return fn();
-	} finally {
-		if (ORIGINAL_TZ === undefined) {
-			process.env.TZ = undefined;
-		} else {
-			process.env.TZ = ORIGINAL_TZ;
-		}
-	}
-}
+// read UTC calendar fields. `withTz` (shared helper) drives a deterministic
+// zone per assertion and restores the host zone afterwards.
 
 describe("formatCompactNumber", () => {
 	describe("below the 10k threshold", () => {

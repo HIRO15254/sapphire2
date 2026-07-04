@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TZ_EAST, TZ_WEST, withTz } from "@/__tests__/tz";
 import type {
 	SessionFormValues,
 	SessionItem,
@@ -102,26 +103,9 @@ const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_HH_MM_PATTERN = /^\d{2}:\d{2}$/;
 const TEMP_ID_PATTERN = /^temp-/;
 
-// SA2-145: sessionDate must round-trip as a UTC calendar date regardless of
-// the machine's local time zone. Node/Bun re-reads `process.env.TZ` on every
-// Date operation, so we can drive a west-of-UTC and an east-of-UTC zone
-// deterministically. Always restore the original TZ so this file cannot leak
-// into sibling test files that share the worker.
-const ORIGINAL_TZ = process.env.TZ;
-const TZ_WEST = "America/Los_Angeles"; // UTC-8/-7 — reproduces the bug
-const TZ_EAST = "Asia/Tokyo"; // UTC+9 — the primary user base
-function withTz<T>(tz: string, fn: () => T): T {
-	process.env.TZ = tz;
-	try {
-		return fn();
-	} finally {
-		if (ORIGINAL_TZ === undefined) {
-			process.env.TZ = undefined;
-		} else {
-			process.env.TZ = ORIGINAL_TZ;
-		}
-	}
-}
+// SA2-145: sessionDate must round-trip as a UTC calendar date regardless of the
+// machine's local time zone. `withTz` (shared helper) drives a west-of-UTC and
+// an east-of-UTC zone deterministically and restores the host zone afterwards.
 
 function createClient(): QueryClient {
 	return new QueryClient({

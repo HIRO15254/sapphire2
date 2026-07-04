@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TZ_EAST, TZ_WEST, withTz } from "@/__tests__/tz";
 import {
 	createSessionShareText,
 	type ShareableSession,
@@ -10,23 +11,8 @@ const ANY_DURATION = /\d+\.\dh/;
 const COMPACT_500 = /📈 \+500 \n/;
 
 // SA2-145: the shared text's 📅 line must show the UTC calendar day the user
-// saved (sessionDate is a UTC-midnight ISO string). Node/Bun re-reads
-// process.env.TZ on each Date op; restore the original zone after each case.
-const ORIGINAL_TZ = process.env.TZ;
-const TZ_WEST = "America/Los_Angeles"; // UTC-8/-7 — reproduces the bug
-const TZ_EAST = "Asia/Tokyo"; // UTC+9
-function withTz<T>(tz: string, fn: () => T): T {
-	process.env.TZ = tz;
-	try {
-		return fn();
-	} finally {
-		if (ORIGINAL_TZ === undefined) {
-			process.env.TZ = undefined;
-		} else {
-			process.env.TZ = ORIGINAL_TZ;
-		}
-	}
-}
+// saved (sessionDate is a UTC-midnight ISO string). `withTz` (shared helper)
+// drives a deterministic zone per case and restores the host zone afterwards.
 
 function cashSession(
 	overrides: Partial<ShareableSession> = {}
