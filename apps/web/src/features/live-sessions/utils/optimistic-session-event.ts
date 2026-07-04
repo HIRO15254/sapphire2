@@ -80,17 +80,29 @@ function applySessionStartSummary(
 	}
 }
 
+function applyCashSessionEndSummary(
+	summary: Record<string, unknown>,
+	payload: Record<string, unknown>
+) {
+	// Cash game end: cashOutAmount drives profitLoss. SA2-124: mirror the
+	// server / chart formula cashOut + chipRemoveTotal - totalBuyIn so racked-off
+	// chips are counted, not treated as a loss.
+	if (typeof payload.cashOutAmount !== "number") {
+		return;
+	}
+	summary.cashOut = payload.cashOutAmount;
+	const totalBuyIn =
+		typeof summary.totalBuyIn === "number" ? summary.totalBuyIn : 0;
+	const chipRemoveTotal =
+		typeof summary.chipRemoveTotal === "number" ? summary.chipRemoveTotal : 0;
+	summary.profitLoss = payload.cashOutAmount + chipRemoveTotal - totalBuyIn;
+}
+
 function applySessionEndSummary(
 	summary: Record<string, unknown>,
 	payload: Record<string, unknown>
 ) {
-	// Cash game end: cashOutAmount drives profitLoss
-	if (typeof payload.cashOutAmount === "number") {
-		summary.cashOut = payload.cashOutAmount;
-		const totalBuyIn =
-			typeof summary.totalBuyIn === "number" ? summary.totalBuyIn : 0;
-		summary.profitLoss = payload.cashOutAmount - totalBuyIn;
-	}
+	applyCashSessionEndSummary(summary, payload);
 
 	// Tournament end (not before deadline): placement + prizes
 	if (payload.beforeDeadline === false) {

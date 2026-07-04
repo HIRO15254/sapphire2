@@ -11,6 +11,7 @@ import { useCashGameSession } from "@/features/live-sessions/hooks/use-cash-game
 import { useCashGameStack } from "@/features/live-sessions/hooks/use-cash-game-stack";
 
 export interface CashGameCompactSummaryData {
+	chipRemoveTotal: number;
 	currentStack: number | null;
 	evDiff: number;
 	startedAt: Date | string | number;
@@ -45,6 +46,10 @@ export function useCashGameSessionView(sessionId: string) {
 
 	const summary: CashGameCompactSummaryData | null = session
 		? {
+				chipRemoveTotal:
+					typeof session.summary.chipRemoveTotal === "number"
+						? session.summary.chipRemoveTotal
+						: 0,
 				currentStack: session.summary.currentStack,
 				evDiff:
 					typeof session.summary.evDiff === "number"

@@ -6,6 +6,7 @@ import {
 } from "@/utils/format-profit-loss";
 
 interface CashGameCompactSummaryInput {
+	chipRemoveTotal: number;
 	currentStack: number | null;
 	evDiff: number;
 	startedAt: Date | string | number;
@@ -29,14 +30,20 @@ export function useCashGameCompactSummary(
 ): CashGameCompactSummaryViewModel {
 	const duration = useElapsedTime(summary.startedAt);
 
+	// SA2-124: P/L must match the server (`live-session-pl.ts`) and the session
+	// chart (`session-timeline.ts`): stack + chipRemoveTotal - totalBuyIn.
+	// Chips racked off the table are already-pocketed value, not a loss.
 	const displayPL =
 		summary.currentStack === null
 			? null
-			: summary.currentStack - summary.totalBuyIn;
+			: summary.currentStack + summary.chipRemoveTotal - summary.totalBuyIn;
 
 	const evPL =
 		summary.currentStack !== null && summary.evDiff !== 0
-			? summary.currentStack + summary.evDiff - summary.totalBuyIn
+			? summary.currentStack +
+				summary.chipRemoveTotal +
+				summary.evDiff -
+				summary.totalBuyIn
 			: null;
 	const showEvPL = evPL !== null && evPL !== displayPL;
 

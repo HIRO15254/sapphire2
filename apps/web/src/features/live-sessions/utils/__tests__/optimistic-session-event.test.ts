@@ -191,6 +191,34 @@ describe("buildOptimisticSessionSummary", () => {
 			expect(result.cashOut).toBeUndefined();
 			expect(result.profitLoss).toBeUndefined();
 		});
+
+		it("includes chipRemoveTotal in profitLoss (SA2-124: 400 + 300 - 500 = 200)", () => {
+			const result = buildOptimisticSessionSummary(
+				{ chipRemoveTotal: 300, totalBuyIn: 500 },
+				"session_end",
+				{ cashOutAmount: 400 }
+			);
+			expect(result.cashOut).toBe(400);
+			expect(result.profitLoss).toBe(200);
+		});
+
+		it("treats missing chipRemoveTotal as 0 when computing profitLoss", () => {
+			const result = buildOptimisticSessionSummary(
+				{ totalBuyIn: 500 },
+				"session_end",
+				{ cashOutAmount: 400 }
+			);
+			expect(result.profitLoss).toBe(-100);
+		});
+
+		it("treats non-numeric chipRemoveTotal as 0 when computing profitLoss", () => {
+			const result = buildOptimisticSessionSummary(
+				{ chipRemoveTotal: "nope", totalBuyIn: 500 },
+				"session_end",
+				{ cashOutAmount: 400 }
+			);
+			expect(result.profitLoss).toBe(-100);
+		});
 	});
 
 	describe("session_end — tournament branch (beforeDeadline=false)", () => {
