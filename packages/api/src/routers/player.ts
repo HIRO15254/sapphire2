@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, like } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
+import { validateTagsOwnership } from "./session";
 
 export const playerRouter = router({
 	list: protectedProcedure
@@ -141,6 +142,9 @@ export const playerRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
+			// Reject before any write so a foreign tag id cannot be linked (IDOR).
+			await validateTagsOwnership(ctx.db, playerTag, input.tagIds, userId);
+
 			const id = crypto.randomUUID();
 
 			await ctx.db.insert(player).values({
@@ -226,6 +230,8 @@ export const playerRouter = router({
 				.where(eq(player.id, input.id));
 
 			if (input.tagIds !== undefined) {
+				// Verify tag ownership before mutating the join rows (IDOR).
+				await validateTagsOwnership(ctx.db, playerTag, input.tagIds, userId);
 				await ctx.db
 					.delete(playerToPlayerTag)
 					.where(eq(playerToPlayerTag.playerId, input.id));

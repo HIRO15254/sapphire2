@@ -2,7 +2,11 @@ import {
 	MAX_SEAT_POSITION,
 	playerJoinPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
+import {
+	player,
+	playerTag,
+	playerToPlayerTag,
+} from "@sapphire2/db/schema/player";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -19,6 +23,7 @@ import {
 	floorToMinute,
 	nextAppendSortOrder,
 } from "../utils/session-event-time";
+import { validateTagsOwnership } from "./session";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -334,6 +339,13 @@ export const sessionTablePlayerRouter = router({
 			const { seatPosition } = input;
 			const userId = ctx.session.user.id;
 			await resolveSessionOwnership(ctx.db, sessionId, userId);
+			// Reject foreign player tags before creating the player (IDOR).
+			await validateTagsOwnership(
+				ctx.db,
+				playerTag,
+				input.playerTagIds,
+				userId
+			);
 
 			const now = new Date();
 			const playerId = crypto.randomUUID();

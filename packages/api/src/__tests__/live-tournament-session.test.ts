@@ -2,6 +2,7 @@ import { currency } from "@sapphire2/db/schema/currency";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { TRPCError } from "@trpc/server";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it, vi } from "vitest";
 import { t } from "../index";
 import { appRouter } from "../routers";
@@ -806,5 +807,55 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 		expect(selectedTables).not.toContain("room");
 		expect(inserted.game_session).toHaveLength(1);
 		expect(inserted.session_blind_level).toBeUndefined();
+	});
+});
+
+const listCursorDialect = new SQLiteSyncDialect();
+
+/**
+ * Mock db recording the SQL params bound to the list query's `.where(...)` so
+ * the cursor-boundary subquery can be shown to be scoped to the caller
+ * (SA2-182). `select().from()` resolves to no rows; enrichment is skipped.
+ */
+function createListWhereMockDb() {
+	const selectWhereParams: unknown[][] = [];
+	const makeChain = () => {
+		const chain = Promise.resolve([] as Rows) as Promise<Rows> &
+			Record<string, (...args: unknown[]) => unknown>;
+		chain.from = () => chain;
+		chain.where = (cond: unknown) => {
+			selectWhereParams.push(
+				listCursorDialect.sqlToQuery(cond as never).params
+			);
+			return chain;
+		};
+		chain.orderBy = () => chain;
+		chain.limit = () => chain;
+		chain.leftJoin = () => chain;
+		chain.innerJoin = () => chain;
+		return chain;
+	};
+	const db = { select: () => makeChain() };
+	return { db, selectWhereParams };
+}
+
+describe("liveTournamentSession.list cursor scoping (SA2-182)", () => {
+	it("scopes the cursor boundary subquery to the caller's user id", async () => {
+		const { db, selectWhereParams } = createListWhereMockDb();
+		await callerFor(db, OWNER).liveTournamentSession.list({
+			cursor: "s-cursor",
+			limit: 10,
+		});
+		const listWhere = selectWhereParams.find((p) => p.includes("s-cursor"));
+		expect(listWhere).toBeDefined();
+		// userId appears twice: the base filter + the cursor subquery scope.
+		expect((listWhere as unknown[]).filter((p) => p === OWNER)).toHaveLength(2);
+	});
+
+	it("does not add a cursor subquery when no cursor is supplied", async () => {
+		const { db, selectWhereParams } = createListWhereMockDb();
+		await callerFor(db, OWNER).liveTournamentSession.list({ limit: 10 });
+		const base = selectWhereParams[0] as unknown[];
+		expect(base.filter((p) => p === OWNER)).toHaveLength(1);
 	});
 });
