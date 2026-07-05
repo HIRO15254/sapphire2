@@ -490,7 +490,7 @@ export const liveTournamentSessionRouter = router({
 			}
 			if (input.cursor) {
 				conditions.push(
-					sql`${gameSession.startedAt} < (SELECT started_at FROM game_session WHERE id = ${input.cursor})`
+					sql`${gameSession.startedAt} < (SELECT started_at FROM game_session WHERE id = ${input.cursor} AND user_id = ${userId})`
 				);
 			}
 

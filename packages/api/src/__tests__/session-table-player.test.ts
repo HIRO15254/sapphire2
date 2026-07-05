@@ -1,3 +1,10 @@
+import {
+	player,
+	playerTag,
+	playerToPlayerTag,
+} from "@sapphire2/db/schema/player";
+import { gameSession } from "@sapphire2/db/schema/session";
+import { TRPCError } from "@trpc/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { appRouter } from "../routers";
 import {
@@ -461,5 +468,114 @@ describe("insertPlayerLeaveEvent (write-side ordering contract)", () => {
 		expect(JSON.parse(inserted.payload as string)).toEqual({
 			playerId: "player-abc",
 		});
+	});
+});
+
+describe("sessionTablePlayer.addNew tag ownership (SA2-178)", () => {
+	type Rows = Record<string, unknown>[];
+	const OWNER = "owner-1";
+
+	function createMockDb(rowsByTable: Map<unknown, Rows>) {
+		const inserted: { table: unknown; values: unknown }[] = [];
+		const makeChain = (rows: Rows) => {
+			const chain = Promise.resolve(rows) as Promise<Rows> &
+				Record<string, (...args: unknown[]) => unknown>;
+			chain.from = (table: unknown) => makeChain(rowsByTable.get(table) ?? []);
+			chain.where = () => chain;
+			chain.orderBy = () => chain;
+			chain.limit = () => chain;
+			chain.innerJoin = () => chain;
+			chain.leftJoin = () => chain;
+			return chain;
+		};
+		return {
+			db: {
+				select: () => makeChain([]),
+				insert: (table: unknown) => ({
+					values: (values: unknown) => {
+						inserted.push({ table, values });
+						return Promise.resolve(undefined);
+					},
+				}),
+				update: () => ({
+					set: () => ({ where: () => Promise.resolve(undefined) }),
+				}),
+				delete: () => ({ where: () => Promise.resolve(undefined) }),
+			},
+			inserted,
+		};
+	}
+
+	function makeCaller(rowsByTable: Map<unknown, Rows>) {
+		const { db, inserted } = createMockDb(rowsByTable);
+		const caller = appRouter.createCaller({
+			session: { user: { id: OWNER } },
+			db,
+		} as unknown as Parameters<
+			typeof appRouter.createCaller
+		>[0]).sessionTablePlayer;
+		return { caller, inserted };
+	}
+
+	function ownedSessionRows(extra: Map<unknown, Rows>) {
+		const map = new Map<unknown, Rows>([
+			[gameSession, [{ id: "s1", userId: OWNER, kind: "cash_game" }]],
+		]);
+		for (const [k, v] of extra) {
+			map.set(k, v);
+		}
+		return map;
+	}
+
+	async function expectForbidden(promise: Promise<unknown>): Promise<void> {
+		try {
+			await promise;
+		} catch (error) {
+			expect(error).toBeInstanceOf(TRPCError);
+			expect((error as { code: string }).code).toBe("FORBIDDEN");
+			return;
+		}
+		throw new Error("expected the call to throw FORBIDDEN but it resolved");
+	}
+
+	it("accepts player tags owned by the caller and links them", async () => {
+		const rows = ownedSessionRows(
+			new Map<unknown, Rows>([[playerTag, [{ id: "t1" }, { id: "t2" }]]])
+		);
+		const { caller, inserted } = makeCaller(rows);
+		await expect(
+			caller.addNew({
+				sessionId: "s1",
+				playerName: "Alice",
+				playerTagIds: ["t1", "t2"],
+			})
+		).resolves.toBeDefined();
+		expect(inserted.some((i) => i.table === playerToPlayerTag)).toBe(true);
+	});
+
+	it("rejects a player tag owned by another user and skips the join insert", async () => {
+		const rows = ownedSessionRows(
+			new Map<unknown, Rows>([[playerTag, [{ id: "t1" }]]])
+		);
+		const { caller, inserted } = makeCaller(rows);
+		await expectForbidden(
+			caller.addNew({
+				sessionId: "s1",
+				playerName: "Alice",
+				playerTagIds: ["t1", "t2"],
+			})
+		);
+		expect(inserted.some((i) => i.table === playerToPlayerTag)).toBe(false);
+	});
+
+	it("does not validate tags when playerTagIds is omitted", async () => {
+		const rows = ownedSessionRows(new Map());
+		const { caller, inserted } = makeCaller(rows);
+		await expect(
+			caller.addNew({ sessionId: "s1", playerName: "Alice" })
+		).resolves.toBeDefined();
+		expect(inserted.some((i) => i.table === playerToPlayerTag)).toBe(false);
+		// The player itself is still created.
+		expect(inserted.some((i) => i.table === player)).toBe(true);
 	});
 });

@@ -22,6 +22,7 @@ import {
 } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -320,6 +321,54 @@ export async function persistSessionBlindLevels(
 	}
 }
 
+/**
+ * Assert the room `roomId` exists and belongs to `userId`, else throw FORBIDDEN
+ * with `forbiddenMessage`. Shared by the room-derived ownership branches
+ * (ringGame / tournament) so their ownership rule stays in one place.
+ */
+async function assertRoomOwnedBy(
+	db: DbInstance,
+	roomId: string,
+	userId: string,
+	forbiddenMessage: string
+): Promise<void> {
+	const [foundRoom] = await db.select().from(room).where(eq(room.id, roomId));
+	if (!foundRoom || foundRoom.userId !== userId) {
+		throw new TRPCError({ code: "FORBIDDEN", message: forbiddenMessage });
+	}
+}
+
+async function validateRingGameOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<void> {
+	const [found] = await db
+		.select()
+		.from(ringGame)
+		.where(eq(ringGame.id, entityId));
+	if (!found) {
+		throw new TRPCError({ code: "NOT_FOUND", message: "Ring game not found" });
+	}
+	// A ring game has no userId of its own; ownership is derived from its room.
+	// Auto-generated snapshot rows have a null roomId and are never
+	// user-selectable, so a caller-supplied id pointing at one cannot be proven
+	// owned → FORBIDDEN. Without this a caller could pass another user's
+	// ringGameId to snapshot their cash-game rule config (IDOR, SA2-174).
+	if (!found.roomId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
+		});
+	}
+	await assertRoomOwnedBy(
+		db,
+		found.roomId,
+		userId,
+		"You do not own this ring game"
+	);
+}
+
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "currency" | "ringGame" | "room" | "tournament",
@@ -338,16 +387,7 @@ async function validateEntityOwnership(
 			});
 		}
 	} else if (entityType === "ringGame") {
-		const [found] = await db
-			.select()
-			.from(ringGame)
-			.where(eq(ringGame.id, entityId));
-		if (!found) {
-			throw new TRPCError({
-				code: "NOT_FOUND",
-				message: "Ring game not found",
-			});
-		}
+		await validateRingGameOwnershipBranch(db, entityId, userId);
 	} else if (entityType === "tournament") {
 		const [found] = await db
 			.select()
@@ -362,16 +402,12 @@ async function validateEntityOwnership(
 		// A tournament has no userId of its own; ownership is derived from its
 		// room. Without this check a caller could pass another user's
 		// tournamentId to snapshot their blind structure / chip purchases (IDOR).
-		const [foundRoom] = await db
-			.select()
-			.from(room)
-			.where(eq(room.id, found.roomId));
-		if (!foundRoom || foundRoom.userId !== userId) {
-			throw new TRPCError({
-				code: "FORBIDDEN",
-				message: "You do not own this tournament",
-			});
-		}
+		await assertRoomOwnedBy(
+			db,
+			found.roomId,
+			userId,
+			"You do not own this tournament"
+		);
 	} else if (entityType === "currency") {
 		const [found] = await db
 			.select()
@@ -935,6 +971,38 @@ export async function validateLiveLinkOwnership(
 	}
 	if (input.currencyId) {
 		await validateEntityOwnership(db, "currency", input.currencyId, userId);
+	}
+}
+
+/**
+ * Ownership guard for a set of tag ids linked to a session / player / etc.
+ * Generic over any tag table exposing `id` + `userId` columns (session_tag,
+ * player_tag, tournament_tag, …). Selects the caller-owned subset in a single
+ * `WHERE id IN (…) AND userId = caller` query; if the distinct owned count
+ * differs from the requested distinct count, at least one id is missing or
+ * belongs to another user → FORBIDDEN. No-ops on empty / omitted ids so the
+ * caller can pass `input.tagIds` directly. Prevents IDOR on tag links
+ * (SA2-177).
+ */
+export async function validateTagsOwnership(
+	db: DbInstance,
+	table: SQLiteTable & { id: SQLiteColumn; userId: SQLiteColumn },
+	ids: string[] | undefined,
+	userId: string
+): Promise<void> {
+	if (!ids || ids.length === 0) {
+		return;
+	}
+	const uniqueIds = [...new Set(ids)];
+	const owned = await db
+		.select({ id: table.id })
+		.from(table)
+		.where(and(inArray(table.id, uniqueIds), eq(table.userId, userId)));
+	if (owned.length !== uniqueIds.length) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own one or more of these tags",
+		});
 	}
 }
 
@@ -2150,6 +2218,7 @@ export const sessionRouter = router({
 				await insertTournamentSessionDetail(ctx.db, id, input);
 			}
 
+			await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
 			await insertSessionTags(ctx.db, id, input.tagIds);
 
 			await maybeCreateCurrencyTransactionForCreate(
@@ -2323,6 +2392,7 @@ export const sessionRouter = router({
 			}
 
 			if (input.tagIds !== undefined) {
+				await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
 				await ctx.db
 					.delete(sessionToSessionTag)
 					.where(eq(sessionToSessionTag.sessionId, input.id));

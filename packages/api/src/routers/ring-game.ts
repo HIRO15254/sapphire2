@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
+import { validateEntityOwnership } from "./session";
 
 async function validateRoomOwnership(
 	db: Parameters<
@@ -97,6 +98,14 @@ export const ringGameRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateRoomOwnership(ctx.db, input.roomId, userId);
+			if (input.currencyId) {
+				await validateEntityOwnership(
+					ctx.db,
+					"currency",
+					input.currencyId,
+					userId
+				);
+			}
 
 			const id = crypto.randomUUID();
 			await ctx.db.insert(ringGame).values({
@@ -145,6 +154,14 @@ export const ringGameRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const found = await validateRingGameOwnership(ctx.db, input.id, userId);
+			if (input.currencyId) {
+				await validateEntityOwnership(
+					ctx.db,
+					"currency",
+					input.currencyId,
+					userId
+				);
+			}
 
 			const updateData: Partial<typeof found> = { updatedAt: new Date() };
 			if (input.name !== undefined) {
