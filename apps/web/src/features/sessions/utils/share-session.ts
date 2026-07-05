@@ -44,8 +44,11 @@ function formatDuration(
 	if (!(startedAt && endedAt)) {
 		return null;
 	}
+	// Clamp to zero so a legacy row saved before the day-crossing fix (endedAt
+	// before startedAt) never leaks a negative duration into the share text
+	// (SA2-157).
 	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
-	const hours = diffMs / (1000 * 60 * 60);
+	const hours = Math.max(0, diffMs / (1000 * 60 * 60));
 	return `${hours.toFixed(1)}h`;
 }
 

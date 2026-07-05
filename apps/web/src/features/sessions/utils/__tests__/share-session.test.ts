@@ -8,6 +8,7 @@ import {
 
 const DURATION_3_5H = /\/ 3\.5h/;
 const ANY_DURATION = /\d+\.\dh/;
+const NEGATIVE_DURATION = /-\d+\.\dh/;
 const COMPACT_500 = /📈 \+500 \n/;
 
 // SA2-145: the shared text's 📅 line must show the UTC calendar day the user
@@ -119,6 +120,18 @@ describe("createSessionShareText", () => {
 				})
 			);
 			expect(text).not.toMatch(ANY_DURATION);
+		});
+
+		it("clamps a negative duration to '0.0h' (legacy day-crossing row, SA2-157)", () => {
+			// endedAt before startedAt must not leak a "-20.0h" into the share text.
+			const text = createSessionShareText(
+				cashSession({
+					startedAt: "2026-04-22T22:00:00Z",
+					endedAt: "2026-04-22T02:00:00Z",
+				})
+			);
+			expect(text).toContain("0.0h");
+			expect(text).not.toMatch(NEGATIVE_DURATION);
 		});
 
 		it("falls back to 'Cash Game' when ringGameName is null", () => {

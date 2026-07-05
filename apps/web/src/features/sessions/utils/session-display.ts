@@ -57,7 +57,10 @@ export function formatSessionDuration(
 	}
 	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
 	const breakMs = (breakMinutes ?? 0) * 60 * 1000;
-	const hours = (diffMs - breakMs) / (1000 * 60 * 60);
+	// Clamp to zero so a legacy row saved before the day-crossing fix (endedAt
+	// before startedAt) — or an over-long break — never renders a negative
+	// duration (SA2-157). New rows are corrected at write time in use-sessions.ts.
+	const hours = Math.max(0, (diffMs - breakMs) / (1000 * 60 * 60));
 	return `${hours.toFixed(1)}h`;
 }
 

@@ -415,6 +415,33 @@ describe("pure helpers", () => {
 			expect(out.startedAt).toBeUndefined();
 			expect(out.endedAt).toBeUndefined();
 		});
+
+		it("rolls the end time forward a day when it lands before the start (day-crossing, SA2-157)", () => {
+			// 22:00 → 02:00 crossed midnight; endedAt must land 4h after startedAt,
+			// not ~20h before it (which zeroed the session out of every stat).
+			const out = buildCreatePayload(
+				cashValues({ startTime: "22:00", endTime: "02:00" })
+			);
+			expect((out.endedAt as number) - (out.startedAt as number)).toBe(
+				4 * 3600
+			);
+		});
+
+		it("does not roll forward a normal same-day span (SA2-157)", () => {
+			const out = buildCreatePayload(
+				cashValues({ startTime: "09:00", endTime: "12:30" })
+			);
+			expect((out.endedAt as number) - (out.startedAt as number)).toBe(
+				3.5 * 3600
+			);
+		});
+
+		it("does not roll forward when start and end are equal (SA2-157)", () => {
+			const out = buildCreatePayload(
+				cashValues({ startTime: "20:00", endTime: "20:00" })
+			);
+			expect(out.endedAt).toBe(out.startedAt);
+		});
 	});
 
 	describe("buildUpdatePayload", () => {
@@ -460,6 +487,16 @@ describe("pure helpers", () => {
 				id: "s1",
 			}) as Record<string, unknown>;
 			expect(tourney.ruleName).toBe("Weekly Deepstack");
+		});
+
+		it("rolls the end time forward a day for a day-crossing update (SA2-157)", () => {
+			const out = buildUpdatePayload({
+				...cashValues({ startTime: "23:30", endTime: "01:00" }),
+				id: "s1",
+			}) as Record<string, unknown>;
+			expect((out.endedAt as number) - (out.startedAt as number)).toBe(
+				1.5 * 3600
+			);
 		});
 
 		it("forwards cash min/max buy-in edits", () => {
