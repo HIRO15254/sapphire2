@@ -4,7 +4,7 @@ import {
 	tournamentChipPurchase,
 } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -190,7 +190,14 @@ export const tournamentChipPurchaseRouter = router({
 					ctx.db
 						.update(tournamentChipPurchase)
 						.set({ sortOrder: index })
-						.where(eq(tournamentChipPurchase.id, id))
+						// Scope to the owned tournament so a foreign id matches nothing
+						// (write-IDOR, SA2-123).
+						.where(
+							and(
+								eq(tournamentChipPurchase.id, id),
+								eq(tournamentChipPurchase.tournamentId, input.tournamentId)
+							)
+						)
 				)
 			);
 

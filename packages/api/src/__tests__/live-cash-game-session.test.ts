@@ -1,6 +1,8 @@
 import { currency } from "@sapphire2/db/schema/currency";
+import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
@@ -240,6 +242,125 @@ describe("liveCashGameSession.update ownership validation (SA2-102)", () => {
 		]);
 		await expect(
 			makeCaller(OWNER, rows).update({ id: "s1", memo: "note" })
+		).resolves.toBeDefined();
+	});
+});
+
+describe("liveCashGameSession.create ring game ownership (SA2-174)", () => {
+	it("accepts a ring game whose room is owned by the caller", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[
+				ringGame,
+				[{ id: "rg-1", roomId: "room-1", minBuyIn: null, maxBuyIn: null }],
+			],
+			[room, [{ id: "room-1", userId: OWNER }]],
+			[sessionCashDetail, []],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).create({ initialBuyIn: 1000, ringGameId: "rg-1" })
+		).resolves.toEqual(expect.objectContaining({ id: expect.any(String) }));
+	});
+
+	it("rejects a ring game whose room belongs to another user with FORBIDDEN", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[
+				ringGame,
+				[{ id: "rg-1", roomId: "room-1", minBuyIn: null, maxBuyIn: null }],
+			],
+			[room, [{ id: "room-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).create({ initialBuyIn: 0, ringGameId: "rg-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects a ring game with a null roomId (auto-generated row) with FORBIDDEN", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[
+				ringGame,
+				[{ id: "rg-1", roomId: null, minBuyIn: null, maxBuyIn: null }],
+			],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).create({ initialBuyIn: 0, ringGameId: "rg-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects a non-existent ring game with NOT_FOUND", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[ringGame, []],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).create({ initialBuyIn: 0, ringGameId: "rg-x" }),
+			"NOT_FOUND"
+		);
+	});
+});
+
+describe("liveCashGameSession.update ring game ownership (SA2-174)", () => {
+	it("accepts a ring game whose room is owned by the caller", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[ringGame, [{ id: "rg-1", roomId: "room-1", currencyId: null }]],
+			[room, [{ id: "room-1", userId: OWNER }]],
+			[sessionCashDetail, []],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).update({ id: "s1", ringGameId: "rg-1" })
+		).resolves.toBeDefined();
+	});
+
+	it("rejects a ring game whose room belongs to another user with FORBIDDEN", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[ringGame, [{ id: "rg-1", roomId: "room-1", currencyId: null }]],
+			[room, [{ id: "room-1", userId: OTHER }]],
+			[sessionCashDetail, []],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).update({ id: "s1", ringGameId: "rg-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects a ring game with a null roomId (auto-generated row) with FORBIDDEN", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[ringGame, [{ id: "rg-1", roomId: null, currencyId: null }]],
+			[sessionCashDetail, []],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).update({ id: "s1", ringGameId: "rg-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects a non-existent ring game with NOT_FOUND", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[ringGame, []],
+			[sessionCashDetail, []],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).update({ id: "s1", ringGameId: "rg-x" }),
+			"NOT_FOUND"
+		);
+	});
+
+	it("clears ringGameId with null without an ownership error", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[ringGame, [{ id: "rg-1", roomId: null, currencyId: null }]],
+			[sessionCashDetail, []],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).update({ id: "s1", ringGameId: null })
 		).resolves.toBeDefined();
 	});
 });

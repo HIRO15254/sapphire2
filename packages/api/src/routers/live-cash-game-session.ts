@@ -21,7 +21,11 @@ import {
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
-import { resolveCashRuleSnapshot, validateLiveLinkOwnership } from "./session";
+import {
+	resolveCashRuleSnapshot,
+	validateEntityOwnership,
+	validateLiveLinkOwnership,
+} from "./session";
 
 const DEFAULT_LIMIT = 20;
 
@@ -365,6 +369,14 @@ export const liveCashGameSessionRouter = router({
 			}
 
 			if (input.ringGameId) {
+				// Verify ring-game ownership BEFORE any ring_game read so a caller
+				// cannot probe another user's config via the buy-in bounds (SA2-174).
+				await validateEntityOwnership(
+					ctx.db,
+					"ringGame",
+					input.ringGameId,
+					userId
+				);
 				const [foundRingGame] = await ctx.db
 					.select({
 						minBuyIn: ringGame.minBuyIn,
@@ -485,6 +497,13 @@ export const liveCashGameSessionRouter = router({
 			if (input.ringGameId === null) {
 				cashDetailUpdate.ringGameId = null;
 			} else if (input.ringGameId !== undefined) {
+				// Verify ring-game ownership BEFORE the snapshot read (SA2-174).
+				await validateEntityOwnership(
+					ctx.db,
+					"ringGame",
+					input.ringGameId,
+					userId
+				);
 				const resolvedRoomId =
 					updateData.roomId === undefined ? existing.roomId : updateData.roomId;
 				const resolvedCurrencyId =
