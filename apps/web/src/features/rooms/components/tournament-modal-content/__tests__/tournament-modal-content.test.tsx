@@ -75,4 +75,22 @@ describe("TournamentModalContent", () => {
 			"tournament-edit-form"
 		);
 	});
+
+	it("keeps the tournament form mounted when the Structure tab is active so the external Save button still submits", async () => {
+		const user = userEvent.setup();
+		render(
+			<TournamentModalContent
+				formId="tournament-test-form"
+				initialBlindLevels={[]}
+				onSave={vi.fn()}
+			/>
+		);
+		await user.click(screen.getByRole("tab", { name: "Structure" }));
+		// The Structure tab content is now shown...
+		expect(screen.getByTestId("blind-structure")).toBeInTheDocument();
+		// ...but the Details form must remain in the DOM: the FormSheet Save
+		// button submits it via `form={formId}`, which resolves nothing if the
+		// form has been unmounted (SA2-97).
+		expect(screen.getByTestId("tournament-form")).toBeInTheDocument();
+	});
 });

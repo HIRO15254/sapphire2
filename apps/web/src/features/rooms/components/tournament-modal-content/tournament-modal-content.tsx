@@ -73,7 +73,19 @@ export function TournamentModalContent({
 					<TabsTrigger value="details">Details</TabsTrigger>
 					<TabsTrigger value="structure">Structure</TabsTrigger>
 				</TabsList>
-				<TabsContent value="details">
+				{/*
+				 * forceMount keeps the `<form id={formId}>` in the DOM while the
+				 * Structure tab is active. Otherwise Radix unmounts this panel and
+				 * the FormSheet Save button (which submits via `form={formId}`)
+				 * resolves nothing, so saving silently fails from the Structure tab
+				 * (SA2-97). `data-[state=inactive]:hidden` hides it while inactive
+				 * since forceMount renders inactive content without the `hidden` attr.
+				 */}
+				<TabsContent
+					className="data-[state=inactive]:hidden"
+					forceMount
+					value="details"
+				>
 					<TournamentForm
 						defaultValues={initialFormValues}
 						formId={formId}
