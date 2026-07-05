@@ -145,17 +145,15 @@ async function resolveRingGameAssignment(
 		});
 	}
 
-	if (foundRingGame.roomId) {
-		const [foundRoom] = await db
-			.select()
-			.from(room)
-			.where(eq(room.id, foundRingGame.roomId));
-		if (!foundRoom || foundRoom.userId !== userId) {
-			throw new TRPCError({
-				code: "FORBIDDEN",
-				message: "You do not own this ring game",
-			});
-		}
+	// Ownership is anchored on ring_game.userId (SA2-181), not derived from the
+	// room, so null-roomId auto-generated snapshot rows are covered too. This
+	// mirrors the caller's pre-check (validateEntityOwnership("ringGame", …)) as
+	// defense-in-depth and keeps the ownership model unified.
+	if (foundRingGame.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
+		});
 	}
 
 	if (
