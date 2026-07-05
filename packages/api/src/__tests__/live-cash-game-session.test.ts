@@ -247,13 +247,21 @@ describe("liveCashGameSession.update ownership validation (SA2-102)", () => {
 	});
 });
 
-describe("liveCashGameSession.create ring game ownership (SA2-174)", () => {
-	it("accepts a ring game whose room is owned by the caller", async () => {
+describe("liveCashGameSession.create ring game ownership (SA2-181)", () => {
+	it("accepts a ring game owned by the caller via userId", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
 			[
 				ringGame,
-				[{ id: "rg-1", roomId: "room-1", minBuyIn: null, maxBuyIn: null }],
+				[
+					{
+						id: "rg-1",
+						roomId: "room-1",
+						userId: OWNER,
+						minBuyIn: null,
+						maxBuyIn: null,
+					},
+				],
 			],
 			[room, [{ id: "room-1", userId: OWNER }]],
 			[sessionCashDetail, []],
@@ -263,14 +271,43 @@ describe("liveCashGameSession.create ring game ownership (SA2-174)", () => {
 		).resolves.toEqual(expect.objectContaining({ id: expect.any(String) }));
 	});
 
-	it("rejects a ring game whose room belongs to another user with FORBIDDEN", async () => {
+	it("accepts a null-roomId auto-generated ring game owned via userId", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
 			[
 				ringGame,
-				[{ id: "rg-1", roomId: "room-1", minBuyIn: null, maxBuyIn: null }],
+				[
+					{
+						id: "rg-1",
+						roomId: null,
+						userId: OWNER,
+						minBuyIn: null,
+						maxBuyIn: null,
+					},
+				],
 			],
-			[room, [{ id: "room-1", userId: OTHER }]],
+			[sessionCashDetail, []],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).create({ initialBuyIn: 1000, ringGameId: "rg-1" })
+		).resolves.toEqual(expect.objectContaining({ id: expect.any(String) }));
+	});
+
+	it("rejects a ring game owned by another user with FORBIDDEN", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[
+				ringGame,
+				[
+					{
+						id: "rg-1",
+						roomId: "room-1",
+						userId: OTHER,
+						minBuyIn: null,
+						maxBuyIn: null,
+					},
+				],
+			],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).create({ initialBuyIn: 0, ringGameId: "rg-1" }),
@@ -278,12 +315,20 @@ describe("liveCashGameSession.create ring game ownership (SA2-174)", () => {
 		);
 	});
 
-	it("rejects a ring game with a null roomId (auto-generated row) with FORBIDDEN", async () => {
+	it("rejects a legacy ring game with null userId with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
 			[
 				ringGame,
-				[{ id: "rg-1", roomId: null, minBuyIn: null, maxBuyIn: null }],
+				[
+					{
+						id: "rg-1",
+						roomId: null,
+						userId: null,
+						minBuyIn: null,
+						maxBuyIn: null,
+					},
+				],
 			],
 		]);
 		await expectTrpcCode(
@@ -304,11 +349,14 @@ describe("liveCashGameSession.create ring game ownership (SA2-174)", () => {
 	});
 });
 
-describe("liveCashGameSession.update ring game ownership (SA2-174)", () => {
-	it("accepts a ring game whose room is owned by the caller", async () => {
+describe("liveCashGameSession.update ring game ownership (SA2-181)", () => {
+	it("accepts a ring game owned by the caller via userId", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
-			[ringGame, [{ id: "rg-1", roomId: "room-1", currencyId: null }]],
+			[
+				ringGame,
+				[{ id: "rg-1", roomId: "room-1", userId: OWNER, currencyId: null }],
+			],
 			[room, [{ id: "room-1", userId: OWNER }]],
 			[sessionCashDetail, []],
 		]);
@@ -317,11 +365,27 @@ describe("liveCashGameSession.update ring game ownership (SA2-174)", () => {
 		).resolves.toBeDefined();
 	});
 
-	it("rejects a ring game whose room belongs to another user with FORBIDDEN", async () => {
+	it("accepts a null-roomId auto-generated ring game owned via userId", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
-			[ringGame, [{ id: "rg-1", roomId: "room-1", currencyId: null }]],
-			[room, [{ id: "room-1", userId: OTHER }]],
+			[
+				ringGame,
+				[{ id: "rg-1", roomId: null, userId: OWNER, currencyId: null }],
+			],
+			[sessionCashDetail, []],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).update({ id: "s1", ringGameId: "rg-1" })
+		).resolves.toBeDefined();
+	});
+
+	it("rejects a ring game owned by another user with FORBIDDEN", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[
+				ringGame,
+				[{ id: "rg-1", roomId: "room-1", userId: OTHER, currencyId: null }],
+			],
 			[sessionCashDetail, []],
 		]);
 		await expectTrpcCode(
@@ -330,10 +394,13 @@ describe("liveCashGameSession.update ring game ownership (SA2-174)", () => {
 		);
 	});
 
-	it("rejects a ring game with a null roomId (auto-generated row) with FORBIDDEN", async () => {
+	it("rejects a legacy ring game with null userId with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
-			[ringGame, [{ id: "rg-1", roomId: null, currencyId: null }]],
+			[
+				ringGame,
+				[{ id: "rg-1", roomId: null, userId: null, currencyId: null }],
+			],
 			[sessionCashDetail, []],
 		]);
 		await expectTrpcCode(
@@ -357,7 +424,10 @@ describe("liveCashGameSession.update ring game ownership (SA2-174)", () => {
 	it("clears ringGameId with null without an ownership error", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
-			[ringGame, [{ id: "rg-1", roomId: null, currencyId: null }]],
+			[
+				ringGame,
+				[{ id: "rg-1", roomId: null, userId: OWNER, currencyId: null }],
+			],
 			[sessionCashDetail, []],
 		]);
 		await expect(

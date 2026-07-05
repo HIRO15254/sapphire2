@@ -48,8 +48,15 @@ async function validateRingGameOwnership(
 		});
 	}
 
-	if (found.roomId) {
-		await validateRoomOwnership(db, found.roomId, userId);
+	// Ownership is now anchored on ring_game.userId (SA2-181). A null userId is a
+	// legacy/orphan row that predates the backfill and cannot be proven owned →
+	// FORBIDDEN. This closes the null-roomId IDOR gap the room-derived check left
+	// open for auto-generated snapshot rows.
+	if (found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
+		});
 	}
 
 	return found;
@@ -111,6 +118,7 @@ export const ringGameRouter = router({
 			await ctx.db.insert(ringGame).values({
 				id,
 				roomId: input.roomId,
+				userId,
 				name: input.name,
 				variant: input.variant,
 				blind1: input.blind1 ?? null,

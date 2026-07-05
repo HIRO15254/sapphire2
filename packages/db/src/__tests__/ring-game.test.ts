@@ -19,6 +19,7 @@ describe("RingGame schema", () => {
 		expect(columns.maxBuyIn).toBeDefined();
 		expect(columns.tableSize).toBeDefined();
 		expect(columns.currencyId).toBeDefined();
+		expect(columns.userId).toBeDefined();
 		expect(columns.memo).toBeDefined();
 		expect(columns.archivedAt).toBeDefined();
 		expect(columns.createdAt).toBeDefined();
@@ -38,6 +39,11 @@ describe("RingGame schema", () => {
 	it("roomId is nullable", () => {
 		const columns = getTableColumns(ringGame);
 		expect(columns.roomId.notNull).toBe(false);
+	});
+
+	it("userId is nullable (DB-level; app sets it on every insert, SA2-181)", () => {
+		const columns = getTableColumns(ringGame);
+		expect(columns.userId.notNull).toBe(false);
 	});
 
 	it("name is not null", () => {
@@ -128,8 +134,18 @@ describe("RingGame — FK cascade policies", () => {
 		expect(fkByColumn("currency_id")?.onDelete).toBe("set null");
 	});
 
-	it("has exactly 2 foreign keys", () => {
-		expect(config.foreignKeys).toHaveLength(2);
+	it("userId FK cascades on user deletion (SA2-181)", () => {
+		expect(fkByColumn("user_id")?.onDelete).toBe("cascade");
+	});
+
+	it("userId FK references the user id column (SA2-181)", () => {
+		const fk = fkByColumn("user_id")?.reference();
+		expect(fk?.foreignColumns.map((c) => c.name)).toEqual(["id"]);
+		expect(getTableConfig(fk?.foreignTable as never).name).toBe("user");
+	});
+
+	it("has exactly 3 foreign keys", () => {
+		expect(config.foreignKeys).toHaveLength(3);
 	});
 });
 
@@ -139,6 +155,10 @@ describe("RingGame — indexes", () => {
 
 	it("has roomId index for per-room ring-game listing", () => {
 		expect(idxNames).toContain("ringGame_roomId_idx");
+	});
+
+	it("has userId index for owner-scoped queries (SA2-181)", () => {
+		expect(idxNames).toContain("ringGame_userId_idx");
 	});
 
 	it("has no unique indexes (ring games can share names within a room)", () => {

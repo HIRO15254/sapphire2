@@ -24,6 +24,7 @@ export interface RingGame {
 	roomId: string | null;
 	tableSize: number | null;
 	updatedAt: string;
+	userId: string | null;
 	variant: string;
 }
 
@@ -64,6 +65,9 @@ function buildOptimisticRingGame(
 		tableSize: values.tableSize ?? null,
 		createdAt: new Date().toISOString(),
 		updatedAt: new Date().toISOString(),
+		// Optimistic placeholder; replaced by the server row (which carries the
+		// real userId) on settle.
+		userId: null,
 		variant: values.variant,
 	};
 }

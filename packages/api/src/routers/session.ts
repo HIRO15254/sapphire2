@@ -350,23 +350,17 @@ async function validateRingGameOwnershipBranch(
 	if (!found) {
 		throw new TRPCError({ code: "NOT_FOUND", message: "Ring game not found" });
 	}
-	// A ring game has no userId of its own; ownership is derived from its room.
-	// Auto-generated snapshot rows have a null roomId and are never
-	// user-selectable, so a caller-supplied id pointing at one cannot be proven
-	// owned → FORBIDDEN. Without this a caller could pass another user's
-	// ringGameId to snapshot their cash-game rule config (IDOR, SA2-174).
-	if (!found.roomId) {
+	// A ring game now carries its own userId (SA2-181), so ownership is a direct
+	// comparison — no longer derived from the room. A null userId is a
+	// legacy/orphan row that cannot be proven owned → FORBIDDEN. This supersedes
+	// the previous room-join and keeps null-roomId auto-generated snapshot rows
+	// correctly owned after the backfill, closing the IDOR gap (SA2-174/SA2-181).
+	if (found.userId !== userId) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message: "You do not own this ring game",
 		});
 	}
-	await assertRoomOwnedBy(
-		db,
-		found.roomId,
-		userId,
-		"You do not own this ring game"
-	);
 }
 
 async function validateEntityOwnership(
@@ -1865,7 +1859,8 @@ async function insertCashGameSessionDetail(
 	db: DbInstance,
 	sessionId: string,
 	input: z.infer<typeof cashGameCreateSchema>,
-	now: Date
+	now: Date,
+	userId: string
 ): Promise<void> {
 	let ringGameId = input.ringGameId ?? null;
 	const snapshot = await resolveCashRuleSnapshot(db, input);
@@ -1876,6 +1871,9 @@ async function insertCashGameSessionDetail(
 		await db.insert(ringGame).values({
 			id: ringGameId,
 			roomId: null,
+			// Auto-generated snapshot row: anchor ownership on the creating user
+			// (SA2-181) since it has no room to derive ownership from.
+			userId,
 			name: derivedName,
 			variant: snapshot.variant,
 			blind1: snapshot.blind1,
@@ -2213,7 +2211,7 @@ export const sessionRouter = router({
 			});
 
 			if (input.type === "cash_game") {
-				await insertCashGameSessionDetail(ctx.db, id, input, now);
+				await insertCashGameSessionDetail(ctx.db, id, input, now, userId);
 			} else {
 				await insertTournamentSessionDetail(ctx.db, id, input);
 			}

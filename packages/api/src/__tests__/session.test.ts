@@ -953,7 +953,7 @@ describe("validateEntityOwnership (tournament branch)", () => {
 	});
 });
 
-describe("validateEntityOwnership (ringGame branch) (SA2-174)", () => {
+describe("validateEntityOwnership (ringGame branch) (SA2-181)", () => {
 	const CALLER = "user-1";
 	const OTHER = "user-2";
 	const RING_GAME_ID = "rg-1";
@@ -971,43 +971,51 @@ describe("validateEntityOwnership (ringGame branch) (SA2-174)", () => {
 		});
 	}
 
-	it("resolves when the ring game's room is owned by the caller", async () => {
+	it("resolves when the ring game's userId matches the caller", async () => {
 		const { db, selectedTables } = mockDbFor({
-			ringGame: [{ id: RING_GAME_ID, roomId: ROOM_ID }],
-			room: [{ id: ROOM_ID, userId: CALLER }],
+			ringGame: [{ id: RING_GAME_ID, roomId: ROOM_ID, userId: CALLER }],
 		});
 		await expect(
 			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
 		).resolves.toBeUndefined();
-		// The room must be read to confirm ownership.
-		expect(selectedTables).toEqual(["ring_game", "room"]);
-	});
-
-	it("throws FORBIDDEN when the ring game's room belongs to another user", async () => {
-		const { db } = mockDbFor({
-			ringGame: [{ id: RING_GAME_ID, roomId: ROOM_ID }],
-			room: [{ id: ROOM_ID, userId: OTHER }],
-		});
-		await expect(
-			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
-		).rejects.toMatchObject({
-			code: "FORBIDDEN",
-			message: "You do not own this ring game",
-		});
-	});
-
-	it("throws FORBIDDEN when the ring game has a null roomId (auto-generated row)", async () => {
-		const { db, selectedTables } = mockDbFor({
-			ringGame: [{ id: RING_GAME_ID, roomId: null }],
-		});
-		await expect(
-			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
-		).rejects.toMatchObject({
-			code: "FORBIDDEN",
-			message: "You do not own this ring game",
-		});
-		// Ownership cannot be proven; must not fall through to reading a room.
+		// Ownership is a direct userId check; the room is never read (SA2-181).
 		expect(selectedTables).toEqual(["ring_game"]);
+	});
+
+	it("resolves for a null-roomId auto-generated row owned via userId", async () => {
+		const { db, selectedTables } = mockDbFor({
+			ringGame: [{ id: RING_GAME_ID, roomId: null, userId: CALLER }],
+		});
+		await expect(
+			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
+		).resolves.toBeUndefined();
+		expect(selectedTables).toEqual(["ring_game"]);
+	});
+
+	it("throws FORBIDDEN when the ring game belongs to another user", async () => {
+		const { db, selectedTables } = mockDbFor({
+			ringGame: [{ id: RING_GAME_ID, roomId: ROOM_ID, userId: OTHER }],
+		});
+		await expect(
+			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
+		});
+		// Must not fall through to reading a room.
+		expect(selectedTables).toEqual(["ring_game"]);
+	});
+
+	it("throws FORBIDDEN for a legacy row with a null userId", async () => {
+		const { db } = mockDbFor({
+			ringGame: [{ id: RING_GAME_ID, roomId: null, userId: null }],
+		});
+		await expect(
+			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
+		});
 	});
 
 	it("throws NOT_FOUND when the ring game does not exist", async () => {
@@ -1018,20 +1026,32 @@ describe("validateEntityOwnership (ringGame branch) (SA2-174)", () => {
 			code: "NOT_FOUND",
 			message: "Ring game not found",
 		});
-		// Must short-circuit before reading the room.
 		expect(selectedTables).toEqual(["ring_game"]);
 	});
+});
 
-	it("throws FORBIDDEN when the ring game's room row is missing", async () => {
-		const { db } = mockDbFor({
-			ringGame: [{ id: RING_GAME_ID, roomId: ROOM_ID }],
-			room: [],
+describe("session.create auto-generated ring game ownership (SA2-181)", () => {
+	const CALLER = "user-1";
+
+	it("stamps the creating user's id on the auto-generated ring_game", async () => {
+		const { db, inserted } = createChainableMockDb({ select: {} });
+		const caller = appRouter.createCaller({
+			session: { user: { id: CALLER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
 		});
-		await expect(
-			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
-		).rejects.toMatchObject({
-			code: "FORBIDDEN",
-			message: "You do not own this ring game",
+
+		const ringGameInserts = inserted.ring_game ?? [];
+		expect(ringGameInserts).toHaveLength(1);
+		expect(ringGameInserts[0]).toMatchObject({
+			userId: CALLER,
+			roomId: null,
 		});
 	});
 });

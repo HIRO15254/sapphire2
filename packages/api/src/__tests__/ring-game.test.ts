@@ -244,7 +244,7 @@ describe("ringGame.{archive,restore,delete} input validation", () => {
 
 describe("ringGame currency ownership (SA2-180)", () => {
 	const ownedRoom = { id: "room-1", userId: CUR_OWNER };
-	const ownedRingGame = { id: "rg-1", roomId: "room-1" };
+	const ownedRingGame = { id: "rg-1", roomId: "room-1", userId: CUR_OWNER };
 
 	function createRows(currencyRows: Rows) {
 		return new Map<unknown, Rows>([
@@ -315,4 +315,75 @@ describe("ringGame currency ownership (SA2-180)", () => {
 			caller.update({ id: "rg-1", currencyId: null })
 		).resolves.toBeDefined();
 	});
+});
+
+describe("ringGame.create sets userId to the caller (SA2-181)", () => {
+	it("stamps the created ring game with the caller's userId", async () => {
+		const rowsByTable = new Map<unknown, Rows>([
+			[room, [{ id: "room-1", userId: CUR_OWNER }]],
+			[ringGame, []],
+			[currency, []],
+		]);
+		const inserted: Record<string, unknown>[] = [];
+		const baseDb = createMockDb(rowsByTable);
+		const db = {
+			...baseDb,
+			insert: () => ({
+				values: (v: Record<string, unknown>) => {
+					inserted.push(v);
+					return Promise.resolve(undefined);
+				},
+			}),
+		};
+		const caller = appRouter.createCaller({
+			session: { user: { id: CUR_OWNER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).ringGame;
+
+		await caller.create({ roomId: "room-1", name: "RG" });
+
+		expect(inserted).toHaveLength(1);
+		expect(inserted[0]).toMatchObject({ userId: CUR_OWNER, roomId: "room-1" });
+	});
+});
+
+describe("validateRingGameOwnership via mutations (SA2-181)", () => {
+	function ringGameRows(rg: Rows) {
+		return new Map<unknown, Rows>([
+			[room, []],
+			[ringGame, rg],
+			[currency, []],
+		]);
+	}
+
+	for (const op of ["update", "archive", "restore", "delete"] as const) {
+		it(`${op} resolves for a ring game owned by the caller (userId match)`, async () => {
+			const caller = ringGameCaller(
+				CUR_OWNER,
+				ringGameRows([{ id: "rg-1", roomId: null, userId: CUR_OWNER }])
+			);
+			await expect(caller[op]({ id: "rg-1" })).resolves.toBeDefined();
+		});
+
+		it(`${op} throws FORBIDDEN for a ring game owned by another user`, async () => {
+			const caller = ringGameCaller(
+				CUR_OWNER,
+				ringGameRows([{ id: "rg-1", roomId: "room-1", userId: CUR_OTHER }])
+			);
+			await expectTrpcCode(caller[op]({ id: "rg-1" }), "FORBIDDEN");
+		});
+
+		it(`${op} throws FORBIDDEN for a legacy row with null userId`, async () => {
+			const caller = ringGameCaller(
+				CUR_OWNER,
+				ringGameRows([{ id: "rg-1", roomId: null, userId: null }])
+			);
+			await expectTrpcCode(caller[op]({ id: "rg-1" }), "FORBIDDEN");
+		});
+
+		it(`${op} throws NOT_FOUND when the ring game does not exist`, async () => {
+			const caller = ringGameCaller(CUR_OWNER, ringGameRows([]));
+			await expectTrpcCode(caller[op]({ id: "missing" }), "NOT_FOUND");
+		});
+	}
 });

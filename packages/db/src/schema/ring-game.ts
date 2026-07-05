@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { user } from "./auth";
 import { currency } from "./currency";
 import { room } from "./room";
 
@@ -8,6 +9,14 @@ export const ringGame = sqliteTable(
 	{
 		id: text("id").primaryKey(),
 		roomId: text("room_id").references(() => room.id, {
+			onDelete: "cascade",
+		}),
+		// Real ownership anchor (SA2-181). Nullable at the DB level so the ADD
+		// COLUMN migration is safe on populated tables; the app sets it on every
+		// insert and ownership treats null as not-owned. This closes the IDOR gap
+		// for auto-generated snapshot rows whose roomId is null and therefore had
+		// no ownership anchor under the room-derived model.
+		userId: text("user_id").references(() => user.id, {
 			onDelete: "cascade",
 		}),
 		name: text("name").notNull(),
@@ -32,13 +41,20 @@ export const ringGame = sqliteTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [index("ringGame_roomId_idx").on(table.roomId)]
+	(table) => [
+		index("ringGame_roomId_idx").on(table.roomId),
+		index("ringGame_userId_idx").on(table.userId),
+	]
 );
 
 export const ringGameRelations = relations(ringGame, ({ one }) => ({
 	room: one(room, {
 		fields: [ringGame.roomId],
 		references: [room.id],
+	}),
+	user: one(user, {
+		fields: [ringGame.userId],
+		references: [user.id],
 	}),
 	currency: one(currency, {
 		fields: [ringGame.currencyId],
