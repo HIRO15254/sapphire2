@@ -1,3 +1,7 @@
+import { currency } from "@sapphire2/db/schema/currency";
+import { room } from "@sapphire2/db/schema/room";
+import { gameSession } from "@sapphire2/db/schema/session";
+import { TRPCError } from "@trpc/server";
 import { describe, expect, it, vi } from "vitest";
 import { t } from "../index";
 import { appRouter } from "../routers";
@@ -65,6 +69,234 @@ function callerFor(db: unknown, userId: string) {
 		db,
 	} as never);
 }
+
+type Rows = Record<string, unknown>[];
+
+/**
+ * Minimal drizzle-shaped mock db: `select().from(t).where().limit()` chains
+ * resolve to the rows registered for table `t`; `insert`/`update`/`delete`
+ * resolve to no-ops. Keyed by the imported schema object reference so the
+ * ownership `select().from(room|currency)` reads the seeded owner rows.
+ */
+type ChainablePromise = Promise<Rows> & Record<string, () => ChainablePromise>;
+
+function createMockDb(tableRows: Map<unknown, Rows>) {
+	const makeResult = (table: unknown): ChainablePromise => {
+		const promise = Promise.resolve(
+			tableRows.get(table) ?? []
+		) as ChainablePromise;
+		const same = () => promise;
+		for (const method of [
+			"where",
+			"limit",
+			"orderBy",
+			"groupBy",
+			"innerJoin",
+			"leftJoin",
+		]) {
+			promise[method] = same;
+		}
+		return promise;
+	};
+	return {
+		select: () => ({ from: (table: unknown) => makeResult(table) }),
+		insert: () => ({ values: () => Promise.resolve(undefined) }),
+		update: () => ({
+			set: () => ({ where: () => Promise.resolve(undefined) }),
+		}),
+		delete: () => ({ where: () => Promise.resolve(undefined) }),
+	};
+}
+
+function makeCaller(userId: string, tableRows: Map<unknown, Rows>) {
+	return appRouter.createCaller({
+		session: { user: { id: userId } },
+		db: createMockDb(tableRows),
+	} as unknown as Parameters<typeof appRouter.createCaller>[0])
+		.liveTournamentSession;
+}
+
+async function expectTrpcCode(
+	promise: Promise<unknown>,
+	code: TRPCError["code"]
+): Promise<void> {
+	try {
+		await promise;
+	} catch (error) {
+		expect(error).toBeInstanceOf(TRPCError);
+		expect((error as TRPCError).code).toBe(code);
+		return;
+	}
+	throw new Error(`expected the call to throw ${code} but it resolved`);
+}
+
+const OWNER = "user-1";
+const OTHER = "user-2";
+
+const ownedSession = {
+	id: "s1",
+	userId: OWNER,
+	kind: "tournament",
+	status: "active",
+	source: "live",
+	roomId: null,
+	currencyId: null,
+};
+
+describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
+	it("accepts a room and currency owned by the caller", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[room, [{ id: "room-1", userId: OWNER }]],
+			[currency, [{ id: "cur-1", userId: OWNER }]],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).create({ roomId: "room-1", currencyId: "cur-1" })
+		).resolves.toEqual(expect.objectContaining({ id: expect.any(String) }));
+	});
+
+	it("rejects a room owned by another user with FORBIDDEN", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[room, [{ id: "room-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).create({ roomId: "room-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects a currency owned by another user with FORBIDDEN", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[currency, [{ id: "cur-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).create({ currencyId: "cur-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects a non-existent room with NOT_FOUND", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[room, []],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).create({ roomId: "room-x" }),
+			"NOT_FOUND"
+		);
+	});
+
+	it("rejects a non-existent currency with NOT_FOUND", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[currency, []],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).create({ currencyId: "cur-x" }),
+			"NOT_FOUND"
+		);
+	});
+
+	it("does not validate ownership when room/currency are omitted", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, []],
+			[room, [{ id: "room-1", userId: OTHER }]],
+			[currency, [{ id: "cur-1", userId: OTHER }]],
+		]);
+		await expect(makeCaller(OWNER, rows).create({})).resolves.toEqual(
+			expect.objectContaining({ id: expect.any(String) })
+		);
+	});
+});
+
+describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
+	it("accepts a room and currency owned by the caller", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OWNER }]],
+			[currency, [{ id: "cur-1", userId: OWNER }]],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).update({
+				id: "s1",
+				roomId: "room-1",
+				currencyId: "cur-1",
+			})
+		).resolves.toBeDefined();
+	});
+
+	it("rejects a room owned by another user with FORBIDDEN", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).update({ id: "s1", roomId: "room-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects a currency owned by another user with FORBIDDEN", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[currency, [{ id: "cur-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).update({ id: "s1", currencyId: "cur-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects a non-existent room with NOT_FOUND", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, []],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).update({ id: "s1", roomId: "room-x" }),
+			"NOT_FOUND"
+		);
+	});
+
+	it("rejects a non-existent currency with NOT_FOUND", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[currency, []],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).update({ id: "s1", currencyId: "cur-x" }),
+			"NOT_FOUND"
+		);
+	});
+
+	it("clears roomId/currencyId with null without an ownership error", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OTHER }]],
+			[currency, [{ id: "cur-1", userId: OTHER }]],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).update({
+				id: "s1",
+				roomId: null,
+				currencyId: null,
+			})
+		).resolves.toBeDefined();
+	});
+
+	it("does not validate ownership when room/currency are omitted", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OTHER }]],
+			[currency, [{ id: "cur-1", userId: OTHER }]],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).update({ id: "s1", memo: "note" })
+		).resolves.toBeDefined();
+	});
+});
 
 describe("liveTournamentSession router", () => {
 	it("appRouter has liveTournamentSession namespace", () => {
