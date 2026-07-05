@@ -1,34 +1,10 @@
-import { currency } from "@sapphire2/db/schema/currency";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
-
-async function validateCurrencyOwnership(
-	db: Parameters<
-		Parameters<typeof protectedProcedure.query>[0]
-	>[0]["ctx"]["db"],
-	currencyId: string,
-	userId: string
-) {
-	const [found] = await db
-		.select()
-		.from(currency)
-		.where(eq(currency.id, currencyId));
-
-	if (!found) {
-		throw new TRPCError({ code: "NOT_FOUND", message: "Currency not found" });
-	}
-
-	if (found.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this currency",
-		});
-	}
-}
+import { validateEntityOwnership } from "./session";
 
 async function validateRoomOwnership(
 	db: Parameters<
@@ -123,7 +99,12 @@ export const ringGameRouter = router({
 			const userId = ctx.session.user.id;
 			await validateRoomOwnership(ctx.db, input.roomId, userId);
 			if (input.currencyId) {
-				await validateCurrencyOwnership(ctx.db, input.currencyId, userId);
+				await validateEntityOwnership(
+					ctx.db,
+					"currency",
+					input.currencyId,
+					userId
+				);
 			}
 
 			const id = crypto.randomUUID();
@@ -174,7 +155,12 @@ export const ringGameRouter = router({
 			const userId = ctx.session.user.id;
 			const found = await validateRingGameOwnership(ctx.db, input.id, userId);
 			if (input.currencyId) {
-				await validateCurrencyOwnership(ctx.db, input.currencyId, userId);
+				await validateEntityOwnership(
+					ctx.db,
+					"currency",
+					input.currencyId,
+					userId
+				);
 			}
 
 			const updateData: Partial<typeof found> = { updatedAt: new Date() };
