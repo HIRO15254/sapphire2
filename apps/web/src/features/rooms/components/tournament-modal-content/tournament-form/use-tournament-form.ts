@@ -94,12 +94,14 @@ interface UseTournamentFormOptions {
 		chipPurchases?: Array<{ name: string; cost: number; chips: number }>;
 		tags?: string[];
 	};
+	onInvalidSubmit?: () => void;
 	onRegisterLiveValues?: (getter: () => TournamentPartialFormValues) => void;
 	onSubmit: (values: TournamentFormValues) => void;
 }
 
 export function useTournamentForm({
 	defaultValues,
+	onInvalidSubmit,
 	onRegisterLiveValues,
 	onSubmit,
 }: UseTournamentFormOptions) {
@@ -146,6 +148,9 @@ export function useTournamentForm({
 		},
 		validators: {
 			onSubmit: tournamentFormSchema,
+		},
+		onSubmitInvalid: () => {
+			onInvalidSubmit?.();
 		},
 	});
 
