@@ -11,7 +11,10 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "@/shared/components/ui/tabs";
-import { useTournamentModalContent } from "./use-tournament-modal-content";
+import {
+	type TournamentModalTab,
+	useTournamentModalContent,
+} from "./use-tournament-modal-content";
 
 export type TournamentPartialFormValues = Omit<
 	TournamentFormValues,
@@ -70,9 +73,7 @@ export function TournamentModalContent({
 				</Button>
 			) : null}
 			<Tabs
-				onValueChange={(value) =>
-					setActiveTab(value as "details" | "structure")
-				}
+				onValueChange={(value) => setActiveTab(value as TournamentModalTab)}
 				value={activeTab}
 			>
 				<TabsList className="w-full">
