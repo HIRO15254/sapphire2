@@ -36,7 +36,7 @@ bun run lint             # ultracite check
 bun run fix              # ultracite fix (auto-format & auto-fix)
 bun run check-types      # tsc --noEmit (all workspaces)
 bun run build            # build all workspaces
-bun run db:generate      # drizzle-kit generate
+bun run db:generate      # drizzle-kit generate — migrations are hand-written; see .claude/rules/db-migrations.md
 bun run db:migrate:local # apply migrations to local D1
 bun run db:studio        # drizzle-kit studio
 ```
@@ -169,6 +169,7 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Table / Badge / Avatar / RadioGroup), mobile = Drawer, tabler-icons. |
 | `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
 | `web-theme.md` | `apps/web/**` | Sapphire 2 Design System (single theme): token format, semantic colors, typography roles, sheet patterns. |
+| `db-migrations.md` | `packages/db/**` | Migrations are hand-written & applied by `wrangler`; how the Drizzle `meta/` ledger works and how to keep `db:generate` from drifting. |
 
 ## Maintaining This File (Self-Evolution)
 
