@@ -37,6 +37,11 @@ current schema, chained onto `0012`. There are intentionally no per-migration sn
 snapshots do not exist and were not fabricated. `db:generate` only ever reads the newest snapshot,
 so this is sufficient and correct.
 
+> Caveat: `drizzle-kit check` (not currently in CI) validates that a snapshot exists for every
+> journal entry and would flag the intentionally-absent 0013–0033 snapshots. Do not add it to CI
+> without first regenerating a full snapshot chain (or dropping the unbacked journal entries) — the
+> re-baseline above deliberately trades a complete snapshot history for a lean, honest ledger.
+
 ## Keeping the ledger from drifting again
 
 `bun run db:generate` must report **"No schema changes, nothing to migrate"** whenever
