@@ -39,4 +39,21 @@ describe("useTournamentModalContent", () => {
 		});
 		expect(result.current.localBlindLevels).toEqual([ROW]);
 	});
+
+	it("defaults activeTab to details", () => {
+		const { result } = renderHook(() =>
+			useTournamentModalContent({ initialBlindLevels: [] })
+		);
+		expect(result.current.activeTab).toBe("details");
+	});
+
+	it("setActiveTab switches the active tab", () => {
+		const { result } = renderHook(() =>
+			useTournamentModalContent({ initialBlindLevels: [] })
+		);
+		act(() => {
+			result.current.setActiveTab("structure");
+		});
+		expect(result.current.activeTab).toBe("structure");
+	});
 });
