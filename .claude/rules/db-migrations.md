@@ -6,26 +6,41 @@ paths:
 # Database Migrations (Drizzle + Cloudflare D1)
 
 Migrations live in [`packages/db/src/migrations`](../../packages/db/src/migrations) as numbered
-`NNNN_name.sql` files. **They are hand-written and applied by `wrangler d1 migrations apply`**
-(`bun run db:migrate:local` / `db:migrate:remote`), which reads the `.sql` files directly and
-tracks applied migrations in D1's own `d1_migrations` table. Wrangler never looks at Drizzle's
-`meta/` folder.
+`NNNN_name.sql` files, applied by `wrangler d1 migrations apply` (`bun run db:migrate:local` /
+`db:migrate:remote`), which reads the `.sql` files directly and tracks applied migrations in D1's
+own `d1_migrations` table. Wrangler never looks at Drizzle's `meta/` folder.
 
-## Why migrations are hand-authored
+## How to author a migration
 
-Many migrations do things `drizzle-kit generate` cannot express: data backfills
-(`0018_backfill_session_start_timer`, `0034_backfill_day_crossing_session_end`), event-model
-rewrites (`0013`, `0019`–`0022`), and table renames with data moves
-(`0029_rename_store_to_room`). Those must be written by hand. Never assume a migration was
-machine-generated.
+**`bun run db:generate` is the default path for schema-shape changes.** After the SA2-158
+re-baseline the `meta/` ledger mirrors the live schema, so `drizzle-kit generate` produces a correct
+diff and — critically — writes the updated snapshot for you, which is what keeps the ledger from
+drifting again. Reach for it first for additive/structural changes: new column
+(`ALTER TABLE … ADD COLUMN`), new table, new index. Drizzle's `--> statement-breakpoint` markers are
+comments, so `wrangler` applies the generated SQL as-is.
 
-## The Drizzle `meta/` ledger and `db:generate`
+**Hand-write (or heavily edit the generated SQL) only when `drizzle-kit generate` can't express the
+change or would do it unsafely:**
+
+- **Data backfills / transforms** — `UPDATE` / `INSERT` / event-model rewrites
+  (`0018_backfill_session_start_timer`, `0034_backfill_day_crossing_session_end`, `0019`–`0022`).
+  Drizzle emits schema diffs only.
+- **Renames that must preserve data** — `0029_rename_store_to_room`. Drizzle tends to read a rename
+  as drop-then-create (data loss) unless you answer its interactive prompts.
+- **Column removal / type changes on SQLite/D1** — Drizzle emulates these by recreating the table
+  (`__new_*` → copy → drop → rename); it works but review it carefully against foreign keys and data
+  volume.
+
+When you hand-write a migration, still run `db:generate` afterward (see below) so the snapshot stays
+in sync — let it write the fresh snapshot, then replace/delete its auto `.sql` so `wrangler` applies
+your intended SQL.
+
+## The Drizzle `meta/` ledger
 
 `bun run db:generate` (`drizzle-kit generate`) does **not** apply anything — it diffs the current
-`src/schema/*.ts` against the newest snapshot in `meta/` and writes a candidate migration + a new
-snapshot. It exists so schema-only changes can be scaffolded and, more importantly, so the ledger's
-newest snapshot stays a faithful mirror of the live schema (Drizzle Studio and any future diff read
-it).
+`src/schema/*.ts` against the newest snapshot in `meta/` and writes a migration + a new snapshot.
+Besides scaffolding schema changes, it keeps the ledger's newest snapshot a faithful mirror of the
+live schema (Drizzle Studio and any future diff read it).
 
 The ledger drifted once (SA2-158): `meta/_journal.json` and the snapshots froze at
 `0012_boring_vivisector` while 0013–0034 were added by hand. Diffing the real schema against a
@@ -45,17 +60,18 @@ so this is sufficient and correct.
 ## Keeping the ledger from drifting again
 
 `bun run db:generate` must report **"No schema changes, nothing to migrate"** whenever
-`src/schema/*.ts` and the migrations are in sync. Treat a non-empty diff as a signal, not a
-finished migration:
+`src/schema/*.ts` and the migrations are in sync. The workflows:
 
-1. Write (or edit) the migration `.sql` by hand — pick the next `NNNN` prefix.
-2. Run `bun run db:generate`. If it reports changes, the newest snapshot is now stale relative to
-   your schema edits. Let it write the fresh snapshot + journal entry, then **replace its
-   auto-generated `.sql` with your hand-written migration** (or delete the auto `.sql` if your
-   hand-written one already covers it) so `wrangler` still applies the intended SQL. The goal is a
-   `meta/` tip snapshot that matches the schema and a `.sql` that expresses the real (possibly
-   data-carrying) change.
-3. Re-run `bun run db:generate` and confirm it prints "No schema changes".
+- **Schema-shape change** — edit `src/schema/*.ts`, run `bun run db:generate`, keep the generated
+  `.sql` + snapshot. Done.
+- **Data / rename / destructive change** — hand-write the `.sql` (next `NNNN` prefix), then run
+  `bun run db:generate`; let it write the fresh snapshot + journal entry, and **replace its
+  auto-generated `.sql` with your hand-written migration** (or delete the auto `.sql` if yours
+  already covers it) so `wrangler` applies the intended SQL. The goal is a `meta/` tip snapshot that
+  matches the schema and a `.sql` that expresses the real (possibly data-carrying) change.
+
+Either way, re-run `bun run db:generate` last and confirm it prints "No schema changes" — a
+non-empty diff means the snapshot is out of sync and the ledger is drifting.
 
 If you ever need to re-baseline again, generate a clean current-schema snapshot from an empty
 `meta/` baseline (`drizzle-kit generate` with an empty `_journal.json` produces one snapshot of the
