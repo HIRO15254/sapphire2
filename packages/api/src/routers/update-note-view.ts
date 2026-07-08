@@ -1,6 +1,6 @@
 import { updateNoteView } from "@sapphire2/db/schema/update-note-view";
 import { and, desc, eq } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 
 export const updateNoteViewRouter = router({

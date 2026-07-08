@@ -7,7 +7,7 @@ import domino from "@mixmark-io/domino";
 import { TRPCError } from "@trpc/server";
 import TurndownService from "turndown";
 import { tables } from "turndown-plugin-gfm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
 	TABLE_PLAYER_SOURCE_APP_IDS,

@@ -5,7 +5,7 @@ import {
 } from "@sapphire2/db/schema/currency";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 
 export const transactionTypeRouter = router({

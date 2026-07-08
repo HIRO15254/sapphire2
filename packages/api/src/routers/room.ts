@@ -1,7 +1,7 @@
 import { room } from "@sapphire2/db/schema/room";
 import { TRPCError } from "@trpc/server";
 import { asc, desc, eq, sql } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 
 // Coordinates move as a pair: latitude and longitude must both be omitted

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import z from "zod";
 
 // Session statuses
 export const SESSION_STATUSES = ["active", "paused", "completed"] as const;

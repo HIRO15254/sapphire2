@@ -4,7 +4,7 @@ import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
 import { and, eq, gte, lte } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
 	computeCashGamePL,

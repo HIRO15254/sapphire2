@@ -23,7 +23,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 
 const PAGE_SIZE = 20;
