@@ -707,16 +707,84 @@ describe("payload schema edge cases", () => {
 			).toThrow();
 		});
 
-		it("rejects wins > trials (logical boundary, may be schema or app-level)", () => {
+		it("rejects wins > trials (single trial)", () => {
 			const result = allInPayload.safeParse({
 				potSize: 1000,
 				trials: 1,
 				equity: 50,
 				wins: 2,
 			});
-			// If schema enforces it, should fail. If not, still boundary-tests the shape.
-			// This test accepts either behavior to match the schema's actual rules.
-			expect(typeof result.success).toBe("boolean");
+			expect(result.success).toBe(false);
+		});
+
+		it("rejects wins greater than trials by exactly one (off-by-one boundary)", () => {
+			const result = allInPayload.safeParse({
+				potSize: 1000,
+				trials: 3,
+				equity: 50,
+				wins: 4,
+			});
+			expect(result.success).toBe(false);
+		});
+
+		it("accepts a fractional wins (a chopped pot counts as a partial win)", () => {
+			const result = allInPayload.parse({
+				potSize: 1000,
+				trials: 3,
+				equity: 50,
+				wins: 1.5,
+			});
+			expect(result.wins).toBe(1.5);
+		});
+
+		it("rejects a fractional wins that still exceeds trials", () => {
+			const result = allInPayload.safeParse({
+				potSize: 1000,
+				trials: 1,
+				equity: 50,
+				wins: 1.5,
+			});
+			expect(result.success).toBe(false);
+		});
+
+		it("rejects a negative wins", () => {
+			const result = allInPayload.safeParse({
+				potSize: 1000,
+				trials: 3,
+				equity: 50,
+				wins: -1,
+			});
+			expect(result.success).toBe(false);
+		});
+
+		it("accepts wins equal to trials (upper boundary)", () => {
+			const result = allInPayload.parse({
+				potSize: 1000,
+				trials: 3,
+				equity: 50,
+				wins: 3,
+			});
+			expect(result.wins).toBe(3);
+		});
+
+		it("accepts wins less than trials", () => {
+			const result = allInPayload.parse({
+				potSize: 1000,
+				trials: 3,
+				equity: 50,
+				wins: 1,
+			});
+			expect(result.wins).toBe(1);
+		});
+
+		it("accepts wins = 0 with trials = 1 (lower boundary)", () => {
+			const result = allInPayload.parse({
+				potSize: 1000,
+				trials: 1,
+				equity: 50,
+				wins: 0,
+			});
+			expect(result.wins).toBe(0);
 		});
 
 		it("accepts equity exactly at 0 and 100", () => {

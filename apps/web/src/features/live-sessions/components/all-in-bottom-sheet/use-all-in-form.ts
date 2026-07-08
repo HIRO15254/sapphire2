@@ -1,6 +1,7 @@
 import { useForm } from "@tanstack/react-form";
 import { useEffect } from "react";
 import z from "zod";
+import { refineWinsNotExceedingTrials } from "@/features/live-sessions/utils/all-in-validation";
 import { requiredNumericString } from "@/shared/lib/form-fields";
 
 interface AllIn {
@@ -17,12 +18,18 @@ const DEFAULT_VALUES = {
 	wins: "0",
 };
 
-const allInSchema = z.object({
-	potSize: requiredNumericString({ min: 0 }),
-	trials: requiredNumericString({ integer: true, min: 1 }),
-	equity: requiredNumericString({ min: 0, max: 100 }),
-	wins: requiredNumericString({ min: 0 }),
-});
+// `wins <= trials` is enforced through the shared refineWinsNotExceedingTrials so
+// the create sheet and the timeline editor can't drift, mirroring the
+// server-side allInPayload refine (SA2-156). `wins` may be fractional (a chopped
+// pot counts as a partial win), so only the upper bound is checked.
+const allInSchema = z
+	.object({
+		potSize: requiredNumericString({ min: 0 }),
+		trials: requiredNumericString({ integer: true, min: 1 }),
+		equity: requiredNumericString({ min: 0, max: 100 }),
+		wins: requiredNumericString({ min: 0 }),
+	})
+	.superRefine(refineWinsNotExceedingTrials);
 
 function toFormDefaults(initial: AllIn | undefined) {
 	if (!initial) {
