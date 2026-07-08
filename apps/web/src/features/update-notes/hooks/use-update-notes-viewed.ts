@@ -28,14 +28,24 @@ export function useUpdateNotesViewed() {
 		})
 	);
 
+	const markViewed = (version: string) => {
+		if (viewedVersions.has(version)) {
+			return;
+		}
+		setOptimisticallyViewed((prev) => new Set([...prev, version]));
+		markViewedMutation.mutate({ version });
+	};
+
 	const handleAccordionChange = (value: string[]) => {
 		for (const version of value) {
-			if (!viewedVersions.has(version)) {
-				setOptimisticallyViewed((prev) => new Set([...prev, version]));
-				markViewedMutation.mutate({ version });
-			}
+			markViewed(version);
 		}
 	};
 
-	return { viewedVersions, handleAccordionChange };
+	return {
+		viewedVersions,
+		isViewedListLoaded: viewedList !== undefined,
+		markViewed,
+		handleAccordionChange,
+	};
 }

@@ -1,13 +1,13 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createElement, type ReactNode } from "react";
+import { createElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
 	latestVersion: "v3.2.2" as string | null,
-	viewedList: [] as Array<{ id: string; version: string; viewedAt: number }>,
-	hang: false,
+	viewedVersions: new Set<string>(),
+	isViewedListLoaded: true,
+	markViewed: vi.fn(),
 }));
 
 vi.mock("@/features/update-notes/constants", () => ({
@@ -17,24 +17,13 @@ vi.mock("@/features/update-notes/constants", () => ({
 	UPDATE_NOTES: [],
 }));
 
-const listKey = ["updateNoteView", "list"];
-
-vi.mock("@/utils/trpc", () => ({
-	trpc: {
-		updateNoteView: {
-			list: {
-				queryOptions: () => ({
-					queryKey: listKey,
-					queryFn: () =>
-						state.hang
-							? new Promise(() => {
-									/* never resolves — simulates the loading state */
-								})
-							: Promise.resolve(state.viewedList),
-				}),
-			},
-		},
-	},
+vi.mock("@/features/update-notes/hooks/use-update-notes-viewed", () => ({
+	useUpdateNotesViewed: () => ({
+		viewedVersions: state.viewedVersions,
+		isViewedListLoaded: state.isViewedListLoaded,
+		markViewed: state.markViewed,
+		handleAccordionChange: vi.fn(),
+	}),
 }));
 
 import {
@@ -54,105 +43,77 @@ function Probe() {
 	);
 }
 
-function createClient(): QueryClient {
-	return new QueryClient({
-		defaultOptions: {
-			queries: { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY },
-		},
-	});
-}
-
-function renderProvider(client: QueryClient) {
-	return render(
-		createElement(
-			QueryClientProvider,
-			{ client },
-			createElement(UpdateNotesProvider, null, createElement(Probe))
-		) as ReactNode
-	);
+function renderProvider() {
+	return render(createElement(UpdateNotesProvider, null, createElement(Probe)));
 }
 
 describe("UpdateNotesProvider auto-open", () => {
 	beforeEach(() => {
 		state.latestVersion = "v3.2.2";
-		state.viewedList = [];
-		state.hang = false;
+		state.viewedVersions = new Set();
+		state.isViewedListLoaded = true;
+		state.markViewed.mockClear();
 	});
 
-	it("auto-opens for a user with no view records once the list loads", async () => {
-		state.viewedList = [];
-		const qc = createClient();
-		renderProvider(qc);
+	it("auto-opens for a user who has not viewed the latest release", () => {
+		state.viewedVersions = new Set();
+		renderProvider();
 
-		await waitFor(() =>
-			expect(screen.getByTestId("state")).toHaveTextContent("open")
-		);
+		expect(screen.getByTestId("state")).toHaveTextContent("open");
 	});
 
-	it("auto-opens when the user has viewed older versions but not the latest", async () => {
-		state.viewedList = [
-			{ id: "1", version: "v3.2.1", viewedAt: 2 },
-			{ id: "2", version: "v3.2.0", viewedAt: 1 },
-		];
-		const qc = createClient();
-		renderProvider(qc);
+	it("auto-opens when the user has viewed older versions but not the latest", () => {
+		state.viewedVersions = new Set(["v3.2.1", "v3.2.0"]);
+		renderProvider();
 
-		await waitFor(() =>
-			expect(screen.getByTestId("state")).toHaveTextContent("open")
-		);
+		expect(screen.getByTestId("state")).toHaveTextContent("open");
 	});
 
-	it("stays closed when the user has already viewed the latest version", () => {
-		state.viewedList = [{ id: "1", version: "v3.2.2", viewedAt: 1 }];
-		const qc = createClient();
-		qc.setQueryData(listKey, state.viewedList);
-		renderProvider(qc);
+	it("marks the latest release viewed exactly once when it auto-opens", () => {
+		state.viewedVersions = new Set();
+		renderProvider();
 
-		// Data is seeded synchronously, so the auto-open effect has already run.
+		expect(state.markViewed).toHaveBeenCalledTimes(1);
+		expect(state.markViewed).toHaveBeenCalledWith("v3.2.2");
+	});
+
+	it("stays closed and does not mark anything when the latest is already viewed", () => {
+		state.viewedVersions = new Set(["v3.2.2"]);
+		renderProvider();
+
 		expect(screen.getByTestId("state")).toHaveTextContent("closed");
+		expect(state.markViewed).not.toHaveBeenCalled();
 	});
 
-	it("stays closed while the list is still loading (no flash-open before data)", async () => {
-		state.viewedList = [];
-		state.hang = true;
-		const qc = createClient();
-		renderProvider(qc);
+	it("stays closed while the viewed list is still loading", () => {
+		state.viewedVersions = new Set();
+		state.isViewedListLoaded = false;
+		renderProvider();
 
-		// The list never resolves; even though an empty list would open once
-		// loaded, the loading guard keeps it closed.
-		await waitFor(() =>
-			expect(screen.getByTestId("state")).toHaveTextContent("closed")
-		);
+		expect(screen.getByTestId("state")).toHaveTextContent("closed");
+		expect(state.markViewed).not.toHaveBeenCalled();
 	});
 
-	it("stays closed when there is no published release (LATEST_VERSION null)", () => {
+	it("stays closed and does not mark when there is no published release", () => {
 		state.latestVersion = null;
-		state.viewedList = [];
-		const qc = createClient();
-		qc.setQueryData(listKey, state.viewedList);
-		renderProvider(qc);
+		state.viewedVersions = new Set();
+		renderProvider();
 
 		expect(screen.getByTestId("state")).toHaveTextContent("closed");
+		expect(state.markViewed).not.toHaveBeenCalled();
 	});
 
-	it("auto-opens only once — does not reopen after the user closes it and the list refetches", async () => {
-		state.viewedList = [];
-		const qc = createClient();
-		qc.setQueryData(listKey, state.viewedList);
-		renderProvider(qc);
+	it("auto-opens only once — does not reopen after the user closes it", async () => {
+		state.viewedVersions = new Set();
+		renderProvider();
 
 		expect(screen.getByTestId("state")).toHaveTextContent("open");
 
 		const user = userEvent.setup();
 		await user.click(screen.getByRole("button", { name: "close" }));
+
 		expect(screen.getByTestId("state")).toHaveTextContent("closed");
-
-		// A later cache update (e.g. after marking a note viewed) must not
-		// re-trigger the one-shot auto-open.
-		qc.setQueryData(listKey, [{ id: "1", version: "v3.2.2", viewedAt: 1 }]);
-
-		await waitFor(() =>
-			expect(screen.getByTestId("state")).toHaveTextContent("closed")
-		);
+		// markViewed fired once on the initial auto-open, not again.
+		expect(state.markViewed).toHaveBeenCalledTimes(1);
 	});
 });

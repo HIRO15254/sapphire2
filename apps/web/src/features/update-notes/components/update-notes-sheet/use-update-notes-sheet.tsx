@@ -1,8 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useState } from "react";
 import { LATEST_VERSION } from "@/features/update-notes/constants";
+import { useUpdateNotesViewed } from "@/features/update-notes/hooks/use-update-notes-viewed";
 import { shouldAutoOpenUpdateNotes } from "@/features/update-notes/utils/should-auto-open-update-notes";
-import { trpc } from "@/utils/trpc";
 
 interface UpdateNotesSheetContextValue {
 	close: () => void;
@@ -21,27 +20,31 @@ export function UpdateNotesProvider({
 }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [hasAutoOpened, setHasAutoOpened] = useState(false);
-
-	const { data: viewedList } = useQuery(
-		trpc.updateNoteView.list.queryOptions()
-	);
+	const { viewedVersions, isViewedListLoaded, markViewed } =
+		useUpdateNotesViewed();
 
 	useEffect(() => {
 		// Wait until the viewed list has loaded before deciding once.
-		if (hasAutoOpened || viewedList === undefined) {
+		if (hasAutoOpened || !isViewedListLoaded) {
 			return;
 		}
 
 		if (
 			shouldAutoOpenUpdateNotes({
 				latestVersion: LATEST_VERSION,
-				viewedVersions: viewedList.map((view) => view.version),
+				viewedVersions: [...viewedVersions],
 			})
 		) {
 			setIsOpen(true);
+			// Record the latest release as viewed on auto-open so the sheet
+			// surfaces once per release instead of every session until the user
+			// happens to expand its accordion (SA2-185 review follow-up).
+			if (LATEST_VERSION) {
+				markViewed(LATEST_VERSION);
+			}
 		}
 		setHasAutoOpened(true);
-	}, [viewedList, hasAutoOpened]);
+	}, [isViewedListLoaded, viewedVersions, hasAutoOpened, markViewed]);
 
 	return (
 		<UpdateNotesSheetContext.Provider

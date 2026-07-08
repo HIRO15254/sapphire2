@@ -268,4 +268,76 @@ describe("useUpdateNotesViewed", () => {
 			});
 		});
 	});
+
+	describe("markViewed", () => {
+		it("marks an unviewed version optimistically and fires the mutation", async () => {
+			const qc = createClient();
+			qc.setQueryData(listKey, []);
+			trpcMocks.markViewed.mockResolvedValue({ id: "x" });
+			const { result } = renderHook(() => useUpdateNotesViewed(), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.markViewed("4.0.0");
+			});
+			await waitFor(() => {
+				expect(result.current.viewedVersions.has("4.0.0")).toBe(true);
+			});
+			expect(trpcMocks.markViewed).toHaveBeenCalledTimes(1);
+			expect(trpcMocks.markViewed).toHaveBeenCalledWith({ version: "4.0.0" });
+		});
+
+		it("skips the mutation when the version is already in the server viewed list", async () => {
+			const qc = createClient();
+			qc.setQueryData(listKey, [{ id: "1", version: "1.0.0" }]);
+			const { result } = renderHook(() => useUpdateNotesViewed(), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() =>
+				expect(result.current.viewedVersions.has("1.0.0")).toBe(true)
+			);
+			act(() => {
+				result.current.markViewed("1.0.0");
+			});
+			expect(trpcMocks.markViewed).not.toHaveBeenCalled();
+		});
+
+		it("skips the mutation on a repeated call for the same version (optimistic dedup)", async () => {
+			const qc = createClient();
+			qc.setQueryData(listKey, []);
+			trpcMocks.markViewed.mockResolvedValue({ id: "x" });
+			const { result } = renderHook(() => useUpdateNotesViewed(), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.markViewed("4.0.0");
+			});
+			await waitFor(() =>
+				expect(result.current.viewedVersions.has("4.0.0")).toBe(true)
+			);
+			act(() => {
+				result.current.markViewed("4.0.0");
+			});
+			expect(trpcMocks.markViewed).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	describe("isViewedListLoaded", () => {
+		it("is false before the list query resolves", () => {
+			const qc = createClient();
+			const { result } = renderHook(() => useUpdateNotesViewed(), {
+				wrapper: makeWrapper(qc),
+			});
+			expect(result.current.isViewedListLoaded).toBe(false);
+		});
+
+		it("is true once the list query has data (including an empty list)", async () => {
+			const qc = createClient();
+			qc.setQueryData(listKey, []);
+			const { result } = renderHook(() => useUpdateNotesViewed(), {
+				wrapper: makeWrapper(qc),
+			});
+			await waitFor(() => expect(result.current.isViewedListLoaded).toBe(true));
+		});
+	});
 });
