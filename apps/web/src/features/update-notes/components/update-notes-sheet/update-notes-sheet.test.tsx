@@ -9,9 +9,9 @@ const mocks = vi.hoisted(() => ({
 		open: vi.fn(),
 		close: vi.fn(),
 		setIsOpen: vi.fn(),
+		viewedVersions: new Set<string>(),
+		onAccordionChange: vi.fn(),
 	},
-	viewedList: [] as Array<{ id: string; version: string; viewedAt: Date }>,
-	markViewedMutate: vi.fn(),
 }));
 
 vi.mock(
@@ -20,17 +20,6 @@ vi.mock(
 		useUpdateNotesSheet: () => mocks.sheetState,
 	})
 );
-
-vi.mock("@tanstack/react-query", () => ({
-	useQuery: () => ({ data: mocks.viewedList }),
-	useMutation: () => ({ mutate: mocks.markViewedMutate }),
-	useQueryClient: () => ({
-		cancelQueries: vi.fn(),
-		getQueryData: vi.fn(),
-		setQueryData: vi.fn(),
-		invalidateQueries: vi.fn(),
-	}),
-}));
 
 vi.mock("@/features/update-notes/constants", () => ({
 	UPDATE_NOTES: [
@@ -46,22 +35,6 @@ vi.mock("@/features/update-notes/constants", () => ({
 		},
 	],
 	LATEST_VERSION: "1.0.0",
-}));
-
-vi.mock("@/utils/trpc", () => ({
-	trpc: {
-		updateNoteView: {
-			list: { queryOptions: () => ({ queryKey: ["updateNoteView", "list"] }) },
-			markViewed: {
-				mutationOptions: (opts: unknown) => opts,
-			},
-			getLatestViewedVersion: {
-				queryOptions: () => ({
-					queryKey: ["updateNoteView", "getLatestViewedVersion"],
-				}),
-			},
-		},
-	},
 }));
 
 vi.mock("@/shared/components/ui/accordion", () => ({
@@ -100,7 +73,7 @@ describe("UpdateNotesSheet", () => {
 
 	it("renders accordion items for update notes", () => {
 		mocks.sheetState.isOpen = true;
-		mocks.viewedList = [];
+		mocks.sheetState.viewedVersions = new Set();
 		render(<UpdateNotesSheet />);
 		expect(screen.getByText("1.0.0")).toBeInTheDocument();
 		expect(screen.getByText("2026-04-11")).toBeInTheDocument();
@@ -108,14 +81,14 @@ describe("UpdateNotesSheet", () => {
 
 	it("shows NEW badge for unviewed versions", () => {
 		mocks.sheetState.isOpen = true;
-		mocks.viewedList = [];
+		mocks.sheetState.viewedVersions = new Set();
 		render(<UpdateNotesSheet />);
 		expect(screen.getByTestId("badge")).toHaveTextContent("NEW");
 	});
 
 	it("does not show NEW badge for viewed versions", () => {
 		mocks.sheetState.isOpen = true;
-		mocks.viewedList = [{ id: "1", version: "1.0.0", viewedAt: new Date() }];
+		mocks.sheetState.viewedVersions = new Set(["1.0.0"]);
 		render(<UpdateNotesSheet />);
 		expect(screen.queryByTestId("badge")).not.toBeInTheDocument();
 	});
@@ -143,9 +116,9 @@ describe("UpdateNotesSheet", () => {
 		).toBeInTheDocument();
 	});
 
-	it("does not render drawer content when isOpen=false even if viewedList is populated", () => {
+	it("does not render drawer content when isOpen=false even if a version is viewed", () => {
 		mocks.sheetState.isOpen = false;
-		mocks.viewedList = [{ id: "1", version: "1.0.0", viewedAt: new Date() }];
+		mocks.sheetState.viewedVersions = new Set(["1.0.0"]);
 		render(<UpdateNotesSheet />);
 		expect(screen.queryByText("Update notes")).not.toBeInTheDocument();
 	});

@@ -14,15 +14,13 @@ describe("updateNoteView router", () => {
 
 	it("exposes exactly the expected procedure set", () => {
 		expect(Object.keys(appRouter.updateNoteView).sort()).toEqual(
-			["getLatestViewedVersion", "list", "markViewed"].sort()
+			["list", "markViewed"].sort()
 		);
 	});
 
-	it("list / getLatestViewedVersion are protected queries", () => {
+	it("list is a protected query", () => {
 		expectProtected(appRouter.updateNoteView.list);
 		expectType(appRouter.updateNoteView.list, "query");
-		expectProtected(appRouter.updateNoteView.getLatestViewedVersion);
-		expectType(appRouter.updateNoteView.getLatestViewedVersion, "query");
 	});
 
 	it("markViewed is a protected mutation", () => {

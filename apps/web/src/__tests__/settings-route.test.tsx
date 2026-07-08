@@ -20,6 +20,10 @@ vi.mock("@/features/settings/pages/settings-page/linked-accounts", () => ({
 	LinkedAccounts: () => <div>Linked Accounts Content</div>,
 }));
 
+vi.mock("@/features/settings/pages/settings-page/about-section", () => ({
+	AboutSection: () => <div>About Content</div>,
+}));
+
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
 		signOut: mocks.signOut,
@@ -58,6 +62,15 @@ describe("SettingsComponent", () => {
 			screen.getByRole("heading", { name: "Settings" })
 		).toBeInTheDocument();
 		expect(screen.getByText("Linked accounts")).toBeInTheDocument();
+		expect(screen.getByText("About")).toBeInTheDocument();
+	});
+
+	it("renders the About section body", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		expect(screen.getByText("About Content")).toBeInTheDocument();
 	});
 
 	it("signs out from the page header action", async () => {

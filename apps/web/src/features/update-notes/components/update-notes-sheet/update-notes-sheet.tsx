@@ -1,5 +1,4 @@
 import { UPDATE_NOTES } from "@/features/update-notes/constants";
-import { useUpdateNotesViewed } from "@/features/update-notes/hooks/use-update-notes-viewed";
 import {
 	Accordion,
 	AccordionContent,
@@ -16,8 +15,8 @@ import {
 import { useUpdateNotesSheet } from "./use-update-notes-sheet";
 
 export function UpdateNotesSheet() {
-	const { isOpen, setIsOpen } = useUpdateNotesSheet();
-	const { viewedVersions, handleAccordionChange } = useUpdateNotesViewed();
+	const { isOpen, setIsOpen, viewedVersions, onAccordionChange } =
+		useUpdateNotesSheet();
 
 	return (
 		<Drawer onOpenChange={setIsOpen} open={isOpen}>
@@ -38,7 +37,7 @@ export function UpdateNotesSheet() {
 							No update notes available.
 						</p>
 					) : (
-						<Accordion onValueChange={handleAccordionChange} type="multiple">
+						<Accordion onValueChange={onAccordionChange} type="multiple">
 							{UPDATE_NOTES.map((note) => (
 								<AccordionItem key={note.version} value={note.version}>
 									<AccordionTrigger>
