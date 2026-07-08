@@ -1,6 +1,7 @@
 import { useForm } from "@tanstack/react-form";
 import z from "zod";
 import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-events";
+import { refineWinsNotExceedingTrials } from "@/features/live-sessions/utils/all-in-validation";
 import {
 	toOccurredAtTimestamp,
 	toTimeInputValue,
@@ -8,11 +9,10 @@ import {
 } from "@/features/live-sessions/utils/stack-editor-time";
 import { requiredNumericString } from "@/shared/lib/form-fields";
 
-// `wins` must not exceed `trials` (SA2-156), mirroring the server-side
-// `allInPayload` guard so editing an existing all-in event cannot reintroduce
-// EV-corrupting values. It can be fractional — a chopped pot counts as a partial
-// win — so it is NOT constrained to whole numbers; only the `wins <= trials`
-// upper bound is enforced, attached to the `wins` field path.
+// `wins <= trials` is enforced through the shared refineWinsNotExceedingTrials so
+// editing an existing all-in event stays in lockstep with the create sheet and
+// the server-side allInPayload refine (SA2-156). `wins` may be fractional (a
+// chopped pot counts as a partial win), so only the upper bound is checked.
 const allInSchema = z
 	.object({
 		time: z.string(),
@@ -21,20 +21,7 @@ const allInSchema = z
 		equity: requiredNumericString({ min: 0, max: 100 }),
 		wins: requiredNumericString({ min: 0 }),
 	})
-	.superRefine((value, ctx) => {
-		const wins = Number(value.wins.trim());
-		if (value.wins.trim() === "" || !Number.isFinite(wins)) {
-			return;
-		}
-		const trials = Number.parseInt(value.trials.trim(), 10);
-		if (Number.isFinite(trials) && wins > trials) {
-			ctx.addIssue({
-				code: "custom",
-				message: "Wins must not exceed trials",
-				path: ["wins"],
-			});
-		}
-	});
+	.superRefine(refineWinsNotExceedingTrials);
 
 interface UseAllInEditorOptions {
 	event: SessionEvent;
