@@ -57,6 +57,42 @@ describe("useStatsFilterBar", () => {
 		mocks.isLoading = false;
 	});
 
+	describe("currencyChipLabel", () => {
+		it("shows the selected currency name", () => {
+			mocks.filters = {
+				period: "all",
+				norm: "normalized",
+				type: "all",
+				currency: "c1",
+			} as StatsFilters;
+			mocks.isScopeValid = true;
+			const { result } = renderHook(() => useStatsFilterBar());
+			expect(result.current.currencyChipLabel).toBe("USD");
+		});
+
+		it('shows "All currencies" when no currency is selected and the scope is valid (normalized)', () => {
+			mocks.filters = {
+				period: "all",
+				norm: "normalized",
+				type: "all",
+			} as StatsFilters;
+			mocks.isScopeValid = true;
+			const { result } = renderHook(() => useStatsFilterBar());
+			expect(result.current.currencyChipLabel).toBe("All currencies");
+		});
+
+		it('shows "Select" when no currency is selected and the scope is invalid (normalization off)', () => {
+			mocks.filters = {
+				period: "all",
+				norm: "off",
+				type: "all",
+			} as StatsFilters;
+			mocks.isScopeValid = false;
+			const { result } = renderHook(() => useStatsFilterBar());
+			expect(result.current.currencyChipLabel).toBe("Select");
+		});
+	});
+
 	describe("sheet open/close", () => {
 		it("starts with no active sheet", () => {
 			const { result } = renderHook(() => useStatsFilterBar());
@@ -194,7 +230,48 @@ describe("useStatsFilterBar", () => {
 			expect(result.current.activeSheet).toBeNull();
 		});
 
-		it("ignores an empty value", () => {
+		it("clears to all currencies (undefined) and closes the sheet when normalization is on", () => {
+			mocks.filters = {
+				period: "all",
+				norm: "normalized",
+				type: "all",
+				currency: "c1",
+			} as StatsFilters;
+			const { result } = renderHook(() => useStatsFilterBar());
+			act(() => {
+				result.current.openSheet("currency");
+			});
+			act(() => {
+				result.current.onCurrencyChange(undefined);
+			});
+			expect(mocks.setFilters).toHaveBeenCalledTimes(1);
+			expect(mocks.setFilters).toHaveBeenCalledWith({ currency: undefined });
+			expect(result.current.activeSheet).toBeNull();
+		});
+
+		it("clears currency and switches normalization on when clearing while norm is off", () => {
+			mocks.filters = {
+				period: "all",
+				norm: "off",
+				type: "all",
+				currency: "c1",
+			} as StatsFilters;
+			const { result } = renderHook(() => useStatsFilterBar());
+			act(() => {
+				result.current.openSheet("currency");
+			});
+			act(() => {
+				result.current.onCurrencyChange(undefined);
+			});
+			expect(mocks.setFilters).toHaveBeenCalledTimes(1);
+			expect(mocks.setFilters).toHaveBeenCalledWith({
+				currency: undefined,
+				norm: "normalized",
+			});
+			expect(result.current.activeSheet).toBeNull();
+		});
+
+		it("ignores a genuinely invalid empty-string value and keeps the sheet open", () => {
 			const { result } = renderHook(() => useStatsFilterBar());
 			act(() => {
 				result.current.openSheet("currency");

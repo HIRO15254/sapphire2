@@ -18,12 +18,20 @@ export interface UseStatsFilterBarResult {
 	activeSheet: StatsFilterSheet | null;
 	closeSheet: () => void;
 	currencies: StatsCurrencyOption[];
+	/**
+	 * Label for the currency chip. Shows the selected currency's name, or — when
+	 * no currency is selected — "All currencies" while that state is valid
+	 * (normalization on) and "Select" while it is not (normalization off, so a
+	 * currency is required). Mirrors the room chip's "All rooms" so a valid
+	 * all-currencies scope no longer reads as an unfinished "Select".
+	 */
+	currencyChipLabel: string;
 	currentCurrencyName: string | null;
 	currentRoomName: string | null;
 	filters: StatsFilters;
 	isReferenceLoading: boolean;
 	isScopeValid: boolean;
-	onCurrencyChange: (value: string) => void;
+	onCurrencyChange: (value: string | undefined) => void;
 	onFromChange: (value: string) => void;
 	onNormChange: (value: string) => void;
 	onPeriodChange: (value: string) => void;
@@ -40,7 +48,9 @@ export interface UseStatsFilterBarResult {
  * bottom sheet is open, and exposes change handlers that patch the filter state
  * (URL-synced) and close the sheet. Segmented-style handlers ignore empty values
  * so period / normalization / type always keep a value; picking the "custom"
- * period keeps the sheet open so the user can pick dates.
+ * period keeps the sheet open so the user can pick dates. Currency is optional:
+ * `onCurrencyChange(undefined)` clears back to "All currencies", auto-switching
+ * normalization on when it was off so the combined scope stays valid.
  */
 export function useStatsFilterBar(): UseStatsFilterBarResult {
 	const { filters, setFilters, isScopeValid } = useStatsFilters();
@@ -54,6 +64,10 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 		currencies.find((c) => c.id === filters.currency)?.name ?? null;
 	const currentRoomName =
 		rooms.find((r) => r.id === filters.room)?.name ?? null;
+	// "All currencies" only when a no-currency scope is actually valid (normalized);
+	// otherwise keep prompting with "Select" (the chip is also flagged invalid).
+	const currencyChipLabel =
+		currentCurrencyName ?? (isScopeValid ? "All currencies" : "Select");
 
 	return {
 		activeSheet,
@@ -64,6 +78,7 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 		rooms,
 		isReferenceLoading: isLoading,
 		isScopeValid,
+		currencyChipLabel,
 		currentCurrencyName,
 		currentRoomName,
 		onPeriodChange: (value) => {
@@ -91,10 +106,24 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 			closeSheet();
 		},
 		onCurrencyChange: (value) => {
-			if (!value) {
+			// An empty string is never a real RadioGroup option — guard against it
+			// so stats can't be scoped to a non-existent currency.
+			if (value === "") {
 				return;
 			}
-			setFilters({ currency: value });
+			if (value === undefined) {
+				// Clearing to "All currencies". A combined multi-currency view can
+				// only be shown normalized (raw amounts across currencies can't be
+				// summed), so switch normalization on when it is currently off to keep
+				// the currency scope valid (`isCurrencyScopeValid`).
+				setFilters(
+					filters.norm === "off"
+						? { currency: undefined, norm: "normalized" }
+						: { currency: undefined }
+				);
+			} else {
+				setFilters({ currency: value });
+			}
 			closeSheet();
 		},
 		onRoomChange: (value) => {
