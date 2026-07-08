@@ -1,5 +1,6 @@
 import { sessionTag } from "@sapphire2/db/schema/session-tag";
 import { TRPCError } from "@trpc/server";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
@@ -10,6 +11,7 @@ import {
 	type ProfitLossSeriesRow,
 	parseSessionCursor,
 	selectInChunks,
+	sessionKeysetCondition,
 	toProfitLossSeriesPoint,
 	validateEntityOwnership,
 	validateTagsOwnership,
@@ -359,6 +361,42 @@ describe("session router input validation", () => {
 
 		it("returns null for an empty id", () => {
 			expect(parseSessionCursor("1000_")).toBeNull();
+		});
+	});
+
+	describe("sessionKeysetCondition (SA2-150)", () => {
+		const keysetDialect = new SQLiteSyncDialect();
+
+		it("returns undefined for an omitted cursor (start from the beginning)", () => {
+			expect(sessionKeysetCondition(undefined)).toBeUndefined();
+		});
+
+		it("returns undefined for an empty-string cursor", () => {
+			expect(sessionKeysetCondition("")).toBeUndefined();
+		});
+
+		it("returns undefined for a malformed cursor instead of filtering everything", () => {
+			// A garbage / deleted-row cursor must degrade to 'no cursor', never to
+			// a boundary that drops the whole page (the SA2-150 regression).
+			expect(sessionKeysetCondition("no-separator")).toBeUndefined();
+			expect(sessionKeysetCondition("abc_s1")).toBeUndefined();
+		});
+
+		it("binds the floored-seconds order key twice and the id once, with no subquery", () => {
+			const cursor = encodeSessionCursor({
+				id: "cur-id",
+				startedAt: new Date(5_000_000),
+				sessionDate: new Date(5_000_000),
+			});
+			const condition = sessionKeysetCondition(cursor);
+			expect(condition).toBeDefined();
+			const query = keysetDialect.sqlToQuery(condition as never);
+			// The comparison embeds the value directly — no `SELECT ... WHERE id`.
+			expect(query.sql.toLowerCase()).not.toContain("select");
+			// 5_000_000 ms floored to 5000 s, bound in both the `<` and `=` arms.
+			expect(query.params.filter((p) => p === 5000)).toHaveLength(2);
+			expect(query.params).toContain("cur-id");
+			expect(query.params).not.toContain(cursor);
 		});
 	});
 

@@ -6,7 +6,10 @@ import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it, vi } from "vitest";
 import { t } from "../index";
 import { appRouter } from "../routers";
-import { persistSessionBlindLevels } from "../routers/session";
+import {
+	encodeSessionCursor,
+	persistSessionBlindLevels,
+} from "../routers/session";
 import {
 	createChainableMockDb,
 	expectAccepts,
@@ -812,50 +815,158 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 
 const listCursorDialect = new SQLiteSyncDialect();
 
+type ChainableAny = Promise<Rows> &
+	Record<string, (...args: unknown[]) => ChainableAny>;
+
 /**
- * Mock db recording the SQL params bound to the list query's `.where(...)` so
- * the cursor-boundary subquery can be shown to be scoped to the caller
- * (SA2-182). `select().from()` resolves to no rows; enrichment is skipped.
+ * Mock db that captures the list query's `.where(...)` (SQL + bound params) and
+ * `.orderBy(...)` (SQL), and resolves the `game_session` select to `listRows`
+ * while every other read (the per-item enrichment) resolves to `[]`. Lets the
+ * composite-keyset cursor (SA2-150) be inspected end-to-end: the boundary must
+ * embed the cursor's `(timestamp, id)` directly rather than run a subquery on
+ * the raw id (which returned NULL — and dropped the whole page — once the cursor
+ * row was discarded), and `nextCursor` must echo the last kept row's composite.
  */
-function createListWhereMockDb() {
-	const selectWhereParams: unknown[][] = [];
-	const makeChain = () => {
-		const chain = Promise.resolve([] as Rows) as Promise<Rows> &
-			Record<string, (...args: unknown[]) => unknown>;
-		chain.from = () => chain;
+function createListMockDb(listRows: Rows = []) {
+	const listWhere: { params: unknown[]; sql: string }[] = [];
+	const listOrderBy: string[] = [];
+	const makeChain = (rows: Rows, isList: boolean): ChainableAny => {
+		const chain = Promise.resolve(rows) as ChainableAny;
+		chain.from = (table: unknown) => {
+			const list = table === gameSession;
+			return makeChain(list ? listRows : [], list);
+		};
 		chain.where = (cond: unknown) => {
-			selectWhereParams.push(
-				listCursorDialect.sqlToQuery(cond as never).params
-			);
+			if (isList) {
+				const q = listCursorDialect.sqlToQuery(cond as never);
+				listWhere.push({ sql: q.sql, params: q.params });
+			}
 			return chain;
 		};
-		chain.orderBy = () => chain;
+		chain.orderBy = (...cols: unknown[]) => {
+			if (isList) {
+				listOrderBy.push(
+					cols
+						.map((c) => listCursorDialect.sqlToQuery(c as never).sql)
+						.join(", ")
+				);
+			}
+			return chain;
+		};
 		chain.limit = () => chain;
 		chain.leftJoin = () => chain;
 		chain.innerJoin = () => chain;
 		return chain;
 	};
-	const db = { select: () => makeChain() };
-	return { db, selectWhereParams };
+	const db = { select: () => makeChain([], false) };
+	return { db, listOrderBy, listWhere };
 }
 
-describe("liveTournamentSession.list cursor scoping (SA2-182)", () => {
-	it("scopes the cursor boundary subquery to the caller's user id", async () => {
-		const { db, selectWhereParams } = createListWhereMockDb();
-		await callerFor(db, OWNER).liveTournamentSession.list({
-			cursor: "s-cursor",
-			limit: 10,
-		});
-		const listWhere = selectWhereParams.find((p) => p.includes("s-cursor"));
-		expect(listWhere).toBeDefined();
-		// userId appears twice: the base filter + the cursor subquery scope.
-		expect((listWhere as unknown[]).filter((p) => p === OWNER)).toHaveLength(2);
+function listCaller(db: unknown) {
+	return callerFor(db, OWNER).liveTournamentSession;
+}
+
+interface CursorRow {
+	id: string;
+	sessionDate: Date;
+	startedAt: Date | null;
+}
+
+function makeTournamentRows(n: number): Rows {
+	return Array.from({ length: n }, (_, i) => ({
+		id: `s${i}`,
+		userId: OWNER,
+		status: "active",
+		startedAt: new Date((i + 1) * 1_000_000),
+		sessionDate: new Date((i + 1) * 1_000_000),
+		startingStack: null,
+	}));
+}
+
+describe("liveTournamentSession.list composite keyset cursor (SA2-150)", () => {
+	it("orders by the coalesced start key then id descending (stable tiebreak)", async () => {
+		const { db, listOrderBy } = createListMockDb();
+		await listCaller(db).list({ limit: 10 });
+		expect(listOrderBy).toHaveLength(1);
+		const order = listOrderBy[0]?.toLowerCase() ?? "";
+		expect(order).toContain("coalesce");
+		expect(order).toContain('"game_session"."id" desc');
 	});
 
-	it("does not add a cursor subquery when no cursor is supplied", async () => {
-		const { db, selectWhereParams } = createListWhereMockDb();
-		await callerFor(db, OWNER).liveTournamentSession.list({ limit: 10 });
-		const base = selectWhereParams[0] as unknown[];
-		expect(base.filter((p) => p === OWNER)).toHaveLength(1);
+	it("adds no keyset condition when no cursor is supplied", async () => {
+		const { db, listWhere } = createListMockDb();
+		await listCaller(db).list({ limit: 10 });
+		const base = listWhere[0];
+		expect(base).toBeDefined();
+		expect(base?.params.filter((p) => p === OWNER)).toHaveLength(1);
+		expect(base?.sql.toLowerCase()).not.toContain("coalesce");
+	});
+
+	it("treats a malformed cursor as no cursor (does not filter every row out)", async () => {
+		const { db, listWhere } = createListMockDb();
+		await listCaller(db).list({ cursor: "no-separator", limit: 10 });
+		const base = listWhere[0];
+		expect(base?.params).not.toContain("no-separator");
+		expect(base?.params.filter((p) => p === OWNER)).toHaveLength(1);
+		expect(base?.sql.toLowerCase()).not.toContain("coalesce");
+	});
+
+	it("embeds the cursor's (timestamp, id) as a keyset, not a subquery on the id", async () => {
+		const { db, listWhere } = createListMockDb();
+		const cursor = encodeSessionCursor({
+			id: "cur-id",
+			startedAt: new Date(5_000_000),
+			sessionDate: new Date(5_000_000),
+		});
+		await listCaller(db).list({ cursor, limit: 10 });
+		const where = listWhere[0];
+		expect(where?.sql.toLowerCase()).not.toContain("select");
+		expect(where?.params.filter((p) => p === 5000)).toHaveLength(2);
+		expect(where?.params).toContain("cur-id");
+		expect(where?.params).not.toContain(cursor);
+	});
+
+	it("keeps paginating from the same keyset even when the cursor row was deleted", async () => {
+		const { db, listWhere } = createListMockDb(makeTournamentRows(2));
+		const cursor = encodeSessionCursor({
+			id: "deleted-id",
+			startedAt: new Date(9_000_000),
+			sessionDate: new Date(9_000_000),
+		});
+		const result = await listCaller(db).list({ cursor, limit: 10 });
+		const where = listWhere[0];
+		expect(where?.sql.toLowerCase()).not.toContain("select");
+		expect(where?.params.filter((p) => p === 9000)).toHaveLength(2);
+		expect(where?.params).toContain("deleted-id");
+		expect(result.items).toHaveLength(2);
+	});
+
+	it("returns nextCursor as the last kept row's composite value when more rows exist", async () => {
+		const rows = makeTournamentRows(3);
+		const { db } = createListMockDb(rows);
+		const result = await listCaller(db).list({ limit: 2 });
+		expect(result.items).toHaveLength(2);
+		expect(result.nextCursor).toBe(encodeSessionCursor(rows[1] as CursorRow));
+	});
+
+	it("returns no nextCursor at exactly the page-size boundary", async () => {
+		const { db } = createListMockDb(makeTournamentRows(2));
+		const result = await listCaller(db).list({ limit: 2 });
+		expect(result.items).toHaveLength(2);
+		expect(result.nextCursor).toBeUndefined();
+	});
+
+	it("returns no nextCursor for a partial single page", async () => {
+		const { db } = createListMockDb(makeTournamentRows(1));
+		const result = await listCaller(db).list({ limit: 2 });
+		expect(result.items).toHaveLength(1);
+		expect(result.nextCursor).toBeUndefined();
+	});
+
+	it("returns empty items and no nextCursor when there are no sessions", async () => {
+		const { db } = createListMockDb([]);
+		const result = await listCaller(db).list({ limit: 2 });
+		expect(result.items).toEqual([]);
+		expect(result.nextCursor).toBeUndefined();
 	});
 });
