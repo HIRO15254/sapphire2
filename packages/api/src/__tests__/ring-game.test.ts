@@ -1,4 +1,5 @@
 import { currency } from "@sapphire2/db/schema/currency";
+import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { TRPCError } from "@trpc/server";
@@ -144,14 +145,14 @@ describe("ringGame.listByRoom input validation", () => {
 });
 
 describe("ringGame.create input validation", () => {
-	it("accepts minimal valid payload (roomId + name), variant defaults to nlh", () => {
+	it("accepts minimal valid payload (roomId + name), variant defaults to NLH", () => {
 		const schema = getInputSchema(appRouter.ringGame.create);
 		const parsed = schema.safeParse({
 			roomId: "s1",
 			name: "1/2 NLH",
 		}) as unknown as { success: true; data: { variant: string } };
 		expect(parsed.success).toBe(true);
-		expect(parsed.data.variant).toBe("nlh");
+		expect(parsed.data.variant).toBe("NLH");
 	});
 
 	it("accepts all anteType values", () => {
@@ -181,6 +182,32 @@ describe("ringGame.create input validation", () => {
 			roomId: "s1",
 			name: "g",
 			blind1: 1.5,
+		});
+	});
+
+	it("accepts a variantId string", () => {
+		expectAccepts(appRouter.ringGame.create, {
+			roomId: "s1",
+			name: "game",
+			variantId: "gv-1",
+		});
+	});
+
+	it("accepts a payload without variantId (variantId stays optional)", () => {
+		const schema = getInputSchema(appRouter.ringGame.create);
+		const parsed = schema.safeParse({
+			roomId: "s1",
+			name: "game",
+		}) as unknown as { success: true; data: { variantId?: string } };
+		expect(parsed.success).toBe(true);
+		expect(parsed.data.variantId).toBeUndefined();
+	});
+
+	it("rejects a non-string variantId", () => {
+		expectRejects(appRouter.ringGame.create, {
+			roomId: "s1",
+			name: "game",
+			variantId: 123,
 		});
 	});
 });
@@ -219,6 +246,28 @@ describe("ringGame.update input validation", () => {
 
 	it("rejects missing id", () => {
 		expectRejects(appRouter.ringGame.update, { name: "x" });
+	});
+
+	it("accepts a variantId string", () => {
+		expectAccepts(appRouter.ringGame.update, { id: "rg1", variantId: "gv-1" });
+	});
+
+	it("accepts variantId: null", () => {
+		expectAccepts(appRouter.ringGame.update, { id: "rg1", variantId: null });
+	});
+
+	it("accepts a payload without variantId (untouched)", () => {
+		const schema = getInputSchema(appRouter.ringGame.update);
+		const parsed = schema.safeParse({ id: "rg1" }) as unknown as {
+			success: true;
+			data: { variantId?: string | null };
+		};
+		expect(parsed.success).toBe(true);
+		expect(parsed.data.variantId).toBeUndefined();
+	});
+
+	it("rejects a non-string, non-null variantId", () => {
+		expectRejects(appRouter.ringGame.update, { id: "rg1", variantId: 123 });
 	});
 });
 
@@ -344,6 +393,216 @@ describe("ringGame.create sets userId to the caller (SA2-181)", () => {
 
 		expect(inserted).toHaveLength(1);
 		expect(inserted[0]).toMatchObject({ userId: CUR_OWNER, roomId: "room-1" });
+	});
+});
+
+describe("ringGame.create resolves variantId (user-defined game variants)", () => {
+	const ownedRoom = { id: "room-1", userId: CUR_OWNER };
+
+	function createCallerCapturingInserts(rowsByTable: Map<unknown, Rows>) {
+		const inserted: Record<string, unknown>[] = [];
+		const baseDb = createMockDb(rowsByTable);
+		const db = {
+			...baseDb,
+			insert: () => ({
+				values: (v: Record<string, unknown>) => {
+					inserted.push(v);
+					return Promise.resolve(undefined);
+				},
+			}),
+		};
+		const caller = appRouter.createCaller({
+			session: { user: { id: CUR_OWNER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).ringGame;
+		return { caller, inserted };
+	}
+
+	it("writes the resolved variant name and id, overriding the free-text variant input", async () => {
+		const rowsByTable = new Map<unknown, Rows>([
+			[room, [ownedRoom]],
+			[ringGame, []],
+			[currency, []],
+			[gameVariant, [{ id: "gv-1", userId: CUR_OWNER, name: "PLO5" }]],
+		]);
+		const { caller, inserted } = createCallerCapturingInserts(rowsByTable);
+
+		await caller.create({
+			roomId: "room-1",
+			name: "RG",
+			variant: "this-text-is-ignored",
+			variantId: "gv-1",
+		});
+
+		expect(inserted).toHaveLength(1);
+		expect(inserted[0]).toMatchObject({ variant: "PLO5", variantId: "gv-1" });
+	});
+
+	it("falls back to the free-text variant and a null variantId when variantId is omitted", async () => {
+		const rowsByTable = new Map<unknown, Rows>([
+			[room, [ownedRoom]],
+			[ringGame, []],
+			[currency, []],
+			[gameVariant, []],
+		]);
+		const { caller, inserted } = createCallerCapturingInserts(rowsByTable);
+
+		await caller.create({ roomId: "room-1", name: "RG", variant: "PLO" });
+
+		expect(inserted).toHaveLength(1);
+		expect(inserted[0]).toMatchObject({ variant: "PLO", variantId: null });
+	});
+
+	it("treats an empty-string variantId as omitted (falls back to free text, no lookup)", async () => {
+		const rowsByTable = new Map<unknown, Rows>([
+			[room, [ownedRoom]],
+			[ringGame, []],
+			[currency, []],
+			[gameVariant, []],
+		]);
+		const { caller, inserted } = createCallerCapturingInserts(rowsByTable);
+
+		await caller.create({
+			roomId: "room-1",
+			name: "RG",
+			variant: "PLO",
+			variantId: "",
+		});
+
+		expect(inserted).toHaveLength(1);
+		expect(inserted[0]).toMatchObject({ variant: "PLO", variantId: null });
+	});
+
+	// The router scopes the lookup to `and(eq(id), eq(userId))`, so a real D1
+	// query filters out a foreign owner's row the same way it filters out a
+	// truly missing id — both come back as "no row" and surface as NOT_FOUND.
+	// This lightweight mock returns whatever rows are configured for the table
+	// regardless of the WHERE clause, so an empty `gameVariant` config is how
+	// both scenarios are represented here.
+	it("throws NOT_FOUND when variantId does not exist", async () => {
+		const rowsByTable = new Map<unknown, Rows>([
+			[room, [ownedRoom]],
+			[ringGame, []],
+			[currency, []],
+			[gameVariant, []],
+		]);
+		const caller = ringGameCaller(CUR_OWNER, rowsByTable);
+		await expectTrpcCode(
+			caller.create({ roomId: "room-1", name: "RG", variantId: "missing" }),
+			"NOT_FOUND"
+		);
+	});
+});
+
+describe("ringGame.update resolves variantId (user-defined game variants)", () => {
+	function updateRows(rg: Rows, variants: Rows = []) {
+		return new Map<unknown, Rows>([
+			[room, []],
+			[ringGame, rg],
+			[currency, []],
+			[gameVariant, variants],
+		]);
+	}
+
+	function createCallerCapturingUpdates(rowsByTable: Map<unknown, Rows>) {
+		const updated: Record<string, unknown>[] = [];
+		const baseDb = createMockDb(rowsByTable);
+		const db = {
+			...baseDb,
+			update: () => ({
+				set: (v: Record<string, unknown>) => {
+					updated.push(v);
+					return { where: () => Promise.resolve(undefined) };
+				},
+			}),
+		};
+		const caller = appRouter.createCaller({
+			session: { user: { id: CUR_OWNER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).ringGame;
+		return { caller, updated };
+	}
+
+	it("resolves a string variantId and writes both variantId and variant", async () => {
+		const rowsByTable = updateRows(
+			[{ id: "rg-1", roomId: null, userId: CUR_OWNER }],
+			[{ id: "gv-1", userId: CUR_OWNER, name: "PLO8" }]
+		);
+		const { caller, updated } = createCallerCapturingUpdates(rowsByTable);
+
+		await caller.update({ id: "rg-1", variantId: "gv-1" });
+
+		expect(updated).toHaveLength(1);
+		expect(updated[0]).toMatchObject({ variantId: "gv-1", variant: "PLO8" });
+	});
+
+	it("resolved variantId overrides a same-call free-text variant edit", async () => {
+		const rowsByTable = updateRows(
+			[{ id: "rg-1", roomId: null, userId: CUR_OWNER }],
+			[{ id: "gv-1", userId: CUR_OWNER, name: "PLO8" }]
+		);
+		const { caller, updated } = createCallerCapturingUpdates(rowsByTable);
+
+		await caller.update({
+			id: "rg-1",
+			variant: "this-text-is-ignored",
+			variantId: "gv-1",
+		});
+
+		expect(updated).toHaveLength(1);
+		expect(updated[0]).toMatchObject({ variantId: "gv-1", variant: "PLO8" });
+	});
+
+	it("clears the link and leaves the variant text untouched when variantId is null", async () => {
+		const rowsByTable = updateRows([
+			{ id: "rg-1", roomId: null, userId: CUR_OWNER, variant: "PLO8" },
+		]);
+		const { caller, updated } = createCallerCapturingUpdates(rowsByTable);
+
+		await caller.update({ id: "rg-1", variantId: null });
+
+		expect(updated).toHaveLength(1);
+		expect(updated[0]).toMatchObject({ variantId: null });
+		expect(updated[0]).not.toHaveProperty("variant");
+	});
+
+	it("leaves the variant link untouched when variantId is omitted", async () => {
+		const rowsByTable = updateRows([
+			{ id: "rg-1", roomId: null, userId: CUR_OWNER },
+		]);
+		const { caller, updated } = createCallerCapturingUpdates(rowsByTable);
+
+		await caller.update({ id: "rg-1", name: "Renamed" });
+
+		expect(updated).toHaveLength(1);
+		expect(updated[0]).not.toHaveProperty("variantId");
+		expect(updated[0]).not.toHaveProperty("variant");
+	});
+
+	// See the equivalent comment in the create describe block: this mock can't
+	// enforce the router's `and(eq(id), eq(userId))` WHERE, so a foreign-owned
+	// id is represented the same way a truly missing id is — an empty
+	// `gameVariant` config — matching what a real filtered D1 query returns.
+	it("throws NOT_FOUND when variantId does not resolve to a variant owned by the caller", async () => {
+		const rowsByTable = updateRows([
+			{ id: "rg-1", roomId: null, userId: CUR_OWNER },
+		]);
+		const caller = ringGameCaller(CUR_OWNER, rowsByTable);
+		await expectTrpcCode(
+			caller.update({ id: "rg-1", variantId: "gv-1" }),
+			"NOT_FOUND"
+		);
+	});
+
+	it("throws NOT_FOUND for an empty-string variantId (treated as a real lookup, unlike create)", async () => {
+		const rowsByTable = updateRows([
+			{ id: "rg-1", roomId: null, userId: CUR_OWNER },
+		]);
+		const caller = ringGameCaller(CUR_OWNER, rowsByTable);
+		await expectTrpcCode(
+			caller.update({ id: "rg-1", variantId: "" }),
+			"NOT_FOUND"
+		);
 	});
 });
 

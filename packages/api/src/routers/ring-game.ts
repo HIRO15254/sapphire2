@@ -1,3 +1,4 @@
+import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { TRPCError } from "@trpc/server";
@@ -6,10 +7,12 @@ import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { validateEntityOwnership } from "./session";
 
+type DbInstance = Parameters<
+	Parameters<typeof protectedProcedure.query>[0]
+>[0]["ctx"]["db"];
+
 async function validateRoomOwnership(
-	db: Parameters<
-		Parameters<typeof protectedProcedure.query>[0]
-	>[0]["ctx"]["db"],
+	db: DbInstance,
 	roomId: string,
 	userId: string
 ) {
@@ -30,9 +33,7 @@ async function validateRoomOwnership(
 }
 
 async function validateRingGameOwnership(
-	db: Parameters<
-		Parameters<typeof protectedProcedure.query>[0]
-	>[0]["ctx"]["db"],
+	db: DbInstance,
 	ringGameId: string,
 	userId: string
 ) {
@@ -56,6 +57,30 @@ async function validateRingGameOwnership(
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message: "You do not own this ring game",
+		});
+	}
+
+	return found;
+}
+
+// Resolves a user-defined game variant by id, scoped to the caller. Scoping
+// the WHERE to userId (rather than checking ownership after a plain id
+// lookup) means a foreign/unknown id is indistinguishable from a missing one
+// — both surface as NOT_FOUND, never FORBIDDEN.
+async function resolveGameVariant(
+	db: DbInstance,
+	variantId: string,
+	userId: string
+) {
+	const [found] = await db
+		.select()
+		.from(gameVariant)
+		.where(and(eq(gameVariant.id, variantId), eq(gameVariant.userId, userId)));
+
+	if (!found) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Game variant not found",
 		});
 	}
 
@@ -89,7 +114,8 @@ export const ringGameRouter = router({
 			z.object({
 				roomId: z.string(),
 				name: z.string().min(1),
-				variant: z.string().default("nlh"),
+				variant: z.string().default("NLH"),
+				variantId: z.string().optional(),
 				blind1: z.number().int().optional(),
 				blind2: z.number().int().optional(),
 				blind3: z.number().int().optional(),
@@ -114,13 +140,29 @@ export const ringGameRouter = router({
 				);
 			}
 
+			// A resolved variantId always wins over the free-text `variant` input —
+			// the linked game_variant's name is the source of truth for the
+			// denormalized text column once a link is established.
+			let variant = input.variant;
+			let variantId: string | null = null;
+			if (input.variantId) {
+				const resolvedVariant = await resolveGameVariant(
+					ctx.db,
+					input.variantId,
+					userId
+				);
+				variant = resolvedVariant.name;
+				variantId = resolvedVariant.id;
+			}
+
 			const id = crypto.randomUUID();
 			await ctx.db.insert(ringGame).values({
 				id,
 				roomId: input.roomId,
 				userId,
 				name: input.name,
-				variant: input.variant,
+				variant,
+				variantId,
 				blind1: input.blind1 ?? null,
 				blind2: input.blind2 ?? null,
 				blind3: input.blind3 ?? null,
@@ -147,6 +189,7 @@ export const ringGameRouter = router({
 				id: z.string(),
 				name: z.string().min(1).optional(),
 				variant: z.string().optional(),
+				variantId: z.string().nullable().optional(),
 				blind1: z.number().int().nullable().optional(),
 				blind2: z.number().int().nullable().optional(),
 				blind3: z.number().int().nullable().optional(),
@@ -177,6 +220,20 @@ export const ringGameRouter = router({
 			}
 			if (input.variant !== undefined) {
 				updateData.variant = input.variant;
+			}
+			// A resolved variantId always wins over a same-call `variant` text
+			// edit, mirroring create. `null` clears the link only — the variant
+			// text column is left as provided/unchanged above.
+			if (input.variantId === null) {
+				updateData.variantId = null;
+			} else if (input.variantId !== undefined) {
+				const resolvedVariant = await resolveGameVariant(
+					ctx.db,
+					input.variantId,
+					userId
+				);
+				updateData.variantId = resolvedVariant.id;
+				updateData.variant = resolvedVariant.name;
 			}
 			if (input.blind1 !== undefined) {
 				updateData.blind1 = input.blind1;

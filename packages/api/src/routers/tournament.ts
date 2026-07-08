@@ -1,3 +1,4 @@
+import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { room } from "@sapphire2/db/schema/room";
 import {
 	blindLevel,
@@ -60,6 +61,30 @@ async function validateTournamentOwnership(
 	}
 
 	await validateRoomOwnership(db, found.roomId, userId);
+
+	return found;
+}
+
+// Resolves a user-defined game variant by id, scoped to the caller. Scoping
+// the WHERE to userId (rather than checking ownership after a plain id
+// lookup) means a foreign/unknown id is indistinguishable from a missing one
+// — both surface as NOT_FOUND, never FORBIDDEN.
+async function resolveGameVariant(
+	db: DbInstance,
+	variantId: string,
+	userId: string
+) {
+	const [found] = await db
+		.select()
+		.from(gameVariant)
+		.where(and(eq(gameVariant.id, variantId), eq(gameVariant.userId, userId)));
+
+	if (!found) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Game variant not found",
+		});
+	}
 
 	return found;
 }
@@ -150,7 +175,8 @@ export const tournamentRouter = router({
 			z.object({
 				roomId: z.string(),
 				name: z.string().min(1),
-				variant: z.string().default("nlh"),
+				variant: z.string().default("NLH"),
+				variantId: z.string().optional(),
 				buyIn: z.number().int().optional(),
 				entryFee: z.number().int().optional(),
 				startingStack: z.number().int().optional(),
@@ -172,12 +198,28 @@ export const tournamentRouter = router({
 				);
 			}
 
+			// A resolved variantId always wins over the free-text `variant` input —
+			// the linked game_variant's name is the source of truth for the
+			// denormalized text column once a link is established.
+			let variant = input.variant;
+			let variantId: string | null = null;
+			if (input.variantId) {
+				const resolvedVariant = await resolveGameVariant(
+					ctx.db,
+					input.variantId,
+					userId
+				);
+				variant = resolvedVariant.name;
+				variantId = resolvedVariant.id;
+			}
+
 			const id = crypto.randomUUID();
 			await ctx.db.insert(tournament).values({
 				id,
 				roomId: input.roomId,
 				name: input.name,
-				variant: input.variant,
+				variant,
+				variantId,
 				buyIn: input.buyIn ?? null,
 				entryFee: input.entryFee ?? null,
 				startingStack: input.startingStack ?? null,
@@ -201,6 +243,7 @@ export const tournamentRouter = router({
 				id: z.string(),
 				name: z.string().min(1).optional(),
 				variant: z.string().optional(),
+				variantId: z.string().nullable().optional(),
 				buyIn: z.number().int().nullable().optional(),
 				entryFee: z.number().int().nullable().optional(),
 				startingStack: z.number().int().nullable().optional(),
@@ -228,6 +271,20 @@ export const tournamentRouter = router({
 			}
 			if (input.variant !== undefined) {
 				updateData.variant = input.variant;
+			}
+			// A resolved variantId always wins over a same-call `variant` text
+			// edit, mirroring create. `null` clears the link only — the variant
+			// text column is left as provided/unchanged above.
+			if (input.variantId === null) {
+				updateData.variantId = null;
+			} else if (input.variantId !== undefined) {
+				const resolvedVariant = await resolveGameVariant(
+					ctx.db,
+					input.variantId,
+					userId
+				);
+				updateData.variantId = resolvedVariant.id;
+				updateData.variant = resolvedVariant.name;
 			}
 			if (input.buyIn !== undefined) {
 				updateData.buyIn = input.buyIn;
@@ -314,7 +371,8 @@ export const tournamentRouter = router({
 			z.object({
 				roomId: z.string(),
 				name: z.string().min(1),
-				variant: z.string().default("nlh"),
+				variant: z.string().default("NLH"),
+				variantId: z.string().optional(),
 				buyIn: z.number().int().optional(),
 				entryFee: z.number().int().optional(),
 				startingStack: z.number().int().optional(),
@@ -358,6 +416,21 @@ export const tournamentRouter = router({
 				);
 			}
 
+			// A resolved variantId always wins over the free-text `variant` input —
+			// the linked game_variant's name is the source of truth for the
+			// denormalized text column once a link is established.
+			let variant = input.variant;
+			let variantId: string | null = null;
+			if (input.variantId) {
+				const resolvedVariant = await resolveGameVariant(
+					ctx.db,
+					input.variantId,
+					userId
+				);
+				variant = resolvedVariant.name;
+				variantId = resolvedVariant.id;
+			}
+
 			const id = crypto.randomUUID();
 			// One atomic batch: the tournament row first (parent), then its tags /
 			// chip purchases / blind levels. `Promise.all` ran these as parallel
@@ -368,7 +441,8 @@ export const tournamentRouter = router({
 					id,
 					roomId: input.roomId,
 					name: input.name,
-					variant: input.variant,
+					variant,
+					variantId,
 					buyIn: input.buyIn ?? null,
 					entryFee: input.entryFee ?? null,
 					startingStack: input.startingStack ?? null,
@@ -422,6 +496,7 @@ export const tournamentRouter = router({
 				id: z.string(),
 				name: z.string().min(1).optional(),
 				variant: z.string().optional(),
+				variantId: z.string().nullable().optional(),
 				buyIn: z.number().int().nullable().optional(),
 				entryFee: z.number().int().nullable().optional(),
 				startingStack: z.number().int().nullable().optional(),
@@ -469,6 +544,20 @@ export const tournamentRouter = router({
 			}
 			if (input.variant !== undefined) {
 				updateData.variant = input.variant;
+			}
+			// A resolved variantId always wins over a same-call `variant` text
+			// edit, mirroring create. `null` clears the link only — the variant
+			// text column is left as provided/unchanged above.
+			if (input.variantId === null) {
+				updateData.variantId = null;
+			} else if (input.variantId !== undefined) {
+				const resolvedVariant = await resolveGameVariant(
+					ctx.db,
+					input.variantId,
+					userId
+				);
+				updateData.variantId = resolvedVariant.id;
+				updateData.variant = resolvedVariant.name;
 			}
 			if (input.buyIn !== undefined) {
 				updateData.buyIn = input.buyIn;

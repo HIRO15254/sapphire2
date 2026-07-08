@@ -558,7 +558,7 @@ describe("session router input validation", () => {
 			schema.safeParse({
 				...TOURNAMENT_BASE,
 				ruleName: "Main Event (session-only)",
-				variant: "nlh",
+				variant: "NLH",
 				startingStack: 20_000,
 				bountyAmount: 500,
 				tableSize: 9,
@@ -666,7 +666,7 @@ describe("session router input validation", () => {
 		};
 		const input = {
 			id: "s1",
-			variant: "nlh",
+			variant: "NLH",
 			startingStack: 20_000,
 			bountyAmount: 500,
 			tableSize: 9,
@@ -1091,6 +1091,29 @@ describe("session.create auto-generated ring game ownership (SA2-181)", () => {
 			userId: CALLER,
 			roomId: null,
 		});
+	});
+
+	it("resolves the cash-create variant default to NLH on both the auto-generated ring_game and the session snapshot", async () => {
+		const { db, inserted } = createChainableMockDb({ select: {} });
+		const caller = appRouter.createCaller({
+			session: { user: { id: CALLER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+		});
+
+		const ringGameInserts = inserted.ring_game ?? [];
+		expect(ringGameInserts).toHaveLength(1);
+		expect(ringGameInserts[0]).toMatchObject({ variant: "NLH" });
+
+		const cashDetailInserts = inserted.session_cash_detail ?? [];
+		expect(cashDetailInserts).toHaveLength(1);
+		expect(cashDetailInserts[0]).toMatchObject({ variant: "NLH" });
 	});
 });
 

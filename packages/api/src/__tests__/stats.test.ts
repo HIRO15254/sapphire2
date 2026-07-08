@@ -5,6 +5,7 @@ import {
 	assertCurrencyScope,
 	breakdownKeyLabel,
 	breakdownStats,
+	fetchStatsRows,
 	normalizedSessionValue,
 	type StatsSessionRow,
 	sessionDisplayValue,
@@ -12,6 +13,7 @@ import {
 	summarizeStats,
 } from "../routers/stats";
 import {
+	createChainableMockDb,
 	expectAccepts,
 	expectProtected,
 	expectRejects,
@@ -46,6 +48,7 @@ function cashRow(overrides: Partial<StatsSessionRow> = {}): StatsSessionRow {
 		roomName: "Aria",
 		blind1: 1,
 		blind2: 2,
+		variant: "NLH",
 		...overrides,
 	};
 }
@@ -71,6 +74,7 @@ function tournamentRow(
 		roomName: "Bellagio",
 		blind1: null,
 		blind2: null,
+		variant: "NLH",
 		...overrides,
 	};
 }
@@ -113,6 +117,7 @@ describe("stats shared filter input validation", () => {
 		currencyId: "c1",
 		type: "cash_game",
 		roomId: "r1",
+		variant: "PLO",
 		dateFrom: EPOCH_NOV_2023,
 		dateTo: EPOCH_JAN_2024,
 		normalized: true,
@@ -144,6 +149,18 @@ describe("stats shared filter input validation", () => {
 				expectAccepts(proc, FULL_FILTER);
 			});
 
+			it("accepts a variant filter alone", () => {
+				expectAccepts(proc, { variant: "PLO" });
+			});
+
+			it("omits variant without error (optional field)", () => {
+				expectAccepts(proc, { currencyId: "c1" });
+			});
+
+			it("rejects a non-string variant", () => {
+				expectRejects(proc, { variant: 123 });
+			});
+
 			it("rejects an unknown type value", () => {
 				expectRejects(proc, { type: "spin_and_go" });
 			});
@@ -173,6 +190,7 @@ describe("stats.breakdown input validation", () => {
 			"room",
 			"stakes",
 			"type",
+			"variant",
 			"dayOfWeek",
 			"length",
 			"month",
@@ -187,6 +205,7 @@ describe("stats.breakdown input validation", () => {
 			currencyId: "c1",
 			type: "tournament",
 			roomId: "r1",
+			variant: "PLO",
 			dateFrom: 1,
 			dateTo: 2,
 			normalized: true,
@@ -374,6 +393,27 @@ describe("breakdownKeyLabel", () => {
 		expect(breakdownKeyLabel(tournamentRow(), "stakes")).toBeNull();
 	});
 
+	it("groups cash rows by variant text (key === label)", () => {
+		expect(breakdownKeyLabel(cashRow({ variant: "PLO" }), "variant")).toEqual({
+			key: "PLO",
+			label: "PLO",
+		});
+	});
+
+	it("groups tournament rows by variant text (key === label)", () => {
+		expect(
+			breakdownKeyLabel(tournamentRow({ variant: "Stud" }), "variant")
+		).toEqual({ key: "Stud", label: "Stud" });
+	});
+
+	it("excludes a row with a null variant from the variant grouping", () => {
+		expect(breakdownKeyLabel(cashRow({ variant: null }), "variant")).toBeNull();
+	});
+
+	it("excludes a row with an empty-string variant from the variant grouping", () => {
+		expect(breakdownKeyLabel(cashRow({ variant: "" }), "variant")).toBeNull();
+	});
+
 	it("buckets dayOfWeek by UTC day index and label", () => {
 		// 2023-11-14T22:13:20Z is a Tuesday (UTC day 2).
 		expect(
@@ -465,6 +505,40 @@ describe("breakdownStats", () => {
 		expect(groups[0]?.sessions).toBe(1);
 	});
 
+	it("groups cash and tournament rows together by shared variant text", () => {
+		const rows = [
+			cashRow({ id: "a", variant: "PLO", profitLoss: 100 }),
+			tournamentRow({ id: "t", variant: "PLO", profitLoss: 300 }),
+			cashRow({ id: "b", variant: "NLH", profitLoss: 50 }),
+		];
+		const groups = breakdownStats(rows, "variant");
+		expect(groups).toHaveLength(2);
+		const plo = groups.find((g) => g.key === "PLO");
+		expect(plo?.sessions).toBe(2);
+		expect(plo?.profitLoss).toBe(400);
+	});
+
+	it("excludes rows with a null variant from the variant breakdown", () => {
+		const rows = [
+			cashRow({ id: "a", variant: "PLO" }),
+			cashRow({ id: "b", variant: null }),
+		];
+		const groups = breakdownStats(rows, "variant");
+		expect(groups).toHaveLength(1);
+		expect(groups[0]?.key).toBe("PLO");
+	});
+
+	it("sorts variant groups by sessions desc like room/stakes/type", () => {
+		const rows = [
+			cashRow({ id: "a", variant: "NLH", profitLoss: 10 }),
+			cashRow({ id: "b1", variant: "PLO", profitLoss: 5 }),
+			cashRow({ id: "b2", variant: "PLO", profitLoss: 0 }),
+		];
+		const groups = breakdownStats(rows, "variant");
+		// PLO has 2 sessions vs NLH's 1 → PLO first.
+		expect(groups.map((g) => g.key)).toEqual(["PLO", "NLH"]);
+	});
+
 	it("keeps cash (bb) and tournament (bi) normalized sums apart within a mixed group", () => {
 		const rows = [
 			cashRow({
@@ -549,6 +623,114 @@ describe("breakdownStats", () => {
 		const groups = breakdownStats(rows, "room");
 		// Same sessions (1) and same PL (10) → label ascending: Alpha before Zeta.
 		expect(groups.map((g) => g.label)).toEqual(["Alpha", "Zeta"]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// fetchStatsRows: dual-source variant mapping + JS-level variant filter
+// ---------------------------------------------------------------------------
+
+describe("fetchStatsRows variant mapping and filtering", () => {
+	function rawRow(overrides: Record<string, unknown> = {}) {
+		return {
+			id: "s-1",
+			type: "cash_game",
+			sessionDate: new Date("2023-11-14T00:00:00Z"),
+			startedAt: null,
+			endedAt: null,
+			breakMinutes: null,
+			buyIn: 100,
+			cashOut: 150,
+			evCashOut: null,
+			blind1: 1,
+			blind2: 2,
+			cashVariant: "PLO",
+			tournamentBuyIn: null,
+			entryFee: null,
+			placement: null,
+			totalEntries: null,
+			prizeMoney: null,
+			bountyPrizes: null,
+			tournamentVariant: null,
+			roomId: "room-1",
+			roomName: "Aria",
+			...overrides,
+		};
+	}
+
+	it("maps variant from cashVariant on a cash row", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [rawRow({ id: "c1", cashVariant: "PLO" })],
+			},
+		});
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows.find((r) => r.id === "c1")?.variant).toBe("PLO");
+	});
+
+	it("maps variant from tournamentVariant on a tournament row", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({
+						id: "t1",
+						type: "tournament",
+						buyIn: null,
+						cashOut: null,
+						cashVariant: null,
+						tournamentVariant: "Stud",
+						tournamentBuyIn: 100,
+						entryFee: 10,
+						prizeMoney: 200,
+						bountyPrizes: 0,
+					}),
+				],
+			},
+		});
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows.find((r) => r.id === "t1")?.variant).toBe("Stud");
+	});
+
+	it("returns all rows unfiltered when no variant filter is supplied", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({ id: "c1", cashVariant: "PLO" }),
+					rawRow({ id: "c2", cashVariant: "NLH" }),
+				],
+			},
+		});
+		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
+		expect(rows.map((r) => r.id).sort()).toEqual(["c1", "c2"]);
+	});
+
+	it("narrows to rows whose mapped variant matches the filter", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [
+					rawRow({ id: "c1", cashVariant: "PLO" }),
+					rawRow({ id: "c2", cashVariant: "NLH" }),
+				],
+			},
+		});
+		const rows = await fetchStatsRows(db, "user-1", {
+			normalized: false,
+			variant: "PLO",
+		});
+		expect(rows.map((r) => r.id)).toEqual(["c1"]);
+	});
+
+	it("returns an empty array when the variant filter matches no row", async () => {
+		const { db } = createChainableMockDb({
+			select: {
+				game_session: [rawRow({ id: "c1", cashVariant: "PLO" })],
+			},
+		});
+		const rows = await fetchStatsRows(db, "user-1", {
+			normalized: false,
+			variant: "Razz",
+		});
+		expect(rows).toEqual([]);
 	});
 });
 

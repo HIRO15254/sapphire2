@@ -705,7 +705,7 @@ describe("liveCashGameSession.updateSnapshot input validation", () => {
 		expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {
 			id: "s1",
 			ruleName: "1/2 NLH (this session)",
-			variant: "nlh",
+			variant: "NLH",
 			blind1: 1,
 			blind2: 2,
 			blind3: null,

@@ -32,6 +32,7 @@ export const statsFilterShape = {
 	currencyId: z.string().optional(),
 	type: z.enum(["cash_game", "tournament"]).optional(),
 	roomId: z.string().optional(),
+	variant: z.string().optional(),
 	dateFrom: z.number().optional(),
 	dateTo: z.number().optional(),
 	normalized: z.boolean().default(false),
@@ -43,6 +44,7 @@ export const breakdownGroupByEnum = z.enum([
 	"room",
 	"stakes",
 	"type",
+	"variant",
 	"dayOfWeek",
 	"length",
 	"month",
@@ -101,6 +103,7 @@ export interface StatsSessionRow {
 	sessionDate: number; // unix seconds
 	totalEntries: number | null;
 	type: "cash_game" | "tournament";
+	variant: string | null; // detail-table variant text (cash or tournament source)
 }
 
 interface RawStatsRow {
@@ -110,6 +113,7 @@ interface RawStatsRow {
 	breakMinutes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
+	cashVariant: string | null;
 	endedAt: Date | null;
 	entryFee: number | null;
 	evCashOut: number | null;
@@ -122,6 +126,7 @@ interface RawStatsRow {
 	startedAt: Date | null;
 	totalEntries: number | null;
 	tournamentBuyIn: number | null;
+	tournamentVariant: string | null;
 	type: string;
 }
 
@@ -155,6 +160,9 @@ function mapStatsRow(
 		roomName: r.roomName,
 		blind1: r.blind1,
 		blind2: r.blind2,
+		// Dual-sourced like the other cash/tournament detail fields: exactly one
+		// side is joined per session, the other is null.
+		variant: r.cashVariant ?? r.tournamentVariant,
 	};
 
 	if (r.type === "cash_game") {
@@ -237,12 +245,14 @@ export async function fetchStatsRows(
 			evCashOut: sessionCashDetail.evCashOut,
 			blind1: sessionCashDetail.blind1,
 			blind2: sessionCashDetail.blind2,
+			cashVariant: sessionCashDetail.variant,
 			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
 			entryFee: sessionTournamentDetail.entryFee,
 			placement: sessionTournamentDetail.placement,
 			totalEntries: sessionTournamentDetail.totalEntries,
 			prizeMoney: sessionTournamentDetail.prizeMoney,
 			bountyPrizes: sessionTournamentDetail.bountyPrizes,
+			tournamentVariant: sessionTournamentDetail.variant,
 			roomId: gameSession.roomId,
 			roomName: room.name,
 		})
@@ -263,9 +273,19 @@ export async function fetchStatsRows(
 		rows.map((r) => r.id)
 	);
 
-	return rows.map((r) =>
+	const mapped = rows.map((r) =>
 		mapStatsRow(r, sumChipPurchaseCost(chipPurchaseMap.get(r.id) ?? []))
 	);
+
+	// variant is denormalized text split across the cash/tournament detail
+	// tables (see cashVariant / tournamentVariant above), so filtering it as a
+	// single SQL where-clause would require an awkward cross-table OR. It's
+	// filtered here on the mapped rows instead, after the dual-source merge.
+	if (filters.variant) {
+		return mapped.filter((row) => row.variant === filters.variant);
+	}
+
+	return mapped;
 }
 
 // ---------------------------------------------------------------------------
@@ -565,6 +585,14 @@ export function breakdownKeyLabel(
 		const label = stakesLabel(row);
 		return { key: label, label };
 	}
+	if (groupBy === "variant") {
+		// The variant text IS the display label; a missing/blank variant (legacy
+		// rows with no detail-table match) is excluded rather than bucketed.
+		if (!row.variant) {
+			return null;
+		}
+		return { key: row.variant, label: row.variant };
+	}
 	if (groupBy === "length") {
 		if (row.playMinutes === null) {
 			return null;
@@ -621,7 +649,7 @@ function sortBreakdownRows(
 			return a.key.localeCompare(b.key);
 		});
 	}
-	// room / stakes / type: sessions desc, then profitLoss desc, then label asc.
+	// room / stakes / type / variant: sessions desc, then profitLoss desc, then label asc.
 	return [...rows].sort((a, b) => {
 		if (b.sessions !== a.sessions) {
 			return b.sessions - a.sessions;
