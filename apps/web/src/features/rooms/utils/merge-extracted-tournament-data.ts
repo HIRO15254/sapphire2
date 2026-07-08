@@ -31,7 +31,7 @@ export function mergeExtractedTournamentData(
 	return {
 		...base,
 		name: hasText(extracted.name) ? extracted.name : (base?.name ?? ""),
-		variant: base?.variant ?? "nlh",
+		variant: base?.variant ?? "NLH",
 		...(isMeaningfulNumber(extracted.buyIn) && { buyIn: extracted.buyIn }),
 		...(isMeaningfulNumber(extracted.entryFee) && {
 			entryFee: extracted.entryFee,

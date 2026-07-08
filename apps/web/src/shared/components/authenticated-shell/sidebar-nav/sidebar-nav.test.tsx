@@ -35,6 +35,7 @@ function createTestRouter(initialPath: string) {
 		"/rooms",
 		"/players",
 		"/currencies",
+		"/game-variants",
 		"/settings",
 	].map((path) =>
 		createRoute({
@@ -60,6 +61,7 @@ describe("SidebarNav", () => {
 		expect(screen.getByText("Rooms")).toBeInTheDocument();
 		expect(screen.getByText("Players")).toBeInTheDocument();
 		expect(screen.getByText("Currencies")).toBeInTheDocument();
+		expect(screen.getByText("Game variants")).toBeInTheDocument();
 		expect(screen.getByText("Settings")).toBeInTheDocument();
 		expect(screen.getByText("User Menu")).toBeInTheDocument();
 		expect(screen.getByText("Mode Toggle")).toBeInTheDocument();

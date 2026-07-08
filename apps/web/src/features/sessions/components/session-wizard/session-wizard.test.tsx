@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { GameVariant } from "@/features/game-variants/hooks/use-game-variants";
 
 // LocalBlindStructureContent (reused by the tournament Rules step) pulls in
 // the rooms blind-level editor, which transitively imports @/utils/trpc.
@@ -16,7 +17,38 @@ vi.mock("@/utils/trpc", () => ({
 	trpcClient: {},
 }));
 
+// SessionWizard resolves its Rules-step variant selects from the user's game
+// variants; stub the hook so these structural tests don't need a QueryClient.
+// Individual tests can seed `gameVariantsMocks.variants` before rendering.
+const gameVariantsMocks = vi.hoisted(() => ({
+	variants: [] as GameVariant[],
+}));
+
+vi.mock("@/features/game-variants/hooks/use-game-variants", () => ({
+	useGameVariants: () => ({ variants: gameVariantsMocks.variants }),
+}));
+
 import { SessionWizard } from "./session-wizard";
+
+const SHORT_DECK_VARIANT: GameVariant = {
+	id: "v-sd",
+	name: "Short Deck",
+	blindLabel1: "Button blind",
+	blindLabel2: null,
+	blindLabel3: null,
+	sortOrder: 5,
+	archivedAt: null,
+};
+
+const PLO_VARIANT: GameVariant = {
+	id: "v-plo",
+	name: "PLO",
+	blindLabel1: "SB",
+	blindLabel2: "BB",
+	blindLabel3: "Straddle",
+	sortOrder: 2,
+	archivedAt: null,
+};
 
 const STORE = { id: "room-1", name: "My Casino" };
 const RING_GAME = {
@@ -32,6 +64,10 @@ const SAVE_RE = /Save/;
 const SESSION_DATE_RE = /Session date/;
 const LEVEL_RE = /Level/;
 const BREAK_RE = /Break/;
+
+beforeEach(() => {
+	gameVariantsMocks.variants = [];
+});
 
 describe("SessionWizard — step gating", () => {
 	it("starts on the master step with type tabs and a Next button", () => {
@@ -151,6 +187,47 @@ describe("SessionWizard — master-step pre-fill", () => {
 		// shared hook tests.
 		await user.click(screen.getByRole("button", { name: NEXT_RE }));
 		expect(screen.getByText("Variant")).toBeInTheDocument();
+	});
+});
+
+function readVariantSelectOptions(): (string | null)[] {
+	const trigger = document.querySelector("button#variant");
+	const nativeSelect = trigger?.nextElementSibling;
+	return Array.from(nativeSelect?.querySelectorAll("option") ?? []).map(
+		(el) => el.textContent
+	);
+}
+
+describe("SessionWizard — variant select and blind labels", () => {
+	it("populates the cash Rules-step Variant select from the user's game variants", async () => {
+		const user = userEvent.setup();
+		gameVariantsMocks.variants = [PLO_VARIANT];
+		render(<SessionWizard onSubmit={vi.fn()} rooms={[STORE]} />);
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
+		expect(readVariantSelectOptions()).toEqual(["PLO"]);
+	});
+
+	it("drives the tournament blind-structure column headers from the selected variant, hiding null-labeled slots", async () => {
+		const user = userEvent.setup();
+		gameVariantsMocks.variants = [SHORT_DECK_VARIANT];
+		render(
+			<SessionWizard
+				defaultValues={{ type: "tournament", variant: "Short Deck" }}
+				onSubmit={vi.fn()}
+				rooms={[STORE]}
+			/>
+		);
+		await user.click(screen.getByRole("button", { name: NEXT_RE }));
+		await user.click(screen.getByRole("tab", { name: "Blind levels" }));
+		expect(
+			screen.getByRole("columnheader", { name: "Button blind" })
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("columnheader", { name: "SB" })
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("columnheader", { name: "BB" })
+		).not.toBeInTheDocument();
 	});
 });
 

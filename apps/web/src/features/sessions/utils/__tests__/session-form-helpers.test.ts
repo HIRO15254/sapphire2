@@ -179,10 +179,18 @@ describe("buildDefaults", () => {
 		expect(defaults.sessionDate).toBe("2026-04-05");
 		expect(defaults.startTime).toBe("");
 		expect(defaults.endTime).toBe("");
-		expect(defaults.variant).toBe("nlh");
+		expect(defaults.variant).toBe("NLH");
 		expect(defaults.anteType).toBe("none");
 		expect(defaults.tableSize).toBe("");
 		expect(defaults.beforeDeadline).toBe(false);
+	});
+
+	it("defaults variant to 'NLH' when defaults is an object without a variant", () => {
+		expect(buildDefaults({}).variant).toBe("NLH");
+	});
+
+	it("propagates a provided variant instead of the default", () => {
+		expect(buildDefaults({ variant: "PLO" }).variant).toBe("PLO");
 	});
 
 	it("converts numeric defaults through numStrOrEmpty", () => {
@@ -256,6 +264,36 @@ describe("cashOverriddenFields", () => {
 		});
 		expect(cashOverriddenFields(values, MASTER)).toEqual(["Rule name", "BB"]);
 	});
+
+	it("falls back to 'NLH' when the master has no variant text, and flags a divergence from it", () => {
+		const { variant: _omit, ...masterWithoutVariant } = MASTER;
+		const values = buildDefaults({
+			ruleName: "1/2 NLH",
+			variant: "PLO",
+			blind1: 1,
+			blind2: 2,
+			minBuyIn: 100,
+			maxBuyIn: 400,
+			tableSize: 9,
+		});
+		expect(cashOverriddenFields(values, masterWithoutVariant)).toEqual([
+			"Variant",
+		]);
+	});
+
+	it("does not flag Variant when the form matches the 'NLH' fallback for a variant-less master", () => {
+		const { variant: _omit, ...masterWithoutVariant } = MASTER;
+		const values = buildDefaults({
+			ruleName: "1/2 NLH",
+			variant: "NLH",
+			blind1: 1,
+			blind2: 2,
+			minBuyIn: 100,
+			maxBuyIn: 400,
+			tableSize: 9,
+		});
+		expect(cashOverriddenFields(values, masterWithoutVariant)).toEqual([]);
+	});
 });
 
 describe("tournamentOverriddenFields", () => {
@@ -288,5 +326,35 @@ describe("tournamentOverriddenFields", () => {
 		expect(tournamentOverriddenFields(values, MASTER)).toEqual([
 			"Starting stack",
 		]);
+	});
+
+	it("falls back to 'NLH' when the master has no variant text, and flags a divergence from it", () => {
+		const { variant: _omit, ...masterWithoutVariant } = MASTER;
+		const values = buildDefaults({
+			ruleName: "Main Event",
+			variant: "PLO",
+			tournamentBuyIn: 10_000,
+			entryFee: 1000,
+			startingStack: 20_000,
+			tableSize: 9,
+		});
+		expect(tournamentOverriddenFields(values, masterWithoutVariant)).toEqual([
+			"Variant",
+		]);
+	});
+
+	it("does not flag Variant when the form matches the 'NLH' fallback for a variant-less master", () => {
+		const { variant: _omit, ...masterWithoutVariant } = MASTER;
+		const values = buildDefaults({
+			ruleName: "Main Event",
+			variant: "NLH",
+			tournamentBuyIn: 10_000,
+			entryFee: 1000,
+			startingStack: 20_000,
+			tableSize: 9,
+		});
+		expect(tournamentOverriddenFields(values, masterWithoutVariant)).toEqual(
+			[]
+		);
 	});
 });

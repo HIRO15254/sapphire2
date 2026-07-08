@@ -89,18 +89,20 @@ describe("useBreakdownSection", () => {
 		expect(lastGroupBy()).toBe("room");
 	});
 
-	it("offers room, day of week, length, and month tabs for the 'all' type", async () => {
+	it("offers room, variant, day of week, length, and month tabs for the 'all' type", async () => {
 		trpcMocks.breakdownQueryFn.mockReset();
 		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });
 		const { result } = await renderLoadedBreakdown(ctx({ type: "all" }));
 		expect(result.current.tabs.map((t) => t.value)).toEqual([
 			"room",
+			"variant",
 			"dayOfWeek",
 			"length",
 			"month",
 		]);
 		expect(result.current.tabs.map((t) => t.label)).toEqual([
 			"Room",
+			"Variant",
 			"Day of week",
 			"Length",
 			"Month",
@@ -113,6 +115,7 @@ describe("useBreakdownSection", () => {
 		const { result } = await renderLoadedBreakdown(ctx({ type: "cash_game" }));
 		expect(result.current.tabs.map((t) => t.value)).toEqual([
 			"room",
+			"variant",
 			"stakes",
 			"dayOfWeek",
 			"length",
@@ -129,6 +132,21 @@ describe("useBreakdownSection", () => {
 		expect(result.current.tabs.map((t) => t.value)).not.toContain("stakes");
 	});
 
+	it("includes the variant tab for the tournament type", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });
+		const { result } = await renderLoadedBreakdown(ctx({ type: "tournament" }));
+		expect(result.current.tabs.map((t) => t.value)).toEqual([
+			"room",
+			"variant",
+			"dayOfWeek",
+			"length",
+			"month",
+		]);
+		const variantTab = result.current.tabs.find((t) => t.value === "variant");
+		expect(variantTab?.label).toBe("Variant");
+	});
+
 	it("forwards the selected grouping to the query when the tab changes", async () => {
 		trpcMocks.breakdownQueryFn.mockReset();
 		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });
@@ -140,6 +158,75 @@ describe("useBreakdownSection", () => {
 
 		await waitFor(() => expect(result.current.activeTab).toBe("month"));
 		await waitFor(() => expect(lastGroupBy()).toBe("month"));
+	});
+
+	it("queries with groupBy: variant and the exact stats input when the variant tab is selected (all type)", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });
+		const context = ctx({
+			type: "all",
+			statsInput: { normalized: false, currencyId: "c1" },
+		});
+		const { result } = await renderLoadedBreakdown(context);
+
+		act(() => {
+			result.current.setActiveTab("variant");
+		});
+
+		await waitFor(() => expect(result.current.activeTab).toBe("variant"));
+		await waitFor(() =>
+			expect(trpcMocks.breakdownQueryFn).toHaveBeenNthCalledWith(2, {
+				normalized: false,
+				currencyId: "c1",
+				groupBy: "variant",
+			})
+		);
+	});
+
+	it("queries with groupBy: variant for the cash_game type", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });
+		const context = ctx({
+			type: "cash_game",
+			statsInput: { normalized: true, currencyId: "c1" },
+		});
+		const { result } = await renderLoadedBreakdown(context);
+
+		act(() => {
+			result.current.setActiveTab("variant");
+		});
+
+		await waitFor(() => expect(result.current.activeTab).toBe("variant"));
+		await waitFor(() =>
+			expect(trpcMocks.breakdownQueryFn).toHaveBeenNthCalledWith(2, {
+				normalized: true,
+				currencyId: "c1",
+				groupBy: "variant",
+			})
+		);
+	});
+
+	it("queries with groupBy: variant for the tournament type", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });
+		const context = ctx({
+			type: "tournament",
+			statsInput: { normalized: true, currencyId: "c1" },
+		});
+		const { result } = await renderLoadedBreakdown(context);
+
+		act(() => {
+			result.current.setActiveTab("variant");
+		});
+
+		await waitFor(() => expect(result.current.activeTab).toBe("variant"));
+		await waitFor(() =>
+			expect(trpcMocks.breakdownQueryFn).toHaveBeenNthCalledWith(2, {
+				normalized: true,
+				currencyId: "c1",
+				groupBy: "variant",
+			})
+		);
 	});
 
 	it("falls back to room when stakes is active and the type leaves cash game", async () => {

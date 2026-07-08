@@ -1,11 +1,16 @@
 import { createGroupFormatter } from "@/utils/format-number";
 
+// Legacy mapping only: the migration normalizes the "nlh" default to "NLH" in
+// the variant text columns, but any surviving lowercase "nlh" (e.g. cached
+// data, in-flight sessions) still needs to render as the display name. For
+// every other variant the stored text IS the display name (a user-defined
+// game_variant.name), so it passes through unchanged.
 export const VARIANT_LABELS: Record<string, string> = {
 	nlh: "NLH",
 };
 
 export function variantLabel(variant: string): string {
-	return VARIANT_LABELS[variant] ?? variant.toUpperCase();
+	return VARIANT_LABELS[variant] ?? variant;
 }
 
 interface BlindFields {

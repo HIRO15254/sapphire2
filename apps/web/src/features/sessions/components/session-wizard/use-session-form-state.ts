@@ -1,5 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef, useState } from "react";
+import { useGameVariants } from "@/features/game-variants/hooks/use-game-variants";
 import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
@@ -83,6 +84,11 @@ export function useSessionFormState({
 		Record<string, number>
 	>(initialChipPurchases.counts);
 
+	// Session snapshots store the variant as a free-text NAME (not a variantId),
+	// so the Rules-step selects populate straight from the user's active game
+	// variants and match by name.
+	const { variants } = useGameVariants();
+
 	const isCashGame = sessionType === "cash_game";
 	const gameOptions = isCashGame ? ringGames : tournaments;
 	const gameLabel = isCashGame ? "Cash game" : "Tournament";
@@ -109,7 +115,7 @@ export function useSessionFormState({
 					buyIn: Number(value.buyIn),
 					cashOut: Number(value.cashOut),
 					evCashOut: parseOptInt(value.evCashOut),
-					variant: value.variant || "nlh",
+					variant: value.variant || "NLH",
 					blind1: parseOptInt(value.blind1),
 					blind2: parseOptInt(value.blind2),
 					blind3: parseOptInt(value.blind3),
@@ -326,5 +332,6 @@ export function useSessionFormState({
 		gameOptions,
 		gameLabel,
 		isCashGame,
+		variants,
 	};
 }

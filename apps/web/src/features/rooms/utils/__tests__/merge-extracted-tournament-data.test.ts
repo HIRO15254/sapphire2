@@ -59,9 +59,9 @@ describe("mergeExtractedTournamentData", () => {
 			expect(result.variant).toBe("plo");
 		});
 
-		it("defaults variant to nlh when base is undefined", () => {
+		it("defaults variant to NLH when base is undefined", () => {
 			const result = mergeExtractedTournamentData({}, undefined);
-			expect(result.variant).toBe("nlh");
+			expect(result.variant).toBe("NLH");
 		});
 	});
 

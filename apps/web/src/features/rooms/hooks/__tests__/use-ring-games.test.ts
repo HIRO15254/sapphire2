@@ -84,6 +84,7 @@ function makeGame(overrides: Partial<RingGame> = {}): RingGame {
 		createdAt: "2026-01-01",
 		updatedAt: "2026-01-01",
 		userId: "user-1",
+		variantId: null,
 		...overrides,
 	};
 }
@@ -219,6 +220,50 @@ describe("useRingGames", () => {
 			});
 		});
 
+		it("forwards variantId in the create payload when provided", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, []);
+			trpcMocks.create.mockResolvedValue({ id: "r-new" });
+			const { result } = renderHook(
+				() => useRingGames({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await act(async () => {
+				await result.current.create({
+					name: "PLO",
+					variant: "PLO",
+					variantId: "gv-1",
+				});
+			});
+			expect(trpcMocks.create).toHaveBeenCalledWith(
+				expect.objectContaining({ variantId: "gv-1" })
+			);
+		});
+
+		it("sets variantId to null on the optimistic game when not provided", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, []);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.create.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(
+				() => useRingGames({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			act(() => {
+				result.current.create({ name: "PLO", variant: "PLO" });
+			});
+			await waitFor(() => {
+				const list = qc.getQueryData<RingGame[]>(activeKey);
+				expect(list?.[0]?.variantId).toBeNull();
+			});
+			resolve?.({ id: "r-new" });
+		});
+
 		it("flips isCreatePending during in-flight create", async () => {
 			const qc = createClient();
 			qc.setQueryData(activeKey, []);
@@ -289,6 +334,7 @@ describe("useRingGames", () => {
 					id: "r1",
 					name: "G",
 					variant: "nlh",
+					variantId: null,
 					blind1: null,
 					blind2: null,
 					blind3: null,
@@ -300,6 +346,28 @@ describe("useRingGames", () => {
 					currencyId: null,
 					memo: null,
 				})
+			);
+		});
+
+		it("forwards a provided variantId through to the update payload", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, [makeGame({ id: "r1" })]);
+			qc.setQueryData(archivedKey, []);
+			trpcMocks.update.mockResolvedValue({ id: "r1" });
+			const { result } = renderHook(
+				() => useRingGames({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await act(async () => {
+				await result.current.update({
+					id: "r1",
+					name: "G",
+					variant: "PLO",
+					variantId: "gv-2",
+				});
+			});
+			expect(trpcMocks.update).toHaveBeenCalledWith(
+				expect.objectContaining({ id: "r1", variantId: "gv-2" })
 			);
 		});
 	});

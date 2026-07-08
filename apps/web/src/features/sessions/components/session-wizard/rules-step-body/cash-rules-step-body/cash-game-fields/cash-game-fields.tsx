@@ -1,4 +1,6 @@
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
+import type { GameVariant } from "@/features/game-variants/hooks/use-game-variants";
+import { resolveBlindLabels } from "@/features/game-variants/utils/blind-labels";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -36,6 +38,11 @@ interface CashGameFieldsProps {
 	/** Field labels that diverge from the picked master ring game. */
 	overriddenLabels?: ReadonlySet<string>;
 	selectedCurrencyId?: string;
+	/** The caller's active game variants, powering the Variant select. */
+	variants: readonly Pick<
+		GameVariant,
+		"blindLabel1" | "blindLabel2" | "blindLabel3" | "id" | "name"
+	>[];
 }
 
 const ANTE_TYPES = [
@@ -53,6 +60,7 @@ export function CashGameFields({
 	onCurrencyChange,
 	overriddenLabels,
 	selectedCurrencyId,
+	variants,
 }: CashGameFieldsProps) {
 	return (
 		<>
@@ -93,71 +101,101 @@ export function CashGameFields({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="nlh">NL Hold&apos;em</SelectItem>
+								{variants.map((v) => (
+									<SelectItem key={v.id} value={v.name}>
+										{v.name}
+									</SelectItem>
+								))}
 							</SelectContent>
 						</Select>
 					</Field>
 				)}
 			</form.Field>
 
-			<div className="grid grid-cols-3 gap-3">
-				<form.Field name="blind1">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label={<OverrideLabel label="SB" overridden={overriddenLabels} />}
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="blind2">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label={<OverrideLabel label="BB" overridden={overriddenLabels} />}
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-				<form.Field name="blind3">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label={
-								<OverrideLabel label="Straddle" overridden={overriddenLabels} />
-							}
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-			</div>
+			<form.Subscribe selector={(state) => state.values.variant}>
+				{(currentVariant) => {
+					const blindLabels = resolveBlindLabels(currentVariant, variants);
+					return (
+						<div className="grid grid-cols-3 gap-3">
+							{blindLabels.blind1 == null ? null : (
+								<form.Field name="blind1">
+									{(field) => (
+										<Field
+											error={field.state.meta.errors[0]?.message}
+											htmlFor={field.name}
+											label={
+												<OverrideLabel
+													label={blindLabels.blind1 ?? ""}
+													overridden={overriddenLabels}
+												/>
+											}
+										>
+											<Input
+												disabled={isLiveLinked}
+												id={field.name}
+												inputMode="numeric"
+												onBlur={field.handleBlur}
+												onChange={(e) => field.handleChange(e.target.value)}
+												value={field.state.value}
+											/>
+										</Field>
+									)}
+								</form.Field>
+							)}
+							{blindLabels.blind2 == null ? null : (
+								<form.Field name="blind2">
+									{(field) => (
+										<Field
+											error={field.state.meta.errors[0]?.message}
+											htmlFor={field.name}
+											label={
+												<OverrideLabel
+													label={blindLabels.blind2 ?? ""}
+													overridden={overriddenLabels}
+												/>
+											}
+										>
+											<Input
+												disabled={isLiveLinked}
+												id={field.name}
+												inputMode="numeric"
+												onBlur={field.handleBlur}
+												onChange={(e) => field.handleChange(e.target.value)}
+												value={field.state.value}
+											/>
+										</Field>
+									)}
+								</form.Field>
+							)}
+							{blindLabels.blind3 == null ? null : (
+								<form.Field name="blind3">
+									{(field) => (
+										<Field
+											error={field.state.meta.errors[0]?.message}
+											htmlFor={field.name}
+											label={
+												<OverrideLabel
+													label={blindLabels.blind3 ?? ""}
+													overridden={overriddenLabels}
+												/>
+											}
+										>
+											<Input
+												disabled={isLiveLinked}
+												id={field.name}
+												inputMode="numeric"
+												onBlur={field.handleBlur}
+												onChange={(e) => field.handleChange(e.target.value)}
+												value={field.state.value}
+											/>
+										</Field>
+									)}
+								</form.Field>
+							)}
+						</div>
+					);
+				}}
+			</form.Subscribe>
 
 			<div className="flex gap-3">
 				<form.Field name="anteType">

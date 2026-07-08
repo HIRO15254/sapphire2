@@ -28,6 +28,10 @@ vi.mock("@/features/rooms/components/blind-level-editor", () => ({
 	LocalBlindStructureContent: () => <div data-testid="blind-structure" />,
 }));
 
+vi.mock("@/features/game-variants/hooks/use-game-variants", () => ({
+	useGameVariants: () => ({ variants: [] }),
+}));
+
 const AI_BUTTON_RE = /Auto-fill with AI/;
 
 describe("TournamentModalContent", () => {

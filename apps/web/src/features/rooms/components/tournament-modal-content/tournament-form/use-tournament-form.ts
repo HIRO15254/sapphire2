@@ -2,6 +2,8 @@ import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import z from "zod";
+import { useGameVariants } from "@/features/game-variants/hooks/use-game-variants";
+import { resolveBlindLabels } from "@/features/game-variants/utils/blind-labels";
 import type { TournamentPartialFormValues } from "@/features/rooms/components/tournament-modal-content";
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
 import { optionalNumericString } from "@/shared/lib/form-fields";
@@ -25,16 +27,54 @@ interface TournamentFormStateValues {
 	startingStack: string;
 	tableSize: string;
 	tags: string[];
-	variant: string;
+	variantId: string;
+}
+
+interface VariantOption {
+	id: string;
+	name: string;
+}
+
+/** Resolves the free-text variant name from the selected variantId, falling
+ * back to whatever variant text the caller already had (e.g. defaultValues)
+ * and finally to "NLH" when nothing else is available. */
+function resolveVariantName(
+	variantId: string,
+	variants: readonly VariantOption[],
+	fallback: string | undefined
+): string {
+	return variants.find((v) => v.id === variantId)?.name ?? fallback ?? "NLH";
+}
+
+/**
+ * Resolve which variant should be preselected in the form. Create mode has no
+ * `defaultValues` and falls back to the user's first (lowest sortOrder)
+ * variant. Edit mode matches the tournament's existing free-text `variant`
+ * against the user's variant names (case-insensitive) and falls back to the
+ * tournament's stored `variantId`, then "".
+ */
+function resolveDefaultVariantId(
+	defaultValues: { variant?: string; variantId?: string } | undefined,
+	variants: readonly VariantOption[]
+): string {
+	if (!defaultValues) {
+		return variants[0]?.id ?? "";
+	}
+	const normalized = (defaultValues.variant ?? "").toLowerCase();
+	const matched = variants.find((v) => v.name.toLowerCase() === normalized);
+	return matched?.id ?? defaultValues.variantId ?? "";
 }
 
 // フォームの内部値（すべて文字列）を AI merge のベースとなる部分値へ変換する。
 function formValuesToPartial(
-	value: TournamentFormStateValues
+	value: TournamentFormStateValues,
+	variants: readonly VariantOption[],
+	fallbackVariant: string | undefined
 ): TournamentPartialFormValues {
 	return {
 		name: value.name,
-		variant: value.variant || "nlh",
+		variant: resolveVariantName(value.variantId, variants, fallbackVariant),
+		variantId: value.variantId || undefined,
 		buyIn: parseOptInt(value.buyIn),
 		entryFee: parseOptInt(value.entryFee),
 		startingStack: parseOptInt(value.startingStack),
@@ -77,7 +117,7 @@ const chipPurchaseItemSchema = z.object({
 
 const tournamentFormSchema = z.object({
 	name: z.string().min(1, "Tournament name is required"),
-	variant: z.string(),
+	variantId: z.string(),
 	buyIn: optionalNumericString({ integer: true, min: 0 }),
 	entryFee: optionalNumericString({ integer: true, min: 0 }),
 	startingStack: optionalNumericString({ integer: true, min: 0 }),
@@ -108,10 +148,14 @@ export function useTournamentForm({
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
 
+	const { variants } = useGameVariants();
+
+	const defaultVariantId = resolveDefaultVariantId(defaultValues, variants);
+
 	const form = useForm({
 		defaultValues: {
 			name: defaultValues?.name ?? "",
-			variant: defaultValues?.variant ?? "nlh",
+			variantId: defaultVariantId,
 			buyIn: numStrOrEmpty(defaultValues?.buyIn),
 			entryFee: numStrOrEmpty(defaultValues?.entryFee),
 			startingStack: numStrOrEmpty(defaultValues?.startingStack),
@@ -130,7 +174,12 @@ export function useTournamentForm({
 		onSubmit: ({ value }) => {
 			onSubmit({
 				name: value.name,
-				variant: value.variant || "nlh",
+				variant: resolveVariantName(
+					value.variantId,
+					variants,
+					defaultValues?.variant
+				),
+				variantId: value.variantId || undefined,
 				buyIn: parseOptInt(value.buyIn),
 				entryFee: parseOptInt(value.entryFee),
 				startingStack: parseOptInt(value.startingStack),
@@ -155,8 +204,15 @@ export function useTournamentForm({
 	});
 
 	useEffect(() => {
-		onRegisterLiveValues?.(() => formValuesToPartial(form.state.values));
-	}, [onRegisterLiveValues, form]);
+		onRegisterLiveValues?.(() =>
+			formValuesToPartial(form.state.values, variants, defaultValues?.variant)
+		);
+	}, [onRegisterLiveValues, form, variants, defaultValues?.variant]);
 
-	return { form, currencies };
+	const selectedVariantName =
+		variants.find((v) => v.id === defaultVariantId)?.name ??
+		defaultValues?.variant;
+	const blindLabels = resolveBlindLabels(selectedVariantName, variants);
+
+	return { form, currencies, variants, blindLabels };
 }

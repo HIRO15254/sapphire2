@@ -1,4 +1,5 @@
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
+import type { GameVariant } from "@/features/game-variants/hooks/use-game-variants";
 import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
 import { Checkbox } from "@/shared/components/ui/checkbox";
@@ -6,6 +7,7 @@ import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import {
+	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
@@ -42,6 +44,11 @@ interface TournamentRuleFieldsProps extends TournamentFieldsProps {
 	/** Field labels that diverge from the picked master tournament. */
 	overriddenLabels?: ReadonlySet<string>;
 	selectedCurrencyId?: string;
+	/** The caller's active game variants, powering the Variant select. */
+	variants: readonly Pick<
+		GameVariant,
+		"blindLabel1" | "blindLabel2" | "blindLabel3" | "id" | "name"
+	>[];
 }
 
 interface TournamentResultFieldsProps extends TournamentFieldsProps {
@@ -65,9 +72,38 @@ export function TournamentRuleFields({
 	onCurrencyChange,
 	overriddenLabels,
 	selectedCurrencyId,
+	variants,
 }: TournamentRuleFieldsProps) {
 	return (
 		<>
+			<form.Field name="variant">
+				{(field) => (
+					<Field
+						htmlFor={field.name}
+						label={
+							<OverrideLabel label="Variant" overridden={overriddenLabels} />
+						}
+					>
+						<Select
+							disabled={isLiveLinked}
+							onValueChange={(v) => field.handleChange(v)}
+							value={field.state.value}
+						>
+							<SelectTrigger className="w-full" id={field.name}>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{variants.map((v) => (
+									<SelectItem key={v.id} value={v.name}>
+										{v.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</Field>
+				)}
+			</form.Field>
+
 			<div className="grid grid-cols-2 gap-3">
 				<form.Field name="tournamentBuyIn">
 					{(field) => (

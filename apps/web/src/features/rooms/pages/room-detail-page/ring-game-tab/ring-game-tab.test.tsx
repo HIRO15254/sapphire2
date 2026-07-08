@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { RingGame } from "@/features/rooms/hooks/use-ring-games";
+import type {
+	RingGame,
+	RingGameFormValues,
+} from "@/features/rooms/hooks/use-ring-games";
 
 const hoisted = vi.hoisted(() => ({
 	useRingGameTab: vi.fn(),
@@ -12,7 +15,12 @@ vi.mock("./use-ring-game-tab", () => ({
 }));
 
 vi.mock("@/features/rooms/components/ring-game-form", () => ({
-	RingGameForm: () => <div data-testid="ring-game-form" />,
+	RingGameForm: ({ defaultValues }: { defaultValues?: RingGameFormValues }) => (
+		<div
+			data-testid="ring-game-form"
+			data-variant-id={defaultValues?.variantId ?? ""}
+		/>
+	),
 }));
 
 vi.mock("@/shared/components/form-sheet", () => ({
@@ -87,6 +95,7 @@ const baseGame = (overrides: Partial<RingGame> = {}): RingGame =>
 		tableSize: 9,
 		updatedAt: "",
 		variant: "nlh",
+		variantId: null,
 		...overrides,
 	}) as RingGame;
 
@@ -243,6 +252,24 @@ describe("RingGameTab", () => {
 		setState({ isCreateOpen: true });
 		render(<RingGameTab roomId="room-1" />);
 		expect(screen.getByTestId("ring-game-form")).toBeInTheDocument();
+	});
+
+	it("forwards the editing game's variantId into the edit form's defaultValues", () => {
+		setState({ editingGame: baseGame({ variantId: "gv-1" }) });
+		render(<RingGameTab roomId="room-1" />);
+		expect(screen.getByTestId("ring-game-form")).toHaveAttribute(
+			"data-variant-id",
+			"gv-1"
+		);
+	});
+
+	it("omits variantId from the edit form's defaultValues when the game has none", () => {
+		setState({ editingGame: baseGame({ variantId: null }) });
+		render(<RingGameTab roomId="room-1" />);
+		expect(screen.getByTestId("ring-game-form")).toHaveAttribute(
+			"data-variant-id",
+			""
+		);
 	});
 
 	it("shows the delete dialog with the pending game name", () => {

@@ -39,6 +39,7 @@ describe("parseStatsSearch", () => {
 				type: "cash_game",
 				currency: "c1",
 				room: "r1",
+				variant: "PLO5",
 			})
 		).toEqual({
 			period: "30d",
@@ -46,7 +47,17 @@ describe("parseStatsSearch", () => {
 			type: "cash_game",
 			currency: "c1",
 			room: "r1",
+			variant: "PLO5",
 		});
+	});
+
+	it("defaults variant to undefined when absent (round-trip: empty search)", () => {
+		expect(parseStatsSearch({}).variant).toBeUndefined();
+	});
+
+	it("round-trips a provided variant value", () => {
+		const parsed = parseStatsSearch({ variant: "NLH" });
+		expect(parsed.variant).toBe("NLH");
 	});
 
 	it("coerces string custom-range bounds to numbers (shared-link round-trip)", () => {
@@ -99,13 +110,27 @@ describe("filtersToStatsInput", () => {
 		).toBe(true);
 	});
 
-	it("treats an empty-string currency / room as undefined", () => {
+	it("treats an empty-string currency / room / variant as undefined", () => {
 		const input = filtersToStatsInput(
-			filters({ currency: "", room: "", norm: "normalized" }),
+			filters({ currency: "", room: "", variant: "", norm: "normalized" }),
 			NOW_SEC
 		);
 		expect(input.currencyId).toBeUndefined();
 		expect(input.roomId).toBeUndefined();
+		expect(input.variant).toBeUndefined();
+	});
+
+	it("maps a selected variant through to the query input", () => {
+		const input = filtersToStatsInput(
+			filters({ variant: "PLO5", currency: "c1" }),
+			NOW_SEC
+		);
+		expect(input.variant).toBe("PLO5");
+	});
+
+	it("maps an unset variant to undefined", () => {
+		const input = filtersToStatsInput(filters({ currency: "c1" }), NOW_SEC);
+		expect(input.variant).toBeUndefined();
 	});
 
 	it("includes the resolved date window", () => {

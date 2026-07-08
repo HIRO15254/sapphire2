@@ -3,6 +3,32 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { RingGameForm } from "./ring-game-form";
 
+const gameVariantsMocks = vi.hoisted(() => ({
+	variants: [
+		{
+			id: "v-nlh",
+			name: "NLH",
+			blindLabel1: "SB",
+			blindLabel2: "BB",
+			blindLabel3: "Straddle",
+		},
+		{
+			id: "v-plo",
+			name: "PLO",
+			blindLabel1: "SB",
+			blindLabel2: "BB",
+			blindLabel3: "Straddle",
+		},
+		{
+			id: "v-lhe",
+			name: "LHE",
+			blindLabel1: "SB",
+			blindLabel2: "BB",
+			blindLabel3: null,
+		},
+	],
+}));
+
 vi.mock("@tanstack/react-query", () => ({
 	useQuery: () => ({
 		data: [
@@ -20,6 +46,10 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 	},
+}));
+
+vi.mock("@/features/game-variants/hooks/use-game-variants", () => ({
+	useGameVariants: () => ({ variants: gameVariantsMocks.variants }),
 }));
 
 const FORM_ID = "ring-game-form-test";
@@ -46,7 +76,7 @@ describe("RingGameForm", () => {
 		const { onSubmit } = renderForm({
 			defaultValues: {
 				name: "1/2 NLH",
-				variant: "nlh",
+				variant: "NLH",
 				blind1: 1,
 				blind2: 2,
 				memo: "deep stack\nweekday game",
@@ -63,6 +93,8 @@ describe("RingGameForm", () => {
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({
 				name: "1/2 NLH",
+				variant: "NLH",
+				variantId: "v-nlh",
 				blind1: 1,
 				blind2: 2,
 				memo: "deep stack\nweekday game",
@@ -107,5 +139,42 @@ describe("RingGameForm", () => {
 		expect(
 			screen.queryByRole("button", { name: "Save" })
 		).not.toBeInTheDocument();
+	});
+
+	describe("variant select", () => {
+		it("renders an option per user-defined variant", () => {
+			const { container } = renderForm({});
+			const trigger = container.querySelector("button#variantId");
+			const nativeSelect = trigger?.nextElementSibling;
+			const options = Array.from(
+				nativeSelect?.querySelectorAll("option") ?? []
+			).map((el) => el.textContent);
+			expect(options).toEqual(["NLH", "PLO", "LHE"]);
+		});
+
+		it("defaults the select to the first variant in create mode", () => {
+			renderForm({});
+			expect(screen.getByLabelText("Variant *")).toHaveTextContent("NLH");
+		});
+	});
+
+	describe("blind fields hide the null-labeled slot", () => {
+		it("renders all three blind inputs for a variant with a straddle label", () => {
+			renderForm({
+				defaultValues: { name: "1/2", variant: "NLH" },
+			});
+			expect(screen.getByLabelText("SB")).toBeInTheDocument();
+			expect(screen.getByLabelText("BB")).toBeInTheDocument();
+			expect(screen.getByLabelText("Straddle")).toBeInTheDocument();
+		});
+
+		it("hides the third blind input for a variant whose blind3 label is null", () => {
+			renderForm({
+				defaultValues: { name: "1/2", variant: "LHE" },
+			});
+			expect(screen.getByLabelText("SB")).toBeInTheDocument();
+			expect(screen.getByLabelText("BB")).toBeInTheDocument();
+			expect(screen.queryByLabelText("Straddle")).not.toBeInTheDocument();
+		});
 	});
 });

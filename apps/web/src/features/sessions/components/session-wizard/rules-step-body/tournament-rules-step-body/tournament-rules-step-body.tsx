@@ -1,3 +1,4 @@
+import { resolveBlindLabels } from "@/features/game-variants/utils/blind-labels";
 import { LocalBlindStructureContent } from "@/features/rooms/components/blind-level-editor";
 import { ChipPurchasesEditor } from "@/features/rooms/components/chip-purchases-editor";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
@@ -110,6 +111,7 @@ function TournamentSettingsTab({
 							onCurrencyChange={state.setSelectedCurrencyId}
 							overriddenLabels={overriddenLabels}
 							selectedCurrencyId={state.selectedCurrencyId}
+							variants={state.variants}
 						/>
 						<TournamentSnapshotScalarFields
 							isLiveLinked={isLiveLinked}
@@ -148,8 +150,9 @@ export function TournamentRulesStepBody({
 }) {
 	return (
 		<state.form.Subscribe selector={(s) => s.values.variant}>
-			{(variant) => (
-				<>
+			{(variant) => {
+				const blindLabels = resolveBlindLabels(variant, state.variants);
+				return (
 					<Tabs defaultValue="settings">
 						<TabsList className="grid w-full grid-cols-2">
 							<TabsTrigger value="settings">Settings</TabsTrigger>
@@ -171,15 +174,15 @@ export function TournamentRulesStepBody({
 								disabled={isLiveLinked}
 							>
 								<LocalBlindStructureContent
+									blindLabels={blindLabels}
 									onChange={state.setBlindLevels}
 									value={state.blindLevels}
-									variant={variant || "nlh"}
 								/>
 							</fieldset>
 						</TabsContent>
 					</Tabs>
-				</>
-			)}
+				);
+			}}
 		</state.form.Subscribe>
 	);
 }

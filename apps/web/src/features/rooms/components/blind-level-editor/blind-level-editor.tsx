@@ -1,32 +1,25 @@
+import {
+	type BlindLabels,
+	DEFAULT_BLIND_LABELS,
+} from "@/features/game-variants/utils/blind-labels";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { useBlindLevels } from "@/features/rooms/hooks/use-blind-levels";
 import { BlindStructureTable } from "./blind-structure-table";
 import { useLocalBlindStructure } from "./use-blind-level-editor";
 
-const GAME_VARIANTS = {
-	nlh: {
-		label: "NL Hold'em",
-		blindLabels: { blind1: "SB", blind2: "BB", blind3: "Straddle" },
-	},
-} as const;
-
-function resolveBlindLabels(variant: string) {
-	const variantKey = (
-		variant in GAME_VARIANTS ? variant : "nlh"
-	) as keyof typeof GAME_VARIANTS;
-	return GAME_VARIANTS[variantKey].blindLabels;
-}
-
 // ---- Main content (API-backed) ----
 
 interface BlindStructureContentProps {
+	/** Blind-slot labels for the tournament's variant. Falls back to the
+	 * SB/BB/Straddle defaults when omitted (e.g. an external caller that
+	 * hasn't resolved the variant's labels yet). */
+	blindLabels?: BlindLabels;
 	tournamentId: string;
-	variant: string;
 }
 
 export function BlindStructureContent({
 	tournamentId,
-	variant,
+	blindLabels = DEFAULT_BLIND_LABELS,
 }: BlindStructureContentProps) {
 	const {
 		levels,
@@ -40,8 +33,6 @@ export function BlindStructureContent({
 		handleUpdate,
 		handleCreateLevel,
 	} = useBlindLevels({ tournamentId });
-
-	const blindLabels = resolveBlindLabels(variant);
 
 	if (isLoading) {
 		return (
@@ -70,15 +61,24 @@ export function BlindStructureContent({
 // ---- Local-state content (for create modal) ----
 
 interface LocalBlindStructureContentProps {
+	/** Blind-slot labels for the currently-selected variant. Falls back to the
+	 * SB/BB/Straddle defaults when omitted, keeping existing external callers
+	 * (which still pass the legacy `variant` text prop) compiling. */
+	blindLabels?: BlindLabels;
 	onChange: (levels: BlindLevelRow[]) => void;
 	value: BlindLevelRow[];
+	/**
+	 * @deprecated unused now that `blindLabels` is resolved by the caller from
+	 * the user's game variants; kept so existing callers that still pass a
+	 * free-text variant keep compiling.
+	 */
 	variant?: string;
 }
 
 export function LocalBlindStructureContent({
 	value,
 	onChange,
-	variant = "nlh",
+	blindLabels = DEFAULT_BLIND_LABELS,
 }: LocalBlindStructureContentProps) {
 	const {
 		sensors,
@@ -89,8 +89,6 @@ export function LocalBlindStructureContent({
 		handleUpdate,
 		handleCreateLevel,
 	} = useLocalBlindStructure({ value, onChange });
-
-	const blindLabels = resolveBlindLabels(variant);
 
 	return (
 		<BlindStructureTable

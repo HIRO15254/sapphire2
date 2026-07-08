@@ -83,7 +83,7 @@ describe("useTournamentFormSheet", () => {
 			entryFee: 5,
 			startingStack: 10_000,
 			tableSize: 9,
-			variant: "nlh",
+			variant: "NLH",
 		});
 		expect(result.current.effectiveLevels).toHaveLength(1);
 		expect(result.current.effectiveLevels[0].minutes).toBe(20);

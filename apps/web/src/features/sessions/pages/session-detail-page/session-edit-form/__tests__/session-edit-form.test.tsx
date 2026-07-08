@@ -15,6 +15,12 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
+// The Rules section resolves its variant selects from the user's game
+// variants; stub the hook so this doesn't need a QueryClient.
+vi.mock("@/features/game-variants/hooks/use-game-variants", () => ({
+	useGameVariants: () => ({ variants: [] }),
+}));
+
 import { SessionEditForm } from "@/features/sessions/pages/session-detail-page/session-edit-form/session-edit-form";
 import type { SessionFormDefaults } from "@/features/sessions/utils/session-form-helpers";
 

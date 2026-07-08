@@ -1,10 +1,21 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 // RulesStepBody (tournament) transitively imports @/utils/trpc; stub it.
+// gameVariant.list is stubbed too since the rules step now resolves variant
+// selects/labels via useGameVariants.
 vi.mock("@/utils/trpc", () => ({
-	trpc: {},
+	trpc: {
+		gameVariant: {
+			list: {
+				queryOptions: (input?: unknown) => ({
+					queryKey: ["gameVariant", "list", input],
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+	},
 	trpcClient: {
 		blindLevel: {
 			listByTournament: { query: vi.fn().mockResolvedValue([]) },
@@ -15,6 +26,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
+import { renderWithQueryClient } from "@/__tests__/test-utils";
 import { LiveSessionForm } from "@/features/live-sessions/components/create-session-dialog/live-session-form/live-session-form";
 
 const ROOMS = [{ id: "room-1", name: "My Casino" }];
@@ -23,7 +35,7 @@ const BACK_RE = /Back/;
 const CUSTOMIZE_RE = /Customize rules/;
 
 function renderForm() {
-	return render(
+	return renderWithQueryClient(
 		<LiveSessionForm formId="live-form" onSubmit={vi.fn()} rooms={ROOMS} />
 	);
 }

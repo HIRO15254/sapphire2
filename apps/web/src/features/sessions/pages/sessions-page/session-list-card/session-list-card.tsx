@@ -8,6 +8,7 @@ import {
 	IconTrophy,
 } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
+import { variantLabel } from "@/features/live-sessions/utils/game-scene-formatters";
 import {
 	formatSessionDuration,
 	formatSessionEvDisplay,
@@ -22,6 +23,8 @@ import { profitLossColorClass } from "@/utils/format-profit-loss";
 
 export interface SessionListCardItem {
 	breakMinutes: number | null;
+	/** Frozen cash-game variant text (null for tournaments / unrecorded). */
+	cashVariant?: string | null;
 	chipPurchaseCost: number;
 	currencyUnit: string | null;
 	endedAt: string | null;
@@ -40,6 +43,8 @@ export interface SessionListCardItem {
 	totalEntries: number | null;
 	tournamentBuyIn: number | null;
 	tournamentName: string | null;
+	/** Frozen tournament variant text (null for cash games / unrecorded). */
+	tournamentVariant?: string | null;
 	type: string;
 }
 
@@ -65,6 +70,9 @@ export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 	const isTournament = session.type === "tournament";
 	const live = isLiveSession(session);
 	const gameName = getSessionGameName(session);
+	const variant = isTournament
+		? session.tournamentVariant
+		: session.cashVariant;
 	const visibleTags = session.tags.slice(0, MAX_VISIBLE_TAGS);
 	const overflowCount = session.tags.length - visibleTags.length;
 	const duration = formatSessionDuration(
@@ -106,6 +114,15 @@ export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 					<span className="min-w-0 truncate font-medium text-foreground text-sm">
 						{gameName}
 					</span>
+					{variant ? (
+						<Badge
+							className="shrink-0"
+							data-testid="variant-badge"
+							variant="outline"
+						>
+							{variantLabel(variant)}
+						</Badge>
+					) : null}
 					{visibleTags.map((tag) => (
 						<Badge className="shrink-0" key={tag.id} variant="secondary">
 							{tag.name}

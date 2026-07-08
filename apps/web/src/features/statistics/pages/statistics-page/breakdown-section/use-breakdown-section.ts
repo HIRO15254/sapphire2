@@ -14,6 +14,7 @@ import { trpc } from "@/utils/trpc";
 /** Server-side grouping dimensions surfaced as tabs in the breakdown UI. */
 export type BreakdownGroupBy =
 	| "room"
+	| "variant"
 	| "stakes"
 	| "dayOfWeek"
 	| "length"
@@ -56,6 +57,7 @@ export interface UseBreakdownSectionResult {
 
 const TAB_LABELS: Record<BreakdownGroupBy, string> = {
 	room: "Room",
+	variant: "Variant",
 	stakes: "Stakes",
 	dayOfWeek: "Day of week",
 	length: "Length",
@@ -66,13 +68,15 @@ const TAB_LABELS: Record<BreakdownGroupBy, string> = {
  * The grouping tabs available for the current game-type filter. `stakes` is
  * meaningful for cash games only (tournaments / "all" have no big-blind stake),
  * so it is added between `room` and the time-based dimensions when, and only
- * when, the type filter is pinned to cash game.
+ * when, the type filter is pinned to cash game. `variant` — unlike `stakes` —
+ * applies to every game type (cash and tournament sessions both carry a
+ * variant), so it is always offered right after `room`.
  */
 function availableTabs(ctx: StatsSectionContext): BreakdownTab[] {
 	const values: BreakdownGroupBy[] =
 		ctx.type === "cash_game"
-			? ["room", "stakes", "dayOfWeek", "length", "month"]
-			: ["room", "dayOfWeek", "length", "month"];
+			? ["room", "variant", "stakes", "dayOfWeek", "length", "month"]
+			: ["room", "variant", "dayOfWeek", "length", "month"];
 	return values.map((value) => ({ value, label: TAB_LABELS[value] }));
 }
 

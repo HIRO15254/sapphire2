@@ -29,6 +29,7 @@ export const statsSearchSchema = z.object({
 	norm: z.enum(STATS_NORMALIZATIONS).default("normalized"),
 	type: z.enum(STATS_TYPES).default("all"),
 	room: z.string().optional(),
+	variant: z.string().optional(),
 });
 
 export type StatsFilters = z.infer<typeof statsSearchSchema>;
@@ -49,6 +50,7 @@ export interface StatsQueryInput {
 	normalized: boolean;
 	roomId?: string;
 	type?: "cash_game" | "tournament";
+	variant?: string;
 }
 
 /** Map UI filter state to the tRPC `stats.*` query input. */
@@ -61,6 +63,7 @@ export function filtersToStatsInput(
 		currencyId: filters.currency || undefined,
 		type: filters.type === "all" ? undefined : filters.type,
 		roomId: filters.room || undefined,
+		variant: filters.variant || undefined,
 		dateFrom: range.dateFrom,
 		dateTo: range.dateTo,
 		normalized: filters.norm !== "off",

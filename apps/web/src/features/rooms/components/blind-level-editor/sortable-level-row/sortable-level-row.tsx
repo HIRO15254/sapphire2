@@ -1,6 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { IconTrash } from "@tabler/icons-react";
+import type { BlindLabels } from "@/features/game-variants/utils/blind-labels";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { useSortableLevelRow } from "@/features/rooms/hooks/use-sortable-level-row";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,7 @@ import { BlindLevelInput } from "../blind-level-input";
 import { DragHandle } from "../drag-handle";
 
 interface SortableLevelRowProps {
+	blindLabels: BlindLabels;
 	onDelete: (id: string) => void;
 	onUpdate: (id: string, updates: Record<string, number | null>) => void;
 	row: BlindLevelRow;
@@ -17,6 +19,7 @@ interface SortableLevelRowProps {
 
 export function SortableLevelRow({
 	row,
+	blindLabels,
 	onDelete,
 	onUpdate,
 }: SortableLevelRowProps) {
@@ -54,20 +57,24 @@ export function SortableLevelRow({
 					<span className="text-muted-foreground text-xs">{row.level}</span>
 				</div>
 			</TableCell>
-			<TableCell className="p-0 px-0.5">
-				<BlindLevelInput
-					defaultValue={row.blind1 ?? ""}
-					key={`${row.id}-blind1`}
-					onBlur={handleBlind1Blur}
-				/>
-			</TableCell>
-			<TableCell className="p-0 px-0.5">
-				<BlindLevelInput
-					defaultValue={row.blind2 ?? ""}
-					key={`${row.id}-blind2-${row.blind2}`}
-					onBlur={handleBlind2Blur}
-				/>
-			</TableCell>
+			{blindLabels.blind1 == null ? null : (
+				<TableCell className="p-0 px-0.5">
+					<BlindLevelInput
+						defaultValue={row.blind1 ?? ""}
+						key={`${row.id}-blind1`}
+						onBlur={handleBlind1Blur}
+					/>
+				</TableCell>
+			)}
+			{blindLabels.blind2 == null ? null : (
+				<TableCell className="p-0 px-0.5">
+					<BlindLevelInput
+						defaultValue={row.blind2 ?? ""}
+						key={`${row.id}-blind2-${row.blind2}`}
+						onBlur={handleBlind2Blur}
+					/>
+				</TableCell>
+			)}
 			<TableCell className="p-0 px-0.5">
 				<BlindLevelInput
 					defaultValue={row.ante ?? ""}

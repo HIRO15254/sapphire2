@@ -105,6 +105,7 @@ function makeTournament(overrides: Partial<Tournament> = {}): Tournament {
 		tags: [],
 		createdAt: "2026-01-01",
 		updatedAt: "2026-01-01",
+		variantId: null,
 		...overrides,
 	};
 }
@@ -232,6 +233,27 @@ describe("useTournaments", () => {
 			expect(trpcMocks.cpCreate).not.toHaveBeenCalled();
 		});
 
+		it("forwards variantId in the create payload when provided", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, []);
+			trpcMocks.tournamentCreate.mockResolvedValue({ id: "t-new" });
+			const { result } = renderHook(
+				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await act(async () => {
+				await result.current.create({
+					name: "Bounty Hunter",
+					variant: "PLO",
+					variantId: "gv-1",
+					chipPurchases: [],
+				});
+			});
+			expect(trpcMocks.tournamentCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ variantId: "gv-1" })
+			);
+		});
+
 		it("optimistically appends a temp tournament with normalized chip purchases during in-flight create", async () => {
 			const qc = createClient();
 			qc.setQueryData(activeKey, [makeTournament({ id: "t1" })]);
@@ -321,6 +343,30 @@ describe("useTournaments", () => {
 				cost: 5,
 				chips: 100,
 			});
+		});
+
+		it("forwards a provided variantId through to the update payload", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, [makeTournament({ id: "t1" })]);
+			trpcMocks.tournamentUpdate.mockResolvedValue({ id: "t1" });
+			const { result } = renderHook(
+				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await act(async () => {
+				await result.current.update({
+					id: "t1",
+					name: "Patched",
+					variant: "PLO",
+					variantId: "gv-2",
+					chipPurchases: [],
+					existingChipPurchaseIds: [],
+					existingTags: [],
+				});
+			});
+			expect(trpcMocks.tournamentUpdate).toHaveBeenCalledWith(
+				expect.objectContaining({ id: "t1", variantId: "gv-2" })
+			);
 		});
 
 		it("skips tag sync when tags is undefined", async () => {
@@ -471,6 +517,75 @@ describe("useTournaments", () => {
 			);
 			expect(invalidated).toEqual(
 				expect.arrayContaining([activeKey, archivedKey])
+			);
+		});
+
+		it("createWithLevels forwards variantId when provided", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, []);
+			trpcMocks.createWithLevels.mockResolvedValue({ id: "t-new" });
+			const { result } = renderHook(
+				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await act(async () => {
+				await result.current.createWithLevels(
+					{
+						name: "Turbo",
+						variant: "PLO",
+						variantId: "gv-1",
+						chipPurchases: [],
+					},
+					[]
+				);
+			});
+			expect(trpcMocks.createWithLevels).toHaveBeenCalledWith(
+				expect.objectContaining({ variantId: "gv-1" })
+			);
+		});
+
+		it("updateWithLevels maps a missing variantId to null so the server clears the link", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, [makeTournament({ id: "t1" })]);
+			trpcMocks.updateWithLevels.mockResolvedValue({ id: "t1" });
+			const { result } = renderHook(
+				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await act(async () => {
+				await result.current.updateWithLevels(
+					"t1",
+					{ name: "Renamed", variant: "holdem", chipPurchases: [] },
+					[]
+				);
+			});
+			expect(trpcMocks.updateWithLevels).toHaveBeenCalledWith(
+				expect.objectContaining({ variantId: null })
+			);
+		});
+
+		it("updateWithLevels forwards a provided variantId", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, [makeTournament({ id: "t1" })]);
+			trpcMocks.updateWithLevels.mockResolvedValue({ id: "t1" });
+			const { result } = renderHook(
+				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await act(async () => {
+				await result.current.updateWithLevels(
+					"t1",
+					{
+						name: "Renamed",
+						variant: "PLO",
+						variantId: "gv-2",
+						chipPurchases: [],
+					},
+					[]
+				);
+			});
+			expect(trpcMocks.updateWithLevels).toHaveBeenCalledWith(
+				expect.objectContaining({ variantId: "gv-2" })
 			);
 		});
 

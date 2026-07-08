@@ -3,9 +3,20 @@ import type { FormEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 // RulesStepBody (tournament) transitively imports @/utils/trpc; stub it so the
-// env-validating import chain never loads under jsdom.
+// env-validating import chain never loads under jsdom. gameVariant.list is
+// stubbed too since the rules step now resolves variant selects/labels via
+// useGameVariants.
 vi.mock("@/utils/trpc", () => ({
-	trpc: {},
+	trpc: {
+		gameVariant: {
+			list: {
+				queryOptions: (input?: unknown) => ({
+					queryKey: ["gameVariant", "list", input],
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+	},
 	trpcClient: {
 		blindLevel: {
 			listByTournament: { query: vi.fn().mockResolvedValue([]) },
@@ -16,6 +27,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
+import { withQueryClient } from "@/__tests__/test-utils";
 import { useLiveSessionForm } from "@/features/live-sessions/components/create-session-dialog/live-session-form/use-live-session-form";
 import type { RingGameOption } from "@/features/sessions/utils/session-form-helpers";
 
@@ -33,8 +45,9 @@ const RING_GAME: RingGameOption = {
 };
 
 function renderForm(onSubmit = vi.fn()) {
-	return renderHook(() =>
-		useLiveSessionForm({ onSubmit, ringGames: [RING_GAME] })
+	return renderHook(
+		() => useLiveSessionForm({ onSubmit, ringGames: [RING_GAME] }),
+		{ wrapper: withQueryClient() }
 	);
 }
 
@@ -64,13 +77,15 @@ describe("useLiveSessionForm — rule disclosure", () => {
 describe("useLiveSessionForm — geolocation default room", () => {
 	it("seeds the room selection from defaultRoomId", async () => {
 		const onRoomChange = vi.fn();
-		const { result } = renderHook(() =>
-			useLiveSessionForm({
-				defaultRoomId: "room-near",
-				onRoomChange,
-				onSubmit: vi.fn(),
-				ringGames: [RING_GAME],
-			})
+		const { result } = renderHook(
+			() =>
+				useLiveSessionForm({
+					defaultRoomId: "room-near",
+					onRoomChange,
+					onSubmit: vi.fn(),
+					ringGames: [RING_GAME],
+				}),
+			{ wrapper: withQueryClient() }
 		);
 		await waitFor(() =>
 			expect(result.current.state.selectedRoomId).toBe("room-near")
@@ -86,7 +101,10 @@ describe("useLiveSessionForm — geolocation default room", () => {
 					onSubmit: vi.fn(),
 					ringGames: [RING_GAME],
 				}),
-			{ initialProps: { defaultRoomId: undefined as string | undefined } }
+			{
+				initialProps: { defaultRoomId: undefined as string | undefined },
+				wrapper: withQueryClient(),
+			}
 		);
 
 		act(() => result.current.state.handleRoomChange("room-manual"));
@@ -99,12 +117,14 @@ describe("useLiveSessionForm — geolocation default room", () => {
 	});
 
 	it("does not re-seed after the user clears the selection", async () => {
-		const { result } = renderHook(() =>
-			useLiveSessionForm({
-				defaultRoomId: "room-near",
-				onSubmit: vi.fn(),
-				ringGames: [RING_GAME],
-			})
+		const { result } = renderHook(
+			() =>
+				useLiveSessionForm({
+					defaultRoomId: "room-near",
+					onSubmit: vi.fn(),
+					ringGames: [RING_GAME],
+				}),
+			{ wrapper: withQueryClient() }
 		);
 		await waitFor(() =>
 			expect(result.current.state.selectedRoomId).toBe("room-near")

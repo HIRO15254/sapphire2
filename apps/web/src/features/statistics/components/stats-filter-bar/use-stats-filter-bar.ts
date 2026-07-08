@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useGameVariants } from "@/features/game-variants/hooks/use-game-variants";
 import { useStatsFilters } from "@/features/statistics/hooks/use-stats-filters";
 import {
 	type StatsCurrencyOption,
@@ -12,7 +13,25 @@ import type {
 } from "@/features/statistics/utils/stats-filters";
 import { dateInputToEpochSec, type Period } from "@/shared/lib/period-filter";
 
-export type StatsFilterSheet = "currency" | "norm" | "period" | "room" | "type";
+export type StatsFilterSheet =
+	| "currency"
+	| "norm"
+	| "period"
+	| "room"
+	| "type"
+	| "variant";
+
+/**
+ * A user-defined game variant option, as offered by the Variant filter sheet.
+ * Deliberately narrower than `useGameVariants`' `GameVariant` (which types
+ * `archivedAt` as `Date`, though the tRPC query actually serializes it to a
+ * string over the wire) — the filter bar only ever needs `id` / `name`, so it
+ * maps down to this shape instead of depending on that mismatched type.
+ */
+export interface StatsVariantOption {
+	id: string;
+	name: string;
+}
 
 export interface UseStatsFilterBarResult {
 	activeSheet: StatsFilterSheet | null;
@@ -38,8 +57,10 @@ export interface UseStatsFilterBarResult {
 	onRoomChange: (value: string | undefined) => void;
 	onToChange: (value: string) => void;
 	onTypeChange: (value: string) => void;
+	onVariantChange: (value: string | undefined) => void;
 	openSheet: (key: StatsFilterSheet) => void;
 	rooms: StatsRoomOption[];
+	variants: StatsVariantOption[];
 }
 
 /**
@@ -55,6 +76,11 @@ export interface UseStatsFilterBarResult {
 export function useStatsFilterBar(): UseStatsFilterBarResult {
 	const { filters, setFilters, isScopeValid } = useStatsFilters();
 	const { currencies, rooms, isLoading } = useStatsReferenceData();
+	const { variants: gameVariants } = useGameVariants();
+	const variants: StatsVariantOption[] = gameVariants.map((v) => ({
+		id: v.id,
+		name: v.name,
+	}));
 	const [activeSheet, setActiveSheet] = useState<StatsFilterSheet | null>(null);
 
 	const closeSheet = () => setActiveSheet(null);
@@ -76,6 +102,7 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 		filters,
 		currencies,
 		rooms,
+		variants,
 		isReferenceLoading: isLoading,
 		isScopeValid,
 		currencyChipLabel,
@@ -128,6 +155,10 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 		},
 		onRoomChange: (value) => {
 			setFilters({ room: value });
+			closeSheet();
+		},
+		onVariantChange: (value) => {
+			setFilters({ variant: value });
 			closeSheet();
 		},
 		onFromChange: (value) => setFilters({ from: dateInputToEpochSec(value) }),

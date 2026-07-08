@@ -1,10 +1,40 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { GameVariant } from "@/features/game-variants/hooks/use-game-variants";
+
+const gameVariantsMocks = vi.hoisted(() => ({
+	variants: [] as GameVariant[],
+}));
+
+vi.mock("@/features/game-variants/hooks/use-game-variants", () => ({
+	useGameVariants: () => ({ variants: gameVariantsMocks.variants }),
+}));
+
 import { useSessionFormState } from "@/features/sessions/components/session-wizard/use-session-form-state";
 import type {
 	RingGameOption,
 	TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
+
+const NLH_VARIANT: GameVariant = {
+	id: "v-nlh",
+	name: "NLH",
+	blindLabel1: "SB",
+	blindLabel2: "BB",
+	blindLabel3: "Straddle",
+	sortOrder: 0,
+	archivedAt: null,
+};
+
+const PLO_VARIANT: GameVariant = {
+	id: "v-plo",
+	name: "PLO",
+	blindLabel1: "SB",
+	blindLabel2: "BB",
+	blindLabel3: "Straddle",
+	sortOrder: 1,
+	archivedAt: null,
+};
 
 const RING_GAMES: RingGameOption[] = [
 	{
@@ -26,6 +56,10 @@ const TOURNAMENTS: TournamentOption[] = [
 ];
 
 describe("useSessionFormState", () => {
+	beforeEach(() => {
+		gameVariantsMocks.variants = [];
+	});
+
 	it("defaults sessionType to cash_game and gameOptions to ringGames", () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
@@ -137,10 +171,52 @@ describe("useSessionFormState", () => {
 				buyIn: 100,
 				cashOut: 150,
 				sessionDate: "2026-04-10",
-				variant: "nlh",
+				variant: "NLH",
 				anteType: "none",
 				ante: undefined,
 			})
+		);
+	});
+
+	it("submits 'NLH' when the variant field is cleared to an empty string", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useSessionFormState({
+				onSubmit,
+				defaultValues: { type: "cash_game", sessionDate: "2026-04-10" },
+			})
+		);
+		act(() => {
+			result.current.form.setFieldValue("buyIn", "100");
+			result.current.form.setFieldValue("cashOut", "150");
+			result.current.form.setFieldValue("variant", "");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ variant: "NLH" })
+		);
+	});
+
+	it("submits the selected variant name as the tournament's frozen snapshot text", async () => {
+		const onSubmit = vi.fn();
+		gameVariantsMocks.variants = [PLO_VARIANT];
+		const { result } = renderHook(() =>
+			useSessionFormState({
+				onSubmit,
+				defaultValues: { type: "tournament", sessionDate: "2026-04-10" },
+			})
+		);
+		act(() => {
+			result.current.form.setFieldValue("tournamentBuyIn", "100");
+			result.current.form.setFieldValue("variant", "PLO");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ type: "tournament", variant: "PLO" })
 		);
 	});
 
@@ -219,5 +295,20 @@ describe("useSessionFormState", () => {
 			})
 		);
 		expect(tourney.current.selectedGameId).toBe("t1");
+	});
+
+	describe("variants", () => {
+		it("exposes the user's active game variants for the Rules-step selects", () => {
+			gameVariantsMocks.variants = [NLH_VARIANT, PLO_VARIANT];
+			const onSubmit = vi.fn();
+			const { result } = renderHook(() => useSessionFormState({ onSubmit }));
+			expect(result.current.variants).toEqual([NLH_VARIANT, PLO_VARIANT]);
+		});
+
+		it("exposes an empty array when the user has no variants loaded yet", () => {
+			const onSubmit = vi.fn();
+			const { result } = renderHook(() => useSessionFormState({ onSubmit }));
+			expect(result.current.variants).toEqual([]);
+		});
 	});
 });

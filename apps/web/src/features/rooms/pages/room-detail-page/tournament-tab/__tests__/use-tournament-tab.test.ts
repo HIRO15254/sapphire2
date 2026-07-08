@@ -98,6 +98,7 @@ const TOURNAMENT: Tournament = {
 	blindLevelCount: 0,
 	createdAt: "",
 	updatedAt: "",
+	variantId: null,
 };
 
 describe("useTournamentTab", () => {
@@ -136,6 +137,28 @@ describe("useTournamentTab", () => {
 		});
 		expect(result.current.editingTournament).toBe(TOURNAMENT);
 		expect(result.current.editInitialFormValues?.name).toBe("Main");
+	});
+
+	it("maps a null tournament.variantId to undefined in editInitialFormValues", () => {
+		const qc = createClient();
+		const { result } = renderHook(() => useTournamentTab({ roomId: "s1" }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.setEditingTournament(TOURNAMENT);
+		});
+		expect(result.current.editInitialFormValues?.variantId).toBeUndefined();
+	});
+
+	it("forwards a non-null tournament.variantId in editInitialFormValues", () => {
+		const qc = createClient();
+		const { result } = renderHook(() => useTournamentTab({ roomId: "s1" }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.setEditingTournament({ ...TOURNAMENT, variantId: "gv-1" });
+		});
+		expect(result.current.editInitialFormValues?.variantId).toBe("gv-1");
 	});
 
 	it("handleCreate calls trpcClient.tournament.createWithLevels and closes the create dialog", async () => {

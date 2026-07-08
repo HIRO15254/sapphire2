@@ -112,7 +112,7 @@ describe("BlindStructureContent", () => {
 	});
 
 	it("renders the reorder helper text", () => {
-		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+		render(<BlindStructureContent tournamentId="tour-1" />);
 
 		expect(screen.getByText(BLIND_HELPER_PATTERN)).toBeInTheDocument();
 	});
@@ -120,7 +120,7 @@ describe("BlindStructureContent", () => {
 	it("shows the loading state", () => {
 		mocks.isLoading = true;
 
-		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+		render(<BlindStructureContent tournamentId="tour-1" />);
 
 		expect(screen.getByText("Loading levels...")).toBeInTheDocument();
 	});
@@ -128,7 +128,7 @@ describe("BlindStructureContent", () => {
 	it("adds a level and a break from the header actions", async () => {
 		const user = userEvent.setup();
 
-		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+		render(<BlindStructureContent tournamentId="tour-1" />);
 
 		await user.click(
 			screen.getByRole("button", { name: LEVEL_BUTTON_PATTERN })
@@ -150,7 +150,7 @@ describe("BlindStructureContent", () => {
 	});
 
 	it("creates a new level row with autofill when the new row loses focus", () => {
-		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+		render(<BlindStructureContent tournamentId="tour-1" />);
 
 		const numberInputs = screen.getAllByRole("textbox");
 		const smallBlindInput = numberInputs[0];
@@ -170,7 +170,7 @@ describe("BlindStructureContent", () => {
 	it("renders the editor table when there are no levels", () => {
 		mocks.blindLevels = [];
 
-		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+		render(<BlindStructureContent tournamentId="tour-1" />);
 
 		// Loading text is absent because isLoading=false; the helper text and the
 		// empty new-row table are present.
@@ -194,7 +194,7 @@ describe("BlindStructureContent", () => {
 			},
 		];
 
-		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+		render(<BlindStructureContent tournamentId="tour-1" />);
 
 		await user.click(screen.getByRole("button", { name: "Delete level" }));
 
@@ -202,7 +202,7 @@ describe("BlindStructureContent", () => {
 	});
 
 	it("renders numeric cells as text inputs with a numeric input mode", () => {
-		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+		render(<BlindStructureContent tournamentId="tour-1" />);
 
 		const inputs = screen.getAllByRole("textbox");
 		expect(inputs.length).toBeGreaterThan(0);
@@ -227,7 +227,7 @@ describe("BlindStructureContent", () => {
 			},
 		];
 
-		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+		render(<BlindStructureContent tournamentId="tour-1" />);
 
 		// First textbox is the break row's minutes cell (empty new-level row follows).
 		const minutesInput = screen.getAllByRole("textbox")[0];
@@ -245,6 +245,75 @@ describe("BlindStructureContent", () => {
 		expect(mocks.updateMutate).toHaveBeenLastCalledWith({
 			id: "break-1",
 			minutes: null,
+		});
+	});
+
+	describe("blindLabels prop", () => {
+		it("defaults to SB/BB/Straddle column headers when omitted", () => {
+			render(<BlindStructureContent tournamentId="tour-1" />);
+
+			expect(
+				screen.getByRole("columnheader", { name: "SB" })
+			).toBeInTheDocument();
+			expect(
+				screen.getByRole("columnheader", { name: "BB" })
+			).toBeInTheDocument();
+		});
+
+		it("renders the caller-supplied blind labels as column headers", () => {
+			render(
+				<BlindStructureContent
+					blindLabels={{ blind1: "Bring-in", blind2: null, blind3: null }}
+					tournamentId="tour-1"
+				/>
+			);
+
+			expect(
+				screen.getByRole("columnheader", { name: "Bring-in" })
+			).toBeInTheDocument();
+		});
+
+		it("hides the blind2 column and its cells when the label is null", () => {
+			mocks.blindLevels = [
+				{
+					ante: 200,
+					blind1: 100,
+					blind2: null,
+					blind3: null,
+					id: "level-1",
+					isBreak: false,
+					level: 1,
+					minutes: 20,
+					tournamentId: "tour-1",
+				},
+			];
+
+			render(
+				<BlindStructureContent
+					blindLabels={{ blind1: "Bring-in", blind2: null, blind3: null }}
+					tournamentId="tour-1"
+				/>
+			);
+
+			expect(
+				screen.queryByRole("columnheader", { name: "BB" })
+			).not.toBeInTheDocument();
+			// Header row: # / Bring-in / Ante / Min / (trailing action column) —
+			// 5 columns total with blind2 hidden (6 when both blinds show).
+			expect(screen.getAllByRole("columnheader")).toHaveLength(5);
+		});
+
+		it("keeps the Ante column header even when both blind labels are null", () => {
+			render(
+				<BlindStructureContent
+					blindLabels={{ blind1: null, blind2: null, blind3: null }}
+					tournamentId="tour-1"
+				/>
+			);
+
+			expect(
+				screen.getByRole("columnheader", { name: "Ante" })
+			).toBeInTheDocument();
 		});
 	});
 });

@@ -93,6 +93,7 @@ export function CashRulesStepBody({
 							onCurrencyChange={state.setSelectedCurrencyId}
 							overriddenLabels={overriddenLabels}
 							selectedCurrencyId={state.selectedCurrencyId}
+							variants={state.variants}
 						/>
 						<CashBuyInBoundsFields
 							isLiveLinked={isLiveLinked}

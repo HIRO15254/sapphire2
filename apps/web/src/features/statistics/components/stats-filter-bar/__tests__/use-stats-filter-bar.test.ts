@@ -19,6 +19,34 @@ const mocks = vi.hoisted(() => ({
 		{ id: "r2", name: "Bellagio" },
 	] as { id: string; name: string }[],
 	isLoading: false,
+	gameVariants: [
+		{
+			id: "v1",
+			name: "NLH",
+			blindLabel1: "SB",
+			blindLabel2: "BB",
+			blindLabel3: "Straddle",
+			sortOrder: 0,
+			archivedAt: null,
+		},
+		{
+			id: "v2",
+			name: "PLO5",
+			blindLabel1: "SB",
+			blindLabel2: "BB",
+			blindLabel3: "Straddle",
+			sortOrder: 1,
+			archivedAt: null,
+		},
+	] as {
+		archivedAt: Date | null;
+		blindLabel1: string | null;
+		blindLabel2: string | null;
+		blindLabel3: string | null;
+		id: string;
+		name: string;
+		sortOrder: number;
+	}[],
 }));
 
 vi.mock("@/features/statistics/hooks/use-stats-filters", () => ({
@@ -39,6 +67,23 @@ vi.mock("@/features/statistics/hooks/use-stats-reference-data", () => ({
 	}),
 }));
 
+vi.mock("@/features/game-variants/hooks/use-game-variants", () => ({
+	useGameVariants: () => ({
+		variants: mocks.gameVariants,
+		isPending: false,
+		isCreatePending: false,
+		isUpdatePending: false,
+		isArchivePending: false,
+		isRestorePending: false,
+		isDeletePending: false,
+		onCreate: vi.fn(),
+		onUpdate: vi.fn(),
+		onArchive: vi.fn(),
+		onRestore: vi.fn(),
+		onDelete: vi.fn(),
+	}),
+}));
+
 import { useStatsFilterBar } from "@/features/statistics/components/stats-filter-bar/use-stats-filter-bar";
 
 describe("useStatsFilterBar", () => {
@@ -55,6 +100,26 @@ describe("useStatsFilterBar", () => {
 			{ id: "r2", name: "Bellagio" },
 		];
 		mocks.isLoading = false;
+		mocks.gameVariants = [
+			{
+				id: "v1",
+				name: "NLH",
+				blindLabel1: "SB",
+				blindLabel2: "BB",
+				blindLabel3: "Straddle",
+				sortOrder: 0,
+				archivedAt: null,
+			},
+			{
+				id: "v2",
+				name: "PLO5",
+				blindLabel1: "SB",
+				blindLabel2: "BB",
+				blindLabel3: "Straddle",
+				sortOrder: 1,
+				archivedAt: null,
+			},
+		];
 	});
 
 	describe("currencyChipLabel", () => {
@@ -309,6 +374,56 @@ describe("useStatsFilterBar", () => {
 			expect(mocks.setFilters).toHaveBeenCalledTimes(1);
 			expect(mocks.setFilters).toHaveBeenCalledWith({ room: undefined });
 			expect(result.current.activeSheet).toBeNull();
+		});
+	});
+
+	describe("onVariantChange", () => {
+		it("patches variant and closes the sheet", () => {
+			const { result } = renderHook(() => useStatsFilterBar());
+			act(() => {
+				result.current.openSheet("variant");
+			});
+			act(() => {
+				result.current.onVariantChange("PLO5");
+			});
+			expect(mocks.setFilters).toHaveBeenCalledTimes(1);
+			expect(mocks.setFilters).toHaveBeenCalledWith({ variant: "PLO5" });
+			expect(result.current.activeSheet).toBeNull();
+		});
+
+		it("clears variant to undefined and closes the sheet", () => {
+			mocks.filters = {
+				period: "all",
+				norm: "off",
+				type: "all",
+				variant: "PLO5",
+			} as StatsFilters;
+			const { result } = renderHook(() => useStatsFilterBar());
+			act(() => {
+				result.current.openSheet("variant");
+			});
+			act(() => {
+				result.current.onVariantChange(undefined);
+			});
+			expect(mocks.setFilters).toHaveBeenCalledTimes(1);
+			expect(mocks.setFilters).toHaveBeenCalledWith({ variant: undefined });
+			expect(result.current.activeSheet).toBeNull();
+		});
+	});
+
+	describe("variants", () => {
+		it("exposes the game variant list mapped to id/name options", () => {
+			const { result } = renderHook(() => useStatsFilterBar());
+			expect(result.current.variants).toEqual([
+				{ id: "v1", name: "NLH" },
+				{ id: "v2", name: "PLO5" },
+			]);
+		});
+
+		it("exposes an empty list when the user has no variants", () => {
+			mocks.gameVariants = [];
+			const { result } = renderHook(() => useStatsFilterBar());
+			expect(result.current.variants).toEqual([]);
 		});
 	});
 

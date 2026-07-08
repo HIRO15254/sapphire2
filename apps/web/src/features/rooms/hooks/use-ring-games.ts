@@ -26,6 +26,7 @@ export interface RingGame {
 	updatedAt: string;
 	userId: string | null;
 	variant: string;
+	variantId: string | null;
 }
 
 export interface RingGameFormValues {
@@ -41,6 +42,7 @@ export interface RingGameFormValues {
 	name: string;
 	tableSize?: number;
 	variant: string;
+	variantId?: string;
 }
 
 function buildOptimisticRingGame(
@@ -69,6 +71,7 @@ function buildOptimisticRingGame(
 		// real userId) on settle.
 		userId: null,
 		variant: values.variant,
+		variantId: values.variantId ?? null,
 	};
 }
 
@@ -157,6 +160,7 @@ export function useRingGames({ roomId, showArchived }: UseRingGamesOptions) {
 				id: values.id,
 				name: values.name,
 				variant: values.variant,
+				variantId: values.variantId ?? null,
 				blind1: values.blind1 ?? null,
 				blind2: values.blind2 ?? null,
 				blind3: values.blind3 ?? null,

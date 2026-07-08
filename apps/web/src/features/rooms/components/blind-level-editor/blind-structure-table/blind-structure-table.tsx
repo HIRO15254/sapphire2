@@ -10,6 +10,7 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { IconCoffee, IconPlus } from "@tabler/icons-react";
+import type { BlindLabels } from "@/features/game-variants/utils/blind-labels";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import type { NewLevelValues } from "@/features/rooms/utils/blind-level-helpers";
 import { Button } from "@/shared/components/ui/button";
@@ -25,7 +26,7 @@ import { SortableBreakRow } from "../sortable-break-row";
 import { SortableLevelRow } from "../sortable-level-row";
 
 interface BlindStructureTableProps {
-	blindLabels: { blind1: string; blind2: string; blind3: string };
+	blindLabels: BlindLabels;
 	handleAddBreak: () => void;
 	handleAddLevel: () => void;
 	handleCreateLevel: (values: NewLevelValues) => void;
@@ -77,12 +78,16 @@ export function BlindStructureTable({
 						<TableHead className="h-auto w-10 pb-1 text-center font-medium text-muted-foreground text-xs">
 							#
 						</TableHead>
-						<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
-							{blindLabels.blind1}
-						</TableHead>
-						<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
-							{blindLabels.blind2}
-						</TableHead>
+						{blindLabels.blind1 == null ? null : (
+							<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
+								{blindLabels.blind1}
+							</TableHead>
+						)}
+						{blindLabels.blind2 == null ? null : (
+							<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
+								{blindLabels.blind2}
+							</TableHead>
+						)}
 						<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
 							Ante
 						</TableHead>
@@ -106,6 +111,7 @@ export function BlindStructureTable({
 								{levels.map((row) =>
 									row.isBreak ? (
 										<SortableBreakRow
+											blindLabels={blindLabels}
 											key={row.id}
 											onDelete={handleDelete}
 											onUpdate={handleUpdate}
@@ -113,6 +119,7 @@ export function BlindStructureTable({
 										/>
 									) : (
 										<SortableLevelRow
+											blindLabels={blindLabels}
 											key={row.id}
 											onDelete={handleDelete}
 											onUpdate={handleUpdate}
@@ -123,7 +130,10 @@ export function BlindStructureTable({
 							</SortableContext>
 						</DndContext>
 					)}
-					<EmptyRow onCreateLevel={handleCreateLevel} />
+					<EmptyRow
+						blindLabels={blindLabels}
+						onCreateLevel={handleCreateLevel}
+					/>
 				</TableBody>
 			</Table>
 		</div>

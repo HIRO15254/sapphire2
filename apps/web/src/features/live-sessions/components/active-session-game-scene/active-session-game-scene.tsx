@@ -1,4 +1,9 @@
 import { IconEdit } from "@tabler/icons-react";
+import { useGameVariants } from "@/features/game-variants/hooks/use-game-variants";
+import {
+	type BlindLabels,
+	resolveBlindLabels,
+} from "@/features/game-variants/utils/blind-labels";
 import { AssignRingGameDialog } from "@/features/live-sessions/components/assign-ring-game-dialog";
 import { AssignTournamentDialog } from "@/features/live-sessions/components/assign-tournament-dialog";
 import { ModifiedBadge } from "@/features/live-sessions/components/modified-badge";
@@ -380,7 +385,13 @@ interface StructureLevel {
 	minutes: number | null;
 }
 
-function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
+function TournamentStructureTable({
+	levels,
+	blindLabels,
+}: {
+	levels: StructureLevel[];
+	blindLabels: BlindLabels;
+}) {
 	if (levels.length === 0) {
 		return (
 			<p className="py-4 text-center text-muted-foreground text-xs">
@@ -389,6 +400,13 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 		);
 	}
 
+	const showBlind1 = blindLabels.blind1 != null;
+	const showBlind2 = blindLabels.blind2 != null;
+	// Break rows span every column between the level number and the minutes
+	// column: Ante is always shown, blind1 / blind2 only when their label
+	// resolves to a non-null value for this variant.
+	const breakColSpan = 1 + (showBlind1 ? 1 : 0) + (showBlind2 ? 1 : 0);
+
 	return (
 		<Table className="table-fixed text-[11px]">
 			<TableHeader>
@@ -396,12 +414,16 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 					<TableHead className="h-auto w-6 pb-0.5 text-center font-medium text-muted-foreground">
 						#
 					</TableHead>
-					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
-						SB
-					</TableHead>
-					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
-						BB
-					</TableHead>
+					{showBlind1 ? (
+						<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
+							{blindLabels.blind1}
+						</TableHead>
+					) : null}
+					{showBlind2 ? (
+						<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
+							{blindLabels.blind2}
+						</TableHead>
+					) : null}
 					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
 						Ante
 					</TableHead>
@@ -420,7 +442,7 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 								</TableCell>
 								<TableCell
 									className="py-0.5 text-center text-muted-foreground"
-									colSpan={3}
+									colSpan={breakColSpan}
 								>
 									Break
 								</TableCell>
@@ -436,12 +458,16 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 							<TableCell className="py-0.5 text-center text-muted-foreground">
 								{row.level}
 							</TableCell>
-							<TableCell className="py-0.5 text-center">
-								{row.blind1 == null ? "—" : fmt(row.blind1)}
-							</TableCell>
-							<TableCell className="py-0.5 text-center">
-								{row.blind2 == null ? "—" : fmt(row.blind2)}
-							</TableCell>
+							{showBlind1 ? (
+								<TableCell className="py-0.5 text-center">
+									{row.blind1 == null ? "—" : fmt(row.blind1)}
+								</TableCell>
+							) : null}
+							{showBlind2 ? (
+								<TableCell className="py-0.5 text-center">
+									{row.blind2 == null ? "—" : fmt(row.blind2)}
+								</TableCell>
+							) : null}
 							<TableCell className="py-0.5 text-center">
 								{row.ante == null ? "—" : fmt(row.ante)}
 							</TableCell>
@@ -604,10 +630,12 @@ function StructureCard({
 	levels,
 	isLoading,
 	isModified,
+	blindLabels,
 }: {
 	levels: StructureLevel[];
 	isLoading: boolean;
 	isModified: boolean;
+	blindLabels: BlindLabels;
 }) {
 	return (
 		<Card size="sm">
@@ -625,7 +653,7 @@ function StructureCard({
 						Loading levels...
 					</p>
 				) : (
-					<TournamentStructureTable levels={levels} />
+					<TournamentStructureTable blindLabels={blindLabels} levels={levels} />
 				)}
 			</CardContent>
 		</Card>
@@ -670,6 +698,7 @@ function TournamentDetailsBody({
 	diff,
 	levelsModified,
 	chipPurchasesModified,
+	blindLabels,
 }: {
 	sessionId: string;
 	display: SessionTournamentDisplay;
@@ -683,6 +712,7 @@ function TournamentDetailsBody({
 	>;
 	levelsModified: boolean;
 	chipPurchasesModified: boolean;
+	blindLabels: BlindLabels;
 }) {
 	const {
 		isEditOpen,
@@ -720,6 +750,7 @@ function TournamentDetailsBody({
 				isModified={chipPurchasesModified}
 			/>
 			<StructureCard
+				blindLabels={blindLabels}
 				isLoading={isLevelsLoading}
 				isModified={levelsModified}
 				levels={displayLevels}
@@ -790,6 +821,7 @@ function TournamentDetails({ sessionId }: { sessionId: string }) {
 	const roomId = session?.roomId ?? "";
 	const snapshot = useSessionTournamentStructure(sessionId);
 	const master = useTournamentDetail(tournamentId);
+	const { variants } = useGameVariants();
 
 	if (!session) {
 		return (
@@ -844,9 +876,11 @@ function TournamentDetails({ sessionId }: { sessionId: string }) {
 		snapshot.chipPurchases,
 		master.chipPurchases
 	);
+	const blindLabels = resolveBlindLabels(snapshot.display.variant, variants);
 
 	return (
 		<TournamentDetailsBody
+			blindLabels={blindLabels}
 			chipPurchasesModified={chipPurchasesModified}
 			currencyName={currency?.name}
 			diff={diff}

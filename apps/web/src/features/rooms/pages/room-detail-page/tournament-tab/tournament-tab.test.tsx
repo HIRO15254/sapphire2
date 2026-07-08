@@ -78,6 +78,7 @@ const baseTournament = (overrides: Partial<Tournament> = {}): Tournament =>
 		tags: [],
 		updatedAt: "",
 		variant: "nlh",
+		variantId: null,
 		...overrides,
 	}) as Tournament;
 

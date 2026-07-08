@@ -33,6 +33,7 @@ export interface Tournament {
 	tags: { id: string; name: string }[];
 	updatedAt: string;
 	variant: string;
+	variantId: string | null;
 }
 
 export interface ChipPurchaseFormItem {
@@ -53,6 +54,7 @@ export interface TournamentFormValues {
 	tableSize?: number;
 	tags?: string[];
 	variant: string;
+	variantId?: string;
 }
 
 function buildOptimisticTournament(
@@ -95,6 +97,7 @@ function buildOptimisticTournament(
 			[],
 		updatedAt: new Date().toISOString(),
 		variant: values.variant,
+		variantId: values.variantId ?? existing?.variantId ?? null,
 	};
 }
 
@@ -382,6 +385,7 @@ export function useTournaments({
 				roomId,
 				name: input.values.name,
 				variant: input.values.variant,
+				variantId: input.values.variantId,
 				buyIn: input.values.buyIn,
 				entryFee: input.values.entryFee,
 				startingStack: input.values.startingStack,
@@ -413,6 +417,7 @@ export function useTournaments({
 				id: input.id,
 				name: input.values.name,
 				variant: input.values.variant,
+				variantId: input.values.variantId ?? null,
 				buyIn: input.values.buyIn ?? null,
 				entryFee: input.values.entryFee ?? null,
 				startingStack: input.values.startingStack ?? null,

@@ -1,5 +1,13 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+
+// useSessionEditForm reuses useSessionWizard, which resolves its Rules-step
+// variant selects from the user's game variants; stub the hook so these
+// hook-state tests don't need a QueryClient.
+vi.mock("@/features/game-variants/hooks/use-game-variants", () => ({
+	useGameVariants: () => ({ variants: [] }),
+}));
+
 import { useSessionEditForm } from "@/features/sessions/pages/session-detail-page/session-edit-form/use-session-edit-form";
 import type {
 	RingGameOption,

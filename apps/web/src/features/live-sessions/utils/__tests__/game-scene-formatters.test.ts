@@ -25,16 +25,20 @@ function ringGame(overrides: Partial<RingGame> = {}): RingGame {
 }
 
 describe("variantLabel", () => {
-	it("maps 'nlh' to 'NLH'", () => {
+	it("maps legacy 'nlh' to 'NLH'", () => {
 		expect(variantLabel("nlh")).toBe("NLH");
 	});
 
-	it("uppercases unknown variants", () => {
-		expect(variantLabel("plo")).toBe("PLO");
-		expect(variantLabel("mixed")).toBe("MIXED");
+	it("returns a user-defined variant name unchanged", () => {
+		expect(variantLabel("PLO5")).toBe("PLO5");
 	});
 
-	it("returns empty uppercase for empty string", () => {
+	it("returns an unmapped lowercase variant unchanged (no uppercasing)", () => {
+		expect(variantLabel("plo")).toBe("plo");
+		expect(variantLabel("mixed")).toBe("mixed");
+	});
+
+	it("returns an empty string unchanged", () => {
 		expect(variantLabel("")).toBe("");
 	});
 

@@ -13,10 +13,6 @@ import { TagInput } from "@/shared/components/ui/tag-input";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { useTournamentForm } from "./use-tournament-form";
 
-const GAME_VARIANTS = {
-	nlh: { label: "NL Hold'em" },
-} as const;
-
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
 interface TournamentFormProps {
@@ -56,7 +52,7 @@ export function TournamentForm({
 	onInvalidSubmit,
 	onRegisterLiveValues,
 }: TournamentFormProps) {
-	const { form, currencies } = useTournamentForm({
+	const { form, currencies, variants } = useTournamentForm({
 		defaultValues,
 		onInvalidSubmit,
 		onRegisterLiveValues,
@@ -91,7 +87,7 @@ export function TournamentForm({
 				)}
 			</form.Field>
 
-			<form.Field name="variant">
+			<form.Field name="variantId">
 				{(field) => (
 					<Field htmlFor={field.name} label="Variant" required>
 						<Select
@@ -102,9 +98,9 @@ export function TournamentForm({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								{Object.entries(GAME_VARIANTS).map(([key, val]) => (
-									<SelectItem key={key} value={key}>
-										{val.label}
+								{variants.map((v) => (
+									<SelectItem key={v.id} value={v.id}>
+										{v.name}
 									</SelectItem>
 								))}
 							</SelectContent>

@@ -12,15 +12,6 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { BlindFields } from "./blind-fields";
 import { useRingGameForm } from "./use-ring-game-form";
 
-const GAME_VARIANTS = {
-	nlh: {
-		label: "NL Hold'em",
-		blindLabels: { blind1: "SB", blind2: "BB", blind3: "Straddle" },
-	},
-} as const;
-
-type Variant = keyof typeof GAME_VARIANTS;
-
 type AnteType = "all" | "bb" | "none";
 
 interface RingGameFormProps {
@@ -47,14 +38,10 @@ export function RingGameForm({
 	defaultValues,
 	formId,
 }: RingGameFormProps) {
-	const { form, currencies } = useRingGameForm({ defaultValues, onSubmit });
-
-	const variantKey = (defaultValues?.variant ?? "nlh") as Variant;
-	const blindLabels = GAME_VARIANTS[variantKey]?.blindLabels ?? {
-		blind1: "SB",
-		blind2: "BB",
-		blind3: "Straddle",
-	};
+	const { form, currencies, variants, blindLabels } = useRingGameForm({
+		defaultValues,
+		onSubmit,
+	});
 
 	return (
 		<form
@@ -84,7 +71,7 @@ export function RingGameForm({
 				)}
 			</form.Field>
 
-			<form.Field name="variant">
+			<form.Field name="variantId">
 				{(field) => (
 					<Field htmlFor={field.name} label="Variant" required>
 						<Select
@@ -95,9 +82,9 @@ export function RingGameForm({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								{Object.entries(GAME_VARIANTS).map(([key, val]) => (
-									<SelectItem key={key} value={key}>
-										{val.label}
+								{variants.map((v) => (
+									<SelectItem key={v.id} value={v.id}>
+										{v.name}
 									</SelectItem>
 								))}
 							</SelectContent>

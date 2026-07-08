@@ -1,4 +1,5 @@
 import { IconDotsVertical } from "@tabler/icons-react";
+import { variantLabel } from "@/features/live-sessions/utils/game-scene-formatters";
 import type { Tournament } from "@/features/rooms/hooks/use-tournaments";
 import { formatTournamentBuyIn } from "@/features/rooms/utils/game-format";
 import { cn } from "@/lib/utils";
@@ -47,7 +48,7 @@ export function TournamentRow({
 					<span className="truncate font-medium text-sm">
 						{tournament.name}
 					</span>
-					<Badge variant="secondary">{tournament.variant.toUpperCase()}</Badge>
+					<Badge variant="secondary">{variantLabel(tournament.variant)}</Badge>
 					{tournament.tableSize == null ? null : (
 						<Badge className={getTableSizeClassName(tournament.tableSize)}>
 							{tournament.tableSize}-max

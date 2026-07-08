@@ -100,6 +100,7 @@ export function RingGameTab({ roomId }: { roomId: string }) {
 						defaultValues={{
 							name: editingGame.name,
 							variant: editingGame.variant,
+							variantId: editingGame.variantId ?? undefined,
 							blind1: editingGame.blind1 ?? undefined,
 							blind2: editingGame.blind2 ?? undefined,
 							blind3: editingGame.blind3 ?? undefined,

@@ -1,6 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { IconCoffee, IconTrash } from "@tabler/icons-react";
+import type { BlindLabels } from "@/features/game-variants/utils/blind-labels";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { parseIntOrNull } from "@/features/rooms/utils/blind-level-helpers";
 import { Button } from "@/shared/components/ui/button";
@@ -9,13 +10,26 @@ import { BlindLevelInput } from "../blind-level-input";
 import { DragHandle } from "../drag-handle";
 
 interface SortableBreakRowProps {
+	blindLabels: BlindLabels;
 	onDelete: (id: string) => void;
 	onUpdate: (id: string, updates: Record<string, number | null>) => void;
 	row: BlindLevelRow;
 }
 
+// The break row's label cell spans the blind1 + blind2 + ante columns (not
+// minutes). It must shrink when a variant hides a blind column so the row
+// stays aligned with the header (SA2 user-defined variants).
+function labelColSpan(blindLabels: BlindLabels): number {
+	return (
+		(blindLabels.blind1 == null ? 0 : 1) +
+		(blindLabels.blind2 == null ? 0 : 1) +
+		1
+	);
+}
+
 export function SortableBreakRow({
 	row,
+	blindLabels,
 	onDelete,
 	onUpdate,
 }: SortableBreakRowProps) {
@@ -46,7 +60,10 @@ export function SortableBreakRow({
 					<span className="text-muted-foreground text-xs">{row.level}</span>
 				</div>
 			</TableCell>
-			<TableCell className="p-0 px-1.5 py-1" colSpan={3}>
+			<TableCell
+				className="p-0 px-1.5 py-1"
+				colSpan={labelColSpan(blindLabels)}
+			>
 				<div className="flex items-center gap-1 text-muted-foreground text-sm">
 					<IconCoffee size={14} />
 					<span>Break</span>

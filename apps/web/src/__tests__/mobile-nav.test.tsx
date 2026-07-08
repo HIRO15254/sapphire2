@@ -6,6 +6,7 @@ import {
 	RouterProvider,
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MobileNav } from "@/shared/components/authenticated-shell/mobile-nav";
 
@@ -70,6 +71,7 @@ function createTestRouter(initialPath: string) {
 		"/resources",
 		"/rooms",
 		"/currencies",
+		"/game-variants",
 		"/sessions",
 		"/live-sessions",
 		"/live-sessions/$sessionType/$sessionId/events",
@@ -140,6 +142,24 @@ describe("MobileNav - Normal Mode (no active session)", () => {
 		const resourcesButton = screen.getByText("Resources");
 		const button = resourcesButton.closest("button");
 		expect(button?.className).toContain("text-sidebar-foreground");
+	});
+
+	it("lists Game variants alongside the other resource links when the Resources popover opens", async () => {
+		const user = userEvent.setup();
+		const router = createTestRouter("/sessions");
+		render(<RouterProvider router={router} />);
+
+		await screen.findByText("Sessions");
+		await user.click(screen.getByRole("button", { name: "Resources" }));
+
+		expect(
+			await screen.findByRole("link", { name: "Game variants" })
+		).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "Rooms" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "Players" })).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: "Currencies" })
+		).toBeInTheDocument();
 	});
 });
 

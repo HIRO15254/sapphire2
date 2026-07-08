@@ -206,7 +206,7 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		buyIn: numStrOrEmpty(defaults?.buyIn),
 		cashOut: numStrOrEmpty(defaults?.cashOut),
 		evCashOut: numStrOrEmpty(defaults?.evCashOut),
-		variant: defaults?.variant ?? "nlh",
+		variant: defaults?.variant ?? "NLH",
 		blind1: numStrOrEmpty(defaults?.blind1),
 		blind2: numStrOrEmpty(defaults?.blind2),
 		blind3: numStrOrEmpty(defaults?.blind3),
@@ -256,7 +256,7 @@ export function cashOverriddenFields(
 	}
 	const checks: [string, string, string][] = [
 		["Rule name", values.ruleName, master.name],
-		["Variant", values.variant, master.variant ?? "nlh"],
+		["Variant", values.variant, master.variant ?? "NLH"],
 		["SB", values.blind1, numStrOrEmpty(master.blind1 ?? undefined)],
 		["BB", values.blind2, numStrOrEmpty(master.blind2 ?? undefined)],
 		["Straddle", values.blind3, numStrOrEmpty(master.blind3 ?? undefined)],
@@ -299,7 +299,7 @@ export function tournamentOverriddenFields(
 	}
 	const checks: [string, string, string][] = [
 		["Rule name", values.ruleName, master.name],
-		["Variant", values.variant, master.variant ?? "nlh"],
+		["Variant", values.variant, master.variant ?? "NLH"],
 		[
 			"Buy-in",
 			values.tournamentBuyIn,

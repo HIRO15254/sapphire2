@@ -33,6 +33,7 @@ const SHEET_TITLE: Record<StatsFilterSheet, string> = {
 	type: "Type",
 	currency: "Currency",
 	room: "Room",
+	variant: "Variant",
 };
 
 function ScopeWarning() {
@@ -55,6 +56,7 @@ export function StatsFilterBar() {
 		filters,
 		currencies,
 		rooms,
+		variants,
 		isScopeValid,
 		currencyChipLabel,
 		currentRoomName,
@@ -63,6 +65,7 @@ export function StatsFilterBar() {
 		onTypeChange,
 		onCurrencyChange,
 		onRoomChange,
+		onVariantChange,
 		onFromChange,
 		onToChange,
 	} = useStatsFilterBar();
@@ -106,6 +109,12 @@ export function StatsFilterBar() {
 					label="Room"
 					onClick={() => openSheet("room")}
 					value={currentRoomName ?? "All rooms"}
+				/>
+				<FilterChip
+					active={Boolean(filters.variant)}
+					label="Variant"
+					onClick={() => openSheet("variant")}
+					value={filters.variant ?? "Variant"}
 				/>
 			</FilterChipBar>
 
@@ -203,6 +212,23 @@ export function StatsFilterBar() {
 					onChange={onRoomChange}
 					options={rooms.map((r) => ({ value: r.id, label: r.name }))}
 					value={filters.room ?? ""}
+				/>
+			</FilterSheet>
+
+			<FilterSheet
+				onOpenChange={handleOpenChange}
+				open={activeSheet === "variant"}
+				title={SHEET_TITLE.variant}
+			>
+				<FilterAllOption
+					active={!filters.variant}
+					label="All variants"
+					onClick={() => onVariantChange(undefined)}
+				/>
+				<FilterOptionList
+					onChange={onVariantChange}
+					options={variants.map((v) => ({ value: v.name, label: v.name }))}
+					value={filters.variant ?? ""}
 				/>
 			</FilterSheet>
 		</>

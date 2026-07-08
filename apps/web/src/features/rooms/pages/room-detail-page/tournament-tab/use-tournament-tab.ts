@@ -16,6 +16,7 @@ function tournamentToInitialFormValues(
 	return {
 		name: tournament.name,
 		variant: tournament.variant,
+		variantId: tournament.variantId ?? undefined,
 		buyIn: tournament.buyIn ?? undefined,
 		entryFee: tournament.entryFee ?? undefined,
 		startingStack: tournament.startingStack ?? undefined,

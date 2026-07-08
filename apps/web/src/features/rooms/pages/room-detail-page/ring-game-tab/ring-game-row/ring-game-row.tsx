@@ -1,4 +1,5 @@
 import { IconDotsVertical } from "@tabler/icons-react";
+import { variantLabel } from "@/features/live-sessions/utils/game-scene-formatters";
 import type { RingGame } from "@/features/rooms/hooks/use-ring-games";
 import { formatRingGameBlinds } from "@/features/rooms/utils/game-format";
 import { cn } from "@/lib/utils";
@@ -54,7 +55,7 @@ export function RingGameRow({
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-center gap-1.5">
 					<span className="truncate font-medium text-sm">{game.name}</span>
-					<Badge variant="secondary">{game.variant.toUpperCase()}</Badge>
+					<Badge variant="secondary">{variantLabel(game.variant)}</Badge>
 					{game.tableSize == null ? null : (
 						<Badge className={getTableSizeClassName(game.tableSize)}>
 							{game.tableSize}-max

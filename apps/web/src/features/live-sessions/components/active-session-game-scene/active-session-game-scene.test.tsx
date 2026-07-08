@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
 	levels: [] as unknown[],
 	chipPurchases: [] as unknown[],
 	currencies: [] as unknown[],
+	variants: [] as unknown[],
 }));
 
 vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
@@ -130,6 +131,9 @@ vi.mock("@tanstack/react-query", () => ({
 		if (scope === "liveCashGameSession") {
 			return { data: undefined, isLoading: false };
 		}
+		if (scope === "gameVariant") {
+			return { data: mocks.variants, isLoading: false };
+		}
 		return { data: undefined, isLoading: false };
 	},
 	useQueryClient: () => ({
@@ -169,6 +173,9 @@ vi.mock("@/utils/trpc", () => {
 			currency: {
 				list: makeProc("currency"),
 			},
+			gameVariant: {
+				list: makeProc("gameVariant"),
+			},
 			room: {
 				list: makeProc("room"),
 			},
@@ -207,6 +214,7 @@ describe("ActiveSessionGameScene", () => {
 		mocks.levels = [];
 		mocks.chipPurchases = [];
 		mocks.currencies = [{ id: "currency-1", name: "USD", unit: "$" }];
+		mocks.variants = [];
 	});
 
 	it("shows the no-active-session empty state when there is no session", () => {
@@ -332,5 +340,171 @@ describe("ActiveSessionGameScene", () => {
 		render(<ActiveSessionGameScene />);
 		expect(screen.getByText("Weekly Deepstack")).toBeInTheDocument();
 		expect(screen.getByText("Tournament")).toBeInTheDocument();
+	});
+
+	it("falls back to SB/BB structure table headers when the variant has no matching game variant", () => {
+		mocks.activeSession = {
+			id: "session-2",
+			type: "tournament",
+			status: "active",
+		};
+		mocks.tournamentSession = {
+			id: "session-2",
+			roomId: "room-1",
+			tournamentId: "tour-1",
+		};
+		mocks.tournament = {
+			archivedAt: null,
+			bountyAmount: null,
+			buyIn: 10_000,
+			createdAt: "",
+			currencyId: "currency-1",
+			entryFee: 1000,
+			id: "tour-1",
+			memo: null,
+			name: "Weekly Deepstack",
+			startingStack: 20_000,
+			roomId: "room-1",
+			tableSize: 9,
+			tags: [],
+			updatedAt: "",
+			variant: "Unknown Variant",
+		};
+		mocks.levels = [
+			{
+				id: "level-1",
+				level: 1,
+				isBreak: false,
+				blind1: 25,
+				blind2: 50,
+				blind3: null,
+				ante: 5,
+				minutes: 20,
+			},
+		];
+		mocks.variants = [];
+
+		render(<ActiveSessionGameScene />);
+		expect(screen.getByText("SB")).toBeInTheDocument();
+		expect(screen.getByText("BB")).toBeInTheDocument();
+		expect(screen.getByText("Ante")).toBeInTheDocument();
+	});
+
+	it("uses the variant's blind labels in the structure table header", () => {
+		mocks.activeSession = {
+			id: "session-2",
+			type: "tournament",
+			status: "active",
+		};
+		mocks.tournamentSession = {
+			id: "session-2",
+			roomId: "room-1",
+			tournamentId: "tour-1",
+		};
+		mocks.tournament = {
+			archivedAt: null,
+			bountyAmount: null,
+			buyIn: 10_000,
+			createdAt: "",
+			currencyId: "currency-1",
+			entryFee: 1000,
+			id: "tour-1",
+			memo: null,
+			name: "Weekly Deepstack",
+			startingStack: 20_000,
+			roomId: "room-1",
+			tableSize: 9,
+			tags: [],
+			updatedAt: "",
+			variant: "Mixed",
+		};
+		mocks.levels = [
+			{
+				id: "level-1",
+				level: 1,
+				isBreak: false,
+				blind1: 25,
+				blind2: 50,
+				blind3: null,
+				ante: 5,
+				minutes: 20,
+			},
+		];
+		mocks.variants = [
+			{
+				id: "variant-1",
+				name: "Mixed",
+				blindLabel1: "Small blind",
+				blindLabel2: "Big blind",
+				blindLabel3: null,
+				sortOrder: 0,
+				archivedAt: null,
+			},
+		];
+
+		render(<ActiveSessionGameScene />);
+		expect(screen.getByText("Small blind")).toBeInTheDocument();
+		expect(screen.getByText("Big blind")).toBeInTheDocument();
+		expect(screen.queryByText("SB")).not.toBeInTheDocument();
+		expect(screen.queryByText("BB")).not.toBeInTheDocument();
+	});
+
+	it("hides the blind2 column and cells when the variant's blindLabel2 is null", () => {
+		mocks.activeSession = {
+			id: "session-2",
+			type: "tournament",
+			status: "active",
+		};
+		mocks.tournamentSession = {
+			id: "session-2",
+			roomId: "room-1",
+			tournamentId: "tour-1",
+		};
+		mocks.tournament = {
+			archivedAt: null,
+			bountyAmount: null,
+			buyIn: 10_000,
+			createdAt: "",
+			currencyId: "currency-1",
+			entryFee: 1000,
+			id: "tour-1",
+			memo: null,
+			name: "Weekly Deepstack",
+			startingStack: 20_000,
+			roomId: "room-1",
+			tableSize: 9,
+			tags: [],
+			updatedAt: "",
+			variant: "Short Deck",
+		};
+		mocks.levels = [
+			{
+				id: "level-1",
+				level: 1,
+				isBreak: false,
+				blind1: 25,
+				blind2: 50,
+				blind3: null,
+				ante: 5,
+				minutes: 20,
+			},
+		];
+		mocks.variants = [
+			{
+				id: "variant-1",
+				name: "Short Deck",
+				blindLabel1: "Button blind",
+				blindLabel2: null,
+				blindLabel3: null,
+				sortOrder: 0,
+				archivedAt: null,
+			},
+		];
+
+		render(<ActiveSessionGameScene />);
+		expect(screen.getByText("Button blind")).toBeInTheDocument();
+		expect(screen.queryByText("BB")).not.toBeInTheDocument();
+		expect(screen.getByText("25")).toBeInTheDocument();
+		expect(screen.queryByText("50")).not.toBeInTheDocument();
 	});
 });

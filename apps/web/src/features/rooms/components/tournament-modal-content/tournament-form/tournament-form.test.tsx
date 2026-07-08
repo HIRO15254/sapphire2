@@ -3,6 +3,25 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TournamentForm } from "./tournament-form";
 
+const gameVariantsMocks = vi.hoisted(() => ({
+	variants: [
+		{
+			id: "v-nlh",
+			name: "NLH",
+			blindLabel1: "SB",
+			blindLabel2: "BB",
+			blindLabel3: "Straddle",
+		},
+		{
+			id: "v-plo",
+			name: "PLO",
+			blindLabel1: "SB",
+			blindLabel2: "BB",
+			blindLabel3: "Straddle",
+		},
+	],
+}));
+
 vi.mock("@tanstack/react-query", () => ({
 	useQuery: () => ({
 		data: [
@@ -20,6 +39,10 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 	},
+}));
+
+vi.mock("@/features/game-variants/hooks/use-game-variants", () => ({
+	useGameVariants: () => ({ variants: gameVariantsMocks.variants }),
 }));
 
 const FORM_ID = "tournament-form-test";
@@ -48,7 +71,7 @@ describe("TournamentForm", () => {
 		const { onSubmit } = renderForm({
 			defaultValues: {
 				name: "Sunday Major",
-				variant: "nlh",
+				variant: "NLH",
 				buyIn: 10_000,
 				entryFee: 1000,
 				memo: "two flights\nfinal table on Sunday",
@@ -67,6 +90,8 @@ describe("TournamentForm", () => {
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({
 				name: "Sunday Major",
+				variant: "NLH",
+				variantId: "v-nlh",
 				buyIn: 10_000,
 				entryFee: 1000,
 				memo: "two flights\nfinal table on Sunday",
@@ -136,5 +161,22 @@ describe("TournamentForm", () => {
 		expect(
 			screen.queryByRole("button", { name: "Save" })
 		).not.toBeInTheDocument();
+	});
+
+	describe("variant select", () => {
+		it("renders an option per user-defined variant", () => {
+			const { container } = renderForm({});
+			const trigger = container.querySelector("button#variantId");
+			const nativeSelect = trigger?.nextElementSibling;
+			const options = Array.from(
+				nativeSelect?.querySelectorAll("option") ?? []
+			).map((el) => el.textContent);
+			expect(options).toEqual(["NLH", "PLO"]);
+		});
+
+		it("defaults the select to the first variant in create mode", () => {
+			renderForm({});
+			expect(screen.getByLabelText("Variant *")).toHaveTextContent("NLH");
+		});
 	});
 });

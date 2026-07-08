@@ -259,3 +259,45 @@ describe("SessionListCard", () => {
 		expect(link).toHaveAttribute("href", "/sessions/s42");
 	});
 });
+
+describe("SessionListCard — variant badge", () => {
+	it("renders the cash-game variant badge, mapping 'nlh' to the 'NLH' display label", async () => {
+		renderCard({ ...baseSession, cashVariant: "nlh" });
+		await screen.findByText("1/2 NLH");
+		expect(screen.getByTestId("variant-badge")).toHaveTextContent("NLH");
+	});
+
+	it("renders a user-defined cash-game variant name as-is", async () => {
+		renderCard({ ...baseSession, cashVariant: "PLO8" });
+		await screen.findByText("1/2 NLH");
+		expect(screen.getByTestId("variant-badge")).toHaveTextContent("PLO8");
+	});
+
+	it("renders the tournament variant badge", async () => {
+		renderCard({ ...baseTournament, tournamentVariant: "PLO" });
+		await screen.findByText("Sunday Major");
+		expect(screen.getByTestId("variant-badge")).toHaveTextContent("PLO");
+	});
+
+	it("ignores a tournament's cashVariant field even if somehow set", async () => {
+		renderCard({
+			...baseTournament,
+			cashVariant: "NLH",
+			tournamentVariant: null,
+		});
+		await screen.findByText("Sunday Major");
+		expect(screen.queryByTestId("variant-badge")).not.toBeInTheDocument();
+	});
+
+	it("omits the badge when the cash variant is null", async () => {
+		renderCard({ ...baseSession, cashVariant: null });
+		await screen.findByText("1/2 NLH");
+		expect(screen.queryByTestId("variant-badge")).not.toBeInTheDocument();
+	});
+
+	it("omits the badge when the variant field is absent entirely", async () => {
+		renderCard(baseSession);
+		await screen.findByText("1/2 NLH");
+		expect(screen.queryByTestId("variant-badge")).not.toBeInTheDocument();
+	});
+});

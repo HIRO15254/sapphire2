@@ -1,13 +1,15 @@
+import type { BlindLabels } from "@/features/game-variants/utils/blind-labels";
 import { useEmptyRow } from "@/features/rooms/hooks/use-empty-row";
 import type { NewLevelValues } from "@/features/rooms/utils/blind-level-helpers";
 import { TableCell, TableRow } from "@/shared/components/ui/table";
 import { BlindLevelInput } from "../blind-level-input";
 
 interface EmptyRowProps {
+	blindLabels: BlindLabels;
 	onCreateLevel: (values: NewLevelValues) => void;
 }
 
-export function EmptyRow({ onCreateLevel }: EmptyRowProps) {
+export function EmptyRow({ blindLabels, onCreateLevel }: EmptyRowProps) {
 	const {
 		blind1Ref,
 		blind2Ref,
@@ -24,12 +26,16 @@ export function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 			<TableCell className="w-10 p-0 px-0.5 text-center">
 				<span className="text-muted-foreground text-xs">+</span>
 			</TableCell>
-			<TableCell className="p-0 px-0.5">
-				<BlindLevelInput onBlur={handleBlind1Blur} ref={blind1Ref} />
-			</TableCell>
-			<TableCell className="p-0 px-0.5">
-				<BlindLevelInput onBlur={handleBlind2Blur} ref={blind2Ref} />
-			</TableCell>
+			{blindLabels.blind1 == null ? null : (
+				<TableCell className="p-0 px-0.5">
+					<BlindLevelInput onBlur={handleBlind1Blur} ref={blind1Ref} />
+				</TableCell>
+			)}
+			{blindLabels.blind2 == null ? null : (
+				<TableCell className="p-0 px-0.5">
+					<BlindLevelInput onBlur={handleBlind2Blur} ref={blind2Ref} />
+				</TableCell>
+			)}
 			<TableCell className="p-0 px-0.5">
 				<BlindLevelInput onBlur={handleAnteBlur} ref={anteRef} />
 			</TableCell>
