@@ -132,12 +132,19 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 	const update = vi.fn(() => ({
 		set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
 	}));
+	// D1's `db.batch([...])`. Each statement here is a resolved promise (this
+	// mock executes `insert().values()` / `delete().where()` eagerly and records
+	// the payload), so the batch just awaits them together (SA2-116).
+	const batch = vi.fn((statements: unknown[]) =>
+		Promise.all(statements as Promise<unknown>[])
+	);
 
 	return {
-		db: { select, insert, delete: del, update } as never,
+		db: { select, insert, delete: del, update, batch } as never,
 		select,
 		insert,
 		inserted,
 		selectedTables,
+		batch,
 	};
 }

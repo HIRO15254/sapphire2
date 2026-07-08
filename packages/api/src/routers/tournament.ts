@@ -11,6 +11,12 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import { validateEntityOwnership } from "./session";
 
+type DbInstance = Parameters<
+	Parameters<typeof protectedProcedure.query>[0]
+>[0]["ctx"]["db"];
+
+type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
+
 async function validateRoomOwnership(
 	db: Parameters<
 		Parameters<typeof protectedProcedure.query>[0]
@@ -353,22 +359,25 @@ export const tournamentRouter = router({
 			}
 
 			const id = crypto.randomUUID();
-			await ctx.db.insert(tournament).values({
-				id,
-				roomId: input.roomId,
-				name: input.name,
-				variant: input.variant,
-				buyIn: input.buyIn ?? null,
-				entryFee: input.entryFee ?? null,
-				startingStack: input.startingStack ?? null,
-				bountyAmount: input.bountyAmount ?? null,
-				tableSize: input.tableSize ?? null,
-				currencyId: input.currencyId ?? null,
-				memo: input.memo ?? null,
-				updatedAt: new Date(),
-			});
-
-			await Promise.all([
+			// One atomic batch: the tournament row first (parent), then its tags /
+			// chip purchases / blind levels. `Promise.all` ran these as parallel
+			// auto-commits, so a partial failure could leave a tournament with only
+			// some of its children (SA2-116).
+			const statements: [BatchStatement, ...BatchStatement[]] = [
+				ctx.db.insert(tournament).values({
+					id,
+					roomId: input.roomId,
+					name: input.name,
+					variant: input.variant,
+					buyIn: input.buyIn ?? null,
+					entryFee: input.entryFee ?? null,
+					startingStack: input.startingStack ?? null,
+					bountyAmount: input.bountyAmount ?? null,
+					tableSize: input.tableSize ?? null,
+					currencyId: input.currencyId ?? null,
+					memo: input.memo ?? null,
+					updatedAt: new Date(),
+				}),
 				...(input.tags ?? []).map((name) =>
 					ctx.db
 						.insert(tournamentTag)
@@ -397,7 +406,8 @@ export const tournamentRouter = router({
 						minutes: l.minutes ?? null,
 					})
 				),
-			]);
+			];
+			await ctx.db.batch(statements);
 
 			const [created] = await ctx.db
 				.select()
