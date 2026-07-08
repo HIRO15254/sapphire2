@@ -33,7 +33,7 @@ import {
 	sql,
 } from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 
 const PAGE_SIZE = 20;

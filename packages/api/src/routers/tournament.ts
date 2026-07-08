@@ -7,7 +7,7 @@ import {
 import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { validateEntityOwnership } from "./session";
 

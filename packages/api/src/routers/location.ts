@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 
 // Short-link hosts are the only URLs we ever fetch server-side (to follow the

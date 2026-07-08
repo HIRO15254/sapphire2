@@ -5,7 +5,7 @@ import {
 } from "@sapphire2/db/schema/player";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray, like } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { validateTagsOwnership } from "./session";
 

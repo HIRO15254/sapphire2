@@ -13,7 +13,7 @@ import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
 	computeHeroSeatPositionFromEvents,

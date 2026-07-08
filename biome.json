@@ -58,6 +58,17 @@
         "noBarrelFile": "off"
       },
       "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "zod": {
+                "importNames": ["z"],
+                "message": "Import zod's `z` as a default import: `import z from \"zod\"`. The named import (`import { z } from \"zod\"`) breaks the Vite bundler. See CLAUDE.md > Stack > Validation."
+              }
+            }
+          }
+        },
         "noParameterAssign": "error",
         "useAsConstAssertion": "error",
         "useDefaultParameterLast": "error",

@@ -16,7 +16,7 @@ import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { computeSeatedPlayersFromEvents } from "../services/live-session-pl";
 import {

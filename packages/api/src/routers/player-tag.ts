@@ -2,7 +2,7 @@ import { TAG_COLOR_NAMES } from "@sapphire2/db/constants/player-tag-colors";
 import { playerTag, playerToPlayerTag } from "@sapphire2/db/schema/player";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
+import z from "zod";
 import { protectedProcedure, router } from "../index";
 
 const colorSchema = z.enum(TAG_COLOR_NAMES);
