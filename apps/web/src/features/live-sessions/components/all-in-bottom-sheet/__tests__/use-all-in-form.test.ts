@@ -81,6 +81,62 @@ describe("useAllInForm", () => {
 		});
 	});
 
+	it("rejects wins greater than trials on submit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1000");
+			result.current.form.setFieldValue("trials", "1");
+			result.current.form.setFieldValue("equity", "50");
+			result.current.form.setFieldValue("wins", "2");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("rejects a non-integer wins on submit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1000");
+			result.current.form.setFieldValue("trials", "3");
+			result.current.form.setFieldValue("equity", "50");
+			result.current.form.setFieldValue("wins", "1.5");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("accepts wins equal to trials on submit (upper boundary)", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1000");
+			result.current.form.setFieldValue("trials", "3");
+			result.current.form.setFieldValue("equity", "50");
+			result.current.form.setFieldValue("wins", "3");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith({
+			potSize: 1000,
+			trials: 3,
+			equity: 50,
+			wins: 3,
+		});
+	});
+
 	it("resets to defaults whenever open transitions with no initialValues", () => {
 		const onSubmit = vi.fn();
 		const { result, rerender } = renderHook(

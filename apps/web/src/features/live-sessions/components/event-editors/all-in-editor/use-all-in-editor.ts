@@ -8,13 +8,42 @@ import {
 } from "@/features/live-sessions/utils/stack-editor-time";
 import { requiredNumericString } from "@/shared/lib/form-fields";
 
-const allInSchema = z.object({
-	time: z.string(),
-	potSize: requiredNumericString({ min: 0 }),
-	trials: requiredNumericString({ integer: true, min: 1 }),
-	equity: requiredNumericString({ min: 0, max: 100 }),
-	wins: requiredNumericString({ min: 0 }),
-});
+// `wins` is a non-negative integer that must not exceed `trials` (SA2-156),
+// mirroring the server-side `allInPayload` guard so editing an existing all-in
+// event cannot reintroduce EV-corrupting values. The integer check is done in
+// the refine (not via the field's `integer` rule) because
+// `requiredNumericString`'s integer mode truncates "1.5" to 1 rather than
+// rejecting it; both issues attach to the `wins` field path.
+const allInSchema = z
+	.object({
+		time: z.string(),
+		potSize: requiredNumericString({ min: 0 }),
+		trials: requiredNumericString({ integer: true, min: 1 }),
+		equity: requiredNumericString({ min: 0, max: 100 }),
+		wins: requiredNumericString({ min: 0 }),
+	})
+	.superRefine((value, ctx) => {
+		const wins = Number(value.wins.trim());
+		if (value.wins.trim() === "" || !Number.isFinite(wins)) {
+			return;
+		}
+		if (!Number.isInteger(wins)) {
+			ctx.addIssue({
+				code: "custom",
+				message: "Wins must be a whole number",
+				path: ["wins"],
+			});
+			return;
+		}
+		const trials = Number.parseInt(value.trials.trim(), 10);
+		if (Number.isFinite(trials) && wins > trials) {
+			ctx.addIssue({
+				code: "custom",
+				message: "Wins must not exceed trials",
+				path: ["wins"],
+			});
+		}
+	});
 
 interface UseAllInEditorOptions {
 	event: SessionEvent;
