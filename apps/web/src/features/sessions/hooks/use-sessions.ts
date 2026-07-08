@@ -108,12 +108,41 @@ function timeToUnix(
 	return Math.floor(new Date(`${sessionDate}T${time}`).getTime() / 1000);
 }
 
+const DAY_SECONDS = 24 * 60 * 60;
+
+/**
+ * Converts the form's start/end clock times — both entered against a single
+ * `sessionDate` with no separate end-date field — into Unix seconds, rolling the
+ * end forward 24h when it lands strictly before the start (the session crossed
+ * midnight, e.g. 22:00 → 02:00). Without this the end was stored ~20h before the
+ * start, so the UI showed a negative duration and the server clamped play time to
+ * 0, dropping the session out of every play-time statistic (SA2-157). Equal
+ * start/end is treated as a 0-length span, never a 24h one.
+ */
+function computeSessionTimes(
+	sessionDate: string,
+	startTime: string | undefined,
+	endTime: string | undefined
+): { startedAt: number | undefined; endedAt: number | undefined } {
+	const startedAt = timeToUnix(sessionDate, startTime);
+	let endedAt = timeToUnix(sessionDate, endTime);
+	if (startedAt !== undefined && endedAt !== undefined && endedAt < startedAt) {
+		endedAt += DAY_SECONDS;
+	}
+	return { startedAt, endedAt };
+}
+
 export function buildCreatePayload(values: SessionFormValues) {
 	const sessionDate = Math.floor(new Date(values.sessionDate).getTime() / 1000);
+	const { startedAt, endedAt } = computeSessionTimes(
+		values.sessionDate,
+		values.startTime,
+		values.endTime
+	);
 	const common = {
 		sessionDate,
-		startedAt: timeToUnix(values.sessionDate, values.startTime),
-		endedAt: timeToUnix(values.sessionDate, values.endTime),
+		startedAt,
+		endedAt,
 		breakMinutes: values.breakMinutes,
 		memo: values.memo,
 		tagIds: values.tagIds,
@@ -174,11 +203,16 @@ export function buildLiveLinkedUpdatePayload(
 }
 
 export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
+	const { startedAt, endedAt } = computeSessionTimes(
+		values.sessionDate,
+		values.startTime,
+		values.endTime
+	);
 	const common = {
 		id: values.id,
 		sessionDate: Math.floor(new Date(values.sessionDate).getTime() / 1000),
-		startedAt: timeToUnix(values.sessionDate, values.startTime) ?? null,
-		endedAt: timeToUnix(values.sessionDate, values.endTime) ?? null,
+		startedAt: startedAt ?? null,
+		endedAt: endedAt ?? null,
 		breakMinutes: values.breakMinutes ?? null,
 		memo: values.memo,
 		ruleName: values.ruleName,
@@ -393,11 +427,16 @@ export function filtersToListInput(filters: SessionFilterValues) {
 	};
 }
 
+// sessionDate is stored/returned as UTC midnight and the create/update payloads
+// re-encode a date-only string as UTC midnight, so the edit form must read back
+// the UTC calendar day. Local getters shift the day back one for users west of
+// UTC, and saving that value drifts the stored date one day earlier on every
+// edit (SA2-145).
 export function formatDateForInput(date: string): string {
 	const d = new Date(date);
-	const year = d.getFullYear();
-	const month = String(d.getMonth() + 1).padStart(2, "0");
-	const day = String(d.getDate()).padStart(2, "0");
+	const year = d.getUTCFullYear();
+	const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+	const day = String(d.getUTCDate()).padStart(2, "0");
 	return `${year}-${month}-${day}`;
 }
 

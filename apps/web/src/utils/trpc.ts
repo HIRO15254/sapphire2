@@ -45,6 +45,21 @@ export const persister = createAsyncStoragePersister({
 	key: "sapphire2-query-cache",
 });
 
+/**
+ * Wipe every trace of the signed-in user's data on sign-out.
+ *
+ * The whole tRPC query cache is persisted to IndexedDB keyed only by procedure
+ * name (not per-user), so on a shared device the next account would briefly see
+ * the previous user's financial data (SA2-159). Clearing the in-memory cache
+ * (`queryClient.clear()`) removes what is currently rendered, and
+ * `persister.removeClient()` deletes the persisted `sapphire2-query-cache` store
+ * so nothing can be rehydrated on the next load.
+ */
+export function clearPersistedQueryCache(): Promise<void> {
+	queryClient.clear();
+	return Promise.resolve(persister.removeClient());
+}
+
 export const trpcClient = createTRPCClient<AppRouter>({
 	links: [
 		httpBatchLink({

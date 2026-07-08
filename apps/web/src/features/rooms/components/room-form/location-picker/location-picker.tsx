@@ -6,6 +6,7 @@ import {
 } from "@tabler/icons-react";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
 import {
 	Tabs,
 	TabsContent,
@@ -58,7 +59,7 @@ export function LocationPicker({
 
 	return (
 		<div className="flex flex-col gap-3">
-			<span className="t-label text-muted-foreground">Location</span>
+			<Label>Location</Label>
 			<Tabs defaultValue="search">
 				<TabsList className="w-full">
 					<TabsTrigger value="search">Search</TabsTrigger>

@@ -1,6 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
-import { useUpdateNotesSheet } from "@/features/update-notes/components/update-notes-sheet";
-import { authClient } from "@/lib/auth-client";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/shared/components/ui/button";
 import {
 	DropdownMenu,
@@ -12,11 +10,10 @@ import {
 	DropdownMenuTrigger,
 } from "@/shared/components/ui/dropdown-menu";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import { useUserMenu } from "./use-user-menu";
 
 export function UserMenu() {
-	const navigate = useNavigate();
-	const { data: session, isPending } = authClient.useSession();
-	const updateNotesSheet = useUpdateNotesSheet();
+	const { session, isPending, updateNotesSheet, onSignOut } = useUserMenu();
 
 	if (isPending) {
 		return <Skeleton className="h-8 w-24" />;
@@ -47,20 +44,7 @@ export function UserMenu() {
 					<DropdownMenuItem onClick={updateNotesSheet.open}>
 						Update Notes
 					</DropdownMenuItem>
-					<DropdownMenuItem
-						onClick={() => {
-							authClient.signOut({
-								fetchOptions: {
-									onSuccess: () => {
-										navigate({
-											to: "/",
-										});
-									},
-								},
-							});
-						}}
-						variant="destructive"
-					>
+					<DropdownMenuItem onClick={onSignOut} variant="destructive">
 						Sign Out
 					</DropdownMenuItem>
 				</DropdownMenuGroup>

@@ -1,7 +1,7 @@
 import { room } from "@sapphire2/db/schema/room";
 import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -196,7 +196,14 @@ export const blindLevelRouter = router({
 					ctx.db
 						.update(blindLevel)
 						.set({ level: index + 1 })
-						.where(eq(blindLevel.id, id))
+						// Scope to the owned tournament so a foreign levelId matches
+						// nothing (write-IDOR, SA2-176).
+						.where(
+							and(
+								eq(blindLevel.id, id),
+								eq(blindLevel.tournamentId, input.tournamentId)
+							)
+						)
 				)
 			);
 

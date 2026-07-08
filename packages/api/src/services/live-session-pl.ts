@@ -30,6 +30,9 @@ type DbInstance = Parameters<
 interface CashGamePLResult {
 	addonTotal: number;
 	cashOut: number | null;
+	/** Σ of chips racked off the table (positive amount of every negative
+	 * chips_add_remove). Added back into P/L as already-pocketed chips. */
+	chipRemoveTotal: number;
 	evCashOut: number | null;
 	evDiff: number;
 	profitLoss: number | null;
@@ -154,6 +157,7 @@ export function computeCashGamePLFromEvents(
 	return {
 		totalBuyIn,
 		cashOut,
+		chipRemoveTotal,
 		profitLoss,
 		evCashOut,
 		evDiff: totalEvDiff,

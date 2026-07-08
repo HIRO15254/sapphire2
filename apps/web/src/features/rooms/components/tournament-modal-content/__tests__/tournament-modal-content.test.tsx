@@ -1,21 +1,25 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { TournamentModalContent } from "../tournament-modal-content";
 
-const hoisted = vi.hoisted(() => ({
-	useTournamentModalContent: vi.fn(),
-}));
-
-vi.mock("../use-tournament-modal-content", () => ({
-	useTournamentModalContent: hoisted.useTournamentModalContent,
-}));
-
+// The real (trivial, useState-only) useTournamentModalContent hook is used so
+// the controlled-tab behavior (activeTab / setActiveTab) is exercised end to end.
 vi.mock(
 	"@/features/rooms/components/tournament-modal-content/tournament-form",
 	() => ({
-		TournamentForm: ({ formId }: { formId: string }) => (
-			<div data-form-id={formId} data-testid="tournament-form" />
+		TournamentForm: ({
+			formId,
+			onInvalidSubmit,
+		}: {
+			formId: string;
+			onInvalidSubmit?: () => void;
+		}) => (
+			<div data-form-id={formId} data-testid="tournament-form">
+				<button onClick={() => onInvalidSubmit?.()} type="button">
+					trigger-invalid
+				</button>
+			</div>
 		),
 	})
 );
@@ -25,13 +29,6 @@ vi.mock("@/features/rooms/components/blind-level-editor", () => ({
 }));
 
 const AI_BUTTON_RE = /Auto-fill with AI/;
-
-beforeEach(() => {
-	hoisted.useTournamentModalContent.mockReturnValue({
-		localBlindLevels: [],
-		setLocalBlindLevels: vi.fn(),
-	});
-});
 
 describe("TournamentModalContent", () => {
 	it("does not render the AI auto-fill button when onOpenAi is undefined", () => {
@@ -73,6 +70,56 @@ describe("TournamentModalContent", () => {
 		expect(screen.getByTestId("tournament-form")).toHaveAttribute(
 			"data-form-id",
 			"tournament-edit-form"
+		);
+	});
+
+	it("keeps the tournament form mounted when the Structure tab is active so the external Save button still submits", async () => {
+		const user = userEvent.setup();
+		render(
+			<TournamentModalContent
+				formId="tournament-test-form"
+				initialBlindLevels={[]}
+				onSave={vi.fn()}
+			/>
+		);
+		await user.click(screen.getByRole("tab", { name: "Structure" }));
+		// The Structure tab content is now shown...
+		expect(screen.getByTestId("blind-structure")).toBeInTheDocument();
+		// ...but the Details form must remain in the DOM: the FormSheet Save
+		// button submits it via `form={formId}`, which resolves nothing if the
+		// form has been unmounted (SA2-97).
+		const form = screen.getByTestId("tournament-form");
+		expect(form).toBeInTheDocument();
+		// forceMount renders inactive content without the `hidden` attr, so it is
+		// hidden via `data-[state=inactive]:hidden` — assert the panel carries the
+		// inactive state that drives that class (regression guard for the fix).
+		expect(form.closest("[data-slot='tabs-content']")).toHaveAttribute(
+			"data-state",
+			"inactive"
+		);
+	});
+
+	it("switches back to the Details tab when a submit fails validation so the user sees the error", async () => {
+		const user = userEvent.setup();
+		render(
+			<TournamentModalContent
+				formId="tournament-test-form"
+				initialBlindLevels={[]}
+				onSave={vi.fn()}
+			/>
+		);
+		await user.click(screen.getByRole("tab", { name: "Structure" }));
+		expect(screen.getByRole("tab", { name: "Structure" })).toHaveAttribute(
+			"data-state",
+			"active"
+		);
+		// The form reports an invalid submit (e.g. empty required name) while the
+		// Structure tab is open; the sheet must reveal the erroring Details tab
+		// instead of silently swallowing the click (SA2-97 follow-up).
+		await user.click(screen.getByRole("button", { name: "trigger-invalid" }));
+		expect(screen.getByRole("tab", { name: "Details" })).toHaveAttribute(
+			"data-state",
+			"active"
 		);
 	});
 });

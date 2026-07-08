@@ -1,4 +1,5 @@
-import { expect } from "vitest";
+import { getTableName } from "drizzle-orm";
+import { expect, vi } from "vitest";
 
 interface ZodLikeSchema {
 	safeParse: (value: unknown) => { success: boolean };
@@ -73,4 +74,70 @@ export function expectType(
 	type: "mutation" | "query" | "subscription"
 ): void {
 	expect(getProcedureDef(procedure).type).toBe(type);
+}
+
+type MockRow = Record<string, unknown>;
+
+interface ChainableMockDbConfig {
+	/** Rows returned by `select().from(table)…` keyed by the SQL table name. */
+	select?: Record<string, MockRow[]>;
+}
+
+/**
+ * A minimal chainable Drizzle-style mock `db` for exercising router
+ * procedures / helpers end-to-end without a real database.
+ *
+ * `select()` chains (`.from().where().limit().orderBy()`) resolve to the rows
+ * configured for the table passed to `.from(table)` (matched via
+ * `getTableName`); `insert(table).values(rows)` records the inserted payload.
+ * It tracks which tables were read (`selectedTables`) so ownership guards can
+ * be asserted, and which tables were written (`inserted`).
+ */
+export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
+	const selectRows = config.select ?? {};
+	const inserted: Record<string, unknown[]> = {};
+	const selectedTables: string[] = [];
+
+	// The chain is a real Promise (so `await`-ing any step resolves the rows
+	// natively) with Drizzle's builder methods attached. Non-terminal steps
+	// (`where` / `limit` / `orderBy` / joins) return the same promise; `from`
+	// starts a fresh chain scoped to the table's configured rows.
+	function makeSelectChain(rows: MockRow[]) {
+		const chain = Promise.resolve(rows) as Promise<MockRow[]> &
+			Record<string, (...args: unknown[]) => unknown>;
+		chain.from = (table: unknown) => {
+			const name = getTableName(table as never);
+			selectedTables.push(name);
+			return makeSelectChain(selectRows[name] ?? []);
+		};
+		chain.where = () => chain;
+		chain.limit = () => chain;
+		chain.orderBy = () => chain;
+		chain.leftJoin = () => chain;
+		chain.innerJoin = () => chain;
+		return chain;
+	}
+
+	const select = vi.fn(() => makeSelectChain([]));
+	const insert = vi.fn((table: unknown) => ({
+		values: vi.fn((values: unknown) => {
+			const name = getTableName(table as never);
+			const bucket = inserted[name] ?? [];
+			bucket.push(values);
+			inserted[name] = bucket;
+			return Promise.resolve(undefined);
+		}),
+	}));
+	const del = vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) }));
+	const update = vi.fn(() => ({
+		set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
+	}));
+
+	return {
+		db: { select, insert, delete: del, update } as never,
+		select,
+		insert,
+		inserted,
+		selectedTables,
+	};
 }

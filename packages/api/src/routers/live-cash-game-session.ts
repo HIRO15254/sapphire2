@@ -2,6 +2,7 @@ import {
 	cashSessionEndPayload,
 	cashSessionStartPayload,
 	chipsAddRemovePayload,
+	MAX_SEAT_POSITION,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
 import { currency } from "@sapphire2/db/schema/currency";
@@ -20,7 +21,11 @@ import {
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
-import { resolveCashRuleSnapshot } from "./session";
+import {
+	resolveCashRuleSnapshot,
+	validateEntityOwnership,
+	validateLiveLinkOwnership,
+} from "./session";
 
 const DEFAULT_LIMIT = 20;
 
@@ -140,17 +145,15 @@ async function resolveRingGameAssignment(
 		});
 	}
 
-	if (foundRingGame.roomId) {
-		const [foundRoom] = await db
-			.select()
-			.from(room)
-			.where(eq(room.id, foundRingGame.roomId));
-		if (!foundRoom || foundRoom.userId !== userId) {
-			throw new TRPCError({
-				code: "FORBIDDEN",
-				message: "You do not own this ring game",
-			});
-		}
+	// Ownership is anchored on ring_game.userId (SA2-181), not derived from the
+	// room, so null-roomId auto-generated snapshot rows are covered too. This
+	// mirrors the caller's pre-check (validateEntityOwnership("ringGame", …)) as
+	// defense-in-depth and keeps the ownership model unified.
+	if (foundRingGame.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
+		});
 	}
 
 	if (
@@ -198,7 +201,7 @@ export const liveCashGameSessionRouter = router({
 			}
 			if (input.cursor) {
 				conditions.push(
-					sql`${gameSession.startedAt} < (SELECT started_at FROM game_session WHERE id = ${input.cursor})`
+					sql`${gameSession.startedAt} < (SELECT started_at FROM game_session WHERE id = ${input.cursor} AND user_id = ${userId})`
 				);
 			}
 
@@ -296,6 +299,7 @@ export const liveCashGameSessionRouter = router({
 			const summary = {
 				totalBuyIn: s.totalBuyIn,
 				cashOut: s.cashOut,
+				chipRemoveTotal: pl.chipRemoveTotal,
 				profitLoss: pl.profitLoss,
 				evCashOut: pl.evCashOut,
 				evDiff: pl.evDiff,
@@ -363,6 +367,14 @@ export const liveCashGameSessionRouter = router({
 			}
 
 			if (input.ringGameId) {
+				// Verify ring-game ownership BEFORE any ring_game read so a caller
+				// cannot probe another user's config via the buy-in bounds (SA2-174).
+				await validateEntityOwnership(
+					ctx.db,
+					"ringGame",
+					input.ringGameId,
+					userId
+				);
 				const [foundRingGame] = await ctx.db
 					.select({
 						minBuyIn: ringGame.minBuyIn,
@@ -392,6 +404,8 @@ export const liveCashGameSessionRouter = router({
 					}
 				}
 			}
+
+			await validateLiveLinkOwnership(ctx.db, input, userId);
 
 			const id = crypto.randomUUID();
 
@@ -463,6 +477,8 @@ export const liveCashGameSessionRouter = router({
 				updatedAt: new Date(),
 			};
 
+			await validateLiveLinkOwnership(ctx.db, input, userId);
+
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;
 			}
@@ -479,6 +495,13 @@ export const liveCashGameSessionRouter = router({
 			if (input.ringGameId === null) {
 				cashDetailUpdate.ringGameId = null;
 			} else if (input.ringGameId !== undefined) {
+				// Verify ring-game ownership BEFORE the snapshot read (SA2-174).
+				await validateEntityOwnership(
+					ctx.db,
+					"ringGame",
+					input.ringGameId,
+					userId
+				);
 				const resolvedRoomId =
 					updateData.roomId === undefined ? existing.roomId : updateData.roomId;
 				const resolvedCurrencyId =
@@ -788,7 +811,12 @@ export const liveCashGameSessionRouter = router({
 		.input(
 			z.object({
 				id: z.string(),
-				heroSeatPosition: z.number().int().min(0).max(8).nullable(),
+				heroSeatPosition: z
+					.number()
+					.int()
+					.min(0)
+					.max(MAX_SEAT_POSITION)
+					.nullable(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

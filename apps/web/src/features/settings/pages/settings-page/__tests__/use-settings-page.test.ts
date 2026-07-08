@@ -2,48 +2,32 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-	navigate: vi.fn(),
-	signOut: vi.fn(),
+	onSignOut: vi.fn(),
+	useSignOut: vi.fn(),
 }));
 
-vi.mock("@tanstack/react-router", () => ({
-	useNavigate: () => mocks.navigate,
-}));
-
-vi.mock("@/lib/auth-client", () => ({
-	authClient: {
-		signOut: mocks.signOut,
-	},
+vi.mock("@/shared/hooks/use-sign-out", () => ({
+	useSignOut: mocks.useSignOut,
 }));
 
 import { useSettingsPage } from "@/features/settings/pages/settings-page/use-settings-page";
 
 describe("useSettingsPage", () => {
 	beforeEach(() => {
-		mocks.navigate.mockReset();
-		mocks.signOut.mockReset();
+		mocks.onSignOut.mockReset();
+		mocks.useSignOut.mockReset();
+		mocks.useSignOut.mockReturnValue({ onSignOut: mocks.onSignOut });
 	});
 
-	it("onSignOut calls authClient.signOut exactly once", () => {
+	it("delegates sign-out to the shared useSignOut hook", () => {
 		const { result } = renderHook(() => useSettingsPage());
-		result.current.onSignOut();
-		expect(mocks.signOut).toHaveBeenCalledTimes(1);
+		expect(mocks.useSignOut).toHaveBeenCalledTimes(1);
+		expect(result.current.onSignOut).toBe(mocks.onSignOut);
 	});
 
-	it("does not navigate before sign-out succeeds", () => {
+	it("invokes the shared handler when onSignOut is called", () => {
 		const { result } = renderHook(() => useSettingsPage());
 		result.current.onSignOut();
-		expect(mocks.navigate).not.toHaveBeenCalled();
-	});
-
-	it("navigates to the public home page when sign-out succeeds", () => {
-		const { result } = renderHook(() => useSettingsPage());
-		result.current.onSignOut();
-		const fetchOptions = mocks.signOut.mock.calls[0][0]?.fetchOptions as {
-			onSuccess: () => void;
-		};
-		fetchOptions.onSuccess();
-		expect(mocks.navigate).toHaveBeenCalledTimes(1);
-		expect(mocks.navigate).toHaveBeenNthCalledWith(1, { to: "/" });
+		expect(mocks.onSignOut).toHaveBeenCalledTimes(1);
 	});
 });

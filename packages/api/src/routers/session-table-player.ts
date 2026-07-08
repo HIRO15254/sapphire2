@@ -1,5 +1,12 @@
-import { playerJoinPayload } from "@sapphire2/db/constants/session-event-types";
-import { player, playerToPlayerTag } from "@sapphire2/db/schema/player";
+import {
+	MAX_SEAT_POSITION,
+	playerJoinPayload,
+} from "@sapphire2/db/constants/session-event-types";
+import {
+	player,
+	playerTag,
+	playerToPlayerTag,
+} from "@sapphire2/db/schema/player";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -16,6 +23,7 @@ import {
 	floorToMinute,
 	nextAppendSortOrder,
 } from "../utils/session-event-time";
+import { validateTagsOwnership } from "./session";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -283,7 +291,7 @@ export const sessionTablePlayerRouter = router({
 		.input(
 			sessionIdInput.extend({
 				playerId: z.string().min(1),
-				seatPosition: z.number().int().min(0).max(8).optional(),
+				seatPosition: z.number().int().min(0).max(MAX_SEAT_POSITION).optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -323,7 +331,7 @@ export const sessionTablePlayerRouter = router({
 				playerMemo: z.string().optional(),
 				playerName: z.string().min(1),
 				playerTagIds: z.array(z.string()).optional(),
-				seatPosition: z.number().int().min(0).max(8).optional(),
+				seatPosition: z.number().int().min(0).max(MAX_SEAT_POSITION).optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -331,6 +339,13 @@ export const sessionTablePlayerRouter = router({
 			const { seatPosition } = input;
 			const userId = ctx.session.user.id;
 			await resolveSessionOwnership(ctx.db, sessionId, userId);
+			// Reject foreign player tags before creating the player (IDOR).
+			await validateTagsOwnership(
+				ctx.db,
+				playerTag,
+				input.playerTagIds,
+				userId
+			);
 
 			const now = new Date();
 			const playerId = crypto.randomUUID();
@@ -361,7 +376,7 @@ export const sessionTablePlayerRouter = router({
 		.input(
 			sessionIdInput.extend({
 				playerId: z.string().min(1),
-				seatPosition: z.number().int().min(0).max(8).nullable(),
+				seatPosition: z.number().int().min(0).max(MAX_SEAT_POSITION).nullable(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -447,7 +462,7 @@ export const sessionTablePlayerRouter = router({
 	addTemporary: protectedProcedure
 		.input(
 			sessionIdInput.extend({
-				seatPosition: z.number().int().min(0).max(8).optional(),
+				seatPosition: z.number().int().min(0).max(MAX_SEAT_POSITION).optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

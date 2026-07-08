@@ -83,6 +83,7 @@ function makeGame(overrides: Partial<RingGame> = {}): RingGame {
 		archivedAt: null,
 		createdAt: "2026-01-01",
 		updatedAt: "2026-01-01",
+		userId: "user-1",
 		...overrides,
 	};
 }

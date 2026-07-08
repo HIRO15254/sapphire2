@@ -1,3 +1,4 @@
+import { sessionTag } from "@sapphire2/db/schema/session-tag";
 import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
@@ -10,7 +11,10 @@ import {
 	parseSessionCursor,
 	selectInChunks,
 	toProfitLossSeriesPoint,
+	validateEntityOwnership,
+	validateTagsOwnership,
 } from "../routers/session";
+import { createChainableMockDb } from "./test-utils";
 
 const DERIVED_FIELDS_RE = /Cannot edit fields derived from live session events/;
 const RING_CONFIG_RE = /variant|blind1|blind2/;
@@ -880,5 +884,232 @@ describe("computeTournamentPL", () => {
 	it("adds bounty prizes to income", () => {
 		// income (0 + 400) - cost (100 + 0 + 0) = 300
 		expect(computeTournamentPL(100, 0, 0, 0, 400)).toBe(300);
+	});
+});
+
+describe("validateEntityOwnership (tournament branch)", () => {
+	const CALLER = "user-1";
+	const OTHER = "user-2";
+	const TOURNAMENT_ID = "tn-1";
+	const ROOM_ID = "room-1";
+
+	function mockDbFor(opts: {
+		tournament?: Record<string, unknown>[];
+		room?: Record<string, unknown>[];
+	}) {
+		return createChainableMockDb({
+			select: {
+				tournament: opts.tournament ?? [],
+				room: opts.room ?? [],
+			},
+		});
+	}
+
+	it("resolves when the tournament's room is owned by the caller", async () => {
+		const { db, selectedTables } = mockDbFor({
+			tournament: [{ id: TOURNAMENT_ID, roomId: ROOM_ID }],
+			room: [{ id: ROOM_ID, userId: CALLER }],
+		});
+		await expect(
+			validateEntityOwnership(db, "tournament", TOURNAMENT_ID, CALLER)
+		).resolves.toBeUndefined();
+		// The room must be read to confirm ownership.
+		expect(selectedTables).toEqual(["tournament", "room"]);
+	});
+
+	it("throws FORBIDDEN when the tournament's room belongs to another user", async () => {
+		const { db } = mockDbFor({
+			tournament: [{ id: TOURNAMENT_ID, roomId: ROOM_ID }],
+			room: [{ id: ROOM_ID, userId: OTHER }],
+		});
+		await expect(
+			validateEntityOwnership(db, "tournament", TOURNAMENT_ID, CALLER)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this tournament",
+		});
+	});
+
+	it("throws NOT_FOUND when the tournament does not exist", async () => {
+		const { db, selectedTables } = mockDbFor({ tournament: [] });
+		await expect(
+			validateEntityOwnership(db, "tournament", "missing", CALLER)
+		).rejects.toMatchObject({
+			code: "NOT_FOUND",
+			message: "Tournament not found",
+		});
+		// Must short-circuit before reading the room.
+		expect(selectedTables).toEqual(["tournament"]);
+	});
+
+	it("throws FORBIDDEN when the tournament's room row is missing", async () => {
+		const { db } = mockDbFor({
+			tournament: [{ id: TOURNAMENT_ID, roomId: ROOM_ID }],
+			room: [],
+		});
+		await expect(
+			validateEntityOwnership(db, "tournament", TOURNAMENT_ID, CALLER)
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+});
+
+describe("validateEntityOwnership (ringGame branch) (SA2-181)", () => {
+	const CALLER = "user-1";
+	const OTHER = "user-2";
+	const RING_GAME_ID = "rg-1";
+	const ROOM_ID = "room-1";
+
+	function mockDbFor(opts: {
+		ringGame?: Record<string, unknown>[];
+		room?: Record<string, unknown>[];
+	}) {
+		return createChainableMockDb({
+			select: {
+				ring_game: opts.ringGame ?? [],
+				room: opts.room ?? [],
+			},
+		});
+	}
+
+	it("resolves when the ring game's userId matches the caller", async () => {
+		const { db, selectedTables } = mockDbFor({
+			ringGame: [{ id: RING_GAME_ID, roomId: ROOM_ID, userId: CALLER }],
+		});
+		await expect(
+			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
+		).resolves.toBeUndefined();
+		// Ownership is a direct userId check; the room is never read (SA2-181).
+		expect(selectedTables).toEqual(["ring_game"]);
+	});
+
+	it("resolves for a null-roomId auto-generated row owned via userId", async () => {
+		const { db, selectedTables } = mockDbFor({
+			ringGame: [{ id: RING_GAME_ID, roomId: null, userId: CALLER }],
+		});
+		await expect(
+			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
+		).resolves.toBeUndefined();
+		expect(selectedTables).toEqual(["ring_game"]);
+	});
+
+	it("throws FORBIDDEN when the ring game belongs to another user", async () => {
+		const { db, selectedTables } = mockDbFor({
+			ringGame: [{ id: RING_GAME_ID, roomId: ROOM_ID, userId: OTHER }],
+		});
+		await expect(
+			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
+		});
+		// Must not fall through to reading a room.
+		expect(selectedTables).toEqual(["ring_game"]);
+	});
+
+	it("throws FORBIDDEN for a legacy row with a null userId", async () => {
+		const { db } = mockDbFor({
+			ringGame: [{ id: RING_GAME_ID, roomId: null, userId: null }],
+		});
+		await expect(
+			validateEntityOwnership(db, "ringGame", RING_GAME_ID, CALLER)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
+		});
+	});
+
+	it("throws NOT_FOUND when the ring game does not exist", async () => {
+		const { db, selectedTables } = mockDbFor({ ringGame: [] });
+		await expect(
+			validateEntityOwnership(db, "ringGame", "missing", CALLER)
+		).rejects.toMatchObject({
+			code: "NOT_FOUND",
+			message: "Ring game not found",
+		});
+		expect(selectedTables).toEqual(["ring_game"]);
+	});
+});
+
+describe("session.create auto-generated ring game ownership (SA2-181)", () => {
+	const CALLER = "user-1";
+
+	it("stamps the creating user's id on the auto-generated ring_game", async () => {
+		const { db, inserted } = createChainableMockDb({ select: {} });
+		const caller = appRouter.createCaller({
+			session: { user: { id: CALLER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+		});
+
+		const ringGameInserts = inserted.ring_game ?? [];
+		expect(ringGameInserts).toHaveLength(1);
+		expect(ringGameInserts[0]).toMatchObject({
+			userId: CALLER,
+			roomId: null,
+		});
+	});
+});
+
+describe("validateTagsOwnership (SA2-177)", () => {
+	const CALLER = "user-1";
+
+	it("resolves without reading when ids is undefined", async () => {
+		const { db, selectedTables } = createChainableMockDb();
+		await expect(
+			validateTagsOwnership(db, sessionTag, undefined, CALLER)
+		).resolves.toBeUndefined();
+		expect(selectedTables).toEqual([]);
+	});
+
+	it("resolves without reading when ids is empty", async () => {
+		const { db, selectedTables } = createChainableMockDb();
+		await expect(
+			validateTagsOwnership(db, sessionTag, [], CALLER)
+		).resolves.toBeUndefined();
+		expect(selectedTables).toEqual([]);
+	});
+
+	it("resolves when every tag is owned by the caller", async () => {
+		const { db, selectedTables } = createChainableMockDb({
+			select: { session_tag: [{ id: "t1" }, { id: "t2" }] },
+		});
+		await expect(
+			validateTagsOwnership(db, sessionTag, ["t1", "t2"], CALLER)
+		).resolves.toBeUndefined();
+		expect(selectedTables).toEqual(["session_tag"]);
+	});
+
+	it("deduplicates ids before comparing the owned count", async () => {
+		const { db } = createChainableMockDb({
+			select: { session_tag: [{ id: "t1" }] },
+		});
+		await expect(
+			validateTagsOwnership(db, sessionTag, ["t1", "t1"], CALLER)
+		).resolves.toBeUndefined();
+	});
+
+	it("throws FORBIDDEN when a tag is owned by another user (fewer rows returned)", async () => {
+		const { db } = createChainableMockDb({
+			select: { session_tag: [{ id: "t1" }] },
+		});
+		await expect(
+			validateTagsOwnership(db, sessionTag, ["t1", "t2"], CALLER)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own one or more of these tags",
+		});
+	});
+
+	it("throws FORBIDDEN when none of the tags are owned", async () => {
+		const { db } = createChainableMockDb({ select: { session_tag: [] } });
+		await expect(
+			validateTagsOwnership(db, sessionTag, ["t1"], CALLER)
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
 });

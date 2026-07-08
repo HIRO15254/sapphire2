@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { githubReleasesPlugin } from "./src/plugins/vite-plugin-github-releases";
+import { pwaManifest } from "./src/shared/lib/pwa-manifest";
 
 export default defineConfig({
 	plugins: [
@@ -14,13 +15,7 @@ export default defineConfig({
 		react(),
 		VitePWA({
 			registerType: "autoUpdate",
-			manifest: {
-				name: "sapphire2",
-				short_name: "sapphire2",
-				description: "sapphire2 - PWA Application",
-				theme_color: "#0c0c0c",
-				start_url: "/dashboard",
-			},
+			manifest: pwaManifest,
 			pwaAssets: { disabled: false, config: true },
 			devOptions: { enabled: true },
 		}),

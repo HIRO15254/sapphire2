@@ -1,3 +1,7 @@
+import { currency } from "@sapphire2/db/schema/currency";
+import { ringGame } from "@sapphire2/db/schema/ring-game";
+import { room } from "@sapphire2/db/schema/room";
+import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
@@ -7,6 +11,54 @@ import {
 	expectType,
 	getInputSchema,
 } from "./test-utils";
+
+type Rows = Record<string, unknown>[];
+
+function createMockDb(rowsByTable: Map<unknown, Rows>) {
+	const makeChain = (rows: Rows) => {
+		const chain = Promise.resolve(rows) as Promise<Rows> &
+			Record<string, (...args: unknown[]) => unknown>;
+		chain.from = (table: unknown) => makeChain(rowsByTable.get(table) ?? []);
+		chain.where = () => chain;
+		chain.orderBy = () => chain;
+		chain.limit = () => chain;
+		chain.innerJoin = () => chain;
+		chain.leftJoin = () => chain;
+		return chain;
+	};
+	return {
+		select: () => makeChain([]),
+		insert: () => ({ values: () => Promise.resolve(undefined) }),
+		update: () => ({
+			set: () => ({ where: () => Promise.resolve(undefined) }),
+		}),
+		delete: () => ({ where: () => Promise.resolve(undefined) }),
+	};
+}
+
+function ringGameCaller(userId: string, rowsByTable: Map<unknown, Rows>) {
+	return appRouter.createCaller({
+		session: { user: { id: userId } },
+		db: createMockDb(rowsByTable),
+	} as unknown as Parameters<typeof appRouter.createCaller>[0]).ringGame;
+}
+
+async function expectTrpcCode(
+	promise: Promise<unknown>,
+	code: TRPCError["code"]
+): Promise<void> {
+	try {
+		await promise;
+	} catch (error) {
+		expect(error).toBeInstanceOf(TRPCError);
+		expect((error as TRPCError).code).toBe(code);
+		return;
+	}
+	throw new Error(`expected the call to throw ${code} but it resolved`);
+}
+
+const CUR_OWNER = "user-1";
+const CUR_OTHER = "user-2";
 
 describe("ringGame router", () => {
 	it("appRouter has ringGame namespace", () => {
@@ -188,4 +240,150 @@ describe("ringGame.{archive,restore,delete} input validation", () => {
 		expectRejects(appRouter.ringGame.restore, {});
 		expectRejects(appRouter.ringGame.delete, {});
 	});
+});
+
+describe("ringGame currency ownership (SA2-180)", () => {
+	const ownedRoom = { id: "room-1", userId: CUR_OWNER };
+	const ownedRingGame = { id: "rg-1", roomId: "room-1", userId: CUR_OWNER };
+
+	function createRows(currencyRows: Rows) {
+		return new Map<unknown, Rows>([
+			[room, [ownedRoom]],
+			[ringGame, [ownedRingGame]],
+			[currency, currencyRows],
+		]);
+	}
+
+	it("create accepts a currency owned by the caller", async () => {
+		const caller = ringGameCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OWNER }])
+		);
+		await expect(
+			caller.create({ roomId: "room-1", name: "RG", currencyId: "cur-1" })
+		).resolves.toBeDefined();
+	});
+
+	it("create rejects a currency owned by another user with FORBIDDEN", async () => {
+		const caller = ringGameCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OTHER }])
+		);
+		await expectTrpcCode(
+			caller.create({ roomId: "room-1", name: "RG", currencyId: "cur-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("create skips currency validation when currencyId is omitted", async () => {
+		const caller = ringGameCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OTHER }])
+		);
+		await expect(
+			caller.create({ roomId: "room-1", name: "RG" })
+		).resolves.toBeDefined();
+	});
+
+	it("update rejects a foreign currency with FORBIDDEN", async () => {
+		const caller = ringGameCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OTHER }])
+		);
+		await expectTrpcCode(
+			caller.update({ id: "rg-1", currencyId: "cur-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("update accepts a currency owned by the caller", async () => {
+		const caller = ringGameCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OWNER }])
+		);
+		await expect(
+			caller.update({ id: "rg-1", currencyId: "cur-1" })
+		).resolves.toBeDefined();
+	});
+
+	it("update allows clearing the currency with null", async () => {
+		const caller = ringGameCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OTHER }])
+		);
+		await expect(
+			caller.update({ id: "rg-1", currencyId: null })
+		).resolves.toBeDefined();
+	});
+});
+
+describe("ringGame.create sets userId to the caller (SA2-181)", () => {
+	it("stamps the created ring game with the caller's userId", async () => {
+		const rowsByTable = new Map<unknown, Rows>([
+			[room, [{ id: "room-1", userId: CUR_OWNER }]],
+			[ringGame, []],
+			[currency, []],
+		]);
+		const inserted: Record<string, unknown>[] = [];
+		const baseDb = createMockDb(rowsByTable);
+		const db = {
+			...baseDb,
+			insert: () => ({
+				values: (v: Record<string, unknown>) => {
+					inserted.push(v);
+					return Promise.resolve(undefined);
+				},
+			}),
+		};
+		const caller = appRouter.createCaller({
+			session: { user: { id: CUR_OWNER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).ringGame;
+
+		await caller.create({ roomId: "room-1", name: "RG" });
+
+		expect(inserted).toHaveLength(1);
+		expect(inserted[0]).toMatchObject({ userId: CUR_OWNER, roomId: "room-1" });
+	});
+});
+
+describe("validateRingGameOwnership via mutations (SA2-181)", () => {
+	function ringGameRows(rg: Rows) {
+		return new Map<unknown, Rows>([
+			[room, []],
+			[ringGame, rg],
+			[currency, []],
+		]);
+	}
+
+	for (const op of ["update", "archive", "restore", "delete"] as const) {
+		it(`${op} resolves for a ring game owned by the caller (userId match)`, async () => {
+			const caller = ringGameCaller(
+				CUR_OWNER,
+				ringGameRows([{ id: "rg-1", roomId: null, userId: CUR_OWNER }])
+			);
+			await expect(caller[op]({ id: "rg-1" })).resolves.toBeDefined();
+		});
+
+		it(`${op} throws FORBIDDEN for a ring game owned by another user`, async () => {
+			const caller = ringGameCaller(
+				CUR_OWNER,
+				ringGameRows([{ id: "rg-1", roomId: "room-1", userId: CUR_OTHER }])
+			);
+			await expectTrpcCode(caller[op]({ id: "rg-1" }), "FORBIDDEN");
+		});
+
+		it(`${op} throws FORBIDDEN for a legacy row with null userId`, async () => {
+			const caller = ringGameCaller(
+				CUR_OWNER,
+				ringGameRows([{ id: "rg-1", roomId: null, userId: null }])
+			);
+			await expectTrpcCode(caller[op]({ id: "rg-1" }), "FORBIDDEN");
+		});
+
+		it(`${op} throws NOT_FOUND when the ring game does not exist`, async () => {
+			const caller = ringGameCaller(CUR_OWNER, ringGameRows([]));
+			await expectTrpcCode(caller[op]({ id: "missing" }), "NOT_FOUND");
+		});
+	}
 });

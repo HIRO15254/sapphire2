@@ -22,6 +22,7 @@ import {
 } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 
@@ -286,7 +287,7 @@ async function persistSessionChipPurchases(
  * (explicit override of the master snapshot) and update (session-wizard edits
  * to a session's own blind structure) so the array is always written fresh.
  */
-async function persistSessionBlindLevels(
+export async function persistSessionBlindLevels(
 	db: DbInstance,
 	sessionId: string,
 	blindLevels: {
@@ -320,6 +321,48 @@ async function persistSessionBlindLevels(
 	}
 }
 
+/**
+ * Assert the room `roomId` exists and belongs to `userId`, else throw FORBIDDEN
+ * with `forbiddenMessage`. Shared by the room-derived ownership branches
+ * (ringGame / tournament) so their ownership rule stays in one place.
+ */
+async function assertRoomOwnedBy(
+	db: DbInstance,
+	roomId: string,
+	userId: string,
+	forbiddenMessage: string
+): Promise<void> {
+	const [foundRoom] = await db.select().from(room).where(eq(room.id, roomId));
+	if (!foundRoom || foundRoom.userId !== userId) {
+		throw new TRPCError({ code: "FORBIDDEN", message: forbiddenMessage });
+	}
+}
+
+async function validateRingGameOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<void> {
+	const [found] = await db
+		.select()
+		.from(ringGame)
+		.where(eq(ringGame.id, entityId));
+	if (!found) {
+		throw new TRPCError({ code: "NOT_FOUND", message: "Ring game not found" });
+	}
+	// A ring game now carries its own userId (SA2-181), so ownership is a direct
+	// comparison — no longer derived from the room. A null userId is a
+	// legacy/orphan row that cannot be proven owned → FORBIDDEN. This supersedes
+	// the previous room-join and keeps null-roomId auto-generated snapshot rows
+	// correctly owned after the backfill, closing the IDOR gap (SA2-174/SA2-181).
+	if (found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
+		});
+	}
+}
+
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "currency" | "ringGame" | "room" | "tournament",
@@ -338,16 +381,7 @@ async function validateEntityOwnership(
 			});
 		}
 	} else if (entityType === "ringGame") {
-		const [found] = await db
-			.select()
-			.from(ringGame)
-			.where(eq(ringGame.id, entityId));
-		if (!found) {
-			throw new TRPCError({
-				code: "NOT_FOUND",
-				message: "Ring game not found",
-			});
-		}
+		await validateRingGameOwnershipBranch(db, entityId, userId);
 	} else if (entityType === "tournament") {
 		const [found] = await db
 			.select()
@@ -359,6 +393,15 @@ async function validateEntityOwnership(
 				message: "Tournament not found",
 			});
 		}
+		// A tournament has no userId of its own; ownership is derived from its
+		// room. Without this check a caller could pass another user's
+		// tournamentId to snapshot their blind structure / chip purchases (IDOR).
+		await assertRoomOwnedBy(
+			db,
+			found.roomId,
+			userId,
+			"You do not own this tournament"
+		);
 	} else if (entityType === "currency") {
 		const [found] = await db
 			.select()
@@ -478,6 +521,7 @@ export {
 	computeTournamentPL,
 	getSessionChipPurchaseMap,
 	sumChipPurchaseCost,
+	validateEntityOwnership,
 	validateSessionOwnership,
 };
 
@@ -901,6 +945,58 @@ async function validateCreateLinks(
 	}
 	if (input.type === "tournament" && input.tournamentId) {
 		await validateEntityOwnership(db, "tournament", input.tournamentId, userId);
+	}
+}
+
+/**
+ * Ownership guard for the room / currency links shared by the live cash-game
+ * and live-tournament routers. A falsy value (undefined = omitted, null =
+ * clear, "" = empty) skips validation; a provided id must exist AND belong to
+ * the caller, else validateEntityOwnership throws NOT_FOUND / FORBIDDEN.
+ * Prevents IDOR on the money-ledger links (SA2-102).
+ */
+export async function validateLiveLinkOwnership(
+	db: DbInstance,
+	input: { currencyId?: string | null; roomId?: string | null },
+	userId: string
+) {
+	if (input.roomId) {
+		await validateEntityOwnership(db, "room", input.roomId, userId);
+	}
+	if (input.currencyId) {
+		await validateEntityOwnership(db, "currency", input.currencyId, userId);
+	}
+}
+
+/**
+ * Ownership guard for a set of tag ids linked to a session / player / etc.
+ * Generic over any tag table exposing `id` + `userId` columns (session_tag,
+ * player_tag, tournament_tag, …). Selects the caller-owned subset in a single
+ * `WHERE id IN (…) AND userId = caller` query; if the distinct owned count
+ * differs from the requested distinct count, at least one id is missing or
+ * belongs to another user → FORBIDDEN. No-ops on empty / omitted ids so the
+ * caller can pass `input.tagIds` directly. Prevents IDOR on tag links
+ * (SA2-177).
+ */
+export async function validateTagsOwnership(
+	db: DbInstance,
+	table: SQLiteTable & { id: SQLiteColumn; userId: SQLiteColumn },
+	ids: string[] | undefined,
+	userId: string
+): Promise<void> {
+	if (!ids || ids.length === 0) {
+		return;
+	}
+	const uniqueIds = [...new Set(ids)];
+	const owned = await db
+		.select({ id: table.id })
+		.from(table)
+		.where(and(inArray(table.id, uniqueIds), eq(table.userId, userId)));
+	if (owned.length !== uniqueIds.length) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own one or more of these tags",
+		});
 	}
 }
 
@@ -1763,7 +1859,8 @@ async function insertCashGameSessionDetail(
 	db: DbInstance,
 	sessionId: string,
 	input: z.infer<typeof cashGameCreateSchema>,
-	now: Date
+	now: Date,
+	userId: string
 ): Promise<void> {
 	let ringGameId = input.ringGameId ?? null;
 	const snapshot = await resolveCashRuleSnapshot(db, input);
@@ -1774,6 +1871,9 @@ async function insertCashGameSessionDetail(
 		await db.insert(ringGame).values({
 			id: ringGameId,
 			roomId: null,
+			// Auto-generated snapshot row: anchor ownership on the creating user
+			// (SA2-181) since it has no room to derive ownership from.
+			userId,
 			name: derivedName,
 			variant: snapshot.variant,
 			blind1: snapshot.blind1,
@@ -2111,11 +2211,12 @@ export const sessionRouter = router({
 			});
 
 			if (input.type === "cash_game") {
-				await insertCashGameSessionDetail(ctx.db, id, input, now);
+				await insertCashGameSessionDetail(ctx.db, id, input, now, userId);
 			} else {
 				await insertTournamentSessionDetail(ctx.db, id, input);
 			}
 
+			await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
 			await insertSessionTags(ctx.db, id, input.tagIds);
 
 			await maybeCreateCurrencyTransactionForCreate(
@@ -2289,6 +2390,7 @@ export const sessionRouter = router({
 			}
 
 			if (input.tagIds !== undefined) {
+				await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
 				await ctx.db
 					.delete(sessionToSessionTag)
 					.where(eq(sessionToSessionTag.sessionId, input.id));

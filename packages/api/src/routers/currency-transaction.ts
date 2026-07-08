@@ -14,6 +14,41 @@ import { paginate } from "./_pagination";
 
 const PAGE_SIZE = 10;
 
+type DbInstance = Parameters<
+	Parameters<typeof protectedProcedure.query>[0]
+>[0]["ctx"]["db"];
+
+/**
+ * Verifies the referenced transaction type belongs to the caller before it is
+ * linked to a transaction. Without this a caller could attach another user's
+ * transaction type id to their own transaction (read-IDOR, SA2-179). Mirrors
+ * the currency-ownership check already used in create / update below.
+ */
+async function validateTransactionTypeOwnership(
+	db: DbInstance,
+	transactionTypeId: string,
+	userId: string
+) {
+	const [found] = await db
+		.select()
+		.from(transactionType)
+		.where(eq(transactionType.id, transactionTypeId));
+
+	if (!found) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Transaction type not found",
+		});
+	}
+
+	if (found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this transaction type",
+		});
+	}
+}
+
 export const currencyTransactionRouter = router({
 	listByCurrency: protectedProcedure
 		.input(z.object({ currencyId: z.string(), cursor: z.string().optional() }))
@@ -45,7 +80,7 @@ export const currencyTransactionRouter = router({
 				// tuple against the cursor row keeps paging aligned with the visible
 				// order — comparing the random-UUID id alone skips/duplicates rows.
 				conditions.push(
-					sql`(${currencyTransaction.transactedAt}, ${currencyTransaction.id}) < (SELECT transacted_at, id FROM currency_transaction WHERE id = ${input.cursor})`
+					sql`(${currencyTransaction.transactedAt}, ${currencyTransaction.id}) < (SELECT transacted_at, id FROM currency_transaction WHERE id = ${input.cursor} AND currency_id = ${input.currencyId})`
 				);
 			}
 
@@ -122,6 +157,12 @@ export const currencyTransactionRouter = router({
 				});
 			}
 
+			await validateTransactionTypeOwnership(
+				ctx.db,
+				input.transactionTypeId,
+				userId
+			);
+
 			const id = crypto.randomUUID();
 			await ctx.db.insert(currencyTransaction).values({
 				id,
@@ -181,6 +222,11 @@ export const currencyTransactionRouter = router({
 
 			const updateData: Partial<typeof found.currencyTransaction> = {};
 			if (input.transactionTypeId !== undefined) {
+				await validateTransactionTypeOwnership(
+					ctx.db,
+					input.transactionTypeId,
+					userId
+				);
 				updateData.transactionTypeId = input.transactionTypeId;
 			}
 			if (input.amount !== undefined) {

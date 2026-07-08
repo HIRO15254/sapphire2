@@ -99,6 +99,39 @@ describe("useTournamentForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it("calls onInvalidSubmit (and not onSubmit) when submit fails validation", async () => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const onInvalidSubmit = vi.fn();
+		const { result } = renderHook(
+			() => useTournamentForm({ onSubmit, onInvalidSubmit }),
+			{ wrapper: wrapper(qc) }
+		);
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(onInvalidSubmit).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not call onInvalidSubmit when submit succeeds", async () => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const onInvalidSubmit = vi.fn();
+		const { result } = renderHook(
+			() => useTournamentForm({ onSubmit, onInvalidSubmit }),
+			{ wrapper: wrapper(qc) }
+		);
+		act(() => {
+			result.current.form.setFieldValue("name", "Main");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onInvalidSubmit).not.toHaveBeenCalled();
+	});
+
 	it("submits with parsed numbers and optional fields collapsed", async () => {
 		const qc = createClient();
 		const onSubmit = vi.fn();

@@ -44,8 +44,11 @@ function formatDuration(
 	if (!(startedAt && endedAt)) {
 		return null;
 	}
+	// Clamp to zero so a legacy row saved before the day-crossing fix (endedAt
+	// before startedAt) never leaks a negative duration into the share text
+	// (SA2-157).
 	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
-	const hours = diffMs / (1000 * 60 * 60);
+	const hours = Math.max(0, diffMs / (1000 * 60 * 60));
 	return `${hours.toFixed(1)}h`;
 }
 
@@ -88,7 +91,11 @@ export function createSessionShareText(session: ShareableSession): string {
 	const plIcon = profitLoss >= 0 ? "📈" : "📉";
 	const plSign = profitLoss >= 0 ? "+" : "";
 	const currencyUnit = session.currencyUnit ?? "";
-	const date = new Date(session.sessionDate).toLocaleDateString("ja-JP");
+	// sessionDate is UTC midnight; force UTC so the shared date is the calendar
+	// day the user saved rather than its local rendering (SA2-145).
+	const date = new Date(session.sessionDate).toLocaleDateString("ja-JP", {
+		timeZone: "UTC",
+	});
 	const gameIcon = isTournament ? "🏆" : "💲";
 
 	let text = "📊 Poker Session Result\n";

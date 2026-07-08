@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
+import { validateEntityOwnership } from "./session";
 
 async function validateRoomOwnership(
 	db: Parameters<
@@ -47,8 +48,15 @@ async function validateRingGameOwnership(
 		});
 	}
 
-	if (found.roomId) {
-		await validateRoomOwnership(db, found.roomId, userId);
+	// Ownership is now anchored on ring_game.userId (SA2-181). A null userId is a
+	// legacy/orphan row that predates the backfill and cannot be proven owned →
+	// FORBIDDEN. This closes the null-roomId IDOR gap the room-derived check left
+	// open for auto-generated snapshot rows.
+	if (found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
+		});
 	}
 
 	return found;
@@ -97,11 +105,20 @@ export const ringGameRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateRoomOwnership(ctx.db, input.roomId, userId);
+			if (input.currencyId) {
+				await validateEntityOwnership(
+					ctx.db,
+					"currency",
+					input.currencyId,
+					userId
+				);
+			}
 
 			const id = crypto.randomUUID();
 			await ctx.db.insert(ringGame).values({
 				id,
 				roomId: input.roomId,
+				userId,
 				name: input.name,
 				variant: input.variant,
 				blind1: input.blind1 ?? null,
@@ -145,6 +162,14 @@ export const ringGameRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const found = await validateRingGameOwnership(ctx.db, input.id, userId);
+			if (input.currencyId) {
+				await validateEntityOwnership(
+					ctx.db,
+					"currency",
+					input.currencyId,
+					userId
+				);
+			}
 
 			const updateData: Partial<typeof found> = { updatedAt: new Date() };
 			if (input.name !== undefined) {

@@ -1,4 +1,5 @@
 import {
+	MAX_SEAT_POSITION,
 	tournamentSessionEndPayload,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
@@ -21,10 +22,13 @@ import {
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
 import {
+	persistSessionBlindLevels,
 	persistSessionChipPurchases,
 	resnapshotTournamentStructure,
 	resolveTournamentRuleSnapshot,
 	snapshotTournamentStructure,
+	validateEntityOwnership,
+	validateLiveLinkOwnership,
 } from "./session";
 
 const DEFAULT_LIMIT = 20;
@@ -486,7 +490,7 @@ export const liveTournamentSessionRouter = router({
 			}
 			if (input.cursor) {
 				conditions.push(
-					sql`${gameSession.startedAt} < (SELECT started_at FROM game_session WHERE id = ${input.cursor})`
+					sql`${gameSession.startedAt} < (SELECT started_at FROM game_session WHERE id = ${input.cursor} AND user_id = ${userId})`
 				);
 			}
 
@@ -664,6 +668,19 @@ export const liveTournamentSessionRouter = router({
 
 			await assertNoActiveSession(ctx.db, userId);
 
+			await validateLiveLinkOwnership(ctx.db, input, userId);
+			// Validate tournament ownership before reading its structure so a
+			// caller cannot snapshot another user's blind levels / chip purchases
+			// via snapshotTournamentStructure (IDOR).
+			if (input.tournamentId) {
+				await validateEntityOwnership(
+					ctx.db,
+					"tournament",
+					input.tournamentId,
+					userId
+				);
+			}
+
 			const id = crypto.randomUUID();
 			const now = new Date();
 
@@ -744,6 +761,8 @@ export const liveTournamentSessionRouter = router({
 				.select()
 				.from(sessionTournamentDetail)
 				.where(eq(sessionTournamentDetail.sessionId, input.id));
+
+			await validateLiveLinkOwnership(ctx.db, input, userId);
 
 			const baseUpdateData = buildLiveSessionUpdateData(input);
 			const { detailUpdate, patchedUpdateData } = await resolveDetailUpdate(
@@ -871,24 +890,12 @@ export const liveTournamentSessionRouter = router({
 			}
 
 			if (input.blindLevels !== undefined) {
-				await ctx.db
-					.delete(sessionBlindLevel)
-					.where(eq(sessionBlindLevel.sessionId, input.id));
-				if (input.blindLevels.length > 0) {
-					await ctx.db.insert(sessionBlindLevel).values(
-						input.blindLevels.map((l, idx) => ({
-							id: crypto.randomUUID(),
-							sessionId: input.id,
-							level: idx + 1,
-							isBreak: l.isBreak,
-							blind1: l.blind1 ?? null,
-							blind2: l.blind2 ?? null,
-							blind3: l.blind3 ?? null,
-							ante: l.ante ?? null,
-							minutes: l.minutes ?? null,
-						}))
-					);
-				}
+				// Reuse the shared helper so the DELETE + re-INSERT is chunked
+				// under D1's 100 bound-parameter cap (9 columns/row => 11 rows
+				// max per INSERT). A single unchunked INSERT of >=12 levels
+				// overflows and throws AFTER the DELETE commits, permanently
+				// wiping the session's blind structure (SA2-115).
+				await persistSessionBlindLevels(ctx.db, input.id, input.blindLevels);
 			}
 
 			if (input.chipPurchases !== undefined) {
@@ -986,7 +993,12 @@ export const liveTournamentSessionRouter = router({
 		.input(
 			z.object({
 				id: z.string(),
-				heroSeatPosition: z.number().int().min(0).max(8).nullable(),
+				heroSeatPosition: z
+					.number()
+					.int()
+					.min(0)
+					.max(MAX_SEAT_POSITION)
+					.nullable(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

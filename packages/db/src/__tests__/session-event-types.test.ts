@@ -12,6 +12,7 @@ import {
 	isValidEventTypeForSessionType,
 	LIFECYCLE_EVENT_TYPES,
 	MANUAL_CREATE_BLOCKED_EVENT_TYPES,
+	MAX_SEAT_POSITION,
 	memoPayload,
 	PAUSE_RESUME_EVENT_TYPES,
 	playerJoinPayload,
@@ -277,6 +278,68 @@ describe("payload schemas", () => {
 
 		it("rejects empty playerId", () => {
 			expect(() => playerJoinPayload.parse({ playerId: "" })).toThrow();
+		});
+
+		it("accepts seatPosition 0 (lower boundary)", () => {
+			const result = playerJoinPayload.parse({
+				playerId: "player-1",
+				seatPosition: 0,
+			});
+			expect(result.seatPosition).toBe(0);
+		});
+
+		it("accepts seatPosition 8 (mid boundary)", () => {
+			const result = playerJoinPayload.parse({
+				playerId: "player-1",
+				seatPosition: 8,
+			});
+			expect(result.seatPosition).toBe(8);
+		});
+
+		it("accepts seatPosition 9 (last seat of a 10-max table)", () => {
+			const result = playerJoinPayload.parse({
+				playerId: "player-1",
+				seatPosition: 9,
+			});
+			expect(result.seatPosition).toBe(9);
+		});
+
+		it("rejects seatPosition 10 (beyond a 10-max table)", () => {
+			expect(() =>
+				playerJoinPayload.parse({ playerId: "player-1", seatPosition: 10 })
+			).toThrow();
+		});
+
+		it("rejects negative seatPosition", () => {
+			expect(() =>
+				playerJoinPayload.parse({ playerId: "player-1", seatPosition: -1 })
+			).toThrow();
+		});
+
+		it("rejects non-integer seatPosition", () => {
+			expect(() =>
+				playerJoinPayload.parse({ playerId: "player-1", seatPosition: 1.5 })
+			).toThrow();
+		});
+	});
+
+	describe("MAX_SEAT_POSITION", () => {
+		it("is 9 (10-max table, 0-indexed last seat)", () => {
+			expect(MAX_SEAT_POSITION).toBe(9);
+		});
+
+		it("bounds playerJoinPayload's seatPosition upper limit", () => {
+			expect(() =>
+				playerJoinPayload.parse({
+					playerId: "player-1",
+					seatPosition: MAX_SEAT_POSITION + 1,
+				})
+			).toThrow();
+			const result = playerJoinPayload.parse({
+				playerId: "player-1",
+				seatPosition: MAX_SEAT_POSITION,
+			});
+			expect(result.seatPosition).toBe(MAX_SEAT_POSITION);
 		});
 	});
 

@@ -92,6 +92,160 @@
       "when": 1775883379516,
       "tag": "0012_boring_vivisector",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0013_redesign_session_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0014_add_temporary_player",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0015_add_dashboard_widget",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0016_add_before_deadline",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0017_add_tournament_timer",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0018_backfill_session_start_timer",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0019_cti_session_refactor",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0020_normalize_session_event_ordering",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0021_consolidate_tournament_stack_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0022_consolidate_hero_seat_into_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0023_chips_add_remove_signed_amount",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0024_freeze_session_rule_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0025_chip_purchase_result",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0026_drop_session_table_player",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0027_add_currency_description",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1780619773000,
+      "tag": "0028_currency_add_favorite",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1780663855000,
+      "tag": "0029_rename_store_to_room",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1780674911000,
+      "tag": "0030_room_add_favorite",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1781236774000,
+      "tag": "0031_drop_dashboard_widget",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1783050064000,
+      "tag": "0032_room_add_location",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1783222517000,
+      "tag": "0033_ring_game_add_user_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1783348319000,
+      "tag": "0034_backfill_day_crossing_session_end",
+      "breakpoints": true
     }
   ]
 }

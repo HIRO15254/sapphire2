@@ -125,6 +125,20 @@ describe("formatSessionDuration", () => {
 			formatSessionDuration("2026-01-01T10:00:00", "2026-01-01T10:40:00")
 		).toBe("0.7h");
 	});
+
+	it("clamps a negative raw span to '0.0h' (legacy day-crossing row, SA2-157)", () => {
+		// endedAt before startedAt (a row saved before the day-crossing fix) must
+		// never surface a negative "-20.0h" duration.
+		expect(
+			formatSessionDuration("2026-01-01T22:00:00", "2026-01-01T02:00:00")
+		).toBe("0.0h");
+	});
+
+	it("clamps to '0.0h' when break minutes exceed the played span (SA2-157)", () => {
+		expect(
+			formatSessionDuration("2026-01-01T10:00:00", "2026-01-01T11:00:00", 120)
+		).toBe("0.0h");
+	});
 });
 
 describe("buildCashRuleRows", () => {

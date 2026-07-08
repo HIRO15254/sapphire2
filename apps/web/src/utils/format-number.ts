@@ -57,10 +57,13 @@ export function createGroupFormatter(
 	return (value: number) => formatWithTier(value, tier);
 }
 
+// sessionDate is stored/returned as UTC midnight, so read UTC calendar fields
+// to render the day the user actually saved. Using local getters shifts the
+// day back one for users west of UTC (SA2-145).
 export function formatYmdSlash(input: string | Date): string {
 	const d = typeof input === "string" ? new Date(input) : input;
-	const y = d.getFullYear();
-	const m = String(d.getMonth() + 1).padStart(2, "0");
-	const day = String(d.getDate()).padStart(2, "0");
+	const y = d.getUTCFullYear();
+	const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+	const day = String(d.getUTCDate()).padStart(2, "0");
 	return `${y}/${m}/${day}`;
 }

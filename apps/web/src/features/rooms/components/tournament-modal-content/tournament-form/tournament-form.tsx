@@ -31,6 +31,12 @@ interface TournamentFormProps {
 	 */
 	formId: string;
 	/**
+	 * Called when a submit attempt fails validation. Lets the surrounding modal
+	 * reveal this (Details) tab so the user sees the errors instead of a
+	 * seemingly dead Save button on another tab (SA2-97 follow-up).
+	 */
+	onInvalidSubmit?: () => void;
+	/**
 	 * Registers a getter for the form's current values so AI auto-fill can
 	 * merge over what the user has already entered.
 	 */
@@ -47,10 +53,12 @@ export function TournamentForm({
 	onSubmit,
 	defaultValues,
 	formId,
+	onInvalidSubmit,
 	onRegisterLiveValues,
 }: TournamentFormProps) {
 	const { form, currencies } = useTournamentForm({
 		defaultValues,
+		onInvalidSubmit,
 		onRegisterLiveValues,
 		onSubmit,
 	});

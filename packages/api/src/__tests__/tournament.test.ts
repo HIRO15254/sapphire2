@@ -1,3 +1,7 @@
+import { currency } from "@sapphire2/db/schema/currency";
+import { room } from "@sapphire2/db/schema/room";
+import { tournament } from "@sapphire2/db/schema/tournament";
+import { TRPCError } from "@trpc/server";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
@@ -7,6 +11,54 @@ import {
 	expectType,
 	getInputSchema,
 } from "./test-utils";
+
+type Rows = Record<string, unknown>[];
+
+function createMockDb(rowsByTable: Map<unknown, Rows>) {
+	const makeChain = (rows: Rows) => {
+		const chain = Promise.resolve(rows) as Promise<Rows> &
+			Record<string, (...args: unknown[]) => unknown>;
+		chain.from = (table: unknown) => makeChain(rowsByTable.get(table) ?? []);
+		chain.where = () => chain;
+		chain.orderBy = () => chain;
+		chain.limit = () => chain;
+		chain.innerJoin = () => chain;
+		chain.leftJoin = () => chain;
+		return chain;
+	};
+	return {
+		select: () => makeChain([]),
+		insert: () => ({ values: () => Promise.resolve(undefined) }),
+		update: () => ({
+			set: () => ({ where: () => Promise.resolve(undefined) }),
+		}),
+		delete: () => ({ where: () => Promise.resolve(undefined) }),
+	};
+}
+
+function tournamentCaller(userId: string, rowsByTable: Map<unknown, Rows>) {
+	return appRouter.createCaller({
+		session: { user: { id: userId } },
+		db: createMockDb(rowsByTable),
+	} as unknown as Parameters<typeof appRouter.createCaller>[0]).tournament;
+}
+
+async function expectTrpcCode(
+	promise: Promise<unknown>,
+	code: TRPCError["code"]
+): Promise<void> {
+	try {
+		await promise;
+	} catch (error) {
+		expect(error).toBeInstanceOf(TRPCError);
+		expect((error as TRPCError).code).toBe(code);
+		return;
+	}
+	throw new Error(`expected the call to throw ${code} but it resolved`);
+}
+
+const CUR_OWNER = "user-1";
+const CUR_OTHER = "user-2";
 
 describe("tournament router", () => {
 	it("appRouter has tournament namespace", () => {
@@ -283,5 +335,116 @@ describe("tournament.{archive,restore,delete,getById} input validation", () => {
 		expectRejects(appRouter.tournament.restore, {});
 		expectRejects(appRouter.tournament.delete, {});
 		expectRejects(appRouter.tournament.getById, {});
+	});
+});
+
+describe("tournament currency ownership (SA2-180)", () => {
+	const ownedRoom = { id: "room-1", userId: CUR_OWNER };
+	const ownedTournament = { id: "tn-1", roomId: "room-1" };
+
+	function createRows(currencyRows: Rows) {
+		return new Map<unknown, Rows>([
+			[room, [ownedRoom]],
+			[tournament, [ownedTournament]],
+			[currency, currencyRows],
+		]);
+	}
+
+	it("create accepts a currency owned by the caller", async () => {
+		const caller = tournamentCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OWNER }])
+		);
+		await expect(
+			caller.create({ roomId: "room-1", name: "T", currencyId: "cur-1" })
+		).resolves.toBeDefined();
+	});
+
+	it("create rejects a currency owned by another user with FORBIDDEN", async () => {
+		const caller = tournamentCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OTHER }])
+		);
+		await expectTrpcCode(
+			caller.create({ roomId: "room-1", name: "T", currencyId: "cur-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("create skips currency validation when currencyId is omitted", async () => {
+		const caller = tournamentCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OTHER }])
+		);
+		await expect(
+			caller.create({ roomId: "room-1", name: "T" })
+		).resolves.toBeDefined();
+	});
+
+	it("update rejects a foreign currency with FORBIDDEN", async () => {
+		const caller = tournamentCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OTHER }])
+		);
+		await expectTrpcCode(
+			caller.update({ id: "tn-1", currencyId: "cur-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("update allows clearing the currency with null", async () => {
+		const caller = tournamentCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OTHER }])
+		);
+		await expect(
+			caller.update({ id: "tn-1", currencyId: null })
+		).resolves.toBeDefined();
+	});
+
+	it("createWithLevels rejects a foreign currency with FORBIDDEN", async () => {
+		const caller = tournamentCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OTHER }])
+		);
+		await expectTrpcCode(
+			caller.createWithLevels({
+				roomId: "room-1",
+				name: "T",
+				currencyId: "cur-1",
+				blindLevels: [],
+			}),
+			"FORBIDDEN"
+		);
+	});
+
+	it("updateWithLevels rejects a foreign currency with FORBIDDEN", async () => {
+		const caller = tournamentCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OTHER }])
+		);
+		await expectTrpcCode(
+			caller.updateWithLevels({
+				id: "tn-1",
+				currencyId: "cur-1",
+				blindLevels: [],
+			}),
+			"FORBIDDEN"
+		);
+	});
+
+	it("createWithLevels accepts a currency owned by the caller", async () => {
+		const caller = tournamentCaller(
+			CUR_OWNER,
+			createRows([{ id: "cur-1", userId: CUR_OWNER }])
+		);
+		await expect(
+			caller.createWithLevels({
+				roomId: "room-1",
+				name: "T",
+				currencyId: "cur-1",
+				blindLevels: [],
+			})
+		).resolves.toBeDefined();
 	});
 });

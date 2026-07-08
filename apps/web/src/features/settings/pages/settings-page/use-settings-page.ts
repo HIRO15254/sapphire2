@@ -1,18 +1,7 @@
-import { useNavigate } from "@tanstack/react-router";
-import { authClient } from "@/lib/auth-client";
+import { useSignOut } from "@/shared/hooks/use-sign-out";
 
 export function useSettingsPage() {
-	const navigate = useNavigate();
-
-	const onSignOut = () => {
-		authClient.signOut({
-			fetchOptions: {
-				onSuccess: () => {
-					navigate({ to: "/" });
-				},
-			},
-		});
-	};
+	const { onSignOut } = useSignOut();
 
 	return { onSignOut };
 }

@@ -403,6 +403,77 @@ describe("computeCashGamePLFromEvents", () => {
 		expect(result.profitLoss).toBe(150);
 	});
 
+	it("exposes chipRemoveTotal from negative chips_add_remove events (SA2-124)", () => {
+		// buyIn 500, chip removal 300, cashOut 400 =>
+		// profitLoss = 400 + 300 - 500 = 200, and chipRemoveTotal is surfaced
+		// so the live header can mirror the chart's stack + chipRemoveTotal - buyIn.
+		const events = [
+			{
+				eventType: "session_start",
+				payload: JSON.stringify({ buyInAmount: 500 }),
+			},
+			{
+				eventType: "chips_add_remove",
+				payload: JSON.stringify({ amount: -300, type: "remove" }),
+			},
+			{
+				eventType: "session_end",
+				payload: JSON.stringify({ cashOutAmount: 400 }),
+			},
+		];
+		const result = computeCashGamePLFromEvents(events);
+		expect(result.chipRemoveTotal).toBe(300);
+		expect(result.totalBuyIn).toBe(500);
+		expect(result.profitLoss).toBe(200);
+	});
+
+	it("reports chipRemoveTotal as 0 when there are no chip removals", () => {
+		const events = [
+			{
+				eventType: "session_start",
+				payload: JSON.stringify({ buyInAmount: 500 }),
+			},
+			{
+				eventType: "session_end",
+				payload: JSON.stringify({ cashOutAmount: 400 }),
+			},
+		];
+		const result = computeCashGamePLFromEvents(events);
+		expect(result.chipRemoveTotal).toBe(0);
+		expect(result.profitLoss).toBe(-100);
+	});
+
+	it("accumulates chipRemoveTotal across multiple removals without touching addonTotal", () => {
+		const events = [
+			{
+				eventType: "session_start",
+				payload: JSON.stringify({ buyInAmount: 1000 }),
+			},
+			{
+				eventType: "chips_add_remove",
+				payload: JSON.stringify({ amount: -200, type: "remove" }),
+			},
+			{
+				eventType: "chips_add_remove",
+				payload: JSON.stringify({ amount: 300, type: "add" }),
+			},
+			{
+				eventType: "chips_add_remove",
+				payload: JSON.stringify({ amount: -100, type: "remove" }),
+			},
+			{
+				eventType: "session_end",
+				payload: JSON.stringify({ cashOutAmount: 900 }),
+			},
+		];
+		const result = computeCashGamePLFromEvents(events);
+		expect(result.chipRemoveTotal).toBe(300);
+		expect(result.addonTotal).toBe(300);
+		expect(result.totalBuyIn).toBe(1300);
+		// profitLoss = 900 + 300 - 1300 = -100
+		expect(result.profitLoss).toBe(-100);
+	});
+
 	it("computes evCashOut correctly using all_in events", () => {
 		// EV diff = potSize * (equity / 100) - (potSize / trials) * wins
 		// potSize=400, equity=75, trials=1, wins=0 => 400 * 0.75 - (400 / 1) * 0 = 300
