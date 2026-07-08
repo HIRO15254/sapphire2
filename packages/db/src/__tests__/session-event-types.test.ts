@@ -727,10 +727,20 @@ describe("payload schema edge cases", () => {
 			expect(result.success).toBe(false);
 		});
 
-		it("rejects a non-integer wins", () => {
-			const result = allInPayload.safeParse({
+		it("accepts a fractional wins (a chopped pot counts as a partial win)", () => {
+			const result = allInPayload.parse({
 				potSize: 1000,
 				trials: 3,
+				equity: 50,
+				wins: 1.5,
+			});
+			expect(result.wins).toBe(1.5);
+		});
+
+		it("rejects a fractional wins that still exceeds trials", () => {
+			const result = allInPayload.safeParse({
+				potSize: 1000,
+				trials: 1,
 				equity: 50,
 				wins: 1.5,
 			});

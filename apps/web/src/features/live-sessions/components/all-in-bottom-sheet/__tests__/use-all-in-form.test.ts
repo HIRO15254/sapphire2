@@ -98,7 +98,7 @@ describe("useAllInForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("rejects a non-integer wins on submit", async () => {
+	it("accepts a fractional wins on submit (a chopped pot counts as a partial win)", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>
 			useAllInForm({ open: false, onSubmit })
@@ -112,7 +112,12 @@ describe("useAllInForm", () => {
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
-		expect(onSubmit).not.toHaveBeenCalled();
+		expect(onSubmit).toHaveBeenCalledWith({
+			potSize: 1000,
+			trials: 3,
+			equity: 50,
+			wins: 1.5,
+		});
 	});
 
 	it("accepts wins equal to trials on submit (upper boundary)", async () => {

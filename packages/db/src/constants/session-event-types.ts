@@ -99,17 +99,19 @@ export const chipsAddRemovePayload = z.object({
 		.refine((n) => n !== 0, { message: "amount must be non-zero" }),
 });
 
-// `wins` is the number of favorable outcomes across `trials` all-in run-outs,
-// so it must be a non-negative integer that never exceeds `trials`. Without the
-// `.int()` and the object-level `wins <= trials` refine, a payload like
-// `{ potSize: 1000, trials: 1, wins: 5 }` validated and let the EV math compute a
-// wins-share larger than the pot, corrupting `evCashOut` / `evDiff` (SA2-156).
+// `wins` is the number of favorable all-in run-outs across `trials`, counted as
+// a fraction when the pot is chopped (a split counts as a partial win). It is
+// therefore a non-negative number — NOT necessarily an integer — that never
+// exceeds `trials`. The object-level `wins <= trials` refine blocks the real bug:
+// a payload like `{ potSize: 1000, trials: 1, wins: 5 }` used to validate and let
+// the EV math compute a wins-share larger than the pot, corrupting
+// `evCashOut` / `evDiff` (SA2-156).
 export const allInPayload = z
 	.object({
 		potSize: z.number().min(0),
 		trials: z.number().int().min(1),
 		equity: z.number().min(0).max(100),
-		wins: z.number().int().min(0),
+		wins: z.number().min(0),
 	})
 	.refine((data) => data.wins <= data.trials, {
 		message: "wins must not exceed trials",
