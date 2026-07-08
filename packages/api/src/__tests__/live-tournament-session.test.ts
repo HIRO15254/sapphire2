@@ -1,6 +1,7 @@
 import { currency } from "@sapphire2/db/schema/currency";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { TRPCError } from "@trpc/server";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it, vi } from "vitest";
@@ -974,5 +975,177 @@ describe("liveTournamentSession.list composite keyset cursor (SA2-150)", () => {
 		const result = await listCaller(db).list({ limit: 2 });
 		expect(result.items).toEqual([]);
 		expect(result.nextCursor).toBeUndefined();
+	});
+});
+
+// SA2-151: the list endpoint fetched session_event with one query per page item
+// (an N+1 that D1's per-query latency made expensive at page size). It now
+// collects the page's session ids and fetches every event in ONE inArray batch,
+// then buckets rows by session id. These tests pin the single-query shape, the
+// per-session bucketing (eventCount + the computeStackStats-derived fields), and
+// the (occurredAt, sortOrder) ordering the current-stack derivation depends on.
+const listEventBatchDialect = new SQLiteSyncDialect();
+
+function sessionEventRow(
+	sessionId: string,
+	eventType: string,
+	payload: Record<string, unknown>,
+	occurredAt: number,
+	sortOrder: number
+): Record<string, unknown> {
+	return {
+		sessionId,
+		eventType,
+		payload: JSON.stringify(payload),
+		occurredAt: new Date(occurredAt),
+		sortOrder,
+	};
+}
+
+/**
+ * Mock db for the list-enrichment path: `select().from(gameSession)` resolves
+ * to the page rows, `select().from(sessionEvent)` resolves to every event row
+ * (the mock ignores the `inArray` filter, so bucketing must be done in app
+ * code). It records which table each `.from(...)` targeted and the conditions
+ * bound to the sessionEvent `.where(...)` so a single batched IN can be proven.
+ */
+function createEventBatchMockDb(sessions: Rows, events: Rows) {
+	const fromCalls: unknown[] = [];
+	const eventWhere: unknown[] = [];
+	const makeChain = (table: unknown) => {
+		const rows = table === sessionEvent ? events : sessions;
+		const chain = Promise.resolve(rows) as Promise<Rows> &
+			Record<string, (...args: unknown[]) => unknown>;
+		chain.where = (cond: unknown) => {
+			if (table === sessionEvent) {
+				eventWhere.push(cond);
+			}
+			return chain;
+		};
+		chain.orderBy = () => chain;
+		chain.limit = () => chain;
+		chain.leftJoin = () => chain;
+		chain.innerJoin = () => chain;
+		chain.groupBy = () => chain;
+		return chain;
+	};
+	const db = {
+		select: () => ({
+			from: (table: unknown) => {
+				fromCalls.push(table);
+				return makeChain(table);
+			},
+		}),
+	};
+	return { db, fromCalls, eventWhere };
+}
+
+function sessionEventFromCount(fromCalls: unknown[]): number {
+	return fromCalls.filter((t) => t === sessionEvent).length;
+}
+
+describe("liveTournamentSession.list event batching (SA2-151)", () => {
+	it("fetches the whole page's events in a single inArray query, not one per session", async () => {
+		const sessions: Rows = [
+			{ id: "s1", startingStack: 20_000 },
+			{ id: "s2", startingStack: 20_000 },
+			{ id: "s3", startingStack: null },
+		];
+		const events: Rows = [
+			sessionEventRow("s1", "session_start", {}, 1000, 0),
+			sessionEventRow("s2", "session_start", {}, 1000, 0),
+		];
+		const { db, fromCalls, eventWhere } = createEventBatchMockDb(
+			sessions,
+			events
+		);
+
+		const result = await listCaller(db).list({ limit: 20 });
+
+		expect(sessionEventFromCount(fromCalls)).toBe(1);
+		const query = listEventBatchDialect.sqlToQuery(eventWhere[0] as never);
+		expect(query.sql).toContain("in (");
+		expect(query.params).toEqual(["s1", "s2", "s3"]);
+		expect(result.items).toHaveLength(3);
+	});
+
+	it("buckets events by session id so each item derives from only its own events", async () => {
+		const sessions: Rows = [
+			{ id: "s1", startingStack: 20_000 },
+			{ id: "s2", startingStack: 20_000 },
+		];
+		const events: Rows = [
+			sessionEventRow("s1", "session_start", {}, 1000, 0),
+			sessionEventRow(
+				"s1",
+				"update_stack",
+				{ stackAmount: 25_000, remainingPlayers: 100, totalEntries: 100 },
+				2000,
+				1
+			),
+			sessionEventRow(
+				"s1",
+				"update_stack",
+				{ stackAmount: 30_000, remainingPlayers: 50 },
+				3000,
+				2
+			),
+			// s2 has no events.
+		];
+		const { db } = createEventBatchMockDb(sessions, events);
+
+		const result = await listCaller(db).list({ limit: 20 });
+		const byId = Object.fromEntries(result.items.map((i) => [i.id, i]));
+
+		expect(byId.s1?.eventCount).toBe(3);
+		expect(byId.s1?.latestStackAmount).toBe(30_000);
+		expect(byId.s1?.remainingPlayers).toBe(50);
+		// (startingStack * totalEntries + chipTotal) / remainingPlayers
+		// = (20000 * 100 + 0) / 50 = 40000.
+		expect(byId.s1?.averageStack).toBe(40_000);
+		expect(byId.s2?.eventCount).toBe(0);
+		expect(byId.s2?.latestStackAmount).toBeNull();
+		expect(byId.s2?.remainingPlayers).toBeNull();
+		expect(byId.s2?.averageStack).toBeNull();
+	});
+
+	it("derives the current stack from (occurredAt, sortOrder) order, not array order", async () => {
+		const sessions: Rows = [{ id: "s1", startingStack: null }];
+		const events: Rows = [
+			sessionEventRow("s1", "update_stack", { stackAmount: 3000 }, 3000, 1),
+			sessionEventRow("s1", "update_stack", { stackAmount: 1000 }, 1000, 1),
+			sessionEventRow("s1", "update_stack", { stackAmount: 2000 }, 2000, 1),
+		];
+		const { db } = createEventBatchMockDb(sessions, events);
+
+		const result = await listCaller(db).list({ limit: 20 });
+
+		expect(result.items[0]?.latestStackAmount).toBe(3000);
+	});
+
+	it("batches once for a single-session page", async () => {
+		const sessions: Rows = [{ id: "only", startingStack: 15_000 }];
+		const events: Rows = [
+			sessionEventRow("only", "session_start", {}, 1000, 0),
+			sessionEventRow("only", "update_stack", { stackAmount: 18_000 }, 2000, 1),
+		];
+		const { db, fromCalls } = createEventBatchMockDb(sessions, events);
+
+		const result = await listCaller(db).list({ limit: 20 });
+
+		expect(sessionEventFromCount(fromCalls)).toBe(1);
+		expect(result.items).toHaveLength(1);
+		expect(result.items[0]?.eventCount).toBe(2);
+		expect(result.items[0]?.latestStackAmount).toBe(18_000);
+	});
+
+	it("issues no event query and returns no items for an empty page", async () => {
+		const { db, fromCalls } = createEventBatchMockDb([], []);
+
+		const result = await listCaller(db).list({ limit: 20 });
+
+		expect(result.items).toEqual([]);
+		expect(result.nextCursor).toBeUndefined();
+		expect(sessionEventFromCount(fromCalls)).toBe(0);
 	});
 });

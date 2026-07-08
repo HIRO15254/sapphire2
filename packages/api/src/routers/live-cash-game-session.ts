@@ -23,6 +23,7 @@ import {
 import { floorToMinute } from "../utils/session-event-time";
 import {
 	encodeSessionCursor,
+	getSessionEventMap,
 	resolveCashRuleSnapshot,
 	sessionKeysetCondition,
 	sessionOrderKeySql,
@@ -305,36 +306,34 @@ export const liveCashGameSessionRouter = router({
 			const nextCursor =
 				hasMore && last ? encodeSessionCursor(last) : undefined;
 
-			const enrichedItems = await Promise.all(
-				items.map(async (item) => {
-					const events = await ctx.db
-						.select({
-							eventType: sessionEvent.eventType,
-							payload: sessionEvent.payload,
-							sortOrder: sessionEvent.sortOrder,
-						})
-						.from(sessionEvent)
-						.where(eq(sessionEvent.sessionId, item.id))
-						.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+			// SA2-151: fetch every page item's events in one batched inArray
+			// query, then bucket by session id, instead of a per-item query
+			// (an N+1 whose per-query latency dominated under D1). getSessionEventMap
+			// preserves the (occurredAt, sortOrder) ordering the reverse scan needs.
+			const eventMap = await getSessionEventMap(
+				ctx.db,
+				items.map((item) => item.id)
+			);
 
-					const eventCount = events.length;
-					let latestStackAmount: number | null = null;
+			const enrichedItems = items.map((item) => {
+				const events = eventMap.get(item.id) ?? [];
+				const eventCount = events.length;
+				let latestStackAmount: number | null = null;
 
-					for (const event of [...events].reverse()) {
-						if (event.eventType === "update_stack") {
-							const parsed = updateStackPayload.safeParse(
-								JSON.parse(event.payload)
-							);
-							if (parsed.success) {
-								latestStackAmount = parsed.data.stackAmount;
-								break;
-							}
+				for (const event of [...events].reverse()) {
+					if (event.eventType === "update_stack") {
+						const parsed = updateStackPayload.safeParse(
+							JSON.parse(event.payload)
+						);
+						if (parsed.success) {
+							latestStackAmount = parsed.data.stackAmount;
+							break;
 						}
 					}
+				}
 
-					return { ...item, eventCount, latestStackAmount };
-				})
-			);
+				return { ...item, eventCount, latestStackAmount };
+			});
 
 			return { items: enrichedItems, nextCursor };
 		}),

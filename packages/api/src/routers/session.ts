@@ -10,6 +10,7 @@ import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
+import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import {
 	sessionTag,
 	sessionToSessionTag,
@@ -271,6 +272,79 @@ async function getSessionBlindLevelMap(
 		} else {
 			map.set(r.sessionId, [entry]);
 		}
+	}
+	return map;
+}
+
+interface SessionEventForList {
+	eventType: string;
+	payload: string;
+}
+
+/**
+ * Batched lookup of session events for the live-session `list` endpoints, keyed
+ * by session id and ordered by (occurredAt asc, sortOrder asc) — the exact order
+ * the per-session query used before SA2-151 collapsed the N+1 (one
+ * `WHERE session_id = ?` query per page item, up to limit+1 ≈ 100 extra
+ * round-trips that D1's per-query latency made expensive) into a single
+ * `inArray` fetch via {@link selectInChunks}. Each bucket is re-sorted in
+ * application code so per-session ordering holds even though selectInChunks
+ * concatenates chunk results (and a mocked db may ignore ORDER BY). Sessions
+ * with no events are absent from the map.
+ */
+export async function getSessionEventMap(
+	db: DbInstance,
+	sessionIds: string[]
+): Promise<Map<string, SessionEventForList[]>> {
+	const map = new Map<string, SessionEventForList[]>();
+	if (sessionIds.length === 0) {
+		return map;
+	}
+	const rows = await selectInChunks(sessionIds, (chunk) =>
+		db
+			.select({
+				sessionId: sessionEvent.sessionId,
+				eventType: sessionEvent.eventType,
+				payload: sessionEvent.payload,
+				occurredAt: sessionEvent.occurredAt,
+				sortOrder: sessionEvent.sortOrder,
+			})
+			.from(sessionEvent)
+			.where(inArray(sessionEvent.sessionId, chunk))
+			.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder))
+	);
+	const buckets = new Map<
+		string,
+		{
+			eventType: string;
+			occurredAt: Date;
+			payload: string;
+			sortOrder: number;
+		}[]
+	>();
+	for (const r of rows) {
+		const entry = {
+			eventType: r.eventType,
+			payload: r.payload,
+			occurredAt: r.occurredAt,
+			sortOrder: r.sortOrder,
+		};
+		const existing = buckets.get(r.sessionId);
+		if (existing) {
+			existing.push(entry);
+		} else {
+			buckets.set(r.sessionId, [entry]);
+		}
+	}
+	for (const [sessionId, events] of buckets) {
+		events.sort(
+			(a, b) =>
+				Number(a.occurredAt) - Number(b.occurredAt) || a.sortOrder - b.sortOrder
+		);
+		map.set(
+			sessionId,
+			events.map((e) => ({ eventType: e.eventType, payload: e.payload }))
+		);
 	}
 	return map;
 }
