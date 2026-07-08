@@ -28,9 +28,21 @@ vi.mock("@/features/update-notes/constants", () => ({
 			releasedAt: "2026-04-11",
 			title: "Update Notes Feature",
 			changes: [
-				"Added update notes modal to view past release information",
-				"Unviewed updates are highlighted with a NEW badge",
-				"Update notes sheet automatically opens after a new release",
+				{
+					section: "New Features",
+					items: ["Added update notes modal to view past release information"],
+				},
+				{
+					section: "UI Improvements",
+					items: [
+						"Unviewed updates are highlighted with a NEW badge",
+						"Update notes sheet automatically opens after a new release",
+					],
+				},
+				{
+					section: "",
+					items: ["orphan bullet"],
+				},
 			],
 		},
 	],
@@ -114,6 +126,21 @@ describe("UpdateNotesSheet", () => {
 				"Update notes sheet automatically opens after a new release"
 			)
 		).toBeInTheDocument();
+	});
+
+	it("renders each change section's heading", () => {
+		mocks.sheetState.isOpen = true;
+		render(<UpdateNotesSheet />);
+		expect(screen.getByText("New Features")).toBeInTheDocument();
+		expect(screen.getByText("UI Improvements")).toBeInTheDocument();
+	});
+
+	it("does not render a heading for an unlabeled section", () => {
+		mocks.sheetState.isOpen = true;
+		render(<UpdateNotesSheet />);
+		const orphanItem = screen.getByText("orphan bullet");
+		const group = orphanItem.closest("div");
+		expect(group?.querySelector("p")).toBeNull();
 	});
 
 	it("does not render drawer content when isOpen=false even if a version is viewed", () => {
