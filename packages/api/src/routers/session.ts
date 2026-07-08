@@ -538,7 +538,40 @@ async function createCurrencyTransactionForSession(
 	});
 }
 
-async function syncCurrencyTransaction(
+/**
+ * Build the statements that (re)create a session's "Session Result" currency
+ * ledger row: the transaction-type INSERT when it does not exist yet (ordered
+ * first), then the currencyTransaction row referencing it. Returned UN-executed
+ * so a caller can commit them in one batch — e.g. atomically after a DELETE so a
+ * currency switch can no longer lose the ledger row on a failed re-INSERT
+ * (SA2-116).
+ */
+async function buildCurrencyTransactionStatements(
+	db: DbInstance,
+	sessionId: string,
+	currencyId: string,
+	amount: number,
+	sessionDate: Date,
+	userId: string
+): Promise<BatchStatement[]> {
+	const { statements, typeId } = await buildSessionResultTypeIdStatements(
+		db,
+		userId
+	);
+	statements.push(
+		db.insert(currencyTransaction).values({
+			id: crypto.randomUUID(),
+			currencyId,
+			transactionTypeId: typeId,
+			sessionId,
+			amount,
+			transactedAt: sessionDate,
+		})
+	);
+	return statements;
+}
+
+export async function syncCurrencyTransaction(
 	db: DbInstance,
 	sessionId: string,
 	oldCurrencyId: string | null,
@@ -568,17 +601,23 @@ async function syncCurrencyTransaction(
 		effectiveNewCurrencyId &&
 		oldCurrencyId !== effectiveNewCurrencyId
 	) {
-		await db
-			.delete(currencyTransaction)
-			.where(eq(currencyTransaction.sessionId, sessionId));
-		await createCurrencyTransactionForSession(
-			db,
-			sessionId,
-			effectiveNewCurrencyId,
-			amount,
-			sessionDate,
-			userId
-		);
+		// Delete the stale ledger row and re-create it for the new currency in a
+		// SINGLE batch, so a failed re-INSERT can no longer permanently drop the
+		// session's currency transaction (SA2-116 — the same failure class this PR
+		// fixes on the create path).
+		await runBatch(db, [
+			db
+				.delete(currencyTransaction)
+				.where(eq(currencyTransaction.sessionId, sessionId)),
+			...(await buildCurrencyTransactionStatements(
+				db,
+				sessionId,
+				effectiveNewCurrencyId,
+				amount,
+				sessionDate,
+				userId
+			)),
+		]);
 	} else if (effectiveNewCurrencyId) {
 		await db
 			.update(currencyTransaction)
@@ -2249,13 +2288,14 @@ async function selectCreatedSession(db: DbInstance, id: string) {
 }
 
 /**
- * Resolve the caller's "Session Result" transaction-type id for the create
- * batch. When the type does not exist yet its INSERT is returned so it can be
- * committed in the SAME batch as the currency-transaction row that references
- * it (ordered before that row) — mirrors {@link getSessionResultTypeId}, which
- * the update path still uses as a standalone read-or-create.
+ * Resolve the caller's "Session Result" transaction-type id for a batched write.
+ * When the type does not exist yet its INSERT is returned so it can be committed
+ * in the SAME batch as the currency-transaction row that references it (ordered
+ * before that row). Shared by session.create and the session.update currency
+ * sync — mirrors {@link getSessionResultTypeId} (the plain read-or-create still
+ * used where a standalone commit is fine).
  */
-async function buildSessionResultTypeIdForCreate(
+async function buildSessionResultTypeIdStatements(
 	db: DbInstance,
 	userId: string
 ): Promise<{ statements: BatchStatement[]; typeId: string }> {
@@ -2296,21 +2336,14 @@ async function buildCreateCurrencyTxStatements(
 		return [];
 	}
 	const pl = _computeCreatePL(input);
-	const { statements, typeId } = await buildSessionResultTypeIdForCreate(
+	return await buildCurrencyTransactionStatements(
 		db,
+		id,
+		input.currencyId,
+		pl,
+		sessionDate,
 		userId
 	);
-	statements.push(
-		db.insert(currencyTransaction).values({
-			id: crypto.randomUUID(),
-			currencyId: input.currencyId,
-			transactionTypeId: typeId,
-			sessionId: id,
-			amount: pl,
-			transactedAt: sessionDate,
-		})
-	);
-	return statements;
 }
 
 function computeSessionPLFromDetails(

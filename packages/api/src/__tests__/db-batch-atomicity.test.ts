@@ -30,6 +30,7 @@ import {
 	persistSessionChipPurchases,
 	resnapshotTournamentStructure,
 	snapshotTournamentStructure,
+	syncCurrencyTransaction,
 } from "../routers/session";
 
 /**
@@ -486,5 +487,93 @@ describe("tournament.createWithLevels atomicity (SA2-116)", () => {
 			kind: "insert",
 			table: tournament,
 		});
+	});
+});
+
+describe("syncCurrencyTransaction currency-change atomicity (SA2-116)", () => {
+	it("batches the ledger DELETE and its re-INSERT together on a currency switch", async () => {
+		// "Session Result" type already exists -> only the DELETE + ledger INSERT.
+		const { db, batchCalls } = createBatchTrackingDb(
+			new Map<unknown, Rows>([[transactionType, [{ id: "type-1" }]]])
+		);
+
+		await syncCurrencyTransaction(
+			db as never,
+			"sess-1",
+			"cur-old",
+			"cur-new",
+			500,
+			new Date(1_000_000),
+			"user-1"
+		);
+
+		expect(batchCalls).toHaveLength(1);
+		const batch = sole(batchCalls);
+		// The stale-row DELETE leads so the switch commits (or rolls back) as one
+		// unit instead of losing the ledger row on a failed re-INSERT.
+		expect(batch[0]).toMatchObject({
+			kind: "delete",
+			table: currencyTransaction,
+		});
+		expect(opsOn(batch, currencyTransaction, "delete")).toHaveLength(1);
+		expect(opsOn(batch, currencyTransaction, "insert")).toHaveLength(1);
+		expect(opsOn(batch, transactionType, "insert")).toHaveLength(0);
+	});
+
+	it("includes the Session Result type INSERT before the ledger row when the type is missing", async () => {
+		const { db, batchCalls } = createBatchTrackingDb(
+			new Map<unknown, Rows>([[transactionType, []]])
+		);
+
+		await syncCurrencyTransaction(
+			db as never,
+			"sess-1",
+			"cur-old",
+			"cur-new",
+			500,
+			new Date(1_000_000),
+			"user-1"
+		);
+
+		const batch = sole(batchCalls);
+		expect(opsOn(batch, transactionType, "insert")).toHaveLength(1);
+		expect(opsOn(batch, currencyTransaction, "insert")).toHaveLength(1);
+		const typeIdx = batch.findIndex(
+			(s) => s.table === transactionType && s.kind === "insert"
+		);
+		const txIdx = batch.findIndex(
+			(s) => s.table === currencyTransaction && s.kind === "insert"
+		);
+		// FK order: the type row must precede the ledger row that references it.
+		expect(typeIdx).toBeLessThan(txIdx);
+	});
+
+	it("leaves the single-statement branches (pure removal / same-currency update) unbatched", async () => {
+		// Clearing the currency -> a lone DELETE, no batch needed.
+		const removal = createBatchTrackingDb();
+		await syncCurrencyTransaction(
+			removal.db as never,
+			"sess-1",
+			"cur-old",
+			null,
+			0,
+			new Date(1_000_000),
+			"user-1"
+		);
+		expect(removal.batchCalls).toHaveLength(0);
+		expect(removal.deletes).toHaveLength(1);
+
+		// Same currency, amount refresh -> a lone UPDATE, no batch needed.
+		const same = createBatchTrackingDb();
+		await syncCurrencyTransaction(
+			same.db as never,
+			"sess-1",
+			"cur-x",
+			"cur-x",
+			10,
+			new Date(1_000_000),
+			"user-1"
+		);
+		expect(same.batchCalls).toHaveLength(0);
 	});
 });
