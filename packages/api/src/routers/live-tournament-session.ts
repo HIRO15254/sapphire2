@@ -23,6 +23,7 @@ import {
 import { floorToMinute } from "../utils/session-event-time";
 import {
 	encodeSessionCursor,
+	getSessionEventMap,
 	persistSessionBlindLevels,
 	persistSessionChipPurchases,
 	resnapshotTournamentStructure,
@@ -536,36 +537,28 @@ export const liveTournamentSessionRouter = router({
 			const nextCursor =
 				hasMore && last ? encodeSessionCursor(last) : undefined;
 
-			const enrichedItems = await Promise.all(
-				items.map(async (item) => {
-					const events = await ctx.db
-						.select({
-							eventType: sessionEvent.eventType,
-							payload: sessionEvent.payload,
-							sortOrder: sessionEvent.sortOrder,
-						})
-						.from(sessionEvent)
-						.where(eq(sessionEvent.sessionId, item.id))
-						.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
-
-					const eventCount = events.length;
-					const statsForList = computeStackStats(
-						events.map((e) => ({
-							eventType: e.eventType,
-							payload: e.payload,
-						})),
-						item.startingStack
-					);
-
-					return {
-						...item,
-						eventCount,
-						latestStackAmount: statsForList.currentStack,
-						remainingPlayers: statsForList.remainingPlayers,
-						averageStack: statsForList.averageStack,
-					};
-				})
+			// SA2-151: fetch every page item's events in one batched inArray
+			// query, then bucket by session id, instead of a per-item query
+			// (an N+1 whose per-query latency dominated under D1). getSessionEventMap
+			// preserves the (occurredAt, sortOrder) ordering computeStackStats needs.
+			const eventMap = await getSessionEventMap(
+				ctx.db,
+				items.map((item) => item.id)
 			);
+
+			const enrichedItems = items.map((item) => {
+				const events = eventMap.get(item.id) ?? [];
+				const eventCount = events.length;
+				const statsForList = computeStackStats(events, item.startingStack);
+
+				return {
+					...item,
+					eventCount,
+					latestStackAmount: statsForList.currentStack,
+					remainingPlayers: statsForList.remainingPlayers,
+					averageStack: statsForList.averageStack,
+				};
+			});
 
 			return { items: enrichedItems, nextCursor };
 		}),
