@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { currency } from "./currency";
+import { gameVariant } from "./game-variant";
 import { room } from "./room";
 import { tournamentTag } from "./tournament-tag";
 
@@ -13,6 +14,9 @@ export const tournament = sqliteTable(
 			.references(() => room.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
 		variant: text("variant").notNull().default("nlh"),
+		variantId: text("variant_id").references(() => gameVariant.id, {
+			onDelete: "set null",
+		}),
 		buyIn: integer("buy_in"),
 		entryFee: integer("entry_fee"),
 		startingStack: integer("starting_stack"),
@@ -76,6 +80,10 @@ export const tournamentRelations = relations(tournament, ({ one, many }) => ({
 	currency: one(currency, {
 		fields: [tournament.currencyId],
 		references: [currency.id],
+	}),
+	gameVariant: one(gameVariant, {
+		fields: [tournament.variantId],
+		references: [gameVariant.id],
 	}),
 	blindLevels: many(blindLevel),
 	chipPurchases: many(tournamentChipPurchase),

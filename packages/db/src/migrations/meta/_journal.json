@@ -246,6 +246,20 @@
       "when": 1783348319000,
       "tag": "0034_backfill_day_crossing_session_end",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1783498654813,
+      "tag": "0035_add_game_variant",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1783498711149,
+      "tag": "0036_normalize_variant_nlh_label",
+      "breakpoints": true
     }
   ]
 }

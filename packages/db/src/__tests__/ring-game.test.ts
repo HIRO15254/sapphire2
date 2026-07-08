@@ -10,6 +10,7 @@ describe("RingGame schema", () => {
 		expect(columns.roomId).toBeDefined();
 		expect(columns.name).toBeDefined();
 		expect(columns.variant).toBeDefined();
+		expect(columns.variantId).toBeDefined();
 		expect(columns.blind1).toBeDefined();
 		expect(columns.blind2).toBeDefined();
 		expect(columns.blind3).toBeDefined();
@@ -54,6 +55,11 @@ describe("RingGame schema", () => {
 	it("variant is not null", () => {
 		const columns = getTableColumns(ringGame);
 		expect(columns.variant.notNull).toBe(true);
+	});
+
+	it("variantId is nullable", () => {
+		const columns = getTableColumns(ringGame);
+		expect(columns.variantId.notNull).toBe(false);
 	});
 
 	it("blind1 is nullable", () => {
@@ -144,8 +150,18 @@ describe("RingGame — FK cascade policies", () => {
 		expect(getTableConfig(fk?.foreignTable as never).name).toBe("user");
 	});
 
-	it("has exactly 3 foreign keys", () => {
-		expect(config.foreignKeys).toHaveLength(3);
+	it("variantId FK uses set null", () => {
+		expect(fkByColumn("variant_id")?.onDelete).toBe("set null");
+	});
+
+	it("variantId FK references the game_variant id column", () => {
+		const fk = fkByColumn("variant_id")?.reference();
+		expect(fk?.foreignColumns.map((c) => c.name)).toEqual(["id"]);
+		expect(getTableConfig(fk?.foreignTable as never).name).toBe("game_variant");
+	});
+
+	it("has exactly 4 foreign keys", () => {
+		expect(config.foreignKeys).toHaveLength(4);
 	});
 });
 

@@ -15,6 +15,7 @@ describe("Tournament schema", () => {
 		expect(columns.roomId).toBeDefined();
 		expect(columns.name).toBeDefined();
 		expect(columns.variant).toBeDefined();
+		expect(columns.variantId).toBeDefined();
 		expect(columns.buyIn).toBeDefined();
 		expect(columns.entryFee).toBeDefined();
 		expect(columns.startingStack).toBeDefined();
@@ -55,6 +56,11 @@ describe("Tournament schema", () => {
 	it("variant is not null", () => {
 		const columns = getTableColumns(tournament);
 		expect(columns.variant.notNull).toBe(true);
+	});
+
+	it("variantId is nullable", () => {
+		const columns = getTableColumns(tournament);
+		expect(columns.variantId.notNull).toBe(false);
 	});
 
 	it("buyIn is nullable", () => {
@@ -208,8 +214,18 @@ describe("Tournament — FKs, indexes, and defaults", () => {
 		expect(fkByColumn("currency_id")?.onDelete).toBe("set null");
 	});
 
-	it("has exactly 2 foreign keys", () => {
-		expect(config.foreignKeys).toHaveLength(2);
+	it("variantId FK uses set null", () => {
+		expect(fkByColumn("variant_id")?.onDelete).toBe("set null");
+	});
+
+	it("variantId FK references the game_variant id column", () => {
+		const fk = fkByColumn("variant_id")?.reference();
+		expect(fk?.foreignColumns.map((c) => c.name)).toEqual(["id"]);
+		expect(getTableConfig(fk?.foreignTable as never).name).toBe("game_variant");
+	});
+
+	it("has exactly 3 foreign keys", () => {
+		expect(config.foreignKeys).toHaveLength(3);
 	});
 
 	it("has roomId index", () => {

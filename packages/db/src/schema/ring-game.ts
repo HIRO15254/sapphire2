@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 import { currency } from "./currency";
+import { gameVariant } from "./game-variant";
 import { room } from "./room";
 
 export const ringGame = sqliteTable(
@@ -21,6 +22,9 @@ export const ringGame = sqliteTable(
 		}),
 		name: text("name").notNull(),
 		variant: text("variant").notNull().default("nlh"),
+		variantId: text("variant_id").references(() => gameVariant.id, {
+			onDelete: "set null",
+		}),
 		blind1: integer("blind1"),
 		blind2: integer("blind2"),
 		blind3: integer("blind3"),
@@ -59,5 +63,9 @@ export const ringGameRelations = relations(ringGame, ({ one }) => ({
 	currency: one(currency, {
 		fields: [ringGame.currencyId],
 		references: [currency.id],
+	}),
+	gameVariant: one(gameVariant, {
+		fields: [ringGame.variantId],
+		references: [gameVariant.id],
 	}),
 }));

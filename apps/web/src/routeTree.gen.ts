@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as StatisticsRouteImport } from './routes/statistics'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as GameVariantsRouteImport } from './routes/game-variants'
 import { Route as ActiveSessionRouteImport } from './routes/active-session'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SessionsIndexRouteImport } from './routes/sessions/index'
@@ -37,6 +38,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GameVariantsRoute = GameVariantsRouteImport.update({
+  id: '/game-variants',
+  path: '/game-variants',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ActiveSessionRoute = ActiveSessionRouteImport.update({
@@ -99,6 +105,7 @@ const LiveSessionsSessionTypeSessionIdEventsRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/active-session': typeof ActiveSessionRoute
+  '/game-variants': typeof GameVariantsRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/statistics': typeof StatisticsRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/active-session': typeof ActiveSessionRoute
+  '/game-variants': typeof GameVariantsRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/statistics': typeof StatisticsRoute
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/active-session': typeof ActiveSessionRoute
+  '/game-variants': typeof GameVariantsRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
   '/statistics': typeof StatisticsRoute
@@ -150,6 +159,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/active-session'
+    | '/game-variants'
     | '/login'
     | '/settings'
     | '/statistics'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/active-session'
+    | '/game-variants'
     | '/login'
     | '/settings'
     | '/statistics'
@@ -182,6 +193,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/active-session'
+    | '/game-variants'
     | '/login'
     | '/settings'
     | '/statistics'
@@ -199,6 +211,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActiveSessionRoute: typeof ActiveSessionRoute
+  GameVariantsRoute: typeof GameVariantsRoute
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
   StatisticsRoute: typeof StatisticsRoute
@@ -234,6 +247,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/game-variants': {
+      id: '/game-variants'
+      path: '/game-variants'
+      fullPath: '/game-variants'
+      preLoaderRoute: typeof GameVariantsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/active-session': {
@@ -319,6 +339,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActiveSessionRoute: ActiveSessionRoute,
+  GameVariantsRoute: GameVariantsRoute,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
   StatisticsRoute: StatisticsRoute,

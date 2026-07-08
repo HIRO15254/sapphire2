@@ -15,6 +15,7 @@ import {
 	transactionType,
 	transactionTypeRelations,
 } from "./schema/currency";
+import { gameVariant, gameVariantRelations } from "./schema/game-variant";
 import {
 	player,
 	playerRelations,
@@ -85,6 +86,8 @@ export const schema = {
 	currencyTransactionRelations,
 	gameSession,
 	gameSessionRelations,
+	gameVariant,
+	gameVariantRelations,
 	ringGame,
 	ringGameRelations,
 	tournament,
