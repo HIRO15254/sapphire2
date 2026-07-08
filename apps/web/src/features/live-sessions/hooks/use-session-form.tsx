@@ -76,8 +76,19 @@ export function useTournamentFormContext() {
 
 export function SessionFormProvider({
 	children,
+	sessionId,
 }: {
 	children: React.ReactNode;
+	/**
+	 * Id of the currently active live session. The provider is mounted once at
+	 * app shell scope, so without this key its state would survive across
+	 * sessions and prefill the next session's Record Stack sheet with the
+	 * previous one's values — and carry a finished tournament's
+	 * `chipPurchaseCounts` into the next `update_stack` payload, corrupting the
+	 * average-stack calculation (SA2-171). Passing the active session id lets us
+	 * clear every field the moment the session changes.
+	 */
+	sessionId?: string | null;
 }) {
 	// Cash game state
 	const [stackAmount, setStackAmount] = useState("");
@@ -90,6 +101,23 @@ export function SessionFormProvider({
 	const [chipPurchaseCounts, setChipPurchaseCounts] = useState<
 		Array<{ name: string; count: number; chipsPerUnit: number }>
 	>([]);
+
+	// Reset every cash + tournament field whenever the active session changes,
+	// including when it clears to null (session finished / discarded). Adjusting
+	// state during render is React's recommended pattern for "reset on prop
+	// change" — it avoids the extra effect pass (and the stale-value flash) a
+	// `useEffect` would introduce, and it keeps children mounted (a `key` on the
+	// provider would remount the whole app shell). See SA2-171.
+	const [trackedSessionId, setTrackedSessionId] = useState(sessionId);
+	if (sessionId !== trackedSessionId) {
+		setTrackedSessionId(sessionId);
+		setStackAmount("");
+		setAllIns([]);
+		setTStackAmount("");
+		setRemainingPlayers("");
+		setTotalEntries("");
+		setChipPurchaseCounts([]);
+	}
 
 	return (
 		<StackFormContext.Provider
