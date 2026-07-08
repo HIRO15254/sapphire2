@@ -3,7 +3,7 @@ declare module "virtual:update-notes" {
 		version: string;
 		releasedAt: string;
 		title: string;
-		changes: string[];
+		changes: Array<{ section: string; items: string[] }>;
 	}>;
 	export const LATEST_VERSION: string | null;
 }

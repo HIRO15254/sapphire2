@@ -1,4 +1,6 @@
 import type { Plugin } from "vite";
+import type { UpdateNoteSection } from "../features/update-notes/utils/parse-release-body";
+import { parseReleaseBody } from "../features/update-notes/utils/parse-release-body";
 
 interface GitHubRelease {
 	body: string | null;
@@ -10,22 +12,10 @@ interface GitHubRelease {
 }
 
 interface UpdateNote {
-	changes: string[];
+	changes: UpdateNoteSection[];
 	releasedAt: string;
 	title: string;
 	version: string;
-}
-
-const LIST_ITEM_PREFIX = /^[-*]\s+/;
-
-function parseReleaseBody(body: string | null): string[] {
-	if (!body) {
-		return [];
-	}
-	return body
-		.split("\n")
-		.map((line) => line.replace(LIST_ITEM_PREFIX, "").trim())
-		.filter((line) => line.length > 0 && !line.startsWith("#"));
 }
 
 async function fetchGitHubReleases(repo: string): Promise<UpdateNote[]> {

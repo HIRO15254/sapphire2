@@ -53,11 +53,20 @@ export function UpdateNotesSheet() {
 									</AccordionTrigger>
 									<AccordionContent>
 										<p className="mb-2 font-medium">{note.title}</p>
-										<ul className="list-disc space-y-1 pl-4 text-muted-foreground">
-											{note.changes.map((change) => (
-												<li key={change}>{change}</li>
+										<div className="space-y-3">
+											{note.changes.map((group) => (
+												<div key={group.section || "general"}>
+													{group.section && (
+														<p className="t-label mb-1">{group.section}</p>
+													)}
+													<ul className="list-disc space-y-1 pl-4 text-muted-foreground">
+														{group.items.map((item) => (
+															<li key={item}>{item}</li>
+														))}
+													</ul>
+												</div>
 											))}
-										</ul>
+										</div>
 									</AccordionContent>
 								</AccordionItem>
 							))}
