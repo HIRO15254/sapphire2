@@ -22,7 +22,10 @@ import {
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
 import {
+	encodeSessionCursor,
 	resolveCashRuleSnapshot,
+	sessionKeysetCondition,
+	sessionOrderKeySql,
 	validateEntityOwnership,
 	validateLiveLinkOwnership,
 } from "./session";
@@ -199,10 +202,12 @@ export const liveCashGameSessionRouter = router({
 			if (input.status) {
 				conditions.push(eq(gameSession.status, input.status));
 			}
-			if (input.cursor) {
-				conditions.push(
-					sql`${gameSession.startedAt} < (SELECT started_at FROM game_session WHERE id = ${input.cursor} AND user_id = ${userId})`
-				);
+			// Composite (startedAt, id) keyset — a malformed / deleted-row cursor
+			// degrades to "no cursor" instead of silently emptying the page
+			// (SA2-150). Shared with session.list so both stay in lockstep.
+			const keyset = sessionKeysetCondition(input.cursor);
+			if (keyset) {
+				conditions.push(keyset);
 			}
 
 			const rows = await ctx.db
@@ -218,6 +223,7 @@ export const liveCashGameSessionRouter = router({
 					currencyName: currency.name,
 					currencyUnit: currency.unit,
 					startedAt: gameSession.startedAt,
+					sessionDate: gameSession.sessionDate,
 					endedAt: gameSession.endedAt,
 					memo: gameSession.memo,
 					createdAt: gameSession.createdAt,
@@ -231,12 +237,14 @@ export const liveCashGameSessionRouter = router({
 				.leftJoin(room, eq(room.id, gameSession.roomId))
 				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
 				.where(and(...conditions))
-				.orderBy(desc(gameSession.startedAt))
+				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))
 				.limit(input.limit + 1);
 
 			const hasMore = rows.length > input.limit;
 			const items = hasMore ? rows.slice(0, input.limit) : rows;
-			const nextCursor = hasMore ? items.at(-1)?.id : undefined;
+			const last = items.at(-1);
+			const nextCursor =
+				hasMore && last ? encodeSessionCursor(last) : undefined;
 
 			const enrichedItems = await Promise.all(
 				items.map(async (item) => {

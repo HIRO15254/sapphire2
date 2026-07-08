@@ -21,7 +21,17 @@ import {
 	tournamentChipPurchase,
 } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	gte,
+	inArray,
+	lte,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
 import { protectedProcedure, router } from "../index";
@@ -1037,7 +1047,7 @@ interface ListFilters {
  * a seemingly arbitrary order. `startedAt` is optional (older / quick-add
  * sessions may not have one), so it falls back to `sessionDate`.
  */
-function sessionOrderKeySql() {
+export function sessionOrderKeySql() {
 	return sql`coalesce(${gameSession.startedAt}, ${gameSession.sessionDate})`;
 }
 
@@ -1081,6 +1091,30 @@ export function parseSessionCursor(
 	return { id, sortKey: new Date(ms) };
 }
 
+/**
+ * Build the composite-keyset WHERE condition for a session-list cursor, matching
+ * the `(sessionOrderKey DESC, id DESC)` ordering: rows strictly after the cursor
+ * in that order. Returns `undefined` for a missing / malformed cursor so the
+ * caller starts from the beginning instead of filtering every row out — the
+ * SA2-150 regression, where the old keyset ran a subquery on the raw cursor id,
+ * and a since-deleted cursor row made that subquery return NULL (so
+ * `started_at < NULL` dropped the whole page). The order key is stored in
+ * seconds (sqlite "timestamp" mode), so the cursor's ms value is floored.
+ */
+export function sessionKeysetCondition(
+	cursor: string | undefined
+): SQL | undefined {
+	if (!cursor) {
+		return undefined;
+	}
+	const parsed = parseSessionCursor(cursor);
+	if (!parsed) {
+		return undefined;
+	}
+	const cursorSeconds = Math.floor(parsed.sortKey.getTime() / 1000);
+	return sql`(${sessionOrderKeySql()} < ${cursorSeconds}) or (${sessionOrderKeySql()} = ${cursorSeconds} and ${gameSession.id} < ${parsed.id})`;
+}
+
 function buildSessionListConditions(userId: string, filters: ListFilters) {
 	const conditions = [eq(gameSession.userId, userId)];
 	if (filters.type) {
@@ -1103,17 +1137,9 @@ function buildSessionListConditions(userId: string, filters: ListFilters) {
 		);
 	}
 	const paginationConditions = [...conditions];
-	if (filters.cursor) {
-		const parsed = parseSessionCursor(filters.cursor);
-		if (parsed) {
-			// Keyset must match the (sessionOrderKey DESC, id DESC) ordering:
-			// take rows strictly after the cursor in that order. The order key
-			// is stored in seconds (sqlite "timestamp" mode), so the cursor's ms
-			// value is floored to seconds before comparing.
-			const cursorSeconds = Math.floor(parsed.sortKey.getTime() / 1000);
-			const keyset = sql`(${sessionOrderKeySql()} < ${cursorSeconds}) or (${sessionOrderKeySql()} = ${cursorSeconds} and ${gameSession.id} < ${parsed.id})`;
-			paginationConditions.push(keyset);
-		}
+	const keyset = sessionKeysetCondition(filters.cursor);
+	if (keyset) {
+		paginationConditions.push(keyset);
 	}
 	return { conditions, paginationConditions };
 }
