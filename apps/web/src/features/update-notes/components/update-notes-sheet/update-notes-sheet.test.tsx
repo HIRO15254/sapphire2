@@ -55,11 +55,6 @@ vi.mock("@/utils/trpc", () => ({
 			markViewed: {
 				mutationOptions: (opts: unknown) => opts,
 			},
-			getLatestViewedVersion: {
-				queryOptions: () => ({
-					queryKey: ["updateNoteView", "getLatestViewedVersion"],
-				}),
-			},
 		},
 	},
 }));

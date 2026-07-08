@@ -43,20 +43,4 @@ export const updateNoteViewRouter = router({
 				.where(eq(updateNoteView.id, id));
 			return created;
 		}),
-
-	getLatestViewedVersion: protectedProcedure.query(async ({ ctx }) => {
-		const userId = ctx.session.user.id;
-		const [latest] = await ctx.db
-			.select()
-			.from(updateNoteView)
-			.where(eq(updateNoteView.userId, userId))
-			.orderBy(desc(updateNoteView.viewedAt))
-			.limit(1);
-
-		if (!latest) {
-			return { version: null, viewedAt: null };
-		}
-
-		return { version: latest.version, viewedAt: latest.viewedAt };
-	}),
 });

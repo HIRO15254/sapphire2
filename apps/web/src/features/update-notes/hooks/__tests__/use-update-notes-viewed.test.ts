@@ -33,16 +33,6 @@ vi.mock("@/utils/trpc", () => {
 				markViewed: {
 					mutationOptions: markViewedOptions,
 				},
-				getLatestViewedVersion: {
-					queryOptions: () => ({
-						queryKey: buildKey(
-							"updateNoteView",
-							"getLatestViewedVersion",
-							undefined
-						),
-						queryFn: () => Promise.resolve(null),
-					}),
-				},
 			},
 		},
 	};
@@ -214,10 +204,9 @@ describe("useUpdateNotesViewed", () => {
 	});
 
 	describe("onSettled invalidation", () => {
-		it("invalidates both list and getLatestViewedVersion queries after mutation settles", async () => {
+		it("invalidates the list query after mutation settles", async () => {
 			const qc = createClient();
 			qc.setQueryData(listKey, []);
-			qc.setQueryData(latestKey, null);
 			const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
 			trpcMocks.markViewed.mockResolvedValue({ id: "ok" });
 
@@ -231,8 +220,29 @@ describe("useUpdateNotesViewed", () => {
 				const calls = invalidateSpy.mock.calls.map(
 					(c) => (c[0] as { queryKey: unknown[] } | undefined)?.queryKey
 				);
-				expect(calls).toEqual(expect.arrayContaining([listKey, latestKey]));
+				expect(calls).toEqual(expect.arrayContaining([listKey]));
 			});
+		});
+
+		it("does not invalidate the removed getLatestViewedVersion query", async () => {
+			const qc = createClient();
+			qc.setQueryData(listKey, []);
+			const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+			trpcMocks.markViewed.mockResolvedValue({ id: "ok" });
+
+			const { result } = renderHook(() => useUpdateNotesViewed(), {
+				wrapper: makeWrapper(qc),
+			});
+			act(() => {
+				result.current.handleAccordionChange(["9.9.9"]);
+			});
+			await waitFor(() => {
+				expect(invalidateSpy).toHaveBeenCalled();
+			});
+			const invalidatedKeys = invalidateSpy.mock.calls.map(
+				(c) => (c[0] as { queryKey: unknown[] } | undefined)?.queryKey
+			);
+			expect(invalidatedKeys).not.toContainEqual(latestKey);
 		});
 
 		it("also invalidates after a failed mutation (onSettled runs regardless)", async () => {

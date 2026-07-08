@@ -24,11 +24,6 @@ export function useUpdateNotesViewed() {
 			onSettled: () =>
 				invalidateTargets(queryClient, [
 					{ queryKey: trpc.updateNoteView.list.queryOptions().queryKey },
-					{
-						queryKey:
-							trpc.updateNoteView.getLatestViewedVersion.queryOptions()
-								.queryKey,
-					},
 				]),
 		})
 	);

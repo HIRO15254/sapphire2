@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useState } from "react";
 import { LATEST_VERSION } from "@/features/update-notes/constants";
+import { shouldAutoOpenUpdateNotes } from "@/features/update-notes/utils/should-auto-open-update-notes";
 import { trpc } from "@/utils/trpc";
 
 interface UpdateNotesSheetContextValue {
@@ -21,29 +22,26 @@ export function UpdateNotesProvider({
 	const [isOpen, setIsOpen] = useState(false);
 	const [hasAutoOpened, setHasAutoOpened] = useState(false);
 
-	const { data: latestViewed } = useQuery(
-		trpc.updateNoteView.getLatestViewedVersion.queryOptions()
+	const { data: viewedList } = useQuery(
+		trpc.updateNoteView.list.queryOptions()
 	);
 
 	useEffect(() => {
-		if (hasAutoOpened || !latestViewed || !LATEST_VERSION) {
+		// Wait until the viewed list has loaded before deciding once.
+		if (hasAutoOpened || viewedList === undefined) {
 			return;
 		}
 
-		// First-time user (never viewed any version) — skip auto-open
-		if (latestViewed.version === null) {
-			setHasAutoOpened(true);
-			return;
-		}
-
-		// User has viewed before but not the latest version — auto-open
-		if (latestViewed.version === LATEST_VERSION) {
-			setHasAutoOpened(true);
-		} else {
+		if (
+			shouldAutoOpenUpdateNotes({
+				latestVersion: LATEST_VERSION,
+				viewedVersions: viewedList.map((view) => view.version),
+			})
+		) {
 			setIsOpen(true);
-			setHasAutoOpened(true);
 		}
-	}, [latestViewed, hasAutoOpened]);
+		setHasAutoOpened(true);
+	}, [viewedList, hasAutoOpened]);
 
 	return (
 		<UpdateNotesSheetContext.Provider
