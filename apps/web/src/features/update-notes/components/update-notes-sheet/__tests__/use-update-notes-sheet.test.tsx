@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
 	viewedVersions: new Set<string>(),
 	isViewedListLoaded: true,
 	markViewed: vi.fn(),
+	handleAccordionChange: vi.fn(),
 }));
 
 vi.mock("@/features/update-notes/constants", () => ({
@@ -22,7 +23,7 @@ vi.mock("@/features/update-notes/hooks/use-update-notes-viewed", () => ({
 		viewedVersions: state.viewedVersions,
 		isViewedListLoaded: state.isViewedListLoaded,
 		markViewed: state.markViewed,
-		handleAccordionChange: vi.fn(),
+		handleAccordionChange: state.handleAccordionChange,
 	}),
 }));
 
@@ -32,12 +33,17 @@ import {
 } from "@/features/update-notes/components/update-notes-sheet/use-update-notes-sheet";
 
 function Probe() {
-	const { isOpen, close } = useUpdateNotesSheet();
+	const { isOpen, close, viewedVersions, onAccordionChange } =
+		useUpdateNotesSheet();
 	return (
 		<div>
 			<span data-testid="state">{isOpen ? "open" : "closed"}</span>
+			<span data-testid="viewed-count">{viewedVersions.size}</span>
 			<button onClick={close} type="button">
 				close
+			</button>
+			<button onClick={() => onAccordionChange(["v3.2.1"])} type="button">
+				expand
 			</button>
 		</div>
 	);
@@ -53,6 +59,7 @@ describe("UpdateNotesProvider auto-open", () => {
 		state.viewedVersions = new Set();
 		state.isViewedListLoaded = true;
 		state.markViewed.mockClear();
+		state.handleAccordionChange.mockClear();
 	});
 
 	it("auto-opens for a user who has not viewed the latest release", () => {
@@ -115,5 +122,23 @@ describe("UpdateNotesProvider auto-open", () => {
 		expect(screen.getByTestId("state")).toHaveTextContent("closed");
 		// markViewed fired once on the initial auto-open, not again.
 		expect(state.markViewed).toHaveBeenCalledTimes(1);
+	});
+
+	it("shares the single viewed-versions set through context", () => {
+		state.viewedVersions = new Set(["v3.2.2", "v3.2.1"]);
+		renderProvider();
+
+		expect(screen.getByTestId("viewed-count")).toHaveTextContent("2");
+	});
+
+	it("forwards accordion changes to the shared hook's handler", async () => {
+		state.viewedVersions = new Set(["v3.2.2"]);
+		renderProvider();
+
+		const user = userEvent.setup();
+		await user.click(screen.getByRole("button", { name: "expand" }));
+
+		expect(state.handleAccordionChange).toHaveBeenCalledTimes(1);
+		expect(state.handleAccordionChange).toHaveBeenCalledWith(["v3.2.1"]);
 	});
 });

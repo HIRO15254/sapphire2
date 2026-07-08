@@ -6,8 +6,10 @@ import { shouldAutoOpenUpdateNotes } from "@/features/update-notes/utils/should-
 interface UpdateNotesSheetContextValue {
 	close: () => void;
 	isOpen: boolean;
+	onAccordionChange: (value: string[]) => void;
 	open: () => void;
 	setIsOpen: (open: boolean) => void;
+	viewedVersions: ReadonlySet<string>;
 }
 
 const UpdateNotesSheetContext =
@@ -20,8 +22,16 @@ export function UpdateNotesProvider({
 }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [hasAutoOpened, setHasAutoOpened] = useState(false);
-	const { viewedVersions, isViewedListLoaded, markViewed } =
-		useUpdateNotesViewed();
+	// Single source of truth for viewed state, shared with UpdateNotesSheet via
+	// context. Holding one instance here (rather than the provider and the sheet
+	// each calling useUpdateNotesViewed) keeps the auto-open optimistic mark in
+	// sync with the sheet's NEW badges — no cross-instance flicker (SA2-185).
+	const {
+		viewedVersions,
+		isViewedListLoaded,
+		markViewed,
+		handleAccordionChange,
+	} = useUpdateNotesViewed();
 
 	useEffect(() => {
 		// Wait until the viewed list has loaded before deciding once.
@@ -53,6 +63,8 @@ export function UpdateNotesProvider({
 				open: () => setIsOpen(true),
 				close: () => setIsOpen(false),
 				setIsOpen,
+				viewedVersions,
+				onAccordionChange: handleAccordionChange,
 			}}
 		>
 			{children}
