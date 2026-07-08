@@ -11,6 +11,12 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import { validateEntityOwnership } from "./session";
 
+type DbInstance = Parameters<
+	Parameters<typeof protectedProcedure.query>[0]
+>[0]["ctx"]["db"];
+
+type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
+
 async function validateRoomOwnership(
 	db: Parameters<
 		Parameters<typeof protectedProcedure.query>[0]
@@ -353,22 +359,25 @@ export const tournamentRouter = router({
 			}
 
 			const id = crypto.randomUUID();
-			await ctx.db.insert(tournament).values({
-				id,
-				roomId: input.roomId,
-				name: input.name,
-				variant: input.variant,
-				buyIn: input.buyIn ?? null,
-				entryFee: input.entryFee ?? null,
-				startingStack: input.startingStack ?? null,
-				bountyAmount: input.bountyAmount ?? null,
-				tableSize: input.tableSize ?? null,
-				currencyId: input.currencyId ?? null,
-				memo: input.memo ?? null,
-				updatedAt: new Date(),
-			});
-
-			await Promise.all([
+			// One atomic batch: the tournament row first (parent), then its tags /
+			// chip purchases / blind levels. `Promise.all` ran these as parallel
+			// auto-commits, so a partial failure could leave a tournament with only
+			// some of its children (SA2-116).
+			const statements: [BatchStatement, ...BatchStatement[]] = [
+				ctx.db.insert(tournament).values({
+					id,
+					roomId: input.roomId,
+					name: input.name,
+					variant: input.variant,
+					buyIn: input.buyIn ?? null,
+					entryFee: input.entryFee ?? null,
+					startingStack: input.startingStack ?? null,
+					bountyAmount: input.bountyAmount ?? null,
+					tableSize: input.tableSize ?? null,
+					currencyId: input.currencyId ?? null,
+					memo: input.memo ?? null,
+					updatedAt: new Date(),
+				}),
 				...(input.tags ?? []).map((name) =>
 					ctx.db
 						.insert(tournamentTag)
@@ -397,7 +406,8 @@ export const tournamentRouter = router({
 						minutes: l.minutes ?? null,
 					})
 				),
-			]);
+			];
+			await ctx.db.batch(statements);
 
 			const [created] = await ctx.db
 				.select()
@@ -482,17 +492,25 @@ export const tournamentRouter = router({
 				updateData.memo = input.memo;
 			}
 
-			await ctx.db
-				.update(tournament)
-				.set(updateData)
-				.where(eq(tournament.id, input.id));
+			// One atomic batch: the tournament UPDATE first, then each
+			// clear-and-reseed group. Previously a bare DELETE followed by a
+			// separate `Promise.all(insert...)` ran as independent auto-commits, so
+			// a failed re-INSERT could permanently wipe the tags / chip purchases /
+			// blind structure — the headline data-loss this issue targets (SA2-116).
+			// Mirrors createWithLevels above.
+			const statements: [BatchStatement, ...BatchStatement[]] = [
+				ctx.db
+					.update(tournament)
+					.set(updateData)
+					.where(eq(tournament.id, input.id)),
+			];
 
 			if (input.tags !== undefined) {
-				await ctx.db
-					.delete(tournamentTag)
-					.where(eq(tournamentTag.tournamentId, input.id));
-				await Promise.all(
-					input.tags.map((name) =>
+				statements.push(
+					ctx.db
+						.delete(tournamentTag)
+						.where(eq(tournamentTag.tournamentId, input.id)),
+					...input.tags.map((name) =>
 						ctx.db.insert(tournamentTag).values({
 							id: crypto.randomUUID(),
 							tournamentId: input.id,
@@ -503,11 +521,11 @@ export const tournamentRouter = router({
 			}
 
 			if (input.chipPurchases !== undefined) {
-				await ctx.db
-					.delete(tournamentChipPurchase)
-					.where(eq(tournamentChipPurchase.tournamentId, input.id));
-				await Promise.all(
-					input.chipPurchases.map((cp, i) =>
+				statements.push(
+					ctx.db
+						.delete(tournamentChipPurchase)
+						.where(eq(tournamentChipPurchase.tournamentId, input.id)),
+					...input.chipPurchases.map((cp, i) =>
 						ctx.db.insert(tournamentChipPurchase).values({
 							id: crypto.randomUUID(),
 							tournamentId: input.id,
@@ -520,11 +538,9 @@ export const tournamentRouter = router({
 				);
 			}
 
-			await ctx.db
-				.delete(blindLevel)
-				.where(eq(blindLevel.tournamentId, input.id));
-			await Promise.all(
-				input.blindLevels.map((l, i) =>
+			statements.push(
+				ctx.db.delete(blindLevel).where(eq(blindLevel.tournamentId, input.id)),
+				...input.blindLevels.map((l, i) =>
 					ctx.db.insert(blindLevel).values({
 						id: crypto.randomUUID(),
 						tournamentId: input.id,
@@ -538,6 +554,8 @@ export const tournamentRouter = router({
 					})
 				)
 			);
+
+			await ctx.db.batch(statements);
 
 			const [updated] = await ctx.db
 				.select()

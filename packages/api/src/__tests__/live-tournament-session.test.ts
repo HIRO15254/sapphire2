@@ -51,12 +51,18 @@ function createBlindLevelMockDb() {
 	const del = vi.fn(() => ({ where: deleteWhere }));
 	const values = vi.fn().mockResolvedValue(undefined);
 	const insert = vi.fn(() => ({ values }));
+	// persistSessionBlindLevels now commits the DELETE + chunked INSERTs through
+	// a single db.batch (SA2-116); each statement is a resolved promise here.
+	const batch = vi.fn((statements: unknown[]) =>
+		Promise.all(statements as Promise<unknown>[])
+	);
 	return {
-		db: { delete: del, insert } as never,
+		db: { delete: del, insert, batch } as never,
 		del,
 		deleteWhere,
 		insert,
 		values,
+		batch,
 	};
 }
 

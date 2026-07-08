@@ -33,6 +33,8 @@ function createMockDb(rowsByTable: Map<unknown, Rows>) {
 			set: () => ({ where: () => Promise.resolve(undefined) }),
 		}),
 		delete: () => ({ where: () => Promise.resolve(undefined) }),
+		batch: (statements: unknown[]) =>
+			Promise.all(statements as Promise<unknown>[]),
 	};
 }
 

@@ -36,6 +36,65 @@ type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
+type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
+
+/**
+ * Atomically re-open a completed live cash session: delete its `session_end`
+ * event and re-stamp the closing stack as an `update_stack` + a `pause`/`resume`
+ * pair. Committing the DELETE and the 3 INSERTs in one `db.batch` (SA2-116)
+ * prevents a mid-sequence failure from destroying the session-end event without
+ * writing its replacements.
+ */
+export async function persistCashSessionReopenEvents(
+	db: DbInstance,
+	params: {
+		cashOutAmount: number;
+		endSortOrder: number;
+		flooredEndOccurredAt: Date;
+		flooredNow: Date;
+		now: Date;
+		sessionEndEventId: string;
+		sessionId: string;
+	}
+): Promise<void> {
+	const statements: [BatchStatement, ...BatchStatement[]] = [
+		db
+			.delete(sessionEvent)
+			.where(eq(sessionEvent.id, params.sessionEndEventId)),
+		db.insert(sessionEvent).values({
+			id: crypto.randomUUID(),
+			sessionId: params.sessionId,
+			eventType: "update_stack",
+			occurredAt: params.flooredEndOccurredAt,
+			sortOrder: params.endSortOrder,
+			payload: JSON.stringify({ stackAmount: params.cashOutAmount }),
+			updatedAt: params.now,
+		}),
+		db.insert(sessionEvent).values({
+			id: crypto.randomUUID(),
+			sessionId: params.sessionId,
+			eventType: "session_pause",
+			occurredAt: params.flooredEndOccurredAt,
+			sortOrder: params.endSortOrder + 1,
+			payload: JSON.stringify({}),
+			updatedAt: params.now,
+		}),
+		// session_resume must sort strictly after session_pause so
+		// computeSessionStateFromEvents sees the pair in the right order and
+		// break-minute calculation can close the pause.
+		db.insert(sessionEvent).values({
+			id: crypto.randomUUID(),
+			sessionId: params.sessionId,
+			eventType: "session_resume",
+			occurredAt: params.flooredNow,
+			sortOrder: params.endSortOrder + 2,
+			payload: JSON.stringify({}),
+			updatedAt: params.now,
+		}),
+	];
+	await db.batch(statements);
+}
+
 async function findLiveCashGameSession(
 	db: DbInstance,
 	id: string,
@@ -752,44 +811,17 @@ export const liveCashGameSessionRouter = router({
 			const endOccurredAt = sessionEndEvent.occurredAt;
 			const endSortOrder = sessionEndEvent.sortOrder;
 
-			await ctx.db
-				.delete(sessionEvent)
-				.where(eq(sessionEvent.id, sessionEndEvent.id));
-
 			const flooredEndOccurredAt = floorToMinute(endOccurredAt);
 			const flooredNow = floorToMinute(now);
 
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
+			await persistCashSessionReopenEvents(ctx.db, {
 				sessionId: input.id,
-				eventType: "update_stack",
-				occurredAt: flooredEndOccurredAt,
-				sortOrder: endSortOrder,
-				payload: JSON.stringify({ stackAmount: cashOutAmount }),
-				updatedAt: now,
-			});
-
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				sessionId: input.id,
-				eventType: "session_pause",
-				occurredAt: flooredEndOccurredAt,
-				sortOrder: endSortOrder + 1,
-				payload: JSON.stringify({}),
-				updatedAt: now,
-			});
-
-			// session_resume must sort strictly after session_pause so
-			// computeSessionStateFromEvents sees the pair in the right order
-			// and break-minute calculation can close the pause.
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				sessionId: input.id,
-				eventType: "session_resume",
-				occurredAt: flooredNow,
-				sortOrder: endSortOrder + 2,
-				payload: JSON.stringify({}),
-				updatedAt: now,
+				sessionEndEventId: sessionEndEvent.id,
+				flooredEndOccurredAt,
+				endSortOrder,
+				cashOutAmount,
+				flooredNow,
+				now,
 			});
 
 			await recalculateCashGameSession(ctx.db, input.id, userId);

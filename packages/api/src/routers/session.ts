@@ -42,6 +42,31 @@ type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
+/**
+ * A single statement accepted by D1's `db.batch([...])` (a drizzle query builder
+ * passed UN-awaited). Derived from the driver's own `batch` signature so it
+ * tracks the installed drizzle version. Used by the SA2-116 atomic-write
+ * helpers below.
+ */
+type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
+
+/**
+ * Commit a group of writes atomically. D1's `db.batch` requires a NON-EMPTY
+ * tuple; an empty array is treated as a no-op (nothing to write). Every caller
+ * here builds its statements first, then hands the whole group to a single
+ * `batch`, so a mid-sequence failure rolls the entire group back instead of
+ * leaving a committed DELETE with its re-INSERT missing (SA2-116).
+ */
+async function runBatch(
+	db: DbInstance,
+	statements: BatchStatement[]
+): Promise<void> {
+	if (statements.length === 0) {
+		return;
+	}
+	await db.batch(statements as [BatchStatement, ...BatchStatement[]]);
+}
+
 async function validateSessionOwnership(
 	db: DbInstance,
 	sessionId: string,
@@ -256,7 +281,7 @@ async function getSessionBlindLevelMap(
  * only the inserts are added here. Used by both create and update so counts
  * are always written against the freshly generated purchase ids.
  */
-async function persistSessionChipPurchases(
+function buildSessionChipPurchaseStatements(
 	db: DbInstance,
 	sessionId: string,
 	chipPurchases: {
@@ -265,12 +290,17 @@ async function persistSessionChipPurchases(
 		count: number;
 		name: string;
 	}[]
-): Promise<void> {
-	await db
-		.delete(sessionChipPurchase)
-		.where(eq(sessionChipPurchase.sessionId, sessionId));
+): BatchStatement[] {
+	// The DELETE always leads the group so the "clear then re-seed" runs as one
+	// atomic unit — a failed re-INSERT can no longer permanently wipe the saved
+	// chip-purchase history (SA2-116).
+	const statements: BatchStatement[] = [
+		db
+			.delete(sessionChipPurchase)
+			.where(eq(sessionChipPurchase.sessionId, sessionId)),
+	];
 	if (chipPurchases.length === 0) {
-		return;
+		return statements;
 	}
 	const rows = chipPurchases.map((p, idx) => ({
 		id: crypto.randomUUID(),
@@ -281,15 +311,32 @@ async function persistSessionChipPurchases(
 		sortOrder: idx,
 	}));
 	for (const chunk of chunkForInsert(rows, 6)) {
-		await db.insert(sessionChipPurchase).values(chunk);
+		statements.push(db.insert(sessionChipPurchase).values(chunk));
 	}
 	const resultRows = rows.map((r, idx) => ({
 		sessionChipPurchaseId: r.id,
 		count: chipPurchases[idx]?.count ?? 0,
 	}));
 	for (const chunk of chunkForInsert(resultRows, 2)) {
-		await db.insert(sessionChipPurchaseResult).values(chunk);
+		statements.push(db.insert(sessionChipPurchaseResult).values(chunk));
 	}
+	return statements;
+}
+
+async function persistSessionChipPurchases(
+	db: DbInstance,
+	sessionId: string,
+	chipPurchases: {
+		chips: number;
+		cost: number;
+		count: number;
+		name: string;
+	}[]
+): Promise<void> {
+	await runBatch(
+		db,
+		buildSessionChipPurchaseStatements(db, sessionId, chipPurchases)
+	);
 }
 
 /**
@@ -297,7 +344,7 @@ async function persistSessionChipPurchases(
  * (explicit override of the master snapshot) and update (session-wizard edits
  * to a session's own blind structure) so the array is always written fresh.
  */
-export async function persistSessionBlindLevels(
+function buildSessionBlindLevelStatements(
 	db: DbInstance,
 	sessionId: string,
 	blindLevels: {
@@ -308,12 +355,17 @@ export async function persistSessionBlindLevels(
 		isBreak: boolean;
 		minutes?: number | null;
 	}[]
-): Promise<void> {
-	await db
-		.delete(sessionBlindLevel)
-		.where(eq(sessionBlindLevel.sessionId, sessionId));
+): BatchStatement[] {
+	// DELETE leads so the whole re-seed commits (or rolls back) as one unit —
+	// a failed re-INSERT can no longer strand the session with no blind
+	// structure (SA2-116).
+	const statements: BatchStatement[] = [
+		db
+			.delete(sessionBlindLevel)
+			.where(eq(sessionBlindLevel.sessionId, sessionId)),
+	];
 	if (blindLevels.length === 0) {
-		return;
+		return statements;
 	}
 	const rows = blindLevels.map((l, idx) => ({
 		id: crypto.randomUUID(),
@@ -327,8 +379,27 @@ export async function persistSessionBlindLevels(
 		minutes: l.minutes ?? null,
 	}));
 	for (const chunk of chunkForInsert(rows, 9)) {
-		await db.insert(sessionBlindLevel).values(chunk);
+		statements.push(db.insert(sessionBlindLevel).values(chunk));
 	}
+	return statements;
+}
+
+export async function persistSessionBlindLevels(
+	db: DbInstance,
+	sessionId: string,
+	blindLevels: {
+		ante?: number | null;
+		blind1?: number | null;
+		blind2?: number | null;
+		blind3?: number | null;
+		isBreak: boolean;
+		minutes?: number | null;
+	}[]
+): Promise<void> {
+	await runBatch(
+		db,
+		buildSessionBlindLevelStatements(db, sessionId, blindLevels)
+	);
 }
 
 /**
@@ -477,7 +548,40 @@ async function createCurrencyTransactionForSession(
 	});
 }
 
-async function syncCurrencyTransaction(
+/**
+ * Build the statements that (re)create a session's "Session Result" currency
+ * ledger row: the transaction-type INSERT when it does not exist yet (ordered
+ * first), then the currencyTransaction row referencing it. Returned UN-executed
+ * so a caller can commit them in one batch — e.g. atomically after a DELETE so a
+ * currency switch can no longer lose the ledger row on a failed re-INSERT
+ * (SA2-116).
+ */
+async function buildCurrencyTransactionStatements(
+	db: DbInstance,
+	sessionId: string,
+	currencyId: string,
+	amount: number,
+	sessionDate: Date,
+	userId: string
+): Promise<BatchStatement[]> {
+	const { statements, typeId } = await buildSessionResultTypeIdStatements(
+		db,
+		userId
+	);
+	statements.push(
+		db.insert(currencyTransaction).values({
+			id: crypto.randomUUID(),
+			currencyId,
+			transactionTypeId: typeId,
+			sessionId,
+			amount,
+			transactedAt: sessionDate,
+		})
+	);
+	return statements;
+}
+
+export async function syncCurrencyTransaction(
 	db: DbInstance,
 	sessionId: string,
 	oldCurrencyId: string | null,
@@ -507,17 +611,23 @@ async function syncCurrencyTransaction(
 		effectiveNewCurrencyId &&
 		oldCurrencyId !== effectiveNewCurrencyId
 	) {
-		await db
-			.delete(currencyTransaction)
-			.where(eq(currencyTransaction.sessionId, sessionId));
-		await createCurrencyTransactionForSession(
-			db,
-			sessionId,
-			effectiveNewCurrencyId,
-			amount,
-			sessionDate,
-			userId
-		);
+		// Delete the stale ledger row and re-create it for the new currency in a
+		// SINGLE batch, so a failed re-INSERT can no longer permanently drop the
+		// session's currency transaction (SA2-116 — the same failure class this PR
+		// fixes on the create path).
+		await runBatch(db, [
+			db
+				.delete(currencyTransaction)
+				.where(eq(currencyTransaction.sessionId, sessionId)),
+			...(await buildCurrencyTransactionStatements(
+				db,
+				sessionId,
+				effectiveNewCurrencyId,
+				amount,
+				sessionDate,
+				userId
+			)),
+		]);
 	} else if (effectiveNewCurrencyId) {
 		await db
 			.update(currencyTransaction)
@@ -1881,56 +1991,62 @@ async function resolveCashRuleSnapshot(
 	return mergeCashSnapshotWithParent(input, rg);
 }
 
-async function insertCashGameSessionDetail(
+async function buildCashGameSessionDetailStatements(
 	db: DbInstance,
 	sessionId: string,
 	input: z.infer<typeof cashGameCreateSchema>,
 	now: Date,
 	userId: string
-): Promise<void> {
+): Promise<BatchStatement[]> {
+	const statements: BatchStatement[] = [];
 	let ringGameId = input.ringGameId ?? null;
 	const snapshot = await resolveCashRuleSnapshot(db, input);
 
 	if (!ringGameId) {
 		ringGameId = crypto.randomUUID();
 		const derivedName = `${snapshot.variant} ${snapshot.blind1 ?? 0}/${snapshot.blind2 ?? 0}`;
-		await db.insert(ringGame).values({
-			id: ringGameId,
-			roomId: null,
-			// Auto-generated snapshot row: anchor ownership on the creating user
-			// (SA2-181) since it has no room to derive ownership from.
-			userId,
-			name: derivedName,
+		statements.push(
+			db.insert(ringGame).values({
+				id: ringGameId,
+				roomId: null,
+				// Auto-generated snapshot row: anchor ownership on the creating user
+				// (SA2-181) since it has no room to derive ownership from.
+				userId,
+				name: derivedName,
+				variant: snapshot.variant,
+				blind1: snapshot.blind1,
+				blind2: snapshot.blind2,
+				blind3: snapshot.blind3,
+				ante: snapshot.ante,
+				anteType: snapshot.anteType,
+				minBuyIn: null,
+				maxBuyIn: null,
+				tableSize: snapshot.tableSize,
+				updatedAt: now,
+			})
+		);
+		snapshot.ruleName = derivedName;
+	}
+	statements.push(
+		db.insert(sessionCashDetail).values({
+			sessionId,
+			ringGameId,
+			buyIn: input.buyIn,
+			cashOut: input.cashOut,
+			evCashOut: input.evCashOut ?? null,
+			ruleName: snapshot.ruleName,
 			variant: snapshot.variant,
 			blind1: snapshot.blind1,
 			blind2: snapshot.blind2,
 			blind3: snapshot.blind3,
 			ante: snapshot.ante,
 			anteType: snapshot.anteType,
-			minBuyIn: null,
-			maxBuyIn: null,
+			minBuyIn: snapshot.minBuyIn,
+			maxBuyIn: snapshot.maxBuyIn,
 			tableSize: snapshot.tableSize,
-			updatedAt: now,
-		});
-		snapshot.ruleName = derivedName;
-	}
-	await db.insert(sessionCashDetail).values({
-		sessionId,
-		ringGameId,
-		buyIn: input.buyIn,
-		cashOut: input.cashOut,
-		evCashOut: input.evCashOut ?? null,
-		ruleName: snapshot.ruleName,
-		variant: snapshot.variant,
-		blind1: snapshot.blind1,
-		blind2: snapshot.blind2,
-		blind3: snapshot.blind3,
-		ante: snapshot.ante,
-		anteType: snapshot.anteType,
-		minBuyIn: snapshot.minBuyIn,
-		maxBuyIn: snapshot.maxBuyIn,
-		tableSize: snapshot.tableSize,
-	});
+		})
+	);
+	return statements;
 }
 
 interface TournamentRuleSnapshot {
@@ -1993,11 +2109,11 @@ async function resolveTournamentRuleSnapshot(
 	return base;
 }
 
-async function insertTournamentSessionDetail(
+async function buildTournamentSessionDetailStatements(
 	db: DbInstance,
 	sessionId: string,
 	input: z.infer<typeof tournamentCreateSchema>
-): Promise<void> {
+): Promise<BatchStatement[]> {
 	const beforeDeadline = input.beforeDeadline === true;
 	const snapshot = await resolveTournamentRuleSnapshot(db, {
 		tournamentId: input.tournamentId,
@@ -2009,41 +2125,62 @@ async function insertTournamentSessionDetail(
 		bountyAmount: input.bountyAmount,
 		tableSize: input.tableSize,
 	});
-	await db.insert(sessionTournamentDetail).values({
-		sessionId,
-		tournamentId: input.tournamentId ?? null,
-		tournamentBuyIn: snapshot.tournamentBuyIn,
-		entryFee: snapshot.entryFee,
-		beforeDeadline: beforeDeadline ? true : null,
-		placement: beforeDeadline ? null : (input.placement ?? null),
-		totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
-		prizeMoney: input.prizeMoney ?? null,
-		bountyPrizes: input.bountyPrizes ?? null,
-		ruleName: snapshot.ruleName,
-		variant: snapshot.variant,
-		startingStack: snapshot.startingStack,
-		bountyAmount: snapshot.bountyAmount,
-		tableSize: snapshot.tableSize,
-	});
+	const statements: BatchStatement[] = [
+		db.insert(sessionTournamentDetail).values({
+			sessionId,
+			tournamentId: input.tournamentId ?? null,
+			tournamentBuyIn: snapshot.tournamentBuyIn,
+			entryFee: snapshot.entryFee,
+			beforeDeadline: beforeDeadline ? true : null,
+			placement: beforeDeadline ? null : (input.placement ?? null),
+			totalEntries: beforeDeadline ? null : (input.totalEntries ?? null),
+			prizeMoney: input.prizeMoney ?? null,
+			bountyPrizes: input.bountyPrizes ?? null,
+			ruleName: snapshot.ruleName,
+			variant: snapshot.variant,
+			startingStack: snapshot.startingStack,
+			bountyAmount: snapshot.bountyAmount,
+			tableSize: snapshot.tableSize,
+		}),
+	];
 	if (input.tournamentId) {
-		await snapshotTournamentStructure(db, sessionId, input.tournamentId);
+		statements.push(
+			...(await buildTournamentStructureStatements(
+				db,
+				sessionId,
+				input.tournamentId
+			))
+		);
 	}
 	// Allow callers to override the snapshotted structure with explicit
-	// blind levels / chip purchases. This runs after the parent copy so
-	// the explicit arrays win when both are supplied.
+	// blind levels / chip purchases. This runs after the parent copy (still in
+	// the same batch) so the explicit arrays win when both are supplied.
 	if (input.blindLevels !== undefined) {
-		await persistSessionBlindLevels(db, sessionId, input.blindLevels);
+		statements.push(
+			...buildSessionBlindLevelStatements(db, sessionId, input.blindLevels)
+		);
 	}
 	if (input.chipPurchases !== undefined) {
-		await persistSessionChipPurchases(db, sessionId, input.chipPurchases);
+		statements.push(
+			...buildSessionChipPurchaseStatements(db, sessionId, input.chipPurchases)
+		);
 	}
+	return statements;
 }
 
-async function snapshotTournamentStructure(
+/**
+ * Read the parent tournament's blind levels + chip purchases and build the
+ * INSERT statements that copy them onto a session. Returns the (possibly empty)
+ * statement list UN-executed so callers can commit them inside a single batch
+ * alongside any preceding DELETEs (SA2-116).
+ */
+async function buildTournamentStructureStatements(
 	db: DbInstance,
 	sessionId: string,
 	tournamentId: string
-): Promise<void> {
+): Promise<BatchStatement[]> {
+	const statements: BatchStatement[] = [];
+
 	const levels = await db
 		.select()
 		.from(blindLevel)
@@ -2062,7 +2199,7 @@ async function snapshotTournamentStructure(
 			minutes: l.minutes,
 		}));
 		for (const chunk of chunkForInsert(levelRows, 9)) {
-			await db.insert(sessionBlindLevel).values(chunk);
+			statements.push(db.insert(sessionBlindLevel).values(chunk));
 		}
 	}
 
@@ -2081,7 +2218,7 @@ async function snapshotTournamentStructure(
 			sortOrder: p.sortOrder,
 		}));
 		for (const chunk of chunkForInsert(purchaseRows, 6)) {
-			await db.insert(sessionChipPurchase).values(chunk);
+			statements.push(db.insert(sessionChipPurchase).values(chunk));
 		}
 		// Every chip purchase starts with a result row (count 0) so the
 		// result table always has a row to update.
@@ -2090,9 +2227,22 @@ async function snapshotTournamentStructure(
 			count: 0,
 		}));
 		for (const chunk of chunkForInsert(resultRows, 2)) {
-			await db.insert(sessionChipPurchaseResult).values(chunk);
+			statements.push(db.insert(sessionChipPurchaseResult).values(chunk));
 		}
 	}
+
+	return statements;
+}
+
+async function snapshotTournamentStructure(
+	db: DbInstance,
+	sessionId: string,
+	tournamentId: string
+): Promise<void> {
+	await runBatch(
+		db,
+		await buildTournamentStructureStatements(db, sessionId, tournamentId)
+	);
 }
 
 async function resnapshotTournamentStructure(
@@ -2100,13 +2250,19 @@ async function resnapshotTournamentStructure(
 	sessionId: string,
 	tournamentId: string
 ): Promise<void> {
-	await db
-		.delete(sessionBlindLevel)
-		.where(eq(sessionBlindLevel.sessionId, sessionId));
-	await db
-		.delete(sessionChipPurchase)
-		.where(eq(sessionChipPurchase.sessionId, sessionId));
-	await snapshotTournamentStructure(db, sessionId, tournamentId);
+	// Both DELETEs and the re-copied structure commit as one batch, so a failed
+	// re-snapshot can no longer leave the session with its old structure wiped
+	// and nothing written back (SA2-116).
+	const statements: BatchStatement[] = [
+		db
+			.delete(sessionBlindLevel)
+			.where(eq(sessionBlindLevel.sessionId, sessionId)),
+		db
+			.delete(sessionChipPurchase)
+			.where(eq(sessionChipPurchase.sessionId, sessionId)),
+		...(await buildTournamentStructureStatements(db, sessionId, tournamentId)),
+	];
+	await runBatch(db, statements);
 }
 
 export {
@@ -2117,17 +2273,18 @@ export {
 	snapshotTournamentStructure,
 };
 
-async function insertSessionTags(
+function buildSessionTagStatements(
 	db: DbInstance,
 	sessionId: string,
 	tagIds: string[] | undefined
-): Promise<void> {
-	if (tagIds && tagIds.length > 0) {
-		const rows = tagIds.map((tagId) => ({ sessionId, sessionTagId: tagId }));
-		for (const chunk of chunkForInsert(rows, 2)) {
-			await db.insert(sessionToSessionTag).values(chunk);
-		}
+): BatchStatement[] {
+	if (!(tagIds && tagIds.length > 0)) {
+		return [];
 	}
+	const rows = tagIds.map((tagId) => ({ sessionId, sessionTagId: tagId }));
+	return chunkForInsert(rows, 2).map((chunk) =>
+		db.insert(sessionToSessionTag).values(chunk)
+	);
 }
 
 async function selectCreatedSession(db: DbInstance, id: string) {
@@ -2156,18 +2313,56 @@ async function selectCreatedSession(db: DbInstance, id: string) {
 	return created;
 }
 
-async function maybeCreateCurrencyTransactionForCreate(
+/**
+ * Resolve the caller's "Session Result" transaction-type id for a batched write.
+ * When the type does not exist yet its INSERT is returned so it can be committed
+ * in the SAME batch as the currency-transaction row that references it (ordered
+ * before that row). Shared by session.create and the session.update currency
+ * sync — mirrors {@link getSessionResultTypeId} (the plain read-or-create still
+ * used where a standalone commit is fine).
+ */
+async function buildSessionResultTypeIdStatements(
+	db: DbInstance,
+	userId: string
+): Promise<{ statements: BatchStatement[]; typeId: string }> {
+	const [found] = await db
+		.select()
+		.from(transactionType)
+		.where(
+			and(
+				eq(transactionType.userId, userId),
+				eq(transactionType.name, "Session Result")
+			)
+		);
+	if (found) {
+		return { statements: [], typeId: found.id };
+	}
+	const id = crypto.randomUUID();
+	return {
+		statements: [
+			db.insert(transactionType).values({
+				id,
+				userId,
+				name: "Session Result",
+				updatedAt: new Date(),
+			}),
+		],
+		typeId: id,
+	};
+}
+
+async function buildCreateCurrencyTxStatements(
 	db: DbInstance,
 	id: string,
 	input: CreateInput,
 	sessionDate: Date,
 	userId: string
-): Promise<void> {
+): Promise<BatchStatement[]> {
 	if (!input.currencyId) {
-		return;
+		return [];
 	}
 	const pl = _computeCreatePL(input);
-	await createCurrencyTransactionForSession(
+	return await buildCurrencyTransactionStatements(
 		db,
 		id,
 		input.currencyId,
@@ -2218,40 +2413,60 @@ export const sessionRouter = router({
 			const now = new Date();
 			const sessionDate = new Date(input.sessionDate * 1000);
 
+			// Validate every link + tag ownership BEFORE any write so the whole
+			// create commits as a single atomic batch (SA2-116): the session row,
+			// its type detail, tag links and currency-ledger row land together —
+			// a mid-sequence failure can no longer leave an orphan session with no
+			// detail/tags.
 			await validateCreateLinks(ctx.db, input, userId);
+			await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
 
-			await ctx.db.insert(gameSession).values({
-				id,
-				userId,
-				kind: input.type,
-				status: "completed",
-				source: "manual",
-				sessionDate,
-				startedAt: timestampToDate(input.startedAt),
-				endedAt: timestampToDate(input.endedAt),
-				breakMinutes: input.breakMinutes ?? null,
-				memo: input.memo ?? null,
-				roomId: input.roomId ?? null,
-				currencyId: input.currencyId ?? null,
-				updatedAt: now,
-			});
+			const statements: BatchStatement[] = [
+				ctx.db.insert(gameSession).values({
+					id,
+					userId,
+					kind: input.type,
+					status: "completed",
+					source: "manual",
+					sessionDate,
+					startedAt: timestampToDate(input.startedAt),
+					endedAt: timestampToDate(input.endedAt),
+					breakMinutes: input.breakMinutes ?? null,
+					memo: input.memo ?? null,
+					roomId: input.roomId ?? null,
+					currencyId: input.currencyId ?? null,
+					updatedAt: now,
+				}),
+			];
 
 			if (input.type === "cash_game") {
-				await insertCashGameSessionDetail(ctx.db, id, input, now, userId);
+				statements.push(
+					...(await buildCashGameSessionDetailStatements(
+						ctx.db,
+						id,
+						input,
+						now,
+						userId
+					))
+				);
 			} else {
-				await insertTournamentSessionDetail(ctx.db, id, input);
+				statements.push(
+					...(await buildTournamentSessionDetailStatements(ctx.db, id, input))
+				);
 			}
 
-			await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
-			await insertSessionTags(ctx.db, id, input.tagIds);
-
-			await maybeCreateCurrencyTransactionForCreate(
-				ctx.db,
-				id,
-				input,
-				sessionDate,
-				userId
+			statements.push(...buildSessionTagStatements(ctx.db, id, input.tagIds));
+			statements.push(
+				...(await buildCreateCurrencyTxStatements(
+					ctx.db,
+					id,
+					input,
+					sessionDate,
+					userId
+				))
 			);
+
+			await runBatch(ctx.db, statements);
 
 			return selectCreatedSession(ctx.db, id);
 		}),
