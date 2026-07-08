@@ -18,6 +18,14 @@ export interface UseStatsFilterBarResult {
 	activeSheet: StatsFilterSheet | null;
 	closeSheet: () => void;
 	currencies: StatsCurrencyOption[];
+	/**
+	 * Label for the currency chip. Shows the selected currency's name, or — when
+	 * no currency is selected — "All currencies" while that state is valid
+	 * (normalization on) and "Select" while it is not (normalization off, so a
+	 * currency is required). Mirrors the room chip's "All rooms" so a valid
+	 * all-currencies scope no longer reads as an unfinished "Select".
+	 */
+	currencyChipLabel: string;
 	currentCurrencyName: string | null;
 	currentRoomName: string | null;
 	filters: StatsFilters;
@@ -56,6 +64,10 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 		currencies.find((c) => c.id === filters.currency)?.name ?? null;
 	const currentRoomName =
 		rooms.find((r) => r.id === filters.room)?.name ?? null;
+	// "All currencies" only when a no-currency scope is actually valid (normalized);
+	// otherwise keep prompting with "Select" (the chip is also flagged invalid).
+	const currencyChipLabel =
+		currentCurrencyName ?? (isScopeValid ? "All currencies" : "Select");
 
 	return {
 		activeSheet,
@@ -66,6 +78,7 @@ export function useStatsFilterBar(): UseStatsFilterBarResult {
 		rooms,
 		isReferenceLoading: isLoading,
 		isScopeValid,
+		currencyChipLabel,
 		currentCurrencyName,
 		currentRoomName,
 		onPeriodChange: (value) => {

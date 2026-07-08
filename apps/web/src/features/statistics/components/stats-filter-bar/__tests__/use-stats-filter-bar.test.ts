@@ -57,6 +57,42 @@ describe("useStatsFilterBar", () => {
 		mocks.isLoading = false;
 	});
 
+	describe("currencyChipLabel", () => {
+		it("shows the selected currency name", () => {
+			mocks.filters = {
+				period: "all",
+				norm: "normalized",
+				type: "all",
+				currency: "c1",
+			} as StatsFilters;
+			mocks.isScopeValid = true;
+			const { result } = renderHook(() => useStatsFilterBar());
+			expect(result.current.currencyChipLabel).toBe("USD");
+		});
+
+		it('shows "All currencies" when no currency is selected and the scope is valid (normalized)', () => {
+			mocks.filters = {
+				period: "all",
+				norm: "normalized",
+				type: "all",
+			} as StatsFilters;
+			mocks.isScopeValid = true;
+			const { result } = renderHook(() => useStatsFilterBar());
+			expect(result.current.currencyChipLabel).toBe("All currencies");
+		});
+
+		it('shows "Select" when no currency is selected and the scope is invalid (normalization off)', () => {
+			mocks.filters = {
+				period: "all",
+				norm: "off",
+				type: "all",
+			} as StatsFilters;
+			mocks.isScopeValid = false;
+			const { result } = renderHook(() => useStatsFilterBar());
+			expect(result.current.currencyChipLabel).toBe("Select");
+		});
+	});
+
 	describe("sheet open/close", () => {
 		it("starts with no active sheet", () => {
 			const { result } = renderHook(() => useStatsFilterBar());

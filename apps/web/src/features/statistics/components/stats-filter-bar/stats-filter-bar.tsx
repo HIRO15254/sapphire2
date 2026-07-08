@@ -56,7 +56,7 @@ export function StatsFilterBar() {
 		currencies,
 		rooms,
 		isScopeValid,
-		currentCurrencyName,
+		currencyChipLabel,
 		currentRoomName,
 		onPeriodChange,
 		onNormChange,
@@ -99,7 +99,7 @@ export function StatsFilterBar() {
 					invalid={!isScopeValid}
 					label="Currency"
 					onClick={() => openSheet("currency")}
-					value={currentCurrencyName ?? "Select"}
+					value={currencyChipLabel}
 				/>
 				<FilterChip
 					active={Boolean(filters.room)}
