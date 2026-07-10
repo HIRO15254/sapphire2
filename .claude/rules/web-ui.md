@@ -30,3 +30,12 @@ Mobile-first dialogs are bottom sheets — use shadcn `Drawer`, not `Dialog`.
 ## Icons
 
 Use `@tabler/icons-react` exclusively for new icons. Do not add `lucide-react` imports in new code.
+
+## Accessibility
+
+Each of these gaps shipped and was flagged by review (SA2-121, 140, 153, 155):
+
+- **Current-page indication**: nav items (tab bar, sidebar) set `aria-current="page"` on the active link — color/weight alone is invisible to screen readers.
+- **Field errors**: validation messages are tied to their input via `aria-describedby` and announced with `role="alert"` (belongs in the shared `Field` wrapper, not per-form).
+- **Clickable non-buttons**: anything with `onClick` that isn't a `<button>`/`<a>` (e.g. a `Badge`) must be keyboard-operable — prefer rendering a real `<button>`; otherwise add `role="button"`, `tabIndex={0}`, and a key handler.
+- **Charts**: provide a text alternative (visually-hidden summary or accompanying table) — a bare `ResponsiveContainer` conveys nothing to screen readers.

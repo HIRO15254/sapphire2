@@ -33,10 +33,10 @@ Components and route pages under `apps/web/src` **must not call React builtin or
 
 ## Verification
 
-This check must return 0 hits:
+This check must return 0 hits (it also runs in the Stop hook via `scripts/check-rules.ts`). The globs go in `-g` flags — passing `**` paths as positional args makes `rg` error out without scanning anything:
 
 ```sh
-rg '\b(useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutation|useQueryClient|useReducer|useDeferredValue|useTransition|useLayoutEffect|useIsMutating)\b' 'apps/web/src/**/components/**/*.tsx' 'apps/web/src/**/pages/**/*.tsx' 'apps/web/src/routes/**/*.tsx' -g '!**/__tests__/**' -g '!**/*.test.tsx' -g '!**/use-*.tsx'
+rg '\b(useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutation|useQueryClient|useReducer|useDeferredValue|useTransition|useLayoutEffect|useIsMutating)\b' apps/web/src -g '**/components/**/*.tsx' -g '**/pages/**/*.tsx' -g '**/routes/**/*.tsx' -g '!**/__tests__/**' -g '!**/*.test.tsx' -g '!**/use-*.tsx'
 ```
 
 > `**/pages/**` covers page components that have been lifted out of route files

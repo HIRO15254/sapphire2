@@ -13,7 +13,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bun x ultracite fix && bun x vitest run --changed HEAD && bun x ultracite check"
+            "command": "bun x ultracite fix && bun x vitest run --changed HEAD && bun x ultracite check && bun scripts/check-rules.ts"
           }
         ]
       }
