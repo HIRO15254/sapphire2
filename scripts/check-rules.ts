@@ -85,13 +85,23 @@ for (const check of CHECKS) {
 				continue;
 			}
 			const hitsBefore = hits.length;
+			let anyLineMatched = false;
 			const lines = text.split("\n");
 			for (const [i, line] of lines.entries()) {
-				if (check.pattern.test(line) && !check.excludeLine?.test(line)) {
+				if (!check.pattern.test(line)) {
+					continue;
+				}
+				anyLineMatched = true;
+				if (!check.excludeLine?.test(line)) {
 					hits.push(`${path}:${i + 1}: ${line.trim()}`);
 				}
 			}
-			if (hits.length === hitsBefore && !check.excludeLine) {
+			// The file matched as a whole but no single line did → a genuine
+			// multiline violation. Guarding on `!anyLineMatched` (not
+			// `!check.excludeLine`) keeps this sound once a check combines an
+			// excludeLine with a multiline pattern: an all-excluded file is not
+			// reported, but a real cross-line hit still is.
+			if (hits.length === hitsBefore && !anyLineMatched) {
 				hits.push(`${path}: (multiline match)`);
 			}
 		}
