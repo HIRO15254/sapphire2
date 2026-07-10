@@ -90,8 +90,7 @@ When adding a feature, create `apps/web/src/features/<name>/` and colocate every
 Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below apply everywhere in `apps/web/` and are worth keeping top of mind:
 
 - **UI copy is English-only.** No Japanese in user-facing strings (labels, empty states, toasts, errors). Japanese is fine in comments, commit messages, and PR descriptions.
-- **Mobile forms are bottom sheets.** Use shadcn `Drawer`, not `Dialog`.
-- **Pages start with [`PageHeader`](apps/web/src/shared/components/page-header/page-header.tsx).** Do not hand-roll titles / action rows.
+- **Mobile forms are bottom sheets** (shadcn `Drawer`, not `Dialog`) and **pages start with [`PageHeader`](apps/web/src/shared/components/page-header/page-header.tsx)** — details in [`.claude/rules/web-ui.md`](.claude/rules/web-ui.md).
 - **Logic lives in `useXxx` hooks, not in components.** Components render JSX from destructured hook returns. Verification & full forbidden list: [`.claude/rules/web-hooks-separation.md`](.claude/rules/web-hooks-separation.md).
 - **Single theme: Sapphire 2 Design System.** Tokens live in `apps/web/src/index.css` (`:root` / `.dark`) and apply app-wide — there is no legacy theme and no `theme-v2` scope class. Color tokens include the `hsl()` wrapper: reference them as `var(--token)`, never `hsl(var(--token))`. Design rules: [`.claude/rules/web-theme.md`](.claude/rules/web-theme.md).
 
@@ -111,7 +110,7 @@ Every code change must be test-driven. The quality bar is set by the comprehensi
 1. **Write tests first.** Before editing any implementation file, author (or extend) the corresponding `__tests__/*.test.ts(x)`. Verify the new tests fail against the existing code (red).
 2. **Implement until green.** Iterate on the minimum code needed to pass.
 3. **Run only the scoped project**, not the full suite. See "Do NOT run the full test suite during a task" below.
-4. **The Claude Code Stop hook** (`ultracite fix && vitest run --changed HEAD && ultracite check`) gives the final green signal; no hand-waving.
+4. **The Claude Code Stop hook** (see below) gives the final green signal; no hand-waving.
 
 **Quality bar (non-negotiable)**:
 
@@ -152,11 +151,12 @@ If a target does not match any pattern above, extend the relevant `test-utils` f
 - Pure-function / schema tests → `bunx vitest run --project web-node [path]`
 - Hook / component / route tests → `bunx vitest run --project web-dom [path]`
 - API router tests → `bunx vitest run --project api [path]`
+- Server worker tests → `bunx vitest run --project server [path]`
 - DB schema tests → `bunx vitest run --project db [path]`
 - Env tests → `bunx vitest run --project env`
 - Related to current staged files → `bunx vitest related --run $(git diff --cached --name-only ...)` — already automated by pre-commit for human commits.
 
-The full suite is enforced by the Claude Code **Stop hook** (`bun x ultracite fix && bun x vitest run --changed HEAD && bun x ultracite check`) at the end of a turn, not by every intermediate step. Pre-commit is skipped when `CLAUDECODE=1` for the same reason.
+The full suite is enforced by the Claude Code **Stop hook** (`bun x ultracite fix && bun x vitest run --changed HEAD && bun x ultracite check && bun scripts/check-rules.ts` — see [`.claude/settings.json`](.claude/settings.json)) at the end of a turn, not by every intermediate step. `scripts/check-rules.ts` (`bun run check:rules`) mechanically enforces greppable rules from this file and `.claude/rules/`. Pre-commit is skipped when `CLAUDECODE=1` for the same reason.
 
 ## Path-scoped Rule Files
 
@@ -169,6 +169,9 @@ The following rule files live in `.claude/rules/` and are loaded automatically w
 | `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Table / Badge / Avatar / RadioGroup), mobile = Drawer, tabler-icons. |
 | `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
 | `web-theme.md` | `apps/web/**` | Sapphire 2 Design System (single theme): token format, semantic colors, typography roles, sheet patterns. |
+| `api-security.md` | `packages/api/**`, `apps/server/**` | Object-level authorization: every input FK id ownership-checked, scoped bulk WHEREs / joins / cursors, uniform FORBIDDEN, no server-side fetch of user URLs. |
+| `api-data-integrity.md` | `packages/api/**`, `packages/db/**` | Zod input conventions (`.int().min(0)`, create/update refine parity, shared write/read schemas) and D1 hazards (100-bind-param chunking, `db.batch()`, N+1, keyset pagination). |
+| `datetime-and-numbers.md` | `apps/web/**`, `packages/api/**` | Date-only values are UTC midnight (read with UTC getters), day-crossing handling + backfill, period boundaries, shared locale-fixed number formatters. |
 | `db-migrations.md` | `packages/db/**` | Applied by `wrangler`; `db:generate` is the default for schema-shape changes, hand-write data/rename/destructive ones; how the Drizzle `meta/` ledger works and how to keep it from drifting. |
 
 ## Maintaining This File (Self-Evolution)
@@ -183,15 +186,15 @@ This file evolves as the codebase evolves. Claude should **propose an update to 
 
 ### Procedure for adding a rule
 
-1. **Verify it is not already enforced** by Ultracite, TypeScript, a pre-commit hook, or a route-level constraint. If it is, reference the enforcement instead of duplicating the rule.
+1. **Verify it is not already enforced** by Ultracite, TypeScript, a pre-commit hook, `scripts/check-rules.ts`, or a route-level constraint. If it is, reference the enforcement instead of duplicating the rule.
 2. **Decide scope**: narrow path (e.g., `apps/web/**`, `apps/server/**`, `packages/db/**`) → `.claude/rules/<topic>.md` with a `paths:` frontmatter. Truly cross-cutting → this file.
-3. **Write the rule with a one-line "why"** — the incident, PR, or decision that created it — so future edits can judge edge cases instead of blindly following the letter.
+3. **Write the rule with a one-line "why"** — the incident, issue (SA2-xxx), or decision that created it — so future edits can judge edge cases instead of blindly following the letter.
 4. **Prefer concrete over abstract.** "Use `SelectWithClear` for clearable selects" beats "prefer consistent select behavior". Include explicit file paths and commands.
-5. **If you add a new file under `.claude/rules/`**, update the index table above.
-6. **For large rewrites or ambiguous scope**, propose the change in chat before writing it — this file is shared across the team.
+5. **If the rule is mechanically greppable, add a check to `scripts/check-rules.ts`** (Stop hook) — prose alone gets re-violated; a check must be green at the moment it is added.
+6. **If you add a new file under `.claude/rules/`**, update the index table above.
+7. **For large rewrites or ambiguous scope**, propose the change in chat before writing it — this file is shared across the team.
 
 ### Hygiene
 
 - Keep `CLAUDE.md` ≤200 lines. If a new top-level rule would push it over, split the lowest-value existing section into a path-scoped rule file.
-- Delete rules that no longer apply. Historical context belongs in git / PR descriptions, not here.
-- If two rules overlap, merge them; cross-link rule files that reference each other.
+- Delete rules that no longer apply (historical context belongs in git / PR descriptions). If two rules overlap, keep one home and cross-link it from the others.

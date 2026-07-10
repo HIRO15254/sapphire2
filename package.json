@@ -38,6 +38,7 @@
     "test:ci": "vitest run --reporter=verbose",
     "lint": "ultracite check",
     "check": "ultracite check",
+    "check:rules": "bun scripts/check-rules.ts",
     "fix": "ultracite fix",
     "prepare": "husky"
   },

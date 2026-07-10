@@ -40,14 +40,9 @@ Typography roles are global classes — `t-display / t-h1 … t-h4 / t-body / t-
 
 ## Design source-of-truth
 
-The Sapphire 2 Design System handoff bundle drives design decisions (colors, radius, typography scale, motion durations, component composition rules — buttons, alerts, cards, sheets, toasts, etc.). It lives at `/tmp/design/sapphire-2-design-system/sapphire-2-design-system/` when extracted (HTML/CSS/JS prototypes, not production code — recreate visually, do NOT copy markup). The primary references are:
-
-- `project/README.md` — design philosophy, content rules, component composition.
-- `project/colors_and_type.css` — token contract; the `:root` / `.dark` blocks in `apps/web/src/index.css` are a faithful subset.
-- `project/components.css` — plain-CSS primitives (`.btn`, `.card`, `.sheet`, `.toast`, …); use as reference for sizing and spacing.
+The token contract in `apps/web/src/index.css` (`:root` / `.dark`) is the source of truth. The original Sapphire 2 Design System handoff bundle lives outside this repository; if a design decision is not expressible via the tokens and rules in this file, raise it for discussion rather than guessing from memory of the bundle.
 
 ## Don'ts
 
 - **Don't fork `shared/components/ui/`** for theming. Components stay single-source; tuning happens via tokens. If a surface needs different markup, raise it for discussion before duplicating.
 - **Don't introduce a second theme** or a `theme-*` scope class. If a route needs a one-off accent, scope it to that route with CSS variables.
-- **Don't put Japanese into UI copy.** Same rule as [`web-ui.md`](web-ui.md) ("Direct, terse, neutral. Sentence case.").
