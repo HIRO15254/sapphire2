@@ -47,6 +47,7 @@ export const breakdownGroupByEnum = z.enum([
 	"length",
 	"month",
 	"year",
+	"variant",
 ]);
 
 export type BreakdownGroupBy = z.infer<typeof breakdownGroupByEnum>;
@@ -101,6 +102,7 @@ export interface StatsSessionRow {
 	sessionDate: number; // unix seconds
 	totalEntries: number | null;
 	type: "cash_game" | "tournament";
+	variant: string | null; // frozen detail-row variant (cash or tournament)
 }
 
 interface RawStatsRow {
@@ -110,6 +112,7 @@ interface RawStatsRow {
 	breakMinutes: number | null;
 	buyIn: number | null;
 	cashOut: number | null;
+	cashVariant: string | null;
 	endedAt: Date | null;
 	entryFee: number | null;
 	evCashOut: number | null;
@@ -122,6 +125,7 @@ interface RawStatsRow {
 	startedAt: Date | null;
 	totalEntries: number | null;
 	tournamentBuyIn: number | null;
+	tournamentVariant: string | null;
 	type: string;
 }
 
@@ -155,6 +159,7 @@ function mapStatsRow(
 		roomName: r.roomName,
 		blind1: r.blind1,
 		blind2: r.blind2,
+		variant: r.type === "cash_game" ? r.cashVariant : r.tournamentVariant,
 	};
 
 	if (r.type === "cash_game") {
@@ -237,12 +242,14 @@ export async function fetchStatsRows(
 			evCashOut: sessionCashDetail.evCashOut,
 			blind1: sessionCashDetail.blind1,
 			blind2: sessionCashDetail.blind2,
+			cashVariant: sessionCashDetail.variant,
 			tournamentBuyIn: sessionTournamentDetail.tournamentBuyIn,
 			entryFee: sessionTournamentDetail.entryFee,
 			placement: sessionTournamentDetail.placement,
 			totalEntries: sessionTournamentDetail.totalEntries,
 			prizeMoney: sessionTournamentDetail.prizeMoney,
 			bountyPrizes: sessionTournamentDetail.bountyPrizes,
+			tournamentVariant: sessionTournamentDetail.variant,
 			roomId: gameSession.roomId,
 			roomName: room.name,
 		})
@@ -571,6 +578,14 @@ export function breakdownKeyLabel(
 		}
 		const bucket = Math.floor(row.playMinutes / 60);
 		return { key: String(bucket), label: `${bucket}~${bucket + 1}h` };
+	}
+	if (groupBy === "variant") {
+		// The server returns the RAW variant string as the label; the client maps
+		// it to a display label (e.g. via variantShortLabel). A mix session has
+		// variant "mix" and therefore groups as ONE bucket, never decomposed into
+		// its sub-games.
+		const key = row.variant ?? "unknown";
+		return { key, label: key };
 	}
 
 	const date = new Date(row.sessionDate * 1000);

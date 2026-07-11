@@ -89,37 +89,42 @@ describe("useBreakdownSection", () => {
 		expect(lastGroupBy()).toBe("room");
 	});
 
-	it("offers room, day of week, length, and month tabs for the 'all' type", async () => {
+	it("offers room, variant, day of week, length, and month tabs for the 'all' type", async () => {
 		trpcMocks.breakdownQueryFn.mockReset();
 		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });
 		const { result } = await renderLoadedBreakdown(ctx({ type: "all" }));
 		expect(result.current.tabs.map((t) => t.value)).toEqual([
 			"room",
+			"variant",
 			"dayOfWeek",
 			"length",
 			"month",
 		]);
 		expect(result.current.tabs.map((t) => t.label)).toEqual([
 			"Room",
+			"Variant",
 			"Day of week",
 			"Length",
 			"Month",
 		]);
 	});
 
-	it("includes the stakes tab only for cash game", async () => {
+	it("includes the stakes and variant tabs only for cash game", async () => {
 		trpcMocks.breakdownQueryFn.mockReset();
 		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });
 		const { result } = await renderLoadedBreakdown(ctx({ type: "cash_game" }));
 		expect(result.current.tabs.map((t) => t.value)).toEqual([
 			"room",
 			"stakes",
+			"variant",
 			"dayOfWeek",
 			"length",
 			"month",
 		]);
 		const stakes = result.current.tabs.find((t) => t.value === "stakes");
 		expect(stakes?.label).toBe("Stakes");
+		const variant = result.current.tabs.find((t) => t.value === "variant");
+		expect(variant?.label).toBe("Variant");
 	});
 
 	it("omits the stakes tab for the tournament type", async () => {
@@ -127,6 +132,32 @@ describe("useBreakdownSection", () => {
 		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });
 		const { result } = await renderLoadedBreakdown(ctx({ type: "tournament" }));
 		expect(result.current.tabs.map((t) => t.value)).not.toContain("stakes");
+	});
+
+	it("includes the variant tab positioned after room for the tournament type", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });
+		const { result } = await renderLoadedBreakdown(ctx({ type: "tournament" }));
+		expect(result.current.tabs.map((t) => t.value)).toEqual([
+			"room",
+			"variant",
+			"dayOfWeek",
+			"length",
+			"month",
+		]);
+	});
+
+	it("queries with groupBy 'variant' when the variant tab is selected", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });
+		const { result } = await renderLoadedBreakdown(ctx({ type: "all" }));
+
+		act(() => {
+			result.current.setActiveTab("variant");
+		});
+
+		await waitFor(() => expect(result.current.activeTab).toBe("variant"));
+		await waitFor(() => expect(lastGroupBy()).toBe("variant"));
 	});
 
 	it("forwards the selected grouping to the query when the tab changes", async () => {
@@ -246,6 +277,51 @@ describe("useBreakdownSection", () => {
 		expect(result.current.rows).toEqual([]);
 		expect(result.current.isPending).toBe(false);
 		expect(trpcMocks.breakdownQueryFn).not.toHaveBeenCalled();
+	});
+
+	it("maps preset variant keys to their short display label when the variant tab is active", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({
+			groups: [
+				breakdownRow({ key: "plo", label: "plo" }),
+				breakdownRow({ key: "mix", label: "mix" }),
+			],
+		});
+		const { result } = await renderLoadedBreakdown(ctx({ type: "all" }));
+
+		act(() => {
+			result.current.setActiveTab("variant");
+		});
+		await waitFor(() => expect(result.current.activeTab).toBe("variant"));
+		await waitFor(() => expect(result.current.rows).toHaveLength(2));
+
+		expect(result.current.rows.map((r) => r.label)).toEqual(["PLO", "Mix"]);
+	});
+
+	it("passes through a custom variant label verbatim when the variant tab is active", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({
+			groups: [breakdownRow({ key: "Big Duck", label: "Big Duck" })],
+		});
+		const { result } = await renderLoadedBreakdown(ctx({ type: "all" }));
+
+		act(() => {
+			result.current.setActiveTab("variant");
+		});
+		await waitFor(() => expect(result.current.activeTab).toBe("variant"));
+		await waitFor(() => expect(result.current.rows).toHaveLength(1));
+
+		expect(result.current.rows[0]?.label).toBe("Big Duck");
+	});
+
+	it("keeps the server label as-is on non-variant tabs (no variantShortLabel mapping)", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({
+			groups: [breakdownRow({ key: "plo", label: "plo" })],
+		});
+		const { result } = await renderLoadedBreakdown(ctx({ type: "all" }));
+		// Default tab is "room"; a raw "plo" label must not be mapped there.
+		expect(result.current.rows[0]?.label).toBe("plo");
 	});
 
 	it("maps multiple groups in order", async () => {
