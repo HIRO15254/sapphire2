@@ -1,4 +1,3 @@
-import { GAME_VARIANTS } from "@sapphire2/db/constants/game-variants";
 import { ChipPurchasesEditor } from "@/features/rooms/components/chip-purchases-editor";
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
 import { Field } from "@/shared/components/ui/field";
@@ -12,6 +11,7 @@ import {
 } from "@/shared/components/ui/select";
 import { TagInput } from "@/shared/components/ui/tag-input";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { VariantSelect } from "@/shared/components/variant-select";
 import { useTournamentForm } from "./use-tournament-form";
 
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
@@ -44,6 +44,11 @@ interface TournamentFormProps {
 		}
 	) => void;
 	onSubmit: (values: TournamentFormValues) => void;
+	/**
+	 * Live variant changes, so the surrounding modal can keep the Structure
+	 * tab's blind labels in sync with the Details tab's picker.
+	 */
+	onVariantChange?: (variant: string) => void;
 }
 
 export function TournamentForm({
@@ -52,6 +57,7 @@ export function TournamentForm({
 	formId,
 	onInvalidSubmit,
 	onRegisterLiveValues,
+	onVariantChange,
 }: TournamentFormProps) {
 	const { form, currencies } = useTournamentForm({
 		defaultValues,
@@ -91,23 +97,14 @@ export function TournamentForm({
 			<form.Field name="variant">
 				{(field) => (
 					<Field htmlFor={field.name} label="Variant" required>
-						<Select
-							onValueChange={(v) => field.handleChange(v)}
+						<VariantSelect
+							id={field.name}
+							onChange={(v) => {
+								field.handleChange(v);
+								onVariantChange?.(v);
+							}}
 							value={field.state.value}
-						>
-							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{Object.entries(GAME_VARIANTS)
-									.filter(([, val]) => !val.isMix)
-									.map(([key, val]) => (
-										<SelectItem key={key} value={key}>
-											{val.label}
-										</SelectItem>
-									))}
-							</SelectContent>
-						</Select>
+						/>
 					</Field>
 				)}
 			</form.Field>

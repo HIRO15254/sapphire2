@@ -50,10 +50,17 @@ export function TournamentModalContent({
 	onRegisterLiveValues,
 	onSave,
 }: TournamentModalContentProps) {
-	const { localBlindLevels, setLocalBlindLevels, activeTab, setActiveTab } =
-		useTournamentModalContent({
-			initialBlindLevels,
-		});
+	const {
+		localBlindLevels,
+		setLocalBlindLevels,
+		activeTab,
+		setActiveTab,
+		structureVariant,
+		setStructureVariant,
+	} = useTournamentModalContent({
+		initialBlindLevels,
+		initialVariant: initialFormValues?.variant,
+	});
 
 	return (
 		<div className="flex flex-col gap-3">
@@ -99,13 +106,14 @@ export function TournamentModalContent({
 						onInvalidSubmit={() => setActiveTab("details")}
 						onRegisterLiveValues={onRegisterLiveValues}
 						onSubmit={(values) => onSave(values, localBlindLevels)}
+						onVariantChange={setStructureVariant}
 					/>
 				</TabsContent>
 				<TabsContent value="structure">
 					<LocalBlindStructureContent
 						onChange={setLocalBlindLevels}
 						value={localBlindLevels}
-						variant={initialFormValues?.variant ?? "nlh"}
+						variant={structureVariant}
 					/>
 				</TabsContent>
 			</Tabs>

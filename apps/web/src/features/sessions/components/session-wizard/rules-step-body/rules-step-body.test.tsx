@@ -1,15 +1,31 @@
-import { act, render, renderHook, screen } from "@testing-library/react";
+import { act, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { renderWithQueryClient } from "@/__tests__/test-utils";
 
 // RulesStepBody (tournament path) transitively imports @/utils/trpc; stub it.
+// The cash/tournament rule bodies also render VariantSelect, which uses real
+// react-query hooks against trpc.gameVariant.list — provide a queryFn and
+// wrap renders below in a QueryClientProvider.
 vi.mock("@/utils/trpc", () => ({
-	trpc: {},
+	trpc: {
+		gameVariant: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameVariant", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
+	},
 	trpcClient: {
 		blindLevel: {
 			listByTournament: { query: vi.fn().mockResolvedValue([]) },
 		},
 		tournamentChipPurchase: {
 			listByTournament: { query: vi.fn().mockResolvedValue([]) },
+		},
+		gameVariant: {
+			create: { mutate: vi.fn() },
 		},
 	},
 }));
@@ -49,7 +65,7 @@ function setupOverriddenState() {
 describe("RulesStepBody — override badges", () => {
 	it("flags diverging fields with a Modified badge by default", () => {
 		const result = setupOverriddenState();
-		render(
+		renderWithQueryClient(
 			<RulesStepBody
 				currencies={[]}
 				isLiveLinked={false}
@@ -61,7 +77,7 @@ describe("RulesStepBody — override badges", () => {
 
 	it("hides Modified badges when showOverrides is false", () => {
 		const result = setupOverriddenState();
-		render(
+		renderWithQueryClient(
 			<RulesStepBody
 				currencies={[]}
 				isLiveLinked={false}
@@ -79,7 +95,7 @@ describe("RulesStepBody — live-linked tournament editors", () => {
 			useSessionWizard({ mode: "manual", onSubmit: vi.fn() })
 		);
 		act(() => result.current.setSessionType("tournament"));
-		render(
+		renderWithQueryClient(
 			<RulesStepBody
 				currencies={[]}
 				isLiveLinked={isLiveLinked}

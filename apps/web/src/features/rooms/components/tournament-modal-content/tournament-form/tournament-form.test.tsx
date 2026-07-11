@@ -1,22 +1,39 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { renderWithQueryClient } from "@/__tests__/test-utils";
 import { TournamentForm } from "./tournament-form";
 
-vi.mock("@tanstack/react-query", () => ({
-	useQuery: () => ({
-		data: [
-			{ id: "currency-1", name: "JPY", unit: "JPY" },
-			{ id: "currency-2", name: "USD", unit: "$" },
-		],
-	}),
-}));
-
+// VariantSelect (rendered by the Variant field) uses real react-query hooks
+// against trpc.gameVariant.list, so this file keeps the real
+// @tanstack/react-query implementation and wraps renders in a
+// QueryClientProvider (see renderForm below) instead of mocking the module.
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		currency: {
 			list: {
-				queryOptions: () => ({}),
+				queryOptions: () => ({
+					queryKey: ["currency", "list"],
+					queryFn: async () => [
+						{ id: "currency-1", name: "JPY", unit: "JPY" },
+						{ id: "currency-2", name: "USD", unit: "$" },
+					],
+				}),
+			},
+		},
+		gameVariant: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameVariant", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
+	},
+	trpcClient: {
+		gameVariant: {
+			create: {
+				mutate: vi.fn(),
 			},
 		},
 	},
@@ -31,7 +48,7 @@ function renderForm(
 	props: Partial<React.ComponentProps<typeof TournamentForm>>
 ) {
 	const onSubmit = props.onSubmit ?? vi.fn();
-	const result = render(
+	const result = renderWithQueryClient(
 		<>
 			<TournamentForm formId={FORM_ID} onSubmit={onSubmit} {...props} />
 			<button form={FORM_ID} type="submit">

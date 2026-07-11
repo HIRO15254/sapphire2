@@ -1,16 +1,32 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { renderWithQueryClient as render } from "@/__tests__/test-utils";
 
 // The manual branch renders the tournament rule bodies, which transitively
 // import @/utils/trpc (env-validating). Stub it so the module tree loads.
+// The Rules accordion also renders VariantSelect / useVariantLabels, which
+// use real react-query hooks against trpc.gameVariant.list once expanded —
+// provide a queryFn and rely on the renderWithQueryClient wrapper above.
 vi.mock("@/utils/trpc", () => ({
-	trpc: {},
+	trpc: {
+		gameVariant: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameVariant", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
+	},
 	trpcClient: {
 		blindLevel: {
 			listByTournament: { query: vi.fn().mockResolvedValue([]) },
 		},
 		tournamentChipPurchase: {
 			listByTournament: { query: vi.fn().mockResolvedValue([]) },
+		},
+		gameVariant: {
+			create: { mutate: vi.fn() },
 		},
 	},
 }));

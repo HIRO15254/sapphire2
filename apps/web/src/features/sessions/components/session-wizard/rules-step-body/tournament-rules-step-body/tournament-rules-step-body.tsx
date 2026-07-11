@@ -10,6 +10,7 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "@/shared/components/ui/tabs";
+import { VariantSelect } from "@/shared/components/variant-select";
 import { TournamentRuleFields } from "../../tournament-fields";
 import type { UseSessionWizardReturn } from "../../use-session-wizard";
 import { RuleNameField } from "../rule-name-field";
@@ -102,6 +103,26 @@ function TournamentSettingsTab({
 							overriddenLabels={overriddenLabels}
 							state={state}
 						/>
+						<state.form.Field name="variant">
+							{(field) => (
+								<Field
+									htmlFor={field.name}
+									label={
+										<OverrideLabel
+											label="Variant"
+											overridden={overriddenLabels}
+										/>
+									}
+								>
+									<VariantSelect
+										disabled={isLiveLinked}
+										id={field.name}
+										onChange={(v) => field.handleChange(v)}
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</state.form.Field>
 						<TournamentRuleFields
 							currencies={currencies}
 							form={state.form}

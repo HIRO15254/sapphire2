@@ -1,7 +1,3 @@
-import {
-	GAME_VARIANTS,
-	resolveBlindLabels,
-} from "@sapphire2/db/constants/game-variants";
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -13,6 +9,8 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { VariantSelect } from "@/shared/components/variant-select";
+import { useVariantLabels } from "@/shared/hooks/use-variant-labels";
 import { BlindFields } from "./blind-fields";
 import { useRingGameForm } from "./use-ring-game-form";
 
@@ -37,14 +35,23 @@ const ANTE_TYPES = [
 	{ value: "all", label: "All Ante" },
 ] as const;
 
+function VariantAwareBlindFields({
+	form,
+	variant,
+}: {
+	form: ReturnType<typeof useRingGameForm>["form"];
+	variant: string;
+}) {
+	const blindLabels = useVariantLabels(variant || "nlh");
+	return <BlindFields blindLabels={blindLabels} form={form} />;
+}
+
 export function RingGameForm({
 	onSubmit,
 	defaultValues,
 	formId,
 }: RingGameFormProps) {
 	const { form, currencies } = useRingGameForm({ defaultValues, onSubmit });
-
-	const blindLabels = resolveBlindLabels(defaultValues?.variant ?? "nlh");
 
 	return (
 		<form
@@ -77,28 +84,18 @@ export function RingGameForm({
 			<form.Field name="variant">
 				{(field) => (
 					<Field htmlFor={field.name} label="Variant" required>
-						<Select
-							onValueChange={(v) => field.handleChange(v)}
+						<VariantSelect
+							id={field.name}
+							onChange={(v) => field.handleChange(v)}
 							value={field.state.value}
-						>
-							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{Object.entries(GAME_VARIANTS)
-									.filter(([, val]) => !val.isMix)
-									.map(([key, val]) => (
-										<SelectItem key={key} value={key}>
-											{val.label}
-										</SelectItem>
-									))}
-							</SelectContent>
-						</Select>
+						/>
 					</Field>
 				)}
 			</form.Field>
 
-			<BlindFields blindLabels={blindLabels} form={form} />
+			<form.Subscribe selector={(state) => state.values.variant}>
+				{(variant) => <VariantAwareBlindFields form={form} variant={variant} />}
+			</form.Subscribe>
 
 			<div className="flex gap-3">
 				<form.Field name="anteType">

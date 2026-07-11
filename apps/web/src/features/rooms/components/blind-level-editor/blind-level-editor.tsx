@@ -1,6 +1,6 @@
-import { resolveBlindLabels } from "@sapphire2/db/constants/game-variants";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { useBlindLevels } from "@/features/rooms/hooks/use-blind-levels";
+import { useVariantLabels } from "@/shared/hooks/use-variant-labels";
 import { BlindStructureTable } from "./blind-structure-table";
 import { useLocalBlindStructure } from "./use-blind-level-editor";
 
@@ -28,7 +28,7 @@ export function BlindStructureContent({
 		handleCreateLevel,
 	} = useBlindLevels({ tournamentId });
 
-	const blindLabels = resolveBlindLabels(variant);
+	const blindLabels = useVariantLabels(variant);
 
 	if (isLoading) {
 		return (
@@ -77,7 +77,7 @@ export function LocalBlindStructureContent({
 		handleCreateLevel,
 	} = useLocalBlindStructure({ value, onChange });
 
-	const blindLabels = resolveBlindLabels(variant);
+	const blindLabels = useVariantLabels(variant);
 
 	return (
 		<BlindStructureTable
