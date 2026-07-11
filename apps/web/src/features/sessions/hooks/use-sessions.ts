@@ -399,6 +399,7 @@ export function buildEditDefaults(session: SessionItem) {
 			blind3: level.blind3,
 			ante: level.ante,
 			minutes: level.minutes,
+			games: level.games ?? null,
 		})),
 		startTime: formatTimeFromDate(session.startedAt),
 		endTime: formatTimeFromDate(session.endedAt),

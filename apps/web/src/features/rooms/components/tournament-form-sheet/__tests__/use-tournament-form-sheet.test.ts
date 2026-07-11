@@ -15,6 +15,7 @@ function row(partial: Partial<BlindLevelRow>): BlindLevelRow {
 		blind3: null,
 		ante: null,
 		minutes: null,
+		games: null,
 		...partial,
 	};
 }

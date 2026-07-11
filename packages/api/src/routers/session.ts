@@ -21,7 +21,12 @@ import {
 	tournament,
 	tournamentChipPurchase,
 } from "@sapphire2/db/schema/tournament";
-import { type MixGameGroup, mixGamesSchema } from "@sapphire2/db/schemas/game";
+import {
+	type LevelGameGroup,
+	levelGamesSchema,
+	type MixGameGroup,
+	mixGamesSchema,
+} from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import {
 	and,
@@ -225,6 +230,7 @@ interface SessionBlindLevelRow {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	games: LevelGameGroup[] | null;
 	isBreak: boolean;
 	minutes: number | null;
 }
@@ -253,6 +259,7 @@ async function getSessionBlindLevelMap(
 				blind3: sessionBlindLevel.blind3,
 				ante: sessionBlindLevel.ante,
 				minutes: sessionBlindLevel.minutes,
+				games: sessionBlindLevel.games,
 			})
 			.from(sessionBlindLevel)
 			.where(inArray(sessionBlindLevel.sessionId, chunk))
@@ -266,6 +273,7 @@ async function getSessionBlindLevelMap(
 			blind3: r.blind3,
 			ante: r.ante,
 			minutes: r.minutes,
+			games: r.games,
 		};
 		const existing = map.get(r.sessionId);
 		if (existing) {
@@ -427,6 +435,7 @@ function buildSessionBlindLevelStatements(
 		blind1?: number | null;
 		blind2?: number | null;
 		blind3?: number | null;
+		games?: LevelGameGroup[] | null;
 		isBreak: boolean;
 		minutes?: number | null;
 	}[]
@@ -452,8 +461,11 @@ function buildSessionBlindLevelStatements(
 		blind3: l.blind3 ?? null,
 		ante: l.ante ?? null,
 		minutes: l.minutes ?? null,
+		games: l.games ?? null,
 	}));
-	for (const chunk of chunkForInsert(rows, 9)) {
+	// 10 columns/row since the games column => 10 rows per INSERT under D1's
+	// 100 bound-param cap (SA2-115).
+	for (const chunk of chunkForInsert(rows, 10)) {
 		statements.push(db.insert(sessionBlindLevel).values(chunk));
 	}
 	return statements;
@@ -467,6 +479,7 @@ export async function persistSessionBlindLevels(
 		blind1?: number | null;
 		blind2?: number | null;
 		blind3?: number | null;
+		games?: LevelGameGroup[] | null;
 		isBreak: boolean;
 		minutes?: number | null;
 	}[]
@@ -870,6 +883,7 @@ const tournamentCreateSchema = z
 					blind3: z.number().int().nullable().optional(),
 					ante: z.number().int().nullable().optional(),
 					minutes: z.number().int().nullable().optional(),
+					games: levelGamesSchema.nullish(),
 				})
 			)
 			.optional(),
@@ -1847,6 +1861,7 @@ interface TournamentUpdateInput {
 		blind1?: number | null;
 		blind2?: number | null;
 		blind3?: number | null;
+		games?: LevelGameGroup[] | null;
 		isBreak: boolean;
 		minutes?: number | null;
 	}[];
@@ -2286,8 +2301,11 @@ async function buildTournamentStructureStatements(
 			blind3: l.blind3,
 			ante: l.ante,
 			minutes: l.minutes,
+			games: l.games,
 		}));
-		for (const chunk of chunkForInsert(levelRows, 9)) {
+		// 10 columns/row since the games column => 10 rows per INSERT under
+		// D1's 100 bound-param cap (SA2-115).
+		for (const chunk of chunkForInsert(levelRows, 10)) {
 			statements.push(db.insert(sessionBlindLevel).values(chunk));
 		}
 	}
@@ -2649,6 +2667,7 @@ export const sessionRouter = router({
 							blind3: z.number().int().nullable().optional(),
 							ante: z.number().int().nullable().optional(),
 							minutes: z.number().int().nullable().optional(),
+							games: levelGamesSchema.nullish(),
 						})
 					)
 					.optional(),

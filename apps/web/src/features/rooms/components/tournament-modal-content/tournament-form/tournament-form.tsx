@@ -99,6 +99,7 @@ export function TournamentForm({
 					<Field htmlFor={field.name} label="Variant" required>
 						<VariantSelect
 							id={field.name}
+							includeMix
 							onChange={(v) => {
 								field.handleChange(v);
 								onVariantChange?.(v);

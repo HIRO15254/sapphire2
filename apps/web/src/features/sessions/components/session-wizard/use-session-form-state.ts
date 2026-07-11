@@ -230,6 +230,7 @@ export function useSessionFormState({
 					blind3: l.blind3,
 					ante: l.ante,
 					minutes: l.minutes,
+					games: l.games ?? null,
 				}))
 			)
 		);

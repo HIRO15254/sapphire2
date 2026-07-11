@@ -1,4 +1,4 @@
-import type { MixGameGroup } from "@sapphire2/db/schemas/game";
+import type { LevelGameGroup, MixGameGroup } from "@sapphire2/db/schemas/game";
 import z from "zod";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 
@@ -7,6 +7,8 @@ export interface SessionBlindLevelInput {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	/** Per-level game groups for mix tournaments; null = single structure. */
+	games?: LevelGameGroup[] | null;
 	isBreak: boolean;
 	minutes: number | null;
 }

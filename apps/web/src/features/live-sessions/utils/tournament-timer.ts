@@ -1,8 +1,15 @@
+import {
+	formatGroupStakes,
+	type GameGroupLike,
+	groupDisplayLabel,
+} from "@/features/live-sessions/utils/game-scene-formatters";
 export interface TournamentBlindLevel {
 	ante: number | null;
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	/** Per-level game groups for mix tournaments; null = single structure. */
+	games?: GameGroupLike[] | null;
 	id: string;
 	isBreak: boolean;
 	level: number;
@@ -126,9 +133,25 @@ export function formatTimerDuration(seconds: number): string {
 	return `${mm}:${ss}`;
 }
 
+const MAX_LABEL_GROUPS = 2;
+
 export function formatBlindLevelLabel(level: TournamentBlindLevel): string {
 	if (level.isBreak) {
 		return `Break (L${level.level})`;
+	}
+	// Mix levels: one segment per game group, truncated for the compact timer.
+	if (level.games && level.games.length > 0) {
+		const shown = level.games
+			.slice(0, MAX_LABEL_GROUPS)
+			.map((group) => {
+				const stakes = formatGroupStakes(group);
+				const label = groupDisplayLabel(group);
+				return stakes === "—" ? label : `${label} ${stakes}`;
+			})
+			.join(" · ");
+		const rest = level.games.length - MAX_LABEL_GROUPS;
+		const suffix = rest > 0 ? ` (+${rest})` : "";
+		return `L${level.level} · ${shown}${suffix}`;
 	}
 	const parts: string[] = [];
 	if (level.blind1 !== null) {

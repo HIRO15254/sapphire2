@@ -37,6 +37,8 @@ const ANTE_TYPES = [
 interface MixGamesEditorProps {
 	disabled?: boolean;
 	onChange: (rows: MixGameGroupRow[]) => void;
+	/** Hide the per-group ante-type select (tournament level groups). */
+	showAnteType?: boolean;
 	value: MixGameGroupRow[];
 }
 
@@ -55,12 +57,14 @@ interface GroupRowProps {
 		uid: string,
 		patch: Partial<Omit<MixGameGroupRow, "uid">>
 	) => void;
+	showAnteType: boolean;
 	usedVariantList: string[];
 }
 
 function GroupRow({
 	disabled,
 	group,
+	showAnteType,
 	index,
 	isFirst,
 	isLast,
@@ -219,32 +223,34 @@ function GroupRow({
 				</Field>
 			</div>
 
-			<Field
-				className="flex flex-col gap-1"
-				htmlFor={`mix-antetype-${group.uid}`}
-				label="Ante type"
-			>
-				<Select
-					disabled={disabled}
-					onValueChange={(v) =>
-						onUpdateGroup(group.uid, {
-							anteType: v as MixGameGroupRow["anteType"],
-						})
-					}
-					value={group.anteType}
+			{showAnteType ? (
+				<Field
+					className="flex flex-col gap-1"
+					htmlFor={`mix-antetype-${group.uid}`}
+					label="Ante type"
 				>
-					<SelectTrigger className="w-full" id={`mix-antetype-${group.uid}`}>
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{ANTE_TYPES.map((at) => (
-							<SelectItem key={at.value} value={at.value}>
-								{at.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</Field>
+					<Select
+						disabled={disabled}
+						onValueChange={(v) =>
+							onUpdateGroup(group.uid, {
+								anteType: v as MixGameGroupRow["anteType"],
+							})
+						}
+						value={group.anteType}
+					>
+						<SelectTrigger className="w-full" id={`mix-antetype-${group.uid}`}>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{ANTE_TYPES.map((at) => (
+								<SelectItem key={at.value} value={at.value}>
+									{at.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</Field>
+			) : null}
 		</div>
 	);
 }
@@ -258,6 +264,7 @@ function GroupRow({
 export function MixGamesEditor({
 	disabled = false,
 	onChange,
+	showAnteType = true,
 	value,
 }: MixGamesEditorProps) {
 	const {
@@ -314,6 +321,7 @@ export function MixGamesEditor({
 							onRemoveGroup={onRemoveGroup}
 							onRemoveVariant={onRemoveVariant}
 							onUpdateGroup={onUpdateGroup}
+							showAnteType={showAnteType}
 							usedVariantList={usedVariantList}
 						/>
 					))}

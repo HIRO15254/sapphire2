@@ -273,6 +273,7 @@ describe("useAssignTournament", () => {
 						blind3: null,
 						ante: null,
 						minutes: 20,
+						games: null,
 					},
 				]
 			);
@@ -291,6 +292,7 @@ describe("useAssignTournament", () => {
 						blind1: 25,
 						blind2: 50,
 						minutes: 20,
+						games: null,
 					}),
 				],
 			})

@@ -420,6 +420,7 @@ interface StructureLevel {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	games?: GameGroupLike[] | null;
 	id: string;
 	isBreak: boolean;
 	level: number;
@@ -469,6 +470,28 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 									colSpan={3}
 								>
 									Break
+								</TableCell>
+								<TableCell className="py-0.5 text-center text-muted-foreground">
+									{row.minutes ?? "—"}
+								</TableCell>
+							</TableRow>
+						);
+					}
+					// Mix levels stack their game groups across the blind columns.
+					if (row.games && row.games.length > 0) {
+						return (
+							<TableRow key={row.id}>
+								<TableCell className="py-0.5 text-center text-muted-foreground">
+									{row.level}
+								</TableCell>
+								<TableCell className="py-0.5" colSpan={3}>
+									<div className="flex flex-col gap-0.5">
+										{row.games.map((group) => (
+											<span key={group.variants.join("+")}>
+												{groupDisplayLabel(group)} {formatGroupStakes(group)}
+											</span>
+										))}
+									</div>
 								</TableCell>
 								<TableCell className="py-0.5 text-center text-muted-foreground">
 									{row.minutes ?? "—"}
@@ -783,6 +806,7 @@ function TournamentDetailsBody({
 					isBreak: l.isBreak,
 					level: l.level,
 					minutes: l.minutes,
+					games: l.games ?? null,
 					tournamentId: master.id,
 				}))}
 				initialFormValues={toInitialFormValues(

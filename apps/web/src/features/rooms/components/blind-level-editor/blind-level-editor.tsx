@@ -1,3 +1,4 @@
+import { isMixVariant } from "@sapphire2/db/constants/game-variants";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { useBlindLevels } from "@/features/rooms/hooks/use-blind-levels";
 import { useVariantLabels } from "@/shared/hooks/use-variant-labels";
@@ -48,6 +49,7 @@ export function BlindStructureContent({
 			handleDragEnd={handleDragEnd}
 			handleUpdate={handleUpdate}
 			isAdding={isAdding}
+			isMix={isMixVariant(variant)}
 			levels={levels}
 			sensors={sensors}
 		/>
@@ -88,6 +90,7 @@ export function LocalBlindStructureContent({
 			handleDelete={handleDelete}
 			handleDragEnd={handleDragEnd}
 			handleUpdate={handleUpdate}
+			isMix={isMixVariant(variant)}
 			levels={value}
 			sensors={sensors}
 		/>

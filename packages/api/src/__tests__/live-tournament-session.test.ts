@@ -19,8 +19,8 @@ import {
 	expectType,
 } from "./test-utils";
 
-const BLIND_LEVEL_COLUMNS = 9;
-const MAX_ROWS_PER_INSERT = Math.floor(100 / BLIND_LEVEL_COLUMNS); // 11
+const BLIND_LEVEL_COLUMNS = 10;
+const MAX_ROWS_PER_INSERT = Math.floor(100 / BLIND_LEVEL_COLUMNS); // 10
 
 interface BlindLevelInput {
 	ante?: number | null;
@@ -629,12 +629,12 @@ describe("liveTournamentSession.updateSnapshot input validation", () => {
 
 // Regression guard for SA2-115: updateSnapshot re-seeds blind levels via the
 // shared persistSessionBlindLevels helper, which DELETEs then re-INSERTs. D1
-// rejects any statement binding >100 params, so a 9-column blind row must be
-// chunked at 11 rows/INSERT. A single unchunked INSERT of >=12 levels (>=108
+// rejects any statement binding >100 params, so a 10-column blind row must be
+// chunked at 10 rows/INSERT. A single unchunked INSERT of >=11 levels (>=110
 // params) would throw at runtime AFTER the DELETE already committed, wiping the
 // session's blind structure permanently.
 describe("persistSessionBlindLevels chunking (SA2-115)", () => {
-	it("splits >11 blind levels into multiple INSERTs each within D1's 100-param cap", async () => {
+	it("splits >10 blind levels into multiple INSERTs each within D1's 100-param cap", async () => {
 		const { db, del, deleteWhere, insert, values } = createBlindLevelMockDb();
 
 		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(12));
@@ -642,7 +642,7 @@ describe("persistSessionBlindLevels chunking (SA2-115)", () => {
 		// DELETE runs exactly once before any INSERT.
 		expect(del).toHaveBeenCalledTimes(1);
 		expect(deleteWhere).toHaveBeenCalledTimes(1);
-		// 12 rows -> 11 + 1 => two INSERT statements.
+		// 12 rows -> 10 + 2 => two INSERT statements.
 		expect(insert).toHaveBeenCalledTimes(2);
 		expect(del.mock.invocationCallOrder[0]).toBeLessThan(
 			insert.mock.invocationCallOrder[0]
@@ -672,23 +672,39 @@ describe("persistSessionBlindLevels chunking (SA2-115)", () => {
 		}
 	});
 
-	it("keeps a single INSERT for exactly 11 levels (chunk boundary)", async () => {
+	it("keeps a single INSERT for exactly 10 levels (chunk boundary)", async () => {
+		const { db, insert, values } = createBlindLevelMockDb();
+
+		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(10));
+
+		expect(insert).toHaveBeenCalledTimes(1);
+		expect(values).toHaveBeenCalledTimes(1);
+		expect(insertedChunks(values).flat()).toHaveLength(10);
+	});
+
+	it("splits into two INSERTs for 11 levels (one over the boundary)", async () => {
 		const { db, insert, values } = createBlindLevelMockDb();
 
 		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(11));
 
-		expect(insert).toHaveBeenCalledTimes(1);
-		expect(values).toHaveBeenCalledTimes(1);
-		expect(insertedChunks(values).flat()).toHaveLength(11);
-	});
-
-	it("splits into two INSERTs for 12 levels (one over the boundary)", async () => {
-		const { db, insert, values } = createBlindLevelMockDb();
-
-		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(12));
-
 		expect(insert).toHaveBeenCalledTimes(2);
 		expect(values).toHaveBeenCalledTimes(2);
+	});
+
+	it("writes per-level game groups through the re-seed", async () => {
+		const { db, values } = createBlindLevelMockDb();
+		const games = [
+			{ name: "Limit", variants: ["lhe", "o8"], blind1: 400, blind2: 800 },
+		];
+
+		await persistSessionBlindLevels(db, "sess-1", [
+			{ isBreak: false, blind1: 100, blind2: 200, games },
+			{ isBreak: false, blind1: 200, blind2: 400 },
+		]);
+
+		const allRows = insertedChunks(values).flat();
+		expect(allRows[0].games).toEqual(games);
+		expect(allRows[1].games).toBeNull();
 	});
 
 	it("keeps a single INSERT for the small-N case (behavior unchanged)", async () => {
@@ -1147,5 +1163,37 @@ describe("liveTournamentSession.list event batching (SA2-151)", () => {
 		expect(result.items).toEqual([]);
 		expect(result.nextCursor).toBeUndefined();
 		expect(sessionEventFromCount(fromCalls)).toBe(0);
+	});
+});
+
+describe("liveTournamentSession.updateSnapshot per-level games", () => {
+	it("accepts blind levels carrying game groups", () => {
+		expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "session-1",
+			blindLevels: [
+				{
+					isBreak: false,
+					blind1: 100,
+					blind2: 200,
+					minutes: 20,
+					games: [
+						{ name: "Limit", variants: ["lhe"], blind1: 400, blind2: 800 },
+						{ variants: ["nlh"], blind1: 100, blind2: 200 },
+					],
+				},
+			],
+		});
+	});
+
+	it("rejects duplicate variants across a level's groups", () => {
+		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "session-1",
+			blindLevels: [
+				{
+					isBreak: false,
+					games: [{ variants: ["lhe"] }, { variants: ["lhe"] }],
+				},
+			],
+		});
 	});
 });

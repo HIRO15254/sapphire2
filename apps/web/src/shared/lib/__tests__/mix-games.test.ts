@@ -3,12 +3,14 @@ import {
 	addGroup,
 	addVariantToGroup,
 	emptyMixGroupRow,
+	fromLevelGames,
 	fromMixGames,
 	type MixGameGroupRow,
 	mixTemplate,
 	moveGroup,
 	removeGroup,
 	removeVariantFromGroup,
+	toLevelGames,
 	toMixGames,
 	updateGroup,
 	usedVariants,
@@ -274,5 +276,36 @@ describe("mixTemplate", () => {
 	it("every template row gets a unique uid", () => {
 		const rows = mixTemplate("8game");
 		expect(new Set(rows.map((r) => r.uid)).size).toBe(rows.length);
+	});
+});
+
+describe("toLevelGames / fromLevelGames", () => {
+	it("strips anteType from the payload (level groups have none)", () => {
+		const games = toLevelGames([
+			row({ variants: ["lhe"], anteType: "bb", ante: "75" }),
+		]);
+		expect(games).toEqual([
+			{
+				name: "Limit",
+				variants: ["lhe"],
+				blind1: 400,
+				blind2: 800,
+				blind3: null,
+				ante: 75,
+			},
+		]);
+	});
+
+	it("returns null when no group has variants", () => {
+		expect(toLevelGames([row({ variants: [] })])).toBeNull();
+	});
+
+	it("round-trips level groups back to editor rows with anteType none", () => {
+		const rows = fromLevelGames([
+			{ name: "Stud", variants: ["razz"], blind1: 300, blind2: 600 },
+		]);
+		expect(rows[0].name).toBe("Stud");
+		expect(rows[0].anteType).toBe("none");
+		expect(fromLevelGames(null)).toEqual([]);
 	});
 });

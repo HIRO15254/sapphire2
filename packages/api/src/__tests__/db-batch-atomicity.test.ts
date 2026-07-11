@@ -239,8 +239,9 @@ describe("persistSessionBlindLevels atomicity (SA2-116)", () => {
 		expect(opsOn(batch, sessionBlindLevel, "delete")).toHaveLength(1);
 		const inserts = opsOn(batch, sessionBlindLevel, "insert");
 		expect(inserts).toHaveLength(2);
-		expect((inserts[0].values as unknown[]).length).toBe(11);
-		expect((inserts[1].values as unknown[]).length).toBe(1);
+		// 10 columns/row (games included) => 10 rows per INSERT (SA2-115).
+		expect((inserts[0].values as unknown[]).length).toBe(10);
+		expect((inserts[1].values as unknown[]).length).toBe(2);
 	});
 });
 

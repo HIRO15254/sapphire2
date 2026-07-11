@@ -69,6 +69,7 @@ export function addLevel(
 			blind3: null,
 			ante: null,
 			minutes: effectiveLastMinutes,
+			games: null,
 		},
 	];
 }
@@ -82,10 +83,17 @@ export function deleteLevel(
 		.map((l, i) => ({ ...l, level: i + 1 }));
 }
 
+export type BlindLevelPatch = Partial<
+	Pick<
+		BlindLevelRow,
+		"blind1" | "blind2" | "blind3" | "ante" | "minutes" | "games"
+	>
+>;
+
 export function updateLevel(
 	levels: BlindLevelRow[],
 	id: string,
-	updates: Record<string, number | null>
+	updates: BlindLevelPatch
 ): BlindLevelRow[] {
 	return levels.map((l) => (l.id === id ? { ...l, ...updates } : l));
 }
@@ -108,6 +116,7 @@ export function createLevel(
 			blind3: null,
 			ante: vals.ante,
 			minutes,
+			games: null,
 		},
 	];
 }

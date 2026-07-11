@@ -6,8 +6,10 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
+import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import type { BlindLevelPatch } from "@/features/rooms/utils/blind-level-helpers";
 import {
 	cancelTargets,
 	invalidateTargets,
@@ -21,6 +23,8 @@ export interface BlindLevelRow {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	/** Per-level game groups for mix tournaments; null = single structure. */
+	games: LevelGameGroup[] | null;
 	id: string;
 	isBreak: boolean;
 	level: number;
@@ -98,6 +102,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 				blind3: null,
 				ante: newLevel.ante ?? null,
 				minutes: newLevel.minutes ?? null,
+				games: null,
 			};
 			queryClient.setQueryData(
 				levelsQueryOptions.queryKey,
@@ -147,7 +152,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 		}: {
 			field: string;
 			id: string;
-			value: number | null;
+			value: LevelGameGroup[] | number | null;
 		}) => trpcClient.blindLevel.update.mutate({ id, [field]: value }),
 		onSettled: () => {
 			invalidateTargets(queryClient, [
@@ -227,7 +232,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 		deleteMutation.mutate(id);
 	};
 
-	const handleUpdate = (id: string, updates: Record<string, number | null>) => {
+	const handleUpdate = (id: string, updates: BlindLevelPatch) => {
 		queryClient.setQueryData(
 			levelsQueryOptions.queryKey,
 			(old: BlindLevelRow[] | undefined) =>

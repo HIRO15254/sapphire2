@@ -1,9 +1,12 @@
 import { useRef } from "react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
-import { parseIntOrNull } from "@/features/rooms/utils/blind-level-helpers";
+import {
+	type BlindLevelPatch,
+	parseIntOrNull,
+} from "@/features/rooms/utils/blind-level-helpers";
 
 interface UseSortableLevelRowOptions {
-	onUpdate: (id: string, updates: Record<string, number | null>) => void;
+	onUpdate: (id: string, updates: BlindLevelPatch) => void;
 	row: BlindLevelRow;
 }
 
@@ -17,7 +20,7 @@ export function useSortableLevelRow({
 	const handleBlind1Blur = (e: React.FocusEvent<HTMLInputElement>) => {
 		const val = e.target.value;
 		const parsed = parseIntOrNull(val);
-		const updates: Record<string, number | null> = { blind1: parsed };
+		const updates: BlindLevelPatch = { blind1: parsed };
 		if (parsed != null) {
 			if (!currentBlind2Ref.current) {
 				const bb = parsed * 2;

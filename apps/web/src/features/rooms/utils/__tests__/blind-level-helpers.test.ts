@@ -274,3 +274,30 @@ describe("parseIntOrNull", () => {
 		expect(parseIntOrNull("Infinity")).toBeNull();
 	});
 });
+
+describe("per-level game groups (mix tournaments)", () => {
+	it("addLevel seeds games as null (no groups yet)", () => {
+		const next = addLevel([], null, false);
+		expect(next[0].games).toBeNull();
+	});
+
+	it("createLevel seeds games as null", () => {
+		const next = createLevel(
+			[],
+			{ ante: null, blind1: 100, blind2: 200, minutes: 20 },
+			null
+		);
+		expect(next[0].games).toBeNull();
+	});
+
+	it("updateLevel can set and clear a level's game groups", () => {
+		const base = addLevel([], null, false);
+		const games = [
+			{ name: "Limit", variants: ["lhe"], blind1: 400, blind2: 800 },
+		];
+		const withGames = updateLevel(base, base[0].id, { games });
+		expect(withGames[0].games).toEqual(games);
+		const cleared = updateLevel(withGames, base[0].id, { games: null });
+		expect(cleared[0].games).toBeNull();
+	});
+});

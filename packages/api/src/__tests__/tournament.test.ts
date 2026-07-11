@@ -450,3 +450,39 @@ describe("tournament currency ownership (SA2-180)", () => {
 		).resolves.toBeDefined();
 	});
 });
+
+describe("tournament createWithLevels per-level games", () => {
+	it("accepts blind levels carrying game groups", () => {
+		expectAccepts(appRouter.tournament.createWithLevels, {
+			roomId: "room-1",
+			name: "HORSE Nightly",
+			variant: "mix",
+			blindLevels: [
+				{
+					isBreak: false,
+					blind1: 100,
+					blind2: 200,
+					minutes: 20,
+					games: [
+						{ name: "Flop", variants: ["lhe", "o8"], blind1: 300, blind2: 600 },
+						{ name: "Stud", variants: ["razz"], blind1: 300, blind2: 600 },
+					],
+				},
+			],
+		});
+	});
+
+	it("updateWithLevels rejects more than 12 groups on one level", () => {
+		expectRejects(appRouter.tournament.updateWithLevels, {
+			id: "t-1",
+			blindLevels: [
+				{
+					isBreak: false,
+					games: Array.from({ length: 13 }, (_, i) => ({
+						variants: [`v${i}`],
+					})),
+				},
+			],
+		});
+	});
+});

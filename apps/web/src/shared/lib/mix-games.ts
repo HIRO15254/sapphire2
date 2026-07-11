@@ -3,7 +3,7 @@
 // cells stay strings (inputMode="numeric" convention, parsed here on
 // submit); `toMixGames` / `fromMixGames` adapt to the shared payload shape
 // in @sapphire2/db/schemas/game.
-import type { MixGameGroup } from "@sapphire2/db/schemas/game";
+import type { LevelGameGroup, MixGameGroup } from "@sapphire2/db/schemas/game";
 
 export interface MixGameGroupRow {
 	ante: string;
@@ -184,4 +184,21 @@ export function mixTemplate(kind: MixTemplateKind): MixGameGroupRow[] {
 		name: g.name,
 		variants: [...g.variants],
 	}));
+}
+
+/**
+ * Editor rows → tournament-level payload (levelGamesSchema shape: no
+ * anteType). Same drop-empty-groups rule as toMixGames.
+ */
+export function toLevelGames(rows: MixGameGroupRow[]): LevelGameGroup[] | null {
+	const games = toMixGames(rows);
+	return games === null
+		? null
+		: games.map(({ anteType: _anteType, ...group }) => group);
+}
+
+export function fromLevelGames(
+	games: LevelGameGroup[] | null | undefined
+): MixGameGroupRow[] {
+	return fromMixGames((games ?? []).map((g) => ({ ...g, anteType: null })));
 }

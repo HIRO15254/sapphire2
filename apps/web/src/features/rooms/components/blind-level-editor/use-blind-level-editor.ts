@@ -9,6 +9,7 @@ import { useState } from "react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	addLevel,
+	type BlindLevelPatch,
 	createLevel,
 	deleteLevel,
 	getEffectiveLastMinutes,
@@ -56,7 +57,7 @@ export function useLocalBlindStructure({
 		onChange(deleteLevel(value, id));
 	};
 
-	const handleUpdate = (id: string, updates: Record<string, number | null>) => {
+	const handleUpdate = (id: string, updates: BlindLevelPatch) => {
 		onChange(updateLevel(value, id, updates));
 		if (updates.minutes != null) {
 			setLastMinutes(updates.minutes);

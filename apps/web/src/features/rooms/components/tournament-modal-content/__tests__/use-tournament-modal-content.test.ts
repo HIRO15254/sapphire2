@@ -13,6 +13,7 @@ const ROW: BlindLevelRow = {
 	blind3: null,
 	ante: null,
 	minutes: 20,
+	games: null,
 };
 
 describe("useTournamentModalContent", () => {

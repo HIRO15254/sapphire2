@@ -2,7 +2,10 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { IconCoffee, IconTrash } from "@tabler/icons-react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
-import { parseIntOrNull } from "@/features/rooms/utils/blind-level-helpers";
+import {
+	type BlindLevelPatch,
+	parseIntOrNull,
+} from "@/features/rooms/utils/blind-level-helpers";
 import { Button } from "@/shared/components/ui/button";
 import { TableCell, TableRow } from "@/shared/components/ui/table";
 import { BlindLevelInput } from "../blind-level-input";
@@ -10,7 +13,7 @@ import { DragHandle } from "../drag-handle";
 
 interface SortableBreakRowProps {
 	onDelete: (id: string) => void;
-	onUpdate: (id: string, updates: Record<string, number | null>) => void;
+	onUpdate: (id: string, updates: BlindLevelPatch) => void;
 	row: BlindLevelRow;
 }
 

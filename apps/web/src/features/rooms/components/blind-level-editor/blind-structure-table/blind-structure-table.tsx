@@ -12,7 +12,10 @@ import {
 import type { BlindLabels } from "@sapphire2/db/constants/game-variants";
 import { IconCoffee, IconPlus } from "@tabler/icons-react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
-import type { NewLevelValues } from "@/features/rooms/utils/blind-level-helpers";
+import type {
+	BlindLevelPatch,
+	NewLevelValues,
+} from "@/features/rooms/utils/blind-level-helpers";
 import { Button } from "@/shared/components/ui/button";
 import {
 	Table,
@@ -22,8 +25,11 @@ import {
 	TableRow,
 } from "@/shared/components/ui/table";
 import { EmptyRow } from "../empty-row";
+import { LevelPatternsSheet } from "../level-patterns-sheet";
 import { SortableBreakRow } from "../sortable-break-row";
+import { SortableGamesRow } from "../sortable-games-row";
 import { SortableLevelRow } from "../sortable-level-row";
+import { useBlindStructureTable } from "./use-blind-structure-table";
 
 interface BlindStructureTableProps {
 	blindLabels: BlindLabels;
@@ -32,8 +38,10 @@ interface BlindStructureTableProps {
 	handleCreateLevel: (values: NewLevelValues) => void;
 	handleDelete: (id: string) => void;
 	handleDragEnd: (event: DragEndEvent) => void;
-	handleUpdate: (id: string, updates: Record<string, number | null>) => void;
+	handleUpdate: (id: string, updates: BlindLevelPatch) => void;
 	isAdding?: boolean;
+	/** Mix tournament: level rows edit per-level game groups instead of flat blinds. */
+	isMix?: boolean;
 	levels: BlindLevelRow[];
 	sensors: SensorDescriptor<SensorOptions>[];
 }
@@ -43,6 +51,7 @@ export function BlindStructureTable({
 	blindLabels,
 	sensors,
 	isAdding = false,
+	isMix = false,
 	handleDragEnd,
 	handleAddBreak,
 	handleAddLevel,
@@ -50,6 +59,9 @@ export function BlindStructureTable({
 	handleUpdate,
 	handleCreateLevel,
 }: BlindStructureTableProps) {
+	const { openLevel, openGamesFor, closeGames } =
+		useBlindStructureTable(levels);
+
 	return (
 		<div className="flex flex-col gap-3">
 			<p className="text-muted-foreground text-sm">
@@ -78,15 +90,26 @@ export function BlindStructureTable({
 						<TableHead className="h-auto w-10 pb-1 text-center font-medium text-muted-foreground text-xs">
 							#
 						</TableHead>
-						<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
-							{blindLabels.blind1}
-						</TableHead>
-						<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
-							{blindLabels.blind2}
-						</TableHead>
-						<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
-							Ante
-						</TableHead>
+						{isMix ? (
+							<TableHead
+								className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs"
+								colSpan={3}
+							>
+								Games
+							</TableHead>
+						) : (
+							<>
+								<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
+									{blindLabels.blind1}
+								</TableHead>
+								<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
+									{blindLabels.blind2}
+								</TableHead>
+								<TableHead className="h-auto pb-1 text-center font-medium text-muted-foreground text-xs">
+									Ante
+								</TableHead>
+							</>
+						)}
 						<TableHead className="h-auto w-12 pb-1 text-center font-medium text-muted-foreground text-xs">
 							Min
 						</TableHead>
@@ -104,29 +127,60 @@ export function BlindStructureTable({
 								items={levels.map((l) => l.id)}
 								strategy={verticalListSortingStrategy}
 							>
-								{levels.map((row) =>
-									row.isBreak ? (
-										<SortableBreakRow
-											key={row.id}
-											onDelete={handleDelete}
-											onUpdate={handleUpdate}
-											row={row}
-										/>
-									) : (
+								{levels.map((row) => {
+									if (row.isBreak) {
+										return (
+											<SortableBreakRow
+												key={row.id}
+												onDelete={handleDelete}
+												onUpdate={handleUpdate}
+												row={row}
+											/>
+										);
+									}
+									if (isMix) {
+										return (
+											<SortableGamesRow
+												key={row.id}
+												onDelete={handleDelete}
+												onOpenGames={openGamesFor}
+												onUpdate={handleUpdate}
+												row={row}
+											/>
+										);
+									}
+									return (
 										<SortableLevelRow
 											key={row.id}
 											onDelete={handleDelete}
 											onUpdate={handleUpdate}
 											row={row}
 										/>
-									)
-								)}
+									);
+								})}
 							</SortableContext>
 						</DndContext>
 					)}
 					<EmptyRow onCreateLevel={handleCreateLevel} />
 				</TableBody>
 			</Table>
+			{isMix ? (
+				<LevelPatternsSheet
+					games={openLevel?.games ?? null}
+					level={openLevel?.level ?? 1}
+					onOpenChange={(open) => {
+						if (!open) {
+							closeGames();
+						}
+					}}
+					onSave={(games) => {
+						if (openLevel) {
+							handleUpdate(openLevel.id, { games });
+						}
+					}}
+					open={openLevel !== null}
+				/>
+			) : null}
 		</div>
 	);
 }

@@ -11,6 +11,7 @@ import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase"
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
+import { levelGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import z from "zod";
@@ -842,6 +843,7 @@ export const liveTournamentSessionRouter = router({
 							blind3: z.number().int().nullable().optional(),
 							ante: z.number().int().nullable().optional(),
 							minutes: z.number().int().nullable().optional(),
+							games: levelGamesSchema.nullish(),
 						})
 					)
 					.optional(),

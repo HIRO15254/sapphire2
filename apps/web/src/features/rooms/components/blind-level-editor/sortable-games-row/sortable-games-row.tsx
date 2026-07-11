@@ -1,6 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { IconTrash } from "@tabler/icons-react";
+import { IconChevronRight, IconTrash } from "@tabler/icons-react";
+import { groupDisplayLabel } from "@/features/live-sessions/utils/game-scene-formatters";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { useSortableLevelRow } from "@/features/rooms/hooks/use-sortable-level-row";
 import type { BlindLevelPatch } from "@/features/rooms/utils/blind-level-helpers";
@@ -10,17 +11,24 @@ import { TableCell, TableRow } from "@/shared/components/ui/table";
 import { BlindLevelInput } from "../blind-level-input";
 import { DragHandle } from "../drag-handle";
 
-interface SortableLevelRowProps {
+interface SortableGamesRowProps {
 	onDelete: (id: string) => void;
+	onOpenGames: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;
 	row: BlindLevelRow;
 }
 
-export function SortableLevelRow({
+/**
+ * Mix-mode level row: the flat blind cells are replaced by a "Games (n)"
+ * summary button that opens the per-level group editor sheet; minutes and
+ * delete stay inline.
+ */
+export function SortableGamesRow({
 	row,
 	onDelete,
+	onOpenGames,
 	onUpdate,
-}: SortableLevelRowProps) {
+}: SortableGamesRowProps) {
 	const {
 		attributes,
 		listeners,
@@ -30,18 +38,19 @@ export function SortableLevelRow({
 		isDragging,
 	} = useSortable({ id: row.id });
 
-	const {
-		handleBlind1Blur,
-		handleBlind2Blur,
-		handleAnteBlur,
-		handleMinutesBlur,
-	} = useSortableLevelRow({ row, onUpdate });
+	const { handleMinutesBlur } = useSortableLevelRow({ row, onUpdate });
 
 	const style = {
 		transform: CSS.Transform.toString(transform),
 		transition,
 		opacity: isDragging ? 0.5 : 1,
 	};
+
+	const groups = row.games ?? [];
+	const summary =
+		groups.length > 0
+			? groups.map((group) => groupDisplayLabel(group)).join(" · ")
+			: "No games";
 
 	return (
 		<TableRow
@@ -55,26 +64,17 @@ export function SortableLevelRow({
 					<span className="text-muted-foreground text-xs">{row.level}</span>
 				</div>
 			</TableCell>
-			<TableCell className="p-0 px-0.5">
-				<BlindLevelInput
-					defaultValue={row.blind1 ?? ""}
-					key={`${row.id}-blind1`}
-					onBlur={handleBlind1Blur}
-				/>
-			</TableCell>
-			<TableCell className="p-0 px-0.5">
-				<BlindLevelInput
-					defaultValue={row.blind2 ?? ""}
-					key={`${row.id}-blind2-${row.blind2}`}
-					onBlur={handleBlind2Blur}
-				/>
-			</TableCell>
-			<TableCell className="p-0 px-0.5">
-				<BlindLevelInput
-					defaultValue={row.ante ?? ""}
-					key={`${row.id}-ante-${row.ante}`}
-					onBlur={handleAnteBlur}
-				/>
+			<TableCell className="p-0 px-0.5" colSpan={3}>
+				<Button
+					className="w-full justify-between font-normal"
+					onClick={() => onOpenGames(row.id)}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					<span className="truncate text-xs">{summary}</span>
+					<IconChevronRight className="shrink-0" size={14} />
+				</Button>
 			</TableCell>
 			<TableCell className="w-12 p-0 px-0.5">
 				<BlindLevelInput

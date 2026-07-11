@@ -1,5 +1,6 @@
 import { room } from "@sapphire2/db/schema/room";
 import { blindLevel, tournament } from "@sapphire2/db/schema/tournament";
+import { levelGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq } from "drizzle-orm";
 import z from "zod";
@@ -92,6 +93,7 @@ export const blindLevelRouter = router({
 				blind3: z.number().int().optional(),
 				ante: z.number().int().optional(),
 				minutes: z.number().int().optional(),
+				games: levelGamesSchema.nullish(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -109,6 +111,7 @@ export const blindLevelRouter = router({
 				blind3: input.blind3 ?? null,
 				ante: input.ante ?? null,
 				minutes: input.minutes ?? null,
+				games: input.games ?? null,
 			});
 
 			const [created] = await ctx.db
@@ -129,6 +132,7 @@ export const blindLevelRouter = router({
 				blind3: z.number().int().nullable().optional(),
 				ante: z.number().int().nullable().optional(),
 				minutes: z.number().int().nullable().optional(),
+				games: levelGamesSchema.nullish(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -156,6 +160,9 @@ export const blindLevelRouter = router({
 			}
 			if (input.minutes !== undefined) {
 				updateData.minutes = input.minutes;
+			}
+			if (input.games !== undefined) {
+				updateData.games = input.games;
 			}
 
 			await ctx.db

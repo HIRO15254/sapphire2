@@ -136,3 +136,58 @@ describe("formatBlindLevelLabel", () => {
 		expect(label).toBe("L1 —");
 	});
 });
+
+describe("formatBlindLevelLabel — mix levels", () => {
+	const games = [
+		{
+			name: "Limit",
+			variants: ["lhe", "o8"],
+			blind1: 400,
+			blind2: 800,
+			blind3: null,
+			ante: null,
+		},
+		{
+			name: null,
+			variants: ["nlh", "plo"],
+			blind1: 100,
+			blind2: 200,
+			blind3: null,
+			ante: null,
+		},
+		{
+			name: "Stud",
+			variants: ["razz"],
+			blind1: 400,
+			blind2: 800,
+			blind3: 100,
+			ante: 75,
+		},
+	];
+
+	it("renders one segment per group, truncating past two groups", () => {
+		const level = makeLevel({ level: 3 });
+		expect(formatBlindLevelLabel({ ...level, games })).toBe(
+			"L3 · Limit 400/800 · NLH+PLO 100/200 (+1)"
+		);
+	});
+
+	it("renders both groups without a suffix at exactly two groups", () => {
+		const level = makeLevel({ level: 1 });
+		expect(formatBlindLevelLabel({ ...level, games: games.slice(0, 2) })).toBe(
+			"L1 · Limit 400/800 · NLH+PLO 100/200"
+		);
+	});
+
+	it("falls back to the flat label when games is empty or absent", () => {
+		const level = makeLevel({ level: 2, blind1: 100, blind2: 200 });
+		expect(formatBlindLevelLabel({ ...level, games: [] })).toBe(
+			formatBlindLevelLabel(level)
+		);
+	});
+
+	it("keeps the Break label for mix break levels", () => {
+		const level = { ...makeLevel({ level: 4 }), isBreak: true, games };
+		expect(formatBlindLevelLabel(level)).toBe("Break (L4)");
+	});
+});

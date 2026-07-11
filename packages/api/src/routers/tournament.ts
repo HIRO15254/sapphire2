@@ -5,6 +5,7 @@ import {
 	tournamentChipPurchase,
 } from "@sapphire2/db/schema/tournament";
 import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
+import { levelGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import z from "zod";
@@ -341,6 +342,7 @@ export const tournamentRouter = router({
 							blind3: z.number().int().nullable().optional(),
 							ante: z.number().int().nullable().optional(),
 							minutes: z.number().int().nullable().optional(),
+							games: levelGamesSchema.nullish(),
 						})
 					)
 					.optional(),
@@ -404,6 +406,7 @@ export const tournamentRouter = router({
 						blind3: l.blind3 ?? null,
 						ante: l.ante ?? null,
 						minutes: l.minutes ?? null,
+						games: l.games ?? null,
 					})
 				),
 			];
@@ -447,6 +450,7 @@ export const tournamentRouter = router({
 						blind3: z.number().int().nullable().optional(),
 						ante: z.number().int().nullable().optional(),
 						minutes: z.number().int().nullable().optional(),
+						games: levelGamesSchema.nullish(),
 					})
 				),
 			})
@@ -551,6 +555,7 @@ export const tournamentRouter = router({
 						blind3: l.blind3 ?? null,
 						ante: l.ante ?? null,
 						minutes: l.minutes ?? null,
+						games: l.games ?? null,
 					})
 				)
 			);

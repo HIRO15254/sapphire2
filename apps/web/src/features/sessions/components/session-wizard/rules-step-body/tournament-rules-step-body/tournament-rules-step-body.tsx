@@ -117,6 +117,7 @@ function TournamentSettingsTab({
 									<VariantSelect
 										disabled={isLiveLinked}
 										id={field.name}
+										includeMix
 										onChange={(v) => field.handleChange(v)}
 										value={field.state.value}
 									/>

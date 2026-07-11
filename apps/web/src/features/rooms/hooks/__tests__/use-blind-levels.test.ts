@@ -61,6 +61,7 @@ function level(overrides: Partial<BlindLevelRow> = {}): BlindLevelRow {
 		blind3: null,
 		ante: 25,
 		minutes: 20,
+		games: null,
 		...overrides,
 	};
 }
