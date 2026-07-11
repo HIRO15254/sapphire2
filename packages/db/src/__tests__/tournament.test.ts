@@ -341,3 +341,12 @@ describe("TournamentChipPurchase — FKs, indexes, and defaults", () => {
 		expect(columns.chips.notNull).toBe(true);
 	});
 });
+
+describe("blindLevel.games column", () => {
+	it("games is a nullable JSON column (per-level game groups)", () => {
+		const columns = getTableColumns(blindLevel);
+		expect(columns.games).toBeDefined();
+		expect(columns.games.notNull).toBe(false);
+		expect(columns.games.columnType).toBe("SQLiteTextJson");
+	});
+});

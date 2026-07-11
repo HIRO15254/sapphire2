@@ -150,6 +150,55 @@ function RingGameCardTitle({
 	);
 }
 
+/**
+ * Blind-structure rows of the details card: one row per game group for a
+ * mix snapshot, or the single flat Blinds row otherwise. Group keys use the
+ * variants signature — the shared schema forbids a game appearing in two
+ * groups, so it is unique and stable.
+ */
+function CashBlindRows({
+	snapshot,
+	master,
+	blindsModified,
+	currencyUnit,
+}: {
+	snapshot: CashSnapshotDisplay;
+	master: RingGame;
+	blindsModified: boolean;
+	currencyUnit: string | null | undefined;
+}) {
+	if (snapshot.mixGames && snapshot.mixGames.length > 0) {
+		return (
+			<>
+				{snapshot.mixGames.map((group) => (
+					<DetailRow
+						key={group.variants.join("+")}
+						label={groupDisplayLabel(group)}
+						value={formatGroupStakes(group)}
+					/>
+				))}
+			</>
+		);
+	}
+	const blindsStr = formatBlindParts(snapshot);
+	const anteStr = formatAnteSuffix(snapshot);
+	return (
+		<DetailRow
+			badge={
+				blindsModified ? (
+					<ModifiedBadge masterValue={formatBlindParts(master) || "—"} />
+				) : null
+			}
+			label="Blinds"
+			value={
+				blindsStr
+					? `${blindsStr}${anteStr ? ` ${anteStr}` : ""}${currencyUnit ? ` ${currencyUnit}` : ""}`
+					: "—"
+			}
+		/>
+	);
+}
+
 function RingGameDetailsCard({
 	snapshot,
 	master,
@@ -165,8 +214,6 @@ function RingGameDetailsCard({
 		import("@/features/live-sessions/utils/snapshot-diff").CashDiffField
 	>;
 }) {
-	const blindsStr = formatBlindParts(snapshot);
-	const anteStr = formatAnteSuffix(snapshot);
 	const fmt = createGroupFormatter([snapshot.minBuyIn, snapshot.maxBuyIn]);
 	const buyInStr = (() => {
 		if (snapshot.minBuyIn == null && snapshot.maxBuyIn == null) {
@@ -176,8 +223,9 @@ function RingGameDetailsCard({
 		const max = snapshot.maxBuyIn == null ? "—" : fmt(snapshot.maxBuyIn);
 		return `${min} - ${max}${currencyUnit ? ` ${currencyUnit}` : ""}`;
 	})();
-	const blindsModified =
-		diff.blind1 || diff.blind2 || diff.blind3 || diff.ante || diff.anteType;
+	const blindsModified = Boolean(
+		diff.blind1 || diff.blind2 || diff.blind3 || diff.ante || diff.anteType
+	);
 	const buyInModified = diff.minBuyIn || diff.maxBuyIn;
 
 	return (
@@ -186,29 +234,12 @@ function RingGameDetailsCard({
 				<RingGameCardTitle diff={diff} master={master} snapshot={snapshot} />
 			</CardHeader>
 			<CardContent className="divide-y">
-				{snapshot.mixGames && snapshot.mixGames.length > 0 ? (
-					snapshot.mixGames.map((group, index) => (
-						<DetailRow
-							key={`${groupDisplayLabel(group)}-${index}`}
-							label={groupDisplayLabel(group)}
-							value={formatGroupStakes(group)}
-						/>
-					))
-				) : (
-					<DetailRow
-						badge={
-							blindsModified ? (
-								<ModifiedBadge masterValue={formatBlindParts(master) || "—"} />
-							) : null
-						}
-						label="Blinds"
-						value={
-							blindsStr
-								? `${blindsStr}${anteStr ? ` ${anteStr}` : ""}${currencyUnit ? ` ${currencyUnit}` : ""}`
-								: "—"
-						}
-					/>
-				)}
+				<CashBlindRows
+					blindsModified={blindsModified}
+					currencyUnit={currencyUnit}
+					master={master}
+					snapshot={snapshot}
+				/>
 				<DetailRow
 					badge={
 						buyInModified ? (

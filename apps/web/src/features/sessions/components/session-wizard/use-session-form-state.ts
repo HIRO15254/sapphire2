@@ -97,6 +97,25 @@ export function useSessionFormState({
 	const gameOptions = isCashGame ? ringGames : tournaments;
 	const gameLabel = isCashGame ? "Cash game" : "Tournament";
 
+	// Extracted from onSubmit to keep its cognitive complexity in budget.
+	const buildCashSubmitValues = (value: SessionFormFieldValues) => ({
+		type: "cash_game" as const,
+		buyIn: Number(value.buyIn),
+		cashOut: Number(value.cashOut),
+		evCashOut: parseOptInt(value.evCashOut),
+		variant: value.variant || "nlh",
+		mixGames: value.variant === "mix" ? toMixGames(mixGames) : null,
+		blind1: parseOptInt(value.blind1),
+		blind2: parseOptInt(value.blind2),
+		blind3: parseOptInt(value.blind3),
+		ante: value.anteType === "none" ? undefined : parseOptInt(value.ante),
+		anteType: value.anteType || undefined,
+		tableSize: parseOptInt(value.tableSize),
+		minBuyIn: parseOptInt(value.minBuyIn),
+		maxBuyIn: parseOptInt(value.maxBuyIn),
+		ringGameId: selectedGameId,
+	});
+
 	const form = useForm({
 		defaultValues: buildDefaults(defaultValues),
 		onSubmit: ({ value }) => {
@@ -113,24 +132,7 @@ export function useSessionFormState({
 			};
 
 			if (isCashGame) {
-				onSubmit({
-					...common,
-					type: "cash_game",
-					buyIn: Number(value.buyIn),
-					cashOut: Number(value.cashOut),
-					evCashOut: parseOptInt(value.evCashOut),
-					variant: value.variant || "nlh",
-					mixGames: value.variant === "mix" ? toMixGames(mixGames) : null,
-					blind1: parseOptInt(value.blind1),
-					blind2: parseOptInt(value.blind2),
-					blind3: parseOptInt(value.blind3),
-					ante: value.anteType === "none" ? undefined : parseOptInt(value.ante),
-					anteType: value.anteType || undefined,
-					tableSize: parseOptInt(value.tableSize),
-					minBuyIn: parseOptInt(value.minBuyIn),
-					maxBuyIn: parseOptInt(value.maxBuyIn),
-					ringGameId: selectedGameId,
-				});
+				onSubmit({ ...common, ...buildCashSubmitValues(value) });
 				return;
 			}
 
