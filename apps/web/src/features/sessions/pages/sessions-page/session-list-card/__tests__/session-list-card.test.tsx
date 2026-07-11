@@ -15,6 +15,7 @@ const OVERFLOW_RE = /^\+\d+$/;
 
 const baseSession: SessionListCardItem = {
 	breakMinutes: null,
+	cashVariant: null,
 	chipPurchaseCost: 0,
 	currencyUnit: null,
 	endedAt: null,
@@ -33,6 +34,7 @@ const baseSession: SessionListCardItem = {
 	totalEntries: null,
 	tournamentBuyIn: null,
 	tournamentName: null,
+	tournamentVariant: null,
 	type: "cash_game",
 };
 
@@ -257,5 +259,30 @@ describe("SessionListCard", () => {
 		renderCard({ ...baseSession, id: "s42" });
 		const link = await screen.findByRole("link");
 		expect(link).toHaveAttribute("href", "/sessions/s42");
+	});
+
+	it("shows the short variant label for a cash session's preset variant", async () => {
+		renderCard({ ...baseSession, cashVariant: "nlh" });
+		await screen.findByText("1/2 NLH");
+		expect(screen.getByText("NLH")).toBeInTheDocument();
+	});
+
+	it("shows the short variant label for a tournament's preset variant", async () => {
+		renderCard({ ...baseTournament, tournamentVariant: "mix" });
+		await screen.findByText("Sunday Major");
+		expect(screen.getByText("Mix")).toBeInTheDocument();
+	});
+
+	it("passes a custom variant string through raw", async () => {
+		renderCard({ ...baseSession, cashVariant: "Big Duck" });
+		await screen.findByText("1/2 NLH");
+		expect(screen.getByText("Big Duck")).toBeInTheDocument();
+	});
+
+	it("omits the variant badge when neither cash nor tournament variant is set", async () => {
+		renderCard(baseSession);
+		await screen.findByText("1/2 NLH");
+		expect(screen.queryByText("NLH")).not.toBeInTheDocument();
+		expect(screen.queryByText("Big Duck")).not.toBeInTheDocument();
 	});
 });

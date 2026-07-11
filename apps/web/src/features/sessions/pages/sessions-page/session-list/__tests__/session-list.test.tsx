@@ -15,6 +15,7 @@ function makeSession(
 ): SessionListCardItem {
 	return {
 		breakMinutes: null,
+		cashVariant: null,
 		chipPurchaseCost: 0,
 		currencyUnit: null,
 		endedAt: null,
@@ -32,6 +33,7 @@ function makeSession(
 		totalEntries: null,
 		tournamentBuyIn: null,
 		tournamentName: null,
+		tournamentVariant: null,
 		type: "cash_game",
 		...overrides,
 	};
