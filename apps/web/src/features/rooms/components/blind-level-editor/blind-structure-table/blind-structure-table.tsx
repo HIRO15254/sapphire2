@@ -9,6 +9,7 @@ import {
 	SortableContext,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import type { BlindLabels } from "@sapphire2/db/constants/game-variants";
 import { IconCoffee, IconPlus } from "@tabler/icons-react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import type { NewLevelValues } from "@/features/rooms/utils/blind-level-helpers";
@@ -25,7 +26,7 @@ import { SortableBreakRow } from "../sortable-break-row";
 import { SortableLevelRow } from "../sortable-level-row";
 
 interface BlindStructureTableProps {
-	blindLabels: { blind1: string; blind2: string; blind3: string };
+	blindLabels: BlindLabels;
 	handleAddBreak: () => void;
 	handleAddLevel: () => void;
 	handleCreateLevel: (values: NewLevelValues) => void;

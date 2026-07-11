@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
 	formatAnteSuffix,
 	formatBlindParts,
-	VARIANT_LABELS,
+	formatGroupStakes,
+	formatMixSummary,
+	type GameGroupLike,
+	groupDisplayLabel,
 	variantLabel,
 } from "@/features/live-sessions/utils/game-scene-formatters";
 import type { RingGame } from "@/features/rooms/hooks/use-ring-games";
@@ -24,22 +27,32 @@ function ringGame(overrides: Partial<RingGame> = {}): RingGame {
 	} as RingGame;
 }
 
+function group(overrides: Partial<GameGroupLike> = {}): GameGroupLike {
+	return {
+		variants: ["nlh"],
+		...overrides,
+	};
+}
+
 describe("variantLabel", () => {
 	it("maps 'nlh' to 'NLH'", () => {
 		expect(variantLabel("nlh")).toBe("NLH");
 	});
 
-	it("uppercases unknown variants", () => {
+	it("maps 'plo' to 'PLO'", () => {
 		expect(variantLabel("plo")).toBe("PLO");
-		expect(variantLabel("mixed")).toBe("MIXED");
 	});
 
-	it("returns empty uppercase for empty string", () => {
+	it("maps 'mix' to 'Mix'", () => {
+		expect(variantLabel("mix")).toBe("Mix");
+	});
+
+	it("passes through a custom variant's display label unchanged (no uppercasing)", () => {
+		expect(variantLabel("Custom Game")).toBe("Custom Game");
+	});
+
+	it("passes through an empty string unchanged", () => {
 		expect(variantLabel("")).toBe("");
-	});
-
-	it("VARIANT_LABELS exposes known mappings", () => {
-		expect(VARIANT_LABELS.nlh).toBe("NLH");
 	});
 });
 
@@ -122,5 +135,147 @@ describe("formatAnteSuffix", () => {
 		expect(formatAnteSuffix(ringGame({ ante: 15_000, anteType: "all" }))).toBe(
 			"(Ante:15k)"
 		);
+	});
+});
+
+describe("groupDisplayLabel", () => {
+	it("uses the group's name when present", () => {
+		expect(
+			groupDisplayLabel(group({ name: "Round 1", variants: ["nlh", "plo"] }))
+		).toBe("Round 1");
+	});
+
+	it("falls back to variant short labels when name is whitespace-only", () => {
+		expect(
+			groupDisplayLabel(group({ name: "   ", variants: ["nlh", "plo"] }))
+		).toBe("NLH+PLO");
+	});
+
+	it("joins variant short labels with '+' when no name is set", () => {
+		expect(groupDisplayLabel(group({ variants: ["nlh", "plo", "stud"] }))).toBe(
+			"NLH+PLO+Stud"
+		);
+	});
+
+	it("returns '—' when variants is empty and no name is set", () => {
+		expect(groupDisplayLabel(group({ variants: [] }))).toBe("—");
+	});
+});
+
+describe("formatGroupStakes", () => {
+	it("formats blind1/blind2 with no blind3 slot for a limit-family variant", () => {
+		expect(
+			formatGroupStakes(group({ variants: ["lhe"], blind1: 1, blind2: 2 }))
+		).toBe("1/2");
+	});
+
+	it("appends blind3 with a slash for a straddle-family variant", () => {
+		expect(
+			formatGroupStakes(
+				group({ variants: ["nlh"], blind1: 1, blind2: 2, blind3: 5 })
+			)
+		).toBe("1/2/5");
+	});
+
+	it("uses a ' BI <n>' prefix-style suffix and an Ante suffix for a stud-family group with no anteType", () => {
+		expect(
+			formatGroupStakes(
+				group({
+					variants: ["stud"],
+					blind1: 400,
+					blind2: 800,
+					blind3: 100,
+					ante: 75,
+				})
+			)
+		).toBe("400/800 BI 100 (Ante:75)");
+	});
+
+	it("uses the BBA suffix convention when anteType is 'bb'", () => {
+		expect(
+			formatGroupStakes(
+				group({
+					variants: ["nlh"],
+					blind1: 1,
+					blind2: 2,
+					ante: 1,
+					anteType: "bb",
+				})
+			)
+		).toBe("1/2 (BBA:1)");
+	});
+
+	it("uses the Ante suffix convention when anteType is 'all'", () => {
+		expect(
+			formatGroupStakes(
+				group({
+					variants: ["nlh"],
+					blind1: 1,
+					blind2: 2,
+					ante: 3,
+					anteType: "all",
+				})
+			)
+		).toBe("1/2 (Ante:3)");
+	});
+
+	it("inserts a '—' placeholder when blind1 is present but blind2 is null", () => {
+		expect(formatGroupStakes(group({ variants: ["nlh"], blind1: 100 }))).toBe(
+			"100/—"
+		);
+	});
+
+	it("returns '—' when every numeric field is null", () => {
+		expect(formatGroupStakes(group({ variants: ["nlh"] }))).toBe("—");
+	});
+
+	it("applies compact notation across the group's numeric fields", () => {
+		expect(
+			formatGroupStakes(
+				group({ variants: ["nlh"], blind1: 10_000, blind2: 20_000 })
+			)
+		).toBe("10k/20k");
+	});
+});
+
+describe("formatMixSummary", () => {
+	it("returns 'Mix' for an empty groups array", () => {
+		expect(formatMixSummary([])).toBe("Mix");
+	});
+
+	it("renders a single group with its label and stakes", () => {
+		expect(
+			formatMixSummary([group({ variants: ["nlh"], blind1: 1, blind2: 2 })])
+		).toBe("Mix · NLH 1/2");
+	});
+
+	it("truncates beyond maxGroups and appends a (+k) suffix", () => {
+		const groups = [
+			group({ variants: ["nlh"], blind1: 1, blind2: 2 }),
+			group({ variants: ["plo"], blind1: 2, blind2: 4 }),
+			group({ variants: ["stud"], blind1: 400, blind2: 800 }),
+		];
+		expect(formatMixSummary(groups)).toBe("Mix · NLH 1/2 · PLO 2/4 (+1)");
+	});
+
+	it("respects a custom maxGroups", () => {
+		const groups = [
+			group({ variants: ["nlh"], blind1: 1, blind2: 2 }),
+			group({ variants: ["plo"], blind1: 2, blind2: 4 }),
+			group({ variants: ["stud"], blind1: 400, blind2: 800 }),
+		];
+		expect(formatMixSummary(groups, 1)).toBe("Mix · NLH 1/2 (+2)");
+	});
+
+	it("omits the stakes segment when formatGroupStakes returns '—'", () => {
+		expect(formatMixSummary([group({ variants: ["nlh"] })])).toBe("Mix · NLH");
+	});
+
+	it("does not append a (+k) suffix when nothing was truncated", () => {
+		const groups = [
+			group({ variants: ["nlh"], blind1: 1, blind2: 2 }),
+			group({ variants: ["plo"], blind1: 2, blind2: 4 }),
+		];
+		expect(formatMixSummary(groups)).toBe("Mix · NLH 1/2 · PLO 2/4");
 	});
 });

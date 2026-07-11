@@ -1,3 +1,7 @@
+import {
+	GAME_VARIANTS,
+	resolveBlindLabels,
+} from "@sapphire2/db/constants/game-variants";
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -11,15 +15,6 @@ import {
 import { Textarea } from "@/shared/components/ui/textarea";
 import { BlindFields } from "./blind-fields";
 import { useRingGameForm } from "./use-ring-game-form";
-
-const GAME_VARIANTS = {
-	nlh: {
-		label: "NL Hold'em",
-		blindLabels: { blind1: "SB", blind2: "BB", blind3: "Straddle" },
-	},
-} as const;
-
-type Variant = keyof typeof GAME_VARIANTS;
 
 type AnteType = "all" | "bb" | "none";
 
@@ -49,12 +44,7 @@ export function RingGameForm({
 }: RingGameFormProps) {
 	const { form, currencies } = useRingGameForm({ defaultValues, onSubmit });
 
-	const variantKey = (defaultValues?.variant ?? "nlh") as Variant;
-	const blindLabels = GAME_VARIANTS[variantKey]?.blindLabels ?? {
-		blind1: "SB",
-		blind2: "BB",
-		blind3: "Straddle",
-	};
+	const blindLabels = resolveBlindLabels(defaultValues?.variant ?? "nlh");
 
 	return (
 		<form
@@ -95,11 +85,13 @@ export function RingGameForm({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								{Object.entries(GAME_VARIANTS).map(([key, val]) => (
-									<SelectItem key={key} value={key}>
-										{val.label}
-									</SelectItem>
-								))}
+								{Object.entries(GAME_VARIANTS)
+									.filter(([, val]) => !val.isMix)
+									.map(([key, val]) => (
+										<SelectItem key={key} value={key}>
+											{val.label}
+										</SelectItem>
+									))}
 							</SelectContent>
 						</Select>
 					</Field>
