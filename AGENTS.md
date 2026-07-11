@@ -1,0 +1,200 @@
+# sapphire2 — Project Guide for AI Agents
+
+`AGENTS.md` is the single source of truth for agent instructions in this repo, shared across Codex, Claude Code, and other AGENTS.md-aware tools. Claude Code loads it via a one-line `@AGENTS.md` import in [`CLAUDE.md`](CLAUDE.md). **Edit this file, not `CLAUDE.md`.** Keep it concise (≤200 lines): general facts that must be remembered across turns. Historical context (PR numbers, past refactors) belongs in git / PR descriptions, not here.
+
+Companion memory files:
+
+- [`.claude/rules/`](.claude/rules/) — path-scoped rule files. Claude Code auto-loads each one when files under its `paths:` glob are touched; **other agents (Codex etc.) must read the matching rule file manually before editing files under those paths** — see the table near the bottom.
+
+## Communication
+
+- **Think in English, reply in Japanese.** Internal reasoning is in English; every document presented to the user (chat replies, proposals, explanations) is written in Japanese.
+- This is orthogonal to code conventions: UI copy stays English-only ([`.claude/rules/web-ui.md`](.claude/rules/web-ui.md)), and code identifiers / comments / commit messages / PR descriptions follow their existing rules.
+
+## Stack
+
+- **Runtime / package manager**: Bun 1.3 (workspaces). Always use `bun`, never `npm` / `yarn` / `pnpm`.
+- **Web**: React 19, Vite, TanStack Router, TanStack Query, tRPC v11 client, Tailwind v4, shadcn/ui, `@tanstack/react-form`.
+- **Server**: Hono on Cloudflare Workers, tRPC v11 server, Better Auth.
+- **DB**: Cloudflare D1 (SQLite) via Drizzle ORM. Migrations in `packages/db/src/migrations`.
+- **Validation**: Zod (workspace catalog). Import as `import z from "zod"` (default import) — a Vite bundler issue breaks the namespace import.
+- **Tests**: Vitest + Testing Library (jsdom).
+- **Lint / format**: Ultracite (Biome preset) — its defaults are the code standard; run via `bun run lint` / `bun run fix`.
+- **Icons**: `@tabler/icons-react` only. Do not add `lucide-react` imports in new code.
+
+## Commands
+
+Run from repo root:
+
+```sh
+bun run dev              # all apps (web on :3001, server)
+bun run dev:web          # web only
+bun run dev:server       # server only
+bun run test             # vitest run (all workspaces)
+bun run test:watch       # vitest watch
+bun run lint             # ultracite check
+bun run fix              # ultracite fix (auto-format & auto-fix)
+bun run check-types      # tsc --noEmit (all workspaces)
+bun run build            # build all workspaces
+bun run db:generate      # drizzle-kit generate — default for schema-shape changes; hand-write only data/rename/destructive migrations. see .claude/rules/db-migrations.md
+bun run db:migrate:local # apply migrations to local D1
+bun run db:studio        # drizzle-kit studio
+```
+
+Pre-PR verification: `bun run lint && bun run check-types && bun run test`.
+
+## Repository Layout
+
+```text
+apps/
+  web/     React SPA (apps/web/src/**)
+  server/  Hono + tRPC on Cloudflare Workers
+packages/
+  api/     tRPC routers — source of truth for client types
+  db/      Drizzle schema + migrations (Cloudflare D1)
+  auth/    Better Auth setup
+  env/     Zod-typed env vars
+  config/  Shared TS / Biome configs
+```
+
+`apps/web/src/` layout:
+
+```text
+features/<feature>/
+  components/<component>/  shared component judged likely to be reused across pages: <component>.tsx + use-<component>.ts + index.ts
+  pages/<page>/            page component + use-<page>-page.ts + index.ts + __tests__ (route file stays thin)
+    <subcomponent>/        single-use child of this page → its own folder + index.ts
+  hooks/                   cross-component data hooks (use-players.ts, use-currencies.ts, ...)
+  utils/                   feature-local pure helpers
+  __tests__/               feature-local tests
+routes/                    TanStack Router tree; route files delegate to features/<feature>/pages/<page>
+shared/
+  components/ui/           shadcn primitives (Button, Select, Avatar, Badge, Table, ...)
+  components/              cross-feature composites (PageHeader, AuthenticatedShell, FormSheet, ...)
+  hooks/                   cross-feature hooks (use-media-query, use-online-status, ...)
+  lib/                     cross-feature helpers (form-fields, ...)
+utils/                     truly global helpers (optimistic-update, formatters, ...)
+```
+
+When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. **Every page follows the `pages/<page>/` pattern**: the route file stays thin (`createFileRoute` + `Route.useParams()` only) and delegates to a page component in `features/<feature>/pages/<page>/`, colocated with its `use-<page>-page.ts` hook. Extract a subcomponent into a child folder once the parent component file exceeds 300 lines (or earlier when a part is single-use but self-contained); a list component owns its own loading / empty / data switch and binds its skeleton's shape to the card it mirrors; `FormSheet` is composed at the page level around a bare form component. **Placement follows consumers**: a component used by exactly one page lives in that page's child folders; a component used by exactly one parent component lives in a child folder of that parent (its hook colocates the same way); only components designed as generic building blocks stay in `components/` / `shared/` while they happen to have a single consumer. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it. `features/currencies/`, `features/players/`, `features/sessions/`, and `features/live-sessions/pages/active-session-page/` are the reference implementations.
+
+## Release Flow
+
+- **Branches**: `feature → dev → release/vX.Y.Z → main`. `dev` is the default base for PRs; `main` only accepts PRs whose head branch matches `release/v[0-9]+\.[0-9]+\.[0-9]+` (enforced by [`pr-target-guard.yml`](.github/workflows/pr-target-guard.yml) + GitHub Ruleset [`main-release-only.json`](.github/rulesets/main-release-only.json)).
+- **Cutting a release**: `git checkout -b release/vX.Y.Z dev && git push -u origin HEAD`, then `gh pr create --base main`. On merge, [`release.yml`](.github/workflows/release.yml) auto-generates notes via the `/create-update-notes` skill, creates the tag, and publishes the GitHub Release — which in turn fires [`production-deploy.yml`](.github/workflows/production-deploy.yml).
+- **Merge release PRs with a MERGE COMMIT, never squash.** Squashing collapses `dev`'s commit history into a single commit on `main`, so `main` and `dev` share no common ancestry. Each subsequent `release/vX.Y.Z → main` PR then re-diffs from before the previous release and every already-released file explodes into a phantom conflict (`mergeable_state: dirty`, thousands of files). A real merge commit keeps `dev`'s commits reachable from `main`, so the next release stays a clean fast-forward. If a release PR ever shows mass conflicts, the fix is `git merge -s ours origin/main` on the release branch (records `main` as a parent, keeps `dev`'s tree — verify `HEAD^{tree}` equals `origin/dev^{tree}` before pushing) — it reconciles history without changing content.
+- **Manual release notes**: invoke `/create-update-notes vX.Y.Z` locally; the skill stays draft-only when used outside CI.
+
+## Web UI Essentials (cross-cutting)
+
+Detailed rules live in [`.claude/rules/`](.claude/rules/); the points below apply everywhere in `apps/web/` and are worth keeping top of mind:
+
+- **UI copy is English-only.** No Japanese in user-facing strings (labels, empty states, toasts, errors). Japanese is fine in comments, commit messages, and PR descriptions.
+- **Mobile forms are bottom sheets** (shadcn `Drawer`, not `Dialog`) and **pages start with [`PageHeader`](apps/web/src/shared/components/page-header/page-header.tsx)** — details in [`.claude/rules/web-ui.md`](.claude/rules/web-ui.md).
+- **Logic lives in `useXxx` hooks, not in components.** Components render JSX from destructured hook returns. Verification & full forbidden list: [`.claude/rules/web-hooks-separation.md`](.claude/rules/web-hooks-separation.md).
+- **Single theme: Sapphire 2 Design System.** Tokens live in `apps/web/src/index.css` (`:root` / `.dark`) and apply app-wide — there is no legacy theme and no `theme-v2` scope class. Color tokens include the `hsl()` wrapper: reference them as `var(--token)`, never `hsl(var(--token))`. Design rules: [`.claude/rules/web-theme.md`](.claude/rules/web-theme.md).
+
+## Testing
+
+- `bun run test` (`vitest run`) is the source of truth.
+- Colocate tests as `__tests__/foo.test.ts(x)` next to the code under test, or as `<component>.test.tsx` inside the component's own folder.
+- When the logic is the point, prefer testing the hook (`renderHook` from Testing Library) over the component.
+- Black-box: assert on returned state and handler side effects, not internal implementation details.
+
+### Test-Driven Development (MANDATORY)
+
+Every code change must be test-driven. The quality bar is set by the comprehensive coverage sweep (PR #226 / branch `test/comprehensive-coverage`) — new tests must match that level of rigor and reuse its patterns.
+
+**Workflow**:
+
+1. **Write tests first.** Before editing any implementation file, author (or extend) the corresponding `__tests__/*.test.ts(x)`. Verify the new tests fail against the existing code (red).
+2. **Implement until green.** Iterate on the minimum code needed to pass.
+3. **Run only the scoped project**, not the full suite. See "Do NOT run the full test suite during a task" below.
+4. **CI is the final green signal** (and, for Claude Code, the Stop hook below); no hand-waving.
+
+**Quality bar (non-negotiable)**:
+
+- **Full branch coverage** per function / hook / procedure — every `if` / `else` / `switch` / early return / guard clause gets a dedicated `it()`.
+- **Boundary values**: `null` / `undefined` / `0` / `""` / empty array / negative / NaN / Infinity / min / max / 1-off-min / 1-off-max — enumerate, do not skip.
+- **Error paths** are required, not optional (mutation failures → rollback, Zod rejects, network errors, auth absent, loader fails).
+- **Side-effect assertions** (toast called, navigate called, query invalidated, localStorage written, `setInterval` cleared) use `toHaveBeenCalledTimes` + `toHaveBeenNthCalledWith` / `toHaveBeenCalledWith`, not bare `toHaveBeenCalled()`.
+- **No smoke tests.** `expect(x).toBeDefined()` alone is never acceptable — exercise the behavior.
+- **Test names describe scenarios**, not mechanics (`"rejects empty name with 'Required'"`, not `"test 1"`).
+
+**Patterns established by the sweep — copy them, do not invent new ones**:
+
+| Target | Project | Reference implementation |
+|---|---|---|
+| Pure util / Zod schema / formatter | `web-node` | [`apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts`](apps/web/src/features/rooms/utils/__tests__/blind-level-helpers.test.ts), [`apps/web/src/utils/__tests__/format-number.test.ts`](apps/web/src/utils/__tests__/format-number.test.ts) |
+| Simple hook (no tRPC) | `web-dom` | [`apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts`](apps/web/src/shared/hooks/__tests__/use-elapsed-time.test.ts) |
+| Form hook (`@tanstack/react-form`) | `web-dom` | [`apps/web/src/features/auth/pages/login-page/sign-in-form/__tests__/use-sign-in.test.ts`](apps/web/src/features/auth/pages/login-page/sign-in-form/__tests__/use-sign-in.test.ts) |
+| tRPC query + mutation hook, simple | `web-dom` | [`apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts`](apps/web/src/features/currencies/hooks/__tests__/use-currencies.test.ts) |
+| Optimistic flow with real QueryClient | `web-dom` / `web-node` | [`apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts`](apps/web/src/features/live-sessions/utils/__tests__/optimistic-session-event.test.ts) |
+| Page hook / page subcomponent view hook | `web-dom` | [`apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts`](apps/web/src/features/sessions/pages/sessions-page/__tests__/use-sessions-page.test.ts), [`apps/web/src/features/live-sessions/pages/active-session-page/tournament-session/__tests__/use-tournament-session-view.test.ts`](apps/web/src/features/live-sessions/pages/active-session-page/tournament-session/__tests__/use-tournament-session-view.test.ts) |
+| API router (Zod + procedure enumeration) | `api` | [`packages/api/src/__tests__/player.test.ts`](packages/api/src/__tests__/player.test.ts) (uses [`packages/api/src/__tests__/test-utils.ts`](packages/api/src/__tests__/test-utils.ts) helpers: `getInputSchema`, `expectAccepts`, `expectRejects`, `expectProtected`, `expectType`) |
+| DB schema constraint | `db` | [`packages/db/src/__tests__/session-schema.test.ts`](packages/db/src/__tests__/session-schema.test.ts) (uses `getTableConfig` for FKs, indexes, `onDelete` policies) |
+| Shared test helpers (web) | — | [`apps/web/src/__tests__/test-utils.tsx`](apps/web/src/__tests__/test-utils.tsx) (`createTestQueryClient`, `withQueryClient`, `renderWithQueryClient`, `createTrpcMock`, `createToastMock`, `createAuthClientMock`) |
+
+**Mocking conventions**:
+
+- `vi.hoisted(() => ({ … }))` for mutable mock state shared across `vi.mock` factories.
+- `vi.mock("@/utils/trpc", () => ({ trpc, trpcClient }))` to replace the tRPC proxy at module scope.
+- `@tanstack/react-form`: use the real `useForm`, drive via `result.current.form.setFieldValue(...)` + `await result.current.form.handleSubmit()` inside `act()`.
+- Never mock the module under test; only mock its dependencies.
+
+If a target does not match any pattern above, extend the relevant `test-utils` file with a new helper rather than hand-rolling a new pattern per test file.
+
+### Do NOT run the full test suite during a task
+
+`bun run test` boots jsdom/node for every workspace and takes several minutes on Windows. While iterating, run only what's relevant:
+
+- Pure-function / schema tests → `bunx vitest run --project web-node [path]`
+- Hook / component / route tests → `bunx vitest run --project web-dom [path]`
+- API router tests → `bunx vitest run --project api [path]`
+- Server worker tests → `bunx vitest run --project server [path]`
+- DB schema tests → `bunx vitest run --project db [path]`
+- Env tests → `bunx vitest run --project env`
+- Related to current staged files → `bunx vitest related --run $(git diff --cached --name-only ...)` — already automated by pre-commit for human commits.
+
+The full suite is enforced in **CI** — [`ci.yml`](.github/workflows/ci.yml) runs `check-types`, `ultracite check`, the full `vitest` suite, and `check:rules` on every PR. This is the tool-independent gate that catches Codex, Claude, and human PRs alike, so it never runs on every intermediate step. Claude Code additionally runs the same checks locally at the end of each turn via a **Stop hook** (`bun x ultracite fix && bun x vitest run --changed HEAD && bun x ultracite check && bun scripts/check-rules.ts` — see [`.claude/settings.json`](.claude/settings.json)). `scripts/check-rules.ts` (`bun run check:rules`) mechanically enforces greppable rules from this file and `.claude/rules/`. Pre-commit is skipped when `CLAUDECODE=1` for the same reason.
+
+## Path-scoped Rule Files
+
+The following rule files live in `.claude/rules/` and are loaded automatically when files under their `paths:` glob are touched:
+
+| File | Paths | Summary |
+|---|---|---|
+| `web-hooks-separation.md` | `apps/web/**` | STRICT: components may only call custom `useXxx` hooks; verification script included. |
+| `web-forms.md` | `apps/web/**` | `@tanstack/react-form` in hooks, no `type="number"`, no placeholders, `SelectWithClear` for clearable selects. |
+| `web-ui.md` | `apps/web/**` | PageHeader, shadcn primitives (Table / Badge / Avatar / RadioGroup), mobile = Drawer, tabler-icons. |
+| `web-data-fetching.md` | `apps/web/**` | Optimistic updates must go through `utils/optimistic-update.ts` helpers. |
+| `web-theme.md` | `apps/web/**` | Sapphire 2 Design System (single theme): token format, semantic colors, typography roles, sheet patterns. |
+| `api-security.md` | `packages/api/**`, `apps/server/**` | Object-level authorization: every input FK id ownership-checked, scoped bulk WHEREs / joins / cursors, uniform FORBIDDEN, no server-side fetch of user URLs. |
+| `api-data-integrity.md` | `packages/api/**`, `packages/db/**` | Zod input conventions (`.int().min(0)`, create/update refine parity, shared write/read schemas) and D1 hazards (100-bind-param chunking, `db.batch()`, N+1, keyset pagination). |
+| `datetime-and-numbers.md` | `apps/web/**`, `packages/api/**` | Date-only values are UTC midnight (read with UTC getters), day-crossing handling + backfill, period boundaries, shared locale-fixed number formatters. |
+| `db-migrations.md` | `packages/db/**` | Applied by `wrangler`; `db:generate` is the default for schema-shape changes, hand-write data/rename/destructive ones; how the Drizzle `meta/` ledger works and how to keep it from drifting. |
+
+## Maintaining This File (Self-Evolution)
+
+This file evolves as the codebase evolves. The agent should **propose an update to `AGENTS.md` or `.claude/rules/*.md` in-session** whenever one of these triggers fires, instead of silently absorbing the correction into one-off responses:
+
+1. **The user corrects the same behavior twice.** The second correction is a signal the rule is missing. Capture it, including the *why* (the incident or preference that motivated it).
+2. **A reference here is stale.** A path no longer resolves, a command name changed, a helper moved, or a "reference implementation" was deleted. Fix it in the same task that discovered the staleness.
+3. **A merged PR establishes a new cross-cutting convention** — a new shared helper, a new directory pattern, a new mandatory primitive, or a new banned pattern. Document it immediately while the reasoning is fresh.
+4. **A verification script in a rule file starts failing.** Decide whether the rule or the code is wrong; update the losing side and the rule's wording if the intent has drifted.
+5. **A rule is no longer true.** Delete it (do not comment it out) and note what replaced it in the PR description.
+
+### Procedure for adding a rule
+
+1. **Verify it is not already enforced** by Ultracite, TypeScript, a pre-commit hook, `scripts/check-rules.ts`, or a route-level constraint. If it is, reference the enforcement instead of duplicating the rule.
+2. **Decide scope**: narrow path (e.g., `apps/web/**`, `apps/server/**`, `packages/db/**`) → `.claude/rules/<topic>.md` with a `paths:` frontmatter. Truly cross-cutting → this file.
+3. **Write the rule with a one-line "why"** — the incident, issue (SA2-xxx), or decision that created it — so future edits can judge edge cases instead of blindly following the letter.
+4. **Prefer concrete over abstract.** "Use `SelectWithClear` for clearable selects" beats "prefer consistent select behavior". Include explicit file paths and commands.
+5. **If the rule is mechanically greppable, add a check to `scripts/check-rules.ts`** (Stop hook) — prose alone gets re-violated; a check must be green at the moment it is added.
+6. **If you add a new file under `.claude/rules/`**, update the index table above.
+7. **For large rewrites or ambiguous scope**, propose the change in chat before writing it — this file is shared across the team.
+
+### Hygiene
+
+- Keep `AGENTS.md` ≤200 lines. If a new top-level rule would push it over, split the lowest-value existing section into a path-scoped rule file.
+- Delete rules that no longer apply (historical context belongs in git / PR descriptions). If two rules overlap, keep one home and cross-link it from the others.

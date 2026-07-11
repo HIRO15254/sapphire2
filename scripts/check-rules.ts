@@ -1,7 +1,8 @@
 /**
- * Deterministic conformance checks for the rules in CLAUDE.md and
- * .claude/rules/*.md. Run by the Claude Code Stop hook (see
- * .claude/settings.json) and manually via `bun run check:rules`.
+ * Deterministic conformance checks for the rules in AGENTS.md and
+ * .claude/rules/*.md. Run in CI (.github/workflows/ci.yml), by the Claude
+ * Code Stop hook (see .claude/settings.json), and manually via
+ * `bun run check:rules`.
  *
  * Only checks that are currently green may live here — a red check would
  * block every turn. Once their Linear issues are fixed, add:
@@ -25,7 +26,7 @@ const IGNORED_DIRS = /(^|\/)(node_modules|dist|\.wrangler|coverage|\.git)\//;
 const CHECKS: Check[] = [
 	{
 		name: 'named zod import — use `import z from "zod"`',
-		rule: "CLAUDE.md (Vite bundler breaks the namespace import)",
+		rule: "AGENTS.md (Vite bundler breaks the namespace import)",
 		globs: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
 		pattern: /import \{ z \} from "zod"/,
 	},
