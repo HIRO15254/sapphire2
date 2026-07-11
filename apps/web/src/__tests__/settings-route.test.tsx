@@ -24,6 +24,13 @@ vi.mock("@/features/settings/pages/settings-page/about-section", () => ({
 	AboutSection: () => <div>About Content</div>,
 }));
 
+vi.mock(
+	"@/features/settings/pages/settings-page/custom-variants-section",
+	() => ({
+		CustomVariantsSection: () => <div>Custom Variants Content</div>,
+	})
+);
+
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
 		signOut: mocks.signOut,
