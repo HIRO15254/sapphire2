@@ -13,6 +13,11 @@ import {
 	sessionFormSchema,
 	type TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
+import {
+	fromMixGames,
+	type MixGameGroupRow,
+	toMixGames,
+} from "@/shared/lib/mix-games";
 import { toBlindLevelRows, toSessionBlindLevels } from "./blind-level-rows";
 import {
 	toChipPurchaseRows,
@@ -72,6 +77,11 @@ export function useSessionFormState({
 	const [blindLevels, setBlindLevels] = useState<BlindLevelRow[]>(
 		toBlindLevelRows(defaultValues?.blindLevels ?? [])
 	);
+	// Mix-game group rows (cash). Array/table state lives outside the flat
+	// tanstack form, same as blindLevels/chipPurchases.
+	const [mixGames, setMixGames] = useState<MixGameGroupRow[]>(
+		fromMixGames(defaultValues?.mixGames)
+	);
 	const initialChipPurchases = toChipPurchaseRows(
 		defaultValues?.chipPurchases ?? []
 	);
@@ -110,6 +120,7 @@ export function useSessionFormState({
 					cashOut: Number(value.cashOut),
 					evCashOut: parseOptInt(value.evCashOut),
 					variant: value.variant || "nlh",
+					mixGames: value.variant === "mix" ? toMixGames(mixGames) : null,
 					blind1: parseOptInt(value.blind1),
 					blind2: parseOptInt(value.blind2),
 					blind3: parseOptInt(value.blind3),
@@ -176,6 +187,7 @@ export function useSessionFormState({
 		if (game.currencyId) {
 			setSelectedCurrencyId(game.currencyId);
 		}
+		setMixGames(fromMixGames(game.mixGames));
 		applyOverrides({
 			ruleName: game.name,
 			variant: game.variant ?? undefined,
@@ -316,6 +328,8 @@ export function useSessionFormState({
 		selectedTournament,
 		blindLevels,
 		setBlindLevels,
+		mixGames,
+		setMixGames,
 		chipPurchases,
 		setChipPurchases,
 		chipPurchaseCounts,

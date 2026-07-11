@@ -11,6 +11,7 @@ import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
+import { mixGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import z from "zod";
@@ -388,6 +389,7 @@ export const liveCashGameSessionRouter = router({
 				// the master ring_game never propagate.
 				ruleName: cashDetail?.ruleName ?? null,
 				variant: cashDetail?.variant ?? null,
+				mixGames: cashDetail?.mixGames ?? null,
 				blind1: cashDetail?.blind1 ?? null,
 				blind2: cashDetail?.blind2 ?? null,
 				blind3: cashDetail?.blind3 ?? null,
@@ -497,6 +499,7 @@ export const liveCashGameSessionRouter = router({
 				ringGameId: input.ringGameId ?? null,
 				ruleName: input.ringGameId ? snapshot.ruleName : "Cash Game",
 				variant: snapshot.variant,
+				mixGames: snapshot.mixGames,
 				blind1: snapshot.blind1,
 				blind2: snapshot.blind2,
 				blind3: snapshot.blind3,
@@ -594,6 +597,7 @@ export const liveCashGameSessionRouter = router({
 				});
 				cashDetailUpdate.ruleName = snapshot.ruleName;
 				cashDetailUpdate.variant = snapshot.variant;
+				cashDetailUpdate.mixGames = snapshot.mixGames;
 				cashDetailUpdate.blind1 = snapshot.blind1;
 				cashDetailUpdate.blind2 = snapshot.blind2;
 				cashDetailUpdate.blind3 = snapshot.blind3;
@@ -646,6 +650,7 @@ export const liveCashGameSessionRouter = router({
 				id: z.string(),
 				ruleName: z.string().min(1).optional(),
 				variant: z.string().optional(),
+				mixGames: mixGamesSchema.nullish(),
 				blind1: z.number().int().nullable().optional(),
 				blind2: z.number().int().nullable().optional(),
 				blind3: z.number().int().nullable().optional(),
@@ -666,6 +671,9 @@ export const liveCashGameSessionRouter = router({
 			}
 			if (input.variant !== undefined) {
 				detailUpdate.variant = input.variant;
+			}
+			if (input.mixGames !== undefined) {
+				detailUpdate.mixGames = input.mixGames;
 			}
 			if (input.blind1 !== undefined) {
 				detailUpdate.blind1 = input.blind1;

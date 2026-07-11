@@ -1,3 +1,4 @@
+import { isMixVariant } from "@sapphire2/db/constants/game-variants";
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
 import { Field } from "@/shared/components/ui/field";
@@ -197,6 +198,7 @@ export function CashGameFields({
 						<VariantSelect
 							disabled={isLiveLinked}
 							id={field.name}
+							includeMix
 							onChange={(v) => field.handleChange(v)}
 							value={field.state.value}
 						/>
@@ -204,76 +206,86 @@ export function CashGameFields({
 				)}
 			</form.Field>
 
+			{/* Mix games replace the flat blind/ante fields with the group
+			    editor rendered by the surrounding rules step. */}
 			<form.Subscribe selector={(state): string => state.values.variant}>
-				{(variant) => (
-					<CashBlindFields
-						form={form}
-						isLiveLinked={isLiveLinked}
-						overriddenLabels={overriddenLabels}
-						variant={variant}
-					/>
-				)}
-			</form.Subscribe>
+				{(variant) =>
+					isMixVariant(variant) ? null : (
+						<>
+							<CashBlindFields
+								form={form}
+								isLiveLinked={isLiveLinked}
+								overriddenLabels={overriddenLabels}
+								variant={variant}
+							/>
+							<div className="flex gap-3">
+								<form.Field name="anteType">
+									{(field) => (
+										<Field
+											className="flex-1"
+											htmlFor={field.name}
+											label={
+												<OverrideLabel
+													label="Ante type"
+													overridden={overriddenLabels}
+												/>
+											}
+										>
+											<Select
+												disabled={isLiveLinked}
+												onValueChange={(v) => field.handleChange(v)}
+												value={field.state.value}
+											>
+												<SelectTrigger className="w-full" id={field.name}>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													{ANTE_TYPES.map((at) => (
+														<SelectItem key={at.value} value={at.value}>
+															{at.label}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+										</Field>
+									)}
+								</form.Field>
 
-			<div className="flex gap-3">
-				<form.Field name="anteType">
-					{(field) => (
-						<Field
-							className="flex-1"
-							htmlFor={field.name}
-							label={
-								<OverrideLabel
-									label="Ante type"
-									overridden={overriddenLabels}
-								/>
-							}
-						>
-							<Select
-								disabled={isLiveLinked}
-								onValueChange={(v) => field.handleChange(v)}
-								value={field.state.value}
-							>
-								<SelectTrigger className="w-full" id={field.name}>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{ANTE_TYPES.map((at) => (
-										<SelectItem key={at.value} value={at.value}>
-											{at.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</Field>
-					)}
-				</form.Field>
-
-				<form.Subscribe selector={(state) => state.values.anteType === "none"}>
-					{(isAnteDisabled) => (
-						<form.Field name="ante">
-							{(field) => (
-								<Field
-									className="flex-1"
-									error={field.state.meta.errors[0]?.message}
-									htmlFor={field.name}
-									label={
-										<OverrideLabel label="Ante" overridden={overriddenLabels} />
-									}
+								<form.Subscribe
+									selector={(state) => state.values.anteType === "none"}
 								>
-									<Input
-										disabled={isLiveLinked || isAnteDisabled}
-										id={field.name}
-										inputMode="numeric"
-										onBlur={field.handleBlur}
-										onChange={(e) => field.handleChange(e.target.value)}
-										value={field.state.value}
-									/>
-								</Field>
-							)}
-						</form.Field>
-					)}
-				</form.Subscribe>
-			</div>
+									{(isAnteDisabled) => (
+										<form.Field name="ante">
+											{(field) => (
+												<Field
+													className="flex-1"
+													error={field.state.meta.errors[0]?.message}
+													htmlFor={field.name}
+													label={
+														<OverrideLabel
+															label="Ante"
+															overridden={overriddenLabels}
+														/>
+													}
+												>
+													<Input
+														disabled={isLiveLinked || isAnteDisabled}
+														id={field.name}
+														inputMode="numeric"
+														onBlur={field.handleBlur}
+														onChange={(e) => field.handleChange(e.target.value)}
+														value={field.state.value}
+													/>
+												</Field>
+											)}
+										</form.Field>
+									)}
+								</form.Subscribe>
+							</div>
+						</>
+					)
+				}
+			</form.Subscribe>
 
 			<form.Field name="tableSize">
 				{(field) => (

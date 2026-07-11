@@ -1,6 +1,9 @@
 import {
 	formatAnteSuffix,
 	formatBlindParts,
+	formatGroupStakes,
+	type GameGroupLike,
+	groupDisplayLabel,
 	variantLabel,
 } from "@/features/live-sessions/utils/game-scene-formatters";
 import { formatCompactNumber, formatYmdSlash } from "@/utils/format-number";
@@ -69,6 +72,7 @@ interface CashRuleInput {
 	cashAnteType: string | null;
 	cashBlind1: number | null;
 	cashBlind3: number | null;
+	cashMixGames?: GameGroupLike[] | null;
 	cashTableSize: number | null;
 	cashVariant: string | null;
 	ringGameBlind2: number | null;
@@ -84,6 +88,19 @@ export function buildCashRuleRows(session: CashRuleInput): StatRow[] {
 	const rows: StatRow[] = [];
 	if (session.cashVariant) {
 		rows.push({ label: "Variant", value: variantLabel(session.cashVariant) });
+	}
+	// Mix sessions show one row per game group instead of a flat blinds row.
+	if (session.cashMixGames && session.cashMixGames.length > 0) {
+		for (const group of session.cashMixGames) {
+			rows.push({
+				label: groupDisplayLabel(group),
+				value: formatGroupStakes(group),
+			});
+		}
+		if (session.cashTableSize != null) {
+			rows.push({ label: "Table", value: `${session.cashTableSize}-max` });
+		}
+		return rows;
 	}
 	const blinds = formatBlindParts({
 		ante: session.cashAnte,

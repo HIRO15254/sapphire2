@@ -124,3 +124,65 @@ describe("formatTournamentBuyIn", () => {
 		);
 	});
 });
+
+describe("formatRingGameBlinds — mix games", () => {
+	const mixGames = [
+		{
+			name: "Limit",
+			variants: ["lhe", "o8"],
+			blind1: 400,
+			blind2: 800,
+			blind3: null,
+			ante: null,
+			anteType: null,
+		},
+		{
+			name: null,
+			variants: ["nlh", "plo"],
+			blind1: 100,
+			blind2: 200,
+			blind3: null,
+			ante: null,
+			anteType: null,
+		},
+	];
+
+	it("renders the grouped mix summary instead of the flat blinds", () => {
+		const result = formatRingGameBlinds({
+			blind1: null,
+			blind2: null,
+			blind3: null,
+			ante: null,
+			anteType: null,
+			mixGames,
+		});
+		expect(result).toBe("Mix · Limit 400/800 · NLH+PLO 100/200");
+	});
+
+	it("appends the currency unit after the mix summary", () => {
+		const result = formatRingGameBlinds(
+			{
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				ante: null,
+				anteType: null,
+				mixGames,
+			},
+			"chips"
+		);
+		expect(result).toBe("Mix · Limit 400/800 · NLH+PLO 100/200 chips");
+	});
+
+	it("ignores an empty mixGames array and falls back to flat blinds", () => {
+		const result = formatRingGameBlinds({
+			blind1: 1,
+			blind2: 2,
+			blind3: null,
+			ante: null,
+			anteType: null,
+			mixGames: [],
+		});
+		expect(result).toBe("1/2");
+	});
+});

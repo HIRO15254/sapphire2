@@ -387,3 +387,56 @@ describe("validateRingGameOwnership via mutations (SA2-181)", () => {
 		});
 	}
 });
+
+describe("ringGame mixGames input", () => {
+	const validMix = [
+		{ name: "Limit", variants: ["lhe", "o8"], blind1: 400, blind2: 800 },
+		{ name: "Big Bet", variants: ["nlh", "plo"], blind1: 100, blind2: 200 },
+	];
+
+	it("create accepts a mix definition with named game groups", () => {
+		expectAccepts(appRouter.ringGame.create, {
+			roomId: "room-1",
+			name: "8-Game",
+			variant: "mix",
+			mixGames: validMix,
+		});
+	});
+
+	it("create rejects a mix whose only group holds a single game", () => {
+		expectRejects(appRouter.ringGame.create, {
+			roomId: "room-1",
+			name: "Solo",
+			variant: "mix",
+			mixGames: [{ variants: ["nlh"] }],
+		});
+	});
+
+	it("create rejects the same game appearing in two groups", () => {
+		expectRejects(appRouter.ringGame.create, {
+			roomId: "room-1",
+			name: "Dup",
+			variant: "mix",
+			mixGames: [{ variants: ["nlh", "plo"] }, { variants: ["plo"] }],
+		});
+	});
+
+	it("create rejects more than 12 groups", () => {
+		expectRejects(appRouter.ringGame.create, {
+			roomId: "room-1",
+			name: "Too many",
+			variant: "mix",
+			mixGames: Array.from({ length: 13 }, (_, i) => ({
+				variants: [`v${i}`],
+			})),
+		});
+	});
+
+	it("update accepts an explicit null to clear the mix definition", () => {
+		expectAccepts(appRouter.ringGame.update, { id: "rg-1", mixGames: null });
+	});
+
+	it("update accepts omitted mixGames (leave unchanged)", () => {
+		expectAccepts(appRouter.ringGame.update, { id: "rg-1", name: "Renamed" });
+	});
+});

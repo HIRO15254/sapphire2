@@ -1,5 +1,7 @@
+import { isMixVariant } from "@sapphire2/db/constants/game-variants";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
 import { cashOverriddenFields } from "@/features/sessions/utils/session-form-helpers";
+import { MixGamesEditor } from "@/shared/components/mix-games-editor";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import type { UseSessionWizardReturn } from "../../use-session-wizard";
@@ -94,6 +96,13 @@ export function CashRulesStepBody({
 							overriddenLabels={overriddenLabels}
 							selectedCurrencyId={state.selectedCurrencyId}
 						/>
+						{isMixVariant(values.variant) && (
+							<MixGamesEditor
+								disabled={isLiveLinked}
+								onChange={state.setMixGames}
+								value={state.mixGames}
+							/>
+						)}
 						<CashBuyInBoundsFields
 							isLiveLinked={isLiveLinked}
 							overriddenLabels={overriddenLabels}

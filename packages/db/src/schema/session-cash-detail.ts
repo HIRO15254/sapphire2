@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { MixGameGroup } from "../schemas/game";
 import { ringGame } from "./ring-game";
 import { gameSession } from "./session";
 
@@ -19,6 +20,7 @@ export const sessionCashDetail = sqliteTable(
 		// frozen thereafter. Parent rename / blind change does not propagate.
 		ruleName: text("rule_name").notNull().default("Untitled"),
 		variant: text("variant").notNull().default("nlh"),
+		mixGames: text("mix_games", { mode: "json" }).$type<MixGameGroup[]>(),
 		blind1: integer("blind1"),
 		blind2: integer("blind2"),
 		blind3: integer("blind3"),

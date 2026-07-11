@@ -1,3 +1,4 @@
+import type { MixGameGroup } from "@sapphire2/db/schemas/game";
 import z from "zod";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 
@@ -33,6 +34,7 @@ export interface CashGameFormValues {
 	maxBuyIn?: number;
 	memo?: string;
 	minBuyIn?: number;
+	mixGames?: MixGameGroup[] | null;
 	ringGameId?: string;
 	roomId?: string;
 	ruleName?: string;
@@ -85,6 +87,7 @@ export interface RingGameOption {
 	id: string;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
+	mixGames?: MixGameGroup[] | null;
 	name: string;
 	tableSize?: number | null;
 	variant?: string | null;
@@ -123,6 +126,7 @@ export interface SessionFormDefaults {
 	maxBuyIn?: number;
 	memo?: string;
 	minBuyIn?: number;
+	mixGames?: MixGameGroup[] | null;
 	placement?: number;
 	prizeMoney?: number;
 	ringGameId?: string;

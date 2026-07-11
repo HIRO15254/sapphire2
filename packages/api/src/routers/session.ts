@@ -21,6 +21,7 @@ import {
 	tournament,
 	tournamentChipPurchase,
 } from "@sapphire2/db/schema/tournament";
+import { type MixGameGroup, mixGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import {
 	and,
@@ -730,6 +731,7 @@ const CASH_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"ringGameId",
 	"ruleName",
 	"variant",
+	"mixGames",
 	"blind1",
 	"blind2",
 	"blind3",
@@ -812,6 +814,7 @@ const cashGameCreateSchema = z.object({
 	// no master is referenced they define the rule wholesale.
 	ruleName: z.string().min(1).optional(),
 	variant: z.string().default("nlh"),
+	mixGames: mixGamesSchema.nullish(),
 	blind1: z.number().int().optional(),
 	blind2: z.number().int().optional(),
 	blind3: z.number().int().optional(),
@@ -1609,6 +1612,7 @@ function selectEnrichedSessionRows(db: DbInstance) {
 			// Cash snapshot scalars used by the edit-mode wizard to
 			// pre-fill the Rules step with the frozen rule.
 			cashVariant: sessionCashDetail.variant,
+			cashMixGames: sessionCashDetail.mixGames,
 			cashBlind1: sessionCashDetail.blind1,
 			cashBlind3: sessionCashDetail.blind3,
 			cashAnte: sessionCashDetail.ante,
@@ -1741,6 +1745,7 @@ interface CashUpdateInput {
 	evCashOut?: number | null;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
+	mixGames?: MixGameGroup[] | null;
 	ringGameId?: string | null;
 	ruleName?: string;
 	tableSize?: number | null;
@@ -1769,6 +1774,9 @@ async function applyCashDetailUpdate(
 	}
 	if (input.variant !== undefined) {
 		cashUpdate.variant = input.variant;
+	}
+	if (input.mixGames !== undefined) {
+		cashUpdate.mixGames = input.mixGames;
 	}
 	if (input.blind1 !== undefined) {
 		cashUpdate.blind1 = input.blind1;
@@ -1803,6 +1811,7 @@ async function applyCashDetailUpdate(
 			const snapshot = await resolveCashRuleSnapshot(db, input);
 			cashUpdate.ruleName = snapshot.ruleName;
 			cashUpdate.variant = snapshot.variant;
+			cashUpdate.mixGames = snapshot.mixGames;
 			cashUpdate.blind1 = snapshot.blind1;
 			cashUpdate.blind2 = snapshot.blind2;
 			cashUpdate.blind3 = snapshot.blind3;
@@ -1992,6 +2001,7 @@ interface CashRuleSnapshot {
 	blind3: number | null;
 	maxBuyIn: number | null;
 	minBuyIn: number | null;
+	mixGames: MixGameGroup[] | null;
 	ruleName: string;
 	tableSize: number | null;
 	variant: string;
@@ -2005,6 +2015,7 @@ interface CashRuleInput {
 	blind3?: number | null;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
+	mixGames?: MixGameGroup[] | null;
 	ringGameId?: string | null;
 	ruleName?: string;
 	tableSize?: number | null;
@@ -2019,6 +2030,7 @@ function defaultCashSnapshot(input: CashRuleInput): CashRuleSnapshot {
 	return {
 		ruleName: input.ruleName ?? "Untitled",
 		variant: input.variant ?? "nlh",
+		mixGames: input.mixGames ?? null,
 		blind1: input.blind1 ?? null,
 		blind2: input.blind2 ?? null,
 		blind3: input.blind3 ?? null,
@@ -2037,6 +2049,7 @@ function mergeCashSnapshotWithParent(
 	return {
 		ruleName: input.ruleName ?? rg.name,
 		variant: input.variant ?? rg.variant,
+		mixGames: pick(input.mixGames, rg.mixGames ?? null),
 		blind1: pick(input.blind1, rg.blind1),
 		blind2: pick(input.blind2, rg.blind2),
 		blind3: pick(input.blind3, rg.blind3),
@@ -2088,6 +2101,7 @@ async function buildCashGameSessionDetailStatements(
 				userId,
 				name: derivedName,
 				variant: snapshot.variant,
+				mixGames: snapshot.mixGames,
 				blind1: snapshot.blind1,
 				blind2: snapshot.blind2,
 				blind3: snapshot.blind3,
@@ -2110,6 +2124,7 @@ async function buildCashGameSessionDetailStatements(
 			evCashOut: input.evCashOut ?? null,
 			ruleName: snapshot.ruleName,
 			variant: snapshot.variant,
+			mixGames: snapshot.mixGames,
 			blind1: snapshot.blind1,
 			blind2: snapshot.blind2,
 			blind3: snapshot.blind3,
@@ -2644,6 +2659,7 @@ export const sessionRouter = router({
 				memo: z.string().nullable().optional(),
 				ruleName: z.string().optional(),
 				variant: z.string().optional(),
+				mixGames: mixGamesSchema.nullish(),
 				blind1: z.number().int().nullable().optional(),
 				blind2: z.number().int().nullable().optional(),
 				blind3: z.number().int().nullable().optional(),

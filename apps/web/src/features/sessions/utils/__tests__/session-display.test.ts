@@ -616,3 +616,67 @@ describe("formatSessionEvDisplay", () => {
 		).toBe("+13.5k $");
 	});
 });
+
+describe("buildCashRuleRows — mix games", () => {
+	const base = {
+		cashAnte: null,
+		cashAnteType: null,
+		cashBlind1: null,
+		cashBlind3: null,
+		cashTableSize: null,
+		cashVariant: "mix",
+		ringGameBlind2: null,
+	};
+	const mixGames = [
+		{
+			name: "Limit",
+			variants: ["lhe", "o8"],
+			blind1: 400,
+			blind2: 800,
+			blind3: null,
+			ante: null,
+			anteType: null,
+		},
+		{
+			name: null,
+			variants: ["nlh", "plo"],
+			blind1: 100,
+			blind2: 200,
+			blind3: null,
+			ante: null,
+			anteType: null,
+		},
+	];
+
+	it("renders one row per game group after the variant row", () => {
+		expect(buildCashRuleRows({ ...base, cashMixGames: mixGames })).toEqual([
+			{ label: "Variant", value: "Mix" },
+			{ label: "Limit", value: "400/800" },
+			{ label: "NLH+PLO", value: "100/200" },
+		]);
+	});
+
+	it("suppresses the flat blinds row for a mix session", () => {
+		const rows = buildCashRuleRows({
+			...base,
+			cashBlind1: 1,
+			ringGameBlind2: 2,
+			cashMixGames: mixGames,
+		});
+		expect(rows.find((r) => r.label === "Blinds")).toBeUndefined();
+	});
+
+	it("keeps the flat blinds row when mixGames is empty", () => {
+		const rows = buildCashRuleRows({
+			...base,
+			cashVariant: "nlh",
+			cashBlind1: 1,
+			ringGameBlind2: 2,
+			cashMixGames: [],
+		});
+		expect(rows.find((r) => r.label === "Blinds")).toEqual({
+			label: "Blinds",
+			value: "1/2",
+		});
+	});
+});

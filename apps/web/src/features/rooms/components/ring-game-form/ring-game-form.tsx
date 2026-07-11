@@ -1,4 +1,6 @@
+import { isMixVariant } from "@sapphire2/db/constants/game-variants";
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
+import { MixGamesEditor } from "@/shared/components/mix-games-editor";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -86,6 +88,7 @@ export function RingGameForm({
 					<Field htmlFor={field.name} label="Variant" required>
 						<VariantSelect
 							id={field.name}
+							includeMix
 							onChange={(v) => field.handleChange(v)}
 							value={field.state.value}
 						/>
@@ -93,57 +96,79 @@ export function RingGameForm({
 				)}
 			</form.Field>
 
+			{/* Mix games swap the flat blind/ante fields for the group editor;
+			    per-group amounts live inside each group row. */}
 			<form.Subscribe selector={(state) => state.values.variant}>
-				{(variant) => <VariantAwareBlindFields form={form} variant={variant} />}
-			</form.Subscribe>
-
-			<div className="flex gap-3">
-				<form.Field name="anteType">
-					{(field) => (
-						<Field className="flex-1" htmlFor={field.name} label="Ante Type">
-							<Select
-								onValueChange={(v) => field.handleChange(v as AnteType)}
-								value={field.state.value}
-							>
-								<SelectTrigger className="w-full" id={field.name}>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{ANTE_TYPES.map((at) => (
-										<SelectItem key={at.value} value={at.value}>
-											{at.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</Field>
-					)}
-				</form.Field>
-
-				<form.Subscribe selector={(state) => state.values.anteType === "none"}>
-					{(isAnteDisabled) => (
-						<form.Field name="ante">
+				{(variant) =>
+					isMixVariant(variant) ? (
+						<form.Field name="mixGames">
 							{(field) => (
-								<Field
-									className="flex-1"
-									error={field.state.meta.errors[0]?.message}
-									htmlFor={field.name}
-									label="Ante"
-								>
-									<Input
-										disabled={isAnteDisabled}
-										id={field.name}
-										inputMode="numeric"
-										onBlur={field.handleBlur}
-										onChange={(e) => field.handleChange(e.target.value)}
-										value={field.state.value}
-									/>
-								</Field>
+								<MixGamesEditor
+									onChange={(rows) => field.handleChange(rows)}
+									value={field.state.value}
+								/>
 							)}
 						</form.Field>
-					)}
-				</form.Subscribe>
-			</div>
+					) : (
+						<>
+							<VariantAwareBlindFields form={form} variant={variant} />
+							<div className="flex gap-3">
+								<form.Field name="anteType">
+									{(field) => (
+										<Field
+											className="flex-1"
+											htmlFor={field.name}
+											label="Ante Type"
+										>
+											<Select
+												onValueChange={(v) => field.handleChange(v as AnteType)}
+												value={field.state.value}
+											>
+												<SelectTrigger className="w-full" id={field.name}>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													{ANTE_TYPES.map((at) => (
+														<SelectItem key={at.value} value={at.value}>
+															{at.label}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+										</Field>
+									)}
+								</form.Field>
+
+								<form.Subscribe
+									selector={(state) => state.values.anteType === "none"}
+								>
+									{(isAnteDisabled) => (
+										<form.Field name="ante">
+											{(field) => (
+												<Field
+													className="flex-1"
+													error={field.state.meta.errors[0]?.message}
+													htmlFor={field.name}
+													label="Ante"
+												>
+													<Input
+														disabled={isAnteDisabled}
+														id={field.name}
+														inputMode="numeric"
+														onBlur={field.handleBlur}
+														onChange={(e) => field.handleChange(e.target.value)}
+														value={field.state.value}
+													/>
+												</Field>
+											)}
+										</form.Field>
+									)}
+								</form.Subscribe>
+							</div>
+						</>
+					)
+				}
+			</form.Subscribe>
 
 			<div className="grid grid-cols-2 gap-3">
 				<form.Field name="minBuyIn">

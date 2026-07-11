@@ -1,3 +1,4 @@
+import type { MixGameGroup } from "@sapphire2/db/schemas/game";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -45,6 +46,8 @@ export interface SessionItem {
 	cashBlind3: number | null;
 	cashMaxBuyIn: number | null;
 	cashMinBuyIn: number | null;
+	/** Frozen mix-game groups (cash). Optional: older cached shapes omit it. */
+	cashMixGames?: MixGameGroup[] | null;
 	cashOut: number | null;
 	cashTableSize: number | null;
 	cashVariant: string | null;
@@ -166,6 +169,7 @@ export function buildCreatePayload(values: SessionFormValues) {
 			tableSize: values.tableSize,
 			minBuyIn: values.minBuyIn,
 			maxBuyIn: values.maxBuyIn,
+			mixGames: values.mixGames,
 			ringGameId: values.ringGameId,
 		};
 	}
@@ -235,6 +239,7 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 			tableSize: values.tableSize,
 			minBuyIn: values.minBuyIn ?? null,
 			maxBuyIn: values.maxBuyIn ?? null,
+			mixGames: values.mixGames ?? null,
 			ringGameId: values.ringGameId ?? null,
 		};
 	}
@@ -307,6 +312,7 @@ export function buildOptimisticItem(
 		cashBlind3: null,
 		cashMaxBuyIn: null,
 		cashMinBuyIn: null,
+		cashMixGames: null,
 		cashTableSize: null,
 		cashVariant: null,
 		tournamentBountyAmount: null,
@@ -346,6 +352,7 @@ function cashSnapshotDefaults(session: SessionItem) {
 		minBuyIn: session.cashMinBuyIn ?? undefined,
 		maxBuyIn: session.cashMaxBuyIn ?? undefined,
 		tableSize: session.cashTableSize ?? undefined,
+		mixGames: session.cashMixGames ?? undefined,
 	};
 }
 

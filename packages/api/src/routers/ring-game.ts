@@ -1,5 +1,6 @@
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
+import { mixGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import z from "zod";
@@ -90,6 +91,7 @@ export const ringGameRouter = router({
 				roomId: z.string(),
 				name: z.string().min(1),
 				variant: z.string().default("nlh"),
+				mixGames: mixGamesSchema.nullish(),
 				blind1: z.number().int().optional(),
 				blind2: z.number().int().optional(),
 				blind3: z.number().int().optional(),
@@ -121,6 +123,7 @@ export const ringGameRouter = router({
 				userId,
 				name: input.name,
 				variant: input.variant,
+				mixGames: input.mixGames ?? null,
 				blind1: input.blind1 ?? null,
 				blind2: input.blind2 ?? null,
 				blind3: input.blind3 ?? null,
@@ -147,6 +150,7 @@ export const ringGameRouter = router({
 				id: z.string(),
 				name: z.string().min(1).optional(),
 				variant: z.string().optional(),
+				mixGames: mixGamesSchema.nullish(),
 				blind1: z.number().int().nullable().optional(),
 				blind2: z.number().int().nullable().optional(),
 				blind3: z.number().int().nullable().optional(),
@@ -177,6 +181,9 @@ export const ringGameRouter = router({
 			}
 			if (input.variant !== undefined) {
 				updateData.variant = input.variant;
+			}
+			if (input.mixGames !== undefined) {
+				updateData.mixGames = input.mixGames;
 			}
 			if (input.blind1 !== undefined) {
 				updateData.blind1 = input.blind1;

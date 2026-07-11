@@ -3,6 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import z from "zod";
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
 import { optionalNumericString } from "@/shared/lib/form-fields";
+import {
+	fromMixGames,
+	type MixGameGroupRow,
+	toMixGames,
+} from "@/shared/lib/mix-games";
 import { trpc } from "@/utils/trpc";
 
 type RingGameAnteType = "all" | "bb" | "none";
@@ -10,6 +15,18 @@ type RingGameAnteType = "all" | "bb" | "none";
 const ringGameFormSchema = z.object({
 	name: z.string().min(1, "Game name is required"),
 	variant: z.string().min(1),
+	mixGames: z.array(
+		z.object({
+			uid: z.string(),
+			name: z.string(),
+			variants: z.array(z.string()),
+			blind1: z.string(),
+			blind2: z.string(),
+			blind3: z.string(),
+			ante: z.string(),
+			anteType: z.enum(["all", "bb", "none"]),
+		})
+	),
 	blind1: optionalNumericString({ integer: true, min: 0 }),
 	blind2: optionalNumericString({ integer: true, min: 0 }),
 	blind3: optionalNumericString({ integer: true, min: 0 }),
@@ -50,6 +67,7 @@ export function useRingGameForm({
 		defaultValues: {
 			name: defaultValues?.name ?? "",
 			variant: (defaultValues?.variant ?? "nlh") as string,
+			mixGames: fromMixGames(defaultValues?.mixGames) as MixGameGroupRow[],
 			blind1: numStrOrEmpty(defaultValues?.blind1),
 			blind2: numStrOrEmpty(defaultValues?.blind2),
 			blind3: numStrOrEmpty(defaultValues?.blind3),
@@ -66,6 +84,7 @@ export function useRingGameForm({
 			onSubmit({
 				name: value.name,
 				variant: value.variant || "nlh",
+				mixGames: value.variant === "mix" ? toMixGames(value.mixGames) : null,
 				blind1: parseOptInt(value.blind1),
 				blind2: parseOptInt(value.blind2),
 				blind3: parseOptInt(value.blind3),

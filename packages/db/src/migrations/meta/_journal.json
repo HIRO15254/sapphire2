@@ -253,6 +253,13 @@
       "when": 1783767306685,
       "tag": "0035_military_whiplash",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1783768503828,
+      "tag": "0036_foamy_bromley",
+      "breakpoints": true
     }
   ]
 }

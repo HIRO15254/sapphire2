@@ -10,6 +10,7 @@ import {
 	encodeSessionCursor,
 	type ProfitLossSeriesRow,
 	parseSessionCursor,
+	resolveCashRuleSnapshot,
 	selectInChunks,
 	sessionKeysetCondition,
 	toProfitLossSeriesPoint,
@@ -1149,5 +1150,67 @@ describe("validateTagsOwnership (SA2-177)", () => {
 		await expect(
 			validateTagsOwnership(db, sessionTag, ["t1"], CALLER)
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+});
+
+describe("cash rule snapshot: mixGames freezing", () => {
+	const parentMix = [
+		{
+			name: "Limit",
+			variants: ["lhe", "o8"],
+			blind1: 400,
+			blind2: 800,
+			blind3: null,
+			ante: null,
+			anteType: null,
+		},
+	];
+
+	it("copies the parent ring game's mixGames into the snapshot", async () => {
+		const db = createChainableMockDb({
+			select: {
+				ring_game: [{ id: "rg-1", variant: "mix", mixGames: parentMix }],
+			},
+		});
+		const snapshot = await resolveCashRuleSnapshot(db as never, {
+			ringGameId: "rg-1",
+		});
+		expect(snapshot.mixGames).toEqual(parentMix);
+	});
+
+	it("lets an explicit input mixGames override the parent's", async () => {
+		const override = [
+			{ variants: ["nlh"], blind1: 1, blind2: 2 },
+			{ variants: ["plo"], blind1: 2, blind2: 5 },
+		];
+		const db = createChainableMockDb({
+			select: {
+				ring_game: [{ id: "rg-1", variant: "mix", mixGames: parentMix }],
+			},
+		});
+		const snapshot = await resolveCashRuleSnapshot(db as never, {
+			ringGameId: "rg-1",
+			mixGames: override as never,
+		});
+		expect(snapshot.mixGames).toEqual(override);
+	});
+
+	it("clears the parent's mixGames on an explicit null override", async () => {
+		const db = createChainableMockDb({
+			select: {
+				ring_game: [{ id: "rg-1", variant: "mix", mixGames: parentMix }],
+			},
+		});
+		const snapshot = await resolveCashRuleSnapshot(db as never, {
+			ringGameId: "rg-1",
+			mixGames: null,
+		});
+		expect(snapshot.mixGames).toBeNull();
+	});
+
+	it("defaults mixGames to null with no master and no input", async () => {
+		const db = createChainableMockDb({ select: {} });
+		const snapshot = await resolveCashRuleSnapshot(db as never, {});
+		expect(snapshot.mixGames).toBeNull();
 	});
 });

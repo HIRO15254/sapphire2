@@ -85,6 +85,7 @@ describe("useRingGameForm", () => {
 			ante: "5",
 			anteType: "all",
 			minBuyIn: "40",
+			mixGames: [],
 			maxBuyIn: "200",
 			tableSize: "9",
 			currencyId: "c1",

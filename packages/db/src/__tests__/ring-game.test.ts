@@ -171,4 +171,11 @@ describe("RingGame — indexes", () => {
 	it("has no composite primary key", () => {
 		expect(config.primaryKeys).toHaveLength(0);
 	});
+
+	it("mixGames is a nullable JSON column for mix game groups", () => {
+		const columns = getTableColumns(ringGame);
+		expect(columns.mixGames).toBeDefined();
+		expect(columns.mixGames.notNull).toBe(false);
+		expect(columns.mixGames.columnType).toBe("SQLiteTextJson");
+	});
 });

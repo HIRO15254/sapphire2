@@ -1088,3 +1088,29 @@ describe("liveCashGameSession.list event batching (SA2-151)", () => {
 		expect(sessionEventFromCount(fromCalls)).toBe(0);
 	});
 });
+
+describe("liveCashGameSession.updateSnapshot mixGames", () => {
+	it("accepts a mix group array", () => {
+		expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {
+			id: "session-1",
+			mixGames: [
+				{ name: "Limit", variants: ["lhe", "o8"], blind1: 400, blind2: 800 },
+				{ variants: ["nlh"], blind1: 100, blind2: 200 },
+			],
+		});
+	});
+
+	it("accepts an explicit null to clear the mix definition", () => {
+		expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {
+			id: "session-1",
+			mixGames: null,
+		});
+	});
+
+	it("rejects a mix totalling fewer than two games", () => {
+		expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
+			id: "session-1",
+			mixGames: [{ variants: ["nlh"] }],
+		});
+	});
+});

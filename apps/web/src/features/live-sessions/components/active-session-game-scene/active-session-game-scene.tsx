@@ -21,6 +21,9 @@ import { useTournamentSession } from "@/features/live-sessions/hooks/use-tournam
 import {
 	formatAnteSuffix,
 	formatBlindParts,
+	formatGroupStakes,
+	type GameGroupLike,
+	groupDisplayLabel,
 	variantLabel,
 } from "@/features/live-sessions/utils/game-scene-formatters";
 import {
@@ -102,6 +105,7 @@ interface CashSnapshotDisplay {
 	blind3: number | null;
 	maxBuyIn: number | null;
 	minBuyIn: number | null;
+	mixGames?: GameGroupLike[] | null;
 	ruleName: string;
 	tableSize: number | null;
 	variant: string;
@@ -182,19 +186,29 @@ function RingGameDetailsCard({
 				<RingGameCardTitle diff={diff} master={master} snapshot={snapshot} />
 			</CardHeader>
 			<CardContent className="divide-y">
-				<DetailRow
-					badge={
-						blindsModified ? (
-							<ModifiedBadge masterValue={formatBlindParts(master) || "—"} />
-						) : null
-					}
-					label="Blinds"
-					value={
-						blindsStr
-							? `${blindsStr}${anteStr ? ` ${anteStr}` : ""}${currencyUnit ? ` ${currencyUnit}` : ""}`
-							: "—"
-					}
-				/>
+				{snapshot.mixGames && snapshot.mixGames.length > 0 ? (
+					snapshot.mixGames.map((group, index) => (
+						<DetailRow
+							key={`${groupDisplayLabel(group)}-${index}`}
+							label={groupDisplayLabel(group)}
+							value={formatGroupStakes(group)}
+						/>
+					))
+				) : (
+					<DetailRow
+						badge={
+							blindsModified ? (
+								<ModifiedBadge masterValue={formatBlindParts(master) || "—"} />
+							) : null
+						}
+						label="Blinds"
+						value={
+							blindsStr
+								? `${blindsStr}${anteStr ? ` ${anteStr}` : ""}${currencyUnit ? ` ${currencyUnit}` : ""}`
+								: "—"
+						}
+					/>
+				)}
 				<DetailRow
 					badge={
 						buyInModified ? (
@@ -299,6 +313,7 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 	const snapshot: CashSnapshotDisplay = {
 		ruleName: session.ruleName,
 		variant: session.variant,
+		mixGames: session.mixGames,
 		blind1: session.blind1,
 		blind2: session.blind2,
 		blind3: session.blind3,

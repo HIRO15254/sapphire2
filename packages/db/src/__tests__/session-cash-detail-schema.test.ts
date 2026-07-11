@@ -134,4 +134,11 @@ describe("SessionCashDetail — table name", () => {
 		const config = getTableConfig(sessionCashDetail);
 		expect(config.name).toBe("session_cash_detail");
 	});
+
+	it("mixGames is a nullable JSON column (frozen mix group snapshot)", () => {
+		const columns = getTableColumns(sessionCashDetail);
+		expect(columns.mixGames).toBeDefined();
+		expect(columns.mixGames.notNull).toBe(false);
+		expect(columns.mixGames.columnType).toBe("SQLiteTextJson");
+	});
 });
