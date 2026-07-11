@@ -30,7 +30,8 @@ sapphire2/
 │   ├── config/         # Shared TypeScript config
 │   ├── db/             # Drizzle ORM schema and migrations
 │   └── env/            # Environment variable validation (Zod)
-├── .claude/            # Claude Code config (rules, agents, skills); CLAUDE.md is at repo root
+├── AGENTS.md           # Agent guide (source of truth); CLAUDE.md imports it via @AGENTS.md
+├── .claude/            # Claude Code config (rules, agents, skills)
 ├── docs/
 │   ├── deploy.md       # Deployment guide (EN)
 │   └── deploy.ja.md    # Deployment guide (JA)

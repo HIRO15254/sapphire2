@@ -30,7 +30,8 @@ sapphire2/
 │   ├── config/         # 共有 TypeScript 設定
 │   ├── db/             # Drizzle ORM スキーマとマイグレーション
 │   └── env/            # 環境変数バリデーション (Zod)
-├── .claude/            # Claude Code 設定 (rules, agents, skills); CLAUDE.md はリポジトリ直下
+├── AGENTS.md           # エージェント向けガイド (正本); CLAUDE.md は @AGENTS.md でインポート
+├── .claude/            # Claude Code 設定 (rules, agents, skills)
 ├── docs/
 │   ├── deploy.md       # デプロイガイド (EN)
 │   └── deploy.ja.md    # デプロイガイド (JA)

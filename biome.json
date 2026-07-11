@@ -64,7 +64,7 @@
             "paths": {
               "zod": {
                 "importNames": ["z"],
-                "message": "Import zod's `z` as a default import: `import z from \"zod\"`. The named import (`import { z } from \"zod\"`) breaks the Vite bundler. See CLAUDE.md > Stack > Validation."
+                "message": "Import zod's `z` as a default import: `import z from \"zod\"`. The named import (`import { z } from \"zod\"`) breaks the Vite bundler. See AGENTS.md > Stack > Validation."
               }
             }
           }
