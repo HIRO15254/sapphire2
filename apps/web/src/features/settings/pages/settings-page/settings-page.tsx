@@ -1,5 +1,6 @@
 import { IconLogout } from "@tabler/icons-react";
 import { AboutSection } from "@/features/settings/pages/settings-page/about-section";
+import { CustomVariantsSection } from "@/features/settings/pages/settings-page/custom-variants-section";
 import { LinkedAccounts } from "@/features/settings/pages/settings-page/linked-accounts";
 import { ThemeSetting } from "@/features/settings/pages/settings-page/theme-setting";
 import { PageHeader } from "@/shared/components/page-header";
@@ -26,6 +27,10 @@ export function SettingsPage() {
 				<div className="space-y-6">
 					<PageSection heading="Appearance">
 						<ThemeSetting />
+					</PageSection>
+
+					<PageSection heading="Custom variants">
+						<CustomVariantsSection />
 					</PageSection>
 
 					<PageSection heading="Linked accounts">
