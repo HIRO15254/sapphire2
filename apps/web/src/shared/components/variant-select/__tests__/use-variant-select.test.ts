@@ -47,7 +47,7 @@ vi.mock("@/utils/trpc", () => ({
 
 vi.mock("sonner", () => ({ toast: toastMock }));
 
-import { ADD_CUSTOM_VALUE, useVariantSelect } from "../use-variant-select";
+import { useVariantSelect } from "../use-variant-select";
 
 const GROUPS = [
 	{ id: "g-limit", builtinKey: "limit", label: "Limit" },
@@ -80,11 +80,12 @@ const MIXES = [
 
 function setup(args: Partial<Parameters<typeof useVariantSelect>[0]> = {}) {
 	const onChange = vi.fn();
-	const { result } = renderHook(
-		() => useVariantSelect({ onChange, value: "", ...args }),
+	const { result, rerender } = renderHook(
+		(props: Partial<Parameters<typeof useVariantSelect>[0]> = {}) =>
+			useVariantSelect({ onChange, value: "", ...args, ...props }),
 		{ wrapper: withQueryClient() }
 	);
-	return { result, onChange };
+	return { result, onChange, rerender };
 }
 
 describe("useVariantSelect", () => {
@@ -174,14 +175,15 @@ describe("useVariantSelect", () => {
 		});
 	});
 
-	it("intercepts the add-custom sentinel instead of selecting it", async () => {
+	it("opens the add sheet without selecting anything", async () => {
 		const { result, onChange } = setup();
 		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
 		act(() => {
-			result.current.handleValueChange(ADD_CUSTOM_VALUE);
+			result.current.handleOpenAdd();
 		});
 		expect(onChange).not.toHaveBeenCalled();
 		expect(result.current.isAddOpen).toBe(true);
+		expect(result.current.shouldShowPopover).toBe(false);
 	});
 
 	it("creates a variant with groupId and selects the new label", async () => {
@@ -192,7 +194,7 @@ describe("useVariantSelect", () => {
 		const { result, onChange } = setup();
 		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
 		act(() => {
-			result.current.handleValueChange(ADD_CUSTOM_VALUE);
+			result.current.handleOpenAdd();
 		});
 		act(() => {
 			result.current.form.setFieldValue("label", "Drawmaha");
@@ -218,7 +220,7 @@ describe("useVariantSelect", () => {
 		const { result } = setup();
 		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
 		act(() => {
-			result.current.handleValueChange(ADD_CUSTOM_VALUE);
+			result.current.handleOpenAdd();
 		});
 		act(() => {
 			result.current.form.setFieldValue("label", "Drawmaha");
@@ -234,7 +236,7 @@ describe("useVariantSelect", () => {
 		const { result } = setup();
 		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
 		act(() => {
-			result.current.handleValueChange(ADD_CUSTOM_VALUE);
+			result.current.handleOpenAdd();
 		});
 		act(() => {
 			result.current.form.setFieldValue("label", "Drawmaha");
@@ -247,5 +249,170 @@ describe("useVariantSelect", () => {
 			expect(toastMock.error).toHaveBeenCalledTimes(1);
 		});
 		expect(result.current.isAddOpen).toBe(true);
+	});
+});
+
+describe("useVariantSelect — combobox filtering & selection", () => {
+	beforeEach(() => {
+		trpcMocks.gameGroupListQueryFn.mockReset();
+		trpcMocks.gameVariantListQueryFn.mockReset();
+		trpcMocks.gameMixListQueryFn.mockReset();
+		trpcMocks.gameVariantCreate.mockReset();
+		trpcMocks.gameGroupListQueryFn.mockResolvedValue(GROUPS);
+		trpcMocks.gameVariantListQueryFn.mockResolvedValue(VARIANTS);
+		trpcMocks.gameMixListQueryFn.mockResolvedValue(MIXES);
+	});
+
+	it("shows every option unfiltered on focus before typing", async () => {
+		const { result } = setup({ includeMix: true });
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		act(() => {
+			result.current.handleInputFocus();
+		});
+		expect(result.current.shouldShowPopover).toBe(true);
+		expect(result.current.filteredVariantOptions).toHaveLength(2);
+		expect(result.current.filteredMixOptions).toHaveLength(2);
+	});
+
+	it("filters both lists by typed text, case-insensitively", async () => {
+		const { result } = setup({ includeMix: true });
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		act(() => {
+			result.current.handleInputChange("hold");
+		});
+		expect(result.current.filteredVariantOptions.map((o) => o.label)).toEqual([
+			"NL Hold'em",
+			"Limit Hold'em",
+		]);
+		expect(result.current.filteredMixOptions).toEqual([]);
+		act(() => {
+			result.current.handleInputChange("8-GA");
+		});
+		expect(result.current.filteredVariantOptions).toEqual([]);
+		expect(result.current.filteredMixOptions.map((o) => o.label)).toEqual([
+			"8-Game",
+		]);
+	});
+
+	it("does not commit a value while typing", async () => {
+		const { result, onChange } = setup({ value: "NL Hold'em" });
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		act(() => {
+			result.current.handleInputChange("Limit");
+		});
+		expect(onChange).not.toHaveBeenCalled();
+		expect(result.current.inputValue).toBe("Limit");
+	});
+
+	it("selecting an option commits the label and closes the popover", async () => {
+		const { result, onChange } = setup();
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		act(() => {
+			result.current.handleInputFocus();
+		});
+		act(() => {
+			result.current.handleSelect("Limit Hold'em");
+		});
+		expect(onChange).toHaveBeenCalledTimes(1);
+		expect(onChange).toHaveBeenNthCalledWith(1, "Limit Hold'em");
+		expect(result.current.shouldShowPopover).toBe(false);
+	});
+
+	it("blur outside the popover reverts typed text to the current value", async () => {
+		const { result } = setup({ value: "NL Hold'em" });
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		act(() => {
+			result.current.handleInputChange("garbage");
+		});
+		act(() => {
+			result.current.handleInputBlur(null);
+		});
+		expect(result.current.inputValue).toBe("NL Hold'em");
+		expect(result.current.shouldShowPopover).toBe(false);
+	});
+
+	it("Enter selects the exact match", async () => {
+		const { result, onChange } = setup();
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		act(() => {
+			result.current.handleInputChange("limit hold'em");
+		});
+		act(() => {
+			result.current.handleKeyDown("Enter");
+		});
+		expect(onChange).toHaveBeenNthCalledWith(1, "Limit Hold'em");
+	});
+
+	it("Enter selects the sole remaining option", async () => {
+		const { result, onChange } = setup({ includeMix: true });
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		act(() => {
+			result.current.handleInputChange("horse");
+		});
+		act(() => {
+			result.current.handleKeyDown("Enter");
+		});
+		expect(onChange).toHaveBeenNthCalledWith(1, "HORSE");
+	});
+
+	it("Enter with multiple matches selects nothing", async () => {
+		const { result, onChange } = setup();
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		act(() => {
+			result.current.handleInputChange("hold");
+		});
+		act(() => {
+			result.current.handleKeyDown("Enter");
+		});
+		expect(onChange).not.toHaveBeenCalled();
+	});
+
+	it("Escape closes the popover and reverts the text", async () => {
+		const { result } = setup({ value: "NL Hold'em" });
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		act(() => {
+			result.current.handleInputChange("xyz");
+		});
+		act(() => {
+			result.current.handleKeyDown("Escape");
+		});
+		expect(result.current.inputValue).toBe("NL Hold'em");
+		expect(result.current.shouldShowPopover).toBe(false);
+	});
+
+	it("prefills the add sheet with the typed text", async () => {
+		const { result } = setup();
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		act(() => {
+			result.current.handleInputChange("Drawmaha");
+		});
+		act(() => {
+			result.current.handleOpenAdd();
+		});
+		expect(result.current.isAddOpen).toBe(true);
+		expect(result.current.form.state.values.label).toBe("Drawmaha");
+		expect(result.current.inputValue).toBe("");
+	});
+
+	it("does not prefill the add sheet with an existing option's label", async () => {
+		const { result } = setup();
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		act(() => {
+			result.current.handleInputChange("NL Hold'em");
+		});
+		act(() => {
+			result.current.handleOpenAdd();
+		});
+		expect(result.current.form.state.values.label).toBe("");
+	});
+
+	it("syncs the input text when the value prop changes", async () => {
+		const { result, rerender } = setup({ value: "NL Hold'em" });
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		expect(result.current.inputValue).toBe("NL Hold'em");
+		rerender({ value: "8-Game" });
+		await waitFor(() => {
+			expect(result.current.inputValue).toBe("8-Game");
+		});
 	});
 });

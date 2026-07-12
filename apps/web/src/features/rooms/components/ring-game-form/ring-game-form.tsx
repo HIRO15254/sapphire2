@@ -1,4 +1,5 @@
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
+import { MixFormSheet } from "@/shared/components/mix-form-sheet";
 import { MixGamesEditor } from "@/shared/components/mix-games-editor";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -47,11 +48,23 @@ export function RingGameForm({
 	defaultValues,
 	formId,
 }: RingGameFormProps) {
-	const { form, currencies, groupFor, isMixValue, onVariantChange } =
-		useRingGameForm({
-			defaultValues,
-			onSubmit,
-		});
+	const {
+		form,
+		currencies,
+		editingMix,
+		groupFor,
+		isMixSheetOpen,
+		isMixValue,
+		mixRowFor,
+		onEditMix,
+		onMixSaved,
+		onVariantChange,
+		setIsMixSheetOpen,
+		variants,
+	} = useRingGameForm({
+		defaultValues,
+		onSubmit,
+	});
 
 	return (
 		<form
@@ -94,20 +107,34 @@ export function RingGameForm({
 				)}
 			</form.Field>
 
-			{/* Mix games swap the flat blind/ante fields for the group editor;
-			    per-group amounts live inside each group row. */}
+			{/* Mix games swap the flat blind/ante fields for the group editor:
+			    amounts only — the composition follows the mix master, edited via
+			    the dedicated bottom sheet (updates the master itself). */}
 			<form.Subscribe selector={(state) => state.values.variant}>
 				{(variant) =>
 					isMixValue(variant) ? (
-						<form.Field name="mixGames">
-							{(field) => (
-								<MixGamesEditor
-									onChange={(rows) => field.handleChange(rows)}
-									resolveGroup={groupFor}
-									value={field.state.value}
-								/>
-							)}
-						</form.Field>
+						<>
+							<form.Field name="mixGames">
+								{(field) => (
+									<MixGamesEditor
+										onChange={(rows) => field.handleChange(rows)}
+										onEditMix={
+											mixRowFor(variant) ? () => onEditMix(variant) : undefined
+										}
+										resolveGroup={groupFor}
+										value={field.state.value}
+									/>
+								)}
+							</form.Field>
+							<MixFormSheet
+								editingMix={editingMix}
+								key={editingMix ? `edit-${editingMix.id}` : "closed"}
+								onOpenChange={setIsMixSheetOpen}
+								onSaved={onMixSaved}
+								open={isMixSheetOpen}
+								variants={variants}
+							/>
+						</>
 					) : (
 						<>
 							<VariantAwareBlindFields form={form} variant={variant} />

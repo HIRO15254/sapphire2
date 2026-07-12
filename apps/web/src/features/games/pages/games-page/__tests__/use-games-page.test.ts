@@ -59,7 +59,7 @@ vi.mock("@/utils/trpc", () => ({
 
 vi.mock("sonner", () => ({ toast: toastMock }));
 
-import { useGameLibrarySection } from "../use-game-library-section";
+import { useGamesPage } from "../use-games-page";
 
 function groupRow(overrides: Record<string, unknown> = {}) {
 	return {
@@ -104,7 +104,7 @@ function mixRow(overrides: Record<string, unknown> = {}) {
 	};
 }
 
-describe("useGameLibrarySection", () => {
+describe("useGamesPage", () => {
 	beforeEach(() => {
 		trpcMocks.gameGroupListQueryFn.mockReset();
 		trpcMocks.gameGroupListQueryFn.mockResolvedValue([groupRow()]);
@@ -119,7 +119,7 @@ describe("useGameLibrarySection", () => {
 	});
 
 	it("is loading until the group, variant, and mix lists resolve", async () => {
-		const { result } = renderHook(() => useGameLibrarySection(), {
+		const { result } = renderHook(() => useGamesPage(), {
 			wrapper: withQueryClient(),
 		});
 		expect(result.current.isLoading).toBe(true);
@@ -128,14 +128,14 @@ describe("useGameLibrarySection", () => {
 
 	it("stays loading while only the mix list is still pending", () => {
 		trpcMocks.gameMixListQueryFn.mockReturnValue(new Promise(() => undefined));
-		const { result } = renderHook(() => useGameLibrarySection(), {
+		const { result } = renderHook(() => useGamesPage(), {
 			wrapper: withQueryClient(),
 		});
 		expect(result.current.isLoading).toBe(true);
 	});
 
 	it("exposes the mix list and the flat variant rows", async () => {
-		const { result } = renderHook(() => useGameLibrarySection(), {
+		const { result } = renderHook(() => useGamesPage(), {
 			wrapper: withQueryClient(),
 		});
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -152,7 +152,7 @@ describe("useGameLibrarySection", () => {
 			variantRow({ id: "v-1", groupId: "g-1", label: "NLH" }),
 			variantRow({ id: "v-2", groupId: "g-2", label: "7-Stud" }),
 		]);
-		const { result } = renderHook(() => useGameLibrarySection(), {
+		const { result } = renderHook(() => useGamesPage(), {
 			wrapper: withQueryClient(),
 		});
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -169,7 +169,7 @@ describe("useGameLibrarySection", () => {
 			variantRow({ id: "v-1", label: "Big Duck", sortOrder: 0 }),
 			variantRow({ id: "v-2", label: "Alpha", sortOrder: 1 }),
 		]);
-		const { result } = renderHook(() => useGameLibrarySection(), {
+		const { result } = renderHook(() => useGamesPage(), {
 			wrapper: withQueryClient(),
 		});
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -182,7 +182,7 @@ describe("useGameLibrarySection", () => {
 
 	it("includes a group with no variants as an empty entry", async () => {
 		trpcMocks.gameVariantListQueryFn.mockResolvedValue([]);
-		const { result } = renderHook(() => useGameLibrarySection(), {
+		const { result } = renderHook(() => useGamesPage(), {
 			wrapper: withQueryClient(),
 		});
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -191,7 +191,7 @@ describe("useGameLibrarySection", () => {
 	});
 
 	it("exposes flat group options for the variant sheet's select", async () => {
-		const { result } = renderHook(() => useGameLibrarySection(), {
+		const { result } = renderHook(() => useGamesPage(), {
 			wrapper: withQueryClient(),
 		});
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -202,7 +202,7 @@ describe("useGameLibrarySection", () => {
 
 	describe("group sheet", () => {
 		it("opens in create mode with no editing target", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -214,7 +214,7 @@ describe("useGameLibrarySection", () => {
 		});
 
 		it("opens in edit mode with the picked group", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -226,7 +226,7 @@ describe("useGameLibrarySection", () => {
 		});
 
 		it("closes and clears the editing target when open is set to false", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -243,7 +243,7 @@ describe("useGameLibrarySection", () => {
 
 	describe("variant sheet", () => {
 		it("opens in create mode preselected with the tapped group's id", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -256,7 +256,7 @@ describe("useGameLibrarySection", () => {
 		});
 
 		it("opens in edit mode with the picked variant and no preselected group", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -269,7 +269,7 @@ describe("useGameLibrarySection", () => {
 		});
 
 		it("closes and clears both the editing target and the preselected group", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -287,7 +287,7 @@ describe("useGameLibrarySection", () => {
 
 	describe("mix sheet", () => {
 		it("opens in create mode with no editing target", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -299,7 +299,7 @@ describe("useGameLibrarySection", () => {
 		});
 
 		it("opens in edit mode with the picked mix", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -311,7 +311,7 @@ describe("useGameLibrarySection", () => {
 		});
 
 		it("closes and clears the editing target when open is set to false", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -328,7 +328,7 @@ describe("useGameLibrarySection", () => {
 
 	describe("group delete", () => {
 		it("blocks the request and toasts when the group still has variants", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -345,7 +345,7 @@ describe("useGameLibrarySection", () => {
 
 		it("opens the confirm dialog for an empty group", async () => {
 			trpcMocks.gameVariantListQueryFn.mockResolvedValue([]);
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -361,7 +361,7 @@ describe("useGameLibrarySection", () => {
 			trpcMocks.gameGroupDelete.mockResolvedValue({ success: true });
 			const queryClient = createTestQueryClient();
 			const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(queryClient),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -398,7 +398,7 @@ describe("useGameLibrarySection", () => {
 					},
 				})
 			);
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -421,7 +421,7 @@ describe("useGameLibrarySection", () => {
 		it("toasts a generic message on a non-CONFLICT delete failure", async () => {
 			trpcMocks.gameVariantListQueryFn.mockResolvedValue([]);
 			trpcMocks.gameGroupDelete.mockRejectedValue(new Error("FORBIDDEN"));
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -442,7 +442,7 @@ describe("useGameLibrarySection", () => {
 		});
 
 		it("does nothing when confirmed with no pending request", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -454,7 +454,7 @@ describe("useGameLibrarySection", () => {
 
 		it("cancels a delete request without calling the mutation", async () => {
 			trpcMocks.gameVariantListQueryFn.mockResolvedValue([]);
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -474,7 +474,7 @@ describe("useGameLibrarySection", () => {
 			trpcMocks.gameVariantDelete.mockResolvedValue({ success: true });
 			const queryClient = createTestQueryClient();
 			const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(queryClient),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -504,7 +504,7 @@ describe("useGameLibrarySection", () => {
 		});
 
 		it("does nothing when confirmed with no pending request", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -515,7 +515,7 @@ describe("useGameLibrarySection", () => {
 		});
 
 		it("cancels a delete request without calling the mutation", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -533,7 +533,7 @@ describe("useGameLibrarySection", () => {
 
 		it("toasts and closes the dialog on delete failure", async () => {
 			trpcMocks.gameVariantDelete.mockRejectedValue(new Error("FORBIDDEN"));
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -561,7 +561,7 @@ describe("useGameLibrarySection", () => {
 			trpcMocks.gameMixDelete.mockResolvedValue({ success: true });
 			const queryClient = createTestQueryClient();
 			const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(queryClient),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -589,7 +589,7 @@ describe("useGameLibrarySection", () => {
 		});
 
 		it("does nothing when confirmed with no pending request", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -600,7 +600,7 @@ describe("useGameLibrarySection", () => {
 		});
 
 		it("cancels a delete request without calling the mutation", async () => {
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -616,7 +616,7 @@ describe("useGameLibrarySection", () => {
 
 		it("toasts and closes the dialog on delete failure", async () => {
 			trpcMocks.gameMixDelete.mockRejectedValue(new Error("FORBIDDEN"));
-			const { result } = renderHook(() => useGameLibrarySection(), {
+			const { result } = renderHook(() => useGamesPage(), {
 				wrapper: withQueryClient(),
 			});
 			await waitFor(() => expect(result.current.isLoading).toBe(false));

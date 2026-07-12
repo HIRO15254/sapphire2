@@ -1,17 +1,26 @@
 import { FormSheet } from "@/shared/components/form-sheet";
+import {
+	Command,
+	CommandGroup,
+	CommandItem,
+	CommandList,
+	CommandSeparator,
+} from "@/shared/components/ui/command";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
+	Popover,
+	PopoverAnchor,
+	PopoverContent,
+} from "@/shared/components/ui/popover";
+import {
 	Select,
 	SelectContent,
-	SelectGroup,
 	SelectItem,
-	SelectLabel,
-	SelectSeparator,
 	SelectTrigger,
 	SelectValue,
 } from "@/shared/components/ui/select";
-import { ADD_CUSTOM_VALUE, useVariantSelect } from "./use-variant-select";
+import { useVariantSelect } from "./use-variant-select";
 
 interface VariantSelectProps {
 	disabled?: boolean;
@@ -21,22 +30,19 @@ interface VariantSelectProps {
 	/** Show the special "Mixed Game" mode entry (value: "mix"). */
 	includeMix?: boolean;
 	onChange: (variant: string) => void;
-	/**
-	 * Trigger text while nothing is selected — Radix renders a blank trigger
-	 * otherwise, which the "add a game" pick-and-reset mount sites hit on
-	 * every render (their value is always "").
-	 */
+	/** Input hint while nothing is selected (pick-and-reset mounts). */
 	placeholder?: string;
 	value: string;
 }
 
 /**
- * Required variant picker shared by every game/rule form. Options are the
- * user's own variant rows (seeded at signup, fully editable in Settings),
- * plus the user's named mix masters (HORSE / 8-Game / 10-Game / custom,
- * shown as a separated group) where a mix editor exists, plus a trailing
- * "Add custom variant" affordance that creates a row (name + short label +
- * owning group) and selects it.
+ * Required variant picker shared by every game/rule form — a type-to-filter
+ * combobox (Input + Popover + Command, the repo's combobox convention).
+ * Options are the user's own variant rows (seeded at signup, fully editable
+ * on the Games page), plus the user's named mix masters (HORSE / 8-Game /
+ * custom, shown under a "Mixes" heading) where a mix editor exists, plus a
+ * trailing "Add custom variant" action that creates a row (name + short
+ * label + owning group, pre-seeded from the typed draft) and selects it.
  */
 export function VariantSelect({
 	disabled = false,
@@ -48,55 +54,114 @@ export function VariantSelect({
 	value,
 }: VariantSelectProps) {
 	const {
+		anchorRef,
+		contentWidth,
+		filteredMixOptions,
+		filteredVariantOptions,
 		form,
 		formId,
 		groups,
-		handleValueChange,
+		handleInputBlur,
+		handleInputChange,
+		handleInputFocus,
+		handleKeyDown,
+		handleOpenAdd,
+		handleSelect,
+		inputValue,
 		isAddOpen,
 		isCreatePending,
 		isLoading,
-		mixOptions,
 		setIsAddOpen,
-		unknownValue,
-		variantOptions,
+		shouldShowPopover,
 	} = useVariantSelect({ excludeVariants, includeMix, onChange, value });
+
+	const hasMatches =
+		filteredVariantOptions.length > 0 || filteredMixOptions.length > 0;
 
 	return (
 		<>
-			<Select
-				disabled={disabled || isLoading}
-				onValueChange={handleValueChange}
-				value={value}
+			<Popover
+				modal={false}
+				onOpenChange={() => undefined}
+				open={shouldShowPopover}
 			>
-				<SelectTrigger className="w-full" id={id}>
-					<SelectValue placeholder={placeholder} />
-				</SelectTrigger>
-				<SelectContent>
-					{variantOptions.map((option) => (
-						<SelectItem key={option.id} value={option.label}>
-							{option.label}
-						</SelectItem>
-					))}
-					{mixOptions.length > 0 ? (
-						<>
-							<SelectSeparator />
-							<SelectGroup>
-								<SelectLabel>Mixes</SelectLabel>
-								{mixOptions.map((option) => (
-									<SelectItem key={option.id} value={option.label}>
+				<PopoverAnchor asChild>
+					<div ref={anchorRef}>
+						<Input
+							aria-expanded={shouldShowPopover}
+							autoComplete="off"
+							disabled={disabled || isLoading}
+							id={id}
+							onBlur={(e) => {
+								const relatedTarget = e.relatedTarget as HTMLElement | null;
+								handleInputBlur(relatedTarget);
+							}}
+							onChange={(e) => handleInputChange(e.target.value)}
+							onFocus={handleInputFocus}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") {
+									e.preventDefault();
+								}
+								handleKeyDown(e.key);
+							}}
+							placeholder={placeholder}
+							role="combobox"
+							value={inputValue}
+						/>
+					</div>
+				</PopoverAnchor>
+				{shouldShowPopover ? (
+					<PopoverContent
+						align="start"
+						className="p-0"
+						onFocusOutside={(e) => e.preventDefault()}
+						onOpenAutoFocus={(e) => e.preventDefault()}
+						style={contentWidth ? { width: contentWidth } : undefined}
+					>
+						<Command shouldFilter={false}>
+							<CommandList>
+								{hasMatches ? null : (
+									<p className="py-6 text-center text-muted-foreground text-sm">
+										No matching games
+									</p>
+								)}
+								{filteredVariantOptions.map((option) => (
+									<CommandItem
+										key={option.id}
+										onMouseDown={(e) => e.preventDefault()}
+										onSelect={() => handleSelect(option.label)}
+										value={option.label}
+									>
 										{option.label}
-									</SelectItem>
+									</CommandItem>
 								))}
-							</SelectGroup>
-						</>
-					) : null}
-					{unknownValue ? (
-						<SelectItem value={unknownValue}>{unknownValue}</SelectItem>
-					) : null}
-					<SelectSeparator />
-					<SelectItem value={ADD_CUSTOM_VALUE}>Add custom variant</SelectItem>
-				</SelectContent>
-			</Select>
+								{filteredMixOptions.length > 0 ? (
+									<CommandGroup heading="Mixes">
+										{filteredMixOptions.map((option) => (
+											<CommandItem
+												key={option.id}
+												onMouseDown={(e) => e.preventDefault()}
+												onSelect={() => handleSelect(option.label)}
+												value={option.label}
+											>
+												{option.label}
+											</CommandItem>
+										))}
+									</CommandGroup>
+								) : null}
+								<CommandSeparator />
+								<CommandItem
+									onMouseDown={(e) => e.preventDefault()}
+									onSelect={handleOpenAdd}
+									value="__add_custom_variant__"
+								>
+									Add custom variant
+								</CommandItem>
+							</CommandList>
+						</Command>
+					</PopoverContent>
+				) : null}
+			</Popover>
 			<FormSheet
 				formId={formId}
 				isLoading={isCreatePending}

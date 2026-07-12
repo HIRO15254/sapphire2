@@ -5,16 +5,17 @@ import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { VariantSelect } from "@/shared/components/variant-select";
-import type { GameMixRow, GameVariantRow } from "../use-game-library-section";
+import type { MixFormMixRow, MixFormVariantRow } from "./use-mix-form-sheet";
 import { useMixFormSheet } from "./use-mix-form-sheet";
 
 const MIX_FORM_ID = "game-mix-form";
 
 export interface MixFormSheetProps {
-	editingMix: GameMixRow | null;
+	editingMix: MixFormMixRow | null;
 	onOpenChange: (open: boolean) => void;
+	onSaved?: (mix: { id: string; label: string; games: string[] }) => void;
 	open: boolean;
-	variants: GameVariantRow[];
+	variants: MixFormVariantRow[];
 }
 
 /**
@@ -27,6 +28,7 @@ export interface MixFormSheetProps {
 export function MixFormSheet({
 	editingMix,
 	onOpenChange,
+	onSaved,
 	open,
 	variants,
 }: MixFormSheetProps) {
@@ -38,7 +40,7 @@ export function MixFormSheet({
 		onOpenChange: handleOpenChange,
 		onRemoveGame,
 		selectedGames,
-	} = useMixFormSheet({ editingMix, onOpenChange, variants });
+	} = useMixFormSheet({ editingMix, onOpenChange, onSaved, variants });
 
 	return (
 		<FormSheet

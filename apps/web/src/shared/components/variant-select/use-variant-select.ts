@@ -1,17 +1,10 @@
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
-
-/**
- * Sentinel Select value for the trailing "Add custom variant" item —
- * intercepted before onChange so it opens the creation sheet instead of
- * becoming the field value.
- */
-export const ADD_CUSTOM_VALUE = "__add_custom_variant__";
 
 // Mirrors gameVariant.create's server constraints so users get field-level
 // errors instead of a server reject.
@@ -45,6 +38,12 @@ function normalized(variant: string): string {
 	return variant.trim().toLowerCase();
 }
 
+/**
+ * Type-to-filter combobox state (Input + Popover + Command, the repo's
+ * combobox convention — see currencies' type-combobox). The input's text is
+ * a local draft: the field value only changes on an explicit selection, and
+ * an unresolved draft reverts to the current value on blur/escape.
+ */
 export function useVariantSelect({
 	excludeVariants,
 	includeMix = false,
@@ -54,6 +53,19 @@ export function useVariantSelect({
 	const queryClient = useQueryClient();
 	const formId = useId();
 	const [isAddOpen, setIsAddOpen] = useState(false);
+	const [inputValue, setInputValue] = useState(value);
+	const [isFiltering, setIsFiltering] = useState(false);
+	const [isOpen, setIsOpen] = useState(false);
+	const [contentWidth, setContentWidth] = useState<number>();
+	const anchorRef = useRef<HTMLDivElement>(null);
+
+	// The value prop is the display label (self-freezing select) — keep the
+	// draft text in sync whenever the committed value changes (selection,
+	// mix-master reseed, external form reset).
+	useEffect(() => {
+		setInputValue(value);
+		setIsFiltering(false);
+	}, [value]);
 
 	const variantListOptions = trpc.gameVariant.list.queryOptions();
 	const variantsQuery = useQuery(variantListOptions);
@@ -80,17 +92,34 @@ export function useVariantSelect({
 		? allMixes.map((row) => ({ id: row.id, label: row.label }))
 		: [];
 
-	// A frozen value whose definition no longer exists (deleted variant)
-	// still needs an item, or the controlled Select renders blank. Mix labels
-	// and the legacy "mix" mode key are always known — the legacy key never
-	// has a matching menu item, but it must not be treated as an unknown/
-	// frozen value either (it stays recognized as mix-mode everywhere else).
+	// Typed filter (manual — Command mounts with shouldFilter=false). Only
+	// narrows while the user is actively typing a draft; a freshly opened
+	// popover lists everything even though the input shows the current value.
+	const query = isFiltering ? normalized(inputValue) : "";
+	const matches = (label: string) =>
+		query === "" || normalized(label).includes(query);
+	const filteredVariantOptions = variantOptions.filter((o) => matches(o.label));
+	const filteredMixOptions = mixOptions.filter((o) => matches(o.label));
+
+	// A frozen value whose definition no longer exists (deleted variant) is
+	// still rendered by the input (its text is the raw value), but callers can
+	// use this to hint that the label no longer matches a master row. Mix
+	// labels and the legacy "mix" mode key are always known.
 	const isKnownValue =
 		value === "" ||
 		normalized(value) === LEGACY_MIX_VALUE ||
 		allVariants.some((row) => row.label === value) ||
 		allMixes.some((row) => normalized(row.label) === normalized(value));
 	const unknownValue = isKnownValue ? null : value;
+
+	const shouldShowPopover = isOpen;
+
+	useEffect(() => {
+		if (!(shouldShowPopover && anchorRef.current)) {
+			return;
+		}
+		setContentWidth(anchorRef.current.offsetWidth);
+	}, [shouldShowPopover]);
 
 	const createMutation = useMutation({
 		mutationFn: (input: {
@@ -130,25 +159,90 @@ export function useVariantSelect({
 		},
 	});
 
-	const handleValueChange = (next: string) => {
-		if (next === ADD_CUSTOM_VALUE) {
-			setIsAddOpen(true);
+	const revertDraft = () => {
+		setInputValue(value);
+		setIsFiltering(false);
+	};
+
+	const handleSelect = (label: string) => {
+		setIsOpen(false);
+		setIsFiltering(false);
+		// Cleared first so pick-and-reset mounts (value stays "") end up empty;
+		// controlled mounts re-sync to the new value via the effect above.
+		setInputValue("");
+		onChange(label);
+	};
+
+	const handleInputChange = (text: string) => {
+		setInputValue(text);
+		setIsFiltering(true);
+		setIsOpen(true);
+	};
+
+	const handleInputFocus = () => setIsOpen(true);
+
+	const handleInputBlur = (relatedTarget: HTMLElement | null) => {
+		if (!relatedTarget?.closest('[data-slot="popover-content"]')) {
+			setIsOpen(false);
+			revertDraft();
+		}
+	};
+
+	const handleKeyDown = (key: string) => {
+		if (key === "Enter") {
+			const pool = [...filteredVariantOptions, ...filteredMixOptions];
+			const exact = pool.find(
+				(o) => normalized(o.label) === normalized(inputValue)
+			);
+			const target = exact ?? (pool.length === 1 ? pool[0] : undefined);
+			if (target) {
+				handleSelect(target.label);
+			}
 			return;
 		}
-		onChange(next);
+		if (key === "Escape") {
+			setIsOpen(false);
+			revertDraft();
+		}
+	};
+
+	// "Add custom variant" action item: an unresolved draft that matches no
+	// option is almost always the name the user wanted to create — seed it.
+	const handleOpenAdd = () => {
+		const draft = inputValue.trim();
+		const isExisting = [...variantOptions, ...mixOptions].some(
+			(o) => normalized(o.label) === normalized(draft)
+		);
+		if (isFiltering && draft !== "" && !isExisting) {
+			form.setFieldValue("label", draft);
+		}
+		setIsOpen(false);
+		revertDraft();
+		setIsAddOpen(true);
 	};
 
 	return {
+		anchorRef,
+		contentWidth,
+		filteredMixOptions,
+		filteredVariantOptions,
 		form,
 		formId,
 		groups,
-		handleValueChange,
+		handleInputBlur,
+		handleInputChange,
+		handleInputFocus,
+		handleKeyDown,
+		handleOpenAdd,
+		handleSelect,
+		inputValue,
 		isAddOpen,
 		isCreatePending: createMutation.isPending,
 		isLoading:
 			variantsQuery.isLoading || groupsQuery.isLoading || mixesQuery.isLoading,
 		mixOptions,
 		setIsAddOpen,
+		shouldShowPopover,
 		unknownValue,
 		variantOptions,
 	};

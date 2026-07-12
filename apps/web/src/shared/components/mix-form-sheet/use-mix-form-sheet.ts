@@ -4,12 +4,28 @@ import { toast } from "sonner";
 import z from "zod";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
-import type { GameMixRow, GameVariantRow } from "../use-game-library-section";
+
+// Local row shapes instead of importing the games-page hook's GameMixRow /
+// GameVariantRow — shared components must not import from a feature. Only
+// the fields this sheet actually reads are declared; the games-page's rows
+// are structurally compatible and pass through unchanged.
+export interface MixFormMixRow {
+	builtinKey: string | null;
+	games: string[];
+	id: string;
+	label: string;
+}
+
+export interface MixFormVariantRow {
+	id: string;
+	label: string;
+}
 
 export interface UseMixFormSheetProps {
-	editingMix: GameMixRow | null;
+	editingMix: MixFormMixRow | null;
 	onOpenChange: (open: boolean) => void;
-	variants: GameVariantRow[];
+	onSaved?: (mix: { id: string; label: string; games: string[] }) => void;
+	variants: MixFormVariantRow[];
 }
 
 interface MixInput {
@@ -34,13 +50,18 @@ const mixFormSchema = z.object({
  * presence. The UI works entirely in variant LABELS (Badge chips +
  * VariantSelect, both label-based), while the form field and the
  * create/update payload hold ordered game_variant IDS — `variants` (the
- * user's flat variant rows, passed down from use-game-library-section.ts)
- * is the label<->id lookup table. Same key-per-target remount contract as
- * `use-group-form-sheet.ts` / `use-variant-form-sheet.ts`.
+ * caller's flat variant rows) is the label<->id lookup table. Same
+ * key-per-target remount contract as the games-page's group-form-sheet /
+ * variant-form-sheet hooks. `onSaved` (optional) fires with the
+ * server-returned row after either mutation's success handling, so a
+ * caller elsewhere in the app (e.g. a picker that wants to auto-select the
+ * mix it just created) can react without this shared component knowing
+ * about that caller.
  */
 export function useMixFormSheet({
 	editingMix,
 	onOpenChange,
+	onSaved,
 	variants,
 }: UseMixFormSheetProps) {
 	const queryClient = useQueryClient();
@@ -48,8 +69,8 @@ export function useMixFormSheet({
 	const variantListQueryOptions = trpc.gameVariant.list.queryOptions();
 	const mixListQueryOptions = trpc.gameMix.list.queryOptions();
 
-	// Uniform triple-list invalidation, matching every other mutation in this
-	// section (see use-game-library-section.ts's invalidateAll).
+	// Uniform triple-list invalidation, matching every other mutation in the
+	// games page (see use-games-page.ts's invalidateAll).
 	const invalidateAll = () =>
 		invalidateTargets(queryClient, [
 			{ queryKey: groupListQueryOptions.queryKey },
@@ -59,9 +80,10 @@ export function useMixFormSheet({
 
 	const createMutation = useMutation({
 		mutationFn: (input: MixInput) => trpcClient.gameMix.create.mutate(input),
-		onSuccess: () => {
+		onSuccess: (created) => {
 			form.reset();
 			onOpenChange(false);
+			onSaved?.(created);
 		},
 		onError: () => {
 			toast.error("Failed to create game mix");
@@ -72,9 +94,10 @@ export function useMixFormSheet({
 	const updateMutation = useMutation({
 		mutationFn: (input: MixInput & { id: string }) =>
 			trpcClient.gameMix.update.mutate(input),
-		onSuccess: () => {
+		onSuccess: (updated) => {
 			form.reset();
 			onOpenChange(false);
+			onSaved?.(updated);
 		},
 		onError: () => {
 			toast.error("Failed to update game mix");

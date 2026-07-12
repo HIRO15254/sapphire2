@@ -557,4 +557,135 @@ describe("useMixFormSheet", () => {
 		expect(result.current.form.state.values.label).toBe("Draft");
 		expect(onOpenChange).toHaveBeenCalledWith(true);
 	});
+
+	describe("onSaved", () => {
+		it("calls onSaved once with the returned row on a successful create", async () => {
+			const createdRow = mixRow({ id: "m-2", label: "My Mix" });
+			trpcMocks.gameMixCreate.mockResolvedValue(createdRow);
+			const onOpenChange = vi.fn();
+			const onSaved = vi.fn();
+			const { result } = renderHook(
+				() =>
+					useMixFormSheet({
+						editingMix: null,
+						onOpenChange,
+						onSaved,
+						variants: VARIANTS,
+					}),
+				{ wrapper: withQueryClient() }
+			);
+			act(() => {
+				result.current.form.setFieldValue("label", "My Mix");
+			});
+			act(() => {
+				result.current.onAddGame("Razz");
+			});
+			act(() => {
+				result.current.onAddGame("Limit Hold'em");
+			});
+			await act(async () => {
+				await result.current.form.handleSubmit();
+			});
+			await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+			expect(onSaved).toHaveBeenNthCalledWith(1, createdRow);
+		});
+
+		it("calls onSaved once with the returned row on a successful update", async () => {
+			const updatedRow = mixRow({ label: "HORSE Deluxe" });
+			trpcMocks.gameMixUpdate.mockResolvedValue(updatedRow);
+			const onOpenChange = vi.fn();
+			const onSaved = vi.fn();
+			const { result } = renderHook(
+				() =>
+					useMixFormSheet({
+						editingMix: mixRow(),
+						onOpenChange,
+						onSaved,
+						variants: VARIANTS,
+					}),
+				{ wrapper: withQueryClient() }
+			);
+			act(() => {
+				result.current.form.setFieldValue("label", "HORSE Deluxe");
+			});
+			await act(async () => {
+				await result.current.form.handleSubmit();
+			});
+			await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+			expect(onSaved).toHaveBeenNthCalledWith(1, updatedRow);
+		});
+
+		it("does not call onSaved when the create mutation fails", async () => {
+			trpcMocks.gameMixCreate.mockRejectedValue(new Error("CONFLICT"));
+			const onOpenChange = vi.fn();
+			const onSaved = vi.fn();
+			const { result } = renderHook(
+				() =>
+					useMixFormSheet({
+						editingMix: null,
+						onOpenChange,
+						onSaved,
+						variants: VARIANTS,
+					}),
+				{ wrapper: withQueryClient() }
+			);
+			act(() => {
+				result.current.form.setFieldValue("label", "My Mix");
+			});
+			act(() => {
+				result.current.onAddGame("Razz");
+			});
+			act(() => {
+				result.current.onAddGame("Limit Hold'em");
+			});
+			await act(async () => {
+				await result.current.form.handleSubmit();
+			});
+			await waitFor(() => {
+				expect(toastMock.error).toHaveBeenCalledTimes(1);
+			});
+			expect(onSaved).not.toHaveBeenCalled();
+		});
+
+		it("does not call onSaved when the update mutation fails", async () => {
+			trpcMocks.gameMixUpdate.mockRejectedValue(new Error("CONFLICT"));
+			const onOpenChange = vi.fn();
+			const onSaved = vi.fn();
+			const { result } = renderHook(
+				() =>
+					useMixFormSheet({
+						editingMix: mixRow(),
+						onOpenChange,
+						onSaved,
+						variants: VARIANTS,
+					}),
+				{ wrapper: withQueryClient() }
+			);
+			await act(async () => {
+				await result.current.form.handleSubmit();
+			});
+			await waitFor(() => {
+				expect(toastMock.error).toHaveBeenCalledTimes(1);
+			});
+			expect(onSaved).not.toHaveBeenCalled();
+		});
+
+		it("does not throw on a successful update when onSaved is omitted", async () => {
+			trpcMocks.gameMixUpdate.mockResolvedValue(mixRow());
+			const onOpenChange = vi.fn();
+			const { result } = renderHook(
+				() =>
+					useMixFormSheet({
+						editingMix: mixRow(),
+						onOpenChange,
+						variants: VARIANTS,
+					}),
+				{ wrapper: withQueryClient() }
+			);
+			await act(async () => {
+				await result.current.form.handleSubmit();
+			});
+			await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+		});
+	});
 });

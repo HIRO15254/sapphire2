@@ -1,6 +1,6 @@
 import { IconEdit, IconTrash } from "@tabler/icons-react";
 import { Button } from "@/shared/components/ui/button";
-import type { GameMixRow, GameVariantRow } from "../use-game-library-section";
+import type { GameMixRow, GameVariantRow } from "../use-games-page";
 
 export interface MixesCardProps {
 	mixes: GameMixRow[];
@@ -24,8 +24,8 @@ function mixGamesTitle(
  * spanning groups) — rendered after the group cards since a mix is a
  * cross-group composition, not a group member. Same header-band treatment
  * as `group-card/` for visual consistency. Pure presentational: state and
- * mutations live in the parent's use-game-library-section.ts hook and the
- * colocated mix-form-sheet hook.
+ * mutations live in the parent's use-games-page.ts hook and the
+ * shared mix-form-sheet hook.
  */
 export function MixesCard({
 	mixes,

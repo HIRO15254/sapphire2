@@ -1,7 +1,7 @@
 import { FormSheet } from "@/shared/components/form-sheet";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
-import type { GameGroupRow } from "../use-game-library-section";
+import type { GameGroupRow } from "../use-games-page";
 import { useGroupFormSheet } from "./use-group-form-sheet";
 
 const GROUP_FORM_ID = "game-group-form";

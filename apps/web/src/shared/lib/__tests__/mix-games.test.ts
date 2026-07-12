@@ -8,6 +8,7 @@ import {
 	type ResolveGroup,
 	removeGroup,
 	removeVariant,
+	reseedFromLabels,
 	rowsFromVariantLabels,
 	toLevelGames,
 	toMixGames,
@@ -310,5 +311,50 @@ describe("rowsFromVariantLabels", () => {
 		expect(rowsFromVariantLabels([], resolveGroup)).toEqual([]);
 		const rows = rowsFromVariantLabels(["Razz", "razz"], resolveGroup);
 		expect(rows[0].variants).toEqual(["Razz"]);
+	});
+});
+
+describe("reseedFromLabels", () => {
+	function seededRows() {
+		let rows = rowsFromVariantLabels(
+			["Limit Hold'em", "Razz", "NL Hold'em"],
+			resolveGroup
+		);
+		rows = updateGroup(rows, rows[0].uid, {
+			name: "Limit games",
+			blind1: "400",
+			blind2: "800",
+		});
+		rows = updateGroup(rows, rows[2].uid, { blind1: "100", blind2: "200" });
+		return rows;
+	}
+
+	it("keeps entered amounts and names for groups that survive the new composition", () => {
+		const rows = seededRows();
+		const next = reseedFromLabels(
+			rows,
+			["Limit Hold'em", "Badugi", "NL Hold'em", "Pot Limit Omaha"],
+			resolveGroup
+		);
+		expect(bucketSummary(next)).toEqual([
+			["Limit", ["Limit Hold'em", "Badugi"]],
+			["Big Bet", ["NL Hold'em", "Pot Limit Omaha"]],
+		]);
+		expect(next[0].name).toBe("Limit games");
+		expect(next[0].blind1).toBe("400");
+		expect(next[0].blind2).toBe("800");
+		expect(next[1].blind1).toBe("100");
+	});
+
+	it("drops groups removed from the composition and seeds new groups blank", () => {
+		const rows = seededRows();
+		const next = reseedFromLabels(rows, ["Drawmaha"], resolveGroup);
+		expect(bucketSummary(next)).toEqual([["Draw", ["Drawmaha"]]]);
+		expect(next[0].blind1).toBe("");
+		expect(next[0].name).toBe("Draw");
+	});
+
+	it("returns empty for an empty composition", () => {
+		expect(reseedFromLabels(seededRows(), [], resolveGroup)).toEqual([]);
 	});
 });

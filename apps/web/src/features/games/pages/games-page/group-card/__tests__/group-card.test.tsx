@@ -5,7 +5,7 @@ import type {
 	GameGroupEntry,
 	GameGroupRow,
 	GameVariantRow,
-} from "../../use-game-library-section";
+} from "../../use-games-page";
 import { GroupCard, type GroupCardProps } from "../group-card";
 
 function groupRow(overrides: Partial<GameGroupRow> = {}): GameGroupRow {

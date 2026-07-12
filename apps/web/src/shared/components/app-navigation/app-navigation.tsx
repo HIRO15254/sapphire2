@@ -4,6 +4,7 @@ import {
 	IconCategory,
 	IconChartBar,
 	IconCoins,
+	IconPokerChip,
 	IconSettings,
 	IconUsers,
 } from "@tabler/icons-react";
@@ -31,6 +32,7 @@ export const RESOURCE_ITEMS: readonly NavigationItem[] = [
 	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
+	{ to: "/games", label: "Games", icon: IconPokerChip },
 ] as const;
 
 export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
@@ -39,6 +41,7 @@ export const SIDEBAR_ITEMS: readonly NavigationItem[] = [
 	{ to: "/rooms", label: "Rooms", icon: IconBuildingStore },
 	{ to: "/players", label: "Players", icon: IconUsers },
 	{ to: "/currencies", label: "Currencies", icon: IconCoins },
+	{ to: "/games", label: "Games", icon: IconPokerChip },
 	{ to: "/settings", label: "Settings", icon: IconSettings },
 ] as const;
 
@@ -51,7 +54,7 @@ const RESOURCES_NAV_ITEM: NavigationItem = {
 	to: "/resources",
 	label: "Resources",
 	icon: IconCategory,
-	matchPaths: ["/rooms", "/players", "/currencies"],
+	matchPaths: ["/rooms", "/players", "/currencies", "/games"],
 };
 
 const NORMAL_RIGHT_ITEMS: readonly NavigationItem[] = [

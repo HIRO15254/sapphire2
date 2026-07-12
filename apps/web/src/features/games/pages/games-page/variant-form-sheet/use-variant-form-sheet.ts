@@ -4,10 +4,7 @@ import { toast } from "sonner";
 import z from "zod";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
-import type {
-	GameGroupOption,
-	GameVariantRow,
-} from "../use-game-library-section";
+import type { GameGroupOption, GameVariantRow } from "../use-games-page";
 
 export interface UseVariantFormSheetProps {
 	createGroupId: string | null;
@@ -48,7 +45,7 @@ export function useVariantFormSheet({
 	const mixListQueryOptions = trpc.gameMix.list.queryOptions();
 
 	// Uniform triple-list invalidation, matching every other mutation in this
-	// section (see use-game-library-section.ts's invalidateAll).
+	// section (see use-games-page.ts's invalidateAll).
 	const invalidateAll = () =>
 		invalidateTargets(queryClient, [
 			{ queryKey: groupListQueryOptions.queryKey },

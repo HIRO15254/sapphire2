@@ -1,5 +1,6 @@
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import z from "zod";
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
@@ -7,10 +8,18 @@ import { optionalNumericString } from "@/shared/lib/form-fields";
 import {
 	fromMixGames,
 	type MixGameGroupRow,
+	reseedFromLabels,
 	rowsFromVariantLabels,
 	toMixGames,
 } from "@/shared/lib/mix-games";
 import { trpc } from "@/utils/trpc";
+
+interface MixMasterRow {
+	builtinKey: string | null;
+	games: string[];
+	id: string;
+	label: string;
+}
 
 type RingGameAnteType = "all" | "bb" | "none";
 
@@ -56,8 +65,17 @@ export function useRingGameForm({
 }: UseRingGameFormOptions) {
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
-	const { groupFor, labelsFor, isLoading, isMixValue, mixCompositionLabels } =
-		useGameGroups();
+	const {
+		groupFor,
+		labelsFor,
+		isLoading,
+		isMixValue,
+		mixCompositionLabels,
+		mixes,
+		variants,
+	} = useGameGroups();
+	const [editingMix, setEditingMix] = useState<MixMasterRow | null>(null);
+	const [isMixSheetOpen, setIsMixSheetOpen] = useState(false);
 
 	const form = useForm({
 		defaultValues: {
@@ -112,13 +130,57 @@ export function useRingGameForm({
 		}
 	};
 
+	// The mix master row backing a frozen variant label — null for plain
+	// variants and the legacy "mix" key (which has no master to edit).
+	const mixRowFor = (variantLabel: string): MixMasterRow | null => {
+		const normalized = variantLabel.trim().toLowerCase();
+		return (
+			(mixes as MixMasterRow[]).find(
+				(m) => m.label.trim().toLowerCase() === normalized
+			) ?? null
+		);
+	};
+
+	// Composition edits go through the master (dedicated bottom sheet), never
+	// inline: the editor shows amounts only. Saving the master renames the
+	// frozen variant label if needed and re-derives the buckets, keeping the
+	// amounts of groups that survive.
+	const onEditMix = (variantLabel: string) => {
+		const row = mixRowFor(variantLabel);
+		if (!row) {
+			return;
+		}
+		setEditingMix(row);
+		setIsMixSheetOpen(true);
+	};
+
+	const onMixSaved = (mix: { id: string; label: string; games: string[] }) => {
+		const labelById = new Map(variants.map((v) => [v.id, v.label]));
+		const labels = mix.games
+			.map((id) => labelById.get(id))
+			.filter((label): label is string => label !== undefined);
+		form.setFieldValue("variant", mix.label);
+		form.setFieldValue(
+			"mixGames",
+			reseedFromLabels(form.state.values.mixGames, labels, groupFor)
+		);
+		setIsMixSheetOpen(false);
+	};
+
 	return {
 		form,
 		currencies,
+		editingMix,
 		groupFor,
 		labelsFor,
 		isMasterLoading: isLoading,
+		isMixSheetOpen,
 		isMixValue,
+		mixRowFor,
+		onEditMix,
+		onMixSaved,
 		onVariantChange,
+		setIsMixSheetOpen,
+		variants,
 	};
 }

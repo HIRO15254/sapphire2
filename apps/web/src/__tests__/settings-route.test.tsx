@@ -24,10 +24,6 @@ vi.mock("@/features/settings/pages/settings-page/about-section", () => ({
 	AboutSection: () => <div>About Content</div>,
 }));
 
-vi.mock("@/features/settings/pages/settings-page/game-library-section", () => ({
-	GameLibrarySection: () => <div>Game Library Content</div>,
-}));
-
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
 		signOut: mocks.signOut,
@@ -67,15 +63,6 @@ describe("SettingsComponent", () => {
 		).toBeInTheDocument();
 		expect(screen.getByText("Linked accounts")).toBeInTheDocument();
 		expect(screen.getByText("About")).toBeInTheDocument();
-		expect(screen.getByText("Games")).toBeInTheDocument();
-	});
-
-	it("renders the Games section body", () => {
-		const Component = routeModule.Route.options.component as ComponentType;
-
-		render(<Component />);
-
-		expect(screen.getByText("Game Library Content")).toBeInTheDocument();
 	});
 
 	it("renders the About section body", () => {

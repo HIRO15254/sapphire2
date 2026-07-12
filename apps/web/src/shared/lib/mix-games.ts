@@ -213,3 +213,33 @@ export function rowsFromVariantLabels(
 	}
 	return rows;
 }
+
+/**
+ * Re-derive the buckets from a new master composition while keeping what
+ * the user already entered: a group that survives the recomposition keeps
+ * its per-mix name and amounts; removed groups disappear, new groups start
+ * blank. Used after the referenced mix master is edited mid-form.
+ */
+export function reseedFromLabels(
+	rows: MixGameGroupRow[],
+	labels: string[],
+	resolveGroup: ResolveGroup
+): MixGameGroupRow[] {
+	const fresh = rowsFromVariantLabels(labels, resolveGroup);
+	const prevByGroupId = new Map(rows.map((r) => [r.groupId, r]));
+	return fresh.map((row) => {
+		const prev = prevByGroupId.get(row.groupId);
+		if (!prev) {
+			return row;
+		}
+		return {
+			...row,
+			name: prev.name,
+			blind1: prev.blind1,
+			blind2: prev.blind2,
+			blind3: prev.blind3,
+			ante: prev.ante,
+			anteType: prev.anteType,
+		};
+	});
+}

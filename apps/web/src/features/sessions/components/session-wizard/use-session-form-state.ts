@@ -17,6 +17,7 @@ import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import {
 	fromMixGames,
 	type MixGameGroupRow,
+	reseedFromLabels,
 	rowsFromVariantLabels,
 	toMixGames,
 } from "@/shared/lib/mix-games";
@@ -25,6 +26,13 @@ import {
 	toChipPurchaseRows,
 	toSessionChipPurchases,
 } from "./chip-purchase-rows";
+
+interface MixMasterRow {
+	builtinKey: string | null;
+	games: string[];
+	id: string;
+	label: string;
+}
 
 interface UseSessionFormStateArgs {
 	/**
@@ -61,7 +69,10 @@ export function useSessionFormState({
 	ringGames,
 	tournaments,
 }: UseSessionFormStateArgs) {
-	const { groupFor, isMixValue, mixCompositionLabels } = useGameGroups();
+	const { groupFor, isMixValue, mixCompositionLabels, mixes, variants } =
+		useGameGroups();
+	const [editingMix, setEditingMix] = useState<MixMasterRow | null>(null);
+	const [isMixSheetOpen, setIsMixSheetOpen] = useState(false);
 	const [sessionType, setSessionType] = useState<"cash_game" | "tournament">(
 		defaultValues?.type ?? "cash_game"
 	);
@@ -321,6 +332,40 @@ export function useSessionFormState({
 		}
 	};
 
+	// The mix master row backing a frozen variant label — null for plain
+	// variants and the legacy "mix" key (which has no master to edit).
+	const mixRowFor = (variantLabel: string): MixMasterRow | null => {
+		const normalized = variantLabel.trim().toLowerCase();
+		return (
+			(mixes as MixMasterRow[]).find(
+				(m) => m.label.trim().toLowerCase() === normalized
+			) ?? null
+		);
+	};
+
+	// Composition edits go through the master (dedicated bottom sheet), never
+	// inline: the cash mix editor shows amounts only. Saving the master
+	// renames the frozen variant label if needed and re-derives the buckets,
+	// keeping the amounts of groups that survive.
+	const onEditMix = (variantLabel: string) => {
+		const row = mixRowFor(variantLabel);
+		if (!row) {
+			return;
+		}
+		setEditingMix(row);
+		setIsMixSheetOpen(true);
+	};
+
+	const onMixSaved = (mix: { id: string; label: string; games: string[] }) => {
+		const labelById = new Map(variants.map((v) => [v.id, v.label]));
+		const labels = mix.games
+			.map((id) => labelById.get(id))
+			.filter((label): label is string => label !== undefined);
+		form.setFieldValue("variant", mix.label);
+		setMixGames(reseedFromLabels(mixGames, labels, groupFor));
+		setIsMixSheetOpen(false);
+	};
+
 	// The master option (ring game / tournament) the user picked on the
 	// Master step, or undefined when defining the rule from scratch. The
 	// Rules step compares against it to surface override badges.
@@ -333,9 +378,16 @@ export function useSessionFormState({
 
 	return {
 		form,
+		editingMix,
 		groupFor,
+		isMixSheetOpen,
 		isMixValue,
+		mixRowFor,
+		onEditMix,
+		onMixSaved,
 		onVariantChange,
+		setIsMixSheetOpen,
+		variants,
 		sessionType,
 		setSessionType,
 		selectedTagIds,

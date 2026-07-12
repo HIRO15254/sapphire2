@@ -1,5 +1,6 @@
 import { OverrideLabel } from "@/features/sessions/components/override-label";
 import { cashOverriddenFields } from "@/features/sessions/utils/session-form-helpers";
+import { MixFormSheet } from "@/shared/components/mix-form-sheet";
 import { MixGamesEditor } from "@/shared/components/mix-games-editor";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
@@ -98,12 +99,31 @@ export function CashRulesStepBody({
 							selectedCurrencyId={state.selectedCurrencyId}
 						/>
 						{state.isMixValue(values.variant) && (
-							<MixGamesEditor
-								disabled={isLiveLinked}
-								onChange={state.setMixGames}
-								resolveGroup={state.groupFor}
-								value={state.mixGames}
-							/>
+							<>
+								{/* Amounts only — the composition follows the mix master,
+								    edited via the dedicated bottom sheet below. */}
+								<MixGamesEditor
+									disabled={isLiveLinked}
+									onChange={state.setMixGames}
+									onEditMix={
+										state.mixRowFor(values.variant) && !isLiveLinked
+											? () => state.onEditMix(values.variant)
+											: undefined
+									}
+									resolveGroup={state.groupFor}
+									value={state.mixGames}
+								/>
+								<MixFormSheet
+									editingMix={state.editingMix}
+									key={
+										state.editingMix ? `edit-${state.editingMix.id}` : "closed"
+									}
+									onOpenChange={state.setIsMixSheetOpen}
+									onSaved={state.onMixSaved}
+									open={state.isMixSheetOpen}
+									variants={state.variants}
+								/>
+							</>
 						)}
 						<CashBuyInBoundsFields
 							isLiveLinked={isLiveLinked}

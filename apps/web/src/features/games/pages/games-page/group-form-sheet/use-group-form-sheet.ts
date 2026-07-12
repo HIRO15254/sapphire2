@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import z from "zod";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
-import type { GameGroupRow } from "../use-game-library-section";
+import type { GameGroupRow } from "../use-games-page";
 
 export interface UseGroupFormSheetProps {
 	editingGroup: GameGroupRow | null;
@@ -29,7 +29,7 @@ const groupFormSchema = z.object({
 
 /**
  * Create AND edit share one sheet — mode is derived from `editingGroup`
- * presence. The parent (`use-game-library-section.ts`) keys this sheet by
+ * presence. The parent (`use-games-page.ts`) keys this sheet by
  * create/edit-target identity so a fresh hook instance mounts per target,
  * seeding `defaultValues` once; `onOpenChange` also resets the form on
  * close so a repeated "Add group" against the same persisted create-mode
@@ -45,7 +45,7 @@ export function useGroupFormSheet({
 	const mixListQueryOptions = trpc.gameMix.list.queryOptions();
 
 	// Uniform triple-list invalidation, matching every other mutation in this
-	// section (see use-game-library-section.ts's invalidateAll).
+	// section (see use-games-page.ts's invalidateAll).
 	const invalidateAll = () =>
 		invalidateTargets(queryClient, [
 			{ queryKey: groupListQueryOptions.queryKey },

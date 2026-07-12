@@ -47,6 +47,7 @@ vi.mock("@/utils/trpc", () => ({
 }));
 
 import { useRingGameForm } from "@/features/rooms/components/ring-game-form/use-ring-game-form";
+import { updateGroup } from "@/shared/lib/mix-games";
 
 function createClient(): QueryClient {
 	return new QueryClient({
@@ -313,5 +314,87 @@ describe("useRingGameForm — onVariantChange mix expansion", () => {
 				],
 			})
 		);
+	});
+});
+
+describe("useRingGameForm — mix master edit sheet", () => {
+	it("resolves the master row backing a mix label, case-insensitively", () => {
+		const { result } = setupWithMasterData();
+		expect(result.current.mixRowFor("8-Game")?.id).toBe("m-8game");
+		expect(result.current.mixRowFor("8-game")?.id).toBe("m-8game");
+		expect(result.current.mixRowFor("mix")).toBeNull();
+		expect(result.current.mixRowFor("NL Hold'em")).toBeNull();
+	});
+
+	it("opens the sheet with the master row for the current variant", () => {
+		const { result } = setupWithMasterData();
+		act(() => {
+			result.current.onEditMix("8-Game");
+		});
+		expect(result.current.isMixSheetOpen).toBe(true);
+		expect(result.current.editingMix?.id).toBe("m-8game");
+	});
+
+	it("ignores edit requests for values without a mix master", () => {
+		const { result } = setupWithMasterData();
+		act(() => {
+			result.current.onEditMix("mix");
+		});
+		expect(result.current.isMixSheetOpen).toBe(false);
+		expect(result.current.editingMix).toBeNull();
+	});
+
+	it("onMixSaved updates the variant label, reseeds the composition keeping amounts, and closes", () => {
+		const { result } = setupWithMasterData();
+		act(() => {
+			result.current.onVariantChange("8-Game");
+		});
+		const seeded = result.current.form.state.values.mixGames;
+		act(() => {
+			result.current.form.setFieldValue(
+				"mixGames",
+				updateGroup(seeded, seeded[0].uid, { blind1: "100", blind2: "200" })
+			);
+			result.current.onEditMix("8-Game");
+		});
+		act(() => {
+			result.current.onMixSaved({
+				id: "m-8game",
+				label: "8-Game Deluxe",
+				games: ["v-nlh"],
+			});
+		});
+		expect(result.current.form.state.values.variant).toBe("8-Game Deluxe");
+		const rows = result.current.form.state.values.mixGames;
+		expect(rows).toHaveLength(1);
+		expect(rows[0].variants).toEqual(["NL Hold'em"]);
+		expect(rows[0].blind1).toBe("100");
+		expect(rows[0].blind2).toBe("200");
+		expect(result.current.isMixSheetOpen).toBe(false);
+	});
+
+	it("onMixSaved skips variant ids whose master row no longer exists", () => {
+		const { result } = setupWithMasterData();
+		act(() => {
+			result.current.onVariantChange("8-Game");
+		});
+		act(() => {
+			result.current.onMixSaved({
+				id: "m-8game",
+				label: "8-Game",
+				games: ["v-nlh", "v-deleted"],
+			});
+		});
+		expect(result.current.form.state.values.mixGames[0].variants).toEqual([
+			"NL Hold'em",
+		]);
+	});
+
+	it("exposes the variant master rows for the sheet's label mapping", () => {
+		const { result } = setupWithMasterData();
+		expect(result.current.variants.map((v) => v.id)).toEqual([
+			"v-nlh",
+			"v-plo",
+		]);
 	});
 });

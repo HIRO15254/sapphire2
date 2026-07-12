@@ -56,17 +56,17 @@ function compareVariants(a: GameVariantRow, b: GameVariantRow): number {
 }
 
 /**
- * Settings-page management of the user's game library — groups and variants
- * merged into one hierarchy (mix-game rework) so "every variant belongs to
- * exactly one group" is visible: one card per group, its variants listed
- * inside, plus a separate card for the user's mix masters (named, reusable
- * game compositions spanning groups). Owns all three list queries, the
- * hierarchy shaping, sheet open/close state, and the delete mutations + the
- * "group in use" guard. The create/edit forms and their own mutations live
- * in the colocated group-form-sheet / variant-form-sheet / mix-form-sheet
- * hooks.
+ * Top-level Games page management of the user's game library — groups and
+ * variants merged into one hierarchy (mix-game rework) so "every variant
+ * belongs to exactly one group" is visible: one card per group, its
+ * variants listed inside, plus a separate card for the user's mix masters
+ * (named, reusable game compositions spanning groups). Owns all three list
+ * queries, the hierarchy shaping, sheet open/close state, and the delete
+ * mutations + the "group in use" guard. The create/edit forms and their own
+ * mutations live in the colocated group-form-sheet / variant-form-sheet
+ * hooks and the shared mix-form-sheet hook.
  */
-export function useGameLibrarySection() {
+export function useGamesPage() {
 	const queryClient = useQueryClient();
 	const groupListQueryOptions = trpc.gameGroup.list.queryOptions();
 	const groupListQuery = useQuery(groupListQueryOptions);

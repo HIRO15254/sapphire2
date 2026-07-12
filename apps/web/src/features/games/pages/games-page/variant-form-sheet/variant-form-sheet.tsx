@@ -8,10 +8,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/shared/components/ui/select";
-import type {
-	GameGroupOption,
-	GameVariantRow,
-} from "../use-game-library-section";
+import type { GameGroupOption, GameVariantRow } from "../use-games-page";
 import { useVariantFormSheet } from "./use-variant-form-sheet";
 
 const VARIANT_FORM_ID = "game-variant-form";

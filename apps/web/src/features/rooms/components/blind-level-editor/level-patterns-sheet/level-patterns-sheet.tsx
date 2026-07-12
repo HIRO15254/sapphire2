@@ -54,10 +54,13 @@ export function LevelPatternsSheet({
 					Edit the game groups played at level {level}
 				</DrawerDescription>
 				<div className="flex flex-col gap-3 overflow-y-auto px-4 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+					{/* Level games are per-level data (not the mix master), so the
+					    composition stays inline-editable here. */}
 					<MixGamesEditor
 						onChange={setRows}
 						resolveGroup={resolveGroup}
 						showAnteType={false}
+						structureEditable
 						value={rows}
 					/>
 					<Button

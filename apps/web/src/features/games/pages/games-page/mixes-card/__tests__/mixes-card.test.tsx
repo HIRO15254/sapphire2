@@ -1,10 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type {
-	GameMixRow,
-	GameVariantRow,
-} from "../../use-game-library-section";
+import type { GameMixRow, GameVariantRow } from "../../use-games-page";
 import { MixesCard, type MixesCardProps } from "../mixes-card";
 
 function mixRow(overrides: Partial<GameMixRow> = {}): GameMixRow {

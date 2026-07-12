@@ -4,7 +4,7 @@ import type {
 	GameGroupEntry,
 	GameGroupRow,
 	GameVariantRow,
-} from "../use-game-library-section";
+} from "../use-games-page";
 
 export interface GroupCardProps {
 	entry: GameGroupEntry;
@@ -30,7 +30,7 @@ function slotLabelsSummary(group: GameGroupRow): string {
  * header band (bg-muted/50) plus the extra left indent on variant rows
  * below it visually separates the parent group from its child variants.
  * Pure presentational: all state and mutations live in the parent's
- * use-game-library-section.ts hook and the two form-sheet hooks.
+ * use-games-page.ts hook and the two form-sheet hooks.
  */
 export function GroupCard({
 	entry,
