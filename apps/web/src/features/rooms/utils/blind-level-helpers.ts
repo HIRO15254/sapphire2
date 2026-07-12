@@ -1,5 +1,6 @@
 import type { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
+import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 
 export interface NewLevelValues {
@@ -55,7 +56,8 @@ export function reorderLevels(
 export function addLevel(
 	levels: BlindLevelRow[],
 	effectiveLastMinutes: number | null,
-	isBreak: boolean
+	isBreak: boolean,
+	defaultGames: LevelGameGroup[] | null = null
 ): BlindLevelRow[] {
 	return [
 		...levels,
@@ -69,7 +71,9 @@ export function addLevel(
 			blind3: null,
 			ante: null,
 			minutes: effectiveLastMinutes,
-			games: null,
+			// Mix-master tournaments seed new levels with the mix's game sets
+			// (default = per-game blinds); breaks never carry games.
+			games: isBreak ? null : defaultGames,
 		},
 	];
 }

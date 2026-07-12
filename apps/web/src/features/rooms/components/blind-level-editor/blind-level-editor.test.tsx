@@ -29,6 +29,22 @@ const mocks = vi.hoisted(() => ({
 		tournamentId: string;
 	}>,
 	createMutate: vi.fn(),
+	gameGroups: [] as Array<{
+		blind1Label: string | null;
+		blind2Label: string | null;
+		blind3Label: string | null;
+		builtinKey: string | null;
+		id: string;
+		label: string;
+	}>,
+	gameVariants: [] as Array<{
+		builtinKey: string | null;
+		groupId: string;
+		id: string;
+		label: string;
+		shortLabel: string | null;
+		sortOrder: number;
+	}>,
 	gameMixes: [] as Array<{
 		builtinKey: string | null;
 		games: string[];
@@ -80,11 +96,11 @@ vi.mock("@tanstack/react-query", () => ({
 		if (options?.queryKey?.[0] === "gameMix") {
 			return { data: mocks.gameMixes, isLoading: false };
 		}
-		if (
-			options?.queryKey?.[0] === "gameVariant" ||
-			options?.queryKey?.[0] === "gameGroup"
-		) {
-			return { data: [], isLoading: false };
+		if (options?.queryKey?.[0] === "gameVariant") {
+			return { data: mocks.gameVariants, isLoading: false };
+		}
+		if (options?.queryKey?.[0] === "gameGroup") {
+			return { data: mocks.gameGroups, isLoading: false };
 		}
 		return {
 			data: mocks.blindLevels,
@@ -154,6 +170,8 @@ vi.mock("@/utils/trpc", () => ({
 describe("BlindStructureContent", () => {
 	beforeEach(() => {
 		mocks.blindLevels = [];
+		mocks.gameGroups = [];
+		mocks.gameVariants = [];
 		mocks.gameMixes = [];
 		mocks.isLoading = false;
 		mocks.createMutate.mockReset();
@@ -388,5 +406,73 @@ describe("BlindStructureContent", () => {
 		expect(
 			screen.queryByRole("button", { name: "Edit game sets" })
 		).not.toBeInTheDocument();
+	});
+
+	it("seeds a new level with the mix composition's game sets for a mix master variant", async () => {
+		const user = userEvent.setup();
+		mocks.gameGroups = [
+			{
+				id: "g-bigbet",
+				builtinKey: "bigbet",
+				label: "Big Bet",
+				blind1Label: "SB",
+				blind2Label: "BB",
+				blind3Label: "Straddle",
+			},
+			{
+				id: "g-stud",
+				builtinKey: "stud",
+				label: "Stud",
+				blind1Label: "Small Bet",
+				blind2Label: "Big Bet",
+				blind3Label: "Bring-in",
+			},
+		];
+		mocks.gameVariants = [
+			{
+				id: "v-nlh",
+				builtinKey: "nlh",
+				label: "NL Hold'em",
+				shortLabel: "NLH",
+				groupId: "g-bigbet",
+				sortOrder: 0,
+			},
+			{
+				id: "v-razz",
+				builtinKey: "razz",
+				label: "Razz",
+				shortLabel: "Razz",
+				groupId: "g-stud",
+				sortOrder: 1,
+			},
+		];
+		mocks.gameMixes = [
+			{
+				id: "m-8game",
+				builtinKey: "8-game",
+				label: "8-Game",
+				games: ["v-nlh", "v-razz"],
+			},
+		];
+		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+		await user.click(screen.getByRole("button", { name: "Level" }));
+		expect(mocks.createMutate).toHaveBeenCalledTimes(1);
+		expect(mocks.createMutate).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				games: [
+					expect.objectContaining({ variants: ["NL Hold'em"] }),
+					expect.objectContaining({ variants: ["Razz"] }),
+				],
+			})
+		);
+	});
+
+	it("does not seed game sets for a plain variant's new level", async () => {
+		const user = userEvent.setup();
+		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+		await user.click(screen.getByRole("button", { name: "Level" }));
+		expect(mocks.createMutate).toHaveBeenCalledTimes(1);
+		expect(mocks.createMutate.mock.calls[0][0].games).toBeUndefined();
 	});
 });

@@ -5,6 +5,7 @@ import {
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { useBlindLevels } from "@/features/rooms/hooks/use-blind-levels";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
+import { rowsFromVariantLabels, toLevelGames } from "@/shared/lib/mix-games";
 import { BlindStructureTable } from "./blind-structure-table";
 import { useLocalBlindStructure } from "./use-blind-level-editor";
 
@@ -24,14 +25,22 @@ function useLevelSheetWiring(variant: string) {
 		isMixValue(label) && label.trim().toLowerCase() !== MIX_VARIANT
 			? mixCompositionLabels(label)
 			: [label];
+	const lockedLabels = isMixMaster ? mixCompositionLabels(variant) : [];
+	// Mix-master tournaments default new levels to per-game blind sets seeded
+	// from the composition (amounts blank); typing into the empty row still
+	// creates an explicit flat level.
+	const defaultLevelGames = isMixMaster
+		? toLevelGames(rowsFromVariantLabels(lockedLabels, groupFor))
+		: null;
 	return {
 		blindLabels: labelsFor(variant),
 		compositionFor,
+		defaultLevelGames,
 		groupFor,
 		hybridGames: isMixMaster,
 		isMix: isPerLevel,
 		levelSheetMode: (isPerLevel ? "assign" : "locked") as "assign" | "locked",
-		lockedLabels: isMixMaster ? mixCompositionLabels(variant) : [],
+		lockedLabels,
 	};
 }
 
@@ -62,6 +71,7 @@ export function BlindStructureContent({
 	const {
 		blindLabels,
 		compositionFor,
+		defaultLevelGames,
 		groupFor,
 		hybridGames,
 		isMix,
@@ -82,7 +92,7 @@ export function BlindStructureContent({
 			blindLabels={blindLabels}
 			compositionFor={compositionFor}
 			handleAddBreak={handleAddBreak}
-			handleAddLevel={handleAddLevel}
+			handleAddLevel={() => handleAddLevel(defaultLevelGames)}
 			handleCreateLevel={handleCreateLevel}
 			handleDelete={handleDelete}
 			handleDragEnd={handleDragEnd}
@@ -125,6 +135,7 @@ export function LocalBlindStructureContent({
 	const {
 		blindLabels,
 		compositionFor,
+		defaultLevelGames,
 		groupFor,
 		hybridGames,
 		isMix,
@@ -137,7 +148,7 @@ export function LocalBlindStructureContent({
 			blindLabels={blindLabels}
 			compositionFor={compositionFor}
 			handleAddBreak={handleAddBreak}
-			handleAddLevel={handleAddLevel}
+			handleAddLevel={() => handleAddLevel(defaultLevelGames)}
 			handleCreateLevel={handleCreateLevel}
 			handleDelete={handleDelete}
 			handleDragEnd={handleDragEnd}

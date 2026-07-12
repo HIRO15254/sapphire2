@@ -281,6 +281,36 @@ describe("per-level game groups (mix tournaments)", () => {
 		expect(next[0].games).toBeNull();
 	});
 
+	it("addLevel seeds the provided default game sets (mix-master tournaments)", () => {
+		const games = [
+			{
+				name: null,
+				variants: ["NL Hold'em"],
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				ante: null,
+			},
+		];
+		const next = addLevel([], 20, false, games);
+		expect(next[0].games).toEqual(games);
+	});
+
+	it("addLevel ignores default game sets for breaks", () => {
+		const games = [
+			{
+				name: null,
+				variants: ["NL Hold'em"],
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				ante: null,
+			},
+		];
+		const next = addLevel([], 20, true, games);
+		expect(next[0].games).toBeNull();
+	});
+
 	it("createLevel seeds games as null", () => {
 		const next = createLevel(
 			[],

@@ -74,6 +74,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			ante?: number | null;
 			blind1?: number | null;
 			blind2?: number | null;
+			games?: LevelGameGroup[] | null;
 			isBreak: boolean;
 			level: number;
 			minutes?: number | null;
@@ -86,6 +87,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 				...(newLevel.blind2 == null ? {} : { blind2: newLevel.blind2 }),
 				...(newLevel.ante == null ? {} : { ante: newLevel.ante }),
 				...(newLevel.minutes == null ? {} : { minutes: newLevel.minutes }),
+				...(newLevel.games == null ? {} : { games: newLevel.games }),
 			}),
 		onMutate: async (newLevel) => {
 			await cancelTargets(queryClient, [
@@ -102,7 +104,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 				blind3: null,
 				ante: newLevel.ante ?? null,
 				minutes: newLevel.minutes ?? null,
-				games: null,
+				games: newLevel.games ?? null,
 			};
 			queryClient.setQueryData(
 				levelsQueryOptions.queryKey,
@@ -206,7 +208,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 		reorderMutation.mutate(reordered.map((l) => l.id));
 	};
 
-	const handleAddLevel = () => {
+	const handleAddLevel = (defaultGames?: LevelGameGroup[] | null) => {
 		const nextLevel = levels.length + 1;
 		addLevelMutation.mutate({
 			level: nextLevel,
@@ -214,6 +216,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			...(effectiveLastMinutes == null
 				? {}
 				: { minutes: effectiveLastMinutes }),
+			...(defaultGames == null ? {} : { games: defaultGames }),
 		});
 	};
 

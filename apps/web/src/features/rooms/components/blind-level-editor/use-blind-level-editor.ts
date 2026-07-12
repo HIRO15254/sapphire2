@@ -5,6 +5,7 @@ import {
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
+import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import { useState } from "react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
@@ -45,8 +46,10 @@ export function useLocalBlindStructure({
 		}
 	};
 
-	const handleAddLevel = () => {
-		onChange(addLevel(value, effectiveLastMinutes, false));
+	const handleAddLevel = (defaultGames?: LevelGameGroup[] | null) => {
+		onChange(
+			addLevel(value, effectiveLastMinutes, false, defaultGames ?? null)
+		);
 	};
 
 	const handleAddBreak = () => {
