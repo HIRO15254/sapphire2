@@ -4,10 +4,15 @@ import { TableCell, TableRow } from "@/shared/components/ui/table";
 import { BlindLevelInput } from "../blind-level-input";
 
 interface EmptyRowProps {
+	/** Alignment cell for the hybrid table's extra game-sets column. */
+	hasTrailingCell?: boolean;
 	onCreateLevel: (values: NewLevelValues) => void;
 }
 
-export function EmptyRow({ onCreateLevel }: EmptyRowProps) {
+export function EmptyRow({
+	hasTrailingCell = false,
+	onCreateLevel,
+}: EmptyRowProps) {
 	const {
 		blind1Ref,
 		blind2Ref,
@@ -37,6 +42,7 @@ export function EmptyRow({ onCreateLevel }: EmptyRowProps) {
 				<BlindLevelInput onBlur={handleMinutesBlur} ref={minutesRef} />
 			</TableCell>
 			<TableCell className="w-8 p-0" />
+			{hasTrailingCell && <TableCell className="w-8 p-0" />}
 		</TableRow>
 	);
 }

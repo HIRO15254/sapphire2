@@ -14,6 +14,14 @@ const mocks = vi.hoisted(() => ({
 		blind1: number | null;
 		blind2: number | null;
 		blind3: number | null;
+		games?: Array<{
+			ante: number | null;
+			blind1: number | null;
+			blind2: number | null;
+			blind3: number | null;
+			name: string | null;
+			variants: string[];
+		}> | null;
 		id: string;
 		isBreak: boolean;
 		level: number;
@@ -306,5 +314,79 @@ describe("BlindStructureContent", () => {
 	it("shows the per-level games column only for the per-level sentinel variant", () => {
 		render(<BlindStructureContent tournamentId="tour-1" variant="mix" />);
 		expect(screen.getByText("Games")).toBeInTheDocument();
+	});
+
+	it("offers per-level game sets on each flat row for a mix master variant", () => {
+		mocks.gameMixes = [
+			{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
+		];
+		mocks.blindLevels = [
+			{
+				ante: null,
+				blind1: 100,
+				blind2: 200,
+				blind3: null,
+				id: "l1",
+				isBreak: false,
+				level: 1,
+				minutes: 20,
+				tournamentId: "tour-1",
+			},
+		];
+		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+		expect(
+			screen.getByRole("button", { name: "Edit game sets" })
+		).toBeInTheDocument();
+	});
+
+	it("shows the games summary for a level that has per-game sets", () => {
+		mocks.gameMixes = [
+			{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
+		];
+		mocks.blindLevels = [
+			{
+				ante: null,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				games: [
+					{
+						ante: null,
+						blind1: 400,
+						blind2: 800,
+						blind3: null,
+						name: "Limit games",
+						variants: ["Limit Hold'em"],
+					},
+				],
+				id: "l1",
+				isBreak: false,
+				level: 1,
+				minutes: 20,
+				tournamentId: "tour-1",
+			},
+		];
+		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+		expect(screen.getByText(/Limit games/)).toBeInTheDocument();
+	});
+
+	it("does not offer per-level game sets for a plain variant", () => {
+		mocks.blindLevels = [
+			{
+				ante: null,
+				blind1: 100,
+				blind2: 200,
+				blind3: null,
+				id: "l1",
+				isBreak: false,
+				level: 1,
+				minutes: 20,
+				tournamentId: "tour-1",
+			},
+		];
+		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+		expect(
+			screen.queryByRole("button", { name: "Edit game sets" })
+		).not.toBeInTheDocument();
 	});
 });

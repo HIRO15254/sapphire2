@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { IconTrash } from "@tabler/icons-react";
+import { IconStack2, IconTrash } from "@tabler/icons-react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { useSortableLevelRow } from "@/features/rooms/hooks/use-sortable-level-row";
 import type { BlindLevelPatch } from "@/features/rooms/utils/blind-level-helpers";
@@ -12,6 +12,11 @@ import { DragHandle } from "../drag-handle";
 
 interface SortableLevelRowProps {
 	onDelete: (id: string) => void;
+	/**
+	 * Mix-master tournaments: renders a trailing "split into per-game blind
+	 * sets" affordance opening the level games sheet.
+	 */
+	onOpenGames?: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;
 	row: BlindLevelRow;
 }
@@ -19,6 +24,7 @@ interface SortableLevelRowProps {
 export function SortableLevelRow({
 	row,
 	onDelete,
+	onOpenGames,
 	onUpdate,
 }: SortableLevelRowProps) {
 	const {
@@ -95,6 +101,20 @@ export function SortableLevelRow({
 					<IconTrash size={14} />
 				</Button>
 			</TableCell>
+			{onOpenGames && (
+				<TableCell className="w-8 p-0 px-0.5 text-center">
+					<Button
+						aria-label="Edit game sets"
+						className="text-muted-foreground"
+						onClick={() => onOpenGames(row.id)}
+						size="icon-xs"
+						type="button"
+						variant="ghost"
+					>
+						<IconStack2 size={14} />
+					</Button>
+				</TableCell>
+			)}
 		</TableRow>
 	);
 }

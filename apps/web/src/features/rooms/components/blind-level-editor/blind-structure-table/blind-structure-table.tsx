@@ -42,6 +42,11 @@ interface BlindStructureTableProps {
 	handleDelete: (id: string) => void;
 	handleDragEnd: (event: DragEndEvent) => void;
 	handleUpdate: (id: string, updates: BlindLevelPatch) => void;
+	/**
+	 * Mix-master tournament: rows stay flat by default, but each level can
+	 * split into per-game blind sets (locked to the mix's composition).
+	 */
+	hybridGames?: boolean;
 	isAdding?: boolean;
 	/** Mix tournament: level rows edit per-level game groups instead of flat blinds. */
 	isMix?: boolean;
@@ -60,8 +65,11 @@ export function BlindStructureTable({
 	blindLabels,
 	compositionFor,
 	sensors,
+	hybridGames = false,
 	isAdding = false,
 	isMix = false,
+	levelSheetMode = "assign",
+	lockedLabels,
 	resolveGroup,
 	handleDragEnd,
 	handleAddBreak,
@@ -125,6 +133,7 @@ export function BlindStructureTable({
 							Min
 						</TableHead>
 						<TableHead className="h-auto w-8 pb-1" />
+						{hybridGames && <TableHead className="h-auto w-8 pb-1" />}
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -142,6 +151,7 @@ export function BlindStructureTable({
 									if (row.isBreak) {
 										return (
 											<SortableBreakRow
+												hasTrailingCell={hybridGames}
 												key={row.id}
 												onDelete={handleDelete}
 												onUpdate={handleUpdate}
@@ -149,9 +159,10 @@ export function BlindStructureTable({
 											/>
 										);
 									}
-									if (isMix) {
+									if (isMix || (hybridGames && row.games != null)) {
 										return (
 											<SortableGamesRow
+												hasTrailingCell={hybridGames}
 												key={row.id}
 												onDelete={handleDelete}
 												onOpenGames={openGamesFor}
@@ -164,6 +175,7 @@ export function BlindStructureTable({
 										<SortableLevelRow
 											key={row.id}
 											onDelete={handleDelete}
+											onOpenGames={hybridGames ? openGamesFor : undefined}
 											onUpdate={handleUpdate}
 											row={row}
 										/>
@@ -172,14 +184,19 @@ export function BlindStructureTable({
 							</SortableContext>
 						</DndContext>
 					)}
-					<EmptyRow onCreateLevel={handleCreateLevel} />
+					<EmptyRow
+						hasTrailingCell={hybridGames}
+						onCreateLevel={handleCreateLevel}
+					/>
 				</TableBody>
 			</Table>
-			{isMix && resolveGroup ? (
+			{(isMix || hybridGames) && resolveGroup ? (
 				<LevelPatternsSheet
 					compositionFor={compositionFor ?? ((label) => [label])}
 					games={openLevel?.games ?? null}
 					level={openLevel?.level ?? 1}
+					lockedLabels={lockedLabels}
+					mode={levelSheetMode}
 					onOpenChange={(open) => {
 						if (!open) {
 							closeGames();

@@ -12,6 +12,8 @@ import { BlindLevelInput } from "../blind-level-input";
 import { DragHandle } from "../drag-handle";
 
 interface SortableGamesRowProps {
+	/** Alignment cell for the hybrid table's extra game-sets column. */
+	hasTrailingCell?: boolean;
 	onDelete: (id: string) => void;
 	onOpenGames: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;
@@ -25,6 +27,7 @@ interface SortableGamesRowProps {
  */
 export function SortableGamesRow({
 	row,
+	hasTrailingCell = false,
 	onDelete,
 	onOpenGames,
 	onUpdate,
@@ -95,6 +98,7 @@ export function SortableGamesRow({
 					<IconTrash size={14} />
 				</Button>
 			</TableCell>
+			{hasTrailingCell && <TableCell className="w-8 p-0" />}
 		</TableRow>
 	);
 }

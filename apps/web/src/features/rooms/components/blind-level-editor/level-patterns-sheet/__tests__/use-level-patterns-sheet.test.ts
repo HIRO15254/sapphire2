@@ -53,6 +53,7 @@ function setup(args: Partial<Parameters<typeof useLevelPatternsSheet>[0]>) {
 			useLevelPatternsSheet({
 				compositionFor,
 				games: null,
+				mode: "assign",
 				onSave,
 				open: true,
 				resolveGroup,
@@ -63,6 +64,66 @@ function setup(args: Partial<Parameters<typeof useLevelPatternsSheet>[0]>) {
 	);
 	return { ...rendered, onSave };
 }
+
+describe("useLevelPatternsSheet — locked mode (mix-master tournament)", () => {
+	it("seeds a blank level from the locked composition", () => {
+		const { result } = setup({
+			mode: "locked",
+			lockedLabels: ["NL Hold'em", "Razz"],
+			games: null,
+		});
+		expect(result.current.rows.map((r) => [r.groupLabel, r.variants])).toEqual([
+			["Stud", ["Razz"]],
+			["Big Bet", ["NL Hold'em"]],
+		]);
+		expect(result.current.rows[0].blind1).toBe("");
+	});
+
+	it("re-derives stored games to the locked composition, keeping amounts", () => {
+		const { result } = setup({
+			mode: "locked",
+			lockedLabels: ["Limit Hold'em", "NL Hold'em"],
+			games: [
+				{
+					name: "Big Bet",
+					variants: ["NL Hold'em", "Pot Limit Omaha"],
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					ante: null,
+				},
+			],
+		});
+		expect(result.current.rows.map((r) => [r.groupLabel, r.variants])).toEqual([
+			["Limit", ["Limit Hold'em"]],
+			["Big Bet", ["NL Hold'em"]],
+		]);
+		expect(result.current.rows[1].blind1).toBe("100");
+		expect(result.current.rows[1].blind2).toBe("200");
+	});
+
+	it("handleUseSingleSet reverts the level to a single flat blind set", () => {
+		const { result, onSave } = setup({
+			mode: "locked",
+			lockedLabels: ["Razz"],
+			games: [
+				{
+					name: "Stud",
+					variants: ["Razz"],
+					blind1: 400,
+					blind2: 800,
+					blind3: null,
+					ante: null,
+				},
+			],
+		});
+		act(() => {
+			result.current.handleUseSingleSet();
+		});
+		expect(onSave).toHaveBeenCalledTimes(1);
+		expect(onSave).toHaveBeenNthCalledWith(1, null);
+	});
+});
 
 describe("useLevelPatternsSheet — assign mode (per-level variants)", () => {
 	it("keeps stored games as-is on open", () => {
