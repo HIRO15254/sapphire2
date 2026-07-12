@@ -1,7 +1,6 @@
 import { IconLogout } from "@tabler/icons-react";
 import { AboutSection } from "@/features/settings/pages/settings-page/about-section";
-import { GameGroupsSection } from "@/features/settings/pages/settings-page/game-groups-section";
-import { GameVariantsSection } from "@/features/settings/pages/settings-page/game-variants-section";
+import { GameLibrarySection } from "@/features/settings/pages/settings-page/game-library-section";
 import { LinkedAccounts } from "@/features/settings/pages/settings-page/linked-accounts";
 import { ThemeSetting } from "@/features/settings/pages/settings-page/theme-setting";
 import { PageHeader } from "@/shared/components/page-header";
@@ -30,12 +29,8 @@ export function SettingsPage() {
 						<ThemeSetting />
 					</PageSection>
 
-					<PageSection heading="Game groups">
-						<GameGroupsSection />
-					</PageSection>
-
-					<PageSection heading="Game variants">
-						<GameVariantsSection />
+					<PageSection heading="Games">
+						<GameLibrarySection />
 					</PageSection>
 
 					<PageSection heading="Linked accounts">

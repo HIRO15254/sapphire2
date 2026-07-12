@@ -24,16 +24,9 @@ vi.mock("@/features/settings/pages/settings-page/about-section", () => ({
 	AboutSection: () => <div>About Content</div>,
 }));
 
-vi.mock("@/features/settings/pages/settings-page/game-groups-section", () => ({
-	GameGroupsSection: () => <div>Game Groups Content</div>,
+vi.mock("@/features/settings/pages/settings-page/game-library-section", () => ({
+	GameLibrarySection: () => <div>Game Library Content</div>,
 }));
-
-vi.mock(
-	"@/features/settings/pages/settings-page/game-variants-section",
-	() => ({
-		GameVariantsSection: () => <div>Game Variants Content</div>,
-	})
-);
 
 vi.mock("@/lib/auth-client", () => ({
 	authClient: {
@@ -74,24 +67,15 @@ describe("SettingsComponent", () => {
 		).toBeInTheDocument();
 		expect(screen.getByText("Linked accounts")).toBeInTheDocument();
 		expect(screen.getByText("About")).toBeInTheDocument();
-		expect(screen.getByText("Game groups")).toBeInTheDocument();
-		expect(screen.getByText("Game variants")).toBeInTheDocument();
+		expect(screen.getByText("Games")).toBeInTheDocument();
 	});
 
-	it("renders the Game groups section body", () => {
+	it("renders the Games section body", () => {
 		const Component = routeModule.Route.options.component as ComponentType;
 
 		render(<Component />);
 
-		expect(screen.getByText("Game Groups Content")).toBeInTheDocument();
-	});
-
-	it("renders the Game variants section body", () => {
-		const Component = routeModule.Route.options.component as ComponentType;
-
-		render(<Component />);
-
-		expect(screen.getByText("Game Variants Content")).toBeInTheDocument();
+		expect(screen.getByText("Game Library Content")).toBeInTheDocument();
 	});
 
 	it("renders the About section body", () => {
