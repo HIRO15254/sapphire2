@@ -1,9 +1,11 @@
 import type { Database } from "@sapphire2/db";
 import {
 	DEFAULT_GAME_GROUPS,
+	DEFAULT_GAME_MIXES,
 	DEFAULT_GAME_VARIANTS,
 } from "@sapphire2/db/constants/game-variants";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
+import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { eq } from "drizzle-orm";
 
@@ -27,21 +29,27 @@ async function runBatch(
 }
 
 /**
- * Seed the built-in game groups + game variants for a user. Both masters are
- * per-user DB rows (mix-game rework): code constants (`DEFAULT_GAME_GROUPS`,
- * `DEFAULT_GAME_VARIANTS`) are seed data only, never a runtime fallback, so
- * every user needs their own copy of these rows to pick from.
+ * Seed the built-in game groups + game variants + named mixes for a user. All
+ * three masters are per-user DB rows (mix-game rework): code constants
+ * (`DEFAULT_GAME_GROUPS`, `DEFAULT_GAME_VARIANTS`, `DEFAULT_GAME_MIXES`) are
+ * seed data only, never a runtime fallback, so every user needs their own
+ * copy of these rows to pick from. Each seeded mix's `games` column is
+ * resolved to THIS user's freshly seeded variant row ids (not the variant
+ * keys) so it references game_variant by id like any other mix (see
+ * `packages/db/src/schema/game-mix.ts`).
  *
  * Idempotent guard: if the user already has ANY gameGroup row OR ANY
  * gameVariant row, this is a no-op. That respects an intentional deletion —
  * a user who cleared out their variant list should stay empty rather than
  * being re-seeded on the next read — so only a fully-empty account (neither
- * table has a row) gets seeded.
+ * table has a row) gets seeded. Mixes ride along with this same guard (no
+ * separate existence check) since they are only ever seeded alongside groups
+ * and variants.
  *
  * Called once from the `better-auth` `user.create` hook (packages/auth) so
  * every new account starts with the full builtin list, and defensively from
- * `gameVariant.list` / `gameGroup.list` in case a legacy account predates the
- * hook.
+ * `gameVariant.list` / `gameGroup.list` / `gameMix.list` in case a legacy
+ * account predates the hook.
  */
 export async function seedDefaultGameData(
 	db: DbInstance,
@@ -83,6 +91,8 @@ export async function seedDefaultGameData(
 		})
 	);
 
+	const variantIdByKey = new Map<string, string>();
+
 	for (const [index, v] of DEFAULT_GAME_VARIANTS.entries()) {
 		const groupId = groupIdByKey.get(v.groupKey);
 		if (!groupId) {
@@ -92,9 +102,11 @@ export async function seedDefaultGameData(
 			// dangling groupId.
 			continue;
 		}
+		const variantId = crypto.randomUUID();
+		variantIdByKey.set(v.key, variantId);
 		statements.push(
 			db.insert(gameVariant).values({
-				id: crypto.randomUUID(),
+				id: variantId,
 				userId,
 				builtinKey: v.key,
 				label: v.label,
@@ -106,8 +118,24 @@ export async function seedDefaultGameData(
 		);
 	}
 
-	// All 24 inserts commit as one atomic batch (SA2-116) — a mid-sequence
-	// failure can no longer leave a user with some builtin groups/variants but
-	// not others.
+	for (const m of DEFAULT_GAME_MIXES) {
+		const games = m.variantKeys
+			.map((key) => variantIdByKey.get(key))
+			.filter((id): id is string => id !== undefined);
+		statements.push(
+			db.insert(gameMix).values({
+				id: crypto.randomUUID(),
+				userId,
+				builtinKey: m.key,
+				label: m.label,
+				games,
+				updatedAt: now,
+			})
+		);
+	}
+
+	// All 27 inserts (3 groups + 21 variants + 3 mixes) commit as one atomic
+	// batch (SA2-116) — a mid-sequence failure can no longer leave a user with
+	// some builtin groups/variants/mixes but not others.
 	await runBatch(db, statements);
 }

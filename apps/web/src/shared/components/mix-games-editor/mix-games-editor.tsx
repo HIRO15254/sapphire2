@@ -1,6 +1,5 @@
 import { IconX } from "@tabler/icons-react";
 import { Badge } from "@/shared/components/ui/badge";
-import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -11,18 +10,8 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { VariantSelect } from "@/shared/components/variant-select";
-import type {
-	MixGameGroupRow,
-	MixTemplateKind,
-	ResolveGroup,
-} from "@/shared/lib/mix-games";
+import type { MixGameGroupRow, ResolveGroup } from "@/shared/lib/mix-games";
 import { useMixGamesEditor } from "./use-mix-games-editor";
-
-const TEMPLATES: Array<{ kind: MixTemplateKind; label: string }> = [
-	{ kind: "horse", label: "HORSE" },
-	{ kind: "8game", label: "8-Game" },
-	{ kind: "10game", label: "10-Game" },
-];
 
 const ANTE_TYPES = [
 	{ value: "none", label: "No ante" },
@@ -35,8 +24,6 @@ interface MixGamesEditorProps {
 	onChange: (rows: MixGameGroupRow[]) => void;
 	/** variant label → owning group; from useGameGroups at the mount site. */
 	resolveGroup: ResolveGroup;
-	/** builtinKey → the user's variant label (null when deleted). */
-	resolveVariantLabel: (builtinKey: string) => string | null;
 	/** Hide the per-group ante-type select (tournament level groups). */
 	showAnteType?: boolean;
 	value: MixGameGroupRow[];
@@ -197,34 +184,14 @@ export function MixGamesEditor({
 	disabled = false,
 	onChange,
 	resolveGroup,
-	resolveVariantLabel,
 	showAnteType = true,
 	value,
 }: MixGamesEditorProps) {
-	const {
-		usedVariantList,
-		onAddVariant,
-		onRemoveVariant,
-		onUpdateGroup,
-		onApplyTemplate,
-	} = useMixGamesEditor({ onChange, resolveGroup, resolveVariantLabel, value });
+	const { usedVariantList, onAddVariant, onRemoveVariant, onUpdateGroup } =
+		useMixGamesEditor({ onChange, resolveGroup, value });
 
 	return (
 		<Field className="rounded-md border p-3" label="Games">
-			<div className="flex flex-wrap items-center gap-2">
-				{TEMPLATES.map((template) => (
-					<Button
-						disabled={disabled}
-						key={template.kind}
-						onClick={() => onApplyTemplate(template.kind)}
-						size="xs"
-						type="button"
-						variant="outline"
-					>
-						{template.label}
-					</Button>
-				))}
-			</div>
 			<Field
 				className="flex flex-col gap-1"
 				htmlFor="mix-add-game"

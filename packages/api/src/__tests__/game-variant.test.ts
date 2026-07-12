@@ -1,4 +1,5 @@
 import { gameGroup } from "@sapphire2/db/schema/game-group";
+import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { TRPCError } from "@trpc/server";
 import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
@@ -432,6 +433,37 @@ describe("gameVariant.create collision guard (CONFLICT)", () => {
 		).resolves.toBeDefined();
 	});
 
+	it("rejects a label colliding with the caller's existing named-mix label (case-insensitive, cross-namespace)", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameGroup, [OWNED_GROUP]],
+			[gameVariant, []],
+			[gameMix, [{ id: "mix-1", userId: CUR_OWNER, label: "HORSE" }]],
+		]);
+		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+		await expectTrpcCode(
+			caller.create({ label: "horse", groupId: OWNED_GROUP.id }),
+			"CONFLICT"
+		);
+	});
+
+	it("accepts a label with no collision in either the variant or mix namespace", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameGroup, [OWNED_GROUP]],
+			[
+				gameVariant,
+				// A dummy pre-existing row so the mock's post-insert lookup (which
+				// does not actually filter by the fresh id) resolves to something
+				// truthy.
+				[{ id: "placeholder", userId: CUR_OWNER, label: "X", sortOrder: 0 }],
+			],
+			[gameMix, [{ id: "mix-1", userId: CUR_OWNER, label: "8-Game" }]],
+		]);
+		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+		await expect(
+			caller.create({ label: "Brand New", groupId: OWNED_GROUP.id })
+		).resolves.toBeDefined();
+	});
+
 	it("stamps the created row with the caller's userId, groupId, and a generated id", async () => {
 		const { caller, inserted } = gameVariantCaller(
 			CUR_OWNER,
@@ -560,6 +592,22 @@ describe("gameVariant.update excludes self from collision", () => {
 			"CONFLICT"
 		);
 	});
+
+	it("rejects renaming to an existing named-mix label (CONFLICT, cross-namespace)", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameGroup, [OWNED_GROUP]],
+			[
+				gameVariant,
+				[{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 }],
+			],
+			[gameMix, [{ id: "mix-1", userId: CUR_OWNER, label: "10-Game" }]],
+		]);
+		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+		await expectTrpcCode(
+			caller.update({ id: "gv-1", label: "10-Game" }),
+			"CONFLICT"
+		);
+	});
 });
 
 describe("gameVariant write-IDOR guard (SA2-176)", () => {
@@ -612,12 +660,20 @@ describe("gameVariant.list scoping", () => {
 		]);
 		const { caller, inserted } = gameVariantCaller(CUR_OWNER, rows);
 		await caller.list();
+		// Seeding now also inserts 3 builtin mixes (game-mix rework) alongside
+		// groups/variants — mix rows carry a builtinKey too, so they're
+		// distinguished from group rows by their `games` array.
 		const groupInserts = inserted.filter(
-			(r) => r.builtinKey !== undefined && r.groupId === undefined
+			(r) =>
+				r.builtinKey !== undefined &&
+				r.groupId === undefined &&
+				r.games === undefined
 		);
 		const variantInserts = inserted.filter((r) => r.groupId !== undefined);
+		const mixInserts = inserted.filter((r) => Array.isArray(r.games));
 		expect(groupInserts).toHaveLength(3);
 		expect(variantInserts).toHaveLength(21);
+		expect(mixInserts).toHaveLength(3);
 	});
 
 	it("does not re-seed when the caller already has a group (even with zero variants)", async () => {

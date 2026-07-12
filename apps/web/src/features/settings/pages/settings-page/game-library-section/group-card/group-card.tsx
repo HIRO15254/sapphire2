@@ -1,5 +1,4 @@
 import { IconEdit, IconPlus, IconTrash } from "@tabler/icons-react";
-import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import type {
 	GameGroupEntry,
@@ -27,8 +26,10 @@ function slotLabelsSummary(group: GameGroupRow): string {
 
 /**
  * One card per game group with its variants listed inside — makes "every
- * variant belongs to exactly one group" visible (mix-game rework). Pure
- * presentational: all state and mutations live in the parent's
+ * variant belongs to exactly one group" visible (mix-game rework). The
+ * header band (bg-muted/50) plus the extra left indent on variant rows
+ * below it visually separates the parent group from its child variants.
+ * Pure presentational: all state and mutations live in the parent's
  * use-game-library-section.ts hook and the two form-sheet hooks.
  */
 export function GroupCard({
@@ -43,14 +44,9 @@ export function GroupCard({
 
 	return (
 		<div className="rounded-md border">
-			<div className="flex items-center justify-between gap-2 px-3 py-2">
+			<div className="flex items-center justify-between gap-2 rounded-t-md bg-muted/50 px-3 py-2">
 				<div className="min-w-0">
-					<div className="flex items-center gap-2">
-						<p className="truncate font-medium text-sm">{group.label}</p>
-						{group.builtinKey ? (
-							<Badge variant="secondary">Default</Badge>
-						) : null}
-					</div>
+					<p className="truncate font-semibold text-sm">{group.label}</p>
 					<p className="truncate text-muted-foreground text-xs">
 						{slotLabelsSummary(group)}
 					</p>
@@ -67,7 +63,7 @@ export function GroupCard({
 					</Button>
 					<Button
 						aria-label={`Delete ${group.label}`}
-						className="text-muted-foreground hover:text-destructive"
+						className="text-destructive"
 						onClick={() => onDeleteGroup(group)}
 						size="icon-xs"
 						type="button"
@@ -86,7 +82,7 @@ export function GroupCard({
 				) : (
 					variants.map((variant) => (
 						<div
-							className="flex items-center justify-between gap-2 px-3 py-2"
+							className="flex items-center justify-between gap-2 py-2 pr-3 pl-6"
 							key={variant.id}
 						>
 							<div className="flex min-w-0 items-center gap-2">
@@ -95,9 +91,6 @@ export function GroupCard({
 									<span className="truncate text-muted-foreground text-xs">
 										{variant.shortLabel}
 									</span>
-								) : null}
-								{variant.builtinKey ? (
-									<Badge variant="secondary">Default</Badge>
 								) : null}
 							</div>
 							<div className="flex shrink-0 gap-1">
@@ -112,7 +105,7 @@ export function GroupCard({
 								</Button>
 								<Button
 									aria-label={`Delete ${variant.label}`}
-									className="text-muted-foreground hover:text-destructive"
+									className="text-destructive"
 									onClick={() => onDeleteVariant(variant)}
 									size="icon-xs"
 									type="button"

@@ -5,6 +5,7 @@ import { withQueryClient } from "@/__tests__/test-utils";
 const trpcMocks = vi.hoisted(() => ({
 	gameGroupListQueryFn: vi.fn(),
 	gameVariantListQueryFn: vi.fn(),
+	gameMixListQueryFn: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -22,6 +23,14 @@ vi.mock("@/utils/trpc", () => ({
 				queryOptions: () => ({
 					queryKey: ["gameVariant", "list"],
 					queryFn: () => trpcMocks.gameVariantListQueryFn(),
+				}),
+			},
+		},
+		gameMix: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameMix", "list"],
+					queryFn: () => trpcMocks.gameMixListQueryFn(),
 				}),
 			},
 		},
@@ -64,8 +73,10 @@ describe("useVariantLabels", () => {
 	beforeEach(() => {
 		trpcMocks.gameGroupListQueryFn.mockReset();
 		trpcMocks.gameVariantListQueryFn.mockReset();
+		trpcMocks.gameMixListQueryFn.mockReset();
 		trpcMocks.gameGroupListQueryFn.mockResolvedValue(GROUPS);
 		trpcMocks.gameVariantListQueryFn.mockResolvedValue(VARIANTS);
+		trpcMocks.gameMixListQueryFn.mockResolvedValue([]);
 	});
 
 	it("resolves a variant's labels from its owning group", async () => {

@@ -20,6 +20,9 @@ vi.mock("@/utils/trpc", () => ({
 		gameVariant: {
 			list: { queryOptions: () => ({ queryKey: ["gameVariant", "list"] }) },
 		},
+		gameMix: {
+			list: { queryOptions: () => ({ queryKey: ["gameMix", "list"] }) },
+		},
 	},
 	trpcClient: {
 		gameGroup: {
@@ -123,7 +126,7 @@ describe("useGroupFormSheet", () => {
 		expect(result.current.form.state.values.label).toBe("");
 	});
 
-	it("invalidates both the group and variant lists after a create", async () => {
+	it("invalidates all three lists after a create", async () => {
 		trpcMocks.gameGroupCreate.mockResolvedValue(groupRow({ id: "g-2" }));
 		const onOpenChange = vi.fn();
 		const queryClient = createTestQueryClient();
@@ -145,6 +148,9 @@ describe("useGroupFormSheet", () => {
 		});
 		expect(invalidateSpy).toHaveBeenCalledWith({
 			queryKey: ["gameVariant", "list"],
+		});
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["gameMix", "list"],
 		});
 	});
 

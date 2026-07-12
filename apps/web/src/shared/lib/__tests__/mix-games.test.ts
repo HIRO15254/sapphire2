@@ -5,9 +5,9 @@ import {
 	fromMixGames,
 	type MixGameGroupRow,
 	type MixGroupInfo,
-	mixTemplate,
 	type ResolveGroup,
 	removeVariant,
+	rowsFromVariantLabels,
 	toLevelGames,
 	toMixGames,
 	updateGroup,
@@ -67,22 +67,6 @@ const VARIANT_GROUPS: Record<string, MixGroupInfo> = {
 
 const resolveGroup: ResolveGroup = (variant) =>
 	VARIANT_GROUPS[variant] ?? GROUPS.bigbet;
-
-const BUILTIN_LABELS: Record<string, string> = {
-	nlh: "NL Hold'em",
-	plo: "Pot Limit Omaha",
-	lhe: "Limit Hold'em",
-	o8: "Limit Omaha Hi-Lo",
-	"27td": "Limit 2-7 Triple Draw",
-	badugi: "Badugi",
-	"27sd": "NL 2-7 Single Draw",
-	razz: "Razz",
-	stud: "Seven Card Stud",
-	stud8: "Stud Hi-Lo",
-};
-
-const resolveVariantLabel = (builtinKey: string): string | null =>
-	BUILTIN_LABELS[builtinKey] ?? null;
 
 function bucketSummary(rows: MixGameGroupRow[]): [string, string[]][] {
 	return rows.map((r) => [r.groupLabel, r.variants]);
@@ -268,31 +252,42 @@ describe("toLevelGames / fromLevelGames", () => {
 	});
 });
 
-describe("mixTemplate", () => {
-	it("builds HORSE as limit + stud buckets from builtin keys", () => {
-		const rows = mixTemplate("horse", resolveVariantLabel, resolveGroup);
+describe("rowsFromVariantLabels", () => {
+	it("builds buckets from an ordered composition", () => {
+		const rows = rowsFromVariantLabels(
+			[
+				"Limit Hold'em",
+				"Limit Omaha Hi-Lo",
+				"Razz",
+				"Seven Card Stud",
+				"Stud Hi-Lo",
+			],
+			resolveGroup
+		);
 		expect(bucketSummary(rows)).toEqual([
 			["Limit", ["Limit Hold'em", "Limit Omaha Hi-Lo"]],
 			["Stud", ["Razz", "Seven Card Stud", "Stud Hi-Lo"]],
 		]);
 	});
 
-	it("builds 8-Game as limit + stud + big bet buckets", () => {
-		const rows = mixTemplate("8game", resolveVariantLabel, resolveGroup);
+	it("keeps canonical bucket order for a full 8-game style composition", () => {
+		const rows = rowsFromVariantLabels(
+			[
+				"Limit 2-7 Triple Draw",
+				"Limit Hold'em",
+				"Razz",
+				"NL Hold'em",
+				"Pot Limit Omaha",
+			],
+			resolveGroup
+		);
 		expect(rows.map((r) => r.groupLabel)).toEqual(["Limit", "Stud", "Big Bet"]);
 		expect(rows[2].variants).toEqual(["NL Hold'em", "Pot Limit Omaha"]);
 	});
 
-	it("builds 10-Game including badugi and NL single draw", () => {
-		const rows = mixTemplate("10game", resolveVariantLabel, resolveGroup);
-		expect(rows[0].variants).toContain("Badugi");
-		expect(rows[2].variants).toContain("NL 2-7 Single Draw");
-	});
-
-	it("skips builtin variants the user has deleted", () => {
-		const withoutRazz = (key: string) =>
-			key === "razz" ? null : resolveVariantLabel(key);
-		const rows = mixTemplate("horse", withoutRazz, resolveGroup);
-		expect(rows[1].variants).toEqual(["Seven Card Stud", "Stud Hi-Lo"]);
+	it("skips duplicate labels and returns empty for an empty composition", () => {
+		expect(rowsFromVariantLabels([], resolveGroup)).toEqual([]);
+		const rows = rowsFromVariantLabels(["Razz", "razz"], resolveGroup);
+		expect(rows[0].variants).toEqual(["Razz"]);
 	});
 });

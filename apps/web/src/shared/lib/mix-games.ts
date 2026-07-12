@@ -189,39 +189,19 @@ export function fromLevelGames(
 	);
 }
 
-export type MixTemplateKind = "horse" | "8game" | "10game";
-
-// Rotation order per template, referenced by builtin variant keys so the
-// template survives renames; grouping derives from the master mapping and
-// deleted builtins are simply skipped.
-const TEMPLATE_BUILTIN_KEYS: Record<MixTemplateKind, string[]> = {
-	horse: ["lhe", "o8", "razz", "stud", "stud8"],
-	"8game": ["27td", "lhe", "o8", "razz", "stud", "stud8", "nlh", "plo"],
-	"10game": [
-		"27td",
-		"lhe",
-		"o8",
-		"badugi",
-		"razz",
-		"stud",
-		"stud8",
-		"nlh",
-		"plo",
-		"27sd",
-	],
-};
-
-export function mixTemplate(
-	kind: MixTemplateKind,
-	resolveVariantLabel: (builtinKey: string) => string | null,
+/**
+ * Build editor buckets from an ordered list of variant labels (a mix
+ * master's composition). Unknown/deleted labels are simply skipped by the
+ * duplicate guard rules of addVariant; grouping derives from the master
+ * mapping.
+ */
+export function rowsFromVariantLabels(
+	labels: string[],
 	resolveGroup: ResolveGroup
 ): MixGameGroupRow[] {
 	let rows: MixGameGroupRow[] = [];
-	for (const key of TEMPLATE_BUILTIN_KEYS[kind]) {
-		const label = resolveVariantLabel(key);
-		if (label !== null) {
-			rows = addVariant(rows, label, resolveGroup);
-		}
+	for (const label of labels) {
+		rows = addVariant(rows, label, resolveGroup);
 	}
 	return rows;
 }

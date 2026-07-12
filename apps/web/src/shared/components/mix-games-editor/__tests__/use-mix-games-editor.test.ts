@@ -29,13 +29,10 @@ const LIMIT: MixGroupInfo = {
 const resolveGroup: ResolveGroup = (variant) =>
 	variant.startsWith("Limit") ? LIMIT : BIGBET;
 
-const resolveVariantLabel = (key: string): string | null =>
-	({ nlh: "NL Hold'em", lhe: "Limit Hold'em" })[key] ?? null;
-
 function setup(value: MixGameGroupRow[] = []) {
 	const onChange = vi.fn();
 	const { result } = renderHook(() =>
-		useMixGamesEditor({ value, onChange, resolveGroup, resolveVariantLabel })
+		useMixGamesEditor({ value, onChange, resolveGroup })
 	);
 	return { result, onChange };
 }
@@ -63,15 +60,6 @@ describe("useMixGamesEditor", () => {
 		result.current.onUpdateGroup(value[0].uid, { name: "NL/PL" });
 		const rows = onChange.mock.calls[0][0] as MixGameGroupRow[];
 		expect(rows[0].name).toBe("NL/PL");
-	});
-
-	it("applies a template resolved through the master data", () => {
-		const { result, onChange } = setup();
-		result.current.onApplyTemplate("horse");
-		const rows = onChange.mock.calls[0][0] as MixGameGroupRow[];
-		// Only lhe resolves in this fixture; the other HORSE keys are absent.
-		expect(rows).toHaveLength(1);
-		expect(rows[0].variants).toEqual(["Limit Hold'em"]);
 	});
 
 	it("exposes the flat list of used variants", () => {

@@ -4,6 +4,7 @@ import { blindLevelRouter } from "./blind-level";
 import { currencyRouter } from "./currency";
 import { currencyTransactionRouter } from "./currency-transaction";
 import { gameGroupRouter } from "./game-group";
+import { gameMixRouter } from "./game-mix";
 import { gameVariantRouter } from "./game-variant";
 import { liveCashGameSessionRouter } from "./live-cash-game-session";
 import { liveTournamentSessionRouter } from "./live-tournament-session";
@@ -40,6 +41,7 @@ export const appRouter = router({
 	currencyTransaction: currencyTransactionRouter,
 	gameVariant: gameVariantRouter,
 	gameGroup: gameGroupRouter,
+	gameMix: gameMixRouter,
 	ringGame: ringGameRouter,
 	tournament: tournamentRouter,
 	blindLevel: blindLevelRouter,

@@ -20,6 +20,9 @@ vi.mock("@/utils/trpc", () => ({
 		gameVariant: {
 			list: { queryOptions: () => ({ queryKey: ["gameVariant", "list"] }) },
 		},
+		gameMix: {
+			list: { queryOptions: () => ({ queryKey: ["gameMix", "list"] }) },
+		},
 	},
 	trpcClient: {
 		gameVariant: {
@@ -177,6 +180,9 @@ describe("useVariantFormSheet", () => {
 		});
 		expect(invalidateSpy).toHaveBeenCalledWith({
 			queryKey: ["gameVariant", "list"],
+		});
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["gameMix", "list"],
 		});
 	});
 

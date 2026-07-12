@@ -46,7 +46,6 @@ interface BlindStructureTableProps {
 	levels: BlindLevelRow[];
 	/** variant label → owning group; required when isMix (threaded to the sheet). */
 	resolveGroup?: ResolveGroup;
-	resolveVariantLabel?: (builtinKey: string) => string | null;
 	sensors: SensorDescriptor<SensorOptions>[];
 }
 
@@ -57,7 +56,6 @@ export function BlindStructureTable({
 	isAdding = false,
 	isMix = false,
 	resolveGroup,
-	resolveVariantLabel,
 	handleDragEnd,
 	handleAddBreak,
 	handleAddLevel,
@@ -170,7 +168,7 @@ export function BlindStructureTable({
 					<EmptyRow onCreateLevel={handleCreateLevel} />
 				</TableBody>
 			</Table>
-			{isMix && resolveGroup && resolveVariantLabel ? (
+			{isMix && resolveGroup ? (
 				<LevelPatternsSheet
 					games={openLevel?.games ?? null}
 					level={openLevel?.level ?? 1}
@@ -186,7 +184,6 @@ export function BlindStructureTable({
 					}}
 					open={openLevel !== null}
 					resolveGroup={resolveGroup}
-					resolveVariantLabel={resolveVariantLabel}
 				/>
 			) : null}
 		</div>

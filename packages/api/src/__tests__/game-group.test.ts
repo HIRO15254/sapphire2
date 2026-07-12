@@ -474,12 +474,20 @@ describe("gameGroup.list ordering + self-seed", () => {
 		]);
 		const { caller, inserted } = gameGroupCaller(CUR_OWNER, rows);
 		await caller.list();
+		// Seeding now also inserts 3 builtin mixes (game-mix rework) alongside
+		// groups/variants — mix rows carry a builtinKey too, so they're
+		// distinguished from group rows by their `games` array.
 		const groupInserts = inserted.filter(
-			(r) => r.builtinKey !== undefined && r.groupId === undefined
+			(r) =>
+				r.builtinKey !== undefined &&
+				r.groupId === undefined &&
+				r.games === undefined
 		);
 		const variantInserts = inserted.filter((r) => r.groupId !== undefined);
+		const mixInserts = inserted.filter((r) => Array.isArray(r.games));
 		expect(groupInserts).toHaveLength(3);
 		expect(variantInserts).toHaveLength(21);
+		expect(mixInserts).toHaveLength(3);
 	});
 
 	it("does not re-seed when the caller already has a group", async () => {

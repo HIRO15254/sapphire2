@@ -1,4 +1,3 @@
-import { isMixVariant } from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef, useState } from "react";
 import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
@@ -18,6 +17,7 @@ import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import {
 	fromMixGames,
 	type MixGameGroupRow,
+	rowsFromVariantLabels,
 	toMixGames,
 } from "@/shared/lib/mix-games";
 import { toBlindLevelRows, toSessionBlindLevels } from "./blind-level-rows";
@@ -61,7 +61,7 @@ export function useSessionFormState({
 	ringGames,
 	tournaments,
 }: UseSessionFormStateArgs) {
-	const { groupFor, resolveVariantLabel } = useGameGroups();
+	const { groupFor, isMixValue, mixCompositionLabels } = useGameGroups();
 	const [sessionType, setSessionType] = useState<"cash_game" | "tournament">(
 		defaultValues?.type ?? "cash_game"
 	);
@@ -107,7 +107,7 @@ export function useSessionFormState({
 		cashOut: Number(value.cashOut),
 		evCashOut: parseOptInt(value.evCashOut),
 		variant: value.variant || "nlh",
-		mixGames: isMixVariant(value.variant) ? toMixGames(mixGames) : null,
+		mixGames: isMixValue(value.variant) ? toMixGames(mixGames) : null,
 		blind1: parseOptInt(value.blind1),
 		blind2: parseOptInt(value.blind2),
 		blind3: parseOptInt(value.blind3),
@@ -310,6 +310,17 @@ export function useSessionFormState({
 		}
 	};
 
+	// Picking a mix master reseeds the cash mix editor from its saved
+	// composition (overwriting whatever was there — switching mixes starts
+	// fresh). The legacy "mix" mode key has no composition to seed from, so
+	// it only sets the field, leaving any existing rows untouched.
+	const onVariantChange = (next: string) => {
+		form.setFieldValue("variant", next);
+		if (isMixValue(next) && next !== "mix") {
+			setMixGames(rowsFromVariantLabels(mixCompositionLabels(next), groupFor));
+		}
+	};
+
 	// The master option (ring game / tournament) the user picked on the
 	// Master step, or undefined when defining the rule from scratch. The
 	// Rules step compares against it to surface override badges.
@@ -323,7 +334,8 @@ export function useSessionFormState({
 	return {
 		form,
 		groupFor,
-		resolveVariantLabel,
+		isMixValue,
+		onVariantChange,
 		sessionType,
 		setSessionType,
 		selectedTagIds,

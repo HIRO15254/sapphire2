@@ -10,6 +10,8 @@ import {
 } from "@/shared/components/ui/dialog";
 import { GroupCard } from "./group-card";
 import { GroupFormSheet } from "./group-form-sheet";
+import { MixFormSheet } from "./mix-form-sheet";
+import { MixesCard } from "./mixes-card";
 import { useGameLibrarySection } from "./use-game-library-section";
 import { VariantFormSheet } from "./variant-form-sheet";
 
@@ -23,6 +25,8 @@ export function GameLibrarySection() {
 	const {
 		groups,
 		groupOptions,
+		mixes,
+		variants,
 		isLoading,
 		isGroupSheetOpen,
 		editingGroup,
@@ -35,6 +39,11 @@ export function GameLibrarySection() {
 		onAddVariant,
 		onEditVariant,
 		onVariantSheetOpenChange,
+		isMixSheetOpen,
+		editingMix,
+		onAddMix,
+		onEditMix,
+		onMixSheetOpenChange,
 		deletingGroup,
 		onDeleteGroupRequest,
 		onDeleteGroupConfirm,
@@ -45,6 +54,11 @@ export function GameLibrarySection() {
 		onDeleteVariantConfirm,
 		onDeleteVariantCancel,
 		isDeleteVariantPending,
+		deletingMix,
+		onDeleteMixRequest,
+		onDeleteMixConfirm,
+		onDeleteMixCancel,
+		isDeleteMixPending,
 	} = useGameLibrarySection();
 
 	if (isLoading) {
@@ -57,10 +71,14 @@ export function GameLibrarySection() {
 
 	return (
 		<>
-			<div className="mb-3 flex justify-end">
+			<div className="mb-3 flex justify-end gap-2">
 				<Button onClick={onAddGroup} size="sm" type="button">
 					<IconPlus size={16} />
 					Add group
+				</Button>
+				<Button onClick={onAddMix} size="sm" type="button">
+					<IconPlus size={16} />
+					Add mix
 				</Button>
 			</div>
 
@@ -76,6 +94,13 @@ export function GameLibrarySection() {
 						onEditVariant={onEditVariant}
 					/>
 				))}
+
+				<MixesCard
+					mixes={mixes}
+					onDeleteMix={onDeleteMixRequest}
+					onEditMix={onEditMix}
+					variants={variants}
+				/>
 			</div>
 
 			<GroupFormSheet
@@ -96,6 +121,14 @@ export function GameLibrarySection() {
 				}
 				onOpenChange={onVariantSheetOpenChange}
 				open={isVariantSheetOpen}
+			/>
+
+			<MixFormSheet
+				editingMix={editingMix}
+				key={editingMix ? `edit-${editingMix.id}` : "create"}
+				onOpenChange={onMixSheetOpenChange}
+				open={isMixSheetOpen}
+				variants={variants}
 			/>
 
 			<Dialog
@@ -161,6 +194,38 @@ export function GameLibrarySection() {
 						<Button
 							disabled={isDeleteVariantPending}
 							onClick={onDeleteVariantConfirm}
+							type="button"
+							variant="destructive"
+						>
+							Delete
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				onOpenChange={(open) => {
+					if (!open) {
+						onDeleteMixCancel();
+					}
+				}}
+				open={deletingMix !== null}
+			>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Delete this mix?</DialogTitle>
+						<DialogDescription>
+							{deletingMix?.label} will be removed from your mix list. Games and
+							sessions that already used it keep the frozen name.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="flex-row justify-end gap-2">
+						<Button onClick={onDeleteMixCancel} type="button" variant="outline">
+							Cancel
+						</Button>
+						<Button
+							disabled={isDeleteMixPending}
+							onClick={onDeleteMixConfirm}
 							type="button"
 							variant="destructive"
 						>

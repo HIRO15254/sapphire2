@@ -25,7 +25,8 @@ interface VariantSelectProps {
 /**
  * Required variant picker shared by every game/rule form. Options are the
  * user's own variant rows (seeded at signup, fully editable in Settings),
- * plus the fixed Mixed Game mode where a mix editor exists, plus a trailing
+ * plus the user's named mix masters (HORSE / 8-Game / 10-Game / custom,
+ * shown as a separated group) where a mix editor exists, plus a trailing
  * "Add custom variant" affordance that creates a row (name + short label +
  * owning group) and selects it.
  */
@@ -44,7 +45,7 @@ export function VariantSelect({
 		handleValueChange,
 		isAddOpen,
 		isCreatePending,
-		mixOption,
+		mixOptions,
 		setIsAddOpen,
 		unknownValue,
 		variantOptions,
@@ -66,10 +67,14 @@ export function VariantSelect({
 							{option.label}
 						</SelectItem>
 					))}
-					{mixOption ? (
+					{mixOptions.length > 0 ? (
 						<>
 							<SelectSeparator />
-							<SelectItem value={mixOption.value}>{mixOption.label}</SelectItem>
+							{mixOptions.map((option) => (
+								<SelectItem key={option.id} value={option.label}>
+									{option.label}
+								</SelectItem>
+							))}
 						</>
 					) : null}
 					{unknownValue ? (

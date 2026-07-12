@@ -1,4 +1,3 @@
-import { isMixVariant } from "@sapphire2/db/constants/game-variants";
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
 import { Field } from "@/shared/components/ui/field";
@@ -35,7 +34,14 @@ interface CashGameFieldsProps {
 	currencies?: Array<{ id: string; name: string }>;
 	form: AnyForm;
 	isLiveLinked?: boolean;
+	/** True for the legacy "mix" key or any of the caller's mix master labels. */
+	isMixValue: (value: string) => boolean;
 	onCurrencyChange?: (id: string | undefined) => void;
+	/**
+	 * Variant field's onChange — routed through the wizard state so picking a
+	 * mix master reseeds the mix editor from its saved composition.
+	 */
+	onVariantChange: (variant: string) => void;
 	/** Field labels that diverge from the picked master ring game. */
 	overriddenLabels?: ReadonlySet<string>;
 	selectedCurrencyId?: string;
@@ -161,7 +167,9 @@ export function CashGameFields({
 	currencies,
 	form,
 	isLiveLinked = false,
+	isMixValue,
 	onCurrencyChange,
+	onVariantChange,
 	overriddenLabels,
 	selectedCurrencyId,
 }: CashGameFieldsProps) {
@@ -199,7 +207,7 @@ export function CashGameFields({
 							disabled={isLiveLinked}
 							id={field.name}
 							includeMix
-							onChange={(v) => field.handleChange(v)}
+							onChange={onVariantChange}
 							value={field.state.value}
 						/>
 					</Field>
@@ -210,7 +218,7 @@ export function CashGameFields({
 			    editor rendered by the surrounding rules step. */}
 			<form.Subscribe selector={(state): string => state.values.variant}>
 				{(variant) =>
-					isMixVariant(variant) ? null : (
+					isMixValue(variant) ? null : (
 						<>
 							<CashBlindFields
 								form={form}

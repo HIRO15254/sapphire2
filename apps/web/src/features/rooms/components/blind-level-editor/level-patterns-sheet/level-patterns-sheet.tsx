@@ -20,7 +20,6 @@ interface LevelPatternsSheetProps {
 	onSave: (games: LevelGamesValue) => void;
 	open: boolean;
 	resolveGroup: ResolveGroup;
-	resolveVariantLabel: (builtinKey: string) => string | null;
 }
 
 /**
@@ -36,7 +35,6 @@ export function LevelPatternsSheet({
 	onSave,
 	open,
 	resolveGroup,
-	resolveVariantLabel,
 }: LevelPatternsSheetProps) {
 	const { rows, setRows, handleDone } = useLevelPatternsSheet({
 		games,
@@ -59,7 +57,6 @@ export function LevelPatternsSheet({
 					<MixGamesEditor
 						onChange={setRows}
 						resolveGroup={resolveGroup}
-						resolveVariantLabel={resolveVariantLabel}
 						showAnteType={false}
 						value={rows}
 					/>

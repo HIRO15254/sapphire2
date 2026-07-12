@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { withQueryClient } from "@/__tests__/test-utils";
+import { createTestQueryClient, withQueryClient } from "@/__tests__/test-utils";
 import type {
 	RingGameOption,
 	TournamentOption,
@@ -24,6 +24,14 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: () => ({
 					queryKey: ["gameVariant", "list"],
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+		gameMix: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameMix", "list"],
 					queryFn: () => Promise.resolve([]),
 				}),
 			},
@@ -264,5 +272,142 @@ describe("useSessionFormState", () => {
 			{ wrapper: withQueryClient() }
 		);
 		expect(tourney.current.selectedGameId).toBe("t1");
+	});
+});
+
+// Master fixture for mix-selection tests: two Big Bet variants, plus two
+// named mixes referencing them in different combinations.
+const GAME_GROUPS = [
+	{
+		id: "g-bigbet",
+		builtinKey: "bigbet",
+		label: "Big Bet",
+		blind1Label: "SB",
+		blind2Label: "BB",
+		blind3Label: "Straddle",
+	},
+];
+const GAME_VARIANTS = [
+	{
+		id: "v-nlh",
+		builtinKey: "nlh",
+		label: "NL Hold'em",
+		shortLabel: "NLH",
+		groupId: "g-bigbet",
+		sortOrder: 0,
+	},
+	{
+		id: "v-plo",
+		builtinKey: "plo",
+		label: "PL Omaha",
+		shortLabel: "PLO",
+		groupId: "g-bigbet",
+		sortOrder: 1,
+	},
+];
+const GAME_MIXES = [
+	{
+		id: "m-8game",
+		builtinKey: "8-game",
+		label: "8-Game",
+		games: ["v-nlh", "v-plo"],
+	},
+	{ id: "m-horse", builtinKey: "horse", label: "HORSE", games: ["v-nlh"] },
+];
+
+function setupWithMasterData() {
+	const qc = createTestQueryClient();
+	qc.setQueryData(["gameGroup", "list"], GAME_GROUPS);
+	qc.setQueryData(["gameVariant", "list"], GAME_VARIANTS);
+	qc.setQueryData(["gameMix", "list"], GAME_MIXES);
+	const onSubmit = vi.fn();
+	const { result } = renderHook(
+		() =>
+			useSessionFormState({
+				onSubmit,
+				defaultValues: { type: "cash_game" },
+			}),
+		{ wrapper: withQueryClient(qc) }
+	);
+	return { result, onSubmit };
+}
+
+describe("useSessionFormState — onVariantChange mix expansion", () => {
+	it("sets the variant field and seeds mixGames from the mix's composition", () => {
+		const { result } = setupWithMasterData();
+		act(() => {
+			result.current.onVariantChange("8-Game");
+		});
+		expect(result.current.form.state.values.variant).toBe("8-Game");
+		expect(result.current.mixGames).toHaveLength(1);
+		expect(result.current.mixGames[0].variants).toEqual([
+			"NL Hold'em",
+			"PL Omaha",
+		]);
+	});
+
+	it("reseeds (overwrites) mixGames when switching to a different mix", () => {
+		const { result } = setupWithMasterData();
+		act(() => {
+			result.current.onVariantChange("8-Game");
+		});
+		expect(result.current.mixGames[0].variants).toEqual([
+			"NL Hold'em",
+			"PL Omaha",
+		]);
+		act(() => {
+			result.current.onVariantChange("HORSE");
+		});
+		expect(result.current.mixGames).toHaveLength(1);
+		expect(result.current.mixGames[0].variants).toEqual(["NL Hold'em"]);
+	});
+
+	it("does not clear existing mixGames rows when selecting the legacy 'mix' value", () => {
+		const { result } = setupWithMasterData();
+		act(() => {
+			result.current.onVariantChange("8-Game");
+		});
+		const seeded = result.current.mixGames;
+		act(() => {
+			result.current.onVariantChange("mix");
+		});
+		expect(result.current.form.state.values.variant).toBe("mix");
+		expect(result.current.mixGames).toBe(seeded);
+	});
+
+	it("submits mixGames as null when the variant is a plain (non-mix) value", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.onVariantChange("8-Game");
+			result.current.onVariantChange("NL Hold'em");
+			result.current.form.setFieldValue("buyIn", "100");
+			result.current.form.setFieldValue("cashOut", "150");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ variant: "NL Hold'em", mixGames: null })
+		);
+	});
+
+	it("submits mixGames from the seeded composition when the variant is a mix label", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.onVariantChange("8-Game");
+			result.current.form.setFieldValue("buyIn", "100");
+			result.current.form.setFieldValue("cashOut", "150");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				variant: "8-Game",
+				mixGames: [
+					expect.objectContaining({ variants: ["NL Hold'em", "PL Omaha"] }),
+				],
+			})
+		);
 	});
 });

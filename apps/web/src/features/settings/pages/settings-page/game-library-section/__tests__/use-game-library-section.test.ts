@@ -6,8 +6,10 @@ import { createTestQueryClient, withQueryClient } from "@/__tests__/test-utils";
 const trpcMocks = vi.hoisted(() => ({
 	gameGroupListQueryFn: vi.fn(),
 	gameVariantListQueryFn: vi.fn(),
+	gameMixListQueryFn: vi.fn(),
 	gameGroupDelete: vi.fn(),
 	gameVariantDelete: vi.fn(),
+	gameMixDelete: vi.fn(),
 }));
 
 const toastMock = vi.hoisted(() => ({
@@ -33,6 +35,14 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		gameMix: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameMix", "list"],
+					queryFn: () => trpcMocks.gameMixListQueryFn(),
+				}),
+			},
+		},
 	},
 	trpcClient: {
 		gameGroup: {
@@ -40,6 +50,9 @@ vi.mock("@/utils/trpc", () => ({
 		},
 		gameVariant: {
 			delete: { mutate: trpcMocks.gameVariantDelete },
+		},
+		gameMix: {
+			delete: { mutate: trpcMocks.gameMixDelete },
 		},
 	},
 }));
@@ -78,23 +91,56 @@ function variantRow(overrides: Record<string, unknown> = {}) {
 	};
 }
 
+function mixRow(overrides: Record<string, unknown> = {}) {
+	return {
+		id: "m-1",
+		userId: "u-1",
+		builtinKey: "horse",
+		label: "HORSE",
+		games: ["v-1"],
+		createdAt: "2026-01-01T00:00:00.000Z",
+		updatedAt: "2026-01-01T00:00:00.000Z",
+		...overrides,
+	};
+}
+
 describe("useGameLibrarySection", () => {
 	beforeEach(() => {
 		trpcMocks.gameGroupListQueryFn.mockReset();
 		trpcMocks.gameGroupListQueryFn.mockResolvedValue([groupRow()]);
 		trpcMocks.gameVariantListQueryFn.mockReset();
 		trpcMocks.gameVariantListQueryFn.mockResolvedValue([variantRow()]);
+		trpcMocks.gameMixListQueryFn.mockReset();
+		trpcMocks.gameMixListQueryFn.mockResolvedValue([mixRow()]);
 		trpcMocks.gameGroupDelete.mockReset();
 		trpcMocks.gameVariantDelete.mockReset();
+		trpcMocks.gameMixDelete.mockReset();
 		toastMock.error.mockReset();
 	});
 
-	it("is loading until both the group and variant lists resolve", async () => {
+	it("is loading until the group, variant, and mix lists resolve", async () => {
 		const { result } = renderHook(() => useGameLibrarySection(), {
 			wrapper: withQueryClient(),
 		});
 		expect(result.current.isLoading).toBe(true);
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
+	});
+
+	it("stays loading while only the mix list is still pending", () => {
+		trpcMocks.gameMixListQueryFn.mockReturnValue(new Promise(() => undefined));
+		const { result } = renderHook(() => useGameLibrarySection(), {
+			wrapper: withQueryClient(),
+		});
+		expect(result.current.isLoading).toBe(true);
+	});
+
+	it("exposes the mix list and the flat variant rows", async () => {
+		const { result } = renderHook(() => useGameLibrarySection(), {
+			wrapper: withQueryClient(),
+		});
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+		expect(result.current.mixes).toEqual([mixRow()]);
+		expect(result.current.variants).toEqual([variantRow()]);
 	});
 
 	it("groups variants under their owning group, preserving server group order", async () => {
@@ -239,6 +285,47 @@ describe("useGameLibrarySection", () => {
 		});
 	});
 
+	describe("mix sheet", () => {
+		it("opens in create mode with no editing target", async () => {
+			const { result } = renderHook(() => useGameLibrarySection(), {
+				wrapper: withQueryClient(),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			act(() => {
+				result.current.onAddMix();
+			});
+			expect(result.current.isMixSheetOpen).toBe(true);
+			expect(result.current.editingMix).toBeNull();
+		});
+
+		it("opens in edit mode with the picked mix", async () => {
+			const { result } = renderHook(() => useGameLibrarySection(), {
+				wrapper: withQueryClient(),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			act(() => {
+				result.current.onEditMix(result.current.mixes[0]);
+			});
+			expect(result.current.isMixSheetOpen).toBe(true);
+			expect(result.current.editingMix?.id).toBe("m-1");
+		});
+
+		it("closes and clears the editing target when open is set to false", async () => {
+			const { result } = renderHook(() => useGameLibrarySection(), {
+				wrapper: withQueryClient(),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			act(() => {
+				result.current.onEditMix(result.current.mixes[0]);
+			});
+			act(() => {
+				result.current.onMixSheetOpenChange(false);
+			});
+			expect(result.current.isMixSheetOpen).toBe(false);
+			expect(result.current.editingMix).toBeNull();
+		});
+	});
+
 	describe("group delete", () => {
 		it("blocks the request and toasts when the group still has variants", async () => {
 			const { result } = renderHook(() => useGameLibrarySection(), {
@@ -269,7 +356,7 @@ describe("useGameLibrarySection", () => {
 			expect(toastMock.error).not.toHaveBeenCalled();
 		});
 
-		it("confirms the delete, invalidates both lists, and closes the dialog", async () => {
+		it("confirms the delete, invalidates all three lists, and closes the dialog", async () => {
 			trpcMocks.gameVariantListQueryFn.mockResolvedValue([]);
 			trpcMocks.gameGroupDelete.mockResolvedValue({ success: true });
 			const queryClient = createTestQueryClient();
@@ -294,6 +381,9 @@ describe("useGameLibrarySection", () => {
 			});
 			expect(invalidateSpy).toHaveBeenCalledWith({
 				queryKey: ["gameVariant", "list"],
+			});
+			expect(invalidateSpy).toHaveBeenCalledWith({
+				queryKey: ["gameMix", "list"],
 			});
 		});
 
@@ -380,7 +470,7 @@ describe("useGameLibrarySection", () => {
 	});
 
 	describe("variant delete", () => {
-		it("requests then confirms the delete, invalidating both lists", async () => {
+		it("requests then confirms the delete, invalidating all three lists", async () => {
 			trpcMocks.gameVariantDelete.mockResolvedValue({ success: true });
 			const queryClient = createTestQueryClient();
 			const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
@@ -407,6 +497,9 @@ describe("useGameLibrarySection", () => {
 			});
 			expect(invalidateSpy).toHaveBeenCalledWith({
 				queryKey: ["gameVariant", "list"],
+			});
+			expect(invalidateSpy).toHaveBeenCalledWith({
+				queryKey: ["gameMix", "list"],
 			});
 		});
 
@@ -460,6 +553,87 @@ describe("useGameLibrarySection", () => {
 				"Failed to delete game variant"
 			);
 			expect(result.current.deletingVariant).toBeNull();
+		});
+	});
+
+	describe("mix delete", () => {
+		it("requests then confirms the delete, invalidating all three lists", async () => {
+			trpcMocks.gameMixDelete.mockResolvedValue({ success: true });
+			const queryClient = createTestQueryClient();
+			const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+			const { result } = renderHook(() => useGameLibrarySection(), {
+				wrapper: withQueryClient(queryClient),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			act(() => {
+				result.current.onDeleteMixRequest(result.current.mixes[0]);
+			});
+			expect(result.current.deletingMix?.id).toBe("m-1");
+			await act(async () => {
+				await result.current.onDeleteMixConfirm();
+			});
+			expect(trpcMocks.gameMixDelete).toHaveBeenCalledTimes(1);
+			expect(trpcMocks.gameMixDelete).toHaveBeenNthCalledWith(1, {
+				id: "m-1",
+			});
+			expect(result.current.deletingMix).toBeNull();
+			expect(invalidateSpy).toHaveBeenCalledWith({
+				queryKey: ["gameGroup", "list"],
+			});
+			expect(invalidateSpy).toHaveBeenCalledWith({
+				queryKey: ["gameVariant", "list"],
+			});
+			expect(invalidateSpy).toHaveBeenCalledWith({
+				queryKey: ["gameMix", "list"],
+			});
+		});
+
+		it("does nothing when confirmed with no pending request", async () => {
+			const { result } = renderHook(() => useGameLibrarySection(), {
+				wrapper: withQueryClient(),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			await act(async () => {
+				await result.current.onDeleteMixConfirm();
+			});
+			expect(trpcMocks.gameMixDelete).not.toHaveBeenCalled();
+		});
+
+		it("cancels a delete request without calling the mutation", async () => {
+			const { result } = renderHook(() => useGameLibrarySection(), {
+				wrapper: withQueryClient(),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			act(() => {
+				result.current.onDeleteMixRequest(result.current.mixes[0]);
+			});
+			act(() => {
+				result.current.onDeleteMixCancel();
+			});
+			expect(result.current.deletingMix).toBeNull();
+			expect(trpcMocks.gameMixDelete).not.toHaveBeenCalled();
+		});
+
+		it("toasts and closes the dialog on delete failure", async () => {
+			trpcMocks.gameMixDelete.mockRejectedValue(new Error("FORBIDDEN"));
+			const { result } = renderHook(() => useGameLibrarySection(), {
+				wrapper: withQueryClient(),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			act(() => {
+				result.current.onDeleteMixRequest(result.current.mixes[0]);
+			});
+			await act(async () => {
+				await result.current.onDeleteMixConfirm();
+			});
+			await waitFor(() => {
+				expect(toastMock.error).toHaveBeenCalledTimes(1);
+			});
+			expect(toastMock.error).toHaveBeenNthCalledWith(
+				1,
+				"Failed to delete game mix"
+			);
+			expect(result.current.deletingMix).toBeNull();
 		});
 	});
 });

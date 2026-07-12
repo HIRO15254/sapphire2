@@ -37,6 +37,14 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		gameMix: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameMix", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
 	},
 	trpcClient: {
 		gameVariant: {

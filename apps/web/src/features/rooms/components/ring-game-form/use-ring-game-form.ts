@@ -1,4 +1,3 @@
-import { isMixVariant } from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import z from "zod";
@@ -8,6 +7,7 @@ import { optionalNumericString } from "@/shared/lib/form-fields";
 import {
 	fromMixGames,
 	type MixGameGroupRow,
+	rowsFromVariantLabels,
 	toMixGames,
 } from "@/shared/lib/mix-games";
 import { trpc } from "@/utils/trpc";
@@ -56,7 +56,7 @@ export function useRingGameForm({
 }: UseRingGameFormOptions) {
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
-	const { groupFor, resolveVariantLabel, labelsFor, isLoading } =
+	const { groupFor, labelsFor, isLoading, isMixValue, mixCompositionLabels } =
 		useGameGroups();
 
 	const form = useForm({
@@ -80,9 +80,7 @@ export function useRingGameForm({
 			onSubmit({
 				name: value.name,
 				variant: value.variant || "nlh",
-				mixGames: isMixVariant(value.variant)
-					? toMixGames(value.mixGames)
-					: null,
+				mixGames: isMixValue(value.variant) ? toMixGames(value.mixGames) : null,
 				blind1: parseOptInt(value.blind1),
 				blind2: parseOptInt(value.blind2),
 				blind3: parseOptInt(value.blind3),
@@ -100,12 +98,27 @@ export function useRingGameForm({
 		},
 	});
 
+	// Picking a mix master reseeds the editor from its saved composition
+	// (overwriting whatever was there — switching mixes starts fresh). The
+	// legacy "mix" mode key has no composition to seed from, so it only sets
+	// the field.
+	const onVariantChange = (next: string) => {
+		form.setFieldValue("variant", next);
+		if (isMixValue(next) && next !== "mix") {
+			form.setFieldValue(
+				"mixGames",
+				rowsFromVariantLabels(mixCompositionLabels(next), groupFor)
+			);
+		}
+	};
+
 	return {
 		form,
 		currencies,
 		groupFor,
-		resolveVariantLabel,
 		labelsFor,
 		isMasterLoading: isLoading,
+		isMixValue,
+		onVariantChange,
 	};
 }

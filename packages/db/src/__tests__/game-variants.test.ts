@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	DEFAULT_GAME_GROUPS,
+	DEFAULT_GAME_MIXES,
 	DEFAULT_GAME_VARIANTS,
 	isMixVariant,
 	MIX_VARIANT,
@@ -181,6 +182,63 @@ describe("DEFAULT_GAME_VARIANTS", () => {
 			(v) => v.groupKey === "stud"
 		).map((v) => v.key);
 		expect(studKeys.sort()).toEqual(["stud", "stud8", "razz"].sort());
+	});
+});
+
+describe("DEFAULT_GAME_MIXES", () => {
+	it("has exactly 3 mixes", () => {
+		expect(DEFAULT_GAME_MIXES).toHaveLength(3);
+	});
+
+	it("has unique keys", () => {
+		const keys = DEFAULT_GAME_MIXES.map((m) => m.key);
+		expect(new Set(keys).size).toBe(keys.length);
+	});
+
+	it("has unique labels", () => {
+		const labels = DEFAULT_GAME_MIXES.map((m) => m.label);
+		expect(new Set(labels).size).toBe(labels.length);
+	});
+
+	it("every variantKeys entry exists in DEFAULT_GAME_VARIANTS keys", () => {
+		const validVariantKeys = new Set(DEFAULT_GAME_VARIANTS.map((v) => v.key));
+		for (const m of DEFAULT_GAME_MIXES) {
+			for (const key of m.variantKeys) {
+				expect(validVariantKeys.has(key), `${m.key} -> ${key}`).toBe(true);
+			}
+		}
+	});
+
+	it("has a non-empty variantKeys array for every mix", () => {
+		for (const m of DEFAULT_GAME_MIXES) {
+			expect(m.variantKeys.length, m.key).toBeGreaterThan(0);
+		}
+	});
+
+	it("has the expected key order horse -> 8game -> 10game", () => {
+		expect(DEFAULT_GAME_MIXES.map((m) => m.key)).toEqual([
+			"horse",
+			"8game",
+			"10game",
+		]);
+	});
+
+	it("HORSE composes lhe/o8/razz/stud/stud8", () => {
+		const horse = DEFAULT_GAME_MIXES.find((m) => m.key === "horse");
+		expect(horse?.label).toBe("HORSE");
+		expect(horse?.variantKeys).toEqual(["lhe", "o8", "razz", "stud", "stud8"]);
+	});
+
+	it("8-Game composes 8 variants", () => {
+		const eightGame = DEFAULT_GAME_MIXES.find((m) => m.key === "8game");
+		expect(eightGame?.label).toBe("8-Game");
+		expect(eightGame?.variantKeys).toHaveLength(8);
+	});
+
+	it("10-Game composes 10 variants", () => {
+		const tenGame = DEFAULT_GAME_MIXES.find((m) => m.key === "10game");
+		expect(tenGame?.label).toBe("10-Game");
+		expect(tenGame?.variantKeys).toHaveLength(10);
 	});
 });
 

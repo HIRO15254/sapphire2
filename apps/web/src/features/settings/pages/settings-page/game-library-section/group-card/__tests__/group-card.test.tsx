@@ -46,13 +46,18 @@ function renderCard(overrides: Partial<{ entry: GameGroupEntry }> = {}) {
 }
 
 describe("GroupCard", () => {
-	it("renders the group label and a Default badge for a builtin group", () => {
+	it("renders the group label and its slot-labels summary in the header band", () => {
 		renderCard();
 		expect(screen.getByText("No Limit Hold'em")).toBeInTheDocument();
-		expect(screen.getAllByText("Default")).toHaveLength(1);
+		expect(screen.getByText("Default labels")).toBeInTheDocument();
 	});
 
-	it("omits the Default badge for a user-created group", () => {
+	it("never renders a Default badge, even for a builtin group", () => {
+		renderCard();
+		expect(screen.queryByText("Default")).not.toBeInTheDocument();
+	});
+
+	it("omits any badge for a user-created group", () => {
 		renderCard({
 			entry: { group: groupRow({ builtinKey: null }), variants: [] },
 		});
@@ -84,7 +89,7 @@ describe("GroupCard", () => {
 		).toBeInTheDocument();
 	});
 
-	it("renders each variant's label, short label, and a Default badge for a builtin variant", () => {
+	it("renders each variant's label and short label without a Default badge, even for a builtin variant", () => {
 		renderCard({
 			entry: {
 				group: groupRow(),
@@ -93,7 +98,7 @@ describe("GroupCard", () => {
 		});
 		expect(screen.getByText("Big Duck")).toBeInTheDocument();
 		expect(screen.getByText("BD")).toBeInTheDocument();
-		expect(screen.getAllByText("Default")).toHaveLength(2);
+		expect(screen.queryByText("Default")).not.toBeInTheDocument();
 	});
 
 	it("does not render an empty-group message when variants are present", () => {
@@ -118,11 +123,20 @@ describe("GroupCard", () => {
 		const user = userEvent.setup();
 		const group = groupRow();
 		const { onDeleteGroup } = renderCard({ entry: { group, variants: [] } });
-		await user.click(
-			screen.getByRole("button", { name: "Delete No Limit Hold'em" })
-		);
+		const deleteButton = screen.getByRole("button", {
+			name: "Delete No Limit Hold'em",
+		});
+		await user.click(deleteButton);
 		expect(onDeleteGroup).toHaveBeenCalledTimes(1);
 		expect(onDeleteGroup).toHaveBeenNthCalledWith(1, group);
+	});
+
+	it("renders the group delete button in a constant destructive color", () => {
+		renderCard();
+		const deleteButton = screen.getByRole("button", {
+			name: "Delete No Limit Hold'em",
+		});
+		expect(deleteButton).toHaveClass("text-destructive");
 	});
 
 	it("calls onEditVariant with the variant when its edit button is clicked", async () => {
@@ -145,6 +159,14 @@ describe("GroupCard", () => {
 		await user.click(screen.getByRole("button", { name: "Delete Big Duck" }));
 		expect(onDeleteVariant).toHaveBeenCalledTimes(1);
 		expect(onDeleteVariant).toHaveBeenNthCalledWith(1, variant);
+	});
+
+	it("renders the variant delete button in a constant destructive color", () => {
+		renderCard({ entry: { group: groupRow(), variants: [variantRow()] } });
+		const deleteButton = screen.getByRole("button", {
+			name: "Delete Big Duck",
+		});
+		expect(deleteButton).toHaveClass("text-destructive");
 	});
 
 	it("calls onAddVariant with the group's id when Add variant is clicked", async () => {

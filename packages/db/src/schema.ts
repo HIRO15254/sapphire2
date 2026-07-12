@@ -16,6 +16,7 @@ import {
 	transactionTypeRelations,
 } from "./schema/currency";
 import { gameGroup, gameGroupRelations } from "./schema/game-group";
+import { gameMix, gameMixRelations } from "./schema/game-mix";
 import { gameVariant, gameVariantRelations } from "./schema/game-variant";
 import {
 	player,
@@ -125,4 +126,6 @@ export const schema = {
 	gameGroupRelations,
 	gameVariant,
 	gameVariantRelations,
+	gameMix,
+	gameMixRelations,
 };

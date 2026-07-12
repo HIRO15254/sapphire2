@@ -23,6 +23,13 @@ export interface GameVariantRow {
 	sortOrder: number;
 }
 
+export interface GameMixRow {
+	builtinKey: string | null;
+	games: string[];
+	id: string;
+	label: string;
+}
+
 export interface GameGroupOption {
 	id: string;
 	label: string;
@@ -39,6 +46,7 @@ type GroupSheetTarget =
 type VariantSheetTarget =
 	| { groupId: string; mode: "create" }
 	| { mode: "edit"; variant: GameVariantRow };
+type MixSheetTarget = { mode: "create" } | { mix: GameMixRow; mode: "edit" };
 
 function compareVariants(a: GameVariantRow, b: GameVariantRow): number {
 	if (a.sortOrder !== b.sortOrder) {
@@ -51,10 +59,12 @@ function compareVariants(a: GameVariantRow, b: GameVariantRow): number {
  * Settings-page management of the user's game library — groups and variants
  * merged into one hierarchy (mix-game rework) so "every variant belongs to
  * exactly one group" is visible: one card per group, its variants listed
- * inside. Owns both list queries, the hierarchy shaping, sheet open/close
- * state, and the delete mutations + the "group in use" guard. The create/
- * edit forms and their own mutations live in the colocated
- * group-form-sheet / variant-form-sheet hooks.
+ * inside, plus a separate card for the user's mix masters (named, reusable
+ * game compositions spanning groups). Owns all three list queries, the
+ * hierarchy shaping, sheet open/close state, and the delete mutations + the
+ * "group in use" guard. The create/edit forms and their own mutations live
+ * in the colocated group-form-sheet / variant-form-sheet / mix-form-sheet
+ * hooks.
  */
 export function useGameLibrarySection() {
 	const queryClient = useQueryClient();
@@ -62,18 +72,25 @@ export function useGameLibrarySection() {
 	const groupListQuery = useQuery(groupListQueryOptions);
 	const variantListQueryOptions = trpc.gameVariant.list.queryOptions();
 	const variantListQuery = useQuery(variantListQueryOptions);
+	const mixListQueryOptions = trpc.gameMix.list.queryOptions();
+	const mixListQuery = useQuery(mixListQueryOptions);
 
 	const [groupSheetTarget, setGroupSheetTarget] =
 		useState<GroupSheetTarget | null>(null);
 	const [variantSheetTarget, setVariantSheetTarget] =
 		useState<VariantSheetTarget | null>(null);
+	const [mixSheetTarget, setMixSheetTarget] = useState<MixSheetTarget | null>(
+		null
+	);
 	const [deletingGroup, setDeletingGroup] = useState<GameGroupRow | null>(null);
 	const [deletingVariant, setDeletingVariant] = useState<GameVariantRow | null>(
 		null
 	);
+	const [deletingMix, setDeletingMix] = useState<GameMixRow | null>(null);
 
 	const groupRows: GameGroupRow[] = groupListQuery.data ?? [];
 	const variantRows: GameVariantRow[] = variantListQuery.data ?? [];
+	const mixRows: GameMixRow[] = mixListQuery.data ?? [];
 
 	const variantsByGroupId = new Map<string, GameVariantRow[]>();
 	for (const variant of variantRows) {
@@ -98,10 +115,16 @@ export function useGameLibrarySection() {
 		label: group.label,
 	}));
 
-	const invalidateBoth = () =>
+	// Uniform triple-list invalidation: every mutation in this section
+	// (groups, variants, AND mixes) invalidates all three lists, since mix
+	// composition summaries and the mix-form-sheet's label<->id mapping both
+	// read gameVariant.list, and variant/group edits don't change gameMix
+	// rows but keep the three lists refetched together for consistency.
+	const invalidateAll = () =>
 		invalidateTargets(queryClient, [
 			{ queryKey: groupListQueryOptions.queryKey },
 			{ queryKey: variantListQueryOptions.queryKey },
+			{ queryKey: mixListQueryOptions.queryKey },
 		]);
 
 	const deleteGroupMutation = useMutation<unknown, unknown, string>({
@@ -116,7 +139,7 @@ export function useGameLibrarySection() {
 					: "Failed to delete game group";
 			toast.error(message);
 		},
-		onSettled: invalidateBoth,
+		onSettled: invalidateAll,
 	});
 
 	const deleteVariantMutation = useMutation<unknown, unknown, string>({
@@ -124,7 +147,15 @@ export function useGameLibrarySection() {
 		onError: () => {
 			toast.error("Failed to delete game variant");
 		},
-		onSettled: invalidateBoth,
+		onSettled: invalidateAll,
+	});
+
+	const deleteMixMutation = useMutation<unknown, unknown, string>({
+		mutationFn: (id: string) => trpcClient.gameMix.delete.mutate({ id }),
+		onError: () => {
+			toast.error("Failed to delete game mix");
+		},
+		onSettled: invalidateAll,
 	});
 
 	const onAddGroup = () => setGroupSheetTarget({ mode: "create" });
@@ -143,6 +174,15 @@ export function useGameLibrarySection() {
 	const onVariantSheetOpenChange = (open: boolean) => {
 		if (!open) {
 			setVariantSheetTarget(null);
+		}
+	};
+
+	const onAddMix = () => setMixSheetTarget({ mode: "create" });
+	const onEditMix = (mix: GameMixRow) =>
+		setMixSheetTarget({ mix, mode: "edit" });
+	const onMixSheetOpenChange = (open: boolean) => {
+		if (!open) {
+			setMixSheetTarget(null);
 		}
 	};
 
@@ -188,10 +228,32 @@ export function useGameLibrarySection() {
 
 	const onDeleteVariantCancel = () => setDeletingVariant(null);
 
+	const onDeleteMixRequest = (mix: GameMixRow) => setDeletingMix(mix);
+
+	const onDeleteMixConfirm = async () => {
+		if (!deletingMix) {
+			return;
+		}
+		try {
+			await deleteMixMutation.mutateAsync(deletingMix.id);
+		} catch {
+			// Surfaced via the mutation's onError toast.
+		} finally {
+			setDeletingMix(null);
+		}
+	};
+
+	const onDeleteMixCancel = () => setDeletingMix(null);
+
 	return {
 		groups,
 		groupOptions,
-		isLoading: groupListQuery.isLoading || variantListQuery.isLoading,
+		mixes: mixRows,
+		variants: variantRows,
+		isLoading:
+			groupListQuery.isLoading ||
+			variantListQuery.isLoading ||
+			mixListQuery.isLoading,
 
 		isGroupSheetOpen: groupSheetTarget !== null,
 		editingGroup:
@@ -209,6 +271,12 @@ export function useGameLibrarySection() {
 		onEditVariant,
 		onVariantSheetOpenChange,
 
+		isMixSheetOpen: mixSheetTarget !== null,
+		editingMix: mixSheetTarget?.mode === "edit" ? mixSheetTarget.mix : null,
+		onAddMix,
+		onEditMix,
+		onMixSheetOpenChange,
+
 		deletingGroup,
 		onDeleteGroupRequest,
 		onDeleteGroupConfirm,
@@ -220,5 +288,11 @@ export function useGameLibrarySection() {
 		onDeleteVariantConfirm,
 		onDeleteVariantCancel,
 		isDeleteVariantPending: deleteVariantMutation.isPending,
+
+		deletingMix,
+		onDeleteMixRequest,
+		onDeleteMixConfirm,
+		onDeleteMixCancel,
+		isDeleteMixPending: deleteMixMutation.isPending,
 	};
 }

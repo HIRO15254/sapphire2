@@ -3,6 +3,7 @@ import {
 	MIX_VARIANT_LABEL,
 } from "@sapphire2/db/constants/game-variants";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
+import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq } from "drizzle-orm";
@@ -89,6 +90,24 @@ async function assertLabelAvailable(
 		throw new TRPCError({
 			code: "CONFLICT",
 			message: "You already have a game variant with this label",
+		});
+	}
+
+	// A named mix's label is chosen from the same client-side select as a
+	// plain game variant (both freeze into the same `variant` string once
+	// picked), so the two namespaces must never collide (see game-mix.ts's
+	// assertMixLabelAvailable for the mirror-image check).
+	const existingMixes = await db
+		.select()
+		.from(gameMix)
+		.where(eq(gameMix.userId, userId));
+	const collidesMix = existingMixes.some(
+		(row) => row.label.trim().toLowerCase() === normalized
+	);
+	if (collidesMix) {
+		throw new TRPCError({
+			code: "CONFLICT",
+			message: "You already have a mix with this label",
 		});
 	}
 }

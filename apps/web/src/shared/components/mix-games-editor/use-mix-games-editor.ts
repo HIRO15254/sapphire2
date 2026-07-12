@@ -1,8 +1,6 @@
 import {
 	addVariant,
 	type MixGameGroupRow,
-	type MixTemplateKind,
-	mixTemplate,
 	type ResolveGroup,
 	removeVariant,
 	updateGroup,
@@ -13,8 +11,6 @@ interface UseMixGamesEditorArgs {
 	onChange: (rows: MixGameGroupRow[]) => void;
 	/** variant label → its owning group (master mapping). */
 	resolveGroup: ResolveGroup;
-	/** builtinKey → the user's variant label (null when deleted). */
-	resolveVariantLabel: (builtinKey: string) => string | null;
 	value: MixGameGroupRow[];
 }
 
@@ -27,7 +23,6 @@ interface UseMixGamesEditorArgs {
 export function useMixGamesEditor({
 	onChange,
 	resolveGroup,
-	resolveVariantLabel,
 	value,
 }: UseMixGamesEditorArgs) {
 	return {
@@ -40,7 +35,5 @@ export function useMixGamesEditor({
 			uid: string,
 			patch: Partial<Omit<MixGameGroupRow, "uid" | "groupId">>
 		) => onChange(updateGroup(value, uid, patch)),
-		onApplyTemplate: (kind: MixTemplateKind) =>
-			onChange(mixTemplate(kind, resolveVariantLabel, resolveGroup)),
 	};
 }

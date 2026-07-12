@@ -1,3 +1,4 @@
+import { MIX_VARIANT } from "@sapphire2/db/constants/game-variants";
 import { useQuery } from "@tanstack/react-query";
 import type { MixGroupInfo, ResolveGroup } from "@/shared/lib/mix-games";
 import { trpc } from "@/utils/trpc";
@@ -35,6 +36,17 @@ interface GameVariantRowLike {
 	sortOrder: number;
 }
 
+interface GameMixRowLike {
+	builtinKey: string | null;
+	games: string[];
+	id: string;
+	label: string;
+}
+
+function normalizedLabel(value: string): string {
+	return value.trim().toLowerCase();
+}
+
 function toInfo(row: GameGroupRowLike, sortIndex: number): MixGroupInfo {
 	return {
 		id: row.id,
@@ -55,9 +67,11 @@ function toInfo(row: GameGroupRowLike, sortIndex: number): MixGroupInfo {
 export function useGameGroups() {
 	const groupsQuery = useQuery(trpc.gameGroup.list.queryOptions());
 	const variantsQuery = useQuery(trpc.gameVariant.list.queryOptions());
+	const mixesQuery = useQuery(trpc.gameMix.list.queryOptions());
 
 	const groups = (groupsQuery.data ?? []) as GameGroupRowLike[];
 	const variants = (variantsQuery.data ?? []) as GameVariantRowLike[];
+	const mixes = (mixesQuery.data ?? []) as GameMixRowLike[];
 
 	// Server list order is canonical (builtin order, then customs by label).
 	const infoById = new Map<string, MixGroupInfo>(
@@ -93,9 +107,6 @@ export function useGameGroups() {
 		return info ?? fallbackGroup();
 	};
 
-	const resolveVariantLabel = (builtinKey: string): string | null =>
-		variants.find((row) => row.builtinKey === builtinKey)?.label ?? null;
-
 	const labelsFor = (variantLabel: string): BlindSlotLabels => {
 		const row = variantByLabel(variantLabel);
 		const info = row ? infoById.get(row.groupId) : undefined;
@@ -109,12 +120,43 @@ export function useGameGroups() {
 		};
 	};
 
+	// True for the legacy mix-mode key ("mix") or any of the caller's mix
+	// master labels — both freeze into the same `variant` string once picked
+	// (self-freezing select), so this is the single place that recognizes
+	// either shape.
+	const isMixValue = (value: string): boolean => {
+		const normalized = normalizedLabel(value);
+		return (
+			normalized === MIX_VARIANT ||
+			mixes.some((mix) => normalizedLabel(mix.label) === normalized)
+		);
+	};
+
+	// A mix's ordered `games` (variant ids) resolved to their current display
+	// labels. Ids whose variant row no longer exists (deleted since the mix
+	// was saved) are silently skipped rather than surfacing a hole in the
+	// editor; an unknown mix label resolves to an empty composition.
+	const mixCompositionLabels = (mixLabel: string): string[] => {
+		const normalized = normalizedLabel(mixLabel);
+		const mix = mixes.find((m) => normalizedLabel(m.label) === normalized);
+		if (!mix) {
+			return [];
+		}
+		const variantById = new Map(variants.map((row) => [row.id, row.label]));
+		return mix.games
+			.map((id) => variantById.get(id))
+			.filter((label): label is string => label !== undefined);
+	};
+
 	return {
 		groups,
 		variants,
-		isLoading: groupsQuery.isLoading || variantsQuery.isLoading,
+		mixes,
+		isLoading:
+			groupsQuery.isLoading || variantsQuery.isLoading || mixesQuery.isLoading,
 		groupFor,
-		resolveVariantLabel,
 		labelsFor,
+		isMixValue,
+		mixCompositionLabels,
 	};
 }

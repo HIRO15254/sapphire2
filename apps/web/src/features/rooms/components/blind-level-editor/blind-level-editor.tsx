@@ -1,4 +1,3 @@
-import { isMixVariant } from "@sapphire2/db/constants/game-variants";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { useBlindLevels } from "@/features/rooms/hooks/use-blind-levels";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
@@ -29,7 +28,7 @@ export function BlindStructureContent({
 		handleCreateLevel,
 	} = useBlindLevels({ tournamentId });
 
-	const { groupFor, resolveVariantLabel, labelsFor } = useGameGroups();
+	const { groupFor, labelsFor, isMixValue } = useGameGroups();
 	const blindLabels = labelsFor(variant);
 
 	if (isLoading) {
@@ -50,10 +49,9 @@ export function BlindStructureContent({
 			handleDragEnd={handleDragEnd}
 			handleUpdate={handleUpdate}
 			isAdding={isAdding}
-			isMix={isMixVariant(variant)}
+			isMix={isMixValue(variant)}
 			levels={levels}
 			resolveGroup={groupFor}
-			resolveVariantLabel={resolveVariantLabel}
 			sensors={sensors}
 		/>
 	);
@@ -82,7 +80,7 @@ export function LocalBlindStructureContent({
 		handleCreateLevel,
 	} = useLocalBlindStructure({ value, onChange });
 
-	const { groupFor, resolveVariantLabel, labelsFor } = useGameGroups();
+	const { groupFor, labelsFor, isMixValue } = useGameGroups();
 	const blindLabels = labelsFor(variant);
 
 	return (
@@ -94,10 +92,9 @@ export function LocalBlindStructureContent({
 			handleDelete={handleDelete}
 			handleDragEnd={handleDragEnd}
 			handleUpdate={handleUpdate}
-			isMix={isMixVariant(variant)}
+			isMix={isMixValue(variant)}
 			levels={value}
 			resolveGroup={groupFor}
-			resolveVariantLabel={resolveVariantLabel}
 			sensors={sensors}
 		/>
 	);

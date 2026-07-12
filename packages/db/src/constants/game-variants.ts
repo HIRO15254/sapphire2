@@ -142,6 +142,46 @@ export const DEFAULT_GAME_VARIANTS: DefaultGameVariant[] = [
 	{ key: "razz", label: "Razz", shortLabel: "Razz", groupKey: "stud" },
 ];
 
+export interface DefaultGameMix {
+	key: string;
+	label: string;
+	variantKeys: string[];
+}
+
+// Seed data for the per-user game_mix table (named mix masters). Unlike
+// DEFAULT_GAME_GROUPS/DEFAULT_GAME_VARIANTS, `variantKeys` here map to
+// DEFAULT_GAME_VARIANTS keys purely as SEED-TIME lookups (seedDefaultGameData
+// resolves each key to that user's seeded variant row id) — the stored
+// game_mix.games column always holds ids, never these keys.
+export const DEFAULT_GAME_MIXES: DefaultGameMix[] = [
+	{
+		key: "horse",
+		label: "HORSE",
+		variantKeys: ["lhe", "o8", "razz", "stud", "stud8"],
+	},
+	{
+		key: "8game",
+		label: "8-Game",
+		variantKeys: ["27td", "lhe", "o8", "razz", "stud", "stud8", "nlh", "plo"],
+	},
+	{
+		key: "10game",
+		label: "10-Game",
+		variantKeys: [
+			"27td",
+			"lhe",
+			"o8",
+			"badugi",
+			"razz",
+			"stud",
+			"stud8",
+			"nlh",
+			"plo",
+			"27sd",
+		],
+	},
+];
+
 // Mix pseudo-variant constants (mix is a MODE, not a row).
 export const MIX_VARIANT = "mix";
 export const MIX_VARIANT_LABEL = "Mixed Game";

@@ -5,6 +5,7 @@ import { withQueryClient } from "@/__tests__/test-utils";
 const trpcMocks = vi.hoisted(() => ({
 	gameGroupListQueryFn: vi.fn(),
 	gameVariantListQueryFn: vi.fn(),
+	gameMixListQueryFn: vi.fn(),
 	gameVariantCreate: vi.fn(),
 }));
 
@@ -25,6 +26,14 @@ vi.mock("@/utils/trpc", () => ({
 				queryOptions: () => ({
 					queryKey: ["gameVariant", "list"],
 					queryFn: () => trpcMocks.gameVariantListQueryFn(),
+				}),
+			},
+		},
+		gameMix: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameMix", "list"],
+					queryFn: () => trpcMocks.gameMixListQueryFn(),
 				}),
 			},
 		},
@@ -64,6 +73,11 @@ const VARIANTS = [
 	},
 ];
 
+const MIXES = [
+	{ id: "m-horse", builtinKey: "horse", label: "HORSE", games: [] },
+	{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
+];
+
 function setup(args: Partial<Parameters<typeof useVariantSelect>[0]> = {}) {
 	const onChange = vi.fn();
 	const { result } = renderHook(
@@ -77,10 +91,12 @@ describe("useVariantSelect", () => {
 	beforeEach(() => {
 		trpcMocks.gameGroupListQueryFn.mockReset();
 		trpcMocks.gameVariantListQueryFn.mockReset();
+		trpcMocks.gameMixListQueryFn.mockReset();
 		trpcMocks.gameVariantCreate.mockReset();
 		toastMock.error.mockReset();
 		trpcMocks.gameGroupListQueryFn.mockResolvedValue(GROUPS);
 		trpcMocks.gameVariantListQueryFn.mockResolvedValue(VARIANTS);
+		trpcMocks.gameMixListQueryFn.mockResolvedValue(MIXES);
 	});
 
 	it("lists the user's variant rows as options (value = label)", async () => {
@@ -91,16 +107,51 @@ describe("useVariantSelect", () => {
 				"Limit Hold'em",
 			]);
 		});
-		expect(result.current.mixOption).toBeNull();
+		expect(result.current.mixOptions).toEqual([]);
 	});
 
-	it("adds the fixed Mixed Game entry when includeMix", async () => {
+	it("lists the user's mix masters as options when includeMix", async () => {
 		const { result } = setup({ includeMix: true });
 		await waitFor(() => {
-			expect(result.current.mixOption).toEqual({
-				value: "mix",
-				label: "Mixed Game",
-			});
+			expect(result.current.mixOptions).toEqual([
+				{ id: "m-horse", label: "HORSE" },
+				{ id: "m-8game", label: "8-Game" },
+			]);
+		});
+	});
+
+	it("hides mix masters when includeMix is false", async () => {
+		const { result } = setup({ includeMix: false });
+		await waitFor(() => {
+			expect(result.current.variantOptions).toHaveLength(2);
+		});
+		expect(result.current.mixOptions).toEqual([]);
+	});
+
+	it("treats a mix master's label as a known value", async () => {
+		const { result } = setup({ value: "8-Game", includeMix: true });
+		await waitFor(() => {
+			expect(result.current.unknownValue).toBeNull();
+		});
+	});
+
+	it("treats the legacy 'mix' key as a known value", async () => {
+		const { result } = setup({ value: "mix", includeMix: true });
+		await waitFor(() => {
+			expect(result.current.unknownValue).toBeNull();
+		});
+	});
+
+	it("does not apply excludeVariants filtering to mix masters", async () => {
+		const { result } = setup({
+			excludeVariants: ["HORSE", "8-Game"],
+			includeMix: true,
+		});
+		await waitFor(() => {
+			expect(result.current.mixOptions).toEqual([
+				{ id: "m-horse", label: "HORSE" },
+				{ id: "m-8game", label: "8-Game" },
+			]);
 		});
 	});
 
@@ -120,13 +171,6 @@ describe("useVariantSelect", () => {
 		const { result } = setup({ value: "Deleted Game" });
 		await waitFor(() => {
 			expect(result.current.unknownValue).toBe("Deleted Game");
-		});
-	});
-
-	it("treats mix as a known value", async () => {
-		const { result } = setup({ value: "mix", includeMix: true });
-		await waitFor(() => {
-			expect(result.current.unknownValue).toBeNull();
 		});
 	});
 

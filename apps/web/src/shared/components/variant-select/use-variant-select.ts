@@ -1,7 +1,3 @@
-import {
-	MIX_VARIANT,
-	MIX_VARIANT_LABEL,
-} from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
@@ -25,14 +21,21 @@ const customVariantFormSchema = z.object({
 	groupId: z.string().min(1, "Required"),
 });
 
+// Legacy mix-mode key frozen into old rows before named mix masters existed
+// (see @sapphire2/db/constants/game-variants MIX_VARIANT) — kept recognized
+// here without importing the constant, since it is never offered as a menu
+// item anymore (only real mix master labels are).
+const LEGACY_MIX_VALUE = "mix";
+
 interface UseVariantSelectArgs {
 	/**
 	 * Variant labels to hide from the options — used by the mix-games editor
-	 * to keep one game in one group. The currently selected value is always
-	 * kept so the control can render it.
+	 * to keep one game in one group. Mix master options are never hidden by
+	 * this filter (a mix is not a member of any group). The currently
+	 * selected value is always kept so the control can render it.
 	 */
 	excludeVariants?: string[];
-	/** Show the special "Mixed Game" mode entry (value: "mix"). */
+	/** Show the user's named mix masters (HORSE / 8-Game / 10-Game / custom). */
 	includeMix?: boolean;
 	onChange: (variant: string) => void;
 	value: string;
@@ -57,6 +60,8 @@ export function useVariantSelect({
 	const allVariants = variantsQuery.data ?? [];
 	const groupsQuery = useQuery(trpc.gameGroup.list.queryOptions());
 	const groups = groupsQuery.data ?? [];
+	const mixesQuery = useQuery(trpc.gameMix.list.queryOptions());
+	const allMixes = mixesQuery.data ?? [];
 
 	const excluded = new Set((excludeVariants ?? []).map(normalized));
 	const keep = (candidate: string) =>
@@ -68,16 +73,23 @@ export function useVariantSelect({
 		.filter((row) => keep(row.label))
 		.map((row) => ({ id: row.id, label: row.label }));
 
-	const mixOption = includeMix
-		? { value: MIX_VARIANT, label: MIX_VARIANT_LABEL }
-		: null;
+	// The user's named mix masters (value = label, self-freezing like plain
+	// variants). Never filtered by excludeVariants — a mix is not a member of
+	// any single group, so the "one game, one group" exclusion doesn't apply.
+	const mixOptions = includeMix
+		? allMixes.map((row) => ({ id: row.id, label: row.label }))
+		: [];
 
 	// A frozen value whose definition no longer exists (deleted variant)
-	// still needs an item, or the controlled Select renders blank.
+	// still needs an item, or the controlled Select renders blank. Mix labels
+	// and the legacy "mix" mode key are always known — the legacy key never
+	// has a matching menu item, but it must not be treated as an unknown/
+	// frozen value either (it stays recognized as mix-mode everywhere else).
 	const isKnownValue =
 		value === "" ||
-		value === MIX_VARIANT ||
-		allVariants.some((row) => row.label === value);
+		normalized(value) === LEGACY_MIX_VALUE ||
+		allVariants.some((row) => row.label === value) ||
+		allMixes.some((row) => normalized(row.label) === normalized(value));
 	const unknownValue = isKnownValue ? null : value;
 
 	const createMutation = useMutation({
@@ -133,8 +145,9 @@ export function useVariantSelect({
 		handleValueChange,
 		isAddOpen,
 		isCreatePending: createMutation.isPending,
-		isLoading: variantsQuery.isLoading || groupsQuery.isLoading,
-		mixOption,
+		isLoading:
+			variantsQuery.isLoading || groupsQuery.isLoading || mixesQuery.isLoading,
+		mixOptions,
 		setIsAddOpen,
 		unknownValue,
 		variantOptions,

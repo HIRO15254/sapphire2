@@ -45,11 +45,15 @@ export function useVariantFormSheet({
 	const queryClient = useQueryClient();
 	const groupListQueryOptions = trpc.gameGroup.list.queryOptions();
 	const variantListQueryOptions = trpc.gameVariant.list.queryOptions();
+	const mixListQueryOptions = trpc.gameMix.list.queryOptions();
 
-	const invalidateBoth = () =>
+	// Uniform triple-list invalidation, matching every other mutation in this
+	// section (see use-game-library-section.ts's invalidateAll).
+	const invalidateAll = () =>
 		invalidateTargets(queryClient, [
 			{ queryKey: groupListQueryOptions.queryKey },
 			{ queryKey: variantListQueryOptions.queryKey },
+			{ queryKey: mixListQueryOptions.queryKey },
 		]);
 
 	const createMutation = useMutation({
@@ -62,7 +66,7 @@ export function useVariantFormSheet({
 		onError: () => {
 			toast.error("Failed to create game variant");
 		},
-		onSettled: invalidateBoth,
+		onSettled: invalidateAll,
 	});
 
 	const updateMutation = useMutation({
@@ -75,7 +79,7 @@ export function useVariantFormSheet({
 		onError: () => {
 			toast.error("Failed to update game variant");
 		},
-		onSettled: invalidateBoth,
+		onSettled: invalidateAll,
 	});
 
 	const form = useForm({

@@ -1,4 +1,3 @@
-import { isMixVariant } from "@sapphire2/db/constants/game-variants";
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
 import { MixGamesEditor } from "@/shared/components/mix-games-editor";
 import { Field } from "@/shared/components/ui/field";
@@ -53,10 +52,11 @@ export function RingGameForm({
 	defaultValues,
 	formId,
 }: RingGameFormProps) {
-	const { form, currencies, groupFor, resolveVariantLabel } = useRingGameForm({
-		defaultValues,
-		onSubmit,
-	});
+	const { form, currencies, groupFor, isMixValue, onVariantChange } =
+		useRingGameForm({
+			defaultValues,
+			onSubmit,
+		});
 
 	return (
 		<form
@@ -92,7 +92,7 @@ export function RingGameForm({
 						<VariantSelect
 							id={field.name}
 							includeMix
-							onChange={(v) => field.handleChange(v)}
+							onChange={onVariantChange}
 							value={field.state.value}
 						/>
 					</Field>
@@ -103,13 +103,12 @@ export function RingGameForm({
 			    per-group amounts live inside each group row. */}
 			<form.Subscribe selector={(state) => state.values.variant}>
 				{(variant) =>
-					isMixVariant(variant) ? (
+					isMixValue(variant) ? (
 						<form.Field name="mixGames">
 							{(field) => (
 								<MixGamesEditor
 									onChange={(rows) => field.handleChange(rows)}
 									resolveGroup={groupFor}
-									resolveVariantLabel={resolveVariantLabel}
 									value={field.state.value}
 								/>
 							)}
