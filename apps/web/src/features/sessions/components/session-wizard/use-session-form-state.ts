@@ -1,3 +1,7 @@
+import {
+	DEFAULT_VARIANT_LABEL,
+	MIX_VARIANT,
+} from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef, useState } from "react";
 import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
@@ -26,6 +30,14 @@ import {
 	toChipPurchaseRows,
 	toSessionChipPurchases,
 } from "./chip-purchase-rows";
+
+type VariantScope = "all" | "perLevel";
+
+// The per-level tournament mode is stored as the frozen legacy mix key —
+// each level's games say what's played, there is no single variant.
+function scopeOf(variant: string): VariantScope {
+	return variant.trim().toLowerCase() === MIX_VARIANT ? "perLevel" : "all";
+}
 
 interface MixMasterRow {
 	builtinKey: string | null;
@@ -73,6 +85,9 @@ export function useSessionFormState({
 		useGameGroups();
 	const [editingMix, setEditingMix] = useState<MixMasterRow | null>(null);
 	const [isMixSheetOpen, setIsMixSheetOpen] = useState(false);
+	// Last all-levels tournament variant, restored when switching back from
+	// per-level mode.
+	const lastAllVariant = useRef(DEFAULT_VARIANT_LABEL);
 	const [sessionType, setSessionType] = useState<"cash_game" | "tournament">(
 		defaultValues?.type ?? "cash_game"
 	);
@@ -117,7 +132,7 @@ export function useSessionFormState({
 		buyIn: Number(value.buyIn),
 		cashOut: Number(value.cashOut),
 		evCashOut: parseOptInt(value.evCashOut),
-		variant: value.variant || "nlh",
+		variant: value.variant || DEFAULT_VARIANT_LABEL,
 		mixGames: isMixValue(value.variant) ? toMixGames(mixGames) : null,
 		blind1: parseOptInt(value.blind1),
 		blind2: parseOptInt(value.blind2),
@@ -332,6 +347,18 @@ export function useSessionFormState({
 		}
 	};
 
+	const onScopeChange = (scope: VariantScope, currentVariant: string) => {
+		if (scope === scopeOf(currentVariant)) {
+			return;
+		}
+		if (scope === "perLevel") {
+			lastAllVariant.current = currentVariant;
+			onVariantChange(MIX_VARIANT);
+			return;
+		}
+		onVariantChange(lastAllVariant.current || DEFAULT_VARIANT_LABEL);
+	};
+
 	// The mix master row backing a frozen variant label — null for plain
 	// variants and the legacy "mix" key (which has no master to edit).
 	const mixRowFor = (variantLabel: string): MixMasterRow | null => {
@@ -385,7 +412,9 @@ export function useSessionFormState({
 		mixRowFor,
 		onEditMix,
 		onMixSaved,
+		onScopeChange,
 		onVariantChange,
+		scopeOf,
 		setIsMixSheetOpen,
 		variants,
 		sessionType,

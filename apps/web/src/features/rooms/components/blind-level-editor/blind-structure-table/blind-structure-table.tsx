@@ -34,6 +34,8 @@ import { useBlindStructureTable } from "./use-blind-structure-table";
 
 interface BlindStructureTableProps {
 	blindLabels: BlindSlotLabels;
+	/** Variant label → the games it stands for (threaded to the sheet). */
+	compositionFor?: (variantLabel: string) => string[];
 	handleAddBreak: () => void;
 	handleAddLevel: () => void;
 	handleCreateLevel: (values: NewLevelValues) => void;
@@ -43,7 +45,11 @@ interface BlindStructureTableProps {
 	isAdding?: boolean;
 	/** Mix tournament: level rows edit per-level game groups instead of flat blinds. */
 	isMix?: boolean;
+	/** "locked" = tournament-wide mix; "assign" = per-level variants. */
+	levelSheetMode?: "assign" | "locked";
 	levels: BlindLevelRow[];
+	/** Composition every level is locked to (levelSheetMode "locked"). */
+	lockedLabels?: string[];
 	/** variant label → owning group; required when isMix (threaded to the sheet). */
 	resolveGroup?: ResolveGroup;
 	sensors: SensorDescriptor<SensorOptions>[];
@@ -52,9 +58,12 @@ interface BlindStructureTableProps {
 export function BlindStructureTable({
 	levels,
 	blindLabels,
+	compositionFor,
 	sensors,
 	isAdding = false,
 	isMix = false,
+	levelSheetMode = "assign",
+	lockedLabels,
 	resolveGroup,
 	handleDragEnd,
 	handleAddBreak,
@@ -170,8 +179,11 @@ export function BlindStructureTable({
 			</Table>
 			{isMix && resolveGroup ? (
 				<LevelPatternsSheet
+					compositionFor={compositionFor ?? ((label) => [label])}
 					games={openLevel?.games ?? null}
 					level={openLevel?.level ?? 1}
+					lockedLabels={lockedLabels}
+					mode={levelSheetMode}
 					onOpenChange={(open) => {
 						if (!open) {
 							closeGames();

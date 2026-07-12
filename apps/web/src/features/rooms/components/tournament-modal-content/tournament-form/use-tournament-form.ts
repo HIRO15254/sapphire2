@@ -1,6 +1,10 @@
+import {
+	DEFAULT_VARIANT_LABEL,
+	MIX_VARIANT,
+} from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import z from "zod";
 import type { TournamentPartialFormValues } from "@/features/rooms/components/tournament-modal-content";
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
@@ -35,7 +39,7 @@ function formValuesToPartial(
 ): TournamentPartialFormValues {
 	return {
 		name: value.name,
-		variant: value.variant || "nlh",
+		variant: value.variant || DEFAULT_VARIANT_LABEL,
 		buyIn: parseOptInt(value.buyIn),
 		entryFee: parseOptInt(value.entryFee),
 		startingStack: parseOptInt(value.startingStack),
@@ -98,6 +102,16 @@ interface UseTournamentFormOptions {
 	onInvalidSubmit?: () => void;
 	onRegisterLiveValues?: (getter: () => TournamentPartialFormValues) => void;
 	onSubmit: (values: TournamentFormValues) => void;
+	/** Live variant changes (Structure tab keeps its blind labels in sync). */
+	onVariantChange?: (variant: string) => void;
+}
+
+type VariantScope = "all" | "perLevel";
+
+// The per-level mode is stored as the frozen legacy mix key: such a
+// tournament has no single variant — each level's games say what's played.
+function scopeOf(variant: string): VariantScope {
+	return variant.trim().toLowerCase() === MIX_VARIANT ? "perLevel" : "all";
 }
 
 export function useTournamentForm({
@@ -105,17 +119,23 @@ export function useTournamentForm({
 	onInvalidSubmit,
 	onRegisterLiveValues,
 	onSubmit,
+	onVariantChange,
 }: UseTournamentFormOptions) {
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
 	// Level games live on the Structure tab; the Details tab only needs to
 	// know whether the picked variant is a mix (to point the user there).
 	const { isMixValue } = useGameGroups();
+	// Last all-levels variant, restored when switching back from per-level.
+	const initialVariant = defaultValues?.variant ?? DEFAULT_VARIANT_LABEL;
+	const lastAllVariant = useRef(
+		scopeOf(initialVariant) === "all" ? initialVariant : DEFAULT_VARIANT_LABEL
+	);
 
 	const form = useForm({
 		defaultValues: {
 			name: defaultValues?.name ?? "",
-			variant: defaultValues?.variant ?? "nlh",
+			variant: defaultValues?.variant ?? DEFAULT_VARIANT_LABEL,
 			buyIn: numStrOrEmpty(defaultValues?.buyIn),
 			entryFee: numStrOrEmpty(defaultValues?.entryFee),
 			startingStack: numStrOrEmpty(defaultValues?.startingStack),
@@ -134,7 +154,7 @@ export function useTournamentForm({
 		onSubmit: ({ value }) => {
 			onSubmit({
 				name: value.name,
-				variant: value.variant || "nlh",
+				variant: value.variant || DEFAULT_VARIANT_LABEL,
 				buyIn: parseOptInt(value.buyIn),
 				entryFee: parseOptInt(value.entryFee),
 				startingStack: parseOptInt(value.startingStack),
@@ -162,5 +182,29 @@ export function useTournamentForm({
 		onRegisterLiveValues?.(() => formValuesToPartial(form.state.values));
 	}, [onRegisterLiveValues, form]);
 
-	return { form, currencies, isMixValue };
+	const onVariantFieldChange = (variant: string) => {
+		form.setFieldValue("variant", variant);
+		onVariantChange?.(variant);
+	};
+
+	const onScopeChange = (scope: VariantScope, currentVariant: string) => {
+		if (scope === scopeOf(currentVariant)) {
+			return;
+		}
+		if (scope === "perLevel") {
+			lastAllVariant.current = currentVariant;
+			onVariantFieldChange(MIX_VARIANT);
+			return;
+		}
+		onVariantFieldChange(lastAllVariant.current || DEFAULT_VARIANT_LABEL);
+	};
+
+	return {
+		form,
+		currencies,
+		isMixValue,
+		onScopeChange,
+		onVariantFieldChange,
+		scopeOf,
+	};
 }

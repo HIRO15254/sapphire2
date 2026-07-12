@@ -3,11 +3,20 @@ import {
 	DEFAULT_GAME_GROUPS,
 	DEFAULT_GAME_MIXES,
 	DEFAULT_GAME_VARIANTS,
+	DEFAULT_VARIANT_LABEL,
 	isMixVariant,
 	MIX_VARIANT,
 	MIX_VARIANT_LABEL,
 	variantDisplayLabel,
 } from "../constants/game-variants";
+
+describe("DEFAULT_VARIANT_LABEL", () => {
+	it("matches the seeded NLH row's label (form-default variant)", () => {
+		const nlh = DEFAULT_GAME_VARIANTS.find((v) => v.key === "nlh");
+		expect(DEFAULT_VARIANT_LABEL).toBe(nlh?.label);
+		expect(DEFAULT_VARIANT_LABEL).toBe("NL Hold'em");
+	});
+});
 
 describe("DEFAULT_GAME_GROUPS", () => {
 	it("has exactly 3 groups", () => {

@@ -1,3 +1,4 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
 import { Field } from "@/shared/components/ui/field";
@@ -69,7 +70,7 @@ function CashBlindFields({
 	overriddenLabels?: ReadonlySet<string>;
 	variant: string;
 }) {
-	const blindLabels = useVariantLabels(variant || "nlh");
+	const blindLabels = useVariantLabels(variant || DEFAULT_VARIANT_LABEL);
 	const blind3Label = blindLabels.blind3;
 
 	return (

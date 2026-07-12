@@ -183,6 +183,10 @@ export const DEFAULT_GAME_MIXES: DefaultGameMix[] = [
 ];
 
 // Mix pseudo-variant constants (mix is a MODE, not a row).
+// The form-default variant: the label of the seeded NLH row. Forms freeze
+// display labels, so the default must be a label, not a legacy key.
+export const DEFAULT_VARIANT_LABEL = "NL Hold'em";
+
 export const MIX_VARIANT = "mix";
 export const MIX_VARIANT_LABEL = "Mixed Game";
 

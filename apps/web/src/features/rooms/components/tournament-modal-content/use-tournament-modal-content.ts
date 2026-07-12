@@ -1,3 +1,4 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { useState } from "react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 
@@ -20,7 +21,7 @@ export function useTournamentModalContent({
 	// Mirrors the Details tab's variant picker so the Structure tab's blind
 	// labels follow it live (the two tabs are separate component trees).
 	const [structureVariant, setStructureVariant] = useState(
-		initialVariant ?? "nlh"
+		initialVariant ?? DEFAULT_VARIANT_LABEL
 	);
 
 	return {

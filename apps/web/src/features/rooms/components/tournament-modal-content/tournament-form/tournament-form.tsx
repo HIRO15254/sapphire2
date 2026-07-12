@@ -2,6 +2,7 @@ import { ChipPurchasesEditor } from "@/features/rooms/components/chip-purchases-
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
 import {
 	Select,
 	SelectContent,
@@ -59,11 +60,19 @@ export function TournamentForm({
 	onRegisterLiveValues,
 	onVariantChange,
 }: TournamentFormProps) {
-	const { form, currencies, isMixValue } = useTournamentForm({
+	const {
+		form,
+		currencies,
+		isMixValue,
+		onScopeChange,
+		onVariantFieldChange,
+		scopeOf,
+	} = useTournamentForm({
 		defaultValues,
 		onInvalidSubmit,
 		onRegisterLiveValues,
 		onSubmit,
+		onVariantChange,
 	});
 
 	return (
@@ -95,28 +104,63 @@ export function TournamentForm({
 			</form.Field>
 
 			<form.Field name="variant">
-				{(field) => (
-					<Field
-						description={
-							isMixValue(field.state.value)
-								? "Set each level's games in the Structure tab."
-								: undefined
-						}
-						htmlFor={field.name}
-						label="Variant"
-						required
-					>
-						<VariantSelect
-							id={field.name}
-							includeMix
-							onChange={(v) => {
-								field.handleChange(v);
-								onVariantChange?.(v);
-							}}
-							value={field.state.value}
-						/>
-					</Field>
-				)}
+				{(field) => {
+					const scope = scopeOf(field.state.value);
+					return (
+						<>
+							<Field label="Variant scope">
+								<RadioGroup
+									className="flex flex-col gap-1"
+									onValueChange={(v) =>
+										onScopeChange(v as "all" | "perLevel", field.state.value)
+									}
+									value={scope}
+								>
+									<label
+										className="flex items-center gap-2 py-1 text-sm"
+										htmlFor="tournament-scope-all"
+									>
+										<RadioGroupItem id="tournament-scope-all" value="all" />
+										Same variant for all levels
+									</label>
+									<label
+										className="flex items-center gap-2 py-1 text-sm"
+										htmlFor="tournament-scope-per-level"
+									>
+										<RadioGroupItem
+											id="tournament-scope-per-level"
+											value="perLevel"
+										/>
+										Choose games per level
+									</label>
+								</RadioGroup>
+							</Field>
+							{scope === "all" ? (
+								<Field
+									description={
+										isMixValue(field.state.value)
+											? "Set each level's games in the Structure tab."
+											: undefined
+									}
+									htmlFor={field.name}
+									label="Variant"
+									required
+								>
+									<VariantSelect
+										id={field.name}
+										includeMix
+										onChange={onVariantFieldChange}
+										value={field.state.value}
+									/>
+								</Field>
+							) : (
+								<p className="text-muted-foreground text-xs">
+									Assign each level's games in the Structure tab.
+								</p>
+							)}
+						</>
+					);
+				}}
 			</form.Field>
 
 			<div className="grid grid-cols-2 gap-3">

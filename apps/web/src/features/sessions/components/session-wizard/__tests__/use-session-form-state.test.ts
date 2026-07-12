@@ -183,7 +183,7 @@ describe("useSessionFormState", () => {
 				buyIn: 100,
 				cashOut: 150,
 				sessionDate: "2026-04-10",
-				variant: "nlh",
+				variant: "NL Hold'em",
 				anteType: "none",
 				ante: undefined,
 			})
@@ -489,5 +489,41 @@ describe("useSessionFormState — mix master edit sheet", () => {
 			"v-nlh",
 			"v-plo",
 		]);
+	});
+});
+
+describe("useSessionFormState — tournament variant scope", () => {
+	it("derives 'perLevel' only from the per-level sentinel value", () => {
+		const { result } = setupWithMasterData();
+		expect(result.current.scopeOf("mix")).toBe("perLevel");
+		expect(result.current.scopeOf("8-Game")).toBe("all");
+		expect(result.current.scopeOf("NL Hold'em")).toBe("all");
+	});
+
+	it("switching to per-level freezes the sentinel", () => {
+		const { result } = setupWithMasterData();
+		act(() => {
+			result.current.onScopeChange("perLevel", "NL Hold'em");
+		});
+		expect(result.current.form.state.values.variant).toBe("mix");
+	});
+
+	it("switching back restores the variant remembered from the last switch", () => {
+		const { result } = setupWithMasterData();
+		act(() => {
+			result.current.onScopeChange("perLevel", "8-Game");
+		});
+		act(() => {
+			result.current.onScopeChange("all", "mix");
+		});
+		expect(result.current.form.state.values.variant).toBe("8-Game");
+	});
+
+	it("switching back falls back to the default label without a remembered variant", () => {
+		const { result } = setupWithMasterData();
+		act(() => {
+			result.current.onScopeChange("all", "mix");
+		});
+		expect(result.current.form.state.values.variant).toBe("NL Hold'em");
 	});
 });

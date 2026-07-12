@@ -65,13 +65,13 @@ function wrapper(client: QueryClient) {
 }
 
 describe("useRingGameForm", () => {
-	it("defaults variant to nlh, anteType to none, empty strings elsewhere", () => {
+	it("defaults variant to the seeded NLH label, anteType to none, empty strings elsewhere", () => {
 		const qc = createClient();
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() => useRingGameForm({ onSubmit }), {
 			wrapper: wrapper(qc),
 		});
-		expect(result.current.form.state.values.variant).toBe("nlh");
+		expect(result.current.form.state.values.variant).toBe("NL Hold'em");
 		expect(result.current.form.state.values.anteType).toBe("none");
 		expect(result.current.form.state.values.name).toBe("");
 		expect(result.current.form.state.values.blind1).toBe("");

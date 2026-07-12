@@ -1,3 +1,4 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
 import { MixFormSheet } from "@/shared/components/mix-form-sheet";
 import { MixGamesEditor } from "@/shared/components/mix-games-editor";
@@ -39,7 +40,7 @@ function VariantAwareBlindFields({
 	form: ReturnType<typeof useRingGameForm>["form"];
 	variant: string;
 }) {
-	const blindLabels = useVariantLabels(variant || "nlh");
+	const blindLabels = useVariantLabels(variant || DEFAULT_VARIANT_LABEL);
 	return <BlindFields blindLabels={blindLabels} form={form} />;
 }
 

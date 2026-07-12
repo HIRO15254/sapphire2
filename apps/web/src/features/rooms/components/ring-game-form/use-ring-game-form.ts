@@ -1,3 +1,4 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -80,7 +81,7 @@ export function useRingGameForm({
 	const form = useForm({
 		defaultValues: {
 			name: defaultValues?.name ?? "",
-			variant: (defaultValues?.variant ?? "nlh") as string,
+			variant: (defaultValues?.variant ?? DEFAULT_VARIANT_LABEL) as string,
 			mixGames: fromMixGames(defaultValues?.mixGames ?? null, groupFor),
 			blind1: numStrOrEmpty(defaultValues?.blind1),
 			blind2: numStrOrEmpty(defaultValues?.blind2),
@@ -97,7 +98,7 @@ export function useRingGameForm({
 			const isAnteDisabled = value.anteType === "none";
 			onSubmit({
 				name: value.name,
-				variant: value.variant || "nlh",
+				variant: value.variant || DEFAULT_VARIANT_LABEL,
 				mixGames: isMixValue(value.variant) ? toMixGames(value.mixGames) : null,
 				blind1: parseOptInt(value.blind1),
 				blind2: parseOptInt(value.blind2),

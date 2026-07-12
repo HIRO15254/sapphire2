@@ -61,7 +61,7 @@ describe("mergeExtractedTournamentData", () => {
 
 		it("defaults variant to nlh when base is undefined", () => {
 			const result = mergeExtractedTournamentData({}, undefined);
-			expect(result.variant).toBe("nlh");
+			expect(result.variant).toBe("NL Hold'em");
 		});
 	});
 

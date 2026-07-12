@@ -179,7 +179,7 @@ describe("buildDefaults", () => {
 		expect(defaults.sessionDate).toBe("2026-04-05");
 		expect(defaults.startTime).toBe("");
 		expect(defaults.endTime).toBe("");
-		expect(defaults.variant).toBe("nlh");
+		expect(defaults.variant).toBe("NL Hold'em");
 		expect(defaults.anteType).toBe("none");
 		expect(defaults.tableSize).toBe("");
 		expect(defaults.beforeDeadline).toBe(false);
