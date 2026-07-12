@@ -21,6 +21,12 @@ const mocks = vi.hoisted(() => ({
 		tournamentId: string;
 	}>,
 	createMutate: vi.fn(),
+	gameMixes: [] as Array<{
+		builtinKey: string | null;
+		games: string[];
+		id: string;
+		label: string;
+	}>,
 	deleteMutate: vi.fn(),
 	invalidateQueries: vi.fn(),
 	isLoading: false,
@@ -63,10 +69,12 @@ vi.mock("@tanstack/react-query", () => ({
 	// trpc.gameGroup.list, and trpc.gameMix.list) — branch on the queryKey so
 	// it doesn't collide with the blind-levels query below.
 	useQuery: (options: { queryKey?: readonly unknown[] }) => {
+		if (options?.queryKey?.[0] === "gameMix") {
+			return { data: mocks.gameMixes, isLoading: false };
+		}
 		if (
 			options?.queryKey?.[0] === "gameVariant" ||
-			options?.queryKey?.[0] === "gameGroup" ||
-			options?.queryKey?.[0] === "gameMix"
+			options?.queryKey?.[0] === "gameGroup"
 		) {
 			return { data: [], isLoading: false };
 		}
@@ -138,6 +146,7 @@ vi.mock("@/utils/trpc", () => ({
 describe("BlindStructureContent", () => {
 	beforeEach(() => {
 		mocks.blindLevels = [];
+		mocks.gameMixes = [];
 		mocks.isLoading = false;
 		mocks.createMutate.mockReset();
 		mocks.deleteMutate.mockReset();
@@ -282,5 +291,20 @@ describe("BlindStructureContent", () => {
 			id: "break-1",
 			minutes: null,
 		});
+	});
+
+	it("keeps flat blind headers for a mix master variant (games rotate independently of levels)", () => {
+		mocks.gameMixes = [
+			{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
+		];
+		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+		expect(screen.queryByText("Games")).not.toBeInTheDocument();
+		expect(screen.getByText("SB")).toBeInTheDocument();
+		expect(screen.getByText("BB")).toBeInTheDocument();
+	});
+
+	it("shows the per-level games column only for the per-level sentinel variant", () => {
+		render(<BlindStructureContent tournamentId="tour-1" variant="mix" />);
+		expect(screen.getByText("Games")).toBeInTheDocument();
 	});
 });

@@ -62,8 +62,6 @@ export function BlindStructureTable({
 	sensors,
 	isAdding = false,
 	isMix = false,
-	levelSheetMode = "assign",
-	lockedLabels,
 	resolveGroup,
 	handleDragEnd,
 	handleAddBreak,
@@ -182,8 +180,6 @@ export function BlindStructureTable({
 					compositionFor={compositionFor ?? ((label) => [label])}
 					games={openLevel?.games ?? null}
 					level={openLevel?.level ?? 1}
-					lockedLabels={lockedLabels}
-					mode={levelSheetMode}
 					onOpenChange={(open) => {
 						if (!open) {
 							closeGames();

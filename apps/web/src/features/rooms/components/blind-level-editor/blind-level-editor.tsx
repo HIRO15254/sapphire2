@@ -8,15 +8,14 @@ import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import { BlindStructureTable } from "./blind-structure-table";
 import { useLocalBlindStructure } from "./use-blind-level-editor";
 
-// The tournament-wide variant decides how level games behave: a mix master
-// locks every level to its composition (amounts only per level); the
-// legacy/per-level "mix" value lets each level pick its own variant in the
-// sheet. compositionFor maps the sheet's pick to the games it stands for.
+// Levels carry per-level games ONLY in per-level mode (the "mix" sentinel):
+// there each level picks its own variant in the sheet. A tournament-wide
+// variant — mix master included — keeps the flat blind columns; a mix's
+// games rotate independently of the level structure. compositionFor maps
+// the sheet's pick to the games it stands for.
 function useLevelSheetWiring(variant: string) {
 	const { groupFor, labelsFor, isMixValue, mixCompositionLabels } =
 		useGameGroups();
-	const isPerLevel = variant.trim().toLowerCase() === MIX_VARIANT;
-	const levelSheetMode: "assign" | "locked" = isPerLevel ? "assign" : "locked";
 	const compositionFor = (label: string): string[] =>
 		isMixValue(label) && label.trim().toLowerCase() !== MIX_VARIANT
 			? mixCompositionLabels(label)
@@ -25,9 +24,7 @@ function useLevelSheetWiring(variant: string) {
 		blindLabels: labelsFor(variant),
 		compositionFor,
 		groupFor,
-		isMix: isMixValue(variant),
-		levelSheetMode,
-		lockedLabels: isPerLevel ? [] : mixCompositionLabels(variant),
+		isMix: variant.trim().toLowerCase() === MIX_VARIANT,
 	};
 }
 
@@ -55,14 +52,8 @@ export function BlindStructureContent({
 		handleCreateLevel,
 	} = useBlindLevels({ tournamentId });
 
-	const {
-		blindLabels,
-		compositionFor,
-		groupFor,
-		isMix,
-		levelSheetMode,
-		lockedLabels,
-	} = useLevelSheetWiring(variant);
+	const { blindLabels, compositionFor, groupFor, isMix } =
+		useLevelSheetWiring(variant);
 
 	if (isLoading) {
 		return (
@@ -84,9 +75,7 @@ export function BlindStructureContent({
 			handleUpdate={handleUpdate}
 			isAdding={isAdding}
 			isMix={isMix}
-			levelSheetMode={levelSheetMode}
 			levels={levels}
-			lockedLabels={lockedLabels}
 			resolveGroup={groupFor}
 			sensors={sensors}
 		/>
@@ -116,14 +105,8 @@ export function LocalBlindStructureContent({
 		handleCreateLevel,
 	} = useLocalBlindStructure({ value, onChange });
 
-	const {
-		blindLabels,
-		compositionFor,
-		groupFor,
-		isMix,
-		levelSheetMode,
-		lockedLabels,
-	} = useLevelSheetWiring(variant);
+	const { blindLabels, compositionFor, groupFor, isMix } =
+		useLevelSheetWiring(variant);
 
 	return (
 		<BlindStructureTable
@@ -136,9 +119,7 @@ export function LocalBlindStructureContent({
 			handleDragEnd={handleDragEnd}
 			handleUpdate={handleUpdate}
 			isMix={isMix}
-			levelSheetMode={levelSheetMode}
 			levels={value}
-			lockedLabels={lockedLabels}
 			resolveGroup={groupFor}
 			sensors={sensors}
 		/>

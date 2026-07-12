@@ -60,20 +60,14 @@ export function TournamentForm({
 	onRegisterLiveValues,
 	onVariantChange,
 }: TournamentFormProps) {
-	const {
-		form,
-		currencies,
-		isMixValue,
-		onScopeChange,
-		onVariantFieldChange,
-		scopeOf,
-	} = useTournamentForm({
-		defaultValues,
-		onInvalidSubmit,
-		onRegisterLiveValues,
-		onSubmit,
-		onVariantChange,
-	});
+	const { form, currencies, onScopeChange, onVariantFieldChange, scopeOf } =
+		useTournamentForm({
+			defaultValues,
+			onInvalidSubmit,
+			onRegisterLiveValues,
+			onSubmit,
+			onVariantChange,
+		});
 
 	return (
 		<form
@@ -136,16 +130,7 @@ export function TournamentForm({
 								</RadioGroup>
 							</Field>
 							{scope === "all" ? (
-								<Field
-									description={
-										isMixValue(field.state.value)
-											? "Set each level's games in the Structure tab."
-											: undefined
-									}
-									htmlFor={field.name}
-									label="Variant"
-									required
-								>
+								<Field htmlFor={field.name} label="Variant" required>
 									<VariantSelect
 										id={field.name}
 										includeMix
