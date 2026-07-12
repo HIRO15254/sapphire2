@@ -113,7 +113,7 @@ describe("TournamentForm", () => {
 		const user = userEvent.setup();
 		const { onSubmit } = renderForm({});
 
-		fireEvent.change(screen.getByLabelText("Tournament Name *"), {
+		fireEvent.change(screen.getByLabelText("Tournament name *"), {
 			target: { value: "Nightly Deepstack" },
 		});
 		fireEvent.change(screen.getByLabelText("Memo"), {
@@ -133,7 +133,7 @@ describe("TournamentForm", () => {
 		);
 	});
 
-	it("blocks submit when the required Tournament Name is empty", async () => {
+	it("blocks submit when the required tournament name is empty", async () => {
 		const user = userEvent.setup();
 		const { onSubmit } = renderForm({});
 
@@ -146,7 +146,7 @@ describe("TournamentForm", () => {
 		const user = userEvent.setup();
 		const { onSubmit } = renderForm({});
 
-		fireEvent.change(screen.getByLabelText("Tournament Name *"), {
+		fireEvent.change(screen.getByLabelText("Tournament name *"), {
 			target: { value: "Nightly Deepstack" },
 		});
 		await user.type(screen.getByLabelText("Search tags"), "Series");

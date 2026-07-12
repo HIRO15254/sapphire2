@@ -54,6 +54,18 @@ describe("useMixGamesEditor", () => {
 		expect(onChange).toHaveBeenNthCalledWith(1, []);
 	});
 
+	it("removes a whole bucket by uid", () => {
+		let value = addVariant([], "NL Hold'em", resolveGroup);
+		value = addVariant(value, "Limit Hold'em", resolveGroup);
+		const { result, onChange } = setup(value);
+		const limitBucket = value.find((r) => r.groupId === "g-limit");
+		result.current.onRemoveGroup(limitBucket?.uid ?? "");
+		expect(onChange).toHaveBeenCalledTimes(1);
+		const rows = onChange.mock.calls[0][0] as MixGameGroupRow[];
+		expect(rows).toHaveLength(1);
+		expect(rows[0].groupId).toBe("g-bigbet");
+	});
+
 	it("patches a bucket by uid", () => {
 		const value = addVariant([], "NL Hold'em", resolveGroup);
 		const { result, onChange } = setup(value);

@@ -107,7 +107,7 @@ describe("RingGameForm", () => {
 		const user = userEvent.setup();
 		const { onSubmit } = renderForm({});
 
-		fireEvent.change(screen.getByLabelText("Game Name *"), {
+		fireEvent.change(screen.getByLabelText("Game name *"), {
 			target: { value: "5/10 NLH" },
 		});
 		fireEvent.change(screen.getByLabelText("Memo"), {
@@ -125,7 +125,7 @@ describe("RingGameForm", () => {
 		);
 	});
 
-	it("blocks submit when the required Game Name is empty (Zod validation)", async () => {
+	it("blocks submit when the required game name is empty (Zod validation)", async () => {
 		const user = userEvent.setup();
 		const { onSubmit } = renderForm({});
 

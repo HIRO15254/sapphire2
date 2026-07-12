@@ -19,6 +19,30 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: buildKey("gameGroup", "list", undefined),
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+		gameVariant: {
+			list: {
+				queryOptions: () => ({
+					queryKey: buildKey("gameVariant", "list", undefined),
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+		gameMix: {
+			list: {
+				queryOptions: () => ({
+					queryKey: buildKey("gameMix", "list", undefined),
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
 	},
 }));
 
@@ -236,5 +260,34 @@ describe("useTournamentForm", () => {
 			wrapper: wrapper(qc),
 		});
 		expect(result.current.currencies).toEqual([{ id: "c1", name: "Chips" }]);
+	});
+
+	it("recognizes mix master labels and the legacy mix key via isMixValue", () => {
+		const qc = createClient();
+		qc.setQueryData(["gameGroup", "list"], []);
+		qc.setQueryData(
+			["gameVariant", "list"],
+			[
+				{
+					id: "v-nlh",
+					builtinKey: "nlh",
+					label: "NL Hold'em",
+					shortLabel: "NLH",
+					groupId: "g-bigbet",
+					sortOrder: 0,
+				},
+			]
+		);
+		qc.setQueryData(
+			["gameMix", "list"],
+			[{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] }]
+		);
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useTournamentForm({ onSubmit }), {
+			wrapper: wrapper(qc),
+		});
+		expect(result.current.isMixValue("8-Game")).toBe(true);
+		expect(result.current.isMixValue("mix")).toBe(true);
+		expect(result.current.isMixValue("NL Hold'em")).toBe(false);
 	});
 });

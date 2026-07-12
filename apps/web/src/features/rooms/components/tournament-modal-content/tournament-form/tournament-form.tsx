@@ -59,7 +59,7 @@ export function TournamentForm({
 	onRegisterLiveValues,
 	onVariantChange,
 }: TournamentFormProps) {
-	const { form, currencies } = useTournamentForm({
+	const { form, currencies, isMixValue } = useTournamentForm({
 		defaultValues,
 		onInvalidSubmit,
 		onRegisterLiveValues,
@@ -81,7 +81,7 @@ export function TournamentForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Tournament Name"
+						label="Tournament name"
 						required
 					>
 						<Input
@@ -96,7 +96,16 @@ export function TournamentForm({
 
 			<form.Field name="variant">
 				{(field) => (
-					<Field htmlFor={field.name} label="Variant" required>
+					<Field
+						description={
+							isMixValue(field.state.value)
+								? "Set each level's games in the Structure tab."
+								: undefined
+						}
+						htmlFor={field.name}
+						label="Variant"
+						required
+					>
 						<VariantSelect
 							id={field.name}
 							includeMix
@@ -116,7 +125,7 @@ export function TournamentForm({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="Buy-In"
+							label="Buy-in"
 						>
 							<Input
 								id={field.name}
@@ -133,7 +142,7 @@ export function TournamentForm({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="Entry Fee"
+							label="Entry fee"
 						>
 							<Input
 								id={field.name}
@@ -152,7 +161,7 @@ export function TournamentForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Starting Stack"
+						label="Starting stack"
 					>
 						<Input
 							id={field.name}
@@ -179,7 +188,7 @@ export function TournamentForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Bounty Amount"
+						label="Bounty amount"
 					>
 						<Input
 							id={field.name}
@@ -194,7 +203,7 @@ export function TournamentForm({
 
 			<form.Field name="tableSize">
 				{(field) => (
-					<Field htmlFor={field.name} label="Table Size">
+					<Field htmlFor={field.name} label="Table size">
 						<Select
 							onValueChange={(v) => field.handleChange(v)}
 							value={field.state.value}

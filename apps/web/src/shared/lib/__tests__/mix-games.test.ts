@@ -6,6 +6,7 @@ import {
 	type MixGameGroupRow,
 	type MixGroupInfo,
 	type ResolveGroup,
+	removeGroup,
 	removeVariant,
 	rowsFromVariantLabels,
 	toLevelGames,
@@ -139,6 +140,26 @@ describe("removeVariant", () => {
 	it("is a no-op for an unknown variant", () => {
 		const rows = addVariant([], "Razz", resolveGroup);
 		expect(removeVariant(rows, "Badugi")).toEqual(rows);
+	});
+});
+
+describe("removeGroup", () => {
+	it("removes the whole bucket with all its games", () => {
+		let rows = addVariant([], "Razz", resolveGroup);
+		rows = addVariant(rows, "Seven Card Stud", resolveGroup);
+		rows = addVariant(rows, "NL Hold'em", resolveGroup);
+		const next = removeGroup(rows, rows[0].uid);
+		expect(bucketSummary(next)).toEqual([["Big Bet", ["NL Hold'em"]]]);
+	});
+
+	it("is a no-op for an unknown uid", () => {
+		const rows = addVariant([], "Razz", resolveGroup);
+		expect(removeGroup(rows, "missing-uid")).toEqual(rows);
+	});
+
+	it("returns empty when the last bucket is removed", () => {
+		const rows = addVariant([], "Razz", resolveGroup);
+		expect(removeGroup(rows, rows[0].uid)).toEqual([]);
 	});
 });
 

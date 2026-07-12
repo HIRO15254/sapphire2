@@ -4,7 +4,9 @@ import { Input } from "@/shared/components/ui/input";
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
+	SelectLabel,
 	SelectSeparator,
 	SelectTrigger,
 	SelectValue,
@@ -19,6 +21,12 @@ interface VariantSelectProps {
 	/** Show the special "Mixed Game" mode entry (value: "mix"). */
 	includeMix?: boolean;
 	onChange: (variant: string) => void;
+	/**
+	 * Trigger text while nothing is selected — Radix renders a blank trigger
+	 * otherwise, which the "add a game" pick-and-reset mount sites hit on
+	 * every render (their value is always "").
+	 */
+	placeholder?: string;
 	value: string;
 }
 
@@ -36,6 +44,7 @@ export function VariantSelect({
 	id,
 	includeMix = false,
 	onChange,
+	placeholder,
 	value,
 }: VariantSelectProps) {
 	const {
@@ -45,6 +54,7 @@ export function VariantSelect({
 		handleValueChange,
 		isAddOpen,
 		isCreatePending,
+		isLoading,
 		mixOptions,
 		setIsAddOpen,
 		unknownValue,
@@ -54,12 +64,12 @@ export function VariantSelect({
 	return (
 		<>
 			<Select
-				disabled={disabled}
+				disabled={disabled || isLoading}
 				onValueChange={handleValueChange}
 				value={value}
 			>
 				<SelectTrigger className="w-full" id={id}>
-					<SelectValue />
+					<SelectValue placeholder={placeholder} />
 				</SelectTrigger>
 				<SelectContent>
 					{variantOptions.map((option) => (
@@ -70,11 +80,14 @@ export function VariantSelect({
 					{mixOptions.length > 0 ? (
 						<>
 							<SelectSeparator />
-							{mixOptions.map((option) => (
-								<SelectItem key={option.id} value={option.label}>
-									{option.label}
-								</SelectItem>
-							))}
+							<SelectGroup>
+								<SelectLabel>Mixes</SelectLabel>
+								{mixOptions.map((option) => (
+									<SelectItem key={option.id} value={option.label}>
+										{option.label}
+									</SelectItem>
+								))}
+							</SelectGroup>
 						</>
 					) : null}
 					{unknownValue ? (

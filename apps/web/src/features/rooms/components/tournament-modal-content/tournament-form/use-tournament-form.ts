@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import z from "zod";
 import type { TournamentPartialFormValues } from "@/features/rooms/components/tournament-modal-content";
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
+import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 import { trpc } from "@/utils/trpc";
 
@@ -107,6 +108,9 @@ export function useTournamentForm({
 }: UseTournamentFormOptions) {
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
+	// Level games live on the Structure tab; the Details tab only needs to
+	// know whether the picked variant is a mix (to point the user there).
+	const { isMixValue } = useGameGroups();
 
 	const form = useForm({
 		defaultValues: {
@@ -158,5 +162,5 @@ export function useTournamentForm({
 		onRegisterLiveValues?.(() => formValuesToPartial(form.state.values));
 	}, [onRegisterLiveValues, form]);
 
-	return { form, currencies };
+	return { form, currencies, isMixValue };
 }

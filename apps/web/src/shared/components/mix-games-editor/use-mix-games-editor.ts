@@ -2,6 +2,7 @@ import {
 	addVariant,
 	type MixGameGroupRow,
 	type ResolveGroup,
+	removeGroup,
 	removeVariant,
 	updateGroup,
 	usedVariants,
@@ -31,6 +32,7 @@ export function useMixGamesEditor({
 			onChange(addVariant(value, variantLabel, resolveGroup)),
 		onRemoveVariant: (variantLabel: string) =>
 			onChange(removeVariant(value, variantLabel)),
+		onRemoveGroup: (uid: string) => onChange(removeGroup(value, uid)),
 		onUpdateGroup: (
 			uid: string,
 			patch: Partial<Omit<MixGameGroupRow, "uid" | "groupId">>

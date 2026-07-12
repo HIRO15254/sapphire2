@@ -103,6 +103,14 @@ export function addVariant(
 	return [...rows, bucket].sort((a, b) => a.sortIndex - b.sortIndex);
 }
 
+/** Remove a whole bucket (all of its games) in one action. */
+export function removeGroup(
+	rows: MixGameGroupRow[],
+	uid: string
+): MixGameGroupRow[] {
+	return rows.filter((r) => r.uid !== uid);
+}
+
 /** Remove a game; a bucket that loses its last game disappears. */
 export function removeVariant(
 	rows: MixGameGroupRow[],

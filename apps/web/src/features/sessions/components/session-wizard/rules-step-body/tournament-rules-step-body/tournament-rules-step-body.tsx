@@ -106,6 +106,11 @@ function TournamentSettingsTab({
 						<state.form.Field name="variant">
 							{(field) => (
 								<Field
+									description={
+										state.isMixValue(values.variant)
+											? "Set each level's games in the Blind levels tab."
+											: undefined
+									}
 									htmlFor={field.name}
 									label={
 										<OverrideLabel

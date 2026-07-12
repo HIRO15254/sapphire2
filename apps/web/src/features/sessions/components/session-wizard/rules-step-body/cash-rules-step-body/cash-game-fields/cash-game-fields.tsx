@@ -12,6 +12,7 @@ import {
 } from "@/shared/components/ui/select";
 import { VariantSelect } from "@/shared/components/variant-select";
 import { useVariantLabels } from "@/shared/hooks/use-variant-labels";
+import { ANTE_TYPE_OPTIONS } from "@/shared/lib/ante-types";
 
 // biome-ignore-start lint/suspicious/noExplicitAny: tanstack-form's ReactFormExtendedApi has 12 generic parameters; threading a fully typed form through child components would require exporting the parent's full form generics.
 type AnyForm = ReactFormExtendedApi<
@@ -46,12 +47,6 @@ interface CashGameFieldsProps {
 	overriddenLabels?: ReadonlySet<string>;
 	selectedCurrencyId?: string;
 }
-
-const ANTE_TYPES = [
-	{ value: "none", label: "No ante" },
-	{ value: "bb", label: "BB ante" },
-	{ value: "all", label: "All ante" },
-] as const;
 
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
@@ -248,7 +243,7 @@ export function CashGameFields({
 													<SelectValue />
 												</SelectTrigger>
 												<SelectContent>
-													{ANTE_TYPES.map((at) => (
+													{ANTE_TYPE_OPTIONS.map((at) => (
 														<SelectItem key={at.value} value={at.value}>
 															{at.label}
 														</SelectItem>

@@ -12,6 +12,7 @@ import {
 import { Textarea } from "@/shared/components/ui/textarea";
 import { VariantSelect } from "@/shared/components/variant-select";
 import { useVariantLabels } from "@/shared/hooks/use-variant-labels";
+import { ANTE_TYPE_OPTIONS } from "@/shared/lib/ante-types";
 import { BlindFields } from "./blind-fields";
 import { useRingGameForm } from "./use-ring-game-form";
 
@@ -29,12 +30,6 @@ interface RingGameFormProps {
 }
 
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
-
-const ANTE_TYPES = [
-	{ value: "none", label: "No Ante" },
-	{ value: "bb", label: "BB Ante" },
-	{ value: "all", label: "All Ante" },
-] as const;
 
 function VariantAwareBlindFields({
 	form,
@@ -73,7 +68,7 @@ export function RingGameForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Game Name"
+						label="Game name"
 						required
 					>
 						<Input
@@ -122,7 +117,7 @@ export function RingGameForm({
 										<Field
 											className="flex-1"
 											htmlFor={field.name}
-											label="Ante Type"
+											label="Ante type"
 										>
 											<Select
 												onValueChange={(v) => field.handleChange(v as AnteType)}
@@ -132,7 +127,7 @@ export function RingGameForm({
 													<SelectValue />
 												</SelectTrigger>
 												<SelectContent>
-													{ANTE_TYPES.map((at) => (
+													{ANTE_TYPE_OPTIONS.map((at) => (
 														<SelectItem key={at.value} value={at.value}>
 															{at.label}
 														</SelectItem>
@@ -180,7 +175,7 @@ export function RingGameForm({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="Min Buy-In"
+							label="Min buy-in"
 						>
 							<Input
 								id={field.name}
@@ -197,7 +192,7 @@ export function RingGameForm({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="Max Buy-In"
+							label="Max buy-in"
 						>
 							<Input
 								id={field.name}
@@ -213,7 +208,7 @@ export function RingGameForm({
 
 			<form.Field name="tableSize">
 				{(field) => (
-					<Field htmlFor={field.name} label="Table Size">
+					<Field htmlFor={field.name} label="Table size">
 						<Select
 							onValueChange={(v) => field.handleChange(v)}
 							value={field.state.value}

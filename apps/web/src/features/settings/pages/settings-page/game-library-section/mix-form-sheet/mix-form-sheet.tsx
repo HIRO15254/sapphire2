@@ -1,6 +1,7 @@
 import { IconX } from "@tabler/icons-react";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { VariantSelect } from "@/shared/components/variant-select";
@@ -85,16 +86,22 @@ export function MixFormSheet({
 								{selectedGames.length > 0 ? (
 									<div className="flex flex-wrap gap-1.5">
 										{selectedGames.map((game) => (
-											<Badge key={game.id} variant="secondary">
+											<Badge
+												className="gap-1 pr-1"
+												key={game.id}
+												variant="secondary"
+											>
 												{game.label}
-												<button
+												<Button
 													aria-label={`Remove ${game.label}`}
-													className="ml-1 inline-flex"
+													className="size-4 text-muted-foreground hover:text-foreground"
 													onClick={() => onRemoveGame(game.id)}
+													size="icon-xs"
 													type="button"
+													variant="ghost"
 												>
-													<IconX size={12} />
-												</button>
+													<IconX size={10} />
+												</Button>
 											</Badge>
 										))}
 									</div>
@@ -104,6 +111,7 @@ export function MixFormSheet({
 									id={`${MIX_FORM_ID}-games`}
 									includeMix={false}
 									onChange={onAddGame}
+									placeholder="Add a game"
 									value=""
 								/>
 							</div>
