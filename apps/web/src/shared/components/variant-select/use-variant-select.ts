@@ -1,4 +1,7 @@
-import { GAME_VARIANTS } from "@sapphire2/db/constants/game-variants";
+import {
+	MIX_VARIANT,
+	MIX_VARIANT_LABEL,
+} from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
@@ -14,23 +17,22 @@ import { trpc, trpcClient } from "@/utils/trpc";
  */
 export const ADD_CUSTOM_VALUE = "__add_custom_variant__";
 
-// Mirrors gameVariant.create's server constraints (label 1-30, blind labels
-// <= 20 chars) so users get field-level errors instead of a server reject.
+// Mirrors gameVariant.create's server constraints so users get field-level
+// errors instead of a server reject.
 const customVariantFormSchema = z.object({
 	label: z.string().trim().min(1, "Required").max(30),
-	blind1Label: z.string().trim().max(20),
-	blind2Label: z.string().trim().max(20),
-	blind3Label: z.string().trim().max(20),
+	shortLabel: z.string().trim().max(15),
+	groupId: z.string().min(1, "Required"),
 });
 
 interface UseVariantSelectArgs {
 	/**
-	 * Variants (preset keys or custom labels) to hide from the options —
-	 * used by the mix-games editor to keep one game in one group. The
-	 * currently selected value is always kept so the control can render it.
+	 * Variant labels to hide from the options — used by the mix-games editor
+	 * to keep one game in one group. The currently selected value is always
+	 * kept so the control can render it.
 	 */
 	excludeVariants?: string[];
-	/** Show the special "mix" preset (only where a mix editor exists). */
+	/** Show the special "Mixed Game" mode entry (value: "mix"). */
 	includeMix?: boolean;
 	onChange: (variant: string) => void;
 	value: string;
@@ -50,35 +52,39 @@ export function useVariantSelect({
 	const formId = useId();
 	const [isAddOpen, setIsAddOpen] = useState(false);
 
-	const listQueryOptions = trpc.gameVariant.list.queryOptions();
-	const customVariantsQuery = useQuery(listQueryOptions);
-	const allCustomVariants = customVariantsQuery.data ?? [];
+	const variantListOptions = trpc.gameVariant.list.queryOptions();
+	const variantsQuery = useQuery(variantListOptions);
+	const allVariants = variantsQuery.data ?? [];
+	const groupsQuery = useQuery(trpc.gameGroup.list.queryOptions());
+	const groups = groupsQuery.data ?? [];
 
 	const excluded = new Set((excludeVariants ?? []).map(normalized));
 	const keep = (candidate: string) =>
 		normalized(candidate) === normalized(value) ||
 		!excluded.has(normalized(candidate));
 
-	const presets = Object.entries(GAME_VARIANTS)
-		.filter(([key, def]) => (includeMix || !def.isMix) && keep(key))
-		.map(([key, def]) => ({ key, label: def.label }));
+	// The user's variant rows are the whole option list (value = label).
+	const variantOptions = allVariants
+		.filter((row) => keep(row.label))
+		.map((row) => ({ id: row.id, label: row.label }));
 
-	const customVariants = allCustomVariants.filter((row) => keep(row.label));
+	const mixOption = includeMix
+		? { value: MIX_VARIANT, label: MIX_VARIANT_LABEL }
+		: null;
 
-	// A frozen value whose definition no longer exists (deleted custom
-	// variant) still needs an item, or the controlled Select renders blank.
+	// A frozen value whose definition no longer exists (deleted variant)
+	// still needs an item, or the controlled Select renders blank.
 	const isKnownValue =
 		value === "" ||
-		Object.hasOwn(GAME_VARIANTS, value) ||
-		allCustomVariants.some((row) => row.label === value);
+		value === MIX_VARIANT ||
+		allVariants.some((row) => row.label === value);
 	const unknownValue = isKnownValue ? null : value;
 
 	const createMutation = useMutation({
 		mutationFn: (input: {
-			blind1Label: string | null;
-			blind2Label: string | null;
-			blind3Label: string | null;
+			groupId: string;
 			label: string;
+			shortLabel: string | null;
 		}) => trpcClient.gameVariant.create.mutate(input),
 		onSuccess: (created) => {
 			setIsAddOpen(false);
@@ -89,22 +95,22 @@ export function useVariantSelect({
 			toast.error("Failed to create custom variant");
 		},
 		onSettled: () =>
-			invalidateTargets(queryClient, [{ queryKey: listQueryOptions.queryKey }]),
+			invalidateTargets(queryClient, [
+				{ queryKey: variantListOptions.queryKey },
+			]),
 	});
 
 	const form = useForm({
 		defaultValues: {
 			label: "",
-			blind1Label: "",
-			blind2Label: "",
-			blind3Label: "",
+			shortLabel: "",
+			groupId: "",
 		},
 		onSubmit: ({ value: formValue }) => {
 			createMutation.mutate({
 				label: formValue.label.trim(),
-				blind1Label: formValue.blind1Label.trim() || null,
-				blind2Label: formValue.blind2Label.trim() || null,
-				blind3Label: formValue.blind3Label.trim() || null,
+				shortLabel: formValue.shortLabel.trim() || null,
+				groupId: formValue.groupId,
 			});
 		},
 		validators: {
@@ -121,14 +127,16 @@ export function useVariantSelect({
 	};
 
 	return {
-		customVariants,
 		form,
 		formId,
+		groups,
 		handleValueChange,
 		isAddOpen,
 		isCreatePending: createMutation.isPending,
-		presets,
+		isLoading: variantsQuery.isLoading || groupsQuery.isLoading,
+		mixOption,
 		setIsAddOpen,
 		unknownValue,
+		variantOptions,
 	};
 }

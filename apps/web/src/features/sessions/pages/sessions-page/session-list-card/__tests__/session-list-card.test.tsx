@@ -261,16 +261,16 @@ describe("SessionListCard", () => {
 		expect(link).toHaveAttribute("href", "/sessions/s42");
 	});
 
-	it("shows the short variant label for a cash session's preset variant", async () => {
-		renderCard({ ...baseSession, cashVariant: "nlh" });
+	it("shows the stored display label verbatim for a cash session's variant", async () => {
+		renderCard({ ...baseSession, cashVariant: "NL Hold'em" });
 		await screen.findByText("1/2 NLH");
-		expect(screen.getByText("NLH")).toBeInTheDocument();
+		expect(screen.getByText("NL Hold'em")).toBeInTheDocument();
 	});
 
-	it("shows the short variant label for a tournament's preset variant", async () => {
+	it("maps the 'mix' key to 'Mixed Game' for a tournament's variant", async () => {
 		renderCard({ ...baseTournament, tournamentVariant: "mix" });
 		await screen.findByText("Sunday Major");
-		expect(screen.getByText("Mix")).toBeInTheDocument();
+		expect(screen.getByText("Mixed Game")).toBeInTheDocument();
 	});
 
 	it("passes a custom variant string through raw", async () => {
@@ -282,7 +282,7 @@ describe("SessionListCard", () => {
 	it("omits the variant badge when neither cash nor tournament variant is set", async () => {
 		renderCard(baseSession);
 		await screen.findByText("1/2 NLH");
-		expect(screen.queryByText("NLH")).not.toBeInTheDocument();
+		expect(screen.queryByText("NL Hold'em")).not.toBeInTheDocument();
 		expect(screen.queryByText("Big Duck")).not.toBeInTheDocument();
 	});
 });

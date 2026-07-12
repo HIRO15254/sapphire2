@@ -53,7 +53,10 @@ export function RingGameForm({
 	defaultValues,
 	formId,
 }: RingGameFormProps) {
-	const { form, currencies } = useRingGameForm({ defaultValues, onSubmit });
+	const { form, currencies, groupFor, resolveVariantLabel } = useRingGameForm({
+		defaultValues,
+		onSubmit,
+	});
 
 	return (
 		<form
@@ -105,6 +108,8 @@ export function RingGameForm({
 							{(field) => (
 								<MixGamesEditor
 									onChange={(rows) => field.handleChange(rows)}
+									resolveGroup={groupFor}
+									resolveVariantLabel={resolveVariantLabel}
 									value={field.state.value}
 								/>
 							)}

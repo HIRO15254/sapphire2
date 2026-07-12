@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
 	fromLevelGames,
 	type MixGameGroupRow,
+	type ResolveGroup,
 	toLevelGames,
 } from "@/shared/lib/mix-games";
 import type { LevelGamesValue } from "./level-patterns-sheet";
@@ -11,6 +12,8 @@ interface UseLevelPatternsSheetArgs {
 	games: LevelGamesValue;
 	onSave: (games: LevelGamesValue) => void;
 	open: boolean;
+	/** variant label → owning group (master mapping, from useGameGroups). */
+	resolveGroup: ResolveGroup;
 }
 
 /**
@@ -22,16 +25,17 @@ export function useLevelPatternsSheet({
 	games,
 	onSave,
 	open,
+	resolveGroup,
 }: UseLevelPatternsSheetArgs) {
 	const [rows, setRows] = useState<MixGameGroupRow[]>(() =>
-		fromLevelGames(games)
+		fromLevelGames(games, resolveGroup)
 	);
 
 	// Re-seed whenever the sheet (re)opens for a possibly different level.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `games` is intentionally read only at open-transition time — the buffer must not reset on parent re-renders while editing.
 	useEffect(() => {
 		if (open) {
-			setRows(fromLevelGames(games));
+			setRows(fromLevelGames(games, resolveGroup));
 		}
 	}, [open]);
 

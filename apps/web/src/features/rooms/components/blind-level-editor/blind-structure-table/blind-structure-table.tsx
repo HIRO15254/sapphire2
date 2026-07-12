@@ -9,7 +9,6 @@ import {
 	SortableContext,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import type { BlindLabels } from "@sapphire2/db/constants/game-variants";
 import { IconCoffee, IconPlus } from "@tabler/icons-react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import type {
@@ -24,6 +23,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/shared/components/ui/table";
+import type { BlindSlotLabels } from "@/shared/hooks/use-variant-labels";
+import type { ResolveGroup } from "@/shared/lib/mix-games";
 import { EmptyRow } from "../empty-row";
 import { LevelPatternsSheet } from "../level-patterns-sheet";
 import { SortableBreakRow } from "../sortable-break-row";
@@ -32,7 +33,7 @@ import { SortableLevelRow } from "../sortable-level-row";
 import { useBlindStructureTable } from "./use-blind-structure-table";
 
 interface BlindStructureTableProps {
-	blindLabels: BlindLabels;
+	blindLabels: BlindSlotLabels;
 	handleAddBreak: () => void;
 	handleAddLevel: () => void;
 	handleCreateLevel: (values: NewLevelValues) => void;
@@ -43,6 +44,9 @@ interface BlindStructureTableProps {
 	/** Mix tournament: level rows edit per-level game groups instead of flat blinds. */
 	isMix?: boolean;
 	levels: BlindLevelRow[];
+	/** variant label → owning group; required when isMix (threaded to the sheet). */
+	resolveGroup?: ResolveGroup;
+	resolveVariantLabel?: (builtinKey: string) => string | null;
 	sensors: SensorDescriptor<SensorOptions>[];
 }
 
@@ -52,6 +56,8 @@ export function BlindStructureTable({
 	sensors,
 	isAdding = false,
 	isMix = false,
+	resolveGroup,
+	resolveVariantLabel,
 	handleDragEnd,
 	handleAddBreak,
 	handleAddLevel,
@@ -164,7 +170,7 @@ export function BlindStructureTable({
 					<EmptyRow onCreateLevel={handleCreateLevel} />
 				</TableBody>
 			</Table>
-			{isMix ? (
+			{isMix && resolveGroup && resolveVariantLabel ? (
 				<LevelPatternsSheet
 					games={openLevel?.games ?? null}
 					level={openLevel?.level ?? 1}
@@ -179,6 +185,8 @@ export function BlindStructureTable({
 						}
 					}}
 					open={openLevel !== null}
+					resolveGroup={resolveGroup}
+					resolveVariantLabel={resolveVariantLabel}
 				/>
 			) : null}
 		</div>

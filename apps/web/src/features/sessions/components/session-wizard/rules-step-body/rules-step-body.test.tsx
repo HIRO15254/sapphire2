@@ -1,6 +1,6 @@
 import { act, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { renderWithQueryClient } from "@/__tests__/test-utils";
+import { renderWithQueryClient, withQueryClient } from "@/__tests__/test-utils";
 
 // RulesStepBody (tournament path) transitively imports @/utils/trpc; stub it.
 // The cash/tournament rule bodies also render VariantSelect, which uses real
@@ -12,6 +12,14 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: () => ({
 					queryKey: ["gameVariant", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameGroup", "list"],
 					queryFn: async () => [],
 				}),
 			},
@@ -50,12 +58,14 @@ const RING_GAME: RingGameOption = {
 // Selects the master (applying its rule defaults) then diverges the small
 // blind from it, so exactly one rule field ("SB") counts as overridden.
 function setupOverriddenState() {
-	const { result } = renderHook(() =>
-		useSessionWizard({
-			mode: "live",
-			onSubmit: vi.fn(),
-			ringGames: [RING_GAME],
-		})
+	const { result } = renderHook(
+		() =>
+			useSessionWizard({
+				mode: "live",
+				onSubmit: vi.fn(),
+				ringGames: [RING_GAME],
+			}),
+		{ wrapper: withQueryClient() }
 	);
 	act(() => result.current.handleGameChange(RING_GAME.id));
 	act(() => result.current.form.setFieldValue("blind1", "999"));
@@ -91,8 +101,9 @@ describe("RulesStepBody — override badges", () => {
 
 describe("RulesStepBody — live-linked tournament editors", () => {
 	function renderTournamentRules(isLiveLinked: boolean) {
-		const { result } = renderHook(() =>
-			useSessionWizard({ mode: "manual", onSubmit: vi.fn() })
+		const { result } = renderHook(
+			() => useSessionWizard({ mode: "manual", onSubmit: vi.fn() }),
+			{ wrapper: withQueryClient() }
 		);
 		act(() => result.current.setSessionType("tournament"));
 		renderWithQueryClient(

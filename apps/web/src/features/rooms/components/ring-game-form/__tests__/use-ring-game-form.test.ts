@@ -19,6 +19,22 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: buildKey("gameGroup", "list", undefined),
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+		gameVariant: {
+			list: {
+				queryOptions: () => ({
+					queryKey: buildKey("gameVariant", "list", undefined),
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
 	},
 }));
 

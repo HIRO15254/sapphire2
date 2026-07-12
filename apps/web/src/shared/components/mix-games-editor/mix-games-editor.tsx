@@ -1,11 +1,4 @@
-import { variantShortLabel } from "@sapphire2/db/constants/game-variants";
-import {
-	IconArrowDown,
-	IconArrowUp,
-	IconPlus,
-	IconTrash,
-	IconX,
-} from "@tabler/icons-react";
+import { IconX } from "@tabler/icons-react";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
@@ -18,8 +11,11 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { VariantSelect } from "@/shared/components/variant-select";
-import { useVariantLabels } from "@/shared/hooks/use-variant-labels";
-import type { MixGameGroupRow, MixTemplateKind } from "@/shared/lib/mix-games";
+import type {
+	MixGameGroupRow,
+	MixTemplateKind,
+	ResolveGroup,
+} from "@/shared/lib/mix-games";
 import { useMixGamesEditor } from "./use-mix-games-editor";
 
 const TEMPLATES: Array<{ kind: MixTemplateKind; label: string }> = [
@@ -37,134 +33,77 @@ const ANTE_TYPES = [
 interface MixGamesEditorProps {
 	disabled?: boolean;
 	onChange: (rows: MixGameGroupRow[]) => void;
+	/** variant label → owning group; from useGameGroups at the mount site. */
+	resolveGroup: ResolveGroup;
+	/** builtinKey → the user's variant label (null when deleted). */
+	resolveVariantLabel: (builtinKey: string) => string | null;
 	/** Hide the per-group ante-type select (tournament level groups). */
 	showAnteType?: boolean;
 	value: MixGameGroupRow[];
 }
 
-interface GroupRowProps {
+interface BucketRowProps {
 	disabled: boolean;
 	group: MixGameGroupRow;
-	index: number;
-	isFirst: boolean;
-	isLast: boolean;
-	onAddVariant: (uid: string, variant: string) => void;
-	onMoveDown: (uid: string) => void;
-	onMoveUp: (uid: string) => void;
-	onRemoveGroup: (uid: string) => void;
-	onRemoveVariant: (uid: string, variant: string) => void;
+	onRemoveVariant: (variant: string) => void;
 	onUpdateGroup: (
 		uid: string,
-		patch: Partial<Omit<MixGameGroupRow, "uid">>
+		patch: Partial<Omit<MixGameGroupRow, "uid" | "groupId">>
 	) => void;
 	showAnteType: boolean;
-	usedVariantList: string[];
 }
 
-function GroupRow({
+// One derived bucket = the games of one master group sharing a structure.
+// Membership is not editable here (it follows the master mapping); only the
+// per-mix name, the amounts, and which games participate are.
+function BucketRow({
 	disabled,
 	group,
-	showAnteType,
-	index,
-	isFirst,
-	isLast,
-	onAddVariant,
-	onMoveDown,
-	onMoveUp,
-	onRemoveGroup,
 	onRemoveVariant,
 	onUpdateGroup,
-	usedVariantList,
-}: GroupRowProps) {
-	// Blind slot labels follow the group's first game (groups bundle games
-	// sharing one structure, so the first game's family is representative).
-	const blindLabels = useVariantLabels(group.variants[0] ?? "nlh");
-	const blind3Label = blindLabels.blind3;
+	showAnteType,
+}: BucketRowProps) {
+	const blind3Label = group.blind3Label;
+	const amountCols = blind3Label === null ? "grid-cols-3" : "grid-cols-4";
 
 	return (
 		<div className="flex flex-col gap-2 rounded-md border p-3">
-			<div className="flex items-end gap-2">
-				<Field
-					className="flex flex-1 flex-col gap-1"
-					htmlFor={`mix-name-${group.uid}`}
-					label="Group name"
-				>
-					<Input
-						disabled={disabled}
-						id={`mix-name-${group.uid}`}
-						onChange={(e) => onUpdateGroup(group.uid, { name: e.target.value })}
-						value={group.name}
-					/>
-				</Field>
-				<Button
-					aria-label={`Move group ${index + 1} up`}
-					disabled={disabled || isFirst}
-					onClick={() => onMoveUp(group.uid)}
-					size="icon-xs"
-					type="button"
-					variant="ghost"
-				>
-					<IconArrowUp size={12} />
-				</Button>
-				<Button
-					aria-label={`Move group ${index + 1} down`}
-					disabled={disabled || isLast}
-					onClick={() => onMoveDown(group.uid)}
-					size="icon-xs"
-					type="button"
-					variant="ghost"
-				>
-					<IconArrowDown size={12} />
-				</Button>
-				<Button
-					aria-label={`Remove group ${index + 1}`}
-					disabled={disabled}
-					onClick={() => onRemoveGroup(group.uid)}
-					size="icon-xs"
-					type="button"
-					variant="ghost"
-				>
-					<IconTrash size={12} />
-				</Button>
+			<div className="flex items-center justify-between gap-2">
+				<span className="t-meta text-muted-foreground">{group.groupLabel}</span>
 			</div>
-
+			<Field
+				className="flex flex-col gap-1"
+				htmlFor={`mix-name-${group.uid}`}
+				label="Display name"
+			>
+				<Input
+					disabled={disabled}
+					id={`mix-name-${group.uid}`}
+					onChange={(e) => onUpdateGroup(group.uid, { name: e.target.value })}
+					value={group.name}
+				/>
+			</Field>
 			<div className="flex flex-wrap items-center gap-1.5">
 				{group.variants.map((variant) => (
 					<Badge key={variant} variant="secondary">
-						{variantShortLabel(variant)}
+						{variant}
 						<button
-							aria-label={`Remove ${variantShortLabel(variant)} from group ${index + 1}`}
-							className="ml-0.5 inline-flex"
+							aria-label={`Remove ${variant}`}
+							className="ml-1 inline-flex"
 							disabled={disabled}
-							onClick={() => onRemoveVariant(group.uid, variant)}
+							onClick={() => onRemoveVariant(variant)}
 							type="button"
 						>
-							<IconX size={10} />
+							<IconX size={12} />
 						</button>
 					</Badge>
 				))}
-				<div className="w-40">
-					<VariantSelect
-						disabled={disabled}
-						excludeVariants={usedVariantList}
-						id={`mix-add-${group.uid}`}
-						onChange={(v) => onAddVariant(group.uid, v)}
-						value=""
-					/>
-				</div>
 			</div>
-
-			<div
-				className={
-					blind3Label === null
-						? "grid grid-cols-3 gap-2"
-						: "grid grid-cols-4 gap-2"
-				}
-			>
+			<div className={`grid gap-2 ${amountCols}`}>
 				<Field
 					className="flex flex-col gap-1"
 					htmlFor={`mix-b1-${group.uid}`}
-					label={blindLabels.blind1}
+					label={group.blind1Label}
 				>
 					<Input
 						disabled={disabled}
@@ -179,7 +118,7 @@ function GroupRow({
 				<Field
 					className="flex flex-col gap-1"
 					htmlFor={`mix-b2-${group.uid}`}
-					label={blindLabels.blind2}
+					label={group.blind2Label}
 				>
 					<Input
 						disabled={disabled}
@@ -222,8 +161,7 @@ function GroupRow({
 					/>
 				</Field>
 			</div>
-
-			{showAnteType ? (
+			{showAnteType && (
 				<Field
 					className="flex flex-col gap-1"
 					htmlFor={`mix-antetype-${group.uid}`}
@@ -250,38 +188,30 @@ function GroupRow({
 						</SelectContent>
 					</Select>
 				</Field>
-			) : null}
+			)}
 		</div>
 	);
 }
 
-/**
- * Controlled editor for a mix game's named game groups. One row = one group
- * of games sharing a single blind structure (e.g. 8-Game = Limit / Stud /
- * Big Bet). Template buttons prefill common rotations; amounts stay blank
- * for the user to fill.
- */
 export function MixGamesEditor({
 	disabled = false,
 	onChange,
+	resolveGroup,
+	resolveVariantLabel,
 	showAnteType = true,
 	value,
 }: MixGamesEditorProps) {
 	const {
 		usedVariantList,
-		onAddGroup,
-		onRemoveGroup,
-		onMoveUp,
-		onMoveDown,
-		onUpdateGroup,
 		onAddVariant,
 		onRemoveVariant,
+		onUpdateGroup,
 		onApplyTemplate,
-	} = useMixGamesEditor({ onChange, value });
+	} = useMixGamesEditor({ onChange, resolveGroup, resolveVariantLabel, value });
 
 	return (
-		<Field className="rounded-md border p-3" label="Game groups">
-			<div className="flex flex-wrap gap-2">
+		<Field className="rounded-md border p-3" label="Games">
+			<div className="flex flex-wrap items-center gap-2">
 				{TEMPLATES.map((template) => (
 					<Button
 						disabled={disabled}
@@ -294,35 +224,31 @@ export function MixGamesEditor({
 						{template.label}
 					</Button>
 				))}
-				<Button
-					disabled={disabled}
-					onClick={onAddGroup}
-					size="xs"
-					type="button"
-					variant="outline"
-				>
-					<IconPlus size={12} />
-					Add group
-				</Button>
 			</div>
+			<Field
+				className="flex flex-col gap-1"
+				htmlFor="mix-add-game"
+				label="Add game"
+			>
+				<VariantSelect
+					disabled={disabled}
+					excludeVariants={usedVariantList}
+					id="mix-add-game"
+					includeMix={false}
+					onChange={onAddVariant}
+					value=""
+				/>
+			</Field>
 			{value.length > 0 && (
 				<div className="flex flex-col gap-2">
-					{value.map((group, index) => (
-						<GroupRow
+					{value.map((group) => (
+						<BucketRow
 							disabled={disabled}
 							group={group}
-							index={index}
-							isFirst={index === 0}
-							isLast={index === value.length - 1}
 							key={group.uid}
-							onAddVariant={onAddVariant}
-							onMoveDown={onMoveDown}
-							onMoveUp={onMoveUp}
-							onRemoveGroup={onRemoveGroup}
 							onRemoveVariant={onRemoveVariant}
 							onUpdateGroup={onUpdateGroup}
 							showAnteType={showAnteType}
-							usedVariantList={usedVariantList}
 						/>
 					))}
 				</div>

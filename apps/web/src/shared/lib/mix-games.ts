@@ -1,25 +1,71 @@
-// Editor row model + pure helpers for the mix-games group editor. A row is
-// one "game group": the games that share a single blind structure. Numeric
-// cells stay strings (inputMode="numeric" convention, parsed here on
-// submit); `toMixGames` / `fromMixGames` adapt to the shared payload shape
-// in @sapphire2/db/schemas/game.
+// Derived-bucket editor model for mixed games. Which bucket a game lands in
+// is decided by the master data (each variant belongs to exactly one game
+// group), never assembled by hand — the editor only adds/removes games and
+// edits per-mix amounts/names. Numeric cells stay strings (inputMode=
+// "numeric" convention, parsed on submit); `toMixGames`/`fromMixGames`
+// adapt to the shared payload shape in @sapphire2/db/schemas/game, which is
+// unchanged: buckets serialize as ordinary named groups.
 import type { LevelGameGroup, MixGameGroup } from "@sapphire2/db/schemas/game";
+
+/** Resolved master info for the group a variant belongs to. */
+export interface MixGroupInfo {
+	blind1Label: string;
+	blind2Label: string;
+	blind3Label: string | null;
+	/** game_group row id — the bucket identity key. */
+	id: string;
+	label: string;
+	/** Canonical display position (builtin order, then user groups). */
+	sortIndex: number;
+}
+
+export type ResolveGroup = (variantLabel: string) => MixGroupInfo;
 
 export interface MixGameGroupRow {
 	ante: string;
 	anteType: "none" | "all" | "bb";
 	blind1: string;
+	blind1Label: string;
 	blind2: string;
+	blind2Label: string;
 	blind3: string;
+	blind3Label: string | null;
+	groupId: string;
+	groupLabel: string;
+	/** Per-mix display name; defaults to the group label. */
 	name: string;
+	sortIndex: number;
 	uid: string;
 	variants: string[];
 }
 
-export function emptyMixGroupRow(): MixGameGroupRow {
+function normalized(variant: string): string {
+	return variant.trim().toLowerCase();
+}
+
+/** Every variant already assigned to any bucket, in display order. */
+export function usedVariants(rows: MixGameGroupRow[]): string[] {
+	return rows.flatMap((r) => r.variants);
+}
+
+export function updateGroup(
+	rows: MixGameGroupRow[],
+	uid: string,
+	patch: Partial<Omit<MixGameGroupRow, "uid" | "groupId">>
+): MixGameGroupRow[] {
+	return rows.map((r) => (r.uid === uid ? { ...r, ...patch } : r));
+}
+
+function newBucket(group: MixGroupInfo): MixGameGroupRow {
 	return {
 		uid: crypto.randomUUID(),
-		name: "",
+		groupId: group.id,
+		groupLabel: group.label,
+		blind1Label: group.blind1Label,
+		blind2Label: group.blind2Label,
+		blind3Label: group.blind3Label,
+		sortIndex: group.sortIndex,
+		name: group.label,
 		variants: [],
 		blind1: "",
 		blind2: "",
@@ -29,78 +75,45 @@ export function emptyMixGroupRow(): MixGameGroupRow {
 	};
 }
 
-export function addGroup(rows: MixGameGroupRow[]): MixGameGroupRow[] {
-	return [...rows, emptyMixGroupRow()];
-}
-
-export function removeGroup(
-	rows: MixGameGroupRow[],
-	uid: string
-): MixGameGroupRow[] {
-	return rows.filter((r) => r.uid !== uid);
-}
-
-export function updateGroup(
-	rows: MixGameGroupRow[],
-	uid: string,
-	patch: Partial<Omit<MixGameGroupRow, "uid">>
-): MixGameGroupRow[] {
-	return rows.map((r) => (r.uid === uid ? { ...r, ...patch } : r));
-}
-
-export function moveGroup(
-	rows: MixGameGroupRow[],
-	uid: string,
-	direction: "up" | "down"
-): MixGameGroupRow[] {
-	const index = rows.findIndex((r) => r.uid === uid);
-	const target = direction === "up" ? index - 1 : index + 1;
-	if (index === -1 || target < 0 || target >= rows.length) {
-		return rows;
-	}
-	const next = [...rows];
-	[next[index], next[target]] = [next[target], next[index]];
-	return next;
-}
-
-function normalized(variant: string): string {
-	return variant.trim().toLowerCase();
-}
-
-/** Every variant already assigned to any group, in display order. */
-export function usedVariants(rows: MixGameGroupRow[]): string[] {
-	return rows.flatMap((r) => r.variants);
-}
-
 /**
- * Append a variant to a group. No-op when the variant is already used in
- * any group (case-insensitive) — a game may appear in one group only,
- * mirroring the shared schema's cross-group duplicate refine.
+ * Add a game. Its bucket is derived from the master mapping: appended to the
+ * bucket of its group, or a new bucket is created at the canonical position.
+ * No-op when the variant is already used anywhere (a game belongs to exactly
+ * one group, mirroring the shared schema's cross-group duplicate refine).
  */
-export function addVariantToGroup(
+export function addVariant(
 	rows: MixGameGroupRow[],
-	uid: string,
-	variant: string
+	variantLabel: string,
+	resolveGroup: ResolveGroup
 ): MixGameGroupRow[] {
 	const taken = new Set(usedVariants(rows).map(normalized));
-	if (taken.has(normalized(variant))) {
+	if (taken.has(normalized(variantLabel))) {
 		return rows;
 	}
-	return rows.map((r) =>
-		r.uid === uid ? { ...r, variants: [...r.variants, variant] } : r
-	);
+	const group = resolveGroup(variantLabel);
+	const existing = rows.find((r) => r.groupId === group.id);
+	if (existing) {
+		return rows.map((r) =>
+			r.uid === existing.uid
+				? { ...r, variants: [...r.variants, variantLabel] }
+				: r
+		);
+	}
+	const bucket = { ...newBucket(group), variants: [variantLabel] };
+	return [...rows, bucket].sort((a, b) => a.sortIndex - b.sortIndex);
 }
 
-export function removeVariantFromGroup(
+/** Remove a game; a bucket that loses its last game disappears. */
+export function removeVariant(
 	rows: MixGameGroupRow[],
-	uid: string,
-	variant: string
+	variantLabel: string
 ): MixGameGroupRow[] {
-	return rows.map((r) =>
-		r.uid === uid
-			? { ...r, variants: r.variants.filter((v) => v !== variant) }
-			: r
-	);
+	return rows
+		.map((r) => ({
+			...r,
+			variants: r.variants.filter((v) => v !== variantLabel),
+		}))
+		.filter((r) => r.variants.length > 0);
 }
 
 // Full-string integer parse: `Number()` rejects trailing garbage that
@@ -118,9 +131,9 @@ function cellToInt(value: string): number | null {
 }
 
 /**
- * Editor rows → shared payload. Groups without any variant are dropped
- * (half-filled editor rows must not fail submission); null when nothing
- * meaningful remains so callers can send "no mix definition".
+ * Buckets → shared payload. The derived bucket metadata (group id/labels)
+ * is intentionally dropped: stored groups are self-describing via name +
+ * variant labels, so master edits never rewrite history.
  */
 export function toMixGames(rows: MixGameGroupRow[]): MixGameGroup[] | null {
 	const games = rows
@@ -138,57 +151,26 @@ export function toMixGames(rows: MixGameGroupRow[]): MixGameGroup[] | null {
 }
 
 export function fromMixGames(
-	games: MixGameGroup[] | null | undefined
+	games: MixGameGroup[] | null | undefined,
+	resolveGroup: ResolveGroup
 ): MixGameGroupRow[] {
-	return (games ?? []).map((g) => ({
-		uid: crypto.randomUUID(),
-		name: g.name ?? "",
-		variants: [...g.variants],
-		blind1: g.blind1 == null ? "" : String(g.blind1),
-		blind2: g.blind2 == null ? "" : String(g.blind2),
-		blind3: g.blind3 == null ? "" : String(g.blind3),
-		ante: g.ante == null ? "" : String(g.ante),
-		anteType: g.anteType ?? "none",
-	}));
-}
-
-export type MixTemplateKind = "horse" | "8game" | "10game";
-
-// Group compositions follow real structure-sheet conventions: stud games
-// carry their own ante/bring-in structure, so they are always a separate
-// group from the flop/draw limit games. Amounts are left blank for the
-// user to fill.
-const TEMPLATE_GROUPS: Record<
-	MixTemplateKind,
-	Array<{ name: string; variants: string[] }>
-> = {
-	horse: [
-		{ name: "Flop", variants: ["lhe", "o8"] },
-		{ name: "Stud", variants: ["razz", "stud", "stud8"] },
-	],
-	"8game": [
-		{ name: "Limit", variants: ["27td", "lhe", "o8"] },
-		{ name: "Stud", variants: ["razz", "stud", "stud8"] },
-		{ name: "Big Bet", variants: ["nlh", "plo"] },
-	],
-	"10game": [
-		{ name: "Limit", variants: ["27td", "lhe", "o8", "badugi"] },
-		{ name: "Stud", variants: ["razz", "stud", "stud8"] },
-		{ name: "Big Bet", variants: ["nlh", "plo", "27sd"] },
-	],
-};
-
-export function mixTemplate(kind: MixTemplateKind): MixGameGroupRow[] {
-	return TEMPLATE_GROUPS[kind].map((g) => ({
-		...emptyMixGroupRow(),
-		name: g.name,
-		variants: [...g.variants],
-	}));
+	return (games ?? []).map((g) => {
+		const group = resolveGroup(g.variants[0] ?? "");
+		return {
+			...newBucket(group),
+			name: g.name ?? group.label,
+			variants: [...g.variants],
+			blind1: g.blind1 == null ? "" : String(g.blind1),
+			blind2: g.blind2 == null ? "" : String(g.blind2),
+			blind3: g.blind3 == null ? "" : String(g.blind3),
+			ante: g.ante == null ? "" : String(g.ante),
+			anteType: g.anteType ?? "none",
+		};
+	});
 }
 
 /**
- * Editor rows → tournament-level payload (levelGamesSchema shape: no
- * anteType). Same drop-empty-groups rule as toMixGames.
+ * Buckets → tournament-level payload (levelGamesSchema shape: no anteType).
  */
 export function toLevelGames(rows: MixGameGroupRow[]): LevelGameGroup[] | null {
 	const games = toMixGames(rows);
@@ -198,7 +180,48 @@ export function toLevelGames(rows: MixGameGroupRow[]): LevelGameGroup[] | null {
 }
 
 export function fromLevelGames(
-	games: LevelGameGroup[] | null | undefined
+	games: LevelGameGroup[] | null | undefined,
+	resolveGroup: ResolveGroup
 ): MixGameGroupRow[] {
-	return fromMixGames((games ?? []).map((g) => ({ ...g, anteType: null })));
+	return fromMixGames(
+		(games ?? []).map((g) => ({ ...g, anteType: null })),
+		resolveGroup
+	);
+}
+
+export type MixTemplateKind = "horse" | "8game" | "10game";
+
+// Rotation order per template, referenced by builtin variant keys so the
+// template survives renames; grouping derives from the master mapping and
+// deleted builtins are simply skipped.
+const TEMPLATE_BUILTIN_KEYS: Record<MixTemplateKind, string[]> = {
+	horse: ["lhe", "o8", "razz", "stud", "stud8"],
+	"8game": ["27td", "lhe", "o8", "razz", "stud", "stud8", "nlh", "plo"],
+	"10game": [
+		"27td",
+		"lhe",
+		"o8",
+		"badugi",
+		"razz",
+		"stud",
+		"stud8",
+		"nlh",
+		"plo",
+		"27sd",
+	],
+};
+
+export function mixTemplate(
+	kind: MixTemplateKind,
+	resolveVariantLabel: (builtinKey: string) => string | null,
+	resolveGroup: ResolveGroup
+): MixGameGroupRow[] {
+	let rows: MixGameGroupRow[] = [];
+	for (const key of TEMPLATE_BUILTIN_KEYS[kind]) {
+		const label = resolveVariantLabel(key);
+		if (label !== null) {
+			rows = addVariant(rows, label, resolveGroup);
+		}
+	}
+	return rows;
 }

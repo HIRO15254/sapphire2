@@ -1,6 +1,7 @@
 import { trpcServer } from "@hono/trpc-server";
 import { createContextFactory } from "@sapphire2/api/context";
 import { appRouter } from "@sapphire2/api/routers/index";
+import { seedDefaultGameData } from "@sapphire2/api/services/seed-game-data";
 import { createAuth } from "@sapphire2/auth";
 import { createDb } from "@sapphire2/db";
 import { Hono } from "hono";
@@ -41,6 +42,7 @@ app.post("/api/auth/set-password", async (c) => {
 		googleClientSecret: c.env.GOOGLE_CLIENT_SECRET,
 		discordClientId: c.env.DISCORD_CLIENT_ID,
 		discordClientSecret: c.env.DISCORD_CLIENT_SECRET,
+		onUserCreated: (userId) => seedDefaultGameData(db, userId),
 	});
 	const result = await auth.api.setPassword({
 		headers: c.req.raw.headers,
@@ -59,6 +61,7 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => {
 		googleClientSecret: c.env.GOOGLE_CLIENT_SECRET,
 		discordClientId: c.env.DISCORD_CLIENT_ID,
 		discordClientSecret: c.env.DISCORD_CLIENT_SECRET,
+		onUserCreated: (userId) => seedDefaultGameData(db, userId),
 	});
 	return auth.handler(c.req.raw);
 });
@@ -73,6 +76,7 @@ app.use("/trpc/*", (c, next) => {
 		googleClientSecret: c.env.GOOGLE_CLIENT_SECRET,
 		discordClientId: c.env.DISCORD_CLIENT_ID,
 		discordClientSecret: c.env.DISCORD_CLIENT_SECRET,
+		onUserCreated: (userId) => seedDefaultGameData(db, userId),
 	});
 	const contextFactory = createContextFactory(
 		auth,

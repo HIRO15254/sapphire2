@@ -129,7 +129,7 @@ describe("formatRingGameBlinds — mix games", () => {
 	const mixGames = [
 		{
 			name: "Limit",
-			variants: ["lhe", "o8"],
+			variants: ["Limit Hold'em", "Limit Omaha Hi-Lo"],
 			blind1: 400,
 			blind2: 800,
 			blind3: null,
@@ -138,7 +138,7 @@ describe("formatRingGameBlinds — mix games", () => {
 		},
 		{
 			name: null,
-			variants: ["nlh", "plo"],
+			variants: ["NL Hold'em", "Pot Limit Omaha"],
 			blind1: 100,
 			blind2: 200,
 			blind3: null,
@@ -156,7 +156,9 @@ describe("formatRingGameBlinds — mix games", () => {
 			anteType: null,
 			mixGames,
 		});
-		expect(result).toBe("Mix · Limit 400/800 · NLH+PLO 100/200");
+		expect(result).toBe(
+			"Mix · Limit 400/800 · NL Hold'em+Pot Limit Omaha 100/200"
+		);
 	});
 
 	it("appends the currency unit after the mix summary", () => {
@@ -171,7 +173,9 @@ describe("formatRingGameBlinds — mix games", () => {
 			},
 			"chips"
 		);
-		expect(result).toBe("Mix · Limit 400/800 · NLH+PLO 100/200 chips");
+		expect(result).toBe(
+			"Mix · Limit 400/800 · NL Hold'em+Pot Limit Omaha 100/200 chips"
+		);
 	});
 
 	it("ignores an empty mixGames array and falls back to flat blinds", () => {

@@ -1,10 +1,37 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useSessionFormState } from "@/features/sessions/components/session-wizard/use-session-form-state";
+import { withQueryClient } from "@/__tests__/test-utils";
 import type {
 	RingGameOption,
 	TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
+
+// useSessionFormState now calls useGameGroups (trpc.gameGroup.list /
+// trpc.gameVariant.list) for the mix-games master mapping — mock the
+// procedures to the fallback (empty) path, none of the assertions below
+// exercise mix-game rows.
+vi.mock("@/utils/trpc", () => ({
+	trpc: {
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameGroup", "list"],
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+		gameVariant: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameVariant", "list"],
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+	},
+}));
+
+import { useSessionFormState } from "@/features/sessions/components/session-wizard/use-session-form-state";
 
 const RING_GAMES: RingGameOption[] = [
 	{
@@ -28,12 +55,14 @@ const TOURNAMENTS: TournamentOption[] = [
 describe("useSessionFormState", () => {
 	it("defaults sessionType to cash_game and gameOptions to ringGames", () => {
 		const onSubmit = vi.fn();
-		const { result } = renderHook(() =>
-			useSessionFormState({
-				onSubmit,
-				ringGames: RING_GAMES,
-				tournaments: TOURNAMENTS,
-			})
+		const { result } = renderHook(
+			() =>
+				useSessionFormState({
+					onSubmit,
+					ringGames: RING_GAMES,
+					tournaments: TOURNAMENTS,
+				}),
+			{ wrapper: withQueryClient() }
 		);
 		expect(result.current.sessionType).toBe("cash_game");
 		expect(result.current.isCashGame).toBe(true);
@@ -43,12 +72,14 @@ describe("useSessionFormState", () => {
 
 	it("switching sessionType updates isCashGame, gameLabel, and gameOptions", () => {
 		const onSubmit = vi.fn();
-		const { result } = renderHook(() =>
-			useSessionFormState({
-				onSubmit,
-				ringGames: RING_GAMES,
-				tournaments: TOURNAMENTS,
-			})
+		const { result } = renderHook(
+			() =>
+				useSessionFormState({
+					onSubmit,
+					ringGames: RING_GAMES,
+					tournaments: TOURNAMENTS,
+				}),
+			{ wrapper: withQueryClient() }
 		);
 		act(() => {
 			result.current.setSessionType("tournament");
@@ -61,8 +92,9 @@ describe("useSessionFormState", () => {
 	it("handleRoomChange updates selectedRoomId, clears selectedGameId, and notifies callback", () => {
 		const onSubmit = vi.fn();
 		const onRoomChange = vi.fn();
-		const { result } = renderHook(() =>
-			useSessionFormState({ onSubmit, onRoomChange })
+		const { result } = renderHook(
+			() => useSessionFormState({ onSubmit, onRoomChange }),
+			{ wrapper: withQueryClient() }
 		);
 		act(() => {
 			result.current.handleRoomChange("s1");
@@ -74,8 +106,9 @@ describe("useSessionFormState", () => {
 
 	it("handleGameChange(undefined) is a no-op on field overrides", () => {
 		const onSubmit = vi.fn();
-		const { result } = renderHook(() =>
-			useSessionFormState({ onSubmit, ringGames: RING_GAMES })
+		const { result } = renderHook(
+			() => useSessionFormState({ onSubmit, ringGames: RING_GAMES }),
+			{ wrapper: withQueryClient() }
 		);
 		act(() => {
 			result.current.handleGameChange(undefined);
@@ -85,8 +118,9 @@ describe("useSessionFormState", () => {
 
 	it("handleGameChange applies ring game defaults when cash game is active", () => {
 		const onSubmit = vi.fn();
-		const { result } = renderHook(() =>
-			useSessionFormState({ onSubmit, ringGames: RING_GAMES })
+		const { result } = renderHook(
+			() => useSessionFormState({ onSubmit, ringGames: RING_GAMES }),
+			{ wrapper: withQueryClient() }
 		);
 		act(() => {
 			result.current.handleGameChange("rg1");
@@ -101,8 +135,9 @@ describe("useSessionFormState", () => {
 
 	it("handleGameChange applies tournament defaults when tournament is active", () => {
 		const onSubmit = vi.fn();
-		const { result } = renderHook(() =>
-			useSessionFormState({ onSubmit, tournaments: TOURNAMENTS })
+		const { result } = renderHook(
+			() => useSessionFormState({ onSubmit, tournaments: TOURNAMENTS }),
+			{ wrapper: withQueryClient() }
 		);
 		act(() => {
 			result.current.setSessionType("tournament");
@@ -117,12 +152,14 @@ describe("useSessionFormState", () => {
 
 	it("submits a cash_game payload with the right shape", async () => {
 		const onSubmit = vi.fn();
-		const { result } = renderHook(() =>
-			useSessionFormState({
-				onSubmit,
-				defaultValues: { type: "cash_game", sessionDate: "2026-04-10" },
-				ringGames: RING_GAMES,
-			})
+		const { result } = renderHook(
+			() =>
+				useSessionFormState({
+					onSubmit,
+					defaultValues: { type: "cash_game", sessionDate: "2026-04-10" },
+					ringGames: RING_GAMES,
+				}),
+			{ wrapper: withQueryClient() }
 		);
 		act(() => {
 			result.current.form.setFieldValue("buyIn", "100");
@@ -146,15 +183,17 @@ describe("useSessionFormState", () => {
 
 	it("submits a tournament payload and clears placement/totalEntries when beforeDeadline", async () => {
 		const onSubmit = vi.fn();
-		const { result } = renderHook(() =>
-			useSessionFormState({
-				onSubmit,
-				defaultValues: {
-					type: "tournament",
-					sessionDate: "2026-04-10",
-					beforeDeadline: true,
-				},
-			})
+		const { result } = renderHook(
+			() =>
+				useSessionFormState({
+					onSubmit,
+					defaultValues: {
+						type: "tournament",
+						sessionDate: "2026-04-10",
+						beforeDeadline: true,
+					},
+				}),
+			{ wrapper: withQueryClient() }
 		);
 		act(() => {
 			result.current.form.setFieldValue("tournamentBuyIn", "100");
@@ -177,15 +216,17 @@ describe("useSessionFormState", () => {
 
 	it("submits tournament payload keeping placement when not beforeDeadline", async () => {
 		const onSubmit = vi.fn();
-		const { result } = renderHook(() =>
-			useSessionFormState({
-				onSubmit,
-				defaultValues: {
-					type: "tournament",
-					sessionDate: "2026-04-10",
-					beforeDeadline: false,
-				},
-			})
+		const { result } = renderHook(
+			() =>
+				useSessionFormState({
+					onSubmit,
+					defaultValues: {
+						type: "tournament",
+						sessionDate: "2026-04-10",
+						beforeDeadline: false,
+					},
+				}),
+			{ wrapper: withQueryClient() }
 		);
 		act(() => {
 			result.current.form.setFieldValue("tournamentBuyIn", "100");
@@ -205,18 +246,22 @@ describe("useSessionFormState", () => {
 
 	it("seeds selectedGameId from defaultValues.ringGameId for cash and .tournamentId for tournament", () => {
 		const onSubmit = vi.fn();
-		const { result: cash } = renderHook(() =>
-			useSessionFormState({
-				onSubmit,
-				defaultValues: { type: "cash_game", ringGameId: "rg1" },
-			})
+		const { result: cash } = renderHook(
+			() =>
+				useSessionFormState({
+					onSubmit,
+					defaultValues: { type: "cash_game", ringGameId: "rg1" },
+				}),
+			{ wrapper: withQueryClient() }
 		);
 		expect(cash.current.selectedGameId).toBe("rg1");
-		const { result: tourney } = renderHook(() =>
-			useSessionFormState({
-				onSubmit,
-				defaultValues: { type: "tournament", tournamentId: "t1" },
-			})
+		const { result: tourney } = renderHook(
+			() =>
+				useSessionFormState({
+					onSubmit,
+					defaultValues: { type: "tournament", tournamentId: "t1" },
+				}),
+			{ wrapper: withQueryClient() }
 		);
 		expect(tourney.current.selectedGameId).toBe("t1");
 	});

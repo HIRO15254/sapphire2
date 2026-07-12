@@ -90,7 +90,7 @@ export const ringGameRouter = router({
 			z.object({
 				roomId: z.string(),
 				name: z.string().min(1),
-				variant: z.string().default("nlh"),
+				variant: z.string().default("NL Hold'em"),
 				mixGames: mixGamesSchema.nullish(),
 				blind1: z.number().int().optional(),
 				blind2: z.number().int().optional(),

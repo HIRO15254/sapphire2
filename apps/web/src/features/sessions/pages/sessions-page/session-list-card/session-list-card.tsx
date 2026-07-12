@@ -1,4 +1,4 @@
-import { variantShortLabel } from "@sapphire2/db/constants/game-variants";
+import { variantDisplayLabel } from "@sapphire2/db/constants/game-variants";
 import {
 	IconBolt,
 	IconCalendar,
@@ -23,7 +23,7 @@ import { profitLossColorClass } from "@/utils/format-profit-loss";
 
 export interface SessionListCardItem {
 	breakMinutes: number | null;
-	/** Preset key ("nlh") or verbatim custom label, set only on cash sessions. */
+	/** Display label ("NL Hold'em") or the "mix" key, set only on cash sessions. */
 	cashVariant: string | null;
 	chipPurchaseCost: number;
 	currencyUnit: string | null;
@@ -43,7 +43,7 @@ export interface SessionListCardItem {
 	totalEntries: number | null;
 	tournamentBuyIn: number | null;
 	tournamentName: string | null;
-	/** Preset key ("nlh") or verbatim custom label, set only on tournament sessions. */
+	/** Display label ("NL Hold'em") or the "mix" key, set only on tournament sessions. */
 	tournamentVariant: string | null;
 	type: string;
 }
@@ -114,7 +114,7 @@ export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 					</span>
 					{variant ? (
 						<Badge className="shrink-0" variant="secondary">
-							{variantShortLabel(variant)}
+							{variantDisplayLabel(variant)}
 						</Badge>
 					) : null}
 					{visibleTags.map((tag) => (

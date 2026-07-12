@@ -15,10 +15,8 @@ import {
 	transactionType,
 	transactionTypeRelations,
 } from "./schema/currency";
-import {
-	customGameVariant,
-	customGameVariantRelations,
-} from "./schema/custom-game-variant";
+import { gameGroup, gameGroupRelations } from "./schema/game-group";
+import { gameVariant, gameVariantRelations } from "./schema/game-variant";
 import {
 	player,
 	playerRelations,
@@ -123,6 +121,8 @@ export const schema = {
 	playerToPlayerTagRelations,
 	updateNoteView,
 	updateNoteViewRelations,
-	customGameVariant,
-	customGameVariantRelations,
+	gameGroup,
+	gameGroupRelations,
+	gameVariant,
+	gameVariantRelations,
 };

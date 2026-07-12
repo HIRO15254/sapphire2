@@ -151,7 +151,7 @@ export const tournamentRouter = router({
 			z.object({
 				roomId: z.string(),
 				name: z.string().min(1),
-				variant: z.string().default("nlh"),
+				variant: z.string().default("NL Hold'em"),
 				buyIn: z.number().int().optional(),
 				entryFee: z.number().int().optional(),
 				startingStack: z.number().int().optional(),
@@ -315,7 +315,7 @@ export const tournamentRouter = router({
 			z.object({
 				roomId: z.string(),
 				name: z.string().min(1),
-				variant: z.string().default("nlh"),
+				variant: z.string().default("NL Hold'em"),
 				buyIn: z.number().int().optional(),
 				entryFee: z.number().int().optional(),
 				startingStack: z.number().int().optional(),

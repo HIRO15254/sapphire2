@@ -7,6 +7,7 @@ import {
 	DrawerDescription,
 	DrawerTitle,
 } from "@/shared/components/ui/drawer";
+import type { ResolveGroup } from "@/shared/lib/mix-games";
 import { useLevelPatternsSheet } from "./use-level-patterns-sheet";
 
 export type LevelGamesValue = LevelGameGroup[] | null;
@@ -18,6 +19,8 @@ interface LevelPatternsSheetProps {
 	onOpenChange: (open: boolean) => void;
 	onSave: (games: LevelGamesValue) => void;
 	open: boolean;
+	resolveGroup: ResolveGroup;
+	resolveVariantLabel: (builtinKey: string) => string | null;
 }
 
 /**
@@ -32,11 +35,14 @@ export function LevelPatternsSheet({
 	onOpenChange,
 	onSave,
 	open,
+	resolveGroup,
+	resolveVariantLabel,
 }: LevelPatternsSheetProps) {
 	const { rows, setRows, handleDone } = useLevelPatternsSheet({
 		games,
 		onSave,
 		open,
+		resolveGroup,
 	});
 
 	return (
@@ -52,6 +58,8 @@ export function LevelPatternsSheet({
 				<div className="flex flex-col gap-3 overflow-y-auto px-4 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
 					<MixGamesEditor
 						onChange={setRows}
+						resolveGroup={resolveGroup}
+						resolveVariantLabel={resolveVariantLabel}
 						showAnteType={false}
 						value={rows}
 					/>

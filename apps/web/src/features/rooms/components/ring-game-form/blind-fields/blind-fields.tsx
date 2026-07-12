@@ -1,10 +1,10 @@
-import type { BlindLabels } from "@sapphire2/db/constants/game-variants";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import type { BlindSlotLabels } from "@/shared/hooks/use-variant-labels";
 import type { useRingGameForm } from "../use-ring-game-form";
 
 interface BlindFieldsProps {
-	blindLabels: BlindLabels;
+	blindLabels: BlindSlotLabels;
 	form: ReturnType<typeof useRingGameForm>["form"];
 }
 

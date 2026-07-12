@@ -1,112 +1,82 @@
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { MixGameGroupRow } from "@/shared/lib/mix-games";
+import type {
+	MixGameGroupRow,
+	MixGroupInfo,
+	ResolveGroup,
+} from "@/shared/lib/mix-games";
+import { addVariant } from "@/shared/lib/mix-games";
 import { useMixGamesEditor } from "../use-mix-games-editor";
 
-function row(overrides: Partial<MixGameGroupRow> = {}): MixGameGroupRow {
-	return {
-		uid: crypto.randomUUID(),
-		name: "Limit",
-		variants: ["lhe", "o8"],
-		blind1: "400",
-		blind2: "800",
-		blind3: "",
-		ante: "",
-		anteType: "none",
-		...overrides,
-	};
+const BIGBET: MixGroupInfo = {
+	id: "g-bigbet",
+	label: "Big Bet",
+	blind1Label: "SB",
+	blind2Label: "BB",
+	blind3Label: "Straddle",
+	sortIndex: 2,
+};
+
+const LIMIT: MixGroupInfo = {
+	id: "g-limit",
+	label: "Limit",
+	blind1Label: "Small Bet",
+	blind2Label: "Big Bet",
+	blind3Label: null,
+	sortIndex: 0,
+};
+
+const resolveGroup: ResolveGroup = (variant) =>
+	variant.startsWith("Limit") ? LIMIT : BIGBET;
+
+const resolveVariantLabel = (key: string): string | null =>
+	({ nlh: "NL Hold'em", lhe: "Limit Hold'em" })[key] ?? null;
+
+function setup(value: MixGameGroupRow[] = []) {
+	const onChange = vi.fn();
+	const { result } = renderHook(() =>
+		useMixGamesEditor({ value, onChange, resolveGroup, resolveVariantLabel })
+	);
+	return { result, onChange };
 }
 
 describe("useMixGamesEditor", () => {
-	it("adds a blank group at the end", () => {
-		const onChange = vi.fn();
-		const value = [row()];
-		const { result } = renderHook(() => useMixGamesEditor({ value, onChange }));
-		result.current.onAddGroup();
+	it("adds a game into its derived bucket", () => {
+		const { result, onChange } = setup();
+		result.current.onAddVariant("NL Hold'em");
 		expect(onChange).toHaveBeenCalledTimes(1);
-		const next = onChange.mock.calls[0][0] as MixGameGroupRow[];
-		expect(next).toHaveLength(2);
-		expect(next[1].variants).toEqual([]);
+		const rows = onChange.mock.calls[0][0] as MixGameGroupRow[];
+		expect(rows[0].groupId).toBe("g-bigbet");
+		expect(rows[0].variants).toEqual(["NL Hold'em"]);
 	});
 
-	it("removes a group by uid", () => {
-		const onChange = vi.fn();
-		const a = row();
-		const b = row({ name: "Stud" });
-		const { result } = renderHook(() =>
-			useMixGamesEditor({ value: [a, b], onChange })
-		);
-		result.current.onRemoveGroup(a.uid);
-		expect(onChange).toHaveBeenNthCalledWith(1, [b]);
+	it("removes a game and drops the emptied bucket", () => {
+		const value = addVariant([], "NL Hold'em", resolveGroup);
+		const { result, onChange } = setup(value);
+		result.current.onRemoveVariant("NL Hold'em");
+		expect(onChange).toHaveBeenNthCalledWith(1, []);
 	});
 
-	it("moves a group up and down", () => {
-		const onChange = vi.fn();
-		const a = row({ name: "A" });
-		const b = row({ name: "B" });
-		const { result } = renderHook(() =>
-			useMixGamesEditor({ value: [a, b], onChange })
-		);
-		result.current.onMoveUp(b.uid);
-		expect(
-			(onChange.mock.calls[0][0] as MixGameGroupRow[]).map((r) => r.name)
-		).toEqual(["B", "A"]);
-		result.current.onMoveDown(a.uid);
-		expect(
-			(onChange.mock.calls[1][0] as MixGameGroupRow[]).map((r) => r.name)
-		).toEqual(["B", "A"]);
+	it("patches a bucket by uid", () => {
+		const value = addVariant([], "NL Hold'em", resolveGroup);
+		const { result, onChange } = setup(value);
+		result.current.onUpdateGroup(value[0].uid, { name: "NL/PL" });
+		const rows = onChange.mock.calls[0][0] as MixGameGroupRow[];
+		expect(rows[0].name).toBe("NL/PL");
 	});
 
-	it("patches a group's fields", () => {
-		const onChange = vi.fn();
-		const a = row();
-		const { result } = renderHook(() =>
-			useMixGamesEditor({ value: [a], onChange })
-		);
-		result.current.onUpdateGroup(a.uid, { name: "Big Bet", blind1: "100" });
-		const next = onChange.mock.calls[0][0] as MixGameGroupRow[];
-		expect(next[0].name).toBe("Big Bet");
-		expect(next[0].blind1).toBe("100");
+	it("applies a template resolved through the master data", () => {
+		const { result, onChange } = setup();
+		result.current.onApplyTemplate("horse");
+		const rows = onChange.mock.calls[0][0] as MixGameGroupRow[];
+		// Only lhe resolves in this fixture; the other HORSE keys are absent.
+		expect(rows).toHaveLength(1);
+		expect(rows[0].variants).toEqual(["Limit Hold'em"]);
 	});
 
-	it("adds and removes variants through the duplicate guard", () => {
-		const onChange = vi.fn();
-		const a = row({ variants: ["lhe"] });
-		const { result } = renderHook(() =>
-			useMixGamesEditor({ value: [a], onChange })
-		);
-		result.current.onAddVariant(a.uid, "o8");
-		expect(
-			(onChange.mock.calls[0][0] as MixGameGroupRow[])[0].variants
-		).toEqual(["lhe", "o8"]);
-		// Duplicate additions are refused (rows unchanged → onChange still fires
-		// with the same array content).
-		result.current.onAddVariant(a.uid, "lhe");
-		expect(
-			(onChange.mock.calls[1][0] as MixGameGroupRow[])[0].variants
-		).toEqual(["lhe"]);
-		result.current.onRemoveVariant(a.uid, "lhe");
-		expect(
-			(onChange.mock.calls[2][0] as MixGameGroupRow[])[0].variants
-		).toEqual([]);
-	});
-
-	it("applies a template, replacing current rows", () => {
-		const onChange = vi.fn();
-		const { result } = renderHook(() =>
-			useMixGamesEditor({ value: [row()], onChange })
-		);
-		result.current.onApplyTemplate("8game");
-		const next = onChange.mock.calls[0][0] as MixGameGroupRow[];
-		expect(next.map((r) => r.name)).toEqual(["Limit", "Stud", "Big Bet"]);
-	});
-
-	it("exposes the used variants across all groups", () => {
-		const a = row({ variants: ["lhe", "o8"] });
-		const b = row({ name: "Big Bet", variants: ["nlh"] });
-		const { result } = renderHook(() =>
-			useMixGamesEditor({ value: [a, b], onChange: vi.fn() })
-		);
-		expect(result.current.usedVariantList).toEqual(["lhe", "o8", "nlh"]);
+	it("exposes the flat list of used variants", () => {
+		const value = addVariant([], "NL Hold'em", resolveGroup);
+		const { result } = setup(value);
+		expect(result.current.usedVariantList).toEqual(["NL Hold'em"]);
 	});
 });

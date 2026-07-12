@@ -148,13 +148,13 @@ describe("buildCashRuleRows", () => {
 		cashBlind1: 1,
 		cashBlind3: null,
 		cashTableSize: null,
-		cashVariant: "nlh",
+		cashVariant: "NL Hold'em",
 		ringGameBlind2: 2,
 	};
 
 	it("renders variant, blinds, and table size", () => {
 		expect(buildCashRuleRows({ ...base, cashTableSize: 6 })).toEqual([
-			{ label: "Variant", value: "NLH" },
+			{ label: "Variant", value: "NL Hold'em" },
 			{ label: "Blinds", value: "1/2" },
 			{ label: "Table", value: "6-max" },
 		]);
@@ -266,12 +266,12 @@ describe("buildTournamentRuleRows", () => {
 		expect(
 			buildTournamentRuleRows({
 				...base,
-				tournamentVariant: "nlh",
+				tournamentVariant: "NL Hold'em",
 				tournamentStartingStack: 20_000,
 				tournamentTableSize: 9,
 			})
 		).toEqual([
-			{ label: "Variant", value: "NLH" },
+			{ label: "Variant", value: "NL Hold'em" },
 			{ label: "Buy-in", value: "5,000" },
 			{ label: "Starting stack", value: "20k" },
 			{ label: "Table", value: "9-max" },
@@ -639,7 +639,7 @@ describe("buildCashRuleRows — mix games", () => {
 		},
 		{
 			name: null,
-			variants: ["nlh", "plo"],
+			variants: ["NL Hold'em", "Pot Limit Omaha"],
 			blind1: 100,
 			blind2: 200,
 			blind3: null,
@@ -650,9 +650,9 @@ describe("buildCashRuleRows — mix games", () => {
 
 	it("renders one row per game group after the variant row", () => {
 		expect(buildCashRuleRows({ ...base, cashMixGames: mixGames })).toEqual([
-			{ label: "Variant", value: "Mix" },
+			{ label: "Variant", value: "Mixed Game" },
 			{ label: "Limit", value: "400/800" },
-			{ label: "NLH+PLO", value: "100/200" },
+			{ label: "NL Hold'em+Pot Limit Omaha", value: "100/200" },
 		]);
 	});
 

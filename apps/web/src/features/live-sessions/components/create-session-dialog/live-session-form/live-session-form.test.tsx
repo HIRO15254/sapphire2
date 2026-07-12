@@ -6,6 +6,14 @@ import { renderWithQueryClient as render } from "@/__tests__/test-utils";
 // RulesStepBody (tournament) transitively imports @/utils/trpc; stub it.
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameGroup", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
 		gameVariant: {
 			list: {
 				queryOptions: () => ({

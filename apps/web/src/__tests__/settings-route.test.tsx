@@ -24,10 +24,14 @@ vi.mock("@/features/settings/pages/settings-page/about-section", () => ({
 	AboutSection: () => <div>About Content</div>,
 }));
 
+vi.mock("@/features/settings/pages/settings-page/game-groups-section", () => ({
+	GameGroupsSection: () => <div>Game Groups Content</div>,
+}));
+
 vi.mock(
-	"@/features/settings/pages/settings-page/custom-variants-section",
+	"@/features/settings/pages/settings-page/game-variants-section",
 	() => ({
-		CustomVariantsSection: () => <div>Custom Variants Content</div>,
+		GameVariantsSection: () => <div>Game Variants Content</div>,
 	})
 );
 
@@ -70,6 +74,24 @@ describe("SettingsComponent", () => {
 		).toBeInTheDocument();
 		expect(screen.getByText("Linked accounts")).toBeInTheDocument();
 		expect(screen.getByText("About")).toBeInTheDocument();
+		expect(screen.getByText("Game groups")).toBeInTheDocument();
+		expect(screen.getByText("Game variants")).toBeInTheDocument();
+	});
+
+	it("renders the Game groups section body", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		expect(screen.getByText("Game Groups Content")).toBeInTheDocument();
+	});
+
+	it("renders the Game variants section body", () => {
+		const Component = routeModule.Route.options.component as ComponentType;
+
+		render(<Component />);
+
+		expect(screen.getByText("Game Variants Content")).toBeInTheDocument();
 	});
 
 	it("renders the About section body", () => {

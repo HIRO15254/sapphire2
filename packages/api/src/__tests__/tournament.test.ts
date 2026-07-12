@@ -172,7 +172,7 @@ describe("tournament.create input validation", () => {
 			name: "Main Event",
 		}) as unknown as { success: true; data: { variant: string } };
 		expect(parsed.success).toBe(true);
-		expect(parsed.data.variant).toBe("nlh");
+		expect(parsed.data.variant).toBe("NL Hold'em");
 	});
 
 	it("accepts full numeric configuration", () => {

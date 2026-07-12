@@ -1,177 +1,194 @@
 import { describe, expect, it } from "vitest";
 import {
-	addGroup,
-	addVariantToGroup,
-	emptyMixGroupRow,
+	addVariant,
 	fromLevelGames,
 	fromMixGames,
 	type MixGameGroupRow,
+	type MixGroupInfo,
 	mixTemplate,
-	moveGroup,
-	removeGroup,
-	removeVariantFromGroup,
+	type ResolveGroup,
+	removeVariant,
 	toLevelGames,
 	toMixGames,
 	updateGroup,
 	usedVariants,
 } from "../mix-games";
 
-function row(overrides: Partial<MixGameGroupRow> = {}): MixGameGroupRow {
-	return {
-		uid: crypto.randomUUID(),
-		name: "Limit",
-		variants: ["lhe", "o8"],
-		blind1: "400",
-		blind2: "800",
-		blind3: "",
-		ante: "",
-		anteType: "none",
-		...overrides,
-	};
+// Master fixture: three seeded groups + one user-defined "Draw" group.
+const GROUPS: Record<string, MixGroupInfo> = {
+	limit: {
+		id: "g-limit",
+		label: "Limit",
+		blind1Label: "Small Bet",
+		blind2Label: "Big Bet",
+		blind3Label: null,
+		sortIndex: 0,
+	},
+	stud: {
+		id: "g-stud",
+		label: "Stud",
+		blind1Label: "Small Bet",
+		blind2Label: "Big Bet",
+		blind3Label: "Bring-in",
+		sortIndex: 1,
+	},
+	bigbet: {
+		id: "g-bigbet",
+		label: "Big Bet",
+		blind1Label: "SB",
+		blind2Label: "BB",
+		blind3Label: "Straddle",
+		sortIndex: 2,
+	},
+	draw: {
+		id: "g-draw",
+		label: "Draw",
+		blind1Label: "Small Bet",
+		blind2Label: "Big Bet",
+		blind3Label: null,
+		sortIndex: 3,
+	},
+};
+
+// variant label → owning group (unknown labels park in Big Bet).
+const VARIANT_GROUPS: Record<string, MixGroupInfo> = {
+	"NL Hold'em": GROUPS.bigbet,
+	"Pot Limit Omaha": GROUPS.bigbet,
+	"Limit Hold'em": GROUPS.limit,
+	"Limit Omaha Hi-Lo": GROUPS.limit,
+	"Limit 2-7 Triple Draw": GROUPS.limit,
+	Badugi: GROUPS.limit,
+	"NL 2-7 Single Draw": GROUPS.bigbet,
+	Razz: GROUPS.stud,
+	"Seven Card Stud": GROUPS.stud,
+	"Stud Hi-Lo": GROUPS.stud,
+	Drawmaha: GROUPS.draw,
+};
+
+const resolveGroup: ResolveGroup = (variant) =>
+	VARIANT_GROUPS[variant] ?? GROUPS.bigbet;
+
+const BUILTIN_LABELS: Record<string, string> = {
+	nlh: "NL Hold'em",
+	plo: "Pot Limit Omaha",
+	lhe: "Limit Hold'em",
+	o8: "Limit Omaha Hi-Lo",
+	"27td": "Limit 2-7 Triple Draw",
+	badugi: "Badugi",
+	"27sd": "NL 2-7 Single Draw",
+	razz: "Razz",
+	stud: "Seven Card Stud",
+	stud8: "Stud Hi-Lo",
+};
+
+const resolveVariantLabel = (builtinKey: string): string | null =>
+	BUILTIN_LABELS[builtinKey] ?? null;
+
+function bucketSummary(rows: MixGameGroupRow[]): [string, string[]][] {
+	return rows.map((r) => [r.groupLabel, r.variants]);
 }
 
-describe("emptyMixGroupRow", () => {
-	it("creates a blank group with a fresh uid and no variants", () => {
-		const a = emptyMixGroupRow();
-		const b = emptyMixGroupRow();
-		expect(a.uid).not.toBe(b.uid);
-		expect(a.variants).toEqual([]);
-		expect(a.name).toBe("");
-		expect(a.blind1).toBe("");
-		expect(a.anteType).toBe("none");
-	});
-});
-
-describe("addGroup / removeGroup", () => {
-	it("appends a blank group at the end", () => {
-		const rows = [row()];
-		const next = addGroup(rows);
-		expect(next).toHaveLength(2);
-		expect(next[1].variants).toEqual([]);
+describe("addVariant", () => {
+	it("creates a bucket for the variant's group on first add", () => {
+		const rows = addVariant([], "Limit Hold'em", resolveGroup);
 		expect(rows).toHaveLength(1);
+		expect(rows[0].groupId).toBe("g-limit");
+		expect(rows[0].groupLabel).toBe("Limit");
+		expect(rows[0].name).toBe("Limit");
+		expect(rows[0].variants).toEqual(["Limit Hold'em"]);
+		expect(rows[0].blind1).toBe("");
+		expect(rows[0].anteType).toBe("none");
 	});
 
-	it("removes the group with the given uid", () => {
-		const a = row();
-		const b = row({ name: "Stud" });
-		expect(removeGroup([a, b], a.uid)).toEqual([b]);
+	it("appends to the existing bucket of the same group", () => {
+		let rows = addVariant([], "Limit Hold'em", resolveGroup);
+		rows = addVariant(rows, "Limit Omaha Hi-Lo", resolveGroup);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].variants).toEqual(["Limit Hold'em", "Limit Omaha Hi-Lo"]);
 	});
 
-	it("removing an unknown uid is a no-op", () => {
-		const a = row();
-		expect(removeGroup([a], "nope")).toEqual([a]);
-	});
-});
-
-describe("updateGroup", () => {
-	it("patches only the matching group", () => {
-		const a = row();
-		const b = row({ name: "Stud" });
-		const next = updateGroup([a, b], b.uid, { blind1: "100" });
-		expect(next[0].blind1).toBe("400");
-		expect(next[1].blind1).toBe("100");
-		expect(next[1].name).toBe("Stud");
-	});
-});
-
-describe("moveGroup", () => {
-	it("moves a group up one position", () => {
-		const a = row({ name: "A" });
-		const b = row({ name: "B" });
-		expect(moveGroup([a, b], b.uid, "up").map((r) => r.name)).toEqual([
-			"B",
-			"A",
+	it("keeps buckets in canonical group order regardless of add order", () => {
+		let rows = addVariant([], "NL Hold'em", resolveGroup); // bigbet (2)
+		rows = addVariant(rows, "Razz", resolveGroup); // stud (1)
+		rows = addVariant(rows, "Limit Hold'em", resolveGroup); // limit (0)
+		rows = addVariant(rows, "Drawmaha", resolveGroup); // draw (3)
+		expect(rows.map((r) => r.groupLabel)).toEqual([
+			"Limit",
+			"Stud",
+			"Big Bet",
+			"Draw",
 		]);
 	});
 
-	it("moves a group down one position", () => {
-		const a = row({ name: "A" });
-		const b = row({ name: "B" });
-		expect(moveGroup([a, b], a.uid, "down").map((r) => r.name)).toEqual([
-			"B",
-			"A",
-		]);
+	it("is a no-op for a variant already present in any bucket (case-insensitive)", () => {
+		let rows = addVariant([], "NL Hold'em", resolveGroup);
+		rows = addVariant(rows, "nl hold'em", resolveGroup);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].variants).toEqual(["NL Hold'em"]);
 	});
 
-	it("moving the first group up is a no-op", () => {
-		const a = row({ name: "A" });
-		const b = row({ name: "B" });
-		expect(moveGroup([a, b], a.uid, "up").map((r) => r.name)).toEqual([
-			"A",
-			"B",
-		]);
-	});
-
-	it("moving the last group down is a no-op", () => {
-		const a = row({ name: "A" });
-		const b = row({ name: "B" });
-		expect(moveGroup([a, b], b.uid, "down").map((r) => r.name)).toEqual([
-			"A",
-			"B",
-		]);
-	});
-
-	it("moving an unknown uid is a no-op", () => {
-		const a = row();
-		expect(moveGroup([a], "nope", "up")).toEqual([a]);
+	it("does not disturb amounts already entered on an existing bucket", () => {
+		let rows = addVariant([], "Limit Hold'em", resolveGroup);
+		rows = updateGroup(rows, rows[0].uid, { blind1: "400", blind2: "800" });
+		rows = addVariant(rows, "Badugi", resolveGroup);
+		expect(rows[0].blind1).toBe("400");
+		expect(rows[0].variants).toContain("Badugi");
 	});
 });
 
-describe("addVariantToGroup / removeVariantFromGroup / usedVariants", () => {
-	it("appends a variant to the matching group", () => {
-		const a = row({ variants: ["lhe"] });
-		const next = addVariantToGroup([a], a.uid, "o8");
-		expect(next[0].variants).toEqual(["lhe", "o8"]);
+describe("removeVariant", () => {
+	it("removes the variant from its bucket", () => {
+		let rows = addVariant([], "Limit Hold'em", resolveGroup);
+		rows = addVariant(rows, "Badugi", resolveGroup);
+		rows = removeVariant(rows, "Limit Hold'em");
+		expect(rows).toHaveLength(1);
+		expect(rows[0].variants).toEqual(["Badugi"]);
 	});
 
-	it("refuses a variant already used in another group (case-insensitive)", () => {
-		const a = row({ variants: ["Big Duck"] });
-		const b = row({ name: "Stud", variants: [] });
-		const next = addVariantToGroup([a, b], b.uid, "big duck");
-		expect(next[1].variants).toEqual([]);
+	it("drops the bucket when its last variant is removed", () => {
+		let rows = addVariant([], "Razz", resolveGroup);
+		rows = addVariant(rows, "NL Hold'em", resolveGroup);
+		rows = removeVariant(rows, "Razz");
+		expect(bucketSummary(rows)).toEqual([["Big Bet", ["NL Hold'em"]]]);
 	});
 
-	it("refuses a variant already present in the same group", () => {
-		const a = row({ variants: ["nlh"] });
-		const next = addVariantToGroup([a], a.uid, "nlh");
-		expect(next[0].variants).toEqual(["nlh"]);
-	});
-
-	it("removes a variant from the matching group", () => {
-		const a = row({ variants: ["lhe", "o8"] });
-		const next = removeVariantFromGroup([a], a.uid, "lhe");
-		expect(next[0].variants).toEqual(["o8"]);
-	});
-
-	it("removing the last variant keeps the (now empty) group", () => {
-		const a = row({ variants: ["lhe"] });
-		const next = removeVariantFromGroup([a], a.uid, "lhe");
-		expect(next).toHaveLength(1);
-		expect(next[0].variants).toEqual([]);
-	});
-
-	it("usedVariants collects every variant across groups in order", () => {
-		const a = row({ variants: ["lhe", "o8"] });
-		const b = row({ name: "Big Bet", variants: ["nlh"] });
-		expect(usedVariants([a, b])).toEqual(["lhe", "o8", "nlh"]);
+	it("is a no-op for an unknown variant", () => {
+		const rows = addVariant([], "Razz", resolveGroup);
+		expect(removeVariant(rows, "Badugi")).toEqual(rows);
 	});
 });
 
-describe("toMixGames", () => {
-	it("converts rows to the shared payload shape", () => {
-		const a = row({
-			name: "Stud",
-			variants: ["stud", "razz"],
+describe("updateGroup / usedVariants", () => {
+	it("patches only the matching bucket", () => {
+		let rows = addVariant([], "Razz", resolveGroup);
+		rows = addVariant(rows, "NL Hold'em", resolveGroup);
+		const next = updateGroup(rows, rows[1].uid, { name: "NL/PL", ante: "5" });
+		expect(next[0].name).toBe("Stud");
+		expect(next[1].name).toBe("NL/PL");
+		expect(next[1].ante).toBe("5");
+	});
+
+	it("usedVariants flattens all buckets in display order", () => {
+		let rows = addVariant([], "NL Hold'em", resolveGroup);
+		rows = addVariant(rows, "Razz", resolveGroup);
+		expect(usedVariants(rows)).toEqual(["Razz", "NL Hold'em"]);
+	});
+});
+
+describe("toMixGames / fromMixGames", () => {
+	it("serializes buckets to the shared payload shape", () => {
+		let rows = addVariant([], "Razz", resolveGroup);
+		rows = updateGroup(rows, rows[0].uid, {
 			blind1: "400",
 			blind2: "800",
 			blind3: "100",
 			ante: "75",
 			anteType: "all",
 		});
-		expect(toMixGames([a])).toEqual([
+		expect(toMixGames(rows)).toEqual([
 			{
 				name: "Stud",
-				variants: ["stud", "razz"],
+				variants: ["Razz"],
 				blind1: 400,
 				blind2: 800,
 				blind3: 100,
@@ -181,131 +198,101 @@ describe("toMixGames", () => {
 		]);
 	});
 
-	it("maps empty numeric cells and blank names to null", () => {
-		const a = row({
-			name: "  ",
-			variants: ["nlh", "plo"],
-			blind1: "",
-			blind2: "",
-			blind3: "",
-			ante: "",
-			anteType: "none",
-		});
-		expect(toMixGames([a])).toEqual([
-			{
-				name: null,
-				variants: ["nlh", "plo"],
-				blind1: null,
-				blind2: null,
-				blind3: null,
-				ante: null,
-				anteType: "none",
-			},
-		]);
-	});
-
-	it("maps non-numeric and negative cells to null", () => {
-		const a = row({ blind1: "abc", blind2: "-5", ante: "1.5" });
-		const games = toMixGames([a]);
+	it("maps blank/invalid cells to null and blank names to null", () => {
+		let rows = addVariant([], "NL Hold'em", resolveGroup);
+		rows = updateGroup(rows, rows[0].uid, { name: "  ", blind1: "abc" });
+		const games = toMixGames(rows);
+		expect(games?.[0].name).toBeNull();
 		expect(games?.[0].blind1).toBeNull();
-		expect(games?.[0].blind2).toBeNull();
-		expect(games?.[0].ante).toBeNull();
 	});
 
-	it("drops groups that have no variants", () => {
-		const a = row();
-		const empty = row({ variants: [] });
-		expect(toMixGames([a, empty])).toHaveLength(1);
-	});
-
-	it("returns null when no group has variants", () => {
-		expect(toMixGames([row({ variants: [] })])).toBeNull();
+	it("returns null for an empty editor", () => {
 		expect(toMixGames([])).toBeNull();
 	});
-});
 
-describe("fromMixGames", () => {
-	it("round-trips payload groups back to editor rows with fresh uids", () => {
-		const rows = fromMixGames([
-			{
-				name: "Limit",
-				variants: ["lhe"],
-				blind1: 400,
-				blind2: 800,
-				blind3: null,
-				ante: null,
-				anteType: null,
-			},
-		]);
+	it("round-trips stored games back to buckets, re-deriving the group", () => {
+		const rows = fromMixGames(
+			[
+				{
+					name: "My Studs",
+					variants: ["Razz", "Seven Card Stud"],
+					blind1: 400,
+					blind2: 800,
+					blind3: 100,
+					ante: 75,
+					anteType: null,
+				},
+			],
+			resolveGroup
+		);
 		expect(rows).toHaveLength(1);
-		expect(rows[0].uid).toBeTruthy();
-		expect(rows[0].name).toBe("Limit");
+		expect(rows[0].groupId).toBe("g-stud");
+		expect(rows[0].groupLabel).toBe("Stud");
+		expect(rows[0].name).toBe("My Studs");
 		expect(rows[0].blind1).toBe("400");
-		expect(rows[0].blind3).toBe("");
 		expect(rows[0].anteType).toBe("none");
 	});
 
-	it("returns an empty array for null/undefined input", () => {
-		expect(fromMixGames(null)).toEqual([]);
-		expect(fromMixGames(undefined)).toEqual([]);
-	});
-});
-
-describe("mixTemplate", () => {
-	it("HORSE prefills flop and stud groups with blank amounts", () => {
-		const rows = mixTemplate("horse");
-		expect(rows.map((r) => r.name)).toEqual(["Flop", "Stud"]);
-		expect(rows[0].variants).toEqual(["lhe", "o8"]);
-		expect(rows[1].variants).toEqual(["razz", "stud", "stud8"]);
-		expect(rows.every((r) => r.blind1 === "" && r.blind2 === "")).toBe(true);
+	it("falls back to the group label when a stored name is absent", () => {
+		const rows = fromMixGames(
+			[{ name: null, variants: ["NL Hold'em"] }],
+			resolveGroup
+		);
+		expect(rows[0].name).toBe("Big Bet");
 	});
 
-	it("8-Game prefills limit, stud, and big bet groups", () => {
-		const rows = mixTemplate("8game");
-		expect(rows.map((r) => r.name)).toEqual(["Limit", "Stud", "Big Bet"]);
-		expect(rows[0].variants).toEqual(["27td", "lhe", "o8"]);
-		expect(rows[2].variants).toEqual(["nlh", "plo"]);
-	});
-
-	it("10-Game adds badugi and NL single draw", () => {
-		const rows = mixTemplate("10game");
-		expect(rows[0].variants).toContain("badugi");
-		expect(rows[2].variants).toContain("27sd");
-	});
-
-	it("every template row gets a unique uid", () => {
-		const rows = mixTemplate("8game");
-		expect(new Set(rows.map((r) => r.uid)).size).toBe(rows.length);
+	it("returns an empty array for null/undefined stored games", () => {
+		expect(fromMixGames(null, resolveGroup)).toEqual([]);
+		expect(fromMixGames(undefined, resolveGroup)).toEqual([]);
 	});
 });
 
 describe("toLevelGames / fromLevelGames", () => {
-	it("strips anteType from the payload (level groups have none)", () => {
-		const games = toLevelGames([
-			row({ variants: ["lhe"], anteType: "bb", ante: "75" }),
-		]);
+	it("strips anteType for level payloads and round-trips", () => {
+		let rows = addVariant([], "NL Hold'em", resolveGroup);
+		rows = updateGroup(rows, rows[0].uid, { blind1: "100", blind2: "200" });
+		const games = toLevelGames(rows);
 		expect(games).toEqual([
 			{
-				name: "Limit",
-				variants: ["lhe"],
-				blind1: 400,
-				blind2: 800,
+				name: "Big Bet",
+				variants: ["NL Hold'em"],
+				blind1: 100,
+				blind2: 200,
 				blind3: null,
-				ante: 75,
+				ante: null,
 			},
 		]);
+		const back = fromLevelGames(games, resolveGroup);
+		expect(back[0].groupId).toBe("g-bigbet");
+		expect(back[0].anteType).toBe("none");
 	});
+});
 
-	it("returns null when no group has variants", () => {
-		expect(toLevelGames([row({ variants: [] })])).toBeNull();
-	});
-
-	it("round-trips level groups back to editor rows with anteType none", () => {
-		const rows = fromLevelGames([
-			{ name: "Stud", variants: ["razz"], blind1: 300, blind2: 600 },
+describe("mixTemplate", () => {
+	it("builds HORSE as limit + stud buckets from builtin keys", () => {
+		const rows = mixTemplate("horse", resolveVariantLabel, resolveGroup);
+		expect(bucketSummary(rows)).toEqual([
+			["Limit", ["Limit Hold'em", "Limit Omaha Hi-Lo"]],
+			["Stud", ["Razz", "Seven Card Stud", "Stud Hi-Lo"]],
 		]);
-		expect(rows[0].name).toBe("Stud");
-		expect(rows[0].anteType).toBe("none");
-		expect(fromLevelGames(null)).toEqual([]);
+	});
+
+	it("builds 8-Game as limit + stud + big bet buckets", () => {
+		const rows = mixTemplate("8game", resolveVariantLabel, resolveGroup);
+		expect(rows.map((r) => r.groupLabel)).toEqual(["Limit", "Stud", "Big Bet"]);
+		expect(rows[2].variants).toEqual(["NL Hold'em", "Pot Limit Omaha"]);
+	});
+
+	it("builds 10-Game including badugi and NL single draw", () => {
+		const rows = mixTemplate("10game", resolveVariantLabel, resolveGroup);
+		expect(rows[0].variants).toContain("Badugi");
+		expect(rows[2].variants).toContain("NL 2-7 Single Draw");
+	});
+
+	it("skips builtin variants the user has deleted", () => {
+		const withoutRazz = (key: string) =>
+			key === "razz" ? null : resolveVariantLabel(key);
+		const rows = mixTemplate("horse", withoutRazz, resolveGroup);
+		expect(rows[1].variants).toEqual(["Seven Card Stud", "Stud Hi-Lo"]);
 	});
 });

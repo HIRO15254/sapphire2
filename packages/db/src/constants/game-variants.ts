@@ -1,189 +1,156 @@
-// Single source of truth for poker game-variant presets. Every place that
-// used to hand-roll its own copy of this table (ring-game-form,
-// blind-level-editor, tournament-form, game-scene-formatters) now imports
-// from here instead, so a new variant or a relabeled blind only needs to be
-// added once.
+// Seed data ONLY for the per-user game_group / game_variant tables. Mix-game
+// rework: variant->group membership is now a per-user DB row (seeded at user
+// creation by seedDefaultGameData), never a runtime fallback read straight
+// from this file. `variant` columns elsewhere in the schema store the
+// variant's display LABEL verbatim at write time (self-freezing) — the only
+// exception is the mix pseudo-variant, stored as the fixed key "mix".
 
-export interface BlindLabels {
-	blind1: string;
-	blind2: string;
-	blind3: string | null; // null = this variant has no third blind slot
+export type BuiltinGroupKey = "bigbet" | "limit" | "stud";
+
+export interface DefaultGameGroup {
+	blind1Label: string;
+	blind2Label: string;
+	blind3Label: string | null;
+	key: BuiltinGroupKey;
+	label: string;
 }
 
-export interface GameVariantDef {
-	blindLabels: BlindLabels;
-	isMix: boolean;
+// Canonical bucket order: limit → stud → bigbet (structure-sheet convention).
+export const DEFAULT_GAME_GROUPS: DefaultGameGroup[] = [
+	{
+		key: "limit",
+		label: "Limit",
+		blind1Label: "Small Bet",
+		blind2Label: "Big Bet",
+		blind3Label: null,
+	},
+	{
+		key: "stud",
+		label: "Stud",
+		blind1Label: "Small Bet",
+		blind2Label: "Big Bet",
+		blind3Label: "Bring-in",
+	},
+	{
+		key: "bigbet",
+		label: "Big Bet",
+		blind1Label: "SB",
+		blind2Label: "BB",
+		blind3Label: "Straddle",
+	},
+];
+
+export interface DefaultGameVariant {
+	groupKey: BuiltinGroupKey;
+	key: string;
 	label: string;
 	shortLabel: string;
 }
 
-// Most flop games use a straddle-capable SB/BB/Straddle blind structure.
-const STRADDLE_LABELS: BlindLabels = {
-	blind1: "SB",
-	blind2: "BB",
-	blind3: "Straddle",
-};
-
-// Limit games (fixed-limit betting, no straddle) have only two blind slots.
-const LIMIT_LABELS: BlindLabels = {
-	blind1: "Small Bet",
-	blind2: "Big Bet",
-	blind3: null,
-};
-
-// Stud games use a bring-in instead of a straddle for the third slot.
-const STUD_LABELS: BlindLabels = {
-	blind1: "Small Bet",
-	blind2: "Big Bet",
-	blind3: "Bring-in",
-};
-
-export const GAME_VARIANTS = {
-	nlh: {
-		label: "NL Hold'em",
-		shortLabel: "NLH",
-		isMix: false,
-		blindLabels: STRADDLE_LABELS,
+// sortOrder = array index.
+export const DEFAULT_GAME_VARIANTS: DefaultGameVariant[] = [
+	{ key: "nlh", label: "NL Hold'em", shortLabel: "NLH", groupKey: "bigbet" },
+	{
+		key: "plhe",
+		label: "Pot Limit Hold'em",
+		shortLabel: "PLHE",
+		groupKey: "bigbet",
 	},
-	plo: {
+	{
+		key: "plo",
 		label: "Pot Limit Omaha",
 		shortLabel: "PLO",
-		isMix: false,
-		blindLabels: STRADDLE_LABELS,
+		groupKey: "bigbet",
 	},
-	plo5: {
+	{
+		key: "plo5",
 		label: "5 Card PLO",
 		shortLabel: "PLO5",
-		isMix: false,
-		blindLabels: STRADDLE_LABELS,
+		groupKey: "bigbet",
 	},
-	plo8: {
-		label: "PLO Hi-Lo",
+	{
+		key: "plo8",
+		label: "Pot Limit Omaha Hi-Lo",
 		shortLabel: "PLO8",
-		isMix: false,
-		blindLabels: STRADDLE_LABELS,
+		groupKey: "bigbet",
 	},
-	bigo: {
-		label: "Big O",
-		shortLabel: "Big O",
-		isMix: false,
-		blindLabels: STRADDLE_LABELS,
-	},
-	shortdeck: {
+	{ key: "bigo", label: "Big O", shortLabel: "Big O", groupKey: "bigbet" },
+	{
+		key: "shortdeck",
 		label: "Short Deck",
 		shortLabel: "6+",
-		isMix: false,
-		blindLabels: { blind1: "Ante", blind2: "Button", blind3: null },
+		groupKey: "bigbet",
 	},
-	"27sd": {
+	{
+		key: "27sd",
 		label: "NL 2-7 Single Draw",
 		shortLabel: "2-7SD",
-		isMix: false,
-		blindLabels: STRADDLE_LABELS,
+		groupKey: "bigbet",
 	},
-	lhe: {
+	{
+		key: "pl27td",
+		label: "PL 2-7 Triple Draw",
+		shortLabel: "PL 2-7TD",
+		groupKey: "bigbet",
+	},
+	{
+		key: "courchevel",
+		label: "Courchevel",
+		shortLabel: "Courchevel",
+		groupKey: "bigbet",
+	},
+	{
+		key: "lhe",
 		label: "Limit Hold'em",
 		shortLabel: "LHE",
-		isMix: false,
-		blindLabels: LIMIT_LABELS,
+		groupKey: "limit",
 	},
-	o8: {
-		label: "Omaha Hi-Lo",
+	{ key: "lo", label: "Limit Omaha", shortLabel: "LO", groupKey: "limit" },
+	{
+		key: "o8",
+		label: "Limit Omaha Hi-Lo",
 		shortLabel: "O8",
-		isMix: false,
-		blindLabels: LIMIT_LABELS,
+		groupKey: "limit",
 	},
-	"27td": {
-		label: "2-7 Triple Draw",
+	{
+		key: "27td",
+		label: "Limit 2-7 Triple Draw",
 		shortLabel: "2-7TD",
-		isMix: false,
-		blindLabels: LIMIT_LABELS,
+		groupKey: "limit",
 	},
-	badugi: {
-		label: "Badugi",
-		shortLabel: "Badugi",
-		isMix: false,
-		blindLabels: LIMIT_LABELS,
+	{
+		key: "a5td",
+		label: "A-5 Triple Draw",
+		shortLabel: "A-5TD",
+		groupKey: "limit",
 	},
-	stud: {
+	{ key: "badugi", label: "Badugi", shortLabel: "Badugi", groupKey: "limit" },
+	{
+		key: "badeucy",
+		label: "Badeucy",
+		shortLabel: "Badeucy",
+		groupKey: "limit",
+	},
+	{ key: "badacy", label: "Badacy", shortLabel: "Badacy", groupKey: "limit" },
+	{
+		key: "stud",
 		label: "Seven Card Stud",
 		shortLabel: "Stud",
-		isMix: false,
-		blindLabels: STUD_LABELS,
+		groupKey: "stud",
 	},
-	stud8: {
-		label: "Stud Hi-Lo",
-		shortLabel: "Stud8",
-		isMix: false,
-		blindLabels: STUD_LABELS,
-	},
-	razz: {
-		label: "Razz",
-		shortLabel: "Razz",
-		isMix: false,
-		blindLabels: STUD_LABELS,
-	},
-	mix: {
-		label: "Mixed Game",
-		shortLabel: "Mix",
-		isMix: true,
-		blindLabels: STRADDLE_LABELS,
-	},
-} as const satisfies Record<string, GameVariantDef>;
+	{ key: "stud8", label: "Stud Hi-Lo", shortLabel: "Stud8", groupKey: "stud" },
+	{ key: "razz", label: "Razz", shortLabel: "Razz", groupKey: "stud" },
+];
 
-export type GameVariant = keyof typeof GAME_VARIANTS;
+// Mix pseudo-variant constants (mix is a MODE, not a row).
+export const MIX_VARIANT = "mix";
+export const MIX_VARIANT_LABEL = "Mixed Game";
 
-// Labels for a room's own custom (non-preset) variant, as stored on the room.
-// A `null` field means "use the default" for blind1/blind2, or "no third
-// blind slot" for blind3 (mirrors BlindLabels.blind3 semantics).
-export interface CustomVariantLabels {
-	blind1Label: string | null;
-	blind2Label: string | null;
-	blind3Label: string | null;
-}
-
-function isPresetVariant(variant: string): variant is GameVariant {
-	return Object.hasOwn(GAME_VARIANTS, variant);
-}
-
-/**
- * Resolve the blind labels to display for a given variant.
- * - A known preset key always wins and returns its own labels.
- * - Otherwise, when `custom` labels are supplied, blind1/blind2 fall back to
- *   "SB"/"BB" when unset, and blind3 is passed through as-is (including
- *   null, meaning no third slot).
- * - Otherwise, falls back to the SB/BB/Straddle defaults.
- */
-export function resolveBlindLabels(
-	variant: string,
-	custom?: CustomVariantLabels | null
-): BlindLabels {
-	if (isPresetVariant(variant)) {
-		return GAME_VARIANTS[variant].blindLabels;
-	}
-	if (custom) {
-		return {
-			blind1: custom.blind1Label ?? "SB",
-			blind2: custom.blind2Label ?? "BB",
-			blind3: custom.blind3Label,
-		};
-	}
-	return STRADDLE_LABELS;
-}
-
-/**
- * Short display label for a variant. Preset keys resolve to their
- * `shortLabel`; anything else is a custom variant that stores its display
- * label verbatim in the `variant` column, so it is passed through unchanged.
- */
-export function variantShortLabel(variant: string): string {
-	if (isPresetVariant(variant)) {
-		return GAME_VARIANTS[variant].shortLabel;
-	}
-	return variant;
-}
-
-/** True only for preset keys flagged as a mixed-game rotation (`mix`). */
 export function isMixVariant(variant: string): boolean {
-	return isPresetVariant(variant) && GAME_VARIANTS[variant].isMix;
+	return variant === MIX_VARIANT;
+}
+
+// Stored variant values are display labels already; only "mix" needs mapping.
+export function variantDisplayLabel(variant: string): string {
+	return isMixVariant(variant) ? MIX_VARIANT_LABEL : variant;
 }

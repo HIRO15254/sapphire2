@@ -1,41 +1,46 @@
 import {
-	addGroup,
-	addVariantToGroup,
+	addVariant,
 	type MixGameGroupRow,
 	type MixTemplateKind,
 	mixTemplate,
-	moveGroup,
-	removeGroup,
-	removeVariantFromGroup,
+	type ResolveGroup,
+	removeVariant,
 	updateGroup,
 	usedVariants,
 } from "@/shared/lib/mix-games";
 
 interface UseMixGamesEditorArgs {
 	onChange: (rows: MixGameGroupRow[]) => void;
+	/** variant label → its owning group (master mapping). */
+	resolveGroup: ResolveGroup;
+	/** builtinKey → the user's variant label (null when deleted). */
+	resolveVariantLabel: (builtinKey: string) => string | null;
 	value: MixGameGroupRow[];
 }
 
 /**
- * Handler layer of the mix-games group editor: every mutation goes through
- * the pure helpers in shared/lib/mix-games and is emitted via onChange
- * (controlled-component contract, like ChipPurchasesEditor).
+ * Handler layer of the mix-games editor: buckets are derived from the
+ * master variant→group mapping (injected as resolvers so this stays
+ * decoupled from trpc); every mutation goes through the pure helpers and
+ * is emitted via onChange (controlled-component contract).
  */
-export function useMixGamesEditor({ onChange, value }: UseMixGamesEditorArgs) {
+export function useMixGamesEditor({
+	onChange,
+	resolveGroup,
+	resolveVariantLabel,
+	value,
+}: UseMixGamesEditorArgs) {
 	return {
 		usedVariantList: usedVariants(value),
-		onAddGroup: () => onChange(addGroup(value)),
-		onRemoveGroup: (uid: string) => onChange(removeGroup(value, uid)),
-		onMoveUp: (uid: string) => onChange(moveGroup(value, uid, "up")),
-		onMoveDown: (uid: string) => onChange(moveGroup(value, uid, "down")),
+		onAddVariant: (variantLabel: string) =>
+			onChange(addVariant(value, variantLabel, resolveGroup)),
+		onRemoveVariant: (variantLabel: string) =>
+			onChange(removeVariant(value, variantLabel)),
 		onUpdateGroup: (
 			uid: string,
-			patch: Partial<Omit<MixGameGroupRow, "uid">>
+			patch: Partial<Omit<MixGameGroupRow, "uid" | "groupId">>
 		) => onChange(updateGroup(value, uid, patch)),
-		onAddVariant: (uid: string, variant: string) =>
-			onChange(addVariantToGroup(value, uid, variant)),
-		onRemoveVariant: (uid: string, variant: string) =>
-			onChange(removeVariantFromGroup(value, uid, variant)),
-		onApplyTemplate: (kind: MixTemplateKind) => onChange(mixTemplate(kind)),
+		onApplyTemplate: (kind: MixTemplateKind) =>
+			onChange(mixTemplate(kind, resolveVariantLabel, resolveGroup)),
 	};
 }

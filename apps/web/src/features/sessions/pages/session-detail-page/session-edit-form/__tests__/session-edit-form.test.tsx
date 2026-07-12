@@ -9,6 +9,14 @@ import { renderWithQueryClient as render } from "@/__tests__/test-utils";
 // provide a queryFn and rely on the renderWithQueryClient wrapper above.
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameGroup", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
 		gameVariant: {
 			list: {
 				queryOptions: () => ({

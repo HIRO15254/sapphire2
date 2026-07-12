@@ -100,6 +100,8 @@ export function CashRulesStepBody({
 							<MixGamesEditor
 								disabled={isLiveLinked}
 								onChange={state.setMixGames}
+								resolveGroup={state.groupFor}
+								resolveVariantLabel={state.resolveVariantLabel}
 								value={state.mixGames}
 							/>
 						)}

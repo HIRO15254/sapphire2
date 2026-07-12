@@ -1,3 +1,4 @@
+import { isMixVariant } from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef, useState } from "react";
 import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
@@ -13,6 +14,7 @@ import {
 	sessionFormSchema,
 	type TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
+import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import {
 	fromMixGames,
 	type MixGameGroupRow,
@@ -59,6 +61,7 @@ export function useSessionFormState({
 	ringGames,
 	tournaments,
 }: UseSessionFormStateArgs) {
+	const { groupFor, resolveVariantLabel } = useGameGroups();
 	const [sessionType, setSessionType] = useState<"cash_game" | "tournament">(
 		defaultValues?.type ?? "cash_game"
 	);
@@ -80,7 +83,7 @@ export function useSessionFormState({
 	// Mix-game group rows (cash). Array/table state lives outside the flat
 	// tanstack form, same as blindLevels/chipPurchases.
 	const [mixGames, setMixGames] = useState<MixGameGroupRow[]>(
-		fromMixGames(defaultValues?.mixGames)
+		fromMixGames(defaultValues?.mixGames ?? null, groupFor)
 	);
 	const initialChipPurchases = toChipPurchaseRows(
 		defaultValues?.chipPurchases ?? []
@@ -104,7 +107,7 @@ export function useSessionFormState({
 		cashOut: Number(value.cashOut),
 		evCashOut: parseOptInt(value.evCashOut),
 		variant: value.variant || "nlh",
-		mixGames: value.variant === "mix" ? toMixGames(mixGames) : null,
+		mixGames: isMixVariant(value.variant) ? toMixGames(mixGames) : null,
 		blind1: parseOptInt(value.blind1),
 		blind2: parseOptInt(value.blind2),
 		blind3: parseOptInt(value.blind3),
@@ -189,7 +192,7 @@ export function useSessionFormState({
 		if (game.currencyId) {
 			setSelectedCurrencyId(game.currencyId);
 		}
-		setMixGames(fromMixGames(game.mixGames));
+		setMixGames(fromMixGames(game.mixGames ?? null, groupFor));
 		applyOverrides({
 			ruleName: game.name,
 			variant: game.variant ?? undefined,
@@ -319,6 +322,8 @@ export function useSessionFormState({
 
 	return {
 		form,
+		groupFor,
+		resolveVariantLabel,
 		sessionType,
 		setSessionType,
 		selectedTagIds,

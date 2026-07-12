@@ -1,16 +1,17 @@
 import { getTableColumns } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
-import { customGameVariant } from "../schema/custom-game-variant";
+import { gameGroup } from "../schema/game-group";
 
-describe("CustomGameVariant schema — columns", () => {
-	const columns = getTableColumns(customGameVariant);
+describe("GameGroup schema — columns", () => {
+	const columns = getTableColumns(gameGroup);
 
 	it("has all expected columns", () => {
 		expect(Object.keys(columns)).toEqual(
 			expect.arrayContaining([
 				"id",
 				"userId",
+				"builtinKey",
 				"label",
 				"blind1Label",
 				"blind2Label",
@@ -33,6 +34,10 @@ describe("CustomGameVariant schema — columns", () => {
 		expect(columns.userId.notNull).toBe(true);
 	});
 
+	it("builtinKey is nullable (null for user-created groups)", () => {
+		expect(columns.builtinKey.notNull).toBe(false);
+	});
+
 	it("label is not null", () => {
 		expect(columns.label.notNull).toBe(true);
 	});
@@ -41,12 +46,6 @@ describe("CustomGameVariant schema — columns", () => {
 		expect(columns.blind1Label.notNull).toBe(false);
 		expect(columns.blind2Label.notNull).toBe(false);
 		expect(columns.blind3Label.notNull).toBe(false);
-	});
-
-	it("blind1Label / blind2Label / blind3Label are string type", () => {
-		expect(columns.blind1Label.dataType).toBe("string");
-		expect(columns.blind2Label.dataType).toBe("string");
-		expect(columns.blind3Label.dataType).toBe("string");
 	});
 
 	it("createdAt has a default and is timestamp mode", () => {
@@ -60,8 +59,8 @@ describe("CustomGameVariant schema — columns", () => {
 	});
 });
 
-describe("CustomGameVariant — FK cascade policies", () => {
-	const config = getTableConfig(customGameVariant);
+describe("GameGroup — FK cascade policies", () => {
+	const config = getTableConfig(gameGroup);
 	const fkByColumn = (columnName: string) =>
 		config.foreignKeys.find((fk) =>
 			fk.reference().columns.some((c) => c.name === columnName)
@@ -82,12 +81,12 @@ describe("CustomGameVariant — FK cascade policies", () => {
 	});
 });
 
-describe("CustomGameVariant — indexes", () => {
-	const config = getTableConfig(customGameVariant);
+describe("GameGroup — indexes", () => {
+	const config = getTableConfig(gameGroup);
 	const idxNames = config.indexes.map((i) => i.config.name);
 
-	it("has customGameVariant_userId_idx for owner-scoped queries", () => {
-		expect(idxNames).toContain("customGameVariant_userId_idx");
+	it("has gameGroup_userId_idx for owner-scoped queries", () => {
+		expect(idxNames).toContain("gameGroup_userId_idx");
 	});
 
 	it("has no unique indexes", () => {
@@ -102,9 +101,9 @@ describe("CustomGameVariant — indexes", () => {
 	});
 });
 
-describe("CustomGameVariant — table name", () => {
-	it("table is named custom_game_variant", () => {
-		const config = getTableConfig(customGameVariant);
-		expect(config.name).toBe("custom_game_variant");
+describe("GameGroup — table name", () => {
+	it("table is named game_group", () => {
+		const config = getTableConfig(gameGroup);
+		expect(config.name).toBe("game_group");
 	});
 });

@@ -1,10 +1,6 @@
-import {
-	resolveBlindLabels,
-	variantShortLabel,
-} from "@sapphire2/db/constants/game-variants";
 import { createGroupFormatter } from "@/utils/format-number";
 
-export { variantShortLabel as variantLabel } from "@sapphire2/db/constants/game-variants";
+export { variantDisplayLabel as variantLabel } from "@sapphire2/db/constants/game-variants";
 
 interface BlindFields {
 	ante: number | null;
@@ -66,8 +62,9 @@ export interface GameGroupLike {
 
 /**
  * Display label for a group: its own name when set, otherwise its variants'
- * short labels joined with "+" (e.g. "NLH+PLO"), or "—" when there is
- * neither a name nor any variants.
+ * (already display-label-shaped) strings joined with "+" (e.g.
+ * "NL Hold'em+Pot Limit Omaha"), or "—" when there is neither a name nor any
+ * variants.
  */
 export function groupDisplayLabel(group: GameGroupLike): string {
 	const trimmedName = group.name?.trim();
@@ -77,17 +74,18 @@ export function groupDisplayLabel(group: GameGroupLike): string {
 	if (group.variants.length === 0) {
 		return "—";
 	}
-	return group.variants.map((variant) => variantShortLabel(variant)).join("+");
+	return group.variants.join("+");
 }
 
 /**
  * Compact stakes string for a group, e.g. "1/2", "1/2/5", or
- * "400/800 BI 100 (Ante:75)". Blind labels are resolved from the group's
- * first variant so a stud-family group gets a "Bring-in" style blind3
- * (" BI <n>") instead of a straddle-style slash.
+ * "400/800/100 (Ante:75)". Blind3 (when set) is always appended with a
+ * slash — the old "Bring-in" style suffix (" BI <n>") was resolved by
+ * looking up a blind-label set from the group's first variant, which is no
+ * longer possible now that stored variants are opaque display-label
+ * strings rather than preset keys.
  */
 export function formatGroupStakes(group: GameGroupLike): string {
-	const labels = resolveBlindLabels(group.variants[0] ?? "nlh");
 	const fmt = createGroupFormatter([
 		group.blind1,
 		group.blind2,
@@ -108,10 +106,7 @@ export function formatGroupStakes(group: GameGroupLike): string {
 	let result = parts.join("/");
 
 	if (group.blind3 != null) {
-		result +=
-			labels.blind3 === "Bring-in"
-				? ` BI ${fmt(group.blind3)}`
-				: `/${fmt(group.blind3)}`;
+		result += `/${fmt(group.blind3)}`;
 	}
 
 	if (group.ante != null) {

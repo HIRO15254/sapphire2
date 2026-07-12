@@ -86,7 +86,27 @@ interface AuthOptions {
 	discordClientSecret?: string;
 	googleClientId?: string;
 	googleClientSecret?: string;
+	/**
+	 * Fired after better-auth persists a new user row. Used to seed the
+	 * per-user game-group / game-variant masters (mix-game rework) so every
+	 * new account starts with the full builtin list — see
+	 * `@sapphire2/api/services/seed-game-data`. Optional so callers that don't
+	 * need it (e.g. tests) can omit it.
+	 */
+	onUserCreated?: (userId: string) => Promise<void>;
 	secret: string;
+}
+
+/**
+ * Body of the `databaseHooks.user.create.after` hook, extracted so it is
+ * directly unit-testable without going through better-auth's internals
+ * (which are impractical to invoke from a unit test).
+ */
+export async function runUserCreatedHook(
+	options: Pick<AuthOptions, "onUserCreated">,
+	createdUser: { id: string }
+): Promise<void> {
+	await options.onUserCreated?.(createdUser.id);
 }
 
 export function createAuth(
@@ -135,6 +155,13 @@ export function createAuth(
 			accountLinking: {
 				enabled: true,
 				trustedProviders: ["google", "discord", "credential"],
+			},
+		},
+		databaseHooks: {
+			user: {
+				create: {
+					after: (createdUser) => runUserCreatedHook(options, createdUser),
+				},
 			},
 		},
 		plugins: [],

@@ -149,7 +149,7 @@ describe("formatBlindLevelLabel — mix levels", () => {
 		},
 		{
 			name: null,
-			variants: ["nlh", "plo"],
+			variants: ["NL Hold'em", "Pot Limit Omaha"],
 			blind1: 100,
 			blind2: 200,
 			blind3: null,
@@ -168,14 +168,14 @@ describe("formatBlindLevelLabel — mix levels", () => {
 	it("renders one segment per group, truncating past two groups", () => {
 		const level = makeLevel({ level: 3 });
 		expect(formatBlindLevelLabel({ ...level, games })).toBe(
-			"L3 · Limit 400/800 · NLH+PLO 100/200 (+1)"
+			"L3 · Limit 400/800 · NL Hold'em+Pot Limit Omaha 100/200 (+1)"
 		);
 	});
 
 	it("renders both groups without a suffix at exactly two groups", () => {
 		const level = makeLevel({ level: 1 });
 		expect(formatBlindLevelLabel({ ...level, games: games.slice(0, 2) })).toBe(
-			"L1 · Limit 400/800 · NLH+PLO 100/200"
+			"L1 · Limit 400/800 · NL Hold'em+Pot Limit Omaha 100/200"
 		);
 	});
 

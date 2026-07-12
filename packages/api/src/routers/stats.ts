@@ -581,7 +581,7 @@ export function breakdownKeyLabel(
 	}
 	if (groupBy === "variant") {
 		// The server returns the RAW variant string as the label; the client maps
-		// it to a display label (e.g. via variantShortLabel). A mix session has
+		// it to a display label (variantDisplayLabel maps "mix"). A mix session has
 		// variant "mix" and therefore groups as ONE bucket, never decomposed into
 		// its sub-games.
 		const key = row.variant ?? "unknown";

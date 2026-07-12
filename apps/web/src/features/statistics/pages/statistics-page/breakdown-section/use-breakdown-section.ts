@@ -1,4 +1,4 @@
-import { variantShortLabel } from "@sapphire2/db/constants/game-variants";
+import { variantDisplayLabel } from "@sapphire2/db/constants/game-variants";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import type { StatsSectionContext } from "@/features/statistics/types";
@@ -94,9 +94,10 @@ interface BreakdownGroup {
 /**
  * The server returns the raw variant string as both key and label (a mix
  * session groups as a single "mix" bucket). Only the "variant" tab maps that
- * raw string through `variantShortLabel` for display — preset keys ("plo",
- * "mix", ...) resolve to their short label, custom variants pass through
- * verbatim. Every other tab keeps the server's label as-is.
+ * raw string through `variantDisplayLabel` for display — "mix" resolves to
+ * "Mixed Game", every other stored variant is already a display label (or a
+ * legacy cached preset key) and passes through verbatim. Every other tab
+ * keeps the server's label as-is.
  */
 function toViewRow(
 	group: BreakdownGroup,
@@ -106,7 +107,7 @@ function toViewRow(
 	return {
 		key: group.key,
 		label:
-			activeTab === "variant" ? variantShortLabel(group.label) : group.label,
+			activeTab === "variant" ? variantDisplayLabel(group.label) : group.label,
 		sessions: group.sessions,
 		netText: formatProfitLoss(group.profitLoss, { currencyUnit }),
 		netColor: profitLossColorClass(group.profitLoss),

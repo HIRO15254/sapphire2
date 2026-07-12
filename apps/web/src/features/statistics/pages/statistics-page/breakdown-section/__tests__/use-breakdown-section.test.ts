@@ -279,11 +279,11 @@ describe("useBreakdownSection", () => {
 		expect(trpcMocks.breakdownQueryFn).not.toHaveBeenCalled();
 	});
 
-	it("maps preset variant keys to their short display label when the variant tab is active", async () => {
+	it("maps the 'mix' key to 'Mixed Game' when the variant tab is active", async () => {
 		trpcMocks.breakdownQueryFn.mockReset();
 		trpcMocks.breakdownQueryFn.mockResolvedValue({
 			groups: [
-				breakdownRow({ key: "plo", label: "plo" }),
+				breakdownRow({ key: "Pot Limit Omaha", label: "Pot Limit Omaha" }),
 				breakdownRow({ key: "mix", label: "mix" }),
 			],
 		});
@@ -295,7 +295,26 @@ describe("useBreakdownSection", () => {
 		await waitFor(() => expect(result.current.activeTab).toBe("variant"));
 		await waitFor(() => expect(result.current.rows).toHaveLength(2));
 
-		expect(result.current.rows.map((r) => r.label)).toEqual(["PLO", "Mix"]);
+		expect(result.current.rows.map((r) => r.label)).toEqual([
+			"Pot Limit Omaha",
+			"Mixed Game",
+		]);
+	});
+
+	it("passes through a legacy cached preset key verbatim when the variant tab is active", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({
+			groups: [breakdownRow({ key: "plo", label: "plo" })],
+		});
+		const { result } = await renderLoadedBreakdown(ctx({ type: "all" }));
+
+		act(() => {
+			result.current.setActiveTab("variant");
+		});
+		await waitFor(() => expect(result.current.activeTab).toBe("variant"));
+		await waitFor(() => expect(result.current.rows).toHaveLength(1));
+
+		expect(result.current.rows[0]?.label).toBe("plo");
 	});
 
 	it("passes through a custom variant label verbatim when the variant tab is active", async () => {
@@ -314,14 +333,14 @@ describe("useBreakdownSection", () => {
 		expect(result.current.rows[0]?.label).toBe("Big Duck");
 	});
 
-	it("keeps the server label as-is on non-variant tabs (no variantShortLabel mapping)", async () => {
+	it("keeps the server label as-is on non-variant tabs (no variantDisplayLabel mapping)", async () => {
 		trpcMocks.breakdownQueryFn.mockReset();
 		trpcMocks.breakdownQueryFn.mockResolvedValue({
-			groups: [breakdownRow({ key: "plo", label: "plo" })],
+			groups: [breakdownRow({ key: "mix", label: "mix" })],
 		});
 		const { result } = await renderLoadedBreakdown(ctx({ type: "all" }));
-		// Default tab is "room"; a raw "plo" label must not be mapped there.
-		expect(result.current.rows[0]?.label).toBe("plo");
+		// Default tab is "room"; a raw "mix" label must not be mapped there.
+		expect(result.current.rows[0]?.label).toBe("mix");
 	});
 
 	it("maps multiple groups in order", async () => {

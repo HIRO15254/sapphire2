@@ -1,31 +1,65 @@
-import { GAME_VARIANTS } from "@sapphire2/db/constants/game-variants";
-import { customGameVariant } from "@sapphire2/db/schema/custom-game-variant";
+import {
+	MIX_VARIANT,
+	MIX_VARIANT_LABEL,
+} from "@sapphire2/db/constants/game-variants";
+import { gameGroup } from "@sapphire2/db/schema/game-group";
+import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { seedDefaultGameData } from "../services/seed-game-data";
 
 type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
 const labelSchema = z.string().trim().min(1).max(30);
-const blindLabelSchema = z.string().trim().min(1).max(20).nullish();
+const shortLabelSchema = z.string().trim().min(1).max(15).nullish();
+
+// The mix pseudo-variant is a MODE, not a per-user row — its key and display
+// label are reserved so a real game-variant row can never collide with it.
+const RESERVED_LABELS = new Set(
+	[MIX_VARIANT, MIX_VARIANT_LABEL].map((s) => s.toLowerCase())
+);
 
 /**
- * True when `label` (trimmed, case-insensitively) matches a preset's key,
- * label, or shortLabel. Pure and exported so it is directly unit-testable;
- * the db-backed half of the collision guard (checking the caller's existing
- * custom labels) lives in `assertLabelAvailable` below.
+ * Fetches the row by id; if it does not exist OR is owned by someone else,
+ * throws a uniform FORBIDDEN. Never distinguishes "missing" from "owned by
+ * another user" — that distinction is an existence oracle (SA2-183).
  */
-export function isPresetCollision(label: string): boolean {
-	const normalized = label.trim().toLowerCase();
-	return Object.entries(GAME_VARIANTS).some(
-		([key, def]) =>
-			key.toLowerCase() === normalized ||
-			def.label.toLowerCase() === normalized ||
-			def.shortLabel.toLowerCase() === normalized
-	);
+async function validateGameVariantOwnership(
+	db: Db,
+	id: string,
+	userId: string
+) {
+	const [found] = await db
+		.select()
+		.from(gameVariant)
+		.where(eq(gameVariant.id, id));
+
+	if (!found || found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this game variant",
+		});
+	}
+
+	return found;
+}
+
+/** Same uniform-FORBIDDEN ownership contract as {@link validateGameVariantOwnership}. */
+async function validateGameGroupOwnership(db: Db, id: string, userId: string) {
+	const [found] = await db.select().from(gameGroup).where(eq(gameGroup.id, id));
+
+	if (!found || found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this game group",
+		});
+	}
+
+	return found;
 }
 
 async function assertLabelAvailable(
@@ -34,18 +68,18 @@ async function assertLabelAvailable(
 	label: string,
 	excludeId?: string
 ): Promise<void> {
-	if (isPresetCollision(label)) {
+	const normalized = label.trim().toLowerCase();
+	if (RESERVED_LABELS.has(normalized)) {
 		throw new TRPCError({
 			code: "CONFLICT",
-			message: "This label is already used by a preset variant",
+			message: "This label is reserved for the mix mode",
 		});
 	}
 
-	const normalized = label.trim().toLowerCase();
 	const existing = await db
 		.select()
-		.from(customGameVariant)
-		.where(eq(customGameVariant.userId, userId));
+		.from(gameVariant)
+		.where(eq(gameVariant.userId, userId));
 
 	const collides = existing.some(
 		(row) =>
@@ -54,74 +88,65 @@ async function assertLabelAvailable(
 	if (collides) {
 		throw new TRPCError({
 			code: "CONFLICT",
-			message: "You already have a custom variant with this label",
+			message: "You already have a game variant with this label",
 		});
 	}
 }
 
-/**
- * Fetches the row by id; if it does not exist OR is owned by someone else,
- * throws a uniform FORBIDDEN. Never distinguishes "missing" from "owned by
- * another user" — that distinction is an existence oracle (SA2-183).
- */
-async function validateCustomGameVariantOwnership(
-	db: Db,
-	id: string,
-	userId: string
-) {
-	const [found] = await db
-		.select()
-		.from(customGameVariant)
-		.where(eq(customGameVariant.id, id));
-
-	if (!found || found.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this custom game variant",
-		});
-	}
-
-	return found;
+async function nextSortOrder(db: Db, userId: string): Promise<number> {
+	const rows = await db
+		.select({ sortOrder: gameVariant.sortOrder })
+		.from(gameVariant)
+		.where(eq(gameVariant.userId, userId));
+	const maxSortOrder = rows.reduce((max, r) => Math.max(max, r.sortOrder), -1);
+	return maxSortOrder + 1;
 }
 
 export const gameVariantRouter = router({
-	list: protectedProcedure.query(({ ctx }) => {
+	list: protectedProcedure.query(async ({ ctx }) => {
 		const userId = ctx.session.user.id;
+		// Both masters are per-user rows now (mix-game rework); a fully-empty
+		// account (no groups, no variants) is seeded on first read so legacy
+		// accounts that predate the auth-hook seed still get the builtin list.
+		await seedDefaultGameData(ctx.db, userId);
+
 		return ctx.db
 			.select()
-			.from(customGameVariant)
-			.where(eq(customGameVariant.userId, userId))
-			.orderBy(asc(customGameVariant.label));
+			.from(gameVariant)
+			.where(eq(gameVariant.userId, userId))
+			.orderBy(asc(gameVariant.sortOrder), asc(gameVariant.label));
 	}),
 
 	create: protectedProcedure
 		.input(
 			z.object({
 				label: labelSchema,
-				blind1Label: blindLabelSchema,
-				blind2Label: blindLabelSchema,
-				blind3Label: blindLabelSchema,
+				shortLabel: shortLabelSchema,
+				groupId: z.string(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
+			await validateGameGroupOwnership(ctx.db, input.groupId, userId);
 			await assertLabelAvailable(ctx.db, userId, input.label);
 
 			const id = crypto.randomUUID();
-			await ctx.db.insert(customGameVariant).values({
+			const sortOrder = await nextSortOrder(ctx.db, userId);
+			await ctx.db.insert(gameVariant).values({
 				id,
 				userId,
+				builtinKey: null,
 				label: input.label,
-				blind1Label: input.blind1Label ?? null,
-				blind2Label: input.blind2Label ?? null,
-				blind3Label: input.blind3Label ?? null,
+				shortLabel: input.shortLabel ?? null,
+				groupId: input.groupId,
+				sortOrder,
 				updatedAt: new Date(),
 			});
 
 			const [created] = await ctx.db
 				.select()
-				.from(customGameVariant)
-				.where(eq(customGameVariant.id, id));
+				.from(gameVariant)
+				.where(eq(gameVariant.id, id));
 			return created;
 		}),
 
@@ -130,54 +155,53 @@ export const gameVariantRouter = router({
 			z.object({
 				id: z.string(),
 				label: labelSchema.optional(),
-				blind1Label: blindLabelSchema,
-				blind2Label: blindLabelSchema,
-				blind3Label: blindLabelSchema,
+				shortLabel: shortLabelSchema,
+				groupId: z.string().optional(),
+				sortOrder: z.number().int().min(0).optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const found = await validateCustomGameVariantOwnership(
+			const found = await validateGameVariantOwnership(
 				ctx.db,
 				input.id,
 				userId
 			);
 
+			if (input.groupId !== undefined) {
+				await validateGameGroupOwnership(ctx.db, input.groupId, userId);
+			}
 			if (input.label !== undefined) {
 				await assertLabelAvailable(ctx.db, userId, input.label, input.id);
 			}
 
-			const updateData: Partial<typeof found> = {};
+			const updateData: Partial<typeof found> = { updatedAt: new Date() };
 			if (input.label !== undefined) {
 				updateData.label = input.label;
 			}
-			if (input.blind1Label !== undefined) {
-				updateData.blind1Label = input.blind1Label;
+			if (input.shortLabel !== undefined) {
+				updateData.shortLabel = input.shortLabel;
 			}
-			if (input.blind2Label !== undefined) {
-				updateData.blind2Label = input.blind2Label;
+			if (input.groupId !== undefined) {
+				updateData.groupId = input.groupId;
 			}
-			if (input.blind3Label !== undefined) {
-				updateData.blind3Label = input.blind3Label;
+			if (input.sortOrder !== undefined) {
+				updateData.sortOrder = input.sortOrder;
 			}
-			updateData.updatedAt = new Date();
 
 			await ctx.db
-				.update(customGameVariant)
+				.update(gameVariant)
 				.set(updateData)
-				// Bind both id AND user_id so a foreign id can never be updated
-				// via this procedure (write-IDOR, SA2-176).
+				// Bind both id AND user_id so a foreign id can never be updated via
+				// this procedure (write-IDOR, SA2-176).
 				.where(
-					and(
-						eq(customGameVariant.id, input.id),
-						eq(customGameVariant.userId, userId)
-					)
+					and(eq(gameVariant.id, input.id), eq(gameVariant.userId, userId))
 				);
 
 			const [updated] = await ctx.db
 				.select()
-				.from(customGameVariant)
-				.where(eq(customGameVariant.id, input.id));
+				.from(gameVariant)
+				.where(eq(gameVariant.id, input.id));
 			return updated;
 		}),
 
@@ -185,19 +209,18 @@ export const gameVariantRouter = router({
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateCustomGameVariantOwnership(ctx.db, input.id, userId);
+			await validateGameVariantOwnership(ctx.db, input.id, userId);
 
-			// Variant columns elsewhere (ring_game.variant, session snapshots,
+			// `variant` columns elsewhere (ring_game.variant, session snapshots,
 			// etc.) store the display label verbatim rather than a foreign key
 			// into this table, so deleting a definition row here never corrupts
-			// past sessions/games (self-freezing design).
+			// past sessions/games (self-freezing design) — a free deletion, no
+			// in-use guard needed (contrast gameGroup.delete, which DOES need one
+			// since variants FK-reference groups with onDelete: "restrict").
 			await ctx.db
-				.delete(customGameVariant)
+				.delete(gameVariant)
 				.where(
-					and(
-						eq(customGameVariant.id, input.id),
-						eq(customGameVariant.userId, userId)
-					)
+					and(eq(gameVariant.id, input.id), eq(gameVariant.userId, userId))
 				);
 			return { success: true };
 		}),

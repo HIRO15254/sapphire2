@@ -59,10 +59,14 @@ vi.mock("@tanstack/react-query", () => ({
 			options.mutationFn(arg);
 		},
 	}),
-	// useVariantLabels also calls useQuery (for trpc.gameVariant.list) — branch
-	// on the queryKey so it doesn't collide with the blind-levels query below.
+	// useGameGroups also calls useQuery (for trpc.gameVariant.list and
+	// trpc.gameGroup.list) — branch on the queryKey so it doesn't collide
+	// with the blind-levels query below.
 	useQuery: (options: { queryKey?: readonly unknown[] }) => {
-		if (options?.queryKey?.[0] === "gameVariant") {
+		if (
+			options?.queryKey?.[0] === "gameVariant" ||
+			options?.queryKey?.[0] === "gameGroup"
+		) {
 			return { data: [], isLoading: false };
 		}
 		return {
@@ -91,6 +95,14 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: () => ({
 					queryKey: ["gameVariant", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameGroup", "list"],
 					queryFn: async () => [],
 				}),
 			},

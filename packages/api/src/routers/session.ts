@@ -826,7 +826,7 @@ const cashGameCreateSchema = z.object({
 	// ringGameId is also provided, these override the parent values; when
 	// no master is referenced they define the rule wholesale.
 	ruleName: z.string().min(1).optional(),
-	variant: z.string().default("nlh"),
+	variant: z.string().default("NL Hold'em"),
 	mixGames: mixGamesSchema.nullish(),
 	blind1: z.number().int().optional(),
 	blind2: z.number().int().optional(),
@@ -2044,7 +2044,7 @@ function pick<T>(override: T | undefined, fallback: T): T {
 function defaultCashSnapshot(input: CashRuleInput): CashRuleSnapshot {
 	return {
 		ruleName: input.ruleName ?? "Untitled",
-		variant: input.variant ?? "nlh",
+		variant: input.variant ?? "NL Hold'em",
 		mixGames: input.mixGames ?? null,
 		blind1: input.blind1 ?? null,
 		blind2: input.blind2 ?? null,
@@ -2180,7 +2180,7 @@ async function resolveTournamentRuleSnapshot(
 ): Promise<TournamentRuleSnapshot> {
 	let base: TournamentRuleSnapshot = {
 		ruleName: input.ruleName ?? "Untitled",
-		variant: input.variant ?? "nlh",
+		variant: input.variant ?? "NL Hold'em",
 		tournamentBuyIn: input.tournamentBuyIn ?? null,
 		entryFee: input.entryFee ?? null,
 		startingStack: input.startingStack ?? null,

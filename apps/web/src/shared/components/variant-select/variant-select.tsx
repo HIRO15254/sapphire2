@@ -4,9 +4,7 @@ import { Input } from "@/shared/components/ui/input";
 import {
 	Select,
 	SelectContent,
-	SelectGroup,
 	SelectItem,
-	SelectLabel,
 	SelectSeparator,
 	SelectTrigger,
 	SelectValue,
@@ -15,25 +13,21 @@ import { ADD_CUSTOM_VALUE, useVariantSelect } from "./use-variant-select";
 
 interface VariantSelectProps {
 	disabled?: boolean;
-	/** Variants (preset keys / custom labels) hidden from the options. */
+	/** Variant labels hidden from the options. */
 	excludeVariants?: string[];
 	id?: string;
-	/** Show the special "mix" preset (only where a mix editor exists). */
+	/** Show the special "Mixed Game" mode entry (value: "mix"). */
 	includeMix?: boolean;
 	onChange: (variant: string) => void;
 	value: string;
 }
 
-const BLIND_LABEL_FIELDS = [
-	{ name: "blind1Label", label: "Blind 1 label" },
-	{ name: "blind2Label", label: "Blind 2 label" },
-	{ name: "blind3Label", label: "Blind 3 label" },
-] as const;
-
 /**
- * Required variant picker shared by every game/rule form: presets, the
- * user's custom variants, and a trailing "Add custom variant" affordance
- * that opens an inline creation sheet and selects the new variant.
+ * Required variant picker shared by every game/rule form. Options are the
+ * user's own variant rows (seeded at signup, fully editable in Settings),
+ * plus the fixed Mixed Game mode where a mix editor exists, plus a trailing
+ * "Add custom variant" affordance that creates a row (name + short label +
+ * owning group) and selects it.
  */
 export function VariantSelect({
 	disabled = false,
@@ -44,15 +38,16 @@ export function VariantSelect({
 	value,
 }: VariantSelectProps) {
 	const {
-		customVariants,
 		form,
 		formId,
+		groups,
 		handleValueChange,
 		isAddOpen,
 		isCreatePending,
-		presets,
+		mixOption,
 		setIsAddOpen,
 		unknownValue,
+		variantOptions,
 	} = useVariantSelect({ excludeVariants, includeMix, onChange, value });
 
 	return (
@@ -66,27 +61,17 @@ export function VariantSelect({
 					<SelectValue />
 				</SelectTrigger>
 				<SelectContent>
-					<SelectGroup>
-						<SelectLabel>Presets</SelectLabel>
-						{presets.map((preset) => (
-							<SelectItem key={preset.key} value={preset.key}>
-								{preset.label}
-							</SelectItem>
-						))}
-					</SelectGroup>
-					{customVariants.length > 0 && (
+					{variantOptions.map((option) => (
+						<SelectItem key={option.id} value={option.label}>
+							{option.label}
+						</SelectItem>
+					))}
+					{mixOption ? (
 						<>
 							<SelectSeparator />
-							<SelectGroup>
-								<SelectLabel>Custom</SelectLabel>
-								{customVariants.map((custom) => (
-									<SelectItem key={custom.id} value={custom.label}>
-										{custom.label}
-									</SelectItem>
-								))}
-							</SelectGroup>
+							<SelectItem value={mixOption.value}>{mixOption.label}</SelectItem>
 						</>
-					)}
+					) : null}
 					{unknownValue ? (
 						<SelectItem value={unknownValue}>{unknownValue}</SelectItem>
 					) : null}
@@ -127,25 +112,49 @@ export function VariantSelect({
 							</Field>
 						)}
 					</form.Field>
-					<div className="grid grid-cols-3 gap-3">
-						{BLIND_LABEL_FIELDS.map(({ name, label }) => (
-							<form.Field key={name} name={name}>
-								{(field) => (
-									<Field
-										error={field.state.meta.errors[0]?.message}
-										htmlFor={`${formId}-${name}`}
-										label={label}
+					<div className="grid grid-cols-2 gap-3">
+						<form.Field name="shortLabel">
+							{(field) => (
+								<Field
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={`${formId}-shortLabel`}
+									label="Short label"
+								>
+									<Input
+										id={`${formId}-shortLabel`}
+										onBlur={field.handleBlur}
+										onChange={(e) => field.handleChange(e.target.value)}
+										value={field.state.value}
+									/>
+								</Field>
+							)}
+						</form.Field>
+						<form.Field name="groupId">
+							{(field) => (
+								<Field
+									error={field.state.meta.errors[0]?.message}
+									htmlFor={`${formId}-groupId`}
+									label="Group"
+									required
+								>
+									<Select
+										onValueChange={(v) => field.handleChange(v)}
+										value={field.state.value}
 									>
-										<Input
-											id={`${formId}-${name}`}
-											onBlur={field.handleBlur}
-											onChange={(e) => field.handleChange(e.target.value)}
-											value={field.state.value}
-										/>
-									</Field>
-								)}
-							</form.Field>
-						))}
+										<SelectTrigger className="w-full" id={`${formId}-groupId`}>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{groups.map((group) => (
+												<SelectItem key={group.id} value={group.id}>
+													{group.label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</Field>
+							)}
+						</form.Field>
 					</div>
 				</form>
 			</FormSheet>

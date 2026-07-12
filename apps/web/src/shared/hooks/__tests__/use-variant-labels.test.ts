@@ -3,11 +3,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { withQueryClient } from "@/__tests__/test-utils";
 
 const trpcMocks = vi.hoisted(() => ({
+	gameGroupListQueryFn: vi.fn(),
 	gameVariantListQueryFn: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameGroup", "list"],
+					queryFn: () => trpcMocks.gameGroupListQueryFn(),
+				}),
+			},
+		},
 		gameVariant: {
 			list: {
 				queryOptions: () => ({
@@ -17,96 +26,80 @@ vi.mock("@/utils/trpc", () => ({
 			},
 		},
 	},
-	trpcClient: {},
 }));
 
 import { useVariantLabels } from "../use-variant-labels";
 
-function customRow(overrides: Record<string, unknown> = {}) {
-	return {
-		id: "cv-1",
-		userId: "u-1",
-		label: "Big Duck",
-		blind1Label: "Button",
-		blind2Label: null,
-		blind3Label: "Cap",
-		createdAt: "2026-01-01T00:00:00.000Z",
-		updatedAt: "2026-01-01T00:00:00.000Z",
-		...overrides,
-	};
-}
+const GROUPS = [
+	{
+		id: "g-stud",
+		builtinKey: "stud",
+		label: "Stud",
+		blind1Label: "Small Bet",
+		blind2Label: "Big Bet",
+		blind3Label: "Bring-in",
+	},
+	{
+		id: "g-bigbet",
+		builtinKey: "bigbet",
+		label: "Big Bet",
+		blind1Label: "SB",
+		blind2Label: "BB",
+		blind3Label: "Straddle",
+	},
+];
+
+const VARIANTS = [
+	{
+		id: "v-razz",
+		builtinKey: "razz",
+		label: "Razz",
+		shortLabel: "Razz",
+		groupId: "g-stud",
+		sortOrder: 0,
+	},
+];
 
 describe("useVariantLabels", () => {
 	beforeEach(() => {
+		trpcMocks.gameGroupListQueryFn.mockReset();
 		trpcMocks.gameVariantListQueryFn.mockReset();
-		trpcMocks.gameVariantListQueryFn.mockResolvedValue([]);
+		trpcMocks.gameGroupListQueryFn.mockResolvedValue(GROUPS);
+		trpcMocks.gameVariantListQueryFn.mockResolvedValue(VARIANTS);
 	});
 
-	it("returns preset labels for a preset key without any custom rows", () => {
-		const { result } = renderHook(() => useVariantLabels("stud"), {
-			wrapper: withQueryClient(),
-		});
-		expect(result.current).toEqual({
-			blind1: "Small Bet",
-			blind2: "Big Bet",
-			blind3: "Bring-in",
-		});
-	});
-
-	it("resolves a custom variant label case-insensitively with SB/BB fallbacks", async () => {
-		trpcMocks.gameVariantListQueryFn.mockResolvedValue([customRow()]);
-		const { result } = renderHook(() => useVariantLabels("big duck"), {
+	it("resolves a variant's labels from its owning group", async () => {
+		const { result } = renderHook(() => useVariantLabels("Razz"), {
 			wrapper: withQueryClient(),
 		});
 		await waitFor(() => {
 			expect(result.current).toEqual({
-				blind1: "Button",
-				blind2: "BB",
-				blind3: "Cap",
+				blind1: "Small Bet",
+				blind2: "Big Bet",
+				blind3: "Bring-in",
 			});
 		});
 	});
 
-	it("keeps a custom blind3Label of null as null (no third slot)", async () => {
-		trpcMocks.gameVariantListQueryFn.mockResolvedValue([
-			customRow({ blind1Label: null, blind3Label: null }),
-		]);
-		const { result } = renderHook(() => useVariantLabels("Big Duck"), {
+	it("matches case-insensitively", async () => {
+		const { result } = renderHook(() => useVariantLabels("razz"), {
+			wrapper: withQueryClient(),
+		});
+		await waitFor(() => {
+			expect(result.current.blind3).toBe("Bring-in");
+		});
+	});
+
+	it("falls back to SB/BB/Straddle for unknown variants", async () => {
+		const { result } = renderHook(() => useVariantLabels("Deleted Game"), {
 			wrapper: withQueryClient(),
 		});
 		await waitFor(() => {
 			expect(result.current).toEqual({
 				blind1: "SB",
 				blind2: "BB",
-				blind3: null,
+				blind3: "Straddle",
 			});
-		});
-	});
-
-	it("falls back to SB/BB/Straddle for an unknown variant", async () => {
-		trpcMocks.gameVariantListQueryFn.mockResolvedValue([customRow()]);
-		const { result } = renderHook(() => useVariantLabels("Vanished Game"), {
-			wrapper: withQueryClient(),
-		});
-		await waitFor(() => {
-			expect(trpcMocks.gameVariantListQueryFn).toHaveBeenCalledTimes(1);
-		});
-		expect(result.current).toEqual({
-			blind1: "SB",
-			blind2: "BB",
-			blind3: "Straddle",
-		});
-	});
-
-	it("returns defaults while the custom list is still loading", () => {
-		trpcMocks.gameVariantListQueryFn.mockReturnValue(new Promise(() => 0));
-		const { result } = renderHook(() => useVariantLabels("Big Duck"), {
-			wrapper: withQueryClient(),
-		});
-		expect(result.current).toEqual({
-			blind1: "SB",
-			blind2: "BB",
-			blind3: "Straddle",
 		});
 	});
 });

@@ -3,6 +3,7 @@ import { aiExtractRouter } from "./ai-extract";
 import { blindLevelRouter } from "./blind-level";
 import { currencyRouter } from "./currency";
 import { currencyTransactionRouter } from "./currency-transaction";
+import { gameGroupRouter } from "./game-group";
 import { gameVariantRouter } from "./game-variant";
 import { liveCashGameSessionRouter } from "./live-cash-game-session";
 import { liveTournamentSessionRouter } from "./live-tournament-session";
@@ -38,6 +39,7 @@ export const appRouter = router({
 	currency: currencyRouter,
 	currencyTransaction: currencyTransactionRouter,
 	gameVariant: gameVariantRouter,
+	gameGroup: gameGroupRouter,
 	ringGame: ringGameRouter,
 	tournament: tournamentRouter,
 	blindLevel: blindLevelRouter,

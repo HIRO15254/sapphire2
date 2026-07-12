@@ -144,14 +144,14 @@ describe("ringGame.listByRoom input validation", () => {
 });
 
 describe("ringGame.create input validation", () => {
-	it("accepts minimal valid payload (roomId + name), variant defaults to nlh", () => {
+	it("accepts minimal valid payload (roomId + name), variant defaults to 'NL Hold'em'", () => {
 		const schema = getInputSchema(appRouter.ringGame.create);
 		const parsed = schema.safeParse({
 			roomId: "s1",
 			name: "1/2 NLH",
 		}) as unknown as { success: true; data: { variant: string } };
 		expect(parsed.success).toBe(true);
-		expect(parsed.data.variant).toBe("nlh");
+		expect(parsed.data.variant).toBe("NL Hold'em");
 	});
 
 	it("accepts all anteType values", () => {

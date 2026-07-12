@@ -267,6 +267,20 @@
       "when": 1783770241516,
       "tag": "0037_lively_jackal",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1783827821872,
+      "tag": "0038_abandoned_scalphunter",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1783827832241,
+      "tag": "0039_fair_toad",
+      "breakpoints": true
     }
   ]
 }

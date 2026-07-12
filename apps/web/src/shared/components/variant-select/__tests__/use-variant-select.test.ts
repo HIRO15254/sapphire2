@@ -1,19 +1,25 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createTestQueryClient, withQueryClient } from "@/__tests__/test-utils";
+import { withQueryClient } from "@/__tests__/test-utils";
 
 const trpcMocks = vi.hoisted(() => ({
+	gameGroupListQueryFn: vi.fn(),
 	gameVariantListQueryFn: vi.fn(),
 	gameVariantCreate: vi.fn(),
 }));
 
-const toastMock = vi.hoisted(() => ({
-	error: vi.fn(),
-	success: vi.fn(),
-}));
+const toastMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameGroup", "list"],
+					queryFn: () => trpcMocks.gameGroupListQueryFn(),
+				}),
+			},
+		},
 		gameVariant: {
 			list: {
 				queryOptions: () => ({
@@ -34,184 +40,161 @@ vi.mock("sonner", () => ({ toast: toastMock }));
 
 import { ADD_CUSTOM_VALUE, useVariantSelect } from "../use-variant-select";
 
-function customRow(label: string) {
-	return {
-		id: `cv-${label}`,
-		userId: "u-1",
-		label,
-		blind1Label: null,
-		blind2Label: null,
-		blind3Label: null,
-		createdAt: "2026-01-01T00:00:00.000Z",
-		updatedAt: "2026-01-01T00:00:00.000Z",
-	};
+const GROUPS = [
+	{ id: "g-limit", builtinKey: "limit", label: "Limit" },
+	{ id: "g-bigbet", builtinKey: "bigbet", label: "Big Bet" },
+];
+
+const VARIANTS = [
+	{
+		id: "v-nlh",
+		builtinKey: "nlh",
+		label: "NL Hold'em",
+		shortLabel: "NLH",
+		groupId: "g-bigbet",
+		sortOrder: 0,
+	},
+	{
+		id: "v-lhe",
+		builtinKey: "lhe",
+		label: "Limit Hold'em",
+		shortLabel: "LHE",
+		groupId: "g-limit",
+		sortOrder: 1,
+	},
+];
+
+function setup(args: Partial<Parameters<typeof useVariantSelect>[0]> = {}) {
+	const onChange = vi.fn();
+	const { result } = renderHook(
+		() => useVariantSelect({ onChange, value: "", ...args }),
+		{ wrapper: withQueryClient() }
+	);
+	return { result, onChange };
 }
 
 describe("useVariantSelect", () => {
 	beforeEach(() => {
+		trpcMocks.gameGroupListQueryFn.mockReset();
 		trpcMocks.gameVariantListQueryFn.mockReset();
-		trpcMocks.gameVariantListQueryFn.mockResolvedValue([]);
 		trpcMocks.gameVariantCreate.mockReset();
 		toastMock.error.mockReset();
+		trpcMocks.gameGroupListQueryFn.mockResolvedValue(GROUPS);
+		trpcMocks.gameVariantListQueryFn.mockResolvedValue(VARIANTS);
 	});
 
-	it("lists presets without mix by default and with mix when includeMix", () => {
-		const { result } = renderHook(
-			() => useVariantSelect({ value: "nlh", onChange: vi.fn() }),
-			{ wrapper: withQueryClient() }
-		);
-		const keys = result.current.presets.map((p) => p.key);
-		expect(keys).toContain("nlh");
-		expect(keys).toContain("stud");
-		expect(keys).not.toContain("mix");
-
-		const withMix = renderHook(
-			() =>
-				useVariantSelect({ value: "nlh", onChange: vi.fn(), includeMix: true }),
-			{ wrapper: withQueryClient() }
-		);
-		expect(withMix.result.current.presets.map((p) => p.key)).toContain("mix");
-	});
-
-	it("exposes fetched custom variants sorted by the server", async () => {
-		trpcMocks.gameVariantListQueryFn.mockResolvedValue([
-			customRow("Big Duck"),
-			customRow("Sviten Special"),
-		]);
-		const { result } = renderHook(
-			() => useVariantSelect({ value: "nlh", onChange: vi.fn() }),
-			{ wrapper: withQueryClient() }
-		);
+	it("lists the user's variant rows as options (value = label)", async () => {
+		const { result } = setup();
 		await waitFor(() => {
-			expect(result.current.customVariants.map((c) => c.label)).toEqual([
-				"Big Duck",
-				"Sviten Special",
+			expect(result.current.variantOptions.map((o) => o.label)).toEqual([
+				"NL Hold'em",
+				"Limit Hold'em",
+			]);
+		});
+		expect(result.current.mixOption).toBeNull();
+	});
+
+	it("adds the fixed Mixed Game entry when includeMix", async () => {
+		const { result } = setup({ includeMix: true });
+		await waitFor(() => {
+			expect(result.current.mixOption).toEqual({
+				value: "mix",
+				label: "Mixed Game",
+			});
+		});
+	});
+
+	it("hides excluded labels except the current value (case-insensitive)", async () => {
+		const { result } = setup({
+			excludeVariants: ["nl hold'em", "LIMIT HOLD'EM"],
+			value: "Limit Hold'em",
+		});
+		await waitFor(() => {
+			expect(result.current.variantOptions.map((o) => o.label)).toEqual([
+				"Limit Hold'em",
 			]);
 		});
 	});
 
-	it("excludes excluded variants case-insensitively but never the current value", async () => {
-		trpcMocks.gameVariantListQueryFn.mockResolvedValue([
-			customRow("Big Duck"),
-			customRow("Sviten Special"),
-		]);
-		const { result } = renderHook(
-			() =>
-				useVariantSelect({
-					value: "plo",
-					onChange: vi.fn(),
-					excludeVariants: ["PLO", "nlh", "big duck"],
-				}),
-			{ wrapper: withQueryClient() }
-		);
+	it("surfaces an unknown frozen value as its own option", async () => {
+		const { result } = setup({ value: "Deleted Game" });
 		await waitFor(() => {
-			expect(result.current.customVariants.map((c) => c.label)).toEqual([
-				"Sviten Special",
-			]);
-		});
-		const keys = result.current.presets.map((p) => p.key);
-		expect(keys).not.toContain("nlh");
-		// The row's own selection stays in the list even though it is "used".
-		expect(keys).toContain("plo");
-	});
-
-	it("reports an unknown selected value so the UI can still display it", async () => {
-		trpcMocks.gameVariantListQueryFn.mockResolvedValue([customRow("Big Duck")]);
-		const { result } = renderHook(
-			() => useVariantSelect({ value: "Deleted Game", onChange: vi.fn() }),
-			{ wrapper: withQueryClient() }
-		);
-		await waitFor(() => {
-			expect(trpcMocks.gameVariantListQueryFn).toHaveBeenCalledTimes(1);
-		});
-		expect(result.current.unknownValue).toBe("Deleted Game");
-
-		const known = renderHook(
-			() => useVariantSelect({ value: "Big Duck", onChange: vi.fn() }),
-			{ wrapper: withQueryClient() }
-		);
-		await waitFor(() => {
-			expect(known.result.current.unknownValue).toBeNull();
+			expect(result.current.unknownValue).toBe("Deleted Game");
 		});
 	});
 
-	it("passes normal selections through to onChange", () => {
-		const onChange = vi.fn();
-		const { result } = renderHook(
-			() => useVariantSelect({ value: "nlh", onChange }),
-			{ wrapper: withQueryClient() }
-		);
-		act(() => {
-			result.current.handleValueChange("plo");
+	it("treats mix as a known value", async () => {
+		const { result } = setup({ value: "mix", includeMix: true });
+		await waitFor(() => {
+			expect(result.current.unknownValue).toBeNull();
 		});
-		expect(onChange).toHaveBeenCalledTimes(1);
-		expect(onChange).toHaveBeenNthCalledWith(1, "plo");
 	});
 
-	it("intercepts the add-custom sentinel: opens the sheet, no onChange", () => {
-		const onChange = vi.fn();
-		const { result } = renderHook(
-			() => useVariantSelect({ value: "nlh", onChange }),
-			{ wrapper: withQueryClient() }
-		);
-		expect(result.current.isAddOpen).toBe(false);
+	it("intercepts the add-custom sentinel instead of selecting it", async () => {
+		const { result, onChange } = setup();
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
 		act(() => {
 			result.current.handleValueChange(ADD_CUSTOM_VALUE);
 		});
-		expect(result.current.isAddOpen).toBe(true);
 		expect(onChange).not.toHaveBeenCalled();
+		expect(result.current.isAddOpen).toBe(true);
 	});
 
-	it("creates a custom variant, selects it, closes the sheet, and invalidates the list", async () => {
-		const created = customRow("Sviten Special");
-		trpcMocks.gameVariantCreate.mockResolvedValue(created);
-		const onChange = vi.fn();
-		const queryClient = createTestQueryClient();
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-		const { result } = renderHook(
-			() => useVariantSelect({ value: "nlh", onChange }),
-			{ wrapper: withQueryClient(queryClient) }
-		);
+	it("creates a variant with groupId and selects the new label", async () => {
+		trpcMocks.gameVariantCreate.mockResolvedValue({
+			id: "v-new",
+			label: "Drawmaha",
+		});
+		const { result, onChange } = setup();
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
 		act(() => {
 			result.current.handleValueChange(ADD_CUSTOM_VALUE);
 		});
 		act(() => {
-			result.current.form.setFieldValue("label", "  Sviten Special ");
-			result.current.form.setFieldValue("blind1Label", "Button ");
-			result.current.form.setFieldValue("blind2Label", "");
+			result.current.form.setFieldValue("label", "Drawmaha");
+			result.current.form.setFieldValue("groupId", "g-limit");
 		});
 		await act(async () => {
 			await result.current.form.handleSubmit();
 		});
 		await waitFor(() => {
-			expect(onChange).toHaveBeenCalledTimes(1);
+			expect(result.current.isAddOpen).toBe(false);
 		});
 		expect(trpcMocks.gameVariantCreate).toHaveBeenCalledTimes(1);
 		expect(trpcMocks.gameVariantCreate).toHaveBeenNthCalledWith(1, {
-			label: "Sviten Special",
-			blind1Label: "Button",
-			blind2Label: null,
-			blind3Label: null,
+			label: "Drawmaha",
+			shortLabel: null,
+			groupId: "g-limit",
 		});
-		expect(onChange).toHaveBeenNthCalledWith(1, "Sviten Special");
-		expect(result.current.isAddOpen).toBe(false);
-		expect(invalidateSpy).toHaveBeenCalledWith({
-			queryKey: ["gameVariant", "list"],
-		});
+		expect(onChange).toHaveBeenCalledTimes(1);
+		expect(onChange).toHaveBeenNthCalledWith(1, "Drawmaha");
 	});
 
-	it("keeps the sheet open and toasts on create failure", async () => {
-		trpcMocks.gameVariantCreate.mockRejectedValue(new Error("CONFLICT"));
-		const onChange = vi.fn();
-		const { result } = renderHook(
-			() => useVariantSelect({ value: "nlh", onChange }),
-			{ wrapper: withQueryClient() }
-		);
+	it("blocks creation without a group", async () => {
+		const { result } = setup();
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
 		act(() => {
 			result.current.handleValueChange(ADD_CUSTOM_VALUE);
 		});
 		act(() => {
-			result.current.form.setFieldValue("label", "PLO");
+			result.current.form.setFieldValue("label", "Drawmaha");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(trpcMocks.gameVariantCreate).not.toHaveBeenCalled();
+	});
+
+	it("keeps the sheet open and toasts on create failure", async () => {
+		trpcMocks.gameVariantCreate.mockRejectedValue(new Error("CONFLICT"));
+		const { result } = setup();
+		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		act(() => {
+			result.current.handleValueChange(ADD_CUSTOM_VALUE);
+		});
+		act(() => {
+			result.current.form.setFieldValue("label", "Drawmaha");
+			result.current.form.setFieldValue("groupId", "g-limit");
 		});
 		await act(async () => {
 			await result.current.form.handleSubmit();
@@ -220,20 +203,5 @@ describe("useVariantSelect", () => {
 			expect(toastMock.error).toHaveBeenCalledTimes(1);
 		});
 		expect(result.current.isAddOpen).toBe(true);
-		expect(onChange).not.toHaveBeenCalled();
-	});
-
-	it("blocks submission when the label is blank", async () => {
-		const { result } = renderHook(
-			() => useVariantSelect({ value: "nlh", onChange: vi.fn() }),
-			{ wrapper: withQueryClient() }
-		);
-		act(() => {
-			result.current.form.setFieldValue("label", "   ");
-		});
-		await act(async () => {
-			await result.current.form.handleSubmit();
-		});
-		expect(trpcMocks.gameVariantCreate).not.toHaveBeenCalled();
 	});
 });
