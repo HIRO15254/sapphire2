@@ -367,7 +367,7 @@ describe("BlindStructureContent", () => {
 			},
 		];
 		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
-		expect(screen.getByText(/Limit games/)).toBeInTheDocument();
+		expect(screen.getByText("Limit games")).toBeInTheDocument();
 	});
 
 	it("does not offer per-level game sets for a plain variant", () => {
