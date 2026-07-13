@@ -509,7 +509,7 @@ describe("BlindStructureContent", () => {
 		});
 	});
 
-	it("reverts a set-based level to a single flat blind set", async () => {
+	it("collapses to a single flat set, carrying the first set's amounts", async () => {
 		const user = userEvent.setup();
 		mocks.gameMixes = [
 			{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
@@ -529,6 +529,14 @@ describe("BlindStructureContent", () => {
 						name: "Limit games",
 						variants: ["Limit Hold'em"],
 					},
+					{
+						ante: 25,
+						blind1: 100,
+						blind2: 200,
+						blind3: null,
+						name: null,
+						variants: ["NL Hold'em"],
+					},
 				],
 				id: "l1",
 				isBreak: false,
@@ -541,19 +549,21 @@ describe("BlindStructureContent", () => {
 		await user.click(
 			screen.getByRole("button", { name: "Use single blind set" })
 		);
-		expect(mocks.updateMutate).toHaveBeenCalledTimes(1);
-		expect(mocks.updateMutate).toHaveBeenNthCalledWith(1, {
-			id: "l1",
-			games: null,
-		});
+		// The first set's 400/800 survive on the flat cells rather than the
+		// entered amounts being dropped; each patched field is a separate call.
+		expect(mocks.updateMutate).toHaveBeenCalledWith({ id: "l1", games: null });
+		expect(mocks.updateMutate).toHaveBeenCalledWith({ id: "l1", blind1: 400 });
+		expect(mocks.updateMutate).toHaveBeenCalledWith({ id: "l1", blind2: 800 });
+		expect(mocks.updateMutate).toHaveBeenCalledWith({ id: "l1", blind3: null });
+		expect(mocks.updateMutate).toHaveBeenCalledWith({ id: "l1", ante: null });
 	});
 
-	it("seeds a flat level with the composition's game sets from the row toggle", async () => {
+	it("expands a flat level into game sets, carrying its amounts into the first set", async () => {
 		const user = userEvent.setup();
 		seedMixMasterData();
 		mocks.blindLevels = [
 			{
-				ante: null,
+				ante: 25,
 				blind1: 100,
 				blind2: 200,
 				blind3: null,
@@ -570,8 +580,19 @@ describe("BlindStructureContent", () => {
 		expect(mocks.updateMutate).toHaveBeenNthCalledWith(1, {
 			id: "l1",
 			games: [
-				expect.objectContaining({ variants: ["NL Hold'em"] }),
-				expect.objectContaining({ variants: ["Razz"] }),
+				expect.objectContaining({
+					variants: ["NL Hold'em"],
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					ante: 25,
+				}),
+				expect.objectContaining({
+					variants: ["Razz"],
+					blind1: null,
+					blind2: null,
+					ante: null,
+				}),
 			],
 		});
 	});
