@@ -3,8 +3,11 @@ import {
 	addVariant,
 	fromLevelGames,
 	fromMixGames,
+	hasMixCellErrors,
+	MIX_CELL_ERROR,
 	type MixGameGroupRow,
 	type MixGroupInfo,
+	mixCellError,
 	PENDING_GROUP_ID,
 	type ResolveGroup,
 	removeGroup,
@@ -493,5 +496,61 @@ describe("reseedFromLabels", () => {
 
 	it("returns empty for an empty composition", () => {
 		expect(reseedFromLabels(seededRows(), [], resolveGroup)).toEqual([]);
+	});
+});
+
+describe("mixCellError", () => {
+	it.each([
+		"",
+		" ",
+		"0",
+		"1",
+		"200",
+		"007",
+	])("accepts %j as a valid cell", (value) => {
+		expect(mixCellError(value)).toBeUndefined();
+	});
+
+	it.each([
+		"1.5",
+		"-3",
+		"-0.5",
+		"abc",
+		"1a",
+		"NaN",
+		"Infinity",
+		"1 2",
+	])("rejects %j with the whole-number message", (value) => {
+		expect(mixCellError(value)).toBe(MIX_CELL_ERROR);
+	});
+
+	it("uses full-string parsing so trailing garbage is rejected, not truncated", () => {
+		expect(mixCellError("100.5")).toBe(MIX_CELL_ERROR);
+		expect(mixCellError("10px")).toBe(MIX_CELL_ERROR);
+	});
+});
+
+describe("hasMixCellErrors", () => {
+	function row(patch: Partial<MixGameGroupRow>): MixGameGroupRow {
+		return {
+			...rowsFromVariantLabels(["NL Hold'em"], resolveGroup)[0],
+			...patch,
+		};
+	}
+
+	it("returns false for empty rows and for rows with only valid cells", () => {
+		expect(hasMixCellErrors([])).toBe(false);
+		expect(
+			hasMixCellErrors([row({ blind1: "100", blind2: "", ante: "0" })])
+		).toBe(false);
+	});
+
+	it.each([
+		"blind1",
+		"blind2",
+		"blind3",
+		"ante",
+	] as const)("returns true when %s holds an invalid cell", (slot) => {
+		expect(hasMixCellErrors([row({ [slot]: "1.5" })])).toBe(true);
 	});
 });

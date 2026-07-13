@@ -178,8 +178,9 @@ describe("useRingGameForm", () => {
 	});
 });
 
-// Master fixture for mix-selection tests: two Big Bet variants, plus two
-// named mixes referencing them in different combinations.
+// Master fixture for mix-selection tests: two Big Bet variants plus a
+// 2-slot Limit group variant, and two named mixes referencing the Big Bet
+// pair in different combinations.
 const GROUPS = [
 	{
 		id: "g-bigbet",
@@ -188,6 +189,14 @@ const GROUPS = [
 		blind1Label: "SB",
 		blind2Label: "BB",
 		blind3Label: "Straddle",
+	},
+	{
+		id: "g-limit",
+		builtinKey: "limit",
+		label: "Limit",
+		blind1Label: "Small Bet",
+		blind2Label: "Big Bet",
+		blind3Label: null,
 	},
 ];
 const VARIANTS = [
@@ -207,6 +216,14 @@ const VARIANTS = [
 		groupId: "g-bigbet",
 		sortOrder: 1,
 	},
+	{
+		id: "v-lhe",
+		builtinKey: "lhe",
+		label: "Limit Hold'em",
+		shortLabel: "LHE",
+		groupId: "g-limit",
+		sortOrder: 2,
+	},
 ];
 const MIXES = [
 	{
@@ -218,16 +235,19 @@ const MIXES = [
 	{ id: "m-horse", builtinKey: "horse", label: "HORSE", games: ["v-nlh"] },
 ];
 
-function setupWithMasterData() {
+function setupWithMasterData(
+	defaultValues?: Parameters<typeof useRingGameForm>[0]["defaultValues"]
+) {
 	const qc = createClient();
 	qc.setQueryData(["gameGroup", "list"], GROUPS);
 	qc.setQueryData(["gameVariant", "list"], VARIANTS);
 	qc.setQueryData(["gameMix", "list"], MIXES);
 	const onSubmit = vi.fn();
-	const { result } = renderHook(() => useRingGameForm({ onSubmit }), {
-		wrapper: wrapper(qc),
-	});
-	return { result, onSubmit };
+	const { result, rerender } = renderHook(
+		() => useRingGameForm({ defaultValues, onSubmit }),
+		{ wrapper: wrapper(qc) }
+	);
+	return { result, rerender, onSubmit };
 }
 
 describe("useRingGameForm — onVariantChange mix expansion", () => {
@@ -395,6 +415,248 @@ describe("useRingGameForm — mix master edit sheet", () => {
 		expect(result.current.variants.map((v) => v.id)).toEqual([
 			"v-nlh",
 			"v-plo",
+			"v-lhe",
 		]);
+	});
+});
+
+// A ring game saved against a mix master keeps its frozen snapshot even
+// after the master is deleted/renamed: the submit gates on the editor rows,
+// never on a live master lookup (c02/c02b).
+const FROZEN_MIX_GAMES = [
+	{
+		name: null,
+		variants: ["NL Hold'em", "PL Omaha"],
+		blind1: 10,
+		blind2: 20,
+		blind3: null,
+		ante: null,
+		anteType: "none" as const,
+	},
+];
+
+describe("useRingGameForm — frozen mixGames survive missing masters (c02)", () => {
+	it("preserves the stored snapshot on an unrelated edit when the variant label has no live mix master", async () => {
+		const { result, onSubmit } = setupWithMasterData({
+			name: "Deleted-mix game",
+			variant: "Dead Mix",
+			mixGames: FROZEN_MIX_GAMES,
+		});
+		act(() => {
+			result.current.form.setFieldValue("name", "Renamed game");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "Renamed game",
+				variant: "Dead Mix",
+				mixGames: FROZEN_MIX_GAMES,
+			})
+		);
+	});
+
+	it("clears the editor rows when switching to a plain variant", () => {
+		const { result } = setupWithMasterData({
+			name: "Deleted-mix game",
+			variant: "Dead Mix",
+			mixGames: FROZEN_MIX_GAMES,
+		});
+		expect(result.current.form.state.values.mixGames).toHaveLength(1);
+		act(() => {
+			result.current.onVariantChange("NL Hold'em");
+		});
+		expect(result.current.form.state.values.mixGames).toEqual([]);
+	});
+});
+
+describe("useRingGameForm — stale flat fields on variant switches (c03/c04)", () => {
+	it("clears blind3 when switching to a variant whose group has no third slot and submits it as undefined", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.form.setFieldValue("name", "1/2");
+			result.current.form.setFieldValue("blind3", "5");
+			result.current.onVariantChange("Limit Hold'em");
+		});
+		expect(result.current.form.state.values.blind3).toBe("");
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ variant: "Limit Hold'em", blind3: undefined })
+		);
+	});
+
+	it("keeps blind3 when switching to a variant whose group has a third slot", () => {
+		const { result } = setupWithMasterData();
+		act(() => {
+			result.current.form.setFieldValue("blind3", "5");
+			result.current.onVariantChange("PL Omaha");
+		});
+		expect(result.current.form.state.values.blind3).toBe("5");
+	});
+
+	it("submits blind3 as undefined for a 2-slot variant even when the field holds a stale value", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.form.setFieldValue("name", "1/2");
+			// Bypasses onVariantChange, so only the submit-time guard applies.
+			result.current.form.setFieldValue("variant", "Limit Hold'em");
+			result.current.form.setFieldValue("blind3", "5");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ blind3: undefined })
+		);
+	});
+
+	it("clears flat blind/ante fields when switching into a mix and submits them as undefined", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.form.setFieldValue("name", "Mixed table");
+			result.current.form.setFieldValue("blind1", "1");
+			result.current.form.setFieldValue("blind2", "2");
+			result.current.form.setFieldValue("anteType", "bb");
+			result.current.form.setFieldValue("ante", "3");
+			result.current.onVariantChange("8-Game");
+		});
+		expect(result.current.form.state.values.blind1).toBe("");
+		expect(result.current.form.state.values.blind2).toBe("");
+		expect(result.current.form.state.values.blind3).toBe("");
+		expect(result.current.form.state.values.ante).toBe("");
+		expect(result.current.form.state.values.anteType).toBe("none");
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				blind1: undefined,
+				blind2: undefined,
+				blind3: undefined,
+				ante: undefined,
+				anteType: undefined,
+				mixGames: [
+					expect.objectContaining({ variants: ["NL Hold'em", "PL Omaha"] }),
+				],
+			})
+		);
+	});
+
+	it("starts clean on the flat fields after switching back from a mix", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.form.setFieldValue("name", "1/2");
+			result.current.form.setFieldValue("blind1", "1");
+			result.current.form.setFieldValue("blind2", "2");
+			result.current.onVariantChange("8-Game");
+		});
+		act(() => {
+			result.current.onVariantChange("NL Hold'em");
+		});
+		expect(result.current.form.state.values.blind1).toBe("");
+		expect(result.current.form.state.values.blind2).toBe("");
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				blind1: undefined,
+				blind2: undefined,
+				mixGames: null,
+			})
+		);
+	});
+});
+
+describe("useRingGameForm — stable seeded rows (c24)", () => {
+	it("keeps the seeded mixGames rows identity stable across rerenders", () => {
+		const { result, rerender } = setupWithMasterData({
+			name: "Mixed table",
+			variant: "8-Game",
+			mixGames: FROZEN_MIX_GAMES,
+		});
+		const initialRows = result.current.form.state.values.mixGames;
+		expect(initialRows).toHaveLength(1);
+		rerender();
+		expect(result.current.form.state.values.mixGames).toBe(initialRows);
+		expect(result.current.form.state.values.mixGames[0].uid).toBe(
+			initialRows[0].uid
+		);
+	});
+});
+
+describe("useRingGameForm — mix cell validation (c31)", () => {
+	it.each([
+		"1.5",
+		"-3",
+		"abc",
+	])("blocks submit when a mix blind cell holds %s", async (invalid) => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.form.setFieldValue("name", "Mixed table");
+			result.current.onVariantChange("8-Game");
+		});
+		const rows = result.current.form.state.values.mixGames;
+		act(() => {
+			result.current.form.setFieldValue(
+				"mixGames",
+				updateGroup(rows, rows[0].uid, { blind1: invalid })
+			);
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("blocks submit when a mix ante cell is invalid", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.form.setFieldValue("name", "Mixed table");
+			result.current.onVariantChange("8-Game");
+		});
+		const rows = result.current.form.state.values.mixGames;
+		act(() => {
+			result.current.form.setFieldValue(
+				"mixGames",
+				updateGroup(rows, rows[0].uid, { anteType: "bb", ante: "-1" })
+			);
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("accepts empty and whole-number mix cells", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.form.setFieldValue("name", "Mixed table");
+			result.current.onVariantChange("8-Game");
+		});
+		const rows = result.current.form.state.values.mixGames;
+		act(() => {
+			result.current.form.setFieldValue(
+				"mixGames",
+				updateGroup(rows, rows[0].uid, { blind1: "200", blind2: "" })
+			);
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				mixGames: [expect.objectContaining({ blind1: 200, blind2: null })],
+			})
+		);
 	});
 });

@@ -10,7 +10,11 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { ANTE_TYPE_OPTIONS } from "@/shared/lib/ante-types";
-import type { MixGameGroupRow, ResolveGroup } from "@/shared/lib/mix-games";
+import {
+	type MixGameGroupRow,
+	mixCellError,
+	type ResolveGroup,
+} from "@/shared/lib/mix-games";
 import { useMixGamesEditor } from "./use-mix-games-editor";
 
 interface MixGamesEditorProps {
@@ -56,8 +60,15 @@ function CompactGroupFields({
 }: GroupFieldsProps) {
 	const blind3Label = group.blind3Label;
 
+	// Live per-cell validation (c31): the server requires whole numbers ≥ 0,
+	// and the serializer would otherwise silently null invalid text. The
+	// consuming forms block submit on the same check.
 	const blindInput = (slot: "blind1" | "blind2" | "blind3", label: string) => (
-		<Field htmlFor={`mix-${slot}-${group.uid}`} label={label}>
+		<Field
+			error={mixCellError(group[slot])}
+			htmlFor={`mix-${slot}-${group.uid}`}
+			label={label}
+		>
 			<Input
 				disabled={disabled}
 				id={`mix-${slot}-${group.uid}`}
@@ -123,6 +134,7 @@ function CompactGroupFields({
 						</Field>
 						<Field
 							className="flex-1"
+							error={mixCellError(group.ante)}
 							htmlFor={`mix-ante-${group.uid}`}
 							label="Ante"
 						>
@@ -149,7 +161,11 @@ function CompactGroupFields({
 					{blindInput("blind1", group.blind1Label)}
 					{blindInput("blind2", group.blind2Label)}
 					{blind3Label !== null && blindInput("blind3", blind3Label)}
-					<Field htmlFor={`mix-ante-${group.uid}`} label="Ante">
+					<Field
+						error={mixCellError(group.ante)}
+						htmlFor={`mix-ante-${group.uid}`}
+						label="Ante"
+					>
 						<Input
 							disabled={disabled}
 							id={`mix-ante-${group.uid}`}

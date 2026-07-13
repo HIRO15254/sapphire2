@@ -1,7 +1,4 @@
-import {
-	DEFAULT_VARIANT_LABEL,
-	MIX_VARIANT,
-} from "@sapphire2/db/constants/game-variants";
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef, useState } from "react";
 import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
@@ -18,10 +15,12 @@ import {
 	type TournamentOption,
 } from "@/features/sessions/utils/session-form-helpers";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
+import { useMixMasterEditing } from "@/shared/hooks/use-mix-master-editing";
+import { useVariantScope } from "@/shared/hooks/use-variant-scope";
 import {
 	fromMixGames,
+	hasMixCellErrors,
 	type MixGameGroupRow,
-	reseedFromLabels,
 	rowsFromVariantLabels,
 	toMixGames,
 } from "@/shared/lib/mix-games";
@@ -30,21 +29,6 @@ import {
 	toChipPurchaseRows,
 	toSessionChipPurchases,
 } from "./chip-purchase-rows";
-
-type VariantScope = "all" | "perLevel";
-
-// The per-level tournament mode is stored as the frozen legacy mix key —
-// each level's games say what's played, there is no single variant.
-function scopeOf(variant: string): VariantScope {
-	return variant.trim().toLowerCase() === MIX_VARIANT ? "perLevel" : "all";
-}
-
-interface MixMasterRow {
-	builtinKey: string | null;
-	games: string[];
-	id: string;
-	label: string;
-}
 
 interface UseSessionFormStateArgs {
 	/**
@@ -81,13 +65,15 @@ export function useSessionFormState({
 	ringGames,
 	tournaments,
 }: UseSessionFormStateArgs) {
-	const { groupFor, isMixValue, mixCompositionLabels, mixes, variants } =
-		useGameGroups();
-	const [editingMix, setEditingMix] = useState<MixMasterRow | null>(null);
-	const [isMixSheetOpen, setIsMixSheetOpen] = useState(false);
-	// Last all-levels tournament variant, restored when switching back from
-	// per-level mode.
-	const lastAllVariant = useRef(DEFAULT_VARIANT_LABEL);
+	const {
+		groupFor,
+		isLoading: isMasterLoading,
+		isMixValue,
+		labelsFor,
+		mixCompositionLabels,
+		mixes,
+		variants,
+	} = useGameGroups();
 	const [sessionType, setSessionType] = useState<"cash_game" | "tournament">(
 		defaultValues?.type ?? "cash_game"
 	);
@@ -108,9 +94,33 @@ export function useSessionFormState({
 	);
 	// Mix-game group rows (cash). Array/table state lives outside the flat
 	// tanstack form, same as blindLevels/chipPurchases.
-	const [mixGames, setMixGames] = useState<MixGameGroupRow[]>(
+	const [mixGames, setMixGamesState] = useState<MixGameGroupRow[]>(() =>
 		fromMixGames(defaultValues?.mixGames ?? null, groupFor)
 	);
+	// The initializer above seeds exactly once; when it ran before the master
+	// lists loaded it resolved against the pending fallback (no real group
+	// identity). Re-derive from the stored snapshot once loading settles —
+	// but only while the user hasn't touched the mix editor, so the one-shot
+	// upgrade can never clobber their edits (c05).
+	const mixTouchedRef = useRef(false);
+	const initialMixGamesRef = useRef(defaultValues?.mixGames ?? null);
+	const awaitingMasterLoadRef = useRef(isMasterLoading);
+	useEffect(() => {
+		if (!awaitingMasterLoadRef.current || isMasterLoading) {
+			return;
+		}
+		awaitingMasterLoadRef.current = false;
+		if (!mixTouchedRef.current) {
+			setMixGamesState(fromMixGames(initialMixGamesRef.current, groupFor));
+		}
+	}, [isMasterLoading, groupFor]);
+
+	// Every interactive write to the rows goes through here: it marks the
+	// editor as touched so the post-load reseed stands down.
+	const setMixGames = (rows: MixGameGroupRow[]) => {
+		mixTouchedRef.current = true;
+		setMixGamesState(rows);
+	};
 	const initialChipPurchases = toChipPurchaseRows(
 		defaultValues?.chipPurchases ?? []
 	);
@@ -127,23 +137,39 @@ export function useSessionFormState({
 	const gameLabel = isCashGame ? "Cash game" : "Tournament";
 
 	// Extracted from onSubmit to keep its cognitive complexity in budget.
-	const buildCashSubmitValues = (value: SessionFormFieldValues) => ({
-		type: "cash_game" as const,
-		buyIn: Number(value.buyIn),
-		cashOut: Number(value.cashOut),
-		evCashOut: parseOptInt(value.evCashOut),
-		variant: value.variant || DEFAULT_VARIANT_LABEL,
-		mixGames: isMixValue(value.variant) ? toMixGames(mixGames) : null,
-		blind1: parseOptInt(value.blind1),
-		blind2: parseOptInt(value.blind2),
-		blind3: parseOptInt(value.blind3),
-		ante: value.anteType === "none" ? undefined : parseOptInt(value.ante),
-		anteType: value.anteType || undefined,
-		tableSize: parseOptInt(value.tableSize),
-		minBuyIn: parseOptInt(value.minBuyIn),
-		maxBuyIn: parseOptInt(value.maxBuyIn),
-		ringGameId: selectedGameId,
-	});
+	const buildCashSubmitValues = (value: SessionFormFieldValues) => {
+		// Gate on the editor state, never a live master lookup: a deleted or
+		// renamed mix master must not wipe the frozen snapshot on an
+		// unrelated edit (c02/c02b).
+		const submitMixGames = mixGames.length > 0 ? toMixGames(mixGames) : null;
+		const hasMixGames = submitMixGames !== null;
+		// Belt-and-braces against a stale third blind the current variant's
+		// group cannot hold (c03) — onVariantChange also clears the field.
+		const hasThirdSlot = labelsFor(value.variant).blind3 !== null;
+		return {
+			type: "cash_game" as const,
+			buyIn: Number(value.buyIn),
+			cashOut: Number(value.cashOut),
+			evCashOut: parseOptInt(value.evCashOut),
+			variant: value.variant || DEFAULT_VARIANT_LABEL,
+			mixGames: submitMixGames,
+			// A mix submit carries its amounts inside mixGames; the flat fields
+			// must go out empty, not with stale pre-switch values (c04).
+			blind1: hasMixGames ? undefined : parseOptInt(value.blind1),
+			blind2: hasMixGames ? undefined : parseOptInt(value.blind2),
+			blind3:
+				hasMixGames || !hasThirdSlot ? undefined : parseOptInt(value.blind3),
+			ante:
+				hasMixGames || value.anteType === "none"
+					? undefined
+					: parseOptInt(value.ante),
+			anteType: hasMixGames ? undefined : value.anteType || undefined,
+			tableSize: parseOptInt(value.tableSize),
+			minBuyIn: parseOptInt(value.minBuyIn),
+			maxBuyIn: parseOptInt(value.maxBuyIn),
+			ringGameId: selectedGameId,
+		};
+	};
 
 	const form = useForm({
 		defaultValues: buildDefaults(defaultValues),
@@ -161,6 +187,12 @@ export function useSessionFormState({
 			};
 
 			if (isCashGame) {
+				// The mix cells live outside the flat form schema; block the
+				// submit here so invalid text is never coerced to null by the
+				// serializer — the editor cells already display the error (c31).
+				if (hasMixCellErrors(mixGames)) {
+					return;
+				}
 				onSubmit({ ...common, ...buildCashSubmitValues(value) });
 				return;
 			}
@@ -338,60 +370,52 @@ export function useSessionFormState({
 
 	// Picking a mix master reseeds the cash mix editor from its saved
 	// composition (overwriting whatever was there — switching mixes starts
-	// fresh). The legacy "mix" mode key has no composition to seed from, so
-	// it only sets the field, leaving any existing rows untouched.
+	// fresh); the legacy "mix" mode key has no composition, so existing rows
+	// are kept. Entering a mix clears the flat blind/ante fields so a later
+	// switch-back starts clean (c04); leaving mixes clears the editor rows
+	// so they stay the single submit-time authority (c02); and a variant
+	// whose group has no third slot drops the stale blind3 (c03).
 	const onVariantChange = (next: string) => {
 		form.setFieldValue("variant", next);
-		if (isMixValue(next) && next !== "mix") {
-			setMixGames(rowsFromVariantLabels(mixCompositionLabels(next), groupFor));
-		}
-	};
-
-	const onScopeChange = (scope: VariantScope, currentVariant: string) => {
-		if (scope === scopeOf(currentVariant)) {
+		if (isMixValue(next)) {
+			if (next !== "mix") {
+				setMixGames(
+					rowsFromVariantLabels(mixCompositionLabels(next), groupFor)
+				);
+			}
+			form.setFieldValue("blind1", "");
+			form.setFieldValue("blind2", "");
+			form.setFieldValue("blind3", "");
+			form.setFieldValue("ante", "");
+			form.setFieldValue("anteType", "none");
 			return;
 		}
-		if (scope === "perLevel") {
-			lastAllVariant.current = currentVariant;
-			onVariantChange(MIX_VARIANT);
-			return;
+		setMixGames([]);
+		if (labelsFor(next).blind3 === null) {
+			form.setFieldValue("blind3", "");
 		}
-		onVariantChange(lastAllVariant.current || DEFAULT_VARIANT_LABEL);
 	};
 
-	// The mix master row backing a frozen variant label — null for plain
-	// variants and the legacy "mix" key (which has no master to edit).
-	const mixRowFor = (variantLabel: string): MixMasterRow | null => {
-		const normalized = variantLabel.trim().toLowerCase();
-		return (
-			(mixes as MixMasterRow[]).find(
-				(m) => m.label.trim().toLowerCase() === normalized
-			) ?? null
-		);
-	};
+	const { onScopeChange, scopeOf } = useVariantScope({
+		initialVariant: defaultValues?.variant,
+		setVariant: onVariantChange,
+	});
 
-	// Composition edits go through the master (dedicated bottom sheet), never
-	// inline: the cash mix editor shows amounts only. Saving the master
-	// renames the frozen variant label if needed and re-derives the buckets,
-	// keeping the amounts of groups that survive.
-	const onEditMix = (variantLabel: string) => {
-		const row = mixRowFor(variantLabel);
-		if (!row) {
-			return;
-		}
-		setEditingMix(row);
-		setIsMixSheetOpen(true);
-	};
-
-	const onMixSaved = (mix: { id: string; label: string; games: string[] }) => {
-		const labelById = new Map(variants.map((v) => [v.id, v.label]));
-		const labels = mix.games
-			.map((id) => labelById.get(id))
-			.filter((label): label is string => label !== undefined);
-		form.setFieldValue("variant", mix.label);
-		setMixGames(reseedFromLabels(mixGames, labels, groupFor));
-		setIsMixSheetOpen(false);
-	};
+	const {
+		editingMix,
+		isMixSheetOpen,
+		mixRowFor,
+		onEditMix,
+		onMixSaved,
+		setIsMixSheetOpen,
+	} = useMixMasterEditing({
+		getRows: () => mixGames,
+		groupFor,
+		mixes,
+		onVariantLabelChange: (label) => form.setFieldValue("variant", label),
+		setRows: setMixGames,
+		variants,
+	});
 
 	// The master option (ring game / tournament) the user picked on the
 	// Master step, or undefined when defining the rule from scratch. The

@@ -5,32 +5,39 @@ import { useState } from "react";
 import z from "zod";
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
+import { useMixMasterEditing } from "@/shared/hooks/use-mix-master-editing";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 import {
 	fromMixGames,
+	MIX_AMOUNT_SLOTS,
 	type MixGameGroupRow,
-	reseedFromLabels,
+	mixCellError,
 	rowsFromVariantLabels,
 	toMixGames,
 } from "@/shared/lib/mix-games";
 import { trpc } from "@/utils/trpc";
 
-interface MixMasterRow {
-	builtinKey: string | null;
-	games: string[];
-	id: string;
-	label: string;
-}
-
 type RingGameAnteType = "all" | "bb" | "none";
 
 // mixGames rows are editor state only (uid, group metadata, string amount
 // cells); the shared schema validates the actual submit payload server-side
-// once toMixGames() strips the derived bucket metadata back down.
+// once toMixGames() strips the derived bucket metadata back down. The
+// per-cell superRefine mirrors the server's `.int().min(0)` so invalid text
+// blocks the submit with a field error instead of being coerced to null by
+// cellToInt (c31).
 const ringGameFormSchema = z.object({
 	name: z.string().min(1, "Game name is required"),
 	variant: z.string().min(1),
-	mixGames: z.array(z.custom<MixGameGroupRow>()),
+	mixGames: z.array(z.custom<MixGameGroupRow>()).superRefine((rows, ctx) => {
+		for (const [rowIndex, row] of rows.entries()) {
+			for (const slot of MIX_AMOUNT_SLOTS) {
+				const message = mixCellError(row[slot]);
+				if (message) {
+					ctx.addIssue({ code: "custom", message, path: [rowIndex, slot] });
+				}
+			}
+		}
+	}),
 	blind1: optionalNumericString({ integer: true, min: 0 }),
 	blind2: optionalNumericString({ integer: true, min: 0 }),
 	blind3: optionalNumericString({ integer: true, min: 0 }),
@@ -69,20 +76,24 @@ export function useRingGameForm({
 	const {
 		groupFor,
 		labelsFor,
-		isLoading,
 		isMixValue,
 		mixCompositionLabels,
 		mixes,
 		variants,
 	} = useGameGroups();
-	const [editingMix, setEditingMix] = useState<MixMasterRow | null>(null);
-	const [isMixSheetOpen, setIsMixSheetOpen] = useState(false);
+	// Seeded once per mount (RingGameForm gates mounting on loaded masters,
+	// so the resolver is authoritative here). Recomputing per render would
+	// hand the form new row identities (uids) every render and reset the
+	// pristine editor state (c24).
+	const [initialMixGames] = useState(() =>
+		fromMixGames(defaultValues?.mixGames ?? null, groupFor)
+	);
 
 	const form = useForm({
 		defaultValues: {
 			name: defaultValues?.name ?? "",
 			variant: (defaultValues?.variant ?? DEFAULT_VARIANT_LABEL) as string,
-			mixGames: fromMixGames(defaultValues?.mixGames ?? null, groupFor),
+			mixGames: initialMixGames,
 			blind1: numStrOrEmpty(defaultValues?.blind1),
 			blind2: numStrOrEmpty(defaultValues?.blind2),
 			blind3: numStrOrEmpty(defaultValues?.blind3),
@@ -95,16 +106,29 @@ export function useRingGameForm({
 			memo: defaultValues?.memo ?? "",
 		},
 		onSubmit: ({ value }) => {
+			// Gate on the editor state, never a live master lookup: a deleted or
+			// renamed mix master must not wipe the frozen snapshot on an
+			// unrelated edit (c02/c02b).
+			const mixGames =
+				value.mixGames.length > 0 ? toMixGames(value.mixGames) : null;
+			const hasMixGames = mixGames !== null;
 			const isAnteDisabled = value.anteType === "none";
+			// Belt-and-braces against a stale third blind the current variant's
+			// group cannot hold (c03) — onVariantChange also clears the field.
+			const hasThirdSlot = labelsFor(value.variant).blind3 !== null;
 			onSubmit({
 				name: value.name,
 				variant: value.variant || DEFAULT_VARIANT_LABEL,
-				mixGames: isMixValue(value.variant) ? toMixGames(value.mixGames) : null,
-				blind1: parseOptInt(value.blind1),
-				blind2: parseOptInt(value.blind2),
-				blind3: parseOptInt(value.blind3),
-				ante: isAnteDisabled ? undefined : parseOptInt(value.ante),
-				anteType: value.anteType,
+				mixGames,
+				// A mix submit carries its amounts inside mixGames; the flat
+				// fields must go out empty, not with stale pre-switch values (c04).
+				blind1: hasMixGames ? undefined : parseOptInt(value.blind1),
+				blind2: hasMixGames ? undefined : parseOptInt(value.blind2),
+				blind3:
+					hasMixGames || !hasThirdSlot ? undefined : parseOptInt(value.blind3),
+				ante:
+					hasMixGames || isAnteDisabled ? undefined : parseOptInt(value.ante),
+				anteType: hasMixGames ? undefined : value.anteType,
 				minBuyIn: parseOptInt(value.minBuyIn),
 				maxBuyIn: parseOptInt(value.maxBuyIn),
 				tableSize: parseOptInt(value.tableSize),
@@ -118,55 +142,49 @@ export function useRingGameForm({
 	});
 
 	// Picking a mix master reseeds the editor from its saved composition
-	// (overwriting whatever was there — switching mixes starts fresh). The
-	// legacy "mix" mode key has no composition to seed from, so it only sets
-	// the field.
+	// (overwriting whatever was there — switching mixes starts fresh); the
+	// legacy "mix" mode key has no composition, so existing rows are kept.
+	// Entering a mix clears the flat blind/ante fields so a later
+	// switch-back starts clean (c04); leaving mixes clears the editor rows
+	// so they stay the single submit-time authority (c02); and a variant
+	// whose group has no third slot drops the stale blind3 (c03).
 	const onVariantChange = (next: string) => {
 		form.setFieldValue("variant", next);
-		if (isMixValue(next) && next !== "mix") {
-			form.setFieldValue(
-				"mixGames",
-				rowsFromVariantLabels(mixCompositionLabels(next), groupFor)
-			);
-		}
-	};
-
-	// The mix master row backing a frozen variant label — null for plain
-	// variants and the legacy "mix" key (which has no master to edit).
-	const mixRowFor = (variantLabel: string): MixMasterRow | null => {
-		const normalized = variantLabel.trim().toLowerCase();
-		return (
-			(mixes as MixMasterRow[]).find(
-				(m) => m.label.trim().toLowerCase() === normalized
-			) ?? null
-		);
-	};
-
-	// Composition edits go through the master (dedicated bottom sheet), never
-	// inline: the editor shows amounts only. Saving the master renames the
-	// frozen variant label if needed and re-derives the buckets, keeping the
-	// amounts of groups that survive.
-	const onEditMix = (variantLabel: string) => {
-		const row = mixRowFor(variantLabel);
-		if (!row) {
+		if (isMixValue(next)) {
+			if (next !== "mix") {
+				form.setFieldValue(
+					"mixGames",
+					rowsFromVariantLabels(mixCompositionLabels(next), groupFor)
+				);
+			}
+			form.setFieldValue("blind1", "");
+			form.setFieldValue("blind2", "");
+			form.setFieldValue("blind3", "");
+			form.setFieldValue("ante", "");
+			form.setFieldValue("anteType", "none");
 			return;
 		}
-		setEditingMix(row);
-		setIsMixSheetOpen(true);
+		form.setFieldValue("mixGames", []);
+		if (labelsFor(next).blind3 === null) {
+			form.setFieldValue("blind3", "");
+		}
 	};
 
-	const onMixSaved = (mix: { id: string; label: string; games: string[] }) => {
-		const labelById = new Map(variants.map((v) => [v.id, v.label]));
-		const labels = mix.games
-			.map((id) => labelById.get(id))
-			.filter((label): label is string => label !== undefined);
-		form.setFieldValue("variant", mix.label);
-		form.setFieldValue(
-			"mixGames",
-			reseedFromLabels(form.state.values.mixGames, labels, groupFor)
-		);
-		setIsMixSheetOpen(false);
-	};
+	const {
+		editingMix,
+		isMixSheetOpen,
+		mixRowFor,
+		onEditMix,
+		onMixSaved,
+		setIsMixSheetOpen,
+	} = useMixMasterEditing({
+		getRows: () => form.state.values.mixGames,
+		groupFor,
+		mixes,
+		onVariantLabelChange: (label) => form.setFieldValue("variant", label),
+		setRows: (rows) => form.setFieldValue("mixGames", rows),
+		variants,
+	});
 
 	return {
 		form,
@@ -174,7 +192,6 @@ export function useRingGameForm({
 		editingMix,
 		groupFor,
 		labelsFor,
-		isMasterLoading: isLoading,
 		isMixSheetOpen,
 		isMixValue,
 		mixRowFor,

@@ -59,8 +59,12 @@ const FORM_ID = "ring-game-form-test";
 
 // The form renders no submit button of its own — the surrounding FormSheet
 // owns Save and submits via the `form` attribute. Mirror that with an
-// external button so the tests exercise the `id={formId}` wiring.
-function renderForm(props: Partial<React.ComponentProps<typeof RingGameForm>>) {
+// external button so the tests exercise the `id={formId}` wiring. The form
+// body mounts only after the game-master lists load (c05), so callers await
+// a stable field before interacting.
+async function renderForm(
+	props: Partial<React.ComponentProps<typeof RingGameForm>>
+) {
 	const onSubmit = props.onSubmit ?? vi.fn();
 	const result = renderWithQueryClient(
 		<>
@@ -70,13 +74,22 @@ function renderForm(props: Partial<React.ComponentProps<typeof RingGameForm>>) {
 			</button>
 		</>
 	);
+	await screen.findByLabelText("Memo");
 	return { onSubmit, ...result };
 }
 
 describe("RingGameForm", () => {
+	it("shows a loading state until the game masters load, then mounts the form", async () => {
+		renderWithQueryClient(<RingGameForm formId={FORM_ID} onSubmit={vi.fn()} />);
+		expect(screen.getByText("Loading game data")).toBeInTheDocument();
+		expect(screen.queryByLabelText("Memo")).not.toBeInTheDocument();
+		await screen.findByLabelText("Memo");
+		expect(screen.queryByText("Loading game data")).not.toBeInTheDocument();
+	});
+
 	it("renders memo as textarea and preserves default values on submit", async () => {
 		const user = userEvent.setup();
-		const { onSubmit } = renderForm({
+		const { onSubmit } = await renderForm({
 			defaultValues: {
 				name: "1/2 NLH",
 				variant: "nlh",
@@ -105,7 +118,7 @@ describe("RingGameForm", () => {
 
 	it("submits multiline memo in create mode", async () => {
 		const user = userEvent.setup();
-		const { onSubmit } = renderForm({});
+		const { onSubmit } = await renderForm({});
 
 		fireEvent.change(screen.getByLabelText("Game name *"), {
 			target: { value: "5/10 NLH" },
@@ -127,15 +140,15 @@ describe("RingGameForm", () => {
 
 	it("blocks submit when the required game name is empty (Zod validation)", async () => {
 		const user = userEvent.setup();
-		const { onSubmit } = renderForm({});
+		const { onSubmit } = await renderForm({});
 
 		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
 
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("renders no submit button of its own and tags the form with the id", () => {
-		const { container } = renderForm({});
+	it("renders no submit button of its own and tags the form with the id", async () => {
+		const { container } = await renderForm({});
 		expect(container.querySelector("form")).toHaveAttribute("id", FORM_ID);
 		expect(
 			screen.queryByRole("button", { name: "Save" })

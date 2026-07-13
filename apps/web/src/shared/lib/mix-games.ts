@@ -147,6 +147,37 @@ export function removeVariant(
 		.filter((r) => r.variants.length > 0);
 }
 
+/** Per-cell validation message for mix amount cells (c31). */
+export const MIX_CELL_ERROR = "Must be a whole number ≥ 0";
+
+/** The string amount cells every bucket row carries. */
+export const MIX_AMOUNT_SLOTS = ["blind1", "blind2", "blind3", "ante"] as const;
+
+/**
+ * Validation for one amount cell: empty is allowed, anything else must be a
+ * whole number ≥ 0, mirroring the server's `.int().min(0)`. Full-string
+ * `Number()` parse so trailing garbage is rejected, not truncated (SA2-103).
+ * Pairs with cellToInt (the serialization): invalid input must be blocked at
+ * submit with this message, never silently coerced to null (c31).
+ */
+export function mixCellError(value: string): string | undefined {
+	if (value.trim() === "") {
+		return undefined;
+	}
+	const parsed = Number(value);
+	if (!Number.isInteger(parsed) || parsed < 0) {
+		return MIX_CELL_ERROR;
+	}
+	return undefined;
+}
+
+/** True when any amount cell in any row fails {@link mixCellError}. */
+export function hasMixCellErrors(rows: MixGameGroupRow[]): boolean {
+	return rows.some((row) =>
+		MIX_AMOUNT_SLOTS.some((slot) => mixCellError(row[slot]) !== undefined)
+	);
+}
+
 // Full-string integer parse: `Number()` rejects trailing garbage that
 // `Number.parseInt` would silently truncate (SA2-103); negatives and
 // fractions map to null like every other optional amount cell.

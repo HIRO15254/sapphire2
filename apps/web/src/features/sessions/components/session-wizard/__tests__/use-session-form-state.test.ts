@@ -1,5 +1,5 @@
-import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTestQueryClient, withQueryClient } from "@/__tests__/test-utils";
 import type {
 	RingGameOption,
@@ -9,15 +9,26 @@ import { updateGroup } from "@/shared/lib/mix-games";
 
 // useSessionFormState now calls useGameGroups (trpc.gameGroup.list /
 // trpc.gameVariant.list) for the mix-games master mapping — mock the
-// procedures to the fallback (empty) path, none of the assertions below
-// exercise mix-game rows.
+// procedures to the fallback (empty) path by default; the post-load reseed
+// tests swap in deferred promises to hold the master queries pending.
+const masterQueries = vi.hoisted(() => ({
+	groups: () => Promise.resolve([] as unknown[]),
+	variants: () => Promise.resolve([] as unknown[]),
+	mixes: () => Promise.resolve([] as unknown[]),
+	reset() {
+		masterQueries.groups = () => Promise.resolve([]);
+		masterQueries.variants = () => Promise.resolve([]);
+		masterQueries.mixes = () => Promise.resolve([]);
+	},
+}));
+
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		gameGroup: {
 			list: {
 				queryOptions: () => ({
 					queryKey: ["gameGroup", "list"],
-					queryFn: () => Promise.resolve([]),
+					queryFn: () => masterQueries.groups(),
 				}),
 			},
 		},
@@ -25,7 +36,7 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: () => ({
 					queryKey: ["gameVariant", "list"],
-					queryFn: () => Promise.resolve([]),
+					queryFn: () => masterQueries.variants(),
 				}),
 			},
 		},
@@ -33,7 +44,7 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: () => ({
 					queryKey: ["gameMix", "list"],
-					queryFn: () => Promise.resolve([]),
+					queryFn: () => masterQueries.mixes(),
 				}),
 			},
 		},
@@ -276,8 +287,9 @@ describe("useSessionFormState", () => {
 	});
 });
 
-// Master fixture for mix-selection tests: two Big Bet variants, plus two
-// named mixes referencing them in different combinations.
+// Master fixture for mix-selection tests: two Big Bet variants plus a
+// 2-slot Limit group variant, and two named mixes referencing the Big Bet
+// pair in different combinations.
 const GAME_GROUPS = [
 	{
 		id: "g-bigbet",
@@ -286,6 +298,14 @@ const GAME_GROUPS = [
 		blind1Label: "SB",
 		blind2Label: "BB",
 		blind3Label: "Straddle",
+	},
+	{
+		id: "g-limit",
+		builtinKey: "limit",
+		label: "Limit",
+		blind1Label: "Small Bet",
+		blind2Label: "Big Bet",
+		blind3Label: null,
 	},
 ];
 const GAME_VARIANTS = [
@@ -305,6 +325,14 @@ const GAME_VARIANTS = [
 		groupId: "g-bigbet",
 		sortOrder: 1,
 	},
+	{
+		id: "v-lhe",
+		builtinKey: "lhe",
+		label: "Limit Hold'em",
+		shortLabel: "LHE",
+		groupId: "g-limit",
+		sortOrder: 2,
+	},
 ];
 const GAME_MIXES = [
 	{
@@ -316,7 +344,11 @@ const GAME_MIXES = [
 	{ id: "m-horse", builtinKey: "horse", label: "HORSE", games: ["v-nlh"] },
 ];
 
-function setupWithMasterData() {
+function setupWithMasterData(
+	defaultValues: Parameters<typeof useSessionFormState>[0]["defaultValues"] = {
+		type: "cash_game",
+	}
+) {
 	const qc = createTestQueryClient();
 	qc.setQueryData(["gameGroup", "list"], GAME_GROUPS);
 	qc.setQueryData(["gameVariant", "list"], GAME_VARIANTS);
@@ -326,7 +358,7 @@ function setupWithMasterData() {
 		() =>
 			useSessionFormState({
 				onSubmit,
-				defaultValues: { type: "cash_game" },
+				defaultValues,
 			}),
 		{ wrapper: withQueryClient(qc) }
 	);
@@ -488,7 +520,268 @@ describe("useSessionFormState — mix master edit sheet", () => {
 		expect(result.current.variants.map((v) => v.id)).toEqual([
 			"v-nlh",
 			"v-plo",
+			"v-lhe",
 		]);
+	});
+});
+
+// A session saved against a mix master keeps its frozen snapshot even after
+// the master is deleted/renamed: the submit gates on the editor rows, never
+// on a live master lookup (c02/c02b).
+const FROZEN_MIX_GAMES = [
+	{
+		name: null,
+		variants: ["NL Hold'em", "PL Omaha"],
+		blind1: 10,
+		blind2: 20,
+		blind3: null,
+		ante: null,
+		anteType: "none" as const,
+	},
+];
+
+async function submitCash(result: {
+	current: ReturnType<typeof useSessionFormState>;
+}) {
+	act(() => {
+		result.current.form.setFieldValue("buyIn", "100");
+		result.current.form.setFieldValue("cashOut", "150");
+	});
+	await act(async () => {
+		await result.current.form.handleSubmit();
+	});
+}
+
+describe("useSessionFormState — frozen mixGames survive missing masters (c02)", () => {
+	it("preserves the stored snapshot on an unrelated edit when the variant label has no live mix master", async () => {
+		const { result, onSubmit } = setupWithMasterData({
+			type: "cash_game",
+			variant: "Dead Mix",
+			mixGames: FROZEN_MIX_GAMES,
+		});
+		await submitCash(result);
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				variant: "Dead Mix",
+				mixGames: FROZEN_MIX_GAMES,
+			})
+		);
+	});
+
+	it("clears the editor rows when switching to a plain variant", () => {
+		const { result } = setupWithMasterData({
+			type: "cash_game",
+			variant: "Dead Mix",
+			mixGames: FROZEN_MIX_GAMES,
+		});
+		expect(result.current.mixGames).toHaveLength(1);
+		act(() => {
+			result.current.onVariantChange("NL Hold'em");
+		});
+		expect(result.current.mixGames).toEqual([]);
+	});
+});
+
+describe("useSessionFormState — stale flat fields on variant switches (c03/c04)", () => {
+	it("clears blind3 when switching to a variant whose group has no third slot and submits it as undefined", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.form.setFieldValue("blind3", "5");
+			result.current.onVariantChange("Limit Hold'em");
+		});
+		expect(result.current.form.state.values.blind3).toBe("");
+		await submitCash(result);
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ variant: "Limit Hold'em", blind3: undefined })
+		);
+	});
+
+	it("submits blind3 as undefined for a 2-slot variant even when the field holds a stale value", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			// Bypasses onVariantChange, so only the submit-time guard applies.
+			result.current.form.setFieldValue("variant", "Limit Hold'em");
+			result.current.form.setFieldValue("blind3", "5");
+		});
+		await submitCash(result);
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ blind3: undefined })
+		);
+	});
+
+	it("clears flat blind/ante fields when switching into a mix and submits them as undefined", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.form.setFieldValue("blind1", "1");
+			result.current.form.setFieldValue("blind2", "2");
+			result.current.form.setFieldValue("anteType", "bb");
+			result.current.form.setFieldValue("ante", "3");
+			result.current.onVariantChange("8-Game");
+		});
+		expect(result.current.form.state.values.blind1).toBe("");
+		expect(result.current.form.state.values.blind2).toBe("");
+		expect(result.current.form.state.values.blind3).toBe("");
+		expect(result.current.form.state.values.ante).toBe("");
+		expect(result.current.form.state.values.anteType).toBe("none");
+		await submitCash(result);
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				blind1: undefined,
+				blind2: undefined,
+				blind3: undefined,
+				ante: undefined,
+				anteType: undefined,
+				mixGames: [
+					expect.objectContaining({ variants: ["NL Hold'em", "PL Omaha"] }),
+				],
+			})
+		);
+	});
+
+	it("starts clean on the flat fields after switching back from a mix", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.form.setFieldValue("blind1", "1");
+			result.current.form.setFieldValue("blind2", "2");
+			result.current.onVariantChange("8-Game");
+		});
+		act(() => {
+			result.current.onVariantChange("NL Hold'em");
+		});
+		expect(result.current.form.state.values.blind1).toBe("");
+		expect(result.current.form.state.values.blind2).toBe("");
+		await submitCash(result);
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				blind1: undefined,
+				blind2: undefined,
+				mixGames: null,
+			})
+		);
+	});
+});
+
+describe("useSessionFormState — mix cell validation (c31)", () => {
+	it.each([
+		"1.5",
+		"-3",
+		"abc",
+	])("blocks submit when a mix blind cell holds %s", async (invalid) => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.onVariantChange("8-Game");
+		});
+		act(() => {
+			result.current.setMixGames(
+				updateGroup(result.current.mixGames, result.current.mixGames[0].uid, {
+					blind1: invalid,
+				})
+			);
+		});
+		await submitCash(result);
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("accepts empty and whole-number mix cells", async () => {
+		const { result, onSubmit } = setupWithMasterData();
+		act(() => {
+			result.current.onVariantChange("8-Game");
+		});
+		act(() => {
+			result.current.setMixGames(
+				updateGroup(result.current.mixGames, result.current.mixGames[0].uid, {
+					blind1: "200",
+					blind2: "",
+				})
+			);
+		});
+		await submitCash(result);
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				mixGames: [expect.objectContaining({ blind1: 200, blind2: null })],
+			})
+		);
+	});
+});
+
+describe("useSessionFormState — post-load mix rows reseed (c05)", () => {
+	afterEach(() => {
+		masterQueries.reset();
+	});
+
+	function deferred<T>() {
+		let resolve!: (value: T) => void;
+		const promise = new Promise<T>((res) => {
+			resolve = res;
+		});
+		return { promise, resolve };
+	}
+
+	function setupWithPendingMasters() {
+		const groups = deferred<unknown[]>();
+		const variants = deferred<unknown[]>();
+		const mixes = deferred<unknown[]>();
+		masterQueries.groups = () => groups.promise;
+		masterQueries.variants = () => variants.promise;
+		masterQueries.mixes = () => mixes.promise;
+		const onSubmit = vi.fn();
+		const { result } = renderHook(
+			() =>
+				useSessionFormState({
+					onSubmit,
+					defaultValues: {
+						type: "cash_game",
+						variant: "8-Game",
+						mixGames: FROZEN_MIX_GAMES,
+					},
+				}),
+			{ wrapper: withQueryClient(createTestQueryClient()) }
+		);
+		const resolveAll = async () => {
+			await act(async () => {
+				groups.resolve(GAME_GROUPS);
+				variants.resolve(GAME_VARIANTS);
+				mixes.resolve(GAME_MIXES);
+				await Promise.all([groups.promise, variants.promise, mixes.promise]);
+			});
+		};
+		return { result, resolveAll };
+	}
+
+	it("re-derives the seeded rows from the loaded masters once loading settles", async () => {
+		const { result, resolveAll } = setupWithPendingMasters();
+		// Seeded against the pending fallback: no real group identity yet.
+		expect(result.current.mixGames[0].groupId).toContain("__pending__");
+		await resolveAll();
+		await waitFor(() => {
+			expect(result.current.mixGames[0].groupId).toBe("g-bigbet");
+		});
+		expect(result.current.mixGames[0].groupLabel).toBe("Big Bet");
+		expect(result.current.mixGames[0].blind1).toBe("10");
+		expect(result.current.mixGames[0].blind2).toBe("20");
+	});
+
+	it("keeps user edits instead of reseeding when the editor was touched before load", async () => {
+		const { result, resolveAll } = setupWithPendingMasters();
+		act(() => {
+			result.current.setMixGames(
+				updateGroup(result.current.mixGames, result.current.mixGames[0].uid, {
+					blind1: "999",
+				})
+			);
+		});
+		await resolveAll();
+		await waitFor(() => {
+			expect(result.current.variants).toHaveLength(3);
+		});
+		expect(result.current.mixGames[0].blind1).toBe("999");
+		expect(result.current.mixGames[0].groupId).toContain("__pending__");
 	});
 });
 

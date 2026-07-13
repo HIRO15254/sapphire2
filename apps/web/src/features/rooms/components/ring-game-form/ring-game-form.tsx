@@ -13,6 +13,7 @@ import {
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { VariantSelect } from "@/shared/components/variant-select";
+import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import { useVariantLabels } from "@/shared/hooks/use-variant-labels";
 import { ANTE_TYPE_OPTIONS } from "@/shared/lib/ante-types";
 import { BlindFields } from "./blind-fields";
@@ -44,7 +45,25 @@ function VariantAwareBlindFields({
 	return <BlindFields blindLabels={blindLabels} form={form} />;
 }
 
-export function RingGameForm({
+/**
+ * Mount gate (c05): the inner form seeds its mix-game rows once from the
+ * master variant→group mapping, so it must not mount until the master lists
+ * are loaded — seeding against the pending fallback would freeze rows
+ * without a real group identity.
+ */
+export function RingGameForm(props: RingGameFormProps) {
+	const { isLoading } = useGameGroups();
+	if (isLoading) {
+		return (
+			<p className="py-8 text-center text-muted-foreground text-sm">
+				Loading game data
+			</p>
+		);
+	}
+	return <RingGameFormBody {...props} />;
+}
+
+function RingGameFormBody({
 	onSubmit,
 	defaultValues,
 	formId,

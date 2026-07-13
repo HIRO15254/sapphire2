@@ -1,13 +1,11 @@
-import {
-	DEFAULT_VARIANT_LABEL,
-	MIX_VARIANT,
-} from "@sapphire2/db/constants/game-variants";
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import z from "zod";
 import type { TournamentPartialFormValues } from "@/features/rooms/components/tournament-modal-content";
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
+import { useVariantScope } from "@/shared/hooks/use-variant-scope";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 import { trpc } from "@/utils/trpc";
 
@@ -105,14 +103,6 @@ interface UseTournamentFormOptions {
 	onVariantChange?: (variant: string) => void;
 }
 
-type VariantScope = "all" | "perLevel";
-
-// The per-level mode is stored as the frozen legacy mix key: such a
-// tournament has no single variant — each level's games say what's played.
-function scopeOf(variant: string): VariantScope {
-	return variant.trim().toLowerCase() === MIX_VARIANT ? "perLevel" : "all";
-}
-
 export function useTournamentForm({
 	defaultValues,
 	onInvalidSubmit,
@@ -122,11 +112,6 @@ export function useTournamentForm({
 }: UseTournamentFormOptions) {
 	const currenciesQuery = useQuery(trpc.currency.list.queryOptions());
 	const currencies = currenciesQuery.data ?? [];
-	// Last all-levels variant, restored when switching back from per-level.
-	const initialVariant = defaultValues?.variant ?? DEFAULT_VARIANT_LABEL;
-	const lastAllVariant = useRef(
-		scopeOf(initialVariant) === "all" ? initialVariant : DEFAULT_VARIANT_LABEL
-	);
 
 	const form = useForm({
 		defaultValues: {
@@ -183,17 +168,11 @@ export function useTournamentForm({
 		onVariantChange?.(variant);
 	};
 
-	const onScopeChange = (scope: VariantScope, currentVariant: string) => {
-		if (scope === scopeOf(currentVariant)) {
-			return;
-		}
-		if (scope === "perLevel") {
-			lastAllVariant.current = currentVariant;
-			onVariantFieldChange(MIX_VARIANT);
-			return;
-		}
-		onVariantFieldChange(lastAllVariant.current || DEFAULT_VARIANT_LABEL);
-	};
+	// All-levels vs per-level scope toggle, shared with the session wizard.
+	const { onScopeChange, scopeOf } = useVariantScope({
+		initialVariant: defaultValues?.variant,
+		setVariant: onVariantFieldChange,
+	});
 
 	return {
 		form,

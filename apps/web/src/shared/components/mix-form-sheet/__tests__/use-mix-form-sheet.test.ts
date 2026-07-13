@@ -607,7 +607,11 @@ describe("useMixFormSheet", () => {
 				await result.current.form.handleSubmit();
 			});
 			await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
-			expect(onSaved).toHaveBeenNthCalledWith(1, createdRow);
+			expect(onSaved).toHaveBeenNthCalledWith(1, createdRow, [
+				"Limit Hold'em",
+				"Razz",
+				"Seven Card Stud",
+			]);
 		});
 
 		it("calls onSaved once with the returned row on a successful update", async () => {
@@ -632,7 +636,36 @@ describe("useMixFormSheet", () => {
 				await result.current.form.handleSubmit();
 			});
 			await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
-			expect(onSaved).toHaveBeenNthCalledWith(1, updatedRow);
+			expect(onSaved).toHaveBeenNthCalledWith(1, updatedRow, [
+				"Limit Hold'em",
+				"Razz",
+				"Seven Card Stud",
+			]);
+		});
+
+		it("resolves labels for the saved games itself, falling back to the raw id for unknown ids (c19)", async () => {
+			const updatedRow = mixRow({ games: ["v-1", "v-unknown"] });
+			trpcMocks.gameMixUpdate.mockResolvedValue(updatedRow);
+			const onOpenChange = vi.fn();
+			const onSaved = vi.fn();
+			const { result } = renderHook(
+				() =>
+					useMixFormSheet({
+						editingMix: mixRow(),
+						onOpenChange,
+						onSaved,
+						variants: VARIANTS,
+					}),
+				{ wrapper: withQueryClient() }
+			);
+			await act(async () => {
+				await result.current.form.handleSubmit();
+			});
+			await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+			expect(onSaved).toHaveBeenNthCalledWith(1, updatedRow, [
+				"Limit Hold'em",
+				"v-unknown",
+			]);
 		});
 
 		it("does not call onSaved when the create mutation fails", async () => {

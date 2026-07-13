@@ -24,7 +24,16 @@ export interface MixFormVariantRow {
 export interface UseMixFormSheetProps {
 	editingMix: MixFormMixRow | null;
 	onOpenChange: (open: boolean) => void;
-	onSaved?: (mix: { id: string; label: string; games: string[] }) => void;
+	/**
+	 * Fires with the server-returned row plus this sheet's own id→label
+	 * resolution of `games` (unknown ids fall back to the raw id). Callers
+	 * reseeding editor rows must prefer `gameLabels` over re-resolving the
+	 * ids through their possibly staler variants list (c19).
+	 */
+	onSaved?: (
+		mix: { id: string; label: string; games: string[] },
+		gameLabels: string[]
+	) => void;
 	variants: MixFormVariantRow[];
 }
 
@@ -68,12 +77,18 @@ export function useMixFormSheet({
 	// games page.
 	const invalidateAll = useInvalidateGameMasters();
 
+	// This sheet knows the labels it just saved (it rendered them as chips),
+	// so it hands them to onSaved instead of making callers re-resolve the
+	// ids against a variants list that may not have refetched yet (c19).
+	const labelsForGames = (games: string[]): string[] =>
+		games.map((id) => labelById.get(id) ?? id);
+
 	const createMutation = useMutation({
 		mutationFn: (input: MixInput) => trpcClient.gameMix.create.mutate(input),
 		onSuccess: (created) => {
 			form.reset();
 			onOpenChange(false);
-			onSaved?.(created);
+			onSaved?.(created, labelsForGames(created.games));
 		},
 		onError: () => {
 			toast.error("Failed to create game mix");
@@ -87,7 +102,7 @@ export function useMixFormSheet({
 		onSuccess: (updated) => {
 			form.reset();
 			onOpenChange(false);
-			onSaved?.(updated);
+			onSaved?.(updated, labelsForGames(updated.games));
 		},
 		onError: () => {
 			toast.error("Failed to update game mix");

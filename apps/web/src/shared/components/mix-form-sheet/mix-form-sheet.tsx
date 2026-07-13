@@ -13,7 +13,11 @@ const MIX_FORM_ID = "game-mix-form";
 export interface MixFormSheetProps {
 	editingMix: MixFormMixRow | null;
 	onOpenChange: (open: boolean) => void;
-	onSaved?: (mix: { id: string; label: string; games: string[] }) => void;
+	/** See {@link UseMixFormSheetProps.onSaved} for the gameLabels contract. */
+	onSaved?: (
+		mix: { id: string; label: string; games: string[] },
+		gameLabels: string[]
+	) => void;
 	open: boolean;
 	variants: MixFormVariantRow[];
 }
