@@ -7,6 +7,16 @@
 // unchanged: buckets serialize as ordinary named groups.
 import type { LevelGameGroup, MixGameGroup } from "@sapphire2/db/schemas/game";
 
+/**
+ * Sentinel id of the fallback group a resolver returns while the master rows
+ * haven't loaded (kept in sync with use-game-groups.ts, which builds its
+ * pending fallback from this constant). Buckets resolved to it get a derived
+ * per-bucket id (`__pending__:<variants>`) so distinct stored groups never
+ * collapse onto one groupId — a shared id makes reseedFromLabels' Map keep
+ * only the last bucket's amounts (c06).
+ */
+export const PENDING_GROUP_ID = "__pending__";
+
 /** Resolved master info for the group a variant belongs to. */
 export interface MixGroupInfo {
 	blind1Label: string;
@@ -32,8 +42,12 @@ export interface MixGameGroupRow {
 	blind3Label: string | null;
 	groupId: string;
 	groupLabel: string;
-	/** Per-mix display name; defaults to the group label. */
-	name: string;
+	/**
+	 * Per-mix display name. null = none stored; display falls back to the
+	 * group label at render time, and serialization keeps it null so a no-op
+	 * edit round-trip never freezes a display label into history (c18).
+	 */
+	name: string | null;
 	sortIndex: number;
 	uid: string;
 	variants: string[];
@@ -65,7 +79,7 @@ function newBucket(group: MixGroupInfo): MixGameGroupRow {
 		blind2Label: group.blind2Label,
 		blind3Label: group.blind3Label,
 		sortIndex: group.sortIndex,
-		name: group.label,
+		name: null,
 		variants: [],
 		blind1: "",
 		blind2: "",
@@ -73,6 +87,11 @@ function newBucket(group: MixGroupInfo): MixGameGroupRow {
 		ante: "",
 		anteType: "none",
 	};
+}
+
+/** Per-bucket id for buckets whose group could not be resolved. */
+function derivedPendingId(variants: string[]): string {
+	return `${PENDING_GROUP_ID}:${variants.join("+")}`;
 }
 
 /**
@@ -91,7 +110,11 @@ export function addVariant(
 		return rows;
 	}
 	const group = resolveGroup(variantLabel);
-	const existing = rows.find((r) => r.groupId === group.id);
+	// A pending resolution carries no real group identity — give the variant
+	// its own bucket instead of merging every unresolved game into one.
+	const groupId =
+		group.id === PENDING_GROUP_ID ? derivedPendingId([variantLabel]) : group.id;
+	const existing = rows.find((r) => r.groupId === groupId);
 	if (existing) {
 		return rows.map((r) =>
 			r.uid === existing.uid
@@ -99,7 +122,7 @@ export function addVariant(
 				: r
 		);
 	}
-	const bucket = { ...newBucket(group), variants: [variantLabel] };
+	const bucket = { ...newBucket(group), groupId, variants: [variantLabel] };
 	return [...rows, bucket].sort((a, b) => a.sortIndex - b.sortIndex);
 }
 
@@ -138,6 +161,20 @@ function cellToInt(value: string): number | null {
 	return parsed;
 }
 
+// Shared bucket→group serialization: name persists only what was stored or
+// user-entered (never a materialized display fallback — c18).
+function serializeRow(r: MixGameGroupRow): LevelGameGroup {
+	const trimmed = r.name?.trim() ?? "";
+	return {
+		name: trimmed === "" ? null : trimmed,
+		variants: r.variants,
+		blind1: cellToInt(r.blind1),
+		blind2: cellToInt(r.blind2),
+		blind3: cellToInt(r.blind3),
+		ante: cellToInt(r.ante),
+	};
+}
+
 /**
  * Buckets → shared payload. The derived bucket metadata (group id/labels)
  * is intentionally dropped: stored groups are self-describing via name +
@@ -147,12 +184,10 @@ export function toMixGames(rows: MixGameGroupRow[]): MixGameGroup[] | null {
 	const games = rows
 		.filter((r) => r.variants.length > 0)
 		.map((r) => ({
-			name: r.name.trim() === "" ? null : r.name.trim(),
-			variants: r.variants,
-			blind1: cellToInt(r.blind1),
-			blind2: cellToInt(r.blind2),
-			blind3: cellToInt(r.blind3),
-			ante: cellToInt(r.ante),
+			...serializeRow(r),
+			// "No ante" must never persist a stale amount left in the disabled
+			// cell (c57).
+			ante: r.anteType === "none" ? null : cellToInt(r.ante),
 			anteType: r.anteType,
 		}));
 	return games.length > 0 ? games : null;
@@ -162,11 +197,22 @@ export function fromMixGames(
 	games: MixGameGroup[] | null | undefined,
 	resolveGroup: ResolveGroup
 ): MixGameGroupRow[] {
+	const seenIds = new Set<string>();
 	return (games ?? []).map((g) => {
 		const group = resolveGroup(g.variants[0] ?? "");
+		// Buckets from different stored groups must never share a groupId:
+		// pending resolutions and later groups collapsing onto an id already
+		// claimed (deleted variants parked in the fallback group) both get a
+		// per-bucket derived id instead (c06).
+		const groupId =
+			group.id === PENDING_GROUP_ID || seenIds.has(group.id)
+				? derivedPendingId(g.variants)
+				: group.id;
+		seenIds.add(groupId);
 		return {
 			...newBucket(group),
-			name: g.name ?? group.label,
+			groupId,
+			name: g.name ?? null,
 			variants: [...g.variants],
 			blind1: g.blind1 == null ? "" : String(g.blind1),
 			blind2: g.blind2 == null ? "" : String(g.blind2),
@@ -179,12 +225,12 @@ export function fromMixGames(
 
 /**
  * Buckets → tournament-level payload (levelGamesSchema shape: no anteType).
+ * Serializes directly — levels have no anteType concept, so the editor rows'
+ * "none" default must not null the ante like toMixGames does.
  */
 export function toLevelGames(rows: MixGameGroupRow[]): LevelGameGroup[] | null {
-	const games = toMixGames(rows);
-	return games === null
-		? null
-		: games.map(({ anteType: _anteType, ...group }) => group);
+	const games = rows.filter((r) => r.variants.length > 0).map(serializeRow);
+	return games.length > 0 ? games : null;
 }
 
 export function fromLevelGames(

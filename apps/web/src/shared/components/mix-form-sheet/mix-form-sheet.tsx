@@ -113,7 +113,6 @@ export function MixFormSheet({
 									id={`${MIX_FORM_ID}-games`}
 									includeMix={false}
 									onChange={onAddGame}
-									placeholder="Add a game"
 									value=""
 								/>
 							</div>

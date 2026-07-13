@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withQueryClient } from "@/__tests__/test-utils";
+import { createTestQueryClient, withQueryClient } from "@/__tests__/test-utils";
 
 const trpcMocks = vi.hoisted(() => ({
 	gameGroupListQueryFn: vi.fn(),
@@ -103,18 +103,17 @@ describe("useVariantSelect", () => {
 	it("lists the user's variant rows as options (value = label)", async () => {
 		const { result } = setup();
 		await waitFor(() => {
-			expect(result.current.variantOptions.map((o) => o.label)).toEqual([
-				"NL Hold'em",
-				"Limit Hold'em",
-			]);
+			expect(result.current.filteredVariantOptions.map((o) => o.label)).toEqual(
+				["NL Hold'em", "Limit Hold'em"]
+			);
 		});
-		expect(result.current.mixOptions).toEqual([]);
+		expect(result.current.filteredMixOptions).toEqual([]);
 	});
 
 	it("lists the user's mix masters as options when includeMix", async () => {
 		const { result } = setup({ includeMix: true });
 		await waitFor(() => {
-			expect(result.current.mixOptions).toEqual([
+			expect(result.current.filteredMixOptions).toEqual([
 				{ id: "m-horse", label: "HORSE" },
 				{ id: "m-8game", label: "8-Game" },
 			]);
@@ -124,22 +123,22 @@ describe("useVariantSelect", () => {
 	it("hides mix masters when includeMix is false", async () => {
 		const { result } = setup({ includeMix: false });
 		await waitFor(() => {
-			expect(result.current.variantOptions).toHaveLength(2);
+			expect(result.current.filteredVariantOptions).toHaveLength(2);
 		});
-		expect(result.current.mixOptions).toEqual([]);
+		expect(result.current.filteredMixOptions).toEqual([]);
 	});
 
 	it("treats a mix master's label as a known value", async () => {
 		const { result } = setup({ value: "8-Game", includeMix: true });
 		await waitFor(() => {
-			expect(result.current.unknownValue).toBeNull();
+			expect(result.current.isKnownValue).toBe(true);
 		});
 	});
 
 	it("treats the legacy 'mix' key as a known value", async () => {
 		const { result } = setup({ value: "mix", includeMix: true });
 		await waitFor(() => {
-			expect(result.current.unknownValue).toBeNull();
+			expect(result.current.isKnownValue).toBe(true);
 		});
 	});
 
@@ -149,7 +148,7 @@ describe("useVariantSelect", () => {
 			includeMix: true,
 		});
 		await waitFor(() => {
-			expect(result.current.mixOptions).toEqual([
+			expect(result.current.filteredMixOptions).toEqual([
 				{ id: "m-horse", label: "HORSE" },
 				{ id: "m-8game", label: "8-Game" },
 			]);
@@ -162,22 +161,25 @@ describe("useVariantSelect", () => {
 			value: "Limit Hold'em",
 		});
 		await waitFor(() => {
-			expect(result.current.variantOptions.map((o) => o.label)).toEqual([
-				"Limit Hold'em",
-			]);
+			expect(result.current.filteredVariantOptions.map((o) => o.label)).toEqual(
+				["Limit Hold'em"]
+			);
 		});
 	});
 
-	it("surfaces an unknown frozen value as its own option", async () => {
+	it("flags an unknown frozen value (deleted variant)", async () => {
 		const { result } = setup({ value: "Deleted Game" });
-		await waitFor(() => {
-			expect(result.current.unknownValue).toBe("Deleted Game");
-		});
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
+		expect(result.current.isKnownValue).toBe(false);
 	});
 
 	it("opens the add sheet without selecting anything", async () => {
 		const { result, onChange } = setup();
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleOpenAdd();
 		});
@@ -192,7 +194,9 @@ describe("useVariantSelect", () => {
 			label: "Drawmaha",
 		});
 		const { result, onChange } = setup();
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleOpenAdd();
 		});
@@ -218,7 +222,9 @@ describe("useVariantSelect", () => {
 
 	it("blocks creation without a group", async () => {
 		const { result } = setup();
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleOpenAdd();
 		});
@@ -234,7 +240,9 @@ describe("useVariantSelect", () => {
 	it("keeps the sheet open and toasts on create failure", async () => {
 		trpcMocks.gameVariantCreate.mockRejectedValue(new Error("CONFLICT"));
 		const { result } = setup();
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleOpenAdd();
 		});
@@ -249,6 +257,82 @@ describe("useVariantSelect", () => {
 			expect(toastMock.error).toHaveBeenCalledTimes(1);
 		});
 		expect(result.current.isAddOpen).toBe(true);
+	});
+
+	it("seeds the created row into the variant list cache before onChange fires", async () => {
+		const createdRow = {
+			id: "v-new",
+			builtinKey: null,
+			label: "Drawmaha",
+			shortLabel: null,
+			groupId: "g-limit",
+			sortOrder: 2,
+		};
+		trpcMocks.gameVariantCreate.mockResolvedValue(createdRow);
+		const queryClient = createTestQueryClient();
+		const cacheAtChange: unknown[] = [];
+		const onChange = vi.fn(() => {
+			cacheAtChange.push(queryClient.getQueryData(["gameVariant", "list"]));
+		});
+		const { result } = renderHook(
+			() => useVariantSelect({ onChange, value: "" }),
+			{ wrapper: withQueryClient(queryClient) }
+		);
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
+		act(() => {
+			result.current.handleOpenAdd();
+		});
+		act(() => {
+			result.current.form.setFieldValue("label", "Drawmaha");
+			result.current.form.setFieldValue("groupId", "g-limit");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
+		expect(onChange).toHaveBeenNthCalledWith(1, "Drawmaha");
+		// The label→id lookup a consumer performs inside onChange must already
+		// see the created row (invalidation alone refetches too late).
+		expect(cacheAtChange).toHaveLength(1);
+		expect(cacheAtChange[0]).toEqual([...VARIANTS, createdRow]);
+	});
+
+	it("keeps the settled invalidation after seeding the cache", async () => {
+		trpcMocks.gameVariantCreate.mockResolvedValue({
+			id: "v-new",
+			builtinKey: null,
+			label: "Drawmaha",
+			shortLabel: null,
+			groupId: "g-limit",
+			sortOrder: 2,
+		});
+		const queryClient = createTestQueryClient();
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		const onChange = vi.fn();
+		const { result } = renderHook(
+			() => useVariantSelect({ onChange, value: "" }),
+			{ wrapper: withQueryClient(queryClient) }
+		);
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
+		act(() => {
+			result.current.handleOpenAdd();
+		});
+		act(() => {
+			result.current.form.setFieldValue("label", "Drawmaha");
+			result.current.form.setFieldValue("groupId", "g-limit");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		await waitFor(() => {
+			expect(invalidateSpy).toHaveBeenCalledWith({
+				queryKey: ["gameVariant", "list"],
+			});
+		});
 	});
 });
 
@@ -265,7 +349,9 @@ describe("useVariantSelect — combobox filtering & selection", () => {
 
 	it("shows every option unfiltered on focus before typing", async () => {
 		const { result } = setup({ includeMix: true });
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleInputFocus();
 		});
@@ -276,7 +362,9 @@ describe("useVariantSelect — combobox filtering & selection", () => {
 
 	it("filters both lists by typed text, case-insensitively", async () => {
 		const { result } = setup({ includeMix: true });
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleInputChange("hold");
 		});
@@ -296,7 +384,9 @@ describe("useVariantSelect — combobox filtering & selection", () => {
 
 	it("does not commit a value while typing", async () => {
 		const { result, onChange } = setup({ value: "NL Hold'em" });
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleInputChange("Limit");
 		});
@@ -306,7 +396,9 @@ describe("useVariantSelect — combobox filtering & selection", () => {
 
 	it("selecting an option commits the label and closes the popover", async () => {
 		const { result, onChange } = setup();
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleInputFocus();
 		});
@@ -318,9 +410,54 @@ describe("useVariantSelect — combobox filtering & selection", () => {
 		expect(result.current.shouldShowPopover).toBe(false);
 	});
 
+	it("selecting a different value than the current one still commits", async () => {
+		const { result, onChange } = setup({ value: "NL Hold'em" });
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
+		act(() => {
+			result.current.handleSelect("Limit Hold'em");
+		});
+		expect(onChange).toHaveBeenCalledTimes(1);
+		expect(onChange).toHaveBeenNthCalledWith(1, "Limit Hold'em");
+	});
+
+	it("re-selecting the current value keeps the input text and closes the popover", async () => {
+		const { result, onChange } = setup({ value: "NL Hold'em" });
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
+		act(() => {
+			result.current.handleInputFocus();
+		});
+		act(() => {
+			result.current.handleSelect("NL Hold'em");
+		});
+		expect(result.current.inputValue).toBe("NL Hold'em");
+		expect(result.current.shouldShowPopover).toBe(false);
+		expect(onChange).not.toHaveBeenCalled();
+	});
+
+	it("re-selecting the current value after typing restores the committed label", async () => {
+		const { result } = setup({ value: "NL Hold'em" });
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
+		act(() => {
+			result.current.handleInputChange("nl");
+		});
+		act(() => {
+			result.current.handleSelect("nl hold'em");
+		});
+		expect(result.current.inputValue).toBe("NL Hold'em");
+		expect(result.current.shouldShowPopover).toBe(false);
+	});
+
 	it("blur outside the popover reverts typed text to the current value", async () => {
 		const { result } = setup({ value: "NL Hold'em" });
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleInputChange("garbage");
 		});
@@ -333,7 +470,9 @@ describe("useVariantSelect — combobox filtering & selection", () => {
 
 	it("Enter selects the exact match", async () => {
 		const { result, onChange } = setup();
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleInputChange("limit hold'em");
 		});
@@ -345,7 +484,9 @@ describe("useVariantSelect — combobox filtering & selection", () => {
 
 	it("Enter selects the sole remaining option", async () => {
 		const { result, onChange } = setup({ includeMix: true });
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleInputChange("horse");
 		});
@@ -357,7 +498,9 @@ describe("useVariantSelect — combobox filtering & selection", () => {
 
 	it("Enter with multiple matches selects nothing", async () => {
 		const { result, onChange } = setup();
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleInputChange("hold");
 		});
@@ -369,7 +512,9 @@ describe("useVariantSelect — combobox filtering & selection", () => {
 
 	it("Escape closes the popover and reverts the text", async () => {
 		const { result } = setup({ value: "NL Hold'em" });
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleInputChange("xyz");
 		});
@@ -382,7 +527,9 @@ describe("useVariantSelect — combobox filtering & selection", () => {
 
 	it("prefills the add sheet with the typed text", async () => {
 		const { result } = setup();
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleInputChange("Drawmaha");
 		});
@@ -396,7 +543,9 @@ describe("useVariantSelect — combobox filtering & selection", () => {
 
 	it("does not prefill the add sheet with an existing option's label", async () => {
 		const { result } = setup();
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		act(() => {
 			result.current.handleInputChange("NL Hold'em");
 		});
@@ -408,7 +557,9 @@ describe("useVariantSelect — combobox filtering & selection", () => {
 
 	it("syncs the input text when the value prop changes", async () => {
 		const { result, rerender } = setup({ value: "NL Hold'em" });
-		await waitFor(() => expect(result.current.variantOptions).toHaveLength(2));
+		await waitFor(() =>
+			expect(result.current.filteredVariantOptions).toHaveLength(2)
+		);
 		expect(result.current.inputValue).toBe("NL Hold'em");
 		rerender({ value: "8-Game" });
 		await waitFor(() => {

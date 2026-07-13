@@ -5,6 +5,7 @@ import {
 	fromMixGames,
 	type MixGameGroupRow,
 	type MixGroupInfo,
+	PENDING_GROUP_ID,
 	type ResolveGroup,
 	removeGroup,
 	removeVariant,
@@ -70,6 +71,20 @@ const VARIANT_GROUPS: Record<string, MixGroupInfo> = {
 const resolveGroup: ResolveGroup = (variant) =>
 	VARIANT_GROUPS[variant] ?? GROUPS.bigbet;
 
+// Mirrors use-game-groups' masters-empty fallback: unresolved labels get the
+// pending sentinel group instead of a real group row.
+const PENDING_GROUP: MixGroupInfo = {
+	id: PENDING_GROUP_ID,
+	label: "Big Bet",
+	blind1Label: "SB",
+	blind2Label: "BB",
+	blind3Label: "Straddle",
+	sortIndex: 99,
+};
+
+const resolveWithPending: ResolveGroup = (variant) =>
+	VARIANT_GROUPS[variant] ?? PENDING_GROUP;
+
 function bucketSummary(rows: MixGameGroupRow[]): [string, string[]][] {
 	return rows.map((r) => [r.groupLabel, r.variants]);
 }
@@ -80,7 +95,7 @@ describe("addVariant", () => {
 		expect(rows).toHaveLength(1);
 		expect(rows[0].groupId).toBe("g-limit");
 		expect(rows[0].groupLabel).toBe("Limit");
-		expect(rows[0].name).toBe("Limit");
+		expect(rows[0].name).toBeNull();
 		expect(rows[0].variants).toEqual(["Limit Hold'em"]);
 		expect(rows[0].blind1).toBe("");
 		expect(rows[0].anteType).toBe("none");
@@ -169,7 +184,7 @@ describe("updateGroup / usedVariants", () => {
 		let rows = addVariant([], "Razz", resolveGroup);
 		rows = addVariant(rows, "NL Hold'em", resolveGroup);
 		const next = updateGroup(rows, rows[1].uid, { name: "NL/PL", ante: "5" });
-		expect(next[0].name).toBe("Stud");
+		expect(next[0].name).toBeNull();
 		expect(next[1].name).toBe("NL/PL");
 		expect(next[1].ante).toBe("5");
 	});
@@ -182,7 +197,7 @@ describe("updateGroup / usedVariants", () => {
 });
 
 describe("toMixGames / fromMixGames", () => {
-	it("serializes buckets to the shared payload shape", () => {
+	it("serializes buckets to the shared payload shape (no materialized name)", () => {
 		let rows = addVariant([], "Razz", resolveGroup);
 		rows = updateGroup(rows, rows[0].uid, {
 			blind1: "400",
@@ -193,7 +208,7 @@ describe("toMixGames / fromMixGames", () => {
 		});
 		expect(toMixGames(rows)).toEqual([
 			{
-				name: "Stud",
+				name: null,
 				variants: ["Razz"],
 				blind1: 400,
 				blind2: 800,
@@ -202,6 +217,25 @@ describe("toMixGames / fromMixGames", () => {
 				anteType: "all",
 			},
 		]);
+	});
+
+	it("serializes a user-entered name trimmed", () => {
+		let rows = addVariant([], "Razz", resolveGroup);
+		rows = updateGroup(rows, rows[0].uid, { name: "  My Studs  " });
+		expect(toMixGames(rows)?.[0].name).toBe("My Studs");
+	});
+
+	it("emits ante: null when anteType is 'none' even if the cell holds a stale value", () => {
+		let rows = addVariant([], "NL Hold'em", resolveGroup);
+		rows = updateGroup(rows, rows[0].uid, {
+			blind1: "1",
+			blind2: "2",
+			ante: "75",
+			anteType: "none",
+		});
+		const games = toMixGames(rows);
+		expect(games?.[0].ante).toBeNull();
+		expect(games?.[0].anteType).toBe("none");
 	});
 
 	it("maps blank/invalid cells to null and blank names to null", () => {
@@ -239,17 +273,107 @@ describe("toMixGames / fromMixGames", () => {
 		expect(rows[0].anteType).toBe("none");
 	});
 
-	it("falls back to the group label when a stored name is absent", () => {
+	it("keeps a stored null name null (display falls back at render time)", () => {
 		const rows = fromMixGames(
 			[{ name: null, variants: ["NL Hold'em"] }],
 			resolveGroup
 		);
-		expect(rows[0].name).toBe("Big Bet");
+		expect(rows[0].name).toBeNull();
+		expect(rows[0].groupLabel).toBe("Big Bet");
+	});
+
+	it("round-trips a null-name group value-identically (no frozen display label)", () => {
+		const input = [
+			{
+				name: null,
+				variants: ["NL Hold'em"],
+				blind1: 1,
+				blind2: 2,
+				blind3: null,
+				ante: null,
+				anteType: "none" as const,
+			},
+		];
+		expect(toMixGames(fromMixGames(input, resolveGroup))).toEqual(input);
 	});
 
 	it("returns an empty array for null/undefined stored games", () => {
 		expect(fromMixGames(null, resolveGroup)).toEqual([]);
 		expect(fromMixGames(undefined, resolveGroup)).toEqual([]);
+	});
+});
+
+describe("fromMixGames — unresolved stored groups keep distinct buckets", () => {
+	it("derives per-bucket pending groupIds for unresolved first variants", () => {
+		const rows = fromMixGames(
+			[
+				{ name: null, variants: ["Ghost A"], blind1: 400, blind2: 800 },
+				{ name: null, variants: ["Ghost B"], blind1: 100, blind2: 200 },
+			],
+			resolveWithPending
+		);
+		expect(rows[0].groupId).toBe(`${PENDING_GROUP_ID}:Ghost A`);
+		expect(rows[1].groupId).toBe(`${PENDING_GROUP_ID}:Ghost B`);
+		expect(rows[0].groupId).not.toBe(rows[1].groupId);
+	});
+
+	it("derives a distinct id when a later group collapses into an already-used group id", () => {
+		const rows = fromMixGames(
+			[
+				{ name: null, variants: ["NL Hold'em"], blind1: 1, blind2: 2 },
+				{ name: null, variants: ["Ghost"], blind1: 400, blind2: 800 },
+			],
+			resolveGroup // parks unknowns in the real Big Bet group
+		);
+		expect(rows[0].groupId).toBe("g-bigbet");
+		expect(rows[1].groupId).toBe(`${PENDING_GROUP_ID}:Ghost`);
+	});
+
+	it("joins all variants into the derived id for a multi-variant unresolved group", () => {
+		const rows = fromMixGames(
+			[{ name: null, variants: ["Ghost A", "Ghost B"] }],
+			resolveWithPending
+		);
+		expect(rows[0].groupId).toBe(`${PENDING_GROUP_ID}:Ghost A+Ghost B`);
+	});
+
+	it("preserves both buckets' amounts through a reseedFromLabels round-trip", () => {
+		const rows = fromMixGames(
+			[
+				{ name: null, variants: ["Ghost A"], blind1: 400, blind2: 800 },
+				{ name: null, variants: ["Ghost B"], blind1: 100, blind2: 200 },
+			],
+			resolveWithPending
+		);
+		const next = reseedFromLabels(
+			rows,
+			["Ghost A", "Ghost B"],
+			resolveWithPending
+		);
+		expect(next).toHaveLength(2);
+		expect(next[0].variants).toEqual(["Ghost A"]);
+		expect(next[0].blind1).toBe("400");
+		expect(next[0].blind2).toBe("800");
+		expect(next[1].variants).toEqual(["Ghost B"]);
+		expect(next[1].blind1).toBe("100");
+		expect(next[1].blind2).toBe("200");
+	});
+});
+
+describe("addVariant — pending (unresolved) groups", () => {
+	it("gives each unresolved variant its own pending bucket", () => {
+		let rows = addVariant([], "Ghost A", resolveWithPending);
+		rows = addVariant(rows, "Ghost B", resolveWithPending);
+		expect(rows).toHaveLength(2);
+		expect(rows[0].groupId).toBe(`${PENDING_GROUP_ID}:Ghost A`);
+		expect(rows[1].groupId).toBe(`${PENDING_GROUP_ID}:Ghost B`);
+	});
+
+	it("still merges resolvable variants of one group into one bucket", () => {
+		let rows = addVariant([], "Razz", resolveWithPending);
+		rows = addVariant(rows, "Seven Card Stud", resolveWithPending);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].groupId).toBe("g-stud");
 	});
 });
 
@@ -260,7 +384,7 @@ describe("toLevelGames / fromLevelGames", () => {
 		const games = toLevelGames(rows);
 		expect(games).toEqual([
 			{
-				name: "Big Bet",
+				name: null,
 				variants: ["NL Hold'em"],
 				blind1: 100,
 				blind2: 200,
@@ -271,6 +395,19 @@ describe("toLevelGames / fromLevelGames", () => {
 		const back = fromLevelGames(games, resolveGroup);
 		expect(back[0].groupId).toBe("g-bigbet");
 		expect(back[0].anteType).toBe("none");
+	});
+
+	it("keeps the ante for level payloads despite the row's 'none' anteType default", () => {
+		let rows = addVariant([], "NL Hold'em", resolveGroup);
+		rows = updateGroup(rows, rows[0].uid, {
+			blind1: "100",
+			blind2: "200",
+			ante: "75",
+		});
+		// Level mode never shows the anteType select, so rows keep the "none"
+		// default — the level payload must not drop the ante because of it.
+		expect(rows[0].anteType).toBe("none");
+		expect(toLevelGames(rows)?.[0].ante).toBe(75);
 	});
 });
 
@@ -351,7 +488,7 @@ describe("reseedFromLabels", () => {
 		const next = reseedFromLabels(rows, ["Drawmaha"], resolveGroup);
 		expect(bucketSummary(next)).toEqual([["Draw", ["Drawmaha"]]]);
 		expect(next[0].blind1).toBe("");
-		expect(next[0].name).toBe("Draw");
+		expect(next[0].name).toBeNull();
 	});
 
 	it("returns empty for an empty composition", () => {

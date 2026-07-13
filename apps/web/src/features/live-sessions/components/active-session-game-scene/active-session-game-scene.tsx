@@ -160,18 +160,25 @@ function CashBlindRows({
 	snapshot,
 	master,
 	blindsModified,
+	mixGamesModified,
 	currencyUnit,
 }: {
 	snapshot: CashSnapshotDisplay;
 	master: RingGame;
 	blindsModified: boolean;
+	mixGamesModified: boolean;
 	currencyUnit: string | null | undefined;
 }) {
 	if (snapshot.mixGames && snapshot.mixGames.length > 0) {
 		return (
 			<>
-				{snapshot.mixGames.map((group) => (
+				{snapshot.mixGames.map((group, index) => (
 					<DetailRow
+						badge={
+							index === 0 && mixGamesModified ? (
+								<ModifiedBadge masterValue="differs from master" />
+							) : null
+						}
 						key={group.variants.join("+")}
 						label={groupDisplayLabel(group)}
 						value={formatGroupStakes(group)}
@@ -226,6 +233,7 @@ function RingGameDetailsCard({
 	const blindsModified = Boolean(
 		diff.blind1 || diff.blind2 || diff.blind3 || diff.ante || diff.anteType
 	);
+	const mixGamesModified = Boolean(diff.mixGames);
 	const buyInModified = diff.minBuyIn || diff.maxBuyIn;
 
 	return (
@@ -238,6 +246,7 @@ function RingGameDetailsCard({
 					blindsModified={blindsModified}
 					currencyUnit={currencyUnit}
 					master={master}
+					mixGamesModified={mixGamesModified}
 					snapshot={snapshot}
 				/>
 				<DetailRow

@@ -1,9 +1,9 @@
 import { useForm, useStore } from "@tanstack/react-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import z from "zod";
-import { invalidateTargets } from "@/utils/optimistic-update";
-import { trpc, trpcClient } from "@/utils/trpc";
+import { useInvalidateGameMasters } from "@/shared/hooks/use-game-groups";
+import { trpcClient } from "@/utils/trpc";
 
 // Local row shapes instead of importing the games-page hook's GameMixRow /
 // GameVariantRow — shared components must not import from a feature. Only
@@ -64,19 +64,9 @@ export function useMixFormSheet({
 	onSaved,
 	variants,
 }: UseMixFormSheetProps) {
-	const queryClient = useQueryClient();
-	const groupListQueryOptions = trpc.gameGroup.list.queryOptions();
-	const variantListQueryOptions = trpc.gameVariant.list.queryOptions();
-	const mixListQueryOptions = trpc.gameMix.list.queryOptions();
-
 	// Uniform triple-list invalidation, matching every other mutation in the
-	// games page (see use-games-page.ts's invalidateAll).
-	const invalidateAll = () =>
-		invalidateTargets(queryClient, [
-			{ queryKey: groupListQueryOptions.queryKey },
-			{ queryKey: variantListQueryOptions.queryKey },
-			{ queryKey: mixListQueryOptions.queryKey },
-		]);
+	// games page.
+	const invalidateAll = useInvalidateGameMasters();
 
 	const createMutation = useMutation({
 		mutationFn: (input: MixInput) => trpcClient.gameMix.create.mutate(input),
@@ -153,6 +143,10 @@ export function useMixFormSheet({
 	const onAddGame = (label: string) => {
 		const id = idByLabel.get(label);
 		if (!id) {
+			// A just-created variant is seeded into the list cache before
+			// VariantSelect's onChange fires, so this should not happen — but a
+			// genuinely stale lookup table must not swallow the tap silently.
+			toast.error("Failed to add game");
 			return;
 		}
 		const current = form.getFieldValue("games");

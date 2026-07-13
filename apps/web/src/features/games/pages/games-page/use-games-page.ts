@@ -1,8 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { isTRPCClientError } from "@trpc/client";
 import { useState } from "react";
 import { toast } from "sonner";
-import { invalidateTargets } from "@/utils/optimistic-update";
+import { useInvalidateGameMasters } from "@/shared/hooks/use-game-groups";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 export interface GameGroupRow {
@@ -67,13 +67,9 @@ function compareVariants(a: GameVariantRow, b: GameVariantRow): number {
  * hooks and the shared mix-form-sheet hook.
  */
 export function useGamesPage() {
-	const queryClient = useQueryClient();
-	const groupListQueryOptions = trpc.gameGroup.list.queryOptions();
-	const groupListQuery = useQuery(groupListQueryOptions);
-	const variantListQueryOptions = trpc.gameVariant.list.queryOptions();
-	const variantListQuery = useQuery(variantListQueryOptions);
-	const mixListQueryOptions = trpc.gameMix.list.queryOptions();
-	const mixListQuery = useQuery(mixListQueryOptions);
+	const groupListQuery = useQuery(trpc.gameGroup.list.queryOptions());
+	const variantListQuery = useQuery(trpc.gameVariant.list.queryOptions());
+	const mixListQuery = useQuery(trpc.gameMix.list.queryOptions());
 
 	const [groupSheetTarget, setGroupSheetTarget] =
 		useState<GroupSheetTarget | null>(null);
@@ -120,12 +116,7 @@ export function useGamesPage() {
 	// composition summaries and the mix-form-sheet's label<->id mapping both
 	// read gameVariant.list, and variant/group edits don't change gameMix
 	// rows but keep the three lists refetched together for consistency.
-	const invalidateAll = () =>
-		invalidateTargets(queryClient, [
-			{ queryKey: groupListQueryOptions.queryKey },
-			{ queryKey: variantListQueryOptions.queryKey },
-			{ queryKey: mixListQueryOptions.queryKey },
-		]);
+	const invalidateAll = useInvalidateGameMasters();
 
 	const deleteGroupMutation = useMutation<unknown, unknown, string>({
 		mutationFn: (id: string) => trpcClient.gameGroup.delete.mutate({ id }),

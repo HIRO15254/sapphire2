@@ -67,7 +67,6 @@ export function LevelPatternsSheet({
 							id="level-variant"
 							includeMix
 							onChange={onAssignVariant}
-							placeholder="Assign a variant"
 							value={assignedVariant}
 						/>
 					</Field>

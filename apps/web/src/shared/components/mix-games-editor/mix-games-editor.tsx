@@ -33,6 +33,10 @@ interface MixGamesEditorProps {
 interface GroupFieldsProps {
 	disabled: boolean;
 	group: MixGameGroupRow;
+	onUpdateAnteType: (
+		uid: string,
+		anteType: MixGameGroupRow["anteType"]
+	) => void;
 	onUpdateGroup: (
 		uid: string,
 		patch: Partial<Omit<MixGameGroupRow, "uid" | "groupId">>
@@ -46,6 +50,7 @@ interface GroupFieldsProps {
 function CompactGroupFields({
 	disabled,
 	group,
+	onUpdateAnteType,
 	onUpdateGroup,
 	showAnteType,
 }: GroupFieldsProps) {
@@ -66,7 +71,11 @@ function CompactGroupFields({
 	return (
 		<div className="flex flex-col gap-2">
 			<div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-				<span className="font-medium text-sm">{group.name}</span>
+				{/* Display fallback only — a null name stays null in state so it
+				    is never persisted as a frozen label (c18). */}
+				<span className="font-medium text-sm">
+					{group.name ?? group.groupLabel}
+				</span>
 				<span className="text-muted-foreground text-xs">
 					{group.variants.join(" · ")}
 				</span>
@@ -93,9 +102,7 @@ function CompactGroupFields({
 							<Select
 								disabled={disabled}
 								onValueChange={(v) =>
-									onUpdateGroup(group.uid, {
-										anteType: v as MixGameGroupRow["anteType"],
-									})
+									onUpdateAnteType(group.uid, v as MixGameGroupRow["anteType"])
 								}
 								value={group.anteType}
 							>
@@ -167,7 +174,7 @@ export function MixGamesEditor({
 	showAnteType = true,
 	value,
 }: MixGamesEditorProps) {
-	const { onUpdateGroup } = useMixGamesEditor({
+	const { onUpdateAnteType, onUpdateGroup } = useMixGamesEditor({
 		onChange,
 		resolveGroup,
 		value,
@@ -204,6 +211,7 @@ export function MixGamesEditor({
 						disabled={disabled}
 						group={group}
 						key={group.uid}
+						onUpdateAnteType={onUpdateAnteType}
 						onUpdateGroup={onUpdateGroup}
 						showAnteType={showAnteType}
 					/>

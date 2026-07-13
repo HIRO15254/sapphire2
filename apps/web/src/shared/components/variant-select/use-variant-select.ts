@@ -1,8 +1,10 @@
+import { MIX_VARIANT } from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
+import { GAME_MASTERS_STALE_TIME_MS } from "@/shared/hooks/use-game-groups";
 import { invalidateTargets } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -13,12 +15,6 @@ const customVariantFormSchema = z.object({
 	shortLabel: z.string().trim().max(15),
 	groupId: z.string().min(1, "Required"),
 });
-
-// Legacy mix-mode key frozen into old rows before named mix masters existed
-// (see @sapphire2/db/constants/game-variants MIX_VARIANT) — kept recognized
-// here without importing the constant, since it is never offered as a menu
-// item anymore (only real mix master labels are).
-const LEGACY_MIX_VALUE = "mix";
 
 interface UseVariantSelectArgs {
 	/**
@@ -68,11 +64,20 @@ export function useVariantSelect({
 	}, [value]);
 
 	const variantListOptions = trpc.gameVariant.list.queryOptions();
-	const variantsQuery = useQuery(variantListOptions);
+	const variantsQuery = useQuery({
+		...variantListOptions,
+		staleTime: GAME_MASTERS_STALE_TIME_MS,
+	});
 	const allVariants = variantsQuery.data ?? [];
-	const groupsQuery = useQuery(trpc.gameGroup.list.queryOptions());
+	const groupsQuery = useQuery({
+		...trpc.gameGroup.list.queryOptions(),
+		staleTime: GAME_MASTERS_STALE_TIME_MS,
+	});
 	const groups = groupsQuery.data ?? [];
-	const mixesQuery = useQuery(trpc.gameMix.list.queryOptions());
+	const mixesQuery = useQuery({
+		...trpc.gameMix.list.queryOptions(),
+		staleTime: GAME_MASTERS_STALE_TIME_MS,
+	});
 	const allMixes = mixesQuery.data ?? [];
 
 	const excluded = new Set((excludeVariants ?? []).map(normalized));
@@ -104,13 +109,13 @@ export function useVariantSelect({
 	// A frozen value whose definition no longer exists (deleted variant) is
 	// still rendered by the input (its text is the raw value), but callers can
 	// use this to hint that the label no longer matches a master row. Mix
-	// labels and the legacy "mix" mode key are always known.
+	// labels and the legacy mix mode key (MIX_VARIANT, frozen into old rows
+	// before named mix masters existed) are always known.
 	const isKnownValue =
 		value === "" ||
-		normalized(value) === LEGACY_MIX_VALUE ||
+		normalized(value) === MIX_VARIANT ||
 		allVariants.some((row) => row.label === value) ||
 		allMixes.some((row) => normalized(row.label) === normalized(value));
-	const unknownValue = isKnownValue ? null : value;
 
 	const shouldShowPopover = isOpen;
 
@@ -128,6 +133,14 @@ export function useVariantSelect({
 			shortLabel: string | null;
 		}) => trpcClient.gameVariant.create.mutate(input),
 		onSuccess: (created) => {
+			// Seed the list cache synchronously so a consumer's label→id lookup
+			// inside onChange already sees the new row — the settled
+			// invalidation below refetches too late for that (c19). The server
+			// appends with the max sortOrder, so appending here matches the
+			// list order.
+			queryClient.setQueryData(variantListOptions.queryKey, (old) =>
+				old ? [...old, created] : [created]
+			);
 			setIsAddOpen(false);
 			form.reset();
 			onChange(created.label);
@@ -167,6 +180,13 @@ export function useVariantSelect({
 	const handleSelect = (label: string) => {
 		setIsOpen(false);
 		setIsFiltering(false);
+		if (normalized(label) === normalized(value)) {
+			// Re-selecting the current value: the value prop won't change, so
+			// the sync effect never fires — restore the draft text directly
+			// instead of leaving the input blank (c17).
+			setInputValue(value);
+			return;
+		}
 		// Cleared first so pick-and-reset mounts (value stays "") end up empty;
 		// controlled mounts re-sync to the new value via the effect above.
 		setInputValue("");
@@ -238,12 +258,10 @@ export function useVariantSelect({
 		inputValue,
 		isAddOpen,
 		isCreatePending: createMutation.isPending,
+		isKnownValue,
 		isLoading:
 			variantsQuery.isLoading || groupsQuery.isLoading || mixesQuery.isLoading,
-		mixOptions,
 		setIsAddOpen,
 		shouldShowPopover,
-		unknownValue,
-		variantOptions,
 	};
 }

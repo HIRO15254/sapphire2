@@ -161,7 +161,7 @@ describe("useMixFormSheet", () => {
 			]);
 		});
 
-		it("ignores an unknown label", () => {
+		it("toasts on an unresolvable label instead of silently dropping it", () => {
 			const onOpenChange = vi.fn();
 			const { result } = renderHook(
 				() =>
@@ -176,6 +176,26 @@ describe("useMixFormSheet", () => {
 				result.current.onAddGame("Unknown Game");
 			});
 			expect(result.current.form.state.values.games).toEqual([]);
+			expect(toastMock.error).toHaveBeenCalledTimes(1);
+			expect(toastMock.error).toHaveBeenNthCalledWith(1, "Failed to add game");
+		});
+
+		it("does not toast when adding a resolvable label", () => {
+			const onOpenChange = vi.fn();
+			const { result } = renderHook(
+				() =>
+					useMixFormSheet({
+						editingMix: null,
+						onOpenChange,
+						variants: VARIANTS,
+					}),
+				{ wrapper: withQueryClient() }
+			);
+			act(() => {
+				result.current.onAddGame("Razz");
+			});
+			expect(result.current.form.state.values.games).toEqual(["v-2"]);
+			expect(toastMock.error).not.toHaveBeenCalled();
 		});
 
 		it("ignores adding a label already selected", () => {

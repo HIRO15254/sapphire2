@@ -79,44 +79,27 @@ export function groupDisplayLabel(group: GameGroupLike): string {
 
 /**
  * Compact stakes string for a group, e.g. "1/2", "1/2/5", or
- * "400/800/100 (Ante:75)". Blind3 (when set) is always appended with a
- * slash — the old "Bring-in" style suffix (" BI <n>") was resolved by
- * looking up a blind-label set from the group's first variant, which is no
- * longer possible now that stored variants are opaque display-label
- * strings rather than preset keys.
+ * "400/800/100 (Ante:75)". Composes formatBlindParts + formatAnteSuffix so
+ * the mix-group rendering can never drift from the flat blinds rendering
+ * (c15): same slot handling (no leading slash for a blind3-only group) and
+ * the same anteType rules (anteType "none" shows no suffix even when a
+ * stale ante amount is stored — c57).
  */
 export function formatGroupStakes(group: GameGroupLike): string {
-	const fmt = createGroupFormatter([
-		group.blind1,
-		group.blind2,
-		group.blind3,
-		group.ante,
-	]);
-
-	const parts: string[] = [];
-	if (group.blind1 != null) {
-		parts.push(fmt(group.blind1));
-	}
-	if (group.blind2 != null) {
-		parts.push(fmt(group.blind2));
-	} else if (parts.length > 0) {
-		parts.push("—");
-	}
-
-	let result = parts.join("/");
-
-	if (group.blind3 != null) {
-		result += `/${fmt(group.blind3)}`;
-	}
-
-	if (group.ante != null) {
-		result +=
-			group.anteType === "bb"
-				? ` (BBA:${fmt(group.ante)})`
-				: ` (Ante:${fmt(group.ante)})`;
-	}
-
-	return result === "" ? "—" : result;
+	const fields: BlindFields = {
+		blind1: group.blind1 ?? null,
+		blind2: group.blind2 ?? null,
+		blind3: group.blind3 ?? null,
+		ante: group.ante ?? null,
+		// Level game groups carry no anteType at all (levelGameGroupSchema
+		// omits it) — their stored ante always displays. Mix game groups
+		// carry an explicit anteType which formatAnteSuffix respects.
+		anteType: group.anteType === undefined ? "all" : group.anteType,
+	};
+	const parts = [formatBlindParts(fields), formatAnteSuffix(fields)].filter(
+		(part) => part !== ""
+	);
+	return parts.length === 0 ? "—" : parts.join(" ");
 }
 
 /**

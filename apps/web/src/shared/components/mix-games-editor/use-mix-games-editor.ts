@@ -37,5 +37,15 @@ export function useMixGamesEditor({
 			uid: string,
 			patch: Partial<Omit<MixGameGroupRow, "uid" | "groupId">>
 		) => onChange(updateGroup(value, uid, patch)),
+		// Switching to "none" also clears the ante cell so the disabled input
+		// never shows a stale amount (c57).
+		onUpdateAnteType: (uid: string, anteType: MixGameGroupRow["anteType"]) =>
+			onChange(
+				updateGroup(
+					value,
+					uid,
+					anteType === "none" ? { anteType, ante: "" } : { anteType }
+				)
+			),
 	};
 }

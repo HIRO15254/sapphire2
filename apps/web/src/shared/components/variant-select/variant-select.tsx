@@ -30,8 +30,6 @@ interface VariantSelectProps {
 	/** Show the special "Mixed Game" mode entry (value: "mix"). */
 	includeMix?: boolean;
 	onChange: (variant: string) => void;
-	/** Input hint while nothing is selected (pick-and-reset mounts). */
-	placeholder?: string;
 	value: string;
 }
 
@@ -50,7 +48,6 @@ export function VariantSelect({
 	id,
 	includeMix = false,
 	onChange,
-	placeholder,
 	value,
 }: VariantSelectProps) {
 	const {
@@ -104,7 +101,6 @@ export function VariantSelect({
 								}
 								handleKeyDown(e.key);
 							}}
-							placeholder={placeholder}
 							role="combobox"
 							value={inputValue}
 						/>

@@ -1,9 +1,9 @@
 import { useForm } from "@tanstack/react-form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import z from "zod";
-import { invalidateTargets } from "@/utils/optimistic-update";
-import { trpc, trpcClient } from "@/utils/trpc";
+import { useInvalidateGameMasters } from "@/shared/hooks/use-game-groups";
+import { trpcClient } from "@/utils/trpc";
 import type { GameGroupRow } from "../use-games-page";
 
 export interface UseGroupFormSheetProps {
@@ -39,19 +39,9 @@ export function useGroupFormSheet({
 	editingGroup,
 	onOpenChange,
 }: UseGroupFormSheetProps) {
-	const queryClient = useQueryClient();
-	const groupListQueryOptions = trpc.gameGroup.list.queryOptions();
-	const variantListQueryOptions = trpc.gameVariant.list.queryOptions();
-	const mixListQueryOptions = trpc.gameMix.list.queryOptions();
-
 	// Uniform triple-list invalidation, matching every other mutation in this
 	// section (see use-games-page.ts's invalidateAll).
-	const invalidateAll = () =>
-		invalidateTargets(queryClient, [
-			{ queryKey: groupListQueryOptions.queryKey },
-			{ queryKey: variantListQueryOptions.queryKey },
-			{ queryKey: mixListQueryOptions.queryKey },
-		]);
+	const invalidateAll = useInvalidateGameMasters();
 
 	const createMutation = useMutation({
 		mutationFn: (input: GroupInput) =>

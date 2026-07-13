@@ -92,6 +92,14 @@ describe("formatBlindParts", () => {
 			"100/0"
 		);
 	});
+
+	it("renders blind2 alone without a leading slash", () => {
+		expect(formatBlindParts(ringGame({ blind2: 200 }))).toBe("200");
+	});
+
+	it("renders blind3 alone without a leading slash", () => {
+		expect(formatBlindParts(ringGame({ blind3: 100 }))).toBe("100");
+	});
 });
 
 describe("formatAnteSuffix", () => {
@@ -245,6 +253,48 @@ describe("formatGroupStakes", () => {
 				group({ variants: ["NL Hold'em"], blind1: 10_000, blind2: 20_000 })
 			)
 		).toBe("10k/20k");
+	});
+
+	it("omits the ante suffix when anteType is 'none' despite a stale ante value", () => {
+		expect(
+			formatGroupStakes(
+				group({
+					variants: ["NL Hold'em"],
+					blind1: 1,
+					blind2: 2,
+					ante: 75,
+					anteType: "none",
+				})
+			)
+		).toBe("1/2");
+	});
+
+	it("renders a blind2-only group without a leading slash", () => {
+		expect(
+			formatGroupStakes(group({ variants: ["NL Hold'em"], blind2: 2 }))
+		).toBe("2");
+	});
+
+	it("renders a blind3-only group without a leading slash", () => {
+		expect(
+			formatGroupStakes(group({ variants: ["NL Hold'em"], blind3: 100 }))
+		).toBe("100");
+	});
+
+	it("renders an ante-only 'none' group as '—'", () => {
+		expect(
+			formatGroupStakes(
+				group({ variants: ["NL Hold'em"], ante: 75, anteType: "none" })
+			)
+		).toBe("—");
+	});
+
+	it("renders an ante-only group with a paying anteType as just the suffix", () => {
+		expect(
+			formatGroupStakes(
+				group({ variants: ["NL Hold'em"], ante: 75, anteType: "all" })
+			)
+		).toBe("(Ante:75)");
 	});
 });
 

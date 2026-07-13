@@ -6,6 +6,48 @@
 
 export type DiffMap<K extends string> = Partial<Record<K, boolean>>;
 
+/**
+ * Structural shape of one mix/level game group (matches mixGameGroupSchema /
+ * levelGameGroupSchema minus anteType, which the top-level anteType diff
+ * already covers for the flat game and which levels don't carry at all).
+ */
+interface GameGroupShape {
+	ante?: number | null;
+	blind1?: number | null;
+	blind2?: number | null;
+	blind3?: number | null;
+	name?: string | null;
+	variants: readonly string[];
+}
+
+function sameGameGroup(a: GameGroupShape, b: GameGroupShape): boolean {
+	return (
+		(a.name ?? null) === (b.name ?? null) &&
+		a.variants.length === b.variants.length &&
+		a.variants.every((variant, i) => variant === b.variants[i]) &&
+		(a.blind1 ?? null) === (b.blind1 ?? null) &&
+		(a.blind2 ?? null) === (b.blind2 ?? null) &&
+		(a.blind3 ?? null) === (b.blind3 ?? null) &&
+		(a.ante ?? null) === (b.ante ?? null)
+	);
+}
+
+/** Order-sensitive structural compare of two game-group lists. */
+function diffGameGroups(
+	snap: readonly GameGroupShape[] | null | undefined,
+	master: readonly GameGroupShape[] | null | undefined
+): boolean {
+	const snapGroups = snap ?? [];
+	const masterGroups = master ?? [];
+	if (snapGroups.length !== masterGroups.length) {
+		return true;
+	}
+	return snapGroups.some((group, i) => {
+		const other = masterGroups[i];
+		return !(other && sameGameGroup(group, other));
+	});
+}
+
 interface CashSnapshotFields {
 	ante: number | null;
 	anteType: string | null;
@@ -14,6 +56,7 @@ interface CashSnapshotFields {
 	blind3: number | null;
 	maxBuyIn: number | null;
 	minBuyIn: number | null;
+	mixGames?: readonly GameGroupShape[] | null;
 	ruleName: string | null;
 	tableSize: number | null;
 	variant: string | null;
@@ -27,6 +70,7 @@ interface CashMasterFields {
 	blind3: number | null;
 	maxBuyIn: number | null;
 	minBuyIn: number | null;
+	mixGames?: readonly GameGroupShape[] | null;
 	name: string;
 	tableSize: number | null;
 	variant: string;
@@ -42,6 +86,7 @@ export type CashDiffField =
 	| "anteType"
 	| "minBuyIn"
 	| "maxBuyIn"
+	| "mixGames"
 	| "tableSize";
 
 export function diffCashSnapshot(
@@ -61,6 +106,7 @@ export function diffCashSnapshot(
 		anteType: snap.anteType !== master.anteType,
 		minBuyIn: snap.minBuyIn !== master.minBuyIn,
 		maxBuyIn: snap.maxBuyIn !== master.maxBuyIn,
+		mixGames: diffGameGroups(snap.mixGames, master.mixGames),
 		tableSize: snap.tableSize !== master.tableSize,
 	};
 }
@@ -117,6 +163,7 @@ interface BlindLevelShape {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	games?: readonly GameGroupShape[] | null;
 	isBreak: boolean;
 	minutes: number | null;
 }
@@ -142,7 +189,8 @@ export function diffBlindLevels(
 			s.blind2 !== m.blind2 ||
 			s.blind3 !== m.blind3 ||
 			s.ante !== m.ante ||
-			s.minutes !== m.minutes
+			s.minutes !== m.minutes ||
+			diffGameGroups(s.games, m.games)
 		) {
 			return true;
 		}

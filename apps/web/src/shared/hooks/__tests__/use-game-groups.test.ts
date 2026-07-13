@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withQueryClient } from "@/__tests__/test-utils";
+import { createTestQueryClient, withQueryClient } from "@/__tests__/test-utils";
 
 const trpcMocks = vi.hoisted(() => ({
 	gameGroupListQueryFn: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
-import { useGameGroups } from "../use-game-groups";
+import { useGameGroups, useInvalidateGameMasters } from "../use-game-groups";
 
 // Rows in server order: builtin canonical (limit, stud, bigbet) then customs.
 const GROUP_ROWS = [
@@ -179,6 +179,38 @@ describe("useGameGroups", () => {
 		});
 		const fallback = result.current.groupFor("NL Hold'em");
 		expect(fallback.label).toBe("Big Bet");
+	});
+
+	it("keeps groupFor referentially stable across re-renders with unchanged data", async () => {
+		const { result, rerender } = setup();
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+		const firstGroupFor = result.current.groupFor;
+		const firstResolved = firstGroupFor("Razz");
+		rerender();
+		expect(result.current.groupFor).toBe(firstGroupFor);
+		// The resolved group object is stable too (memoized infoById).
+		expect(result.current.groupFor("Razz")).toBe(firstResolved);
+	});
+});
+
+describe("useInvalidateGameMasters", () => {
+	it("invalidates exactly the three master lists", async () => {
+		const queryClient = createTestQueryClient();
+		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		const { result } = renderHook(() => useInvalidateGameMasters(), {
+			wrapper: withQueryClient(queryClient),
+		});
+		await result.current();
+		expect(invalidateSpy).toHaveBeenCalledTimes(3);
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["gameGroup", "list"],
+		});
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["gameVariant", "list"],
+		});
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: ["gameMix", "list"],
+		});
 	});
 });
 

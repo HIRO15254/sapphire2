@@ -5,7 +5,7 @@ import type {
 	MixGroupInfo,
 	ResolveGroup,
 } from "@/shared/lib/mix-games";
-import { addVariant } from "@/shared/lib/mix-games";
+import { addVariant, updateGroup } from "@/shared/lib/mix-games";
 import { useMixGamesEditor } from "../use-mix-games-editor";
 
 const BIGBET: MixGroupInfo = {
@@ -78,5 +78,27 @@ describe("useMixGamesEditor", () => {
 		const value = addVariant([], "NL Hold'em", resolveGroup);
 		const { result } = setup(value);
 		expect(result.current.usedVariantList).toEqual(["NL Hold'em"]);
+	});
+
+	it("clears the ante cell when the ante type changes to 'none'", () => {
+		let value = addVariant([], "NL Hold'em", resolveGroup);
+		value = updateGroup(value, value[0].uid, { ante: "75", anteType: "all" });
+		const { result, onChange } = setup(value);
+		result.current.onUpdateAnteType(value[0].uid, "none");
+		expect(onChange).toHaveBeenCalledTimes(1);
+		const rows = onChange.mock.calls[0][0] as MixGameGroupRow[];
+		expect(rows[0].anteType).toBe("none");
+		expect(rows[0].ante).toBe("");
+	});
+
+	it("keeps the ante cell when the ante type changes between paying types", () => {
+		let value = addVariant([], "NL Hold'em", resolveGroup);
+		value = updateGroup(value, value[0].uid, { ante: "75", anteType: "all" });
+		const { result, onChange } = setup(value);
+		result.current.onUpdateAnteType(value[0].uid, "bb");
+		expect(onChange).toHaveBeenCalledTimes(1);
+		const rows = onChange.mock.calls[0][0] as MixGameGroupRow[];
+		expect(rows[0].anteType).toBe("bb");
+		expect(rows[0].ante).toBe("75");
 	});
 });
