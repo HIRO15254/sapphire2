@@ -21,6 +21,32 @@ export function parseIntOrNull(value: string): number | null {
 	return Number.isNaN(parsed) ? null : parsed;
 }
 
+/**
+ * Blind auto-fill rule shared by every blind editor row (flat empty row,
+ * flat sortable row, mix-master empty block): on blind1 blur, a blank
+ * blind2 cell derives blind1 × 2. Returns the new cell text, or null to
+ * leave a filled cell untouched.
+ */
+export function deriveAutoBlind2(
+	blind1: number,
+	blind2Cell: string
+): string | null {
+	return blind2Cell ? null : String(blind1 * 2);
+}
+
+/**
+ * Second half of the auto-fill rule: a blank ante cell copies the source
+ * cell's text (blind2 after a blind1 blur, the blurred value on a blind2
+ * blur). Returns the new cell text, or null to leave a filled cell
+ * untouched. Callers guard the source's parseability.
+ */
+export function deriveAutoAnte(
+	sourceCell: string,
+	anteCell: string
+): string | null {
+	return anteCell ? null : sourceCell;
+}
+
 export function getEffectiveLastMinutes(
 	lastMinutes: number | null,
 	levels: BlindLevelRow[]
@@ -95,6 +121,32 @@ export type BlindLevelPatch = Partial<
 		"blind1" | "blind2" | "blind3" | "ante" | "minutes" | "games"
 	>
 >;
+
+export type GameSetAmountField = "ante" | "blind1" | "blind2" | "blind3";
+
+/** One game-set cell edit: `games[index][field] = value` on a level. */
+export interface GameSetCellPatch {
+	field: GameSetAmountField;
+	index: number;
+	value: number | null;
+}
+
+/**
+ * Apply one game-set cell edit to a level's games array. Returns a new array
+ * with only the targeted set patched, or null when there is nothing to patch
+ * (no games, or the index is out of range) so callers can skip the write.
+ */
+export function applyGameSetCell(
+	games: LevelGameGroup[] | null | undefined,
+	patch: GameSetCellPatch
+): LevelGameGroup[] | null {
+	if (!games || patch.index < 0 || patch.index >= games.length) {
+		return null;
+	}
+	return games.map((set, i) =>
+		i === patch.index ? { ...set, [patch.field]: patch.value } : set
+	);
+}
 
 export function updateLevel(
 	levels: BlindLevelRow[],

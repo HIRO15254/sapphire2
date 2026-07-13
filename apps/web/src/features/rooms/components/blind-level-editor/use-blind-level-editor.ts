@@ -10,9 +10,11 @@ import { useState } from "react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	addLevel,
+	applyGameSetCell,
 	type BlindLevelPatch,
 	createLevel,
 	deleteLevel,
+	type GameSetCellPatch,
 	getEffectiveLastMinutes,
 	type NewLevelValues,
 	reorderLevels,
@@ -67,6 +69,14 @@ export function useLocalBlindStructure({
 		}
 	};
 
+	const handleUpdateGameSet = (id: string, cell: GameSetCellPatch) => {
+		const games = applyGameSetCell(value.find((l) => l.id === id)?.games, cell);
+		if (!games) {
+			return;
+		}
+		onChange(updateLevel(value, id, { games }));
+	};
+
 	const handleCreateLevel = (vals: NewLevelValues) => {
 		const minutes = vals.minutes ?? effectiveLastMinutes;
 		onChange(createLevel(value, vals, effectiveLastMinutes));
@@ -82,6 +92,7 @@ export function useLocalBlindStructure({
 		handleAddBreak,
 		handleDelete,
 		handleUpdate,
+		handleUpdateGameSet,
 		handleCreateLevel,
 	};
 }

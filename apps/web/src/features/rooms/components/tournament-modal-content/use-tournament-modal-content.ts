@@ -1,6 +1,7 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { useState } from "react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
+import { useGameGroups } from "@/shared/hooks/use-game-groups";
 
 interface UseTournamentModalContentOptions {
 	initialBlindLevels: BlindLevelRow[];
@@ -13,6 +14,7 @@ export function useTournamentModalContent({
 	initialBlindLevels,
 	initialVariant,
 }: UseTournamentModalContentOptions) {
+	const { isMixValue } = useGameGroups();
 	const [localBlindLevels, setLocalBlindLevels] =
 		useState<BlindLevelRow[]>(initialBlindLevels);
 	// Controlled so an invalid submit from the Structure tab can pull the user
@@ -24,12 +26,27 @@ export function useTournamentModalContent({
 		initialVariant ?? DEFAULT_VARIANT_LABEL
 	);
 
+	const handleStructureVariantChange = (variant: string) => {
+		setStructureVariant(variant);
+		// Switching to a plain variant strips per-level game sets — otherwise
+		// they linger invisibly on local levels and get saved as ghost games.
+		// Mix→mix keeps stored games (the header re-derives from the new
+		// composition; mismatches fall back to the generic header).
+		if (!isMixValue(variant)) {
+			setLocalBlindLevels((levels) =>
+				levels.some((l) => l.games != null)
+					? levels.map((l) => (l.games == null ? l : { ...l, games: null }))
+					: levels
+			);
+		}
+	};
+
 	return {
 		localBlindLevels,
 		setLocalBlindLevels,
 		activeTab,
 		setActiveTab,
 		structureVariant,
-		setStructureVariant,
+		handleStructureVariantChange,
 	};
 }

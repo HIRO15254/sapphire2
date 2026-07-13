@@ -11,9 +11,11 @@ import {
 } from "@dnd-kit/sortable";
 import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import { IconCoffee, IconPlus } from "@tabler/icons-react";
+import type { ReactNode } from "react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import type {
 	BlindLevelPatch,
+	GameSetCellPatch,
 	NewLevelValues,
 } from "@/features/rooms/utils/blind-level-helpers";
 import { Button } from "@/shared/components/ui/button";
@@ -26,7 +28,9 @@ import {
 } from "@/shared/components/ui/table";
 import type { BlindSlotLabels } from "@/shared/hooks/use-variant-labels";
 import type { ResolveGroup } from "@/shared/lib/mix-games";
+import { BLIND_DATA_COLUMNS } from "../blind-table-columns";
 import { EmptyGameSetRows } from "../empty-game-set-rows";
+import { EmptyGamesRow } from "../empty-games-row";
 import { EmptyRow } from "../empty-row";
 import { LevelPatternsSheet } from "../level-patterns-sheet";
 import { SortableBreakRow } from "../sortable-break-row";
@@ -40,8 +44,9 @@ interface BlindStructureTableProps {
 	/** Variant label → the games it stands for (threaded to the sheet). */
 	compositionFor?: (variantLabel: string) => string[];
 	/**
-	 * Seed used when a flat level converts to per-game sets (mix-master
-	 * composition, amounts blank).
+	 * The mix-master composition: seeds new levels' game sets (amounts blank)
+	 * and drives the per-group header rows. Null for plain variants and for
+	 * orphaned mixes whose master was deleted.
 	 */
 	defaultGames?: LevelGameGroup[] | null;
 	handleAddBreak: () => void;
@@ -50,10 +55,11 @@ interface BlindStructureTableProps {
 	handleDelete: (id: string) => void;
 	handleDragEnd: (event: DragEndEvent) => void;
 	handleUpdate: (id: string, updates: BlindLevelPatch) => void;
+	handleUpdateGameSet: (id: string, cell: GameSetCellPatch) => void;
 	/**
-	 * Mix-master tournament: levels with game sets render one inline row per
-	 * set (WSOP structure-sheet style); flat levels stay single-row and can
-	 * toggle between the two shapes.
+	 * Mix-master tournament (or orphaned levels that still carry game sets):
+	 * levels with game sets render one inline row per set (WSOP
+	 * structure-sheet style); levels without games stay single flat rows.
 	 */
 	hybridGames?: boolean;
 	isAdding?: boolean;
@@ -67,6 +73,41 @@ interface BlindStructureTableProps {
 
 const HEAD_CLASS =
 	"h-auto pb-1 text-center font-medium text-muted-foreground text-xs";
+
+interface SortableLevelsProps {
+	handleDragEnd: (event: DragEndEvent) => void;
+	levels: BlindLevelRow[];
+	renderRow: (row: BlindLevelRow) => ReactNode;
+	sensors: SensorDescriptor<SensorOptions>[];
+}
+
+// Shared dnd-kit scaffolding for both table bodies (purely presentational,
+// no hooks). The sortable unit is the level; game-set levels render their
+// own <tbody> block inside renderRow.
+function SortableLevels({
+	levels,
+	sensors,
+	handleDragEnd,
+	renderRow,
+}: SortableLevelsProps) {
+	if (levels.length === 0) {
+		return null;
+	}
+	return (
+		<DndContext
+			collisionDetection={closestCenter}
+			onDragEnd={handleDragEnd}
+			sensors={sensors}
+		>
+			<SortableContext
+				items={levels.map((l) => l.id)}
+				strategy={verticalListSortingStrategy}
+			>
+				{levels.map(renderRow)}
+			</SortableContext>
+		</DndContext>
+	);
+}
 
 export function BlindStructureTable({
 	levels,
@@ -83,60 +124,59 @@ export function BlindStructureTable({
 	handleAddLevel,
 	handleDelete,
 	handleUpdate,
+	handleUpdateGameSet,
 	handleCreateLevel,
 }: BlindStructureTableProps) {
 	const { headerGroups, openLevel, openGamesFor, closeGames } =
 		useBlindStructureTable(levels, { defaultGames, hybridGames, resolveGroup });
 
+	// Mix-master (or orphaned game-set) body: each level is its own <tbody>
+	// block — game-set levels render one inline row per set, breaks and
+	// legacy flat levels stay single-row. The add-row seeds the composition's
+	// sets; with no composition (orphaned mix) it falls back to the flat
+	// empty row (documented empty-composition behavior).
 	const hybridBody = (
 		<>
-			{levels.length > 0 && (
-				<DndContext
-					collisionDetection={closestCenter}
-					onDragEnd={handleDragEnd}
-					sensors={sensors}
-				>
-					<SortableContext
-						items={levels.map((l) => l.id)}
-						strategy={verticalListSortingStrategy}
-					>
-						{levels.map((row) => {
-							if (row.isBreak) {
-								return (
-									<TableBody key={row.id}>
-										<SortableBreakRow
-											gameColumn
-											onDelete={handleDelete}
-											onUpdate={handleUpdate}
-											row={row}
-										/>
-									</TableBody>
-								);
-							}
-							if ((row.games?.length ?? 0) > 0) {
-								return (
-									<SortableGameSetRows
-										key={row.id}
-										onDelete={handleDelete}
-										onUpdate={handleUpdate}
-										row={row}
-									/>
-								);
-							}
-							return (
-								<TableBody key={row.id}>
-									<SortableLevelRow
-										gameColumn
-										onDelete={handleDelete}
-										onUpdate={handleUpdate}
-										row={row}
-									/>
-								</TableBody>
-							);
-						})}
-					</SortableContext>
-				</DndContext>
-			)}
+			<SortableLevels
+				handleDragEnd={handleDragEnd}
+				levels={levels}
+				renderRow={(row) => {
+					if (row.isBreak) {
+						return (
+							<TableBody key={row.id}>
+								<SortableBreakRow
+									gameColumn
+									onDelete={handleDelete}
+									onUpdate={handleUpdate}
+									row={row}
+								/>
+							</TableBody>
+						);
+					}
+					if ((row.games?.length ?? 0) > 0) {
+						return (
+							<SortableGameSetRows
+								key={row.id}
+								onDelete={handleDelete}
+								onUpdate={handleUpdate}
+								onUpdateGameSet={handleUpdateGameSet}
+								row={row}
+							/>
+						);
+					}
+					return (
+						<TableBody key={row.id}>
+							<SortableLevelRow
+								gameColumn
+								onDelete={handleDelete}
+								onUpdate={handleUpdate}
+								row={row}
+							/>
+						</TableBody>
+					);
+				}}
+				sensors={sensors}
+			/>
 			{defaultGames?.length ? (
 				<EmptyGameSetRows
 					onCreateLevel={handleCreateLevel}
@@ -150,53 +190,53 @@ export function BlindStructureTable({
 		</>
 	);
 
+	// Flat body: plain variants edit blind cells inline; per-level ('mix')
+	// mode replaces them with a "Games" summary row per level, and its
+	// add-row has no blind inputs (amounts typed there would be invisible on
+	// the summary row) — just Min + an explicit add button.
 	const flatBody = (
 		<TableBody>
-			{levels.length > 0 && (
-				<DndContext
-					collisionDetection={closestCenter}
-					onDragEnd={handleDragEnd}
-					sensors={sensors}
-				>
-					<SortableContext
-						items={levels.map((l) => l.id)}
-						strategy={verticalListSortingStrategy}
-					>
-						{levels.map((row) => {
-							if (row.isBreak) {
-								return (
-									<SortableBreakRow
-										key={row.id}
-										onDelete={handleDelete}
-										onUpdate={handleUpdate}
-										row={row}
-									/>
-								);
-							}
-							if (isMix) {
-								return (
-									<SortableGamesRow
-										key={row.id}
-										onDelete={handleDelete}
-										onOpenGames={openGamesFor}
-										onUpdate={handleUpdate}
-										row={row}
-									/>
-								);
-							}
-							return (
-								<SortableLevelRow
-									key={row.id}
-									onDelete={handleDelete}
-									onUpdate={handleUpdate}
-									row={row}
-								/>
-							);
-						})}
-					</SortableContext>
-				</DndContext>
+			<SortableLevels
+				handleDragEnd={handleDragEnd}
+				levels={levels}
+				renderRow={(row) => {
+					if (row.isBreak) {
+						return (
+							<SortableBreakRow
+								key={row.id}
+								onDelete={handleDelete}
+								onUpdate={handleUpdate}
+								row={row}
+							/>
+						);
+					}
+					if (isMix) {
+						return (
+							<SortableGamesRow
+								key={row.id}
+								onDelete={handleDelete}
+								onOpenGames={openGamesFor}
+								onUpdate={handleUpdate}
+								row={row}
+							/>
+						);
+					}
+					return (
+						<SortableLevelRow
+							key={row.id}
+							onDelete={handleDelete}
+							onUpdate={handleUpdate}
+							row={row}
+						/>
+					);
+				}}
+				sensors={sensors}
+			/>
+			{isMix ? (
+				<EmptyGamesRow onCreateLevel={handleCreateLevel} />
+			) : (
+				<EmptyRow onCreateLevel={handleCreateLevel} />
 			)}
-			<EmptyRow onCreateLevel={handleCreateLevel} />
 		</TableBody>
 	);
 
@@ -272,7 +312,7 @@ export function BlindStructureTable({
 								</TableHead>
 							)}
 							{isMix ? (
-								<TableHead className={HEAD_CLASS} colSpan={3}>
+								<TableHead className={HEAD_CLASS} colSpan={BLIND_DATA_COLUMNS}>
 									Games
 								</TableHead>
 							) : (

@@ -4,7 +4,10 @@ import { IconTrash } from "@tabler/icons-react";
 import { groupDisplayLabel } from "@/features/live-sessions/utils/game-scene-formatters";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { useGameSetRows } from "@/features/rooms/hooks/use-game-set-rows";
-import type { BlindLevelPatch } from "@/features/rooms/utils/blind-level-helpers";
+import type {
+	BlindLevelPatch,
+	GameSetCellPatch,
+} from "@/features/rooms/utils/blind-level-helpers";
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { TableBody, TableCell, TableRow } from "@/shared/components/ui/table";
@@ -14,6 +17,7 @@ import { DragHandle } from "../drag-handle";
 interface SortableGameSetRowsProps {
 	onDelete: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;
+	onUpdateGameSet: (id: string, cell: GameSetCellPatch) => void;
 	row: BlindLevelRow;
 }
 
@@ -27,6 +31,7 @@ export function SortableGameSetRows({
 	row,
 	onDelete,
 	onUpdate,
+	onUpdateGameSet,
 }: SortableGameSetRowsProps) {
 	const {
 		attributes,
@@ -37,10 +42,13 @@ export function SortableGameSetRows({
 		isDragging,
 	} = useSortable({ id: row.id });
 
-	const { games, handleSetFieldBlur, handleMinutesBlur } = useGameSetRows({
-		row,
-		onUpdate,
-	});
+	const {
+		games,
+		handleSetFieldBlur,
+		handleSetFieldFocus,
+		handleMinutesBlur,
+		setFieldKey,
+	} = useGameSetRows({ row, onUpdate, onUpdateGameSet });
 
 	const style = {
 		transform: CSS.Transform.toString(transform),
@@ -79,22 +87,25 @@ export function SortableGameSetRows({
 					<TableCell className="p-0 px-0.5">
 						<BlindLevelInput
 							defaultValue={set.blind1 ?? ""}
-							key={`${row.id}-b1-${set.blind1}`}
+							key={setFieldKey(index, "blind1")}
 							onBlur={handleSetFieldBlur(index, "blind1")}
+							onFocus={handleSetFieldFocus(index, "blind1")}
 						/>
 					</TableCell>
 					<TableCell className="p-0 px-0.5">
 						<BlindLevelInput
 							defaultValue={set.blind2 ?? ""}
-							key={`${row.id}-b2-${set.blind2}`}
+							key={setFieldKey(index, "blind2")}
 							onBlur={handleSetFieldBlur(index, "blind2")}
+							onFocus={handleSetFieldFocus(index, "blind2")}
 						/>
 					</TableCell>
 					<TableCell className="p-0 px-0.5">
 						<BlindLevelInput
 							defaultValue={set.ante ?? ""}
-							key={`${row.id}-ante-${set.ante}`}
+							key={setFieldKey(index, "ante")}
 							onBlur={handleSetFieldBlur(index, "ante")}
+							onFocus={handleSetFieldFocus(index, "ante")}
 						/>
 					</TableCell>
 					{index === 0 && (

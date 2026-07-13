@@ -3,8 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	addLevel,
+	applyGameSetCell,
 	createLevel,
 	deleteLevel,
+	deriveAutoAnte,
+	deriveAutoBlind2,
 	getEffectiveLastMinutes,
 	parseIntOrNull,
 	reorderLevels,
@@ -300,6 +303,112 @@ describe("parseIntOrNull", () => {
 
 	it("returns null for 'Infinity' (parseInt yields NaN)", () => {
 		expect(parseIntOrNull("Infinity")).toBeNull();
+	});
+});
+
+describe("deriveAutoBlind2", () => {
+	it("derives blind1 x 2 into a blank blind2 cell", () => {
+		expect(deriveAutoBlind2(100, "")).toBe("200");
+	});
+
+	it("leaves a filled blind2 cell untouched (null)", () => {
+		expect(deriveAutoBlind2(100, "300")).toBeNull();
+	});
+
+	it("derives '0' for blind1 = 0", () => {
+		expect(deriveAutoBlind2(0, "")).toBe("0");
+	});
+
+	it("doubles a negative blind1", () => {
+		expect(deriveAutoBlind2(-50, "")).toBe("-100");
+	});
+});
+
+describe("deriveAutoAnte", () => {
+	it("copies the source cell text into a blank ante cell", () => {
+		expect(deriveAutoAnte("200", "")).toBe("200");
+	});
+
+	it("leaves a filled ante cell untouched (null)", () => {
+		expect(deriveAutoAnte("200", "50")).toBeNull();
+	});
+
+	it("copies a blank source verbatim (callers guard parseability)", () => {
+		expect(deriveAutoAnte("", "")).toBe("");
+	});
+});
+
+describe("applyGameSetCell", () => {
+	const games = [
+		{
+			name: "Limit",
+			variants: ["Limit Hold'em"],
+			blind1: 400,
+			blind2: 800,
+			blind3: null,
+			ante: null,
+		},
+		{
+			name: "Big Bet",
+			variants: ["NL Hold'em"],
+			blind1: 100,
+			blind2: 200,
+			blind3: null,
+			ante: 25,
+		},
+	];
+
+	it("patches only the targeted set's field", () => {
+		const next = applyGameSetCell(games, {
+			index: 1,
+			field: "blind1",
+			value: 150,
+		});
+		expect(next).toEqual([games[0], { ...games[1], blind1: 150 }]);
+	});
+
+	it("can clear a field to null", () => {
+		const next = applyGameSetCell(games, {
+			index: 1,
+			field: "ante",
+			value: null,
+		});
+		expect(next?.[1]?.ante).toBeNull();
+	});
+
+	it("does not mutate the input array", () => {
+		applyGameSetCell(games, { index: 0, field: "blind1", value: 999 });
+		expect(games[0]?.blind1).toBe(400);
+	});
+
+	it("returns null for null games", () => {
+		expect(
+			applyGameSetCell(null, { index: 0, field: "blind1", value: 1 })
+		).toBeNull();
+	});
+
+	it("returns null for undefined games", () => {
+		expect(
+			applyGameSetCell(undefined, { index: 0, field: "blind1", value: 1 })
+		).toBeNull();
+	});
+
+	it("returns null for an empty games array", () => {
+		expect(
+			applyGameSetCell([], { index: 0, field: "blind1", value: 1 })
+		).toBeNull();
+	});
+
+	it("returns null when index is negative", () => {
+		expect(
+			applyGameSetCell(games, { index: -1, field: "blind1", value: 1 })
+		).toBeNull();
+	});
+
+	it("returns null when index is past the last set", () => {
+		expect(
+			applyGameSetCell(games, { index: 2, field: "blind1", value: 1 })
+		).toBeNull();
 	});
 });
 

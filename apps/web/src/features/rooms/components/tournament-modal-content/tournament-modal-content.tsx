@@ -56,7 +56,7 @@ export function TournamentModalContent({
 		activeTab,
 		setActiveTab,
 		structureVariant,
-		setStructureVariant,
+		handleStructureVariantChange,
 	} = useTournamentModalContent({
 		initialBlindLevels,
 		initialVariant: initialFormValues?.variant,
@@ -106,7 +106,7 @@ export function TournamentModalContent({
 						onInvalidSubmit={() => setActiveTab("details")}
 						onRegisterLiveValues={onRegisterLiveValues}
 						onSubmit={(values) => onSave(values, localBlindLevels)}
-						onVariantChange={setStructureVariant}
+						onVariantChange={handleStructureVariantChange}
 					/>
 				</TabsContent>
 				<TabsContent value="structure">

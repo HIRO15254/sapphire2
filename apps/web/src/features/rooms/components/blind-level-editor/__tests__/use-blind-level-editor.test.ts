@@ -122,6 +122,77 @@ describe("useLocalBlindStructure", () => {
 		expect(next[1].minutes).toBe(20);
 	});
 
+	describe("handleUpdateGameSet", () => {
+		const games = [
+			{
+				name: "Limit",
+				variants: ["Limit Hold'em"],
+				blind1: 400,
+				blind2: 800,
+				blind3: null,
+				ante: null,
+			},
+			{
+				name: "Big Bet",
+				variants: ["NL Hold'em"],
+				blind1: 100,
+				blind2: 200,
+				blind3: null,
+				ante: 25,
+			},
+		];
+
+		it("patches only the targeted set's cell on the matching level", () => {
+			const onChange = vi.fn();
+			const rows: BlindLevelRow[] = [row({ id: "a", level: 1, games })];
+			const { result } = renderHook(() =>
+				useLocalBlindStructure({ value: rows, onChange })
+			);
+			act(() => {
+				result.current.handleUpdateGameSet("a", {
+					index: 1,
+					field: "blind1",
+					value: 150,
+				});
+			});
+			expect(onChange).toHaveBeenCalledTimes(1);
+			const next = onChange.mock.calls[0][0] as BlindLevelRow[];
+			expect(next[0].games).toEqual([games[0], { ...games[1], blind1: 150 }]);
+		});
+
+		it("no-ops for a level without games", () => {
+			const onChange = vi.fn();
+			const rows: BlindLevelRow[] = [row({ id: "a", level: 1, games: null })];
+			const { result } = renderHook(() =>
+				useLocalBlindStructure({ value: rows, onChange })
+			);
+			act(() => {
+				result.current.handleUpdateGameSet("a", {
+					index: 0,
+					field: "blind1",
+					value: 150,
+				});
+			});
+			expect(onChange).not.toHaveBeenCalled();
+		});
+
+		it("no-ops for an unknown level id", () => {
+			const onChange = vi.fn();
+			const rows: BlindLevelRow[] = [row({ id: "a", level: 1, games })];
+			const { result } = renderHook(() =>
+				useLocalBlindStructure({ value: rows, onChange })
+			);
+			act(() => {
+				result.current.handleUpdateGameSet("missing", {
+					index: 0,
+					field: "blind1",
+					value: 150,
+				});
+			});
+			expect(onChange).not.toHaveBeenCalled();
+		});
+	});
+
 	it("handleDragEnd: calls onChange only when the drag produced a reorder", () => {
 		const onChange = vi.fn();
 		const rows: BlindLevelRow[] = [

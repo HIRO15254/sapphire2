@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { TableCell, TableRow } from "@/shared/components/ui/table";
 import { BlindLevelInput } from "../blind-level-input";
+import { BLIND_DATA_COLUMNS } from "../blind-table-columns";
 import { DragHandle } from "../drag-handle";
 
 interface SortableGamesRowProps {
@@ -64,7 +65,7 @@ export function SortableGamesRow({
 					<span className="text-muted-foreground text-xs">{row.level}</span>
 				</div>
 			</TableCell>
-			<TableCell className="p-0 px-0.5" colSpan={3}>
+			<TableCell className="p-0 px-0.5" colSpan={BLIND_DATA_COLUMNS}>
 				<Button
 					className="w-full justify-between font-normal"
 					onClick={() => onOpenGames(row.id)}

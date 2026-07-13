@@ -2,6 +2,8 @@ import { useRef } from "react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	type BlindLevelPatch,
+	deriveAutoAnte,
+	deriveAutoBlind2,
 	parseIntOrNull,
 } from "@/features/rooms/utils/blind-level-helpers";
 
@@ -18,21 +20,23 @@ export function useSortableLevelRow({
 	const currentAnteRef = useRef(row.ante == null ? "" : String(row.ante));
 
 	const handleBlind1Blur = (e: React.FocusEvent<HTMLInputElement>) => {
-		const val = e.target.value;
-		const parsed = parseIntOrNull(val);
+		const parsed = parseIntOrNull(e.target.value);
 		const updates: BlindLevelPatch = { blind1: parsed };
 		if (parsed != null) {
-			if (!currentBlind2Ref.current) {
-				const bb = parsed * 2;
-				currentBlind2Ref.current = String(bb);
-				updates.blind2 = bb;
-				if (!currentAnteRef.current) {
-					currentAnteRef.current = String(bb);
-					updates.ante = bb;
-				}
-			} else if (!currentAnteRef.current) {
-				currentAnteRef.current = String(parsed);
-				updates.ante = parsed;
+			const autoBlind2 = deriveAutoBlind2(parsed, currentBlind2Ref.current);
+			if (autoBlind2 != null) {
+				currentBlind2Ref.current = autoBlind2;
+				updates.blind2 = parsed * 2;
+			}
+			// With blind2 already filled, the flat row copies blind1 into a
+			// blank ante (historical behavior); otherwise the derived blind2.
+			const autoAnte = deriveAutoAnte(
+				autoBlind2 ?? String(parsed),
+				currentAnteRef.current
+			);
+			if (autoAnte != null) {
+				currentAnteRef.current = autoAnte;
+				updates.ante = parseIntOrNull(autoAnte);
 			}
 		}
 		onUpdate(row.id, updates);
@@ -42,10 +46,13 @@ export function useSortableLevelRow({
 		const val = e.target.value;
 		currentBlind2Ref.current = val;
 		const parsed = parseIntOrNull(val);
-		const updates: Record<string, number | null> = { blind2: parsed };
-		if (parsed != null && !currentAnteRef.current) {
-			currentAnteRef.current = val;
-			updates.ante = parsed;
+		const updates: BlindLevelPatch = { blind2: parsed };
+		if (parsed != null) {
+			const autoAnte = deriveAutoAnte(val, currentAnteRef.current);
+			if (autoAnte != null) {
+				currentAnteRef.current = autoAnte;
+				updates.ante = parsed;
+			}
 		}
 		onUpdate(row.id, updates);
 	};

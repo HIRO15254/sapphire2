@@ -9,12 +9,18 @@ import { arrayMove } from "@dnd-kit/sortable";
 import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { BlindLevelPatch } from "@/features/rooms/utils/blind-level-helpers";
+import {
+	applyGameSetCell,
+	type BlindLevelPatch,
+	type GameSetCellPatch,
+	type NewLevelValues,
+} from "@/features/rooms/utils/blind-level-helpers";
 import {
 	cancelTargets,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -30,15 +36,6 @@ export interface BlindLevelRow {
 	level: number;
 	minutes: number | null;
 	tournamentId: string;
-}
-
-interface NewLevelValues {
-	ante: number | null;
-	blind1: number | null;
-	blind2: number | null;
-	/** Per-game blind sets (mix-master empty block); null/absent = flat. */
-	games?: LevelGameGroup[] | null;
-	minutes: number | null;
 }
 
 interface UseBlindLevelsOptions {
@@ -97,7 +94,9 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			]);
 			const previous = snapshotQuery(queryClient, levelsQueryOptions.queryKey);
 			const tempRow: BlindLevelRow = {
-				id: `temp-${Date.now()}`,
+				// crypto-random: `temp-${Date.now()}` collides within one
+				// millisecond and corrupts keyed rendering (SA2-143).
+				id: `temp-${crypto.randomUUID()}`,
 				tournamentId,
 				level: newLevel.level,
 				isBreak: newLevel.isBreak,
@@ -158,6 +157,22 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			id: string;
 			value: LevelGameGroup[] | number | null;
 		}) => trpcClient.blindLevel.update.mutate({ id, [field]: value }),
+		onMutate: async ({ id, field, value }) => {
+			await cancelTargets(queryClient, [
+				{ queryKey: levelsQueryOptions.queryKey },
+			]);
+			const previous = snapshotQuery(queryClient, levelsQueryOptions.queryKey);
+			updateQueryItems<BlindLevelRow>(
+				queryClient,
+				levelsQueryOptions.queryKey,
+				(items) =>
+					items.map((l) => (l.id === id ? { ...l, [field]: value } : l))
+			);
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			restoreSnapshots(queryClient, [context?.previous]);
+		},
 		onSettled: () => {
 			invalidateTargets(queryClient, [
 				{ queryKey: levelsQueryOptions.queryKey },
@@ -238,17 +253,29 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 	};
 
 	const handleUpdate = (id: string, updates: BlindLevelPatch) => {
-		queryClient.setQueryData(
-			levelsQueryOptions.queryKey,
-			(old: BlindLevelRow[] | undefined) =>
-				(old ?? []).map((l) => (l.id === id ? { ...l, ...updates } : l))
-		);
+		// Optimistic cache writes live in updateMutation.onMutate (cancel +
+		// snapshot + rollback), not here — see web-data-fetching.md.
 		for (const [field, value] of Object.entries(updates)) {
 			updateMutation.mutate({ id, field, value });
 		}
 		if (updates.minutes != null) {
 			setLastMinutes(updates.minutes);
 		}
+	};
+
+	// Game-set cell edits derive the new games array from the freshest cache
+	// value at mutate time (not a render-time row prop), so two rapid blurs
+	// cannot resurrect a stale array.
+	const handleUpdateGameSet = (id: string, cell: GameSetCellPatch) => {
+		const current = queryClient.getQueryData<BlindLevelRow[]>(
+			levelsQueryOptions.queryKey
+		);
+		const row = current?.find((l) => l.id === id);
+		const games = applyGameSetCell(row?.games, cell);
+		if (!games) {
+			return;
+		}
+		updateMutation.mutate({ id, field: "games", value: games });
 	};
 
 	const handleCreateLevel = (values: NewLevelValues) => {
@@ -285,6 +312,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 		handleAddBreak,
 		handleDelete,
 		handleUpdate,
+		handleUpdateGameSet,
 		handleCreateLevel,
 	};
 }

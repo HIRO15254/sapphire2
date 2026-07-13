@@ -2,8 +2,13 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BlindStructureContent } from "./blind-level-editor";
+import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
+import {
+	BlindStructureContent,
+	LocalBlindStructureContent,
+} from "./blind-level-editor";
 
+const ADD_LEVEL_PATTERN = /add level/i;
 const BLIND_HELPER_PATTERN = /drag levels to reorder the structure/i;
 const BREAK_BUTTON_PATTERN = /break/i;
 const LEVEL_BUTTON_PATTERN = /level/i;
@@ -54,6 +59,7 @@ const mocks = vi.hoisted(() => ({
 	deleteMutate: vi.fn(),
 	invalidateQueries: vi.fn(),
 	isLoading: false,
+	mastersLoading: false,
 	reorderMutate: vi.fn(),
 	setQueryData: vi.fn(),
 	updateMutate: vi.fn(),
@@ -94,13 +100,13 @@ vi.mock("@tanstack/react-query", () => ({
 	// it doesn't collide with the blind-levels query below.
 	useQuery: (options: { queryKey?: readonly unknown[] }) => {
 		if (options?.queryKey?.[0] === "gameMix") {
-			return { data: mocks.gameMixes, isLoading: false };
+			return { data: mocks.gameMixes, isLoading: mocks.mastersLoading };
 		}
 		if (options?.queryKey?.[0] === "gameVariant") {
-			return { data: mocks.gameVariants, isLoading: false };
+			return { data: mocks.gameVariants, isLoading: mocks.mastersLoading };
 		}
 		if (options?.queryKey?.[0] === "gameGroup") {
-			return { data: mocks.gameGroups, isLoading: false };
+			return { data: mocks.gameGroups, isLoading: mocks.mastersLoading };
 		}
 		return {
 			data: mocks.blindLevels,
@@ -109,7 +115,9 @@ vi.mock("@tanstack/react-query", () => ({
 	},
 	useQueryClient: () => ({
 		cancelQueries: vi.fn(),
-		getQueryData: vi.fn(),
+		// handleUpdateGameSet derives the games payload from the freshest
+		// cache value; serve the same levels the query mock renders from.
+		getQueryData: () => mocks.blindLevels,
 		invalidateQueries: mocks.invalidateQueries,
 		setQueryData: mocks.setQueryData,
 	}),
@@ -222,6 +230,7 @@ describe("BlindStructureContent", () => {
 		mocks.gameVariants = [];
 		mocks.gameMixes = [];
 		mocks.isLoading = false;
+		mocks.mastersLoading = false;
 		mocks.createMutate.mockReset();
 		mocks.deleteMutate.mockReset();
 		mocks.reorderMutate.mockReset();
@@ -560,9 +569,11 @@ describe("BlindStructureContent", () => {
 			tournamentId: "tour-1",
 			level: 1,
 			isBreak: false,
+			// Seeded buckets store no display name (null); labels derive from
+			// the group at render time (mix-games c18 contract).
 			games: [
 				{
-					name: "Big Bet",
+					name: null,
 					variants: ["NL Hold'em"],
 					blind1: 100,
 					blind2: 200,
@@ -570,7 +581,7 @@ describe("BlindStructureContent", () => {
 					ante: 200,
 				},
 				{
-					name: "Stud",
+					name: null,
 					variants: ["Razz"],
 					blind1: null,
 					blind2: null,
@@ -619,5 +630,210 @@ describe("BlindStructureContent", () => {
 		await user.click(screen.getByRole("button", { name: "Level" }));
 		expect(mocks.createMutate).toHaveBeenCalledTimes(1);
 		expect(mocks.createMutate.mock.calls[0][0].games).toBeUndefined();
+	});
+
+	describe("orphaned / loading mix master (hybrid fallback)", () => {
+		const GAME_SET_LEVEL = {
+			ante: null,
+			blind1: null,
+			blind2: null,
+			blind3: null,
+			games: [
+				{
+					ante: null,
+					blind1: 400,
+					blind2: 800,
+					blind3: null,
+					name: "Limit games",
+					variants: ["Limit Hold'em"],
+				},
+			],
+			id: "l1",
+			isBreak: false,
+			level: 1,
+			minutes: 20,
+			tournamentId: "tour-1",
+		};
+
+		it("still renders game-set rows when the mix master was deleted (gameMix.list empty)", () => {
+			mocks.gameMixes = [];
+			mocks.blindLevels = [GAME_SET_LEVEL];
+			render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+			// The level keeps its per-set rendering with the generic hybrid header.
+			expect(screen.getByText("Game")).toBeInTheDocument();
+			expect(screen.getByText("Limit games")).toBeInTheDocument();
+			expect(screen.getByDisplayValue("400")).toBeInTheDocument();
+		});
+
+		it("shows the loading state while game masters load instead of the flat table", () => {
+			mocks.mastersLoading = true;
+			mocks.blindLevels = [GAME_SET_LEVEL];
+			render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+			expect(screen.getByText("Loading levels...")).toBeInTheDocument();
+			expect(screen.queryAllByRole("textbox")).toHaveLength(0);
+		});
+
+		it("LocalBlindStructureContent renders game-set rows for orphaned mix levels", () => {
+			mocks.gameMixes = [];
+			render(
+				<LocalBlindStructureContent
+					onChange={vi.fn()}
+					value={[GAME_SET_LEVEL as unknown as BlindLevelRow]}
+					variant="8-Game"
+				/>
+			);
+			expect(screen.getByText("Game")).toBeInTheDocument();
+			expect(screen.getByText("Limit games")).toBeInTheDocument();
+			expect(screen.getByDisplayValue("400")).toBeInTheDocument();
+		});
+
+		it("LocalBlindStructureContent defers the table while game masters load", () => {
+			mocks.mastersLoading = true;
+			render(
+				<LocalBlindStructureContent
+					onChange={vi.fn()}
+					value={[GAME_SET_LEVEL as unknown as BlindLevelRow]}
+					variant="8-Game"
+				/>
+			);
+			expect(screen.getByText("Loading levels...")).toBeInTheDocument();
+			expect(screen.queryAllByRole("textbox")).toHaveLength(0);
+		});
+	});
+
+	describe("grouped header vs stored rows (composition mismatch)", () => {
+		function gameSetLevel(
+			variantsInOrder: string[][]
+		): (typeof mocks.blindLevels)[number] {
+			return {
+				ante: null,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				games: variantsInOrder.map((variants) => ({
+					ante: null,
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					name: null,
+					variants,
+				})),
+				id: "l1",
+				isBreak: false,
+				level: 1,
+				minutes: 20,
+				tournamentId: "tour-1",
+			};
+		}
+
+		it("keeps the grouped header when every game-set level matches the composition order", () => {
+			seedMixMasterData();
+			mocks.blindLevels = [gameSetLevel([["NL Hold'em"], ["Razz"]])];
+			render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+			const headers = screen
+				.getAllByRole("columnheader")
+				.map((cell) => cell.textContent);
+			expect(headers).toEqual([
+				"#",
+				"Big Bet",
+				"SB",
+				"BB",
+				"Ante",
+				"Min",
+				"",
+				"Stud",
+				"Small Bet",
+				"Big Bet",
+				"Ante",
+			]);
+		});
+
+		it("falls back to the generic header when a level's set order mismatches the composition", () => {
+			seedMixMasterData();
+			mocks.blindLevels = [gameSetLevel([["Razz"], ["NL Hold'em"]])];
+			render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+			const headers = screen
+				.getAllByRole("columnheader")
+				.map((cell) => cell.textContent);
+			expect(headers).toEqual(["#", "Game", "SB", "BB", "Ante", "Min", ""]);
+			expect(screen.queryByText("Small Bet")).not.toBeInTheDocument();
+		});
+
+		it("falls back to the generic header when a level has fewer sets than the composition", () => {
+			seedMixMasterData();
+			mocks.blindLevels = [gameSetLevel([["NL Hold'em"]])];
+			render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+			const headers = screen
+				.getAllByRole("columnheader")
+				.map((cell) => cell.textContent);
+			expect(headers).toEqual(["#", "Game", "SB", "BB", "Ante", "Min", ""]);
+		});
+
+		it("ignores breaks and flat levels when checking the composition match", () => {
+			seedMixMasterData();
+			mocks.blindLevels = [
+				{
+					ante: null,
+					blind1: null,
+					blind2: null,
+					blind3: null,
+					id: "break-1",
+					isBreak: true,
+					level: 1,
+					minutes: 10,
+					tournamentId: "tour-1",
+				},
+				{
+					ante: 25,
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					id: "flat-1",
+					isBreak: false,
+					level: 2,
+					minutes: 20,
+					tournamentId: "tour-1",
+				},
+			];
+			render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+			expect(screen.getByText("Small Bet")).toBeInTheDocument();
+		});
+	});
+
+	describe("per-level ('mix') empty row", () => {
+		it("renders no flat blind inputs — only the minutes cell and an add affordance", () => {
+			render(<BlindStructureContent tournamentId="tour-1" variant="mix" />);
+			expect(screen.getAllByRole("textbox")).toHaveLength(1);
+			expect(
+				screen.getByRole("button", { name: ADD_LEVEL_PATTERN })
+			).toBeInTheDocument();
+		});
+
+		it("creates a level with typed minutes from the add affordance", async () => {
+			const user = userEvent.setup();
+			render(<BlindStructureContent tournamentId="tour-1" variant="mix" />);
+			const minutesInput = screen.getAllByRole("textbox")[0];
+			fireEvent.change(minutesInput, { target: { value: "30" } });
+			await user.click(screen.getByRole("button", { name: ADD_LEVEL_PATTERN }));
+			expect(mocks.createMutate).toHaveBeenCalledTimes(1);
+			expect(mocks.createMutate).toHaveBeenNthCalledWith(1, {
+				tournamentId: "tour-1",
+				level: 1,
+				isBreak: false,
+				minutes: 30,
+			});
+		});
+
+		it("creates a minutes-less level when the minutes cell is empty", async () => {
+			const user = userEvent.setup();
+			render(<BlindStructureContent tournamentId="tour-1" variant="mix" />);
+			await user.click(screen.getByRole("button", { name: ADD_LEVEL_PATTERN }));
+			expect(mocks.createMutate).toHaveBeenCalledTimes(1);
+			expect(mocks.createMutate).toHaveBeenNthCalledWith(1, {
+				tournamentId: "tour-1",
+				level: 1,
+				isBreak: false,
+			});
+		});
 	});
 });

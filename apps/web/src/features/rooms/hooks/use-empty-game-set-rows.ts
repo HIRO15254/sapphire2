@@ -1,6 +1,8 @@
 import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import { useRef } from "react";
 import {
+	deriveAutoAnte,
+	deriveAutoBlind2,
 	type NewLevelValues,
 	parseIntOrNull,
 } from "@/features/rooms/utils/blind-level-helpers";
@@ -79,6 +81,21 @@ export function useEmptyGameSetRows({
 		resetRows();
 	};
 
+	// Write a derived auto-fill text into a cell; null result (cell already
+	// filled) and unmounted cells leave the DOM untouched.
+	const fillCell = (
+		input: HTMLInputElement | undefined,
+		derive: (current: string) => string | null
+	) => {
+		if (!input) {
+			return;
+		}
+		const text = derive(input.value);
+		if (text != null) {
+			input.value = text;
+		}
+	};
+
 	// Same auto-fill as the flat empty row, scoped to the blurred set's row:
 	// blind1 derives blind2 (x2) then ante (= blind2); blind2 derives ante.
 	const autoFill = (index: number, field: EmptyGameSetField, value: string) => {
@@ -88,18 +105,14 @@ export function useEmptyGameSetRows({
 		}
 		const ante = cell(index, "ante");
 		if (field === "blind2") {
-			if (ante && !ante.value) {
-				ante.value = value;
-			}
+			fillCell(ante, (current) => deriveAutoAnte(value, current));
 			return;
 		}
 		const blind2 = cell(index, "blind2");
-		if (blind2 && !blind2.value) {
-			blind2.value = String(parsed * 2);
-		}
-		if (ante && !ante.value) {
-			ante.value = blind2?.value ?? value;
-		}
+		fillCell(blind2, (current) => deriveAutoBlind2(parsed, current));
+		fillCell(ante, (current) =>
+			deriveAutoAnte(blind2?.value ?? value, current)
+		);
 	};
 
 	const handleCellBlur =

@@ -1,5 +1,7 @@
 import { useRef } from "react";
 import {
+	deriveAutoAnte,
+	deriveAutoBlind2,
 	type NewLevelValues,
 	parseIntOrNull,
 } from "@/features/rooms/utils/blind-level-helpers";
@@ -49,11 +51,20 @@ export function useEmptyRow({ onCreateLevel }: UseEmptyRowOptions) {
 		const val = e.target.value;
 		const parsed = parseIntOrNull(val);
 		if (parsed != null) {
-			if (blind2Ref.current && !blind2Ref.current.value) {
-				blind2Ref.current.value = String(parsed * 2);
+			if (blind2Ref.current) {
+				const autoBlind2 = deriveAutoBlind2(parsed, blind2Ref.current.value);
+				if (autoBlind2 != null) {
+					blind2Ref.current.value = autoBlind2;
+				}
 			}
-			if (anteRef.current && !anteRef.current.value) {
-				anteRef.current.value = blind2Ref.current?.value ?? val;
+			if (anteRef.current) {
+				const autoAnte = deriveAutoAnte(
+					blind2Ref.current?.value ?? val,
+					anteRef.current.value
+				);
+				if (autoAnte != null) {
+					anteRef.current.value = autoAnte;
+				}
 			}
 		}
 		tryCreate(e.relatedTarget);
@@ -62,8 +73,11 @@ export function useEmptyRow({ onCreateLevel }: UseEmptyRowOptions) {
 	const handleBlind2Blur = (e: React.FocusEvent<HTMLInputElement>) => {
 		const val = e.target.value;
 		const parsed = parseIntOrNull(val);
-		if (parsed != null && anteRef.current && !anteRef.current.value) {
-			anteRef.current.value = val;
+		if (parsed != null && anteRef.current) {
+			const autoAnte = deriveAutoAnte(val, anteRef.current.value);
+			if (autoAnte != null) {
+				anteRef.current.value = autoAnte;
+			}
 		}
 		tryCreate(e.relatedTarget);
 	};

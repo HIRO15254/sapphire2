@@ -9,6 +9,7 @@ import {
 import { Button } from "@/shared/components/ui/button";
 import { TableCell, TableRow } from "@/shared/components/ui/table";
 import { BlindLevelInput } from "../blind-level-input";
+import { BLIND_DATA_COLUMNS } from "../blind-table-columns";
 import { DragHandle } from "../drag-handle";
 
 interface SortableBreakRowProps {
@@ -52,7 +53,10 @@ export function SortableBreakRow({
 					<span className="text-muted-foreground text-xs">{row.level}</span>
 				</div>
 			</TableCell>
-			<TableCell className="p-0 px-1.5 py-1" colSpan={gameColumn ? 4 : 3}>
+			<TableCell
+				className="p-0 px-1.5 py-1"
+				colSpan={gameColumn ? BLIND_DATA_COLUMNS + 1 : BLIND_DATA_COLUMNS}
+			>
 				<div className="flex items-center gap-1 text-muted-foreground text-sm">
 					<IconCoffee size={14} />
 					<span>Break</span>

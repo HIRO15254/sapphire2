@@ -15,6 +15,9 @@ const trpcMocks = vi.hoisted(() => ({
 	update: vi.fn(),
 	delete: vi.fn(),
 	reorder: vi.fn(),
+	// Served by the mocked queryFn so post-invalidate refetches return
+	// deterministic data instead of wiping the seeded cache.
+	listData: [] as unknown[],
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -23,7 +26,7 @@ vi.mock("@/utils/trpc", () => ({
 			listByTournament: {
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("blindLevel", "listByTournament", input),
-					queryFn: () => Promise.resolve([]),
+					queryFn: () => Promise.resolve(trpcMocks.listData),
 				}),
 			},
 		},
@@ -83,9 +86,15 @@ function makeWrapper(client: QueryClient) {
 
 describe("useBlindLevels", () => {
 	beforeEach(() => {
-		for (const m of Object.values(trpcMocks)) {
+		for (const m of [
+			trpcMocks.create,
+			trpcMocks.update,
+			trpcMocks.delete,
+			trpcMocks.reorder,
+		]) {
 			m.mockReset();
 		}
+		trpcMocks.listData = [];
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -208,6 +217,34 @@ describe("useBlindLevels", () => {
 			resolve?.({ id: "real" });
 		});
 
+		it("builds the optimistic temp id from crypto.randomUUID (SA2-143)", async () => {
+			vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(
+				"00000000-0000-4000-8000-000000000123"
+			);
+			const qc = createClient();
+			qc.setQueryData(LEVELS_KEY, [level({ id: "l1" })]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.create.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(1));
+			act(() => {
+				result.current.handleAddLevel();
+			});
+			await waitFor(() => {
+				const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
+				expect(list?.[1]?.id).toBe("temp-00000000-0000-4000-8000-000000000123");
+			});
+			resolve?.({ id: "real" });
+		});
+
 		it("flips isAdding during in-flight create", async () => {
 			const qc = createClient();
 			qc.setQueryData(LEVELS_KEY, []);
@@ -324,7 +361,13 @@ describe("useBlindLevels", () => {
 		it("optimistically patches the row in cache and fires one mutate per field", async () => {
 			const qc = createClient();
 			qc.setQueryData(LEVELS_KEY, [level({ id: "l1", blind1: 100 })]);
-			trpcMocks.update.mockResolvedValue({ id: "l1" });
+			const resolvers: Array<(v: unknown) => void> = [];
+			trpcMocks.update.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolvers.push(r);
+					})
+			);
 			const { result } = renderHook(
 				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
 				{ wrapper: makeWrapper(qc) }
@@ -333,9 +376,11 @@ describe("useBlindLevels", () => {
 			act(() => {
 				result.current.handleUpdate("l1", { blind1: 500, minutes: 30 });
 			});
-			const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
-			expect(list?.[0]?.blind1).toBe(500);
-			expect(list?.[0]?.minutes).toBe(30);
+			await waitFor(() => {
+				const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
+				expect(list?.[0]?.blind1).toBe(500);
+				expect(list?.[0]?.minutes).toBe(30);
+			});
 			await waitFor(() => {
 				expect(trpcMocks.update).toHaveBeenCalledTimes(2);
 			});
@@ -346,6 +391,42 @@ describe("useBlindLevels", () => {
 			expect(trpcMocks.update).toHaveBeenCalledWith({
 				id: "l1",
 				minutes: 30,
+			});
+			for (const resolve of resolvers) {
+				resolve({ id: "l1" });
+			}
+		});
+
+		it("rolls back the optimistic patch when the mutation fails", async () => {
+			const qc = createClient();
+			const seeded = [level({ id: "l1", blind1: 100 })];
+			qc.setQueryData(LEVELS_KEY, seeded);
+			trpcMocks.listData = seeded;
+			let reject: ((err: Error) => void) | undefined;
+			trpcMocks.update.mockImplementation(
+				() =>
+					new Promise((_, r) => {
+						reject = r;
+					})
+			);
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(1));
+			act(() => {
+				result.current.handleUpdate("l1", { blind1: 500 });
+			});
+			await waitFor(() => {
+				const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
+				expect(list?.[0]?.blind1).toBe(500);
+			});
+			act(() => {
+				reject?.(new Error("server error"));
+			});
+			await waitFor(() => {
+				const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
+				expect(list?.[0]?.blind1).toBe(100);
 			});
 		});
 
@@ -371,6 +452,166 @@ describe("useBlindLevels", () => {
 					expect.objectContaining({ minutes: 60 })
 				);
 			});
+		});
+	});
+
+	describe("handleUpdateGameSet", () => {
+		const setA = {
+			name: "Limit",
+			variants: ["Limit Hold'em"],
+			blind1: 400,
+			blind2: 800,
+			blind3: null,
+			ante: null,
+		};
+		const setB = {
+			name: "Big Bet",
+			variants: ["NL Hold'em"],
+			blind1: 100,
+			blind2: 200,
+			blind3: null,
+			ante: 25,
+		};
+
+		it("derives the games payload from the freshest cache value, not a render-time snapshot", async () => {
+			const qc = createClient();
+			qc.setQueryData(LEVELS_KEY, [level({ id: "l1", games: [setA, setB] })]);
+			trpcMocks.update.mockResolvedValue({ id: "l1" });
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(1));
+			// A refetch / concurrent optimistic write lands after render: set A's
+			// blind1 changed from 400 to 999.
+			act(() => {
+				qc.setQueryData(LEVELS_KEY, [
+					level({ id: "l1", games: [{ ...setA, blind1: 999 }, setB] }),
+				]);
+			});
+			act(() => {
+				result.current.handleUpdateGameSet("l1", {
+					index: 1,
+					field: "blind1",
+					value: 150,
+				});
+			});
+			await waitFor(() => expect(trpcMocks.update).toHaveBeenCalledTimes(1));
+			expect(trpcMocks.update).toHaveBeenNthCalledWith(1, {
+				id: "l1",
+				games: [
+					{ ...setA, blind1: 999 },
+					{ ...setB, blind1: 150 },
+				],
+			});
+		});
+
+		it("optimistically writes the patched games array into the cache", async () => {
+			const qc = createClient();
+			qc.setQueryData(LEVELS_KEY, [level({ id: "l1", games: [setA, setB] })]);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.update.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(1));
+			act(() => {
+				result.current.handleUpdateGameSet("l1", {
+					index: 0,
+					field: "ante",
+					value: 75,
+				});
+			});
+			await waitFor(() => {
+				const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
+				expect(list?.[0]?.games?.[0]?.ante).toBe(75);
+				expect(list?.[0]?.games?.[1]).toEqual(setB);
+			});
+			resolve?.({ id: "l1" });
+		});
+
+		it("rolls back the games patch when the mutation fails", async () => {
+			const qc = createClient();
+			const seeded = [level({ id: "l1", games: [setA, setB] })];
+			qc.setQueryData(LEVELS_KEY, seeded);
+			trpcMocks.listData = seeded;
+			let reject: ((err: Error) => void) | undefined;
+			trpcMocks.update.mockImplementation(
+				() =>
+					new Promise((_, r) => {
+						reject = r;
+					})
+			);
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(1));
+			act(() => {
+				result.current.handleUpdateGameSet("l1", {
+					index: 0,
+					field: "blind1",
+					value: 500,
+				});
+			});
+			await waitFor(() => {
+				const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
+				expect(list?.[0]?.games?.[0]?.blind1).toBe(500);
+			});
+			act(() => {
+				reject?.(new Error("server error"));
+			});
+			await waitFor(() => {
+				const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
+				expect(list?.[0]?.games?.[0]?.blind1).toBe(400);
+			});
+		});
+
+		it("no-ops when the level is missing or has no games", async () => {
+			const qc = createClient();
+			qc.setQueryData(LEVELS_KEY, [level({ id: "l1", games: null })]);
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(1));
+			act(() => {
+				result.current.handleUpdateGameSet("l1", {
+					index: 0,
+					field: "blind1",
+					value: 500,
+				});
+				result.current.handleUpdateGameSet("missing", {
+					index: 0,
+					field: "blind1",
+					value: 500,
+				});
+			});
+			expect(trpcMocks.update).not.toHaveBeenCalled();
+		});
+
+		it("no-ops when the cell index is out of range", async () => {
+			const qc = createClient();
+			qc.setQueryData(LEVELS_KEY, [level({ id: "l1", games: [setA] })]);
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(1));
+			act(() => {
+				result.current.handleUpdateGameSet("l1", {
+					index: 1,
+					field: "blind1",
+					value: 500,
+				});
+			});
+			expect(trpcMocks.update).not.toHaveBeenCalled();
 		});
 	});
 

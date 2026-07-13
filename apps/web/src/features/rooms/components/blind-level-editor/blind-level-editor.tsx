@@ -10,16 +10,20 @@ import { BlindStructureTable } from "./blind-structure-table";
 import { useLocalBlindStructure } from "./use-blind-level-editor";
 
 // Levels carry per-level games in per-level mode (the "mix" sentinel):
-// there each level picks its own variant in the sheet. A mix-master
-// variant renders WSOP-structure-sheet style (hybridGames): levels default
-// to one inline row per game of the composition, and each level can toggle
-// back to a single flat blind set. Plain variants are always flat.
-// compositionFor maps the sheet's pick to the games it stands for.
-function useLevelSheetWiring(variant: string) {
-	const { groupFor, labelsFor, isMixValue, mixCompositionLabels } =
+// there each level picks its own variant in the sheet and renders as a
+// "Games" summary row. A mix-master variant renders WSOP-structure-sheet
+// style (hybridGames): levels with game sets are always one inline row per
+// set (no flat toggle); breaks and legacy flat levels stay single-row.
+// Hybrid rendering also derives from the levels themselves so game-set
+// levels survive a deleted/renamed mix master, and the table is deferred
+// while the masters load so blur edits cannot write conflicting flat
+// values. compositionFor maps the sheet's pick to the games it stands for.
+function useLevelSheetWiring(variant: string, levels: BlindLevelRow[]) {
+	const { groupFor, isLoading, labelsFor, isMixValue, mixCompositionLabels } =
 		useGameGroups();
 	const isPerLevel = variant.trim().toLowerCase() === MIX_VARIANT;
 	const isMixMaster = !isPerLevel && isMixValue(variant);
+	const hasGameSetLevels = levels.some((l) => (l.games?.length ?? 0) > 0);
 	const compositionFor = (label: string): string[] =>
 		isMixValue(label) && label.trim().toLowerCase() !== MIX_VARIANT
 			? mixCompositionLabels(label)
@@ -37,9 +41,18 @@ function useLevelSheetWiring(variant: string) {
 		compositionFor,
 		defaultLevelGames,
 		groupFor,
-		hybridGames: isMixMaster,
+		hybridGames: !isPerLevel && (isMixMaster || hasGameSetLevels),
+		isMastersLoading: isLoading,
 		isMix: isPerLevel,
 	};
+}
+
+function LoadingLevels() {
+	return (
+		<p className="py-8 text-center text-muted-foreground text-sm">
+			Loading levels...
+		</p>
+	);
 }
 
 // ---- Main content (API-backed) ----
@@ -63,6 +76,7 @@ export function BlindStructureContent({
 		handleAddBreak,
 		handleDelete,
 		handleUpdate,
+		handleUpdateGameSet,
 		handleCreateLevel,
 	} = useBlindLevels({ tournamentId });
 
@@ -72,15 +86,12 @@ export function BlindStructureContent({
 		defaultLevelGames,
 		groupFor,
 		hybridGames,
+		isMastersLoading,
 		isMix,
-	} = useLevelSheetWiring(variant);
+	} = useLevelSheetWiring(variant, levels);
 
-	if (isLoading) {
-		return (
-			<p className="py-8 text-center text-muted-foreground text-sm">
-				Loading levels...
-			</p>
-		);
+	if (isLoading || isMastersLoading) {
+		return <LoadingLevels />;
 	}
 
 	return (
@@ -94,6 +105,7 @@ export function BlindStructureContent({
 			handleDelete={handleDelete}
 			handleDragEnd={handleDragEnd}
 			handleUpdate={handleUpdate}
+			handleUpdateGameSet={handleUpdateGameSet}
 			hybridGames={hybridGames}
 			isAdding={isAdding}
 			isMix={isMix}
@@ -124,6 +136,7 @@ export function LocalBlindStructureContent({
 		handleAddBreak,
 		handleDelete,
 		handleUpdate,
+		handleUpdateGameSet,
 		handleCreateLevel,
 	} = useLocalBlindStructure({ value, onChange });
 
@@ -133,8 +146,13 @@ export function LocalBlindStructureContent({
 		defaultLevelGames,
 		groupFor,
 		hybridGames,
+		isMastersLoading,
 		isMix,
-	} = useLevelSheetWiring(variant);
+	} = useLevelSheetWiring(variant, value);
+
+	if (isMastersLoading) {
+		return <LoadingLevels />;
+	}
 
 	return (
 		<BlindStructureTable
@@ -147,6 +165,7 @@ export function LocalBlindStructureContent({
 			handleDelete={handleDelete}
 			handleDragEnd={handleDragEnd}
 			handleUpdate={handleUpdate}
+			handleUpdateGameSet={handleUpdateGameSet}
 			hybridGames={hybridGames}
 			isMix={isMix}
 			levels={value}
