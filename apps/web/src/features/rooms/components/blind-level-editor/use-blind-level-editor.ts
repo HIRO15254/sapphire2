@@ -1,10 +1,12 @@
 import type { DragEndEvent } from "@dnd-kit/core";
 import {
+	KeyboardSensor,
 	PointerSensor,
 	TouchSensor,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import { useState } from "react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
@@ -35,6 +37,9 @@ export function useLocalBlindStructure({
 	const effectiveLastMinutes = getEffectiveLastMinutes(lastMinutes, value);
 
 	const sensors = useSensors(
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		}),
 		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
 		useSensor(TouchSensor, {
 			activationConstraint: { delay: 250, tolerance: 8 },

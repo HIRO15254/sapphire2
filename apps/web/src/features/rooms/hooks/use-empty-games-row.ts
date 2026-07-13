@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import {
 	type NewLevelValues,
-	parseIntOrNull,
+	parseBlindLevelInput,
 } from "@/features/rooms/utils/blind-level-helpers";
 
 interface UseEmptyGamesRowOptions {
@@ -18,11 +18,17 @@ export function useEmptyGamesRow({ onCreateLevel }: UseEmptyGamesRowOptions) {
 	const minutesRef = useRef<HTMLInputElement>(null);
 
 	const handleAddLevel = () => {
+		const minutes = minutesRef.current
+			? parseBlindLevelInput(minutesRef.current)
+			: null;
+		if (minutes === undefined) {
+			return;
+		}
 		onCreateLevel({
 			blind1: null,
 			blind2: null,
 			ante: null,
-			minutes: parseIntOrNull(minutesRef.current?.value ?? ""),
+			minutes,
 			games: null,
 		});
 		if (minutesRef.current) {

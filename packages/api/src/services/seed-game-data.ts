@@ -13,6 +13,14 @@ import { runBatch } from "../lib/batch";
 
 type DbInstance = Database;
 
+function builtinSeedId(
+	userId: string,
+	kind: "group" | "mix" | "variant",
+	key: string
+): string {
+	return `${userId}:builtin-${kind}:${key}`;
+}
+
 /**
  * Seed the built-in game groups + game variants + named mixes for a user. All
  * three masters are per-user DB rows (mix-game rework): code constants
@@ -70,14 +78,16 @@ export async function seedDefaultGameData(
 
 	const now = new Date();
 	const groupIdByKey = new Map(
-		DEFAULT_GAME_GROUPS.map((g) => [g.key, crypto.randomUUID()])
+		DEFAULT_GAME_GROUPS.map((g) => [
+			g.key,
+			builtinSeedId(userId, "group", g.key),
+		])
 	);
 
-	// .onConflictDoNothing() on every seed insert below: a concurrent
-	// double-seed race (two requests both passing the just-read empty-account
-	// guard before either commits) can no longer duplicate a builtin row once
-	// the (user_id, builtin_key) / (user_id, label) unique indexes exist (c08)
-	// — the losing statement silently no-ops instead of throwing.
+	// Stable per-user ids and .onConflictDoNothing() make a concurrent
+	// double-seed safe. Both batches reference the same group/variant ids, so a
+	// losing group insert cannot leave its variant statements pointing at random
+	// group ids that never committed (and failing the whole batch by FK).
 	const statements: BatchStatement[] = DEFAULT_GAME_GROUPS.map((g) =>
 		db
 			.insert(gameGroup)
@@ -105,7 +115,7 @@ export async function seedDefaultGameData(
 			// dangling groupId.
 			continue;
 		}
-		const variantId = crypto.randomUUID();
+		const variantId = builtinSeedId(userId, "variant", v.key);
 		variantIdByKey.set(v.key, variantId);
 		statements.push(
 			db
@@ -132,7 +142,7 @@ export async function seedDefaultGameData(
 			db
 				.insert(gameMix)
 				.values({
-					id: crypto.randomUUID(),
+					id: builtinSeedId(userId, "mix", m.key),
 					userId,
 					builtinKey: m.key,
 					label: m.label,

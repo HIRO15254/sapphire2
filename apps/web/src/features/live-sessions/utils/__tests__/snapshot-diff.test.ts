@@ -125,6 +125,22 @@ describe("diffCashSnapshot — mixGames", () => {
 		expect(diff.mixGames).toBe(true);
 	});
 
+	it("detects a per-group anteType-only divergence", () => {
+		const diff = cashSnapshotDiff(
+			{ mixGames: [gameGroup({ ante: 1, anteType: "all" })] },
+			{ mixGames: [gameGroup({ ante: 1, anteType: "bb" })] }
+		);
+		expect(diff.mixGames).toBe(true);
+	});
+
+	it("treats an absent group anteType and null as equal", () => {
+		const diff = cashSnapshotDiff(
+			{ mixGames: [gameGroup()] },
+			{ mixGames: [gameGroup({ anteType: null })] }
+		);
+		expect(diff.mixGames).toBe(false);
+	});
+
 	it("treats an absent field and a null field as equal", () => {
 		const diff = cashSnapshotDiff(
 			{ mixGames: [{ variants: ["NL Hold'em"], blind1: 1, blind2: 2 }] },

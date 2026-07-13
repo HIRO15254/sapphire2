@@ -104,6 +104,17 @@ describe("useRingGameSceneActions", () => {
 			await result.current.handleUpdate({
 				name: "NL500",
 				variant: "nlh",
+				mixGames: [
+					{
+						ante: 1,
+						anteType: "all",
+						blind1: 2,
+						blind2: 4,
+						blind3: null,
+						name: "Big Bet",
+						variants: ["NL Hold'em"],
+					},
+				],
 				blind1: 2,
 				blind2: 5,
 			});
@@ -112,6 +123,17 @@ describe("useRingGameSceneActions", () => {
 			id: "s1",
 			ruleName: "NL500",
 			variant: "nlh",
+			mixGames: [
+				{
+					ante: 1,
+					anteType: "all",
+					blind1: 2,
+					blind2: 4,
+					blind3: null,
+					name: "Big Bet",
+					variants: ["NL Hold'em"],
+				},
+			],
 			blind1: 2,
 			blind2: 5,
 			blind3: null,
@@ -129,6 +151,27 @@ describe("useRingGameSceneActions", () => {
 		await waitFor(() => {
 			expect(result.current.isEditOpen).toBe(false);
 		});
+	});
+
+	it("sends an explicit null to clear frozen mix groups", async () => {
+		trpcMocks.updateSnapshot.mockResolvedValue({ id: "s1" });
+		const qc = createClient();
+		const { result } = renderHook(() => useRingGameSceneActions(ARGS), {
+			wrapper: makeWrapper(qc),
+		});
+
+		await act(async () => {
+			await result.current.handleUpdate({
+				name: "NL500",
+				variant: "nlh",
+				mixGames: null,
+			});
+		});
+
+		expect(trpcMocks.updateSnapshot).toHaveBeenCalledTimes(1);
+		expect(trpcMocks.updateSnapshot).toHaveBeenCalledWith(
+			expect.objectContaining({ mixGames: null })
+		);
 	});
 
 	it("does not close the editor when update rejects (error propagates, editor stays open)", async () => {

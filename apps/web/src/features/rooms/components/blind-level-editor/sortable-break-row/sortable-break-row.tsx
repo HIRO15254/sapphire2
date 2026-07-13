@@ -4,7 +4,7 @@ import { IconCoffee, IconTrash } from "@tabler/icons-react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	type BlindLevelPatch,
-	parseIntOrNull,
+	parseBlindLevelInput,
 } from "@/features/rooms/utils/blind-level-helpers";
 import { Button } from "@/shared/components/ui/button";
 import { TableCell, TableRow } from "@/shared/components/ui/table";
@@ -15,6 +15,8 @@ import { DragHandle } from "../drag-handle";
 interface SortableBreakRowProps {
 	/** Widen the break label to span the hybrid table's Game column. */
 	gameColumn?: boolean;
+	/** Hybrid tables add this slot when any game group has a third blind. */
+	hasBlind3Column?: boolean;
 	onDelete: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;
 	row: BlindLevelRow;
@@ -23,6 +25,7 @@ interface SortableBreakRowProps {
 export function SortableBreakRow({
 	row,
 	gameColumn = false,
+	hasBlind3Column = false,
 	onDelete,
 	onUpdate,
 }: SortableBreakRowProps) {
@@ -55,7 +58,9 @@ export function SortableBreakRow({
 			</TableCell>
 			<TableCell
 				className="p-0 px-1.5 py-1"
-				colSpan={gameColumn ? BLIND_DATA_COLUMNS + 1 : BLIND_DATA_COLUMNS}
+				colSpan={
+					BLIND_DATA_COLUMNS + Number(gameColumn) + Number(hasBlind3Column)
+				}
 			>
 				<div className="flex items-center gap-1 text-muted-foreground text-sm">
 					<IconCoffee size={14} />
@@ -64,11 +69,15 @@ export function SortableBreakRow({
 			</TableCell>
 			<TableCell className="w-12 p-0 px-0.5">
 				<BlindLevelInput
+					aria-label={`Break level ${row.level} minutes`}
 					defaultValue={row.minutes ?? ""}
 					key={`${row.id}-minutes`}
-					onBlur={(e) =>
-						onUpdate(row.id, { minutes: parseIntOrNull(e.target.value) })
-					}
+					onBlur={(e) => {
+						const minutes = parseBlindLevelInput(e.target);
+						if (minutes !== undefined) {
+							onUpdate(row.id, { minutes });
+						}
+					}}
 				/>
 			</TableCell>
 			<TableCell className="w-8 p-0 px-0.5 text-center">

@@ -4,7 +4,7 @@ import {
 	type BlindLevelPatch,
 	deriveAutoAnte,
 	deriveAutoBlind2,
-	parseIntOrNull,
+	parseBlindLevelInput,
 } from "@/features/rooms/utils/blind-level-helpers";
 
 interface UseSortableLevelRowOptions {
@@ -20,7 +20,10 @@ export function useSortableLevelRow({
 	const currentAnteRef = useRef(row.ante == null ? "" : String(row.ante));
 
 	const handleBlind1Blur = (e: React.FocusEvent<HTMLInputElement>) => {
-		const parsed = parseIntOrNull(e.target.value);
+		const parsed = parseBlindLevelInput(e.target);
+		if (parsed === undefined) {
+			return;
+		}
 		const updates: BlindLevelPatch = { blind1: parsed };
 		if (parsed != null) {
 			const autoBlind2 = deriveAutoBlind2(parsed, currentBlind2Ref.current);
@@ -36,7 +39,7 @@ export function useSortableLevelRow({
 			);
 			if (autoAnte != null) {
 				currentAnteRef.current = autoAnte;
-				updates.ante = parseIntOrNull(autoAnte);
+				updates.ante = Number(autoAnte);
 			}
 		}
 		onUpdate(row.id, updates);
@@ -44,8 +47,11 @@ export function useSortableLevelRow({
 
 	const handleBlind2Blur = (e: React.FocusEvent<HTMLInputElement>) => {
 		const val = e.target.value;
+		const parsed = parseBlindLevelInput(e.target);
+		if (parsed === undefined) {
+			return;
+		}
 		currentBlind2Ref.current = val;
-		const parsed = parseIntOrNull(val);
 		const updates: BlindLevelPatch = { blind2: parsed };
 		if (parsed != null) {
 			const autoAnte = deriveAutoAnte(val, currentAnteRef.current);
@@ -58,17 +64,32 @@ export function useSortableLevelRow({
 	};
 
 	const handleAnteBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+		const ante = parseBlindLevelInput(e.target);
+		if (ante === undefined) {
+			return;
+		}
 		currentAnteRef.current = e.target.value;
-		onUpdate(row.id, { ante: parseIntOrNull(e.target.value) });
+		onUpdate(row.id, { ante });
+	};
+
+	const handleBlind3Blur = (e: React.FocusEvent<HTMLInputElement>) => {
+		const blind3 = parseBlindLevelInput(e.target);
+		if (blind3 !== undefined) {
+			onUpdate(row.id, { blind3 });
+		}
 	};
 
 	const handleMinutesBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-		onUpdate(row.id, { minutes: parseIntOrNull(e.target.value) });
+		const minutes = parseBlindLevelInput(e.target);
+		if (minutes !== undefined) {
+			onUpdate(row.id, { minutes });
+		}
 	};
 
 	return {
 		handleBlind1Blur,
 		handleBlind2Blur,
+		handleBlind3Blur,
 		handleAnteBlur,
 		handleMinutesBlur,
 	};

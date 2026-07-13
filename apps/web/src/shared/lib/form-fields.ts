@@ -6,12 +6,12 @@ interface NumericRules {
 	min?: number;
 }
 
-function parseNumeric(value: string, integer: boolean) {
+function parseNumeric(value: string) {
 	const trimmed = value.trim();
 	if (trimmed === "") {
 		return Number.NaN;
 	}
-	return integer ? Number.parseInt(trimmed, 10) : Number(trimmed);
+	return Number(trimmed);
 }
 
 function numericStringSchema({
@@ -28,9 +28,13 @@ function numericStringSchema({
 			}
 			return;
 		}
-		const parsed = parseNumeric(trimmed, integer);
+		const parsed = parseNumeric(trimmed);
 		if (!Number.isFinite(parsed)) {
 			ctx.addIssue({ code: "custom", message: "Must be a number" });
+			return;
+		}
+		if (integer && !Number.isSafeInteger(parsed)) {
+			ctx.addIssue({ code: "custom", message: "Must be a whole number" });
 			return;
 		}
 		if (min !== undefined && parsed < min) {
@@ -61,8 +65,8 @@ export function parseOptionalInt(value: string): number | undefined {
 	if (trimmed === "") {
 		return undefined;
 	}
-	const parsed = Number.parseInt(trimmed, 10);
-	return Number.isFinite(parsed) ? parsed : undefined;
+	const parsed = Number(trimmed);
+	return Number.isSafeInteger(parsed) ? parsed : undefined;
 }
 
 export function parseOptionalNumber(value: string): number | undefined {

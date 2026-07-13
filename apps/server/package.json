@@ -3,9 +3,9 @@
   "type": "module",
   "main": "src/worker.ts",
   "scripts": {
-    "build": "wrangler deploy --dry-run",
+    "build": "node ./node_modules/wrangler/bin/wrangler.js deploy --dry-run",
     "check-types": "tsc -b",
-    "dev": "kill-port 8787 && wrangler dev"
+    "dev": "kill-port 8787 && node ./node_modules/wrangler/bin/wrangler.js dev"
   },
   "dependencies": {
     "@hono/trpc-server": "^0.4.2",

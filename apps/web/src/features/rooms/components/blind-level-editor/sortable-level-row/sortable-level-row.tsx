@@ -7,12 +7,16 @@ import type { BlindLevelPatch } from "@/features/rooms/utils/blind-level-helpers
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { TableCell, TableRow } from "@/shared/components/ui/table";
+import type { BlindSlotLabels } from "@/shared/hooks/use-variant-labels";
 import { BlindLevelInput } from "../blind-level-input";
 import { DragHandle } from "../drag-handle";
 
 interface SortableLevelRowProps {
+	blindLabels: BlindSlotLabels;
 	/** Leading empty Game cell so the row aligns with a hybrid table. */
 	gameColumn?: boolean;
+	/** Empty third blind cell when a hybrid game-set table exposes that slot. */
+	hasBlind3Column?: boolean;
 	onDelete: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;
 	row: BlindLevelRow;
@@ -20,7 +24,9 @@ interface SortableLevelRowProps {
 
 export function SortableLevelRow({
 	row,
+	blindLabels,
 	gameColumn = false,
+	hasBlind3Column = false,
 	onDelete,
 	onUpdate,
 }: SortableLevelRowProps) {
@@ -36,6 +42,7 @@ export function SortableLevelRow({
 	const {
 		handleBlind1Blur,
 		handleBlind2Blur,
+		handleBlind3Blur,
 		handleAnteBlur,
 		handleMinutesBlur,
 	} = useSortableLevelRow({ row, onUpdate });
@@ -61,6 +68,7 @@ export function SortableLevelRow({
 			{gameColumn && <TableCell className="p-0 px-1" />}
 			<TableCell className="p-0 px-0.5">
 				<BlindLevelInput
+					aria-label={`Level ${row.level} ${blindLabels.blind1}`}
 					defaultValue={row.blind1 ?? ""}
 					key={`${row.id}-blind1`}
 					onBlur={handleBlind1Blur}
@@ -68,13 +76,27 @@ export function SortableLevelRow({
 			</TableCell>
 			<TableCell className="p-0 px-0.5">
 				<BlindLevelInput
+					aria-label={`Level ${row.level} ${blindLabels.blind2}`}
 					defaultValue={row.blind2 ?? ""}
 					key={`${row.id}-blind2-${row.blind2}`}
 					onBlur={handleBlind2Blur}
 				/>
 			</TableCell>
+			{hasBlind3Column && (
+				<TableCell className="p-0 px-0.5">
+					{blindLabels.blind3 === null ? null : (
+						<BlindLevelInput
+							aria-label={`Level ${row.level} ${blindLabels.blind3}`}
+							defaultValue={row.blind3 ?? ""}
+							key={`${row.id}-blind3-${row.blind3}`}
+							onBlur={handleBlind3Blur}
+						/>
+					)}
+				</TableCell>
+			)}
 			<TableCell className="p-0 px-0.5">
 				<BlindLevelInput
+					aria-label={`Level ${row.level} Ante`}
 					defaultValue={row.ante ?? ""}
 					key={`${row.id}-ante-${row.ante}`}
 					onBlur={handleAnteBlur}
@@ -82,6 +104,7 @@ export function SortableLevelRow({
 			</TableCell>
 			<TableCell className="w-12 p-0 px-0.5">
 				<BlindLevelInput
+					aria-label={`Level ${row.level} minutes`}
 					defaultValue={row.minutes ?? ""}
 					key={`${row.id}-minutes`}
 					onBlur={handleMinutesBlur}

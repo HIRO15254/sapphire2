@@ -262,6 +262,23 @@ export function buildUpdatePayload(values: SessionFormValues & { id: string }) {
 	};
 }
 
+function applyCashSnapshot(
+	item: SessionItem,
+	newSession: Extract<SessionFormValues, { type: "cash_game" }>
+) {
+	item.ringGameName = newSession.ruleName ?? null;
+	item.cashVariant = newSession.variant ?? null;
+	item.cashBlind1 = newSession.blind1 ?? null;
+	item.ringGameBlind2 = newSession.blind2 ?? null;
+	item.cashBlind3 = newSession.blind3 ?? null;
+	item.cashAnte = newSession.ante ?? null;
+	item.cashAnteType = newSession.anteType ?? null;
+	item.cashMinBuyIn = newSession.minBuyIn ?? null;
+	item.cashMaxBuyIn = newSession.maxBuyIn ?? null;
+	item.cashTableSize = newSession.tableSize ?? null;
+	item.cashMixGames = newSession.mixGames ?? null;
+}
+
 export function buildOptimisticItem(
 	newSession: SessionFormValues
 ): SessionItem {
@@ -324,6 +341,7 @@ export function buildOptimisticItem(
 		item.buyIn = newSession.buyIn;
 		item.cashOut = newSession.cashOut;
 		item.evCashOut = newSession.evCashOut ?? null;
+		applyCashSnapshot(item, newSession);
 		item.profitLoss = newSession.cashOut - newSession.buyIn;
 		if (newSession.evCashOut !== undefined) {
 			item.evProfitLoss = newSession.evCashOut - newSession.buyIn;

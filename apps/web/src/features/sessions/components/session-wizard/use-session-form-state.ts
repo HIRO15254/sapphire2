@@ -16,7 +16,10 @@ import {
 } from "@/features/sessions/utils/session-form-helpers";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import { useMixMasterEditing } from "@/shared/hooks/use-mix-master-editing";
-import { useVariantScope } from "@/shared/hooks/use-variant-scope";
+import {
+	scopeOf as getVariantScope,
+	useVariantScope,
+} from "@/shared/hooks/use-variant-scope";
 import {
 	fromMixGames,
 	hasMixCellErrors,
@@ -55,6 +58,10 @@ function timerStringToUnix(value: string): number | undefined {
 	}
 	const ms = new Date(value).getTime();
 	return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
+}
+
+function withoutPerLevelGames(levels: BlindLevelRow[]): BlindLevelRow[] {
+	return levels.map((level) => ({ ...level, games: null }));
 }
 
 export function useSessionFormState({
@@ -217,7 +224,11 @@ export function useSessionFormState({
 				timerStartedAt: timerStringToUnix(value.timerStartedAt),
 				blindLevels:
 					blindLevels.length > 0
-						? toSessionBlindLevels(blindLevels)
+						? toSessionBlindLevels(
+								getVariantScope(value.variant) === "perLevel"
+									? blindLevels
+									: withoutPerLevelGames(blindLevels)
+							)
 						: undefined,
 				chipPurchases:
 					chipPurchases.length > 0
@@ -368,6 +379,9 @@ export function useSessionFormState({
 		}
 	};
 
+	// The tournament scope and variant controls share this path: entering
+	// per-level mode keeps its game assignments, while every all-levels value
+	// clears them so hidden per-level games cannot leak into the snapshot.
 	// Picking a mix master reseeds the cash mix editor from its saved
 	// composition (overwriting whatever was there — switching mixes starts
 	// fresh); the legacy "mix" mode key has no composition, so existing rows
@@ -377,6 +391,12 @@ export function useSessionFormState({
 	// whose group has no third slot drops the stale blind3 (c03).
 	const onVariantChange = (next: string) => {
 		form.setFieldValue("variant", next);
+		if (!isCashGame) {
+			if (getVariantScope(next) === "all") {
+				setBlindLevels(withoutPerLevelGames);
+			}
+			return;
+		}
 		if (isMixValue(next)) {
 			if (next !== "mix") {
 				setMixGames(

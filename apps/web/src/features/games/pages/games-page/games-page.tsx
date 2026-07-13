@@ -22,6 +22,8 @@ export function GamesPage() {
 		mixes,
 		variants,
 		isLoading,
+		isError,
+		onRetry,
 		isGroupSheetOpen,
 		editingGroup,
 		onAddGroup,
@@ -74,11 +76,24 @@ export function GamesPage() {
 					heading="Games"
 				/>
 
-				{isLoading ? (
+				{isError ? (
+					<div className="py-8 text-center" role="alert">
+						<p className="text-muted-foreground text-sm">
+							Failed to load games. Please try again.
+						</p>
+						<Button className="mt-3" onClick={onRetry} size="sm" type="button">
+							Retry
+						</Button>
+					</div>
+				) : null}
+
+				{!isError && isLoading ? (
 					<p className="py-4 text-center text-muted-foreground text-sm">
 						Loading games...
 					</p>
-				) : (
+				) : null}
+
+				{isError || isLoading ? null : (
 					<>
 						<div className="space-y-3">
 							{groups.map((entry) => (
@@ -103,7 +118,9 @@ export function GamesPage() {
 
 						<GroupFormSheet
 							editingGroup={editingGroup}
-							key={editingGroup ? `edit-${editingGroup.id}` : "create"}
+							key={
+								editingGroup ? `group-edit-${editingGroup.id}` : "group-create"
+							}
 							onOpenChange={onGroupSheetOpenChange}
 							open={isGroupSheetOpen}
 						/>
@@ -114,8 +131,8 @@ export function GamesPage() {
 							groups={groupOptions}
 							key={
 								editingVariant
-									? `edit-${editingVariant.id}`
-									: `create-${createGroupId ?? "none"}`
+									? `variant-edit-${editingVariant.id}`
+									: `variant-create-${createGroupId ?? "none"}`
 							}
 							onOpenChange={onVariantSheetOpenChange}
 							open={isVariantSheetOpen}
@@ -123,7 +140,7 @@ export function GamesPage() {
 
 						<MixFormSheet
 							editingMix={editingMix}
-							key={editingMix ? `edit-${editingMix.id}` : "create"}
+							key={editingMix ? `mix-edit-${editingMix.id}` : "mix-create"}
 							onOpenChange={onMixSheetOpenChange}
 							open={isMixSheetOpen}
 							variants={variants}

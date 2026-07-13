@@ -209,15 +209,24 @@ describe("createLevel", () => {
 		expect(result[0]?.minutes).toBe(25);
 	});
 
-	it("copies blind and ante from vals", () => {
+	it("copies all named blind slots and ante from vals", () => {
 		const result = createLevel(
 			[],
-			{ ante: 10, blind1: 100, blind2: 200, minutes: 20 },
+			{ ante: 10, blind1: 100, blind2: 200, blind3: 50, minutes: 20 },
 			null
 		);
 		expect(result[0]?.blind1).toBe(100);
 		expect(result[0]?.blind2).toBe(200);
 		expect(result[0]?.ante).toBe(10);
+		expect(result[0]?.blind3).toBe(50);
+	});
+
+	it("defaults blind3 to null when vals omit it", () => {
+		const result = createLevel(
+			[],
+			{ ante: 10, blind1: 100, blind2: 200, minutes: 20 },
+			null
+		);
 		expect(result[0]?.blind3).toBeNull();
 	});
 
@@ -281,20 +290,20 @@ describe("parseIntOrNull", () => {
 		expect(parseIntOrNull("200")).toBe(200);
 	});
 
-	it("parses a negative integer", () => {
-		expect(parseIntOrNull("-5")).toBe(-5);
+	it("rejects a negative integer", () => {
+		expect(parseIntOrNull("-5")).toBeNull();
 	});
 
 	it("parses 0", () => {
 		expect(parseIntOrNull("0")).toBe(0);
 	});
 
-	it("truncates decimal text to the integer part", () => {
-		expect(parseIntOrNull("12.9")).toBe(12);
+	it("rejects decimal text instead of truncating it", () => {
+		expect(parseIntOrNull("12.9")).toBeNull();
 	});
 
-	it("parses a leading-digits string and ignores the trailing text", () => {
-		expect(parseIntOrNull("42abc")).toBe(42);
+	it("rejects a leading-digits string with trailing text", () => {
+		expect(parseIntOrNull("42abc")).toBeNull();
 	});
 
 	it("returns null for a whitespace-only string", () => {

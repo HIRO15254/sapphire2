@@ -3,18 +3,25 @@ import type { FocusEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { useEmptyRow } from "@/features/rooms/hooks/use-empty-row";
 
-function mountInputs(result: ReturnType<typeof useEmptyRow>) {
+function mountInputs(
+	result: ReturnType<typeof useEmptyRow>,
+	{ withBlind3 = false }: { withBlind3?: boolean } = {}
+) {
 	const blind1 = document.createElement("input");
 	const blind2 = document.createElement("input");
+	const blind3 = document.createElement("input");
 	const ante = document.createElement("input");
 	const minutes = document.createElement("input");
 	// Assign the refs imperatively because useRef().current is read-only
 	// normally, but DOM RefObjects allow direct assignment in tests.
 	(result.blind1Ref as { current: HTMLInputElement | null }).current = blind1;
 	(result.blind2Ref as { current: HTMLInputElement | null }).current = blind2;
+	if (withBlind3) {
+		(result.blind3Ref as { current: HTMLInputElement | null }).current = blind3;
+	}
 	(result.anteRef as { current: HTMLInputElement | null }).current = ante;
 	(result.minutesRef as { current: HTMLInputElement | null }).current = minutes;
-	return { blind1, blind2, ante, minutes };
+	return { blind1, blind2, blind3, ante, minutes };
 }
 
 function buildFocusEvent(
@@ -144,6 +151,78 @@ describe("useEmptyRow", () => {
 		});
 	});
 
+	describe("handleBlind3Blur", () => {
+		it("creates a level with the third blind when that optional cell is mounted", () => {
+			const onCreateLevel = vi.fn();
+			const { result } = renderHook(() => useEmptyRow({ onCreateLevel }));
+			const inputs = mountInputs(result.current, { withBlind3: true });
+			inputs.blind1.value = "100";
+			inputs.blind2.value = "200";
+			inputs.blind3.value = "50";
+			inputs.ante.value = "25";
+
+			result.current.handleBlind3Blur(buildFocusEvent(inputs.blind3, null));
+
+			expect(onCreateLevel).toHaveBeenCalledTimes(1);
+			expect(onCreateLevel).toHaveBeenNthCalledWith(1, {
+				blind1: 100,
+				blind2: 200,
+				blind3: 50,
+				ante: 25,
+				minutes: null,
+			});
+			expect(inputs.blind3.value).toBe("");
+		});
+
+		it("creates with blind3=null when the mounted third-blind cell is empty", () => {
+			const onCreateLevel = vi.fn();
+			const { result } = renderHook(() => useEmptyRow({ onCreateLevel }));
+			const inputs = mountInputs(result.current, { withBlind3: true });
+			inputs.blind1.value = "100";
+			inputs.blind2.value = "200";
+			inputs.ante.value = "25";
+
+			result.current.handleBlind3Blur(buildFocusEvent(inputs.blind3, null));
+
+			expect(onCreateLevel).toHaveBeenCalledTimes(1);
+			expect(onCreateLevel).toHaveBeenNthCalledWith(1, {
+				blind1: 100,
+				blind2: 200,
+				blind3: null,
+				ante: 25,
+				minutes: null,
+			});
+		});
+
+		it("does not create from an invalid third blind", () => {
+			const onCreateLevel = vi.fn();
+			const { result } = renderHook(() => useEmptyRow({ onCreateLevel }));
+			const inputs = mountInputs(result.current, { withBlind3: true });
+			inputs.blind1.value = "100";
+			inputs.blind2.value = "200";
+			inputs.blind3.value = "-1";
+			inputs.ante.value = "25";
+
+			result.current.handleBlind3Blur(buildFocusEvent(inputs.blind3, null));
+
+			expect(onCreateLevel).not.toHaveBeenCalled();
+			expect(inputs.blind3).toHaveAttribute("aria-invalid", "true");
+		});
+
+		it("keeps the row pending while focus moves to the third-blind cell", () => {
+			const onCreateLevel = vi.fn();
+			const { result } = renderHook(() => useEmptyRow({ onCreateLevel }));
+			const inputs = mountInputs(result.current, { withBlind3: true });
+			inputs.blind1.value = "100";
+
+			result.current.handleBlind1Blur(
+				buildFocusEvent(inputs.blind1, inputs.blind3)
+			);
+
+			expect(onCreateLevel).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("handleAnteBlur and handleMinutesBlur", () => {
 		it("handleAnteBlur triggers create when blind1 is populated", () => {
 			const onCreateLevel = vi.fn();
@@ -198,8 +277,8 @@ describe("useEmptyRow", () => {
 		});
 	});
 
-	describe("edge cases of parseIntOrNull", () => {
-		it("handles a negative value by parsing it correctly", () => {
+	describe("invalid numeric cells", () => {
+		it("does not create a level from a negative blind", () => {
 			const onCreateLevel = vi.fn();
 			const { result } = renderHook(() => useEmptyRow({ onCreateLevel }));
 			const inputs = mountInputs(result.current);
@@ -208,15 +287,10 @@ describe("useEmptyRow", () => {
 			inputs.ante.value = "100";
 
 			result.current.handleAnteBlur(buildFocusEvent(inputs.ante, null));
-			expect(onCreateLevel).toHaveBeenCalledWith({
-				blind1: -50,
-				blind2: 100,
-				ante: 100,
-				minutes: null,
-			});
+			expect(onCreateLevel).not.toHaveBeenCalled();
 		});
 
-		it("handles trailing non-numeric characters via parseInt semantics", () => {
+		it("does not create a level from trailing non-numeric characters", () => {
 			const onCreateLevel = vi.fn();
 			const { result } = renderHook(() => useEmptyRow({ onCreateLevel }));
 			const inputs = mountInputs(result.current);
@@ -225,12 +299,7 @@ describe("useEmptyRow", () => {
 			inputs.ante.value = "100";
 
 			result.current.handleAnteBlur(buildFocusEvent(inputs.ante, null));
-			expect(onCreateLevel).toHaveBeenCalledWith({
-				blind1: 42,
-				blind2: 100,
-				ante: 100,
-				minutes: null,
-			});
+			expect(onCreateLevel).not.toHaveBeenCalled();
 		});
 	});
 });

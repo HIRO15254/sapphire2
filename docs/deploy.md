@@ -24,6 +24,7 @@ This repository is built on Cloudflare Workers + D1 architecture.
 - [Cloudflare](https://dash.cloudflare.com/sign-up) account (Free plan OK)
 - GitHub repository admin access (required for Secrets configuration)
 - [Bun](https://bun.sh/) installed locally
+- [Node.js](https://nodejs.org/) 20.3.0 or later installed locally (required to run the Cloudflare Wrangler CLI; Bun remains the package manager)
 
 > D1 databases are created automatically by Wrangler — no separate database account is needed.
 
@@ -61,7 +62,7 @@ bun run db:migrate:local
 bun run dev
 ```
 
-- API: `http://localhost:8787` (`wrangler dev`)
+- API: `http://localhost:8787` (Wrangler runs with Node.js)
 - Web: `http://localhost:3001` (Vite)
 
 ## 4. Cloudflare Setup
@@ -81,7 +82,7 @@ Cloudflare Dashboard → "Workers & Pages" overview page → right sidebar
 ### 4.3 Create Pages Project
 
 ```bash
-npx wrangler pages project create sapphire2-web
+node ./node_modules/wrangler/bin/wrangler.js pages project create sapphire2-web
 ```
 
 ## 5. OAuth Provider Setup

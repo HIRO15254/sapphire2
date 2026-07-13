@@ -108,6 +108,7 @@ export function MobileNavItem({
 	return (
 		<li className="flex-1">
 			<Link
+				aria-current={active ? "page" : undefined}
 				className={cn(
 					"flex flex-col items-center gap-0.5 py-1.5 text-xs transition-colors",
 					active
@@ -133,6 +134,7 @@ export function SidebarNavItem({
 	return (
 		<li key={item.to}>
 			<Link
+				aria-current={active ? "page" : undefined}
 				className={cn(
 					"flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
 					active

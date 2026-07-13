@@ -15,13 +15,15 @@ export const MAX_MIX_GROUPS = 12;
 
 export const anteTypeSchema = z.enum(["none", "all", "bb"]);
 
+const storedVariantLabelSchema = z.string().trim().min(1).max(30);
+
 export const mixGameGroupSchema = z.object({
 	// Optional display name ("Limit", "Big Bet"); display falls back to the
 	// joined variant short labels when absent.
 	name: z.string().max(30).nullish(),
 	// Preset keys or custom-variant labels. The slot meaning of blind1/2/3
 	// follows the group's game family (stud: Small Bet / Big Bet / Bring-in).
-	variants: z.array(z.string().min(1)).min(1).max(30),
+	variants: z.array(storedVariantLabelSchema).min(1).max(30),
 	blind1: z.number().int().min(0).nullish(),
 	blind2: z.number().int().min(0).nullish(),
 	blind3: z.number().int().min(0).nullish(),

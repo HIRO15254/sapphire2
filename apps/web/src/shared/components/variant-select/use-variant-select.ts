@@ -30,15 +30,21 @@ interface UseVariantSelectArgs {
 	value: string;
 }
 
+type VariantOptionKind = "create" | "mix" | "variant";
+
+function optionValue(kind: VariantOptionKind, id: string): string {
+	return `${kind}:${id}`;
+}
+
 function normalized(variant: string): string {
 	return variant.trim().toLowerCase();
 }
 
 /**
- * Type-to-filter combobox state (Input + Popover + Command, the repo's
- * combobox convention — see currencies' type-combobox). The input's text is
- * a local draft: the field value only changes on an explicit selection, and
- * an unresolved draft reverts to the current value on blur/escape.
+ * Type-to-filter combobox state (Input + Popover + ARIA listbox). The input's
+ * text is a local draft: the field value only changes on an explicit
+ * selection, and an unresolved draft reverts to the current value on
+ * blur/escape.
  */
 export function useVariantSelect({
 	excludeVariants,
@@ -48,10 +54,14 @@ export function useVariantSelect({
 }: UseVariantSelectArgs) {
 	const queryClient = useQueryClient();
 	const formId = useId();
+	const listboxId = `${formId}-listbox`;
 	const [isAddOpen, setIsAddOpen] = useState(false);
 	const [inputValue, setInputValue] = useState(value);
 	const [isFiltering, setIsFiltering] = useState(false);
 	const [isOpen, setIsOpen] = useState(false);
+	const [activeOptionValue, setActiveOptionValue] = useState<string | null>(
+		null
+	);
 	const [contentWidth, setContentWidth] = useState<number>();
 	const anchorRef = useRef<HTMLDivElement>(null);
 
@@ -61,6 +71,7 @@ export function useVariantSelect({
 	useEffect(() => {
 		setInputValue(value);
 		setIsFiltering(false);
+		setActiveOptionValue(null);
 	}, [value]);
 
 	const variantListOptions = trpc.gameVariant.list.queryOptions();
@@ -97,14 +108,44 @@ export function useVariantSelect({
 		? allMixes.map((row) => ({ id: row.id, label: row.label }))
 		: [];
 
-	// Typed filter (manual — Command mounts with shouldFilter=false). Only
-	// narrows while the user is actively typing a draft; a freshly opened
-	// popover lists everything even though the input shows the current value.
+	// Typed filter only narrows while the user is actively typing a draft; a
+	// freshly opened popover lists everything even though the input shows the
+	// current value.
 	const query = isFiltering ? normalized(inputValue) : "";
 	const matches = (label: string) =>
 		query === "" || normalized(label).includes(query);
 	const filteredVariantOptions = variantOptions.filter((o) => matches(o.label));
 	const filteredMixOptions = mixOptions.filter((o) => matches(o.label));
+	const navigableOptions = [
+		...filteredVariantOptions.map((option) => ({
+			id: option.id,
+			kind: "variant" as const,
+			label: option.label,
+			value: optionValue("variant", option.id),
+		})),
+		...filteredMixOptions.map((option) => ({
+			id: option.id,
+			kind: "mix" as const,
+			label: option.label,
+			value: optionValue("mix", option.id),
+		})),
+		{
+			id: "custom",
+			kind: "create" as const,
+			label: null,
+			value: optionValue("create", "custom"),
+		},
+	];
+	const activeOption = navigableOptions.find(
+		(option) => option.value === activeOptionValue
+	);
+	const getOptionId = (kind: VariantOptionKind, id: string) =>
+		`${listboxId}-${kind}-${id}`;
+	const getOptionValue = (kind: VariantOptionKind, id: string) =>
+		optionValue(kind, id);
+	const activeOptionId = activeOption
+		? getOptionId(activeOption.kind, activeOption.id)
+		: undefined;
 
 	// A frozen value whose definition no longer exists (deleted variant) is
 	// still rendered by the input (its text is the raw value), but callers can
@@ -175,11 +216,13 @@ export function useVariantSelect({
 	const revertDraft = () => {
 		setInputValue(value);
 		setIsFiltering(false);
+		setActiveOptionValue(null);
 	};
 
 	const handleSelect = (label: string) => {
 		setIsOpen(false);
 		setIsFiltering(false);
+		setActiveOptionValue(null);
 		if (normalized(label) === normalized(value)) {
 			// Re-selecting the current value: the value prop won't change, so
 			// the sync effect never fires — restore the draft text directly
@@ -197,9 +240,13 @@ export function useVariantSelect({
 		setInputValue(text);
 		setIsFiltering(true);
 		setIsOpen(true);
+		setActiveOptionValue(null);
 	};
 
-	const handleInputFocus = () => setIsOpen(true);
+	const handleInputFocus = () => {
+		setIsOpen(true);
+		setActiveOptionValue(null);
+	};
 
 	const handleInputBlur = (relatedTarget: HTMLElement | null) => {
 		if (!relatedTarget?.closest('[data-slot="popover-content"]')) {
@@ -208,22 +255,60 @@ export function useVariantSelect({
 		}
 	};
 
-	const handleKeyDown = (key: string) => {
-		if (key === "Enter") {
-			const pool = [...filteredVariantOptions, ...filteredMixOptions];
-			const exact = pool.find(
-				(o) => normalized(o.label) === normalized(inputValue)
-			);
-			const target = exact ?? (pool.length === 1 ? pool[0] : undefined);
-			if (target) {
-				handleSelect(target.label);
-			}
+	const moveActiveOption = (direction: 1 | -1) => {
+		const currentIndex = navigableOptions.findIndex(
+			(option) => option.value === activeOptionValue
+		);
+		let nextIndex: number;
+		if (currentIndex === -1) {
+			nextIndex = direction === 1 ? 0 : navigableOptions.length - 1;
+		} else {
+			nextIndex =
+				(currentIndex + direction + navigableOptions.length) %
+				navigableOptions.length;
+		}
+		setIsOpen(true);
+		setActiveOptionValue(navigableOptions[nextIndex].value);
+	};
+
+	const handleEnterKey = () => {
+		if (activeOption?.kind === "create") {
+			handleOpenAdd();
 			return;
+		}
+		if (activeOption?.label) {
+			handleSelect(activeOption.label);
+			return;
+		}
+		const pool = [...filteredVariantOptions, ...filteredMixOptions];
+		const exact = pool.find(
+			(option) => normalized(option.label) === normalized(inputValue)
+		);
+		const target = exact ?? (pool.length === 1 ? pool[0] : undefined);
+		if (target) {
+			handleSelect(target.label);
+		}
+	};
+
+	const handleKeyDown = (key: string): boolean => {
+		if (key === "ArrowDown") {
+			moveActiveOption(1);
+			return true;
+		}
+		if (key === "ArrowUp") {
+			moveActiveOption(-1);
+			return true;
+		}
+		if (key === "Enter") {
+			handleEnterKey();
+			return true;
 		}
 		if (key === "Escape") {
 			setIsOpen(false);
 			revertDraft();
+			return true;
 		}
+		return false;
 	};
 
 	// "Add custom variant" action item: an unresolved draft that matches no
@@ -242,6 +327,8 @@ export function useVariantSelect({
 	};
 
 	return {
+		activeOptionId,
+		activeOptionValue,
 		anchorRef,
 		contentWidth,
 		filteredMixOptions,
@@ -249,6 +336,8 @@ export function useVariantSelect({
 		form,
 		formId,
 		groups,
+		getOptionId,
+		getOptionValue,
 		handleInputBlur,
 		handleInputChange,
 		handleInputFocus,
@@ -261,6 +350,7 @@ export function useVariantSelect({
 		isKnownValue,
 		isLoading:
 			variantsQuery.isLoading || groupsQuery.isLoading || mixesQuery.isLoading,
+		listboxId,
 		setIsAddOpen,
 		shouldShowPopover,
 	};

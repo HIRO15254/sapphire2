@@ -49,10 +49,12 @@ describe("MixesCard", () => {
 		expect(screen.getByText("Mixes")).toBeInTheDocument();
 	});
 
-	it("renders each mix's label and game count", () => {
+	it("renders each mix's label, game count, and composition", () => {
 		renderCard();
 		expect(screen.getByText("HORSE")).toBeInTheDocument();
-		expect(screen.getByText("2 games")).toBeInTheDocument();
+		expect(
+			screen.getByText("2 games: Limit Hold'em, Razz")
+		).toBeInTheDocument();
 	});
 
 	it("never renders a Default badge, even for a builtin mix", () => {
@@ -60,22 +62,21 @@ describe("MixesCard", () => {
 		expect(screen.queryByText("Default")).not.toBeInTheDocument();
 	});
 
-	it("sets the title attribute to the resolved, comma-joined variant labels", () => {
+	it("renders the resolved variant labels visibly instead of only in a title tooltip", () => {
 		renderCard();
-		expect(screen.getByText("2 games")).toHaveAttribute(
-			"title",
-			"Limit Hold'em, Razz"
-		);
+		expect(
+			screen.getByText("2 games: Limit Hold'em, Razz")
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("2 games: Limit Hold'em, Razz")
+		).not.toHaveAttribute("title");
 	});
 
-	it("drops unresolvable variant ids from the title without throwing", () => {
+	it("shows the known composition labels when a stored variant id can no longer be resolved", () => {
 		renderCard({
 			mixes: [mixRow({ games: ["v-1", "v-missing"] })],
 		});
-		expect(screen.getByText("2 games")).toHaveAttribute(
-			"title",
-			"Limit Hold'em"
-		);
+		expect(screen.getByText("2 games: Limit Hold'em")).toBeInTheDocument();
 	});
 
 	it("shows the empty-state message when there are no mixes", () => {

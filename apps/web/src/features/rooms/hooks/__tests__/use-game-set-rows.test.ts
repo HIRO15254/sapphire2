@@ -36,9 +36,9 @@ function makeRow(): BlindLevelRow {
 }
 
 function blurEvent(value: string) {
-	return {
-		target: { value },
-	} as React.FocusEvent<HTMLInputElement>;
+	const input = document.createElement("input");
+	input.value = value;
+	return { target: input } as React.FocusEvent<HTMLInputElement>;
 }
 
 function setup(row: BlindLevelRow = makeRow()) {
@@ -72,17 +72,35 @@ describe("useGameSetRows", () => {
 		});
 	});
 
-	it("maps an invalid value to null when the cell had a value", () => {
+	it.each([
+		"abc",
+		"100.5",
+		"200abc",
+		"-1",
+		"Infinity",
+	])("does not overwrite a stored cell when %s is invalid", (value) => {
 		const { result, onUpdateGameSet } = setup();
 		act(() => {
-			result.current.handleSetFieldBlur(0, "blind1")(blurEvent("abc"));
+			result.current.handleSetFieldBlur(0, "blind1")(blurEvent(value));
 		});
-		expect(onUpdateGameSet).toHaveBeenCalledTimes(1);
-		expect(onUpdateGameSet).toHaveBeenNthCalledWith(1, "l1", {
-			index: 0,
-			field: "blind1",
-			value: null,
+		expect(onUpdateGameSet).not.toHaveBeenCalled();
+	});
+
+	it("marks an invalid cell and exposes an actionable validation message", () => {
+		const { result, onUpdateGameSet } = setup();
+		const event = blurEvent("100.5");
+		const reportValidity = vi.spyOn(event.target, "reportValidity");
+
+		act(() => {
+			result.current.handleSetFieldBlur(0, "blind1")(event);
 		});
+
+		expect(onUpdateGameSet).not.toHaveBeenCalled();
+		expect(event.target).toHaveAttribute("aria-invalid", "true");
+		expect(event.target.validationMessage).toBe(
+			"Enter a non-negative whole number"
+		);
+		expect(reportValidity).toHaveBeenCalledTimes(1);
 	});
 
 	it("does not emit when the blurred value equals the stored value", () => {

@@ -1,3 +1,5 @@
+import { KeyboardSensor } from "@dnd-kit/core";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useLocalBlindStructure } from "@/features/rooms/components/blind-level-editor/use-blind-level-editor";
@@ -32,6 +34,18 @@ describe("useLocalBlindStructure", () => {
 		expect(typeof result.current.handleUpdate).toBe("function");
 		expect(typeof result.current.handleCreateLevel).toBe("function");
 		expect(typeof result.current.handleDragEnd).toBe("function");
+	});
+
+	it("supports keyboard reordering with sortable coordinates", () => {
+		const { result } = renderHook(() =>
+			useLocalBlindStructure({ value: [], onChange: vi.fn() })
+		);
+		const keyboard = result.current.sensors.find(
+			(descriptor) => descriptor.sensor === KeyboardSensor
+		);
+		expect(keyboard?.options).toEqual({
+			coordinateGetter: sortableKeyboardCoordinates,
+		});
 	});
 
 	it("handleAddLevel appends a non-break level", () => {
@@ -111,6 +125,7 @@ describe("useLocalBlindStructure", () => {
 				ante: 10,
 				blind1: 100,
 				blind2: 200,
+				blind3: 50,
 				minutes: null,
 			});
 		});
@@ -119,6 +134,7 @@ describe("useLocalBlindStructure", () => {
 		expect(next[1].ante).toBe(10);
 		expect(next[1].blind1).toBe(100);
 		expect(next[1].blind2).toBe(200);
+		expect(next[1].blind3).toBe(50);
 		expect(next[1].minutes).toBe(20);
 	});
 

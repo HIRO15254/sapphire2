@@ -36,7 +36,7 @@ export function EmptyGamesRow({ onCreateLevel }: EmptyGamesRowProps) {
 				</Button>
 			</TableCell>
 			<TableCell className="w-12 p-0 px-0.5">
-				<BlindLevelInput ref={minutesRef} />
+				<BlindLevelInput aria-label="New level minutes" ref={minutesRef} />
 			</TableCell>
 			<TableCell className="w-8 p-0" />
 		</TableRow>

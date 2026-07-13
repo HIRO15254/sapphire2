@@ -9,14 +9,17 @@ export interface MixesCardProps {
 	variants: GameVariantRow[];
 }
 
-function mixGamesTitle(
+function mixGamesSummary(
 	mix: GameMixRow,
 	labelById: Map<string, string>
 ): string {
-	return mix.games
+	const labels = mix.games
 		.map((id) => labelById.get(id))
 		.filter((label): label is string => Boolean(label))
 		.join(", ");
+	return labels
+		? `${mix.games.length} games: ${labels}`
+		: `${mix.games.length} games`;
 }
 
 /**
@@ -56,11 +59,8 @@ export function MixesCard({
 						>
 							<div className="min-w-0">
 								<p className="truncate font-medium text-sm">{mix.label}</p>
-								<p
-									className="truncate text-muted-foreground text-xs"
-									title={mixGamesTitle(mix, labelById)}
-								>
-									{`${mix.games.length} games`}
+								<p className="truncate text-muted-foreground text-xs">
+									{mixGamesSummary(mix, labelById)}
 								</p>
 							</div>
 							<div className="flex shrink-0 gap-1">

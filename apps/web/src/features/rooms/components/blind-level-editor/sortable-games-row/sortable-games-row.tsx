@@ -79,6 +79,7 @@ export function SortableGamesRow({
 			</TableCell>
 			<TableCell className="w-12 p-0 px-0.5">
 				<BlindLevelInput
+					aria-label={`Level ${row.level} minutes`}
 					defaultValue={row.minutes ?? ""}
 					key={`${row.id}-minutes`}
 					onBlur={handleMinutesBlur}

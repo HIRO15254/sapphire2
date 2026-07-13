@@ -168,4 +168,69 @@ describe("seedDefaultGameData", () => {
 			expect(row?.games).toEqual(expectedIds);
 		}
 	});
+
+	it("uses stable built-in ids so concurrent seed batches share the same foreign-key targets", async () => {
+		const first = emptyAccountDb();
+		const second = emptyAccountDb();
+
+		await seedDefaultGameData(first.db, USER_ID);
+		await seedDefaultGameData(second.db, USER_ID);
+
+		expect(
+			(second.inserted[GROUP_TABLE] ?? []).map(({ builtinKey, id }) => ({
+				builtinKey,
+				id,
+			}))
+		).toEqual(
+			(first.inserted[GROUP_TABLE] ?? []).map(({ builtinKey, id }) => ({
+				builtinKey,
+				id,
+			}))
+		);
+		expect(
+			(second.inserted[VARIANT_TABLE] ?? []).map(
+				({ builtinKey, groupId, id }) => ({ builtinKey, groupId, id })
+			)
+		).toEqual(
+			(first.inserted[VARIANT_TABLE] ?? []).map(
+				({ builtinKey, groupId, id }) => ({ builtinKey, groupId, id })
+			)
+		);
+		expect(
+			(second.inserted[MIX_TABLE] ?? []).map(({ builtinKey, games, id }) => ({
+				builtinKey,
+				games,
+				id,
+			}))
+		).toEqual(
+			(first.inserted[MIX_TABLE] ?? []).map(({ builtinKey, games, id }) => ({
+				builtinKey,
+				games,
+				id,
+			}))
+		);
+	});
+
+	it("keeps stable built-in ids isolated between users", async () => {
+		const first = emptyAccountDb();
+		const second = emptyAccountDb();
+
+		await seedDefaultGameData(first.db, USER_ID);
+		await seedDefaultGameData(second.db, "user-2");
+
+		const firstIds = new Set(
+			[
+				...(first.inserted[GROUP_TABLE] ?? []),
+				...(first.inserted[VARIANT_TABLE] ?? []),
+				...(first.inserted[MIX_TABLE] ?? []),
+			].map((row) => (row as { id: string }).id)
+		);
+		const secondIds = [
+			...(second.inserted[GROUP_TABLE] ?? []),
+			...(second.inserted[VARIANT_TABLE] ?? []),
+			...(second.inserted[MIX_TABLE] ?? []),
+		].map((row) => (row as { id: string }).id);
+
+		expect(secondIds.every((id) => !firstIds.has(id))).toBe(true);
+	});
 });

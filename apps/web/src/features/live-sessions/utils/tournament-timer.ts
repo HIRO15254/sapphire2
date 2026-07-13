@@ -71,7 +71,7 @@ export function computeTournamentTimerState(
 			continue;
 		}
 		const minutes = level.minutes;
-		if (typeof minutes !== "number" || minutes <= 0) {
+		if (typeof minutes !== "number" || minutes < 0) {
 			return {
 				currentLevel: level,
 				currentLevelIndex: i,
@@ -82,6 +82,12 @@ export function computeTournamentTimerState(
 				remainingSecondsInLevel: null,
 				totalDurationSeconds,
 			};
+		}
+		// Zero-minute rows are accepted by the persisted structure schema. They
+		// represent a skipped placeholder rather than an indeterminate timer
+		// duration, so advance over them instead of pinning the timer here.
+		if (minutes === 0) {
+			continue;
 		}
 
 		const levelEndSeconds = cumulativeSeconds + minutes * SECONDS_PER_MINUTE;

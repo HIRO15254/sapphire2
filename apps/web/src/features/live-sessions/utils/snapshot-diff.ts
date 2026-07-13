@@ -8,11 +8,12 @@ export type DiffMap<K extends string> = Partial<Record<K, boolean>>;
 
 /**
  * Structural shape of one mix/level game group (matches mixGameGroupSchema /
- * levelGameGroupSchema minus anteType, which the top-level anteType diff
- * already covers for the flat game and which levels don't carry at all).
+ * levelGameGroupSchema). Mix groups carry their own anteType; level groups do
+ * not, so absent and null normalize to the same value in the comparator.
  */
 interface GameGroupShape {
 	ante?: number | null;
+	anteType?: string | null;
 	blind1?: number | null;
 	blind2?: number | null;
 	blind3?: number | null;
@@ -28,7 +29,8 @@ function sameGameGroup(a: GameGroupShape, b: GameGroupShape): boolean {
 		(a.blind1 ?? null) === (b.blind1 ?? null) &&
 		(a.blind2 ?? null) === (b.blind2 ?? null) &&
 		(a.blind3 ?? null) === (b.blind3 ?? null) &&
-		(a.ante ?? null) === (b.ante ?? null)
+		(a.ante ?? null) === (b.ante ?? null) &&
+		(a.anteType ?? null) === (b.anteType ?? null)
 	);
 }
 

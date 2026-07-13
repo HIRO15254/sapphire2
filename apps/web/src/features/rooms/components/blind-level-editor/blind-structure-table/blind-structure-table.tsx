@@ -74,24 +74,54 @@ interface BlindStructureTableProps {
 const HEAD_CLASS =
 	"h-auto pb-1 text-center font-medium text-muted-foreground text-xs";
 
-interface SortableLevelsProps {
+function flatLabels(
+	hybridGames: boolean,
+	blindLabels: BlindSlotLabels
+): BlindSlotLabels {
+	if (hybridGames) {
+		return { blind1: "Blind 1", blind2: "Blind 2", blind3: null };
+	}
+	return blindLabels;
+}
+
+function plainBlind3Label(
+	isMix: boolean,
+	blindLabels: BlindSlotLabels
+): string | null {
+	if (isMix) {
+		return null;
+	}
+	return blindLabels.blind3;
+}
+
+function blind3HeaderLabel(
+	hybridGames: boolean,
+	blindLabels: BlindSlotLabels
+): string | null {
+	if (hybridGames) {
+		return "Blind 3";
+	}
+	return blindLabels.blind3;
+}
+
+interface SortableTableProps {
+	children: ReactNode;
 	handleDragEnd: (event: DragEndEvent) => void;
 	levels: BlindLevelRow[];
-	renderRow: (row: BlindLevelRow) => ReactNode;
 	sensors: SensorDescriptor<SensorOptions>[];
 }
 
-// Shared dnd-kit scaffolding for both table bodies (purely presentational,
-// no hooks). The sortable unit is the level; game-set levels render their
-// own <tbody> block inside renderRow.
-function SortableLevels({
+// dnd-kit injects live-region and focus-restoration <div> elements next to its
+// children. Keep both providers outside <table> so those accessibility nodes
+// never become invalid table descendants. The sortable unit remains a level.
+function SortableTable({
+	children,
 	levels,
 	sensors,
 	handleDragEnd,
-	renderRow,
-}: SortableLevelsProps) {
+}: SortableTableProps) {
 	if (levels.length === 0) {
-		return null;
+		return children;
 	}
 	return (
 		<DndContext
@@ -103,7 +133,7 @@ function SortableLevels({
 				items={levels.map((l) => l.id)}
 				strategy={verticalListSortingStrategy}
 			>
-				{levels.map(renderRow)}
+				{children}
 			</SortableContext>
 		</DndContext>
 	);
@@ -127,8 +157,14 @@ export function BlindStructureTable({
 	handleUpdateGameSet,
 	handleCreateLevel,
 }: BlindStructureTableProps) {
-	const { headerGroups, openLevel, openGamesFor, closeGames } =
-		useBlindStructureTable(levels, { defaultGames, hybridGames, resolveGroup });
+	const { hasBlind3Column, headerGroups, openLevel, openGamesFor, closeGames } =
+		useBlindStructureTable(levels, {
+			defaultGames,
+			hybridGames,
+			plainBlind3Label: plainBlind3Label(isMix, blindLabels),
+			resolveGroup,
+		});
+	const flatBlindLabels = flatLabels(hybridGames, blindLabels);
 
 	// Mix-master (or orphaned game-set) body: each level is its own <tbody>
 	// block — game-set levels render one inline row per set, breaks and
@@ -137,54 +173,61 @@ export function BlindStructureTable({
 	// empty row (documented empty-composition behavior).
 	const hybridBody = (
 		<>
-			<SortableLevels
-				handleDragEnd={handleDragEnd}
-				levels={levels}
-				renderRow={(row) => {
-					if (row.isBreak) {
-						return (
-							<TableBody key={row.id}>
-								<SortableBreakRow
-									gameColumn
-									onDelete={handleDelete}
-									onUpdate={handleUpdate}
-									row={row}
-								/>
-							</TableBody>
-						);
-					}
-					if ((row.games?.length ?? 0) > 0) {
-						return (
-							<SortableGameSetRows
-								key={row.id}
-								onDelete={handleDelete}
-								onUpdate={handleUpdate}
-								onUpdateGameSet={handleUpdateGameSet}
-								row={row}
-							/>
-						);
-					}
+			{levels.map((row) => {
+				if (row.isBreak) {
 					return (
 						<TableBody key={row.id}>
-							<SortableLevelRow
+							<SortableBreakRow
 								gameColumn
+								hasBlind3Column={hasBlind3Column}
 								onDelete={handleDelete}
 								onUpdate={handleUpdate}
 								row={row}
 							/>
 						</TableBody>
 					);
-				}}
-				sensors={sensors}
-			/>
+				}
+				if ((row.games?.length ?? 0) > 0) {
+					return (
+						<SortableGameSetRows
+							hasBlind3Column={hasBlind3Column}
+							key={row.id}
+							onDelete={handleDelete}
+							onUpdate={handleUpdate}
+							onUpdateGameSet={handleUpdateGameSet}
+							resolveGroup={resolveGroup}
+							row={row}
+						/>
+					);
+				}
+				return (
+					<TableBody key={row.id}>
+						<SortableLevelRow
+							blindLabels={flatBlindLabels}
+							gameColumn
+							hasBlind3Column={hasBlind3Column}
+							onDelete={handleDelete}
+							onUpdate={handleUpdate}
+							row={row}
+						/>
+					</TableBody>
+				);
+			})}
 			{defaultGames?.length ? (
 				<EmptyGameSetRows
+					hasBlind3Column={hasBlind3Column}
 					onCreateLevel={handleCreateLevel}
+					resolveGroup={resolveGroup}
 					seeds={defaultGames}
 				/>
 			) : (
 				<TableBody>
-					<EmptyRow gameColumn onCreateLevel={handleCreateLevel} />
+					<EmptyRow
+						blindLabels={flatBlindLabels}
+						gameColumn
+						hasBlind3Column={hasBlind3Column}
+						onCreateLevel={handleCreateLevel}
+					/>
 				</TableBody>
 			)}
 		</>
@@ -196,46 +239,48 @@ export function BlindStructureTable({
 	// the summary row) — just Min + an explicit add button.
 	const flatBody = (
 		<TableBody>
-			<SortableLevels
-				handleDragEnd={handleDragEnd}
-				levels={levels}
-				renderRow={(row) => {
-					if (row.isBreak) {
-						return (
-							<SortableBreakRow
-								key={row.id}
-								onDelete={handleDelete}
-								onUpdate={handleUpdate}
-								row={row}
-							/>
-						);
-					}
-					if (isMix) {
-						return (
-							<SortableGamesRow
-								key={row.id}
-								onDelete={handleDelete}
-								onOpenGames={openGamesFor}
-								onUpdate={handleUpdate}
-								row={row}
-							/>
-						);
-					}
+			{levels.map((row) => {
+				if (row.isBreak) {
 					return (
-						<SortableLevelRow
+						<SortableBreakRow
+							hasBlind3Column={hasBlind3Column}
 							key={row.id}
 							onDelete={handleDelete}
 							onUpdate={handleUpdate}
 							row={row}
 						/>
 					);
-				}}
-				sensors={sensors}
-			/>
+				}
+				if (isMix) {
+					return (
+						<SortableGamesRow
+							key={row.id}
+							onDelete={handleDelete}
+							onOpenGames={openGamesFor}
+							onUpdate={handleUpdate}
+							row={row}
+						/>
+					);
+				}
+				return (
+					<SortableLevelRow
+						blindLabels={flatBlindLabels}
+						hasBlind3Column={hasBlind3Column}
+						key={row.id}
+						onDelete={handleDelete}
+						onUpdate={handleUpdate}
+						row={row}
+					/>
+				);
+			})}
 			{isMix ? (
 				<EmptyGamesRow onCreateLevel={handleCreateLevel} />
 			) : (
-				<EmptyRow onCreateLevel={handleCreateLevel} />
+				<EmptyRow
+					blindLabels={flatBlindLabels}
+					hasBlind3Column={hasBlind3Column}
+					onCreateLevel={handleCreateLevel}
+				/>
 			)}
 		</TableBody>
 	);
@@ -262,77 +307,96 @@ export function BlindStructureTable({
 				</Button>
 			</div>
 
-			<Table className="table-fixed">
-				<TableHeader>
-					{headerGroups ? (
-						// One header row per game of the mix composition, each labeled
-						// with its group's blind slots (WSOP structure-sheet style).
-						headerGroups.map((group, index) => (
-							<TableRow className="hover:bg-transparent" key={group.key}>
-								{index === 0 && (
-									<TableHead
-										className={`${HEAD_CLASS} w-10`}
-										rowSpan={headerGroups.length}
-									>
-										#
-									</TableHead>
-								)}
-								<TableHead className={`${HEAD_CLASS} w-14 text-left`}>
-									{group.label}
-								</TableHead>
-								<TableHead className={HEAD_CLASS}>
-									{group.blind1Label}
-								</TableHead>
-								<TableHead className={HEAD_CLASS}>
-									{group.blind2Label}
-								</TableHead>
-								<TableHead className={HEAD_CLASS}>Ante</TableHead>
-								{index === 0 && (
-									<>
+			<SortableTable
+				handleDragEnd={handleDragEnd}
+				levels={levels}
+				sensors={sensors}
+			>
+				<Table className="table-fixed">
+					<TableHeader>
+						{headerGroups ? (
+							// One header row per game of the mix composition, each labeled
+							// with its group's blind slots (WSOP structure-sheet style).
+							headerGroups.map((group, index) => (
+								<TableRow className="hover:bg-transparent" key={group.key}>
+									{index === 0 && (
 										<TableHead
-											className={`${HEAD_CLASS} w-12`}
+											className={`${HEAD_CLASS} w-10`}
 											rowSpan={headerGroups.length}
 										>
-											Min
+											#
 										</TableHead>
-										<TableHead
-											className="h-auto w-8 pb-1"
-											rowSpan={headerGroups.length}
-										/>
+									)}
+									<TableHead className={`${HEAD_CLASS} w-14 text-left`}>
+										{group.label}
+									</TableHead>
+									<TableHead className={HEAD_CLASS}>
+										{group.blind1Label}
+									</TableHead>
+									<TableHead className={HEAD_CLASS}>
+										{group.blind2Label}
+									</TableHead>
+									{hasBlind3Column && (
+										<TableHead className={HEAD_CLASS}>
+											{group.blind3Label}
+										</TableHead>
+									)}
+									<TableHead className={HEAD_CLASS}>Ante</TableHead>
+									{index === 0 && (
+										<>
+											<TableHead
+												className={`${HEAD_CLASS} w-12`}
+												rowSpan={headerGroups.length}
+											>
+												Min
+											</TableHead>
+											<TableHead
+												className="h-auto w-8 pb-1"
+												rowSpan={headerGroups.length}
+											/>
+										</>
+									)}
+								</TableRow>
+							))
+						) : (
+							<TableRow className="hover:bg-transparent">
+								<TableHead className={`${HEAD_CLASS} w-10`}>#</TableHead>
+								{hybridGames && (
+									<TableHead className={`${HEAD_CLASS} w-14 text-left`}>
+										Game
+									</TableHead>
+								)}
+								{isMix ? (
+									<TableHead
+										className={HEAD_CLASS}
+										colSpan={BLIND_DATA_COLUMNS}
+									>
+										Games
+									</TableHead>
+								) : (
+									<>
+										<TableHead className={HEAD_CLASS}>
+											{hybridGames ? "Blind 1" : blindLabels.blind1}
+										</TableHead>
+										<TableHead className={HEAD_CLASS}>
+											{hybridGames ? "Blind 2" : blindLabels.blind2}
+										</TableHead>
+										{hasBlind3Column && (
+											<TableHead className={HEAD_CLASS}>
+												{blind3HeaderLabel(hybridGames, blindLabels)}
+											</TableHead>
+										)}
+										<TableHead className={HEAD_CLASS}>Ante</TableHead>
 									</>
 								)}
+								<TableHead className={`${HEAD_CLASS} w-12`}>Min</TableHead>
+								<TableHead className="h-auto w-8 pb-1" />
 							</TableRow>
-						))
-					) : (
-						<TableRow className="hover:bg-transparent">
-							<TableHead className={`${HEAD_CLASS} w-10`}>#</TableHead>
-							{hybridGames && (
-								<TableHead className={`${HEAD_CLASS} w-14 text-left`}>
-									Game
-								</TableHead>
-							)}
-							{isMix ? (
-								<TableHead className={HEAD_CLASS} colSpan={BLIND_DATA_COLUMNS}>
-									Games
-								</TableHead>
-							) : (
-								<>
-									<TableHead className={HEAD_CLASS}>
-										{blindLabels.blind1}
-									</TableHead>
-									<TableHead className={HEAD_CLASS}>
-										{blindLabels.blind2}
-									</TableHead>
-									<TableHead className={HEAD_CLASS}>Ante</TableHead>
-								</>
-							)}
-							<TableHead className={`${HEAD_CLASS} w-12`}>Min</TableHead>
-							<TableHead className="h-auto w-8 pb-1" />
-						</TableRow>
-					)}
-				</TableHeader>
-				{hybridGames ? hybridBody : flatBody}
-			</Table>
+						)}
+					</TableHeader>
+					{hybridGames ? hybridBody : flatBody}
+				</Table>
+			</SortableTable>
 			{isMix && resolveGroup ? (
 				<LevelPatternsSheet
 					compositionFor={compositionFor ?? ((label) => [label])}

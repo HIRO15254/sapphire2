@@ -98,6 +98,15 @@ export function useGamesPage() {
 	const groupListQuery = useQuery(trpc.gameGroup.list.queryOptions());
 	const variantListQuery = useQuery(trpc.gameVariant.list.queryOptions());
 	const mixListQuery = useQuery(trpc.gameMix.list.queryOptions());
+	const isError =
+		groupListQuery.isError || variantListQuery.isError || mixListQuery.isError;
+	const onRetry = async () => {
+		await Promise.all([
+			groupListQuery.refetch(),
+			variantListQuery.refetch(),
+			mixListQuery.refetch(),
+		]);
+	};
 
 	const [groupSheetTarget, setGroupSheetTarget] =
 		useState<GroupSheetTarget | null>(null);
@@ -282,6 +291,8 @@ export function useGamesPage() {
 			groupListQuery.isLoading ||
 			variantListQuery.isLoading ||
 			mixListQuery.isLoading,
+		isError,
+		onRetry,
 
 		isGroupSheetOpen: groupSheetTarget !== null,
 		editingGroup:

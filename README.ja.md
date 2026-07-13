@@ -48,6 +48,7 @@ sapphire2/
 ### 前提条件
 
 - [Bun](https://bun.sh/) がインストール済み
+- [Node.js](https://nodejs.org/) 20.3.0 以上がインストール済み（Cloudflare Wrangler CLI の実行用。パッケージマネージャーは引き続き Bun）
 
 ### セットアップ
 
@@ -95,7 +96,7 @@ bun run dev
 | `bun run dev` | 全アプリを開発モードで起動 |
 | `bun run build` | 全アプリをビルド |
 | `bun run dev:web` | Web アプリのみ起動 |
-| `bun run dev:server` | API サーバーのみ起動 (`wrangler dev`) |
+| `bun run dev:server` | API サーバーのみ起動（Wrangler は Node.js で実行） |
 | `bun run check-types` | 全パッケージの TypeScript 型チェック |
 | `bun run db:generate` | マイグレーションファイルを生成 |
 | `bun run db:migrate:local` | ローカル D1 にマイグレーションを適用 |

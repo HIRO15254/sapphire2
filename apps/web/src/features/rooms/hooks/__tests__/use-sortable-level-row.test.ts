@@ -80,7 +80,13 @@ describe("useSortableLevelRow", () => {
 			expect(onUpdate).toHaveBeenCalledWith("l1", { blind1: null });
 		});
 
-		it("sends only blind1 update when blind1 input is unparseable", () => {
+		it.each([
+			"abc",
+			"100.5",
+			"200abc",
+			"-1",
+			"Infinity",
+		])("does not overwrite blind1 when %s is invalid", (value) => {
 			const onUpdate = vi.fn();
 			const { result } = renderHook(() =>
 				useSortableLevelRow({
@@ -88,8 +94,8 @@ describe("useSortableLevelRow", () => {
 					onUpdate,
 				})
 			);
-			result.current.handleBlind1Blur(buildFocusEvent("abc"));
-			expect(onUpdate).toHaveBeenCalledWith("l1", { blind1: null });
+			result.current.handleBlind1Blur(buildFocusEvent(value));
+			expect(onUpdate).not.toHaveBeenCalled();
 		});
 	});
 
@@ -129,6 +135,61 @@ describe("useSortableLevelRow", () => {
 			result.current.handleBlind2Blur(buildFocusEvent(""));
 			expect(onUpdate).toHaveBeenCalledWith("l1", { blind2: null });
 		});
+
+		it.each([
+			"abc",
+			"100.5",
+			"200abc",
+			"-1",
+			"Infinity",
+		])("does not overwrite blind2 when %s is invalid", (value) => {
+			const onUpdate = vi.fn();
+			const { result } = renderHook(() =>
+				useSortableLevelRow({
+					row: makeRow({ blind2: 120 }),
+					onUpdate,
+				})
+			);
+			result.current.handleBlind2Blur(buildFocusEvent(value));
+			expect(onUpdate).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("handleBlind3Blur", () => {
+		it("updates blind3 with a parsed value", () => {
+			const onUpdate = vi.fn();
+			const { result } = renderHook(() =>
+				useSortableLevelRow({ row: makeRow(), onUpdate })
+			);
+
+			result.current.handleBlind3Blur(buildFocusEvent("50"));
+
+			expect(onUpdate).toHaveBeenCalledTimes(1);
+			expect(onUpdate).toHaveBeenNthCalledWith(1, "l1", { blind3: 50 });
+		});
+
+		it("updates blind3 with null when cleared", () => {
+			const onUpdate = vi.fn();
+			const { result } = renderHook(() =>
+				useSortableLevelRow({ row: makeRow({ blind3: 50 }), onUpdate })
+			);
+
+			result.current.handleBlind3Blur(buildFocusEvent(""));
+
+			expect(onUpdate).toHaveBeenCalledTimes(1);
+			expect(onUpdate).toHaveBeenNthCalledWith(1, "l1", { blind3: null });
+		});
+
+		it("does not overwrite blind3 with an invalid value", () => {
+			const onUpdate = vi.fn();
+			const { result } = renderHook(() =>
+				useSortableLevelRow({ row: makeRow({ blind3: 50 }), onUpdate })
+			);
+
+			result.current.handleBlind3Blur(buildFocusEvent("50.5"));
+
+			expect(onUpdate).not.toHaveBeenCalled();
+		});
 	});
 
 	describe("handleAnteBlur", () => {
@@ -149,6 +210,15 @@ describe("useSortableLevelRow", () => {
 			result.current.handleAnteBlur(buildFocusEvent(""));
 			expect(onUpdate).toHaveBeenCalledWith("l1", { ante: null });
 		});
+
+		it("does not overwrite ante with an invalid value", () => {
+			const onUpdate = vi.fn();
+			const { result } = renderHook(() =>
+				useSortableLevelRow({ row: makeRow({ ante: 50 }), onUpdate })
+			);
+			result.current.handleAnteBlur(buildFocusEvent("25.5"));
+			expect(onUpdate).not.toHaveBeenCalled();
+		});
 	});
 
 	describe("handleMinutesBlur", () => {
@@ -168,6 +238,15 @@ describe("useSortableLevelRow", () => {
 			);
 			result.current.handleMinutesBlur(buildFocusEvent(""));
 			expect(onUpdate).toHaveBeenCalledWith("l1", { minutes: null });
+		});
+
+		it("does not overwrite minutes with an invalid value", () => {
+			const onUpdate = vi.fn();
+			const { result } = renderHook(() =>
+				useSortableLevelRow({ row: makeRow({ minutes: 15 }), onUpdate })
+			);
+			result.current.handleMinutesBlur(buildFocusEvent("15min"));
+			expect(onUpdate).not.toHaveBeenCalled();
 		});
 	});
 

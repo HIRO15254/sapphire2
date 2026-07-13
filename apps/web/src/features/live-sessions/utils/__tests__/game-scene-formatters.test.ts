@@ -269,6 +269,20 @@ describe("formatGroupStakes", () => {
 		).toBe("1/2");
 	});
 
+	it("excludes a hidden large ante from the visible blinds' compact tier", () => {
+		expect(
+			formatGroupStakes(
+				group({
+					variants: ["NL Hold'em"],
+					blind1: 1,
+					blind2: 2,
+					ante: 10_000,
+					anteType: "none",
+				})
+			)
+		).toBe("1/2");
+	});
+
 	it("renders a blind2-only group without a leading slash", () => {
 		expect(
 			formatGroupStakes(group({ variants: ["NL Hold'em"], blind2: 2 }))

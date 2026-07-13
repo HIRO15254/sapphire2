@@ -1,5 +1,7 @@
 import {
+	DEFAULT_GAME_GROUPS,
 	DEFAULT_VARIANT_LABEL,
+	MIX_VARIANT,
 	variantDisplayLabel,
 } from "@sapphire2/db/constants/game-variants";
 import {
@@ -50,8 +52,18 @@ import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch } from "../lib/batch";
+import { compareBuiltinFirst } from "./_game-masters";
 
 const PAGE_SIZE = 20;
+
+// Match gameGroup.list / useGameGroups: builtin buckets are
+// limit -> stud -> bigbet, followed by custom groups alphabetically.
+const CANONICAL_GAME_GROUP_ORDER = new Map<string, number>(
+	DEFAULT_GAME_GROUPS.map((group, index) => [group.key, index])
+);
+const compareCanonicalGameGroups = compareBuiltinFirst(
+	CANONICAL_GAME_GROUP_ORDER
+);
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -1881,31 +1893,15 @@ interface CashUpdateInput {
 	variant?: string;
 }
 
-async function applyCashDetailUpdate(
-	db: DbInstance,
-	sessionId: string,
+function applyCashRuleScalarUpdates(
+	cashUpdate: Partial<typeof sessionCashDetail.$inferInsert>,
 	input: CashUpdateInput
-): Promise<void> {
-	const cashUpdate: Partial<typeof sessionCashDetail.$inferInsert> = {};
-	if (input.buyIn !== undefined) {
-		cashUpdate.buyIn = input.buyIn;
-	}
-	if (input.cashOut !== undefined) {
-		cashUpdate.cashOut = input.cashOut;
-	}
-	if (input.evCashOut !== undefined) {
-		cashUpdate.evCashOut = input.evCashOut;
-	}
-
-	// Snapshot field overrides — written to detail, never propagated to parent.
+): void {
 	if (input.ruleName !== undefined) {
 		cashUpdate.ruleName = input.ruleName;
 	}
 	if (input.variant !== undefined) {
 		cashUpdate.variant = input.variant;
-	}
-	if (input.mixGames !== undefined) {
-		cashUpdate.mixGames = input.mixGames;
 	}
 	if (input.blind1 !== undefined) {
 		cashUpdate.blind1 = input.blind1;
@@ -1931,34 +1927,71 @@ async function applyCashDetailUpdate(
 	if (input.maxBuyIn !== undefined) {
 		cashUpdate.maxBuyIn = input.maxBuyIn;
 	}
+}
+
+async function applyCashDetailUpdate(
+	db: DbInstance,
+	sessionId: string,
+	input: CashUpdateInput,
+	userId: string
+): Promise<void> {
+	const [existingDetail] = await db
+		.select()
+		.from(sessionCashDetail)
+		.where(eq(sessionCashDetail.sessionId, sessionId));
+	const cashUpdate: Partial<typeof sessionCashDetail.$inferInsert> = {};
+	if (input.buyIn !== undefined) {
+		cashUpdate.buyIn = input.buyIn;
+	}
+	if (input.cashOut !== undefined) {
+		cashUpdate.cashOut = input.cashOut;
+	}
+	if (input.evCashOut !== undefined) {
+		cashUpdate.evCashOut = input.evCashOut;
+	}
+
+	// Snapshot field overrides — written to detail, never propagated to parent.
+	applyCashRuleScalarUpdates(cashUpdate, input);
 
 	if (input.ringGameId !== undefined) {
 		cashUpdate.ringGameId = input.ringGameId;
-		if (input.ringGameId) {
-			// Re-snapshot from the new parent, while letting explicit input
-			// fields override.
-			const snapshot = await resolveCashRuleSnapshot(db, input);
-			cashUpdate.ruleName = snapshot.ruleName;
-			cashUpdate.variant = snapshot.variant;
-			cashUpdate.mixGames = snapshot.mixGames;
-			cashUpdate.blind1 = snapshot.blind1;
-			cashUpdate.blind2 = snapshot.blind2;
-			cashUpdate.blind3 = snapshot.blind3;
-			cashUpdate.ante = snapshot.ante;
-			cashUpdate.anteType = snapshot.anteType;
-			cashUpdate.minBuyIn = snapshot.minBuyIn;
-			cashUpdate.maxBuyIn = snapshot.maxBuyIn;
-			cashUpdate.tableSize = snapshot.tableSize;
+	}
+	if (input.ringGameId) {
+		// Re-snapshot from the new parent, while letting explicit input fields
+		// override.
+		const snapshot = await resolveValidatedCashRuleSnapshot(db, input, userId);
+		cashUpdate.ruleName = snapshot.ruleName;
+		cashUpdate.variant = snapshot.variant;
+		cashUpdate.mixGames = snapshot.mixGames;
+		cashUpdate.blind1 = snapshot.blind1;
+		cashUpdate.blind2 = snapshot.blind2;
+		cashUpdate.blind3 = snapshot.blind3;
+		cashUpdate.ante = snapshot.ante;
+		cashUpdate.anteType = snapshot.anteType;
+		cashUpdate.minBuyIn = snapshot.minBuyIn;
+		cashUpdate.maxBuyIn = snapshot.maxBuyIn;
+		cashUpdate.tableSize = snapshot.tableSize;
+	} else {
+		const selection = await reconcileCashRuleSelection(
+			db,
+			userId,
+			existingDetail
+				? {
+						variant: existingDetail.variant,
+						mixGames: existingDetail.mixGames ?? null,
+					}
+				: undefined,
+			input
+		);
+		if (selection.shouldWriteMixGames) {
+			cashUpdate.mixGames = selection.mixGames;
 		}
+		Object.assign(cashUpdate, cashMixFlatFieldClearPatch(selection.mixGames));
 	}
 
 	if (Object.keys(cashUpdate).length === 0) {
 		return;
 	}
-	const [existingDetail] = await db
-		.select()
-		.from(sessionCashDetail)
-		.where(eq(sessionCashDetail.sessionId, sessionId));
 	if (existingDetail) {
 		await db
 			.update(sessionCashDetail)
@@ -2152,12 +2185,342 @@ interface CashRuleInput {
 	variant?: string;
 }
 
+interface CashRuleSelection {
+	mixGames: MixGameGroup[] | null;
+	variant: string;
+}
+
+interface ReconciledCashRuleSelection extends CashRuleSelection {
+	shouldWriteMixGames: boolean;
+}
+
+interface CashMixFlatFieldClearPatch {
+	ante: null;
+	anteType: null;
+	blind1: null;
+	blind2: null;
+	blind3: null;
+}
+
+export function cashMixFlatFieldClearPatch(
+	mixGames: MixGameGroup[] | null
+): Partial<CashMixFlatFieldClearPatch> {
+	return mixGames === null
+		? {}
+		: {
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				ante: null,
+				anteType: null,
+			};
+}
+
+function normalizedGameLabel(value: string): string {
+	return value.trim().toLowerCase();
+}
+
+async function findOwnedNamedMix(
+	db: DbInstance,
+	userId: string,
+	label: string
+): Promise<{ games: string[]; label: string; userId: string } | undefined> {
+	const rows = await db
+		.select({
+			games: gameMix.games,
+			label: gameMix.label,
+			userId: gameMix.userId,
+		})
+		.from(gameMix)
+		.where(eq(gameMix.userId, userId));
+	const normalized = normalizedGameLabel(label);
+	return rows.find(
+		(row) =>
+			row.userId === userId && normalizedGameLabel(row.label) === normalized
+	);
+}
+
+interface OwnedGameVariantRow {
+	groupId: string;
+	id: string;
+	label: string;
+	userId: string;
+}
+
+interface OwnedGameGroupRow {
+	builtinKey: string | null;
+	id: string;
+	label: string;
+	userId: string;
+}
+
+async function ownedGameVariantRows(
+	db: DbInstance,
+	userId: string
+): Promise<OwnedGameVariantRow[]> {
+	const rows = await db
+		.select({
+			groupId: gameVariant.groupId,
+			id: gameVariant.id,
+			label: gameVariant.label,
+			userId: gameVariant.userId,
+		})
+		.from(gameVariant)
+		.where(eq(gameVariant.userId, userId));
+	return rows.filter((row) => row.userId === userId);
+}
+
+async function ownedGameGroupRows(
+	db: DbInstance,
+	userId: string
+): Promise<OwnedGameGroupRow[]> {
+	const rows = await db
+		.select({
+			builtinKey: gameGroup.builtinKey,
+			id: gameGroup.id,
+			label: gameGroup.label,
+			userId: gameGroup.userId,
+		})
+		.from(gameGroup)
+		.where(eq(gameGroup.userId, userId));
+	return rows.filter((row) => row.userId === userId);
+}
+
+function mixVariantLabelSet(mixGames: MixGameGroup[] | null): Set<string> {
+	return new Set(
+		(mixGames ?? []).flatMap((group) => group.variants.map(normalizedGameLabel))
+	);
+}
+
+function normalizedMixVariantBuckets(mixGames: MixGameGroup[]): string[][] {
+	return mixGames.map((group) => group.variants.map(normalizedGameLabel));
+}
+
+function orderedBucketsEqual(left: string[][], right: string[][]): boolean {
+	return (
+		left.length === right.length &&
+		left.every(
+			(bucket, index) =>
+				bucket.length === right[index]?.length &&
+				bucket.every(
+					(label, labelIndex) => label === right[index]?.[labelIndex]
+				)
+		)
+	);
+}
+
+function hasSameFrozenMixStructure(
+	left: MixGameGroup[] | null,
+	right: MixGameGroup[] | null
+): boolean {
+	return (
+		left !== null &&
+		right !== null &&
+		orderedBucketsEqual(
+			normalizedMixVariantBuckets(left),
+			normalizedMixVariantBuckets(right)
+		)
+	);
+}
+
+function throwInvalidMixReference(): never {
+	throw new TRPCError({
+		code: "BAD_REQUEST",
+		message: "The mixed-game definition references an unavailable game master",
+	});
+}
+
+async function assertLegacyMixVariantsOwned(
+	db: DbInstance,
+	userId: string,
+	mixGames: MixGameGroup[],
+	frozenMixGames: MixGameGroup[] | null
+): Promise<void> {
+	const frozenLabels = mixVariantLabelSet(frozenMixGames);
+	const ownedLabels = new Set(
+		(await ownedGameVariantRows(db, userId)).map((row) =>
+			normalizedGameLabel(row.label)
+		)
+	);
+	for (const label of mixVariantLabelSet(mixGames)) {
+		if (!(frozenLabels.has(label) || ownedLabels.has(label))) {
+			throwInvalidMixReference();
+		}
+	}
+}
+
+async function assertNamedMixComposition(
+	db: DbInstance,
+	userId: string,
+	mix: { games: string[] },
+	mixGames: MixGameGroup[]
+): Promise<void> {
+	const ownedVariants = await ownedGameVariantRows(db, userId);
+	const variantById = new Map(ownedVariants.map((row) => [row.id, row]));
+	const orderedVariants = mix.games.map((id) => variantById.get(id));
+	if (orderedVariants.some((variant) => variant === undefined)) {
+		throwInvalidMixReference();
+	}
+
+	const ownedGroups = await ownedGameGroupRows(db, userId);
+	const groupById = new Map(ownedGroups.map((row) => [row.id, row]));
+	const bucketsByGroupId = new Map<
+		string,
+		{ group: OwnedGameGroupRow; labels: string[] }
+	>();
+	for (const variant of orderedVariants) {
+		if (!variant) {
+			throwInvalidMixReference();
+		}
+		const group = groupById.get(variant.groupId);
+		if (!group) {
+			throwInvalidMixReference();
+		}
+		const existing = bucketsByGroupId.get(variant.groupId);
+		if (existing) {
+			existing.labels.push(normalizedGameLabel(variant.label));
+		} else {
+			bucketsByGroupId.set(variant.groupId, {
+				group,
+				labels: [normalizedGameLabel(variant.label)],
+			});
+		}
+	}
+
+	const expectedBuckets = [...bucketsByGroupId.values()]
+		.sort((left, right) => {
+			return compareCanonicalGameGroups(left.group, right.group);
+		})
+		.map((bucket) => bucket.labels);
+	if (
+		!orderedBucketsEqual(expectedBuckets, normalizedMixVariantBuckets(mixGames))
+	) {
+		throwInvalidMixReference();
+	}
+}
+
+function isSameFrozenNamedMix(
+	variant: string,
+	currentVariant: string,
+	mixGames: MixGameGroup[] | null,
+	currentMixGames: MixGameGroup[] | null
+): boolean {
+	return (
+		normalizedGameLabel(variant) === normalizedGameLabel(currentVariant) &&
+		hasSameFrozenMixStructure(mixGames, currentMixGames)
+	);
+}
+
+async function isValidMixedVariant(
+	db: DbInstance,
+	userId: string,
+	variant: string,
+	mixGames: MixGameGroup[] | null,
+	currentVariant: string,
+	currentMixGames: MixGameGroup[] | null
+): Promise<boolean> {
+	const normalizedVariant = normalizedGameLabel(variant);
+	const sameVariant = normalizedVariant === normalizedGameLabel(currentVariant);
+	if (normalizedVariant === MIX_VARIANT) {
+		if (mixGames !== null) {
+			await assertLegacyMixVariantsOwned(
+				db,
+				userId,
+				mixGames,
+				sameVariant ? currentMixGames : null
+			);
+		}
+		return true;
+	}
+	const namedMix = await findOwnedNamedMix(db, userId, variant);
+	if (!namedMix) {
+		if (sameVariant && currentMixGames !== null) {
+			if (mixGames === null) {
+				return true;
+			}
+			if (
+				isSameFrozenNamedMix(variant, currentVariant, mixGames, currentMixGames)
+			) {
+				return true;
+			}
+			throwInvalidMixReference();
+		}
+		return false;
+	}
+	if (mixGames !== null) {
+		await assertNamedMixComposition(db, userId, namedMix, mixGames);
+	}
+	return true;
+}
+
+/**
+ * Keep the frozen cash-rule discriminator and its optional mixed-game payload
+ * coherent at every write boundary. Named mixes are labels of the caller's
+ * game_mix rows; the legacy `mix` sentinel remains valid without a master row.
+ * Existing snapshots are deliberately self-freezing, so re-submitting an
+ * unchanged named mix still works after that master is renamed or deleted.
+ */
+export async function reconcileCashRuleSelection(
+	db: DbInstance,
+	userId: string,
+	current: Partial<CashRuleSelection> | undefined,
+	patch: { mixGames?: MixGameGroup[] | null; variant?: string }
+): Promise<ReconciledCashRuleSelection> {
+	const currentVariant = current?.variant ?? DEFAULT_VARIANT_LABEL;
+	const currentMixGames = current?.mixGames ?? null;
+	if (patch.variant === undefined && patch.mixGames === undefined) {
+		return {
+			variant: currentVariant,
+			mixGames: currentMixGames,
+			shouldWriteMixGames: false,
+		};
+	}
+	const variant = patch.variant ?? currentVariant;
+	const variantChanged =
+		patch.variant !== undefined &&
+		normalizedGameLabel(variant) !== normalizedGameLabel(currentVariant);
+	let mixGames = variantChanged ? null : currentMixGames;
+	if (patch.mixGames !== undefined) {
+		mixGames = patch.mixGames;
+	}
+
+	const isMixedVariant = await isValidMixedVariant(
+		db,
+		userId,
+		variant,
+		mixGames,
+		currentVariant,
+		currentMixGames
+	);
+
+	if (isMixedVariant && mixGames === null) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "A mixed-game variant requires mixGames",
+		});
+	}
+	if (!isMixedVariant && mixGames !== null) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "mixGames can only be used with a mixed-game variant",
+		});
+	}
+
+	return {
+		variant,
+		mixGames,
+		shouldWriteMixGames:
+			patch.mixGames !== undefined ||
+			(variantChanged && currentMixGames !== null),
+	};
+}
+
 function pick<T>(override: T | undefined, fallback: T): T {
 	return override === undefined ? fallback : override;
 }
 
 function defaultCashSnapshot(input: CashRuleInput): CashRuleSnapshot {
-	return {
+	const snapshot: CashRuleSnapshot = {
 		ruleName: input.ruleName ?? "Untitled",
 		variant: input.variant ?? DEFAULT_VARIANT_LABEL,
 		mixGames: input.mixGames ?? null,
@@ -2170,13 +2533,14 @@ function defaultCashSnapshot(input: CashRuleInput): CashRuleSnapshot {
 		maxBuyIn: input.maxBuyIn ?? null,
 		tableSize: input.tableSize ?? null,
 	};
+	return { ...snapshot, ...cashMixFlatFieldClearPatch(snapshot.mixGames) };
 }
 
 function mergeCashSnapshotWithParent(
 	input: CashRuleInput,
 	rg: typeof ringGame.$inferSelect
 ): CashRuleSnapshot {
-	return {
+	const snapshot: CashRuleSnapshot = {
 		ruleName: input.ruleName ?? rg.name,
 		variant: input.variant ?? rg.variant,
 		mixGames: pick(input.mixGames, rg.mixGames ?? null),
@@ -2189,6 +2553,7 @@ function mergeCashSnapshotWithParent(
 		maxBuyIn: pick(input.maxBuyIn, rg.maxBuyIn),
 		tableSize: pick(input.tableSize, rg.tableSize),
 	};
+	return { ...snapshot, ...cashMixFlatFieldClearPatch(snapshot.mixGames) };
 }
 
 async function resolveCashRuleSnapshot(
@@ -2208,6 +2573,30 @@ async function resolveCashRuleSnapshot(
 	return mergeCashSnapshotWithParent(input, rg);
 }
 
+async function resolveValidatedCashRuleSnapshot(
+	db: DbInstance,
+	input: CashRuleInput,
+	userId: string
+): Promise<CashRuleSnapshot> {
+	const [parent] = input.ringGameId
+		? await db.select().from(ringGame).where(eq(ringGame.id, input.ringGameId))
+		: [undefined];
+	const selection = await reconcileCashRuleSelection(
+		db,
+		userId,
+		parent
+			? { variant: parent.variant, mixGames: parent.mixGames ?? null }
+			: undefined,
+		input
+	);
+	const normalizedInput = selection.shouldWriteMixGames
+		? { ...input, mixGames: selection.mixGames }
+		: input;
+	return parent
+		? mergeCashSnapshotWithParent(normalizedInput, parent)
+		: defaultCashSnapshot(normalizedInput);
+}
+
 async function buildCashGameSessionDetailStatements(
 	db: DbInstance,
 	sessionId: string,
@@ -2217,7 +2606,7 @@ async function buildCashGameSessionDetailStatements(
 ): Promise<BatchStatement[]> {
 	const statements: BatchStatement[] = [];
 	let ringGameId = input.ringGameId ?? null;
-	const snapshot = await resolveCashRuleSnapshot(db, input);
+	const snapshot = await resolveValidatedCashRuleSnapshot(db, input, userId);
 
 	if (!ringGameId) {
 		ringGameId = crypto.randomUUID();
@@ -2859,7 +3248,7 @@ export const sessionRouter = router({
 				.where(eq(gameSession.id, input.id));
 
 			if (session.kind === "cash_game") {
-				await applyCashDetailUpdate(ctx.db, input.id, input);
+				await applyCashDetailUpdate(ctx.db, input.id, input, userId);
 			} else {
 				await applyTournamentDetailUpdate(ctx.db, input.id, input);
 			}

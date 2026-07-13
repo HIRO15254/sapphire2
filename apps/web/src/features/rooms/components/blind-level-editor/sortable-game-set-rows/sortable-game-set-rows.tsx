@@ -11,13 +11,16 @@ import type {
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { TableBody, TableCell, TableRow } from "@/shared/components/ui/table";
+import type { ResolveGroup } from "@/shared/lib/mix-games";
 import { BlindLevelInput } from "../blind-level-input";
 import { DragHandle } from "../drag-handle";
 
 interface SortableGameSetRowsProps {
+	hasBlind3Column: boolean;
 	onDelete: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;
 	onUpdateGameSet: (id: string, cell: GameSetCellPatch) => void;
+	resolveGroup?: ResolveGroup;
 	row: BlindLevelRow;
 }
 
@@ -32,6 +35,8 @@ export function SortableGameSetRows({
 	onDelete,
 	onUpdate,
 	onUpdateGameSet,
+	hasBlind3Column,
+	resolveGroup,
 }: SortableGameSetRowsProps) {
 	const {
 		attributes,
@@ -60,85 +65,109 @@ export function SortableGameSetRows({
 
 	return (
 		<TableBody ref={setNodeRef} style={style}>
-			{games.map((set, index) => (
-				<TableRow
-					className={cn("hover:bg-transparent", isDragging && "opacity-50")}
-					// biome-ignore lint/suspicious/noArrayIndexKey: sets have no id; order within a level is stable (composition order) and rows fully re-render from row.games.
-					key={`${row.id}-set-${index}`}
-				>
-					{index === 0 && (
-						<TableCell
-							className="w-10 p-0 px-0.5 text-center align-middle"
-							rowSpan={rowSpan}
-						>
-							<div className="flex items-center justify-center gap-0.5">
-								<DragHandle attributes={attributes} listeners={listeners} />
-								<span className="text-muted-foreground text-xs">
-									{row.level}
-								</span>
-							</div>
+			{games.map((set, index) => {
+				const gameLabel = groupDisplayLabel(set);
+				const group = resolveGroup?.(set.variants[0] ?? "");
+				const blind1Label = group?.blind1Label ?? "Blind 1";
+				const blind2Label = group?.blind2Label ?? "Blind 2";
+				const blind3Label = group?.blind3Label;
+				return (
+					<TableRow
+						className={cn("hover:bg-transparent", isDragging && "opacity-50")}
+						// biome-ignore lint/suspicious/noArrayIndexKey: sets have no id; order within a level is stable (composition order) and rows fully re-render from row.games.
+						key={`${row.id}-set-${index}`}
+					>
+						{index === 0 && (
+							<TableCell
+								className="w-10 p-0 px-0.5 text-center align-middle"
+								rowSpan={rowSpan}
+							>
+								<div className="flex items-center justify-center gap-0.5">
+									<DragHandle attributes={attributes} listeners={listeners} />
+									<span className="text-muted-foreground text-xs">
+										{row.level}
+									</span>
+								</div>
+							</TableCell>
+						)}
+						<TableCell className="p-0 px-1">
+							<span className="block truncate text-muted-foreground text-xs">
+								{gameLabel}
+							</span>
 						</TableCell>
-					)}
-					<TableCell className="p-0 px-1">
-						<span className="block truncate text-muted-foreground text-xs">
-							{groupDisplayLabel(set)}
-						</span>
-					</TableCell>
-					<TableCell className="p-0 px-0.5">
-						<BlindLevelInput
-							defaultValue={set.blind1 ?? ""}
-							key={setFieldKey(index, "blind1")}
-							onBlur={handleSetFieldBlur(index, "blind1")}
-							onFocus={handleSetFieldFocus(index, "blind1")}
-						/>
-					</TableCell>
-					<TableCell className="p-0 px-0.5">
-						<BlindLevelInput
-							defaultValue={set.blind2 ?? ""}
-							key={setFieldKey(index, "blind2")}
-							onBlur={handleSetFieldBlur(index, "blind2")}
-							onFocus={handleSetFieldFocus(index, "blind2")}
-						/>
-					</TableCell>
-					<TableCell className="p-0 px-0.5">
-						<BlindLevelInput
-							defaultValue={set.ante ?? ""}
-							key={setFieldKey(index, "ante")}
-							onBlur={handleSetFieldBlur(index, "ante")}
-							onFocus={handleSetFieldFocus(index, "ante")}
-						/>
-					</TableCell>
-					{index === 0 && (
-						<>
-							<TableCell
-								className="w-12 p-0 px-0.5 align-middle"
-								rowSpan={rowSpan}
-							>
-								<BlindLevelInput
-									defaultValue={row.minutes ?? ""}
-									key={`${row.id}-minutes`}
-									onBlur={handleMinutesBlur}
-								/>
+						<TableCell className="p-0 px-0.5">
+							<BlindLevelInput
+								aria-label={`Level ${row.level} ${gameLabel} ${blind1Label}`}
+								defaultValue={set.blind1 ?? ""}
+								key={setFieldKey(index, "blind1")}
+								onBlur={handleSetFieldBlur(index, "blind1")}
+								onFocus={handleSetFieldFocus(index, "blind1")}
+							/>
+						</TableCell>
+						<TableCell className="p-0 px-0.5">
+							<BlindLevelInput
+								aria-label={`Level ${row.level} ${gameLabel} ${blind2Label}`}
+								defaultValue={set.blind2 ?? ""}
+								key={setFieldKey(index, "blind2")}
+								onBlur={handleSetFieldBlur(index, "blind2")}
+								onFocus={handleSetFieldFocus(index, "blind2")}
+							/>
+						</TableCell>
+						{hasBlind3Column && (
+							<TableCell className="p-0 px-0.5">
+								{blind3Label !== null && blind3Label !== undefined ? (
+									<BlindLevelInput
+										aria-label={`Level ${row.level} ${gameLabel} ${blind3Label}`}
+										defaultValue={set.blind3 ?? ""}
+										key={setFieldKey(index, "blind3")}
+										onBlur={handleSetFieldBlur(index, "blind3")}
+										onFocus={handleSetFieldFocus(index, "blind3")}
+									/>
+								) : null}
 							</TableCell>
-							<TableCell
-								className="w-8 p-0 px-0.5 text-center align-middle"
-								rowSpan={rowSpan}
-							>
-								<Button
-									aria-label="Delete level"
-									className="text-muted-foreground hover:text-destructive"
-									onClick={() => onDelete(row.id)}
-									size="icon-xs"
-									type="button"
-									variant="ghost"
+						)}
+						<TableCell className="p-0 px-0.5">
+							<BlindLevelInput
+								aria-label={`Level ${row.level} ${gameLabel} Ante`}
+								defaultValue={set.ante ?? ""}
+								key={setFieldKey(index, "ante")}
+								onBlur={handleSetFieldBlur(index, "ante")}
+								onFocus={handleSetFieldFocus(index, "ante")}
+							/>
+						</TableCell>
+						{index === 0 && (
+							<>
+								<TableCell
+									className="w-12 p-0 px-0.5 align-middle"
+									rowSpan={rowSpan}
 								>
-									<IconTrash size={14} />
-								</Button>
-							</TableCell>
-						</>
-					)}
-				</TableRow>
-			))}
+									<BlindLevelInput
+										aria-label={`Level ${row.level} minutes`}
+										defaultValue={row.minutes ?? ""}
+										key={`${row.id}-minutes`}
+										onBlur={handleMinutesBlur}
+									/>
+								</TableCell>
+								<TableCell
+									className="w-8 p-0 px-0.5 text-center align-middle"
+									rowSpan={rowSpan}
+								>
+									<Button
+										aria-label="Delete level"
+										className="text-muted-foreground hover:text-destructive"
+										onClick={() => onDelete(row.id)}
+										size="icon-xs"
+										type="button"
+										variant="ghost"
+									>
+										<IconTrash size={14} />
+									</Button>
+								</TableCell>
+							</>
+						)}
+					</TableRow>
+				);
+			})}
 		</TableBody>
 	);
 }

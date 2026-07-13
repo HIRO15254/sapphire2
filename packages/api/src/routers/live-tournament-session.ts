@@ -8,6 +8,7 @@ import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionBlindLevel } from "@sapphire2/db/schema/session-blind-level";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
+import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
@@ -35,12 +36,18 @@ import {
 	validateEntityOwnership,
 	validateLiveLinkOwnership,
 } from "./session";
+import {
+	buildTournamentCreateStatements,
+	tournamentCreateWithLevelsInputSchema,
+} from "./tournament";
 
 const DEFAULT_LIMIT = 20;
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
+
+type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 
 async function findLiveTournamentSession(
 	db: DbInstance,
@@ -58,14 +65,12 @@ async function findLiveTournamentSession(
 			)
 		);
 
-	if (!found) {
-		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Live tournament session not found",
-		});
-	}
-
-	if (found.userId !== userId) {
+	if (
+		!found ||
+		found.kind !== "tournament" ||
+		found.source !== "live" ||
+		found.userId !== userId
+	) {
 		throw new TRPCError({
 			code: "NOT_FOUND",
 			message: "Live tournament session not found",
@@ -738,6 +743,124 @@ export const liveTournamentSessionRouter = router({
 			}
 
 			return { id };
+		}),
+
+	createAndAssignTournament: protectedProcedure
+		.input(
+			tournamentCreateWithLevelsInputSchema.extend({ sessionId: z.string() })
+		)
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const existing = await findLiveTournamentSession(
+				ctx.db,
+				input.sessionId,
+				userId
+			);
+			await validateLiveLinkOwnership(ctx.db, input, userId);
+			if (existing.roomId && existing.roomId !== input.roomId) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Tournament belongs to a different room than the session",
+				});
+			}
+
+			const now = new Date();
+			const tournamentId = crypto.randomUUID();
+			const blindLevels = input.blindLevels ?? [];
+			const chipPurchases = input.chipPurchases ?? [];
+
+			const sessionUpdate: Partial<typeof gameSession.$inferInsert> = {
+				updatedAt: now,
+			};
+			if (!existing.roomId) {
+				sessionUpdate.roomId = input.roomId;
+			}
+			if (!existing.currencyId && input.currencyId) {
+				sessionUpdate.currencyId = input.currencyId;
+			}
+			const detailSnapshot = {
+				tournamentId,
+				tournamentBuyIn: input.buyIn ?? null,
+				entryFee: input.entryFee ?? null,
+				ruleName: input.name,
+				variant: input.variant,
+				startingStack: input.startingStack ?? null,
+				bountyAmount: input.bountyAmount ?? null,
+				tableSize: input.tableSize ?? null,
+			};
+			// The FK-checked upsert is intentionally in the same batch as the master
+			// insert. A concurrent session deletion therefore makes the whole batch
+			// fail instead of committing an orphan tournament.
+			const detailStatement = ctx.db
+				.insert(sessionTournamentDetail)
+				.values({
+					sessionId: input.sessionId,
+					...detailSnapshot,
+				})
+				.onConflictDoUpdate({
+					target: sessionTournamentDetail.sessionId,
+					set: detailSnapshot,
+				});
+
+			const sessionPurchaseRows = chipPurchases.map((purchase, sortOrder) => ({
+				id: crypto.randomUUID(),
+				sessionId: input.sessionId,
+				name: purchase.name,
+				cost: purchase.cost,
+				chips: purchase.chips,
+				sortOrder,
+			}));
+			const statements: [BatchStatement, ...BatchStatement[]] = [
+				...buildTournamentCreateStatements(ctx.db, {
+					id: tournamentId,
+					input,
+					now,
+				}),
+				ctx.db
+					.update(gameSession)
+					.set(sessionUpdate)
+					.where(
+						and(
+							eq(gameSession.id, input.sessionId),
+							eq(gameSession.userId, userId),
+							eq(gameSession.kind, "tournament"),
+							eq(gameSession.source, "live")
+						)
+					),
+				detailStatement,
+				ctx.db
+					.delete(sessionBlindLevel)
+					.where(eq(sessionBlindLevel.sessionId, input.sessionId)),
+				ctx.db
+					.delete(sessionChipPurchase)
+					.where(eq(sessionChipPurchase.sessionId, input.sessionId)),
+				...blindLevels.map((level, index) =>
+					ctx.db.insert(sessionBlindLevel).values({
+						id: crypto.randomUUID(),
+						sessionId: input.sessionId,
+						level: index + 1,
+						isBreak: level.isBreak,
+						blind1: level.blind1 ?? null,
+						blind2: level.blind2 ?? null,
+						blind3: level.blind3 ?? null,
+						ante: level.ante ?? null,
+						minutes: level.minutes ?? null,
+						games: level.games ?? null,
+					})
+				),
+				...sessionPurchaseRows.map((row) =>
+					ctx.db.insert(sessionChipPurchase).values(row)
+				),
+				...sessionPurchaseRows.map((row) =>
+					ctx.db.insert(sessionChipPurchaseResult).values({
+						sessionChipPurchaseId: row.id,
+						count: 0,
+					})
+				),
+			];
+			await ctx.db.batch(statements);
+
+			return { sessionId: input.sessionId, tournamentId };
 		}),
 
 	update: protectedProcedure

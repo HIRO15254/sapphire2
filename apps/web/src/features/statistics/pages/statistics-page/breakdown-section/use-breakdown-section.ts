@@ -52,6 +52,7 @@ export interface UseBreakdownSectionResult {
 	rows: BreakdownViewRow[];
 	setActiveTab: (tab: BreakdownGroupBy) => void;
 	showCashColumn: boolean;
+	showNetColumn: boolean;
 	showTournamentColumn: boolean;
 	tabs: BreakdownTab[];
 }
@@ -158,6 +159,16 @@ export function useBreakdownSection(
 	const showTournamentColumn =
 		ctx.normalized &&
 		groups.some((g) => g.tournamentNormalizedProfitLoss !== null);
+	// A mixed cash structure has no single flat big blind, so it cannot produce
+	// a bb value. Keep its raw P&L visible instead of reducing the normalized
+	// table to Group / Sessions / Play time (or an unexplained dash).
+	const showNetColumn =
+		ctx.normalized &&
+		groups.some(
+			(group) =>
+				group.cashNormalizedProfitLoss === null &&
+				group.tournamentNormalizedProfitLoss === null
+		);
 
 	return {
 		tabs,
@@ -166,6 +177,7 @@ export function useBreakdownSection(
 		rows,
 		normalized: ctx.normalized,
 		showCashColumn,
+		showNetColumn,
 		showTournamentColumn,
 		isPending: ctx.enabled && query.isPending,
 	};

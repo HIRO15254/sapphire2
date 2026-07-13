@@ -31,6 +31,7 @@ export function useRingGameSceneActions({
 				id: sessionId,
 				ruleName: values.name,
 				variant: values.variant,
+				mixGames: values.mixGames ?? null,
 				blind1: values.blind1 ?? null,
 				blind2: values.blind2 ?? null,
 				blind3: values.blind3 ?? null,

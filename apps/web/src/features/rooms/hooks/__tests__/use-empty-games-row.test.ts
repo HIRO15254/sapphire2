@@ -39,17 +39,18 @@ describe("useEmptyGamesRow", () => {
 		});
 	});
 
-	it("passes minutes=null for unparseable text", () => {
+	it.each([
+		"abc",
+		"30.5",
+		"30min",
+		"-1",
+		"Infinity",
+	])("does not create a level when minutes %s is invalid", (value) => {
 		const { result, onCreateLevel, minutes } = setup();
-		minutes.value = "abc";
+		minutes.value = value;
 		result.current.handleAddLevel();
-		expect(onCreateLevel).toHaveBeenNthCalledWith(1, {
-			blind1: null,
-			blind2: null,
-			ante: null,
-			minutes: null,
-			games: null,
-		});
+		expect(onCreateLevel).not.toHaveBeenCalled();
+		expect(minutes.value).toBe(value);
 	});
 
 	it("still creates when the minutes input is not mounted", () => {

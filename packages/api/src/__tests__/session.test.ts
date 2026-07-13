@@ -1117,8 +1117,8 @@ describe("session.create auto-generated ring game ownership (SA2-181)", () => {
 describe("session.create auto-generated ring game derived name (c11)", () => {
 	const CALLER = "user-1";
 
-	function callerFor() {
-		const { db, inserted } = createChainableMockDb({ select: {} });
+	function callerFor(select: Record<string, Record<string, unknown>[]> = {}) {
+		const { db, inserted } = createChainableMockDb({ select });
 		const caller = appRouter.createCaller({
 			session: { user: { id: CALLER } },
 			db,
@@ -1141,7 +1141,16 @@ describe("session.create auto-generated ring game derived name (c11)", () => {
 	});
 
 	it("derives the display label alone (no '0/0' suffix) for a mix rule with no direct blinds", async () => {
-		const { caller, inserted } = callerFor();
+		const { caller, inserted } = callerFor({
+			game_variant: [
+				{ id: "variant-1", userId: CALLER, label: "NL Hold'em" },
+				{
+					id: "variant-2",
+					userId: CALLER,
+					label: "Pot Limit Omaha",
+				},
+			],
+		});
 		await caller.session.create({
 			type: "cash_game",
 			sessionDate: 1_700_000_000,
@@ -1151,7 +1160,7 @@ describe("session.create auto-generated ring game derived name (c11)", () => {
 			mixGames: [
 				{
 					name: "Limit",
-					variants: ["nlh", "plo"],
+					variants: ["NL Hold'em", "Pot Limit Omaha"],
 					blind1: 1,
 					blind2: 2,
 					blind3: null,
@@ -1159,9 +1168,28 @@ describe("session.create auto-generated ring game derived name (c11)", () => {
 					anteType: null,
 				},
 			],
+			blind1: 10,
+			blind2: 20,
+			blind3: 40,
+			ante: 5,
+			anteType: "all",
 		});
 		const [created] = inserted.ring_game ?? [];
-		expect(created).toMatchObject({ name: "Mixed Game" });
+		expect(created).toMatchObject({
+			name: "Mixed Game",
+			blind1: null,
+			blind2: null,
+			blind3: null,
+			ante: null,
+			anteType: null,
+		});
+		expect(inserted.session_cash_detail?.[0]).toMatchObject({
+			blind1: null,
+			blind2: null,
+			blind3: null,
+			ante: null,
+			anteType: null,
+		});
 	});
 
 	it("derives the display label alone (no '0/0' suffix) for a non-mix rule with no blinds at all", async () => {
@@ -1328,5 +1356,195 @@ describe("cash rule snapshot: variant inheritance (c10)", () => {
 		const db = createChainableMockDb({ select: {} });
 		const snapshot = await resolveCashRuleSnapshot(db as never, {});
 		expect(snapshot.variant).toBe("NL Hold'em");
+	});
+});
+
+describe("session.create cash variant / mixGames persistence invariant", () => {
+	const CALLER = "user-1";
+	const parentMix = [
+		{
+			name: "Big Bet",
+			variants: ["NL Hold'em", "Pot Limit Omaha"],
+			blind1: 1,
+			blind2: 2,
+		},
+	];
+
+	it("clears an inherited mix definition when an explicit plain variant overrides the parent", async () => {
+		const { db, inserted } = createChainableMockDb({
+			select: {
+				ring_game: [
+					{
+						id: "rg-1",
+						userId: CALLER,
+						name: "8-Game",
+						variant: "8-Game",
+						mixGames: parentMix,
+					},
+				],
+				game_mix: [],
+			},
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: CALLER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+			ringGameId: "rg-1",
+			variant: "NL Hold'em",
+		});
+
+		expect(inserted.session_cash_detail).toHaveLength(1);
+		expect(inserted.session_cash_detail?.[0]).toMatchObject({
+			variant: "NL Hold'em",
+			mixGames: null,
+		});
+	});
+
+	it("rejects a manually defined plain variant carrying mixGames", async () => {
+		const { db, inserted, batch } = createChainableMockDb({
+			select: { game_mix: [] },
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: CALLER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await expect(
+			caller.session.create({
+				type: "cash_game",
+				sessionDate: 1_700_000_000,
+				buyIn: 1000,
+				cashOut: 2000,
+				variant: "NL Hold'em",
+				mixGames: parentMix,
+			})
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(inserted.session_cash_detail).toBeUndefined();
+		expect(batch).toHaveBeenCalledTimes(0);
+	});
+
+	it("accepts a manually defined owned named mix", async () => {
+		const { db, inserted } = createChainableMockDb({
+			select: {
+				game_mix: [
+					{
+						id: "mix-1",
+						userId: CALLER,
+						label: "8-Game",
+						games: ["variant-1", "variant-2"],
+					},
+				],
+				game_variant: [
+					{
+						id: "variant-1",
+						userId: CALLER,
+						label: "NL Hold'em",
+						groupId: "group-bigbet",
+					},
+					{
+						id: "variant-2",
+						userId: CALLER,
+						label: "Pot Limit Omaha",
+						groupId: "group-bigbet",
+					},
+				],
+				game_group: [
+					{
+						id: "group-bigbet",
+						userId: CALLER,
+						builtinKey: "bigbet",
+						label: "Big Bet",
+					},
+				],
+			},
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: CALLER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+			variant: "8-Game",
+			mixGames: parentMix,
+		});
+
+		expect(inserted.session_cash_detail?.[0]).toMatchObject({
+			variant: "8-Game",
+			mixGames: parentMix,
+		});
+	});
+});
+
+describe("session.update cash variant / mixGames persistence invariant", () => {
+	it("clears the existing mix definition when variant changes to a plain game", async () => {
+		const frozenMix = [
+			{
+				name: "Big Bet",
+				variants: ["NL Hold'em", "Pot Limit Omaha"],
+			},
+		];
+		const { db: baseDb } = createChainableMockDb({
+			select: {
+				game_session: [
+					{
+						id: "session-1",
+						userId: "user-1",
+						kind: "cash_game",
+						source: "manual",
+						currencyId: null,
+						sessionDate: new Date(1_700_000_000_000),
+					},
+				],
+				session_cash_detail: [
+					{
+						sessionId: "session-1",
+						variant: "8-Game",
+						mixGames: frozenMix,
+						buyIn: 100,
+						cashOut: 200,
+						evCashOut: null,
+					},
+				],
+				game_mix: [],
+				session_tournament_detail: [],
+				session_chip_purchase: [],
+			},
+		});
+		const updates: Record<string, unknown>[] = [];
+		const db = {
+			...(baseDb as unknown as Record<string, unknown>),
+			update: () => ({
+				set: (value: Record<string, unknown>) => {
+					updates.push(value);
+					return { where: () => Promise.resolve(undefined) };
+				},
+			}),
+		};
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.update({
+			id: "session-1",
+			variant: "NL Hold'em",
+		});
+
+		expect(updates).toContainEqual(
+			expect.objectContaining({
+				variant: "NL Hold'em",
+				mixGames: null,
+			})
+		);
 	});
 });

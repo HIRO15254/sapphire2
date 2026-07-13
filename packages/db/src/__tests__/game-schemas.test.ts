@@ -53,6 +53,26 @@ describe("mixGameGroupSchema", () => {
 		).toBe(false);
 	});
 
+	it("rejects a whitespace-only variant entry", () => {
+		expect(
+			mixGameGroupSchema.safeParse(group({ variants: ["nlh", "   "] })).success
+		).toBe(false);
+	});
+
+	it("trims variant labels and enforces the 30-character stored limit", () => {
+		const accepted = mixGameGroupSchema.safeParse(
+			group({ variants: [`  ${"a".repeat(30)}  `, "plo"] })
+		);
+		expect(accepted.success).toBe(true);
+		if (accepted.success) {
+			expect(accepted.data.variants[0]).toBe("a".repeat(30));
+		}
+		expect(
+			mixGameGroupSchema.safeParse(group({ variants: ["a".repeat(31), "plo"] }))
+				.success
+		).toBe(false);
+	});
+
 	it("accepts a 30-char name and rejects 31 chars", () => {
 		expect(
 			mixGameGroupSchema.safeParse(group({ name: "a".repeat(30) })).success

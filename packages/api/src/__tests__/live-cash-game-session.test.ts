@@ -1,4 +1,6 @@
 import { currency } from "@sapphire2/db/schema/currency";
+import { gameMix } from "@sapphire2/db/schema/game-mix";
+import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -52,6 +54,7 @@ function createMockDb(tableRows: Map<unknown, Rows>) {
 			set: () => ({ where: () => Promise.resolve(undefined) }),
 		}),
 		delete: () => ({ where: () => Promise.resolve(undefined) }),
+		batch: (statements: Promise<unknown>[]) => Promise.all(statements),
 	};
 }
 
@@ -459,6 +462,10 @@ describe("liveCashGameSession router", () => {
 		expect(appRouter.liveCashGameSession.update).toBeDefined();
 	});
 
+	it("has atomic createAndAssignRingGame procedure", () => {
+		expect(appRouter.liveCashGameSession.createAndAssignRingGame).toBeDefined();
+	});
+
 	it("has discard procedure", () => {
 		expect(appRouter.liveCashGameSession.discard).toBeDefined();
 	});
@@ -483,6 +490,7 @@ describe("liveCashGameSession router", () => {
 			[
 				"complete",
 				"create",
+				"createAndAssignRingGame",
 				"discard",
 				"getById",
 				"list",
@@ -504,6 +512,7 @@ describe("liveCashGameSession router", () => {
 	it("all mutations are protected mutations", () => {
 		for (const name of [
 			"create",
+			"createAndAssignRingGame",
 			"update",
 			"complete",
 			"reopen",
@@ -515,6 +524,111 @@ describe("liveCashGameSession router", () => {
 			expectProtected(proc);
 			expectType(proc, "mutation");
 		}
+	});
+});
+
+describe("liveCashGameSession.createAndAssignRingGame input validation", () => {
+	it("accepts the complete create payload plus sessionId", () => {
+		expectAccepts(appRouter.liveCashGameSession.createAndAssignRingGame, {
+			sessionId: "s1",
+			roomId: "room-1",
+			name: "1/2 NLH",
+			variant: "NL Hold'em",
+			blind1: 1,
+			blind2: 2,
+			blind3: 4,
+			ante: 1,
+			anteType: "all",
+			minBuyIn: 40,
+			maxBuyIn: 200,
+			tableSize: 9,
+			currencyId: "cur-1",
+			memo: "note",
+		});
+	});
+
+	it("rejects missing sessionId, roomId, or an empty name", () => {
+		expectRejects(appRouter.liveCashGameSession.createAndAssignRingGame, {
+			roomId: "room-1",
+			name: "1/2",
+		});
+		expectRejects(appRouter.liveCashGameSession.createAndAssignRingGame, {
+			sessionId: "s1",
+			name: "1/2",
+		});
+		expectRejects(appRouter.liveCashGameSession.createAndAssignRingGame, {
+			sessionId: "s1",
+			roomId: "room-1",
+			name: "",
+		});
+	});
+});
+
+describe("liveCashGameSession.createAndAssignRingGame authorization", () => {
+	const payload = {
+		sessionId: "s1",
+		roomId: "room-1",
+		name: "1/2",
+	};
+
+	it("rejects a live cash session owned by another user before writing", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [{ ...ownedSession, userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignRingGame(payload),
+			"NOT_FOUND"
+		);
+	});
+
+	it("rejects non-cash and non-live sessions before writing", async () => {
+		for (const session of [
+			{ ...ownedSession, kind: "tournament" },
+			{ ...ownedSession, source: "manual" },
+		]) {
+			const rows = new Map<unknown, Rows>([[gameSession, [session]]]);
+			await expectTrpcCode(
+				makeCaller(OWNER, rows).createAndAssignRingGame(payload),
+				"NOT_FOUND"
+			);
+		}
+	});
+
+	it("rejects a room owned by another user before writing", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignRingGame(payload),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects a currency owned by another user before writing", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OWNER }]],
+			[currency, [{ id: "cur-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignRingGame({
+				...payload,
+				currencyId: "cur-1",
+			}),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects assigning a new master from a different room than the session", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [{ ...ownedSession, roomId: "room-existing" }]],
+			[room, [{ id: "room-1", userId: OWNER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignRingGame(payload),
+			"BAD_REQUEST"
+		);
 	});
 });
 
@@ -888,7 +1002,9 @@ describe("liveCashGameSession.list composite keyset cursor (SA2-150)", () => {
 		const { db } = createListMockDb(rows);
 		const result = await listCaller(db).list({ limit: 2 });
 		expect(result.items).toHaveLength(2);
-		expect(result.nextCursor).toBe(encodeSessionCursor(rows[1] as CursorRow));
+		expect(result.nextCursor).toBe(
+			encodeSessionCursor(rows[1] as unknown as CursorRow)
+		);
 	});
 
 	it("returns no nextCursor at exactly the page-size boundary", async () => {
@@ -1090,6 +1206,46 @@ describe("liveCashGameSession.list event batching (SA2-151)", () => {
 });
 
 describe("liveCashGameSession.updateSnapshot mixGames", () => {
+	const validMix = [
+		{ name: "Big Bet", variants: ["NL Hold'em", "Pot Limit Omaha"] },
+	];
+
+	function callerCapturingSnapshotUpdate(detail: Record<string, unknown>) {
+		const updates: Record<string, unknown>[] = [];
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[sessionCashDetail, [detail]],
+			[gameMix, []],
+			[
+				gameVariant,
+				[
+					{ id: "variant-1", userId: OWNER, label: "NL Hold'em" },
+					{
+						id: "variant-2",
+						userId: OWNER,
+						label: "Pot Limit Omaha",
+					},
+				],
+			],
+		]);
+		const baseDb = createMockDb(rows);
+		const caller = appRouter.createCaller({
+			session: { user: { id: OWNER } },
+			db: {
+				...baseDb,
+				update: () => ({
+					set: (value: Record<string, unknown>) => {
+						updates.push(value);
+						return { where: () => Promise.resolve(undefined) };
+					},
+				}),
+			},
+		} as unknown as Parameters<
+			typeof appRouter.createCaller
+		>[0]).liveCashGameSession;
+		return { caller, updates };
+	}
+
 	it("accepts a mix group array", () => {
 		expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {
 			id: "session-1",
@@ -1111,6 +1267,62 @@ describe("liveCashGameSession.updateSnapshot mixGames", () => {
 		expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
 			id: "session-1",
 			mixGames: [{ variants: ["nlh"] }],
+		});
+	});
+
+	it("clears frozen mixGames when the snapshot variant changes to a plain game", async () => {
+		const { caller, updates } = callerCapturingSnapshotUpdate({
+			sessionId: "s1",
+			variant: "8-Game",
+			mixGames: validMix,
+		});
+
+		await caller.updateSnapshot({ id: "s1", variant: "NL Hold'em" });
+
+		expect(updates).toHaveLength(1);
+		expect(updates[0]).toMatchObject({
+			variant: "NL Hold'em",
+			mixGames: null,
+		});
+	});
+
+	it("rejects mixGames on an existing plain snapshot", async () => {
+		const { caller, updates } = callerCapturingSnapshotUpdate({
+			sessionId: "s1",
+			variant: "NL Hold'em",
+			mixGames: null,
+		});
+
+		await expect(
+			caller.updateSnapshot({ id: "s1", mixGames: validMix })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(updates).toEqual([]);
+	});
+
+	it("clears stale flat blind and ante fields when changing to a mix", async () => {
+		const { caller, updates } = callerCapturingSnapshotUpdate({
+			sessionId: "s1",
+			variant: "NL Hold'em",
+			mixGames: null,
+			blind1: 10,
+			blind2: 20,
+			blind3: 40,
+			ante: 5,
+			anteType: "all",
+		});
+
+		await caller.updateSnapshot({
+			id: "s1",
+			variant: "mix",
+			mixGames: validMix,
+		});
+
+		expect(updates[0]).toMatchObject({
+			blind1: null,
+			blind2: null,
+			blind3: null,
+			ante: null,
+			anteType: null,
 		});
 	});
 });

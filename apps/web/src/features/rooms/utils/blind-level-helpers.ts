@@ -7,18 +7,51 @@ export interface NewLevelValues {
 	ante: number | null;
 	blind1: number | null;
 	blind2: number | null;
+	/** Present only when the variant exposes a named third blind slot. */
+	blind3?: number | null;
 	/** Per-game blind sets (mix-master empty block); null/absent = flat. */
 	games?: LevelGameGroup[] | null;
 	minutes: number | null;
 }
 
-/** Parse a numeric cell input; empty or non-numeric text maps to null. */
+export const BLIND_LEVEL_INPUT_ERROR = "Enter a non-negative whole number";
+
+/** Empty cells may clear a value; non-empty cells must be safe unsigned ints. */
+export function isValidBlindLevelInput(value: string): boolean {
+	const trimmed = value.trim();
+	if (trimmed === "") {
+		return true;
+	}
+	const parsed = Number(trimmed);
+	return Number.isSafeInteger(parsed) && parsed >= 0;
+}
+
+/** Parse a valid numeric cell; empty or invalid text maps to null. */
 export function parseIntOrNull(value: string): number | null {
-	if (!value) {
+	const trimmed = value.trim();
+	if (trimmed === "" || !isValidBlindLevelInput(trimmed)) {
 		return null;
 	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isNaN(parsed) ? null : parsed;
+	return Number(trimmed);
+}
+
+/**
+ * Parse a blind-table input while exposing invalid text to the browser's
+ * accessible constraint UI. `undefined` means invalid/no write; `null` means
+ * the user intentionally cleared the cell.
+ */
+export function parseBlindLevelInput(
+	input: HTMLInputElement
+): number | null | undefined {
+	if (!isValidBlindLevelInput(input.value)) {
+		input.setCustomValidity(BLIND_LEVEL_INPUT_ERROR);
+		input.setAttribute("aria-invalid", "true");
+		input.reportValidity();
+		return undefined;
+	}
+	input.setCustomValidity("");
+	input.removeAttribute("aria-invalid");
+	return parseIntOrNull(input.value);
 }
 
 /**
@@ -171,7 +204,7 @@ export function createLevel(
 			isBreak: false,
 			blind1: vals.blind1,
 			blind2: vals.blind2,
-			blind3: null,
+			blind3: vals.blind3 ?? null,
 			ante: vals.ante,
 			minutes,
 			games: vals.games ?? null,

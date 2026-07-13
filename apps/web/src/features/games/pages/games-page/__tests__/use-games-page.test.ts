@@ -134,6 +134,26 @@ describe("useGamesPage", () => {
 		expect(result.current.isLoading).toBe(true);
 	});
 
+	it("exposes an error and refetches every master list when one list fails", async () => {
+		trpcMocks.gameVariantListQueryFn.mockRejectedValueOnce(
+			new Error("variant list unavailable")
+		);
+		const { result } = renderHook(() => useGamesPage(), {
+			wrapper: withQueryClient(),
+		});
+
+		await waitFor(() => expect(result.current.isError).toBe(true));
+
+		act(() => {
+			result.current.onRetry();
+		});
+
+		await waitFor(() => expect(result.current.isError).toBe(false));
+		expect(trpcMocks.gameGroupListQueryFn).toHaveBeenCalledTimes(2);
+		expect(trpcMocks.gameVariantListQueryFn).toHaveBeenCalledTimes(2);
+		expect(trpcMocks.gameMixListQueryFn).toHaveBeenCalledTimes(2);
+	});
+
 	it("exposes the mix list and the flat variant rows", async () => {
 		const { result } = renderHook(() => useGamesPage(), {
 			wrapper: withQueryClient(),

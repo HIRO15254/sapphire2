@@ -82,6 +82,18 @@ describe("computeTournamentTimerState", () => {
 		expect(state.totalDurationSeconds).toBeNull();
 	});
 
+	it("skips a zero-minute level instead of blocking progression", () => {
+		const levels = [
+			makeLevel({ level: 1, blind1: 100, blind2: 200, minutes: 0 }),
+			makeLevel({ level: 2, blind1: 200, blind2: 400, minutes: 20 }),
+		];
+		const state = computeTournamentTimerState(levels, T0, T0);
+		expect(state.currentLevel?.level).toBe(2);
+		expect(state.currentLevelIndex).toBe(1);
+		expect(state.remainingSecondsInLevel).toBe(20 * 60);
+		expect(state.totalDurationSeconds).toBe(20 * 60);
+	});
+
 	it("returns zero remaining after structure end", () => {
 		const state = computeTournamentTimerState(
 			LEVELS,

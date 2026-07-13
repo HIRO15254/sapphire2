@@ -70,26 +70,24 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 			<div className="p-4">
 				<TopBar onOpenActions={() => setIsActionsOpen(true)} />
 				<PageHeader
-					description={room.memo ?? undefined}
-					heading={
-						<span className="flex items-center gap-2">
-							<button
-								aria-label={
-									room.isFavorite ? "Remove from favorites" : "Add to favorites"
-								}
-								className="-m-1.5 shrink-0 rounded p-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
-								onClick={handleToggleFavorite}
-								type="button"
-							>
-								{room.isFavorite ? (
-									<IconStarFilled className="size-5 text-yellow-500" />
-								) : (
-									<IconStar className="size-5" />
-								)}
-							</button>
-							{room.name}
-						</span>
+					actions={
+						<button
+							aria-label={
+								room.isFavorite ? "Remove from favorites" : "Add to favorites"
+							}
+							className="-m-1.5 shrink-0 rounded p-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
+							onClick={handleToggleFavorite}
+							type="button"
+						>
+							{room.isFavorite ? (
+								<IconStarFilled className="size-5 text-yellow-500" />
+							) : (
+								<IconStar className="size-5" />
+							)}
+						</button>
 					}
+					description={room.memo ?? undefined}
+					heading={room.name}
 				/>
 
 				<RoomLocationLink latitude={room.latitude} longitude={room.longitude} />

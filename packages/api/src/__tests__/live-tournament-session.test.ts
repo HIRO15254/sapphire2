@@ -32,6 +32,7 @@ interface BlindLevelInput {
 }
 
 interface InsertedRow {
+	games?: unknown;
 	level: number;
 	sessionId: string;
 }
@@ -116,6 +117,7 @@ function createMockDb(tableRows: Map<unknown, Rows>) {
 			set: () => ({ where: () => Promise.resolve(undefined) }),
 		}),
 		delete: () => ({ where: () => Promise.resolve(undefined) }),
+		batch: (statements: Promise<unknown>[]) => Promise.all(statements),
 	};
 }
 
@@ -330,6 +332,12 @@ describe("liveTournamentSession router", () => {
 		expect(appRouter.liveTournamentSession.update).toBeDefined();
 	});
 
+	it("has atomic createAndAssignTournament procedure", () => {
+		expect(
+			appRouter.liveTournamentSession.createAndAssignTournament
+		).toBeDefined();
+	});
+
 	it("has discard procedure", () => {
 		expect(appRouter.liveTournamentSession.discard).toBeDefined();
 	});
@@ -354,6 +362,7 @@ describe("liveTournamentSession router", () => {
 			[
 				"complete",
 				"create",
+				"createAndAssignTournament",
 				"discard",
 				"getById",
 				"list",
@@ -375,6 +384,7 @@ describe("liveTournamentSession router", () => {
 	it("all mutations are protected mutations", () => {
 		for (const name of [
 			"create",
+			"createAndAssignTournament",
 			"update",
 			"complete",
 			"reopen",
@@ -386,6 +396,111 @@ describe("liveTournamentSession router", () => {
 			expectProtected(proc);
 			expectType(proc, "mutation");
 		}
+	});
+});
+
+describe("liveTournamentSession.createAndAssignTournament input validation", () => {
+	it("accepts a full tournament-with-structure payload plus sessionId", () => {
+		expectAccepts(appRouter.liveTournamentSession.createAndAssignTournament, {
+			sessionId: "s1",
+			roomId: "room-1",
+			name: "Main",
+			variant: "NL Hold'em",
+			buyIn: 100,
+			entryFee: 10,
+			startingStack: 20_000,
+			bountyAmount: 25,
+			tableSize: 9,
+			currencyId: "cur-1",
+			memo: "note",
+			tags: ["Deep"],
+			chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000 }],
+			blindLevels: [{ isBreak: false, blind1: 100, blind2: 200, minutes: 15 }],
+		});
+	});
+
+	it("rejects missing sessionId, roomId, or an empty name", () => {
+		expectRejects(appRouter.liveTournamentSession.createAndAssignTournament, {
+			roomId: "room-1",
+			name: "Main",
+		});
+		expectRejects(appRouter.liveTournamentSession.createAndAssignTournament, {
+			sessionId: "s1",
+			name: "Main",
+		});
+		expectRejects(appRouter.liveTournamentSession.createAndAssignTournament, {
+			sessionId: "s1",
+			roomId: "room-1",
+			name: "",
+		});
+	});
+});
+
+describe("liveTournamentSession.createAndAssignTournament authorization", () => {
+	const payload = {
+		sessionId: "s1",
+		roomId: "room-1",
+		name: "Main",
+	};
+
+	it("rejects a live tournament session owned by another user before writing", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [{ ...ownedSession, userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignTournament(payload),
+			"NOT_FOUND"
+		);
+	});
+
+	it("rejects non-tournament and non-live sessions before writing", async () => {
+		for (const session of [
+			{ ...ownedSession, kind: "cash_game" },
+			{ ...ownedSession, source: "manual" },
+		]) {
+			const rows = new Map<unknown, Rows>([[gameSession, [session]]]);
+			await expectTrpcCode(
+				makeCaller(OWNER, rows).createAndAssignTournament(payload),
+				"NOT_FOUND"
+			);
+		}
+	});
+
+	it("rejects a room owned by another user before writing", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignTournament(payload),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects a currency owned by another user before writing", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OWNER }]],
+			[currency, [{ id: "cur-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignTournament({
+				...payload,
+				currencyId: "cur-1",
+			}),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects assigning a new master from a different room than the session", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [{ ...ownedSession, roomId: "room-existing" }]],
+			[room, [{ id: "room-1", userId: OWNER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignTournament(payload),
+			"BAD_REQUEST"
+		);
 	});
 });
 
@@ -644,9 +759,12 @@ describe("persistSessionBlindLevels chunking (SA2-115)", () => {
 		expect(deleteWhere).toHaveBeenCalledTimes(1);
 		// 12 rows -> 10 + 2 => two INSERT statements.
 		expect(insert).toHaveBeenCalledTimes(2);
-		expect(del.mock.invocationCallOrder[0]).toBeLessThan(
-			insert.mock.invocationCallOrder[0]
-		);
+		const deleteOrder = del.mock.invocationCallOrder[0];
+		const insertOrder = insert.mock.invocationCallOrder[0];
+		if (deleteOrder === undefined || insertOrder === undefined) {
+			throw new Error("expected delete and insert invocations");
+		}
+		expect(deleteOrder).toBeLessThan(insertOrder);
 		expect(values).toHaveBeenCalledTimes(2);
 		const [firstChunk, secondChunk] = insertedChunks(values);
 		expect(firstChunk).toHaveLength(MAX_ROWS_PER_INSERT);
@@ -703,8 +821,8 @@ describe("persistSessionBlindLevels chunking (SA2-115)", () => {
 		]);
 
 		const allRows = insertedChunks(values).flat();
-		expect(allRows[0].games).toEqual(games);
-		expect(allRows[1].games).toBeNull();
+		expect(allRows[0]?.games).toEqual(games);
+		expect(allRows[1]?.games).toBeNull();
 	});
 
 	it("keeps a single INSERT for the small-N case (behavior unchanged)", async () => {
@@ -969,7 +1087,9 @@ describe("liveTournamentSession.list composite keyset cursor (SA2-150)", () => {
 		const { db } = createListMockDb(rows);
 		const result = await listCaller(db).list({ limit: 2 });
 		expect(result.items).toHaveLength(2);
-		expect(result.nextCursor).toBe(encodeSessionCursor(rows[1] as CursorRow));
+		expect(result.nextCursor).toBe(
+			encodeSessionCursor(rows[1] as unknown as CursorRow)
+		);
 	});
 
 	it("returns no nextCursor at exactly the page-size boundary", async () => {

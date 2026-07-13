@@ -1,4 +1,4 @@
-import { act, renderHook, screen } from "@testing-library/react";
+import { act, fireEvent, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithQueryClient, withQueryClient } from "@/__tests__/test-utils";
 
@@ -44,6 +44,14 @@ vi.mock("@/utils/trpc", () => ({
 			create: { mutate: vi.fn() },
 		},
 	},
+}));
+
+vi.mock("@/shared/components/variant-select", () => ({
+	VariantSelect: ({ onChange }: { onChange: (variant: string) => void }) => (
+		<button onClick={() => onChange("NL Hold'em")} type="button">
+			Select plain variant
+		</button>
+	),
 }));
 
 import { RulesStepBody } from "@/features/sessions/components/session-wizard/rules-step-body/rules-step-body";
@@ -135,5 +143,58 @@ describe("RulesStepBody — live-linked tournament editors", () => {
 	it("keeps the chip purchase catalog editable when not live-linked", () => {
 		renderTournamentRules(false);
 		expect(screen.getByRole("button", { name: "Add" })).not.toBeDisabled();
+	});
+});
+
+describe("RulesStepBody — tournament variant changes", () => {
+	it("routes VariantSelect through the state handler so stale per-level games are cleared", () => {
+		const { result } = renderHook(
+			() => useSessionWizard({ mode: "manual", onSubmit: vi.fn() }),
+			{ wrapper: withQueryClient() }
+		);
+		act(() => {
+			result.current.setSessionType("tournament");
+		});
+		act(() => {
+			result.current.onVariantChange("8-Game");
+			result.current.setBlindLevels([
+				{
+					id: "level-1",
+					tournamentId: "",
+					level: 1,
+					isBreak: false,
+					blind1: null,
+					blind2: null,
+					blind3: null,
+					ante: null,
+					minutes: 20,
+					games: [
+						{
+							name: null,
+							variants: ["NL Hold'em"],
+							blind1: 100,
+							blind2: 200,
+							blind3: null,
+							ante: 25,
+						},
+					],
+				},
+			]);
+		});
+
+		renderWithQueryClient(
+			<RulesStepBody
+				currencies={[]}
+				isLiveLinked={false}
+				showOverrides={false}
+				state={result.current}
+			/>
+		);
+		fireEvent.click(
+			screen.getByRole("button", { name: "Select plain variant" })
+		);
+
+		expect(result.current.form.state.values.variant).toBe("NL Hold'em");
+		expect(result.current.blindLevels[0].games).toBeNull();
 	});
 });

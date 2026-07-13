@@ -1,4 +1,6 @@
 import type { DragEndEvent } from "@dnd-kit/core";
+import { KeyboardSensor } from "@dnd-kit/core";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -18,6 +20,10 @@ const trpcMocks = vi.hoisted(() => ({
 	// Served by the mocked queryFn so post-invalidate refetches return
 	// deterministic data instead of wiping the seeded cache.
 	listData: [] as unknown[],
+}));
+
+const toastMock = vi.hoisted(() => ({
+	error: vi.fn(),
 }));
 
 vi.mock("@/utils/trpc", () => ({
@@ -40,6 +46,8 @@ vi.mock("@/utils/trpc", () => ({
 		},
 	},
 }));
+
+vi.mock("sonner", () => ({ toast: toastMock }));
 
 import {
 	type BlindLevelRow,
@@ -95,6 +103,7 @@ describe("useBlindLevels", () => {
 			m.mockReset();
 		}
 		trpcMocks.listData = [];
+		toastMock.error.mockReset();
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -266,10 +275,36 @@ describe("useBlindLevels", () => {
 			resolve?.({ id: "x" });
 			await waitFor(() => expect(result.current.isAdding).toBe(false));
 		});
+
+		it("rolls back a failed create and reports the failure", async () => {
+			const qc = createClient();
+			const seeded = [level({ id: "l1" })];
+			qc.setQueryData(LEVELS_KEY, seeded);
+			trpcMocks.listData = seeded;
+			trpcMocks.create.mockRejectedValue(new Error("create failed"));
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(1));
+
+			act(() => {
+				result.current.handleAddLevel();
+			});
+
+			await waitFor(() => {
+				expect(toastMock.error).toHaveBeenCalledTimes(1);
+			});
+			expect(toastMock.error).toHaveBeenNthCalledWith(
+				1,
+				"Failed to create blind level"
+			);
+			expect(qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY)).toEqual(seeded);
+		});
 	});
 
 	describe("handleCreateLevel", () => {
-		it("forwards blind1/blind2/ante/minutes verbatim and sticks minutes for next call", async () => {
+		it("forwards blind1/blind2/blind3/ante/minutes verbatim and sticks minutes for next call", async () => {
 			const qc = createClient();
 			qc.setQueryData(LEVELS_KEY, [level({ minutes: null })]);
 			trpcMocks.create.mockResolvedValue({ id: "ok" });
@@ -282,6 +317,7 @@ describe("useBlindLevels", () => {
 				result.current.handleCreateLevel({
 					blind1: 200,
 					blind2: 400,
+					blind3: 100,
 					ante: 50,
 					minutes: 25,
 				});
@@ -293,10 +329,53 @@ describe("useBlindLevels", () => {
 					isBreak: false,
 					blind1: 200,
 					blind2: 400,
+					blind3: 100,
 					ante: 50,
 					minutes: 25,
 				})
 			);
+		});
+
+		it("omits blind3 from create transport and stores null optimistically when blind3 is null", async () => {
+			const qc = createClient();
+			qc.setQueryData(LEVELS_KEY, [level({ minutes: null })]);
+			let resolve: ((value: unknown) => void) | undefined;
+			trpcMocks.create.mockImplementation(
+				() =>
+					new Promise((resolver) => {
+						resolve = resolver;
+					})
+			);
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(1));
+
+			act(() => {
+				result.current.handleCreateLevel({
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					ante: 25,
+					minutes: null,
+				});
+			});
+
+			await waitFor(() => {
+				expect(trpcMocks.create).toHaveBeenCalledTimes(1);
+			});
+			expect(trpcMocks.create).toHaveBeenNthCalledWith(1, {
+				tournamentId: TOURNAMENT_ID,
+				level: 2,
+				isBreak: false,
+				blind1: 100,
+				blind2: 200,
+				ante: 25,
+			});
+			const optimistic = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
+			expect(optimistic?.at(-1)?.blind3).toBeNull();
+			resolve?.({ id: "ok" });
 		});
 
 		it("falls back to lastMinutes when values.minutes is null (ante key omitted when null)", async () => {
@@ -358,7 +437,7 @@ describe("useBlindLevels", () => {
 	});
 
 	describe("handleUpdate", () => {
-		it("optimistically patches the row in cache and fires one mutate per field", async () => {
+		it("optimistically applies a multi-field patch in one atomic mutation", async () => {
 			const qc = createClient();
 			qc.setQueryData(LEVELS_KEY, [level({ id: "l1", blind1: 100 })]);
 			const resolvers: Array<(v: unknown) => void> = [];
@@ -382,14 +461,11 @@ describe("useBlindLevels", () => {
 				expect(list?.[0]?.minutes).toBe(30);
 			});
 			await waitFor(() => {
-				expect(trpcMocks.update).toHaveBeenCalledTimes(2);
+				expect(trpcMocks.update).toHaveBeenCalledTimes(1);
 			});
-			expect(trpcMocks.update).toHaveBeenCalledWith({
+			expect(trpcMocks.update).toHaveBeenNthCalledWith(1, {
 				id: "l1",
 				blind1: 500,
-			});
-			expect(trpcMocks.update).toHaveBeenCalledWith({
-				id: "l1",
 				minutes: 30,
 			});
 			for (const resolve of resolvers) {
@@ -428,6 +504,11 @@ describe("useBlindLevels", () => {
 				const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
 				expect(list?.[0]?.blind1).toBe(100);
 			});
+			expect(toastMock.error).toHaveBeenCalledTimes(1);
+			expect(toastMock.error).toHaveBeenNthCalledWith(
+				1,
+				"Failed to update blind level"
+			);
 		});
 
 		it("setting minutes updates lastMinutes so the next auto-add picks it up", async () => {
@@ -536,6 +617,58 @@ describe("useBlindLevels", () => {
 			resolve?.({ id: "l1" });
 		});
 
+		it("serializes rapid cell edits and derives each payload from the latest optimistic cache", async () => {
+			const qc = createClient();
+			qc.setQueryData(LEVELS_KEY, [level({ id: "l1", games: [setA, setB] })]);
+			const resolvers: Array<(value: unknown) => void> = [];
+			trpcMocks.update.mockImplementation(
+				() =>
+					new Promise((resolve) => {
+						resolvers.push(resolve);
+					})
+			);
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(1));
+
+			act(() => {
+				result.current.handleUpdateGameSet("l1", {
+					index: 0,
+					field: "blind1",
+					value: 500,
+				});
+				result.current.handleUpdateGameSet("l1", {
+					index: 1,
+					field: "blind1",
+					value: 150,
+				});
+			});
+
+			await waitFor(() => expect(trpcMocks.update).toHaveBeenCalledTimes(1));
+			expect(trpcMocks.update).toHaveBeenNthCalledWith(1, {
+				id: "l1",
+				games: [{ ...setA, blind1: 500 }, setB],
+			});
+
+			act(() => {
+				resolvers[0]?.({ id: "l1" });
+			});
+			await waitFor(() => expect(trpcMocks.update).toHaveBeenCalledTimes(2));
+			expect(trpcMocks.update).toHaveBeenNthCalledWith(2, {
+				id: "l1",
+				games: [
+					{ ...setA, blind1: 500 },
+					{ ...setB, blind1: 150 },
+				],
+			});
+
+			act(() => {
+				resolvers[1]?.({ id: "l1" });
+			});
+		});
+
 		it("rolls back the games patch when the mutation fails", async () => {
 			const qc = createClient();
 			const seeded = [level({ id: "l1", games: [setA, setB] })];
@@ -571,6 +704,11 @@ describe("useBlindLevels", () => {
 				const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
 				expect(list?.[0]?.games?.[0]?.blind1).toBe(400);
 			});
+			expect(toastMock.error).toHaveBeenCalledTimes(1);
+			expect(toastMock.error).toHaveBeenNthCalledWith(
+				1,
+				"Failed to update blind level"
+			);
 		});
 
 		it("no-ops when the level is missing or has no games", async () => {
@@ -641,6 +779,32 @@ describe("useBlindLevels", () => {
 			expect(trpcMocks.delete).toHaveBeenCalledWith({ id: "l1" });
 			resolve?.({ id: "l1" });
 		});
+
+		it("rolls back a failed delete and reports the failure", async () => {
+			const qc = createClient();
+			const seeded = [level({ id: "l1" }), level({ id: "l2" })];
+			qc.setQueryData(LEVELS_KEY, seeded);
+			trpcMocks.listData = seeded;
+			trpcMocks.delete.mockRejectedValue(new Error("delete failed"));
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(2));
+
+			act(() => {
+				result.current.handleDelete("l1");
+			});
+
+			await waitFor(() => {
+				expect(toastMock.error).toHaveBeenCalledTimes(1);
+			});
+			expect(toastMock.error).toHaveBeenNthCalledWith(
+				1,
+				"Failed to delete blind level"
+			);
+			expect(qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY)).toEqual(seeded);
+		});
 	});
 
 	describe("handleDragEnd", () => {
@@ -679,6 +843,35 @@ describe("useBlindLevels", () => {
 			const list = qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY);
 			expect(list?.map((l) => l.id)).toEqual(["l2", "l3", "l1"]);
 			resolve?.(undefined);
+		});
+
+		it("rolls back a failed reorder and reports the failure", async () => {
+			const qc = createClient();
+			const seeded = [level({ id: "l1" }), level({ id: "l2", level: 2 })];
+			qc.setQueryData(LEVELS_KEY, seeded);
+			trpcMocks.listData = seeded;
+			trpcMocks.reorder.mockRejectedValue(new Error("reorder failed"));
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(2));
+
+			act(() => {
+				result.current.handleDragEnd({
+					active: { id: "l1" },
+					over: { id: "l2" },
+				} as unknown as DragEndEvent);
+			});
+
+			await waitFor(() => {
+				expect(toastMock.error).toHaveBeenCalledTimes(1);
+			});
+			expect(toastMock.error).toHaveBeenNthCalledWith(
+				1,
+				"Failed to reorder blind levels"
+			);
+			expect(qc.getQueryData<BlindLevelRow[]>(LEVELS_KEY)).toEqual(seeded);
 		});
 
 		it("no-ops when over is null", () => {
@@ -739,6 +932,20 @@ describe("useBlindLevels", () => {
 			);
 			expect(Array.isArray(result.current.sensors)).toBe(true);
 			expect(result.current.sensors.length).toBeGreaterThan(0);
+		});
+
+		it("supports keyboard reordering with sortable coordinates", () => {
+			const qc = createClient();
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			const keyboard = result.current.sensors.find(
+				(descriptor) => descriptor.sensor === KeyboardSensor
+			);
+			expect(keyboard?.options).toEqual({
+				coordinateGetter: sortableKeyboardCoordinates,
+			});
 		});
 	});
 });

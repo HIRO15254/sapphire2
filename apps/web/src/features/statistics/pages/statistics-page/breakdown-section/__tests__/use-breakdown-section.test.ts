@@ -264,6 +264,45 @@ describe("useBreakdownSection", () => {
 		expect(result.current.rows[0].tournamentText).toBe("—");
 	});
 
+	it("keeps a raw Net column when a normalized group has neither bb nor bi", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({
+			groups: [
+				breakdownRow({
+					key: "mix",
+					label: "mix",
+					profitLoss: 1500,
+					cashNormalizedProfitLoss: null,
+					tournamentNormalizedProfitLoss: null,
+				}),
+			],
+		});
+		const { result } = await renderLoadedBreakdown(
+			ctx({ type: "cash_game", normalized: true })
+		);
+
+		expect(result.current.showNetColumn).toBe(true);
+		expect(result.current.rows[0].netText).toBe("+1,500 USD");
+	});
+
+	it("hides the raw Net column when every normalized group has bb or bi", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn.mockResolvedValue({
+			groups: [
+				breakdownRow({ cashNormalizedProfitLoss: 30 }),
+				breakdownRow({
+					key: "tournament",
+					tournamentNormalizedProfitLoss: 3,
+				}),
+			],
+		});
+		const { result } = await renderLoadedBreakdown(
+			ctx({ type: "all", normalized: true })
+		);
+
+		expect(result.current.showNetColumn).toBe(false);
+	});
+
 	it("returns no rows when the server omits all groups", async () => {
 		trpcMocks.breakdownQueryFn.mockReset();
 		trpcMocks.breakdownQueryFn.mockResolvedValue({ groups: [] });

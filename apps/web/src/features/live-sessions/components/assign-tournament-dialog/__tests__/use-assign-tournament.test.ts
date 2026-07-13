@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 	roomList: vi.fn(),
 	tournamentsByRoom: vi.fn(),
 	updateTournament: vi.fn(),
-	createWithLevels: vi.fn(),
+	createAndAssignTournament: vi.fn(),
 	toastSuccess: vi.fn(),
 	toastError: vi.fn(),
 }));
@@ -59,9 +59,9 @@ vi.mock("@/utils/trpc", () => ({
 	trpcClient: {
 		liveTournamentSession: {
 			update: { mutate: mocks.updateTournament },
-		},
-		tournament: {
-			createWithLevels: { mutate: mocks.createWithLevels },
+			createAndAssignTournament: {
+				mutate: mocks.createAndAssignTournament,
+			},
 		},
 	},
 }));
@@ -92,6 +92,8 @@ describe("useAssignTournament", () => {
 		for (const m of Object.values(mocks)) {
 			m.mockReset();
 		}
+		mocks.roomList.mockResolvedValue([]);
+		mocks.tournamentsByRoom.mockResolvedValue([]);
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -231,14 +233,17 @@ describe("useAssignTournament", () => {
 			);
 		});
 		expect(mocks.toastError).toHaveBeenCalledWith("Select a room first");
-		expect(mocks.createWithLevels).not.toHaveBeenCalled();
+		expect(mocks.createAndAssignTournament).not.toHaveBeenCalled();
 	});
 
-	it("handleCreate success chains create + update, toasts, and closes both dialogs", async () => {
+	it("handleCreate calls the atomic create-and-assign RPC once, invalidates every affected query, toasts, and closes both dialogs", async () => {
 		const qc = createClient();
 		const onOpenChange = vi.fn();
-		mocks.createWithLevels.mockResolvedValue({ id: "new-t" });
-		mocks.updateTournament.mockResolvedValue({ id: "s1" });
+		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+		mocks.createAndAssignTournament.mockResolvedValue({
+			sessionId: "s1",
+			tournamentId: "new-t",
+		});
 		const { result } = renderHook(
 			() =>
 				useAssignTournament({
@@ -283,8 +288,10 @@ describe("useAssignTournament", () => {
 				"Tournament created and assigned"
 			)
 		);
-		expect(mocks.createWithLevels).toHaveBeenCalledWith(
+		expect(mocks.createAndAssignTournament).toHaveBeenCalledTimes(1);
+		expect(mocks.createAndAssignTournament).toHaveBeenCalledWith(
 			expect.objectContaining({
+				sessionId: "s1",
 				roomId: "room-a",
 				blindLevels: [
 					expect.objectContaining({
@@ -297,12 +304,97 @@ describe("useAssignTournament", () => {
 				],
 			})
 		);
-		expect(mocks.updateTournament).toHaveBeenCalledWith({
-			id: "s1",
-			tournamentId: "new-t",
+		expect(mocks.updateTournament).not.toHaveBeenCalled();
+		expect(invalidateSpy).toHaveBeenCalledTimes(4);
+		expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
+			queryKey: ["liveTournamentSession", "getById", { id: "s1" }],
+		});
+		expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
+			queryKey: ["liveTournamentSession", "list", {}],
+		});
+		expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
+			queryKey: ["session", "list", {}],
+		});
+		expect(invalidateSpy).toHaveBeenNthCalledWith(4, {
+			queryKey: [
+				"tournament",
+				"listByRoom",
+				{ roomId: "room-a", includeArchived: false },
+			],
 		});
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 		expect(result.current.isCreateDialogOpen).toBe(false);
+	});
+
+	it("handleCreate failure toasts once, leaves both dialogs open, and invalidates nothing", async () => {
+		const qc = createClient();
+		const onOpenChange = vi.fn();
+		const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+		mocks.createAndAssignTournament.mockRejectedValue(
+			new Error("batch failed")
+		);
+		const { result } = renderHook(
+			() =>
+				useAssignTournament({
+					onOpenChange,
+					open: true,
+					sessionId: "s1",
+					sessionRoomId: "room-a",
+				}),
+			{ wrapper: makeWrapper(qc) }
+		);
+		act(() => result.current.setIsCreateDialogOpen(true));
+		await expect(
+			act(async () => {
+				await result.current.handleCreate(
+					{
+						name: "Main",
+						variant: "nlh",
+						tags: [],
+						chipPurchases: [],
+					},
+					[]
+				);
+			})
+		).rejects.toThrow("batch failed");
+		await waitFor(() =>
+			expect(mocks.toastError).toHaveBeenCalledWith("batch failed")
+		);
+		expect(mocks.toastError).toHaveBeenCalledTimes(1);
+		expect(mocks.toastSuccess).not.toHaveBeenCalled();
+		expect(onOpenChange).not.toHaveBeenCalled();
+		expect(result.current.isCreateDialogOpen).toBe(true);
+		expect(invalidateSpy).not.toHaveBeenCalled();
+		expect(mocks.updateTournament).not.toHaveBeenCalled();
+	});
+
+	it("handleCreate uses the atomic-operation fallback when the server error has no message", async () => {
+		const qc = createClient();
+		mocks.createAndAssignTournament.mockRejectedValue({ message: "" });
+		const { result } = renderHook(
+			() =>
+				useAssignTournament({
+					onOpenChange: vi.fn(),
+					open: true,
+					sessionId: "s1",
+					sessionRoomId: "room-a",
+				}),
+			{ wrapper: makeWrapper(qc) }
+		);
+		await expect(
+			act(async () => {
+				await result.current.handleCreate(
+					{ name: "Main", variant: "nlh", tags: [], chipPurchases: [] },
+					[]
+				);
+			})
+		).rejects.toThrow();
+		await waitFor(() =>
+			expect(mocks.toastError).toHaveBeenCalledWith(
+				"Failed to create and assign tournament"
+			)
+		);
+		expect(mocks.toastError).toHaveBeenCalledTimes(1);
 	});
 
 	it("setMode flips between 'existing' and 'create'", () => {

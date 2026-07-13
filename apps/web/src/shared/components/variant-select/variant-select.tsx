@@ -1,11 +1,5 @@
 import { FormSheet } from "@/shared/components/form-sheet";
-import {
-	Command,
-	CommandGroup,
-	CommandItem,
-	CommandList,
-	CommandSeparator,
-} from "@/shared/components/ui/command";
+import { Button } from "@/shared/components/ui/button";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -33,9 +27,39 @@ interface VariantSelectProps {
 	value: string;
 }
 
+function VariantOption({
+	active,
+	children,
+	id,
+	onSelect,
+}: {
+	active: boolean;
+	children: React.ReactNode;
+	id: string;
+	onSelect: () => void;
+}) {
+	return (
+		<Button
+			aria-selected={active}
+			className="h-auto w-full cursor-default justify-start rounded-sm px-2 py-1.5 font-normal data-selected:bg-accent data-selected:text-accent-foreground"
+			data-selected={active ? "true" : undefined}
+			id={id}
+			onClick={onSelect}
+			onMouseDown={(event) => event.preventDefault()}
+			role="option"
+			size="sm"
+			tabIndex={-1}
+			type="button"
+			variant="ghost"
+		>
+			{children}
+		</Button>
+	);
+}
+
 /**
  * Required variant picker shared by every game/rule form — a type-to-filter
- * combobox (Input + Popover + Command, the repo's combobox convention).
+ * combobox (Input + Popover + active-descendant ARIA listbox).
  * Options are the user's own variant rows (seeded at signup, fully editable
  * on the Games page), plus the user's named mix masters (HORSE / 8-Game /
  * custom, shown under a "Mixes" heading) where a mix editor exists, plus a
@@ -51,12 +75,16 @@ export function VariantSelect({
 	value,
 }: VariantSelectProps) {
 	const {
+		activeOptionId,
+		activeOptionValue,
 		anchorRef,
 		contentWidth,
 		filteredMixOptions,
 		filteredVariantOptions,
 		form,
 		formId,
+		getOptionId,
+		getOptionValue,
 		groups,
 		handleInputBlur,
 		handleInputChange,
@@ -68,6 +96,7 @@ export function VariantSelect({
 		isAddOpen,
 		isCreatePending,
 		isLoading,
+		listboxId,
 		setIsAddOpen,
 		shouldShowPopover,
 	} = useVariantSelect({ excludeVariants, includeMix, onChange, value });
@@ -85,7 +114,13 @@ export function VariantSelect({
 				<PopoverAnchor asChild>
 					<div ref={anchorRef}>
 						<Input
+							aria-activedescendant={
+								shouldShowPopover ? activeOptionId : undefined
+							}
+							aria-autocomplete="list"
+							aria-controls={listboxId}
 							aria-expanded={shouldShowPopover}
+							aria-haspopup="listbox"
 							autoComplete="off"
 							disabled={disabled || isLoading}
 							id={id}
@@ -96,10 +131,9 @@ export function VariantSelect({
 							onChange={(e) => handleInputChange(e.target.value)}
 							onFocus={handleInputFocus}
 							onKeyDown={(e) => {
-								if (e.key === "Enter") {
+								if (handleKeyDown(e.key)) {
 									e.preventDefault();
 								}
-								handleKeyDown(e.key);
 							}}
 							role="combobox"
 							value={inputValue}
@@ -114,47 +148,64 @@ export function VariantSelect({
 						onOpenAutoFocus={(e) => e.preventDefault()}
 						style={contentWidth ? { width: contentWidth } : undefined}
 					>
-						<Command shouldFilter={false}>
-							<CommandList>
-								{hasMatches ? null : (
-									<p className="py-6 text-center text-muted-foreground text-sm">
-										No matching games
-									</p>
-								)}
-								{filteredVariantOptions.map((option) => (
-									<CommandItem
-										key={option.id}
-										onMouseDown={(e) => e.preventDefault()}
-										onSelect={() => handleSelect(option.label)}
-										value={option.label}
-									>
-										{option.label}
-									</CommandItem>
-								))}
-								{filteredMixOptions.length > 0 ? (
-									<CommandGroup heading="Mixes">
-										{filteredMixOptions.map((option) => (
-											<CommandItem
-												key={option.id}
-												onMouseDown={(e) => e.preventDefault()}
-												onSelect={() => handleSelect(option.label)}
-												value={option.label}
-											>
-												{option.label}
-											</CommandItem>
-										))}
-									</CommandGroup>
-								) : null}
-								<CommandSeparator />
-								<CommandItem
-									onMouseDown={(e) => e.preventDefault()}
-									onSelect={handleOpenAdd}
-									value="__add_custom_variant__"
+						<div
+							className="max-h-72 overflow-y-auto overflow-x-hidden"
+							id={listboxId}
+							role="listbox"
+						>
+							{hasMatches ? null : (
+								<p className="py-6 text-center text-muted-foreground text-sm">
+									No matching games
+								</p>
+							)}
+							{filteredVariantOptions.map((option) => (
+								<VariantOption
+									active={
+										activeOptionValue === getOptionValue("variant", option.id)
+									}
+									id={getOptionId("variant", option.id)}
+									key={option.id}
+									onSelect={() => handleSelect(option.label)}
 								>
-									Add custom variant
-								</CommandItem>
-							</CommandList>
-						</Command>
+									{option.label}
+								</VariantOption>
+							))}
+							{filteredMixOptions.length > 0 ? (
+								<div
+									className="overflow-hidden p-1 text-foreground"
+									role="presentation"
+								>
+									<div
+										aria-hidden="true"
+										className="px-2 py-1.5 font-medium text-muted-foreground text-xs"
+									>
+										Mixes
+									</div>
+									{filteredMixOptions.map((option) => (
+										<VariantOption
+											active={
+												activeOptionValue === getOptionValue("mix", option.id)
+											}
+											id={getOptionId("mix", option.id)}
+											key={option.id}
+											onSelect={() => handleSelect(option.label)}
+										>
+											{option.label}
+										</VariantOption>
+									))}
+								</div>
+							) : null}
+							<hr className="-mx-1 border-border" />
+							<VariantOption
+								active={
+									activeOptionValue === getOptionValue("create", "custom")
+								}
+								id={getOptionId("create", "custom")}
+								onSelect={handleOpenAdd}
+							>
+								Add custom variant
+							</VariantOption>
+						</div>
 					</PopoverContent>
 				) : null}
 			</Popover>

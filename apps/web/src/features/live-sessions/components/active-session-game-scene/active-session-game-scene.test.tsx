@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ActiveSessionGameScene } from "@/features/live-sessions/components/active-session-game-scene";
@@ -22,6 +22,15 @@ const mocks = vi.hoisted(() => ({
 		anteType?: string | null;
 		minBuyIn?: number | null;
 		maxBuyIn?: number | null;
+		mixGames?: Array<{
+			ante: number | null;
+			anteType: "all" | "bb" | "none";
+			blind1: number | null;
+			blind2: number | null;
+			blind3: number | null;
+			name: string | null;
+			variants: string[];
+		}> | null;
 		tableSize?: number | null;
 	},
 	tournamentSession: null as null | {
@@ -34,6 +43,9 @@ const mocks = vi.hoisted(() => ({
 	levels: [] as unknown[],
 	chipPurchases: [] as unknown[],
 	currencies: [] as unknown[],
+	ringGameFormProps: null as null | {
+		defaultValues?: { mixGames?: unknown };
+	},
 }));
 
 vi.mock("@/features/live-sessions/hooks/use-active-session", () => ({
@@ -76,7 +88,10 @@ vi.mock("@/features/rooms/hooks/use-tournaments", () => ({
 }));
 
 vi.mock("@/features/rooms/components/ring-game-form", () => ({
-	RingGameForm: () => <div data-testid="ring-game-form" />,
+	RingGameForm: (props: { defaultValues?: { mixGames?: unknown } }) => {
+		mocks.ringGameFormProps = props;
+		return <div data-testid="ring-game-form" />;
+	},
 }));
 
 vi.mock("@/features/rooms/components/tournament-form-sheet", () => ({
@@ -207,6 +222,7 @@ describe("ActiveSessionGameScene", () => {
 		mocks.levels = [];
 		mocks.chipPurchases = [];
 		mocks.currencies = [{ id: "currency-1", name: "USD", unit: "$" }];
+		mocks.ringGameFormProps = null;
 	});
 
 	it("shows the no-active-session empty state when there is no session", () => {
@@ -261,6 +277,60 @@ describe("ActiveSessionGameScene", () => {
 		expect(screen.getByText("1/2 NLH")).toBeInTheDocument();
 		expect(screen.getByText("Cash Game")).toBeInTheDocument();
 		expect(screen.getByText("deep stack")).toBeInTheDocument();
+	});
+
+	it("passes the frozen session mix groups to the cash edit form", () => {
+		const mixGames = [
+			{
+				ante: 1,
+				anteType: "all" as const,
+				blind1: 2,
+				blind2: 4,
+				blind3: null,
+				name: "Big Bet",
+				variants: ["NL Hold'em"],
+			},
+		];
+		mocks.activeSession = {
+			id: "session-1",
+			type: "cash_game",
+			status: "active",
+		};
+		mocks.cashSession = {
+			id: "session-1",
+			roomId: "room-1",
+			ringGameId: "ring-1",
+			ruleName: "Mixed Cash",
+			variant: "Dealer's Choice",
+			mixGames,
+		};
+		mocks.ringGames = [
+			{
+				ante: null,
+				anteType: "none",
+				archivedAt: null,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				createdAt: "",
+				currencyId: "currency-1",
+				id: "ring-1",
+				maxBuyIn: null,
+				memo: null,
+				minBuyIn: null,
+				mixGames: null,
+				name: "Master Mix",
+				roomId: "room-1",
+				tableSize: null,
+				updatedAt: "",
+				variant: "Dealer's Choice",
+			},
+		];
+
+		render(<ActiveSessionGameScene />);
+		fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+		expect(mocks.ringGameFormProps?.defaultValues?.mixGames).toEqual(mixGames);
 	});
 
 	it("shows a fallback when the cash session has no ring game linked", () => {
@@ -332,5 +402,52 @@ describe("ActiveSessionGameScene", () => {
 		render(<ActiveSessionGameScene />);
 		expect(screen.getByText("Weekly Deepstack")).toBeInTheDocument();
 		expect(screen.getByText("Tournament")).toBeInTheDocument();
+	});
+
+	it("shows the third blind for a regular tournament structure level", () => {
+		mocks.activeSession = {
+			id: "session-2",
+			type: "tournament",
+			status: "active",
+		};
+		mocks.tournamentSession = {
+			id: "session-2",
+			roomId: "room-1",
+			tournamentId: "tour-1",
+		};
+		mocks.tournament = {
+			archivedAt: null,
+			bountyAmount: null,
+			buyIn: 10_000,
+			createdAt: "",
+			currencyId: "currency-1",
+			entryFee: 1000,
+			id: "tour-1",
+			memo: null,
+			name: "Stud Event",
+			startingStack: 20_000,
+			roomId: "room-1",
+			tableSize: 8,
+			tags: [],
+			updatedAt: "",
+			variant: "Razz",
+		};
+		mocks.levels = [
+			{
+				ante: 25,
+				blind1: 100,
+				blind2: 200,
+				blind3: 75,
+				id: "level-1",
+				isBreak: false,
+				level: 1,
+				minutes: 20,
+			},
+		];
+
+		render(<ActiveSessionGameScene />);
+
+		expect(screen.getByRole("columnheader", { name: "Blind 3" })).toBeVisible();
+		expect(screen.getByRole("cell", { name: "75" })).toBeVisible();
 	});
 });

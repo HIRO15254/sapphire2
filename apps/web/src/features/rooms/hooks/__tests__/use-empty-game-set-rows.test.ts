@@ -210,4 +210,33 @@ describe("useEmptyGameSetRows", () => {
 
 		expect(onCreateLevel).toHaveBeenCalledTimes(1);
 	});
+
+	it.each([
+		"100.5",
+		"100chips",
+		"-1",
+		"Infinity",
+	])("does not create or reset the block when a game amount %s is invalid", (value) => {
+		const { result, onCreateLevel, cells } = setup();
+		cells[0].blind1.value = value;
+
+		result.current.handleCellBlur(
+			0,
+			"blind1"
+		)(buildFocusEvent(cells[0].blind1, null));
+
+		expect(onCreateLevel).not.toHaveBeenCalled();
+		expect(cells[0].blind1.value).toBe(value);
+	});
+
+	it("does not create when minutes are invalid", () => {
+		const { result, onCreateLevel, cells, minutes } = setup();
+		cells[0].blind1.value = "100";
+		minutes.value = "20min";
+
+		result.current.handleMinutesBlur(buildFocusEvent(minutes, null));
+
+		expect(onCreateLevel).not.toHaveBeenCalled();
+		expect(cells[0].blind1.value).toBe("100");
+	});
 });

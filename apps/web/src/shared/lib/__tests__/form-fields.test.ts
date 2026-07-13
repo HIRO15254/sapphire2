@@ -98,11 +98,20 @@ describe("requiredNumericString", () => {
 		}
 	});
 
-	it("integer: rule — accepts decimal-looking input by truncating (parseInt)", () => {
-		// parseInt("3.14") is 3, which is finite → accepted.
-		expect(
-			requiredNumericString({ integer: true }).safeParse("3.14").success
-		).toBe(true);
+	it("integer: rule — rejects a decimal instead of silently truncating", () => {
+		const result = requiredNumericString({ integer: true }).safeParse("3.14");
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error.issues[0]?.message).toBe("Must be a whole number");
+		}
+	});
+
+	it("integer: rule — rejects trailing non-numeric text", () => {
+		const result = requiredNumericString({ integer: true }).safeParse("42abc");
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error.issues[0]?.message).toBe("Must be a number");
+		}
 	});
 
 	it("rejects Infinity as not finite", () => {
@@ -174,9 +183,13 @@ describe("parseOptionalInt", () => {
 		expect(parseOptionalInt("0")).toBe(0);
 	});
 
-	it("truncates decimal strings (parseInt semantics)", () => {
-		expect(parseOptionalInt("3.14")).toBe(3);
-		expect(parseOptionalInt("-3.9")).toBe(-3);
+	it("rejects decimal strings instead of truncating them", () => {
+		expect(parseOptionalInt("3.14")).toBeUndefined();
+		expect(parseOptionalInt("-3.9")).toBeUndefined();
+	});
+
+	it("rejects trailing non-numeric text", () => {
+		expect(parseOptionalInt("42abc")).toBeUndefined();
 	});
 
 	it("returns undefined for non-numeric input", () => {

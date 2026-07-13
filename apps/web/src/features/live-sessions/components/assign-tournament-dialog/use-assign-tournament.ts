@@ -96,7 +96,7 @@ export function useAssignTournament({
 	});
 
 	const createAndAssignMutation = useMutation({
-		mutationFn: async ({
+		mutationFn: ({
 			roomId,
 			values,
 			levels,
@@ -104,8 +104,9 @@ export function useAssignTournament({
 			roomId: string;
 			values: TournamentFormValues;
 			levels: BlindLevelRow[];
-		}) => {
-			const created = await trpcClient.tournament.createWithLevels.mutate({
+		}) =>
+			trpcClient.liveTournamentSession.createAndAssignTournament.mutate({
+				sessionId,
 				roomId,
 				name: values.name,
 				variant: values.variant,
@@ -119,13 +120,7 @@ export function useAssignTournament({
 				tags: values.tags,
 				chipPurchases: values.chipPurchases,
 				blindLevels: levelsToPayload(levels),
-			});
-			await trpcClient.liveTournamentSession.update.mutate({
-				id: sessionId,
-				tournamentId: created.id,
-			});
-			return created;
-		},
+			}),
 		onSuccess: async () => {
 			await Promise.all([
 				invalidateSession(),
@@ -143,7 +138,7 @@ export function useAssignTournament({
 			onOpenChange(false);
 		},
 		onError: (error) => {
-			toast.error(error.message || "Failed to create tournament");
+			toast.error(error.message || "Failed to create and assign tournament");
 		},
 	});
 

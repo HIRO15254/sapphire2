@@ -2,8 +2,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const ROOM_NAME_RE = /Akiba/;
-
 const hoisted = vi.hoisted(() => ({
 	useRoomDetailPage: vi.fn(),
 }));
@@ -134,12 +132,13 @@ describe("RoomDetailPage", () => {
 		).toBeInTheDocument();
 	});
 
-	it("renders the room name and memo in the header", () => {
+	it("keeps the room heading accessible name separate from the favorite action", () => {
 		setState();
 		render(<RoomDetailPage roomId="s1" />);
+		expect(screen.getByRole("heading", { name: "Akiba" })).toBeInTheDocument();
 		expect(
-			screen.getByRole("heading", { name: ROOM_NAME_RE })
-		).toBeInTheDocument();
+			screen.getByRole("button", { name: "Add to favorites" })
+		).toBeVisible();
 		expect(screen.getByText("late nights")).toBeInTheDocument();
 	});
 

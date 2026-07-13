@@ -344,6 +344,29 @@ const GAME_MIXES = [
 	{ id: "m-horse", builtinKey: "horse", label: "HORSE", games: ["v-nlh"] },
 ];
 
+const PER_LEVEL_GAMES = [
+	{
+		name: null,
+		variants: ["NL Hold'em"],
+		blind1: 100,
+		blind2: 200,
+		blind3: null,
+		ante: 25,
+	},
+];
+
+const TOURNAMENT_LEVELS_WITH_GAMES = [
+	{
+		isBreak: false,
+		blind1: null,
+		blind2: null,
+		blind3: null,
+		ante: null,
+		minutes: 20,
+		games: PER_LEVEL_GAMES,
+	},
+];
+
 function setupWithMasterData(
 	defaultValues: Parameters<typeof useSessionFormState>[0]["defaultValues"] = {
 		type: "cash_game",
@@ -818,5 +841,61 @@ describe("useSessionFormState — tournament variant scope", () => {
 			result.current.onScopeChange("all", "mix");
 		});
 		expect(result.current.form.state.values.variant).toBe("NL Hold'em");
+	});
+
+	it("clears every level's games when a per-level tournament selects a plain variant", () => {
+		const { result } = setupWithMasterData({
+			type: "tournament",
+			variant: "mix",
+			blindLevels: TOURNAMENT_LEVELS_WITH_GAMES,
+		});
+
+		act(() => {
+			result.current.onVariantChange("NL Hold'em");
+		});
+
+		expect(result.current.blindLevels).toHaveLength(1);
+		expect(result.current.blindLevels[0].games).toBeNull();
+	});
+
+	it("preserves per-level games when entering per-level mode, then clears them when returning to same-for-all", () => {
+		const { result } = setupWithMasterData({
+			type: "tournament",
+			variant: "8-Game",
+			blindLevels: TOURNAMENT_LEVELS_WITH_GAMES,
+		});
+
+		act(() => {
+			result.current.onScopeChange("perLevel", "8-Game");
+		});
+		expect(result.current.form.state.values.variant).toBe("mix");
+		expect(result.current.blindLevels[0].games).toEqual(PER_LEVEL_GAMES);
+
+		act(() => {
+			result.current.onScopeChange("all", "mix");
+		});
+		expect(result.current.form.state.values.variant).toBe("8-Game");
+		expect(result.current.blindLevels[0].games).toBeNull();
+	});
+
+	it("normalizes stale level games out of a same-for-all tournament submit", async () => {
+		const { result, onSubmit } = setupWithMasterData({
+			type: "tournament",
+			variant: "NL Hold'em",
+			tournamentBuyIn: 100,
+			blindLevels: TOURNAMENT_LEVELS_WITH_GAMES,
+		});
+
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				variant: "NL Hold'em",
+				blindLevels: [expect.objectContaining({ games: null })],
+			})
+		);
 	});
 });

@@ -8,31 +8,24 @@ import {
 	parseIntOrNull,
 } from "@/features/rooms/utils/blind-level-helpers";
 
-export type EmptyGameSetField = "ante" | "blind1" | "blind2";
+type EmptyGameSetField = "ante" | "blind1" | "blind2" | "blind3";
 
-interface UseEmptyGameSetRowsOptions {
+interface UseEmptyGameSetRowsViewOptions {
 	onCreateLevel: (values: NewLevelValues) => void;
-	/** Mix composition the new level's sets are shaped after (amounts blank). */
 	seeds: LevelGameGroup[];
 }
 
-/**
- * The multi-row variant of useEmptyRow for mix-master tournaments: the
- * new-level block renders one row per game of the composition, and typing
- * amounts creates a level with per-game blind sets. Creation triggers when
- * focus leaves the block with at least one set's blind1 entered; auto-fill
- * (blind2 = 2x blind1, ante = blind2) stays within the blurred set's row.
- */
-export function useEmptyGameSetRows({
+export function useEmptyGameSetRowsView({
 	seeds,
 	onCreateLevel,
-}: UseEmptyGameSetRowsOptions) {
+}: UseEmptyGameSetRowsViewOptions) {
 	const cellsRef = useRef(new Map<string, HTMLInputElement>());
 	const minutesRef = useRef<HTMLInputElement>(null);
 
 	const cellKey = (index: number, field: EmptyGameSetField) =>
 		`${index}:${field}`;
-
+	const cell = (index: number, field: EmptyGameSetField) =>
+		cellsRef.current.get(cellKey(index, field));
 	const registerCell =
 		(index: number, field: EmptyGameSetField) =>
 		(el: HTMLInputElement | null) => {
@@ -42,9 +35,6 @@ export function useEmptyGameSetRows({
 				cellsRef.current.delete(cellKey(index, field));
 			}
 		};
-
-	const cell = (index: number, field: EmptyGameSetField) =>
-		cellsRef.current.get(cellKey(index, field));
 
 	const resetRows = () => {
 		for (const input of cellsRef.current.values()) {
@@ -56,13 +46,11 @@ export function useEmptyGameSetRows({
 	};
 
 	const tryCreate = (relatedTarget: EventTarget | null) => {
-		const inputs: (HTMLInputElement | null)[] = [
-			...cellsRef.current.values(),
-			minutesRef.current,
-		];
+		const inputs = [...cellsRef.current.values(), minutesRef.current];
 		if (inputs.includes(relatedTarget as HTMLInputElement)) {
 			return;
 		}
+
 		let hasInvalidCell = false;
 		const parseCell = (index: number, field: EmptyGameSetField) => {
 			const input = cell(index, field);
@@ -77,47 +65,36 @@ export function useEmptyGameSetRows({
 			...seed,
 			blind1: parseCell(index, "blind1"),
 			blind2: parseCell(index, "blind2"),
+			blind3: parseCell(index, "blind3"),
 			ante: parseCell(index, "ante"),
 		}));
 		const minutes = minutesRef.current
 			? parseBlindLevelInput(minutesRef.current)
 			: null;
-		if (hasInvalidCell || minutes === undefined) {
+		if (
+			hasInvalidCell ||
+			minutes === undefined ||
+			!games.some((set) => set.blind1 != null)
+		) {
 			return;
 		}
-		if (!games.some((set) => set.blind1 != null)) {
-			return;
-		}
-		onCreateLevel({
-			blind1: null,
-			blind2: null,
-			ante: null,
-			minutes,
-			games,
-		});
+		onCreateLevel({ blind1: null, blind2: null, ante: null, minutes, games });
 		resetRows();
 	};
 
-	// Write a derived auto-fill text into a cell; null result (cell already
-	// filled) and unmounted cells leave the DOM untouched.
 	const fillCell = (
 		input: HTMLInputElement | undefined,
 		derive: (current: string) => string | null
 	) => {
-		if (!input) {
-			return;
-		}
-		const text = derive(input.value);
-		if (text != null) {
+		const text = input ? derive(input.value) : null;
+		if (text != null && input) {
 			input.value = text;
 		}
 	};
 
-	// Same auto-fill as the flat empty row, scoped to the blurred set's row:
-	// blind1 derives blind2 (x2) then ante (= blind2); blind2 derives ante.
 	const autoFill = (index: number, field: EmptyGameSetField, value: string) => {
 		const parsed = parseIntOrNull(value);
-		if (parsed == null || field === "ante") {
+		if (parsed == null || field === "ante" || field === "blind3") {
 			return;
 		}
 		const ante = cell(index, "ante");
@@ -139,7 +116,6 @@ export function useEmptyGameSetRows({
 			autoFill(index, field, e.target.value);
 			tryCreate(e.relatedTarget);
 		};
-
 	const handleMinutesBlur = (e: React.FocusEvent<HTMLInputElement>) => {
 		parseBlindLevelInput(e.target);
 		tryCreate(e.relatedTarget);

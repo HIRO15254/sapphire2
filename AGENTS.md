@@ -13,7 +13,7 @@ Companion memory files:
 
 ## Stack
 
-- **Runtime / package manager**: Bun 1.3 (workspaces). Always use `bun`, never `npm` / `yarn` / `pnpm`.
+- **Runtime / package manager**: Bun 1.3 (workspaces). Always use `bun`, never `npm` / `yarn` / `pnpm`. Cloudflare Wrangler runs with Node.js >=20.3.0 through the repository scripts.
 - **Web**: React 19, Vite, TanStack Router, TanStack Query, tRPC v11 client, Tailwind v4, shadcn/ui, `@tanstack/react-form`.
 - **Server**: Hono on Cloudflare Workers, tRPC v11 server, Better Auth.
 - **DB**: Cloudflare D1 (SQLite) via Drizzle ORM. Migrations in `packages/db/src/migrations`.

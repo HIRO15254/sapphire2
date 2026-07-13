@@ -105,7 +105,7 @@ interface CashSnapshotDisplay {
 	blind3: number | null;
 	maxBuyIn: number | null;
 	minBuyIn: number | null;
-	mixGames?: GameGroupLike[] | null;
+	mixGames?: RingGame["mixGames"];
 	ruleName: string;
 	tableSize: number | null;
 	variant: string;
@@ -401,6 +401,7 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 					defaultValues={{
 						name: snapshot.ruleName,
 						variant: snapshot.variant,
+						mixGames: snapshot.mixGames ?? null,
 						blind1: snapshot.blind1 ?? undefined,
 						blind2: snapshot.blind2 ?? undefined,
 						blind3: snapshot.blind3 ?? undefined,
@@ -459,6 +460,9 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 						BB
 					</TableHead>
 					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
+						Blind 3
+					</TableHead>
+					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
 						Ante
 					</TableHead>
 					<TableHead className="h-auto w-8 pb-0.5 text-center font-medium text-muted-foreground">
@@ -476,7 +480,7 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 								</TableCell>
 								<TableCell
 									className="py-0.5 text-center text-muted-foreground"
-									colSpan={3}
+									colSpan={4}
 								>
 									Break
 								</TableCell>
@@ -493,7 +497,7 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 								<TableCell className="py-0.5 text-center text-muted-foreground">
 									{row.level}
 								</TableCell>
-								<TableCell className="py-0.5" colSpan={3}>
+								<TableCell className="py-0.5" colSpan={4}>
 									<div className="flex flex-col gap-0.5">
 										{row.games.map((group) => (
 											<span key={group.variants.join("+")}>
@@ -508,7 +512,12 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 							</TableRow>
 						);
 					}
-					const fmt = createGroupFormatter([row.blind1, row.blind2, row.ante]);
+					const fmt = createGroupFormatter([
+						row.blind1,
+						row.blind2,
+						row.blind3,
+						row.ante,
+					]);
 					return (
 						<TableRow key={row.id}>
 							<TableCell className="py-0.5 text-center text-muted-foreground">
@@ -519,6 +528,9 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 							</TableCell>
 							<TableCell className="py-0.5 text-center">
 								{row.blind2 == null ? "—" : fmt(row.blind2)}
+							</TableCell>
+							<TableCell className="py-0.5 text-center">
+								{row.blind3 == null ? "—" : fmt(row.blind3)}
 							</TableCell>
 							<TableCell className="py-0.5 text-center">
 								{row.ante == null ? "—" : fmt(row.ante)}

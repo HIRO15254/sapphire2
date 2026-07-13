@@ -86,15 +86,20 @@ export function groupDisplayLabel(group: GameGroupLike): string {
  * stale ante amount is stored — c57).
  */
 export function formatGroupStakes(group: GameGroupLike): string {
+	const anteType = group.anteType === undefined ? "all" : group.anteType;
+	const visibleAnte =
+		anteType === "all" || anteType === "bb" ? (group.ante ?? null) : null;
 	const fields: BlindFields = {
 		blind1: group.blind1 ?? null,
 		blind2: group.blind2 ?? null,
 		blind3: group.blind3 ?? null,
-		ante: group.ante ?? null,
+		// Hidden ante amounts must not influence the compact-number tier used by
+		// the visible blinds (for example, 1/2 must not become 0k/0k).
+		ante: visibleAnte,
 		// Level game groups carry no anteType at all (levelGameGroupSchema
 		// omits it) — their stored ante always displays. Mix game groups
 		// carry an explicit anteType which formatAnteSuffix respects.
-		anteType: group.anteType === undefined ? "all" : group.anteType,
+		anteType,
 	};
 	const parts = [formatBlindParts(fields), formatAnteSuffix(fields)].filter(
 		(part) => part !== ""

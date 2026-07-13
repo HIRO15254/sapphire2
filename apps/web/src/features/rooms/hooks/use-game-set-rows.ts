@@ -4,7 +4,7 @@ import {
 	type BlindLevelPatch,
 	type GameSetAmountField,
 	type GameSetCellPatch,
-	parseIntOrNull,
+	parseBlindLevelInput,
 } from "@/features/rooms/utils/blind-level-helpers";
 
 interface FocusedCell {
@@ -52,7 +52,10 @@ export function useGameSetRows({
 		(index: number, field: GameSetAmountField) =>
 		(e: React.FocusEvent<HTMLInputElement>) => {
 			setFocusedCell(null);
-			const parsed = parseIntOrNull(e.target.value);
+			const parsed = parseBlindLevelInput(e.target);
+			if (parsed === undefined) {
+				return;
+			}
 			if (parsed === cellValue(index, field)) {
 				return;
 			}
@@ -60,7 +63,10 @@ export function useGameSetRows({
 		};
 
 	const handleMinutesBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-		onUpdate(row.id, { minutes: parseIntOrNull(e.target.value) });
+		const minutes = parseBlindLevelInput(e.target);
+		if (minutes !== undefined) {
+			onUpdate(row.id, { minutes });
+		}
 	};
 
 	const setFieldKey = (index: number, field: GameSetAmountField) => {
