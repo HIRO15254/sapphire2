@@ -167,6 +167,54 @@ vi.mock("@/utils/trpc", () => ({
 	},
 }));
 
+// 8-Game mix master resolving to NL Hold'em (Big Bet) + Razz (Stud).
+function seedMixMasterData() {
+	mocks.gameGroups = [
+		{
+			id: "g-bigbet",
+			builtinKey: "bigbet",
+			label: "Big Bet",
+			blind1Label: "SB",
+			blind2Label: "BB",
+			blind3Label: "Straddle",
+		},
+		{
+			id: "g-stud",
+			builtinKey: "stud",
+			label: "Stud",
+			blind1Label: "Small Bet",
+			blind2Label: "Big Bet",
+			blind3Label: "Bring-in",
+		},
+	];
+	mocks.gameVariants = [
+		{
+			id: "v-nlh",
+			builtinKey: "nlh",
+			label: "NL Hold'em",
+			shortLabel: "NLH",
+			groupId: "g-bigbet",
+			sortOrder: 0,
+		},
+		{
+			id: "v-razz",
+			builtinKey: "razz",
+			label: "Razz",
+			shortLabel: "Razz",
+			groupId: "g-stud",
+			sortOrder: 1,
+		},
+	];
+	mocks.gameMixes = [
+		{
+			id: "m-8game",
+			builtinKey: "8-game",
+			label: "8-Game",
+			games: ["v-nlh", "v-razz"],
+		},
+	];
+}
+
 describe("BlindStructureContent", () => {
 	beforeEach(() => {
 		mocks.blindLevels = [];
@@ -335,9 +383,7 @@ describe("BlindStructureContent", () => {
 	});
 
 	it("offers per-level game sets on each flat row for a mix master variant", () => {
-		mocks.gameMixes = [
-			{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
-		];
+		seedMixMasterData();
 		mocks.blindLevels = [
 			{
 				ante: null,
@@ -353,11 +399,118 @@ describe("BlindStructureContent", () => {
 		];
 		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
 		expect(
-			screen.getByRole("button", { name: "Edit game sets" })
+			screen.getByRole("button", { name: "Use game sets" })
 		).toBeInTheDocument();
 	});
 
-	it("shows the games summary for a level that has per-game sets", () => {
+	it("renders one inline row per game set with the Game column header", () => {
+		mocks.gameMixes = [
+			{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
+		];
+		mocks.blindLevels = [
+			{
+				ante: null,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				games: [
+					{
+						ante: null,
+						blind1: 400,
+						blind2: 800,
+						blind3: null,
+						name: "Limit games",
+						variants: ["Limit Hold'em"],
+					},
+					{
+						ante: 25,
+						blind1: 100,
+						blind2: 200,
+						blind3: null,
+						name: null,
+						variants: ["NL Hold'em"],
+					},
+				],
+				id: "l1",
+				isBreak: false,
+				level: 1,
+				minutes: 20,
+				tournamentId: "tour-1",
+			},
+		];
+		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+		expect(screen.getByText("Game")).toBeInTheDocument();
+		expect(screen.getByText("Limit games")).toBeInTheDocument();
+		expect(screen.getByText("NL Hold'em")).toBeInTheDocument();
+		expect(screen.getByDisplayValue("400")).toBeInTheDocument();
+		expect(screen.getByDisplayValue("100")).toBeInTheDocument();
+	});
+
+	it("edits a set's amount inline and patches only that set", () => {
+		mocks.gameMixes = [
+			{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
+		];
+		mocks.blindLevels = [
+			{
+				ante: null,
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				games: [
+					{
+						ante: null,
+						blind1: 400,
+						blind2: 800,
+						blind3: null,
+						name: "Limit games",
+						variants: ["Limit Hold'em"],
+					},
+					{
+						ante: 25,
+						blind1: 100,
+						blind2: 200,
+						blind3: null,
+						name: null,
+						variants: ["NL Hold'em"],
+					},
+				],
+				id: "l1",
+				isBreak: false,
+				level: 1,
+				minutes: 20,
+				tournamentId: "tour-1",
+			},
+		];
+		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+		const blind1Input = screen.getByDisplayValue("400");
+		fireEvent.change(blind1Input, { target: { value: "500" } });
+		fireEvent.blur(blind1Input);
+		expect(mocks.updateMutate).toHaveBeenCalledTimes(1);
+		expect(mocks.updateMutate).toHaveBeenNthCalledWith(1, {
+			id: "l1",
+			games: [
+				{
+					ante: null,
+					blind1: 500,
+					blind2: 800,
+					blind3: null,
+					name: "Limit games",
+					variants: ["Limit Hold'em"],
+				},
+				{
+					ante: 25,
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					name: null,
+					variants: ["NL Hold'em"],
+				},
+			],
+		});
+	});
+
+	it("reverts a set-based level to a single flat blind set", async () => {
+		const user = userEvent.setup();
 		mocks.gameMixes = [
 			{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
 		];
@@ -385,7 +538,42 @@ describe("BlindStructureContent", () => {
 			},
 		];
 		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
-		expect(screen.getByText("Limit games")).toBeInTheDocument();
+		await user.click(
+			screen.getByRole("button", { name: "Use single blind set" })
+		);
+		expect(mocks.updateMutate).toHaveBeenCalledTimes(1);
+		expect(mocks.updateMutate).toHaveBeenNthCalledWith(1, {
+			id: "l1",
+			games: null,
+		});
+	});
+
+	it("seeds a flat level with the composition's game sets from the row toggle", async () => {
+		const user = userEvent.setup();
+		seedMixMasterData();
+		mocks.blindLevels = [
+			{
+				ante: null,
+				blind1: 100,
+				blind2: 200,
+				blind3: null,
+				id: "l1",
+				isBreak: false,
+				level: 1,
+				minutes: 20,
+				tournamentId: "tour-1",
+			},
+		];
+		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+		await user.click(screen.getByRole("button", { name: "Use game sets" }));
+		expect(mocks.updateMutate).toHaveBeenCalledTimes(1);
+		expect(mocks.updateMutate).toHaveBeenNthCalledWith(1, {
+			id: "l1",
+			games: [
+				expect.objectContaining({ variants: ["NL Hold'em"] }),
+				expect.objectContaining({ variants: ["Razz"] }),
+			],
+		});
 	});
 
 	it("does not offer per-level game sets for a plain variant", () => {
@@ -404,56 +592,13 @@ describe("BlindStructureContent", () => {
 		];
 		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
 		expect(
-			screen.queryByRole("button", { name: "Edit game sets" })
+			screen.queryByRole("button", { name: "Use game sets" })
 		).not.toBeInTheDocument();
 	});
 
 	it("seeds a new level with the mix composition's game sets for a mix master variant", async () => {
 		const user = userEvent.setup();
-		mocks.gameGroups = [
-			{
-				id: "g-bigbet",
-				builtinKey: "bigbet",
-				label: "Big Bet",
-				blind1Label: "SB",
-				blind2Label: "BB",
-				blind3Label: "Straddle",
-			},
-			{
-				id: "g-stud",
-				builtinKey: "stud",
-				label: "Stud",
-				blind1Label: "Small Bet",
-				blind2Label: "Big Bet",
-				blind3Label: "Bring-in",
-			},
-		];
-		mocks.gameVariants = [
-			{
-				id: "v-nlh",
-				builtinKey: "nlh",
-				label: "NL Hold'em",
-				shortLabel: "NLH",
-				groupId: "g-bigbet",
-				sortOrder: 0,
-			},
-			{
-				id: "v-razz",
-				builtinKey: "razz",
-				label: "Razz",
-				shortLabel: "Razz",
-				groupId: "g-stud",
-				sortOrder: 1,
-			},
-		];
-		mocks.gameMixes = [
-			{
-				id: "m-8game",
-				builtinKey: "8-game",
-				label: "8-Game",
-				games: ["v-nlh", "v-razz"],
-			},
-		];
+		seedMixMasterData();
 		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
 		await user.click(screen.getByRole("button", { name: "Level" }));
 		expect(mocks.createMutate).toHaveBeenCalledTimes(1);

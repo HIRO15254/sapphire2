@@ -20,10 +20,6 @@ interface LevelPatternsSheetProps {
 	games: LevelGamesValue;
 	/** 1-based level number, for the sheet title. */
 	level: number;
-	/** Composition the structure is locked to (mode "locked"). */
-	lockedLabels?: string[];
-	/** "locked" = mix-master tournament, amounts only; "assign" = per-level variant. */
-	mode: "assign" | "locked";
 	onOpenChange: (open: boolean) => void;
 	onSave: (games: LevelGamesValue) => void;
 	open: boolean;
@@ -31,42 +27,29 @@ interface LevelPatternsSheetProps {
 }
 
 /**
- * Bottom sheet editing one blind level's game sets. Hybrid sheet per
- * web-theme.md: drag handle + visible title, the apply button lives in the
- * body. In "assign" mode (per-level-variant tournaments) the level gets
- * its own variant, picked here — a mix master gives it several blind
- * sets. In "locked" mode (mix-master tournaments) the sets follow the
- * tournament's mix; amounts only, with an escape hatch back to the flat
- * single blind set. Done applies the buffered groups via onSave and
- * closes.
+ * Bottom sheet assigning one blind level's variant and game sets
+ * (per-level-variant tournaments). Hybrid sheet per web-theme.md: drag
+ * handle + visible title, the apply button lives in the body. The level
+ * gets its own variant, picked here — a mix master gives it several blind
+ * sets. Done applies the buffered groups via onSave and closes.
  */
 export function LevelPatternsSheet({
 	compositionFor,
 	games,
 	level,
-	lockedLabels,
-	mode,
 	onOpenChange,
 	onSave,
 	open,
 	resolveGroup,
 }: LevelPatternsSheetProps) {
-	const {
-		assignedVariant,
-		handleDone,
-		handleUseSingleSet,
-		onAssignVariant,
-		rows,
-		setRows,
-	} = useLevelPatternsSheet({
-		compositionFor,
-		games,
-		lockedLabels,
-		mode,
-		onSave,
-		open,
-		resolveGroup,
-	});
+	const { assignedVariant, handleDone, onAssignVariant, rows, setRows } =
+		useLevelPatternsSheet({
+			compositionFor,
+			games,
+			onSave,
+			open,
+			resolveGroup,
+		});
 
 	return (
 		<Drawer onOpenChange={onOpenChange} open={open}>
@@ -79,17 +62,15 @@ export function LevelPatternsSheet({
 					Edit the games played at level {level}
 				</DrawerDescription>
 				<div className="flex flex-col gap-3 overflow-y-auto px-4 py-3 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-					{mode === "assign" && (
-						<Field htmlFor="level-variant" label="Variant">
-							<VariantSelect
-								id="level-variant"
-								includeMix
-								onChange={onAssignVariant}
-								placeholder="Assign a variant"
-								value={assignedVariant}
-							/>
-						</Field>
-					)}
+					<Field htmlFor="level-variant" label="Variant">
+						<VariantSelect
+							id="level-variant"
+							includeMix
+							onChange={onAssignVariant}
+							placeholder="Assign a variant"
+							value={assignedVariant}
+						/>
+					</Field>
 					<MixGamesEditor
 						onChange={setRows}
 						resolveGroup={resolveGroup}
@@ -105,18 +86,6 @@ export function LevelPatternsSheet({
 					>
 						Done
 					</Button>
-					{mode === "locked" && (
-						<Button
-							onClick={() => {
-								handleUseSingleSet();
-								onOpenChange(false);
-							}}
-							type="button"
-							variant="outline"
-						>
-							Use single blind set
-						</Button>
-					)}
 				</div>
 			</DrawerContent>
 		</Drawer>

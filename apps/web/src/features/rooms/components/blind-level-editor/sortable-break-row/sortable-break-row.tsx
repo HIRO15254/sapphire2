@@ -12,8 +12,8 @@ import { BlindLevelInput } from "../blind-level-input";
 import { DragHandle } from "../drag-handle";
 
 interface SortableBreakRowProps {
-	/** Alignment cell for the hybrid table's extra game-sets column. */
-	hasTrailingCell?: boolean;
+	/** Alignment cells for the hybrid table's Game / toggle columns. */
+	gameColumn?: boolean;
 	onDelete: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;
 	row: BlindLevelRow;
@@ -21,7 +21,7 @@ interface SortableBreakRowProps {
 
 export function SortableBreakRow({
 	row,
-	hasTrailingCell = false,
+	gameColumn = false,
 	onDelete,
 	onUpdate,
 }: SortableBreakRowProps) {
@@ -52,7 +52,7 @@ export function SortableBreakRow({
 					<span className="text-muted-foreground text-xs">{row.level}</span>
 				</div>
 			</TableCell>
-			<TableCell className="p-0 px-1.5 py-1" colSpan={3}>
+			<TableCell className="p-0 px-1.5 py-1" colSpan={gameColumn ? 4 : 3}>
 				<div className="flex items-center gap-1 text-muted-foreground text-sm">
 					<IconCoffee size={14} />
 					<span>Break</span>
@@ -79,7 +79,7 @@ export function SortableBreakRow({
 					<IconTrash size={14} />
 				</Button>
 			</TableCell>
-			{hasTrailingCell && <TableCell className="w-8 p-0" />}
+			{gameColumn && <TableCell className="w-8 p-0" />}
 		</TableRow>
 	);
 }

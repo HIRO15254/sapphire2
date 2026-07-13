@@ -11,20 +11,23 @@ import { BlindLevelInput } from "../blind-level-input";
 import { DragHandle } from "../drag-handle";
 
 interface SortableLevelRowProps {
+	/** Alignment cells for the hybrid table's Game / toggle columns. */
+	gameColumn?: boolean;
 	onDelete: (id: string) => void;
+	onUpdate: (id: string, updates: BlindLevelPatch) => void;
 	/**
 	 * Mix-master tournaments: renders a trailing "split into per-game blind
-	 * sets" affordance opening the level games sheet.
+	 * sets" affordance seeding the level with the mix's composition.
 	 */
-	onOpenGames?: (id: string) => void;
-	onUpdate: (id: string, updates: BlindLevelPatch) => void;
+	onUseGameSets?: (id: string) => void;
 	row: BlindLevelRow;
 }
 
 export function SortableLevelRow({
 	row,
+	gameColumn = false,
 	onDelete,
-	onOpenGames,
+	onUseGameSets,
 	onUpdate,
 }: SortableLevelRowProps) {
 	const {
@@ -61,6 +64,7 @@ export function SortableLevelRow({
 					<span className="text-muted-foreground text-xs">{row.level}</span>
 				</div>
 			</TableCell>
+			{gameColumn && <TableCell className="p-0 px-1" />}
 			<TableCell className="p-0 px-0.5">
 				<BlindLevelInput
 					defaultValue={row.blind1 ?? ""}
@@ -101,12 +105,12 @@ export function SortableLevelRow({
 					<IconTrash size={14} />
 				</Button>
 			</TableCell>
-			{onOpenGames && (
+			{onUseGameSets ? (
 				<TableCell className="w-8 p-0 px-0.5 text-center">
 					<Button
-						aria-label="Edit game sets"
+						aria-label="Use game sets"
 						className="text-muted-foreground"
-						onClick={() => onOpenGames(row.id)}
+						onClick={() => onUseGameSets(row.id)}
 						size="icon-xs"
 						type="button"
 						variant="ghost"
@@ -114,6 +118,8 @@ export function SortableLevelRow({
 						<IconStack2 size={14} />
 					</Button>
 				</TableCell>
+			) : (
+				gameColumn && <TableCell className="w-8 p-0" />
 			)}
 		</TableRow>
 	);
