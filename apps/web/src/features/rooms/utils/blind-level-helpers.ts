@@ -7,6 +7,8 @@ export interface NewLevelValues {
 	ante: number | null;
 	blind1: number | null;
 	blind2: number | null;
+	/** Per-game blind sets (mix-master empty block); null/absent = flat. */
+	games?: LevelGameGroup[] | null;
 	minutes: number | null;
 }
 
@@ -120,7 +122,7 @@ export function createLevel(
 			blind3: null,
 			ante: vals.ante,
 			minutes,
-			games: null,
+			games: vals.games ?? null,
 		},
 	];
 }

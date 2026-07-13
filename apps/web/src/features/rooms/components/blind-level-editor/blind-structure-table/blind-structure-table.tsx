@@ -26,6 +26,7 @@ import {
 } from "@/shared/components/ui/table";
 import type { BlindSlotLabels } from "@/shared/hooks/use-variant-labels";
 import type { ResolveGroup } from "@/shared/lib/mix-games";
+import { EmptyGameSetRows } from "../empty-game-set-rows";
 import { EmptyRow } from "../empty-row";
 import { LevelPatternsSheet } from "../level-patterns-sheet";
 import { SortableBreakRow } from "../sortable-break-row";
@@ -84,8 +85,8 @@ export function BlindStructureTable({
 	handleUpdate,
 	handleCreateLevel,
 }: BlindStructureTableProps) {
-	const { openLevel, openGamesFor, closeGames } =
-		useBlindStructureTable(levels);
+	const { headerGroups, openLevel, openGamesFor, closeGames } =
+		useBlindStructureTable(levels, { defaultGames, hybridGames, resolveGroup });
 
 	// Flat level → per-game sets, seeded from the mix's composition. Only
 	// offered while the master data has resolved to a non-empty composition.
@@ -144,9 +145,16 @@ export function BlindStructureTable({
 					</SortableContext>
 				</DndContext>
 			)}
-			<TableBody>
-				<EmptyRow gameColumn onCreateLevel={handleCreateLevel} />
-			</TableBody>
+			{defaultGames?.length ? (
+				<EmptyGameSetRows
+					onCreateLevel={handleCreateLevel}
+					seeds={defaultGames}
+				/>
+			) : (
+				<TableBody>
+					<EmptyRow gameColumn onCreateLevel={handleCreateLevel} />
+				</TableBody>
+			)}
 		</>
 	);
 
@@ -224,32 +232,77 @@ export function BlindStructureTable({
 
 			<Table className="table-fixed">
 				<TableHeader>
-					<TableRow className="hover:bg-transparent">
-						<TableHead className={`${HEAD_CLASS} w-10`}>#</TableHead>
-						{hybridGames && (
-							<TableHead className={`${HEAD_CLASS} w-14 text-left`}>
-								Game
-							</TableHead>
-						)}
-						{isMix ? (
-							<TableHead className={HEAD_CLASS} colSpan={3}>
-								Games
-							</TableHead>
-						) : (
-							<>
-								<TableHead className={HEAD_CLASS}>
-									{blindLabels.blind1}
+					{headerGroups ? (
+						// One header row per game of the mix composition, each labeled
+						// with its group's blind slots (WSOP structure-sheet style).
+						headerGroups.map((group, index) => (
+							<TableRow className="hover:bg-transparent" key={group.key}>
+								{index === 0 && (
+									<TableHead
+										className={`${HEAD_CLASS} w-10`}
+										rowSpan={headerGroups.length}
+									>
+										#
+									</TableHead>
+								)}
+								<TableHead className={`${HEAD_CLASS} w-14 text-left`}>
+									{group.label}
 								</TableHead>
 								<TableHead className={HEAD_CLASS}>
-									{blindLabels.blind2}
+									{group.blind1Label}
+								</TableHead>
+								<TableHead className={HEAD_CLASS}>
+									{group.blind2Label}
 								</TableHead>
 								<TableHead className={HEAD_CLASS}>Ante</TableHead>
-							</>
-						)}
-						<TableHead className={`${HEAD_CLASS} w-12`}>Min</TableHead>
-						<TableHead className="h-auto w-8 pb-1" />
-						{hybridGames && <TableHead className="h-auto w-8 pb-1" />}
-					</TableRow>
+								{index === 0 && (
+									<>
+										<TableHead
+											className={`${HEAD_CLASS} w-12`}
+											rowSpan={headerGroups.length}
+										>
+											Min
+										</TableHead>
+										<TableHead
+											className="h-auto w-8 pb-1"
+											rowSpan={headerGroups.length}
+										/>
+										<TableHead
+											className="h-auto w-8 pb-1"
+											rowSpan={headerGroups.length}
+										/>
+									</>
+								)}
+							</TableRow>
+						))
+					) : (
+						<TableRow className="hover:bg-transparent">
+							<TableHead className={`${HEAD_CLASS} w-10`}>#</TableHead>
+							{hybridGames && (
+								<TableHead className={`${HEAD_CLASS} w-14 text-left`}>
+									Game
+								</TableHead>
+							)}
+							{isMix ? (
+								<TableHead className={HEAD_CLASS} colSpan={3}>
+									Games
+								</TableHead>
+							) : (
+								<>
+									<TableHead className={HEAD_CLASS}>
+										{blindLabels.blind1}
+									</TableHead>
+									<TableHead className={HEAD_CLASS}>
+										{blindLabels.blind2}
+									</TableHead>
+									<TableHead className={HEAD_CLASS}>Ante</TableHead>
+								</>
+							)}
+							<TableHead className={`${HEAD_CLASS} w-12`}>Min</TableHead>
+							<TableHead className="h-auto w-8 pb-1" />
+							{hybridGames && <TableHead className="h-auto w-8 pb-1" />}
+						</TableRow>
+					)}
 				</TableHeader>
 				{hybridGames ? hybridBody : flatBody}
 			</Table>

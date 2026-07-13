@@ -36,6 +36,8 @@ interface NewLevelValues {
 	ante: number | null;
 	blind1: number | null;
 	blind2: number | null;
+	/** Per-game blind sets (mix-master empty block); null/absent = flat. */
+	games?: LevelGameGroup[] | null;
 	minutes: number | null;
 }
 
@@ -259,6 +261,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			blind2: values.blind2,
 			ante: values.ante,
 			...(minutes == null ? {} : { minutes }),
+			...(values.games == null ? {} : { games: values.games }),
 		});
 		if (minutes != null) {
 			setLastMinutes(minutes);

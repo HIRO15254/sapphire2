@@ -576,6 +576,79 @@ describe("BlindStructureContent", () => {
 		});
 	});
 
+	it("renders one header row per game group for a mix master variant", () => {
+		seedMixMasterData();
+		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+		const headers = screen
+			.getAllByRole("columnheader")
+			.map((cell) => cell.textContent);
+		expect(headers).toEqual([
+			"#",
+			"Big Bet",
+			"SB",
+			"BB",
+			"Ante",
+			"Min",
+			"",
+			"",
+			"Stud",
+			"Small Bet",
+			"Big Bet",
+			"Ante",
+		]);
+	});
+
+	it("creates a game-set level from the multi-row empty block", () => {
+		seedMixMasterData();
+		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+
+		// Empty-block DOM order: set0 b1/b2/ante, minutes (row-spanned into the
+		// first row), then set1 b1/b2/ante.
+		const set0Blind1 = screen.getAllByRole("textbox")[0];
+		fireEvent.change(set0Blind1, { target: { value: "100" } });
+		fireEvent.blur(set0Blind1, { relatedTarget: null });
+
+		expect(mocks.createMutate).toHaveBeenCalledTimes(1);
+		expect(mocks.createMutate).toHaveBeenNthCalledWith(1, {
+			tournamentId: "tour-1",
+			level: 1,
+			isBreak: false,
+			games: [
+				{
+					name: "Big Bet",
+					variants: ["NL Hold'em"],
+					blind1: 100,
+					blind2: 200,
+					blind3: null,
+					ante: 200,
+				},
+				{
+					name: "Stud",
+					variants: ["Razz"],
+					blind1: null,
+					blind2: null,
+					blind3: null,
+					ante: null,
+				},
+			],
+		});
+	});
+
+	it("keeps the flat empty row for a mix master with an empty composition", () => {
+		mocks.gameMixes = [
+			{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
+		];
+		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
+
+		const numberInputs = screen.getAllByRole("textbox");
+		const smallBlindInput = numberInputs[0];
+		fireEvent.change(smallBlindInput, { target: { value: "100" } });
+		fireEvent.blur(smallBlindInput, { relatedTarget: null });
+
+		expect(mocks.createMutate).toHaveBeenCalledTimes(1);
+		expect(mocks.createMutate.mock.calls[0][0].games).toBeUndefined();
+	});
+
 	it("does not offer per-level game sets for a plain variant", () => {
 		mocks.blindLevels = [
 			{

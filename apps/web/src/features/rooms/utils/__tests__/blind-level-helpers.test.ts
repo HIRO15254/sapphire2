@@ -235,6 +235,34 @@ describe("createLevel", () => {
 		);
 		expect(result[0]?.isBreak).toBe(false);
 	});
+
+	it("defaults games to null when vals omit them", () => {
+		const result = createLevel(
+			[],
+			{ ante: null, blind1: 100, blind2: 200, minutes: 20 },
+			null
+		);
+		expect(result[0]?.games).toBeNull();
+	});
+
+	it("carries per-game sets from vals.games", () => {
+		const games = [
+			{
+				name: "Stud",
+				variants: ["Razz"],
+				blind1: 400,
+				blind2: 800,
+				blind3: null,
+				ante: null,
+			},
+		];
+		const result = createLevel(
+			[],
+			{ ante: null, blind1: null, blind2: null, minutes: 20, games },
+			null
+		);
+		expect(result[0]?.games).toEqual(games);
+	});
 });
 
 describe("parseIntOrNull", () => {
