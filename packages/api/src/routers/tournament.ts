@@ -1,3 +1,4 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { room } from "@sapphire2/db/schema/room";
 import {
 	blindLevel,
@@ -151,7 +152,7 @@ export const tournamentRouter = router({
 			z.object({
 				roomId: z.string(),
 				name: z.string().min(1),
-				variant: z.string().default("NL Hold'em"),
+				variant: z.string().default(DEFAULT_VARIANT_LABEL),
 				buyIn: z.number().int().optional(),
 				entryFee: z.number().int().optional(),
 				startingStack: z.number().int().optional(),
@@ -315,7 +316,7 @@ export const tournamentRouter = router({
 			z.object({
 				roomId: z.string(),
 				name: z.string().min(1),
-				variant: z.string().default("NL Hold'em"),
+				variant: z.string().default(DEFAULT_VARIANT_LABEL),
 				buyIn: z.number().int().optional(),
 				entryFee: z.number().int().optional(),
 				startingStack: z.number().int().optional(),

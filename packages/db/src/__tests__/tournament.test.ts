@@ -1,6 +1,7 @@
 import { getTableColumns } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import {
 	blindLevel,
 	tournament,
@@ -217,9 +218,9 @@ describe("Tournament — FKs, indexes, and defaults", () => {
 		expect(idxNames).toContain("tournament_roomId_idx");
 	});
 
-	it("variant defaults to nlh", () => {
+	it("variant defaults to DEFAULT_VARIANT_LABEL (c12: not the stale 'nlh' key)", () => {
 		expect(columns.variant.hasDefault).toBe(true);
-		expect(columns.variant.default).toBe("nlh");
+		expect(columns.variant.default).toBe(DEFAULT_VARIANT_LABEL);
 	});
 
 	it("createdAt has a default, updatedAt uses $onUpdate", () => {

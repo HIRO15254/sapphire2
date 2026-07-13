@@ -288,6 +288,13 @@
       "when": 1783839780435,
       "tag": "0040_magenta_tempest",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1783921430946,
+      "tag": "0041_amazing_amphibian",
+      "breakpoints": true
     }
   ]
 }

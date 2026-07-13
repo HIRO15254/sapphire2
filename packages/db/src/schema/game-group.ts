@@ -1,5 +1,11 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	sqliteTable,
+	text,
+	uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 import type { BuiltinGroupKey } from "../constants/game-variants";
 import { user } from "./auth";
 
@@ -29,7 +35,21 @@ export const gameGroup = sqliteTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [index("gameGroup_userId_idx").on(table.userId)]
+	(table) => [
+		index("gameGroup_userId_idx").on(table.userId),
+		// SQLite treats NULLs as distinct, so this never constrains
+		// user-created rows (builtinKey null) against each other — only guards
+		// the 3 seeded builtin rows per user against a concurrent double-seed
+		// duplicating them (c08).
+		uniqueIndex("gameGroup_userId_builtinKey_idx").on(
+			table.userId,
+			table.builtinKey
+		),
+		// Exact-case backstop for the app-level case-insensitive label check
+		// (c14) — guards against a TOCTOU race between that check and the
+		// insert/update, not a replacement for it.
+		uniqueIndex("gameGroup_userId_label_idx").on(table.userId, table.label),
+	]
 );
 
 export const gameGroupRelations = relations(gameGroup, ({ one }) => ({

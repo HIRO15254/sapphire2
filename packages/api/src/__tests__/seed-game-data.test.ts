@@ -125,6 +125,21 @@ describe("seedDefaultGameData", () => {
 		expect(inserted[MIX_TABLE]).toBeUndefined();
 	});
 
+	it("skips entirely when the user already has a gameMix row but no group or variant (c09)", async () => {
+		const { db, batch, inserted } = createChainableMockDb({
+			select: {
+				[GROUP_TABLE]: [],
+				[VARIANT_TABLE]: [],
+				[MIX_TABLE]: [{ id: "m-1", userId: USER_ID }],
+			},
+		});
+		await seedDefaultGameData(db, USER_ID);
+		expect(batch).not.toHaveBeenCalled();
+		expect(inserted[GROUP_TABLE]).toBeUndefined();
+		expect(inserted[VARIANT_TABLE]).toBeUndefined();
+		expect(inserted[MIX_TABLE]).toBeUndefined();
+	});
+
 	it("seeds mixes with builtinKey/label from DEFAULT_GAME_MIXES", async () => {
 		const { db, inserted } = emptyAccountDb();
 		await seedDefaultGameData(db, USER_ID);

@@ -101,12 +101,25 @@ interface AuthOptions {
  * Body of the `databaseHooks.user.create.after` hook, extracted so it is
  * directly unit-testable without going through better-auth's internals
  * (which are impractical to invoke from a unit test).
+ *
+ * `onUserCreated` (in practice, `seedDefaultGameData`) is wrapped in a
+ * try/catch: signup must succeed even if seeding fails, since every
+ * gameGroup/gameVariant/gameMix `list` procedure already self-seeds on next
+ * read (c13) — a seed failure here would otherwise take down account
+ * creation entirely for an unrelated, retriable side effect.
  */
 export async function runUserCreatedHook(
 	options: Pick<AuthOptions, "onUserCreated">,
 	createdUser: { id: string }
 ): Promise<void> {
-	await options.onUserCreated?.(createdUser.id);
+	try {
+		await options.onUserCreated?.(createdUser.id);
+	} catch (error) {
+		console.error(
+			`onUserCreated hook failed for user ${createdUser.id}`,
+			error
+		);
+	}
 }
 
 export function createAuth(

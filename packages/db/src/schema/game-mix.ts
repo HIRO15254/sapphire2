@@ -1,5 +1,11 @@
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	index,
+	integer,
+	sqliteTable,
+	text,
+	uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 
 // Per-user named-mix masters. A mix is a reusable mixed-game DEFINITION —
@@ -31,7 +37,21 @@ export const gameMix = sqliteTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [index("gameMix_userId_idx").on(table.userId)]
+	(table) => [
+		index("gameMix_userId_idx").on(table.userId),
+		// SQLite treats NULLs as distinct, so this never constrains
+		// user-created rows (builtinKey null) against each other — only guards
+		// the 3 seeded builtin rows per user against a concurrent double-seed
+		// duplicating them (c08).
+		uniqueIndex("gameMix_userId_builtinKey_idx").on(
+			table.userId,
+			table.builtinKey
+		),
+		// Exact-case backstop for the app-level case-insensitive label check
+		// (c14) — guards against a TOCTOU race between that check and the
+		// insert/update, not a replacement for it.
+		uniqueIndex("gameMix_userId_label_idx").on(table.userId, table.label),
+	]
 );
 
 export const gameMixRelations = relations(gameMix, ({ one }) => ({

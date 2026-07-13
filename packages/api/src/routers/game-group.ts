@@ -6,6 +6,11 @@ import { and, eq } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { seedDefaultGameData } from "../services/seed-game-data";
+import {
+	compareBuiltinFirst,
+	isUniqueConstraintViolation,
+} from "./_game-masters";
+import { validateEntityOwnership } from "./session";
 
 type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -21,37 +26,7 @@ const BUILTIN_ORDER: Map<string, number> = new Map(
 	DEFAULT_GAME_GROUPS.map((g, index) => [g.key, index])
 );
 
-function compareGroups(
-	a: { builtinKey: string | null; label: string },
-	b: { builtinKey: string | null; label: string }
-): number {
-	const aOrder = a.builtinKey ? BUILTIN_ORDER.get(a.builtinKey) : undefined;
-	const bOrder = b.builtinKey ? BUILTIN_ORDER.get(b.builtinKey) : undefined;
-	if (aOrder !== undefined && bOrder !== undefined) {
-		return aOrder - bOrder;
-	}
-	if (aOrder !== undefined) {
-		return -1;
-	}
-	if (bOrder !== undefined) {
-		return 1;
-	}
-	return a.label.localeCompare(b.label);
-}
-
-/** Same uniform-FORBIDDEN ownership contract used across the mix-game routers (SA2-183). */
-async function validateGameGroupOwnership(db: Db, id: string, userId: string) {
-	const [found] = await db.select().from(gameGroup).where(eq(gameGroup.id, id));
-
-	if (!found || found.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this game group",
-		});
-	}
-
-	return found;
-}
+const compareGroups = compareBuiltinFirst(BUILTIN_ORDER);
 
 async function assertGroupLabelAvailable(
 	db: Db,
@@ -80,16 +55,25 @@ async function assertGroupLabelAvailable(
 export const gameGroupRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
 		const userId = ctx.session.user.id;
-		// Both masters are per-user rows now (mix-game rework); a fully-empty
-		// account (no groups, no variants) is seeded on first read so legacy
-		// accounts that predate the auth-hook seed still get the builtin list.
-		await seedDefaultGameData(ctx.db, userId);
-
 		const rows = await ctx.db
 			.select()
 			.from(gameGroup)
 			.where(eq(gameGroup.userId, userId));
-		return [...rows].sort(compareGroups);
+		if (rows.length > 0) {
+			return [...rows].sort(compareGroups);
+		}
+		// Both masters are per-user rows now (mix-game rework); a fully-empty
+		// account (no groups, no variants, no mixes) is seeded on first read so
+		// legacy accounts that predate the auth-hook seed still get the builtin
+		// list. Only reached when THIS table is empty (c32); seedDefaultGameData
+		// still re-checks all three tables itself (c09) so a caller who deleted
+		// only their groups (but kept a variant/mix) is correctly left empty.
+		await seedDefaultGameData(ctx.db, userId);
+		const reseeded = await ctx.db
+			.select()
+			.from(gameGroup)
+			.where(eq(gameGroup.userId, userId));
+		return [...reseeded].sort(compareGroups);
 	}),
 
 	create: protectedProcedure
@@ -106,18 +90,32 @@ export const gameGroupRouter = router({
 			await assertGroupLabelAvailable(ctx.db, userId, input.label);
 
 			const id = crypto.randomUUID();
-			await ctx.db.insert(gameGroup).values({
-				id,
-				userId,
-				// User-created groups never carry a builtinKey — only the 3 seeded
-				// rows do, and builtinKey is immutable (not part of this input).
-				builtinKey: null,
-				label: input.label,
-				blind1Label: input.blind1Label ?? null,
-				blind2Label: input.blind2Label ?? null,
-				blind3Label: input.blind3Label ?? null,
-				updatedAt: new Date(),
-			});
+			try {
+				await ctx.db.insert(gameGroup).values({
+					id,
+					userId,
+					// User-created groups never carry a builtinKey — only the 3 seeded
+					// rows do, and builtinKey is immutable (not part of this input).
+					builtinKey: null,
+					label: input.label,
+					blind1Label: input.blind1Label ?? null,
+					blind2Label: input.blind2Label ?? null,
+					blind3Label: input.blind3Label ?? null,
+					updatedAt: new Date(),
+				});
+			} catch (error) {
+				// (user_id, label) unique-index backstop against the app-level
+				// check above racing a concurrent identical-label insert (c14,
+				// TOCTOU) — converted to the same CONFLICT the app-level check
+				// throws.
+				if (isUniqueConstraintViolation(error)) {
+					throw new TRPCError({
+						code: "CONFLICT",
+						message: "You already have a game group with this label",
+					});
+				}
+				throw error;
+			}
 
 			const [created] = await ctx.db
 				.select()
@@ -138,7 +136,12 @@ export const gameGroupRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const found = await validateGameGroupOwnership(ctx.db, input.id, userId);
+			const found = await validateEntityOwnership(
+				ctx.db,
+				"gameGroup",
+				input.id,
+				userId
+			);
 
 			if (input.label !== undefined) {
 				await assertGroupLabelAvailable(ctx.db, userId, input.label, input.id);
@@ -160,12 +163,23 @@ export const gameGroupRouter = router({
 				updateData.blind3Label = input.blind3Label;
 			}
 
-			await ctx.db
-				.update(gameGroup)
-				.set(updateData)
-				// Bind both id AND user_id so a foreign id can never be updated via
-				// this procedure (write-IDOR, SA2-176).
-				.where(and(eq(gameGroup.id, input.id), eq(gameGroup.userId, userId)));
+			try {
+				await ctx.db
+					.update(gameGroup)
+					.set(updateData)
+					// Bind both id AND user_id so a foreign id can never be updated via
+					// this procedure (write-IDOR, SA2-176).
+					.where(and(eq(gameGroup.id, input.id), eq(gameGroup.userId, userId)));
+			} catch (error) {
+				// Same (user_id, label) unique-index backstop as create() above (c14).
+				if (isUniqueConstraintViolation(error)) {
+					throw new TRPCError({
+						code: "CONFLICT",
+						message: "You already have a game group with this label",
+					});
+				}
+				throw error;
+			}
 
 			const [updated] = await ctx.db
 				.select()
@@ -178,7 +192,7 @@ export const gameGroupRouter = router({
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateGameGroupOwnership(ctx.db, input.id, userId);
+			await validateEntityOwnership(ctx.db, "gameGroup", input.id, userId);
 
 			// A group in use by one of the caller's own game variants cannot be
 			// deleted out from under it — explicit count check before the delete,

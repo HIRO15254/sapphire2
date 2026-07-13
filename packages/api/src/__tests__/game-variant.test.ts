@@ -2,10 +2,11 @@ import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { TRPCError } from "@trpc/server";
-import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
+import { getTableName } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
+	createChainableMockDb,
 	expectAccepts,
 	expectProtected,
 	expectRejects,
@@ -14,77 +15,13 @@ import {
 } from "./test-utils";
 
 type Rows = Record<string, unknown>[];
-const dialect = new SQLiteSyncDialect();
 
-function boundParams(cond: unknown): unknown[] {
-	return dialect.sqlToQuery(cond as never).params;
-}
+const GROUP_TABLE = getTableName(gameGroup);
+const VARIANT_TABLE = getTableName(gameVariant);
+const MIX_TABLE = getTableName(gameMix);
 
-/**
- * Mock db that resolves `select().from(table)…` from a table-keyed map and
- * records the bound params of every `select…where`, `update…set…where`, and
- * `delete…where` call so tests can assert ownership scoping (SA2-176,
- * SA2-183) and inspect inserted payloads. Also supports D1's `db.batch([...])`
- * (a plain `Promise.all` over the already-eagerly-executed statement
- * promises) since `gameVariant.list` self-seeds via `seedDefaultGameData`.
- */
-function createMockDb(rowsByTable: Map<unknown, Rows>) {
-	const selectWhereParams: unknown[][] = [];
-	const updateWhereParams: unknown[][] = [];
-	const deleteWhereParams: unknown[][] = [];
-	const inserted: Record<string, unknown>[] = [];
-
-	const makeSelectChain = (rows: Rows) => {
-		const chain = Promise.resolve(rows) as Promise<Rows> &
-			Record<string, (...args: unknown[]) => unknown>;
-		chain.from = (table: unknown) =>
-			makeSelectChain(rowsByTable.get(table) ?? []);
-		chain.where = (cond: unknown) => {
-			selectWhereParams.push(boundParams(cond));
-			return chain;
-		};
-		chain.orderBy = () => chain;
-		chain.limit = () => chain;
-		return chain;
-	};
-
-	const db = {
-		select: () => makeSelectChain([]),
-		insert: (table: unknown) => ({
-			values: (v: Record<string, unknown>) => {
-				inserted.push({ ...v, __table: table });
-				return Promise.resolve(undefined);
-			},
-		}),
-		update: () => ({
-			set: () => ({
-				where: (cond: unknown) => {
-					updateWhereParams.push(boundParams(cond));
-					return Promise.resolve(undefined);
-				},
-			}),
-		}),
-		delete: () => ({
-			where: (cond: unknown) => {
-				deleteWhereParams.push(boundParams(cond));
-				return Promise.resolve(undefined);
-			},
-		}),
-		batch: (statements: unknown[]) =>
-			Promise.all(statements as Promise<unknown>[]),
-	};
-
-	return {
-		db,
-		selectWhereParams,
-		updateWhereParams,
-		deleteWhereParams,
-		inserted,
-	};
-}
-
-function gameVariantCaller(userId: string, rowsByTable: Map<unknown, Rows>) {
-	const mock = createMockDb(rowsByTable);
+function gameVariantCaller(userId: string, select: Record<string, Rows>) {
+	const mock = createChainableMockDb({ select });
 	const caller = appRouter.createCaller({
 		session: { user: { id: userId } },
 		db: mock.db,
@@ -111,12 +48,12 @@ const CUR_OTHER = "user-2";
 const OWNED_GROUP = { id: "grp-1", userId: CUR_OWNER, label: "Big Bet" };
 const OTHER_GROUP = { id: "grp-2", userId: CUR_OTHER, label: "Their Group" };
 
-/** Non-empty group/variant maps so list()'s self-seed guard is skipped. */
+/** Non-empty group/variant rows so list()'s self-seed guard is skipped. */
 function seededRows(extra: { variant?: Rows; group?: Rows } = {}) {
-	return new Map<unknown, Rows>([
-		[gameGroup, extra.group ?? [OWNED_GROUP]],
-		[gameVariant, extra.variant ?? [{ id: "v-1", userId: CUR_OWNER }]],
-	]);
+	return {
+		[GROUP_TABLE]: extra.group ?? [OWNED_GROUP],
+		[VARIANT_TABLE]: extra.variant ?? [{ id: "v-1", userId: CUR_OWNER }],
+	};
 }
 
 describe("gameVariant router", () => {
@@ -310,13 +247,10 @@ describe("gameVariant.delete input validation", () => {
 
 describe("gameVariant.create groupId ownership (SA2-183)", () => {
 	it("rejects a groupId owned by another user with FORBIDDEN", async () => {
-		const { caller } = gameVariantCaller(
-			CUR_OWNER,
-			new Map<unknown, Rows>([
-				[gameGroup, [OTHER_GROUP]],
-				[gameVariant, []],
-			])
-		);
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OTHER_GROUP],
+			[VARIANT_TABLE]: [],
+		});
 		await expectTrpcCode(
 			caller.create({ label: "Brand New", groupId: OTHER_GROUP.id }),
 			"FORBIDDEN"
@@ -324,13 +258,10 @@ describe("gameVariant.create groupId ownership (SA2-183)", () => {
 	});
 
 	it("rejects a groupId that does not exist with FORBIDDEN (not NOT_FOUND)", async () => {
-		const { caller } = gameVariantCaller(
-			CUR_OWNER,
-			new Map<unknown, Rows>([
-				[gameGroup, []],
-				[gameVariant, []],
-			])
-		);
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [],
+			[VARIANT_TABLE]: [],
+		});
 		await expectTrpcCode(
 			caller.create({ label: "Brand New", groupId: "missing" }),
 			"FORBIDDEN"
@@ -338,16 +269,13 @@ describe("gameVariant.create groupId ownership (SA2-183)", () => {
 	});
 
 	it("accepts a groupId owned by the caller", async () => {
-		const { caller } = gameVariantCaller(
-			CUR_OWNER,
-			new Map<unknown, Rows>([
-				[gameGroup, [OWNED_GROUP]],
-				// A dummy pre-existing row so the mock's post-insert lookup (which
-				// does not actually filter by the fresh id — see the mock's doc
-				// comment) resolves to something truthy.
-				[gameVariant, [{ id: "placeholder", userId: CUR_OWNER, label: "X" }]],
-			])
-		);
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			// A dummy pre-existing row so the mock's post-insert lookup (which
+			// does not actually filter by the fresh id — see test-utils.ts's
+			// createChainableMockDb doc comment) resolves to something truthy.
+			[VARIANT_TABLE]: [{ id: "placeholder", userId: CUR_OWNER, label: "X" }],
+		});
 		await expect(
 			caller.create({ label: "Brand New", groupId: OWNED_GROUP.id })
 		).resolves.toBeDefined();
@@ -356,14 +284,12 @@ describe("gameVariant.create groupId ownership (SA2-183)", () => {
 
 describe("gameVariant.update groupId ownership (SA2-183)", () => {
 	it("rejects a groupId owned by another user with FORBIDDEN", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OTHER_GROUP]],
-			[
-				gameVariant,
-				[{ id: "gv-1", userId: CUR_OWNER, label: "Mine", groupId: "grp-1" }],
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OTHER_GROUP],
+			[VARIANT_TABLE]: [
+				{ id: "gv-1", userId: CUR_OWNER, label: "Mine", groupId: "grp-1" },
 			],
-		]);
-		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+		});
 		await expectTrpcCode(
 			caller.update({ id: "gv-1", groupId: OTHER_GROUP.id }),
 			"FORBIDDEN"
@@ -373,13 +299,10 @@ describe("gameVariant.update groupId ownership (SA2-183)", () => {
 
 describe("gameVariant.create collision guard (CONFLICT)", () => {
 	it("rejects the reserved key 'mix' (case-insensitive)", async () => {
-		const { caller } = gameVariantCaller(
-			CUR_OWNER,
-			new Map<unknown, Rows>([
-				[gameGroup, [OWNED_GROUP]],
-				[gameVariant, []],
-			])
-		);
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [],
+		});
 		await expectTrpcCode(
 			caller.create({ label: "mix", groupId: OWNED_GROUP.id }),
 			"CONFLICT"
@@ -391,13 +314,10 @@ describe("gameVariant.create collision guard (CONFLICT)", () => {
 	});
 
 	it("rejects the reserved label 'Mixed Game' (case-insensitive)", async () => {
-		const { caller } = gameVariantCaller(
-			CUR_OWNER,
-			new Map<unknown, Rows>([
-				[gameGroup, [OWNED_GROUP]],
-				[gameVariant, []],
-			])
-		);
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [],
+		});
 		await expectTrpcCode(
 			caller.create({ label: "mixed game", groupId: OWNED_GROUP.id }),
 			"CONFLICT"
@@ -405,14 +325,12 @@ describe("gameVariant.create collision guard (CONFLICT)", () => {
 	});
 
 	it("rejects a label colliding with the caller's existing variant label (case-insensitive)", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[
-				gameVariant,
-				[{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 }],
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [
+				{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 },
 			],
-		]);
-		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+		});
 		await expectTrpcCode(
 			caller.create({ label: "my mix", groupId: OWNED_GROUP.id }),
 			"CONFLICT"
@@ -420,26 +338,23 @@ describe("gameVariant.create collision guard (CONFLICT)", () => {
 	});
 
 	it("accepts a genuinely new label with no collision", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[
-				gameVariant,
-				[{ id: "gv-1", userId: CUR_OWNER, label: "Other Mix", sortOrder: 0 }],
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [
+				{ id: "gv-1", userId: CUR_OWNER, label: "Other Mix", sortOrder: 0 },
 			],
-		]);
-		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+		});
 		await expect(
 			caller.create({ label: "Brand New", groupId: OWNED_GROUP.id })
 		).resolves.toBeDefined();
 	});
 
 	it("rejects a label colliding with the caller's existing named-mix label (case-insensitive, cross-namespace)", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[gameVariant, []],
-			[gameMix, [{ id: "mix-1", userId: CUR_OWNER, label: "HORSE" }]],
-		]);
-		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [],
+			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "HORSE" }],
+		});
 		await expectTrpcCode(
 			caller.create({ label: "horse", groupId: OWNED_GROUP.id }),
 			"CONFLICT"
@@ -447,113 +362,148 @@ describe("gameVariant.create collision guard (CONFLICT)", () => {
 	});
 
 	it("accepts a label with no collision in either the variant or mix namespace", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[
-				gameVariant,
-				// A dummy pre-existing row so the mock's post-insert lookup (which
-				// does not actually filter by the fresh id) resolves to something
-				// truthy.
-				[{ id: "placeholder", userId: CUR_OWNER, label: "X", sortOrder: 0 }],
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			// A dummy pre-existing row so the mock's post-insert lookup (which
+			// does not actually filter by the fresh id) resolves to something
+			// truthy.
+			[VARIANT_TABLE]: [
+				{ id: "placeholder", userId: CUR_OWNER, label: "X", sortOrder: 0 },
 			],
-			[gameMix, [{ id: "mix-1", userId: CUR_OWNER, label: "8-Game" }]],
-		]);
-		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "8-Game" }],
+		});
 		await expect(
 			caller.create({ label: "Brand New", groupId: OWNED_GROUP.id })
 		).resolves.toBeDefined();
 	});
 
 	it("stamps the created row with the caller's userId, groupId, and a generated id", async () => {
-		const { caller, inserted } = gameVariantCaller(
-			CUR_OWNER,
-			new Map<unknown, Rows>([
-				[gameGroup, [OWNED_GROUP]],
-				[gameVariant, []],
-			])
-		);
+		const { caller, inserted } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [],
+		});
 		await caller.create({ label: "Brand New", groupId: OWNED_GROUP.id });
-		expect(inserted).toHaveLength(1);
-		expect(inserted[0]).toMatchObject({
+		expect(inserted[VARIANT_TABLE]).toHaveLength(1);
+		expect(inserted[VARIANT_TABLE]?.[0]).toMatchObject({
 			userId: CUR_OWNER,
 			label: "Brand New",
 			groupId: OWNED_GROUP.id,
 			builtinKey: null,
 			sortOrder: 0,
 		});
-		expect(typeof inserted[0]?.id).toBe("string");
+		expect(
+			typeof (inserted[VARIANT_TABLE]?.[0] as Record<string, unknown>)?.id
+		).toBe("string");
 	});
 
 	it("sets sortOrder to (max existing sortOrder) + 1", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[
-				gameVariant,
-				[
-					{ id: "gv-1", userId: CUR_OWNER, label: "A", sortOrder: 3 },
-					{ id: "gv-2", userId: CUR_OWNER, label: "B", sortOrder: 7 },
-				],
+		const { caller, inserted } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [
+				{ id: "gv-1", userId: CUR_OWNER, label: "A", sortOrder: 3 },
+				{ id: "gv-2", userId: CUR_OWNER, label: "B", sortOrder: 7 },
 			],
-		]);
-		const { caller, inserted } = gameVariantCaller(CUR_OWNER, rows);
+		});
 		await caller.create({ label: "Brand New", groupId: OWNED_GROUP.id });
-		expect(inserted[0]?.sortOrder).toBe(8);
+		expect(
+			(inserted[VARIANT_TABLE]?.[0] as Record<string, unknown>)?.sortOrder
+		).toBe(8);
 	});
 
 	it("starts sortOrder at 0 when the caller has no existing variants", async () => {
-		const { caller, inserted } = gameVariantCaller(
-			CUR_OWNER,
-			new Map<unknown, Rows>([
-				[gameGroup, [OWNED_GROUP]],
-				[gameVariant, []],
-			])
-		);
+		const { caller, inserted } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [],
+		});
 		await caller.create({ label: "First", groupId: OWNED_GROUP.id });
-		expect(inserted[0]?.sortOrder).toBe(0);
+		expect(
+			(inserted[VARIANT_TABLE]?.[0] as Record<string, unknown>)?.sortOrder
+		).toBe(0);
+	});
+
+	it("converts a (user_id, label) unique-constraint violation from the insert into the same CONFLICT (c14 backstop)", async () => {
+		const { caller, db } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [],
+		});
+		db.insert = () => ({
+			values: () => {
+				throw new Error(
+					"UNIQUE constraint failed: game_variant.user_id, game_variant.label"
+				);
+			},
+		});
+		await expectTrpcCode(
+			caller.create({ label: "Brand New", groupId: OWNED_GROUP.id }),
+			"CONFLICT"
+		);
 	});
 });
 
 describe("gameVariant ownership (uniform FORBIDDEN, SA2-183)", () => {
 	for (const op of ["update", "delete"] as const) {
 		it(`${op} throws FORBIDDEN for a row owned by another user`, async () => {
-			const rows = new Map<unknown, Rows>([
-				[gameGroup, [OWNED_GROUP]],
-				[gameVariant, [{ id: "gv-1", userId: CUR_OTHER, label: "Their Mix" }]],
-			]);
-			const { caller } = gameVariantCaller(CUR_OWNER, rows);
+			const { caller } = gameVariantCaller(CUR_OWNER, {
+				[GROUP_TABLE]: [OWNED_GROUP],
+				[VARIANT_TABLE]: [
+					{ id: "gv-1", userId: CUR_OTHER, label: "Their Mix" },
+				],
+			});
 			await expectTrpcCode(caller[op]({ id: "gv-1" }), "FORBIDDEN");
 		});
 
 		it(`${op} throws FORBIDDEN (not NOT_FOUND) for a missing row`, async () => {
-			const rows = new Map<unknown, Rows>([
-				[gameGroup, [OWNED_GROUP]],
-				[gameVariant, []],
-			]);
-			const { caller } = gameVariantCaller(CUR_OWNER, rows);
+			const { caller } = gameVariantCaller(CUR_OWNER, {
+				[GROUP_TABLE]: [OWNED_GROUP],
+				[VARIANT_TABLE]: [],
+			});
 			await expectTrpcCode(caller[op]({ id: "missing" }), "FORBIDDEN");
 		});
 	}
 
 	it("update resolves for a row owned by the caller", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[
-				gameVariant,
-				[{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 }],
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [
+				{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 },
 			],
-		]);
-		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+		});
 		await expect(
 			caller.update({ id: "gv-1", label: "Renamed Mix" })
 		).resolves.toBeDefined();
 	});
 
 	it("delete resolves for a row owned by the caller", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[gameVariant, [{ id: "gv-1", userId: CUR_OWNER, label: "My Mix" }]],
-		]);
-		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [{ id: "gv-1", userId: CUR_OWNER, label: "My Mix" }],
+		});
+		await expect(caller.delete({ id: "gv-1" })).resolves.toEqual({
+			success: true,
+		});
+	});
+});
+
+describe("gameVariant.delete in-use rejection (c07)", () => {
+	it("rejects with CONFLICT when a mix references the id", async () => {
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [{ id: "gv-1", userId: CUR_OWNER, label: "My Mix" }],
+			[MIX_TABLE]: [
+				{ id: "mix-1", userId: CUR_OWNER, label: "HORSE", games: ["gv-1"] },
+			],
+		});
+		await expectTrpcCode(caller.delete({ id: "gv-1" }), "CONFLICT");
+	});
+
+	it("succeeds when no mix references the id", async () => {
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [{ id: "gv-1", userId: CUR_OWNER, label: "My Mix" }],
+			[MIX_TABLE]: [
+				{ id: "mix-1", userId: CUR_OWNER, label: "HORSE", games: ["gv-2"] },
+			],
+		});
 		await expect(caller.delete({ id: "gv-1" })).resolves.toEqual({
 			success: true,
 		});
@@ -562,31 +512,25 @@ describe("gameVariant ownership (uniform FORBIDDEN, SA2-183)", () => {
 
 describe("gameVariant.update excludes self from collision", () => {
 	it("succeeds when keeping the row's own (unchanged) label", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[
-				gameVariant,
-				[{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 }],
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [
+				{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 },
 			],
-		]);
-		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+		});
 		await expect(
 			caller.update({ id: "gv-1", label: "My Mix" })
 		).resolves.toBeDefined();
 	});
 
 	it("still rejects renaming to a different existing variant label (CONFLICT)", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[
-				gameVariant,
-				[
-					{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 },
-					{ id: "gv-2", userId: CUR_OWNER, label: "Other Mix", sortOrder: 1 },
-				],
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [
+				{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 },
+				{ id: "gv-2", userId: CUR_OWNER, label: "Other Mix", sortOrder: 1 },
 			],
-		]);
-		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+		});
 		await expectTrpcCode(
 			caller.update({ id: "gv-1", label: "Other Mix" }),
 			"CONFLICT"
@@ -594,15 +538,13 @@ describe("gameVariant.update excludes self from collision", () => {
 	});
 
 	it("rejects renaming to an existing named-mix label (CONFLICT, cross-namespace)", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[
-				gameVariant,
-				[{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 }],
+		const { caller } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [
+				{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 },
 			],
-			[gameMix, [{ id: "mix-1", userId: CUR_OWNER, label: "10-Game" }]],
-		]);
-		const { caller } = gameVariantCaller(CUR_OWNER, rows);
+			[MIX_TABLE]: [{ id: "mix-1", userId: CUR_OWNER, label: "10-Game" }],
+		});
 		await expectTrpcCode(
 			caller.update({ id: "gv-1", label: "10-Game" }),
 			"CONFLICT"
@@ -612,14 +554,12 @@ describe("gameVariant.update excludes self from collision", () => {
 
 describe("gameVariant write-IDOR guard (SA2-176)", () => {
 	it("update WHERE binds both the id and the caller's userId", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[
-				gameVariant,
-				[{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 }],
+		const { caller, updateWhereParams } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [
+				{ id: "gv-1", userId: CUR_OWNER, label: "My Mix", sortOrder: 0 },
 			],
-		]);
-		const { caller, updateWhereParams } = gameVariantCaller(CUR_OWNER, rows);
+		});
 		await caller.update({ id: "gv-1", label: "Renamed" });
 		expect(updateWhereParams).toHaveLength(1);
 		expect(updateWhereParams[0]).toContain("gv-1");
@@ -627,11 +567,10 @@ describe("gameVariant write-IDOR guard (SA2-176)", () => {
 	});
 
 	it("delete WHERE binds both the id and the caller's userId", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[gameVariant, [{ id: "gv-1", userId: CUR_OWNER, label: "My Mix" }]],
-		]);
-		const { caller, deleteWhereParams } = gameVariantCaller(CUR_OWNER, rows);
+		const { caller, deleteWhereParams } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [{ id: "gv-1", userId: CUR_OWNER, label: "My Mix" }],
+		});
 		await caller.delete({ id: "gv-1" });
 		expect(deleteWhereParams).toHaveLength(1);
 		expect(deleteWhereParams[0]).toContain("gv-1");
@@ -654,36 +593,27 @@ describe("gameVariant.list scoping", () => {
 	});
 
 	it("self-seeds when the caller has zero groups and zero variants", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, []],
-			[gameVariant, []],
-		]);
-		const { caller, inserted } = gameVariantCaller(CUR_OWNER, rows);
+		const { caller, inserted } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [],
+			[VARIANT_TABLE]: [],
+		});
 		await caller.list();
-		// Seeding now also inserts 3 builtin mixes (game-mix rework) alongside
-		// groups/variants — mix rows carry a builtinKey too, so they're
-		// distinguished from group rows by their `games` array.
-		const groupInserts = inserted.filter(
-			(r) =>
-				r.builtinKey !== undefined &&
-				r.groupId === undefined &&
-				r.games === undefined
-		);
-		const variantInserts = inserted.filter((r) => r.groupId !== undefined);
-		const mixInserts = inserted.filter((r) => Array.isArray(r.games));
-		expect(groupInserts).toHaveLength(3);
-		expect(variantInserts).toHaveLength(21);
-		expect(mixInserts).toHaveLength(3);
+		// Seeding inserts 3 builtin groups + 21 builtin variants + 3 builtin
+		// mixes (game-mix rework) in one batch.
+		expect(inserted[GROUP_TABLE]).toHaveLength(3);
+		expect(inserted[VARIANT_TABLE]).toHaveLength(21);
+		expect(inserted[MIX_TABLE]).toHaveLength(3);
 	});
 
 	it("does not re-seed when the caller already has a group (even with zero variants)", async () => {
-		const rows = new Map<unknown, Rows>([
-			[gameGroup, [OWNED_GROUP]],
-			[gameVariant, []],
-		]);
-		const { caller, inserted } = gameVariantCaller(CUR_OWNER, rows);
+		const { caller, inserted } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [],
+		});
 		await caller.list();
-		expect(inserted).toHaveLength(0);
+		expect(inserted[GROUP_TABLE]).toBeUndefined();
+		expect(inserted[VARIANT_TABLE]).toBeUndefined();
+		expect(inserted[MIX_TABLE]).toBeUndefined();
 	});
 });
 

@@ -1,3 +1,4 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { mixGamesSchema } from "@sapphire2/db/schemas/game";
@@ -90,7 +91,7 @@ export const ringGameRouter = router({
 			z.object({
 				roomId: z.string(),
 				name: z.string().min(1),
-				variant: z.string().default("NL Hold'em"),
+				variant: z.string().default(DEFAULT_VARIANT_LABEL),
 				mixGames: mixGamesSchema.nullish(),
 				blind1: z.number().int().optional(),
 				blind2: z.number().int().optional(),

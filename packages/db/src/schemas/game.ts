@@ -7,6 +7,12 @@
 // these exact objects — never a looser inline copy (api-data-integrity.md).
 import z from "zod";
 
+// Shared by mixGamesSchema/levelGamesSchema below AND by the game-mix
+// router's master-mix group-span guard (packages/api/src/routers/game-mix.ts)
+// so the two limits cannot drift apart (c58) — a master mix spanning more
+// groups than a session mix can ever hold would silently fail/truncate later.
+export const MAX_MIX_GROUPS = 12;
+
 export const anteTypeSchema = z.enum(["none", "all", "bb"]);
 
 export const mixGameGroupSchema = z.object({
@@ -46,7 +52,7 @@ function totalVariantCount(groups: { variants: string[] }[]): number {
 export const mixGamesSchema = z
 	.array(mixGameGroupSchema)
 	.min(1)
-	.max(12)
+	.max(MAX_MIX_GROUPS)
 	.refine(hasNoDuplicateVariants, {
 		message: "Each game may appear in only one group",
 	})
@@ -65,7 +71,7 @@ export type LevelGameGroup = z.infer<typeof levelGameGroupSchema>;
 export const levelGamesSchema = z
 	.array(levelGameGroupSchema)
 	.min(1)
-	.max(12)
+	.max(MAX_MIX_GROUPS)
 	.refine(hasNoDuplicateVariants, {
 		message: "Each game may appear in only one group",
 	});

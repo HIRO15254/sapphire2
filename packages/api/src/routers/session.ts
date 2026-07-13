@@ -1,8 +1,15 @@
 import {
+	DEFAULT_VARIANT_LABEL,
+	variantDisplayLabel,
+} from "@sapphire2/db/constants/game-variants";
+import {
 	currency,
 	currencyTransaction,
 	transactionType,
 } from "@sapphire2/db/schema/currency";
+import { gameGroup } from "@sapphire2/db/schema/game-group";
+import { gameMix } from "@sapphire2/db/schema/game-mix";
+import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -42,37 +49,13 @@ import {
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { type BatchStatement, runBatch } from "../lib/batch";
 
 const PAGE_SIZE = 20;
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
-
-/**
- * A single statement accepted by D1's `db.batch([...])` (a drizzle query builder
- * passed UN-awaited). Derived from the driver's own `batch` signature so it
- * tracks the installed drizzle version. Used by the SA2-116 atomic-write
- * helpers below.
- */
-type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
-
-/**
- * Commit a group of writes atomically. D1's `db.batch` requires a NON-EMPTY
- * tuple; an empty array is treated as a no-op (nothing to write). Every caller
- * here builds its statements first, then hands the whole group to a single
- * `batch`, so a mid-sequence failure rolls the entire group back instead of
- * leaving a committed DELETE with its re-INSERT missing (SA2-116).
- */
-async function runBatch(
-	db: DbInstance,
-	statements: BatchStatement[]
-): Promise<void> {
-	if (statements.length === 0) {
-		return;
-	}
-	await db.batch(statements as [BatchStatement, ...BatchStatement[]]);
-}
 
 async function validateSessionOwnership(
 	db: DbInstance,
@@ -532,62 +515,189 @@ async function validateRingGameOwnershipBranch(
 	}
 }
 
+async function validateRoomOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<void> {
+	const [found] = await db.select().from(room).where(eq(room.id, entityId));
+	if (!found) {
+		throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
+	}
+	if (found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this room",
+		});
+	}
+}
+
+async function validateTournamentOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<void> {
+	const [found] = await db
+		.select()
+		.from(tournament)
+		.where(eq(tournament.id, entityId));
+	if (!found) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Tournament not found",
+		});
+	}
+	// A tournament has no userId of its own; ownership is derived from its
+	// room. Without this check a caller could pass another user's
+	// tournamentId to snapshot their blind structure / chip purchases (IDOR).
+	await assertRoomOwnedBy(
+		db,
+		found.roomId,
+		userId,
+		"You do not own this tournament"
+	);
+}
+
+async function validateCurrencyOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<void> {
+	const [found] = await db
+		.select()
+		.from(currency)
+		.where(eq(currency.id, entityId));
+	if (!found) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Currency not found",
+		});
+	}
+	if (found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this currency",
+		});
+	}
+}
+
+async function validateGameGroupOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<typeof gameGroup.$inferSelect> {
+	const [found] = await db
+		.select()
+		.from(gameGroup)
+		.where(eq(gameGroup.id, entityId));
+	if (!found || found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this game group",
+		});
+	}
+	return found;
+}
+
+async function validateGameVariantOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<typeof gameVariant.$inferSelect> {
+	const [found] = await db
+		.select()
+		.from(gameVariant)
+		.where(eq(gameVariant.id, entityId));
+	if (!found || found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this game variant",
+		});
+	}
+	return found;
+}
+
+async function validateGameMixOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<typeof gameMix.$inferSelect> {
+	const [found] = await db
+		.select()
+		.from(gameMix)
+		.where(eq(gameMix.id, entityId));
+	if (!found || found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this mix",
+		});
+	}
+	return found;
+}
+
+/**
+ * Uniform-FORBIDDEN ownership contract (SA2-183): fetch by id only, then
+ * treat "missing" and "owned by someone else" identically. Shared by the
+ * game-group/game-variant/game-mix routers, which previously hand-rolled this
+ * exact check three times (`validateGameGroupOwnership`,
+ * `validateGameVariantOwnership`, `validateGameMixOwnership` — c39). Each
+ * entity type's check is factored into its own `validate*OwnershipBranch`
+ * helper above so this dispatcher stays simple.
+ */
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "gameGroup",
+	entityId: string,
+	userId: string
+): Promise<typeof gameGroup.$inferSelect>;
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "gameMix",
+	entityId: string,
+	userId: string
+): Promise<typeof gameMix.$inferSelect>;
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "gameVariant",
+	entityId: string,
+	userId: string
+): Promise<typeof gameVariant.$inferSelect>;
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "currency" | "ringGame" | "room" | "tournament",
 	entityId: string,
 	userId: string
-) {
-	if (entityType === "room") {
-		const [found] = await db.select().from(room).where(eq(room.id, entityId));
-		if (!found) {
-			throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-		}
-		if (found.userId !== userId) {
-			throw new TRPCError({
-				code: "FORBIDDEN",
-				message: "You do not own this room",
-			});
-		}
-	} else if (entityType === "ringGame") {
-		await validateRingGameOwnershipBranch(db, entityId, userId);
-	} else if (entityType === "tournament") {
-		const [found] = await db
-			.select()
-			.from(tournament)
-			.where(eq(tournament.id, entityId));
-		if (!found) {
-			throw new TRPCError({
-				code: "NOT_FOUND",
-				message: "Tournament not found",
-			});
-		}
-		// A tournament has no userId of its own; ownership is derived from its
-		// room. Without this check a caller could pass another user's
-		// tournamentId to snapshot their blind structure / chip purchases (IDOR).
-		await assertRoomOwnedBy(
-			db,
-			found.roomId,
-			userId,
-			"You do not own this tournament"
-		);
-	} else if (entityType === "currency") {
-		const [found] = await db
-			.select()
-			.from(currency)
-			.where(eq(currency.id, entityId));
-		if (!found) {
-			throw new TRPCError({
-				code: "NOT_FOUND",
-				message: "Currency not found",
-			});
-		}
-		if (found.userId !== userId) {
-			throw new TRPCError({
-				code: "FORBIDDEN",
-				message: "You do not own this currency",
-			});
-		}
+): Promise<void>;
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType:
+		| "currency"
+		| "gameGroup"
+		| "gameMix"
+		| "gameVariant"
+		| "ringGame"
+		| "room"
+		| "tournament",
+	entityId: string,
+	userId: string
+): Promise<unknown> {
+	switch (entityType) {
+		case "room":
+			return await validateRoomOwnershipBranch(db, entityId, userId);
+		case "ringGame":
+			return await validateRingGameOwnershipBranch(db, entityId, userId);
+		case "tournament":
+			return await validateTournamentOwnershipBranch(db, entityId, userId);
+		case "currency":
+			return await validateCurrencyOwnershipBranch(db, entityId, userId);
+		case "gameGroup":
+			return await validateGameGroupOwnershipBranch(db, entityId, userId);
+		case "gameVariant":
+			return await validateGameVariantOwnershipBranch(db, entityId, userId);
+		case "gameMix":
+			return await validateGameMixOwnershipBranch(db, entityId, userId);
+		default:
+			return undefined;
 	}
 }
 
@@ -826,7 +936,12 @@ const cashGameCreateSchema = z.object({
 	// ringGameId is also provided, these override the parent values; when
 	// no master is referenced they define the rule wholesale.
 	ruleName: z.string().min(1).optional(),
-	variant: z.string().default("NL Hold'em"),
+	// Plain optional (mirrors tournamentCreateSchema.variant) — a schema-level
+	// default here would coerce an omitted variant to a fixed string BEFORE it
+	// ever reaches mergeCashSnapshotWithParent, permanently defeating
+	// inheritance from the ring game (c10). The "NL Hold'em" fallback for the
+	// true no-parent case lives solely in defaultCashSnapshot.
+	variant: z.string().optional(),
 	mixGames: mixGamesSchema.nullish(),
 	blind1: z.number().int().optional(),
 	blind2: z.number().int().optional(),
@@ -2044,7 +2159,7 @@ function pick<T>(override: T | undefined, fallback: T): T {
 function defaultCashSnapshot(input: CashRuleInput): CashRuleSnapshot {
 	return {
 		ruleName: input.ruleName ?? "Untitled",
-		variant: input.variant ?? "NL Hold'em",
+		variant: input.variant ?? DEFAULT_VARIANT_LABEL,
 		mixGames: input.mixGames ?? null,
 		blind1: input.blind1 ?? null,
 		blind2: input.blind2 ?? null,
@@ -2106,7 +2221,17 @@ async function buildCashGameSessionDetailStatements(
 
 	if (!ringGameId) {
 		ringGameId = crypto.randomUUID();
-		const derivedName = `${snapshot.variant} ${snapshot.blind1 ?? 0}/${snapshot.blind2 ?? 0}`;
+		// A mix game (or any rule with no blinds at all) has no single
+		// blind1/blind2 pair to show, so `mix 0/0` is meaningless — fall back to
+		// the display label alone (c11). `variantDisplayLabel` also maps the
+		// "mix" pseudo-variant key to its "Mixed Game" display string.
+		const displayLabel = variantDisplayLabel(snapshot.variant);
+		const isBlindless =
+			snapshot.mixGames !== null ||
+			(snapshot.blind1 === null && snapshot.blind2 === null);
+		const derivedName = isBlindless
+			? displayLabel
+			: `${displayLabel} ${snapshot.blind1 ?? 0}/${snapshot.blind2 ?? 0}`;
 		statements.push(
 			db.insert(ringGame).values({
 				id: ringGameId,
@@ -2180,7 +2305,7 @@ async function resolveTournamentRuleSnapshot(
 ): Promise<TournamentRuleSnapshot> {
 	let base: TournamentRuleSnapshot = {
 		ruleName: input.ruleName ?? "Untitled",
-		variant: input.variant ?? "NL Hold'em",
+		variant: input.variant ?? DEFAULT_VARIANT_LABEL,
 		tournamentBuyIn: input.tournamentBuyIn ?? null,
 		entryFee: input.entryFee ?? null,
 		startingStack: input.startingStack ?? null,

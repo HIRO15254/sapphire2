@@ -1,3 +1,4 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import {
 	cashSessionEndPayload,
 	cashSessionStartPayload,
@@ -622,6 +623,11 @@ export const liveCashGameSessionRouter = router({
 				} else {
 					await ctx.db.insert(sessionCashDetail).values({
 						sessionId: input.id,
+						// Explicit fallback so this insert never relies on the column
+						// default (F5/c12) — overridden below by
+						// cashDetailUpdate.variant when a ring game snapshot already
+						// supplied one.
+						variant: DEFAULT_VARIANT_LABEL,
 						...cashDetailUpdate,
 					});
 				}

@@ -200,6 +200,25 @@ describe("session router input validation", () => {
 		expect(schema.safeParse(CASH_BASE).success).toBe(true);
 	});
 
+	it("create leaves cash_game variant undefined when omitted (c10: no schema default that would defeat ring-game inheritance)", () => {
+		const schema = (
+			appRouter.session.create as unknown as {
+				_def: { inputs: unknown[] };
+			}
+		)._def.inputs[0] as {
+			safeParse: (v: unknown) => {
+				success: true;
+				data: { variant?: string };
+			};
+		};
+		const parsed = schema.safeParse(CASH_BASE) as unknown as {
+			success: true;
+			data: { variant?: string };
+		};
+		expect(parsed.success).toBe(true);
+		expect(parsed.data.variant).toBeUndefined();
+	});
+
 	it("create accepts a valid tournament session (entryFee defaults to 0)", () => {
 		const schema = (
 			appRouter.session.create as unknown as {
@@ -1095,6 +1114,70 @@ describe("session.create auto-generated ring game ownership (SA2-181)", () => {
 	});
 });
 
+describe("session.create auto-generated ring game derived name (c11)", () => {
+	const CALLER = "user-1";
+
+	function callerFor() {
+		const { db, inserted } = createChainableMockDb({ select: {} });
+		const caller = appRouter.createCaller({
+			session: { user: { id: CALLER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+		return { caller, inserted };
+	}
+
+	it("derives 'Variant blind1/blind2' when blinds are provided (non-mix)", async () => {
+		const { caller, inserted } = callerFor();
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+			blind1: 1,
+			blind2: 2,
+		});
+		const [created] = inserted.ring_game ?? [];
+		expect(created).toMatchObject({ name: "NL Hold'em 1/2" });
+	});
+
+	it("derives the display label alone (no '0/0' suffix) for a mix rule with no direct blinds", async () => {
+		const { caller, inserted } = callerFor();
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+			variant: "mix",
+			mixGames: [
+				{
+					name: "Limit",
+					variants: ["nlh", "plo"],
+					blind1: 1,
+					blind2: 2,
+					blind3: null,
+					ante: null,
+					anteType: null,
+				},
+			],
+		});
+		const [created] = inserted.ring_game ?? [];
+		expect(created).toMatchObject({ name: "Mixed Game" });
+	});
+
+	it("derives the display label alone (no '0/0' suffix) for a non-mix rule with no blinds at all", async () => {
+		const { caller, inserted } = callerFor();
+		await caller.session.create({
+			type: "cash_game",
+			sessionDate: 1_700_000_000,
+			buyIn: 1000,
+			cashOut: 2000,
+			variant: "Dealer's Choice",
+		});
+		const [created] = inserted.ring_game ?? [];
+		expect(created).toMatchObject({ name: "Dealer's Choice" });
+	});
+});
+
 describe("validateTagsOwnership (SA2-177)", () => {
 	const CALLER = "user-1";
 
@@ -1212,5 +1295,38 @@ describe("cash rule snapshot: mixGames freezing", () => {
 		const db = createChainableMockDb({ select: {} });
 		const snapshot = await resolveCashRuleSnapshot(db as never, {});
 		expect(snapshot.mixGames).toBeNull();
+	});
+});
+
+describe("cash rule snapshot: variant inheritance (c10)", () => {
+	it("inherits the parent ring game's variant when input omits it", async () => {
+		const db = createChainableMockDb({
+			select: {
+				ring_game: [{ id: "rg-1", variant: "Pot Limit Omaha" }],
+			},
+		});
+		const snapshot = await resolveCashRuleSnapshot(db as never, {
+			ringGameId: "rg-1",
+		});
+		expect(snapshot.variant).toBe("Pot Limit Omaha");
+	});
+
+	it("lets an explicit input variant override the parent's", async () => {
+		const db = createChainableMockDb({
+			select: {
+				ring_game: [{ id: "rg-1", variant: "Pot Limit Omaha" }],
+			},
+		});
+		const snapshot = await resolveCashRuleSnapshot(db as never, {
+			ringGameId: "rg-1",
+			variant: "Short Deck",
+		});
+		expect(snapshot.variant).toBe("Short Deck");
+	});
+
+	it('defaults variant to "NL Hold\'em" with no master and no input', async () => {
+		const db = createChainableMockDb({ select: {} });
+		const snapshot = await resolveCashRuleSnapshot(db as never, {});
+		expect(snapshot.variant).toBe("NL Hold'em");
 	});
 });

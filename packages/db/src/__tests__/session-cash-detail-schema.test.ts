@@ -1,6 +1,7 @@
 import { getTableColumns } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import { sessionCashDetail } from "../schema/session-cash-detail";
 
 describe("SessionCashDetail schema — columns", () => {
@@ -61,8 +62,8 @@ describe("SessionCashDetail schema — columns", () => {
 		expect(columns.ruleName.default).toBe("Untitled");
 	});
 
-	it("variant has default 'nlh' so ADD COLUMN succeeds on existing rows", () => {
-		expect(columns.variant.default).toBe("nlh");
+	it("variant defaults to DEFAULT_VARIANT_LABEL so ADD COLUMN succeeds on existing rows (c12: not the stale 'nlh' key)", () => {
+		expect(columns.variant.default).toBe(DEFAULT_VARIANT_LABEL);
 	});
 
 	it("blind / ante / size snapshot columns are nullable", () => {

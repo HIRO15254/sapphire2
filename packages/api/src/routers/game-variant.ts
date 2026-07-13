@@ -1,15 +1,15 @@
-import {
-	MIX_VARIANT,
-	MIX_VARIANT_LABEL,
-} from "@sapphire2/db/constants/game-variants";
-import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, max } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { seedDefaultGameData } from "../services/seed-game-data";
+import {
+	assertLabelNamespaceAvailable,
+	isUniqueConstraintViolation,
+} from "./_game-masters";
+import { validateEntityOwnership } from "./session";
 
 type Db = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -18,117 +18,32 @@ type Db = Parameters<
 const labelSchema = z.string().trim().min(1).max(30);
 const shortLabelSchema = z.string().trim().min(1).max(15).nullish();
 
-// The mix pseudo-variant is a MODE, not a per-user row — its key and display
-// label are reserved so a real game-variant row can never collide with it.
-const RESERVED_LABELS = new Set(
-	[MIX_VARIANT, MIX_VARIANT_LABEL].map((s) => s.toLowerCase())
-);
-
-/**
- * Fetches the row by id; if it does not exist OR is owned by someone else,
- * throws a uniform FORBIDDEN. Never distinguishes "missing" from "owned by
- * another user" — that distinction is an existence oracle (SA2-183).
- */
-async function validateGameVariantOwnership(
-	db: Db,
-	id: string,
-	userId: string
-) {
-	const [found] = await db
-		.select()
-		.from(gameVariant)
-		.where(eq(gameVariant.id, id));
-
-	if (!found || found.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this game variant",
-		});
-	}
-
-	return found;
-}
-
-/** Same uniform-FORBIDDEN ownership contract as {@link validateGameVariantOwnership}. */
-async function validateGameGroupOwnership(db: Db, id: string, userId: string) {
-	const [found] = await db.select().from(gameGroup).where(eq(gameGroup.id, id));
-
-	if (!found || found.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this game group",
-		});
-	}
-
-	return found;
-}
-
-async function assertLabelAvailable(
-	db: Db,
-	userId: string,
-	label: string,
-	excludeId?: string
-): Promise<void> {
-	const normalized = label.trim().toLowerCase();
-	if (RESERVED_LABELS.has(normalized)) {
-		throw new TRPCError({
-			code: "CONFLICT",
-			message: "This label is reserved for the mix mode",
-		});
-	}
-
-	const existing = await db
-		.select()
-		.from(gameVariant)
-		.where(eq(gameVariant.userId, userId));
-
-	const collides = existing.some(
-		(row) =>
-			row.id !== excludeId && row.label.trim().toLowerCase() === normalized
-	);
-	if (collides) {
-		throw new TRPCError({
-			code: "CONFLICT",
-			message: "You already have a game variant with this label",
-		});
-	}
-
-	// A named mix's label is chosen from the same client-side select as a
-	// plain game variant (both freeze into the same `variant` string once
-	// picked), so the two namespaces must never collide (see game-mix.ts's
-	// assertMixLabelAvailable for the mirror-image check).
-	const existingMixes = await db
-		.select()
-		.from(gameMix)
-		.where(eq(gameMix.userId, userId));
-	const collidesMix = existingMixes.some(
-		(row) => row.label.trim().toLowerCase() === normalized
-	);
-	if (collidesMix) {
-		throw new TRPCError({
-			code: "CONFLICT",
-			message: "You already have a mix with this label",
-		});
-	}
-}
-
 async function nextSortOrder(db: Db, userId: string): Promise<number> {
-	const rows = await db
-		.select({ sortOrder: gameVariant.sortOrder })
+	const [row] = await db
+		.select({ maxSort: max(gameVariant.sortOrder) })
 		.from(gameVariant)
 		.where(eq(gameVariant.userId, userId));
-	const maxSortOrder = rows.reduce((max, r) => Math.max(max, r.sortOrder), -1);
-	return maxSortOrder + 1;
+	return row?.maxSort == null ? 0 : row.maxSort + 1;
 }
 
 export const gameVariantRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
 		const userId = ctx.session.user.id;
+		const rows = await ctx.db
+			.select()
+			.from(gameVariant)
+			.where(eq(gameVariant.userId, userId))
+			.orderBy(asc(gameVariant.sortOrder), asc(gameVariant.label));
+		if (rows.length > 0) {
+			return rows;
+		}
 		// Both masters are per-user rows now (mix-game rework); a fully-empty
-		// account (no groups, no variants) is seeded on first read so legacy
-		// accounts that predate the auth-hook seed still get the builtin list.
+		// account (no groups, no variants, no mixes) is seeded on first read so
+		// legacy accounts that predate the auth-hook seed still get the builtin
+		// list. Only reached when THIS table is empty (c32) — seedDefaultGameData
+		// still re-checks all three tables itself (c09) so a caller who deleted
+		// only their variants (but kept a group/mix) is correctly left empty.
 		await seedDefaultGameData(ctx.db, userId);
-
 		return ctx.db
 			.select()
 			.from(gameVariant)
@@ -146,21 +61,41 @@ export const gameVariantRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateGameGroupOwnership(ctx.db, input.groupId, userId);
-			await assertLabelAvailable(ctx.db, userId, input.label);
+			// Independent guards (group ownership vs. label-namespace collision) —
+			// run concurrently (c35).
+			await Promise.all([
+				validateEntityOwnership(ctx.db, "gameGroup", input.groupId, userId),
+				assertLabelNamespaceAvailable(ctx.db, userId, input.label, {
+					self: "variant",
+				}),
+			]);
 
 			const id = crypto.randomUUID();
 			const sortOrder = await nextSortOrder(ctx.db, userId);
-			await ctx.db.insert(gameVariant).values({
-				id,
-				userId,
-				builtinKey: null,
-				label: input.label,
-				shortLabel: input.shortLabel ?? null,
-				groupId: input.groupId,
-				sortOrder,
-				updatedAt: new Date(),
-			});
+			try {
+				await ctx.db.insert(gameVariant).values({
+					id,
+					userId,
+					builtinKey: null,
+					label: input.label,
+					shortLabel: input.shortLabel ?? null,
+					groupId: input.groupId,
+					sortOrder,
+					updatedAt: new Date(),
+				});
+			} catch (error) {
+				// (user_id, label) unique-index backstop against the app-level
+				// check above racing a concurrent identical-label insert (c14,
+				// TOCTOU) — converted to the same CONFLICT the app-level check
+				// throws.
+				if (isUniqueConstraintViolation(error)) {
+					throw new TRPCError({
+						code: "CONFLICT",
+						message: "You already have a game variant with this label",
+					});
+				}
+				throw error;
+			}
 
 			const [created] = await ctx.db
 				.select()
@@ -181,18 +116,29 @@ export const gameVariantRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			const found = await validateGameVariantOwnership(
+			const found = await validateEntityOwnership(
 				ctx.db,
+				"gameVariant",
 				input.id,
 				userId
 			);
 
+			// Independent guards — run concurrently when both are present (c35).
+			const guards: Promise<unknown>[] = [];
 			if (input.groupId !== undefined) {
-				await validateGameGroupOwnership(ctx.db, input.groupId, userId);
+				guards.push(
+					validateEntityOwnership(ctx.db, "gameGroup", input.groupId, userId)
+				);
 			}
 			if (input.label !== undefined) {
-				await assertLabelAvailable(ctx.db, userId, input.label, input.id);
+				guards.push(
+					assertLabelNamespaceAvailable(ctx.db, userId, input.label, {
+						self: "variant",
+						excludeId: input.id,
+					})
+				);
 			}
+			await Promise.all(guards);
 
 			const updateData: Partial<typeof found> = { updatedAt: new Date() };
 			if (input.label !== undefined) {
@@ -208,14 +154,25 @@ export const gameVariantRouter = router({
 				updateData.sortOrder = input.sortOrder;
 			}
 
-			await ctx.db
-				.update(gameVariant)
-				.set(updateData)
-				// Bind both id AND user_id so a foreign id can never be updated via
-				// this procedure (write-IDOR, SA2-176).
-				.where(
-					and(eq(gameVariant.id, input.id), eq(gameVariant.userId, userId))
-				);
+			try {
+				await ctx.db
+					.update(gameVariant)
+					.set(updateData)
+					// Bind both id AND user_id so a foreign id can never be updated via
+					// this procedure (write-IDOR, SA2-176).
+					.where(
+						and(eq(gameVariant.id, input.id), eq(gameVariant.userId, userId))
+					);
+			} catch (error) {
+				// Same (user_id, label) unique-index backstop as create() above (c14).
+				if (isUniqueConstraintViolation(error)) {
+					throw new TRPCError({
+						code: "CONFLICT",
+						message: "You already have a game variant with this label",
+					});
+				}
+				throw error;
+			}
 
 			const [updated] = await ctx.db
 				.select()
@@ -228,14 +185,30 @@ export const gameVariantRouter = router({
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			await validateGameVariantOwnership(ctx.db, input.id, userId);
+			await validateEntityOwnership(ctx.db, "gameVariant", input.id, userId);
 
-			// `variant` columns elsewhere (ring_game.variant, session snapshots,
-			// etc.) store the display label verbatim rather than a foreign key
-			// into this table, so deleting a definition row here never corrupts
-			// past sessions/games (self-freezing design) — a free deletion, no
-			// in-use guard needed (contrast gameGroup.delete, which DOES need one
-			// since variants FK-reference groups with onDelete: "restrict").
+			// A variant referenced by one of the caller's own mixes cannot be
+			// deleted out from under it — game_mix.games stores game_variant ids,
+			// but with no FK (it's a JSON array), so this app-level check is the
+			// only guard (c07). Contrast the free deletion below it protects: once
+			// a variant is unreferenced, `variant` columns elsewhere (ring_game
+			// .variant, session snapshots, etc.) store the display label verbatim
+			// rather than a foreign key into this table, so deleting the
+			// definition row never corrupts past sessions/games (self-freezing
+			// design).
+			const mixes = await ctx.db
+				.select({ games: gameMix.games })
+				.from(gameMix)
+				.where(eq(gameMix.userId, userId));
+			const inUse = mixes.some((m) => m.games.includes(input.id));
+			if (inUse) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message:
+						"This variant is used by a game mix. Remove it from the mix first.",
+				});
+			}
+
 			await ctx.db
 				.delete(gameVariant)
 				.where(

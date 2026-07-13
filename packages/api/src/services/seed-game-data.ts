@@ -8,25 +8,10 @@ import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { eq } from "drizzle-orm";
+import type { BatchStatement } from "../lib/batch";
+import { runBatch } from "../lib/batch";
 
 type DbInstance = Database;
-
-/**
- * A single statement accepted by D1's `db.batch([...])` (a drizzle query
- * builder passed UN-awaited). Mirrors the `BatchStatement` helper type in
- * `packages/api/src/routers/session.ts`.
- */
-type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
-
-async function runBatch(
-	db: DbInstance,
-	statements: BatchStatement[]
-): Promise<void> {
-	if (statements.length === 0) {
-		return;
-	}
-	await db.batch(statements as [BatchStatement, ...BatchStatement[]]);
-}
 
 /**
  * Seed the built-in game groups + game variants + named mixes for a user. All
@@ -39,12 +24,13 @@ async function runBatch(
  * `packages/db/src/schema/game-mix.ts`).
  *
  * Idempotent guard: if the user already has ANY gameGroup row OR ANY
- * gameVariant row, this is a no-op. That respects an intentional deletion —
- * a user who cleared out their variant list should stay empty rather than
- * being re-seeded on the next read — so only a fully-empty account (neither
- * table has a row) gets seeded. Mixes ride along with this same guard (no
- * separate existence check) since they are only ever seeded alongside groups
- * and variants.
+ * gameVariant row OR ANY gameMix row, this is a no-op (c09). That respects an
+ * intentional deletion — a user who cleared out their variant list (or just
+ * their mixes) should stay empty rather than being re-seeded on the next read
+ * — so only a fully-empty account (none of the three tables has a row) gets
+ * seeded. Checking all three (not just group/variant) closes a gap where a
+ * user who deleted every group/variant but kept a custom mix would have had
+ * the builtins re-inserted underneath their remaining mix.
  *
  * Called once from the `better-auth` `user.create` hook (packages/auth) so
  * every new account starts with the full builtin list, and defensively from
@@ -73,22 +59,39 @@ export async function seedDefaultGameData(
 		return;
 	}
 
+	const [existingMix] = await db
+		.select({ id: gameMix.id })
+		.from(gameMix)
+		.where(eq(gameMix.userId, userId))
+		.limit(1);
+	if (existingMix) {
+		return;
+	}
+
 	const now = new Date();
 	const groupIdByKey = new Map(
 		DEFAULT_GAME_GROUPS.map((g) => [g.key, crypto.randomUUID()])
 	);
 
+	// .onConflictDoNothing() on every seed insert below: a concurrent
+	// double-seed race (two requests both passing the just-read empty-account
+	// guard before either commits) can no longer duplicate a builtin row once
+	// the (user_id, builtin_key) / (user_id, label) unique indexes exist (c08)
+	// — the losing statement silently no-ops instead of throwing.
 	const statements: BatchStatement[] = DEFAULT_GAME_GROUPS.map((g) =>
-		db.insert(gameGroup).values({
-			id: groupIdByKey.get(g.key) as string,
-			userId,
-			builtinKey: g.key,
-			label: g.label,
-			blind1Label: g.blind1Label,
-			blind2Label: g.blind2Label,
-			blind3Label: g.blind3Label,
-			updatedAt: now,
-		})
+		db
+			.insert(gameGroup)
+			.values({
+				id: groupIdByKey.get(g.key) as string,
+				userId,
+				builtinKey: g.key,
+				label: g.label,
+				blind1Label: g.blind1Label,
+				blind2Label: g.blind2Label,
+				blind3Label: g.blind3Label,
+				updatedAt: now,
+			})
+			.onConflictDoNothing()
 	);
 
 	const variantIdByKey = new Map<string, string>();
@@ -105,16 +108,19 @@ export async function seedDefaultGameData(
 		const variantId = crypto.randomUUID();
 		variantIdByKey.set(v.key, variantId);
 		statements.push(
-			db.insert(gameVariant).values({
-				id: variantId,
-				userId,
-				builtinKey: v.key,
-				label: v.label,
-				shortLabel: v.shortLabel,
-				groupId,
-				sortOrder: index,
-				updatedAt: now,
-			})
+			db
+				.insert(gameVariant)
+				.values({
+					id: variantId,
+					userId,
+					builtinKey: v.key,
+					label: v.label,
+					shortLabel: v.shortLabel,
+					groupId,
+					sortOrder: index,
+					updatedAt: now,
+				})
+				.onConflictDoNothing()
 		);
 	}
 
@@ -123,14 +129,17 @@ export async function seedDefaultGameData(
 			.map((key) => variantIdByKey.get(key))
 			.filter((id): id is string => id !== undefined);
 		statements.push(
-			db.insert(gameMix).values({
-				id: crypto.randomUUID(),
-				userId,
-				builtinKey: m.key,
-				label: m.label,
-				games,
-				updatedAt: now,
-			})
+			db
+				.insert(gameMix)
+				.values({
+					id: crypto.randomUUID(),
+					userId,
+					builtinKey: m.key,
+					label: m.label,
+					games,
+					updatedAt: now,
+				})
+				.onConflictDoNothing()
 		);
 	}
 

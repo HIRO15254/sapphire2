@@ -89,11 +89,35 @@ describe("GameGroup — indexes", () => {
 		expect(idxNames).toContain("gameGroup_userId_idx");
 	});
 
-	it("has no unique indexes", () => {
+	it("has exactly 2 unique indexes (builtinKey + label backstops, c08/c14)", () => {
 		const uniqueIdxs = config.indexes.filter(
 			(i) => (i.config as unknown as { unique: boolean }).unique === true
 		);
-		expect(uniqueIdxs).toHaveLength(0);
+		expect(uniqueIdxs).toHaveLength(2);
+	});
+
+	it("has a unique index on (userId, builtinKey) so a concurrent double-seed cannot duplicate a builtin row (c08)", () => {
+		const idx = config.indexes.find(
+			(i) => i.config.name === "gameGroup_userId_builtinKey_idx"
+		);
+		expect(idx).toBeDefined();
+		expect((idx?.config as unknown as { unique: boolean }).unique).toBe(true);
+		expect(idx?.config.columns.map((c) => c.name)).toEqual([
+			"user_id",
+			"builtin_key",
+		]);
+	});
+
+	it("has a unique index on (userId, label) as an exact-case backstop for the app-level label check (c14)", () => {
+		const idx = config.indexes.find(
+			(i) => i.config.name === "gameGroup_userId_label_idx"
+		);
+		expect(idx).toBeDefined();
+		expect((idx?.config as unknown as { unique: boolean }).unique).toBe(true);
+		expect(idx?.config.columns.map((c) => c.name)).toEqual([
+			"user_id",
+			"label",
+		]);
 	});
 
 	it("has no composite primary key", () => {

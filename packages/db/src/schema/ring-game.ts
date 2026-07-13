@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import type { MixGameGroup } from "../schemas/game";
 import { user } from "./auth";
 import { currency } from "./currency";
@@ -21,7 +22,7 @@ export const ringGame = sqliteTable(
 			onDelete: "cascade",
 		}),
 		name: text("name").notNull(),
-		variant: text("variant").notNull().default("nlh"),
+		variant: text("variant").notNull().default(DEFAULT_VARIANT_LABEL),
 		// Mix-game definition: named groups of games sharing one blind
 		// structure (validated by mixGamesSchema in ../schemas/game). NULL for
 		// non-mix games.

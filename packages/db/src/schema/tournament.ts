@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import type { LevelGameGroup } from "../schemas/game";
 import { currency } from "./currency";
 import { room } from "./room";
@@ -13,7 +14,7 @@ export const tournament = sqliteTable(
 			.notNull()
 			.references(() => room.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
-		variant: text("variant").notNull().default("nlh"),
+		variant: text("variant").notNull().default(DEFAULT_VARIANT_LABEL),
 		buyIn: integer("buy_in"),
 		entryFee: integer("entry_fee"),
 		startingStack: integer("starting_stack"),
