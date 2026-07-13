@@ -12,7 +12,7 @@ import { BlindLevelInput } from "../blind-level-input";
 import { DragHandle } from "../drag-handle";
 
 interface SortableBreakRowProps {
-	/** Alignment cells for the hybrid table's Game / toggle columns. */
+	/** Widen the break label to span the hybrid table's Game column. */
 	gameColumn?: boolean;
 	onDelete: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;
@@ -79,7 +79,6 @@ export function SortableBreakRow({
 					<IconTrash size={14} />
 				</Button>
 			</TableCell>
-			{gameColumn && <TableCell className="w-8 p-0" />}
 		</TableRow>
 	);
 }

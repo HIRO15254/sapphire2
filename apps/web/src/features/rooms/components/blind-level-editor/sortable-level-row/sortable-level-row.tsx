@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { IconStack2, IconTrash } from "@tabler/icons-react";
+import { IconTrash } from "@tabler/icons-react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { useSortableLevelRow } from "@/features/rooms/hooks/use-sortable-level-row";
 import type { BlindLevelPatch } from "@/features/rooms/utils/blind-level-helpers";
@@ -11,15 +11,10 @@ import { BlindLevelInput } from "../blind-level-input";
 import { DragHandle } from "../drag-handle";
 
 interface SortableLevelRowProps {
-	/** Alignment cells for the hybrid table's Game / toggle columns. */
+	/** Leading empty Game cell so the row aligns with a hybrid table. */
 	gameColumn?: boolean;
 	onDelete: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;
-	/**
-	 * Mix-master tournaments: renders a trailing "split into per-game blind
-	 * sets" affordance seeding the level with the mix's composition.
-	 */
-	onUseGameSets?: (id: string) => void;
 	row: BlindLevelRow;
 }
 
@@ -27,7 +22,6 @@ export function SortableLevelRow({
 	row,
 	gameColumn = false,
 	onDelete,
-	onUseGameSets,
 	onUpdate,
 }: SortableLevelRowProps) {
 	const {
@@ -105,22 +99,6 @@ export function SortableLevelRow({
 					<IconTrash size={14} />
 				</Button>
 			</TableCell>
-			{onUseGameSets ? (
-				<TableCell className="w-8 p-0 px-0.5 text-center">
-					<Button
-						aria-label="Use game sets"
-						className="text-muted-foreground"
-						onClick={() => onUseGameSets(row.id)}
-						size="icon-xs"
-						type="button"
-						variant="ghost"
-					>
-						<IconStack2 size={14} />
-					</Button>
-				</TableCell>
-			) : (
-				gameColumn && <TableCell className="w-8 p-0" />
-			)}
 		</TableRow>
 	);
 }

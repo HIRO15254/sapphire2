@@ -4,7 +4,7 @@ import { TableCell, TableRow } from "@/shared/components/ui/table";
 import { BlindLevelInput } from "../blind-level-input";
 
 interface EmptyRowProps {
-	/** Alignment cells for the hybrid table's Game / toggle columns. */
+	/** Leading empty Game cell so the row aligns with a hybrid table. */
 	gameColumn?: boolean;
 	onCreateLevel: (values: NewLevelValues) => void;
 }
@@ -40,7 +40,6 @@ export function EmptyRow({ gameColumn = false, onCreateLevel }: EmptyRowProps) {
 				<BlindLevelInput onBlur={handleMinutesBlur} ref={minutesRef} />
 			</TableCell>
 			<TableCell className="w-8 p-0" />
-			{gameColumn && <TableCell className="w-8 p-0" />}
 		</TableRow>
 	);
 }

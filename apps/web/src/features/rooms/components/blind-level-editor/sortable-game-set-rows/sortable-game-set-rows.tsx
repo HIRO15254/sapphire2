@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { IconLayoutRows, IconTrash } from "@tabler/icons-react";
+import { IconTrash } from "@tabler/icons-react";
 import { groupDisplayLabel } from "@/features/live-sessions/utils/game-scene-formatters";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { useGameSetRows } from "@/features/rooms/hooks/use-game-set-rows";
@@ -14,23 +14,19 @@ import { DragHandle } from "../drag-handle";
 interface SortableGameSetRowsProps {
 	onDelete: (id: string) => void;
 	onUpdate: (id: string, updates: BlindLevelPatch) => void;
-	/** Reverts the level to a single flat blind set (games = null). */
-	onUseSingleSet: (id: string) => void;
 	row: BlindLevelRow;
 }
 
 /**
  * Mix-master level rendered WSOP-structure-sheet style: one inline table
  * row per game set, amounts edited directly in the cells. Level-scoped
- * cells (number/drag, minutes, delete, single-set toggle) span the whole
- * block via rowSpan; the sortable/drag unit is the level, so the block is
- * its own `<tbody>`.
+ * cells (number/drag, minutes, delete) span the whole block via rowSpan;
+ * the sortable/drag unit is the level, so the block is its own `<tbody>`.
  */
 export function SortableGameSetRows({
 	row,
 	onDelete,
 	onUpdate,
-	onUseSingleSet,
 }: SortableGameSetRowsProps) {
 	const {
 		attributes,
@@ -126,21 +122,6 @@ export function SortableGameSetRows({
 									variant="ghost"
 								>
 									<IconTrash size={14} />
-								</Button>
-							</TableCell>
-							<TableCell
-								className="w-8 p-0 px-0.5 text-center align-middle"
-								rowSpan={rowSpan}
-							>
-								<Button
-									aria-label="Use single blind set"
-									className="text-muted-foreground"
-									onClick={() => onUseSingleSet(row.id)}
-									size="icon-xs"
-									type="button"
-									variant="ghost"
-								>
-									<IconLayoutRows size={14} />
 								</Button>
 							</TableCell>
 						</>

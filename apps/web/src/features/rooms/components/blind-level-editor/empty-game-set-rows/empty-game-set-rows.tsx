@@ -15,8 +15,8 @@ interface EmptyGameSetRowsProps {
 /**
  * Mix-master new-level block: like EmptyRow, but one inline row per game
  * of the composition — typing amounts creates a level with per-game blind
- * sets. Level-scoped cells (the "+" marker, minutes, action-column
- * placeholders) span the block via rowSpan, mirroring SortableGameSetRows.
+ * sets. Level-scoped cells (the "+" marker, minutes, delete-column
+ * placeholder) span the block via rowSpan, mirroring SortableGameSetRows.
  */
 export function EmptyGameSetRows({
 	seeds,
@@ -76,7 +76,6 @@ export function EmptyGameSetRows({
 							>
 								<BlindLevelInput onBlur={handleMinutesBlur} ref={minutesRef} />
 							</TableCell>
-							<TableCell className="w-8 p-0" rowSpan={rowSpan} />
 							<TableCell className="w-8 p-0" rowSpan={rowSpan} />
 						</>
 					)}

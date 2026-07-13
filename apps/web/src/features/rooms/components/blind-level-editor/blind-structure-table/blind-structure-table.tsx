@@ -12,11 +12,9 @@ import {
 import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import { IconCoffee, IconPlus } from "@tabler/icons-react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
-import {
-	type BlindLevelPatch,
-	type NewLevelValues,
-	toGameSetsPatch,
-	toSingleSetPatch,
+import type {
+	BlindLevelPatch,
+	NewLevelValues,
 } from "@/features/rooms/utils/blind-level-helpers";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -90,12 +88,6 @@ export function BlindStructureTable({
 	const { headerGroups, openLevel, openGamesFor, closeGames } =
 		useBlindStructureTable(levels, { defaultGames, hybridGames, resolveGroup });
 
-	// Toggling a level between flat and per-game sets carries the entered
-	// amounts across (first set ↔ flat cells) so minimizing the rows never
-	// silently drops input. Only offered once the master data has resolved to
-	// a non-empty composition.
-	const canUseGameSets = (defaultGames?.length ?? 0) > 0;
-
 	const hybridBody = (
 		<>
 			{levels.length > 0 && (
@@ -127,9 +119,6 @@ export function BlindStructureTable({
 										key={row.id}
 										onDelete={handleDelete}
 										onUpdate={handleUpdate}
-										onUseSingleSet={(id) =>
-											handleUpdate(id, toSingleSetPatch(row.games))
-										}
 										row={row}
 									/>
 								);
@@ -140,12 +129,6 @@ export function BlindStructureTable({
 										gameColumn
 										onDelete={handleDelete}
 										onUpdate={handleUpdate}
-										onUseGameSets={
-											canUseGameSets && defaultGames
-												? (id) =>
-														handleUpdate(id, toGameSetsPatch(row, defaultGames))
-												: undefined
-										}
 										row={row}
 									/>
 								</TableBody>
@@ -276,10 +259,6 @@ export function BlindStructureTable({
 											className="h-auto w-8 pb-1"
 											rowSpan={headerGroups.length}
 										/>
-										<TableHead
-											className="h-auto w-8 pb-1"
-											rowSpan={headerGroups.length}
-										/>
 									</>
 								)}
 							</TableRow>
@@ -309,7 +288,6 @@ export function BlindStructureTable({
 							)}
 							<TableHead className={`${HEAD_CLASS} w-12`}>Min</TableHead>
 							<TableHead className="h-auto w-8 pb-1" />
-							{hybridGames && <TableHead className="h-auto w-8 pb-1" />}
 						</TableRow>
 					)}
 				</TableHeader>

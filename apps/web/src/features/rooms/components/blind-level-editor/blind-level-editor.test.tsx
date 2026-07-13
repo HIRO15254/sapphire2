@@ -382,27 +382,6 @@ describe("BlindStructureContent", () => {
 		expect(screen.getByText("Games")).toBeInTheDocument();
 	});
 
-	it("offers per-level game sets on each flat row for a mix master variant", () => {
-		seedMixMasterData();
-		mocks.blindLevels = [
-			{
-				ante: null,
-				blind1: 100,
-				blind2: 200,
-				blind3: null,
-				id: "l1",
-				isBreak: false,
-				level: 1,
-				minutes: 20,
-				tournamentId: "tour-1",
-			},
-		];
-		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
-		expect(
-			screen.getByRole("button", { name: "Use game sets" })
-		).toBeInTheDocument();
-	});
-
 	it("renders one inline row per game set with the Game column header", () => {
 		mocks.gameMixes = [
 			{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
@@ -509,8 +488,7 @@ describe("BlindStructureContent", () => {
 		});
 	});
 
-	it("collapses to a single flat set, carrying the first set's amounts", async () => {
-		const user = userEvent.setup();
+	it("has no flat/game-sets toggle on a game-set level", () => {
 		mocks.gameMixes = [
 			{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
 		];
@@ -529,14 +507,6 @@ describe("BlindStructureContent", () => {
 						name: "Limit games",
 						variants: ["Limit Hold'em"],
 					},
-					{
-						ante: 25,
-						blind1: 100,
-						blind2: 200,
-						blind3: null,
-						name: null,
-						variants: ["NL Hold'em"],
-					},
 				],
 				id: "l1",
 				isBreak: false,
@@ -546,55 +516,12 @@ describe("BlindStructureContent", () => {
 			},
 		];
 		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
-		await user.click(
-			screen.getByRole("button", { name: "Use single blind set" })
-		);
-		// The first set's 400/800 survive on the flat cells rather than the
-		// entered amounts being dropped; each patched field is a separate call.
-		expect(mocks.updateMutate).toHaveBeenCalledWith({ id: "l1", games: null });
-		expect(mocks.updateMutate).toHaveBeenCalledWith({ id: "l1", blind1: 400 });
-		expect(mocks.updateMutate).toHaveBeenCalledWith({ id: "l1", blind2: 800 });
-		expect(mocks.updateMutate).toHaveBeenCalledWith({ id: "l1", blind3: null });
-		expect(mocks.updateMutate).toHaveBeenCalledWith({ id: "l1", ante: null });
-	});
-
-	it("expands a flat level into game sets, carrying its amounts into the first set", async () => {
-		const user = userEvent.setup();
-		seedMixMasterData();
-		mocks.blindLevels = [
-			{
-				ante: 25,
-				blind1: 100,
-				blind2: 200,
-				blind3: null,
-				id: "l1",
-				isBreak: false,
-				level: 1,
-				minutes: 20,
-				tournamentId: "tour-1",
-			},
-		];
-		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
-		await user.click(screen.getByRole("button", { name: "Use game sets" }));
-		expect(mocks.updateMutate).toHaveBeenCalledTimes(1);
-		expect(mocks.updateMutate).toHaveBeenNthCalledWith(1, {
-			id: "l1",
-			games: [
-				expect.objectContaining({
-					variants: ["NL Hold'em"],
-					blind1: 100,
-					blind2: 200,
-					blind3: null,
-					ante: 25,
-				}),
-				expect.objectContaining({
-					variants: ["Razz"],
-					blind1: null,
-					blind2: null,
-					ante: null,
-				}),
-			],
-		});
+		expect(
+			screen.queryByRole("button", { name: "Use single blind set" })
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Use game sets" })
+		).not.toBeInTheDocument();
 	});
 
 	it("renders one header row per game group for a mix master variant", () => {
@@ -610,7 +537,6 @@ describe("BlindStructureContent", () => {
 			"BB",
 			"Ante",
 			"Min",
-			"",
 			"",
 			"Stud",
 			"Small Bet",
@@ -668,26 +594,6 @@ describe("BlindStructureContent", () => {
 
 		expect(mocks.createMutate).toHaveBeenCalledTimes(1);
 		expect(mocks.createMutate.mock.calls[0][0].games).toBeUndefined();
-	});
-
-	it("does not offer per-level game sets for a plain variant", () => {
-		mocks.blindLevels = [
-			{
-				ante: null,
-				blind1: 100,
-				blind2: 200,
-				blind3: null,
-				id: "l1",
-				isBreak: false,
-				level: 1,
-				minutes: 20,
-				tournamentId: "tour-1",
-			},
-		];
-		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
-		expect(
-			screen.queryByRole("button", { name: "Use game sets" })
-		).not.toBeInTheDocument();
 	});
 
 	it("seeds a new level with the mix composition's game sets for a mix master variant", async () => {
