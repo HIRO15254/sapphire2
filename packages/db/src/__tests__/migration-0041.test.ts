@@ -1,8 +1,21 @@
-import { Database } from "bun:sqlite";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+// bun:sqlite is only available in Bun runtime, skip this test in Node.js
+// biome-ignore lint/correctness/noUndeclaredVariables: Bun global is only present in Bun runtime
+const isBun = typeof Bun !== "undefined";
+const skipIfNotBun = isBun ? describe : describe.skip;
+
+// Database import is conditional - only needed in Bun
+let Database: any = null;
+if (isBun) {
+	// @ts-expect-error - bun:sqlite only exists in Bun runtime
+	// eslint-disable-next-line import/no-unresolved
+	const bunSqlite = require("bun:sqlite");
+	Database = bunSqlite.Database;
+}
 
 const migrationPath = fileURLToPath(
 	new URL("../migrations/0041_amazing_amphibian.sql", import.meta.url)
@@ -228,8 +241,8 @@ const insertBaseParents = (db: Database) => {
 	`);
 };
 
-describe("0041_amazing_amphibian migration", () => {
-	let db: Database;
+skipIfNotBun("0041_amazing_amphibian migration", () => {
+	let db: any;
 
 	beforeEach(() => {
 		db = new Database(":memory:");
@@ -548,7 +561,7 @@ describe("0041_amazing_amphibian migration", () => {
 	});
 });
 
-describe("complete migration history", () => {
+skipIfNotBun("complete migration history", () => {
 	it("keeps the 0041 game-integrity triggers after every migration", () => {
 		const db = new Database(":memory:");
 		db.exec("PRAGMA foreign_keys=ON");
