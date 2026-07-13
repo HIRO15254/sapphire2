@@ -2,14 +2,7 @@ import { IconPlus } from "@tabler/icons-react";
 import { MixFormSheet } from "@/shared/components/mix-form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
 import { Button } from "@/shared/components/ui/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/shared/components/ui/dialog";
+import { DeleteConfirmDialog } from "./delete-confirm-dialog";
 import { GroupCard } from "./group-card";
 import { GroupFormSheet } from "./group-form-sheet";
 import { MixesCard } from "./mixes-card";
@@ -136,115 +129,48 @@ export function GamesPage() {
 							variants={variants}
 						/>
 
-						<Dialog
-							onOpenChange={(open) => {
-								if (!open) {
-									onDeleteGroupCancel();
-								}
-							}}
+						<DeleteConfirmDialog
+							description={
+								<>
+									{deletingGroup?.label} will be removed from your group list.
+									This is only possible while no variant uses it.
+								</>
+							}
+							isPending={isDeleteGroupPending}
+							onCancel={onDeleteGroupCancel}
+							onConfirm={onDeleteGroupConfirm}
 							open={deletingGroup !== null}
-						>
-							<DialogContent>
-								<DialogHeader>
-									<DialogTitle>Delete this group?</DialogTitle>
-									<DialogDescription>
-										{deletingGroup?.label} will be removed from your group list.
-										This is only possible while no variant uses it.
-									</DialogDescription>
-								</DialogHeader>
-								<DialogFooter className="flex-row justify-end gap-2">
-									<Button
-										onClick={onDeleteGroupCancel}
-										type="button"
-										variant="outline"
-									>
-										Cancel
-									</Button>
-									<Button
-										disabled={isDeleteGroupPending}
-										onClick={onDeleteGroupConfirm}
-										type="button"
-										variant="destructive"
-									>
-										Delete
-									</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
+							title="Delete this group?"
+						/>
 
-						<Dialog
-							onOpenChange={(open) => {
-								if (!open) {
-									onDeleteVariantCancel();
-								}
-							}}
+						<DeleteConfirmDialog
+							description={
+								<>
+									{deletingVariant?.label} will be removed from your variant
+									list. Games and sessions that already used it keep the frozen
+									name.
+								</>
+							}
+							isPending={isDeleteVariantPending}
+							onCancel={onDeleteVariantCancel}
+							onConfirm={onDeleteVariantConfirm}
 							open={deletingVariant !== null}
-						>
-							<DialogContent>
-								<DialogHeader>
-									<DialogTitle>Delete this variant?</DialogTitle>
-									<DialogDescription>
-										{deletingVariant?.label} will be removed from your variant
-										list. Games and sessions that already used it keep the
-										frozen name.
-									</DialogDescription>
-								</DialogHeader>
-								<DialogFooter className="flex-row justify-end gap-2">
-									<Button
-										onClick={onDeleteVariantCancel}
-										type="button"
-										variant="outline"
-									>
-										Cancel
-									</Button>
-									<Button
-										disabled={isDeleteVariantPending}
-										onClick={onDeleteVariantConfirm}
-										type="button"
-										variant="destructive"
-									>
-										Delete
-									</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
+							title="Delete this variant?"
+						/>
 
-						<Dialog
-							onOpenChange={(open) => {
-								if (!open) {
-									onDeleteMixCancel();
-								}
-							}}
+						<DeleteConfirmDialog
+							description={
+								<>
+									{deletingMix?.label} will be removed from your mix list. Games
+									and sessions that already used it keep the frozen name.
+								</>
+							}
+							isPending={isDeleteMixPending}
+							onCancel={onDeleteMixCancel}
+							onConfirm={onDeleteMixConfirm}
 							open={deletingMix !== null}
-						>
-							<DialogContent>
-								<DialogHeader>
-									<DialogTitle>Delete this mix?</DialogTitle>
-									<DialogDescription>
-										{deletingMix?.label} will be removed from your mix list.
-										Games and sessions that already used it keep the frozen
-										name.
-									</DialogDescription>
-								</DialogHeader>
-								<DialogFooter className="flex-row justify-end gap-2">
-									<Button
-										onClick={onDeleteMixCancel}
-										type="button"
-										variant="outline"
-									>
-										Cancel
-									</Button>
-									<Button
-										disabled={isDeleteMixPending}
-										onClick={onDeleteMixConfirm}
-										type="button"
-										variant="destructive"
-									>
-										Delete
-									</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
+							title="Delete this mix?"
+						/>
 					</>
 				)}
 			</div>

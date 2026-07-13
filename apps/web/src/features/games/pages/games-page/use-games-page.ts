@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { isTRPCClientError } from "@trpc/client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useInvalidateGameMasters } from "@/shared/hooks/use-game-groups";
 import { trpc, trpcClient } from "@/utils/trpc";
@@ -56,6 +56,34 @@ function compareVariants(a: GameVariantRow, b: GameVariantRow): number {
 }
 
 /**
+ * Shared confirm/cancel pair for the three delete-confirmation dialogs
+ * (group, variant, mix). Each entity's "request" handler stays bespoke
+ * (different client-side guards), but confirm/cancel are mechanically
+ * identical — mutate by id, surface errors via the mutation's own `onError`
+ * toast, and clear the pending-delete state in `finally`/on cancel.
+ */
+function createDeleteHandlers<TItem extends { id: string }>(
+	deletingItem: TItem | null,
+	setDeletingItem: (item: TItem | null) => void,
+	mutateAsync: (id: string) => Promise<unknown>
+) {
+	const onConfirm = async () => {
+		if (!deletingItem) {
+			return;
+		}
+		try {
+			await mutateAsync(deletingItem.id);
+		} catch {
+			// Surfaced via the mutation's onError toast.
+		} finally {
+			setDeletingItem(null);
+		}
+	};
+	const onCancel = () => setDeletingItem(null);
+	return { onCancel, onConfirm };
+}
+
+/**
  * Top-level Games page management of the user's game library — groups and
  * variants merged into one hierarchy (mix-game rework) so "every variant
  * belongs to exactly one group" is visible: one card per group, its
@@ -88,28 +116,42 @@ export function useGamesPage() {
 	const variantRows: GameVariantRow[] = variantListQuery.data ?? [];
 	const mixRows: GameMixRow[] = mixListQuery.data ?? [];
 
-	const variantsByGroupId = new Map<string, GameVariantRow[]>();
-	for (const variant of variantRows) {
-		const bucket = variantsByGroupId.get(variant.groupId);
-		if (bucket) {
-			bucket.push(variant);
-		} else {
-			variantsByGroupId.set(variant.groupId, [variant]);
+	// Memoized so consumers (list rendering, memoized children) get a stable
+	// reference across renders that don't change the underlying query data —
+	// these were previously rebuilt from scratch on every render.
+	const variantsByGroupId = useMemo(() => {
+		const map = new Map<string, GameVariantRow[]>();
+		for (const variant of variantRows) {
+			const bucket = map.get(variant.groupId);
+			if (bucket) {
+				bucket.push(variant);
+			} else {
+				map.set(variant.groupId, [variant]);
+			}
 		}
-	}
-	for (const bucket of variantsByGroupId.values()) {
-		bucket.sort(compareVariants);
-	}
+		for (const bucket of map.values()) {
+			bucket.sort(compareVariants);
+		}
+		return map;
+	}, [variantRows]);
 
-	const groups: GameGroupEntry[] = groupRows.map((group) => ({
-		group,
-		variants: variantsByGroupId.get(group.id) ?? [],
-	}));
+	const groups: GameGroupEntry[] = useMemo(
+		() =>
+			groupRows.map((group) => ({
+				group,
+				variants: variantsByGroupId.get(group.id) ?? [],
+			})),
+		[groupRows, variantsByGroupId]
+	);
 
-	const groupOptions: GameGroupOption[] = groupRows.map((group) => ({
-		id: group.id,
-		label: group.label,
-	}));
+	const groupOptions: GameGroupOption[] = useMemo(
+		() =>
+			groupRows.map((group) => ({
+				id: group.id,
+				label: group.label,
+			})),
+		[groupRows]
+	);
 
 	// Uniform triple-list invalidation: every mutation in this section
 	// (groups, variants, AND mixes) invalidates all three lists, since mix
@@ -135,8 +177,15 @@ export function useGamesPage() {
 
 	const deleteVariantMutation = useMutation<unknown, unknown, string>({
 		mutationFn: (id: string) => trpcClient.gameVariant.delete.mutate({ id }),
-		onError: () => {
-			toast.error("Failed to delete game variant");
+		onError: (error) => {
+			// The server rejects with CONFLICT while a mix still references the
+			// variant (app-level check, no FK) — a race against the client-side
+			// guard below, kept as a fallback.
+			const message =
+				isTRPCClientError(error) && error.data?.code === "CONFLICT"
+					? "This variant is used by a game mix. Remove it from the mix first."
+					: "Failed to delete game variant";
+			toast.error(message);
 		},
 		onSettled: invalidateAll,
 	});
@@ -186,55 +235,43 @@ export function useGamesPage() {
 		setDeletingGroup(group);
 	};
 
-	const onDeleteGroupConfirm = async () => {
-		if (!deletingGroup) {
+	const { onCancel: onDeleteGroupCancel, onConfirm: onDeleteGroupConfirm } =
+		createDeleteHandlers(
+			deletingGroup,
+			setDeletingGroup,
+			deleteGroupMutation.mutateAsync
+		);
+
+	// A variant referenced by one of the user's mixes cannot be deleted out
+	// from under it (mirrors the group-delete guard above); the server's
+	// CONFLICT (game-variant.ts) is the fallback for the race where a mix
+	// picks up the variant between this check and the request landing.
+	const onDeleteVariantRequest = (variant: GameVariantRow) => {
+		const usedInMix = mixRows.some((mix) => mix.games.includes(variant.id));
+		if (usedInMix) {
+			toast.error(
+				"This variant is used by a game mix. Remove it from the mix first."
+			);
 			return;
 		}
-		try {
-			await deleteGroupMutation.mutateAsync(deletingGroup.id);
-		} catch {
-			// Surfaced via the mutation's onError toast.
-		} finally {
-			setDeletingGroup(null);
-		}
-	};
-
-	const onDeleteGroupCancel = () => setDeletingGroup(null);
-
-	const onDeleteVariantRequest = (variant: GameVariantRow) =>
 		setDeletingVariant(variant);
-
-	const onDeleteVariantConfirm = async () => {
-		if (!deletingVariant) {
-			return;
-		}
-		try {
-			await deleteVariantMutation.mutateAsync(deletingVariant.id);
-		} catch {
-			// Surfaced via the mutation's onError toast.
-		} finally {
-			setDeletingVariant(null);
-		}
 	};
 
-	const onDeleteVariantCancel = () => setDeletingVariant(null);
+	const { onCancel: onDeleteVariantCancel, onConfirm: onDeleteVariantConfirm } =
+		createDeleteHandlers(
+			deletingVariant,
+			setDeletingVariant,
+			deleteVariantMutation.mutateAsync
+		);
 
 	const onDeleteMixRequest = (mix: GameMixRow) => setDeletingMix(mix);
 
-	const onDeleteMixConfirm = async () => {
-		if (!deletingMix) {
-			return;
-		}
-		try {
-			await deleteMixMutation.mutateAsync(deletingMix.id);
-		} catch {
-			// Surfaced via the mutation's onError toast.
-		} finally {
-			setDeletingMix(null);
-		}
-	};
-
-	const onDeleteMixCancel = () => setDeletingMix(null);
+	const { onCancel: onDeleteMixCancel, onConfirm: onDeleteMixConfirm } =
+		createDeleteHandlers(
+			deletingMix,
+			setDeletingMix,
+			deleteMixMutation.mutateAsync
+		);
 
 	return {
 		groups,

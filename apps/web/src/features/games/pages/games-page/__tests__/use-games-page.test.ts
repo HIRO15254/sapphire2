@@ -200,6 +200,19 @@ describe("useGamesPage", () => {
 		]);
 	});
 
+	describe("referential stability", () => {
+		it("keeps the same groups and groupOptions array identity across a rerender with unchanged data", async () => {
+			const { result, rerender } = renderHook(() => useGamesPage(), {
+				wrapper: withQueryClient(),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			const { groups, groupOptions } = result.current;
+			rerender();
+			expect(result.current.groups).toBe(groups);
+			expect(result.current.groupOptions).toBe(groupOptions);
+		});
+	});
+
 	describe("group sheet", () => {
 		it("opens in create mode with no editing target", async () => {
 			const { result } = renderHook(() => useGamesPage(), {
@@ -470,6 +483,14 @@ describe("useGamesPage", () => {
 	});
 
 	describe("variant delete", () => {
+		beforeEach(() => {
+			// The suite-wide default mix (m-1) references v-1 (the default
+			// variant), which would trip the mix-membership guard below for
+			// every test in this block. Tests exercising that guard override
+			// this back to a mix that references the variant.
+			trpcMocks.gameMixListQueryFn.mockResolvedValue([]);
+		});
+
 		it("requests then confirms the delete, invalidating all three lists", async () => {
 			trpcMocks.gameVariantDelete.mockResolvedValue({ success: true });
 			const queryClient = createTestQueryClient();
@@ -553,6 +574,76 @@ describe("useGamesPage", () => {
 				"Failed to delete game variant"
 			);
 			expect(result.current.deletingVariant).toBeNull();
+		});
+
+		it("toasts the mix-conflict message on a CONFLICT delete failure", async () => {
+			trpcMocks.gameVariantDelete.mockRejectedValue(
+				TRPCClientError.from({
+					error: {
+						code: -32_600,
+						message:
+							"This variant is used by a game mix. Remove it from the mix first.",
+						data: { code: "CONFLICT", httpStatus: 409 },
+					},
+				})
+			);
+			const { result } = renderHook(() => useGamesPage(), {
+				wrapper: withQueryClient(),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			act(() => {
+				result.current.onDeleteVariantRequest(
+					result.current.groups[0].variants[0]
+				);
+			});
+			await act(async () => {
+				await result.current.onDeleteVariantConfirm();
+			});
+			await waitFor(() => {
+				expect(toastMock.error).toHaveBeenCalledTimes(1);
+			});
+			expect(toastMock.error).toHaveBeenNthCalledWith(
+				1,
+				"This variant is used by a game mix. Remove it from the mix first."
+			);
+			expect(result.current.deletingVariant).toBeNull();
+		});
+
+		it("blocks the request and toasts when the variant is referenced by a mix, without opening the dialog", async () => {
+			trpcMocks.gameMixListQueryFn.mockResolvedValue([
+				mixRow({ games: ["v-1"] }),
+			]);
+			const { result } = renderHook(() => useGamesPage(), {
+				wrapper: withQueryClient(),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			act(() => {
+				result.current.onDeleteVariantRequest(
+					result.current.groups[0].variants[0]
+				);
+			});
+			expect(toastMock.error).toHaveBeenCalledTimes(1);
+			expect(toastMock.error).toHaveBeenNthCalledWith(
+				1,
+				"This variant is used by a game mix. Remove it from the mix first."
+			);
+			expect(result.current.deletingVariant).toBeNull();
+			expect(trpcMocks.gameVariantDelete).not.toHaveBeenCalled();
+		});
+
+		it("opens the confirm dialog for a variant not referenced by any mix", async () => {
+			// Suite-level beforeEach for this block already sets no mixes.
+			const { result } = renderHook(() => useGamesPage(), {
+				wrapper: withQueryClient(),
+			});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			act(() => {
+				result.current.onDeleteVariantRequest(
+					result.current.groups[0].variants[0]
+				);
+			});
+			expect(result.current.deletingVariant?.id).toBe("v-1");
+			expect(toastMock.error).not.toHaveBeenCalled();
 		});
 	});
 
