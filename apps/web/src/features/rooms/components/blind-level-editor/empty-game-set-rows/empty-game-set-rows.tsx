@@ -3,7 +3,7 @@ import { groupDisplayLabel } from "@/features/live-sessions/utils/game-scene-for
 import type { NewLevelValues } from "@/features/rooms/utils/blind-level-helpers";
 import { cn } from "@/lib/utils";
 import { TableBody, TableCell, TableRow } from "@/shared/components/ui/table";
-import type { ResolveGroup } from "@/shared/lib/mix-games";
+import { PENDING_GROUP_ID, type ResolveGroup } from "@/shared/lib/mix-games";
 import { BlindLevelInput } from "../blind-level-input";
 import { useEmptyGameSetRowsView } from "./use-empty-game-set-rows-view";
 
@@ -35,8 +35,15 @@ export function EmptyGameSetRows({
 	return (
 		<TableBody>
 			{seeds.map((seed, index) => {
-				const gameLabel = groupDisplayLabel(seed);
 				const group = resolveGroup?.(seed.variants[0] ?? "");
+				// Match the per-group header and the stored game-set rows: label
+				// by the owning group's name, not the composition (see
+				// sortable-game-set-rows.tsx). Fall back to the composition when
+				// the group is unresolved (pending/orphaned).
+				const gameLabel =
+					group && group.id !== PENDING_GROUP_ID
+						? group.label
+						: groupDisplayLabel(seed);
 				const blind1Label = group?.blind1Label ?? "Blind 1";
 				const blind2Label = group?.blind2Label ?? "Blind 2";
 				const blind3Label = group?.blind3Label;

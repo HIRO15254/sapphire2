@@ -681,10 +681,8 @@ describe("BlindStructureContent", () => {
 		expect(screen.getByText("Games")).toBeInTheDocument();
 	});
 
-	it("renders one inline row per game set with the Game column header", () => {
-		mocks.gameMixes = [
-			{ id: "m-8game", builtinKey: "8-game", label: "8-Game", games: [] },
-		];
+	it("labels each game-set row with its owning group's name (matching the header), not the set composition/custom name", () => {
+		seedMixMasterData();
 		mocks.blindLevels = [
 			{
 				ante: null,
@@ -697,8 +695,10 @@ describe("BlindStructureContent", () => {
 						blind1: 400,
 						blind2: 800,
 						blind3: null,
-						name: "Limit games",
-						variants: ["Limit Hold'em"],
+						// A stored custom name (as a single-variant level would carry)
+						// must NOT surface in the editor — the group name wins.
+						name: "Razz rotation",
+						variants: ["Razz"],
 					},
 					{
 						ante: 25,
@@ -718,8 +718,11 @@ describe("BlindStructureContent", () => {
 		];
 		render(<BlindStructureContent tournamentId="tour-1" variant="8-Game" />);
 		expect(screen.getByText("Game")).toBeInTheDocument();
-		expect(screen.getByText("Limit games")).toBeInTheDocument();
-		expect(screen.getByText("NL Hold'em")).toBeInTheDocument();
+		// Group names, not the composition ("Razz"/"NL Hold'em") or custom name.
+		// "Big Bet" and "Stud" appear in both header and row cells.
+		expect(screen.getAllByText("Big Bet").length).toBeGreaterThanOrEqual(2);
+		expect(screen.getAllByText("Stud").length).toBeGreaterThanOrEqual(2);
+		expect(screen.queryByText("Razz rotation")).not.toBeInTheDocument();
 		expect(screen.getByDisplayValue("400")).toBeInTheDocument();
 		expect(screen.getByDisplayValue("100")).toBeInTheDocument();
 	});
@@ -952,24 +955,24 @@ describe("BlindStructureContent", () => {
 			expect(input).toHaveAccessibleName();
 		}
 		for (const name of [
-			"Level 1 NL Hold'em SB",
-			"Level 1 NL Hold'em BB",
-			"Level 1 NL Hold'em Straddle",
-			"Level 1 NL Hold'em Ante",
+			"Level 1 Big Bet SB",
+			"Level 1 Big Bet BB",
+			"Level 1 Big Bet Straddle",
+			"Level 1 Big Bet Ante",
 			"Level 1 minutes",
-			"Level 1 Razz Small Bet",
-			"Level 1 Razz Big Bet",
-			"Level 1 Razz Bring-in",
-			"Level 1 Razz Ante",
-			"New level NL Hold'em SB",
-			"New level NL Hold'em BB",
-			"New level NL Hold'em Straddle",
-			"New level NL Hold'em Ante",
+			"Level 1 Stud Small Bet",
+			"Level 1 Stud Big Bet",
+			"Level 1 Stud Bring-in",
+			"Level 1 Stud Ante",
+			"New level Big Bet SB",
+			"New level Big Bet BB",
+			"New level Big Bet Straddle",
+			"New level Big Bet Ante",
 			"New level minutes",
-			"New level Razz Small Bet",
-			"New level Razz Big Bet",
-			"New level Razz Bring-in",
-			"New level Razz Ante",
+			"New level Stud Small Bet",
+			"New level Stud Big Bet",
+			"New level Stud Bring-in",
+			"New level Stud Ante",
 		]) {
 			expect(screen.getByRole("textbox", { name })).toBeVisible();
 		}

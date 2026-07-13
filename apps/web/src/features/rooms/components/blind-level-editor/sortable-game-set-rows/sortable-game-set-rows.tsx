@@ -11,7 +11,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { Button } from "@/shared/components/ui/button";
 import { TableBody, TableCell, TableRow } from "@/shared/components/ui/table";
-import type { ResolveGroup } from "@/shared/lib/mix-games";
+import { PENDING_GROUP_ID, type ResolveGroup } from "@/shared/lib/mix-games";
 import { BlindLevelInput } from "../blind-level-input";
 import { DragHandle } from "../drag-handle";
 
@@ -66,8 +66,19 @@ export function SortableGameSetRows({
 	return (
 		<TableBody ref={setNodeRef} style={style}>
 			{games.map((set, index) => {
-				const gameLabel = groupDisplayLabel(set);
 				const group = resolveGroup?.(set.variants[0] ?? "");
+				// Label the row with the owning group's name (same as the
+				// per-group header), not the set's composition/custom name — the
+				// header labels amounts by group, so the row label must match to
+				// avoid a group-name/composition mismatch. The stored set.name is
+				// still submitted and drives the live timer display. When the
+				// group cannot be resolved (orphaned mix / masters not loaded),
+				// fall back to the composition so no misleading fallback name
+				// shows.
+				const gameLabel =
+					group && group.id !== PENDING_GROUP_ID
+						? group.label
+						: groupDisplayLabel(set);
 				const blind1Label = group?.blind1Label ?? "Blind 1";
 				const blind2Label = group?.blind2Label ?? "Blind 2";
 				const blind3Label = group?.blind3Label;
