@@ -90,8 +90,8 @@ describe("sessionFormSchema", () => {
 			breakMinutes: "",
 			memo: "",
 			ruleName: "",
-			buyIn: "",
-			cashOut: "",
+			buyIn: "100",
+			cashOut: "100",
 			evCashOut: "",
 			variant: "nlh",
 			blind1: "",
@@ -102,7 +102,7 @@ describe("sessionFormSchema", () => {
 			tableSize: "",
 			minBuyIn: "",
 			maxBuyIn: "",
-			tournamentBuyIn: "",
+			tournamentBuyIn: "100",
 			entryFee: "",
 			startingStack: "",
 			bountyAmount: "",
@@ -129,6 +129,21 @@ describe("sessionFormSchema", () => {
 	it("rejects negative optional numeric values", () => {
 		expect(
 			sessionFormSchema.safeParse(validPayload({ buyIn: "-1" })).success
+		).toBe(false);
+	});
+
+	it.each([
+		"buyIn",
+		"cashOut",
+	])("rejects an empty required cash result field: %s", (field) => {
+		expect(
+			sessionFormSchema.safeParse(validPayload({ [field]: "" })).success
+		).toBe(false);
+	});
+
+	it("rejects an empty required tournament buy-in", () => {
+		expect(
+			sessionFormSchema.safeParse(validPayload({ tournamentBuyIn: "" })).success
 		).toBe(false);
 	});
 

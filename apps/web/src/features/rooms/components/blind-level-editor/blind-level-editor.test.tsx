@@ -294,6 +294,11 @@ describe("BlindStructureContent", () => {
 		mocks.deleteMutate.mockReset();
 		mocks.reorderMutate.mockReset();
 		mocks.updateMutate.mockReset();
+		// The production update mutation chains `.then` on the transport result.
+		// Keep this mock promise-shaped so the mutation's rejected/settled paths
+		// remain realistic without creating unhandled rejections in the component
+		// tests that exercise blur-driven updates.
+		mocks.updateMutate.mockResolvedValue(null);
 		mocks.invalidateQueries.mockReset();
 		mocks.setQueryData.mockReset();
 	});

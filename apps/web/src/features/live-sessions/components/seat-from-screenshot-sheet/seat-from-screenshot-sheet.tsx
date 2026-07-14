@@ -16,6 +16,7 @@ interface SeatFromScreenshotSheetProps {
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	sessionParam: SessionParam;
+	tableSize: number;
 }
 
 export function SeatFromScreenshotSheet({
@@ -24,6 +25,7 @@ export function SeatFromScreenshotSheet({
 	onOpenChange,
 	open,
 	sessionParam,
+	tableSize,
 }: SeatFromScreenshotSheetProps) {
 	const {
 		step,
@@ -47,6 +49,7 @@ export function SeatFromScreenshotSheet({
 		onOpenChange,
 		open,
 		sessionParam,
+		seatCount: tableSize,
 	});
 
 	const renderStep = () => {

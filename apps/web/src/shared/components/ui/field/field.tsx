@@ -8,6 +8,7 @@ import {
 } from "react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/shared/components/ui/label";
+import { useField } from "./use-field";
 
 interface FieldProps extends ComponentProps<"div"> {
 	description?: ReactNode;
@@ -30,12 +31,13 @@ interface FieldProps extends ComponentProps<"div"> {
  * causes the wrapped input to unmount/remount whenever the error flips,
  * dropping focus and DOM state mid-typing.
  */
-function withInvalid(children: ReactNode, invalid: boolean): ReactNode {
-	if (!(invalid && isValidElement(children))) {
+function withInvalid(children: ReactNode, errorId?: string): ReactNode {
+	if (!(errorId && isValidElement(children))) {
 		return children;
 	}
 	return cloneElement(children as ReactElement<AriaAttributes>, {
 		"aria-invalid": true,
+		"aria-describedby": errorId,
 	});
 }
 
@@ -49,6 +51,7 @@ function Field({
 	required = false,
 	...props
 }: FieldProps) {
+	const { errorId } = useField();
 	return (
 		<div className={cn("flex flex-col gap-2", className)} {...props}>
 			{label ? (
@@ -56,9 +59,9 @@ function Field({
 					{label}
 				</FieldLabel>
 			) : null}
-			{withInvalid(children, !!error)}
+			{withInvalid(children, error ? errorId : undefined)}
 			{description ? <FieldDescription>{description}</FieldDescription> : null}
-			{error ? <FieldError>{error}</FieldError> : null}
+			{error ? <FieldError id={errorId}>{error}</FieldError> : null}
 		</div>
 	);
 }
@@ -86,7 +89,13 @@ function FieldDescription({ className, ...props }: ComponentProps<"p">) {
 }
 
 function FieldError({ className, ...props }: ComponentProps<"p">) {
-	return <p className={cn("text-destructive text-sm", className)} {...props} />;
+	return (
+		<p
+			className={cn("text-destructive text-sm", className)}
+			role="alert"
+			{...props}
+		/>
+	);
 }
 
 export { Field, FieldDescription, FieldError, FieldLabel };

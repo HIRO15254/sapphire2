@@ -1,4 +1,5 @@
 import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-events";
+import { formatNumber } from "@/utils/format-number";
 
 const EVENT_TYPE_LABELS: Record<string, string> = {
 	chips_add_remove: "Chips Add/Remove",
@@ -25,14 +26,14 @@ function formatChipsAddRemoveSummary(p: Record<string, unknown>) {
 		return null;
 	}
 	const label = p.amount < 0 ? "Remove" : "Add";
-	return `${label}: ${Math.abs(p.amount).toLocaleString()}`;
+	return `${label}: ${formatNumber(Math.abs(p.amount))}`;
 }
 
 function formatUpdateStackSummary(p: Record<string, unknown>) {
 	if (typeof p.stackAmount !== "number") {
 		return null;
 	}
-	const parts = [`Stack: ${p.stackAmount.toLocaleString()}`];
+	const parts = [`Stack: ${formatNumber(p.stackAmount)}`];
 	const remaining =
 		typeof p.remainingPlayers === "number" ? p.remainingPlayers : null;
 	const total = typeof p.totalEntries === "number" ? p.totalEntries : null;
@@ -51,7 +52,7 @@ function formatPlayerJoinSummary(p: Record<string, unknown>) {
 		return null;
 	}
 	if (typeof p.seatPosition === "number") {
-		return `Hero · Seat ${p.seatPosition}`;
+		return `Hero · Seat ${p.seatPosition + 1}`;
 	}
 	return "Hero";
 }
@@ -59,7 +60,7 @@ function formatPlayerJoinSummary(p: Record<string, unknown>) {
 function formatAllInSummary(p: Record<string, unknown>) {
 	const parts: string[] = [];
 	if (typeof p.potSize === "number") {
-		parts.push(`Pot: ${p.potSize.toLocaleString()}`);
+		parts.push(`Pot: ${formatNumber(p.potSize)}`);
 	}
 	if (typeof p.equity === "number") {
 		parts.push(`Equity: ${p.equity}%`);
@@ -69,7 +70,7 @@ function formatAllInSummary(p: Record<string, unknown>) {
 
 function formatSessionEndSummary(p: Record<string, unknown>) {
 	if (typeof p.cashOutAmount === "number") {
-		return `Cash-out: ${p.cashOutAmount.toLocaleString()}`;
+		return `Cash-out: ${formatNumber(p.cashOutAmount)}`;
 	}
 	if (p.beforeDeadline === true) {
 		return "- / - entries";
@@ -87,7 +88,7 @@ function formatPurchaseChipsSummary(p: Record<string, unknown>) {
 	const name = typeof p.name === "string" ? p.name : null;
 	const cost = typeof p.cost === "number" ? p.cost : null;
 	return name !== null && cost !== null
-		? `${name}: ${cost.toLocaleString()}`
+		? `${name}: ${formatNumber(cost)}`
 		: null;
 }
 
@@ -109,7 +110,7 @@ const PAYLOAD_SUMMARIZERS: Record<string, PayloadSummarizer> = {
 	memo: formatMemoSummary,
 	session_start: (p) => {
 		if (typeof p.buyInAmount === "number") {
-			return `Buy-in: ${p.buyInAmount.toLocaleString()}`;
+			return `Buy-in: ${formatNumber(p.buyInAmount)}`;
 		}
 		if (typeof p.timerStartedAt === "number") {
 			const date = new Date(p.timerStartedAt * 1000);
@@ -148,32 +149,51 @@ export type EventGroup =
 	| { type: "single"; event: SessionEvent }
 	| { type: "player_group"; events: SessionEvent[] };
 
+function isPlayerChangeEvent(
+	event: SessionEvent | undefined
+): event is SessionEvent {
+	return (
+		event?.eventType === "player_join" || event?.eventType === "player_leave"
+	);
+}
+
+function collectPlayerChangeCluster(
+	events: SessionEvent[],
+	startIndex: number
+): { cluster: SessionEvent[]; nextIndex: number } {
+	let nextIndex = startIndex;
+	while (isPlayerChangeEvent(events[nextIndex])) {
+		nextIndex++;
+	}
+	return {
+		cluster: events.slice(startIndex, nextIndex),
+		nextIndex,
+	};
+}
+
 export function groupEventsForDisplay(events: SessionEvent[]): EventGroup[] {
 	const groups: EventGroup[] = [];
-	let i = 0;
-	while (i < events.length) {
-		const event = events[i];
-		if (
-			event.eventType === "player_join" ||
-			event.eventType === "player_leave"
-		) {
-			const clusterStart = i;
-			while (
-				i < events.length &&
-				(events[i].eventType === "player_join" ||
-					events[i].eventType === "player_leave")
-			) {
-				i++;
-			}
-			const cluster = events.slice(clusterStart, i);
-			if (cluster.length >= 2) {
-				groups.push({ type: "player_group", events: cluster });
-			} else {
-				groups.push({ type: "single", event: cluster[0] });
-			}
-		} else {
+	let index = 0;
+	while (index < events.length) {
+		const event = events[index];
+		if (!event) {
+			break;
+		}
+		if (!isPlayerChangeEvent(event)) {
 			groups.push({ type: "single", event });
-			i++;
+			index++;
+			continue;
+		}
+
+		const { cluster, nextIndex } = collectPlayerChangeCluster(events, index);
+		index = nextIndex;
+		if (cluster.length >= 2) {
+			groups.push({ type: "player_group", events: cluster });
+			continue;
+		}
+		const singleEvent = cluster[0];
+		if (singleEvent) {
+			groups.push({ type: "single", event: singleEvent });
 		}
 	}
 	return groups;

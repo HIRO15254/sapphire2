@@ -1,4 +1,5 @@
 import { usePnlGraph } from "@/features/statistics/pages/statistics-page/pnl-graph/use-pnl-graph";
+import { StatsQueryError } from "@/features/statistics/pages/statistics-page/stats-query-error";
 import type { StatsSectionContext } from "@/features/statistics/types";
 import type { PnlGraphXAxis } from "@/features/statistics/utils/aggregate-pnl-points";
 import { Label } from "@/shared/components/ui/label";
@@ -22,7 +23,13 @@ export function PnlGraph({ ctx }: { ctx: StatsSectionContext }) {
 		points,
 		dual,
 		isPending,
+		isError,
+		retry,
 	} = usePnlGraph(ctx);
+
+	if (isError) {
+		return <StatsQueryError onRetry={retry} />;
+	}
 
 	return (
 		<div className="space-y-3">

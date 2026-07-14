@@ -45,14 +45,16 @@ export function EventBadge(props: EventBadgeProps) {
 
 	return (
 		<Badge
+			asChild
 			className={cn(
 				"cursor-pointer select-none",
 				isSecondary ? "bg-secondary text-secondary-foreground" : undefined
 			)}
-			onClick={props.onEdit}
 			variant={isSecondary ? "secondary" : "default"}
 		>
-			{label}
+			<button onClick={() => props.onEdit()} type="button">
+				{label}
+			</button>
 		</Badge>
 	);
 }

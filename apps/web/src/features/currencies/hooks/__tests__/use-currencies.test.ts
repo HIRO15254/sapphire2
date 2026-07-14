@@ -32,6 +32,22 @@ const trpcMocks = vi.hoisted(() => ({
 	txListQueryFn: vi.fn(),
 }));
 
+const optimisticMocks = vi.hoisted(() => ({ updateQueryItems: vi.fn() }));
+
+vi.mock("@/utils/optimistic-update", async () => {
+	const actual = await vi.importActual<
+		typeof import("@/utils/optimistic-update")
+	>("@/utils/optimistic-update");
+	return {
+		...actual,
+		updateQueryItems: vi.fn(
+			(...args: Parameters<typeof actual.updateQueryItems>) => {
+				optimisticMocks.updateQueryItems(...args);
+				return actual.updateQueryItems(...args);
+			}
+		),
+	};
+});
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		currency: {
@@ -264,6 +280,30 @@ describe("useCurrencies", () => {
 	});
 
 	describe("create (optimistic)", () => {
+		it("uses the shared list helper for currency list updates", async () => {
+			const callsBefore = optimisticMocks.updateQueryItems.mock.calls.length;
+			const qc = createClient();
+			qc.setQueryData(CURRENCY_KEY, [
+				{ id: "c1", name: "Chips", unit: null, balance: 0 },
+			]);
+			trpcMocks.currencyCreate.mockResolvedValue({ id: "c2" });
+			const { result } = renderHook(() => useCurrencies(null), {
+				wrapper: makeWrapper(qc),
+			});
+			await act(async () => {
+				await result.current.create({ name: "Gold" });
+			});
+			expect(optimisticMocks.updateQueryItems).toHaveBeenCalledTimes(
+				callsBefore + 1
+			);
+			expect(optimisticMocks.updateQueryItems).toHaveBeenNthCalledWith(
+				callsBefore + 1,
+				qc,
+				CURRENCY_KEY,
+				expect.any(Function)
+			);
+		});
+
 		it("optimistically appends a temp currency entry during mutation", async () => {
 			const qc = createClient();
 			qc.setQueryData(CURRENCY_KEY, [
@@ -363,7 +403,8 @@ describe("useCurrencies", () => {
 				await result.current.create({ name: "Free" });
 			});
 			// The onMutate branch returns old unchanged; no throw.
-			expect(trpcMocks.currencyCreate).toHaveBeenCalled();
+			expect(trpcMocks.currencyCreate).toHaveBeenCalledTimes(1);
+			expect(trpcMocks.currencyCreate).toHaveBeenCalledWith({ name: "Free" });
 		});
 
 		it("isCreatePending flips true during in-flight mutation", async () => {

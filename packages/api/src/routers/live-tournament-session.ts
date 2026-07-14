@@ -22,6 +22,7 @@ import {
 	computeTournamentPLFromEvents,
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
+import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import { floorToMinute } from "../utils/session-event-time";
 import {
 	encodeSessionCursor,
@@ -922,6 +923,13 @@ export const liveTournamentSessionRouter = router({
 
 			await syncTimerStartedAtEvent(ctx.db, input.id, input.timerStartedAt);
 
+			if (
+				existing.status === "completed" &&
+				patchedUpdateData.currencyId !== undefined
+			) {
+				await recalculateTournamentSession(ctx.db, input.id, userId);
+			}
+
 			const [updated] = await ctx.db
 				.select()
 				.from(gameSession)
@@ -1131,6 +1139,14 @@ export const liveTournamentSessionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await findLiveTournamentSession(ctx.db, input.id, userId);
+			const [detail] = await ctx.db
+				.select({ tableSize: sessionTournamentDetail.tableSize })
+				.from(sessionTournamentDetail)
+				.where(eq(sessionTournamentDetail.sessionId, input.id));
+			assertSeatPositionFitsTableSize(
+				input.heroSeatPosition,
+				detail?.tableSize ?? null
+			);
 
 			const events = await ctx.db
 				.select({

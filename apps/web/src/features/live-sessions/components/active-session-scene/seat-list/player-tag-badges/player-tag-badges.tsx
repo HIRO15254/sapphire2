@@ -1,4 +1,4 @@
-import { ColorBadge } from "@/features/players/components/color-badge";
+import { tagBadgeClassName } from "@/features/players/utils/tag-badge-class-name";
 import { Badge } from "@/shared/components/ui/badge";
 import { usePlayerTagBadges } from "./use-player-tag-badges";
 
@@ -13,7 +13,7 @@ interface PlayerTagBadgesProps {
 }
 
 /**
- * Inline tag cluster matching the Players list badge style (`ColorBadge`),
+ * Inline tag cluster matching the Players list badge style,
  * shown on the same line as the player name. As many tags as fit are rendered;
  * the rest collapse into a `+N` badge only once they no longer fit the line
  * (width is measured, not a fixed count).
@@ -43,17 +43,20 @@ export function PlayerTagBadges({ tags }: PlayerTagBadgesProps) {
 				ref={ghostRef}
 			>
 				{tags.map((tag) => (
-					<ColorBadge color={tag.color} key={tag.id}>
+					<Badge className={tagBadgeClassName(tag.color)} key={tag.id}>
 						{tag.name}
-					</ColorBadge>
+					</Badge>
 				))}
 				<Badge variant="secondary">+{tags.length}</Badge>
 			</span>
 
 			{visibleTags.map((tag) => (
-				<ColorBadge className="shrink-0" color={tag.color} key={tag.id}>
+				<Badge
+					className={tagBadgeClassName(tag.color, "shrink-0")}
+					key={tag.id}
+				>
 					{tag.name}
-				</ColorBadge>
+				</Badge>
 			))}
 			{overflowCount > 0 ? (
 				<Badge className="shrink-0" variant="secondary">

@@ -14,6 +14,7 @@ import {
 	restoreSnapshots,
 	snapshotQuery,
 	updateInfiniteQueryItems,
+	updateQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -31,6 +32,7 @@ export interface TransactionValues {
 }
 
 export interface CurrencyItem {
+	balance?: number;
 	createdAt: Date | string;
 	description?: string | null;
 	id: string;
@@ -70,11 +72,11 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		onMutate: async (newCurrency) => {
 			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
 			const previous = snapshotQuery(queryClient, currencyListKey);
-			queryClient.setQueryData(currencyListKey, (old) => {
-				if (!old) {
+			updateQueryItems<CurrencyItem>(queryClient, currencyListKey, (old) => {
+				const base = old[0];
+				if (!base) {
 					return old;
 				}
-				const base = old[0];
 				return [
 					...old,
 					{
@@ -112,8 +114,8 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		onMutate: async (updated) => {
 			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
 			const previous = snapshotQuery(queryClient, currencyListKey);
-			queryClient.setQueryData(currencyListKey, (old) =>
-				old?.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+			updateQueryItems<CurrencyItem>(queryClient, currencyListKey, (old) =>
+				old.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
 			);
 			return { previous };
 		},
@@ -130,8 +132,8 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
 			const previous = snapshotQuery(queryClient, currencyListKey);
-			queryClient.setQueryData(currencyListKey, (old) =>
-				old?.filter((c) => c.id !== id)
+			updateQueryItems<CurrencyItem>(queryClient, currencyListKey, (old) =>
+				old.filter((c) => c.id !== id)
 			);
 			return { previous };
 		},
@@ -235,10 +237,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 		onMutate: async (id) => {
 			await cancelTargets(queryClient, [{ queryKey: currencyListKey }]);
 			const previous = snapshotQuery(queryClient, currencyListKey);
-			queryClient.setQueryData(currencyListKey, (old) => {
-				if (!old) {
-					return old;
-				}
+			updateQueryItems<CurrencyItem>(queryClient, currencyListKey, (old) => {
 				const toggled = old.map((c) =>
 					c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
 				);

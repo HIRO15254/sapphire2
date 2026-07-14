@@ -589,6 +589,8 @@ describe("summarizeStats", () => {
 	it("returns a zeroed/null summary for no rows", () => {
 		const summary = summarizeStats([]);
 		expect(summary.totalSessions).toBe(0);
+		expect(summary.cashBbCount).toBe(0);
+		expect(summary.tournamentBiCount).toBe(0);
 		expect(summary.totalProfitLoss).toBe(0);
 		expect(summary.winRate).toBe(0);
 		expect(summary.totalPlayMinutes).toBe(0);
@@ -627,6 +629,8 @@ describe("summarizeStats", () => {
 		const summary = summarizeStats(rows);
 		expect(summary.cashNormalizedProfitLoss).toBe(60);
 		expect(summary.tournamentNormalizedProfitLoss).toBe(3);
+		expect(summary.cashBbCount).toBe(2);
+		expect(summary.tournamentBiCount).toBe(1);
 	});
 
 	it("returns null normalized figures when no row of that type is normalizable", () => {
@@ -635,6 +639,8 @@ describe("summarizeStats", () => {
 		]);
 		expect(summary.cashNormalizedProfitLoss).toBeNull();
 		expect(summary.tournamentNormalizedProfitLoss).toBeNull();
+		expect(summary.cashBbCount).toBe(0);
+		expect(summary.tournamentBiCount).toBe(0);
 	});
 
 	it("computes cash hourlyRate from cash play time", () => {

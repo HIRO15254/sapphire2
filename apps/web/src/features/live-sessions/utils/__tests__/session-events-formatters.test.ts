@@ -258,8 +258,8 @@ describe("formatPayloadSummary", () => {
 
 		it("includes the seat number on hero player_join when seatPosition is set", () => {
 			expect(
-				formatPayloadSummary("player_join", { isHero: true, seatPosition: 5 })
-			).toBe("Hero · Seat 5");
+				formatPayloadSummary("player_join", { isHero: true, seatPosition: 0 })
+			).toBe("Hero · Seat 1");
 		});
 
 		it("returns null for non-hero joins/leaves", () => {

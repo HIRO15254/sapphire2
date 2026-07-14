@@ -1026,6 +1026,8 @@ describe("recalculateCashGameSession — completed session", () => {
 		const txUpdate = updateSetCalls.find(([arg]) => "amount" in arg);
 		expect(txUpdate).toBeDefined();
 		expect(txUpdate?.[0].amount).toBe(100);
+		expect(txUpdate?.[0].currencyId).toBe("currency-1");
+		expect(txUpdate?.[0].transactedAt).toEqual(startedAt);
 	});
 });
 

@@ -1,0 +1,1 @@
+CREATE INDEX `currencyTransaction_transactionTypeId_idx` ON `currency_transaction` (`transaction_type_id`);

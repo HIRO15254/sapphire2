@@ -31,9 +31,28 @@ describe("usePreviewAutoLogin", () => {
 	beforeEach(() => {
 		mocks.signInEmail.mockReset();
 		mocks.navigate.mockReset();
+		vi.spyOn(console, "error").mockReset();
 		mocks.env.VITE_PREVIEW_AUTO_LOGIN = undefined;
 		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = undefined;
 		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = undefined;
+	});
+
+	it("reports a rejected sign-in promise without leaking an unhandled rejection", async () => {
+		mocks.env.VITE_PREVIEW_AUTO_LOGIN = "true";
+		mocks.env.VITE_PREVIEW_LOGIN_EMAIL = "preview@example.com";
+		mocks.env.VITE_PREVIEW_LOGIN_PASSWORD = "preview-pass";
+		const error = new Error("network unavailable");
+		mocks.signInEmail.mockRejectedValue(error);
+
+		renderHook(() => usePreviewAutoLogin());
+		await waitFor(() => expect(mocks.signInEmail).toHaveBeenCalledTimes(1));
+		await waitFor(() =>
+			expect(console.error).toHaveBeenCalledWith(
+				"Preview auto-login failed",
+				error
+			)
+		);
+		expect(mocks.navigate).not.toHaveBeenCalled();
 	});
 
 	it("does nothing when VITE_PREVIEW_AUTO_LOGIN is not 'true'", () => {

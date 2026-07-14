@@ -1,4 +1,5 @@
 {
+  "extends": "@sapphire2/config/tsconfig.base.json",
   "compilerOptions": {
     "strict": true,
     "esModuleInterop": true,
@@ -6,12 +7,18 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
-    "types": ["vite/client", "@cloudflare/workers-types"],
+    "types": [
+      "vite/client",
+      "vite-plugin-pwa/client",
+      "@cloudflare/workers-types"
+    ],
     "rootDirs": ["."],
     "paths": {
       "@/*": ["./src/*"]
     }
-  }
+  },
+  "exclude": ["src/**/__tests__/**", "src/**/*.test.ts", "src/**/*.test.tsx"]
 }

@@ -4,6 +4,7 @@ import { appRouter } from "@sapphire2/api/routers/index";
 import { seedDefaultGameData } from "@sapphire2/api/services/seed-game-data";
 import { createAuth } from "@sapphire2/auth";
 import { createDb } from "@sapphire2/db";
+import { createServerEnv } from "@sapphire2/env/server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
@@ -22,6 +23,10 @@ interface Env {
 
 const app = new Hono<{ Bindings: Env }>();
 
+app.use("*", async (c, next) => {
+	createServerEnv(c.env);
+	await next();
+});
 app.use("/*", (c, next) => {
 	const corsMiddleware = cors({
 		origin: c.env.CORS_ORIGIN,

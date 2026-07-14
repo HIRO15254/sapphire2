@@ -5,14 +5,15 @@ import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	buildDefaults,
+	cashSessionFormSchema,
 	numStrOrEmpty,
 	parseOptInt,
 	type RingGameOption,
 	type SessionFormDefaults,
 	type SessionFormFieldValues,
 	type SessionFormValues,
-	sessionFormSchema,
 	type TournamentOption,
+	tournamentSessionFormSchema,
 } from "@/features/sessions/utils/session-form-helpers";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import { useMixMasterEditing } from "@/shared/hooks/use-mix-master-editing";
@@ -44,6 +45,7 @@ interface UseSessionFormStateArgs {
 	defaultValues?: SessionFormDefaults;
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
+	onSubmitInvalid?: (fieldNames: string[]) => void;
 	ringGames?: RingGameOption[];
 	tournaments?: TournamentOption[];
 }
@@ -69,6 +71,7 @@ export function useSessionFormState({
 	defaultValues,
 	onRoomChange,
 	onSubmit,
+	onSubmitInvalid,
 	ringGames,
 	tournaments,
 }: UseSessionFormStateArgs) {
@@ -180,6 +183,13 @@ export function useSessionFormState({
 
 	const form = useForm({
 		defaultValues: buildDefaults(defaultValues),
+		onSubmitInvalid: ({ formApi }) => {
+			const fieldNames = Object.entries(formApi.state.fieldMeta)
+				.filter(([, meta]) => (meta?.errors.length ?? 0) > 0)
+				.map(([fieldName]) => fieldName);
+			onSubmitInvalid?.(fieldNames);
+		},
+
 		onSubmit: ({ value }) => {
 			const common = {
 				sessionDate: value.sessionDate,
@@ -238,7 +248,9 @@ export function useSessionFormState({
 			});
 		},
 		validators: {
-			onSubmit: sessionFormSchema,
+			onSubmit: isCashGame
+				? cashSessionFormSchema
+				: tournamentSessionFormSchema,
 		},
 	});
 

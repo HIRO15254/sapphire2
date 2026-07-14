@@ -1,10 +1,11 @@
 import { StatTable } from "@/features/statistics/pages/statistics-page/stat-table";
+import { StatsQueryError } from "@/features/statistics/pages/statistics-page/stats-query-error";
 import { useTournamentStats } from "@/features/statistics/pages/statistics-page/tournament-stats/use-tournament-stats";
 import type { StatsSectionContext } from "@/features/statistics/types";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
 export function TournamentStats({ ctx }: { ctx: StatsSectionContext }) {
-	const { isEmpty, isPending, rows } = useTournamentStats(ctx);
+	const { isEmpty, isError, isPending, retry, rows } = useTournamentStats(ctx);
 
 	if (isPending) {
 		return (
@@ -13,6 +14,9 @@ export function TournamentStats({ ctx }: { ctx: StatsSectionContext }) {
 				<Skeleton className="h-72 rounded-xl" />
 			</div>
 		);
+	}
+	if (isError) {
+		return <StatsQueryError onRetry={retry} />;
 	}
 
 	if (isEmpty) {

@@ -1,3 +1,4 @@
+import { formatCompactNumber } from "@/utils/format-number";
 export interface ShareableSession {
 	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
@@ -19,16 +20,6 @@ export interface ShareableSession {
 	tournamentBuyIn: number | null;
 	tournamentName: string | null;
 	type: string;
-}
-
-function formatCompactNumberForShare(value: number): string {
-	if (Math.abs(value) >= 1_000_000) {
-		return `${(value / 1_000_000).toFixed(1)}M`;
-	}
-	if (Math.abs(value) >= 1000) {
-		return `${(value / 1000).toFixed(1)}K`;
-	}
-	return Math.round(value).toString();
 }
 
 function formatOrdinal(n: number): string {
@@ -59,19 +50,19 @@ function buildProfitLossLine(
 	profitLoss: number,
 	currencyUnit: string
 ): string {
-	const baseAmount = formatCompactNumberForShare(profitLoss);
+	const baseAmount = formatCompactNumber(profitLoss);
 	let line = `${plIcon} ${plSign}${baseAmount} ${currencyUnit}`;
 
 	if (session.type === "tournament") {
 		if (session.prizeMoney !== null && session.prizeMoney > 0) {
-			const prize = formatCompactNumberForShare(session.prizeMoney);
+			const prize = formatCompactNumber(session.prizeMoney);
 			line += ` (Prize: +${prize} ${currencyUnit})`;
 		}
 	} else {
 		const duration = formatDuration(session.startedAt, session.endedAt);
 		if (session.evProfitLoss !== null) {
 			const evSign = session.evProfitLoss >= 0 ? "+" : "";
-			const evAmount = formatCompactNumberForShare(session.evProfitLoss);
+			const evAmount = formatCompactNumber(session.evProfitLoss);
 			line += ` (EV: ${evSign}${evAmount} ${currencyUnit})`;
 		}
 		if (duration) {

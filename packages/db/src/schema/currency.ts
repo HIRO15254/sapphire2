@@ -68,6 +68,9 @@ export const currencyTransaction = sqliteTable(
 	(table) => [
 		index("currencyTransaction_currencyId_idx").on(table.currencyId),
 		index("currencyTransaction_sessionId_idx").on(table.sessionId),
+		index("currencyTransaction_transactionTypeId_idx").on(
+			table.transactionTypeId
+		),
 	]
 );
 

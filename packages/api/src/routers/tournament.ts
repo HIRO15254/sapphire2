@@ -29,7 +29,10 @@ async function validateRoomOwnership(
 	const [found] = await db.select().from(room).where(eq(room.id, roomId));
 
 	if (!found) {
-		throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this room",
+		});
 	}
 
 	if (found.userId !== userId) {
@@ -56,8 +59,8 @@ async function validateTournamentOwnership(
 
 	if (!found) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Tournament not found",
+			code: "FORBIDDEN",
+			message: "You do not own this tournament",
 		});
 	}
 
@@ -82,8 +85,8 @@ export const tournamentCreateWithLevelsInputSchema = z.object({
 		.array(
 			z.object({
 				name: z.string(),
-				cost: z.number().int(),
-				chips: z.number().int(),
+				cost: z.number().int().min(0),
+				chips: z.number().int().min(0),
 			})
 		)
 		.optional(),
@@ -459,8 +462,8 @@ export const tournamentRouter = router({
 					.array(
 						z.object({
 							name: z.string(),
-							cost: z.number().int(),
-							chips: z.number().int(),
+							cost: z.number().int().min(0),
+							chips: z.number().int().min(0),
 						})
 					)
 					.optional(),

@@ -18,7 +18,9 @@ import { trpc } from "@/utils/trpc";
 
 export interface UseTournamentStatsResult {
 	isEmpty: boolean;
+	isError: boolean;
 	isPending: boolean;
+	retry: () => void;
 	rows: StatRow[];
 }
 
@@ -39,10 +41,15 @@ export function useTournamentStats(
 	const summaryQuery = useQuery(
 		trpc.stats.summary.queryOptions(input, { enabled: ctx.enabled })
 	);
+	const retry = () => {
+		summaryQuery.refetch();
+	};
 
 	const summary = summaryQuery.data;
 	if (!summary) {
 		return {
+			isError: ctx.enabled && summaryQuery.isError,
+			retry,
 			isPending: ctx.enabled && summaryQuery.isPending,
 			isEmpty: false,
 			rows: [],
@@ -50,7 +57,7 @@ export function useTournamentStats(
 	}
 
 	if (summary.totalSessions === 0) {
-		return { isPending: false, isEmpty: true, rows: [] };
+		return { isPending: false, isEmpty: true, rows: [], isError: false, retry };
 	}
 
 	const { normalized } = ctx;
@@ -58,7 +65,10 @@ export function useTournamentStats(
 	const net = normalized
 		? summary.tournamentNormalizedProfitLoss
 		: summary.totalProfitLoss;
-	const avg = ratio(net, summary.totalSessions);
+	const avg = ratio(
+		net,
+		normalized ? summary.tournamentBiCount : summary.totalSessions
+	);
 	const scoped = (value: number | null): string =>
 		formatScopedProfitLoss(value, { normalized, unit });
 	// Aggregate ROI and Total prize sum raw currency amounts, so they are only
@@ -141,5 +151,11 @@ export function useTournamentStats(
 		});
 	}
 
-	return { isPending: false, isEmpty: false, rows };
+	return {
+		isPending: false,
+		isEmpty: false,
+		rows,
+		isError: ctx.enabled && summaryQuery.isError,
+		retry,
+	};
 }

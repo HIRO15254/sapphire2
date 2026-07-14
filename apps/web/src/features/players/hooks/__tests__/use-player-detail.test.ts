@@ -169,14 +169,14 @@ describe("usePlayerDetail", () => {
 			qc.setQueryData(playerKey("p1"), {
 				id: "p1",
 				name: "Alice",
-				memo: null,
+				memo: "old memo",
 				tags: [],
 			} satisfies PlayerDetailData);
 			qc.setQueryData(PLAYER_LIST_KEY, [
 				{
 					id: "p1",
 					name: "Alice",
-					memo: null,
+					memo: "old memo",
 					tags: [],
 				} satisfies PlayerListItemWithTags,
 			]);
@@ -199,14 +199,14 @@ describe("usePlayerDetail", () => {
 				result.current.updatePlayer({
 					id: "p1",
 					name: "New Alice",
-					memo: "note",
+					memo: null,
 					tagIds: ["vip"],
 				});
 			});
 			await waitFor(() => {
 				const detail = qc.getQueryData<PlayerDetailData>(playerKey("p1"));
 				expect(detail?.name).toBe("New Alice");
-				expect(detail?.memo).toBe("note");
+				expect(detail?.memo).toBeNull();
 				expect(detail?.tags).toEqual([
 					{ id: "vip", name: "VIP", color: "blue" },
 				]);
@@ -217,6 +217,7 @@ describe("usePlayerDetail", () => {
 				{ id: "vip", name: "VIP", color: "blue" },
 			]);
 			resolve?.({ id: "p1" });
+			expect(list?.[0]?.memo).toBeNull();
 		});
 
 		it("keeps existing tags when tagIds is omitted", async () => {

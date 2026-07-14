@@ -233,7 +233,7 @@ export function buildOptimisticEvent(
 	payload: unknown
 ): SessionEvent {
 	return {
-		id: `optimistic-${Date.now()}`,
+		id: `optimistic-${crypto.randomUUID()}`,
 		eventType,
 		payload,
 		occurredAt: new Date().toISOString(),

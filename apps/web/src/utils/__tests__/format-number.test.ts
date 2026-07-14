@@ -3,6 +3,7 @@ import { TZ_EAST, TZ_WEST, withTz } from "@/__tests__/tz";
 import {
 	createGroupFormatter,
 	formatCompactNumber,
+	formatNumber,
 	formatYmdSlash,
 } from "@/utils/format-number";
 
@@ -23,6 +24,14 @@ describe("formatCompactNumber", () => {
 			expect(formatCompactNumber(999)).toBe("999");
 			expect(formatCompactNumber(1000)).toBe("1,000");
 			expect(formatCompactNumber(9999)).toBe("9,999");
+		});
+
+		it("uses the fixed en-US locale for unabridged values", () => {
+			expect(formatCompactNumber(1234.5)).toBe("1,234.5");
+		});
+
+		it("formats full values through the fixed en-US formatter", () => {
+			expect(formatNumber(1234.5)).toBe("1,234.5");
 		});
 
 		it("formats small negative integers with separators", () => {

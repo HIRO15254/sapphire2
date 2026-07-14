@@ -77,7 +77,7 @@ export function usePlayerDetail(playerId: string | null) {
 							values.tagIds?.includes(tag.id)
 						);
 			updateQueryEntity<PlayerDetailData>(queryClient, playerKey, (old) => ({
-				memo: values.memo ?? old.memo,
+				memo: Object.hasOwn(values, "memo") ? (values.memo ?? null) : old.memo,
 				name: values.name ?? old.name,
 				tags: nextTags as PlayerTagWithColor[],
 			}));
@@ -88,7 +88,9 @@ export function usePlayerDetail(playerId: string | null) {
 						player.id === values.id
 							? {
 									...player,
-									memo: values.memo ?? player.memo,
+									memo: Object.hasOwn(values, "memo")
+										? (values.memo ?? null)
+										: player.memo,
 									name: values.name ?? player.name,
 									tags: nextTags as PlayerTagWithColor[],
 								}

@@ -397,4 +397,15 @@ describe("useBreakdownSection", () => {
 			"-100 USD",
 		]);
 	});
+	it("exposes query errors and retries the breakdown request", async () => {
+		trpcMocks.breakdownQueryFn.mockReset();
+		trpcMocks.breakdownQueryFn
+			.mockRejectedValueOnce(new Error("network"))
+			.mockResolvedValueOnce({ groups: [] });
+		const view = renderBreakdown(ctx());
+		await waitFor(() => expect(view.result.current.isError).toBe(true));
+		act(() => view.result.current.retry());
+		await waitFor(() => expect(view.result.current.isError).toBe(false));
+		expect(trpcMocks.breakdownQueryFn).toHaveBeenCalledTimes(2);
+	});
 });

@@ -268,6 +268,7 @@ describe("CurrencyTransaction schema — FKs and indexes", () => {
 	it("has indexes on currencyId and sessionId for lookup performance", () => {
 		const idxNames = config.indexes.map((i) => i.config.name);
 		expect(idxNames).toContain("currencyTransaction_currencyId_idx");
+		expect(idxNames).toContain("currencyTransaction_transactionTypeId_idx");
 		expect(idxNames).toContain("currencyTransaction_sessionId_idx");
 	});
 

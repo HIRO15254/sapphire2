@@ -81,8 +81,8 @@ async function validateSessionOwnership(
 
 	if (!found) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Session not found",
+			code: "FORBIDDEN",
+			message: "You do not own this session",
 		});
 	}
 
@@ -514,7 +514,10 @@ async function validateRingGameOwnershipBranch(
 		.from(ringGame)
 		.where(eq(ringGame.id, entityId));
 	if (!found) {
-		throw new TRPCError({ code: "NOT_FOUND", message: "Ring game not found" });
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
+		});
 	}
 	// A ring game now carries its own userId (SA2-181), so ownership is a direct
 	// comparison — no longer derived from the room. A null userId is a
@@ -536,7 +539,10 @@ async function validateRoomOwnershipBranch(
 ): Promise<void> {
 	const [found] = await db.select().from(room).where(eq(room.id, entityId));
 	if (!found) {
-		throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this room",
+		});
 	}
 	if (found.userId !== userId) {
 		throw new TRPCError({
@@ -557,8 +563,8 @@ async function validateTournamentOwnershipBranch(
 		.where(eq(tournament.id, entityId));
 	if (!found) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Tournament not found",
+			code: "FORBIDDEN",
+			message: "You do not own this tournament",
 		});
 	}
 	// A tournament has no userId of its own; ownership is derived from its
@@ -583,8 +589,8 @@ async function validateCurrencyOwnershipBranch(
 		.where(eq(currency.id, entityId));
 	if (!found) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Currency not found",
+			code: "FORBIDDEN",
+			message: "You do not own this currency",
 		});
 	}
 	if (found.userId !== userId) {
@@ -976,8 +982,8 @@ const cashGameCreateSchema = z.object({
 // Shared by session.create and session.update.
 const chipPurchaseInputSchema = z.object({
 	name: z.string(),
-	cost: z.number().int(),
-	chips: z.number().int(),
+	cost: z.number().int().min(0),
+	chips: z.number().int().min(0),
 	count: z.number().int().min(0).default(0),
 });
 
@@ -2033,6 +2039,50 @@ interface TournamentUpdateInput {
 	tournamentBuyIn?: number;
 	tournamentId?: string | null;
 	variant?: string;
+}
+
+async function assertTournamentPlacementIntegrity(
+	db: DbInstance,
+	sessionId: string,
+	input: TournamentUpdateInput
+): Promise<void> {
+	const changesPlacementState =
+		input.beforeDeadline !== undefined ||
+		input.placement !== undefined ||
+		input.totalEntries !== undefined;
+	if (!changesPlacementState || input.beforeDeadline === true) {
+		return;
+	}
+
+	const [existing] = await db
+		.select({
+			beforeDeadline: sessionTournamentDetail.beforeDeadline,
+			placement: sessionTournamentDetail.placement,
+			totalEntries: sessionTournamentDetail.totalEntries,
+		})
+		.from(sessionTournamentDetail)
+		.where(eq(sessionTournamentDetail.sessionId, sessionId));
+
+	const effectiveBeforeDeadline =
+		input.beforeDeadline === undefined && existing?.beforeDeadline === true;
+	if (effectiveBeforeDeadline) {
+		return;
+	}
+
+	const placement =
+		input.placement === undefined
+			? (existing?.placement ?? null)
+			: input.placement;
+	const totalEntries =
+		input.totalEntries === undefined
+			? (existing?.totalEntries ?? null)
+			: input.totalEntries;
+	if (placement !== null && totalEntries !== null && placement > totalEntries) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "Placement must be less than or equal to total entries",
+		});
+	}
 }
 
 async function applyTournamentSnapshotUpdate(
@@ -3155,56 +3205,69 @@ export const sessionRouter = router({
 
 	update: protectedProcedure
 		.input(
-			z.object({
-				id: z.string(),
-				sessionDate: z.number().optional(),
-				roomId: z.string().nullable().optional(),
-				ringGameId: z.string().nullable().optional(),
-				tournamentId: z.string().nullable().optional(),
-				currencyId: z.string().nullable().optional(),
-				buyIn: z.number().int().min(0).optional(),
-				cashOut: z.number().int().min(0).optional(),
-				evCashOut: z.number().int().min(0).nullable().optional(),
-				tournamentBuyIn: z.number().int().min(0).optional(),
-				entryFee: z.number().int().min(0).optional(),
-				placement: z.number().int().min(1).nullable().optional(),
-				totalEntries: z.number().int().min(1).nullable().optional(),
-				beforeDeadline: z.boolean().nullable().optional(),
-				prizeMoney: z.number().int().min(0).nullable().optional(),
-				bountyPrizes: z.number().int().min(0).nullable().optional(),
-				startingStack: z.number().int().nullable().optional(),
-				bountyAmount: z.number().int().nullable().optional(),
-				blindLevels: z
-					.array(
-						z.object({
-							isBreak: z.boolean(),
-							blind1: z.number().int().nullable().optional(),
-							blind2: z.number().int().nullable().optional(),
-							blind3: z.number().int().nullable().optional(),
-							ante: z.number().int().nullable().optional(),
-							minutes: z.number().int().nullable().optional(),
-							games: levelGamesSchema.nullish(),
-						})
-					)
-					.optional(),
-				chipPurchases: z.array(chipPurchaseInputSchema).optional(),
-				startedAt: z.number().nullable().optional(),
-				endedAt: z.number().nullable().optional(),
-				breakMinutes: z.number().int().min(0).nullable().optional(),
-				memo: z.string().nullable().optional(),
-				ruleName: z.string().optional(),
-				variant: z.string().optional(),
-				mixGames: mixGamesSchema.nullish(),
-				blind1: z.number().int().nullable().optional(),
-				blind2: z.number().int().nullable().optional(),
-				blind3: z.number().int().nullable().optional(),
-				ante: z.number().int().nullable().optional(),
-				anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
-				tableSize: z.number().int().nullable().optional(),
-				minBuyIn: z.number().int().nullable().optional(),
-				maxBuyIn: z.number().int().nullable().optional(),
-				tagIds: z.array(z.string()).optional(),
-			})
+			z
+				.object({
+					id: z.string(),
+					sessionDate: z.number().optional(),
+					roomId: z.string().nullable().optional(),
+					ringGameId: z.string().nullable().optional(),
+					tournamentId: z.string().nullable().optional(),
+					currencyId: z.string().nullable().optional(),
+					buyIn: z.number().int().min(0).optional(),
+					cashOut: z.number().int().min(0).optional(),
+					evCashOut: z.number().int().min(0).nullable().optional(),
+					tournamentBuyIn: z.number().int().min(0).optional(),
+					entryFee: z.number().int().min(0).optional(),
+					placement: z.number().int().min(1).nullable().optional(),
+					totalEntries: z.number().int().min(1).nullable().optional(),
+					beforeDeadline: z.boolean().nullable().optional(),
+					prizeMoney: z.number().int().min(0).nullable().optional(),
+					bountyPrizes: z.number().int().min(0).nullable().optional(),
+					startingStack: z.number().int().nullable().optional(),
+					bountyAmount: z.number().int().nullable().optional(),
+					blindLevels: z
+						.array(
+							z.object({
+								isBreak: z.boolean(),
+								blind1: z.number().int().nullable().optional(),
+								blind2: z.number().int().nullable().optional(),
+								blind3: z.number().int().nullable().optional(),
+								ante: z.number().int().nullable().optional(),
+								minutes: z.number().int().nullable().optional(),
+								games: levelGamesSchema.nullish(),
+							})
+						)
+						.optional(),
+					chipPurchases: z.array(chipPurchaseInputSchema).optional(),
+					startedAt: z.number().nullable().optional(),
+					endedAt: z.number().nullable().optional(),
+					breakMinutes: z.number().int().min(0).nullable().optional(),
+					memo: z.string().nullable().optional(),
+					ruleName: z.string().optional(),
+					variant: z.string().optional(),
+					mixGames: mixGamesSchema.nullish(),
+					blind1: z.number().int().nullable().optional(),
+					blind2: z.number().int().nullable().optional(),
+					blind3: z.number().int().nullable().optional(),
+					ante: z.number().int().nullable().optional(),
+					anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
+					tableSize: z.number().int().nullable().optional(),
+					minBuyIn: z.number().int().nullable().optional(),
+					maxBuyIn: z.number().int().nullable().optional(),
+					tagIds: z.array(z.string()).optional(),
+				})
+				.refine(
+					(data) =>
+						data.beforeDeadline === true ||
+						data.placement === undefined ||
+						data.placement === null ||
+						data.totalEntries === undefined ||
+						data.totalEntries === null ||
+						data.placement <= data.totalEntries,
+					{
+						message: "Placement must be less than or equal to total entries",
+					}
+				)
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
@@ -3215,6 +3278,9 @@ export const sessionRouter = router({
 				input
 			);
 
+			if (session.kind === "tournament") {
+				await assertTournamentPlacementIntegrity(ctx.db, input.id, input);
+			}
 			if (input.roomId) {
 				await validateEntityOwnership(ctx.db, "room", input.roomId, userId);
 			}

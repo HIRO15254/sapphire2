@@ -156,6 +156,9 @@ export function prependInfiniteQueryItem<TItem>(
 			return old;
 		}
 		const [first, ...rest] = old.pages;
+		if (!first) {
+			return old;
+		}
 		return {
 			...old,
 			pages: [{ ...first, items: [item, ...first.items] }, ...rest],

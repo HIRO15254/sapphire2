@@ -266,6 +266,18 @@ describe("tournament.createWithLevels input validation", () => {
 		});
 	});
 
+	it("rejects negative chip purchase cost and chips", () => {
+		expectRejects(appRouter.tournament.createWithLevels, {
+			roomId: "s1",
+			name: "Series",
+			chipPurchases: [{ name: "Rebuy", cost: -1, chips: 100 }],
+		});
+		expectRejects(appRouter.tournament.createWithLevels, {
+			roomId: "s1",
+			name: "Series",
+			chipPurchases: [{ name: "Rebuy", cost: 1, chips: -100 }],
+		});
+	});
 	it("rejects a blindLevel missing isBreak", () => {
 		expectRejects(appRouter.tournament.createWithLevels, {
 			roomId: "s1",

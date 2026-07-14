@@ -140,7 +140,11 @@ function activeSeries(
 		return CASH_SERIES;
 	}
 	const hasAverage = points.some((p) => p.averageStack != null);
-	return hasAverage ? TOURNAMENT_SERIES : [TOURNAMENT_SERIES[0]];
+	if (hasAverage) {
+		return TOURNAMENT_SERIES;
+	}
+	const stackSeries = TOURNAMENT_SERIES[0];
+	return stackSeries ? [stackSeries] : [];
 }
 
 export default function SessionResultChartImpl({

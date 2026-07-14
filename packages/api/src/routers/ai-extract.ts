@@ -203,7 +203,14 @@ export const aiExtractRouter = router({
 	extractTournamentData: protectedProcedure
 		.input(
 			z.object({
-				sources: z.array(SourceSchema).min(1).max(5),
+				sources: z
+					.array(SourceSchema)
+					.min(1)
+					.max(5)
+					.refine(
+						(sources) => sources.every((source) => source.kind === "image"),
+						"URL sources are not supported; upload the image instead of providing a URL"
+					),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

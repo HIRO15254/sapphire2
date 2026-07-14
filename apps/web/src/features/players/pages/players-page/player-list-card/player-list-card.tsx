@@ -1,6 +1,6 @@
 import { IconChevronRight } from "@tabler/icons-react";
 import { Link } from "@tanstack/react-router";
-import { ColorBadge } from "@/features/players/components/color-badge";
+import { tagBadgeClassName } from "@/features/players/utils/tag-badge-class-name";
 import { Badge } from "@/shared/components/ui/badge";
 
 interface PlayerListCardProps {
@@ -36,9 +36,12 @@ export function PlayerListCard({ player }: PlayerListCardProps) {
 			{player.tags.length > 0 ? (
 				<div className="flex shrink-0 items-center gap-1">
 					{visibleTags.map((tag) => (
-						<ColorBadge className="shrink-0" color={tag.color} key={tag.id}>
+						<Badge
+							className={tagBadgeClassName(tag.color, "shrink-0")}
+							key={tag.id}
+						>
 							{tag.name}
-						</ColorBadge>
+						</Badge>
 					))}
 					{overflowCount > 0 ? (
 						<Badge className="shrink-0" variant="secondary">

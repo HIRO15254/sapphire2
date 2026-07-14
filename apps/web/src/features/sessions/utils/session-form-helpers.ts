@@ -1,7 +1,10 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import type { LevelGameGroup, MixGameGroup } from "@sapphire2/db/schemas/game";
 import z from "zod";
-import { optionalNumericString } from "@/shared/lib/form-fields";
+import {
+	optionalNumericString,
+	requiredNumericString,
+} from "@/shared/lib/form-fields";
 
 export interface SessionBlindLevelInput {
 	ante: number | null;
@@ -178,8 +181,8 @@ export const sessionFormSchema = z.object({
 	breakMinutes: optionalNumericString({ integer: true, min: 0 }),
 	memo: z.string(),
 	ruleName: z.string(),
-	buyIn: optionalNumericString({ integer: true, min: 0 }),
-	cashOut: optionalNumericString({ integer: true, min: 0 }),
+	buyIn: requiredNumericString({ integer: true, min: 0 }),
+	cashOut: requiredNumericString({ integer: true, min: 0 }),
 	evCashOut: optionalNumericString({ integer: true, min: 0 }),
 	variant: z.string(),
 	blind1: optionalNumericString({ integer: true, min: 0 }),
@@ -190,7 +193,7 @@ export const sessionFormSchema = z.object({
 	tableSize: z.string(),
 	minBuyIn: optionalNumericString({ integer: true, min: 0 }),
 	maxBuyIn: optionalNumericString({ integer: true, min: 0 }),
-	tournamentBuyIn: optionalNumericString({ integer: true, min: 0 }),
+	tournamentBuyIn: requiredNumericString({ integer: true, min: 0 }),
 	entryFee: optionalNumericString({ integer: true, min: 0 }),
 	startingStack: optionalNumericString({ integer: true, min: 0 }),
 	bountyAmount: optionalNumericString({ integer: true, min: 0 }),
@@ -200,6 +203,15 @@ export const sessionFormSchema = z.object({
 	totalEntries: optionalNumericString({ integer: true, min: 1 }),
 	prizeMoney: optionalNumericString({ integer: true, min: 0 }),
 	bountyPrizes: optionalNumericString({ integer: true, min: 0 }),
+});
+
+export const cashSessionFormSchema = sessionFormSchema.extend({
+	tournamentBuyIn: optionalNumericString({ integer: true, min: 0 }),
+});
+
+export const tournamentSessionFormSchema = sessionFormSchema.extend({
+	buyIn: optionalNumericString({ integer: true, min: 0 }),
+	cashOut: optionalNumericString({ integer: true, min: 0 }),
 });
 
 export function buildDefaults(defaults: SessionFormDefaults | undefined) {

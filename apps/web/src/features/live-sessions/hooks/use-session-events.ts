@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { buildOptimisticSessionSummary } from "@/features/live-sessions/utils/optimistic-session-event";
+import { useRef } from "react";
 import {
 	cancelTargets,
 	invalidateTargets,
@@ -16,11 +16,6 @@ export interface SessionEvent {
 	payload: unknown;
 }
 
-interface SessionSummaryData {
-	summary?: Record<string, unknown>;
-	[key: string]: unknown;
-}
-
 type SessionType = "cash_game" | "tournament";
 
 export function useSessionEvents({
@@ -34,6 +29,7 @@ export function useSessionEvents({
 }) {
 	const queryClient = useQueryClient();
 
+	const activeMutationsRef = useRef(0);
 	const eventQueryInput =
 		sessionType === "tournament"
 			? { liveTournamentSessionId: sessionId }
@@ -43,7 +39,12 @@ export function useSessionEvents({
 	const eventsQuery = useQuery({
 		...eventsQueryOptions,
 		enabled: !!sessionId,
-		...(refetchInterval ? { refetchInterval } : {}),
+		...(refetchInterval
+			? {
+					refetchInterval: () =>
+						activeMutationsRef.current > 0 ? false : refetchInterval,
+				}
+			: {}),
 	});
 	const events = (eventsQuery.data ?? []) as SessionEvent[];
 
@@ -54,32 +55,16 @@ export function useSessionEvents({
 			: trpc.liveCashGameSession.getById.queryOptions({ id: sessionId })
 					.queryKey;
 
-	const applyEventSummaryToSession = (
-		event: SessionEvent,
-		payload: unknown,
-		occurredAt?: number
-	) => {
-		queryClient.setQueryData<SessionSummaryData>(sessionKey, (old) => {
-			if (!(old?.summary && payload) || typeof payload !== "object") {
-				return old;
-			}
-
-			return {
-				...old,
-				summary: buildOptimisticSessionSummary(
-					old.summary,
-					event.eventType,
-					payload as Record<string, unknown>,
-					occurredAt
-				),
-			};
-		});
-	};
+	const sessionListKey =
+		sessionType === "tournament"
+			? trpc.liveTournamentSession.list.queryOptions({}).queryKey
+			: trpc.liveCashGameSession.list.queryOptions({}).queryKey;
 
 	const invalidateAll = async () => {
 		await invalidateTargets(queryClient, [
 			{ queryKey: eventsQueryOptions.queryKey },
 			{ queryKey: sessionKey },
+			{ filters: { queryKey: sessionListKey } },
 		]);
 	};
 
@@ -90,6 +75,7 @@ export function useSessionEvents({
 			payload?: unknown;
 		}) => trpcClient.sessionEvent.update.mutate(args),
 		onMutate: async (args) => {
+			activeMutationsRef.current += 1;
 			await cancelTargets(queryClient, [
 				{ queryKey: eventsQueryOptions.queryKey },
 				{ queryKey: sessionKey },
@@ -99,7 +85,6 @@ export function useSessionEvents({
 				eventsQueryOptions.queryKey
 			);
 			const previousSession = snapshotQuery(queryClient, sessionKey);
-			const targetEvent = events.find((event) => event.id === args.id);
 			updateQueryItems<SessionEvent>(
 				queryClient,
 				eventsQueryOptions.queryKey,
@@ -116,9 +101,6 @@ export function useSessionEvents({
 							: event
 					)
 			);
-			if (targetEvent && args.payload) {
-				applyEventSummaryToSession(targetEvent, args.payload, args.occurredAt);
-			}
 			return { previousEvents, previousSession };
 		},
 		onError: (_error, _variables, context) => {
@@ -130,11 +112,15 @@ export function useSessionEvents({
 		onSuccess: async () => {
 			await invalidateAll();
 		},
+		onSettled: () => {
+			activeMutationsRef.current = Math.max(0, activeMutationsRef.current - 1);
+		},
 	});
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.sessionEvent.delete.mutate({ id }),
 		onMutate: async (id) => {
+			activeMutationsRef.current += 1;
 			await cancelTargets(queryClient, [
 				{ queryKey: eventsQueryOptions.queryKey },
 				{ queryKey: sessionKey },
@@ -159,6 +145,9 @@ export function useSessionEvents({
 		},
 		onSuccess: async () => {
 			await invalidateAll();
+		},
+		onSettled: () => {
+			activeMutationsRef.current = Math.max(0, activeMutationsRef.current - 1);
 		},
 	});
 

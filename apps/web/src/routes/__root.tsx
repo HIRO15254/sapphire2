@@ -9,8 +9,10 @@ import {
 } from "@tanstack/react-router";
 import { authClient } from "@/lib/auth-client";
 import { AuthenticatedShell } from "@/shared/components/authenticated-shell";
+import { RouterErrorFallback } from "@/shared/components/router-fallback";
 import { ThemeProvider } from "@/shared/components/theme-provider";
 import { Toaster } from "@/shared/components/ui/sonner";
+import { usePwaUpdate } from "@/shared/hooks/use-pwa-update";
 import type { trpc } from "@/utils/trpc";
 
 import "../index.css";
@@ -23,17 +25,27 @@ export interface RouterAppContext {
 export const Route = createRootRouteWithContext<RouterAppContext>()({
 	beforeLoad: async ({ location }) => {
 		if (location.pathname === "/login") {
-			return { session: null };
+			return { session: null, sessionUnavailable: false };
 		}
-		const session = await authClient.getSession();
+		let session: Awaited<ReturnType<typeof authClient.getSession>>;
+		try {
+			session = await authClient.getSession();
+		} catch (error) {
+			if (typeof navigator === "undefined" || navigator.onLine !== false) {
+				throw error;
+			}
+			console.warn("Session check failed; continuing in offline mode", error);
+			return { session: null, sessionUnavailable: true };
+		}
 		if (!session.data) {
 			throw redirect({ to: "/login" });
 		}
 		// Merge the fetched session into router context so child routes
 		// (e.g. the "/" dispatch) can read it without a second round-trip.
-		return { session };
+		return { session, sessionUnavailable: false };
 	},
 	component: RootComponent,
+	errorComponent: RouterErrorFallback,
 	head: () => ({
 		meta: [
 			{
@@ -54,6 +66,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 export function RootComponent() {
+	usePwaUpdate();
 	const { pathname } = useLocation();
 	const isLoginPage = pathname === "/login";
 

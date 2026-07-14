@@ -99,6 +99,23 @@ describe("useTransactionForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		"100.5",
+		"-0.5",
+		"Infinity",
+		"NaN",
+	])("rejects non-integer transaction amount %s", async (amount) => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useTransactionForm({ onSubmit }));
+		act(() => {
+			result.current.form.setFieldValue("amount", amount);
+			result.current.form.setFieldValue("transactionTypeId", "t1");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(0);
+	});
 	it("rejects submit when transactionTypeId is empty", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() => useTransactionForm({ onSubmit }));

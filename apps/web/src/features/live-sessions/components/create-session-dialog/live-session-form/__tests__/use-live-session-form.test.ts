@@ -164,6 +164,11 @@ describe("useLiveSessionForm — submit", () => {
 		const stopPropagation = vi.fn();
 
 		act(() => {
+			result.current.state.form.setFieldValue("buyIn", "100");
+			result.current.state.form.setFieldValue("cashOut", "125");
+		});
+
+		act(() => {
 			result.current.onFormSubmit({
 				preventDefault,
 				stopPropagation,
@@ -172,6 +177,7 @@ describe("useLiveSessionForm — submit", () => {
 
 		expect(preventDefault).toHaveBeenCalledTimes(1);
 		expect(stopPropagation).toHaveBeenCalledTimes(1);
+
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
 		expect(onSubmit).toHaveBeenCalledWith(
 			expect.objectContaining({ type: "cash_game" })

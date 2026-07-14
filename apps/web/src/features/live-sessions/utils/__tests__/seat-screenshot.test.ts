@@ -152,6 +152,29 @@ describe("computeRowWarning", () => {
 		).toBe("Seat 10 is out of range (1-9).");
 	});
 
+	it("warns when a seat exceeds the current table size", () => {
+		expect(
+			computeRowWarning({
+				action: "new",
+				occupiedSeatPositions: new Set(),
+				seatCount: 6,
+				seatNumber: 7,
+				seatPosition: 6,
+			})
+		).toBe("Seat 7 is out of range (1-6).");
+	});
+
+	it("accepts the last seat in the current table size", () => {
+		expect(
+			computeRowWarning({
+				action: "new",
+				occupiedSeatPositions: new Set(),
+				seatCount: 6,
+				seatNumber: 6,
+				seatPosition: 5,
+			})
+		).toBeNull();
+	});
 	it("warns when seat is already occupied for non-hero, non-skip actions", () => {
 		expect(
 			computeRowWarning({
