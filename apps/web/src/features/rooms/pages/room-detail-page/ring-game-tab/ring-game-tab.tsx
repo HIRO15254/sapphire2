@@ -24,6 +24,8 @@ export function RingGameTab({ roomId }: { roomId: string }) {
 		archivedGames,
 		currencies,
 		activeLoading,
+		isInitialLoadError,
+		onRetry,
 		archivedLoading,
 		isCreatePending,
 		isUpdatePending,
@@ -56,7 +58,9 @@ export function RingGameTab({ roomId }: { roomId: string }) {
 				archivedGames={archivedGames}
 				archivedLoading={archivedLoading}
 				currencies={currencies}
+				isInitialLoadError={isInitialLoadError}
 				onOpenActions={openActions}
+				onRetry={onRetry}
 				showArchived={showArchived}
 			/>
 

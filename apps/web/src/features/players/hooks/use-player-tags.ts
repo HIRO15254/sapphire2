@@ -2,10 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TagColor } from "@/features/players/constants/player-tag-colors";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQueries,
 	snapshotQuery,
+	updateQueriesData,
+	updateQueryData,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -34,7 +37,7 @@ export function usePlayerTags() {
 		onMutate: async (newTag) => {
 			await cancelTargets(queryClient, [{ queryKey: tagListKey }]);
 			const previous = snapshotQuery(queryClient, tagListKey);
-			queryClient.setQueryData<
+			updateQueryData<
 				Array<{
 					color: string;
 					createdAt?: string;
@@ -43,10 +46,10 @@ export function usePlayerTags() {
 					updatedAt?: string;
 					userId?: string;
 				}>
-			>(tagListKey, (old) => [
+			>(queryClient, tagListKey, (old) => [
 				...(old ?? []),
 				{
-					id: `temp-tag-${Date.now()}`,
+					id: createOptimisticId("temp-tag"),
 					name: newTag.name,
 					color: newTag.color,
 					createdAt: new Date().toISOString(),
@@ -76,7 +79,8 @@ export function usePlayerTags() {
 			const previousPlayers = snapshotQueries(queryClient, {
 				queryKey: playerListKey,
 			});
-			queryClient.setQueryData<TagItem[]>(
+			updateQueryData<TagItem[]>(
+				queryClient,
 				tagListKey,
 				(old) =>
 					old?.map((tag) =>
@@ -85,7 +89,8 @@ export function usePlayerTags() {
 							: tag
 					) ?? []
 			);
-			queryClient.setQueriesData<Array<{ tags: TagItem[] }>>(
+			updateQueriesData<Array<{ tags: TagItem[] }>>(
+				queryClient,
 				{ queryKey: playerListKey },
 				(old) =>
 					old?.map((player) => ({
@@ -124,11 +129,13 @@ export function usePlayerTags() {
 			const previousPlayers = snapshotQueries(queryClient, {
 				queryKey: playerListKey,
 			});
-			queryClient.setQueryData<TagItem[]>(
+			updateQueryData<TagItem[]>(
+				queryClient,
 				tagListKey,
 				(old) => old?.filter((tag) => tag.id !== id) ?? []
 			);
-			queryClient.setQueriesData<Array<{ tags: TagItem[] }>>(
+			updateQueriesData<Array<{ tags: TagItem[] }>>(
+				queryClient,
 				{ queryKey: playerListKey },
 				(old) =>
 					old?.map((player) => ({

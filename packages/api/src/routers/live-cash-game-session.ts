@@ -41,6 +41,20 @@ import {
 } from "./session";
 
 const DEFAULT_LIMIT = 20;
+const nullableNonnegativeSafeIntegerSchema = z
+	.number()
+	.int()
+	.min(0)
+	.max(Number.MAX_SAFE_INTEGER)
+	.nullable()
+	.optional();
+const nullableTableSizeSchema = z
+	.number()
+	.int()
+	.min(2)
+	.max(10)
+	.nullable()
+	.optional();
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -117,7 +131,8 @@ async function findLiveCashGameSession(
 			and(
 				eq(gameSession.id, id),
 				eq(gameSession.kind, "cash_game"),
-				eq(gameSession.source, "live")
+				eq(gameSession.source, "live"),
+				eq(gameSession.userId, userId)
 			)
 		);
 
@@ -128,8 +143,8 @@ async function findLiveCashGameSession(
 		found.userId !== userId
 	) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Live cash game session not found",
+			code: "FORBIDDEN",
+			message: "You do not own this live cash game session",
 		});
 	}
 
@@ -206,12 +221,12 @@ async function resolveRingGameAssignment(
 	const [foundRingGame] = await db
 		.select()
 		.from(ringGame)
-		.where(eq(ringGame.id, ringGameId));
+		.where(and(eq(ringGame.id, ringGameId), eq(ringGame.userId, userId)));
 
 	if (!foundRingGame) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Ring game not found",
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
 		});
 	}
 
@@ -301,8 +316,17 @@ export const liveCashGameSessionRouter = router({
 					sessionCashDetail,
 					eq(sessionCashDetail.sessionId, gameSession.id)
 				)
-				.leftJoin(room, eq(room.id, gameSession.roomId))
-				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
+				.leftJoin(
+					room,
+					and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
+				)
+				.leftJoin(
+					currency,
+					and(
+						eq(currency.id, gameSession.currencyId),
+						eq(currency.userId, userId)
+					)
+				)
 				.where(and(...conditions))
 				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))
 				.limit(input.limit + 1);
@@ -410,9 +434,9 @@ export const liveCashGameSessionRouter = router({
 	create: protectedProcedure
 		.input(
 			z.object({
-				roomId: z.string().optional(),
-				ringGameId: z.string().optional(),
-				currencyId: z.string().optional(),
+				roomId: z.string().min(1).optional(),
+				ringGameId: z.string().min(1).optional(),
+				currencyId: z.string().min(1).optional(),
 				memo: z.string().optional(),
 				// Must be an integer: it is re-read through cashSessionStartPayload's
 				// z.number().int().min(0), so a decimal here would parse on create but
@@ -424,6 +448,16 @@ export const liveCashGameSessionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const now = new Date();
+
+			await validateLiveLinkOwnership(ctx.db, input, userId);
+			if (input.ringGameId) {
+				await validateEntityOwnership(
+					ctx.db,
+					"ringGame",
+					input.ringGameId,
+					userId
+				);
+			}
 
 			const anyActive = await ctx.db
 				.select({ id: gameSession.id })
@@ -447,19 +481,15 @@ export const liveCashGameSessionRouter = router({
 			if (input.ringGameId) {
 				// Verify ring-game ownership BEFORE any ring_game read so a caller
 				// cannot probe another user's config via the buy-in bounds (SA2-174).
-				await validateEntityOwnership(
-					ctx.db,
-					"ringGame",
-					input.ringGameId,
-					userId
-				);
 				const [foundRingGame] = await ctx.db
 					.select({
 						minBuyIn: ringGame.minBuyIn,
 						maxBuyIn: ringGame.maxBuyIn,
 					})
 					.from(ringGame)
-					.where(eq(ringGame.id, input.ringGameId));
+					.where(
+						and(eq(ringGame.id, input.ringGameId), eq(ringGame.userId, userId))
+					);
 
 				if (foundRingGame) {
 					if (
@@ -483,52 +513,50 @@ export const liveCashGameSessionRouter = router({
 				}
 			}
 
-			await validateLiveLinkOwnership(ctx.db, input, userId);
-
 			const id = crypto.randomUUID();
-
-			await ctx.db.insert(gameSession).values({
-				id,
-				userId,
-				kind: "cash_game",
-				status: "active",
-				source: "live",
-				roomId: input.roomId ?? null,
-				currencyId: input.currencyId ?? null,
-				startedAt: now,
-				memo: input.memo ?? null,
-				sessionDate: now,
-				updatedAt: now,
-			});
 
 			const snapshot = await resolveCashRuleSnapshot(ctx.db, {
 				ringGameId: input.ringGameId,
 			});
-			await ctx.db.insert(sessionCashDetail).values({
-				sessionId: id,
-				ringGameId: input.ringGameId ?? null,
-				ruleName: input.ringGameId ? snapshot.ruleName : "Cash Game",
-				variant: snapshot.variant,
-				mixGames: snapshot.mixGames,
-				blind1: snapshot.blind1,
-				blind2: snapshot.blind2,
-				blind3: snapshot.blind3,
-				ante: snapshot.ante,
-				anteType: snapshot.anteType,
-				minBuyIn: snapshot.minBuyIn,
-				maxBuyIn: snapshot.maxBuyIn,
-				tableSize: snapshot.tableSize,
-			});
-
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				sessionId: id,
-				eventType: "session_start",
-				occurredAt: floorToMinute(now),
-				sortOrder: 0,
-				payload: JSON.stringify({ buyInAmount: input.initialBuyIn }),
-				updatedAt: now,
-			});
+			await ctx.db.batch([
+				ctx.db.insert(gameSession).values({
+					id,
+					userId,
+					kind: "cash_game",
+					status: "active",
+					source: "live",
+					roomId: input.roomId ?? null,
+					currencyId: input.currencyId ?? null,
+					startedAt: now,
+					memo: input.memo ?? null,
+					sessionDate: now,
+					updatedAt: now,
+				}),
+				ctx.db.insert(sessionCashDetail).values({
+					sessionId: id,
+					ringGameId: input.ringGameId ?? null,
+					ruleName: input.ringGameId ? snapshot.ruleName : "Cash Game",
+					variant: snapshot.variant,
+					mixGames: snapshot.mixGames,
+					blind1: snapshot.blind1,
+					blind2: snapshot.blind2,
+					blind3: snapshot.blind3,
+					ante: snapshot.ante,
+					anteType: snapshot.anteType,
+					minBuyIn: snapshot.minBuyIn,
+					maxBuyIn: snapshot.maxBuyIn,
+					tableSize: snapshot.tableSize,
+				}),
+				ctx.db.insert(sessionEvent).values({
+					id: crypto.randomUUID(),
+					sessionId: id,
+					eventType: "session_start",
+					occurredAt: floorToMinute(now),
+					sortOrder: 0,
+					payload: JSON.stringify({ buyInAmount: input.initialBuyIn }),
+					updatedAt: now,
+				}),
+			]);
 
 			return { id };
 		}),
@@ -631,9 +659,9 @@ export const liveCashGameSessionRouter = router({
 			z.object({
 				id: z.string(),
 				memo: z.string().nullable().optional(),
-				roomId: z.string().nullable().optional(),
-				currencyId: z.string().nullable().optional(),
-				ringGameId: z.string().nullable().optional(),
+				roomId: z.string().min(1).nullable().optional(),
+				currencyId: z.string().min(1).nullable().optional(),
+				ringGameId: z.string().min(1).nullable().optional(),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -766,14 +794,14 @@ export const liveCashGameSessionRouter = router({
 				ruleName: z.string().min(1).optional(),
 				variant: z.string().optional(),
 				mixGames: mixGamesSchema.nullish(),
-				blind1: z.number().int().nullable().optional(),
-				blind2: z.number().int().nullable().optional(),
-				blind3: z.number().int().nullable().optional(),
-				ante: z.number().int().nullable().optional(),
+				blind1: nullableNonnegativeSafeIntegerSchema,
+				blind2: nullableNonnegativeSafeIntegerSchema,
+				blind3: nullableNonnegativeSafeIntegerSchema,
+				ante: nullableNonnegativeSafeIntegerSchema,
 				anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
-				minBuyIn: z.number().int().nullable().optional(),
-				maxBuyIn: z.number().int().nullable().optional(),
-				tableSize: z.number().int().nullable().optional(),
+				minBuyIn: nullableNonnegativeSafeIntegerSchema,
+				maxBuyIn: nullableNonnegativeSafeIntegerSchema,
+				tableSize: nullableTableSizeSchema,
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

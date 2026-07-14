@@ -2,9 +2,11 @@ import type { MixGameGroup } from "@sapphire2/db/schemas/game";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -128,16 +130,16 @@ export function useRingGames({ roomId, showArchived }: UseRingGamesOptions) {
 				queryClient,
 				archivedQueryOptions.queryKey
 			);
-			queryClient.setQueryData<RingGame[]>(
+			const optimisticRingGame = buildOptimisticRingGame(
+				roomId,
+				values,
+				createOptimisticId("temp-ring-game")
+			);
+			updateQueryItems<RingGame>(
+				queryClient,
 				activeQueryOptions.queryKey,
-				(old) => [
-					...(old ?? []),
-					buildOptimisticRingGame(
-						roomId,
-						values,
-						`temp-ring-game-${Date.now()}`
-					),
-				]
+				(items) => [...items, optimisticRingGame],
+				[optimisticRingGame]
 			);
 			return { previousActive, previousArchived };
 		},
@@ -147,9 +149,7 @@ export function useRingGames({ roomId, showArchived }: UseRingGamesOptions) {
 				context?.previousArchived,
 			]);
 		},
-		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: activeQueryOptions.queryKey });
-		},
+		onSettled: invalidateBoth,
 	});
 
 	const updateMutation = useMutation({
@@ -195,8 +195,18 @@ export function useRingGames({ roomId, showArchived }: UseRingGamesOptions) {
 							}
 						: game
 				) ?? [];
-			queryClient.setQueryData(activeQueryOptions.queryKey, applyUpdate);
-			queryClient.setQueryData(archivedQueryOptions.queryKey, applyUpdate);
+			updateQueryItems<RingGame>(
+				queryClient,
+				activeQueryOptions.queryKey,
+				applyUpdate,
+				[]
+			);
+			updateQueryItems<RingGame>(
+				queryClient,
+				archivedQueryOptions.queryKey,
+				applyUpdate,
+				[]
+			);
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
@@ -227,14 +237,19 @@ export function useRingGames({ roomId, showArchived }: UseRingGamesOptions) {
 			const archivedGame = (
 				previousActive.data as RingGame[] | undefined
 			)?.find((game) => game.id === id);
-			queryClient.setQueryData<RingGame[]>(
+			updateQueryItems<RingGame>(
+				queryClient,
 				activeQueryOptions.queryKey,
-				(old) => old?.filter((game) => game.id !== id) ?? []
+				(items) => items.filter((game) => game.id !== id),
+				[]
 			);
 			if (archivedGame) {
-				queryClient.setQueryData<RingGame[]>(
+				const optimisticArchivedGame = { ...archivedGame, archivedAt: now };
+				updateQueryItems<RingGame>(
+					queryClient,
 					archivedQueryOptions.queryKey,
-					(old) => [...(old ?? []), { ...archivedGame, archivedAt: now }]
+					(items) => [...items, optimisticArchivedGame],
+					[optimisticArchivedGame]
 				);
 			}
 			return { previousActive, previousArchived };
@@ -266,14 +281,19 @@ export function useRingGames({ roomId, showArchived }: UseRingGamesOptions) {
 			const restoredGame = (
 				previousArchived.data as RingGame[] | undefined
 			)?.find((game) => game.id === id);
-			queryClient.setQueryData<RingGame[]>(
+			updateQueryItems<RingGame>(
+				queryClient,
 				archivedQueryOptions.queryKey,
-				(old) => old?.filter((game) => game.id !== id) ?? []
+				(items) => items.filter((game) => game.id !== id),
+				[]
 			);
 			if (restoredGame) {
-				queryClient.setQueryData<RingGame[]>(
+				const optimisticRestoredGame = { ...restoredGame, archivedAt: null };
+				updateQueryItems<RingGame>(
+					queryClient,
 					activeQueryOptions.queryKey,
-					(old) => [...(old ?? []), { ...restoredGame, archivedAt: null }]
+					(items) => [...items, optimisticRestoredGame],
+					[optimisticRestoredGame]
 				);
 			}
 			return { previousActive, previousArchived };
@@ -302,13 +322,17 @@ export function useRingGames({ roomId, showArchived }: UseRingGamesOptions) {
 				queryClient,
 				archivedQueryOptions.queryKey
 			);
-			queryClient.setQueryData<RingGame[]>(
+			updateQueryItems<RingGame>(
+				queryClient,
 				activeQueryOptions.queryKey,
-				(old) => old?.filter((game) => game.id !== id) ?? []
+				(items) => items.filter((game) => game.id !== id),
+				[]
 			);
-			queryClient.setQueryData<RingGame[]>(
+			updateQueryItems<RingGame>(
+				queryClient,
 				archivedQueryOptions.queryKey,
-				(old) => old?.filter((game) => game.id !== id) ?? []
+				(items) => items.filter((game) => game.id !== id),
+				[]
 			);
 			return { previousActive, previousArchived };
 		},
@@ -326,6 +350,8 @@ export function useRingGames({ roomId, showArchived }: UseRingGamesOptions) {
 		archivedGames,
 		currencies,
 		activeLoading: activeQuery.isLoading,
+		isInitialLoadError: activeQuery.isError && activeQuery.data === undefined,
+		onRetry: activeQuery.refetch,
 		archivedLoading: archivedQuery.isLoading,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,

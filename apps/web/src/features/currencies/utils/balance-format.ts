@@ -1,4 +1,4 @@
-import { formatCompactNumber } from "@/utils/format-number";
+import { formatCompactNumber, formatNumber } from "@/utils/format-number";
 
 export interface BalanceDisplay {
 	/** Compact, abbreviated form (e.g. "10k", "-100k", "1,234"). */
@@ -14,7 +14,7 @@ export interface BalanceDisplay {
 
 export function getBalanceDisplay(balance: number): BalanceDisplay {
 	const compact = formatCompactNumber(balance);
-	const exact = balance.toLocaleString();
+	const exact = formatNumber(balance);
 	return { compact, exact: compact === exact ? null : exact };
 }
 

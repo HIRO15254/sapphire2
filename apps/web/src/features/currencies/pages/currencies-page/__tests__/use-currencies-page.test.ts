@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
 	}>,
 	isCreatePending: false,
 	isLoading: false,
+	isError: false,
+	isInitialLoadError: false,
+	retry: vi.fn(),
 }));
 
 vi.mock("@/features/currencies/hooks/use-currencies", () => ({
@@ -25,6 +28,9 @@ vi.mock("@/features/currencies/hooks/use-currencies", () => ({
 			hasNextPage: false,
 			isFetchingNextPage: false,
 			isCreatePending: mocks.isCreatePending,
+			isError: mocks.isError,
+			isInitialLoadError: mocks.isInitialLoadError,
+			retry: mocks.retry,
 			isUpdatePending: false,
 			isAddTransactionPending: false,
 			isEditTransactionPending: false,
@@ -50,6 +56,9 @@ describe("useCurrenciesPage", () => {
 		mocks.lastExpandedId = "sentinel";
 		mocks.currencies = [];
 		mocks.isCreatePending = false;
+		mocks.isError = false;
+		mocks.isInitialLoadError = false;
+		mocks.retry.mockReset();
 		mocks.isLoading = false;
 	});
 
@@ -92,6 +101,25 @@ describe("useCurrenciesPage", () => {
 			mocks.isLoading = false;
 			const { result } = renderHook(() => useCurrenciesPage());
 			expect(result.current.isLoading).toBe(false);
+		});
+
+		it("exposes an error when the initial currencies load fails", () => {
+			mocks.isError = true;
+			mocks.isInitialLoadError = true;
+			const { result } = renderHook(() => useCurrenciesPage());
+			expect(result.current.isError).toBe(true);
+			expect(result.current.retry).toBe(mocks.retry);
+		});
+
+		it("keeps cached currencies visible when a background refetch fails", () => {
+			mocks.currencies = [
+				{ id: "c1", name: "USD", unit: "$", isFavorite: true },
+			];
+			mocks.isError = true;
+			mocks.isInitialLoadError = false;
+			const { result } = renderHook(() => useCurrenciesPage());
+			expect(result.current.isError).toBe(false);
+			expect(result.current.currencies).toHaveLength(1);
 		});
 	});
 

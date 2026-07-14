@@ -153,6 +153,19 @@ describe("liveCashGameSession.create ownership validation (SA2-102)", () => {
 		);
 	});
 
+	it("checks link ownership before reporting an active-session conflict", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OTHER }]],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).create({ initialBuyIn: 0, roomId: "room-1" })
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this room",
+		});
+	});
+
 	it("does not validate ownership when room/currency are omitted", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
@@ -590,10 +603,22 @@ describe("liveCashGameSession.createAndAssignRingGame authorization", () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [{ ...ownedSession, userId: OTHER }]],
 		]);
-		await expectTrpcCode(
-			makeCaller(OWNER, rows).createAndAssignRingGame(payload),
-			"NOT_FOUND"
-		);
+		await expect(
+			makeCaller(OWNER, rows).createAndAssignRingGame(payload)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this live cash game session",
+		});
+	});
+
+	it("uses the same ownership error when the live cash session is missing", async () => {
+		const rows = new Map<unknown, Rows>([[gameSession, []]]);
+		await expect(
+			makeCaller(OWNER, rows).createAndAssignRingGame(payload)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this live cash game session",
+		});
 	});
 
 	it("rejects non-cash and non-live sessions before writing", async () => {
@@ -604,7 +629,7 @@ describe("liveCashGameSession.createAndAssignRingGame authorization", () => {
 			const rows = new Map<unknown, Rows>([[gameSession, [session]]]);
 			await expectTrpcCode(
 				makeCaller(OWNER, rows).createAndAssignRingGame(payload),
-				"NOT_FOUND"
+				"FORBIDDEN"
 			);
 		}
 	});
@@ -872,6 +897,60 @@ describe("liveCashGameSession.updateSnapshot input validation", () => {
 			blind1: 1.5,
 		});
 	});
+
+	it("accepts zero, the safe maximum, and null for every nullable chip field", () => {
+		for (const field of [
+			"blind1",
+			"blind2",
+			"blind3",
+			"ante",
+			"minBuyIn",
+			"maxBuyIn",
+		] as const) {
+			for (const value of [0, Number.MAX_SAFE_INTEGER, null]) {
+				expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {
+					id: "s1",
+					[field]: value,
+				});
+			}
+		}
+	});
+
+	it("rejects negative, fractional, and unsafe integers for every chip field", () => {
+		for (const field of [
+			"blind1",
+			"blind2",
+			"blind3",
+			"ante",
+			"minBuyIn",
+			"maxBuyIn",
+		] as const) {
+			for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+				expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
+					id: "s1",
+					[field]: value,
+				});
+			}
+		}
+	});
+
+	it("accepts tableSize 2, 10, and null", () => {
+		for (const tableSize of [2, 10, null]) {
+			expectAccepts(appRouter.liveCashGameSession.updateSnapshot, {
+				id: "s1",
+				tableSize,
+			});
+		}
+	});
+
+	it("rejects tableSize 1, 11, and fractional values", () => {
+		for (const tableSize of [1, 11, 2.5]) {
+			expectRejects(appRouter.liveCashGameSession.updateSnapshot, {
+				id: "s1",
+				tableSize,
+			});
+		}
+	});
 });
 
 const dialect = new SQLiteSyncDialect();
@@ -891,6 +970,7 @@ type ChainableAny = Promise<Rows> &
 function createListMockDb(listRows: Rows = []) {
 	const listWhere: { params: unknown[]; sql: string }[] = [];
 	const listOrderBy: string[] = [];
+	const listJoins: { params: unknown[]; table: unknown }[] = [];
 	const makeChain = (rows: Rows, isList: boolean): ChainableAny => {
 		const chain = Promise.resolve(rows) as ChainableAny;
 		chain.from = (table: unknown) => {
@@ -913,12 +993,20 @@ function createListMockDb(listRows: Rows = []) {
 			return chain;
 		};
 		chain.limit = () => chain;
-		chain.leftJoin = () => chain;
+		chain.leftJoin = (table: unknown, condition: unknown) => {
+			if (isList && (table === room || table === currency)) {
+				listJoins.push({
+					table,
+					params: dialect.sqlToQuery(condition as never).params,
+				});
+			}
+			return chain;
+		};
 		chain.innerJoin = () => chain;
 		return chain;
 	};
 	const db = { select: () => makeChain([], false) };
-	return { db, listOrderBy, listWhere };
+	return { db, listJoins, listOrderBy, listWhere };
 }
 
 function listCaller(db: unknown) {
@@ -946,6 +1034,15 @@ function makeCashRows(n: number): Rows {
 }
 
 describe("liveCashGameSession.list composite keyset cursor (SA2-150)", () => {
+	it("scopes room and currency joins to the caller", async () => {
+		const { db, listJoins } = createListMockDb();
+		await listCaller(db).list({ limit: 10 });
+
+		expect(listJoins).toHaveLength(2);
+		expect(listJoins.map((join) => join.table)).toEqual([room, currency]);
+		expect(listJoins.map((join) => join.params)).toEqual([[OWNER], [OWNER]]);
+	});
+
 	it("orders by the coalesced start key then id descending (stable tiebreak)", async () => {
 		const { db, listOrderBy } = createListMockDb();
 		await listCaller(db).list({ limit: 10 });

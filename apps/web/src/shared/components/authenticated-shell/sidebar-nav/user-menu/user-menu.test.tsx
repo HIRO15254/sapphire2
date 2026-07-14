@@ -44,10 +44,13 @@ describe("UserMenu", () => {
 
 		render(<UserMenu />);
 
-		expect(screen.getByRole("link", { name: "Sign In" })).toHaveAttribute(
-			"href",
-			"/login"
-		);
+		const signInLink = screen.getByRole("link", { name: "Sign In" });
+
+		expect(signInLink).toHaveAttribute("href", "/login");
+		expect(signInLink.querySelector("button")).toBeNull();
+		expect(
+			screen.queryByRole("button", { name: "Sign In" })
+		).not.toBeInTheDocument();
 	});
 
 	it("renders the user trigger and calls onSignOut", async () => {

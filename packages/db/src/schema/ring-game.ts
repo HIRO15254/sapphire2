@@ -50,6 +50,7 @@ export const ringGame = sqliteTable(
 	(table) => [
 		index("ringGame_roomId_idx").on(table.roomId),
 		index("ringGame_userId_idx").on(table.userId),
+		index("ringGame_currencyId_idx").on(table.currencyId),
 	]
 );
 

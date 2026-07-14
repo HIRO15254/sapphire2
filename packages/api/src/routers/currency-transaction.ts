@@ -13,6 +13,7 @@ import { protectedProcedure, router } from "../index";
 import { paginate } from "./_pagination";
 
 const PAGE_SIZE = 10;
+const dateOnlySchema = z.iso.date();
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -34,14 +35,7 @@ async function validateTransactionTypeOwnership(
 		.from(transactionType)
 		.where(eq(transactionType.id, transactionTypeId));
 
-	if (!found) {
-		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Transaction type not found",
-		});
-	}
-
-	if (found.userId !== userId) {
+	if (!found || found.userId !== userId) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message: "You do not own this transaction type",
@@ -59,14 +53,7 @@ export const currencyTransactionRouter = router({
 				.from(currency)
 				.where(eq(currency.id, input.currencyId));
 
-			if (!found) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Currency not found",
-				});
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this currency",
@@ -75,13 +62,24 @@ export const currencyTransactionRouter = router({
 
 			const conditions = [eq(currencyTransaction.currencyId, input.currencyId)];
 			if (input.cursor) {
-				// The cursor is the previous page's last row id, but rows are
-				// ordered by transactedAt (desc). Comparing the (transactedAt, id)
-				// tuple against the cursor row keeps paging aligned with the visible
-				// order — comparing the random-UUID id alone skips/duplicates rows.
-				conditions.push(
-					sql`(${currencyTransaction.transactedAt}, ${currencyTransaction.id}) < (SELECT transacted_at, id FROM currency_transaction WHERE id = ${input.cursor} AND currency_id = ${input.currencyId})`
-				);
+				const [cursor] = await ctx.db
+					.select({
+						id: currencyTransaction.id,
+						transactedAt: currencyTransaction.transactedAt,
+					})
+					.from(currencyTransaction)
+					.where(
+						and(
+							eq(currencyTransaction.id, input.cursor),
+							eq(currencyTransaction.currencyId, input.currencyId)
+						)
+					);
+
+				if (cursor) {
+					conditions.push(
+						sql`(${currencyTransaction.transactedAt}, ${currencyTransaction.id}) < (${cursor.transactedAt}, ${cursor.id})`
+					);
+				}
 			}
 
 			const data = await ctx.db
@@ -102,11 +100,17 @@ export const currencyTransactionRouter = router({
 				.from(currencyTransaction)
 				.innerJoin(
 					transactionType,
-					eq(transactionType.id, currencyTransaction.transactionTypeId)
+					and(
+						eq(transactionType.id, currencyTransaction.transactionTypeId),
+						eq(transactionType.userId, userId)
+					)
 				)
 				.leftJoin(
 					gameSession,
-					eq(gameSession.id, currencyTransaction.sessionId)
+					and(
+						eq(gameSession.id, currencyTransaction.sessionId),
+						eq(gameSession.userId, userId)
+					)
 				)
 				.leftJoin(
 					sessionCashDetail,
@@ -132,7 +136,7 @@ export const currencyTransactionRouter = router({
 				currencyId: z.string(),
 				transactionTypeId: z.string(),
 				amount: z.number().int(),
-				transactedAt: z.string(),
+				transactedAt: dateOnlySchema,
 				memo: z.string().optional(),
 			})
 		)
@@ -143,14 +147,7 @@ export const currencyTransactionRouter = router({
 				.from(currency)
 				.where(eq(currency.id, input.currencyId));
 
-			if (!found) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Currency not found",
-				});
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this currency",
@@ -186,7 +183,7 @@ export const currencyTransactionRouter = router({
 				id: z.string(),
 				transactionTypeId: z.string().optional(),
 				amount: z.number().int().optional(),
-				transactedAt: z.string().optional(),
+				transactedAt: dateOnlySchema.optional(),
 				memo: z.string().nullable().optional(),
 			})
 		)
@@ -198,14 +195,7 @@ export const currencyTransactionRouter = router({
 				.innerJoin(currency, eq(currency.id, currencyTransaction.currencyId))
 				.where(eq(currencyTransaction.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Transaction not found",
-				});
-			}
-
-			if (found.currency.userId !== userId) {
+			if (!found || found.currency.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this transaction",
@@ -261,14 +251,7 @@ export const currencyTransactionRouter = router({
 				.innerJoin(currency, eq(currency.id, currencyTransaction.currencyId))
 				.where(eq(currencyTransaction.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Transaction not found",
-				});
-			}
-
-			if (found.currency.userId !== userId) {
+			if (!found || found.currency.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this transaction",

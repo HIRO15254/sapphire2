@@ -12,6 +12,8 @@ export function useRoomDetailPage(roomId: string) {
 	const {
 		rooms,
 		isLoading,
+		isInitialLoadError,
+		onRetry,
 		isUpdatePending,
 		update,
 		delete: deleteRoom,
@@ -50,6 +52,8 @@ export function useRoomDetailPage(roomId: string) {
 	return {
 		room,
 		isLoading,
+		isInitialLoadError,
+		onRetry,
 		isUpdatePending,
 		isActionsOpen,
 		isEditOpen,

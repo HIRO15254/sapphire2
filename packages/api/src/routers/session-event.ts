@@ -5,14 +5,17 @@ import {
 	isValidEventTypeForSessionType,
 	LIFECYCLE_EVENT_TYPES,
 	MANUAL_CREATE_BLOCKED_EVENT_TYPES,
+	purchaseChipsPayload,
 	type SessionEventType,
 	validateEventPayload,
 } from "@sapphire2/db/constants/session-event-types";
+import { player } from "@sapphire2/db/schema/player";
 import { gameSession } from "@sapphire2/db/schema/session";
+import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
@@ -61,8 +64,8 @@ async function resolveSessionOwnership(
 
 	if (!session || session.userId !== userId) {
 		throw new TRPCError({
-			code: session ? "FORBIDDEN" : "NOT_FOUND",
-			message: session ? "You do not own this session" : "Session not found",
+			code: "FORBIDDEN",
+			message: "You do not own this session",
 		});
 	}
 
@@ -72,6 +75,67 @@ async function resolveSessionOwnership(
 		status: session.status,
 		sessionDate: session.sessionDate,
 	};
+}
+
+async function resolveSessionScopedEventPayload(
+	db: DbInstance,
+	sessionId: string,
+	userId: string,
+	eventType: SessionEventType,
+	validatedPayload: unknown
+): Promise<unknown> {
+	if (eventType === "purchase_chips") {
+		const payload = purchaseChipsPayload.parse(validatedPayload);
+		const [purchase] = await db
+			.select({
+				id: sessionChipPurchase.id,
+				sessionId: sessionChipPurchase.sessionId,
+				name: sessionChipPurchase.name,
+				cost: sessionChipPurchase.cost,
+				chips: sessionChipPurchase.chips,
+			})
+			.from(sessionChipPurchase)
+			.where(
+				and(
+					eq(sessionChipPurchase.id, payload.sessionChipPurchaseId),
+					eq(sessionChipPurchase.sessionId, sessionId)
+				)
+			);
+
+		if (!purchase || purchase.sessionId !== sessionId) {
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "You do not own this chip purchase",
+			});
+		}
+
+		return {
+			sessionChipPurchaseId: purchase.id,
+			name: purchase.name,
+			cost: purchase.cost,
+			chips: purchase.chips,
+		};
+	}
+
+	if (eventType === "player_join" || eventType === "player_leave") {
+		const { playerId } = validatedPayload as { playerId?: string };
+		if (!playerId) {
+			return validatedPayload;
+		}
+
+		const [ownedPlayer] = await db
+			.select({ id: player.id, userId: player.userId })
+			.from(player)
+			.where(and(eq(player.id, playerId), eq(player.userId, userId)));
+		if (!ownedPlayer || ownedPlayer.userId !== userId) {
+			throw new TRPCError({
+				code: "FORBIDDEN",
+				message: "You do not own this player",
+			});
+		}
+	}
+
+	return validatedPayload;
 }
 
 async function recalculateSession(
@@ -181,10 +245,12 @@ export const sessionEventRouter = router({
 				});
 			}
 
-			const validatedPayload = validateEventPayload(
+			const validatedPayload = await resolveSessionScopedEventPayload(
+				ctx.db,
+				sessionId,
+				userId,
 				eventType,
-				input.payload,
-				sessionType
+				validateEventPayload(eventType, input.payload, sessionType)
 			);
 			const occurredAtDate = resolveOccurredAt(input.occurredAt, new Date());
 
@@ -236,7 +302,10 @@ export const sessionEventRouter = router({
 				.from(sessionEvent)
 				.where(eq(sessionEvent.id, input.id));
 			if (!event) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Event not found" });
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "You do not own this event",
+				});
 			}
 
 			const { sessionType } = await resolveSessionOwnership(
@@ -261,10 +330,12 @@ export const sessionEventRouter = router({
 			}
 			let validatedPayload: unknown;
 			if (input.payload !== undefined) {
-				validatedPayload = validateEventPayload(
+				validatedPayload = await resolveSessionScopedEventPayload(
+					ctx.db,
+					event.sessionId,
+					userId,
 					eventType,
-					input.payload,
-					sessionType
+					validateEventPayload(eventType, input.payload, sessionType)
 				);
 				updates.payload = JSON.stringify(validatedPayload);
 			}
@@ -318,8 +389,17 @@ export const sessionEventRouter = router({
 				.from(sessionEvent)
 				.where(eq(sessionEvent.id, input.id));
 			if (!event) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Event not found" });
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "You do not own this event",
+				});
 			}
+
+			const { sessionType } = await resolveSessionOwnership(
+				ctx.db,
+				event.sessionId,
+				userId
+			);
 
 			if (
 				(LIFECYCLE_EVENT_TYPES as readonly string[]).includes(event.eventType)
@@ -329,12 +409,6 @@ export const sessionEventRouter = router({
 					message: "Lifecycle events cannot be deleted",
 				});
 			}
-
-			const { sessionType } = await resolveSessionOwnership(
-				ctx.db,
-				event.sessionId,
-				userId
-			);
 
 			await ctx.db.delete(sessionEvent).where(eq(sessionEvent.id, input.id));
 

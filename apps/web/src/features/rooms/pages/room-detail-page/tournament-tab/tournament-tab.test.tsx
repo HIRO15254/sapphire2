@@ -12,8 +12,30 @@ vi.mock("./use-tournament-tab", () => ({
 }));
 
 vi.mock("@/features/rooms/components/tournament-form-sheet", () => ({
-	TournamentFormSheet: ({ open, title }: { open: boolean; title: string }) =>
-		open ? <div data-testid="tournament-sheet">{title}</div> : null,
+	TournamentFormSheet: ({
+		editBlindLevelsError,
+		onRetryBlindLevels,
+		open,
+		title,
+	}: {
+		editBlindLevelsError?: boolean;
+		onRetryBlindLevels?: () => void;
+		open: boolean;
+		title: string;
+	}) =>
+		open ? (
+			<div
+				data-blind-level-error={String(editBlindLevelsError ?? false)}
+				data-testid="tournament-sheet"
+			>
+				{title}
+				{editBlindLevelsError ? (
+					<button onClick={onRetryBlindLevels} type="button">
+						Retry blind levels
+					</button>
+				) : null}
+			</div>
+		) : null,
 }));
 
 vi.mock("@/features/rooms/components/game-actions-drawer", () => ({
@@ -90,6 +112,7 @@ interface TabState {
 	cancelDelete: ReturnType<typeof vi.fn>;
 	closeActions: ReturnType<typeof vi.fn>;
 	currencies: { id: string; name: string; unit?: string | null }[];
+	editBlindLevelsError: boolean;
 	editBlindLevelsLoading: boolean;
 	editInitialFormValues: undefined;
 	editInitialLevels: never[];
@@ -101,11 +124,14 @@ interface TabState {
 	handleUpdate: ReturnType<typeof vi.fn>;
 	isCreateLoading: boolean;
 	isCreateOpen: boolean;
+	isInitialLoadError: boolean;
 	isUpdateLoading: boolean;
+	onRetry: ReturnType<typeof vi.fn>;
 	openActions: ReturnType<typeof vi.fn>;
 	openDeleteFromActions: ReturnType<typeof vi.fn>;
 	openEditFromActions: ReturnType<typeof vi.fn>;
 	pendingDelete: Tournament | null;
+	retryEditBlindLevels: ReturnType<typeof vi.fn>;
 	setEditingTournament: ReturnType<typeof vi.fn>;
 	setIsCreateOpen: ReturnType<typeof vi.fn>;
 	showArchived: boolean;
@@ -119,6 +145,8 @@ function setState(overrides: Partial<TabState> = {}): TabState {
 		currencies: [],
 		activeLoading: false,
 		archivedLoading: false,
+		isInitialLoadError: false,
+		onRetry: vi.fn(),
 		showArchived: false,
 		toggleArchived: vi.fn(),
 		isCreateOpen: false,
@@ -129,6 +157,7 @@ function setState(overrides: Partial<TabState> = {}): TabState {
 		pendingDelete: null,
 		isCreateLoading: false,
 		isUpdateLoading: false,
+		editBlindLevelsError: false,
 		editBlindLevelsLoading: false,
 		editInitialFormValues: undefined,
 		editInitialLevels: [],
@@ -217,6 +246,19 @@ describe("TournamentTab", () => {
 		expect(state.openDeleteFromActions).toHaveBeenCalledTimes(1);
 	});
 
+	it("shows the tournament load error and retries the active list", async () => {
+		const user = userEvent.setup();
+		const onRetry = vi.fn();
+		setState({ isInitialLoadError: true, onRetry });
+		render(<TournamentTab roomId="room-1" />);
+
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Unable to load tournaments"
+		);
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+		expect(onRetry).toHaveBeenCalledTimes(1);
+	});
+
 	it("opens the create tournament sheet when isCreateOpen is true", () => {
 		setState({ isCreateOpen: true });
 		render(<TournamentTab roomId="room-1" />);
@@ -230,6 +272,26 @@ describe("TournamentTab", () => {
 		setState({ editingTournament: baseTournament() });
 		render(<TournamentTab roomId="room-1" />);
 		expect(screen.getByText("Edit tournament")).toBeInTheDocument();
+	});
+
+	it("passes blind-level load errors and retry to the edit sheet", async () => {
+		const user = userEvent.setup();
+		const retryEditBlindLevels = vi.fn();
+		setState({
+			editBlindLevelsError: true,
+			retryEditBlindLevels,
+			editingTournament: baseTournament(),
+		});
+		render(<TournamentTab roomId="room-1" />);
+
+		expect(screen.getByTestId("tournament-sheet")).toHaveAttribute(
+			"data-blind-level-error",
+			"true"
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Retry blind levels" })
+		);
+		expect(retryEditBlindLevels).toHaveBeenCalledTimes(1);
 	});
 
 	it("shows the delete dialog with the pending tournament name", () => {

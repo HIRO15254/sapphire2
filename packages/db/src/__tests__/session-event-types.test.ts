@@ -214,6 +214,26 @@ describe("payload schemas", () => {
 			expect(result.potSize).toBe(1000);
 			expect(result.equity).toBe(55.5);
 		});
+
+		it.each([
+			0, 1, 1000,
+		])("accepts a non-negative integer potSize (%s)", (potSize) => {
+			expect(
+				allInPayload.parse({ potSize, trials: 1, equity: 50, wins: 0 }).potSize
+			).toBe(potSize);
+		});
+
+		it.each([
+			-1,
+			0.5,
+			Number.NaN,
+			Number.POSITIVE_INFINITY,
+			Number.NEGATIVE_INFINITY,
+		])("rejects an invalid potSize (%s)", (potSize) => {
+			expect(() =>
+				allInPayload.parse({ potSize, trials: 1, equity: 50, wins: 0 })
+			).toThrow();
+		});
 	});
 
 	describe("purchaseChipsPayload", () => {

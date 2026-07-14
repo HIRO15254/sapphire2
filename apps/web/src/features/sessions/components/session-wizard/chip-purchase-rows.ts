@@ -1,9 +1,10 @@
-import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
 import type { SessionChipPurchaseInput } from "@/features/sessions/utils/session-form-helpers";
+import type { ChipPurchaseRow } from "@/shared/components/chip-purchases-editor";
+import { parseOptionalInt } from "@/shared/lib/form-fields";
 
-function parseIntOrZero(value: string): number {
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) ? parsed : 0;
+function parseNonNegativeIntOrZero(value: string): number {
+	const parsed = parseOptionalInt(value);
+	return parsed !== undefined && parsed >= 0 ? parsed : 0;
 }
 
 /**
@@ -49,8 +50,8 @@ export function toSessionChipPurchases(
 ): SessionChipPurchaseInput[] {
 	return rows.map((row) => ({
 		name: row.name,
-		cost: parseIntOrZero(row.cost),
-		chips: parseIntOrZero(row.chips),
+		cost: parseNonNegativeIntOrZero(row.cost),
+		chips: parseNonNegativeIntOrZero(row.chips),
 		count: counts[row.uid] ?? 0,
 	}));
 }

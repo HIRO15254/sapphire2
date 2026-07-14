@@ -1,9 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateQueryData,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -42,6 +45,13 @@ export function useTablePlayers({
 	liveTournamentSessionId,
 }: UseTablePlayersOptions) {
 	const queryClient = useQueryClient();
+	const activeMutationsRef = useRef(0);
+	const beginMutation = () => {
+		activeMutationsRef.current += 1;
+	};
+	const endMutation = () => {
+		activeMutationsRef.current = Math.max(0, activeMutationsRef.current - 1);
+	};
 
 	const sessionParam = liveCashGameSessionId
 		? { liveCashGameSessionId }
@@ -50,7 +60,7 @@ export function useTablePlayers({
 	const playersQuery = useQuery({
 		...trpc.sessionTablePlayer.list.queryOptions(sessionParam),
 		enabled: !!(liveCashGameSessionId || liveTournamentSessionId),
-		refetchInterval: 5000,
+		refetchInterval: () => (activeMutationsRef.current > 0 ? false : 5000),
 	});
 
 	const playersKey =
@@ -68,9 +78,10 @@ export function useTablePlayers({
 				seatPosition: params.seatPosition,
 			}),
 		onMutate: async (params) => {
+			beginMutation();
 			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
 			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
-			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+			updateQueryData<TablePlayerData>(queryClient, playersKey, (old) => {
 				if (!old) {
 					return old;
 				}
@@ -78,7 +89,7 @@ export function useTablePlayers({
 					items: [
 						...old.items,
 						{
-							id: `optimistic-${Date.now()}`,
+							id: createOptimisticId("optimistic"),
 							player: {
 								id: params.playerId,
 								isTemporary: false,
@@ -100,6 +111,7 @@ export function useTablePlayers({
 			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
+			endMutation();
 			invalidateTargets(queryClient, [{ queryKey: playersKey }]);
 		},
 	});
@@ -119,9 +131,10 @@ export function useTablePlayers({
 				seatPosition: params.seatPosition,
 			}),
 		onMutate: async (params) => {
+			beginMutation();
 			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
 			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
-			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+			updateQueryData<TablePlayerData>(queryClient, playersKey, (old) => {
 				if (!old) {
 					return old;
 				}
@@ -129,9 +142,9 @@ export function useTablePlayers({
 					items: [
 						...old.items,
 						{
-							id: `optimistic-${Date.now()}`,
+							id: createOptimisticId("optimistic"),
 							player: {
-								id: `new-${Date.now()}`,
+								id: createOptimisticId("new"),
 								isTemporary: false,
 								memo: params.playerMemo ?? null,
 								name: params.playerName,
@@ -151,6 +164,7 @@ export function useTablePlayers({
 			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
+			endMutation();
 			invalidateTargets(queryClient, [
 				{ queryKey: playersKey },
 				{ queryKey: trpc.player.list.queryOptions().queryKey },
@@ -165,9 +179,10 @@ export function useTablePlayers({
 				seatPosition: params.seatPosition,
 			}),
 		onMutate: async (params) => {
+			beginMutation();
 			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
 			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
-			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+			updateQueryData<TablePlayerData>(queryClient, playersKey, (old) => {
 				if (!old) {
 					return old;
 				}
@@ -175,9 +190,9 @@ export function useTablePlayers({
 					items: [
 						...old.items,
 						{
-							id: `optimistic-${Date.now()}`,
+							id: createOptimisticId("optimistic"),
 							player: {
-								id: `temp-${Date.now()}`,
+								id: createOptimisticId("temp"),
 								isTemporary: true,
 								memo: null,
 								name: "...",
@@ -197,6 +212,7 @@ export function useTablePlayers({
 			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
+			endMutation();
 			invalidateTargets(queryClient, [{ queryKey: playersKey }]);
 		},
 	});
@@ -208,9 +224,10 @@ export function useTablePlayers({
 				playerId,
 			}),
 		onMutate: async (playerId) => {
+			beginMutation();
 			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
 			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
-			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+			updateQueryData<TablePlayerData>(queryClient, playersKey, (old) => {
 				if (!old) {
 					return old;
 				}
@@ -228,6 +245,7 @@ export function useTablePlayers({
 			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
+			endMutation();
 			invalidateTargets(queryClient, [{ queryKey: playersKey }]);
 		},
 	});
@@ -240,9 +258,10 @@ export function useTablePlayers({
 				seatPosition: params.seatPosition,
 			}),
 		onMutate: async (params) => {
+			beginMutation();
 			await cancelTargets(queryClient, [{ queryKey: playersKey }]);
 			const previous = snapshotQuery<TablePlayerData>(queryClient, playersKey);
-			queryClient.setQueryData<TablePlayerData>(playersKey, (old) => {
+			updateQueryData<TablePlayerData>(queryClient, playersKey, (old) => {
 				if (!old) {
 					return old;
 				}
@@ -260,6 +279,7 @@ export function useTablePlayers({
 			restoreSnapshots(queryClient, [context?.previous]);
 		},
 		onSettled: () => {
+			endMutation();
 			invalidateTargets(queryClient, [{ queryKey: playersKey }]);
 		},
 	});

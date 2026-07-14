@@ -1,4 +1,5 @@
 import { IconCards, IconPlus } from "@tabler/icons-react";
+import { QueryError } from "@/shared/components/query-error";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import {
@@ -14,12 +15,16 @@ interface SessionListProps {
 	hasNextPage: boolean;
 	/** A `Load more` fetch is in flight. */
 	isFetchingNextPage: boolean;
+	/** The first sessions page failed before any data was loaded. */
+	isInitialLoadError: boolean;
 	/** Initial sessions fetch is in flight (no rows yet). */
 	isLoading: boolean;
 	/** Open the create sheet — wired to the empty-state CTA. */
 	onCreate: () => void;
 	/** Fetch the next page of sessions. */
 	onLoadMore: () => void;
+	/** Retry the failed initial sessions query. */
+	onRetry: () => void;
 	sessions: SessionListCardItem[];
 }
 
@@ -34,9 +39,11 @@ export function SessionList({
 	bbBiMode,
 	hasNextPage,
 	isFetchingNextPage,
+	isInitialLoadError,
 	isLoading,
 	onCreate,
 	onLoadMore,
+	onRetry,
 	sessions,
 }: SessionListProps) {
 	if (isLoading) {
@@ -50,6 +57,15 @@ export function SessionList({
 					<SessionListCardSkeleton key={i} />
 				))}
 			</div>
+		);
+	}
+
+	if (isInitialLoadError) {
+		return (
+			<QueryError
+				message="Unable to load sessions. Please try again."
+				onRetry={onRetry}
+			/>
 		);
 	}
 

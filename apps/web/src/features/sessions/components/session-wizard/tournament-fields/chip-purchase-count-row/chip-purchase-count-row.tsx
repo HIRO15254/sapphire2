@@ -1,10 +1,11 @@
-import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
+import type { ChipPurchaseRow } from "@/shared/components/chip-purchases-editor";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import { parseOptionalInt } from "@/shared/lib/form-fields";
 
 function parseCountInput(value: string): number {
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+	const parsed = parseOptionalInt(value);
+	return parsed !== undefined && parsed > 0 ? parsed : 0;
 }
 
 /**
@@ -23,8 +24,8 @@ export function ChipPurchaseCountRow({
 	onCountChange: (count: number) => void;
 	row: ChipPurchaseRow;
 }) {
-	const unitCost = Number.parseInt(row.cost, 10);
-	const cost = Number.isFinite(unitCost) ? unitCost : 0;
+	const unitCost = parseOptionalInt(row.cost);
+	const cost = unitCost !== undefined && unitCost >= 0 ? unitCost : 0;
 	const lineCost = cost * count;
 	return (
 		<div className="flex items-end gap-2">

@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateQueryItems,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -208,16 +210,16 @@ export function useTournaments({
 				queryClient,
 				archivedQueryOptions.queryKey
 			);
-			queryClient.setQueryData<Tournament[]>(
+			const optimisticTournament = buildOptimisticTournament(
+				roomId,
+				values,
+				createOptimisticId("temp-tournament")
+			);
+			updateQueryItems<Tournament>(
+				queryClient,
 				activeQueryOptions.queryKey,
-				(old) => [
-					...(old ?? []),
-					buildOptimisticTournament(
-						roomId,
-						values,
-						`temp-tournament-${Date.now()}`
-					),
-				]
+				(items) => [...items, optimisticTournament],
+				[optimisticTournament]
 			);
 			return { previousActive, previousArchived };
 		},
@@ -275,8 +277,18 @@ export function useTournaments({
 						? buildOptimisticTournament(roomId, values, values.id, tournament)
 						: tournament
 				) ?? [];
-			queryClient.setQueryData(activeQueryOptions.queryKey, applyUpdate);
-			queryClient.setQueryData(archivedQueryOptions.queryKey, applyUpdate);
+			updateQueryItems<Tournament>(
+				queryClient,
+				activeQueryOptions.queryKey,
+				applyUpdate,
+				[]
+			);
+			updateQueryItems<Tournament>(
+				queryClient,
+				archivedQueryOptions.queryKey,
+				applyUpdate,
+				[]
+			);
 			return { previousActive, previousArchived };
 		},
 		onError: (_error, _variables, context) => {
@@ -306,17 +318,22 @@ export function useTournaments({
 			const archivedTournament = (
 				previousActive.data as Tournament[] | undefined
 			)?.find((tournament) => tournament.id === id);
-			queryClient.setQueryData<Tournament[]>(
+			updateQueryItems<Tournament>(
+				queryClient,
 				activeQueryOptions.queryKey,
-				(old) => old?.filter((tournament) => tournament.id !== id) ?? []
+				(items) => items.filter((tournament) => tournament.id !== id),
+				[]
 			);
 			if (archivedTournament) {
-				queryClient.setQueryData<Tournament[]>(
+				const optimisticArchivedTournament = {
+					...archivedTournament,
+					archivedAt: new Date().toISOString(),
+				};
+				updateQueryItems<Tournament>(
+					queryClient,
 					archivedQueryOptions.queryKey,
-					(old) => [
-						...(old ?? []),
-						{ ...archivedTournament, archivedAt: new Date().toISOString() },
-					]
+					(items) => [...items, optimisticArchivedTournament],
+					[optimisticArchivedTournament]
 				);
 			}
 			return { previousActive, previousArchived };
@@ -348,14 +365,22 @@ export function useTournaments({
 			const restoredTournament = (
 				previousArchived.data as Tournament[] | undefined
 			)?.find((tournament) => tournament.id === id);
-			queryClient.setQueryData<Tournament[]>(
+			updateQueryItems<Tournament>(
+				queryClient,
 				archivedQueryOptions.queryKey,
-				(old) => old?.filter((tournament) => tournament.id !== id) ?? []
+				(items) => items.filter((tournament) => tournament.id !== id),
+				[]
 			);
 			if (restoredTournament) {
-				queryClient.setQueryData<Tournament[]>(
+				const optimisticRestoredTournament = {
+					...restoredTournament,
+					archivedAt: null,
+				};
+				updateQueryItems<Tournament>(
+					queryClient,
 					activeQueryOptions.queryKey,
-					(old) => [...(old ?? []), { ...restoredTournament, archivedAt: null }]
+					(items) => [...items, optimisticRestoredTournament],
+					[optimisticRestoredTournament]
 				);
 			}
 			return { previousActive, previousArchived };
@@ -389,13 +414,17 @@ export function useTournaments({
 				queryClient,
 				archivedQueryOptions.queryKey
 			);
-			queryClient.setQueryData<Tournament[]>(
+			updateQueryItems<Tournament>(
+				queryClient,
 				activeQueryOptions.queryKey,
-				(old) => old?.filter((tournament) => tournament.id !== id) ?? []
+				(items) => items.filter((tournament) => tournament.id !== id),
+				[]
 			);
-			queryClient.setQueryData<Tournament[]>(
+			updateQueryItems<Tournament>(
+				queryClient,
 				archivedQueryOptions.queryKey,
-				(old) => old?.filter((tournament) => tournament.id !== id) ?? []
+				(items) => items.filter((tournament) => tournament.id !== id),
+				[]
 			);
 			return { previousActive, previousArchived };
 		},
@@ -414,6 +443,8 @@ export function useTournaments({
 		currencies,
 		activeLoading: activeQuery.isLoading,
 		archivedLoading: archivedQuery.isLoading,
+		isInitialLoadError: activeQuery.isError && activeQuery.data === undefined,
+		onRetry: activeQuery.refetch,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
 		create: (values: TournamentFormValues) =>

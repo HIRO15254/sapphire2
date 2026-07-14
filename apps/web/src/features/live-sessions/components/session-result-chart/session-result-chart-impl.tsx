@@ -153,8 +153,12 @@ export default function SessionResultChartImpl({
 }: SessionResultChartImplProps) {
 	const series = activeSeries(sessionType, points);
 	const isCash = sessionType === "cash_game";
+	const chartSummary = `${isCash ? "Cash game" : "Tournament"} result chart: ${series
+		.map(({ name }) => name)
+		.join(" and ")} series with ${points.length} data points`;
 	return (
 		<div className="h-full w-full">
+			<p className="sr-only">{chartSummary}</p>
 			<ResponsiveContainer height="100%" width="100%">
 				<LineChart
 					data={points}

@@ -72,8 +72,20 @@ describe("parseOptInt", () => {
 		expect(parseOptInt("abc")).toBeUndefined();
 	});
 
-	it("truncates decimal strings (parseInt semantics)", () => {
-		expect(parseOptInt("3.7")).toBe(3);
+	it("rejects decimal strings instead of truncating them", () => {
+		expect(parseOptInt("3.7")).toBeUndefined();
+	});
+
+	it.each([
+		"12abc",
+		"Infinity",
+		"9007199254740992",
+	])("rejects unsafe or partially numeric input: %s", (value) => {
+		expect(parseOptInt(value)).toBeUndefined();
+	});
+
+	it("trims surrounding whitespace around an integer", () => {
+		expect(parseOptInt(" 42 ")).toBe(42);
 	});
 
 	it("returns 0 as 0 (finite)", () => {
@@ -176,6 +188,22 @@ describe("sessionFormSchema", () => {
 				})
 			).success
 		).toBe(true);
+	});
+
+	it("accepts an optional table size only from 2 through 10", () => {
+		for (const value of ["2", "10"]) {
+			expect(
+				sessionFormSchema.safeParse(validPayload({ tableSize: value })).success
+			).toBe(true);
+		}
+		expect(
+			sessionFormSchema.safeParse(validPayload({ tableSize: "" })).success
+		).toBe(true);
+		for (const value of ["1", "11", "3.5", "12abc", "Infinity"]) {
+			expect(
+				sessionFormSchema.safeParse(validPayload({ tableSize: value })).success
+			).toBe(false);
+		}
 	});
 });
 

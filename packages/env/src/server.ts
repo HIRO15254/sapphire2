@@ -2,7 +2,7 @@ import z from "zod";
 
 export const serverEnvSchema = z.object({
 	ANTHROPIC_API_KEY: z.string().min(1).optional(),
-	BETTER_AUTH_SECRET: z.string().min(1),
+	BETTER_AUTH_SECRET: z.string().min(32),
 	BETTER_AUTH_URL: z.url(),
 	CORS_ORIGIN: z.url(),
 	DB: z.custom<unknown>((value) => value !== undefined),

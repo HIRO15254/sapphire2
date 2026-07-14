@@ -188,6 +188,39 @@ describe("aggregatePnlPoints", () => {
 	});
 
 	describe("unit = 'normalized', sessionType = 'cash_game'", () => {
+		it("places the date origin before the first normalizable row", () => {
+			const invalidDay = Math.floor(
+				new Date("2026-04-01T00:00:00Z").getTime() / 1000
+			);
+			const validDay = Math.floor(
+				new Date("2026-04-03T00:00:00Z").getTime() / 1000
+			);
+			const result = aggregatePnlPoints({
+				...baseOptions,
+				unit: "normalized",
+				sessionType: "cash_game",
+				rawPoints: [
+					point({
+						id: "invalid",
+						profitLoss: 100,
+						sessionDate: invalidDay,
+						bigBlind: 0,
+					}),
+					point({
+						id: "valid",
+						profitLoss: 100,
+						sessionDate: validDay,
+						bigBlind: 25,
+					}),
+				],
+			});
+
+			expect(result.points).toEqual([
+				{ x: new Date("2026-04-02T00:00:00Z").getTime(), cumulative: 0 },
+				{ x: new Date("2026-04-03T00:00:00Z").getTime(), cumulative: 4 },
+			]);
+			expect(result.skippedCount).toBe(1);
+		});
 		it("divides cash_game profit by bigBlind and skips other rows", () => {
 			const result = aggregatePnlPoints({
 				...baseOptions,
@@ -280,6 +313,48 @@ describe("aggregatePnlPoints", () => {
 	});
 
 	describe("unit = 'normalized', sessionType = 'all' (dual series)", () => {
+		it("places the date origin before the first row valid for either normalized series", () => {
+			const invalidDay = Math.floor(
+				new Date("2026-04-01T00:00:00Z").getTime() / 1000
+			);
+			const validDay = Math.floor(
+				new Date("2026-04-03T00:00:00Z").getTime() / 1000
+			);
+			const result = aggregatePnlPoints({
+				...baseOptions,
+				unit: "normalized",
+				sessionType: "all",
+				rawPoints: [
+					point({
+						id: "invalid",
+						profitLoss: 100,
+						sessionDate: invalidDay,
+						bigBlind: null,
+					}),
+					point({
+						id: "valid",
+						profitLoss: 300,
+						sessionDate: validDay,
+						type: "tournament",
+						buyInTotal: 100,
+					}),
+				],
+			});
+
+			expect(result.points).toEqual([
+				{
+					x: new Date("2026-04-02T00:00:00Z").getTime(),
+					cashCumulative: 0,
+					tournamentCumulative: 0,
+				},
+				{
+					x: new Date("2026-04-03T00:00:00Z").getTime(),
+					cashCumulative: 0,
+					tournamentCumulative: 3,
+				},
+			]);
+			expect(result.skippedCount).toBe(1);
+		});
 		it("emits both cashCumulative and tournamentCumulative on every point with shared origin", () => {
 			const result = aggregatePnlPoints({
 				...baseOptions,

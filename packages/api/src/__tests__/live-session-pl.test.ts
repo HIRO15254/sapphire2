@@ -9,7 +9,46 @@ import {
 	getSessionResultTypeId,
 	recalculateCashGameSession,
 	recalculateTournamentSession,
+	syncChipPurchaseResults,
 } from "../services/live-session-pl";
+
+describe("syncChipPurchaseResults", () => {
+	it("upserts all purchases in one atomic batch with D1-safe chunks", async () => {
+		const purchases = Array.from({ length: 51 }, (_, i) => ({
+			id: `purchase-${i}`,
+		}));
+		const selectChain = Promise.resolve(purchases) as Promise<
+			typeof purchases
+		> & { where: () => Promise<typeof purchases> };
+		selectChain.where = () => selectChain;
+		const values = vi.fn((rows: unknown[]) => ({
+			onConflictDoUpdate: vi.fn(() => rows),
+		}));
+		const batch = vi.fn((statements: unknown[]) =>
+			Promise.all(statements as Promise<unknown>[])
+		);
+		const db = {
+			select: () => ({ from: () => selectChain }),
+			insert: () => ({ values }),
+			batch,
+		};
+		const counts = new Map([["purchase-1", 3]]);
+
+		await syncChipPurchaseResults(db as never, "session-1", counts);
+
+		expect(values).toHaveBeenCalledTimes(2);
+		expect(values.mock.calls[0]?.[0]).toHaveLength(50);
+		expect((values.mock.calls[0]?.[0] as { count: number }[])[1]?.count).toBe(
+			3
+		);
+		expect((values.mock.calls[0]?.[0] as { count: number }[])[0]?.count).toBe(
+			0
+		);
+		expect(values.mock.calls[1]?.[0]).toHaveLength(1);
+		expect(batch).toHaveBeenCalledTimes(1);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(2);
+	});
+});
 
 describe("computeSessionStateFromEvents", () => {
 	it("returns startedAt from a single session_start event, endedAt null, status active", () => {

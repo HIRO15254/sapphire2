@@ -147,6 +147,34 @@ describe("RingGameForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it("clears optional table size and currency selections", async () => {
+		const user = userEvent.setup();
+		const { onSubmit } = await renderForm({
+			defaultValues: {
+				name: "1/2 NLH",
+				variant: "NL Hold'em",
+				tableSize: 9,
+				currencyId: "currency-1",
+			},
+		});
+		const clearButtons = screen.getAllByRole("button", {
+			name: "Clear selection",
+		});
+		expect(clearButtons).toHaveLength(2);
+
+		await user.click(clearButtons[0]);
+		await user.click(screen.getByRole("button", { name: "Clear selection" }));
+		await user.click(screen.getByRole("button", { name: "submit-trigger" }));
+
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tableSize: undefined,
+				currencyId: undefined,
+			})
+		);
+	});
+
 	it("renders no submit button of its own and tags the form with the id", async () => {
 		const { container } = await renderForm({});
 		expect(container.querySelector("form")).toHaveAttribute("id", FORM_ID);

@@ -1,8 +1,8 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { LocalBlindStructureContent } from "@/features/rooms/components/blind-level-editor";
-import { ChipPurchasesEditor } from "@/features/rooms/components/chip-purchases-editor";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
 import { tournamentOverriddenFields } from "@/features/sessions/utils/session-form-helpers";
+import { ChipPurchasesEditor } from "@/shared/components/chip-purchases-editor";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";

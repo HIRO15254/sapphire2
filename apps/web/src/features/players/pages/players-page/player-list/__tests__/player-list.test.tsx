@@ -129,3 +129,37 @@ describe("PlayerList", () => {
 		});
 	});
 });
+it("shows a retryable initial-load error instead of the empty state", async () => {
+	const user = userEvent.setup();
+	const onRetry = vi.fn();
+	render(
+		<PlayerList
+			isInitialLoadError
+			isLoading={false}
+			isSearching={false}
+			onCreate={vi.fn()}
+			onRetry={onRetry}
+			players={[]}
+		/>
+	);
+	expect(screen.getByRole("alert")).toHaveTextContent("Unable to load players");
+	expect(screen.queryByText("No players yet")).not.toBeInTheDocument();
+	await user.click(screen.getByRole("button", { name: "Retry" }));
+	expect(onRetry).toHaveBeenCalledTimes(1);
+});
+
+it("keeps cached players visible when a later fetch has failed", () => {
+	render(
+		<PlayerList
+			isInitialLoadError={false}
+			isLoading={false}
+			isSearching={false}
+			onCreate={vi.fn()}
+			onRetry={vi.fn()}
+			players={[makePlayer("cached", "Cached player")]}
+		/>
+	);
+
+	expect(screen.getByTestId("player-card")).toHaveTextContent("Cached player");
+	expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});

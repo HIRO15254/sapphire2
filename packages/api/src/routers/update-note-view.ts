@@ -18,7 +18,15 @@ export const updateNoteViewRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 
-			const [existing] = await ctx.db
+			const id = crypto.randomUUID();
+			await ctx.db
+				.insert(updateNoteView)
+				.values({ id, userId, version: input.version })
+				.onConflictDoNothing({
+					target: [updateNoteView.userId, updateNoteView.version],
+				});
+
+			const [viewed] = await ctx.db
 				.select()
 				.from(updateNoteView)
 				.where(
@@ -27,20 +35,6 @@ export const updateNoteViewRouter = router({
 						eq(updateNoteView.version, input.version)
 					)
 				);
-
-			if (existing) {
-				return existing;
-			}
-
-			const id = crypto.randomUUID();
-			await ctx.db
-				.insert(updateNoteView)
-				.values({ id, userId, version: input.version });
-
-			const [created] = await ctx.db
-				.select()
-				.from(updateNoteView)
-				.where(eq(updateNoteView.id, id));
-			return created;
+			return viewed;
 		}),
 });

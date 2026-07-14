@@ -55,6 +55,30 @@ describe("FormSheet", () => {
 		expect(save).toHaveAttribute("type", "submit");
 	});
 
+	it("disables Save when an explicit save guard is active", () => {
+		render(
+			<FormSheet
+				formId="x"
+				isSaveDisabled
+				onOpenChange={vi.fn()}
+				open
+				title="t"
+			>
+				<div>body</div>
+			</FormSheet>
+		);
+		expect(screen.getByLabelText("Save")).toBeDisabled();
+	});
+
+	it("keeps Save enabled when loading and save guard are both false", () => {
+		render(
+			<FormSheet formId="x" onOpenChange={vi.fn()} open title="t">
+				<div>body</div>
+			</FormSheet>
+		);
+		expect(screen.getByLabelText("Save")).toBeEnabled();
+	});
+
 	it("disables the Save button while isLoading is true", () => {
 		render(
 			<FormSheet formId="x" isLoading onOpenChange={vi.fn()} open title="t">

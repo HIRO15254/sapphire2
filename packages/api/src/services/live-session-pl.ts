@@ -20,8 +20,9 @@ import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-pur
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import type { protectedProcedure } from "../index";
+import { type BatchStatement, runBatch } from "../lib/batch";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -412,7 +413,7 @@ async function resolveTournamentBuyInFees(
  * Every session_chip_purchase gets a row (count 0 when never bought). Uses an
  * upsert so it is safe even if a result row was never seeded.
  */
-async function syncChipPurchaseResults(
+export async function syncChipPurchaseResults(
 	db: DbInstance,
 	sessionId: string,
 	chipPurchaseCounts: Map<string, number>
@@ -421,16 +422,30 @@ async function syncChipPurchaseResults(
 		.select({ id: sessionChipPurchase.id })
 		.from(sessionChipPurchase)
 		.where(eq(sessionChipPurchase.sessionId, sessionId));
-	for (const p of purchases) {
-		const count = chipPurchaseCounts.get(p.id) ?? 0;
-		await db
-			.insert(sessionChipPurchaseResult)
-			.values({ sessionChipPurchaseId: p.id, count })
-			.onConflictDoUpdate({
-				target: sessionChipPurchaseResult.sessionChipPurchaseId,
-				set: { count },
-			});
+	if (purchases.length === 0) {
+		return;
 	}
+
+	// D1 allows at most 100 bound parameters per statement; each result row
+	// binds two values. Keep all chunks in one batch so a failed upsert cannot
+	// leave a partially refreshed result set.
+	const statements: BatchStatement[] = [];
+	for (let i = 0; i < purchases.length; i += 50) {
+		const rows = purchases.slice(i, i + 50).map((purchase) => ({
+			sessionChipPurchaseId: purchase.id,
+			count: chipPurchaseCounts.get(purchase.id) ?? 0,
+		}));
+		statements.push(
+			db
+				.insert(sessionChipPurchaseResult)
+				.values(rows)
+				.onConflictDoUpdate({
+					target: sessionChipPurchaseResult.sessionChipPurchaseId,
+					set: { count: sql`excluded.count` },
+				})
+		);
+	}
+	await runBatch(db, statements);
 }
 
 export async function recalculateTournamentSession(

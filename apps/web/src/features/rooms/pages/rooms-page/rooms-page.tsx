@@ -12,6 +12,8 @@ export function RoomsPage() {
 	const {
 		rooms,
 		isLoading,
+		isError,
+		onRetry,
 		isCreateOpen,
 		isCreatePending,
 		setIsCreateOpen,
@@ -33,8 +35,10 @@ export function RoomsPage() {
 				/>
 
 				<RoomList
+					isError={isError}
 					isLoading={isLoading}
 					onCreate={() => setIsCreateOpen(true)}
+					onRetry={onRetry}
 					onToggleFavorite={handleToggleFavorite}
 					rooms={rooms}
 				/>

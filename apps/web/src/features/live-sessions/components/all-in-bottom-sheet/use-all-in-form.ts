@@ -24,7 +24,7 @@ const DEFAULT_VALUES = {
 // pot counts as a partial win), so only the upper bound is checked.
 const allInSchema = z
 	.object({
-		potSize: requiredNumericString({ min: 0 }),
+		potSize: requiredNumericString({ integer: true, min: 0 }),
 		trials: requiredNumericString({ integer: true, min: 1 }),
 		equity: requiredNumericString({ min: 0, max: 100 }),
 		wins: requiredNumericString({ min: 0 }),

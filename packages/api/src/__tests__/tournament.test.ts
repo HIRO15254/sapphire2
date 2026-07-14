@@ -1,7 +1,13 @@
 import { currency } from "@sapphire2/db/schema/currency";
 import { room } from "@sapphire2/db/schema/room";
-import { tournament } from "@sapphire2/db/schema/tournament";
+import {
+	blindLevel,
+	tournament,
+	tournamentChipPurchase,
+} from "@sapphire2/db/schema/tournament";
+import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
 import { TRPCError } from "@trpc/server";
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "../routers";
 import {
@@ -57,6 +63,56 @@ async function expectTrpcCode(
 		return;
 	}
 	throw new Error(`expected the call to throw ${code} but it resolved`);
+}
+
+const dialect = new SQLiteSyncDialect();
+
+function createListByRoomDb(
+	tournaments: Rows,
+	levels: Rows,
+	tags: Rows,
+	chipPurchases: Rows
+) {
+	const childChunkSizes = new Map<unknown, number[]>();
+	const rowsByTable = new Map<unknown, Rows>([
+		[room, [{ id: "room-1", userId: "user-1" }]],
+		[tournament, tournaments],
+		[blindLevel, levels],
+		[tournamentTag, tags],
+		[tournamentChipPurchase, chipPurchases],
+	]);
+
+	function makeChain(table: unknown) {
+		let selected = rowsByTable.get(table) ?? [];
+		const chain = Promise.resolve().then(() => selected) as Promise<Rows> &
+			Record<string, (...args: unknown[]) => unknown>;
+		chain.where = (condition: unknown) => {
+			if (
+				table === blindLevel ||
+				table === tournamentTag ||
+				table === tournamentChipPurchase
+			) {
+				const params = dialect.sqlToQuery(condition as never)
+					.params as string[];
+				const sizes = childChunkSizes.get(table) ?? [];
+				sizes.push(params.length);
+				childChunkSizes.set(table, sizes);
+				selected = selected.filter((row) =>
+					params.includes(String(row.tournamentId))
+				);
+			}
+			return chain;
+		};
+		chain.orderBy = () => chain;
+		return chain;
+	}
+
+	return {
+		childChunkSizes,
+		db: {
+			select: () => ({ from: (table: unknown) => makeChain(table) }),
+		},
+	};
 }
 
 const CUR_OWNER = "user-1";
@@ -205,6 +261,61 @@ describe("tournament.create input validation", () => {
 	it("rejects missing roomId", () => {
 		expectRejects(appRouter.tournament.create, { name: "ME" });
 	});
+
+	it("rejects negative amounts and restricts table size to 2..10", () => {
+		for (const field of [
+			"buyIn",
+			"entryFee",
+			"startingStack",
+			"bountyAmount",
+		] as const) {
+			expectRejects(appRouter.tournament.create, {
+				roomId: "s1",
+				name: "ME",
+				[field]: -1,
+			});
+			expectAccepts(appRouter.tournament.create, {
+				roomId: "s1",
+				name: "ME",
+				[field]: 0,
+			});
+			expectAccepts(appRouter.tournament.create, {
+				roomId: "s1",
+				name: "ME",
+				[field]: 1,
+			});
+		}
+		expectRejects(appRouter.tournament.create, {
+			roomId: "s1",
+			name: "ME",
+			tableSize: -1,
+		});
+		expectRejects(appRouter.tournament.create, {
+			roomId: "s1",
+			name: "ME",
+			tableSize: 0,
+		});
+		expectRejects(appRouter.tournament.create, {
+			roomId: "s1",
+			name: "ME",
+			tableSize: 1,
+		});
+		expectAccepts(appRouter.tournament.create, {
+			roomId: "s1",
+			name: "ME",
+			tableSize: 2,
+		});
+		expectAccepts(appRouter.tournament.create, {
+			roomId: "s1",
+			name: "ME",
+			tableSize: 10,
+		});
+		expectRejects(appRouter.tournament.create, {
+			roomId: "s1",
+			name: "ME",
+			tableSize: 11,
+		});
+	});
 });
 
 describe("tournament.update input validation", () => {
@@ -278,6 +389,15 @@ describe("tournament.createWithLevels input validation", () => {
 			chipPurchases: [{ name: "Rebuy", cost: 1, chips: -100 }],
 		});
 	});
+
+	it("rejects a chip purchase with an empty name", () => {
+		expectRejects(appRouter.tournament.createWithLevels, {
+			roomId: "s1",
+			name: "Series",
+			chipPurchases: [{ name: "", cost: 100, chips: 10_000 }],
+		});
+	});
+
 	it("rejects a blindLevel missing isBreak", () => {
 		expectRejects(appRouter.tournament.createWithLevels, {
 			roomId: "s1",
@@ -302,6 +422,14 @@ describe("tournament.updateWithLevels input validation", () => {
 	it("rejects missing id", () => {
 		expectRejects(appRouter.tournament.updateWithLevels, {
 			blindLevels: [],
+		});
+	});
+
+	it("rejects a chip purchase with an empty name", () => {
+		expectRejects(appRouter.tournament.updateWithLevels, {
+			id: "tn1",
+			blindLevels: [],
+			chipPurchases: [{ name: "", cost: 100, chips: 10_000 }],
 		});
 	});
 });
@@ -496,5 +624,183 @@ describe("tournament createWithLevels per-level games", () => {
 				},
 			],
 		});
+	});
+});
+
+describe("tournament listByRoom hydration", () => {
+	it("hydrates all child collections with bounded batched lookups", async () => {
+		const tournaments = Array.from({ length: 101 }, (_, index) => ({
+			id: `t-${index}`,
+			roomId: "room-1",
+			name: `Tournament ${index}`,
+		}));
+		const levels = tournaments.map((t) => ({
+			tournamentId: t.id,
+			id: `level-${t.id}`,
+		}));
+		const tags = tournaments.map((t) => ({
+			tournamentId: t.id,
+			id: `tag-${t.id}`,
+			name: "weekly",
+		}));
+		const chipPurchases = tournaments.map((t) => ({
+			tournamentId: t.id,
+			id: `chip-${t.id}`,
+			name: "Rebuy",
+			cost: 100,
+			chips: 10_000,
+			sortOrder: 0,
+		}));
+		const { db, childChunkSizes } = createListByRoomDb(
+			tournaments,
+			levels,
+			tags,
+			chipPurchases
+		);
+		const caller = appRouter.createCaller({
+			session: { user: { id: CUR_OWNER } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).tournament;
+
+		const result = await caller.listByRoom({ roomId: "room-1" });
+
+		expect(result).toHaveLength(101);
+		expect(result[0]).toMatchObject({
+			id: "t-0",
+			blindLevelCount: 1,
+			tags: [{ id: "tag-t-0", name: "weekly" }],
+			chipPurchases: [
+				{
+					id: "chip-t-0",
+					name: "Rebuy",
+					cost: 100,
+					chips: 10_000,
+					sortOrder: 0,
+				},
+			],
+		});
+		expect(result.at(100)?.blindLevelCount).toBe(1);
+		expect(childChunkSizes.get(blindLevel)).toEqual([100, 1]);
+		expect(childChunkSizes.get(tournamentTag)).toEqual([100, 1]);
+		expect(childChunkSizes.get(tournamentChipPurchase)).toEqual([100, 1]);
+	});
+});
+
+it("returns an empty result without issuing child lookups for no tournaments", async () => {
+	const { db, childChunkSizes } = createListByRoomDb([], [], [], []);
+	const caller = appRouter.createCaller({
+		session: { user: { id: CUR_OWNER } },
+		db,
+	} as unknown as Parameters<typeof appRouter.createCaller>[0]).tournament;
+
+	expect(await caller.listByRoom({ roomId: "room-1" })).toEqual([]);
+	expect(childChunkSizes.size).toBe(0);
+});
+
+describe("tournament ownership errors", () => {
+	it("uses FORBIDDEN for missing room and tournament resources", async () => {
+		await expectTrpcCode(
+			tournamentCaller(CUR_OWNER, new Map()).listByRoom({ roomId: "missing" }),
+			"FORBIDDEN"
+		);
+		await expectTrpcCode(
+			tournamentCaller(CUR_OWNER, new Map()).getById({ id: "missing" }),
+			"FORBIDDEN"
+		);
+	});
+	it("uses FORBIDDEN for foreign room and tournament resources", async () => {
+		await expectTrpcCode(
+			tournamentCaller(
+				CUR_OWNER,
+				new Map<unknown, Rows>([[room, [{ id: "room-1", userId: CUR_OTHER }]]])
+			).listByRoom({ roomId: "room-1" }),
+			"FORBIDDEN"
+		);
+		await expectTrpcCode(
+			tournamentCaller(
+				CUR_OWNER,
+				new Map<unknown, Rows>([
+					[tournament, [{ id: "t-1", roomId: "room-1" }]],
+					[room, [{ id: "room-1", userId: CUR_OTHER }]],
+				])
+			).getById({ id: "t-1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("uses FORBIDDEN for missing and foreign tags", async () => {
+		await expectTrpcCode(
+			tournamentCaller(CUR_OWNER, new Map()).removeTag({ id: "missing" }),
+			"FORBIDDEN"
+		);
+		await expectTrpcCode(
+			tournamentCaller(
+				CUR_OWNER,
+				new Map<unknown, Rows>([
+					[tournamentTag, [{ id: "tag-1", tournamentId: "t-1" }]],
+					[tournament, [{ id: "t-1", roomId: "room-1" }]],
+					[room, [{ id: "room-1", userId: CUR_OTHER }]],
+				])
+			).removeTag({ id: "tag-1" }),
+			"FORBIDDEN"
+		);
+	});
+});
+
+describe("tournament numeric boundaries", () => {
+	it("enforces nonnegative amounts and tableSize 2..10 across create schemas", () => {
+		for (const procedure of [
+			appRouter.tournament.create,
+			appRouter.tournament.createWithLevels,
+		] as const) {
+			const base =
+				procedure === appRouter.tournament.create
+					? { roomId: "s1", name: "ME" }
+					: { roomId: "s1", name: "ME", blindLevels: [] };
+			for (const field of [
+				"buyIn",
+				"entryFee",
+				"startingStack",
+				"bountyAmount",
+			] as const) {
+				expectRejects(procedure, { ...base, [field]: -1 });
+				expectAccepts(procedure, { ...base, [field]: 0 });
+				expectAccepts(procedure, { ...base, [field]: 1 });
+			}
+			expectRejects(procedure, { ...base, tableSize: -1 });
+			expectRejects(procedure, { ...base, tableSize: 0 });
+			expectRejects(procedure, { ...base, tableSize: 1 });
+			expectAccepts(procedure, { ...base, tableSize: 2 });
+			expectAccepts(procedure, { ...base, tableSize: 10 });
+			expectRejects(procedure, { ...base, tableSize: 11 });
+		}
+	});
+
+	it("enforces nonnegative amounts and tableSize 2..10 across update schemas", () => {
+		for (const procedure of [
+			appRouter.tournament.update,
+			appRouter.tournament.updateWithLevels,
+		] as const) {
+			const base =
+				procedure === appRouter.tournament.update
+					? { id: "tn1" }
+					: { id: "tn1", blindLevels: [] };
+			for (const field of [
+				"buyIn",
+				"entryFee",
+				"startingStack",
+				"bountyAmount",
+			] as const) {
+				expectRejects(procedure, { ...base, [field]: -1 });
+				expectAccepts(procedure, { ...base, [field]: 0 });
+				expectAccepts(procedure, { ...base, [field]: 1 });
+			}
+			expectRejects(procedure, { ...base, tableSize: -1 });
+			expectRejects(procedure, { ...base, tableSize: 0 });
+			expectRejects(procedure, { ...base, tableSize: 1 });
+			expectAccepts(procedure, { ...base, tableSize: 2 });
+			expectAccepts(procedure, { ...base, tableSize: 10 });
+			expectRejects(procedure, { ...base, tableSize: 11 });
+		}
 	});
 });

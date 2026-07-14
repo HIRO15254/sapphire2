@@ -18,21 +18,29 @@ vi.mock("@/features/rooms/pages/rooms-page/room-list", () => ({
 	RoomList: ({
 		rooms,
 		isLoading,
+		isError,
 		onCreate,
+		onRetry,
 		onToggleFavorite,
 	}: {
 		rooms: { id: string }[];
 		isLoading: boolean;
+		isError: boolean;
 		onCreate: () => void;
+		onRetry: () => void;
 		onToggleFavorite: (id: string) => void;
 	}) => (
 		<div
 			data-count={rooms.length}
+			data-error={String(isError)}
 			data-loading={String(isLoading)}
 			data-testid="room-list-stub"
 		>
 			<button onClick={onCreate} type="button">
 				stub-create
+			</button>
+			<button onClick={onRetry} type="button">
+				stub-retry
 			</button>
 			<button onClick={() => onToggleFavorite("s1")} type="button">
 				stub-toggle-fav
@@ -52,7 +60,9 @@ interface MockState {
 	handleToggleFavorite: ReturnType<typeof vi.fn>;
 	isCreateOpen: boolean;
 	isCreatePending: boolean;
+	isError: boolean;
 	isLoading: boolean;
+	onRetry: ReturnType<typeof vi.fn>;
 	rooms: {
 		id: string;
 		name: string;
@@ -67,7 +77,9 @@ function setMockState(overrides: Partial<MockState> = {}): MockState {
 		rooms: [],
 		isCreateOpen: false,
 		isCreatePending: false,
+		isError: false,
 		isLoading: false,
+		onRetry: vi.fn(),
 		setIsCreateOpen: vi.fn(),
 		handleCreate: vi.fn(),
 		handleToggleFavorite: vi.fn(),
@@ -97,6 +109,22 @@ describe("RoomsPage", () => {
 		);
 	});
 
+	it("forwards isError to RoomList", () => {
+		setMockState({ isError: true });
+		render(<RoomsPage />);
+		expect(screen.getByTestId("room-list-stub")).toHaveAttribute(
+			"data-error",
+			"true"
+		);
+	});
+
+	it("forwards the retry callback to RoomList", async () => {
+		const user = userEvent.setup();
+		const state = setMockState();
+		render(<RoomsPage />);
+		await user.click(screen.getByRole("button", { name: "stub-retry" }));
+		expect(state.onRetry).toHaveBeenCalledTimes(1);
+	});
 	it("forwards the rooms array to RoomList", () => {
 		setMockState({
 			rooms: [

@@ -1,4 +1,5 @@
 import type { RingGame } from "@/features/rooms/hooks/use-ring-games";
+import { QueryError } from "@/shared/components/query-error";
 import { ArchivedRingGames } from "../archived-ring-games";
 import { RingGameList } from "../ring-game-list";
 import { RingGameListSkeleton } from "../ring-game-list-skeleton";
@@ -10,13 +11,17 @@ interface RingGameContentProps {
 	archivedGames: RingGame[];
 	archivedLoading: boolean;
 	currencies: CurrencyOption[];
+	isInitialLoadError: boolean;
 	onOpenActions: (game: RingGame) => void;
+	onRetry: () => void;
 	showArchived: boolean;
 }
 
 export function RingGameContent({
 	activeGames,
 	activeLoading,
+	isInitialLoadError,
+	onRetry,
 	archivedGames,
 	archivedLoading,
 	currencies,
@@ -25,6 +30,9 @@ export function RingGameContent({
 }: RingGameContentProps) {
 	if (activeLoading) {
 		return <RingGameListSkeleton />;
+	}
+	if (isInitialLoadError) {
+		return <QueryError message="Unable to load cash games" onRetry={onRetry} />;
 	}
 	return (
 		<>

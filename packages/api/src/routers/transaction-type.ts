@@ -60,14 +60,7 @@ export const transactionTypeRouter = router({
 				.from(transactionType)
 				.where(eq(transactionType.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Transaction type not found",
-				});
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this transaction type",
@@ -95,14 +88,7 @@ export const transactionTypeRouter = router({
 				.from(transactionType)
 				.where(eq(transactionType.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Transaction type not found",
-				});
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this transaction type",

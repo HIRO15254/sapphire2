@@ -143,11 +143,22 @@ export function chunkForInsert<T>(rows: T[], columnsPerRow: number): T[][] {
  */
 export async function selectInChunks<Id, Row>(
 	ids: Id[],
-	run: (chunk: Id[]) => Promise<Row[]>
+	run: (chunk: Id[]) => Promise<Row[]>,
+	extraBoundParams = 0
 ): Promise<Row[]> {
+	if (
+		!Number.isInteger(extraBoundParams) ||
+		extraBoundParams < 0 ||
+		extraBoundParams >= D1_MAX_BOUND_PARAMS
+	) {
+		throw new RangeError(
+			`extraBoundParams must be an integer from 0 to ${D1_MAX_BOUND_PARAMS - 1}`
+		);
+	}
 	const rows: Row[] = [];
-	for (const chunk of chunkForInsert(ids, 1)) {
-		rows.push(...(await run(chunk)));
+	const perChunk = D1_MAX_BOUND_PARAMS - extraBoundParams;
+	for (let index = 0; index < ids.length; index += perChunk) {
+		rows.push(...(await run(ids.slice(index, index + perChunk))));
 	}
 	return rows;
 }
@@ -508,7 +519,7 @@ async function validateRingGameOwnershipBranch(
 	db: DbInstance,
 	entityId: string,
 	userId: string
-): Promise<void> {
+): Promise<typeof ringGame.$inferSelect> {
 	const [found] = await db
 		.select()
 		.from(ringGame)
@@ -530,13 +541,14 @@ async function validateRingGameOwnershipBranch(
 			message: "You do not own this ring game",
 		});
 	}
+	return found;
 }
 
 async function validateRoomOwnershipBranch(
 	db: DbInstance,
 	entityId: string,
 	userId: string
-): Promise<void> {
+): Promise<typeof room.$inferSelect> {
 	const [found] = await db.select().from(room).where(eq(room.id, entityId));
 	if (!found) {
 		throw new TRPCError({
@@ -550,13 +562,14 @@ async function validateRoomOwnershipBranch(
 			message: "You do not own this room",
 		});
 	}
+	return found;
 }
 
 async function validateTournamentOwnershipBranch(
 	db: DbInstance,
 	entityId: string,
 	userId: string
-): Promise<void> {
+): Promise<typeof tournament.$inferSelect> {
 	const [found] = await db
 		.select()
 		.from(tournament)
@@ -576,13 +589,14 @@ async function validateTournamentOwnershipBranch(
 		userId,
 		"You do not own this tournament"
 	);
+	return found;
 }
 
 async function validateCurrencyOwnershipBranch(
 	db: DbInstance,
 	entityId: string,
 	userId: string
-): Promise<void> {
+): Promise<typeof currency.$inferSelect> {
 	const [found] = await db
 		.select()
 		.from(currency)
@@ -599,6 +613,7 @@ async function validateCurrencyOwnershipBranch(
 			message: "You do not own this currency",
 		});
 	}
+	return found;
 }
 
 async function validateGameGroupOwnershipBranch(
@@ -684,10 +699,28 @@ async function validateEntityOwnership(
 ): Promise<typeof gameVariant.$inferSelect>;
 async function validateEntityOwnership(
 	db: DbInstance,
-	entityType: "currency" | "ringGame" | "room" | "tournament",
+	entityType: "currency",
 	entityId: string,
 	userId: string
-): Promise<void>;
+): Promise<typeof currency.$inferSelect>;
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "ringGame",
+	entityId: string,
+	userId: string
+): Promise<typeof ringGame.$inferSelect>;
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "room",
+	entityId: string,
+	userId: string
+): Promise<typeof room.$inferSelect>;
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "tournament",
+	entityId: string,
+	userId: string
+): Promise<typeof tournament.$inferSelect>;
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType:
@@ -943,15 +976,30 @@ function nullableTimestampToDate(
 	return ts === null ? null : new Date(ts * 1000);
 }
 
+const nonNegativeIntegerSchema = z.number().int().min(0);
+const nullableNonNegativeIntegerSchema = nonNegativeIntegerSchema.nullable();
+const tableSizeSchema = z.number().int().min(2).max(10);
+const nullableTableSizeSchema = tableSizeSchema.nullable();
+
+const sessionBlindLevelInputSchema = z.object({
+	isBreak: z.boolean(),
+	blind1: nullableNonNegativeIntegerSchema.optional(),
+	blind2: nullableNonNegativeIntegerSchema.optional(),
+	blind3: nullableNonNegativeIntegerSchema.optional(),
+	ante: nullableNonNegativeIntegerSchema.optional(),
+	minutes: nullableNonNegativeIntegerSchema.optional(),
+	games: levelGamesSchema.nullish(),
+});
+
 const cashGameCreateSchema = z.object({
 	type: z.literal("cash_game"),
 	sessionDate: z.number(),
-	buyIn: z.number().int().min(0),
-	cashOut: z.number().int().min(0),
-	evCashOut: z.number().int().min(0).optional(),
-	roomId: z.string().optional(),
-	ringGameId: z.string().optional(),
-	currencyId: z.string().optional(),
+	buyIn: nonNegativeIntegerSchema,
+	cashOut: nonNegativeIntegerSchema,
+	evCashOut: nonNegativeIntegerSchema.optional(),
+	roomId: z.string().min(1).optional(),
+	ringGameId: z.string().min(1).optional(),
+	currencyId: z.string().min(1).optional(),
 	// Snapshot fields — written through to session_cash_detail. When
 	// ringGameId is also provided, these override the parent values; when
 	// no master is referenced they define the rule wholesale.
@@ -963,17 +1011,17 @@ const cashGameCreateSchema = z.object({
 	// true no-parent case lives solely in defaultCashSnapshot.
 	variant: z.string().optional(),
 	mixGames: mixGamesSchema.nullish(),
-	blind1: z.number().int().optional(),
-	blind2: z.number().int().optional(),
-	blind3: z.number().int().optional(),
-	ante: z.number().int().optional(),
+	blind1: nonNegativeIntegerSchema.optional(),
+	blind2: nonNegativeIntegerSchema.optional(),
+	blind3: nonNegativeIntegerSchema.optional(),
+	ante: nonNegativeIntegerSchema.optional(),
 	anteType: z.enum(["none", "all", "bb"]).optional(),
-	minBuyIn: z.number().int().optional(),
-	maxBuyIn: z.number().int().optional(),
-	tableSize: z.number().int().optional(),
+	minBuyIn: nonNegativeIntegerSchema.optional(),
+	maxBuyIn: nonNegativeIntegerSchema.optional(),
+	tableSize: tableSizeSchema.optional(),
 	startedAt: z.number().optional(),
 	endedAt: z.number().optional(),
-	breakMinutes: z.number().int().min(0).optional(),
+	breakMinutes: nonNegativeIntegerSchema.optional(),
 	memo: z.string().optional(),
 	tagIds: z.array(z.string()).optional(),
 });
@@ -981,51 +1029,39 @@ const cashGameCreateSchema = z.object({
 // A rule-defined chip purchase plus how many times it was bought (`count`).
 // Shared by session.create and session.update.
 const chipPurchaseInputSchema = z.object({
-	name: z.string(),
-	cost: z.number().int().min(0),
-	chips: z.number().int().min(0),
-	count: z.number().int().min(0).default(0),
+	name: z.string().min(1),
+	cost: nonNegativeIntegerSchema,
+	chips: nonNegativeIntegerSchema,
+	count: nonNegativeIntegerSchema.default(0),
 });
 
 const tournamentCreateSchema = z
 	.object({
 		type: z.literal("tournament"),
 		sessionDate: z.number(),
-		tournamentBuyIn: z.number().int().min(0),
-		entryFee: z.number().int().min(0).default(0),
+		tournamentBuyIn: nonNegativeIntegerSchema,
+		entryFee: nonNegativeIntegerSchema.default(0),
 		beforeDeadline: z.boolean().optional(),
 		placement: z.number().int().min(1).optional(),
 		totalEntries: z.number().int().min(1).optional(),
-		prizeMoney: z.number().int().min(0).optional(),
-		bountyPrizes: z.number().int().min(0).optional(),
-		roomId: z.string().optional(),
-		tournamentId: z.string().optional(),
-		currencyId: z.string().optional(),
+		prizeMoney: nonNegativeIntegerSchema.optional(),
+		bountyPrizes: nonNegativeIntegerSchema.optional(),
+		roomId: z.string().min(1).optional(),
+		tournamentId: z.string().min(1).optional(),
+		currencyId: z.string().min(1).optional(),
 		// Snapshot fields — same role as on the cash schema. Allows manual
 		// sessions (or wizard-driven creation) to declare the rule wholesale
 		// even when no master tournament is referenced.
 		ruleName: z.string().min(1).optional(),
 		variant: z.string().optional(),
-		startingStack: z.number().int().optional(),
-		bountyAmount: z.number().int().optional(),
-		tableSize: z.number().int().optional(),
-		blindLevels: z
-			.array(
-				z.object({
-					isBreak: z.boolean(),
-					blind1: z.number().int().nullable().optional(),
-					blind2: z.number().int().nullable().optional(),
-					blind3: z.number().int().nullable().optional(),
-					ante: z.number().int().nullable().optional(),
-					minutes: z.number().int().nullable().optional(),
-					games: levelGamesSchema.nullish(),
-				})
-			)
-			.optional(),
+		startingStack: nonNegativeIntegerSchema.optional(),
+		bountyAmount: nonNegativeIntegerSchema.optional(),
+		tableSize: tableSizeSchema.optional(),
+		blindLevels: z.array(sessionBlindLevelInputSchema).optional(),
 		chipPurchases: z.array(chipPurchaseInputSchema).optional(),
 		startedAt: z.number().optional(),
 		endedAt: z.number().optional(),
-		breakMinutes: z.number().int().min(0).optional(),
+		breakMinutes: nonNegativeIntegerSchema.optional(),
 		memo: z.string().optional(),
 		tagIds: z.array(z.string()).optional(),
 	})
@@ -1298,7 +1334,7 @@ async function validateCreateLinks(
  * Ownership guard for the room / currency links shared by the live cash-game
  * and live-tournament routers. A falsy value (undefined = omitted, null =
  * clear, "" = empty) skips validation; a provided id must exist AND belong to
- * the caller, else validateEntityOwnership throws NOT_FOUND / FORBIDDEN.
+ * the caller, else validateEntityOwnership throws FORBIDDEN.
  * Prevents IDOR on the money-ledger links (SA2-102).
  */
 export async function validateLiveLinkOwnership(
@@ -1311,6 +1347,26 @@ export async function validateLiveLinkOwnership(
 	}
 	if (input.currencyId) {
 		await validateEntityOwnership(db, "currency", input.currencyId, userId);
+	}
+}
+/**
+ * Validates every optional foreign-key filter at the resolver boundary. A
+ * missing or foreign row must fail uniformly before an otherwise owner-scoped
+ * query can turn it into an empty result (SA2-183).
+ */
+async function validateSessionFilterOwnership(
+	db: DbInstance,
+	input: { currencyId?: string; ringGameId?: string; roomId?: string },
+	userId: string
+): Promise<void> {
+	if (input.roomId !== undefined) {
+		await validateEntityOwnership(db, "room", input.roomId, userId);
+	}
+	if (input.currencyId !== undefined) {
+		await validateEntityOwnership(db, "currency", input.currencyId, userId);
+	}
+	if (input.ringGameId !== undefined) {
+		await validateEntityOwnership(db, "ringGame", input.ringGameId, userId);
 	}
 }
 
@@ -1334,10 +1390,15 @@ export async function validateTagsOwnership(
 		return;
 	}
 	const uniqueIds = [...new Set(ids)];
-	const owned = await db
-		.select({ id: table.id })
-		.from(table)
-		.where(and(inArray(table.id, uniqueIds), eq(table.userId, userId)));
+	const owned = await selectInChunks(
+		uniqueIds,
+		(chunk) =>
+			db
+				.select({ id: table.id })
+				.from(table)
+				.where(and(inArray(table.id, chunk), eq(table.userId, userId))),
+		1
+	);
 	if (owned.length !== uniqueIds.length) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
@@ -1407,9 +1468,9 @@ export function encodeSessionCursor(row: {
 /**
  * Parse an {@link encodeSessionCursor} value back into its order key + id.
  * Returns `null` for a malformed cursor (missing separator, empty /
- * non-integer timestamp, or empty id) so the caller treats it as "no cursor"
- * instead of crashing. Splits on the first separator only, so ids containing
- * `_` survive.
+ * non-integer / out-of-range timestamp, or empty id) so the caller treats it
+ * as "no cursor" instead of crashing. Splits on the first separator only, so
+ * ids containing `_` survive.
  */
 export function parseSessionCursor(
 	cursor: string
@@ -1424,7 +1485,11 @@ export function parseSessionCursor(
 	if (rawMs === "" || id === "" || !Number.isInteger(ms)) {
 		return null;
 	}
-	return { id, sortKey: new Date(ms) };
+	const sortKey = new Date(ms);
+	if (Number.isNaN(sortKey.getTime())) {
+		return null;
+	}
+	return { id, sortKey };
 }
 
 /**
@@ -1725,7 +1790,7 @@ function enrichItemWithPL<T extends ListItemRaw>(item: T) {
  * (single id) so the detail page receives exactly the same shape as a list
  * item — display logic and the edit-wizard pre-fill both rely on these aliases.
  */
-function selectEnrichedSessionRows(db: DbInstance) {
+function selectEnrichedSessionRows(db: DbInstance, userId: string) {
 	return db
 		.select({
 			id: gameSession.id,
@@ -1784,8 +1849,14 @@ function selectEnrichedSessionRows(db: DbInstance) {
 			sessionTournamentDetail,
 			eq(sessionTournamentDetail.sessionId, gameSession.id)
 		)
-		.leftJoin(room, eq(room.id, gameSession.roomId))
-		.leftJoin(currency, eq(currency.id, gameSession.currencyId));
+		.leftJoin(
+			room,
+			and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
+		)
+		.leftJoin(
+			currency,
+			and(eq(currency.id, gameSession.currencyId), eq(currency.userId, userId))
+		);
 }
 
 /**
@@ -1795,7 +1866,7 @@ function selectEnrichedSessionRows(db: DbInstance) {
  */
 async function enrichSessionRows<
 	T extends Omit<ListItemRaw, "chipPurchaseCost"> & { id: string },
->(db: DbInstance, rows: T[]) {
+>(db: DbInstance, rows: T[], userId: string) {
 	const detailSessionIds = rows.map((row) => row.id);
 	const [chipPurchaseMap, blindLevelMap] = await Promise.all([
 		getSessionChipPurchaseMap(db, detailSessionIds),
@@ -1824,7 +1895,10 @@ async function enrichSessionRows<
 			.from(sessionToSessionTag)
 			.innerJoin(
 				sessionTag,
-				eq(sessionTag.id, sessionToSessionTag.sessionTagId)
+				and(
+					eq(sessionTag.id, sessionToSessionTag.sessionTagId),
+					eq(sessionTag.userId, userId)
+				)
 			)
 			.where(inArray(sessionToSessionTag.sessionId, chunk))
 	);
@@ -2939,6 +3013,7 @@ async function resnapshotTournamentStructure(
 }
 
 export {
+	buildTournamentStructureStatements,
 	persistSessionChipPurchases,
 	resnapshotTournamentStructure,
 	resolveCashRuleSnapshot,
@@ -3157,12 +3232,13 @@ export const sessionRouter = router({
 		)
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
+			await validateSessionFilterOwnership(ctx.db, input, userId);
 			const { paginationConditions } = buildSessionListConditions(
 				userId,
 				input
 			);
 
-			const data = await selectEnrichedSessionRows(ctx.db)
+			const data = await selectEnrichedSessionRows(ctx.db, userId)
 				.where(and(...paginationConditions))
 				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))
 				.limit(PAGE_SIZE + 1);
@@ -3173,7 +3249,7 @@ export const sessionRouter = router({
 			const nextCursor =
 				hasMore && last ? encodeSessionCursor(last) : undefined;
 
-			const itemsWithTags = await enrichSessionRows(ctx.db, items);
+			const itemsWithTags = await enrichSessionRows(ctx.db, items, userId);
 
 			const summary = await computeSummary(ctx.db, userId, input, input.type);
 
@@ -3184,14 +3260,14 @@ export const sessionRouter = router({
 		.input(z.object({ id: z.string() }))
 		.query(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-			// Ownership guard — throws NOT_FOUND when the session is missing or
+			// Ownership guard — throws FORBIDDEN when the session is missing or
 			// belongs to another user.
 			await validateSessionOwnership(ctx.db, input.id, userId);
 
-			const rows = await selectEnrichedSessionRows(ctx.db).where(
+			const rows = await selectEnrichedSessionRows(ctx.db, userId).where(
 				and(eq(gameSession.id, input.id), eq(gameSession.userId, userId))
 			);
-			const [enriched] = await enrichSessionRows(ctx.db, rows);
+			const [enriched] = await enrichSessionRows(ctx.db, rows, userId);
 
 			if (!enriched) {
 				throw new TRPCError({
@@ -3209,51 +3285,39 @@ export const sessionRouter = router({
 				.object({
 					id: z.string(),
 					sessionDate: z.number().optional(),
-					roomId: z.string().nullable().optional(),
-					ringGameId: z.string().nullable().optional(),
-					tournamentId: z.string().nullable().optional(),
-					currencyId: z.string().nullable().optional(),
-					buyIn: z.number().int().min(0).optional(),
-					cashOut: z.number().int().min(0).optional(),
-					evCashOut: z.number().int().min(0).nullable().optional(),
-					tournamentBuyIn: z.number().int().min(0).optional(),
-					entryFee: z.number().int().min(0).optional(),
+					roomId: z.string().min(1).nullable().optional(),
+					ringGameId: z.string().min(1).nullable().optional(),
+					tournamentId: z.string().min(1).nullable().optional(),
+					currencyId: z.string().min(1).nullable().optional(),
+					buyIn: nonNegativeIntegerSchema.optional(),
+					cashOut: nonNegativeIntegerSchema.optional(),
+					evCashOut: nullableNonNegativeIntegerSchema.optional(),
+					tournamentBuyIn: nonNegativeIntegerSchema.optional(),
+					entryFee: nonNegativeIntegerSchema.optional(),
 					placement: z.number().int().min(1).nullable().optional(),
 					totalEntries: z.number().int().min(1).nullable().optional(),
 					beforeDeadline: z.boolean().nullable().optional(),
-					prizeMoney: z.number().int().min(0).nullable().optional(),
-					bountyPrizes: z.number().int().min(0).nullable().optional(),
-					startingStack: z.number().int().nullable().optional(),
-					bountyAmount: z.number().int().nullable().optional(),
-					blindLevels: z
-						.array(
-							z.object({
-								isBreak: z.boolean(),
-								blind1: z.number().int().nullable().optional(),
-								blind2: z.number().int().nullable().optional(),
-								blind3: z.number().int().nullable().optional(),
-								ante: z.number().int().nullable().optional(),
-								minutes: z.number().int().nullable().optional(),
-								games: levelGamesSchema.nullish(),
-							})
-						)
-						.optional(),
+					prizeMoney: nullableNonNegativeIntegerSchema.optional(),
+					bountyPrizes: nullableNonNegativeIntegerSchema.optional(),
+					startingStack: nullableNonNegativeIntegerSchema.optional(),
+					bountyAmount: nullableNonNegativeIntegerSchema.optional(),
+					blindLevels: z.array(sessionBlindLevelInputSchema).optional(),
 					chipPurchases: z.array(chipPurchaseInputSchema).optional(),
 					startedAt: z.number().nullable().optional(),
 					endedAt: z.number().nullable().optional(),
-					breakMinutes: z.number().int().min(0).nullable().optional(),
+					breakMinutes: nullableNonNegativeIntegerSchema.optional(),
 					memo: z.string().nullable().optional(),
 					ruleName: z.string().optional(),
 					variant: z.string().optional(),
 					mixGames: mixGamesSchema.nullish(),
-					blind1: z.number().int().nullable().optional(),
-					blind2: z.number().int().nullable().optional(),
-					blind3: z.number().int().nullable().optional(),
-					ante: z.number().int().nullable().optional(),
+					blind1: nullableNonNegativeIntegerSchema.optional(),
+					blind2: nullableNonNegativeIntegerSchema.optional(),
+					blind3: nullableNonNegativeIntegerSchema.optional(),
+					ante: nullableNonNegativeIntegerSchema.optional(),
 					anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
-					tableSize: z.number().int().nullable().optional(),
-					minBuyIn: z.number().int().nullable().optional(),
-					maxBuyIn: z.number().int().nullable().optional(),
+					tableSize: nullableTableSizeSchema.optional(),
+					minBuyIn: nullableNonNegativeIntegerSchema.optional(),
+					maxBuyIn: nullableNonNegativeIntegerSchema.optional(),
 					tagIds: z.array(z.string()).optional(),
 				})
 				.refine(
@@ -3309,6 +3373,10 @@ export const sessionRouter = router({
 				);
 			}
 
+			if (input.tagIds !== undefined) {
+				await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
+			}
+
 			const sessionUpdateFields = buildSessionUpdateFields(input);
 			await ctx.db
 				.update(gameSession)
@@ -3322,7 +3390,6 @@ export const sessionRouter = router({
 			}
 
 			if (input.tagIds !== undefined) {
-				await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
 				// Replace the tag links atomically. A bare DELETE followed by
 				// separately-awaited INSERTs auto-commits the DELETE, so a failed
 				// re-insert would strand the session with no tags (SA2-116) — the
@@ -3403,9 +3470,11 @@ export const sessionRouter = router({
 				dateTo: z.number().optional(),
 			})
 		)
-		.query(({ ctx, input }) =>
-			fetchProfitLossSeries(ctx.db, ctx.session.user.id, input)
-		),
+		.query(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			await validateSessionFilterOwnership(ctx.db, input, userId);
+			return fetchProfitLossSeries(ctx.db, userId, input);
+		}),
 
 	delete: protectedProcedure
 		.input(z.object({ id: z.string() }))

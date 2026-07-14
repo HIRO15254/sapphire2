@@ -86,6 +86,8 @@ export function useSessionDetail(sessionId: string) {
 		session,
 		availableTags,
 		isLoading: sessionQuery.isLoading,
+		isInitialLoadError: sessionQuery.isError && sessionQuery.data === undefined,
+		onRetry: sessionQuery.refetch,
 		isUpdatePending: updateMutation.isPending,
 		update: (values: UpdateInput) => updateMutation.mutateAsync(values),
 		deleteSession: (id: string) => {

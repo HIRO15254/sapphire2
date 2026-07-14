@@ -52,7 +52,9 @@ function renderList(
 				bbBiMode={false}
 				hasNextPage={false}
 				isFetchingNextPage={false}
+				isInitialLoadError={false}
 				onLoadMore={() => undefined}
+				onRetry={() => undefined}
 				{...props}
 			/>
 		),
@@ -83,6 +85,37 @@ describe("SessionList", () => {
 		expect(
 			screen.queryByTestId("session-list-skeleton")
 		).not.toBeInTheDocument();
+	});
+
+	it("renders a retryable initial-load error instead of the empty state", async () => {
+		const onRetry = vi.fn();
+		const user = userEvent.setup();
+		renderList({
+			isInitialLoadError: true,
+			isLoading: false,
+			onCreate: vi.fn(),
+			onRetry,
+			sessions: [],
+		});
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"Unable to load sessions"
+		);
+		expect(screen.queryByText("No sessions yet")).not.toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+		expect(onRetry).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps loaded sessions visible after a later-page failure", async () => {
+		renderList({
+			isInitialLoadError: false,
+			isLoading: false,
+			onCreate: vi.fn(),
+			onRetry: vi.fn(),
+			sessions: [makeSession({ id: "s1" })],
+		});
+		expect(await screen.findByText("1/2 NLH")).toBeInTheDocument();
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
 	it("invokes onCreate from the empty-state CTA", async () => {

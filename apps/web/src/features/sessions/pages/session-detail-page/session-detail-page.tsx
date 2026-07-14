@@ -15,6 +15,7 @@ import {
 } from "@/features/sessions/utils/session-display";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
+import { QueryError } from "@/shared/components/query-error";
 import { Badge } from "@/shared/components/ui/badge";
 import { LiveResultChart } from "./live-result-chart";
 import { SessionDetailSkeleton } from "./session-detail-skeleton";
@@ -43,6 +44,8 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 		session,
 		availableTags,
 		isLoading,
+		isInitialLoadError,
+		onRetry,
 		isUpdatePending,
 		isLiveLinked,
 		canReopen,
@@ -68,6 +71,17 @@ export function SessionDetailPage({ sessionId }: SessionDetailPageProps) {
 		return (
 			<PageShell>
 				<SessionDetailSkeleton />
+			</PageShell>
+		);
+	}
+
+	if (isInitialLoadError) {
+		return (
+			<PageShell>
+				<QueryError
+					message="Unable to load session. Please try again."
+					onRetry={onRetry}
+				/>
 			</PageShell>
 		);
 	}

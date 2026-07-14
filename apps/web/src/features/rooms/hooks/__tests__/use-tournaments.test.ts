@@ -10,6 +10,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const trpcMocks = vi.hoisted(() => ({
+	tournamentListError: false,
 	tournamentCreate: vi.fn(),
 	tournamentUpdate: vi.fn(),
 	tournamentArchive: vi.fn(),
@@ -27,7 +28,10 @@ vi.mock("@/utils/trpc", () => ({
 			listByRoom: {
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("tournament", "listByRoom", input),
-					queryFn: () => Promise.resolve([]),
+					queryFn: () =>
+						trpcMocks.tournamentListError
+							? Promise.reject(new Error("tournaments unavailable"))
+							: Promise.resolve([]),
 				}),
 			},
 		},
@@ -123,14 +127,37 @@ function makeWrapper(client: QueryClient) {
 describe("useTournaments", () => {
 	beforeEach(() => {
 		for (const m of Object.values(trpcMocks)) {
-			m.mockReset();
+			if (typeof m === "function" && "mockReset" in m) {
+				m.mockReset();
+			}
 		}
+		trpcMocks.tournamentListError = false;
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
 	describe("initial state", () => {
+		it("exposes the initial load error and retries the active tournament query", async () => {
+			trpcMocks.tournamentListError = true;
+			const qc = createClient();
+			const { result } = renderHook(
+				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+
+			await waitFor(() => expect(result.current.isInitialLoadError).toBe(true));
+			expect(result.current.onRetry).toEqual(expect.any(Function));
+
+			trpcMocks.tournamentListError = false;
+			await act(async () => {
+				await result.current.onRetry();
+			});
+			await waitFor(() =>
+				expect(result.current.isInitialLoadError).toBe(false)
+			);
+		});
+
 		it("returns empty lists and false pending flags when caches are empty", () => {
 			const qc = createClient();
 			const { result } = renderHook(
@@ -141,6 +168,26 @@ describe("useTournaments", () => {
 			expect(result.current.archivedTournaments).toEqual([]);
 			expect(result.current.isCreatePending).toBe(false);
 			expect(result.current.isUpdatePending).toBe(false);
+		});
+
+		it("keeps cached active tournaments when a background refetch fails", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, [makeTournament()]);
+			const { result } = renderHook(
+				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() =>
+				expect(result.current.activeTournaments).toHaveLength(1)
+			);
+
+			trpcMocks.tournamentListError = true;
+			await act(async () => {
+				await qc.refetchQueries({ queryKey: activeKey });
+			});
+
+			expect(result.current.activeTournaments).toHaveLength(1);
+			expect(result.current.isInitialLoadError).toBe(false);
 		});
 
 		it("exposes seeded active tournaments", async () => {

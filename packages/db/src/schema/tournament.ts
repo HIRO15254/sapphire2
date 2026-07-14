@@ -32,7 +32,10 @@ export const tournament = sqliteTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [index("tournament_roomId_idx").on(table.roomId)]
+	(table) => [
+		index("tournament_roomId_idx").on(table.roomId),
+		index("tournament_currencyId_idx").on(table.currencyId),
+	]
 );
 
 export const blindLevel = sqliteTable(

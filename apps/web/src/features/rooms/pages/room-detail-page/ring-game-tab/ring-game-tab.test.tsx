@@ -111,7 +111,9 @@ interface TabState {
 	handleUpdate: ReturnType<typeof vi.fn>;
 	isCreateOpen: boolean;
 	isCreatePending: boolean;
+	isInitialLoadError: boolean;
 	isUpdatePending: boolean;
+	onRetry: ReturnType<typeof vi.fn>;
 	openActions: ReturnType<typeof vi.fn>;
 	openDeleteFromActions: ReturnType<typeof vi.fn>;
 	openEditFromActions: ReturnType<typeof vi.fn>;
@@ -136,6 +138,8 @@ function setState(overrides: Partial<TabState> = {}): TabState {
 		archivedGames: [],
 		currencies: [{ id: "currency-1", name: "USD", unit: "$" }],
 		activeLoading: false,
+		isInitialLoadError: false,
+		onRetry: vi.fn(),
 		archivedLoading: false,
 		isCreatePending: false,
 		isUpdatePending: false,
@@ -292,5 +296,18 @@ describe("RingGameTab", () => {
 		expect(screen.getByTestId("delete-dialog")).toHaveTextContent(
 			"Doomed game"
 		);
+	});
+
+	it("shows a retryable error instead of the empty state when the initial list fails", async () => {
+		const state = setState({ isInitialLoadError: true });
+		render(<RingGameTab roomId="room-1" />);
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Unable to load cash games"
+		);
+		expect(screen.queryByText("No cash games yet.")).not.toBeInTheDocument();
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: "Retry" }));
+		expect(state.onRetry).toHaveBeenCalledTimes(1);
 	});
 });

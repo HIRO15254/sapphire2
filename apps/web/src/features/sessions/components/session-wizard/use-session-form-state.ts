@@ -1,7 +1,6 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef, useState } from "react";
-import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	buildDefaults,
@@ -15,6 +14,7 @@ import {
 	type TournamentOption,
 	tournamentSessionFormSchema,
 } from "@/features/sessions/utils/session-form-helpers";
+import type { ChipPurchaseRow } from "@/shared/components/chip-purchases-editor";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import { useMixMasterEditing } from "@/shared/hooks/use-mix-master-editing";
 import {

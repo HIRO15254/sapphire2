@@ -151,15 +151,17 @@ function applyProjection(
  * `getTableName`), narrowed/aggregated through `projection` when one is
  * given; `insert(table).values(rows)` records the inserted payload. It
  * tracks which tables were read (`selectedTables`) and the bound params of
- * every `where(...)` call on select/update/delete (`selectWhereParams` /
- * `updateWhereParams` / `deleteWhereParams`) so ownership scoping can be
+ * every join and `where(...)` call on select/update/delete (`selectJoinParams`,
+ * `selectWhereParams` / `updateWhereParams` / `deleteWhereParams`) so ownership scoping can be
  * asserted (SA2-176, SA2-183), and which tables were written (`inserted`).
  */
 export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 	const selectRows = config.select ?? {};
 	const inserted: Record<string, unknown[]> = {};
+	const updated: Record<string, unknown[]> = {};
 	const selectedTables: string[] = [];
 	const selectWhereParams: unknown[][] = [];
+	const selectJoinParams: unknown[][] = [];
 	const updateWhereParams: unknown[][] = [];
 	const deleteWhereParams: unknown[][] = [];
 
@@ -175,8 +177,11 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 		};
 		chain.limit = () => chain;
 		chain.orderBy = () => chain;
-		chain.leftJoin = () => chain;
-		chain.innerJoin = () => chain;
+		chain.leftJoin = (_table: unknown, cond: unknown) => {
+			selectJoinParams.push(boundParams(cond));
+			return chain;
+		};
+		chain.innerJoin = chain.leftJoin;
 		return chain;
 	}
 
@@ -212,13 +217,19 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 			return Promise.resolve(undefined);
 		}),
 	}));
-	const update = vi.fn(() => ({
-		set: vi.fn(() => ({
-			where: vi.fn((cond: unknown) => {
-				updateWhereParams.push(boundParams(cond));
-				return Promise.resolve(undefined);
-			}),
-		})),
+	const update = vi.fn((table: unknown) => ({
+		set: vi.fn((values: unknown) => {
+			const name = getTableName(table as never);
+			const bucket = updated[name] ?? [];
+			bucket.push(values);
+			updated[name] = bucket;
+			return {
+				where: vi.fn((cond: unknown) => {
+					updateWhereParams.push(boundParams(cond));
+					return Promise.resolve(undefined);
+				}),
+			};
+		}),
 	}));
 	// D1's `db.batch([...])`. Each statement here is a resolved promise (this
 	// mock executes `insert().values()` / `delete().where()` eagerly and records
@@ -229,6 +240,7 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 
 	return {
 		db: { select, insert, delete: del, update, batch } as never,
+		selectJoinParams,
 		selectWhereParams,
 		updateWhereParams,
 		deleteWhereParams,
@@ -237,5 +249,6 @@ export function createChainableMockDb(config: ChainableMockDbConfig = {}) {
 		inserted,
 		selectedTables,
 		batch,
+		updated,
 	};
 }

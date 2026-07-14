@@ -1,10 +1,11 @@
+import { QueryError } from "@/shared/components/query-error";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { CashGameSession } from "./cash-game-session";
 import { TournamentSession } from "./tournament-session";
 import { useActiveSessionPage } from "./use-active-session-page";
 
 export function ActiveSessionPage() {
-	const { activeSession, isLoading } = useActiveSessionPage();
+	const { activeSession, isError, isLoading, onRetry } = useActiveSessionPage();
 
 	if (isLoading) {
 		return (
@@ -13,6 +14,17 @@ export function ActiveSessionPage() {
 					className="border-none bg-transparent py-0"
 					description="Fetching the current active session."
 					heading="Loading..."
+				/>
+			</div>
+		);
+	}
+
+	if (isError) {
+		return (
+			<div className="flex h-[100dvh] items-center justify-center p-4 pb-16">
+				<QueryError
+					message="Unable to load the active session"
+					onRetry={onRetry}
 				/>
 			</div>
 		);

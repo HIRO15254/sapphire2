@@ -20,6 +20,7 @@ const trpcMocks = vi.hoisted(() => ({
 	// Served by the mocked queryFn so post-invalidate refetches return
 	// deterministic data instead of wiping the seeded cache.
 	listData: [] as unknown[],
+	listError: null as Error | null,
 }));
 
 const toastMock = vi.hoisted(() => ({
@@ -32,7 +33,10 @@ vi.mock("@/utils/trpc", () => ({
 			listByTournament: {
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("blindLevel", "listByTournament", input),
-					queryFn: () => Promise.resolve(trpcMocks.listData),
+					queryFn: () =>
+						trpcMocks.listError
+							? Promise.reject(trpcMocks.listError)
+							: Promise.resolve(trpcMocks.listData),
 				}),
 			},
 		},
@@ -103,6 +107,7 @@ describe("useBlindLevels", () => {
 			m.mockReset();
 		}
 		trpcMocks.listData = [];
+		trpcMocks.listError = null;
 		toastMock.error.mockReset();
 	});
 	afterEach(() => {
@@ -128,6 +133,56 @@ describe("useBlindLevels", () => {
 				{ wrapper: makeWrapper(qc) }
 			);
 			await waitFor(() => expect(result.current.levels).toHaveLength(2));
+		});
+
+		it("marks an initial list failure and exposes a retry handler", async () => {
+			const qc = createClient();
+			trpcMocks.listError = new Error("list failed");
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+
+			await waitFor(() => expect(result.current.isInitialLoadError).toBe(true));
+			expect(result.current.levels).toEqual([]);
+			expect(result.current.onRetry).toEqual(expect.any(Function));
+		});
+
+		it("keeps cached levels usable after a background refetch fails", async () => {
+			const qc = createClient();
+			const cached = [level({ id: "cached" })];
+			qc.setQueryData(LEVELS_KEY, cached);
+			trpcMocks.listError = new Error("refetch failed");
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+
+			await act(async () => {
+				await qc.refetchQueries({ queryKey: LEVELS_KEY });
+			});
+			await waitFor(() =>
+				expect(result.current.isInitialLoadError).toBe(false)
+			);
+			expect(result.current.levels).toEqual(cached);
+		});
+
+		it("keeps an explicitly cached empty list usable after a refetch fails", async () => {
+			const qc = createClient();
+			qc.setQueryData(LEVELS_KEY, []);
+			trpcMocks.listError = new Error("refetch failed");
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+
+			await act(async () => {
+				await qc.refetchQueries({ queryKey: LEVELS_KEY });
+			});
+			await waitFor(() =>
+				expect(result.current.isInitialLoadError).toBe(false)
+			);
+			expect(result.current.levels).toEqual([]);
 		});
 	});
 

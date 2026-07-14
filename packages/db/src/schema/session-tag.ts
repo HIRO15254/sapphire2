@@ -34,7 +34,10 @@ export const sessionToSessionTag = sqliteTable(
 			.notNull()
 			.references(() => sessionTag.id, { onDelete: "cascade" }),
 	},
-	(table) => [primaryKey({ columns: [table.sessionId, table.sessionTagId] })]
+	(table) => [
+		primaryKey({ columns: [table.sessionId, table.sessionTagId] }),
+		index("sessionToSessionTag_sessionTagId_idx").on(table.sessionTagId),
+	]
 );
 
 export const sessionTagRelations = relations(sessionTag, ({ one, many }) => ({

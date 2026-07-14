@@ -107,6 +107,27 @@ describe("RoomList", () => {
 		});
 	});
 
+	describe("error", () => {
+		it("renders a retryable query error before the empty state", async () => {
+			const user = userEvent.setup();
+			const onRetry = vi.fn();
+			render(
+				<RoomList
+					isError
+					isLoading={false}
+					onCreate={vi.fn()}
+					onRetry={onRetry}
+					onToggleFavorite={vi.fn()}
+					rooms={[]}
+				/>
+			);
+			expect(screen.getByRole("alert")).toHaveTextContent(
+				"Unable to load rooms"
+			);
+			await user.click(screen.getByRole("button", { name: "Retry" }));
+			expect(onRetry).toHaveBeenCalledTimes(1);
+		});
+	});
 	describe("data", () => {
 		it("renders one card per room and no empty state", () => {
 			render(

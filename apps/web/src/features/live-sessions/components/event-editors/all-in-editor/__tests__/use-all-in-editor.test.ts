@@ -80,6 +80,26 @@ describe("useAllInEditor", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it("rejects fractional pot size on submit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInEditor({
+				event: baseEvent({}),
+				isLoading: false,
+				maxTime: null,
+				minTime: null,
+				onSubmit,
+			})
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1.5");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("submits numeric payload and a computed occurredAt timestamp", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>

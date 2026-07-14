@@ -11,6 +11,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 
 const trpcMocks = vi.hoisted(() => ({
 	playerCreate: vi.fn(),
+	playerList: vi.fn(),
 	playerUpdate: vi.fn(),
 	playerDelete: vi.fn(),
 	tagCreate: vi.fn(),
@@ -25,7 +26,7 @@ vi.mock("@/utils/trpc", () => ({
 						input === undefined
 							? buildKey("player", "list", undefined)
 							: buildKey("player", "list", input),
-					queryFn: () => Promise.resolve([]),
+					queryFn: trpcMocks.playerList,
 				}),
 			},
 		},
@@ -97,6 +98,7 @@ describe("usePlayers", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		trpcMocks.playerList.mockResolvedValue([]);
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -260,6 +262,36 @@ describe("usePlayers", () => {
 	});
 
 	describe("update (optimistic)", () => {
+		it("onMutate leaves an unfetched cache undefined", async () => {
+			const qc = createClient();
+			trpcMocks.playerList.mockImplementation(
+				() => new Promise(() => undefined)
+			);
+			let resolve: ((v: unknown) => void) | undefined;
+			trpcMocks.playerUpdate.mockImplementation(
+				() =>
+					new Promise((r) => {
+						resolve = r;
+					})
+			);
+			const { result } = renderHook(() => usePlayers([]), {
+				wrapper: makeWrapper(qc),
+			});
+
+			act(() => {
+				result.current.update({ id: "p1", name: "Updated" });
+			});
+
+			await waitFor(() => {
+				expect(trpcMocks.playerUpdate).toHaveBeenCalledTimes(1);
+				expect(trpcMocks.playerUpdate).toHaveBeenCalledWith({
+					id: "p1",
+					name: "Updated",
+				});
+			});
+			expect(qc.getQueryData(PLAYER_LIST_ALL_KEY)).toBeUndefined();
+			resolve?.({ id: "p1" });
+		});
 		it("patches name, memo, and resolves tag names from availableTags", async () => {
 			const qc = createClient();
 			qc.setQueryData(PLAYER_LIST_ALL_KEY, [
@@ -414,6 +446,52 @@ describe("usePlayers", () => {
 				(c) => (c[0] as { queryKey: unknown[] } | undefined)?.queryKey
 			);
 			expect(keys).toEqual(expect.arrayContaining([TAG_LIST_KEY]));
+		});
+	});
+	describe("query errors", () => {
+		it("exposes an initial-load error and clears it after retrying", async () => {
+			const qc = createClient();
+			trpcMocks.playerList.mockRejectedValueOnce(new Error("network"));
+			const { result } = renderHook(() => usePlayers([]), {
+				wrapper: makeWrapper(qc),
+			});
+
+			await waitFor(() => expect(result.current.isInitialLoadError).toBe(true));
+			expect(result.current.onRetry).toEqual(expect.any(Function));
+			const callsBeforeRetry = trpcMocks.playerList.mock.calls.length;
+			trpcMocks.playerList.mockResolvedValueOnce([]);
+			await act(async () => {
+				await result.current.onRetry();
+			});
+			expect(trpcMocks.playerList).toHaveBeenCalledTimes(callsBeforeRetry + 1);
+			await waitFor(() =>
+				expect(result.current.isInitialLoadError).toBe(false)
+			);
+		});
+
+		it("keeps cached players visible when a background refetch fails", async () => {
+			const qc = createClient();
+			qc.setQueryData(PLAYER_LIST_ALL_KEY, [makePlayer({ id: "cached" })]);
+			const { result } = renderHook(() => usePlayers([]), {
+				wrapper: makeWrapper(qc),
+			});
+
+			await waitFor(() =>
+				expect(result.current.players.map((player) => player.id)).toEqual([
+					"cached",
+				])
+			);
+			trpcMocks.playerList.mockRejectedValueOnce(new Error("network"));
+			await act(async () => {
+				await qc.invalidateQueries({ queryKey: PLAYER_LIST_ALL_KEY });
+			});
+
+			await waitFor(() =>
+				expect(result.current.players.map((player) => player.id)).toEqual([
+					"cached",
+				])
+			);
+			expect(result.current.isInitialLoadError).toBe(false);
 		});
 	});
 });

@@ -107,6 +107,15 @@ describe("GameVariant — indexes", () => {
 		expect(idxNames).toContain("gameVariant_userId_idx");
 	});
 
+	it("has gameVariant_groupId_idx for reverse group lookups", () => {
+		const idx = config.indexes.find(
+			(i) => i.config.name === "gameVariant_groupId_idx"
+		);
+		expect(idx?.config.columns.map((column) => column.name)).toEqual([
+			"group_id",
+		]);
+	});
+
 	it("has exactly 2 unique indexes (builtinKey + label backstops, c08/c14)", () => {
 		const uniqueIdxs = config.indexes.filter(
 			(i) => (i.config as unknown as { unique: boolean }).unique === true

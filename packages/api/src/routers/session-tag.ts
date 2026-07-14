@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { runBatch } from "../lib/batch";
 
 export const sessionTagRouter = router({
 	list: protectedProcedure.query(async ({ ctx }) => {
@@ -37,10 +38,7 @@ export const sessionTagRouter = router({
 				.select()
 				.from(sessionTag)
 				.where(eq(sessionTag.id, input.id));
-			if (!found) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Tag not found" });
-			}
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this tag",
@@ -65,19 +63,18 @@ export const sessionTagRouter = router({
 				.select()
 				.from(sessionTag)
 				.where(eq(sessionTag.id, input.id));
-			if (!found) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Tag not found" });
-			}
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this tag",
 				});
 			}
-			await ctx.db
-				.delete(sessionToSessionTag)
-				.where(eq(sessionToSessionTag.sessionTagId, input.id));
-			await ctx.db.delete(sessionTag).where(eq(sessionTag.id, input.id));
+			await runBatch(ctx.db, [
+				ctx.db
+					.delete(sessionToSessionTag)
+					.where(eq(sessionToSessionTag.sessionTagId, input.id)),
+				ctx.db.delete(sessionTag).where(eq(sessionTag.id, input.id)),
+			]);
 			return { success: true };
 		}),
 });

@@ -25,6 +25,7 @@ import {
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import { floorToMinute } from "../utils/session-event-time";
 import {
+	buildTournamentStructureStatements,
 	encodeSessionCursor,
 	getSessionEventMap,
 	persistSessionBlindLevels,
@@ -33,7 +34,6 @@ import {
 	resolveTournamentRuleSnapshot,
 	sessionKeysetCondition,
 	sessionOrderKeySql,
-	snapshotTournamentStructure,
 	validateEntityOwnership,
 	validateLiveLinkOwnership,
 } from "./session";
@@ -43,6 +43,21 @@ import {
 } from "./tournament";
 
 const DEFAULT_LIMIT = 20;
+const nonnegativeSafeIntegerSchema = z
+	.number()
+	.int()
+	.min(0)
+	.max(Number.MAX_SAFE_INTEGER);
+const nullableNonnegativeSafeIntegerSchema = nonnegativeSafeIntegerSchema
+	.nullable()
+	.optional();
+const nullableTableSizeSchema = z
+	.number()
+	.int()
+	.min(2)
+	.max(10)
+	.nullable()
+	.optional();
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -62,7 +77,8 @@ async function findLiveTournamentSession(
 			and(
 				eq(gameSession.id, id),
 				eq(gameSession.kind, "tournament"),
-				eq(gameSession.source, "live")
+				eq(gameSession.source, "live"),
+				eq(gameSession.userId, userId)
 			)
 		);
 
@@ -73,8 +89,8 @@ async function findLiveTournamentSession(
 		found.userId !== userId
 	) {
 		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Live tournament session not found",
+			code: "FORBIDDEN",
+			message: "You do not own this live tournament session",
 		});
 	}
 
@@ -390,22 +406,18 @@ async function resolveTournamentAssignment(
 	currencyId?: string;
 }> {
 	const [foundTournament] = await db
-		.select()
+		.select({
+			roomId: tournament.roomId,
+			currencyId: tournament.currencyId,
+		})
 		.from(tournament)
+		.innerJoin(
+			room,
+			and(eq(room.id, tournament.roomId), eq(room.userId, userId))
+		)
 		.where(eq(tournament.id, tournamentId));
 
 	if (!foundTournament) {
-		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Tournament not found",
-		});
-	}
-
-	const [foundRoom] = await db
-		.select()
-		.from(room)
-		.where(eq(room.id, foundTournament.roomId));
-	if (!foundRoom || foundRoom.userId !== userId) {
 		throw new TRPCError({
 			code: "FORBIDDEN",
 			message: "You do not own this tournament",
@@ -479,6 +491,10 @@ function buildTournamentEndPayload(input: CompleteInput) {
 	});
 }
 
+const liveTournamentCompleteInputSchema = z
+	.object({ id: z.string() })
+	.and(tournamentSessionEndPayload);
+
 export const liveTournamentSessionRouter = router({
 	list: protectedProcedure
 		.input(
@@ -532,8 +548,17 @@ export const liveTournamentSessionRouter = router({
 					sessionTournamentDetail,
 					eq(sessionTournamentDetail.sessionId, gameSession.id)
 				)
-				.leftJoin(room, eq(room.id, gameSession.roomId))
-				.leftJoin(currency, eq(currency.id, gameSession.currencyId))
+				.leftJoin(
+					room,
+					and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
+				)
+				.leftJoin(
+					currency,
+					and(
+						eq(currency.id, gameSession.currencyId),
+						eq(currency.userId, userId)
+					)
+				)
 				.where(and(...conditions))
 				.orderBy(desc(sessionOrderKeySql()), desc(gameSession.id))
 				.limit(input.limit + 1);
@@ -662,9 +687,9 @@ export const liveTournamentSessionRouter = router({
 	create: protectedProcedure
 		.input(
 			z.object({
-				roomId: z.string().optional(),
-				tournamentId: z.string().optional(),
-				currencyId: z.string().optional(),
+				roomId: z.string().min(1).optional(),
+				tournamentId: z.string().min(1).optional(),
+				currencyId: z.string().min(1).optional(),
 				buyIn: z.number().int().min(0).optional(),
 				entryFee: z.number().int().min(0).optional(),
 				memo: z.string().optional(),
@@ -673,8 +698,6 @@ export const liveTournamentSessionRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
-
-			await assertNoActiveSession(ctx.db, userId);
 
 			await validateLiveLinkOwnership(ctx.db, input, userId);
 			// Validate tournament ownership before reading its structure so a
@@ -688,60 +711,66 @@ export const liveTournamentSessionRouter = router({
 					userId
 				);
 			}
+			await assertNoActiveSession(ctx.db, userId);
 
 			const id = crypto.randomUUID();
 			const now = new Date();
-
-			await ctx.db.insert(gameSession).values({
-				id,
-				userId,
-				kind: "tournament",
-				status: "active",
-				source: "live",
-				roomId: input.roomId ?? null,
-				currencyId: input.currencyId ?? null,
-				startedAt: now,
-				memo: input.memo ?? null,
-				sessionDate: now,
-				updatedAt: now,
-			});
 
 			const snapshot = await resolveTournamentRuleSnapshot(ctx.db, {
 				tournamentId: input.tournamentId,
 				tournamentBuyIn: input.buyIn,
 				entryFee: input.entryFee,
 			});
-			await ctx.db.insert(sessionTournamentDetail).values({
-				sessionId: id,
-				tournamentId: input.tournamentId ?? null,
-				tournamentBuyIn: snapshot.tournamentBuyIn,
-				entryFee: snapshot.entryFee,
-				timerStartedAt:
-					input.timerStartedAt === undefined
-						? null
-						: new Date(input.timerStartedAt * 1000),
-				ruleName: input.tournamentId ? snapshot.ruleName : "Tournament",
-				variant: snapshot.variant,
-				startingStack: snapshot.startingStack,
-				bountyAmount: snapshot.bountyAmount,
-				tableSize: snapshot.tableSize,
-			});
+			const structureStatements = input.tournamentId
+				? await buildTournamentStructureStatements(
+						ctx.db,
+						id,
+						input.tournamentId
+					)
+				: [];
 
-			await ctx.db.insert(sessionEvent).values({
-				id: crypto.randomUUID(),
-				sessionId: id,
-				eventType: "session_start",
-				occurredAt: floorToMinute(now),
-				sortOrder: 0,
-				payload: JSON.stringify({
-					timerStartedAt: input.timerStartedAt ?? null,
+			await ctx.db.batch([
+				ctx.db.insert(gameSession).values({
+					id,
+					userId,
+					kind: "tournament",
+					status: "active",
+					source: "live",
+					roomId: input.roomId ?? null,
+					currencyId: input.currencyId ?? null,
+					startedAt: now,
+					memo: input.memo ?? null,
+					sessionDate: now,
+					updatedAt: now,
 				}),
-				updatedAt: now,
-			});
-
-			if (input.tournamentId) {
-				await snapshotTournamentStructure(ctx.db, id, input.tournamentId);
-			}
+				ctx.db.insert(sessionTournamentDetail).values({
+					sessionId: id,
+					tournamentId: input.tournamentId ?? null,
+					tournamentBuyIn: snapshot.tournamentBuyIn,
+					entryFee: snapshot.entryFee,
+					timerStartedAt:
+						input.timerStartedAt === undefined
+							? null
+							: new Date(input.timerStartedAt * 1000),
+					ruleName: input.tournamentId ? snapshot.ruleName : "Tournament",
+					variant: snapshot.variant,
+					startingStack: snapshot.startingStack,
+					bountyAmount: snapshot.bountyAmount,
+					tableSize: snapshot.tableSize,
+				}),
+				ctx.db.insert(sessionEvent).values({
+					id: crypto.randomUUID(),
+					sessionId: id,
+					eventType: "session_start",
+					occurredAt: floorToMinute(now),
+					sortOrder: 0,
+					payload: JSON.stringify({
+						timerStartedAt: input.timerStartedAt ?? null,
+					}),
+					updatedAt: now,
+				}),
+				...structureStatements,
+			]);
 
 			return { id };
 		}),
@@ -869,9 +898,9 @@ export const liveTournamentSessionRouter = router({
 			z.object({
 				id: z.string(),
 				memo: z.string().nullable().optional(),
-				roomId: z.string().nullable().optional(),
-				currencyId: z.string().nullable().optional(),
-				tournamentId: z.string().nullable().optional(),
+				roomId: z.string().min(1).nullable().optional(),
+				currencyId: z.string().min(1).nullable().optional(),
+				tournamentId: z.string().min(1).nullable().optional(),
 				timerStartedAt: z.number().int().nullable().optional(),
 			})
 		)
@@ -960,20 +989,20 @@ export const liveTournamentSessionRouter = router({
 				id: z.string(),
 				ruleName: z.string().min(1).optional(),
 				variant: z.string().optional(),
-				tournamentBuyIn: z.number().int().nullable().optional(),
-				entryFee: z.number().int().nullable().optional(),
-				startingStack: z.number().int().nullable().optional(),
-				bountyAmount: z.number().int().nullable().optional(),
-				tableSize: z.number().int().nullable().optional(),
+				tournamentBuyIn: nullableNonnegativeSafeIntegerSchema,
+				entryFee: nullableNonnegativeSafeIntegerSchema,
+				startingStack: nullableNonnegativeSafeIntegerSchema,
+				bountyAmount: nullableNonnegativeSafeIntegerSchema,
+				tableSize: nullableTableSizeSchema,
 				blindLevels: z
 					.array(
 						z.object({
 							isBreak: z.boolean(),
-							blind1: z.number().int().nullable().optional(),
-							blind2: z.number().int().nullable().optional(),
-							blind3: z.number().int().nullable().optional(),
-							ante: z.number().int().nullable().optional(),
-							minutes: z.number().int().nullable().optional(),
+							blind1: nullableNonnegativeSafeIntegerSchema,
+							blind2: nullableNonnegativeSafeIntegerSchema,
+							blind3: nullableNonnegativeSafeIntegerSchema,
+							ante: nullableNonnegativeSafeIntegerSchema,
+							minutes: nullableNonnegativeSafeIntegerSchema,
 							games: levelGamesSchema.nullish(),
 						})
 					)
@@ -981,9 +1010,9 @@ export const liveTournamentSessionRouter = router({
 				chipPurchases: z
 					.array(
 						z.object({
-							name: z.string(),
-							cost: z.number().int(),
-							chips: z.number().int(),
+							name: z.string().min(1),
+							cost: nonnegativeSafeIntegerSchema,
+							chips: nonnegativeSafeIntegerSchema,
 						})
 					)
 					.optional(),
@@ -1049,24 +1078,7 @@ export const liveTournamentSessionRouter = router({
 		}),
 
 	complete: protectedProcedure
-		.input(
-			z.discriminatedUnion("beforeDeadline", [
-				z.object({
-					id: z.string(),
-					beforeDeadline: z.literal(false),
-					placement: z.number().int().min(1),
-					totalEntries: z.number().int().min(1),
-					prizeMoney: z.number().int().min(0),
-					bountyPrizes: z.number().int().min(0),
-				}),
-				z.object({
-					id: z.string(),
-					beforeDeadline: z.literal(true),
-					prizeMoney: z.number().int().min(0),
-					bountyPrizes: z.number().int().min(0),
-				}),
-			])
-		)
+		.input(liveTournamentCompleteInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			const session = await findLiveTournamentSession(ctx.db, input.id, userId);

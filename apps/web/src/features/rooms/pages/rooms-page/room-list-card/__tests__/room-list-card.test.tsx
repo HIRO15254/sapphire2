@@ -83,6 +83,12 @@ describe("RoomListCard", () => {
 		expect(link).toHaveAttribute("href", "/rooms/s42");
 	});
 
+	it("keeps the favorite button outside the detail link", async () => {
+		renderCard(baseRoom);
+		const link = await screen.findByRole("link");
+		expect(link.querySelector("button")).toBeNull();
+	});
+
 	it("renders the 'Add to favorites' button when isFavorite is false", async () => {
 		renderCard({ ...baseRoom, isFavorite: false });
 		await screen.findByText("Akiba Casino");

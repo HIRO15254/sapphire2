@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TournamentFormSheet } from "./tournament-form-sheet";
 
@@ -24,13 +24,23 @@ vi.mock(
 vi.mock("@/shared/components/form-sheet", () => ({
 	FormSheet: ({
 		children,
+		isSaveDisabled,
 		open,
 		title,
 	}: {
 		children: React.ReactNode;
+		isSaveDisabled?: boolean;
 		open: boolean;
 		title: string;
-	}) => (open ? <div data-sheet={title}>{children}</div> : null),
+	}) =>
+		open ? (
+			<div data-sheet={title}>
+				<button aria-label="Save" disabled={isSaveDisabled} type="button">
+					Save
+				</button>
+				{children}
+			</div>
+		) : null,
 }));
 
 vi.mock("@/shared/components/ui/drawer", () => ({
@@ -92,6 +102,23 @@ describe("TournamentFormSheet", () => {
 		renderSheet({ aiMode: "create" });
 		expect(screen.getByTestId("ai-drawer")).toBeInTheDocument();
 		expect(screen.getByTestId("ai-extract")).toBeInTheDocument();
+	});
+
+	it("shows blind-level load errors without rendering the form and disables Save", () => {
+		const onRetry = vi.fn();
+		renderSheet({
+			editBlindLevelsError: true,
+			onRetryBlindLevels: onRetry,
+		});
+
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Unable to load blind levels"
+		);
+		expect(screen.queryByTestId("modal-content")).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+
+		fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+		expect(onRetry).toHaveBeenCalledTimes(1);
 	});
 
 	it("shows the loading placeholder while initializing before any AI fill", () => {

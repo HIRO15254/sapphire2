@@ -2,12 +2,15 @@ import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	prependInfiniteQueryItem,
 	restoreSnapshots,
 	snapshotQueries,
 	snapshotQuery,
 	updateInfiniteQueryItems,
+	updateQueriesData,
+	updateQueryData,
 	updateQueryEntity,
 	updateQueryItems,
 } from "../optimistic-update";
@@ -38,10 +41,28 @@ function createQueryClientMock() {
 		getQueryData: vi.fn(),
 		invalidateQueries: vi.fn(async () => undefined),
 		setQueryData: vi.fn(),
+		setQueriesData: vi.fn(),
 	} as unknown as QueryClient;
 }
 
 describe("optimistic-update helpers", () => {
+	it("creates distinct collision-resistant ids for consecutive calls", () => {
+		const randomUUID = vi
+			.spyOn(globalThis.crypto, "randomUUID")
+			.mockReturnValueOnce("00000000-0000-4000-8000-000000000001")
+			.mockReturnValueOnce("00000000-0000-4000-8000-000000000002");
+
+		const first = createOptimisticId("temp");
+		const second = createOptimisticId("temp");
+
+		expect(first).toBe("temp-00000000-0000-4000-8000-000000000001");
+		expect(second).toBe("temp-00000000-0000-4000-8000-000000000002");
+		expect(first).not.toBe(second);
+		expect(randomUUID).toHaveBeenCalledTimes(2);
+
+		randomUUID.mockRestore();
+	});
+
 	it("snapshots and restores a single query", () => {
 		const queryClient = createQueryClientMock();
 		const queryKey = ["players"] satisfies QueryKey;
@@ -491,6 +512,37 @@ describe("optimistic-update helpers", () => {
 		});
 	});
 
+	describe("updateQueryData", () => {
+		it("passes an unfetched value to the updater so callers can deliberately create a cache entry", () => {
+			const queryClient = createQueryClientMock();
+			updateQueryData<{ items: string[] }>(
+				queryClient,
+				["sessions", "active"],
+				(old) => ({ items: ["s1", ...(old?.items ?? [])] })
+			);
+			const updater = vi.mocked(queryClient.setQueryData).mock
+				.calls[0]?.[1] as (
+				old: { items: string[] } | undefined
+			) => { items: string[] } | undefined;
+			expect(updater(undefined)).toEqual({ items: ["s1"] });
+		});
+	});
+
+	describe("updateQueriesData", () => {
+		it("rewrites every matching list cache and preserves undefined entries", () => {
+			const queryClient = createQueryClientMock();
+			updateQueriesData<string[]>(
+				queryClient,
+				{ queryKey: ["players", "list"] },
+				(old) => old?.filter((id) => id !== "p1")
+			);
+			expect(queryClient.setQueriesData).toHaveBeenCalledTimes(1);
+			const updater = vi.mocked(queryClient.setQueriesData).mock
+				.calls[0]?.[1] as (old: string[] | undefined) => string[] | undefined;
+			expect(updater(["p1", "p2"])).toEqual(["p2"]);
+			expect(updater(undefined)).toBeUndefined();
+		});
+	});
 	describe("updateQueryItems", () => {
 		interface Item {
 			amount: number;
@@ -566,6 +618,22 @@ describe("optimistic-update helpers", () => {
 
 			const updater = itemsUpdater(queryClient);
 			expect(updater(undefined)).toBeUndefined();
+			expect(updateItems).not.toHaveBeenCalled();
+		});
+
+		it("uses fallback items when an optimistic flow intentionally creates an unfetched list", () => {
+			const queryClient = createQueryClientMock();
+			const updateItems = vi.fn((items: Item[]) => items);
+			const fallbackItems = [{ id: "new", amount: 7 }];
+
+			updateQueryItems<Item>(
+				queryClient,
+				["events"],
+				updateItems,
+				fallbackItems
+			);
+
+			expect(itemsUpdater(queryClient)(undefined)).toEqual(fallbackItems);
 			expect(updateItems).not.toHaveBeenCalled();
 		});
 	});

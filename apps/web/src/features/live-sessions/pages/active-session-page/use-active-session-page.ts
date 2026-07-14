@@ -1,7 +1,7 @@
 import { useActiveSession } from "@/features/live-sessions/hooks/use-active-session";
 
 export function useActiveSessionPage() {
-	const { activeSession, isLoading } = useActiveSession();
+	const { activeSession, isError, isLoading, onRetry } = useActiveSession();
 
-	return { activeSession, isLoading };
+	return { activeSession, isError, isLoading, onRetry };
 }

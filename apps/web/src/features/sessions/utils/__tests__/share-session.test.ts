@@ -122,15 +122,14 @@ describe("createSessionShareText", () => {
 			expect(text).not.toMatch(ANY_DURATION);
 		});
 
-		it("clamps a negative duration to '0.0h' (legacy day-crossing row, SA2-157)", () => {
-			// endedAt before startedAt must not leak a "-20.0h" into the share text.
+		it("adds 24 hours for a legacy day-crossing duration (SA2-157)", () => {
 			const text = createSessionShareText(
 				cashSession({
 					startedAt: "2026-04-22T22:00:00Z",
 					endedAt: "2026-04-22T02:00:00Z",
 				})
 			);
-			expect(text).toContain("0.0h");
+			expect(text).toContain("4.0h");
 			expect(text).not.toMatch(NEGATIVE_DURATION);
 		});
 

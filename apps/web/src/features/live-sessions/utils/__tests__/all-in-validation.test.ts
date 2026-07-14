@@ -56,6 +56,17 @@ describe("refineWinsNotExceedingTrials", () => {
 		expect(run({ trials: "abc", wins: "5" })).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		"",
+		"0",
+		"-1",
+		"1.5",
+		"1abc",
+		"Infinity",
+	])("ignores invalid trials %j instead of adding a second-field error", (trials) => {
+		expect(run({ trials, wins: "5" })).not.toHaveBeenCalled();
+	});
+
 	it("trims surrounding whitespace before comparing", () => {
 		expect(run({ trials: " 3 ", wins: " 4 " })).toHaveBeenCalledTimes(1);
 	});

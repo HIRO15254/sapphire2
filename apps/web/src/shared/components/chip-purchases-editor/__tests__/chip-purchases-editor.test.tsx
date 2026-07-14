@@ -29,15 +29,26 @@ describe("ChipPurchasesEditor", () => {
 
 	it("renders existing rows with their values", () => {
 		render(<ChipPurchasesEditor onChange={vi.fn()} value={[row()]} />);
-		expect(screen.getByLabelText("Name")).toHaveValue("Rebuy");
-		expect(screen.getByLabelText("Cost")).toHaveValue("50");
-		expect(screen.getByLabelText("Chips")).toHaveValue("10000");
+		expect(screen.getByRole("textbox", { name: "Name*" })).toHaveValue("Rebuy");
+		expect(screen.getByRole("textbox", { name: "Cost*" })).toHaveValue("50");
+		expect(screen.getByRole("textbox", { name: "Chips*" })).toHaveValue(
+			"10000"
+		);
+	});
+
+	it("leaves the optional parent label unmarked and marks every row field required", () => {
+		render(<ChipPurchasesEditor onChange={vi.fn()} value={[row()]} />);
+
+		expect(screen.getByText("Chip Purchases")).not.toHaveTextContent("*");
+		expect(screen.getByRole("textbox", { name: "Name*" })).toBeInTheDocument();
+		expect(screen.getByRole("textbox", { name: "Cost*" })).toBeInTheDocument();
+		expect(screen.getByRole("textbox", { name: "Chips*" })).toBeInTheDocument();
 	});
 
 	it("patches the name cell on edit", () => {
 		const onChange = vi.fn();
 		render(<ChipPurchasesEditor onChange={onChange} value={[row()]} />);
-		fireEvent.change(screen.getByLabelText("Name"), {
+		fireEvent.change(screen.getByRole("textbox", { name: "Name*" }), {
 			target: { value: "Add-on" },
 		});
 		expect(onChange).toHaveBeenCalledTimes(1);
@@ -47,10 +58,27 @@ describe("ChipPurchasesEditor", () => {
 	it("patches the cost cell on edit", () => {
 		const onChange = vi.fn();
 		render(<ChipPurchasesEditor onChange={onChange} value={[row()]} />);
-		fireEvent.change(screen.getByLabelText("Cost"), {
+		fireEvent.change(screen.getByRole("textbox", { name: "Cost*" }), {
 			target: { value: "75" },
 		});
 		expect(onChange).toHaveBeenCalledWith([row({ cost: "75" })]);
+	});
+
+	it("patches only the targeted row in a multi-row editor", () => {
+		const onChange = vi.fn();
+		const first = row({ uid: "u1" });
+		const second = row({ uid: "u2", name: "Add-on" });
+		render(<ChipPurchasesEditor onChange={onChange} value={[first, second]} />);
+
+		fireEvent.change(screen.getByDisplayValue("Add-on"), {
+			target: { value: "Second add-on" },
+		});
+
+		expect(onChange).toHaveBeenCalledTimes(1);
+		expect(onChange).toHaveBeenCalledWith([
+			first,
+			row({ uid: "u2", name: "Second add-on" }),
+		]);
 	});
 
 	it("removes the targeted row", () => {

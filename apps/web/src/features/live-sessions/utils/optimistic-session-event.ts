@@ -7,6 +7,7 @@ import {
 	restoreSnapshots,
 	snapshotQueries,
 	snapshotQuery,
+	updateQueryData,
 } from "@/utils/optimistic-update";
 import { trpc } from "@/utils/trpc";
 
@@ -350,13 +351,13 @@ export function createSessionEventMutationOptions<TVariables = void>({
 			});
 
 			// 3. Optimistic: append event to events list
-			queryClient.setQueryData<SessionEvent[]>(eventsKey, (old) => [
+			updateQueryData<SessionEvent[]>(queryClient, eventsKey, (old) => [
 				...(old ?? []),
 				buildOptimisticEvent(eventType, payload),
 			]);
 
 			// 4. Optimistic: update session summary + status
-			queryClient.setQueryData<SessionSummaryData>(sessionKey, (old) => {
+			updateQueryData<SessionSummaryData>(queryClient, sessionKey, (old) => {
 				if (!old) {
 					return old;
 				}
@@ -433,7 +434,7 @@ function optimisticListStatusUpdate(
 	const sessionItem = fromData?.items?.find((item) => item.id === sessionId);
 
 	// Remove from source list
-	queryClient.setQueryData<ListData>(fromKey, (old) => {
+	updateQueryData<ListData>(queryClient, fromKey, (old) => {
 		if (!old?.items) {
 			return old;
 		}
@@ -445,7 +446,7 @@ function optimisticListStatusUpdate(
 
 	// Add to target list
 	if (sessionItem) {
-		queryClient.setQueryData<ListData>(toKey, (old) => ({
+		updateQueryData<ListData>(queryClient, toKey, (old) => ({
 			...(old ?? { nextCursor: undefined }),
 			items: [{ ...sessionItem, status: newStatus }, ...(old?.items ?? [])],
 		}));

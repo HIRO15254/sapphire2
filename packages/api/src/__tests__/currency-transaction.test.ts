@@ -26,6 +26,7 @@ const dialect = new SQLiteSyncDialect();
  */
 function createMockDb(rowsByTable: Map<unknown, Rows>) {
 	const selectWhereParams: unknown[][] = [];
+	const selectJoinParams: unknown[][] = [];
 	const inserted: { table: unknown; values: unknown }[] = [];
 	const makeChain = (rows: Rows) => {
 		const chain = Promise.resolve(rows) as Promise<Rows> &
@@ -37,8 +38,11 @@ function createMockDb(rowsByTable: Map<unknown, Rows>) {
 		};
 		chain.orderBy = () => chain;
 		chain.limit = () => chain;
-		chain.innerJoin = () => chain;
-		chain.leftJoin = () => chain;
+		chain.innerJoin = (_table: unknown, cond: unknown) => {
+			selectJoinParams.push(dialect.sqlToQuery(cond as never).params);
+			return chain;
+		};
+		chain.leftJoin = chain.innerJoin;
 		return chain;
 	};
 	const db = {
@@ -54,18 +58,19 @@ function createMockDb(rowsByTable: Map<unknown, Rows>) {
 		}),
 		delete: () => ({ where: () => Promise.resolve(undefined) }),
 	};
-	return { db, selectWhereParams, inserted };
+	return { db, inserted, selectJoinParams, selectWhereParams };
 }
 
 function makeCaller(userId: string, rowsByTable: Map<unknown, Rows>) {
-	const { db, selectWhereParams, inserted } = createMockDb(rowsByTable);
+	const { db, inserted, selectJoinParams, selectWhereParams } =
+		createMockDb(rowsByTable);
 	const caller = appRouter.createCaller({
 		session: { user: { id: userId } },
 		db,
 	} as unknown as Parameters<
 		typeof appRouter.createCaller
 	>[0]).currencyTransaction;
-	return { caller, selectWhereParams, inserted };
+	return { caller, inserted, selectJoinParams, selectWhereParams };
 }
 
 async function expectTrpcCode(
@@ -144,7 +149,7 @@ describe("currencyTransaction.create input validation", () => {
 		currencyId: "c1",
 		transactionTypeId: "tt1",
 		amount: 1000,
-		transactedAt: "2024-01-01T00:00:00Z",
+		transactedAt: "2024-01-01",
 	};
 
 	it("accepts the minimal valid payload", () => {
@@ -172,11 +177,21 @@ describe("currencyTransaction.create input validation", () => {
 		});
 	});
 
+	it.each([
+		["an arbitrary string", "not-a-date"],
+		["an impossible calendar date", "2024-02-30"],
+		["a timestamp instead of a date-only value", "2024-01-01T00:00:00Z"],
+	])("rejects transactedAt as %s", (_scenario, transactedAt) => {
+		expectRejects(appRouter.currencyTransaction.create, {
+			...validInput,
+			transactedAt,
+		});
+	});
 	it("rejects missing currencyId", () => {
 		expectRejects(appRouter.currencyTransaction.create, {
 			transactionTypeId: "tt1",
 			amount: 100,
-			transactedAt: "2024-01-01T00:00:00Z",
+			transactedAt: "2024-01-01",
 		});
 	});
 
@@ -199,7 +214,7 @@ describe("currencyTransaction.update input validation", () => {
 			id: "tx1",
 			transactionTypeId: "tt2",
 			amount: -200,
-			transactedAt: "2024-02-02T00:00:00Z",
+			transactedAt: "2024-02-02",
 			memo: "adjusted",
 		});
 	});
@@ -221,8 +236,17 @@ describe("currencyTransaction.update input validation", () => {
 			amount: 12.34,
 		});
 	});
+	it.each([
+		["an arbitrary string", "not-a-date"],
+		["an impossible calendar date", "2024-02-30"],
+		["a timestamp instead of a date-only value", "2024-02-02T00:00:00Z"],
+	])("rejects transactedAt as %s", (_scenario, transactedAt) => {
+		expectRejects(appRouter.currencyTransaction.update, {
+			id: "tx1",
+			transactedAt,
+		});
+	});
 });
-
 describe("currencyTransaction.delete input validation", () => {
 	it("accepts a valid id", () => {
 		expectAccepts(appRouter.currencyTransaction.delete, { id: "tx1" });
@@ -242,7 +266,7 @@ describe("currencyTransaction.create transactionType ownership (SA2-179)", () =>
 		currencyId: "c1",
 		transactionTypeId: "tt1",
 		amount: 1000,
-		transactedAt: "2024-01-01T00:00:00Z",
+		transactedAt: "2024-01-01",
 	};
 
 	it("accepts a transaction type owned by the caller", async () => {
@@ -265,13 +289,13 @@ describe("currencyTransaction.create transactionType ownership (SA2-179)", () =>
 		expect(inserted.some((i) => i.table === currencyTransaction)).toBe(false);
 	});
 
-	it("throws NOT_FOUND when the transaction type does not exist", async () => {
+	it("returns the same FORBIDDEN code when the transaction type does not exist", async () => {
 		const rows = new Map<unknown, Rows>([
 			[currency, [{ id: "c1", userId: OWNER }]],
 			[transactionType, []],
 		]);
 		const { caller, inserted } = makeCaller(OWNER, rows);
-		await expectTrpcCode(caller.create(validInput), "NOT_FOUND");
+		await expectTrpcCode(caller.create(validInput), "FORBIDDEN");
 		expect(inserted.some((i) => i.table === currencyTransaction)).toBe(false);
 	});
 
@@ -335,14 +359,14 @@ describe("currencyTransaction.update transactionType ownership (SA2-179)", () =>
 		);
 	});
 
-	it("throws NOT_FOUND when the transaction type does not exist", async () => {
+	it("returns the same FORBIDDEN code when the transaction type does not exist", async () => {
 		const rows = ownedTransactionRows(
 			new Map<unknown, Rows>([[transactionType, []]])
 		);
 		const { caller } = makeCaller(OWNER, rows);
 		await expectTrpcCode(
 			caller.update({ id: "tx1", transactionTypeId: "missing" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 
@@ -358,27 +382,151 @@ describe("currencyTransaction.update transactionType ownership (SA2-179)", () =>
 	});
 });
 
-describe("currencyTransaction.listByCurrency cursor scoping (SA2-182)", () => {
-	it("scopes the cursor boundary subquery to the target currency", async () => {
-		const rows = new Map<unknown, Rows>([
-			[currency, [{ id: "c1", userId: OWNER }]],
-			[currencyTransaction, []],
-		]);
-		const { caller, selectWhereParams } = makeCaller(OWNER, rows);
-		await caller.listByCurrency({ currencyId: "c1", cursor: "tx-cursor" });
-		const listWhere = selectWhereParams.find((p) => p.includes("tx-cursor"));
-		expect(listWhere).toBeDefined();
-		// currencyId appears twice: the base filter + the cursor subquery scope.
-		expect((listWhere as unknown[]).filter((p) => p === "c1")).toHaveLength(2);
+describe("currencyTransaction ownership errors hide resource existence", () => {
+	const createInput = {
+		currencyId: "c1",
+		transactionTypeId: "tt1",
+		amount: 1000,
+		transactedAt: "2024-01-01",
+	};
+	const foreignTransactionRow = {
+		currencyTransaction: {
+			id: "tx1",
+			currencyId: "c1",
+			sessionId: null,
+		},
+		currency: { id: "c1", userId: OTHER },
+	};
+
+	it("returns FORBIDDEN when the list currency does not exist", async () => {
+		const rows = new Map<unknown, Rows>([[currency, []]]);
+		const { caller } = makeCaller(OWNER, rows);
+		await expectTrpcCode(
+			caller.listByCurrency({ currencyId: "missing" }),
+			"FORBIDDEN"
+		);
 	});
 
-	it("does not add a cursor subquery when no cursor is supplied", async () => {
+	it("returns FORBIDDEN when the list currency belongs to another user", async () => {
+		const rows = new Map<unknown, Rows>([
+			[currency, [{ id: "c1", userId: OTHER }]],
+		]);
+		const { caller } = makeCaller(OWNER, rows);
+		await expectTrpcCode(
+			caller.listByCurrency({ currencyId: "c1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("returns FORBIDDEN and skips insert when the create currency does not exist", async () => {
+		const rows = new Map<unknown, Rows>([[currency, []]]);
+		const { caller, inserted } = makeCaller(OWNER, rows);
+		await expectTrpcCode(caller.create(createInput), "FORBIDDEN");
+		expect(inserted).toHaveLength(0);
+	});
+
+	it("returns FORBIDDEN when the updated transaction does not exist", async () => {
+		const rows = new Map<unknown, Rows>([[currencyTransaction, []]]);
+		const { caller } = makeCaller(OWNER, rows);
+		await expectTrpcCode(
+			caller.update({ id: "missing", amount: 10 }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("returns FORBIDDEN when the updated transaction belongs to another user", async () => {
+		const rows = new Map<unknown, Rows>([
+			[currencyTransaction, [foreignTransactionRow]],
+		]);
+		const { caller } = makeCaller(OWNER, rows);
+		await expectTrpcCode(caller.update({ id: "tx1", amount: 10 }), "FORBIDDEN");
+	});
+
+	it("returns FORBIDDEN when the deleted transaction does not exist", async () => {
+		const rows = new Map<unknown, Rows>([[currencyTransaction, []]]);
+		const { caller } = makeCaller(OWNER, rows);
+		await expectTrpcCode(caller.delete({ id: "missing" }), "FORBIDDEN");
+	});
+
+	it("returns FORBIDDEN when the deleted transaction belongs to another user", async () => {
+		const rows = new Map<unknown, Rows>([
+			[currencyTransaction, [foreignTransactionRow]],
+		]);
+		const { caller } = makeCaller(OWNER, rows);
+		await expectTrpcCode(caller.delete({ id: "tx1" }), "FORBIDDEN");
+	});
+});
+describe("currencyTransaction.listByCurrency cursor scoping (SA2-182)", () => {
+	it("resolves an existing cursor inside the target currency before applying its boundary", async () => {
+		const rows = new Map<unknown, Rows>([
+			[currency, [{ id: "c1", userId: OWNER }]],
+			[
+				currencyTransaction,
+				[
+					{
+						id: "tx-cursor",
+						currencyId: "c1",
+						transactedAt: new Date("2024-01-02T00:00:00Z"),
+					},
+				],
+			],
+		]);
+		const { caller, selectWhereParams } = makeCaller(OWNER, rows);
+
+		await caller.listByCurrency({ currencyId: "c1", cursor: "tx-cursor" });
+
+		const cursorUses = selectWhereParams.filter((params) =>
+			params.includes("tx-cursor")
+		);
+		expect(cursorUses).toHaveLength(2);
+		expect(cursorUses[0]).toEqual(expect.arrayContaining(["tx-cursor", "c1"]));
+	});
+
+	it("falls back to the first page when the cursor row was deleted", async () => {
 		const rows = new Map<unknown, Rows>([
 			[currency, [{ id: "c1", userId: OWNER }]],
 			[currencyTransaction, []],
 		]);
 		const { caller, selectWhereParams } = makeCaller(OWNER, rows);
+
+		await caller.listByCurrency({ currencyId: "c1", cursor: "tx-cursor" });
+
+		const cursorUses = selectWhereParams.filter((params) =>
+			params.includes("tx-cursor")
+		);
+		expect(cursorUses).toHaveLength(1);
+		expect(selectWhereParams.at(-1)).toEqual(["c1"]);
+	});
+
+	it("does not resolve or add a cursor boundary when no cursor is supplied", async () => {
+		const rows = new Map<unknown, Rows>([
+			[currency, [{ id: "c1", userId: OWNER }]],
+			[currencyTransaction, []],
+		]);
+		const { caller, selectWhereParams } = makeCaller(OWNER, rows);
+
 		await caller.listByCurrency({ currencyId: "c1" });
-		expect(selectWhereParams.every((p) => !p.includes("tx-cursor"))).toBe(true);
+
+		expect(selectWhereParams).toHaveLength(2);
+		expect(
+			selectWhereParams.every((params) => !params.includes("tx-cursor"))
+		).toBe(true);
+	});
+});
+
+describe("currencyTransaction.listByCurrency joined ownership", () => {
+	it("owner-scopes the transaction type and session joins that surface names", async () => {
+		const rows = new Map<unknown, Rows>([
+			[currency, [{ id: "c1", userId: OWNER }]],
+			[currencyTransaction, []],
+		]);
+		const { caller, selectJoinParams } = makeCaller(OWNER, rows);
+
+		await caller.listByCurrency({ currencyId: "c1" });
+
+		const ownerScopedJoins = selectJoinParams.filter((params) =>
+			params.includes(OWNER)
+		);
+		expect(ownerScopedJoins).toHaveLength(2);
 	});
 });

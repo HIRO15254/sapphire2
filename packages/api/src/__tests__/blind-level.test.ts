@@ -30,6 +30,7 @@ function makeSelectChain(rows: Rows) {
  */
 function createReorderMockDb(rowsByTable: Map<unknown, Rows>) {
 	const updateWhereParams: unknown[][] = [];
+	const batchCalls: Promise<unknown>[][] = [];
 	const db = {
 		select: () => ({
 			from: (table: unknown) => makeSelectChain(rowsByTable.get(table) ?? []),
@@ -42,8 +43,12 @@ function createReorderMockDb(rowsByTable: Map<unknown, Rows>) {
 				},
 			}),
 		}),
+		batch: (statements: Promise<unknown>[]) => {
+			batchCalls.push(statements);
+			return Promise.all(statements);
+		},
 	};
-	return { db, updateWhereParams };
+	return { db, updateWhereParams, batchCalls };
 }
 
 async function expectTrpcCode(
@@ -61,12 +66,13 @@ async function expectTrpcCode(
 }
 
 function makeCaller(userId: string, rowsByTable: Map<unknown, Rows>) {
-	const { db, updateWhereParams } = createReorderMockDb(rowsByTable);
+	const { db, updateWhereParams, batchCalls } =
+		createReorderMockDb(rowsByTable);
 	const caller = appRouter.createCaller({
 		session: { user: { id: userId } },
 		db,
 	} as unknown as Parameters<typeof appRouter.createCaller>[0]).blindLevel;
-	return { caller, updateWhereParams };
+	return { caller, updateWhereParams, batchCalls };
 }
 
 const CALLER = "user-1";
@@ -258,8 +264,12 @@ describe("blindLevel.reorder tournament scoping (SA2-176)", () => {
 	}
 
 	it("scopes each level UPDATE to both the level id and the owned tournament", async () => {
-		const { caller, updateWhereParams } = makeCaller(CALLER, ownedRows());
+		const { caller, updateWhereParams, batchCalls } = makeCaller(
+			CALLER,
+			ownedRows()
+		);
 		await caller.reorder({ tournamentId: "tn1", levelIds: ["bl1", "bl2"] });
+		expect(batchCalls).toHaveLength(1);
 		expect(updateWhereParams).toHaveLength(2);
 		// Every UPDATE must constrain the row to the caller's tournament so a
 		// foreign levelId matches nothing.
@@ -290,6 +300,48 @@ describe("blindLevel.reorder tournament scoping (SA2-176)", () => {
 	});
 });
 
+describe("blindLevel ownership failures hide entity existence", () => {
+	it("returns FORBIDDEN when the tournament does not exist", async () => {
+		const { caller } = makeCaller(
+			CALLER,
+			new Map<unknown, Rows>([
+				[tournament, []],
+				[room, []],
+				[blindLevel, []],
+			])
+		);
+		await expectTrpcCode(
+			caller.listByTournament({ tournamentId: "missing" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("returns FORBIDDEN when the tournament room does not exist", async () => {
+		const { caller } = makeCaller(
+			CALLER,
+			new Map<unknown, Rows>([
+				[tournament, [{ id: "tn1", roomId: "missing" }]],
+				[room, []],
+				[blindLevel, []],
+			])
+		);
+		await expectTrpcCode(
+			caller.listByTournament({ tournamentId: "tn1" }),
+			"FORBIDDEN"
+		);
+	});
+
+	it("returns FORBIDDEN when the blind level does not exist", async () => {
+		const { caller } = makeCaller(
+			CALLER,
+			new Map<unknown, Rows>([[blindLevel, []]])
+		);
+		await expectTrpcCode(
+			caller.update({ id: "missing", level: 2 }),
+			"FORBIDDEN"
+		);
+	});
+});
 describe("blindLevel games input", () => {
 	it("create accepts per-level game groups", () => {
 		expectAccepts(appRouter.blindLevel.create, {
@@ -315,5 +367,51 @@ describe("blindLevel games input", () => {
 
 	it("update accepts an explicit null to clear the groups", () => {
 		expectAccepts(appRouter.blindLevel.update, { id: "bl-1", games: null });
+	});
+});
+
+describe("blindLevel numeric boundaries", () => {
+	it("rejects negatives, requires positive level, and accepts zero nonnegative values", () => {
+		for (const field of [
+			"blind1",
+			"blind2",
+			"blind3",
+			"ante",
+			"minutes",
+		] as const) {
+			expectRejects(appRouter.blindLevel.create, {
+				tournamentId: "tn1",
+				level: 1,
+				[field]: -1,
+			});
+			expectAccepts(appRouter.blindLevel.create, {
+				tournamentId: "tn1",
+				level: 1,
+				[field]: 0,
+			});
+			expectAccepts(appRouter.blindLevel.create, {
+				tournamentId: "tn1",
+				level: 1,
+				[field]: 1,
+			});
+			expectRejects(appRouter.blindLevel.update, { id: "bl1", [field]: -1 });
+			expectAccepts(appRouter.blindLevel.update, { id: "bl1", [field]: 0 });
+			expectAccepts(appRouter.blindLevel.update, { id: "bl1", [field]: 1 });
+		}
+		expectRejects(appRouter.blindLevel.create, {
+			tournamentId: "tn1",
+			level: -1,
+		});
+		expectRejects(appRouter.blindLevel.create, {
+			tournamentId: "tn1",
+			level: 0,
+		});
+		expectAccepts(appRouter.blindLevel.create, {
+			tournamentId: "tn1",
+			level: 1,
+		});
+		expectRejects(appRouter.blindLevel.update, { id: "bl1", level: -1 });
+		expectRejects(appRouter.blindLevel.update, { id: "bl1", level: 0 });
+		expectAccepts(appRouter.blindLevel.update, { id: "bl1", level: 1 });
 	});
 });

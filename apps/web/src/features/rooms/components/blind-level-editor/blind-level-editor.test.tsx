@@ -61,6 +61,8 @@ const mocks = vi.hoisted(() => ({
 	deleteMutate: vi.fn(),
 	invalidateQueries: vi.fn(),
 	isLoading: false,
+	isError: false,
+	refetch: vi.fn(),
 	mastersLoading: false,
 	reorderMutate: vi.fn(),
 	setQueryData: vi.fn(),
@@ -145,8 +147,10 @@ vi.mock("@tanstack/react-query", () => ({
 			return { data: mocks.gameGroups, isLoading: mocks.mastersLoading };
 		}
 		return {
-			data: mocks.blindLevels,
+			data: mocks.isError ? undefined : mocks.blindLevels,
 			isLoading: mocks.isLoading,
+			isError: mocks.isError,
+			refetch: mocks.refetch,
 		};
 	},
 	useQueryClient: () => ({
@@ -289,6 +293,8 @@ describe("BlindStructureContent", () => {
 		mocks.gameVariants = [];
 		mocks.gameMixes = [];
 		mocks.isLoading = false;
+		mocks.isError = false;
+		mocks.refetch.mockReset();
 		mocks.mastersLoading = false;
 		mocks.createMutate.mockReset();
 		mocks.deleteMutate.mockReset();
@@ -315,6 +321,24 @@ describe("BlindStructureContent", () => {
 		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
 
 		expect(screen.getByText("Loading levels...")).toBeInTheDocument();
+	});
+
+	it("shows a retry error and hides editing controls after the initial list fails", async () => {
+		mocks.isError = true;
+
+		render(<BlindStructureContent tournamentId="tour-1" variant="nlh" />);
+
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Unable to load blind levels"
+		);
+		const retryButton = screen.getByRole("button", { name: "Retry" });
+		expect(retryButton).toBeInTheDocument();
+		await userEvent.setup().click(retryButton);
+		expect(mocks.refetch).toHaveBeenCalledTimes(1);
+		expect(
+			screen.queryByRole("button", { name: LEVEL_BUTTON_PATTERN })
+		).not.toBeInTheDocument();
+		expect(screen.queryByText(BLIND_HELPER_PATTERN)).not.toBeInTheDocument();
 	});
 
 	it("adds a level and a break from the header actions", async () => {
