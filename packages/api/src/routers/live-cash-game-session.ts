@@ -22,6 +22,7 @@ import {
 	computeHeroSeatPositionFromEvents,
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
+import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import { floorToMinute } from "../utils/session-event-time";
 import {
 	buildRingGameCreateStatement,
@@ -734,6 +735,13 @@ export const liveCashGameSessionRouter = router({
 				}
 			}
 
+			if (
+				existing.status === "completed" &&
+				updateData.currencyId !== undefined
+			) {
+				await recalculateCashGameSession(ctx.db, input.id, userId);
+			}
+
 			const [updated] = await ctx.db
 				.select()
 				.from(gameSession)
@@ -997,6 +1005,14 @@ export const liveCashGameSessionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await findLiveCashGameSession(ctx.db, input.id, userId);
+			const [detail] = await ctx.db
+				.select({ tableSize: sessionCashDetail.tableSize })
+				.from(sessionCashDetail)
+				.where(eq(sessionCashDetail.sessionId, input.id));
+			assertSeatPositionFitsTableSize(
+				input.heroSeatPosition,
+				detail?.tableSize ?? null
+			);
 
 			const events = await ctx.db
 				.select({

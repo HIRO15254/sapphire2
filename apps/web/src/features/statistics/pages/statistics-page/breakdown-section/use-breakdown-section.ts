@@ -47,8 +47,10 @@ export interface BreakdownViewRow {
 
 export interface UseBreakdownSectionResult {
 	activeTab: BreakdownGroupBy;
+	isError: boolean;
 	isPending: boolean;
 	normalized: boolean;
+	retry: () => void;
 	rows: BreakdownViewRow[];
 	setActiveTab: (tab: BreakdownGroupBy) => void;
 	showCashColumn: boolean;
@@ -177,6 +179,10 @@ export function useBreakdownSection(
 		rows,
 		normalized: ctx.normalized,
 		showCashColumn,
+		isError: ctx.enabled && query.isError,
+		retry: () => {
+			query.refetch();
+		},
 		showNetColumn,
 		showTournamentColumn,
 		isPending: ctx.enabled && query.isPending,

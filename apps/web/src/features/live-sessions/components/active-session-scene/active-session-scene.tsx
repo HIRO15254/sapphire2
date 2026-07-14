@@ -170,6 +170,7 @@ export function ActiveSessionScene({
 				onOpenChange={scene.setIsScanSheetOpen}
 				open={scene.isScanSheetOpen}
 				sessionParam={state.sessionParam}
+				tableSize={state.tableSize}
 			/>
 
 			<GameSettingsSheet

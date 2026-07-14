@@ -510,6 +510,9 @@ export function useSessions(filters: SessionFilterValues) {
 
 	const handleCreateTag = async (name: string) => {
 		const result = await createTagMutation.mutateAsync(name);
+		if (!result) {
+			throw new Error("Failed to create session tag");
+		}
 		return { id: result.id, name: result.name };
 	};
 

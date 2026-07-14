@@ -84,6 +84,13 @@ export default function PnlGraphChart({
 	const legendItems = legendItemsFor(dual, showEvCash, singleColor);
 	return (
 		<div className="h-full w-full">
+			<p className="sr-only">
+				Cumulative profit and loss chart with {points.length - 1} data points.
+				{dual ? " Cash games use BB and tournaments use BI." : ""}
+				{showEvCash
+					? " The dashed line shows expected value for cash games."
+					: ""}
+			</p>
 			<ResponsiveContainer height="100%" width="100%">
 				<LineChart
 					data={points}

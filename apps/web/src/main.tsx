@@ -3,6 +3,11 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 import { routeTree } from "./routeTree.gen";
 import Loader from "./shared/components/loader";
+import {
+	RouterErrorFallback,
+	RouterNotFoundFallback,
+} from "./shared/components/router-fallback";
+import { shouldPersistQuery } from "./utils/query-persistence";
 import { persister, queryClient, trpc } from "./utils/trpc";
 
 const router = createRouter({
@@ -10,6 +15,8 @@ const router = createRouter({
 	defaultPreload: "intent",
 	defaultPendingComponent: () => <Loader />,
 	context: { trpc, queryClient },
+	defaultErrorComponent: RouterErrorFallback,
+	defaultNotFoundComponent: RouterNotFoundFallback,
 	Wrap({ children }: { children: React.ReactNode }) {
 		return (
 			<PersistQueryClientProvider
@@ -23,6 +30,9 @@ const router = createRouter({
 					// (SA2-154). This release: migration 0039 changed variant value
 					// semantics ('nlh' -> labels) and several outputs gained fields.
 					buster: "2026-07-mix-games",
+					dehydrateOptions: {
+						shouldDehydrateQuery: shouldPersistQuery,
+					},
 				}}
 			>
 				{children}

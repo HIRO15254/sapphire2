@@ -42,15 +42,21 @@ describe("aiExtract.extractTournamentData input validation", () => {
 		mediaType: "image/png",
 	};
 
-	it("accepts 1 url source", () => {
-		expectAccepts(appRouter.aiExtract.extractTournamentData, {
+	it("rejects URL sources so the Worker never fetches a user-supplied URL", () => {
+		expectRejects(appRouter.aiExtract.extractTournamentData, {
 			sources: [urlSource],
 		});
 	});
 
-	it("accepts up to 5 sources (upper boundary)", () => {
+	it("accepts up to 5 uploaded image sources (upper boundary)", () => {
 		expectAccepts(appRouter.aiExtract.extractTournamentData, {
-			sources: [urlSource, urlSource, urlSource, urlSource, urlSource],
+			sources: [
+				imageSource,
+				imageSource,
+				imageSource,
+				imageSource,
+				imageSource,
+			],
 		});
 	});
 
@@ -73,8 +79,8 @@ describe("aiExtract.extractTournamentData input validation", () => {
 		});
 	});
 
-	it("accepts mixed url and image sources", () => {
-		expectAccepts(appRouter.aiExtract.extractTournamentData, {
+	it("rejects mixed URL and image sources", () => {
+		expectRejects(appRouter.aiExtract.extractTournamentData, {
 			sources: [urlSource, imageSource],
 		});
 	});

@@ -43,6 +43,9 @@ export function useRooms() {
 					return old;
 				}
 				const base = old[0];
+				if (!base) {
+					return old;
+				}
 				return [
 					...old,
 					{

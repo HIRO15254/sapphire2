@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
 	RingGameOption,
 	SessionFormDefaults,
@@ -21,6 +21,36 @@ const WIZARD_STEPS_LIVE: ReadonlyArray<{ key: WizardStep; label: string }> = [
 	{ key: "rules", label: "Rules" },
 	{ key: "start", label: "Start" },
 ];
+
+const RULE_FIELDS = new Set([
+	"ruleName",
+	"variant",
+	"blind1",
+	"blind2",
+	"blind3",
+	"ante",
+	"anteType",
+	"tableSize",
+	"minBuyIn",
+	"maxBuyIn",
+	"tournamentBuyIn",
+	"entryFee",
+	"startingStack",
+	"bountyAmount",
+]);
+
+export function firstInvalidWizardStep(
+	fieldNames: string[],
+	mode: WizardMode
+): WizardStep | null {
+	if (fieldNames.some((fieldName) => RULE_FIELDS.has(fieldName))) {
+		return "rules";
+	}
+	if (fieldNames.length === 0) {
+		return null;
+	}
+	return mode === "live" ? "start" : "result";
+}
 
 export function wizardStepsForMode(
 	mode: WizardMode
@@ -45,7 +75,18 @@ export function useSessionWizard(args: UseSessionWizardArgs) {
 	const mode: WizardMode = args.mode ?? "manual";
 	const steps = wizardStepsForMode(mode);
 	const [currentStep, setCurrentStep] = useState<WizardStep>("master");
-	const formState = useSessionFormState(args);
+	useEffect(() => {
+		if (!steps.some((step) => step.key === currentStep)) {
+			setCurrentStep("master");
+		}
+	}, [currentStep, steps]);
+	const formState = useSessionFormState({
+		...args,
+		onSubmitInvalid: (fieldNames) => {
+			const invalidStep = firstInvalidWizardStep(fieldNames, mode);
+			setCurrentStep(invalidStep ?? currentStep);
+		},
+	});
 
 	const stepIndex = steps.findIndex((s) => s.key === currentStep);
 	const isFirstStep = stepIndex === 0;
@@ -76,6 +117,7 @@ export function useSessionWizard(args: UseSessionWizardArgs) {
 		isLastStep,
 		goToNext,
 		goToPrev,
+		onSubmitHandler: formState.form.handleSubmit,
 	};
 }
 

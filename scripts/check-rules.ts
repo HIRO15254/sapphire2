@@ -60,7 +60,7 @@ const CHECKS: Check[] = [
 		],
 		pattern:
 			/\b(useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutation|useQueryClient|useReducer|useDeferredValue|useTransition|useLayoutEffect|useIsMutating)\b/,
-		excludePath: /__tests__|\.test\.tsx$|\/use-[^/]*\.tsx$/,
+		excludePath: /__tests__|\.test\.tsx$|[\\/]use-[^\\/]*\.tsx$/,
 	},
 ];
 

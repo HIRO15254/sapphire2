@@ -256,6 +256,7 @@ async function syncCurrencyTransaction(
 	userId: string
 ): Promise<void> {
 	if (!currencyId || profitLoss === null) {
+		await deleteCurrencyTransaction(db, sessionId);
 		return;
 	}
 
@@ -267,7 +268,7 @@ async function syncCurrencyTransaction(
 	if (existingTx) {
 		await db
 			.update(currencyTransaction)
-			.set({ amount: profitLoss })
+			.set({ amount: profitLoss, currencyId, transactedAt: sessionDate })
 			.where(eq(currencyTransaction.id, existingTx.id));
 	} else {
 		const typeId = await getSessionResultTypeId(db, userId);

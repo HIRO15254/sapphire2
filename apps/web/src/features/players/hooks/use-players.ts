@@ -42,6 +42,9 @@ export function usePlayers(filterTagIds: string[]) {
 		invalidateTargets(queryClient, [
 			{ queryKey: trpc.playerTag.list.queryOptions().queryKey },
 		]);
+		if (!created) {
+			throw new Error("Failed to create player tag");
+		}
 		return { id: created.id, name: created.name, color: created.color };
 	};
 
@@ -110,7 +113,9 @@ export function usePlayers(filterTagIds: string[]) {
 						return {
 							...p,
 							name: updated.name,
-							memo: updated.memo ?? p.memo,
+							memo: Object.hasOwn(updated, "memo")
+								? (updated.memo ?? null)
+								: p.memo,
 							tags: newTags,
 						};
 					});

@@ -92,6 +92,7 @@ jobs:
         run: bun run --filter web build
         env:
           VITE_SERVER_URL: ${{ secrets.PRODUCTION_API_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy to Cloudflare Pages
         run: |

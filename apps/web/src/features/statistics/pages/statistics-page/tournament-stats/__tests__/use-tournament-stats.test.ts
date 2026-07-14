@@ -37,6 +37,7 @@ interface Summary {
 	totalPrizeMoney: number | null;
 	totalProfitLoss: number;
 	totalSessions: number;
+	tournamentBiCount: number;
 	tournamentNormalizedProfitLoss: number | null;
 	winRate: number;
 }
@@ -44,6 +45,7 @@ interface Summary {
 function summary(overrides: Partial<Summary> = {}): Summary {
 	return {
 		totalSessions: 8,
+		tournamentBiCount: 2,
 		totalProfitLoss: 2000,
 		cashNormalizedProfitLoss: null,
 		cashEvDiffNormalized: null,
@@ -176,6 +178,7 @@ describe("useTournamentStats", () => {
 		expect(byKey.avgRoi.value).toBe("30.0%");
 		// Net stays normalized to bi in this scope.
 		expect(byKey.net.value).toBe("+4 bi");
+		expect(byKey.avg.value).toBe("+2 bi");
 	});
 
 	it("still shows aggregate ROI and total prize while normalized when a currency is selected", async () => {
@@ -216,5 +219,16 @@ describe("useTournamentStats", () => {
 		const net = rowsByKey(result).net;
 		expect(net.value).toBe("-750 USD");
 		expect(net.valueColor).toBe("text-red-600 dark:text-red-400");
+	});
+	it("exposes query errors and retries the summary request", async () => {
+		trpcMocks.summaryQueryFn.mockReset();
+		trpcMocks.summaryQueryFn
+			.mockRejectedValueOnce(new Error("network"))
+			.mockResolvedValueOnce(summary());
+		const view = renderTournament(ctx());
+		await waitFor(() => expect(view.result.current.isError).toBe(true));
+		view.result.current.retry();
+		await waitFor(() => expect(view.result.current.isError).toBe(false));
+		expect(trpcMocks.summaryQueryFn).toHaveBeenCalledTimes(2);
 	});
 });

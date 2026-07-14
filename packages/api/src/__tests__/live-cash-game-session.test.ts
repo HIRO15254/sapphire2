@@ -131,25 +131,25 @@ describe("liveCashGameSession.create ownership validation (SA2-102)", () => {
 		);
 	});
 
-	it("rejects a non-existent room with NOT_FOUND", async () => {
+	it("rejects a non-existent room with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
 			[room, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).create({ initialBuyIn: 0, roomId: "room-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 
-	it("rejects a non-existent currency with NOT_FOUND", async () => {
+	it("rejects a non-existent currency with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
 			[currency, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).create({ initialBuyIn: 0, currencyId: "cur-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 
@@ -203,25 +203,25 @@ describe("liveCashGameSession.update ownership validation (SA2-102)", () => {
 		);
 	});
 
-	it("rejects a non-existent room with NOT_FOUND", async () => {
+	it("rejects a non-existent room with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
 			[room, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).update({ id: "s1", roomId: "room-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 
-	it("rejects a non-existent currency with NOT_FOUND", async () => {
+	it("rejects a non-existent currency with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
 			[currency, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).update({ id: "s1", currencyId: "cur-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 
@@ -342,14 +342,14 @@ describe("liveCashGameSession.create ring game ownership (SA2-181)", () => {
 		);
 	});
 
-	it("rejects a non-existent ring game with NOT_FOUND", async () => {
+	it("rejects a non-existent ring game with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
 			[ringGame, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).create({ initialBuyIn: 0, ringGameId: "rg-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 });
@@ -414,7 +414,7 @@ describe("liveCashGameSession.update ring game ownership (SA2-181)", () => {
 		);
 	});
 
-	it("rejects a non-existent ring game with NOT_FOUND", async () => {
+	it("rejects a non-existent ring game with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
 			[ringGame, []],
@@ -422,7 +422,7 @@ describe("liveCashGameSession.update ring game ownership (SA2-181)", () => {
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).update({ id: "s1", ringGameId: "rg-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 

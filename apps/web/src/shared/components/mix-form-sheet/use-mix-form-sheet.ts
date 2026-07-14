@@ -89,7 +89,9 @@ export function useMixFormSheet({
 		onSuccess: (created) => {
 			form.reset();
 			onOpenChange(false);
-			onSaved?.(created, labelsForGames(created.games));
+			if (created) {
+				onSaved?.(created, labelsForGames(created.games));
+			}
 		},
 		onError: () => {
 			toast.error("Failed to create game mix");
@@ -103,7 +105,9 @@ export function useMixFormSheet({
 		onSuccess: (updated) => {
 			form.reset();
 			onOpenChange(false);
-			onSaved?.(updated, labelsForGames(updated.games));
+			if (updated) {
+				onSaved?.(updated, labelsForGames(updated.games));
+			}
 		},
 		onError: () => {
 			toast.error("Failed to update game mix");

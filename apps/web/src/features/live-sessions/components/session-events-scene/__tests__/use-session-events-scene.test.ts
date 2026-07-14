@@ -30,11 +30,21 @@ vi.mock("@/utils/trpc", () => ({
 					queryKey: buildKey("liveCashGameSession", "getById", input),
 				}),
 			},
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: buildKey("liveCashGameSession", "list", input),
+				}),
+			},
 		},
 		liveTournamentSession: {
 			getById: {
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("liveTournamentSession", "getById", input),
+				}),
+			},
+			list: {
+				queryOptions: (input: unknown) => ({
+					queryKey: buildKey("liveTournamentSession", "list", input),
 				}),
 			},
 		},

@@ -113,6 +113,31 @@ describe("SessionWizard — step gating", () => {
 	});
 });
 
+it("returns to the first invalid hidden step when submit fails", async () => {
+	const user = userEvent.setup();
+	const onSubmit = vi.fn();
+	render(<SessionWizard onSubmit={onSubmit} rooms={[STORE]} />);
+
+	await user.click(screen.getByRole("button", { name: NEXT_RE }));
+	const smallBlind = document.getElementById("blind1");
+	expect(smallBlind).toBeInstanceOf(HTMLInputElement);
+	await user.type(smallBlind as HTMLInputElement, "invalid");
+	await user.click(screen.getByRole("button", { name: NEXT_RE }));
+
+	const buyIn = document.getElementById("buyIn");
+	const cashOut = document.getElementById("cashOut");
+	expect(buyIn).toBeInstanceOf(HTMLInputElement);
+	expect(cashOut).toBeInstanceOf(HTMLInputElement);
+	await user.type(buyIn as HTMLInputElement, "100");
+	await user.type(cashOut as HTMLInputElement, "100");
+	await user.click(screen.getByRole("button", { name: SAVE_RE }));
+
+	await waitFor(() => {
+		expect(document.getElementById("blind1")).toBeInTheDocument();
+	});
+	expect(onSubmit).toHaveBeenCalledTimes(0);
+});
+
 describe("SessionWizard — tournament mode", () => {
 	it("renders tournament rules on the rules step when type is tournament", async () => {
 		const user = userEvent.setup();

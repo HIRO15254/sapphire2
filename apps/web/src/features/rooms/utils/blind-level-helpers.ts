@@ -88,8 +88,9 @@ export function getEffectiveLastMinutes(
 		return lastMinutes;
 	}
 	for (let i = levels.length - 1; i >= 0; i--) {
-		if (levels[i].minutes != null) {
-			return levels[i].minutes;
+		const level = levels[i];
+		if (level?.minutes != null) {
+			return level.minutes;
 		}
 	}
 	return null;

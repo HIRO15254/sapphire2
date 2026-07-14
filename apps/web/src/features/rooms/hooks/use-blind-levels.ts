@@ -70,8 +70,9 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			return null;
 		}
 		for (let i = data.length - 1; i >= 0; i--) {
-			if (data[i].minutes != null) {
-				return data[i].minutes;
+			const level = data[i];
+			if (level?.minutes != null) {
+				return level.minutes;
 			}
 		}
 		return null;
@@ -179,10 +180,12 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 			if (!updates) {
 				return Promise.resolve(null);
 			}
-			return trpcClient.blindLevel.update.mutate({
-				id: variables.id,
-				...updates,
-			});
+			return trpcClient.blindLevel.update
+				.mutate({
+					id: variables.id,
+					...updates,
+				})
+				.then((result) => result ?? null);
 		},
 		onMutate: async (variables: BlindLevelUpdateVariables) => {
 			await cancelTargets(queryClient, [

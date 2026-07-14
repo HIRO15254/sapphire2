@@ -27,8 +27,8 @@ export function computeVisibleTagCount({
 	}
 
 	let full = 0;
-	for (let i = 0; i < count; i++) {
-		full += tagWidths[i] + (i > 0 ? gap : 0);
+	for (const [index, width] of tagWidths.entries()) {
+		full += width + (index > 0 ? gap : 0);
 	}
 	if (full <= availableWidth) {
 		return count;
@@ -36,13 +36,13 @@ export function computeVisibleTagCount({
 
 	let used = 0;
 	let visible = 0;
-	for (let i = 0; i < count; i++) {
-		const candidate = used + tagWidths[i] + (i > 0 ? gap : 0);
+	for (const [index, width] of tagWidths.entries()) {
+		const candidate = used + width + (index > 0 ? gap : 0);
 		if (candidate + gap + plusWidth > availableWidth) {
 			break;
 		}
 		used = candidate;
-		visible = i + 1;
+		visible = index + 1;
 	}
 	return visible;
 }

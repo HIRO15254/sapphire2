@@ -80,6 +80,17 @@ describe("LinkedAccounts", () => {
 		expect(screen.queryByLabelText(NEW_PASSWORD_RE)).not.toBeInTheDocument();
 	});
 
+	it("shows an error instead of loading indefinitely when accounts cannot be loaded", async () => {
+		mocks.listAccounts.mockRejectedValue(new Error("Network unavailable"));
+
+		render(<LinkedAccounts />);
+
+		expect(
+			await screen.findByText("Unable to load linked accounts")
+		).toBeVisible();
+		expect(screen.queryByText("Loading accounts...")).not.toBeInTheDocument();
+	});
+
 	it("submits the new password via the FormSheet Save button and reloads accounts", async () => {
 		const user = userEvent.setup();
 

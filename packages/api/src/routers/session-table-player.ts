@@ -19,6 +19,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { computeSeatedPlayersFromEvents } from "../services/live-session-pl";
+import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import {
 	floorToMinute,
 	nextAppendSortOrder,
@@ -53,10 +54,33 @@ async function resolveSessionOwnership(
 	if (!session || session.userId !== userId) {
 		throw new TRPCError({
 			code: "NOT_FOUND",
+
 			message: "Session not found",
 		});
 	}
 	return { sessionType: session.kind as "cash_game" | "tournament" };
+}
+
+async function validateSeatPositionForSession(
+	db: DbInstance,
+	sessionId: string,
+	sessionType: "cash_game" | "tournament",
+	seatPosition: number | null | undefined
+): Promise<void> {
+	if (seatPosition === null || seatPosition === undefined) {
+		return;
+	}
+	const [detail] =
+		sessionType === "cash_game"
+			? await db
+					.select({ tableSize: sessionCashDetail.tableSize })
+					.from(sessionCashDetail)
+					.where(eq(sessionCashDetail.sessionId, sessionId))
+			: await db
+					.select({ tableSize: sessionTournamentDetail.tableSize })
+					.from(sessionTournamentDetail)
+					.where(eq(sessionTournamentDetail.sessionId, sessionId));
+	assertSeatPositionFitsTableSize(seatPosition, detail?.tableSize ?? null);
 }
 
 async function fetchSessionContext(
@@ -298,7 +322,17 @@ export const sessionTablePlayerRouter = router({
 			const sessionId = requireSessionId(input);
 			const { playerId, seatPosition } = input;
 			const userId = ctx.session.user.id;
-			await resolveSessionOwnership(ctx.db, sessionId, userId);
+			const { sessionType } = await resolveSessionOwnership(
+				ctx.db,
+				sessionId,
+				userId
+			);
+			await validateSeatPositionForSession(
+				ctx.db,
+				sessionId,
+				sessionType,
+				seatPosition
+			);
 
 			const [foundPlayer] = await ctx.db
 				.select()
@@ -338,7 +372,17 @@ export const sessionTablePlayerRouter = router({
 			const sessionId = requireSessionId(input);
 			const { seatPosition } = input;
 			const userId = ctx.session.user.id;
-			await resolveSessionOwnership(ctx.db, sessionId, userId);
+			const { sessionType } = await resolveSessionOwnership(
+				ctx.db,
+				sessionId,
+				userId
+			);
+			await validateSeatPositionForSession(
+				ctx.db,
+				sessionId,
+				sessionType,
+				seatPosition
+			);
 			// Reject foreign player tags before creating the player (IDOR).
 			await validateTagsOwnership(
 				ctx.db,
@@ -383,7 +427,17 @@ export const sessionTablePlayerRouter = router({
 			const sessionId = requireSessionId(input);
 			const { playerId, seatPosition } = input;
 			const userId = ctx.session.user.id;
-			await resolveSessionOwnership(ctx.db, sessionId, userId);
+			const { sessionType } = await resolveSessionOwnership(
+				ctx.db,
+				sessionId,
+				userId
+			);
+			await validateSeatPositionForSession(
+				ctx.db,
+				sessionId,
+				sessionType,
+				seatPosition
+			);
 
 			const events = await fetchSeatEvents(ctx.db, sessionId);
 			const seated = computeSeatedPlayersFromEvents(events);
@@ -473,6 +527,12 @@ export const sessionTablePlayerRouter = router({
 				ctx.db,
 				sessionId,
 				userId
+			);
+			await validateSeatPositionForSession(
+				ctx.db,
+				sessionId,
+				sessionType,
+				seatPosition
 			);
 
 			const { roomName, gameName } = await fetchSessionContext(

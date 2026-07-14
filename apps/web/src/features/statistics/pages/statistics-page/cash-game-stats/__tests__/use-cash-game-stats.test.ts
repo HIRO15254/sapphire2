@@ -25,6 +25,7 @@ interface Summary {
 	avgPlacement: number | null;
 	avgProfitLoss: number | null;
 	bbPerHour: number | null;
+	cashBbCount: number;
 	cashEvDiffNormalized: number | null;
 	cashNormalizedProfitLoss: number | null;
 	hourlyRate: number | null;
@@ -44,6 +45,7 @@ function summary(overrides: Partial<Summary> = {}): Summary {
 	return {
 		totalSessions: 10,
 		totalProfitLoss: 1500,
+		cashBbCount: 5,
 		cashNormalizedProfitLoss: 30,
 		cashEvDiffNormalized: 6,
 		tournamentNormalizedProfitLoss: null,
@@ -177,7 +179,7 @@ describe("useCashGameStats", () => {
 		);
 		const byKey = rowsByKey(result);
 		expect(byKey.net.value).toBe("+30 bb");
-		expect(byKey.avg.value).toBe("+3 bb");
+		expect(byKey.avg.value).toBe("+6 bb");
 		expect(byKey.hourly.label).toBe("BB / hr");
 		expect(byKey.hourly.value).toBe("+3 bb/h");
 		expect(byKey.evDiff.value).toBe("+6 bb");
@@ -206,5 +208,16 @@ describe("useCashGameStats", () => {
 		const net = rowsByKey(result).net;
 		expect(net.value).toBe("-500 USD");
 		expect(net.valueColor).toBe("text-red-600 dark:text-red-400");
+	});
+	it("exposes query errors and retries the summary request", async () => {
+		trpcMocks.summaryQueryFn.mockReset();
+		trpcMocks.summaryQueryFn
+			.mockRejectedValueOnce(new Error("network"))
+			.mockResolvedValueOnce(summary());
+		const view = renderCash(ctx());
+		await waitFor(() => expect(view.result.current.isError).toBe(true));
+		view.result.current.retry();
+		await waitFor(() => expect(view.result.current.isError).toBe(false));
+		expect(trpcMocks.summaryQueryFn).toHaveBeenCalledTimes(2);
 	});
 });

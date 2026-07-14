@@ -87,8 +87,8 @@ export const currencyRouter = router({
 
 			if (!found) {
 				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Currency not found",
+					code: "FORBIDDEN",
+					message: "You do not own this currency",
 				});
 			}
 
@@ -129,8 +129,8 @@ export const currencyRouter = router({
 
 			if (!found) {
 				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Currency not found",
+					code: "FORBIDDEN",
+					message: "You do not own this currency",
 				});
 			}
 
@@ -141,6 +141,17 @@ export const currencyRouter = router({
 				});
 			}
 
+			const [transaction] = await ctx.db
+				.select({ id: currencyTransaction.id })
+				.from(currencyTransaction)
+				.where(eq(currencyTransaction.currencyId, input.id))
+				.limit(1);
+			if (transaction) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message: "Currency cannot be deleted while it has transactions",
+				});
+			}
 			await ctx.db.delete(currency).where(eq(currency.id, input.id));
 			return { success: true };
 		}),
@@ -156,8 +167,8 @@ export const currencyRouter = router({
 
 			if (!found) {
 				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: "Currency not found",
+					code: "FORBIDDEN",
+					message: "You do not own this currency",
 				});
 			}
 

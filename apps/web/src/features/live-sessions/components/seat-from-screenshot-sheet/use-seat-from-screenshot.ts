@@ -26,11 +26,22 @@ interface UseSeatFromScreenshotArgs {
 	occupiedSeatPositions: Set<number>;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
+	seatCount?: number;
 	sessionParam: SessionParam;
 }
+function getDefaultSourceApp(): TablePlayerSourceApp {
+	const firstEntry = SOURCE_APP_ENTRIES[0];
+	if (!firstEntry) {
+		throw new Error("No screenshot source apps are configured");
+	}
+	return firstEntry[0];
+}
+
+const DEFAULT_SOURCE_APP = getDefaultSourceApp();
 
 export function useSeatFromScreenshot({
 	occupiedSeatPositions,
+	seatCount = 9,
 	onOpenChange,
 	open,
 	sessionParam,
@@ -39,9 +50,8 @@ export function useSeatFromScreenshot({
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const [step, setStep] = useState<Step>("select-app");
-	const [sourceApp, setSourceApp] = useState<TablePlayerSourceApp>(
-		SOURCE_APP_ENTRIES[0][0]
-	);
+	const [sourceApp, setSourceApp] =
+		useState<TablePlayerSourceApp>(DEFAULT_SOURCE_APP);
 	const [rows, setRows] = useState<ReviewRow[]>([]);
 	const [isApplying, setIsApplying] = useState(false);
 
@@ -76,7 +86,7 @@ export function useSeatFromScreenshot({
 	useEffect(() => {
 		if (open) {
 			setStep("select-app");
-			setSourceApp(SOURCE_APP_ENTRIES[0][0]);
+			setSourceApp(DEFAULT_SOURCE_APP);
 			setRows([]);
 			extractReset();
 			setIsApplying(false);
@@ -128,6 +138,7 @@ export function useSeatFromScreenshot({
 					isHero,
 					name: seat.name,
 					occupiedSeatPositions,
+					seatCount,
 					playersByNormalizedName,
 					seatNumber: seat.seatNumber,
 					seatPosition,
@@ -153,6 +164,7 @@ export function useSeatFromScreenshot({
 					isHero: row.isHeroCandidate,
 					name: nextName,
 					occupiedSeatPositions,
+					seatCount,
 					playersByNormalizedName,
 					preferredAction: nextAction,
 					seatNumber: row.seatNumber,

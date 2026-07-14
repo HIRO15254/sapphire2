@@ -11,6 +11,23 @@ const trpcMocks = vi.hoisted(() => ({
 
 const toastMock = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 
+const optimisticMocks = vi.hoisted(() => ({ updateQueryItems: vi.fn() }));
+
+vi.mock("@/utils/optimistic-update", async () => {
+	const actual = await vi.importActual<
+		typeof import("@/utils/optimistic-update")
+	>("@/utils/optimistic-update");
+	return {
+		...actual,
+		updateQueryItems: vi.fn(
+			(...args: Parameters<typeof actual.updateQueryItems>) => {
+				optimisticMocks.updateQueryItems(...args);
+				return actual.updateQueryItems(...args);
+			}
+		),
+	};
+});
+
 vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		gameGroup: {
@@ -268,6 +285,7 @@ describe("useVariantSelect", () => {
 			groupId: "g-limit",
 			sortOrder: 2,
 		};
+		optimisticMocks.updateQueryItems.mockClear();
 		trpcMocks.gameVariantCreate.mockResolvedValue(createdRow);
 		const queryClient = createTestQueryClient();
 		const cacheAtChange: unknown[] = [];
@@ -297,6 +315,12 @@ describe("useVariantSelect", () => {
 		// see the created row (invalidation alone refetches too late).
 		expect(cacheAtChange).toHaveLength(1);
 		expect(cacheAtChange[0]).toEqual([...VARIANTS, createdRow]);
+		expect(optimisticMocks.updateQueryItems).toHaveBeenCalledTimes(1);
+		expect(optimisticMocks.updateQueryItems).toHaveBeenCalledWith(
+			expect.anything(),
+			["gameVariant", "list"],
+			expect.any(Function)
+		);
 	});
 
 	it("keeps the settled invalidation after seeding the cache", async () => {

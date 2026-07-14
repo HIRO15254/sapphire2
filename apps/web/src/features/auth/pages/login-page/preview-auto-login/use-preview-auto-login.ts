@@ -23,10 +23,15 @@ export function usePreviewAutoLogin(): void {
 
 		attempted.current = true;
 
-		authClient.signIn.email({ email, password }).then((result) => {
-			if (result.data) {
-				navigate({ to: "/statistics" });
-			}
-		});
+		authClient.signIn
+			.email({ email, password })
+			.then((result) => {
+				if (result.data) {
+					navigate({ to: "/statistics" });
+				}
+			})
+			.catch((error) => {
+				console.error("Preview auto-login failed", error);
+			});
 	}, [navigate]);
 }

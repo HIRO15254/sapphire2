@@ -923,7 +923,33 @@ describe("useSessions", () => {
 			await act(async () => {
 				await result.current.create(cashValues());
 			});
-			expect(trpcMocks.sessionCreate).toHaveBeenCalled();
+			expect(trpcMocks.sessionCreate).toHaveBeenCalledTimes(1);
+			expect(trpcMocks.sessionCreate).toHaveBeenCalledWith({
+				ante: undefined,
+				anteType: undefined,
+				blind1: undefined,
+				blind2: undefined,
+				blind3: undefined,
+				breakMinutes: undefined,
+				buyIn: 10_000,
+				cashOut: 15_000,
+				currencyId: undefined,
+				endedAt: undefined,
+				evCashOut: undefined,
+				maxBuyIn: undefined,
+				memo: undefined,
+				minBuyIn: undefined,
+				mixGames: undefined,
+				ringGameId: undefined,
+				roomId: undefined,
+				ruleName: undefined,
+				sessionDate: 1_775_001_600,
+				startedAt: undefined,
+				tableSize: undefined,
+				tagIds: undefined,
+				type: "cash_game",
+				variant: "NLH",
+			});
 		});
 	});
 

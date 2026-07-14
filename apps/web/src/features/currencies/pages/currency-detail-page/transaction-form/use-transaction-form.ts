@@ -24,7 +24,7 @@ function todayISODate() {
 function buildSchema() {
 	return z
 		.object({
-			amount: requiredNumericString(),
+			amount: requiredNumericString({ integer: true }),
 			transactionTypeId: z.string().min(1, "Type is required"),
 			newTypeName: z.string(),
 			transactedAt: z.string().min(1, "Date is required"),
@@ -71,6 +71,9 @@ export function useTransactionForm({
 			let transactionTypeId = value.transactionTypeId;
 			if (transactionTypeId === NEW_TYPE_VALUE) {
 				const created = await createType(value.newTypeName.trim());
+				if (!created) {
+					throw new Error("Failed to create transaction type");
+				}
 				transactionTypeId = created.id;
 			}
 			onSubmit({

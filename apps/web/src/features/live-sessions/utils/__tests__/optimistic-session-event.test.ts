@@ -10,6 +10,8 @@ import {
 } from "vitest";
 import type { SessionEvent } from "@/features/live-sessions/hooks/use-session-events";
 
+const OPTIMISTIC_ID_PATTERN = /^optimistic-/;
+
 // ---------------------------------------------------------------------------
 // Mock @/utils/trpc — queryOptions must return a stable queryKey shape
 // [namespace, procedure, input] so getSessionQueryKeys can resolve predictable
@@ -704,9 +706,11 @@ describe("buildOptimisticEvent", () => {
 		vi.useRealTimers();
 	});
 
-	it("creates event with optimistic-<timestamp> id", () => {
-		const event = buildOptimisticEvent("session_start", { buyInAmount: 1000 });
-		expect(event.id).toBe(`optimistic-${FIXED_TIME}`);
+	it("creates collision-resistant optimistic ids within the same millisecond", () => {
+		const first = buildOptimisticEvent("session_start", { buyInAmount: 1000 });
+		const second = buildOptimisticEvent("session_start", { buyInAmount: 1000 });
+		expect(first.id).toMatch(OPTIMISTIC_ID_PATTERN);
+		expect(first.id).not.toBe(second.id);
 	});
 
 	it("preserves eventType verbatim", () => {
@@ -735,7 +739,7 @@ describe("buildOptimisticEvent", () => {
 			cashOutAmount: 1000,
 		});
 		expect(event).toEqual({
-			id: `optimistic-${FIXED_TIME}`,
+			id: expect.stringMatching(OPTIMISTIC_ID_PATTERN),
 			eventType: "session_end",
 			payload: { cashOutAmount: 1000 },
 			occurredAt: "2026-04-24T12:00:00.000Z",
@@ -893,7 +897,7 @@ describe("createSessionEventMutationOptions", () => {
 			const events = queryClient.getQueryData<SessionEvent[]>(keys.eventsKey);
 			expect(events).toHaveLength(2);
 			expect(events?.[1]).toEqual({
-				id: `optimistic-${FIXED_TIME}`,
+				id: expect.stringMatching(OPTIMISTIC_ID_PATTERN),
 				eventType: "update_stack",
 				payload: { stackAmount: 2500 },
 				occurredAt: "2026-04-24T12:00:00.000Z",

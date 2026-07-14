@@ -521,6 +521,14 @@ describe("session router input validation", () => {
 		expect(schema.safeParse({ id: "s1", placement: 0 }).success).toBe(false);
 	});
 
+	it("update rejects placement greater than totalEntries", () => {
+		const schema = (
+			appRouter.session.update as unknown as { _def: { inputs: unknown[] } }
+		)._def.inputs[0] as { safeParse: (v: unknown) => { success: boolean } };
+		expect(
+			schema.safeParse({ id: "s1", placement: 11, totalEntries: 10 }).success
+		).toBe(false);
+	});
 	it("update accepts and retains an edited rule name", () => {
 		const schema = (
 			appRouter.session.update as unknown as {
@@ -1007,8 +1015,8 @@ describe("validateEntityOwnership (tournament branch)", () => {
 		await expect(
 			validateEntityOwnership(db, "tournament", "missing", CALLER)
 		).rejects.toMatchObject({
-			code: "NOT_FOUND",
-			message: "Tournament not found",
+			code: "FORBIDDEN",
+			message: "You do not own this tournament",
 		});
 		// Must short-circuit before reading the room.
 		expect(selectedTables).toEqual(["tournament"]);
@@ -1095,8 +1103,8 @@ describe("validateEntityOwnership (ringGame branch) (SA2-181)", () => {
 		await expect(
 			validateEntityOwnership(db, "ringGame", "missing", CALLER)
 		).rejects.toMatchObject({
-			code: "NOT_FOUND",
-			message: "Ring game not found",
+			code: "FORBIDDEN",
+			message: "You do not own this ring game",
 		});
 		expect(selectedTables).toEqual(["ring_game"]);
 	});
@@ -1617,5 +1625,107 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 			{ sessionId: "session-1", sessionTagId: "tag-1" },
 			{ sessionId: "session-1", sessionTagId: "tag-2" },
 		]);
+	});
+});
+
+describe("session.update tournament placement integrity (SA2-161)", () => {
+	const existingSession = {
+		id: "session-1",
+		userId: "user-1",
+		kind: "tournament",
+		source: "manual",
+		currencyId: null,
+		sessionDate: new Date(1_700_000_000_000),
+	};
+
+	function makeCaller(detail: {
+		beforeDeadline: boolean | null;
+		placement: number | null;
+		totalEntries: number | null;
+	}) {
+		const mock = createChainableMockDb({
+			select: {
+				game_session: [existingSession],
+				session_tournament_detail: [{ sessionId: "session-1", ...detail }],
+			},
+		});
+		return {
+			...mock,
+			caller: appRouter.createCaller({
+				session: { user: { id: "user-1" } },
+				db: mock.db,
+			} as unknown as Parameters<typeof appRouter.createCaller>[0]),
+		};
+	}
+
+	it("rejects a placement-only patch above the existing total entries", async () => {
+		const { caller, updateWhereParams } = makeCaller({
+			beforeDeadline: false,
+			placement: 3,
+			totalEntries: 10,
+		});
+
+		await expect(
+			caller.session.update({ id: "session-1", placement: 11 })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(updateWhereParams).toHaveLength(0);
+	});
+
+	it("rejects a totalEntries-only patch below the existing placement", async () => {
+		const { caller, updateWhereParams } = makeCaller({
+			beforeDeadline: false,
+			placement: 7,
+			totalEntries: 10,
+		});
+
+		await expect(
+			caller.session.update({ id: "session-1", totalEntries: 6 })
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(updateWhereParams).toHaveLength(0);
+	});
+
+	it("accepts beforeDeadline true and clears placement fields like create", async () => {
+		const { db: baseDb } = createChainableMockDb({
+			select: {
+				game_session: [existingSession],
+				session_tournament_detail: [
+					{
+						sessionId: "session-1",
+						beforeDeadline: false,
+						placement: 3,
+						totalEntries: 10,
+					},
+				],
+			},
+		});
+		const updates: Record<string, unknown>[] = [];
+		const db = {
+			...(baseDb as unknown as Record<string, unknown>),
+			update: () => ({
+				set: (value: Record<string, unknown>) => {
+					updates.push(value);
+					return { where: () => Promise.resolve(undefined) };
+				},
+			}),
+		};
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.update({
+			id: "session-1",
+			beforeDeadline: true,
+			placement: 99,
+			totalEntries: 1,
+		});
+
+		expect(updates).toContainEqual(
+			expect.objectContaining({
+				beforeDeadline: true,
+				placement: null,
+				totalEntries: null,
+			})
+		);
 	});
 });

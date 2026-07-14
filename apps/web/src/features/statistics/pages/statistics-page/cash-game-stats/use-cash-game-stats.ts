@@ -18,7 +18,9 @@ import { trpc } from "@/utils/trpc";
 
 export interface UseCashGameStatsResult {
 	isEmpty: boolean;
+	isError: boolean;
 	isPending: boolean;
+	retry: () => void;
 	rows: StatRow[];
 }
 
@@ -38,10 +40,15 @@ export function useCashGameStats(
 	const summaryQuery = useQuery(
 		trpc.stats.summary.queryOptions(input, { enabled: ctx.enabled })
 	);
+	const retry = () => {
+		summaryQuery.refetch();
+	};
 
 	const summary = summaryQuery.data;
 	if (!summary) {
 		return {
+			isError: ctx.enabled && summaryQuery.isError,
+			retry,
 			isPending: ctx.enabled && summaryQuery.isPending,
 			isEmpty: false,
 			rows: [],
@@ -49,7 +56,7 @@ export function useCashGameStats(
 	}
 
 	if (summary.totalSessions === 0) {
-		return { isPending: false, isEmpty: true, rows: [] };
+		return { isPending: false, isEmpty: true, rows: [], isError: false, retry };
 	}
 
 	const { normalized } = ctx;
@@ -57,7 +64,10 @@ export function useCashGameStats(
 	const net = normalized
 		? summary.cashNormalizedProfitLoss
 		: summary.totalProfitLoss;
-	const avg = ratio(net, summary.totalSessions);
+	const avg = ratio(
+		net,
+		normalized ? summary.cashBbCount : summary.totalSessions
+	);
 	const evDiff = normalized
 		? summary.cashEvDiffNormalized
 		: summary.totalEvDiff;
@@ -125,5 +135,11 @@ export function useCashGameStats(
 		},
 	];
 
-	return { isPending: false, isEmpty: false, rows };
+	return {
+		isPending: false,
+		isEmpty: false,
+		rows,
+		isError: ctx.enabled && summaryQuery.isError,
+		retry,
+	};
 }

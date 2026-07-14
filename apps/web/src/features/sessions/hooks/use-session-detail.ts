@@ -96,6 +96,9 @@ export function useSessionDetail(sessionId: string) {
 		},
 		createTag: async (name: string) => {
 			const result = await createTagMutation.mutateAsync(name);
+			if (!result) {
+				throw new Error("Failed to create session tag");
+			}
 			return { id: result.id, name: result.name };
 		},
 	};

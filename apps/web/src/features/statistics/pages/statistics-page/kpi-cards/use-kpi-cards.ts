@@ -23,6 +23,7 @@ export interface UseKpiCardsResult {
 	cards: KpiCard[];
 	isError: boolean;
 	isPending: boolean;
+	retry: () => void;
 }
 
 interface NetSummary {
@@ -166,6 +167,9 @@ export function useKpiCards(ctx: StatsSectionContext): UseKpiCardsResult {
 			cards: [],
 			isPending: ctx.enabled && query.isPending,
 			isError: query.isError,
+			retry: () => {
+				query.refetch();
+			},
 		};
 	}
 
@@ -221,5 +225,12 @@ export function useKpiCards(ctx: StatsSectionContext): UseKpiCardsResult {
 		cards.push(...buildTournamentCards(ctx, summary));
 	}
 
-	return { cards, isPending: false, isError: query.isError };
+	return {
+		cards,
+		isPending: false,
+		isError: query.isError,
+		retry: () => {
+			query.refetch();
+		},
+	};
 }

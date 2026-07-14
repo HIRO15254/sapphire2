@@ -190,25 +190,25 @@ describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 		);
 	});
 
-	it("rejects a non-existent room with NOT_FOUND", async () => {
+	it("rejects a non-existent room with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
 			[room, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).create({ roomId: "room-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 
-	it("rejects a non-existent currency with NOT_FOUND", async () => {
+	it("rejects a non-existent currency with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
 			[currency, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).create({ currencyId: "cur-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 
@@ -262,25 +262,25 @@ describe("liveTournamentSession.update ownership validation (SA2-102)", () => {
 		);
 	});
 
-	it("rejects a non-existent room with NOT_FOUND", async () => {
+	it("rejects a non-existent room with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
 			[room, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).update({ id: "s1", roomId: "room-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 
-	it("rejects a non-existent currency with NOT_FOUND", async () => {
+	it("rejects a non-existent currency with FORBIDDEN", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [ownedSession]],
 			[currency, []],
 		]);
 		await expectTrpcCode(
 			makeCaller(OWNER, rows).update({ id: "s1", currencyId: "cur-x" }),
-			"NOT_FOUND"
+			"FORBIDDEN"
 		);
 	});
 
@@ -926,7 +926,7 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 		expect(inserted.session_blind_level).toBeUndefined();
 	});
 
-	it("throws NOT_FOUND and writes nothing when the tournament does not exist", async () => {
+	it("throws FORBIDDEN and writes nothing when the tournament does not exist", async () => {
 		const { db, inserted } = mockDb({ tournament: [] });
 
 		await expect(
@@ -934,8 +934,7 @@ describe("liveTournamentSession.create tournament ownership (IDOR guard)", () =>
 				tournamentId: "missing",
 			})
 		).rejects.toMatchObject({
-			code: "NOT_FOUND",
-			message: "Tournament not found",
+			code: "FORBIDDEN",
 		});
 		expect(inserted.game_session).toBeUndefined();
 	});

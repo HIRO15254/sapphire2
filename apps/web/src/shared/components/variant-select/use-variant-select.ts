@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 import { GAME_MASTERS_STALE_TIME_MS } from "@/shared/hooks/use-game-groups";
-import { invalidateTargets } from "@/utils/optimistic-update";
+import { invalidateTargets, updateQueryItems } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
 // Mirrors gameVariant.create's server constraints so users get field-level
@@ -179,12 +179,15 @@ export function useVariantSelect({
 			// invalidation below refetches too late for that (c19). The server
 			// appends with the max sortOrder, so appending here matches the
 			// list order.
-			queryClient.setQueryData(variantListOptions.queryKey, (old) =>
-				old ? [...old, created] : [created]
-			);
+			updateQueryItems(queryClient, variantListOptions.queryKey, (old) => [
+				...old,
+				created,
+			]);
 			setIsAddOpen(false);
 			form.reset();
-			onChange(created.label);
+			if (created) {
+				onChange(created.label);
+			}
 		},
 		onError: () => {
 			toast.error("Failed to create custom variant");
@@ -268,7 +271,11 @@ export function useVariantSelect({
 				navigableOptions.length;
 		}
 		setIsOpen(true);
-		setActiveOptionValue(navigableOptions[nextIndex].value);
+		const nextOption = navigableOptions[nextIndex];
+		if (!nextOption) {
+			return;
+		}
+		setActiveOptionValue(nextOption.value);
 	};
 
 	const handleEnterKey = () => {

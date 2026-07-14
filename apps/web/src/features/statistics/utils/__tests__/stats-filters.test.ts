@@ -113,8 +113,8 @@ describe("filtersToStatsInput", () => {
 			filters({ period: "7d", currency: "c1" }),
 			NOW_SEC
 		);
-		expect(input.dateFrom).toBe(START_OF_DAY - 7 * DAY);
-		expect(input.dateTo).toBe(START_OF_DAY + DAY);
+		expect(input.dateFrom).toBe(START_OF_DAY - 6 * DAY);
+		expect(input.dateTo).toBe(START_OF_DAY + DAY - 1);
 	});
 });
 

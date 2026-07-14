@@ -184,6 +184,9 @@ export function useTournaments({
 				roomId,
 				...rest,
 			});
+			if (!created) {
+				return created;
+			}
 			if (tags && tags.length > 0) {
 				await syncTags(created.id, tags, []);
 			}

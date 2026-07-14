@@ -1,9 +1,10 @@
-import { ColorBadge } from "@/features/players/components/color-badge";
 import { PlayerForm } from "@/features/players/components/player-form";
 import { DeletePlayerDialog } from "@/features/players/pages/player-detail-page/delete-player-dialog";
 import { PlayerActionsDrawer } from "@/features/players/pages/player-detail-page/player-actions-drawer";
+import { tagBadgeClassName } from "@/features/players/utils/tag-badge-class-name";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
+import { Badge } from "@/shared/components/ui/badge";
 import { RichTextContent } from "@/shared/components/ui/rich-text-content";
 import { PlayerDetailSkeleton } from "./player-detail-skeleton";
 import { TopBar } from "./top-bar";
@@ -67,9 +68,9 @@ export function PlayerDetailPage({ playerId }: PlayerDetailPageProps) {
 				{player.tags.length > 0 ? (
 					<div className="mb-4 flex flex-wrap gap-1">
 						{player.tags.map((tag) => (
-							<ColorBadge color={tag.color} key={tag.id}>
+							<Badge className={tagBadgeClassName(tag.color)} key={tag.id}>
 								{tag.name}
-							</ColorBadge>
+							</Badge>
 						))}
 					</div>
 				) : null}

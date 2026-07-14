@@ -317,6 +317,7 @@ export interface StatsSummary {
 	// ratio), so it is safe across currencies — unlike the aggregate `roi`.
 	avgRoi: number | null;
 	bbPerHour: number | null;
+	cashBbCount: number;
 	// EV diff (actual − EV) of cash sessions normalized to big blinds (bb).
 	// Null when no normalizable cash session has EV data.
 	cashEvDiffNormalized: number | null;
@@ -333,6 +334,7 @@ export interface StatsSummary {
 	totalPrizeMoney: number | null;
 	totalProfitLoss: number;
 	totalSessions: number;
+	tournamentBiCount: number;
 	// Tournament sessions normalized to buy-ins (bi). Null when none.
 	tournamentNormalizedProfitLoss: number | null;
 	winRate: number;
@@ -340,6 +342,8 @@ export interface StatsSummary {
 
 const EMPTY_SUMMARY: StatsSummary = {
 	totalSessions: 0,
+	cashBbCount: 0,
+	tournamentBiCount: 0,
 	totalProfitLoss: 0,
 	cashNormalizedProfitLoss: null,
 	cashEvDiffNormalized: null,
@@ -445,6 +449,8 @@ function buildSummary(
 	const cashHours = acc.cashPlayMinutes / 60;
 	return {
 		totalSessions,
+		cashBbCount: acc.cashBbCount,
+		tournamentBiCount: acc.tournamentBiCount,
 		totalProfitLoss: acc.totalProfitLoss,
 		cashNormalizedProfitLoss: acc.cashBbCount > 0 ? acc.cashBbSum : null,
 		cashEvDiffNormalized:
