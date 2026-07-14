@@ -49,22 +49,6 @@ export function compareBuiltinFirst(
 	};
 }
 
-const UNIQUE_CONSTRAINT_FAILED_RE = /UNIQUE constraint failed/i;
-
-/**
- * D1/SQLite unique-constraint violations surface as a generic `Error` whose
- * message contains "UNIQUE constraint failed" (e.g. `D1_ERROR: UNIQUE
- * constraint failed: game_group.user_id, game_group.label: SQLITE_CONSTRAINT`).
- * Used as a backstop against the (user_id, label) unique index racing the
- * app-level case-insensitive {@link assertLabelNamespaceAvailable} check
- * (c14 — TOCTOU between the check and the write).
- */
-export function isUniqueConstraintViolation(error: unknown): boolean {
-	return (
-		error instanceof Error && UNIQUE_CONSTRAINT_FAILED_RE.test(error.message)
-	);
-}
-
 /**
  * A mix's label is chosen from the same client-side select as a plain game
  * variant (both freeze into the same `variant` string once picked), so its

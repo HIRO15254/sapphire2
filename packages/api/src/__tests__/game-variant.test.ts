@@ -438,6 +438,22 @@ describe("gameVariant.create collision guard (CONFLICT)", () => {
 			"CONFLICT"
 		);
 	});
+
+	it("converts the migration-0041 label trigger abort into the same CONFLICT (the guard that actually fires)", async () => {
+		const { caller, db } = gameVariantCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [],
+		});
+		db.insert = () => ({
+			values: () => {
+				throw new Error("game master label already exists");
+			},
+		});
+		await expectTrpcCode(
+			caller.create({ label: "Brand New", groupId: OWNED_GROUP.id }),
+			"CONFLICT"
+		);
+	});
 });
 
 describe("gameVariant ownership (uniform FORBIDDEN, SA2-183)", () => {

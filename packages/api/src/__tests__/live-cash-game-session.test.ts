@@ -527,6 +527,21 @@ describe("liveCashGameSession router", () => {
 	});
 });
 
+describe("liveCashGameSession.create input validation (initialBuyIn, SA2-148)", () => {
+	it("accepts a non-negative integer initialBuyIn", () => {
+		expectAccepts(appRouter.liveCashGameSession.create, { initialBuyIn: 0 });
+		expectAccepts(appRouter.liveCashGameSession.create, { initialBuyIn: 1000 });
+	});
+
+	it("rejects a decimal initialBuyIn (would make the session unreadable on re-parse)", () => {
+		expectRejects(appRouter.liveCashGameSession.create, { initialBuyIn: 1.5 });
+	});
+
+	it("rejects a negative initialBuyIn", () => {
+		expectRejects(appRouter.liveCashGameSession.create, { initialBuyIn: -1 });
+	});
+});
+
 describe("liveCashGameSession.createAndAssignRingGame input validation", () => {
 	it("accepts the complete create payload plus sessionId", () => {
 		expectAccepts(appRouter.liveCashGameSession.createAndAssignRingGame, {

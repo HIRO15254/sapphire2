@@ -10,6 +10,7 @@ import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { eq } from "drizzle-orm";
 import type { BatchStatement } from "../lib/batch";
 import { runBatch } from "../lib/batch";
+import { isLabelConflictError } from "../lib/db-errors";
 
 type DbInstance = Database;
 
@@ -84,10 +85,12 @@ export async function seedDefaultGameData(
 		])
 	);
 
-	// Stable per-user ids and .onConflictDoNothing() make a concurrent
-	// double-seed safe. Both batches reference the same group/variant ids, so a
-	// losing group insert cannot leave its variant statements pointing at random
-	// group ids that never committed (and failing the whole batch by FK).
+	// Stable per-user ids keep both racing batches pointing at the same
+	// group/variant ids, so a losing group insert cannot leave its variant
+	// statements referencing group ids that never committed. `.onConflictDoNothing()`
+	// alone is NOT enough under the migration-0041 label triggers, though: a
+	// BEFORE trigger's RAISE(ABORT) fires before ON CONFLICT resolution and
+	// rejects the whole losing batch — so the race is caught below, not here.
 	const statements: BatchStatement[] = DEFAULT_GAME_GROUPS.map((g) =>
 		db
 			.insert(gameGroup)
@@ -156,5 +159,24 @@ export async function seedDefaultGameData(
 	// All 27 inserts (3 groups + 21 variants + 3 mixes) commit as one atomic
 	// batch (SA2-116) — a mid-sequence failure can no longer leave a user with
 	// some builtin groups/variants/mixes but not others.
-	await runBatch(db, statements);
+	try {
+		await runBatch(db, statements);
+	} catch (error) {
+		// A concurrent seed (another `list` self-seed, or the auth-hook seed)
+		// committed the same builtin rows first; the migration-0041 label
+		// triggers then RAISE(ABORT) on this losing batch. That is a benign
+		// "someone else already seeded" outcome, not a failure — the three
+		// `list` procedures call this WITHOUT a try/catch, so surfacing it would
+		// turn a routine first-load race into a 500 (c09). Any OTHER error is a
+		// real failure and must propagate.
+		//
+		// This swallow is only sound while the builtin labels are mutually
+		// unique under those triggers (two builtins sharing a normalized label
+		// would abort every seed and be silently hidden here) — that invariant
+		// is pinned by seed-game-data.test.ts.
+		if (isLabelConflictError(error)) {
+			return;
+		}
+		throw error;
+	}
 }

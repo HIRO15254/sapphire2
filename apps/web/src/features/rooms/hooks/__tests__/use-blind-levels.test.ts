@@ -135,8 +135,8 @@ describe("useBlindLevels", () => {
 		it("sends { level: n+1, isBreak: false, minutes: lastNonNull } when last-minutes exists", async () => {
 			const qc = createClient();
 			qc.setQueryData(LEVELS_KEY, [
-				level({ id: "l1", minutes: 20 }),
-				level({ id: "l2", minutes: null }),
+				level({ id: "l1", level: 1, minutes: 20 }),
+				level({ id: "l2", level: 2, minutes: null }),
 			]);
 			trpcMocks.create.mockResolvedValue({ id: "new" });
 			const { result } = renderHook(
@@ -154,6 +154,32 @@ describe("useBlindLevels", () => {
 					isBreak: false,
 					minutes: 20,
 				})
+			);
+		});
+
+		it("appends after the HIGHEST level number, not length, after a mid-list delete", async () => {
+			// Delete does not renumber, so a gappy [1,2,4,5] must yield 6 — using
+			// length + 1 would produce 5 and collide with the existing level 5.
+			const qc = createClient();
+			qc.setQueryData(LEVELS_KEY, [
+				level({ id: "l1", level: 1, minutes: null }),
+				level({ id: "l2", level: 2, minutes: null }),
+				level({ id: "l4", level: 4, minutes: null }),
+				level({ id: "l5", level: 5, minutes: null }),
+			]);
+			trpcMocks.create.mockResolvedValue({ id: "new" });
+			const { result } = renderHook(
+				() => useBlindLevels({ tournamentId: TOURNAMENT_ID }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await waitFor(() => expect(result.current.levels).toHaveLength(4));
+			act(() => {
+				result.current.handleAddLevel();
+			});
+			await waitFor(() =>
+				expect(trpcMocks.create).toHaveBeenCalledWith(
+					expect.objectContaining({ level: 6, isBreak: false })
+				)
 			);
 		});
 

@@ -9,6 +9,7 @@ import {
 	deriveAutoAnte,
 	deriveAutoBlind2,
 	getEffectiveLastMinutes,
+	nextLevelNumber,
 	parseIntOrNull,
 	reorderLevels,
 	updateLevel,
@@ -99,6 +100,36 @@ describe("reorderLevels", () => {
 	});
 });
 
+describe("nextLevelNumber", () => {
+	it("returns 1 for an empty level list", () => {
+		expect(nextLevelNumber([])).toBe(1);
+	});
+
+	it("returns length+1 for a contiguous list (max+1 coincides)", () => {
+		expect(nextLevelNumber([{ level: 1 }, { level: 2 }, { level: 3 }])).toBe(4);
+	});
+
+	it("returns max+1, not length+1, for a gappy list", () => {
+		expect(nextLevelNumber([{ level: 1 }, { level: 2 }, { level: 4 }])).toBe(5);
+	});
+
+	it("ignores array order and keys off the highest level", () => {
+		expect(nextLevelNumber([{ level: 5 }, { level: 1 }, { level: 3 }])).toBe(6);
+	});
+
+	it("returns max+1 for a single level", () => {
+		expect(nextLevelNumber([{ level: 3 }])).toBe(4);
+	});
+
+	it("floors at 1 when every level is 0 or negative", () => {
+		expect(nextLevelNumber([{ level: 0 }, { level: -2 }])).toBe(1);
+	});
+
+	it("is unaffected by duplicate level numbers", () => {
+		expect(nextLevelNumber([{ level: 2 }, { level: 2 }])).toBe(3);
+	});
+});
+
 describe("addLevel", () => {
 	beforeEach(() => {
 		vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(
@@ -128,6 +159,20 @@ describe("addLevel", () => {
 	it("marks a break level when isBreak=true", () => {
 		const result = addLevel([], 10, true);
 		expect(result[0]?.isBreak).toBe(true);
+	});
+
+	it("numbers the appended level as max(level)+1 for gappy input (not length+1)", () => {
+		// Gappy server-seeded levels [1,2,4,5]: length+1 = 5 would collide with
+		// the still-present level 5 and render a duplicate number; max+1 = 6 is
+		// always strictly past every existing level.
+		const levels = [
+			level({ id: "a", level: 1 }),
+			level({ id: "b", level: 2 }),
+			level({ id: "c", level: 4 }),
+			level({ id: "d", level: 5 }),
+		];
+		const result = addLevel(levels, null, false);
+		expect(result[4]?.level).toBe(6);
 	});
 });
 
@@ -230,13 +275,19 @@ describe("createLevel", () => {
 		expect(result[0]?.blind3).toBeNull();
 	});
 
-	it("numbers the new level as length+1", () => {
+	it("numbers the new level as max(level)+1, collision-free on gappy input", () => {
+		// [1,2,4,5] → 6 (length+1 = 5 would duplicate the existing level 5).
 		const result = createLevel(
-			[level({ id: "x", level: 1 }), level({ id: "y", level: 2 })],
+			[
+				level({ id: "w", level: 1 }),
+				level({ id: "x", level: 2 }),
+				level({ id: "y", level: 4 }),
+				level({ id: "z", level: 5 }),
+			],
 			{ ante: null, blind1: 100, blind2: 200, minutes: 20 },
 			null
 		);
-		expect(result[2]?.level).toBe(3);
+		expect(result[4]?.level).toBe(6);
 	});
 
 	it("is never a break level", () => {

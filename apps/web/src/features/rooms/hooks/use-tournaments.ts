@@ -366,74 +366,11 @@ export function useTournaments({
 		onSettled: invalidateBoth,
 	});
 
-	const createWithLevelsMutation = useMutation({
-		mutationFn: (input: {
-			blindLevels: Array<{
-				ante?: number | null;
-				blind1?: number | null;
-				blind2?: number | null;
-				blind3?: number | null;
-				isBreak: boolean;
-				minutes?: number | null;
-			}>;
-			values: TournamentFormValues;
-		}) =>
-			trpcClient.tournament.createWithLevels.mutate({
-				roomId,
-				name: input.values.name,
-				variant: input.values.variant,
-				buyIn: input.values.buyIn,
-				entryFee: input.values.entryFee,
-				startingStack: input.values.startingStack,
-				bountyAmount: input.values.bountyAmount,
-				tableSize: input.values.tableSize,
-				currencyId: input.values.currencyId,
-				memo: input.values.memo,
-				tags: input.values.tags,
-				chipPurchases: input.values.chipPurchases,
-				blindLevels: input.blindLevels,
-			}),
-		onSettled: invalidateBoth,
-	});
-
-	const updateWithLevelsMutation = useMutation({
-		mutationFn: (input: {
-			blindLevels: Array<{
-				ante?: number | null;
-				blind1?: number | null;
-				blind2?: number | null;
-				blind3?: number | null;
-				isBreak: boolean;
-				minutes?: number | null;
-			}>;
-			id: string;
-			values: TournamentFormValues;
-		}) =>
-			trpcClient.tournament.updateWithLevels.mutate({
-				id: input.id,
-				name: input.values.name,
-				variant: input.values.variant,
-				buyIn: input.values.buyIn ?? null,
-				entryFee: input.values.entryFee ?? null,
-				startingStack: input.values.startingStack ?? null,
-				bountyAmount: input.values.bountyAmount ?? null,
-				tableSize: input.values.tableSize ?? null,
-				currencyId: input.values.currencyId ?? null,
-				memo: input.values.memo ?? null,
-				tags: input.values.tags,
-				chipPurchases: input.values.chipPurchases,
-				blindLevels: input.blindLevels,
-			}),
-		onSettled: (_data, _error, variables) => {
-			invalidateBoth();
-			queryClient.invalidateQueries({
-				queryKey: trpc.blindLevel.listByTournament.queryOptions({
-					tournamentId: variables.id,
-				}).queryKey,
-			});
-		},
-	});
-
+	// NOTE: the with-levels create/update path is driven directly from
+	// use-tournament-tab.ts via `trpcClient.tournament.*WithLevels` (it needs
+	// its own local loading state), and that path forwards per-level `games`.
+	// A duplicate wrapper here previously dropped `games` and, being unused,
+	// drifted out of sync — so it lives at the single call site, not here.
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => trpcClient.tournament.delete.mutate({ id }),
 		onMutate: async (id) => {
@@ -476,8 +413,6 @@ export function useTournaments({
 		archivedLoading: archivedQuery.isLoading,
 		isCreatePending: createMutation.isPending,
 		isUpdatePending: updateMutation.isPending,
-		isCreateWithLevelsPending: createWithLevelsMutation.isPending,
-		isUpdateWithLevelsPending: updateWithLevelsMutation.isPending,
 		create: (values: TournamentFormValues) =>
 			createMutation.mutateAsync(values),
 		update: (
@@ -487,29 +422,6 @@ export function useTournaments({
 				id: string;
 			}
 		) => updateMutation.mutateAsync(values),
-		createWithLevels: (
-			values: TournamentFormValues,
-			blindLevels: Array<{
-				ante?: number | null;
-				blind1?: number | null;
-				blind2?: number | null;
-				blind3?: number | null;
-				isBreak: boolean;
-				minutes?: number | null;
-			}>
-		) => createWithLevelsMutation.mutateAsync({ values, blindLevels }),
-		updateWithLevels: (
-			id: string,
-			values: TournamentFormValues,
-			blindLevels: Array<{
-				ante?: number | null;
-				blind1?: number | null;
-				blind2?: number | null;
-				blind3?: number | null;
-				isBreak: boolean;
-				minutes?: number | null;
-			}>
-		) => updateWithLevelsMutation.mutateAsync({ id, values, blindLevels }),
 		archive: (id: string) => archiveMutation.mutate(id),
 		restore: (id: string) => restoreMutation.mutate(id),
 		delete: (id: string) => deleteMutation.mutate(id),

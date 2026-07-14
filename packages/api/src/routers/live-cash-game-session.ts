@@ -413,7 +413,11 @@ export const liveCashGameSessionRouter = router({
 				ringGameId: z.string().optional(),
 				currencyId: z.string().optional(),
 				memo: z.string().optional(),
-				initialBuyIn: z.number().min(0),
+				// Must be an integer: it is re-read through cashSessionStartPayload's
+				// z.number().int().min(0), so a decimal here would parse on create but
+				// throw ZodError on every subsequent getById, making the session
+				// permanently unreadable (SA2-148 write==read).
+				initialBuyIn: z.number().int().min(0),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {

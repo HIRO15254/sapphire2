@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import {
 	assertLabelNamespaceAvailable,
 	compareBuiltinFirst,
-	isUniqueConstraintViolation,
 	RESERVED_LABELS,
 } from "../routers/_game-masters";
 
@@ -88,32 +87,6 @@ describe("compareBuiltinFirst", () => {
 			"A",
 			"Unknown",
 		]);
-	});
-});
-
-describe("isUniqueConstraintViolation", () => {
-	it("returns true for a D1-style UNIQUE constraint error", () => {
-		const error = new Error(
-			"D1_ERROR: UNIQUE constraint failed: game_group.user_id, game_group.label: SQLITE_CONSTRAINT"
-		);
-		expect(isUniqueConstraintViolation(error)).toBe(true);
-	});
-
-	it("is case-insensitive", () => {
-		const error = new Error("unique constraint failed: game_mix.label");
-		expect(isUniqueConstraintViolation(error)).toBe(true);
-	});
-
-	it("returns false for an unrelated Error", () => {
-		expect(isUniqueConstraintViolation(new Error("network timeout"))).toBe(
-			false
-		);
-	});
-
-	it("returns false for a non-Error value", () => {
-		expect(isUniqueConstraintViolation("UNIQUE constraint failed")).toBe(false);
-		expect(isUniqueConstraintViolation(undefined)).toBe(false);
-		expect(isUniqueConstraintViolation(null)).toBe(false);
 	});
 });
 

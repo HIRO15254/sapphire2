@@ -114,6 +114,22 @@ export function reorderLevels(
 	}));
 }
 
+/**
+ * Next level number = one past the HIGHEST existing `level`, not
+ * `levels.length + 1`. The editor can be seeded with gappy server data — the
+ * server-backed inline editor (`use-blind-levels.ts`) does not renumber on
+ * delete, so it legitimately holds e.g. `[1, 2, 4, 5]` — and `length + 1` then
+ * collides with a still-present higher level, rendering a duplicate number.
+ * `max + 1` is always strictly greater than every existing level, so an append
+ * can never collide. Shared with `use-blind-levels.ts` so both editors number
+ * new levels by the identical rule.
+ */
+export function nextLevelNumber(
+	levels: Pick<BlindLevelRow, "level">[]
+): number {
+	return levels.reduce((max, l) => Math.max(max, l.level), 0) + 1;
+}
+
 export function addLevel(
 	levels: BlindLevelRow[],
 	effectiveLastMinutes: number | null,
@@ -125,7 +141,7 @@ export function addLevel(
 		{
 			id: crypto.randomUUID(),
 			tournamentId: "",
-			level: levels.length + 1,
+			level: nextLevelNumber(levels),
 			isBreak,
 			blind1: null,
 			blind2: null,
@@ -200,7 +216,7 @@ export function createLevel(
 		{
 			id: crypto.randomUUID(),
 			tournamentId: "",
-			level: levels.length + 1,
+			level: nextLevelNumber(levels),
 			isBreak: false,
 			blind1: vals.blind1,
 			blind2: vals.blind2,

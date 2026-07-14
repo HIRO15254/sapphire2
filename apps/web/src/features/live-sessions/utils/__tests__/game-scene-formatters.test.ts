@@ -237,6 +237,30 @@ describe("formatGroupStakes", () => {
 		).toBe("1/2 (Ante:3)");
 	});
 
+	it("shows the ante when anteType is null (treated like undefined, not 'none')", () => {
+		// A null anteType means "unspecified" and must default to showing the
+		// stored ante — matching snapshot-diff's null≈undefined normalization.
+		expect(
+			formatGroupStakes(
+				group({
+					variants: ["NL Hold'em"],
+					blind1: 1,
+					blind2: 2,
+					ante: 3,
+					anteType: null,
+				})
+			)
+		).toBe("1/2 (Ante:3)");
+	});
+
+	it("shows the ante when anteType is omitted (level groups carry no anteType)", () => {
+		expect(
+			formatGroupStakes(
+				group({ variants: ["NL Hold'em"], blind1: 1, blind2: 2, ante: 3 })
+			)
+		).toBe("1/2 (Ante:3)");
+	});
+
 	it("inserts a '—' placeholder when blind1 is present but blind2 is null", () => {
 		expect(
 			formatGroupStakes(group({ variants: ["NL Hold'em"], blind1: 100 }))

@@ -6,11 +6,11 @@ import { TRPCError } from "@trpc/server";
 import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { isLabelConflictError } from "../lib/db-errors";
 import { seedDefaultGameData } from "../services/seed-game-data";
 import {
 	assertLabelNamespaceAvailable,
 	compareBuiltinFirst,
-	isUniqueConstraintViolation,
 } from "./_game-masters";
 import { validateEntityOwnership } from "./session";
 
@@ -140,11 +140,12 @@ export const gameMixRouter = router({
 					updatedAt: new Date(),
 				});
 			} catch (error) {
-				// (user_id, label) unique-index backstop against the app-level
-				// check above racing a concurrent identical-label insert (c14,
-				// TOCTOU) — converted to the same CONFLICT the app-level check
-				// throws.
-				if (isUniqueConstraintViolation(error)) {
+				// Backstop against the app-level check above racing a concurrent
+				// identical-label insert (c14, TOCTOU). The DB guard that fires is
+				// the migration-0041 BEFORE trigger (SQLite runs it before the
+				// unique index), so isLabelConflictError matches its abort message
+				// too — converted to the same CONFLICT the app-level check throws.
+				if (isLabelConflictError(error)) {
 					throw new TRPCError({
 						code: "CONFLICT",
 						message: "You already have a mix with this label",
@@ -209,8 +210,9 @@ export const gameMixRouter = router({
 					// this procedure (write-IDOR, SA2-176).
 					.where(and(eq(gameMix.id, input.id), eq(gameMix.userId, userId)));
 			} catch (error) {
-				// Same (user_id, label) unique-index backstop as create() above (c14).
-				if (isUniqueConstraintViolation(error)) {
+				// Same label-collision backstop as create() above (c14) — matches
+				// both the unique index and the 0041 trigger abort message.
+				if (isLabelConflictError(error)) {
 					throw new TRPCError({
 						code: "CONFLICT",
 						message: "You already have a mix with this label",

@@ -7,9 +7,12 @@ import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { getTableName } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { RESERVED_LABELS } from "../routers/_game-masters";
 import { seedDefaultGameData } from "../services/seed-game-data";
 import { createChainableMockDb } from "./test-utils";
+
+const normalizeLabel = (label: string) => label.trim().toLowerCase();
 
 const USER_ID = "user-1";
 const GROUP_TABLE = getTableName(gameGroup);
@@ -209,6 +212,59 @@ describe("seedDefaultGameData", () => {
 				id,
 			}))
 		);
+	});
+
+	it("swallows a losing concurrent seed (0041 label trigger abort → no-op, c09)", async () => {
+		// Another seed committed the same builtin rows first; the migration-0041
+		// BEFORE trigger RAISE(ABORT)s this batch. onConflictDoNothing does NOT
+		// suppress a trigger abort, so runBatch rejects — but the `list`
+		// procedures call this without a try/catch, so a benign race must resolve
+		// rather than surface as a 500.
+		const { db } = emptyAccountDb();
+		(db as { batch: unknown }).batch = vi.fn(() =>
+			Promise.reject(new Error("game_group label already exists"))
+		);
+		await expect(seedDefaultGameData(db, USER_ID)).resolves.toBeUndefined();
+	});
+
+	it("rethrows a genuine batch failure (not a label conflict)", async () => {
+		const { db } = emptyAccountDb();
+		(db as { batch: unknown }).batch = vi.fn(() =>
+			Promise.reject(new Error("D1_ERROR: database is locked"))
+		);
+		await expect(seedDefaultGameData(db, USER_ID)).rejects.toThrow(
+			"database is locked"
+		);
+	});
+
+	// The seed batch swallows a label-conflict abort as a benign "lost the
+	// concurrent-seed race" outcome. That is only safe while the builtin labels
+	// are mutually compatible with the migration-0041 uniqueness triggers — if
+	// two builtins ever shared a normalized label, the seed batch would abort
+	// deterministically and the swallow would silently no-op for EVERY new
+	// account. These invariants fail loudly if a future edit breaks that.
+	describe("builtin labels are compatible with the 0041 uniqueness triggers", () => {
+		it("variant + mix labels share one namespace with no duplicates", () => {
+			const labels = [
+				...DEFAULT_GAME_VARIANTS.map((v) => normalizeLabel(v.label)),
+				...DEFAULT_GAME_MIXES.map((m) => normalizeLabel(m.label)),
+			];
+			expect(new Set(labels).size).toBe(labels.length);
+		});
+
+		it("group labels are distinct among groups", () => {
+			const labels = DEFAULT_GAME_GROUPS.map((g) => normalizeLabel(g.label));
+			expect(new Set(labels).size).toBe(labels.length);
+		});
+
+		it("no builtin variant/mix label collides with a reserved mix-mode label", () => {
+			for (const label of [
+				...DEFAULT_GAME_VARIANTS.map((v) => v.label),
+				...DEFAULT_GAME_MIXES.map((m) => m.label),
+			]) {
+				expect(RESERVED_LABELS.has(normalizeLabel(label))).toBe(false);
+			}
+		});
 	});
 
 	it("keeps stable built-in ids isolated between users", async () => {

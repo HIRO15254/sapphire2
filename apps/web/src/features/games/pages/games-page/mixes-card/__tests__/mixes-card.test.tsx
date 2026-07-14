@@ -31,12 +31,16 @@ const VARIANTS: GameVariantRow[] = [
 	variantRow({ id: "v-2", label: "Razz" }),
 ];
 
+const LABEL_BY_ID = new Map(
+	VARIANTS.map((variant) => [variant.id, variant.label])
+);
+
 function renderCard(overrides: Partial<MixesCardProps> = {}) {
 	const props: MixesCardProps = {
+		labelById: overrides.labelById ?? LABEL_BY_ID,
 		mixes: overrides.mixes ?? [mixRow()],
 		onDeleteMix: vi.fn(),
 		onEditMix: vi.fn(),
-		variants: overrides.variants ?? VARIANTS,
 		...overrides,
 	};
 	render(<MixesCard {...props} />);
@@ -77,6 +81,16 @@ describe("MixesCard", () => {
 			mixes: [mixRow({ games: ["v-1", "v-missing"] })],
 		});
 		expect(screen.getByText("2 games: Limit Hold'em")).toBeInTheDocument();
+	});
+
+	it("falls back to a bare game count (no trailing colon) when no id resolves", () => {
+		// Every stored id is unresolvable → the `: labels` suffix is dropped
+		// entirely. getByText does an exact normalized match, so a dangling
+		// "2 games: " regression would fail to match "2 games" and trip here.
+		renderCard({
+			mixes: [mixRow({ games: ["v-gone", "v-also-gone"] })],
+		});
+		expect(screen.getByText("2 games")).toBeInTheDocument();
 	});
 
 	it("shows the empty-state message when there are no mixes", () => {

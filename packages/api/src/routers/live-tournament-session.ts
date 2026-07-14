@@ -1017,10 +1017,11 @@ export const liveTournamentSessionRouter = router({
 
 			if (input.blindLevels !== undefined) {
 				// Reuse the shared helper so the DELETE + re-INSERT is chunked
-				// under D1's 100 bound-parameter cap (9 columns/row => 11 rows
-				// max per INSERT). A single unchunked INSERT of >=12 levels
-				// overflows and throws AFTER the DELETE commits, permanently
-				// wiping the session's blind structure (SA2-115).
+				// under D1's 100 bound-parameter cap (10 columns/row => 10 rows
+				// max per INSERT since the `games` column). A single unchunked
+				// INSERT of >=11 levels overflows and throws AFTER the DELETE
+				// commits, permanently wiping the session's blind structure
+				// (SA2-115).
 				await persistSessionBlindLevels(ctx.db, input.id, input.blindLevels);
 			}
 

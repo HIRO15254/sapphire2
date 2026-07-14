@@ -86,7 +86,11 @@ export function groupDisplayLabel(group: GameGroupLike): string {
  * stale ante amount is stored — c57).
  */
 export function formatGroupStakes(group: GameGroupLike): string {
-	const anteType = group.anteType === undefined ? "all" : group.anteType;
+	// null and undefined both mean "no explicit ante type" (level groups omit
+	// it; a mix group only ever stores "none"/"all"/"bb") and default to showing
+	// the stored ante — matching snapshot-diff, which normalizes null≈undefined
+	// and would otherwise count an ante this string silently dropped.
+	const anteType = group.anteType ?? "all";
 	const visibleAnte =
 		anteType === "all" || anteType === "bb" ? (group.ante ?? null) : null;
 	const fields: BlindFields = {

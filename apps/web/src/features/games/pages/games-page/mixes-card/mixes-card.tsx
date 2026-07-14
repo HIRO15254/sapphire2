@@ -1,12 +1,13 @@
 import { IconEdit, IconTrash } from "@tabler/icons-react";
 import { Button } from "@/shared/components/ui/button";
-import type { GameMixRow, GameVariantRow } from "../use-games-page";
+import type { GameMixRow } from "../use-games-page";
 
 export interface MixesCardProps {
+	/** id -> variant label, derived once in use-games-page.ts. */
+	labelById: Map<string, string>;
 	mixes: GameMixRow[];
 	onDeleteMix: (mix: GameMixRow) => void;
 	onEditMix: (mix: GameMixRow) => void;
-	variants: GameVariantRow[];
 }
 
 function mixGamesSummary(
@@ -31,15 +32,11 @@ function mixGamesSummary(
  * shared mix-form-sheet hook.
  */
 export function MixesCard({
+	labelById,
 	mixes,
 	onDeleteMix,
 	onEditMix,
-	variants,
 }: MixesCardProps) {
-	const labelById = new Map(
-		variants.map((variant) => [variant.id, variant.label])
-	);
-
 	return (
 		<div className="rounded-md border">
 			<div className="rounded-t-md bg-muted/50 px-3 py-2">

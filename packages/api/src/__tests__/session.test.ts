@@ -28,8 +28,8 @@ const TOURNAMENT_ID_RE = /tournamentId/;
 
 describe("chunkForInsert", () => {
 	it("keeps each chunk under D1's 100 bound-parameter cap for 9-column rows", () => {
-		// A 14-level blind structure (9 columns) would bind 126 params in one
-		// INSERT — over D1's cap of 100. It must split into <=11-row chunks.
+		// Generic illustration: 14 rows at 9 columns bind 126 params in one
+		// INSERT — over D1's cap of 100 — and must split into <=11-row chunks.
 		const rows = Array.from({ length: 14 }, (_, i) => i);
 		const chunks = chunkForInsert(rows, 9);
 		expect(chunks).toHaveLength(2);
@@ -37,6 +37,20 @@ describe("chunkForInsert", () => {
 		expect(chunks[1]).toHaveLength(3);
 		for (const chunk of chunks) {
 			expect(chunk.length * 9).toBeLessThanOrEqual(100);
+		}
+		expect(chunks.flat()).toEqual(rows);
+	});
+
+	it("caps session_blind_level (10 columns) at 10 rows = exactly 100 params (SA2-115 boundary)", () => {
+		// session_blind_level gained the `games` column (9 -> 10). At 10 columns
+		// the safe max is floor(100 / 10) = 10 rows/INSERT (10 x 10 = 100). This
+		// guards the zero-headroom boundary: an 11th column silently overflows.
+		const rows = Array.from({ length: 21 }, (_, i) => i);
+		const chunks = chunkForInsert(rows, 10);
+		expect(chunks[0]).toHaveLength(10);
+		expect(chunks.map((c) => c.length)).toEqual([10, 10, 1]);
+		for (const chunk of chunks) {
+			expect(chunk.length * 10).toBeLessThanOrEqual(100);
 		}
 		expect(chunks.flat()).toEqual(rows);
 	});
@@ -1546,5 +1560,62 @@ describe("session.update cash variant / mixGames persistence invariant", () => {
 				mixGames: null,
 			})
 		);
+	});
+
+	it("replaces tag links atomically in a single batch (SA2-116)", async () => {
+		const { db, inserted, batch, deleteWhereParams } = createChainableMockDb({
+			select: {
+				game_session: [
+					{
+						id: "session-1",
+						userId: "user-1",
+						kind: "cash_game",
+						source: "manual",
+						currencyId: null,
+						sessionDate: new Date(1_700_000_000_000),
+					},
+				],
+				session_cash_detail: [
+					{
+						sessionId: "session-1",
+						variant: "NL Hold'em",
+						mixGames: null,
+						buyIn: 100,
+						cashOut: 200,
+						evCashOut: null,
+					},
+				],
+				session_tournament_detail: [],
+				session_chip_purchase: [],
+				game_mix: [],
+				session_tag: [
+					{ id: "tag-1", userId: "user-1" },
+					{ id: "tag-2", userId: "user-1" },
+				],
+			},
+		});
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]);
+
+		await caller.session.update({
+			id: "session-1",
+			tagIds: ["tag-1", "tag-2"],
+		});
+
+		// The DELETE and the re-INSERT of the tag links commit together — a bare
+		// DELETE followed by a separate awaited INSERT could strand the session
+		// with no tags on a failed re-insert. Exactly one batch fires for the
+		// whole replace, and it bundles both statements (the scoped DELETE +
+		// the single re-INSERT chunk) so they roll back together (SA2-116).
+		expect(batch).toHaveBeenCalledTimes(1);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(2);
+		expect(deleteWhereParams).toContainEqual(["session-1"]);
+		expect(inserted.session_to_session_tag).toHaveLength(1);
+		expect(inserted.session_to_session_tag?.[0]).toEqual([
+			{ sessionId: "session-1", sessionTagId: "tag-1" },
+			{ sessionId: "session-1", sessionTagId: "tag-2" },
+		]);
 	});
 });

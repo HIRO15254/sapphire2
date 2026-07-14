@@ -2,7 +2,7 @@ import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import { renderHook } from "@testing-library/react";
 import type { FocusEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { useEmptyGameSetRows } from "@/features/rooms/hooks/use-empty-game-set-rows";
+import { useEmptyGameSetRowsView } from "../use-empty-game-set-rows-view";
 
 const SEEDS: LevelGameGroup[] = [
 	{
@@ -36,17 +36,20 @@ function buildFocusEvent(
 function setup(seeds: LevelGameGroup[] = SEEDS) {
 	const onCreateLevel = vi.fn();
 	const { result } = renderHook(() =>
-		useEmptyGameSetRows({ seeds, onCreateLevel })
+		useEmptyGameSetRowsView({ seeds, onCreateLevel })
 	);
-	// Register one input per amount cell plus minutes, like the component does.
+	// Register one input per amount cell (incl. the third slot) plus minutes,
+	// like the component does for groups that expose a blind3 slot.
 	const cells = seeds.map((_, index) => {
 		const blind1 = document.createElement("input");
 		const blind2 = document.createElement("input");
+		const blind3 = document.createElement("input");
 		const ante = document.createElement("input");
 		result.current.registerCell(index, "blind1")(blind1);
 		result.current.registerCell(index, "blind2")(blind2);
+		result.current.registerCell(index, "blind3")(blind3);
 		result.current.registerCell(index, "ante")(ante);
-		return { blind1, blind2, ante };
+		return { blind1, blind2, blind3, ante };
 	});
 	const minutes = document.createElement("input");
 	(result.current.minutesRef as { current: HTMLInputElement | null }).current =
@@ -54,7 +57,7 @@ function setup(seeds: LevelGameGroup[] = SEEDS) {
 	return { result, onCreateLevel, cells, minutes };
 }
 
-describe("useEmptyGameSetRows", () => {
+describe("useEmptyGameSetRowsView", () => {
 	it("creates a level with the entered set's amounts and blank remaining sets", () => {
 		const { result, onCreateLevel, cells } = setup();
 		cells[0].blind1.value = "100";
@@ -91,6 +94,40 @@ describe("useEmptyGameSetRows", () => {
 				},
 			],
 		});
+	});
+
+	it("carries a typed third-slot (blind3) amount through to the created set", () => {
+		const { result, onCreateLevel, cells } = setup();
+		cells[0].blind1.value = "100";
+		cells[0].blind3.value = "50";
+
+		result.current.handleCellBlur(
+			0,
+			"blind3"
+		)(buildFocusEvent(cells[0].blind3, null));
+
+		expect(onCreateLevel).toHaveBeenCalledTimes(1);
+		const games = onCreateLevel.mock.calls[0][0].games;
+		expect(games[0]).toEqual(
+			expect.objectContaining({ blind1: 100, blind3: 50 })
+		);
+	});
+
+	it("does not auto-fill blind2/ante from a blind3 blur", () => {
+		const { result, onCreateLevel, cells } = setup();
+		cells[0].blind1.value = "100";
+		cells[0].blind3.value = "50";
+
+		result.current.handleCellBlur(
+			0,
+			"blind3"
+		)(buildFocusEvent(cells[0].blind3, null));
+
+		// blind3 is not part of the SB/BB auto-fill chain.
+		expect(cells[0].blind2.value).toBe("");
+		const games = onCreateLevel.mock.calls[0][0].games;
+		expect(games[0].blind2).toBeNull();
+		expect(games[0].ante).toBeNull();
 	});
 
 	it("auto-fills blind2 (x2) and ante within the same set on blind1 blur", () => {

@@ -16,6 +16,7 @@ import {
 	type BlindLevelPatch,
 	type GameSetCellPatch,
 	type NewLevelValues,
+	nextLevelNumber,
 } from "@/features/rooms/utils/blind-level-helpers";
 import {
 	cancelTargets,
@@ -274,8 +275,14 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 		reorderMutation.mutate(reordered.map((l) => l.id));
 	};
 
+	// New levels append after the HIGHEST existing level number, not
+	// `levels.length + 1`: delete does not renumber, so after removing a
+	// mid-list level `length + 1` collided with a still-present higher level,
+	// leaving two rows with the same `level` in undefined order under the
+	// server's `ORDER BY level ASC`. Shared with the local editor helpers via
+	// `nextLevelNumber` so both number new levels identically.
 	const handleAddLevel = (defaultGames?: LevelGameGroup[] | null) => {
-		const nextLevel = levels.length + 1;
+		const nextLevel = nextLevelNumber(levels);
 		addLevelMutation.mutate({
 			level: nextLevel,
 			isBreak: false,
@@ -287,7 +294,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 	};
 
 	const handleAddBreak = () => {
-		const nextLevel = levels.length + 1;
+		const nextLevel = nextLevelNumber(levels);
 		addLevelMutation.mutate({
 			level: nextLevel,
 			isBreak: true,
@@ -324,7 +331,7 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 	};
 
 	const handleCreateLevel = (values: NewLevelValues) => {
-		const nextLevel = levels.length + 1;
+		const nextLevel = nextLevelNumber(levels);
 		const minutes = values.minutes ?? effectiveLastMinutes;
 		addLevelMutation.mutate({
 			level: nextLevel,

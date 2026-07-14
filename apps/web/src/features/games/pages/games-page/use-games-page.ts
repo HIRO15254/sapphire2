@@ -144,6 +144,13 @@ export function useGamesPage() {
 		return map;
 	}, [variantRows]);
 
+	// id -> label lookup for rendering a mix's composition; derived in the hook
+	// (not in MixesCard) so the card stays a pure props display layer.
+	const variantLabelById = useMemo(
+		() => new Map(variantRows.map((variant) => [variant.id, variant.label])),
+		[variantRows]
+	);
+
 	const groups: GameGroupEntry[] = useMemo(
 		() =>
 			groupRows.map((group) => ({
@@ -287,6 +294,7 @@ export function useGamesPage() {
 		groupOptions,
 		mixes: mixRows,
 		variants: variantRows,
+		variantLabelById,
 		isLoading:
 			groupListQuery.isLoading ||
 			variantListQuery.isLoading ||

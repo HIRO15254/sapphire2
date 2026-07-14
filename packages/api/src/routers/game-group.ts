@@ -5,11 +5,9 @@ import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { isLabelConflictError } from "../lib/db-errors";
 import { seedDefaultGameData } from "../services/seed-game-data";
-import {
-	compareBuiltinFirst,
-	isUniqueConstraintViolation,
-} from "./_game-masters";
+import { compareBuiltinFirst } from "./_game-masters";
 import { validateEntityOwnership } from "./session";
 
 type Db = Parameters<
@@ -104,11 +102,13 @@ export const gameGroupRouter = router({
 					updatedAt: new Date(),
 				});
 			} catch (error) {
-				// (user_id, label) unique-index backstop against the app-level
-				// check above racing a concurrent identical-label insert (c14,
-				// TOCTOU) — converted to the same CONFLICT the app-level check
+				// Backstop against the app-level check above racing a concurrent
+				// identical-label insert (c14, TOCTOU). The DB guard that fires is
+				// the migration-0041 BEFORE trigger (not the unique index — SQLite
+				// runs the trigger first), so isLabelConflictError matches its abort
+				// message too — converted to the same CONFLICT the app-level check
 				// throws.
-				if (isUniqueConstraintViolation(error)) {
+				if (isLabelConflictError(error)) {
 					throw new TRPCError({
 						code: "CONFLICT",
 						message: "You already have a game group with this label",
@@ -171,8 +171,9 @@ export const gameGroupRouter = router({
 					// this procedure (write-IDOR, SA2-176).
 					.where(and(eq(gameGroup.id, input.id), eq(gameGroup.userId, userId)));
 			} catch (error) {
-				// Same (user_id, label) unique-index backstop as create() above (c14).
-				if (isUniqueConstraintViolation(error)) {
+				// Same label-collision backstop as create() above (c14) — matches
+				// both the unique index and the 0041 trigger abort message.
+				if (isLabelConflictError(error)) {
 					throw new TRPCError({
 						code: "CONFLICT",
 						message: "You already have a game group with this label",

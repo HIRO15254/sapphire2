@@ -115,9 +115,11 @@ function computeTournamentPL(
 /**
  * Cloudflare D1 rejects any query with more than 100 bound parameters. A
  * multi-row `INSERT` binds `columnsPerRow × rowCount` parameters, so a large
- * batch (e.g. a 14-level blind structure at 9 columns = 126 params) overflows
+ * batch (e.g. a 14-level blind structure at 10 columns = 140 params) overflows
  * a single statement and fails at runtime. Split the rows so every INSERT
- * stays under the cap.
+ * stays under the cap. session_blind_level is at exactly 10 columns → 10 rows
+ * per INSERT (10 × 10 = 100); adding an 11th column requires dropping the
+ * chunk size to 9 or the re-INSERT overflows after the DELETE has committed.
  */
 const D1_MAX_BOUND_PARAMS = 100;
 
@@ -3255,18 +3257,27 @@ export const sessionRouter = router({
 
 			if (input.tagIds !== undefined) {
 				await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
-				await ctx.db
-					.delete(sessionToSessionTag)
-					.where(eq(sessionToSessionTag.sessionId, input.id));
+				// Replace the tag links atomically. A bare DELETE followed by
+				// separately-awaited INSERTs auto-commits the DELETE, so a failed
+				// re-insert would strand the session with no tags (SA2-116) — the
+				// exact DELETE-then-reINSERT shape the create path already batches.
+				const tagStatements: BatchStatement[] = [
+					ctx.db
+						.delete(sessionToSessionTag)
+						.where(eq(sessionToSessionTag.sessionId, input.id)),
+				];
 				if (input.tagIds.length > 0) {
 					const tagRows = input.tagIds.map((tagId) => ({
 						sessionId: input.id,
 						sessionTagId: tagId,
 					}));
 					for (const chunk of chunkForInsert(tagRows, 2)) {
-						await ctx.db.insert(sessionToSessionTag).values(chunk);
+						tagStatements.push(
+							ctx.db.insert(sessionToSessionTag).values(chunk)
+						);
 					}
 				}
+				await runBatch(ctx.db, tagStatements);
 			}
 
 			const [updated] = await ctx.db

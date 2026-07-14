@@ -559,6 +559,26 @@ describe("gameMix.create collision guard (CONFLICT)", () => {
 			"CONFLICT"
 		);
 	});
+
+	it("converts the migration-0041 label trigger abort into the same CONFLICT (the guard that actually fires)", async () => {
+		const { caller, db } = gameMixCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [OWNED_GROUP],
+			[VARIANT_TABLE]: [OWNED_VARIANT_1, OWNED_VARIANT_2],
+			[MIX_TABLE]: [],
+		});
+		db.insert = () => ({
+			values: () => {
+				throw new Error("game master label already exists");
+			},
+		});
+		await expectTrpcCode(
+			caller.create({
+				label: "Brand New Mix",
+				games: [OWNED_VARIANT_1.id, OWNED_VARIANT_2.id],
+			}),
+			"CONFLICT"
+		);
+	});
 });
 
 describe("gameMix ownership (uniform FORBIDDEN, SA2-183)", () => {

@@ -1,9 +1,9 @@
 import { useForm, useStore } from "@tanstack/react-form";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import z from "zod";
 import { useInvalidateGameMasters } from "@/shared/hooks/use-game-groups";
-import { trpcClient } from "@/utils/trpc";
+import { trpc, trpcClient } from "@/utils/trpc";
 
 // Local row shapes instead of importing the games-page hook's GameMixRow /
 // GameVariantRow — shared components must not import from a feature. Only
@@ -76,6 +76,7 @@ export function useMixFormSheet({
 	// Uniform triple-list invalidation, matching every other mutation in the
 	// games page.
 	const invalidateAll = useInvalidateGameMasters();
+	const queryClient = useQueryClient();
 
 	// This sheet knows the labels it just saved (it rendered them as chips),
 	// so it hands them to onSaved instead of making callers re-resolve the
@@ -155,12 +156,28 @@ export function useMixFormSheet({
 		label: labelById.get(id) ?? id,
 	}));
 
+	// VariantSelect seeds a just-created custom variant into the gameVariant.list
+	// query cache and then calls onChange -> onAddGame SYNCHRONOUSLY, before this
+	// hook's `variants` prop (and thus `idByLabel`) has re-rendered. Resolving
+	// against the live cache as a fallback means a brand-new variant created from
+	// inside the picker is added to the mix instead of being dropped with a
+	// spurious "Failed to add game" (c19).
+	const resolveGameId = (label: string): string | undefined => {
+		const fromProp = idByLabel.get(label);
+		if (fromProp) {
+			return fromProp;
+		}
+		const cached = queryClient.getQueryData(
+			trpc.gameVariant.list.queryOptions().queryKey
+		) as MixFormVariantRow[] | undefined;
+		return cached?.find((variant) => variant.label === label)?.id;
+	};
+
 	const onAddGame = (label: string) => {
-		const id = idByLabel.get(label);
+		const id = resolveGameId(label);
 		if (!id) {
-			// A just-created variant is seeded into the list cache before
-			// VariantSelect's onChange fires, so this should not happen — but a
-			// genuinely stale lookup table must not swallow the tap silently.
+			// Neither the prop list nor the live cache knows this label — a
+			// genuinely stale lookup must not swallow the tap silently.
 			toast.error("Failed to add game");
 			return;
 		}

@@ -21,6 +21,7 @@ export function GamesPage() {
 		groupOptions,
 		mixes,
 		variants,
+		variantLabelById,
 		isLoading,
 		isError,
 		onRetry,
@@ -109,10 +110,10 @@ export function GamesPage() {
 							))}
 
 							<MixesCard
+								labelById={variantLabelById}
 								mixes={mixes}
 								onDeleteMix={onDeleteMixRequest}
 								onEditMix={onEditMix}
-								variants={variants}
 							/>
 						</div>
 

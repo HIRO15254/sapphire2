@@ -254,6 +254,20 @@ describe("gameGroup.create collision guard (CONFLICT)", () => {
 		});
 		await expectTrpcCode(caller.create({ label: "Brand New" }), "CONFLICT");
 	});
+
+	it("converts the migration-0041 label trigger abort into the same CONFLICT (the guard that actually fires)", async () => {
+		// SQLite runs the BEFORE trigger before the unique index, so a real race
+		// surfaces this custom message, NOT "UNIQUE constraint failed".
+		const { caller, db } = gameGroupCaller(CUR_OWNER, {
+			[GROUP_TABLE]: [],
+		});
+		db.insert = () => ({
+			values: () => {
+				throw new Error("game_group label already exists");
+			},
+		});
+		await expectTrpcCode(caller.create({ label: "Brand New" }), "CONFLICT");
+	});
 });
 
 describe("gameGroup ownership (uniform FORBIDDEN, SA2-183)", () => {

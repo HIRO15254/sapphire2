@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestQueryClient, withQueryClient } from "@/__tests__/test-utils";
@@ -195,6 +196,49 @@ describe("useMixFormSheet", () => {
 				result.current.onAddGame("Razz");
 			});
 			expect(result.current.form.state.values.games).toEqual(["v-2"]);
+			expect(toastMock.error).not.toHaveBeenCalled();
+		});
+
+		it("resolves a just-created variant from the query cache before the prop updates (c19)", () => {
+			// VariantSelect seeds the new row into gameVariant.list and calls
+			// onChange synchronously; the `variants` prop is still the pre-creation
+			// list, so the label must be resolved from the live cache instead.
+			// gcTime must be non-zero: in the app gameVariant.list is observed by
+			// useGameGroups, so a manually-seeded, observer-less query would only
+			// be collected under the default test client's gcTime: 0.
+			const client = new QueryClient({
+				defaultOptions: {
+					queries: { gcTime: Number.POSITIVE_INFINITY, retry: false },
+				},
+			});
+			client.setQueryData(
+				["gameVariant", "list"],
+				[
+					...VARIANTS,
+					{
+						id: "v-new",
+						builtinKey: null,
+						label: "Big O",
+						shortLabel: "Big O",
+						groupId: "g-1",
+						sortOrder: 3,
+					},
+				]
+			);
+			const onOpenChange = vi.fn();
+			const { result } = renderHook(
+				() =>
+					useMixFormSheet({
+						editingMix: null,
+						onOpenChange,
+						variants: VARIANTS, // stale: does not contain "Big O"
+					}),
+				{ wrapper: withQueryClient(client) }
+			);
+			act(() => {
+				result.current.onAddGame("Big O");
+			});
+			expect(result.current.form.state.values.games).toEqual(["v-new"]);
 			expect(toastMock.error).not.toHaveBeenCalled();
 		});
 
