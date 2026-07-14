@@ -4,6 +4,12 @@ import type { FormEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { BlindStructureTable } from "./blind-structure-table";
 
+// This test only covers the table's add buttons. Isolate the optional sheet so
+// its VariantSelect -> tRPC import does not require runtime web env in CI.
+vi.mock("../level-patterns-sheet", () => ({
+	LevelPatternsSheet: () => null,
+}));
+
 describe("BlindStructureTable add actions", () => {
 	it("does not submit a containing form and invokes each add handler once", async () => {
 		const user = userEvent.setup();
