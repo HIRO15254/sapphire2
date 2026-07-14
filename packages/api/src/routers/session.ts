@@ -1,8 +1,17 @@
 import {
+	DEFAULT_GAME_GROUPS,
+	DEFAULT_VARIANT_LABEL,
+	MIX_VARIANT,
+	variantDisplayLabel,
+} from "@sapphire2/db/constants/game-variants";
+import {
 	currency,
 	currencyTransaction,
 	transactionType,
 } from "@sapphire2/db/schema/currency";
+import { gameGroup } from "@sapphire2/db/schema/game-group";
+import { gameMix } from "@sapphire2/db/schema/game-mix";
+import { gameVariant } from "@sapphire2/db/schema/game-variant";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -21,6 +30,12 @@ import {
 	tournament,
 	tournamentChipPurchase,
 } from "@sapphire2/db/schema/tournament";
+import {
+	type LevelGameGroup,
+	levelGamesSchema,
+	type MixGameGroup,
+	mixGamesSchema,
+} from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import {
 	and,
@@ -36,37 +51,23 @@ import {
 import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import { type BatchStatement, runBatch } from "../lib/batch";
+import { compareBuiltinFirst } from "./_game-masters";
 
 const PAGE_SIZE = 20;
+
+// Match gameGroup.list / useGameGroups: builtin buckets are
+// limit -> stud -> bigbet, followed by custom groups alphabetically.
+const CANONICAL_GAME_GROUP_ORDER = new Map<string, number>(
+	DEFAULT_GAME_GROUPS.map((group, index) => [group.key, index])
+);
+const compareCanonicalGameGroups = compareBuiltinFirst(
+	CANONICAL_GAME_GROUP_ORDER
+);
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
-
-/**
- * A single statement accepted by D1's `db.batch([...])` (a drizzle query builder
- * passed UN-awaited). Derived from the driver's own `batch` signature so it
- * tracks the installed drizzle version. Used by the SA2-116 atomic-write
- * helpers below.
- */
-type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
-
-/**
- * Commit a group of writes atomically. D1's `db.batch` requires a NON-EMPTY
- * tuple; an empty array is treated as a no-op (nothing to write). Every caller
- * here builds its statements first, then hands the whole group to a single
- * `batch`, so a mid-sequence failure rolls the entire group back instead of
- * leaving a committed DELETE with its re-INSERT missing (SA2-116).
- */
-async function runBatch(
-	db: DbInstance,
-	statements: BatchStatement[]
-): Promise<void> {
-	if (statements.length === 0) {
-		return;
-	}
-	await db.batch(statements as [BatchStatement, ...BatchStatement[]]);
-}
 
 async function validateSessionOwnership(
 	db: DbInstance,
@@ -114,9 +115,11 @@ function computeTournamentPL(
 /**
  * Cloudflare D1 rejects any query with more than 100 bound parameters. A
  * multi-row `INSERT` binds `columnsPerRow × rowCount` parameters, so a large
- * batch (e.g. a 14-level blind structure at 9 columns = 126 params) overflows
+ * batch (e.g. a 14-level blind structure at 10 columns = 140 params) overflows
  * a single statement and fails at runtime. Split the rows so every INSERT
- * stays under the cap.
+ * stays under the cap. session_blind_level is at exactly 10 columns → 10 rows
+ * per INSERT (10 × 10 = 100); adding an 11th column requires dropping the
+ * chunk size to 9 or the re-INSERT overflows after the DELETE has committed.
  */
 const D1_MAX_BOUND_PARAMS = 100;
 
@@ -224,6 +227,7 @@ interface SessionBlindLevelRow {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	games: LevelGameGroup[] | null;
 	isBreak: boolean;
 	minutes: number | null;
 }
@@ -252,6 +256,7 @@ async function getSessionBlindLevelMap(
 				blind3: sessionBlindLevel.blind3,
 				ante: sessionBlindLevel.ante,
 				minutes: sessionBlindLevel.minutes,
+				games: sessionBlindLevel.games,
 			})
 			.from(sessionBlindLevel)
 			.where(inArray(sessionBlindLevel.sessionId, chunk))
@@ -265,6 +270,7 @@ async function getSessionBlindLevelMap(
 			blind3: r.blind3,
 			ante: r.ante,
 			minutes: r.minutes,
+			games: r.games,
 		};
 		const existing = map.get(r.sessionId);
 		if (existing) {
@@ -426,6 +432,7 @@ function buildSessionBlindLevelStatements(
 		blind1?: number | null;
 		blind2?: number | null;
 		blind3?: number | null;
+		games?: LevelGameGroup[] | null;
 		isBreak: boolean;
 		minutes?: number | null;
 	}[]
@@ -451,8 +458,11 @@ function buildSessionBlindLevelStatements(
 		blind3: l.blind3 ?? null,
 		ante: l.ante ?? null,
 		minutes: l.minutes ?? null,
+		games: l.games ?? null,
 	}));
-	for (const chunk of chunkForInsert(rows, 9)) {
+	// 10 columns/row since the games column => 10 rows per INSERT under D1's
+	// 100 bound-param cap (SA2-115).
+	for (const chunk of chunkForInsert(rows, 10)) {
 		statements.push(db.insert(sessionBlindLevel).values(chunk));
 	}
 	return statements;
@@ -466,6 +476,7 @@ export async function persistSessionBlindLevels(
 		blind1?: number | null;
 		blind2?: number | null;
 		blind3?: number | null;
+		games?: LevelGameGroup[] | null;
 		isBreak: boolean;
 		minutes?: number | null;
 	}[]
@@ -518,62 +529,189 @@ async function validateRingGameOwnershipBranch(
 	}
 }
 
+async function validateRoomOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<void> {
+	const [found] = await db.select().from(room).where(eq(room.id, entityId));
+	if (!found) {
+		throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
+	}
+	if (found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this room",
+		});
+	}
+}
+
+async function validateTournamentOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<void> {
+	const [found] = await db
+		.select()
+		.from(tournament)
+		.where(eq(tournament.id, entityId));
+	if (!found) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Tournament not found",
+		});
+	}
+	// A tournament has no userId of its own; ownership is derived from its
+	// room. Without this check a caller could pass another user's
+	// tournamentId to snapshot their blind structure / chip purchases (IDOR).
+	await assertRoomOwnedBy(
+		db,
+		found.roomId,
+		userId,
+		"You do not own this tournament"
+	);
+}
+
+async function validateCurrencyOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<void> {
+	const [found] = await db
+		.select()
+		.from(currency)
+		.where(eq(currency.id, entityId));
+	if (!found) {
+		throw new TRPCError({
+			code: "NOT_FOUND",
+			message: "Currency not found",
+		});
+	}
+	if (found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this currency",
+		});
+	}
+}
+
+async function validateGameGroupOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<typeof gameGroup.$inferSelect> {
+	const [found] = await db
+		.select()
+		.from(gameGroup)
+		.where(eq(gameGroup.id, entityId));
+	if (!found || found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this game group",
+		});
+	}
+	return found;
+}
+
+async function validateGameVariantOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<typeof gameVariant.$inferSelect> {
+	const [found] = await db
+		.select()
+		.from(gameVariant)
+		.where(eq(gameVariant.id, entityId));
+	if (!found || found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this game variant",
+		});
+	}
+	return found;
+}
+
+async function validateGameMixOwnershipBranch(
+	db: DbInstance,
+	entityId: string,
+	userId: string
+): Promise<typeof gameMix.$inferSelect> {
+	const [found] = await db
+		.select()
+		.from(gameMix)
+		.where(eq(gameMix.id, entityId));
+	if (!found || found.userId !== userId) {
+		throw new TRPCError({
+			code: "FORBIDDEN",
+			message: "You do not own this mix",
+		});
+	}
+	return found;
+}
+
+/**
+ * Uniform-FORBIDDEN ownership contract (SA2-183): fetch by id only, then
+ * treat "missing" and "owned by someone else" identically. Shared by the
+ * game-group/game-variant/game-mix routers, which previously hand-rolled this
+ * exact check three times (`validateGameGroupOwnership`,
+ * `validateGameVariantOwnership`, `validateGameMixOwnership` — c39). Each
+ * entity type's check is factored into its own `validate*OwnershipBranch`
+ * helper above so this dispatcher stays simple.
+ */
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "gameGroup",
+	entityId: string,
+	userId: string
+): Promise<typeof gameGroup.$inferSelect>;
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "gameMix",
+	entityId: string,
+	userId: string
+): Promise<typeof gameMix.$inferSelect>;
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType: "gameVariant",
+	entityId: string,
+	userId: string
+): Promise<typeof gameVariant.$inferSelect>;
 async function validateEntityOwnership(
 	db: DbInstance,
 	entityType: "currency" | "ringGame" | "room" | "tournament",
 	entityId: string,
 	userId: string
-) {
-	if (entityType === "room") {
-		const [found] = await db.select().from(room).where(eq(room.id, entityId));
-		if (!found) {
-			throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-		}
-		if (found.userId !== userId) {
-			throw new TRPCError({
-				code: "FORBIDDEN",
-				message: "You do not own this room",
-			});
-		}
-	} else if (entityType === "ringGame") {
-		await validateRingGameOwnershipBranch(db, entityId, userId);
-	} else if (entityType === "tournament") {
-		const [found] = await db
-			.select()
-			.from(tournament)
-			.where(eq(tournament.id, entityId));
-		if (!found) {
-			throw new TRPCError({
-				code: "NOT_FOUND",
-				message: "Tournament not found",
-			});
-		}
-		// A tournament has no userId of its own; ownership is derived from its
-		// room. Without this check a caller could pass another user's
-		// tournamentId to snapshot their blind structure / chip purchases (IDOR).
-		await assertRoomOwnedBy(
-			db,
-			found.roomId,
-			userId,
-			"You do not own this tournament"
-		);
-	} else if (entityType === "currency") {
-		const [found] = await db
-			.select()
-			.from(currency)
-			.where(eq(currency.id, entityId));
-		if (!found) {
-			throw new TRPCError({
-				code: "NOT_FOUND",
-				message: "Currency not found",
-			});
-		}
-		if (found.userId !== userId) {
-			throw new TRPCError({
-				code: "FORBIDDEN",
-				message: "You do not own this currency",
-			});
-		}
+): Promise<void>;
+async function validateEntityOwnership(
+	db: DbInstance,
+	entityType:
+		| "currency"
+		| "gameGroup"
+		| "gameMix"
+		| "gameVariant"
+		| "ringGame"
+		| "room"
+		| "tournament",
+	entityId: string,
+	userId: string
+): Promise<unknown> {
+	switch (entityType) {
+		case "room":
+			return await validateRoomOwnershipBranch(db, entityId, userId);
+		case "ringGame":
+			return await validateRingGameOwnershipBranch(db, entityId, userId);
+		case "tournament":
+			return await validateTournamentOwnershipBranch(db, entityId, userId);
+		case "currency":
+			return await validateCurrencyOwnershipBranch(db, entityId, userId);
+		case "gameGroup":
+			return await validateGameGroupOwnershipBranch(db, entityId, userId);
+		case "gameVariant":
+			return await validateGameVariantOwnershipBranch(db, entityId, userId);
+		case "gameMix":
+			return await validateGameMixOwnershipBranch(db, entityId, userId);
+		default:
+			return undefined;
 	}
 }
 
@@ -730,6 +868,7 @@ const CASH_LIVE_LINKED_RESTRICTED_FIELDS = [
 	"ringGameId",
 	"ruleName",
 	"variant",
+	"mixGames",
 	"blind1",
 	"blind2",
 	"blind3",
@@ -811,7 +950,13 @@ const cashGameCreateSchema = z.object({
 	// ringGameId is also provided, these override the parent values; when
 	// no master is referenced they define the rule wholesale.
 	ruleName: z.string().min(1).optional(),
-	variant: z.string().default("nlh"),
+	// Plain optional (mirrors tournamentCreateSchema.variant) — a schema-level
+	// default here would coerce an omitted variant to a fixed string BEFORE it
+	// ever reaches mergeCashSnapshotWithParent, permanently defeating
+	// inheritance from the ring game (c10). The "NL Hold'em" fallback for the
+	// true no-parent case lives solely in defaultCashSnapshot.
+	variant: z.string().optional(),
+	mixGames: mixGamesSchema.nullish(),
 	blind1: z.number().int().optional(),
 	blind2: z.number().int().optional(),
 	blind3: z.number().int().optional(),
@@ -867,6 +1012,7 @@ const tournamentCreateSchema = z
 					blind3: z.number().int().nullable().optional(),
 					ante: z.number().int().nullable().optional(),
 					minutes: z.number().int().nullable().optional(),
+					games: levelGamesSchema.nullish(),
 				})
 			)
 			.optional(),
@@ -1609,6 +1755,7 @@ function selectEnrichedSessionRows(db: DbInstance) {
 			// Cash snapshot scalars used by the edit-mode wizard to
 			// pre-fill the Rules step with the frozen rule.
 			cashVariant: sessionCashDetail.variant,
+			cashMixGames: sessionCashDetail.mixGames,
 			cashBlind1: sessionCashDetail.blind1,
 			cashBlind3: sessionCashDetail.blind3,
 			cashAnte: sessionCashDetail.ante,
@@ -1741,29 +1888,17 @@ interface CashUpdateInput {
 	evCashOut?: number | null;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
+	mixGames?: MixGameGroup[] | null;
 	ringGameId?: string | null;
 	ruleName?: string;
 	tableSize?: number | null;
 	variant?: string;
 }
 
-async function applyCashDetailUpdate(
-	db: DbInstance,
-	sessionId: string,
+function applyCashRuleScalarUpdates(
+	cashUpdate: Partial<typeof sessionCashDetail.$inferInsert>,
 	input: CashUpdateInput
-): Promise<void> {
-	const cashUpdate: Partial<typeof sessionCashDetail.$inferInsert> = {};
-	if (input.buyIn !== undefined) {
-		cashUpdate.buyIn = input.buyIn;
-	}
-	if (input.cashOut !== undefined) {
-		cashUpdate.cashOut = input.cashOut;
-	}
-	if (input.evCashOut !== undefined) {
-		cashUpdate.evCashOut = input.evCashOut;
-	}
-
-	// Snapshot field overrides — written to detail, never propagated to parent.
+): void {
 	if (input.ruleName !== undefined) {
 		cashUpdate.ruleName = input.ruleName;
 	}
@@ -1794,33 +1929,71 @@ async function applyCashDetailUpdate(
 	if (input.maxBuyIn !== undefined) {
 		cashUpdate.maxBuyIn = input.maxBuyIn;
 	}
+}
+
+async function applyCashDetailUpdate(
+	db: DbInstance,
+	sessionId: string,
+	input: CashUpdateInput,
+	userId: string
+): Promise<void> {
+	const [existingDetail] = await db
+		.select()
+		.from(sessionCashDetail)
+		.where(eq(sessionCashDetail.sessionId, sessionId));
+	const cashUpdate: Partial<typeof sessionCashDetail.$inferInsert> = {};
+	if (input.buyIn !== undefined) {
+		cashUpdate.buyIn = input.buyIn;
+	}
+	if (input.cashOut !== undefined) {
+		cashUpdate.cashOut = input.cashOut;
+	}
+	if (input.evCashOut !== undefined) {
+		cashUpdate.evCashOut = input.evCashOut;
+	}
+
+	// Snapshot field overrides — written to detail, never propagated to parent.
+	applyCashRuleScalarUpdates(cashUpdate, input);
 
 	if (input.ringGameId !== undefined) {
 		cashUpdate.ringGameId = input.ringGameId;
-		if (input.ringGameId) {
-			// Re-snapshot from the new parent, while letting explicit input
-			// fields override.
-			const snapshot = await resolveCashRuleSnapshot(db, input);
-			cashUpdate.ruleName = snapshot.ruleName;
-			cashUpdate.variant = snapshot.variant;
-			cashUpdate.blind1 = snapshot.blind1;
-			cashUpdate.blind2 = snapshot.blind2;
-			cashUpdate.blind3 = snapshot.blind3;
-			cashUpdate.ante = snapshot.ante;
-			cashUpdate.anteType = snapshot.anteType;
-			cashUpdate.minBuyIn = snapshot.minBuyIn;
-			cashUpdate.maxBuyIn = snapshot.maxBuyIn;
-			cashUpdate.tableSize = snapshot.tableSize;
+	}
+	if (input.ringGameId) {
+		// Re-snapshot from the new parent, while letting explicit input fields
+		// override.
+		const snapshot = await resolveValidatedCashRuleSnapshot(db, input, userId);
+		cashUpdate.ruleName = snapshot.ruleName;
+		cashUpdate.variant = snapshot.variant;
+		cashUpdate.mixGames = snapshot.mixGames;
+		cashUpdate.blind1 = snapshot.blind1;
+		cashUpdate.blind2 = snapshot.blind2;
+		cashUpdate.blind3 = snapshot.blind3;
+		cashUpdate.ante = snapshot.ante;
+		cashUpdate.anteType = snapshot.anteType;
+		cashUpdate.minBuyIn = snapshot.minBuyIn;
+		cashUpdate.maxBuyIn = snapshot.maxBuyIn;
+		cashUpdate.tableSize = snapshot.tableSize;
+	} else {
+		const selection = await reconcileCashRuleSelection(
+			db,
+			userId,
+			existingDetail
+				? {
+						variant: existingDetail.variant,
+						mixGames: existingDetail.mixGames ?? null,
+					}
+				: undefined,
+			input
+		);
+		if (selection.shouldWriteMixGames) {
+			cashUpdate.mixGames = selection.mixGames;
 		}
+		Object.assign(cashUpdate, cashMixFlatFieldClearPatch(selection.mixGames));
 	}
 
 	if (Object.keys(cashUpdate).length === 0) {
 		return;
 	}
-	const [existingDetail] = await db
-		.select()
-		.from(sessionCashDetail)
-		.where(eq(sessionCashDetail.sessionId, sessionId));
 	if (existingDetail) {
 		await db
 			.update(sessionCashDetail)
@@ -1838,6 +2011,7 @@ interface TournamentUpdateInput {
 		blind1?: number | null;
 		blind2?: number | null;
 		blind3?: number | null;
+		games?: LevelGameGroup[] | null;
 		isBreak: boolean;
 		minutes?: number | null;
 	}[];
@@ -1992,6 +2166,7 @@ interface CashRuleSnapshot {
 	blind3: number | null;
 	maxBuyIn: number | null;
 	minBuyIn: number | null;
+	mixGames: MixGameGroup[] | null;
 	ruleName: string;
 	tableSize: number | null;
 	variant: string;
@@ -2005,10 +2180,341 @@ interface CashRuleInput {
 	blind3?: number | null;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
+	mixGames?: MixGameGroup[] | null;
 	ringGameId?: string | null;
 	ruleName?: string;
 	tableSize?: number | null;
 	variant?: string;
+}
+
+interface CashRuleSelection {
+	mixGames: MixGameGroup[] | null;
+	variant: string;
+}
+
+interface ReconciledCashRuleSelection extends CashRuleSelection {
+	shouldWriteMixGames: boolean;
+}
+
+interface CashMixFlatFieldClearPatch {
+	ante: null;
+	anteType: null;
+	blind1: null;
+	blind2: null;
+	blind3: null;
+}
+
+export function cashMixFlatFieldClearPatch(
+	mixGames: MixGameGroup[] | null
+): Partial<CashMixFlatFieldClearPatch> {
+	return mixGames === null
+		? {}
+		: {
+				blind1: null,
+				blind2: null,
+				blind3: null,
+				ante: null,
+				anteType: null,
+			};
+}
+
+function normalizedGameLabel(value: string): string {
+	return value.trim().toLowerCase();
+}
+
+async function findOwnedNamedMix(
+	db: DbInstance,
+	userId: string,
+	label: string
+): Promise<{ games: string[]; label: string; userId: string } | undefined> {
+	const rows = await db
+		.select({
+			games: gameMix.games,
+			label: gameMix.label,
+			userId: gameMix.userId,
+		})
+		.from(gameMix)
+		.where(eq(gameMix.userId, userId));
+	const normalized = normalizedGameLabel(label);
+	return rows.find(
+		(row) =>
+			row.userId === userId && normalizedGameLabel(row.label) === normalized
+	);
+}
+
+interface OwnedGameVariantRow {
+	groupId: string;
+	id: string;
+	label: string;
+	userId: string;
+}
+
+interface OwnedGameGroupRow {
+	builtinKey: string | null;
+	id: string;
+	label: string;
+	userId: string;
+}
+
+async function ownedGameVariantRows(
+	db: DbInstance,
+	userId: string
+): Promise<OwnedGameVariantRow[]> {
+	const rows = await db
+		.select({
+			groupId: gameVariant.groupId,
+			id: gameVariant.id,
+			label: gameVariant.label,
+			userId: gameVariant.userId,
+		})
+		.from(gameVariant)
+		.where(eq(gameVariant.userId, userId));
+	return rows.filter((row) => row.userId === userId);
+}
+
+async function ownedGameGroupRows(
+	db: DbInstance,
+	userId: string
+): Promise<OwnedGameGroupRow[]> {
+	const rows = await db
+		.select({
+			builtinKey: gameGroup.builtinKey,
+			id: gameGroup.id,
+			label: gameGroup.label,
+			userId: gameGroup.userId,
+		})
+		.from(gameGroup)
+		.where(eq(gameGroup.userId, userId));
+	return rows.filter((row) => row.userId === userId);
+}
+
+function mixVariantLabelSet(mixGames: MixGameGroup[] | null): Set<string> {
+	return new Set(
+		(mixGames ?? []).flatMap((group) => group.variants.map(normalizedGameLabel))
+	);
+}
+
+function normalizedMixVariantBuckets(mixGames: MixGameGroup[]): string[][] {
+	return mixGames.map((group) => group.variants.map(normalizedGameLabel));
+}
+
+function orderedBucketsEqual(left: string[][], right: string[][]): boolean {
+	return (
+		left.length === right.length &&
+		left.every(
+			(bucket, index) =>
+				bucket.length === right[index]?.length &&
+				bucket.every(
+					(label, labelIndex) => label === right[index]?.[labelIndex]
+				)
+		)
+	);
+}
+
+function hasSameFrozenMixStructure(
+	left: MixGameGroup[] | null,
+	right: MixGameGroup[] | null
+): boolean {
+	return (
+		left !== null &&
+		right !== null &&
+		orderedBucketsEqual(
+			normalizedMixVariantBuckets(left),
+			normalizedMixVariantBuckets(right)
+		)
+	);
+}
+
+function throwInvalidMixReference(): never {
+	throw new TRPCError({
+		code: "BAD_REQUEST",
+		message: "The mixed-game definition references an unavailable game master",
+	});
+}
+
+async function assertLegacyMixVariantsOwned(
+	db: DbInstance,
+	userId: string,
+	mixGames: MixGameGroup[],
+	frozenMixGames: MixGameGroup[] | null
+): Promise<void> {
+	const frozenLabels = mixVariantLabelSet(frozenMixGames);
+	const ownedLabels = new Set(
+		(await ownedGameVariantRows(db, userId)).map((row) =>
+			normalizedGameLabel(row.label)
+		)
+	);
+	for (const label of mixVariantLabelSet(mixGames)) {
+		if (!(frozenLabels.has(label) || ownedLabels.has(label))) {
+			throwInvalidMixReference();
+		}
+	}
+}
+
+async function assertNamedMixComposition(
+	db: DbInstance,
+	userId: string,
+	mix: { games: string[] },
+	mixGames: MixGameGroup[]
+): Promise<void> {
+	const ownedVariants = await ownedGameVariantRows(db, userId);
+	const variantById = new Map(ownedVariants.map((row) => [row.id, row]));
+	const orderedVariants = mix.games.map((id) => variantById.get(id));
+	if (orderedVariants.some((variant) => variant === undefined)) {
+		throwInvalidMixReference();
+	}
+
+	const ownedGroups = await ownedGameGroupRows(db, userId);
+	const groupById = new Map(ownedGroups.map((row) => [row.id, row]));
+	const bucketsByGroupId = new Map<
+		string,
+		{ group: OwnedGameGroupRow; labels: string[] }
+	>();
+	for (const variant of orderedVariants) {
+		if (!variant) {
+			throwInvalidMixReference();
+		}
+		const group = groupById.get(variant.groupId);
+		if (!group) {
+			throwInvalidMixReference();
+		}
+		const existing = bucketsByGroupId.get(variant.groupId);
+		if (existing) {
+			existing.labels.push(normalizedGameLabel(variant.label));
+		} else {
+			bucketsByGroupId.set(variant.groupId, {
+				group,
+				labels: [normalizedGameLabel(variant.label)],
+			});
+		}
+	}
+
+	const expectedBuckets = [...bucketsByGroupId.values()]
+		.sort((left, right) => {
+			return compareCanonicalGameGroups(left.group, right.group);
+		})
+		.map((bucket) => bucket.labels);
+	if (
+		!orderedBucketsEqual(expectedBuckets, normalizedMixVariantBuckets(mixGames))
+	) {
+		throwInvalidMixReference();
+	}
+}
+
+function isSameFrozenNamedMix(
+	variant: string,
+	currentVariant: string,
+	mixGames: MixGameGroup[] | null,
+	currentMixGames: MixGameGroup[] | null
+): boolean {
+	return (
+		normalizedGameLabel(variant) === normalizedGameLabel(currentVariant) &&
+		hasSameFrozenMixStructure(mixGames, currentMixGames)
+	);
+}
+
+async function isValidMixedVariant(
+	db: DbInstance,
+	userId: string,
+	variant: string,
+	mixGames: MixGameGroup[] | null,
+	currentVariant: string,
+	currentMixGames: MixGameGroup[] | null
+): Promise<boolean> {
+	const normalizedVariant = normalizedGameLabel(variant);
+	const sameVariant = normalizedVariant === normalizedGameLabel(currentVariant);
+	if (normalizedVariant === MIX_VARIANT) {
+		if (mixGames !== null) {
+			await assertLegacyMixVariantsOwned(
+				db,
+				userId,
+				mixGames,
+				sameVariant ? currentMixGames : null
+			);
+		}
+		return true;
+	}
+	const namedMix = await findOwnedNamedMix(db, userId, variant);
+	if (!namedMix) {
+		if (sameVariant && currentMixGames !== null) {
+			if (mixGames === null) {
+				return true;
+			}
+			if (
+				isSameFrozenNamedMix(variant, currentVariant, mixGames, currentMixGames)
+			) {
+				return true;
+			}
+			throwInvalidMixReference();
+		}
+		return false;
+	}
+	if (mixGames !== null) {
+		await assertNamedMixComposition(db, userId, namedMix, mixGames);
+	}
+	return true;
+}
+
+/**
+ * Keep the frozen cash-rule discriminator and its optional mixed-game payload
+ * coherent at every write boundary. Named mixes are labels of the caller's
+ * game_mix rows; the legacy `mix` sentinel remains valid without a master row.
+ * Existing snapshots are deliberately self-freezing, so re-submitting an
+ * unchanged named mix still works after that master is renamed or deleted.
+ */
+export async function reconcileCashRuleSelection(
+	db: DbInstance,
+	userId: string,
+	current: Partial<CashRuleSelection> | undefined,
+	patch: { mixGames?: MixGameGroup[] | null; variant?: string }
+): Promise<ReconciledCashRuleSelection> {
+	const currentVariant = current?.variant ?? DEFAULT_VARIANT_LABEL;
+	const currentMixGames = current?.mixGames ?? null;
+	if (patch.variant === undefined && patch.mixGames === undefined) {
+		return {
+			variant: currentVariant,
+			mixGames: currentMixGames,
+			shouldWriteMixGames: false,
+		};
+	}
+	const variant = patch.variant ?? currentVariant;
+	const variantChanged =
+		patch.variant !== undefined &&
+		normalizedGameLabel(variant) !== normalizedGameLabel(currentVariant);
+	let mixGames = variantChanged ? null : currentMixGames;
+	if (patch.mixGames !== undefined) {
+		mixGames = patch.mixGames;
+	}
+
+	const isMixedVariant = await isValidMixedVariant(
+		db,
+		userId,
+		variant,
+		mixGames,
+		currentVariant,
+		currentMixGames
+	);
+
+	if (isMixedVariant && mixGames === null) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "A mixed-game variant requires mixGames",
+		});
+	}
+	if (!isMixedVariant && mixGames !== null) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: "mixGames can only be used with a mixed-game variant",
+		});
+	}
+
+	return {
+		variant,
+		mixGames,
+		shouldWriteMixGames:
+			patch.mixGames !== undefined ||
+			(variantChanged && currentMixGames !== null),
+	};
 }
 
 function pick<T>(override: T | undefined, fallback: T): T {
@@ -2016,9 +2522,10 @@ function pick<T>(override: T | undefined, fallback: T): T {
 }
 
 function defaultCashSnapshot(input: CashRuleInput): CashRuleSnapshot {
-	return {
+	const snapshot: CashRuleSnapshot = {
 		ruleName: input.ruleName ?? "Untitled",
-		variant: input.variant ?? "nlh",
+		variant: input.variant ?? DEFAULT_VARIANT_LABEL,
+		mixGames: input.mixGames ?? null,
 		blind1: input.blind1 ?? null,
 		blind2: input.blind2 ?? null,
 		blind3: input.blind3 ?? null,
@@ -2028,15 +2535,17 @@ function defaultCashSnapshot(input: CashRuleInput): CashRuleSnapshot {
 		maxBuyIn: input.maxBuyIn ?? null,
 		tableSize: input.tableSize ?? null,
 	};
+	return { ...snapshot, ...cashMixFlatFieldClearPatch(snapshot.mixGames) };
 }
 
 function mergeCashSnapshotWithParent(
 	input: CashRuleInput,
 	rg: typeof ringGame.$inferSelect
 ): CashRuleSnapshot {
-	return {
+	const snapshot: CashRuleSnapshot = {
 		ruleName: input.ruleName ?? rg.name,
 		variant: input.variant ?? rg.variant,
+		mixGames: pick(input.mixGames, rg.mixGames ?? null),
 		blind1: pick(input.blind1, rg.blind1),
 		blind2: pick(input.blind2, rg.blind2),
 		blind3: pick(input.blind3, rg.blind3),
@@ -2046,6 +2555,7 @@ function mergeCashSnapshotWithParent(
 		maxBuyIn: pick(input.maxBuyIn, rg.maxBuyIn),
 		tableSize: pick(input.tableSize, rg.tableSize),
 	};
+	return { ...snapshot, ...cashMixFlatFieldClearPatch(snapshot.mixGames) };
 }
 
 async function resolveCashRuleSnapshot(
@@ -2065,6 +2575,30 @@ async function resolveCashRuleSnapshot(
 	return mergeCashSnapshotWithParent(input, rg);
 }
 
+async function resolveValidatedCashRuleSnapshot(
+	db: DbInstance,
+	input: CashRuleInput,
+	userId: string
+): Promise<CashRuleSnapshot> {
+	const [parent] = input.ringGameId
+		? await db.select().from(ringGame).where(eq(ringGame.id, input.ringGameId))
+		: [undefined];
+	const selection = await reconcileCashRuleSelection(
+		db,
+		userId,
+		parent
+			? { variant: parent.variant, mixGames: parent.mixGames ?? null }
+			: undefined,
+		input
+	);
+	const normalizedInput = selection.shouldWriteMixGames
+		? { ...input, mixGames: selection.mixGames }
+		: input;
+	return parent
+		? mergeCashSnapshotWithParent(normalizedInput, parent)
+		: defaultCashSnapshot(normalizedInput);
+}
+
 async function buildCashGameSessionDetailStatements(
 	db: DbInstance,
 	sessionId: string,
@@ -2074,11 +2608,21 @@ async function buildCashGameSessionDetailStatements(
 ): Promise<BatchStatement[]> {
 	const statements: BatchStatement[] = [];
 	let ringGameId = input.ringGameId ?? null;
-	const snapshot = await resolveCashRuleSnapshot(db, input);
+	const snapshot = await resolveValidatedCashRuleSnapshot(db, input, userId);
 
 	if (!ringGameId) {
 		ringGameId = crypto.randomUUID();
-		const derivedName = `${snapshot.variant} ${snapshot.blind1 ?? 0}/${snapshot.blind2 ?? 0}`;
+		// A mix game (or any rule with no blinds at all) has no single
+		// blind1/blind2 pair to show, so `mix 0/0` is meaningless — fall back to
+		// the display label alone (c11). `variantDisplayLabel` also maps the
+		// "mix" pseudo-variant key to its "Mixed Game" display string.
+		const displayLabel = variantDisplayLabel(snapshot.variant);
+		const isBlindless =
+			snapshot.mixGames !== null ||
+			(snapshot.blind1 === null && snapshot.blind2 === null);
+		const derivedName = isBlindless
+			? displayLabel
+			: `${displayLabel} ${snapshot.blind1 ?? 0}/${snapshot.blind2 ?? 0}`;
 		statements.push(
 			db.insert(ringGame).values({
 				id: ringGameId,
@@ -2088,6 +2632,7 @@ async function buildCashGameSessionDetailStatements(
 				userId,
 				name: derivedName,
 				variant: snapshot.variant,
+				mixGames: snapshot.mixGames,
 				blind1: snapshot.blind1,
 				blind2: snapshot.blind2,
 				blind3: snapshot.blind3,
@@ -2110,6 +2655,7 @@ async function buildCashGameSessionDetailStatements(
 			evCashOut: input.evCashOut ?? null,
 			ruleName: snapshot.ruleName,
 			variant: snapshot.variant,
+			mixGames: snapshot.mixGames,
 			blind1: snapshot.blind1,
 			blind2: snapshot.blind2,
 			blind3: snapshot.blind3,
@@ -2150,7 +2696,7 @@ async function resolveTournamentRuleSnapshot(
 ): Promise<TournamentRuleSnapshot> {
 	let base: TournamentRuleSnapshot = {
 		ruleName: input.ruleName ?? "Untitled",
-		variant: input.variant ?? "nlh",
+		variant: input.variant ?? DEFAULT_VARIANT_LABEL,
 		tournamentBuyIn: input.tournamentBuyIn ?? null,
 		entryFee: input.entryFee ?? null,
 		startingStack: input.startingStack ?? null,
@@ -2271,8 +2817,11 @@ async function buildTournamentStructureStatements(
 			blind3: l.blind3,
 			ante: l.ante,
 			minutes: l.minutes,
+			games: l.games,
 		}));
-		for (const chunk of chunkForInsert(levelRows, 9)) {
+		// 10 columns/row since the games column => 10 rows per INSERT under
+		// D1's 100 bound-param cap (SA2-115).
+		for (const chunk of chunkForInsert(levelRows, 10)) {
 			statements.push(db.insert(sessionBlindLevel).values(chunk));
 		}
 	}
@@ -2634,6 +3183,7 @@ export const sessionRouter = router({
 							blind3: z.number().int().nullable().optional(),
 							ante: z.number().int().nullable().optional(),
 							minutes: z.number().int().nullable().optional(),
+							games: levelGamesSchema.nullish(),
 						})
 					)
 					.optional(),
@@ -2644,6 +3194,7 @@ export const sessionRouter = router({
 				memo: z.string().nullable().optional(),
 				ruleName: z.string().optional(),
 				variant: z.string().optional(),
+				mixGames: mixGamesSchema.nullish(),
 				blind1: z.number().int().nullable().optional(),
 				blind2: z.number().int().nullable().optional(),
 				blind3: z.number().int().nullable().optional(),
@@ -2699,25 +3250,34 @@ export const sessionRouter = router({
 				.where(eq(gameSession.id, input.id));
 
 			if (session.kind === "cash_game") {
-				await applyCashDetailUpdate(ctx.db, input.id, input);
+				await applyCashDetailUpdate(ctx.db, input.id, input, userId);
 			} else {
 				await applyTournamentDetailUpdate(ctx.db, input.id, input);
 			}
 
 			if (input.tagIds !== undefined) {
 				await validateTagsOwnership(ctx.db, sessionTag, input.tagIds, userId);
-				await ctx.db
-					.delete(sessionToSessionTag)
-					.where(eq(sessionToSessionTag.sessionId, input.id));
+				// Replace the tag links atomically. A bare DELETE followed by
+				// separately-awaited INSERTs auto-commits the DELETE, so a failed
+				// re-insert would strand the session with no tags (SA2-116) — the
+				// exact DELETE-then-reINSERT shape the create path already batches.
+				const tagStatements: BatchStatement[] = [
+					ctx.db
+						.delete(sessionToSessionTag)
+						.where(eq(sessionToSessionTag.sessionId, input.id)),
+				];
 				if (input.tagIds.length > 0) {
 					const tagRows = input.tagIds.map((tagId) => ({
 						sessionId: input.id,
 						sessionTagId: tagId,
 					}));
 					for (const chunk of chunkForInsert(tagRows, 2)) {
-						await ctx.db.insert(sessionToSessionTag).values(chunk);
+						tagStatements.push(
+							ctx.db.insert(sessionToSessionTag).values(chunk)
+						);
 					}
 				}
+				await runBatch(ctx.db, tagStatements);
 			}
 
 			const [updated] = await ctx.db

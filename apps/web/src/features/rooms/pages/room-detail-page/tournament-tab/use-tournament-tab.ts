@@ -40,6 +40,9 @@ function levelsToPayload(levels: BlindLevelRow[]) {
 		blind3: l.blind3,
 		ante: l.ante,
 		minutes: l.minutes,
+		// updateWithLevels re-creates every level (DELETE + INSERT); omitting
+		// games here silently wiped stored per-level game sets on room-page edits.
+		games: l.games ?? null,
 	}));
 }
 

@@ -1,6 +1,7 @@
 import { getTableColumns } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import { sessionCashDetail } from "../schema/session-cash-detail";
 
 describe("SessionCashDetail schema — columns", () => {
@@ -61,8 +62,8 @@ describe("SessionCashDetail schema — columns", () => {
 		expect(columns.ruleName.default).toBe("Untitled");
 	});
 
-	it("variant has default 'nlh' so ADD COLUMN succeeds on existing rows", () => {
-		expect(columns.variant.default).toBe("nlh");
+	it("variant defaults to DEFAULT_VARIANT_LABEL so ADD COLUMN succeeds on existing rows (c12: not the stale 'nlh' key)", () => {
+		expect(columns.variant.default).toBe(DEFAULT_VARIANT_LABEL);
 	});
 
 	it("blind / ante / size snapshot columns are nullable", () => {
@@ -133,5 +134,12 @@ describe("SessionCashDetail — table name", () => {
 	it("table is named session_cash_detail", () => {
 		const config = getTableConfig(sessionCashDetail);
 		expect(config.name).toBe("session_cash_detail");
+	});
+
+	it("mixGames is a nullable JSON column (frozen mix group snapshot)", () => {
+		const columns = getTableColumns(sessionCashDetail);
+		expect(columns.mixGames).toBeDefined();
+		expect(columns.mixGames.notNull).toBe(false);
+		expect(columns.mixGames.columnType).toBe("SQLiteTextJson");
 	});
 });

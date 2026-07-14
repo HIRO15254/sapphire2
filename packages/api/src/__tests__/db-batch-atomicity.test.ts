@@ -59,8 +59,12 @@ type ChainablePromise = Promise<Rows> &
  * records the exact array it received. `select().from(t)` resolves to the rows
  * registered for the schema-table reference `t`.
  */
-function createBatchTrackingDb(rowsByTable: Map<unknown, Rows> = new Map()) {
+function createBatchTrackingDb(
+	rowsByTable: Map<unknown, Rows> = new Map(),
+	options: { batchError?: Error } = {}
+) {
 	const batchCalls: Stmt[][] = [];
+	const committed: Stmt[] = [];
 	const inserts: Stmt[] = [];
 	const deletes: Stmt[] = [];
 
@@ -79,7 +83,12 @@ function createBatchTrackingDb(rowsByTable: Map<unknown, Rows> = new Map()) {
 		select: () => makeChain([]),
 		insert: (table: unknown) => ({
 			values: (values: unknown) => {
-				const stmt: Stmt = { kind: "insert", table, values };
+				const stmt = {
+					kind: "insert",
+					table,
+					values,
+				} as Stmt & { onConflictDoUpdate: () => Stmt };
+				stmt.onConflictDoUpdate = () => stmt;
 				inserts.push(stmt);
 				return stmt;
 			},
@@ -92,17 +101,21 @@ function createBatchTrackingDb(rowsByTable: Map<unknown, Rows> = new Map()) {
 			},
 		}),
 		update: (table: unknown) => ({
-			set: () => ({
-				where: () => ({ kind: "update", table }) as Stmt,
+			set: (values: unknown) => ({
+				where: () => ({ kind: "update", table, values }) as Stmt,
 			}),
 		}),
 		batch: (stmts: Stmt[]) => {
 			batchCalls.push([...stmts]);
+			if (options.batchError) {
+				return Promise.reject(options.batchError);
+			}
+			committed.push(...stmts);
 			return Promise.resolve(stmts.map(() => ({})));
 		},
 	};
 
-	return { db, batchCalls, inserts, deletes };
+	return { db, batchCalls, committed, inserts, deletes };
 }
 
 const opsOn = (stmts: Stmt[], table: unknown, kind: Stmt["kind"]): Stmt[] =>
@@ -239,8 +252,9 @@ describe("persistSessionBlindLevels atomicity (SA2-116)", () => {
 		expect(opsOn(batch, sessionBlindLevel, "delete")).toHaveLength(1);
 		const inserts = opsOn(batch, sessionBlindLevel, "insert");
 		expect(inserts).toHaveLength(2);
-		expect((inserts[0].values as unknown[]).length).toBe(11);
-		expect((inserts[1].values as unknown[]).length).toBe(1);
+		// 10 columns/row (games included) => 10 rows per INSERT (SA2-115).
+		expect((inserts[0].values as unknown[]).length).toBe(10);
+		expect((inserts[1].values as unknown[]).length).toBe(2);
 	});
 });
 
@@ -487,6 +501,252 @@ describe("tournament.createWithLevels atomicity (SA2-116)", () => {
 			kind: "insert",
 			table: tournament,
 		});
+	});
+});
+
+describe("live master create-and-assign atomicity", () => {
+	it("commits a new ring game, session patch, and frozen cash snapshot in one batch", async () => {
+		const rows = new Map<unknown, Rows>([
+			[
+				gameSession,
+				[
+					{
+						id: "sess-cash",
+						userId: "user-1",
+						kind: "cash_game",
+						source: "live",
+						roomId: null,
+						currencyId: null,
+					},
+				],
+			],
+			[room, [{ id: "room-1", userId: "user-1" }]],
+			[currency, [{ id: "currency-1", userId: "user-1" }]],
+			[sessionCashDetail, [{ sessionId: "sess-cash" }]],
+		]);
+		const { db, batchCalls } = createBatchTrackingDb(rows);
+
+		await callerFor(db, "user-1").liveCashGameSession.createAndAssignRingGame({
+			sessionId: "sess-cash",
+			roomId: "room-1",
+			name: "1/2",
+			currencyId: "currency-1",
+		});
+
+		const batch = sole(batchCalls);
+		expect(batch[0]).toMatchObject({ kind: "insert", table: ringGame });
+		expect(opsOn(batch, ringGame, "insert")).toHaveLength(1);
+		expect(opsOn(batch, gameSession, "update")).toHaveLength(1);
+		expect(opsOn(batch, sessionCashDetail, "insert")).toHaveLength(1);
+		expect(opsOn(batch, ringGame, "insert")[0]?.values).toMatchObject({
+			userId: "user-1",
+			roomId: "room-1",
+			currencyId: "currency-1",
+		});
+		expect(opsOn(batch, gameSession, "update")[0]?.values).toMatchObject({
+			roomId: "room-1",
+			currencyId: "currency-1",
+		});
+	});
+
+	it("leaves neither the ring-game insert nor session update committed when the batch fails", async () => {
+		const rows = new Map<unknown, Rows>([
+			[
+				gameSession,
+				[
+					{
+						id: "sess-cash",
+						userId: "user-1",
+						kind: "cash_game",
+						source: "live",
+						roomId: null,
+						currencyId: null,
+					},
+				],
+			],
+			[room, [{ id: "room-1", userId: "user-1" }]],
+		]);
+		const { db, batchCalls, committed } = createBatchTrackingDb(rows, {
+			batchError: new Error("D1 batch failed"),
+		});
+
+		await expect(
+			callerFor(db, "user-1").liveCashGameSession.createAndAssignRingGame({
+				sessionId: "sess-cash",
+				roomId: "room-1",
+				name: "1/2",
+			})
+		).rejects.toThrow("D1 batch failed");
+
+		const attempted = sole(batchCalls);
+		expect(opsOn(attempted, ringGame, "insert")).toHaveLength(1);
+		expect(opsOn(attempted, gameSession, "update")).toHaveLength(1);
+		expect(committed).toHaveLength(0);
+	});
+
+	it("does not overwrite an existing session room or currency while replacing its cash assignment", async () => {
+		const rows = new Map<unknown, Rows>([
+			[
+				gameSession,
+				[
+					{
+						id: "sess-cash",
+						userId: "user-1",
+						kind: "cash_game",
+						source: "live",
+						roomId: "room-1",
+						currencyId: "currency-existing",
+					},
+				],
+			],
+			[room, [{ id: "room-1", userId: "user-1" }]],
+		]);
+		const { db, batchCalls } = createBatchTrackingDb(rows);
+
+		await callerFor(db, "user-1").liveCashGameSession.createAndAssignRingGame({
+			sessionId: "sess-cash",
+			roomId: "room-1",
+			name: "2/5",
+		});
+
+		const sessionPatch = opsOn(sole(batchCalls), gameSession, "update")[0]
+			?.values as Record<string, unknown>;
+		expect(sessionPatch).not.toHaveProperty("roomId");
+		expect(sessionPatch).not.toHaveProperty("currencyId");
+	});
+
+	it("commits a new tournament, all master children, assignment, and full frozen structure in one batch", async () => {
+		const rows = new Map<unknown, Rows>([
+			[
+				gameSession,
+				[
+					{
+						id: "sess-tournament",
+						userId: "user-1",
+						kind: "tournament",
+						source: "live",
+						roomId: null,
+						currencyId: null,
+					},
+				],
+			],
+			[room, [{ id: "room-1", userId: "user-1" }]],
+			[currency, [{ id: "currency-1", userId: "user-1" }]],
+			[sessionTournamentDetail, [{ sessionId: "sess-tournament" }]],
+		]);
+		const { db, batchCalls } = createBatchTrackingDb(rows);
+
+		await callerFor(
+			db,
+			"user-1"
+		).liveTournamentSession.createAndAssignTournament({
+			sessionId: "sess-tournament",
+			roomId: "room-1",
+			name: "Main",
+			currencyId: "currency-1",
+			tags: ["Deep"],
+			chipPurchases: [{ name: "Rebuy", cost: 100, chips: 1000 }],
+			blindLevels: [{ isBreak: false, blind1: 100, blind2: 200, minutes: 15 }],
+		});
+
+		const batch = sole(batchCalls);
+		expect(batch[0]).toMatchObject({ kind: "insert", table: tournament });
+		expect(opsOn(batch, tournamentTag, "insert")).toHaveLength(1);
+		expect(opsOn(batch, tournamentChipPurchase, "insert")).toHaveLength(1);
+		expect(opsOn(batch, blindLevel, "insert")).toHaveLength(1);
+		expect(opsOn(batch, gameSession, "update")).toHaveLength(1);
+		expect(opsOn(batch, sessionTournamentDetail, "insert")).toHaveLength(1);
+		expect(opsOn(batch, sessionBlindLevel, "delete")).toHaveLength(1);
+		expect(opsOn(batch, sessionBlindLevel, "insert")).toHaveLength(1);
+		expect(opsOn(batch, sessionChipPurchase, "delete")).toHaveLength(1);
+		expect(opsOn(batch, sessionChipPurchase, "insert")).toHaveLength(1);
+		expect(opsOn(batch, sessionChipPurchaseResult, "insert")).toHaveLength(1);
+		expect(opsOn(batch, tournament, "insert")[0]?.values).toMatchObject({
+			roomId: "room-1",
+			currencyId: "currency-1",
+		});
+		expect(opsOn(batch, gameSession, "update")[0]?.values).toMatchObject({
+			roomId: "room-1",
+			currencyId: "currency-1",
+		});
+	});
+
+	it("leaves neither the tournament insert nor session update committed when the batch fails", async () => {
+		const rows = new Map<unknown, Rows>([
+			[
+				gameSession,
+				[
+					{
+						id: "sess-tournament",
+						userId: "user-1",
+						kind: "tournament",
+						source: "live",
+						roomId: null,
+						currencyId: null,
+					},
+				],
+			],
+			[room, [{ id: "room-1", userId: "user-1" }]],
+		]);
+		const { db, batchCalls, committed } = createBatchTrackingDb(rows, {
+			batchError: new Error("D1 batch failed"),
+		});
+
+		await expect(
+			callerFor(db, "user-1").liveTournamentSession.createAndAssignTournament({
+				sessionId: "sess-tournament",
+				roomId: "room-1",
+				name: "Main",
+				blindLevels: [{ isBreak: false, blind1: 100, blind2: 200 }],
+			})
+		).rejects.toThrow("D1 batch failed");
+
+		const attempted = sole(batchCalls);
+		expect(opsOn(attempted, tournament, "insert")).toHaveLength(1);
+		expect(opsOn(attempted, gameSession, "update")).toHaveLength(1);
+		expect(committed).toHaveLength(0);
+	});
+
+	it("atomically clears the old frozen structure when the newly created tournament has no children", async () => {
+		const rows = new Map<unknown, Rows>([
+			[
+				gameSession,
+				[
+					{
+						id: "sess-tournament",
+						userId: "user-1",
+						kind: "tournament",
+						source: "live",
+						roomId: "room-1",
+						currencyId: "currency-existing",
+					},
+				],
+			],
+			[room, [{ id: "room-1", userId: "user-1" }]],
+		]);
+		const { db, batchCalls } = createBatchTrackingDb(rows);
+
+		await callerFor(
+			db,
+			"user-1"
+		).liveTournamentSession.createAndAssignTournament({
+			sessionId: "sess-tournament",
+			roomId: "room-1",
+			name: "Freezeout",
+		});
+
+		const batch = sole(batchCalls);
+		expect(opsOn(batch, tournamentTag, "insert")).toHaveLength(0);
+		expect(opsOn(batch, tournamentChipPurchase, "insert")).toHaveLength(0);
+		expect(opsOn(batch, blindLevel, "insert")).toHaveLength(0);
+		expect(opsOn(batch, sessionBlindLevel, "delete")).toHaveLength(1);
+		expect(opsOn(batch, sessionBlindLevel, "insert")).toHaveLength(0);
+		expect(opsOn(batch, sessionChipPurchase, "delete")).toHaveLength(1);
+		expect(opsOn(batch, sessionChipPurchase, "insert")).toHaveLength(0);
+		const sessionPatch = opsOn(batch, gameSession, "update")[0]
+			?.values as Record<string, unknown>;
+		expect(sessionPatch).not.toHaveProperty("roomId");
+		expect(sessionPatch).not.toHaveProperty("currencyId");
 	});
 });
 

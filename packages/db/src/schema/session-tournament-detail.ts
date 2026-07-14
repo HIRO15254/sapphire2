@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import { gameSession } from "./session";
 import { tournament } from "./tournament";
 
@@ -23,7 +24,7 @@ export const sessionTournamentDetail = sqliteTable(
 		// Snapshot fields — copied from tournament at session create time and
 		// frozen thereafter. Parent rename / config change does not propagate.
 		ruleName: text("rule_name").notNull().default("Untitled"),
-		variant: text("variant").notNull().default("nlh"),
+		variant: text("variant").notNull().default(DEFAULT_VARIANT_LABEL),
 		startingStack: integer("starting_stack"),
 		bountyAmount: integer("bounty_amount"),
 		tableSize: integer("table_size"),

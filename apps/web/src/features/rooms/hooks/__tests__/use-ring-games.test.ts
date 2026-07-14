@@ -69,6 +69,7 @@ function makeGame(overrides: Partial<RingGame> = {}): RingGame {
 		id: "r1",
 		name: "NLH 1/2",
 		variant: "holdem",
+		mixGames: null,
 		roomId: STORE_ID,
 		blind1: 1,
 		blind2: 2,

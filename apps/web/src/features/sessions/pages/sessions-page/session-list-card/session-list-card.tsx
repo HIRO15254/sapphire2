@@ -1,3 +1,4 @@
+import { variantDisplayLabel } from "@sapphire2/db/constants/game-variants";
 import {
 	IconBolt,
 	IconCalendar,
@@ -22,6 +23,8 @@ import { profitLossColorClass } from "@/utils/format-profit-loss";
 
 export interface SessionListCardItem {
 	breakMinutes: number | null;
+	/** Display label ("NL Hold'em") or the "mix" key, set only on cash sessions. */
+	cashVariant: string | null;
 	chipPurchaseCost: number;
 	currencyUnit: string | null;
 	endedAt: string | null;
@@ -40,6 +43,8 @@ export interface SessionListCardItem {
 	totalEntries: number | null;
 	tournamentBuyIn: number | null;
 	tournamentName: string | null;
+	/** Display label ("NL Hold'em") or the "mix" key, set only on tournament sessions. */
+	tournamentVariant: string | null;
 	type: string;
 }
 
@@ -65,6 +70,7 @@ export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 	const isTournament = session.type === "tournament";
 	const live = isLiveSession(session);
 	const gameName = getSessionGameName(session);
+	const variant = session.cashVariant ?? session.tournamentVariant;
 	const visibleTags = session.tags.slice(0, MAX_VISIBLE_TAGS);
 	const overflowCount = session.tags.length - visibleTags.length;
 	const duration = formatSessionDuration(
@@ -106,6 +112,11 @@ export function SessionListCard({ bbBiMode, session }: SessionListCardProps) {
 					<span className="min-w-0 truncate font-medium text-foreground text-sm">
 						{gameName}
 					</span>
+					{variant ? (
+						<Badge className="shrink-0" variant="secondary">
+							{variantDisplayLabel(variant)}
+						</Badge>
+					) : null}
 					{visibleTags.map((tag) => (
 						<Badge className="shrink-0" key={tag.id} variant="secondary">
 							{tag.name}

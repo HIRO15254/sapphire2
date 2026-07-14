@@ -1,3 +1,4 @@
+import { variantDisplayLabel } from "@sapphire2/db/constants/game-variants";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import type { StatsSectionContext } from "@/features/statistics/types";
@@ -15,6 +16,7 @@ import { trpc } from "@/utils/trpc";
 export type BreakdownGroupBy =
 	| "room"
 	| "stakes"
+	| "variant"
 	| "dayOfWeek"
 	| "length"
 	| "month";
@@ -50,6 +52,7 @@ export interface UseBreakdownSectionResult {
 	rows: BreakdownViewRow[];
 	setActiveTab: (tab: BreakdownGroupBy) => void;
 	showCashColumn: boolean;
+	showNetColumn: boolean;
 	showTournamentColumn: boolean;
 	tabs: BreakdownTab[];
 }
@@ -57,6 +60,7 @@ export interface UseBreakdownSectionResult {
 const TAB_LABELS: Record<BreakdownGroupBy, string> = {
 	room: "Room",
 	stakes: "Stakes",
+	variant: "Variant",
 	dayOfWeek: "Day of week",
 	length: "Length",
 	month: "Month",
@@ -66,13 +70,15 @@ const TAB_LABELS: Record<BreakdownGroupBy, string> = {
  * The grouping tabs available for the current game-type filter. `stakes` is
  * meaningful for cash games only (tournaments / "all" have no big-blind stake),
  * so it is added between `room` and the time-based dimensions when, and only
- * when, the type filter is pinned to cash game.
+ * when, the type filter is pinned to cash game. `variant` is meaningful for
+ * every type filter, positioned after room/stakes and before the time-based
+ * dimensions.
  */
 function availableTabs(ctx: StatsSectionContext): BreakdownTab[] {
 	const values: BreakdownGroupBy[] =
 		ctx.type === "cash_game"
-			? ["room", "stakes", "dayOfWeek", "length", "month"]
-			: ["room", "dayOfWeek", "length", "month"];
+			? ["room", "stakes", "variant", "dayOfWeek", "length", "month"]
+			: ["room", "variant", "dayOfWeek", "length", "month"];
 	return values.map((value) => ({ value, label: TAB_LABELS[value] }));
 }
 
@@ -86,13 +92,23 @@ interface BreakdownGroup {
 	tournamentNormalizedProfitLoss: number | null;
 }
 
+/**
+ * The server returns the raw variant string as both key and label (a mix
+ * session groups as a single "mix" bucket). Only the "variant" tab maps that
+ * raw string through `variantDisplayLabel` for display — "mix" resolves to
+ * "Mixed Game", every other stored variant is already a display label (or a
+ * legacy cached preset key) and passes through verbatim. Every other tab
+ * keeps the server's label as-is.
+ */
 function toViewRow(
 	group: BreakdownGroup,
-	currencyUnit: string | null
+	currencyUnit: string | null,
+	activeTab: BreakdownGroupBy
 ): BreakdownViewRow {
 	return {
 		key: group.key,
-		label: group.label,
+		label:
+			activeTab === "variant" ? variantDisplayLabel(group.label) : group.label,
 		sessions: group.sessions,
 		netText: formatProfitLoss(group.profitLoss, { currencyUnit }),
 		netColor: profitLossColorClass(group.profitLoss),
@@ -132,7 +148,9 @@ export function useBreakdownSection(
 	);
 
 	const groups = (query.data?.groups ?? []) as BreakdownGroup[];
-	const rows = groups.map((group) => toViewRow(group, ctx.currencyUnit));
+	const rows = groups.map((group) =>
+		toViewRow(group, ctx.currencyUnit, activeTab)
+	);
 
 	// In normalized mode bb / bi are separate columns; hide a column when no
 	// group has a value for it (e.g. a cash-only scope has no bi figures).
@@ -141,6 +159,16 @@ export function useBreakdownSection(
 	const showTournamentColumn =
 		ctx.normalized &&
 		groups.some((g) => g.tournamentNormalizedProfitLoss !== null);
+	// A mixed cash structure has no single flat big blind, so it cannot produce
+	// a bb value. Keep its raw P&L visible instead of reducing the normalized
+	// table to Group / Sessions / Play time (or an unexplained dash).
+	const showNetColumn =
+		ctx.normalized &&
+		groups.some(
+			(group) =>
+				group.cashNormalizedProfitLoss === null &&
+				group.tournamentNormalizedProfitLoss === null
+		);
 
 	return {
 		tabs,
@@ -149,6 +177,7 @@ export function useBreakdownSection(
 		rows,
 		normalized: ctx.normalized,
 		showCashColumn,
+		showNetColumn,
 		showTournamentColumn,
 		isPending: ctx.enabled && query.isPending,
 	};

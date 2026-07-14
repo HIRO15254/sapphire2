@@ -19,6 +19,30 @@ vi.mock("@/utils/trpc", () => ({
 				}),
 			},
 		},
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: buildKey("gameGroup", "list", undefined),
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+		gameVariant: {
+			list: {
+				queryOptions: () => ({
+					queryKey: buildKey("gameVariant", "list", undefined),
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+		gameMix: {
+			list: {
+				queryOptions: () => ({
+					queryKey: buildKey("gameMix", "list", undefined),
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
 	},
 }));
 
@@ -40,13 +64,13 @@ function wrapper(client: QueryClient) {
 }
 
 describe("useTournamentForm", () => {
-	it("defaults variant to nlh and has no chipPurchases", () => {
+	it("defaults variant to the seeded NLH label and has no chipPurchases", () => {
 		const qc = createClient();
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() => useTournamentForm({ onSubmit }), {
 			wrapper: wrapper(qc),
 		});
-		expect(result.current.form.state.values.variant).toBe("nlh");
+		expect(result.current.form.state.values.variant).toBe("NL Hold'em");
 		expect(result.current.form.state.values.chipPurchases).toEqual([]);
 		expect(result.current.form.state.values.tags).toEqual([]);
 	});
@@ -202,7 +226,7 @@ describe("useTournamentForm", () => {
 		const snapshot = getter?.();
 		expect(snapshot).toMatchObject({
 			name: "Live Name",
-			variant: "nlh",
+			variant: "NL Hold'em",
 			buyIn: 150,
 			tableSize: 8,
 		});
@@ -236,5 +260,81 @@ describe("useTournamentForm", () => {
 			wrapper: wrapper(qc),
 		});
 		expect(result.current.currencies).toEqual([{ id: "c1", name: "Chips" }]);
+	});
+});
+
+describe("useTournamentForm — variant scope", () => {
+	it("derives 'perLevel' only from the per-level sentinel value", () => {
+		const qc = createClient();
+		const { result } = renderHook(
+			() => useTournamentForm({ onSubmit: vi.fn() }),
+			{ wrapper: wrapper(qc) }
+		);
+		expect(result.current.scopeOf("mix")).toBe("perLevel");
+		expect(result.current.scopeOf(" MIX ")).toBe("perLevel");
+		expect(result.current.scopeOf("8-Game")).toBe("all");
+		expect(result.current.scopeOf("NL Hold'em")).toBe("all");
+	});
+
+	it("switching to per-level freezes the sentinel and notifies the parent", () => {
+		const qc = createClient();
+		const onVariantChange = vi.fn();
+		const { result } = renderHook(
+			() => useTournamentForm({ onSubmit: vi.fn(), onVariantChange }),
+			{ wrapper: wrapper(qc) }
+		);
+		act(() => {
+			result.current.onScopeChange("perLevel", "NL Hold'em");
+		});
+		expect(result.current.form.state.values.variant).toBe("mix");
+		expect(onVariantChange).toHaveBeenCalledTimes(1);
+		expect(onVariantChange).toHaveBeenNthCalledWith(1, "mix");
+	});
+
+	it("switching back restores the variant remembered from the last switch", () => {
+		const qc = createClient();
+		const onVariantChange = vi.fn();
+		const { result } = renderHook(
+			() => useTournamentForm({ onSubmit: vi.fn(), onVariantChange }),
+			{ wrapper: wrapper(qc) }
+		);
+		act(() => {
+			result.current.onScopeChange("perLevel", "8-Game");
+		});
+		act(() => {
+			result.current.onScopeChange("all", "mix");
+		});
+		expect(result.current.form.state.values.variant).toBe("8-Game");
+		expect(onVariantChange).toHaveBeenNthCalledWith(2, "8-Game");
+	});
+
+	it("switching back falls back to the default label without a remembered variant", () => {
+		const qc = createClient();
+		const { result } = renderHook(
+			() =>
+				useTournamentForm({
+					onSubmit: vi.fn(),
+					defaultValues: { name: "Main", variant: "mix" },
+				}),
+			{ wrapper: wrapper(qc) }
+		);
+		act(() => {
+			result.current.onScopeChange("all", "mix");
+		});
+		expect(result.current.form.state.values.variant).toBe("NL Hold'em");
+	});
+
+	it("onVariantFieldChange sets the field and notifies the parent", () => {
+		const qc = createClient();
+		const onVariantChange = vi.fn();
+		const { result } = renderHook(
+			() => useTournamentForm({ onSubmit: vi.fn(), onVariantChange }),
+			{ wrapper: wrapper(qc) }
+		);
+		act(() => {
+			result.current.onVariantFieldChange("Razz");
+		});
+		expect(result.current.form.state.values.variant).toBe("Razz");
+		expect(onVariantChange).toHaveBeenNthCalledWith(1, "Razz");
 	});
 });

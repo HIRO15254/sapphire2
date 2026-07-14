@@ -17,6 +17,7 @@ function extractedToBlindLevels(
 		blind3: l.blind3 ?? null,
 		ante: l.ante ?? null,
 		minutes: l.minutes ?? null,
+		games: null,
 	}));
 }
 

@@ -3,8 +3,13 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TournamentModalContent } from "../tournament-modal-content";
 
-// The real (trivial, useState-only) useTournamentModalContent hook is used so
-// the controlled-tab behavior (activeTab / setActiveTab) is exercised end to end.
+// The real useTournamentModalContent hook is used so the controlled-tab
+// behavior (activeTab / setActiveTab) is exercised end to end; only its
+// master-data dependency is stubbed (no QueryClient in these tests).
+vi.mock("@/shared/hooks/use-game-groups", () => ({
+	useGameGroups: () => ({ isMixValue: () => false }),
+}));
+
 vi.mock(
 	"@/features/rooms/components/tournament-modal-content/tournament-form",
 	() => ({

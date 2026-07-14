@@ -48,6 +48,7 @@ sapphire2/
 ### Prerequisites
 
 - [Bun](https://bun.sh/) installed
+- [Node.js](https://nodejs.org/) 20.3.0 or later installed (runs the Cloudflare Wrangler CLI; Bun remains the package manager)
 
 ### Setup
 
@@ -95,7 +96,7 @@ bun run dev
 | `bun run dev` | Start all apps in development mode |
 | `bun run build` | Build all apps |
 | `bun run dev:web` | Start web app only |
-| `bun run dev:server` | Start API server only (`wrangler dev`) |
+| `bun run dev:server` | Start API server only (Wrangler runs with Node.js) |
 | `bun run check-types` | TypeScript type check across all packages |
 | `bun run db:generate` | Generate migration files |
 | `bun run db:migrate:local` | Apply migrations to the local D1 database |

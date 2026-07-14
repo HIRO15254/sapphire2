@@ -1,3 +1,5 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
+import type { LevelGameGroup, MixGameGroup } from "@sapphire2/db/schemas/game";
 import z from "zod";
 import { optionalNumericString } from "@/shared/lib/form-fields";
 
@@ -6,6 +8,8 @@ export interface SessionBlindLevelInput {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	/** Per-level game groups for mix tournaments; null = single structure. */
+	games?: LevelGameGroup[] | null;
 	isBreak: boolean;
 	minutes: number | null;
 }
@@ -33,6 +37,7 @@ export interface CashGameFormValues {
 	maxBuyIn?: number;
 	memo?: string;
 	minBuyIn?: number;
+	mixGames?: MixGameGroup[] | null;
 	ringGameId?: string;
 	roomId?: string;
 	ruleName?: string;
@@ -85,6 +90,7 @@ export interface RingGameOption {
 	id: string;
 	maxBuyIn?: number | null;
 	minBuyIn?: number | null;
+	mixGames?: MixGameGroup[] | null;
 	name: string;
 	tableSize?: number | null;
 	variant?: string | null;
@@ -123,6 +129,7 @@ export interface SessionFormDefaults {
 	maxBuyIn?: number;
 	memo?: string;
 	minBuyIn?: number;
+	mixGames?: MixGameGroup[] | null;
 	placement?: number;
 	prizeMoney?: number;
 	ringGameId?: string;
@@ -206,7 +213,7 @@ export function buildDefaults(defaults: SessionFormDefaults | undefined) {
 		buyIn: numStrOrEmpty(defaults?.buyIn),
 		cashOut: numStrOrEmpty(defaults?.cashOut),
 		evCashOut: numStrOrEmpty(defaults?.evCashOut),
-		variant: defaults?.variant ?? "nlh",
+		variant: defaults?.variant ?? DEFAULT_VARIANT_LABEL,
 		blind1: numStrOrEmpty(defaults?.blind1),
 		blind2: numStrOrEmpty(defaults?.blind2),
 		blind3: numStrOrEmpty(defaults?.blind3),
@@ -256,7 +263,7 @@ export function cashOverriddenFields(
 	}
 	const checks: [string, string, string][] = [
 		["Rule name", values.ruleName, master.name],
-		["Variant", values.variant, master.variant ?? "nlh"],
+		["Variant", values.variant, master.variant ?? DEFAULT_VARIANT_LABEL],
 		["SB", values.blind1, numStrOrEmpty(master.blind1 ?? undefined)],
 		["BB", values.blind2, numStrOrEmpty(master.blind2 ?? undefined)],
 		["Straddle", values.blind3, numStrOrEmpty(master.blind3 ?? undefined)],
@@ -299,7 +306,7 @@ export function tournamentOverriddenFields(
 	}
 	const checks: [string, string, string][] = [
 		["Rule name", values.ruleName, master.name],
-		["Variant", values.variant, master.variant ?? "nlh"],
+		["Variant", values.variant, master.variant ?? DEFAULT_VARIANT_LABEL],
 		[
 			"Buy-in",
 			values.tournamentBuyIn,

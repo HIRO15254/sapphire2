@@ -1,15 +1,18 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { LocalBlindStructureContent } from "@/features/rooms/components/blind-level-editor";
 import { ChipPurchasesEditor } from "@/features/rooms/components/chip-purchases-editor";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
 import { tournamentOverriddenFields } from "@/features/sessions/utils/session-form-helpers";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/shared/components/ui/radio-group";
 import {
 	Tabs,
 	TabsContent,
 	TabsList,
 	TabsTrigger,
 } from "@/shared/components/ui/tabs";
+import { VariantSelect } from "@/shared/components/variant-select";
 import { TournamentRuleFields } from "../../tournament-fields";
 import type { UseSessionWizardReturn } from "../../use-session-wizard";
 import { RuleNameField } from "../rule-name-field";
@@ -102,6 +105,69 @@ function TournamentSettingsTab({
 							overriddenLabels={overriddenLabels}
 							state={state}
 						/>
+						<state.form.Field name="variant">
+							{(field) => {
+								const scope = state.scopeOf(field.state.value);
+								return (
+									<>
+										<Field label="Variant scope">
+											<RadioGroup
+												className="flex flex-col gap-1"
+												disabled={isLiveLinked}
+												onValueChange={(v) =>
+													state.onScopeChange(
+														v as "all" | "perLevel",
+														field.state.value
+													)
+												}
+												value={scope}
+											>
+												<label
+													className="flex items-center gap-2 py-1 text-sm"
+													htmlFor="wizard-scope-all"
+												>
+													<RadioGroupItem id="wizard-scope-all" value="all" />
+													Same variant for all levels
+												</label>
+												<label
+													className="flex items-center gap-2 py-1 text-sm"
+													htmlFor="wizard-scope-per-level"
+												>
+													<RadioGroupItem
+														id="wizard-scope-per-level"
+														value="perLevel"
+													/>
+													Choose games per level
+												</label>
+											</RadioGroup>
+										</Field>
+										{scope === "all" ? (
+											<Field
+												htmlFor={field.name}
+												label={
+													<OverrideLabel
+														label="Variant"
+														overridden={overriddenLabels}
+													/>
+												}
+											>
+												<VariantSelect
+													disabled={isLiveLinked}
+													id={field.name}
+													includeMix
+													onChange={state.onVariantChange}
+													value={field.state.value}
+												/>
+											</Field>
+										) : (
+											<p className="text-muted-foreground text-xs">
+												Assign each level's games in the Blind levels tab.
+											</p>
+										)}
+									</>
+								);
+							}}
+						</state.form.Field>
 						<TournamentRuleFields
 							currencies={currencies}
 							form={state.form}
@@ -173,7 +239,7 @@ export function TournamentRulesStepBody({
 								<LocalBlindStructureContent
 									onChange={state.setBlindLevels}
 									value={state.blindLevels}
-									variant={variant || "nlh"}
+									variant={variant || DEFAULT_VARIANT_LABEL}
 								/>
 							</fieldset>
 						</TabsContent>

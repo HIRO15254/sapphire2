@@ -515,6 +515,7 @@ describe("pure helpers", () => {
 					blind1: 100,
 					blind2: 200,
 					blind3: null,
+					games: null,
 					isBreak: false,
 					minutes: 15,
 				},
@@ -599,6 +600,46 @@ describe("pure helpers", () => {
 			const out = buildOptimisticItem(cashValues());
 			expect(out.blindLevels).toEqual([]);
 		});
+
+		it("copies the complete frozen cash rule snapshot for a manual mix", () => {
+			const mixGames = [
+				{
+					ante: 5,
+					anteType: "all" as const,
+					blind1: 10,
+					blind2: 20,
+					blind3: 40,
+					name: "Big Bet",
+					variants: ["NL Hold'em"],
+				},
+			];
+			const out = buildOptimisticItem(
+				cashValues({
+					ruleName: "Friday Rotation",
+					variant: "Double Board Rotation",
+					blind1: 10,
+					blind2: 20,
+					blind3: 40,
+					ante: 5,
+					anteType: "all",
+					minBuyIn: 200,
+					maxBuyIn: 1000,
+					tableSize: 8,
+					mixGames,
+				})
+			);
+			expect(out.ringGameName).toBe("Friday Rotation");
+			expect(out.cashVariant).toBe("Double Board Rotation");
+			expect(out.cashBlind1).toBe(10);
+			expect(out.ringGameBlind2).toBe(20);
+			expect(out.cashBlind3).toBe(40);
+			expect(out.cashAnte).toBe(5);
+			expect(out.cashAnteType).toBe("all");
+			expect(out.cashMinBuyIn).toBe(200);
+			expect(out.cashMaxBuyIn).toBe(1000);
+			expect(out.cashTableSize).toBe(8);
+			expect(out.cashMixGames).toEqual(mixGames);
+		});
 	});
 
 	describe("buildEditDefaults", () => {
@@ -679,6 +720,7 @@ describe("pure helpers", () => {
 							blind1: 100,
 							blind2: 200,
 							blind3: null,
+							games: null,
 							ante: 25,
 							minutes: 20,
 						},
@@ -687,6 +729,7 @@ describe("pure helpers", () => {
 							blind1: null,
 							blind2: null,
 							blind3: null,
+							games: null,
 							ante: null,
 							minutes: 10,
 						},
@@ -699,6 +742,7 @@ describe("pure helpers", () => {
 					blind1: 100,
 					blind2: 200,
 					blind3: null,
+					games: null,
 					ante: 25,
 					minutes: 20,
 				},
@@ -707,6 +751,7 @@ describe("pure helpers", () => {
 					blind1: null,
 					blind2: null,
 					blind3: null,
+					games: null,
 					ante: null,
 					minutes: 10,
 				},

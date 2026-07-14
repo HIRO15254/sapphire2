@@ -1,3 +1,4 @@
+import type { MixGameGroup } from "@sapphire2/db/schemas/game";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	cancelTargets,
@@ -20,6 +21,7 @@ export interface RingGame {
 	maxBuyIn: number | null;
 	memo: string | null;
 	minBuyIn: number | null;
+	mixGames: MixGameGroup[] | null;
 	name: string;
 	roomId: string | null;
 	tableSize: number | null;
@@ -38,6 +40,7 @@ export interface RingGameFormValues {
 	maxBuyIn?: number;
 	memo?: string;
 	minBuyIn?: number;
+	mixGames?: MixGameGroup[] | null;
 	name: string;
 	tableSize?: number;
 	variant: string;
@@ -60,6 +63,7 @@ function buildOptimisticRingGame(
 		maxBuyIn: values.maxBuyIn ?? null,
 		memo: values.memo ?? null,
 		minBuyIn: values.minBuyIn ?? null,
+		mixGames: values.mixGames ?? null,
 		name: values.name,
 		roomId,
 		tableSize: values.tableSize ?? null,
@@ -157,6 +161,7 @@ export function useRingGames({ roomId, showArchived }: UseRingGamesOptions) {
 				id: values.id,
 				name: values.name,
 				variant: values.variant,
+				mixGames: values.mixGames ?? null,
 				blind1: values.blind1 ?? null,
 				blind2: values.blind2 ?? null,
 				blind3: values.blind3 ?? null,

@@ -1,4 +1,7 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
+import { MixFormSheet } from "@/shared/components/mix-form-sheet";
+import { MixGamesEditor } from "@/shared/components/mix-games-editor";
 import { Field } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import {
@@ -9,17 +12,12 @@ import {
 	SelectValue,
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
+import { VariantSelect } from "@/shared/components/variant-select";
+import { useGameGroups } from "@/shared/hooks/use-game-groups";
+import { useVariantLabels } from "@/shared/hooks/use-variant-labels";
+import { ANTE_TYPE_OPTIONS } from "@/shared/lib/ante-types";
 import { BlindFields } from "./blind-fields";
 import { useRingGameForm } from "./use-ring-game-form";
-
-const GAME_VARIANTS = {
-	nlh: {
-		label: "NL Hold'em",
-		blindLabels: { blind1: "SB", blind2: "BB", blind3: "Straddle" },
-	},
-} as const;
-
-type Variant = keyof typeof GAME_VARIANTS;
 
 type AnteType = "all" | "bb" | "none";
 
@@ -36,25 +34,57 @@ interface RingGameFormProps {
 
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
-const ANTE_TYPES = [
-	{ value: "none", label: "No Ante" },
-	{ value: "bb", label: "BB Ante" },
-	{ value: "all", label: "All Ante" },
-] as const;
+function VariantAwareBlindFields({
+	form,
+	variant,
+}: {
+	form: ReturnType<typeof useRingGameForm>["form"];
+	variant: string;
+}) {
+	const blindLabels = useVariantLabels(variant || DEFAULT_VARIANT_LABEL);
+	return <BlindFields blindLabels={blindLabels} form={form} />;
+}
 
-export function RingGameForm({
+/**
+ * Mount gate (c05): the inner form seeds its mix-game rows once from the
+ * master variant→group mapping, so it must not mount until the master lists
+ * are loaded — seeding against the pending fallback would freeze rows
+ * without a real group identity.
+ */
+export function RingGameForm(props: RingGameFormProps) {
+	const { isLoading } = useGameGroups();
+	if (isLoading) {
+		return (
+			<p className="py-8 text-center text-muted-foreground text-sm">
+				Loading game data
+			</p>
+		);
+	}
+	return <RingGameFormBody {...props} />;
+}
+
+function RingGameFormBody({
 	onSubmit,
 	defaultValues,
 	formId,
 }: RingGameFormProps) {
-	const { form, currencies } = useRingGameForm({ defaultValues, onSubmit });
-
-	const variantKey = (defaultValues?.variant ?? "nlh") as Variant;
-	const blindLabels = GAME_VARIANTS[variantKey]?.blindLabels ?? {
-		blind1: "SB",
-		blind2: "BB",
-		blind3: "Straddle",
-	};
+	const {
+		form,
+		currencies,
+		editingMix,
+		groupFor,
+		isMixSheetOpen,
+		isMixValue,
+		mixRowFor,
+		onEditMix,
+		onMixSaved,
+		onVariantChange,
+		setIsMixSheetOpen,
+		variants,
+	} = useRingGameForm({
+		defaultValues,
+		onSubmit,
+	});
 
 	return (
 		<form
@@ -71,7 +101,7 @@ export function RingGameForm({
 					<Field
 						error={field.state.meta.errors[0]?.message}
 						htmlFor={field.name}
-						label="Game Name"
+						label="Game name"
 						required
 					>
 						<Input
@@ -87,74 +117,104 @@ export function RingGameForm({
 			<form.Field name="variant">
 				{(field) => (
 					<Field htmlFor={field.name} label="Variant" required>
-						<Select
-							onValueChange={(v) => field.handleChange(v)}
+						<VariantSelect
+							id={field.name}
+							includeMix
+							onChange={onVariantChange}
 							value={field.state.value}
-						>
-							<SelectTrigger className="w-full" id={field.name}>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{Object.entries(GAME_VARIANTS).map(([key, val]) => (
-									<SelectItem key={key} value={key}>
-										{val.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						/>
 					</Field>
 				)}
 			</form.Field>
 
-			<BlindFields blindLabels={blindLabels} form={form} />
-
-			<div className="flex gap-3">
-				<form.Field name="anteType">
-					{(field) => (
-						<Field className="flex-1" htmlFor={field.name} label="Ante Type">
-							<Select
-								onValueChange={(v) => field.handleChange(v as AnteType)}
-								value={field.state.value}
-							>
-								<SelectTrigger className="w-full" id={field.name}>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{ANTE_TYPES.map((at) => (
-										<SelectItem key={at.value} value={at.value}>
-											{at.label}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</Field>
-					)}
-				</form.Field>
-
-				<form.Subscribe selector={(state) => state.values.anteType === "none"}>
-					{(isAnteDisabled) => (
-						<form.Field name="ante">
-							{(field) => (
-								<Field
-									className="flex-1"
-									error={field.state.meta.errors[0]?.message}
-									htmlFor={field.name}
-									label="Ante"
-								>
-									<Input
-										disabled={isAnteDisabled}
-										id={field.name}
-										inputMode="numeric"
-										onBlur={field.handleBlur}
-										onChange={(e) => field.handleChange(e.target.value)}
+			{/* Mix games swap the flat blind/ante fields for the group editor:
+			    amounts only — the composition follows the mix master, edited via
+			    the dedicated bottom sheet (updates the master itself). */}
+			<form.Subscribe selector={(state) => state.values.variant}>
+				{(variant) =>
+					isMixValue(variant) ? (
+						<>
+							<form.Field name="mixGames">
+								{(field) => (
+									<MixGamesEditor
+										onChange={(rows) => field.handleChange(rows)}
+										onEditMix={
+											mixRowFor(variant) ? () => onEditMix(variant) : undefined
+										}
+										resolveGroup={groupFor}
 										value={field.state.value}
 									/>
-								</Field>
-							)}
-						</form.Field>
-					)}
-				</form.Subscribe>
-			</div>
+								)}
+							</form.Field>
+							<MixFormSheet
+								editingMix={editingMix}
+								key={editingMix ? `edit-${editingMix.id}` : "closed"}
+								onOpenChange={setIsMixSheetOpen}
+								onSaved={onMixSaved}
+								open={isMixSheetOpen}
+								variants={variants}
+							/>
+						</>
+					) : (
+						<>
+							<VariantAwareBlindFields form={form} variant={variant} />
+							<div className="flex gap-3">
+								<form.Field name="anteType">
+									{(field) => (
+										<Field
+											className="flex-1"
+											htmlFor={field.name}
+											label="Ante type"
+										>
+											<Select
+												onValueChange={(v) => field.handleChange(v as AnteType)}
+												value={field.state.value}
+											>
+												<SelectTrigger className="w-full" id={field.name}>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													{ANTE_TYPE_OPTIONS.map((at) => (
+														<SelectItem key={at.value} value={at.value}>
+															{at.label}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+										</Field>
+									)}
+								</form.Field>
+
+								<form.Subscribe
+									selector={(state) => state.values.anteType === "none"}
+								>
+									{(isAnteDisabled) => (
+										<form.Field name="ante">
+											{(field) => (
+												<Field
+													className="flex-1"
+													error={field.state.meta.errors[0]?.message}
+													htmlFor={field.name}
+													label="Ante"
+												>
+													<Input
+														disabled={isAnteDisabled}
+														id={field.name}
+														inputMode="numeric"
+														onBlur={field.handleBlur}
+														onChange={(e) => field.handleChange(e.target.value)}
+														value={field.state.value}
+													/>
+												</Field>
+											)}
+										</form.Field>
+									)}
+								</form.Subscribe>
+							</div>
+						</>
+					)
+				}
+			</form.Subscribe>
 
 			<div className="grid grid-cols-2 gap-3">
 				<form.Field name="minBuyIn">
@@ -162,7 +222,7 @@ export function RingGameForm({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="Min Buy-In"
+							label="Min buy-in"
 						>
 							<Input
 								id={field.name}
@@ -179,7 +239,7 @@ export function RingGameForm({
 						<Field
 							error={field.state.meta.errors[0]?.message}
 							htmlFor={field.name}
-							label="Max Buy-In"
+							label="Max buy-in"
 						>
 							<Input
 								id={field.name}
@@ -195,7 +255,7 @@ export function RingGameForm({
 
 			<form.Field name="tableSize">
 				{(field) => (
-					<Field htmlFor={field.name} label="Table Size">
+					<Field htmlFor={field.name} label="Table size">
 						<Select
 							onValueChange={(v) => field.handleChange(v)}
 							value={field.state.value}

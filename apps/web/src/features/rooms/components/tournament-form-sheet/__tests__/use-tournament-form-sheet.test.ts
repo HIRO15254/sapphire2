@@ -15,6 +15,7 @@ function row(partial: Partial<BlindLevelRow>): BlindLevelRow {
 		blind3: null,
 		ante: null,
 		minutes: null,
+		games: null,
 		...partial,
 	};
 }
@@ -83,7 +84,7 @@ describe("useTournamentFormSheet", () => {
 			entryFee: 5,
 			startingStack: 10_000,
 			tableSize: 9,
-			variant: "nlh",
+			variant: "NL Hold'em",
 		});
 		expect(result.current.effectiveLevels).toHaveLength(1);
 		expect(result.current.effectiveLevels[0].minutes).toBe(20);

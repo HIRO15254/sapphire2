@@ -1,3 +1,4 @@
+import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import { useQuery } from "@tanstack/react-query";
 import { trpc } from "@/utils/trpc";
 
@@ -6,6 +7,8 @@ export interface SessionBlindLevelRow {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	/** Per-level game groups for mix tournaments; null = single structure. */
+	games: LevelGameGroup[] | null;
 	id: string;
 	isBreak: boolean;
 	level: number;
@@ -49,6 +52,7 @@ export function useSessionTournamentStructure(sessionId: string) {
 			id: l.id,
 			level: l.level,
 			isBreak: l.isBreak,
+			games: l.games ?? null,
 			blind1: l.blind1,
 			blind2: l.blind2,
 			blind3: l.blind3,

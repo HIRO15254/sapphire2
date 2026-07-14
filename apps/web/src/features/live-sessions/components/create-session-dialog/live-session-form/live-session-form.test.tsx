@@ -1,11 +1,40 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { renderWithQueryClient as render } from "@/__tests__/test-utils";
 
 // RulesStepBody (tournament) transitively imports @/utils/trpc; stub it.
 vi.mock("@/utils/trpc", () => ({
-	trpc: {},
+	trpc: {
+		gameGroup: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameGroup", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
+		gameVariant: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameVariant", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
+		gameMix: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["gameMix", "list"],
+					queryFn: async () => [],
+				}),
+			},
+		},
+	},
 	trpcClient: {
+		gameVariant: {
+			create: { mutate: vi.fn() },
+		},
 		blindLevel: {
 			listByTournament: { query: vi.fn().mockResolvedValue([]) },
 		},

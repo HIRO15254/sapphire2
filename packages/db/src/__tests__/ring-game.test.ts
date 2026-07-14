@@ -1,6 +1,7 @@
 import { getTableColumns } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
+import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
 import { ringGame } from "../schema/ring-game";
 
 describe("RingGame schema", () => {
@@ -90,9 +91,9 @@ describe("RingGame schema", () => {
 describe("RingGame — defaults", () => {
 	const columns = getTableColumns(ringGame);
 
-	it("variant defaults to nlh", () => {
+	it("variant defaults to DEFAULT_VARIANT_LABEL (c12: not the stale 'nlh' key)", () => {
 		expect(columns.variant.hasDefault).toBe(true);
-		expect(columns.variant.default).toBe("nlh");
+		expect(columns.variant.default).toBe(DEFAULT_VARIANT_LABEL);
 	});
 
 	it("createdAt has a default", () => {
@@ -170,5 +171,12 @@ describe("RingGame — indexes", () => {
 
 	it("has no composite primary key", () => {
 		expect(config.primaryKeys).toHaveLength(0);
+	});
+
+	it("mixGames is a nullable JSON column for mix game groups", () => {
+		const columns = getTableColumns(ringGame);
+		expect(columns.mixGames).toBeDefined();
+		expect(columns.mixGames.notNull).toBe(false);
+		expect(columns.mixGames.columnType).toBe("SQLiteTextJson");
 	});
 });

@@ -1,3 +1,4 @@
+import { variantDisplayLabel } from "@sapphire2/db/constants/game-variants";
 import { IconDotsVertical } from "@tabler/icons-react";
 import type { Tournament } from "@/features/rooms/hooks/use-tournaments";
 import { formatTournamentBuyIn } from "@/features/rooms/utils/game-format";
@@ -47,7 +48,11 @@ export function TournamentRow({
 					<span className="truncate font-medium text-sm">
 						{tournament.name}
 					</span>
-					<Badge variant="secondary">{tournament.variant.toUpperCase()}</Badge>
+					{/* Variants freeze full display labels ("8-Game", "NL Hold'em") —
+					    render as-is; uppercasing would mangle them. */}
+					<Badge variant="secondary">
+						{variantDisplayLabel(tournament.variant)}
+					</Badge>
 					{tournament.tableSize == null ? null : (
 						<Badge className={getTableSizeClassName(tournament.tableSize)}>
 							{tournament.tableSize}-max

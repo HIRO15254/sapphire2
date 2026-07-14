@@ -77,23 +77,18 @@ export function useAssignRingGame({
 	});
 
 	const createAndAssignMutation = useMutation({
-		mutationFn: async ({
+		mutationFn: ({
 			roomId,
 			values,
 		}: {
 			roomId: string;
 			values: RingGameFormValues;
-		}) => {
-			const created = await trpcClient.ringGame.create.mutate({
+		}) =>
+			trpcClient.liveCashGameSession.createAndAssignRingGame.mutate({
+				sessionId,
 				roomId,
 				...values,
-			});
-			await trpcClient.liveCashGameSession.update.mutate({
-				id: sessionId,
-				ringGameId: created.id,
-			});
-			return created;
-		},
+			}),
 		onSuccess: async () => {
 			await Promise.all([
 				invalidateSession(),
@@ -109,7 +104,7 @@ export function useAssignRingGame({
 			onClose();
 		},
 		onError: (error) => {
-			toast.error(error.message || "Failed to create game");
+			toast.error(error.message || "Failed to create and assign game");
 		},
 	});
 

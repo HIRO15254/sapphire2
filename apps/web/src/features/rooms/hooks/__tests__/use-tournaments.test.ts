@@ -17,8 +17,6 @@ const trpcMocks = vi.hoisted(() => ({
 	tournamentDelete: vi.fn(),
 	tournamentAddTag: vi.fn(),
 	tournamentRemoveTag: vi.fn(),
-	createWithLevels: vi.fn(),
-	updateWithLevels: vi.fn(),
 	cpCreate: vi.fn(),
 	cpDelete: vi.fn(),
 }));
@@ -59,8 +57,6 @@ vi.mock("@/utils/trpc", () => ({
 			delete: { mutate: trpcMocks.tournamentDelete },
 			addTag: { mutate: trpcMocks.tournamentAddTag },
 			removeTag: { mutate: trpcMocks.tournamentRemoveTag },
-			createWithLevels: { mutate: trpcMocks.createWithLevels },
-			updateWithLevels: { mutate: trpcMocks.updateWithLevels },
 		},
 		tournamentChipPurchase: {
 			create: { mutate: trpcMocks.cpCreate },
@@ -145,8 +141,6 @@ describe("useTournaments", () => {
 			expect(result.current.archivedTournaments).toEqual([]);
 			expect(result.current.isCreatePending).toBe(false);
 			expect(result.current.isUpdatePending).toBe(false);
-			expect(result.current.isCreateWithLevelsPending).toBe(false);
-			expect(result.current.isUpdateWithLevelsPending).toBe(false);
 		});
 
 		it("exposes seeded active tournaments", async () => {
@@ -433,89 +427,6 @@ describe("useTournaments", () => {
 				expect(archived).toEqual([]);
 			});
 			resolve?.({ id: "t1" });
-		});
-	});
-
-	describe("createWithLevels and updateWithLevels", () => {
-		it("createWithLevels forwards all values + blindLevels and invalidates both lists", async () => {
-			const qc = createClient();
-			qc.setQueryData(activeKey, []);
-			const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-			trpcMocks.createWithLevels.mockResolvedValue({ id: "t-new" });
-			const { result } = renderHook(
-				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
-				{ wrapper: makeWrapper(qc) }
-			);
-			await act(async () => {
-				await result.current.createWithLevels(
-					{
-						name: "Turbo",
-						variant: "holdem",
-						buyIn: 50,
-						chipPurchases: [],
-					},
-					[{ isBreak: false, blind1: 1, blind2: 2 }]
-				);
-			});
-			expect(trpcMocks.createWithLevels).toHaveBeenCalledWith(
-				expect.objectContaining({
-					roomId: STORE_ID,
-					name: "Turbo",
-					variant: "holdem",
-					buyIn: 50,
-					blindLevels: [{ isBreak: false, blind1: 1, blind2: 2 }],
-				})
-			);
-			const invalidated = invalidateSpy.mock.calls.map(
-				(c) => (c[0] as { queryKey: unknown[] } | undefined)?.queryKey
-			);
-			expect(invalidated).toEqual(
-				expect.arrayContaining([activeKey, archivedKey])
-			);
-		});
-
-		it("updateWithLevels additionally invalidates the blindLevel listByTournament query for the target id", async () => {
-			const qc = createClient();
-			qc.setQueryData(activeKey, [makeTournament({ id: "t1" })]);
-			const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-			trpcMocks.updateWithLevels.mockResolvedValue({ id: "t1" });
-			const { result } = renderHook(
-				() => useTournaments({ roomId: STORE_ID, showArchived: false }),
-				{ wrapper: makeWrapper(qc) }
-			);
-			await act(async () => {
-				await result.current.updateWithLevels(
-					"t1",
-					{
-						name: "Renamed",
-						variant: "holdem",
-						chipPurchases: [],
-					},
-					[]
-				);
-			});
-			expect(trpcMocks.updateWithLevels).toHaveBeenCalledWith(
-				expect.objectContaining({
-					id: "t1",
-					name: "Renamed",
-					variant: "holdem",
-					buyIn: null,
-					entryFee: null,
-					startingStack: null,
-					bountyAmount: null,
-					tableSize: null,
-					currencyId: null,
-					memo: null,
-				})
-			);
-			const keys = invalidateSpy.mock.calls.map(
-				(c) => (c[0] as { queryKey: unknown[] } | undefined)?.queryKey
-			);
-			expect(keys).toEqual(
-				expect.arrayContaining([
-					["blindLevel", "listByTournament", { tournamentId: "t1" }],
-				])
-			);
 		});
 	});
 });

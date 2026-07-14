@@ -1,5 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { DEFAULT_VARIANT_LABEL } from "../constants/game-variants";
+import type { LevelGameGroup } from "../schemas/game";
 import { currency } from "./currency";
 import { room } from "./room";
 import { tournamentTag } from "./tournament-tag";
@@ -12,7 +14,7 @@ export const tournament = sqliteTable(
 			.notNull()
 			.references(() => room.id, { onDelete: "cascade" }),
 		name: text("name").notNull(),
-		variant: text("variant").notNull().default("nlh"),
+		variant: text("variant").notNull().default(DEFAULT_VARIANT_LABEL),
 		buyIn: integer("buy_in"),
 		entryFee: integer("entry_fee"),
 		startingStack: integer("starting_stack"),
@@ -47,6 +49,9 @@ export const blindLevel = sqliteTable(
 		blind3: integer("blind3"),
 		ante: integer("ante"),
 		minutes: integer("minutes"),
+		// Per-level game groups for mix tournaments (levelGamesSchema in
+		// ../schemas/game). NULL = legacy single-structure level.
+		games: text("games", { mode: "json" }).$type<LevelGameGroup[]>(),
 	},
 	(table) => [index("blindLevel_tournamentId_idx").on(table.tournamentId)]
 );

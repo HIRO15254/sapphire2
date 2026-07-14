@@ -246,6 +246,55 @@
       "when": 1783348319000,
       "tag": "0034_backfill_day_crossing_session_end",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1783767306685,
+      "tag": "0035_military_whiplash",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1783768503828,
+      "tag": "0036_foamy_bromley",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1783770241516,
+      "tag": "0037_lively_jackal",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1783827821872,
+      "tag": "0038_abandoned_scalphunter",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1783827832241,
+      "tag": "0039_fair_toad",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1783839780435,
+      "tag": "0040_magenta_tempest",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1783921430946,
+      "tag": "0041_amazing_amphibian",
+      "breakpoints": true
     }
   ]
 }

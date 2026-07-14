@@ -13,6 +13,7 @@ export function BreakdownSection({ ctx }: { ctx: StatsSectionContext }) {
 		isPending,
 		normalized,
 		showCashColumn,
+		showNetColumn,
 		showTournamentColumn,
 	} = useBreakdownSection(ctx);
 
@@ -41,6 +42,7 @@ export function BreakdownSection({ ctx }: { ctx: StatsSectionContext }) {
 					normalized={normalized}
 					rows={rows}
 					showCashColumn={showCashColumn}
+					showNetColumn={showNetColumn}
 					showTournamentColumn={showTournamentColumn}
 				/>
 			)}

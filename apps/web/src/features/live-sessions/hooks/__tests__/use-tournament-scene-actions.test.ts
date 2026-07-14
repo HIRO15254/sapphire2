@@ -74,6 +74,7 @@ const LEVELS = [
 		blind3: null,
 		ante: null,
 		minutes: 15,
+		games: null,
 	},
 	{
 		id: "bl2",
@@ -85,6 +86,7 @@ const LEVELS = [
 		blind3: null,
 		ante: null,
 		minutes: 5,
+		games: null,
 	},
 ];
 
@@ -151,6 +153,7 @@ describe("useTournamentSceneActions", () => {
 					blind3: null,
 					ante: null,
 					minutes: 15,
+					games: null,
 				},
 				{
 					isBreak: true,
@@ -159,6 +162,7 @@ describe("useTournamentSceneActions", () => {
 					blind3: null,
 					ante: null,
 					minutes: 5,
+					games: null,
 				},
 			],
 		});

@@ -1,3 +1,4 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { room } from "@sapphire2/db/schema/room";
 import {
 	blindLevel,
@@ -5,6 +6,7 @@ import {
 	tournamentChipPurchase,
 } from "@sapphire2/db/schema/tournament";
 import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
+import { levelGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import z from "zod";
@@ -62,6 +64,103 @@ async function validateTournamentOwnership(
 	await validateRoomOwnership(db, found.roomId, userId);
 
 	return found;
+}
+
+export const tournamentCreateWithLevelsInputSchema = z.object({
+	roomId: z.string(),
+	name: z.string().min(1),
+	variant: z.string().default(DEFAULT_VARIANT_LABEL),
+	buyIn: z.number().int().optional(),
+	entryFee: z.number().int().optional(),
+	startingStack: z.number().int().optional(),
+	bountyAmount: z.number().int().optional(),
+	tableSize: z.number().int().optional(),
+	currencyId: z.string().optional(),
+	memo: z.string().optional(),
+	tags: z.array(z.string()).optional(),
+	chipPurchases: z
+		.array(
+			z.object({
+				name: z.string(),
+				cost: z.number().int(),
+				chips: z.number().int(),
+			})
+		)
+		.optional(),
+	blindLevels: z
+		.array(
+			z.object({
+				isBreak: z.boolean(),
+				blind1: z.number().int().nullable().optional(),
+				blind2: z.number().int().nullable().optional(),
+				blind3: z.number().int().nullable().optional(),
+				ante: z.number().int().nullable().optional(),
+				minutes: z.number().int().nullable().optional(),
+				games: levelGamesSchema.nullish(),
+			})
+		)
+		.optional(),
+});
+
+type TournamentCreateWithLevelsInput = z.infer<
+	typeof tournamentCreateWithLevelsInputSchema
+>;
+
+export function buildTournamentCreateStatements(
+	db: DbInstance,
+	params: {
+		id: string;
+		input: TournamentCreateWithLevelsInput;
+		now: Date;
+	}
+): [BatchStatement, ...BatchStatement[]] {
+	return [
+		db.insert(tournament).values({
+			id: params.id,
+			roomId: params.input.roomId,
+			name: params.input.name,
+			variant: params.input.variant,
+			buyIn: params.input.buyIn ?? null,
+			entryFee: params.input.entryFee ?? null,
+			startingStack: params.input.startingStack ?? null,
+			bountyAmount: params.input.bountyAmount ?? null,
+			tableSize: params.input.tableSize ?? null,
+			currencyId: params.input.currencyId ?? null,
+			memo: params.input.memo ?? null,
+			updatedAt: params.now,
+		}),
+		...(params.input.tags ?? []).map((name) =>
+			db.insert(tournamentTag).values({
+				id: crypto.randomUUID(),
+				tournamentId: params.id,
+				name,
+			})
+		),
+		...(params.input.chipPurchases ?? []).map((purchase, sortOrder) =>
+			db.insert(tournamentChipPurchase).values({
+				id: crypto.randomUUID(),
+				tournamentId: params.id,
+				name: purchase.name,
+				cost: purchase.cost,
+				chips: purchase.chips,
+				sortOrder,
+			})
+		),
+		...(params.input.blindLevels ?? []).map((level, index) =>
+			db.insert(blindLevel).values({
+				id: crypto.randomUUID(),
+				tournamentId: params.id,
+				level: index + 1,
+				isBreak: level.isBreak,
+				blind1: level.blind1 ?? null,
+				blind2: level.blind2 ?? null,
+				blind3: level.blind3 ?? null,
+				ante: level.ante ?? null,
+				minutes: level.minutes ?? null,
+				games: level.games ?? null,
+			})
+		),
+	];
 }
 
 export const tournamentRouter = router({
@@ -150,7 +249,7 @@ export const tournamentRouter = router({
 			z.object({
 				roomId: z.string(),
 				name: z.string().min(1),
-				variant: z.string().default("nlh"),
+				variant: z.string().default(DEFAULT_VARIANT_LABEL),
 				buyIn: z.number().int().optional(),
 				entryFee: z.number().int().optional(),
 				startingStack: z.number().int().optional(),
@@ -310,42 +409,7 @@ export const tournamentRouter = router({
 		}),
 
 	createWithLevels: protectedProcedure
-		.input(
-			z.object({
-				roomId: z.string(),
-				name: z.string().min(1),
-				variant: z.string().default("nlh"),
-				buyIn: z.number().int().optional(),
-				entryFee: z.number().int().optional(),
-				startingStack: z.number().int().optional(),
-				bountyAmount: z.number().int().optional(),
-				tableSize: z.number().int().optional(),
-				currencyId: z.string().optional(),
-				memo: z.string().optional(),
-				tags: z.array(z.string()).optional(),
-				chipPurchases: z
-					.array(
-						z.object({
-							name: z.string(),
-							cost: z.number().int(),
-							chips: z.number().int(),
-						})
-					)
-					.optional(),
-				blindLevels: z
-					.array(
-						z.object({
-							isBreak: z.boolean(),
-							blind1: z.number().int().nullable().optional(),
-							blind2: z.number().int().nullable().optional(),
-							blind3: z.number().int().nullable().optional(),
-							ante: z.number().int().nullable().optional(),
-							minutes: z.number().int().nullable().optional(),
-						})
-					)
-					.optional(),
-			})
-		)
+		.input(tournamentCreateWithLevelsInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateRoomOwnership(ctx.db, input.roomId, userId);
@@ -363,50 +427,11 @@ export const tournamentRouter = router({
 			// chip purchases / blind levels. `Promise.all` ran these as parallel
 			// auto-commits, so a partial failure could leave a tournament with only
 			// some of its children (SA2-116).
-			const statements: [BatchStatement, ...BatchStatement[]] = [
-				ctx.db.insert(tournament).values({
-					id,
-					roomId: input.roomId,
-					name: input.name,
-					variant: input.variant,
-					buyIn: input.buyIn ?? null,
-					entryFee: input.entryFee ?? null,
-					startingStack: input.startingStack ?? null,
-					bountyAmount: input.bountyAmount ?? null,
-					tableSize: input.tableSize ?? null,
-					currencyId: input.currencyId ?? null,
-					memo: input.memo ?? null,
-					updatedAt: new Date(),
-				}),
-				...(input.tags ?? []).map((name) =>
-					ctx.db
-						.insert(tournamentTag)
-						.values({ id: crypto.randomUUID(), tournamentId: id, name })
-				),
-				...(input.chipPurchases ?? []).map((cp, i) =>
-					ctx.db.insert(tournamentChipPurchase).values({
-						id: crypto.randomUUID(),
-						tournamentId: id,
-						name: cp.name,
-						cost: cp.cost,
-						chips: cp.chips,
-						sortOrder: i,
-					})
-				),
-				...(input.blindLevels ?? []).map((l, i) =>
-					ctx.db.insert(blindLevel).values({
-						id: crypto.randomUUID(),
-						tournamentId: id,
-						level: i + 1,
-						isBreak: l.isBreak,
-						blind1: l.blind1 ?? null,
-						blind2: l.blind2 ?? null,
-						blind3: l.blind3 ?? null,
-						ante: l.ante ?? null,
-						minutes: l.minutes ?? null,
-					})
-				),
-			];
+			const statements = buildTournamentCreateStatements(ctx.db, {
+				id,
+				input,
+				now: new Date(),
+			});
 			await ctx.db.batch(statements);
 
 			const [created] = await ctx.db
@@ -447,6 +472,7 @@ export const tournamentRouter = router({
 						blind3: z.number().int().nullable().optional(),
 						ante: z.number().int().nullable().optional(),
 						minutes: z.number().int().nullable().optional(),
+						games: levelGamesSchema.nullish(),
 					})
 				),
 			})
@@ -551,6 +577,7 @@ export const tournamentRouter = router({
 						blind3: l.blind3 ?? null,
 						ante: l.ante ?? null,
 						minutes: l.minutes ?? null,
+						games: l.games ?? null,
 					})
 				)
 			);

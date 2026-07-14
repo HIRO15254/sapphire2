@@ -21,6 +21,9 @@ import { useTournamentSession } from "@/features/live-sessions/hooks/use-tournam
 import {
 	formatAnteSuffix,
 	formatBlindParts,
+	formatGroupStakes,
+	type GameGroupLike,
+	groupDisplayLabel,
 	variantLabel,
 } from "@/features/live-sessions/utils/game-scene-formatters";
 import {
@@ -102,6 +105,7 @@ interface CashSnapshotDisplay {
 	blind3: number | null;
 	maxBuyIn: number | null;
 	minBuyIn: number | null;
+	mixGames?: RingGame["mixGames"];
 	ruleName: string;
 	tableSize: number | null;
 	variant: string;
@@ -146,6 +150,62 @@ function RingGameCardTitle({
 	);
 }
 
+/**
+ * Blind-structure rows of the details card: one row per game group for a
+ * mix snapshot, or the single flat Blinds row otherwise. Group keys use the
+ * variants signature — the shared schema forbids a game appearing in two
+ * groups, so it is unique and stable.
+ */
+function CashBlindRows({
+	snapshot,
+	master,
+	blindsModified,
+	mixGamesModified,
+	currencyUnit,
+}: {
+	snapshot: CashSnapshotDisplay;
+	master: RingGame;
+	blindsModified: boolean;
+	mixGamesModified: boolean;
+	currencyUnit: string | null | undefined;
+}) {
+	if (snapshot.mixGames && snapshot.mixGames.length > 0) {
+		return (
+			<>
+				{snapshot.mixGames.map((group, index) => (
+					<DetailRow
+						badge={
+							index === 0 && mixGamesModified ? (
+								<ModifiedBadge masterValue="differs from master" />
+							) : null
+						}
+						key={group.variants.join("+")}
+						label={groupDisplayLabel(group)}
+						value={formatGroupStakes(group)}
+					/>
+				))}
+			</>
+		);
+	}
+	const blindsStr = formatBlindParts(snapshot);
+	const anteStr = formatAnteSuffix(snapshot);
+	return (
+		<DetailRow
+			badge={
+				blindsModified ? (
+					<ModifiedBadge masterValue={formatBlindParts(master) || "—"} />
+				) : null
+			}
+			label="Blinds"
+			value={
+				blindsStr
+					? `${blindsStr}${anteStr ? ` ${anteStr}` : ""}${currencyUnit ? ` ${currencyUnit}` : ""}`
+					: "—"
+			}
+		/>
+	);
+}
+
 function RingGameDetailsCard({
 	snapshot,
 	master,
@@ -161,8 +221,6 @@ function RingGameDetailsCard({
 		import("@/features/live-sessions/utils/snapshot-diff").CashDiffField
 	>;
 }) {
-	const blindsStr = formatBlindParts(snapshot);
-	const anteStr = formatAnteSuffix(snapshot);
 	const fmt = createGroupFormatter([snapshot.minBuyIn, snapshot.maxBuyIn]);
 	const buyInStr = (() => {
 		if (snapshot.minBuyIn == null && snapshot.maxBuyIn == null) {
@@ -172,8 +230,10 @@ function RingGameDetailsCard({
 		const max = snapshot.maxBuyIn == null ? "—" : fmt(snapshot.maxBuyIn);
 		return `${min} - ${max}${currencyUnit ? ` ${currencyUnit}` : ""}`;
 	})();
-	const blindsModified =
-		diff.blind1 || diff.blind2 || diff.blind3 || diff.ante || diff.anteType;
+	const blindsModified = Boolean(
+		diff.blind1 || diff.blind2 || diff.blind3 || diff.ante || diff.anteType
+	);
+	const mixGamesModified = Boolean(diff.mixGames);
 	const buyInModified = diff.minBuyIn || diff.maxBuyIn;
 
 	return (
@@ -182,18 +242,12 @@ function RingGameDetailsCard({
 				<RingGameCardTitle diff={diff} master={master} snapshot={snapshot} />
 			</CardHeader>
 			<CardContent className="divide-y">
-				<DetailRow
-					badge={
-						blindsModified ? (
-							<ModifiedBadge masterValue={formatBlindParts(master) || "—"} />
-						) : null
-					}
-					label="Blinds"
-					value={
-						blindsStr
-							? `${blindsStr}${anteStr ? ` ${anteStr}` : ""}${currencyUnit ? ` ${currencyUnit}` : ""}`
-							: "—"
-					}
+				<CashBlindRows
+					blindsModified={blindsModified}
+					currencyUnit={currencyUnit}
+					master={master}
+					mixGamesModified={mixGamesModified}
+					snapshot={snapshot}
 				/>
 				<DetailRow
 					badge={
@@ -299,6 +353,7 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 	const snapshot: CashSnapshotDisplay = {
 		ruleName: session.ruleName,
 		variant: session.variant,
+		mixGames: session.mixGames,
 		blind1: session.blind1,
 		blind2: session.blind2,
 		blind3: session.blind3,
@@ -346,6 +401,7 @@ function CashGameDetails({ sessionId }: { sessionId: string }) {
 					defaultValues={{
 						name: snapshot.ruleName,
 						variant: snapshot.variant,
+						mixGames: snapshot.mixGames ?? null,
 						blind1: snapshot.blind1 ?? undefined,
 						blind2: snapshot.blind2 ?? undefined,
 						blind3: snapshot.blind3 ?? undefined,
@@ -374,6 +430,7 @@ interface StructureLevel {
 	blind1: number | null;
 	blind2: number | null;
 	blind3: number | null;
+	games?: GameGroupLike[] | null;
 	id: string;
 	isBreak: boolean;
 	level: number;
@@ -403,6 +460,9 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 						BB
 					</TableHead>
 					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
+						Blind 3
+					</TableHead>
+					<TableHead className="h-auto pb-0.5 text-center font-medium text-muted-foreground">
 						Ante
 					</TableHead>
 					<TableHead className="h-auto w-8 pb-0.5 text-center font-medium text-muted-foreground">
@@ -420,7 +480,7 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 								</TableCell>
 								<TableCell
 									className="py-0.5 text-center text-muted-foreground"
-									colSpan={3}
+									colSpan={4}
 								>
 									Break
 								</TableCell>
@@ -430,7 +490,34 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 							</TableRow>
 						);
 					}
-					const fmt = createGroupFormatter([row.blind1, row.blind2, row.ante]);
+					// Mix levels stack their game groups across the blind columns.
+					if (row.games && row.games.length > 0) {
+						return (
+							<TableRow key={row.id}>
+								<TableCell className="py-0.5 text-center text-muted-foreground">
+									{row.level}
+								</TableCell>
+								<TableCell className="py-0.5" colSpan={4}>
+									<div className="flex flex-col gap-0.5">
+										{row.games.map((group) => (
+											<span key={group.variants.join("+")}>
+												{groupDisplayLabel(group)} {formatGroupStakes(group)}
+											</span>
+										))}
+									</div>
+								</TableCell>
+								<TableCell className="py-0.5 text-center text-muted-foreground">
+									{row.minutes ?? "—"}
+								</TableCell>
+							</TableRow>
+						);
+					}
+					const fmt = createGroupFormatter([
+						row.blind1,
+						row.blind2,
+						row.blind3,
+						row.ante,
+					]);
 					return (
 						<TableRow key={row.id}>
 							<TableCell className="py-0.5 text-center text-muted-foreground">
@@ -441,6 +528,9 @@ function TournamentStructureTable({ levels }: { levels: StructureLevel[] }) {
 							</TableCell>
 							<TableCell className="py-0.5 text-center">
 								{row.blind2 == null ? "—" : fmt(row.blind2)}
+							</TableCell>
+							<TableCell className="py-0.5 text-center">
+								{row.blind3 == null ? "—" : fmt(row.blind3)}
 							</TableCell>
 							<TableCell className="py-0.5 text-center">
 								{row.ante == null ? "—" : fmt(row.ante)}
@@ -737,6 +827,7 @@ function TournamentDetailsBody({
 					isBreak: l.isBreak,
 					level: l.level,
 					minutes: l.minutes,
+					games: l.games ?? null,
 					tournamentId: master.id,
 				}))}
 				initialFormValues={toInitialFormValues(

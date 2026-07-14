@@ -289,3 +289,31 @@ describe("blindLevel.reorder tournament scoping (SA2-176)", () => {
 		expect(updateWhereParams).toHaveLength(0);
 	});
 });
+
+describe("blindLevel games input", () => {
+	it("create accepts per-level game groups", () => {
+		expectAccepts(appRouter.blindLevel.create, {
+			tournamentId: "t-1",
+			level: 1,
+			isBreak: false,
+			blind1: 100,
+			blind2: 200,
+			games: [
+				{ name: "Limit", variants: ["lhe", "o8"], blind1: 400, blind2: 800 },
+			],
+		});
+	});
+
+	it("create rejects an empty games array (null means no groups)", () => {
+		expectRejects(appRouter.blindLevel.create, {
+			tournamentId: "t-1",
+			level: 1,
+			isBreak: false,
+			games: [],
+		});
+	});
+
+	it("update accepts an explicit null to clear the groups", () => {
+		expectAccepts(appRouter.blindLevel.update, { id: "bl-1", games: null });
+	});
+});

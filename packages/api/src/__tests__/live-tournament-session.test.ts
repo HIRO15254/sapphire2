@@ -19,8 +19,8 @@ import {
 	expectType,
 } from "./test-utils";
 
-const BLIND_LEVEL_COLUMNS = 9;
-const MAX_ROWS_PER_INSERT = Math.floor(100 / BLIND_LEVEL_COLUMNS); // 11
+const BLIND_LEVEL_COLUMNS = 10;
+const MAX_ROWS_PER_INSERT = Math.floor(100 / BLIND_LEVEL_COLUMNS); // 10
 
 interface BlindLevelInput {
 	ante?: number | null;
@@ -32,6 +32,7 @@ interface BlindLevelInput {
 }
 
 interface InsertedRow {
+	games?: unknown;
 	level: number;
 	sessionId: string;
 }
@@ -116,6 +117,7 @@ function createMockDb(tableRows: Map<unknown, Rows>) {
 			set: () => ({ where: () => Promise.resolve(undefined) }),
 		}),
 		delete: () => ({ where: () => Promise.resolve(undefined) }),
+		batch: (statements: Promise<unknown>[]) => Promise.all(statements),
 	};
 }
 
@@ -330,6 +332,12 @@ describe("liveTournamentSession router", () => {
 		expect(appRouter.liveTournamentSession.update).toBeDefined();
 	});
 
+	it("has atomic createAndAssignTournament procedure", () => {
+		expect(
+			appRouter.liveTournamentSession.createAndAssignTournament
+		).toBeDefined();
+	});
+
 	it("has discard procedure", () => {
 		expect(appRouter.liveTournamentSession.discard).toBeDefined();
 	});
@@ -354,6 +362,7 @@ describe("liveTournamentSession router", () => {
 			[
 				"complete",
 				"create",
+				"createAndAssignTournament",
 				"discard",
 				"getById",
 				"list",
@@ -375,6 +384,7 @@ describe("liveTournamentSession router", () => {
 	it("all mutations are protected mutations", () => {
 		for (const name of [
 			"create",
+			"createAndAssignTournament",
 			"update",
 			"complete",
 			"reopen",
@@ -386,6 +396,111 @@ describe("liveTournamentSession router", () => {
 			expectProtected(proc);
 			expectType(proc, "mutation");
 		}
+	});
+});
+
+describe("liveTournamentSession.createAndAssignTournament input validation", () => {
+	it("accepts a full tournament-with-structure payload plus sessionId", () => {
+		expectAccepts(appRouter.liveTournamentSession.createAndAssignTournament, {
+			sessionId: "s1",
+			roomId: "room-1",
+			name: "Main",
+			variant: "NL Hold'em",
+			buyIn: 100,
+			entryFee: 10,
+			startingStack: 20_000,
+			bountyAmount: 25,
+			tableSize: 9,
+			currencyId: "cur-1",
+			memo: "note",
+			tags: ["Deep"],
+			chipPurchases: [{ name: "Rebuy", cost: 100, chips: 10_000 }],
+			blindLevels: [{ isBreak: false, blind1: 100, blind2: 200, minutes: 15 }],
+		});
+	});
+
+	it("rejects missing sessionId, roomId, or an empty name", () => {
+		expectRejects(appRouter.liveTournamentSession.createAndAssignTournament, {
+			roomId: "room-1",
+			name: "Main",
+		});
+		expectRejects(appRouter.liveTournamentSession.createAndAssignTournament, {
+			sessionId: "s1",
+			name: "Main",
+		});
+		expectRejects(appRouter.liveTournamentSession.createAndAssignTournament, {
+			sessionId: "s1",
+			roomId: "room-1",
+			name: "",
+		});
+	});
+});
+
+describe("liveTournamentSession.createAndAssignTournament authorization", () => {
+	const payload = {
+		sessionId: "s1",
+		roomId: "room-1",
+		name: "Main",
+	};
+
+	it("rejects a live tournament session owned by another user before writing", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [{ ...ownedSession, userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignTournament(payload),
+			"NOT_FOUND"
+		);
+	});
+
+	it("rejects non-tournament and non-live sessions before writing", async () => {
+		for (const session of [
+			{ ...ownedSession, kind: "cash_game" },
+			{ ...ownedSession, source: "manual" },
+		]) {
+			const rows = new Map<unknown, Rows>([[gameSession, [session]]]);
+			await expectTrpcCode(
+				makeCaller(OWNER, rows).createAndAssignTournament(payload),
+				"NOT_FOUND"
+			);
+		}
+	});
+
+	it("rejects a room owned by another user before writing", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignTournament(payload),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects a currency owned by another user before writing", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OWNER }]],
+			[currency, [{ id: "cur-1", userId: OTHER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignTournament({
+				...payload,
+				currencyId: "cur-1",
+			}),
+			"FORBIDDEN"
+		);
+	});
+
+	it("rejects assigning a new master from a different room than the session", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [{ ...ownedSession, roomId: "room-existing" }]],
+			[room, [{ id: "room-1", userId: OWNER }]],
+		]);
+		await expectTrpcCode(
+			makeCaller(OWNER, rows).createAndAssignTournament(payload),
+			"BAD_REQUEST"
+		);
 	});
 });
 
@@ -629,12 +744,12 @@ describe("liveTournamentSession.updateSnapshot input validation", () => {
 
 // Regression guard for SA2-115: updateSnapshot re-seeds blind levels via the
 // shared persistSessionBlindLevels helper, which DELETEs then re-INSERTs. D1
-// rejects any statement binding >100 params, so a 9-column blind row must be
-// chunked at 11 rows/INSERT. A single unchunked INSERT of >=12 levels (>=108
+// rejects any statement binding >100 params, so a 10-column blind row must be
+// chunked at 10 rows/INSERT. A single unchunked INSERT of >=11 levels (>=110
 // params) would throw at runtime AFTER the DELETE already committed, wiping the
 // session's blind structure permanently.
 describe("persistSessionBlindLevels chunking (SA2-115)", () => {
-	it("splits >11 blind levels into multiple INSERTs each within D1's 100-param cap", async () => {
+	it("splits >10 blind levels into multiple INSERTs each within D1's 100-param cap", async () => {
 		const { db, del, deleteWhere, insert, values } = createBlindLevelMockDb();
 
 		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(12));
@@ -642,11 +757,14 @@ describe("persistSessionBlindLevels chunking (SA2-115)", () => {
 		// DELETE runs exactly once before any INSERT.
 		expect(del).toHaveBeenCalledTimes(1);
 		expect(deleteWhere).toHaveBeenCalledTimes(1);
-		// 12 rows -> 11 + 1 => two INSERT statements.
+		// 12 rows -> 10 + 2 => two INSERT statements.
 		expect(insert).toHaveBeenCalledTimes(2);
-		expect(del.mock.invocationCallOrder[0]).toBeLessThan(
-			insert.mock.invocationCallOrder[0]
-		);
+		const deleteOrder = del.mock.invocationCallOrder[0];
+		const insertOrder = insert.mock.invocationCallOrder[0];
+		if (deleteOrder === undefined || insertOrder === undefined) {
+			throw new Error("expected delete and insert invocations");
+		}
+		expect(deleteOrder).toBeLessThan(insertOrder);
 		expect(values).toHaveBeenCalledTimes(2);
 		const [firstChunk, secondChunk] = insertedChunks(values);
 		expect(firstChunk).toHaveLength(MAX_ROWS_PER_INSERT);
@@ -672,23 +790,39 @@ describe("persistSessionBlindLevels chunking (SA2-115)", () => {
 		}
 	});
 
-	it("keeps a single INSERT for exactly 11 levels (chunk boundary)", async () => {
+	it("keeps a single INSERT for exactly 10 levels (chunk boundary)", async () => {
+		const { db, insert, values } = createBlindLevelMockDb();
+
+		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(10));
+
+		expect(insert).toHaveBeenCalledTimes(1);
+		expect(values).toHaveBeenCalledTimes(1);
+		expect(insertedChunks(values).flat()).toHaveLength(10);
+	});
+
+	it("splits into two INSERTs for 11 levels (one over the boundary)", async () => {
 		const { db, insert, values } = createBlindLevelMockDb();
 
 		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(11));
 
-		expect(insert).toHaveBeenCalledTimes(1);
-		expect(values).toHaveBeenCalledTimes(1);
-		expect(insertedChunks(values).flat()).toHaveLength(11);
-	});
-
-	it("splits into two INSERTs for 12 levels (one over the boundary)", async () => {
-		const { db, insert, values } = createBlindLevelMockDb();
-
-		await persistSessionBlindLevels(db, "sess-1", makeBlindLevels(12));
-
 		expect(insert).toHaveBeenCalledTimes(2);
 		expect(values).toHaveBeenCalledTimes(2);
+	});
+
+	it("writes per-level game groups through the re-seed", async () => {
+		const { db, values } = createBlindLevelMockDb();
+		const games = [
+			{ name: "Limit", variants: ["lhe", "o8"], blind1: 400, blind2: 800 },
+		];
+
+		await persistSessionBlindLevels(db, "sess-1", [
+			{ isBreak: false, blind1: 100, blind2: 200, games },
+			{ isBreak: false, blind1: 200, blind2: 400 },
+		]);
+
+		const allRows = insertedChunks(values).flat();
+		expect(allRows[0]?.games).toEqual(games);
+		expect(allRows[1]?.games).toBeNull();
 	});
 
 	it("keeps a single INSERT for the small-N case (behavior unchanged)", async () => {
@@ -953,7 +1087,9 @@ describe("liveTournamentSession.list composite keyset cursor (SA2-150)", () => {
 		const { db } = createListMockDb(rows);
 		const result = await listCaller(db).list({ limit: 2 });
 		expect(result.items).toHaveLength(2);
-		expect(result.nextCursor).toBe(encodeSessionCursor(rows[1] as CursorRow));
+		expect(result.nextCursor).toBe(
+			encodeSessionCursor(rows[1] as unknown as CursorRow)
+		);
 	});
 
 	it("returns no nextCursor at exactly the page-size boundary", async () => {
@@ -1147,5 +1283,37 @@ describe("liveTournamentSession.list event batching (SA2-151)", () => {
 		expect(result.items).toEqual([]);
 		expect(result.nextCursor).toBeUndefined();
 		expect(sessionEventFromCount(fromCalls)).toBe(0);
+	});
+});
+
+describe("liveTournamentSession.updateSnapshot per-level games", () => {
+	it("accepts blind levels carrying game groups", () => {
+		expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "session-1",
+			blindLevels: [
+				{
+					isBreak: false,
+					blind1: 100,
+					blind2: 200,
+					minutes: 20,
+					games: [
+						{ name: "Limit", variants: ["lhe"], blind1: 400, blind2: 800 },
+						{ variants: ["nlh"], blind1: 100, blind2: 200 },
+					],
+				},
+			],
+		});
+	});
+
+	it("rejects duplicate variants across a level's groups", () => {
+		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "session-1",
+			blindLevels: [
+				{
+					isBreak: false,
+					games: [{ variants: ["lhe"] }, { variants: ["lhe"] }],
+				},
+			],
+		});
 	});
 });

@@ -79,7 +79,7 @@ const manualCashSession = {
 	buyIn: 10_000,
 	cashOut: 11_500,
 	evCashOut: null,
-	cashVariant: "nlh",
+	cashVariant: "NL Hold'em",
 	cashBlind1: 1,
 	ringGameBlind2: 2,
 	cashBlind3: null,
@@ -168,7 +168,7 @@ describe("SessionDetailPage", () => {
 		expect(screen.getByRole("heading", { name: "Rule" })).toBeInTheDocument();
 		expect(screen.getByText("Variant")).toBeInTheDocument();
 		expect(screen.getByText("Blinds")).toBeInTheDocument();
-		expect(screen.getByText("NLH")).toBeInTheDocument();
+		expect(screen.getByText("NL Hold'em")).toBeInTheDocument();
 	});
 
 	it("renders the memo when present", () => {

@@ -57,6 +57,19 @@ so this is sufficient and correct.
 > without first regenerating a full snapshot chain (or dropping the unbacked journal entries) — the
 > re-baseline above deliberately trades a complete snapshot history for a lean, honest ledger.
 
+## Manual SQLite triggers are outside the Drizzle ledger
+
+Migration `0041_amazing_amphibian` installs ten manual integrity triggers on `game_group`,
+`game_variant`, and `game_mix` for normalized label uniqueness and JSON reference integrity.
+Drizzle snapshots do not model triggers, and SQLite drops a table's triggers when a table-rebuild
+migration drops that table. Therefore, any migration that recreates one of these three tables must
+recreate its `0041` triggers in the same migration.
+
+[`migration-0041.test.ts`](../../packages/db/src/__tests__/migration-0041.test.ts) applies every
+numbered migration from an empty database and asserts the final trigger names and target tables.
+Keep this full-history guard intact and run it after touching these tables; `db:generate` reporting
+no schema changes does not verify manual triggers.
+
 ## Keeping the ledger from drifting again
 
 `bun run db:generate` must report **"No schema changes, nothing to migrate"** whenever

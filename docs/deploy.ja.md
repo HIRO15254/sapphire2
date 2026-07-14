@@ -24,6 +24,7 @@
 - [Cloudflare](https://dash.cloudflare.com/sign-up) アカウント（Free plan OK）
 - GitHub リポジトリの管理者権限（Secrets 設定に必要）
 - [Bun](https://bun.sh/) がローカルにインストール済み
+- [Node.js](https://nodejs.org/) 20.3.0 以上がローカルにインストール済み（Cloudflare Wrangler CLI の実行用。パッケージマネージャーは引き続き Bun）
 
 > D1 データベースは Wrangler が自動的に作成するため、別途データベースのアカウントは不要です。
 
@@ -61,7 +62,7 @@ bun run db:migrate:local
 bun run dev
 ```
 
-- API: `http://localhost:8787`（`wrangler dev`）
+- API: `http://localhost:8787`（Wrangler は Node.js で実行）
 - Web: `http://localhost:3001`（Vite）
 
 ## 4. Cloudflare セットアップ
@@ -81,7 +82,7 @@ Cloudflare ダッシュボード →「Workers & Pages」概要ページ → 右
 ### 4.3 Pages プロジェクト作成
 
 ```bash
-npx wrangler pages project create sapphire2-web
+node ./node_modules/wrangler/bin/wrangler.js pages project create sapphire2-web
 ```
 
 ## 5. OAuth プロバイダーセットアップ

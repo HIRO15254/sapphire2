@@ -1,10 +1,22 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
+import { mixGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { validateEntityOwnership } from "./session";
+import {
+	cashMixFlatFieldClearPatch,
+	reconcileCashRuleSelection,
+	validateEntityOwnership,
+} from "./session";
+
+type DbInstance = Parameters<
+	Parameters<typeof protectedProcedure.query>[0]
+>[0]["ctx"]["db"];
+
+type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 
 async function validateRoomOwnership(
 	db: Parameters<
@@ -62,6 +74,59 @@ async function validateRingGameOwnership(
 	return found;
 }
 
+export const ringGameCreateInputSchema = z.object({
+	roomId: z.string(),
+	name: z.string().min(1),
+	variant: z.string().default(DEFAULT_VARIANT_LABEL),
+	mixGames: mixGamesSchema.nullish(),
+	blind1: z.number().int().optional(),
+	blind2: z.number().int().optional(),
+	blind3: z.number().int().optional(),
+	ante: z.number().int().optional(),
+	anteType: z.enum(["none", "all", "bb"]).optional(),
+	minBuyIn: z.number().int().optional(),
+	maxBuyIn: z.number().int().optional(),
+	tableSize: z.number().int().optional(),
+	currencyId: z.string().optional(),
+	memo: z.string().optional(),
+});
+
+type RingGameCreateInput = z.infer<typeof ringGameCreateInputSchema>;
+
+export function buildRingGameCreateStatement(
+	db: DbInstance,
+	params: {
+		id: string;
+		input: RingGameCreateInput;
+		mixGames: NonNullable<RingGameCreateInput["mixGames"]> | null;
+		now: Date;
+		userId: string;
+		variant: string;
+	}
+): BatchStatement {
+	const frozenFlatFields = cashMixFlatFieldClearPatch(params.mixGames);
+	return db.insert(ringGame).values({
+		id: params.id,
+		roomId: params.input.roomId,
+		userId: params.userId,
+		name: params.input.name,
+		variant: params.variant,
+		mixGames: params.mixGames,
+		blind1: params.input.blind1 ?? null,
+		blind2: params.input.blind2 ?? null,
+		blind3: params.input.blind3 ?? null,
+		ante: params.input.ante ?? null,
+		anteType: params.input.anteType ?? null,
+		...frozenFlatFields,
+		minBuyIn: params.input.minBuyIn ?? null,
+		maxBuyIn: params.input.maxBuyIn ?? null,
+		tableSize: params.input.tableSize ?? null,
+		currencyId: params.input.currencyId ?? null,
+		memo: params.input.memo ?? null,
+		updatedAt: params.now,
+	});
+}
+
 export const ringGameRouter = router({
 	listByRoom: protectedProcedure
 		.input(
@@ -85,23 +150,7 @@ export const ringGameRouter = router({
 		}),
 
 	create: protectedProcedure
-		.input(
-			z.object({
-				roomId: z.string(),
-				name: z.string().min(1),
-				variant: z.string().default("nlh"),
-				blind1: z.number().int().optional(),
-				blind2: z.number().int().optional(),
-				blind3: z.number().int().optional(),
-				ante: z.number().int().optional(),
-				anteType: z.enum(["none", "all", "bb"]).optional(),
-				minBuyIn: z.number().int().optional(),
-				maxBuyIn: z.number().int().optional(),
-				tableSize: z.number().int().optional(),
-				currencyId: z.string().optional(),
-				memo: z.string().optional(),
-			})
-		)
+		.input(ringGameCreateInputSchema)
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await validateRoomOwnership(ctx.db, input.roomId, userId);
@@ -113,25 +162,21 @@ export const ringGameRouter = router({
 					userId
 				);
 			}
+			const selection = await reconcileCashRuleSelection(
+				ctx.db,
+				userId,
+				undefined,
+				input
+			);
 
 			const id = crypto.randomUUID();
-			await ctx.db.insert(ringGame).values({
+			await buildRingGameCreateStatement(ctx.db, {
 				id,
-				roomId: input.roomId,
+				input,
 				userId,
-				name: input.name,
-				variant: input.variant,
-				blind1: input.blind1 ?? null,
-				blind2: input.blind2 ?? null,
-				blind3: input.blind3 ?? null,
-				ante: input.ante ?? null,
-				anteType: input.anteType ?? null,
-				minBuyIn: input.minBuyIn ?? null,
-				maxBuyIn: input.maxBuyIn ?? null,
-				tableSize: input.tableSize ?? null,
-				currencyId: input.currencyId ?? null,
-				memo: input.memo ?? null,
-				updatedAt: new Date(),
+				mixGames: selection.mixGames,
+				variant: selection.variant,
+				now: new Date(),
 			});
 
 			const [created] = await ctx.db
@@ -147,6 +192,7 @@ export const ringGameRouter = router({
 				id: z.string(),
 				name: z.string().min(1).optional(),
 				variant: z.string().optional(),
+				mixGames: mixGamesSchema.nullish(),
 				blind1: z.number().int().nullable().optional(),
 				blind2: z.number().int().nullable().optional(),
 				blind3: z.number().int().nullable().optional(),
@@ -170,6 +216,15 @@ export const ringGameRouter = router({
 					userId
 				);
 			}
+			const selection = await reconcileCashRuleSelection(
+				ctx.db,
+				userId,
+				{
+					variant: found.variant,
+					mixGames: found.mixGames ?? null,
+				},
+				input
+			);
 
 			const updateData: Partial<typeof found> = { updatedAt: new Date() };
 			if (input.name !== undefined) {
@@ -177,6 +232,9 @@ export const ringGameRouter = router({
 			}
 			if (input.variant !== undefined) {
 				updateData.variant = input.variant;
+			}
+			if (selection.shouldWriteMixGames) {
+				updateData.mixGames = selection.mixGames;
 			}
 			if (input.blind1 !== undefined) {
 				updateData.blind1 = input.blind1;
@@ -208,6 +266,7 @@ export const ringGameRouter = router({
 			if (input.memo !== undefined) {
 				updateData.memo = input.memo;
 			}
+			Object.assign(updateData, cashMixFlatFieldClearPatch(selection.mixGames));
 
 			await ctx.db
 				.update(ringGame)

@@ -2,20 +2,30 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { IconCoffee, IconTrash } from "@tabler/icons-react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
-import { parseIntOrNull } from "@/features/rooms/utils/blind-level-helpers";
+import {
+	type BlindLevelPatch,
+	parseBlindLevelInput,
+} from "@/features/rooms/utils/blind-level-helpers";
 import { Button } from "@/shared/components/ui/button";
 import { TableCell, TableRow } from "@/shared/components/ui/table";
 import { BlindLevelInput } from "../blind-level-input";
+import { BLIND_DATA_COLUMNS } from "../blind-table-columns";
 import { DragHandle } from "../drag-handle";
 
 interface SortableBreakRowProps {
+	/** Widen the break label to span the hybrid table's Game column. */
+	gameColumn?: boolean;
+	/** Hybrid tables add this slot when any game group has a third blind. */
+	hasBlind3Column?: boolean;
 	onDelete: (id: string) => void;
-	onUpdate: (id: string, updates: Record<string, number | null>) => void;
+	onUpdate: (id: string, updates: BlindLevelPatch) => void;
 	row: BlindLevelRow;
 }
 
 export function SortableBreakRow({
 	row,
+	gameColumn = false,
+	hasBlind3Column = false,
 	onDelete,
 	onUpdate,
 }: SortableBreakRowProps) {
@@ -46,7 +56,12 @@ export function SortableBreakRow({
 					<span className="text-muted-foreground text-xs">{row.level}</span>
 				</div>
 			</TableCell>
-			<TableCell className="p-0 px-1.5 py-1" colSpan={3}>
+			<TableCell
+				className="p-0 px-1.5 py-1"
+				colSpan={
+					BLIND_DATA_COLUMNS + Number(gameColumn) + Number(hasBlind3Column)
+				}
+			>
 				<div className="flex items-center gap-1 text-muted-foreground text-sm">
 					<IconCoffee size={14} />
 					<span>Break</span>
@@ -54,11 +69,15 @@ export function SortableBreakRow({
 			</TableCell>
 			<TableCell className="w-12 p-0 px-0.5">
 				<BlindLevelInput
+					aria-label={`Break level ${row.level} minutes`}
 					defaultValue={row.minutes ?? ""}
 					key={`${row.id}-minutes`}
-					onBlur={(e) =>
-						onUpdate(row.id, { minutes: parseIntOrNull(e.target.value) })
-					}
+					onBlur={(e) => {
+						const minutes = parseBlindLevelInput(e.target);
+						if (minutes !== undefined) {
+							onUpdate(row.id, { minutes });
+						}
+					}}
 				/>
 			</TableCell>
 			<TableCell className="w-8 p-0 px-0.5 text-center">

@@ -1,3 +1,4 @@
+import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import {
 	cashSessionEndPayload,
 	cashSessionStartPayload,
@@ -11,6 +12,7 @@ import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
+import { mixGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import z from "zod";
@@ -22,8 +24,14 @@ import {
 } from "../services/live-session-pl";
 import { floorToMinute } from "../utils/session-event-time";
 import {
+	buildRingGameCreateStatement,
+	ringGameCreateInputSchema,
+} from "./ring-game";
+import {
+	cashMixFlatFieldClearPatch,
 	encodeSessionCursor,
 	getSessionEventMap,
+	reconcileCashRuleSelection,
 	resolveCashRuleSnapshot,
 	sessionKeysetCondition,
 	sessionOrderKeySql,
@@ -112,14 +120,12 @@ async function findLiveCashGameSession(
 			)
 		);
 
-	if (!found) {
-		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Live cash game session not found",
-		});
-	}
-
-	if (found.userId !== userId) {
+	if (
+		!found ||
+		found.kind !== "cash_game" ||
+		found.source !== "live" ||
+		found.userId !== userId
+	) {
 		throw new TRPCError({
 			code: "NOT_FOUND",
 			message: "Live cash game session not found",
@@ -388,6 +394,7 @@ export const liveCashGameSessionRouter = router({
 				// the master ring_game never propagate.
 				ruleName: cashDetail?.ruleName ?? null,
 				variant: cashDetail?.variant ?? null,
+				mixGames: cashDetail?.mixGames ?? null,
 				blind1: cashDetail?.blind1 ?? null,
 				blind2: cashDetail?.blind2 ?? null,
 				blind3: cashDetail?.blind3 ?? null,
@@ -406,7 +413,11 @@ export const liveCashGameSessionRouter = router({
 				ringGameId: z.string().optional(),
 				currencyId: z.string().optional(),
 				memo: z.string().optional(),
-				initialBuyIn: z.number().min(0),
+				// Must be an integer: it is re-read through cashSessionStartPayload's
+				// z.number().int().min(0), so a decimal here would parse on create but
+				// throw ZodError on every subsequent getById, making the session
+				// permanently unreadable (SA2-148 write==read).
+				initialBuyIn: z.number().int().min(0),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -497,6 +508,7 @@ export const liveCashGameSessionRouter = router({
 				ringGameId: input.ringGameId ?? null,
 				ruleName: input.ringGameId ? snapshot.ruleName : "Cash Game",
 				variant: snapshot.variant,
+				mixGames: snapshot.mixGames,
 				blind1: snapshot.blind1,
 				blind2: snapshot.blind2,
 				blind3: snapshot.blind3,
@@ -518,6 +530,99 @@ export const liveCashGameSessionRouter = router({
 			});
 
 			return { id };
+		}),
+
+	createAndAssignRingGame: protectedProcedure
+		.input(ringGameCreateInputSchema.extend({ sessionId: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			const userId = ctx.session.user.id;
+			const existing = await findLiveCashGameSession(
+				ctx.db,
+				input.sessionId,
+				userId
+			);
+			await validateLiveLinkOwnership(ctx.db, input, userId);
+			if (existing.roomId && existing.roomId !== input.roomId) {
+				throw new TRPCError({
+					code: "BAD_REQUEST",
+					message: "Ring game belongs to a different room than the session",
+				});
+			}
+
+			const selection = await reconcileCashRuleSelection(
+				ctx.db,
+				userId,
+				undefined,
+				input
+			);
+			const frozenFlatFields = cashMixFlatFieldClearPatch(selection.mixGames);
+			const now = new Date();
+			const ringGameId = crypto.randomUUID();
+
+			const sessionUpdate: Partial<typeof gameSession.$inferInsert> = {
+				updatedAt: now,
+			};
+			if (!existing.roomId) {
+				sessionUpdate.roomId = input.roomId;
+			}
+			if (!existing.currencyId && input.currencyId) {
+				sessionUpdate.currencyId = input.currencyId;
+			}
+
+			const snapshot = {
+				ringGameId,
+				ruleName: input.name,
+				variant: selection.variant,
+				mixGames: selection.mixGames,
+				blind1: input.blind1 ?? null,
+				blind2: input.blind2 ?? null,
+				blind3: input.blind3 ?? null,
+				ante: input.ante ?? null,
+				anteType: input.anteType ?? null,
+				minBuyIn: input.minBuyIn ?? null,
+				maxBuyIn: input.maxBuyIn ?? null,
+				tableSize: input.tableSize ?? null,
+				...frozenFlatFields,
+			};
+			// Upsert (rather than select-then-update/insert) keeps an FK-checked
+			// session-detail write inside the batch. If the live session disappears
+			// after the authorization read, the FK violation rolls the master insert
+			// back instead of leaving an orphan ring game.
+			const detailStatement = ctx.db
+				.insert(sessionCashDetail)
+				.values({
+					sessionId: input.sessionId,
+					...snapshot,
+				})
+				.onConflictDoUpdate({
+					target: sessionCashDetail.sessionId,
+					set: snapshot,
+				});
+			const statements: [BatchStatement, ...BatchStatement[]] = [
+				buildRingGameCreateStatement(ctx.db, {
+					id: ringGameId,
+					input,
+					userId,
+					variant: selection.variant,
+					mixGames: selection.mixGames,
+					now,
+				}),
+				ctx.db
+					.update(gameSession)
+					.set(sessionUpdate)
+					.where(
+						and(
+							eq(gameSession.id, input.sessionId),
+							eq(gameSession.userId, userId),
+							eq(gameSession.kind, "cash_game"),
+							eq(gameSession.source, "live")
+						)
+					),
+				detailStatement,
+			];
+			await ctx.db.batch(statements);
+
+			return { sessionId: input.sessionId, ringGameId };
 		}),
 
 	update: protectedProcedure
@@ -594,6 +699,7 @@ export const liveCashGameSessionRouter = router({
 				});
 				cashDetailUpdate.ruleName = snapshot.ruleName;
 				cashDetailUpdate.variant = snapshot.variant;
+				cashDetailUpdate.mixGames = snapshot.mixGames;
 				cashDetailUpdate.blind1 = snapshot.blind1;
 				cashDetailUpdate.blind2 = snapshot.blind2;
 				cashDetailUpdate.blind3 = snapshot.blind3;
@@ -618,6 +724,11 @@ export const liveCashGameSessionRouter = router({
 				} else {
 					await ctx.db.insert(sessionCashDetail).values({
 						sessionId: input.id,
+						// Explicit fallback so this insert never relies on the column
+						// default (F5/c12) — overridden below by
+						// cashDetailUpdate.variant when a ring game snapshot already
+						// supplied one.
+						variant: DEFAULT_VARIANT_LABEL,
 						...cashDetailUpdate,
 					});
 				}
@@ -646,6 +757,7 @@ export const liveCashGameSessionRouter = router({
 				id: z.string(),
 				ruleName: z.string().min(1).optional(),
 				variant: z.string().optional(),
+				mixGames: mixGamesSchema.nullish(),
 				blind1: z.number().int().nullable().optional(),
 				blind2: z.number().int().nullable().optional(),
 				blind3: z.number().int().nullable().optional(),
@@ -659,6 +771,21 @@ export const liveCashGameSessionRouter = router({
 		.mutation(async ({ ctx, input }) => {
 			const userId = ctx.session.user.id;
 			await findLiveCashGameSession(ctx.db, input.id, userId);
+			const [existingDetail] = await ctx.db
+				.select()
+				.from(sessionCashDetail)
+				.where(eq(sessionCashDetail.sessionId, input.id));
+			const selection = await reconcileCashRuleSelection(
+				ctx.db,
+				userId,
+				existingDetail
+					? {
+							variant: existingDetail.variant,
+							mixGames: existingDetail.mixGames ?? null,
+						}
+					: undefined,
+				input
+			);
 
 			const detailUpdate: Partial<typeof sessionCashDetail.$inferInsert> = {};
 			if (input.ruleName !== undefined) {
@@ -666,6 +793,9 @@ export const liveCashGameSessionRouter = router({
 			}
 			if (input.variant !== undefined) {
 				detailUpdate.variant = input.variant;
+			}
+			if (selection.shouldWriteMixGames) {
+				detailUpdate.mixGames = selection.mixGames;
 			}
 			if (input.blind1 !== undefined) {
 				detailUpdate.blind1 = input.blind1;
@@ -690,6 +820,12 @@ export const liveCashGameSessionRouter = router({
 			}
 			if (input.tableSize !== undefined) {
 				detailUpdate.tableSize = input.tableSize;
+			}
+			if (Object.keys(detailUpdate).length > 0) {
+				Object.assign(
+					detailUpdate,
+					cashMixFlatFieldClearPatch(selection.mixGames)
+				);
 			}
 			if (Object.keys(detailUpdate).length === 0) {
 				return { id: input.id };

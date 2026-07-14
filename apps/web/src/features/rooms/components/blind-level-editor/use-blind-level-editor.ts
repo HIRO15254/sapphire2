@@ -1,16 +1,22 @@
 import type { DragEndEvent } from "@dnd-kit/core";
 import {
+	KeyboardSensor,
 	PointerSensor,
 	TouchSensor,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import type { LevelGameGroup } from "@sapphire2/db/schemas/game";
 import { useState } from "react";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	addLevel,
+	applyGameSetCell,
+	type BlindLevelPatch,
 	createLevel,
 	deleteLevel,
+	type GameSetCellPatch,
 	getEffectiveLastMinutes,
 	type NewLevelValues,
 	reorderLevels,
@@ -31,6 +37,9 @@ export function useLocalBlindStructure({
 	const effectiveLastMinutes = getEffectiveLastMinutes(lastMinutes, value);
 
 	const sensors = useSensors(
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		}),
 		useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
 		useSensor(TouchSensor, {
 			activationConstraint: { delay: 250, tolerance: 8 },
@@ -44,8 +53,10 @@ export function useLocalBlindStructure({
 		}
 	};
 
-	const handleAddLevel = () => {
-		onChange(addLevel(value, effectiveLastMinutes, false));
+	const handleAddLevel = (defaultGames?: LevelGameGroup[] | null) => {
+		onChange(
+			addLevel(value, effectiveLastMinutes, false, defaultGames ?? null)
+		);
 	};
 
 	const handleAddBreak = () => {
@@ -56,11 +67,19 @@ export function useLocalBlindStructure({
 		onChange(deleteLevel(value, id));
 	};
 
-	const handleUpdate = (id: string, updates: Record<string, number | null>) => {
+	const handleUpdate = (id: string, updates: BlindLevelPatch) => {
 		onChange(updateLevel(value, id, updates));
 		if (updates.minutes != null) {
 			setLastMinutes(updates.minutes);
 		}
+	};
+
+	const handleUpdateGameSet = (id: string, cell: GameSetCellPatch) => {
+		const games = applyGameSetCell(value.find((l) => l.id === id)?.games, cell);
+		if (!games) {
+			return;
+		}
+		onChange(updateLevel(value, id, { games }));
 	};
 
 	const handleCreateLevel = (vals: NewLevelValues) => {
@@ -78,6 +97,7 @@ export function useLocalBlindStructure({
 		handleAddBreak,
 		handleDelete,
 		handleUpdate,
+		handleUpdateGameSet,
 		handleCreateLevel,
 	};
 }

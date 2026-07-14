@@ -19,6 +19,7 @@ interface BreakdownTableProps {
 	normalized: boolean;
 	rows: BreakdownViewRow[];
 	showCashColumn: boolean;
+	showNetColumn: boolean;
 	showTournamentColumn: boolean;
 }
 
@@ -30,14 +31,20 @@ interface BreakdownTableProps {
 function valueColumnsFor({
 	normalized,
 	showCashColumn,
+	showNetColumn,
 	showTournamentColumn,
 }: Omit<BreakdownTableProps, "rows">): ValueColumn[] {
-	if (!normalized) {
-		return [
-			{ header: "Net", text: (r) => r.netText, color: (r) => r.netColor },
-		];
-	}
 	const columns: ValueColumn[] = [];
+	if (!normalized || showNetColumn) {
+		columns.push({
+			header: "Net",
+			text: (r) => r.netText,
+			color: (r) => r.netColor,
+		});
+	}
+	if (!normalized) {
+		return columns;
+	}
 	if (showCashColumn) {
 		columns.push({
 			header: "BB",
@@ -59,14 +66,16 @@ export function BreakdownTable({
 	rows,
 	normalized,
 	showCashColumn,
+	showNetColumn,
 	showTournamentColumn,
 }: BreakdownTableProps) {
 	const valueColumns = valueColumnsFor({
 		normalized,
 		showCashColumn,
+		showNetColumn,
 		showTournamentColumn,
 	});
-	const columnCount = valueColumns.length + 2;
+	const columnCount = valueColumns.length + 3;
 
 	return (
 		<div className="overflow-x-auto">

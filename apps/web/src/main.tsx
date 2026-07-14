@@ -14,7 +14,16 @@ const router = createRouter({
 		return (
 			<PersistQueryClientProvider
 				client={queryClient}
-				persistOptions={{ persister, maxAge: 1000 * 60 * 60 * 24 }}
+				persistOptions={{
+					persister,
+					maxAge: 1000 * 60 * 60 * 24,
+					// Bump this string on any release whose server changes alter a
+					// procedure's output shape or value semantics — deployed clients
+					// otherwise rehydrate up to 24h of old-shaped cache into new code
+					// (SA2-154). This release: migration 0039 changed variant value
+					// semantics ('nlh' -> labels) and several outputs gained fields.
+					buster: "2026-07-mix-games",
+				}}
 			>
 				{children}
 			</PersistQueryClientProvider>
