@@ -468,6 +468,43 @@ describe("insertPlayerLeaveEvent (write-side ordering contract)", () => {
 	});
 });
 
+describe("concurrent player event append (SA2-196)", () => {
+	it("submits both append allocations inside their INSERTs without a MAX pre-read", async () => {
+		const { db, selectSpy, valuesSpy } = makeInsertEventDb(null);
+
+		await Promise.all([
+			insertPlayerJoinEvent(
+				db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
+				"session-1",
+				"player-1"
+			),
+			insertPlayerLeaveEvent(
+				db as unknown as Parameters<typeof insertPlayerLeaveEvent>[0],
+				"session-1",
+				"player-2"
+			),
+		]);
+
+		expect(selectSpy).not.toHaveBeenCalled();
+		expect(valuesSpy).toHaveBeenCalledTimes(2);
+		const insertedRows = valuesSpy.mock.calls.map(
+			([row]) => row as Record<string, unknown>
+		);
+		expect(insertedRows.map(({ eventType }) => eventType)).toEqual([
+			"player_join",
+			"player_leave",
+		]);
+		for (const row of insertedRows) {
+			const query = new SQLiteSyncDialect().sqlToQuery(row.sortOrder as never);
+			const normalizedSql = query.sql.toLowerCase();
+			expect(normalizedSql).toContain("coalesce(max(");
+			expect(normalizedSql).toContain('from "session_event"');
+			expect(normalizedSql).toContain('where "session_event"."session_id" = ?');
+			expect(normalizedSql).toContain("+ 1");
+			expect(query.params).toEqual(["session-1"]);
+		}
+	});
+});
 describe("sessionTablePlayer.addNew tag ownership (SA2-178)", () => {
 	type Rows = Record<string, unknown>[];
 	const OWNER = "owner-1";
