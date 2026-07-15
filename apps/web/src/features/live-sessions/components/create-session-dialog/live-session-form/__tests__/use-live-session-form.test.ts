@@ -183,4 +183,49 @@ describe("useLiveSessionForm — submit", () => {
 			expect.objectContaining({ type: "cash_game" })
 		);
 	});
+
+	it("confirms a cash session with only the initial buy-in — the live form never shows a cash-out field", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderForm(onSubmit);
+
+		// Mirror the real UI: the user fills the initial buy-in and taps ✓.
+		// There is no cash-out input on the live form, so it stays empty.
+		act(() => {
+			result.current.state.form.setFieldValue("buyIn", "100");
+		});
+		act(() => {
+			result.current.onFormSubmit({
+				preventDefault: vi.fn(),
+				stopPropagation: vi.fn(),
+			} as unknown as FormEvent);
+		});
+
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ type: "cash_game", buyIn: 100 })
+		);
+	});
+
+	it("opens the collapsed rules section when submit fails on a rule field", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderForm(onSubmit);
+
+		// A tournament needs a buy-in, which lives behind the collapsed
+		// "Customize rules" section. Submitting it empty must surface the section
+		// instead of silently doing nothing.
+		act(() => {
+			result.current.state.setSessionType("tournament");
+		});
+		expect(result.current.rulesOpen).toBe(false);
+
+		act(() => {
+			result.current.onFormSubmit({
+				preventDefault: vi.fn(),
+				stopPropagation: vi.fn(),
+			} as unknown as FormEvent);
+		});
+
+		await waitFor(() => expect(result.current.rulesOpen).toBe(true));
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
 });

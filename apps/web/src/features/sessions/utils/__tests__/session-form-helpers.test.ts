@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	buildDefaults,
 	cashOverriddenFields,
+	cashSessionFormSchema,
 	getTodayDateString,
+	liveCashSessionFormSchema,
 	NONE_VALUE,
 	numStrOrEmpty,
 	parseOptInt,
@@ -204,6 +206,76 @@ describe("sessionFormSchema", () => {
 				sessionFormSchema.safeParse(validPayload({ tableSize: value })).success
 			).toBe(false);
 		}
+	});
+});
+
+describe("liveCashSessionFormSchema", () => {
+	function livePayload(overrides: Record<string, unknown> = {}) {
+		return {
+			sessionDate: "2026-04-01",
+			startTime: "",
+			endTime: "",
+			breakMinutes: "",
+			memo: "",
+			ruleName: "",
+			buyIn: "100",
+			// The live "Start Live Session" form never renders a cash-out field —
+			// the session hasn't ended yet — so it always submits empty here.
+			cashOut: "",
+			evCashOut: "",
+			variant: "nlh",
+			blind1: "",
+			blind2: "",
+			blind3: "",
+			ante: "",
+			anteType: "none",
+			tableSize: "",
+			minBuyIn: "",
+			maxBuyIn: "",
+			tournamentBuyIn: "",
+			entryFee: "",
+			startingStack: "",
+			bountyAmount: "",
+			beforeDeadline: false,
+			timerStartedAt: "",
+			placement: "",
+			totalEntries: "",
+			prizeMoney: "",
+			bountyPrizes: "",
+			...overrides,
+		};
+	}
+
+	it("accepts a live cash payload with an empty cash-out (session not ended yet)", () => {
+		expect(liveCashSessionFormSchema.safeParse(livePayload()).success).toBe(
+			true
+		);
+	});
+
+	it("still requires the initial buy-in", () => {
+		expect(
+			liveCashSessionFormSchema.safeParse(livePayload({ buyIn: "" })).success
+		).toBe(false);
+	});
+
+	it("still requires a session date", () => {
+		expect(
+			liveCashSessionFormSchema.safeParse(livePayload({ sessionDate: "" }))
+				.success
+		).toBe(false);
+	});
+
+	it("still rejects a negative cash-out when one is supplied", () => {
+		expect(
+			liveCashSessionFormSchema.safeParse(livePayload({ cashOut: "-1" }))
+				.success
+		).toBe(false);
+	});
+
+	it("diverges from cashSessionFormSchema, which requires the cash-out", () => {
+		const payload = livePayload();
+		expect(cashSessionFormSchema.safeParse(payload).success).toBe(false);
+		expect(liveCashSessionFormSchema.safeParse(payload).success).toBe(true);
 	});
 });
 

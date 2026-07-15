@@ -206,6 +206,18 @@ export const cashSessionFormSchema = sessionFormSchema.extend({
 	tournamentBuyIn: optionalNumericString({ integer: true, min: 0 }),
 });
 
+/**
+ * Cash schema for the live "Start Live Session" flow. A live session is
+ * created before it ends, so the result-only cash-out is unknown and the live
+ * form never renders it — keeping the shared `cashOut` requirement made the
+ * ✓ Confirm silently fail (the empty field always failed validation and the
+ * error routed to a "result" step that the single-screen live form doesn't
+ * render). The initial buy-in stays required.
+ */
+export const liveCashSessionFormSchema = cashSessionFormSchema.extend({
+	cashOut: optionalNumericString({ integer: true, min: 0 }),
+});
+
 export const tournamentSessionFormSchema = sessionFormSchema.extend({
 	buyIn: optionalNumericString({ integer: true, min: 0 }),
 	cashOut: optionalNumericString({ integer: true, min: 0 }),

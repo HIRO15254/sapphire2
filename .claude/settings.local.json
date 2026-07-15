@@ -4,7 +4,8 @@
       "Bash(bunx vitest *)",
       "mcp__7d3661ac-8fa2-4e4c-b904-cddf640bd4ac__get_issue",
       "mcp__7d3661ac-8fa2-4e4c-b904-cddf640bd4ac__list_comments",
-      "mcp__Linear__get_issue"
+      "mcp__Linear__get_issue",
+      "mcp__Claude_Code_Remote__send_later"
     ]
   },
   "enabledPlugins": {
