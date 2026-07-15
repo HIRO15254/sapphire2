@@ -6,7 +6,6 @@ import {
 	computeSeatedPlayersFromEvents,
 	computeSessionStateFromEvents,
 	computeTournamentPLFromEvents,
-	getSessionResultTypeId,
 	recalculateCashGameSession,
 	recalculateTournamentSession,
 	syncChipPurchaseResults,
@@ -1323,50 +1322,5 @@ describe("recalculateTournamentSession — completed with tournamentId and linke
 		expect(txUpdate).toBeDefined();
 		// profitLoss = 500 - (10000 + 1000) = -10500
 		expect(txUpdate?.[0].amount).toBe(-10_500);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// getSessionResultTypeId tests
-// ---------------------------------------------------------------------------
-
-describe("getSessionResultTypeId", () => {
-	it("returns existing typeId when Session Result type already exists", async () => {
-		const existingType = [
-			{
-				id: "tt-existing",
-				name: "Session Result",
-				userId: "user-1",
-				updatedAt: new Date(),
-			},
-		];
-		const db = makeChainableDb([existingType]);
-
-		const result = await getSessionResultTypeId(
-			db as unknown as Parameters<typeof getSessionResultTypeId>[0],
-			"user-1"
-		);
-
-		expect(result).toBe("tt-existing");
-		expect(db.insert).not.toHaveBeenCalled();
-	});
-
-	it("inserts a new Session Result type and returns its id when none exists", async () => {
-		const db = makeChainableDb([[]]);
-
-		const result = await getSessionResultTypeId(
-			db as unknown as Parameters<typeof getSessionResultTypeId>[0],
-			"user-1"
-		);
-
-		expect(typeof result).toBe("string");
-		expect(result.length).toBeGreaterThan(0);
-		expect(db.insert).toHaveBeenCalledTimes(1);
-		const insertedValues = db._insertChain.values.mock.calls[0]?.[0] as Record<
-			string,
-			unknown
-		>;
-		expect(insertedValues.name).toBe("Session Result");
-		expect(insertedValues.userId).toBe("user-1");
 	});
 });

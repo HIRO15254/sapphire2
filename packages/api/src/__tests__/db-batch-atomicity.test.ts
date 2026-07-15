@@ -88,8 +88,32 @@ function createBatchTrackingDb(
 					kind: "insert",
 					table,
 					values,
-				} as Stmt & { onConflictDoUpdate: () => Stmt };
+				} as Stmt & {
+					onConflictDoNothing: () => Stmt;
+					onConflictDoUpdate: () => Stmt;
+				};
 				stmt.onConflictDoUpdate = () => stmt;
+				stmt.onConflictDoNothing = () => {
+					if (table === transactionType) {
+						const existingRows = rowsByTable.get(table) ?? [];
+						const candidates = (
+							Array.isArray(values) ? values : [values]
+						) as Rows;
+						for (const candidate of candidates) {
+							if (
+								!existingRows.some(
+									(row) =>
+										row.userId === candidate.userId &&
+										row.name === candidate.name
+								)
+							) {
+								existingRows.push(candidate);
+							}
+						}
+						rowsByTable.set(table, existingRows);
+					}
+					return stmt;
+				};
 				inserts.push(stmt);
 				return stmt;
 			},
@@ -435,10 +459,10 @@ describe("session.create atomicity (SA2-116)", () => {
 		const rows = new Map<unknown, Rows>([
 			[currency, [{ id: "cur-1", userId: "user-1" }]],
 			[sessionTag, [{ id: "tag-1" }]],
-			// No "Session Result" transaction type yet -> its INSERT must join the batch.
+			// No "Session Result" type yet -> the shared ensure creates it first.
 			[transactionType, []],
 		]);
-		const { db, batchCalls } = createBatchTrackingDb(rows);
+		const { db, batchCalls, inserts } = createBatchTrackingDb(rows);
 
 		await callerFor(db, "user-1").session.create({
 			type: "cash_game",
@@ -452,7 +476,8 @@ describe("session.create atomicity (SA2-116)", () => {
 		expect(batchCalls).toHaveLength(1);
 		const batch = sole(batchCalls);
 		expect(opsOn(batch, sessionToSessionTag, "insert")).toHaveLength(1);
-		expect(opsOn(batch, transactionType, "insert")).toHaveLength(1);
+		expect(opsOn(inserts, transactionType, "insert")).toHaveLength(1);
+		expect(opsOn(batch, transactionType, "insert")).toHaveLength(0);
 		expect(opsOn(batch, currencyTransaction, "insert")).toHaveLength(1);
 	});
 });
@@ -975,8 +1000,8 @@ describe("syncCurrencyTransaction currency-change atomicity (SA2-116)", () => {
 		expect(opsOn(batch, transactionType, "insert")).toHaveLength(0);
 	});
 
-	it("includes the Session Result type INSERT before the ledger row when the type is missing", async () => {
-		const { db, batchCalls } = createBatchTrackingDb(
+	it("ensures the Session Result type before batching the replacement ledger row", async () => {
+		const { db, batchCalls, inserts } = createBatchTrackingDb(
 			new Map<unknown, Rows>([[transactionType, []]])
 		);
 
@@ -991,16 +1016,9 @@ describe("syncCurrencyTransaction currency-change atomicity (SA2-116)", () => {
 		);
 
 		const batch = sole(batchCalls);
-		expect(opsOn(batch, transactionType, "insert")).toHaveLength(1);
+		expect(opsOn(inserts, transactionType, "insert")).toHaveLength(1);
+		expect(opsOn(batch, transactionType, "insert")).toHaveLength(0);
 		expect(opsOn(batch, currencyTransaction, "insert")).toHaveLength(1);
-		const typeIdx = batch.findIndex(
-			(s) => s.table === transactionType && s.kind === "insert"
-		);
-		const txIdx = batch.findIndex(
-			(s) => s.table === currencyTransaction && s.kind === "insert"
-		);
-		// FK order: the type row must precede the ledger row that references it.
-		expect(typeIdx).toBeLessThan(txIdx);
 	});
 
 	it("leaves the single-statement branches (pure removal / same-currency update) unbatched", async () => {

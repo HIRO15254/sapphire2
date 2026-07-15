@@ -9,10 +9,7 @@ import {
 	purchaseChipsPayload,
 	tournamentSessionEndPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import {
-	currencyTransaction,
-	transactionType,
-} from "@sapphire2/db/schema/currency";
+import { currencyTransaction } from "@sapphire2/db/schema/currency";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
@@ -20,9 +17,10 @@ import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-pur
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import type { protectedProcedure } from "../index";
 import { type BatchStatement, runBatch } from "../lib/batch";
+import { ensureSessionResultTypeId } from "./session-result-type";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -221,33 +219,6 @@ export function computeTournamentPLFromEvents(
 	};
 }
 
-export async function getSessionResultTypeId(
-	db: DbInstance,
-	userId: string
-): Promise<string> {
-	const [found] = await db
-		.select()
-		.from(transactionType)
-		.where(
-			and(
-				eq(transactionType.userId, userId),
-				eq(transactionType.name, "Session Result")
-			)
-		);
-	if (found) {
-		return found.id;
-	}
-
-	const id = crypto.randomUUID();
-	await db.insert(transactionType).values({
-		id,
-		userId,
-		name: "Session Result",
-		updatedAt: new Date(),
-	});
-	return id;
-}
-
 async function syncCurrencyTransaction(
 	db: DbInstance,
 	sessionId: string,
@@ -272,7 +243,7 @@ async function syncCurrencyTransaction(
 			.set({ amount: profitLoss, currencyId, transactedAt: sessionDate })
 			.where(eq(currencyTransaction.id, existingTx.id));
 	} else {
-		const typeId = await getSessionResultTypeId(db, userId);
+		const typeId = await ensureSessionResultTypeId(db, userId);
 		await db.insert(currencyTransaction).values({
 			id: crypto.randomUUID(),
 			currencyId,

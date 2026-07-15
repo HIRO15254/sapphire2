@@ -4,11 +4,7 @@ import {
 	MIX_VARIANT,
 	variantDisplayLabel,
 } from "@sapphire2/db/constants/game-variants";
-import {
-	currency,
-	currencyTransaction,
-	transactionType,
-} from "@sapphire2/db/schema/currency";
+import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
 import { gameGroup } from "@sapphire2/db/schema/game-group";
 import { gameMix } from "@sapphire2/db/schema/game-mix";
 import { gameVariant } from "@sapphire2/db/schema/game-variant";
@@ -53,6 +49,7 @@ import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch } from "../lib/batch";
 import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
+import { ensureSessionResultTypeId } from "../services/session-result-type";
 import { compareBuiltinFirst } from "./_game-masters";
 
 const PAGE_SIZE = 20;
@@ -755,32 +752,6 @@ async function validateEntityOwnership(
 	}
 }
 
-async function getSessionResultTypeId(
-	db: DbInstance,
-	userId: string
-): Promise<string> {
-	const [found] = await db
-		.select()
-		.from(transactionType)
-		.where(
-			and(
-				eq(transactionType.userId, userId),
-				eq(transactionType.name, "Session Result")
-			)
-		);
-	if (found) {
-		return found.id;
-	}
-	const id = crypto.randomUUID();
-	await db.insert(transactionType).values({
-		id,
-		userId,
-		name: "Session Result",
-		updatedAt: new Date(),
-	});
-	return id;
-}
-
 async function createCurrencyTransactionForSession(
 	db: DbInstance,
 	sessionId: string,
@@ -789,7 +760,7 @@ async function createCurrencyTransactionForSession(
 	sessionDate: Date,
 	userId: string
 ) {
-	const typeId = await getSessionResultTypeId(db, userId);
+	const typeId = await ensureSessionResultTypeId(db, userId);
 	await db.insert(currencyTransaction).values({
 		id: crypto.randomUUID(),
 		currencyId,
@@ -801,12 +772,10 @@ async function createCurrencyTransactionForSession(
 }
 
 /**
- * Build the statements that (re)create a session's "Session Result" currency
- * ledger row: the transaction-type INSERT when it does not exist yet (ordered
- * first), then the currencyTransaction row referencing it. Returned UN-executed
- * so a caller can commit them in one batch — e.g. atomically after a DELETE so a
- * currency switch can no longer lose the ledger row on a failed re-INSERT
- * (SA2-116).
+ * Build the "Session Result" ledger INSERT for a parent batch. The shared
+ * ensure commits the persistent transaction-type master first; the returned
+ * array contains only ledger statements so parent/session/tag writes remain
+ * atomic. An unused master may remain when the parent batch fails (SA2-116).
  */
 async function buildCurrencyTransactionStatements(
 	db: DbInstance,
@@ -816,11 +785,8 @@ async function buildCurrencyTransactionStatements(
 	sessionDate: Date,
 	userId: string
 ): Promise<BatchStatement[]> {
-	const { statements, typeId } = await buildSessionResultTypeIdStatements(
-		db,
-		userId
-	);
-	statements.push(
+	const typeId = await ensureSessionResultTypeId(db, userId);
+	return [
 		db.insert(currencyTransaction).values({
 			id: crypto.randomUUID(),
 			currencyId,
@@ -828,9 +794,8 @@ async function buildCurrencyTransactionStatements(
 			sessionId,
 			amount,
 			transactedAt: sessionDate,
-		})
-	);
-	return statements;
+		}),
+	];
 }
 
 export async function syncCurrencyTransaction(
@@ -3060,44 +3025,6 @@ async function selectCreatedSession(db: DbInstance, id: string) {
 		.from(gameSession)
 		.where(eq(gameSession.id, id));
 	return created;
-}
-
-/**
- * Resolve the caller's "Session Result" transaction-type id for a batched write.
- * When the type does not exist yet its INSERT is returned so it can be committed
- * in the SAME batch as the currency-transaction row that references it (ordered
- * before that row). Shared by session.create and the session.update currency
- * sync — mirrors {@link getSessionResultTypeId} (the plain read-or-create still
- * used where a standalone commit is fine).
- */
-async function buildSessionResultTypeIdStatements(
-	db: DbInstance,
-	userId: string
-): Promise<{ statements: BatchStatement[]; typeId: string }> {
-	const [found] = await db
-		.select()
-		.from(transactionType)
-		.where(
-			and(
-				eq(transactionType.userId, userId),
-				eq(transactionType.name, "Session Result")
-			)
-		);
-	if (found) {
-		return { statements: [], typeId: found.id };
-	}
-	const id = crypto.randomUUID();
-	return {
-		statements: [
-			db.insert(transactionType).values({
-				id,
-				userId,
-				name: "Session Result",
-				updatedAt: new Date(),
-			}),
-		],
-		typeId: id,
-	};
 }
 
 async function buildCreateCurrencyTxStatements(
