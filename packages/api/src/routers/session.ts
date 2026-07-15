@@ -52,6 +52,7 @@ import type { SQLiteColumn, SQLiteTable } from "drizzle-orm/sqlite-core";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch } from "../lib/batch";
+import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
 import { compareBuiltinFirst } from "./_game-masters";
 
 const PAGE_SIZE = 20;
@@ -1023,7 +1024,7 @@ const cashGameCreateSchema = z.object({
 	endedAt: z.number().optional(),
 	breakMinutes: nonNegativeIntegerSchema.optional(),
 	memo: z.string().optional(),
-	tagIds: z.array(z.string()).optional(),
+	tagIds: optionalUniqueTagIdsSchema,
 });
 
 // A rule-defined chip purchase plus how many times it was bought (`count`).
@@ -1063,7 +1064,7 @@ const tournamentCreateSchema = z
 		endedAt: z.number().optional(),
 		breakMinutes: nonNegativeIntegerSchema.optional(),
 		memo: z.string().optional(),
-		tagIds: z.array(z.string()).optional(),
+		tagIds: optionalUniqueTagIdsSchema,
 	})
 	.refine(
 		(data) => {
@@ -3318,7 +3319,7 @@ export const sessionRouter = router({
 					tableSize: nullableTableSizeSchema.optional(),
 					minBuyIn: nullableNonNegativeIntegerSchema.optional(),
 					maxBuyIn: nullableNonNegativeIntegerSchema.optional(),
-					tagIds: z.array(z.string()).optional(),
+					tagIds: optionalUniqueTagIdsSchema,
 				})
 				.refine(
 					(data) =>

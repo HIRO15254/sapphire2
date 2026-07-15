@@ -8,6 +8,7 @@ import { and, asc, eq, inArray, like } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch } from "../lib/batch";
+import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
 import {
 	chunkForInsert,
 	selectInChunks,
@@ -167,7 +168,7 @@ export const playerRouter = router({
 			z.object({
 				name: z.string().min(1).max(100),
 				memo: z.string().max(50_000).optional(),
-				tagIds: z.array(z.string()).optional(),
+				tagIds: optionalUniqueTagIdsSchema,
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -236,7 +237,7 @@ export const playerRouter = router({
 				id: z.string(),
 				name: z.string().min(1).max(100).optional(),
 				memo: z.string().max(50_000).optional().nullable(),
-				tagIds: z.array(z.string()).optional(),
+				tagIds: optionalUniqueTagIdsSchema,
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
