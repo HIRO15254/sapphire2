@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSessionWizard } from "@/features/sessions/components/session-wizard/use-session-wizard";
 import type {
 	RingGameOption,
@@ -41,6 +41,16 @@ export function useLiveSessionForm({
 	// session that keeps the master's rules starts without opening them. The
 	// user expands the section only to tweak the rules.
 	const [rulesOpen, setRulesOpen] = useState(false);
+
+	// A failed submit whose invalid field lives in the rules section (e.g. a
+	// tournament with no buy-in) routes the wizard's currentStep to "rules".
+	// The single-screen live form has no step nav, so reveal the collapsed
+	// section instead — otherwise ✓ Confirm looks like it does nothing.
+	useEffect(() => {
+		if (state.currentStep === "rules") {
+			setRulesOpen(true);
+		}
+	}, [state.currentStep]);
 
 	const selectedMaster = state.isCashGame
 		? state.selectedRingGame

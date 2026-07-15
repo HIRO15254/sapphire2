@@ -264,6 +264,72 @@ describe("useSessionFormState", () => {
 		);
 	});
 
+	it("blocks a manual cash submit when the cash-out is left empty", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(
+			() =>
+				useSessionFormState({
+					onSubmit,
+					defaultValues: { type: "cash_game", sessionDate: "2026-04-10" },
+					ringGames: RING_GAMES,
+				}),
+			{ wrapper: withQueryClient() }
+		);
+		act(() => {
+			result.current.form.setFieldValue("buyIn", "100");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("submits a live cash session with only the initial buy-in (no cash-out)", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(
+			() =>
+				useSessionFormState({
+					mode: "live",
+					onSubmit,
+					defaultValues: { type: "cash_game", sessionDate: "2026-04-10" },
+					ringGames: RING_GAMES,
+				}),
+			{ wrapper: withQueryClient() }
+		);
+		act(() => {
+			result.current.form.setFieldValue("buyIn", "100");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: "cash_game",
+				buyIn: 100,
+				sessionDate: "2026-04-10",
+			})
+		);
+	});
+
+	it("still requires the initial buy-in in live mode", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(
+			() =>
+				useSessionFormState({
+					mode: "live",
+					onSubmit,
+					defaultValues: { type: "cash_game", sessionDate: "2026-04-10" },
+					ringGames: RING_GAMES,
+				}),
+			{ wrapper: withQueryClient() }
+		);
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("seeds selectedGameId from defaultValues.ringGameId for cash and .tournamentId for tournament", () => {
 		const onSubmit = vi.fn();
 		const { result: cash } = renderHook(
