@@ -1,3 +1,5 @@
+import { TRPCError } from "@trpc/server";
+
 /**
  * A label collision on `game_group` / `game_variant` / `game_mix` surfaces in
  * TWO different shapes, and callers that react to it must recognize both:
@@ -21,6 +23,35 @@
  */
 const LABEL_CONFLICT_RE = /UNIQUE constraint failed|label already exists/i;
 
+const UNFINISHED_LIVE_SESSION_CONFLICT_RE =
+	/UNIQUE constraint failed:\s*game_session\.user_id/i;
+
+export function isUnfinishedLiveSessionConflictError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		UNFINISHED_LIVE_SESSION_CONFLICT_RE.test(error.message)
+	);
+}
+
 export function isLabelConflictError(error: unknown): boolean {
 	return error instanceof Error && LABEL_CONFLICT_RE.test(error.message);
+}
+
+export const ACTIVE_SESSION_CONFLICT_MESSAGE =
+	"Another session is already active";
+
+export async function runUnfinishedLiveSessionWrite(
+	operation: () => Promise<unknown>
+): Promise<void> {
+	try {
+		await operation();
+	} catch (error) {
+		if (isUnfinishedLiveSessionConflictError(error)) {
+			throw new TRPCError({
+				code: "CONFLICT",
+				message: ACTIVE_SESSION_CONFLICT_MESSAGE,
+			});
+		}
+		throw error;
+	}
 }

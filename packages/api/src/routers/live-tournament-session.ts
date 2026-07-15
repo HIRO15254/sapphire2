@@ -18,6 +18,10 @@ import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
+	ACTIVE_SESSION_CONFLICT_MESSAGE,
+	runUnfinishedLiveSessionWrite,
+} from "../lib/db-errors";
+import {
 	computeHeroSeatPositionFromEvents,
 	computeTournamentPLFromEvents,
 	recalculateTournamentSession,
@@ -115,8 +119,8 @@ async function assertNoActiveSession(
 
 	if (anyActive.length > 0) {
 		throw new TRPCError({
-			code: "BAD_REQUEST",
-			message: "Another session is already active",
+			code: "CONFLICT",
+			message: ACTIVE_SESSION_CONFLICT_MESSAGE,
 		});
 	}
 }
@@ -729,48 +733,50 @@ export const liveTournamentSessionRouter = router({
 					)
 				: [];
 
-			await ctx.db.batch([
-				ctx.db.insert(gameSession).values({
-					id,
-					userId,
-					kind: "tournament",
-					status: "active",
-					source: "live",
-					roomId: input.roomId ?? null,
-					currencyId: input.currencyId ?? null,
-					startedAt: now,
-					memo: input.memo ?? null,
-					sessionDate: now,
-					updatedAt: now,
-				}),
-				ctx.db.insert(sessionTournamentDetail).values({
-					sessionId: id,
-					tournamentId: input.tournamentId ?? null,
-					tournamentBuyIn: snapshot.tournamentBuyIn,
-					entryFee: snapshot.entryFee,
-					timerStartedAt:
-						input.timerStartedAt === undefined
-							? null
-							: new Date(input.timerStartedAt * 1000),
-					ruleName: input.tournamentId ? snapshot.ruleName : "Tournament",
-					variant: snapshot.variant,
-					startingStack: snapshot.startingStack,
-					bountyAmount: snapshot.bountyAmount,
-					tableSize: snapshot.tableSize,
-				}),
-				ctx.db.insert(sessionEvent).values({
-					id: crypto.randomUUID(),
-					sessionId: id,
-					eventType: "session_start",
-					occurredAt: floorToMinute(now),
-					sortOrder: 0,
-					payload: JSON.stringify({
-						timerStartedAt: input.timerStartedAt ?? null,
+			await runUnfinishedLiveSessionWrite(() =>
+				ctx.db.batch([
+					ctx.db.insert(gameSession).values({
+						id,
+						userId,
+						kind: "tournament",
+						status: "active",
+						source: "live",
+						roomId: input.roomId ?? null,
+						currencyId: input.currencyId ?? null,
+						startedAt: now,
+						memo: input.memo ?? null,
+						sessionDate: now,
+						updatedAt: now,
 					}),
-					updatedAt: now,
-				}),
-				...structureStatements,
-			]);
+					ctx.db.insert(sessionTournamentDetail).values({
+						sessionId: id,
+						tournamentId: input.tournamentId ?? null,
+						tournamentBuyIn: snapshot.tournamentBuyIn,
+						entryFee: snapshot.entryFee,
+						timerStartedAt:
+							input.timerStartedAt === undefined
+								? null
+								: new Date(input.timerStartedAt * 1000),
+						ruleName: input.tournamentId ? snapshot.ruleName : "Tournament",
+						variant: snapshot.variant,
+						startingStack: snapshot.startingStack,
+						bountyAmount: snapshot.bountyAmount,
+						tableSize: snapshot.tableSize,
+					}),
+					ctx.db.insert(sessionEvent).values({
+						id: crypto.randomUUID(),
+						sessionId: id,
+						eventType: "session_start",
+						occurredAt: floorToMinute(now),
+						sortOrder: 0,
+						payload: JSON.stringify({
+							timerStartedAt: input.timerStartedAt ?? null,
+						}),
+						updatedAt: now,
+					}),
+					...structureStatements,
+				])
+			);
 
 			return { id };
 		}),

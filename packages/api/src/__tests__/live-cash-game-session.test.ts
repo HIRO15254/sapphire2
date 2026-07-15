@@ -29,7 +29,14 @@ type Rows = Record<string, unknown>[];
  */
 type ChainablePromise = Promise<Rows> & Record<string, () => ChainablePromise>;
 
-function createMockDb(tableRows: Map<unknown, Rows>) {
+interface MockDbOptions {
+	batchError?: Error;
+}
+
+function createMockDb(
+	tableRows: Map<unknown, Rows>,
+	options: MockDbOptions = {}
+) {
 	const makeResult = (table: unknown): ChainablePromise => {
 		const promise = Promise.resolve(
 			tableRows.get(table) ?? []
@@ -54,14 +61,23 @@ function createMockDb(tableRows: Map<unknown, Rows>) {
 			set: () => ({ where: () => Promise.resolve(undefined) }),
 		}),
 		delete: () => ({ where: () => Promise.resolve(undefined) }),
-		batch: (statements: Promise<unknown>[]) => Promise.all(statements),
+		batch: (statements: Promise<unknown>[]) => {
+			if (options.batchError) {
+				return Promise.reject(options.batchError);
+			}
+			return Promise.all(statements);
+		},
 	};
 }
 
-function makeCaller(userId: string, tableRows: Map<unknown, Rows>) {
+function makeCaller(
+	userId: string,
+	tableRows: Map<unknown, Rows>,
+	options?: MockDbOptions
+) {
 	return appRouter.createCaller({
 		session: { user: { id: userId } },
-		db: createMockDb(tableRows),
+		db: createMockDb(tableRows, options),
 	} as unknown as Parameters<typeof appRouter.createCaller>[0])
 		.liveCashGameSession;
 }
@@ -175,6 +191,45 @@ describe("liveCashGameSession.create ownership validation (SA2-102)", () => {
 		await expect(
 			makeCaller(OWNER, rows).create({ initialBuyIn: 0 })
 		).resolves.toEqual(expect.objectContaining({ id: expect.any(String) }));
+	});
+});
+
+describe("liveCashGameSession.create unfinished-session conflicts (SA2-211)", () => {
+	it("returns CONFLICT when the preflight finds an unfinished live session", async () => {
+		const rows = new Map<unknown, Rows>([[gameSession, [ownedSession]]]);
+
+		await expect(
+			makeCaller(OWNER, rows).create({ initialBuyIn: 0 })
+		).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: "Another session is already active",
+		});
+	});
+
+	it("maps the authoritative unique-index race to CONFLICT", async () => {
+		const rows = new Map<unknown, Rows>([[gameSession, []]]);
+		const batchError = new Error(
+			"D1_ERROR: UNIQUE constraint failed: game_session.user_id: SQLITE_CONSTRAINT"
+		);
+
+		await expect(
+			makeCaller(OWNER, rows, { batchError }).create({ initialBuyIn: 0 })
+		).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: "Another session is already active",
+		});
+	});
+
+	it("does not hide unrelated batch failures", async () => {
+		const rows = new Map<unknown, Rows>([[gameSession, []]]);
+		const batchError = new Error("D1 unavailable");
+
+		await expect(
+			makeCaller(OWNER, rows, { batchError }).create({ initialBuyIn: 0 })
+		).rejects.toMatchObject({
+			code: "INTERNAL_SERVER_ERROR",
+			message: batchError.message,
+		});
 	});
 });
 

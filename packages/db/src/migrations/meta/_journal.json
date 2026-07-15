@@ -309,6 +309,13 @@
       "when": 1784037852579,
       "tag": "0043_parched_northstar",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1784101216973,
+      "tag": "0044_oval_captain_flint",
+      "breakpoints": true
     }
   ]
 }

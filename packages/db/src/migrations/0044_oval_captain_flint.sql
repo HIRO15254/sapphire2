@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `session_one_unfinished_live_per_user_idx` ON `game_session` (`user_id`) WHERE "game_session"."source" = 'live' AND "game_session"."status" != 'completed';

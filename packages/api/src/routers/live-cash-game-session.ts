@@ -6,7 +6,7 @@ import {
 	MAX_SEAT_POSITION,
 	updateStackPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import { currency } from "@sapphire2/db/schema/currency";
+import { currency, currencyTransaction } from "@sapphire2/db/schema/currency";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -17,6 +17,10 @@ import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
+import {
+	ACTIVE_SESSION_CONFLICT_MESSAGE,
+	runUnfinishedLiveSessionWrite,
+} from "../lib/db-errors";
 import {
 	computeCashGamePLFromEvents,
 	computeHeroSeatPositionFromEvents,
@@ -65,9 +69,9 @@ type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 /**
  * Atomically re-open a completed live cash session: delete its `session_end`
  * event and re-stamp the closing stack as an `update_stack` + a `pause`/`resume`
- * pair. Committing the DELETE and the 3 INSERTs in one `db.batch` (SA2-116)
- * prevents a mid-sequence failure from destroying the session-end event without
- * writing its replacements.
+ * pair. Event replacement, reopening the session row, and removing the completed
+ * session's currency ledger entry share one `db.batch`, so a conflict or write
+ * failure rolls back the entire reopen (SA2-116, SA2-211).
  */
 export async function persistCashSessionReopenEvents(
 	db: DbInstance,
@@ -115,6 +119,17 @@ export async function persistCashSessionReopenEvents(
 			payload: JSON.stringify({}),
 			updatedAt: params.now,
 		}),
+		db
+			.update(gameSession)
+			.set({
+				endedAt: null,
+				status: "active",
+				updatedAt: params.now,
+			})
+			.where(eq(gameSession.id, params.sessionId)),
+		db
+			.delete(currencyTransaction)
+			.where(eq(currencyTransaction.sessionId, params.sessionId)),
 	];
 	await db.batch(statements);
 }
@@ -473,8 +488,8 @@ export const liveCashGameSessionRouter = router({
 
 			if (anyActive.length > 0) {
 				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Another session is already active",
+					code: "CONFLICT",
+					message: ACTIVE_SESSION_CONFLICT_MESSAGE,
 				});
 			}
 
@@ -518,45 +533,47 @@ export const liveCashGameSessionRouter = router({
 			const snapshot = await resolveCashRuleSnapshot(ctx.db, {
 				ringGameId: input.ringGameId,
 			});
-			await ctx.db.batch([
-				ctx.db.insert(gameSession).values({
-					id,
-					userId,
-					kind: "cash_game",
-					status: "active",
-					source: "live",
-					roomId: input.roomId ?? null,
-					currencyId: input.currencyId ?? null,
-					startedAt: now,
-					memo: input.memo ?? null,
-					sessionDate: now,
-					updatedAt: now,
-				}),
-				ctx.db.insert(sessionCashDetail).values({
-					sessionId: id,
-					ringGameId: input.ringGameId ?? null,
-					ruleName: input.ringGameId ? snapshot.ruleName : "Cash Game",
-					variant: snapshot.variant,
-					mixGames: snapshot.mixGames,
-					blind1: snapshot.blind1,
-					blind2: snapshot.blind2,
-					blind3: snapshot.blind3,
-					ante: snapshot.ante,
-					anteType: snapshot.anteType,
-					minBuyIn: snapshot.minBuyIn,
-					maxBuyIn: snapshot.maxBuyIn,
-					tableSize: snapshot.tableSize,
-				}),
-				ctx.db.insert(sessionEvent).values({
-					id: crypto.randomUUID(),
-					sessionId: id,
-					eventType: "session_start",
-					occurredAt: floorToMinute(now),
-					sortOrder: 0,
-					payload: JSON.stringify({ buyInAmount: input.initialBuyIn }),
-					updatedAt: now,
-				}),
-			]);
+			await runUnfinishedLiveSessionWrite(() =>
+				ctx.db.batch([
+					ctx.db.insert(gameSession).values({
+						id,
+						userId,
+						kind: "cash_game",
+						status: "active",
+						source: "live",
+						roomId: input.roomId ?? null,
+						currencyId: input.currencyId ?? null,
+						startedAt: now,
+						memo: input.memo ?? null,
+						sessionDate: now,
+						updatedAt: now,
+					}),
+					ctx.db.insert(sessionCashDetail).values({
+						sessionId: id,
+						ringGameId: input.ringGameId ?? null,
+						ruleName: input.ringGameId ? snapshot.ruleName : "Cash Game",
+						variant: snapshot.variant,
+						mixGames: snapshot.mixGames,
+						blind1: snapshot.blind1,
+						blind2: snapshot.blind2,
+						blind3: snapshot.blind3,
+						ante: snapshot.ante,
+						anteType: snapshot.anteType,
+						minBuyIn: snapshot.minBuyIn,
+						maxBuyIn: snapshot.maxBuyIn,
+						tableSize: snapshot.tableSize,
+					}),
+					ctx.db.insert(sessionEvent).values({
+						id: crypto.randomUUID(),
+						sessionId: id,
+						eventType: "session_start",
+						occurredAt: floorToMinute(now),
+						sortOrder: 0,
+						payload: JSON.stringify({ buyInAmount: input.initialBuyIn }),
+						updatedAt: now,
+					}),
+				])
+			);
 
 			return { id };
 		}),
@@ -945,8 +962,8 @@ export const liveCashGameSessionRouter = router({
 
 			if (anyActive.length > 0) {
 				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Another session is already active",
+					code: "CONFLICT",
+					message: ACTIVE_SESSION_CONFLICT_MESSAGE,
 				});
 			}
 
@@ -985,17 +1002,17 @@ export const liveCashGameSessionRouter = router({
 			const flooredEndOccurredAt = floorToMinute(endOccurredAt);
 			const flooredNow = floorToMinute(now);
 
-			await persistCashSessionReopenEvents(ctx.db, {
-				sessionId: input.id,
-				sessionEndEventId: sessionEndEvent.id,
-				flooredEndOccurredAt,
-				endSortOrder,
-				cashOutAmount,
-				flooredNow,
-				now,
-			});
-
-			await recalculateCashGameSession(ctx.db, input.id, userId);
+			await runUnfinishedLiveSessionWrite(() =>
+				persistCashSessionReopenEvents(ctx.db, {
+					sessionId: input.id,
+					sessionEndEventId: sessionEndEvent.id,
+					flooredEndOccurredAt,
+					endSortOrder,
+					cashOutAmount,
+					flooredNow,
+					now,
+				})
+			);
 
 			return { id: input.id };
 		}),

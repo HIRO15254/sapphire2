@@ -241,6 +241,30 @@ Error: D1_ERROR
 
 `apps/server/wrangler.toml` の `d1_databases` の設定を確認。
 
+#### Migration 0044 事前確認: 未完了 live session の重複
+
+永続 D1 に `0044_oval_captain_flint.sql` を適用する前に、次のSQLを実行します。
+
+```sql
+SELECT
+  user_id,
+  COUNT(*) AS unfinished_count,
+  GROUP_CONCAT(id) AS session_ids
+FROM game_session
+WHERE source = 'live' AND status != 'completed'
+GROUP BY user_id
+HAVING COUNT(*) > 1;
+```
+
+結果が1行以上ある場合:
+
+1. 対象 D1 をバックアップする。
+2. ユーザーごとに、未完了のまま残す live session を決める。
+3. 余分な session はアプリの通常フローで完了または破棄する。
+4. SQLを再実行し、0行になってからデプロイする。
+
+`game_session.status` だけを直接更新したり、行を直接削除したりしないでください。session event、cash/tournament result、currency ledger の整合性を保つ必要があります。重複が残っている場合、migration はユーザーデータを書き換えず意図的に失敗します。
+
 ### Worker デプロイ失敗
 
 ```

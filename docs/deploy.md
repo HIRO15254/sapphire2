@@ -241,6 +241,30 @@ Error: D1_ERROR
 
 Check the `d1_databases` configuration in `apps/server/wrangler.toml`.
 
+#### Migration 0044 preflight: duplicate unfinished live sessions
+
+Before deploying migration `0044_oval_captain_flint.sql` to a persistent D1 database, run:
+
+```sql
+SELECT
+  user_id,
+  COUNT(*) AS unfinished_count,
+  GROUP_CONCAT(id) AS session_ids
+FROM game_session
+WHERE source = 'live' AND status != 'completed'
+GROUP BY user_id
+HAVING COUNT(*) > 1;
+```
+
+If the query returns rows:
+
+1. Back up the target D1 database.
+2. For each user, decide which live session should remain unfinished.
+3. Complete or discard every extra session through the normal application flow.
+4. Re-run the query and deploy only after it returns zero rows.
+
+Do not update only `game_session.status` or delete rows directly: session events, cash/tournament results, and currency ledger entries must remain consistent. The migration intentionally fails on remaining duplicates instead of rewriting user data.
+
 ### Worker Deployment Failure
 
 ```
