@@ -14,7 +14,7 @@ import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { mixGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, max, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
@@ -27,7 +27,12 @@ import {
 	recalculateCashGameSession,
 } from "../services/live-session-pl";
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
-import { floorToMinute } from "../utils/session-event-time";
+import {
+	floorToMinute,
+	latestSessionEventOrderBy,
+	nextAppendSortOrderSql,
+	sessionEventOrderBy,
+} from "../utils/session-event-time";
 import {
 	buildRingGameCreateStatement,
 	ringGameCreateInputSchema,
@@ -355,7 +360,7 @@ export const liveCashGameSessionRouter = router({
 			// SA2-151: fetch every page item's events in one batched inArray
 			// query, then bucket by session id, instead of a per-item query
 			// (an N+1 whose per-query latency dominated under D1). getSessionEventMap
-			// preserves the (occurredAt, sortOrder) ordering the reverse scan needs.
+			// preserves the (occurredAt, sortOrder, id) ordering the reverse scan needs.
 			const eventMap = await getSessionEventMap(
 				ctx.db,
 				items.map((item) => item.id)
@@ -399,7 +404,7 @@ export const liveCashGameSessionRouter = router({
 				.select()
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+				.orderBy(...sessionEventOrderBy());
 
 			const mappedEvents = events.map((e) => ({
 				eventType: e.eventType,
@@ -910,22 +915,12 @@ export const liveCashGameSessionRouter = router({
 
 			const now = new Date();
 
-			const existingEvents = await ctx.db
-				.select({ sortOrder: sessionEvent.sortOrder })
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(desc(sessionEvent.sortOrder))
-				.limit(1);
-
-			const nextSortOrder =
-				existingEvents.length > 0 ? (existingEvents[0]?.sortOrder ?? 0) + 1 : 0;
-
 			await ctx.db.insert(sessionEvent).values({
 				id: crypto.randomUUID(),
 				sessionId: input.id,
 				eventType: "session_end",
 				occurredAt: floorToMinute(now),
-				sortOrder: nextSortOrder,
+				sortOrder: nextAppendSortOrderSql(input.id),
 				payload: JSON.stringify({ cashOutAmount: input.finalStack }),
 				updatedAt: now,
 			});
@@ -983,6 +978,7 @@ export const liveCashGameSessionRouter = router({
 						eq(sessionEvent.eventType, "session_end")
 					)
 				)
+				.orderBy(...latestSessionEventOrderBy())
 				.limit(1);
 
 			if (!sessionEndEvent) {
@@ -1066,7 +1062,7 @@ export const liveCashGameSessionRouter = router({
 				})
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+				.orderBy(...sessionEventOrderBy());
 
 			const previousHeroSeat = computeHeroSeatPositionFromEvents(events);
 
@@ -1083,11 +1079,6 @@ export const liveCashGameSessionRouter = router({
 			}
 
 			const now = new Date();
-			const [latest] = await ctx.db
-				.select({ maxSort: max(sessionEvent.sortOrder) })
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, input.id));
-			const sortOrder = (latest?.maxSort ?? -1) + 1;
 
 			if (input.heroSeatPosition === null) {
 				await ctx.db.insert(sessionEvent).values({
@@ -1095,7 +1086,7 @@ export const liveCashGameSessionRouter = router({
 					sessionId: input.id,
 					eventType: "player_leave",
 					occurredAt: floorToMinute(now),
-					sortOrder,
+					sortOrder: nextAppendSortOrderSql(input.id),
 					payload: JSON.stringify({ isHero: true }),
 					updatedAt: now,
 				});
@@ -1105,7 +1096,7 @@ export const liveCashGameSessionRouter = router({
 					sessionId: input.id,
 					eventType: "player_join",
 					occurredAt: floorToMinute(now),
-					sortOrder,
+					sortOrder: nextAppendSortOrderSql(input.id),
 					payload: JSON.stringify({
 						isHero: true,
 						seatPosition: input.heroSeatPosition,

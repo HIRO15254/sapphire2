@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+	ACTIVE_SESSION_CONFLICT_MESSAGE,
 	isLabelConflictError,
+	isSessionEventOrderConflictError,
 	isUnfinishedLiveSessionConflictError,
+	runUnfinishedLiveSessionWrite,
 } from "../lib/db-errors";
 
 describe("isLabelConflictError", () => {
@@ -58,6 +61,38 @@ describe("isLabelConflictError", () => {
 	});
 });
 
+describe("isSessionEventOrderConflictError", () => {
+	it("returns true for the composite session event order violation", () => {
+		expect(
+			isSessionEventOrderConflictError(
+				new Error(
+					"D1_ERROR: UNIQUE constraint failed: session_event.session_id, session_event.sort_order: SQLITE_CONSTRAINT"
+				)
+			)
+		).toBe(true);
+	});
+
+	it("is case-insensitive", () => {
+		expect(
+			isSessionEventOrderConflictError(
+				new Error(
+					"unique constraint failed: SESSION_EVENT.SESSION_ID, SESSION_EVENT.SORT_ORDER"
+				)
+			)
+		).toBe(true);
+	});
+
+	it("returns false for unrelated violations and non-Errors", () => {
+		expect(
+			isSessionEventOrderConflictError(
+				new Error("UNIQUE constraint failed: session_event.id")
+			)
+		).toBe(false);
+		expect(isSessionEventOrderConflictError("session event conflict")).toBe(
+			false
+		);
+	});
+});
 describe("isUnfinishedLiveSessionConflictError", () => {
 	it("returns true for the D1 unique violation on game_session.user_id", () => {
 		expect(
@@ -93,5 +128,60 @@ describe("isUnfinishedLiveSessionConflictError", () => {
 				"UNIQUE constraint failed: game_session.user_id"
 			)
 		).toBe(false);
+	});
+});
+
+describe("runUnfinishedLiveSessionWrite", () => {
+	it("resolves after one successful operation", async () => {
+		const operation = vi.fn().mockResolvedValue(undefined);
+
+		await expect(
+			runUnfinishedLiveSessionWrite(operation)
+		).resolves.toBeUndefined();
+		expect(operation).toHaveBeenCalledTimes(1);
+	});
+
+	it("maps an unfinished-session unique violation to the domain conflict", async () => {
+		const operation = vi
+			.fn()
+			.mockRejectedValue(
+				new Error("UNIQUE constraint failed: game_session.user_id")
+			);
+
+		await expect(
+			runUnfinishedLiveSessionWrite(operation)
+		).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: ACTIVE_SESSION_CONFLICT_MESSAGE,
+		});
+		expect(operation).toHaveBeenCalledTimes(1);
+	});
+
+	it("maps a session-event order collision to the domain conflict", async () => {
+		const operation = vi
+			.fn()
+			.mockRejectedValue(
+				new Error(
+					"UNIQUE constraint failed: session_event.session_id, session_event.sort_order"
+				)
+			);
+
+		await expect(
+			runUnfinishedLiveSessionWrite(operation)
+		).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: ACTIVE_SESSION_CONFLICT_MESSAGE,
+		});
+		expect(operation).toHaveBeenCalledTimes(1);
+	});
+
+	it("rethrows an unrelated failure unchanged", async () => {
+		const failure = new Error("network timeout");
+		const operation = vi.fn().mockRejectedValue(failure);
+
+		await expect(runUnfinishedLiveSessionWrite(operation)).rejects.toBe(
+			failure
+		);
+		expect(operation).toHaveBeenCalledTimes(1);
 	});
 });

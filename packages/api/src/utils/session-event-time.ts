@@ -1,6 +1,6 @@
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, gt, lt, max } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, sql } from "drizzle-orm";
 import type { protectedProcedure } from "../index";
 
 type DbInstance = Parameters<
@@ -25,22 +25,52 @@ export function resolveOccurredAt(
 	return floorToMinute(raw);
 }
 
-export async function nextAppendSortOrder(
-	db: DbInstance,
-	sessionId: string
-): Promise<number> {
-	const [row] = await db
-		.select({ maxSortOrder: max(sessionEvent.sortOrder) })
-		.from(sessionEvent)
-		.where(eq(sessionEvent.sessionId, sessionId));
-
-	return row?.maxSortOrder == null ? 0 : row.maxSortOrder + 1;
+export function nextAppendSortOrderSql(sessionId: string) {
+	return sql<number>`(SELECT COALESCE(MAX(${sessionEvent.sortOrder}), -1) + 1 FROM ${sessionEvent} WHERE ${sessionEvent.sessionId} = ${sessionId})`;
 }
 
+export function sessionEventOrderBy() {
+	return [
+		asc(sessionEvent.occurredAt),
+		asc(sessionEvent.sortOrder),
+		asc(sessionEvent.id),
+	] as const;
+}
+
+export function latestSessionEventOrderBy() {
+	return [
+		desc(sessionEvent.occurredAt),
+		desc(sessionEvent.sortOrder),
+		desc(sessionEvent.id),
+	] as const;
+}
 function minuteEpoch(date: Date): number {
 	return Math.floor(date.getTime() / 60_000);
 }
 
+export async function assertAppendOccurredAtOrdering(
+	db: DbInstance,
+	sessionId: string,
+	newOccurredAt: Date
+): Promise<void> {
+	const [previous] = await db
+		.select({ occurredAt: sessionEvent.occurredAt })
+		.from(sessionEvent)
+		.where(eq(sessionEvent.sessionId, sessionId))
+		.orderBy(desc(sessionEvent.sortOrder), desc(sessionEvent.id))
+		.limit(1);
+
+	if (
+		previous &&
+		minuteEpoch(previous.occurredAt) > minuteEpoch(newOccurredAt)
+	) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message:
+				"occurredAt would precede the previous event by minute; reorder via sortOrder instead",
+		});
+	}
+}
 export async function assertOccurredAtOrdering(
 	db: DbInstance,
 	sessionId: string,

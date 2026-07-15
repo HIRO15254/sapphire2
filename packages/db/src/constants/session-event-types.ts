@@ -257,6 +257,7 @@ export function isValidEventTypeForSessionType(
 
 interface EventForState {
 	eventType: string;
+	id?: string;
 	occurredAt: Date | string;
 	sortOrder: number;
 }
@@ -291,7 +292,10 @@ export function getSessionCurrentState(events: EventForState[]): SessionStatus {
 		if (timeB !== timeA) {
 			return timeB - timeA;
 		}
-		return b.sortOrder - a.sortOrder;
+		if (b.sortOrder !== a.sortOrder) {
+			return b.sortOrder - a.sortOrder;
+		}
+		return (b.id ?? "").localeCompare(a.id ?? "");
 	});
 
 	const latest = sorted[0] as EventForState | undefined;

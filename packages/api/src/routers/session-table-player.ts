@@ -15,7 +15,7 @@ import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch } from "../lib/batch";
@@ -23,7 +23,8 @@ import { computeSeatedPlayersFromEvents } from "../services/live-session-pl";
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
 import {
 	floorToMinute,
-	nextAppendSortOrder,
+	nextAppendSortOrderSql,
+	sessionEventOrderBy,
 } from "../utils/session-event-time";
 import {
 	chunkForInsert,
@@ -193,18 +194,16 @@ function fetchSeatEvents(db: DbInstance, sessionId: string) {
 		})
 		.from(sessionEvent)
 		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+		.orderBy(...sessionEventOrderBy());
 }
 
-async function buildPlayerJoinEventStatement(
+function buildPlayerJoinEventStatement(
 	db: DbInstance,
 	sessionId: string,
 	playerId: string,
 	seatPosition?: number
-): Promise<{ statement: BatchStatement }> {
+): { statement: BatchStatement } {
 	const now = new Date();
-	const sortOrder = await nextAppendSortOrder(db, sessionId);
-
 	const payload: { playerId: string; seatPosition?: number } = { playerId };
 	if (seatPosition !== undefined) {
 		payload.seatPosition = seatPosition;
@@ -216,7 +215,7 @@ async function buildPlayerJoinEventStatement(
 			sessionId,
 			eventType: "player_join",
 			occurredAt: floorToMinute(now),
-			sortOrder,
+			sortOrder: nextAppendSortOrderSql(sessionId),
 			payload: JSON.stringify(payload),
 			updatedAt: now,
 		}) as unknown as BatchStatement,
@@ -229,7 +228,7 @@ export async function insertPlayerJoinEvent(
 	playerId: string,
 	seatPosition?: number
 ) {
-	const { statement } = await buildPlayerJoinEventStatement(
+	const { statement } = buildPlayerJoinEventStatement(
 		db,
 		sessionId,
 		playerId,
@@ -244,14 +243,12 @@ export async function insertPlayerLeaveEvent(
 	playerId: string
 ) {
 	const now = new Date();
-	const sortOrder = await nextAppendSortOrder(db, sessionId);
-
 	await db.insert(sessionEvent).values({
 		id: crypto.randomUUID(),
 		sessionId,
 		eventType: "player_leave",
 		occurredAt: floorToMinute(now),
-		sortOrder,
+		sortOrder: nextAppendSortOrderSql(sessionId),
 		payload: JSON.stringify({ playerId }),
 		updatedAt: now,
 	});

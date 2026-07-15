@@ -17,9 +17,10 @@ import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-pur
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
-import { asc, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { protectedProcedure } from "../index";
 import { type BatchStatement, runBatch } from "../lib/batch";
+import { sessionEventOrderBy } from "../utils/session-event-time";
 import { ensureSessionResultTypeId } from "./session-result-type";
 
 type DbInstance = Parameters<
@@ -273,7 +274,7 @@ export async function recalculateCashGameSession(
 		.select()
 		.from(sessionEvent)
 		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+		.orderBy(...sessionEventOrderBy());
 
 	const state = computeSessionStateFromEvents(events);
 
@@ -428,7 +429,7 @@ export async function recalculateTournamentSession(
 		.select()
 		.from(sessionEvent)
 		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+		.orderBy(...sessionEventOrderBy());
 
 	const state = computeSessionStateFromEvents(events);
 
@@ -597,7 +598,7 @@ function applySeatEvent(
  * `isActive` / `seatPosition` / `joinedAt` / `leftAt` reflect the most
  * recent (last) stint — i.e. the player's current state.
  *
- * `events` must already be ordered by (occurredAt, sortOrder).
+ * `events` must already be ordered by (occurredAt, sortOrder, id).
  */
 export function computeSeatedPlayersFromEvents(
 	events: { eventType: string; payload: string; occurredAt: Date }[]

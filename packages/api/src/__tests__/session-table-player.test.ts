@@ -314,6 +314,20 @@ function firstInsertedRow(valuesSpy: ReturnType<typeof vi.fn>) {
 	return calls[0][0] as Record<string, unknown>;
 }
 
+function expectAtomicAppendSortOrder(
+	valuesSpy: ReturnType<typeof vi.fn>,
+	sessionId: string
+) {
+	const sortOrder = firstInsertedRow(valuesSpy).sortOrder;
+	const query = new SQLiteSyncDialect().sqlToQuery(sortOrder as never);
+	const normalizedSql = query.sql.toLowerCase();
+
+	expect(normalizedSql).toContain("coalesce(max(");
+	expect(normalizedSql).toContain('from "session_event"');
+	expect(normalizedSql).toContain('where "session_event"."session_id" = ?');
+	expect(normalizedSql).toContain("+ 1");
+	expect(query.params).toEqual([sessionId]);
+}
 describe("insertPlayerJoinEvent (write-side ordering contract)", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
@@ -340,39 +354,15 @@ describe("insertPlayerJoinEvent (write-side ordering contract)", () => {
 		);
 	});
 
-	it("returns sortOrder = 0 only when the session has no events", async () => {
+	it("allocates sortOrder inside the player_join INSERT", async () => {
 		const { db, valuesSpy } = makeInsertEventDb(null);
 		await insertPlayerJoinEvent(
 			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
 			"session-1",
 			"player-1"
 		);
-		expect(firstInsertedRow(valuesSpy).sortOrder).toBe(0);
+		expectAtomicAppendSortOrder(valuesSpy, "session-1");
 	});
-
-	it("uses session-wide max(sortOrder) + 1, not a per-second scope", async () => {
-		// Pre-existing event with sortOrder=5 at a different second.
-		// The bug it guards against: scoping max(sortOrder) by `unixepoch(occurredAt) = nowUnix`
-		// returned 0 here, colliding with the real session_start at sortOrder=0.
-		const { db, valuesSpy } = makeInsertEventDb(5);
-		await insertPlayerJoinEvent(
-			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
-			"session-1",
-			"player-1"
-		);
-		expect(firstInsertedRow(valuesSpy).sortOrder).toBe(6);
-	});
-
-	it("treats max(sortOrder) = 0 as a real value (returns 1)", async () => {
-		const { db, valuesSpy } = makeInsertEventDb(0);
-		await insertPlayerJoinEvent(
-			db as unknown as Parameters<typeof insertPlayerJoinEvent>[0],
-			"session-1",
-			"player-1"
-		);
-		expect(firstInsertedRow(valuesSpy).sortOrder).toBe(1);
-	});
-
 	it("serializes the playerId into the payload", async () => {
 		const { db, valuesSpy } = makeInsertEventDb(2);
 		await insertPlayerJoinEvent(
@@ -454,14 +444,14 @@ describe("insertPlayerLeaveEvent (write-side ordering contract)", () => {
 		);
 	});
 
-	it("appends with session-wide max(sortOrder) + 1", async () => {
+	it("allocates sortOrder inside the player_leave INSERT", async () => {
 		const { db, valuesSpy } = makeInsertEventDb(9);
 		await insertPlayerLeaveEvent(
 			db as unknown as Parameters<typeof insertPlayerLeaveEvent>[0],
 			"session-1",
 			"player-1"
 		);
-		expect(firstInsertedRow(valuesSpy).sortOrder).toBe(10);
+		expectAtomicAppendSortOrder(valuesSpy, "session-1");
 	});
 
 	it("serializes the playerId into the payload", async () => {

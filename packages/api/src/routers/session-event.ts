@@ -15,7 +15,7 @@ import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase"
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
@@ -23,10 +23,12 @@ import {
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
 import {
+	assertAppendOccurredAtOrdering,
 	assertOccurredAtOrdering,
 	floorToMinute,
-	nextAppendSortOrder,
+	nextAppendSortOrderSql,
 	resolveOccurredAt,
+	sessionEventOrderBy,
 } from "../utils/session-event-time";
 
 type DbInstance = Parameters<
@@ -182,7 +184,7 @@ export const sessionEventRouter = router({
 				.select()
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, sessionId))
-				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+				.orderBy(...sessionEventOrderBy());
 
 			return events.map((event) => ({
 				...event,
@@ -254,14 +256,7 @@ export const sessionEventRouter = router({
 			);
 			const occurredAtDate = resolveOccurredAt(input.occurredAt, new Date());
 
-			const sortOrder = await nextAppendSortOrder(ctx.db, sessionId);
-
-			await assertOccurredAtOrdering(
-				ctx.db,
-				sessionId,
-				sortOrder,
-				occurredAtDate
-			);
+			await assertAppendOccurredAtOrdering(ctx.db, sessionId, occurredAtDate);
 
 			const id = crypto.randomUUID();
 			await ctx.db.insert(sessionEvent).values({
@@ -269,7 +264,7 @@ export const sessionEventRouter = router({
 				sessionId,
 				eventType,
 				occurredAt: occurredAtDate,
-				sortOrder,
+				sortOrder: nextAppendSortOrderSql(sessionId),
 				payload: JSON.stringify(validatedPayload),
 				updatedAt: new Date(),
 			});

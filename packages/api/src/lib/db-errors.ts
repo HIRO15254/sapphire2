@@ -25,6 +25,15 @@ const LABEL_CONFLICT_RE = /UNIQUE constraint failed|label already exists/i;
 
 const UNFINISHED_LIVE_SESSION_CONFLICT_RE =
 	/UNIQUE constraint failed:\s*game_session\.user_id/i;
+const SESSION_EVENT_ORDER_CONFLICT_RE =
+	/UNIQUE constraint failed:\s*session_event\.session_id,\s*session_event\.sort_order/i;
+
+export function isSessionEventOrderConflictError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		SESSION_EVENT_ORDER_CONFLICT_RE.test(error.message)
+	);
+}
 
 export function isUnfinishedLiveSessionConflictError(error: unknown): boolean {
 	return (
@@ -46,7 +55,10 @@ export async function runUnfinishedLiveSessionWrite(
 	try {
 		await operation();
 	} catch (error) {
-		if (isUnfinishedLiveSessionConflictError(error)) {
+		if (
+			isUnfinishedLiveSessionConflictError(error) ||
+			isSessionEventOrderConflictError(error)
+		) {
 			throw new TRPCError({
 				code: "CONFLICT",
 				message: ACTIVE_SESSION_CONFLICT_MESSAGE,

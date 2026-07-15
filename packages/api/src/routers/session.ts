@@ -50,6 +50,7 @@ import { protectedProcedure, router } from "../index";
 import { type BatchStatement, runBatch } from "../lib/batch";
 import { optionalUniqueTagIdsSchema } from "../lib/tag-ids";
 import { ensureSessionResultTypeId } from "../services/session-result-type";
+import { sessionEventOrderBy } from "../utils/session-event-time";
 import { compareBuiltinFirst } from "./_game-masters";
 
 const PAGE_SIZE = 20;
@@ -298,7 +299,7 @@ interface SessionEventForList {
 
 /**
  * Batched lookup of session events for the live-session `list` endpoints, keyed
- * by session id and ordered by (occurredAt asc, sortOrder asc) — the exact order
+ * by session id and ordered by (occurredAt asc, sortOrder asc, id asc) — the exact order
  * the per-session query used before SA2-151 collapsed the N+1 (one
  * `WHERE session_id = ?` query per page item, up to limit+1 ≈ 100 extra
  * round-trips that D1's per-query latency made expensive) into a single
@@ -318,6 +319,7 @@ export async function getSessionEventMap(
 	const rows = await selectInChunks(sessionIds, (chunk) =>
 		db
 			.select({
+				id: sessionEvent.id,
 				sessionId: sessionEvent.sessionId,
 				eventType: sessionEvent.eventType,
 				payload: sessionEvent.payload,
@@ -326,11 +328,12 @@ export async function getSessionEventMap(
 			})
 			.from(sessionEvent)
 			.where(inArray(sessionEvent.sessionId, chunk))
-			.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder))
+			.orderBy(...sessionEventOrderBy())
 	);
 	const buckets = new Map<
 		string,
 		{
+			id: string;
 			eventType: string;
 			occurredAt: Date;
 			payload: string;
@@ -339,6 +342,7 @@ export async function getSessionEventMap(
 	>();
 	for (const r of rows) {
 		const entry = {
+			id: r.id,
 			eventType: r.eventType,
 			payload: r.payload,
 			occurredAt: r.occurredAt,
@@ -354,7 +358,9 @@ export async function getSessionEventMap(
 	for (const [sessionId, events] of buckets) {
 		events.sort(
 			(a, b) =>
-				Number(a.occurredAt) - Number(b.occurredAt) || a.sortOrder - b.sortOrder
+				Number(a.occurredAt) - Number(b.occurredAt) ||
+				a.sortOrder - b.sortOrder ||
+				a.id.localeCompare(b.id)
 		);
 		map.set(
 			sessionId,

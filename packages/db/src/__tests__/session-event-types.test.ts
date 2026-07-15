@@ -515,6 +515,15 @@ describe("getSessionCurrentState", () => {
 		expect(getSessionCurrentState(events)).toBe("active");
 	});
 
+	it("uses id as the deterministic final tie-breaker", () => {
+		const occurredAt = new Date(1_000_000);
+		const events = [
+			{ id: "a-resume", eventType: "session_resume", occurredAt, sortOrder: 1 },
+			{ id: "z-pause", eventType: "session_pause", occurredAt, sortOrder: 1 },
+		];
+		expect(getSessionCurrentState(events)).toBe("paused");
+	});
+
 	it('returns "completed" after session_end', () => {
 		const events = [
 			makeEvent("session_start", 0),

@@ -14,7 +14,7 @@ import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { levelGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
 import {
@@ -27,7 +27,11 @@ import {
 	recalculateTournamentSession,
 } from "../services/live-session-pl";
 import { assertSeatPositionFitsTableSize } from "../utils/seat-position";
-import { floorToMinute } from "../utils/session-event-time";
+import {
+	floorToMinute,
+	nextAppendSortOrderSql,
+	sessionEventOrderBy,
+} from "../utils/session-event-time";
 import {
 	buildTournamentStructureStatements,
 	encodeSessionCursor,
@@ -449,19 +453,6 @@ async function resolveTournamentAssignment(
 	return patch;
 }
 
-async function getNextEventSortOrder(
-	db: DbInstance,
-	sessionId: string
-): Promise<number> {
-	const [latest] = await db
-		.select({ sortOrder: sessionEvent.sortOrder })
-		.from(sessionEvent)
-		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(desc(sessionEvent.sortOrder))
-		.limit(1);
-	return latest ? (latest.sortOrder ?? 0) + 1 : 0;
-}
-
 type CompleteInput =
 	| {
 			id: string;
@@ -576,7 +567,7 @@ export const liveTournamentSessionRouter = router({
 			// SA2-151: fetch every page item's events in one batched inArray
 			// query, then bucket by session id, instead of a per-item query
 			// (an N+1 whose per-query latency dominated under D1). getSessionEventMap
-			// preserves the (occurredAt, sortOrder) ordering computeStackStats needs.
+			// preserves the (occurredAt, sortOrder, id) ordering computeStackStats needs.
 			const eventMap = await getSessionEventMap(
 				ctx.db,
 				items.map((item) => item.id)
@@ -620,7 +611,7 @@ export const liveTournamentSessionRouter = router({
 				.select()
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+				.orderBy(...sessionEventOrderBy());
 
 			const blindLevels = await ctx.db
 				.select()
@@ -1097,7 +1088,6 @@ export const liveTournamentSessionRouter = router({
 			}
 
 			const now = new Date();
-			const nextSortOrder = await getNextEventSortOrder(ctx.db, input.id);
 			const endPayload = buildTournamentEndPayload(input);
 
 			await ctx.db.insert(sessionEvent).values({
@@ -1105,7 +1095,7 @@ export const liveTournamentSessionRouter = router({
 				sessionId: input.id,
 				eventType: "session_end",
 				occurredAt: floorToMinute(now),
-				sortOrder: nextSortOrder,
+				sortOrder: nextAppendSortOrderSql(input.id),
 				payload: JSON.stringify(endPayload),
 				updatedAt: now,
 			});
@@ -1173,7 +1163,7 @@ export const liveTournamentSessionRouter = router({
 				})
 				.from(sessionEvent)
 				.where(eq(sessionEvent.sessionId, input.id))
-				.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+				.orderBy(...sessionEventOrderBy());
 
 			const previousHeroSeat = computeHeroSeatPositionFromEvents(events);
 
@@ -1190,11 +1180,6 @@ export const liveTournamentSessionRouter = router({
 			}
 
 			const now = new Date();
-			const [latest] = await ctx.db
-				.select({ maxSort: max(sessionEvent.sortOrder) })
-				.from(sessionEvent)
-				.where(eq(sessionEvent.sessionId, input.id));
-			const sortOrder = (latest?.maxSort ?? -1) + 1;
 
 			if (input.heroSeatPosition === null) {
 				await ctx.db.insert(sessionEvent).values({
@@ -1202,7 +1187,7 @@ export const liveTournamentSessionRouter = router({
 					sessionId: input.id,
 					eventType: "player_leave",
 					occurredAt: floorToMinute(now),
-					sortOrder,
+					sortOrder: nextAppendSortOrderSql(input.id),
 					payload: JSON.stringify({ isHero: true }),
 					updatedAt: now,
 				});
@@ -1212,7 +1197,7 @@ export const liveTournamentSessionRouter = router({
 					sessionId: input.id,
 					eventType: "player_join",
 					occurredAt: floorToMinute(now),
-					sortOrder,
+					sortOrder: nextAppendSortOrderSql(input.id),
 					payload: JSON.stringify({
 						isHero: true,
 						seatPosition: input.heroSeatPosition,
