@@ -6,7 +6,12 @@ import z from "zod";
 import type { TournamentPartialFormValues } from "@/features/rooms/components/tournament-modal-content";
 import type { TournamentFormValues } from "@/features/rooms/hooks/use-tournaments";
 import { useVariantScope } from "@/shared/hooks/use-variant-scope";
-import { optionalNumericString } from "@/shared/lib/form-fields";
+import {
+	optionalNumericString,
+	parseOptionalInt,
+	parseRequiredInt,
+	requiredNumericString,
+} from "@/shared/lib/form-fields";
 import { trpc } from "@/utils/trpc";
 
 interface ChipPurchaseFormItem {
@@ -37,18 +42,18 @@ function formValuesToPartial(
 	return {
 		name: value.name,
 		variant: value.variant || DEFAULT_VARIANT_LABEL,
-		buyIn: parseOptInt(value.buyIn),
-		entryFee: parseOptInt(value.entryFee),
-		startingStack: parseOptInt(value.startingStack),
-		bountyAmount: parseOptInt(value.bountyAmount),
-		tableSize: parseOptInt(value.tableSize),
+		buyIn: parseOptionalInt(value.buyIn),
+		entryFee: parseOptionalInt(value.entryFee),
+		startingStack: parseOptionalInt(value.startingStack),
+		bountyAmount: parseOptionalInt(value.bountyAmount),
+		tableSize: parseOptionalInt(value.tableSize),
 		currencyId: value.currencyId || undefined,
 		memo: value.memo || undefined,
 		tags: value.tags,
 		chipPurchases: value.chipPurchases.map((cp) => ({
 			name: cp.name,
-			cost: parseCostInt(cp.cost),
-			chips: parseCostInt(cp.chips),
+			cost: parseRequiredInt(cp.cost),
+			chips: parseRequiredInt(cp.chips),
 		})),
 	};
 }
@@ -57,34 +62,21 @@ function numStrOrEmpty(value: number | undefined): string {
 	return value === undefined ? "" : String(value);
 }
 
-function parseOptInt(value: string): number | undefined {
-	if (value === "") {
-		return undefined;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function parseCostInt(value: string): number {
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) ? parsed : 0;
-}
-
 const chipPurchaseItemSchema = z.object({
-	name: z.string(),
-	cost: z.string(),
-	chips: z.string(),
+	name: z.string().min(1, "Name is required"),
+	cost: requiredNumericString({ integer: true, min: 0 }),
+	chips: requiredNumericString({ integer: true, min: 0 }),
 	uid: z.string(),
 });
 
 const tournamentFormSchema = z.object({
 	name: z.string().min(1, "Tournament name is required"),
-	variant: z.string(),
+	variant: z.string().trim().min(1, "Variant is required"),
 	buyIn: optionalNumericString({ integer: true, min: 0 }),
 	entryFee: optionalNumericString({ integer: true, min: 0 }),
 	startingStack: optionalNumericString({ integer: true, min: 0 }),
 	bountyAmount: optionalNumericString({ integer: true, min: 0 }),
-	tableSize: z.string(),
+	tableSize: optionalNumericString({ integer: true, min: 2, max: 10 }),
 	currencyId: z.string(),
 	memo: z.string(),
 	tags: z.array(z.string()),
@@ -135,17 +127,17 @@ export function useTournamentForm({
 		onSubmit: ({ value }) => {
 			onSubmit({
 				name: value.name,
-				variant: value.variant || DEFAULT_VARIANT_LABEL,
-				buyIn: parseOptInt(value.buyIn),
-				entryFee: parseOptInt(value.entryFee),
-				startingStack: parseOptInt(value.startingStack),
+				variant: value.variant,
+				buyIn: parseOptionalInt(value.buyIn),
+				entryFee: parseOptionalInt(value.entryFee),
+				startingStack: parseOptionalInt(value.startingStack),
 				chipPurchases: value.chipPurchases.map((cp) => ({
 					name: cp.name,
-					cost: parseCostInt(cp.cost),
-					chips: parseCostInt(cp.chips),
+					cost: parseRequiredInt(cp.cost),
+					chips: parseRequiredInt(cp.chips),
 				})),
-				bountyAmount: parseOptInt(value.bountyAmount),
-				tableSize: parseOptInt(value.tableSize),
+				bountyAmount: parseOptionalInt(value.bountyAmount),
+				tableSize: parseOptionalInt(value.tableSize),
 				currencyId: value.currencyId || undefined,
 				memo: value.memo ? value.memo : undefined,
 				tags: value.tags,

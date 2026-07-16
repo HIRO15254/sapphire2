@@ -67,6 +67,29 @@ describe("useMemoEditor", () => {
 		);
 	});
 
+	it.each([
+		["empty text", ""],
+		["whitespace-only text", "   "],
+	])("rejects %s on form submit", async (_scenario, text) => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useMemoEditor({
+				event: event({}),
+				isLoading: false,
+				maxTime: null,
+				minTime: null,
+				onSubmit,
+			})
+		);
+		act(() => {
+			result.current.form.setFieldValue("text", text);
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(0);
+	});
+
 	it("textValidator flags empty / whitespace-only input", () => {
 		const { result } = renderHook(() =>
 			useMemoEditor({

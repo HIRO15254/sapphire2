@@ -130,6 +130,66 @@ describe("useRingGameForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		"1",
+		"11",
+		"9.5",
+	])("rejects unsupported table size %s", async (tableSize) => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useRingGameForm({ onSubmit }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.form.setFieldValue("name", "1/2");
+			result.current.form.setFieldValue("tableSize", tableSize);
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["2", 2],
+		["10", 10],
+	] as const)("accepts table size boundary %s", async (tableSize, expected) => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useRingGameForm({ onSubmit }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.form.setFieldValue("name", "1/2");
+			result.current.form.setFieldValue("tableSize", tableSize);
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ tableSize: expected })
+		);
+	});
+
+	it.each([
+		"-1",
+		"1.5",
+		"abc",
+	])("rejects invalid flat numeric value %s without truncating it", async (blind1) => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useRingGameForm({ onSubmit }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.form.setFieldValue("name", "1/2");
+			result.current.form.setFieldValue("blind1", blind1);
+		});
+		await act(async () => result.current.form.handleSubmit());
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("submits with ante undefined when anteType is 'none'", async () => {
 		const qc = createClient();
 		const onSubmit = vi.fn();

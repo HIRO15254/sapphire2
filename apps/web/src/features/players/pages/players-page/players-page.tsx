@@ -14,6 +14,8 @@ export function PlayersPage() {
 		players,
 		availableTags,
 		isLoading,
+		isInitialLoadError,
+		onRetry,
 		isCreateOpen,
 		isCreatePending,
 		search,
@@ -40,9 +42,11 @@ export function PlayersPage() {
 				<PlayerSearch onChange={setSearch} value={search} />
 
 				<PlayerList
+					isInitialLoadError={isInitialLoadError}
 					isLoading={isLoading}
 					isSearching={isSearching}
 					onCreate={() => setIsCreateOpen(true)}
+					onRetry={onRetry}
 					players={players}
 				/>
 

@@ -2,9 +2,7 @@
 
 `AGENTS.md` is the single source of truth for agent instructions in this repo, shared across Codex, Claude Code, and other AGENTS.md-aware tools. Claude Code loads it via a one-line `@AGENTS.md` import in [`CLAUDE.md`](CLAUDE.md). **Edit this file, not `CLAUDE.md`.** Keep it concise (≤200 lines): general facts that must be remembered across turns. Historical context (PR numbers, past refactors) belongs in git / PR descriptions, not here.
 
-Companion memory files:
-
-- [`.claude/rules/`](.claude/rules/) — path-scoped rule files. Claude Code auto-loads each one when files under its `paths:` glob are touched; **other agents (Codex etc.) must read the matching rule file manually before editing files under those paths** — see the table near the bottom.
+Companion memory: [`.claude/rules/`](.claude/rules/) contains path-scoped rules. Claude Code auto-loads matching files; **other agents (Codex etc.) must read them manually before editing matching paths** — see the table near the bottom.
 
 ## Communication
 
@@ -34,14 +32,14 @@ bun run test             # vitest run (all workspaces)
 bun run test:watch       # vitest watch
 bun run lint             # ultracite check
 bun run fix              # ultracite fix (auto-format & auto-fix)
-bun run check-types      # tsc --noEmit (all workspaces)
+bun run check-types      # tsc --noEmit (workspaces defining check-types: web/server)
 bun run build            # build all workspaces
 bun run db:generate      # drizzle-kit generate — default for schema-shape changes; hand-write only data/rename/destructive migrations. see .claude/rules/db-migrations.md
 bun run db:migrate:local # apply migrations to local D1
 bun run db:studio        # drizzle-kit studio
 ```
 
-Pre-PR verification: `bun run lint && bun run check-types && bun run test`.
+Pre-PR verification: `bun run lint && bun run check-types && bun run check:rules && bun run test`.
 
 ## Repository Layout
 
@@ -73,15 +71,17 @@ shared/
   components/              cross-feature composites (PageHeader, AuthenticatedShell, FormSheet, ...)
   hooks/                   cross-feature hooks (use-media-query, use-online-status, ...)
   lib/                     cross-feature helpers (form-fields, ...)
+lib/                       compatibility helpers shared by app setup and generated integrations
+plugins/                   build-time Vite plugins (not browser runtime modules)
 utils/                     truly global helpers (optimistic-update, formatters, ...)
 ```
 
-When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. **Every page follows the `pages/<page>/` pattern**: the route file stays thin (`createFileRoute` + `Route.useParams()` only) and delegates to a page component in `features/<feature>/pages/<page>/`, colocated with its `use-<page>-page.ts` hook. Extract a subcomponent into a child folder once the parent component file exceeds 300 lines (or earlier when a part is single-use but self-contained); a list component owns its own loading / empty / data switch and binds its skeleton's shape to the card it mirrors; `FormSheet` is composed at the page level around a bare form component. **Placement follows consumers**: a component used by exactly one page lives in that page's child folders; a component used by exactly one parent component lives in a child folder of that parent (its hook colocates the same way); only components designed as generic building blocks stay in `components/` / `shared/` while they happen to have a single consumer. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it. `features/currencies/`, `features/players/`, `features/sessions/`, and `features/live-sessions/pages/active-session-page/` are the reference implementations.
+When adding a feature, create `apps/web/src/features/<name>/` and colocate everything. **Every page follows the `pages/<page>/` pattern**: the route file stays thin (TanStack Router configuration such as `createFileRoute`, loaders/search validation, and `Route` accessors) and delegates rendering and page logic to `features/<feature>/pages/<page>/`, colocated with its `use-<page>-page.ts` hook. Extract a subcomponent into a child folder once the parent component file exceeds 300 lines (or earlier when a part is single-use but self-contained); a list component owns its own loading / empty / data switch and binds its skeleton's shape to the card it mirrors; `FormSheet` is composed at the page level around a bare form component. **Placement follows consumers**: a component used by exactly one page lives in that page's child folders; a component used by exactly one parent component lives in a child folder of that parent (its hook colocates the same way); only components designed as generic building blocks stay in `components/` / `shared/` while they happen to have a single consumer. Promote a subcomponent from a page folder to `components/` when a second page imports it, or when reuse across multiple pages is clearly anticipated, and to `shared/` only when a second feature imports it. `features/currencies/`, `features/players/`, `features/sessions/`, and `features/live-sessions/pages/active-session-page/` are the reference implementations.
 
 ## Release Flow
 
 - **Branches**: `feature → dev → release/vX.Y.Z → main`. `dev` is the default base for PRs; `main` only accepts PRs whose head branch matches `release/v[0-9]+\.[0-9]+\.[0-9]+` (enforced by [`pr-target-guard.yml`](.github/workflows/pr-target-guard.yml) + GitHub Ruleset [`main-release-only.json`](.github/rulesets/main-release-only.json)).
-- **Cutting a release**: `git checkout -b release/vX.Y.Z dev && git push -u origin HEAD`, then `gh pr create --base main`. On merge, [`release.yml`](.github/workflows/release.yml) auto-generates notes via the `/create-update-notes` skill, creates the tag, and publishes the GitHub Release — which in turn fires [`production-deploy.yml`](.github/workflows/production-deploy.yml).
+- **Cutting a release**: `git checkout -b release/vX.Y.Z dev && git push -u origin HEAD`, then `gh pr create --base main`. On merge, [`release.yml`](.github/workflows/release.yml) auto-generates notes via `/create-update-notes`, creates the tag and Release, then explicitly dispatches [`production-deploy.yml`](.github/workflows/production-deploy.yml) for that tag.
 - **Merge release PRs with a MERGE COMMIT, never squash.** Squashing collapses `dev`'s commit history into a single commit on `main`, so `main` and `dev` share no common ancestry. Each subsequent `release/vX.Y.Z → main` PR then re-diffs from before the previous release and every already-released file explodes into a phantom conflict (`mergeable_state: dirty`, thousands of files). A real merge commit keeps `dev`'s commits reachable from `main`, so the next release stays a clean fast-forward. If a release PR ever shows mass conflicts, the fix is `git merge -s ours origin/main` on the release branch (records `main` as a parent, keeps `dev`'s tree — verify `HEAD^{tree}` equals `origin/dev^{tree}` before pushing) — it reconciles history without changing content.
 - **Manual release notes**: invoke `/create-update-notes vX.Y.Z` locally; the skill stays draft-only when used outside CI.
 

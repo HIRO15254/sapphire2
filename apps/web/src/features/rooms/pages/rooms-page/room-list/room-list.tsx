@@ -1,4 +1,5 @@
 import { IconBuildingStore, IconPlus } from "@tabler/icons-react";
+import { QueryError } from "@/shared/components/query-error";
 import { Button } from "@/shared/components/ui/button";
 import { EmptyState } from "@/shared/components/ui/empty-state";
 import { RoomListCard, RoomListCardSkeleton } from "../room-list-card";
@@ -13,10 +14,14 @@ interface RoomListItem {
 }
 
 interface RoomListProps {
+	/** Rooms fetch failed. */
+	isError?: boolean;
 	/** Initial rooms fetch is in flight (no rows yet). */
 	isLoading: boolean;
 	/** Open the create sheet — wired to the empty-state CTA. */
 	onCreate: () => void;
+	/** Retry the rooms query. */
+	onRetry?: () => void;
 	onToggleFavorite: (id: string) => void;
 	rooms: RoomListItem[];
 }
@@ -32,6 +37,8 @@ const SKELETON_COUNT = 5;
 export function RoomList({
 	rooms,
 	isLoading,
+	isError = false,
+	onRetry = () => undefined,
 	onCreate,
 	onToggleFavorite,
 }: RoomListProps) {
@@ -47,6 +54,10 @@ export function RoomList({
 				))}
 			</div>
 		);
+	}
+
+	if (isError) {
+		return <QueryError message="Unable to load rooms" onRetry={onRetry} />;
 	}
 
 	if (rooms.length === 0) {

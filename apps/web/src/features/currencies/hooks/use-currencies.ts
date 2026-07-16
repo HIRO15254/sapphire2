@@ -10,6 +10,7 @@ export type { Transaction } from "@/features/currencies/utils/types";
 import type { Transaction } from "@/features/currencies/utils/types";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
@@ -81,7 +82,7 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 					...old,
 					{
 						...base,
-						id: `temp-${Date.now()}`,
+						id: createOptimisticId("temp"),
 						name: newCurrency.name,
 						unit: newCurrency.unit ?? null,
 						description: newCurrency.description ?? null,
@@ -277,8 +278,16 @@ export function useCurrencies(expandedCurrencyId: string | null) {
 	return {
 		currencies,
 		isLoading: currenciesQuery.isLoading,
+		isError: currenciesQuery.isError,
+		isInitialLoadError:
+			currenciesQuery.isError && currenciesQuery.data === undefined,
+		retry: currenciesQuery.refetch,
+		onRetry: currenciesQuery.refetch,
 		allTransactions,
 		isTransactionsLoading: transactionsQuery.isLoading,
+		isTransactionsInitialLoadError:
+			transactionsQuery.isError && transactionsQuery.data === undefined,
+		onRetryTransactions: transactionsQuery.refetch,
 		hasNextPage: transactionsQuery.hasNextPage,
 		isFetchingNextPage: transactionsQuery.isFetchingNextPage,
 		isCreatePending: createMutation.isPending,

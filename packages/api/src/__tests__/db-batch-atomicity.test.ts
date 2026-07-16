@@ -3,6 +3,7 @@ import {
 	currencyTransaction,
 	transactionType,
 } from "@sapphire2/db/schema/currency";
+import { playerTag, playerToPlayerTag } from "@sapphire2/db/schema/player";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
 import { room } from "@sapphire2/db/schema/room";
 import { gameSession } from "@sapphire2/db/schema/session";
@@ -87,8 +88,32 @@ function createBatchTrackingDb(
 					kind: "insert",
 					table,
 					values,
-				} as Stmt & { onConflictDoUpdate: () => Stmt };
+				} as Stmt & {
+					onConflictDoNothing: () => Stmt;
+					onConflictDoUpdate: () => Stmt;
+				};
 				stmt.onConflictDoUpdate = () => stmt;
+				stmt.onConflictDoNothing = () => {
+					if (table === transactionType) {
+						const existingRows = rowsByTable.get(table) ?? [];
+						const candidates = (
+							Array.isArray(values) ? values : [values]
+						) as Rows;
+						for (const candidate of candidates) {
+							if (
+								!existingRows.some(
+									(row) =>
+										row.userId === candidate.userId &&
+										row.name === candidate.name
+								)
+							) {
+								existingRows.push(candidate);
+							}
+						}
+						rowsByTable.set(table, existingRows);
+					}
+					return stmt;
+				};
 				inserts.push(stmt);
 				return stmt;
 			},
@@ -434,10 +459,10 @@ describe("session.create atomicity (SA2-116)", () => {
 		const rows = new Map<unknown, Rows>([
 			[currency, [{ id: "cur-1", userId: "user-1" }]],
 			[sessionTag, [{ id: "tag-1" }]],
-			// No "Session Result" transaction type yet -> its INSERT must join the batch.
+			// No "Session Result" type yet -> the shared ensure creates it first.
 			[transactionType, []],
 		]);
-		const { db, batchCalls } = createBatchTrackingDb(rows);
+		const { db, batchCalls, inserts } = createBatchTrackingDb(rows);
 
 		await callerFor(db, "user-1").session.create({
 			type: "cash_game",
@@ -451,7 +476,8 @@ describe("session.create atomicity (SA2-116)", () => {
 		expect(batchCalls).toHaveLength(1);
 		const batch = sole(batchCalls);
 		expect(opsOn(batch, sessionToSessionTag, "insert")).toHaveLength(1);
-		expect(opsOn(batch, transactionType, "insert")).toHaveLength(1);
+		expect(opsOn(inserts, transactionType, "insert")).toHaveLength(1);
+		expect(opsOn(batch, transactionType, "insert")).toHaveLength(0);
 		expect(opsOn(batch, currencyTransaction, "insert")).toHaveLength(1);
 	});
 });
@@ -501,6 +527,140 @@ describe("tournament.createWithLevels atomicity (SA2-116)", () => {
 			kind: "insert",
 			table: tournament,
 		});
+	});
+});
+describe("live session create atomicity", () => {
+	it("commits a cash session, frozen detail, and start event in one batch", async () => {
+		const { db, batchCalls } = createBatchTrackingDb();
+
+		await callerFor(db, "user-1").liveCashGameSession.create({
+			initialBuyIn: 1000,
+		});
+
+		const batch = sole(batchCalls);
+		expect(opsOn(batch, gameSession, "insert")).toHaveLength(1);
+		expect(opsOn(batch, sessionCashDetail, "insert")).toHaveLength(1);
+		expect(opsOn(batch, sessionEvent, "insert")).toHaveLength(1);
+		expect(opsOn(batch, sessionEvent, "insert")[0]?.values).toMatchObject({
+			eventType: "session_start",
+			sortOrder: 0,
+		});
+	});
+
+	it("leaves no cash-session rows committed when the create batch fails", async () => {
+		const { db, batchCalls, committed } = createBatchTrackingDb(new Map(), {
+			batchError: new Error("D1 batch failed"),
+		});
+
+		await expect(
+			callerFor(db, "user-1").liveCashGameSession.create({
+				initialBuyIn: 1000,
+			})
+		).rejects.toThrow("D1 batch failed");
+
+		const attempted = sole(batchCalls);
+		expect(opsOn(attempted, gameSession, "insert")).toHaveLength(1);
+		expect(opsOn(attempted, sessionCashDetail, "insert")).toHaveLength(1);
+		expect(opsOn(attempted, sessionEvent, "insert")).toHaveLength(1);
+		expect(committed).toHaveLength(0);
+	});
+
+	it("commits a tournament session, frozen detail, and start event in one batch", async () => {
+		const { db, batchCalls } = createBatchTrackingDb();
+
+		await callerFor(db, "user-1").liveTournamentSession.create({});
+
+		const batch = sole(batchCalls);
+		expect(opsOn(batch, gameSession, "insert")).toHaveLength(1);
+		expect(opsOn(batch, sessionTournamentDetail, "insert")).toHaveLength(1);
+		expect(opsOn(batch, sessionEvent, "insert")).toHaveLength(1);
+		expect(opsOn(batch, sessionBlindLevel, "insert")).toHaveLength(0);
+		expect(opsOn(batch, sessionChipPurchase, "insert")).toHaveLength(0);
+	});
+
+	it("copies a tournament's frozen structure in the same create batch", async () => {
+		const rows = new Map<unknown, Rows>([
+			[
+				tournament,
+				[
+					{
+						id: "tournament-1",
+						roomId: "room-1",
+						name: "Main",
+						variant: "No Limit Hold'em",
+						buyIn: 100,
+						entryFee: 10,
+						startingStack: 10_000,
+						bountyAmount: null,
+						tableSize: 9,
+					},
+				],
+			],
+			[room, [{ id: "room-1", userId: "user-1" }]],
+			[
+				blindLevel,
+				[
+					{
+						id: "level-1",
+						tournamentId: "tournament-1",
+						level: 1,
+						isBreak: false,
+						blind1: 100,
+						blind2: 200,
+						blind3: null,
+						ante: null,
+						minutes: 15,
+						games: null,
+					},
+				],
+			],
+			[
+				tournamentChipPurchase,
+				[
+					{
+						id: "purchase-1",
+						tournamentId: "tournament-1",
+						name: "Rebuy",
+						cost: 100,
+						chips: 10_000,
+						sortOrder: 0,
+					},
+				],
+			],
+		]);
+		const { db, batchCalls } = createBatchTrackingDb(rows);
+
+		await callerFor(db, "user-1").liveTournamentSession.create({
+			tournamentId: "tournament-1",
+		});
+
+		const batch = sole(batchCalls);
+		expect(opsOn(batch, sessionBlindLevel, "insert")).toHaveLength(1);
+		expect(opsOn(batch, sessionChipPurchase, "insert")).toHaveLength(1);
+		expect(opsOn(batch, sessionChipPurchaseResult, "insert")).toHaveLength(1);
+		expect(
+			opsOn(batch, sessionTournamentDetail, "insert")[0]?.values
+		).toMatchObject({
+			ruleName: "Main",
+			tournamentBuyIn: 100,
+			entryFee: 10,
+		});
+	});
+
+	it("leaves no tournament-session rows committed when the create batch fails", async () => {
+		const { db, batchCalls, committed } = createBatchTrackingDb(new Map(), {
+			batchError: new Error("D1 batch failed"),
+		});
+
+		await expect(
+			callerFor(db, "user-1").liveTournamentSession.create({})
+		).rejects.toThrow("D1 batch failed");
+
+		const attempted = sole(batchCalls);
+		expect(opsOn(attempted, gameSession, "insert")).toHaveLength(1);
+		expect(opsOn(attempted, sessionTournamentDetail, "insert")).toHaveLength(1);
+		expect(opsOn(attempted, sessionEvent, "insert")).toHaveLength(1);
+		expect(committed).toHaveLength(0);
 	});
 });
 
@@ -840,8 +1000,8 @@ describe("syncCurrencyTransaction currency-change atomicity (SA2-116)", () => {
 		expect(opsOn(batch, transactionType, "insert")).toHaveLength(0);
 	});
 
-	it("includes the Session Result type INSERT before the ledger row when the type is missing", async () => {
-		const { db, batchCalls } = createBatchTrackingDb(
+	it("ensures the Session Result type before batching the replacement ledger row", async () => {
+		const { db, batchCalls, inserts } = createBatchTrackingDb(
 			new Map<unknown, Rows>([[transactionType, []]])
 		);
 
@@ -856,16 +1016,9 @@ describe("syncCurrencyTransaction currency-change atomicity (SA2-116)", () => {
 		);
 
 		const batch = sole(batchCalls);
-		expect(opsOn(batch, transactionType, "insert")).toHaveLength(1);
+		expect(opsOn(inserts, transactionType, "insert")).toHaveLength(1);
+		expect(opsOn(batch, transactionType, "insert")).toHaveLength(0);
 		expect(opsOn(batch, currencyTransaction, "insert")).toHaveLength(1);
-		const typeIdx = batch.findIndex(
-			(s) => s.table === transactionType && s.kind === "insert"
-		);
-		const txIdx = batch.findIndex(
-			(s) => s.table === currencyTransaction && s.kind === "insert"
-		);
-		// FK order: the type row must precede the ledger row that references it.
-		expect(typeIdx).toBeLessThan(txIdx);
 	});
 
 	it("leaves the single-statement branches (pure removal / same-currency update) unbatched", async () => {
@@ -895,5 +1048,72 @@ describe("syncCurrencyTransaction currency-change atomicity (SA2-116)", () => {
 			"user-1"
 		);
 		expect(same.batchCalls).toHaveLength(0);
+	});
+});
+describe("tag deletion atomicity (SA2-116)", () => {
+	it("deletes player-tag links and the player tag in one batch", async () => {
+		const rows = new Map<unknown, Rows>([
+			[playerTag, [{ id: "pt-1", userId: "user-1" }]],
+		]);
+		const { db, batchCalls } = createBatchTrackingDb(rows);
+
+		await callerFor(db, "user-1").playerTag.delete({ id: "pt-1" });
+
+		const batch = sole(batchCalls);
+		expect(batch).toHaveLength(2);
+		expect(batch[0]).toMatchObject({
+			kind: "delete",
+			table: playerToPlayerTag,
+		});
+		expect(batch[1]).toMatchObject({ kind: "delete", table: playerTag });
+	});
+
+	it("deletes session-tag links and the session tag in one batch", async () => {
+		const rows = new Map<unknown, Rows>([
+			[sessionTag, [{ id: "st-1", userId: "user-1" }]],
+		]);
+		const { db, batchCalls } = createBatchTrackingDb(rows);
+
+		await callerFor(db, "user-1").sessionTag.delete({ id: "st-1" });
+
+		const batch = sole(batchCalls);
+		expect(batch).toHaveLength(2);
+		expect(batch[0]).toMatchObject({
+			kind: "delete",
+			table: sessionToSessionTag,
+		});
+		expect(batch[1]).toMatchObject({ kind: "delete", table: sessionTag });
+	});
+
+	it("commits no player-tag deletion when the batch fails", async () => {
+		const rows = new Map<unknown, Rows>([
+			[playerTag, [{ id: "pt-1", userId: "user-1" }]],
+		]);
+		const { db, batchCalls, committed } = createBatchTrackingDb(rows, {
+			batchError: new Error("D1 batch failed"),
+		});
+
+		await expect(
+			callerFor(db, "user-1").playerTag.delete({ id: "pt-1" })
+		).rejects.toThrow("D1 batch failed");
+
+		expect(sole(batchCalls)).toHaveLength(2);
+		expect(committed).toHaveLength(0);
+	});
+
+	it("commits no session-tag deletion when the batch fails", async () => {
+		const rows = new Map<unknown, Rows>([
+			[sessionTag, [{ id: "st-1", userId: "user-1" }]],
+		]);
+		const { db, batchCalls, committed } = createBatchTrackingDb(rows, {
+			batchError: new Error("D1 batch failed"),
+		});
+
+		await expect(
+			callerFor(db, "user-1").sessionTag.delete({ id: "st-1" })
+		).rejects.toThrow("D1 batch failed");
+
+		expect(sole(batchCalls)).toHaveLength(2);
+		expect(committed).toHaveLength(0);
 	});
 });

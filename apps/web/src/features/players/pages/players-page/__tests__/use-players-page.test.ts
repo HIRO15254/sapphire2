@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
 	availableTags: [] as Array<{ color: string; id: string; name: string }>,
 	isLoading: false,
 	isCreatePending: false,
+	isInitialLoadError: false,
+	onRetry: vi.fn(),
 }));
 
 vi.mock("@/features/players/hooks/use-players", () => ({
@@ -26,6 +28,8 @@ vi.mock("@/features/players/hooks/use-players", () => ({
 			availableTags: mocks.availableTags,
 			isLoading: mocks.isLoading,
 			isCreatePending: mocks.isCreatePending,
+			isInitialLoadError: mocks.isInitialLoadError,
+			onRetry: mocks.onRetry,
 			isUpdatePending: false,
 			create: mocks.create,
 			update: vi.fn(),
@@ -60,6 +64,8 @@ describe("usePlayersPage", () => {
 		mocks.availableTags = [];
 		mocks.isLoading = false;
 		mocks.isCreatePending = false;
+		mocks.isInitialLoadError = false;
+		mocks.onRetry.mockReset();
 	});
 
 	describe("initial state", () => {
@@ -206,4 +212,11 @@ describe("usePlayersPage", () => {
 			expect(mocks.createTag).toHaveBeenCalledWith("New");
 		});
 	});
+});
+
+it("forwards the initial-load error state and retry handler", () => {
+	mocks.isInitialLoadError = true;
+	const { result } = renderHook(() => usePlayersPage());
+	expect(result.current.isInitialLoadError).toBe(true);
+	expect(result.current.onRetry).toBe(mocks.onRetry);
 });

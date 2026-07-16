@@ -23,6 +23,7 @@ interface UseSessionResultChartResult {
 	isEmpty: boolean;
 	isLoading: boolean;
 	points: SessionResultPoint[];
+	retry: () => void;
 	sessionType: SessionType;
 }
 
@@ -49,9 +50,12 @@ export function useSessionResultChart({
 
 	return {
 		error: eventsQuery.error,
-		isEmpty: !eventsQuery.isLoading && points.length < 2,
+		isEmpty: !(eventsQuery.isLoading || eventsQuery.error) && points.length < 2,
 		isLoading: eventsQuery.isLoading,
 		points,
+		retry: async () => {
+			await eventsQuery.refetch();
+		},
 		sessionType,
 	};
 }

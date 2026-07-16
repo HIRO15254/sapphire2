@@ -6,7 +6,10 @@ import z from "zod";
 import type { RingGameFormValues } from "@/features/rooms/hooks/use-ring-games";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import { useMixMasterEditing } from "@/shared/hooks/use-mix-master-editing";
-import { optionalNumericString } from "@/shared/lib/form-fields";
+import {
+	optionalNumericString,
+	parseOptionalInt,
+} from "@/shared/lib/form-fields";
 import {
 	fromMixGames,
 	MIX_AMOUNT_SLOTS,
@@ -45,21 +48,13 @@ const ringGameFormSchema = z.object({
 	anteType: z.enum(["all", "bb", "none"]),
 	minBuyIn: optionalNumericString({ integer: true, min: 0 }),
 	maxBuyIn: optionalNumericString({ integer: true, min: 0 }),
-	tableSize: z.string(),
+	tableSize: optionalNumericString({ integer: true, min: 2, max: 10 }),
 	currencyId: z.string(),
 	memo: z.string(),
 });
 
 function numStrOrEmpty(value: number | undefined): string {
 	return value === undefined ? "" : String(value);
-}
-
-function parseOptInt(value: string): number | undefined {
-	if (value === "") {
-		return undefined;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 interface UseRingGameFormOptions {
@@ -122,16 +117,20 @@ export function useRingGameForm({
 				mixGames,
 				// A mix submit carries its amounts inside mixGames; the flat
 				// fields must go out empty, not with stale pre-switch values (c04).
-				blind1: hasMixGames ? undefined : parseOptInt(value.blind1),
-				blind2: hasMixGames ? undefined : parseOptInt(value.blind2),
+				blind1: hasMixGames ? undefined : parseOptionalInt(value.blind1),
+				blind2: hasMixGames ? undefined : parseOptionalInt(value.blind2),
 				blind3:
-					hasMixGames || !hasThirdSlot ? undefined : parseOptInt(value.blind3),
+					hasMixGames || !hasThirdSlot
+						? undefined
+						: parseOptionalInt(value.blind3),
 				ante:
-					hasMixGames || isAnteDisabled ? undefined : parseOptInt(value.ante),
+					hasMixGames || isAnteDisabled
+						? undefined
+						: parseOptionalInt(value.ante),
 				anteType: hasMixGames ? undefined : value.anteType,
-				minBuyIn: parseOptInt(value.minBuyIn),
-				maxBuyIn: parseOptInt(value.maxBuyIn),
-				tableSize: parseOptInt(value.tableSize),
+				minBuyIn: parseOptionalInt(value.minBuyIn),
+				maxBuyIn: parseOptionalInt(value.maxBuyIn),
+				tableSize: parseOptionalInt(value.tableSize),
 				currencyId: value.currencyId || undefined,
 				memo: value.memo ? value.memo : undefined,
 			});

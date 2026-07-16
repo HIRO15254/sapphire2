@@ -63,6 +63,8 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 
 	const levelsQuery = useQuery(levelsQueryOptions);
 	const levels = levelsQuery.data ?? [];
+	const isInitialLoadError =
+		levelsQuery.isError && levelsQuery.data === undefined;
 
 	const initialLastMinutes = (() => {
 		const data = levelsQuery.data;
@@ -121,9 +123,11 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 				minutes: newLevel.minutes ?? null,
 				games: newLevel.games ?? null,
 			};
-			queryClient.setQueryData(
+			updateQueryItems<BlindLevelRow>(
+				queryClient,
 				levelsQueryOptions.queryKey,
-				(old: BlindLevelRow[] | undefined) => [...(old ?? []), tempRow]
+				(items) => [...items, tempRow],
+				[tempRow]
 			);
 			return { previous };
 		},
@@ -145,10 +149,11 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 				{ queryKey: levelsQueryOptions.queryKey },
 			]);
 			const previous = snapshotQuery(queryClient, levelsQueryOptions.queryKey);
-			queryClient.setQueryData(
+			updateQueryItems<BlindLevelRow>(
+				queryClient,
 				levelsQueryOptions.queryKey,
-				(old: BlindLevelRow[] | undefined) =>
-					(old ?? []).filter((l) => l.id !== id)
+				(items) => items.filter((level) => level.id !== id),
+				[]
 			);
 			return { previous };
 		},
@@ -240,16 +245,13 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 				{ queryKey: levelsQueryOptions.queryKey },
 			]);
 			const previous = snapshotQuery(queryClient, levelsQueryOptions.queryKey);
-			queryClient.setQueryData(
+			updateQueryItems<BlindLevelRow>(
+				queryClient,
 				levelsQueryOptions.queryKey,
-				(old: BlindLevelRow[] | undefined) => {
-					if (!old) {
-						return old;
-					}
-					return levelIds
-						.map((id) => old.find((l) => l.id === id))
-						.filter((l): l is BlindLevelRow => l !== undefined);
-				}
+				(items) =>
+					levelIds
+						.map((id) => items.find((level) => level.id === id))
+						.filter((l): l is BlindLevelRow => l !== undefined)
 			);
 			return { previous };
 		},
@@ -363,7 +365,9 @@ export function useBlindLevels({ tournamentId }: UseBlindLevelsOptions) {
 
 	return {
 		levels: levels as BlindLevelRow[],
+		isInitialLoadError,
 		isLoading: levelsQuery.isLoading,
+		onRetry: levelsQuery.refetch,
 		isAdding: addLevelMutation.isPending,
 		sensors,
 		handleDragEnd,

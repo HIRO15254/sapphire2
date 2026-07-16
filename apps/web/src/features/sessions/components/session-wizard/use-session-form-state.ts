@@ -1,11 +1,11 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { useForm } from "@tanstack/react-form";
 import { useEffect, useRef, useState } from "react";
-import type { ChipPurchaseRow } from "@/features/rooms/components/chip-purchases-editor";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import {
 	buildDefaults,
 	cashSessionFormSchema,
+	liveCashSessionFormSchema,
 	numStrOrEmpty,
 	parseOptInt,
 	type RingGameOption,
@@ -15,6 +15,7 @@ import {
 	type TournamentOption,
 	tournamentSessionFormSchema,
 } from "@/features/sessions/utils/session-form-helpers";
+import type { ChipPurchaseRow } from "@/shared/components/chip-purchases-editor";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import { useMixMasterEditing } from "@/shared/hooks/use-mix-master-editing";
 import {
@@ -43,6 +44,12 @@ interface UseSessionFormStateArgs {
 	 */
 	defaultRoomId?: string;
 	defaultValues?: SessionFormDefaults;
+	/**
+	 * "live" starts a session before it ends (result fields unknown); "manual"
+	 * records a completed session. Selects the cash validation schema so the
+	 * live form isn't gated on a cash-out it never renders.
+	 */
+	mode?: "manual" | "live";
 	onRoomChange?: (roomId: string | undefined) => void;
 	onSubmit: (values: SessionFormValues) => void;
 	onSubmitInvalid?: (fieldNames: string[]) => void;
@@ -69,6 +76,7 @@ function withoutPerLevelGames(levels: BlindLevelRow[]): BlindLevelRow[] {
 export function useSessionFormState({
 	defaultRoomId,
 	defaultValues,
+	mode = "manual",
 	onRoomChange,
 	onSubmit,
 	onSubmitInvalid,
@@ -145,6 +153,11 @@ export function useSessionFormState({
 	const isCashGame = sessionType === "cash_game";
 	const gameOptions = isCashGame ? ringGames : tournaments;
 	const gameLabel = isCashGame ? "Cash game" : "Tournament";
+	// Live cash sessions start before they end, so the cash-out is unknown and
+	// the live form never renders it — validate against the schema that keeps it
+	// optional, otherwise ✓ Confirm silently fails.
+	const cashGameSchema =
+		mode === "live" ? liveCashSessionFormSchema : cashSessionFormSchema;
 
 	// Extracted from onSubmit to keep its cognitive complexity in budget.
 	const buildCashSubmitValues = (value: SessionFormFieldValues) => {
@@ -248,9 +261,7 @@ export function useSessionFormState({
 			});
 		},
 		validators: {
-			onSubmit: isCashGame
-				? cashSessionFormSchema
-				: tournamentSessionFormSchema,
+			onSubmit: isCashGame ? cashGameSchema : tournamentSessionFormSchema,
 		},
 	});
 

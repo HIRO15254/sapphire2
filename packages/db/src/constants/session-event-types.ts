@@ -64,9 +64,8 @@ export const cashSessionEndPayload = z.object({
 	cashOutAmount: z.number().int().min(0),
 });
 
-export const tournamentSessionEndPayload = z.discriminatedUnion(
-	"beforeDeadline",
-	[
+export const tournamentSessionEndPayload = z
+	.discriminatedUnion("beforeDeadline", [
 		z.object({
 			beforeDeadline: z.literal(false),
 			placement: z.number().int().min(1),
@@ -79,8 +78,15 @@ export const tournamentSessionEndPayload = z.discriminatedUnion(
 			prizeMoney: z.number().int().min(0),
 			bountyPrizes: z.number().int().min(0),
 		}),
-	]
-);
+	])
+	.refine(
+		(data) =>
+			data.beforeDeadline === true || data.placement <= data.totalEntries,
+		{
+			message: "Placement must be less than or equal to total entries",
+			path: ["placement"],
+		}
+	);
 
 // Pause/Resume payloads
 export const sessionPausePayload = z.object({});
@@ -108,7 +114,7 @@ export const chipsAddRemovePayload = z.object({
 // `evCashOut` / `evDiff` (SA2-156).
 export const allInPayload = z
 	.object({
-		potSize: z.number().min(0),
+		potSize: z.number().int().min(0),
 		trials: z.number().int().min(1),
 		equity: z.number().min(0).max(100),
 		wins: z.number().min(0),
@@ -251,6 +257,7 @@ export function isValidEventTypeForSessionType(
 
 interface EventForState {
 	eventType: string;
+	id?: string;
 	occurredAt: Date | string;
 	sortOrder: number;
 }
@@ -285,7 +292,10 @@ export function getSessionCurrentState(events: EventForState[]): SessionStatus {
 		if (timeB !== timeA) {
 			return timeB - timeA;
 		}
-		return b.sortOrder - a.sortOrder;
+		if (b.sortOrder !== a.sortOrder) {
+			return b.sortOrder - a.sortOrder;
+		}
+		return (b.id ?? "").localeCompare(a.id ?? "");
 	});
 
 	const latest = sorted[0] as EventForState | undefined;

@@ -12,6 +12,7 @@ import {
 	fetchProfitLossSeries,
 	getSessionChipPurchaseMap,
 	sumChipPurchaseCost,
+	validateEntityOwnership,
 } from "./session";
 
 type DbInstance = Parameters<
@@ -29,9 +30,9 @@ type DbInstance = Parameters<
  * unless the caller has opted into normalized values.
  */
 export const statsFilterShape = {
-	currencyId: z.string().optional(),
+	currencyId: z.string().min(1).optional(),
 	type: z.enum(["cash_game", "tournament"]).optional(),
-	roomId: z.string().optional(),
+	roomId: z.string().min(1).optional(),
 	dateFrom: z.number().optional(),
 	dateTo: z.number().optional(),
 	normalized: z.boolean().default(false),
@@ -77,6 +78,18 @@ export function assertCurrencyScope(filters: {
 			code: "BAD_REQUEST",
 			message: "currencyId is required unless normalized is enabled",
 		});
+	}
+}
+async function validateStatsFiltersOwnership(
+	db: DbInstance,
+	userId: string,
+	filters: Pick<StatsFilters, "currencyId" | "roomId">
+): Promise<void> {
+	if (filters.currencyId) {
+		await validateEntityOwnership(db, "currency", filters.currencyId, userId);
+	}
+	if (filters.roomId) {
+		await validateEntityOwnership(db, "room", filters.roomId, userId);
 	}
 }
 
@@ -262,7 +275,10 @@ export async function fetchStatsRows(
 			sessionTournamentDetail,
 			eq(sessionTournamentDetail.sessionId, gameSession.id)
 		)
-		.leftJoin(room, eq(room.id, gameSession.roomId))
+		.leftJoin(
+			room,
+			and(eq(room.id, gameSession.roomId), eq(room.userId, userId))
+		)
 		.where(and(...conditions));
 
 	const chipPurchaseMap = await getSessionChipPurchaseMap(
@@ -733,6 +749,7 @@ export const statsRouter = router({
 		.input(statsFilterSchema)
 		.query(async ({ ctx, input }) => {
 			assertCurrencyScope(input);
+			await validateStatsFiltersOwnership(ctx.db, ctx.session.user.id, input);
 			const rows = await fetchStatsRows(ctx.db, ctx.session.user.id, input);
 			return summarizeStats(rows);
 		}),
@@ -741,14 +758,16 @@ export const statsRouter = router({
 		.input(breakdownFilterSchema)
 		.query(async ({ ctx, input }) => {
 			assertCurrencyScope(input);
+			await validateStatsFiltersOwnership(ctx.db, ctx.session.user.id, input);
 			const rows = await fetchStatsRows(ctx.db, ctx.session.user.id, input);
 			return { groups: breakdownStats(rows, input.groupBy) };
 		}),
 
 	profitLossSeries: protectedProcedure
 		.input(statsFilterSchema)
-		.query(({ ctx, input }) => {
+		.query(async ({ ctx, input }) => {
 			assertCurrencyScope(input);
+			await validateStatsFiltersOwnership(ctx.db, ctx.session.user.id, input);
 			return fetchProfitLossSeries(ctx.db, ctx.session.user.id, input);
 		}),
 });

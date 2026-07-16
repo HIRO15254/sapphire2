@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { appRouter } from "../routers";
 import {
 	extractCoordsFromMapsUrl,
@@ -67,6 +67,130 @@ describe("location.resolveLink input validation", () => {
 
 	it("rejects a missing url", () => {
 		expectRejects(appRouter.location.resolveLink, {});
+	});
+});
+
+function locationCaller() {
+	return appRouter.createCaller({
+		session: { user: { id: "user-1" } },
+	} as unknown as Parameters<typeof appRouter.createCaller>[0]).location;
+}
+
+async function expectBadRequest(promise: Promise<unknown>): Promise<void> {
+	await expect(promise).rejects.toMatchObject({ code: "BAD_REQUEST" });
+}
+
+function redirect(location: string): Response {
+	return new Response(null, { status: 302, headers: { location } });
+}
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
+
+describe("location.resolveLink short-link redirects", () => {
+	it.each([
+		[
+			"https://maps.app.goo.gl/abc",
+			"https://evil.example/maps/@35.6812,139.7671,17z",
+		],
+		["https://goo.gl/maps/abc", "http://127.0.0.1:8787/admin"],
+	])("rejects a redirect to %s after one manual fetch", async (url, target) => {
+		const fetchMock = vi.fn().mockResolvedValue(redirect(target));
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expectBadRequest(locationCaller().resolveLink({ url }));
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			1,
+			url,
+			expect.objectContaining({ redirect: "manual" })
+		);
+	});
+
+	it("accepts an allowlisted Google Maps redirect without fetching its destination", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(
+				redirect("https://www.google.com/maps/@35.6812,139.7671,17z")
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(
+			locationCaller().resolveLink({ url: "https://maps.app.goo.gl/abc" })
+		).resolves.toEqual({ latitude: 35.6812, longitude: 139.7671 });
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ redirect: "manual" });
+	});
+
+	it("resolves relative short-link locations and validates each hop", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(redirect("/next"))
+			.mockResolvedValueOnce(
+				redirect("https://maps.google.com/?q=35.6812,139.7671")
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expect(
+			locationCaller().resolveLink({ url: "https://maps.app.goo.gl/abc" })
+		).resolves.toEqual({ latitude: 35.6812, longitude: 139.7671 });
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			2,
+			"https://maps.app.goo.gl/next",
+			expect.objectContaining({ redirect: "manual" })
+		);
+	});
+	it("rejects a short-link fetch failure", async () => {
+		const fetchMock = vi.fn().mockRejectedValue(new Error("network failure"));
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expectBadRequest(
+			locationCaller().resolveLink({ url: "https://goo.gl/maps/abc" })
+		);
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("rejects loops, missing locations, and non-redirect responses", async () => {
+		const scenarios = [
+			[redirect("/next"), redirect("/maps/abc")],
+			[new Response(null, { status: 302 })],
+			[new Response(null, { status: 200 })],
+		] as const;
+
+		for (const responses of scenarios) {
+			const fetchMock = vi
+				.fn()
+				.mockImplementation(() =>
+					Promise.resolve(responses[fetchMock.mock.calls.length - 1])
+				);
+			vi.stubGlobal("fetch", fetchMock);
+
+			await expectBadRequest(
+				locationCaller().resolveLink({ url: "https://goo.gl/maps/abc" })
+			);
+			expect(fetchMock).toHaveBeenCalledTimes(responses.length);
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it("stops after five short-link redirects", async () => {
+		const fetchMock = vi.fn().mockImplementation((url: string) => {
+			const index = Number(new URL(url).pathname.slice(1) || "0");
+			return Promise.resolve(redirect(`/${index + 1}`));
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		await expectBadRequest(
+			locationCaller().resolveLink({ url: "https://maps.app.goo.gl/0" })
+		);
+
+		expect(fetchMock).toHaveBeenCalledTimes(5);
 	});
 });
 

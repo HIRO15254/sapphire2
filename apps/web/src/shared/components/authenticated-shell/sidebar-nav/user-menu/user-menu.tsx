@@ -21,11 +21,9 @@ export function UserMenu() {
 
 	if (!session) {
 		return (
-			<Link to="/login">
-				<Button className="h-8 px-3" size="sm" variant="outline">
-					Sign In
-				</Button>
-			</Link>
+			<Button asChild className="h-8 px-3" size="sm" variant="outline">
+				<Link to="/login">Sign In</Link>
+			</Button>
 		);
 	}
 

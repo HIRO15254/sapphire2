@@ -148,6 +148,13 @@ describe("stats shared filter input validation", () => {
 				expectAccepts(proc, FULL_FILTER);
 			});
 
+			it.each([
+				"currencyId",
+				"roomId",
+			] as const)("rejects an empty %s", (field) => {
+				expectRejects(proc, { normalized: true, [field]: "" });
+			});
+
 			it("rejects an unknown type value", () => {
 				expectRejects(proc, { type: "spin_and_go" });
 			});
@@ -200,6 +207,14 @@ describe("stats.breakdown input validation", () => {
 			dateTo: 2,
 			normalized: true,
 			groupBy: "room",
+		});
+	});
+
+	it.each(["currencyId", "roomId"] as const)("rejects an empty %s", (field) => {
+		expectRejects(appRouter.stats.breakdown, {
+			groupBy: "type",
+			normalized: true,
+			[field]: "",
 		});
 	});
 
@@ -917,5 +932,67 @@ describe("fetchStatsRows variant mapping", () => {
 
 		const rows = await fetchStatsRows(db, "user-1", { normalized: false });
 		expect(rows[0]?.variant).toBeNull();
+	});
+});
+
+describe("stats ownership scoping", () => {
+	function makeStatsCaller(select: Record<string, Record<string, unknown>[]>) {
+		const mock = createChainableMockDb({ select });
+		const caller = appRouter.createCaller({
+			session: { user: { id: "user-1" } },
+			db: mock.db,
+		} as unknown as Parameters<typeof appRouter.createCaller>[0]).stats;
+		return { caller, ...mock };
+	}
+
+	it.each([
+		["missing", []],
+		["foreign", [{ id: "currency-1", userId: "user-2" }]],
+	])("returns FORBIDDEN for a %s currency filter in every procedure", async (_case, currencies) => {
+		const { caller } = makeStatsCaller({ currency: currencies });
+		const calls = [
+			caller.summary({ currencyId: "currency-1" }),
+			caller.breakdown({ currencyId: "currency-1", groupBy: "room" }),
+			caller.profitLossSeries({ currencyId: "currency-1" }),
+		];
+
+		for (const call of calls) {
+			await expect(call).rejects.toMatchObject({ code: "FORBIDDEN" });
+		}
+	});
+
+	it.each([
+		["missing", []],
+		["foreign", [{ id: "room-1", userId: "user-2" }]],
+	])("returns FORBIDDEN for a %s room filter", async (_case, rooms) => {
+		const { caller } = makeStatsCaller({ room: rooms });
+
+		await expect(
+			caller.summary({ normalized: true, roomId: "room-1" })
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
+
+	it("accepts room and currency filters owned by the caller", async () => {
+		const { caller } = makeStatsCaller({
+			currency: [{ id: "currency-1", userId: "user-1" }],
+			room: [{ id: "room-1", userId: "user-1" }],
+			game_session: [],
+		});
+
+		await expect(
+			caller.summary({ currencyId: "currency-1", roomId: "room-1" })
+		).resolves.toMatchObject({ totalSessions: 0 });
+	});
+
+	it("owner-scopes the room join that surfaces its name", async () => {
+		const { db, selectJoinParams } = createChainableMockDb({
+			select: { game_session: [] },
+		});
+
+		await fetchStatsRows(db, "user-1", { normalized: true });
+
+		expect(
+			selectJoinParams.filter((params) => params.includes("user-1"))
+		).toHaveLength(1);
 	});
 });

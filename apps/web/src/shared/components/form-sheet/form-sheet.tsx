@@ -17,6 +17,7 @@ interface FormSheetProps {
 	 */
 	formId: string;
 	isLoading?: boolean;
+	isSaveDisabled?: boolean;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	title: string;
@@ -38,6 +39,7 @@ export function FormSheet({
 	children,
 	formId,
 	isLoading = false,
+	isSaveDisabled = false,
 	onOpenChange,
 	open,
 	title,
@@ -62,7 +64,7 @@ export function FormSheet({
 					<Button
 						aria-label="Save"
 						className="justify-self-end text-primary hover:text-primary"
-						disabled={isLoading}
+						disabled={isLoading || isSaveDisabled}
 						form={formId}
 						size="icon-lg"
 						type="submit"

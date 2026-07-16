@@ -1,4 +1,5 @@
 import { formatCompactNumber } from "@/utils/format-number";
+import { formatSessionDuration } from "./session-display";
 export interface ShareableSession {
 	beforeDeadline: boolean | null;
 	bountyPrizes: number | null;
@@ -28,21 +29,6 @@ function formatOrdinal(n: number): string {
 	return `${n}${suffix[(v - 20) % 10] ?? suffix[v] ?? suffix[0]}`;
 }
 
-function formatDuration(
-	startedAt: string | null,
-	endedAt: string | null
-): string | null {
-	if (!(startedAt && endedAt)) {
-		return null;
-	}
-	// Clamp to zero so a legacy row saved before the day-crossing fix (endedAt
-	// before startedAt) never leaks a negative duration into the share text
-	// (SA2-157).
-	const diffMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
-	const hours = Math.max(0, diffMs / (1000 * 60 * 60));
-	return `${hours.toFixed(1)}h`;
-}
-
 function buildProfitLossLine(
 	session: ShareableSession,
 	plIcon: string,
@@ -59,7 +45,7 @@ function buildProfitLossLine(
 			line += ` (Prize: +${prize} ${currencyUnit})`;
 		}
 	} else {
-		const duration = formatDuration(session.startedAt, session.endedAt);
+		const duration = formatSessionDuration(session.startedAt, session.endedAt);
 		if (session.evProfitLoss !== null) {
 			const evSign = session.evProfitLoss >= 0 ? "+" : "";
 			const evAmount = formatCompactNumber(session.evProfitLoss);

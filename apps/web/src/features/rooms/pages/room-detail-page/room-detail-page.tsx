@@ -7,6 +7,7 @@ import { RoomLocationLink } from "@/features/rooms/pages/room-detail-page/room-l
 import { TournamentTab } from "@/features/rooms/pages/room-detail-page/tournament-tab";
 import { FormSheet } from "@/shared/components/form-sheet";
 import { PageHeader } from "@/shared/components/page-header";
+import { QueryError } from "@/shared/components/query-error";
 import {
 	Tabs,
 	TabsContent,
@@ -27,6 +28,8 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 	const {
 		room,
 		isLoading,
+		isInitialLoadError,
+		onRetry,
 		isUpdatePending,
 		isActionsOpen,
 		isEditOpen,
@@ -46,6 +49,19 @@ export function RoomDetailPage({ roomId }: RoomDetailPageProps) {
 			<div className="min-h-full bg-background text-foreground">
 				<div className="p-4">
 					<RoomDetailSkeleton />
+				</div>
+			</div>
+		);
+	}
+
+	if (isInitialLoadError) {
+		return (
+			<div className="min-h-full bg-background text-foreground">
+				<div className="p-4">
+					<QueryError
+						message="Unable to load room. Please try again."
+						onRetry={onRetry}
+					/>
 				</div>
 			</div>
 		);

@@ -218,6 +218,15 @@ describe("Tournament — FKs, indexes, and defaults", () => {
 		expect(idxNames).toContain("tournament_roomId_idx");
 	});
 
+	it("has tournament_currencyId_idx for reverse currency lookups", () => {
+		const idx = config.indexes.find(
+			(i) => i.config.name === "tournament_currencyId_idx"
+		);
+		expect(idx?.config.columns.map((column) => column.name)).toEqual([
+			"currency_id",
+		]);
+	});
+
 	it("variant defaults to DEFAULT_VARIANT_LABEL (c12: not the stale 'nlh' key)", () => {
 		expect(columns.variant.hasDefault).toBe(true);
 		expect(columns.variant.default).toBe(DEFAULT_VARIANT_LABEL);

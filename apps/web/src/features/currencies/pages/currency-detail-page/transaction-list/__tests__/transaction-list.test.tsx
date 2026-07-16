@@ -29,6 +29,25 @@ const sessionTransaction = {
 };
 
 describe("TransactionListV2", () => {
+	it("renders a retryable error instead of the empty state when the initial query fails", async () => {
+		const user = userEvent.setup();
+		const onRetry = vi.fn();
+		render(<TransactionListV2 isError onRetry={onRetry} transactions={[]} />);
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Unable to load transactions. Please try again."
+		);
+		expect(screen.queryByText("No transactions yet")).not.toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+		expect(onRetry).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps existing transactions visible when a refetch fails", () => {
+		render(
+			<TransactionListV2 isError={false} transactions={[regularTransaction]} />
+		);
+		expect(screen.getByText("Purchase")).toBeInTheDocument();
+	});
+
 	it("renders empty state when no transactions", () => {
 		render(<TransactionListV2 transactions={[]} />);
 		expect(screen.getByText("No transactions yet")).toBeInTheDocument();

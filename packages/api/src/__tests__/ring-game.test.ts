@@ -186,6 +186,49 @@ describe("ringGame.create input validation", () => {
 			blind1: 1.5,
 		});
 	});
+
+	it.each([
+		"blind1",
+		"blind2",
+		"blind3",
+		"ante",
+		"minBuyIn",
+		"maxBuyIn",
+	] as const)("rejects negative %s and accepts zero", (field) => {
+		expectRejects(appRouter.ringGame.create, {
+			roomId: "s1",
+			name: "g",
+			[field]: -1,
+		});
+		expectAccepts(appRouter.ringGame.create, {
+			roomId: "s1",
+			name: "g",
+			[field]: 0,
+		});
+	});
+
+	it("restricts tableSize to the supported 2..10 player range", () => {
+		expectRejects(appRouter.ringGame.create, {
+			roomId: "s1",
+			name: "g",
+			tableSize: 1,
+		});
+		expectAccepts(appRouter.ringGame.create, {
+			roomId: "s1",
+			name: "g",
+			tableSize: 2,
+		});
+		expectAccepts(appRouter.ringGame.create, {
+			roomId: "s1",
+			name: "g",
+			tableSize: 10,
+		});
+		expectRejects(appRouter.ringGame.create, {
+			roomId: "s1",
+			name: "g",
+			tableSize: 11,
+		});
+	});
 });
 
 describe("ringGame.update input validation", () => {
@@ -223,6 +266,41 @@ describe("ringGame.update input validation", () => {
 	it("rejects missing id", () => {
 		expectRejects(appRouter.ringGame.update, { name: "x" });
 	});
+
+	it.each([
+		"blind1",
+		"blind2",
+		"blind3",
+		"ante",
+		"minBuyIn",
+		"maxBuyIn",
+	] as const)("rejects negative %s and accepts zero", (field) => {
+		expectRejects(appRouter.ringGame.update, {
+			id: "rg1",
+			[field]: -1,
+		});
+		expectAccepts(appRouter.ringGame.update, {
+			id: "rg1",
+			[field]: 0,
+		});
+	});
+
+	it("restricts tableSize to 2..10 while preserving null clearing", () => {
+		expectRejects(appRouter.ringGame.update, { id: "rg1", tableSize: 1 });
+		expectAccepts(appRouter.ringGame.update, { id: "rg1", tableSize: 2 });
+		expectAccepts(appRouter.ringGame.update, {
+			id: "rg1",
+			tableSize: 10,
+		});
+		expectRejects(appRouter.ringGame.update, {
+			id: "rg1",
+			tableSize: 11,
+		});
+		expectAccepts(appRouter.ringGame.update, {
+			id: "rg1",
+			tableSize: null,
+		});
+	});
 });
 
 describe("ringGame.{archive,restore,delete} input validation", () => {
@@ -257,6 +335,33 @@ describe("ringGame currency ownership (SA2-180)", () => {
 		]);
 	}
 
+	it("returns the same FORBIDDEN code for missing and foreign rooms", async () => {
+		const missingRoomCaller = ringGameCaller(
+			CUR_OWNER,
+			new Map<unknown, Rows>([
+				[room, []],
+				[ringGame, []],
+				[currency, []],
+			])
+		);
+		const foreignRoomCaller = ringGameCaller(
+			CUR_OWNER,
+			new Map<unknown, Rows>([
+				[room, [{ id: "room-1", userId: CUR_OTHER }]],
+				[ringGame, []],
+				[currency, []],
+			])
+		);
+
+		await expectTrpcCode(
+			missingRoomCaller.create({ roomId: "room-1", name: "RG" }),
+			"FORBIDDEN"
+		);
+		await expectTrpcCode(
+			foreignRoomCaller.create({ roomId: "room-1", name: "RG" }),
+			"FORBIDDEN"
+		);
+	});
 	it("create accepts a currency owned by the caller", async () => {
 		const caller = ringGameCaller(
 			CUR_OWNER,
@@ -384,9 +489,9 @@ describe("validateRingGameOwnership via mutations (SA2-181)", () => {
 			await expectTrpcCode(caller[op]({ id: "rg-1" }), "FORBIDDEN");
 		});
 
-		it(`${op} throws NOT_FOUND when the ring game does not exist`, async () => {
+		it(`${op} throws FORBIDDEN when the ring game does not exist`, async () => {
 			const caller = ringGameCaller(CUR_OWNER, ringGameRows([]));
-			await expectTrpcCode(caller[op]({ id: "missing" }), "NOT_FOUND");
+			await expectTrpcCode(caller[op]({ id: "missing" }), "FORBIDDEN");
 		});
 	}
 });

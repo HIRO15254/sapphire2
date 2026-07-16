@@ -10,6 +10,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const trpcMocks = vi.hoisted(() => ({
+	listByRoom: vi.fn(),
 	create: vi.fn(),
 	update: vi.fn(),
 	archive: vi.fn(),
@@ -23,7 +24,7 @@ vi.mock("@/utils/trpc", () => ({
 			listByRoom: {
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("ringGame", "listByRoom", input),
-					queryFn: () => Promise.resolve([]),
+					queryFn: () => trpcMocks.listByRoom(input),
 				}),
 			},
 		},
@@ -109,6 +110,7 @@ describe("useRingGames", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		trpcMocks.listByRoom.mockResolvedValue([]);
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -161,6 +163,38 @@ describe("useRingGames", () => {
 			await waitFor(() =>
 				expect(visible.result.current.archivedGames).toHaveLength(1)
 			);
+		});
+
+		it("marks an initial active-list failure without fabricating an empty success", async () => {
+			const qc = createClient();
+			trpcMocks.listByRoom.mockRejectedValue(new Error("list failed"));
+			const { result } = renderHook(
+				() => useRingGames({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+
+			await waitFor(() => expect(result.current.isInitialLoadError).toBe(true));
+			expect(result.current.activeGames).toEqual([]);
+			expect(result.current.onRetry).toEqual(expect.any(Function));
+		});
+
+		it("keeps cached active games while a background refetch fails", async () => {
+			const qc = createClient();
+			const cached = [makeGame({ id: "cached" })];
+			qc.setQueryData(activeKey, cached);
+			trpcMocks.listByRoom.mockRejectedValue(new Error("refetch failed"));
+			const { result } = renderHook(
+				() => useRingGames({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+
+			await act(async () => {
+				await qc.refetchQueries({ queryKey: activeKey });
+			});
+			await waitFor(() =>
+				expect(result.current.isInitialLoadError).toBe(false)
+			);
+			expect(result.current.activeGames).toEqual(cached);
 		});
 	});
 
@@ -217,6 +251,28 @@ describe("useRingGames", () => {
 				blind2: 10,
 				minBuyIn: 200,
 				maxBuyIn: 400,
+			});
+		});
+
+		it("invalidates active and archived queries after create settles", async () => {
+			const qc = createClient();
+			qc.setQueryData(activeKey, []);
+			qc.setQueryData(archivedKey, []);
+			trpcMocks.create.mockResolvedValue({ id: "r-new" });
+			const invalidateQueries = vi.spyOn(qc, "invalidateQueries");
+			const { result } = renderHook(
+				() => useRingGames({ roomId: STORE_ID, showArchived: false }),
+				{ wrapper: makeWrapper(qc) }
+			);
+			await act(async () => {
+				await result.current.create({ name: "PLO", variant: "plo" });
+			});
+			expect(invalidateQueries).toHaveBeenCalledTimes(2);
+			expect(invalidateQueries).toHaveBeenNthCalledWith(1, {
+				queryKey: activeKey,
+			});
+			expect(invalidateQueries).toHaveBeenNthCalledWith(2, {
+				queryKey: archivedKey,
 			});
 		});
 

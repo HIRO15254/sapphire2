@@ -16,7 +16,7 @@ import { requiredNumericString } from "@/shared/lib/form-fields";
 const allInSchema = z
 	.object({
 		time: z.string(),
-		potSize: requiredNumericString({ min: 0 }),
+		potSize: requiredNumericString({ integer: true, min: 0 }),
 		trials: requiredNumericString({ integer: true, min: 1 }),
 		equity: requiredNumericString({ min: 0, max: 100 }),
 		wins: requiredNumericString({ min: 0 }),

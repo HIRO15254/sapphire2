@@ -126,18 +126,37 @@ describe("formatSessionDuration", () => {
 		).toBe("0.7h");
 	});
 
-	it("clamps a negative raw span to '0.0h' (legacy day-crossing row, SA2-157)", () => {
-		// endedAt before startedAt (a row saved before the day-crossing fix) must
-		// never surface a negative "-20.0h" duration.
+	it("adds 24 hours for a legacy day-crossing row (SA2-157)", () => {
 		expect(
 			formatSessionDuration("2026-01-01T22:00:00", "2026-01-01T02:00:00")
+		).toBe("4.0h");
+	});
+
+	it("returns null when break minutes exceed the played span", () => {
+		expect(
+			formatSessionDuration("2026-01-01T10:00:00", "2026-01-01T11:00:00", 120)
+		).toBeNull();
+	});
+
+	it("keeps zero when break minutes exactly equal the played span", () => {
+		expect(
+			formatSessionDuration("2026-01-01T10:00:00", "2026-01-01T11:00:00", 60)
 		).toBe("0.0h");
 	});
 
-	it("clamps to '0.0h' when break minutes exceed the played span (SA2-157)", () => {
+	it("returns null for invalid timestamps", () => {
 		expect(
-			formatSessionDuration("2026-01-01T10:00:00", "2026-01-01T11:00:00", 120)
-		).toBe("0.0h");
+			formatSessionDuration("not-a-date", "2026-01-01T11:00:00")
+		).toBeNull();
+		expect(
+			formatSessionDuration("2026-01-01T10:00:00", "not-a-date")
+		).toBeNull();
+	});
+
+	it("returns null when one-day correction still leaves a negative span", () => {
+		expect(
+			formatSessionDuration("2026-01-03T10:00:00", "2026-01-01T10:00:00")
+		).toBeNull();
 	});
 });
 

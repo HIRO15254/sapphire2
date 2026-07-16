@@ -17,8 +17,14 @@ export function refineWinsNotExceedingTrials(
 	if (value.wins.trim() === "" || !Number.isFinite(wins)) {
 		return;
 	}
-	const trials = Number.parseInt(value.trials.trim(), 10);
-	if (Number.isFinite(trials) && wins > trials) {
+	const trimmedTrials = value.trials.trim();
+	const trials = Number(trimmedTrials);
+	if (
+		trimmedTrials !== "" &&
+		Number.isSafeInteger(trials) &&
+		trials >= 1 &&
+		wins > trials
+	) {
 		ctx.addIssue({
 			code: "custom",
 			message: "Wins must not exceed trials",

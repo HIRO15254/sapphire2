@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => ({
 	hasNextPage: false,
 	isFetchingNextPage: false,
 	isLoading: false,
+	isInitialLoadError: false,
+	onRetry: vi.fn(),
 	isTransactionsLoading: false,
 	isUpdatePending: false,
 	isAddTransactionPending: false,
@@ -44,6 +46,8 @@ vi.mock("@/features/currencies/hooks/use-currencies", () => ({
 		return {
 			currencies: mocks.currencies,
 			isLoading: mocks.isLoading,
+			isInitialLoadError: mocks.isInitialLoadError,
+			onRetry: mocks.onRetry,
 			allTransactions: mocks.allTransactions,
 			isTransactionsLoading: mocks.isTransactionsLoading,
 			hasNextPage: mocks.hasNextPage,
@@ -104,6 +108,8 @@ describe("useCurrencyDetailPage", () => {
 		mocks.hasNextPage = false;
 		mocks.isFetchingNextPage = false;
 		mocks.isLoading = false;
+		mocks.isInitialLoadError = false;
+		mocks.onRetry.mockReset();
 		mocks.isTransactionsLoading = false;
 		mocks.isUpdatePending = false;
 		mocks.isAddTransactionPending = false;
@@ -130,6 +136,13 @@ describe("useCurrencyDetailPage", () => {
 			mocks.isLoading = true;
 			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
 			expect(result.current.isLoading).toBe(true);
+		});
+
+		it("forwards the initial-load error state and retry callback", () => {
+			mocks.isInitialLoadError = true;
+			const { result } = renderHook(() => useCurrencyDetailPage("c1"));
+			expect(result.current.isInitialLoadError).toBe(true);
+			expect(result.current.onRetry).toBe(mocks.onRetry);
 		});
 
 		it("forwards the transactions loading flag from the inner hook", () => {

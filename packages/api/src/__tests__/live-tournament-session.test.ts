@@ -92,7 +92,14 @@ type Rows = Record<string, unknown>[];
  */
 type ChainablePromise = Promise<Rows> & Record<string, () => ChainablePromise>;
 
-function createMockDb(tableRows: Map<unknown, Rows>) {
+interface MockDbOptions {
+	batchError?: Error;
+}
+
+function createMockDb(
+	tableRows: Map<unknown, Rows>,
+	options: MockDbOptions = {}
+) {
 	const makeResult = (table: unknown): ChainablePromise => {
 		const promise = Promise.resolve(
 			tableRows.get(table) ?? []
@@ -117,14 +124,23 @@ function createMockDb(tableRows: Map<unknown, Rows>) {
 			set: () => ({ where: () => Promise.resolve(undefined) }),
 		}),
 		delete: () => ({ where: () => Promise.resolve(undefined) }),
-		batch: (statements: Promise<unknown>[]) => Promise.all(statements),
+		batch: (statements: Promise<unknown>[]) => {
+			if (options.batchError) {
+				return Promise.reject(options.batchError);
+			}
+			return Promise.all(statements);
+		},
 	};
 }
 
-function makeCaller(userId: string, tableRows: Map<unknown, Rows>) {
+function makeCaller(
+	userId: string,
+	tableRows: Map<unknown, Rows>,
+	options?: MockDbOptions
+) {
 	return appRouter.createCaller({
 		session: { user: { id: userId } },
-		db: createMockDb(tableRows),
+		db: createMockDb(tableRows, options),
 	} as unknown as Parameters<typeof appRouter.createCaller>[0])
 		.liveTournamentSession;
 }
@@ -212,6 +228,19 @@ describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 		);
 	});
 
+	it("checks link ownership before reporting an active-session conflict", async () => {
+		const rows = new Map<unknown, Rows>([
+			[gameSession, [ownedSession]],
+			[room, [{ id: "room-1", userId: OTHER }]],
+		]);
+		await expect(
+			makeCaller(OWNER, rows).create({ roomId: "room-1" })
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this room",
+		});
+	});
+
 	it("does not validate ownership when room/currency are omitted", async () => {
 		const rows = new Map<unknown, Rows>([
 			[gameSession, []],
@@ -221,6 +250,43 @@ describe("liveTournamentSession.create ownership validation (SA2-102)", () => {
 		await expect(makeCaller(OWNER, rows).create({})).resolves.toEqual(
 			expect.objectContaining({ id: expect.any(String) })
 		);
+	});
+});
+
+describe("liveTournamentSession.create unfinished-session conflicts (SA2-211)", () => {
+	it("returns CONFLICT when the preflight finds an unfinished live session", async () => {
+		const rows = new Map<unknown, Rows>([[gameSession, [ownedSession]]]);
+
+		await expect(makeCaller(OWNER, rows).create({})).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: "Another session is already active",
+		});
+	});
+
+	it("maps the authoritative unique-index race to CONFLICT", async () => {
+		const rows = new Map<unknown, Rows>([[gameSession, []]]);
+		const batchError = new Error(
+			"D1_ERROR: UNIQUE constraint failed: game_session.user_id: SQLITE_CONSTRAINT"
+		);
+
+		await expect(
+			makeCaller(OWNER, rows, { batchError }).create({})
+		).rejects.toMatchObject({
+			code: "CONFLICT",
+			message: "Another session is already active",
+		});
+	});
+
+	it("does not hide unrelated batch failures", async () => {
+		const rows = new Map<unknown, Rows>([[gameSession, []]]);
+		const batchError = new Error("D1 unavailable");
+
+		await expect(
+			makeCaller(OWNER, rows, { batchError }).create({})
+		).rejects.toMatchObject({
+			code: "INTERNAL_SERVER_ERROR",
+			message: batchError.message,
+		});
 	});
 });
 
@@ -447,10 +513,22 @@ describe("liveTournamentSession.createAndAssignTournament authorization", () => 
 		const rows = new Map<unknown, Rows>([
 			[gameSession, [{ ...ownedSession, userId: OTHER }]],
 		]);
-		await expectTrpcCode(
-			makeCaller(OWNER, rows).createAndAssignTournament(payload),
-			"NOT_FOUND"
-		);
+		await expect(
+			makeCaller(OWNER, rows).createAndAssignTournament(payload)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this live tournament session",
+		});
+	});
+
+	it("uses the same ownership error when the live tournament session is missing", async () => {
+		const rows = new Map<unknown, Rows>([[gameSession, []]]);
+		await expect(
+			makeCaller(OWNER, rows).createAndAssignTournament(payload)
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			message: "You do not own this live tournament session",
+		});
 	});
 
 	it("rejects non-tournament and non-live sessions before writing", async () => {
@@ -461,7 +539,7 @@ describe("liveTournamentSession.createAndAssignTournament authorization", () => 
 			const rows = new Map<unknown, Rows>([[gameSession, [session]]]);
 			await expectTrpcCode(
 				makeCaller(OWNER, rows).createAndAssignTournament(payload),
-				"NOT_FOUND"
+				"FORBIDDEN"
 			);
 		}
 	});
@@ -740,6 +818,119 @@ describe("liveTournamentSession.updateSnapshot input validation", () => {
 			blindLevels: [{ blind1: 100 }],
 		});
 	});
+
+	it("accepts zero, the safe maximum, and null for nullable tournament integers", () => {
+		for (const field of [
+			"tournamentBuyIn",
+			"entryFee",
+			"startingStack",
+			"bountyAmount",
+		] as const) {
+			for (const value of [0, Number.MAX_SAFE_INTEGER, null]) {
+				expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+					id: "s1",
+					[field]: value,
+				});
+			}
+		}
+	});
+
+	it("rejects negative, fractional, and unsafe tournament snapshot integers", () => {
+		for (const field of [
+			"tournamentBuyIn",
+			"entryFee",
+			"startingStack",
+			"bountyAmount",
+		] as const) {
+			for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+				expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+					id: "s1",
+					[field]: value,
+				});
+			}
+		}
+	});
+
+	it("accepts zero, the safe maximum, and null for blind-level integers", () => {
+		for (const field of [
+			"blind1",
+			"blind2",
+			"blind3",
+			"ante",
+			"minutes",
+		] as const) {
+			for (const value of [0, Number.MAX_SAFE_INTEGER, null]) {
+				expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+					id: "s1",
+					blindLevels: [{ isBreak: false, [field]: value }],
+				});
+			}
+		}
+	});
+
+	it("rejects negative, fractional, and unsafe blind-level integers", () => {
+		for (const field of [
+			"blind1",
+			"blind2",
+			"blind3",
+			"ante",
+			"minutes",
+		] as const) {
+			for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+				expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+					id: "s1",
+					blindLevels: [{ isBreak: false, [field]: value }],
+				});
+			}
+		}
+	});
+
+	it("accepts zero and the safe maximum for chip-purchase integers", () => {
+		for (const field of ["cost", "chips"] as const) {
+			for (const value of [0, Number.MAX_SAFE_INTEGER]) {
+				expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+					id: "s1",
+					chipPurchases: [{ name: "Rebuy", cost: 1, chips: 1, [field]: value }],
+				});
+			}
+		}
+	});
+
+	it("rejects negative, fractional, and unsafe chip-purchase integers", () => {
+		for (const field of ["cost", "chips"] as const) {
+			for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+				expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+					id: "s1",
+					chipPurchases: [{ name: "Rebuy", cost: 1, chips: 1, [field]: value }],
+				});
+			}
+		}
+	});
+
+	it("rejects an empty chip-purchase name", () => {
+		expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+			id: "s1",
+			chipPurchases: [{ name: "", cost: 0, chips: 0 }],
+		});
+	});
+
+	it("accepts tableSize 2, 10, and null", () => {
+		for (const tableSize of [2, 10, null]) {
+			expectAccepts(appRouter.liveTournamentSession.updateSnapshot, {
+				id: "s1",
+				tableSize,
+			});
+		}
+	});
+
+	it("rejects tableSize 1, 11, and fractional values", () => {
+		for (const tableSize of [1, 11, 2.5]) {
+			expectRejects(appRouter.liveTournamentSession.updateSnapshot, {
+				id: "s1",
+				tableSize,
+			});
+		}
+	});
 });
 
 // Regression guard for SA2-115: updateSnapshot re-seeds blind levels via the
@@ -970,6 +1161,7 @@ type ChainableAny = Promise<Rows> &
 function createListMockDb(listRows: Rows = []) {
 	const listWhere: { params: unknown[]; sql: string }[] = [];
 	const listOrderBy: string[] = [];
+	const listJoins: { params: unknown[]; table: unknown }[] = [];
 	const makeChain = (rows: Rows, isList: boolean): ChainableAny => {
 		const chain = Promise.resolve(rows) as ChainableAny;
 		chain.from = (table: unknown) => {
@@ -994,12 +1186,20 @@ function createListMockDb(listRows: Rows = []) {
 			return chain;
 		};
 		chain.limit = () => chain;
-		chain.leftJoin = () => chain;
+		chain.leftJoin = (table: unknown, condition: unknown) => {
+			if (isList && (table === room || table === currency)) {
+				listJoins.push({
+					table,
+					params: listCursorDialect.sqlToQuery(condition as never).params,
+				});
+			}
+			return chain;
+		};
 		chain.innerJoin = () => chain;
 		return chain;
 	};
 	const db = { select: () => makeChain([], false) };
-	return { db, listOrderBy, listWhere };
+	return { db, listJoins, listOrderBy, listWhere };
 }
 
 function listCaller(db: unknown) {
@@ -1026,11 +1226,21 @@ function makeTournamentRows(n: number): Rows {
 describe("liveTournamentSession.list composite keyset cursor (SA2-150)", () => {
 	it("orders by the coalesced start key then id descending (stable tiebreak)", async () => {
 		const { db, listOrderBy } = createListMockDb();
+
 		await listCaller(db).list({ limit: 10 });
 		expect(listOrderBy).toHaveLength(1);
 		const order = listOrderBy[0]?.toLowerCase() ?? "";
 		expect(order).toContain("coalesce");
 		expect(order).toContain('"game_session"."id" desc');
+	});
+
+	it("scopes room and currency joins to the caller", async () => {
+		const { db, listJoins } = createListMockDb();
+		await listCaller(db).list({ limit: 10 });
+
+		expect(listJoins).toHaveLength(2);
+		expect(listJoins.map((join) => join.table)).toEqual([room, currency]);
+		expect(listJoins.map((join) => join.params)).toEqual([[OWNER], [OWNER]]);
 	});
 
 	it("adds no keyset condition when no cursor is supplied", async () => {

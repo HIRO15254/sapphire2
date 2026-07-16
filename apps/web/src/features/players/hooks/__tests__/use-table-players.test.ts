@@ -13,6 +13,7 @@ const trpcMocks = vi.hoisted(() => ({
 	add: vi.fn(),
 	addNew: vi.fn(),
 	addTemporary: vi.fn(),
+	list: vi.fn(() => Promise.resolve({ items: [] })),
 	remove: vi.fn(),
 	updateSeat: vi.fn(),
 }));
@@ -23,7 +24,7 @@ vi.mock("@/utils/trpc", () => ({
 			list: {
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("sessionTablePlayer", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
+					queryFn: () => trpcMocks.list(),
 				}),
 			},
 		},
@@ -80,8 +81,10 @@ describe("useTablePlayers", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		trpcMocks.list.mockResolvedValue({ items: [] });
 	});
 	afterEach(() => {
+		vi.useRealTimers();
 		vi.restoreAllMocks();
 	});
 
@@ -577,5 +580,68 @@ describe("useTablePlayers", () => {
 			await waitFor(() => expect(trpcMocks.add).toHaveBeenCalled());
 			await waitFor(() => expect(snapshotAtRollback?.items).toEqual([]));
 		});
+	});
+
+	it("pauses the five-second poll while an optimistic mutation is pending", async () => {
+		const qc = createClient();
+
+		let resolve: ((value: unknown) => void) | undefined;
+
+		trpcMocks.add.mockImplementation(
+			() =>
+				new Promise((r) => {
+					resolve = r;
+				})
+		);
+
+		const { result } = renderHook(
+			() => useTablePlayers({ liveCashGameSessionId: "s1" }),
+
+			{ wrapper: makeWrapper(qc) }
+		);
+
+		await waitFor(() => expect(trpcMocks.list).toHaveBeenCalledTimes(1));
+
+		trpcMocks.list.mockClear();
+
+		vi.useFakeTimers();
+
+		act(() => {
+			result.current.handleAddExisting("p1", "Alice", 3);
+		});
+
+		await act(async () => {
+			await Promise.resolve();
+
+			await Promise.resolve();
+		});
+
+		expect(trpcMocks.add).toHaveBeenCalledTimes(1);
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(10_000);
+		});
+
+		expect(trpcMocks.list).not.toHaveBeenCalled();
+
+		resolve?.({ id: "tp-new" });
+
+		await act(async () => {
+			await Promise.resolve();
+
+			await Promise.resolve();
+
+			await Promise.resolve();
+		});
+
+		expect(trpcMocks.list).toHaveBeenCalledTimes(1);
+
+		trpcMocks.list.mockClear();
+
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(5000);
+		});
+
+		expect(trpcMocks.list).toHaveBeenCalledTimes(1);
 	});
 });

@@ -4,6 +4,7 @@ import {
 } from "@sapphire2/db/constants/game-variants";
 import type { BlindLevelRow } from "@/features/rooms/hooks/use-blind-levels";
 import { useBlindLevels } from "@/features/rooms/hooks/use-blind-levels";
+import { QueryError } from "@/shared/components/query-error";
 import { useGameGroups } from "@/shared/hooks/use-game-groups";
 import { rowsFromVariantLabels, toLevelGames } from "@/shared/lib/mix-games";
 import { BlindStructureTable } from "./blind-structure-table";
@@ -68,6 +69,7 @@ export function BlindStructureContent({
 }: BlindStructureContentProps) {
 	const {
 		levels,
+		isInitialLoadError,
 		isLoading,
 		isAdding,
 		sensors,
@@ -78,6 +80,7 @@ export function BlindStructureContent({
 		handleUpdate,
 		handleUpdateGameSet,
 		handleCreateLevel,
+		onRetry,
 	} = useBlindLevels({ tournamentId });
 
 	const {
@@ -92,6 +95,11 @@ export function BlindStructureContent({
 
 	if (isLoading || isMastersLoading) {
 		return <LoadingLevels />;
+	}
+	if (isInitialLoadError) {
+		return (
+			<QueryError message="Unable to load blind levels" onRetry={onRetry} />
+		);
 	}
 
 	return (

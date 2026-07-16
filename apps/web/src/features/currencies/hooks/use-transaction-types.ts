@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	restoreSnapshots,
 	snapshotQuery,
+	updateQueryData,
 } from "@/utils/optimistic-update";
 import { trpc, trpcClient } from "@/utils/trpc";
 
@@ -20,7 +22,7 @@ export function useTransactionTypes() {
 		onMutate: async (name) => {
 			await cancelTargets(queryClient, [{ queryKey: typeListKey }]);
 			const previous = snapshotQuery(queryClient, typeListKey);
-			queryClient.setQueryData<
+			updateQueryData<
 				Array<{
 					createdAt?: string;
 					id: string;
@@ -28,11 +30,11 @@ export function useTransactionTypes() {
 					updatedAt?: string;
 					userId?: string;
 				}>
-			>(typeListKey, (old) => [
+			>(queryClient, typeListKey, (old) => [
 				...(old ?? []),
 				{
 					createdAt: new Date().toISOString(),
-					id: `temp-type-${Date.now()}`,
+					id: createOptimisticId("temp-type"),
 					name,
 					updatedAt: new Date().toISOString(),
 					userId: "",

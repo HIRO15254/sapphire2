@@ -145,4 +145,27 @@ describe("CurrencyList", () => {
 			expect(onToggleFavorite).toHaveBeenCalledWith("c2");
 		});
 	});
+
+	describe("error", () => {
+		it("renders a retryable error instead of the empty state and retries once", async () => {
+			const user = userEvent.setup();
+			const onRetry = vi.fn();
+			render(
+				<CurrencyList
+					currencies={[]}
+					isError
+					isLoading={false}
+					onCreate={vi.fn()}
+					onRetry={onRetry}
+					onToggleFavorite={vi.fn()}
+				/>
+			);
+			expect(
+				screen.getByText("Unable to load currencies. Please try again.")
+			).toBeInTheDocument();
+			expect(screen.queryByText("No currencies yet")).not.toBeInTheDocument();
+			await user.click(screen.getByRole("button", { name: "Retry" }));
+			expect(onRetry).toHaveBeenCalledTimes(1);
+		});
+	});
 });

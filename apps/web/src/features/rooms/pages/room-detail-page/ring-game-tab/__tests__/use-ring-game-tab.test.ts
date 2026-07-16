@@ -23,6 +23,8 @@ function gamesStub(activeGames: RingGame[]) {
 		archivedGames: [],
 		currencies: [],
 		activeLoading: false,
+		isInitialLoadError: false,
+		onRetry: vi.fn(),
 		archivedLoading: false,
 		isCreatePending: false,
 		isUpdatePending: false,

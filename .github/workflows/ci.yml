@@ -31,3 +31,6 @@ jobs:
 
       - name: Test
         run: bun run test:ci
+
+      - name: Test migrations with Bun SQLite
+        run: bun test packages/db/src/__tests__/migration-*.test.ts

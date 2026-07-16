@@ -9,10 +9,7 @@ import {
 	purchaseChipsPayload,
 	tournamentSessionEndPayload,
 } from "@sapphire2/db/constants/session-event-types";
-import {
-	currencyTransaction,
-	transactionType,
-} from "@sapphire2/db/schema/currency";
+import { currencyTransaction } from "@sapphire2/db/schema/currency";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
@@ -20,8 +17,11 @@ import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-pur
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
-import { and, asc, eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { protectedProcedure } from "../index";
+import { type BatchStatement, runBatch } from "../lib/batch";
+import { sessionEventOrderBy } from "../utils/session-event-time";
+import { ensureSessionResultTypeId } from "./session-result-type";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -220,33 +220,6 @@ export function computeTournamentPLFromEvents(
 	};
 }
 
-export async function getSessionResultTypeId(
-	db: DbInstance,
-	userId: string
-): Promise<string> {
-	const [found] = await db
-		.select()
-		.from(transactionType)
-		.where(
-			and(
-				eq(transactionType.userId, userId),
-				eq(transactionType.name, "Session Result")
-			)
-		);
-	if (found) {
-		return found.id;
-	}
-
-	const id = crypto.randomUUID();
-	await db.insert(transactionType).values({
-		id,
-		userId,
-		name: "Session Result",
-		updatedAt: new Date(),
-	});
-	return id;
-}
-
 async function syncCurrencyTransaction(
 	db: DbInstance,
 	sessionId: string,
@@ -271,7 +244,7 @@ async function syncCurrencyTransaction(
 			.set({ amount: profitLoss, currencyId, transactedAt: sessionDate })
 			.where(eq(currencyTransaction.id, existingTx.id));
 	} else {
-		const typeId = await getSessionResultTypeId(db, userId);
+		const typeId = await ensureSessionResultTypeId(db, userId);
 		await db.insert(currencyTransaction).values({
 			id: crypto.randomUUID(),
 			currencyId,
@@ -301,7 +274,7 @@ export async function recalculateCashGameSession(
 		.select()
 		.from(sessionEvent)
 		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+		.orderBy(...sessionEventOrderBy());
 
 	const state = computeSessionStateFromEvents(events);
 
@@ -412,7 +385,7 @@ async function resolveTournamentBuyInFees(
  * Every session_chip_purchase gets a row (count 0 when never bought). Uses an
  * upsert so it is safe even if a result row was never seeded.
  */
-async function syncChipPurchaseResults(
+export async function syncChipPurchaseResults(
 	db: DbInstance,
 	sessionId: string,
 	chipPurchaseCounts: Map<string, number>
@@ -421,16 +394,30 @@ async function syncChipPurchaseResults(
 		.select({ id: sessionChipPurchase.id })
 		.from(sessionChipPurchase)
 		.where(eq(sessionChipPurchase.sessionId, sessionId));
-	for (const p of purchases) {
-		const count = chipPurchaseCounts.get(p.id) ?? 0;
-		await db
-			.insert(sessionChipPurchaseResult)
-			.values({ sessionChipPurchaseId: p.id, count })
-			.onConflictDoUpdate({
-				target: sessionChipPurchaseResult.sessionChipPurchaseId,
-				set: { count },
-			});
+	if (purchases.length === 0) {
+		return;
 	}
+
+	// D1 allows at most 100 bound parameters per statement; each result row
+	// binds two values. Keep all chunks in one batch so a failed upsert cannot
+	// leave a partially refreshed result set.
+	const statements: BatchStatement[] = [];
+	for (let i = 0; i < purchases.length; i += 50) {
+		const rows = purchases.slice(i, i + 50).map((purchase) => ({
+			sessionChipPurchaseId: purchase.id,
+			count: chipPurchaseCounts.get(purchase.id) ?? 0,
+		}));
+		statements.push(
+			db
+				.insert(sessionChipPurchaseResult)
+				.values(rows)
+				.onConflictDoUpdate({
+					target: sessionChipPurchaseResult.sessionChipPurchaseId,
+					set: { count: sql`excluded.count` },
+				})
+		);
+	}
+	await runBatch(db, statements);
 }
 
 export async function recalculateTournamentSession(
@@ -442,7 +429,7 @@ export async function recalculateTournamentSession(
 		.select()
 		.from(sessionEvent)
 		.where(eq(sessionEvent.sessionId, sessionId))
-		.orderBy(asc(sessionEvent.occurredAt), asc(sessionEvent.sortOrder));
+		.orderBy(...sessionEventOrderBy());
 
 	const state = computeSessionStateFromEvents(events);
 
@@ -611,7 +598,7 @@ function applySeatEvent(
  * `isActive` / `seatPosition` / `joinedAt` / `leftAt` reflect the most
  * recent (last) stint — i.e. the player's current state.
  *
- * `events` must already be ordered by (occurredAt, sortOrder).
+ * `events` must already be ordered by (occurredAt, sortOrder, id).
  */
 export function computeSeatedPlayersFromEvents(
 	events: { eventType: string; payload: string; occurredAt: Date }[]

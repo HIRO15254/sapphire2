@@ -45,6 +45,20 @@ describe("useAllInForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it("rejects fractional pot size on submit", async () => {
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() =>
+			useAllInForm({ open: false, onSubmit })
+		);
+		act(() => {
+			result.current.form.setFieldValue("potSize", "1.5");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("rejects trials = 0 on submit (min 1 integer)", async () => {
 		const onSubmit = vi.fn();
 		const { result } = renderHook(() =>

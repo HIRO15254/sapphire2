@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -49,6 +50,8 @@ const handlers = {
 	currencies: [],
 	editGames: { ringGames: [], tournaments: [] },
 	isUpdatePending: false,
+	isInitialLoadError: false,
+	onRetry: vi.fn(),
 	isActionsOpen: false,
 	isEditOpen: false,
 	confirmingDelete: false,
@@ -133,6 +136,37 @@ describe("SessionDetailPage", () => {
 		mocks.state = { ...mocks.state, session: null, isLoading: true };
 		renderPage();
 		expect(screen.getByTestId("session-detail-skeleton")).toBeInTheDocument();
+	});
+
+	it("shows an error and retries when the initial session query fails", async () => {
+		const user = userEvent.setup();
+		const onRetry = vi.fn();
+		mocks.state = {
+			...mocks.state,
+			session: null,
+			isInitialLoadError: true,
+			isLoading: false,
+			onRetry,
+		};
+		renderPage();
+
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Unable to load session. Please try again."
+		);
+		expect(
+			screen.queryByRole("heading", { name: "Session not found" })
+		).not.toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+		expect(onRetry).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps a cached session visible after a refetch failure", () => {
+		mocks.state = { ...mocks.state, isInitialLoadError: false };
+		renderPage();
+
+		expect(screen.getByText("1/2 NLH")).toBeInTheDocument();
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
 	it("renders a not-found message when the session is missing", () => {

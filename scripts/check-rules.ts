@@ -7,12 +7,14 @@
  * Only checks that are currently green may live here — a red check would
  * block every turn. Once their Linear issues are fixed, add:
  *   - ColorBadge / PlayerAvatar wrapper bans (SA2-112, SA2-119)
- *   - raw queryClient.setQueryData outside utils helpers (SA2-162)
  */
 import { readFile } from "node:fs/promises";
 import { Glob } from "bun";
 
+import { normalizeRulePath } from "./check-rules-path";
+
 interface Check {
+	cwd?: string;
 	excludeLine?: RegExp;
 	excludePath?: RegExp;
 	globs: string[];
@@ -51,6 +53,13 @@ const CHECKS: Check[] = [
 		excludePath: /__tests__|\.test\./,
 	},
 	{
+		name: "Number.parseInt in web input handling — validate the whole value with Number()",
+		rule: ".claude/rules/web-forms.md (SA2-103)",
+		globs: ["apps/web/src/**/*.{ts,tsx}"],
+		pattern: /Number\.parseInt\(/,
+		excludePath: /__tests__|\.test\./,
+	},
+	{
 		name: "React/library hooks called directly in a component file — move into a use-*.ts hook",
 		rule: ".claude/rules/web-hooks-separation.md",
 		globs: [
@@ -62,6 +71,29 @@ const CHECKS: Check[] = [
 			/\b(useState|useEffect|useMemo|useRef|useCallback|useForm|useQuery|useMutation|useQueryClient|useReducer|useDeferredValue|useTransition|useLayoutEffect|useIsMutating)\b/,
 		excludePath: /__tests__|\.test\.tsx$|[\\/]use-[^\\/]*\.tsx$/,
 	},
+	{
+		name: "raw queryClient cache write in a feature — use optimistic-update helpers",
+		rule: ".claude/rules/web-data-fetching.md (SA2-162)",
+		globs: ["apps/web/src/features/**/*.{ts,tsx}"],
+		pattern: /queryClient\.(setQueryData|setQueriesData)\b/,
+		excludePath: /__tests__|\.test\./,
+	},
+	{
+		name: "session-event append pre-read — allocate order inside the INSERT",
+		rule: ".claude/rules/api-data-integrity.md (SA2-196)",
+		globs: ["packages/api/src/**/*.ts"],
+		pattern:
+			/max\s*\(\s*sessionEvent\.sortOrder\s*\)|orderBy\(desc\(sessionEvent\.sortOrder\)\)[\s\S]{0,300}\+\s*1|nextAppendSortOrder(?!Sql)\s*\(/,
+		excludePath: /__tests__|\.test\./,
+	},
+	{
+		name: "GitHub pull-request head ref assigned inside a run script — pass it through step env",
+		rule: "GitHub Actions shell-injection prevention",
+		cwd: ".github",
+		globs: ["workflows/*.yml", "workflows/*.yaml"],
+		pattern:
+			/^\s*[A-Za-z_][A-Za-z0-9_]*\s*=\s*["']?\$\{\{\s*github\.event\.pull_request\.head\.ref\s*\}\}["']?\s*$/m,
+	},
 ];
 
 let failed = false;
@@ -70,7 +102,11 @@ for (const check of CHECKS) {
 	const hits: string[] = [];
 	const seen = new Set<string>();
 	for (const glob of check.globs) {
-		for await (const path of new Glob(glob).scan(".")) {
+		const cwd = check.cwd ?? ".";
+		for await (const scannedPath of new Glob(glob).scan(cwd)) {
+			const path = normalizeRulePath(
+				cwd === "." ? scannedPath : `${cwd}/${scannedPath}`
+			);
 			if (
 				seen.has(path) ||
 				IGNORED_DIRS.test(path) ||

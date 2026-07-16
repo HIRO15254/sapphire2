@@ -15,7 +15,7 @@
 | 環境 | トリガー | 内容 |
 |------|---------|------|
 | **ローカル** | `bun run dev` | `wrangler dev`（Workers ローカルシミュレーション） |
-| **プレビュー** | PR オープン | PR ごとに独立した Worker + Pages + D1 データベース |
+| **プレビュー** | PR 作成・同期・再オープン | PR ごとに独立した Worker と D1、共有 Pages プロジェクトの PR ブランチへデプロイ |
 | **dev** | `dev` への push | 常設の dev 環境（`sapphire2-api-dev`） |
 | **本番** | GitHub Release 公開 | CI 通過後に Worker + Pages をデプロイ |
 
@@ -26,29 +26,36 @@
 - [Bun](https://bun.sh/) がローカルにインストール済み
 - [Node.js](https://nodejs.org/) 20.3.0 以上がローカルにインストール済み（Cloudflare Wrangler CLI の実行用。パッケージマネージャーは引き続き Bun）
 
-> D1 データベースは Wrangler が自動的に作成するため、別途データベースのアカウントは不要です。
+> ローカル開発用 D1 は Wrangler が作成します。プレビューと dev の DB は workflow が Cloudflare API で作成し、本番は `apps/server/wrangler.toml` に設定済みの DB を使用します。
 
 ## 3. ローカル開発
 
 ### 3.1 環境変数の設定
 
-`apps/server/.dev.vars.example` をコピーして `.dev.vars` を作成します。
+サーバーと Web の環境変数テンプレートをコピーします。
 
 ```bash
 cp apps/server/.dev.vars.example apps/server/.dev.vars
+cp apps/web/.env.example apps/web/.env
 ```
 
-`.dev.vars` を編集:
+`apps/server/.dev.vars` をサーバー側の設定に合わせて編集:
 
 ```
+ANTHROPIC_API_KEY=your-anthropic-api-key
 BETTER_AUTH_SECRET=your-secret-at-least-32-characters-long
 BETTER_AUTH_URL=http://localhost:8787
 CORS_ORIGIN=http://localhost:3001
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_MAPS_API_KEY=your-google-maps-api-key
 DISCORD_CLIENT_ID=your-discord-client-id
 DISCORD_CLIENT_SECRET=your-discord-client-secret
 ```
+
+`ANTHROPIC_API_KEY` と `GOOGLE_MAPS_API_KEY` は、AI 抽出または Google Places 検索を使う場合だけ必要です。
+
+`apps/web/.env` は Vite クライアントを設定します。既定の `VITE_SERVER_URL` はローカル API の `http://localhost:8787` を指します。
 
 ### 3.2 マイグレーション実行
 
@@ -82,8 +89,24 @@ Cloudflare ダッシュボード →「Workers & Pages」概要ページ → 右
 ### 4.3 Pages プロジェクト作成
 
 ```bash
-node ./node_modules/wrangler/bin/wrangler.js pages project create sapphire2-web
+bunx wrangler pages project create sapphire2-web --production-branch main
 ```
+
+[Cloudflare Pages の Wrangler コマンド](https://developers.cloudflare.com/workers/wrangler/commands/pages/)も参照してください。
+
+### 4.4 本番 D1 データベース作成
+
+リモート D1 は `db:migrate:remote` では作成されません。本番データベースを一度だけ作成します。
+
+```bash
+bunx wrangler d1 create sapphire2-db
+```
+
+返された `database_id` を `apps/server/wrangler.toml` へ設定し、`binding = "DB"` と `database_name = "sapphire2-db"` を Worker 設定と一致させます。
+
+プレビューと dev の workflow は環境専用 DB を Cloudflare API で作成します。これらに本番 ID を流用しないでください。
+
+[Cloudflare D1 の Wrangler コマンド](https://developers.cloudflare.com/d1/wrangler-commands/)も参照してください。
 
 ## 5. OAuth プロバイダーセットアップ
 
@@ -136,6 +159,13 @@ node ./node_modules/wrangler/bin/wrangler.js pages project create sapphire2-web
 | `DISCORD_CLIENT_ID` | Discord Developer Portal | OAuth2 アプリケーション クライアント ID |
 | `DISCORD_CLIENT_SECRET` | Discord Developer Portal | OAuth2 アプリケーション クライアント シークレット |
 
+#### 機能別 API（任意）
+
+| Secret 名 | 取得元 | 説明 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic | AI 抽出を有効化 |
+| `GOOGLE_MAPS_API_KEY` | Google Cloud | Google Places 検索を有効化 |
+
 #### プレビュー自動ログイン
 
 | Secret 名 | 取得元 | 説明 |
@@ -156,18 +186,25 @@ node ./node_modules/wrangler/bin/wrangler.js pages project create sapphire2-web
 
 ### Worker 名の変更
 
-`apps/server/wrangler.toml` の `name` を変更した場合:
+Worker 名は本番、dev、PR ごとのプレビューで個別に設定されています。改名時は次の場所を一貫して更新します。
 
-- `.github/workflows/preview-deploy.yml` の `WORKER_NAME` 変数
-- `.github/workflows/preview-cleanup.yml` の `WORKER_PREFIX` 環境変数
+- `apps/server/wrangler.toml` の本番 `name`
+- `.github/workflows/dev-deploy.yml` の `WORKER_NAME`
+- `.github/workflows/preview-deploy.yml` の `WORKER_NAME` 接頭辞
+- `.github/workflows/preview-cleanup.yml` の `WORKER_PREFIX`
 
 ### Pages プロジェクト名の変更
 
-`preview-deploy.yml` の `PAGES_PROJECT` 変数を変更。
+Pages のデプロイまたはクリーンアップを行う全 workflow を更新します。
+
+- `.github/workflows/preview-deploy.yml` の `PAGES_PROJECT`
+- `.github/workflows/preview-cleanup.yml` の `PROJECT_NAME`
+- `.github/workflows/dev-deploy.yml` の `PAGES_PROJECT`
+- `.github/workflows/production-deploy.yml` の `--project-name` 引数
 
 ### 本番デプロイ
 
-`.github/workflows/production-deploy.yml` により自動化済み。GitHub Release 公開時に CI → マイグレーション → Worker デプロイ → Pages デプロイ。リリースは `feature → dev → release/vX.Y.Z → main` のフローで行い、release PR を `main` にマージすると Release が公開される（`release.yml`）。
+`release.yml` が tag と GitHub Release を公開し、その tag を指定して `production-deploy.yml` を明示的に dispatch します。既定の `GITHUB_TOKEN` で作成した Release は別 workflow を再帰起動しないためです。`production-deploy.yml` は外部の `release: published` と手動 `workflow_dispatch` にも対応します。処理順は CI → マイグレーション → Worker デプロイ → Pages デプロイです。
 
 `concurrency` 設定により直列実行。CI 失敗時はデプロイをスキップ。
 
@@ -175,14 +212,14 @@ node ./node_modules/wrangler/bin/wrangler.js pages project create sapphire2-web
 
 ### プレビュー
 
-1. テストブランチを作成して PR を出す
+1. テストブランチを作成して PR を出す（新しい commit の push と PR の再オープンでも同じプレビュー環境を再デプロイ）
 2. Actions タブで「Preview Deploy」を確認
 3. PR コメントにプレビュー URL が投稿される
 4. PR クローズで自動クリーンアップ
 
 ### 本番
 
-1. GitHub Release を公開（`release/*` PR を `main` にマージ）
+1. GitHub Release を公開（`release/vX.Y.Z` PR を `main` にマージ）
 2. Actions タブで「Production Deploy」を確認
 3. Worker URL と Pages URL にアクセス
 
@@ -204,6 +241,30 @@ Error: D1_ERROR
 
 `apps/server/wrangler.toml` の `d1_databases` の設定を確認。
 
+#### Migration 0044 事前確認: 未完了 live session の重複
+
+永続 D1 に `0044_oval_captain_flint.sql` を適用する前に、次のSQLを実行します。
+
+```sql
+SELECT
+  user_id,
+  COUNT(*) AS unfinished_count,
+  GROUP_CONCAT(id) AS session_ids
+FROM game_session
+WHERE source = 'live' AND status != 'completed'
+GROUP BY user_id
+HAVING COUNT(*) > 1;
+```
+
+結果が1行以上ある場合:
+
+1. 対象 D1 をバックアップする。
+2. ユーザーごとに、未完了のまま残す live session を決める。
+3. 余分な session はアプリの通常フローで完了または破棄する。
+4. SQLを再実行し、0行になってからデプロイする。
+
+`game_session.status` だけを直接更新したり、行を直接削除したりしないでください。session event、cash/tournament result、currency ledger の整合性を保つ必要があります。重複が残っている場合、migration はユーザーデータを書き換えず意図的に失敗します。
+
 ### Worker デプロイ失敗
 
 ```
@@ -218,11 +279,11 @@ Error: compatibility_date is too old
 Error: A project with this name does not exist
 ```
 
-`npx wrangler pages project create sapphire2-web` で事前にプロジェクト作成が必要。
+`bunx wrangler pages project create sapphire2-web --production-branch main` で事前にプロジェクト作成が必要。
 
 ## 10. アーキテクチャ
 
-### プレビューデプロイ（PR オープン時）
+### プレビューデプロイ（PR 作成・同期・再オープン時）
 
 ```
 PR open/synchronize
@@ -243,7 +304,7 @@ PR open/synchronize
 ```
 PR close/merge
   |
-  +-> Worker 削除 -> D1 データベース削除 -> PR コメント更新
+  +-> Worker 削除 -> 孤児 Preview Worker 削除 -> Pages ブランチデプロイ削除 -> D1 データベース削除 -> PR コメント更新
 ```
 
 ### dev デプロイ（`dev` への push 時）
@@ -254,14 +315,18 @@ push to dev
   +-> CI -> マイグレーション -> Worker デプロイ (sapphire2-api-dev) -> Pages デプロイ (dev)
 ```
 
-### 本番デプロイ（GitHub Release 公開時）
+### 本番デプロイ（release PR マージ時または手動 dispatch）
 
 ```
-GitHub Release published
+release PR を main へマージ
   |
-  +-> CI (型チェック, lint, テスト)
+  +-> release.yml: tag + GitHub Release を作成
         |
-        +-> マイグレーション -> Worker デプロイ -> Pages デプロイ
+        +-> tag を指定して production-deploy.yml を dispatch
+              |
+              +-> CI (型チェック, lint, テスト)
+                    |
+                    +-> マイグレーション -> Worker デプロイ -> Pages デプロイ
 ```
 
 ### 技術スタック

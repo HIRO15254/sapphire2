@@ -6,10 +6,48 @@ import {
 	computeSeatedPlayersFromEvents,
 	computeSessionStateFromEvents,
 	computeTournamentPLFromEvents,
-	getSessionResultTypeId,
 	recalculateCashGameSession,
 	recalculateTournamentSession,
+	syncChipPurchaseResults,
 } from "../services/live-session-pl";
+
+describe("syncChipPurchaseResults", () => {
+	it("upserts all purchases in one atomic batch with D1-safe chunks", async () => {
+		const purchases = Array.from({ length: 51 }, (_, i) => ({
+			id: `purchase-${i}`,
+		}));
+		const selectChain = Promise.resolve(purchases) as Promise<
+			typeof purchases
+		> & { where: () => Promise<typeof purchases> };
+		selectChain.where = () => selectChain;
+		const values = vi.fn((rows: unknown[]) => ({
+			onConflictDoUpdate: vi.fn(() => rows),
+		}));
+		const batch = vi.fn((statements: unknown[]) =>
+			Promise.all(statements as Promise<unknown>[])
+		);
+		const db = {
+			select: () => ({ from: () => selectChain }),
+			insert: () => ({ values }),
+			batch,
+		};
+		const counts = new Map([["purchase-1", 3]]);
+
+		await syncChipPurchaseResults(db as never, "session-1", counts);
+
+		expect(values).toHaveBeenCalledTimes(2);
+		expect(values.mock.calls[0]?.[0]).toHaveLength(50);
+		expect((values.mock.calls[0]?.[0] as { count: number }[])[1]?.count).toBe(
+			3
+		);
+		expect((values.mock.calls[0]?.[0] as { count: number }[])[0]?.count).toBe(
+			0
+		);
+		expect(values.mock.calls[1]?.[0]).toHaveLength(1);
+		expect(batch).toHaveBeenCalledTimes(1);
+		expect(batch.mock.calls[0]?.[0]).toHaveLength(2);
+	});
+});
 
 describe("computeSessionStateFromEvents", () => {
 	it("returns startedAt from a single session_start event, endedAt null, status active", () => {
@@ -1284,50 +1322,5 @@ describe("recalculateTournamentSession — completed with tournamentId and linke
 		expect(txUpdate).toBeDefined();
 		// profitLoss = 500 - (10000 + 1000) = -10500
 		expect(txUpdate?.[0].amount).toBe(-10_500);
-	});
-});
-
-// ---------------------------------------------------------------------------
-// getSessionResultTypeId tests
-// ---------------------------------------------------------------------------
-
-describe("getSessionResultTypeId", () => {
-	it("returns existing typeId when Session Result type already exists", async () => {
-		const existingType = [
-			{
-				id: "tt-existing",
-				name: "Session Result",
-				userId: "user-1",
-				updatedAt: new Date(),
-			},
-		];
-		const db = makeChainableDb([existingType]);
-
-		const result = await getSessionResultTypeId(
-			db as unknown as Parameters<typeof getSessionResultTypeId>[0],
-			"user-1"
-		);
-
-		expect(result).toBe("tt-existing");
-		expect(db.insert).not.toHaveBeenCalled();
-	});
-
-	it("inserts a new Session Result type and returns its id when none exists", async () => {
-		const db = makeChainableDb([[]]);
-
-		const result = await getSessionResultTypeId(
-			db as unknown as Parameters<typeof getSessionResultTypeId>[0],
-			"user-1"
-		);
-
-		expect(typeof result).toBe("string");
-		expect(result.length).toBeGreaterThan(0);
-		expect(db.insert).toHaveBeenCalledTimes(1);
-		const insertedValues = db._insertChain.values.mock.calls[0]?.[0] as Record<
-			string,
-			unknown
-		>;
-		expect(insertedValues.name).toBe("Session Result");
-		expect(insertedValues.userId).toBe("user-1");
 	});
 });

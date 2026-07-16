@@ -14,6 +14,7 @@ import type {
 import { resolveDateRange } from "@/shared/lib/period-filter";
 import {
 	cancelTargets,
+	createOptimisticId,
 	invalidateTargets,
 	prependInfiniteQueryItem,
 	restoreSnapshots,
@@ -283,7 +284,7 @@ export function buildOptimisticItem(
 	newSession: SessionFormValues
 ): SessionItem {
 	const item: SessionItem = {
-		id: `temp-${Date.now()}`,
+		id: createOptimisticId("temp"),
 		type: newSession.type,
 		sessionDate: newSession.sessionDate,
 		buyIn: null,
@@ -625,6 +626,9 @@ export function useSessions(filters: SessionFilterValues) {
 		sessions,
 		availableTags,
 		isLoading: sessionsQuery.isLoading,
+		isInitialLoadError:
+			sessionsQuery.isError && sessionsQuery.data === undefined,
+		onRetry: sessionsQuery.refetch,
 		hasNextPage: sessionsQuery.hasNextPage,
 		isFetchingNextPage: sessionsQuery.isFetchingNextPage,
 		fetchNextPage,

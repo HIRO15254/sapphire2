@@ -19,6 +19,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const trpcMocks = vi.hoisted(() => ({
+	sessionList: vi.fn(),
 	sessionCreate: vi.fn(),
 	sessionUpdate: vi.fn(),
 	sessionDelete: vi.fn(),
@@ -45,11 +46,7 @@ vi.mock("@/utils/trpc", () => ({
 					}
 				) => ({
 					queryKey: buildKey("session", "list", input),
-					queryFn: () =>
-						Promise.resolve({
-							items: [] as SessionItem[],
-							nextCursor: undefined,
-						}),
+					queryFn: (...args: unknown[]) => trpcMocks.sessionList(...args),
 					initialPageParam: undefined,
 					getNextPageParam: opts.getNextPageParam,
 				}),
@@ -806,6 +803,10 @@ describe("useSessions", () => {
 		for (const m of Object.values(trpcMocks)) {
 			m.mockReset();
 		}
+		trpcMocks.sessionList.mockResolvedValue({
+			items: [] as SessionItem[],
+			nextCursor: undefined,
+		});
 		routerMocks.navigate.mockReset();
 	});
 
@@ -838,6 +839,44 @@ describe("useSessions", () => {
 			});
 			expect(result.current.sessions).toEqual([]);
 			expect(result.current.availableTags).toEqual([]);
+		});
+
+		it("exposes a retryable initial-load error when the first sessions page fails", async () => {
+			const qc = createClient();
+			trpcMocks.sessionList.mockRejectedValue(new Error("Network unavailable"));
+			const { result } = renderHook(() => useSessions({}), {
+				wrapper: makeWrapper(qc),
+			});
+
+			await waitFor(() => expect(result.current.isInitialLoadError).toBe(true));
+			expect(result.current.sessions).toEqual([]);
+			expect(result.current.onRetry).toBeTypeOf("function");
+		});
+
+		it("clears the initial-load error by retrying the sessions query once", async () => {
+			const qc = createClient();
+			trpcMocks.sessionList
+				.mockRejectedValueOnce(new Error("Network unavailable"))
+				.mockResolvedValueOnce({
+					items: [baseSessionItem({ id: "retried" })],
+					nextCursor: undefined,
+				});
+			const { result } = renderHook(() => useSessions({}), {
+				wrapper: makeWrapper(qc),
+			});
+
+			await waitFor(() => expect(result.current.isInitialLoadError).toBe(true));
+			await act(async () => {
+				await result.current.onRetry();
+			});
+
+			expect(trpcMocks.sessionList).toHaveBeenCalledTimes(2);
+			await waitFor(() =>
+				expect(result.current.isInitialLoadError).toBe(false)
+			);
+			expect(result.current.sessions.map((session) => session.id)).toEqual([
+				"retried",
+			]);
 		});
 	});
 

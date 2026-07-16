@@ -1,8 +1,12 @@
+import { SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it, vi } from "vitest";
 import {
+	assertAppendOccurredAtOrdering,
 	floorToMinute,
-	nextAppendSortOrder,
+	latestSessionEventOrderBy,
+	nextAppendSortOrderSql,
 	resolveOccurredAt,
+	sessionEventOrderBy,
 } from "../session-event-time";
 
 describe("floorToMinute", () => {
@@ -37,18 +41,6 @@ describe("floorToMinute", () => {
 		expect(a.getTime()).toBe(b.getTime());
 	});
 });
-
-function makeMaxSortOrderDb(rows: { maxSortOrder: number | null }[]) {
-	const whereSpy = vi.fn().mockResolvedValue(rows);
-	const fromSpy = vi.fn().mockReturnValue({ where: whereSpy });
-	const selectSpy = vi.fn().mockReturnValue({ from: fromSpy });
-	return {
-		db: { select: selectSpy },
-		whereSpy,
-		fromSpy,
-		selectSpy,
-	};
-}
 
 describe("resolveOccurredAt", () => {
 	it("returns floored client-supplied seconds when occurredAt is provided", () => {
@@ -117,53 +109,121 @@ describe("resolveOccurredAt", () => {
 	});
 });
 
-describe("nextAppendSortOrder", () => {
-	it("returns 0 when the session has no events", async () => {
-		const { db } = makeMaxSortOrderDb([{ maxSortOrder: null }]);
-		const result = await nextAppendSortOrder(
-			db as unknown as Parameters<typeof nextAppendSortOrder>[0],
-			"session-1"
-		);
-		expect(result).toBe(0);
+function makeLatestEventDb(rows: { occurredAt: Date }[]) {
+	const limit = vi.fn().mockResolvedValue(rows);
+	const orderBy = vi.fn().mockReturnValue({ limit });
+	const where = vi.fn().mockReturnValue({ orderBy });
+	const from = vi.fn().mockReturnValue({ where });
+	const select = vi.fn().mockReturnValue({ from });
+	return { db: { select }, from, limit, orderBy, select, where };
+}
+
+describe("assertAppendOccurredAtOrdering", () => {
+	it("allows the first event and performs one latest-event lookup", async () => {
+		const chain = makeLatestEventDb([]);
+		await expect(
+			assertAppendOccurredAtOrdering(
+				chain.db as unknown as Parameters<
+					typeof assertAppendOccurredAtOrdering
+				>[0],
+				"session-1",
+				new Date("2026-01-01T10:30:00.000Z")
+			)
+		).resolves.toBeUndefined();
+		expect(chain.select).toHaveBeenCalledTimes(1);
+		expect(chain.from).toHaveBeenCalledTimes(1);
+		expect(chain.where).toHaveBeenCalledTimes(1);
+		expect(chain.orderBy).toHaveBeenCalledTimes(1);
+		expect(chain.limit).toHaveBeenCalledTimes(1);
 	});
 
-	it("returns 0 when select returns an empty array", async () => {
-		const { db } = makeMaxSortOrderDb([]);
-		const result = await nextAppendSortOrder(
-			db as unknown as Parameters<typeof nextAppendSortOrder>[0],
-			"session-1"
-		);
-		expect(result).toBe(0);
-	});
-
-	it("returns max(sortOrder) + 1 when events exist", async () => {
-		const { db } = makeMaxSortOrderDb([{ maxSortOrder: 7 }]);
-		const result = await nextAppendSortOrder(
-			db as unknown as Parameters<typeof nextAppendSortOrder>[0],
-			"session-1"
-		);
-		expect(result).toBe(8);
-	});
-
-	it("treats sortOrder = 0 as a real value (returns 1, not 0)", async () => {
-		const { db } = makeMaxSortOrderDb([{ maxSortOrder: 0 }]);
-		const result = await nextAppendSortOrder(
-			db as unknown as Parameters<typeof nextAppendSortOrder>[0],
-			"session-1"
-		);
-		expect(result).toBe(1);
-	});
-
-	it("calls select().from() exactly once and where() exactly once", async () => {
-		const { db, fromSpy, whereSpy, selectSpy } = makeMaxSortOrderDb([
-			{ maxSortOrder: 3 },
+	it("allows an append in the same minute as the latest event", async () => {
+		const chain = makeLatestEventDb([
+			{ occurredAt: new Date("2026-01-01T10:30:00.000Z") },
 		]);
-		await nextAppendSortOrder(
-			db as unknown as Parameters<typeof nextAppendSortOrder>[0],
-			"session-1"
+		await expect(
+			assertAppendOccurredAtOrdering(
+				chain.db as unknown as Parameters<
+					typeof assertAppendOccurredAtOrdering
+				>[0],
+				"session-1",
+				new Date("2026-01-01T10:30:00.000Z")
+			)
+		).resolves.toBeUndefined();
+	});
+
+	it("allows an append after the latest event", async () => {
+		const chain = makeLatestEventDb([
+			{ occurredAt: new Date("2026-01-01T10:29:00.000Z") },
+		]);
+		await expect(
+			assertAppendOccurredAtOrdering(
+				chain.db as unknown as Parameters<
+					typeof assertAppendOccurredAtOrdering
+				>[0],
+				"session-1",
+				new Date("2026-01-01T10:30:00.000Z")
+			)
+		).resolves.toBeUndefined();
+	});
+
+	it("rejects an append before the latest event minute", async () => {
+		const chain = makeLatestEventDb([
+			{ occurredAt: new Date("2026-01-01T10:31:00.000Z") },
+		]);
+		await expect(
+			assertAppendOccurredAtOrdering(
+				chain.db as unknown as Parameters<
+					typeof assertAppendOccurredAtOrdering
+				>[0],
+				"session-1",
+				new Date("2026-01-01T10:30:00.000Z")
+			)
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message:
+				"occurredAt would precede the previous event by minute; reorder via sortOrder instead",
+		});
+	});
+});
+describe("nextAppendSortOrderSql", () => {
+	const dialect = new SQLiteSyncDialect();
+
+	it("computes max plus one inside the INSERT statement", () => {
+		const query = dialect.sqlToQuery(nextAppendSortOrderSql("session-1"));
+		const normalizedSql = query.sql.toLowerCase();
+		expect(normalizedSql).toContain("coalesce(max(");
+		expect(normalizedSql).toContain('from "session_event"');
+		expect(normalizedSql).toContain('where "session_event"."session_id" = ?');
+		expect(normalizedSql).toContain("+ 1");
+		expect(query.params).toEqual(["session-1"]);
+	});
+});
+
+describe("sessionEventOrderBy", () => {
+	it("uses occurredAt, sortOrder, and id as the shared stable order", () => {
+		const dialect = new SQLiteSyncDialect();
+		const sqlParts = sessionEventOrderBy().map(
+			(order) => dialect.sqlToQuery(order).sql
 		);
-		expect(selectSpy).toHaveBeenCalledTimes(1);
-		expect(fromSpy).toHaveBeenCalledTimes(1);
-		expect(whereSpy).toHaveBeenCalledTimes(1);
+		expect(sqlParts).toEqual([
+			'"session_event"."occurred_at" asc',
+			'"session_event"."sort_order" asc',
+			'"session_event"."id" asc',
+		]);
+	});
+});
+
+describe("latestSessionEventOrderBy", () => {
+	it("uses occurredAt, sortOrder, and id descending to select the latest event", () => {
+		const dialect = new SQLiteSyncDialect();
+		const sqlParts = latestSessionEventOrderBy().map(
+			(order) => dialect.sqlToQuery(order).sql
+		);
+		expect(sqlParts).toEqual([
+			'"session_event"."occurred_at" desc',
+			'"session_event"."sort_order" desc',
+			'"session_event"."id" desc',
+		]);
 	});
 });

@@ -10,6 +10,7 @@ function buildKey(namespace: string, procedure: string, input: unknown) {
 }
 
 const hoisted = vi.hoisted(() => ({
+	blindLevelError: false,
 	useTournaments: vi.fn(),
 	archive: vi.fn(),
 	restore: vi.fn(),
@@ -36,7 +37,10 @@ vi.mock("@/utils/trpc", () => ({
 			listByTournament: {
 				queryOptions: (input: unknown) => ({
 					queryKey: buildKey("blindLevel", "listByTournament", input),
-					queryFn: () => Promise.resolve([]),
+					queryFn: () =>
+						hoisted.blindLevelError
+							? Promise.reject(new Error("blind levels unavailable"))
+							: Promise.resolve([]),
 				}),
 			},
 		},
@@ -113,6 +117,7 @@ describe("useTournamentTab", () => {
 			m.mockReset();
 		}
 		hoisted.useTournaments.mockReturnValue(baseUseTournamentsStub());
+		hoisted.blindLevelError = false;
 	});
 
 	it("starts closed with no editing tournament", () => {
@@ -193,6 +198,51 @@ describe("useTournamentTab", () => {
 			);
 		});
 		expect(hoisted.updateWithLevels).not.toHaveBeenCalled();
+	});
+
+	it("does not update when blind-level loading fails", async () => {
+		hoisted.blindLevelError = true;
+		const qc = createClient();
+		const { result } = renderHook(() => useTournamentTab({ roomId: "s1" }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.setEditingTournament(TOURNAMENT);
+		});
+		await waitFor(() =>
+			expect(result.current.editBlindLevelsLoading).toBe(false)
+		);
+
+		await act(async () => {
+			await result.current.handleUpdate(
+				{ name: "Should not save", variant: "nlh", chipPurchases: [] },
+				[]
+			);
+		});
+
+		expect(hoisted.updateWithLevels).toHaveBeenCalledTimes(0);
+		expect(result.current.editingTournament).toBe(TOURNAMENT);
+	});
+
+	it("exposes initial blind-level load errors and retries them", async () => {
+		hoisted.blindLevelError = true;
+		const qc = createClient();
+		const { result } = renderHook(() => useTournamentTab({ roomId: "s1" }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.setEditingTournament(TOURNAMENT);
+		});
+		await waitFor(() => expect(result.current.editBlindLevelsError).toBe(true));
+		expect(result.current.retryEditBlindLevels).toEqual(expect.any(Function));
+
+		hoisted.blindLevelError = false;
+		await act(async () => {
+			await result.current.retryEditBlindLevels();
+		});
+		await waitFor(() =>
+			expect(result.current.editBlindLevelsError).toBe(false)
+		);
 	});
 
 	it("handleUpdate calls updateWithLevels and clears editingTournament on success", async () => {

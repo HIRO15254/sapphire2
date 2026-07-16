@@ -1,5 +1,5 @@
 import { getTableColumns } from "drizzle-orm";
-import { getTableConfig } from "drizzle-orm/sqlite-core";
+import { getTableConfig, SQLiteSyncDialect } from "drizzle-orm/sqlite-core";
 import { describe, expect, it } from "vitest";
 import { gameSession } from "../schema/session";
 
@@ -140,6 +140,7 @@ describe("GameSession — FK cascade policies", () => {
 describe("GameSession — indexes", () => {
 	const config = getTableConfig(gameSession);
 	const idxNames = config.indexes.map((i) => i.config.name);
+	const dialect = new SQLiteSyncDialect();
 
 	it("has session_user_kind_status_idx", () => {
 		expect(idxNames).toContain("session_user_kind_status_idx");
@@ -157,11 +158,21 @@ describe("GameSession — indexes", () => {
 		expect(idxNames).toContain("session_currency_idx");
 	});
 
-	it("has no unique indexes", () => {
+	it("allows only one unfinished live session per user", () => {
 		const uniqueIdxs = config.indexes.filter(
 			(i) => (i.config as unknown as { unique: boolean }).unique === true
 		);
-		expect(uniqueIdxs).toHaveLength(0);
+		expect(uniqueIdxs).toHaveLength(1);
+
+		const [index] = uniqueIdxs;
+		expect(index?.config.name).toBe("session_one_unfinished_live_per_user_idx");
+		expect(index?.config.columns).toEqual([
+			getTableColumns(gameSession).userId,
+		]);
+
+		const where = dialect.sqlToQuery(index?.config.where as never);
+		expect(where.sql).toContain('"game_session"."source" = \'live\'');
+		expect(where.sql).toContain('"game_session"."status" != \'completed\'');
 	});
 });
 

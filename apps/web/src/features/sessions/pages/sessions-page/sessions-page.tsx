@@ -13,6 +13,8 @@ export function SessionsPage() {
 		sessions,
 		availableTags,
 		isLoading,
+		isInitialLoadError,
+		onRetry,
 		hasNextPage,
 		isFetchingNextPage,
 		fetchNextPage,
@@ -71,9 +73,11 @@ export function SessionsPage() {
 					bbBiMode={bbBiMode}
 					hasNextPage={hasNextPage}
 					isFetchingNextPage={isFetchingNextPage}
+					isInitialLoadError={isInitialLoadError}
 					isLoading={isLoading}
 					onCreate={() => handleCreateOpenChange(true)}
 					onLoadMore={fetchNextPage}
+					onRetry={onRetry}
 					sessions={sessions}
 				/>
 

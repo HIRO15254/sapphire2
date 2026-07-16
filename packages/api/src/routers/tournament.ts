@@ -8,10 +8,10 @@ import {
 import { tournamentTag } from "@sapphire2/db/schema/tournament-tag";
 import { levelGamesSchema } from "@sapphire2/db/schemas/game";
 import { TRPCError } from "@trpc/server";
-import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
-import { validateEntityOwnership } from "./session";
+import { selectInChunks, validateEntityOwnership } from "./session";
 
 type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
@@ -69,40 +69,52 @@ async function validateTournamentOwnership(
 	return found;
 }
 
+const nonNegativeIntegerSchema = z.number().int().min(0);
+const tableSizeSchema = z.number().int().min(2).max(10);
+
+const tournamentCreateNumericFields = {
+	buyIn: nonNegativeIntegerSchema.optional(),
+	entryFee: nonNegativeIntegerSchema.optional(),
+	startingStack: nonNegativeIntegerSchema.optional(),
+	bountyAmount: nonNegativeIntegerSchema.optional(),
+	tableSize: tableSizeSchema.optional(),
+};
+const tournamentUpdateNumericFields = {
+	buyIn: nonNegativeIntegerSchema.nullable().optional(),
+	entryFee: nonNegativeIntegerSchema.nullable().optional(),
+	startingStack: nonNegativeIntegerSchema.nullable().optional(),
+	bountyAmount: nonNegativeIntegerSchema.nullable().optional(),
+	tableSize: tableSizeSchema.nullable().optional(),
+};
+
+const chipPurchaseInputSchema = z.object({
+	name: z.string().min(1),
+	cost: nonNegativeIntegerSchema,
+	chips: nonNegativeIntegerSchema,
+});
+const blindLevelInputSchema = z.object({
+	isBreak: z.boolean(),
+	blind1: nonNegativeIntegerSchema.nullable().optional(),
+	blind2: nonNegativeIntegerSchema.nullable().optional(),
+	blind3: nonNegativeIntegerSchema.nullable().optional(),
+	ante: nonNegativeIntegerSchema.nullable().optional(),
+	minutes: nonNegativeIntegerSchema.nullable().optional(),
+	games: levelGamesSchema.nullish(),
+});
+
 export const tournamentCreateWithLevelsInputSchema = z.object({
 	roomId: z.string(),
 	name: z.string().min(1),
 	variant: z.string().default(DEFAULT_VARIANT_LABEL),
-	buyIn: z.number().int().optional(),
-	entryFee: z.number().int().optional(),
-	startingStack: z.number().int().optional(),
-	bountyAmount: z.number().int().optional(),
-	tableSize: z.number().int().optional(),
-	currencyId: z.string().optional(),
+	...tournamentCreateNumericFields,
+
+	currencyId: z.string().min(1).optional(),
 	memo: z.string().optional(),
 	tags: z.array(z.string()).optional(),
-	chipPurchases: z
-		.array(
-			z.object({
-				name: z.string(),
-				cost: z.number().int().min(0),
-				chips: z.number().int().min(0),
-			})
-		)
-		.optional(),
-	blindLevels: z
-		.array(
-			z.object({
-				isBreak: z.boolean(),
-				blind1: z.number().int().nullable().optional(),
-				blind2: z.number().int().nullable().optional(),
-				blind3: z.number().int().nullable().optional(),
-				ante: z.number().int().nullable().optional(),
-				minutes: z.number().int().nullable().optional(),
-				games: levelGamesSchema.nullish(),
-			})
-		)
-		.optional(),
+
+	chipPurchases: z.array(chipPurchaseInputSchema).optional(),
+
+	blindLevels: z.array(blindLevelInputSchema).optional(),
 });
 
 type TournamentCreateWithLevelsInput = z.infer<
@@ -166,6 +178,64 @@ export function buildTournamentCreateStatements(
 	];
 }
 
+function bucketTournamentRows<Row extends { tournamentId: string }>(
+	rows: Row[]
+): Map<string, Row[]> {
+	const map = new Map<string, Row[]>();
+	for (const row of rows) {
+		const bucket = map.get(row.tournamentId);
+		if (bucket) {
+			bucket.push(row);
+		} else {
+			map.set(row.tournamentId, [row]);
+		}
+	}
+	return map;
+}
+
+async function getTournamentBlindLevels(
+	db: DbInstance,
+	tournamentIds: string[]
+) {
+	if (tournamentIds.length === 0) {
+		return new Map<string, (typeof blindLevel.$inferSelect)[]>();
+	}
+	const rows = await selectInChunks(tournamentIds, (chunk) =>
+		db.select().from(blindLevel).where(inArray(blindLevel.tournamentId, chunk))
+	);
+	return bucketTournamentRows(rows);
+}
+
+async function getTournamentTags(db: DbInstance, tournamentIds: string[]) {
+	if (tournamentIds.length === 0) {
+		return new Map<string, (typeof tournamentTag.$inferSelect)[]>();
+	}
+	const rows = await selectInChunks(tournamentIds, (chunk) =>
+		db
+			.select()
+			.from(tournamentTag)
+			.where(inArray(tournamentTag.tournamentId, chunk))
+	);
+	return bucketTournamentRows(rows);
+}
+
+async function getTournamentChipPurchases(
+	db: DbInstance,
+	tournamentIds: string[]
+) {
+	if (tournamentIds.length === 0) {
+		return new Map<string, (typeof tournamentChipPurchase.$inferSelect)[]>();
+	}
+	const rows = await selectInChunks(tournamentIds, (chunk) =>
+		db
+			.select()
+			.from(tournamentChipPurchase)
+			.where(inArray(tournamentChipPurchase.tournamentId, chunk))
+			.orderBy(asc(tournamentChipPurchase.sortOrder))
+	);
+	return bucketTournamentRows(rows);
+}
+
 export const tournamentRouter = router({
 	listByRoom: protectedProcedure
 		.input(
@@ -187,37 +257,31 @@ export const tournamentRouter = router({
 				.from(tournament)
 				.where(and(eq(tournament.roomId, input.roomId), condition));
 
-			const results = await Promise.all(
-				tournaments.map(async (t) => {
-					const [levels, tagRows, chipPurchaseRows] = await Promise.all([
-						ctx.db
-							.select()
-							.from(blindLevel)
-							.where(eq(blindLevel.tournamentId, t.id)),
-						ctx.db
-							.select()
-							.from(tournamentTag)
-							.where(eq(tournamentTag.tournamentId, t.id)),
-						ctx.db
-							.select()
-							.from(tournamentChipPurchase)
-							.where(eq(tournamentChipPurchase.tournamentId, t.id))
-							.orderBy(asc(tournamentChipPurchase.sortOrder)),
-					]);
-					return {
-						...t,
-						blindLevelCount: levels.length,
-						tags: tagRows.map((r) => ({ id: r.id, name: r.name })),
-						chipPurchases: chipPurchaseRows.map((r) => ({
-							id: r.id,
-							name: r.name,
-							cost: r.cost,
-							chips: r.chips,
-							sortOrder: r.sortOrder,
-						})),
-					};
-				})
-			);
+			const tournamentIds = tournaments.map((t) => t.id);
+			const [levelsByTournament, tagsByTournament, chipsByTournament] =
+				await Promise.all([
+					getTournamentBlindLevels(ctx.db, tournamentIds),
+					getTournamentTags(ctx.db, tournamentIds),
+					getTournamentChipPurchases(ctx.db, tournamentIds),
+				]);
+
+			const results = tournaments.map((t) => {
+				const levels = levelsByTournament.get(t.id) ?? [];
+				const tagRows = tagsByTournament.get(t.id) ?? [];
+				const chipPurchaseRows = chipsByTournament.get(t.id) ?? [];
+				return {
+					...t,
+					blindLevelCount: levels.length,
+					tags: tagRows.map((r) => ({ id: r.id, name: r.name })),
+					chipPurchases: chipPurchaseRows.map((r) => ({
+						id: r.id,
+						name: r.name,
+						cost: r.cost,
+						chips: r.chips,
+						sortOrder: r.sortOrder,
+					})),
+				};
+			});
 
 			return results;
 		}),
@@ -253,12 +317,9 @@ export const tournamentRouter = router({
 				roomId: z.string(),
 				name: z.string().min(1),
 				variant: z.string().default(DEFAULT_VARIANT_LABEL),
-				buyIn: z.number().int().optional(),
-				entryFee: z.number().int().optional(),
-				startingStack: z.number().int().optional(),
-				bountyAmount: z.number().int().optional(),
-				tableSize: z.number().int().optional(),
-				currencyId: z.string().optional(),
+				...tournamentCreateNumericFields,
+
+				currencyId: z.string().min(1).optional(),
 				memo: z.string().optional(),
 			})
 		)
@@ -303,12 +364,9 @@ export const tournamentRouter = router({
 				id: z.string(),
 				name: z.string().min(1).optional(),
 				variant: z.string().optional(),
-				buyIn: z.number().int().nullable().optional(),
-				entryFee: z.number().int().nullable().optional(),
-				startingStack: z.number().int().nullable().optional(),
-				bountyAmount: z.number().int().nullable().optional(),
-				tableSize: z.number().int().nullable().optional(),
-				currencyId: z.string().nullable().optional(),
+				...tournamentUpdateNumericFields,
+
+				currencyId: z.string().min(1).nullable().optional(),
 				memo: z.string().nullable().optional(),
 			})
 		)
@@ -450,34 +508,13 @@ export const tournamentRouter = router({
 				id: z.string(),
 				name: z.string().min(1).optional(),
 				variant: z.string().optional(),
-				buyIn: z.number().int().nullable().optional(),
-				entryFee: z.number().int().nullable().optional(),
-				startingStack: z.number().int().nullable().optional(),
-				bountyAmount: z.number().int().nullable().optional(),
-				tableSize: z.number().int().nullable().optional(),
-				currencyId: z.string().nullable().optional(),
+				...tournamentUpdateNumericFields,
+
+				currencyId: z.string().min(1).nullable().optional(),
 				memo: z.string().nullable().optional(),
 				tags: z.array(z.string()).optional(),
-				chipPurchases: z
-					.array(
-						z.object({
-							name: z.string(),
-							cost: z.number().int().min(0),
-							chips: z.number().int().min(0),
-						})
-					)
-					.optional(),
-				blindLevels: z.array(
-					z.object({
-						isBreak: z.boolean(),
-						blind1: z.number().int().nullable().optional(),
-						blind2: z.number().int().nullable().optional(),
-						blind3: z.number().int().nullable().optional(),
-						ante: z.number().int().nullable().optional(),
-						minutes: z.number().int().nullable().optional(),
-						games: levelGamesSchema.nullish(),
-					})
-				),
+				chipPurchases: z.array(chipPurchaseInputSchema).optional(),
+				blindLevels: z.array(blindLevelInputSchema),
 			})
 		)
 		.mutation(async ({ ctx, input }) => {
@@ -625,7 +662,10 @@ export const tournamentRouter = router({
 				.where(eq(tournamentTag.id, input.id));
 
 			if (!tag) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Tag not found" });
+				throw new TRPCError({
+					code: "FORBIDDEN",
+					message: "You do not own this tag",
+				});
 			}
 
 			await validateTournamentOwnership(ctx.db, tag.tournamentId, userId);

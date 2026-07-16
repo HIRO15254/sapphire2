@@ -52,6 +52,7 @@ export function ChipPurchasesEditor({
 								className="flex flex-1 flex-col gap-1"
 								htmlFor={`cp-name-${row.uid}`}
 								label="Name"
+								required
 							>
 								<Input
 									id={`cp-name-${row.uid}`}
@@ -63,6 +64,7 @@ export function ChipPurchasesEditor({
 								className="flex w-24 flex-col gap-1"
 								htmlFor={`cp-cost-${row.uid}`}
 								label="Cost"
+								required
 							>
 								<Input
 									id={`cp-cost-${row.uid}`}
@@ -75,6 +77,7 @@ export function ChipPurchasesEditor({
 								className="flex w-24 flex-col gap-1"
 								htmlFor={`cp-chips-${row.uid}`}
 								label="Chips"
+								required
 							>
 								<Input
 									id={`cp-chips-${row.uid}`}

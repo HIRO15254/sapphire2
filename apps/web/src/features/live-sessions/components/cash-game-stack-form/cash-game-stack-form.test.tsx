@@ -212,4 +212,20 @@ describe("CashGameStackForm", () => {
 
 		expect(onPause).toHaveBeenCalledOnce();
 	});
+
+	it("shows the required text error and does not submit an empty memo", async () => {
+		const user = userEvent.setup();
+		const onMemo = vi.fn();
+		mocks.state.stackAmount = "";
+
+		renderForm({ onMemo });
+
+		await user.click(screen.getByRole("button", { name: "Memo" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"Text is required"
+		);
+		expect(onMemo).toHaveBeenCalledTimes(0);
+	});
 });

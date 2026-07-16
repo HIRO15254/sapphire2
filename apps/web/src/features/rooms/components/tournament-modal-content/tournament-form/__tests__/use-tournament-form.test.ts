@@ -123,6 +123,116 @@ describe("useTournamentForm", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
+	it("rejects submit with an empty variant", async () => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const onInvalidSubmit = vi.fn();
+		const { result } = renderHook(
+			() => useTournamentForm({ onSubmit, onInvalidSubmit }),
+			{ wrapper: wrapper(qc) }
+		);
+		act(() => {
+			result.current.form.setFieldValue("name", "Main");
+			result.current.form.setFieldValue("variant", "");
+		});
+		await act(async () => {
+			await result.current.form.handleSubmit();
+		});
+		expect(onInvalidSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledTimes(0);
+	});
+
+	it.each([
+		"1",
+		"11",
+		"9.5",
+	])("rejects unsupported table size %s", async (tableSize) => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useTournamentForm({ onSubmit }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.form.setFieldValue("name", "Main");
+			result.current.form.setFieldValue("tableSize", tableSize);
+		});
+		await act(async () => result.current.form.handleSubmit());
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["2", 2],
+		["10", 10],
+	] as const)("accepts table size boundary %s", async (tableSize, expected) => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useTournamentForm({ onSubmit }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.form.setFieldValue("name", "Main");
+			result.current.form.setFieldValue("tableSize", tableSize);
+		});
+		await act(async () => result.current.form.handleSubmit());
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({ tableSize: expected })
+		);
+	});
+
+	it.each([
+		["an empty name", "name", ""],
+		["an empty cost", "cost", ""],
+		["an empty chip amount", "chips", ""],
+		["a negative cost", "cost", "-1"],
+		["a negative chip amount", "chips", "-1"],
+		["a fractional cost", "cost", "1.5"],
+		["a fractional chip amount", "chips", "1.5"],
+		["a nonnumeric cost", "cost", "abc"],
+		["a nonnumeric chip amount", "chips", "abc"],
+	] as const)("rejects a chip purchase with %s", async (_scenario, field, invalidValue) => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useTournamentForm({ onSubmit }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.form.setFieldValue("name", "Main");
+			result.current.form.setFieldValue("chipPurchases", [
+				{
+					uid: "cp-1",
+					name: "Rebuy",
+					cost: "0",
+					chips: "0",
+					[field]: invalidValue,
+				},
+			]);
+		});
+		await act(async () => result.current.form.handleSubmit());
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
+	it("accepts zero-valued chip purchase amounts", async () => {
+		const qc = createClient();
+		const onSubmit = vi.fn();
+		const { result } = renderHook(() => useTournamentForm({ onSubmit }), {
+			wrapper: wrapper(qc),
+		});
+		act(() => {
+			result.current.form.setFieldValue("name", "Main");
+			result.current.form.setFieldValue("chipPurchases", [
+				{ uid: "cp-1", name: "Freeroll", cost: "0", chips: "0" },
+			]);
+		});
+		await act(async () => result.current.form.handleSubmit());
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				chipPurchases: [{ name: "Freeroll", cost: 0, chips: 0 }],
+			})
+		);
+	});
+
 	it("calls onInvalidSubmit (and not onSubmit) when submit fails validation", async () => {
 		const qc = createClient();
 		const onSubmit = vi.fn();

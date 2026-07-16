@@ -12,6 +12,8 @@ export function CurrenciesPage() {
 	const {
 		currencies,
 		isLoading,
+		isError,
+		retry,
 		isCreateOpen,
 		isCreatePending,
 		setIsCreateOpen,
@@ -34,8 +36,10 @@ export function CurrenciesPage() {
 
 				<CurrencyList
 					currencies={currencies}
+					isError={isError}
 					isLoading={isLoading}
 					onCreate={() => setIsCreateOpen(true)}
+					onRetry={retry}
 					onToggleFavorite={handleToggleFavorite}
 				/>
 

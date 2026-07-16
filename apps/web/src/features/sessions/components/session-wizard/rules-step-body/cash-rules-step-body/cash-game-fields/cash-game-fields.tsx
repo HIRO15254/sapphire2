@@ -1,4 +1,3 @@
-import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import type { ReactFormExtendedApi } from "@tanstack/react-form";
 import { OverrideLabel } from "@/features/sessions/components/override-label";
 import { Field } from "@/shared/components/ui/field";
@@ -12,11 +11,11 @@ import {
 	SelectWithClear,
 } from "@/shared/components/ui/select";
 import { VariantSelect } from "@/shared/components/variant-select";
-import { useVariantLabels } from "@/shared/hooks/use-variant-labels";
 import { ANTE_TYPE_OPTIONS } from "@/shared/lib/ante-types";
+import { CashBlindFields } from "./cash-blind-fields";
 
 // biome-ignore-start lint/suspicious/noExplicitAny: tanstack-form's ReactFormExtendedApi has 12 generic parameters; threading a fully typed form through child components would require exporting the parent's full form generics.
-type AnyForm = ReactFormExtendedApi<
+export type AnyForm = ReactFormExtendedApi<
 	any,
 	any,
 	any,
@@ -50,114 +49,6 @@ interface CashGameFieldsProps {
 }
 
 const TABLE_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
-
-// Stable override-set keys for the blind fields (cashOverriddenFields emits
-// these), independent of the variant-aware display labels.
-const BLIND_OVERRIDE_KEYS = {
-	blind1: "SB",
-	blind2: "BB",
-	blind3: "Straddle",
-} as const;
-
-function CashBlindFields({
-	form,
-	isLiveLinked,
-	overriddenLabels,
-	variant,
-}: {
-	form: AnyForm;
-	isLiveLinked: boolean;
-	overriddenLabels?: ReadonlySet<string>;
-	variant: string;
-}) {
-	const blindLabels = useVariantLabels(variant || DEFAULT_VARIANT_LABEL);
-	const blind3Label = blindLabels.blind3;
-
-	return (
-		<div
-			className={
-				blind3Label === null
-					? "grid grid-cols-2 gap-3"
-					: "grid grid-cols-3 gap-3"
-			}
-		>
-			<form.Field name="blind1">
-				{(field) => (
-					<Field
-						error={field.state.meta.errors[0]?.message}
-						htmlFor={field.name}
-						label={
-							<OverrideLabel
-								label={blindLabels.blind1}
-								overridden={overriddenLabels}
-								overrideKey={BLIND_OVERRIDE_KEYS.blind1}
-							/>
-						}
-					>
-						<Input
-							disabled={isLiveLinked}
-							id={field.name}
-							inputMode="numeric"
-							onBlur={field.handleBlur}
-							onChange={(e) => field.handleChange(e.target.value)}
-							value={field.state.value}
-						/>
-					</Field>
-				)}
-			</form.Field>
-			<form.Field name="blind2">
-				{(field) => (
-					<Field
-						error={field.state.meta.errors[0]?.message}
-						htmlFor={field.name}
-						label={
-							<OverrideLabel
-								label={blindLabels.blind2}
-								overridden={overriddenLabels}
-								overrideKey={BLIND_OVERRIDE_KEYS.blind2}
-							/>
-						}
-					>
-						<Input
-							disabled={isLiveLinked}
-							id={field.name}
-							inputMode="numeric"
-							onBlur={field.handleBlur}
-							onChange={(e) => field.handleChange(e.target.value)}
-							value={field.state.value}
-						/>
-					</Field>
-				)}
-			</form.Field>
-			{blind3Label !== null && (
-				<form.Field name="blind3">
-					{(field) => (
-						<Field
-							error={field.state.meta.errors[0]?.message}
-							htmlFor={field.name}
-							label={
-								<OverrideLabel
-									label={blind3Label}
-									overridden={overriddenLabels}
-									overrideKey={BLIND_OVERRIDE_KEYS.blind3}
-								/>
-							}
-						>
-							<Input
-								disabled={isLiveLinked}
-								id={field.name}
-								inputMode="numeric"
-								onBlur={field.handleBlur}
-								onChange={(e) => field.handleChange(e.target.value)}
-								value={field.state.value}
-							/>
-						</Field>
-					)}
-				</form.Field>
-			)}
-		</div>
-	);
-}
 
 export function CashGameFields({
 	currencies,

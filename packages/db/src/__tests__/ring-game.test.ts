@@ -162,6 +162,15 @@ describe("RingGame — indexes", () => {
 		expect(idxNames).toContain("ringGame_userId_idx");
 	});
 
+	it("has ringGame_currencyId_idx for reverse currency lookups", () => {
+		const idx = config.indexes.find(
+			(i) => i.config.name === "ringGame_currencyId_idx"
+		);
+		expect(idx?.config.columns.map((column) => column.name)).toEqual([
+			"currency_id",
+		]);
+	});
+
 	it("has no unique indexes (ring games can share names within a room)", () => {
 		const uniqueIdxs = config.indexes.filter(
 			(i) => (i.config as unknown as { unique: boolean }).unique === true

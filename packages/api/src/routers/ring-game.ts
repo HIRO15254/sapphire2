@@ -1,8 +1,6 @@
 import { DEFAULT_VARIANT_LABEL } from "@sapphire2/db/constants/game-variants";
 import { ringGame } from "@sapphire2/db/schema/ring-game";
-import { room } from "@sapphire2/db/schema/room";
 import { mixGamesSchema } from "@sapphire2/db/schemas/game";
-import { TRPCError } from "@trpc/server";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import z from "zod";
 import { protectedProcedure, router } from "../index";
@@ -18,76 +16,35 @@ type DbInstance = Parameters<
 
 type BatchStatement = Parameters<DbInstance["batch"]>[0][number];
 
-async function validateRoomOwnership(
-	db: Parameters<
-		Parameters<typeof protectedProcedure.query>[0]
-	>[0]["ctx"]["db"],
-	roomId: string,
-	userId: string
-) {
-	const [found] = await db.select().from(room).where(eq(room.id, roomId));
-
-	if (!found) {
-		throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-	}
-
-	if (found.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this room",
-		});
-	}
-
-	return found;
+function validateRoomOwnership(db: DbInstance, roomId: string, userId: string) {
+	return validateEntityOwnership(db, "room", roomId, userId);
 }
 
-async function validateRingGameOwnership(
-	db: Parameters<
-		Parameters<typeof protectedProcedure.query>[0]
-	>[0]["ctx"]["db"],
+function validateRingGameOwnership(
+	db: DbInstance,
 	ringGameId: string,
 	userId: string
 ) {
-	const [found] = await db
-		.select()
-		.from(ringGame)
-		.where(eq(ringGame.id, ringGameId));
-
-	if (!found) {
-		throw new TRPCError({
-			code: "NOT_FOUND",
-			message: "Ring game not found",
-		});
-	}
-
-	// Ownership is now anchored on ring_game.userId (SA2-181). A null userId is a
-	// legacy/orphan row that predates the backfill and cannot be proven owned →
-	// FORBIDDEN. This closes the null-roomId IDOR gap the room-derived check left
-	// open for auto-generated snapshot rows.
-	if (found.userId !== userId) {
-		throw new TRPCError({
-			code: "FORBIDDEN",
-			message: "You do not own this ring game",
-		});
-	}
-
-	return found;
+	return validateEntityOwnership(db, "ringGame", ringGameId, userId);
 }
+
+const nonNegativeIntegerSchema = z.number().int().min(0);
+const tableSizeSchema = z.number().int().min(2).max(10);
 
 export const ringGameCreateInputSchema = z.object({
 	roomId: z.string(),
 	name: z.string().min(1),
 	variant: z.string().default(DEFAULT_VARIANT_LABEL),
 	mixGames: mixGamesSchema.nullish(),
-	blind1: z.number().int().optional(),
-	blind2: z.number().int().optional(),
-	blind3: z.number().int().optional(),
-	ante: z.number().int().optional(),
+	blind1: nonNegativeIntegerSchema.optional(),
+	blind2: nonNegativeIntegerSchema.optional(),
+	blind3: nonNegativeIntegerSchema.optional(),
+	ante: nonNegativeIntegerSchema.optional(),
 	anteType: z.enum(["none", "all", "bb"]).optional(),
-	minBuyIn: z.number().int().optional(),
-	maxBuyIn: z.number().int().optional(),
-	tableSize: z.number().int().optional(),
-	currencyId: z.string().optional(),
+	minBuyIn: nonNegativeIntegerSchema.optional(),
+	maxBuyIn: nonNegativeIntegerSchema.optional(),
+	tableSize: tableSizeSchema.optional(),
+	currencyId: z.string().min(1).optional(),
 	memo: z.string().optional(),
 });
 
@@ -193,15 +150,15 @@ export const ringGameRouter = router({
 				name: z.string().min(1).optional(),
 				variant: z.string().optional(),
 				mixGames: mixGamesSchema.nullish(),
-				blind1: z.number().int().nullable().optional(),
-				blind2: z.number().int().nullable().optional(),
-				blind3: z.number().int().nullable().optional(),
-				ante: z.number().int().nullable().optional(),
+				blind1: nonNegativeIntegerSchema.nullable().optional(),
+				blind2: nonNegativeIntegerSchema.nullable().optional(),
+				blind3: nonNegativeIntegerSchema.nullable().optional(),
+				ante: nonNegativeIntegerSchema.nullable().optional(),
 				anteType: z.enum(["none", "all", "bb"]).nullable().optional(),
-				minBuyIn: z.number().int().nullable().optional(),
-				maxBuyIn: z.number().int().nullable().optional(),
-				tableSize: z.number().int().nullable().optional(),
-				currencyId: z.string().nullable().optional(),
+				minBuyIn: nonNegativeIntegerSchema.nullable().optional(),
+				maxBuyIn: nonNegativeIntegerSchema.nullable().optional(),
+				tableSize: tableSizeSchema.nullable().optional(),
+				currencyId: z.string().min(1).nullable().optional(),
 				memo: z.string().nullable().optional(),
 			})
 		)

@@ -135,6 +135,53 @@ describe("useSessionDetail", () => {
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 	});
 
+	it("exposes an initial query failure and clears it after retry", async () => {
+		trpcMocks.getByIdQueryFn
+			.mockRejectedValueOnce(new Error("network failure"))
+			.mockResolvedValue({ id: "s1", type: "cash_game", source: "manual" });
+		const { result } = renderHook(() => useSessionDetail("s1"), {
+			wrapper: makeWrapper(createClient()),
+		});
+
+		await waitFor(() => expect(result.current.isInitialLoadError).toBe(true));
+		expect(result.current.session).toBeNull();
+
+		await act(async () => {
+			await result.current.onRetry();
+		});
+
+		await waitFor(() => expect(result.current.isInitialLoadError).toBe(false));
+		expect(result.current.session).toMatchObject({ id: "s1" });
+		expect(trpcMocks.getByIdQueryFn).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps a cached session usable after a refetch failure", async () => {
+		const qc = createClient();
+		qc.setQueryData(["session", "getById", { id: "s1" }], {
+			id: "s1",
+			type: "cash_game",
+			source: "manual",
+		});
+		trpcMocks.getByIdQueryFn.mockRejectedValueOnce(
+			new Error("network failure")
+		);
+		const { result } = renderHook(() => useSessionDetail("s1"), {
+			wrapper: makeWrapper(qc),
+		});
+
+		expect(result.current.session).toMatchObject({ id: "s1" });
+
+		await act(async () => {
+			await result.current.onRetry();
+		});
+
+		await waitFor(() =>
+			expect(trpcMocks.getByIdQueryFn).toHaveBeenCalledTimes(1)
+		);
+		expect(result.current.isInitialLoadError).toBe(false);
+		expect(result.current.session).toMatchObject({ id: "s1" });
+	});
+
 	it("sends the full update payload for a manual session", async () => {
 		const { result } = renderHook(() => useSessionDetail("s1"), {
 			wrapper: makeWrapper(createClient()),

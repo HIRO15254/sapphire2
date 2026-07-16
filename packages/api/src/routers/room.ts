@@ -59,11 +59,7 @@ export const roomRouter = router({
 				.from(room)
 				.where(eq(room.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this room",
@@ -123,11 +119,7 @@ export const roomRouter = router({
 				.from(room)
 				.where(eq(room.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this room",
@@ -163,11 +155,7 @@ export const roomRouter = router({
 				.from(room)
 				.where(eq(room.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this room",
@@ -187,11 +175,7 @@ export const roomRouter = router({
 				.from(room)
 				.where(eq(room.id, input.id));
 
-			if (!found) {
-				throw new TRPCError({ code: "NOT_FOUND", message: "Room not found" });
-			}
-
-			if (found.userId !== userId) {
+			if (!found || found.userId !== userId) {
 				throw new TRPCError({
 					code: "FORBIDDEN",
 					message: "You do not own this room",

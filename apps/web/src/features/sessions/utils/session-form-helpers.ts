@@ -3,6 +3,7 @@ import type { LevelGameGroup, MixGameGroup } from "@sapphire2/db/schemas/game";
 import z from "zod";
 import {
 	optionalNumericString,
+	parseOptionalInt,
 	requiredNumericString,
 } from "@/shared/lib/form-fields";
 
@@ -167,11 +168,7 @@ export function numStrOrEmpty(value: number | undefined): string {
 }
 
 export function parseOptInt(value: string): number | undefined {
-	if (value === "") {
-		return undefined;
-	}
-	const parsed = Number.parseInt(value, 10);
-	return Number.isFinite(parsed) ? parsed : undefined;
+	return parseOptionalInt(value);
 }
 
 export const sessionFormSchema = z.object({
@@ -190,7 +187,7 @@ export const sessionFormSchema = z.object({
 	blind3: optionalNumericString({ integer: true, min: 0 }),
 	ante: optionalNumericString({ integer: true, min: 0 }),
 	anteType: z.string(),
-	tableSize: z.string(),
+	tableSize: optionalNumericString({ integer: true, min: 2, max: 10 }),
 	minBuyIn: optionalNumericString({ integer: true, min: 0 }),
 	maxBuyIn: optionalNumericString({ integer: true, min: 0 }),
 	tournamentBuyIn: requiredNumericString({ integer: true, min: 0 }),
@@ -207,6 +204,18 @@ export const sessionFormSchema = z.object({
 
 export const cashSessionFormSchema = sessionFormSchema.extend({
 	tournamentBuyIn: optionalNumericString({ integer: true, min: 0 }),
+});
+
+/**
+ * Cash schema for the live "Start Live Session" flow. A live session is
+ * created before it ends, so the result-only cash-out is unknown and the live
+ * form never renders it — keeping the shared `cashOut` requirement made the
+ * ✓ Confirm silently fail (the empty field always failed validation and the
+ * error routed to a "result" step that the single-screen live form doesn't
+ * render). The initial buy-in stays required.
+ */
+export const liveCashSessionFormSchema = cashSessionFormSchema.extend({
+	cashOut: optionalNumericString({ integer: true, min: 0 }),
 });
 
 export const tournamentSessionFormSchema = sessionFormSchema.extend({

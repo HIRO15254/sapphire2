@@ -3,6 +3,13 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const queryMocks = vi.hoisted(() => ({
+	cashActive: vi.fn<() => Promise<{ items: { id: string }[] }>>(),
+	cashPaused: vi.fn<() => Promise<{ items: { id: string }[] }>>(),
+	tournamentActive: vi.fn<() => Promise<{ items: { id: string }[] }>>(),
+	tournamentPaused: vi.fn<() => Promise<{ items: { id: string }[] }>>(),
+}));
+
 function buildKey(namespace: string, procedure: string, input: unknown) {
 	return input === undefined
 		? [namespace, procedure]
@@ -13,17 +20,23 @@ vi.mock("@/utils/trpc", () => ({
 	trpc: {
 		liveCashGameSession: {
 			list: {
-				queryOptions: (input: unknown) => ({
+				queryOptions: (input: { status: "active" | "paused" }) => ({
 					queryKey: buildKey("liveCashGameSession", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
+					queryFn:
+						input.status === "active"
+							? queryMocks.cashActive
+							: queryMocks.cashPaused,
 				}),
 			},
 		},
 		liveTournamentSession: {
 			list: {
-				queryOptions: (input: unknown) => ({
+				queryOptions: (input: { status: "active" | "paused" }) => ({
 					queryKey: buildKey("liveTournamentSession", "list", input),
-					queryFn: () => Promise.resolve({ items: [] }),
+					queryFn:
+						input.status === "active"
+							? queryMocks.tournamentActive
+							: queryMocks.tournamentPaused,
 				}),
 			},
 		},
@@ -79,6 +92,10 @@ function seedAllEmpty(client: QueryClient) {
 describe("useActiveSession", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		queryMocks.cashActive.mockResolvedValue({ items: [] });
+		queryMocks.cashPaused.mockResolvedValue({ items: [] });
+		queryMocks.tournamentActive.mockResolvedValue({ items: [] });
+		queryMocks.tournamentPaused.mockResolvedValue({ items: [] });
 	});
 
 	afterEach(() => {
@@ -200,5 +217,43 @@ describe("useActiveSession", () => {
 		});
 		expect(result.current.activeSession).toBeNull();
 		expect(result.current.hasActive).toBe(false);
+	});
+
+	it("reports an error when one active-session query fails", async () => {
+		const qc = createClient();
+		qc.setQueryData(cashPausedKey, { items: [] });
+		qc.setQueryData(tourActiveKey, { items: [] });
+		qc.setQueryData(tourPausedKey, { items: [] });
+		queryMocks.cashActive.mockRejectedValueOnce(new Error("cash failed"));
+
+		const { result } = renderHook(() => useActiveSession(), {
+			wrapper: makeWrapper(qc),
+		});
+
+		await waitFor(() => expect(result.current.isError).toBe(true));
+		expect(result.current.activeSession).toBeNull();
+		expect(result.current.hasActive).toBe(false);
+	});
+
+	it("retries every failed query exactly once when multiple queries fail", async () => {
+		const qc = createClient();
+		qc.setQueryData(cashPausedKey, { items: [] });
+		qc.setQueryData(tourPausedKey, { items: [] });
+		queryMocks.cashActive.mockRejectedValue(new Error("cash failed"));
+		queryMocks.tournamentActive.mockRejectedValue(
+			new Error("tournament failed")
+		);
+
+		const { result } = renderHook(() => useActiveSession(), {
+			wrapper: makeWrapper(qc),
+		});
+
+		await waitFor(() => expect(result.current.isError).toBe(true));
+		await result.current.onRetry();
+
+		expect(queryMocks.cashActive).toHaveBeenCalledTimes(2);
+		expect(queryMocks.cashPaused).toHaveBeenCalledTimes(0);
+		expect(queryMocks.tournamentActive).toHaveBeenCalledTimes(2);
+		expect(queryMocks.tournamentPaused).toHaveBeenCalledTimes(0);
 	});
 });

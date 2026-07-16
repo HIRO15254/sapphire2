@@ -74,8 +74,16 @@ describe("SessionEvent — indexes", () => {
 	const config = getTableConfig(sessionEvent);
 	const idxNames = config.indexes.map((i) => i.config.name);
 
-	it("has sessionId index for per-session event fetch", () => {
-		expect(idxNames).toContain("sessionEvent_sessionId_idx");
+	it("has a composite unique index for per-session append ordering", () => {
+		const index = config.indexes.find(
+			(i) => i.config.name === "sessionEvent_sessionId_sortOrder_idx"
+		);
+		expect(index).toBeDefined();
+		expect((index?.config as unknown as { unique: boolean }).unique).toBe(true);
+		expect(index?.config.columns.map((column) => column.name)).toEqual([
+			"session_id",
+			"sort_order",
+		]);
 	});
 
 	it("has eventType index to filter by event kind", () => {
@@ -87,11 +95,11 @@ describe("SessionEvent — indexes", () => {
 		expect(idxNames).not.toContain("sessionEvent_liveTournamentSessionId_idx");
 	});
 
-	it("has no unique indexes (multiple events per session allowed)", () => {
+	it("has exactly one unique index while allowing multiple ordered events", () => {
 		const uniqueIdxs = config.indexes.filter(
 			(i) => (i.config as unknown as { unique: boolean }).unique === true
 		);
-		expect(uniqueIdxs).toHaveLength(0);
+		expect(uniqueIdxs).toHaveLength(1);
 	});
 });
 

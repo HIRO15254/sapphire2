@@ -81,8 +81,10 @@ interface State {
 	handleToggleFavorite: ReturnType<typeof vi.fn>;
 	isActionsOpen: boolean;
 	isEditOpen: boolean;
+	isInitialLoadError: boolean;
 	isLoading: boolean;
 	isUpdatePending: boolean;
+	onRetry: ReturnType<typeof vi.fn>;
 	openDeleteFromActions: ReturnType<typeof vi.fn>;
 	openEditFromActions: ReturnType<typeof vi.fn>;
 	room: { isFavorite?: boolean; memo?: string | null; name: string } | null;
@@ -94,8 +96,10 @@ interface State {
 function setState(overrides: Partial<State> = {}): State {
 	const state: State = {
 		room: { name: "Akiba", memo: "late nights", isFavorite: false },
+		isInitialLoadError: false,
 		isLoading: false,
 		isUpdatePending: false,
+		onRetry: vi.fn(),
 		isActionsOpen: false,
 		isEditOpen: false,
 		confirmingDelete: false,
@@ -122,6 +126,34 @@ describe("RoomDetailPage", () => {
 		setState({ isLoading: true });
 		render(<RoomDetailPage roomId="s1" />);
 		expect(screen.getByTestId("room-detail-skeleton")).toBeInTheDocument();
+	});
+
+	it("shows an error and retries when the initial room query fails", async () => {
+		const user = userEvent.setup();
+		const state = setState({
+			isInitialLoadError: true,
+			isLoading: false,
+			room: null,
+		});
+		render(<RoomDetailPage roomId="s1" />);
+
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Unable to load room. Please try again."
+		);
+		expect(
+			screen.queryByRole("heading", { name: "Room not found" })
+		).not.toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+		expect(state.onRetry).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps a cached room visible after a refetch failure", () => {
+		setState({ isInitialLoadError: false });
+		render(<RoomDetailPage roomId="s1" />);
+
+		expect(screen.getByRole("heading", { name: "Akiba" })).toBeInTheDocument();
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
 	it("renders a not-found message when the room is missing", () => {

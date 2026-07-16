@@ -16,11 +16,12 @@ Why this file exists: the Fable review found a cluster of data-corruption bugs f
 
 ## D1 write hazards
 
-- **100 bound parameters per statement.** A multi-row `.insert().values(rows)` binds `rows × columns` params; ≥12 blind-level rows blew the limit and — because the preceding DELETE had already committed — destroyed the data (SA2-115). Use the shared helpers in [`packages/api/src/routers/session.ts`](packages/api/src/routers/session.ts): `chunkForInsert` for inserts, `selectInChunks` for `IN (…)` selects.
+- **100 bound parameters per statement.** A multi-row `.insert().values(rows)` binds `rows × columns` params; ≥12 blind-level rows blew the limit and — because the preceding DELETE had already committed — destroyed the data (SA2-115). Use the shared helpers in [`packages/api/src/routers/session.ts`](../../packages/api/src/routers/session.ts): `chunkForInsert` for inserts, `selectInChunks` for `IN (…)` selects.
 - **Multi-statement writes go through `db.batch()`** so they commit atomically. Sequential awaited statements auto-commit one by one and a mid-way failure strands partial state (SA2-116). DELETE-then-reINSERT is the highest-risk shape — always batch it.
+- **Session-event append order is allocated inside the INSERT.** Use `nextAppendSortOrderSql` from [`packages/api/src/utils/session-event-time.ts`](../../packages/api/src/utils/session-event-time.ts); never `SELECT MAX(sortOrder)` and then INSERT, because concurrent appenders can choose the same value (SA2-196). The `(session_id, sort_order)` unique index is the backstop. Fixed sort-order ranges are allowed only within one atomic replacement batch, such as cash-session reopen.
 - **Cascade-aware deletes.** Before writing a `delete` procedure, read the schema for `onDelete: "cascade"` on referencing FKs. Deleting a currency silently cascade-deleted session-generated transactions (SA2-165). Either guard ("in use → reject") or make the cascade an explicit, documented decision.
 
 ## List endpoints
 
 - **No N+1.** Fetch child rows for a page with one `inArray(parentId, ids)` query (chunked via `selectInChunks`), not one query per row — per-query latency dominates on D1 (SA2-151).
-- **Keyset pagination** uses `paginate` from [`packages/api/src/routers/_pagination.ts`](packages/api/src/routers/_pagination.ts) and its comparison must (a) survive the cursor row being deleted (a subquery returning `NULL` silently ends paging, SA2-150), (b) break ties on `id`, and (c) carry the caller's ownership scope (see [`api-security.md`](api-security.md)).
+- **Keyset pagination** uses `paginate` from [`packages/api/src/routers/_pagination.ts`](../../packages/api/src/routers/_pagination.ts) and its comparison must (a) survive the cursor row being deleted (a subquery returning `NULL` silently ends paging, SA2-150), (b) break ties on `id`, and (c) carry the caller's ownership scope (see [`api-security.md`](api-security.md)).

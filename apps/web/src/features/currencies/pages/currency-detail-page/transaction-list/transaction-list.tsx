@@ -4,6 +4,7 @@ import {
 	buildGroupFormatter,
 	groupTransactionsByDate,
 } from "@/features/currencies/utils/transaction-list-helpers";
+import { QueryError } from "@/shared/components/query-error";
 import { Button } from "@/shared/components/ui/button";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
@@ -16,6 +17,8 @@ import { type Transaction, TransactionRow } from "./transaction-row";
 
 interface TransactionListV2Props {
 	hasMore?: boolean;
+	/** Initial transactions fetch failed before any rows were loaded. */
+	isError?: boolean;
 	/** Initial transactions fetch is in flight (no rows yet). */
 	isLoading?: boolean;
 	isLoadingMore?: boolean;
@@ -30,6 +33,8 @@ interface TransactionListV2Props {
 	 * the amount column stays aligned.
 	 */
 	onOpenActions?: (transaction: Transaction) => void;
+	/** Retry the failed initial transactions query. */
+	onRetry?: () => void;
 	transactions: Transaction[];
 }
 
@@ -43,6 +48,8 @@ export function TransactionListV2({
 	isLoading,
 	isLoadingMore,
 	onLoadMore,
+	onRetry,
+	isError,
 }: TransactionListV2Props) {
 	const fmt = buildGroupFormatter(transactions);
 	const groups = groupTransactionsByDate(transactions);
@@ -61,6 +68,15 @@ export function TransactionListV2({
 					</div>
 				))}
 			</div>
+		);
+	}
+
+	if (isError) {
+		return (
+			<QueryError
+				message="Unable to load transactions. Please try again."
+				onRetry={onRetry ?? (() => undefined)}
+			/>
 		);
 	}
 

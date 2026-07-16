@@ -10,7 +10,9 @@ interface ActiveSessionInfo {
 interface UseActiveSessionResult {
 	activeSession: ActiveSessionInfo | null;
 	hasActive: boolean;
+	isError: boolean;
 	isLoading: boolean;
+	onRetry: () => Promise<unknown[]>;
 }
 
 export function useActiveSession(): UseActiveSessionResult {
@@ -33,11 +35,18 @@ export function useActiveSession(): UseActiveSessionResult {
 		})
 	);
 
-	const isLoading =
-		cashActiveQuery.isLoading ||
-		cashPausedQuery.isLoading ||
-		tournamentActiveQuery.isLoading ||
-		tournamentPausedQuery.isLoading;
+	const queries = [
+		cashActiveQuery,
+		cashPausedQuery,
+		tournamentActiveQuery,
+		tournamentPausedQuery,
+	];
+	const isLoading = queries.some((query) => query.isLoading);
+	const isError = queries.some((query) => query.isError);
+	const onRetry = () =>
+		Promise.all(
+			queries.filter((query) => query.isError).map((query) => query.refetch())
+		);
 
 	const activeCash =
 		cashActiveQuery.data?.items?.[0] ?? cashPausedQuery.data?.items?.[0];
@@ -68,6 +77,8 @@ export function useActiveSession(): UseActiveSessionResult {
 	return {
 		activeSession,
 		hasActive: activeSession !== null,
+		isError,
 		isLoading,
+		onRetry,
 	};
 }

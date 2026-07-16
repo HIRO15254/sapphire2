@@ -1,4 +1,5 @@
 import type { Tournament } from "@/features/rooms/hooks/use-tournaments";
+import { QueryError } from "@/shared/components/query-error";
 import { ArchivedTournaments } from "../archived-tournaments";
 import { TournamentList } from "../tournament-list";
 import { TournamentListSkeleton } from "../tournament-list-skeleton";
@@ -10,7 +11,9 @@ interface TournamentContentProps {
 	archivedLoading: boolean;
 	archivedTournaments: Tournament[];
 	currencies: CurrencyOption[];
+	isInitialLoadError: boolean;
 	onOpenActions: (tournament: Tournament) => void;
+	onRetry: () => void;
 	showArchived: boolean;
 }
 
@@ -18,11 +21,18 @@ export function TournamentContent({
 	activeLoading,
 	activeTournaments,
 	archivedLoading,
+	isInitialLoadError,
+	onRetry,
 	archivedTournaments,
 	currencies,
 	onOpenActions,
 	showArchived,
 }: TournamentContentProps) {
+	if (isInitialLoadError) {
+		return (
+			<QueryError message="Unable to load tournaments" onRetry={onRetry} />
+		);
+	}
 	if (activeLoading) {
 		return <TournamentListSkeleton />;
 	}
