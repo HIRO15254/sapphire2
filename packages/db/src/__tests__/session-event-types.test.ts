@@ -24,6 +24,8 @@ import {
 	tournamentSessionStartPayload,
 	updateStackPayload,
 	validateEventPayload,
+	VIRTUAL_EVENT_TYPES,
+	virtualAmountPayload,
 } from "../constants/session-event-types";
 
 describe("SESSION_STATUSES", () => {
@@ -67,11 +69,17 @@ describe("event type arrays", () => {
 		expect(COMMON_EVENT_TYPES).toContain("player_leave");
 		expect(COMMON_EVENT_TYPES).toContain("memo");
 	});
+
+	it("VIRTUAL_EVENT_TYPES contains exactly virtual_buy_in and virtual_cash_out", () => {
+		expect(VIRTUAL_EVENT_TYPES).toContain("virtual_buy_in");
+		expect(VIRTUAL_EVENT_TYPES).toContain("virtual_cash_out");
+		expect(VIRTUAL_EVENT_TYPES).toHaveLength(2);
+	});
 });
 
 describe("ALL_EVENT_TYPES", () => {
-	it("includes all 11 event types", () => {
-		expect(ALL_EVENT_TYPES).toHaveLength(11);
+	it("includes all 13 event types", () => {
+		expect(ALL_EVENT_TYPES).toHaveLength(13);
 	});
 
 	it("includes all lifecycle event types", () => {
@@ -100,6 +108,12 @@ describe("ALL_EVENT_TYPES", () => {
 
 	it("includes all common event types", () => {
 		for (const t of COMMON_EVENT_TYPES) {
+			expect(ALL_EVENT_TYPES).toContain(t);
+		}
+	});
+
+	it("includes all virtual event types", () => {
+		for (const t of VIRTUAL_EVENT_TYPES) {
 			expect(ALL_EVENT_TYPES).toContain(t);
 		}
 	});
@@ -436,6 +450,21 @@ describe("isValidEventTypeForSessionType", () => {
 			true
 		);
 	});
+
+	it("allows virtual event types for both session types", () => {
+		expect(isValidEventTypeForSessionType("virtual_buy_in", "cash_game")).toBe(
+			true
+		);
+		expect(isValidEventTypeForSessionType("virtual_buy_in", "tournament")).toBe(
+			true
+		);
+		expect(isValidEventTypeForSessionType("virtual_cash_out", "cash_game")).toBe(
+			true
+		);
+		expect(
+			isValidEventTypeForSessionType("virtual_cash_out", "tournament")
+		).toBe(true);
+	});
 });
 
 describe("validateEventPayload", () => {
@@ -483,6 +512,167 @@ describe("validateEventPayload", () => {
 	it("dispatches non-lifecycle events using general schema map", () => {
 		const result = validateEventPayload("memo", { text: "nice bluff" });
 		expect(result).toBeDefined();
+	});
+
+	it("dispatches virtual_buy_in / virtual_cash_out to virtualAmountPayload", () => {
+		const pure = {
+			amount: 500,
+			itemId: null,
+			itemName: null,
+			count: null,
+			unitValue: null,
+			currencyId: null,
+		};
+		expect(validateEventPayload("virtual_buy_in", pure)).toEqual(pure);
+		expect(validateEventPayload("virtual_cash_out", pure)).toEqual(pure);
+	});
+});
+
+describe("virtualAmountPayload", () => {
+	const pureVirtual = {
+		amount: 500,
+		itemId: null,
+		itemName: null,
+		count: null,
+		unitValue: null,
+		currencyId: null,
+	};
+	const itemBased = {
+		amount: 2000,
+		itemId: "item-1",
+		itemName: "Tournament ticket",
+		count: 2,
+		unitValue: 1000,
+		currencyId: "currency-1",
+	};
+
+	it("accepts a pure-virtual payload (all item fields null)", () => {
+		expect(virtualAmountPayload.parse(pureVirtual)).toEqual(pureVirtual);
+	});
+
+	it("accepts an item-based payload with amount = count × unitValue", () => {
+		expect(virtualAmountPayload.parse(itemBased)).toEqual(itemBased);
+	});
+
+	it("accepts a zero-value item usage (unitValue 0 → amount 0)", () => {
+		const zeroValue = {
+			...itemBased,
+			unitValue: 0,
+			amount: 0,
+		};
+		expect(virtualAmountPayload.parse(zeroValue)).toEqual(zeroValue);
+	});
+
+	it("rejects a pure-virtual payload with amount 0 (no-op event)", () => {
+		expect(() =>
+			virtualAmountPayload.parse({ ...pureVirtual, amount: 0 })
+		).toThrow();
+	});
+
+	it("rejects negative amount", () => {
+		expect(() =>
+			virtualAmountPayload.parse({ ...pureVirtual, amount: -100 })
+		).toThrow();
+	});
+
+	it("rejects non-integer amount", () => {
+		expect(() =>
+			virtualAmountPayload.parse({ ...pureVirtual, amount: 10.5 })
+		).toThrow();
+	});
+
+	it("rejects an item payload whose amount ≠ count × unitValue", () => {
+		expect(() =>
+			virtualAmountPayload.parse({ ...itemBased, amount: 1999 })
+		).toThrow();
+	});
+
+	it("rejects a partially-set item payload (itemId set, count null)", () => {
+		expect(() =>
+			virtualAmountPayload.parse({ ...itemBased, count: null })
+		).toThrow();
+	});
+
+	it("rejects a partially-set item payload (itemId set, itemName null)", () => {
+		expect(() =>
+			virtualAmountPayload.parse({ ...itemBased, itemName: null })
+		).toThrow();
+	});
+
+	it("rejects a partially-set item payload (itemId set, unitValue null)", () => {
+		expect(() =>
+			virtualAmountPayload.parse({ ...itemBased, unitValue: null })
+		).toThrow();
+	});
+
+	it("rejects a partially-set item payload (itemName set without itemId)", () => {
+		expect(() =>
+			virtualAmountPayload.parse({
+				...pureVirtual,
+				itemName: "Tournament ticket",
+			})
+		).toThrow();
+	});
+
+	it("allows a null currencyId on an item payload (snapshot survives currency loss)", () => {
+		const noCurrency = { ...itemBased, currencyId: null };
+		expect(virtualAmountPayload.parse(noCurrency)).toEqual(noCurrency);
+	});
+
+	it("rejects count 0", () => {
+		expect(() =>
+			virtualAmountPayload.parse({
+				...itemBased,
+				count: 0,
+				amount: 0,
+			})
+		).toThrow();
+	});
+
+	it("rejects negative count", () => {
+		expect(() =>
+			virtualAmountPayload.parse({
+				...itemBased,
+				count: -1,
+				amount: -1000,
+			})
+		).toThrow();
+	});
+
+	it("rejects non-integer count", () => {
+		expect(() =>
+			virtualAmountPayload.parse({
+				...itemBased,
+				count: 1.5,
+				amount: 1500,
+			})
+		).toThrow();
+	});
+
+	it("rejects negative unitValue", () => {
+		expect(() =>
+			virtualAmountPayload.parse({
+				...itemBased,
+				unitValue: -1000,
+				amount: -2000,
+			})
+		).toThrow();
+	});
+
+	it("rejects empty-string itemId", () => {
+		expect(() =>
+			virtualAmountPayload.parse({ ...itemBased, itemId: "" })
+		).toThrow();
+	});
+
+	it("rejects empty-string itemName", () => {
+		expect(() =>
+			virtualAmountPayload.parse({ ...itemBased, itemName: "" })
+		).toThrow();
+	});
+
+	it("rejects missing fields entirely (undefined is not null)", () => {
+		expect(() => virtualAmountPayload.parse({ amount: 500 })).toThrow();
 	});
 });
 
@@ -560,12 +750,19 @@ describe("isEventAllowedInState", () => {
 		expect(isEventAllowedInState("session_end", "paused")).toBe(true);
 	});
 
+	it("active state allows virtual event types", () => {
+		expect(isEventAllowedInState("virtual_buy_in", "active")).toBe(true);
+		expect(isEventAllowedInState("virtual_cash_out", "active")).toBe(true);
+	});
+
 	it("paused state blocks all other event types", () => {
 		expect(isEventAllowedInState("chips_add_remove", "paused")).toBe(false);
 		expect(isEventAllowedInState("all_in", "paused")).toBe(false);
 		expect(isEventAllowedInState("update_stack", "paused")).toBe(false);
 		expect(isEventAllowedInState("player_join", "paused")).toBe(false);
 		expect(isEventAllowedInState("session_start", "paused")).toBe(false);
+		expect(isEventAllowedInState("virtual_buy_in", "paused")).toBe(false);
+		expect(isEventAllowedInState("virtual_cash_out", "paused")).toBe(false);
 	});
 
 	it("completed state allows nothing", () => {
@@ -583,6 +780,7 @@ describe("event-type array disjointness and totals", () => {
 			CASH_EVENT_TYPES,
 			TOURNAMENT_EVENT_TYPES,
 			COMMON_EVENT_TYPES,
+			VIRTUAL_EVENT_TYPES,
 		] as const;
 		const seen = new Map<string, number>();
 		for (const g of groups) {
@@ -601,7 +799,8 @@ describe("event-type array disjointness and totals", () => {
 			PAUSE_RESUME_EVENT_TYPES.length +
 			CASH_EVENT_TYPES.length +
 			TOURNAMENT_EVENT_TYPES.length +
-			COMMON_EVENT_TYPES.length;
+			COMMON_EVENT_TYPES.length +
+			VIRTUAL_EVENT_TYPES.length;
 		expect(ALL_EVENT_TYPES).toHaveLength(unionSize);
 	});
 

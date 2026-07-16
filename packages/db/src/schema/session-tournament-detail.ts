@@ -20,6 +20,11 @@ export const sessionTournamentDetail = sqliteTable(
 		beforeDeadline: integer("before_deadline", { mode: "boolean" }),
 		prizeMoney: integer("prize_money"),
 		bountyPrizes: integer("bounty_prizes"),
+		// Pure-virtual amounts (no item), in the session currency. Item-based
+		// virtual value lives in session_item_usage (count × unitValue) and is
+		// intentionally NOT double-booked here. Never feeds currency balances.
+		virtualBuyIn: integer("virtual_buy_in"),
+		virtualCashOut: integer("virtual_cash_out"),
 		timerStartedAt: integer("timer_started_at", { mode: "timestamp" }),
 		// Snapshot fields — copied from tournament at session create time and
 		// frozen thereafter. Parent rename / config change does not propagate.

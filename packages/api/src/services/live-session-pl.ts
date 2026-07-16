@@ -8,13 +8,16 @@ import {
 	playerLeavePayload,
 	purchaseChipsPayload,
 	tournamentSessionEndPayload,
+	virtualAmountPayload,
 } from "@sapphire2/db/constants/session-event-types";
 import { currencyTransaction } from "@sapphire2/db/schema/currency";
+import { itemTransaction } from "@sapphire2/db/schema/item";
 import { gameSession } from "@sapphire2/db/schema/session";
 import { sessionCashDetail } from "@sapphire2/db/schema/session-cash-detail";
 import { sessionChipPurchase } from "@sapphire2/db/schema/session-chip-purchase";
 import { sessionChipPurchaseResult } from "@sapphire2/db/schema/session-chip-purchase-result";
 import { sessionEvent } from "@sapphire2/db/schema/session-event";
+import { sessionItemUsage } from "@sapphire2/db/schema/session-item-usage";
 import { sessionTournamentDetail } from "@sapphire2/db/schema/session-tournament-detail";
 import { tournament } from "@sapphire2/db/schema/tournament";
 import { eq, sql } from "drizzle-orm";
@@ -27,7 +30,27 @@ type DbInstance = Parameters<
 	Parameters<typeof protectedProcedure.query>[0]
 >[0]["ctx"]["db"];
 
-interface CashGamePLResult {
+/** One item-based virtual buy-in / cash-out, snapshotted at usage time. */
+export interface SessionItemUsageInput {
+	count: number;
+	currencyId: string | null;
+	direction: "buy_in" | "cash_out";
+	itemId: string | null;
+	itemName: string;
+	unitValue: number;
+}
+
+/** Virtual (non-balance-affecting) amounts derived from virtual events.
+ * `virtualBuyIn` / `virtualCashOut` hold pure-virtual (no-item) sums only;
+ * item-based value is carried per-usage in `itemUsages`. None of these ever
+ * feed `profitLoss` or the currency ledger. */
+interface VirtualAmountsResult {
+	itemUsages: SessionItemUsageInput[];
+	virtualBuyIn: number;
+	virtualCashOut: number;
+}
+
+interface CashGamePLResult extends VirtualAmountsResult {
 	addonTotal: number;
 	cashOut: number | null;
 	/** Σ of chips racked off the table (positive amount of every negative
@@ -39,7 +62,7 @@ interface CashGamePLResult {
 	totalBuyIn: number;
 }
 
-interface TournamentPLResult {
+interface TournamentPLResult extends VirtualAmountsResult {
 	beforeDeadline: boolean;
 	bountyPrizes: number | null;
 	/** Σ cost across all purchase_chips events. */
@@ -50,6 +73,72 @@ interface TournamentPLResult {
 	prizeMoney: number | null;
 	profitLoss: number | null;
 	totalEntries: number | null;
+}
+
+/** Fold virtual_buy_in / virtual_cash_out events into pure-virtual totals
+ * and item usage rows. Shared by the cash and tournament reducers. */
+function computeVirtualAmountsFromEvents(
+	events: { eventType: string; payload: string }[]
+): VirtualAmountsResult {
+	let virtualBuyIn = 0;
+	let virtualCashOut = 0;
+	const itemUsages: SessionItemUsageInput[] = [];
+
+	for (const event of events) {
+		if (
+			event.eventType !== "virtual_buy_in" &&
+			event.eventType !== "virtual_cash_out"
+		) {
+			continue;
+		}
+		const data = virtualAmountPayload.parse(JSON.parse(event.payload));
+		const direction =
+			event.eventType === "virtual_buy_in" ? "buy_in" : "cash_out";
+
+		if (data.itemId === null) {
+			if (direction === "buy_in") {
+				virtualBuyIn += data.amount;
+			} else {
+				virtualCashOut += data.amount;
+			}
+			continue;
+		}
+
+		itemUsages.push({
+			itemId: data.itemId,
+			// The payload refine guarantees itemName / count / unitValue are set
+			// whenever itemId is; the fallbacks only satisfy the type system.
+			itemName: data.itemName ?? "",
+			unitValue: data.unitValue ?? 0,
+			currencyId: data.currencyId,
+			direction,
+			count: data.count ?? 0,
+		});
+	}
+
+	return { virtualBuyIn, virtualCashOut, itemUsages };
+}
+
+/** Net item-count change per item for the holdings ledger: cash-outs gain
+ * items (+), buy-ins spend them (−). Items netting to zero are omitted, and
+ * usages whose itemId was nulled by item deletion are skipped. */
+export function computeNetItemCounts(
+	usages: SessionItemUsageInput[]
+): Map<string, number> {
+	const net = new Map<string, number>();
+	for (const usage of usages) {
+		if (usage.itemId === null) {
+			continue;
+		}
+		const delta = usage.direction === "cash_out" ? usage.count : -usage.count;
+		net.set(usage.itemId, (net.get(usage.itemId) ?? 0) + delta);
+	}
+	for (const [itemId, count] of net) {
+		if (count === 0) {
+			net.delete(itemId);
+		}
+	}
+	return net;
 }
 
 interface SessionState {
@@ -162,6 +251,7 @@ export function computeCashGamePLFromEvents(
 		evCashOut,
 		evDiff: totalEvDiff,
 		addonTotal,
+		...computeVirtualAmountsFromEvents(events),
 	};
 }
 
@@ -217,6 +307,7 @@ export function computeTournamentPLFromEvents(
 		prizeMoney,
 		bountyPrizes,
 		profitLoss,
+		...computeVirtualAmountsFromEvents(events),
 	};
 }
 
@@ -265,6 +356,75 @@ async function deleteCurrencyTransaction(
 		.where(eq(currencyTransaction.sessionId, sessionId));
 }
 
+/**
+ * Rewrite the session's item-usage rows and item-ledger rows from the
+ * event-derived usages. DELETE + chunked re-INSERT, all in ONE batch so a
+ * mid-way failure cannot strand a deleted usage set (SA2-116). The item
+ * ledger gets one net-count row per item (cash-outs +, buy-ins −); items
+ * netting to zero get no row. Like the currency ledger, item ledger rows
+ * only exist for completed sessions — callers must use
+ * `deleteSessionItemData` on the not-completed path.
+ */
+export async function syncSessionItemData(
+	db: DbInstance,
+	sessionId: string,
+	usages: SessionItemUsageInput[],
+	sessionDate: Date
+): Promise<void> {
+	const statements: BatchStatement[] = [
+		db.delete(sessionItemUsage).where(eq(sessionItemUsage.sessionId, sessionId)),
+		db.delete(itemTransaction).where(eq(itemTransaction.sessionId, sessionId)),
+	];
+
+	// 8 columns per usage row → 12 rows stay under D1's 100-bind-param limit.
+	const usageRows = usages.map((usage) => ({
+		id: crypto.randomUUID(),
+		sessionId,
+		itemId: usage.itemId,
+		direction: usage.direction,
+		count: usage.count,
+		itemName: usage.itemName,
+		unitValue: usage.unitValue,
+		currencyId: usage.currencyId,
+	}));
+	for (let i = 0; i < usageRows.length; i += 12) {
+		statements.push(
+			db.insert(sessionItemUsage).values(usageRows.slice(i, i + 12))
+		);
+	}
+
+	const ledgerRows = [...computeNetItemCounts(usages)].map(
+		([itemId, count]) => ({
+			id: crypto.randomUUID(),
+			itemId,
+			sessionId,
+			count,
+			transactedAt: sessionDate,
+		})
+	);
+	// 5 columns per ledger row → 20 rows per statement.
+	for (let i = 0; i < ledgerRows.length; i += 20) {
+		statements.push(
+			db.insert(itemTransaction).values(ledgerRows.slice(i, i + 20))
+		);
+	}
+
+	await runBatch(db, statements);
+}
+
+/** Remove all session-generated item data (usage rows + ledger rows) for a
+ * not-completed session — the item-ledger mirror of
+ * `deleteCurrencyTransaction`, covering discard and reopen. */
+export async function deleteSessionItemData(
+	db: DbInstance,
+	sessionId: string
+): Promise<void> {
+	await runBatch(db, [
+		db.delete(sessionItemUsage).where(eq(sessionItemUsage.sessionId, sessionId)),
+		db.delete(itemTransaction).where(eq(itemTransaction.sessionId, sessionId)),
+	]);
+}
+
 export async function recalculateCashGameSession(
 	db: DbInstance,
 	sessionId: string,
@@ -299,6 +459,7 @@ export async function recalculateCashGameSession(
 
 	if (state.status !== "completed") {
 		await deleteCurrencyTransaction(db, sessionId);
+		await deleteSessionItemData(db, sessionId);
 		return;
 	}
 
@@ -322,23 +483,27 @@ export async function recalculateCashGameSession(
 		.from(sessionCashDetail)
 		.where(eq(sessionCashDetail.sessionId, sessionId));
 
+	const cashDetailValues = {
+		buyIn: pl.totalBuyIn,
+		cashOut: pl.cashOut,
+		evCashOut: pl.evCashOut,
+		virtualBuyIn: pl.virtualBuyIn > 0 ? pl.virtualBuyIn : null,
+		virtualCashOut: pl.virtualCashOut > 0 ? pl.virtualCashOut : null,
+	};
+
 	if (existingDetail) {
 		await db
 			.update(sessionCashDetail)
-			.set({
-				buyIn: pl.totalBuyIn,
-				cashOut: pl.cashOut,
-				evCashOut: pl.evCashOut,
-			})
+			.set(cashDetailValues)
 			.where(eq(sessionCashDetail.sessionId, sessionId));
 	} else {
 		await db.insert(sessionCashDetail).values({
 			sessionId,
-			buyIn: pl.totalBuyIn,
-			cashOut: pl.cashOut,
-			evCashOut: pl.evCashOut,
+			...cashDetailValues,
 		});
 	}
+
+	await syncSessionItemData(db, sessionId, pl.itemUsages, effectiveSessionDate);
 
 	await syncCurrencyTransaction(
 		db,
@@ -454,6 +619,7 @@ export async function recalculateTournamentSession(
 
 	if (state.status !== "completed") {
 		await deleteCurrencyTransaction(db, sessionId);
+		await deleteSessionItemData(db, sessionId);
 		return;
 	}
 
@@ -492,6 +658,8 @@ export async function recalculateTournamentSession(
 		beforeDeadline: pl.beforeDeadline ? true : null,
 		prizeMoney: pl.prizeMoney,
 		bountyPrizes: pl.bountyPrizes,
+		virtualBuyIn: pl.virtualBuyIn > 0 ? pl.virtualBuyIn : null,
+		virtualCashOut: pl.virtualCashOut > 0 ? pl.virtualCashOut : null,
 	};
 
 	if (existingDetail) {
@@ -509,6 +677,8 @@ export async function recalculateTournamentSession(
 
 	// Sync chip purchase result counts from the purchase_chips events.
 	await syncChipPurchaseResults(db, sessionId, pl.chipPurchaseCounts);
+
+	await syncSessionItemData(db, sessionId, pl.itemUsages, effectiveSessionDate);
 
 	await syncCurrencyTransaction(
 		db,

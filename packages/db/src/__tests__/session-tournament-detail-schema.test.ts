@@ -95,6 +95,13 @@ describe("SessionTournamentDetail schema — columns", () => {
 		expect(columns.prizeMoney.dataType).toBe("number");
 		expect(columns.bountyPrizes.dataType).toBe("number");
 	});
+
+	it("virtualBuyIn / virtualCashOut are nullable integers (pure-virtual amounts only)", () => {
+		expect(columns.virtualBuyIn.notNull).toBe(false);
+		expect(columns.virtualCashOut.notNull).toBe(false);
+		expect(columns.virtualBuyIn.dataType).toBe("number");
+		expect(columns.virtualCashOut.dataType).toBe("number");
+	});
 });
 
 describe("SessionTournamentDetail — FK cascade policies", () => {
